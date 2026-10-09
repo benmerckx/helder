@@ -31,7 +31,7 @@ cp -r haxe/std/haxe haxe/std/sys haxe/std/eval "$B/std/"
 F="-O2 -w -fno-strict-aliasing -fwasm-exceptions -sMEMORY64=1 -I backend/rt"
 if [ ! "$B/obj/prog.o" -nt "$C" ]; then em++ -x c++ $F -c "$C" -o "$B/obj/prog.o"; fi
 # the runtime; sockets, mbedtls and libuv are stubs that throw when called
-RT="rt rt_dyn rt_std rt_str rt_sys rt_net rt_ssl rt_uv rt_thread"
+RT="rt rt_dyn rt_std rt_str rt_sys rt_net rt_ssl rt_uv rt_thread rt_census"
 for f in $RT; do em++ -x c++ $F -DHXC_NO_NET -DHXC_NO_SSL -DHXC_NO_UV -c "backend/rt/$f.c" -o "$B/obj/$f.o"; done
 em++ $F -o "$OUT/hih.js" "$B/obj/prog.o" $(for f in $RT; do echo "$B/obj/$f.o"; done) \
 	-sMODULARIZE=1 -sEXPORT_NAME=createHih -sENVIRONMENT=web,worker,node \
