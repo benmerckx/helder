@@ -43,14 +43,14 @@
 			<span id="state" class="state">Loading compiler…</span>
 		</div>
 		<div class="play">
-			<textarea id="code" spellcheck="false" wrap="off" aria-label="Main.hx"></textarea>
+			<div id="editor" aria-label="Haxe source"></div>
 			<div class="output">
 				<div class="outhead">Output <span id="timing"></span></div>
 				<pre id="out"></pre>
 				<div id="members" hidden></div>
 			</div>
 		</div>
-		<p class="note">The file is <code>Main.hx</code> with a <code>Main</code> class. The first run downloads <span data-info="wasmGz">~10 MB</span> of WebAssembly and <span data-info="dataGz">~1 MB</span> of standard library; later runs are cached.</p>
+		<p class="note">The editor (<a href="https://microsoft.github.io/monaco-editor/">Monaco</a>) asks the same compiler for completion, hover, signature help and go-to-definition through the JSON-RPC display API that IDEs use, and type-checks as you type. The main class is the one declaring <code>static function main</code>. Examples marked “From try.haxe.org” are from <a href="https://try.haxe.org/">try.haxe.org</a> (<a href="examples/LICENSE-try-haxe.txt">MIT</a>); its Http, canvas and utest examples need the network, the JavaScript target or a library, so they're left out. The first run downloads <span data-info="wasmGz">~10 MB</span> of WebAssembly and <span data-info="dataGz">~1 MB</span> of standard library; later runs are cached.</p>
 	</section>
 
 	<section id="download">
