@@ -29,9 +29,9 @@ cp -r haxe/std/haxe haxe/std/sys haxe/std/eval "$B/std/"
 # wasm64: the runtime lays objects out in 8-byte slots holding 64-bit pointers
 F="-O2 -w -fno-strict-aliasing -fwasm-exceptions -sMEMORY64=1 -I backend/rt"
 if [ ! "$B/obj/prog.o" -nt "$C" ]; then em++ -x c++ $F -c "$C" -o "$B/obj/prog.o"; fi
-# the core runtime (rt_net/rt_ssl/rt_uv need sockets, mbedtls and libuv)
-RT="rt rt_dyn rt_std rt_str rt_sys"
-for f in $RT; do em++ -x c++ $F -c "backend/rt/$f.c" -o "$B/obj/$f.o"; done
+# the runtime; sockets, mbedtls and libuv are stubs that throw when called
+RT="rt rt_dyn rt_std rt_str rt_sys rt_net rt_ssl rt_uv"
+for f in $RT; do em++ -x c++ $F -DHXC_NO_NET -DHXC_NO_SSL -DHXC_NO_UV -c "backend/rt/$f.c" -o "$B/obj/$f.o"; done
 em++ $F -o "$OUT/hih.js" "$B/obj/prog.o" $(for f in $RT; do echo "$B/obj/$f.o"; done) \
 	-sMODULARIZE=1 -sEXPORT_NAME=createHih -sENVIRONMENT=web,worker,node \
 	-sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB -sMAXIMUM_MEMORY=8GB -sSTACK_SIZE=8MB \
@@ -40,7 +40,7 @@ em++ $F -o "$OUT/hih.js" "$B/obj/prog.o" $(for f in $RT; do echo "$B/obj/$f.o"; 
 
 # 4. the portable binary, with the std subset in its own zip (rt.c: /zip/std)
 if [ -z "${SKIP_COM:-}" ]; then
-	if [ ! "$B/hih.com" -nt "$C" ]; then cosmocc -O2 -w -fno-strict-aliasing -I backend/rt "$C" $(for f in $RT; do echo "backend/rt/$f.c"; done) -lm -o "$B/hih.com"; fi
+	if [ ! "$B/hih.com" -nt "$C" ]; then cosmocc -O2 -w -fno-strict-aliasing -DHXC_NO_SSL -DHXC_NO_UV -I backend/rt "$C" $(for f in $RT; do echo "backend/rt/$f.c"; done) -lm -o "$B/hih.com"; fi
 	cp "$B/hih.com" "$OUT/haxe-in-haxe.com"
 	(cd "$B" && zip -qr -9 "../../$OUT/haxe-in-haxe.com" std)
 fi
