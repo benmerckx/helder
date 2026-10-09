@@ -321,7 +321,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 
 <p>Completion only became possible once the <b>display services</b> were ported. <code>test/display.py</code> replays the upstream display test corpus against both compilers and requires identical exit code, stdout and stderr. The upstream assertions aren't evaluated, so even a case upstream marks as failing has to be reproduced. All <b>679</b> requests the test methods issue match, and so do all <b>7,325</b> requests of the extended run (every position method at every marker).</p>
 
-<p>The site is static. The downloadable <code>haxe-in-haxe.com</code> (23.1 MB, the binary plus a zip of the std subset it needs) is kept under the 25 MiB per-file limit that <code>site/build.sh</code> plans for.</p>
+<p>The site is static. Hosting took three tries: GitHub Pages was out because the repository is private, Cloudflare Pages was already tied to another account, so it ended up on Netlify, deploying a pre-built <code>site-dist</code> branch (the wasm and the APE are built here, not on the host). The downloadable <code>haxe-in-haxe.com</code> (23.1 MB, the binary plus a zip of the std subset it needs) is kept under the 25 MiB per-file limit that <code>site/build.sh</code> plans for.</p>
 
 <h2 id="target">9. hxc as a real target</h2>
 
