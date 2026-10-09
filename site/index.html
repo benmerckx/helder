@@ -31,8 +31,8 @@
 	<section class="cards" aria-label="Summary">
 		<div class="card"><b>279 / 279</b><span>HXB conformance cases byte-identical to the reference compiler (plus 7 the reference also rejects), and 66 / 66 macro cases</span></div>
 		<div class="card"><b>All steps pass</b><span>upstream CI's target-independent test job on the C build: unit 11372 / 11372, misc 684 / 684, threads 144 / 144, tink_core, hxcoro</span></div>
-		<div class="card"><b>5.2 s vs 6.1 s</b><span>the port compiling itself, natively (hxc built with clang) versus the OCaml compiler, single-threaded</span></div>
-		<div class="card"><b>469 MB vs 531 MB</b><span>peak memory of that self-compile: below the OCaml compiler's</span></div>
+		<div class="card"><b>5.19 s vs 5.95 s</b><span>CPU time of the port compiling itself, natively (hxc built with clang) versus the OCaml compiler, single-threaded</span></div>
+		<div class="card"><b>456 MB vs 539 MB</b><span>peak memory of that self-compile: below the OCaml compiler's</span></div>
 		<div class="card"><b>4.18 s on 4 threads</b><span>with upstream's parallel passes on real OS threads (OCaml with 4 domains: 4.03 s)</span></div>
 		<div class="card"><b>1.6× faster</b><span>haxe-formatter built with hxc versus its C++ and Node builds, formatting <code>haxe/std</code> with byte-identical output</span></div>
 	</section>
