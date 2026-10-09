@@ -6,7 +6,8 @@
 #
 # Needs: what backend/build.sh port needs (node, haxe/haxe), Emscripten (emcc
 # on PATH, e.g. `. ~/emsdk/emsdk_env.sh`) and cosmocc on PATH (bench/COSMO.md).
-# SKIP_PORT=1 reuses bin/backend/hih/prog.c; SKIP_COM=1 skips the APE binary.
+# SKIP_PORT=1 reuses bin/backend/hih/prog.c; SKIP_COM=1 skips the APE binary;
+# NO_DEPS=1 builds it without mbedtls and libuv.
 set -eu
 cd "$(dirname "$0")/.."
 OUT=bin/site
@@ -38,9 +39,23 @@ em++ $F -o "$OUT/hih.js" "$B/obj/prog.o" $(for f in $RT; do echo "$B/obj/$f.o"; 
 	-sFORCE_FILESYSTEM=1 -sEXPORTED_RUNTIME_METHODS=callMain,FS,ENV \
 	--preload-file "$B/std@/lib/haxe/std"
 
-# 4. the portable binary, with the std subset in its own zip (rt.c: /zip/std)
+# 4. the portable binary, with the std subset in its own zip (rt.c: /zip/std).
+# sys.ssl and eval.luv use mbedtls and libuv built with cosmocc
+# (backend/tools/cosmo-deps.sh); NO_DEPS=1 builds stubs that throw instead
 if [ -z "${SKIP_COM:-}" ]; then
-	if [ ! "$B/hih.com" -nt "$C" ]; then cosmocc -O2 -w -fno-strict-aliasing -DHXC_NO_SSL -DHXC_NO_UV -I backend/rt "$C" $(for f in $RT; do echo "backend/rt/$f.c"; done) -lm -o "$B/hih.com"; fi
+	DEPS=${COSMO_DEPS:-bin/cosmo-deps}
+	if [ -z "${NO_DEPS:-}" ]; then
+		sh backend/tools/cosmo-deps.sh "$DEPS"
+		DEP_FLAGS="-I$DEPS/include"
+		DEP_LIBS="-L$DEPS/lib -lmbedtls -lmbedx509 -lmbedcrypto -luv"
+	else
+		DEP_FLAGS="-DHXC_NO_SSL -DHXC_NO_UV"
+		DEP_LIBS=
+	fi
+	if [ ! "$B/hih.com" -nt "$C" ] || [ "$(cat "$B/hih.com.deps" 2>/dev/null)" != "$DEP_FLAGS" ]; then
+		cosmocc -O2 -w -fno-strict-aliasing $DEP_FLAGS -I backend/rt "$C" $(for f in $RT; do echo "backend/rt/$f.c"; done) -lm $DEP_LIBS -o "$B/hih.com"
+		echo "$DEP_FLAGS" > "$B/hih.com.deps"
+	fi
 	cp "$B/hih.com" "$OUT/haxe-in-haxe.com"
 	(cd "$B" && zip -qr -9 "../../$OUT/haxe-in-haxe.com" std)
 fi
