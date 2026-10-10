@@ -6,7 +6,8 @@
 #
 # Needs: what backend/build.sh port needs (node, haxe/haxe), Emscripten (emcc
 # on PATH, e.g. `. ~/emsdk/emsdk_env.sh`) and cosmocc on PATH (bench/COSMO.md).
-# SKIP_PORT=1 reuses bin/backend/hih/prog.c; SKIP_COM=1 skips the APE binary;
+# SKIP_PORT=1 reuses bin/backend/hih/prog_hxc (the port's C, in chunks compiled
+# in parallel; unchanged objects are reused); SKIP_COM=1 skips the APE binary;
 # NO_DEPS=1 builds it without mbedtls and libuv.
 set -eu
 cd "$(dirname "$0")/.."
@@ -14,9 +15,10 @@ OUT=bin/site
 B=bin/site-build
 mkdir -p "$OUT" "$B/obj"
 
-# 1. the port as C
+# 1. the port as C (and its tcc build)
 [ -n "${SKIP_PORT:-}" ] || sh backend/build.sh port
-C=bin/backend/hih/prog.c
+C=bin/backend/hih/prog_hxc
+RT="rt rt_dyn rt_std rt_str rt_sys rt_net rt_ssl rt_uv rt_thread rt_census"
 
 # 2. the standard library subset the compiler needs for --interp, macros and HXB
 rm -rf "$B/std"
@@ -28,16 +30,13 @@ cp -r haxe/std/haxe haxe/std/sys haxe/std/eval "$B/std/"
 # exception handling): Emscripten's setjmp lowering multiplies the code of
 # functions with many try blocks past V8's 7.6 MB function size limit.
 # wasm64: the runtime lays objects out in 8-byte slots holding 64-bit pointers
+# the runtime's sockets, mbedtls and libuv are stubs that throw when called
 F="-O2 -w -fno-strict-aliasing -fwasm-exceptions -sMEMORY64=1 -I backend/rt"
-if [ ! "$B/obj/prog.o" -nt "$C" ]; then em++ -x c++ $F -c "$C" -o "$B/obj/prog.o"; fi
-# the runtime; sockets, mbedtls and libuv are stubs that throw when called
-RT="rt rt_dyn rt_std rt_str rt_sys rt_net rt_ssl rt_uv rt_thread rt_census"
-for f in $RT; do em++ -x c++ $F -DHXC_NO_NET -DHXC_NO_SSL -DHXC_NO_UV -c "backend/rt/$f.c" -o "$B/obj/$f.o"; done
-em++ $F -o "$OUT/hih.js" "$B/obj/prog.o" $(for f in $RT; do echo "$B/obj/$f.o"; done) \
+CC=em++ CFLAGS="-x c++ $F -DHXC_NO_NET -DHXC_NO_SSL -DHXC_NO_UV" LIBS= RT_FILES="$RT" LDFLAGS="$F \
 	-sMODULARIZE=1 -sEXPORT_NAME=createHih -sENVIRONMENT=web,worker,node \
 	-sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB -sMAXIMUM_MEMORY=8GB -sSTACK_SIZE=8MB \
 	-sFORCE_FILESYSTEM=1 -sEXPORTED_RUNTIME_METHODS=callMain,FS,ENV \
-	--preload-file "$B/std@/lib/haxe/std"
+	--preload-file $B/std@/lib/haxe/std" sh backend/tools/cc-chunks.sh "$C" "$OUT/hih.js"
 
 # 4. the portable binary, with the std subset in its own zip (rt.c: /zip/std).
 # sys.ssl and eval.luv use mbedtls and libuv built with cosmocc
@@ -52,10 +51,7 @@ if [ -z "${SKIP_COM:-}" ]; then
 		DEP_FLAGS="-DHXC_NO_SSL -DHXC_NO_UV"
 		DEP_LIBS=
 	fi
-	if [ ! "$B/hih.com" -nt "$C" ] || [ "$(cat "$B/hih.com.deps" 2>/dev/null)" != "$DEP_FLAGS" ]; then
-		cosmocc -O2 -w -fno-strict-aliasing $DEP_FLAGS -I backend/rt "$C" $(for f in $RT; do echo "backend/rt/$f.c"; done) -lm $DEP_LIBS -o "$B/hih.com"
-		echo "$DEP_FLAGS" > "$B/hih.com.deps"
-	fi
+	CC="cosmocc -O2" CFLAGS="-w -fno-strict-aliasing $DEP_FLAGS" LIBS="-lm $DEP_LIBS" RT_FILES="$RT" sh backend/tools/cc-chunks.sh "$C" "$B/hih.com"
 	cp "$B/hih.com" "$OUT/haxe-in-haxe.com"
 	(cd "$B" && zip -qr -9 "../../$OUT/haxe-in-haxe.com" std)
 fi
