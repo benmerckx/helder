@@ -32,7 +32,7 @@ cp -r haxe/std/haxe haxe/std/sys haxe/std/eval "$B/std/"
 # wasm64: the runtime lays objects out in 8-byte slots holding 64-bit pointers
 # the runtime's sockets, mbedtls and libuv are stubs that throw when called
 F="-O2 -w -fno-strict-aliasing -fwasm-exceptions -sMEMORY64=1 -I backend/rt"
-CC=em++ CFLAGS="-x c++ $F -DHXC_NO_NET -DHXC_NO_SSL -DHXC_NO_UV" LIBS= RT_FILES="$RT" LDFLAGS="$F \
+CC=em++ CFLAGS="-x c++ $F -DHXC_CONST_IDS -DHXC_NO_NET -DHXC_NO_SSL -DHXC_NO_UV" LIBS= RT_FILES="$RT" LDFLAGS="$F \
 	-sMODULARIZE=1 -sEXPORT_NAME=createHih -sENVIRONMENT=web,worker,node \
 	-sEXIT_RUNTIME=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB -sMAXIMUM_MEMORY=8GB -sSTACK_SIZE=8MB \
 	-sFORCE_FILESYSTEM=1 -sEXPORTED_RUNTIME_METHODS=callMain,FS,ENV \
@@ -51,7 +51,7 @@ if [ -z "${SKIP_COM:-}" ]; then
 		DEP_FLAGS="-DHXC_NO_SSL -DHXC_NO_UV"
 		DEP_LIBS=
 	fi
-	CC="cosmocc -O2" CFLAGS="-w -fno-strict-aliasing $DEP_FLAGS" LIBS="-lm $DEP_LIBS" RT_FILES="$RT" sh backend/tools/cc-chunks.sh "$C" "$B/hih.com"
+	CC="cosmocc -O2" CFLAGS="-w -fno-strict-aliasing -DHXC_CONST_IDS $DEP_FLAGS" LIBS="-lm $DEP_LIBS" RT_FILES="$RT" sh backend/tools/cc-chunks.sh "$C" "$B/hih.com"
 	cp "$B/hih.com" "$OUT/haxe-in-haxe.com"
 	(cd "$B" && zip -qr -9 "../../$OUT/haxe-in-haxe.com" std)
 fi
