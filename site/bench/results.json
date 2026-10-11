@@ -33,7 +33,7 @@
   "hxc-o2": "bin/backend/hih/hih_o2",
   "hl": "hl bin/bench/hih.hl",
   "jvm": "java -Xss512m -XX:+UnlockDiagnosticVMOptions -XX:-BytecodeVerificationRemote -XX:-BytecodeVerificationLocal -jar bin/bench/hih.jar",
-  "wasm": "/root/emsdk/node/24.19.0_64bit/bin/node --stack-size=65500 bin/bench/wasm/hih.js",
+  "wasm": "node --stack-size=65500 bin/bench/wasm/hih.js",
   "hlc": "bin/bench/hih-hlc",
   "eval-source": "haxe/haxe -D eval-call-stack-depth=1000000 -cp src --run haxe.Main",
   "eval-hxb": "haxe/haxe -D eval-call-stack-depth=1000000 --hxb-lib bin/bench/haxe-in-haxe.eval.hxb --run haxe.Main",

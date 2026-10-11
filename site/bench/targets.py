@@ -154,7 +154,7 @@ def write(path, results, a):
     meta = {
         "date": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "commit": subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--short", "HEAD"], stdout=subprocess.PIPE, text=True).stdout.strip(),
-        "cpu": cpu, "cores": os.cpu_count(), "runs": a.n, "port": a.port, "reference": version([REF, "--version"]),
+        "cpu": cpu, "cores": os.cpu_count(), "runs": a.n, "port": os.path.relpath(a.port, ROOT) if os.path.isabs(a.port) else a.port, "reference": version([REF, "--version"]),
         "platform": platform.platform(),
     }
     json.dump({"meta": meta, "results": results}, open(path, "w"), indent=1)
