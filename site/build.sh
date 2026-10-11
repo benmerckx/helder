@@ -57,9 +57,11 @@ if [ -z "${SKIP_COM:-}" ]; then
 fi
 
 # 5. pages and build facts
-cp site/index.html site/story.html site/style.css site/playground.js site/worker.js site/bench.js "$OUT/"
+cp site/index.html site/story.html site/style.css site/playground.js site/worker.js site/bench.js site/targets.js "$OUT/"
 # benchmark results (bench/run.py --json bench/results.json) for the Benchmarks section
 cp bench/results.json "$OUT/bench.json"
+# target generator compile times (bench/targets.py --json bench/targets-results.json)
+cp bench/targets-results.json "$OUT/targets.json"
 rm -rf "$OUT/examples" && cp -r site/examples "$OUT/examples"
 mb() { echo "$1" | awk '{printf "%.1f MB", $1 / 1048576}'; }
 size() { stat -c %s "$1"; }
