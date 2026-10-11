@@ -59,7 +59,7 @@
 
 <h2 id="goal">1. The goal, and a strict oracle</h2>
 
-<p>The brief was narrow on purpose. Port the compiler in <code>haxe/src</code> (a Git submodule pinned at upstream commit <code>b10fa6e</code>) to Haxe in <code>src/</code>, one module per upstream module, and stay close: same declarations, same branch order, same exceptions and error messages, same data layout wherever possible. Redesigning was out of scope. A faithful translation can be checked against its source line by line, and a redesign can't.</p>
+<p>The brief was narrow on purpose. Port the compiler in <code>haxe/src</code> (a Git submodule pinned at upstream commit <code>995a7d1</code>) to Haxe in <code>src/</code>, one module per upstream module, and stay close: same declarations, same branch order, same exceptions and error messages, same data layout wherever possible. Redesigning was out of scope. A faithful translation can be checked against its source line by line, and a redesign can't.</p>
 
 <p>The first functional target was not JavaScript or C++. It was <b>HXB</b>, Haxe's binary module format. An HXB archive is a ZIP file with one <code>.hxb</code> member per module. Each member serializes the typed AST after typing and the cross-target filters have run, but before any target generator touches it. Emitting HXB needs the whole front end (parsing, module loading, typing, finalization and filtering) and no code generator. That makes it the smallest output that still exercises everything that is hard about a compiler.</p>
 
