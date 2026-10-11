@@ -76,6 +76,8 @@
 	function render(data) {
 		const byProject = {};
 		for (const r of data.results) (byProject[r.project] ||= []).push(r);
+		const order = Object.keys(TARGETS);
+		for (const p in byProject) byProject[p].sort((a, b) => order.indexOf(a.target) - order.indexOf(b.target));
 		const names = Object.keys(PROJECTS).filter((p) => byProject[p]);
 		if (!names.length) return;
 		root.textContent = "";
