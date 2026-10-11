@@ -101,7 +101,7 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 				<tr><td>C backend (hxc) and its runtime</td><td>–</td><td>12k lines</td><td class="todo">experimental</td></tr>
 			</tbody>
 		</table></div>
-		<p class="note">Sizes are source bytes per area; the Haxe side is formatted with haxe-formatter (<code>tools/format-src.sh</code>) and is denser or more verbose depending on the module. The backend is 3.6k lines of Haxe and an 8.8k-line C runtime. Every upstream module a compilation reaches is ported, including the Eval debugger, the HashLink interpreter and <code>--swf-lib</code>; <code>server/memory</code> object sizes are measured by walking the hxc heap (other hosts report 0). File-level mapping: <code>TRANSLATION.md</code>; test results: <code>test/TESTING.md</code>.</p>
+		<p class="note">Sizes are source bytes per area; the Haxe side is formatted with haxe-formatter (<code>site/bench/formatter.sh</code>) and is denser or more verbose depending on the module. The backend is 3.6k lines of Haxe and an 8.8k-line C runtime. Every upstream module a compilation reaches is ported, including the Eval debugger, the HashLink interpreter and <code>--swf-lib</code>; <code>server/memory</code> object sizes are measured by walking the hxc heap (other hosts report 0). Test results: <code>test/TESTING.md</code>.</p>
 	</section>
 
 	<section id="how">
@@ -167,7 +167,7 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 			<dt>hxc: tcc, gcc -O2, cosmocc, wasm</dt><dd>The port compiled by this project's own C backend (<code>hxc/</code>), whose runtime has a precise generational GC. The same C file built with tcc (fast to build), gcc -O2, cosmocc (one portable binary for x86-64 and ARM64; the fat build is measured), and Emscripten: the 64-bit WebAssembly of the playground, built for Node (24, for 64-bit memory) with direct file access instead of the in-memory file system.</dd>
 		</dl>
 		<h3>Method</h3>
-		<p>Every run is a fresh process compiling one workload with <code>-D disable-parallelism --interp --no-output --hxb out.zip</code>. The table shows the minimum over 3 runs; the Eval runners compiling the port itself ran once, as each run takes about half an hour. <b>CPU</b> is user plus system time of the process and its children: other jobs share this machine, so CPU time, which they disturb less than wall time, is the main measure. It can exceed wall time where a runtime uses several threads (JIT compilation and GC in Node and the JVM). <b>Peak RSS</b> is the largest resident set of the run. Start-up is included: the JVM, Node and Eval pay it on every run. Reproduce with <code>python3 bench/run.py</code> (<code>bench/README.md</code>).</p>
+		<p>Every run is a fresh process compiling one workload with <code>-D disable-parallelism --interp --no-output --hxb out.zip</code>. The table shows the minimum over 3 runs; the Eval runners compiling the port itself ran once, as each run takes about half an hour. <b>CPU</b> is user plus system time of the process and its children: other jobs share this machine, so CPU time, which they disturb less than wall time, is the main measure. It can exceed wall time where a runtime uses several threads (JIT compilation and GC in Node and the JVM). <b>Peak RSS</b> is the largest resident set of the run. Start-up is included: the JVM, Node and Eval pay it on every run. Reproduce with <code>python3 site/bench/run.py</code> (<code>site/bench/README.md</code>).</p>
 		<p class="note" id="bench-machine"></p>
 	</section>
 	<section id="targets">
@@ -175,7 +175,7 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 		<p>The port compiles to every target upstream supports, and its output is byte-identical to the reference compiler's: checked by a differential fuzzer (random well-typed programs, one lane per target) and by these builds. Below, both compilers build the same projects for each target. The port is the hxc build (clang -O2); a target only counts if every output file is identical.</p>
 		<div id="targets-results"><p class="note">Loading results…</p></div>
 		<h3>Method</h3>
-		<p>Each run is a fresh process with <code>-D disable-parallelism</code>, both compilers in the same directory (some outputs embed it). <b>CPU</b> is user plus system time, the minimum of 3 runs; <b>peak RSS</b> the largest resident set. Outputs are compared after the runs: files and directories byte for byte, JARs and HXB archives member by member. C++ and HL/C stop at the generated sources (<code>-D no-compilation</code>): compiling the C or C++ is the same work for both. Reproduce with <code>python3 bench/targets.py</code>.</p>
+		<p>Each run is a fresh process with <code>-D disable-parallelism</code>, both compilers in the same directory (some outputs embed it). <b>CPU</b> is user plus system time, the minimum of 3 runs; <b>peak RSS</b> the largest resident set. Outputs are compared after the runs: files and directories byte for byte, JARs and HXB archives member by member. C++ and HL/C stop at the generated sources (<code>-D no-compilation</code>): compiling the C or C++ is the same work for both. Reproduce with <code>python3 site/bench/targets.py</code>.</p>
 		<p class="note" id="targets-machine"></p>
 	</section>
 </main>

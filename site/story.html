@@ -25,7 +25,7 @@
 <main class="wrap">
 <article class="story">
 
-<p class="byline">Written 9 October 2026, updated the same night after the memory, threads and formatter work. Every number below comes from the repository: its Git history, <code>test/TESTING.md</code>, <code>bench/README.md</code> and the other notes it cites.</p>
+<p class="byline">Written 9 October 2026, updated the same night after the memory, threads and formatter work. Every number below comes from the repository: its Git history, <code>test/TESTING.md</code>, <code>site/bench/README.md</code> and the other notes it cites.</p>
 
 <p>The Haxe compiler is written in OCaml. The compiler running on the <a href="index.html">front page</a> is a port of it written in Haxe. That port parses, types and filters Haxe programs and writes HXB archives that match the OCaml compiler's byte for byte. It runs macros in its own port of the Eval interpreter, and it is compiled to C by a backend that is also written in Haxe. The resulting native binary compiles the port's own source faster than the OCaml compiler does, in less memory, and can run upstream's parallel passes on real threads.</p>
 
@@ -181,7 +181,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 
 <h2 id="fast">6. Making it fast enough on existing targets</h2>
 
-<p>Haxe compiles to many targets, so the obvious next step was to compile the port with the reference compiler to each of them and measure. <code>bench/run.py</code> only counts a run if its archive matches the reference's. The first rounds measured the “stdlib” workload (32 standard library modules as roots):</p>
+<p>Haxe compiles to many targets, so the obvious next step was to compile the port with the reference compiler to each of them and measure. <code>site/bench/run.py</code> only counts a run if its archive matches the reference's. The first rounds measured the “stdlib” workload (32 standard library modules as roots):</p>
 
 <figure>
 <div class="scroll"><table>
@@ -196,13 +196,13 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 		<tr><td>Go (hx2go, heavily patched; measured separately)</td><td class="n">5.10&nbsp;s</td><td class="n">20×</td></tr>
 	</tbody>
 </table></div>
-<figcaption>Median of 7 runs, from <code>bench/README.md</code>. Every build passed the full 282-case conformance suite.</figcaption>
+<figcaption>Median of 7 runs, from <code>site/bench/README.md</code>. Every build passed the full 282-case conformance suite.</figcaption>
 </figure>
 
 <p>Getting every target to run correctly took patches to the targets themselves:</p>
 <ul>
-	<li><b>HL/C:</b> the pinned compiler's <code>hl2c</code> crashed on one kind of <code>Dynamic</code> field read; <code>bench/patches/hl2c-virtual-field-cast.patch</code> fixes it.</li>
-	<li><b>C++:</b> release builds crashed or hung at random, in the string hash, the GC and on collected objects. The cause was hxcpp's multi-threaded GC marking (debug builds mark on one thread, which is why they never crashed). <code>bench/patches/hxcpp-single-thread-mark.patch</code> turns it off.</li>
+	<li><b>HL/C:</b> the pinned compiler's <code>hl2c</code> crashed on one kind of <code>Dynamic</code> field read; <code>site/bench/patches/hl2c-virtual-field-cast.patch</code> fixes it.</li>
+	<li><b>C++:</b> release builds crashed or hung at random, in the string hash, the GC and on collected objects. The cause was hxcpp's multi-threaded GC marking (debug builds mark on one thread, which is why they never crashed). <code>site/bench/patches/hxcpp-single-thread-mark.patch</code> turns it off.</li>
 	<li><b>Go:</b> the hx2go custom target needed a source patch and five post-processing scripts (for example, a <code>break</code> inside a <code>try</code> left the whole <code>try</code> body). With all that it passed every case, and it was still the slowest build.</li>
 </ul>
 
@@ -211,7 +211,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 	<li><b>Exceptions without stack traces.</b> Control-flow exceptions are thrown as shared instances, and stack traces are only recorded when <code>OCAMLRUNPARAM=b</code> is set, as in OCaml. On HashLink, throwing through <code>hl.Api.rethrow</code> skips the native stack capture. That capture alone had been <b>80% of the HL/C run</b>.</li>
 	<li><b>The GC trigger.</b> libhl starts a full, non-generational mark after every 20% of heap growth, so a heap full of typed modules was marked over and over. <code>GcPolicy</code> collects relative to the heap size after the last major collection instead.</li>
 	<li><b>Records as classes.</b> Anonymous structures became <code>@:structInit</code> classes and <code>Dynamic</code> parameters were typed, which helped HashLink a little and the JVM a lot.</li>
-	<li><b>A patched allocator.</b> <code>bench/patches/libhl-allocator.patch</code> grew over several rounds: larger fixed-size classes, zeroed pages that aren't zeroed twice, inline bump allocation in generated code, batched slice refills, and keeping swept pages for reuse.</li>
+	<li><b>A patched allocator.</b> <code>site/bench/patches/libhl-allocator.patch</code> grew over several rounds: larger fixed-size classes, zeroed pages that aren't zeroed twice, inline bump allocation in generated code, batched slice refills, and keeping swept pages for reuse.</li>
 	<li><b>Fewer closures.</b> HashLink allocates every local function when its definition runs, whether it is called or not. One analyzer function made 14 allocations per call before doing anything. Helpers that are only called became <code>inline</code>, first in hot functions and then across every package.</li>
 </ol>
 
@@ -229,7 +229,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 
 <p>Some things didn't work and were dropped, each with its numbers recorded:</p>
 <ul>
-	<li><b>A generational GC for HL/C.</b> Sticky mark bits, an arena with a byte-per-granule remembered set, and a write barrier emitted by a patched <code>hl2c</code>. It passed the whole conformance suite even with a 1 MB nursery, and it was slower: 0.42 s of user time on <code>stdlib</code> against 0.32 s, and 35–60% slower on the self-compile with a 32–128 MB nursery. The patches are kept in <code>archive/generational-gc</code>.</li>
+	<li><b>A generational GC for HL/C.</b> Sticky mark bits, an arena with a byte-per-granule remembered set, and a write barrier emitted by a patched <code>hl2c</code>. It passed the whole conformance suite even with a 1 MB nursery, and it was slower: 0.42 s of user time on <code>stdlib</code> against 0.32 s, and 35–60% slower on the self-compile with a 32–128 MB nursery.</li>
 	<li>Bigger allocation slices, skipping the zeroing of pointer-free slices, populating GC chunks at <code>mmap</code>, <code>-O3</code>, <code>-march=native</code> and static linking all made no measurable difference. Transparent huge pages cost 2–3 s of system time on the self-compile, because page faults compacted memory synchronously, so they became opt-in.</li>
 </ul>
 
@@ -241,7 +241,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 
 <p>The stall turned out to happen <em>at exit</em>: <code>hello</code> finished in 2–3.4 s, and then Node waited until about 27 s for optimizing compiles already running on background threads. The 10 largest functions were 45% of the module. All of them contained <code>hl_trap</code>, which is <code>setjmp</code>, and Emscripten's <code>setjmp</code> lowering stores every live local around every call (one <code>setjmp</code> made a synthetic function 26× larger). Marking the largest functions baseline-only through an experimental V8 section cut the self-compile from 25–31 s to 17.5–18 s, but that is a workaround, not a design.</p>
 
-<p>So we wrote down a go/no-go for a backend of our own (<code>docs/WASM-BACKEND.md</code>): one typed IR, lowered from the filtered typed AST that HXB serializes, feeding a WasmGC emitter and a C emitter. The prototype covered a small subset and two benchmark programs, and measured every route we could think of:</p>
+<p>So we wrote down a go/no-go for a backend of our own: one typed IR, lowered from the filtered typed AST that HXB serializes, feeding a WasmGC emitter and a C emitter. The prototype covered a small subset and two benchmark programs, and measured every route we could think of:</p>
 
 <figure>
 <div class="scroll"><table>
@@ -258,7 +258,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 		<tr><td>Go 1.24 translation</td><td class="n">0.30&nbsp;s</td><td class="n">0.43&nbsp;s</td></tr>
 	</tbody>
 </table></div>
-<figcaption>Best of 3–5 runs, from <code>docs/WASM-BACKEND.md</code> and <code>bench/README.md</code>. The prototype handled Ints, classes, enums, arrays, closures and exceptions; no strings, Dynamic or maps yet.</figcaption>
+<figcaption>Best of 3–5 runs, from the backend design note of the time. The prototype handled Ints, classes, enums, arrays, closures and exceptions; no strings, Dynamic or maps yet.</figcaption>
 </figure>
 
 <p>What the measurements said:</p>
@@ -291,7 +291,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 		<tr><td>hello / 17 std modules</td><td class="n">0.11 / 0.20&nbsp;s</td><td class="n">0.11 / 0.18&nbsp;s</td></tr>
 	</tbody>
 </table></div>
-<figcaption>From <code>bench/README.md</code>, 9 October. Outputs byte-identical. Peak memory on the self-compile was 694 MB against 462 MB at this point; section 12 is how that changed.</figcaption>
+<figcaption>From <code>site/bench/README.md</code>, 9 October. Outputs byte-identical. Peak memory on the self-compile was 694 MB against 462 MB at this point; section 12 is how that changed.</figcaption>
 </figure>
 
 <p>We stopped there on purpose. The nursery and heap sizes (<code>RT_MINOR_KB</code>, <code>RT_OLD_MB</code>) stay at generic defaults instead of being tuned to this benchmark. A compiler that compiles itself is a tempting benchmark to overfit, and a backend is supposed to be good for other programs too.</p>
@@ -311,7 +311,7 @@ HAXE_REFERENCE=haxe/haxe python3 test/conformance.py -j 8</code></pre>
 		<tr><td>chibicc (tried, dropped)</td><td class="n">52&nbsp;s</td><td class="n"></td><td class="n"></td></tr>
 	</tbody>
 </table></div>
-<figcaption>From <code>docs/COSMO.md</code>, 16 MB / 467k lines of generated C at the time. chibicc compiled and ran the port, but spent 35 s generating 290 MB of assembly, so tcc stayed the fast compiler.</figcaption>
+<figcaption>16 MB / 467k lines of generated C at the time. chibicc compiled and ran the port, but spent 35 s generating 290 MB of assembly, so tcc stayed the fast compiler.</figcaption>
 </figure>
 
 <p>The fat binary passes the full conformance suite and all macro cases. Only its x86-64 Linux half has actually been run. The ARM64 half, macOS, Windows and the BSDs are untested, and the front page says so. On the self-compile it is 5–13% slower than the glibc gcc build, which we haven't investigated yet. Later, mbedtls and libuv were patched and built with cosmocc too (libuv as a generic Unix port with a <code>poll(2)</code> backend, with errno codes translated at run time because Cosmopolitan's errno constants are variables), so TLS and <code>eval.luv</code> work in the portable binary.</p>
@@ -409,7 +409,7 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 		<tr><td>self</td><td class="n">5.78&nbsp;s, 531&nbsp;MB</td><td class="n">5.72&nbsp;s, 837&nbsp;MB</td><td class="n">4.98&nbsp;s, 467&nbsp;MB</td></tr>
 	</tbody>
 </table></div>
-<figcaption>From <code>bench/README.md</code> (“hxc memory”), minimum of 3–5 interleaved runs, every archive byte-identical. The machine was slower than in section 7.</figcaption>
+<figcaption>From <code>site/bench/README.md</code> (“hxc memory”), minimum of 3–5 interleaved runs, every archive byte-identical. The machine was slower than in section 7.</figcaption>
 </figure>
 
 <p>Around the same time clang replaced gcc as the preferred compiler: on the same generated C, <code>clang -O2</code> ran the self-compile 4–10% faster and built faster, and <code>-O3</code> added nothing.</p>
@@ -429,7 +429,7 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 		<tr><td>OCaml reference, 4 domains</td><td class="n">4.03&nbsp;s</td><td class="n">6.72&nbsp;s</td><td class="n">592&nbsp;MB</td></tr>
 	</tbody>
 </table></div>
-<figcaption>From <code>bench/README.md</code>, minimum of 3 runs on a 4-core machine with another job running. Every parallel archive matched the sequential reference after normalizing variable ids.</figcaption>
+<figcaption>From <code>site/bench/README.md</code>, minimum of 3 runs on a 4-core machine with another job running. Every parallel archive matched the sequential reference after normalizing variable ids.</figcaption>
 </figure>
 
 <p>The sequential build costs the same as before. In parallel mode the port saves 20% of wall time with 4 threads, the reference 34%: only filters, analyzer, DCE marking and HXB writing are parallel, typing is not. That puts the port within 4% of the reference in parallel mode.</p>
@@ -461,14 +461,14 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 		<tr><td>HashLink JIT</td><td class="n">–</td><td class="n"></td><td>crashes in stock <code>hl</code></td></tr>
 	</tbody>
 </table></div>
-<figcaption>From <code>bench/README.md</code>, minimum of 3 runs.</figcaption>
+<figcaption>From <code>site/bench/README.md</code>, minimum of 3 runs.</figcaption>
 </figure>
 
-<p>The optimized hxc builds are 1.6× faster than C++ and Node and 2.3× faster than HL/C. Building it found three hxc bugs: <code>Exception.caught</code>/<code>thrown</code> removed by <code>-dce full</code>, <code>StringTools.isEof</code>, which never reported the end of a string on the custom target (so a JSON parser never stopped), and <code>String.split</code> holding the delimiter across an allocation, which a moving collector punishes. The formatter then went to work on this repository: <code>tools/format-src.sh</code> builds it with hxc and formats <code>src/</code> with <code>hxformat.json</code>. The machine-translated modules had very long lines; the commit that formatted them changed 255 files (+51,773/−18,540 lines), stable after two passes. One file, the Unicode case tables, never reaches a fixed point and is excluded.</p>
+<p>The optimized hxc builds are 1.6× faster than C++ and Node and 2.3× faster than HL/C. Building it found three hxc bugs: <code>Exception.caught</code>/<code>thrown</code> removed by <code>-dce full</code>, <code>StringTools.isEof</code>, which never reported the end of a string on the custom target (so a JSON parser never stopped), and <code>String.split</code> holding the delimiter across an allocation, which a moving collector punishes. The formatter then went to work on this repository: <code>site/bench/formatter.sh</code> builds it with hxc and formats <code>src/</code> with <code>hxformat.json</code>. The machine-translated modules had very long lines; the commit that formatted them changed 255 files (+51,773/−18,540 lines), stable after two passes. One file, the Unicode case tables, never reaches a fixed point and is excluded.</p>
 
 <h2 id="today">15. Where it stands</h2>
 
-<p>The <a href="index.html#benchmarks">benchmarks on the front page</a> come from <code>bench/results.json</code>. The same compiler, built twelve ways, compiles three workloads, and a run counts only if its archive is byte-identical to the reference's:</p>
+<p>The <a href="index.html#benchmarks">benchmarks on the front page</a> come from <code>site/bench/results.json</code>. The same compiler, built twelve ways, compiles three workloads, and a run counts only if its archive is byte-identical to the reference's:</p>
 
 <figure>
 <div class="scroll"><table>
@@ -496,7 +496,7 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 	<li><b>No code generators.</b> JS, C++, HashLink, JVM and the other generators aren't ported. The port type-checks, runs programs with <code>--interp</code>, writes HXB, and (through hxc) produces C.</li>
 	<li><b>Parallelism.</b> Byte-for-byte conformance runs single-threaded because the reference itself isn't deterministic under parallel filters; parallel runs are compared after renumbering variable ids. Typing is sequential, as upstream's. tcc builds keep green threads.</li>
 	<li><b>Portability claims are partly untested.</b> Only Linux x86-64 has run the portable binary. The hxc target covers what the compiler and the formatter need, not the whole language and std.</li>
-	<li><b>Small gaps</b> are recorded in <code>TRANSLATION.md</code> and <code>test/TESTING.md</code>: the Eval debugger, memory statistics that need OCaml object sizes, IPv4-only sockets, and one-second file-time resolution on HashLink.</li>
+	<li><b>Small gaps</b> are recorded in <code>test/TESTING.md</code>: the Eval debugger, memory statistics that need OCaml object sizes, IPv4-only sockets, and one-second file-time resolution on HashLink.</li>
 </ul>
 
 <h2 id="lessons">16. Lessons</h2>
@@ -506,7 +506,7 @@ haxe -lib hxc -cp src -main Main --custom-target hxc=bin/main
 	<li><b>A byte-identical oracle.</b> It turned “is this right?” into a diff, and it found bugs no reasonable test would have looked for: hash iteration order, argument evaluation order, string identity. It also made every performance change safe to try, since a benchmark only counted if its output matched.</li>
 	<li><b>Translating instead of reimplementing.</b> The hand-written start couldn't get variable ids right. The translation got all 22 members of the first fixture right on the day it could first be measured. Keeping the port traceable to upstream also made it reviewable: a disagreement with the reference meant reading two functions side by side.</li>
 	<li><b>Parallel agents with strict validation.</b> The macro runtime, the HXB reader, the server, display, threads, memory and the upstream suite were each worked on in separate worktrees. After each merge the suites were run again, and the results are recorded in <code>test/TESTING.md</code>. The merge commits record how conflicts were resolved: against upstream, not by picking a side.</li>
-	<li><b>Measuring before optimizing.</b> Nearly every speedup in <code>bench/README.md</code> starts with a profile that pointed somewhere unexpected: stack capture on throws (80% of the HL/C run), closures allocated at their definition, short free runs after a sweep, an enum tag load waiting on memory.</li>
+	<li><b>Measuring before optimizing.</b> Nearly every speedup in <code>site/bench/README.md</code> starts with a profile that pointed somewhere unexpected: stack capture on throws (80% of the HL/C run), closures allocated at their definition, short free runs after a sweep, an enum tag load waiting on memory.</li>
 	<li><b>Writing negative results down.</b> The generational GC for HL/C, hx2go, chibicc, transparent huge pages: each has its numbers in the repository.</li>
 </ul>
 

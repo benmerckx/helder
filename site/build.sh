@@ -5,7 +5,7 @@
 #   sh site/build.sh
 #
 # Needs: what hxc/build.sh port needs (node, haxe/haxe), Emscripten (emcc
-# on PATH, e.g. `. ~/emsdk/emsdk_env.sh`) and cosmocc on PATH (docs/COSMO.md).
+# on PATH, e.g. `. ~/emsdk/emsdk_env.sh`) and cosmocc on PATH (hxc/README.md, Cosmopolitan).
 # SKIP_PORT=1 reuses bin/hxc/hih/prog_hxc (the port's C, in chunks compiled
 # in parallel; unchanged objects are reused); SKIP_COM=1 skips the APE binary;
 # NO_DEPS=1 builds it without mbedtls and libuv.
@@ -62,10 +62,10 @@ fi
 
 # 5. pages and build facts
 cp site/index.html site/story.html site/style.css site/playground.js site/worker.js site/bench.js site/targets.js "$OUT/"
-# benchmark results (bench/run.py --json bench/results.json) for the Benchmarks section
-cp bench/results.json "$OUT/bench.json"
-# target generator compile times (bench/targets.py --json bench/targets-results.json)
-cp bench/targets-results.json "$OUT/targets.json"
+# benchmark results (site/bench/run.py --json site/bench/results.json) for the Benchmarks section
+cp site/bench/results.json "$OUT/bench.json"
+# target generator compile times (site/bench/targets.py --json site/bench/targets-results.json)
+cp site/bench/targets-results.json "$OUT/targets.json"
 rm -rf "$OUT/examples" && cp -r site/examples "$OUT/examples"
 mb() { echo "$1" | awk '{printf "%.1f MB", $1 / 1048576}'; }
 size() { stat -c %s "$1"; }

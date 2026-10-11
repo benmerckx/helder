@@ -1,0 +1,281 @@
+{
+ "alloc/cpp": {
+  "build": 33.18,
+  "run": 1.713
+ },
+ "alloc/hl": {
+  "build": 0.25,
+  "run": 2.523
+ },
+ "alloc/hlc": {
+  "build": 2.85,
+  "run": 2.476
+ },
+ "alloc/hxc": {
+  "build": 0.9,
+  "run": 1.796
+ },
+ "alloc/hxc-tcc": {
+  "build": 0.2,
+  "run": 1.374
+ },
+ "alloc/js": {
+  "build": 0.39,
+  "run": 12.078
+ },
+ "alloc/jvm": {
+  "build": 0.47,
+  "run": 2.033
+ },
+ "bcrypt/cpp": {
+  "build": 36.5,
+  "run": 2.407
+ },
+ "bcrypt/hl": {
+  "build": 0.26,
+  "run": 5.007
+ },
+ "bcrypt/hlc": {
+  "build": 3.79,
+  "run": 3.557
+ },
+ "bcrypt/hxc": {
+  "build": 1.31,
+  "run": 2.589
+ },
+ "bcrypt/hxc-tcc": {
+  "build": 0.24,
+  "run": 10.259
+ },
+ "bcrypt/js": {
+  "build": 0.41,
+  "run": 2.967
+ },
+ "bcrypt/jvm": {
+  "build": 0.51,
+  "run": 2.546
+ },
+ "binarytrees/cpp": {
+  "build": 31.61,
+  "run": 0.805
+ },
+ "binarytrees/hl": {
+  "build": 0.28,
+  "run": 4.359
+ },
+ "binarytrees/hlc": {
+  "build": 2.83,
+  "run": 4.151
+ },
+ "binarytrees/hxc": {
+  "build": 0.92,
+  "run": 0.76
+ },
+ "binarytrees/hxc-tcc": {
+  "build": 0.2,
+  "run": 1.993
+ },
+ "binarytrees/js": {
+  "build": 0.4,
+  "run": 1.304
+ },
+ "binarytrees/jvm": {
+  "build": 0.57,
+  "run": 0.671
+ },
+ "formatter_noio/cpp": {
+  "error": "exit -11: "
+ },
+ "formatter_noio/hl": {
+  "build": 1.07,
+  "run": 17.184
+ },
+ "formatter_noio/hlc": {
+  "build": 14.84,
+  "run": 16.525
+ },
+ "formatter_noio/hxc": {
+  "build": 4.99,
+  "run": 5.07
+ },
+ "formatter_noio/hxc-tcc": {
+  "build": 1.1,
+  "run": 12.628
+ },
+ "formatter_noio/js": {
+  "build": 0.91,
+  "run": 17.351
+ },
+ "formatter_noio/jvm": {
+  "build": 1.28,
+  "run": 5.185
+ },
+ "json/cpp": {
+  "build": 37.66,
+  "run": 0.579
+ },
+ "json/hl": {
+  "build": 0.27,
+  "run": 1.525
+ },
+ "json/hlc": {
+  "build": 3.11,
+  "run": 1.368
+ },
+ "json/hxc": {
+  "build": 0.96,
+  "run": 0.418
+ },
+ "json/hxc-tcc": {
+  "build": 0.22,
+  "run": 1.03
+ },
+ "json/js": {
+  "build": 0.38,
+  "run": 0.304
+ },
+ "json/jvm": {
+  "build": 0.5,
+  "run": 0.538
+ },
+ "mandelbrot/cpp": {
+  "build": 31.28,
+  "run": 1.363
+ },
+ "mandelbrot/hl": {
+  "build": 0.24,
+  "run": 23.681
+ },
+ "mandelbrot/hlc": {
+  "build": 2.81,
+  "run": 22.784
+ },
+ "mandelbrot/hxc": {
+  "build": 0.95,
+  "run": 0.5
+ },
+ "mandelbrot/hxc-tcc": {
+  "build": 0.19,
+  "run": 3.37
+ },
+ "mandelbrot/js": {
+  "build": 0.37,
+  "run": 0.899
+ },
+ "mandelbrot/jvm": {
+  "build": 0.49,
+  "run": 1.076
+ },
+ "mandelbrot_anon/cpp": {
+  "build": 31.75,
+  "run": 8.079
+ },
+ "mandelbrot_anon/hl": {
+  "build": 0.28,
+  "run": 34.21
+ },
+ "mandelbrot_anon/hlc": {
+  "build": 2.82,
+  "run": 32.791
+ },
+ "mandelbrot_anon/hxc": {
+  "build": 0.86,
+  "run": 0.95
+ },
+ "mandelbrot_anon/hxc-tcc": {
+  "build": 0.2,
+  "run": 4.953
+ },
+ "mandelbrot_anon/js": {
+  "build": 0.38,
+  "run": 0.888
+ },
+ "mandelbrot_anon/jvm": {
+  "build": 0.48,
+  "run": 1.124
+ },
+ "nbody/cpp": {
+  "build": 31.32,
+  "run": 0.723
+ },
+ "nbody/hl": {
+  "build": 0.3,
+  "run": 1.579
+ },
+ "nbody/hlc": {
+  "build": 2.96,
+  "run": 1.136
+ },
+ "nbody/hxc": {
+  "build": 0.95,
+  "run": 0.754
+ },
+ "nbody/hxc-tcc": {
+  "build": 0.19,
+  "run": 2.768
+ },
+ "nbody/js": {
+  "build": 0.36,
+  "run": 0.923
+ },
+ "nbody/jvm": {
+  "build": 0.46,
+  "run": 0.809
+ },
+ "sha256/cpp": {
+  "build": 35.05,
+  "run": 0.23
+ },
+ "sha256/hl": {
+  "build": 0.27,
+  "run": 0.645
+ },
+ "sha256/hlc": {
+  "build": 3.07,
+  "run": 0.338
+ },
+ "sha256/hxc": {
+  "build": 0.97,
+  "run": 0.215
+ },
+ "sha256/hxc-tcc": {
+  "build": 0.23,
+  "run": 0.644
+ },
+ "sha256/js": {
+  "build": 0.39,
+  "run": 0.257
+ },
+ "sha256/jvm": {
+  "build": 0.53,
+  "run": 0.16
+ },
+ "sha512/cpp": {
+  "build": 37.37,
+  "run": 0.025
+ },
+ "sha512/hl": {
+  "build": 0.27,
+  "run": 0.081
+ },
+ "sha512/hlc": {
+  "build": 3.17,
+  "run": 0.048
+ },
+ "sha512/hxc": {
+  "build": 1.15,
+  "run": 0.126
+ },
+ "sha512/hxc-tcc": {
+  "build": 0.27,
+  "run": 0.536
+ },
+ "sha512/js": {
+  "build": 0.4,
+  "run": 0.318
+ },
+ "sha512/jvm": {
+  "build": 0.47,
+  "run": 0.126
+ }
+}

@@ -1,0 +1,25 @@
+diff --git a/src/hx/gc/Immix.cpp b/src/hx/gc/Immix.cpp
+index 4cfefb4..349b159 100644
+--- a/src/hx/gc/Immix.cpp
++++ b/src/hx/gc/Immix.cpp
+@@ -219,7 +219,7 @@ static bool sGcVerifyGenerational = false;
+ #endif
+ 
+ 
+-#if HX_HAS_ATOMIC && (HXCPP_GC_DEBUG_LEVEL==0) && !defined(HXCPP_GC_VERIFY) && !defined(__EMSCRIPTEN__)
++#if HX_HAS_ATOMIC && (HXCPP_GC_DEBUG_LEVEL==0) && !defined(HXCPP_GC_VERIFY) && !defined(__EMSCRIPTEN__) && !defined(HXCPP_SINGLE_THREAD_MARK)
+   #if defined(HX_MACOS) || defined(HX_WINDOWS) || defined(HX_LINUX)
+   enum { MAX_GC_THREADS = 4 };
+   #else
+diff --git a/toolchain/common-defines.xml b/toolchain/common-defines.xml
+index e2f241b..bafad14 100644
+--- a/toolchain/common-defines.xml
++++ b/toolchain/common-defines.xml
+@@ -38,6 +38,7 @@
+  <flag value='-DHXCPP_OBJC' if="objc"  tag="haxe"/>
+  <flag value='-DHXCPP_GC_DEBUG_LEVEL=${HXCPP_GC_DEBUG_LEVEL}' if="HXCPP_GC_DEBUG_LEVEL" tag="gc" />
+  <flag value='-DHXCPP_GC_VERIFY' if="HXCPP_GC_VERIFY" tag="gc" />
++ <flag value='-DHXCPP_SINGLE_THREAD_MARK' if="HXCPP_SINGLE_THREAD_MARK" tag="gc" />
+  <flag value='-DHXCPP_WINXP_COMPAT' if="HXCPP_WINXP_COMPAT" tag="haxe"/>
+  
+  <!-- fwd these defines into haxe target so we can check for it in telemetry -->

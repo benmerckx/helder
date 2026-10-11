@@ -1,0 +1,37 @@
+--- a/src/generators/hl2c.ml	2026-10-07 18:04:21.026277215 +0000
++++ b/src/generators/hl2c.ml	2026-10-07 22:29:20.558332280 +0000
+@@ -588,7 +588,7 @@
+ 		if t = HVoid then "" else
+ 		let assign = reg r ^ " = " in
+ 		if tsame t rt then assign else
+-		if not (safe_cast t rt) then Globals.die "" __LOC__
++		if not (safe_cast t rt) then Globals.die (Printf.sprintf "rassign %s <- %s" (tstr rt) (tstr t)) __LOC__
+ 		else
+ 			let cast = assign ^ "(" ^ ctype rt ^ ")" in
+ 			(match t with HPacked _ -> cast ^ "&" | _ -> cast)
+@@ -674,15 +674,23 @@
+ 			Globals.die "" __LOC__
+ 	in
+ 
++	(* When the field type cannot be C-cast to the register type (e.g. a Dynamic
++	   field read into a typed register), convert through hl_dyn_cast like OSafeCast. *)
++	let assign_value r t value =
++		let rt = rtype r in
++		if rt = HVoid || tsame t rt || safe_cast t rt then sexpr "%s%s" (rassign r t) value
++		else sexpr "{ %s __fv = %s; %s = (%s)hl_dyn_cast%s(&__fv,%s%s); }" (ctype t) value (reg r) (ctype rt) (dyn_prefix rt) (type_value ctx t) (type_value_opt rt)
++	in
++
+ 	let get_field r obj fid =
+ 		match rtype obj with
+ 		| HObj o | HStruct o ->
+ 			let name, t = resolve_field o fid in
+-			sexpr "%s%s->%s" (rassign r t) (reg obj) (obj_field fid name)
++			assign_value r t (sprintf "%s->%s" (reg obj) (obj_field fid name))
+ 		| HVirtual v ->
+ 			let name, nid, t = v.vfields.(fid) in
+ 			let dget = sprintf "(%s)hl_dyn_get%s(%s->value,%ld/*%s*/%s)" (ctype t) (dyn_prefix t) (reg obj) (hash gctx nid) name (type_value_opt t) in
+-			sexpr "%shl_vfields(%s)[%d] ? (*(%s*)(hl_vfields(%s)[%d])) : %s" (rassign r t) (reg obj) fid (ctype t) (reg obj) fid dget
++			assign_value r t (sprintf "hl_vfields(%s)[%d] ? (*(%s*)(hl_vfields(%s)[%d])) : %s" (reg obj) fid (ctype t) (reg obj) fid dget)
+ 		| _ ->
+ 			Globals.die "" __LOC__
+ 	in
