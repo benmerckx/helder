@@ -1,26 +1,23 @@
 #!/bin/sh
-# Builds the static website (playground + download) into bin/site, ready for
-# any static host (Cloudflare Pages: every file stays below 25 MiB).
+# Builds the static website (playground, links to the release builds) into
+# bin/site, ready for any static host (Cloudflare Pages: every file stays below
+# 25 MiB). The downloadable binaries are built by .github/workflows/build.yml.
 #
 #   sh site/build.sh
 #
-# Needs: what hxc/build.sh port needs (node, haxe/haxe), Emscripten (emcc
-# on PATH, e.g. `. ~/emsdk/emsdk_env.sh`) and cosmocc on PATH (hxc/README.md, Cosmopolitan).
-# SKIP_PORT=1 reuses bin/hxc/hih/prog_hxc (the port's C, in chunks compiled
-# in parallel; unchanged objects are reused); SKIP_COM=1 skips the APE binary;
-# NO_DEPS=1 builds it without mbedtls and libuv.
+# Needs: what hxc/build.sh port needs (node, haxe/haxe) and Emscripten (emcc
+# on PATH, e.g. `. ~/emsdk/emsdk_env.sh`). SKIP_PORT=1 reuses
+# bin/hxc/hih-web/prog_hxc (the port's C, in chunks compiled in parallel;
+# unchanged objects are reused).
 set -eu
 cd "$(dirname "$0")/.."
 OUT=bin/site
 B=bin/site-build
 mkdir -p "$OUT" "$B/obj"
 
-# 1. the port as C (and its tcc build)
-[ -n "${SKIP_PORT:-}" ] || sh hxc/build.sh port
-C=bin/hxc/hih/prog_hxc
-# the playground's WebAssembly only runs --interp and writes HXB: built without the
+# 1. the port as C (and its tcc build). The playground's WebAssembly only runs --interp and writes HXB: built without the
 # target generators (-D hih_no_generators), a third smaller for phones
-[ -n "${SKIP_PORT:-}" ] || PORT_OUT=bin/hxc/hih-web HXFLAGS="-D hih_no_generators" SKIP_TOOL=1 sh hxc/build.sh port
+[ -n "${SKIP_PORT:-}" ] || PORT_OUT=bin/hxc/hih-web HXFLAGS="-D hih_no_generators" sh hxc/build.sh port
 CW=bin/hxc/hih-web/prog_hxc
 RT="rt rt_dyn rt_std rt_str rt_sys rt_net rt_ssl rt_uv rt_thread rt_census"
 
@@ -42,25 +39,7 @@ CC=em++ CFLAGS="-x c++ $F -DHXC_CONST_IDS -DHXC_NO_NET -DHXC_NO_SSL -DHXC_NO_UV"
 	-sFORCE_FILESYSTEM=1 -sEXPORTED_RUNTIME_METHODS=callMain,FS,ENV \
 	--preload-file $B/std@/lib/haxe/std" sh hxc/tools/cc-chunks.sh "$CW" "$OUT/hih.js"
 
-# 4. the portable binary, with the std subset in its own zip (rt.c: /zip/std).
-# sys.ssl and eval.luv use mbedtls and libuv built with cosmocc
-# (hxc/tools/cosmo-deps.sh); NO_DEPS=1 builds stubs that throw instead
-if [ -z "${SKIP_COM:-}" ]; then
-	DEPS=${COSMO_DEPS:-bin/cosmo-deps}
-	if [ -z "${NO_DEPS:-}" ]; then
-		sh hxc/tools/cosmo-deps.sh "$DEPS"
-		DEP_FLAGS="-I$DEPS/include"
-		DEP_LIBS="-L$DEPS/lib -lmbedtls -lmbedx509 -lmbedcrypto -luv"
-	else
-		DEP_FLAGS="-DHXC_NO_SSL -DHXC_NO_UV"
-		DEP_LIBS=
-	fi
-	CC="cosmocc -O2" CFLAGS="-w -fno-strict-aliasing -DHXC_CONST_IDS $DEP_FLAGS" LIBS="-lm $DEP_LIBS" RT_FILES="$RT" sh hxc/tools/cc-chunks.sh "$C" "$B/hih.com"
-	cp "$B/hih.com" "$OUT/haxe-in-haxe.com"
-	(cd "$B" && zip -qr -9 "../../$OUT/haxe-in-haxe.com" std)
-fi
-
-# 5. pages and build facts
+# 4. pages and build facts
 cp site/index.html site/story.html site/style.css site/playground.js site/worker.js site/bench.js site/targets.js "$OUT/"
 # benchmark results (site/bench/run.py --json site/bench/results.json) for the Benchmarks section
 cp site/bench/results.json "$OUT/bench.json"
@@ -76,8 +55,7 @@ cat > "$OUT/build-info.json" <<EOF
 	"commit": "$(git rev-parse --short HEAD)",
 	"wasmSize": "$(mb "$(size "$OUT/hih.wasm")")",
 	"wasmGz": "$(mb "$(gz "$OUT/hih.wasm")")",
-	"dataGz": "$(mb "$(gz "$OUT/hih.data")")",
-	"comSize": "$( [ -f "$OUT/haxe-in-haxe.com" ] && mb "$(size "$OUT/haxe-in-haxe.com")" || echo "-")"
+	"dataGz": "$(mb "$(gz "$OUT/hih.data")")"
 }
 EOF
 cat "$OUT/build-info.json"
