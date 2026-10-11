@@ -3,6 +3,10 @@
 How the numbers on the website were measured, and how to reproduce them.
 Every timing counts only if the output matches the reference compiler's:
 same HXB members with byte-identical payloads, or identical output files.
+All numbers are from one 4-core Xeon VM shared with other jobs; the dated
+sections below are separate runs, so the same measurement can differ by a
+few percent between them (the reference's self-compile: 5.95 s in
+`results.json`, 6.03 s in the threads table).
 
 ## Runners: the compiler built for each target (`run.py`, the Benchmarks section)
 

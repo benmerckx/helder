@@ -33,7 +33,7 @@
 <p>Macros needed a port of the Eval interpreter and the macro API. After that, the 66 macro conformance cases, <code>--interp</code>, the compilation server, display services and haxelib support followed, each tested against the reference.</p>
 
 <h2>Performance and the C backend</h2>
-<p>Built for existing Haxe targets (HashLink, HL/C, JVM, C++, JS), the port was 1.3× to several times slower than the OCaml compiler, and the WebAssembly route through HL/C was large and slow to start. A dedicated backend was written instead: hxc lowers the typed program to C, with a runtime that has a precise generational GC, OS threads, TLS and libuv. Built with clang, the port compiles itself faster than the OCaml compiler, in less memory. The same C, built with Emscripten, runs the playground; built with Cosmopolitan, it gives one binary for several systems.</p>
+<p>Built for existing Haxe targets (HashLink, HL/C, JVM, C++, JS), the port was 1.3× to several times slower than the OCaml compiler, and the WebAssembly route through HL/C was large and slow to start. A dedicated backend was written instead: hxc lowers the typed program to C, with a runtime that has a precise generational GC, OS threads, TLS and libuv. Built with clang, it compiles its own sources to HXB with about 13% less CPU time and 15% less memory than the OCaml compiler (sequential passes, one machine; see the benchmarks). The same C, built with Emscripten, runs the playground; built with Cosmopolitan, it gives one binary for several systems.</p>
 
 <h2>Upstream's tests</h2>
 <p>Upstream's target-independent CI job (unit, misc, threads, display, server and two third-party projects) runs against the native build and passes. Running it found bugs that the conformance cases did not.</p>
