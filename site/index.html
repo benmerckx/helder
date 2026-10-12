@@ -70,9 +70,19 @@ haxe-in-haxe -cp src --main Main --js out.js</pre>
 	<section id="tools">
 		<h2>Tools</h2>
 		<p><strong><a href="tools/lix.com">lix.com</a></strong> (<span data-info="lixSize">~6 MB</span>): <a href="https://github.com/lix-pm/lix.client">lix</a>, the Haxe package manager, and <a href="https://github.com/lix-pm/haxeshim">haxeshim</a>, ported from Haxe on Node.js and compiled by hxc into one Cosmopolitan binary for Linux, macOS, Windows and the BSDs. It is <code>lix</code>, <code>haxe</code>, <code>haxelib</code> and <code>neko</code> in one file: it acts as the command it is named or linked as.</p>
+		<p>Install it in a directory on your <code>PATH</code> and let it create the <code>haxe</code>, <code>haxelib</code> and <code>neko</code> commands next to itself (<code>lix shims</code>: symbolic links, or hard links on Windows). Linux and macOS:</p>
 <pre class="cmd">curl -fLo ~/bin/lix https://haxe-in-haxe.ben.mk/tools/lix.com &amp;&amp; chmod +x ~/bin/lix
-for c in haxe haxelib neko; do ln -s lix ~/bin/$c; done
-lix scope create &amp;&amp; lix install haxe stable &amp;&amp; lix +lib tink_core</pre>
+lix shims</pre>
+		<p>Windows (PowerShell), e.g. into <code>C:\tools</code>, a directory on your <code>PATH</code>:</p>
+<pre class="cmd">curl.exe -fLo C:\tools\lix.com https://haxe-in-haxe.ben.mk/tools/lix.com
+lix shims</pre>
+		<p>Then, in a project: <code>lix</code> downloads Haxe versions and libraries into the project's scope, and <code>haxe</code> runs the version and libraries of the scope it is called in, so editors and build scripts that call <code>haxe</code> get the right ones:</p>
+<pre class="cmd">lix scope create                # a .haxerc for this directory
+lix install haxe 4.3.7          # download it and use it here
+lix +lib tink_core              # haxe_libraries/tink_core.hxml
+haxe -lib tink_core --run Main  # runs Haxe 4.3.7 with tink_core
+lix use haxe 4.3.6              # switch to another downloaded version
+lix download                    # after a clone: the scope's Haxe and missing libraries</pre>
 		<p class="note">The <code>haxe</code> shim adds about 2 ms to a compiler call (Node.js: about 60 ms). The compiler server modes (<code>--wait</code>, <code>--server-listen</code>, <code>--server-connect</code>) run on libuv with hxcoro coroutines. Compared with the npm package on 26 scenarios, output and installed files are identical. Details: <a href="https://github.com/benmerckx/haxe-in-haxe/blob/main/tools/lix/README.md">tools/lix/README.md</a>.</p>
 	</section>
 
