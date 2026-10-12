@@ -1,0 +1,21 @@
+# The website's scripts (site/build.sh): one JavaScript file per page script,
+# into bin/site. Run from the repository root.
+-cp site/src
+-dce full
+-D js-es=6
+--each
+
+--main Playground
+--js bin/site/playground.js
+
+--next
+--main Worker
+--js bin/site/worker.js
+
+--next
+--main Bench
+--js bin/site/bench.js
+
+--next
+--main Targets
+--js bin/site/targets.js
