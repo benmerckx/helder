@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds the static website (playground, links to the release builds) into
-# bin/site, ready for any static host (Cloudflare Pages: every file stays below
-# 25 MiB). The downloadable binaries are built by .github/workflows/build.yml.
+# bin/site. .github/workflows/build.yml runs it (with the Linux build of the
+# port as SITE_HAXE) and deploys the result to GitHub Pages; it also builds the
+# downloadable binaries.
 #
 #   sh site/build.sh
 #
