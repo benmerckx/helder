@@ -82,7 +82,7 @@ lix install haxe 4.3.7          # download it and use it here
 lix +lib tink_core              # haxe_libraries/tink_core.hxml
 haxe -lib tink_core --run Main  # runs Haxe 4.3.7 with tink_core
 lix use haxe 4.3.6              # switch to another downloaded version
-lix download                    # after a clone: the scope's Haxe and missing libraries</pre>
+lix download                    # after a clone: the scope's Haxe and missing libraries (8 at a time, LIX_JOBS)</pre>
 		<p class="note">The <code>haxe</code> shim adds about 2 ms to a compiler call (Node.js: about 60 ms). The compiler server modes (<code>--wait</code>, <code>--server-listen</code>, <code>--server-connect</code>) run on libuv with hxcoro coroutines. Compared with the npm package on 26 scenarios, output and installed files are identical. Details: <a href="https://github.com/benmerckx/haxe-in-haxe/blob/main/tools/lix/README.md">tools/lix/README.md</a>.</p>
 	</section>
 
