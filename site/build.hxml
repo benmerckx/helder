@@ -13,9 +13,5 @@
 --js bin/site/worker.js
 
 --next
---main Bench
---js bin/site/bench.js
-
---next
---main Targets
---js bin/site/targets.js
+--main Tables
+--js bin/site/tables.js

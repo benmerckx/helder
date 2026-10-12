@@ -47,7 +47,7 @@ fi
 
 # 4. pages and build facts
 cp site/index.html site/story.html site/style.css "$OUT/"
-# playground.js, worker.js, bench.js and targets.js, from site/src
+# playground.js, worker.js and tables.js, from site/src
 "${SITE_HAXE:-haxe/haxe}" site/build.hxml
 # benchmark results (site/bench/run.py --json site/bench/results.json) for the Benchmarks section
 cp site/bench/results.json "$OUT/bench.json"

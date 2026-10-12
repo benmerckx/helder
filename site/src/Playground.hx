@@ -1,6 +1,5 @@
-// Playground UI. The compiler runs in Web Workers (worker.js): one for Run /
-// Compile to HXB, one for the editor's display requests (completion, hover,
-// signature help, diagnostics), so typing never waits behind a running program.
+import Protocol;
+import Ui.error;
 import js.Browser.document;
 import js.Browser.window;
 import js.Syntax;
@@ -8,11 +7,24 @@ import js.html.ButtonElement;
 import js.html.Element;
 import js.html.SelectElement;
 import js.html.TextAreaElement;
-import js.lib.Object;
 import js.lib.Promise;
 import js.lib.RegExp;
 
+// The playground. The compiler runs in Web Workers (Worker.hx): one for Run and
+// Compile to HXB, one for the editor's display requests (completion, hover,
+// signature help, diagnostics), so typing never waits behind a running program.
+
 typedef Program = {main:String, file:String, code:String};
+typedef Example = {title:String, file:String, source:String};
+
+/** the parts of the compiler's display JSON (haxe.display.JsonModuleTypes) the editor shows */
+typedef JsonType = {kind:String, ?args:Dynamic};
+
+typedef JsonArg = {name:String, ?opt:Bool, t:JsonType};
+
+typedef DisplayItem = {kind:String, ?args:Dynamic, ?type:JsonType};
+
+typedef ItemInfo = {label:String, kind:Int, ?detail:String, ?doc:String};
 
 class Playground {
 	static inline final MONACO = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs";
@@ -21,41 +33,52 @@ class Playground {
 	static var state:Element;
 	static var timing:Element;
 	static var members:Element;
-	static var runBtn:ButtonElement;
-	static var hxbBtn:ButtonElement;
-	static var example:SelectElement;
+	static var runButton:ButtonElement;
+	static var hxbButton:ButtonElement;
+	static var exampleSelect:SelectElement;
+
+	// The compiler is a 10 MB WebAssembly module with 64-bit memory. It is compiled
+	// once, only when the playground comes into view (or Run is pressed), and the
+	// compiled module is shared with the workers. Phones and low-memory devices
+	// skip the background type-checker (diagnostics, completion), the second
+	// compiler instance: two of them got mobile browsers' tabs killed.
+	static final LOW_MEMORY = {
+		final memory:Null<Float> = (cast window.navigator).deviceMemory;
+		(memory != null && memory <= 4) || window.matchMedia("(pointer: coarse)").matches;
+	};
+	static final MEMORY64 = {
+		// a module with one memory64 memory (limits flag 4)
+		try js.lib.WebAssembly.validate(new js.lib.Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 5, 3, 1, 4, 0])) catch (_:Dynamic) false;
+	};
 
 	static function main() {
-		out = byId("out");
-		state = byId("state");
-		timing = byId("timing");
-		members = byId("members");
-		runBtn = cast byId("run");
-		hxbBtn = cast byId("hxb");
-		example = cast byId("example");
+		out = document.getElementById("out");
+		state = document.getElementById("state");
+		timing = document.getElementById("timing");
+		members = document.getElementById("members");
+		runButton = cast document.getElementById("run");
+		hxbButton = cast document.getElementById("hxb");
+		exampleSelect = cast document.getElementById("example");
 
-		try {
-			saved = window.localStorage.getItem("hih-code");
-		} catch (e:Dynamic) {}
-
-		window.fetch("examples/index.json").then((r) -> r.json()).then((list:Array<Dynamic>) -> {
+		saved = try window.localStorage.getItem("hih-code") catch (_:Dynamic) null;
+		window.fetch("examples/index.json").then((r) -> r.json()).then((list:Array<Example>) -> {
 			examples = list;
-			final groups:haxe.DynamicAccess<Element> = {};
-			for (i in 0...list.length) {
-				final ex = list[i];
+			final groups = new Map<String, Element>();
+			for (i => ex in list) {
 				final label = ex.source == "try.haxe.org" ? "From try.haxe.org" : "haxe-in-haxe";
-				if (!Js.truthy(groups[label])) {
-					final group:js.html.OptGroupElement = cast document.createElement("optgroup");
+				if (!groups.exists(label)) {
+					final group = document.createOptGroupElement();
 					group.label = label;
-					groups[label] = cast example.appendChild(group);
+					exampleSelect.append(group);
+					groups[label] = group;
 				}
-				groups[label].appendChild(Syntax.construct("Option", ex.title, i));
+				groups[label].append(new js.html.Option(ex.title, Std.string(i)));
 			}
-			if (!Js.truthy(saved)) loadExample(0);
+			if (saved == null) loadExample(0);
 		});
-		example.addEventListener("change", () -> loadExample(Std.parseInt(example.value)));
+		exampleSelect.addEventListener("change", () -> loadExample(Std.parseInt(exampleSelect.value)));
 
-		final loader:js.html.ScriptElement = cast document.createElement("script");
+		final loader = document.createScriptElement();
 		loader.src = MONACO + "/loader.js";
 		loader.onerror = fallbackEditor;
 		loader.onload = () -> {
@@ -63,126 +86,93 @@ class Playground {
 				getWorkerUrl: () -> "data:text/javascript;charset=utf-8,"
 					+ StringTools.urlEncode('self.MonacoEnvironment = {baseUrl: "${MONACO}/../"}; importScripts("${MONACO}/base/worker/workerMain.js");')
 			};
-			final require:Dynamic = Syntax.code("require");
+			final require:Dynamic = js.Lib.global.require;
 			require.config({paths: {vs: MONACO}});
 			require(["vs/editor/editor.main"], setupMonaco, fallbackEditor);
 		};
-		document.head.appendChild(loader);
+		document.head.append(loader);
 
-		LOW_MEMORY = {
-			final dm:Null<Float> = (cast window.navigator).deviceMemory;
-			Js.or(dm, 8) <= 4 || window.matchMedia("(pointer: coarse)").matches;
-		};
-		MEMORY64 = {
-			// a module with one memory64 memory (limits flag 4)
-			try {
-				js.lib.WebAssembly.validate(new js.lib.Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 5, 3, 1, 4, 0]));
-			} catch (err:Dynamic) {
-				false;
-			}
-		};
-
-		if (!MEMORY64) setBusy(true, "This browser cannot run the compiler: it needs WebAssembly with 64-bit memory (Chrome or Edge 133+, Firefox 134+).");
-		else {
+		if (!MEMORY64) {
+			setBusy(true, "This browser cannot run the compiler: it needs WebAssembly with 64-bit memory (Chrome or Edge 133+, Firefox 134+).");
+		} else {
 			setBusy(true, "The compiler loads when the playground is in view…");
 			final playground = document.getElementById("playground");
-			if (playground != null && Syntax.code("\"IntersectionObserver\" in self")) {
-				var io:js.html.IntersectionObserver = null;
-				io = new js.html.IntersectionObserver((entries, _) -> {
-					if (entries.filter((x) -> x.isIntersecting).length > 0) {
-						io.disconnect();
-						setBusy(true, "Loading compiler…");
-						ensureRunner();
-					}
+			if (playground != null && js.Lib.global.IntersectionObserver != null) {
+				var observer:js.html.IntersectionObserver = null;
+				observer = new js.html.IntersectionObserver((entries, _) -> if (Lambda.exists(entries, (e) -> e.isIntersecting)) {
+					observer.disconnect();
+					startRunner();
 				});
-				io.observe(playground);
+				observer.observe(playground);
 			} else {
-				setBusy(true, "Loading compiler…");
-				ensureRunner();
+				startRunner();
 			}
 		}
-
-		runBtn.onclick = () -> start("run");
-		hxbBtn.onclick = () -> start("hxb");
-
-		pending = new js.lib.Map();
-		queue = new js.lib.Map();
-		encoder = new js.html.TextEncoder();
+		runButton.onclick = () -> start("run");
+		hxbButton.onclick = () -> start("hxb");
 
 		// build facts (sizes, date, commit) from build-info.json, written by site/build.sh
-		window.fetch("build-info.json").then((r) -> r.ok ? r.json() : null).then((info:Dynamic) -> {
-			if (!Js.truthy(info)) return;
-			final els = document.querySelectorAll("[data-info]");
-			for (k in 0...els.length) {
-				final el:Element = cast els[k];
-				final v = (info : haxe.DynamicAccess<Dynamic>)[el.dataset.info];
+		window.fetch("build-info.json").then((r) -> r.ok ? r.json() : null).then((info:haxe.DynamicAccess<String>) -> {
+			if (info == null) return;
+			for (node in document.querySelectorAll("[data-info]")) {
+				final el:Element = cast node;
+				final v = info[el.dataset.info];
 				if (v != null) el.textContent = v;
 			}
 		}).catchError((_) -> {});
 	}
 
-	static inline function byId(id:String):Element {
-		return document.getElementById(id);
-	}
-
 	// ---- the program: Main.hx / Test.hx, main class detected from the source
 
-	static function mainOf(code:String):String {
-		// the class declaring `static function main`: the nearest class before it
-		final m = new RegExp("\\b(?:static\\s+(?:public\\s+|private\\s+)?|(?:public|private)\\s+static\\s+)function\\s+main\\s*\\(").exec(code);
-		if (m != null) {
-			var name:String = null;
-			final re = new RegExp("\\bclass\\s+([A-Z]\\w*)", "g");
-			final before = code.substring(0, m.index);
-			var c;
-			while ((c = re.exec(before)) != null) name = c[1];
-			if (Js.truthy(name)) return name;
-		}
-		return new RegExp("^\\s*function\\s+main\\s*\\(", "m").test(code) ? "Test" : "Main"; // module-level main
-	}
-
 	static function program(code:String):Program {
-		final main = mainOf(code);
+		// the class declaring `static function main`: the nearest class before it
+		var main = ~/^\s*function\s+main\s*\(/m.match(code) ? "Test" : "Main"; // module-level main
+		final mainFunction = ~/\b(?:static\s+(?:public\s+|private\s+)?|(?:public|private)\s+static\s+)function\s+main\s*\(/;
+		if (mainFunction.match(code)) {
+			var before = mainFunction.matchedLeft();
+			final cls = ~/\bclass\s+([A-Z]\w*)/;
+			while (cls.match(before)) {
+				main = cls.matched(1);
+				before = cls.matchedRight();
+			}
+		}
 		return {main: main, file: main + ".hx", code: code};
 	}
 
 	// ---- editor: Monaco when it loads, a textarea otherwise
 
-	static var editor:Dynamic = null;
-	static var textarea:TextAreaElement = null;
-	static var early = ""; // `early`: code set before an editor exists
+	static var monaco:Dynamic;
+	static var editor:Dynamic;
+	static var textarea:TextAreaElement;
+	static var early = ""; // code set before an editor exists
+	static var saved:Null<String>;
+	static var examples:Array<Example> = [];
 
 	static function getCode():String {
 		return editor != null ? editor.getValue() : textarea != null ? textarea.value : early;
 	}
 
-	static function setCode(c:String) {
-		if (editor != null) editor.setValue(c); else if (textarea != null) textarea.value = c; else early = c;
+	static function setCode(code:String) {
+		if (editor != null) editor.setValue(code) else if (textarea != null) textarea.value = code else early = code;
 	}
-
-	static var saved:String = null;
 
 	static function save() {
-		try {
-			window.localStorage.setItem("hih-code", getCode());
-		} catch (e:Dynamic) {}
+		try window.localStorage.setItem("hih-code", getCode()) catch (_:Dynamic) {}
 	}
 
-	static var examples:Array<Dynamic> = [];
-
 	static function loadExample(i:Int) {
-		window.fetch("examples/" + (examples[i].file : String)).then((r) -> r.text()).then((c) -> {
-			setCode(c);
+		window.fetch("examples/" + examples[i].file).then((r) -> r.text()).then((code) -> {
+			setCode(code);
 			save();
 		});
 	}
 
 	static function fallbackEditor() {
-		textarea = cast document.createElement("textarea");
+		textarea = document.createTextAreaElement();
 		textarea.spellcheck = false;
 		textarea.wrap = "off";
 		textarea.setAttribute("aria-label", "Haxe source");
-		textarea.value = Js.or(saved, early);
+		textarea.value = saved != null ? saved : early;
 		textarea.addEventListener("input", save);
 		textarea.addEventListener("keydown", (e:js.html.KeyboardEvent) -> {
 			if (e.key == "Tab") {
@@ -194,15 +184,15 @@ class Playground {
 				start("run");
 			}
 		});
-		byId("editor").replaceWith(textarea);
+		document.getElementById("editor").replaceWith(textarea);
 	}
 
 	static function setupMonaco() {
-		final monaco:Dynamic = js.Lib.global.monaco;
+		monaco = js.Lib.global.monaco;
 		defineHaxe();
 		final dark = window.matchMedia("(prefers-color-scheme: dark)");
-		editor = monaco.editor.create(byId("editor"), {
-			value: Js.or(saved, early),
+		editor = monaco.editor.create(document.getElementById("editor"), {
+			value: saved != null ? saved : early,
 			language: "haxe",
 			theme: dark.matches ? "vs-dark" : "vs",
 			automaticLayout: true,
@@ -225,55 +215,39 @@ class Playground {
 
 	// ---- running programs
 
-	// The compiler is a 10 MB WebAssembly module with 64-bit memory. It is compiled
-	// once, only when the playground comes into view (or Run is pressed), and the
-	// compiled module is shared with the workers. Phones and low-memory devices
-	// skip the background type-checker (diagnostics, completion), the second
-	// compiler instance: two of them got mobile browsers' tabs killed.
-	static var LOW_MEMORY:Bool;
-	static var MEMORY64:Bool;
-	static var wasmModule:Promise<Dynamic> = null;
+	static var compiledModule:Promise<js.lib.webassembly.Module>;
+	static var runner:js.html.Worker;
+	static var runnerReady = false;
+	static var busy = false;
+	static var zipUrl:Null<String>;
 
-	static function compilerModule():Promise<Dynamic> {
-		if (wasmModule == null) wasmModule = js.lib.WebAssembly.compileStreaming(cast window.fetch("hih.wasm"));
-		return wasmModule;
-	}
-
-	static function startWorker(onmessage:js.html.MessageEvent->Void):js.html.Worker {
+	static function startWorker(onReply:Reply->Void):js.html.Worker {
+		if (compiledModule == null) compiledModule = js.lib.WebAssembly.compileStreaming(cast window.fetch("hih.wasm"));
 		final w = new js.html.Worker("worker.js");
-		w.onmessage = onmessage;
-		compilerModule().then((module) -> w.postMessage({type: "module", module: module}), (err:Dynamic) -> {
-			setBusy(true, "The compiler could not be loaded: " + Js.str(Js.truthy(err) && Js.truthy(err.message) ? err.message : err));
-		});
+		w.onmessage = (e) -> onReply(e.data);
+		compiledModule.then((m) -> w.postMessage(({type: "module", module: m} : Request)),
+			(e) -> setBusy(true, "The compiler could not be loaded: " + error(e)));
 		return w;
 	}
 
-	static var runner:js.html.Worker = null;
-	static var busy = false;
-	static var zipUrl:String = null;
-	static var runnerReady = false;
-
-	static function newRunner() {
-		runner = startWorker((e) -> onRunnerMessage(e.data));
-		runner.postMessage({type: "warmup"});
+	static function startRunner() {
+		if (runner != null) return;
+		setBusy(true, "Loading compiler…");
+		runner = startWorker(onRunnerReply);
+		runner.postMessage(({type: "warmup"} : Request));
 	}
 
-	static function ensureRunner() {
-		if (runner != null || !MEMORY64) return;
-		newRunner();
-	}
-
-	static function setBusy(b:Bool, ?text:String) {
+	static function setBusy(b:Bool, text = "") {
 		busy = b;
-		runBtn.disabled = hxbBtn.disabled = b;
-		state.textContent = Js.or(text, "");
+		runButton.disabled = hxbButton.disabled = b;
+		state.textContent = text;
 	}
 
-	static function print(text:String, ?cls:String) {
+	static function print(text:String, cls = "") {
 		final span = document.createSpanElement();
-		if (Js.truthy(cls)) span.className = cls;
+		span.className = cls;
 		span.textContent = text + "\n";
-		out.appendChild(span);
+		out.append(span);
 	}
 
 	static function start(mode:String) {
@@ -284,11 +258,11 @@ class Playground {
 		timing.textContent = "";
 		setBusy(true, mode == "run" ? "Compiling and running…" : "Compiling to HXB…");
 		final p = program(getCode());
-		runner.postMessage({type: "compile", mode: mode, main: p.main, file: p.file, code: p.code});
+		runner.postMessage(({type: "compile", mode: mode, main: p.main, file: p.file, code: p.code} : Request));
 	}
 
-	static function onRunnerMessage(m:Dynamic) {
-		switch (m.type) {
+	static function onRunnerReply(m:Reply) {
+		switch m.type {
 			case "ready":
 				runnerReady = true;
 				setBusy(false, "Ready. Ctrl+Enter runs.");
@@ -298,95 +272,97 @@ class Playground {
 			case "err":
 				print(m.text, "err");
 			case "done":
-				timing.textContent = 'exit ${Js.str(m.status)}, ${Js.fixed(m.ms, 0)} ms';
-				if (Js.truthy(m.zip)) showZip(m.zip);
-				setBusy(false, "");
+				timing.textContent = 'exit ${m.status}, ${Ui.fixed(m.ms, 0)} ms';
+				if (m.zip != null) showZip(m.zip);
+				setBusy(false);
 			case "failed":
 				print(m.message, "err");
-				runner.terminate(); // a crashed instance (stack or memory exhausted): start over
-				newRunner();
+				// a crashed instance (stack or memory exhausted): start over
+				runner.terminate();
+				runner = null;
+				startRunner();
 				setBusy(true, "Restarting compiler…");
 		}
+	}
+
+	static function localeNumber(n:Int):String {
+		return (cast n).toLocaleString();
 	}
 
 	// the members of the HXB archive, from the ZIP central directory
 	static function showZip(buf:js.lib.ArrayBuffer) {
 		final bytes = new js.lib.Uint8Array(buf), view = new js.lib.DataView(buf);
-		var eocd = -1;
-		var i = bytes.length - 22;
-		while (i >= 0) {
-			if (view.getUint32(i, true) == 0x06054b50) {
-				eocd = i;
-				break;
-			}
-			i--;
-		}
+		var eocd = bytes.length - 22;
+		while (eocd >= 0 && view.getUint32(eocd, true) != 0x06054b50) eocd--;
 		if (eocd < 0) return;
 		final count = view.getUint16(eocd + 10, true);
 		var p = view.getUint32(eocd + 16, true);
-		final rows:Array<{name:String, size:Int}> = [];
+		final rows = [];
 		var total = 0;
+		final decoder = new js.html.TextDecoder();
 		for (_ in 0...count) {
-			final size = view.getUint32(p + 24, true), nlen = view.getUint16(p + 28, true);
-			final elen = view.getUint16(p + 30, true), clen = view.getUint16(p + 32, true);
-			rows.push({name: new js.html.TextDecoder().decode(bytes.subarray(p + 46, p + 46 + nlen)), size: size});
+			final size = view.getUint32(p + 24, true), nameLength = view.getUint16(p + 28, true);
+			final extraLength = view.getUint16(p + 30, true), commentLength = view.getUint16(p + 32, true);
+			rows.push({name: decoder.decode(bytes.subarray(p + 46, p + 46 + nameLength)), size: size});
 			total += size;
-			p += 46 + nlen + elen + clen;
+			p += 46 + nameLength + extraLength + commentLength;
 		}
-		if (Js.truthy(zipUrl)) js.html.URL.revokeObjectURL(zipUrl);
+		if (zipUrl != null) js.html.URL.revokeObjectURL(zipUrl);
 		zipUrl = js.html.URL.createObjectURL(new js.html.Blob([buf], {type: "application/zip"}));
-		print('${count} HXB modules, ${Js.locale(total)} bytes uncompressed.');
+		print('${count} HXB modules, ${localeNumber(total)} bytes uncompressed.');
 		final a = document.createAnchorElement();
 		a.href = zipUrl;
 		a.download = "out.hxb.zip";
 		a.textContent = "Download the archive";
 		final table = document.createTableElement();
 		table.innerHTML = "<thead><tr><th>module</th><th>bytes</th></tr></thead>";
-		final tb = document.createElement("tbody");
-		rows.sort((x, y) -> (x.name : Dynamic).localeCompare(y.name));
+		final body = document.createElement("tbody");
+		rows.sort((x, y) -> (cast x.name).localeCompare(y.name));
 		for (row in rows) {
 			final tr = document.createTableRowElement();
-			tr.innerHTML = "<td></td><td></td>";
-			tr.children[0].textContent = row.name;
-			tr.children[1].textContent = Js.locale(row.size);
-			tb.appendChild(tr);
+			tr.append(Ui.el("td", "", row.name), Ui.el("td", "", localeNumber(row.size)));
+			body.append(tr);
 		}
-		table.appendChild(tb);
+		table.append(body);
 		members.append(a, table);
 		members.hidden = false;
 	}
 
 	// ---- display requests (JSON-RPC, as an IDE sends them), on their own worker
 
-	static var lsp:js.html.Worker = null;
+	static var lsp:js.html.Worker;
 	static var lspSeq = 0;
-	static var pending:js.lib.Map<Int, Dynamic->Void>;
+	static final pending = new Map<Int, Null<Reply>->Void>();
 
-	static function newLsp() {
-		lsp = startWorker((e) -> {
-			final m:Dynamic = e.data, p = pending.get(m.id);
-			if (p == null) return;
-			pending.delete(m.id);
+	static function startLsp() {
+		lsp = startWorker((m) -> {
+			final resolve = pending[m.id];
+			if (resolve == null) return;
+			pending.remove(m.id);
 			if (m.type == "failed") {
 				lsp.terminate();
-				newLsp();
-				p(null);
-			} else p(m);
+				startLsp();
+				resolve(null);
+			} else {
+				resolve(m);
+			}
 		});
 	}
 
 	// one request at a time; a newer request of the same kind replaces a queued one
-	static var queue:js.lib.Map<String, {msg:Dynamic, resolve:Dynamic->Void}>;
+	// (a js.lib.Map: its keys keep their insertion order)
+	static final queue = new js.lib.Map<String, {request:Request, resolve:Null<Reply>->Void}>();
 	static var inflight = false;
 
-	static function request(kind:String, msg:Dynamic):Promise<Dynamic> {
+	static function request(r:Request):Promise<Null<Reply>> {
 		// the type-checker starts once the compiler has loaded, and not on small devices
 		if (LOW_MEMORY || !MEMORY64 || !runnerReady) return Promise.resolve(null);
-		if (lsp == null) newLsp();
+		if (lsp == null) startLsp();
+		final kind = r.type == "display" ? r.request.method : r.type;
 		return new Promise((resolve, _) -> {
-			final prev = queue.get(kind);
-			if (prev != null) prev.resolve(null);
-			queue.set(kind, {msg: msg, resolve: resolve});
+			final previous = queue.get(kind);
+			if (previous != null) previous.resolve(null);
+			queue.set(kind, {request: r, resolve: resolve});
 			pump();
 		});
 	}
@@ -398,100 +374,99 @@ class Playground {
 		queue.delete(kind);
 		inflight = true;
 		final id = ++lspSeq;
-		pending.set(id, (m) -> {
+		pending[id] = (m) -> {
 			inflight = false;
 			q.resolve(m);
 			pump();
-		});
-		lsp.postMessage(Object.assign({}, q.msg, {id: id}));
+		};
+		q.request.id = id;
+		lsp.postMessage(q.request);
 	}
 
-	static var encoder:js.html.TextEncoder;
+	static final encoder = new js.html.TextEncoder();
 
-	static function byteOffset(model:Dynamic, position:Dynamic):Int {
-		return encoder.encode((model.getValue() : String).substring(0, model.getOffsetAt(position))).length;
-	}
-
-	static function display(method:String, model:Dynamic, position:Dynamic, ?extra:Dynamic):Promise<Dynamic> {
+	/** a JSON-RPC display request at the editor position; the result, or null */
+	static function display(method:String, model:Dynamic, position:Dynamic, ?extra:{wasAutoTriggered:Bool}):Promise<Dynamic> {
 		final p = program(model.getValue());
-		final params = Object.assign({file: "/work/" + p.file, offset: byteOffset(model, position)}, extra);
-		return request(method, {type: "display", main: p.main, file: p.file, code: p.code, request: {jsonrpc: "2.0", id: 1, method: method, params: params}}).then((m:Dynamic) -> {
-			if (!Js.truthy(m)) return null;
-			final line = (m.output : String).split("\n").filter((l) -> StringTools.startsWith(l, '{"jsonrpc"'))[0];
-			if (!Js.truthy(line)) return null;
-			try {
-				final r:Dynamic = haxe.Json.parse(line);
-				return Js.truthy(r.result) ? r.result.result : null;
-			} catch (e:Dynamic) {
-				return null;
+		final code:String = model.getValue();
+		final params:Dynamic = {file: "/work/" + p.file, offset: encoder.encode(code.substring(0, model.getOffsetAt(position))).length};
+		if (extra != null) params.wasAutoTriggered = extra.wasAutoTriggered;
+		final r:Request = {type: "display", main: p.main, file: p.file, code: p.code, request: {jsonrpc: "2.0", id: 1, method: method, params: params}};
+		return request(r).then((m) -> {
+			if (m == null) return null;
+			for (line in m.output.split("\n")) if (StringTools.startsWith(line, '{"jsonrpc"')) {
+				final reply:Dynamic = try haxe.Json.parse(line) catch (_:Dynamic) null;
+				return reply != null && reply.result != null ? reply.result.result : null;
 			}
+			return null;
 		});
 	}
 
-	// Haxe's JSON types (haxe.display.JsonModuleTypes) as Haxe source
-	static function typeStr(t:Dynamic):String {
-		if (!Js.truthy(t)) return "?";
+	/** a type of the display JSON as Haxe source */
+	static function typeString(t:Null<JsonType>):String {
+		if (t == null) return "?";
 		final a:Dynamic = t.args;
-		final path = (p:Dynamic) -> (p.typeName : String);
-		final params = (ps:Array<Dynamic>) -> Js.truthy(ps) && ps.length > 0 ? "<" + ps.map(typeStr).join(", ") + ">" : "";
-		return switch (t.kind : String) {
+		function params(ps:Null<Array<JsonType>>) return ps != null && ps.length > 0 ? "<" + ps.map(typeString).join(", ") + ">" : "";
+		return switch t.kind {
 			case "TMono": "Unknown";
-			case "TInst" | "TEnum" | "TType" | "TAbstract": path(a.path) + params(a.params);
-			case "TFun": "(" + (a.args : Array<Dynamic>).map((x) -> (Js.truthy(x.opt) ? "?" : "") + (Js.truthy(x.name) ? (x.name : String) + ":" : "") + typeStr(x.t)).join(", ") + ") -> " + typeStr(a.ret);
-			case "TAnonymous": "{ " + (Js.or(a.fields, []) : Array<Dynamic>).map((f) -> (f.name : String) + ":" + typeStr(f.type)).join(", ") + " }";
-			case "TDynamic": Js.truthy(a) ? "Dynamic<" + typeStr(a) + ">" : "Dynamic";
-			default: t.kind;
+			case "TInst" | "TEnum" | "TType" | "TAbstract": a.path.typeName + params(a.params);
+			case "TFun": "(" + (a.args : Array<JsonArg>).map((x) -> (x.opt ? "?" : "") + (x.name != null && x.name != "" ? x.name + ":" : "") + typeString(x.t)).join(", ") + ") -> " + typeString(a.ret);
+			case "TAnonymous": "{ " + (a.fields != null ? (a.fields : Array<Dynamic>) : []).map((f) -> f.name + ":" + typeString(f.type)).join(", ") + " }";
+			case "TDynamic": a != null ? "Dynamic<" + typeString(a) + ">" : "Dynamic";
+			case kind: kind;
 		}
 	}
 
-	static function itemInfo(item:Dynamic):Dynamic {
-		final a:Dynamic = Js.or(item.args, {});
+	static function itemInfo(item:DisplayItem):ItemInfo {
+		final a:Dynamic = item.args != null ? item.args : {};
 		final f:Dynamic = a.field;
-		final K:Dynamic = js.Lib.global.monaco.languages.CompletionItemKind;
-		return switch (item.kind : String) {
+		final K:Dynamic = monaco.languages.CompletionItemKind;
+		return switch item.kind {
 			case "ClassField" | "EnumAbstractField" | "AnonField":
-				{label: f.name, kind: Js.truthy(f.kind) && f.kind.kind == "FMethod" ? K.Method : K.Field, detail: typeStr(f.type), doc: f.doc};
-			case "EnumField": {label: a.field.name, kind: K.EnumMember, detail: typeStr(a.field.type), doc: a.field.doc};
-			case "Local": {label: a.name, kind: K.Variable, detail: typeStr(a.type)};
-			case "Type": {label: a.path.typeName, kind: a.kind == "Interface" ? K.Interface : a.kind == "Enum" ? K.Enum : K.Class, detail: (Js.or(a.path.pack, []) : Array<String>).concat([a.path.typeName]).join("."), doc: a.doc};
-			case "Package": {label: Js.truthy(a.path) && Js.truthy(a.path.pack) ? a.path.pack[(a.path.pack.length : Int) - 1] : Js.str(a), kind: K.Module};
-			case "Module": {label: Js.truthy(a.path) ? a.path.moduleName : Js.str(a), kind: K.Module};
+				{label: f.name, kind: f.kind != null && f.kind.kind == "FMethod" ? K.Method : K.Field, detail: typeString(f.type), doc: f.doc};
+			case "EnumField": {label: f.name, kind: K.EnumMember, detail: typeString(f.type), doc: f.doc};
+			case "Local": {label: a.name, kind: K.Variable, detail: typeString(a.type)};
+			case "Type":
+				final pack:Array<String> = a.path.pack != null ? a.path.pack : [];
+				{label: a.path.typeName, kind: a.kind == "Interface" ? K.Interface : a.kind == "Enum" ? K.Enum : K.Class, detail: pack.concat([a.path.typeName]).join("."), doc: a.doc};
+			case "Package": {label: a.path != null && a.path.pack != null ? a.path.pack[(a.path.pack.length : Int) - 1] : Std.string(a), kind: K.Module};
+			case "Module": {label: a.path != null ? a.path.moduleName : Std.string(a), kind: K.Module};
 			case "Keyword": {label: a.name, kind: K.Keyword};
-			case "Literal": {label: a.name, kind: K.Value, detail: typeStr(a.type)};
+			case "Literal": {label: a.name, kind: K.Value, detail: typeString(a.type)};
 			case "Metadata": {label: a.name, kind: K.Property, doc: a.doc};
 			case "TypeParameter": {label: a.name, kind: K.TypeParameter};
-			default: {label: Js.or(Js.or(Js.truthy(f) ? f.name : f, a.name), item.kind), kind: K.Text};
+			case kind: {label: f != null && f.name != null ? f.name : a.name != null ? a.name : kind, kind: K.Text};
 		}
 	}
 
 	static function registerProviders() {
-		final monaco:Dynamic = js.Lib.global.monaco;
 		monaco.languages.registerCompletionItemProvider("haxe", {
 			triggerCharacters: [".", ":", " "],
 			provideCompletionItems: (model:Dynamic, position:Dynamic, context:Dynamic) -> {
-				final ch:String = context.triggerCharacter;
+				final ch:Null<String> = context.triggerCharacter;
 				if (ch == " ") { // only after `new`, `extends`, `implements`, `import`, `using`, `case`
 					final before = (model.getLineContent(position.lineNumber) : String).substring(0, (position.column : Int) - 1);
-					if (!new RegExp("\\b(new|extends|implements|import|using|case|cast)\\s$").test(before)) return Promise.resolve({suggestions: []});
+					if (!~/\b(new|extends|implements|import|using|case|cast)\s$/.match(before)) return Promise.resolve({suggestions: []});
 				}
-				return display("display/completion", model, position, {wasAutoTriggered: Js.truthy(ch)}).then((r:Dynamic) -> {
-					if (!Js.truthy(r) || !Js.truthy(r.items)) return {suggestions: []};
+				return display("display/completion", model, position, {wasAutoTriggered: ch != null}).then((r) -> {
+					if (r == null || r.items == null) return {suggestions: []};
 					final word = model.getWordUntilPosition(position);
 					final range = Syntax.construct(monaco.Range, position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
-					final seen = new js.lib.Set<String>();
-					final suggestions:Array<Dynamic> = [];
-					for (item in (r.items : Array<Dynamic>)) {
+					final seen = new Map<String, Bool>();
+					final suggestions = [];
+					for (item in (r.items : Array<DisplayItem>)) {
 						final i = itemInfo(item);
-						if (!Js.truthy(i.label) || seen.has(Js.str(i.label) + Js.str(i.kind))) continue;
-						seen.add(Js.str(i.label) + Js.str(i.kind));
+						final key = i.label + "/" + i.kind;
+						if (i.label == null || i.label == "" || seen.exists(key)) continue;
+						seen[key] = true;
 						suggestions.push({
 							label: i.label,
 							kind: i.kind,
 							detail: i.detail,
-							documentation: Js.truthy(i.doc) ? {value: i.doc.trim()} : js.Lib.undefined,
+							documentation: i.doc != null && i.doc != "" ? {value: StringTools.trim(i.doc)} : null,
 							insertText: i.label,
 							range: range,
-							sortText: StringTools.lpad(Js.str(suggestions.length), "0", 5)
+							sortText: StringTools.lpad(Std.string(suggestions.length), "0", 5)
 						});
 					}
 					return {suggestions: suggestions};
@@ -499,26 +474,29 @@ class Playground {
 			},
 		});
 		monaco.languages.registerHoverProvider("haxe", {
-			provideHover: (model:Dynamic, position:Dynamic) -> display("display/hover", model, position).then((r:Dynamic) -> {
-				if (!Js.truthy(r) || !Js.truthy(r.item)) return null;
-				final t:Dynamic = Js.truthy(r.item.type) ? typeStr(r.item.type) : itemInfo(r.item).detail;
-				final doc:String = Js.or(Js.truthy(r.item.args) ? Js.or(r.item.args.doc, Js.truthy(r.item.args.field) ? r.item.args.field.doc : r.item.args.field) : r.item.args, "");
-				final contents:Array<Dynamic> = [{value: "```haxe\n" + Js.str(Js.or(t, r.item.kind)) + "\n```"}];
-				if (Js.truthy(doc)) contents.push({value: (doc : Dynamic).trim()});
+			provideHover: (model:Dynamic, position:Dynamic) -> display("display/hover", model, position).then((r) -> {
+				if (r == null || r.item == null) return null;
+				final item:DisplayItem = r.item;
+				final type = item.type != null ? typeString(item.type) : itemInfo(item).detail;
+				final args:Dynamic = item.args;
+				final doc:Null<String> = args == null ? null : args.doc != null ? args.doc : args.field != null ? args.field.doc : null;
+				final contents = [{value: "```haxe\n" + (type != null ? type : item.kind) + "\n```"}];
+				if (doc != null && doc != "") contents.push({value: StringTools.trim(doc)});
 				return {contents: contents};
 			}),
 		});
 		monaco.languages.registerSignatureHelpProvider("haxe", {
 			signatureHelpTriggerCharacters: ["(", ","],
-			provideSignatureHelp: (model:Dynamic, position:Dynamic) -> display("display/signatureHelp", model, position, {wasAutoTriggered: true}).then((r:Dynamic) -> {
-				if (!Js.truthy(r) || !Js.truthy(r.signatures) || r.signatures.length == 0) return null;
+			provideSignatureHelp: (model:Dynamic, position:Dynamic) -> display("display/signatureHelp", model, position, {wasAutoTriggered: true}).then((r) -> {
+				if (r == null || r.signatures == null || r.signatures.length == 0) return null;
+				final signatures:Array<{args:Array<JsonArg>, ret:JsonType, ?documentation:String}> = r.signatures;
 				return {
 					value: {
-						activeSignature: Js.or(r.activeSignature, 0),
-						activeParameter: Js.or(r.activeParameter, 0),
-						signatures: (r.signatures : Array<Dynamic>).map((s:Dynamic) -> {
-							final ps = (s.args : Array<Dynamic>).map((x) -> (Js.truthy(x.opt) ? "?" : "") + (x.name : String) + ":" + typeStr(x.t));
-							return {label: "(" + ps.join(", ") + ") -> " + typeStr(s.ret), documentation: Js.or(s.documentation, ""), parameters: ps.map((label) -> {label: label})};
+						activeSignature: r.activeSignature != null ? r.activeSignature : 0,
+						activeParameter: r.activeParameter != null ? r.activeParameter : 0,
+						signatures: signatures.map((s) -> {
+							final ps = s.args.map((x) -> (x.opt ? "?" : "") + x.name + ":" + typeString(x.t));
+							return {label: "(" + ps.join(", ") + ") -> " + typeString(s.ret), documentation: s.documentation != null ? s.documentation : "", parameters: ps.map((label) -> {label: label})};
 						}),
 					},
 					dispose: () -> {},
@@ -526,12 +504,15 @@ class Playground {
 			}),
 		});
 		monaco.languages.registerDefinitionProvider("haxe", {
-			provideDefinition: (model:Dynamic, position:Dynamic) -> display("display/definition", model, position).then((r:Dynamic) -> {
-				if (!Js.truthy(r) || r.length == 0) return null;
-				return (r : Array<Dynamic>).filter((d) -> StringTools.startsWith(d.file, "/work/")).map((d) -> {
-					uri: model.uri,
-					range: Syntax.construct(monaco.Range, d.range.start.line + 1, d.range.start.character + 1, d.range.end.line + 1, d.range.end.character + 1),
-				});
+			provideDefinition: (model:Dynamic, position:Dynamic) -> display("display/definition", model, position).then((r) -> {
+				if (r == null || r.length == 0) return null;
+				final locations:Array<{file:String, range:{start:{line:Int, character:Int}, end:{line:Int, character:Int}}}> = r;
+				return [
+					for (d in locations) if (StringTools.startsWith(d.file, "/work/")) {
+						uri: model.uri,
+						range: Syntax.construct(monaco.Range, d.range.start.line + 1, d.range.start.character + 1, d.range.end.line + 1, d.range.end.character + 1),
+					}
+				];
 			}),
 		});
 	}
@@ -544,32 +525,31 @@ class Playground {
 		// right after a `.` (completion territory) the line is usually incomplete:
 		// wait longer before reporting it as an error
 		var delay = 700;
-		final pos:Dynamic = Js.truthy(editor) ? editor.getPosition() : editor;
-		if (Js.truthy(pos)) {
+		final pos:Dynamic = editor != null ? editor.getPosition() : null;
+		if (pos != null) {
 			final before = (editor.getModel().getLineContent(pos.lineNumber) : String).substring(0, (pos.column : Int) - 1);
-			if (new RegExp("\\.\\w*$").test(before)) delay = 2500;
+			if (~/\.\w*$/.match(before)) delay = 2500;
 		}
 		checkTimer = window.setTimeout(check, delay);
 	}
 
 	static function check() {
-		if (!Js.truthy(editor)) return;
-		final monaco:Dynamic = js.Lib.global.monaco;
+		if (editor == null) return;
 		final model:Dynamic = editor.getModel();
 		final p = program(model.getValue());
-		request("check", {type: "check", main: p.main, file: p.file, code: p.code}).then((m:Dynamic) -> {
-			if (!Js.truthy(m) || model.getValue() != p.code) return;
-			final markers:Array<Dynamic> = [];
+		request({type: "check", main: p.main, file: p.file, code: p.code}).then((m) -> {
+			if (m == null || model.getValue() != p.code) return;
+			final markers = [];
 			// classic message format: File.hx:LINE: characters A-B : message (or lines A-B)
-			final re = new RegExp("^(?:\\/work\\/)?([\\w.]+\\.hx):(\\d+): (characters|lines) (\\d+)-(\\d+) : (.*)$");
-			for (l in (m.output : String).split("\n")) {
-				final x = re.exec(l);
-				if (x == null || x[1] != p.file) continue;
-				final line = Std.parseInt(x[2]), a = Std.parseInt(x[4]), b = Std.parseInt(x[5]);
-				final warning = new RegExp("^Warning ?:").test(x[6]);
-				markers.push(x[3] == "characters"
-					? {startLineNumber: line, startColumn: a + 1, endLineNumber: line, endColumn: Math.max(b + 1, a + 2), message: x[6], severity: warning ? monaco.MarkerSeverity.Warning : monaco.MarkerSeverity.Error}
-					: {startLineNumber: a, startColumn: 1, endLineNumber: b, endColumn: 1000, message: x[6], severity: monaco.MarkerSeverity.Error});
+			final re = ~/^(?:\/work\/)?([\w.]+\.hx):(\d+): (characters|lines) (\d+)-(\d+) : (.*)$/;
+			for (l in m.output.split("\n")) {
+				if (!re.match(l) || re.matched(1) != p.file) continue;
+				final line = Std.parseInt(re.matched(2)), a = Std.parseInt(re.matched(4)), b = Std.parseInt(re.matched(5));
+				final message = re.matched(6);
+				final severity = ~/^Warning ?:/.match(message) ? monaco.MarkerSeverity.Warning : monaco.MarkerSeverity.Error;
+				markers.push(re.matched(3) == "characters"
+					? {startLineNumber: line, startColumn: a + 1, endLineNumber: line, endColumn: Std.int(Math.max(b + 1, a + 2)), message: message, severity: severity}
+					: {startLineNumber: a, startColumn: 1, endLineNumber: b, endColumn: 1000, message: message, severity: monaco.MarkerSeverity.Error});
 			}
 			monaco.editor.setModelMarkers(model, "haxe", markers);
 		});
@@ -584,7 +564,6 @@ class Playground {
 
 	// Monarch tokenizer for Haxe
 	static function defineHaxe() {
-		final monaco:Dynamic = js.Lib.global.monaco;
 		monaco.languages.register({id: "haxe", extensions: [".hx"]});
 		monaco.languages.setLanguageConfiguration("haxe", {
 			comments: {lineComment: "//", blockComment: ["/*", "*/"]},
