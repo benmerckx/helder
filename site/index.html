@@ -69,8 +69,8 @@ haxe-in-haxe -cp src --main Main --js out.js</pre>
 
 	<section id="tools">
 		<h2>Tools</h2>
-		<p><strong><a href="tools/lix.com">lix.com</a></strong> (<span data-info="lixSize">~5 MB</span>): <a href="https://github.com/lix-pm/lix.client">lix</a>, the Haxe package manager, and <a href="https://github.com/lix-pm/haxeshim">haxeshim</a>, ported from Haxe on Node.js and compiled by hxc into one Cosmopolitan binary for Linux, macOS, Windows and the BSDs. It is <code>lix</code>, <code>haxe</code>, <code>haxelib</code> and <code>neko</code> in one file: it acts as the command it is named or linked as.</p>
-<pre class="cmd">curl -fLo ~/bin/lix https://benmerckx.github.io/haxe-in-haxe/tools/lix.com &amp;&amp; chmod +x ~/bin/lix
+		<p><strong><a href="tools/lix.com">lix.com</a></strong> (<span data-info="lixSize">~6 MB</span>): <a href="https://github.com/lix-pm/lix.client">lix</a>, the Haxe package manager, and <a href="https://github.com/lix-pm/haxeshim">haxeshim</a>, ported from Haxe on Node.js and compiled by hxc into one Cosmopolitan binary for Linux, macOS, Windows and the BSDs. It is <code>lix</code>, <code>haxe</code>, <code>haxelib</code> and <code>neko</code> in one file: it acts as the command it is named or linked as.</p>
+<pre class="cmd">curl -fLo ~/bin/lix https://haxe-in-haxe.ben.mk/tools/lix.com &amp;&amp; chmod +x ~/bin/lix
 for c in haxe haxelib neko; do ln -s lix ~/bin/$c; done
 lix scope create &amp;&amp; lix install haxe stable &amp;&amp; lix +lib tink_core</pre>
 		<p class="note">The <code>haxe</code> shim adds about 2 ms to a compiler call (Node.js: about 60 ms). The compiler server modes (<code>--wait</code>, <code>--server-listen</code>, <code>--server-connect</code>) run on libuv with hxcoro coroutines. Compared with the npm package on 26 scenarios, output and installed files are identical. Details: <a href="https://github.com/benmerckx/haxe-in-haxe/blob/main/tools/lix/README.md">tools/lix/README.md</a>.</p>
