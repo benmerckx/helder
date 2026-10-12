@@ -79,7 +79,7 @@ lix shims</pre>
 		<p>Then, in a project: <code>lix</code> downloads Haxe versions and libraries into the project's scope, and <code>haxe</code> runs the version and libraries of the scope it is called in, so editors and build scripts that call <code>haxe</code> get the right ones:</p>
 <pre class="cmd">lix scope create                # a .haxerc for this directory
 lix install haxe 4.3.7          # download it and use it here
-lix +lib tink_core              # haxe_libraries/tink_core.hxml
+lix +lib tink_core              # haxe_libraries/tink_core.hxml (dependencies downloaded in parallel)
 haxe -lib tink_core --run Main  # runs Haxe 4.3.7 with tink_core
 lix use haxe 4.3.6              # switch to another downloaded version
 lix download                    # after a clone: the scope's Haxe and missing libraries (8 at a time, LIX_JOBS)</pre>
