@@ -6,7 +6,7 @@ import js.lib.Promise;
 import js.lib.Uint8Array;
 import js.lib.WebAssembly;
 
-// Runs the compiler (hih.js + hih.wasm + hih.data, from site/build.sh). Each
+// Runs the compiler (hih.js + hih.wasm + hih.data, from `make wasm`). Each
 // request gets a fresh instance, so the program's static state starts clean;
 // the compiled wasm module is reused between instances.
 

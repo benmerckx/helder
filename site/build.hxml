@@ -1,4 +1,4 @@
-# The website's scripts (site/build.sh): one JavaScript file per page script,
+# The website's scripts (`make site`): one JavaScript file per page script,
 # into bin/site. Run from the repository root.
 -cp site/src
 -dce full

@@ -111,7 +111,7 @@ class Playground {
 		runButton.onclick = () -> start("run");
 		hxbButton.onclick = () -> start("hxb");
 
-		// build facts (sizes, date, commit) from build-info.json, written by site/build.sh
+		// build facts (sizes, date, commit) from build-info.json, written by `make site` (Makefile)
 		window.fetch("build-info.json").then((r) -> r.ok ? r.json() : null).then((info:haxe.DynamicAccess<String>) -> {
 			if (info == null) return;
 			for (node in document.querySelectorAll("[data-info]")) {

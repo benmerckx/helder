@@ -58,7 +58,7 @@
 		</ul>
 <pre class="cmd">haxe-in-haxe -cp src --main Main --interp
 haxe-in-haxe -cp src --main Main --js out.js</pre>
-		<p class="note">It takes the same arguments as <code>haxe</code>. The Linux and macOS builds are compiled with zig cc; set <code>HAXE_STD_PATH</code> to the <code>std</code> directory in the archive. The Windows build and <code>haxe-in-haxe.com</code> are the Cosmopolitan build, which is slower (about 1.6× the time of the native builds on large compiles) and carries the standard library inside. All files: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/tag/nightly">nightly release</a>.</p>
+		<p class="note">It takes the same arguments as <code>haxe</code>. The Linux and macOS builds are compiled with zig cc; like the Cosmopolitan build they carry mbedtls and libuv, so <code>sys.ssl</code> and <code>eval.luv</code> work in macros and <code>--interp</code>. Set <code>HAXE_STD_PATH</code> to the <code>std</code> directory in the archive. The Windows build and <code>haxe-in-haxe.com</code> are the Cosmopolitan build, which is slower (about 1.6× the time of the native builds on large compiles) and carries the standard library inside. All files: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/tag/nightly">nightly release</a>.</p>
 	</section>
 
 	<section id="hxc">

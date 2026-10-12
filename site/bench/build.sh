@@ -1,7 +1,7 @@
 #!/bin/sh
 # Builds the translated compiler (haxe.Main) for each benchmark target.
 # Usage: HAXE=haxe/haxe sh site/bench/build.sh [js] [hl] [hlc] [jvm] [cpp] [wasm]
-# (wasm needs the hxc C output first: sh hxc/build.sh port)
+# (wasm needs the hxc C output first: make port-c)
 set -u
 cd "$(dirname "$0")/../.."
 HAXE=${HAXE:-haxe/haxe}
@@ -24,7 +24,7 @@ for t in $targets; do
 		jvm) "$HAXE" -cp src -main haxe.Main -lib hxjava --jvm "$OUT/hih.jar" ;;
 		cpp) # CPP_FLAGS="-D HXCPP_SINGLE_THREAD_MARK" needs site/bench/patches/hxcpp-single-thread-mark.patch
 			"$HAXE" -cp src -main haxe.Main -lib hxcpp -D HXCPP_M64 ${CPP_FLAGS:-} --cpp "$OUT/cpp" ;;
-		wasm) # the hxc C output (sh hxc/build.sh port) built like site/build.sh's WebAssembly
+		wasm) # the hxc C output (make port-c) built like `make wasm`
 			# (wasm64, wasm exceptions), but for Node with direct file system access (NODERAWFS);
 			# needs em++ on PATH (. ~/emsdk/emsdk_env.sh)
 			# (the chunks of bin/hxc/hih/prog_hxc, compiled in parallel by hxc/tools/cc-chunks.sh)

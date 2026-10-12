@@ -8,7 +8,7 @@ import js.html.TableCellElement;
 
 // The Benchmarks and Target generators sections: tables of bench.json
 // (site/bench/run.py) and targets.json (site/bench/targets.py), copied by
-// site/build.sh.
+// `make site` (Makefile).
 typedef BenchRun = {
 	workload:String,
 	runner:String,

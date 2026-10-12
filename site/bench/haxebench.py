@@ -6,7 +6,7 @@ on hxc and the fast Haxe targets, with build times.
 
 The runner is cloned into bin/haxebench/runner (its cases; not its lix-based
 driver). Targets:
-  hxc       the hxc dev tool (bin/hxc-dev/tool, see hxc/tools/dev-tool.sh):
+  hxc       the hxc dev tool (bin/hxc-dev/tool, see `make dev-tool`):
             source -> C chunks -> $HXC_BENCH_CC (default clang -O2), objects reused
   hxc-tcc   the same C with tcc (build speed)
   cpp       hxcpp (haxelib), g++ -O2 as configured by hxcpp

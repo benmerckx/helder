@@ -50,7 +50,7 @@ builds and runs the cases of
 [HaxeBenchmarks/benchmark-runner](https://github.com/HaxeBenchmarks/benchmark-runner)
 (cloned into `bin/haxebench`, with crypto and the formatter's libraries at
 the revisions the runner pins) on hxc and the other targets, with the pinned
-`haxe/haxe`. hxc builds use the native backend tool (`hxc/tools/dev-tool.sh`:
+`haxe/haxe`. hxc builds use the native backend tool (`make dev-tool`:
 the lowering no longer goes through Node). Wall time in seconds, best of 3,
 clean builds, 4 cores; bold: the fastest. hxcpp is 4.3.0 from git, HL/C uses
 HashLink master (2.0.0, 3b7bd74) with `gcc -O2`, the HL JIT the same
