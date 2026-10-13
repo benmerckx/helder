@@ -54,12 +54,12 @@
 		<ul class="downloads">
 			<li>Linux: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-linux-x86_64.tar.gz">x86-64</a>, <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-linux-aarch64.tar.gz">ARM64</a></li>
 			<li>macOS: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-macos-x86_64.tar.gz">x86-64</a>, <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-macos-aarch64.tar.gz">ARM64</a></li>
-			<li>Windows: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-windows-x86_64.zip">x86-64</a></li>
+			<li>Windows: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-windows-x86_64.zip">x86-64</a>, <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-windows-aarch64.zip">ARM64</a></li>
 			<li>One file for all of the above (<a href="https://github.com/jart/cosmopolitan">Cosmopolitan</a>): <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe.com">haxe-in-haxe.com</a> (<a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-licenses.zip">licenses</a>)</li>
 		</ul>
 <pre class="cmd">haxe-in-haxe -cp src --main Main --interp
 haxe-in-haxe -cp src --main Main --js out.js</pre>
-		<p class="note">It takes the same arguments as <code>haxe</code>. The Linux and macOS builds are compiled with zig cc; like the Cosmopolitan build they carry mbedtls and libuv, so <code>sys.ssl</code> and <code>eval.luv</code> work in macros and <code>--interp</code>. Set <code>HAXE_STD_PATH</code> to the <code>std</code> directory in the archive. The Windows build and <code>haxe-in-haxe.com</code> are the Cosmopolitan build, which is slower (about 1.6× the time of the native builds on large compiles) and carries the standard library inside. All files: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/tag/nightly">nightly release</a>.</p>
+		<p class="note">It takes the same arguments as <code>haxe</code>. The Linux, macOS and Windows builds are compiled with zig cc; like the Cosmopolitan build they carry mbedtls and libuv, so <code>sys.ssl</code> and <code>eval.luv</code> work in macros and <code>--interp</code>. Set <code>HAXE_STD_PATH</code> to the <code>std</code> directory in the archive. <code>haxe-in-haxe.com</code> is the Cosmopolitan build, which is slower (about 1.6× the time of the native builds on large compiles) and carries the standard library inside. All files: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/tag/nightly">nightly release</a>.</p>
 	</section>
 
 	<section id="hxc">
