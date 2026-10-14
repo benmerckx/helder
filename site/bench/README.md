@@ -43,6 +43,132 @@ checkout) and the port's own source for every target, in the same directory,
 with `-D disable-parallelism`; CPU is user + system time, best of 3, and every
 output file is compared. C++ and HL/C stop at the generated sources.
 
+## HaxeBenchmarks: hxmc native and wasm vs HL, JS, JVM (2026-10-14)
+
+```sh
+make -f hxmc/Makefile bootstrap && make -f hxmc/Makefile rt RT_TARGETS=linux-x86_64
+make dev-tool    # hxc, the reference column
+python3 site/bench/haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime,hl,hlc,js,jvm,hxc \
+    --check --clean --json out.json   # hxmc-haxebench.json is this, reorganized
+```
+
+The cases of `haxebench.py` (above's checkout) on hxmc at 5451a8e (branch
+`hxmc`): `hxmc` builds from source through the tool (`bin/hxmc/hxmc`, from
+`bootstrap`, fixpoint-checked) with hxmc's std, a static linux-x86_64
+executable; `hxmc-wasm-*` the same with `-D hxmc.target=wasm32-wasi`, one
+module run by node (`hxmc/tools/wasi.mjs`, `--experimental-wasm-exnref
+--no-turbo-fast-api-calls`) or by wasmtime (`-W exceptions=y`). Every build
+cold (hxmc's object cache removed, no ccache for hxc). Results with every
+check output: `hxmc-haxebench.json`.
+
+Machine: Intel Xeon @ 2.10 GHz, 4 vCPUs, Linux 6.18, shared VM, nothing
+else heavy running (1-min load 1.0-2.2: the benchmarks' own GC and JIT
+threads). Versions: reference Haxe 5.0.0-preview.1 (995a7d1), node 22.22.0
+(hxnodejs 12.2.0), wasmtime 38.0.1, OpenJDK 21.0.12.1, HashLink 2.0.0 (JIT
+and libhl), gcc 13.3.0 (HL/C, `-O2`), clang 18.1.3 (hxc, `-O2`).
+
+Run time, s, minimum wall time of 5 runs (N = 5 everywhere; engine start-up
+and JIT or module compilation included); bold: the fastest.
+
+| case | hxmc x64 | hxmc wasm, node | hxmc wasm, wasmtime | HL JIT | HL/C | JS | JVM | hxc clang -O2 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| alloc | 1.46 | 1.69 | 1.67 | 2.63 | 2.65 | 12.27 | 1.75 | **1.35** |
+| bcrypt | 2.87 | 3.29 | 4.03 | 5.00 | 3.42 | 2.93 | 2.46 | **2.37** |
+| binarytrees | 0.713 | 1.01 | 1.02 | 4.66 | 4.13 | 1.31 | **0.661** | 0.757 |
+| json | 0.455 | 0.769 | 0.706 | 1.41 | 1.40 | **0.292** | 0.530 | 0.418 |
+| mandelbrot | 0.570 | 0.765 | 0.995 | 24.33 | 22.88 | 0.867 | 1.08 | **0.497** |
+| mandelbrot_anon | 0.946 | 2.03 | 1.46 | 33.51 | 32.55 | **0.847** | 1.05 | 0.954 |
+| nbody | 0.727 | 0.944 | 0.838 | 1.46 | 1.08 | 0.867 | 0.765 | **0.705** |
+| sha256 | 0.161 | 0.289 | 0.274 | 0.612 | 0.283 | 0.268 | **0.154** | 0.205 |
+| sha512 | 0.022 (wrong result) | 0.130 (wrong result) | 0.085 (wrong result) | 0.079 | 0.046 | 0.311 | 0.130 | **0.020** |
+| formatter_noio | 5.47 | 7.64 | 7.23 | 17.75 | 17.83 | 18.55 | 5.29 | **5.28** |
+
+Build time, s, wall, cold (typing + code generation + C compile; the wasm
+column is the node run's build, the wasmtime run's own build was within 0.2 s of it):
+
+| case | hxmc x64 | hxmc wasm | HL JIT | HL/C | JS | JVM | hxc clang -O2 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| alloc | 0.33 | 0.37 | 0.23 | 3.07 | 0.33 | 0.48 | 1.15 |
+| bcrypt | 0.34 | 0.53 | 0.26 | 3.82 | 0.41 | 0.45 | 1.47 |
+| binarytrees | 0.30 | 0.39 | 0.23 | 3.00 | 0.34 | 0.43 | 1.02 |
+| json | 0.35 | 0.46 | 0.22 | 2.84 | 0.32 | 0.46 | 1.06 |
+| mandelbrot | 0.33 | 0.38 | 0.23 | 2.90 | 0.35 | 0.48 | 1.00 |
+| mandelbrot_anon | 0.30 | 0.44 | 0.21 | 2.92 | 0.32 | 0.49 | 0.98 |
+| nbody | 0.33 | 0.42 | 0.28 | 2.90 | 0.32 | 0.48 | 1.04 |
+| sha256 | 0.35 | 0.41 | 0.22 | 3.12 | 0.34 | 0.52 | 1.29 |
+| sha512 | 0.34 | 0.41 | 0.24 | 3.40 | 0.39 | 0.49 | 1.16 |
+| formatter_noio | 1.15 | 1.28 | 0.87 | 15.25 | 0.87 | 1.22 | 5.08 |
+
+(The hxc tool itself was built with clang -O1 here; its C generation is a
+small part of the hxc column, the clang -O2 compile is most of it.)
+
+Output size, KB / gzip -9 KB (C-compiled executables stripped; hxmc's are
+written without a symbol table):
+
+| case | hxmc x64 | hxmc .wasm | HL .hl | HL/C | JS | JVM .jar | hxc clang -O2 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| alloc | 96 / 49 | 85 / 28 | 56 / 24 | 323 / 73 | 13 / 3 | 66 / 60 | 160 / 70 |
+| bcrypt | 340 / 162 | 325 / 137 | 188 / 112 | 570 / 184 | 133 / 86 | 163 / 155 | 398 / 180 |
+| binarytrees | 96 / 48 | 80 / 26 | 56 / 24 | 327 / 74 | 10 / 3 | 63 / 57 | 160 / 70 |
+| json | 169 / 78 | 163 / 46 | 66 / 29 | 367 / 84 | 12 / 3 | 98 / 90 | 196 / 83 |
+| mandelbrot | 101 / 49 | 85 / 28 | 57 / 24 | 333 / 75 | 10 / 3 | 65 / 59 | 164 / 71 |
+| mandelbrot_anon | 113 / 52 | 90 / 28 | 57 / 24 | 332 / 75 | 10 / 3 | 65 / 60 | 172 / 73 |
+| nbody | 100 / 50 | 84 / 27 | 59 / 25 | 336 / 76 | 13 / 4 | 65 / 60 | 164 / 72 |
+| sha256 | 310 / 148 | 293 / 124 | 162 / 102 | 541 / 172 | 113 / 79 | 140 / 134 | 369 / 168 |
+| sha512 | 322 / 152 | 303 / 127 | 169 / 104 | 551 / 175 | 127 / 82 | 149 / 143 | 377 / 171 |
+| formatter_noio | 1363 / 395 | 1344 / 224 | 345 / 153 | 1497 / 407 | 608 / 83 | 902 / 809 | 1386 / 419 |
+| needs at run time | nothing (static) | a WASI runtime with exceptions (node 22 + wasi.mjs, wasmtime) | HashLink VM + libhl | libhl.so, glibc | node (+ hxnodejs' API) | JRE | glibc |
+
+Correctness. The cases print nothing (the runner only times them), so
+`--check` builds, for every target, a check program of
+`site/bench/haxebench-check` (`Check<Case>`: the case's computation, some
+smaller, with its results printed: the tree checks, the image sums, the
+energies, the digests, fixed-salt bcrypt hashes, the formatter's output
+hashed) and compares the outputs:
+
+- alloc, bcrypt, binarytrees, mandelbrot, mandelbrot_anon, nbody, sha256:
+  identical on all eight.
+- **sha512: hxmc is wrong, native and wasm.** The digests depend on the
+  nursery size (`RT_MINOR_KB`): correct when no minor collection happens
+  (64 MB nursery natively), wrong otherwise, differently for each size, the
+  same with `HXMC_OPT=0`, `HXMC_INLINE=0,0,0` or `HXMC_LICM=0`. A
+  collector bug (a missing root or barrier, likely in the native
+  `haxe.Int64` path) shared by both back ends; the sha512 times of the three
+  hxmc columns are of a program that computes wrong hashes. hxc, HL, HL/C,
+  JS and the JVM agree.
+- json: the structure digests are equal everywhere; the printed floats
+  differ by target (HL `-3e-07`, the JVM `-3.0E-7`, `1.0E21`), as
+  `Std.string(Float)` does.
+- formatter_noio: the formatted text is identical (dumped and compared,
+  JS against the JVM); the hash printed differs on the JVM only because
+  the generic `haxe.crypto.Sha256` hashes non-ASCII strings with
+  `s.length * 8` bits (the JVM's agrees with `sha256sum` of the UTF-8
+  text).
+
+No target failed to build or run any case; none of the cases uses threads,
+sockets or processes. wasmtime refused the first run of json and
+formatter_noio ("Could not read file ../data/..."): the case directory was
+reached through a symbolic link to an absolute path, which wasmtime does not
+follow inside the preopened `/` (node does); the harness now passes the
+resolved directory as `PWD`.
+
+Observations:
+
+- hxmc x64 is within 10% of hxc + clang -O2 everywhere except bcrypt (21%
+  behind) and mandelbrot (15%), and ahead of HL/C by 1.2x (bcrypt) to 40x
+  (mandelbrot), of the HL JIT more, of Node except on json and
+  mandelbrot_anon. It builds in 0.3 s (formatter 1.15 s) against 1-5 s for
+  hxc + clang and 3-15 s for HL/C, about as fast as the reference compiler
+  writes `.hl`, `.js` or a `.jar`.
+- wasm costs 1.1-2.1x native run time (sha512's 0.1 s is engine start-up);
+  node and wasmtime are close, node ahead on bcrypt (3.29 vs 4.03 s) and
+  mandelbrot, wasmtime on mandelbrot_anon (1.46 vs 2.03 s) and nbody. On
+  formatter_noio the module (7.2-7.6 s) is 2.4x faster than JS on the same
+  node, and on alloc 7x.
+- Sizes: modules are 1-20% smaller than hxmc's executables and gzip to
+  a sixth to a third of that (formatter: 1344 KB, 224 KB gzipped against JS's 608/83 KB);
+  `.hl` is the smallest native-ish artifact but needs the VM.
+
 ## HaxeBenchmarks: hxc against the fast targets (2026-10-11)
 
 `python3 site/bench/haxebench.py [-n RUNS] [-t targets] [-c cases] [--clean] [--json out]`
