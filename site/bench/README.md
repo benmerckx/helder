@@ -80,7 +80,7 @@ and JIT or module compilation included); bold: the fastest.
 | mandelbrot_anon | 0.946 | 2.03 | 1.46 | 33.51 | 32.55 | **0.847** | 1.05 | 0.954 |
 | nbody | 0.727 | 0.944 | 0.838 | 1.46 | 1.08 | 0.867 | 0.765 | **0.705** |
 | sha256 | 0.161 | 0.289 | 0.274 | 0.612 | 0.283 | 0.268 | **0.154** | 0.205 |
-| sha512 | 0.022 (wrong result) | 0.130 (wrong result) | 0.085 (wrong result) | 0.079 | 0.046 | 0.311 | 0.130 | **0.020** |
+| sha512 | 0.026 | 0.139 | 0.086 | 0.079 | 0.046 | 0.311 | 0.130 | **0.020** |
 | formatter_noio | 5.47 | 7.64 | 7.23 | 17.75 | 17.83 | 18.55 | 5.29 | **5.28** |
 
 Build time, s, wall, cold (typing + code generation + C compile; the wasm
@@ -96,7 +96,7 @@ column is the node run's build, the wasmtime run's own build was within 0.2 s of
 | mandelbrot_anon | 0.30 | 0.44 | 0.21 | 2.92 | 0.32 | 0.49 | 0.98 |
 | nbody | 0.33 | 0.42 | 0.28 | 2.90 | 0.32 | 0.48 | 1.04 |
 | sha256 | 0.35 | 0.41 | 0.22 | 3.12 | 0.34 | 0.52 | 1.29 |
-| sha512 | 0.34 | 0.41 | 0.24 | 3.40 | 0.39 | 0.49 | 1.16 |
+| sha512 | 0.36 | 0.43 | 0.24 | 3.40 | 0.39 | 0.49 | 1.16 |
 | formatter_noio | 1.15 | 1.28 | 0.87 | 15.25 | 0.87 | 1.22 | 5.08 |
 
 (The hxc tool itself was built with clang -O1 here; its C generation is a
@@ -128,14 +128,20 @@ hashed) and compares the outputs:
 
 - alloc, bcrypt, binarytrees, mandelbrot, mandelbrot_anon, nbody, sha256:
   identical on all eight.
-- **sha512: hxmc is wrong, native and wasm.** The digests depend on the
-  nursery size (`RT_MINOR_KB`): correct when no minor collection happens
-  (64 MB nursery natively), wrong otherwise, differently for each size, the
-  same with `HXMC_OPT=0`, `HXMC_INLINE=0,0,0` or `HXMC_LICM=0`. A
-  collector bug (a missing root or barrier, likely in the native
-  `haxe.Int64` path) shared by both back ends; the sha512 times of the three
-  hxmc columns are of a program that computes wrong hashes. hxc, HL, HL/C,
-  JS and the JVM agree.
+- sha512: identical on all eight since 4b9aa7d (2026-10-15). Before it,
+  hxmc's digests (native and wasm) depended on the nursery size: correct
+  when no minor collection happened, wrong otherwise. Not a root or barrier:
+  the crypto library's `Sha512` pads its last block with the zeros of
+  `Bytes.alloc`, which hxmc did not zero (hxc's `rt_alloc` did), so once
+  the nursery had been reused the block held dead objects' bytes.
+  `Bytes.alloc` is zeroed now, `RT_VERIFY=1` fills the free nursery with a
+  pattern so that this shows at once, and the corpus case `Int64Gc` covers
+  it (hxmc/README.md, "Tests and their oracle"). The hxmc sha512 rows above
+  were re-measured after the fix (same VM, N = 5); the `--check` outputs of
+  every case were re-run for the three hxmc targets and equal hxc's. The
+  zeroing costs alloc (500k Bytes of 100-1000 bytes, filled right after)
+  about 5% natively and 10% in wasm (best of 3: 1.54, 1.92 and 1.87 s
+  against 1.46, 1.69 and 1.67 s; not otherwise re-measured).
 - json: the structure digests are equal everywhere; the printed floats
   differ by target (HL `-3e-07`, the JVM `-3.0E-7`, `1.0E21`), as
   `Std.string(Float)` does.

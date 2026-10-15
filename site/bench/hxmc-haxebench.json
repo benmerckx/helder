@@ -1,6 +1,6 @@
 {
  "date": "2026-10-14",
- "commit_measured": "5451a8e (origin/hxmc) + this harness",
+ "commit_measured": "5451a8e (origin/hxmc) + this harness; the hxmc sha512 rows re-measured at 4b9aa7d (2026-10-15)",
  "machine": "Intel Xeon Processor @ 2.10GHz, 4 vCPUs, 15 GB, Linux 6.18 (shared VM; no other heavy process during the run, 1-min load 1.0-2.2 from the benchmark's own threads)",
  "method": "python3 site/bench/haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime,hl,hlc,js,jvm,hxc --check --clean; run_s = min wall time of 5 runs (engine start-up and JIT/wasm compilation included); build_s = wall time of every build step, cold; size of the artifact (stripped copy for C-compiled executables), gzip -9 of the same bytes",
  "versions": {
@@ -689,34 +689,37 @@
   },
   "sha512": {
    "hxmc": {
-    "run_s": 0.022,
+    "run_s": 0.026,
     "runs": 5,
-    "build_s": 0.34,
+    "build_s": 0.36,
     "size_bytes": 330128,
-    "gzip_bytes": 155743,
+    "gzip_bytes": 155776,
     "needs": "nothing (static)",
     "benchmark_output": "",
-    "check_output": "98f708f34422491d4d67ada4353dfc166e2170ec4db035ab89345b1ae412893e4a38187b5607ab0b100e612171774a585d08695bd07261da38844eda8472cd5d\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\nc28efb0c2a2f39badd1aed1e548318bacf6afc6cee6f2f184c79492175e95331ea54e98aa011fcab36a25ff87efccfb811be6c428776385bb0e4ec8e70ad7b05\n"
+    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
+    "remeasured": "2026-10-15 at 4b9aa7d (Bytes.alloc zeroed): haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime -c sha512 --check --clean"
    },
    "hxmc-wasm-node": {
-    "run_s": 0.13,
+    "run_s": 0.139,
     "runs": 5,
-    "build_s": 0.41,
-    "size_bytes": 309896,
-    "gzip_bytes": 129785,
+    "build_s": 0.43,
+    "size_bytes": 310128,
+    "gzip_bytes": 129825,
     "needs": "WASI runtime (node 22 + wasi.mjs)",
     "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n89fa19e019a816a88725cf85a7de6363b9fc368b512fbc869af25a67868d02b789cdece1090f86fbfed4a5ee963bff8c75817ddc1a35eedd9c1732a3258c3947\n"
+    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
+    "remeasured": "2026-10-15 at 4b9aa7d (Bytes.alloc zeroed): haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime -c sha512 --check --clean"
    },
    "hxmc-wasm-wasmtime": {
-    "run_s": 0.085,
+    "run_s": 0.086,
     "runs": 5,
-    "build_s": 0.4,
-    "size_bytes": 309896,
-    "gzip_bytes": 129785,
+    "build_s": 0.41,
+    "size_bytes": 310128,
+    "gzip_bytes": 129825,
     "needs": "WASI runtime (wasmtime, exceptions)",
     "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n89fa19e019a816a88725cf85a7de6363b9fc368b512fbc869af25a67868d02b789cdece1090f86fbfed4a5ee963bff8c75817ddc1a35eedd9c1732a3258c3947\n"
+    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
+    "remeasured": "2026-10-15 at 4b9aa7d (Bytes.alloc zeroed): haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime -c sha512 --check --clean"
    },
    "hl": {
     "run_s": 0.079,
@@ -889,31 +892,7 @@
   "mandelbrot_anon": "match",
   "nbody": "match",
   "sha256": "match",
-  "sha512": [
-   {
-    "targets": [
-     "hxmc"
-    ],
-    "output": "98f708f34422491d4d67ada4353dfc166e2170ec4db035ab89345b1ae412893e4a38187b5607ab0b100e612171774a585d08695bd07261da38844eda8472cd5d\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\nc28efb0c2a2f39badd1aed1e548318bacf6afc6cee6f2f184c79492175e95331ea54e98aa011fcab36a25ff87efccfb811be6c428776385bb0e4ec8e70ad7b05\n"
-   },
-   {
-    "targets": [
-     "hxmc-wasm-node",
-     "hxmc-wasm-wasmtime"
-    ],
-    "output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n89fa19e019a816a88725cf85a7de6363b9fc368b512fbc869af25a67868d02b789cdece1090f86fbfed4a5ee963bff8c75817ddc1a35eedd9c1732a3258c3947\n"
-   },
-   {
-    "targets": [
-     "hl",
-     "hlc",
-     "js",
-     "jvm",
-     "hxc"
-    ],
-    "output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n"
-   }
-  ],
+  "sha512": "match",
   "formatter_noio": [
    {
     "targets": [
@@ -936,7 +915,7 @@
   ]
  },
  "notes": {
-  "sha512": "hxmc native and hxmc wasm compute wrong SHA-512 digests after minor collections: the result depends on RT_MINOR_KB (correct with a nursery large enough that no collection happens). A GC bug (missing root or barrier) in hxmc, not in the case; the sha512 timings of hxmc are of a miscompiled program.",
+  "sha512": "Until 4b9aa7d hxmc native and wasm computed wrong SHA-512 digests after minor collections: Bytes.alloc did not zero its bytes (hxc's rt_alloc did), and the crypto library's Sha512 pads its last block with them, so a nursery reused after a collection left dead objects' bytes in it. Fixed (Bytes.alloc zeroed); the three hxmc sha512 rows were re-measured on 2026-10-15 and their digests match every other target. The --check programs of every case were re-run for the three hxmc targets after the fix: all outputs equal to hxc's.",
   "json": "digests equal on every target; the printed float format differs (HL: -3e-07, JVM: -3.0E-7, 1.0E21, 3.0073737643E10): Std.string of Float is target-dependent",
   "formatter_noio": "formatted text identical (dumped and compared for JS and JVM); the JVM's haxe.crypto.Sha256 of the non-ASCII text differs from the other targets' (the generic Sha256 uses s.length * 8 as the bit length; the JVM's agrees with sha256sum of the UTF-8 bytes)",
   "wasm failures": "none; wasmtime needs PWD without symbolic links to absolute paths (fixed in the harness: the case directory is resolved)"
