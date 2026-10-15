@@ -1,923 +1,255 @@
 {
- "date": "2026-10-14",
- "commit_measured": "5451a8e (origin/hxmc) + this harness; the hxmc sha512 rows re-measured at 4b9aa7d (2026-10-15)",
- "machine": "Intel Xeon Processor @ 2.10GHz, 4 vCPUs, 15 GB, Linux 6.18 (shared VM; no other heavy process during the run, 1-min load 1.0-2.2 from the benchmark's own threads)",
- "method": "python3 site/bench/haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime,hl,hlc,js,jvm,hxc --check --clean; run_s = min wall time of 5 runs (engine start-up and JIT/wasm compilation included); build_s = wall time of every build step, cold; size of the artifact (stripped copy for C-compiled executables), gzip -9 of the same bytes",
- "versions": {
-  "reference haxe": "5.0.0-preview.1 (haxe submodule 995a7d1)",
-  "hxmc tool": "bin/hxmc/hxmc from make -f hxmc/Makefile bootstrap, fixpoint-checked",
-  "hxc tool": "bin/hxc-dev/tool (make dev-tool, the tool itself built with clang -O1); programs: clang -O2 -DHXC_CONST_IDS, no ccache",
-  "node": "22.22.0 (+ hxnodejs 12.2.0)",
-  "wasmtime": "38.0.1",
-  "java": "OpenJDK 21.0.12.1",
-  "hashlink": "2.0.0 (hl JIT and libhl, /usr/local)",
-  "gcc": "13.3.0 (HL/C, -O2)",
-  "clang": "18.1.3 (hxc, -O2)"
- },
- "results": {
-  "alloc": {
-   "hxmc": {
-    "run_s": 1.46,
-    "runs": 5,
-    "build_s": 0.33,
-    "size_bytes": 98640,
-    "gzip_bytes": 50371,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 1.688,
-    "runs": 5,
-    "build_s": 0.37,
-    "size_bytes": 86869,
-    "gzip_bytes": 28198,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 1.665,
-    "runs": 5,
-    "build_s": 0.38,
-    "size_bytes": 86869,
-    "gzip_bytes": 28198,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   },
-   "hl": {
-    "run_s": 2.629,
-    "runs": 5,
-    "build_s": 0.23,
-    "size_bytes": 57800,
-    "gzip_bytes": 24184,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   },
-   "hlc": {
-    "run_s": 2.649,
-    "runs": 5,
-    "build_s": 3.07,
-    "size_bytes": 435352,
-    "gzip_bytes": 75207,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 331064,
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   },
-   "js": {
-    "run_s": 12.266,
-    "runs": 5,
-    "build_s": 0.33,
-    "size_bytes": 12861,
-    "gzip_bytes": 3469,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   },
-   "jvm": {
-    "run_s": 1.745,
-    "runs": 5,
-    "build_s": 0.48,
-    "size_bytes": 67681,
-    "gzip_bytes": 61749,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   },
-   "hxc": {
-    "run_s": 1.347,
-    "runs": 5,
-    "build_s": 1.15,
-    "size_bytes": 201016,
-    "gzip_bytes": 71560,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 163400,
-    "benchmark_output": "",
-    "check_output": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n"
-   }
-  },
-  "bcrypt": {
-   "hxmc": {
-    "run_s": 2.865,
-    "runs": 5,
-    "build_s": 0.34,
-    "size_bytes": 347784,
-    "gzip_bytes": 165595,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 3.295,
-    "runs": 5,
-    "build_s": 0.53,
-    "size_bytes": 332680,
-    "gzip_bytes": 139966,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 4.034,
-    "runs": 5,
-    "build_s": 0.46,
-    "size_bytes": 332680,
-    "gzip_bytes": 139966,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   },
-   "hl": {
-    "run_s": 5.002,
-    "runs": 5,
-    "build_s": 0.26,
-    "size_bytes": 192647,
-    "gzip_bytes": 114994,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   },
-   "hlc": {
-    "run_s": 3.421,
-    "runs": 5,
-    "build_s": 3.82,
-    "size_bytes": 704160,
-    "gzip_bytes": 188718,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 583272,
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   },
-   "js": {
-    "run_s": 2.932,
-    "runs": 5,
-    "build_s": 0.41,
-    "size_bytes": 136553,
-    "gzip_bytes": 88396,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   },
-   "jvm": {
-    "run_s": 2.461,
-    "runs": 5,
-    "build_s": 0.45,
-    "size_bytes": 166518,
-    "gzip_bytes": 159219,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   },
-   "hxc": {
-    "run_s": 2.374,
-    "runs": 5,
-    "build_s": 1.47,
-    "size_bytes": 452392,
-    "gzip_bytes": 184176,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 407992,
-    "benchmark_output": "",
-    "check_output": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n"
-   }
-  },
-  "binarytrees": {
-   "hxmc": {
-    "run_s": 0.713,
-    "runs": 5,
-    "build_s": 0.3,
-    "size_bytes": 98096,
-    "gzip_bytes": 49601,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 1.008,
-    "runs": 5,
-    "build_s": 0.39,
-    "size_bytes": 81649,
-    "gzip_bytes": 26731,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 1.018,
-    "runs": 5,
-    "build_s": 0.36,
-    "size_bytes": 81649,
-    "gzip_bytes": 26731,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   },
-   "hl": {
-    "run_s": 4.664,
-    "runs": 5,
-    "build_s": 0.23,
-    "size_bytes": 57750,
-    "gzip_bytes": 24295,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   },
-   "hlc": {
-    "run_s": 4.133,
-    "runs": 5,
-    "build_s": 3.0,
-    "size_bytes": 439344,
-    "gzip_bytes": 75511,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 335120,
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   },
-   "js": {
-    "run_s": 1.309,
-    "runs": 5,
-    "build_s": 0.34,
-    "size_bytes": 10218,
-    "gzip_bytes": 2877,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   },
-   "jvm": {
-    "run_s": 0.661,
-    "runs": 5,
-    "build_s": 0.43,
-    "size_bytes": 64307,
-    "gzip_bytes": 58858,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   },
-   "hxc": {
-    "run_s": 0.757,
-    "runs": 5,
-    "build_s": 1.02,
-    "size_bytes": 201080,
-    "gzip_bytes": 71590,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 163432,
-    "benchmark_output": "",
-    "check_output": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n"
-   }
-  },
-  "json": {
-   "hxmc": {
-    "run_s": 0.455,
-    "runs": 5,
-    "build_s": 0.35,
-    "size_bytes": 173424,
-    "gzip_bytes": 80286,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 0.769,
-    "runs": 5,
-    "build_s": 0.46,
-    "size_bytes": 166664,
-    "gzip_bytes": 47603,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 0.706,
-    "runs": 5,
-    "build_s": 0.48,
-    "size_bytes": 166664,
-    "gzip_bytes": 47603,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   "hl": {
-    "run_s": 1.412,
-    "runs": 5,
-    "build_s": 0.22,
-    "size_bytes": 67239,
-    "gzip_bytes": 29601,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-07,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   "hlc": {
-    "run_s": 1.399,
-    "runs": 5,
-    "build_s": 2.84,
-    "size_bytes": 491624,
-    "gzip_bytes": 86519,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 375632,
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-07,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   "js": {
-    "run_s": 0.292,
-    "runs": 5,
-    "build_s": 0.32,
-    "size_bytes": 12568,
-    "gzip_bytes": 3100,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   "jvm": {
-    "run_s": 0.53,
-    "runs": 5,
-    "build_s": 0.46,
-    "size_bytes": 99859,
-    "gzip_bytes": 91801,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 3.0073737643E10\n[1,2.5,-3.0E-7,1.0E21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   "hxc": {
-    "run_s": 0.418,
-    "runs": 5,
-    "build_s": 1.06,
-    "size_bytes": 244304,
-    "gzip_bytes": 84998,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 201144,
-    "benchmark_output": "",
-    "check_output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   }
-  },
-  "mandelbrot": {
-   "hxmc": {
-    "run_s": 0.57,
-    "runs": 5,
-    "build_s": 0.33,
-    "size_bytes": 102960,
-    "gzip_bytes": 50679,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 0.765,
-    "runs": 5,
-    "build_s": 0.38,
-    "size_bytes": 87412,
-    "gzip_bytes": 28311,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 0.995,
-    "runs": 5,
-    "build_s": 0.41,
-    "size_bytes": 87412,
-    "gzip_bytes": 28311,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hl": {
-    "run_s": 24.327,
-    "runs": 5,
-    "build_s": 0.23,
-    "size_bytes": 58570,
-    "gzip_bytes": 24746,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hlc": {
-    "run_s": 22.877,
-    "runs": 5,
-    "build_s": 2.9,
-    "size_bytes": 445792,
-    "gzip_bytes": 76619,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 340560,
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "js": {
-    "run_s": 0.867,
-    "runs": 5,
-    "build_s": 0.35,
-    "size_bytes": 10675,
-    "gzip_bytes": 3078,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "jvm": {
-    "run_s": 1.078,
-    "runs": 5,
-    "build_s": 0.48,
-    "size_bytes": 66117,
-    "gzip_bytes": 60583,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hxc": {
-    "run_s": 0.497,
-    "runs": 5,
-    "build_s": 1.0,
-    "size_bytes": 205760,
-    "gzip_bytes": 72840,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 167528,
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   }
-  },
-  "mandelbrot_anon": {
-   "hxmc": {
-    "run_s": 0.946,
-    "runs": 5,
-    "build_s": 0.3,
-    "size_bytes": 115280,
-    "gzip_bytes": 52939,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 2.034,
-    "runs": 5,
-    "build_s": 0.44,
-    "size_bytes": 92059,
-    "gzip_bytes": 29114,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 1.457,
-    "runs": 5,
-    "build_s": 0.43,
-    "size_bytes": 92059,
-    "gzip_bytes": 29114,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hl": {
-    "run_s": 33.508,
-    "runs": 5,
-    "build_s": 0.21,
-    "size_bytes": 58443,
-    "gzip_bytes": 24687,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hlc": {
-    "run_s": 32.55,
-    "runs": 5,
-    "build_s": 2.92,
-    "size_bytes": 444672,
-    "gzip_bytes": 76873,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 339840,
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "js": {
-    "run_s": 0.847,
-    "runs": 5,
-    "build_s": 0.32,
-    "size_bytes": 10495,
-    "gzip_bytes": 3034,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "jvm": {
-    "run_s": 1.053,
-    "runs": 5,
-    "build_s": 0.49,
-    "size_bytes": 66465,
-    "gzip_bytes": 60935,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   },
-   "hxc": {
-    "run_s": 0.954,
-    "runs": 5,
-    "build_s": 0.98,
-    "size_bytes": 214216,
-    "gzip_bytes": 74721,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 175752,
-    "benchmark_output": "",
-    "check_output": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n"
-   }
-  },
-  "nbody": {
-   "hxmc": {
-    "run_s": 0.727,
-    "runs": 5,
-    "build_s": 0.33,
-    "size_bytes": 102640,
-    "gzip_bytes": 51061,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 0.944,
-    "runs": 5,
-    "build_s": 0.42,
-    "size_bytes": 85934,
-    "gzip_bytes": 28123,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 0.838,
-    "runs": 5,
-    "build_s": 0.42,
-    "size_bytes": 85934,
-    "gzip_bytes": 28123,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   },
-   "hl": {
-    "run_s": 1.46,
-    "runs": 5,
-    "build_s": 0.28,
-    "size_bytes": 60058,
-    "gzip_bytes": 25491,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   },
-   "hlc": {
-    "run_s": 1.077,
-    "runs": 5,
-    "build_s": 2.9,
-    "size_bytes": 449072,
-    "gzip_bytes": 77659,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 344288,
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   },
-   "js": {
-    "run_s": 0.867,
-    "runs": 5,
-    "build_s": 0.32,
-    "size_bytes": 13791,
-    "gzip_bytes": 3772,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   },
-   "jvm": {
-    "run_s": 0.765,
-    "runs": 5,
-    "build_s": 0.48,
-    "size_bytes": 66761,
-    "gzip_bytes": 61331,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   },
-   "hxc": {
-    "run_s": 0.705,
-    "runs": 5,
-    "build_s": 1.04,
-    "size_bytes": 205432,
-    "gzip_bytes": 73768,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 167496,
-    "benchmark_output": "",
-    "check_output": "energy before -169075164\nenergy after -169077842, result -169077\n"
-   }
-  },
-  "sha256": {
-   "hxmc": {
-    "run_s": 0.161,
-    "runs": 5,
-    "build_s": 0.35,
-    "size_bytes": 317408,
-    "gzip_bytes": 151449,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 0.289,
-    "runs": 5,
-    "build_s": 0.41,
-    "size_bytes": 299852,
-    "gzip_bytes": 126823,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 0.274,
-    "runs": 5,
-    "build_s": 0.4,
-    "size_bytes": 299852,
-    "gzip_bytes": 126823,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   },
-   "hl": {
-    "run_s": 0.612,
-    "runs": 5,
-    "build_s": 0.22,
-    "size_bytes": 165699,
-    "gzip_bytes": 104401,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   },
-   "hlc": {
-    "run_s": 0.283,
-    "runs": 5,
-    "build_s": 3.12,
-    "size_bytes": 670480,
-    "gzip_bytes": 176097,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 554048,
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   },
-   "js": {
-    "run_s": 0.268,
-    "runs": 5,
-    "build_s": 0.34,
-    "size_bytes": 115949,
-    "gzip_bytes": 80975,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   },
-   "jvm": {
-    "run_s": 0.154,
-    "runs": 5,
-    "build_s": 0.52,
-    "size_bytes": 142922,
-    "gzip_bytes": 137578,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   },
-   "hxc": {
-    "run_s": 0.205,
-    "runs": 5,
-    "build_s": 1.29,
-    "size_bytes": 420416,
-    "gzip_bytes": 172419,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 378200,
-    "benchmark_output": "",
-    "check_output": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n"
-   }
-  },
-  "sha512": {
-   "hxmc": {
-    "run_s": 0.026,
-    "runs": 5,
-    "build_s": 0.36,
-    "size_bytes": 330128,
-    "gzip_bytes": 155776,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
-    "remeasured": "2026-10-15 at 4b9aa7d (Bytes.alloc zeroed): haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime -c sha512 --check --clean"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 0.139,
-    "runs": 5,
-    "build_s": 0.43,
-    "size_bytes": 310128,
-    "gzip_bytes": 129825,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
-    "remeasured": "2026-10-15 at 4b9aa7d (Bytes.alloc zeroed): haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime -c sha512 --check --clean"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 0.086,
-    "runs": 5,
-    "build_s": 0.41,
-    "size_bytes": 310128,
-    "gzip_bytes": 129825,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
-    "remeasured": "2026-10-15 at 4b9aa7d (Bytes.alloc zeroed): haxebench.py -n 5 -t hxmc,hxmc-wasm-node,hxmc-wasm-wasmtime -c sha512 --check --clean"
-   },
-   "hl": {
-    "run_s": 0.079,
-    "runs": 5,
-    "build_s": 0.24,
-    "size_bytes": 173157,
-    "gzip_bytes": 106807,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n"
-   },
-   "hlc": {
-    "run_s": 0.046,
-    "runs": 5,
-    "build_s": 3.4,
-    "size_bytes": 682880,
-    "gzip_bytes": 179165,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 564528,
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n"
-   },
-   "js": {
-    "run_s": 0.311,
-    "runs": 5,
-    "build_s": 0.39,
-    "size_bytes": 129988,
-    "gzip_bytes": 83652,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n"
-   },
-   "jvm": {
-    "run_s": 0.13,
-    "runs": 5,
-    "build_s": 0.49,
-    "size_bytes": 152848,
-    "gzip_bytes": 146709,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n"
-   },
-   "hxc": {
-    "run_s": 0.02,
-    "runs": 5,
-    "build_s": 1.16,
-    "size_bytes": 429384,
-    "gzip_bytes": 175042,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 386376,
-    "benchmark_output": "",
-    "check_output": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n"
-   }
-  },
-  "formatter_noio": {
-   "hxmc": {
-    "run_s": 5.467,
-    "runs": 5,
-    "build_s": 1.15,
-    "size_bytes": 1395984,
-    "gzip_bytes": 404023,
-    "needs": "nothing (static)",
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   },
-   "hxmc-wasm-node": {
-    "run_s": 7.639,
-    "runs": 5,
-    "build_s": 1.28,
-    "size_bytes": 1376654,
-    "gzip_bytes": 229131,
-    "needs": "WASI runtime (node 22 + wasi.mjs)",
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   },
-   "hxmc-wasm-wasmtime": {
-    "run_s": 7.232,
-    "runs": 5,
-    "build_s": 1.46,
-    "size_bytes": 1376654,
-    "gzip_bytes": 229131,
-    "needs": "WASI runtime (wasmtime, exceptions)",
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   },
-   "hl": {
-    "run_s": 17.75,
-    "runs": 5,
-    "build_s": 0.87,
-    "size_bytes": 352996,
-    "gzip_bytes": 156370,
-    "needs": "HashLink VM (hl) + libhl",
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   },
-   "hlc": {
-    "run_s": 17.833,
-    "runs": 5,
-    "build_s": 15.25,
-    "size_bytes": 1915504,
-    "gzip_bytes": 416782,
-    "needs": "libhl.so, glibc (dynamic)",
-    "stripped_bytes": 1532432,
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   },
-   "js": {
-    "run_s": 18.549,
-    "runs": 5,
-    "build_s": 0.87,
-    "size_bytes": 622887,
-    "gzip_bytes": 84593,
-    "needs": "node (hxnodejs)",
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   },
-   "jvm": {
-    "run_s": 5.286,
-    "runs": 5,
-    "build_s": 1.22,
-    "size_bytes": 923150,
-    "gzip_bytes": 828285,
-    "needs": "JRE",
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 d08237c1aa1c6a6b7ffd0baceb3643bc5af6e8c2c4b0598caafffb7fca91bc29\n"
-   },
-   "hxc": {
-    "run_s": 5.283,
-    "runs": 5,
-    "build_s": 5.08,
-    "size_bytes": 1587024,
-    "gzip_bytes": 429161,
-    "needs": "glibc, libm (dynamic)",
-    "stripped_bytes": 1419016,
-    "benchmark_output": "",
-    "check_output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   }
+ "meta": {
+  "commit": "143ce04",
+  "cores": 4,
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "date": "2026-10-15 10:15 UTC",
+  "os": "Linux-6.18.44-fc-v114-x86_64-with-glibc2.39",
+  "versions": {
+   "node": "v22.22.0",
+   "wasmtime": "wasmtime 38.0.1 (f2140f661 2025-10-20)"
   }
  },
- "check_comparison": {
-  "alloc": "match",
-  "bcrypt": "match",
-  "binarytrees": "match",
-  "json": [
-   {
-    "targets": [
-     "hxmc",
-     "hxmc-wasm-node",
-     "hxmc-wasm-wasmtime",
-     "js",
-     "hxc"
-    ],
-    "output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   {
-    "targets": [
-     "hl",
-     "hlc"
-    ],
-    "output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-07,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   },
-   {
-    "targets": [
-     "jvm"
-    ],
-    "output": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 3.0073737643E10\n[1,2.5,-3.0E-7,1.0E21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n"
-   }
-  ],
-  "mandelbrot": "match",
-  "mandelbrot_anon": "match",
-  "nbody": "match",
-  "sha256": "match",
-  "sha512": "match",
-  "formatter_noio": [
-   {
-    "targets": [
-     "hxmc",
-     "hxmc-wasm-node",
-     "hxmc-wasm-wasmtime",
-     "hl",
-     "hlc",
-     "js",
-     "hxc"
-    ],
-    "output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n"
-   },
-   {
-    "targets": [
-     "jvm"
-    ],
-    "output": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 d08237c1aa1c6a6b7ffd0baceb3643bc5af6e8c2c4b0598caafffb7fca91bc29\n"
-   }
-  ]
- },
- "notes": {
-  "sha512": "Until 4b9aa7d hxmc native and wasm computed wrong SHA-512 digests after minor collections: Bytes.alloc did not zero its bytes (hxc's rt_alloc did), and the crypto library's Sha512 pads its last block with them, so a nursery reused after a collection left dead objects' bytes in it. Fixed (Bytes.alloc zeroed); the three hxmc sha512 rows were re-measured on 2026-10-15 and their digests match every other target. The --check programs of every case were re-run for the three hxmc targets after the fix: all outputs equal to hxc's.",
-  "json": "digests equal on every target; the printed float format differs (HL: -3e-07, JVM: -3.0E-7, 1.0E21, 3.0073737643E10): Std.string of Float is target-dependent",
-  "formatter_noio": "formatted text identical (dumped and compared for JS and JVM); the JVM's haxe.crypto.Sha256 of the non-ASCII text differs from the other targets' (the generic Sha256 uses s.length * 8 as the bit length; the JVM's agrees with sha256sum of the UTF-8 bytes)",
-  "wasm failures": "none; wasmtime needs PWD without symbolic links to absolute paths (fixed in the harness: the case directory is resolved)"
+ "results": {
+  "alloc/hxmc": {
+   "build": 0.3,
+   "check": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n",
+   "gzip": 51102,
+   "run": 1.593,
+   "runs": 3,
+   "size": 102740
+  },
+  "alloc/hxmc-wasm-node": {
+   "build": 0.42,
+   "check": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n",
+   "gzip": 28134,
+   "run": 2.087,
+   "runs": 3,
+   "size": 81192
+  },
+  "alloc/hxmc-wasm-wasmtime": {
+   "build": 0.45,
+   "check": "alloc 100: compare signs 19844, byte sum 14376448\nalloc 1000: compare signs 19844, byte sum 14376448\nalloc 101: compare signs 19844, byte sum 14376448\nalloc 1001: compare signs 19844, byte sum 14376448\nalloc 102: compare signs 19844, byte sum 14376448\n",
+   "gzip": 28134,
+   "run": 1.998,
+   "runs": 3,
+   "size": 81192
+  },
+  "bcrypt/hxmc": {
+   "build": 0.34,
+   "check": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n",
+   "gzip": 166354,
+   "run": 3.014,
+   "runs": 3,
+   "size": 347792
+  },
+  "bcrypt/hxmc-wasm-node": {
+   "build": 0.44,
+   "check": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n",
+   "gzip": 139780,
+   "run": 3.352,
+   "runs": 3,
+   "size": 324494
+  },
+  "bcrypt/hxmc-wasm-wasmtime": {
+   "build": 0.47,
+   "check": "$2b$06$abcdefghijklmnopqrstuur0Z3dmFplzPfJm9OqsdmkujIc/RnkPq true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuzbv1GEJgBZ8n9XatWNJZYUo.XPsZlnS true true\n$2a$06$0123456789./abcdefghiu1cyIjuOiisaHWVYO1b.Bg5rOrq7len6 true true\n$2b$04$zyxwvutsrqponmlkjihgfeW9/vNJmOpwwHKysEymPQOGqvA9nJwZS true true\n$2b$06$abcdefghijklmnopqrstuuZK8uw85di/vKXwTnPtGqOzkABETF97. true true\n$2b$07$ABCDEFGHIJKLMNOPQRSTUuUPEKic9tJ5elYsIcgSIFfQCDIW0FJte true true\n$2a$06$0123456789./abcdefghiucYbk4jkW4dlPLiJymTfBwnQeLtHCQii true true\n$2b$04$zyxwvutsrqponmlkjihgfeZJ9rzMmxead3vThSe45jko7XXkHmgjK true true\nrandom salt: true\n",
+   "gzip": 139780,
+   "run": 4.428,
+   "runs": 3,
+   "size": 324494
+  },
+  "binarytrees/hxmc": {
+   "build": 0.32,
+   "check": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n",
+   "gzip": 50254,
+   "run": 0.722,
+   "runs": 3,
+   "size": 98100
+  },
+  "binarytrees/hxmc-wasm-node": {
+   "build": 0.43,
+   "check": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n",
+   "gzip": 26656,
+   "run": 1.263,
+   "runs": 3,
+   "size": 76604
+  },
+  "binarytrees/hxmc-wasm-wasmtime": {
+   "build": 0.39,
+   "check": "32768 trees of depth 8 check: -32768\n8192 trees of depth 10 check: -8192\n2048 trees of depth 12 check: -2048\n512 trees of depth 14 check: -512\nresult 26112\n",
+   "gzip": 26656,
+   "run": 1.072,
+   "runs": 3,
+   "size": 76604
+  },
+  "formatter_noio/hxmc": {
+   "build": 1.43,
+   "check": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n",
+   "gzip": 403524,
+   "run": 6.48,
+   "runs": 3,
+   "size": 1379588
+  },
+  "formatter_noio/hxmc-wasm-node": {
+   "build": 1.37,
+   "check": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n",
+   "gzip": 210917,
+   "run": 8.104,
+   "runs": 3,
+   "size": 1148325
+  },
+  "formatter_noio/hxmc-wasm-wasmtime": {
+   "build": 1.3,
+   "check": "36 files, 72 formatted, 0 failed, 518814 chars, sha256 ed3716bcbe29144ffa15592472ecb797128b2d091af2eea852211d5997904499\n",
+   "gzip": 210917,
+   "run": 8.606,
+   "runs": 3,
+   "size": 1148325
+  },
+  "json/hxmc": {
+   "build": 0.39,
+   "check": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n",
+   "gzip": 80935,
+   "run": 0.53,
+   "runs": 3,
+   "size": 173432
+  },
+  "json/hxmc-wasm-node": {
+   "build": 0.45,
+   "check": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n",
+   "gzip": 46353,
+   "run": 0.781,
+   "runs": 3,
+   "size": 152478
+  },
+  "json/hxmc-wasm-wasmtime": {
+   "build": 0.45,
+   "check": "schema length 30383, digest 130755381 = 130755381\nlist length 607681, 20 items, digest 30073737643\n[1,2.5,-3e-7,1e+21,0.1,true,null,\"\\\"\\\\/\\n\u00e9\ud83d\ude00\"]\n",
+   "gzip": 46353,
+   "run": 0.814,
+   "runs": 3,
+   "size": 152478
+  },
+  "mandelbrot/hxmc": {
+   "build": 0.29,
+   "check": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n",
+   "gzip": 51324,
+   "run": 0.777,
+   "runs": 3,
+   "size": 102964
+  },
+  "mandelbrot/hxmc-wasm-node": {
+   "build": 0.46,
+   "check": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n",
+   "gzip": 28353,
+   "run": 1.017,
+   "runs": 3,
+   "size": 81622
+  },
+  "mandelbrot/hxmc-wasm-wasmtime": {
+   "build": 0.42,
+   "check": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n",
+   "gzip": 28353,
+   "run": 1.278,
+   "runs": 3,
+   "size": 81622
+  },
+  "mandelbrot_anon/hxmc": {
+   "build": 0.3,
+   "check": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n",
+   "gzip": 53588,
+   "run": 1.285,
+   "runs": 3,
+   "size": 115284
+  },
+  "mandelbrot_anon/hxmc-wasm-node": {
+   "build": 0.44,
+   "check": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n",
+   "gzip": 28916,
+   "run": 2.503,
+   "runs": 3,
+   "size": 85076
+  },
+  "mandelbrot_anon/hxmc-wasm-wasmtime": {
+   "build": 0.42,
+   "check": "pixels 437500, iterations 97931565, rgb sums 24827603 86391909 1570590\n",
+   "gzip": 28916,
+   "run": 1.908,
+   "runs": 3,
+   "size": 85076
+  },
+  "nbody/hxmc": {
+   "build": 0.42,
+   "check": "energy before -169075164\nenergy after -169077842, result -169077\n",
+   "gzip": 51869,
+   "run": 0.81,
+   "runs": 3,
+   "size": 102644
+  },
+  "nbody/hxmc-wasm-node": {
+   "build": 0.43,
+   "check": "energy before -169075164\nenergy after -169077842, result -169077\n",
+   "gzip": 27909,
+   "run": 1.204,
+   "runs": 3,
+   "size": 80561
+  },
+  "nbody/hxmc-wasm-wasmtime": {
+   "build": 0.45,
+   "check": "energy before -169075164\nenergy after -169077842, result -169077\n",
+   "gzip": 27909,
+   "run": 0.975,
+   "runs": 3,
+   "size": 80561
+  },
+  "sha256/hxmc": {
+   "build": 0.36,
+   "check": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n",
+   "gzip": 152097,
+   "run": 0.177,
+   "runs": 3,
+   "size": 321508
+  },
+  "sha256/hxmc-wasm-node": {
+   "build": 0.4,
+   "check": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n",
+   "gzip": 126887,
+   "run": 0.355,
+   "runs": 3,
+   "size": 293629
+  },
+  "sha256/hxmc-wasm-wasmtime": {
+   "build": 0.44,
+   "check": "7ba74d2c16a3755b1c59ce0e76041f8b2f52daa3e6ac9861661dedf81de66e8a\n0f62ebc1c34f1c458fa031d7309a61b1701f7283fdc297d8e9fc156be6e05026\n1b4dcb997a363521459effdaa51def5235ad2ab79456744c737242e77fa03dfc\n",
+   "gzip": 126887,
+   "run": 0.328,
+   "runs": 3,
+   "size": 293629
+  },
+  "sha512/hxmc": {
+   "build": 0.41,
+   "check": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
+   "gzip": 156337,
+   "run": 0.027,
+   "runs": 3,
+   "size": 334228
+  },
+  "sha512/hxmc-wasm-node": {
+   "build": 0.49,
+   "check": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
+   "gzip": 129674,
+   "run": 0.146,
+   "runs": 3,
+   "size": 301846
+  },
+  "sha512/hxmc-wasm-wasmtime": {
+   "build": 0.44,
+   "check": "c899c5e201570e95a090f95292bd003e192252329b0f3613807e54d33fbddb9c69d9c5982308f64c06312fe41a7476c14b5f7c714a5b01b0c5aafb80ee8ad182\n73cf2d80e331dc315e724028454eae2b983ba4cdba9aff47abbdd8404cc7167d482914bf57155c0186b1ca9193314b5a01f3cb8ca6732a5d5f0fd7b02a759b93\n9950887383fec48e347bcb678785628286a46c05278051a9c53072891591463bcf971f1df75fb83184987a86418e3ba664c43b754e7d01fd981a9a081a67d767\n",
+   "gzip": 129674,
+   "run": 0.094,
+   "runs": 3,
+   "size": 301846
+  }
  }
 }
