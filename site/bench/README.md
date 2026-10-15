@@ -139,9 +139,15 @@ hashed) and compares the outputs:
   it (hxmc/README.md, "Tests and their oracle"). The hxmc sha512 rows above
   were re-measured after the fix (same VM, N = 5); the `--check` outputs of
   every case were re-run for the three hxmc targets and equal hxc's. The
-  zeroing costs alloc (500k Bytes of 100-1000 bytes, filled right after)
+  zeroing cost alloc (500k Bytes of 100-1000 bytes, filled right after)
   about 5% natively and 10% in wasm (best of 3: 1.54, 1.92 and 1.87 s
-  against 1.46, 1.69 and 1.67 s; not otherwise re-measured).
+  against 1.46, 1.69 and 1.67 s). Since a0237e3 the runtime zeroes the
+  nursery in bulk, per 32 KB chunk, and allocations store no zeros: in
+  one (slower) session, best of 12 alternating runs, alloc took 1.583 s
+  without zeroing, 1.607 s with per-allocation zeroing and 1.576 s with
+  the bulk zeroing, so the alloc row above (1.46 s, measured without
+  zeroing) stands; wasm alloc is dominated by the engines' memory growth
+  (1.8-4.8 s between runs, no difference measurable).
 - json: the structure digests are equal everywhere; the printed floats
   differ by target (HL `-3e-07`, the JVM `-3.0E-7`, `1.0E21`), as
   `Std.string(Float)` does.
