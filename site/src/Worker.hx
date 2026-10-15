@@ -1,4 +1,5 @@
 import Protocol;
+import WasiHost;
 import js.Syntax;
 import js.html.DedicatedWorkerGlobalScope;
 import js.html.TextDecoder;
@@ -6,39 +7,49 @@ import js.lib.Promise;
 import js.lib.Uint8Array;
 import js.lib.WebAssembly;
 
-// Runs the compiler (hih.js + hih.wasm + hih.data, from `make wasm`). Each
-// request gets a fresh instance, so the program's static state starts clean;
-// the compiled wasm module is reused between instances.
-
-/** the Emscripten module of hih.js */
-typedef Hih = {
-	var ENV:haxe.DynamicAccess<String>;
-	var FS:{
-		function mkdir(path:String):Void;
-		function writeFile(path:String, data:String):Void;
-		function chdir(path:String):Void;
-		function readFile(path:String):Uint8Array;
-	};
-	function callMain(args:Array<String>):Int;
-}
+// Runs the compiler: hih.wasm, the port built by hxmc as a wasm32-wasi module
+// (`make wasm`), with WasiHost as its system and the std of std.bundle
+// (`make site`, site/tools/mkbundle.py) in its file system. Each request gets
+// a fresh instance, so the program's static state starts clean; the compiled
+// module (from the page) and the std are reused between instances.
 
 class Worker {
 	static final scope:DedicatedWorkerGlobalScope = Syntax.code("self");
 	static var wasmModule:Promise<js.lib.webassembly.Module>;
 	static var moduleReady:js.lib.webassembly.Module->Void;
+	static var std:Promise<VNode>;
 
 	static function main() {
-		scope.importScripts("hih.js");
 		wasmModule = new Promise((resolve, _) -> moduleReady = resolve);
+		std = scope.fetch("std.bundle").then((r) -> {
+			if (!r.ok) throw "std.bundle: " + r.status;
+			r.arrayBuffer();
+		}).then((b) -> unbundle(new Uint8Array(b)));
 		scope.onmessage = (e) -> onRequest(e.data);
+	}
+
+	/** /lib/haxe/std from the bundle: a little-endian u32 n, n bytes of JSON
+		[[path, size], ...], then the files' bytes in that order */
+	static function unbundle(b:Uint8Array):VNode {
+		final n = new js.lib.DataView(b.buffer).getUint32(0, true);
+		final index:Array<Array<Dynamic>> = haxe.Json.parse(new TextDecoder().decode(b.subarray(4, 4 + n)));
+		final lib = new VNode(true);
+		final host = new WasiHost(lib, [], [], (_, _) -> {});
+		var at = 4 + n;
+		for (e in index) {
+			final size:Int = e[1];
+			host.writeFile("haxe/std/" + e[0], b.subarray(at, at + size));
+			at += size;
+		}
+		return lib;
 	}
 
 	static function post(reply:Reply, ?transfer:Array<Dynamic>) {
 		scope.postMessage(reply, transfer != null ? transfer : []);
 	}
 
-	/** stdout or stderr, byte by byte: Emscripten's default print only passes on
-		complete lines, and the compiler ends a --display reply without a newline */
+	/** stdout or stderr, as lines: the bytes decoded at each newline, and the
+		rest at the end (the compiler ends a --display reply without one) */
 	static function lineWriter(emit:String->Void) {
 		final decoder = new TextDecoder();
 		var bytes:Array<Int> = [];
@@ -47,48 +58,40 @@ class Worker {
 			bytes = [];
 		}
 		return {
-			write: (b:Null<Int>) -> if (b == null || b == 10) flush() else bytes.push(b & 0xFF),
+			write: (b:Uint8Array) -> for (k in 0...b.length) if (b[k] == 10) flush() else bytes.push(b[k]),
 			flush: flush,
 		};
 	}
 
 	/** a compiler instance with `code` as /work/`file`; `run` calls its main */
-	static function instance(file:String, code:String, print:String->Void, printErr:String->Void):Promise<{hih:Hih, run:Array<String>->Int}> {
+	static function instance(file:String, code:String, print:String->Void, printErr:String->Void):Promise<{run:Array<String>->Int}> {
 		final out = lineWriter(print), err = lineWriter(printErr);
-		final created:Promise<Hih> = Syntax.code("createHih({0})", {
-			noInitialRun: true,
-			instantiateWasm: (imports:Dynamic, done:(js.lib.webassembly.Instance, js.lib.webassembly.Module) -> Void) -> {
-				wasmModule.then((m) -> WebAssembly.instantiate(m, imports).then((inst) -> done(inst, m)));
-				return {};
-			},
-			stdout: out.write,
-			stderr: err.write,
-			preRun: [(m:Hih) -> {
-				m.ENV["HAXE_STD_PATH"] = "/lib/haxe/std/";
-				m.FS.mkdir("/work");
-				m.FS.writeFile("/work/" + file, code);
-				m.FS.chdir("/work");
-			}],
-		});
-		return created.then((hih) -> {
-			hih: hih,
-			run: (args:Array<String>) -> {
-				var status = 0, error:Dynamic = null;
-				try status = hih.callMain(args) catch (e:Dynamic) error = e;
-				out.flush();
-				err.flush();
-				if (error != null) {
-					if (error.name != "ExitStatus") throw error;
-					status = error.status;
+		return Promise.all([wasmModule, std]).then((ready:Array<Dynamic>) -> {
+			final root = new VNode(true);
+			root.dir.set("lib", ready[1]);
+			return {
+				run: (args:Array<String>) -> {
+					final host = new WasiHost(root, ["haxe"].concat(args), ["HAXE_STD_PATH" => "/lib/haxe/std/", "PWD" => "/work"],
+						(fd, b) -> (fd == 1 ? out : err).write(b));
+					host.writeFile("/work/" + file, new js.html.TextEncoder().encode(code));
+					final inst:Dynamic = Syntax.code("new WebAssembly.Instance({0}, {1})", ready[0], host.imports());
+					host.memory = inst.exports.memory;
+					var status = 0, error:Dynamic = null;
+					try inst.exports._start() catch (e:Dynamic) error = e;
+					out.flush();
+					err.flush();
+					if (error != null) {
+						if (!(error is ExitStatus)) Syntax.code("throw {0}", error); // (as it is: a RangeError, ...)
+						status = (error : ExitStatus).status;
+					}
+					lastHost = host;
+					return status;
 				}
-				return status;
-			}
+			};
 		});
 	}
 
-	static function readZip(hih:Hih):Null<js.lib.ArrayBuffer> {
-		return try hih.FS.readFile("/out.zip").buffer catch (_:Dynamic) null;
-	}
+	static var lastHost:Null<WasiHost>;
 
 	static function onRequest(m:Request) {
 		if (m.type == "module") {
@@ -103,7 +106,11 @@ class Worker {
 	static function handle(m:Request):Promise<Void> {
 		switch m.type {
 			case "warmup":
-				return instance("Main.hx", "", (_) -> {}, (_) -> {}).then((_) -> post({type: "ready"}));
+				// (one run: the engine compiles the module's code meanwhile)
+				return instance("Main.hx", "", (_) -> {}, (_) -> {}).then((c) -> {
+					c.run(["--version"]);
+					post({type: "ready"});
+				});
 			case "display" | "check":
 				final lines = [];
 				final add = (line:String) -> lines.push(line);
@@ -121,7 +128,8 @@ class Worker {
 					final t0 = scope.performance.now();
 					final status = c.run(args);
 					final ms = scope.performance.now() - t0;
-					final zip = m.mode == "hxb" && status == 0 ? readZip(c.hih) : null;
+					final bytes = m.mode == "hxb" && status == 0 ? lastHost.readFile("/out.zip") : null;
+					final zip = bytes == null ? null : bytes.slice().buffer;
 					post({type: "done", status: status, ms: ms, zip: zip}, zip != null ? [zip] : []);
 				});
 		}

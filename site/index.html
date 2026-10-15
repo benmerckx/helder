@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Haxe in Haxe</title>
-<meta name="description" content="A port of the Haxe compiler from OCaml to Haxe, compiled to C and WebAssembly.">
+<meta name="description" content="A port of the Haxe compiler from OCaml to Haxe, compiled to machine code and WebAssembly by hxmc.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="hero">
 	<div class="wrap">
 		<h1>Haxe in Haxe</h1>
-		<p class="lead">A port of the Haxe compiler from OCaml to Haxe. A C backend (hxc) compiles it to a native binary, or to WebAssembly for the playground below.</p>
+		<p class="lead">A port of the Haxe compiler from OCaml to Haxe. hxmc, a Haxe target that writes machine code and WebAssembly itself, compiles it to native binaries for Linux, macOS and Windows, and to WebAssembly for the playground below.</p>
 		<nav class="links">
 			<a href="#playground">Playground</a>
 			<a href="#download">Download</a>
@@ -28,7 +28,7 @@
 <main class="wrap">
 	<section id="playground">
 		<h2>Playground</h2>
-		<p><em>Run</em> type-checks and runs the program with <code>--interp</code>. <em>Compile to HXB</em> writes an HXB archive. It runs locally as 64-bit WebAssembly, which needs a recent Chrome, Edge or Firefox.</p>
+		<p><em>Run</em> type-checks and runs the program with <code>--interp</code>. <em>Compile to HXB</em> writes an HXB archive. It runs locally as WebAssembly with exception handling (<code>exnref</code>), which current Chrome, Edge, Firefox and Safari support.</p>
 		<div class="toolbar">
 			<label>Example
 				<select id="example"></select>
@@ -55,27 +55,34 @@
 			<li>Linux: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-linux-x86_64.tar.gz">x86-64</a>, <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-linux-aarch64.tar.gz">ARM64</a></li>
 			<li>macOS: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-macos-x86_64.tar.gz">x86-64</a>, <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-macos-aarch64.tar.gz">ARM64</a></li>
 			<li>Windows: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-windows-x86_64.zip">x86-64</a>, <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-windows-aarch64.zip">ARM64</a></li>
-			<li>One file for all of the above (<a href="https://github.com/jart/cosmopolitan">Cosmopolitan</a>): <a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe.com">haxe-in-haxe.com</a> (<a href="https://github.com/benmerckx/haxe-in-haxe/releases/download/nightly/haxe-in-haxe-licenses.zip">licenses</a>)</li>
 		</ul>
 <pre class="cmd">haxe-in-haxe -cp src --main Main --interp
 haxe-in-haxe -cp src --main Main --js out.js</pre>
-		<p class="note">It takes the same arguments as <code>haxe</code>. The Linux, macOS and Windows builds are compiled with zig cc; like the Cosmopolitan build they carry mbedtls and libuv, so <code>sys.ssl</code> and <code>eval.luv</code> work in macros and <code>--interp</code>. Set <code>HAXE_STD_PATH</code> to the <code>std</code> directory in the archive. <code>haxe-in-haxe.com</code> is the Cosmopolitan build, which is slower (about 1.6× the time of the native builds on large compiles) and carries the standard library inside. All files: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/tag/nightly">nightly release</a>.</p>
+		<p class="note">It takes the same arguments as <code>haxe</code>. Every build is made by hxmc on Linux (machine code, its own linker, no C compiler for the port's code) and carries mbedtls and libuv, so <code>sys.ssl</code> and <code>eval.luv</code> work in macros and <code>--interp</code>. Set <code>HAXE_STD_PATH</code> to the <code>std</code> directory in the archive. macOS: a download from a browser is quarantined (<code>xattr -d com.apple.quarantine haxe-in-haxe</code>). All files: <a href="https://github.com/benmerckx/haxe-in-haxe/releases/tag/nightly">nightly release</a>.</p>
 	</section>
 
-	<section id="hxc">
-		<h2>hxc for other programs</h2>
-		<p>The C backend is also available as a Haxe target through the <code>hxc</code> haxelib package: Haxe types the program and writes HXB, hxc turns it into C, and a C compiler builds it. See <a href="https://github.com/benmerckx/haxe-in-haxe/blob/main/hxc/haxelib/README.md">hxc/haxelib/README.md</a>.</p>
+	<section id="hxmc">
+		<h2>hxmc</h2>
+		<p>The port is built by hxmc, a Haxe target written for it: from the typed program it writes x86-64 and ARM64 machine code with its own register allocator and linkers (ELF, PE, Mach-O), or a WebAssembly module, with a precise generational collector and threads; no C compiler, assembler or system linker runs when a program is built, and every target is cross-built from Linux. hxmc builds itself. See <a href="https://github.com/benmerckx/haxe-in-haxe/blob/main/hxmc/README.md">hxmc/README.md</a>.</p>
 	</section>
 
 	<section id="tools">
 		<h2>Tools</h2>
-		<p><strong><a href="tools/lix.com">lix.com</a></strong> (<span data-info="lixSize">~6 MB</span>): <a href="https://github.com/lix-pm/lix.client">lix</a>, the Haxe package manager, and <a href="https://github.com/lix-pm/haxeshim">haxeshim</a>, ported from Haxe on Node.js and compiled by hxc into one Cosmopolitan binary for Linux, macOS, Windows and the BSDs. It is <code>lix</code>, <code>haxe</code>, <code>haxelib</code> and <code>neko</code> in one file: it acts as the command it is named or linked as.</p>
-		<p>Install it in a directory on your <code>PATH</code> and let it create the <code>haxe</code>, <code>haxelib</code> and <code>neko</code> commands next to itself (<code>lix shims</code>: symbolic links, or hard links on Windows). Linux and macOS:</p>
-<pre class="cmd">curl -fLo ~/bin/lix https://haxe-in-haxe.ben.mk/tools/lix.com &amp;&amp; chmod +x ~/bin/lix
-lix shims</pre>
-		<p>Windows (PowerShell), e.g. into <code>C:\tools</code>, a directory on your <code>PATH</code>:</p>
-<pre class="cmd">curl.exe -fLo C:\tools\lix.com https://haxe-in-haxe.ben.mk/tools/lix.com
-lix shims</pre>
+		<p><strong>lix</strong> (<span data-info="lixSize">~2 MB</span>): <a href="https://github.com/lix-pm/lix.client">lix</a>, the Haxe package manager, and <a href="https://github.com/lix-pm/haxeshim">haxeshim</a>, ported from Haxe on Node.js and compiled by hxmc, one binary per platform. It is <code>lix</code>, <code>haxe</code>, <code>haxelib</code> and <code>neko</code> in one file: it acts as the command it is named or linked as.</p>
+		<ul class="downloads">
+			<li>Linux: <a href="tools/lix-linux-x86_64">x86-64</a>, <a href="tools/lix-linux-arm64">ARM64</a></li>
+			<li>macOS: <a href="tools/lix-macos-x86_64">x86-64</a>, <a href="tools/lix-macos-arm64">ARM64</a></li>
+			<li>Windows: <a href="tools/lix-windows-x86_64.exe">x86-64</a>, <a href="tools/lix-windows-arm64.exe">ARM64</a></li>
+		</ul>
+		<p>Install it as <code>lix</code> in a directory on your <code>PATH</code> and let it create the <code>haxe</code>, <code>haxelib</code> and <code>neko</code> commands next to itself (<code>lix shims</code>). Linux (<code>lix-linux-arm64</code> on ARM64):</p>
+<pre class="cmd">curl -fLo ~/bin/lix https://haxe-in-haxe.ben.mk/tools/lix-linux-x86_64 &amp;&amp; chmod +x ~/bin/lix
+lix shims                       # symbolic links: ~/bin/haxe, ~/bin/haxelib, ~/bin/neko</pre>
+		<p>macOS (<code>lix-macos-x86_64</code> on Intel):</p>
+<pre class="cmd">curl -fLo ~/bin/lix https://haxe-in-haxe.ben.mk/tools/lix-macos-arm64 &amp;&amp; chmod +x ~/bin/lix
+lix shims                       # symbolic links: ~/bin/haxe, ~/bin/haxelib, ~/bin/neko</pre>
+		<p>Windows (PowerShell; <code>lix-windows-arm64.exe</code> on ARM64), e.g. into <code>C:\tools</code>, a directory on your <code>PATH</code>:</p>
+<pre class="cmd">curl.exe -fLo C:\tools\lix.exe https://haxe-in-haxe.ben.mk/tools/lix-windows-x86_64.exe
+lix shims                       # hard links: haxe.exe, haxelib.exe, neko.exe</pre>
 		<p>Then, in a project: <code>lix</code> downloads Haxe versions and libraries into the project's scope, and <code>haxe</code> runs the version and libraries of the scope it is called in, so editors and build scripts that call <code>haxe</code> get the right ones:</p>
 <pre class="cmd">lix scope create                # a .haxerc for this directory
 lix install haxe 4.3.7          # download it and use it here
@@ -100,15 +107,20 @@ lix download                    # after a clone: the scope's Haxe and missing li
 
 	<section id="benchmarks">
 		<h2>Benchmarks</h2>
-		<p>The port, built for different runtimes, compiling to HXB. CPU time, best of 3, <code>-D disable-parallelism</code>; a run counts only if its output is identical to the reference's.</p>
+		<p>The port built by hxmc, as an x86-64 executable and as a WebAssembly module, compiling to HXB, against the OCaml reference. CPU time, best of 3, <code>-D disable-parallelism</code>; a run counts only if its output is identical to the reference's.</p>
 		<div id="bench-results"><p class="note">Loading results…</p></div>
-		<p class="note">With parallel passes on 4 threads, the native build compiles itself in 4.18 s (the reference with 4 domains: 4.03 s). Reproduce: <code>site/bench/run.py</code>.</p>
+		<p class="note" id="bench-builds"></p>
+		<p class="note">Reproduce: <code>site/bench/run.py --build</code>.</p>
 		<p class="note" id="bench-machine"></p>
+		<h3>Programs</h3>
+		<p>The <a href="https://github.com/HaxeBenchmarks/benchmark-runner">HaxeBenchmarks</a> cases built by hxmc: run time (best of 3, start-up and the engines' compilation of the module included), size, and the time of a cold build. On every target each case's check program prints the same results.</p>
+		<div id="programs-results"><p class="note">Loading results…</p></div>
+		<p class="note">Reproduce: <code>site/bench/haxebench.py --check</code>.</p>
 	</section>
 
 	<section id="targets">
 		<h2>Target generators</h2>
-		<p>Compile time of the native build against the reference for each target, on two projects. CPU time, best of 3; every output file identical. C++ and HL/C stop at the generated sources.</p>
+		<p>Compile time of the port built by hxmc (x86-64) against the reference for each target, on two projects. CPU time, best of 3; every output file identical. C++ and HL/C stop at the generated sources.</p>
 		<div id="targets-results"><p class="note">Loading results…</p></div>
 		<p class="note">Reproduce: <code>site/bench/targets.py</code>.</p>
 		<p class="note" id="targets-machine"></p>

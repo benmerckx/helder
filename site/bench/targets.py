@@ -8,7 +8,8 @@ Projects:
   formatter  haxe-formatter 1.9.1 with its six libraries (bin/haxebench/libs, see
              site/bench/haxebench.py), the HaxeBenchmarks formatter_noio case
   self       the port's own source (src/, haxe.Main), about 1,000 modules; for JS, the
-             hxc tool (the port and the C backend, backend.Main, over hxnodejs)
+             hxmc tool as the bootstrap builds it (the port and hxmc, hxmc.Main, over
+             hxnodejs)
 Each run is a fresh process with -D disable-parallelism; both compilers run in the
 same directory (some outputs embed it). CPU is user + system time of the process
 (os.wait4), best of RUNS; peak RSS is the largest of the runs. The output is
@@ -45,8 +46,9 @@ TARGETS = {
     "swf": (["--swf", "out/main.swf"], "file:out/main.swf"),
 }
 EXTRA = {("formatter", "js"): ["-lib", "hxnodejs"]}
-# the port's JS build is the hxc tool (bin/hxc/wbk.js): the port and the C backend over hxnodejs
-PROJECT_FOR = {("self", "js"): ["-cp", str(ROOT / "src"), "-cp", str(ROOT / "hxc/src"), "-main", "backend.Main", "-lib", "hxnodejs", "-cp", str(ROOT / "hxc/js"), "-w", "-WDeprecated"]}
+# the port's JS build is the hxmc tool of the bootstrap (bin/hxmc/boot/hxmc.js): the port and
+# hxmc over hxnodejs, with the stand-ins of hxmc/tools/bootstrap/js
+PROJECT_FOR = {("self", "js"): ["-cp", str(ROOT / "src"), "-cp", str(ROOT / "hxmc/src"), "-main", "hxmc.Main", "-lib", "hxnodejs", "-cp", str(ROOT / "hxmc/tools/bootstrap/js"), "-D", "hih_no_generators", "-w", "-WDeprecated"]}
 
 
 def run_once(cmd, cwd, log):
@@ -102,7 +104,7 @@ def main():
     ap.add_argument("-n", type=int, default=3)
     ap.add_argument("-p", default=",".join(PROJECTS))
     ap.add_argument("-t", default=",".join(TARGETS))
-    ap.add_argument("--port", default=os.environ.get("HAXE_IN_HAXE_PORT", str(ROOT / "bin/hxc/hih/hih_clang")))
+    ap.add_argument("--port", default=os.environ.get("HAXE_IN_HAXE_PORT", str(ROOT / "bin/port/haxe")))
     ap.add_argument("--json")
     ap.add_argument("--merge", action="store_true", help="replace only the measured project/target entries of an existing --json file")
     a = ap.parse_args()

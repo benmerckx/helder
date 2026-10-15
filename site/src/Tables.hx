@@ -7,8 +7,8 @@ import js.html.Element;
 import js.html.TableCellElement;
 
 // The Benchmarks and Target generators sections: tables of bench.json
-// (site/bench/run.py) and targets.json (site/bench/targets.py), copied by
-// `make site` (Makefile).
+// (site/bench/run.py), programs.json (site/bench/haxebench.py) and
+// targets.json (site/bench/targets.py), copied by `make site` (Makefile).
 typedef BenchRun = {
 	workload:String,
 	runner:String,
@@ -20,13 +20,40 @@ typedef BenchRun = {
 	?maxrss_mb:Float,
 }
 
+typedef BuildFacts = {
+	wall:Float,
+	cpu:Float,
+	size:Float,
+	gzip:Float,
+}
+
 typedef BenchData = {
 	results:Array<BenchRun>,
+	?builds:DynamicAccess<BuildFacts>,
 	?notes:DynamicAccess<String>,
 	?meta:{
 		?cpu:String,
 		?cores:Int,
 		?memory_gb:Float,
+		?date:String,
+		?commit:String,
+		?versions:DynamicAccess<String>,
+	},
+}
+
+typedef ProgramRun = {
+	?build:Float,
+	?run:Float,
+	?size:Float,
+	?gzip:Float,
+	?error:String,
+}
+
+typedef ProgramData = {
+	results:DynamicAccess<ProgramRun>,
+	?meta:{
+		?cpu:String,
+		?cores:Int,
 		?date:String,
 		?commit:String,
 		?versions:DynamicAccess<String>,
@@ -63,18 +90,14 @@ typedef TargetData = {
 class Tables {
 	static final RUNNERS = [
 		["reference", "OCaml reference"],
-		["eval-source", "Eval, from source"],
-		["eval-hxb", "Eval, from HXB"],
-		["hl", "HashLink JIT"],
-		["hlc", "HL/C"],
-		["js", "JS (Node)"],
-		["jvm", "JVM"],
-		["cpp", "C++ (hxcpp)"],
-		["hxc", "hxc, tcc"],
-		["hxc-o2", "hxc, gcc -O2"],
-		["hxc-clang", "hxc, clang -O2"],
-		["hxc-cosmo", "hxc, cosmocc"],
-		["wasm", "hxc, wasm (Node)"],
+		["hxmc", "hxmc, x86-64"],
+		["hxmc-wasm-node", "hxmc, wasm (Node)"],
+		["hxmc-wasm-wasmtime", "hxmc, wasm (wasmtime)"],
+	];
+	static final PROGRAMS = [
+		["alloc", "allocation"], ["bcrypt", "bcrypt"], ["binarytrees", "binary trees"], ["json", "JSON"], ["mandelbrot", "Mandelbrot"],
+		["mandelbrot_anon", "Mandelbrot, anonymous objects"], ["nbody", "n-body"], ["sha256", "SHA-256"], ["sha512", "SHA-512"],
+		["formatter_noio", "haxe-formatter"],
 	];
 	static final WORKLOADS = [
 		["self", "The port's own source: 52k lines in 382 modules, with std macros run by the Eval interpreter."],
@@ -87,11 +110,12 @@ class Tables {
 	];
 	static final PROJECTS = [
 		["formatter", "haxe-formatter 1.9.1 with its six libraries (tokentree, haxeparser, hxparse, json2object, hxargs, hxjsonast): the HaxeBenchmarks formatter case."],
-		["self", "The port's own source, about 1,000 modules including the C backend's runtime bindings. Targets without threads or a file system reject it, in both compilers."],
+		["self", "The port's own source, about 1,000 modules. Targets without threads or a file system reject it, in both compilers."],
 	];
 
 	static function main() {
 		load("bench.json", "bench-results", renderBench);
+		load("programs.json", "programs-results", renderPrograms);
 		load("targets.json", "targets-results", renderTargets);
 	}
 
@@ -245,10 +269,50 @@ class Tables {
 		if (m.commit != null) parts.push('commit ${m.commit}');
 		final v = m.versions != null ? m.versions : new DynamicAccess();
 		final tools = [
-			for (t in [["reference", "Haxe"], ["node", "Node"], ["node_wasm", "Node (wasm)"], ["hl", "HashLink"], ["java", ""], ["gcc", ""], ["tcc", ""], ["cosmocc", ""], ["emcc", ""]])
+			for (t in [["reference", "Haxe"], ["node", "Node"], ["wasmtime", ""]])
 				if (v[t[0]] != null) (t[1] != "" ? t[1] + " " : "") + version(v[t[0]])
 		];
 		facts.textContent = parts.join("; ") + (tools.length > 0 ? ". Tools: " + tools.join(", ") + "." : ".");
+		final b = data.builds;
+		final builds = document.getElementById("bench-builds");
+		if (b == null || builds == null) return;
+		final line = [];
+		if (b["native"] != null) line.push('the x86-64 executable in ${secs(b["native"].wall)} (${size(b["native"].size)}, ${size(b["native"].gzip)} gzipped)');
+		if (b["wasm"] != null) line.push('the WebAssembly module in ${secs(b["wasm"].wall)} (${size(b["wasm"].size)}, ${size(b["wasm"].gzip)} gzipped)');
+		builds.textContent = "hxmc builds the port from source, cold: " + line.join("; ") + ".";
+	}
+
+	// ---- programs.json
+
+	static function renderPrograms(root:Element, data:ProgramData) {
+		final t = el("table", "bench");
+		t.innerHTML = "<thead><tr><th>Program</th><th class=\"num\">x86-64</th><th class=\"num\">wasm, Node</th><th class=\"num\">wasm, wasmtime</th><th class=\"num wall\">Size x86-64 / wasm</th><th class=\"num wall\">Build x86-64 / wasm</th></tr></thead>";
+		final body = el("tbody");
+		final cell = (r:Null<ProgramRun>) -> el("td", "num", r == null ? "–" : r.error != null ? "failed" : secs(r.run));
+		for (p in PROGRAMS) {
+			final n = data.results[p[0] + "/hxmc"], wn = data.results[p[0] + "/hxmc-wasm-node"], ww = data.results[p[0] + "/hxmc-wasm-wasmtime"];
+			if (n == null && wn == null) continue;
+			final tr = el("tr");
+			tr.append(el("td", "runner", p[1]));
+			tr.append(cell(n));
+			tr.append(cell(wn));
+			tr.append(cell(ww));
+			tr.append(el("td", "num wall", (n != null && n.size != null ? size(n.size) : "–") + " / " + (wn != null && wn.size != null ? size(wn.size) : "–")));
+			tr.append(el("td", "num wall", (n != null && n.build != null ? secs(n.build) : "–") + " / " + (wn != null && wn.build != null ? secs(wn.build) : "–")));
+			body.append(tr);
+		}
+		t.append(body);
+		root.textContent = "";
+		final scroll = el("div", "scroll");
+		scroll.append(t);
+		root.append(scroll);
+		final m = data.meta;
+		if (m == null) return;
+		final parts = [];
+		if (m.cpu != null) parts.push('${m.cpu}, ${m.cores} cores');
+		if (m.date != null) parts.push('measured ${m.date.substring(0, 10)}');
+		if (m.commit != null) parts.push('commit ${m.commit}');
+		root.append(el("p", "note", parts.join("; ") + "."));
 	}
 
 	// ---- targets.json

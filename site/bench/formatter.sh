@@ -1,6 +1,6 @@
 #!/bin/sh
-# Formats the port's Haxe sources with haxe-formatter built by hxc (the C
-# backend, hxc/haxelib), using ./hxformat.json.
+# Formats the port's Haxe sources with haxe-formatter built by hxmc, using
+# ./hxformat.json.
 #
 #   sh site/bench/formatter.sh                 format src/ in place
 #   sh site/bench/formatter.sh --check         list the files that would change (exit 1 if any)
@@ -12,20 +12,15 @@
 # built once into bin/formatter/hxformat:
 #   - haxe-formatter and its dependencies at the pinned revisions below, in
 #     test/generated/formatter (a local haxelib repository, .haxelib/);
-#   - the hxc haxelib package (bin/haxelib/hxc, hxc/haxelib/build.sh; with
-#     NATIVE_CC=clang when cosmocc is not on PATH);
-#   - `haxe/haxe ... -lib hxc --custom-target hxc=bin/formatter/hxformat`
-#     (HXB is version-coupled: the pinned compiler haxe/haxe types the program).
-# Needs git, curl, haxelib, node (hxc/haxelib/build.sh) and clang (HXC_CC
-# overrides the C compiler).
+#   - `bin/hxmc/hxmc bin/formatter/hxformat ... --custom-target hxmc` (the
+#     hxmc tool, `make hxmc`, types and compiles it).
+# Needs git, curl and haxelib.
 #
-# Not formatted: hxc/src (hand-written) and everything outside src/ unless
-# named. EXCLUDE (an extended regular expression on the path, default below)
+# Not formatted: everything outside src/ unless named. EXCLUDE (an extended regular expression on the path, default below)
 # leaves files untouched; hxformat.json "excludes" works too.
 set -eu
 cd "$(dirname "$0")/../.."
 ROOT=$PWD
-HAXE=$ROOT/haxe/haxe
 OUT=$ROOT/bin/formatter/hxformat
 F=$ROOT/test/generated/formatter
 L=$ROOT/test/generated/formatter-libs
@@ -70,18 +65,10 @@ build() {
 			haxelib install "$zip" --always > /dev/null
 		done
 	)
-	if [ ! -f "$ROOT/bin/haxelib/hxc/bin/hxc.com" ]; then
-		if command -v cosmocc > /dev/null; then
-			sh hxc/haxelib/build.sh
-		else
-			NATIVE_CC=${NATIVE_CC:-clang} sh hxc/haxelib/build.sh
-		fi
-	fi
 	(
 		cd "$F"
-		haxelib dev hxc "$ROOT/bin/haxelib/hxc" > /dev/null
-		"$HAXE" buildCommon.hxml -w -WIfDisplay -lib hxc -main formatter.Cli \
-			--custom-target "hxc=$OUT" -D hxc.cc="${HXC_CC:-clang}"
+		HAXE_STD_PATH=$ROOT/haxe/std "$ROOT/bin/hxmc/hxmc" "$OUT" buildCommon.hxml -w -WIfDisplay -main formatter.Cli \
+			-cp "$ROOT/bin/hxmc/std" --custom-target hxmc
 	)
 	ls -l "$OUT"
 }
