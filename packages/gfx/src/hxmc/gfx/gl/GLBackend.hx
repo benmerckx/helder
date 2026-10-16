@@ -41,9 +41,12 @@ class GLBackend {
 		this.surface = surface;
 		scratch = LibC.malloc((64 : Int64));
 		var headless = surface.kind == Headless;
-		display = headless ? Egl.eglGetPlatformDisplay(EGL.PLATFORM_SURFACELESS_MESA, Ptr.nil(), Ptr.nil()) : Egl.eglGetPlatformDisplay(EGL.PLATFORM_X11_KHR,
-			surface.display, Ptr.nil());
-		if (display.isNull() && !headless) display = Egl.eglGetDisplay(surface.display);
+		if (headless)
+			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_SURFACELESS_MESA, Ptr.nil(), Ptr.nil());
+		else {
+			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_X11_KHR, surface.display, Ptr.nil());
+			if (display.isNull()) display = Egl.eglGetDisplay(surface.display);
+		}
 		if (display.isNull()) fail("no EGL display");
 		if (Egl.eglInitialize(display, scratch, scratch.offset(1)) == 0) fail("eglInitialize");
 		if (Egl.eglBindAPI(EGL.OPENGL_ES_API) == 0) fail("eglBindAPI");
