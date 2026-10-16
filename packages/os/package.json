@@ -1,7 +1,7 @@
 {
   "name": "@hxmc/os",
   "version": "0.1.0",
-  "description": "Windows, input and the app loop for hxmc, in pure Haxe: raw OS bindings (X11, the Objective-C runtime and AppKit, a canvas in the browser) and a portable layer",
+  "description": "Windows, input and the app loop for hxmc, in pure Haxe: raw OS bindings (X11, the Objective-C runtime and AppKit, Win32, a canvas in the browser) and a portable layer",
   "license": "MIT",
   "files": [
     "src/",
