@@ -400,11 +400,48 @@ class Style {
 		return v;
 	}
 
-	// sets several properties at once from an object's fields (Reflect: for
-	// markup and tests; typed code assigns the properties)
-	public function set(fields:Dynamic):Style {
-		for (f in Reflect.fields(fields))
-			Reflect.setProperty(this, f, Reflect.field(fields, f));
+	// sets the properties p gives
+	public function set(p:StyleProps):Style {
+		if (p.display != null) display = p.display;
+		if (p.position != null) position = p.position;
+		if (p.direction != null) direction = p.direction;
+		if (p.wrap != null) wrap = p.wrap;
+		if (p.justify != null) justify = p.justify;
+		if (p.alignItems != null) alignItems = p.alignItems;
+		if (p.alignSelf != null) alignSelf = p.alignSelf;
+		if (p.alignContent != null) alignContent = p.alignContent;
+		if (p.grow != null) grow = p.grow;
+		if (p.shrink != null) shrink = p.shrink;
+		if (p.basis != null) basis = p.basis;
+		if (p.width != null) width = p.width;
+		if (p.height != null) height = p.height;
+		if (p.minWidth != null) minWidth = p.minWidth;
+		if (p.minHeight != null) minHeight = p.minHeight;
+		if (p.maxWidth != null) maxWidth = p.maxWidth;
+		if (p.maxHeight != null) maxHeight = p.maxHeight;
+		if (p.aspectRatio != null) aspectRatio = p.aspectRatio;
+		if (p.padding != null) padding = p.padding;
+		if (p.margin != null) margin = p.margin;
+		if (p.borderWidth != null) borderWidth = p.borderWidth;
+		if (p.rowGap != null) rowGap = p.rowGap;
+		if (p.columnGap != null) columnGap = p.columnGap;
+		if (p.left != null) left = p.left;
+		if (p.top != null) top = p.top;
+		if (p.right != null) right = p.right;
+		if (p.bottom != null) bottom = p.bottom;
+		if (p.overflow != null) overflow = p.overflow;
+		if (p.background != null) background = p.background;
+		if (p.borderColor != null) borderColor = p.borderColor;
+		if (p.radius != null) radius = p.radius;
+		if (p.opacity != null) opacity = p.opacity;
+		if (p.cursor != null) cursor = p.cursor;
+		if (p.color != null) color = p.color;
+		if (p.fontFamily != null) fontFamily = p.fontFamily;
+		if (p.fontSize != null) fontSize = p.fontSize;
+		if (p.fontWeight != null) fontWeight = p.fontWeight;
+		if (p.italic != null) italic = p.italic;
+		if (p.lineHeight != null) lineHeight = p.lineHeight;
+		if (p.textAlign != null) textAlign = p.textAlign;
 		return this;
 	}
 }

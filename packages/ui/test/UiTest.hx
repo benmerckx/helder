@@ -139,6 +139,7 @@ class UiTest {
 				}
 			case "position": s.position = v == "Absolute" ? Absolute : Relative;
 			case "display": s.display = v == "None" ? None : Flex;
+			case "overflow": s.overflow = v == "Hidden" ? Hidden : v == "Scroll" ? Scroll : Visible;
 			case _: throw "UiTest: no style " + k;
 		}
 	}

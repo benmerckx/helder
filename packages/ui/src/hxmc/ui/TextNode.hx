@@ -36,7 +36,8 @@ class TextNode extends Node {
 	// the paragraph for a width (NaN: unbounded), from the last one when the same
 	public function layoutText(engine:TextEngine, maxWidth:Float):Paragraph {
 		var f = font();
-		var w = Math.isNaN(maxWidth) ? maxWidth : Math.ffloor(maxWidth * 64) / 64;
+		// (to 1/64 pixel up: a width measured from this text fits it again)
+		var w = Math.isNaN(maxWidth) ? maxWidth : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		if (paragraph != null && laidText == text && f.equals(laidFont)
 			&& (w == laidWidth || (Math.isNaN(w) && Math.isNaN(laidWidth)) || (!Math.isNaN(w) && paragraph.width <= w && paragraph.lineCount == 1 && Math.isNaN(laidWidth))))
 			return paragraph;

@@ -57,6 +57,13 @@ export const cases = [
 	{ name: 'content basis', width: 400, height: 100, tree: { style: { direction: 'Row' }, children: [{ style: { direction: 'Row' }, children: [box(50, 20), box(70, 20)] }, grow(1)] } },
 	{ name: 'aspect ratio width', width: 200, height: 200, tree: { style: { alignItems: 'Start' }, children: [box(100, 'auto', { aspectRatio: 2 })] } },
 	{ name: 'aspect ratio height', width: 200, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [box('auto', 40, { aspectRatio: 1.5 })] } },
+	{ name: 'auto min width in a row', width: 200, height: 50, tree: { style: { direction: 'Row' }, children: [{ children: [box(150, 20)] }, { children: [box(150, 20)] }] } },
+	{ name: 'auto min height in a column', width: 100, height: 100, tree: { children: [{ children: [box(50, 80)] }, { children: [box(50, 80)] }] } },
+	{ name: 'overflow hidden may shrink', width: 200, height: 50, tree: { style: { direction: 'Row' }, children: [{ style: { overflow: 'Hidden' }, children: [box(150, 20)] }, { children: [box(150, 20)] }] } },
+	{ name: 'width below its content', width: 200, height: 50, tree: { style: { direction: 'Row' }, children: [{ style: { width: 100 }, children: [box(150, 20)] }, box(150, 20)] } },
+	{ name: 'min width 0 may shrink', width: 200, height: 50, tree: { style: { direction: 'Row' }, children: [{ style: { minWidth: 0 }, children: [box(150, 20)] }, { style: { minWidth: 0 }, children: [box(150, 20)] }] } },
+	{ name: 'min content of a nested row', width: 200, height: 50, tree: { style: { direction: 'Row' }, children: [{ style: { direction: 'Row', padding: 5, columnGap: 4 }, children: [box(60, 20), box(70, 20)] }, grow(1, { basis: 300 })] } },
+	{ name: 'min content of a wrapping row', width: 200, height: 100, tree: { style: { direction: 'Row' }, children: [{ style: { direction: 'Row', wrap: true }, children: [box(60, 20), box(90, 20), box(40, 20)] }, grow(1, { basis: 300 })] } },
 	{ name: 'toolbar', width: 400, height: 300, tree: { children: [
 		{ style: { direction: 'Row', alignItems: 'Center', padding: [4, 8], columnGap: 6, height: 40 }, children: [box(24, 24), box(80, 20), grow(1), box(60, 28)] },
 		{ style: { grow: 1, direction: 'Row' }, children: [{ style: { width: 120, padding: 8, rowGap: 4 }, children: [{ style: { height: 20 } }, { style: { height: 20 } }] }, { style: { grow: 1, padding: 12 } }] },

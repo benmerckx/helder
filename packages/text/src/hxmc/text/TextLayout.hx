@@ -5,7 +5,8 @@ package hxmc.text;
 // between glyphs of the same face) and broken greedily at break
 // opportunities (after spaces and hyphens, around CJK ideographs, kana and
 // hangul) to fit maxWidth (NaN: only at "\n"); a word wider than a line is
-// cut between characters. Left to right only (no bidi), no ligatures or
+// cut between characters, except at a maxWidth of 0: the min-content
+// layout, every opportunity taken and no word cut. Left to right only (no bidi), no ligatures or
 // mark positioning (no GSUB, GPOS). Positions are pixels; character
 // indices are the text's UTF-16 units (String indices).
 class TextLayout {
@@ -114,9 +115,14 @@ class TextLayout {
 				var g = gs[i];
 				if (i > lineStart && breakBefore(gs, i)) lastBreak = i;
 				// (trailing spaces may overflow)
-				if (!isSpace(g.cp) && w + g.advance > max + 1e-6 && i > lineStart) break;
+				if (!isSpace(g.cp) && w + g.advance > max + 1e-3 && i > lineStart) break;
 				w += g.advance;
 				i++;
+			}
+			// (at a width of 0, a word stays whole: up to the next opportunity)
+			if (max <= 0 && lastBreak <= lineStart && i < end) {
+				while (i < end && !breakBefore(gs, i))
+					i++;
 			}
 			var cut = i >= end ? end : lastBreak > lineStart ? lastBreak : i;
 			addLine(gs, lineStart, cut);

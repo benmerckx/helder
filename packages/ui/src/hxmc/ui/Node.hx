@@ -61,6 +61,7 @@ class Node {
 	@:allow(hxmc.ui.Layout) var lh = 0.0;
 	@:allow(hxmc.ui.Layout) var cache:Array<Float> = [];
 	@:allow(hxmc.ui.Layout) var dirty = true;
+	@:allow(hxmc.ui.Layout) var minContent = Math.NaN;
 
 	public function new(?tag:String) {
 		this.tag = tag == null ? "view" : tag;
@@ -123,9 +124,10 @@ class Node {
 	// the layout of this node (and so of its ancestors) must be redone
 	public function markDirty() {
 		var n = this;
-		while (n != null && !(n.dirty && n.cache.length == 0)) {
+		while (n != null && !(n.dirty && n.cache.length == 0 && Math.isNaN(n.minContent))) {
 			n.dirty = true;
 			n.cache.resize(0);
+			n.minContent = Math.NaN;
 			n = n.parent;
 		}
 		if (ui != null) ui.requestFrame();

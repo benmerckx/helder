@@ -1,9 +1,12 @@
 package hxmc.ui;
 
-// Flexbox layout of a Node tree, after CSS Flexible Box Layout (section 9)
-// with Yoga's simplifications: min sizes default to 0 (no automatic minimum
-// from the content), margins are pixels (no auto margins), no baseline
-// alignment. Sizes are border boxes; padding and borderWidth are inside.
+// Flexbox layout of a Node tree, after CSS Flexible Box Layout (section 9):
+// margins are pixels (no auto margins), no baseline alignment. A flex
+// item's min size on the main axis is CSS's automatic minimum when auto
+// (its content's: the min-content width in a row, the content's height in
+// a column; no more than its width or height when given; 0 for Overflow
+// Hidden and Scroll), so that content is not squashed. Sizes are border
+// boxes; padding and borderWidth are inside.
 //
 // size(node, known, parent, available, perform) is the one function: the
 // node's border-box size when its width or height may already be known
@@ -134,6 +137,7 @@ class Layout {
 			it.styleCross = clamp((row ? cs.height : cs.width).resolve(innerCross), it.minCross, it.maxCross);
 			var b = cs.basis.resolve(innerMain);
 			if (!known(b)) b = (row ? cs.width : cs.height).resolve(innerMain);
+			var contentBasis = !known(b);
 			if (!known(b) && cs.aspectRatio > 0 && known(it.styleCross)) b = row ? it.styleCross * cs.aspectRatio : it.styleCross / cs.aspectRatio;
 			if (!known(b)) {
 				// the content's main size, its cross size known when stretched in a known line
@@ -145,6 +149,20 @@ class Layout {
 				b = row ? rw : rh;
 			}
 			it.basis = b;
+			// the automatic minimum
+			if ((row ? cs.minWidth : cs.minHeight) == DimValue.Auto && cs.overflow == Visible) {
+				var content:Float;
+				if (row) content = minContentWidth(c, innerW, false) else if (contentBasis) content = b else {
+					var kc = it.styleCross;
+					if (!known(kc) && it.align == Stretch && !multi && known(innerCross)) kc = Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd);
+					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
+					size(c, kc, Math.NaN, innerW, innerH, ac, Math.NaN, false);
+					content = rh;
+				}
+				var spec = (row ? cs.width : cs.height).resolve(innerMain);
+				if (known(spec) && spec < content) content = spec;
+				it.minMain = Math.min(content, it.maxMain);
+			}
 			it.hypo = clamp(b, it.minMain, it.maxMain);
 			items.push(it);
 		}
@@ -327,6 +345,38 @@ class Layout {
 		n.dirty = false;
 		rw = bw;
 		rh = bh;
+	}
+
+	// the min-content width of a node's border box (CSS: its words unbroken,
+	// a row's items side by side, a column's or wrapping row's widest item;
+	// content is measured at an available width of 0); as a contribution to
+	// its parent's, a given width is its own
+	function minContentWidth(n:Node, parentW:Float, contribution:Bool):Float {
+		var s = n.style;
+		if (s.display == None) return 0;
+		var minW = min(s.minWidth, parentW), maxW = max(s.maxWidth, parentW);
+		var w = s.width.resolve(parentW);
+		if (contribution && known(w)) return clamp(w, minW, maxW);
+		var cached = n.minContent;
+		if (known(cached)) return cached;
+		var bw = s.borderWidth, padH = s.padding.left + s.padding.right + 2 * bw;
+		var inner = 0.0;
+		if (n.hasContent() && n.children.length == 0) inner = n.measureContent(text, Math.NaN, Math.NaN, 0, Math.NaN).width else {
+			var row = (s.direction == Row || s.direction == RowReverse) && !s.wrap;
+			var count = 0;
+			for (c in n.children) {
+				var cs = c.style;
+				if (cs.display == None || cs.position == Absolute) continue;
+				var m = cs.margin;
+				var cw = clamp(minContentWidth(c, Math.NaN, true), min(cs.minWidth, Math.NaN), max(cs.maxWidth, Math.NaN)) + m.left + m.right;
+				if (row) inner += cw + (count > 0 ? s.columnGap : 0) else if (cw > inner) inner = cw;
+				count++;
+			}
+		}
+		// (the content alone: not clamped by this node's own min or max)
+		var r = inner + padH;
+		n.minContent = r;
+		return contribution ? clamp(r, minW, maxW) : r;
 	}
 
 	// CSS 9.7: the items' main sizes in a line of the container's main size

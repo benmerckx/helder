@@ -1,6 +1,6 @@
 // The layout tests' reference: each case of layout-cases.mjs drawn by
-// Chromium's flexbox (with the CSS that makes it Yoga's: border-box, column
-// by default, min sizes 0, position relative), its boxes read back, each
+// Chromium's flexbox (with the CSS that sets hxmc.ui's defaults: border-box,
+// column, position relative), its boxes read back, each
 // edge rounded as hxmc.ui.Layout rounds them, into layout-expected.json,
 // which UiTest compares with (make ui-check). Run it after changing the
 // cases (Playwright from npm, with Chromium):
@@ -22,7 +22,7 @@ const KEBAB = { direction: 'flex-direction', wrap: 'flex-wrap', justify: 'justif
 	maxWidth: 'max-width', maxHeight: 'max-height', rowGap: 'row-gap', columnGap: 'column-gap', borderWidth: 'border-width', aspectRatio: 'aspect-ratio' };
 const VALUES = { Row: 'row', Column: 'column', RowReverse: 'row-reverse', ColumnReverse: 'column-reverse', Start: 'flex-start', End: 'flex-end',
 	Center: 'center', Stretch: 'stretch', SpaceBetween: 'space-between', SpaceAround: 'space-around', SpaceEvenly: 'space-evenly', Auto: 'auto',
-	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex' };
+	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex', Visible: 'visible', Hidden: 'hidden', Scroll: 'scroll' };
 
 function css(style) {
 	let s = '';
@@ -45,7 +45,7 @@ function html(node) {
 
 const page = `<!doctype html><style>
 body { margin: 0 }
-div { display: flex; flex-direction: column; box-sizing: border-box; min-width: 0; min-height: 0; position: relative; border-style: solid; border-width: 0; flex-shrink: 1; align-content: flex-start }
+div { display: flex; flex-direction: column; box-sizing: border-box; position: relative; border-style: solid; border-width: 0; flex-shrink: 1; align-content: flex-start }
 #root > div { position: absolute; left: 0; top: 0 }
 </style><div id="root"></div>`;
 

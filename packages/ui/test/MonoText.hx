@@ -2,7 +2,8 @@ import hxmc.ui.*;
 
 // A TextEngine for tests: every character is half the font size wide, a
 // line is size * lineHeight high, lines break at spaces (or anywhere in a
-// word wider than the line) and at "\n".
+// word wider than the line, unless the width is 0: the min-content layout)
+// and at "\n".
 class MonoText implements TextEngine {
 	public function new() {}
 
@@ -36,6 +37,10 @@ class MonoParagraph implements Paragraph {
 				}
 				// the last space that fits, else a cut
 				var cut = hard.lastIndexOf(" ", pos + perLine);
+				if (cut <= pos && maxWidth == 0) {
+					cut = hard.indexOf(" ", pos);
+					if (cut < 0) cut = hard.length;
+				}
 				if (cut <= pos) cut = pos + perLine;
 				lines.push({start: start + pos, length: cut - pos});
 				pos = cut;
