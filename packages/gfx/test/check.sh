@@ -10,3 +10,4 @@ here=$(dirname "$0")
 export LIBGL_ALWAYS_SOFTWARE=1
 env -u DISPLAY "$bin/GfxTest" headless "$here/triangle.png" "$out/headless.png"
 xvfb-run -a -s "-screen 0 640x480x24" "$bin/GfxTest" window "$here/triangle.png" "$out/window.png" 5
+# (CI path selection test: a packages/gfx-only change; reverted)
