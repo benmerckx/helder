@@ -13,6 +13,19 @@
 // from the top left, the wheel (in notches: 100 pixels or 3 lines one), a
 // change of devicePixelRatio (ScaleChange, checked before each frame). Frames pause while no window's canvas is in
 // view (as requestAnimationFrame pauses in a hidden tab).
+//
+// Audio (hxmc.os.audio.WebAudioOutput): an AudioContext at the rate asked
+// for, and an AudioWorklet node (PROCESSOR, loaded from a blob) that plays
+// chunks of interleaved samples posted to it, telling the page each time it
+// has played one. The module's memory is not shared with the worklet, so
+// the page calls the module's fill for a new chunk then (and at start: as
+// many as `ahead`), copies it and posts it: the module stays at most
+// `ahead` frames ahead of the output. Browsers start an AudioContext only
+// after a user gesture: one made before is resumed on the page's next click
+// or key. The option audioContext, a function (sampleRate, channels) =>
+// context, gives another context: an OfflineAudioContext (tests), whose
+// whole length start fills at once; its promise hxmcReady resolves once the
+// node is connected and has those chunks (then startRendering).
 
 // EventKind (src/hxmc/os/Event.hx)
 const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT = 8, WHEEL = 9, SCALE_CHANGE = 10;
@@ -34,6 +47,48 @@ function keysym(e) {
 	}
 	return 0;
 }
+
+// the worklet's side: a queue of chunks (Float32Arrays, interleaved), played
+// in order into its output; 'clear' empties it, 'ping' is answered (once
+// the chunks posted before it are queued)
+const PROCESSOR = `
+class HxmcOutput extends AudioWorkletProcessor {
+	constructor(o) {
+		super();
+		this.channels = o.processorOptions.channels;
+		this.queue = [];
+		this.at = 0;
+		this.port.onmessage = (e) => {
+			if (e.data === 'clear') {
+				this.queue = [];
+				this.at = 0;
+			} else if (e.data === 'ping') this.port.postMessage('ping');
+			else this.queue.push(e.data);
+		};
+	}
+	process(inputs, outputs) {
+		const out = outputs[0], n = out[0].length, ch = this.channels;
+		let i = 0;
+		while (i < n && this.queue.length > 0) {
+			const c = this.queue[0], frames = c.length / ch, k = Math.min(n - i, frames - this.at);
+			for (let x = 0; x < out.length; x++) {
+				const o = out[x];
+				for (let j = 0; j < k; j++) o[i + j] = c[(this.at + j) * ch + x];
+			}
+			i += k;
+			this.at += k;
+			if (this.at === frames) {
+				this.queue.shift();
+				this.at = 0;
+				this.port.postMessage(frames);
+			}
+		}
+		return true;
+	}
+}
+registerProcessor('hxmc-output', HxmcOutput);
+`;
+let processorUrl = null;
 
 export default function (host) {
 	const queue = [];
@@ -84,7 +139,84 @@ export default function (host) {
 		return off;
 	}
 
+	// (an output's chunks, up to `ahead` frames queued in the worklet)
+	function pump(a, h) {
+		while (a.running && a.queued < a.ahead) {
+			host.call(a.fill, h, a.frames);
+			// (the callback closed it, or the program ended)
+			if (!a.running || host.exitCode !== null) break;
+			const chunk = new Float32Array(host.memory().buffer, a.buffer, a.frames * a.channels).slice();
+			if (a.node) a.node.port.postMessage(chunk, [chunk.buffer]);
+			else a.pending.push(chunk);
+			a.queued += a.frames;
+		}
+	}
+	const resume = () => {
+		for (const a of outputs) if (a.running && a.ctx.state === 'suspended') a.ctx.resume();
+	};
+	const outputs = new Set();
+	let resumes = false;
+
 	const hxmc_os = {
+		audio_open(rate, channels, frames, buffer, fill) {
+			if (typeof AudioWorkletNode === 'undefined') return 0;
+			const ctx = host.options.audioContext ? host.options.audioContext(rate, channels) : new AudioContext({ sampleRate: rate, latencyHint: 'interactive' });
+			const offline = typeof OfflineAudioContext !== 'undefined' && ctx instanceof OfflineAudioContext;
+			// (about 50 ms ahead, in chunks)
+			const ahead = offline ? ctx.length : frames * Math.max(2, Math.ceil(ctx.sampleRate * 0.05 / frames));
+			const a = { ctx, channels, frames, buffer, fill, ahead, offline, node: null, queued: 0, running: false, pending: [] };
+			const h = host.handles.add(a);
+			processorUrl ??= URL.createObjectURL(new Blob([PROCESSOR], { type: 'text/javascript' }));
+			// (ready once the worklet has the chunks posted so far)
+			ctx.hxmcReady = ctx.audioWorklet.addModule(processorUrl).then(() => new Promise((ready) => {
+				if (a.closed) return ready();
+				a.node = new AudioWorkletNode(ctx, 'hxmc-output', { numberOfInputs: 0, outputChannelCount: [channels], processorOptions: { channels } });
+				a.node.port.onmessage = (e) => {
+					if (e.data === 'ping') return ready();
+					a.queued = Math.max(0, a.queued - e.data);
+					pump(a, h);
+				};
+				a.node.connect(ctx.destination);
+				for (const c of a.pending) a.node.port.postMessage(c, [c.buffer]);
+				a.pending = [];
+				a.node.port.postMessage('ping');
+			}));
+			if (!offline && !resumes) {
+				resumes = true;
+				for (const t of ['pointerdown', 'keydown']) document.addEventListener(t, resume, { capture: true });
+			}
+			outputs.add(a);
+			return h;
+		},
+		audio_rate: (h) => host.handles.get(h).ctx.sampleRate,
+		audio_latency(h) {
+			const a = host.handles.get(h);
+			return a.ahead / a.ctx.sampleRate + (a.ctx.baseLatency ?? 0) + (a.ctx.outputLatency ?? 0);
+		},
+		audio_start(h) {
+			const a = host.handles.get(h);
+			a.running = true;
+			if (!a.offline) a.ctx.resume();
+			pump(a, h);
+		},
+		audio_stop(h) {
+			const a = host.handles.get(h);
+			a.running = false;
+			a.queued = 0;
+			a.pending = [];
+			if (a.node) a.node.port.postMessage('clear');
+			if (!a.offline) a.ctx.suspend();
+		},
+		audio_close(h) {
+			const a = host.handles.get(h);
+			a.running = false;
+			a.closed = true;
+			if (a.node) a.node.disconnect();
+			if (!a.offline) a.ctx.close();
+			outputs.delete(a);
+			host.handles.remove(h);
+		},
+
 		window_open(title, width, height) {
 			const given = first && host.options.canvas;
 			first = false;

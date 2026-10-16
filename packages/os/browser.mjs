@@ -12,8 +12,10 @@
 // may wait for what it needs before the module starts: WebGPU's device). The
 // objects are merged and the module instantiated, then _start runs main.
 // The host each package gets:
-//   options        run's options (canvas: an element or its id, for os;
-//                  gfx: 'webgl2' for gfx, WebGL2 even where WebGPU is)
+//   options        run's options (canvas: an element or its id, and
+//                  audioContext: a function (sampleRate, channels) =>
+//                  an AudioContext or OfflineAudioContext, for os; gfx:
+//                  'webgl2' for gfx, WebGL2 even where WebGPU is)
 //   memory()       the module's memory; bytes(p, n), string(p) read it (a
 //                  view made anew each time: the memory may have grown)
 //   handles        the JavaScript objects the module refers to by integer
