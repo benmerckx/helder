@@ -7,13 +7,15 @@
 // checked before each frame (a Resize event when it changes); a canvas the
 // page does not size is given the window's size in CSS pixels. Events are
 // queued as they come and polled at the start of the next frame, as the
-// native loops poll theirs: keys (as X11 KeySyms, Event.key) once the canvas
-// has the focus (a click gives it), the mouse over the canvas in buffer
-// pixels from the top left. Frames pause while no window's canvas is in
+// native loops poll theirs: keys (as X11 KeySyms, Event.key) and their
+// characters (a keydown's key, when it is one: Text) once the canvas has
+// the focus (a click gives it), the mouse over the canvas in buffer pixels
+// from the top left, the wheel (in notches: 100 pixels or 3 lines one), a
+// change of devicePixelRatio (ScaleChange, checked before each frame). Frames pause while no window's canvas is in
 // view (as requestAnimationFrame pauses in a hidden tab).
 
 // EventKind (src/hxmc/os/Event.hx)
-const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7;
+const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT = 8, WHEEL = 9, SCALE_CHANGE = 10;
 
 // KeyboardEvent.key to an X11 KeySym: Latin-1 characters are their
 // (unshifted) code, the others from this table
@@ -36,7 +38,7 @@ function keysym(e) {
 export default function (host) {
 	const queue = [];
 	const windows = new Set();
-	let first = true;
+	let first = true, ratio = devicePixelRatio;
 
 	function push(ev) {
 		// (moves between two frames: the last one)
@@ -60,18 +62,23 @@ export default function (host) {
 		const pos = (e) => [Math.round(e.offsetX * c.width / Math.max(1, c.clientWidth)), Math.round(e.offsetY * c.height / Math.max(1, c.clientHeight))];
 		const off = new AbortController();
 		const on = (type, f, o = {}) => c.addEventListener(type, f, { ...o, signal: off.signal });
-		on('keydown', (e) => push([h, KEY_DOWN, keysym(e), 0, 0, 0]));
-		on('keyup', (e) => push([h, KEY_UP, keysym(e), 0, 0, 0]));
-		on('mousemove', (e) => push([h, MOUSE_MOVE, 0, ...pos(e), 0]));
+		on('keydown', (e) => {
+			push([h, KEY_DOWN, keysym(e), 0, 0, 0, 0, 0]);
+			// (a character: one code point; not with Ctrl or Cmd, which make shortcuts)
+			const c = [...e.key];
+			if (c.length === 1 && !e.ctrlKey && !e.metaKey && c[0].codePointAt(0) >= 0x20) push([h, TEXT, c[0].codePointAt(0), 0, 0, 0, 0, 0]);
+		});
+		on('keyup', (e) => push([h, KEY_UP, keysym(e), 0, 0, 0, 0, 0]));
+		on('mousemove', (e) => push([h, MOUSE_MOVE, 0, ...pos(e), 0, 0, 0]));
 		on('mousedown', (e) => {
 			c.focus();
-			push([h, MOUSE_DOWN, 0, ...pos(e), e.button + 1]);
+			push([h, MOUSE_DOWN, 0, ...pos(e), e.button + 1, 0, 0]);
 		});
-		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1]));
+		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1, 0, 0]));
 		on('wheel', (e) => {
-			const b = e.deltaY < 0 ? 4 : 5;
-			push([h, MOUSE_DOWN, 0, ...pos(e), b]);
-			push([h, MOUSE_UP, 0, ...pos(e), b]);
+			// (in 120ths of a notch, as integers)
+			const k = 120 * (e.deltaMode === 1 ? 1 / 3 : e.deltaMode === 2 ? 1 : 1 / 100);
+			push([h, WHEEL, 0, ...pos(e), 0, Math.round(e.deltaX * k), Math.round(-e.deltaY * k)]);
 		}, { passive: true });
 		on('contextmenu', (e) => e.preventDefault());
 		return off;
@@ -126,13 +133,17 @@ export default function (host) {
 		next_event(p) {
 			const ev = queue.shift();
 			if (!ev) return 0;
-			new Int32Array(host.memory().buffer, p, 6).set(ev);
+			new Int32Array(host.memory().buffer, p, 8).set(ev);
 			return 1;
 		},
 		start(frame) {
 			const tick = () => {
 				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return requestAnimationFrame(tick);
-				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0]);
+				if (devicePixelRatio !== ratio) {
+					ratio = devicePixelRatio;
+					for (const h of windows) push([h, SCALE_CHANGE, 0, 0, 0, 0, 0, 0]);
+				}
+				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0, 0, 0]);
 				if (host.call(frame)) requestAnimationFrame(tick);
 			};
 			requestAnimationFrame(tick);

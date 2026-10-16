@@ -36,7 +36,7 @@ class App {
 		}
 		// (macOS: what Cocoa autoreleases during a frame is freed after it)
 		var pool = Mem.os() == 1 ? Runtime.objc_autoreleasePoolPush() : Ptr.nil();
-		if (Mem.os() == 1) CocoaWindow.poll(onEvent) else if (Mem.os() == 2) Win32Window.poll(onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
+		if (Mem.os() == 1) CocoaWindow.poll(onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
 			X11Window.poll(onEvent);
 		if (running && windows.length > 0) onFrame();
 		if (Mem.os() == 1) Runtime.objc_autoreleasePoolPop(pool);

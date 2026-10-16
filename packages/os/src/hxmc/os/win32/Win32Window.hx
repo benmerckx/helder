@@ -12,6 +12,12 @@ import hxmc.unsafe.*;
 // (a window's size in points times the system's scale, as on macOS). The
 // loop stays App.run's: each frame drains the thread's queue without
 // waiting (PeekMessage); the pace comes from the swap chain's Present.
+// Characters come from WM_CHAR (TranslateMessage: UTF-16, surrogate pairs
+// joined), the wheels from WM_MOUSEWHEEL and WM_MOUSEHWHEEL; WM_DPICHANGED
+// moves the window to the size Windows suggests and is a ScaleChange.
+// While the user drags the window's edge or title bar, DispatchMessage runs
+// Windows' own loop until the drag ends: a timer then draws the frames
+// (onFrame from WM_TIMER), so that the content follows the size.
 @:allow(hxmc.os)
 class Win32Window {
 	static var instance = Ptr.nil(); // the HINSTANCE
@@ -19,8 +25,11 @@ class Win32Window {
 	static var msg:Ptr<MSG> = Ptr.nil();
 	static final event = new Event();
 	static final open:Array<Win32Window> = [];
-	// the App.run callback, for the window procedure's events
+	// the App.run callbacks, for the window procedure's events and frames
 	static var onEvent:Null<Event->Void>;
+	static var onFrame:Null<Void->Void>;
+	static var surrogate = 0; // the high surrogate of the next WM_CHAR
+	static inline var SIZING_TIMER = 1;
 
 	static inline var STYLE = WM.WS_OVERLAPPEDWINDOW;
 
@@ -99,7 +108,8 @@ class Win32Window {
 	}
 
 	// dispatches the pending events (through the window procedure)
-	static function poll(onEvent:Event->Void) {
+	static function poll(onFrame:Void->Void, onEvent:Event->Void) {
+		Win32Window.onFrame = onFrame;
 		Win32Window.onEvent = onEvent;
 		while (User32.PeekMessageW(msg, Ptr.nil(), 0, 0, WM.PM_REMOVE) != 0) {
 			User32.TranslateMessage(msg);
@@ -142,9 +152,8 @@ class Win32Window {
 				// (signed 16-bit client coordinates)
 				e.x = lParam.toInt() << 16 >> 16;
 				e.y = lParam.toInt() >> 16;
-			case WM.MOUSEWHEEL:
-				// (the wheel as X11 has it: a press and a release of button 4 or 5;
-				// the position in screen coordinates)
+			case WM.MOUSEWHEEL | WM.MOUSEHWHEEL:
+				// (120 a notch; the position in screen coordinates)
 				var delta = wParam.toInt() >> 16;
 				if (delta != 0) {
 					Arena.scoped(a -> {
@@ -155,13 +164,45 @@ class Win32Window {
 						e.x = p.value.x;
 						e.y = p.value.y;
 					});
-					e.kind = MouseDown;
-					e.button = delta > 0 ? 4 : 5;
-					dispatch(e);
-					e.kind = MouseUp;
+					e.kind = Wheel;
+					e.dx = message == WM.MOUSEHWHEEL ? delta / 120 : 0;
+					e.dy = message == WM.MOUSEWHEEL ? delta / 120 : 0;
 					dispatch(e);
 					return 0;
 				}
+			case WM.CHAR:
+				var c = wParam.toInt() & 0xFFFF;
+				if (c >= 0xD800 && c < 0xDC00) {
+					surrogate = c;
+					return 0;
+				}
+				if (c >= 0xDC00 && c < 0xE000) {
+					c = surrogate == 0 ? 0 : 0x10000 + ((surrogate - 0xD800) << 10) + (c - 0xDC00);
+					surrogate = 0;
+				}
+				if (c >= 0x20 && c != 0x7F) {
+					e.kind = Text;
+					e.char = c;
+					dispatch(e);
+				}
+				return 0;
+			case WM.DPICHANGED:
+				// (the new DPI, then the size Windows suggests for it: a Resize from WM_SIZE)
+				w.scale = (wParam.toInt() & 0xFFFF) / 96;
+				e.kind = ScaleChange;
+				dispatch(e);
+				var r:Ptr<RECT> = Ptr.ofI64(lParam);
+				User32.SetWindowPos(hwnd, Ptr.nil(), r.value.left, r.value.top, r.value.right - r.value.left, r.value.bottom - r.value.top,
+					WM.SWP_NOZORDER | WM.SWP_NOACTIVATE);
+				return 0;
+			case WM.ENTERSIZEMOVE:
+				User32.SetTimer(hwnd, SIZING_TIMER, 10, Ptr.nil());
+			case WM.EXITSIZEMOVE:
+				User32.KillTimer(hwnd, SIZING_TIMER);
+			case WM.TIMER if (wParam == SIZING_TIMER):
+				// (a frame inside Windows' loop of a drag)
+				if (onFrame != null && App.windows.length > 0) onFrame();
+				return 0;
 			case _:
 		}
 		if (e.kind != None) dispatch(e);

@@ -11,12 +11,18 @@ import hxmc.unsafe.*;
 // the frame's pace comes from the layer's drawables (vsync), as on X11; a
 // display link would call back on another thread, and the GPU layer is main
 // thread only. A delegate class made at run time turns the close button into
-// a Close event and resizes into Resize events (both from inside sendEvent:).
+// a Close event, resizes into Resize events and a new backing scale (another
+// display) into ScaleChange (from inside sendEvent:). Characters: the
+// content view is made of a subclass, made at run time, whose insertText:
+// interpretKeyEvents: calls (AppKit's key bindings: dead keys; not yet
+// NSTextInputClient, for input methods). The wheel and trackpads:
+// scrollingDeltaX and Y (a trackpad's precise deltas, in points, a tenth).
 // Sizes and positions are in pixels (points times the backing scale), y down.
 @:allow(hxmc.os)
 class CocoaWindow {
 	static var app = Ptr.nil();
 	static var delegate = Ptr.nil();
+	static var viewClass = Ptr.nil(); // the content views' subclass
 	static var mode = Ptr.nil(); // the run loop's default mode, an NSString
 	static final event = new Event();
 	static final open:Array<CocoaWindow> = [];
@@ -54,6 +60,14 @@ class CocoaWindow {
 		// (no line under the title bar: it would hide the content's top pixels)
 		Msg.vInt(window, ObjC.sel("setTitlebarSeparatorStyle:"), 1);
 		view = Msg.id(window, ObjC.sel("contentView"));
+		// (of the subclass that takes the typed text)
+		if (viewClass.isNull()) {
+			viewClass = Runtime.objc_allocateClassPair(Runtime.object_getClass(view), Mem.cstr("HxmcContentView"), 0);
+			Runtime.class_addMethod(viewClass, ObjC.sel("insertText:"), Callback.addr(insertText), Mem.cstr("v@:@"));
+			Runtime.class_addMethod(viewClass, ObjC.sel("doCommandBySelector:"), Callback.addr(doCommand), Mem.cstr("v@::"));
+			Runtime.objc_registerClassPair(viewClass);
+		}
+		Runtime.object_setClass(view, viewClass);
 		// a layer-hosting view: the layer first, then wantsLayer
 		layer = Runtime.objc_retain(Msg.id(ObjC.cls("CAMetalLayer"), ObjC.sel("layer")));
 		Msg.vPtr(view, ObjC.sel("setLayer:"), layer);
@@ -76,7 +90,7 @@ class CocoaWindow {
 		var cls = Runtime.objc_allocateClassPair(ObjC.cls("NSObject"), Mem.cstr("HxmcWindowDelegate"), 0);
 		Runtime.class_addMethod(cls, ObjC.sel("windowShouldClose:"), Callback.addr(shouldClose), Mem.cstr("c@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("windowDidResize:"), Callback.addr(didResize), Mem.cstr("v@:@"));
-		Runtime.class_addMethod(cls, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didResize), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didChangeScale), Mem.cstr("v@:@"));
 		Runtime.objc_registerClassPair(cls);
 		delegate = Msg.id(Msg.id(cls, ObjC.sel("alloc")), ObjC.sel("init"));
 	}
@@ -127,6 +141,53 @@ class CocoaWindow {
 		return 0;
 	}
 
+	@:hxmc.callback static function didChangeScale(self:Ptr, cmd:Ptr, note:Ptr):Void {
+		var w = find(Msg.id(note, ObjC.sel("object")));
+		if (w == null) return;
+		var scale = w.scale, resized = w.measure();
+		var e = event;
+		e.window = w.owner;
+		if (w.scale != scale) {
+			e.kind = ScaleChange;
+			dispatch(e);
+		}
+		if (resized) {
+			e.kind = Resize;
+			e.x = w.surface.width;
+			e.y = w.surface.height;
+			dispatch(e);
+		}
+	}
+
+	// the text of a key (interpretKeyEvents:): an NSString or NSAttributedString
+	@:hxmc.callback static function insertText(self:Ptr, cmd:Ptr, text:Ptr):Void {
+		var w:Null<CocoaWindow> = null;
+		for (o in open)
+			if (o.view == self) w = o;
+		if (w == null) return;
+		var s = (Msg.iPtr(text, ObjC.sel("isKindOfClass:"), ObjC.cls("NSAttributedString")) & 0xFF) != 0 ? Msg.id(text, ObjC.sel("string")) : text;
+		var e = event;
+		e.kind = Text;
+		e.window = w.owner;
+		var n = Msg.i(s, ObjC.sel("length")).toInt(), i = 0;
+		while (i < n) {
+			var c:Int = Msg.u16Int(s, ObjC.sel("characterAtIndex:"), i++);
+			if (c >= 0xD800 && c < 0xDC00 && i < n) {
+				var d:Int = Msg.u16Int(s, ObjC.sel("characterAtIndex:"), i++);
+				c = 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00);
+			}
+			// (not the control characters, nor the function keys' private use ones)
+			if (c >= 0x20 && c != 0x7F && !(c >= 0xF700 && c < 0xF900)) {
+				e.char = c;
+				dispatch(e);
+			}
+		}
+	}
+
+	// (a key binding's command, Return or an arrow: the KeyDown has it; without
+	// this method AppKit would beep)
+	@:hxmc.callback static function doCommand(self:Ptr, cmd:Ptr, sel:Ptr):Void {}
+
 	@:hxmc.callback static function didResize(self:Ptr, cmd:Ptr, note:Ptr):Void {
 		var w = find(Msg.id(note, ObjC.sel("object")));
 		if (w == null || !w.measure()) return;
@@ -172,11 +233,11 @@ class CocoaWindow {
 				e.kind = MouseMove;
 				e.button = 0;
 			case NS.ScrollWheel:
-				var dy = Msg.f(ev, ObjC.sel("scrollingDeltaY"));
-				if (dy == 0) return;
-				// (the wheel as X11 has it: a press and a release of button 4 or 5)
-				e.kind = MouseDown;
-				e.button = dy > 0 ? 4 : 5;
+				var k = (Msg.i(ev, ObjC.sel("hasPreciseScrollingDeltas")) & 0xFF) != 0 ? 0.1 : 1.0;
+				e.dx = -Msg.f(ev, ObjC.sel("scrollingDeltaX")) * k;
+				e.dy = Msg.f(ev, ObjC.sel("scrollingDeltaY")) * k;
+				if (e.dx == 0 && e.dy == 0) return;
+				e.kind = Wheel;
 			case _:
 				return;
 		}
@@ -187,10 +248,8 @@ class CocoaWindow {
 			e.y = Math.floor((b.size.height - p.y) * scale);
 		}
 		dispatch(e);
-		if (type == NS.ScrollWheel) {
-			e.kind = MouseUp;
-			dispatch(e);
-		}
+		// (the key's text: insertText:)
+		if (type == NS.KeyDown) Msg.vPtr(view, ObjC.sel("interpretKeyEvents:"), Msg.idPtr(ObjC.cls("NSArray"), ObjC.sel("arrayWithObject:"), ev));
 	}
 
 	static function button(ev:Ptr, type:Int):Int

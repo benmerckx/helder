@@ -17,8 +17,8 @@ import hxmc.unsafe.*;
 	static function height(canvas:Int):Int;
 	// device pixels per CSS pixel
 	static function scale():Float;
-	// the next pending event into ev (six Int32: canvas, EventKind, key, x, y,
-	// button); 0: none
+	// the next pending event into ev (eight Int32: canvas, EventKind, key or
+	// char, x, y, button, dx and dy in 120ths); 0: none
 	static function next_event(ev:Ptr<Int32>):Int;
 	// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
 	static function start(frame:Ptr):Void;

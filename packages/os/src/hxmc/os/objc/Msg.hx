@@ -31,6 +31,7 @@ class Msg {
 	static function vSize(self:Ptr, sel:Ptr, a:CGSize):Void;
 	static function i(self:Ptr, sel:Ptr):Int64;
 	static function iInt(self:Ptr, sel:Ptr, a:Int64):Int64;
+	static function iPtr(self:Ptr, sel:Ptr, a:Ptr):Int64;
 	static function u16Int(self:Ptr, sel:Ptr, a:Int64):UInt16;
 	static function f(self:Ptr, sel:Ptr):Float;
 	static function rect(self:Ptr, sel:Ptr):CGRect;

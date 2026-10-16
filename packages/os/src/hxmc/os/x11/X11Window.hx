@@ -6,13 +6,17 @@ import hxmc.unsafe.*;
 
 // hxmc.os.Window on X11: one Display connection for the process, opened
 // with the first window; WM_DELETE_WINDOW turns the close button into a
-// Close event.
+// Close event. A key's text comes from XLookupString (Latin-1, or a Unicode
+// KeySym; no input method yet: compose sequences and IMEs), the wheel
+// from buttons 4 to 7. The scale stays 1.
 @:allow(hxmc.os)
 class X11Window {
 	static var display = Ptr.nil();
 	static var wmDelete:Int64 = 0;
 	// one XEvent buffer, and the Event dispatched from it
 	static var xev:Ptr = Ptr.nil();
+	static var text:Ptr<UInt8> = Ptr.nil(); // XLookupString's buffer and KeySym
+	static var keysym:Ptr<Int64> = Ptr.nil();
 	static final event = new Event();
 	static final open:Array<X11Window> = [];
 
@@ -45,6 +49,8 @@ class X11Window {
 		if (display.isNull()) throw "hxmc.os: cannot open the X display (DISPLAY=" + Sys.getEnv("DISPLAY") + ")";
 		wmDelete = Xlib.XInternAtom(display, Mem.cstr("WM_DELETE_WINDOW"), 0);
 		xev = LibC.malloc((X.EVENT_SIZE : Int64));
+		text = LibC.malloc(16);
+		keysym = LibC.malloc(8);
 	}
 
 	function destroy() {
@@ -54,6 +60,8 @@ class X11Window {
 		if (open.length == 0) {
 			Xlib.XCloseDisplay(display);
 			LibC.free(xev);
+			LibC.free(text);
+			LibC.free(keysym);
 			display = Ptr.nil();
 		}
 	}
@@ -62,6 +70,30 @@ class X11Window {
 		for (w in open)
 			if (w.id == id) return w;
 		return null;
+	}
+
+	// the text of the KeyPress in xev: a Text event per character
+	static function typed(w:X11Window, onEvent:Event->Void) {
+		var n = Xlib.XLookupString(xev, text, 16, keysym, Ptr.nil());
+		var e = event;
+		e.kind = Text;
+		e.window = w.owner;
+		if (n == 0) {
+			// (a Unicode KeySym: 0x1000000 + the code point)
+			var k = keysym.value;
+			if (k >> 24 == 1) {
+				e.char = (k & 0xFFFFFF).toInt();
+				if (e.char >= 0x20) onEvent(e);
+			}
+			return;
+		}
+		for (i in 0...n) {
+			var c:Int = text[i];
+			if (c >= 0x20 && c != 0x7F) {
+				e.char = c;
+				onEvent(e);
+			}
+		}
 	}
 
 	// dispatches the pending events
@@ -89,12 +121,26 @@ class X11Window {
 				case t = X.KeyPress | X.KeyRelease:
 					e.kind = t == X.KeyPress ? KeyDown : KeyUp;
 					e.key = Xlib.XLookupKeysym(xev, 0).toInt();
+					if (t == X.KeyPress) {
+						onEvent(e);
+						typed(w, onEvent);
+						continue;
+					}
 				case t = X.ButtonPress | X.ButtonRelease | X.MotionNotify:
 					var b:Ptr<XKeyEvent> = xev;
-					e.kind = t == X.ButtonPress ? MouseDown : t == X.ButtonRelease ? MouseUp : MouseMove;
+					var button:Int = t == X.MotionNotify ? 0 : (b.value.keycode : Int);
 					e.x = b.value.x;
 					e.y = b.value.y;
-					e.button = t == X.MotionNotify ? 0 : (b.value.keycode : Int);
+					if (button >= 4 && button <= 7) {
+						// (the wheel: a press per notch, up, down, left, right)
+						if (t != X.ButtonPress) continue;
+						e.kind = Wheel;
+						e.dx = button == 6 ? -1 : button == 7 ? 1 : 0;
+						e.dy = button == 4 ? 1 : button == 5 ? -1 : 0;
+					} else {
+						e.kind = t == X.ButtonPress ? MouseDown : t == X.ButtonRelease ? MouseUp : MouseMove;
+						e.button = button;
+					}
 			}
 			if (e.kind != None) onEvent(e);
 		}

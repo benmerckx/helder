@@ -14,7 +14,11 @@ import hxmc.unsafe.*;
 //   GfxTest window <golden.png> <out.png> [frames]
 //     in a window (X11 under Xvfb, Cocoa, Win32): the last frame's back
 //     buffer before the present (readPixels) and the window's pixels after
-//     it (XGetImage, CGWindowListCreateImage, PrintWindow or the screen's DC)
+//     it (XGetImage, CGWindowListCreateImage, PrintWindow or the screen's DC);
+//     input sent to the window after the second frame must come back as
+//     events: a key's character and the wheel (X11: a KeyPress of a and
+//     button 4; Windows: WM_CHAR of U+00E9 and of a surrogate pair, WM_MOUSEWHEEL;
+//     macOS: a key down of a, posted)
 //
 // Comparison: llvmpipe (LIBGL_ALWAYS_SOFTWARE=1) is deterministic, but its
 // rasterization and interpolation may change between Mesa versions, and
@@ -85,6 +89,7 @@ class GfxTest {
 		var triangle = new Triangle(device);
 		var back = Bytes.alloc(WIDTH * HEIGHT * 4);
 		var n = 0, tries = 0, events = 0, closed = false;
+		var text:Array<Int> = [], wheel = 0.0;
 		App.run(() -> {
 			if (++tries > frames + 1000) App.quit();
 			var enc = device.beginFrame();
@@ -92,10 +97,13 @@ class GfxTest {
 			triangle.draw(enc);
 			if (++n == frames) device.readPixels(back);
 			device.endFrame();
+			if (n == 2) Mem.os() == 1 ? CocoaTest.input(w) : Mem.os() == 2 ? WinTest.input(w) : sendInput(w);
 			// then the window's close button (X11: the window manager's client message)
 			if (n == frames) Mem.os() == 1 ? CocoaTest.close(w) : Mem.os() == 2 ? WinTest.close(w) : sendClose(w);
 		}, e -> {
 			events++;
+			if (e.kind == Text) text.push(e.char);
+			if (e.kind == Wheel) wheel += e.dy;
 			if (e.kind == Close && e.window == w) {
 				closed = true;
 				App.quit();
@@ -106,16 +114,40 @@ class GfxTest {
 		Sys.println('GfxTest: $n frames in a ${device.width}x${device.height} window, $events events' + (closed ? ", closed" : ", FAIL: no Close event"));
 		var size = device.width == WIDTH && device.height == HEIGHT;
 		if (!size) Sys.println('GfxTest: FAIL: not ${WIDTH}x${HEIGHT}');
+		var want = Mem.os() == 1 ? [0x61] : Mem.os() == 2 ? [0xE9, 0x1F600] : [0x61], wantWheel = Mem.os() == 1 ? 0 : 1;
+		var input = text.join(",") == want.join(",") && wheel == wantWheel;
+		Sys.println('GfxTest: input: characters [' + [for (c in text) StringTools.hex(c)].join(", ") + '], wheel $wheel' + (input ? "" : ', FAIL: not [' + [for (c in want) StringTools.hex(c)].join(", ") + '], $wantWheel'));
 		device.dispose();
 		w.close();
 		var a = compare("window, back buffer", back, golden);
 		if (shown == null) {
 			// (macOS: the window server would not give the window's pixels; Windows: no GDI capture)
 			Sys.println("GfxTest: window, screen pixels: skipped (no capture)");
-			return a && closed && size;
+			return a && closed && size && input;
 		}
 		var b = compare("window, " + (Mem.os() == 1 ? "screen" : Mem.os() == 2 ? "GDI" : "X11") + " pixels", shown, golden);
-		return a && b && closed && size;
+		return a && b && closed && size && input;
+	}
+
+	// a KeyPress of a, then button 4 (the wheel up)
+	static function sendInput(w:Window) {
+		var d = w.surface.display, id = w.surface.handle.toI64();
+		Arena.scoped(a -> {
+			var k:Ptr<XKeyEvent> = a.alloc(X.EVENT_SIZE);
+			LibC.memset(k, 0, X.EVENT_SIZE);
+			k.value.type = X.KeyPress;
+			k.value.display = d;
+			k.value.window = id;
+			k.value.same_screen = 1;
+			k.value.keycode = Xlib.XKeysymToKeycode(d, 0x61);
+			Xlib.XSendEvent(d, id, 0, X.KeyPressMask, k.raw());
+			k.value.type = X.ButtonPress;
+			k.value.keycode = 4;
+			k.value.x = 10;
+			k.value.y = 10;
+			Xlib.XSendEvent(d, id, 0, X.ButtonPressMask, k.raw());
+			Xlib.XFlush(d);
+		});
 	}
 
 	static function sendClose(w:Window) {

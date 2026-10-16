@@ -4,7 +4,7 @@ import hxmc.os.objc.*;
 import hxmc.unsafe.*;
 
 // GfxTest's window mode on macOS: the close button pressed (performClose:,
-// which asks the window's delegate), and the window's pixels as the window
+// which asks the window's delegate), a key down posted (its character), and the window's pixels as the window
 // server composited them (CGWindowListCreateImage: no permission needed for
 // the process's own windows). The layer is tagged with the screen's colour
 // space, so that the window server shows the GPU's values unconverted (as
@@ -19,6 +19,21 @@ class CocoaTest {
 	public static function close(w:Window) {
 		var window = Msg.id(w.surface.handle, ObjC.sel("window"));
 		Msg.vPtr(window, ObjC.sel("performClose:"), Ptr.nil());
+	}
+
+	// a key down of a (its key code 0), posted to the application's queue
+	public static function input(w:Window) {
+		var window = Msg.id(w.surface.handle, ObjC.sel("window"));
+		var a = ObjC.str("a");
+		var ev = Arena.scopedValue(m -> {
+			var p = m.make(CGPoint);
+			p.value.x = 10;
+			p.value.y = 10;
+			TestMsg.keyEvent(ObjC.cls("NSEvent"), ObjC.sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
+				10, p.value, 0, 0, Msg.i(window, ObjC.sel("windowNumber")), Ptr.nil(), a, a, false, 0);
+		});
+		TestMsg.vPtrBool(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("postEvent:atStart:"), ev, false);
+		ObjC.release(a);
 	}
 
 	// the content's pixels as RGBA, rows top to bottom; alpha below 255 where
@@ -59,6 +74,14 @@ class CocoaTest {
 		CG.CGImageRelease(img);
 		return rgba;
 	}
+}
+
+// the messages CocoaTest sends (hxmc.os.objc.Sender)
+@:build(hxmc.os.objc.Sender.build())
+class TestMsg {
+	static function keyEvent(self:Ptr, sel:Ptr, type:Int64, location:CGPoint, flags:Int64, time:Float, window:Int64, context:Ptr, chars:Ptr, raw:Ptr,
+		repeat:Bool, code:Int64):Ptr;
+	static function vPtrBool(self:Ptr, sel:Ptr, a:Ptr, b:Bool):Void;
 }
 
 @:hxmc.c @:hxmc.lib("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics") extern class CG {

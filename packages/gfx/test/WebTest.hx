@@ -10,7 +10,8 @@ import hxmc.os.*;
 //                      also read back by Device.readPixels (its checksum)
 //   WebTest window     a canvas of 256x192 pixels, drawn by App.run's frames
 //                      from the browser's loop after main returned; a Resize
-//                      when the page resizes it, Escape closes it (the loop ends)
+//                      when the page resizes it, characters typed and the wheel
+//                      printed, Escape closes it (the loop ends)
 //
 // WebGPU reads pixels back asynchronously only: the harness does, through
 // packages/gfx/imports.mjs (readPixels), on both.
@@ -42,6 +43,8 @@ class WebTest {
 			frames++;
 		}, e -> switch e.kind {
 			case Resize: Sys.println('WebTest: resized to ${e.x}x${e.y} (${w.width}x${w.height})');
+			case Text: Sys.println('WebTest: text ' + StringTools.hex(e.char));
+			case Wheel: Sys.println('WebTest: wheel ${e.dx} ${e.dy}');
 			case KeyDown if (e.key == 0xFF1B):
 				Sys.println('WebTest: Escape after $frames frames');
 				w.close();
