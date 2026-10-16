@@ -9,7 +9,8 @@
 // queued as they come and polled at the start of the next frame, as the
 // native loops poll theirs: keys (as X11 KeySyms, Event.key) once the canvas
 // has the focus (a click gives it), the mouse over the canvas in buffer
-// pixels from the top left.
+// pixels from the top left. Frames pause while no window's canvas is in
+// view (as requestAnimationFrame pauses in a hidden tab).
 
 // EventKind (src/hxmc/os/Event.hx)
 const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7;
@@ -87,9 +88,11 @@ export default function (host) {
 				c.setAttribute('aria-label', host.string(title));
 				document.body.appendChild(c);
 			}
-			const cs = getComputedStyle(c);
-			// (a canvas the page does not size: its size as attributes would grow with the buffer)
-			if (made || (!c.style.width && cs.width === c.width + 'px' && cs.height === c.height + 'px')) {
+			// (a canvas the page does not size, whose displayed size is its
+			// buffer's: it would grow with the buffer)
+			const w0 = c.clientWidth;
+			c.width += 1;
+			if (made || c.clientWidth !== w0) {
 				c.style.width = width + 'px';
 				c.style.height = height + 'px';
 			}
@@ -99,6 +102,8 @@ export default function (host) {
 			const h = host.handles.add(c);
 			sync(h);
 			c.hxmcOff = listen(c, h);
+			c.hxmcSeen = new IntersectionObserver(([e]) => (c.hxmcShown = e.isIntersecting));
+			c.hxmcSeen.observe(c);
 			c.hxmcMade = made;
 			windows.add(h);
 			return h;
@@ -106,6 +111,7 @@ export default function (host) {
 		window_close(h) {
 			const c = host.handles.get(h);
 			c.hxmcOff.abort();
+			c.hxmcSeen.disconnect();
 			if (c.hxmcMade) c.remove();
 			windows.delete(h);
 			host.handles.remove(h);
@@ -125,6 +131,7 @@ export default function (host) {
 		},
 		start(frame) {
 			const tick = () => {
+				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return requestAnimationFrame(tick);
 				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0]);
 				if (host.call(frame)) requestAnimationFrame(tick);
 			};
