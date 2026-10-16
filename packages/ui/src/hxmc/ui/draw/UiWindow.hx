@@ -19,6 +19,9 @@ class UiWindow {
 	public var onClose:Null<Void->Void>;
 	// after each frame is drawn
 	public var onFrame:Null<Void->Void>;
+	// when set, the next frame's pixels are read into it before they are
+	// presented (RGBA8, rows top to bottom: tests and screenshots)
+	public var capture:Null<haxe.io.Bytes>;
 
 	static final open:Array<UiWindow> = [];
 	final pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
@@ -56,6 +59,10 @@ class UiWindow {
 		ui.paint(renderer);
 		renderer.end(enc);
 		enc.endPass();
+		if (capture != null) {
+			device.readPixels(capture);
+			capture = null;
+		}
 		device.endFrame();
 		if (onFrame != null) onFrame();
 	}
