@@ -18,6 +18,8 @@ import hxmc.unsafe.*;
 // depth buffer is the default framebuffer's (24 bits); ES 3.0 has no base
 // vertex, so drawIndexed's moves the vertex attributes' offsets instead.
 // A texture at slot n is bound to texture unit n with its sampler object.
+// The shader macro's fragment stages flip the fragment position with the
+// target's height (u_target_height), set when a pipeline is.
 class GLBackend {
 	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
@@ -270,9 +272,10 @@ class GLBackend {
 					if (loc >= 0) GL.glUniform1i(loc, b.slot);
 				}
 			});
+		var heightLoc = Arena.scopedValue(a -> GL.glGetUniformLocation(p, a.cstring("u_target_height")));
 		GL.glUseProgram(pipeline == null ? 0 : pipeline.program);
 		if (d.layout.length > MAX_SLOTS) throw "hxmc.gfx: more than " + MAX_SLOTS + " vertex buffers";
-		pipelines.push(new GLPipeline(p, d));
+		pipelines.push(new GLPipeline(p, heightLoc, d));
 		return pipelines.length;
 	}
 
@@ -307,6 +310,11 @@ class GLBackend {
 		if (p == pipeline) return;
 		pipeline = p;
 		GL.glUseProgram(p.program);
+		// (the fragment position's flip: the shader macro's GLSL)
+		if (p.heightLoc >= 0 && p.height != height) {
+			p.height = height;
+			GL.glUniform1f(p.heightLoc, height);
+		}
 		if (p.cull == 0) GL.glDisable(GL.CULL_FACE) else {
 			GL.glEnable(GL.CULL_FACE);
 			GL.glCullFace(p.cull);
@@ -433,6 +441,8 @@ class GLBackend {
 // a linked program and its vertex attributes, flattened for draw
 private class GLPipeline {
 	public final program:Int;
+	public final heightLoc:Int; // u_target_height (-1: none), as set
+	public var height = -1;
 	public final topology:Int;
 	public final cull:Int; // 0: none, else GL.FRONT or GL.BACK
 	public final depthFunc:Int; // 0: no depth test, else GL.NEVER + Compare
@@ -446,8 +456,9 @@ private class GLPipeline {
 	public final normalized:Array<Bool> = [];
 	public final offsets:Array<Int> = [];
 
-	public function new(program:Int, d:PipelineDesc) {
+	public function new(program:Int, heightLoc:Int, d:PipelineDesc) {
 		this.program = program;
+		this.heightLoc = heightLoc;
 		topology = switch d.topology {
 			case null | Triangles: GL.TRIANGLES;
 			case TriangleStrip: GL.TRIANGLE_STRIP;

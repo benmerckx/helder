@@ -38,6 +38,15 @@ package hxmc.gfx.shader;
 //   vertexBytes(vertices)      the vertex buffer's contents
 //   write<Uniform>(u, bytes, offset)   a uniform block's contents
 //
+// The conventions, the same on every back end (WebGPU's, D3D's and
+// Metal's; the GLSL makes GL match): the @:position is in clip space, x
+// right and y up, z from 0 (near) to w (far), its front faces counter-
+// clockwise; in the fragment stage it is the fragment's position in pixels
+// from the target's top left (pixel centres at .5) and its depth (0..1) in
+// z; a texture's v = 0 is its first row, the top (TextureDesc), and
+// readPixels returns rows top to bottom. Mat4's perspective and
+// orthographic projections map to this clip space.
+//
 // A class without stages holds helpers for other shader classes. Haxe
 // runs a build macro only from @:build or @:autoBuild, hence an interface
 // (rather than a @:shader metadata). The structs are @:structInit classes,

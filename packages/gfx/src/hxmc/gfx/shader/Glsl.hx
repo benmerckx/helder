@@ -7,7 +7,11 @@ import hxmc.gfx.shader.Ir;
 // colour out_color; a uniform block is `layout(std140) uniform
 // <Struct>_block`, a texture `uniform sampler2D tex_<slot>` (highp), their
 // slots set through the API by those names (ES 3.00 has no
-// layout(binding): ShaderCode.bindings).
+// layout(binding): ShaderCode.bindings). The conventions are the other
+// languages' (Shaders): clip z from 0 to w (GL's from -w: the vertex stage
+// maps it), the fragment position from the top left (GL's gl_FragCoord.y
+// is from the bottom: flipped with the target's height, u_target_height,
+// which the back end sets).
 class Glsl extends Emit {
 	override function header(e:SEntry) {
 		line("#version 300 es");
@@ -59,16 +63,19 @@ class Glsl extends Emit {
 			line("void main() {");
 			args.unshift(e.input.name + "(" + [for (f in e.input.fields) 'in_${f.name}'].join(", ") + ")");
 			line('\t${p.varyings.name} r = ${e.fn.name}(${args.join(", ")});');
-			line('\tgl_Position = r.${Emit.position(p).name};');
+			// (clip z from 0..w to GL's -w..w)
+			var pos = 'r.${Emit.position(p).name}';
+			line('\tgl_Position = vec4($pos.xy, 2.0 * $pos.z - $pos.w, $pos.w);');
 			for (f in Emit.varyings(p))
 				line('\tv_${f.name} = r.${f.name};');
 			line("}");
 		} else {
 			for (f in Emit.varyings(p))
 				line('in ${type(f.type)} v_${f.name};');
+			line("uniform float u_target_height;");
 			line("out vec4 out_color;");
 			line("void main() {");
-			args.unshift(e.input.name + "(" + [for (f in e.input.fields) f.position ? "gl_FragCoord" : 'v_${f.name}'].join(", ") + ")");
+			args.unshift(e.input.name + "(" + [for (f in e.input.fields) f.position ? "vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw)" : 'v_${f.name}'].join(", ") + ")");
 			line('\tout_color = ${e.fn.name}(${args.join(", ")});');
 			line("}");
 		}

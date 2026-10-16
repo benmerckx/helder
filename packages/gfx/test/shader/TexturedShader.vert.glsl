@@ -21,7 +21,7 @@ out vec2 v_uv;
 out float v_lift;
 void main() {
 	TexVaryings r = vs(TexVertex(in_pos, in_uv), tex_0);
-	gl_Position = r.pos;
+	gl_Position = vec4(r.pos.xy, 2.0 * r.pos.z - r.pos.w, r.pos.w);
 	v_uv = r.uv;
 	v_lift = r.lift;
 }

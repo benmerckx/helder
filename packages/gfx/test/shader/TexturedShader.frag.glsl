@@ -23,7 +23,8 @@ uniform sampler2D tex_2;
 uniform sampler2D tex_0;
 in vec2 v_uv;
 in float v_lift;
+uniform float u_target_height;
 out vec4 out_color;
 void main() {
-	out_color = fs(TexVaryings(gl_FragCoord, v_uv, v_lift), Fade(u_1.amount), tex_2, tex_0);
+	out_color = fs(TexVaryings(vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw), v_uv, v_lift), Fade(u_1.amount), tex_2, tex_0);
 }

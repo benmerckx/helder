@@ -15,6 +15,6 @@ layout(location = 1) in vec3 in_color;
 out vec3 v_color;
 void main() {
 	Varyings r = vs(Vertex(in_pos, in_color));
-	gl_Position = r.pos;
+	gl_Position = vec4(r.pos.xy, 2.0 * r.pos.z - r.pos.w, r.pos.w);
 	v_color = r.color;
 }

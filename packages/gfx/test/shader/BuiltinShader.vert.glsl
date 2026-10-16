@@ -18,7 +18,7 @@ out float v_a;
 out vec2 v_b;
 void main() {
 	BuiltinVaryings r = vs(BuiltinVertex(in_pos));
-	gl_Position = r.pos;
+	gl_Position = vec4(r.pos.xy, 2.0 * r.pos.z - r.pos.w, r.pos.w);
 	v_a = r.a;
 	v_b = r.b;
 }

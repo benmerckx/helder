@@ -67,6 +67,14 @@ class ShaderTest {
 		var m = mat4(vec4(1, 0, 0, 0), vec4(0, 2, 0, 0), vec4(0, 0, 3, 0), vec4(4, 5, 6, 1));
 		nearVec("mat4 * vec4", m * vec4(1, 1, 1, 1), [5, 7, 9, 1]);
 		nearVec("mat4 * mat4", (m * mat4(2)) * vec4(1, 0, 0, 1), [2 + 4 * 2, 5 * 2, 6 * 2, 2]);
+		// the clip space: z from 0 at the near plane to w at the far one
+		var proj = Mat4.perspective(Math.PI / 2, 2, 1, 10), n = proj * vec4(0, 0, -1, 1), f = proj * vec4(0, 0, -10, 1);
+		near("perspective near", n.z / n.w, 0);
+		near("perspective far", f.z / f.w, 1);
+		nearVec("perspective, a corner", proj * vec4(2, 1, -1, 1), [1, 1, 0, 1]);
+		var o = Mat4.orthographic(0, 4, 0, 2, 1, 3) * vec4(4, 0, -3, 1);
+		nearVec("orthographic", o, [1, -1, 1, 1]);
+		nearVec("rotations", Mat4.translation(1, 0, 0) * Mat4.rotationZ(Math.PI / 2) * Mat4.rotationY(Math.PI / 2) * vec4(0, 0, 1, 1), [1, 1, 0, 1]);
 	}
 
 	// the shaders' functions on the CPU
