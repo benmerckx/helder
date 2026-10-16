@@ -10,6 +10,8 @@ import hxmc.ui.DimValue;
 // - text: TextNode measured and wrapped by MonoText
 // - events: hit testing, hover, press and click, bubbling, focus and Tab,
 //   the wheel scrolling an Overflow Scroll node, relayout after changes
+// - paint: what Ui draws on a Canvas, in order (shadows under backgrounds,
+//   rounded clips inside borders), and Shadow.parse
 class UiTest {
 	static var checks = 0;
 	static var failed = 0;
@@ -21,6 +23,7 @@ class UiTest {
 		texts();
 		events();
 		dirty();
+		paint();
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -31,6 +34,38 @@ class UiTest {
 			failed++;
 			Sys.println('UiTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
+	}
+
+	// --- paint ---
+
+	static function paint() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		var a = new Node();
+		a.style.set({width: 100, height: 50, radius: 8, borderWidth: 2, background: Color.WHITE, borderColor: Color.BLACK,
+			overflow: Hidden, shadow: Shadow.parse("1px 2px 6px 3 #00000080")});
+		a.style.margin = 10;
+		ui.root.append(a);
+		var b = new Node();
+		b.style.set({height: 10, background: Color.rgb(0xFF0000)});
+		a.append(b);
+		ui.update();
+		var c = new Recording();
+		ui.paint(c);
+		var want = [
+			"shadow 8 9 106 56 11 80000000 6",
+			"rect 10 10 100 50 8 ffffffff 2 ff000000",
+			"clip 12 12 96 46 6",
+			"rect 12 12 96 10 0 ffff0000 0 0",
+			"pop"
+		];
+		check("paint: calls", c.calls.join("|") == want.join("|"), c.calls.join("|"));
+		var sh = Shadow.parse("0 4");
+		check("paint: Shadow.parse defaults", sh.x == 0 && sh.y == 4 && sh.blur == 0 && sh.spread == 0 && sh.color == 0x40000000);
+		var threw = try {
+			Shadow.parse("4");
+			false;
+		} catch (e:Dynamic) true;
+		check("paint: Shadow.parse rejects one length", threw);
 	}
 
 	// --- layout against Chromium ---
@@ -303,4 +338,38 @@ class UiTest {
 		ui.update();
 		check("dirty: move to the end", a.y == 0 && c.y == 130);
 	}
+}
+
+// a Canvas that records its calls (UiTest's paint)
+class Recording implements Canvas {
+	public final calls:Array<String> = [];
+
+	public function new() {}
+
+	static function hex(c:Color):String
+		return c == 0 ? "0" : StringTools.hex(c, 8).toLowerCase();
+
+	public function translate(dx:Float, dy:Float)
+		calls.push('translate $dx $dy');
+
+	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float)
+		calls.push('clip $x $y $w $h $radius');
+
+	public function popClip()
+		calls.push("pop");
+
+	public function pushOpacity(a:Float)
+		calls.push('opacity $a');
+
+	public function popOpacity()
+		calls.push("popOpacity");
+
+	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color)
+		calls.push('rect $x $y $w $h $radius ${hex(fill)} $borderWidth ${hex(border)}');
+
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float)
+		calls.push('shadow $x $y $w $h $radius ${hex(color)} $blur');
+
+	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color)
+		calls.push('text $x $y $width');
 }

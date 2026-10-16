@@ -28,11 +28,16 @@ class Sample {
 			if (i == 1) t.style.color = Color.WHITE;
 		}
 		var main = box(body, {grow: 1, padding: 16, rowGap: 12, overflow: Scroll});
-		var card = box(main, {padding: 14, rowGap: 10, radius: 10, background: Color.WHITE, borderWidth: 1, borderColor: Color.rgb(0xD4D4D8)});
+		var card = box(main, {padding: 14, rowGap: 10, radius: 10, background: Color.WHITE, borderWidth: 1, borderColor: Color.rgb(0xD4D4D8),
+			shadow: {x: 0, y: 3, blur: 8, color: Color.rgba(0x000000, 0.18)}});
 		var h = text(card, "Flexbox, text and the GPU");
 		h.style.fontSize = 18;
 		h.style.fontWeight = 700;
-		text(card, "This card is laid out by hxmc.ui's flexbox, its text shaped and wrapped by hxmc.text, and everything drawn by one shader on hxmc.gfx: rounded rectangles with borders and glyphs from an atlas.");
+		text(card, "This card is laid out by hxmc.ui's flexbox, its text shaped and wrapped by hxmc.text, and everything drawn by one shader on hxmc.gfx: rounded rectangles with borders, shadows, rounded clips and glyphs from an atlas.");
+		// (a rounded clip: the bar's square fill is cut to its track's corners)
+		var track = box(card, {height: 12, radius: 6, overflow: Hidden, background: Color.rgb(0xE4E4E7), direction: Row});
+		box(track, {width: "62%", background: Color.rgb(0x3B82F6)});
+		box(track, {width: 24, background: Color.rgb(0x93C5FD)});
 		var row = box(card, {direction: Row, columnGap: 8, justify: End});
 		var cancel = box(row, {padding: [6, 14], radius: 6, borderWidth: 1, borderColor: Color.rgb(0xA1A1AA)});
 		text(cancel, "Cancel");

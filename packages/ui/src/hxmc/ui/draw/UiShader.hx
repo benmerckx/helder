@@ -8,8 +8,11 @@ import hxmc.gfx.shader.ShaderMath.*;
 // centre (local), so that its edge is anti-aliased by the signed distance
 // to it and a border of borderWidth is drawn inside it (mode 0); or a
 // glyph, the atlas's coverage of the colour (mode 1); or an image, its
-// texels tinted by the colour's alpha (mode 2). Colours are premultiplied
-// (Blend.Premultiplied).
+// texels tinted by the colour's alpha (mode 2); or a shadow, the rectangle
+// faded over its blur (mode 3). Every fragment is also clipped by a
+// rounded rectangle (clip, in target pixels, and its radius: extra.z), from
+// its own position (extra.xy): clips need no scissor and nest on the CPU.
+// Colours are premultiplied (Blend.Premultiplied).
 @:structInit @:publicFields class UiVertex {
 	var pos:Vec2; // clip space
 	var local:Vec2; // pixels from the rectangle's centre
@@ -17,7 +20,9 @@ import hxmc.gfx.shader.ShaderMath.*;
 	var uv:Vec2; // the texture's coordinates (modes 1 and 2)
 	var color:Vec4; // the fill (premultiplied)
 	var border:Vec4; // the border's colour (premultiplied)
-	var params:Vec4; // x: radius, y: border width, z: mode
+	var params:Vec4; // x: radius, y: border width, z: mode, w: blur
+	var extra:Vec3; // xy: the target pixel, z: the clip's radius
+	var clip:Vec4; // the clip: x0, y0, x1, y1 in target pixels
 }
 
 @:structInit @:publicFields class UiVaryings {
@@ -28,6 +33,8 @@ import hxmc.gfx.shader.ShaderMath.*;
 	var color:Vec4;
 	var border:Vec4;
 	var params:Vec4;
+	var extra:Vec3;
+	var clip:Vec4;
 }
 
 class UiShader implements Shaders {
@@ -39,21 +46,34 @@ class UiShader implements Shaders {
 			uv: v.uv,
 			color: v.color,
 			border: v.border,
-			params: v.params
+			params: v.params,
+			extra: v.extra,
+			clip: v.clip
 		};
+
+	// the signed distance from p (relative to the centre) to a rounded rectangle
+	static function box(p:Vec2, half:Vec2, radius:Float):Float {
+		var r = min(radius, min(half.x, half.y));
+		var q = abs(p) - half + vec2(r, r);
+		return length(max(q, vec2(0, 0))) + min(max(q.x, q.y), 0) - r;
+	}
 
 	@:fragment static function fs(i:UiVaryings, atlas:Texture2D, image:Texture2D):Vec4 {
 		var coverage = texture(atlas, i.uv).x;
 		var texel = texture(image, i.uv);
+		var ch = (i.clip.zw - i.clip.xy) * 0.5;
+		var clipped = clamp(0.5 - box(i.extra.xy - i.clip.xy - ch, ch, i.extra.z), 0, 1);
 		var mode = i.params.z;
-		if (mode > 1.5) return texel * i.color.w;
-		if (mode > 0.5) return i.color * coverage;
-		var r = min(i.params.x, min(i.half.x, i.half.y));
-		var q = abs(i.local) - i.half + vec2(r, r);
-		var d = length(max(q, vec2(0, 0))) + min(max(q.x, q.y), 0) - r;
+		if (mode > 2.5) {
+			var blur = max(i.params.w, 0.5);
+			return i.color * (1 - smoothstep(-blur, blur, box(i.local, i.half, i.params.x))) * clipped;
+		}
+		if (mode > 1.5) return texel * i.color.w * clipped;
+		if (mode > 0.5) return i.color * coverage * clipped;
+		var d = box(i.local, i.half, i.params.x);
 		var edge = clamp(0.5 - d, 0, 1);
 		var bw = i.params.y;
 		var inBorder = bw > 0 ? clamp(0.5 + d + bw, 0, 1) : 0.0;
-		return mix(i.color, i.border, inBorder) * edge;
+		return mix(i.color, i.border, inBorder) * edge * clipped;
 	}
 }

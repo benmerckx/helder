@@ -36,6 +36,7 @@ typedef StyleProps = {
 	?radius:Float,
 	?opacity:Float,
 	?cursor:Cursor,
+	?shadow:Shadow,
 	?color:Color,
 	?fontFamily:String,
 	?fontSize:Float,

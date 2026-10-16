@@ -6,12 +6,13 @@ import hxmc.text.GlyphAtlas;
 import hxmc.ui.*;
 import hxmc.ui.draw.DrawText;
 
-// hxmc.ui's Canvas on hxmc.gfx: a frame's rectangles and glyphs become
-// quads of one vertex buffer (UiShader: six vertices each), drawn in
-// batches split where the clip (a scissor rectangle) changes. The UI's
-// pixels are scaled to the target's (scale: a Retina display's 2); glyphs
-// are rasterized at the scaled size into the GlyphAtlas, uploaded to an R8
-// texture when it changed. Rounded clips clip to their rectangle.
+// hxmc.ui's Canvas on hxmc.gfx: a frame's rectangles, shadows and glyphs
+// become quads of one vertex buffer (UiShader: six vertices each), drawn in
+// one call. Every vertex carries the clip (a rectangle in target pixels and
+// its corner radius) that UiShader clips its fragments by, so clips need no
+// scissor and rounded ones clip to their corners. The UI's pixels are scaled
+// to the target's (scale: a Retina display's 2); glyphs are rasterized at the
+// scaled size into the GlyphAtlas, uploaded to an R8 texture when it changed.
 class Renderer implements Canvas {
 	public final device:Device;
 	public var scale = 1.0;
@@ -24,7 +25,6 @@ class Renderer implements Canvas {
 	var capacity:Int;
 	var bytes:Bytes;
 	var used = 0; // bytes of vertices this frame
-	final batches:Array<Int> = []; // first vertex, count, scissor x, y, w, h: 6 Ints each
 	var targetW = 1.0;
 	var targetH = 1.0;
 
@@ -33,13 +33,14 @@ class Renderer implements Canvas {
 	var ty = 0.0;
 	var alpha = 1.0;
 	final alphas:Array<Float> = [];
-	final clips:Array<Array<Float>> = []; // x0, y0, x1, y1 (target pixels) and the translation at push
+	final clips:Array<Array<Float>> = []; // the clips pushed over: x0, y0, x1, y1, radius
 	var clipX0 = 0.0;
 	var clipY0 = 0.0;
 	var clipX1 = 0.0;
 	var clipY1 = 0.0;
+	var clipR = 0.0;
 
-	static inline var STRIDE = 80; // UiVertex: 20 floats
+	static inline var STRIDE = 108; // UiVertex: 27 floats
 
 	public function new(device:Device, ?atlas:GlyphAtlas) {
 		this.device = device;
@@ -57,15 +58,13 @@ class Renderer implements Canvas {
 		targetW = width;
 		targetH = height;
 		used = 0;
-		batches.resize(0);
 		tx = ty = 0;
 		alpha = 1;
 		alphas.resize(0);
 		clips.resize(0);
-		clipX0 = clipY0 = 0;
+		clipX0 = clipY0 = clipR = 0;
 		clipX1 = width;
 		clipY1 = height;
-		newBatch();
 	}
 
 	// uploads and draws what was drawn since begin, in the pass the encoder is in
@@ -89,16 +88,7 @@ class Renderer implements Canvas {
 		enc.setVertexBuffer(0, buffer);
 		enc.setTexture(0, atlasTexture);
 		enc.setTexture(1, blank);
-		var i = 0;
-		while (i < batches.length) {
-			var count = batches[i + 1];
-			if (count > 0 && batches[i + 4] > 0 && batches[i + 5] > 0) {
-				enc.setScissor(batches[i + 2], batches[i + 3], batches[i + 4], batches[i + 5]);
-				enc.draw(count, 1, batches[i]);
-			}
-			i += 6;
-		}
-		enc.setScissor(0, 0, Std.int(targetW), Std.int(targetH));
+		enc.draw(Std.int(used / STRIDE), 1, 0);
 	}
 
 	// --- Canvas ---
@@ -108,14 +98,19 @@ class Renderer implements Canvas {
 		ty += dy;
 	}
 
+	// the clip becomes the intersection, with the new clip's radius where the
+	// new clip is inside the old one (a rounded clip inside a rounded clip
+	// that cuts into its corners keeps only the inner one's corners)
 	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float) {
-		clips.push([clipX0, clipY0, clipX1, clipY1]);
+		clips.push([clipX0, clipY0, clipX1, clipY1, clipR]);
 		var x0 = (x + tx) * scale, y0 = (y + ty) * scale, x1 = (x + w + tx) * scale, y1 = (y + h + ty) * scale;
+		var inside = x0 >= clipX0 && y0 >= clipY0 && x1 <= clipX1 && y1 <= clipY1;
+		var outside = x0 <= clipX0 && y0 <= clipY0 && x1 >= clipX1 && y1 >= clipY1;
 		clipX0 = Math.max(clipX0, x0);
 		clipY0 = Math.max(clipY0, y0);
 		clipX1 = Math.min(clipX1, x1);
 		clipY1 = Math.min(clipY1, y1);
-		newBatch();
+		if (inside) clipR = radius * scale; else if (!outside) clipR = Math.min(clipR, radius * scale);
 	}
 
 	public function popClip() {
@@ -124,7 +119,7 @@ class Renderer implements Canvas {
 		clipY0 = c[1];
 		clipX1 = c[2];
 		clipY1 = c[3];
-		newBatch();
+		clipR = c[4];
 	}
 
 	public function pushOpacity(a:Float) {
@@ -139,8 +134,17 @@ class Renderer implements Canvas {
 		if (w <= 0 || h <= 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
-		if (x1 <= clipX0 || y1 <= clipY0 || x0 >= clipX1 || y0 >= clipY1) return;
-		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0);
+		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0, 0, 1);
+	}
+
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float) {
+		if (w <= 0 || h <= 0 || color.a == 0) return;
+		var s = scale;
+		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		var m = blur * s + 1;
+		if (culled(x0 - m, y0 - m, x1 + m, y1 + m)) return;
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, radius * s, 0, 3, blur * s, m);
 	}
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color) {
@@ -163,46 +167,33 @@ class Renderer implements Canvas {
 				var a = atlas.get(g.font, g.id, size, sub);
 				if (a.w == 0) continue;
 				var qx = ix + a.left, qy = by + a.top;
-				if (qx + a.w <= clipX0 || qx >= clipX1 || qy + a.h <= clipY0 || qy >= clipY1) continue;
-				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0, 1);
+				if (culled(qx, qy, qx + a.w, qy + a.h)) continue;
+				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0,
+					1, 0, 0);
 			}
 		}
 	}
 
 	// --- vertices ---
 
-	function newBatch() {
-		var n = batches.length;
-		var first = Std.int(used / STRIDE);
-		var sx = Std.int(Math.max(0, Math.floor(clipX0))), sy = Std.int(Math.max(0, Math.floor(clipY0)));
-		var sw = Std.int(Math.max(0, Math.ceil(clipX1) - sx)), sh = Std.int(Math.max(0, Math.ceil(clipY1) - sy));
-		// (an empty batch is replaced)
-		if (n > 0 && batches[n - 5] == 0) {
-			batches[n - 6] = first;
-			batches[n - 4] = sx;
-			batches[n - 3] = sy;
-			batches[n - 2] = sw;
-			batches[n - 1] = sh;
-			return;
-		}
-		for (v in [first, 0, sx, sy, sw, sh])
-			batches.push(v);
-	}
+	inline function culled(x0:Float, y0:Float, x1:Float, y1:Float)
+		return x1 <= clipX0 || y1 <= clipY0 || x0 >= clipX1 || y0 >= clipY1 || clipX1 <= clipX0 || clipY1 <= clipY0;
 
+	// a quad over x0, y0, x1, y1 grown by margin m (a rectangle's anti-aliased
+	// edge, a shadow's blur), its texture coordinates growing with it
 	function quad(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, radius:Float,
-			borderWidth:Float, mode:Float) {
+			borderWidth:Float, mode:Float, blur:Float, m:Float) {
 		if (used + 6 * STRIDE > bytes.length) {
 			var b = Bytes.alloc(bytes.length * 2);
 			b.blit(0, bytes, 0, used);
 			bytes = b;
 		}
 		var hx = (x1 - x0) / 2, hy = (y1 - y0) / 2;
-		// (a pixel of margin around a rectangle for its anti-aliased edge)
-		var m = mode == 0 ? 1.0 : 0.0;
 		var ax = x0 - m, ay = y0 - m, bx = x1 + m, by = y1 + m;
 		var fa = fill.a / 255 * alpha, ba = border.a / 255 * alpha;
 		var fr = fill.r / 255 * fa, fg = fill.g / 255 * fa, fb = fill.b / 255 * fa;
 		var br = border.r / 255 * ba, bg = border.g / 255 * ba, bb = border.b / 255 * ba;
+		var cx0 = clipX0, cy0 = clipY0, cx1 = clipX1, cy1 = clipY1, cr = clipR;
 		inline function vertex(px:Float, py:Float, u:Float, v:Float) {
 			var o = used;
 			bytes.setFloat(o, px / targetW * 2 - 1);
@@ -224,17 +215,22 @@ class Renderer implements Canvas {
 			bytes.setFloat(o + 64, radius);
 			bytes.setFloat(o + 68, borderWidth);
 			bytes.setFloat(o + 72, mode);
-			bytes.setFloat(o + 76, 0);
+			bytes.setFloat(o + 76, blur);
+			bytes.setFloat(o + 80, px);
+			bytes.setFloat(o + 84, py);
+			bytes.setFloat(o + 88, cr);
+			bytes.setFloat(o + 92, cx0);
+			bytes.setFloat(o + 96, cy0);
+			bytes.setFloat(o + 100, cx1);
+			bytes.setFloat(o + 104, cy1);
 			used += STRIDE;
 		}
-		var du = (u1 - u0), dv = (v1 - v0);
-		var mu = mode == 0 ? 0 : du * m / (x1 - x0), mv = mode == 0 ? 0 : dv * m / (y1 - y0);
+		var mu = (u1 - u0) * m / (x1 - x0), mv = (v1 - v0) * m / (y1 - y0);
 		vertex(ax, ay, u0 - mu, v0 - mv);
 		vertex(ax, by, u0 - mu, v1 + mv);
 		vertex(bx, ay, u1 + mu, v0 - mv);
 		vertex(bx, ay, u1 + mu, v0 - mv);
 		vertex(ax, by, u0 - mu, v1 + mv);
 		vertex(bx, by, u1 + mu, v1 + mv);
-		batches[batches.length - 5] += 6;
 	}
 }

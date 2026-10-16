@@ -12,6 +12,8 @@ interface Canvas {
 	function popOpacity():Void;
 	// a rectangle with rounded corners, filled, with a border inside it
 	function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color):Void;
+	// a rounded rectangle faded over blur pixels on each side of its edge
+	function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float):Void;
 	// a TextEngine's paragraph with its first line's top left at (x, y), aligned in width
 	function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color):Void;
 }

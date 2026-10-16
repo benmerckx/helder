@@ -103,6 +103,9 @@ class Style {
 
 	public var cursor(default, set):Cursor = Cursor.Auto;
 
+	// under the background (null: none)
+	public var shadow(default, set):Null<Shadow> = null;
+
 	// inherited from here on: null takes the parent's (the root's defaults: Style.ROOT)
 	public var color(default, set):Null<Color> = null;
 
@@ -351,6 +354,13 @@ class Style {
 		return v;
 	}
 
+	function set_shadow(v:Null<Shadow>):Null<Shadow> {
+		if (v == shadow) return v;
+		shadow = v;
+		node.styleChanged(false);
+		return v;
+	}
+
 	function set_color(v:Null<Color>):Null<Color> {
 		if (v == color) return v;
 		color = v;
@@ -435,6 +445,7 @@ class Style {
 		if (p.radius != null) radius = p.radius;
 		if (p.opacity != null) opacity = p.opacity;
 		if (p.cursor != null) cursor = p.cursor;
+		if (p.shadow != null) shadow = p.shadow;
 		if (p.color != null) color = p.color;
 		if (p.fontFamily != null) fontFamily = p.fontFamily;
 		if (p.fontSize != null) fontSize = p.fontSize;

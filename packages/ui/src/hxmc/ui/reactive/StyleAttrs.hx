@@ -44,6 +44,7 @@ class StyleAttrs {
 			case "radius": style.radius = float(v);
 			case "opacity": style.opacity = float(v);
 			case "cursor": style.cursor = cursorValue(v);
+			case "shadow": style.shadow = v == null ? null : Std.isOfType(v, String) ? Shadow.parse(v) : (v : Shadow);
 			case "color": style.color = color(v);
 			case "fontFamily": style.fontFamily = v == null ? null : Std.string(v);
 			case "fontSize": style.fontSize = float(v);
@@ -59,7 +60,7 @@ class StyleAttrs {
 	public static function isStyle(name:String):Bool
 		return NAMES.exists(camel(name));
 
-	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true];
+	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true];
 
 	static function camel(n:String):String {
 		if (n.indexOf("-") < 0) return n;

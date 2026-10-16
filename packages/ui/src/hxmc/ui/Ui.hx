@@ -61,6 +61,10 @@ class Ui {
 		if (s.display == None || n.width <= 0 && n.height <= 0 && n.children.length == 0) return;
 		if (s.opacity <= 0) return;
 		if (s.opacity < 1) canvas.pushOpacity(s.opacity);
+		var sh = s.shadow;
+		if (sh != null)
+			canvas.shadow(n.absX + sh.x - sh.spread, n.absY + sh.y - sh.spread, n.width + 2 * sh.spread, n.height + 2 * sh.spread,
+				s.radius > 0 ? s.radius + sh.spread : 0, sh.color, sh.blur);
 		if (s.background.a > 0 || (s.borderWidth > 0 && s.borderColor.a > 0))
 			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor);
 		var bw = s.borderWidth, pad = s.padding;
