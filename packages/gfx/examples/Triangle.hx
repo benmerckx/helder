@@ -6,7 +6,8 @@ import hxmc.os.*;
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/examples -main Triangle
 //     --custom-target hxmc=triangle -D hxmc.libc=glibc
 //
-// The tests (packages/gfx/test) draw the same frames headless and under Xvfb.
+// (macOS: without -D hxmc.libc=glibc.) The tests (packages/gfx/test) draw the
+// same frames headless and in a window (Xvfb on Linux).
 class Triangle {
 	static final VERTEX = "#version 300 es
 layout(location = 0) in vec2 pos;
@@ -25,6 +26,25 @@ void main() {
 	fragColor = vec4(vColor, 1.0);
 }
 ";
+	// (Metal: until the shader macro writes both)
+	static final VERTEX_MSL = "#include <metal_stdlib>
+using namespace metal;
+struct In { float2 pos [[attribute(0)]]; float3 color [[attribute(1)]]; };
+struct Out { float4 position [[position]]; float3 color; };
+vertex Out main0(In v [[stage_in]]) {
+	Out o;
+	o.position = float4(v.pos, 0.0, 1.0);
+	o.color = v.color;
+	return o;
+}
+";
+	static final FRAGMENT_MSL = "#include <metal_stdlib>
+using namespace metal;
+struct In { float4 position [[position]]; float3 color; };
+fragment float4 main0(In v [[stage_in]]) {
+	return float4(v.color, 1.0);
+}
+";
 
 	final device:Device;
 	final vertices:Buffer;
@@ -40,8 +60,8 @@ void main() {
 			bytes.setFloat(4 * i, data[i]);
 		vertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
 		pipeline = device.createPipeline({
-			vertex: device.createShader({stage: Vertex, code: {glsl: VERTEX}}),
-			fragment: device.createShader({stage: Fragment, code: {glsl: FRAGMENT}}),
+			vertex: device.createShader({stage: Vertex, code: {glsl: VERTEX, msl: VERTEX_MSL}}),
+			fragment: device.createShader({stage: Fragment, code: {glsl: FRAGMENT, msl: FRAGMENT_MSL}}),
 			layout: [
 				{
 					stride: 20,

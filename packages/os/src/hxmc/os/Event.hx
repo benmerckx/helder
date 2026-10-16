@@ -17,10 +17,10 @@ enum abstract EventKind(Int) {
 class Event {
 	public var kind:EventKind = None;
 	public var window:Window;
-	// KeyDown, KeyUp: the key (an X11 KeySym for now: Latin-1 keys are
-	// their character code, Escape 0xFF1B)
+	// KeyDown, KeyUp: the key (an X11 KeySym for now, also on macOS: Latin-1
+	// keys are their unshifted character code, Escape 0xFF1B)
 	public var key = 0;
-	// the pointer (Mouse*) or the new size (Resize), in pixels
+	// the pointer (Mouse*, from the top left) or the new size (Resize), in pixels
 	public var x = 0;
 	public var y = 0;
 	// MouseDown, MouseUp: 1 left, 2 middle, 3 right, 4 and 5 the wheel
