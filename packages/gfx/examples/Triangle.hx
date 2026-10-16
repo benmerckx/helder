@@ -6,8 +6,9 @@ import hxmc.os.*;
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/examples -main Triangle
 //     --custom-target hxmc=triangle -D hxmc.libc=glibc
 //
-// (macOS: without -D hxmc.libc=glibc.) The tests (packages/gfx/test) draw the
-// same frames headless and in a window (Xvfb on Linux).
+// (macOS and Windows: without -D hxmc.libc=glibc.) The tests
+// (packages/gfx/test) draw the same frames headless and in a window (Xvfb on
+// Linux).
 class Triangle {
 	static final VERTEX = "#version 300 es
 layout(location = 0) in vec2 pos;
@@ -26,7 +27,7 @@ void main() {
 	fragColor = vec4(vColor, 1.0);
 }
 ";
-	// (Metal: until the shader macro writes both)
+	// (Metal: until the shader macro writes them all)
 	static final VERTEX_MSL = "#include <metal_stdlib>
 using namespace metal;
 struct In { float2 pos [[attribute(0)]]; float3 color [[attribute(1)]]; };
@@ -46,6 +47,22 @@ fragment float4 main0(In v [[stage_in]]) {
 }
 ";
 
+	// (D3D11)
+	static final VERTEX_HLSL = "struct In { float2 pos : TEXCOORD0; float3 color : TEXCOORD1; };
+struct Out { float4 position : SV_Position; float3 color : TEXCOORD0; };
+Out main(In v) {
+	Out o;
+	o.position = float4(v.pos, 0.0, 1.0);
+	o.color = v.color;
+	return o;
+}
+";
+	static final FRAGMENT_HLSL = "struct In { float4 position : SV_Position; float3 color : TEXCOORD0; };
+float4 main(In v) : SV_Target {
+	return float4(v.color, 1.0);
+}
+";
+
 	final device:Device;
 	final vertices:Buffer;
 	final pipeline:Pipeline;
@@ -60,8 +77,8 @@ fragment float4 main0(In v [[stage_in]]) {
 			bytes.setFloat(4 * i, data[i]);
 		vertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
 		pipeline = device.createPipeline({
-			vertex: device.createShader({stage: Vertex, code: {glsl: VERTEX, msl: VERTEX_MSL}}),
-			fragment: device.createShader({stage: Fragment, code: {glsl: FRAGMENT, msl: FRAGMENT_MSL}}),
+			vertex: device.createShader({stage: Vertex, code: {glsl: VERTEX, msl: VERTEX_MSL, hlsl: VERTEX_HLSL}}),
+			fragment: device.createShader({stage: Fragment, code: {glsl: FRAGMENT, msl: FRAGMENT_MSL, hlsl: FRAGMENT_HLSL}}),
 			layout: [
 				{
 					stride: 20,

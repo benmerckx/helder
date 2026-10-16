@@ -8,16 +8,18 @@ import hxmc.unsafe.*;
 //
 //   GfxTest headless <golden.png> <out.png> [--bless]
 //     Linux: on an EGL pbuffer (Mesa's surfaceless platform), read back with
-//     glReadPixels; macOS: Metal, on an offscreen texture copied to a buffer
+//     glReadPixels; macOS: Metal, on an offscreen texture copied to a buffer;
+//     Windows: D3D11 (WARP with HXMC_GFX_SOFTWARE=1), on an offscreen
+//     texture copied to a staging texture
 //   GfxTest window <golden.png> <out.png> [frames]
-//     in a window (X11 under Xvfb, Cocoa): the last frame's back buffer
-//     before the present (readPixels) and the window's pixels after it
-//     (XGetImage, CGWindowListCreateImage)
+//     in a window (X11 under Xvfb, Cocoa, Win32): the last frame's back
+//     buffer before the present (readPixels) and the window's pixels after
+//     it (XGetImage, CGWindowListCreateImage, PrintWindow or the screen's DC)
 //
 // Comparison: llvmpipe (LIBGL_ALWAYS_SOFTWARE=1) is deterministic, but its
 // rasterization and interpolation may change between Mesa versions, and
-// another GPU (Metal) rounds the interpolated colours and covers the
-// edges' pixels its own way: a pixel matches when no channel differs by
+// another GPU (Metal) or rasterizer (WARP) rounds the interpolated colours
+// and covers the edges' pixels its own way: a pixel matches when no channel differs by
 // more than TOLERANCE, and at most MAX_OFF of the pixels may differ by more
 // (the triangle's edges). The report says whether the match was exact.
 class GfxTest {
@@ -86,7 +88,7 @@ class GfxTest {
 			if (++n == frames) device.readPixels(back);
 			device.endFrame();
 			// then the window's close button (X11: the window manager's client message)
-			if (n == frames) Mem.os() == 1 ? CocoaTest.close(w) : sendClose(w);
+			if (n == frames) Mem.os() == 1 ? CocoaTest.close(w) : Mem.os() == 2 ? WinTest.close(w) : sendClose(w);
 		}, e -> {
 			events++;
 			if (e.kind == Close && e.window == w) {
@@ -94,7 +96,7 @@ class GfxTest {
 				App.quit();
 			}
 		});
-		var shown = Mem.os() == 1 ? CocoaTest.capture(w, WIDTH, HEIGHT) : capture(w);
+		var shown = Mem.os() == 1 ? CocoaTest.capture(w, WIDTH, HEIGHT) : Mem.os() == 2 ? WinTest.capture(w, WIDTH, HEIGHT) : capture(w);
 		sys.io.File.saveBytes(out, Png.encode(shown != null ? shown : back, WIDTH, HEIGHT));
 		Sys.println('GfxTest: $n frames in a ${device.width}x${device.height} window, $events events' + (closed ? ", closed" : ", FAIL: no Close event"));
 		var size = device.width == WIDTH && device.height == HEIGHT;
@@ -103,11 +105,11 @@ class GfxTest {
 		w.close();
 		var a = compare("window, back buffer", back, golden);
 		if (shown == null) {
-			// (macOS: the window server would not give the window's pixels)
+			// (macOS: the window server would not give the window's pixels; Windows: no GDI capture)
 			Sys.println("GfxTest: window, screen pixels: skipped (no capture)");
 			return a && closed && size;
 		}
-		var b = compare("window, " + (Mem.os() == 1 ? "screen" : "X11") + " pixels", shown, golden);
+		var b = compare("window, " + (Mem.os() == 1 ? "screen" : Mem.os() == 2 ? "GDI" : "X11") + " pixels", shown, golden);
 		return a && b && closed && size;
 	}
 
