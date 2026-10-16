@@ -10,10 +10,12 @@
 // native loops poll theirs: keys (as X11 KeySyms, Event.key) once the canvas
 // has the focus (a click gives it), the mouse over the canvas in buffer
 // pixels from the top left. Frames pause while no window's canvas is in
-// view (as requestAnimationFrame pauses in a hidden tab).
+// view (as requestAnimationFrame pauses in a hidden tab). host.os.redraw()
+// asks every window for a frame (a Redraw event): the page wants its pixels
+// (host.gfx.readPixels) while the program has nothing new to draw.
 
 // EventKind (src/hxmc/os/Event.hx)
-const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8;
+const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8, REDRAW = 9;
 
 // KeyboardEvent.key to an X11 KeySym: Latin-1 characters are their
 // (unshifted) code, the others from this table
@@ -37,6 +39,7 @@ export default function (host) {
 	const queue = [];
 	const windows = new Set();
 	let first = true;
+	host.os = { redraw: () => { for (const h of windows) push([h, REDRAW, 0, 0, 0, 0, 0]); } };
 
 	function push(ev) {
 		// (moves between two frames: the last one)

@@ -115,6 +115,10 @@ class Win32Window {
 		}
 	}
 
+	// waits for a message in the thread's queue, or seconds
+	static function wait(seconds:Float)
+		User32.MsgWaitForMultipleObjects(0, Ptr.nil(), 0, Std.int(seconds * 1000), WM.QS_ALLINPUT);
+
 	static var highSurrogate = 0;
 
 	// the modifiers held (VK_SHIFT, VK_CONTROL, VK_MENU: Alt, VK_LWIN, VK_RWIN)
@@ -136,6 +140,9 @@ class Win32Window {
 				e.kind = Close;
 				dispatch(e);
 				return 0;
+			case WM.PAINT:
+				// (DefWindowProc validates the window)
+				e.kind = Redraw;
 			case WM.SIZE:
 				if (w.measure()) {
 					e.kind = Resize;

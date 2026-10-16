@@ -18,6 +18,7 @@ class Msg {
 	static function idPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Ptr;
 	static function idPtrPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Ptr):Ptr;
 	static function idInt(self:Ptr, sel:Ptr, a:Int64):Ptr;
+	static function idFloat(self:Ptr, sel:Ptr, a:Float):Ptr;
 	static function idIntInt(self:Ptr, sel:Ptr, a:Int64, b:Int64):Ptr;
 	static function idPtrIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64):Ptr;
 	static function idIntIntIntBool(self:Ptr, sel:Ptr, a:Int64, b:Int64, c:Int64, d:Bool):Ptr;

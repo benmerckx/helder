@@ -26,6 +26,7 @@ import hxmc.unsafe.*;
 	static function ClientToScreen(hwnd:Ptr, p:Ptr<POINT>):Int;
 	static function LoadCursorW(instance:Ptr, name:Ptr):Ptr;
 	static function SetCursor(cursor:Ptr):Ptr;
+	static function MsgWaitForMultipleObjects(count:Int, handles:Ptr, waitAll:Int, ms:Int, wakeMask:Int):Int;
 	static function SetWindowTextW(hwnd:Ptr, text:Ptr):Int;
 	// Windows 10 1607 and later (pixels, not points)
 	static function SetProcessDpiAwarenessContext(context:Ptr):Int;
@@ -80,6 +81,8 @@ class WM {
 	public static inline var PM_REMOVE = 1;
 	public static inline var IDC_ARROW = 32512;
 	public static inline var SETCURSOR = 0x0020;
+	public static inline var PAINT = 0x000F;
+	public static inline var QS_ALLINPUT = 0x04FF;
 	public static inline var HTCLIENT = 1;
 	public static inline var PW_CLIENTONLY = 1;
 	public static inline var PW_RENDERFULLCONTENT = 2;

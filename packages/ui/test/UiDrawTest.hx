@@ -86,13 +86,27 @@ class UiDrawTest {
 		var frames = 0;
 		w.onFrame = () -> {
 			frames++;
-			if (frames == 3) w.capture = pixels;
-			if (frames == 4) w.close();
+			// (frames 2 and 3 asked for: with nothing changed the window draws no more)
+			if (frames < 3) w.ui.requestFrame();
+			if (frames == 2) w.capture = pixels;
 		};
-		UiWindow.run();
+		// UiWindow.run's loop, counting the turns with nothing to draw: each
+		// sleeps (App.wait) until an event or 50 ms; closed after half a second idle
+		var idle = 0, since = 0.0;
+		App.run(() -> {
+			if (w.needsFrame()) {
+				w.frame();
+				since = haxe.Timer.stamp();
+			} else {
+				idle++;
+				App.wait(0.05);
+				if (haxe.Timer.stamp() - since > 0.5) w.close();
+			}
+		}, e -> w.handle(e));
 		sys.io.File.saveBytes(out, Png.encode(pixels, W, H));
-		Sys.println('UiDrawTest: window: $frames frames, scale ${w.renderer.scale}');
-		Sys.exit(compare(pixels, golden) ? 0 : 1);
+		var slept = frames == 3 && idle > 2 && idle < 40;
+		Sys.println('UiDrawTest: window: $frames frames, then $idle turns idle, scale ${w.renderer.scale}' + (slept ? "" : " (FAIL: 3 frames and the loop asleep expected)"));
+		Sys.exit(compare(pixels, golden) && slept ? 0 : 1);
 	}
 
 	static function compare(pixels:Bytes, golden:String):Bool {

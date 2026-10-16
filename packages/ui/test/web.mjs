@@ -43,7 +43,10 @@ window.start = async (gfx) => {
 	return window.result.host.gfx.backend;
 };
 window.check = async () => {
-	const px = await window.result.host.gfx.readPixels();
+	// (the next frame's pixels: the program draws one when asked)
+	const pixels = window.result.host.gfx.readPixels();
+	window.result.host.os.redraw();
+	const px = await pixels;
 	window.pixels = Array.from(px.data);
 	// (a light scene: the Add button's fill must differ from the corner)
 	return compare('todo', px, await decode('todo.png'), [360, 88, 'contrast']);

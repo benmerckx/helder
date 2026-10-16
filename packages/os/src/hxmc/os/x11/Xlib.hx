@@ -26,6 +26,8 @@ import hxmc.unsafe.*;
 	// the key's characters (Latin-1) and KeySym with the modifiers applied
 	static function XLookupString(event:Ptr<XKeyEvent>, buffer:Ptr, bytes:Int, keysym:Ptr<Int64>, status:Ptr):Int;
 	static function XFlush(d:Ptr):Int;
+	// the connection's socket (to wait on with select)
+	static function XConnectionNumber(d:Ptr):Int;
 	static function XSendEvent(d:Ptr, w:Int64, propagate:Int, mask:Int64, event:Ptr<XAnyEvent>):Int;
 	// an XImage* of the window's pixels (ZPixmap: 32 bits per pixel on a 24-bit visual)
 	static function XGetImage(d:Ptr, drawable:Int64, x:Int, y:Int, width:Int, height:Int, planes:Int64, format:Int):Ptr<XImage>;
@@ -33,6 +35,12 @@ import hxmc.unsafe.*;
 	// a cursor of the cursor font (X11/cursorfont.h's shapes)
 	static function XCreateFontCursor(d:Ptr, shape:Int):Int64;
 	static function XDefineCursor(d:Ptr, w:Int64, cursor:Int64):Int;
+}
+
+// select(2), to wait on the connection's socket: in a safe region (it
+// blocks), where hxmc.unsafe.Posix's calls are fast ones
+@:hxmc.c @:hxmc.lib("libc.so.6") extern class Select {
+	static function select(n:Int, r:Ptr, w:Ptr, e:Ptr, timeout:Ptr):Int;
 }
 
 // XEvent is a union of 192 bytes (24 longs): an XEvent buffer is read
@@ -45,6 +53,7 @@ class X {
 	public static inline var ButtonPress = 4;
 	public static inline var ButtonRelease = 5;
 	public static inline var MotionNotify = 6;
+	public static inline var Expose = 12;
 	public static inline var ConfigureNotify = 22;
 	public static inline var ClientMessage = 33;
 	// input masks
@@ -84,6 +93,19 @@ class X {
 	var state:UInt32;
 	var keycode:UInt32;
 	var same_screen:Int32;
+}
+
+@:hxmc.struct @:publicFields class XExposeEvent {
+	var type:Int32;
+	var serial:Int64;
+	var send_event:Int32;
+	var display:Ptr;
+	var window:Int64;
+	var x:Int32;
+	var y:Int32;
+	var width:Int32;
+	var height:Int32;
+	var count:Int32; // the Expose events that follow this one
 }
 
 @:hxmc.struct @:publicFields class XConfigureEvent {

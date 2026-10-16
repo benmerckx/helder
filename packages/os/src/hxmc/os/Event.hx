@@ -14,6 +14,9 @@ enum abstract EventKind(Int) {
 	// applied), one code point each; not with Control, Alt (Option) or the
 	// Command key held, nor for the keys without a character
 	var TextInput;
+	// the system lost the window's pixels (X11's Expose, Win32's WM_PAINT):
+	// draw a frame again, even with nothing changed
+	var Redraw;
 }
 
 // Event.mods bits

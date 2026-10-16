@@ -160,6 +160,15 @@ class CocoaWindow {
 		dispatch(e);
 	}
 
+	// waits for an event (left in the queue for poll), or seconds
+	static function wait(seconds:Float) {
+		if (app.isNull()) return;
+		var pool = Runtime.objc_autoreleasePoolPush();
+		var until = Msg.idFloat(ObjC.cls("NSDate"), ObjC.sel("dateWithTimeIntervalSinceNow:"), seconds);
+		Msg.idIntPtrPtrBool(app, ObjC.sel("nextEventMatchingMask:untilDate:inMode:dequeue:"), -1, until, mode, false);
+		Runtime.objc_autoreleasePoolPop(pool);
+	}
+
 	// dispatches the pending events
 	static function poll(onEvent:Event->Void) {
 		CocoaWindow.onEvent = onEvent;

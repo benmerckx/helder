@@ -35,7 +35,7 @@ class X11Window {
 			Xlib.XSetWMProtocols(display, id, atoms, 1);
 		});
 		Xlib.XSelectInput(display, id, (X.KeyPressMask | X.KeyReleaseMask | X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask
-			| X.StructureNotifyMask : Int64));
+			| X.StructureNotifyMask | X.ExposureMask : Int64));
 		Xlib.XMapWindow(display, id);
 		Xlib.XFlush(display);
 		surface = new Surface(X11, display, Ptr.ofI64(id), width, height);
@@ -93,6 +93,9 @@ class X11Window {
 				case X.ClientMessage:
 					var m:Ptr<XClientMessageEvent> = xev;
 					if (m.value.l0 == wmDelete) e.kind = Close;
+				case X.Expose:
+					var x:Ptr<XExposeEvent> = xev;
+					if (x.value.count == 0) e.kind = Redraw;
 				case X.ConfigureNotify:
 					var c:Ptr<XConfigureEvent> = xev;
 					if (c.value.width != w.surface.width || c.value.height != w.surface.height) {
@@ -124,6 +127,20 @@ class X11Window {
 			}
 			if (e.kind != None) onEvent(e);
 		}
+	}
+
+	// waits for the connection's socket to have data, or seconds
+	static function wait(seconds:Float) {
+		if (display.isNull() || Xlib.XPending(display) > 0) return;
+		var fd = Xlib.XConnectionNumber(display);
+		Arena.scoped(a -> {
+			var set:Ptr<Int64> = a.alloc(128);
+			set[fd >> 6] = (1 : Int64) << (fd & 63);
+			var tv:Ptr<Int64> = a.alloc(16);
+			tv[0] = Std.int(seconds);
+			tv[1] = Std.int((seconds - Std.int(seconds)) * 1e6);
+			Select.select(fd + 1, set, Ptr.nil(), Ptr.nil(), tv);
+		});
 	}
 
 	// the modifiers of an event's state (ShiftMask, ControlMask, Mod1Mask: Alt, Mod4Mask: Super)
