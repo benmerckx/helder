@@ -16,6 +16,10 @@ final class Encoder {
 	public inline function setVertexBuffer(slot:Int, b:Buffer, offset = 0)
 		impl.setVertexBuffer(slot, b.id(), offset);
 
+	// the indices of drawIndexed, from offset bytes into b
+	public inline function setIndexBuffer(b:Buffer, format:IndexFormat, offset = 0)
+		impl.setIndexBuffer(b.id(), format, offset);
+
 	// a uniform block's contents for the next draws, at its slot (a shader
 	// class's uniforms: binding; its write<Block> fills the bytes): size bytes
 	// of data from offset (default: the rest), copied into the frame's
@@ -26,6 +30,10 @@ final class Encoder {
 
 	public inline function draw(vertices:Int, instances = 1, firstVertex = 0)
 		impl.draw(vertices, instances, firstVertex);
+
+	// count indices of the index buffer from firstIndex, each plus baseVertex
+	public inline function drawIndexed(count:Int, instances = 1, firstIndex = 0, baseVertex = 0)
+		impl.drawIndexed(count, instances, firstIndex, baseVertex);
 
 	public inline function endPass()
 		impl.endPass();

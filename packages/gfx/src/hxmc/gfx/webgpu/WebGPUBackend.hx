@@ -49,6 +49,11 @@ class WebGPUBackend {
 		return b;
 	}
 
+	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
+		if (offset & 3 != 0 || size & 3 != 0) throw "hxmc.gfx: writeBuffer: WebGPU writes multiples of 4 bytes at multiples of 4";
+		WebGPU.write_buffer(id, offset, Mem.addr(data).add(8 + dataOffset), size);
+	}
+
 	public function createShader(d:ShaderDesc):Int {
 		if (d.code.wgsl == null) throw "hxmc.gfx: createShader: no WGSL source for the WebGPU back end";
 		var s = Arena.scopedValue(a -> WebGPU.shader(a.cstring(d.code.wgsl)));
@@ -71,7 +76,8 @@ class WebGPUBackend {
 				WebGPU.pipeline_binding(b.slot, cast b.kind, b.size == null ? 0 : b.size);
 			}
 		var topology:Topology = d.topology == null ? Triangles : d.topology, cull:Cull = d.cull == null ? None : d.cull;
-		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull);
+		var blend:Blend = d.blend == null ? Opaque : d.blend, compare:Compare = d.depthCompare == null ? Always : d.depthCompare;
+		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull, cast blend, cast compare, d.depthWrite == true ? 1 : 0);
 		handles.push(p);
 		return p;
 	}
@@ -85,8 +91,9 @@ class WebGPUBackend {
 	}
 
 	public function beginPass(p:PassDesc) {
-		var c = p.colors[0], k = c.clear;
-		if (k == null) WebGPU.pass_begin(cast c.load, 0, 0, 0, 1) else WebGPU.pass_begin(cast c.load, k.r, k.g, k.b, k.a);
+		var c = p.colors[0], k = c.clear, d = p.depth;
+		var depthLoad:LoadOp = d == null ? Load : d.load, depth = d == null || d.clear == null ? 1.0 : d.clear;
+		if (k == null) WebGPU.pass_begin(cast c.load, 0, 0, 0, 1, cast depthLoad, depth) else WebGPU.pass_begin(cast c.load, k.r, k.g, k.b, k.a, cast depthLoad, depth);
 	}
 
 	public inline function setPipeline(id:Int)
@@ -105,6 +112,12 @@ class WebGPUBackend {
 
 	public inline function draw(vertices:Int, instances:Int, first:Int)
 		WebGPU.draw(vertices, instances, first);
+
+	public inline function setIndexBuffer(id:Int, format:IndexFormat, offset:Int)
+		WebGPU.set_index_buffer(id, cast format, offset);
+
+	public inline function drawIndexed(count:Int, instances:Int, first:Int, baseVertex:Int)
+		WebGPU.draw_indexed(count, instances, first, baseVertex);
 
 	public inline function endPass()
 		WebGPU.pass_end();

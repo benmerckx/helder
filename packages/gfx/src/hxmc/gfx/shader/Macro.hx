@@ -198,12 +198,21 @@ class Macro {
 			public static final uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock> = hxmc.gfx.shader.Macro.uniforms();
 
 			// the pipeline of both stages and the vertex layout (Device.createPipeline compiles the code)
-			public static function pipeline(?options:{?topology:hxmc.gfx.Topology, ?cull:hxmc.gfx.Cull}):hxmc.gfx.PipelineDesc
-				return {
+			public static function pipeline(?options:{
+				?topology:hxmc.gfx.Topology,
+				?cull:hxmc.gfx.Cull,
+				?blend:hxmc.gfx.Blend,
+				?depthCompare:hxmc.gfx.Compare,
+				?depthWrite:Bool
+			}):hxmc.gfx.PipelineDesc
+				return options == null ? {program: {vertex: vertexCode, fragment: fragmentCode}, layout: layout} : {
 					program: {vertex: vertexCode, fragment: fragmentCode},
 					layout: layout,
-					topology: options == null ? null : options.topology,
-					cull: options == null ? null : options.cull
+					topology: options.topology,
+					cull: options.cull,
+					blend: options.blend,
+					depthCompare: options.depthCompare,
+					depthWrite: options.depthWrite
 				};
 
 			// the vertex buffer's contents

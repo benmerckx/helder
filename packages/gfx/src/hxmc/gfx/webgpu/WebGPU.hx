@@ -18,6 +18,8 @@ import hxmc.unsafe.*;
 	static function target_canvas(canvas:Int):Int;
 	static function target_texture(width:Int, height:Int):Int;
 	static function buffer(size:Int, usage:Int, data:Ptr, length:Int):Int;
+	// size bytes at data into the buffer at offset (multiples of 4: WebGPU's writeBuffer)
+	static function write_buffer(buffer:Int, offset:Int, data:Ptr, size:Int):Void;
 	// WGSL; errors are reported asynchronously, on the console
 	static function shader(wgsl:CString):Int;
 	// a pipeline: its vertex buffers and their attributes, then the rest
@@ -27,18 +29,22 @@ import hxmc.unsafe.*;
 	// a resource of the pipeline (ShaderCode.bindings: kind, slot, a uniform
 	// block's size): its bind group layout
 	static function pipeline_binding(slot:Int, kind:Int, size:Int):Void;
-	static function pipeline_end(vertex:Int, fragment:Int, target:Int, topology:Int, cull:Int):Int;
+	static function pipeline_end(vertex:Int, fragment:Int, target:Int, topology:Int, cull:Int, blend:Int, depthCompare:Int, depthWrite:Int):Int;
 	// a frame: a command encoder for the target's texture (the canvas's
-	// current one); 0: none now
+	// current one) and its depth texture (depth32float, remade when the size
+	// changes); 0: none now
 	static function frame_begin(target:Int):Int;
-	static function pass_begin(load:Int, r:Float, g:Float, b:Float, a:Float):Void;
+	// (depthLoad: a LoadOp)
+	static function pass_begin(load:Int, r:Float, g:Float, b:Float, a:Float, depthLoad:Int, depth:Float):Void;
 	static function set_pipeline(pipeline:Int):Void;
 	static function set_vertex_buffer(slot:Int, buffer:Int, offset:Int):Void;
 	// size bytes at data into the frame's uniform ring at offset (256-byte
 	// aligned), bound at the slot (a dynamic offset); written to the GPU
 	// when the frame is submitted
 	static function set_uniforms(slot:Int, offset:Int, data:Ptr, size:Int):Void;
+	static function set_index_buffer(buffer:Int, format:Int, offset:Int):Void;
 	static function draw(vertices:Int, instances:Int, first:Int):Void;
+	static function draw_indexed(count:Int, instances:Int, first:Int, baseVertex:Int):Void;
 	static function pass_end():Void;
 	// submits the frame (the canvas presents it when the task ends)
 	static function frame_end():Void;

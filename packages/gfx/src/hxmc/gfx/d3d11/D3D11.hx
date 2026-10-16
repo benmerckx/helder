@@ -30,9 +30,12 @@ class ID3D11Device {
 	@:slot(3) static function CreateBuffer(self:Ptr, desc:Ptr<D3D11_BUFFER_DESC>, data:Ptr<D3D11_SUBRESOURCE_DATA>, out:Ptr<Ptr>):Int;
 	@:slot(5) static function CreateTexture2D(self:Ptr, desc:Ptr<D3D11_TEXTURE2D_DESC>, data:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(9) static function CreateRenderTargetView(self:Ptr, resource:Ptr, desc:Ptr, out:Ptr<Ptr>):Int;
+	@:slot(10) static function CreateDepthStencilView(self:Ptr, resource:Ptr, desc:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(11) static function CreateInputLayout(self:Ptr, elements:Ptr<D3D11_INPUT_ELEMENT_DESC>, count:Int, code:Ptr, size:Int64, out:Ptr<Ptr>):Int;
 	@:slot(12) static function CreateVertexShader(self:Ptr, code:Ptr, size:Int64, linkage:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(15) static function CreatePixelShader(self:Ptr, code:Ptr, size:Int64, linkage:Ptr, out:Ptr<Ptr>):Int;
+	@:slot(20) static function CreateBlendState(self:Ptr, desc:Ptr<D3D11_BLEND_DESC>, out:Ptr<Ptr>):Int;
+	@:slot(21) static function CreateDepthStencilState(self:Ptr, desc:Ptr<D3D11_DEPTH_STENCIL_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(22) static function CreateRasterizerState(self:Ptr, desc:Ptr<D3D11_RASTERIZER_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(33) static function CheckFeatureSupport(self:Ptr, feature:Int, data:Ptr, size:Int):Int;
 	@:slot(37) static function GetFeatureLevel(self:Ptr):Int;
@@ -44,12 +47,15 @@ class ID3D11DeviceContext {
 	@:slot(7) static function VSSetConstantBuffers(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>):Void;
 	@:slot(9) static function PSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
 	@:slot(11) static function VSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
+	@:slot(12) static function DrawIndexed(self:Ptr, count:Int, first:Int, baseVertex:Int):Void;
 	@:slot(13) static function Draw(self:Ptr, vertices:Int, first:Int):Void;
 	@:slot(14) static function Map(self:Ptr, resource:Ptr, subresource:Int, type:Int, flags:Int, out:Ptr<D3D11_MAPPED_SUBRESOURCE>):Int;
 	@:slot(15) static function Unmap(self:Ptr, resource:Ptr, subresource:Int):Void;
 	@:slot(16) static function PSSetConstantBuffers(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>):Void;
 	@:slot(17) static function IASetInputLayout(self:Ptr, layout:Ptr):Void;
 	@:slot(18) static function IASetVertexBuffers(self:Ptr, first:Int, count:Int, buffers:Ptr<Ptr>, strides:Ptr<Int32>, offsets:Ptr<Int32>):Void;
+	@:slot(19) static function IASetIndexBuffer(self:Ptr, buffer:Ptr, format:Int, offset:Int):Void;
+	@:slot(20) static function DrawIndexedInstanced(self:Ptr, count:Int, instances:Int, first:Int, baseVertex:Int, firstInstance:Int):Void;
 	@:slot(21) static function DrawInstanced(self:Ptr, vertices:Int, instances:Int, first:Int, firstInstance:Int):Void;
 	@:slot(24) static function IASetPrimitiveTopology(self:Ptr, topology:Int):Void;
 	@:slot(33) static function OMSetRenderTargets(self:Ptr, count:Int, views:Ptr<Ptr>, depth:Ptr):Void;
@@ -58,7 +64,9 @@ class ID3D11DeviceContext {
 	@:slot(43) static function RSSetState(self:Ptr, state:Ptr):Void;
 	@:slot(44) static function RSSetViewports(self:Ptr, count:Int, viewports:Ptr<D3D11_VIEWPORT>):Void;
 	@:slot(47) static function CopyResource(self:Ptr, dst:Ptr, src:Ptr):Void;
+	@:slot(48) static function UpdateSubresource(self:Ptr, dst:Ptr, subresource:Int, box:Ptr<D3D11_BOX>, src:Ptr, rowPitch:Int, depthPitch:Int):Void;
 	@:slot(50) static function ClearRenderTargetView(self:Ptr, view:Ptr, rgba:Ptr<Float32>):Void;
+	@:slot(53) static function ClearDepthStencilView(self:Ptr, view:Ptr, flags:Int, depth:Float32, stencil:Int):Void;
 	@:slot(110) static function ClearState(self:Ptr):Void;
 	@:slot(111) static function Flush(self:Ptr):Void;
 }
@@ -115,6 +123,9 @@ class D3D {
 	public static inline var FORMAT_R8G8B8A8_UNORM = 28;
 	public static inline var FORMAT_R32G32_FLOAT = 16;
 	public static inline var FORMAT_R32_FLOAT = 41;
+	public static inline var FORMAT_D32_FLOAT = 40;
+	public static inline var FORMAT_R32_UINT = 42;
+	public static inline var FORMAT_R16_UINT = 57;
 	// D3D11_USAGE, D3D11_BIND_FLAG, D3D11_CPU_ACCESS_FLAG, D3D11_MAP
 	public static inline var USAGE_DEFAULT = 0;
 	public static inline var USAGE_DYNAMIC = 2;
@@ -123,6 +134,7 @@ class D3D {
 	public static inline var BIND_INDEX_BUFFER = 0x2;
 	public static inline var BIND_CONSTANT_BUFFER = 0x4;
 	public static inline var BIND_RENDER_TARGET = 0x20;
+	public static inline var BIND_DEPTH_STENCIL = 0x40;
 	public static inline var CPU_ACCESS_WRITE = 0x10000;
 	public static inline var CPU_ACCESS_READ = 0x20000;
 	public static inline var MAP_READ = 1;
@@ -138,6 +150,17 @@ class D3D {
 	public static inline var CULL_NONE = 1;
 	public static inline var CULL_FRONT = 2;
 	public static inline var CULL_BACK = 3;
+	// D3D11_COMPARISON_FUNC (NEVER: 1 .. ALWAYS: 8), D3D11_STENCIL_OP, D3D11_CLEAR_FLAG
+	public static inline var COMPARISON_NEVER = 1;
+	public static inline var COMPARISON_ALWAYS = 8;
+	public static inline var STENCIL_OP_KEEP = 1;
+	public static inline var CLEAR_DEPTH = 1;
+	// D3D11_BLEND, D3D11_BLEND_OP
+	public static inline var BLEND_ZERO = 1;
+	public static inline var BLEND_ONE = 2;
+	public static inline var BLEND_SRC_ALPHA = 5;
+	public static inline var BLEND_INV_SRC_ALPHA = 6;
+	public static inline var BLEND_OP_ADD = 1;
 	// D3D_PRIMITIVE_TOPOLOGY
 	public static inline var TOPOLOGY_POINTLIST = 1;
 	public static inline var TOPOLOGY_LINELIST = 2;
@@ -222,6 +245,46 @@ class IID {
 	var ScissorEnable:Int32;
 	var MultisampleEnable:Int32;
 	var AntialiasedLineEnable:Int32;
+}
+
+@:hxmc.struct @:publicFields class D3D11_DEPTH_STENCIL_DESC {
+	var DepthEnable:Int32;
+	var DepthWriteMask:Int32;
+	var DepthFunc:Int32;
+	var StencilEnable:Int32;
+	var StencilReadMask:UInt8;
+	var StencilWriteMask:UInt8;
+	var FrontStencilFailOp:Int32; // D3D11_DEPTH_STENCILOP_DESC FrontFace
+	var FrontStencilDepthFailOp:Int32;
+	var FrontStencilPassOp:Int32;
+	var FrontStencilFunc:Int32;
+	var BackStencilFailOp:Int32; // BackFace
+	var BackStencilDepthFailOp:Int32;
+	var BackStencilPassOp:Int32;
+	var BackStencilFunc:Int32;
+}
+
+// with the first of its 8 D3D11_RENDER_TARGET_BLEND_DESCs (allocate 264 bytes)
+@:hxmc.struct @:publicFields class D3D11_BLEND_DESC {
+	var AlphaToCoverageEnable:Int32;
+	var IndependentBlendEnable:Int32;
+	var BlendEnable:Int32;
+	var SrcBlend:Int32;
+	var DestBlend:Int32;
+	var BlendOp:Int32;
+	var SrcBlendAlpha:Int32;
+	var DestBlendAlpha:Int32;
+	var BlendOpAlpha:Int32;
+	var RenderTargetWriteMask:UInt8;
+}
+
+@:hxmc.struct @:publicFields class D3D11_BOX {
+	var left:UInt32;
+	var top:UInt32;
+	var front:UInt32;
+	var right:UInt32;
+	var bottom:UInt32;
+	var back:UInt32;
 }
 
 @:hxmc.struct @:publicFields class D3D11_VIEWPORT {

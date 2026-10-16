@@ -15,7 +15,8 @@ import hxmc.unsafe.*;
 // lower ones are the uniform blocks' slots: setUniforms copies a block
 // into the command stream, setVertexBytes and setFragmentBytes, at most
 // 4 KB). The colour target is BGRA8 (the layer's own format): readPixels
-// swaps it to RGBA.
+// swaps it to RGBA. The depth buffer is a Depth32Float texture of the target's size,
+// remade when the drawable's size changes.
 class MetalBackend {
 	public final backend = Backend.Metal;
 	public var width(default, null) = 0;
@@ -28,6 +29,10 @@ class MetalBackend {
 	final target:Ptr; // headless: the colour texture
 	final pass:Ptr; // MTLRenderPassDescriptor, reused
 	final attachment:Ptr; // its colour attachment 0
+	final depthAttachment:Ptr; // and its depth attachment
+	var depth = Ptr.nil(); // the depth texture, of depthWidth x depthHeight
+	var depthWidth = 0;
+	var depthHeight = 0;
 	// native memory: an out-parameter, the structs passed by value
 	final scratch:Ptr<Ptr>;
 	final clear:Ptr<MTLClearColor>;
@@ -51,6 +56,10 @@ class MetalBackend {
 	var texture = Ptr.nil();
 	var enc = Ptr.nil();
 	var pipeline:MtlPipeline = null;
+	// drawIndexed's index buffer, type (MTL.IndexType*) and offset
+	var ibuf = Ptr.nil();
+	var itype = 0;
+	var ioffset = 0;
 
 	static inline var VERTEX_BUFFERS = 16;
 	static inline var MAX_SLOTS = 8;
@@ -70,6 +79,7 @@ class MetalBackend {
 		uniforms = LibC.malloc(MAX_BYTES);
 		pass = make("MTLRenderPassDescriptor");
 		attachment = Msg.idInt(Msg.id(pass, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
+		depthAttachment = Msg.id(pass, ObjC.sel("depthAttachment"));
 		if (surface.kind == Cocoa) {
 			layer = surface.display;
 			target = Ptr.nil();
@@ -94,6 +104,23 @@ class MetalBackend {
 		Runtime.objc_autoreleasePoolPop(pool);
 	}
 
+	// the depth texture, when the target's size is not its own
+	function sizeDepth() {
+		if (depthWidth == width && depthHeight == height) return;
+		ObjC.release(depth);
+		var d = make("MTLTextureDescriptor");
+		Msg.vInt(d, ObjC.sel("setPixelFormat:"), MTL.PixelFormatDepth32Float);
+		Msg.vInt(d, ObjC.sel("setWidth:"), width);
+		Msg.vInt(d, ObjC.sel("setHeight:"), height);
+		Msg.vInt(d, ObjC.sel("setUsage:"), MTL.TextureUsageRenderTarget);
+		Msg.vInt(d, ObjC.sel("setStorageMode:"), MTL.StorageModePrivate);
+		depth = Msg.idPtr(device, ObjC.sel("newTextureWithDescriptor:"), d);
+		Runtime.objc_release(d);
+		if (depth.isNull()) throw "hxmc.gfx: cannot create a " + width + "x" + height + " depth texture";
+		depthWidth = width;
+		depthHeight = height;
+	}
+
 	// a new instance of a class ([[cls alloc] init]: owned, not autoreleased)
 	static inline function make(cls:String):Ptr
 		return Msg.id(Msg.id(ObjC.cls(cls), ObjC.sel("alloc")), ObjC.sel("init"));
@@ -111,6 +138,14 @@ class MetalBackend {
 		if (data != null) LibC.memcpy(Msg.id(b, ObjC.sel("contents")), Mem.addr(data).add(8), (size : Int64));
 		buffers.push(b);
 		return buffers.length;
+	}
+
+	// (shared memory: what the GPU reads when the frame runs)
+	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
+		var b = buffers[id - 1];
+		if (offset + size > Msg.i(b, ObjC.sel("length")).toInt()) throw "hxmc.gfx: writeBuffer: past the buffer's end";
+		var dst:Ptr<UInt8> = Msg.id(b, ObjC.sel("contents"));
+		LibC.memcpy(dst.add(offset), Mem.addr(data).add(8 + dataOffset), (size : Int64));
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -143,6 +178,17 @@ class MetalBackend {
 		Msg.vPtr(desc, ObjC.sel("setFragmentFunction:"), shaders[d.fragment.id() - 1]);
 		var color = Msg.idInt(Msg.id(desc, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
 		Msg.vInt(color, ObjC.sel("setPixelFormat:"), MTL.PixelFormatBGRA8Unorm);
+		var blend:Blend = d.blend == null ? Opaque : d.blend;
+		if (blend != Opaque) {
+			Msg.vBool(color, ObjC.sel("setBlendingEnabled:"), true);
+			Msg.vInt(color, ObjC.sel("setSourceRGBBlendFactor:"), blend == Premultiplied ? MTL.BlendFactorOne : MTL.BlendFactorSourceAlpha);
+			Msg.vInt(color, ObjC.sel("setDestinationRGBBlendFactor:"), blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
+			Msg.vInt(color, ObjC.sel("setRgbBlendOperation:"), MTL.BlendOperationAdd);
+			Msg.vInt(color, ObjC.sel("setSourceAlphaBlendFactor:"), MTL.BlendFactorOne);
+			Msg.vInt(color, ObjC.sel("setDestinationAlphaBlendFactor:"), blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
+			Msg.vInt(color, ObjC.sel("setAlphaBlendOperation:"), MTL.BlendOperationAdd);
+		}
+		Msg.vInt(desc, ObjC.sel("setDepthAttachmentPixelFormat:"), MTL.PixelFormatDepth32Float);
 		var vd = make("MTLVertexDescriptor");
 		var attributes = Msg.id(vd, ObjC.sel("attributes")), layouts = Msg.id(vd, ObjC.sel("layouts"));
 		for (slot in 0...d.layout.length) {
@@ -169,7 +215,12 @@ class MetalBackend {
 		var error = state.isNull() ? describe(scratch.value) : null;
 		Runtime.objc_autoreleasePoolPop(pool);
 		if (error != null) throw "hxmc.gfx: the pipeline does not link:\n" + error;
-		pipelines.push(new MtlPipeline(state, d));
+		var ds = make("MTLDepthStencilDescriptor");
+		Msg.vInt(ds, ObjC.sel("setDepthCompareFunction:"), d.depthCompare == null ? (cast Compare.Always : Int) : (cast d.depthCompare : Int));
+		Msg.vBool(ds, ObjC.sel("setDepthWriteEnabled:"), d.depthWrite == true);
+		var depthState = Msg.idPtr(device, ObjC.sel("newDepthStencilStateWithDescriptor:"), ds);
+		Runtime.objc_release(ds);
+		pipelines.push(new MtlPipeline(state, depthState, d));
 		return pipelines.length;
 	}
 
@@ -186,6 +237,7 @@ class MetalBackend {
 			width = Msg.i(texture, S.width).toInt();
 			height = Msg.i(texture, S.height).toInt();
 		}
+		sizeDepth();
 		cmd = Msg.id(queue, S.commandBuffer);
 		return true;
 	}
@@ -207,6 +259,11 @@ class MetalBackend {
 			clear.value.alpha = k == null ? 1 : k.a;
 			MtlMsg.vClear(attachment, S.setClearColor, clear.value);
 		}
+		var d = p.depth;
+		Msg.vPtr(depthAttachment, S.setTexture, depth);
+		Msg.vInt(depthAttachment, S.setLoadAction, d == null || d.load == Load ? MTL.LoadActionLoad : MTL.LoadActionClear);
+		Msg.vInt(depthAttachment, S.setStoreAction, MTL.StoreActionStore);
+		Msg.vFloat(depthAttachment, S.setClearDepth, d == null || d.clear == null ? 1 : d.clear);
 		enc = Msg.idPtr(cmd, S.renderCommandEncoderWithDescriptor, pass);
 		viewport.value.originX = 0;
 		viewport.value.originY = 0;
@@ -226,6 +283,7 @@ class MetalBackend {
 		pipeline = p;
 		Msg.vPtr(enc, S.setRenderPipelineState, p.state);
 		Msg.vInt(enc, S.setCullMode, p.cull);
+		Msg.vPtr(enc, S.setDepthStencilState, p.depth);
 	}
 
 	public function setVertexBuffer(slot:Int, id:Int, offset:Int)
@@ -242,6 +300,17 @@ class MetalBackend {
 
 	public function draw(vertices:Int, instances:Int, first:Int)
 		MtlMsg.vIntIntIntInt(enc, S.drawPrimitives, pipeline.topology, first, vertices, instances);
+
+	public function setIndexBuffer(id:Int, format:IndexFormat, offset:Int) {
+		ibuf = buffers[id - 1];
+		itype = format == UInt16 ? MTL.IndexTypeUInt16 : MTL.IndexTypeUInt32;
+		ioffset = offset;
+	}
+
+	public function drawIndexed(count:Int, instances:Int, first:Int, baseVertex:Int) {
+		var at = ioffset + first * (itype == MTL.IndexTypeUInt16 ? 2 : 4);
+		MtlMsg.vIntIntIntPtrIntIntIntInt(enc, S.drawIndexedPrimitives, pipeline.topology, count, itype, ibuf, at, instances, baseVertex, 0);
+	}
 
 	public function endPass() {
 		Msg.v(enc, S.endEncoding);
@@ -293,12 +362,15 @@ class MetalBackend {
 	}
 
 	public function dispose() {
-		for (p in pipelines)
+		for (p in pipelines) {
 			Runtime.objc_release(p.state);
+			Runtime.objc_release(p.depth);
+		}
 		for (o in shaders.concat(libraries).concat(buffers))
 			Runtime.objc_release(o);
 		ObjC.release(readback);
 		ObjC.release(target);
+		ObjC.release(depth);
 		Runtime.objc_release(pass);
 		Runtime.objc_release(queue);
 		if (!layer.isNull()) Msg.vPtr(layer, ObjC.sel("setDevice:"), Ptr.nil());
@@ -315,11 +387,13 @@ class MetalBackend {
 // a render pipeline state and its draw state
 private class MtlPipeline {
 	public final state:Ptr;
+	public final depth:Ptr; // MTLDepthStencilState
 	public final topology:Int;
 	public final cull:Int;
 
-	public function new(state:Ptr, d:PipelineDesc) {
+	public function new(state:Ptr, depth:Ptr, d:PipelineDesc) {
 		this.state = state;
+		this.depth = depth;
 		topology = switch d.topology {
 			case null | Triangles: MTL.PrimitiveTypeTriangle;
 			case TriangleStrip: MTL.PrimitiveTypeTriangleStrip;
@@ -345,6 +419,9 @@ private class S {
 	public static final setLoadAction = ObjC.sel("setLoadAction:");
 	public static final setStoreAction = ObjC.sel("setStoreAction:");
 	public static final setClearColor = ObjC.sel("setClearColor:");
+	public static final setClearDepth = ObjC.sel("setClearDepth:");
+	public static final setDepthStencilState = ObjC.sel("setDepthStencilState:");
+	public static final drawIndexedPrimitives = ObjC.sel("drawIndexedPrimitives:indexCount:indexType:indexBuffer:indexBufferOffset:instanceCount:baseVertex:baseInstance:");
 	public static final renderCommandEncoderWithDescriptor = ObjC.sel("renderCommandEncoderWithDescriptor:");
 	public static final setViewport = ObjC.sel("setViewport:");
 	public static final setFrontFacingWinding = ObjC.sel("setFrontFacingWinding:");

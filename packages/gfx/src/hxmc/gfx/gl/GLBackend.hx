@@ -14,7 +14,9 @@ import hxmc.unsafe.*;
 // vertex formats). Uniform blocks and samplers are bound to their slots by
 // name when a pipeline links (ShaderCode.bindings: ES 3.00 has no
 // layout(binding)); setUniforms writes into the frame's uniform buffer, one
-// of two (frames in flight), and binds the range (glBindBufferRange).
+// of two (frames in flight), and binds the range (glBindBufferRange). The
+// depth buffer is the default framebuffer's (24 bits); ES 3.0 has no base
+// vertex, so drawIndexed's moves the vertex attributes' offsets instead.
 class GLBackend {
 	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
@@ -32,6 +34,7 @@ class GLBackend {
 
 	// tables (handle = index + 1)
 	final buffers:Array<Int> = [];
+	final indexBuffers:Array<Bool> = [];
 	final shaders:Array<Int> = [];
 	final bindings:Array<Array<ShaderBinding>> = []; // each shader's
 	final pipelines:Array<GLPipeline> = [];
@@ -41,7 +44,13 @@ class GLBackend {
 	final vbufs = [for (_ in 0...MAX_SLOTS) 0];
 	final voffs = [for (_ in 0...MAX_SLOTS) 0];
 	var dirty = true;
+	var base = 0; // the vertices' first: the attributes' offsets move by its stride
 	var enabled = 0; // the attribute locations enabled, a mask
+	var ibuf = 0; // the index buffer bound, the one set, its type (GL.UNSIGNED_*), its offset
+	var ibufSet = 0;
+	var itype = GL.UNSIGNED_SHORT;
+	var ioffset = 0;
+	var depthMask = true; // glDepthMask as it is
 	// the uniform rings (one per frame in flight: made at the first
 	// setUniforms), the frame's, and the next offset into it
 	final rings = [0, 0];
@@ -80,10 +89,10 @@ class GLBackend {
 		Arena.scoped(a -> {
 			var attribs = ints(a, [
 				EGL.SURFACE_TYPE, headless ? EGL.PBUFFER_BIT : EGL.WINDOW_BIT, EGL.RENDERABLE_TYPE, EGL.OPENGL_ES3_BIT, EGL.RED_SIZE, 8, EGL.GREEN_SIZE, 8,
-				EGL.BLUE_SIZE, 8, EGL.ALPHA_SIZE, 8, EGL.NONE
+				EGL.BLUE_SIZE, 8, EGL.ALPHA_SIZE, 8, EGL.DEPTH_SIZE, 24, EGL.NONE
 			]);
 			var config:Ptr<Ptr> = a.alloc(8);
-			if (Egl.eglChooseConfig(display, attribs, config, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8");
+			if (Egl.eglChooseConfig(display, attribs, config, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8 and a 24-bit depth buffer");
 			eglSurface = headless ? Egl.eglCreatePbufferSurface(display, config.value,
 				ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE])) : Egl.eglCreateWindowSurface(display, config.value,
 					surface.handle, Ptr.nil());
@@ -138,8 +147,21 @@ class GLBackend {
 		if (data != null && data.length < size) throw "hxmc.gfx: createBuffer: data has fewer than size bytes";
 		// (a fast call: the Bytes cannot move during it)
 		if (data == null) GL.glBufferData(target, size, Ptr.nil(), GL.DYNAMIC_DRAW) else GL.glBufferData(target, size, Mem.addr(data).add(8), GL.STATIC_DRAW);
+		// (the vertex array's index buffer was this one: it is bound anew at the next drawIndexed)
+		if (target == GL.ELEMENT_ARRAY_BUFFER) ibuf = -1;
 		buffers.push(b);
+		indexBuffers.push(d.usage == Index);
 		return buffers.length;
+	}
+
+	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
+		// (an index buffer through its own target, as WebGL wants; the vertex
+		// array's then is it, until the next drawIndexed binds the set one)
+		var target = indexBuffers[id - 1] ? GL.ELEMENT_ARRAY_BUFFER : GL.ARRAY_BUFFER;
+		GL.glBindBuffer(target, buffers[id - 1]);
+		if (target == GL.ELEMENT_ARRAY_BUFFER) ibuf = -1;
+		// (a fast call: the Bytes cannot move during it)
+		GL.glBufferSubData(target, offset, size, Mem.addr(data).add(8 + dataOffset));
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -209,12 +231,21 @@ class GLBackend {
 
 	public function beginPass(p:PassDesc) {
 		GL.glViewport(0, 0, width, height);
-		var c = p.colors[0];
-		if (c.load == Clear) {
+		var c = p.colors[0], mask = 0;
+		if (c.load != Load) {
 			var k = c.clear;
 			k == null ? GL.glClearColor(0, 0, 0, 1) : GL.glClearColor(k.r, k.g, k.b, k.a);
-			GL.glClear(GL.COLOR_BUFFER_BIT);
+			mask |= GL.COLOR_BUFFER_BIT;
 		}
+		var d = p.depth;
+		if (d != null && d.load != Load) {
+			GL.glClearDepthf(d.clear == null ? 1 : d.clear);
+			// (the mask applies to clears too)
+			if (!depthMask) GL.glDepthMask(depthMask = true);
+			mask |= GL.DEPTH_BUFFER_BIT;
+		}
+		if (mask != 0) GL.glClear(mask);
+		pipeline = null;
 	}
 
 	public function setPipeline(id:Int) {
@@ -225,6 +256,20 @@ class GLBackend {
 		if (p.cull == 0) GL.glDisable(GL.CULL_FACE) else {
 			GL.glEnable(GL.CULL_FACE);
 			GL.glCullFace(p.cull);
+		}
+		if (p.depthFunc == 0) GL.glDisable(GL.DEPTH_TEST) else {
+			GL.glEnable(GL.DEPTH_TEST);
+			GL.glDepthFunc(p.depthFunc);
+		}
+		if (p.depthWrite != depthMask) GL.glDepthMask(depthMask = p.depthWrite);
+		if (p.blend == Opaque) GL.glDisable(GL.BLEND) else {
+			GL.glEnable(GL.BLEND);
+			GL.glBlendEquation(GL.FUNC_ADD);
+			switch p.blend {
+				case Alpha: GL.glBlendFuncSeparate(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA);
+				case Additive: GL.glBlendFuncSeparate(GL.SRC_ALPHA, GL.ONE, GL.ONE, GL.ONE);
+				case _: GL.glBlendFuncSeparate(GL.ONE, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA);
+			}
 		}
 		dirty = true;
 	}
@@ -252,22 +297,39 @@ class GLBackend {
 	}
 
 	public function draw(vertices:Int, instances:Int, first:Int) {
-		var p = pipeline;
-		if (dirty) {
-			var mask = 0;
-			for (i in 0...p.locations.length) {
-				var slot = p.slots[i], loc = p.locations[i];
-				GL.glBindBuffer(GL.ARRAY_BUFFER, vbufs[slot]);
-				GL.glVertexAttribPointer(loc, p.sizes[i], p.types[i], p.normalized[i], p.strides[slot], Ptr.ofI64(voffs[slot] + p.offsets[i]));
-				if (enabled & (1 << loc) == 0) GL.glEnableVertexAttribArray(loc);
-				mask |= 1 << loc;
-			}
-			for (loc in 0...16)
-				if (enabled & ~mask & (1 << loc) != 0) GL.glDisableVertexAttribArray(loc);
-			enabled = mask;
-			dirty = false;
+		attributes(0);
+		instances == 1 ? GL.glDrawArrays(pipeline.topology, first, vertices) : GL.glDrawArraysInstanced(pipeline.topology, first, vertices, instances);
+	}
+
+	public function setIndexBuffer(id:Int, format:IndexFormat, offset:Int) {
+		ibufSet = buffers[id - 1];
+		itype = format == UInt16 ? GL.UNSIGNED_SHORT : GL.UNSIGNED_INT;
+		ioffset = offset;
+	}
+
+	public function drawIndexed(count:Int, instances:Int, first:Int, baseVertex:Int) {
+		attributes(baseVertex);
+		if (ibuf != ibufSet) GL.glBindBuffer(GL.ELEMENT_ARRAY_BUFFER, ibuf = ibufSet);
+		var at:Int = ioffset + first * (itype == GL.UNSIGNED_SHORT ? 2 : 4);
+		instances == 1 ? GL.glDrawElements(pipeline.topology, count, itype, Ptr.ofI64(at)) : GL.glDrawElementsInstanced(pipeline.topology, count, itype, Ptr.ofI64(at), instances);
+	}
+
+	// the vertex attributes, when the pipeline, a vertex buffer or the base vertex changed
+	function attributes(first:Int) {
+		if (!dirty && first == base) return;
+		var p = pipeline, mask = 0;
+		for (i in 0...p.locations.length) {
+			var slot = p.slots[i], loc = p.locations[i];
+			GL.glBindBuffer(GL.ARRAY_BUFFER, vbufs[slot]);
+			GL.glVertexAttribPointer(loc, p.sizes[i], p.types[i], p.normalized[i], p.strides[slot], Ptr.ofI64(voffs[slot] + first * p.strides[slot] + p.offsets[i]));
+			if (enabled & (1 << loc) == 0) GL.glEnableVertexAttribArray(loc);
+			mask |= 1 << loc;
 		}
-		instances == 1 ? GL.glDrawArrays(p.topology, first, vertices) : GL.glDrawArraysInstanced(p.topology, first, vertices, instances);
+		for (loc in 0...16)
+			if (enabled & ~mask & (1 << loc) != 0) GL.glDisableVertexAttribArray(loc);
+		enabled = mask;
+		base = first;
+		dirty = false;
 	}
 
 	public function endPass() {}
@@ -313,6 +375,9 @@ private class GLPipeline {
 	public final program:Int;
 	public final topology:Int;
 	public final cull:Int; // 0: none, else GL.FRONT or GL.BACK
+	public final depthFunc:Int; // 0: no depth test, else GL.NEVER + Compare
+	public final depthWrite:Bool;
+	public final blend:Blend;
 	public final strides:Array<Int> = [];
 	public final slots:Array<Int> = [];
 	public final locations:Array<Int> = [];
@@ -334,6 +399,11 @@ private class GLPipeline {
 			case Front: GL.FRONT;
 			case Back: GL.BACK;
 		}
+		depthWrite = d.depthWrite == true;
+		var c:Compare = d.depthCompare == null ? Always : d.depthCompare;
+		// (GL tests nothing and writes nothing without the depth test)
+		depthFunc = c == Always && !depthWrite ? 0 : GL.NEVER + (cast c : Int);
+		blend = d.blend == null ? Opaque : d.blend;
 		for (slot in 0...d.layout.length) {
 			var l = d.layout[slot];
 			strides.push(l.stride);

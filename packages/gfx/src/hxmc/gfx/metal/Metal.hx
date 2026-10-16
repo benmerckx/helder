@@ -11,6 +11,7 @@ import hxmc.unsafe.*;
 class MTL {
 	// MTLPixelFormat
 	public static inline var PixelFormatBGRA8Unorm = 80;
+	public static inline var PixelFormatDepth32Float = 252;
 	// MTLVertexFormat
 	public static inline var VertexFormatUChar4Normalized = 9;
 	public static inline var VertexFormatFloat = 28;
@@ -27,10 +28,19 @@ class MTL {
 	public static inline var CullModeFront = 1;
 	public static inline var CullModeBack = 2;
 	public static inline var WindingCounterClockwise = 1;
+	// MTLCompareFunction (Never: 0 .. Always: 7, as Compare), MTLIndexType
+	public static inline var IndexTypeUInt16 = 0;
+	public static inline var IndexTypeUInt32 = 1;
+	// MTLBlendFactor, MTLBlendOperation
+	public static inline var BlendFactorOne = 1;
+	public static inline var BlendFactorSourceAlpha = 4;
+	public static inline var BlendFactorOneMinusSourceAlpha = 5;
+	public static inline var BlendOperationAdd = 0;
 	// MTLLoadAction, MTLStoreAction
 	public static inline var LoadActionDontCare = 0;
 	public static inline var LoadActionLoad = 1;
 	public static inline var LoadActionClear = 2;
+	public static inline var StoreActionDontCare = 0;
 	public static inline var StoreActionStore = 1;
 	// MTLResourceOptions, MTLStorageMode, MTLTextureUsage
 	public static inline var ResourceStorageModeShared = 0;

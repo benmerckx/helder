@@ -20,6 +20,15 @@ const FORMATS = ['float32', 'float32x2', 'float32x3', 'float32x4', 'unorm8x4']; 
 const TOPOLOGIES = ['triangle-list', 'triangle-strip', 'line-list', 'point-list']; // Topology
 const CULLS = ['none', 'front', 'back']; // Cull
 const LOADS = ['clear', 'load', 'clear']; // LoadOp (DontCare: clear)
+const COMPARES = ['never', 'less', 'equal', 'less-equal', 'greater', 'not-equal', 'greater-equal', 'always']; // Compare
+const INDEX = ['uint16', 'uint32']; // IndexFormat
+// Blend: Opaque, Alpha, Additive, Premultiplied
+const BLENDS = [
+	undefined,
+	{ color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } },
+	{ color: { srcFactor: 'src-alpha', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } },
+	{ color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } },
+];
 const INFO_LOG_LENGTH = 0x8b84; // (GL's, not WebGL's)
 const RING = 256 * 1024; // the uniform ring (Encoder.UNIFORM_RING)
 const UNIFORM = 0, TEXTURE = 1; // BindingKind
@@ -49,7 +58,8 @@ export default async function (host) {
 	// the pipeline set (its bind group layout and groups), and whether its bind group needs setting
 	let pipe = null, dirty = false;
 	const attachment = { view: null, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } };
-	const passDesc = { colorAttachments: [attachment] };
+	const depthAttachment = { view: null, depthLoadOp: 'clear', depthStoreOp: 'store', depthClearValue: 1 };
+	const passDesc = { colorAttachments: [attachment], depthStencilAttachment: depthAttachment };
 	let captures = [];
 
 	// records a copy of a texture into a buffer; then, once the encoder is
@@ -142,6 +152,7 @@ export default async function (host) {
 			}
 			return handles.add(b);
 		},
+		write_buffer: (b, offset, data, size) => device.queue.writeBuffer(handles.get(b), offset, host.bytes(data, size)),
 		shader(code) {
 			const module = device.createShaderModule({ code: host.string(code) });
 			module.getCompilationInfo().then((info) => {
@@ -162,7 +173,7 @@ export default async function (host) {
 		pipeline_binding(slot, kind, size) {
 			resources.push({ slot, kind, size });
 		},
-		pipeline_end(vertex, fragment, target, topology, cull) {
+		pipeline_end(vertex, fragment, target, topology, cull, blend, depthCompare, depthWrite) {
 			// (a bind group: uniform blocks at dynamic offsets, a texture at its slot and its sampler at 16 + slot)
 			const visibility = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
 			const entries = [];
@@ -174,7 +185,8 @@ export default async function (host) {
 			const pipeline = device.createRenderPipeline({
 				layout: bgl ? device.createPipelineLayout({ bindGroupLayouts: [bgl] }) : 'auto',
 				vertex: { module: handles.get(vertex), entryPoint: 'main', buffers: layout },
-				fragment: { module: handles.get(fragment), entryPoint: 'main', targets: [{ format: handles.get(target).format }] },
+				fragment: { module: handles.get(fragment), entryPoint: 'main', targets: [{ format: handles.get(target).format, blend: BLENDS[blend] }] },
+				depthStencil: { format: 'depth32float', depthWriteEnabled: !!depthWrite, depthCompare: COMPARES[depthCompare] },
 				// (GL's front faces)
 				primitive: { topology: TOPOLOGIES[topology], cullMode: CULLS[cull], frontFace: 'ccw' },
 			});
@@ -186,11 +198,20 @@ export default async function (host) {
 			if (texture.width === 0 || texture.height === 0) return 0;
 			frameTarget = t;
 			attachment.view = texture.createView();
+			// (the depth buffer, of the target's size)
+			if (!t.depth || t.depth.width !== texture.width || t.depth.height !== texture.height) {
+				t.depth?.destroy();
+				t.depth = device.createTexture({ size: [texture.width, texture.height], format: 'depth32float', usage: GPUTextureUsage.RENDER_ATTACHMENT });
+				t.depthView = t.depth.createView();
+			}
+			depthAttachment.view = t.depthView;
 			encoder = device.createCommandEncoder();
 			return 1;
 		},
-		pass_begin(load, r, g, b, a) {
+		pass_begin(load, r, g, b, a, depthLoad, depth) {
 			attachment.loadOp = LOADS[load];
+			depthAttachment.depthLoadOp = LOADS[depthLoad];
+			depthAttachment.depthClearValue = depth;
 			const c = attachment.clearValue;
 			c.r = r;
 			c.g = g;
@@ -211,9 +232,14 @@ export default async function (host) {
 			offsets[slot] = offset;
 			dirty = true;
 		},
+		set_index_buffer: (b, format, offset) => pass.setIndexBuffer(handles.get(b), INDEX[format], offset),
 		draw(vertices, instances, first) {
 			bind();
 			pass.draw(vertices, instances, first, 0);
+		},
+		draw_indexed(count, instances, first, baseVertex) {
+			bind();
+			pass.drawIndexed(count, instances, first, baseVertex, 0);
 		},
 		pass_end() {
 			pass.end();
@@ -230,12 +256,14 @@ export default async function (host) {
 			pixels?.().then((px) => waiting.forEach((w) => w.resolve(px)), (e) => waiting.forEach((w) => w.reject(e)));
 			encoder = null;
 			attachment.view = null;
+			depthAttachment.view = null;
 			texture = null;
 		},
 		release(h) {
 			const o = handles.get(h);
 			o?.destroy?.();
 			o?.texture?.destroy();
+			o?.depth?.destroy();
 			o?.context?.unconfigure();
 			handles.remove(h);
 		},
@@ -289,7 +317,7 @@ export default async function (host) {
 			const c = offscreen ? (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height })) : handles.get(canvas);
 			// (a canvas: presented after each frame's task, read back at swap;
 			// offscreen: nothing presents it, read back at any time)
-			const g = c.getContext('webgl2', { antialias: false, alpha: false, depth: false, preserveDrawingBuffer: offscreen });
+			const g = c.getContext('webgl2', { antialias: false, alpha: false, depth: true, preserveDrawingBuffer: offscreen });
 			if (!g) return 0;
 			host.gfx.backend = 'webgl2';
 			return handles.add({ gl: g, canvas: c, offscreen, captures: [] });
