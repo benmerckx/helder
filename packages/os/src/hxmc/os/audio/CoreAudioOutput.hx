@@ -17,7 +17,9 @@ import sys.thread.Thread;
 // latency, with the device's buffer.
 // "file:PATH": the generic output unit (kAudioUnitSubType_GenericOutput, no
 // device), rendered by a third thread at the clock's pace (AudioUnitRender,
-// which calls the same render callback), what it renders written to PATH.
+// which calls the same render callback), what it renders written to PATH;
+// it waits for a period in the ring rather than render silence, so the
+// file holds what the callback gave, whatever the machine's load.
 @:allow(hxmc.os.audio)
 class CoreAudioOutput {
 	// the ring's header (native memory, the render callback's refCon)
@@ -192,6 +194,9 @@ class CoreAudioOutput {
 		var rendered = 0, t0 = Sys.time();
 		try {
 			while (!quit) {
+				while (!quit && Atomic.load32(ring.add(WRITTEN)) - Atomic.load32(ring.add(READ)) < n)
+					Sys.sleep(0.001);
+				if (quit) break;
 				Mem.setI32(list, 0, 1); // mNumberBuffers
 				Mem.setI32(list, 8, owner.channels);
 				Mem.setI32(list, 12, count * 4);
