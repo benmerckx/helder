@@ -20,6 +20,7 @@ const FORMATS = ['float32', 'float32x2', 'float32x3', 'float32x4', 'unorm8x4']; 
 const TOPOLOGIES = ['triangle-list', 'triangle-strip', 'line-list', 'point-list']; // Topology
 const CULLS = ['none', 'front', 'back']; // Cull
 const LOADS = ['clear', 'load', 'clear']; // LoadOp (DontCare: clear)
+const INFO_LOG_LENGTH = 0x8b84; // (GL's, not WebGL's)
 
 export default async function (host) {
 	let adapter = null, device = null;
@@ -212,7 +213,7 @@ export default async function (host) {
 	}
 	// glGet*iv: INFO_LOG_LENGTH, which WebGL lacks, from the log itself
 	function iv(o, pname, p, param, log) {
-		const x = pname === gl.INFO_LOG_LENGTH ? new TextEncoder().encode(log(o)).length + 1 : param(o, pname);
+		const x = pname === INFO_LOG_LENGTH ? new TextEncoder().encode(log(o)).length + 1 : param(o, pname);
 		view().setInt32(p, typeof x === 'boolean' ? (x ? 1 : 0) : x, true);
 	}
 	// glGet*InfoLog: at most size - 1 bytes and a NUL
