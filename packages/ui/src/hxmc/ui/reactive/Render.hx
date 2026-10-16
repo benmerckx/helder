@@ -267,8 +267,7 @@ class Render {
 	public static function read(v:Dynamic):Dynamic {
 		if (Std.isOfType(v, SignalBase)) return (cast v : Signal<Dynamic>).value;
 		if (Std.isOfType(v, MemoBase)) return (cast v : Memo<Dynamic>).value;
-		// (through Reflect: a () -> Bool called as Void->Dynamic would not box its result)
-		if (Reflect.isFunction(v)) return Reflect.callMethod(null, v, []);
+		if (Reflect.isFunction(v)) return (v : Void->Dynamic)();
 		return v;
 	}
 
