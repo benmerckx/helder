@@ -17,6 +17,8 @@ class UiWindow {
 	public final ui:Ui;
 	public var background:Color = Color.rgb(0xF4F4F5);
 	public var onClose:Null<Void->Void>;
+	// after each frame is drawn
+	public var onFrame:Null<Void->Void>;
 
 	static final open:Array<UiWindow> = [];
 	final pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
@@ -55,6 +57,7 @@ class UiWindow {
 		renderer.end(enc);
 		enc.endPass();
 		device.endFrame();
+		if (onFrame != null) onFrame();
 	}
 
 	// one of the window's events

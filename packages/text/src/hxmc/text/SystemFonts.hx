@@ -4,8 +4,8 @@ import haxe.io.Bytes;
 
 // The fonts a program can use: the system's (TrueType files found in the
 // usual directories of Linux, Windows and macOS, their names read without
-// loading them) and fonts added from bytes (add: a browser has no font
-// files, a program may bring its own). match picks a face as CSS does: the
+// loading them; in a browser, the fonts the page gives: WebFonts) and fonts
+// added from bytes (add: a program may bring its own). match picks a face as CSS does: the
 // family (or a generic one: sans-serif, serif, monospace, mapped to
 // families common on each system), then the italic style, then the closest
 // weight. Faces are loaded (parsed) when first matched.
@@ -137,6 +137,13 @@ class SystemFonts {
 	function scan() {
 		if (scanned) return;
 		scanned = true;
+		#if (target.name == "hxmc")
+		if (hxmc.unsafe.Mem.os() == 3) {
+			for (b in WebFonts.all())
+				add(b);
+			return;
+		}
+		#end
 		var seen = new Map<String, Bool>();
 		function walk(dir:String, depth:Int) {
 			if (depth > 6 || seen.exists(dir)) return;

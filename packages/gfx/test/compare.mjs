@@ -3,7 +3,8 @@
 // a pixel matches when no channel differs by more than TOLERANCE, and at
 // most MAX_OFF of the pixels may differ by more (the triangle's edges); a
 // probe pixel (the centre unless given) must be lit and a corner the clear
-// colour.
+// colour (probe [x, y, 'contrast']: a light scene, the probe only far from
+// the corner's colour).
 export const TOLERANCE = 2;
 export const MAX_OFF = 0.005;
 
@@ -27,9 +28,10 @@ export function compare(what, px, golden, probe) {
 		if (d > TOLERANCE) off++;
 		max = Math.max(max, d);
 	}
-	const [x, y] = probe ?? [width >> 1, height >> 1];
+	const [x, y, mode] = probe ?? [width >> 1, height >> 1];
 	const c = 4 * (y * width + x);
-	const lit = px.data[c] + px.data[c + 1] + px.data[c + 2] > 200 && px.data[0] < 40;
+	const sum = (i) => px.data[i] + px.data[i + 1] + px.data[i + 2];
+	const lit = mode === 'contrast' ? Math.abs(sum(c) - sum(0)) > 150 : sum(c) > 200 && px.data[0] < 40;
 	const ok = lit && off <= MAX_OFF * width * height;
 	return {
 		ok,

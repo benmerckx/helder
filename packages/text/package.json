@@ -4,7 +4,8 @@
   "description": "Text for hxmc, in pure Haxe: TrueType fonts (parsing, outlines, an anti-aliased rasterizer), shaping by cmap and kerning with fallback fonts, line layout and a glyph atlas; the system's fonts found on Linux, Windows and macOS",
   "license": "MIT",
   "files": [
-    "src/"
+    "src/",
+    "imports.mjs"
   ],
   "haxe": {
     "name": "hxmc.text",
