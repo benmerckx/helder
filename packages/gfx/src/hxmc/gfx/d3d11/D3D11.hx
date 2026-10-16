@@ -29,6 +29,7 @@ class IUnknown {
 class ID3D11Device {
 	@:slot(3) static function CreateBuffer(self:Ptr, desc:Ptr<D3D11_BUFFER_DESC>, data:Ptr<D3D11_SUBRESOURCE_DATA>, out:Ptr<Ptr>):Int;
 	@:slot(5) static function CreateTexture2D(self:Ptr, desc:Ptr<D3D11_TEXTURE2D_DESC>, data:Ptr, out:Ptr<Ptr>):Int;
+	@:slot(7) static function CreateShaderResourceView(self:Ptr, resource:Ptr, desc:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(9) static function CreateRenderTargetView(self:Ptr, resource:Ptr, desc:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(10) static function CreateDepthStencilView(self:Ptr, resource:Ptr, desc:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(11) static function CreateInputLayout(self:Ptr, elements:Ptr<D3D11_INPUT_ELEMENT_DESC>, count:Int, code:Ptr, size:Int64, out:Ptr<Ptr>):Int;
@@ -37,6 +38,7 @@ class ID3D11Device {
 	@:slot(20) static function CreateBlendState(self:Ptr, desc:Ptr<D3D11_BLEND_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(21) static function CreateDepthStencilState(self:Ptr, desc:Ptr<D3D11_DEPTH_STENCIL_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(22) static function CreateRasterizerState(self:Ptr, desc:Ptr<D3D11_RASTERIZER_DESC>, out:Ptr<Ptr>):Int;
+	@:slot(23) static function CreateSamplerState(self:Ptr, desc:Ptr<D3D11_SAMPLER_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(33) static function CheckFeatureSupport(self:Ptr, feature:Int, data:Ptr, size:Int):Int;
 	@:slot(37) static function GetFeatureLevel(self:Ptr):Int;
 	@:slot(39) static function GetDeviceRemovedReason(self:Ptr):Int;
@@ -45,7 +47,9 @@ class ID3D11Device {
 @:build(hxmc.gfx.d3d11.Com.build())
 class ID3D11DeviceContext {
 	@:slot(7) static function VSSetConstantBuffers(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>):Void;
+	@:slot(8) static function PSSetShaderResources(self:Ptr, start:Int, count:Int, views:Ptr<Ptr>):Void;
 	@:slot(9) static function PSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
+	@:slot(10) static function PSSetSamplers(self:Ptr, start:Int, count:Int, samplers:Ptr<Ptr>):Void;
 	@:slot(11) static function VSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
 	@:slot(12) static function DrawIndexed(self:Ptr, count:Int, first:Int, baseVertex:Int):Void;
 	@:slot(13) static function Draw(self:Ptr, vertices:Int, first:Int):Void;
@@ -58,6 +62,8 @@ class ID3D11DeviceContext {
 	@:slot(20) static function DrawIndexedInstanced(self:Ptr, count:Int, instances:Int, first:Int, baseVertex:Int, firstInstance:Int):Void;
 	@:slot(21) static function DrawInstanced(self:Ptr, vertices:Int, instances:Int, first:Int, firstInstance:Int):Void;
 	@:slot(24) static function IASetPrimitiveTopology(self:Ptr, topology:Int):Void;
+	@:slot(25) static function VSSetShaderResources(self:Ptr, start:Int, count:Int, views:Ptr<Ptr>):Void;
+	@:slot(26) static function VSSetSamplers(self:Ptr, start:Int, count:Int, samplers:Ptr<Ptr>):Void;
 	@:slot(33) static function OMSetRenderTargets(self:Ptr, count:Int, views:Ptr<Ptr>, depth:Ptr):Void;
 	@:slot(35) static function OMSetBlendState(self:Ptr, state:Ptr, factor:Ptr<Float32>, mask:Int):Void;
 	@:slot(36) static function OMSetDepthStencilState(self:Ptr, state:Ptr, ref:Int):Void;
@@ -133,6 +139,7 @@ class D3D {
 	public static inline var BIND_VERTEX_BUFFER = 0x1;
 	public static inline var BIND_INDEX_BUFFER = 0x2;
 	public static inline var BIND_CONSTANT_BUFFER = 0x4;
+	public static inline var BIND_SHADER_RESOURCE = 0x8;
 	public static inline var BIND_RENDER_TARGET = 0x20;
 	public static inline var BIND_DEPTH_STENCIL = 0x40;
 	public static inline var CPU_ACCESS_WRITE = 0x10000;
@@ -155,6 +162,12 @@ class D3D {
 	public static inline var COMPARISON_ALWAYS = 8;
 	public static inline var STENCIL_OP_KEEP = 1;
 	public static inline var CLEAR_DEPTH = 1;
+	// D3D11_FILTER, D3D11_TEXTURE_ADDRESS_MODE
+	public static inline var FILTER_MIN_MAG_MIP_POINT = 0;
+	public static inline var FILTER_MIN_MAG_MIP_LINEAR = 0x15;
+	public static inline var TEXTURE_ADDRESS_WRAP = 1;
+	public static inline var TEXTURE_ADDRESS_MIRROR = 2;
+	public static inline var TEXTURE_ADDRESS_CLAMP = 3;
 	// D3D11_BLEND, D3D11_BLEND_OP
 	public static inline var BLEND_ZERO = 1;
 	public static inline var BLEND_ONE = 2;
@@ -276,6 +289,22 @@ class IID {
 	var DestBlendAlpha:Int32;
 	var BlendOpAlpha:Int32;
 	var RenderTargetWriteMask:UInt8;
+}
+
+@:hxmc.struct @:publicFields class D3D11_SAMPLER_DESC {
+	var Filter:Int32;
+	var AddressU:Int32;
+	var AddressV:Int32;
+	var AddressW:Int32;
+	var MipLODBias:Float32;
+	var MaxAnisotropy:UInt32;
+	var ComparisonFunc:Int32;
+	var BorderColor0:Float32; // BorderColor[4]
+	var BorderColor1:Float32;
+	var BorderColor2:Float32;
+	var BorderColor3:Float32;
+	var MinLOD:Float32;
+	var MaxLOD:Float32;
 }
 
 @:hxmc.struct @:publicFields class D3D11_BOX {

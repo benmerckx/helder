@@ -94,6 +94,19 @@ class ShaderTest {
 		nearVec("BuiltinShader.vs", b.pos, [1, 2, 3, 0.5]);
 		var c = @:privateAccess BuiltinShader.fs(b);
 		check("BuiltinShader.fs", [c.x, c.y, c.z, c.w].filter(Math.isFinite).length == 4, Std.string([c.x, c.y, c.z, c.w]));
+		// (textures on the CPU: the nearest texel, repeating; rows top to bottom)
+		var texels = Bytes.alloc(2 * 2 * 4);
+		for (i in 0...4) {
+			texels.set(4 * i, 255);
+			texels.set(4 * i + 1, [0, 64, 128, 255][i]);
+			texels.set(4 * i + 3, 255);
+		}
+		var tex = new Texture2D(2, 2, texels);
+		near("sample", sample(tex, vec2(0.75, 0.25)).y, 64 / 255);
+		near("sample, repeating", sample(tex, vec2(-0.25, 1.75)).y, 255 / 255);
+		var tv = @:privateAccess TexturedShader.vs({pos: vec2(0, 0), uv: vec2(0.25, 0.75)}, tex);
+		near("TexturedShader.vs lift", tv.lift, 1);
+		nearVec("TexturedShader.fs", @:privateAccess TexturedShader.fs(tv, {amount: 0.5}, tex, tex), [1, (0.5 + 128 / 255) / 2, 0, 1]);
 	}
 
 	// the generated layouts and writers
@@ -118,6 +131,11 @@ class ShaderTest {
 		check("LitShader.writeCamera", [for (i in 0...20) bytes.getFloat(16 + 4 * i)].join(",") == "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,-1,-2,-3,7");
 		LitShader.writeMaterial({tint: vec4(0.5), steps: 3}, bytes);
 		check("LitShader.writeMaterial", bytes.getFloat(12) == 0.5 && bytes.getInt32(16) == 3);
+		var t = TexturedShader.textures, tu = TexturedShader.uniforms;
+		check("TexturedShader.textures", t.length == 2 && t[0].name == "height" && t[0].binding == 0 && t[1].name == "albedo" && t[1].binding == 2
+			&& tu.length == 1 && tu[0].binding == 1, Std.string(t) + " " + Std.string(tu));
+		var bs = TexturedShader.fragmentCode.bindings;
+		check("TexturedShader.fragmentCode.bindings", bs.length == 3 && bs[0].name == "Fade_block" && bs[0].slot == 1 && bs[1].name == "tex_2" && bs[2].name == "tex_0", Std.string(bs));
 	}
 
 	// the emitted source against the golden files
@@ -128,7 +146,9 @@ class ShaderTest {
 			{name: "LitShader.vert", code: LitShader.vertexCode},
 			{name: "LitShader.frag", code: LitShader.fragmentCode},
 			{name: "BuiltinShader.vert", code: BuiltinShader.vertexCode},
-			{name: "BuiltinShader.frag", code: BuiltinShader.fragmentCode}
+			{name: "BuiltinShader.frag", code: BuiltinShader.fragmentCode},
+			{name: "TexturedShader.vert", code: TexturedShader.vertexCode},
+			{name: "TexturedShader.frag", code: TexturedShader.fragmentCode}
 		];
 		for (c in codes)
 			for (l in ["glsl", "wgsl", "msl", "hlsl"]) {

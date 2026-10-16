@@ -19,9 +19,10 @@ class WebTest {
 		if (Sys.args()[0] == "headless") {
 			var device = Device.create(Surface.headless(256, 192));
 			var triangle = new Triangle(device);
-			// (the shader macro's other test shaders, with uniform blocks and every builtin: this back end compiles them)
+			// (the shader macro's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
 			device.createPipeline(LitShader.pipeline());
 			device.createPipeline(BuiltinShader.pipeline());
+		device.createPipeline(TexturedShader.pipeline());
 			if (device.backend == WebGL2) {
 				var pixels = haxe.io.Bytes.alloc(256 * 192 * 4);
 				triangle.draw(device.beginFrame());

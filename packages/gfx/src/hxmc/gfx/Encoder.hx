@@ -28,6 +28,10 @@ final class Encoder {
 	public inline function setUniforms(slot:Int, data:haxe.io.Bytes, offset = 0, size = -1)
 		impl.setUniforms(slot, data, offset, size < 0 ? data.length - offset : size);
 
+	// a texture and the sampler that reads it, at its slot (a shader class's textures: binding)
+	public inline function setTexture(slot:Int, t:Texture, s:Sampler)
+		impl.setTexture(slot, t.id(), s.id());
+
 	public inline function draw(vertices:Int, instances = 1, firstVertex = 0)
 		impl.draw(vertices, instances, firstVertex);
 

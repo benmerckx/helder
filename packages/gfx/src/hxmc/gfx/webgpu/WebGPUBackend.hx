@@ -25,6 +25,7 @@ class WebGPUBackend {
 	final target:Int;
 	final handles:Array<Int> = []; // what dispose releases
 	final bindings = new Map<Int, Array<ShaderBinding>>(); // each shader's
+	final textureSizes = new Map<Int, Int>(); // each texture's width * height
 	var cursor = 0; // into the frame's uniform ring
 
 	public function new(surface:Surface) {
@@ -52,6 +53,26 @@ class WebGPUBackend {
 	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
 		if (offset & 3 != 0 || size & 3 != 0) throw "hxmc.gfx: writeBuffer: WebGPU writes multiples of 4 bytes at multiples of 4";
 		WebGPU.write_buffer(id, offset, Mem.addr(data).add(8 + dataOffset), size);
+	}
+
+	public function createTexture(d:TextureDesc):Int {
+		// (the Bytes cannot move during the call: no collection in an import)
+		var t = WebGPU.texture(d.width, d.height, d.data == null ? Ptr.nil() : Mem.addr(d.data).add(8));
+		textureSizes.set(t, d.width * d.height);
+		handles.push(t);
+		return t;
+	}
+
+	public function writeTexture(id:Int, data:haxe.io.Bytes) {
+		if (data.length < textureSizes.get(id) * 4) throw "hxmc.gfx: writeTexture: data has fewer than width * height * 4 bytes";
+		WebGPU.write_texture(id, Mem.addr(data).add(8));
+	}
+
+	public function createSampler(d:SamplerDesc):Int {
+		var f:Filter = d.filter == null ? Linear : d.filter, w:Wrap = d.wrap == null ? Repeat : d.wrap;
+		var s = WebGPU.sampler(cast f, cast w);
+		handles.push(s);
+		return s;
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -112,6 +133,9 @@ class WebGPUBackend {
 
 	public inline function draw(vertices:Int, instances:Int, first:Int)
 		WebGPU.draw(vertices, instances, first);
+
+	public inline function setTexture(slot:Int, texture:Int, sampler:Int)
+		WebGPU.set_texture(slot, texture, sampler);
 
 	public inline function setIndexBuffer(id:Int, format:IndexFormat, offset:Int)
 		WebGPU.set_index_buffer(id, cast format, offset);

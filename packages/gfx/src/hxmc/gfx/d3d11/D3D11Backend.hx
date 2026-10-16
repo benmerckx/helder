@@ -14,6 +14,8 @@ import hxmc.unsafe.*;
 // feature level 11_0), vertex inputs at semantic TEXCOORD<location> (as
 // SPIRV-Cross names them); a 32-bit float depth buffer of the target's
 // size; a pipeline's state objects (rasterizer, depth, blend) made with it.
+// A texture at slot n is a shader resource view at tn and its sampler at
+// sn, in both stages.
 // readPixels copies the target into a staging texture
 // and maps it. Uniform blocks: with Direct3D 11.1's constant buffer offsets
 // (VSSetConstantBuffers1; WARP has them), a dynamic ring buffer written
@@ -55,6 +57,8 @@ class D3D11Backend {
 
 	// tables (handle = index + 1)
 	final buffers:Array<Ptr> = []; // ID3D11Buffer
+	final textures:Array<D3DTexture> = [];
+	final samplers:Array<Ptr> = []; // ID3D11SamplerState
 	final shaders:Array<D3DShader> = [];
 	final pipelines:Array<D3DPipeline> = [];
 
@@ -237,6 +241,68 @@ class D3D11Backend {
 		box.value.front = 0;
 		box.value.back = 1;
 		ID3D11DeviceContext.UpdateSubresource(context, buffers[id - 1], 0, box, upload, 0, 0);
+	}
+
+	public function createTexture(d:TextureDesc):Int {
+		var hr = Arena.scopedValue(a -> {
+			var t = a.make(D3D11_TEXTURE2D_DESC);
+			t.value.Width = d.width;
+			t.value.Height = d.height;
+			t.value.MipLevels = 1;
+			t.value.ArraySize = 1;
+			t.value.Format = D3D.FORMAT_R8G8B8A8_UNORM;
+			t.value.SampleCount = 1;
+			t.value.Usage = D3D.USAGE_DEFAULT;
+			t.value.BindFlags = D3D.BIND_SHADER_RESOURCE;
+			var init:Ptr<D3D11_SUBRESOURCE_DATA> = Ptr.nil();
+			if (d.data != null) {
+				init = a.make(D3D11_SUBRESOURCE_DATA);
+				init.value.pSysMem = a.copyBytes(d.data, 0, d.width * d.height * 4);
+				init.value.SysMemPitch = d.width * 4;
+			}
+			ID3D11Device.CreateTexture2D(device, t, init, scratch);
+		});
+		check(hr, "CreateTexture2D (" + d.width + "x" + d.height + ")");
+		var tex = scratch.value;
+		hr = ID3D11Device.CreateShaderResourceView(device, tex, Ptr.nil(), scratch);
+		if (hr < 0) Com.release(tex);
+		check(hr, "CreateShaderResourceView");
+		textures.push(new D3DTexture(tex, scratch.value, d.width, d.height));
+		return textures.length;
+	}
+
+	public function writeTexture(id:Int, data:haxe.io.Bytes) {
+		var t = textures[id - 1];
+		if (data.length < t.width * t.height * 4) throw "hxmc.gfx: writeTexture: data has fewer than width * height * 4 bytes";
+		Arena.scoped(a -> ID3D11DeviceContext.UpdateSubresource(context, t.texture, 0, Ptr.nil(), a.copyBytes(data, 0, t.width * t.height * 4), t.width * 4, 0));
+	}
+
+	public function createSampler(d:SamplerDesc):Int {
+		var hr = Arena.scopedValue(a -> {
+			var s = a.make(D3D11_SAMPLER_DESC);
+			s.value.Filter = d.filter == Nearest ? D3D.FILTER_MIN_MAG_MIP_POINT : D3D.FILTER_MIN_MAG_MIP_LINEAR;
+			var w = switch d.wrap {
+				case null | Repeat: D3D.TEXTURE_ADDRESS_WRAP;
+				case Clamp: D3D.TEXTURE_ADDRESS_CLAMP;
+				case Mirror: D3D.TEXTURE_ADDRESS_MIRROR;
+			}
+			s.value.AddressU = w;
+			s.value.AddressV = w;
+			s.value.AddressW = w;
+			s.value.MipLODBias = 0;
+			s.value.MaxAnisotropy = 1;
+			s.value.ComparisonFunc = D3D.COMPARISON_NEVER;
+			s.value.BorderColor0 = 0;
+			s.value.BorderColor1 = 0;
+			s.value.BorderColor2 = 0;
+			s.value.BorderColor3 = 0;
+			s.value.MinLOD = 0;
+			s.value.MaxLOD = 3.402823466e38;
+			ID3D11Device.CreateSamplerState(device, s, scratch);
+		});
+		check(hr, "CreateSamplerState");
+		samplers.push(scratch.value);
+		return samplers.length;
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -465,6 +531,15 @@ class D3D11Backend {
 			ID3D11DeviceContext.DrawInstanced(context, vertices, instances, first, 0);
 	}
 
+	public function setTexture(slot:Int, texture:Int, sampler:Int) {
+		cbuf.value = textures[texture - 1].view;
+		ID3D11DeviceContext.VSSetShaderResources(context, slot, 1, cbuf);
+		ID3D11DeviceContext.PSSetShaderResources(context, slot, 1, cbuf);
+		cbuf.value = samplers[sampler - 1];
+		ID3D11DeviceContext.VSSetSamplers(context, slot, 1, cbuf);
+		ID3D11DeviceContext.PSSetSamplers(context, slot, 1, cbuf);
+	}
+
 	public function setIndexBuffer(id:Int, format:IndexFormat, offset:Int)
 		ID3D11DeviceContext.IASetIndexBuffer(context, buffers[id - 1], format == UInt16 ? D3D.FORMAT_R16_UINT : D3D.FORMAT_R32_UINT, offset);
 
@@ -547,6 +622,12 @@ class D3D11Backend {
 			Com.release(b);
 		for (b in slotBuffers)
 			Com.release(b);
+		for (t in textures) {
+			Com.release(t.view);
+			Com.release(t.texture);
+		}
+		for (s in samplers)
+			Com.release(s);
 		Com.release(ring);
 		Com.release(context1);
 		Com.release(staging);
@@ -579,6 +660,21 @@ private class D3DShader {
 	public function new(shader:Ptr, code:Ptr) {
 		this.shader = shader;
 		this.code = code;
+	}
+}
+
+// a texture and its shader resource view
+private class D3DTexture {
+	public final texture:Ptr;
+	public final view:Ptr;
+	public final width:Int;
+	public final height:Int;
+
+	public function new(texture:Ptr, view:Ptr, width:Int, height:Int) {
+		this.texture = texture;
+		this.view = view;
+		this.width = width;
+		this.height = height;
 	}
 }
 

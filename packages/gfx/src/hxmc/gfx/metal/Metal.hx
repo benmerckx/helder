@@ -10,6 +10,7 @@ import hxmc.unsafe.*;
 
 class MTL {
 	// MTLPixelFormat
+	public static inline var PixelFormatRGBA8Unorm = 70;
 	public static inline var PixelFormatBGRA8Unorm = 80;
 	public static inline var PixelFormatDepth32Float = 252;
 	// MTLVertexFormat
@@ -45,7 +46,14 @@ class MTL {
 	// MTLResourceOptions, MTLStorageMode, MTLTextureUsage
 	public static inline var ResourceStorageModeShared = 0;
 	public static inline var StorageModePrivate = 2;
+	public static inline var TextureUsageShaderRead = 1;
 	public static inline var TextureUsageRenderTarget = 4;
+	// MTLSamplerMinMagFilter, MTLSamplerAddressMode
+	public static inline var SamplerMinMagFilterNearest = 0;
+	public static inline var SamplerMinMagFilterLinear = 1;
+	public static inline var SamplerAddressModeClampToEdge = 0;
+	public static inline var SamplerAddressModeRepeat = 2;
+	public static inline var SamplerAddressModeMirrorRepeat = 3;
 	// MTLCommandBufferStatus
 	public static inline var CommandBufferStatusError = 5;
 }
@@ -76,4 +84,9 @@ class MTL {
 	var width:Int64;
 	var height:Int64;
 	var depth:Int64;
+}
+
+@:hxmc.struct @:publicFields class MTLRegion {
+	var origin:MTLOrigin;
+	var size:MTLSize;
 }

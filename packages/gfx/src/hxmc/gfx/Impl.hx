@@ -54,6 +54,15 @@ abstract Impl(Any) {
 	public inline function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int)
 		Mem.os() == 1 ? mtl().writeBuffer(id, offset, data, dataOffset, size) : Mem.os() == 2 ? d3d().writeBuffer(id, offset, data, dataOffset, size) : Mem.os() != 3 ? gl().writeBuffer(id, offset, data, dataOffset, size) : webgl() ? gl().writeBuffer(id, offset, data, dataOffset, size) : wgpu().writeBuffer(id, offset, data, dataOffset, size);
 
+	public inline function createTexture(d:TextureDesc):Int
+		return Mem.os() == 1 ? mtl().createTexture(d) : Mem.os() == 2 ? d3d().createTexture(d) : Mem.os() != 3 ? gl().createTexture(d) : webgl() ? gl().createTexture(d) : wgpu().createTexture(d);
+
+	public inline function writeTexture(id:Int, data:haxe.io.Bytes)
+		Mem.os() == 1 ? mtl().writeTexture(id, data) : Mem.os() == 2 ? d3d().writeTexture(id, data) : Mem.os() != 3 ? gl().writeTexture(id, data) : webgl() ? gl().writeTexture(id, data) : wgpu().writeTexture(id, data);
+
+	public inline function createSampler(d:SamplerDesc):Int
+		return Mem.os() == 1 ? mtl().createSampler(d) : Mem.os() == 2 ? d3d().createSampler(d) : Mem.os() != 3 ? gl().createSampler(d) : webgl() ? gl().createSampler(d) : wgpu().createSampler(d);
+
 	public inline function createShader(d:ShaderDesc):Int
 		return Mem.os() == 1 ? mtl().createShader(d) : Mem.os() == 2 ? d3d().createShader(d) : Mem.os() != 3 ? gl().createShader(d) : webgl() ? gl().createShader(d) : wgpu().createShader(d);
 
@@ -77,6 +86,9 @@ abstract Impl(Any) {
 
 	public inline function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int)
 		Mem.os() == 1 ? mtl().setUniforms(slot, data, offset, size) : Mem.os() == 2 ? d3d().setUniforms(slot, data, offset, size) : Mem.os() != 3 ? gl().setUniforms(slot, data, offset, size) : webgl() ? gl().setUniforms(slot, data, offset, size) : wgpu().setUniforms(slot, data, offset, size);
+
+	public inline function setTexture(slot:Int, texture:Int, sampler:Int)
+		Mem.os() == 1 ? mtl().setTexture(slot, texture, sampler) : Mem.os() == 2 ? d3d().setTexture(slot, texture, sampler) : Mem.os() != 3 ? gl().setTexture(slot, texture, sampler) : webgl() ? gl().setTexture(slot, texture, sampler) : wgpu().setTexture(slot, texture, sampler);
 
 	public inline function draw(vertices:Int, instances:Int, first:Int)
 		Mem.os() == 1 ? mtl().draw(vertices, instances, first) : Mem.os() == 2 ? d3d().draw(vertices, instances, first) : Mem.os() != 3 ? gl().draw(vertices, instances, first) : webgl() ? gl().draw(vertices, instances, first) : wgpu().draw(vertices, instances, first);

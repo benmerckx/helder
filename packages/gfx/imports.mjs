@@ -22,6 +22,7 @@ const CULLS = ['none', 'front', 'back']; // Cull
 const LOADS = ['clear', 'load', 'clear']; // LoadOp (DontCare: clear)
 const COMPARES = ['never', 'less', 'equal', 'less-equal', 'greater', 'not-equal', 'greater-equal', 'always']; // Compare
 const INDEX = ['uint16', 'uint32']; // IndexFormat
+const WRAPS = ['repeat', 'clamp-to-edge', 'mirror-repeat']; // Wrap
 // Blend: Opaque, Alpha, Additive, Premultiplied
 const BLENDS = [
 	undefined,
@@ -153,6 +154,19 @@ export default async function (host) {
 			return handles.add(b);
 		},
 		write_buffer: (b, offset, data, size) => device.queue.writeBuffer(handles.get(b), offset, host.bytes(data, size)),
+		texture(width, height, data) {
+			const texture = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+			if (data) device.queue.writeTexture({ texture }, host.bytes(data, width * height * 4), { bytesPerRow: width * 4 }, [width, height]);
+			return handles.add({ texture, view: texture.createView() });
+		},
+		write_texture(t, data) {
+			const { texture } = handles.get(t);
+			device.queue.writeTexture({ texture }, host.bytes(data, texture.width * texture.height * 4), { bytesPerRow: texture.width * 4 }, [texture.width, texture.height]);
+		},
+		sampler(filter, wrap) {
+			const f = filter ? 'linear' : 'nearest', w = WRAPS[wrap];
+			return handles.add(device.createSampler({ magFilter: f, minFilter: f, addressModeU: w, addressModeV: w }));
+		},
 		shader(code) {
 			const module = device.createShaderModule({ code: host.string(code) });
 			module.getCompilationInfo().then((info) => {
@@ -226,6 +240,11 @@ export default async function (host) {
 			dirty = !!pipe.bgl;
 		},
 		set_vertex_buffer: (slot, b, offset) => pass.setVertexBuffer(slot, handles.get(b), offset),
+		set_texture(slot, t, s) {
+			textures[slot] = t;
+			samplers[slot] = s;
+			dirty = true;
+		},
 		set_uniforms(slot, offset, data, size) {
 			ring.staging.set(host.bytes(data, size), offset);
 			ring.used = Math.max(ring.used, offset + size);

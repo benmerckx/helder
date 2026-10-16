@@ -17,6 +17,7 @@ import hxmc.unsafe.*;
 // of two (frames in flight), and binds the range (glBindBufferRange). The
 // depth buffer is the default framebuffer's (24 bits); ES 3.0 has no base
 // vertex, so drawIndexed's moves the vertex attributes' offsets instead.
+// A texture at slot n is bound to texture unit n with its sampler object.
 class GLBackend {
 	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
@@ -38,6 +39,9 @@ class GLBackend {
 	final shaders:Array<Int> = [];
 	final bindings:Array<Array<ShaderBinding>> = []; // each shader's
 	final pipelines:Array<GLPipeline> = [];
+	final textures:Array<Int> = [];
+	final textureSizes:Array<Int> = []; // width, height
+	final samplers:Array<Int> = [];
 
 	// draw state
 	var pipeline:GLPipeline = null;
@@ -51,6 +55,7 @@ class GLBackend {
 	var itype = GL.UNSIGNED_SHORT;
 	var ioffset = 0;
 	var depthMask = true; // glDepthMask as it is
+	final units = [for (_ in 0...16) 0]; // each texture unit's texture (setTexture)
 	// the uniform rings (one per frame in flight: made at the first
 	// setUniforms), the frame's, and the next offset into it
 	final rings = [0, 0];
@@ -162,6 +167,55 @@ class GLBackend {
 		if (target == GL.ELEMENT_ARRAY_BUFFER) ibuf = -1;
 		// (a fast call: the Bytes cannot move during it)
 		GL.glBufferSubData(target, offset, size, Mem.addr(data).add(8 + dataOffset));
+	}
+
+	public function createTexture(d:TextureDesc):Int {
+		GL.glGenTextures(1, scratch);
+		var t = scratch.value;
+		upload(t, d.width, d.height, d.data, true);
+		textures.push(t);
+		textureSizes.push(d.width);
+		textureSizes.push(d.height);
+		return textures.length;
+	}
+
+	public function writeTexture(id:Int, data:haxe.io.Bytes) {
+		var w = textureSizes[2 * id - 2], h = textureSizes[2 * id - 1];
+		if (data.length < w * h * 4) throw "hxmc.gfx: writeTexture: data has fewer than width * height * 4 bytes";
+		upload(textures[id - 1], w, h, data, false);
+	}
+
+	// the texels (none: undefined) of a new texture or all of one, through unit
+	// 0, whose texture is put back
+	function upload(t:Int, w:Int, h:Int, data:Null<haxe.io.Bytes>, create:Bool) {
+		GL.glActiveTexture(GL.TEXTURE0);
+		GL.glBindTexture(GL.TEXTURE_2D, t);
+		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 4);
+		// (fast calls: the Bytes cannot move during them)
+		if (create) {
+			GL.glTexImage2D(GL.TEXTURE_2D, 0, GL.RGBA8, w, h, 0, GL.RGBA, GL.UNSIGNED_BYTE, data == null ? Ptr.nil() : Mem.addr(data).add(8));
+			// (one level: complete with any sampler)
+			GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAX_LEVEL, 0);
+			GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR);
+		} else GL.glTexSubImage2D(GL.TEXTURE_2D, 0, 0, 0, w, h, GL.RGBA, GL.UNSIGNED_BYTE, Mem.addr(data).add(8));
+		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
+	}
+
+	public function createSampler(d:SamplerDesc):Int {
+		GL.glGenSamplers(1, scratch);
+		var s = scratch.value;
+		var f = d.filter == Nearest ? GL.NEAREST : GL.LINEAR;
+		var w = switch d.wrap {
+			case null | Repeat: GL.REPEAT;
+			case Clamp: GL.CLAMP_TO_EDGE;
+			case Mirror: GL.MIRRORED_REPEAT;
+		}
+		GL.glSamplerParameteri(s, GL.TEXTURE_MIN_FILTER, f);
+		GL.glSamplerParameteri(s, GL.TEXTURE_MAG_FILTER, f);
+		GL.glSamplerParameteri(s, GL.TEXTURE_WRAP_S, w);
+		GL.glSamplerParameteri(s, GL.TEXTURE_WRAP_T, w);
+		samplers.push(s);
+		return samplers.length;
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -299,6 +353,12 @@ class GLBackend {
 	public function draw(vertices:Int, instances:Int, first:Int) {
 		attributes(0);
 		instances == 1 ? GL.glDrawArrays(pipeline.topology, first, vertices) : GL.glDrawArraysInstanced(pipeline.topology, first, vertices, instances);
+	}
+
+	public function setTexture(slot:Int, texture:Int, sampler:Int) {
+		GL.glActiveTexture(GL.TEXTURE0 + slot);
+		GL.glBindTexture(GL.TEXTURE_2D, units[slot] = textures[texture - 1]);
+		GL.glBindSampler(slot, samplers[sampler - 1]);
 	}
 
 	public function setIndexBuffer(id:Int, format:IndexFormat, offset:Int) {

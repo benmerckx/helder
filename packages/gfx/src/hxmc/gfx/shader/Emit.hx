@@ -8,8 +8,11 @@ import hxmc.gfx.shader.Ir;
 // writes its result out. Statements and expressions print alike in all
 // four (C's syntax; WGSL's differs in declarations, which Wgsl overrides);
 // nested operations are parenthesized. The entry points' names (main,
-// main0, StageIn, StageOut, in_*, v_*, out_*, u_*, make_*) are kept from
-// the program's own names by Lower.
+// main0, StageIn, StageOut, in_*, v_*, out_*, u_*, make_*, tex_*, smp_*) are
+// kept from the program's own names by Lower. A texture parameter is two
+// where the language separates the sampler (<name>_smp, which Lower keeps
+// free); sample reads the first mip level (textures have one for now; and
+// so no derivatives, which WGSL allows in uniform control flow only).
 class Emit {
 	var buf:StringBuf;
 	var indent = "";
@@ -42,10 +45,18 @@ class Emit {
 	}
 
 	function func(f:SFunction) {
-		line(type(f.ret) + " " + f.name + "(" + [for (p in f.params) type(p.type) + " " + p.name].join(", ") + ") {");
+		line(type(f.ret) + " " + f.name + "(" + [for (p in f.params) param(p)].join(", ") + ") {");
 		body(f.body);
 		line("}");
 	}
+
+	// a parameter (a texture: with its sampler, where the language has one)
+	function param(v:SVar):String
+		return type(v.type) + " " + v.name;
+
+	// an argument (a texture: with its sampler)
+	function arg(e:SExpr):String
+		return expr(e);
 
 	function declare(v:SVar, init:Null<SExpr>):String
 		return type(v.type) + " " + v.name + (init == null ? "" : " = " + expr(init)) + ";";
@@ -105,7 +116,7 @@ class Emit {
 			case ECond(c, a, b): cond(c, a, b);
 			case ENew(args): construct(e.t, args);
 			case EBuiltin(name, args): builtin(name, args, e.t);
-			case ECall(f, args): f.name + "(" + [for (a in args) expr(a)].join(", ") + ")";
+			case ECall(f, args): f.name + "(" + [for (a in args) arg(a)].join(", ") + ")";
 			case EConvert(x): type(e.t) + "(" + expr(x) + ")";
 		}
 

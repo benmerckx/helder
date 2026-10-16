@@ -16,7 +16,8 @@ import hxmc.unsafe.*;
 // into the command stream, setVertexBytes and setFragmentBytes, at most
 // 4 KB). The colour target is BGRA8 (the layer's own format): readPixels
 // swaps it to RGBA. The depth buffer is a Depth32Float texture of the target's size,
-// remade when the drawable's size changes.
+// remade when the drawable's size changes. A texture at slot n is [[texture(n)]] and its
+// sampler [[sampler(n)]], in both stages.
 class MetalBackend {
 	public final backend = Backend.Metal;
 	public var width(default, null) = 0;
@@ -41,6 +42,7 @@ class MetalBackend {
 	final size:Ptr<MTLSize>;
 	final uniforms:Ptr<UInt8>; // a block on its way to setVertexBytes (MAX_BYTES)
 	var readback = Ptr.nil(); // readPixels' MTLBuffer
+	final region:Ptr<MTLRegion>; // writeTexture's
 	var readbackSize = 0;
 
 	// tables (handle = index + 1)
@@ -48,6 +50,8 @@ class MetalBackend {
 	final shaders:Array<Ptr> = []; // MTLFunction
 	final libraries:Array<Ptr> = [];
 	final pipelines:Array<MtlPipeline> = [];
+	final textures:Array<Ptr> = []; // MTLTexture
+	final samplers:Array<Ptr> = []; // MTLSamplerState
 
 	// the frame
 	var pool = Ptr.nil();
@@ -76,6 +80,7 @@ class MetalBackend {
 		viewport = LibC.malloc(48);
 		origin = LibC.malloc(24);
 		size = LibC.malloc(24);
+		region = LibC.malloc(48);
 		uniforms = LibC.malloc(MAX_BYTES);
 		pass = make("MTLRenderPassDescriptor");
 		attachment = Msg.idInt(Msg.id(pass, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
@@ -146,6 +151,53 @@ class MetalBackend {
 		if (offset + size > Msg.i(b, ObjC.sel("length")).toInt()) throw "hxmc.gfx: writeBuffer: past the buffer's end";
 		var dst:Ptr<UInt8> = Msg.id(b, ObjC.sel("contents"));
 		LibC.memcpy(dst.add(offset), Mem.addr(data).add(8 + dataOffset), (size : Int64));
+	}
+
+	public function createTexture(d:TextureDesc):Int {
+		var desc = make("MTLTextureDescriptor");
+		Msg.vInt(desc, ObjC.sel("setPixelFormat:"), MTL.PixelFormatRGBA8Unorm);
+		Msg.vInt(desc, ObjC.sel("setWidth:"), d.width);
+		Msg.vInt(desc, ObjC.sel("setHeight:"), d.height);
+		Msg.vInt(desc, ObjC.sel("setUsage:"), MTL.TextureUsageShaderRead);
+		var t = Msg.idPtr(device, ObjC.sel("newTextureWithDescriptor:"), desc);
+		Runtime.objc_release(desc);
+		if (t.isNull()) throw "hxmc.gfx: cannot create a " + d.width + "x" + d.height + " texture";
+		textures.push(t);
+		if (d.data != null) writeTexture(textures.length, d.data);
+		return textures.length;
+	}
+
+	public function writeTexture(id:Int, data:haxe.io.Bytes) {
+		var t = textures[id - 1];
+		var w = Msg.i(t, S.width).toInt(), h = Msg.i(t, S.height).toInt();
+		if (data.length < w * h * 4) throw "hxmc.gfx: writeTexture: data has fewer than width * height * 4 bytes";
+		region.value.origin.x = 0;
+		region.value.origin.y = 0;
+		region.value.origin.z = 0;
+		region.value.size.width = w;
+		region.value.size.height = h;
+		region.value.size.depth = 1;
+		// (a copy first: the Bytes may move during a message)
+		Arena.scoped(a -> MtlMsg.vRegionIntPtrInt(t, ObjC.sel("replaceRegion:mipmapLevel:withBytes:bytesPerRow:"), region.value, 0, a.copyBytes(data, 0, w * h * 4), w * 4));
+	}
+
+	public function createSampler(d:SamplerDesc):Int {
+		var desc = make("MTLSamplerDescriptor");
+		var f = d.filter == Nearest ? MTL.SamplerMinMagFilterNearest : MTL.SamplerMinMagFilterLinear;
+		var w = switch d.wrap {
+			case null | Repeat: MTL.SamplerAddressModeRepeat;
+			case Clamp: MTL.SamplerAddressModeClampToEdge;
+			case Mirror: MTL.SamplerAddressModeMirrorRepeat;
+		}
+		Msg.vInt(desc, ObjC.sel("setMinFilter:"), f);
+		Msg.vInt(desc, ObjC.sel("setMagFilter:"), f);
+		Msg.vInt(desc, ObjC.sel("setSAddressMode:"), w);
+		Msg.vInt(desc, ObjC.sel("setTAddressMode:"), w);
+		var s = Msg.idPtr(device, ObjC.sel("newSamplerStateWithDescriptor:"), desc);
+		Runtime.objc_release(desc);
+		if (s.isNull()) throw "hxmc.gfx: cannot create a sampler";
+		samplers.push(s);
+		return samplers.length;
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -301,6 +353,14 @@ class MetalBackend {
 	public function draw(vertices:Int, instances:Int, first:Int)
 		MtlMsg.vIntIntIntInt(enc, S.drawPrimitives, pipeline.topology, first, vertices, instances);
 
+	public function setTexture(slot:Int, texture:Int, sampler:Int) {
+		var t = textures[texture - 1], s = samplers[sampler - 1];
+		MtlMsg.vPtrInt(enc, S.setVertexTexture, t, slot);
+		MtlMsg.vPtrInt(enc, S.setFragmentTexture, t, slot);
+		MtlMsg.vPtrInt(enc, S.setVertexSamplerState, s, slot);
+		MtlMsg.vPtrInt(enc, S.setFragmentSamplerState, s, slot);
+	}
+
 	public function setIndexBuffer(id:Int, format:IndexFormat, offset:Int) {
 		ibuf = buffers[id - 1];
 		itype = format == UInt16 ? MTL.IndexTypeUInt16 : MTL.IndexTypeUInt32;
@@ -366,7 +426,7 @@ class MetalBackend {
 			Runtime.objc_release(p.state);
 			Runtime.objc_release(p.depth);
 		}
-		for (o in shaders.concat(libraries).concat(buffers))
+		for (o in shaders.concat(libraries).concat(buffers).concat(textures).concat(samplers))
 			Runtime.objc_release(o);
 		ObjC.release(readback);
 		ObjC.release(target);
@@ -380,6 +440,7 @@ class MetalBackend {
 		LibC.free(viewport);
 		LibC.free(origin);
 		LibC.free(size);
+		LibC.free(region);
 		LibC.free(uniforms);
 	}
 }
@@ -429,6 +490,10 @@ private class S {
 	public static final setCullMode = ObjC.sel("setCullMode:");
 	public static final setVertexBuffer = ObjC.sel("setVertexBuffer:offset:atIndex:");
 	public static final setVertexBytes = ObjC.sel("setVertexBytes:length:atIndex:");
+	public static final setVertexTexture = ObjC.sel("setVertexTexture:atIndex:");
+	public static final setFragmentTexture = ObjC.sel("setFragmentTexture:atIndex:");
+	public static final setVertexSamplerState = ObjC.sel("setVertexSamplerState:atIndex:");
+	public static final setFragmentSamplerState = ObjC.sel("setFragmentSamplerState:atIndex:");
 	public static final setFragmentBytes = ObjC.sel("setFragmentBytes:length:atIndex:");
 	public static final drawPrimitives = ObjC.sel("drawPrimitives:vertexStart:vertexCount:instanceCount:");
 	public static final endEncoding = ObjC.sel("endEncoding");

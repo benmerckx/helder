@@ -20,6 +20,11 @@ import hxmc.unsafe.*;
 	static function buffer(size:Int, usage:Int, data:Ptr, length:Int):Int;
 	// size bytes at data into the buffer at offset (multiples of 4: WebGPU's writeBuffer)
 	static function write_buffer(buffer:Int, offset:Int, data:Ptr, size:Int):Void;
+	// an RGBA8 texture (rgba8unorm), its texels at data (width * height * 4 bytes, or none)
+	static function texture(width:Int, height:Int, data:Ptr):Int;
+	static function write_texture(texture:Int, data:Ptr):Void;
+	// a sampler: Filter, Wrap
+	static function sampler(filter:Int, wrap:Int):Int;
 	// WGSL; errors are reported asynchronously, on the console
 	static function shader(wgsl:CString):Int;
 	// a pipeline: its vertex buffers and their attributes, then the rest
@@ -42,6 +47,8 @@ import hxmc.unsafe.*;
 	// aligned), bound at the slot (a dynamic offset); written to the GPU
 	// when the frame is submitted
 	static function set_uniforms(slot:Int, offset:Int, data:Ptr, size:Int):Void;
+	// the texture and sampler at the slot, for the bind group
+	static function set_texture(slot:Int, texture:Int, sampler:Int):Void;
 	static function set_index_buffer(buffer:Int, format:Int, offset:Int):Void;
 	static function draw(vertices:Int, instances:Int, first:Int):Void;
 	static function draw_indexed(count:Int, instances:Int, first:Int, baseVertex:Int):Void;

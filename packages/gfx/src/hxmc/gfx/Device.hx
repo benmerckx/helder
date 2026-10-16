@@ -36,6 +36,19 @@ final class Device {
 		impl.writeBuffer(b.id(), offset, data, dataOffset, size);
 	}
 
+	public function createTexture(d:TextureDesc):Texture {
+		if (d.width <= 0 || d.height <= 0) throw "hxmc.gfx: createTexture: a size of " + d.width + "x" + d.height;
+		if (d.data != null && d.data.length < d.width * d.height * 4) throw "hxmc.gfx: createTexture: data has fewer than width * height * 4 bytes";
+		return new Texture(impl.createTexture(d));
+	}
+
+	// all of the texture's texels (width * height * 4 bytes, rows top to bottom)
+	public function writeTexture(t:Texture, data:haxe.io.Bytes)
+		impl.writeTexture(t.id(), data);
+
+	public function createSampler(d:SamplerDesc):Sampler
+		return new Sampler(impl.createSampler(d));
+
 	// throws the compiler's log when the source does not compile
 	public function createShader(d:ShaderDesc):Shader
 		return new Shader(impl.createShader(d));

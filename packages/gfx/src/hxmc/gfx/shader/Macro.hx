@@ -19,8 +19,8 @@ import hxmc.gfx.shader.Ir;
 //                 and the functions they reach (in any shader class: their
 //                 __shaders forced first), the emitters print it in the
 //                 target's languages; once per class
-//   layout(), uniforms(), writeVertices(vs), writeUniforms(u, bytes, offset)
-//                 the vertex layout, the uniform blocks and the CPU writers,
+//   layout(), uniforms(), textures(), writeVertices(vs), writeUniforms(u, bytes, offset)
+//                 the vertex layout, the uniform blocks, the textures and the CPU writers,
 //                 from the same IR
 //
 // The languages: -D hxmc.gfx.shaders=glsl,wgsl,msl,hlsl (or all); else the
@@ -53,11 +53,15 @@ class Macro {
 			}
 			fields.push({field: l, expr: macro $v{src}});
 		}
-		// (the slots of the stage's uniform blocks: GL binds them by name)
+		// (the stage's uniform blocks and textures: GL binds them by their GLSL
+		// names, WebGPU makes its bind group layout of them)
 		var bindings = [
 			for (u in e.uniforms)
 				macro {name: $v{u.struct.name + "_block"}, slot: $v{u.binding}, kind: hxmc.gfx.ShaderBinding.BindingKind.Uniform, size: $v{u.size}}
-		];
+		].concat([
+			for (t in e.textures)
+				macro {name: $v{"tex_" + t.slot}, slot: $v{t.slot}, kind: hxmc.gfx.ShaderBinding.BindingKind.Texture}
+		]);
 		fields.push({field: "bindings", expr: macro [$a{bindings}]});
 		return {expr: EObjectDecl(fields), pos: Context.currentPos()};
 	}
@@ -89,6 +93,13 @@ class Macro {
 				macro {name: $v{u.struct.name}, binding: $v{u.binding}, size: $v{u.size}}
 		];
 		return macro ([$a{us}] : Array<hxmc.gfx.shader.Shaders.UniformBlock>);
+	}
+
+	public static macro function textures():Expr {
+		var p = compile();
+		if (p == null) return macro cast null;
+		var ts = [for (t in p.textures) macro {name: $v{t.name}, binding: $v{t.slot}}];
+		return macro ([$a{ts}] : Array<hxmc.gfx.shader.Shaders.TextureBinding>);
 	}
 
 	// the vertices, packed as layout() says (Float32 each)
@@ -196,6 +207,7 @@ class Macro {
 			public static final fragmentCode:hxmc.gfx.ShaderCode = hxmc.gfx.shader.Macro.code(1);
 			public static final layout:Array<hxmc.gfx.VertexBufferLayout> = hxmc.gfx.shader.Macro.layout();
 			public static final uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock> = hxmc.gfx.shader.Macro.uniforms();
+			public static final textures:Array<hxmc.gfx.shader.Shaders.TextureBinding> = hxmc.gfx.shader.Macro.textures();
 
 			// the pipeline of both stages and the vertex layout (Device.createPipeline compiles the code)
 			public static function pipeline(?options:{
@@ -227,7 +239,7 @@ class Macro {
 					case TPath(p): p.sub != null ? p.sub : p.name;
 					case _: null;
 				}
-				if (name == null || seen.exists(name)) continue;
+				if (name == null || name == "Texture2D" || seen.exists(name)) continue;
 				seen.set(name, true);
 				var t = a.type;
 				generated.push({

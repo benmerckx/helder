@@ -5,7 +5,9 @@ import hxmc.gfx.shader.Ir;
 // HLSL (D3D11, shader model 4.0 and 5.0). Entry points named main: vertex
 // attributes at TEXCOORD<n>, the varyings TEXCOORD<n> but the position
 // (SV_Position), the colour SV_Target; a uniform block is a cbuffer at
-// register(b<n>), its fields u_<n>_<field> at their std140 offsets. HLSL
+// register(b<n>), its fields u_<n>_<field> at their std140 offsets; a
+// texture at slot n `Texture2D tex_<n> : register(t<n>)` and its
+// `SamplerState smp_<n> : register(s<n>)`. HLSL
 // has no struct constructors: make_<Struct> functions. A matrix is stored
 // transposed (float4x4's rows are the columns: row_major in a cbuffer), so
 // that the columns' memory order is GLSL's: m * v is mul(v, m), a * b is
@@ -19,6 +21,7 @@ class Hlsl extends Emit {
 			case TFloat: "float";
 			case TVec(n): 'float$n';
 			case TMat4: "float4x4";
+			case TTexture: "Texture2D";
 			case TStruct(s): s.name;
 		}
 
@@ -31,6 +34,12 @@ class Hlsl extends Emit {
 		line("\treturn s;");
 		line("}");
 	}
+
+	override function param(v:SVar):String
+		return type(v.type) + " " + v.name + (v.type == TTexture ? ", SamplerState " + v.name + "_smp" : "");
+
+	override function arg(e:SExpr):String
+		return e.t == TTexture ? expr(e) + ", " + expr(e) + "_smp" : expr(e);
 
 	override function construct(t:SType, args:Array<SExpr>):String
 		return switch [t, args] {
@@ -52,6 +61,7 @@ class Hlsl extends Emit {
 			case "fract": super.builtin("frac", args, t);
 			case "mix": super.builtin("lerp", args, t);
 			case "inversesqrt": super.builtin("rsqrt", args, t);
+			case "sample": operand(args[0]) + ".SampleLevel(" + expr(args[0]) + "_smp, " + expr(args[1]) + ", 0.0)";
 			// (an int: back to floats)
 			case "sign": "((" + type(t) + ")" + super.builtin("sign", args, t) + ")";
 			case _: super.builtin(name, args, t);
@@ -66,7 +76,17 @@ class Hlsl extends Emit {
 			}
 			line("};");
 		}
-		var args = [for (u in e.uniforms) 'make_${u.struct.name}(' + [for (f in u.struct.fields) 'u_${u.binding}_${f.name}'].join(", ") + ")"];
+		for (t in e.textures) {
+			line('Texture2D tex_${t.slot} : register(t${t.slot});');
+			line('SamplerState smp_${t.slot} : register(s${t.slot});');
+		}
+		var args = [
+			for (r in e.resources)
+				switch r {
+					case RUniform(u): 'make_${u.struct.name}(' + [for (f in u.struct.fields) 'u_${u.binding}_${f.name}'].join(", ") + ")";
+					case RTexture(t): 'tex_${t.slot}, smp_${t.slot}';
+				}
+		];
 		var vs = Emit.varyings(p), pos = Emit.position(p);
 		var input = 'make_${e.input.name}(' + [for (f in e.input.fields) 'i.${f.name}'].join(", ") + ")";
 		if (e.stage == Vertex) {

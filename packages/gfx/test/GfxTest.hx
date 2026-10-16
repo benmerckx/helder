@@ -52,10 +52,11 @@ class GfxTest {
 			null;
 		}
 		var triangle = new Triangle(device);
-		// (the shader macro's other test shaders, with uniform blocks and every builtin: this back end compiles them)
+		// (the shader macro's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
 		device.createPipeline(LitShader.pipeline());
 		device.createPipeline(BuiltinShader.pipeline());
-		Sys.println("GfxTest: headless: LitShader and BuiltinShader compile");
+		device.createPipeline(TexturedShader.pipeline());
+		Sys.println("GfxTest: headless: LitShader, BuiltinShader and TexturedShader compile");
 		var pixels = Bytes.alloc(WIDTH * HEIGHT * 4);
 		var enc = device.beginFrame();
 		triangle.draw(enc);

@@ -20,14 +20,19 @@ package hxmc.gfx.shader;
 // attributes, in order) and returns the varyings, one of them the
 // @:position; the fragment stage takes the same varyings and returns the
 // colour. Further parameters of either are uniform blocks (structs of
-// scalars, vectors and matrices). Such a class gets (Macro.build):
+// scalars, vectors and matrices) and textures (Texture2D, read with
+// sample(t, uv)), each at a slot (Encoder.setUniforms, setTexture): 0, 1,
+// ... in order of appearance, the vertex stage's first, a block shared by
+// both stages (the same struct) or a texture (the same name) once. Such a
+// class gets (Macro.build):
 //
 //   vertexCode, fragmentCode   the stages' ShaderCode, in the languages of
 //                              the target (-D hxmc.gfx.shaders=glsl,wgsl,msl,hlsl
 //                              or all to choose)
 //   layout                     the vertex buffer's layout (Float32 attributes,
 //                              packed in the vertex type's order)
-//   uniforms                   the uniform blocks: name, binding, size (std140)
+//   uniforms                   the uniform blocks: name, binding (the slot), size (std140)
+//   textures                   the textures: the parameter's name, binding (the slot)
 //   pipeline(?options)         a PipelineDesc of all three (Device.createPipeline
 //                              compiles the code)
 //   vertexBytes(vertices)      the vertex buffer's contents
@@ -47,4 +52,10 @@ typedef UniformBlock = {
 	name:String,
 	binding:Int,
 	size:Int
+}
+
+typedef TextureBinding = {
+	// the parameter's name
+	name:String,
+	binding:Int
 }
