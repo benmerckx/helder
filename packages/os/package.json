@@ -1,0 +1,21 @@
+{
+  "name": "@hxmc/os",
+  "version": "0.1.0",
+  "description": "Windows, input and the app loop for hxmc, in pure Haxe: raw OS bindings (X11 for now) and a portable layer",
+  "license": "MIT",
+  "files": [
+    "src/"
+  ],
+  "haxe": {
+    "name": "hxmc.os",
+    "classPath": "src"
+  },
+  "peerDependencies": {
+    "@hxmc/cli": ">=0.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benmerckx/hxmc.git",
+    "directory": "packages/os"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@hxmc/gfx",
+  "version": "0.1.0",
+  "description": "A portable GPU layer for hxmc, in pure Haxe: integer handles, immutable pipelines, back ends over the system's GPU APIs (GL through EGL for now)",
+  "license": "MIT",
+  "files": [
+    "src/"
+  ],
+  "haxe": {
+    "name": "hxmc.gfx",
+    "classPath": "src",
+    "dependencies": ["hxmc.os"]
+  },
+  "dependencies": {
+    "@hxmc/os": "0.1.0"
+  },
+  "peerDependencies": {
+    "@hxmc/cli": ">=0.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benmerckx/hxmc.git",
+    "directory": "packages/gfx"
+  }
+}

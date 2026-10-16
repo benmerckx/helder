@@ -1,0 +1,39 @@
+package hxmc.os;
+
+import hxmc.unsafe.Ptr;
+
+// What a GPU API renders to (hxmc.gfx's Device.create): the native handles
+// of a window, or of a child of one, or nothing (headless: offscreen
+// rendering at a fixed size). Later kinds: Win32 (HWND), Cocoa (NSView with
+// a CAMetalLayer), Wayland (wl_display, wl_surface), Canvas (an element id).
+enum abstract SurfaceKind(Int) {
+	var Headless;
+	var X11;
+}
+
+class Surface {
+	public final kind:SurfaceKind;
+	// X11: the Display*
+	public final display:Ptr;
+	// X11: the Window (an XID)
+	public final handle:Ptr;
+	// the size in pixels
+	public var width(default, null):Int;
+	public var height(default, null):Int;
+
+	public function new(kind:SurfaceKind, display:Ptr, handle:Ptr, width:Int, height:Int) {
+		this.kind = kind;
+		this.display = display;
+		this.handle = handle;
+		this.width = width;
+		this.height = height;
+	}
+
+	public static function headless(width:Int, height:Int):Surface
+		return new Surface(Headless, Ptr.nil(), Ptr.nil(), width, height);
+
+	@:allow(hxmc.os) function resized(w:Int, h:Int) {
+		width = w;
+		height = h;
+	}
+}
