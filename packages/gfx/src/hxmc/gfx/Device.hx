@@ -2,9 +2,6 @@ package hxmc.gfx;
 
 import hxmc.os.Surface;
 
-// the back end of this target (D3D11, Metal and WebGL2 come in here)
-private typedef Impl = hxmc.gfx.gl.GLBackend;
-
 // A GPU device rendering to one Surface (a window, or headless). Resources
 // are created up front; a frame is beginFrame, passes recorded through the
 // Encoder, endFrame (present). Main thread only.
@@ -35,11 +32,10 @@ final class Device {
 	public function createPipeline(d:PipelineDesc):Pipeline
 		return new Pipeline(impl.createPipeline(d));
 
-	// the frame's encoder (the same object each frame)
-	public function beginFrame():Null<Encoder> {
-		impl.beginFrame();
-		return encoder;
-	}
+	// the frame's encoder (the same object each frame); null: no frame now
+	// (a hidden window: Metal has no drawable for it), skip it
+	public function beginFrame():Null<Encoder>
+		return impl.beginFrame() ? encoder : null;
 
 	// submits the frame and presents it
 	public function endFrame()

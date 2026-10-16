@@ -147,8 +147,9 @@ class GLBackend {
 		return pipelines.length;
 	}
 
-	public function beginFrame() {
+	public function beginFrame():Bool {
 		if (surface.kind != Headless) querySize();
+		return true;
 	}
 
 	public function beginPass(p:PassDesc) {

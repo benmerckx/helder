@@ -7,16 +7,19 @@ import hxmc.unsafe.*;
 // The triangle example's frame, checked against a golden image (make gfx-check):
 //
 //   GfxTest headless <golden.png> <out.png> [--bless]
-//     on an EGL pbuffer (Mesa's surfaceless platform), read back with glReadPixels
+//     Linux: on an EGL pbuffer (Mesa's surfaceless platform), read back with
+//     glReadPixels; macOS: Metal, on an offscreen texture copied to a buffer
 //   GfxTest window <golden.png> <out.png> [frames]
-//     in an X11 window (under Xvfb): the last frame's back buffer before the
-//     swap (glReadPixels) and the window's pixels after it (XGetImage)
+//     in a window (X11 under Xvfb, Cocoa): the last frame's back buffer
+//     before the present (readPixels) and the window's pixels after it
+//     (XGetImage, CGWindowListCreateImage)
 //
 // Comparison: llvmpipe (LIBGL_ALWAYS_SOFTWARE=1) is deterministic, but its
-// rasterization and interpolation may change between Mesa versions: a
-// pixel matches when no channel differs by more than TOLERANCE, and at most
-// MAX_OFF of the pixels may differ by more (the triangle's edges). The
-// report says whether the match was exact.
+// rasterization and interpolation may change between Mesa versions, and
+// another GPU (Metal) rounds the interpolated colours and covers the
+// edges' pixels its own way: a pixel matches when no channel differs by
+// more than TOLERANCE, and at most MAX_OFF of the pixels may differ by more
+// (the triangle's edges). The report says whether the match was exact.
 class GfxTest {
 	static inline var WIDTH = 256;
 	static inline var HEIGHT = 192;
@@ -39,7 +42,13 @@ class GfxTest {
 	}
 
 	static function headless(golden:String, out:String, bless:Bool):Bool {
-		var device = Device.create(Surface.headless(WIDTH, HEIGHT));
+		var device = try Device.create(Surface.headless(WIDTH, HEIGHT)) catch (e:String) {
+			// (macOS virtual machines may have no GPU: check.sh skips the test)
+			if (e != "hxmc.gfx: no Metal device") throw e;
+			Sys.println("GfxTest: headless: skipped: no Metal device");
+			Sys.exit(3);
+			null;
+		}
 		var triangle = new Triangle(device);
 		var pixels = Bytes.alloc(WIDTH * HEIGHT * 4);
 		var enc = device.beginFrame();
@@ -58,18 +67,26 @@ class GfxTest {
 
 	static function window(golden:String, out:String, frames:Int):Bool {
 		var w = new Window("GfxTest", WIDTH, HEIGHT);
+		// (a Retina display: the window's size is in points)
+		if (w.width != WIDTH) {
+			var s = w.scale;
+			w.close();
+			w = new Window("GfxTest", Math.round(WIDTH / s), Math.round(HEIGHT / s));
+		}
+		if (Mem.os() == 1) CocoaTest.prepare(w);
 		var device = Device.create(w.surface);
 		var triangle = new Triangle(device);
 		var back = Bytes.alloc(WIDTH * HEIGHT * 4);
-		var n = 0, events = 0, closed = false;
+		var n = 0, tries = 0, events = 0, closed = false;
 		App.run(() -> {
+			if (++tries > frames + 1000) App.quit();
 			var enc = device.beginFrame();
+			if (enc == null) return;
 			triangle.draw(enc);
 			if (++n == frames) device.readPixels(back);
 			device.endFrame();
-			// then the window manager's close button, as a client message
-			if (n == frames) sendClose(w);
-			if (n > frames + 1000) App.quit();
+			// then the window's close button (X11: the window manager's client message)
+			if (n == frames) Mem.os() == 1 ? CocoaTest.close(w) : sendClose(w);
 		}, e -> {
 			events++;
 			if (e.kind == Close && e.window == w) {
@@ -77,14 +94,21 @@ class GfxTest {
 				App.quit();
 			}
 		});
-		var shown = capture(w);
-		sys.io.File.saveBytes(out, Png.encode(shown, WIDTH, HEIGHT));
+		var shown = Mem.os() == 1 ? CocoaTest.capture(w, WIDTH, HEIGHT) : capture(w);
+		sys.io.File.saveBytes(out, Png.encode(shown != null ? shown : back, WIDTH, HEIGHT));
 		Sys.println('GfxTest: $n frames in a ${device.width}x${device.height} window, $events events' + (closed ? ", closed" : ", FAIL: no Close event"));
+		var size = device.width == WIDTH && device.height == HEIGHT;
+		if (!size) Sys.println('GfxTest: FAIL: not ${WIDTH}x${HEIGHT}');
 		device.dispose();
 		w.close();
 		var a = compare("window, back buffer", back, golden);
-		var b = compare("window, X11 pixels", shown, golden);
-		return a && b && closed;
+		if (shown == null) {
+			// (macOS: the window server would not give the window's pixels)
+			Sys.println("GfxTest: window, screen pixels: skipped (no capture)");
+			return a && closed && size;
+		}
+		var b = compare("window, " + (Mem.os() == 1 ? "screen" : "X11") + " pixels", shown, golden);
+		return a && b && closed && size;
 	}
 
 	static function sendClose(w:Window) {
@@ -126,8 +150,13 @@ class GfxTest {
 			Sys.println('GfxTest: $what: FAIL: the golden image is ${g.width}x${g.height}');
 			return false;
 		}
-		var off = 0, differ = 0, max = 0;
+		var off = 0, differ = 0, max = 0, hidden = 0;
 		for (p in 0...WIDTH * HEIGHT) {
+			// (alpha below 255: a pixel the window does not show, its rounded corners)
+			if (pixels.get(4 * p + 3) != 255) {
+				hidden++;
+				continue;
+			}
 			var d = 0;
 			for (k in 0...3) {
 				var v = pixels.get(4 * p + k) - g.rgba.get(4 * p + k);
@@ -143,7 +172,7 @@ class GfxTest {
 		var lit = pixels.get(c) + pixels.get(c + 1) + pixels.get(c + 2) > 200 && pixels.get(0) < 40;
 		var ok = lit && off <= MAX_OFF * WIDTH * HEIGHT;
 		Sys.println('GfxTest: $what: ' + (ok ? "ok" : "FAIL") + (differ == 0 ? " (exact)" : ' ($differ pixels differ, $off by more than $TOLERANCE, at most $max)')
-			+ (lit ? "" : " (no triangle)"));
+			+ (hidden > 0 ? ' ($hidden pixels not shown)' : "") + (lit ? "" : " (no triangle)"));
 		return ok;
 	}
 }

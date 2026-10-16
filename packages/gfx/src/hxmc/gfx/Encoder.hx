@@ -1,7 +1,5 @@
 package hxmc.gfx;
 
-private typedef Impl = hxmc.gfx.gl.GLBackend;
-
 // Records a frame's passes: one per device, reused (no allocation per frame).
 final class Encoder {
 	final impl:Impl;
