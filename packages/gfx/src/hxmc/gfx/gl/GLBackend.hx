@@ -11,7 +11,10 @@ import hxmc.unsafe.*;
 // a canvas or an offscreen one (WebGL), the same GL calls going to
 // imports. One vertex array object; vertex attributes are set at the first
 // draw after a pipeline or vertex buffer change (ES 3.0 has no separate
-// vertex formats).
+// vertex formats). Uniform blocks and samplers are bound to their slots by
+// name when a pipeline links (ShaderCode.bindings: ES 3.00 has no
+// layout(binding)); setUniforms writes into the frame's uniform buffer, one
+// of two (frames in flight), and binds the range (glBindBufferRange).
 class GLBackend {
 	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
@@ -30,6 +33,7 @@ class GLBackend {
 	// tables (handle = index + 1)
 	final buffers:Array<Int> = [];
 	final shaders:Array<Int> = [];
+	final bindings:Array<Array<ShaderBinding>> = []; // each shader's
 	final pipelines:Array<GLPipeline> = [];
 
 	// draw state
@@ -38,6 +42,12 @@ class GLBackend {
 	final voffs = [for (_ in 0...MAX_SLOTS) 0];
 	var dirty = true;
 	var enabled = 0; // the attribute locations enabled, a mask
+	// the uniform rings (one per frame in flight: made at the first
+	// setUniforms), the frame's, and the next offset into it
+	final rings = [0, 0];
+	var ring = 0;
+	var cursor = 0;
+	var uniformAlign = 256;
 
 	static inline var MAX_SLOTS = 8;
 
@@ -54,7 +64,7 @@ class GLBackend {
 			WebGL.make_current(web);
 			GL.glGenVertexArrays(1, scratch);
 			GL.glBindVertexArray(scratch.value);
-			querySize();
+			start();
 			return;
 		}
 		var headless = surface.kind == Headless;
@@ -86,7 +96,14 @@ class GLBackend {
 		if (missing != null) throw "hxmc.gfx: no GL function " + missing;
 		GL.glGenVertexArrays(1, scratch);
 		GL.glBindVertexArray(scratch.value);
+		start();
+	}
+
+	// (the context is current)
+	function start() {
 		querySize();
+		GL.glGetIntegerv(GL.UNIFORM_BUFFER_OFFSET_ALIGNMENT, scratch);
+		if (scratch.value > uniformAlign) uniformAlign = scratch.value;
 	}
 
 	function fail(what:String):Dynamic
@@ -141,6 +158,7 @@ class GLBackend {
 			throw "hxmc.gfx: the shader does not compile:\n" + log;
 		}
 		shaders.push(s);
+		bindings.push(d.code.bindings == null ? [] : d.code.bindings);
 		return shaders.length;
 	}
 
@@ -165,12 +183,26 @@ class GLBackend {
 			GL.glDeleteProgram(p);
 			throw "hxmc.gfx: the pipeline does not link:\n" + log;
 		}
+		// the shaders' uniform blocks and samplers at their slots, by name
+		GL.glUseProgram(p);
+		for (b in bindings[d.vertex.id() - 1].concat(bindings[d.fragment.id() - 1]))
+			Arena.scoped(a -> {
+				var name = a.cstring(b.name);
+				var block = b.kind == Uniform ? GL.glGetUniformBlockIndex(p, name) : GL.INVALID_INDEX;
+				if (block != GL.INVALID_INDEX) GL.glUniformBlockBinding(p, block, b.slot) else {
+					var loc = GL.glGetUniformLocation(p, name);
+					if (loc >= 0) GL.glUniform1i(loc, b.slot);
+				}
+			});
+		GL.glUseProgram(pipeline == null ? 0 : pipeline.program);
 		if (d.layout.length > MAX_SLOTS) throw "hxmc.gfx: more than " + MAX_SLOTS + " vertex buffers";
 		pipelines.push(new GLPipeline(p, d));
 		return pipelines.length;
 	}
 
 	public function beginFrame():Bool {
+		ring ^= 1;
+		cursor = 0;
 		if (surface.kind != Headless) querySize();
 		return true;
 	}
@@ -201,6 +233,22 @@ class GLBackend {
 		vbufs[slot] = buffers[id - 1];
 		voffs[slot] = offset;
 		dirty = true;
+	}
+
+	public function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int) {
+		if (offset < 0 || size < 0 || offset + size > data.length) throw "hxmc.gfx: setUniforms: outside the data";
+		var n = (size + uniformAlign - 1) & ~(uniformAlign - 1);
+		if (cursor + n > Encoder.UNIFORM_RING) throw "hxmc.gfx: setUniforms: more than " + Encoder.UNIFORM_RING + " bytes of uniforms in a frame";
+		if (rings[ring] == 0) {
+			GL.glGenBuffers(1, scratch);
+			rings[ring] = scratch.value;
+			GL.glBindBuffer(GL.UNIFORM_BUFFER, rings[ring]);
+			GL.glBufferData(GL.UNIFORM_BUFFER, Encoder.UNIFORM_RING, Ptr.nil(), GL.STREAM_DRAW);
+		} else GL.glBindBuffer(GL.UNIFORM_BUFFER, rings[ring]);
+		// (a fast call: the Bytes cannot move during it; the range: whole 16-byte rows)
+		GL.glBufferSubData(GL.UNIFORM_BUFFER, cursor, size, Mem.addr(data).add(8 + offset));
+		GL.glBindBufferRange(GL.UNIFORM_BUFFER, slot, rings[ring], cursor, (size + 15) & ~15);
+		cursor += n;
 	}
 
 	public function draw(vertices:Int, instances:Int, first:Int) {
@@ -244,6 +292,11 @@ class GLBackend {
 	}
 
 	public function dispose() {
+		for (r in rings)
+			if (r != 0) {
+				scratch.value = r;
+				GL.glDeleteBuffers(1, scratch);
+			}
 		if (Mem.os() == 3) WebGL.release(web) else {
 			Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 			Egl.eglDestroyContext(display, context);

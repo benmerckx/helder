@@ -21,6 +21,8 @@ const TOPOLOGIES = ['triangle-list', 'triangle-strip', 'line-list', 'point-list'
 const CULLS = ['none', 'front', 'back']; // Cull
 const LOADS = ['clear', 'load', 'clear']; // LoadOp (DontCare: clear)
 const INFO_LOG_LENGTH = 0x8b84; // (GL's, not WebGL's)
+const RING = 256 * 1024; // the uniform ring (Encoder.UNIFORM_RING)
+const UNIFORM = 0, TEXTURE = 1; // BindingKind
 
 export default async function (host) {
 	let adapter = null, device = null;
@@ -32,10 +34,20 @@ export default async function (host) {
 	}
 	if (device) device.addEventListener('uncapturederror', (e) => console.error('hxmc.gfx: WebGPU:', e.error.message));
 	const { handles } = host;
-	// a pipeline's vertex buffers, as pipeline_buffer and pipeline_attribute give them
-	let layout = [];
+	// a pipeline's vertex buffers and resources, as pipeline_buffer,
+	// pipeline_attribute and pipeline_binding give them
+	let layout = [], resources = [];
 	// the frame
 	let encoder = null, texture = null, frameTarget = null, pass = null;
+	// the uniform ring: the frame's blocks, copied at set_uniforms and written
+	// to the GPU buffer before the frame's submit (which the queue orders
+	// after the previous frames' reads); each slot's offset, for the bind group
+	const ring = device ? { buffer: device.createBuffer({ size: RING, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), staging: new Uint8Array(RING), used: 0 } : null;
+	const offsets = new Uint32Array(16);
+	// each slot's texture and sampler (handles)
+	const textures = new Int32Array(16), samplers = new Int32Array(16);
+	// the pipeline set (its bind group layout and groups), and whether its bind group needs setting
+	let pipe = null, dirty = false;
 	const attachment = { view: null, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } };
 	const passDesc = { colorAttachments: [attachment] };
 	let captures = [];
@@ -82,6 +94,27 @@ export default async function (host) {
 		},
 	};
 
+	// the current pipeline's bind group, with the slots' uniform offsets (a
+	// group per set of textures, made once)
+	function bind() {
+		if (!dirty) return;
+		dirty = false;
+		const c = pipe;
+		let key = '';
+		for (const t of c.textures) key += textures[t.slot] + ':' + samplers[t.slot] + ',';
+		let group = c.groups.get(key);
+		if (!group) {
+			const entries = c.uniforms.map((u) => ({ binding: u.slot, resource: { buffer: ring.buffer, size: u.size } }));
+			for (const t of c.textures) {
+				entries.push({ binding: t.slot, resource: handles.get(textures[t.slot]).view }, { binding: 16 + t.slot, resource: handles.get(samplers[t.slot]) });
+			}
+			group = device.createBindGroup({ layout: c.bgl, entries });
+			c.groups.set(key, group);
+		}
+		for (let i = 0; i < c.uniforms.length; i++) c.offsets[i] = offsets[c.uniforms[i].slot];
+		pass.setBindGroup(0, group, c.offsets);
+	}
+
 	const hxmc_gfx = {
 		ready: () => (device ? 1 : 0),
 		target_canvas(canvas) {
@@ -118,6 +151,7 @@ export default async function (host) {
 		},
 		pipeline_begin() {
 			layout = [];
+			resources = [];
 		},
 		pipeline_buffer(stride) {
 			layout.push({ arrayStride: stride, attributes: [] });
@@ -125,15 +159,26 @@ export default async function (host) {
 		pipeline_attribute(location, format, offset) {
 			layout[layout.length - 1].attributes.push({ shaderLocation: location, format: FORMATS[format], offset });
 		},
+		pipeline_binding(slot, kind, size) {
+			resources.push({ slot, kind, size });
+		},
 		pipeline_end(vertex, fragment, target, topology, cull) {
-			const p = device.createRenderPipeline({
-				layout: 'auto',
+			// (a bind group: uniform blocks at dynamic offsets, a texture at its slot and its sampler at 16 + slot)
+			const visibility = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
+			const entries = [];
+			for (const r of resources)
+				if (r.kind === UNIFORM) entries.push({ binding: r.slot, visibility, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: r.size } });
+				else entries.push({ binding: r.slot, visibility, texture: { sampleType: 'float' } }, { binding: 16 + r.slot, visibility, sampler: { type: 'filtering' } });
+			const uniforms = resources.filter((r) => r.kind === UNIFORM).sort((a, b) => a.slot - b.slot);
+			const bgl = entries.length ? device.createBindGroupLayout({ entries }) : null;
+			const pipeline = device.createRenderPipeline({
+				layout: bgl ? device.createPipelineLayout({ bindGroupLayouts: [bgl] }) : 'auto',
 				vertex: { module: handles.get(vertex), entryPoint: 'main', buffers: layout },
 				fragment: { module: handles.get(fragment), entryPoint: 'main', targets: [{ format: handles.get(target).format }] },
 				// (GL's front faces)
 				primitive: { topology: TOPOLOGIES[topology], cullMode: CULLS[cull], frontFace: 'ccw' },
 			});
-			return handles.add(p);
+			return handles.add({ pipeline, bgl, uniforms, textures: resources.filter((r) => r.kind === TEXTURE), groups: new Map(), offsets: new Uint32Array(uniforms.length) });
 		},
 		frame_begin(target) {
 			const t = handles.get(target);
@@ -154,9 +199,22 @@ export default async function (host) {
 			pass = encoder.beginRenderPass(passDesc);
 			pass.setViewport(0, 0, texture.width, texture.height, 0, 1);
 		},
-		set_pipeline: (p) => pass.setPipeline(handles.get(p)),
+		set_pipeline(p) {
+			pipe = handles.get(p);
+			pass.setPipeline(pipe.pipeline);
+			dirty = !!pipe.bgl;
+		},
 		set_vertex_buffer: (slot, b, offset) => pass.setVertexBuffer(slot, handles.get(b), offset),
-		draw: (vertices, instances, first) => pass.draw(vertices, instances, first, 0),
+		set_uniforms(slot, offset, data, size) {
+			ring.staging.set(host.bytes(data, size), offset);
+			ring.used = Math.max(ring.used, offset + size);
+			offsets[slot] = offset;
+			dirty = true;
+		},
+		draw(vertices, instances, first) {
+			bind();
+			pass.draw(vertices, instances, first, 0);
+		},
 		pass_end() {
 			pass.end();
 			pass = null;
@@ -166,6 +224,8 @@ export default async function (host) {
 			const waiting = captures;
 			captures = [];
 			const pixels = waiting.length ? copy(encoder, texture, frameTarget.format) : null;
+			if (ring.used) device.queue.writeBuffer(ring.buffer, 0, ring.staging, 0, Math.ceil(ring.used / 4) * 4);
+			ring.used = 0;
 			device.queue.submit([encoder.finish()]);
 			pixels?.().then((px) => waiting.forEach((w) => w.resolve(px)), (e) => waiting.forEach((w) => w.reject(e)));
 			encoder = null;
@@ -307,6 +367,37 @@ export default async function (host) {
 		glVertexAttribPointer: (i, size, type, normalized, stride, offset) => gl.vertexAttribPointer(i, size, type, !!normalized, stride, offset),
 		glDrawArrays: (mode, first, count) => gl.drawArrays(mode, first, count),
 		glDrawArraysInstanced: (mode, first, count, instances) => gl.drawArraysInstanced(mode, first, count, instances),
+		// (offset: a byte offset into the index buffer)
+		glDrawElements: (mode, count, type, offset) => gl.drawElements(mode, count, type, offset),
+		glDrawElementsInstanced: (mode, count, type, offset, instances) => gl.drawElementsInstanced(mode, count, type, offset, instances),
+		glGetIntegerv: (pname, p) => view().setInt32(p, gl.getParameter(pname), true),
+		glBindBufferRange: (target, index, b, offset, size) => gl.bindBufferRange(target, index, get(b), Number(offset), Number(size)),
+		glGetUniformBlockIndex: (p, name) => gl.getUniformBlockIndex(get(p), host.string(name)) | 0,
+		glUniformBlockBinding: (p, index, binding) => gl.uniformBlockBinding(get(p), index >>> 0, binding),
+		// (a location: a handle, -1 none; each lookup a new one, as a program's are looked up once)
+		glGetUniformLocation(p, name) {
+			const l = gl.getUniformLocation(get(p), host.string(name));
+			return l ? handles.add(l) : -1;
+		},
+		glUniform1i: (l, x) => gl.uniform1i(get(l), x),
+		glUniform1f: (l, x) => gl.uniform1f(get(l), x),
+		glBlendFuncSeparate: (a, b, c, d) => gl.blendFuncSeparate(a, b, c, d),
+		glBlendEquation: (mode) => gl.blendEquation(mode),
+		glDepthFunc: (f) => gl.depthFunc(f),
+		glDepthMask: (flag) => gl.depthMask(!!flag),
+		glClearDepthf: (d) => gl.clearDepth(d),
+		glGenTextures: (n, p) => gen(n, p, () => gl.createTexture()),
+		glBindTexture: (target, t) => gl.bindTexture(target, get(t)),
+		glActiveTexture: (unit) => gl.activeTexture(unit),
+		glTexParameteri: (target, pname, param) => gl.texParameteri(target, pname, param),
+		// (pixels: width * height * 4 bytes of the memory, RGBA8)
+		glTexImage2D(target, level, internal, w, h, border, format, type, p) {
+			gl.texImage2D(target, level, internal, w, h, border, format, type, p ? host.bytes(p, w * h * 4) : null);
+		},
+		glTexSubImage2D: (target, level, x, y, w, h, format, type, p) => gl.texSubImage2D(target, level, x, y, w, h, format, type, host.bytes(p, w * h * 4)),
+		glGenSamplers: (n, p) => gen(n, p, () => gl.createSampler()),
+		glSamplerParameteri: (s, pname, param) => gl.samplerParameteri(get(s), pname, param),
+		glBindSampler: (unit, s) => gl.bindSampler(unit, get(s)),
 		glPixelStorei: (pname, param) => gl.pixelStorei(pname, param),
 		// (pixels: the memory from p on, which WebGL fills as far as it needs)
 		glReadPixels: (x, y, w, h, format, type, p) => gl.readPixels(x, y, w, h, format, type, new Uint8Array(host.memory().buffer, p)),

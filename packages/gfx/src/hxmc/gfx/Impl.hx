@@ -67,12 +67,13 @@ abstract Impl(Any) {
 		Mem.os() == 1 ? mtl().setPipeline(id) : Mem.os() == 2 ? d3d().setPipeline(id) : Mem.os() != 3 ? gl().setPipeline(id) : webgl() ? gl().setPipeline(id) : wgpu().setPipeline(id);
 
 	public inline function setVertexBuffer(slot:Int, id:Int, offset:Int)
-		Mem.os() == 1 ? mtl().setVertexBuffer(slot, id, offset) : Mem.os() == 2 ? d3d().setVertexBuffer(slot, id, offset) : Mem.os() != 3 ? gl().setVertexBuffer(slot, id, offset) : webgl() ? gl().setVertexBuffer(slot, id, offset) : wgpu()
-			.setVertexBuffer(slot, id, offset);
+		Mem.os() == 1 ? mtl().setVertexBuffer(slot, id, offset) : Mem.os() == 2 ? d3d().setVertexBuffer(slot, id, offset) : Mem.os() != 3 ? gl().setVertexBuffer(slot, id, offset) : webgl() ? gl().setVertexBuffer(slot, id, offset) : wgpu().setVertexBuffer(slot, id, offset);
+
+	public inline function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int)
+		Mem.os() == 1 ? mtl().setUniforms(slot, data, offset, size) : Mem.os() == 2 ? d3d().setUniforms(slot, data, offset, size) : Mem.os() != 3 ? gl().setUniforms(slot, data, offset, size) : webgl() ? gl().setUniforms(slot, data, offset, size) : wgpu().setUniforms(slot, data, offset, size);
 
 	public inline function draw(vertices:Int, instances:Int, first:Int)
-		Mem.os() == 1 ? mtl().draw(vertices, instances, first) : Mem.os() == 2 ? d3d().draw(vertices, instances, first) : Mem.os() != 3 ? gl().draw(vertices, instances, first) : webgl() ? gl().draw(vertices, instances, first) : wgpu()
-			.draw(vertices, instances, first);
+		Mem.os() == 1 ? mtl().draw(vertices, instances, first) : Mem.os() == 2 ? d3d().draw(vertices, instances, first) : Mem.os() != 3 ? gl().draw(vertices, instances, first) : webgl() ? gl().draw(vertices, instances, first) : wgpu().draw(vertices, instances, first);
 
 	public inline function endPass()
 		Mem.os() == 1 ? mtl().endPass() : Mem.os() == 2 ? d3d().endPass() : Mem.os() != 3 ? gl().endPass() : webgl() ? gl().endPass() : wgpu().endPass();

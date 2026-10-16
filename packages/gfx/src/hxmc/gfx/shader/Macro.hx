@@ -53,6 +53,12 @@ class Macro {
 			}
 			fields.push({field: l, expr: macro $v{src}});
 		}
+		// (the slots of the stage's uniform blocks: GL binds them by name)
+		var bindings = [
+			for (u in e.uniforms)
+				macro {name: $v{u.struct.name + "_block"}, slot: $v{u.binding}, kind: hxmc.gfx.ShaderBinding.BindingKind.Uniform, size: $v{u.size}}
+		];
+		fields.push({field: "bindings", expr: macro [$a{bindings}]});
 		return {expr: EObjectDecl(fields), pos: Context.currentPos()};
 	}
 

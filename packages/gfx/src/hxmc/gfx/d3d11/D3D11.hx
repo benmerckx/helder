@@ -34,17 +34,20 @@ class ID3D11Device {
 	@:slot(12) static function CreateVertexShader(self:Ptr, code:Ptr, size:Int64, linkage:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(15) static function CreatePixelShader(self:Ptr, code:Ptr, size:Int64, linkage:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(22) static function CreateRasterizerState(self:Ptr, desc:Ptr<D3D11_RASTERIZER_DESC>, out:Ptr<Ptr>):Int;
+	@:slot(33) static function CheckFeatureSupport(self:Ptr, feature:Int, data:Ptr, size:Int):Int;
 	@:slot(37) static function GetFeatureLevel(self:Ptr):Int;
 	@:slot(39) static function GetDeviceRemovedReason(self:Ptr):Int;
 }
 
 @:build(hxmc.gfx.d3d11.Com.build())
 class ID3D11DeviceContext {
+	@:slot(7) static function VSSetConstantBuffers(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>):Void;
 	@:slot(9) static function PSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
 	@:slot(11) static function VSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
 	@:slot(13) static function Draw(self:Ptr, vertices:Int, first:Int):Void;
 	@:slot(14) static function Map(self:Ptr, resource:Ptr, subresource:Int, type:Int, flags:Int, out:Ptr<D3D11_MAPPED_SUBRESOURCE>):Int;
 	@:slot(15) static function Unmap(self:Ptr, resource:Ptr, subresource:Int):Void;
+	@:slot(16) static function PSSetConstantBuffers(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>):Void;
 	@:slot(17) static function IASetInputLayout(self:Ptr, layout:Ptr):Void;
 	@:slot(18) static function IASetVertexBuffers(self:Ptr, first:Int, count:Int, buffers:Ptr<Ptr>, strides:Ptr<Int32>, offsets:Ptr<Int32>):Void;
 	@:slot(21) static function DrawInstanced(self:Ptr, vertices:Int, instances:Int, first:Int, firstInstance:Int):Void;
@@ -58,6 +61,13 @@ class ID3D11DeviceContext {
 	@:slot(50) static function ClearRenderTargetView(self:Ptr, view:Ptr, rgba:Ptr<Float32>):Void;
 	@:slot(110) static function ClearState(self:Ptr):Void;
 	@:slot(111) static function Flush(self:Ptr):Void;
+}
+
+// (Direct3D 11.1: constant buffers at offsets, in 16-byte constants, 16 of them at a time)
+@:build(hxmc.gfx.d3d11.Com.build())
+class ID3D11DeviceContext1 {
+	@:slot(119) static function VSSetConstantBuffers1(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>, first:Ptr<Int32>, num:Ptr<Int32>):Void;
+	@:slot(123) static function PSSetConstantBuffers1(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>, first:Ptr<Int32>, num:Ptr<Int32>):Void;
 }
 
 @:build(hxmc.gfx.d3d11.Com.build())
@@ -107,13 +117,20 @@ class D3D {
 	public static inline var FORMAT_R32_FLOAT = 41;
 	// D3D11_USAGE, D3D11_BIND_FLAG, D3D11_CPU_ACCESS_FLAG, D3D11_MAP
 	public static inline var USAGE_DEFAULT = 0;
+	public static inline var USAGE_DYNAMIC = 2;
 	public static inline var USAGE_STAGING = 3;
 	public static inline var BIND_VERTEX_BUFFER = 0x1;
 	public static inline var BIND_INDEX_BUFFER = 0x2;
 	public static inline var BIND_CONSTANT_BUFFER = 0x4;
 	public static inline var BIND_RENDER_TARGET = 0x20;
+	public static inline var CPU_ACCESS_WRITE = 0x10000;
 	public static inline var CPU_ACCESS_READ = 0x20000;
 	public static inline var MAP_READ = 1;
+	public static inline var MAP_WRITE_DISCARD = 4;
+	public static inline var MAP_WRITE_NO_OVERWRITE = 5;
+	// D3D11_FEATURE: D3D11_OPTIONS (14 BOOLs: ConstantBufferOffsetting the 8th,
+	// MapNoOverwriteOnDynamicConstantBuffer the 9th)
+	public static inline var FEATURE_D3D11_OPTIONS = 7;
 	// D3D11_INPUT_CLASSIFICATION
 	public static inline var INPUT_PER_VERTEX_DATA = 0;
 	// D3D11_FILL_MODE, D3D11_CULL_MODE
@@ -141,6 +158,7 @@ class IID {
 	public static final ID3D11Texture2D = guid(0x6f15aaf2, 0xd208, 0x4e89, [0x9a, 0xb4, 0x48, 0x95, 0x35, 0xd3, 0x4f, 0x9c]);
 	public static final IDXGIDevice = guid(0x54ec77fa, 0x1377, 0x44e6, [0x8c, 0x32, 0x88, 0xfd, 0x5f, 0x44, 0xc8, 0x4c]);
 	public static final IDXGIFactory2 = guid(0x50c83a1c, 0xe072, 0x4c48, [0x87, 0xb0, 0x36, 0x30, 0xfa, 0x36, 0xa6, 0xd0]);
+	public static final ID3D11DeviceContext1 = guid(0xbb2c6faa, 0xb5fb, 0x4082, [0x8e, 0x6b, 0x38, 0x8b, 0x8c, 0xfa, 0x90, 0xe1]);
 
 	// a GUID in native memory, kept for the process
 	static function guid(d1:Int, d2:Int, d3:Int, d4:Array<Int>):Ptr {

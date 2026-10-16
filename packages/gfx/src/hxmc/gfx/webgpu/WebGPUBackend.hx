@@ -13,7 +13,9 @@ import hxmc.unsafe.*;
 // with integer arguments (GPU objects are handles of the JavaScript side),
 // so a frame allocates nothing here. readPixels cannot wait for the GPU in
 // a browser: the JavaScript side's readPixels (imports.mjs) reads a frame
-// back asynchronously instead.
+// back asynchronously instead. Uniform blocks and textures are a bind group
+// (group 0, its layout from the shaders' bindings; uniform blocks at dynamic
+// offsets into one ring buffer, written each frame before the submit).
 class WebGPUBackend {
 	public final backend = Backend.WebGPU;
 	public var width(default, null) = 0;
@@ -22,6 +24,8 @@ class WebGPUBackend {
 	final surface:Surface;
 	final target:Int;
 	final handles:Array<Int> = []; // what dispose releases
+	final bindings = new Map<Int, Array<ShaderBinding>>(); // each shader's
+	var cursor = 0; // into the frame's uniform ring
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -48,6 +52,7 @@ class WebGPUBackend {
 	public function createShader(d:ShaderDesc):Int {
 		if (d.code.wgsl == null) throw "hxmc.gfx: createShader: no WGSL source for the WebGPU back end";
 		var s = Arena.scopedValue(a -> WebGPU.shader(a.cstring(d.code.wgsl)));
+		bindings.set(s, d.code.bindings == null ? [] : d.code.bindings);
 		handles.push(s);
 		return s;
 	}
@@ -59,6 +64,12 @@ class WebGPUBackend {
 			for (a in l.attributes)
 				WebGPU.pipeline_attribute(a.location, cast a.format, a.offset);
 		}
+		var seen = 0;
+		for (b in bindings.get(d.vertex.id()).concat(bindings.get(d.fragment.id())))
+			if (seen & (1 << b.slot) == 0) {
+				seen |= 1 << b.slot;
+				WebGPU.pipeline_binding(b.slot, cast b.kind, b.size == null ? 0 : b.size);
+			}
 		var topology:Topology = d.topology == null ? Triangles : d.topology, cull:Cull = d.cull == null ? None : d.cull;
 		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull);
 		handles.push(p);
@@ -67,6 +78,7 @@ class WebGPUBackend {
 
 	public function beginFrame():Bool {
 		// (a canvas: its size now, which App's Resize events follow)
+		cursor = 0;
 		width = surface.width;
 		height = surface.height;
 		return WebGPU.frame_begin(target) != 0;
@@ -82,6 +94,14 @@ class WebGPUBackend {
 
 	public inline function setVertexBuffer(slot:Int, id:Int, offset:Int)
 		WebGPU.set_vertex_buffer(slot, id, offset);
+
+	public function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int) {
+		if (offset < 0 || size < 0 || offset + size > data.length) throw "hxmc.gfx: setUniforms: outside the data";
+		var n = (size + 255) & ~255;
+		if (cursor + n > Encoder.UNIFORM_RING) throw "hxmc.gfx: setUniforms: more than " + Encoder.UNIFORM_RING + " bytes of uniforms in a frame";
+		WebGPU.set_uniforms(slot, cursor, Mem.addr(data).add(8 + offset), size);
+		cursor += n;
+	}
 
 	public inline function draw(vertices:Int, instances:Int, first:Int)
 		WebGPU.draw(vertices, instances, first);

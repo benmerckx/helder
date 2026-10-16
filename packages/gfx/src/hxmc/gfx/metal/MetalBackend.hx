@@ -12,8 +12,10 @@ import hxmc.unsafe.*;
 // buffer in an autorelease pool, a pass a render command encoder. Shaders
 // are MSL compiled at run time (newLibraryWithSource), their entry point
 // main0; vertex buffer slots are buffer indices VERTEX_BUFFERS + slot (the
-// lower ones stay for uniforms). The colour target is BGRA8 (the layer's
-// own format): readPixels swaps it to RGBA.
+// lower ones are the uniform blocks' slots: setUniforms copies a block
+// into the command stream, setVertexBytes and setFragmentBytes, at most
+// 4 KB). The colour target is BGRA8 (the layer's own format): readPixels
+// swaps it to RGBA.
 class MetalBackend {
 	public final backend = Backend.Metal;
 	public var width(default, null) = 0;
@@ -32,6 +34,7 @@ class MetalBackend {
 	final viewport:Ptr<MTLViewport>;
 	final origin:Ptr<MTLOrigin>;
 	final size:Ptr<MTLSize>;
+	final uniforms:Ptr<UInt8>; // a block on its way to setVertexBytes (MAX_BYTES)
 	var readback = Ptr.nil(); // readPixels' MTLBuffer
 	var readbackSize = 0;
 
@@ -51,6 +54,7 @@ class MetalBackend {
 
 	static inline var VERTEX_BUFFERS = 16;
 	static inline var MAX_SLOTS = 8;
+	static inline var MAX_BYTES = 4096;
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -63,6 +67,7 @@ class MetalBackend {
 		viewport = LibC.malloc(48);
 		origin = LibC.malloc(24);
 		size = LibC.malloc(24);
+		uniforms = LibC.malloc(MAX_BYTES);
 		pass = make("MTLRenderPassDescriptor");
 		attachment = Msg.idInt(Msg.id(pass, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
 		if (surface.kind == Cocoa) {
@@ -226,6 +231,15 @@ class MetalBackend {
 	public function setVertexBuffer(slot:Int, id:Int, offset:Int)
 		MtlMsg.vPtrIntInt(enc, S.setVertexBuffer, buffers[id - 1], offset, VERTEX_BUFFERS + slot);
 
+	public function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int) {
+		if (offset < 0 || size < 0 || offset + size > data.length) throw "hxmc.gfx: setUniforms: outside the data";
+		if (size > MAX_BYTES) throw "hxmc.gfx: setUniforms: a block of more than " + MAX_BYTES + " bytes";
+		// (a copy first: the Bytes may move during a message)
+		LibC.memcpy(uniforms, Mem.addr(data).add(8 + offset), (size : Int64));
+		MtlMsg.vPtrIntInt(enc, S.setVertexBytes, uniforms, size, slot);
+		MtlMsg.vPtrIntInt(enc, S.setFragmentBytes, uniforms, size, slot);
+	}
+
 	public function draw(vertices:Int, instances:Int, first:Int)
 		MtlMsg.vIntIntIntInt(enc, S.drawPrimitives, pipeline.topology, first, vertices, instances);
 
@@ -294,6 +308,7 @@ class MetalBackend {
 		LibC.free(viewport);
 		LibC.free(origin);
 		LibC.free(size);
+		LibC.free(uniforms);
 	}
 }
 
@@ -336,6 +351,8 @@ private class S {
 	public static final setRenderPipelineState = ObjC.sel("setRenderPipelineState:");
 	public static final setCullMode = ObjC.sel("setCullMode:");
 	public static final setVertexBuffer = ObjC.sel("setVertexBuffer:offset:atIndex:");
+	public static final setVertexBytes = ObjC.sel("setVertexBytes:length:atIndex:");
+	public static final setFragmentBytes = ObjC.sel("setFragmentBytes:length:atIndex:");
 	public static final drawPrimitives = ObjC.sel("drawPrimitives:vertexStart:vertexCount:instanceCount:");
 	public static final endEncoding = ObjC.sel("endEncoding");
 	public static final presentDrawable = ObjC.sel("presentDrawable:");

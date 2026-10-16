@@ -14,7 +14,11 @@ import hxmc.unsafe.*;
 // feature level 11_0), vertex inputs at semantic TEXCOORD<location> (as
 // SPIRV-Cross names them); blending and depth stay the defaults (off, and
 // no depth buffer). readPixels copies the target into a staging texture
-// and maps it.
+// and maps it. Uniform blocks: with Direct3D 11.1's constant buffer offsets
+// (VSSetConstantBuffers1; WARP has them), a dynamic ring buffer written
+// without overwriting (discarded at the frame's first block), else a
+// dynamic constant buffer per slot, discarded at each setUniforms
+// (HXMC_GFX_D3D11_NO_OFFSETS=1 forces that).
 class D3D11Backend {
 	public final backend = Backend.D3D11;
 	public var width(default, null) = 0;
@@ -39,6 +43,9 @@ class D3D11Backend {
 	final vbufs:Ptr<Ptr>;
 	final strides:Ptr<Int32>;
 	final offsets:Ptr<Int32>;
+	final cbuf:Ptr<Ptr>; // setUniforms' arguments
+	final cfirst:Ptr<Int32>;
+	final cnum:Ptr<Int32>;
 
 	// tables (handle = index + 1)
 	final buffers:Array<Ptr> = []; // ID3D11Buffer
@@ -48,6 +55,13 @@ class D3D11Backend {
 	// draw state
 	var pipeline:D3DPipeline = null;
 	var dirty = true;
+	// uniform blocks: the ID3D11DeviceContext1 (nil: no constant buffer
+	// offsets), its ring and the next offset into it; else a buffer per slot
+	var context1 = Ptr.nil();
+	var ring = Ptr.nil();
+	var cursor = 0;
+	final slotBuffers:Array<Ptr> = [];
+	final slotSizes:Array<Int> = [];
 
 	static inline var MAX_SLOTS = 8;
 
@@ -61,6 +75,9 @@ class D3D11Backend {
 		strides = LibC.malloc(4 * MAX_SLOTS);
 		offsets = LibC.malloc(4 * MAX_SLOTS);
 		LibC.memset(vbufs, 0, 8 * MAX_SLOTS);
+		cbuf = LibC.malloc(8);
+		cfirst = LibC.malloc(4);
+		cnum = LibC.malloc(4);
 		var level:Ptr<Int32> = scratch.offset(2).raw();
 		var hr = Sys.getEnv("HXMC_GFX_SOFTWARE") == "1" ? -1 : createDevice(D3D.DRIVER_TYPE_HARDWARE, level);
 		if (hr < 0) hr = createDevice(D3D.DRIVER_TYPE_WARP, level);
@@ -68,6 +85,7 @@ class D3D11Backend {
 		device = scratch.value;
 		context = scratch.offset(1).value;
 		shaderModel = level.value >= D3D.FEATURE_LEVEL_11_0 ? "_5_0" : "_4_0";
+		if (Sys.getEnv("HXMC_GFX_D3D11_NO_OFFSETS") != "1") offsetting();
 		width = surface.width;
 		height = surface.height;
 		if (surface.kind == Win32) createSwapChain() else {
@@ -86,6 +104,18 @@ class D3D11Backend {
 			target = scratch.value;
 			createView();
 		}
+	}
+
+	// the context's 11.1 interface, if constant buffers take offsets there
+	function offsetting() {
+		if (IUnknown.QueryInterface(context, IID.ID3D11DeviceContext1, scratch) < 0) return;
+		var c1 = scratch.value;
+		var ok = Arena.scopedValue(a -> {
+			var o:Ptr<Int32> = a.alloc(56);
+			LibC.memset(o, 0, 56);
+			ID3D11Device.CheckFeatureSupport(device, D3D.FEATURE_D3D11_OPTIONS, o, 56) >= 0 && o[7] != 0 && o[8] != 0;
+		});
+		if (ok) context1 = c1 else Com.release(c1);
 	}
 
 	// the device and its context into scratch[0] and [1]
@@ -239,6 +269,7 @@ class D3D11Backend {
 	}
 
 	public function beginFrame():Bool {
+		cursor = 0;
 		if (swapChain.isNull() || (surface.width == width && surface.height == height)) return true;
 		// the window was resized: the swap chain's buffers follow
 		ID3D11DeviceContext.OMSetRenderTargets(context, 0, Ptr.nil(), Ptr.nil());
@@ -292,6 +323,56 @@ class D3D11Backend {
 		vbufs[slot] = buffers[id - 1];
 		offsets[slot] = offset;
 		dirty = true;
+	}
+
+	public function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int) {
+		if (offset < 0 || size < 0 || offset + size > data.length) throw "hxmc.gfx: setUniforms: outside the data";
+		// (constant buffers: whole 256-byte blocks of 16 constants)
+		var n = (size + 255) & ~255;
+		if (!context1.isNull()) {
+			if (cursor + n > Encoder.UNIFORM_RING) throw "hxmc.gfx: setUniforms: more than " + Encoder.UNIFORM_RING + " bytes of uniforms in a frame";
+			if (ring.isNull()) ring = dynamicBuffer(Encoder.UNIFORM_RING);
+			check(ID3D11DeviceContext.Map(context, ring, 0, cursor == 0 ? D3D.MAP_WRITE_DISCARD : D3D.MAP_WRITE_NO_OVERWRITE, 0, mapped), "Map");
+			LibC.memcpy((mapped.value.pData : Ptr<UInt8>).add(cursor), Mem.addr(data).add(8 + offset), (size : Int64));
+			ID3D11DeviceContext.Unmap(context, ring, 0);
+			cbuf.value = ring;
+			cfirst.value = cursor >> 4;
+			cnum.value = n >> 4;
+			ID3D11DeviceContext1.VSSetConstantBuffers1(context1, slot, 1, cbuf, cfirst, cnum);
+			ID3D11DeviceContext1.PSSetConstantBuffers1(context1, slot, 1, cbuf, cfirst, cnum);
+			cursor += n;
+			return;
+		}
+		while (slotBuffers.length <= slot) {
+			slotBuffers.push(Ptr.nil());
+			slotSizes.push(0);
+		}
+		if (slotSizes[slot] < n) {
+			Com.release(slotBuffers[slot]);
+			slotBuffers[slot] = dynamicBuffer(n);
+			slotSizes[slot] = n;
+		}
+		var b = slotBuffers[slot];
+		check(ID3D11DeviceContext.Map(context, b, 0, D3D.MAP_WRITE_DISCARD, 0, mapped), "Map");
+		LibC.memcpy(mapped.value.pData, Mem.addr(data).add(8 + offset), (size : Int64));
+		ID3D11DeviceContext.Unmap(context, b, 0);
+		cbuf.value = b;
+		ID3D11DeviceContext.VSSetConstantBuffers(context, slot, 1, cbuf);
+		ID3D11DeviceContext.PSSetConstantBuffers(context, slot, 1, cbuf);
+	}
+
+	// a constant buffer the CPU writes (Map)
+	function dynamicBuffer(size:Int):Ptr {
+		var hr = Arena.scopedValue(a -> {
+			var desc = a.make(D3D11_BUFFER_DESC);
+			desc.value.ByteWidth = size;
+			desc.value.Usage = D3D.USAGE_DYNAMIC;
+			desc.value.BindFlags = D3D.BIND_CONSTANT_BUFFER;
+			desc.value.CPUAccessFlags = D3D.CPU_ACCESS_WRITE;
+			ID3D11Device.CreateBuffer(device, desc, Ptr.nil(), scratch);
+		});
+		check(hr, "CreateBuffer (uniforms, " + size + " bytes)");
+		return scratch.value;
 	}
 
 	public function draw(vertices:Int, instances:Int, first:Int) {
@@ -363,6 +444,10 @@ class D3D11Backend {
 		}
 		for (b in buffers)
 			Com.release(b);
+		for (b in slotBuffers)
+			Com.release(b);
+		Com.release(ring);
+		Com.release(context1);
 		Com.release(staging);
 		Com.release(view);
 		Com.release(target);
@@ -376,6 +461,9 @@ class D3D11Backend {
 		LibC.free(vbufs);
 		LibC.free(strides);
 		LibC.free(offsets);
+		LibC.free(cbuf);
+		LibC.free(cfirst);
+		LibC.free(cnum);
 	}
 }
 

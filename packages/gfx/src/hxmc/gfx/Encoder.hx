@@ -16,9 +16,20 @@ final class Encoder {
 	public inline function setVertexBuffer(slot:Int, b:Buffer, offset = 0)
 		impl.setVertexBuffer(slot, b.id(), offset);
 
+	// a uniform block's contents for the next draws, at its slot (a shader
+	// class's uniforms: binding; its write<Block> fills the bytes): size bytes
+	// of data from offset (default: the rest), copied into the frame's
+	// uniform ring (at most UNIFORM_RING bytes a frame, each block 256-byte
+	// aligned; Metal: at most 4 KB a block)
+	public inline function setUniforms(slot:Int, data:haxe.io.Bytes, offset = 0, size = -1)
+		impl.setUniforms(slot, data, offset, size < 0 ? data.length - offset : size);
+
 	public inline function draw(vertices:Int, instances = 1, firstVertex = 0)
 		impl.draw(vertices, instances, firstVertex);
 
 	public inline function endPass()
 		impl.endPass();
+
+	// the uniform ring's size per frame in flight
+	public static inline var UNIFORM_RING = 256 * 1024;
 }
