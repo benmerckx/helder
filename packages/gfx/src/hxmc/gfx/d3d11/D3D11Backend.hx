@@ -2,6 +2,8 @@ package hxmc.gfx.d3d11;
 
 import hxmc.gfx.*;
 import hxmc.gfx.d3d11.D3D11;
+import hxmc.os.win32.Com;
+import hxmc.os.win32.Com.IUnknown;
 import hxmc.os.Surface;
 import hxmc.unsafe.*;
 

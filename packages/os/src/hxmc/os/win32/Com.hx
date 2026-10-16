@@ -4,8 +4,8 @@ package hxmc.os.win32;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 
-// The build macro of COM interfaces (hxmc.os.audio.Wasapi; hxmc.gfx's
-// Direct3D 11 has its own copy): each function declared without a body and
+// The build macro of COM interfaces (hxmc.os.audio.Wasapi and
+// hxmc.gfx's Direct3D 11): each function declared without a body and
 // with @:slot(n) is the method at index n of the interface's vtable (the
 // order of the official headers' C vtables, the base interfaces' methods
 // first), its first argument the object. It becomes a C call through that

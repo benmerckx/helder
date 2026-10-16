@@ -1,6 +1,7 @@
 package hxmc.gfx.d3d11;
 
 import hxmc.unsafe.*;
+import hxmc.os.win32.Com.IUnknown;
 
 // Direct3D 11, DXGI and the HLSL compiler: the system's C functions, then
 // the COM interfaces the back end calls (Com: a method is its vtable slot
@@ -18,14 +19,7 @@ import hxmc.unsafe.*;
 		errors:Ptr<Ptr>):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
-class IUnknown {
-	@:slot(0) static function QueryInterface(self:Ptr, iid:Ptr, out:Ptr<Ptr>):Int;
-	@:slot(1) static function AddRef(self:Ptr):Int;
-	@:slot(2) static function Release(self:Ptr):Int;
-}
-
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class ID3D11Device {
 	@:slot(3) static function CreateBuffer(self:Ptr, desc:Ptr<D3D11_BUFFER_DESC>, data:Ptr<D3D11_SUBRESOURCE_DATA>, out:Ptr<Ptr>):Int;
 	@:slot(5) static function CreateTexture2D(self:Ptr, desc:Ptr<D3D11_TEXTURE2D_DESC>, data:Ptr, out:Ptr<Ptr>):Int;
@@ -44,7 +38,7 @@ class ID3D11Device {
 	@:slot(39) static function GetDeviceRemovedReason(self:Ptr):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class ID3D11DeviceContext {
 	@:slot(7) static function VSSetConstantBuffers(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>):Void;
 	@:slot(8) static function PSSetShaderResources(self:Ptr, start:Int, count:Int, views:Ptr<Ptr>):Void;
@@ -78,37 +72,37 @@ class ID3D11DeviceContext {
 }
 
 // (Direct3D 11.1: constant buffers at offsets, in 16-byte constants, 16 of them at a time)
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class ID3D11DeviceContext1 {
 	@:slot(119) static function VSSetConstantBuffers1(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>, first:Ptr<Int32>, num:Ptr<Int32>):Void;
 	@:slot(123) static function PSSetConstantBuffers1(self:Ptr, start:Int, count:Int, buffers:Ptr<Ptr>, first:Ptr<Int32>, num:Ptr<Int32>):Void;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class ID3DBlob {
 	@:slot(3) static function GetBufferPointer(self:Ptr):Ptr;
 	@:slot(4) static function GetBufferSize(self:Ptr):Int64;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class IDXGIDevice {
 	@:slot(7) static function GetAdapter(self:Ptr, out:Ptr<Ptr>):Int;
 }
 
 // (IDXGIObject::GetParent: the adapter's factory)
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class IDXGIAdapter {
 	@:slot(6) static function GetParent(self:Ptr, iid:Ptr, out:Ptr<Ptr>):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class IDXGIFactory2 {
 	@:slot(8) static function MakeWindowAssociation(self:Ptr, hwnd:Ptr, flags:Int):Int;
 	@:slot(15) static function CreateSwapChainForHwnd(self:Ptr, device:Ptr, hwnd:Ptr, desc:Ptr<DXGI_SWAP_CHAIN_DESC1>, fullscreen:Ptr, output:Ptr,
 		out:Ptr<Ptr>):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class IDXGISwapChain1 {
 	@:slot(8) static function Present(self:Ptr, interval:Int, flags:Int):Int;
 	@:slot(9) static function GetBuffer(self:Ptr, index:Int, iid:Ptr, out:Ptr<Ptr>):Int;
