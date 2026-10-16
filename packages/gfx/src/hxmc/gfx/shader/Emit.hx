@@ -42,10 +42,32 @@ class Emit {
 	}
 
 	function func(f:SFunction) {
-		line(type(f.ret) + " " + f.name + "(" + [for (p in f.params) type(p.type) + " " + p.name].join(", ") + ") {");
+		line(type(f.ret) + " " + f.name + "(" + [for (p in f.params) param(p)].join(", ") + ") {");
 		body(f.body);
 		line("}");
 	}
+
+	// a parameter (a texture: with its sampler where the language separates them)
+	function param(p:SVar):String
+		return p.type == TTexture ? type(p.type) + " " + p.name + ", " + sampler() + " " + p.sampler : type(p.type) + " " + p.name;
+
+	// the sampler type (none: GLSL's sampler2D is both)
+	function sampler():String
+		return "";
+
+	// the arguments after an entry point's input: each uniform block (as
+	// uniform(u) builds it) and each texture with its sampler
+	function extraArgs(e:SEntry, uniform:SUniform->String):Array<String>
+		return [
+			for (x in e.params)
+				switch x {
+					case PUniform(u): uniform(u);
+					case PTexture(i): textureArg(i);
+				}
+		];
+
+	function textureArg(slot:Int):String
+		return 'tex_$slot, smp_$slot';
 
 	function declare(v:SVar, init:Null<SExpr>):String
 		return type(v.type) + " " + v.name + (init == null ? "" : " = " + expr(init)) + ";";

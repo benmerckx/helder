@@ -8,6 +8,7 @@ import hxmc.os.*;
 //
 //   WebTest headless   an offscreen target, drawn once by main; on WebGL2
 //                      also read back by Device.readPixels (its checksum)
+//   WebTest features   FeatureScene (GfxTest features) headless, drawn once
 //   WebTest window     a canvas of 256x192 pixels, drawn by App.run's frames
 //                      from the browser's loop after main returned; a Resize
 //                      when the page resizes it, Escape closes it (the loop ends)
@@ -16,6 +17,15 @@ import hxmc.os.*;
 // packages/gfx/imports.mjs (readPixels), on both.
 class WebTest {
 	static function main() {
+		if (Sys.args()[0] == "features") {
+			var device = Device.create(Surface.headless(FeatureScene.WIDTH, FeatureScene.HEIGHT));
+			var scene = new FeatureScene(device);
+			var enc = device.beginFrame();
+			scene.draw(enc);
+			device.endFrame();
+			Sys.println('WebTest: features: ${device.width}x${device.height} (${name(device.backend)})');
+			return;
+		}
 		if (Sys.args()[0] == "headless") {
 			var device = Device.create(Surface.headless(256, 192));
 			var triangle = new Triangle(device);

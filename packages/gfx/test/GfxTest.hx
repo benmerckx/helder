@@ -11,6 +11,9 @@ import hxmc.unsafe.*;
 //     glReadPixels; macOS: Metal, on an offscreen texture copied to a buffer;
 //     Windows: D3D11 (WARP with HXMC_GFX_SOFTWARE=1), on an offscreen
 //     texture copied to a staging texture
+//   GfxTest features <golden.png> <out.png> [--bless]
+//     FeatureScene (buffer and texture writes, R8 and RGBA8 textures,
+//     blending, scissor) headless, as headless draws the triangle
 //   GfxTest window <golden.png> <out.png> [frames]
 //     in a window (X11 under Xvfb, Cocoa, Win32): the last frame's back
 //     buffer before the present (readPixels) and the window's pixels after
@@ -37,6 +40,7 @@ class GfxTest {
 		var golden = args[1], out = args[2];
 		var ok = switch args[0] {
 			case "headless": headless(golden, out, args[3] == "--bless");
+			case "features": features(golden, out, args[3] == "--bless");
 			case "window": window(golden, out, args.length > 3 ? Std.parseInt(args[3]) : 5);
 			case m: throw "GfxTest: no mode " + m;
 		}
@@ -69,6 +73,24 @@ class GfxTest {
 			return true;
 		}
 		return compare("headless", pixels, golden);
+	}
+
+	static function features(golden:String, out:String, bless:Bool):Bool {
+		var device = Device.create(Surface.headless(WIDTH, HEIGHT));
+		var scene = new FeatureScene(device);
+		var pixels = Bytes.alloc(WIDTH * HEIGHT * 4);
+		var enc = device.beginFrame();
+		scene.draw(enc);
+		device.readPixels(pixels);
+		device.endFrame();
+		device.dispose();
+		sys.io.File.saveBytes(out, Png.encode(pixels, WIDTH, HEIGHT));
+		if (bless) {
+			sys.io.File.saveBytes(golden, Png.encode(pixels, WIDTH, HEIGHT));
+			Sys.println('GfxTest: blessed $golden');
+			return true;
+		}
+		return compare("features", pixels, golden, 208, 44);
 	}
 
 	static function window(golden:String, out:String, frames:Int):Bool {
@@ -150,7 +172,8 @@ class GfxTest {
 		return rgba;
 	}
 
-	static function compare(what:String, pixels:Bytes, golden:String):Bool {
+	// (probe: a pixel the scene lights: the triangle's centre by default)
+	static function compare(what:String, pixels:Bytes, golden:String, probeX = WIDTH >> 1, probeY = HEIGHT >> 1):Bool {
 		var g = Png.decode(sys.io.File.getBytes(golden));
 		if (g.width != WIDTH || g.height != HEIGHT) {
 			Sys.println('GfxTest: $what: FAIL: the golden image is ${g.width}x${g.height}');
@@ -173,12 +196,12 @@ class GfxTest {
 			if (d > TOLERANCE) off++;
 			if (d > max) max = d;
 		}
-		// a sanity check: the triangle is there (the centre is lit, a corner is the clear colour)
-		var c = 4 * ((HEIGHT >> 1) * WIDTH + (WIDTH >> 1));
+		// a sanity check: the scene is there (the probe is lit, a corner is the clear colour)
+		var c = 4 * (probeY * WIDTH + probeX);
 		var lit = pixels.get(c) + pixels.get(c + 1) + pixels.get(c + 2) > 200 && pixels.get(0) < 40;
 		var ok = lit && off <= MAX_OFF * WIDTH * HEIGHT;
 		Sys.println('GfxTest: $what: ' + (ok ? "ok" : "FAIL") + (differ == 0 ? " (exact)" : ' ($differ pixels differ, $off by more than $TOLERANCE, at most $max)')
-			+ (hidden > 0 ? ' ($hidden pixels not shown)' : "") + (lit ? "" : " (no triangle)"));
+			+ (hidden > 0 ? ' ($hidden pixels not shown)' : "") + (lit ? "" : " (nothing drawn)"));
 		return ok;
 	}
 }

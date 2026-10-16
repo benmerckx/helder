@@ -29,18 +29,23 @@ class IUnknown {
 class ID3D11Device {
 	@:slot(3) static function CreateBuffer(self:Ptr, desc:Ptr<D3D11_BUFFER_DESC>, data:Ptr<D3D11_SUBRESOURCE_DATA>, out:Ptr<Ptr>):Int;
 	@:slot(5) static function CreateTexture2D(self:Ptr, desc:Ptr<D3D11_TEXTURE2D_DESC>, data:Ptr, out:Ptr<Ptr>):Int;
+	@:slot(7) static function CreateShaderResourceView(self:Ptr, resource:Ptr, desc:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(9) static function CreateRenderTargetView(self:Ptr, resource:Ptr, desc:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(11) static function CreateInputLayout(self:Ptr, elements:Ptr<D3D11_INPUT_ELEMENT_DESC>, count:Int, code:Ptr, size:Int64, out:Ptr<Ptr>):Int;
 	@:slot(12) static function CreateVertexShader(self:Ptr, code:Ptr, size:Int64, linkage:Ptr, out:Ptr<Ptr>):Int;
 	@:slot(15) static function CreatePixelShader(self:Ptr, code:Ptr, size:Int64, linkage:Ptr, out:Ptr<Ptr>):Int;
+	@:slot(20) static function CreateBlendState(self:Ptr, desc:Ptr<D3D11_BLEND_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(22) static function CreateRasterizerState(self:Ptr, desc:Ptr<D3D11_RASTERIZER_DESC>, out:Ptr<Ptr>):Int;
+	@:slot(23) static function CreateSamplerState(self:Ptr, desc:Ptr<D3D11_SAMPLER_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(37) static function GetFeatureLevel(self:Ptr):Int;
 	@:slot(39) static function GetDeviceRemovedReason(self:Ptr):Int;
 }
 
 @:build(hxmc.gfx.d3d11.Com.build())
 class ID3D11DeviceContext {
+	@:slot(8) static function PSSetShaderResources(self:Ptr, first:Int, count:Int, views:Ptr<Ptr>):Void;
 	@:slot(9) static function PSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
+	@:slot(10) static function PSSetSamplers(self:Ptr, first:Int, count:Int, samplers:Ptr<Ptr>):Void;
 	@:slot(11) static function VSSetShader(self:Ptr, shader:Ptr, classes:Ptr, count:Int):Void;
 	@:slot(13) static function Draw(self:Ptr, vertices:Int, first:Int):Void;
 	@:slot(14) static function Map(self:Ptr, resource:Ptr, subresource:Int, type:Int, flags:Int, out:Ptr<D3D11_MAPPED_SUBRESOURCE>):Int;
@@ -54,7 +59,9 @@ class ID3D11DeviceContext {
 	@:slot(36) static function OMSetDepthStencilState(self:Ptr, state:Ptr, ref:Int):Void;
 	@:slot(43) static function RSSetState(self:Ptr, state:Ptr):Void;
 	@:slot(44) static function RSSetViewports(self:Ptr, count:Int, viewports:Ptr<D3D11_VIEWPORT>):Void;
+	@:slot(45) static function RSSetScissorRects(self:Ptr, count:Int, rects:Ptr<D3D11_RECT>):Void;
 	@:slot(47) static function CopyResource(self:Ptr, dst:Ptr, src:Ptr):Void;
+	@:slot(48) static function UpdateSubresource(self:Ptr, dst:Ptr, subresource:Int, box:Ptr<D3D11_BOX>, src:Ptr, rowPitch:Int, depthPitch:Int):Void;
 	@:slot(50) static function ClearRenderTargetView(self:Ptr, view:Ptr, rgba:Ptr<Float32>):Void;
 	@:slot(110) static function ClearState(self:Ptr):Void;
 	@:slot(111) static function Flush(self:Ptr):Void;
@@ -105,12 +112,26 @@ class D3D {
 	public static inline var FORMAT_R8G8B8A8_UNORM = 28;
 	public static inline var FORMAT_R32G32_FLOAT = 16;
 	public static inline var FORMAT_R32_FLOAT = 41;
+	public static inline var FORMAT_R8_UNORM = 61;
+	// D3D11_FILTER, D3D11_TEXTURE_ADDRESS_MODE, D3D11_COMPARISON_FUNC
+	public static inline var FILTER_MIN_MAG_MIP_POINT = 0;
+	public static inline var FILTER_MIN_MAG_MIP_LINEAR = 0x15;
+	public static inline var TEXTURE_ADDRESS_CLAMP = 3;
+	public static inline var COMPARISON_NEVER = 1;
+	// D3D11_BLEND, D3D11_BLEND_OP, D3D11_COLOR_WRITE_ENABLE
+	public static inline var BLEND_ZERO = 1;
+	public static inline var BLEND_ONE = 2;
+	public static inline var BLEND_SRC_ALPHA = 5;
+	public static inline var BLEND_INV_SRC_ALPHA = 6;
+	public static inline var BLEND_OP_ADD = 1;
+	public static inline var COLOR_WRITE_ENABLE_ALL = 0xF;
 	// D3D11_USAGE, D3D11_BIND_FLAG, D3D11_CPU_ACCESS_FLAG, D3D11_MAP
 	public static inline var USAGE_DEFAULT = 0;
 	public static inline var USAGE_STAGING = 3;
 	public static inline var BIND_VERTEX_BUFFER = 0x1;
 	public static inline var BIND_INDEX_BUFFER = 0x2;
 	public static inline var BIND_CONSTANT_BUFFER = 0x4;
+	public static inline var BIND_SHADER_RESOURCE = 0x8;
 	public static inline var BIND_RENDER_TARGET = 0x20;
 	public static inline var CPU_ACCESS_READ = 0x20000;
 	public static inline var MAP_READ = 1;
@@ -204,6 +225,54 @@ class IID {
 	var ScissorEnable:Int32;
 	var MultisampleEnable:Int32;
 	var AntialiasedLineEnable:Int32;
+}
+
+@:hxmc.struct @:publicFields class D3D11_BOX {
+	var left:UInt32;
+	var top:UInt32;
+	var front:UInt32;
+	var right:UInt32;
+	var bottom:UInt32;
+	var back:UInt32;
+}
+
+@:hxmc.struct @:publicFields class D3D11_RECT {
+	var left:Int32;
+	var top:Int32;
+	var right:Int32;
+	var bottom:Int32;
+}
+
+@:hxmc.struct @:publicFields class D3D11_SAMPLER_DESC {
+	var Filter:Int32;
+	var AddressU:Int32;
+	var AddressV:Int32;
+	var AddressW:Int32;
+	var MipLODBias:Float32;
+	var MaxAnisotropy:UInt32;
+	var ComparisonFunc:Int32;
+	var BorderColor0:Float32;
+	var BorderColor1:Float32;
+	var BorderColor2:Float32;
+	var BorderColor3:Float32;
+	var MinLOD:Float32;
+	var MaxLOD:Float32;
+}
+
+// D3D11_BLEND_DESC with its first render target's D3D11_RENDER_TARGET_BLEND_DESC
+// (32 bytes each: 8 of them, BLEND_DESC_SIZE in all; the others unused
+// without IndependentBlendEnable)
+@:hxmc.struct @:publicFields class D3D11_BLEND_DESC {
+	var AlphaToCoverageEnable:Int32;
+	var IndependentBlendEnable:Int32;
+	var BlendEnable:Int32;
+	var SrcBlend:Int32;
+	var DestBlend:Int32;
+	var BlendOp:Int32;
+	var SrcBlendAlpha:Int32;
+	var DestBlendAlpha:Int32;
+	var BlendOpAlpha:Int32;
+	var RenderTargetWriteMask:UInt8;
 }
 
 @:hxmc.struct @:publicFields class D3D11_VIEWPORT {

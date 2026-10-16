@@ -12,9 +12,12 @@ import hxmc.unsafe.*;
 // or when there is no hardware device. Shaders are HLSL compiled at run
 // time (D3DCompile, entry point main, shader model 5.0, or 4.0 below
 // feature level 11_0), vertex inputs at semantic TEXCOORD<location> (as
-// SPIRV-Cross names them); blending and depth stay the defaults (off, and
-// no depth buffer). readPixels copies the target into a staging texture
-// and maps it.
+// SPIRV-Cross names them); a pipeline's blending is a blend state, there
+// is no depth buffer. Buffer and texture writes are UpdateSubresource (in
+// the context's order); textures are shader resource views with one of two
+// sampler states (Linear, Nearest). Rasterizer states enable the scissor
+// test (the whole target by default). readPixels copies the target into a
+// staging texture and maps it.
 class D3D11Backend {
 	public final backend = Backend.D3D11;
 	public var width(default, null) = 0;
@@ -42,6 +45,9 @@ class D3D11Backend {
 
 	// tables (handle = index + 1)
 	final buffers:Array<Ptr> = []; // ID3D11Buffer
+	final usages:Array<BufferUsage> = [];
+	final textures:Array<D3DTexture> = [];
+	final samplers:Array<Ptr> = [Ptr.nil(), Ptr.nil()]; // ID3D11SamplerState by Filter
 	final shaders:Array<D3DShader> = [];
 	final pipelines:Array<D3DPipeline> = [];
 
@@ -50,6 +56,7 @@ class D3D11Backend {
 	var dirty = true;
 
 	static inline var MAX_SLOTS = 8;
+	static inline var BLEND_DESC_SIZE = 8 + 8 * 32;
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -159,7 +166,104 @@ class D3D11Backend {
 		});
 		check(hr, "CreateBuffer (" + size + " bytes)");
 		buffers.push(scratch.value);
+		usages.push(d.usage);
 		return buffers.length;
+	}
+
+	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
+		var uniform = usages[id - 1] == Uniform;
+		if (uniform && offset != 0) throw "hxmc.gfx: writeBuffer: D3D11 writes a uniform buffer whole";
+		Arena.scoped(a -> {
+			// (a constant buffer: no box)
+			var box:Ptr<D3D11_BOX> = Ptr.nil();
+			if (!uniform) {
+				box = a.make(D3D11_BOX);
+				box.value.left = offset;
+				box.value.right = offset + size;
+				box.value.bottom = 1;
+				box.value.back = 1;
+			}
+			ID3D11DeviceContext.UpdateSubresource(context, buffers[id - 1], 0, box, a.copyBytes(data, dataOffset, size), 0, 0);
+		});
+	}
+
+	public function createTexture(d:TextureDesc):Int {
+		var bpp = d.format.bytesPerPixel;
+		var hr = Arena.scopedValue(a -> {
+			var desc = a.make(D3D11_TEXTURE2D_DESC);
+			desc.value.Width = d.width;
+			desc.value.Height = d.height;
+			desc.value.MipLevels = 1;
+			desc.value.ArraySize = 1;
+			desc.value.Format = d.format == R8 ? D3D.FORMAT_R8_UNORM : D3D.FORMAT_R8G8B8A8_UNORM;
+			desc.value.SampleCount = 1;
+			desc.value.Usage = D3D.USAGE_DEFAULT;
+			desc.value.BindFlags = D3D.BIND_SHADER_RESOURCE;
+			// (zeros unless given)
+			var init = a.make(D3D11_SUBRESOURCE_DATA);
+			init.value.pSysMem = d.data != null ? a.copyBytes(d.data, 0, d.width * d.height * bpp) : a.alloc(d.width * d.height * bpp);
+			init.value.SysMemPitch = d.width * bpp;
+			ID3D11Device.CreateTexture2D(device, desc, init.raw(), scratch);
+		});
+		check(hr, "CreateTexture2D (" + d.width + "x" + d.height + ")");
+		var tex = scratch.value;
+		hr = ID3D11Device.CreateShaderResourceView(device, tex, Ptr.nil(), scratch);
+		if (hr < 0) Com.release(tex);
+		check(hr, "CreateShaderResourceView");
+		var view = scratch.value;
+		var filter = d.filter == Nearest ? 1 : 0;
+		if (samplers[filter].isNull()) {
+			hr = Arena.scopedValue(a -> {
+				var s = a.make(D3D11_SAMPLER_DESC);
+				s.value.Filter = filter == 1 ? D3D.FILTER_MIN_MAG_MIP_POINT : D3D.FILTER_MIN_MAG_MIP_LINEAR;
+				s.value.AddressU = D3D.TEXTURE_ADDRESS_CLAMP;
+				s.value.AddressV = D3D.TEXTURE_ADDRESS_CLAMP;
+				s.value.AddressW = D3D.TEXTURE_ADDRESS_CLAMP;
+				s.value.MaxAnisotropy = 1;
+				s.value.ComparisonFunc = D3D.COMPARISON_NEVER;
+				s.value.MaxLOD = 3.402823466e38;
+				ID3D11Device.CreateSamplerState(device, s, scratch);
+			});
+			check(hr, "CreateSamplerState");
+			samplers[filter] = scratch.value;
+		}
+		textures.push(new D3DTexture(tex, view, samplers[filter], d.width, d.height, bpp));
+		return textures.length;
+	}
+
+	public function writeTexture(id:Int, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset:Int) {
+		var t = textures[id - 1];
+		if (x < 0 || y < 0 || x + w > t.width || y + h > t.height) throw "hxmc.gfx: writeTexture: outside the texture";
+		Arena.scoped(a -> {
+			var box = a.make(D3D11_BOX);
+			box.value.left = x;
+			box.value.top = y;
+			box.value.right = x + w;
+			box.value.bottom = y + h;
+			box.value.back = 1;
+			ID3D11DeviceContext.UpdateSubresource(context, t.texture, 0, box, a.copyBytes(data, dataOffset, w * h * t.bpp), w * t.bpp, 0);
+		});
+	}
+
+	public function setTexture(slot:Int, id:Int) {
+		var t = id == 0 ? null : textures[id - 1];
+		scratch.value = t == null ? Ptr.nil() : t.view;
+		ID3D11DeviceContext.PSSetShaderResources(context, slot, 1, scratch);
+		scratch.value = t == null ? Ptr.nil() : t.sampler;
+		ID3D11DeviceContext.PSSetSamplers(context, slot, 1, scratch);
+	}
+
+	public function setScissor(x:Int, y:Int, w:Int, h:Int) {
+		var x0 = x < 0 ? 0 : x > width ? width : x, y0 = y < 0 ? 0 : y > height ? height : y;
+		var x1 = x + w > width ? width : x + w, y1 = y + h > height ? height : y + h;
+		Arena.scoped(a -> {
+			var r = a.make(D3D11_RECT);
+			r.value.left = x0;
+			r.value.top = y0;
+			r.value.right = x1 < x0 ? x0 : x1;
+			r.value.bottom = y1 < y0 ? y0 : y1;
+			ID3D11DeviceContext.RSSetScissorRects(context, 1, r);
+		});
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -230,11 +334,34 @@ class D3D11Backend {
 			// (GL's front faces)
 			r.value.FrontCounterClockwise = 1;
 			r.value.DepthClipEnable = 1;
+			r.value.ScissorEnable = 1;
 			ID3D11Device.CreateRasterizerState(device, r, scratch);
 		});
 		if (hr < 0) Com.release(layout);
 		check(hr, "CreateRasterizerState");
-		pipelines.push(new D3DPipeline(vs.shader, ps.shader, layout, scratch.value, d));
+		var rasterizer = scratch.value;
+		var blend = Ptr.nil();
+		if (d.blend != null && d.blend != Replace) {
+			hr = Arena.scopedValue(a -> {
+				var b:Ptr<D3D11_BLEND_DESC> = a.alloc(BLEND_DESC_SIZE);
+				b.value.BlendEnable = 1;
+				b.value.SrcBlend = d.blend == Alpha ? D3D.BLEND_SRC_ALPHA : D3D.BLEND_ONE;
+				b.value.DestBlend = d.blend == Add ? D3D.BLEND_ONE : D3D.BLEND_INV_SRC_ALPHA;
+				b.value.BlendOp = D3D.BLEND_OP_ADD;
+				b.value.SrcBlendAlpha = D3D.BLEND_ONE;
+				b.value.DestBlendAlpha = D3D.BLEND_INV_SRC_ALPHA;
+				b.value.BlendOpAlpha = D3D.BLEND_OP_ADD;
+				b.value.RenderTargetWriteMask = D3D.COLOR_WRITE_ENABLE_ALL;
+				ID3D11Device.CreateBlendState(device, b, scratch);
+			});
+			if (hr < 0) {
+				Com.release(layout);
+				Com.release(rasterizer);
+			}
+			check(hr, "CreateBlendState");
+			blend = scratch.value;
+		}
+		pipelines.push(new D3DPipeline(vs.shader, ps.shader, layout, rasterizer, blend, d));
 		return pipelines.length;
 	}
 
@@ -263,6 +390,7 @@ class D3D11Backend {
 		viewport.value.MinDepth = 0;
 		viewport.value.MaxDepth = 1;
 		ID3D11DeviceContext.RSSetViewports(context, 1, viewport);
+		setScissor(0, 0, width, height);
 		var c = p.colors[0];
 		if (c.load == Clear) {
 			var k = c.clear;
@@ -285,6 +413,7 @@ class D3D11Backend {
 		ID3D11DeviceContext.IASetInputLayout(context, p.layout);
 		ID3D11DeviceContext.IASetPrimitiveTopology(context, p.topology);
 		ID3D11DeviceContext.RSSetState(context, p.rasterizer);
+		ID3D11DeviceContext.OMSetBlendState(context, p.blend, Ptr.nil(), 0xFFFFFFFF);
 		dirty = true;
 	}
 
@@ -356,7 +485,14 @@ class D3D11Backend {
 		for (p in pipelines) {
 			Com.release(p.layout);
 			Com.release(p.rasterizer);
+			Com.release(p.blend);
 		}
+		for (t in textures) {
+			Com.release(t.view);
+			Com.release(t.texture);
+		}
+		for (s in samplers)
+			Com.release(s);
 		for (s in shaders) {
 			Com.release(s.shader);
 			Com.release(s.code);
@@ -391,16 +527,37 @@ private class D3DShader {
 	}
 }
 
+// a texture, its shader resource view and its sampler (shared)
+private class D3DTexture {
+	public final texture:Ptr;
+	public final view:Ptr;
+	public final sampler:Ptr;
+	public final width:Int;
+	public final height:Int;
+	public final bpp:Int;
+
+	public function new(texture:Ptr, view:Ptr, sampler:Ptr, width:Int, height:Int, bpp:Int) {
+		this.texture = texture;
+		this.view = view;
+		this.sampler = sampler;
+		this.width = width;
+		this.height = height;
+		this.bpp = bpp;
+	}
+}
+
 // the state objects a pipeline sets, and its vertex buffers' strides
 private class D3DPipeline {
 	public final vs:Ptr;
 	public final ps:Ptr;
 	public final layout:Ptr; // ID3D11InputLayout
 	public final rasterizer:Ptr; // ID3D11RasterizerState
+	public final blend:Ptr; // ID3D11BlendState (nil: Replace)
 	public final topology:Int;
 	public final strides:Array<Int> = [];
 
-	public function new(vs:Ptr, ps:Ptr, layout:Ptr, rasterizer:Ptr, d:PipelineDesc) {
+	public function new(vs:Ptr, ps:Ptr, layout:Ptr, rasterizer:Ptr, blend:Ptr, d:PipelineDesc) {
+		this.blend = blend;
 		this.vs = vs;
 		this.ps = ps;
 		this.layout = layout;

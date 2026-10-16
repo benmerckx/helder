@@ -75,6 +75,13 @@ class Macro {
 		return macro ([{stride: $v{off}, attributes: [$a{attrs}]}] : Array<hxmc.gfx.VertexBufferLayout>);
 	}
 
+	// the fragment stage's texture slots
+	public static macro function textures():Expr {
+		var p = compile();
+		if (p == null) return macro 0;
+		return macro $v{p.fragment.textures};
+	}
+
 	public static macro function uniforms():Expr {
 		var p = compile();
 		if (p == null) return macro cast null;
@@ -190,14 +197,17 @@ class Macro {
 			public static final fragmentCode:hxmc.gfx.ShaderCode = hxmc.gfx.shader.Macro.code(1);
 			public static final layout:Array<hxmc.gfx.VertexBufferLayout> = hxmc.gfx.shader.Macro.layout();
 			public static final uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock> = hxmc.gfx.shader.Macro.uniforms();
+			public static final textures:Int = hxmc.gfx.shader.Macro.textures();
 
 			// the pipeline of both stages and the vertex layout (Device.createPipeline compiles the code)
-			public static function pipeline(?options:{?topology:hxmc.gfx.Topology, ?cull:hxmc.gfx.Cull}):hxmc.gfx.PipelineDesc
+			public static function pipeline(?options:{?topology:hxmc.gfx.Topology, ?cull:hxmc.gfx.Cull, ?blend:hxmc.gfx.Blend}):hxmc.gfx.PipelineDesc
 				return {
 					program: {vertex: vertexCode, fragment: fragmentCode},
 					layout: layout,
 					topology: options == null ? null : options.topology,
-					cull: options == null ? null : options.cull
+					cull: options == null ? null : options.cull,
+					blend: options == null ? null : options.blend,
+					textures: textures
 				};
 
 			// the vertex buffer's contents
@@ -212,7 +222,7 @@ class Macro {
 					case TPath(p): p.sub != null ? p.sub : p.name;
 					case _: null;
 				}
-				if (name == null || seen.exists(name)) continue;
+				if (name == null || name == "Texture2D" || seen.exists(name)) continue;
 				seen.set(name, true);
 				var t = a.type;
 				generated.push({

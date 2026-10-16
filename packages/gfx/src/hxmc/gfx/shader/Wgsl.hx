@@ -5,8 +5,11 @@ import hxmc.gfx.shader.Ir;
 // WGSL (WebGPU). Entry points named main: vertex attributes and varyings
 // at @location(n), the position @builtin(position); a uniform block is
 // `@group(0) @binding(n) var<uniform> u_<n>: <Struct>` (WGSL's uniform
-// layout is std140's for these types). Locals are let unless assigned;
-// an assigned parameter is copied into a var.
+// layout is std140's for these types); a texture is `@group(0)
+// @binding(16 + 2 * slot) var tex_<slot>: texture_2d<f32>`, its sampler
+// smp_<slot> at the next binding, sampled at level 0 (textureSampleLevel:
+// no uniform control flow needed). Locals are let unless assigned; an
+// assigned parameter is copied into a var.
 class Wgsl extends Emit {
 	override function type(t:SType):String
 		return switch t {
@@ -17,6 +20,7 @@ class Wgsl extends Emit {
 			case TVec(n): 'vec${n}f';
 			case TMat4: "mat4x4f";
 			case TStruct(s): s.name;
+			case TTexture: "texture_2d<f32>";
 		}
 
 	override function struct(s:SStruct) {
@@ -27,7 +31,10 @@ class Wgsl extends Emit {
 	}
 
 	override function func(f:SFunction) {
-		var params = [for (p in f.params) (p.assigned ? p.name + "_in" : p.name) + ": " + type(p.type)].join(", ");
+		var params = [
+			for (p in f.params)
+				p.type == TTexture ? p.name + ": texture_2d<f32>, " + p.sampler + ": sampler" : (p.assigned ? p.name + "_in" : p.name) + ": " + type(p.type)
+		].join(", ");
 		line('fn ${f.name}($params)' + (f.ret == TVoid ? "" : " -> " + type(f.ret)) + " {");
 		for (p in f.params)
 			if (p.assigned) line('\tvar ${p.name}: ${type(p.type)} = ${p.name}_in;');
@@ -55,12 +62,19 @@ class Wgsl extends Emit {
 		return "select(" + expr(b) + ", " + expr(a) + ", " + expr(c) + ")";
 
 	override function builtin(name:String, args:Array<SExpr>, t:SType):String
-		return super.builtin(name == "inversesqrt" ? "inverseSqrt" : name, args, t);
+		return switch [name, args[0].e] {
+			case ["texture", ELocal(v)]: "textureSampleLevel(" + v.name + ", " + v.sampler + ", " + expr(args[1]) + ", 0.0)";
+			case _: super.builtin(name == "inversesqrt" ? "inverseSqrt" : name, args, t);
+		}
 
 	override function entry(p:SProgram, e:SEntry) {
 		for (u in e.uniforms)
 			line('@group(0) @binding(${u.binding}) var<uniform> u_${u.binding}: ${u.struct.name};');
-		var uniforms = [for (u in e.uniforms) 'u_${u.binding}'];
+		for (i in 0...e.textures) {
+			line('@group(0) @binding(${16 + 2 * i}) var tex_$i: texture_2d<f32>;');
+			line('@group(0) @binding(${17 + 2 * i}) var smp_$i: sampler;');
+		}
+		var uniforms = extraArgs(e, u -> 'u_${u.binding}');
 		var vs = Emit.varyings(p), pos = Emit.position(p);
 		function io(prefix:String, f:SField, loc:Int):String
 			return (f.position ? "@builtin(position) " : '@location($loc) ') + prefix + f.name + ": " + type(f.type);

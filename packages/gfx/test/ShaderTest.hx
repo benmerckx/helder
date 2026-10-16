@@ -94,6 +94,15 @@ class ShaderTest {
 		nearVec("BuiltinShader.vs", b.pos, [1, 2, 3, 0.5]);
 		var c = @:privateAccess BuiltinShader.fs(b);
 		check("BuiltinShader.fs", [c.x, c.y, c.z, c.w].filter(Math.isFinite).length == 4, Std.string([c.x, c.y, c.z, c.w]));
+		// textures on the CPU: an R8 mask read as (r, 0, 0, 1), an RGBA image bilinearly between texel centres
+		var mask = new Texture2D(2, 1, 1, Bytes.ofHex("ff00"));
+		var image = new Texture2D(2, 1, 4, Bytes.ofHex("ff0000ff0000ffff"));
+		nearVec("texture R8", texture(mask, vec2(0.25, 0.5)), [1, 0, 0, 1]);
+		nearVec("texture RGBA8, halfway", texture(image, vec2(0.5, 0.5)), [0.5, 0, 0.5, 1]);
+		nearVec("texture RGBA8, clamped", texture(image, vec2(1.5, -3)), [0, 0, 1, 1]);
+		var fv:FeatureShader.FeatureVaryings = {pos: vec4(0), uv: vec2(0.25, 0.5), color: vec4(1, 1, 0, 1), mode: 1};
+		nearVec("FeatureShader.fs, mask", @:privateAccess FeatureShader.fs(fv, mask, image), [1, 1, 0, 1]);
+		check("FeatureShader.textures", FeatureShader.textures == 2 && FeatureShader.pipeline({blend: Premultiplied}).textures == 2);
 	}
 
 	// the generated layouts and writers
@@ -128,7 +137,9 @@ class ShaderTest {
 			{name: "LitShader.vert", code: LitShader.vertexCode},
 			{name: "LitShader.frag", code: LitShader.fragmentCode},
 			{name: "BuiltinShader.vert", code: BuiltinShader.vertexCode},
-			{name: "BuiltinShader.frag", code: BuiltinShader.fragmentCode}
+			{name: "BuiltinShader.frag", code: BuiltinShader.fragmentCode},
+			{name: "FeatureShader.vert", code: FeatureShader.vertexCode},
+			{name: "FeatureShader.frag", code: FeatureShader.fragmentCode}
 		];
 		for (c in codes)
 			for (l in ["glsl", "wgsl", "msl", "hlsl"]) {

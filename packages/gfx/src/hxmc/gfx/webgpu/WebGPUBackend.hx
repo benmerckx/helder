@@ -45,6 +45,27 @@ class WebGPUBackend {
 		return b;
 	}
 
+	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
+		if (offset & 3 != 0 || size & 3 != 0) throw "hxmc.gfx: writeBuffer: WebGPU writes multiples of 4 bytes at offsets of 4";
+		WebGPU.write_buffer(id, offset, Mem.addr(data).add(8 + dataOffset), size);
+	}
+
+	public function createTexture(d:TextureDesc):Int {
+		var data = d.data;
+		var t = WebGPU.texture(d.width, d.height, cast d.format, d.filter == null ? 0 : cast d.filter, data == null ? Ptr.nil() : Mem.addr(data).add(8));
+		handles.push(t);
+		return t;
+	}
+
+	public function writeTexture(id:Int, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset:Int)
+		WebGPU.write_texture(id, x, y, w, h, Mem.addr(data).add(8 + dataOffset));
+
+	public inline function setTexture(slot:Int, id:Int)
+		WebGPU.set_texture(slot, id);
+
+	public inline function setScissor(x:Int, y:Int, w:Int, h:Int)
+		WebGPU.set_scissor(x, y, w, h);
+
 	public function createShader(d:ShaderDesc):Int {
 		if (d.code.wgsl == null) throw "hxmc.gfx: createShader: no WGSL source for the WebGPU back end";
 		var s = Arena.scopedValue(a -> WebGPU.shader(a.cstring(d.code.wgsl)));
@@ -60,7 +81,8 @@ class WebGPUBackend {
 				WebGPU.pipeline_attribute(a.location, cast a.format, a.offset);
 		}
 		var topology:Topology = d.topology == null ? Triangles : d.topology, cull:Cull = d.cull == null ? None : d.cull;
-		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull);
+		var blend:Blend = d.blend == null ? Replace : d.blend;
+		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull, cast blend, d.textures == null ? 0 : d.textures);
 		handles.push(p);
 		return p;
 	}

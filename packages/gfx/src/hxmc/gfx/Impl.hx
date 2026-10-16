@@ -51,6 +51,21 @@ abstract Impl(Any) {
 	public inline function createBuffer(d:BufferDesc):Int
 		return Mem.os() == 1 ? mtl().createBuffer(d) : Mem.os() == 2 ? d3d().createBuffer(d) : Mem.os() != 3 ? gl().createBuffer(d) : webgl() ? gl().createBuffer(d) : wgpu().createBuffer(d);
 
+	public inline function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int)
+		Mem.os() == 1 ? mtl().writeBuffer(id, offset, data, dataOffset, size) : Mem.os() == 2 ? d3d().writeBuffer(id, offset, data, dataOffset, size) : Mem.os() != 3 ? gl().writeBuffer(id, offset, data, dataOffset, size) : webgl() ? gl().writeBuffer(id, offset, data, dataOffset, size) : wgpu().writeBuffer(id, offset, data, dataOffset, size);
+
+	public inline function createTexture(d:TextureDesc):Int
+		return Mem.os() == 1 ? mtl().createTexture(d) : Mem.os() == 2 ? d3d().createTexture(d) : Mem.os() != 3 ? gl().createTexture(d) : webgl() ? gl().createTexture(d) : wgpu().createTexture(d);
+
+	public inline function writeTexture(id:Int, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset:Int)
+		Mem.os() == 1 ? mtl().writeTexture(id, x, y, w, h, data, dataOffset) : Mem.os() == 2 ? d3d().writeTexture(id, x, y, w, h, data, dataOffset) : Mem.os() != 3 ? gl().writeTexture(id, x, y, w, h, data, dataOffset) : webgl() ? gl().writeTexture(id, x, y, w, h, data, dataOffset) : wgpu().writeTexture(id, x, y, w, h, data, dataOffset);
+
+	public inline function setTexture(slot:Int, id:Int)
+		Mem.os() == 1 ? mtl().setTexture(slot, id) : Mem.os() == 2 ? d3d().setTexture(slot, id) : Mem.os() != 3 ? gl().setTexture(slot, id) : webgl() ? gl().setTexture(slot, id) : wgpu().setTexture(slot, id);
+
+	public inline function setScissor(x:Int, y:Int, w:Int, h:Int)
+		Mem.os() == 1 ? mtl().setScissor(x, y, w, h) : Mem.os() == 2 ? d3d().setScissor(x, y, w, h) : Mem.os() != 3 ? gl().setScissor(x, y, w, h) : webgl() ? gl().setScissor(x, y, w, h) : wgpu().setScissor(x, y, w, h);
+
 	public inline function createShader(d:ShaderDesc):Int
 		return Mem.os() == 1 ? mtl().createShader(d) : Mem.os() == 2 ? d3d().createShader(d) : Mem.os() != 3 ? gl().createShader(d) : webgl() ? gl().createShader(d) : wgpu().createShader(d);
 

@@ -8,5 +8,10 @@ typedef PipelineDesc = {
 	?program:{vertex:ShaderCode, fragment:ShaderCode},
 	layout:Array<VertexBufferLayout>,
 	?topology:Topology,
-	?cull:Cull
+	?cull:Cull,
+	// (default Replace)
+	?blend:Blend,
+	// the texture slots the fragment stage samples (a shader class's
+	// pipeline() gives its count)
+	?textures:Int
 }

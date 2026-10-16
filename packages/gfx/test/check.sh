@@ -1,6 +1,7 @@
 #!/bin/sh
 # The triangle (packages/gfx/examples/Triangle.hx) against triangle.png
-# (GfxTest.hx), headless, then in a window. Linux: on Mesa's llvmpipe, an EGL
+# (GfxTest.hx), headless, then FeatureScene against features.png headless,
+# then the triangle in a window. Linux: on Mesa's llvmpipe, an EGL
 # pbuffer, then an X11 window under Xvfb (needs libEGL, Mesa's drivers, Xvfb
 # and xvfb-run). macOS: Metal, an offscreen texture (skipped without a Metal
 # device: GfxTest exits with 3), then a Cocoa window (skipped outside a GUI
@@ -22,6 +23,7 @@ if [ -f "$bin/GfxTest.exe" ]; then
 		;;
 	esac
 	run "$bin/GfxTest.exe" headless "$here/triangle.png" "$out/headless.png"
+	run "$bin/GfxTest.exe" features "$here/features.png" "$out/features.png"
 	run "$bin/GfxTest.exe" window "$here/triangle.png" "$out/window.png" 5
 	exit 0
 fi
@@ -30,6 +32,7 @@ if [ "$(uname -s)" = Darwin ]; then
 	"$bin/GfxTest" headless "$here/triangle.png" "$out/headless.png" || code=$?
 	[ $code = 3 ] && exit 0
 	[ $code = 0 ] || exit $code
+	"$bin/GfxTest" features "$here/features.png" "$out/features.png"
 	if [ "$(launchctl managername 2>/dev/null)" != Aqua ]; then
 		echo "check.sh: not a GUI session (launchctl managername: $(launchctl managername 2>/dev/null)): no window test"
 		exit 0
@@ -39,4 +42,5 @@ if [ "$(uname -s)" = Darwin ]; then
 fi
 export LIBGL_ALWAYS_SOFTWARE=1
 env -u DISPLAY "$bin/GfxTest" headless "$here/triangle.png" "$out/headless.png"
+env -u DISPLAY "$bin/GfxTest" features "$here/features.png" "$out/features.png"
 xvfb-run -a -s "-screen 0 640x480x24" "$bin/GfxTest" window "$here/triangle.png" "$out/window.png" 5

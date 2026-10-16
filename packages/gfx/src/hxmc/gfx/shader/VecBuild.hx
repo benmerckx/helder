@@ -111,6 +111,8 @@ class VecBuild {
 			add("normalize", [["a", t]], t, "a / length(a)");
 			add("reflect", [["i", t], ["n", t]], t, "i - n * (2 * dot(n, i))");
 		}
+		// a texture's colour at uv (level 0: Texture2D)
+		add("texture", [["t", "Texture2D"], ["uv", "Vec2"]], "Vec4", "@:privateAccess t.sample(uv)");
 		add("cross", [["a", "Vec3"], ["b", "Vec3"]], "Vec3", "new Vec3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x)");
 		// constructors
 		add("vec2", [["x", "Float"], ["y", "Float"]], "Vec2", "new Vec2(x, y)");

@@ -15,6 +15,9 @@ enum SType {
 	TVec(n:Int); // 2 to 4 floats
 	TMat4; // 4 columns of vec4
 	TStruct(s:SStruct);
+	// a Texture2D: a parameter of the fragment stage's function only (with
+	// its sampler in the languages that separate them: SVar.sampler)
+	TTexture;
 }
 
 class SStruct {
@@ -43,6 +46,8 @@ class SVar {
 	public final type:SType;
 	// assigned after its declaration (WGSL: var, else let; a parameter: copied)
 	public var assigned = false;
+	// a texture: its sampler's name (HLSL, MSL, WGSL)
+	public var sampler:Null<String> = null;
 
 	public function new(name, type) {
 		this.name = name;
@@ -139,29 +144,45 @@ class SUniform {
 	}
 }
 
+// an entry point's parameter after its input, in order: a uniform block,
+// or a texture at its slot (tex_<slot>, smp_<slot>)
+enum SParam {
+	PUniform(u:SUniform);
+	PTexture(slot:Int);
+}
+
 enum abstract SStage(Int) {
 	var Vertex;
 	var Fragment;
 }
 
-// one stage: its function (input, then uniforms), what it needs in
-// declaration order (structs, then functions, callees first)
+// one stage: its function (input, then uniforms and textures: params),
+// what it needs in declaration order (structs, then functions, callees
+// first)
 class SEntry {
 	public final stage:SStage;
 	public final fn:SFunction;
 	public final input:SStruct;
 	public final uniforms:Array<SUniform>;
+	public final params:Array<SParam>;
 	public final structs:Array<SStruct>;
 	public final functions:Array<SFunction>;
 
-	public function new(stage, fn, input, uniforms, structs, functions) {
+	public function new(stage, fn, input, uniforms, params, structs, functions) {
 		this.stage = stage;
 		this.fn = fn;
 		this.input = input;
 		this.uniforms = uniforms;
+		this.params = params;
 		this.structs = structs;
 		this.functions = functions;
 	}
+
+	// the number of texture slots
+	public var textures(get, never):Int;
+
+	function get_textures():Int
+		return Lambda.count(params, p -> p.match(PTexture(_)));
 }
 
 class SProgram {

@@ -9,7 +9,8 @@ import hxmc.gfx.shader.Ir;
 // has no struct constructors: make_<Struct> functions. A matrix is stored
 // transposed (float4x4's rows are the columns: row_major in a cbuffer), so
 // that the columns' memory order is GLSL's: m * v is mul(v, m), a * b is
-// mul(b, a), a column is m[i].
+// mul(b, a), a column is m[i]. A texture is tex_<slot> at register(t<slot>)
+// with its sampler smp_<slot> at register(s<slot>), sampled at level 0.
 class Hlsl extends Emit {
 	override function type(t:SType):String
 		return switch t {
@@ -20,7 +21,11 @@ class Hlsl extends Emit {
 			case TVec(n): 'float$n';
 			case TMat4: "float4x4";
 			case TStruct(s): s.name;
+			case TTexture: "Texture2D";
 		}
+
+	override function sampler():String
+		return "SamplerState";
 
 	override function struct(s:SStruct) {
 		super.struct(s);
@@ -54,6 +59,12 @@ class Hlsl extends Emit {
 			case "inversesqrt": super.builtin("rsqrt", args, t);
 			// (an int: back to floats)
 			case "sign": "((" + type(t) + ")" + super.builtin("sign", args, t) + ")";
+			case "texture":
+				var v = switch args[0].e {
+					case ELocal(v): v;
+					case _: throw "texture";
+				}
+				v.name + ".SampleLevel(" + v.sampler + ", " + expr(args[1]) + ", 0.0)";
 			case _: super.builtin(name, args, t);
 		}
 
@@ -66,7 +77,11 @@ class Hlsl extends Emit {
 			}
 			line("};");
 		}
-		var args = [for (u in e.uniforms) 'make_${u.struct.name}(' + [for (f in u.struct.fields) 'u_${u.binding}_${f.name}'].join(", ") + ")"];
+		for (i in 0...e.textures) {
+			line('Texture2D tex_$i : register(t$i);');
+			line('SamplerState smp_$i : register(s$i);');
+		}
+		var args = extraArgs(e, u -> 'make_${u.struct.name}(' + [for (f in u.struct.fields) 'u_${u.binding}_${f.name}'].join(", ") + ")");
 		var vs = Emit.varyings(p), pos = Emit.position(p);
 		var input = 'make_${e.input.name}(' + [for (f in e.input.fields) 'i.${f.name}'].join(", ") + ")";
 		if (e.stage == Vertex) {

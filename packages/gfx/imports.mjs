@@ -20,6 +20,10 @@ const FORMATS = ['float32', 'float32x2', 'float32x3', 'float32x4', 'unorm8x4']; 
 const TOPOLOGIES = ['triangle-list', 'triangle-strip', 'line-list', 'point-list']; // Topology
 const CULLS = ['none', 'front', 'back']; // Cull
 const LOADS = ['clear', 'load', 'clear']; // LoadOp (DontCare: clear)
+const TEXTURE_FORMATS = ['r8unorm', 'rgba8unorm']; // TextureFormat
+const FILTERS = ['linear', 'nearest']; // Filter
+// Blend: the colour's factors (null: none); the alpha's are one, one-minus-src-alpha
+const BLENDS = [null, ['src-alpha', 'one-minus-src-alpha'], ['one', 'one-minus-src-alpha'], ['one', 'one']];
 const INFO_LOG_LENGTH = 0x8b84; // (GL's, not WebGL's)
 
 export default async function (host) {
@@ -34,8 +38,11 @@ export default async function (host) {
 	const { handles } = host;
 	// a pipeline's vertex buffers, as pipeline_buffer and pipeline_attribute give them
 	let layout = [];
-	// the frame
+	// the frame; the pass's pipeline and textures by slot (a bind group of
+	// them is made at the next draw when they changed: bound)
 	let encoder = null, texture = null, frameTarget = null, pass = null;
+	let pipeline = null, bound = true;
+	const slots = [];
 	const attachment = { view: null, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } };
 	const passDesc = { colorAttachments: [attachment] };
 	let captures = [];
@@ -109,6 +116,22 @@ export default async function (host) {
 			}
 			return handles.add(b);
 		},
+		write_buffer(b, offset, data, length) {
+			device.queue.writeBuffer(handles.get(b), offset, host.bytes(data, length));
+		},
+		texture(width, height, format, filter, data) {
+			const t = device.createTexture({ size: [width, height], format: TEXTURE_FORMATS[format], usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+			const bpp = format === 0 ? 1 : 4;
+			// (zeros unless given)
+			const pixels = data ? host.bytes(data, width * height * bpp) : new Uint8Array(width * height * bpp);
+			device.queue.writeTexture({ texture: t }, pixels, { bytesPerRow: width * bpp, rowsPerImage: height }, [width, height]);
+			const sampler = device.createSampler({ magFilter: FILTERS[filter], minFilter: FILTERS[filter] });
+			return handles.add({ gpuTexture: t, view: t.createView(), sampler, bpp, groups: new Map() });
+		},
+		write_texture(h, x, y, w, ht, data) {
+			const t = handles.get(h);
+			device.queue.writeTexture({ texture: t.gpuTexture, origin: [x, y] }, host.bytes(data, w * ht * t.bpp), { bytesPerRow: w * t.bpp, rowsPerImage: ht }, [w, ht]);
+		},
 		shader(code) {
 			const module = device.createShaderModule({ code: host.string(code) });
 			module.getCompilationInfo().then((info) => {
@@ -125,15 +148,29 @@ export default async function (host) {
 		pipeline_attribute(location, format, offset) {
 			layout[layout.length - 1].attributes.push({ shaderLocation: location, format: FORMATS[format], offset });
 		},
-		pipeline_end(vertex, fragment, target, topology, cull) {
+		pipeline_end(vertex, fragment, target, topology, cull, blend, textures) {
+			// (textures: an explicit layout of their bindings, 16 + 2 * slot and the
+			// sampler after it, as Wgsl declares them; else 'auto')
+			let group = null;
+			if (textures > 0) {
+				const entries = [];
+				for (let i = 0; i < textures; i++) {
+					entries.push({ binding: 16 + 2 * i, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } });
+					entries.push({ binding: 17 + 2 * i, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } });
+				}
+				group = device.createBindGroupLayout({ entries });
+			}
+			const b = BLENDS[blend];
+			const colorTarget = { format: handles.get(target).format };
+			if (b) colorTarget.blend = { color: { srcFactor: b[0], dstFactor: b[1] }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } };
 			const p = device.createRenderPipeline({
-				layout: 'auto',
+				layout: group ? device.createPipelineLayout({ bindGroupLayouts: [group] }) : 'auto',
 				vertex: { module: handles.get(vertex), entryPoint: 'main', buffers: layout },
-				fragment: { module: handles.get(fragment), entryPoint: 'main', targets: [{ format: handles.get(target).format }] },
+				fragment: { module: handles.get(fragment), entryPoint: 'main', targets: [colorTarget] },
 				// (GL's front faces)
 				primitive: { topology: TOPOLOGIES[topology], cullMode: CULLS[cull], frontFace: 'ccw' },
 			});
-			return handles.add(p);
+			return handles.add({ pipeline: p, group, textures, groups: new Map() });
 		},
 		frame_begin(target) {
 			const t = handles.get(target);
@@ -153,10 +190,45 @@ export default async function (host) {
 			c.a = a;
 			pass = encoder.beginRenderPass(passDesc);
 			pass.setViewport(0, 0, texture.width, texture.height, 0, 1);
+			pipeline = null;
+			bound = false;
 		},
-		set_pipeline: (p) => pass.setPipeline(handles.get(p)),
+		set_pipeline(p) {
+			pipeline = handles.get(p);
+			pass.setPipeline(pipeline.pipeline);
+			bound = false;
+		},
 		set_vertex_buffer: (slot, b, offset) => pass.setVertexBuffer(slot, handles.get(b), offset),
-		draw: (vertices, instances, first) => pass.draw(vertices, instances, first, 0),
+		set_texture(slot, t) {
+			slots[slot] = t;
+			bound = false;
+		},
+		set_scissor(x, y, w, h) {
+			const W = texture.width, H = texture.height;
+			const x0 = Math.min(Math.max(x, 0), W), y0 = Math.min(Math.max(y, 0), H);
+			const x1 = Math.max(Math.min(x + w, W), x0), y1 = Math.max(Math.min(y + h, H), y0);
+			pass.setScissorRect(x0, y0, x1 - x0, y1 - y0);
+		},
+		draw(vertices, instances, first) {
+			if (!bound && pipeline.textures > 0) {
+				// (a bind group per pipeline and set of textures, kept)
+				const key = slots.slice(0, pipeline.textures).join(',');
+				let g = pipeline.groups.get(key);
+				if (!g) {
+					const entries = [];
+					for (let i = 0; i < pipeline.textures; i++) {
+						const t = handles.get(slots[i]);
+						if (!t) throw new Error('hxmc.gfx: no texture at slot ' + i);
+						entries.push({ binding: 16 + 2 * i, resource: t.view }, { binding: 17 + 2 * i, resource: t.sampler });
+					}
+					g = device.createBindGroup({ layout: pipeline.group, entries });
+					pipeline.groups.set(key, g);
+				}
+				pass.setBindGroup(0, g);
+			}
+			bound = true;
+			pass.draw(vertices, instances, first, 0);
+		},
 		pass_end() {
 			pass.end();
 			pass = null;
@@ -176,6 +248,7 @@ export default async function (host) {
 			const o = handles.get(h);
 			o?.destroy?.();
 			o?.texture?.destroy();
+			o?.gpuTexture?.destroy();
 			o?.context?.unconfigure();
 			handles.remove(h);
 		},
@@ -308,6 +381,27 @@ export default async function (host) {
 		glDrawArrays: (mode, first, count) => gl.drawArrays(mode, first, count),
 		glDrawArraysInstanced: (mode, first, count, instances) => gl.drawArraysInstanced(mode, first, count, instances),
 		glPixelStorei: (pname, param) => gl.pixelStorei(pname, param),
+		glGenTextures: (n, p) => gen(n, p, () => gl.createTexture()),
+		glDeleteTextures: (n, p) => del(n, p, (t) => gl.deleteTexture(t)),
+		glBindTexture: (target, t) => gl.bindTexture(target, get(t) ?? null),
+		glActiveTexture: (unit) => gl.activeTexture(unit),
+		glTexParameteri: (target, pname, param) => gl.texParameteri(target, pname, param),
+		// (pixels: none, or the memory of one image of that size and format)
+		glTexImage2D(target, level, internal, w, h, border, format, type, p) {
+			const n = w * h * (format === gl.RED ? 1 : 4);
+			gl.texImage2D(target, level, internal, w, h, border, format, type, p ? host.bytes(p, n) : null);
+		},
+		glTexSubImage2D(target, level, x, y, w, h, format, type, p) {
+			gl.texSubImage2D(target, level, x, y, w, h, format, type, host.bytes(p, w * h * (format === gl.RED ? 1 : 4)));
+		},
+		// (a location is an object: a handle, -1 for none)
+		glGetUniformLocation(p, name) {
+			const loc = gl.getUniformLocation(get(p), host.string(name));
+			return loc === null ? -1 : handles.add(loc);
+		},
+		glUniform1i: (loc, v) => gl.uniform1i(get(loc), v),
+		glBlendFuncSeparate: (sr, dr, sa, da) => gl.blendFuncSeparate(sr, dr, sa, da),
+		glScissor: (x, y, w, h) => gl.scissor(x, y, w, h),
 		// (pixels: the memory from p on, which WebGL fills as far as it needs)
 		glReadPixels: (x, y, w, h, format, type, p) => gl.readPixels(x, y, w, h, format, type, new Uint8Array(host.memory().buffer, p)),
 		glFinish: () => gl.finish(),

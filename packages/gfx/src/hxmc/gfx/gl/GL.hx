@@ -36,6 +36,25 @@ class GL {
 	public static inline var FRONT = 0x0404;
 	public static inline var BACK = 0x0405;
 	public static inline var CCW = 0x0901;
+	public static inline var TEXTURE_2D = 0x0DE1;
+	public static inline var TEXTURE0 = 0x84C0;
+	public static inline var TEXTURE_MIN_FILTER = 0x2801;
+	public static inline var TEXTURE_MAG_FILTER = 0x2800;
+	public static inline var TEXTURE_WRAP_S = 0x2802;
+	public static inline var TEXTURE_WRAP_T = 0x2803;
+	public static inline var LINEAR = 0x2601;
+	public static inline var NEAREST = 0x2600;
+	public static inline var CLAMP_TO_EDGE = 0x812F;
+	public static inline var R8 = 0x8229;
+	public static inline var RED = 0x1903;
+	public static inline var RGBA8 = 0x8058;
+	public static inline var UNPACK_ALIGNMENT = 0x0CF5;
+	public static inline var BLEND = 0x0BE2;
+	public static inline var SCISSOR_TEST = 0x0C11;
+	public static inline var ZERO = 0;
+	public static inline var ONE = 1;
+	public static inline var SRC_ALPHA = 0x0302;
+	public static inline var ONE_MINUS_SRC_ALPHA = 0x0303;
 	public static inline var VERSION = 0x1F02;
 	public static inline var RENDERER = 0x1F01;
 
@@ -74,6 +93,18 @@ class GL {
 	static function glDrawArrays(mode:Int, first:Int, count:Int):Void;
 	static function glDrawArraysInstanced(mode:Int, first:Int, count:Int, instances:Int):Void;
 	static function glPixelStorei(pname:Int, param:Int):Void;
+	static function glGenTextures(n:Int, textures:Ptr<Int32>):Void;
+	static function glDeleteTextures(n:Int, textures:Ptr<Int32>):Void;
+	static function glBindTexture(target:Int, texture:Int):Void;
+	static function glActiveTexture(unit:Int):Void;
+	static function glTexParameteri(target:Int, pname:Int, param:Int):Void;
+	static function glTexImage2D(target:Int, level:Int, internalFormat:Int, width:Int, height:Int, border:Int, format:Int, type:Int, pixels:Ptr):Void;
+	static function glTexSubImage2D(target:Int, level:Int, x:Int, y:Int, width:Int, height:Int, format:Int, type:Int, pixels:Ptr):Void;
+	// (-1: no such uniform)
+	static function glGetUniformLocation(program:Int, name:Ptr):Int;
+	static function glUniform1i(location:Int, value:Int):Void;
+	static function glBlendFuncSeparate(srcRGB:Int, dstRGB:Int, srcAlpha:Int, dstAlpha:Int):Void;
+	static function glScissor(x:Int, y:Int, width:Int, height:Int):Void;
 	@:wait static function glReadPixels(x:Int, y:Int, width:Int, height:Int, format:Int, type:Int, pixels:Ptr):Void;
 	@:wait static function glFinish():Void;
 }

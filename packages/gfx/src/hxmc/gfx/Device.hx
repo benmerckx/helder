@@ -25,6 +25,31 @@ final class Device {
 	public function createBuffer(d:BufferDesc):Buffer
 		return new Buffer(impl.createBuffer(d));
 
+	// replaces size bytes of a buffer from offset with data's from dataOffset
+	// (size -1: the rest of data). A write takes effect for the whole frame
+	// (WebGPU queues it before the frame's commands): write what a frame
+	// draws before its passes, and never a range an earlier draw of the same
+	// frame read.
+	public function writeBuffer(b:Buffer, offset:Int, data:haxe.io.Bytes, dataOffset = 0, size = -1) {
+		if (size < 0) size = data.length - dataOffset;
+		if (dataOffset < 0 || dataOffset + size > data.length) throw "hxmc.gfx: writeBuffer: out of data's bounds";
+		if (size > 0) impl.writeBuffer(b.id(), offset, data, dataOffset, size);
+	}
+
+	public function createTexture(d:TextureDesc):Texture {
+		if (d.data != null && d.data.length < d.width * d.height * d.format.bytesPerPixel)
+			throw "hxmc.gfx: createTexture: data has fewer than width * height * " + d.format.bytesPerPixel + " bytes";
+		return new Texture(impl.createTexture(d));
+	}
+
+	// replaces a w x h region of a texture at (x, y) with data's pixels from
+	// dataOffset, rows of w pixels top to bottom (writeBuffer's rules on
+	// frames apply)
+	public function writeTexture(t:Texture, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset = 0) {
+		if (w <= 0 || h <= 0) return;
+		impl.writeTexture(t.id(), x, y, w, h, data, dataOffset);
+	}
+
 	// throws the compiler's log when the source does not compile
 	public function createShader(d:ShaderDesc):Shader
 		return new Shader(impl.createShader(d));
@@ -37,7 +62,9 @@ final class Device {
 				fragment: createShader({stage: Fragment, code: d.program.fragment}),
 				layout: d.layout,
 				topology: d.topology,
-				cull: d.cull
+				cull: d.cull,
+				blend: d.blend,
+				textures: d.textures
 			};
 		return new Pipeline(impl.createPipeline(d));
 	}

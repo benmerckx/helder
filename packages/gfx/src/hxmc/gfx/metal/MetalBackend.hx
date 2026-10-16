@@ -13,7 +13,11 @@ import hxmc.unsafe.*;
 // are MSL compiled at run time (newLibraryWithSource), their entry point
 // main0; vertex buffer slots are buffer indices VERTEX_BUFFERS + slot (the
 // lower ones stay for uniforms). The colour target is BGRA8 (the layer's
-// own format): readPixels swaps it to RGBA.
+// own format): readPixels swaps it to RGBA. Buffers and textures are
+// shared with the CPU: a write waits for the last frame the GPU is still
+// running (lastCmd) before it changes them. Textures have one of two
+// sampler states (Linear, Nearest); the pass's textures are set again on
+// each pass's encoder.
 class MetalBackend {
 	public final backend = Backend.Metal;
 	public var width(default, null) = 0;
@@ -32,6 +36,8 @@ class MetalBackend {
 	final viewport:Ptr<MTLViewport>;
 	final origin:Ptr<MTLOrigin>;
 	final size:Ptr<MTLSize>;
+	final region:Ptr<MTLRegion>;
+	final scissor:Ptr<MTLScissorRect>;
 	var readback = Ptr.nil(); // readPixels' MTLBuffer
 	var readbackSize = 0;
 
@@ -40,6 +46,10 @@ class MetalBackend {
 	final shaders:Array<Ptr> = []; // MTLFunction
 	final libraries:Array<Ptr> = [];
 	final pipelines:Array<MtlPipeline> = [];
+	final textures:Array<MtlTexture> = [];
+	final samplers:Array<Ptr> = [Ptr.nil(), Ptr.nil()]; // MTLSamplerState by Filter
+	final bound:Array<Int> = [for (_ in 0...MAX_TEXTURES) 0]; // the textures by slot
+	var lastCmd = Ptr.nil(); // the last frame's command buffer (retained) until a write waits for it
 
 	// the frame
 	var pool = Ptr.nil();
@@ -51,6 +61,7 @@ class MetalBackend {
 
 	static inline var VERTEX_BUFFERS = 16;
 	static inline var MAX_SLOTS = 8;
+	static inline var MAX_TEXTURES = 8;
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -63,6 +74,8 @@ class MetalBackend {
 		viewport = LibC.malloc(48);
 		origin = LibC.malloc(24);
 		size = LibC.malloc(24);
+		region = LibC.malloc(48);
+		scissor = LibC.malloc(32);
 		pass = make("MTLRenderPassDescriptor");
 		attachment = Msg.idInt(Msg.id(pass, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
 		if (surface.kind == Cocoa) {
@@ -130,6 +143,86 @@ class MetalBackend {
 		return shaders.length;
 	}
 
+	// waits for the last frame the GPU may still be reading
+	function idle() {
+		if (lastCmd.isNull()) return;
+		Msg.v(lastCmd, ObjC.sel("waitUntilCompleted"));
+		Runtime.objc_release(lastCmd);
+		lastCmd = Ptr.nil();
+	}
+
+	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
+		idle();
+		var b = buffers[id - 1];
+		if (offset + size > Msg.i(b, ObjC.sel("length")).toInt()) throw "hxmc.gfx: writeBuffer: past the buffer's end";
+		LibC.memcpy(Msg.id(b, ObjC.sel("contents")).add(offset), Mem.addr(data).add(8 + dataOffset), (size : Int64));
+	}
+
+	public function createTexture(d:TextureDesc):Int {
+		var pool = Runtime.objc_autoreleasePoolPush();
+		var desc = Msg.idIntIntIntBool(ObjC.cls("MTLTextureDescriptor"), ObjC.sel("texture2DDescriptorWithPixelFormat:width:height:mipmapped:"),
+			d.format == R8 ? MTL.PixelFormatR8Unorm : MTL.PixelFormatRGBA8Unorm, d.width, d.height, false);
+		Msg.vInt(desc, ObjC.sel("setUsage:"), MTL.TextureUsageShaderRead);
+		var tex = Msg.idPtr(device, ObjC.sel("newTextureWithDescriptor:"), desc);
+		Runtime.objc_autoreleasePoolPop(pool);
+		if (tex.isNull()) throw "hxmc.gfx: cannot create a " + d.width + "x" + d.height + " texture";
+		var filter = d.filter == Nearest ? 1 : 0;
+		if (samplers[filter].isNull()) {
+			var sd = make("MTLSamplerDescriptor");
+			var f = filter == 1 ? MTL.SamplerMinMagFilterNearest : MTL.SamplerMinMagFilterLinear;
+			Msg.vInt(sd, ObjC.sel("setMinFilter:"), f);
+			Msg.vInt(sd, ObjC.sel("setMagFilter:"), f);
+			samplers[filter] = Msg.idPtr(device, ObjC.sel("newSamplerStateWithDescriptor:"), sd);
+			Runtime.objc_release(sd);
+		}
+		var t = new MtlTexture(tex, samplers[filter], d.width, d.height, d.format.bytesPerPixel);
+		textures.push(t);
+		// (zeros unless given)
+		var n = d.width * d.height * t.bpp;
+		var data = d.data != null ? d.data : haxe.io.Bytes.alloc(n);
+		replace(t, 0, 0, d.width, d.height, data, 0);
+		return textures.length;
+	}
+
+	function replace(t:MtlTexture, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, offset:Int) {
+		region.value.x = x;
+		region.value.y = y;
+		region.value.z = 0;
+		region.value.width = w;
+		region.value.height = h;
+		region.value.depth = 1;
+		Arena.scoped(a -> MtlMsg.vRegion(t.texture, S.replaceRegion, region.value, 0, a.copyBytes(data, offset, w * h * t.bpp), w * t.bpp));
+	}
+
+	public function writeTexture(id:Int, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset:Int) {
+		var t = textures[id - 1];
+		if (x < 0 || y < 0 || x + w > t.width || y + h > t.height) throw "hxmc.gfx: writeTexture: outside the texture";
+		idle();
+		replace(t, x, y, w, h, data, dataOffset);
+	}
+
+	public function setTexture(slot:Int, id:Int) {
+		bound[slot] = id;
+		if (!enc.isNull()) bindTexture(slot);
+	}
+
+	function bindTexture(slot:Int) {
+		var id = bound[slot];
+		var t = id == 0 ? null : textures[id - 1];
+		MtlMsg.vPtrInt(enc, S.setFragmentTexture, t == null ? Ptr.nil() : t.texture, slot);
+		MtlMsg.vPtrInt(enc, S.setFragmentSamplerState, t == null ? Ptr.nil() : t.sampler, slot);
+	}
+
+	public function setScissor(x:Int, y:Int, w:Int, h:Int) {
+		var x0 = x < 0 ? 0 : x > width ? width : x, y0 = y < 0 ? 0 : y > height ? height : y;
+		var x1 = x + w > width ? width : x + w, y1 = y + h > height ? height : y + h;
+		scissor.value.x = x0;
+		scissor.value.y = y0;
+		scissor.value.width = x1 < x0 ? 0 : x1 - x0;
+		scissor.value.height = y1 < y0 ? 0 : y1 - y0;
+		MtlMsg.vScissor(enc, S.setScissorRect, scissor.value);
+	}
+
 	public function createPipeline(d:PipelineDesc):Int {
 		if (d.layout.length > MAX_SLOTS) throw "hxmc.gfx: more than " + MAX_SLOTS + " vertex buffers";
 		var pool = Runtime.objc_autoreleasePoolPush();
@@ -138,6 +231,13 @@ class MetalBackend {
 		Msg.vPtr(desc, ObjC.sel("setFragmentFunction:"), shaders[d.fragment.id() - 1]);
 		var color = Msg.idInt(Msg.id(desc, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
 		Msg.vInt(color, ObjC.sel("setPixelFormat:"), MTL.PixelFormatBGRA8Unorm);
+		if (d.blend != null && d.blend != Replace) {
+			Msg.vBool(color, ObjC.sel("setBlendingEnabled:"), true);
+			Msg.vInt(color, ObjC.sel("setSourceRGBBlendFactor:"), d.blend == Alpha ? MTL.BlendFactorSourceAlpha : MTL.BlendFactorOne);
+			Msg.vInt(color, ObjC.sel("setDestinationRGBBlendFactor:"), d.blend == Add ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
+			Msg.vInt(color, ObjC.sel("setSourceAlphaBlendFactor:"), MTL.BlendFactorOne);
+			Msg.vInt(color, ObjC.sel("setDestinationAlphaBlendFactor:"), MTL.BlendFactorOneMinusSourceAlpha);
+		}
 		var vd = make("MTLVertexDescriptor");
 		var attributes = Msg.id(vd, ObjC.sel("attributes")), layouts = Msg.id(vd, ObjC.sel("layouts"));
 		for (slot in 0...d.layout.length) {
@@ -213,6 +313,8 @@ class MetalBackend {
 		// (GL's front faces)
 		Msg.vInt(enc, S.setFrontFacingWinding, MTL.WindingCounterClockwise);
 		pipeline = null;
+		for (i in 0...MAX_TEXTURES)
+			if (bound[i] != 0) bindTexture(i);
 	}
 
 	public function setPipeline(id:Int) {
@@ -237,6 +339,8 @@ class MetalBackend {
 	public function endFrame() {
 		if (!drawable.isNull()) Msg.vPtr(cmd, S.presentDrawable, drawable);
 		Msg.v(cmd, S.commit);
+		if (!lastCmd.isNull()) Runtime.objc_release(lastCmd);
+		lastCmd = Runtime.objc_retain(cmd);
 		cmd = Ptr.nil();
 		drawable = Ptr.nil();
 		texture = Ptr.nil();
@@ -281,8 +385,13 @@ class MetalBackend {
 	public function dispose() {
 		for (p in pipelines)
 			Runtime.objc_release(p.state);
+		idle();
 		for (o in shaders.concat(libraries).concat(buffers))
 			Runtime.objc_release(o);
+		for (t in textures)
+			Runtime.objc_release(t.texture);
+		for (s in samplers)
+			ObjC.release(s);
 		ObjC.release(readback);
 		ObjC.release(target);
 		Runtime.objc_release(pass);
@@ -294,6 +403,25 @@ class MetalBackend {
 		LibC.free(viewport);
 		LibC.free(origin);
 		LibC.free(size);
+		LibC.free(region);
+		LibC.free(scissor);
+	}
+}
+
+// a texture and its sampler state (shared)
+private class MtlTexture {
+	public final texture:Ptr;
+	public final sampler:Ptr;
+	public final width:Int;
+	public final height:Int;
+	public final bpp:Int;
+
+	public function new(texture:Ptr, sampler:Ptr, width:Int, height:Int, bpp:Int) {
+		this.texture = texture;
+		this.sampler = sampler;
+		this.width = width;
+		this.height = height;
+		this.bpp = bpp;
 	}
 }
 
@@ -340,4 +468,8 @@ private class S {
 	public static final endEncoding = ObjC.sel("endEncoding");
 	public static final presentDrawable = ObjC.sel("presentDrawable:");
 	public static final commit = ObjC.sel("commit");
+	public static final replaceRegion = ObjC.sel("replaceRegion:mipmapLevel:withBytes:bytesPerRow:");
+	public static final setFragmentTexture = ObjC.sel("setFragmentTexture:atIndex:");
+	public static final setFragmentSamplerState = ObjC.sel("setFragmentSamplerState:atIndex:");
+	public static final setScissorRect = ObjC.sel("setScissorRect:");
 }

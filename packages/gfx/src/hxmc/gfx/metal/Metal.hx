@@ -10,6 +10,8 @@ import hxmc.unsafe.*;
 
 class MTL {
 	// MTLPixelFormat
+	public static inline var PixelFormatR8Unorm = 10;
+	public static inline var PixelFormatRGBA8Unorm = 70;
 	public static inline var PixelFormatBGRA8Unorm = 80;
 	// MTLVertexFormat
 	public static inline var VertexFormatUChar4Normalized = 9;
@@ -35,7 +37,14 @@ class MTL {
 	// MTLResourceOptions, MTLStorageMode, MTLTextureUsage
 	public static inline var ResourceStorageModeShared = 0;
 	public static inline var StorageModePrivate = 2;
+	public static inline var TextureUsageShaderRead = 1;
 	public static inline var TextureUsageRenderTarget = 4;
+	// MTLSamplerMinMagFilter, MTLBlendFactor
+	public static inline var SamplerMinMagFilterNearest = 0;
+	public static inline var SamplerMinMagFilterLinear = 1;
+	public static inline var BlendFactorOne = 1;
+	public static inline var BlendFactorSourceAlpha = 4;
+	public static inline var BlendFactorOneMinusSourceAlpha = 5;
 	// MTLCommandBufferStatus
 	public static inline var CommandBufferStatusError = 5;
 }
@@ -66,4 +75,21 @@ class MTL {
 	var width:Int64;
 	var height:Int64;
 	var depth:Int64;
+}
+
+// MTLRegion: an MTLOrigin and an MTLSize
+@:hxmc.struct @:publicFields class MTLRegion {
+	var x:Int64;
+	var y:Int64;
+	var z:Int64;
+	var width:Int64;
+	var height:Int64;
+	var depth:Int64;
+}
+
+@:hxmc.struct @:publicFields class MTLScissorRect {
+	var x:Int64;
+	var y:Int64;
+	var width:Int64;
+	var height:Int64;
 }
