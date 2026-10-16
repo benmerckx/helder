@@ -1,0 +1,28 @@
+{
+  "name": "@hxmc/ui",
+  "version": "0.1.0",
+  "description": "A UI toolkit for hxmc, in pure Haxe: a retained node tree with flexbox layout, events and focus (hxmc.ui), drawn with the GPU on hxmc.gfx (hxmc.ui.draw), signals and a renderer for ESX markup (hxmc.ui.reactive)",
+  "license": "MIT",
+  "files": [
+    "src/"
+  ],
+  "haxe": {
+    "name": "hxmc.ui",
+    "classPath": "src",
+    "dependencies": ["hxmc.os", "hxmc.gfx", "hxmc.text", "hxmc.esx"]
+  },
+  "dependencies": {
+    "@hxmc/os": "0.1.0",
+    "@hxmc/gfx": "0.1.0",
+    "@hxmc/text": "0.1.0",
+    "@hxmc/esx": "0.1.0"
+  },
+  "peerDependencies": {
+    "@hxmc/cli": ">=0.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benmerckx/hxmc.git",
+    "directory": "packages/ui"
+  }
+}
