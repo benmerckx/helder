@@ -107,6 +107,13 @@ class Win32Window {
 		}
 	}
 
+	static var highSurrogate = 0;
+
+	// the modifiers held (VK_SHIFT, VK_CONTROL, VK_MENU: Alt, VK_LWIN, VK_RWIN)
+	static function mods():Int
+		return (User32.GetKeyState(0x10) < 0 ? Mods.SHIFT : 0) | (User32.GetKeyState(0x11) < 0 ? Mods.CONTROL : 0) | (User32.GetKeyState(0x12) < 0 ? Mods.ALT : 0)
+			| (User32.GetKeyState(0x5B) < 0 || User32.GetKeyState(0x5C) < 0 ? Mods.META : 0);
+
 	@:hxmc.callback static function wndProc(hwnd:Ptr, message:Int, wParam:Int64, lParam:Int64):Int64 {
 		var w = find(hwnd);
 		if (w == null) return User32.DefWindowProcW(hwnd, message, wParam, lParam);
@@ -127,6 +134,23 @@ class Win32Window {
 			case WM.KEYDOWN | WM.KEYUP | WM.SYSKEYDOWN | WM.SYSKEYUP:
 				e.kind = message == WM.KEYDOWN || message == WM.SYSKEYDOWN ? KeyDown : KeyUp;
 				e.key = keySym(wParam.toInt());
+				e.mods = mods();
+			case WM.CHAR:
+				// (UTF-16: a surrogate pair comes as two messages)
+				var c = wParam.toInt() & 0xFFFF;
+				if (c >= 0xD800 && c < 0xDC00) {
+					highSurrogate = c;
+					return 0;
+				}
+				if (c >= 0xDC00 && c < 0xE000 && highSurrogate != 0) c = 0x10000 + ((highSurrogate - 0xD800) << 10) + (c - 0xDC00);
+				highSurrogate = 0;
+				if (c >= 0x20 && c != 0x7F) {
+					e.kind = TextInput;
+					e.text = String.fromCharCode(c);
+					e.mods = mods();
+					dispatch(e);
+				}
+				return 0;
 			case WM.MOUSEMOVE | WM.LBUTTONDOWN | WM.LBUTTONUP | WM.RBUTTONDOWN | WM.RBUTTONUP | WM.MBUTTONDOWN | WM.MBUTTONUP:
 				e.kind = switch message {
 					case WM.MOUSEMOVE: MouseMove;
@@ -139,6 +163,7 @@ class Win32Window {
 					case WM.RBUTTONDOWN | WM.RBUTTONUP: 3;
 					case _: 0;
 				}
+				e.mods = mods();
 				// (signed 16-bit client coordinates)
 				e.x = lParam.toInt() << 16 >> 16;
 				e.y = lParam.toInt() >> 16;

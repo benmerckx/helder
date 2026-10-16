@@ -77,7 +77,7 @@ class StyleAttrs {
 		return Std.isOfType(v, String) ? Dim.parse(v) : Std.isOfType(v, DimValue) ? (v : DimValue) : DimValue.Px((v : Float));
 
 	// an Int without alpha (0xRRGGBB) is opaque; a string as CSS writes it
-	static function color(v:Dynamic):Color {
+	static function color(v:Dynamic):Null<Color> {
 		if (v == null) return null;
 		if (Std.isOfType(v, String)) return Color.parse(v);
 		var i:Int = v;
@@ -91,7 +91,7 @@ class StyleAttrs {
 		return (v : Float);
 	}
 
-	static function displayValue(v:Dynamic):Display {
+	static function displayValue(v:Dynamic):Null<Display> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -101,7 +101,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function positionValue(v:Dynamic):Position {
+	static function positionValue(v:Dynamic):Null<Position> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -111,7 +111,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function directionValue(v:Dynamic):Direction {
+	static function directionValue(v:Dynamic):Null<Direction> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -123,7 +123,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function justifyValue(v:Dynamic):Justify {
+	static function justifyValue(v:Dynamic):Null<Justify> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -137,7 +137,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function alignItemsValue(v:Dynamic):Align {
+	static function alignItemsValue(v:Dynamic):Null<Align> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -150,7 +150,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function alignSelfValue(v:Dynamic):Align {
+	static function alignSelfValue(v:Dynamic):Null<Align> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -163,7 +163,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function alignContentValue(v:Dynamic):AlignContent {
+	static function alignContentValue(v:Dynamic):Null<AlignContent> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -178,7 +178,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function overflowValue(v:Dynamic):Overflow {
+	static function overflowValue(v:Dynamic):Null<Overflow> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -189,7 +189,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function cursorValue(v:Dynamic):Cursor {
+	static function cursorValue(v:Dynamic):Null<Cursor> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {
@@ -201,7 +201,7 @@ class StyleAttrs {
 		}
 	}
 
-	static function textAlignValue(v:Dynamic):TextAlign {
+	static function textAlignValue(v:Dynamic):Null<TextAlign> {
 		if (v == null) return null;
 		if (!Std.isOfType(v, String)) return v;
 		return switch key(v) {

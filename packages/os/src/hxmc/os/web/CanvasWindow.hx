@@ -58,7 +58,7 @@ class CanvasWindow {
 
 	// dispatches the pending events
 	static function poll(onEvent:Event->Void) {
-		if (ev.isNull()) ev = LibC.malloc(24);
+		if (ev.isNull()) ev = LibC.malloc(28);
 		while (Dom.next_event(ev) != 0) {
 			var w = find(ev[0]);
 			if (w == null) continue;
@@ -69,6 +69,12 @@ class CanvasWindow {
 			e.x = ev[3];
 			e.y = ev[4];
 			e.button = ev[5];
+			e.mods = ev[6];
+			// (TextInput: the code point in key)
+			if (e.kind == TextInput) {
+				e.text = String.fromCharCode(ev[2]);
+				e.key = 0;
+			}
 			if (e.kind == Resize) w.surface.resized(e.x, e.y);
 			onEvent(e);
 		}

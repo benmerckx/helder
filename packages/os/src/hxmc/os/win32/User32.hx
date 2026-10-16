@@ -22,6 +22,7 @@ import hxmc.unsafe.*;
 	static function GetClientRect(hwnd:Ptr, r:Ptr<RECT>):Int;
 	static function AdjustWindowRectEx(r:Ptr<RECT>, style:Int, menu:Int, exStyle:Int):Int;
 	static function ScreenToClient(hwnd:Ptr, p:Ptr<POINT>):Int;
+	static function GetKeyState(key:Int):Int;
 	static function ClientToScreen(hwnd:Ptr, p:Ptr<POINT>):Int;
 	static function LoadCursorW(instance:Ptr, name:Ptr):Ptr;
 	static function SetWindowTextW(hwnd:Ptr, text:Ptr):Int;
@@ -59,6 +60,7 @@ class WM {
 	public static inline var KEYUP = 0x0101;
 	public static inline var SYSKEYDOWN = 0x0104;
 	public static inline var SYSKEYUP = 0x0105;
+	public static inline var CHAR = 0x0102;
 	public static inline var MOUSEMOVE = 0x0200;
 	public static inline var LBUTTONDOWN = 0x0201;
 	public static inline var LBUTTONUP = 0x0202;

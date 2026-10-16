@@ -87,16 +87,42 @@ class X11Window {
 						e.y = c.value.height;
 					}
 				case t = X.KeyPress | X.KeyRelease:
+					var k:Ptr<XKeyEvent> = xev;
 					e.kind = t == X.KeyPress ? KeyDown : KeyUp;
 					e.key = Xlib.XLookupKeysym(xev, 0).toInt();
+					e.mods = mods(k.value.state);
+					if (t == X.KeyPress) {
+						onEvent(e);
+						// then its character
+						var cp = character(k);
+						if (cp == 0 || e.mods & (Mods.CONTROL | Mods.ALT) != 0) continue;
+						e.kind = TextInput;
+						e.text = String.fromCharCode(cp);
+					}
 				case t = X.ButtonPress | X.ButtonRelease | X.MotionNotify:
 					var b:Ptr<XKeyEvent> = xev;
 					e.kind = t == X.ButtonPress ? MouseDown : t == X.ButtonRelease ? MouseUp : MouseMove;
 					e.x = b.value.x;
 					e.y = b.value.y;
 					e.button = t == X.MotionNotify ? 0 : (b.value.keycode : Int);
+					e.mods = mods(b.value.state);
 			}
 			if (e.kind != None) onEvent(e);
 		}
 	}
+
+	// the modifiers of an event's state (ShiftMask, ControlMask, Mod1Mask: Alt, Mod4Mask: Super)
+	static function mods(state:Int):Int
+		return (state & 1 != 0 ? Mods.SHIFT : 0) | (state & 4 != 0 ? Mods.CONTROL : 0) | (state & 8 != 0 ? Mods.ALT : 0) | (state & 64 != 0 ? Mods.META : 0);
+
+	// the code point a key press types (0: none): its KeySym with the
+	// modifiers applied, Latin-1 or a Unicode KeySym (0x100xxxx)
+	static function character(k:Ptr<XKeyEvent>):Int
+		return Arena.scopedValue(a -> {
+			var buf = a.alloc(16);
+			var ks:Ptr<Int64> = a.alloc(8);
+			Xlib.XLookupString(k, buf, 15, ks, Ptr.nil());
+			var s = ks.value.toInt();
+			s >= 0x20 && s <= 0x7E || s >= 0xA0 && s <= 0xFF ? s : s & 0xFF000000 == 0x01000000 ? s & 0xFFFFFF : 0;
+		});
 }

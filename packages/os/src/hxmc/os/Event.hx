@@ -10,6 +10,18 @@ enum abstract EventKind(Int) {
 	var MouseMove;
 	var MouseDown;
 	var MouseUp;
+	// a character typed (after KeyDown: with Shift, the layout and dead keys
+	// applied), one code point each; not with Control, Alt (Option) or the
+	// Command key held, nor for the keys without a character
+	var TextInput;
+}
+
+// Event.mods bits
+class Mods {
+	public static inline var SHIFT = 1;
+	public static inline var CONTROL = 2;
+	public static inline var ALT = 4;
+	public static inline var META = 8;
 }
 
 // One event, preallocated and refilled for each dispatch (App.run): copy
@@ -25,6 +37,10 @@ class Event {
 	public var y = 0;
 	// MouseDown, MouseUp: 1 left, 2 middle, 3 right, 4 and 5 the wheel
 	public var button = 0;
+	// keys and mouse buttons: the modifiers held (Mods: Shift, Control, Alt, Meta: the Windows or Command key)
+	public var mods = 0;
+	// TextInput: the character
+	public var text = "";
 
 	public function new() {}
 }

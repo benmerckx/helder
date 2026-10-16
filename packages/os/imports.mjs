@@ -13,7 +13,7 @@
 // view (as requestAnimationFrame pauses in a hidden tab).
 
 // EventKind (src/hxmc/os/Event.hx)
-const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7;
+const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8;
 
 // KeyboardEvent.key to an X11 KeySym: Latin-1 characters are their
 // (unshifted) code, the others from this table
@@ -60,18 +60,27 @@ export default function (host) {
 		const pos = (e) => [Math.round(e.offsetX * c.width / Math.max(1, c.clientWidth)), Math.round(e.offsetY * c.height / Math.max(1, c.clientHeight))];
 		const off = new AbortController();
 		const on = (type, f, o = {}) => c.addEventListener(type, f, { ...o, signal: off.signal });
-		on('keydown', (e) => push([h, KEY_DOWN, keysym(e), 0, 0, 0]));
-		on('keyup', (e) => push([h, KEY_UP, keysym(e), 0, 0, 0]));
-		on('mousemove', (e) => push([h, MOUSE_MOVE, 0, ...pos(e), 0]));
+		// (Event.mods: Shift 1, Control 2, Alt 4, Meta 8)
+		const mods = (e) => (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
+		on('keydown', (e) => {
+			push([h, KEY_DOWN, keysym(e), 0, 0, 0, mods(e)]);
+			// then its character (one code point: not a named key), as the native windows type them
+			const cp = e.key.codePointAt(0);
+			if (!e.ctrlKey && !e.metaKey && e.key.length === String.fromCodePoint(cp).length && cp >= 0x20) push([h, TEXT_INPUT, cp, 0, 0, 0, mods(e)]);
+			// (Tab stays in the canvas: the program moves its own focus)
+			if (e.key === 'Tab' || e.key === 'Backspace') e.preventDefault();
+		});
+		on('keyup', (e) => push([h, KEY_UP, keysym(e), 0, 0, 0, mods(e)]));
+		on('mousemove', (e) => push([h, MOUSE_MOVE, 0, ...pos(e), 0, mods(e)]));
 		on('mousedown', (e) => {
 			c.focus();
-			push([h, MOUSE_DOWN, 0, ...pos(e), e.button + 1]);
+			push([h, MOUSE_DOWN, 0, ...pos(e), e.button + 1, mods(e)]);
 		});
-		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1]));
+		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1, mods(e)]));
 		on('wheel', (e) => {
 			const b = e.deltaY < 0 ? 4 : 5;
-			push([h, MOUSE_DOWN, 0, ...pos(e), b]);
-			push([h, MOUSE_UP, 0, ...pos(e), b]);
+			push([h, MOUSE_DOWN, 0, ...pos(e), b, mods(e)]);
+			push([h, MOUSE_UP, 0, ...pos(e), b, mods(e)]);
 		}, { passive: true });
 		on('contextmenu', (e) => e.preventDefault());
 		return off;
@@ -126,13 +135,13 @@ export default function (host) {
 		next_event(p) {
 			const ev = queue.shift();
 			if (!ev) return 0;
-			new Int32Array(host.memory().buffer, p, 6).set(ev);
+			new Int32Array(host.memory().buffer, p, 7).set([...ev, 0, 0].slice(0, 7));
 			return 1;
 		},
 		start(frame) {
 			const tick = () => {
 				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return requestAnimationFrame(tick);
-				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0]);
+				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0, 0]);
 				if (host.call(frame)) requestAnimationFrame(tick);
 			};
 			requestAnimationFrame(tick);

@@ -73,9 +73,11 @@ class UiWindow {
 			case MouseUp:
 				ui.pointerUp(e.x / k, e.y / k, e.button);
 			case KeyDown:
-				ui.keyDown(e.key, 0);
+				ui.keyDown(e.key, e.mods);
 			case KeyUp:
-				ui.keyUp(e.key, 0);
+				ui.keyUp(e.key, e.mods);
+			case TextInput:
+				ui.textInput(e.text);
 			case _:
 		}
 	}

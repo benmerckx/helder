@@ -5,6 +5,8 @@ import hxmc.esx.Template;
 import hxmc.ui.*;
 import hxmc.ui.reactive.Flow.ForList;
 import hxmc.ui.reactive.Reactive;
+import hxmc.ui.reactive.Signal;
+import hxmc.ui.reactive.Memo;
 
 // Mounts content into hxmc.ui nodes, Solid's way: each part is created
 // once and bound to what it reads. Content is an Esx (a markup literal), a
@@ -265,7 +267,8 @@ class Render {
 	public static function read(v:Dynamic):Dynamic {
 		if (Std.isOfType(v, SignalBase)) return (cast v : Signal<Dynamic>).value;
 		if (Std.isOfType(v, MemoBase)) return (cast v : Memo<Dynamic>).value;
-		if (Reflect.isFunction(v)) return (v : Void->Dynamic)();
+		// (through Reflect: a () -> Bool called as Void->Dynamic would not box its result)
+		if (Reflect.isFunction(v)) return Reflect.callMethod(null, v, []);
 		return v;
 	}
 

@@ -54,7 +54,10 @@ class TextNode extends Node {
 
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
 		if (ui == null || text.length == 0) return;
-		var p = layoutText(ui.text, width + 0.5);
+		// (the layout's paragraph: its width was the unrounded one, which
+		// rounding the box's edges may have made up to a pixel narrower)
+		var p = paragraph != null && laidText == text && font().equals(laidFont)
+			&& (Math.abs(laidWidth - width) < 1.5 || (Math.isNaN(laidWidth) && paragraph.width <= width + 1.5)) ? paragraph : layoutText(ui.text, width + 0.5);
 		canvas.text(p, x, y, width, textAlign(), textColor());
 	}
 }

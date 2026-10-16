@@ -23,6 +23,8 @@ import hxmc.unsafe.*;
 	static function XPending(d:Ptr):Int;
 	static function XNextEvent(d:Ptr, event:Ptr<XAnyEvent>):Int;
 	static function XLookupKeysym(event:Ptr<XKeyEvent>, index:Int):Int64;
+	// the key's characters (Latin-1) and KeySym with the modifiers applied
+	static function XLookupString(event:Ptr<XKeyEvent>, buffer:Ptr, bytes:Int, keysym:Ptr<Int64>, status:Ptr):Int;
 	static function XFlush(d:Ptr):Int;
 	static function XSendEvent(d:Ptr, w:Int64, propagate:Int, mask:Int64, event:Ptr<XAnyEvent>):Int;
 	// an XImage* of the window's pixels (ZPixmap: 32 bits per pixel on a 24-bit visual)

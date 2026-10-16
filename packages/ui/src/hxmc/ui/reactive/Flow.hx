@@ -2,6 +2,8 @@ package hxmc.ui.reactive;
 
 import hxmc.ui.*;
 import hxmc.ui.reactive.Reactive;
+import hxmc.ui.reactive.Signal;
+import hxmc.ui.reactive.Memo;
 
 // Control flow components for markup (import hxmc.ui.reactive.Flow.*):
 //

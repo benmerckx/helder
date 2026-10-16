@@ -162,8 +162,26 @@ class CocoaWindow {
 			case NS.KeyDown | NS.KeyUp:
 				e.kind = type == NS.KeyDown ? KeyDown : KeyUp;
 				e.key = keySym(ev);
+				e.mods = mods(ev);
+				if (type == NS.KeyDown) {
+					dispatch(e);
+					// then its characters (not with Command or Control; not the function keys' private-use ones)
+					if (e.mods & (Mods.CONTROL | Mods.META) != 0) return;
+					var s = Msg.id(ev, ObjC.sel("characters"));
+					if (s.isNull()) return;
+					var str = ObjC.string(s);
+					if (str == null) return;
+					for (cp in new haxe.iterators.StringIteratorUnicode(str)) {
+						if (cp < 0x20 || cp == 0x7F || (cp >= 0xF700 && cp <= 0xF8FF)) continue;
+						e.kind = TextInput;
+						e.text = String.fromCharCode(cp);
+						dispatch(e);
+					}
+					return;
+				}
 			case NS.LeftMouseDown | NS.RightMouseDown | NS.OtherMouseDown:
 				e.kind = MouseDown;
+				e.mods = mods(ev);
 				e.button = button(ev, type);
 			case NS.LeftMouseUp | NS.RightMouseUp | NS.OtherMouseUp:
 				e.kind = MouseUp;
@@ -191,6 +209,13 @@ class CocoaWindow {
 			e.kind = MouseUp;
 			dispatch(e);
 		}
+	}
+
+	// NSEventModifierFlags: Shift 1 << 17, Control 1 << 18, Option 1 << 19, Command 1 << 20
+	static function mods(ev:Ptr):Int {
+		var f = Msg.i(ev, ObjC.sel("modifierFlags")).toInt();
+		return (f & (1 << 17) != 0 ? Mods.SHIFT : 0) | (f & (1 << 18) != 0 ? Mods.CONTROL : 0) | (f & (1 << 19) != 0 ? Mods.ALT : 0)
+			| (f & (1 << 20) != 0 ? Mods.META : 0);
 	}
 
 	static function button(ev:Ptr, type:Int):Int
