@@ -198,6 +198,11 @@ class StyleAttrs {
 			case "default": Cursor.Default;
 			case "pointer": Cursor.Pointer;
 			case "text": Cursor.Text;
+			case "crosshair": Cursor.Crosshair;
+			case "move": Cursor.Move;
+			case "notallowed": Cursor.NotAllowed;
+			case "ewresize": Cursor.ResizeEW;
+			case "nsresize": Cursor.ResizeNS;
 			case _: throw "hxmc.ui: " + v + " is not a Cursor";
 		}
 	}

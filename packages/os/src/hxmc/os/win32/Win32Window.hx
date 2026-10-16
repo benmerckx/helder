@@ -28,6 +28,8 @@ class Win32Window {
 	final hwnd:Ptr;
 	final surface:Surface;
 	var scale = 1.0;
+	// the cursor over the client area (WM_SETCURSOR sets it)
+	var cursor = Ptr.nil();
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		this.owner = owner;
@@ -92,6 +94,12 @@ class Win32Window {
 		User32.DestroyWindow(hwnd);
 	}
 
+	// (IDC_ARROW, IDC_HAND, IDC_IBEAM, IDC_CROSS, IDC_SIZEALL, IDC_NO, IDC_SIZEWE, IDC_SIZENS)
+	function setCursor(c:Cursor) {
+		cursor = User32.LoadCursorW(Ptr.nil(), Ptr.ofI64([32512, 32649, 32513, 32515, 32646, 32648, 32644, 32645][(c : Int)]));
+		User32.SetCursor(cursor);
+	}
+
 	static function find(hwnd:Ptr):Null<Win32Window> {
 		for (w in open)
 			if (w.hwnd == hwnd) return w;
@@ -121,6 +129,9 @@ class Win32Window {
 		e.kind = None;
 		e.window = w.owner;
 		switch message {
+			case WM.SETCURSOR if (lParam.toInt() & 0xFFFF == WM.HTCLIENT && !w.cursor.isNull()):
+				User32.SetCursor(w.cursor);
+				return 1;
 			case WM.CLOSE:
 				e.kind = Close;
 				dispatch(e);

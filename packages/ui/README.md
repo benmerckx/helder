@@ -48,13 +48,17 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     size, so content is not squashed. Checked against Chromium on 60 cases.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `textAlign`.
-  - Paint: `background`, `borderColor`, `radius`, `opacity`.
+  - Paint: `background`, `borderColor`, `radius`, `opacity`, `shadow`
+    (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`.
   - `Ui` dispatches pointer, wheel, key and text events to nodes (bubbling
     to ancestors), tracks hover and press, moves the focus (click, Tab,
-    Shift+Tab) and scrolls `Overflow Scroll` nodes.
+    Shift+Tab; a ring shows when the keyboard moved it) and scrolls
+    `Overflow Scroll` nodes (the wheel, or their scrollbars' thumbs).
 - **`hxmc.ui.draw`**: the GPU renderer. One shader draws rounded rectangles
-  with borders and glyphs from an atlas; `UiWindow` puts a `Ui` in an
-  `hxmc.os` window and runs the loop.
+  with borders, soft shadows and glyphs from an atlas, every fragment
+  clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a
+  `Ui` in an `hxmc.os` window, shows the hovered node's cursor and runs
+  the loop.
 - **`hxmc.ui.reactive`**: `signal`, `memo`, `effect`, `batch`, `untrack`,
   `root`, `onCleanup`, and `Render`, which mounts markup into nodes once and
   binds every value that is a `Signal`, a `Memo` or a function. `For`

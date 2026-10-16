@@ -29,6 +29,7 @@ class CocoaWindow {
 	final layer:Ptr; // CAMetalLayer*
 	final surface:Surface;
 	var scale = 1.0;
+	var cursor:Cursor = Default;
 	// (an NSRect and a CGSize to pass by value)
 	final rect:Ptr<CGRect>;
 	final size:Ptr<CGSize>;
@@ -104,6 +105,27 @@ class CocoaWindow {
 		Runtime.objc_release(layer);
 		LibC.free(rect);
 		LibC.free(size);
+	}
+
+	function setCursor(c:Cursor) {
+		cursor = c;
+		applyCursor();
+	}
+
+	// (AppKit puts the arrow back as the pointer enters the window: set again on each move)
+	function applyCursor() {
+		var cls = ObjC.cls("NSCursor");
+		var ns = switch cursor {
+			case Pointer: Msg.id(cls, ObjC.sel("pointingHandCursor"));
+			case Text: Msg.id(cls, ObjC.sel("IBeamCursor"));
+			case Crosshair: Msg.id(cls, ObjC.sel("crosshairCursor"));
+			case Move: Msg.id(cls, ObjC.sel("openHandCursor"));
+			case NotAllowed: Msg.id(cls, ObjC.sel("operationNotAllowedCursor"));
+			case ResizeEW: Msg.id(cls, ObjC.sel("resizeLeftRightCursor"));
+			case ResizeNS: Msg.id(cls, ObjC.sel("resizeUpDownCursor"));
+			case _: Msg.id(cls, ObjC.sel("arrowCursor"));
+		}
+		Msg.v(ns, ObjC.sel("set"));
 	}
 
 	static function find(window:Ptr):Null<CocoaWindow> {
@@ -189,6 +211,7 @@ class CocoaWindow {
 			case NS.MouseMoved | NS.LeftMouseDragged | NS.RightMouseDragged | NS.OtherMouseDragged:
 				e.kind = MouseMove;
 				e.button = 0;
+				if (cursor != Default) applyCursor();
 			case NS.ScrollWheel:
 				var dy = Msg.f(ev, ObjC.sel("scrollingDeltaY"));
 				if (dy == 0) return;

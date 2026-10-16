@@ -11,7 +11,10 @@ import hxmc.ui.Event;
 // bubble to the ancestors. Clicking a focusable node (or a descendant of
 // one) focuses it, Tab and Shift+Tab move the focus through the focusable
 // nodes in tree order, the wheel scrolls the nearest Overflow Scroll
-// ancestor.
+// ancestor. A node that scrolls shows a scrollbar's thumb over its content
+// on each axis it overflows, dragged to scroll (a click on its track pages);
+// the focus moved by the keyboard shows a ring around the focused node (as
+// CSS's :focus-visible: a click hides it).
 class Ui {
 	public final root:Node;
 	public var text:TextEngine;
@@ -25,6 +28,25 @@ class Ui {
 	// the last pointer position
 	public var pointerX(default, null) = 0.0;
 	public var pointerY(default, null) = 0.0;
+	// the focus was moved by the keyboard: its ring shows
+	public var focusVisible(default, null) = false;
+	public var focusRingColor:Color = 0xFF3B82F6;
+	public var focusRingWidth = 2.0;
+	// the ring's gap outside the node
+	public var focusRingOffset = 2.0;
+	public var scrollbarColor:Color = 0x59000000;
+	public var scrollbarActiveColor:Color = 0x8C000000;
+
+	// the thumb being dragged: its node, axis, the pointer and scroll it started at
+	var drag:Null<Node> = null;
+	var dragX = false;
+	var dragFrom = 0.0;
+	var dragScroll = 0.0;
+
+	// a scrollbar's thickness and its inset from the node's border
+	public static inline var SCROLLBAR = 6.0;
+	public static inline var SCROLLBAR_INSET = 2.0;
+	public static inline var MIN_THUMB = 20.0;
 
 	public function new(text:TextEngine, width:Float, height:Float) {
 		this.text = text;
@@ -79,6 +101,17 @@ class Ui {
 			paintNode(c, canvas);
 		if (scroll) canvas.translate(n.scrollX, n.scrollY);
 		if (clip) canvas.popClip();
+		if (s.overflow == Scroll) {
+			for (x in [false, true]) {
+				var t = thumb(n, x);
+				if (t != null) canvas.rect(t[0], t[1], t[2], t[3], SCROLLBAR / 2, drag == n && dragX == x ? scrollbarActiveColor : scrollbarColor, 0, 0);
+			}
+		}
+		if (n == focus && focusVisible && focusRingWidth > 0) {
+			var o = focusRingOffset + focusRingWidth;
+			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
+				focusRingColor);
+		}
 		if (s.opacity < 1) canvas.popOpacity();
 	}
 
@@ -87,6 +120,13 @@ class Ui {
 	public function pointerMove(x:Float, y:Float) {
 		pointerX = x;
 		pointerY = y;
+		if (drag != null) {
+			var n = drag, t = track(n, dragX), view = viewSize(n, dragX), content = dragX ? n.contentWidth : n.contentHeight;
+			var len = thumbLength(t[1], view, content), max = maxScroll(n, dragX);
+			var v = dragScroll + ((dragX ? x : y) - dragFrom) * (t[1] > len ? max / (t[1] - len) : 0);
+			setScroll(n, dragX, v);
+			return;
+		}
 		var target = root.hitTest(x, y);
 		setHover(target);
 		var to = capture != null ? capture : target;
@@ -98,10 +138,15 @@ class Ui {
 		pointerY = y;
 		var target = root.hitTest(x, y);
 		setHover(target);
+		if (focusVisible) {
+			focusVisible = false;
+			requestFrame();
+		}
 		if (target == null) {
 			setFocus(null);
 			return;
 		}
+		if (scrollbarDown(target, x, y)) return;
 		capture = target;
 		setPressed(target, true);
 		var e = new Event(PointerDown, target, x, y);
@@ -118,6 +163,12 @@ class Ui {
 	public function pointerUp(x:Float, y:Float, button:Int) {
 		pointerX = x;
 		pointerY = y;
+		if (drag != null) {
+			drag = null;
+			requestFrame();
+			setHover(root.hitTest(x, y));
+			return;
+		}
 		var target = root.hitTest(x, y);
 		var pressed = capture;
 		capture = null;
@@ -164,7 +215,11 @@ class Ui {
 		e.key = key;
 		e.mods = mods;
 		bubble(e);
-		if (!e.defaultPrevented && key == Key.TAB) moveFocus(mods & Key.MOD_SHIFT != 0 ? -1 : 1);
+		if (!e.defaultPrevented && key == Key.TAB) {
+			moveFocus(mods & Key.MOD_SHIFT != 0 ? -1 : 1);
+			focusVisible = focus != null;
+			requestFrame();
+		}
 	}
 
 	public function keyUp(key:Int, mods:Int) {
@@ -301,10 +356,104 @@ class Ui {
 			clampScroll(c);
 	}
 
+	// the pointer's shape: the style of the node under it (or that has it
+	// captured), Auto taking the parent's; Default over a scrollbar's drag
+	public function cursor():Cursor {
+		if (drag != null) return Default;
+		var n = capture != null ? capture : hover;
+		while (n != null) {
+			if (n.style.cursor != Auto) return n.style.cursor;
+			n = n.parent;
+		}
+		return Default;
+	}
+
+	// --- scrollbars ---
+
+	static function viewSize(n:Node, x:Bool):Float {
+		var s = n.style;
+		return (x ? n.width : n.height) - 2 * s.borderWidth - (x ? s.padding.horizontal : s.padding.vertical);
+	}
+
+	// a scrollbar's track on axis x (horizontal) or y: its start and length
+	// along the axis (absolute), its offset across it
+	static function track(n:Node, x:Bool):Array<Float> {
+		var bw = n.style.borderWidth, i = SCROLLBAR_INSET;
+		// (the other axis's bar, if any, takes the corner)
+		var corner = maxScroll(n, !x) > 0 ? SCROLLBAR + i : 0;
+		return x ? [n.absX + bw + i, n.width - 2 * bw - 2 * i - corner, n.absY + n.height - bw - i - SCROLLBAR] : [n.absY + bw + i,
+			n.height - 2 * bw - 2 * i - corner, n.absX + n.width - bw - i - SCROLLBAR];
+	}
+
+	static function thumbLength(trackLength:Float, view:Float, content:Float):Float
+		return Math.min(trackLength, Math.max(MIN_THUMB, trackLength * view / content));
+
+	// the thumb's rectangle (x, y, w, h: absolute, unscrolled), or null when n
+	// does not overflow on the axis
+	static function thumb(n:Node, x:Bool):Null<Array<Float>> {
+		var max = maxScroll(n, x);
+		if (max <= 0) return null;
+		var t = track(n, x);
+		if (t[1] <= 0) return null;
+		var len = thumbLength(t[1], viewSize(n, x), x ? n.contentWidth : n.contentHeight);
+		var at = t[0] + (t[1] - len) * (x ? n.scrollX : n.scrollY) / max;
+		return x ? [at, t[2], len, SCROLLBAR] : [t[2], at, SCROLLBAR, len];
+	}
+
+	// a node's offset from window to its own (unscrolled) coordinates: its
+	// ancestors' scrolling
+	static function scrolled(n:Node, x:Bool):Float {
+		var d = 0.0, p = n.parent;
+		while (p != null) {
+			if (p.style.overflow == Scroll) d += x ? p.scrollX : p.scrollY;
+			p = p.parent;
+		}
+		return d;
+	}
+
+	// a press on a scrollbar of target or an ancestor: starts dragging its
+	// thumb, or pages towards the press on its track
+	function scrollbarDown(target:Node, px:Float, py:Float):Bool {
+		var n = target;
+		while (n != null) {
+			if (n.style.overflow == Scroll)
+				for (x in [false, true]) {
+					var t = thumb(n, x);
+					if (t == null) continue;
+					var tr = track(n, x);
+					var lx = px + scrolled(n, true), ly = py + scrolled(n, false);
+					var along = x ? lx : ly, across = x ? ly : lx;
+					if (across < tr[2] - SCROLLBAR_INSET || across > tr[2] + SCROLLBAR + SCROLLBAR_INSET || along < tr[0] || along > tr[0] + tr[1]) continue;
+					var start = x ? t[0] : t[1], len = x ? t[2] : t[3];
+					if (along >= start && along <= start + len) {
+						drag = n;
+						dragX = x;
+						dragFrom = x ? px : py;
+						dragScroll = x ? n.scrollX : n.scrollY;
+						requestFrame();
+					} else {
+						var page = viewSize(n, x) * (along < start ? -1 : 1);
+						setScroll(n, x, (x ? n.scrollX : n.scrollY) + page);
+					}
+					return true;
+				}
+			n = n.parent;
+		}
+		return false;
+	}
+
+	function setScroll(n:Node, x:Bool, v:Float) {
+		v = Math.max(0, Math.min(v, maxScroll(n, x)));
+		if (v == (x ? n.scrollX : n.scrollY)) return;
+		if (x) n.scrollX = v; else n.scrollY = v;
+		requestFrame();
+	}
+
 	// a node left the tree: it no longer hovers, captures or has the focus
 	@:allow(hxmc.ui.Node) function detached(n:Node) {
 		if (hover != null && contains(n, hover)) hover = null;
 		if (capture != null && contains(n, capture)) capture = null;
+		if (drag != null && contains(n, drag)) drag = null;
 		if (focus != null && contains(n, focus)) focus = null;
 	}
 }

@@ -66,6 +66,26 @@ class UiTest {
 			false;
 		} catch (e:Dynamic) true;
 		check("paint: Shadow.parse rejects one length", threw);
+		// the focus ring: shown when Tab moves the focus, hidden by a press
+		a.focusable = true;
+		ui.keyDown(Key.TAB, 0);
+		var c = new Recording();
+		ui.paint(c);
+		check("paint: the focus ring", ui.focus == a && c.calls[c.calls.length - 1] == "rect 6 6 108 58 12 0 2 ff3b82f6", c.calls[c.calls.length - 1]);
+		ui.pointerDown(50, 30, 1);
+		ui.pointerUp(50, 30, 1);
+		var c = new Recording();
+		ui.paint(c);
+		check("paint: no ring after a press", ui.focus == a && !ui.focusVisible && c.calls.length == want.length);
+		// the cursor: the hovered node's, Auto taking the parent's
+		check("cursor: Default by default", ui.cursor() == Default);
+		a.style.cursor = Pointer;
+		ui.pointerMove(50, 15);
+		check("cursor: inherited from the parent", ui.hover == b && ui.cursor() == Pointer);
+		b.style.cursor = Text;
+		check("cursor: the node's own", ui.cursor() == Text);
+		ui.pointerMove(190, 90);
+		check("cursor: outside", ui.cursor() == Default);
 	}
 
 	// --- layout against Chromium ---
@@ -309,6 +329,27 @@ class UiTest {
 		check("scroll: clamped", list.scrollY == 200);
 		ui.wheel(50, 50, 0, -5000);
 		check("scroll: back to the top", list.scrollY == 0);
+		// the scrollbar: a track from y 2 of 96 px at x 92, its thumb 96 * 100 / 300 = 32 px
+		var clicks = 0;
+		for (c in list.children)
+			c.onClick = e -> clicks++;
+		ui.pointerDown(95, 10, 1);
+		ui.pointerMove(95, 42);
+		check("scroll: dragging the thumb", list.scrollY == 100, '${list.scrollY}');
+		ui.pointerMove(95, 500);
+		check("scroll: the drag clamped", list.scrollY == 200, '${list.scrollY}');
+		ui.pointerMove(95, 42);
+		ui.pointerUp(95, 42, 1);
+		ui.pointerDown(95, 90, 1);
+		ui.pointerUp(95, 90, 1);
+		check("scroll: a press on the track pages", list.scrollY == 200, '${list.scrollY}');
+		ui.pointerDown(95, 5, 1);
+		ui.pointerUp(95, 5, 1);
+		check("scroll: and back", list.scrollY == 100, '${list.scrollY}');
+		check("scroll: the scrollbar takes the presses", clicks == 0 && ui.capture == null);
+		var c = new Recording();
+		ui.paint(c);
+		check("scroll: the thumb painted", c.calls[c.calls.length - 1] == "rect 92 34 6 32 3 59000000 0 0", c.calls[c.calls.length - 1]);
 	}
 
 	// --- relayout ---

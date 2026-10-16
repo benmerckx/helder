@@ -132,6 +132,9 @@ export default function (host) {
 		width: (h) => host.handles.get(h).width,
 		height: (h) => host.handles.get(h).height,
 		scale: () => devicePixelRatio,
+		set_cursor(h, c) {
+			host.handles.get(h).style.cursor = ['default', 'pointer', 'text', 'crosshair', 'move', 'not-allowed', 'ew-resize', 'ns-resize'][c] ?? 'default';
+		},
 		next_event(p) {
 			const ev = queue.shift();
 			if (!ev) return 0;

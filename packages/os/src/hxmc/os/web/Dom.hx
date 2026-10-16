@@ -20,6 +20,8 @@ import hxmc.unsafe.*;
 	// the next pending event into ev (seven Int32: canvas, EventKind, key (a
 	// TextInput's code point), x, y, button, mods); 0: none
 	static function next_event(ev:Ptr<Int32>):Int;
+	// the canvas's CSS cursor, by Cursor
+	static function set_cursor(canvas:Int, cursor:Int):Void;
 	// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
 	static function start(frame:Ptr):Void;
 }

@@ -67,6 +67,10 @@ class UiWindow {
 		if (onFrame != null) onFrame();
 	}
 
+	// the window's cursor: the Ui's (hxmc.os.Cursor has Default for Auto first)
+	function updateCursor()
+		window.cursor = cast Std.int(Math.max(0, (ui.cursor() : Int) - 1));
+
 	// one of the window's events
 	public function handle(e:OsEvent) {
 		var k = renderer.scale;
@@ -90,6 +94,7 @@ class UiWindow {
 				ui.textInput(e.text);
 			case _:
 		}
+		updateCursor();
 	}
 
 	public function close() {

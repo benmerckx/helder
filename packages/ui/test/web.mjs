@@ -113,6 +113,8 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	const { line } = await boxes();
 	const state = line.split(' | ').slice(1).join(' | ');
 	const r = await p.evaluate(() => window.check());
+	// (over a button: Window.cursor set the canvas's CSS cursor)
+	const cursor = await p.evaluate(() => document.querySelector('canvas').style.cursor);
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
 		const png = await p.evaluate(async () => {
@@ -122,9 +124,9 @@ for (const gfx of ['webgpu', 'webgl2']) {
 		});
 		await writeFile(path.join(out, `todo-${gfx}.png`), Buffer.from(png));
 	}
-	const ok = r.ok && state === '2 items left | 3' && errors.length === 0 && backend === gfx;
+	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && errors.length === 0 && backend === gfx;
 	if (!ok) failed++;
-	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}${ok ? '' : ' FAILED'}`);
 	for (const e of errors) console.log('  error: ' + e);
 	if (backend !== gfx) console.log('  on ' + backend);
 	await p.close();

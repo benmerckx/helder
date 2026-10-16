@@ -47,6 +47,17 @@ class Window {
 	function get_scale():Float
 		return Mem.os() == 1 ? (cast native : CocoaWindow).scale : Mem.os() == 2 ? (cast native : Win32Window).scale : Mem.os() == 3 ? (cast native : CanvasWindow).scale : 1;
 
+	// the pointer's shape over the window
+	public var cursor(default, set):Cursor = Default;
+
+	function set_cursor(c:Cursor):Cursor {
+		if (c == cursor || closed) return c;
+		cursor = c;
+		if (Mem.os() == 1) (cast native : CocoaWindow).setCursor(c) else if (Mem.os() == 2) (cast native : Win32Window).setCursor(c) else if (Mem.os() == 3)
+			(cast native : CanvasWindow).setCursor(c) else (cast native : X11Window).setCursor(c);
+		return c;
+	}
+
 	public function close() {
 		if (closed) return;
 		closed = true;

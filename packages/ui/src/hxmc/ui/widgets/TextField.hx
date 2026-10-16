@@ -27,6 +27,7 @@ class TextField extends TextNode {
 		focusable = true;
 		caret = anchor = this.text.length;
 		style.overflow = Hidden;
+		style.cursor = Text;
 		onKeyDown = key;
 		onTextInput = e -> typeText(e.text);
 		onPointerDown = e -> {

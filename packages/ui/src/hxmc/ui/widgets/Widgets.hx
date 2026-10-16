@@ -15,7 +15,7 @@ class Widgets implements Markup {
 		var hover = signal(false), down = signal(false);
 		var primary = props.primary == true;
 		var bg = () -> primary ? (down.value ? "#1d4ed8" : hover.value ? "#2563eb" : "#3b82f6") : (down.value ? "#d4d4d8" : hover.value ? "#e4e4e7" : "#ffffff");
-		return <view tag={props.tag ?? "button"} focusable padding="6 14" radius={6} border-width={primary ? 0 : 1} border-color="#a1a1aa" background={bg}
+		return <view tag={props.tag ?? "button"} focusable cursor="pointer" padding="6 14" radius={6} border-width={primary ? 0 : 1} border-color="#a1a1aa" background={bg}
 			color={primary ? "#ffffff" : "#18181b"} align-items="center" onPointerEnter={_ -> hover.value = true}
 			onPointerLeave={_ -> {
 				hover.value = false;
@@ -30,7 +30,7 @@ class Widgets implements Markup {
 	// a checkbox bound to a signal, with its label
 	public static function Checkbox(props:{checked:Signal<Bool>, ?label:String, ?tag:String}):Esx {
 		var toggle = () -> props.checked.value = !props.checked.value;
-		return <view tag={props.tag ?? "checkbox"} direction="row" align-items="center" column-gap={8} focusable onClick={_ -> toggle()}
+		return <view tag={props.tag ?? "checkbox"} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE) toggle()}>
 			<view width={16} height={16} radius={4} border-width={1.5} border-color={() -> props.checked.value ? "#2563eb" : "#71717a"}
 				background={() -> props.checked.value ? "#3b82f6" : "#ffffff"} align-items="center" justify="center">

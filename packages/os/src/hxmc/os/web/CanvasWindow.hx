@@ -37,6 +37,9 @@ class CanvasWindow {
 	inline function get_scale():Float
 		return Dom.scale();
 
+	function setCursor(c:Cursor)
+		Dom.set_cursor(canvas, c);
+
 	function destroy() {
 		open.remove(this);
 		Dom.window_close(canvas);

@@ -30,6 +30,9 @@ import hxmc.unsafe.*;
 	// an XImage* of the window's pixels (ZPixmap: 32 bits per pixel on a 24-bit visual)
 	static function XGetImage(d:Ptr, drawable:Int64, x:Int, y:Int, width:Int, height:Int, planes:Int64, format:Int):Ptr<XImage>;
 	static function XDestroyImage(image:Ptr<XImage>):Int;
+	// a cursor of the cursor font (X11/cursorfont.h's shapes)
+	static function XCreateFontCursor(d:Ptr, shape:Int):Int64;
+	static function XDefineCursor(d:Ptr, w:Int64, cursor:Int64):Int;
 }
 
 // XEvent is a union of 192 bytes (24 longs): an XEvent buffer is read

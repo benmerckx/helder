@@ -15,6 +15,8 @@ class X11Window {
 	static var xev:Ptr = Ptr.nil();
 	static final event = new Event();
 	static final open:Array<X11Window> = [];
+	// the cursors made (by Cursor; 0: not yet)
+	static final cursors:Array<Int64> = [];
 
 	final owner:Window;
 	final id:Int64;
@@ -52,10 +54,23 @@ class X11Window {
 		Xlib.XDestroyWindow(display, id);
 		Xlib.XFlush(display);
 		if (open.length == 0) {
+			// (the cursors go with the connection)
+			cursors.resize(0);
 			Xlib.XCloseDisplay(display);
 			LibC.free(xev);
 			display = Ptr.nil();
 		}
+	}
+
+	// (cursorfont.h: XC_left_ptr, XC_hand2, XC_xterm, XC_crosshair, XC_fleur,
+	// XC_X_cursor, XC_sb_h_double_arrow, XC_sb_v_double_arrow)
+	function setCursor(c:Cursor) {
+		var i:Int = c;
+		while (cursors.length <= i)
+			cursors.push(0);
+		if (cursors[i] == 0) cursors[i] = Xlib.XCreateFontCursor(display, [68, 60, 152, 34, 52, 0, 108, 116][i]);
+		Xlib.XDefineCursor(display, id, cursors[i]);
+		Xlib.XFlush(display);
 	}
 
 	static function find(id:Int64):Null<X11Window> {
