@@ -6,8 +6,10 @@ import hxmc.os.*;
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/examples -main Triangle
 //     --custom-target hxmc=triangle -D hxmc.libc=glibc
 //
-// (macOS: without -D hxmc.libc=glibc.) The tests (packages/gfx/test) draw the
-// same frames headless and in a window (Xvfb on Linux).
+// (macOS: without -D hxmc.libc=glibc; the browser: -D hxmc.target=wasm32-wasi,
+// run by packages/os/browser.mjs with the packages' imports.mjs, as on
+// hxmc/web.) The tests (packages/gfx/test) draw the same frames headless and
+// in a window (Xvfb on Linux, a canvas in headless Chromium).
 class Triangle {
 	static final VERTEX = "#version 300 es
 layout(location = 0) in vec2 pos;
@@ -45,6 +47,16 @@ fragment float4 main0(In v [[stage_in]]) {
 	return float4(v.color, 1.0);
 }
 ";
+	// (WebGPU)
+	static final VERTEX_WGSL = "struct Out { @builtin(position) position: vec4f, @location(0) color: vec3f };
+@vertex fn main(@location(0) pos: vec2f, @location(1) color: vec3f) -> Out {
+	return Out(vec4f(pos, 0.0, 1.0), color);
+}
+";
+	static final FRAGMENT_WGSL = "@fragment fn main(@location(0) color: vec3f) -> @location(0) vec4f {
+	return vec4f(color, 1.0);
+}
+";
 
 	final device:Device;
 	final vertices:Buffer;
@@ -60,8 +72,8 @@ fragment float4 main0(In v [[stage_in]]) {
 			bytes.setFloat(4 * i, data[i]);
 		vertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
 		pipeline = device.createPipeline({
-			vertex: device.createShader({stage: Vertex, code: {glsl: VERTEX, msl: VERTEX_MSL}}),
-			fragment: device.createShader({stage: Fragment, code: {glsl: FRAGMENT, msl: FRAGMENT_MSL}}),
+			vertex: device.createShader({stage: Vertex, code: {glsl: VERTEX, msl: VERTEX_MSL, wgsl: VERTEX_WGSL}}),
+			fragment: device.createShader({stage: Fragment, code: {glsl: FRAGMENT, msl: FRAGMENT_MSL, wgsl: FRAGMENT_WGSL}}),
 			layout: [
 				{
 					stride: 20,

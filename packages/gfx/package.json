@@ -1,10 +1,11 @@
 {
   "name": "@hxmc/gfx",
   "version": "0.1.0",
-  "description": "A portable GPU layer for hxmc, in pure Haxe: integer handles, immutable pipelines, back ends over the system's GPU APIs (GL through EGL, Metal)",
+  "description": "A portable GPU layer for hxmc, in pure Haxe: integer handles, immutable pipelines, back ends over the system's GPU APIs (GL through EGL, Metal, WebGPU)",
   "license": "MIT",
   "files": [
-    "src/"
+    "src/",
+    "imports.mjs"
   ],
   "haxe": {
     "name": "hxmc.gfx",

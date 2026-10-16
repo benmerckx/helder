@@ -5,8 +5,10 @@ package hxmc.gfx;
 // the uniform slots). GL: GLSL ES 3.00 (`#version 300 es`), vertex inputs
 // at `layout(location = n)`. Metal: MSL, the entry point named main0 (as
 // SPIRV-Cross names it), vertex inputs `[[attribute(n)]]` of a
-// `[[stage_in]]` struct.
+// `[[stage_in]]` struct. WebGPU: WGSL, the entry point named main, vertex
+// inputs at `@location(n)`.
 typedef ShaderCode = {
 	?glsl:String,
-	?msl:String
+	?msl:String,
+	?wgsl:String
 }

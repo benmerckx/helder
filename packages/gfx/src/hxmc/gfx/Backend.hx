@@ -5,4 +5,6 @@ enum abstract Backend(Int) {
 	var GL;
 	// Metal (macOS)
 	var Metal;
+	// WebGPU (the browser, WebAssembly)
+	var WebGPU;
 }
