@@ -1,4 +1,5 @@
 import hxmc.gfx.*;
+import hxmc.gfx.shader.ShaderMath.*;
 import hxmc.os.*;
 
 // A coloured triangle in a window (close it, or press Escape):
@@ -8,74 +9,11 @@ import hxmc.os.*;
 //
 // (macOS and Windows: without -D hxmc.libc=glibc; the browser: -D
 // hxmc.target=wasm32-wasi, run by packages/os/browser.mjs with the packages'
-// imports.mjs, as on hxmc/web.) The tests (packages/gfx/test) draw the same
-// frames headless and in a window (Xvfb on Linux, a canvas in headless
-// Chromium).
+// imports.mjs, as on hxmc/web.) The shaders are Haxe (TriangleShader.hx),
+// compiled by the shader macro into the target's shader languages. The
+// tests (packages/gfx/test) draw the same frames headless and in a window
+// (Xvfb on Linux, a canvas in headless Chromium).
 class Triangle {
-	static final VERTEX = "#version 300 es
-layout(location = 0) in vec2 pos;
-layout(location = 1) in vec3 color;
-out vec3 vColor;
-void main() {
-	vColor = color;
-	gl_Position = vec4(pos, 0.0, 1.0);
-}
-";
-	static final FRAGMENT = "#version 300 es
-precision mediump float;
-in vec3 vColor;
-out vec4 fragColor;
-void main() {
-	fragColor = vec4(vColor, 1.0);
-}
-";
-	// (Metal: until the shader macro writes them all)
-	static final VERTEX_MSL = "#include <metal_stdlib>
-using namespace metal;
-struct In { float2 pos [[attribute(0)]]; float3 color [[attribute(1)]]; };
-struct Out { float4 position [[position]]; float3 color; };
-vertex Out main0(In v [[stage_in]]) {
-	Out o;
-	o.position = float4(v.pos, 0.0, 1.0);
-	o.color = v.color;
-	return o;
-}
-";
-	static final FRAGMENT_MSL = "#include <metal_stdlib>
-using namespace metal;
-struct In { float4 position [[position]]; float3 color; };
-fragment float4 main0(In v [[stage_in]]) {
-	return float4(v.color, 1.0);
-}
-";
-
-	// (D3D11)
-	static final VERTEX_HLSL = "struct In { float2 pos : TEXCOORD0; float3 color : TEXCOORD1; };
-struct Out { float4 position : SV_Position; float3 color : TEXCOORD0; };
-Out main(In v) {
-	Out o;
-	o.position = float4(v.pos, 0.0, 1.0);
-	o.color = v.color;
-	return o;
-}
-";
-	static final FRAGMENT_HLSL = "struct In { float4 position : SV_Position; float3 color : TEXCOORD0; };
-float4 main(In v) : SV_Target {
-	return float4(v.color, 1.0);
-}
-";
-
-	// (WebGPU)
-	static final VERTEX_WGSL = "struct Out { @builtin(position) position: vec4f, @location(0) color: vec3f };
-@vertex fn main(@location(0) pos: vec2f, @location(1) color: vec3f) -> Out {
-	return Out(vec4f(pos, 0.0, 1.0), color);
-}
-";
-	static final FRAGMENT_WGSL = "@fragment fn main(@location(0) color: vec3f) -> @location(0) vec4f {
-	return vec4f(color, 1.0);
-}
-";
-
 	final device:Device;
 	final vertices:Buffer;
 	final pipeline:Pipeline;
@@ -83,22 +21,13 @@ float4 main(In v) : SV_Target {
 
 	public function new(device:Device) {
 		this.device = device;
-		// x, y, r, g, b
-		var data = [0.0, 0.6, 1, 0, 0, -0.6, -0.5, 0, 1, 0, 0.6, -0.5, 0, 0, 1];
-		var bytes = haxe.io.Bytes.alloc(4 * data.length);
-		for (i in 0...data.length)
-			bytes.setFloat(4 * i, data[i]);
+		var bytes = TriangleShader.vertexBytes([
+			{pos: vec2(0, 0.6), color: vec3(1, 0, 0)},
+			{pos: vec2(-0.6, -0.5), color: vec3(0, 1, 0)},
+			{pos: vec2(0.6, -0.5), color: vec3(0, 0, 1)}
+		]);
 		vertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
-		pipeline = device.createPipeline({
-			vertex: device.createShader({stage: Vertex, code: {glsl: VERTEX, msl: VERTEX_MSL, hlsl: VERTEX_HLSL, wgsl: VERTEX_WGSL}}),
-			fragment: device.createShader({stage: Fragment, code: {glsl: FRAGMENT, msl: FRAGMENT_MSL, hlsl: FRAGMENT_HLSL, wgsl: FRAGMENT_WGSL}}),
-			layout: [
-				{
-					stride: 20,
-					attributes: [{location: 0, format: Float2, offset: 0}, {location: 1, format: Float3, offset: 8}]
-				}
-			]
-		});
+		pipeline = device.createPipeline(TriangleShader.pipeline({topology: Triangles}));
 	}
 
 	// records the frame's pass; the caller ends the frame

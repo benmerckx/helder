@@ -29,8 +29,18 @@ final class Device {
 	public function createShader(d:ShaderDesc):Shader
 		return new Shader(impl.createShader(d));
 
-	public function createPipeline(d:PipelineDesc):Pipeline
+	// (d.program: its shaders created first)
+	public function createPipeline(d:PipelineDesc):Pipeline {
+		if (d.program != null)
+			d = {
+				vertex: createShader({stage: Vertex, code: d.program.vertex}),
+				fragment: createShader({stage: Fragment, code: d.program.fragment}),
+				layout: d.layout,
+				topology: d.topology,
+				cull: d.cull
+			};
 		return new Pipeline(impl.createPipeline(d));
+	}
 
 	// the frame's encoder (the same object each frame); null: no frame now
 	// (a hidden window: Metal has no drawable for it), skip it
