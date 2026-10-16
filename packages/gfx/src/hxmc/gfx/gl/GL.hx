@@ -3,9 +3,11 @@ package hxmc.gfx.gl;
 import hxmc.unsafe.*;
 
 // OpenGL ES 3.0 (the subset GL 3.3 core shares): the entry points the GL
-// back end calls, through pointers from GetProcAddress (Loader: GL.load).
-// GLenum, GLuint, GLint, GLsizei are Int, GLsizeiptr and GLintptr Int64,
-// GLboolean Bool.
+// back end calls, through pointers from GetProcAddress (Loader: GL.load),
+// or on WebAssembly imports that call WebGL2 (packages/gfx/imports.mjs:
+// object names are handles of its table, memory is the module's; no
+// glGetString there). GLenum, GLuint, GLint, GLsizei are Int, GLsizeiptr
+// and GLintptr Int64, GLboolean Bool.
 @:build(hxmc.gfx.gl.Loader.build())
 class GL {
 	public static inline var NO_ERROR = 0;

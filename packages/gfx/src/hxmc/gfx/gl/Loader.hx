@@ -9,7 +9,10 @@ import haxe.macro.Expr;
 // unless the declaration says @:wait: calls that block) and an inline
 // wrapper of the declared name; load(get) fills the slots from a
 // GetProcAddress (eglGetProcAddress, wglGetProcAddress later), whose
-// argument is the name as a C string.
+// argument is the name as a C string. On WebAssembly (-D
+// hxmc.target=wasm32-wasi) each one is instead an import of that name from
+// the module "hxmc_gl", WebGL2 through packages/gfx/imports.mjs, and load
+// has nothing to fill.
 class Loader {
 	public static function build():Array<Field> {
 		var fields = Context.getBuildFields();
@@ -17,8 +20,17 @@ class Loader {
 		var loads:Array<Expr> = [];
 		var pos = Context.currentPos();
 		var ptr = macro :hxmc.unsafe.Ptr;
+		var wasm = Context.definedValue("hxmc.target") == "wasm32-wasi";
 		for (f in fields)
 			switch f.kind {
+				case FFun(fn) if (fn.expr == null && wasm):
+					// (a browser blocks no thread: no @:wait there)
+					var meta = [
+						{name: ":hxmc.c", params: [macro $v{f.name}], pos: f.pos},
+						{name: ":hxmc.lib", params: [macro "hxmc_gl"], pos: f.pos},
+						{name: ":hxmc.fast", pos: f.pos}
+					];
+					out.push({name: f.name, access: [APublic, AStatic, AExtern], meta: meta, kind: FFun(fn), pos: f.pos});
 				case FFun(fn) if (fn.expr == null):
 					var name = f.name, slot = "p_" + f.name, raw = "c_" + f.name;
 					var wait = Lambda.exists(f.meta, m -> m.name == ":wait");

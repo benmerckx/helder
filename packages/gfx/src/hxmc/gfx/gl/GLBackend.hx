@@ -6,11 +6,14 @@ import hxmc.os.Surface;
 import hxmc.unsafe.*;
 
 // The GL back end: an OpenGL ES 3.0 context through EGL, on an X11 window's
-// surface or, headless, on a pbuffer of Mesa's surfaceless platform. One
-// vertex array object; vertex attributes are set at the first draw after
-// a pipeline or vertex buffer change (ES 3.0 has no separate vertex formats).
+// surface or, headless, on a pbuffer of Mesa's surfaceless platform; in the
+// browser (WebAssembly, without WebGPU: hxmc.gfx.Impl), a WebGL2 context on
+// a canvas or an offscreen one (WebGL), the same GL calls going to
+// imports. One vertex array object; vertex attributes are set at the first
+// draw after a pipeline or vertex buffer change (ES 3.0 has no separate
+// vertex formats).
 class GLBackend {
-	public final backend = Backend.GL;
+	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
 	public var height(default, null) = 0;
 
@@ -18,6 +21,7 @@ class GLBackend {
 	var display = Ptr.nil();
 	var eglSurface = Ptr.nil();
 	var context = Ptr.nil();
+	var web = 0; // the WebGL2 context
 	// native memory for out-parameters, and the pixels of readPixels
 	final scratch:Ptr<Int32>;
 	var pixels = Ptr.nil();
@@ -40,6 +44,19 @@ class GLBackend {
 	public function new(surface:Surface) {
 		this.surface = surface;
 		scratch = LibC.malloc((64 : Int64));
+		if (Mem.os() == 3) {
+			web = switch surface.kind {
+				case Canvas: WebGL.context(surface.handle.toI64().toInt(), 0, 0);
+				case Headless: WebGL.context(0, surface.width, surface.height);
+				case k: throw "hxmc.gfx: WebGL2 renders to a canvas or headless, not to a surface of kind " + k;
+			}
+			if (web == 0) throw "hxmc.gfx: neither WebGPU nor WebGL2 is available";
+			WebGL.make_current(web);
+			GL.glGenVertexArrays(1, scratch);
+			GL.glBindVertexArray(scratch.value);
+			querySize();
+			return;
+		}
 		var headless = surface.kind == Headless;
 		if (headless)
 			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_SURFACELESS_MESA, Ptr.nil(), Ptr.nil());
@@ -73,7 +90,7 @@ class GLBackend {
 	}
 
 	function fail(what:String):Dynamic
-		throw "hxmc.gfx: " + what + " (EGL error 0x" + StringTools.hex(Egl.eglGetError()) + ")";
+		throw "hxmc.gfx: " + what + (Mem.os() == 3 ? "" : " (EGL error 0x" + StringTools.hex(Egl.eglGetError()) + ")");
 
 	static function ints(a:Arena, xs:Array<Int>):Ptr<Int32> {
 		var p:Ptr<Int32> = a.alloc(4 * xs.length);
@@ -83,6 +100,12 @@ class GLBackend {
 	}
 
 	function querySize() {
+		if (Mem.os() == 3) {
+			// (a canvas: its size now, which App's Resize events follow)
+			width = surface.width;
+			height = surface.height;
+			return;
+		}
 		Egl.eglQuerySurface(display, eglSurface, EGL.WIDTH, scratch);
 		width = scratch.value;
 		Egl.eglQuerySurface(display, eglSurface, EGL.HEIGHT, scratch);
@@ -202,7 +225,7 @@ class GLBackend {
 	public function endPass() {}
 
 	public function endFrame() {
-		if (surface.kind != Headless) Egl.eglSwapBuffers(display, eglSurface);
+		if (Mem.os() == 3) WebGL.swap(web) else if (surface.kind != Headless) Egl.eglSwapBuffers(display, eglSurface);
 	}
 
 	public function readPixels(dst:haxe.io.Bytes) {
@@ -221,10 +244,12 @@ class GLBackend {
 	}
 
 	public function dispose() {
-		Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
-		Egl.eglDestroyContext(display, context);
-		Egl.eglDestroySurface(display, eglSurface);
-		Egl.eglTerminate(display);
+		if (Mem.os() == 3) WebGL.release(web) else {
+			Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
+			Egl.eglDestroyContext(display, context);
+			Egl.eglDestroySurface(display, eglSurface);
+			Egl.eglTerminate(display);
+		}
 		LibC.free(pixels);
 		LibC.free(scratch);
 	}

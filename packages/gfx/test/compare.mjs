@@ -1,7 +1,7 @@
 // GfxTest's comparison (GfxTest.hx: compare) in JavaScript, for the WebGPU
-// tests in a browser (webgpu.mjs, hxmc/web/tools/browser-test.mjs): a pixel
-// matches when no channel differs by more than TOLERANCE, and at most
-// MAX_OFF of the pixels may differ by more (the triangle's edges); the
+// and WebGL2 tests in a browser (web.mjs, hxmc/web/tools/browser-test.mjs):
+// a pixel matches when no channel differs by more than TOLERANCE, and at
+// most MAX_OFF of the pixels may differ by more (the triangle's edges); the
 // centre must be lit and a corner the clear colour.
 export const TOLERANCE = 2;
 export const MAX_OFF = 0.005;

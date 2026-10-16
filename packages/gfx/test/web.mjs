@@ -1,11 +1,14 @@
-// The triangle on WebGPU in headless Chromium (make gfx-web-check), against
+// The triangle on WebGPU, then on WebGL2 (forced: browser.mjs's option gfx:
+// 'webgl2'), in headless Chromium (make gfx-web-check), against
 // triangle.png with GfxTest's rule (compare.mjs): WebTest.wasm (WebTest.hx)
-// headless, then in a 256x192 canvas, whose frames come from the browser's
-// loop after main returned; then the canvas is resized (a Resize event) and
-// Escape closes the window. A page served here loads the module with
-// packages/os/browser.mjs and the packages' imports.mjs; Chromium renders
-// with WebGPU on SwiftShader (no GPU needed).
-//   node packages/gfx/test/webgpu.mjs <WebTest.wasm> [out dir]
+// headless (on WebGL2 also Device.readPixels, whose checksum must be the
+// harness's), then in a 256x192 canvas, whose frames come from the
+// browser's loop after main returned; then the canvas is resized (a Resize
+// event) and Escape closes the window. A page served here loads the module
+// with packages/os/browser.mjs and the packages' imports.mjs; Chromium
+// renders with WebGPU on SwiftShader and WebGL2 on ANGLE's SwiftShader (no
+// GPU needed).
+//   node packages/gfx/test/web.mjs <WebTest.wasm> [out dir]
 // (Playwright from npm, with Chromium: npx playwright install chromium)
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -19,7 +22,7 @@ try { pw = require('playwright'); } catch { pw = require(path.join(process.execP
 const here = path.dirname(fileURLToPath(import.meta.url));
 const [wasm, out] = process.argv.slice(2);
 if (!wasm) {
-	console.error('usage: node webgpu.mjs <WebTest.wasm> [out dir]');
+	console.error('usage: node web.mjs <WebTest.wasm> [out dir]');
 	process.exit(2);
 }
 // Chromium's WebGPU without a GPU: SwiftShader's Vulkan (with
@@ -43,14 +46,18 @@ import { run } from './os/browser.mjs';
 import { decode, compare } from './compare.mjs';
 const log = [];
 window.log = log;
-window.start = async (mode) => {
+window.start = async (gfx, mode) => {
 	const golden = await decode('triangle.png');
-	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'c', args: [mode], stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
+	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'c', gfx, args: [mode], stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
 	log.push('exit ' + r.exitCode);
-	if (!r.host.gfx.device) return { ok: false, text: 'no WebGPU device' };
+	if (r.host.gfx.backend !== gfx) return { ok: false, text: gfx + ' ' + mode + ': on ' + r.host.gfx.backend };
 	const px = await r.host.gfx.readPixels();
 	window.pixels = Array.from(px.data);
-	return compare(mode, px, golden);
+	// (FNV-1a, as WebTest's)
+	let h = 0x811c9dc5;
+	for (const b of px.data) h = Math.imul(h ^ b, 0x01000193);
+	log.push('harness: readPixels: ' + (h >>> 0).toString(16).toUpperCase().padStart(8, '0'));
+	return compare(gfx + ' ' + mode, px, golden);
 };
 </script>`;
 const server = createServer(async (req, res) => {
@@ -67,26 +74,27 @@ const server = createServer(async (req, res) => {
 const url = `http://localhost:${server.address().port}/`;
 
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
-console.log(`webgpu.mjs: chromium ${browser.version()}`);
+console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
-for (const mode of ['headless', 'window']) {
+for (const [gfx, mode] of [['webgpu', 'headless'], ['webgpu', 'window'], ['webgl2', 'headless'], ['webgl2', 'window']]) {
 	const p = await browser.newPage({ viewport: { width: 400, height: 300 } });
 	const errors = [];
 	p.on('pageerror', (e) => errors.push(e.message));
 	p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	await p.goto(url);
-	const r = await p.evaluate((m) => window.start(m), mode).catch((e) => ({ ok: false, text: e.message.split('\n')[0] }));
+	const r = await p.evaluate(([g, m]) => window.start(g, m), [gfx, mode]).catch((e) => ({ ok: false, text: e.message.split('\n')[0] }));
+	const api = gfx === 'webgpu' ? 'WebGPU' : 'WebGL2';
 	const expect = [];
 	if (mode === 'window') {
-		if (out) await p.locator('#c').screenshot({ path: path.join(out, 'webgpu-canvas.png') });
+		if (out) await p.locator('#c').screenshot({ path: path.join(out, `${gfx}-canvas.png`) });
 		// a Resize from the page's layout, then Escape (the canvas has the focus once clicked)
 		await p.evaluate(() => { document.getElementById('c').style.width = '128px'; document.getElementById('c').style.height = '96px'; });
 		await p.waitForFunction(() => window.log.some((l) => l.startsWith('WebTest: resized')), null, { timeout: 10000 }).catch(() => {});
 		await p.click('#c');
 		await p.keyboard.press('Escape');
 		await p.waitForFunction(() => window.log.some((l) => l.startsWith('WebTest: Escape')), null, { timeout: 10000 }).catch(() => {});
-		expect.push('WebTest: window: 256x192, App.run returned', 'WebTest: resized to 128x96 (128x96)', 'WebTest: Escape after');
-	} else expect.push('WebTest: headless: 256x192');
+		expect.push(`WebTest: window: 256x192, App.run returned (${api})`, 'WebTest: resized to 128x96 (128x96)', 'WebTest: Escape after');
+	} else expect.push(`WebTest: headless: 256x192 (${api})`);
 	const log = await p.evaluate(() => window.log);
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
@@ -95,12 +103,16 @@ for (const mode of ['headless', 'window']) {
 			g.putImageData(new ImageData(new Uint8ClampedArray(window.pixels ?? new Array(256 * 192 * 4).fill(0)), 256, 192), 0, 0);
 			return Array.from(new Uint8Array(await (await c.convertToBlob()).arrayBuffer()));
 		});
-		await writeFile(path.join(out, `webgpu-${mode}.png`), Buffer.from(png));
+		await writeFile(path.join(out, `${gfx}-${mode}.png`), Buffer.from(png));
 	}
 	const missing = expect.filter((e) => !log.some((l) => l.startsWith(e)));
+	// (WebGL2 headless: Device.readPixels read what the harness read)
+	const sum = (who) => log.find((l) => l.startsWith(who + 'readPixels: '))?.split(': ')[1];
+	const same = gfx !== 'webgl2' || mode !== 'headless' || (sum('WebTest: ') && sum('WebTest: ') === sum('harness: '));
+	if (!same) missing.push('WebTest: readPixels: ' + sum('harness: '));
 	const ok = r.ok && missing.length === 0 && errors.length === 0 && log.includes('exit 0');
 	if (!ok) failed++;
-	console.log(`webgpu.mjs: ${r.text}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${r.text}${ok ? '' : ' FAILED'}`);
 	for (const l of log) console.log('  ' + l);
 	for (const m of missing) console.log('  missing: ' + m);
 	for (const e of errors) console.log('  error: ' + e);

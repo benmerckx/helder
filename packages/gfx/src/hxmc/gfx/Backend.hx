@@ -9,4 +9,7 @@ enum abstract Backend(Int) {
 	var D3D11;
 	// WebGPU (the browser, WebAssembly)
 	var WebGPU;
+	// WebGL2 (the browser without WebGPU): the GL back end on OpenGL ES 3.0's
+	// web counterpart
+	var WebGL2;
 }

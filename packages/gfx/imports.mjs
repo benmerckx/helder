@@ -1,14 +1,20 @@
-// The JavaScript side of hxmc.gfx's WebGPU back end: the imports of the
-// module "hxmc_gfx" (src/hxmc/gfx/webgpu/WebGPU.hx), loaded by
-// packages/os/browser.mjs with packages/os/imports.mjs. The adapter and the
-// device are requested before the module starts; without them (no
-// navigator.gpu, no adapter) ready() is 0 and Device.create throws. GPU
-// objects live in the loader's handle table; the enums are hxmc.gfx's.
+// The JavaScript side of hxmc.gfx in the browser, loaded by
+// packages/os/browser.mjs with packages/os/imports.mjs: the imports of the
+// module "hxmc_gfx" for the WebGPU back end (src/hxmc/gfx/webgpu/WebGPU.hx)
+// and of the module "hxmc_gl" for the GL back end on WebGL2
+// (src/hxmc/gfx/gl/GL.hx, WebGL.hx). The adapter and the device are
+// requested before the module starts; without them (no navigator.gpu, no
+// adapter, or run's option gfx: 'webgl2') ready() is 0 and Device.create
+// takes WebGL2, or throws without it. GPU objects, and GL's object names,
+// live in the loader's handle table; the enums are hxmc.gfx's, GL's are
+// GL's own.
 //
-// Reading a frame back waits for the GPU, which a browser does
-// asynchronously only: host.gfx.readPixels() resolves to {width, height,
-// data} (RGBA8, rows top to bottom) of a headless target as it is now, or of
-// a canvas's next frame (copied before it is presented).
+// host.gfx.backend is the API a device was created on ('webgpu', 'webgl2';
+// null: none yet). Reading a frame back on WebGPU waits for the GPU, which a
+// browser does asynchronously only: host.gfx.readPixels() resolves to
+// {width, height, data} (RGBA8, rows top to bottom) of a headless target as
+// it is now, or of a canvas's next frame (copied before it is presented);
+// on WebGL2 the same, read synchronously (Device.readPixels works there too).
 
 const FORMATS = ['float32', 'float32x2', 'float32x3', 'float32x4', 'unorm8x4']; // VertexFormat
 const TOPOLOGIES = ['triangle-list', 'triangle-strip', 'line-list', 'point-list']; // Topology
@@ -18,7 +24,7 @@ const LOADS = ['clear', 'load', 'clear']; // LoadOp (DontCare: clear)
 export default async function (host) {
 	let adapter = null, device = null;
 	try {
-		adapter = navigator.gpu && (await navigator.gpu.requestAdapter());
+		adapter = host.options.gfx !== 'webgl2' && navigator.gpu && (await navigator.gpu.requestAdapter());
 		device = adapter ? await adapter.requestDevice() : null;
 	} catch (e) {
 		console.error('hxmc.gfx: no WebGPU device:', e);
@@ -59,7 +65,12 @@ export default async function (host) {
 	host.gfx = {
 		adapter,
 		device,
+		backend: null,
 		readPixels() {
+			if (current) {
+				if (current.offscreen) return Promise.resolve(read(current));
+				return new Promise((resolve, reject) => current.captures.push({ resolve, reject }));
+			}
 			if (frameTarget && frameTarget.texture) {
 				const enc = device.createCommandEncoder();
 				const pixels = copy(enc, frameTarget.texture, frameTarget.format);
@@ -73,6 +84,7 @@ export default async function (host) {
 	const hxmc_gfx = {
 		ready: () => (device ? 1 : 0),
 		target_canvas(canvas) {
+			host.gfx.backend = 'webgpu';
 			const context = handles.get(canvas).getContext('webgpu');
 			const format = navigator.gpu.getPreferredCanvasFormat();
 			// (COPY_SRC: readPixels)
@@ -80,6 +92,7 @@ export default async function (host) {
 			return handles.add({ context, format });
 		},
 		target_texture(width, height) {
+			host.gfx.backend = 'webgpu';
 			const format = 'rgba8unorm';
 			const texture = device.createTexture({ size: [width, height], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
 			return handles.add({ texture, format });
@@ -166,5 +179,137 @@ export default async function (host) {
 			handles.remove(h);
 		},
 	};
-	return { hxmc_gfx };
+
+	// WebGL2: the current context ({gl, canvas, offscreen, captures}: the
+	// readPixels waiting for its next frame)
+	let current = null, gl = null;
+	const view = () => new DataView(host.memory().buffer);
+	const get = (h) => handles.get(h);
+
+	// the drawing buffer as RGBA8, rows top to bottom
+	function read(c) {
+		const g = c.gl, w = g.drawingBufferWidth, h = g.drawingBufferHeight;
+		const src = new Uint8Array(w * h * 4), data = new Uint8Array(w * h * 4);
+		g.pixelStorei(g.PACK_ALIGNMENT, 1);
+		g.readPixels(0, 0, w, h, g.RGBA, g.UNSIGNED_BYTE, src);
+		for (let y = 0; y < h; y++) data.set(src.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
+		return { width: w, height: h, data };
+	}
+	// GL's glGen*: n new objects, their handles into p
+	function gen(n, p, make) {
+		const v = view();
+		for (let i = 0; i < n; i++) v.setInt32(p + 4 * i, handles.add(make()), true);
+	}
+	function del(n, p, f) {
+		const v = view();
+		for (let i = 0; i < n; i++) {
+			const h = v.getInt32(p + 4 * i, true);
+			if (h) {
+				f(get(h));
+				handles.remove(h);
+			}
+		}
+	}
+	// glGet*iv: INFO_LOG_LENGTH, which WebGL lacks, from the log itself
+	function iv(o, pname, p, param, log) {
+		const x = pname === gl.INFO_LOG_LENGTH ? new TextEncoder().encode(log(o)).length + 1 : param(o, pname);
+		view().setInt32(p, typeof x === 'boolean' ? (x ? 1 : 0) : x, true);
+	}
+	// glGet*InfoLog: at most size - 1 bytes and a NUL
+	function infoLog(text, size, length, p) {
+		const b = new TextEncoder().encode(text).subarray(0, Math.max(0, size - 1));
+		host.bytes(p, b.length + 1).set([...b, 0]);
+		if (length) view().setInt32(length, b.length, true);
+	}
+
+	const hxmc_gl = {
+		context(canvas, width, height) {
+			const offscreen = canvas === 0;
+			const c = offscreen ? (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height })) : handles.get(canvas);
+			// (a canvas: presented after each frame's task, read back at swap;
+			// offscreen: nothing presents it, read back at any time)
+			const g = c.getContext('webgl2', { antialias: false, alpha: false, depth: false, preserveDrawingBuffer: offscreen });
+			if (!g) return 0;
+			host.gfx.backend = 'webgl2';
+			return handles.add({ gl: g, canvas: c, offscreen, captures: [] });
+		},
+		make_current(h) {
+			current = get(h);
+			gl = current.gl;
+		},
+		swap(h) {
+			const c = get(h), waiting = c.captures;
+			if (!waiting.length) return;
+			c.captures = [];
+			try {
+				const px = read(c);
+				waiting.forEach((w) => w.resolve(px));
+			} catch (e) {
+				waiting.forEach((w) => w.reject(e));
+			}
+		},
+		release(h) {
+			const c = get(h);
+			c.gl.getExtension('WEBGL_lose_context')?.loseContext();
+			if (current === c) current = gl = null;
+			handles.remove(h);
+		},
+		glGetError: () => gl.getError(),
+		glEnable: (cap) => gl.enable(cap),
+		glDisable: (cap) => gl.disable(cap),
+		glCullFace: (mode) => gl.cullFace(mode),
+		glFrontFace: (mode) => gl.frontFace(mode),
+		glViewport: (x, y, w, h) => gl.viewport(x, y, w, h),
+		glClearColor: (r, g, b, a) => gl.clearColor(r, g, b, a),
+		glClear: (mask) => gl.clear(mask),
+		glGenBuffers: (n, p) => gen(n, p, () => gl.createBuffer()),
+		glDeleteBuffers: (n, p) => del(n, p, (b) => gl.deleteBuffer(b)),
+		glBindBuffer: (target, b) => gl.bindBuffer(target, get(b)),
+		// (GLsizeiptr, GLintptr: Int64, a BigInt)
+		glBufferData(target, size, data, usage) {
+			if (data) gl.bufferData(target, host.bytes(data, Number(size)), usage);
+			else gl.bufferData(target, Number(size), usage);
+		},
+		glBufferSubData: (target, offset, size, data) => gl.bufferSubData(target, Number(offset), host.bytes(data, Number(size))),
+		glCreateShader: (type) => handles.add(gl.createShader(type)),
+		// (strings: hxmc's Ptr, 8 bytes each; lengths: none, or one each, < 0 for a C string)
+		glShaderSource(s, count, strings, lengths) {
+			const v = view();
+			let src = '';
+			for (let i = 0; i < count; i++) {
+				const p = v.getUint32(strings + 8 * i, true), n = lengths ? v.getInt32(lengths + 4 * i, true) : -1;
+				src += n < 0 ? host.string(p) : new TextDecoder().decode(host.bytes(p, n));
+			}
+			gl.shaderSource(get(s), src);
+		},
+		glCompileShader: (s) => gl.compileShader(get(s)),
+		glGetShaderiv: (s, pname, p) => iv(get(s), pname, p, (o, k) => gl.getShaderParameter(o, k), (o) => gl.getShaderInfoLog(o)),
+		glGetShaderInfoLog: (s, size, length, p) => infoLog(gl.getShaderInfoLog(get(s)), size, length, p),
+		glDeleteShader(s) {
+			gl.deleteShader(get(s));
+			handles.remove(s);
+		},
+		glCreateProgram: () => handles.add(gl.createProgram()),
+		glAttachShader: (p, s) => gl.attachShader(get(p), get(s)),
+		glLinkProgram: (p) => gl.linkProgram(get(p)),
+		glGetProgramiv: (o, pname, p) => iv(get(o), pname, p, (x, k) => gl.getProgramParameter(x, k), (x) => gl.getProgramInfoLog(x)),
+		glGetProgramInfoLog: (o, size, length, p) => infoLog(gl.getProgramInfoLog(get(o)), size, length, p),
+		glUseProgram: (p) => gl.useProgram(get(p)),
+		glDeleteProgram(p) {
+			gl.deleteProgram(get(p));
+			handles.remove(p);
+		},
+		glGenVertexArrays: (n, p) => gen(n, p, () => gl.createVertexArray()),
+		glBindVertexArray: (a) => gl.bindVertexArray(get(a)),
+		glEnableVertexAttribArray: (i) => gl.enableVertexAttribArray(i),
+		glDisableVertexAttribArray: (i) => gl.disableVertexAttribArray(i),
+		glVertexAttribPointer: (i, size, type, normalized, stride, offset) => gl.vertexAttribPointer(i, size, type, !!normalized, stride, offset),
+		glDrawArrays: (mode, first, count) => gl.drawArrays(mode, first, count),
+		glDrawArraysInstanced: (mode, first, count, instances) => gl.drawArraysInstanced(mode, first, count, instances),
+		glPixelStorei: (pname, param) => gl.pixelStorei(pname, param),
+		// (pixels: the memory from p on, which WebGL fills as far as it needs)
+		glReadPixels: (x, y, w, h, format, type, p) => gl.readPixels(x, y, w, h, format, type, new Uint8Array(host.memory().buffer, p)),
+		glFinish: () => gl.finish(),
+	};
+	return { hxmc_gfx, hxmc_gl };
 }
