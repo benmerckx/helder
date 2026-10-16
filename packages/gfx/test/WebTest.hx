@@ -1,10 +1,10 @@
 import hxmc.gfx.*;
 import hxmc.os.*;
 
-// The triangle example's frame in a browser, on WebGPU or WebGL2 (web.mjs
-// runs it in headless Chromium, forcing WebGL2 with browser.mjs's option gfx:
-// 'webgl2', and compares the pixels with triangle.png, as GfxTest does
-// natively):
+// The examples' frames in a browser, on WebGPU or WebGL2 (web.mjs runs it
+// in headless Chromium, forcing WebGL2 with browser.mjs's option gfx:
+// 'webgl2', and compares the pixels with triangle.png and cube.png, as
+// GfxTest does natively; the scene, triangle or cube, the second argument):
 //
 //   WebTest headless   an offscreen target, drawn once by main; on WebGL2
 //                      also read back by Device.readPixels (its checksum)
@@ -17,29 +17,37 @@ import hxmc.os.*;
 // packages/gfx/imports.mjs (readPixels), on both.
 class WebTest {
 	static function main() {
+		var scene = Sys.args()[1];
 		if (Sys.args()[0] == "headless") {
 			var device = Device.create(Surface.headless(256, 192));
-			var triangle = new Triangle(device);
+			var draw = Scene.make(scene, device);
 			// (the shader macro's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
 			device.createPipeline(LitShader.pipeline());
 			device.createPipeline(BuiltinShader.pipeline());
-		device.createPipeline(TexturedShader.pipeline());
+			device.createPipeline(TexturedShader.pipeline());
 			if (device.backend == WebGL2) {
 				var pixels = haxe.io.Bytes.alloc(256 * 192 * 4);
-				triangle.draw(device.beginFrame());
+				draw(device.beginFrame());
 				device.readPixels(pixels);
 				device.endFrame();
 				Sys.println('WebTest: readPixels: ${fnv(pixels)}');
-			} else triangle.frame();
+			} else {
+				draw(device.beginFrame());
+				device.endFrame();
+			}
 			Sys.println('WebTest: headless: ${device.width}x${device.height} (${name(device.backend)})');
 			return;
 		}
 		var w = new Window("WebTest", 256, 192);
 		var device = Device.create(w.surface);
-		var triangle = new Triangle(device);
+		var draw = Scene.make(scene, device);
 		var frames = 0;
 		App.run(() -> {
-			triangle.frame();
+			var enc = device.beginFrame();
+			if (enc != null) {
+				draw(enc);
+				device.endFrame();
+			}
 			frames++;
 		}, e -> switch e.kind {
 			case Resize: Sys.println('WebTest: resized to ${e.x}x${e.y} (${w.width}x${w.height})');

@@ -1,8 +1,8 @@
 // GfxTest's comparison (GfxTest.hx: compare) in JavaScript, for the WebGPU
 // and WebGL2 tests in a browser (web.mjs, hxmc/web/tools/browser-test.mjs):
 // a pixel matches when no channel differs by more than TOLERANCE, and at
-// most MAX_OFF of the pixels may differ by more (the triangle's edges); the
-// centre must be lit and a corner the clear colour.
+// most MAX_OFF of the pixels may differ by more (the edges); the centre
+// must not be the clear colour, a corner must be.
 export const TOLERANCE = 2;
 export const MAX_OFF = 0.005;
 
@@ -27,10 +27,10 @@ export function compare(what, px, golden) {
 		max = Math.max(max, d);
 	}
 	const c = 4 * ((height >> 1) * width + (width >> 1));
-	const lit = px.data[c] + px.data[c + 1] + px.data[c + 2] > 200 && px.data[0] < 40;
+	const lit = Math.abs(px.data[c] - px.data[0]) + Math.abs(px.data[c + 1] - px.data[1]) + Math.abs(px.data[c + 2] - px.data[2]) > 30 && px.data[0] < 40;
 	const ok = lit && off <= MAX_OFF * width * height;
 	return {
 		ok,
-		text: `${what}: ${ok ? 'ok' : 'FAIL'}` + (differ === 0 ? ' (exact)' : ` (${differ} pixels differ, ${off} by more than ${TOLERANCE}, at most ${max})`) + (lit ? '' : ' (no triangle)'),
+		text: `${what}: ${ok ? 'ok' : 'FAIL'}` + (differ === 0 ? ' (exact)' : ` (${differ} pixels differ, ${off} by more than ${TOLERANCE}, at most ${max})`) + (lit ? '' : ' (nothing drawn)'),
 	};
 }

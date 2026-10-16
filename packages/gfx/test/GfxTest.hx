@@ -4,14 +4,16 @@ import hxmc.os.*;
 import hxmc.os.x11.Xlib;
 import hxmc.unsafe.*;
 
-// The triangle example's frame, checked against a golden image (make gfx-check):
+// The examples' frames, checked against golden images (make gfx-check): the
+// triangle (Triangle.hx, triangle.png) and the cube (Cube.hx, turned by
+// Scene.ANGLE: cube.png)
 //
-//   GfxTest headless <golden.png> <out.png> [--bless]
+//   GfxTest headless triangle|cube <golden.png> <out.png> [--bless]
 //     Linux: on an EGL pbuffer (Mesa's surfaceless platform), read back with
 //     glReadPixels; macOS: Metal, on an offscreen texture copied to a buffer;
 //     Windows: D3D11 (WARP with HXMC_GFX_SOFTWARE=1), on an offscreen
 //     texture copied to a staging texture
-//   GfxTest window <golden.png> <out.png> [frames]
+//   GfxTest window triangle|cube <golden.png> <out.png> [frames]
 //     in a window (X11 under Xvfb, Cocoa, Win32): the last frame's back
 //     buffer before the present (readPixels) and the window's pixels after
 //     it (XGetImage, CGWindowListCreateImage, PrintWindow or the screen's DC);
@@ -25,7 +27,7 @@ import hxmc.unsafe.*;
 // another GPU (Metal) or rasterizer (WARP) rounds the interpolated colours
 // and covers the edges' pixels its own way: a pixel matches when no channel differs by
 // more than TOLERANCE, and at most MAX_OFF of the pixels may differ by more
-// (the triangle's edges). The report says whether the match was exact.
+// (the edges). The report says whether the match was exact.
 class GfxTest {
 	static inline var WIDTH = 256;
 	static inline var HEIGHT = 192;
@@ -34,20 +36,20 @@ class GfxTest {
 
 	static function main() {
 		var args = Sys.args();
-		if (args.length < 3) {
-			Sys.println("usage: GfxTest headless|window <golden.png> <out.png> [--bless | frames]");
+		if (args.length < 4 || (args[1] != "triangle" && args[1] != "cube")) {
+			Sys.println("usage: GfxTest headless|window triangle|cube <golden.png> <out.png> [--bless | frames]");
 			Sys.exit(2);
 		}
-		var golden = args[1], out = args[2];
+		var name = args[1], golden = args[2], out = args[3];
 		var ok = switch args[0] {
-			case "headless": headless(golden, out, args[3] == "--bless");
-			case "window": window(golden, out, args.length > 3 ? Std.parseInt(args[3]) : 5);
+			case "headless": headless(name, golden, out, args[4] == "--bless");
+			case "window": window(name, golden, out, args.length > 4 ? Std.parseInt(args[4]) : 5);
 			case m: throw "GfxTest: no mode " + m;
 		}
 		Sys.exit(ok ? 0 : 1);
 	}
 
-	static function headless(golden:String, out:String, bless:Bool):Bool {
+	static function headless(name:String, golden:String, out:String, bless:Bool):Bool {
 		var device = try Device.create(Surface.headless(WIDTH, HEIGHT)) catch (e:String) {
 			// (macOS virtual machines may have no GPU: check.sh skips the test)
 			if (e != "hxmc.gfx: no Metal device") throw e;
@@ -55,7 +57,7 @@ class GfxTest {
 			Sys.exit(3);
 			null;
 		}
-		var triangle = new Triangle(device);
+		var draw = Scene.make(name, device);
 		// (the shader macro's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
 		device.createPipeline(LitShader.pipeline());
 		device.createPipeline(BuiltinShader.pipeline());
@@ -63,7 +65,7 @@ class GfxTest {
 		Sys.println("GfxTest: headless: LitShader, BuiltinShader and TexturedShader compile");
 		var pixels = Bytes.alloc(WIDTH * HEIGHT * 4);
 		var enc = device.beginFrame();
-		triangle.draw(enc);
+		draw(enc);
 		device.readPixels(pixels);
 		device.endFrame();
 		device.dispose();
@@ -73,10 +75,10 @@ class GfxTest {
 			Sys.println('GfxTest: blessed $golden');
 			return true;
 		}
-		return compare("headless", pixels, golden);
+		return compare('$name, headless', pixels, golden);
 	}
 
-	static function window(golden:String, out:String, frames:Int):Bool {
+	static function window(name:String, golden:String, out:String, frames:Int):Bool {
 		var w = new Window("GfxTest", WIDTH, HEIGHT);
 		// (a Retina display: the window's size is in points)
 		if (w.width != WIDTH) {
@@ -86,7 +88,7 @@ class GfxTest {
 		}
 		if (Mem.os() == 1) CocoaTest.prepare(w);
 		var device = Device.create(w.surface);
-		var triangle = new Triangle(device);
+		var draw = Scene.make(name, device);
 		var back = Bytes.alloc(WIDTH * HEIGHT * 4);
 		var n = 0, tries = 0, events = 0, closed = false;
 		var text:Array<Int> = [], wheel = 0.0;
@@ -94,7 +96,7 @@ class GfxTest {
 			if (++tries > frames + 1000) App.quit();
 			var enc = device.beginFrame();
 			if (enc == null) return;
-			triangle.draw(enc);
+			draw(enc);
 			if (++n == frames) device.readPixels(back);
 			device.endFrame();
 			if (n == 2) Mem.os() == 1 ? CocoaTest.input(w) : Mem.os() == 2 ? WinTest.input(w) : sendInput(w);
@@ -119,13 +121,13 @@ class GfxTest {
 		Sys.println('GfxTest: input: characters [' + [for (c in text) StringTools.hex(c)].join(", ") + '], wheel $wheel' + (input ? "" : ', FAIL: not [' + [for (c in want) StringTools.hex(c)].join(", ") + '], $wantWheel'));
 		device.dispose();
 		w.close();
-		var a = compare("window, back buffer", back, golden);
+		var a = compare('$name, window, back buffer', back, golden);
 		if (shown == null) {
 			// (macOS: the window server would not give the window's pixels; Windows: no GDI capture)
 			Sys.println("GfxTest: window, screen pixels: skipped (no capture)");
 			return a && closed && size && input;
 		}
-		var b = compare("window, " + (Mem.os() == 1 ? "screen" : Mem.os() == 2 ? "GDI" : "X11") + " pixels", shown, golden);
+		var b = compare(name + ", window, " + (Mem.os() == 1 ? "screen" : Mem.os() == 2 ? "GDI" : "X11") + " pixels", shown, golden);
 		return a && b && closed && size && input;
 	}
 
@@ -206,12 +208,13 @@ class GfxTest {
 			if (d > TOLERANCE) off++;
 			if (d > max) max = d;
 		}
-		// a sanity check: the triangle is there (the centre is lit, a corner is the clear colour)
+		// a sanity check: the scene is there (the centre is not the clear colour, a corner is)
 		var c = 4 * ((HEIGHT >> 1) * WIDTH + (WIDTH >> 1));
-		var lit = pixels.get(c) + pixels.get(c + 1) + pixels.get(c + 2) > 200 && pixels.get(0) < 40;
+		var lit = Math.abs(pixels.get(c) - pixels.get(0)) + Math.abs(pixels.get(c + 1) - pixels.get(1)) + Math.abs(pixels.get(c + 2) - pixels.get(2)) > 30
+			&& pixels.get(0) < 40;
 		var ok = lit && off <= MAX_OFF * WIDTH * HEIGHT;
 		Sys.println('GfxTest: $what: ' + (ok ? "ok" : "FAIL") + (differ == 0 ? " (exact)" : ' ($differ pixels differ, $off by more than $TOLERANCE, at most $max)')
-			+ (hidden > 0 ? ' ($hidden pixels not shown)' : "") + (lit ? "" : " (no triangle)"));
+			+ (hidden > 0 ? ' ($hidden pixels not shown)' : "") + (lit ? "" : " (nothing drawn)"));
 		return ok;
 	}
 }
