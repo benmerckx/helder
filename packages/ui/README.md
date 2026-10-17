@@ -77,6 +77,11 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     computes them); `backgroundImage` (markup: `background="linear-gradient(...)"`)
     is a CSS gradient, linear or radial, repeating or not (`Gradient`: within
     two levels of Chromium's pixels on 19 cases), under the border.
+  - `position: Sticky` (Style only for now, markup to come with @hxmc/view):
+    laid out in the flow, then kept its `top`, `left`, `right` or `bottom`
+    inside its nearest scroller's content box as it scrolls, within its
+    parent's content box, drawn and hit over its siblings, where Chromium
+    sticks it.
   - Transforms: `transform` (CSS's: `translate`, `scale`, `rotate`,
     `skew`, `matrix`, composed left to right; `Transform.parse`, or
     `Transform.rotate(45)`) about `transformOrigin` (`"left top"`, `"50% 0"`;

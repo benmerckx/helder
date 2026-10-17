@@ -156,8 +156,13 @@ class Ui {
 		if (clip) canvas.pushClip(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, padC);
 		var scroll = s.overflow == Scroll && (n.scrollX != 0 || n.scrollY != 0);
 		if (scroll) canvas.translate(-n.scrollX, -n.scrollY);
+		// (absolute and sticky children over the others, in their order, as CSS paints positioned boxes)
+		var positioned = false;
 		for (c in n.children)
-			paintNode(c, canvas);
+			if (c.style.position != Relative) positioned = true else paintNode(c, canvas);
+		if (positioned)
+			for (c in n.children)
+				if (c.style.position != Relative) paintNode(c, canvas);
 		if (scroll) canvas.translate(n.scrollX, n.scrollY);
 		if (clip) canvas.popClip();
 		if (s.overflow == Scroll) {

@@ -304,6 +304,8 @@ class Layout {
 				var dx = cs.left.resolve(innerW), dy = cs.top.resolve(innerH);
 				if (!known(dx)) dx = -cs.right.resolve(innerW);
 				if (!known(dy)) dy = -cs.bottom.resolve(innerH);
+				// (Sticky: its offsets are where it sticks, not a shift)
+				if (cs.position == Sticky) dx = dy = Math.NaN;
 				c.lx = cx + (known(dx) ? dx : 0);
 				c.ly = cy + (known(dy) ? dy : 0);
 				size(c, cwid, chei, innerW, innerH, cwid, chei, true);
@@ -449,6 +451,7 @@ class Layout {
 			var dx = cs.left.resolve(width), dy = cs.top.resolve(height);
 			if (!known(dx)) dx = -cs.right.resolve(width);
 			if (!known(dy)) dy = -cs.bottom.resolve(height);
+			if (cs.position == Sticky) dx = dy = Math.NaN;
 			c.lx = padL + x + (known(dx) ? dx : 0);
 			c.ly = padT + y + (known(dy) ? dy : 0);
 			size(c, iw, ih, width, height, iw, ih, true);
