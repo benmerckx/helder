@@ -31,12 +31,7 @@ class FidelityTest implements Markup {
 	// the cases known to differ, by the start of their names, and why (what
 	// hxmc.ui lacks yet): reported, not failed; one that agrees is reported too
 	static final KNOWN = [
-		"badge-default" => CLIP,
-		"badge-destructive" => CLIP,
-		"switch-checked" => CLIP,
-		"input-value" => "a single-line field's text at the top of its content box, not centred in it as a browser's <input> centres it",
-		"radio-group-" => "a <button>'s content is centred vertically by the browser; the item's indicator, at its top here, is not",
-		"progress-" => "the indicator is not moved by translateX(-(100 - value)%) as shadcn's, and the widget's own width (160) wins over w-full",
+		"input-value-" => "the field's line a pixel above where Chromium centres an <input>'s text",
 		"slider-" => "Slider and its track carry no data-orientation: data-[orientation=horizontal]:h-1.5 w-full never apply, the track has no size",
 		"tabs-" => "Tabs carries no data-orientation (its flex-col, the list's h-9 by group-data-[orientation=horizontal]/tabs) and tabs-list no variant (bg-muted is its default variant's)",
 		"toggle-group-outline" => "ToggleGroup and its items carry no data-spacing (shadcn's default, 0): the joined items' rounded-none, first:rounded-l-md, border-l-0 never apply",
@@ -45,12 +40,10 @@ class FidelityTest implements Markup {
 		"table-" => "Table's rows a fixed rowHeight for its virtual list, the head's too (shadcn's head h-10, its rows by their padding), its columns 1fr each (shadcn's: a table's auto layout)",
 		"breadcrumb-" => "the separator a ▸ glyph at 0.6 opacity, not lucide's chevron-right (size-3.5): the items after it shifted",
 		"pagination-" => "Previous and Next without lucide's chevrons, the ellipsis a … glyph, not MoreHorizontal",
-		"sheet-" => "the sheet's content placed in its popup's box (at the window's left), not against the window's right edge; popups do not inherit the body's text-base (the title's 16px)",
 		"combobox-" => "Combobox's popup is a bare command-list (the slot Command's list has too): shadcn's combobox is a Popover holding a Command, its border, background and shadow theirs",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
 	];
 	static inline var SELECT = "Select's own width (160) wins over w-fit; the trigger has no size (data-[size=default]:h-9)";
-	static inline var CLIP = "background not painted under a transparent border (CSS's background-clip: border-box): 1px smaller each side";
 
 	static function known(name:String):Null<String> {
 		for (k => why in KNOWN)
@@ -148,6 +141,18 @@ class FidelityTest implements Markup {
 					{label: "Print", shortcut: "Mod+P", onSelect: () -> {}}
 				]}]}/>;
 			case "combobox": <Combobox value={new Signal("")} options={["Next.js", "SvelteKit", "Nuxt.js", "Remix", "Astro"]} width={200}/>;
+			case "command":
+				<Command placeholder="Type a command or search..." groups={[
+					{heading: "Suggestions", items: [{label: "Calendar", onSelect: () -> {}}, {label: "Search Emoji", onSelect: () -> {}}, {label: "Calculator", disabled: true}]},
+					{heading: "Settings", items: [
+						{label: "Profile", shortcut: "Mod+P", onSelect: () -> {}},
+						{label: "Billing", shortcut: "Mod+B", onSelect: () -> {}},
+						{label: "Settings", shortcut: "Mod+S", onSelect: () -> {}}
+					]}
+				]}/>;
+			case "alert-dialog":
+				<AlertDialog open={new Signal(true)} title="Are you absolutely sure?" width={512}
+					description="This action cannot be undone. This will permanently delete your account and remove your data from our servers."/>;
 			case "avatar": <Avatar fallback="CN"/>;
 			case "kbd": <Kbd text="Ctrl"/>;
 			case "spinner": <Spinner/>;
@@ -195,6 +200,9 @@ class FidelityTest implements Markup {
 		}
 	}
 
+	// (made in main: after the statics they use)
+	static var EXTRA:Map<String, Array<Rule>>;
+
 	// (the node a case's states are on: the component's main slot)
 	static final TARGET = ["radio-group" => "radio-group-item", "slider" => "slider-thumb", "tabs" => "tabs-trigger", "select" => "select-trigger"];
 
@@ -220,6 +228,7 @@ class FidelityTest implements Markup {
 
 	static function main() {
 		var args = Sys.args();
+		EXTRA = ["command" => hxmc.theme.Tw.rules("command", "rounded-lg border border-border shadow-md md:min-w-[450px]")];
 		var cases:Array<Dynamic> = haxe.Json.parse(sys.io.File.getContent(args[0] + "/cases.json"));
 		var device = Device.create(Surface.headless(W, H));
 		var r = new Renderer(device);
@@ -245,7 +254,9 @@ class FidelityTest implements Markup {
 			}
 			var w:Int = c.w, h:Int = c.h, fw:Int = c.fw ?? c.w, fh:Int = c.fh ?? c.h;
 			var ui = new Ui(new DrawText(), W, H);
-			ui.theme = Shadcn.sheet;
+			// (the classes an example adds to its instance, as rules after the sheet's)
+			var extra = EXTRA[c.component];
+			ui.theme = extra == null ? Shadcn.sheet : {rules: Shadcn.sheet.rules.concat(extra), light: Shadcn.sheet.light, dark: Shadcn.sheet.dark, lengths: Shadcn.sheet.lengths};
 			ui.dark = c.dark == true;
 			for (n in [ui.root, ui.overlay])
 				n.style.set({fontFamily: "Inter", dir: c.rtl == true ? Rtl : Ltr});

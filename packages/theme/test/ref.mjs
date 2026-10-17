@@ -68,7 +68,7 @@ const markup = {
 	switch: c => el('button', 'switch', el('span', 'switch-thumb', '', { 'data-state': state(c.checked) }),
 		{ type: 'button', role: 'switch', 'aria-checked': !!c.checked, 'data-state': state(c.checked), 'data-size': c.size ?? 'default', ...c.attrs }),
 	label: c => c.peerDisabled
-		? `<div class="flex items-center gap-2">${markup.checkbox({ attrs: { disabled: true, 'data-disabled': '' } }).replace('class="', 'class="peer ')}${el('label', 'label', esc(c.text))}</div>`
+		? `<div class="flex items-center gap-3">${markup.checkbox({ attrs: { disabled: true, 'data-disabled': '' } }).replace('class="', 'class="peer ')}${el('label', 'label', esc(c.text))}</div>`
 		: el('label', 'label', esc(c.text)),
 	card: c => el('div', 'card', el('div', 'card-header', el('div', 'card-title', esc(c.title)) + el('div', 'card-description', esc(c.description))
 		+ (c.action ? el('div', 'card-action', markup.button({ variant: 'link', text: c.action })) : ''))
