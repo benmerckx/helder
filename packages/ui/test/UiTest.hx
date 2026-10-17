@@ -1391,9 +1391,10 @@ static function transitions() {
 		var rad = new Node("rad");
 		rad.slot = "rad";
 		ui.root.append(rad);
-		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4)}}], lengths: ["radius" => 10.0]};
+		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4), color: Color.rgb(0x112233), borderColor: Color.token("currentcolor")}}], lengths: ["radius" => 10.0]};
 		ui.update();
 		var first = rad.style.radius;
+		check("themes: currentColor beside a resolved length", rad.style.borderColor == Color.rgb(0x112233), "" + rad.style.borderColor);
 		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4)}}], lengths: ["radius" => 2.0]};
 		ui.update();
 		check("themes: a radius from the sheet's lengths (clamped at 0)", first == 6 && rad.style.radius == 0 && Length.tokenOffset(Length.token("x", -2.5)) == -2.5,

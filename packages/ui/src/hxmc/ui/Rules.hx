@@ -71,7 +71,7 @@ class Rules {
 		var names:Null<Array<String>> = null, values:Null<Array<Dynamic>> = null;
 		for (i in 0...m.names.length) {
 			var name = m.names[i], want:Dynamic = m.values[i];
-			if (m.current) want = withCurrent(want, current);
+			if (m.current) want = withCurrent(name, want, current);
 			var cur = n.style.target(name);
 			var k = applied == null ? -1 : applied.indexOf(name);
 			// (the node's own value: left as it is)
@@ -93,8 +93,8 @@ class Rules {
 			}
 		@:privateAccess n.themedNames = names;
 		@:privateAccess n.themedValues = values;
-		@:privateAccess n.themePseudo(m.placeholder == null ? null : withCurrent(m.placeholder, current),
-			m.selection == null ? null : withCurrent(m.selection, current));
+		@:privateAccess n.themePseudo(m.placeholder == null ? null : colorWithCurrent(m.placeholder, current),
+			m.selection == null ? null : colorWithCurrent(m.selection, current));
 	}
 
 	// (a merge: the properties it sets and their values, tokens resolved but
@@ -158,26 +158,33 @@ class Rules {
 
 	static function usesCurrent(st:Style):Bool {
 		var colors:Array<Null<Color>> = [st.background, st.borderColor, st.color, st.outlineColor, st.ringColor, st.ringOffsetColor, st.textDecorationColor];
-		for (c in colors) if (c != null && c.isToken) return true;
-		for (sh in [st.shadow, st.textShadow]) {
-			var s:Null<Shadow> = sh;
-			while (s != null) {
-				if (s.color.isToken) return true;
-				s = s.next;
-			}
+		for (c in colors)
+			if (c != null && c.isToken) return true;
+		return shadowUsesCurrent(st.shadow) || shadowUsesCurrent(st.textShadow);
+	}
+
+	static function shadowUsesCurrent(sh:Null<Shadow>):Bool {
+		var s = sh;
+		while (s != null) {
+			if (s.color.isToken) return true;
+			s = s.next;
 		}
 		return false;
 	}
 
+	// (the properties that are a colour, by Style's names)
+	static final COLORS = ["background", "borderColor", "color", "outlineColor", "ringColor", "ringOffsetColor", "textDecorationColor"];
+
 	// (a value with currentColor, a token's alpha kept, as a node's colour)
-	static function withCurrent(v:Dynamic, current:Color):Dynamic {
-		if (Std.isOfType(v, Int)) {
-			var c:Color = v;
-			return c.isToken ? current.fade(c.tokenAlpha()) : c;
-		}
-		if (Std.isOfType(v, Shadow) && usesCurrent(v)) return resolveShadow(v, null, current);
+	static function withCurrent(name:String, v:Dynamic, current:Color):Dynamic {
+		if (v == null) return v;
+		if (COLORS.indexOf(name) >= 0) return colorWithCurrent(v, current);
+		if ((name == "shadow" || name == "textShadow") && shadowUsesCurrent(v)) return resolveShadow(v, null, current);
 		return v;
 	}
+
+	static function colorWithCurrent(c:Color, current:Color):Color
+		return c.isToken ? current.fade(c.tokenAlpha()) : c;
 
 	// restyles n and its subtree (at the next update)
 	public static function restyleTree(n:Node) {
