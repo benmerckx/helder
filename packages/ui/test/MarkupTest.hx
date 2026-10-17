@@ -23,6 +23,7 @@ import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.Command;
 import hxmc.ui.widgets.Widgets.AlertDialog;
+import hxmc.ui.widgets.Widgets.InputOTP;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
@@ -92,6 +93,7 @@ class MarkupTest implements Markup {
 		popovers();
 		combobox();
 		command();
+		otp();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -222,6 +224,48 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function otp() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var code = signal(""), done = [];
+		Render.render(<view padding={10} align-items="start">
+			<InputOTP tag="otp" value={code} length={6} groups={[3, 3]} onComplete={c -> done.push(c)}/>
+		</view>, ui.root);
+		ui.update();
+		function slots()
+			return [for (i in 0...6) {
+				var s = ui.root.find("otp-slot-" + i);
+				(cast s.children[0] : TextNode).text + (s.attr("data-active") == "true" ? "^" : "");
+			}].join("|");
+		var field = ui.root.find("otp-input");
+		var s0 = ui.root.find("otp-slot-0");
+		ui.pointerDown(s0.absX + 2, s0.absY + 2, 1);
+		ui.pointerUp(s0.absX + 2, s0.absY + 2, 1);
+		ui.update();
+		check("otp: a click on a slot focuses the field over them, the first slot active", ui.focus == field && slots() == "^|||||", slots());
+		ui.textInput("1");
+		ui.textInput("a");
+		ui.textInput("2");
+		ui.update();
+		check("otp: typing fills the slots, what is not a digit dropped", code.value == "12" && slots() == "1|2|^|||", slots());
+		ui.keyDown(Key.BACKSPACE, 0);
+		ui.update();
+		check("otp: Backspace empties the last", code.value == "1" && slots() == "1|^||||", slots());
+		ui.textInput("23456789");
+		ui.update();
+		check("otp: a paste fills to the length, the rest dropped, complete once", code.value == "123456" && slots() == "1|2|3|4|5|6^"
+			&& done.join(",") == "123456", code.value + " " + slots());
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("otp: one text field to assistive technology, its slots hidden", an.name == "One-time code" && an.editable() && an.value == "123456");
+		var seps = 0;
+		function walk(n:Node) {
+			if (n.slot == "input-otp-separator") seps++;
+			for (c in n.children)
+				walk(c);
+		}
+		walk(ui.root);
+		check("otp: a separator between its groups", seps == 1);
 	}
 
 	static function command() {

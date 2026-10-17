@@ -2000,6 +2000,79 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a one-time code field (shadcn's InputOTP, input-otp's): length
+	// slots of one character each (digits only unless digits is false),
+	// in groups (sizes; a separator between), over which a text field is laid,
+	// transparent: typing fills the next slot, Backspace empties the last, a
+	// paste fills them from the start; what does not fit or is not allowed
+	// is dropped. onComplete gets the code once every slot is filled. Slots
+	// "input-otp" (data-disabled), "input-otp-group", "input-otp-slot"
+	// (data-active "true" on the slot typing goes to while focused),
+	// "input-otp-caret" (in the active slot while it is empty),
+	// "input-otp-separator"
+	public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
+			?disabled:Dynamic, ?tag:String}):View {
+		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false;
+		var groups = props.groups ?? [n];
+		function allowed(s:String):String {
+			var out = new StringBuf(), count = 0;
+			for (c in new haxe.iterators.StringIteratorUnicode(s)) {
+				if (count >= n) break;
+				if (digits ? c >= "0".code && c <= "9".code : c > 32) {
+					out.addChar(c);
+					count++;
+				}
+			}
+			return out.toString();
+		}
+		var f = new TextField(allowed(props.value.peek()));
+		f.tag = tag + "-input";
+		f.semantics.label = props.label ?? "One-time code";
+		// (drawing nothing: its text in the slots, its focus the active slot's; to assistive technology the field)
+		f.style.width = "100%";
+		f.style.height = "100%";
+		f.style.color = Color.TRANSPARENT;
+		f.style.outlineStyle = None;
+		f.caretColor = Color.TRANSPARENT;
+		f.selectionColor = Color.TRANSPARENT;
+		var focused = States.of(f).focused;
+		effect(() -> {
+			var v = allowed(props.value.value);
+			untrack(() -> {
+				f.setText(v);
+				f.select(v.length, v.length);
+			});
+		});
+		f.onChange = s -> {
+			var v = allowed(s), was = props.value.peek();
+			props.value.value = v;
+			// (what was dropped: gone from the field too, the caret at the end)
+			f.setText(v);
+			f.select(v.length, v.length);
+			if (v.length == n && was.length < n && props.onComplete != null) props.onComplete(v);
+		};
+		invalidAndDisabled(f, null, props.disabled);
+		var chars = () -> [for (c in new haxe.iterators.StringIteratorUnicode(props.value.value)) String.fromCharCode(c)];
+		var active = () -> focused.value ? Std.int(Math.min(chars().length, n - 1)) : -1;
+		var slots = [], k = 0;
+		for (g => size in groups) {
+			if (g > 0) slots.push(<view slot="input-otp-separator" role="separator"><image slot="input-otp-separator-icon" src={MINUS} hidden/></view>);
+			var cells = [];
+			for (_ in 0...size) {
+				var i = k++;
+				cells.push(<view tag={tag + "-slot-" + i} slot="input-otp-slot" data-active={() -> active() == i ? "true" : null} hidden>
+					<text>{() -> i < chars().length ? chars()[i] : ""}</text>
+					<Show when={() -> active() == i && i >= chars().length}><view slot="input-otp-caret"/></Show>
+				</view>);
+			}
+			slots.push(<view slot="input-otp-group" direction="row" align-items="center">{cells}</view>);
+		}
+		return <view tag={tag} slot="input-otp" direction="row" align-items="center" data-disabled={() -> read(props.disabled) == true}>
+			{slots}
+			<view position="absolute" left={0} top={0} right={0} bottom={0}>{f}</view>
+		</view>;
+	}
+
 	// a collapsible (shadcn's): its label on a button (an arrow turning
 	// with it) that shows or hides the children under it, by a click, Enter
 	// or Space; open (a signal; closed at first) says which. Slots
