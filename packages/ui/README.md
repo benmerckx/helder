@@ -150,8 +150,9 @@ NSAccessibility (`MacAccess`: an element per node, its role, label, value
 and frame; press, increment and decrement come back as actions), which
 VoiceOver reads; on Windows to UI Automation (`WinAccess`: a COM
 provider per node, made here: navigation, properties, bounds, the
-invoke, toggle, range value and value patterns), which Narrator reads.
-The AT-SPI adapter (Linux) is not written yet.
+invoke, toggle, range value and value patterns), which Narrator reads; on
+Linux to AT-SPI over D-Bus (`LinuxAccess`, libdbus loaded at run time:
+Accessible, Component, Action, Value, Text), which Orca reads.
 
 ## Text input
 

@@ -57,6 +57,9 @@ import hxmc.unsafe.*;
 	static function XSync(d:Ptr, discard:Int):Int;
 	// a MappingNotify: the keyboard mapping Xlib keeps read again
 	static function XRefreshKeyboardMapping(event:Ptr<XAnyEvent>):Int;
+	// where a window is on the screen (its origin in the root window's coordinates)
+	static function XDefaultRootWindow(d:Ptr):Int64;
+	static function XTranslateCoordinates(d:Ptr, src:Int64, dest:Int64, x:Int, y:Int, outX:Ptr<Int32>, outY:Ptr<Int32>, child:Ptr<Int64>):Int;
 	// a cursor of the cursor font (X11/cursorfont.h's shapes)
 	static function XCreateFontCursor(d:Ptr, shape:Int):Int64;
 	static function XDefineCursor(d:Ptr, w:Int64, cursor:Int64):Int;
