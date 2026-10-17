@@ -4495,6 +4495,35 @@
 				{
 					"style": {
 						"direction": "Row",
+						"alignItems": "Baseline"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 30
+							},
+							"children": [
+								{
+									"style": {
+										"width": 20,
+										"height": 50,
+										"shrink": 0
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
 						"wrap": true,
 						"alignItems": "Baseline",
 						"width": 100,

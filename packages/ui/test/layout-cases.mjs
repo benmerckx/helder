@@ -168,6 +168,7 @@ export const cases = [
 		{ style: { direction: 'Row', alignItems: 'Baseline', columnGap: 4 }, children: [box(30, 20), box(30, 40, { margin: [5, 0, 3, 0] }), { style: { padding: [4, 0, 0, 0] }, children: [box(20, 10), box(20, 30)] },
 			{ style: { direction: 'Row', alignItems: 'Baseline' }, children: [box(20, 15), box(20, 25, { margin: [0, 0, 6, 0] })] }, box(30, 10, { alignSelf: 'Center' })] },
 		{ style: { direction: 'Row', alignItems: 'Baseline', height: 80, borderWidth: 2 }, children: [box(30, 20), box(30, 40)] },
+		{ style: { direction: 'Row', alignItems: 'Baseline' }, children: [{ style: { width: 30, height: 30 }, children: [box(20, 50, { shrink: 0 })] }, box(30, 20)] },
 		{ style: { direction: 'Row', wrap: true, alignItems: 'Baseline', width: 100, columnGap: 4, rowGap: 4 }, children: [box(40, 20), box(40, 30), box(40, 10), box(40, 25)] },
 		{ style: { alignItems: 'Baseline', width: 100 }, children: [box(40, 20), box(60, 20, { margin: [0, 0, 0, 8] }), box(30, 10, { alignSelf: 'Start' })] }] } },
 	// the shorthands: gap (both gaps), inset (the four offsets), flex: n (n 1 0%)
