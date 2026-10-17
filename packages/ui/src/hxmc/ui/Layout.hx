@@ -1034,7 +1034,7 @@ class Layout {
 		if (c == null) return false;
 		var i = 1, end = 1 + Std.int(c[0]);
 		while (i < end) {
-			if (same(c[i], w) && same(c[i + 1], h) && same(c[i + 2], aw) && same(c[i + 3], ah)) {
+			if (same(c[i], w) && same(c[i + 1], h) && fits(c[i + 2], c[i + 4], aw) && fits(c[i + 3], c[i + 5], ah)) {
 				rw = c[i + 4];
 				rh = c[i + 5];
 				return true;
@@ -1044,11 +1044,18 @@ class Layout {
 		return false;
 	}
 
-	// (the cache: its length in slot 0, then up to CACHE entries; the oldest dropped)
+	// (the cache: its length in slot 0, then up to CACHE entries; the oldest
+	// dropped. Room for one at first, twice as many when full: most nodes
+	// are measured once or twice)
 	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, rw:Float, rh:Float) {
 		var c = n.cache;
-		if (c == null) c = n.cache = new haxe.ds.Vector(1 + CACHE * ENTRY, 0.0);
+		if (c == null) c = n.cache = new haxe.ds.Vector(1 + ENTRY, 0.0);
 		var at = 1 + Std.int(c[0]);
+		if (at >= c.length && c.length < 1 + CACHE * ENTRY) {
+			var g = new haxe.ds.Vector(Std.int(Math.min(2 * c.length - 1, 1 + CACHE * ENTRY)), 0.0);
+			haxe.ds.Vector.blit(c, 0, g, 0, c.length);
+			c = n.cache = g;
+		}
 		if (at >= 1 + CACHE * ENTRY) {
 			for (i in 1...at - ENTRY)
 				c[i] = c[i + ENTRY];
@@ -1068,6 +1075,11 @@ class Layout {
 
 	static inline function same(a:Float, b:Float):Bool
 		return a == b || (Math.isNaN(a) && Math.isNaN(b));
+
+	// (a size measured in the room `was` is `got` in the room `now` too: the
+	// same room, or neither room bounded it, as Yoga reuses its measurements)
+	static inline function fits(was:Float, got:Float, now:Float):Bool
+		return same(was, now) || ((Math.isNaN(was) || got < was) && (Math.isNaN(now) || got <= now));
 
 	// NaN stays NaN
 	static inline function clamp(v:Float, lo:Float, hi:Float):Float
