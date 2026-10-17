@@ -6,7 +6,9 @@ import hxmc.ui.*;
 // their interaction needs and what keeps them legible, in the text's
 // colour (currentColor) — an outline round a control, a visible checked
 // state, a switch's thumb on its side. A theme (StyleSheet) starts from
-// none of these, as shadcn's from Tailwind's preflight.
+// none of these, as shadcn's from Tailwind's preflight. An app's page
+// takes the slot "body" (as shadcn's globals style body): the system's
+// colours, Canvas and CanvasText, light or dark (Ui.dark).
 class Unstyled {
 	// (installed when a widget is first made)
 	public static function install() {
@@ -22,6 +24,7 @@ class Unstyled {
 		var tint = Color.parse("currentColor/10");
 		var canvas = Color.parse("Canvas"), canvasText = Color.parse("CanvasText");
 		return [
+			{slot: "body", style: {background: canvas, color: canvasText}},
 			{slot: "button", style: {direction: Row, alignItems: Center, justify: Center, columnGap: 6, padding: [4, 10], borderWidth: 1, borderColor: line, cursor: Pointer}},
 			{slot: "button", size: "sm", style: {padding: [2, 8]}},
 			{slot: "button", size: "lg", style: {padding: [6, 14]}},
@@ -151,7 +154,40 @@ class Unstyled {
 			{slot: "sortable-indicator", style: {height: 2, background: line}},
 			{slot: "sortable-indicator", when: ["data-side=top"], style: {top: -3}},
 			{slot: "sortable-indicator", when: ["data-side=bottom"], style: {bottom: -3}},
-			{slot: "toolbar", style: {direction: Row, alignItems: Center, columnGap: 4}}
+			{slot: "toolbar", style: {direction: Row, alignItems: Center, columnGap: 4}},
+			{slot: "calendar", style: {rowGap: 6, padding: 8, borderWidth: 1, borderColor: faint}},
+			{slot: "calendar-nav", style: {direction: Row, alignItems: Center, justify: SpaceBetween}},
+			{slot: "calendar-caption", style: {fontWeight: 600}},
+			{slot: "calendar-weekday", style: {alignItems: Center, fontSize: 11, opacity: 0.6}},
+			{slot: "calendar-week", style: {margin: [2, 0, 0, 0]}},
+			{slot: "calendar-day", style: {height: 28, alignItems: Center, justify: Center, borderWidth: 1, borderColor: Color.TRANSPARENT, cursor: Pointer}},
+			{slot: "calendar-day", when: ["data-outside"], style: {opacity: 0.5}},
+			{slot: "calendar-day", when: ["data-today"], style: {background: tint}},
+			{slot: "calendar-day", when: ["data-focused"], style: {borderColor: line}},
+			{slot: "calendar-day", when: ["data-selected"], style: {background: canvasText, color: canvas}},
+			{slot: "popover-content", style: {background: canvas, color: canvasText}},
+			{slot: "command-list", style: {padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "command-item", style: {padding: [4, 8], cursor: Pointer}},
+			{slot: "command-item", when: ["data-selected"], style: {background: faint}},
+			{slot: "number-field", style: {columnGap: 2}},
+			{slot: "number-field-steppers", style: {rowGap: 1}},
+			{slot: "number-field-increment", style: {justify: Center, alignItems: Center, padding: [0, 6], fontSize: 9, opacity: 0.6, cursor: Pointer}},
+			{slot: "number-field-decrement", style: {justify: Center, alignItems: Center, padding: [0, 6], fontSize: 9, opacity: 0.6, cursor: Pointer}},
+			{slot: "tag-input", style: {columnGap: 4, rowGap: 4, padding: [2, 4], borderWidth: 1, borderColor: line, cursor: Text}},
+			{slot: "tag-input-list", style: {columnGap: 4, rowGap: 4}},
+			{slot: "tag-input-field", style: {padding: 2}},
+			{slot: "tag-input-field", when: ["placeholder"], style: {color: half}},
+			{slot: "tag-input-remove", style: {padding: [0, 2], cursor: Pointer, opacity: 0.6}},
+			{slot: "sonner-toaster", style: {rowGap: 8}},
+			{slot: "sonner-toast", style: {direction: Row, alignItems: Center, columnGap: 10, padding: [8, 12], background: canvasText, color: canvas}},
+			{slot: "sonner-action", style: {padding: [2, 6], textDecoration: (TextDecoration.Underline : Int), cursor: Pointer}},
+			{slot: "sonner-close", style: {padding: [0, 4], opacity: 0.7, cursor: Pointer}},
+			{slot: "color-picker", style: {rowGap: 8}},
+			{slot: "color-picker-area", style: {cursor: Pointer}},
+			{slot: "color-picker-hue", style: {radius: 7, cursor: Pointer}},
+			{slot: "color-picker-thumb", style: {radius: 7, borderWidth: 2, borderColor: Color.WHITE, shadow: Shadow.parse("0 0 2px #00000099")}},
+			{slot: "color-picker-row", style: {columnGap: 8}},
+			{slot: "color-picker-swatch", style: {borderWidth: 1, borderColor: faint}}
 		];
 	}
 }

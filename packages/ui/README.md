@@ -198,12 +198,12 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   `cut`, `copy`, `paste`, `selectAll`; `Input` and `Textarea` add an edit menu
   on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`, with an input method's composition shown at the caret), and the components; unstyled with slots for a theme (Themes) so far:
+  `EditableText`, with an input method's composition shown at the caret), and the components, unstyled with slots for a theme (Themes):
   `Button` (variants, sizes, disabled), `Toggle` (a pressed button), `Checkbox`, `Switch`, `Input` (or a password,
   invalid), `Textarea`, `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
   `CardFooter`), `RadioGroup`, `Slider`, `RangeSlider` (two knobs, a
   slider each for the keyboard), `Progress` (or indeterminate), `Tabs`, `Separator`, `Skeleton`, `Alert`
-  (`AlertTitle`, `AlertDescription`); still drawn with `Theme.current`: `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
+  (`AlertTitle`, `AlertDescription`), `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
@@ -226,11 +226,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   through by Left and Right, one open at a time), `Tooltip`, `Dialog`, `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
   field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
-  an action); `examples/Gallery.hx` shows them all. They draw
-  with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
-  `Theme.follow(() -> UiWindow.dark.value)` follows the system's
-  appearance (`hxmc.os.App.prefersDark`: the browser's colour scheme,
-  macOS's, Windows', GTK's settings).
+  an action); `examples/Gallery.hx` shows them all, unstyled. A
+  `UiWindow`'s `Ui.dark` follows the system's appearance
+  (`hxmc.os.App.prefersDark`: the browser's colour scheme, macOS's,
+  Windows', GTK's settings).
 - **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the
@@ -270,8 +269,8 @@ each other become one `TextNode`.
 
 ## Themes
 
-The widgets are moving to ship unstyled (behaviour, semantics and the
-geometry their interaction needs), their looks from a theme
+The widgets ship unstyled (behaviour, semantics and the geometry their
+interaction needs), their looks from a theme
 ([docs/plans/theme.md](../../docs/plans/theme.md); `@hxmc/theme` is
 shadcn/ui's). A theme is a `StyleSheet`: `rules`, each a `Rule`
 `{slot, ?variant, ?size, ?when, style}`, and the colours its token
@@ -290,8 +289,13 @@ Colours may be token references, `Color.parse("var(--primary)")`,
 state, attribute, variant, sheet or of dark applies them again, at the
 window's next update (several changes, one restyle). Without a sheet a
 widget takes its base rules (`Unstyled`: legible outlines and states in
-the text's colour, `currentColor`); a sheet starts from none of them, as
-shadcn's classes from Tailwind's preflight.
+the text's colour, `currentColor`, popups on `Canvas`); a sheet starts
+from none of them, as shadcn's classes from Tailwind's preflight. The
+system colours `Canvas` and `CanvasText` are a sheet's colours of those
+names, else Chromium's, light or dark; a page's slot `"body"` takes them
+(shadcn's `bg-background text-foreground` on the body). Menus' and a
+select's items take the focus under the pointer (`focus` rules, as
+Radix's `focus:`).
 
 ## Fonts
 

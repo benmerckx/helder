@@ -16,14 +16,11 @@ import hxmc.ui.access.AccessTree;
 typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
 
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
-// hxmc.view, styled plainly (props override the look), in
-// Theme.current's colours; their colours and the switch's knob move with
-// Motion's transitions
+// hxmc.view, unstyled: behaviour, semantics and the geometry their
+// interaction needs, their nodes' slots, states, variants and sizes (as
+// shadcn's) for a theme's rules (Rules, StyleSheet), else Unstyled's;
+// props and an instance's own style override the look
 class Widgets implements Markup {
-	// (the theme: read inside reactive values, so that they follow it)
-	static inline function t():Theme
-		return Theme.current.value;
-
 	// (a prop that may be a value, a signal or a function of one: its value, read where a reactive value tracks it)
 	static function read(v:Dynamic):Dynamic
 		return v == null ? null : Std.isOfType(v, Signal) ? (v : Signal<Dynamic>).value : Reflect.isFunction(v) ? v() : v;
@@ -378,9 +375,10 @@ class Widgets implements Markup {
 		function pct(x:Float):Int
 			return Math.round(x * 100);
 		var spectrum = "linear-gradient(to right, #FF0000, #FFFF00, #00FF00, #00FFFF, #0000FF, #FF00FF, #FF0000)";
-		return <view tag={tag} role="group" label={name} row-gap={8} width={size}>
+		Unstyled.install();
+		return <view tag={tag} slot="color-picker" role="group" label={name} width={size}>
 			<view tag={tag + "-area"} role="slider" label={name + ": saturation and brightness"} value-now={() -> pct(sat.value)} value-min={0} value-max={100}
-				value-text={() -> "saturation " + pct(sat.value) + "%, brightness " + pct(val.value) + "%"} width={size} height={size} radius={4} focusable
+				value-text={() -> "saturation " + pct(sat.value) + "%, brightness " + pct(val.value) + "%"} slot="color-picker-area" width={size} height={size} focusable
 				cursor="crosshair" background-image={() -> "linear-gradient(to right, #FFFFFF, " + hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
 				onPointerDown={e -> area(e)} onPointerMove={e -> if (e.current.pressed) area(e)}
 				onKeyDown={e -> {
@@ -395,12 +393,12 @@ class Widgets implements Markup {
 					e.preventDefault();
 					store();
 				}}>
-				<view position="absolute" left={0} top={0} right={0} bottom={0} radius={4} background-image="linear-gradient(to bottom, transparent, #000000)"/>
-				<view position="absolute" left={() -> sat.value * size - 6} top={() -> (1 - val.value) * size - 6} width={12} height={12} radius={6}
-					border-width={2} border-color="#FFFFFF" shadow="0 0 2 #00000099"/>
+				<view slot="color-picker-area-shade" position="absolute" left={0} top={0} right={0} bottom={0}
+					background-image="linear-gradient(to bottom, transparent, #000000)"/>
+				<view slot="color-picker-thumb" position="absolute" left={() -> sat.value * size - 6} top={() -> (1 - val.value) * size - 6} width={12} height={12}/>
 			</view>
 			<view tag={tag + "-hue"} role="slider" label={name + ": hue"} value-now={() -> Math.round(hue.value)} value-min={0} value-max={359}
-				value-text={() -> Math.round(hue.value) + "°"} width={size} height={14} radius={7} focusable cursor="pointer" background-image={spectrum}
+				value-text={() -> Math.round(hue.value) + "°"} slot="color-picker-hue" width={size} height={14} focusable background-image={spectrum}
 				onPointerDown={e -> strip(e)} onPointerMove={e -> if (e.current.pressed) strip(e)}
 				onKeyDown={e -> {
 					var d = e.mods & Key.MOD_SHIFT != 0 ? 10 : 1;
@@ -414,11 +412,11 @@ class Widgets implements Markup {
 					e.preventDefault();
 					store();
 				}}>
-				<view position="absolute" left={() -> hue.value / 360 * size - 7} top={0} width={14} height={14} radius={7} border-width={2} border-color="#FFFFFF"
-					shadow="0 0 2 #00000099" background={() -> hsv(hue.value, 1, 1)}/>
+				<view slot="color-picker-thumb" position="absolute" left={() -> hue.value / 360 * size - 7} top={0} width={14} height={14}
+					background={() -> hsv(hue.value, 1, 1)}/>
 			</view>
-			<view direction="row" column-gap={8} align-items="center">
-				<view tag={tag + "-swatch"} width={28} height={28} shrink={0} radius={6} border-width={1} border-color={() -> t().border}
+			<view slot="color-picker-row" direction="row" align-items="center">
+				<view tag={tag + "-swatch"} slot="color-picker-swatch" width={28} height={28} shrink={0}
 					background={() -> props.value.value}/>
 				<view grow={1} dir="ltr"><Input tag={tag + "-hex"} value={hex} label={name + ": hex"}/></view>
 			</view>
@@ -838,9 +836,14 @@ class Widgets implements Markup {
 	// and after. The grid takes the focus: the arrows move its marked day (a
 	// day, a week), Page Up and Down a month, Home and End to the week's ends,
 	// the month shown following it; a click, Enter or Space chooses the day
-	// (value, onChoose). today is marked (by default the system's).
+	// (value, onChoose). today is marked (by default the system's). Slots
+	// (shadcn's calendar's parts) "calendar", "calendar-nav" (its arrows
+	// ghost "button"s, size "icon"), "calendar-caption", "calendar-weekdays",
+	// "calendar-weekday", "calendar-week" and "calendar-day" (data-selected,
+	// data-today, data-outside, data-focused: "true")
 	public static function Calendar(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void, ?label:String,
 			?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "calendar", first = props.firstDay ?? 1;
 		var now = Date.now();
 		var today = props.today ?? {year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate()};
@@ -888,32 +891,29 @@ class Widgets implements Markup {
 			var v = props.value.value;
 			return v != null && Days.of(v) == n;
 		};
-		return <view tag={tag} row-gap={6} padding={8} radius={8} border-width={1} border-color={() -> t().borderMuted} background={() -> t().control}
-			color={() -> t().text}>
-			<view direction="row" align-items="center" justify="space-between">
-				<view tag={tag + "-previous"} role="button" label="Previous month" cursor="pointer" padding="2 8" radius={4} onClick={_ -> month(-1)}>‹</view>
-				<text tag={tag + "-month"} font-weight={600}>{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
-				<view tag={tag + "-next"} role="button" label="Next month" cursor="pointer" padding="2 8" radius={4} onClick={_ -> month(1)}>›</view>
+		return <view tag={tag} slot="calendar">
+			<view slot="calendar-nav">
+				<view tag={tag + "-previous"} slot="button" variant="ghost" size="icon" role="button" label="Previous month" onClick={_ -> month(-1)}>{arrow(() -> "‹")}</view>
+				<text tag={tag + "-month"} slot="calendar-caption">{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
+				<view tag={tag + "-next"} slot="button" variant="ghost" size="icon" role="button" label="Next month" onClick={_ -> month(1)}>{arrow(() -> "›")}</view>
 			</view>
-			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable row-gap={2}
-				onKeyDown={key}>
-				<view role="row" display="grid" grid-template-columns="repeat(7, 32px)" color={() -> t().muted} font-size={11}>{[
+			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}>
+				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
 					for (n in names)
-						<view role="columnheader" align-items="center">{n}</view>
+						<view slot="calendar-weekday" role="columnheader">{n}</view>
 				]}</view>
 				{[
 					for (w in 0...6)
-						<view role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
+						<view slot="calendar-week" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
 							for (k in 0...7) {
 								var at = () -> gridStart() + w * 7 + k;
 								var inMonth = () -> Days.day(at()).month == shown.value.month;
 								<view tag={tag + "-day"} role="cell" label={() -> {
 									var d = Days.day(at());
 									d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
-								}} selected={() -> chosen(at())} height={28} align-items="center" justify="center" radius={14} cursor="pointer"
-									border-width={() -> cursor.value == at() ? 1.5 : 0} border-color={() -> t().accent}
-									background={() -> chosen(at()) ? t().accent : Days.of(today) == at() ? t().itemSelected : Theme.clear(t().control)}
-									color={() -> chosen(at()) ? t().onAccent : inMonth() ? t().text : t().muted} onClick={_ -> choose(at())}>
+								}} slot="calendar-day" selected={() -> chosen(at())} data-selected={() -> chosen(at()) ? "true" : null}
+									data-today={() -> Days.of(today) == at() ? "true" : null} data-outside={() -> inMonth() ? null : "true"}
+									data-focused={() -> cursor.value == at() ? "true" : null} onClick={_ -> choose(at())}>
 									{() -> "" + Days.day(at()).day}
 								</view>;
 							}
@@ -925,29 +925,32 @@ class Widgets implements Markup {
 
 	// a date chosen on a button that opens a Calendar under it (closed by a
 	// choice, Escape or a click outside); the button shows it as written by
-	// format (by default "17 October 2026"), else placeholder
+	// format (by default "17 October 2026"), else placeholder. As shadcn's
+	// date picker: the button an outline "button" (data-empty "true" with no
+	// date), the calendar in a "popover-content"
 	public static function DatePicker(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?format:Day->String, ?placeholder:String,
 			?label:String, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "date", open = signal(false);
 		var format = props.format ?? (d:Day) -> d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
 		var self:Null<Node> = null;
-		return <view tag={tag} role="combobox" label={props.label} expanded={() -> open.value} focusable cursor="pointer" direction="row"
-			align-items="center" column-gap={8} padding="6 10" radius={6} border-width={1} border-color={() -> t().border} background={() -> t().control}
+		return <view tag={tag} slot="button" variant="outline" size="default" role="combobox" label={props.label} expanded={() -> open.value}
+			data-state={() -> open.value ? "open" : "closed"} data-empty={() -> props.value.value == null ? "true" : null} focusable justify="start"
 			ref={n -> self = n} onClick={_ -> open.value = !open.value} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE || e.key == Key.DOWN) {
 				open.value = true;
 				e.preventDefault();
 			}}>
-			<text color={() -> props.value.value == null ? t().muted : t().text}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</text>
+			<text opacity={() -> props.value.value == null ? 0.6 : 1}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</text>
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false}
 				onOpen={p -> {
 					var g = p.find(tag + "-calendar-grid");
 					if (g != null && g.ui != null) g.ui.setFocus(g);
 				}}>
-				<Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
+				<view slot="popover-content" data-state="open"><Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
 					onChoose={_ -> {
 						open.value = false;
 						if (self != null && self.ui != null) self.ui.setFocus(self);
-					}}/>
+					}}/></view>
 			</Popover>
 		</view>;
 	}
@@ -1648,6 +1651,7 @@ class Widgets implements Markup {
 	// as it is (onChoose), Escape or a click outside closes the list.
 	public static function Combobox(props:{value:Signal<String>, options:Dynamic, ?placeholder:String, ?width:Float, ?label:String,
 			?onChoose:String->Void, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "combobox", w = props.width ?? 200.0;
 		var open = signal(false), active = signal(-1);
 		var options:Array<Node> = [];
@@ -1658,10 +1662,10 @@ class Widgets implements Markup {
 		var f = new TextField(props.value.peek());
 		f.tag = tag;
 		f.placeholder = props.placeholder ?? "";
+		f.slot = "input";
 		f.semantics.role = hxmc.ui.access.Role.ComboBox;
 		f.semantics.label = props.label ?? props.placeholder;
-		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6, width: w});
-		themed(f);
+		f.style.width = w;
 		effect(() -> f.setText(props.value.value));
 		effect(() -> f.semantics.expanded = open.value && matches.value.length > 0);
 		function choose(o:String) {
@@ -1711,12 +1715,10 @@ class Widgets implements Markup {
 			}}>
 			{f}
 			<Popover open={() -> open.value && matches.value.length > 0} placement="below" onDismiss={() -> open.value = false}>
-				<scroll tag={tag + "-list"} role="listbox" label={props.label} width={w} max-height={240} padding={4} radius={6} border-width={1}
-					border-color={() -> t().borderMuted} background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">
-					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} role="option" selected={() -> active.value == i}
-						ref={n -> options[i] = n} cursor="pointer" padding="5 8" radius={4}
-						background={() -> active.value == i ? t().itemSelected : Theme.clear(t().control)} onPointerEnter={_ -> active.value = i}
-						onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
+				<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label} width={w} max-height={240}>
+					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} slot="command-item" role="option"
+						selected={() -> active.value == i} data-selected={() -> active.value == i ? "true" : null} ref={n -> options[i] = n}
+						onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
 				</scroll>
 			</Popover>
 		</view>;
@@ -1774,9 +1776,8 @@ class Widgets implements Markup {
 	// and a close button. They do not take the focus; the pointer over them
 	// holds their time.
 	public static function Toaster(props:{?placement:String, ?width:Float, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "toaster";
-		function mark(kind:String):String
-			return kind == "success" ? t().success : kind == "error" ? t().danger : t().accent;
 		// (a live region, always there and of no size, saying the newest toast: assistive technology announces it)
 		return <view tag={tag + "-live"} position="absolute" width={0} height={0} overflow="hidden" live="polite">
 			<text>{() -> {
@@ -1784,19 +1785,16 @@ class Widgets implements Markup {
 				shown.length == 0 ? "" : shown[shown.length - 1].text;
 			}}</text>
 			<Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
-			<view tag={tag + "-list"} width={props.width ?? 320.0} row-gap={8} onPointerEnter={_ -> Toasts.paused = true}
+			<view tag={tag + "-list"} slot="sonner-toaster" width={props.width ?? 320.0} onPointerEnter={_ -> Toasts.paused = true}
 				onPointerLeave={_ -> Toasts.paused = false}>
-				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" role="group" label={toast.text} direction="row" align-items="center"
-					column-gap={10} padding="10 12" radius={8} background={() -> t().tooltip} color={() -> t().onTooltip} shadow="0 4 12 #00000033">
-					<view width={4} height={20} radius={2} background={() -> mark(toast.kind)}/>
-					<text grow={1}>{toast.text}</text>
-					{toast.action == null ? null : <view tag="toast-action" role="button" focusable cursor="pointer" padding="2 6" radius={4}
-						color={() -> t().accentHover} onClick={_ -> {
-							Toasts.close(toast);
-							if (toast.onAction != null) toast.onAction();
-						}}>{toast.action}</view>}
-					<view tag="toast-close" role="button" label="Close" focusable cursor="pointer" padding="0 4" color={() -> t().muted}
-						onClick={_ -> Toasts.close(toast)}>×</view>
+				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" slot="sonner-toast" data-type={toast.kind} role="group" label={toast.text}>
+					{toast.kind == "success" || toast.kind == "error" ? <text slot="sonner-icon" hidden>{toast.kind == "success" ? "✓" : "!"}</text> : null}
+					<text slot="sonner-title" grow={1}>{toast.text}</text>
+					{toast.action == null ? null : <view tag="toast-action" slot="sonner-action" role="button" focusable onClick={_ -> {
+						Toasts.close(toast);
+						if (toast.onAction != null) toast.onAction();
+					}}>{toast.action}</view>}
+					<view tag="toast-close" slot="sonner-close" role="button" label="Close" focusable onClick={_ -> Toasts.close(toast)}>×</view>
 				</view>}/>
 			</view>
 		</Popover>
@@ -1811,6 +1809,7 @@ class Widgets implements Markup {
 	// technology.
 	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
 			?label:String, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
 		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
 		var format = props.format ?? plain;
@@ -1821,8 +1820,8 @@ class Widgets implements Markup {
 		f.semantics.label = props.label;
 		if (Math.isFinite(min)) f.semantics.valueMin = min;
 		if (Math.isFinite(max)) f.semantics.valueMax = max;
-		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6, grow: 1, minWidth: 0});
-		themed(f);
+		f.slot = "input";
+		f.style.set({grow: 1, minWidth: 0});
 		inline function clamp(v:Float):Float
 			return v < min ? min : v > max ? max : v;
 		effect(() -> {
@@ -1855,9 +1854,9 @@ class Widgets implements Markup {
 			commit();
 		};
 		function arrow(label:String, glyph:String, n:Float):View
-			return <view tag={tag + (n > 0 ? "-up" : "-down")} role="button" label={label} cursor="pointer" grow={1} justify="center" align-items="center"
-				padding="0 6" font-size={9} color={() -> t().muted} onClick={_ -> stepBy(n)}>{glyph}</view>;
-		return <view tag={tag + "-box"} direction="row" align-items="stretch" column-gap={2} width={w} onKeyDown={e -> switch e.key {
+			return <view tag={tag + (n > 0 ? "-up" : "-down")} slot={n > 0 ? "number-field-increment" : "number-field-decrement"} role="button" label={label}
+				grow={1} onClick={_ -> stepBy(n)}>{glyph}</view>;
+		return <view tag={tag + "-box"} slot="number-field" direction="row" align-items="stretch" width={w} onKeyDown={e -> switch e.key {
 				case Key.UP:
 					e.stop();
 					stepBy(1);
@@ -1873,7 +1872,7 @@ class Widgets implements Markup {
 				case _:
 			}}>
 			{f}
-			<view row-gap={1}>
+			<view slot="number-field-steppers">
 				{arrow("Increase", "▲", 1)}
 				{arrow("Decrease", "▼", -1)}
 			</view>
@@ -1924,7 +1923,6 @@ class Widgets implements Markup {
 			{label: "Select All", onSelect: () -> f.selectAll(), shortcut: "Mod+A"}
 		]}>{f}</ContextMenu>;
 
-	// (a text field's colours from the theme, following it)
 	// (a disclosure's arrow, a tree's or a summary's: hidden from assistive
 	// technology, muted; closed, to the line's end)
 	static function arrow(shown:Void->String):Node {
@@ -1934,17 +1932,6 @@ class Widgets implements Markup {
 		effect(() -> n.text = shown());
 		return n;
 	}
-
-	static function themed(f:EditableText)
-		effect(() -> {
-			var th = t();
-			f.style.background = Color.parse(th.control);
-			f.style.borderColor = Color.parse(th.border);
-			f.placeholderColor = Color.parse(th.placeholder);
-			f.selectionColor = Color.parse(th.selection);
-			f.caretColor = Color.parse(th.caret);
-			f.markDirty();
-		});
 
 	// an input (shadcn's): a text field bound to a signal (two ways); a
 	// right click (or the menu key) opens its edit menu; password: its text
@@ -1972,19 +1959,13 @@ class Widgets implements Markup {
 	// takes the last one off, a chip's × takes it off; a click in the box
 	// focuses the field. The chips a list, each × a button named for its tag
 	public static function TagInput(props:{tags:Signal<Array<String>>, ?placeholder:String, ?label:String, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "tags";
 		var f = new TextField("");
 		f.tag = tag + "-field";
+		f.slot = "tag-input-field";
 		f.placeholder = props.placeholder ?? "";
 		f.semantics.label = props.label ?? props.placeholder;
-		f.style.set({padding: [2, 2]});
-		effect(() -> {
-			var th = t();
-			f.placeholderColor = Color.parse(th.placeholder);
-			f.selectionColor = Color.parse(th.selection);
-			f.caretColor = Color.parse(th.caret);
-			f.markDirty();
-		});
 		function add(text:String) {
 			var v = StringTools.trim(text);
 			f.setText("");
@@ -2004,18 +1985,14 @@ class Widgets implements Markup {
 				e.stop();
 			} else if (keys != null) keys(e);
 		};
-		return <view tag={tag} direction="row" wrap align-items="center" gap={4} padding="3 4" radius={6} border-width={1}
-			border-color={() -> t().border} background={() -> t().control} cursor="text"
-			onPointerDown={(e:Event) -> if (e.target != f && f.ui != null) {
+		return <view tag={tag} slot="tag-input" direction="row" wrap align-items="center" onPointerDown={(e:Event) -> if (e.target != f && f.ui != null) {
 				f.ui.setFocus(f);
 				e.preventDefault();
 			}}>
-			<view role="list" label={props.label} direction="row" wrap gap={4}>
-				<For each={props.tags} render={(v:String) -> <view tag={tag + "-" + v} role="listitem" label={v} direction="row" align-items="center" gap={2}
-					padding="1 2 1 8" radius={4} background={() -> t().itemSelected} color={() -> t().text}>
+			<view slot="tag-input-list" role="list" label={props.label} direction="row" wrap>
+				<For each={props.tags} render={(v:String) -> <view tag={tag + "-" + v} slot="badge" variant="secondary" role="listitem" label={v}>
 					{v}
-					<view tag={tag + "-" + v + "-remove"} role="button" label={"Remove " + v} cursor="pointer" padding="0 4" radius={3}
-						color={() -> t().secondary} onClick={_ -> remove(v)}>×</view>
+					<view tag={tag + "-" + v + "-remove"} slot="tag-input-remove" role="button" label={"Remove " + v} onClick={_ -> remove(v)}>×</view>
 				</view>}/>
 			</view>
 			<view grow={1} min-width={60}>{editMenu(f, tag)}</view>

@@ -102,6 +102,7 @@ class MarkupTest implements Markup {
 		unstyledMore();
 		unstyledPopups();
 		unstyledNav();
+		unstyledRest();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -251,6 +252,9 @@ class MarkupTest implements Markup {
 		var toasts = list == null ? [] : tagged(list, "toast");
 		check("toasts: shown in the bottom right corner, the newest last, the focus kept", toasts.length == 2 && list.absX + list.width == 400 - 16
 			&& list.absY + list.height == 300 - 16 && toasts[0].absY < toasts[1].absY && ui.focus == focus, list == null ? "none" : '${list.absX} ${list.absY} ${list.width} ${list.height}');
+		check("toasts: sonner's slots, the kind data-type", list.slot == "sonner-toaster" && toasts[0].slot == "sonner-toast"
+			&& toasts[0].attr("data-type") == "success" && toasts[0].children[0].slot == "sonner-icon" && toasts[1].attr("data-type") == "info"
+			&& tagged(list, "toast-action")[0].slot == "sonner-action");
 		Clock.tick(500.1);
 		var l = ui.overlay.find("toaster-list");
 		ui.pointerMove(l.absX + 10, l.absY + 10);
@@ -1362,6 +1366,74 @@ class MarkupTest implements Markup {
 			&& pages()[1].attr("data-active") == null && prev.attr("data-disabled") == "" && next.attr("data-disabled") == null);
 		click(next);
 		check("unstyled: pagination's Next", page.value == 2 && pages()[1].attr("data-active") == "true" && prev.attr("data-disabled") == null);
+	}
+
+	static function unstyledRest() {
+		var ui = new Ui(new MonoText(), 500, 500);
+		var day:Signal<Null<Day>> = signal(({year: 2026, month: 10, day: 17} : Day)), picked:Signal<Null<Day>> = signal(null);
+		var city = signal(""), count = signal(3.0), tags = signal(["a"]), colour = signal(Color.rgb(0x3B82F6));
+		Render.render(<view slot="body" tag="page" align-items="start" row-gap={4} padding={10}>
+			<Calendar tag="cal" value={day} today={({year: 2026, month: 10, day: 16} : Day)}/>
+			<DatePicker tag="date" value={picked}/>
+			<Combobox tag="city" value={city} options={["Bern", "Berlin"]}/>
+			<NumberField tag="n" value={count}/>
+			<TagInput tag="tags" tags={tags}/>
+			<ColorPicker tag="col" value={colour} size={60}/>
+		</view>, ui.root);
+		ui.update();
+		var page = ui.root.find("page");
+		check("unstyled: a page's body: Canvas and CanvasText", page.style.background == Color.WHITE && page.style.color == Color.BLACK);
+		ui.dark = true;
+		ui.update();
+		check("unstyled: dark: the body follows", page.style.background == Color.rgb(0x121212) && page.style.color == Color.WHITE);
+		ui.dark = false;
+		ui.update();
+		var days = [];
+		function walk(n:Node) {
+			if (n.tag == "cal-day") days.push(n);
+			for (c in n.children)
+				walk(c);
+		}
+		walk(ui.root);
+		var chosen = days.filter(d -> d.attr("data-selected") == "true"), today = days.filter(d -> d.attr("data-today") == "true");
+		var outside = days.filter(d -> d.attr("data-outside") == "true");
+		check("unstyled: a calendar's slots, its days' data-selected, data-today, data-outside", ui.root.find("cal").slot == "calendar"
+			&& ui.root.find("cal-previous").slot == "button" && ui.root.find("cal-previous").variant == "ghost" && ui.root.find("cal-month").slot == "calendar-caption"
+			&& days.length == 42 && days[0].slot == "calendar-day" && chosen.length == 1 && (cast chosen[0].children[0] : TextNode).text == "17"
+			&& today.length == 1 && outside.length > 0 && chosen[0].attr("data-focused") == "true" && chosen[0].style.background != Color.TRANSPARENT);
+		var date = ui.root.find("date");
+		check("unstyled: a date picker an outline button, empty", date.slot == "button" && date.variant == "outline" && date.attr("data-empty") == "true");
+		date.ui.setFocus(date);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("unstyled: its calendar in a popover's content", ui.overlay.find("date-calendar").parent.slot == "popover-content"
+			&& ui.overlay.find("date-calendar").parent.style.background == Color.WHITE);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		var f = ui.root.find("city");
+		ui.setFocus(f);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		var opts = [];
+		function walk2(n:Node) {
+			if (n.tag == "city-option") opts.push(n);
+			for (c in n.children)
+				walk2(c);
+		}
+		walk2(ui.overlay);
+		check("unstyled: a combobox's field an input, its list a command list, the highlighted item data-selected", f.slot == "input"
+			&& ui.overlay.find("city-list").slot == "command-list" && opts.length == 2 && opts[0].slot == "command-item" && opts[0].attr("data-selected") == "true"
+			&& opts[1].attr("data-selected") == null);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("unstyled: a number field's input and steppers", ui.root.find("n").slot == "input" && ui.root.find("n-box").slot == "number-field"
+			&& ui.root.find("n-up").slot == "number-field-increment" && ui.root.find("n-down").slot == "number-field-decrement");
+		check("unstyled: a tag input's chips badges", ui.root.find("tags").slot == "tag-input" && ui.root.find("tags-a").slot == "badge"
+			&& ui.root.find("tags-a").variant == "secondary" && ui.root.find("tags-a-remove").slot == "tag-input-remove"
+			&& ui.root.find("tags-field").slot == "tag-input-field");
+		check("unstyled: a colour picker's parts", ui.root.find("col").slot == "color-picker" && ui.root.find("col-area").slot == "color-picker-area"
+			&& ui.root.find("col-hue").slot == "color-picker-hue" && ui.root.find("col-swatch").slot == "color-picker-swatch"
+			&& ui.root.find("col-area").children[1].slot == "color-picker-thumb" && ui.root.find("col-area").children[1].style.borderWidth == 2);
 	}
 
 	static function table() {

@@ -13,7 +13,7 @@ import hxmc.view.*;
 // the field, the combobox, the number field, the disclosure and a toast, the images' sizes; PNG and WebP files decoded natively (png/*.png, webp/*.webp,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
-// With --dark, in Theme.DARK, against gallery-dark.png; with --rtl, right to
+// With --dark, dark (Ui.dark), against gallery-dark.png; with --rtl, right to
 // left, against gallery-rtl.png.
 //   GalleryTest <golden.png> <out.png> [--dark] [--rtl] [--bless]
 class GalleryTest {
@@ -32,9 +32,9 @@ class GalleryTest {
 
 	static function main() {
 		var args = Sys.args();
-		if (args.indexOf("--dark") >= 0) hxmc.ui.widgets.Theme.current.value = hxmc.ui.widgets.Theme.DARK;
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
+		ui.dark = args.indexOf("--dark") >= 0;
 		var app = new Gallery();
 		Render.render(app.view(), ui.root);
 		ui.update();

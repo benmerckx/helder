@@ -306,10 +306,10 @@ static function Accent(props:{label:String}):View {
 
 ## Themes and dark mode
 
-The widgets are moving to ship unstyled (Button, Input, Checkbox, Switch,
-Label, Card, Badge, Toggle so far; the rest still draw with
-`Theme.current`): they work and stay legible in the text's colour, and a
-theme gives them their looks. A theme is a `StyleSheet`: rules for the
+The widgets ship unstyled: they work and stay legible in the text's
+colour, and a theme gives them their looks. A page takes the slot
+`"body"` for its surface (`<view slot="body">`: the system's colours,
+light or dark). A theme is a `StyleSheet`: rules for the
 widgets' slots (shadcn's data-slot names), variants and states, and the
 colours their tokens name, light and dark. `@hxmc/theme` is shadcn/ui's;
 a small one of your own:
@@ -327,9 +327,9 @@ static final sheet:StyleSheet = {
 ```
 
 `ui.theme = sheet` installs it (`node.theme` for a subtree), and
-`ui.dark` picks its dark colours; `UiWindow.dark` follows the system's
-appearance: `effect(() -> ui.dark = UiWindow.dark.value)`. A widget's own
-style (an attribute in markup) wins over the theme's.
+`ui.dark` picks its dark colours; a `UiWindow`'s follows the system's
+appearance (`UiWindow.dark`). A widget's own style (an attribute in
+markup) wins over the theme's.
 
 ## Popups
 

@@ -5,7 +5,6 @@ import hxmc.ui.view.UiFlow.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.view.Flow.*;
-import hxmc.ui.widgets.Theme;
 import UiTest.Recording;
 
 // The examples of packages/ui/GUIDE.md, compiled and run on Eval (make
