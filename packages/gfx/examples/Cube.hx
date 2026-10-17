@@ -6,19 +6,21 @@ import hxmc.gfx.shader.ShaderMath.*;
 import hxmc.os.*;
 
 // A rotating cube in a window, textured, lit and depth-tested, over a
-// blended backdrop and a soft shadow (drag to turn it, Escape closes):
+// blended backdrop and a soft shadow (drag to turn it, or scroll sideways:
+// a touch drag in a browser, a trackpad's swipe, a sideways wheel; Escape
+// closes):
 //
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/examples -main Cube
 //     --custom-target hxmc=cube -D hxmc.libc=glibc
 //
 // (as Triangle.hx for macOS, Windows and the browser; `--angle a` draws it
-// still, turned by a radians: the tests' frames). It uses what a program
-// needs from hxmc.gfx: an index buffer of each size (the cube's UInt16,
-// the backdrop's and the shadow's UInt32), uniform blocks written each
-// frame (the camera's matrices: CubeShader.writeCubeCamera,
-// Encoder.setUniforms), a texture made here (no image decoder) and its
-// sampler, the depth buffer, alpha blending and the fragment's position;
-// the shaders are CubeShader.hx.
+// still, turned by a radians plus what a drag turned: the tests' frames).
+// It uses what a program needs from hxmc.gfx: an index buffer of each size
+// (the cube's UInt16, the backdrop's and the shadow's UInt32), uniform
+// blocks written each frame (the camera's matrices:
+// CubeShader.writeCubeCamera, Encoder.setUniforms), a texture made here (no
+// image decoder) and its sampler, the depth buffer, alpha blending and the
+// fragment's position; the shaders are CubeShader.hx.
 class Cube {
 	static inline var TEXTURE = 64;
 	// the ground's height under the cube's centre, the shadow's half size
@@ -143,9 +145,11 @@ class Cube {
 		var args = Sys.args(), still = args.indexOf("--angle");
 		var window = new Window("Cube", 640, 480);
 		var cube = new Cube(Device.create(window.surface));
-		// (turning with time, plus what the mouse dragged)
+		// (turning with time, plus what the mouse dragged and what scrolled
+		// sideways: the content follows the finger or the trackpad, a scroll to
+		// the right turns it left; not while the mouse drags, the same gesture)
 		var start = Sys.time(), drag = 0.0, from = -1;
-		App.run(() -> cube.frame(still >= 0 ? Std.parseFloat(args[still + 1]) : Sys.time() - start + drag), e -> switch e.kind {
+		App.run(() -> cube.frame((still >= 0 ? Std.parseFloat(args[still + 1]) : Sys.time() - start) + drag), e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
 			case MouseDown if (e.button == 1): from = e.x;
@@ -153,6 +157,8 @@ class Cube {
 			case MouseMove if (from >= 0):
 				drag += (e.x - from) / window.width * Math.PI;
 				from = e.x;
+			case Scroll if (from < 0):
+				drag -= e.deltaX / window.width * Math.PI;
 			case _:
 		});
 	}

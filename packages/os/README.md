@@ -27,6 +27,13 @@ for each event: keys as X11 KeySyms, `TextInput` characters (and an input
 method's `TextEditing`), the mouse in
 pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`.
 
+In the browser a touch drag on the canvas is `Scroll` (the content following
+the finger, gliding when let go) and a tap a click. `browser.mjs`'s option
+`touchAction` is the canvas's CSS `touch-action`: `'none'` by default (every
+drag the program's); with `'pan-y'` a drag that starts vertical scrolls the
+page instead, and only the others reach the program (a canvas as wide as a
+phone's screen that the page must scroll past).
+
 ## Audio
 
 A pull model: the system asks for samples and a callback fills them.

@@ -16,6 +16,8 @@ import hxmc.gfx.shader.ShaderMath.*;
 //   test/shader/<Class>.<vert|frag>.<glsl|wgsl|msl|hlsl> (--bless rewrites them)
 // - the programs test/reject/*.hx the compiler must reject: each `// expect:
 //   <text>` line of one is in the compiler's output (as hxmc/test/reject)
+// - the tests' PNG files (Png.hx, as GfxTest --bless writes them, in stored
+//   blocks of 65535 bytes) read back by Png.decode, pixel for pixel
 class ShaderTest {
 	static var failures = 0;
 	static var checks = 0;
@@ -28,6 +30,7 @@ class ShaderTest {
 		math();
 		shaders();
 		layouts();
+		png();
 		golden(here + "/shader", bless);
 		if (tool != null && tool != "--bless") rejects(tool, here);
 		Sys.println('ShaderTest: $checks checks, ' + (failures == 0 ? "ok" : '$failures FAILED'));
@@ -48,6 +51,26 @@ class ShaderTest {
 	static function nearVec(what:String, got:Vec4, want:Array<Float>)
 		for (i in 0...4)
 			near(what + "." + "xyzw".charAt(i), [got.x, got.y, got.z, got.w][i], want[i]);
+
+	// Png: encode (stored blocks) then decode, at sizes of one block and of
+	// several full ones (InflateImpl's window: 32 KiB at once)
+	static function png() {
+		for (size in [[4, 3], [256, 192], [640, 480]]) {
+			var w = size[0], h = size[1];
+			var rgba = Bytes.alloc(w * h * 4);
+			for (i in 0...rgba.length)
+				rgba.set(i, (i * 31 + (i >> 9)) & 0xFF);
+			var g = try Png.decode(Png.encode(rgba, w, h)) catch (e:Dynamic) {
+				check('png ${w}x$h', false, Std.string(e));
+				continue;
+			}
+			var same = g.width == w && g.height == h;
+			for (p in 0...w * h)
+				for (k in 0...3)
+					if (same && g.rgba.get(4 * p + k) != rgba.get(4 * p + k)) same = false;
+			check('png ${w}x$h', same, "other pixels read back");
+		}
+	}
 
 	// the math types and ShaderMath as ordinary Haxe
 	static function math() {
