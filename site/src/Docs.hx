@@ -133,7 +133,7 @@ class Docs implements Markup {
 
 	static function Index(props:{}):View {
 		return <Page title="Docs" section="Docs" description="hxmc's documentation: guides, the packages' READMEs and API reference, the roadmap and design plans, generated from the repository.">
-			<div class="wrap docs">
+			<div class="wrap docs index">
 				<Sidebar current="docs/index.html"/>
 				<article class="doc">
 					<h1>Docs</h1>
@@ -142,7 +142,7 @@ class Docs implements Markup {
 						for (g in GROUPS)
 							<section class="doc-group">
 								<h2>{g == "API" ? "API reference" : g}</h2>
-								<ul class="doc-list">{
+								<ul class={g == "Plans" ? "doc-list plans" : "doc-list"}>{
 									g == "API" ? [
 										for (p in Pages.PACKAGES)
 											<li><a href={Site.link('docs/api/${p[0]}.html')}>{p[1]}</a><span>{p[3]}</span></li>

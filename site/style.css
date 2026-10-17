@@ -462,3 +462,6 @@ table.compile td.num .parts { color: var(--muted); font-size: 12px; font-weight:
 	content: attr(data-gfx); position: absolute; right: calc(10px / var(--k, 1)); top: calc(8px / var(--k, 1)); z-index: 1; pointer-events: none;
 	font: 600 calc(10.5px / var(--k, 1))/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255, 255, 255, 0.55);
 }
+.doc-list.plans { columns: 2 260px; column-gap: 32px; }
+.doc-list.plans li { display: block; break-inside: avoid; }
+@media (max-width: 760px) { .docs.index .docs-nav { display: none; } }
