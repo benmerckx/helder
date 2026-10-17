@@ -33,8 +33,10 @@ class Counter implements Markup {
 [GUIDE.md](GUIDE.md) walks through building an app: components, state,
 lists, popups, your own nodes, each platform, tests.
 `packages/ui/examples/Todo.hx` is a complete app (a text field, a keyed
-list, checkboxes, filters). It runs natively on Linux, macOS and Windows,
-and in a browser (wasm32-wasi on WebGPU or WebGL2).
+list, checkboxes, filters), `examples/Mail.hx` a larger one (a menu bar,
+a toolbar, folders in a tree, messages in a sortable table, search,
+undo). They run natively on Linux, macOS and Windows, and in a browser
+(wasm32-wasi on WebGPU or WebGL2).
 
 ## The parts
 
