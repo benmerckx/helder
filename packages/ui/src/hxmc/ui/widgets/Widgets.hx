@@ -50,6 +50,18 @@ class Widgets implements Markup {
 	// theme's looks); disabled (a Bool, a signal or
 	// a function of one): not focusable, clicks and keys ignored,
 	// data-disabled for the theme
+	@:widget({
+		props: {
+			label: "its text",
+			onClick: "called when it is clicked, or pressed with Enter or Space",
+			variant: "its look: default (the main action), destructive, outline, secondary, ghost or link",
+			size: "default, sm, lg or icon",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
+		},
+		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
+		sizes: ["default", "sm", "lg", "icon"],
+		keys: {"Enter, Space": "clicks it"}
+	})
 	public static function Button(props:{?label:String, ?onClick:Void->Void, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;

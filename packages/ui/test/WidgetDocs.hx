@@ -2,10 +2,20 @@
 // the site): for each public widget of Widgets.hx, its doc comment, its
 // props (name, type, whether optional, a default where the code gives one:
 // props.x ?? value), the slots and data- attributes a theme targets, the
-// roles it declares, and what its @:widget metadata says (variants, sizes,
-// keys: what each key does, host), and its example (examples/widgets/<Name>.hx)
-// when there is one. WidgetDocs <Widgets.hx> <examples dir> [out.json]
+// roles it declares, and what its @:widget metadata says (props: each
+// one's doc; variants, sizes; keys: what each key does; part: the widget
+// whose part it is, documented and shown with it), and its example
+// (examples/widgets/<Name>Example.hx) when there is one; host: "drawn"
+// (hxmc.ui's own) unless the metadata says otherwise.
+//   WidgetDocs <Widgets.hx> <examples dir> [out.json]
 class WidgetDocs {
+	// (the props most widgets take, documented once)
+	static final COMMON:haxe.DynamicAccess<String> = {
+		tag: "its node's tag (Node.find, tests)",
+		style: "a function of its states (States: hovered, pressed, focused...) giving its own style, over the theme's",
+		children: "its content"
+	};
+
 	public static function read(source:String, examples:Null<String>):Array<Dynamic> {
 		var lines = source.split("\n"), out:Array<Dynamic> = [], comment:Array<String> = [], meta:Null<String> = null;
 		helpers = helperSlots(lines);
@@ -86,21 +96,48 @@ class WidgetDocs {
 			var p = calls.matchedPos();
 			pos = p.pos + p.len;
 		}
+		w.host = "drawn";
 		if (meta != null) {
 			var m:Dynamic = haxe.Json.parse(json(meta));
 			for (k in Reflect.fields(m))
-				Reflect.setField(w, k, Reflect.field(m, k));
+				if (k != "props") Reflect.setField(w, k, Reflect.field(m, k));
+			var docs:haxe.DynamicAccess<String> = m.props;
+			if (docs != null) for (p in (w.props : Array<Dynamic>))
+				if (docs.exists(p.name)) p.doc = docs[p.name];
 		}
+		for (p in (w.props : Array<Dynamic>))
+			if (p.doc == null && COMMON.exists(p.name)) p.doc = COMMON[p.name];
 		if (examples != null) {
-			var file = examples + "/" + name + ".hx";
+			var file = examples + "/" + name + "Example.hx";
 			if (sys.FileSystem.exists(file)) w.example = sys.io.File.getContent(file);
 		}
 		return w;
 	}
 
-	// (a Haxe object literal of strings, arrays and objects as JSON: its keys quoted)
-	static function json(s:String):String
-		return ~/([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/g.replace(s, "$1\"$2\":");
+	// (a Haxe object literal of strings, arrays and objects as JSON: its keys
+	// quoted, outside its strings; a trailing comma dropped)
+	static function json(s:String):String {
+		var out = new StringBuf(), i = 0, key = ~/^([{,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:/;
+		while (i < s.length) {
+			var c = s.charAt(i);
+			if (c == "\"") {
+				var j = i + 1;
+				while (j < s.length && s.charAt(j) != "\"")
+					j += s.charAt(j) == "\\" ? 2 : 1;
+				out.add(s.substring(i, j + 1));
+				i = j + 1;
+			} else if ((c == "{" || c == ",") && key.match(s.substr(i))) {
+				out.add(key.matched(1) + "\"" + key.matched(2) + "\":");
+				i += key.matchedPos().len;
+			} else if (c == "," && ~/^,\s*[}\]]/.match(s.substr(i))) {
+				i++;
+			} else {
+				out.add(c);
+				i++;
+			}
+		}
+		return out.toString();
+	}
 
 	// (each match's group 1, once each, in order)
 	static function found(r:EReg, text:String, ?f:(EReg, String) -> String):Array<String> {
@@ -145,6 +182,19 @@ class WidgetDocs {
 			var d = new EReg("props\\." + name + " \\?\\? ([^;),\\]}]+)", "");
 			if (d.match(body)) prop.def = StringTools.trim(d.matched(1));
 			out.push(prop);
+		}
+		return out;
+	}
+
+	// what the reference lacks: a widget with no doc, a prop with none, a
+	// widget (not a part) with no example
+	public static function missing(docs:Array<Dynamic>):Array<String> {
+		var out = [];
+		for (w in docs) {
+			if (w.doc == "" && w.part == null) out.push(w.name + ": no doc comment");
+			for (p in (w.props : Array<Dynamic>))
+				if (p.doc == null) out.push(w.name + "." + p.name + ": no doc");
+			if (w.example == null && w.part == null) out.push(w.name + ": no example");
 		}
 		return out;
 	}
