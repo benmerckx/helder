@@ -229,6 +229,13 @@ class UiTest {
 			false;
 		} catch (e:Dynamic) true;
 		check("transform: an unknown function is an error", bad);
+		var built = new Transform(["translate", "rotate", "scale"], [[10, 50], [90], [2]], [[false, true], [false], [false]]).toMatrix(100, 40);
+		var counted = try {
+			new Transform(["translateX"], [[1, 2]]);
+			false;
+		} catch (e:Dynamic) true;
+		check("transform: built without the text, as parse reads it; a wrong count an error", near(built, m)
+			&& new Transform(["translateX"], [[5]]).toMatrix(1, 1)[4] == 5 && counted, "" + built);
 		var inv = Transform.invert(m);
 		check("transform: inverted", inv != null && near(Transform.multiply(m, inv), [1, 0, 0, 1, 0, 0]));
 		var o = Transform.origin("left top");
