@@ -279,7 +279,7 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.DOWN, 0);
 		ui.keyDown(Key.DOWN, 0);
 		ui.update();
-		check("number field: a fractional step, as many decimals", price.value == 0.75 && p.text == "0.75", p.text);
+		check("number field: a fractional step", price.value == 0.75 && p.text == "0.75", p.text);
 		p.select(0, p.text.length);
 		ui.textInput("-3");
 		ui.setFocus(field);
@@ -288,6 +288,15 @@ class MarkupTest implements Markup {
 		var t = ui.accessTree(), an = t.nodes.get(t.focus);
 		check("number field: a spin button to assistive technology", an.role == SpinButton && an.valueNow == 9 && an.valueMin == 0 && an.valueMax == 10
 			&& an.value == "9" && an.editable() && an.name == "Quantity", an.role + " " + an.valueNow + " " + an.value);
+		ui.setFocus(field);
+		field.select(0, field.text.length);
+		ui.textInput("2.5");
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("number field: a value off the steps shown as it is", qty.value == 2.5 && field.text == "2.5", field.text);
+		ui.keyDown(Key.UP, 0);
+		ui.update();
+		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
 	}
 
 	static function popovers() {

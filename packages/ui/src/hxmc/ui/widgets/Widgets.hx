@@ -924,8 +924,8 @@ class Widgets implements Markup {
 		</Popover>;
 	}
 
-	// a number field bound to a signal: its value as text (format; else
-	// with as many decimals as step has). Typed in, the value follows what
+	// a number field bound to a signal: its value as text (format; else as
+	// it is, steps' rounding errors left out). Typed in, the value follows what
 	// parses; Enter or the focus leaving puts it within min and max and
 	// shows it formatted. Up and Down, or the buttons beside it, step it
 	// (Page Up and Page Down: ten steps). A spin button to assistive
@@ -934,7 +934,7 @@ class Widgets implements Markup {
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
 		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
-		var format = props.format ?? decimals(step);
+		var format = props.format ?? plain;
 		var editing = false;
 		var f = new TextField(format(props.value.peek()));
 		f.tag = tag;
@@ -1001,18 +1001,10 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// (a number with as many decimals as step has: 0.25 -> two)
-	static function decimals(step:Float):Float->String {
-		var d = 0, x = Math.abs(step);
-		while (d < 10 && Math.abs(x - Math.fround(x)) > 1e-9) {
-			x *= 10;
-			d++;
-		}
-		var k = Math.pow(10, d);
-		return v -> {
-			var s = Std.string(Math.fround(v * k) / k);
-			StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
-		};
+	// (a number as it is, to ten decimals: 0.1 + 0.2 shown as 0.3)
+	static function plain(v:Float):String {
+		var s = Std.string(Math.fround(v * 1e10) / 1e10);
+		return StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
 	}
 
 	// a text area bound to a signal (two ways), rows lines high (3)
