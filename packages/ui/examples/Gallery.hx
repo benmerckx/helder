@@ -136,7 +136,7 @@ class Gallery implements Markup {
 			</view>)}
 			{section("POPUPS", <view direction="row" column-gap={12} align-items="center">
 				<Select tag="fruit" value={fruit} options={["Apple", "Pear", "Plum"]} label="Fruit" width={110}/>
-				<Menu tag="file" label="File" items={[
+				<DropdownMenu tag="file" label="File" items={[
 					{label: "New", onSelect: () -> chosen.value = "New"},
 					{label: "Open…", onSelect: () -> chosen.value = "Open"},
 					{label: "Rename…", onSelect: () -> dialog.value = true}

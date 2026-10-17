@@ -118,7 +118,7 @@ class Rules {
 				if (r.style.color != null) placeholder = r.style.color;
 			} else scratch.set(r.style);
 		}
-		resolveColors(scratch, tokens, CURRENT);
+		resolveColors(scratch, tokens, CURRENT, dark);
 		var names = [], values:Array<Dynamic> = [], current = false;
 		for (name in StyleFields.NAMES) {
 			var v = StyleFields.get(scratch, name);
@@ -128,7 +128,7 @@ class Rules {
 			if (usesCurrent(v)) current = true;
 		}
 		if (placeholder != null) {
-			placeholder = resolve(placeholder, tokens, CURRENT);
+			placeholder = resolve(placeholder, tokens, CURRENT, dark);
 			if (placeholder.isToken) current = true;
 		}
 		m = {names: names, values: values, placeholder: placeholder, current: current};
@@ -184,27 +184,31 @@ class Rules {
 	}
 
 	// a token reference as the sheet's colour (its alpha times the reference's;
-	// "currentColor" as current; a name the sheet lacks: transparent), else the colour itself
-	public static function resolve(c:Color, tokens:Null<Map<String, Color>>, current:Color):Color {
+	// "currentColor" as current; Canvas and CanvasText, where the sheet has
+	// none, as Chromium's, light or dark; another name the sheet lacks:
+	// transparent), else the colour itself
+	public static function resolve(c:Color, tokens:Null<Map<String, Color>>, current:Color, dark = false):Color {
 		if (!c.isToken) return c;
 		var name = c.tokenName();
 		if (name == "currentcolor") return current.isToken ? c : current.fade(c.tokenAlpha());
 		var v = tokens == null ? null : tokens.get(name);
+		if (v == null && name == "canvas") v = dark ? Color.rgb(0x121212) : Color.WHITE;
+		if (v == null && name == "canvastext") v = dark ? Color.WHITE : Color.BLACK;
 		return v == null ? Color.TRANSPARENT : v.fade(c.tokenAlpha());
 	}
 
 	// (the colours a rule can give, tokens resolved: background, text, border, outline, decoration, shadows')
-	static function resolveColors(s:Style, tokens:Null<Map<String, Color>>, current:Color) {
-		s.background = resolve(s.background, tokens, current);
-		s.borderColor = resolve(s.borderColor, tokens, current);
-		if (s.color != null) s.color = resolve(s.color, tokens, current);
-		if (s.outlineColor != null) s.outlineColor = resolve(s.outlineColor, tokens, current);
-		if (s.textDecorationColor != null) s.textDecorationColor = resolve(s.textDecorationColor, tokens, current);
-		if (s.shadow != null) s.shadow = resolveShadow(s.shadow, tokens, current);
-		if (s.textShadow != null) s.textShadow = resolveShadow(s.textShadow, tokens, current);
+	static function resolveColors(s:Style, tokens:Null<Map<String, Color>>, current:Color, dark:Bool) {
+		s.background = resolve(s.background, tokens, current, dark);
+		s.borderColor = resolve(s.borderColor, tokens, current, dark);
+		if (s.color != null) s.color = resolve(s.color, tokens, current, dark);
+		if (s.outlineColor != null) s.outlineColor = resolve(s.outlineColor, tokens, current, dark);
+		if (s.textDecorationColor != null) s.textDecorationColor = resolve(s.textDecorationColor, tokens, current, dark);
+		if (s.shadow != null) s.shadow = resolveShadow(s.shadow, tokens, current, dark);
+		if (s.textShadow != null) s.textShadow = resolveShadow(s.textShadow, tokens, current, dark);
 	}
 
-	static function resolveShadow(sh:Shadow, tokens:Null<Map<String, Color>>, current:Color):Shadow {
+	static function resolveShadow(sh:Shadow, tokens:Null<Map<String, Color>>, current:Color, dark = false):Shadow {
 		if (sh == Shadow.NONE) return sh;
 		var first:Null<Shadow> = null, last:Null<Shadow> = null, s:Null<Shadow> = sh;
 		while (s != null) {
@@ -213,7 +217,7 @@ class Rules {
 				y: s.y,
 				blur: s.blur,
 				spread: s.spread,
-				color: resolve(s.color, tokens, current),
+				color: resolve(s.color, tokens, current, dark),
 				inset: s.inset,
 				currentColor: s.currentColor
 			};

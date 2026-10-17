@@ -334,7 +334,7 @@ style (an attribute in markup) wins over the theme's.
 ## Popups
 
 Popups are layers over the tree, so a parent's clipping does not cut them.
-`Select`, `Menu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
+`Select`, `DropdownMenu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
 puts any content in one while `open` is true (its `at` places it at a point). A modal dialog keeps the
 focus inside, and Escape or a press outside asks it to close:
 
@@ -412,7 +412,7 @@ the menu is mounted.
 static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 	return <view row-gap={8}>
 		<Hotkey keys="Mod+S" action={props.onSave}/>
-		<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
+		<DropdownMenu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
 		<Textarea value={props.text}/>
 	</view>;
 ```

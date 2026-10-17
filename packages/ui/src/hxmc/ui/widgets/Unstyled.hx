@@ -19,6 +19,7 @@ class Unstyled {
 
 	static function rules():Array<Rule> {
 		var line = Color.parse("currentColor"), faint = Color.parse("currentColor/30"), half = Color.parse("currentColor/50");
+		var canvas = Color.parse("Canvas"), canvasText = Color.parse("CanvasText");
 		return [
 			{slot: "button", style: {direction: Row, alignItems: Center, justify: Center, columnGap: 6, padding: [4, 10], borderWidth: 1, borderColor: line, cursor: Pointer}},
 			{slot: "button", size: "sm", style: {padding: [2, 8]}},
@@ -40,7 +41,8 @@ class Unstyled {
 			{slot: "switch", style: {width: 32, height: 18, padding: 1, borderWidth: 1, borderColor: line, direction: Row, alignItems: Center, cursor: Pointer}},
 			{slot: "switch", when: ["disabled"], style: {opacity: 0.5, cursor: Default}},
 			{slot: "switch-thumb", style: {width: 14, height: 14, radius: 7, background: half}},
-			{slot: "switch-thumb", when: ["data-state=checked"], style: {background: line, transform: Transform.parse("translateX(14px)")}},
+			{slot: "switch", when: ["data-state=checked"], style: {justify: End}},
+			{slot: "switch-thumb", when: ["data-state=checked"], style: {background: line}},
 			{slot: "label", when: ["disabled"], style: {opacity: 0.5}},
 			{slot: "card", style: {direction: Column, rowGap: 12, padding: 12, borderWidth: 1, borderColor: faint}},
 			{slot: "card-header", style: {direction: Column, rowGap: 4}},
@@ -71,7 +73,36 @@ class Unstyled {
 			{slot: "alert", style: {direction: Column, rowGap: 2, padding: [8, 12], borderWidth: 1, borderColor: faint}},
 			{slot: "alert", variant: "destructive", style: {borderColor: line}},
 			{slot: "alert-title", style: {fontWeight: 500}},
-			{slot: "alert-description", style: {opacity: 0.8}}
+			{slot: "alert-description", style: {opacity: 0.8}},
+			{slot: "select-trigger", style: {direction: Row, alignItems: Center, justify: SpaceBetween, columnGap: 8, padding: [4, 8], borderWidth: 1, borderColor: line, cursor: Pointer}},
+			{slot: "select-content", style: {padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "select-item", style: {direction: Row, alignItems: Center, padding: [4, 28, 4, 8], cursor: Pointer}},
+			{slot: "select-item", when: ["focus"], style: {background: faint}},
+			{slot: "select-item-indicator", style: {position: Absolute, right: 8, alignItems: Center, justify: Center}},
+			{slot: "dropdown-menu-content", style: {minWidth: 128, padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "dropdown-menu-item", style: {direction: Row, alignItems: Center, justify: SpaceBetween, columnGap: 24, padding: [4, 8], cursor: Pointer}},
+			{slot: "dropdown-menu-item", when: ["focus"], style: {background: faint}},
+			{slot: "dropdown-menu-shortcut", style: {opacity: 0.6}},
+			{slot: "context-menu-content", style: {minWidth: 128, padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "context-menu-item", style: {direction: Row, alignItems: Center, justify: SpaceBetween, columnGap: 24, padding: [4, 8], cursor: Pointer}},
+			{slot: "context-menu-item", when: ["focus"], style: {background: faint}},
+			{slot: "context-menu-shortcut", style: {opacity: 0.6}},
+			{slot: "menubar-content", style: {minWidth: 128, padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "menubar-item", style: {direction: Row, alignItems: Center, justify: SpaceBetween, columnGap: 24, padding: [4, 8], cursor: Pointer}},
+			{slot: "menubar-item", when: ["focus"], style: {background: faint}},
+			{slot: "menubar-shortcut", style: {opacity: 0.6}},
+			{slot: "menubar", style: {direction: Row, columnGap: 2}},
+			{slot: "menubar-trigger", style: {padding: [2, 8], cursor: Pointer}},
+			{slot: "menubar-trigger", when: ["data-state=open"], style: {background: faint}},
+			{slot: "tooltip-content", style: {padding: [2, 6], background: canvasText, color: canvas, fontSize: 12}},
+			{slot: "dialog-overlay", style: {background: Color.rgba(0x000000, 0.5)}},
+			{slot: "dialog-content", style: {direction: Column, rowGap: 12, padding: 16, borderWidth: 1, borderColor: canvasText, background: canvas, color: canvasText}},
+			{slot: "dialog-header", style: {direction: Column, rowGap: 4}},
+			{slot: "dialog-title", style: {fontWeight: 600}},
+			{slot: "dialog-description", style: {opacity: 0.7}},
+			{slot: "dialog-footer", style: {direction: Row, justify: End, columnGap: 8}},
+			{slot: "dialog-close", style: {position: Absolute, top: 12, right: 12, padding: 2, cursor: Pointer, opacity: 0.7}},
+			{slot: "dialog-close", when: ["hover"], style: {opacity: 1}}
 		];
 	}
 }

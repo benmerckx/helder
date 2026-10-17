@@ -31,6 +31,8 @@ class Widgets implements Markup {
 	// (a check mark and a dash, lucide's: drawn in the text's colour)
 	static final CHECK = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>');
 	static final CIRCLE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>');
+	static final CHEVRON = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
+	static final X = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>');
 	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
@@ -981,8 +983,13 @@ class Widgets implements Markup {
 	// the option) on a button; a click, Enter or Space opens the options
 	// under it, the chosen one focused; Up and Down move through them, a
 	// click, Enter or Space chooses, Escape, Tab or a click outside closes.
-	// On the closed button Up and Down choose the previous or next option.
+	// On the closed button Up and Down choose the previous or next option;
+	// the pointer over an option focuses it. Slots (shadcn's)
+	// "select-trigger" (data-state "open" or "closed"), "select-value",
+	// "select-content", "select-item" (data-state "checked" or "unchecked")
+	// and "select-item-indicator" (shown when checked)
 	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "select", w = props.width ?? 160.0;
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -1001,9 +1008,8 @@ class Widgets implements Markup {
 			if (i >= 0 && i < props.options.length) props.value.value = props.options[i];
 		}
 		var typed = new TypeAhead(), shown = [for (i in 0...props.options.length) props.labels != null ? props.labels[i] : props.options[i]];
-		return <view tag={tag} role="combobox" label={props.label} expanded={() -> open.value} focusable cursor="pointer" direction="row" align-items="center"
-			justify="space-between" column-gap={8} width={w} padding="6 10" radius={6} border-width={1} border-color={() -> t().border} background={() -> t().control}
-			onClick={_ -> open.value = !open.value}
+		return <view tag={tag} slot="select-trigger" role="combobox" label={props.label} expanded={() -> open.value}
+			data-state={() -> open.value ? "open" : "closed"} focusable width={w} onClick={_ -> open.value = !open.value}
 			onKeyDown={e -> switch e.key {
 				case Key.ENTER | Key.SPACE:
 					open.value = true;
@@ -1022,16 +1028,14 @@ class Widgets implements Markup {
 						e.stop();
 					}
 			}}>
-			{() -> labelOf(props.value.value)}
-			<text color={() -> t().muted} hidden>▾</text>
+			<text slot="select-value">{() -> labelOf(props.value.value)}</text>
+			<image src={CHEVRON} width={16} height={16} opacity={0.5} hidden/>
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusItem(props.options.indexOf(props.value.peek()))}>
-				<view tag={tag + "-list"} role="listbox" label={props.label} min-width={w} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
-					background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
+				<view tag={tag + "-list"} slot="select-content" data-state="open" role="listbox" label={props.label} min-width={w}>{[
 					for (i in 0...props.options.length) {
-						var o = props.options[i], hover = signal(false);
-						<view tag={tag + "-" + o} role="option" selected={() -> props.value.value == o} ref={n -> items[i] = n} focusable cursor="pointer" padding="5 8"
-							radius={4} background={() -> props.value.value == o ? t().itemSelected : hover.value ? t().itemHover : Theme.clear(t().control)}
-							onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false} onClick={_ -> choose(o)}
+						var o = props.options[i], state = () -> props.value.value == o ? "checked" : "unchecked";
+						<view tag={tag + "-" + o} slot="select-item" data-state={state} role="option" selected={() -> props.value.value == o} ref={n -> items[i] = n}
+							focusable onPointerEnter={_ -> focusItem(i)} onClick={_ -> choose(o)}
 							onKeyDown={e -> switch e.key {
 								case Key.DOWN:
 									focusItem(i + 1);
@@ -1051,6 +1055,9 @@ class Widgets implements Markup {
 									}
 							}}>
 							{props.labels != null ? props.labels[i] : o}
+							<view slot="select-item-indicator" display={() -> state() == "checked" ? "flex" : "none"}>
+								<image src={CHECK} width={14} height={14}/>
+							</view>
 						</view>;
 					}
 				]}</view>
@@ -1266,26 +1273,31 @@ class Widgets implements Markup {
 			}}>{props.children}</view>;
 	}
 
-	// a menu button: label; a click, Enter, Space or Down opens its items
-	// under it (the first focused), each a label and what choosing it does
-	// (and a shortcut: shown, and choosing it from anywhere in the window);
-	// Up and Down move through them, a click, Enter or Space chooses (and
-	// closes), Escape, Tab or a click outside closes
-	public static function Menu(props:{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?tag:String}):View {
+	// a dropdown menu (shadcn's): a button, label; a click, Enter, Space or
+	// Down opens its items under it (the first focused), each a label and
+	// what choosing it does (and a shortcut: shown, and choosing it from
+	// anywhere in the window); Up and Down move through them, the pointer
+	// over one focuses it, a click, Enter or Space chooses (and closes),
+	// Escape, Tab or a click outside closes. The button a "button" of
+	// variant (default "outline"), data-state "open" or "closed"; slots
+	// "dropdown-menu-content", "dropdown-menu-item" and "dropdown-menu-shortcut"
+	public static function DropdownMenu(props:{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?variant:String,
+			?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
-		return <view tag={tag} role="button" expanded={() -> open.value} focusable cursor="pointer" padding="6 14" radius={6} border-width={1}
-			border-color={() -> t().border} background={() -> t().control} direction="row" column-gap={6} onClick={_ -> open.value = !open.value}
+		return <view tag={tag} slot="button" variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
+			data-state={() -> open.value ? "open" : "closed"} focusable onClick={_ -> open.value = !open.value}
 			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE || e.key == Key.DOWN) {
 				open.value = true;
 				e.stop();
 			}}>
 			{props.label}
-			<text color={() -> t().muted} hidden>▾</text>
+			<image src={CHEVRON} width={16} height={16} opacity={0.5} hidden/>
 			{hotkeys(props.items, false)}
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
-				{menuItems(tag, props.label, props.items, open, items)}
+				{menuItems("dropdown-menu", tag, props.label, props.items, open, items)}
 			</Popover>
 		</view>;
 	}
@@ -1296,9 +1308,12 @@ class Widgets implements Markup {
 	// between the titles the way they point (from an open menu: the next one
 	// opened, wrapping);
 	// Escape closes it, the focus back on its title. One stop for Tab: the
-	// title last moved to. The items' shortcuts work from anywhere in the window.
+	// title last moved to. The items' shortcuts work from anywhere in the
+	// window. Slots (shadcn's) "menubar", "menubar-trigger" (data-state
+	// "open" or "closed"), "menubar-content", "menubar-item", "menubar-shortcut"
 	public static function Menubar(props:{menus:Array<{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>}>, ?label:String,
 			?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "menubar", count = props.menus.length;
 		var opens = [for (m in props.menus) signal(false)], titles:Array<Node> = [], current = signal(0);
 		// (menu i open, the others closed; -1: none)
@@ -1317,20 +1332,18 @@ class Widgets implements Markup {
 			focusIn(titles, j);
 			if (open) show(j);
 		}
-		return <view tag={tag} role="menubar" label={props.label} direction="row" column-gap={2}>{[
+		return <view tag={tag} slot="menubar" role="menubar" label={props.label}>{[
 			for (i in 0...count) {
-				var m = props.menus[i], items:Array<Node> = [], hover = signal(false);
-				<view tag={tag + "-" + i} role="menuitem" ref={n -> titles[i] = n} expanded={() -> opens[i].value} focusable={() -> current.value == i}
-					cursor="pointer" onFocus={_ -> current.value = i} padding="4 10" radius={4}
-					background={() -> opens[i].value ? t().itemSelected : hover.value ? t().itemHover : Theme.clear(t().control)}
+				var m = props.menus[i], items:Array<Node> = [];
+				<view tag={tag + "-" + i} slot="menubar-trigger" role="menuitem" ref={n -> titles[i] = n} expanded={() -> opens[i].value}
+					data-state={() -> opens[i].value ? "open" : "closed"} focusable={() -> current.value == i} onFocus={_ -> current.value = i}
 					onPointerEnter={_ -> {
-						hover.value = true;
 						if (anyOpen() && !opens[i].peek()) {
 							current.value = i;
 							focusIn(titles, i);
 							show(i);
 						}
-					}} onPointerLeave={_ -> hover.value = false} onClick={_ -> show(opens[i].peek() ? -1 : i)}
+					}} onClick={_ -> show(opens[i].peek() ? -1 : i)}
 					onKeyDown={e -> switch e.key {
 						case Key.LEFT | Key.RIGHT:
 							step(i, e.key == Key.RIGHT, false);
@@ -1346,7 +1359,7 @@ class Widgets implements Markup {
 						<view onKeyDown={e -> if (e.key == Key.LEFT || e.key == Key.RIGHT) {
 							step(i, e.key == Key.RIGHT, true);
 							e.stop();
-						}}>{menuItems(tag + "-" + i, m.label, m.items, opens[i], items)}</view>
+						}}>{menuItems("menubar", tag + "-" + i, m.label, m.items, opens[i], items)}</view>
 					</Popover>
 				</view>;
 			}
@@ -1357,8 +1370,10 @@ class Widgets implements Markup {
 	// click on them where it was pressed, or by the menu key or Shift+F10
 	// when the focus is in them (at their top left, the first item focused);
 	// a press elsewhere, Escape or Tab closes it. The items' shortcuts work
-	// while the focus is in the children.
+	// while the focus is in the children. Slots (shadcn's)
+	// "context-menu-content", "context-menu-item", "context-menu-shortcut"
 	public static function ContextMenu(props:{items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?label:String, ?tag:String, ?children:Any}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "context-menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -1384,7 +1399,7 @@ class Widgets implements Markup {
 			{props.children}
 			{hotkeys(props.items, true)}
 			<Popover open={open} at={() -> {x: atX, y: atY}} onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
-				{menuItems(tag, props.label, props.items, open, items)}
+				{menuItems("context-menu", tag, props.label, props.items, open, items)}
 			</Popover>
 		</view>;
 	}
@@ -1502,22 +1517,21 @@ class Widgets implements Markup {
 		if (i >= 0 && i < nodes.length && nodes[i].ui != null) nodes[i].ui.setFocus(nodes[i]);
 
 	// a menu's panel of items (their nodes into nodes): Up and Down move
-	// through them, letters typed to the one they start, a click, Enter or
-	// Space chooses one (and sets open to false), Tab closes
-	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, open:Signal<Bool>, nodes:Array<Node>):View {
+	// through them, letters typed to the one they start, the pointer over
+	// one focuses it, a click, Enter or Space chooses one (and sets open to
+	// false), Tab closes. Slots: kind, "-content", "-item", "-shortcut"
+	static function menuItems(kind:String, tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>,
+			open:Signal<Bool>, nodes:Array<Node>):View {
 		var typed = new TypeAhead(), labels = [for (it in list) it.label];
-		return <view tag={tag + "-items"} role="menu" label={label} min-width={140} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
-			background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
+		return <view tag={tag + "-items"} slot={kind + "-content"} data-state="open" role="menu" label={label}>{[
 			for (i in 0...list.length) {
-				var it = list[i], hover = signal(false);
+				var it = list[i];
 				function choose() {
 					open.value = false;
 					it.onSelect();
 				}
-				<view tag={tag + "-" + i} role="menuitem" ref={n -> nodes[i] = n} focusable cursor="pointer" padding="5 8" radius={4} direction="row"
-					justify="space-between" column-gap={24}
-					background={() -> hover.value ? t().itemHover : Theme.clear(t().control)} onPointerEnter={_ -> hover.value = true}
-					onPointerLeave={_ -> hover.value = false} onClick={_ -> choose()}
+				<view tag={tag + "-" + i} slot={kind + "-item"} role="menuitem" ref={n -> nodes[i] = n} focusable onPointerEnter={_ -> focusIn(nodes, i)}
+					onClick={_ -> choose()}
 					onKeyDown={e -> switch e.key {
 						case Key.DOWN:
 							focusIn(nodes, i + 1);
@@ -1537,7 +1551,7 @@ class Widgets implements Markup {
 							}
 					}}>
 					{it.label}
-					{it.shortcut == null ? null : <text color={() -> t().muted}>{Shortcut.parse(it.shortcut).label()}</text>}
+					{it.shortcut == null ? null : <text slot={kind + "-shortcut"}>{Shortcut.parse(it.shortcut).label()}</text>}
 				</view>;
 			}
 		]}</view>;
@@ -1545,8 +1559,9 @@ class Widgets implements Markup {
 
 	// a tooltip: text shown by the children (above them) once the pointer
 	// has rested on them for delay seconds (0.5), hidden when it leaves or
-	// presses, or by Escape
+	// presses, or by Escape (slot "tooltip-content", shadcn's)
 	public static function Tooltip(props:{text:String, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
+		Unstyled.install();
 		var show = signal(false), over = 0;
 		var delay = props.delay ?? 0.5;
 		function enter() {
@@ -1569,27 +1584,45 @@ class Widgets implements Markup {
 			onFocusIn={e -> if (e.current.ui != null && e.current.ui.focusVisible) enter()} onFocusOut={_ -> leave()}>
 			{props.children}
 			<Popover open={show} placement={props.placement ?? "above"} tag="tooltip" onDismiss={leave}>
-				<view role="tooltip" padding="4 8" radius={4} background={() -> t().tooltip} color={() -> t().onTooltip} font-size={12}>{props.text}</view>
+				<view slot="tooltip-content" data-state="open" role="tooltip">{props.text}</view>
 			</Popover>
 		</view>;
 	}
 
-	// a modal dialog while open is true: title and the children on a panel
-	// over the dimmed window, its first focusable node focused; Escape or a
-	// click on the backdrop closes it (open set to false)
-	public static function Dialog(props:{open:Signal<Bool>, title:String, ?width:Float, ?tag:String, ?children:Any}):Any
+	// a modal dialog (shadcn's) while open is true: its title and
+	// description, then the children, on a panel over the dimmed window,
+	// its first focusable node focused, a close button (an ×, last; close:
+	// false, none); Escape, the close button or a click on the backdrop
+	// closes it (open set to false). Slots "dialog-overlay", "dialog-content",
+	// "dialog-header", "dialog-title", "dialog-description", "dialog-close";
+	// DialogFooter's "dialog-footer"
+	public static function Dialog(props:{open:Signal<Bool>, title:String, ?description:String, ?width:Float, ?close:Bool, ?tag:String,
+			?children:Any}):Any {
+		Unstyled.install();
+		var close = () -> props.open.value = false;
 		return Popover({
 			open: props.open,
 			modal: true,
-			backdrop: Color.rgba(0x000000, 0.4),
-			onDismiss: () -> props.open.value = false,
+			slot: "dialog-overlay",
+			onDismiss: close,
 			tag: props.tag ?? "dialog",
-			children: <view role="dialog" label={props.title} width={props.width ?? 360} padding={20} row-gap={12} radius={10} background={() -> t().control}
-				color={() -> t().text} shadow="0 10 30 #00000040">
-				<text font-size={17} font-weight={600}>{props.title}</text>
+			children: <view slot="dialog-content" data-state="open" role="dialog" label={props.title} width={props.width ?? 360}>
+				<view slot="dialog-header">
+					<text slot="dialog-title" role="heading">{props.title}</text>
+					{props.description == null ? null : <text slot="dialog-description">{props.description}</text>}
+				</view>
 				{props.children}
+				{props.close == false ? null : <view tag={(props.tag ?? "dialog") + "-close"} slot="dialog-close" role="button" label="Close" focusable
+					onClick={_ -> close()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
+						e.preventDefault();
+						close();
+					}}><image src={X} width={16} height={16}/></view>}
 			</view>
 		});
+	}
+
+	public static function DialogFooter(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "dialog-footer"} slot="dialog-footer">{props.children}</view>;
 
 	// a combobox: a text field bound to value (two ways) whose typing
 	// filters options (those containing the text, in either case; options

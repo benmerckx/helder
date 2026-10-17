@@ -16,9 +16,9 @@ class UiFlow {
 	// it in), placed by placement ("below", "above", "right", "left",
 	// "center"; gap pixels away), modal or not; onDismiss when a click
 	// outside or Escape asks it to close; onOpen once it is open (to move
-	// the focus into it); a modal one's backdrop its colour. Its content is
-	// rendered once, kept while closed.
-	public static function Popover(props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color,
+	// the focus into it); a modal one's backdrop its colour; the popup's
+	// slot for a theme (Node.slot). Its content is rendered once, kept while closed.
+	public static function Popover(props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color, ?slot:String,
 			?onDismiss:Void->Void, ?onOpen:hxmc.ui.Popup->Void, ?at:Void->{x:Float, y:Float}, ?tag:String, ?children:Any}):Any
 		return new PopoverMount(props);
 
@@ -40,7 +40,7 @@ class UiFlow {
 // Popover: a hidden marker where the markup puts it; the popup opened in
 // the marker's Ui while open is true
 class PopoverMount implements Mountable<Node> {
-	final props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color, ?onDismiss:Void->Void,
+	final props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color, ?slot:String, ?onDismiss:Void->Void,
 		?onOpen:hxmc.ui.Popup->Void, ?at:Void->{x:Float, y:Float}, ?tag:String, ?children:Any};
 
 	public function new(props)
@@ -56,6 +56,7 @@ class PopoverMount implements Mountable<Node> {
 		if (props.gap != null) p.gap = props.gap;
 		p.modal = props.modal == true;
 		if (props.backdrop != null) p.style.background = props.backdrop;
+		if (props.slot != null) p.slot = props.slot;
 		p.onDismiss = props.onDismiss;
 		p.anchor = props.anchor != null ? props.anchor : parent;
 		Render.insert(props.children, p, null);

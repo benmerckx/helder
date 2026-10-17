@@ -221,7 +221,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   reordered by dragging, a line where the item will go, or by Alt+Up and
   Alt+Down), `ColorPicker` (a
   saturation and brightness square, a hue strip and the hex: sliders for
-  the keyboard), and the popups `Select`, `Menu`,
+  the keyboard), and the popups `Select`, `DropdownMenu`,
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
   through by Left and Right, one open at a time), `Tooltip`, `Dialog`, `Combobox` (a text
   field whose typing filters options under it; the focus stays in the

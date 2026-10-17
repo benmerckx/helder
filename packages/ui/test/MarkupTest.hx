@@ -27,7 +27,7 @@ import hxmc.ui.widgets.Widgets.Disclosure;
 import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
-import hxmc.ui.widgets.Widgets.Menu;
+import hxmc.ui.widgets.Widgets.DropdownMenu;
 import hxmc.ui.widgets.Widgets.SegmentedControl;
 import hxmc.ui.widgets.Widgets.Breadcrumbs;
 import hxmc.ui.widgets.Widgets.Pagination;
@@ -56,6 +56,7 @@ import hxmc.ui.widgets.Widgets.DatePicker;
 import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
+import hxmc.ui.widgets.Widgets.DialogFooter;
 
 // Markup rendered into hxmc.ui's nodes (hxmc.view on NodeRenderer), on Eval
 // (make ui-check runs it after UiTest; hxmc.view's own tests are
@@ -99,6 +100,7 @@ class MarkupTest implements Markup {
 		tagInput();
 		unstyled();
 		unstyledMore();
+		unstyledPopups();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -771,7 +773,7 @@ class MarkupTest implements Markup {
 		var t = 50.0;
 		Ui.now = () -> t;
 		Render.render(<view padding={10} row-gap={10} align-items="start"><Select tag="f" value={fruit} options={["Apple", "Banana", "Blueberry", "Cherry"]}/>
-			<Menu tag="m" label="Edit" items={[{label: "Copy", onSelect: () -> chosen.push("copy")}, {label: "Cut", onSelect: () -> chosen.push("cut")},
+			<DropdownMenu tag="m" label="Edit" items={[{label: "Copy", onSelect: () -> chosen.push("copy")}, {label: "Cut", onSelect: () -> chosen.push("cut")},
 				{label: "Paste", onSelect: () -> chosen.push("paste")}]}/></view>, ui.root);
 		ui.update();
 		function type(c:String) {
@@ -1012,7 +1014,7 @@ class MarkupTest implements Markup {
 		var fruit = signal("pear"), log = [], dialog = signal(false), field = signal("");
 		Render.render(<view padding={10} row-gap={10} align-items="start">
 			<Select tag="fruit" value={fruit} options={["apple", "pear", "plum"]} label="Fruit"/>
-			<Menu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open"), shortcut: "Mod+O"}]}/>
+			<DropdownMenu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open"), shortcut: "Mod+O"}]}/>
 			<Tooltip text="Saves the file" tag="tip"><text>Save</text></Tooltip>
 			<ContextMenu tag="ctx" items={[{label: "Cut", onSelect: () -> log.push("cut")}, {label: "Copy", onSelect: () -> log.push("copy"), shortcut: "Mod+C"}]}>
 				<view tag="area" focusable width={200} height={40}/>
@@ -1176,13 +1178,13 @@ class MarkupTest implements Markup {
 		check("unstyled: legible without a theme: outlines in the text's colour", b.style.borderWidth == 1 && b.style.borderColor == Color.BLACK
 			&& c.style.width.resolve(0) == 16 && c.style.borderWidth == 1 && s.style.borderWidth == 1);
 		// (states: data-state, the indicator shown when checked, the thumb moved)
-		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), thumb.style.transform == null ? "start" : "moved"];
+		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), s.style.justify == End ? "moved" : "start"];
 		click(c);
 		click(s);
 		click(t);
 		check("unstyled: data-state as Radix's, the checked state visible", before.join(",") == "unchecked,hidden,unchecked,start" && ticked.peek() && c.attr("data-state") == "checked"
 			&& indicator.style.display != None && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
-			&& thumb.style.transform != null && pressed.peek() && t.attr("data-state") == "on", before.join(","));
+			&& s.style.justify == End && pressed.peek() && t.attr("data-state") == "on", before.join(","));
 		mixed.value = true;
 		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator.attr("data-state") == "indeterminate");
 		// (disabled: data-disabled, no clicks, not focusable)
@@ -1248,6 +1250,58 @@ class MarkupTest implements Markup {
 		click(v);
 		check("unstyled: disabled radio group, slider and textarea", size.value == "S" && !m.focusable && m.attr("data-disabled") == ""
 			&& vol.value == before && !v.focusable && v.style.opacity == 0.5 && !ta.focusable && ta.attr("disabled") == "" && ta.style.opacity == 0.5);
+	}
+
+	static function unstyledPopups() {
+		var ui = new Ui(new MonoText(), 400, 400);
+		var fruit = signal("Pear"), open = signal(false), chosen = [];
+		Render.render(<view align-items="start" row-gap={4} padding={10}>
+			<Select tag="sel" value={fruit} options={["Apple", "Pear"]}/>
+			<DropdownMenu tag="m" label="Edit" items={[{label: "Copy", onSelect: () -> chosen.push("copy"), shortcut: "Mod+C"}, {label: "Cut", onSelect: () -> chosen.push("cut")}]}/>
+			<Dialog open={open} title="Rename" description="A new name"><DialogFooter><Button tag="ok" label="OK"/></DialogFooter></Dialog>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var sel = ui.root.find("sel"), m = ui.root.find("m");
+		check("unstyled: a select's trigger and value", sel.slot == "select-trigger" && sel.attr("data-state") == "closed" && sel.children[0].slot == "select-value"
+			&& sel.style.borderWidth == 1);
+		click(sel);
+		var list = ui.overlay.find("sel-list"), pear = ui.overlay.find("sel-Pear"), apple = ui.overlay.find("sel-Apple");
+		check("unstyled: a select's content and items, the chosen one's indicator shown, an opaque surface", sel.attr("data-state") == "open"
+			&& list.slot == "select-content" && pear.slot == "select-item" && pear.attr("data-state") == "checked" && apple.attr("data-state") == "unchecked"
+			&& pear.children[1].slot == "select-item-indicator" && pear.children[1].style.display != None && apple.children[1].style.display == None
+			&& list.style.background == Color.WHITE && ui.focus == pear);
+		ui.pointerMove(apple.absX + 4, apple.absY + 4);
+		ui.update();
+		check("unstyled: the pointer over an item focuses it, which the theme shows", ui.focus == apple && apple.style.background != Color.TRANSPARENT);
+		click(apple);
+		check("unstyled: an item chosen", fruit.value == "Apple" && sel.attr("data-state") == "closed");
+		check("unstyled: a dropdown menu's trigger an outline button", m.slot == "button" && m.variant == "outline" && m.attr("data-state") == "closed");
+		click(m);
+		var items = ui.overlay.find("m-items"), copy = ui.overlay.find("m-0");
+		check("unstyled: a dropdown menu's content, items and shortcut", m.attr("data-state") == "open" && items.slot == "dropdown-menu-content"
+			&& copy.slot == "dropdown-menu-item" && copy.children[1].slot == "dropdown-menu-shortcut" && ui.focus == copy);
+		click(copy);
+		check("unstyled: an item chosen, the menu closed", chosen.join(",") == "copy" && m.attr("data-state") == "closed");
+		open.value = true;
+		ui.update();
+		var close = ui.overlay.find("dialog-close"), content = close.parent;
+		check("unstyled: a dialog's overlay, content, header, title, description, footer and close", content.slot == "dialog-content"
+			&& content.parent.slot == "dialog-overlay" && content.children[0].slot == "dialog-header" && content.children[0].children[0].slot == "dialog-title"
+			&& content.children[0].children[1].slot == "dialog-description" && ui.overlay.find("dialog-footer").slot == "dialog-footer"
+			&& close.slot == "dialog-close" && content.parent.style.background != Color.TRANSPARENT && ui.focus == ui.overlay.find("ok"));
+		click(close);
+		check("unstyled: the close button closes it", !open.value && ui.overlay.find("dialog-close") == null);
+		ui.dark = true;
+		open.value = true;
+		ui.update();
+		check("unstyled: Canvas dark when the window is", ui.overlay.find("dialog-close").parent.style.background == Color.rgb(0x121212));
 	}
 
 	static function table() {

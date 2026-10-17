@@ -426,7 +426,7 @@ class GuideTest implements Markup {
 	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 		return <view row-gap={8}>
 			<Hotkey keys="Mod+S" action={props.onSave}/>
-			<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
+			<DropdownMenu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
 			<Textarea value={props.text}/>
 		</view>;
 

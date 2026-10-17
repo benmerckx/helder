@@ -8,7 +8,8 @@ package hxmc.ui;
 // is applied: drawn as it is, it is transparent (its alpha is 0; its other
 // bytes name the token and its alpha, so a transparent colour with any
 // other byte set is one); "currentColor" is one, the text's colour where
-// it is applied.
+// it is applied, and so are the system colours "Canvas" and "CanvasText"
+// (a sheet's colours of those names, else the browser's, light or dark).
 abstract Color(Int) from Int to Int {
 	public static inline var TRANSPARENT:Color = 0;
 	public static inline var BLACK:Color = 0xFF000000;
@@ -101,7 +102,8 @@ abstract Color(Int) from Int to Int {
 	// left out), rgb() and rgba() (numbers or percentages, commas or
 	// spaces, an alpha after a slash), hsl() and hsla(), oklch() and
 	// oklab() (to sRGB, clipped), the 148 names, transparent; a token
-	// reference, "var(--primary)" or "var(--ring)/50"; anything else throws
+	// reference, "var(--primary)" or "var(--ring)/50", "currentColor",
+	// "Canvas" or "CanvasText" (each with an alpha after a slash); anything else throws
 	public static function parse(s:String):Color {
 		var c = tryParse(s);
 		if (c == null) throw "Color.parse: " + s;
@@ -141,12 +143,13 @@ abstract Color(Int) from Int to Int {
 		}
 		var v = StringTools.trim(s).toLowerCase();
 		if (v == "transparent") return TRANSPARENT;
-		// (a token: var(--name), or the text's colour where a rule is applied, currentColor; an alpha percentage after a slash)
-		var current = StringTools.startsWith(v, "currentcolor");
-		if (current || StringTools.startsWith(v, "var(--")) {
-			var close = current ? 11 : v.indexOf(")");
+		// (a token: var(--name), or the text's colour where a rule is applied, currentColor, or a system colour; an alpha percentage after a slash)
+		var named = StringTools.startsWith(v, "currentcolor") ? "currentcolor" : StringTools.startsWith(v, "canvastext") ? "canvastext" : StringTools.startsWith(v,
+			"canvas") ? "canvas" : null;
+		if (named != null || StringTools.startsWith(v, "var(--")) {
+			var close = named != null ? named.length - 1 : v.indexOf(")");
 			if (close < 0) return null;
-			var name = current ? "currentcolor" : v.substring(6, close), rest = StringTools.trim(v.substr(close + 1)), alpha = 1.0;
+			var name = named ?? v.substring(6, close), rest = StringTools.trim(v.substr(close + 1)), alpha = 1.0;
 			if (rest != "") {
 				if (rest.charAt(0) != "/") return null;
 				var p = StringTools.trim(StringTools.replace(rest.substr(1), "%", ""));
