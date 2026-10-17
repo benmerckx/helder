@@ -100,6 +100,40 @@ class DrawParagraph implements Paragraph {
 	public function new(layout:TextLayout)
 		this.layout = layout;
 
+	public function runs(width:Float, align:TextAlign):Array<GlyphRun> {
+		var t = layout, out:Array<GlyphRun> = [], cur:Null<GlyphRun> = null, last = -1;
+		for (l in t.lines) {
+			var lx = switch align {
+				case Center: (width - l.width) / 2;
+				case Right: width - l.width;
+				case _: 0.0;
+			}
+			for (g in l.glyphs) {
+				if (g.hidden || g.cp == 10) continue;
+				var set = g.run < 0 ? t.fonts : t.runs[g.run].fonts, f = g.font;
+				if (cur == null || cur.font.id != f.id || cur.size != set.size || cur.span != g.run) {
+					cur = {
+						font: {family: f.family, weight: f.weight, italic: f.italic, data: f.data, id: f.id},
+						size: set.size,
+						glyphs: [],
+						x: [],
+						y: [],
+						text: [],
+						span: g.run
+					};
+					out.push(cur);
+				}
+				cur.glyphs.push(g.id);
+				cur.x.push(lx + g.x + g.dx);
+				cur.y.push(l.top + l.baseline + g.dy);
+				// (a cluster's characters on its first glyph)
+				cur.text.push(g.cluster == last ? "" : t.text.substr(g.cluster, g.length));
+				last = g.cluster;
+			}
+		}
+		return out;
+	}
+
 	inline function get_baseline()
 		return layout.lines.length == 0 ? layout.baseline : layout.lines[0].top + layout.lines[0].baseline;
 

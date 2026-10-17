@@ -17,6 +17,10 @@ interface Paragraph {
 	// what the characters start...end cover, line by line (top to bottom, left to right): a
 	// rectangle for each visual run (several on a line of mixed directions), its line's top
 	function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}>;
+	// its glyphs as drawn in width aligned by align, run by run (a face and a
+	// size, a span): what a document writer places and embeds (the GPU
+	// renderer draws from its own layout; a native platform's none)
+	function runs(width:Float, align:TextAlign):Array<GlyphRun>;
 	// the width of the line at y (its top to its bottom; past the last: the last's), to align it
 	function lineWidth(y:Float):Float;
 	// the lines a text decoration of the characters start...end draws (an

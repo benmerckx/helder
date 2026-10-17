@@ -44,6 +44,10 @@ class NativeParagraph implements Paragraph {
 	final lines:Int;
 	final min:Float;
 
+	// (the platform draws it: no glyphs of ours)
+	public function runs(width:Float, align:TextAlign):Array<GlyphRun>
+		return [];
+
 	public function new(w:Float, h:Float, lines:Int, min:Float) {
 		this.w = w;
 		this.h = h;
