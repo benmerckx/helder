@@ -7,8 +7,18 @@ import hxmc.view.Reactive.*;
 import hxmc.ui.access.*;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
+import hxmc.ui.widgets.Widgets.Switch as SwitchWidget;
+import hxmc.ui.widgets.Widgets.Toggle;
+import hxmc.ui.widgets.Widgets.Label;
+import hxmc.ui.widgets.Widgets.Badge;
+import hxmc.ui.widgets.Widgets.Card;
+import hxmc.ui.widgets.Widgets.CardHeader;
+import hxmc.ui.widgets.Widgets.CardTitle;
+import hxmc.ui.widgets.Widgets.CardDescription;
+import hxmc.ui.widgets.Widgets.CardContent;
+import hxmc.ui.widgets.Widgets.CardFooter;
 import hxmc.ui.widgets.Widgets.Slider;
-import hxmc.ui.widgets.Widgets.Field;
+import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.NumberField;
@@ -30,8 +40,14 @@ import hxmc.ui.widgets.Widgets.ColorPicker;
 import hxmc.ui.widgets.Widgets.Sortable;
 import hxmc.ui.widgets.Widgets.RangeSlider;
 import hxmc.ui.widgets.Widgets.Tabs;
-import hxmc.ui.widgets.Widgets.Radio;
+import hxmc.ui.widgets.Widgets.RadioGroup;
 import hxmc.ui.widgets.Widgets.Progress;
+import hxmc.ui.widgets.Widgets.Textarea;
+import hxmc.ui.widgets.Widgets.Separator;
+import hxmc.ui.widgets.Widgets.Skeleton;
+import hxmc.ui.widgets.Widgets.Alert;
+import hxmc.ui.widgets.Widgets.AlertTitle;
+import hxmc.ui.widgets.Widgets.AlertDescription;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Split;
@@ -81,6 +97,8 @@ class MarkupTest implements Markup {
 		toolbar();
 		navigation();
 		tagInput();
+		unstyled();
+		unstyledMore();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -260,7 +278,7 @@ class MarkupTest implements Markup {
 			<Slider tag="vol" value={vol} width={100} step={0.1}/>
 			<view tag="row" direction="row" column-gap={4}><view tag="a" width={40} height={20}/><view tag="b" width={30} height={20}/></view>
 			<text tag="words">Hello</text>
-			<Field tag="name" value={name}/>
+			<Input tag="name" value={name}/>
 		</view>, ui.root);
 		ui.update();
 		var a = ui.root.find("a"), b = ui.root.find("b"), words = ui.root.find("words");
@@ -730,7 +748,7 @@ class MarkupTest implements Markup {
 	static function password() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var pw = signal("hunter2");
-		Render.render(<view padding={10}><Field tag="pw" value={pw} password label="Password"/></view>, ui.root);
+		Render.render(<view padding={10}><Input tag="pw" value={pw} password label="Password"/></view>, ui.root);
 		ui.update();
 		var f:TextField = cast ui.root.find("pw");
 		var clip:hxmc.ui.ClipboardHost.MemoryClipboard = cast ui.clipboard;
@@ -847,7 +865,7 @@ class MarkupTest implements Markup {
 		check("tabs: right to left, Left to the next", selected.value == 2, "" + selected.value);
 		// a radio group: one stop, the arrows check the next
 		var ui2 = new Ui(new MonoText(), 400, 300), size = signal("");
-		Render.render(<view padding={10}><Button tag="b" label="B"/><Radio tag="r" value={size} options={["S", "M", "L"]}/><Button tag="c" label="C"/></view>, ui2.root);
+		Render.render(<view padding={10}><Button tag="b" label="B"/><RadioGroup tag="r" value={size} options={["S", "M", "L"]}/><Button tag="c" label="C"/></view>, ui2.root);
 		ui2.update();
 		ui2.setFocus(ui2.root.find("b"));
 		ui2.keyDown(Key.TAB, 0);
@@ -915,7 +933,7 @@ class MarkupTest implements Markup {
 	static function editMenus() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var text = signal("hello world");
-		Render.render(<view padding={10}><Field tag="note" value={text}/></view>, ui.root);
+		Render.render(<view padding={10}><Input tag="note" value={text}/></view>, ui.root);
 		ui.update();
 		var f:TextField = cast ui.root.find("note");
 		ui.setFocus(f);
@@ -999,7 +1017,7 @@ class MarkupTest implements Markup {
 			<ContextMenu tag="ctx" items={[{label: "Cut", onSelect: () -> log.push("cut")}, {label: "Copy", onSelect: () -> log.push("copy"), shortcut: "Mod+C"}]}>
 				<view tag="area" focusable width={200} height={40}/>
 			</ContextMenu>
-			<Dialog open={dialog} title="Rename"><Field tag="rename" value={field}/></Dialog>
+			<Dialog open={dialog} title="Rename"><Input tag="rename" value={field}/></Dialog>
 		</view>, ui.root);
 		ui.update();
 		function click(n:Node) {
@@ -1125,6 +1143,111 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("popover: Escape closes the dialog", !dialog.value && ui.overlay.children.length == 0);
+	}
+
+	// the unstyled widgets (Unstyled; a theme's looks: Rule): slots,
+	// variants, sizes and states for a theme; legible without one
+	static function unstyled() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var on = signal(false), pressed = signal(false), ticked = signal(false), mixed = signal(false), off = signal(false), clicks = 0;
+		Render.render(<view align-items="start" row-gap={4}>
+			<Button tag="b" label="Go" variant="destructive" size="sm" disabled={off} onClick={() -> clicks++}/>
+			<Toggle tag="t" pressed={pressed} label="Bold" variant="outline"/>
+			<Checkbox tag="c" checked={ticked} mixed={mixed} label="Agree"/>
+			<SwitchWidget tag="s" checked={on} label="Wi-Fi"/>
+			<Label text="Name"/>
+			<Badge label="New" variant="secondary"/>
+			<Card tag="card"><CardHeader><CardTitle text="Title"/><CardDescription text="More"/></CardHeader><CardContent><text>Body</text></CardContent><CardFooter><Button label="OK"/></CardFooter></Card>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var b = ui.root.find("b"), t = ui.root.find("t"), c = ui.root.find("c"), s = ui.root.find("s"), card = ui.root.find("card");
+		var thumb = s.children[0], indicator = c.children[0];
+		check("unstyled: slots, variants and sizes for a theme", b.slot == "button" && b.variant == "destructive" && b.size == "sm" && t.slot == "toggle"
+			&& c.slot == "checkbox" && indicator.slot == "checkbox-indicator" && s.slot == "switch" && thumb.slot == "switch-thumb" && card.slot == "card"
+			&& ui.root.find("card-header").slot == "card-header" && ui.root.find("card-title").slot == "card-title" && ui.root.find("badge").variant == "secondary"
+			&& ui.root.find("label").slot == "label");
+		check("unstyled: legible without a theme: outlines in the text's colour", b.style.borderWidth == 1 && b.style.borderColor == Color.BLACK
+			&& c.style.width.resolve(0) == 16 && c.style.borderWidth == 1 && s.style.borderWidth == 1);
+		// (states: data-state, the indicator shown when checked, the thumb moved)
+		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), thumb.style.transform == null ? "start" : "moved"];
+		click(c);
+		click(s);
+		click(t);
+		check("unstyled: data-state as Radix's, the checked state visible", before.join(",") == "unchecked,hidden,unchecked,start" && ticked.peek() && c.attr("data-state") == "checked"
+			&& indicator.style.display != None && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
+			&& thumb.style.transform != null && pressed.peek() && t.attr("data-state") == "on", before.join(","));
+		mixed.value = true;
+		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator.attr("data-state") == "indeterminate");
+		// (disabled: data-disabled, no clicks, not focusable)
+		click(b);
+		off.value = true;
+		click(b);
+		check("unstyled: disabled", clicks == 1 && b.attr("data-disabled") == "" && !b.focusable && b.style.opacity == 0.5);
+	}
+
+	static function unstyledMore() {
+		var ui = new Ui(new MonoText(), 400, 400);
+		var size = signal("M"), tab = signal(0), vol = signal(0.5), notes = signal(""), off = signal(false);
+		Render.render(<view align-items="start" row-gap={4}>
+			<RadioGroup tag="r" value={size} options={["S", "M"]} labels={["Small", "Medium"]} disabled={off}/>
+			<Tabs tag="tabs" labels={["One", "Two"]} selected={tab} render={i -> <text>{"Panel " + i}</text>}/>
+			<Slider tag="vol" value={vol} width={100} disabled={off}/>
+			<Progress tag="p" value={0.25} width={100}/>
+			<Separator tag="sep"/>
+			<Separator tag="vsep" orientation="vertical" decorative={false}/>
+			<Skeleton tag="sk" width={40} height={10}/>
+			<Alert tag="al" variant="destructive"><AlertTitle text="Heads up"/><AlertDescription text="Something happened"/></Alert>
+			<Textarea tag="ta" value={notes} disabled={off}/>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var s = ui.root.find("r-S"), m = ui.root.find("r-M"), t0 = ui.root.find("tabs-0"), t1 = ui.root.find("tabs-1"), v = ui.root.find("vol");
+		check("unstyled: a radio group's slots, data-state, its indicator shown when checked", ui.root.find("r").slot == "radio-group"
+			&& s.slot == "radio-group-item" && s.children[0].slot == "radio-group-indicator" && s.attr("data-state") == "unchecked"
+			&& m.attr("data-state") == "checked" && s.children[0].style.display == None && m.children[0].style.display != None
+			&& s.semantics.label == "Small" && s.style.radius == 8);
+		click(s.parent.children[1]);
+		check("unstyled: the radio's label checks it", size.value == "S" && s.attr("data-state") == "checked", size.value);
+		check("unstyled: tabs' slots, the active trigger's data-state", ui.root.find("tabs").slot == "tabs" && t0.parent.slot == "tabs-list"
+			&& t0.slot == "tabs-trigger" && t0.attr("data-state") == "active" && t1.attr("data-state") == "inactive"
+			&& ui.root.find("tabs").children[1].slot == "tabs-content" && t0.style.borders != null);
+		click(t1);
+		check("unstyled: a click on a trigger activates it", tab.value == 1 && t1.attr("data-state") == "active" && t0.attr("data-state") == "inactive");
+		var track = v.children[0];
+		check("unstyled: a slider's track, range and thumb", v.slot == "slider" && track.slot == "slider-track" && track.children[0].slot == "slider-range"
+			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 42, '${track.children[0].width}');
+		var p = ui.root.find("p");
+		check("unstyled: a progress bar's indicator", p.slot == "progress" && p.children[0].slot == "progress-indicator" && p.children[0].width == 25
+			&& p.style.height.resolve(0) == 8);
+		var sep = ui.root.find("sep"), vsep = ui.root.find("vsep");
+		check("unstyled: separators: a line across, data-orientation; decorative ones hidden", sep.slot == "separator" && sep.height == 1
+			&& sep.attr("data-orientation") == "horizontal" && vsep.style.width.resolve(0) == 1 && vsep.semantics.role == Separator
+			&& sep.semantics.hidden == true, '${sep.height}');
+		var al = ui.root.find("al");
+		check("unstyled: skeleton and alert", ui.root.find("sk").slot == "skeleton" && ui.root.find("sk").width == 40 && al.slot == "alert"
+			&& al.variant == "destructive" && ui.root.find("alert-title").slot == "alert-title" && al.style.borderColor == Color.BLACK);
+		var ta = ui.root.find("ta");
+		check("unstyled: a textarea", ta.slot == "textarea" && ta.style.borderWidth == 1 && ta.focusable);
+		off.value = true;
+		ui.update();
+		click(m.parent.children[1]);
+		var before = vol.value;
+		click(v);
+		check("unstyled: disabled radio group, slider and textarea", size.value == "S" && !m.focusable && m.attr("data-disabled") == ""
+			&& vol.value == before && !v.focusable && v.style.opacity == 0.5 && !ta.focusable && ta.attr("disabled") == "" && ta.style.opacity == 0.5);
 	}
 
 	static function table() {
@@ -1420,7 +1543,7 @@ class MarkupTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="check" checked={checked} label="Remember"/>
 			<Slider tag="vol" value={vol} step={0.1} label="Volume"/>
-			<Field tag="name" value={name} placeholder="Name"/>
+			<Input tag="name" value={name} placeholder="Name"/>
 			<view><text>nested</text><image label="a picture" src={new Image(4, 4)} width={4} height={4}/></view>
 		</view>, ui.root);
 		ui.update();
@@ -1698,6 +1821,16 @@ class MarkupTest implements Markup {
 			numeric.style.fontVariantNumeric = "tabular";
 			false;
 		} catch (e:Dynamic) true;
+		var slotted:Null<Node> = null, checkedNow = signal("checked");
+		Render.render(<view ref={n -> slotted = n} slot="button" variant="outline" size="sm" data-state={() -> checkedNow.value} data-disabled={true} aria-invalid="true"/>, ui.root);
+		var firstState = slotted.attr("data-state");
+		checkedNow.value = "unchecked";
+		check("render: slot, variant, size and data-/aria- attributes (reactive)", slotted.slot == "button" && slotted.variant == "outline" && slotted.size == "sm"
+			&& firstState == "checked" && slotted.attr("data-state") == "unchecked" && slotted.attr("data-disabled") == "" && slotted.attr("aria-invalid") == "true");
+		var pic:Null<Node> = null;
+		Render.render(<image ref={n -> pic = n} src={new Image(4, 4)} width={10} height={10} fit="contain" object-position="right 2px top"/>, ui.root);
+		var pn:ImageNode = cast pic;
+		check("render: an image's object-position", pn.positionX == 1 && pn.offsetX == -2 && pn.positionY == 0 && pn.offsetY == 0);
 		check("render: font-variant-numeric as features, font-feature-settings after them", numeric.font().features == "'tnum', 'zero', 'zero' 0" && badNumeric
 			&& hxmc.text.FontFeature.key(hxmc.text.FontFeature.parse(numeric.font().features)) == "tnum=1,zero=0", numeric.font().features);
 		check("render: font-feature-settings, inherited", inner.font().features == "'tnum', 'liga' 0" && plain.font().features == "" && badFeature

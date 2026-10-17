@@ -38,6 +38,8 @@ typedef StyleProps = {
 	?textDecoration:Int,
 	?textShadow:Shadow,
 	?textDecorationColor:Color,
+	?textDecorationThickness:Dim,
+	?textUnderlineOffset:Dim,
 	?backgroundImage:Gradient,
 	?transform:Transform,
 	?transformOrigin:Array<Dim>,

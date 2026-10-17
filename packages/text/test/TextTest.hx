@@ -20,7 +20,8 @@ import hxmc.text.*;
 //   with Inter calt by default (its arrows, ×), tnum, cv11, salt, dlig on,
 //   aalt's alternates: widths as Chromium measures them
 // - variations: a variable font's instances (var.ttf) against Chromium
-// - layout: widths, wrapping, hard breaks, caret and hit
+// - layout: widths, wrapping, hard breaks, caret and hit; decorations' rows
+//   (their thickness, an underline's offset) as Chromium draws them
 // - a sample of text rendered through the atlas against sample.png; with
 //   Inter (CFF outlines), against sample-cff.png
 //   (our own rasterizer: the same pixels on every machine with that font)
@@ -77,6 +78,14 @@ class TextTest {
 			}
 			check("decorations: " + c.face.family + " " + c.size + " as Chromium draws them", got.join(",") == c.rows.join(",") && l.decoration(0, 7, 0)[0].width == l.width, got.join(","));
 		}
+		// (thickness and an underline's offset asked for: Chromium's rows, DejaVu Sans at 20: kind, thickness, offset, top, rows)
+		var l = new TextLayout("Hamburg", new FontSet(sans, [], 20), 1.5, Math.NaN), got = [], want = [];
+		for (c in ([[0, 3, Math.NaN, 24, 3], [0, Math.NaN, 4, 26, 2], [0, 3, 4, 26, 3], [0, 1, 0, 22, 1], [1, 4, Math.NaN, 14, 4], [2, 3, Math.NaN, 0, 3], [0, 2.5, Math.NaN, 24, 3]] : Array<Array<Float>>)) {
+			var d = l.decoration(0, 7, Std.int(c[0]), 1, c[1], c[2])[0];
+			got.push(d.y + "+" + d.height);
+			want.push(c[3] + "+" + c[4]);
+		}
+		check("decorations: thickness and underline offset as Chromium draws them", got.join(",") == want.join(","), got.join(","));
 		var l = new TextLayout("Hamburg x ", new FontSet(sans, [], 20), 1.5, Math.NaN);
 		var u = l.decoration(0, 10, 0, 2)[0];
 		check("decorations: snapped to the pixels of the scale; not under trailing spaces", u.height == 2 && u.y * 2 == Math.round(u.y * 2) && u.width == l.lines[0].width

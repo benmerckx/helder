@@ -873,13 +873,20 @@ class TextLayout {
 	// line-through centred a third of the ascent above it, an overline its
 	// thickness above the ascent. On each line, not past a left-to-right
 	// line's trailing spaces: rectangles, each with its line's width (to align it)
-	public function decoration(start:Int, end:Int, kind:Int, scale = 1.0):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}> {
+	public function decoration(start:Int, end:Int, kind:Int, scale = 1.0, thickness = Math.NaN, offset = Math.NaN):Array<{
+		x:Float,
+		y:Float,
+		width:Float,
+		height:Float,
+		lineWidth:Float
+	}> {
 		var set = fonts;
 		if (runs != null)
 			for (r in runs)
 				if (r.start <= start && start < r.end) set = r.fonts;
 		var f = set.primary, size = set.size * scale;
-		var t = Math.max(1, Math.round(size / 10)), ascent = f.ascender * size / f.unitsPerEm;
+		// (thickness and an underline's offset below the baseline: CSS's text-decoration-thickness, text-underline-offset; NaN: auto)
+		var t = Math.max(1, Math.round(Math.isNaN(thickness) ? size / 10 : thickness * scale)), ascent = f.ascender * size / f.unitsPerEm;
 		var out = [];
 		for (r in selection(start, end)) {
 			var line:Null<TextLine> = null;
@@ -894,7 +901,7 @@ class TextLayout {
 			var top = switch kind {
 				case 1: Math.round(b - ascent / 3 - t / 2);
 				case 2: Math.round(b - ascent - t);
-				case _: b + Math.max(1, Math.ceil(t / 2));
+				case _: Math.isNaN(offset) ? b + Math.max(1, Math.ceil(t / 2)) : b + Math.round(offset * scale);
 			}
 			out.push({x: x0, y: top / scale, width: x1 - x0, height: t / scale, lineWidth: line.width});
 		}

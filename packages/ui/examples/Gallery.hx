@@ -125,12 +125,12 @@ class Gallery implements Markup {
 						{label: "View", items: [{label: "Right to left", onSelect: () -> rtl.value = !rtl.value}]}
 					]}/>
 				</view>
-				<Toggle tag="rtl" on={rtl} label="Right to left"/>
+				<Switch tag="rtl" checked={rtl} label="Right to left"/>
 			</view>
 			{section("BUTTONS IN A TOOLBAR", <view direction="row" column-gap={8} align-items="center">
 				<Toolbar tag="buttons" label="Buttons">
 					<Button tag="plain" label="Plain" onClick={() -> clicks.value++}/>
-					<Button tag="primary" label="Primary" primary onClick={() -> clicks.value += 10}/>
+					<Button tag="primary" label="Primary" onClick={() -> clicks.value += 10}/>
 				</Toolbar>
 				<text tag="clicks" color={() -> Theme.current.value.secondary}>{() -> "clicked " + clicks.value}</text>
 			</view>)}
@@ -144,17 +144,17 @@ class Gallery implements Markup {
 				<Tooltip tag="tip" text="A tooltip, after half a second"><text color={() -> Theme.current.value.secondary}>Hover me</text></Tooltip>
 				<text tag="chosen" color={() -> Theme.current.value.secondary}>{() -> chosen.value}</text>
 				<Dialog open={dialog} title="Rename">
-					<Field tag="rename" value={name} placeholder="A new name"/>
-					<view direction="row" justify="end"><Button tag="done" label="Done" primary onClick={() -> dialog.value = false}/></view>
+					<Input tag="rename" value={name} placeholder="A new name"/>
+					<view direction="row" justify="end"><Button tag="done" label="Done" onClick={() -> dialog.value = false}/></view>
 				</Dialog>
 			</view>)}
 			{section("TOGGLES", <view direction="row" column-gap={24} align-items="center">
 				<Checkbox tag="check" checked={checked} label="Checkbox"/>
-				<Toggle tag="switch" on={on} label={"Switch"}/>
+				<Switch tag="switch" checked={on} label={"Switch"}/>
 				<text tag="toggles" color={() -> Theme.current.value.secondary}>{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
 			</view>)}
 			{section("RADIO AND LISTBOX", <view direction="row" column-gap={24} align-items="start">
-				<Radio tag="size" value={size} options={["Small", "Medium", "Large"]}/>
+				<RadioGroup tag="size" value={size} options={["Small", "Medium", "Large"]}/>
 				<Listbox tag="days" selected={days} options={["Mon", "Tue", "Wed", "Thu", "Fri"]} multiple label="Days" width={110} height={104}/>
 				<text tag="size-shown" color={() -> Theme.current.value.secondary}>{() -> "size: " + size.value + ", " + days.value.join(" ")}</text>
 			</view>)}
@@ -192,10 +192,10 @@ class Gallery implements Markup {
 				<image tag="natural" src={picture} radius={30}/>
 			</view>)}
 			{section("FIELD, TAGS AND AREA", <view row-gap={6}>
-				<Field tag="name" value={name} placeholder="Your name"/>
+				<Input tag="name" value={name} placeholder="Your name"/>
 				<text tag="greeting" color={() -> Theme.current.value.secondary}>{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
 				<TagInput tag="labels" tags={labels} label="Labels" placeholder="Add a label"/>
-				<Area tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
+				<Textarea tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
 				<text tag="lines" color={() -> Theme.current.value.secondary}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
 			{section("COMBOBOX, NUMBER, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">

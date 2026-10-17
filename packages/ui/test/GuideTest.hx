@@ -1,10 +1,10 @@
 import hxmc.ui.*;
 import hxmc.view.*;
 import hxmc.ui.view.*;
-import hxmc.view.Flow.*;
 import hxmc.ui.view.UiFlow.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
+import hxmc.view.Flow.*;
 import hxmc.ui.widgets.Theme;
 import UiTest.Recording;
 
@@ -105,7 +105,7 @@ class GuideTest implements Markup {
 			<Dialog open={open} title="Delete this file?">
 				<view direction="row" column-gap={8} justify="end">
 					<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
-					<Button tag="yes" label="Delete" primary onClick={() -> {
+					<Button tag="yes" label="Delete" onClick={() -> {
 						open.value = false;
 						props.onYes();
 					}}/>
@@ -333,22 +333,35 @@ class GuideTest implements Markup {
 		check("rich text: the spans' colours drawn", line != null && StringTools.endsWith(line, "colors ff000000,ff000000,ff000000,ff2563eb,ff000000"), line);
 	}
 
-	// "Themes": the widgets follow Theme.current
+	// "Themes and dark mode": a StyleSheet's rules and colours, light and dark
+	static final sheet:StyleSheet = {
+		rules: [
+			{slot: "button", style: {background: Color.parse("var(--primary)"), color: Color.parse("var(--primary-foreground)"), radius: 6, padding: [8, 16]}},
+			{slot: "button", when: ["hover"], style: {background: Color.parse("var(--primary)/90")}},
+			{slot: "button", variant: "outline", style: {background: Color.TRANSPARENT, color: Color.parse("var(--foreground)"), borderWidth: 1, borderColor: Color.parse("var(--border)")}}
+		],
+		light: ["primary" => Color.parse("oklch(0.205 0 0)"), "primary-foreground" => Color.parse("oklch(0.985 0 0)"), "foreground" => Color.parse("oklch(0.145 0 0)"), "border" => Color.parse("oklch(0.922 0 0)")],
+		dark: ["primary" => Color.parse("oklch(0.922 0 0)"), "primary-foreground" => Color.parse("oklch(0.205 0 0)"), "foreground" => Color.parse("oklch(0.985 0 0)"), "border" => Color.parse("oklch(1 0 0 / 10%)")]
+	};
+
 	static function themes() {
 		var ui = window();
-		var dark = signal(false);
-		Theme.follow(() -> dark.value);
-		Render.render(<view><Button tag="themed" label="Themed"/></view>, ui.root);
+		Render.render(<view align-items="start"><Button tag="themed" label="Themed"/><Button tag="outlined" label="Outlined" variant="outline"/></view>, ui.root);
 		ui.update();
-		var b = ui.root.find("themed");
-		var light = b.style.background;
+		var b = ui.root.find("themed"), o = ui.root.find("outlined");
+		var unstyled = b.style.background == Color.TRANSPARENT && b.style.borderWidth == 1;
+		ui.theme = sheet;
+		ui.update();
+		check("themes: unstyled, then the sheet's looks", unstyled && b.style.background == Color.rgb(0x171717) && b.style.radius == 6
+			&& b.style.borderWidth == 0 && o.style.borderWidth == 1 && o.style.borderColor == Color.rgb(0xE5E5E5), StringTools.hex(b.style.background, 8));
+		var dark = signal(false);
+		effect(() -> ui.dark = dark.value);
 		dark.value = true;
-		Clock.finish();
-		check("themes: a widget follows the theme", Theme.current.value == Theme.DARK && light == Color.parse(Theme.LIGHT.control) && b.style.background == Color.parse(Theme.DARK.control),
-			StringTools.hex(b.style.background, 8));
+		ui.update();
+		check("themes: dark colours", b.style.background == Color.rgb(0xE5E5E5) && o.style.borderColor == Color.rgba(0xFFFFFF, 0.1));
 		dark.value = false;
-		Clock.finish();
-		check("themes: and back", b.style.background == light);
+		ui.update();
+		check("themes: and back", b.style.background == Color.rgb(0x171717));
 	}
 
 	// "Images and icons"
@@ -414,7 +427,7 @@ class GuideTest implements Markup {
 		return <view row-gap={8}>
 			<Hotkey keys="Mod+S" action={props.onSave}/>
 			<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
-			<Area value={props.text}/>
+			<Textarea value={props.text}/>
 		</view>;
 
 	static function shortcuts() {

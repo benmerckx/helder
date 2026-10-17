@@ -6,7 +6,7 @@ import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
-import hxmc.ui.widgets.Widgets.Field;
+import hxmc.ui.widgets.Widgets.Input;
 import hxmc.unsafe.*;
 
 // hxmc.ui's accessibility on Windows (WinAccess; CI's Windows jobs): a
@@ -49,7 +49,7 @@ class WinAccessTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<Field tag="name" value={name} placeholder="Name"/>
+			<Input tag="name" value={name} placeholder="Name"/>
 			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var step = 0;

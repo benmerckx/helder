@@ -35,7 +35,51 @@ class Ui {
 	public var pointerX(default, null) = 0.0;
 	public var pointerY(default, null) = 0.0;
 	// the focus was moved by the keyboard: its ring shows
-	public var focusVisible(default, null) = false;
+	public var focusVisible(default, set) = false;
+	// the window's theme (StyleSheet: its rules for the nodes with a slot,
+	// its colours; a subtree's own wins, Node.theme), and whether the dark
+	// colours and the rules for "dark" apply
+	public var theme(default, set):Null<StyleSheet> = null;
+	public var dark(default, set) = false;
+
+	function set_focusVisible(v:Bool):Bool {
+		if (v == focusVisible) return v;
+		focusVisible = v;
+		// (the focused node's rules for focus-visible)
+		if (focus != null) @:privateAccess focus.restyleLater();
+		return v;
+	}
+
+	// (the nodes whose rules apply again at the next update: Node.restyleLater)
+	var restyles:Array<Node> = [];
+
+	// applies the rules of the nodes waiting for it (update does, before layout)
+	public function flushRestyles() {
+		while (restyles.length > 0) {
+			var list = restyles;
+			restyles = [];
+			for (n in list) {
+				@:privateAccess n.restylePending = false;
+				Rules.restyle(n);
+			}
+		}
+	}
+
+	function set_theme(v:Null<StyleSheet>):Null<StyleSheet> {
+		if (v == theme) return v;
+		theme = v;
+		Rules.restyleTree(root);
+		requestFrame();
+		return v;
+	}
+
+	function set_dark(v:Bool):Bool {
+		if (v == dark) return v;
+		dark = v;
+		Rules.restyleTree(root);
+		requestFrame();
+		return v;
+	}
 	// where widgets copy and paste text (UiWindow: the system's)
 	// the window's pixels to the UI's (a Retina display's 2): what drawings are rasterized at
 	public var scale = 1.0;
@@ -88,6 +132,7 @@ class Ui {
 
 	// lays the tree out if it changed (a tree that did not: nothing done)
 	public function update() {
+		flushRestyles();
 		Layout.run(root, width, height, text, rounded);
 		if (root.inkStale) refreshInk(root);
 		if (overlay.children.length > 0) {

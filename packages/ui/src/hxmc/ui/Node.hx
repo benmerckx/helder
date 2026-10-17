@@ -78,6 +78,28 @@ class Node {
 	public var hovered(default, null) = false;
 	public var pressed(default, null) = false;
 	public var focused(default, null) = false;
+	// what a theme styles it as (Rule, StyleSheet): the part of a widget
+	// (shadcn's data-slot names: "button", "switch-thumb"), its variant and
+	// size ("destructive", "sm"); its attributes, the states rules match
+	// ("data-state" "checked", "data-disabled" present: attr, setAttr); and
+	// a theme for this subtree (null: the parent's, else the window's)
+	public var slot(default, set):Null<String> = null;
+	public var variant(default, set):Null<String> = null;
+	public var size(default, set):Null<String> = null;
+	public var theme(default, set):Null<StyleSheet> = null;
+	var attrs:Null<Map<String, String>> = null;
+	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
+	var themedNames:Null<Array<String>> = null;
+	var themedValues:Null<Array<Dynamic>> = null;
+	var restylePending = false;
+
+	// (asks for its rules to be applied again, at the next update: several changes, one restyle)
+	function restyleLater() {
+		if (ui == null || restylePending || slot == null && themedNames == null) return;
+		restylePending = true;
+		@:privateAccess ui.restyles.push(this);
+		ui.requestFrame();
+	}
 
 	// layout state (Layout): unrounded results, the measure cache, dirty
 	@:allow(hxmc.ui.Layout) var lx = 0.0;
@@ -186,6 +208,7 @@ class Node {
 		if (ui == u) return;
 		if (ui != null) ui.detached(this);
 		ui = u;
+		restyleLater();
 		for (c in children)
 			c.attach(u);
 	}
@@ -977,8 +1000,68 @@ class Node {
 		this.hovered = hovered;
 		this.pressed = pressed;
 		this.focused = focused;
-		if (changed && ui != null) ui.requestFrame();
+		if (changed && ui != null) {
+			ui.requestFrame();
+			restyleLater();
+		}
 	}
+
+	// --- theme ---
+
+	// an attribute (null: not set; "" when it is present without a value)
+	public function attr(name:String):Null<String>
+		return attrs == null ? null : attrs.get(name);
+
+	// sets an attribute (null: removes it); the rules matching it follow
+	public function setAttr(name:String, value:Null<String>) {
+		if (attr(name) == value) return;
+		if (value == null) attrs.remove(name) else {
+			if (attrs == null) attrs = new Map();
+			attrs.set(name, value);
+		}
+		restyleLater();
+	}
+
+	// the theme it is styled by: its own or the nearest ancestor's, else the window's
+	public function sheet():Null<StyleSheet> {
+		var n = this;
+		while (n != null) {
+			if (n.theme != null) return n.theme;
+			n = n.parent;
+		}
+		return ui == null ? null : ui.theme;
+	}
+
+	function set_slot(v:Null<String>):Null<String> {
+		if (v == slot) return v;
+		slot = v;
+		restyleLater();
+		return v;
+	}
+
+	function set_variant(v:Null<String>):Null<String> {
+		if (v == variant) return v;
+		variant = v;
+		restyleLater();
+		return v;
+	}
+
+	function set_size(v:Null<String>):Null<String> {
+		if (v == size) return v;
+		size = v;
+		restyleLater();
+		return v;
+	}
+
+	function set_theme(v:Null<StyleSheet>):Null<StyleSheet> {
+		if (v == theme) return v;
+		theme = v;
+		Rules.restyleTree(this);
+		return v;
+	}
+
+	// (a theme's colour for its placeholder's text, null: none; EditableText's)
+	function themePlaceholder(c:Null<Color>) {}
 }
 
 // a node's event handlers (Node.onClick...)

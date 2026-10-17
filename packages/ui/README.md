@@ -95,7 +95,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     field's text as typed), `textOverflow` (`Ellipsis`, not inherited: a
     line too wide for its box ends in one within it). `textDecoration`
     (underline, line-through, overline) draws its lines with the text inside
-    the node, in its colour (`textDecorationColor`: another), where Chromium
+    the node, in its colour (`textDecorationColor`: another), as thick as
+    `textDecorationThickness` says (a tenth of the font size by default), an
+    underline `textUnderlineOffset` below the baseline, where Chromium
     draws them. `textShadow`
     (`"1px 2px 4px #0006"`, several, inherited, `none`) draws the text's
     and its lines' shadows under them (a text field's and its placeholder's
@@ -148,7 +150,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     (pixel-exact with libwebp's decoding), an animation's first frame; `AnimatedImage` plays a GIF's,
     WebP's or animated PNG's frames, each composed as Chromium composes it, on the clock), shown by an `ImageNode` at its own
     size or the style's (keeping its aspect ratio), fitted as `Fill`,
-    `Contain`, `Cover` or `None`, its corners rounded with the node's.
+    `Contain`, `Cover` or `None`, placed by `position` (CSS's object-position:
+    `"right 10px top"`, markup `object-position`; centred by default, the
+    part outside cut), its corners rounded with the node's.
   - SVG: `Svg.parse` reads the static subset icon sets use (shapes, all of
     path data, fills and strokes with their joins, caps and dashes, linear
     and radial gradients, opacities, transforms, use and symbol, clip-path,
@@ -191,12 +195,15 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   control flow components `For`, `Index`, `Show`, `Switch`,
   `ErrorBoundary` are `@hxmc/view`'s ([its README](../view/README.md)).
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing,
-  `cut`, `copy`, `paste`, `selectAll`; `Field` and `Area` add an edit menu
+  `cut`, `copy`, `paste`, `selectAll`; `Input` and `Textarea` add an edit menu
   on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`, `RangeSlider` (two knobs, a
-  slider each for the keyboard),
-  `Progress` (or indeterminate), `Tabs`, `Field` (or a password), `Area`, `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
+  `EditableText`, with an input method's composition shown at the caret), and the components; unstyled with slots for a theme (Themes) so far:
+  `Button` (variants, sizes, disabled), `Toggle` (a pressed button), `Checkbox`, `Switch`, `Input` (or a password,
+  invalid), `Textarea`, `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
+  `CardFooter`), `RadioGroup`, `Slider`, `RangeSlider` (two knobs, a
+  slider each for the keyboard), `Progress` (or indeterminate), `Tabs`, `Separator`, `Skeleton`, `Alert`
+  (`AlertTitle`, `AlertDescription`); still drawn with `Theme.current`: `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
@@ -238,7 +245,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
 ## Markup
 
 Intrinsic elements: `view` (a box), `text` (a run of text), `scroll` (a box
-that scrolls), `image` (an `ImageNode`: `src={image}` or `src={svg}`, `fit="cover"`).
+that scrolls), `image` (an `ImageNode`: `src={image}` or `src={svg}`, `fit="cover"`, `object-position="left top"`).
 Inside a `text`, elements are spans of rich text: `span`, `b`, `i` or
 `text` again, each with its own style (colour, weight, size...) and
 handlers (a link: `<span color="#2563eb" onClick={...}>`); lines are as
@@ -260,6 +267,31 @@ Attributes:
 A value that is a signal, a memo or a function is reactive: the attribute,
 text or region follows it. In a `view`, text and text-valued holes next to
 each other become one `TextNode`.
+
+## Themes
+
+The widgets are moving to ship unstyled (behaviour, semantics and the
+geometry their interaction needs), their looks from a theme
+([docs/plans/theme.md](../../docs/plans/theme.md); `@hxmc/theme` is
+shadcn/ui's). A theme is a `StyleSheet`: `rules`, each a `Rule`
+`{slot, ?variant, ?size, ?when, style}`, and the colours its token
+references name, `light` and `dark`. A node takes the rules of its
+`slot` (shadcn's data-slot names: `"button"`, `"switch-thumb"`),
+`variant` and `size` whose states all hold: `hover`, `active`,
+`focus`, `focus-visible`, `disabled`, `dark`, `placeholder` (an
+input's placeholder colour), attributes (`data-state=checked`, a bare
+`data-disabled`; `node.setAttr`, markup `data-state="checked"`). Later
+rules win, property by property; the node's own style wins over them.
+Colours may be token references, `Color.parse("var(--primary)")`,
+`"var(--ring)/50"`, resolved with the sheet's colours when applied;
+`oklch()` and `oklab()` parse as CSS converts them (Chromium's pixels).
+`ui.theme = sheet` installs one for a window, `node.theme` for a subtree,
+`ui.dark` picks the dark colours and the `dark` rules; every change of a
+state, attribute, variant, sheet or of dark applies them again, at the
+window's next update (several changes, one restyle). Without a sheet a
+widget takes its base rules (`Unstyled`: legible outlines and states in
+the text's colour, `currentColor`); a sheet starts from none of them, as
+shadcn's classes from Tailwind's preflight.
 
 ## Fonts
 

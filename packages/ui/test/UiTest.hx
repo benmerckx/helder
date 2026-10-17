@@ -39,6 +39,7 @@ class UiTest {
 		events();
 		dirty();
 		paint();
+		themes();
 		images(here);
 		svgs(here);
 		svgApi();
@@ -1211,9 +1212,142 @@ class UiTest {
 		check("images: Cover", box.placement(0, 0, 100, 100).join(",") == "0,0,100,100,0.25,0,0.75,1", box.placement(0, 0, 100, 100).join(","));
 		box.fit = ImageFit.None;
 		check("images: None", box.placement(0, 0, 100, 100).join(",") == "30,40,40,20,0,0,1,1", box.placement(0, 0, 100, 100).join(","));
+		// object-position: a share of the room left over and pixels more, the part outside cut
+		function placed(fit:ImageFit, pos:String):String {
+			box.fit = fit;
+			box.position(pos);
+			return box.placement(0, 0, 100, 100).join(",");
+		}
+		var got = [
+			placed(Contain, "left top"), placed(Contain, "bottom"), placed(Cover, "right"), placed(Cover, "25% 0"), placed(ImageFit.None, "right 10px bottom 5px"),
+			placed(ImageFit.None, "-30px 10px"), placed(ImageFit.None, "center top")
+		];
+		var want = [
+			"0,0,100,50,0,0,1,1", "0,50,100,50,0,0,1,1", "0,0,100,100,0.5,0,1,1", "0,0,100,100,0.125,0,0.625,1", "50,75,40,20,0,0,1,1",
+			"0,10,10,20,0.75,0,1,1", "30,0,40,20,0,0,1,1"
+		];
+		check("images: object-position", got.join("|") == want.join("|"), got.join("|"));
+		var badPosition = try {
+			box.position("sideways");
+			false;
+		} catch (e:Dynamic) true;
+		box.position("center");
+		check("images: object-position rejects what CSS does not write", badPosition && box.positionX == 0.5 && box.positionY == 0.5);
 		var c = new Recording();
 		ui.paint(c);
 		check("images: painted", c.calls.join("|") == "image 40x20 0 0 40 20 0 0 1 1 0|image 40x20 0 20 100 50 0 0 1 1 0|image 40x20 30 110 40 20 0 0 1 1 12", c.calls.join("|"));
+	}
+
+	// --- themes: rules by slot, variant, size and state; tokens; the node's own style ---
+
+	static function themes() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.alignItems = Start;
+		var sheet:StyleSheet = {
+			rules: [
+				{slot: "button", style: {background: Color.parse("var(--primary)"), radius: 6, padding: 8}},
+				{slot: "button", when: ["hover"], style: {background: Color.parse("var(--primary)/50")}},
+				{slot: "button", variant: "outline", style: {background: Color.TRANSPARENT, borderWidth: 1, borderColor: Color.parse("var(--border)")}},
+				{slot: "button", size: "sm", style: {padding: 4}},
+				{slot: "button", when: ["focus-visible"], style: {shadow: Shadow.parse("0 0 0 3px var(--ring)/50")}},
+				{slot: "button", when: ["dark"], style: {radius: 2}},
+				{slot: "switch", style: {background: Color.parse("var(--input)")}},
+				{slot: "switch", when: ["data-state=checked"], style: {background: Color.parse("var(--primary)")}},
+				{slot: "input", when: ["placeholder"], style: {color: Color.parse("var(--muted-foreground)")}}
+			],
+			light: ["primary" => Color.rgb(0x171717), "border" => Color.rgb(0xE5E5E5), "ring" => Color.rgb(0xA1A1A1), "input" => Color.rgb(0xE5E5E5),
+				"muted-foreground" => Color.rgb(0x737373)],
+			dark: ["primary" => Color.rgb(0xE5E5E5), "border" => Color.rgb(0x262626), "ring" => Color.rgb(0x737373), "input" => Color.rgb(0x333333),
+				"muted-foreground" => Color.rgb(0xA1A1A1)]
+		};
+		var a = new Node("a"), b = new Node("b"), own = new Node("own"), sw = new Node("sw");
+		for (n in [a, b, own, sw]) {
+			n.style.set({width: 30, height: 20});
+			ui.root.append(n);
+		}
+		a.slot = b.slot = own.slot = "button";
+		b.variant = "outline";
+		b.size = "sm";
+		own.style.background = Color.rgb(0xFF0000);
+		sw.slot = "switch";
+		ui.update();
+		check("themes: no sheet, no style", a.style.background == Color.TRANSPARENT && a.style.radius == 0);
+		ui.theme = sheet;
+		ui.update();
+		ui.update();
+		check("themes: a slot's rules, tokens resolved", a.style.background == Color.rgb(0x171717) && a.style.radius == 6 && a.style.padding.left == 8);
+		ui.update();
+		check("themes: a variant's and a size's rules after the slot's", b.style.background == Color.TRANSPARENT && b.style.borderWidth == 1
+			&& b.style.borderColor == Color.rgb(0xE5E5E5) && b.style.padding.left == 4 && b.style.radius == 6);
+		ui.update();
+		check("themes: the node's own style wins", own.style.background == Color.rgb(0xFF0000) && own.style.radius == 6);
+		// (hover: on and off again)
+		ui.pointerMove(a.absX + 5, a.absY + 5);
+		ui.update();
+		check("themes: hover, an alpha on the token", a.style.background == Color.rgb(0x171717).fade(0.5), StringTools.hex(a.style.background));
+		ui.pointerMove(190, 90);
+		ui.update();
+		check("themes: hover left", a.style.background == Color.rgb(0x171717));
+		// (an attribute's state)
+		ui.update();
+		check("themes: an attribute's state, off", sw.style.background == Color.rgb(0xE5E5E5));
+		sw.setAttr("data-state", "checked");
+		ui.update();
+		check("themes: data-state=checked", sw.style.background == Color.rgb(0x171717));
+		sw.setAttr("data-state", "unchecked");
+		ui.update();
+		check("themes: data-state=unchecked", sw.style.background == Color.rgb(0xE5E5E5));
+		// (focus-visible: a ring as a shadow, its token resolved)
+		a.focusable = true;
+		ui.keyDown(Key.TAB, 0);
+		ui.update();
+		check("themes: focus-visible", ui.focus == a && a.style.shadow != null && a.style.shadow.spread == 3 && a.style.shadow.color == Color.rgb(0xA1A1A1).fade(0.5));
+		ui.pointerDown(190, 90, 1);
+		ui.pointerUp(190, 90, 1);
+		ui.update();
+		check("themes: no ring after a press", a.style.shadow == null);
+		// (dark: the dark colours, the rules for dark)
+		ui.dark = true;
+		ui.update();
+		check("themes: dark", a.style.background == Color.rgb(0xE5E5E5) && a.style.radius == 2 && sw.style.background == Color.rgb(0x333333));
+		ui.dark = false;
+		ui.update();
+		check("themes: light again", a.style.background == Color.rgb(0x171717) && a.style.radius == 6);
+		// (a subtree's own sheet)
+		var other:StyleSheet = {rules: [{slot: "button", style: {background: Color.rgb(0x00FF00)}}]};
+		var box = new Node("box"), inner = new Node("inner");
+		inner.slot = "button";
+		box.append(inner);
+		ui.root.append(box);
+		box.theme = other;
+		ui.update();
+		check("themes: a subtree's sheet", inner.style.background == Color.rgb(0x00FF00) && inner.style.radius == 0);
+		box.theme = null;
+		ui.update();
+		check("themes: the window's again", inner.style.background == Color.rgb(0x171717) && inner.style.radius == 6);
+		// (a placeholder's colour)
+		var f = new TextField("");
+		f.slot = "input";
+		ui.root.append(f);
+		ui.update();
+		check("themes: a placeholder's colour", f.placeholderColor == Color.rgb(0x737373));
+		// (no sheet: what the rules wrote taken back, the node's own kept)
+		ui.theme = null;
+		ui.update();
+		check("themes: taken back", a.style.background == Color.TRANSPARENT && a.style.radius == 0 && a.style.padding.left == 0 && b.style.borderWidth == 0
+			&& own.style.background == Color.rgb(0xFF0000) && f.placeholderColor == Color.rgba(0, 0.4));
+		// (a change of the node's own after the rules: kept)
+		ui.theme = sheet;
+		a.style.radius = 9;
+		a.variant = "outline";
+		ui.update();
+		check("themes: a value set over the rules' kept", a.style.radius == 9 && a.style.borderWidth == 1);
+		// (tokens and oklch() in colours)
+		var t = Color.parse("var(--ring)/50");
+		ui.update();
+		check("themes: token references", t.isToken && t.tokenName() == "ring" && t.tokenAlpha() == 0.5 && !Color.parse("rgba(255, 0, 0, 0)").isToken
+			&& Color.parse("oklch(0.205 0 0)") == Color.rgb(0x171717) && Color.parse("oklch(0.577 0.245 27.325)") == Color.rgb(0xE7000B)
+			&& Color.parse("oklch(1 0 0 / 10%)") == Color.rgba(0xFFFFFF, 0.1));
 	}
 
 	// --- paint ---
@@ -1296,6 +1430,17 @@ class UiTest {
 		var lines = [for (c in rec5.calls) if (c.indexOf("rect ") == 0) c];
 		check("paint: text-decoration-color", lines.length == 1 && lines[0].indexOf(" ff00ff00 ") > 0 && rec5.calls.join("|").indexOf("text 0 0 14") >= 0,
 			rec5.calls.join("|"));
+		// its thickness (a percentage of the font size) and the underline's offset (inherited)
+		var before = lines[0].split(" ");
+		t.style.textDecorationThickness = "25%";
+		box.style.textUnderlineOffset = 3;
+		var rec7 = new Recording();
+		ui3.paint(rec7);
+		var after = [for (c in rec7.calls) if (c.indexOf("rect ") == 0) c][0].split(" ");
+		check("paint: text-decoration-thickness and an inherited text-underline-offset", Std.parseFloat(after[4]) == t.font().size / 4
+			&& Std.parseFloat(after[2]) == Std.parseFloat(before[2]) + 3, before.join(" ") + " | " + after.join(" "));
+		t.style.textDecorationThickness = "auto";
+		box.style.textUnderlineOffset = "auto";
 		// an outline: around the border box, over the children, the focus ring over it
 		var framed = new Node("framed"), inner = new Node("inner");
 		framed.style.set({width: 20, height: 10, radius: 4, outlineWidth: 2, outlineOffset: 1, color: Color.rgb(0x112233)});

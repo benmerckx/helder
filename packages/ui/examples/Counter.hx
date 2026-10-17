@@ -14,7 +14,7 @@ class Counter implements Markup {
 		var w = new UiWindow("Counter", 320, 200);
 		Render.render(<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
 			<text font-size={32}>{count}</text>
-			<Button label="+1" primary onClick={() -> count.value++}/>
+			<Button label="+1" onClick={() -> count.value++}/>
 		</view>, w.root);
 		UiWindow.run();
 	}

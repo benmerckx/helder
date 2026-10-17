@@ -133,6 +133,13 @@ class DrawParagraph implements Paragraph {
 		return ls.length == 0 ? 0 : ls[k].width;
 	}
 
-	public function decoration(start:Int, end:Int, kind:hxmc.ui.TextDecoration, scale:Float):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}>
-		return layout.decoration(start, end, kind == LineThrough ? 1 : kind == Overline ? 2 : 0, scale);
+	public function decoration(start:Int, end:Int, kind:hxmc.ui.TextDecoration, scale:Float, ?thickness:Float, ?offset:Float):Array<{
+		x:Float,
+		y:Float,
+		width:Float,
+		height:Float,
+		lineWidth:Float
+	}>
+		return layout.decoration(start, end, kind == LineThrough ? 1 : kind == Overline ? 2 : 0, scale, thickness == null ? Math.NaN : thickness,
+			offset == null ? Math.NaN : offset);
 }

@@ -136,7 +136,7 @@ class Mail implements Markup {
 					<Button tag="unread" label="Mark unread" onClick={markUnread}/>
 				</Toolbar>
 				<view grow={1}/>
-				<view width={200}><Field tag="search" value={query} placeholder="Search" label="Search messages"/></view>
+				<view width={200}><Input tag="search" value={query} placeholder="Search" label="Search messages"/></view>
 			</view>
 			<view grow={1} min-height={0} padding={12}>
 				<Split tag="panes" size={pane} min={140} max={320} label="Folders"

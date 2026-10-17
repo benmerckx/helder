@@ -53,8 +53,8 @@ class Todo implements Markup {
 		return <view grow={1} padding={24} row-gap={14} background="#fafafa" font-family="DejaVu Sans" font-size={14} color="#18181b">
 			<text font-size={28} font-weight={700} color="#3b82f6">todos</text>
 			<view direction="row" column-gap={8}>
-				<view grow={1}><Field tag="draft" value={draft} placeholder="What needs to be done?" onSubmit={_ -> add()}/></view>
-				<Button tag="add" label="Add" primary onClick={add}/>
+				<view grow={1}><Input tag="draft" value={draft} placeholder="What needs to be done?" onSubmit={_ -> add()}/></view>
+				<Button tag="add" label="Add" onClick={add}/>
 			</view>
 			<scroll tag="list" grow={1} min-height={0} row-gap={6} background="#ffffff" radius={8} border-width={1} border-color="#e4e4e7" padding={8}>
 				<For each={visible} render={(i:Item) -> <view direction="row" align-items="center" column-gap={8} padding="4 6" radius={6}>
@@ -67,7 +67,7 @@ class Todo implements Markup {
 				<text tag="left">{() -> left.value == 1 ? "1 item left" : left.value + " items left"}</text>
 				<view direction="row" column-gap={6}>{() -> [
 					for (f in ["all", "active", "done"])
-						<Button tag={"filter-" + f} label={f} primary={filter.value == f} onClick={() -> filter.value = f}/>
+						<Button tag={"filter-" + f} label={f} variant={filter.value == f ? "default" : "outline"} onClick={() -> filter.value = f}/>
 				]}</view>
 			</view>
 		</view>;

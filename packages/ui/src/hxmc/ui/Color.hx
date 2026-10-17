@@ -2,7 +2,13 @@ package hxmc.ui;
 
 // A colour as 0xAARRGGBB (straight alpha). From an Int literal written
 // 0xRRGGBB it is opaque only through rgb(): `Color.rgb(0x3366ff)`;
-// `Color.rgba(0x3366ff, 0.5)`; TRANSPARENT is 0.
+// `Color.rgba(0x3366ff, 0.5)`; TRANSPARENT is 0. A token reference
+// (Color.token, "var(--primary)", "var(--ring)/50") stands for a style
+// sheet's colour of that name (StyleSheet), resolved when a rule using it
+// is applied: drawn as it is, it is transparent (its alpha is 0; its other
+// bytes name the token and its alpha, so a transparent colour with any
+// other byte set is one); "currentColor" is one, the text's colour where
+// it is applied.
 abstract Color(Int) from Int to Int {
 	public static inline var TRANSPARENT:Color = 0;
 	public static inline var BLACK:Color = 0xFF000000;
@@ -35,6 +41,34 @@ abstract Color(Int) from Int to Int {
 	inline function get_b()
 		return this & 0xFF;
 
+	// a reference to a style sheet's colour (its name without the dashes:
+	// "primary"), its alpha a share of it (Tailwind's /50: 0.5)
+	public static function token(name:String, alpha = 1.0):Color {
+		var k = tokenIndex.get(name);
+		if (k == null) {
+			k = tokenNames.length;
+			tokenNames.push(name);
+			tokenIndex.set(name, k);
+		}
+		return ((Std.int(clamp(alpha) * 100 + 0.5) + 1) << 16) | (k + 1);
+	}
+
+	static final tokenNames:Array<String> = [];
+	static final tokenIndex = new Map<String, Int>();
+
+	// whether this is a token reference (Color.token)
+	public var isToken(get, never):Bool;
+
+	inline function get_isToken():Bool
+		return a == 0 && r >= 1 && r <= 101 && (this & 0xFFFF) != 0;
+
+	// a token reference's name and alpha
+	public function tokenName():String
+		return tokenNames[(this & 0xFFFF) - 1];
+
+	public inline function tokenAlpha():Float
+		return (r - 1) / 100;
+
 	// this colour with its alpha multiplied by f
 	public inline function fade(f:Float):Color
 		return (Std.int(a * clamp(f) + 0.5) << 24) | (this & 0xFFFFFF);
@@ -65,8 +99,9 @@ abstract Color(Int) from Int to Int {
 
 	// a CSS colour: "#rgb", "#rgba", "#rrggbb", "#rrggbbaa" (the # may be
 	// left out), rgb() and rgba() (numbers or percentages, commas or
-	// spaces, an alpha after a slash), hsl() and hsla(), the 148 names,
-	// transparent; anything else throws
+	// spaces, an alpha after a slash), hsl() and hsla(), oklch() and
+	// oklab() (to sRGB, clipped), the 148 names, transparent; a token
+	// reference, "var(--primary)" or "var(--ring)/50"; anything else throws
 	public static function parse(s:String):Color {
 		var c = tryParse(s);
 		if (c == null) throw "Color.parse: " + s;
@@ -106,6 +141,20 @@ abstract Color(Int) from Int to Int {
 		}
 		var v = StringTools.trim(s).toLowerCase();
 		if (v == "transparent") return TRANSPARENT;
+		// (a token: var(--name), or the text's colour where a rule is applied, currentColor; an alpha percentage after a slash)
+		var current = StringTools.startsWith(v, "currentcolor");
+		if (current || StringTools.startsWith(v, "var(--")) {
+			var close = current ? 11 : v.indexOf(")");
+			if (close < 0) return null;
+			var name = current ? "currentcolor" : v.substring(6, close), rest = StringTools.trim(v.substr(close + 1)), alpha = 1.0;
+			if (rest != "") {
+				if (rest.charAt(0) != "/") return null;
+				var p = StringTools.trim(StringTools.replace(rest.substr(1), "%", ""));
+				alpha = Std.parseFloat(p) / 100;
+				if (Math.isNaN(alpha)) return null;
+			}
+			return token(name, alpha);
+		}
 		var hex = v.charAt(0) == "#" ? v.substr(1) : v;
 		if ((hex.length == 3 || hex.length == 4 || hex.length == 6 || hex.length == 8) && isHex(hex)) {
 			if (hex.length <= 4) {
@@ -150,6 +199,30 @@ abstract Color(Int) from Int to Int {
 				inline function byte(x:Float):Int
 					return Std.int(Math.round(clamp(x) * 255));
 				return (a << 24) | (byte(f(0)) << 16) | (byte(f(8)) << 8) | byte(f(4));
+			}
+			if (fn == "oklch" || fn == "oklab") {
+				// (L a number or a percentage; oklch's C and h, oklab's a and b, percentages of 0.4)
+				inline function num(p:String, percent:Float):Float
+					return StringTools.endsWith(p, "%") ? Std.parseFloat(p) / 100 * percent : Std.parseFloat(StringTools.replace(p, "deg", ""));
+				var l = num(parts[0], 1), x = num(parts[1], 0.4), y = num(parts[2], fn == "oklch" ? 1 : 0.4);
+				if (Math.isNaN(l + x + y)) return null;
+				var oa = x, ob = y;
+				if (fn == "oklch") {
+					var h = y * Math.PI / 180;
+					oa = x * Math.cos(h);
+					ob = x * Math.sin(h);
+				}
+				// (Oklab to linear sRGB, then sRGB's curve)
+				var l_ = l + 0.3963377774 * oa + 0.2158037573 * ob, m_ = l - 0.1055613458 * oa - 0.0638541728 * ob,
+					s_ = l - 0.0894841775 * oa - 1.2914855480 * ob;
+				var lc = l_ * l_ * l_, mc = m_ * m_ * m_, sc = s_ * s_ * s_;
+				var rl = 4.0767416621 * lc - 3.3077115913 * mc + 0.2309699292 * sc, gl = -1.2684380046 * lc + 2.6097574011 * mc - 0.3413193965 * sc,
+					bl = -0.0041960863 * lc - 0.7034186147 * mc + 1.7076147010 * sc;
+				inline function encode(c:Float):Int {
+					c = clamp(c);
+					return Std.int(Math.round((c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055) * 255));
+				}
+				return (a << 24) | (encode(rl) << 16) | (encode(gl) << 8) | encode(bl);
 			}
 			return null;
 		}
