@@ -145,13 +145,10 @@ class TextNode extends Node {
 		var rich = children.length > 0 ? spanned() : null;
 		var shown = rich != null ? rich.text : text, spans = rich != null ? rich.spans : null, clamp = style.maxLines;
 		// (spans: their fonts in the key; and the lines' limit)
-		if (rich != null) text = rich.text + "\u0000" + rich.key;
-		if (clamp > 0) text += "\u0001" + clamp;
 		var justify = textAlign() == Justify;
-		if (justify) text += "\u0002";
 		// (a direction set: its paragraphs in it)
 		var d = dir(), base = d == null ? -1 : d == Rtl ? 1 : 0;
-		if (base >= 0) text += "\u0003" + base;
+		text = paragraphKey(text, rich);
 		// (to 1/64 pixel up: a width measured from this text fits it again)
 		var w = Math.isNaN(maxWidth) ? maxWidth : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		var mp = maxParagraph != null && maxText == text && f.equals(maxFont) ? maxParagraph : null;
@@ -185,13 +182,22 @@ class TextNode extends Node {
 	override public function contentInk():Null<Size>
 		return paragraph == null ? null : {width: paragraph.width, height: paragraph.height};
 
+	// (what the laid out paragraph depends on besides its font and width:
+	// the text, its spans' fonts, the lines' limit, justification, direction)
+	function paragraphKey(text:String, rich:Null<{text:String, spans:Array<TextSpan>, colors:Array<Color>, key:String}>):String {
+		if (rich != null) text = rich.text + "\u0000" + rich.key;
+		if (style.maxLines > 0) text += "\u0001" + style.maxLines;
+		if (textAlign() == Justify) text += "\u0002";
+		var d = dir();
+		if (d != null) text += "\u0003" + (d == Rtl ? 1 : 0);
+		return text;
+	}
+
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
 		var text = shownText();
 		if (ui == null || text.length == 0) return;
 		var rich = children.length > 0 ? spanned() : null;
-		if (rich != null) text = rich.text + "\u0000" + rich.key;
-		if (style.maxLines > 0) text += "\u0001" + style.maxLines;
-		if (textAlign() == Justify) text += "\u0002";
+		text = paragraphKey(text, rich);
 		// (the layout's paragraph: its width was the unrounded one, which
 		// rounding the box's edges may have made up to a pixel narrower)
 		var p = paragraph != null && laidText == text && font().equals(laidFont)

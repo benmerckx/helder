@@ -11,7 +11,7 @@ import hxmc.ui.widgets.Toasts;
 // rest), a checkbox and a switch, radio buttons, a slider driving a
 // progress bar, tabs, a tree and a table in a split view, images fitted
 // three ways, a text field and a text area, a combobox, a number field, a
-// disclosure and toasts. In a window:
+// disclosure and toasts; all of it mirrored right to left at a switch. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
 //
@@ -41,6 +41,7 @@ class Gallery implements Markup {
 	public final file:Signal<Null<Entry>> = signal(null);
 	public final row:Signal<Null<Entry>> = signal(null);
 	public final city = signal("");
+	public final rtl = signal(false);
 	public final count = signal(3.0);
 	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
@@ -102,8 +103,12 @@ class Gallery implements Markup {
 		return <view tag="tab-content" padding={12} radius={8} background={() -> Theme.current.value.control} border-width={1} border-color={() -> Theme.current.value.subtle}>{TABS[i]}</view>;
 
 	public function view():View
-		return <scroll grow={1} padding={20} row-gap={18} background={() -> Theme.current.value.background} font-family="DejaVu Sans" font-size={14} color={() -> Theme.current.value.text}>
-			<text font-size={22} font-weight={700}>Widgets</text>
+		return <scroll grow={1} padding={20} row-gap={18} background={() -> Theme.current.value.background} font-family="DejaVu Sans" font-size={14} color={() -> Theme.current.value.text}
+			dir={() -> rtl.value ? "rtl" : "ltr"}>
+			<view direction="row" align-items="center" justify="space-between">
+				<text font-size={22} font-weight={700}>Widgets</text>
+				<Toggle tag="rtl" on={rtl} label="Right to left"/>
+			</view>
 			{section("BUTTONS", <view direction="row" column-gap={8} align-items="center">
 				<Button tag="plain" label="Plain" onClick={() -> clicks.value++}/>
 				<Button tag="primary" label="Primary" primary onClick={() -> clicks.value += 10}/>

@@ -56,6 +56,13 @@ class GalleryTest {
 		}
 		function shown(tag:String):String
 			return (cast find(tag) : TextNode).text;
+		// right to left: the buttons from the right; then back
+		click("rtl");
+		var plain = find("plain");
+		check("right to left: mirrored", app.rtl.value && plain.absX + plain.width == W - 20 && find("primary").absX < plain.absX,
+			'${plain.absX} ${plain.width}');
+		click("rtl");
+		check("left to right again", find("plain").absX == 20, '${find("plain").absX}');
 		click("plain");
 		click("primary");
 		check("buttons", app.clicks.value == 11 && shown("clicks") == "clicked 11", shown("clicks"));
@@ -168,9 +175,11 @@ class GalleryTest {
 		key(Key.TAB);
 		check("Tab to the last button", ui.focus == find("notify"));
 		// Tab from there: no further focusable node, back to the first (the
-		// Plain button), its focus ring shown
+		// direction switch), its focus ring shown; then the Plain button
 		key(Key.TAB);
-		check("Tab wraps to the first button", ui.focus == find("plain") && ui.focusVisible);
+		check("Tab wraps to the first control", ui.focus == find("rtl") && ui.focusVisible);
+		key(Key.TAB);
+		check("then the first button", ui.focus == find("plain"));
 		var natural = find("natural");
 		check("an image's natural size", natural.width == 120 && natural.height == 60, '${natural.width}x${natural.height}');
 		// the PNG cases, decoded by the native build
