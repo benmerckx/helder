@@ -71,7 +71,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     to ancestors), tracks hover and press, moves the focus (click, Tab,
     Shift+Tab; a ring shows when the keyboard moved it) and scrolls
     `Overflow Scroll` nodes (the wheel or a trackpad, by the pixels it
-    moved, Shift turning a wheel sideways; or their scrollbars' thumbs).
+    moved, Shift turning a wheel sideways; in a browser a finger's drag,
+    gliding on when let go moving, a tap a click; or their scrollbars'
+    thumbs).
 - **`hxmc.ui.draw`**: the GPU renderer. One shader draws rounded rectangles
   with borders, soft shadows and glyphs from an atlas, every fragment
   clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a

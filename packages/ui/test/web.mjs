@@ -83,7 +83,7 @@ const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
 for (const gfx of ['webgpu', 'webgl2']) {
-	const p = await browser.newPage({ viewport: { width: 500, height: 600 } });
+	const p = await browser.newPage({ viewport: { width: 500, height: 600 }, hasTouch: true });
 	await p.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: url });
 	const errors = [];
 	p.on('pageerror', (e) => errors.push(e.message));
@@ -181,6 +181,33 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	await p.mouse.wheel(0, 7.5);
 	await settle();
 	const wheel = (await boxes()).line.split(' | ')[3];
+	// touch: a finger dragged up over the list, held, let go (it scrolls the
+	// distance, no glide); a tap on the first checkbox (it toggles)
+	const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+	await touch('touchStart', [{ x: at.left.x, y: at.left.y - 80 }]);
+	for (let k = 1; k <= 10; k++) {
+		await touch('touchMove', [{ x: at.left.x, y: at.left.y - 80 - 10 * k }]);
+		await p.waitForTimeout(16);
+	}
+	await p.waitForTimeout(200);
+	await touch('touchEnd', []);
+	await settle();
+	const dragged = (await boxes()).line.split(' | ')[3];
+	const { m: cb } = await boxes();
+	await touch('touchStart', [{ x: cb.checkbox.x, y: cb.checkbox.y }]);
+	await touch('touchEnd', []);
+	await settle();
+	const tapped = (await boxes()).line.split(' | ')[1];
+	// a flick: let go moving, it glides on past its 90 pixels
+	await touch('touchStart', [{ x: at.left.x, y: at.left.y - 60 }]);
+	for (let k = 1; k <= 3; k++) {
+		await touch('touchMove', [{ x: at.left.x, y: at.left.y - 60 - 30 * k }]);
+		await p.waitForTimeout(16);
+	}
+	await touch('touchEnd', []);
+	await p.waitForTimeout(1500);
+	const flicked = Number((await boxes()).line.split(' | ')[3].split(' ')[1]) - 227.5;
+	const touched = dragged === 'wheel 227.5' && tapped === '3 items left' && flicked > 150;
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
 		const png = await p.evaluate(async () => {
@@ -190,9 +217,9 @@ for (const gfx of ['webgpu', 'webgl2']) {
 		});
 		await writeFile(path.join(out, `todo-${gfx}.png`), Buffer.from(png));
 	}
-	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && ime && wheel === 'wheel 127.5' && errors.length === 0 && backend === gfx;
+	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && ime && wheel === 'wheel 127.5' && touched && errors.length === 0 && backend === gfx;
 	if (!ok) failed++;
-	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}; input method: ${ime ? 'ok' : `${typing}, composed ${composed !== before}, cancelled ${cancelled === before}, committed ${committed}`}; ${wheel}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}; input method: ${ime ? 'ok' : `${typing}, composed ${composed !== before}, cancelled ${cancelled === before}, committed ${committed}`}; ${wheel}; touch: ${touched ? 'ok' : dragged + ', ' + tapped + ', flicked ' + flicked}${ok ? '' : ' FAILED'}`);
 	if (missing.length) console.log(aria);
 	for (const e of errors) console.log('  error: ' + e);
 	if (backend !== gfx) console.log('  on ' + backend);

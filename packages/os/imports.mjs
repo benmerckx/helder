@@ -154,6 +154,58 @@ export default function (host) {
 			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * devicePixelRatio * 256;
 			push([h, SCROLL, Math.round(e.deltaX * k), ...pos(e), Math.round(e.deltaY * k), mods(e)]);
 		}, { passive: true });
+		// touch: a drag scrolls what is under where it started (the content
+		// follows the finger, then glides when let go moving), a tap clicks
+		// (no mouse events of the browser's own for either)
+		c.style.touchAction = 'none';
+		let touch = null, glide = 0;
+		const scrollBy = (x, y, dx, dy) => push([h, SCROLL, Math.round(dx * 256), x, y, Math.round(dy * 256), 0]);
+		on('pointerdown', (e) => {
+			if (e.pointerType !== 'touch' || touch) return;
+			e.preventDefault();
+			cancelAnimationFrame(glide);
+			const [x, y] = pos(e);
+			touch = { id: e.pointerId, x, y, lx: x, ly: y, t: performance.now(), vx: 0, vy: 0, drag: false };
+			c.setPointerCapture?.(e.pointerId);
+		});
+		on('pointermove', (e) => {
+			if (!touch || e.pointerId !== touch.id) return;
+			const [x, y] = pos(e), now = performance.now();
+			if (!touch.drag && Math.hypot(x - touch.x, y - touch.y) > 8 * devicePixelRatio) touch.drag = true;
+			if (!touch.drag) return;
+			const dx = touch.lx - x, dy = touch.ly - y, dt = Math.max(1, now - touch.t);
+			scrollBy(touch.x, touch.y, dx, dy);
+			// (pixels per millisecond, smoothed)
+			touch.vx = 0.8 * (dx / dt) + 0.2 * touch.vx;
+			touch.vy = 0.8 * (dy / dt) + 0.2 * touch.vy;
+			Object.assign(touch, { lx: x, ly: y, t: now });
+		});
+		const lift = (e) => {
+			if (!touch || e.pointerId !== touch.id) return;
+			const t = touch;
+			touch = null;
+			if (!t.drag) {
+				if (c.hxmcTyping) ta.focus({ preventScroll: true });
+				else c.focus();
+				push([h, MOUSE_MOVE, 0, t.x, t.y, 0, 0]);
+				push([h, MOUSE_DOWN, 0, t.x, t.y, 1, 0]);
+				push([h, MOUSE_UP, 0, t.x, t.y, 1, 0]);
+				return;
+			}
+			// (let go moving: on at that speed, slowing 5% a frame)
+			if (e.type !== 'pointerup' || performance.now() - t.t > 100) return;
+			let vx = t.vx * 16, vy = t.vy * 16;
+			const step = () => {
+				vx *= 0.95;
+				vy *= 0.95;
+				if (Math.hypot(vx, vy) < 0.5) return;
+				scrollBy(t.x, t.y, vx, vy);
+				glide = requestAnimationFrame(step);
+			};
+			glide = requestAnimationFrame(step);
+		};
+		on('pointerup', lift);
+		on('pointercancel', lift);
 		on('contextmenu', (e) => e.preventDefault());
 		const paste = (e) => {
 			pasted = { text: e.clipboardData ? e.clipboardData.getData('text/plain') : '', at: performance.now() };
