@@ -1,3 +1,4 @@
+import hxmc.theme.Shadcn;
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.Render;
@@ -12,7 +13,10 @@ import hxmc.view.Render;
 class WebTodo {
 	static function main() {
 		var w = new UiWindow("Todo", 420, 480);
-		w.ui.theme = Plain.sheet;
+		// (shadcn's, its buttons' cursor a pointer as many apps make it: what
+		// Window.cursor gives the canvas over one)
+		var sheet = Shadcn.sheet;
+		w.ui.theme = {rules: sheet.rules.concat([{slot: "button", style: {cursor: Pointer}}]), light: sheet.light, dark: sheet.dark, lengths: sheet.lengths};
 		var app = new Todo();
 		Render.render(app.view(), w.root);
 		var last = "", wheel = 0.0;

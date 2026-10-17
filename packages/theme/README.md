@@ -24,6 +24,13 @@ named after its parent: `checkbox-icon`, `radio-group-icon`,
 the window's root (Tailwind's preflight, then globals.css's body).
 AccordionContent's inner box is folded into `accordion-content`.
 
+hxmc.ui's widgets that shadcn has no component for (Toolbar, Listbox,
+Tree, ColorPicker, NumberField, TagInput, Collapsible, Sortable, the
+resizable handle, the toast's action and close, the fields around a
+checkbox, switch or radio, icons shadcn draws with a selector) are in
+`src/hxmc/theme/extras.json`, in shadcn's manner (its tokens, sizes and
+states; not copied from anywhere), which `shadcn.json` includes.
+
 ```haxe
 import hxmc.theme.Shadcn;
 
@@ -42,7 +49,7 @@ string, cn's several, cva's `{base, variant: {...}, size: {...}}`, or
 another slot's, `{extends: "button", variant: "ghost", class: "..."}` as
 `cn(buttonVariants({variant: "ghost"}), "...")`), `--radius`, CSS
 variables a class may name (`size-(--cell-size)`) and the tokens into a
-`StyleSheet`. Both run at compile time: no class is parsed when the
+`StyleSheet` (`include`: other files beside it whose slots are added). Both run at compile time: no class is parsed when the
 program runs. The rules are written as compact data (`RuleData.hx`: a
 string table and a stream of small numbers) read when the sheet is first
 used: shadcn's 449 rules add 23 KB to a native program (the reader, 19

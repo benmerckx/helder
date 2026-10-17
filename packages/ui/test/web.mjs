@@ -139,7 +139,7 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	const { line } = await boxes();
 	const state = line.split(' | ').slice(1, 3).join(' | ');
 	const r = await p.evaluate(() => window.check());
-	// (over a button: Window.cursor set the canvas's CSS cursor)
+	// (over a button, its cursor a pointer by WebTodo's rule: Window.cursor set the canvas's CSS cursor)
 	const cursor = await p.evaluate(() => document.querySelector('canvas').style.cursor);
 	// the accessibility tree: roles, names, states (Chromium's own, through
 	// the DevTools protocol: a canvas's fallback content is in it)

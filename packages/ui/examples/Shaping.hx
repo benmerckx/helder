@@ -2,6 +2,7 @@
 // summary: Fonts parsed, shaped and rasterized in Haxe: kerning, Arabic joining, right-to-left and mixed runs, combining marks; type to reshape
 // tags: ui, text, bidi, shaping
 // demo: canvas 480x440
+import hxmc.theme.Shadcn;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
@@ -13,11 +14,11 @@ import hxmc.ui.widgets.Widgets.*;
 // left where it reads so, and drawn from glyphs our own rasterizer made.
 // The field below reshapes what is typed into it. In a window:
 //
-//   haxe -lib hxmc.ui -cp packages/ui/examples -main Shaping --custom-target hxmc=shaping -D hxmc.libc=glibc
+//   haxe -lib hxmc.ui -lib hxmc.theme -cp packages/ui/examples -main Shaping --custom-target hxmc=shaping -D hxmc.libc=glibc
 class Shaping implements Markup {
 	static function main() {
 		var w = new UiWindow("Text shaping", 480, 440);
-		w.ui.theme = Plain.sheet;
+		w.ui.theme = Shadcn.sheet;
 		Render.render(new Shaping().view(), w.root);
 		UiWindow.run();
 	}

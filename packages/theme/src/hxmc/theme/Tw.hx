@@ -34,13 +34,31 @@ class Tw {
 	// variant and size fixed or not}; and a class after them, as cn's
 	// className), "global" before each slot's that has borders (shadcn's
 	// `* { border-border }`), --radius ("radius"), CSS variables a class may
-	// name ("vars"), and the light and dark tokens
+	// name ("vars"), and the light and dark tokens; "include": other files
+	// beside it whose slots are added (a slot in two files is an error)
 	public static macro function sheet(file:String):Expr {
 		var pos = Context.currentPos();
 		var path = haxe.io.Path.join([haxe.io.Path.directory(Context.getPosInfos(pos).file), file]);
 		var text = try sys.io.File.getContent(path) catch (e) Context.error('Tw.sheet: $path: $e', pos);
 		Context.registerModuleDependency(Context.getLocalModule(), path);
 		var json:Dynamic = try haxe.Json.parse(text) catch (e) Context.error('Tw.sheet: $path: $e', pos);
+		var main = {path: path, text: text};
+		// (each slot's file: the class lists' offsets and errors are in it)
+		var slots:haxe.DynamicAccess<Dynamic> = Reflect.copy(json.slots);
+		var source = [for (k in slots.keys()) k => main];
+		var include:Array<String> = json.include == null ? [] : json.include;
+		for (inc in include) {
+			var p = haxe.io.Path.join([haxe.io.Path.directory(path), inc]);
+			var t = try sys.io.File.getContent(p) catch (e) Context.error('Tw.sheet: $p: $e', pos);
+			Context.registerModuleDependency(Context.getLocalModule(), p);
+			var j:Dynamic = try haxe.Json.parse(t) catch (e) Context.error('Tw.sheet: $p: $e', pos);
+			var more:haxe.DynamicAccess<Dynamic> = j.slots;
+			for (k => x in more) {
+				if (slots.exists(k)) Context.error('Tw.sheet: $p: slot $k is in ${source[k].path} too', pos);
+				slots[k] = x;
+				source[k] = {path: p, text: t};
+			}
+		}
 		// (a class list's offset in the file)
 		function offset(s:String):Int
 			return text.indexOf('"' + s + '"') + 1;
@@ -56,8 +74,9 @@ class Tw {
 		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: path, min: at, max: at + n})), vars);
 		var global = {classes: (json.global : String) ?? "", offset: offset(json.global ?? "")};
 		var rules = [];
-		var slots:haxe.DynamicAccess<Dynamic> = json.slots;
 		for (name in sorted(slots)) {
+			path = source[name].path;
+			text = source[name].text;
 			var lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String}> = [];
 			function add(s:String, ?variant:String, ?size:String)
 				lists.push({classes: s, offset: offset(s), variant: variant, size: size});

@@ -1,6 +1,7 @@
 {
 	"shadcn": "shadcn-ui/ui d2fba50ee5b9113008b5bb908563527b7efd2f27 (shadcn 4.22.0): apps/v4/registry/new-york-v4/ui, apps/v4/registry/themes.ts (neutral)",
 	"radius": "0.625rem",
+	"include": ["extras.json"],
 	"global": "border-border",
 	"slots": {
 		"body": [

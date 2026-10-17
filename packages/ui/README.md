@@ -326,9 +326,10 @@ state, attribute, variant, sheet or of dark applies them again, at the
 window's next update (several changes, one restyle). Without a sheet a
 widget has no look at all (React Aria's way: behaviour, semantics and
 its parts' states only), unless a program adds base rules
-(`Rules.addBase`: where no sheet applies); `examples/Plain.hx` is a plain
-sheet in the text's colour (`currentColor`) that the examples and tests
-use. A part's states are signals (`hxmc.ui.view.States.of(node)`:
+(`Rules.addBase`: where no sheet applies). The examples install
+@hxmc/theme's `Shadcn.sheet` (shadcn/ui's look; widgets shadcn has no
+component for, in its manner); `test/Plain.hx` is a plain sheet in the
+text's colour (`currentColor`) that tests measuring geometry use. A part's states are signals (`hxmc.ui.view.States.of(node)`:
 `hovered`, `pressed`, `focused`, `focusVisible`, `disabled`,
 `attr("data-state")`...), and a widget's `style` prop is a function of
 them, as React Aria's render props: `<Button style={s -> s.pressed.value ?

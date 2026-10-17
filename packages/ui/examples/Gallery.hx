@@ -2,6 +2,7 @@
 // summary: ui's widgets bound to signals: a menu bar, a toolbar, a list box, a range slider, a colour picker, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields; right to left at a switch
 // tags: ui, widgets
 // demo: canvas 560x520
+import hxmc.theme.Shadcn;
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;
@@ -17,7 +18,7 @@ import hxmc.ui.widgets.Days;
 // three ways, a text field and a text area, a combobox, a number field, a
 // disclosure and toasts; all of it mirrored right to left at a switch. In a window:
 //
-//   haxe -lib hxmc.ui -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
+//   haxe -lib hxmc.ui -lib hxmc.theme -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
 //
 // (GalleryTest drives it headless.)
 typedef Entry = {name:String, ?children:Array<Entry>, ?size:Int};
@@ -25,7 +26,7 @@ typedef Entry = {name:String, ?children:Array<Entry>, ?size:Int};
 class Gallery implements Markup {
 	static function main() {
 		var w = new UiWindow("Gallery", 560, 520);
-		w.ui.theme = Plain.sheet;
+		w.ui.theme = Shadcn.sheet;
 		Render.render(new Gallery().view(), w.root);
 		UiWindow.run();
 	}
@@ -116,7 +117,7 @@ class Gallery implements Markup {
 	];
 
 	function tabContent(i:Int):View
-		return <Card tag="tab-content"><text>{TABS[i]}</text></Card>;
+		return <Card tag="tab-content"><CardContent><text>{TABS[i]}</text></CardContent></Card>;
 
 	public function view():View
 		return <scroll slot="body" grow={1} padding={20} row-gap={18} font-family="DejaVu Sans" font-size={14} dir={() -> rtl.value ? "rtl" : "ltr"}>

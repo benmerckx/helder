@@ -202,8 +202,9 @@ class Widgets implements Markup {
 	// steps (0: any value); dragged, clicked (the value where the pointer is
 	// along it, as Radix's), or moved with the arrow keys (a step, or a
 	// twentieth), Home and End; disabled: none of them. Slots "slider",
-	// "slider-track", "slider-range" and "slider-thumb" (placed along the
-	// track by the value, within it at whatever size its rules give it);
+	// "slider-track", "slider-range" and "slider-thumb", data-orientation
+	// "horizontal" (Radix's; the thumb placed along the track by the value,
+	// within it at whatever size its rules give it, the range in the track's flow);
 	// width: the slider's, else its rules'
 	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
@@ -225,7 +226,7 @@ class Widgets implements Markup {
 			set(lo + x / n.width * (hi - lo));
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
-		return <view tag={props.tag ?? "slider"} slot="slider" ref={n -> States.apply(n, props.style)} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
+		return <view tag={props.tag ?? "slider"} slot="slider" data-orientation="horizontal" ref={n -> States.apply(n, props.style)} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
 			value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
 			onKeyDown={e -> if (!disabled()) switch e.key {
@@ -241,10 +242,10 @@ class Widgets implements Markup {
 					set(hi);
 				case _:
 			}}>
-			<view slot="slider-track" overflow="hidden" direction="row">
-				<view slot="slider-range" width={() -> (frac() * 100) + "%"}/>
+			<view slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
+				<view slot="slider-range" data-orientation="horizontal" position="relative" width={() -> (frac() * 100) + "%"}/>
 			</view>
-			{along(frac, <view slot="slider-thumb" shrink={0}/>)}
+			{along(frac, <view slot="slider-thumb" data-orientation="horizontal" shrink={0}/>)}
 		</view>;
 	}
 
@@ -287,7 +288,7 @@ class Widgets implements Markup {
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		function thumb(k:Int):View {
 			var value = k == 0 ? props.low : props.high;
-			return along(() -> frac(value.value), <view tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
+			return along(() -> frac(value.value), <view tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" data-orientation="horizontal" role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
 					value-now={() -> value.value} value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi}
 					shrink={0} focusable pointer-events="auto"
 					onKeyDown={e -> switch e.key {
@@ -304,7 +305,7 @@ class Widgets implements Markup {
 						case _:
 					}}/>);
 		}
-		return <view tag={tag} slot="slider" role="group" label={name} width={props.width} justify="center"
+		return <view tag={tag} slot="slider" data-orientation="horizontal" role="group" label={name} width={props.width} justify="center"
 			onPointerDown={e -> {
 				var v = valueAt(e);
 				// (the nearer knob; where they meet, the one that can move that way)
@@ -319,9 +320,9 @@ class Widgets implements Markup {
 			}}
 			onPointerMove={e -> if (e.current.pressed && dragging >= 0) set(dragging, valueAt(e))}
 			onPointerUp={_ -> dragging = -1}>
-			<view slot="slider-track" overflow="hidden" direction="row">
+			<view slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
 				<view width={() -> (frac(props.low.value) * 100) + "%"}/>
-				<view slot="slider-range" width={() -> ((frac(props.high.value) - frac(props.low.value)) * 100) + "%"}/>
+				<view slot="slider-range" data-orientation="horizontal" position="relative" width={() -> ((frac(props.high.value) - frac(props.low.value)) * 100) + "%"}/>
 			</view>
 			{thumb(0)}
 			{thumb(1)}
@@ -509,7 +510,8 @@ class Widgets implements Markup {
 	// the selected one; Left and Right (the way they point, wrapping), Home
 	// and End select another and move the focus there. Slots "tabs",
 	// "tabs-list", "tabs-trigger" (data-state "active" or "inactive") and
-	// "tabs-content"
+	// "tabs-content", all data-orientation "horizontal" (Radix's); the tabs a
+	// group, the list and its triggers variant "default" (shadcn's)
 	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
 		function key(e:Event, i:Int) {
@@ -525,16 +527,16 @@ class Widgets implements Markup {
 			props.selected.value = j;
 			focusIn(tabs, j);
 		}
-		return <view tag={tag} slot="tabs" ref={n -> States.apply(n, props.style)}>
-			<view slot="tabs-list" role="tablist">{[
+		return <view tag={tag} slot="tabs" group="tabs" data-orientation="horizontal" ref={n -> States.apply(n, props.style)}>
+			<view slot="tabs-list" variant="default" data-orientation="horizontal" role="tablist">{[
 				for (i in 0...count)
-					<view tag={tag + "-" + i} slot="tabs-trigger" role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
+					<view tag={tag + "-" + i} slot="tabs-trigger" variant="default" data-orientation="horizontal" role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
 						data-state={() -> props.selected.value == i ? "active" : "inactive"} focusable={() -> props.selected.value == i}
 						onClick={_ -> props.selected.value = i} onKeyDown={e -> key(e, i)}>
 						{props.labels[i]}
 					</view>
 			]}</view>
-			<view slot="tabs-content" role="tabpanel" label={() -> props.labels[props.selected.value]}>{() -> props.render(props.selected.value)}</view>
+			<view slot="tabs-content" data-orientation="horizontal" role="tabpanel" label={() -> props.labels[props.selected.value]}>{() -> props.render(props.selected.value)}</view>
 		</view>;
 	}
 
@@ -621,7 +623,7 @@ class Widgets implements Markup {
 			<view slot="table-header"><view tag={tag + "-head"} slot="table-row" role="row" display="grid" grid-template-columns={template} height={rh}>{[
 				for (k in 0...props.columns.length) {
 					var c = props.columns[k], cell:Null<Node> = null, from = 0.0, start = 0.0, dragging = false, clicked = -1e9;
-					<view tag={tag + "-head-" + k} slot="table-head" role="columnheader" ref={n -> cell = n} direction="row" align-items="center"
+					<view tag={tag + "-head-" + k} slot="table-head" role="columnheader" ref={n -> cell = n} height="100%" direction="row" align-items="center"
 						justify={c.numeric == true ? "flex-end" : "flex-start"} focusable={c.compare != null} data-sortable={c.compare != null} onClick={_ -> sort(k)}
 						onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 							sort(k);
@@ -652,7 +654,7 @@ class Widgets implements Markup {
 					<view tag={tag + "-row"} slot="table-row" role="row" selected={on} data-state={() -> on() ? "selected" : null} display="grid"
 						grid-template-columns={template} height={rh} onClick={_ -> if (item.value != null) click(item.value)}>{[
 						for (c in props.columns)
-							<view slot="table-cell" role="cell" overflow="hidden" align-items={c.numeric == true ? "flex-end" : "stretch"}
+							<view slot="table-cell" role="cell" overflow="hidden" justify="center" align-items={c.numeric == true ? "flex-end" : "stretch"}
 								font-variant-numeric={c.numeric == true ? "tabular-nums" : null}>{() -> item.value == null ? null : c.cell(item.value)}</view>
 					]}</view>;
 				}}/>
