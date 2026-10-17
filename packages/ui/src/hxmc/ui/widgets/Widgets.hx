@@ -415,9 +415,10 @@ class Widgets implements Markup {
 	// column's edge in the header dragged sets its width (a double click
 	// there: its own again).
 	// columns: a title, a width (a grid track: "1fr" by default, "120px",
-	// "auto"), what a row's cell shows (cell), compare (sortable). rows: an
-	// array, or a signal or function of one; height: the whole table's.
-	public static function Table<T>(props:{rows:Dynamic, columns:Array<{title:String, ?width:String, cell:T->Any, ?compare:(T, T)->Int}>,
+	// "auto"), what a row's cell shows (cell), compare (sortable), numeric
+	// (its title and cells at the end, figures of one width: 'tnum'). rows:
+	// an array, or a signal or function of one; height: the whole table's.
+	public static function Table<T>(props:{rows:Dynamic, columns:Array<{title:String, ?width:String, cell:T->Any, ?compare:(T, T)->Int, ?numeric:Bool}>,
 			?height:Float, ?rowHeight:Float, ?selected:Signal<Null<T>>, ?onActivate:T->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "table", rh = props.rowHeight ?? 28.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
@@ -488,7 +489,7 @@ class Widgets implements Markup {
 				for (k in 0...props.columns.length) {
 					var c = props.columns[k], cell:Null<Node> = null, from = 0.0, start = 0.0, dragging = false, clicked = -1e9;
 					<view tag={tag + "-head-" + k} role="columnheader" ref={n -> cell = n} direction="row" column-gap={4} align-items="center"
-						focusable={c.compare != null} cursor={c.compare != null ? "pointer" : "auto"} onClick={_ -> sort(k)}
+						justify={c.numeric == true ? "flex-end" : "flex-start"} focusable={c.compare != null} cursor={c.compare != null ? "pointer" : "auto"} onClick={_ -> sort(k)}
 						onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 							sort(k);
 							e.stop();
@@ -521,7 +522,8 @@ class Widgets implements Markup {
 						onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
 						onClick={_ -> if (item.value != null) click(item.value)}>{[
 						for (c in props.columns)
-							<view role="cell" overflow="hidden">{() -> item.value == null ? null : c.cell(item.value)}</view>
+							<view role="cell" overflow="hidden" align-items={c.numeric == true ? "flex-end" : "stretch"}
+								font-feature-settings={c.numeric == true ? "'tnum'" : null}>{() -> item.value == null ? null : c.cell(item.value)}</view>
 					]}</view>;
 				}}/>
 			</view>

@@ -183,7 +183,7 @@ class Gallery implements Markup {
 					height={150} rowHeight={24} label="Files"/>}
 				second={<Table tag="sizes" rows={SIZES} selected={row} height={150} rowHeight={24} label="Sizes" columns={[
 					{title: "Name", cell: (e:Entry) -> e.name, compare: (a:Entry, b:Entry) -> Reflect.compare(a.name, b.name)},
-					{title: "KB", width: "50px", cell: (e:Entry) -> "" + e.size, compare: (a:Entry, b:Entry) -> a.size - b.size}
+					{title: "KB", width: "50px", numeric: true, cell: (e:Entry) -> "" + e.size, compare: (a:Entry, b:Entry) -> a.size - b.size}
 				]}/>}></Split>)}
 			{section("IMAGES: FILL, CONTAIN, COVER", <view direction="row" column-gap={12} align-items="start">
 				<image tag="fill" src={picture} width={110} height={70} radius={8}/>

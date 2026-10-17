@@ -1136,7 +1136,7 @@ class MarkupTest implements Markup {
 			onActivate={r -> opened.push(r.name)}
 			columns={[
 				{title: "Name", cell: r -> r.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
-				{title: "Size", width: "60px", cell: r -> "" + r.size, compare: (a, b) -> a.size - b.size},
+				{title: "Size", width: "60px", numeric: true, cell: r -> "" + r.size, compare: (a, b) -> a.size - b.size},
 				{title: "Note", width: "auto", cell: r -> "-"}
 			]}/></view>, ui.root);
 		ui.update();
@@ -1181,6 +1181,12 @@ class MarkupTest implements Markup {
 		check("table: a double click activates", opened.join(",") == "file188,file199", opened.join(","));
 		var tree = ui.accessTree(), roles = [for (id in tree.order) tree.nodes.get(id).role];
 		check("table: a grid of rows, column headers and cells", roles.indexOf(Table) >= 0 && roles.indexOf(ColumnHeader) >= 0 && roles.indexOf(Row) >= 0 && roles.indexOf(Cell) >= 0);
+		// a numeric column: its title and cells at the end, figures of one width
+		var sizeCell = rowNodes()[0].children[1], nameCell = rowNodes()[0].children[0], sizeText = sizeCell.children[0];
+		check("table: a numeric column's cells at the end, tabular figures", sizeCell.style.alignItems == Align.End && nameCell.style.alignItems == Align.Stretch
+			&& sizeText.font().features == "'tnum'" && nameCell.children[0].font().features == ""
+			&& ui.root.find("t-head-1").style.justify == Justify.End && sizeText.absX + sizeText.width > sizeCell.absX + sizeCell.width - 0.5
+			&& sizeText.width < sizeCell.width);
 		// a column's edge dragged: its width, the rows' cells with it; not sorted by it; a double click its own again
 		var head = ui.root.find("t-head-1"), grip = ui.root.find("t-resize-1"), sorted = names().join(",");
 		var was = head.width, x = grip.absX + 4, y = grip.absY + 4;
