@@ -18,7 +18,7 @@ import hxmc.view.*;
 //   GalleryTest <golden.png> <out.png> [--dark] [--rtl] [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 1320;
+	static inline var H = 1470;
 	static var failed = 0;
 	static var checks = 0;
 
@@ -96,6 +96,10 @@ class GalleryTest {
 		ui.keyDown(Key.DOWN, Key.MOD_SHIFT);
 		ui.update();
 		check("the list box: a click, then Shift+Down", app.days.value.join(" ") == "Mon Tue" && shown("size-shown") == "size: Large, Mon Tue", shown("size-shown"));
+		click("colour-hue");
+		key(Key.END);
+		check("the colour picker: its hue strip clicked, then End", app.colour.value != Color.rgb(0x3B82F6) && find("colour-hue").semantics.valueNow == 359
+			&& (cast find("colour-hex") : hxmc.ui.widgets.TextField).text == app.colour.value.toHex().substr(0, 7), app.colour.value.toHex());
 		// the slider: 200 wide, the knob 16 (its centre travels from 8 to 192)
 		var s = find("volume");
 		var y = s.absY + s.height / 2;

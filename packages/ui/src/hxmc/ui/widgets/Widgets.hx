@@ -131,6 +131,135 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a colour picker: a square of saturation (to the right) and brightness
+	// (up) in the hue, a strip of hues under it, a swatch and the colour's
+	// hex in a field (left to right; what is typed there, once it is a CSS
+	// colour, sets it); value: an opaque colour. The square and the strip
+	// are sliders for the keyboard: Left and Right move the saturation or
+	// the hue, Up and Down the brightness, Shift ten times as far
+	public static function ColorPicker(props:{value:Signal<Color>, ?size:Float, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "color", size = props.size ?? 160.0, name = props.label ?? "Colour";
+		var hue = signal(0.0), sat = signal(0.0), val = signal(0.0), hex = signal("");
+		// (from the value: the hue kept where a grey has none)
+		function load(c:Color) {
+			var r = c.r / 255, g = c.g / 255, b = c.b / 255;
+			var max = Math.max(r, Math.max(g, b)), d = max - Math.min(r, Math.min(g, b));
+			batch(() -> {
+				if (d > 0) {
+					var h = max == r ? (g - b) / d : max == g ? (b - r) / d + 2 : (r - g) / d + 4;
+					hue.value = (h * 60 + 360) % 360;
+				}
+				sat.value = max == 0 ? 0 : d / max;
+				val.value = max;
+			});
+		}
+		function store() {
+			var c = hsv(hue.peek(), sat.peek(), val.peek());
+			if (c != props.value.peek()) props.value.value = c;
+		}
+		effect(() -> {
+			var c = props.value.value;
+			untrack(() -> {
+				if (hsv(hue.peek(), sat.peek(), val.peek()) != c) load(c);
+				// (not while what is typed there already says it: "#0f0" stays)
+				var typed = Color.tryParse(StringTools.trim(hex.peek()).toLowerCase());
+				if (typed == null || Color.rgb(typed) != c) hex.value = c.toHex().substr(0, 7);
+			});
+		});
+		effect(() -> {
+			var c = Color.tryParse(StringTools.trim(hex.value).toLowerCase());
+			if (c != null) untrack(() -> props.value.value = Color.rgb(c));
+		});
+		function clamp(x:Float):Float
+			return x < 0 ? 0 : x > 1 ? 1 : x;
+		function area(e:Event) {
+			var n = e.current;
+			batch(() -> {
+				sat.value = clamp(n.localX(e.x, e.y) / size);
+				val.value = 1 - clamp(n.localY(e.x, e.y) / size);
+			});
+			store();
+		}
+		function strip(e:Event) {
+			hue.value = clamp(e.current.localX(e.x, e.y) / size) * 359.999;
+			store();
+		}
+		function pct(x:Float):Int
+			return Math.round(x * 100);
+		var spectrum = "linear-gradient(to right, #FF0000, #FFFF00, #00FF00, #00FFFF, #0000FF, #FF00FF, #FF0000)";
+		return <view tag={tag} role="group" label={name} row-gap={8} width={size}>
+			<view tag={tag + "-area"} role="slider" label={name + ": saturation and brightness"} value-now={() -> pct(sat.value)} value-min={0} value-max={100}
+				value-text={() -> "saturation " + pct(sat.value) + "%, brightness " + pct(val.value) + "%"} width={size} height={size} radius={4} focusable
+				cursor="crosshair" background-image={() -> "linear-gradient(to right, #FFFFFF, " + hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
+				onPointerDown={e -> area(e)} onPointerMove={e -> if (e.current.pressed) area(e)}
+				onKeyDown={e -> {
+					var d = e.mods & Key.MOD_SHIFT != 0 ? 0.1 : 0.01;
+					switch e.key {
+						case Key.LEFT: sat.value = clamp(sat.peek() - d);
+						case Key.RIGHT: sat.value = clamp(sat.peek() + d);
+						case Key.UP: val.value = clamp(val.peek() + d);
+						case Key.DOWN: val.value = clamp(val.peek() - d);
+						case _: return;
+					}
+					e.preventDefault();
+					store();
+				}}>
+				<view position="absolute" left={0} top={0} right={0} bottom={0} radius={4} background-image="linear-gradient(to bottom, transparent, #000000)"/>
+				<view position="absolute" left={() -> sat.value * size - 6} top={() -> (1 - val.value) * size - 6} width={12} height={12} radius={6}
+					border-width={2} border-color="#FFFFFF" shadow="0 0 2 #00000099"/>
+			</view>
+			<view tag={tag + "-hue"} role="slider" label={name + ": hue"} value-now={() -> Math.round(hue.value)} value-min={0} value-max={359}
+				value-text={() -> Math.round(hue.value) + "°"} width={size} height={14} radius={7} focusable cursor="pointer" background-image={spectrum}
+				onPointerDown={e -> strip(e)} onPointerMove={e -> if (e.current.pressed) strip(e)}
+				onKeyDown={e -> {
+					var d = e.mods & Key.MOD_SHIFT != 0 ? 10 : 1;
+					switch e.key {
+						case Key.LEFT | Key.DOWN: hue.value = Math.max(0, hue.peek() - d);
+						case Key.RIGHT | Key.UP: hue.value = Math.min(359, hue.peek() + d);
+						case Key.HOME: hue.value = 0;
+						case Key.END: hue.value = 359;
+						case _: return;
+					}
+					e.preventDefault();
+					store();
+				}}>
+				<view position="absolute" left={() -> hue.value / 360 * size - 7} top={0} width={14} height={14} radius={7} border-width={2} border-color="#FFFFFF"
+					shadow="0 0 2 #00000099" background={() -> hsv(hue.value, 1, 1)}/>
+			</view>
+			<view direction="row" column-gap={8} align-items="center">
+				<view tag={tag + "-swatch"} width={28} height={28} shrink={0} radius={6} border-width={1} border-color={() -> t().border}
+					background={() -> props.value.value}/>
+				<view grow={1} dir="ltr"><Field tag={tag + "-hex"} value={hex} label={name + ": hex"}/></view>
+			</view>
+		</view>;
+	}
+
+	// (an opaque colour from a hue in degrees, saturation and value from 0 to 1)
+	static function hsv(h:Float, s:Float, v:Float):Color {
+		var c = v * s, p = (h / 60) % 6, x = c * (1 - Math.abs(p % 2 - 1)), m = v - c;
+		var r = 0.0, g = 0.0, b = 0.0;
+		if (p < 1) {
+			r = c;
+			g = x;
+		} else if (p < 2) {
+			r = x;
+			g = c;
+		} else if (p < 3) {
+			g = c;
+			b = x;
+		} else if (p < 4) {
+			g = x;
+			b = c;
+		} else if (p < 5) {
+			r = x;
+			b = c;
+		} else {
+			r = c;
+			b = x;
+		}
+		return Color.fromFloats(r + m, g + m, b + m);
+	}
+
 	// radio buttons bound to a signal: one per option (tag: the group's tag,
 	// "-", the option); one stop for Tab (the checked one, else the first),
 	// the arrows checking and focusing the next or previous (wrapping)

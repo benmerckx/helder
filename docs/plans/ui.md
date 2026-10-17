@@ -352,7 +352,7 @@ Since the design above (October 2026), in this order:
 - More widgets and their keyboards: Menubar (ARIA's menubar), Combobox,
   NumberField, Disclosure and Accordion, Toaster, resizable table columns,
   a mixed checkbox, an indeterminate progress bar, Listbox (multiple
-  selection) and Toolbar (Role.Toolbar on every adapter); tabs, radio
+  selection), Toolbar (Role.Toolbar on every adapter) and ColorPicker; tabs, radio
   groups and toolbars one stop for Tab, moved through by the arrows.
 - Images: animated PNGs (APNG) as Chromium composes them, and PNG
   decoding about three times faster (hxmc's haxe.zip.InflateImpl inflating a

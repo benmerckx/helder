@@ -22,6 +22,7 @@ import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.ui.widgets.Widgets.Listbox;
 import hxmc.ui.widgets.Widgets.Toolbar;
+import hxmc.ui.widgets.Widgets.ColorPicker;
 import hxmc.ui.widgets.Widgets.Tabs;
 import hxmc.ui.widgets.Widgets.Radio;
 import hxmc.ui.widgets.Widgets.Progress;
@@ -68,6 +69,7 @@ class MarkupTest implements Markup {
 		password();
 		listbox();
 		toolbar();
+		colorPicker();
 		focusTips();
 		virtual();
 		table();
@@ -419,6 +421,46 @@ class MarkupTest implements Markup {
 		ui.pointerUp(under.absX + 2, under.absY + 2, 1);
 		ui.update();
 		check("toolbar: a click focuses and presses it", ui.focus == under && pressed.join(",") == "under", pressed.join(","));
+	}
+
+	static function colorPicker() {
+		var ui = new Ui(new MonoText(), 400, 400);
+		var color = signal(Color.rgb(0x3366CC));
+		Render.render(<view padding={10}><ColorPicker tag="cp" value={color} size={100}/></view>, ui.root);
+		ui.update();
+		var area = ui.root.find("cp-area"), strip = ui.root.find("cp-hue"), field:TextField = cast ui.root.find("cp-hex");
+		var hue = strip.semantics.valueNow;
+		check("color picker: the value's hue, saturation and brightness, its hex", hue == 220 && area.semantics.valueNow == 75 && field.text == "#3366CC"
+			&& area.semantics.valueText == "saturation 75%, brightness 80%", hue + " " + area.semantics.valueText + " " + field.text);
+		ui.setFocus(area);
+		ui.keyDown(Key.DOWN, Key.MOD_SHIFT);
+		ui.update();
+		check("color picker: Shift+Down, ten points darker", area.semantics.valueText == "saturation 75%, brightness 70%" && color.value == Color.rgb(0x2D59B3)
+			&& field.text == "#2D59B3", area.semantics.valueText + " " + color.value.toHex());
+		// a drag past the area's top right: full saturation and brightness
+		ui.pointerDown(area.absX + 50, area.absY + 50, 1);
+		ui.pointerMove(area.absX + 150, area.absY - 50);
+		ui.pointerUp(area.absX + 150, area.absY - 50, 1);
+		ui.update();
+		check("color picker: a drag in the area, held to it", color.value == Color.rgb(0x0055FF) && strip.semantics.valueNow == 220, color.value.toHex());
+		ui.pointerDown(area.absX + 50, area.absY + 50, 1);
+		ui.pointerMove(area.absX + 50, area.absY + 150);
+		ui.pointerUp(area.absX + 50, area.absY + 150, 1);
+		ui.setFocus(strip);
+		ui.keyDown(Key.HOME, 0);
+		ui.update();
+		check("color picker: black keeps the hue, Home on the strip sets it", color.value == Color.rgb(0) && strip.semantics.valueNow == 0, color.value.toHex());
+		ui.keyDown(Key.UP, 0);
+		ui.setFocus(field);
+		field.selectAll();
+		ui.textInput("#0f0");
+		ui.update();
+		check("color picker: a colour typed in the field", color.value == Color.rgb(0x00FF00) && strip.semantics.valueNow == 120 && field.text == "#0f0",
+			color.value.toHex() + " " + field.text);
+		color.value = Color.rgb(0x808080);
+		ui.update();
+		check("color picker: set from outside, a grey: its hue kept", strip.semantics.valueNow == 120 && area.semantics.valueNow == 0 && field.text == "#808080",
+			strip.semantics.valueNow + " " + field.text);
 	}
 
 	static function password() {

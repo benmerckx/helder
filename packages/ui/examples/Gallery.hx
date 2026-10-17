@@ -1,5 +1,5 @@
 // title: Widgets
-// summary: ui's widgets bound to signals: a menu bar, a toolbar, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields; right to left at a switch
+// summary: ui's widgets bound to signals: a menu bar, a toolbar, a list box, a colour picker, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields; right to left at a switch
 // tags: ui, widgets
 // demo: canvas 560x520
 import hxmc.ui.*;
@@ -34,6 +34,7 @@ class Gallery implements Markup {
 	public final on = signal(false);
 	public final size = signal("Medium");
 	public final days = signal(["Tue", "Thu"]);
+	public final colour = signal(Color.rgb(0x3B82F6));
 	public final volume = signal(0.4);
 	public final tab = signal(0);
 	public final name = signal("");
@@ -152,12 +153,15 @@ class Gallery implements Markup {
 				<Listbox tag="days" selected={days} options={["Mon", "Tue", "Wed", "Thu", "Fri"]} multiple label="Days" width={110} height={104}/>
 				<text tag="size-shown" color={() -> Theme.current.value.secondary}>{() -> "size: " + size.value + ", " + days.value.join(" ")}</text>
 			</view>)}
-			{section("SLIDER AND PROGRESS", <view row-gap={10}>
-				<view direction="row" column-gap={12} align-items="center">
-					<Slider tag="volume" value={volume} step={0.05} width={200}/>
-					<text tag="volume-shown" color={() -> Theme.current.value.secondary}>{() -> Math.round(volume.value * 100) + "%"}</text>
+			{section("SLIDER, PROGRESS AND COLOUR", <view direction="row" column-gap={32} align-items="start">
+				<view row-gap={10}>
+					<view direction="row" column-gap={12} align-items="center">
+						<Slider tag="volume" value={volume} step={0.05} width={200}/>
+						<text tag="volume-shown" color={() -> Theme.current.value.secondary}>{() -> Math.round(volume.value * 100) + "%"}</text>
+					</view>
+					<Progress value={volume} width={200}/>
 				</view>
-				<Progress value={volume} width={200}/>
+				<ColorPicker tag="colour" value={colour} size={130} label="Accent"/>
 			</view>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
 			{section("SPLIT: A TREE AND A TABLE", <Split tag="panes" size={pane} min={120} label="Sidebar"
