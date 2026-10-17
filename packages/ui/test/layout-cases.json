@@ -4543,7 +4543,20 @@
 						{
 							"style": {
 								"width": 60,
-								"height": 20
+								"height": 20,
+								"margin": [
+									0,
+									0,
+									0,
+									8
+								]
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10,
+								"alignSelf": "Start"
 							}
 						}
 					]

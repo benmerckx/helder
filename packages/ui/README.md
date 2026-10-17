@@ -45,7 +45,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   - Layout is CSS flexbox, column by default: `direction`, `wrap`,
     `justify`, `alignItems`, `alignSelf` (`Baseline`: a row's items on their
     first baselines, a text's first line's, a box without one on its bottom
-    edge), `alignContent`, `grow`,
+    edge; a column's on their start edges), `alignContent`, `grow`,
     `shrink`, `basis`, `width`, `height`, min and max (widths also
     `min-content`, `max-content`, `fit-content`: CSS's intrinsic sizes),
     `aspectRatio`,

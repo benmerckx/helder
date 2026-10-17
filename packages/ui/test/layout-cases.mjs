@@ -169,7 +169,7 @@ export const cases = [
 			{ style: { direction: 'Row', alignItems: 'Baseline' }, children: [box(20, 15), box(20, 25, { margin: [0, 0, 6, 0] })] }, box(30, 10, { alignSelf: 'Center' })] },
 		{ style: { direction: 'Row', alignItems: 'Baseline', height: 80, borderWidth: 2 }, children: [box(30, 20), box(30, 40)] },
 		{ style: { direction: 'Row', wrap: true, alignItems: 'Baseline', width: 100, columnGap: 4, rowGap: 4 }, children: [box(40, 20), box(40, 30), box(40, 10), box(40, 25)] },
-		{ style: { alignItems: 'Baseline', width: 100 }, children: [box(40, 20), box(60, 20)] }] } },
+		{ style: { alignItems: 'Baseline', width: 100 }, children: [box(40, 20), box(60, 20, { margin: [0, 0, 0, 8] }), box(30, 10, { alignSelf: 'Start' })] }] } },
 	// the shorthands: gap (both gaps), inset (the four offsets), flex: n (n 1 0%)
 	{ name: 'gap, inset and flex shorthands', width: 300, height: 200, tree: { style: { gap: 6 }, children: [
 		{ style: { direction: 'Row', gap: 10, height: 20 }, children: [{ style: { flex: 1 } }, { style: { flex: 2 } }, box(30, 20)] },

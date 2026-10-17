@@ -2,7 +2,7 @@ package hxmc.ui;
 
 // Flexbox layout of a Node tree, after CSS Flexible Box Layout (section 9),
 // and CSS grid for a Display Grid container (grid() below):
-// margins are pixels or auto (NaN), baselines a row's only. A flex
+// margins are pixels or auto (NaN), a column's baselines its start edges. A flex
 // item's min size on the main axis is CSS's automatic minimum when auto
 // (its content's: the min-content width in a row, the content's height in
 // a column; no more than its width or height when given; 0 for Overflow
@@ -187,8 +187,8 @@ class Layout {
 			it.maxCross = row ? max(cs.maxHeight, pctCross) : maxWidthOf(c, cs.maxWidth, pctCross, roomC);
 			it.align = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (it.align == Auto) it.align = Stretch;
-			// (an auto margin across: not stretched, placed by its margins; baselines: a row's)
-			if (it.autoCross != 0 || (it.align == Baseline && !row)) it.align = Start;
+			// (an auto margin across: not stretched, placed by its margins)
+			if (it.autoCross != 0) it.align = Start;
 			// (stretched only when its size across is auto: a percentage of an indefinite one is not)
 			if (it.align == Stretch && (row ? cs.height : cs.width) != DimValue.Auto) it.align = Start;
 			it.styleCross = clamp(!row && cs.width.intrinsic() ? intrinsicWidth(c, cs.width, pctCross, roomC) : (row ? cs.height : cs.width).resolve(pctCross), it.minCross,
@@ -300,10 +300,15 @@ class Layout {
 				var oc = it.cross + it.mCrossStart + it.mCrossEnd;
 				if (oc > lc) lc = oc;
 				if (it.align == Baseline) {
-					looseH = true;
-					size(it.node, it.main, it.cross, innerW, pctH, it.main, it.cross, true);
-					var b = it.node.firstBaseline();
-					it.baseline = it.mCrossStart + (Math.isNaN(b) ? it.cross : b);
+					// (a column's: each one's start edge, as Chromium synthesizes it across)
+					var b = 0.0;
+					if (row) {
+						looseH = true;
+						size(it.node, it.main, it.cross, innerW, pctH, it.main, it.cross, true);
+						b = it.node.firstBaseline();
+						if (Math.isNaN(b)) b = it.cross;
+					}
+					it.baseline = it.mCrossStart + b;
 					if (it.baseline > above) above = it.baseline;
 					if (oc - it.baseline > below) below = oc - it.baseline;
 				}
