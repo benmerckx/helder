@@ -7,8 +7,9 @@ import hxmc.unsafe.*;
 // hxmc.os.Window on Android: the activity's one window (NativeActivity's
 // ANativeWindow), full screen; its title and size are the system's. The
 // program's thread (Activity: hxmc's runtime runs there) waits for the
-// native window when the Window is made, then App.run polls the looper:
-// the commands of the activity's callbacks (Activity) and the input queue.
+// native window when the Window is made (one with a size), then App.run
+// polls the looper: the commands of the activity's callbacks (Activity)
+// and the input queue.
 // A touch is the left button (MouseDown, MouseMove, MouseUp at the
 // finger), and its drag scrolls too (Scroll by the finger's motion, as a
 // touch screen scrolls); keys come as X11 KeySyms like the other systems'
@@ -16,7 +17,9 @@ import hxmc.unsafe.*;
 // TextInput for the printable ones. When the system takes the window (the
 // app goes to the background) the Surface is lost (Surface.lost: the GPU
 // back end lets go of it before the callback returns) and a Suspend event
-// comes; with a new window, Resume (and Resize when its size changed).
+// comes; with a new window, once it has a size, Resume at that size. (At
+// a launch a window can come without a size yet, or be replaced as soon
+// as it came: nothing is made on one until it has a size.)
 // While paused or without a window App.run sleeps in the looper.
 @:hxmc.android @:allow(hxmc.os)
 class AndroidWindow {
@@ -37,7 +40,7 @@ class AndroidWindow {
 		if (current != null) throw "hxmc.os: Android has one window, the activity's";
 		this.owner = owner;
 		// (the activity's window: the program waits for it; current once there is a surface)
-		while (window.isNull() && Activity.destroyed == 0)
+		while (!ready() && Activity.destroyed == 0)
 			pump(-1, null);
 		surface = new Surface(Android, Ptr.nil(), window, window.isNull() ? 0 : Android.ANativeWindow_getWidth(window),
 			window.isNull() ? 0 : Android.ANativeWindow_getHeight(window));
@@ -73,6 +76,11 @@ class AndroidWindow {
 		if (Activity.destroyed == 0) Android.ANativeActivity_finish(Activity.activity);
 	}
 
+	// the native window is there and has a size (the system's resize
+	// callback comes when a 0x0 one gets one)
+	static function ready():Bool
+		return !window.isNull() && Android.ANativeWindow_getWidth(window) > 0 && Android.ANativeWindow_getHeight(window) > 0;
+
 	// whether a frame can be drawn now
 	static function drawable():Bool
 		return current != null && !current.suspended && !window.isNull() && !paused;
@@ -86,7 +94,8 @@ class AndroidWindow {
 		Looper.ALooper_pollOnce(seconds < 0 ? -1 : Std.int(seconds * 1000), Ptr.nil(), Ptr.nil(), Ptr.nil());
 
 	// handles what the looper has: once it waited timeout ms (-1: until
-	// something comes), then whatever else is ready
+	// something comes), then whatever else is ready (a window's destroy
+	// right after its create among it)
 	static function pump(timeout:Int, onEvent:Null<Event->Void>) {
 		var t = timeout;
 		while (true) {
@@ -97,16 +106,18 @@ class AndroidWindow {
 				if (cmd >= 0) command(cmd, onEvent);
 			} else if (id == Activity.LOOPER_INPUT) input(onEvent);
 			else if (id < 0 && id != -1) break; // (ALOOPER_POLL_TIMEOUT, _ERROR; -1: woken)
-			if (timeout < 0 && (!window.isNull() || Activity.destroyed != 0)) break;
 		}
-		// (a size the system changed)
+		// (a new window with a size: Resume; a size the system changed: Resize)
 		var w = current;
-		if (w != null && !w.suspended && !window.isNull()) {
-			var nw = Android.ANativeWindow_getWidth(window), nh = Android.ANativeWindow_getHeight(window);
-			if (nw > 0 && nh > 0 && (nw != w.surface.width || nh != w.surface.height)) {
-				w.surface.resized(nw, nh);
-				dispatch(onEvent, Resize, nw, nh);
-			}
+		if (w == null || !ready()) return;
+		var nw = Android.ANativeWindow_getWidth(window), nh = Android.ANativeWindow_getHeight(window);
+		if (w.suspended) {
+			w.suspended = false;
+			w.surface.reattach(window, nw, nh);
+			dispatch(onEvent, Resume, nw, nh);
+		} else if (nw != w.surface.width || nh != w.surface.height) {
+			w.surface.resized(nw, nh);
+			dispatch(onEvent, Resize, nw, nh);
 		}
 	}
 
@@ -129,24 +140,24 @@ class AndroidWindow {
 		var w = current;
 		switch cmd {
 			case Activity.WINDOW_CREATED:
+				// (used once it has a size: pump)
 				window = Activity.take(true);
-				var resumed = w != null && w.suspended;
-				if (resumed) {
-					w.suspended = false;
-					w.surface.reattach(window, Android.ANativeWindow_getWidth(window), Android.ANativeWindow_getHeight(window));
-				}
+				log("window created", window);
 				Activity.acknowledge();
-				if (resumed) dispatch(onEvent, Resume, w.surface.width, w.surface.height);
 			case Activity.WINDOW_DESTROYED:
-				// (the GPU lets go of the window before the callback returns)
-				if (w != null && !w.suspended) {
+				// (the GPU lets go of the window before the callback returns;
+				// the Surface keeps no handle to it)
+				log("window destroyed", window);
+				var suspend = w != null && !w.suspended;
+				if (suspend) {
 					w.suspended = true;
 					var lost = w.surface.lost;
 					if (lost != null) lost();
+					w.surface.reattach(Ptr.nil(), w.surface.width, w.surface.height);
 				}
 				window = Ptr.nil();
 				Activity.acknowledge();
-				dispatch(onEvent, Suspend);
+				if (suspend) dispatch(onEvent, Suspend);
 			case Activity.INPUT_CREATED:
 				if (!queue.isNull()) Android.AInputQueue_detachLooper(queue);
 				queue = Activity.take(false);
@@ -177,6 +188,11 @@ class AndroidWindow {
 				Activity.acknowledge();
 		}
 	}
+
+	// the window's lifecycle in logcat (debug level, tag hxmc.os: not the program's output)
+	static function log(what:String, w:Ptr)
+		Arena.scoped(a -> Log.__android_log_write(3, Mem.cstr("hxmc.os"),
+			a.cstring(w.isNull() ? what : what + " " + Android.ANativeWindow_getWidth(w) + "x" + Android.ANativeWindow_getHeight(w))));
 
 	// the input queue's events
 	static function input(onEvent:Null<Event->Void>) {

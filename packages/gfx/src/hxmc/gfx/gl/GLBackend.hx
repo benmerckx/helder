@@ -110,11 +110,11 @@ class GLBackend {
 			var configs:Ptr<Ptr> = a.alloc(8);
 			if (Egl.eglChooseConfig(display, attribs, configs, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8 and a 24-bit depth buffer");
 			config = configs.value;
-			eglSurface = headless ? Egl.eglCreatePbufferSurface(display, config,
-				ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE])) : Egl.eglCreateWindowSurface(display, config,
-					surface.handle, Ptr.nil());
-			if (eglSurface.isNull()) fail("cannot create the EGL surface");
-			window = surface.handle;
+			if (headless) {
+				eglSurface = Egl.eglCreatePbufferSurface(display, config, ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE]));
+				if (eglSurface.isNull()) fail("cannot create the EGL surface");
+			} else
+				attach();
 			context = Egl.eglCreateContext(display, config, Ptr.nil(), ints(a, [EGL.CONTEXT_MAJOR_VERSION, 3, EGL.CONTEXT_MINOR_VERSION, 0, EGL.NONE]));
 			if (context.isNull()) fail("cannot create a GLES 3.0 context");
 		});
@@ -333,17 +333,24 @@ class GLBackend {
 		window = Ptr.nil();
 	}
 
+	// an EGL surface on the window the Surface has now
+	function attach() {
+		eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
+		if (eglSurface.isNull()) fail("cannot create the EGL surface");
+		window = surface.handle;
+	}
+
 	public function beginFrame():Bool {
-		// (Android: a new window after a Resume; one comparison of the target, folded elsewhere)
-		if (Mem.target() >= 9) {
-			if (surface.kind != Headless && surface.handle != window) {
+		// (Android: a new window after a Resume, none while suspended; one
+		// comparison of the target, folded elsewhere)
+		if (Mem.target() >= 9 && surface.kind != Headless) {
+			if (surface.handle != window) {
 				release();
 				if (surface.handle.isNull()) return false;
-				eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
-				if (eglSurface.isNull()) fail("cannot create the EGL surface");
-				window = surface.handle;
+				attach();
 				if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
 			}
+			if (eglSurface.isNull()) return false;
 		}
 		ring ^= 1;
 		cursor = 0;

@@ -25,7 +25,7 @@ class Surface {
 	public final display:Ptr;
 	// X11: the Window (an XID); Cocoa: the NSView*; Win32: the HWND; Canvas:
 	// the canvas's handle in the JavaScript side's table (packages/os/browser.mjs);
-	// Android: the ANativeWindow* (another after a Resume: reattach)
+	// Android: the ANativeWindow* (nil while suspended, another after a Resume: reattach)
 	public var handle(default, null):Ptr;
 	// Android: what the GPU back end does when the system takes the window
 	// (the app goes to the background): let go of everything made on it,

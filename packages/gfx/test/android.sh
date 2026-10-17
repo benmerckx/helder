@@ -4,7 +4,8 @@
 # NativeActivity and reads the app's lines from logcat (hxmc.os sends what
 # the app prints there, tag hxmc):
 #   - the cube rendered headless on the device's GPU matches cube.png
-#     (GfxTest's rule), and in the activity's window its frame is lit;
+#     (GfxTest's rule); the activity's window, waited for, has a size, and
+#     its frame is lit;
 #   - 120 frames drawn in the window;
 #   - a tap and a key come back as events (MouseDown, KeyDown of a);
 #   - Home takes the window (Suspend), starting the activity again gives it
@@ -56,6 +57,8 @@ wait_for "AndroidTest: frames 120" 120
 check "120 frames in the window" $?
 grep -q "AndroidTest: GfxTest: cube, android headless: ok\|GfxTest: cube, android headless: ok" "$log"
 check "the headless cube matches cube.png" $?
+grep -q "AndroidTest: window [1-9][0-9]*x[1-9]" "$log"
+check "the window has a size" $?
 grep -q "AndroidTest: window frame .*: lit" "$log"
 check "the window's frame is lit" $?
 adb shell input tap 300 300
