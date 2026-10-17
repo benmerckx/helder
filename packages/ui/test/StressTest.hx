@@ -62,6 +62,7 @@ class StressTest implements Markup {
 		var n = Sys.args().length > 0 ? Std.parseInt(Sys.args()[0]) : 1000;
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
+		ui.theme = Plain.sheet;
 		var r = new Renderer(device);
 		var pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
 		var pixels = Bytes.alloc(W * H * 4);

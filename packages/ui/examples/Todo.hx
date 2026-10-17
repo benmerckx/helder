@@ -19,6 +19,7 @@ import hxmc.ui.widgets.Widgets.*;
 class Todo implements Markup {
 	static function main() {
 		var w = new UiWindow("Todo", 480, 560);
+		w.ui.theme = Plain.sheet;
 		Render.render(new Todo().view(), w.root);
 		UiWindow.run();
 	}

@@ -23,8 +23,8 @@ typedef MenuItem = {label:String, ?onSelect:Void->Void, ?shortcut:String, ?varia
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
 // hxmc.view, unstyled: behaviour, semantics and the geometry their
 // interaction needs, their nodes' slots, states, variants and sizes (as
-// shadcn's) for a theme's rules (Rules, StyleSheet), else Unstyled's;
-// props and an instance's own style override the look
+// shadcn's) for a theme's rules (Rules, StyleSheet): with none, no look
+// at all (as React Aria's); props and an instance's own style override it
 class Widgets implements Markup {
 	// (a prop that may be a value, a signal or a function of one: its value, read where a reactive value tracks it)
 	static function read(v:Dynamic):Dynamic
@@ -41,12 +41,11 @@ class Widgets implements Markup {
 	// a button (shadcn's): its label or children; variant "default" (the
 	// main action), "destructive", "outline", "secondary", "ghost" or
 	// "link", size "default", "sm", "lg" or "icon" (slot "button"; a
-	// theme's looks, Unstyled's without one); disabled (a Bool, a signal or
+	// theme's looks); disabled (a Bool, a signal or
 	// a function of one): not focusable, clicks and keys ignored,
 	// data-disabled for the theme
 	public static function Button(props:{?label:String, ?onClick:Void->Void, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
 			?tag:String}):View {
-		Unstyled.install();
 		var disabled = () -> read(props.disabled) == true;
 		var press = () -> if (!disabled() && props.onClick != null) props.onClick();
 		return <view tag={props.tag ?? "button"} slot="button" variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
@@ -64,7 +63,6 @@ class Widgets implements Markup {
 	// "toggle", data-state "on" or "off"; ARIA's pressed button)
 	public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
 			?tag:String}):View {
-		Unstyled.install();
 		var disabled = () -> read(props.disabled) == true;
 		var flip = () -> if (!disabled()) props.pressed.value = !props.pressed.peek();
 		return <view tag={props.tag ?? "toggle"} slot="toggle" variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
@@ -83,7 +81,6 @@ class Widgets implements Markup {
 	// "indeterminate") and "checkbox-indicator" (shown when not unchecked),
 	// the label a "label"
 	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?tag:String}):View {
-		Unstyled.install();
 		var mixed = () -> props.mixed != null && props.mixed.value;
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> mixed() ? "indeterminate" : props.checked.value ? "checked" : "unchecked";
@@ -113,7 +110,6 @@ class Widgets implements Markup {
 	// and "switch-thumb", data-state "checked" or "unchecked" on both (the
 	// thumb's place by its state's rules); size "default" or "sm" (and data-size)
 	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?tag:String}):View {
-		Unstyled.install();
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
 		var toggle = () -> if (!disabled()) props.checked.value = !props.checked.peek();
@@ -133,14 +129,12 @@ class Widgets implements Markup {
 
 	// a label (shadcn's): its text or children (slot "label")
 	public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?tag:String}):View {
-		Unstyled.install();
 		return <text tag={props.tag ?? "label"} slot="label" data-disabled={() -> read(props.disabled) == true}>{props.children ?? props.text}</text>;
 	}
 
 	// a badge (shadcn's): its label or children; variant "default",
 	// "secondary", "destructive" or "outline" (slot "badge")
 	public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?tag:String}):View {
-		Unstyled.install();
 		return <view tag={props.tag ?? "badge"} slot="badge" variant={props.variant ?? "default"}>{props.label}{props.children}</view>;
 	}
 
@@ -148,7 +142,6 @@ class Widgets implements Markup {
 	// "card-header", "card-title", "card-description", "card-action",
 	// "card-content", "card-footer"
 	public static function Card(props:{?children:View, ?tag:String}):View {
-		Unstyled.install();
 		return <view tag={props.tag ?? "card"} slot="card">{props.children}</view>;
 	}
 
@@ -174,7 +167,6 @@ class Widgets implements Markup {
 	// default) or "vertical" (slot "separator", data-orientation); not
 	// decorative: a separator for assistive technology
 	public static function Separator(props:{?orientation:String, ?decorative:Bool, ?tag:String}):View {
-		Unstyled.install();
 		var o = props.orientation ?? "horizontal";
 		return props.decorative == false ? <view tag={props.tag ?? "separator"} slot="separator" role="separator" data-orientation={o}/> : <view
 			tag={props.tag ?? "separator"} slot="separator" data-orientation={o} hidden/>;
@@ -183,7 +175,6 @@ class Widgets implements Markup {
 	// a skeleton (shadcn's): a placeholder where content is still coming,
 	// its size the props' or its children's (slot "skeleton")
 	public static function Skeleton(props:{?width:Dynamic, ?height:Dynamic, ?children:View, ?tag:String}):View {
-		Unstyled.install();
 		return <view tag={props.tag ?? "skeleton"} slot="skeleton" width={props.width} height={props.height} hidden>{props.children}</view>;
 	}
 
@@ -191,7 +182,6 @@ class Widgets implements Markup {
 	// "destructive"; its title and description (slots "alert",
 	// "alert-title", "alert-description")
 	public static function Alert(props:{?variant:String, ?children:View, ?tag:String}):View {
-		Unstyled.install();
 		return <view tag={props.tag ?? "alert"} slot="alert" variant={props.variant ?? "default"}>{props.children}</view>;
 	}
 
@@ -210,7 +200,6 @@ class Widgets implements Markup {
 	// width: the slider's, else its rules'
 	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
 			?tag:String}):View {
-		Unstyled.install();
 		var disabled = () -> read(props.disabled) == true;
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0;
 		function set(v:Float) {
@@ -270,7 +259,6 @@ class Widgets implements Markup {
 	// each knob; width: the slider's, else its rules'
 	public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
 			?tag:String}):View {
-		Unstyled.install();
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, tag = props.tag ?? "range";
 		var dragging = -1, name = props.label ?? "Range", knobs:Array<Node> = [];
 		function snap(v:Float):Float {
@@ -389,7 +377,6 @@ class Widgets implements Markup {
 		function pct(x:Float):Int
 			return Math.round(x * 100);
 		var spectrum = "linear-gradient(to right, #FF0000, #FFFF00, #00FF00, #00FFFF, #0000FF, #FF00FF, #FF0000)";
-		Unstyled.install();
 		return <view tag={tag} slot="color-picker" role="group" label={name} width={size}>
 			<view tag={tag + "-area"} role="slider" label={name + ": saturation and brightness"} value-now={() -> pct(sat.value)} value-min={0} value-max={100}
 				value-text={() -> "saturation " + pct(sat.value) + "%, brightness " + pct(val.value) + "%"} slot="color-picker-area" width={size} height={size} focusable
@@ -472,7 +459,6 @@ class Widgets implements Markup {
 	// checked), each label a "label"
 	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
 			?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
 		var disabled = () -> read(props.disabled) == true;
 		// (the Tab stop: the checked option, else the first)
@@ -517,7 +503,6 @@ class Widgets implements Markup {
 	// "tabs-list", "tabs-trigger" (data-state "active" or "inactive") and
 	// "tabs-content"
 	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
 		function key(e:Event, i:Int) {
 			var j = switch mirrored(e) {
@@ -562,7 +547,6 @@ class Widgets implements Markup {
 	// high (28), whatever the theme pads
 	public static function Table<T>(props:{rows:Dynamic, columns:Array<{title:String, ?width:String, cell:T->Any, ?compare:(T, T)->Int, ?numeric:Bool}>,
 			?height:Float, ?rowHeight:Float, ?selected:Signal<Null<T>>, ?onActivate:T->Void, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "table", rh = props.rowHeight ?? 28.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
 		var sortBy = signal(-1), descending = signal(false);
@@ -683,7 +667,6 @@ class Widgets implements Markup {
 	// item with children; indented by its level) and "tree-toggle"
 	public static function Tree<T>(props:{roots:Dynamic, children:T->Null<Array<T>>, render:T->Any, ?text:T->String, ?expanded:Signal<Array<T>>,
 			?selected:Signal<Null<T>>, ?onActivate:T->Void, ?height:Float, ?rowHeight:Float, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "tree", rh = props.rowHeight ?? 26.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
 		var expanded:Signal<Array<T>> = props.expanded ?? signal([]);
@@ -794,7 +777,6 @@ class Widgets implements Markup {
 	// data-resize-handle-state "inactive", "hover" or "drag")
 	public static function Split(props:{first:Any, second:Any, ?size:Signal<Float>, ?direction:String, ?min:Float, ?max:Float, ?label:String,
 			?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "split", row = props.direction != "column";
 		var size:Signal<Float> = props.size ?? signal(200.0);
 		var lo = props.min ?? 0.0, grip = 6.0;
@@ -857,7 +839,6 @@ class Widgets implements Markup {
 	// data-today, data-outside, data-focused: "true")
 	public static function Calendar(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void, ?label:String,
 			?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "calendar", first = props.firstDay ?? 1;
 		var now = Date.now();
 		var today = props.today ?? {year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate()};
@@ -944,7 +925,6 @@ class Widgets implements Markup {
 	// date), the calendar in a "popover-content"
 	public static function DatePicker(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?format:Day->String, ?placeholder:String,
 			?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "date", open = signal(false);
 		var format = props.format ?? (d:Day) -> d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
 		var self:Null<Node> = null;
@@ -975,7 +955,6 @@ class Widgets implements Markup {
 	// "progress" and "progress-indicator" (data-state "indeterminate" when
 	// sliding); width: the bar's, else its rules'
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var known = () -> Render.read(props.value) != null;
 		var frac = () -> {
 			var v:Null<Float> = Render.read(props.value);
@@ -1011,7 +990,6 @@ class Widgets implements Markup {
 	// "select-content", "select-item" (data-state "checked" or "unchecked")
 	// and "select-item-indicator" (shown when checked)
 	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "select", w = props.width ?? 160.0;
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -1148,7 +1126,6 @@ class Widgets implements Markup {
 			}
 			e.stop();
 		}
-		Unstyled.install();
 		return <view tag={tag} slot="listbox" role="listbox" label={props.label} multiselectable={multiple} width={props.width} height={props.height}
 			overflow={props.height == null ? "visible" : "scroll"}>{[
 			for (i in 0...options.length) {
@@ -1214,7 +1191,6 @@ class Widgets implements Markup {
 			}
 			e.preventDefault();
 		}
-		Unstyled.install();
 		return <view tag={tag} slot="sortable" role="list" label={props.label} description="Alt+Up and Alt+Down move an item">
 			<view tag={tag + "-live"} position="absolute" width={0} height={0} overflow="hidden" live="polite"><text>{said}</text></view>
 			<For each={props.items} render={(item:T) -> {
@@ -1249,7 +1225,6 @@ class Widgets implements Markup {
 	// Left and Right (the way they point, wrapping), Home and End move the
 	// focus between them (not out of a text field's text). Slot "toolbar"
 	public static function Toolbar(props:{?label:String, ?tag:String, ?children:Any}):View {
-		Unstyled.install();
 		var bar:Null<Node> = null, items:Array<Node> = [];
 		function rove(k:Int)
 			for (j in 0...items.length)
@@ -1305,7 +1280,6 @@ class Widgets implements Markup {
 	// "dropdown-menu-content", "dropdown-menu-item" and "dropdown-menu-shortcut"
 	public static function DropdownMenu(props:{label:String, items:Array<MenuItem>, ?variant:String,
 			?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -1335,7 +1309,6 @@ class Widgets implements Markup {
 	// "open" or "closed"), "menubar-content", "menubar-item", "menubar-shortcut"
 	public static function Menubar(props:{menus:Array<{label:String, items:Array<MenuItem>}>, ?label:String,
 			?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "menubar", count = props.menus.length;
 		var opens = [for (m in props.menus) signal(false)], titles:Array<Node> = [], current = signal(0);
 		// (menu i open, the others closed; -1: none)
@@ -1395,7 +1368,6 @@ class Widgets implements Markup {
 	// while the focus is in the children. Slots (shadcn's)
 	// "context-menu-content", "context-menu-item", "context-menu-shortcut"
 	public static function ContextMenu(props:{items:Array<MenuItem>, ?label:String, ?tag:String, ?children:Any}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "context-menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -1434,7 +1406,6 @@ class Widgets implements Markup {
 	// "on" or "off"), each with the variant and size
 	public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
 			?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var variant = props.variant ?? "default", size = props.size ?? "default";
 		var tag = props.tag ?? "segments", options = props.options, nodes:Array<Node> = [], n = options.length;
 		function stop(i:Int):Bool {
@@ -1471,7 +1442,6 @@ class Widgets implements Markup {
 	// "breadcrumb-list", "breadcrumb-item", "breadcrumb-link",
 	// "breadcrumb-page", "breadcrumb-separator"
 	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "crumbs", items = props.items;
 		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "Breadcrumb"}>
 			<view slot="breadcrumb-list">{[
@@ -1499,7 +1469,6 @@ class Widgets implements Markup {
 	// current page's, data-disabled on Previous on the first, Next on the
 	// last) and "pagination-ellipsis"
 	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "pages", count = props.count;
 		function go(p:Int)
 			if (p >= 1 && p <= count) props.page.value = p;
@@ -1615,7 +1584,6 @@ class Widgets implements Markup {
 	// has rested on them for delay seconds (0.5), hidden when it leaves or
 	// presses, or by Escape (slot "tooltip-content", shadcn's)
 	public static function Tooltip(props:{text:String, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
-		Unstyled.install();
 		var show = signal(false), over = 0;
 		var delay = props.delay ?? 0.5;
 		function enter() {
@@ -1652,7 +1620,6 @@ class Widgets implements Markup {
 	// DialogFooter's "dialog-footer"
 	public static function Dialog(props:{open:Signal<Bool>, title:String, ?description:String, ?width:Float, ?close:Bool, ?tag:String,
 			?children:Any}):Any {
-		Unstyled.install();
 		var close = () -> props.open.value = false;
 		return Popover({
 			open: props.open,
@@ -1686,7 +1653,6 @@ class Widgets implements Markup {
 	// "sheet-close"; SheetFooter's "sheet-footer"
 	public static function Sheet(props:{open:Signal<Bool>, title:String, ?description:String, ?side:String, ?close:Bool, ?tag:String,
 			?children:Any}):Any {
-		Unstyled.install();
 		var side = props.side ?? "right", close = () -> props.open.value = false, tag = props.tag ?? "sheet";
 		var across = side == "left" || side == "right";
 		return Popover({
@@ -1722,7 +1688,6 @@ class Widgets implements Markup {
 	// "button" of variant, data-state "open" or "closed") and
 	// "popover-content" (data-state, data-side "bottom")
 	public static function PopoverButton(props:{label:String, ?open:Signal<Bool>, ?variant:String, ?tag:String, ?children:Any}):View {
-		Unstyled.install();
 		var open = props.open ?? signal(false), tag = props.tag ?? "popover";
 		return <view tag={tag} slot="button" variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
 			data-state={() -> open.value ? "open" : "closed"} focusable onClick={_ -> open.value = !open.peek()}
@@ -1745,7 +1710,6 @@ class Widgets implements Markup {
 	// kept while it is over either, hidden when it leaves both (after 0.3
 	// seconds) or by Escape (slot "hover-card-content")
 	public static function HoverCard(props:{content:Any, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
-		Unstyled.install();
 		var show = signal(false), over = 0, delay = props.delay ?? 0.7;
 		// (show or hide after a wait: the last asked wins)
 		function after(wait:Float, v:Bool) {
@@ -1773,7 +1737,6 @@ class Widgets implements Markup {
 	// an avatar (shadcn's): an image, else its fallback (initials) while
 	// there is none. Slots "avatar", "avatar-image" and "avatar-fallback"
 	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		return <view tag={props.tag ?? "avatar"} slot="avatar" role="img" label={props.label ?? props.fallback} overflow="hidden">
 			{() -> read(props.src) == null ? <view slot="avatar-fallback" hidden><text>{props.fallback}</text></view> : <image slot="avatar-image"
 				src={props.src} fit="cover" width="100%" height="100%" hidden/>}
@@ -1782,7 +1745,6 @@ class Widgets implements Markup {
 
 	// a key or keys as typed (shadcn's Kbd: slot "kbd"), e.g. "⌘K" or a Shortcut's label
 	public static function Kbd(props:{?text:String, ?children:Any, ?tag:String}):View {
-		Unstyled.install();
 		return <text tag={props.tag ?? "kbd"} slot="kbd">{props.children ?? props.text}</text>;
 	}
 
@@ -1790,7 +1752,6 @@ class Widgets implements Markup {
 	// shown, on the Clock (slot "spinner"; an indeterminate progress bar for
 	// assistive technology, label "Loading")
 	public static function Spinner(props:{?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var turn = signal(0.0), stopped = false;
 		Clock.add(now -> {
 			if (stopped) return false;
@@ -1812,7 +1773,6 @@ class Widgets implements Markup {
 	// as it is (onChoose), Escape or a click outside closes the list.
 	public static function Combobox(props:{value:Signal<String>, options:Dynamic, ?placeholder:String, ?width:Float, ?label:String,
 			?onChoose:String->Void, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "combobox", w = props.width ?? 200.0;
 		var open = signal(false), active = signal(-1);
 		var options:Array<Node> = [];
@@ -1891,7 +1851,6 @@ class Widgets implements Markup {
 	// "collapsible", "collapsible-trigger" and "collapsible-content", each
 	// with data-state "open" or "closed"
 	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
-		Unstyled.install();
 		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
 		var state = () -> open.value ? "open" : "closed";
 		return <view tag={tag} slot="collapsible" data-state={state}>
@@ -1907,7 +1866,6 @@ class Widgets implements Markup {
 	// "accordion-item", "accordion-trigger" and "accordion-content", each
 	// item's with data-state "open" or "closed"
 	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
-		Unstyled.install();
 		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion";
 		return <view tag={tag} slot="accordion">{[
 			for (i in 0...props.sections.length) {
@@ -1937,7 +1895,6 @@ class Widgets implements Markup {
 	// and a close button. They do not take the focus; the pointer over them
 	// holds their time.
 	public static function Toaster(props:{?placement:String, ?width:Float, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "toaster";
 		// (a live region, always there and of no size, saying the newest toast: assistive technology announces it)
 		return <view tag={tag + "-live"} position="absolute" width={0} height={0} overflow="hidden" live="polite">
@@ -1970,7 +1927,6 @@ class Widgets implements Markup {
 	// technology.
 	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
 			?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
 		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
 		var format = props.format ?? plain;
@@ -2051,7 +2007,6 @@ class Widgets implements Markup {
 	// invalid and disabled as an input's (slot "textarea")
 	public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
 			?tag:String}):View {
-		Unstyled.install();
 		var f = new TextArea(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
 		f.slot = "textarea";
@@ -2101,7 +2056,6 @@ class Widgets implements Markup {
 	// (slot "input"; its placeholder's colour a "placeholder" rule's)
 	public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
 			?invalid:Dynamic, ?disabled:Dynamic, ?tag:String}):View {
-		Unstyled.install();
 		var f = new TextField(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
 		f.slot = "input";
@@ -2120,7 +2074,6 @@ class Widgets implements Markup {
 	// takes the last one off, a chip's × takes it off; a click in the box
 	// focuses the field. The chips a list, each × a button named for its tag
 	public static function TagInput(props:{tags:Signal<Array<String>>, ?placeholder:String, ?label:String, ?tag:String}):View {
-		Unstyled.install();
 		var tag = props.tag ?? "tags";
 		var f = new TextField("");
 		f.tag = tag + "-field";

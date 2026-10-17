@@ -1,23 +1,13 @@
-package hxmc.ui.widgets;
-
 import hxmc.ui.*;
 
-// The widgets' looks where no theme applies (Rules.addBase): the geometry
-// their interaction needs and what keeps them legible, in the text's
-// colour (currentColor) — an outline round a control, a visible checked
-// state, a switch's thumb on its side. A theme (StyleSheet) starts from
-// none of these, as shadcn's from Tailwind's preflight. An app's page
-// takes the slot "body" (as shadcn's globals style body): the system's
-// colours, Canvas and CanvasText, light or dark (Ui.dark).
-class Unstyled {
-	// (installed when a widget is first made)
-	public static function install() {
-		if (installed) return;
-		installed = true;
-		Rules.addBase("widgets", rules());
-	}
-
-	static var installed = false;
+// A plain look for the examples and tests (a StyleSheet: ui.theme =
+// Plain.sheet): outlines and states in the text's colour (currentColor),
+// popups on the system's colours (Canvas, CanvasText), a page's body on
+// them, light or dark. The widgets themselves ship with no look at all
+// (behaviour and semantics only, as React Aria's); @hxmc/theme is
+// shadcn/ui's.
+class Plain {
+	public static final sheet:StyleSheet = {rules: rules()};
 
 	static function rules():Array<Rule> {
 		var line = Color.parse("currentColor"), faint = Color.parse("currentColor/30"), half = Color.parse("currentColor/50");

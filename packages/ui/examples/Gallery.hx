@@ -25,6 +25,7 @@ typedef Entry = {name:String, ?children:Array<Entry>, ?size:Int};
 class Gallery implements Markup {
 	static function main() {
 		var w = new UiWindow("Gallery", 560, 520);
+		w.ui.theme = Plain.sheet;
 		Render.render(new Gallery().view(), w.root);
 		UiWindow.run();
 	}

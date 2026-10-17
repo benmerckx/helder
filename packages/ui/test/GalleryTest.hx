@@ -34,6 +34,7 @@ class GalleryTest {
 		var args = Sys.args();
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
+		ui.theme = Plain.sheet;
 		ui.dark = args.indexOf("--dark") >= 0;
 		var app = new Gallery();
 		Render.render(app.view(), ui.root);

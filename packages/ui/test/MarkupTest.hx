@@ -80,6 +80,9 @@ class MarkupTest implements Markup {
 	static var failed = 0;
 
 	public static function main() {
+		// (first with no rules at all: the widgets' behaviour, no look; then on the examples' plain look)
+		noLook();
+		Rules.addBase("plain", Plain.sheet.rules);
 		rendering();
 		flow();
 		motion();
@@ -1161,6 +1164,32 @@ class MarkupTest implements Markup {
 
 	// the unstyled widgets (Unstyled; a theme's looks: Rule): slots,
 	// variants, sizes and states for a theme; legible without one
+	// with no rules, a widget has no look (React Aria's way: behaviour and
+	// semantics only): no border, padding, background or size of its own;
+	// it still works
+	static function noLook() {
+		var ui = new Ui(new MonoText(), 400, 300), ticked = signal(false), clicks = 0;
+		Render.render(<view align-items="start">
+			<Button tag="b" label="Go" onClick={() -> clicks++}/>
+			<Checkbox tag="c" checked={ticked} label="Agree"/>
+			<SwitchWidget tag="s" checked={signal(false)} label="Wi-Fi"/>
+			<Input tag="i" value={signal("")}/>
+		</view>, ui.root);
+		ui.update();
+		var b = ui.root.find("b"), c = ui.root.find("c"), s = ui.root.find("s"), i = ui.root.find("i");
+		check("no look: no border, padding, background or size of their own", b.style.borderWidth == 0 && b.style.padding.left == 0
+			&& b.style.background == Color.TRANSPARENT && Std.string(c.style.width) == "Auto" && c.style.borderWidth == 0 && Std.string(s.children[0].style.width) == "Auto"
+			&& i.style.borderWidth == 0 && b.slot == "button" && c.slot == "checkbox", b.style.borderWidth + " " + b.style.padding.left + " " + b.style.background.toHex() + " " + c.style.width + " " + c.style.borderWidth + " " + s.children[0].style.width + " " + i.style.borderWidth);
+		ui.pointerDown(b.absX + 2, b.absY + 2, 1);
+		ui.pointerUp(b.absX + 2, b.absY + 2, 1);
+		var label = c.parent.children[1];
+		ui.pointerDown(label.absX + 2, label.absY + 2, 1);
+		ui.pointerUp(label.absX + 2, label.absY + 2, 1);
+		ui.update();
+		check("no look: still working, the states on their parts", clicks == 1 && ticked.value && c.attr("data-state") == "checked"
+			&& c.semantics.checked == true);
+	}
+
 	static function unstyled() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var on = signal(false), pressed = signal(false), ticked = signal(false), mixed = signal(false), off = signal(false), clicks = 0;

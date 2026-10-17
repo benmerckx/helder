@@ -24,6 +24,7 @@ import hxmc.ui.widgets.Toasts;
 class Mail implements Markup {
 	static function main() {
 		var w = new UiWindow("Mail", 860, 560);
+		w.ui.theme = Plain.sheet;
 		Render.render(new Mail().view(), w.root);
 		UiWindow.run();
 	}

@@ -25,6 +25,8 @@ class GuideTest implements Markup {
 	}
 
 	public static function main() {
+		// (the examples' plain look where a test sets no theme)
+		Rules.addBase("plain", Plain.sheet.rules);
 		components();
 		state();
 		lists();

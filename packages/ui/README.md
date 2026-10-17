@@ -300,10 +300,11 @@ Colours may be token references, `Color.parse("var(--primary)")`,
 `ui.dark` picks the dark colours and the `dark` rules; every change of a
 state, attribute, variant, sheet or of dark applies them again, at the
 window's next update (several changes, one restyle). Without a sheet a
-widget takes its base rules (`Unstyled`: legible outlines and states in
-the text's colour, `currentColor`, popups on `Canvas`); a sheet starts
-from none of them, as shadcn's classes from Tailwind's preflight. The
-system colours `Canvas` and `CanvasText` are a sheet's colours of those
+widget has no look at all (React Aria's way: behaviour, semantics and
+its parts' states only), unless a program adds base rules
+(`Rules.addBase`: where no sheet applies); `examples/Plain.hx` is a plain
+sheet in the text's colour (`currentColor`) that the examples and tests
+use. The system colours `Canvas` and `CanvasText` are a sheet's colours of those
 names, else Chromium's, light or dark; a page's slot `"body"` takes them
 (shadcn's `bg-background text-foreground` on the body). Menus' and a
 select's items take the focus under the pointer (`focus` rules, as

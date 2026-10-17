@@ -12,6 +12,7 @@ class Counter implements Markup {
 	static function main() {
 		var count = signal(0);
 		var w = new UiWindow("Counter", 320, 200);
+		w.ui.theme = Plain.sheet;
 		Render.render(<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
 			<text font-size={32}>{count}</text>
 			<Button label="+1" onClick={() -> count.value++}/>

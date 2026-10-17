@@ -17,6 +17,7 @@ import hxmc.ui.widgets.Widgets.*;
 class Shaping implements Markup {
 	static function main() {
 		var w = new UiWindow("Text shaping", 480, 440);
+		w.ui.theme = Plain.sheet;
 		Render.render(new Shaping().view(), w.root);
 		UiWindow.run();
 	}
