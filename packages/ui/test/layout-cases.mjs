@@ -98,4 +98,10 @@ export const cases = [
 	{ name: 'grid min content in a row', width: 300, height: 100, tree: { style: { direction: 'Row' }, children: [{ style: { display: 'Grid', gridTemplateColumns: 'auto auto', columnGap: 10 }, children: [box(80, 20), box(60, 20)] }, box(250, 20)] } },
 	{ name: 'grid auto rows minmax', width: 300, height: 300, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', gridAutoRows: 'minmax(40px, auto)', alignContent: 'Start' }, children: [h(20), h(60), h(10)] } },
 	{ name: 'grid wide item in fr', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', alignContent: 'Start' }, children: [{ children: [box(200, 20)] }, h(20)] } },
+	{ name: 'grid template areas', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '80px 1fr', gridTemplateRows: '40px 1fr 30px', gridTemplateAreas: "'head head' 'side main' 'foot foot'" },
+		children: [{ style: { gridArea: 'main' } }, { style: { gridArea: 'foot' } }, { style: { gridArea: 'head' } }, { style: { gridArea: 'side' } }] } },
+	{ name: 'grid areas beyond the templates', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '60px', gridAutoColumns: '50px', gridAutoRows: '30px', alignContent: 'Start', gridTemplateAreas: "'a b c' 'a . c'" },
+		children: [{ style: { gridArea: 'c' } }, {}, { style: { gridArea: 'a' } }, {}, {}] } },
+	{ name: 'grid area lines by name', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '40px', gridTemplateAreas: "'x x y' 'z . y'" },
+		children: [{ style: { gridColumn: 'x-start / y-end', gridRow: '2' } }, { style: { gridColumn: 'y', gridRow: 'x' } }, { style: { gridColumn: 'z / 3' } }, { style: { gridColumn: 'nowhere' } }, { style: { gridArea: '1 / 2 / 3' } }] } },
 ];

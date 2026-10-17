@@ -246,6 +246,15 @@ class GuideTest implements Markup {
 			<view tag="b" background="#dcfce7"/>
 		</view>;
 
+	static function Shell(props:{}):Esx
+		return <view display="grid" grid-template-columns="160px 1fr" grid-template-rows="48px 1fr 32px" height="100%"
+			grid-template-areas="'head head' 'side main' 'foot foot'">
+			<view tag="head" grid-area="head" background="#e4e4e7"/>
+			<view tag="side" grid-area="side" background="#f4f4f5"/>
+			<view tag="main" grid-area="main"/>
+			<view tag="foot" grid-area="foot" background="#e4e4e7"/>
+		</view>;
+
 	static function grids() {
 		var ui = new Ui(new MonoText(), 600, 400);
 		Render.render(<Dashboard/>, ui.root);
@@ -256,6 +265,11 @@ class GuideTest implements Markup {
 		}
 		check("grid: tracks, spans and gaps", box("nav") == "12,12,200,172" && box("chart") == "224,12,364,80" && box("a") == "224,104,176,80" && box("b") == "412,104,176,80",
 			[for (t in ["nav", "chart", "a", "b"]) box(t)].join(" "));
+		ui = new Ui(new MonoText(), 600, 400);
+		Render.render(<Shell/>, ui.root);
+		ui.update();
+		check("grid: named areas", box("head") == "0,0,600,48" && box("side") == "0,48,160,320" && box("main") == "160,48,440,320" && box("foot") == "0,368,600,32",
+			[for (t in ["head", "side", "main", "foot"]) box(t)].join(" "));
 	}
 
 	// "Rich text": spans in a paragraph

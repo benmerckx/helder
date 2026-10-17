@@ -52,6 +52,8 @@ typedef StyleProps = {
 	?gridAutoFlow:Grid.GridFlow,
 	?gridColumn:Grid.GridPlacement,
 	?gridRow:Grid.GridPlacement,
+	?gridArea:String,
+	?gridTemplateAreas:Grid.GridAreas,
 	?justifyItems:Align,
 	?justifySelf:Align,
 }

@@ -51,11 +51,13 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     on CSS grid tracks instead: `gridTemplateColumns` and
     `gridTemplateRows` (px, %, fr, auto, min-content, max-content,
     minmax(), repeat()), `gridAutoRows`, `gridAutoColumns`,
-    `gridAutoFlow`, items placed by `gridColumn` and `gridRow` ("1 / 3",
-    "span 2", negative lines) or auto-placed, aligned by `justifyItems`,
-    `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify`
-    and `alignContent` (no named lines or areas, no subgrid, no dense
-    packing). Checked against Chromium on 86 cases, 26 of them grids.
+    `gridAutoFlow`, `gridTemplateAreas` ("'head head' 'side main'"), items
+    placed by `gridColumn` and `gridRow` ("1 / 3", "span 2", negative
+    lines, an area's name) or `gridArea`, or auto-placed, aligned by
+    `justifyItems`, `justifySelf`, `alignItems`, `alignSelf`, the tracks
+    by `justify` and `alignContent` (no other named lines, no subgrid,
+    no dense packing). Checked against Chromium on 89 cases, 29 of them
+    grids.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `textAlign`. `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's

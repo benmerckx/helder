@@ -44,6 +44,10 @@ class Style {
 	public var gridTemplateColumns(default, set):Array<Grid.Track> = [];
 	public var gridTemplateRows(default, set):Array<Grid.Track> = [];
 
+	// the explicit grid's named areas (Grid.GridAreas.parse: "'head head' 'side main'"),
+	// which make it at least as many columns and rows (beyond the templates' sized as auto tracks)
+	public var gridTemplateAreas(default, set):Null<Grid.GridAreas> = null;
+
 	// the size of the tracks auto-placement adds beyond them
 	public var gridAutoColumns(default, set):Grid.Track = Grid.Track.AUTO;
 	public var gridAutoRows(default, set):Grid.Track = Grid.Track.AUTO;
@@ -54,6 +58,8 @@ class Style {
 	// the lines this node spans in a grid (Grid.GridPlacement.parse: "1 / 3", "span 2")
 	public var gridColumn(default, set):Grid.GridPlacement = Grid.GridPlacement.AUTO;
 	public var gridRow(default, set):Grid.GridPlacement = Grid.GridPlacement.AUTO;
+	// both (Grid.area: "header", "1 / 2 / 3 / 4")
+	public var gridArea(never, set):String;
 
 	// in a grid: the children's default alignment in their areas along a row, and this node's (Auto: its parent's justifyItems)
 	public var justifyItems(default, set):Align = Align.Stretch;
@@ -247,6 +253,20 @@ class Style {
 		if (v == gridColumn) return v;
 		gridColumn = v;
 		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridTemplateAreas(v:Null<Grid.GridAreas>):Null<Grid.GridAreas> {
+		if (v == gridTemplateAreas) return v;
+		gridTemplateAreas = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridArea(v:String):String {
+		var a = Grid.area(v);
+		gridRow = a.row;
+		gridColumn = a.column;
 		return v;
 	}
 
@@ -553,6 +573,8 @@ class Style {
 		if (p.gridAutoFlow != null) gridAutoFlow = p.gridAutoFlow;
 		if (p.gridColumn != null) gridColumn = p.gridColumn;
 		if (p.gridRow != null) gridRow = p.gridRow;
+		if (p.gridArea != null) gridArea = p.gridArea;
+		if (p.gridTemplateAreas != null) gridTemplateAreas = p.gridTemplateAreas;
 		if (p.justifyItems != null) justifyItems = p.justifyItems;
 		if (p.justifySelf != null) justifySelf = p.justifySelf;
 		return this;

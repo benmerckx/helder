@@ -686,6 +686,8 @@ class UiTest {
 			case "gridAutoFlow": s.gridAutoFlow = v == "Column" ? Grid.GridFlow.Column : Grid.GridFlow.Row;
 			case "gridColumn": s.gridColumn = Grid.GridPlacement.parse(Std.string(v));
 			case "gridRow": s.gridRow = Grid.GridPlacement.parse(Std.string(v));
+			case "gridArea": s.gridArea = Std.string(v);
+			case "gridTemplateAreas": s.gridTemplateAreas = Grid.GridAreas.parse(v);
 			case "alignContent": s.alignContent = switch (v : String) {
 					case "End": End;
 					case "Center": Center;

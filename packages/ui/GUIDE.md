@@ -182,6 +182,19 @@ static function Dashboard(props:{}):Esx
 	</view>;
 ```
 
+Named areas draw the layout as text, and items go to an area by its name:
+
+```haxe
+static function Shell(props:{}):Esx
+	return <view display="grid" grid-template-columns="160px 1fr" grid-template-rows="48px 1fr 32px" height="100%"
+		grid-template-areas="'head head' 'side main' 'foot foot'">
+		<view tag="head" grid-area="head" background="#e4e4e7"/>
+		<view tag="side" grid-area="side" background="#f4f4f5"/>
+		<view tag="main" grid-area="main"/>
+		<view tag="foot" grid-area="foot" background="#e4e4e7"/>
+	</view>;
+```
+
 Sizes are border boxes, and items do not shrink below their content. A
 scrolling area is a `scroll` element, which needs a bounded height, often
 `grow={1} min-height={0}` inside a column. Text properties (`color`,

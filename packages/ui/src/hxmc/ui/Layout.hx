@@ -338,7 +338,8 @@ class Layout {
 	// up to the limits; fr shares of what is left; auto tracks stretched when
 	// justify and alignContent are their defaults, CSS's normal); each item
 	// in its area by justifySelf (or the container's justifyItems) and
-	// alignSelf (or alignItems). No named lines or areas, no subgrid.
+	// alignSelf (or alignItems). Named areas (gridTemplateAreas, items
+	// placed by their names), no other named lines, no subgrid.
 	function grid(n:Node, w:Float, h:Float, availW:Float, availH:Float, minW:Float, maxW:Float, minH:Float, maxH:Float, padL:Float, padT:Float,
 			padH:Float, padV:Float, perform:Bool) {
 		var s = n.style;
@@ -359,9 +360,8 @@ class Layout {
 			items.push(new GridItem(c));
 		}
 		var colsTemplate = s.gridTemplateColumns, rowsTemplate = s.gridTemplateRows;
-		var byColumn = s.gridAutoFlow == Column;
-		place(items, colsTemplate.length, rowsTemplate.length, byColumn);
-		var nCols = colsTemplate.length, nRows = rowsTemplate.length;
+		place(items, s);
+		var nCols = gridColumnCount(s), nRows = gridRowCount(s);
 		for (it in items) {
 			if (it.col + it.colSpan > nCols) nCols = it.col + it.colSpan;
 			if (it.row + it.rowSpan > nRows) nRows = it.row + it.rowSpan;
@@ -471,8 +471,8 @@ class Layout {
 	function gridMinContent(n:Node):Float {
 		var s = n.style;
 		var items = [for (c in n.children) if (c.style.display != None && c.style.position != Absolute) new GridItem(c)];
-		place(items, s.gridTemplateColumns.length, s.gridTemplateRows.length, s.gridAutoFlow == Column);
-		var nCols = s.gridTemplateColumns.length;
+		place(items, s);
+		var nCols = gridColumnCount(s);
 		for (it in items)
 			if (it.col + it.colSpan > nCols) nCols = it.col + it.colSpan;
 		var defs = [for (i in 0...nCols) i < s.gridTemplateColumns.length ? s.gridTemplateColumns[i] : s.gridAutoColumns];
@@ -509,13 +509,48 @@ class Layout {
 		return out;
 	}
 
+	// the explicit grid's size: its templates', its areas' if more
+	static function gridColumnCount(s:Style):Int
+		return s.gridTemplateAreas == null ? s.gridTemplateColumns.length : Std.int(Math.max(s.gridTemplateColumns.length, s.gridTemplateAreas.columns));
+
+	static function gridRowCount(s:Style):Int
+		return s.gridTemplateAreas == null ? s.gridTemplateRows.length : Std.int(Math.max(s.gridTemplateRows.length, s.gridTemplateAreas.rows));
+
 	// the items' cells: those with both lines first, then those locked to a
 	// row (a column, flowing by columns), then the rest by the cursor (sparse)
-	static function place(items:Array<GridItem>, explicitCols:Int, explicitRows:Int, byColumn:Bool) {
-		// (a line's index from 0; negative lines from the explicit grid's end)
-		function resolve(p:Grid.GridPlacement, count:Int):{start:Int, span:Int} {
+	static function place(items:Array<GridItem>, s:Style) {
+		var explicitCols = gridColumnCount(s), explicitRows = gridRowCount(s), byColumn = s.gridAutoFlow == Column;
+		var areas = s.gridTemplateAreas;
+		// (a line's index from 0; negative lines from the explicit grid's end;
+		// a name's: its area's start or end line, else the first line past the explicit grid)
+		function resolve(p:Grid.GridPlacement, count:Int, columns:Bool):{start:Int, span:Int} {
 			inline function index(line:Int):Int
 				return line > 0 ? line - 1 : count + 1 + line;
+			function named(name:String, isEnd:Bool):Int {
+				var atEnd = isEnd;
+				var a = areas == null ? null : areas.areas.get(name);
+				if (a == null && areas != null) {
+					for (suffix in ["-start", "-end"])
+						if (StringTools.endsWith(name, suffix)) {
+							a = areas.areas.get(name.substr(0, name.length - suffix.length));
+							atEnd = suffix == "-end";
+						}
+				}
+				if (a == null) return count + (isEnd ? 1 : 0);
+				return columns ? (atEnd ? a.colEnd : a.col) : (atEnd ? a.rowEnd : a.row);
+			}
+			if (p.startName != null || p.endName != null) {
+				var a = p.startName != null ? named(p.startName, false) : p.start != 0 ? index(p.start) : -1;
+				var b = p.endName != null ? named(p.endName, true) : p.end != 0 ? index(p.end) : -1;
+				if (a >= 0 && b >= 0) {
+					// (the same line twice: the end dropped)
+					if (b == a) return {start: a, span: 1};
+					if (b < a) return {start: b, span: a - b};
+					return {start: a, span: b - a};
+				}
+				if (a >= 0) return {start: a, span: p.span};
+				return {start: Std.int(Math.max(0, b - p.span)), span: p.span};
+			}
 			if (p.start != 0 && p.end != 0) {
 				var a = index(p.start), b = index(p.end);
 				if (b < a) {
@@ -557,7 +592,7 @@ class Layout {
 			}
 		}
 		var res = [for (it in items) {
-			var c = resolve(it.node.style.gridColumn, explicitCols), r = resolve(it.node.style.gridRow, explicitRows);
+			var c = resolve(it.node.style.gridColumn, explicitCols, true), r = resolve(it.node.style.gridRow, explicitRows, false);
 			byColumn ? {major: c, minor: r} : {major: r, minor: c};
 		}];
 		for (k in 0...items.length) {
