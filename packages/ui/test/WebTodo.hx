@@ -1,6 +1,6 @@
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
-import hxmc.ui.reactive.Render;
+import hxmc.view.Render;
 
 // The todo example in a browser (web.mjs: wasm32-wasi in headless Chromium,
 // on WebGPU and on WebGL2): a 420x480 window on the page's canvas, the

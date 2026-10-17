@@ -1,9 +1,9 @@
-import hxmc.esx.Esx;
-import hxmc.esx.Markup;
 import hxmc.ui.*;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Flow.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.ui.view.*;
+import hxmc.view.Flow.*;
+import hxmc.ui.view.UiFlow.*;
+import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.ui.widgets.Theme;
 import UiTest.Recording;
@@ -48,7 +48,7 @@ class GuideTest implements Markup {
 	// --- the guide's code ---
 
 	// "Components"
-	static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):Esx {
+	static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):View {
 		var step = props.step ?? 1;
 		return <view direction="row" align-items="center" column-gap={8}>
 			<text grow={1}>{props.label}</text>
@@ -58,13 +58,13 @@ class GuideTest implements Markup {
 		</view>;
 	}
 
-	static function Card(props:{title:String, ?children:Any}):Esx
+	static function Card(props:{title:String, ?children:Any}):View
 		return <view padding={16} row-gap={8} radius={8} background="#ffffff" shadow="0 1 4 #0000001a">
 			<text font-weight={700}>{props.title}</text>
 			{props.children}
 		</view>;
 
-	static function Order(props:{}):Esx {
+	static function Order(props:{}):View {
 		var adults = signal(2), children = signal(0);
 		var total = memo(() -> adults.value * 30 + children.value * 12);
 		return <Card title="Tickets">
@@ -75,7 +75,7 @@ class GuideTest implements Markup {
 	}
 
 	// "Lists and conditions"
-	static function Names(props:{names:Signal<Array<String>>}):Esx
+	static function Names(props:{names:Signal<Array<String>>}):View
 		return <view row-gap={4}>
 			<For each={props.names} render={(name:String) -> <text>{name}</text>}/>
 			<Show when={() -> props.names.value.length == 0} fallback={<text tag="count">{() -> props.names.value.length + " names"}</text>}>
@@ -83,7 +83,7 @@ class GuideTest implements Markup {
 			</Show>
 		</view>;
 
-	static function Page(props:{tab:Signal<String>}):Esx
+	static function Page(props:{tab:Signal<String>}):View
 		return <Switch fallback={<text>Not found</text>}>
 			<Match when={() -> props.tab.value == "home"}><text tag="home">Home</text></Match>
 			<Match when={() -> props.tab.value == "settings"}><text tag="settings">Settings</text></Match>
@@ -92,13 +92,13 @@ class GuideTest implements Markup {
 	// "Context"
 	static final Brand = context({accent: "#3b82f6"});
 
-	static function Accent(props:{label:String}):Esx {
+	static function Accent(props:{label:String}):View {
 		var brand = use(Brand);
 		return <text tag="accent" color={brand.accent}>{props.label}</text>;
 	}
 
 	// "Popups"
-	static function Confirm(props:{onYes:Void->Void}):Esx {
+	static function Confirm(props:{onYes:Void->Void}):View {
 		var open = signal(false);
 		return <view>
 			<Button tag="delete" label="Delete" onClick={() -> open.value = true}/>
@@ -254,7 +254,7 @@ class GuideTest implements Markup {
 	}
 
 	// "Layout and style": a grid
-	static function Dashboard(props:{}):Esx
+	static function Dashboard(props:{}):View
 		return <view display="grid" grid-template-columns="200px 1fr 1fr" grid-auto-rows="80px" column-gap={12} row-gap={12} padding={12}>
 			<view tag="nav" grid-row="span 2" background="#e4e4e7"/>
 			<view tag="chart" grid-column="span 2" background="#dbeafe"/>
@@ -262,7 +262,7 @@ class GuideTest implements Markup {
 			<view tag="b" background="#dcfce7"/>
 		</view>;
 
-	static function Shell(props:{}):Esx
+	static function Shell(props:{}):View
 		return <view display="grid" grid-template-columns="160px 1fr" grid-template-rows="48px 1fr 32px" height="100%"
 			grid-template-areas="'head head' 'side main' 'foot foot'">
 			<view tag="head" grid-area="head" background="#e4e4e7"/>
@@ -289,7 +289,7 @@ class GuideTest implements Markup {
 	}
 
 	// "Rich text": spans in a paragraph
-	static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):Esx
+	static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):View
 		return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" text-decoration="underline" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
 
 	static function richText() {
@@ -348,7 +348,7 @@ class GuideTest implements Markup {
 	static final SEARCH = Svg.parse('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
 		stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>');
 
-	static function SearchButton(props:{onClick:Void->Void}):Esx
+	static function SearchButton(props:{onClick:Void->Void}):View
 		return <view tag="search" role="button" label="Search" focusable direction="row" column-gap={6} align-items="center"
 			color="#2563eb" onClick={_ -> props.onClick()}>
 			<image src={SEARCH} width={16} height={16}/>
@@ -370,7 +370,7 @@ class GuideTest implements Markup {
 	}
 
 	// "Tables"
-	static function People(props:{people:Array<Person>, onOpen:Person->Void}):Esx
+	static function People(props:{people:Array<Person>, onOpen:Person->Void}):View
 		return <Table tag="people" rows={props.people} height={200} label="People" onActivate={props.onOpen} columns={[
 			{title: "Name", cell: p -> p.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
 			{title: "Age", width: "60px", cell: p -> "" + p.age, compare: (a, b) -> a.age - b.age}
@@ -389,7 +389,7 @@ class GuideTest implements Markup {
 	}
 
 	// "Trees"
-	static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):Esx
+	static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):View
 		return <Tree tag="files" roots={props.root} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} height={200} label="Files" onActivate={props.onOpen}/>;
 
 	static function trees() {
@@ -403,7 +403,7 @@ class GuideTest implements Markup {
 	}
 
 	// "Keyboard shortcuts"
-	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):Esx
+	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 		return <view row-gap={8}>
 			<Hotkey keys="Mod+S" action={props.onSave}/>
 			<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
@@ -425,7 +425,7 @@ class GuideTest implements Markup {
 	}
 
 	// "Drag and drop": a list sorted by dragging
-	static function Sortable(props:{items:Signal<Array<String>>}):Esx {
+	static function Sortable(props:{items:Signal<Array<String>>}):View {
 		var over = signal("");
 		function move(what:String, before:String) {
 			var list = props.items.value.filter(x -> x != what);

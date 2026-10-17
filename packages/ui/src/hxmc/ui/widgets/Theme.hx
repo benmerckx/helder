@@ -1,7 +1,7 @@
 package hxmc.ui.widgets;
 
-import hxmc.ui.reactive.Signal;
-import hxmc.ui.reactive.Reactive.signal;
+import hxmc.view.Signal;
+import hxmc.view.Reactive.signal;
 
 // The widgets' colours by role, light or dark; Theme.current is the one
 // they draw with (a signal: set it and every widget follows, its colours
@@ -138,7 +138,7 @@ class Theme {
 
 	// the theme set from a reactive question (Theme.follow(() -> UiWindow.dark.value)): DARK when it says so
 	public static function follow(dark:Void->Bool)
-		hxmc.ui.reactive.Reactive.effect(() -> current.value = dark() ? DARK : LIGHT);
+		hxmc.view.Reactive.effect(() -> current.value = dark() ? DARK : LIGHT);
 
 	// a colour of the theme made transparent (a fade's other end)
 	public static inline function clear(c:String):String

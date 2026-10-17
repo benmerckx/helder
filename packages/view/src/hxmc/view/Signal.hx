@@ -1,4 +1,4 @@
-package hxmc.ui.reactive;
+package hxmc.view;
 
 // a value: reading it (value, get()) inside a computation tracks it; writing a different one notifies
 class Signal<T> extends SignalBase {
@@ -44,19 +44,20 @@ class Signal<T> extends SignalBase {
 		return 'Signal($v)';
 }
 
-@:allow(hxmc.ui.reactive)
+@:allow(hxmc.view)
 class SignalBase implements Source {
-	public var observers(default, null):Array<Computation> = [];
+	public var observers(default, null):Null<Array<Computation>> = null;
 
 	function track() {
 		var c = Reactive.current;
-		if (c != null && !c.sources.contains(this)) {
-			c.sources.push(this);
+		if (c != null && c.depend(this)) {
+			if (observers == null) observers = [];
 			observers.push(c);
 		}
 	}
 
 	function notify() {
+		if (observers == null) return;
 		for (o in observers.copy())
 			o.stale(Dirty);
 	}

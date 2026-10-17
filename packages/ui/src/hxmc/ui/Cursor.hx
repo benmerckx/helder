@@ -10,6 +10,6 @@ enum abstract Cursor(Int) to Int {
 	var Crosshair;
 	var Move;
 	var NotAllowed;
-	var ResizeEW;
-	var ResizeNS;
+	@:css("ew-resize") var ResizeEW;
+	@:css("ns-resize") var ResizeNS;
 }

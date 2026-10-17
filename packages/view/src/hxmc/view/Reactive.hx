@@ -1,7 +1,7 @@
-package hxmc.ui.reactive;
+package hxmc.view;
 
-import hxmc.ui.reactive.Memo;
-import hxmc.ui.reactive.Signal;
+import hxmc.view.Memo;
+import hxmc.view.Signal;
 
 // Fine-grained reactivity, as Solid has it: signals hold values, memos
 // derive values from them, effects run code that reads them, again
@@ -17,9 +17,9 @@ import hxmc.ui.reactive.Signal;
 // again or when it is disposed; root() makes a tree's top.
 class Reactive {
 	// the computation running now: what reads are tracked for
-	@:allow(hxmc.ui.reactive) static var current:Null<Computation> = null;
+	@:allow(hxmc.view) static var current:Null<Computation> = null;
 	// the owner new computations and cleanups attach to
-	@:allow(hxmc.ui.reactive) static var owner:Null<Owner> = null;
+	@:allow(hxmc.view) static var owner:Null<Owner> = null;
 	static var batching = 0;
 	// Render inserting nodes: onMount waits for the outermost insertion's end
 	static var mounting = 0;
@@ -58,9 +58,30 @@ class Reactive {
 		}
 	}
 
+	// the owner of the code running now (null: none)
+	public static inline function getOwner():Null<Owner>
+		return owner;
+
+	// runs fn (untracked) with o as the owner of what it creates
+	public static function runWithOwner<T>(o:Null<Owner>, fn:Void->T):T {
+		var savedOwner = owner, savedCurrent = current;
+		owner = o;
+		current = null;
+		try {
+			var r = fn();
+			owner = savedOwner;
+			current = savedCurrent;
+			return r;
+		} catch (e:Dynamic) {
+			owner = savedOwner;
+			current = savedCurrent;
+			throw e;
+		}
+	}
+
 	// fn runs when the current owner is disposed or runs again
 	public static function onCleanup(fn:Void->Void)
-		if (owner != null) owner.cleanups.push(fn);
+		if (owner != null) owner.onCleanup(fn);
 
 	// a context with its default value (Context)
 	public static inline function context<T>(defaultValue:T):Context<T>
@@ -85,7 +106,7 @@ class Reactive {
 
 	// sets c to value in the current owner (a component's: what it renders sees it)
 	public static function setContext<T>(c:Context<T>, value:T) {
-		if (owner == null) throw "hxmc.ui.reactive: setContext outside an owner (a root, a component)";
+		if (owner == null) throw "hxmc.view: setContext outside an owner (a root, a component)";
 		if (owner.contexts == null) owner.contexts = new Map();
 		owner.contexts.set(c.id, value);
 	}
@@ -104,7 +125,7 @@ class Reactive {
 	}
 
 	// Render's insertions: onMount's functions run after the outermost
-	@:allow(hxmc.ui.reactive) static function mount(fn:Void->Void) {
+	@:allow(hxmc.view) static function mount(fn:Void->Void) {
 		mounting++;
 		try fn() catch (e:Dynamic) {
 			mounting--;
@@ -155,7 +176,7 @@ class Reactive {
 		if (batching == 0) flush();
 	}
 
-	@:allow(hxmc.ui.reactive) static function schedule(c:Computation) {
+	@:allow(hxmc.view) static function schedule(c:Computation) {
 		queue.push(c);
 		if (batching == 0) flush();
 	}

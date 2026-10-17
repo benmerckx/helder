@@ -1,8 +1,8 @@
 package hxmc.ui.native;
 
 import hxmc.ui.*;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.view.Reactive.*;
 
 // Platform controls as markup components (import hxmc.ui.native.Controls.*),
 // in a NativeHost: bound to signals both ways, as the drawn widgets are.

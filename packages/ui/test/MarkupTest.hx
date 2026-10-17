@@ -1,9 +1,9 @@
-import hxmc.esx.Esx;
-import hxmc.esx.Markup;
 import hxmc.ui.*;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Flow.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.ui.view.*;
+import hxmc.view.Flow.*;
+import hxmc.ui.view.UiFlow.*;
+import hxmc.view.Reactive.*;
 import hxmc.ui.access.*;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
@@ -21,9 +21,9 @@ import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
 
-// hxmc.ui.reactive's tests, on Eval (make ui-check runs them after UiTest):
-// signals, memos and effects (tracking, batching, no glitches, ownership
-// and cleanup), then markup rendered into nodes (Render): elements and
+// Markup rendered into hxmc.ui's nodes (hxmc.view on NodeRenderer), on Eval
+// (make ui-check runs it after UiTest; hxmc.view's own tests are
+// packages/view/test): elements and
 // style attributes, text runs, reactive text and attributes, regions,
 // For and Show, components, events through a Ui; then context, onMount,
 // Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
@@ -31,12 +31,11 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // accessibility tree of widgets in markup, its actions and changes; the
 // popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog) driven by pointer and keys;
 // a VirtualList of 100000 rows scrolled
-class ReactiveTest implements Markup {
+class MarkupTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
 
 	public static function main() {
-		signals();
 		rendering();
 		flow();
 		motion();
@@ -47,7 +46,7 @@ class ReactiveTest implements Markup {
 		tree();
 		split();
 		calendar();
-		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
+		Sys.println('MarkupTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
 
@@ -55,95 +54,11 @@ class ReactiveTest implements Markup {
 		checks++;
 		if (!ok) {
 			failed++;
-			Sys.println('ReactiveTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
+			Sys.println('MarkupTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
 	}
 
-	static function signals() {
-		var a = signal(1), b = signal(2);
-		var runs = 0, seen = 0;
-		var e = effect(() -> {
-			runs++;
-			seen = a.value + b.value;
-		});
-		check("effect runs at once", runs == 1 && seen == 3);
-		a.value = 10;
-		check("effect reruns on a write", runs == 2 && seen == 12);
-		a.value = 10;
-		check("the same value notifies nothing", runs == 2);
-		batch(() -> {
-			a.value = 1;
-			b.value = 1;
-		});
-		check("a batch runs effects once", runs == 3 && seen == 2);
-		// memos: lazy, cached, no glitches (a diamond)
-		var x = signal(1);
-		var computeB = 0, computeC = 0;
-		var bm = memo(() -> {
-			computeB++;
-			x.value * 2;
-		});
-		var cm = memo(() -> {
-			computeC++;
-			x.value + 1;
-		});
-		var log = [];
-		effect(() -> log.push(bm.value + "/" + cm.value));
-		x.value = 5;
-		check("diamond: one consistent run per write", log.join(" ") == "2/2 10/6", log.join(" "));
-		var y = signal(3);
-		var parity = memo(() -> y.value % 2);
-		var pruns = 0;
-		effect(() -> {
-			parity.value;
-			pruns++;
-		});
-		y.value = 5;
-		check("a memo whose result is the same stops propagation", pruns == 1);
-		y.value = 6;
-		check("and propagates when it differs", pruns == 2);
-		// untrack
-		var u = signal(1), ur = 0;
-		effect(() -> {
-			untrack(() -> u.value);
-			ur++;
-		});
-		u.value = 2;
-		check("untrack does not track", ur == 1);
-		// ownership: inner effects disposed when the outer reruns; cleanups
-		var outer = signal(0), inner = signal(0), innerRuns = 0, cleaned = 0;
-		effect(() -> {
-			outer.value;
-			effect(() -> {
-				inner.value;
-				innerRuns++;
-			});
-			onCleanup(() -> cleaned++);
-		});
-		inner.value = 1;
-		check("inner effect runs", innerRuns == 2);
-		outer.value = 1;
-		check("outer rerun disposes the inner one and cleans up", cleaned == 1 && innerRuns == 3);
-		inner.value = 2;
-		check("only the new inner effect runs", innerRuns == 4, '$innerRuns');
-		// a root's dispose
-		var r = signal(0), rruns = 0;
-		var dispose = root(d -> {
-			effect(() -> {
-				r.value;
-				rruns++;
-			});
-			d;
-		});
-		dispose();
-		r.value = 1;
-		check("a disposed root's effects stop", rruns == 1);
-		e.dispose();
-		a.value = 100;
-		check("a disposed effect stops", runs == 3);
-	}
-
-	static function Counter(props:{start:Int, ?label:String}):Esx {
+	static function Counter(props:{start:Int, ?label:String}):View {
 		var count = signal(props.start);
 		return <view direction="row" column-gap={4}>
 			<text>{props.label ?? "count"}: {count}</text>
@@ -154,10 +69,10 @@ class ReactiveTest implements Markup {
 	static final theme = context("light");
 
 	// a component reading the theme where it is rendered
-	static function Themed(props:{tag:String}):Esx
+	static function Themed(props:{tag:String}):View
 		return <text tag={props.tag}>{"theme " + use(theme)}</text>;
 
-	static function Thrower(props:{when:Signal<Bool>}):Esx {
+	static function Thrower(props:{when:Signal<Bool>}):View {
 		return <text>{() -> {
 			if (props.when.value) throw "boom";
 			"fine";
@@ -674,7 +589,7 @@ class ReactiveTest implements Markup {
 		first.value = "gone";
 		second.value = "TWO";
 		keptText = [for (c in kept.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
-		check("For: a removed row's computations disposed, the rest bound", keptText == "TWO" && @:privateAccess first.observers.length == 0, keptText);
+		check("For: a removed row's computations disposed, the rest bound", keptText == "TWO" && (first.observers == null || first.observers.length == 0), keptText);
 		// Switch and Match
 		var n = signal(1);
 		Render.render(<view tag="switch"><Switch fallback="many">
@@ -786,5 +701,18 @@ class ReactiveTest implements Markup {
 		check("render: dispose removes the content", ui.root.children.length == 0);
 		name.value = "gone";
 		check("render: and stops its effects", hello.text == "Hello Bo!");
+		// attributes generated from Style's properties (StyleAttrs)
+		var styled:Null<Node> = null;
+		Render.render(<view ref={n -> styled = n} position="sticky" justify="flex-start" align-content="space-between" cursor="ew-resize" grid-auto-flow="column"
+			font-weight="700" italic aspect-ratio={2} text-align="center" padding="8 12" min-width="50%" border-color="red" shadow="0 2 8 #00000040"/>, ui.root);
+		var st = styled.style;
+		check("render: Style's properties as attributes", st.position == Position.Sticky && st.justify == Justify.Start && st.alignContent == AlignContent.SpaceBetween && st.cursor == Cursor.ResizeEW
+			&& st.gridAutoFlow == Grid.GridFlow.Column && st.fontWeight == 700 && st.italic == true && st.aspectRatio == 2 && st.textAlign == TextAlign.Center
+			&& st.padding.left == 12 && st.borderColor == Color.parse("red") && st.shadow != null);
+		var bad = try {
+			Render.render(<view justify="sideways"/>, ui.root);
+			"";
+		} catch (e:Dynamic) Std.string(e);
+		check("render: a value not of the property's enum", bad == "hxmc.ui: sideways is not a Justify", bad);
 	}
 }

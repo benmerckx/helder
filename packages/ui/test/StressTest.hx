@@ -1,13 +1,11 @@
 import haxe.io.Bytes;
-import hxmc.esx.Esx;
-import hxmc.esx.Markup;
 import hxmc.gfx.*;
 import hxmc.os.*;
 import hxmc.ui.*;
 import hxmc.ui.draw.*;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Flow.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.view.Flow.*;
+import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 
 // A list of ROWS rows in markup (a checkbox, a label, a number and a button
@@ -29,7 +27,7 @@ class StressTest implements Markup {
 		list.value = rows.copy();
 	}
 
-	function view():Esx
+	function view():View
 		return <view grow={1} padding={12} row-gap={8} font-family="DejaVu Sans" font-size={13} color="#18181b" background="#fafafa">
 			<text font-size={18} font-weight={700}>{() -> list.value.length + " rows"}</text>
 			<scroll tag="list" grow={1} min-height={0} row-gap={2} background="#ffffff" border-width={1} border-color="#e4e4e7" radius={8} padding={6}>

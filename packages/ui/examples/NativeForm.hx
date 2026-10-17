@@ -1,10 +1,8 @@
-import hxmc.esx.Esx;
-import hxmc.esx.Markup;
 import hxmc.ui.*;
 import hxmc.ui.native.*;
 import hxmc.ui.native.Controls.*;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.view.Reactive.*;
 
 // The same markup and signals as the drawn widgets, on the platform's own
 // controls (hxmc.ui.native: GTK 3 on Linux, the DOM in a browser), laid
@@ -27,7 +25,7 @@ class NativeForm implements Markup {
 
 	public function new() {}
 
-	public function view():Esx
+	public function view():View
 		return <view grow={1} padding={16} row-gap={10} font-family="DejaVu Sans" font-size={14}>
 			<text font-size={20} font-weight={700}>Native controls</text>
 			<text tag="greeting">{() -> name.value == "" ? "Who are you?" : "Hello, " + name.value + "!"}</text>

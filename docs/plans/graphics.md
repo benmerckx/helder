@@ -126,7 +126,7 @@ module).
 
 ## UI
 
-`@hxmc/ui` (with `@hxmc/text`, pure Haxe fonts and layout, and `@hxmc/esx`,
+`@hxmc/ui` (with `@hxmc/text`, pure Haxe fonts and layout, and `@hxmc/view`,
 markup with Solid-like signals): the core (tree, flexbox and grid layout,
 events, focus), a drawn backend on gfx, native controls
 (`hxmc.ui.native`), the platforms' accessibility, tested on Eval, natively

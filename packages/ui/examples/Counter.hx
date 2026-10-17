@@ -1,7 +1,6 @@
-import hxmc.esx.*;
+import hxmc.view.*;
 import hxmc.ui.draw.UiWindow;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 
 // The README's example: a signal, markup bound to it, a button that changes it

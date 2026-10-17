@@ -1,9 +1,7 @@
-import hxmc.esx.Esx;
-import hxmc.esx.Markup;
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.ui.widgets.Theme;
 
@@ -83,7 +81,7 @@ class Gallery implements Markup {
 		return img;
 	}
 
-	function section(title:String, content:Esx):Esx
+	function section(title:String, content:View):View
 		return <view row-gap={8}>
 			<text font-size={12} font-weight={700} color={() -> Theme.current.value.muted}>{title}</text>
 			{content}
@@ -95,10 +93,10 @@ class Gallery implements Markup {
 		"Notes: every widget here takes the keyboard focus and works with the keyboard."
 	];
 
-	function tabContent(i:Int):Esx
+	function tabContent(i:Int):View
 		return <view tag="tab-content" padding={12} radius={8} background={() -> Theme.current.value.control} border-width={1} border-color={() -> Theme.current.value.subtle}>{TABS[i]}</view>;
 
-	public function view():Esx
+	public function view():View
 		return <scroll grow={1} padding={20} row-gap={18} background={() -> Theme.current.value.background} font-family="DejaVu Sans" font-size={14} color={() -> Theme.current.value.text}>
 			<text font-size={22} font-weight={700}>Widgets</text>
 			{section("BUTTONS", <view direction="row" column-gap={8} align-items="center">

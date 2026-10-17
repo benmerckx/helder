@@ -340,6 +340,10 @@ Since the design above (October 2026), in this order:
   canonical compositions; CJK and other scripts' fallback faces loaded
   when first needed; colour emoji (CBDT, sbix, COLR), their sequences and
   widths as Chromium's, drawn as Chromium draws Noto Color Emoji.
+- `@hxmc/view` ([view.md](view.md)) replaced `@hxmc/esx` and
+  `hxmc.ui.reactive`: markup compiled to direct calls on a renderer,
+  `hxmc.ui.view.NodeRenderer` for both backends; the markup's style
+  attributes generated from `Style`'s properties.
 
 Where this departs from section 6:
 

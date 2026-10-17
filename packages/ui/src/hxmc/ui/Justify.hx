@@ -2,8 +2,8 @@ package hxmc.ui;
 
 // along the main axis
 enum abstract Justify(Int) {
-	var Start;
-	var End;
+	@:css("flex-start") var Start;
+	@:css("flex-end") var End;
 	var Center;
 	var SpaceBetween;
 	var SpaceAround;
