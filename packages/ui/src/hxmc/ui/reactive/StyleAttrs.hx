@@ -60,6 +60,8 @@ class StyleAttrs {
 			case "fontWeight": style.fontWeight = Std.int(float(v));
 			case "italic": style.italic = v == true || v == "true";
 			case "lineHeight": style.lineHeight = float(v);
+			case "letterSpacing": style.letterSpacing = v == "normal" ? 0 : float(v);
+			case "wordSpacing": style.wordSpacing = v == "normal" ? 0 : float(v);
 			case "textAlign": style.textAlign = textAlignValue(v);
 			case "maxLines": style.maxLines = Std.int(float(v));
 			case "textDecoration": style.textDecoration = decorationValue(v);
@@ -82,7 +84,7 @@ class StyleAttrs {
 	public static function isStyle(name:String):Bool
 		return NAMES.exists(camel(name));
 
-	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "backgroundImage" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true, "maxLines" => true, "textDecoration" => true, "gridTemplateColumns" => true, "gridTemplateRows" => true, "gridAutoColumns" => true, "gridAutoRows" => true, "gridAutoFlow" => true, "gridColumn" => true, "gridRow" => true, "gridArea" => true, "gridTemplateAreas" => true, "justifyItems" => true, "justifySelf" => true];
+	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "backgroundImage" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "letterSpacing" => true, "wordSpacing" => true, "textAlign" => true, "maxLines" => true, "textDecoration" => true, "gridTemplateColumns" => true, "gridTemplateRows" => true, "gridAutoColumns" => true, "gridAutoRows" => true, "gridAutoFlow" => true, "gridColumn" => true, "gridRow" => true, "gridArea" => true, "gridTemplateAreas" => true, "justifyItems" => true, "justifySelf" => true];
 
 	// (kebab-case names converted once each)
 	static final camels = new Map<String, String>();

@@ -36,6 +36,7 @@ class TextTest {
 			font(sans, fonts);
 			layout(sans, fonts);
 			decorations(sans, fonts);
+			spacing(sans);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
 		// CFF outlines: Inter (fonts-inter), an OpenType font with cubic curves
@@ -69,6 +70,23 @@ class TextTest {
 		var u = l.decoration(0, 10, 0, 2)[0];
 		check("decorations: snapped to the pixels of the scale; not under trailing spaces", u.height == 2 && u.y * 2 == Math.round(u.y * 2) && u.width == l.lines[0].width
 			&& l.lines[0].advance > l.lines[0].width, '$u');
+	}
+
+	// letter and word spacing: widths as Chromium measures them (DejaVu Sans
+	// at 20, white-space: pre)
+	static function spacing(sans:FontFile) {
+		var set = new FontSet(sans, [], 20);
+		function w(t:String, ls:Float, ws:Float):Float
+			return new TextLayout(t, set, 1.2, Math.NaN, null, 0, ls, ws).width;
+		var got = [w("Hamburg", 0, 0), w("Hamburg", 2, 0), w("Hamburg", -1.5, 0), w("a b  c", 0, 0), w("a b  c", 0, 5), w("a b  c", 3, 5)];
+		var chromium = [92.71875, 106.71875, 82.21875, 55.03125, 70.03125, 88.03125];
+		var ok = true;
+		for (i in 0...got.length)
+			if (Math.abs(got[i] - chromium[i]) > 0.02) ok = false;
+		check("spacing: letter and word spacing as Chromium adds them", ok, got.join(" "));
+		// (a run's own: only its characters)
+		var run = new TextRun(0, 3, set, 1.2, 4, 0);
+		check("spacing: a run's", Math.abs(new TextLayout("Hamburg", set, 1.2, Math.NaN, [run]).width - (92.71875 + 12)) < 0.02);
 	}
 
 	// grapheme clusters: their boundaries as Intl.Segmenter finds them (node), forward and back

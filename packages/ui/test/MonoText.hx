@@ -28,7 +28,8 @@ class MonoParagraph implements Paragraph {
 
 	public function new(text:String, font:Font, maxWidth:Float, maxLines = 0) {
 		this.text = text;
-		char = font.size / 2;
+		// (letter spacing after each character)
+		char = font.size / 2 + font.letterSpacing;
 		line = font.size * font.lineHeight;
 		var perLine = Math.isNaN(maxWidth) ? 1 << 30 : Std.int(Math.max(1, Math.floor(maxWidth / char + 1e-9)));
 		var start = 0;

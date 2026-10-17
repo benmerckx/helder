@@ -207,7 +207,7 @@ Sizes are border boxes, and items do not shrink below their content. A
 scrolling area is a `scroll` element, which needs a bounded height, often
 `grow={1} min-height={0}` inside a column. Text properties (`color`,
 `font-family`, `font-size`, `font-weight`, `italic`, `line-height`,
-`text-align`) inherit. `Motion.transition`, `Motion.spring` and
+`letter-spacing`, `word-spacing`, `text-align`) inherit. `Motion.transition`, `Motion.spring` and
 `Motion.color` give signals that move toward a target, for animated values:
 
 ```haxe

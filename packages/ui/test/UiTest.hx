@@ -195,6 +195,13 @@ class UiTest {
 		ui.paint(rec);
 		var calls = [for (c in rec.calls) if (StringTools.startsWith(c, "rect") || StringTools.startsWith(c, "text")) c.split(" ").slice(0, 6).join(" ")];
 		// (MonoText at 10: 5 a character, lines 12.5 high; "abcd" 20 wide, centred in 100 at 40)
+		var spaced = new TextNode("abcd");
+		spaced.style.letterSpacing = 1;
+		ui.root.append(spaced);
+		ui.update();
+		check("letter spacing: in the text's font", spaced.laidOut() != null && spaced.laidOut().width == 24 && spaced.font().letterSpacing == 1, spaced.laidOut() == null ? "none" : "" + spaced.laidOut().width);
+		ui.root.remove(spaced);
+		ui.update();
 		check("decorations: an ancestor's, around the text, aligned, in its colour",
 			calls.join("|") == "rect 40 11.25 20 1 0|text 0 0 100|rect 40 6.25 20 1 0" && rec.calls.filter(c -> c.indexOf("ffaa0000") >= 0).length == 2, calls.join("|"));
 	}

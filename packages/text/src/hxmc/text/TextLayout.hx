@@ -43,8 +43,11 @@ class TextLayout {
 	public var truncated(default, null) = false;
 
 	// maxLines: at most so many lines (0: any), the last ending in an
-	// ellipsis that fits the width when more were cut, as CSS's line-clamp
-	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>, maxLines = 0) {
+	// ellipsis that fits the width when more were cut, as CSS's line-clamp;
+	// letterSpacing and wordSpacing: pixels after each character and on each
+	// space, as CSS adds them (outside the runs, which have their own)
+	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>, maxLines = 0, letterSpacing = 0.0,
+			wordSpacing = 0.0) {
 		this.text = text;
 		this.fonts = fonts;
 		this.runs = runs == null ? [] : runs;
@@ -52,6 +55,7 @@ class TextLayout {
 		var a = fonts.ascent, d = fonts.descent;
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
 		var glyphs = shape(text, fonts, this.runs);
+		space(glyphs, letterSpacing, wordSpacing);
 		bidi(glyphs);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
@@ -114,6 +118,18 @@ class TextLayout {
 	}
 
 	// --- shaping ---
+
+	// letter and word spacing: after each character (a mark, a hidden or
+	// zero-width glyph takes none) and on each space, the run's or the paragraph's
+	function space(gs:Array<Glyph>, letter:Float, word:Float) {
+		for (g in gs) {
+			if (g.hidden || g.cp == 10 || g.cp == 13 || g.attach != null) continue;
+			var l = g.run < 0 ? letter : runs[g.run].letterSpacing, w = g.run < 0 ? word : runs[g.run].wordSpacing;
+			if (l == 0 && w == 0) continue;
+			if (g.advance > 0 || g.parts > 1) g.advance += l * (g.parts > 1 ? g.parts : 1);
+			if (g.cp == 32 || g.cp == 0xA0) g.advance += w;
+		}
+	}
 
 	static function shape(text:String, base:FontSet, runs:Array<TextRun>):Array<Glyph> {
 		var out:Array<Glyph> = [];

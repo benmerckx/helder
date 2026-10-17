@@ -194,6 +194,7 @@ class Node {
 
 	public function font():Font {
 		var family:Null<String> = null, size:Null<Float> = null, weight:Null<Int> = null, italic:Null<Bool> = null, lh:Null<Float> = null;
+		var ls:Null<Float> = null, ws:Null<Float> = null;
 		var n = this;
 		while (n != null) {
 			var s = n.style;
@@ -202,10 +203,12 @@ class Node {
 			if (weight == null) weight = s.fontWeight;
 			if (italic == null) italic = s.italic;
 			if (lh == null) lh = s.lineHeight;
+			if (ls == null) ls = s.letterSpacing;
+			if (ws == null) ws = s.wordSpacing;
 			n = n.parent;
 		}
 		return new Font(family == null ? Style.DEFAULT_FAMILY : family, size == null ? Style.DEFAULT_SIZE : size,
-			weight == null ? Style.DEFAULT_WEIGHT : weight, italic == true, lh == null ? Style.DEFAULT_LINE_HEIGHT : lh);
+			weight == null ? Style.DEFAULT_WEIGHT : weight, italic == true, lh == null ? Style.DEFAULT_LINE_HEIGHT : lh, ls == null ? 0 : ls, ws == null ? 0 : ws);
 	}
 
 	public function textColor():Color {

@@ -148,6 +148,9 @@ class Style {
 
 	// a multiple of the font size
 	public var lineHeight(default, set):Null<Float> = null;
+	// pixels after each character, and on each space (CSS's letter-spacing, word-spacing)
+	public var letterSpacing(default, set):Null<Float> = null;
+	public var wordSpacing(default, set):Null<Float> = null;
 
 	public var textAlign(default, set):Null<TextAlign> = null;
 
@@ -523,6 +526,20 @@ class Style {
 		return v;
 	}
 
+	function set_letterSpacing(v:Null<Float>):Null<Float> {
+		if (v == letterSpacing) return v;
+		letterSpacing = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_wordSpacing(v:Null<Float>):Null<Float> {
+		if (v == wordSpacing) return v;
+		wordSpacing = v;
+		node.styleChanged(true);
+		return v;
+	}
+
 	function set_lineHeight(v:Null<Float>):Null<Float> {
 		if (v == lineHeight) return v;
 		lineHeight = v;
@@ -587,6 +604,8 @@ class Style {
 		if (p.fontWeight != null) fontWeight = p.fontWeight;
 		if (p.italic != null) italic = p.italic;
 		if (p.lineHeight != null) lineHeight = p.lineHeight;
+		if (p.letterSpacing != null) letterSpacing = p.letterSpacing;
+		if (p.wordSpacing != null) wordSpacing = p.wordSpacing;
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.maxLines != null) maxLines = p.maxLines;

@@ -53,10 +53,10 @@ class DrawText implements TextEngine {
 			for (s in spans) {
 				var fs = new FontSet(face(s.font), fallbackFaces, s.font.size, more, emoji);
 				fs.oblique = s.font.italic && !fs.primary.italic;
-				new TextRun(s.start, s.end, fs, s.font.lineHeight);
+				new TextRun(s.start, s.end, fs, s.font.lineHeight, s.font.letterSpacing, s.font.wordSpacing);
 			}
 		];
-		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines));
+		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing));
 	}
 }
 
