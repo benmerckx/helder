@@ -10,6 +10,8 @@ import UiTest.Recording;
 
 // The examples of packages/ui/GUIDE.md, compiled and run on Eval (make
 // ui-check): what the guide shows works as it says. Keep the two in step.
+typedef Person = {name:String, age:Int};
+
 class GuideTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -35,6 +37,7 @@ class GuideTest implements Markup {
 		themes();
 		shortcuts();
 		icons();
+		tables();
 		dragAndDrop();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
@@ -356,6 +359,25 @@ class GuideTest implements Markup {
 			img.image.width + " " + px.get(o + 2) + " " + px.get(o + 3));
 		click(ui, "search");
 		check("icons: the button", clicks == 1);
+	}
+
+	// "Tables"
+	static function People(props:{people:Array<Person>, onOpen:Person->Void}):Esx
+		return <Table tag="people" rows={props.people} height={200} label="People" onActivate={props.onOpen} columns={[
+			{title: "Name", cell: p -> p.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
+			{title: "Age", width: "60px", cell: p -> "" + p.age, compare: (a, b) -> a.age - b.age}
+		]}/>;
+
+	static function tables() {
+		var ui = window(), opened = [];
+		Render.render(<People people={[{name: "Bo", age: 41}, {name: "Ann", age: 33}]} onOpen={p -> opened.push(p.name)}/>, ui.root);
+		ui.update();
+		click(ui, "people-head-1");
+		var body = ui.root.find("people-body");
+		ui.setFocus(body);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.ENTER, 0);
+		check("tables: sorted by age, the first row opened", opened.join(",") == "Ann", opened.join(","));
 	}
 
 	// "Keyboard shortcuts"

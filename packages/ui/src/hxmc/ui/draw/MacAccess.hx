@@ -218,6 +218,9 @@ class MacAccess {
 			case ListBoxOption: "AXStaticText";
 			case ComboBox: "AXPopUpButton";
 			case Tooltip: "AXHelpTag";
+			case Table: "AXTable";
+			case Row: "AXRow";
+			case Cell | ColumnHeader: "AXCell";
 		}
 
 	// --- the classes' methods ---

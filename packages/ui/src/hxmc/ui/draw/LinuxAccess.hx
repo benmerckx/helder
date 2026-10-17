@@ -247,6 +247,11 @@ class LinuxAccess {
 			case ListBox: 98;
 			case ComboBox: 11;
 			case Tooltip: 64;
+			// (ATSPI_ROLE_TABLE, TABLE_ROW, TABLE_CELL, TABLE_COLUMN_HEADER)
+			case Table: 55;
+			case Row: 90;
+			case Cell: 56;
+			case ColumnHeader: 57;
 			case Group | TabPanel: 39;
 		}
 

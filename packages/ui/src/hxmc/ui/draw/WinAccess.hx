@@ -329,6 +329,10 @@ class WinAccess {
 			case Tab: 50019;
 			case Label | Heading: 50020;
 			case Tooltip: 50022;
+			// (DataGrid, DataItem for rows and cells, HeaderItem: as Chromium maps a grid)
+			case Table: 50028;
+			case Row | Cell: 50029;
+			case ColumnHeader: 50035;
 			case Dialog: 50032;
 			case ScrollView | TabPanel: 50033;
 			case _: 50026; // Group

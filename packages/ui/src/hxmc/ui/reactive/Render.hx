@@ -338,6 +338,8 @@ class Render {
 			if (r.aria() == v) return r;
 		return switch (v : String) {
 			case "textarea" | "multiline": MultilineTextInput;
+			case "table": Table;
+			case "cell": Cell;
 			case "label": Label;
 			case _: throw 'hxmc.ui: role="$v" is not one of hxmc.ui.access.Role\'s';
 		}
@@ -345,7 +347,7 @@ class Render {
 
 	static final ROLES:Array<hxmc.ui.access.Role> = [
 		Group, Button, CheckBox, Switch, RadioGroup, RadioButton, Slider, ProgressIndicator, TextInput, Label, Image, TabList, Tab, TabPanel, ScrollView,
-		List, ListItem, Heading, Link, Dialog, Menu, MenuItem, ListBox, ListBoxOption, ComboBox, Tooltip
+		List, ListItem, Heading, Link, Dialog, Menu, MenuItem, ListBox, ListBoxOption, ComboBox, Tooltip, Table, Row, Cell, ColumnHeader
 	];
 
 	static function event(n:Node, name:String, v:Dynamic) {

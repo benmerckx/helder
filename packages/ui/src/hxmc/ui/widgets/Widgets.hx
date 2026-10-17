@@ -133,6 +133,110 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a table: a header of the columns' titles (a column with compare sorts
+	// by it on a click, Enter or Space, again the other way; an arrow tells
+	// which), then the rows (a VirtualList: only those in view are made),
+	// each column's cell for each; a click selects a row (selected), a
+	// double click or Enter activates it (onActivate); Up, Down, Page Up,
+	// Page Down, Home and End move the selection, the view following.
+	// columns: a title, a width (a grid track: "1fr" by default, "120px",
+	// "auto"), what a row's cell shows (cell), compare (sortable). rows: an
+	// array, or a signal or function of one; height: the whole table's.
+	public static function Table<T>(props:{rows:Dynamic, columns:Array<{title:String, ?width:String, cell:T->Any, ?compare:(T, T)->Int}>,
+			?height:Float, ?rowHeight:Float, ?selected:Signal<Null<T>>, ?onActivate:T->Void, ?label:String, ?tag:String}):Esx {
+		var tag = props.tag ?? "table", rh = props.rowHeight ?? 28.0, h = props.height ?? 240.0;
+		var selected:Signal<Null<T>> = props.selected ?? signal(null);
+		var sortBy = signal(-1), descending = signal(false);
+		var template = [for (c in props.columns) c.width ?? "1fr"].join(" ");
+		var sorted = memo(() -> {
+			var rows:Array<T> = Render.read(props.rows);
+			var k = sortBy.value;
+			if (k < 0 || props.columns[k].compare == null) return rows;
+			var cmp = props.columns[k].compare, d = descending.value;
+			var out = rows.copy();
+			// (stable: rows that compare equal keep their order)
+			haxe.ds.ArraySort.sort(out, (a, b) -> d ? cmp(b, a) : cmp(a, b));
+			return out;
+		});
+		function sort(k:Int)
+			if (props.columns[k].compare != null) batch(() -> {
+				if (sortBy.peek() == k) descending.value = !descending.peek() else {
+					sortBy.value = k;
+					descending.value = false;
+				}
+			});
+		var body:Null<Node> = null;
+		// (the selected row's index brought into the rows' view)
+		function show(i:Int) {
+			var list = body == null ? null : body.find(tag + "-rows");
+			if (list == null || list.ui == null) return;
+			var top = i * rh, view = list.height;
+			if (top < list.scrollY) list.ui.scrollTo(list, 0, top) else if (top + rh > list.scrollY + view) list.ui.scrollTo(list, 0, top + rh - view);
+		}
+		function activate(r:Null<T>)
+			if (r != null && props.onActivate != null) props.onActivate(r);
+		var lastClick:Null<T> = null, lastAt = -1e9;
+		function click(r:T) {
+			var now = Ui.now();
+			if (lastClick == r && now - lastAt < 0.45) activate(r);
+			lastClick = r;
+			lastAt = now;
+			selected.value = r;
+		}
+		function key(e:Event) {
+			var rows = sorted.peek(), i = rows.indexOf(selected.peek()), page = Std.int(Math.max(1, Math.floor((h - rh) / rh) - 1));
+			var j = switch e.key {
+				case Key.DOWN: i < 0 ? 0 : i + 1;
+				case Key.UP: i < 0 ? 0 : i - 1;
+				case Key.PAGE_DOWN: i + page;
+				case Key.PAGE_UP: i - page;
+				case Key.HOME: 0;
+				case Key.END: rows.length - 1;
+				case Key.ENTER:
+					activate(selected.peek());
+					e.stop();
+					return;
+				case _: return;
+			}
+			e.stop();
+			if (rows.length == 0) return;
+			j = j < 0 ? 0 : j >= rows.length ? rows.length - 1 : j;
+			selected.value = rows[j];
+			show(j);
+		}
+		return <view tag={tag} role="grid" label={props.label} height={h} radius={6} border-width={1} border-color={() -> t().borderMuted} overflow="hidden"
+			background={() -> t().control} color={() -> t().text}>
+			<view tag={tag + "-head"} role="row" display="grid" grid-template-columns={template} column-gap={12} padding="0 10" height={rh} align-items="center"
+				font-weight={600} color={() -> t().secondary} background={() -> t().background}>{[
+				for (k in 0...props.columns.length) {
+					var c = props.columns[k];
+					<view tag={tag + "-head-" + k} role="columnheader" direction="row" column-gap={4} align-items="center" focusable={c.compare != null}
+						cursor={c.compare != null ? "pointer" : "auto"} onClick={_ -> sort(k)}
+						onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
+							sort(k);
+							e.stop();
+						}}>
+						{c.title}
+						<text hidden color={() -> t().muted}>{() -> sortBy.value == k ? (descending.value ? "▼" : "▲") : ""}</text>
+					</view>;
+				}
+			]}</view>
+			<view tag={tag + "-body"} focusable ref={n -> body = n} onKeyDown={key}>
+				<VirtualList each={sorted} itemHeight={rh} height={h - rh - 2} tag={tag + "-rows"} render={(item:Signal<T>, i:Int) -> {
+					var hover = signal(false);
+					<view tag={tag + "-row"} role="row" selected={() -> item.value != null && selected.value == item.value} display="grid"
+						grid-template-columns={template} column-gap={12} padding="0 10" height={rh} align-items="center"
+						background={() -> item.value != null && selected.value == item.value ? t().itemSelected : hover.value ? t().itemHover : i % 2 == 1 ? t().background : Theme.clear(t().control)}
+						onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
+						onClick={_ -> if (item.value != null) click(item.value)}>{[
+						for (c in props.columns)
+							<view role="cell" overflow="hidden">{() -> item.value == null ? null : c.cell(item.value)}</view>
+					]}</view>;
+				}}/>
+			</view>
+		</view>;
+	}
+
 	// a progress bar: value from 0 to 1 (a signal, a function or a number)
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):Esx {
 		var frac = () -> {

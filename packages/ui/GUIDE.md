@@ -318,6 +318,23 @@ right-clicked, or at their corner on the menu key or Shift+F10:
 </ContextMenu>
 ```
 
+## Tables
+
+A `Table` shows rows in columns: each column a title, a width (a grid
+track), what a row's cell shows and, to make it sortable, a comparison. Only
+the rows in view are made, so long tables stay cheap. A click selects a row,
+a double click or Enter activates it, the arrow keys move the selection:
+
+```haxe
+typedef Person = {name:String, age:Int};
+
+static function People(props:{people:Array<Person>, onOpen:Person->Void}):Esx
+	return <Table tag="people" rows={props.people} height={200} label="People" onActivate={props.onOpen} columns={[
+		{title: "Name", cell: p -> p.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
+		{title: "Age", width: "60px", cell: p -> "" + p.age, compare: (a, b) -> a.age - b.age}
+	]}/>;
+```
+
 ## Keyboard shortcuts
 
 A `Hotkey` runs its action when its keys are pressed anywhere in the

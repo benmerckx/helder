@@ -916,6 +916,12 @@ class Ui {
 		return false;
 	}
 
+	// scrolls n (an overflow: scroll node) to x, y (clamped to what it can scroll)
+	public function scrollTo(n:Node, x:Float, y:Float) {
+		setScroll(n, true, x);
+		setScroll(n, false, y);
+	}
+
 	function setScroll(n:Node, x:Bool, v:Float) {
 		v = Math.max(0, Math.min(v, maxScroll(n, x)));
 		if (v == (x ? n.scrollX : n.scrollY)) return;

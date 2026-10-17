@@ -120,7 +120,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
-  `Progress`, `Tabs`, `Field`, `Area`, and the popups `Select`, `Menu`,
+  `Progress`, `Tabs`, `Field`, `Area`, `Table` (sortable columns, virtualised
+  rows, selection and keyboard), and the popups `Select`, `Menu`,
   `ContextMenu` (at the pointer), `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
   with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
   `Theme.follow(() -> UiWindow.dark.value)` follows the system's

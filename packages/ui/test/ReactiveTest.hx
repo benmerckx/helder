@@ -12,6 +12,7 @@ import hxmc.ui.widgets.Widgets.Field;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
+import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
 
@@ -37,6 +38,7 @@ class ReactiveTest implements Markup {
 		access();
 		popovers();
 		virtual();
+		table();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -290,6 +292,63 @@ class ReactiveTest implements Markup {
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("popover: Escape closes the dialog", !dialog.value && ui.overlay.children.length == 0);
+	}
+
+	static function table() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		ui.root.style.fontSize = 10;
+		var rows = [for (i in 0...200) {name: "file" + StringTools.lpad("" + ((i * 37) % 200), "0", 3), size: (i * 13) % 50}];
+		var picked:Signal<Null<{name:String, size:Int}>> = signal(null), opened = [];
+		Render.render(<view padding={10}><Table tag="t" rows={rows} selected={picked} height={150} rowHeight={20} label="Files"
+			onActivate={r -> opened.push(r.name)}
+			columns={[
+				{title: "Name", cell: r -> r.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
+				{title: "Size", width: "60px", cell: r -> "" + r.size, compare: (a, b) -> a.size - b.size},
+				{title: "Note", width: "auto", cell: r -> "-"}
+			]}/></view>, ui.root);
+		ui.update();
+		var list = ui.root.find("t-rows");
+		// (each row in the list's wrapper, tagged row)
+		function rowNodes():Array<Node>
+			return [for (c in list.children) if (c.tag == "row") c.children[0]];
+		function rowNamed(name:String):Node
+			return rowNodes().filter(r -> (cast r.children[0].children[0] : TextNode).text == name)[0];
+		function names():Array<String>
+			return [for (r in rowNodes()) (cast r.children[0].children[0] : TextNode).text];
+		check("table: the rows in view, unsorted", names()[0] == "file000" && names()[1] == "file037", names().slice(0, 3).join(","));
+		function click(n:Node) {
+			ui.update();
+			ui.pointerDown(n.absX + 2, n.absY + 2, 1);
+			ui.pointerUp(n.absX + 2, n.absY + 2, 1);
+			ui.update();
+		}
+		click(ui.root.find("t-head-0"));
+		check("table: sorted by a header", names()[0] == "file000" && names()[1] == "file001", names().slice(0, 3).join(","));
+		click(ui.root.find("t-head-0"));
+		check("table: again, the other way", names()[0] == "file199", names()[0]);
+		var t = 0.0;
+		Ui.now = () -> t;
+		var second = rowNamed("file198");
+		click(second);
+		check("table: a click selects a row", picked.value != null && picked.value.name == "file198", picked.value == null ? "none" : picked.value.name);
+		for (_ in 0...10)
+			ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("table: Down moves the selection, the view following", picked.value.name == "file188" && list.scrollY > 0, picked.value.name + " " + list.scrollY);
+		ui.keyDown(Key.ENTER, 0);
+		check("table: Enter activates", opened.join(",") == "file188", opened.join(","));
+		ui.keyDown(Key.HOME, 0);
+		ui.update();
+		check("table: Home, the first row, the view at the top", picked.value.name == "file199" && list.scrollY == 0, picked.value.name + " " + list.scrollY);
+		var first = rowNamed("file199");
+		t = 10;
+		click(first);
+		t = 10.2;
+		click(first);
+		check("table: a double click activates", opened.join(",") == "file188,file199", opened.join(","));
+		var tree = ui.accessTree(), roles = [for (id in tree.order) tree.nodes.get(id).role];
+		check("table: a grid of rows, column headers and cells", roles.indexOf(Table) >= 0 && roles.indexOf(ColumnHeader) >= 0 && roles.indexOf(Row) >= 0 && roles.indexOf(Cell) >= 0);
+		Ui.now = haxe.Timer.stamp;
 	}
 
 	static function virtual() {
