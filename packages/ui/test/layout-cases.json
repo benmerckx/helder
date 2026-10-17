@@ -2900,6 +2900,38 @@
 		}
 	},
 	{
+		"name": "column auto height past the room",
+		"width": 200,
+		"height": 100,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"rowGap": 5
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 80
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 80
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "row intrinsic width without flex-basis",
 		"width": 300,
 		"height": 100,

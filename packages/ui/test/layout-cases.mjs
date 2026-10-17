@@ -113,6 +113,7 @@ export const cases = [
 	{ name: 'absolute box by its bottom: its content height', width: 200, height: 100, tree: { children: [{ style: { height: 20 }, children: [{ style: { position: 'Absolute', bottom: 4, left: 5 }, children: [box(30, 10, { grow: 1 })] }] }] } },
 	{ name: 'flex base size before min-height', width: 300, height: 150, tree: { children: [{ style: { grow: 0.5, width: 10, minHeight: 20, padding: [1, 2, 3, 4] } }] } },
 	{ name: 'column item across: fit-content', width: 200, height: 100, tree: { children: [{ style: { alignItems: 'Center', width: 40, height: 40 }, children: [{ style: { direction: 'Row', margin: 3 }, children: [box(60, 10)] }] }] } },
+	{ name: 'column auto height past the room', width: 200, height: 100, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { rowGap: 5 }, children: [box(40, 80), box(40, 80)] }] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },
 	// a scroll container's automatic minimum is 0 (its padding and border): a wide one does not widen its fr or auto track
 	{ name: 'grid clipped wide item in fr', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '50px 1fr 40px', alignContent: 'Start' }, children: [h(20), { style: { overflow: 'Hidden', padding: [0, 6] }, children: [box(400, 20)] }, h(20)] } },
