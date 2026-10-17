@@ -3104,6 +3104,117 @@
 		}
 	},
 	{
+		"name": "row intrinsic width: a basis and the factors",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 100,
+								"height": 10,
+								"basis": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 50,
+								"minWidth": 20,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 20,
+								"height": 10
+							},
+							"children": [
+								{
+									"style": {
+										"width": 100,
+										"height": 10
+									}
+								}
+							]
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 50,
+								"minWidth": 20,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 100,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 100,
+								"height": 10,
+								"basis": 20,
+								"grow": 0.5
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 10,
+								"basis": 60,
+								"shrink": 0
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "row intrinsic width without flex-basis",
 		"width": 300,
 		"height": 100,

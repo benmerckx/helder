@@ -999,7 +999,20 @@ class Layout {
 				var cs = c.style;
 				if (cs.display == None || cs.position == Absolute) continue;
 				var m = cs.margin;
-				var cw = clamp(minContentWidth(c, Math.NaN, true), min(cs.minWidth, Math.NaN), max(cs.maxWidth, Math.NaN)) + m.left + m.right;
+				var cw = clamp(minContentWidth(c, Math.NaN, true), min(cs.minWidth, Math.NaN), max(cs.maxWidth, Math.NaN));
+				// (a row's item with a flex-basis: as contribution() has it, its base size when its factor is 0,
+				// no less than its automatic minimum)
+				var b = cs.basis.resolve(Math.NaN);
+				if (row && known(b)) {
+					if (cw > b && cs.grow == 0 || cw < b && cs.shrink == 0) cw = b;
+					if (cs.minWidth == DimValue.Auto && cs.overflow == Visible) {
+						var content = minContentWidth(c, Math.NaN, false), given = cs.width.resolve(Math.NaN);
+						var least = known(given) ? Math.min(content, given) : content;
+						if (cw < least) cw = least;
+					}
+					cw = clamp(cw, Math.max(min(cs.minWidth, Math.NaN), edgesH(cs)), max(cs.maxWidth, Math.NaN));
+				}
+				cw += m.left + m.right;
 				if (row) inner += cw + (count > 0 ? s.columnGap : 0) else if (cw > inner) inner = cw;
 				count++;
 			}
@@ -1012,9 +1025,11 @@ class Layout {
 
 	// CSS 9.7: the items' main sizes in a line of the container's main size
 	// an item's size along a container's indefinite main axis: its
-	// hypothetical size, except that a row's items give their max-content
-	// contribution (their width or their content, within their min and max:
-	// a flex-basis set is not part of it, as Chromium sizes rows)
+	// hypothetical size, except that a row's item with a flex-basis set gives
+	// its max-content contribution (its width or content, within its min and
+	// max) when its grow factor (wider) or shrink factor (narrower) would take
+	// it there, else its base size, then within its min (the automatic one
+	// too) and max, as Chromium sizes rows
 	function contribution(it:Item, row:Bool, innerW:Float, innerH:Float):Float {
 		var cs = it.node.style;
 		if (!row || cs.basis == DimValue.Auto) return it.hypo;
@@ -1023,7 +1038,9 @@ class Layout {
 			size(it.node, Math.NaN, known(it.styleCross) ? it.styleCross : Math.NaN, innerW, innerH, Math.NaN, Math.NaN, false);
 			w = rw;
 		}
-		return clamp(w, it.minMain, it.maxMain);
+		var c = clamp(w, it.minMain, it.maxMain), b = it.basis;
+		var stays = c > b && cs.grow == 0 || c < b && cs.shrink == 0;
+		return clamp(stays ? b : c, it.minMain, it.maxMain);
 	}
 
 	static function resolveFlexible(l:Line, mainSize:Float, gap:Float) {
