@@ -111,10 +111,11 @@ both (tabs' trigger), the ring wins.
 ## Checks
 
 `make theme-check` (`test/ThemeTest.hx`, on Eval): class lists read as
-rules, Tw's rules made at compile time, shadcn's sheet compiled, the
+rules, Tw's rules made at compile time, shadcn's sheet made, the
 classes Tw rejects. `make theme-fidelity-check`: each themed widget drawn
 headless against shadcn's own markup and CSS drawn by Chromium
 (`test/ref/*.png`, 166 cases of every component but Calendar and the
 toast: variants, sizes, hover, focus, disabled, invalid, checked, open,
-light and dark; `test/ref.mjs` writes them with Tailwind 4.3.3); skipped
-until `hxmc.ui` has the rule engine.
+light and dark; `test/ref.mjs` writes them with Tailwind 4.3.3), for the
+widgets `hxmc.ui` has converted so far; the cases known to differ, for
+what `hxmc.ui` lacks yet, reported, not failed (`FidelityTest.KNOWN`).

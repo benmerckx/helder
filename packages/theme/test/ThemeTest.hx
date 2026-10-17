@@ -5,10 +5,9 @@ import hxmc.ui.DimValue;
 
 // packages/theme (make theme-check), on Eval: Tailwind's classes read as
 // rules (Tailwind.rules, each as Tailwind.describe writes it), Tw's rules
-// made at compile time, shadcn's sheet compiled; the classes Tw rejects
-// at compile time (test/reject, "// expect:" lines; with the tool's path as
-// the argument). Shadcn.sheet is made only once the engine parses token
-// colours (Color.parse("var(--primary)")).
+// made at compile time, shadcn's sheet made; the classes Tw rejects at
+// compile time (test/reject, "// expect:" lines; with the tool's path as
+// the argument).
 class ThemeTest {
 	static var checks = 0;
 	static var failed = 0;
@@ -180,10 +179,6 @@ class ThemeTest {
 	}
 
 	static function sheet() {
-		if (hxmc.ui.Color.tryParse("var(--primary)") == null) {
-			Sys.println("ThemeTest: Shadcn.sheet compiled, not made (no token colours in hxmc.ui.Color yet)");
-			return;
-		}
 		var s = Shadcn.sheet;
 		check("sheet: rules", s.rules.length > 50, '${s.rules.length}');
 		check("sheet: tokens", s.light["primary"] != null && s.dark["primary"] != null && s.light.get("primary") != s.dark.get("primary"));
@@ -200,7 +195,7 @@ class ThemeTest {
 					if (StringTools.startsWith(l, "// expect: ")) StringTools.trim(l.substr(11))
 			];
 			var args = [
-				"-cp", "packages/ui/src", "-cp", "packages/theme/src", "-cp", "packages/theme/test/stub", "-cp", dir, "-main", f.substr(0, f.length - 3),
+				"-cp", "packages/ui/src", "-cp", "packages/theme/src", "-cp", dir, "-main", f.substr(0, f.length - 3),
 				"--interp", "--no-output"
 			];
 			var p = new sys.io.Process(tool, args);

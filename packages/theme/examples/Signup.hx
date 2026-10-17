@@ -1,5 +1,5 @@
 // title: Sign-up card
-// summary: shadcn/ui's look on ui's widgets: a card with an input, a checkbox, a switch, badges and buttons, light and dark
+// summary: shadcn/ui's look on ui's widgets: a card with an input, a checkbox, a switch, a badge and buttons, light and dark
 // tags: ui, theme
 // demo: canvas 420x360
 import hxmc.theme.Shadcn;
@@ -18,21 +18,21 @@ class Signup implements Markup {
 		Render.render(<view slot="body" grow={1} padding={24}>
 			<Card>
 				<CardHeader>
-					<CardTitle>Create an account</CardTitle>
-					<CardDescription>Enter your email below</CardDescription>
-					<CardAction><Badge variant="secondary">Beta</Badge></CardAction>
+					<CardTitle text="Create an account"/>
+					<CardDescription text="Enter your email below"/>
+					<CardAction><Badge variant="secondary" label="Beta"/></CardAction>
 				</CardHeader>
 				<CardContent>
 					<view row-gap={12}>
 						<Input value={email} placeholder="m@example.com"/>
-						<view direction="row" column-gap={8} align-items="center"><Checkbox checked={terms}/><Label>Accept terms</Label></view>
-						<view direction="row" column-gap={8} align-items="center"><Switch on={dark}/><Label>Dark mode</Label></view>
+						<Checkbox checked={terms} label="Accept terms"/>
+						<Switch checked={dark} label="Dark mode"/>
 					</view>
 				</CardContent>
 				<CardFooter>
 					<view direction="row" column-gap={8}>
-						<Button variant="outline">Cancel</Button>
-						<Button disabled={() -> !terms.value}>Sign up</Button>
+						<Button variant="outline" label="Cancel"/>
+						<Button label="Sign up" disabled={() -> !terms.value}/>
 					</view>
 				</CardFooter>
 			</Card>
