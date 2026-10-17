@@ -63,6 +63,9 @@ class MarkupTest implements Markup {
 		numbers();
 		rightToLeft();
 		wordBreaks();
+		autoMargins();
+		baselines();
+		shorthands();
 		editMenus();
 		menubar();
 		tabs();
@@ -272,6 +275,49 @@ class MarkupTest implements Markup {
 		dir.value = "ltr";
 		ui.update();
 		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);
+	}
+
+	// auto margins from markup ("auto") and code (Edges.AUTO)
+	static function autoMargins() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		Render.render(<view>
+			<view direction="row" height={30}><view tag="a" width={40} height={20}/><view tag="b" width={40} height={20} margin="0 0 0 auto"/></view>
+			<view tag="c" width={100} height={20} margin={[0, Edges.AUTO]}/>
+		</view>, ui.root);
+		ui.update();
+		var b = ui.root.find("b"), c = ui.root.find("c");
+		check("auto margins: a row's item pushed to the end (markup)", b.absX == 260, "" + b.absX);
+		check("auto margins: centred across a column (Edges.AUTO)", c.absX == 100, "" + c.absX);
+	}
+
+	// the shorthands' markup forms
+	static function shorthands() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		Render.render(<view tag="holder" gap="4 8" height={200}>
+			<view tag="none" flex="none" width={20}/>
+			<view tag="fill" flex="2 0 40px"/>
+			<view tag="abs" position="absolute" inset="5 10"/>
+		</view>, ui.root);
+		ui.update();
+		var holder = ui.root.find("holder"), none = ui.root.find("none"), fill = ui.root.find("fill"), abs = ui.root.find("abs");
+		check("shorthands: gap \"4 8\"", holder.style.rowGap == 4 && holder.style.columnGap == 8);
+		check("shorthands: flex none and three values", none.style.grow == 0 && none.style.shrink == 0 && fill.style.grow == 2 && fill.style.shrink == 0
+			&& fill.style.basis.resolve(0) == 40);
+		check("shorthands: inset \"5 10\"", abs.absX == 10 && abs.absY == 5 && abs.width == 280 && abs.height == 190, abs.absX + " " + abs.absY + " " + abs.width + " " + abs.height);
+	}
+
+	// align-items: baseline: texts of two sizes on one baseline (MonoText's: four fifths down a line)
+	static function baselines() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		Render.render(<view direction="row" align-items="baseline" line-height={1}>
+			<text tag="small" font-size={10}>small</text>
+			<text tag="big" font-size={20}>big</text>
+			<view tag="box" width={10} height={5}/>
+		</view>, ui.root);
+		ui.update();
+		var small = ui.root.find("small"), big = ui.root.find("big"), box = ui.root.find("box");
+		check("baselines: the texts' baselines level", big.absY == 0 && small.absY == 8, small.absY + " " + big.absY);
+		check("baselines: a box without text on its bottom edge", box.absY + 5 == 16, "" + box.absY);
 	}
 
 	// overflow-wrap and word-break: inherited into the text's font (what the engine breaks lines by)

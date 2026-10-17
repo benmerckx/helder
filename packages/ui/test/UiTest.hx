@@ -1351,10 +1351,14 @@ class UiTest {
 			case "wrap": s.wrap = v;
 			case "rowGap": s.rowGap = v;
 			case "columnGap": s.columnGap = v;
+			case "gap": s.gap = v;
+			case "inset": s.inset = (v : Float);
+			case "flex": s.flex = v;
 			case "borderWidth": s.borderWidth = v;
 			case "borders": s.borders = (v : Array<Float>);
 			case "padding": s.padding = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
-			case "margin": s.margin = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
+			// ("auto": NaN)
+			case "margin": s.margin = Std.isOfType(v, Array) ? [for (x in (v : Array<Dynamic>)) x == "auto" ? Math.NaN : (x : Float)] : v == "auto" ? Math.NaN : (v : Float);
 			case "dir": s.dir = v == "Rtl" ? Rtl : Ltr;
 			case "order": s.order = v;
 			case "direction": s.direction = switch (v : String) {
@@ -1377,6 +1381,7 @@ class UiTest {
 					case "End": End;
 					case "Center": Center;
 					case "Stretch": Stretch;
+					case "Baseline": Baseline;
 					case _: Auto;
 				}
 				switch k {

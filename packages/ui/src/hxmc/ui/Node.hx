@@ -101,6 +101,8 @@ class Node {
 	@:allow(hxmc.ui) var inkAll = false;
 	@:allow(hxmc.ui) var inkStale = false;
 	@:allow(hxmc.ui.Layout) var minContent = Math.NaN;
+	// (a row's items' baseline, those aligned on it, below its top; NaN: none)
+	@:allow(hxmc.ui.Layout) var lb = Math.NaN;
 
 	public function new(?tag:String) {
 		this.tag = tag == null ? "view" : tag;
@@ -707,8 +709,10 @@ class Node {
 			}
 			// (the parent's content box, its margins inside)
 			var ps = p.style, pbe = ps.borderEdges, ppad = ps.padding;
-			var c0 = (x ? p.absX + pbe.left + ppad.left : p.absY + pbe.top + ppad.top) + (x ? m.left : m.top);
-			var c1 = (x ? p.absX + p.width - pbe.right - ppad.right : p.absY + p.height - pbe.bottom - ppad.bottom) - (x ? m.right : m.bottom);
+			// (an auto margin: 0)
+			var m0 = x ? m.left : m.top, m1 = x ? m.right : m.bottom;
+			var c0 = (x ? p.absX + pbe.left + ppad.left : p.absY + pbe.top + ppad.top) + (Math.isNaN(m0) ? 0 : m0);
+			var c1 = (x ? p.absX + p.width - pbe.right - ppad.right : p.absY + p.height - pbe.bottom - ppad.bottom) - (Math.isNaN(m1) ? 0 : m1);
 			var start = (x ? s.left : s.top).resolve(v1 - v0), end = (x ? s.right : s.bottom).resolve(v1 - v0);
 			var d = 0.0;
 			if (!Math.isNaN(start) && pos + d < v0 + start) d = Math.min(v0 + start - pos, Math.max(0, c1 - (pos + size)));
@@ -896,6 +900,21 @@ class Node {
 	}
 
 	// what its content draws, from its content box's top left, when it may reach past the box (a text's paragraph)
+	// its first baseline below its border box's top, once laid out: a text's
+	// first line's, a row's items aligned on theirs, else its first item's
+	// (one without any: its bottom edge, as CSS's flexbox synthesizes it);
+	// NaN: none (no text, no items)
+	public function firstBaseline():Float {
+		if (!Math.isNaN(lb)) return lb;
+		for (c in inOrder()) {
+			var cs = c.style;
+			if (cs.display == None || cs.position == Absolute) continue;
+			var b = c.firstBaseline();
+			return c.ly + (Math.isNaN(b) ? c.lh : b);
+		}
+		return Math.NaN;
+	}
+
 	public function contentInk():Null<Size>
 		return null;
 

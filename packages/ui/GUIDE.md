@@ -170,6 +170,16 @@ property is an attribute, in kebab-case or camelCase, with CSS's values:
 	width="50%" min-height={0} background="#3b82f6" radius={6} border-width={1} border-color="#1d4ed8"/>
 ```
 
+An `auto` margin takes the room left over, as in CSS: here the last
+button is pushed to the right end of its row:
+
+```haxe
+<view tag="toolbar" direction="row" column-gap={8}>
+	<view tag="back" width={60} height={24}/>
+	<view tag="help" width={60} height={24} margin="0 0 0 auto"/>
+</view>
+```
+
 Colours are CSS's: hex, `rgb()`, `hsl()` and the named ones. A background
 can be a CSS gradient, linear or radial, repeating or not, drawn under the
 border:

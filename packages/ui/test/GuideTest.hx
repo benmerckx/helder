@@ -236,6 +236,13 @@ class GuideTest implements Markup {
 		ui.update();
 		var banner = ui.root.find("banner");
 		check("snippets: a gradient background", banner.style.backgroundImage != null && banner.style.background == Color.TRANSPARENT);
+		var bar = new Ui(new MonoText(), 300, 100);
+		Render.render(<view tag="toolbar" direction="row" column-gap={8}>
+			<view tag="back" width={60} height={24}/>
+			<view tag="help" width={60} height={24} margin="0 0 0 auto"/>
+		</view>, bar.root);
+		bar.update();
+		check("snippets: an auto margin pushes to the end", bar.root.find("help").absX == 240, "" + bar.root.find("help").absX);
 		var other = new Ui(new MonoText(), 100, 100);
 		Render.render(<view tag="badge" width={24} height={24} radius={12} background="#ef4444" transform="rotate(15deg) scale(1.2)" transform-origin="left top"/>, other.root);
 		other.update();

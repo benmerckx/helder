@@ -43,9 +43,14 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
 - **`hxmc.ui`**, the core, plain Haxe (it runs on any target; its tests
   run on Eval): `Node` and `TextNode`, `Style`, `Layout`, `Ui`.
   - Layout is CSS flexbox, column by default: `direction`, `wrap`,
-    `justify`, `alignItems`, `alignSelf`, `alignContent`, `grow`,
+    `justify`, `alignItems`, `alignSelf` (`Baseline`: a row's items on their
+    first baselines, a text's first line's, a box without one on its bottom
+    edge), `alignContent`, `grow`,
     `shrink`, `basis`, `width`, `height`, min and max, `aspectRatio`,
-    `padding`, `margin`, `borderWidth`, `rowGap`, `columnGap`, `position`
+    `padding`, `margin` (`auto`, `Edges.AUTO`: CSS's auto margins, along and
+    across flex lines, in grid areas, on absolute boxes), `borderWidth`,
+    `rowGap`, `columnGap` (`gap` both; `flex`, `inset`: CSS's shorthands,
+    `flex="none"`, `inset="0 10"` in markup), `position`
     (Absolute with `left`, `top`, `right`, `bottom`; both offsets and a
     size on an axis: placed between them by `justifySelf` and `alignSelf`;
     an auto width shrinks to fit), `overflow` (Hidden,
@@ -73,7 +78,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     by rows or columns, sparse or dense), aligned by `justifyItems`,
     `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify` and
     `alignContent` (no other named lines, no subgrid). Checked against
-    Chromium on 132 cases, 39 of them grids, 8 right to left.
+    Chromium on 140 cases, 39 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the
@@ -328,6 +333,10 @@ a steady frame; `RT_STATS=1` adds the collector's figures and the RSS, and
 a build with `-D hxmc.census` run with `RT_CENSUS=1` lists the live heap by
 type. At 5000 rows (40000 nodes) a steady frame paints in about 1.5 ms and a
 change to one row is laid out in about 3.
+The first layout of 1000 rows (8000 nodes) takes about 30 ms, 60% of it
+laying out text and nearly half of that the collector copying the
+paragraphs' glyphs, which all survive: a compact glyph store in
+`hxmc.text` (arrays, not an object per glyph) is what would cut it next.
 
 ## Tests
 
