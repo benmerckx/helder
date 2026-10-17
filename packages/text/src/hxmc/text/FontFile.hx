@@ -357,13 +357,18 @@ class FontFile {
 		return {type: type, flag: flag, subtables: out};
 	}
 
-	// a single substitution lookup's glyph for g (g: not covered)
-	public function substitute(lookup:Int, g:Int):Int {
+	// a single substitution lookup's glyph for g (g: not covered); an
+	// alternate substitution's nth (from 1; g: not that many)
+	public function substitute(lookup:Int, g:Int, nth = 1):Int {
 		var l = gsubSubtables(lookup);
-		if (l.type != 1) return g;
+		if (l.type != 1 && l.type != 3) return g;
 		for (st in l.subtables) {
 			var ci = coverage(st + u16(data, st + 2), g);
 			if (ci < 0) continue;
+			if (l.type == 3) {
+				var set = st + u16(data, st + 6 + 2 * ci);
+				return nth >= 1 && nth <= u16(data, set) ? u16(data, set + 2 * nth) : g;
+			}
 			return u16(data, st) == 1 ? (g + s16(data, st + 4)) & 0xFFFF : u16(data, st + 6 + 2 * ci);
 		}
 		return g;
@@ -418,49 +423,181 @@ class FontFile {
 
 	var glyphClasses:Null<haxe.ds.Vector<Int>> = null;
 
-	// the standard ligatures' lookups for a script (liga and clig, in the lookup list's order)
-	public function ligatureLookups(script:String):Array<Int> {
-		var l = ligaCache.get(script);
-		if (l == null) {
-			l = gsubLookups(script, "liga").concat(gsubLookups(script, "clig"));
-			l.sort(Reflect.compare);
-			ligaCache.set(script, l);
+	// the GSUB lookups a segment of text in a script takes, in the lookup
+	// list's order, each with its feature's value: Chromium's default ones
+	// (liga, clig, calt: not where letters are spaced, as CSS turns them off
+	// there) and those asked for (FontSet.features, after: liga 0 turns it
+	// off, tnum or ss01 on); single, alternate, ligature and (chained)
+	// context substitutions; kept by script and features
+	public function gsubLookupsFor(script:String, features:Null<Array<FontFeature>>, key:String, spaced:Bool):Array<{lookup:Int, value:Int}> {
+		var k = script + "|" + key + (spaced ? "|s" : ""), l = gsubCacheFor.get(k);
+		if (l != null) return l;
+		var tags:Array<FontFeature> = [for (tag in ["liga", "clig", "calt"]) {tag: tag, value: spaced ? 0 : 1}];
+		if (features != null)
+			for (f in features) {
+				for (t in tags)
+					if (t.tag == f.tag) tags.remove(t);
+				tags.push(f);
+			}
+		l = [];
+		for (f in tags) {
+			if (f.value == 0) continue;
+			for (i in gsubLookups(script, f.tag)) {
+				var t = gsubSubtables(i).type;
+				if (t != 1 && t != 3 && t != 4 && t != 5 && t != 6) continue;
+				var seen = false;
+				for (e in l)
+					if (e.lookup == i) seen = true;
+				if (!seen) l.push({lookup: i, value: f.value});
+			}
 		}
+		l.sort((a, b) -> a.lookup - b.lookup);
+		gsubCacheFor.set(k, l);
 		return l;
 	}
 
-	final ligaCache = new Map<String, Array<Int>>();
+	final gsubCacheFor = new Map<String, Array<{lookup:Int, value:Int}>>();
 
-	// the glyphs that begin a ligature of these lookups (their subtables'
-	// coverages), a byte by glyph id (1: may begin one); kept by lookups
-	public function ligatureStarts(lookups:Array<Int>):haxe.io.Bytes {
-		var key = lookups.join(",");
-		var b = startsCache.get(key);
+	// a GSUB lookup's type (1 single, 3 alternate, 4 ligature, 5 context, 6 chained context...)
+	public inline function gsubType(lookup:Int):Int
+		return gsubSubtables(lookup).type;
+
+	// the glyphs a GSUB lookup may begin at (its subtables' first
+	// coverages), a byte by glyph id (1: may); kept by lookup
+	public function lookupStarts(lookup:Int):haxe.io.Bytes {
+		var b = startsCache.get(lookup);
 		if (b != null) return b;
 		b = haxe.io.Bytes.alloc(numGlyphs + 1);
-		for (l in lookups) {
-			var t = gsubSubtables(l);
-			if (t.type != 4) continue;
-			for (st in t.subtables) {
-				var c = st + u16(data, st + 2), n = u16(data, c + 2);
-				if (u16(data, c) == 1)
-					for (k in 0...n) {
-						var g = u16(data, c + 4 + 2 * k);
+		var t = gsubSubtables(lookup);
+		for (st in t.subtables) {
+			var format = u16(data, st);
+			// (format 3 of a context: its first input coverage)
+			var c = if (t.type == 6 && format == 3) st + u16(data, st + 6 + 2 * u16(data, st + 2)) else if (t.type == 5 && format == 3) st + u16(data, st + 6) else
+				st + u16(data, st + 2);
+			var n = u16(data, c + 2);
+			if (u16(data, c) == 1)
+				for (k in 0...n) {
+					var g = u16(data, c + 4 + 2 * k);
+					if (g < b.length) b.set(g, 1);
+				}
+			else
+				for (k in 0...n) {
+					var r = c + 4 + 6 * k, end = u16(data, r + 2);
+					for (g in u16(data, r)...end + 1)
 						if (g < b.length) b.set(g, 1);
-					}
-				else
-					for (k in 0...n) {
-						var r = c + 4 + 6 * k, end = u16(data, r + 2);
-						for (g in u16(data, r)...end + 1)
-							if (g < b.length) b.set(g, 1);
-					}
-			}
+				}
 		}
-		startsCache.set(key, b);
+		startsCache.set(lookup, b);
 		return b;
 	}
 
-	final startsCache = new Map<String, haxe.io.Bytes>();
+	final startsCache = new Map<Int, haxe.io.Bytes>();
+
+	// a (chained) context substitution lookup's match at ids[at] (types 5
+	// and 6, each format; what comes before and after from start to end):
+	// the input's length and its substitutions (pairs of a position in the
+	// input and the lookup to apply there); null: none
+	public function context(lookup:Int, ids:Array<Int>, at:Int, start:Int, end:Int):Null<{length:Int, records:Array<Int>}> {
+		var l = gsubSubtables(lookup);
+		if (l.type != 5 && l.type != 6) return null;
+		for (st in l.subtables) {
+			var r = l.type == 6 ? chainRule(st, ids, at, start, end) : contextRule(st, ids, at, end);
+			if (r != null) return r;
+		}
+		return null;
+	}
+
+	function records(p:Int, n:Int):Array<Int> {
+		var out = [];
+		for (k in 0...n) {
+			out.push(u16(data, p + 4 * k));
+			out.push(u16(data, p + 4 * k + 2));
+		}
+		return out;
+	}
+
+	function chainRule(st:Int, ids:Array<Int>, at:Int, start:Int, end:Int):Null<{length:Int, records:Array<Int>}> {
+		var format = u16(data, st);
+		if (format == 3) {
+			var nb = u16(data, st + 2), b = st + 4, p = b + 2 * nb;
+			var ni = u16(data, p), inp = p + 2;
+			p = inp + 2 * ni;
+			var nl = u16(data, p), la = p + 2;
+			p = la + 2 * nl;
+			if (ni == 0 || at - nb < start || at + ni + nl > end) return null;
+			for (k in 0...ni)
+				if (coverage(st + u16(data, inp + 2 * k), ids[at + k]) < 0) return null;
+			for (k in 0...nb)
+				if (coverage(st + u16(data, b + 2 * k), ids[at - 1 - k]) < 0) return null;
+			for (k in 0...nl)
+				if (coverage(st + u16(data, la + 2 * k), ids[at + ni + k]) < 0) return null;
+			return {length: ni, records: records(p + 2, u16(data, p))};
+		}
+		if (format != 1 && format != 2) return null;
+		if (coverage(st + u16(data, st + 2), ids[at]) < 0) return null;
+		// (format 1: rules by the first glyph's coverage index, of glyphs; 2: by its class, of classes)
+		var bc = 0, ic = 0, lc = 0, index = coverage(st + u16(data, st + 2), ids[at]), sets = st + 4;
+		if (format == 2) {
+			bc = st + u16(data, st + 4);
+			ic = st + u16(data, st + 6);
+			lc = st + u16(data, st + 8);
+			index = classOf(ic, ids[at]);
+			sets = st + 10;
+		}
+		if (index >= u16(data, sets) || u16(data, sets + 2 + 2 * index) == 0) return null;
+		var set = st + u16(data, sets + 2 + 2 * index);
+		for (k in 0...u16(data, set)) {
+			var p = set + u16(data, set + 2 + 2 * k);
+			var nb = u16(data, p), b = p + 2;
+			p = b + 2 * nb;
+			var ni = u16(data, p), inp = p + 2;
+			p = inp + 2 * (ni - 1);
+			var nl = u16(data, p), la = p + 2;
+			p = la + 2 * nl;
+			if (ni == 0 || at - nb < start || at + ni + nl > end) continue;
+			var ok = true;
+			for (j in 1...ni)
+				if (ok && (format == 1 ? ids[at + j] : classOf(ic, ids[at + j])) != u16(data, inp + 2 * (j - 1))) ok = false;
+			for (j in 0...nb)
+				if (ok && (format == 1 ? ids[at - 1 - j] : classOf(bc, ids[at - 1 - j])) != u16(data, b + 2 * j)) ok = false;
+			for (j in 0...nl)
+				if (ok && (format == 1 ? ids[at + ni + j] : classOf(lc, ids[at + ni + j])) != u16(data, la + 2 * j)) ok = false;
+			if (ok) return {length: ni, records: records(p + 2, u16(data, p))};
+		}
+		return null;
+	}
+
+	function contextRule(st:Int, ids:Array<Int>, at:Int, end:Int):Null<{length:Int, records:Array<Int>}> {
+		var format = u16(data, st);
+		if (format == 3) {
+			var ni = u16(data, st + 2), ns = u16(data, st + 4);
+			if (ni == 0 || at + ni > end) return null;
+			for (k in 0...ni)
+				if (coverage(st + u16(data, st + 6 + 2 * k), ids[at + k]) < 0) return null;
+			return {length: ni, records: records(st + 6 + 2 * ni, ns)};
+		}
+		if (format != 1 && format != 2) return null;
+		var index = coverage(st + u16(data, st + 2), ids[at]);
+		if (index < 0) return null;
+		var cd = 0, sets = st + 4;
+		if (format == 2) {
+			cd = st + u16(data, st + 4);
+			index = classOf(cd, ids[at]);
+			sets = st + 6;
+		}
+		if (index >= u16(data, sets) || u16(data, sets + 2 + 2 * index) == 0) return null;
+		var set = st + u16(data, sets + 2 + 2 * index);
+		for (k in 0...u16(data, set)) {
+			var r = set + u16(data, set + 2 + 2 * k);
+			var ni = u16(data, r), ns = u16(data, r + 2);
+			if (ni == 0 || at + ni > end) continue;
+			var ok = true;
+			for (j in 1...ni)
+				if (ok && (format == 1 ? ids[at + j] : classOf(cd, ids[at + j])) != u16(data, r + 4 + 2 * (j - 1))) ok = false;
+			if (ok) return {length: ni, records: records(r + 4 + 2 * (ni - 1), ns)};
+		}
+		return null;
+	}
 
 	var gdefClasses = -2;
 

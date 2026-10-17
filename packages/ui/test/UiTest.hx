@@ -39,6 +39,8 @@ class UiTest {
 		events();
 		dirty();
 		paint();
+		themes();
+		transitions();
 		images(here);
 		svgs(here);
 		svgApi();
@@ -227,6 +229,13 @@ class UiTest {
 			false;
 		} catch (e:Dynamic) true;
 		check("transform: an unknown function is an error", bad);
+		var built = new Transform(["translate", "rotate", "scale"], [[10, 50], [90], [2]], [[false, true], [false], [false]]).toMatrix(100, 40);
+		var counted = try {
+			new Transform(["translateX"], [[1, 2]]);
+			false;
+		} catch (e:Dynamic) true;
+		check("transform: built without the text, as parse reads it; a wrong count an error", near(built, m)
+			&& new Transform(["translateX"], [[5]]).toMatrix(1, 1)[4] == 5 && counted, "" + built);
 		var inv = Transform.invert(m);
 		check("transform: inverted", inv != null && near(Transform.multiply(m, inv), [1, 0, 0, 1, 0, 0]));
 		var o = Transform.origin("left top");
@@ -648,6 +657,31 @@ class UiTest {
 		time = 20;
 		ui.pointerDown(other.absX + 5, other.absY + 5, 1);
 		check("selection: a press elsewhere drops it", ui.textSelection == null);
+		// (user-select: none on it, not selected; all, all of it at a click; text on an ancestor, a text of its own flag unset)
+		t.style.userSelect = None;
+		time = 30;
+		ui.pointerDown(t.absX + 3, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 3, t.absY + 5, 1);
+		var none = ui.textSelection == null;
+		t.style.userSelect = All;
+		time = 40;
+		ui.pointerDown(t.absX + 3, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 3, t.absY + 5, 1);
+		var all = ui.selectedText();
+		t.style.userSelect = null;
+		t.selectable = false;
+		ui.root.style.userSelect = Text;
+		time = 50;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		time = 50.2;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		check("selection: user-select none, all, text inherited", none && all == "hello world foo" && ui.selectedText() == "world", all + " " + ui.selectedText());
+		ui.root.style.userSelect = null;
+		t.selectable = true;
+		time = 60;
+		ui.pointerDown(other.absX + 5, other.absY + 5, 1);
 		// (centred in 300: the line of 75 starts at 112.5)
 		t.style.width = 300;
 		t.style.textAlign = Center;
@@ -1211,9 +1245,352 @@ class UiTest {
 		check("images: Cover", box.placement(0, 0, 100, 100).join(",") == "0,0,100,100,0.25,0,0.75,1", box.placement(0, 0, 100, 100).join(","));
 		box.fit = ImageFit.None;
 		check("images: None", box.placement(0, 0, 100, 100).join(",") == "30,40,40,20,0,0,1,1", box.placement(0, 0, 100, 100).join(","));
+		// object-position: a share of the room left over and pixels more, the part outside cut
+		function placed(fit:ImageFit, pos:String):String {
+			box.fit = fit;
+			box.position(pos);
+			return box.placement(0, 0, 100, 100).join(",");
+		}
+		var got = [
+			placed(Contain, "left top"), placed(Contain, "bottom"), placed(Cover, "right"), placed(Cover, "25% 0"), placed(ImageFit.None, "right 10px bottom 5px"),
+			placed(ImageFit.None, "-30px 10px"), placed(ImageFit.None, "center top")
+		];
+		var want = [
+			"0,0,100,50,0,0,1,1", "0,50,100,50,0,0,1,1", "0,0,100,100,0.5,0,1,1", "0,0,100,100,0.125,0,0.625,1", "50,75,40,20,0,0,1,1",
+			"0,10,10,20,0.75,0,1,1", "30,0,40,20,0,0,1,1"
+		];
+		check("images: object-position", got.join("|") == want.join("|"), got.join("|"));
+		var badPosition = try {
+			box.position("sideways");
+			false;
+		} catch (e:Dynamic) true;
+		box.position("center");
+		check("images: object-position rejects what CSS does not write", badPosition && box.positionX == 0.5 && box.positionY == 0.5);
 		var c = new Recording();
 		ui.paint(c);
 		check("images: painted", c.calls.join("|") == "image 40x20 0 0 40 20 0 0 1 1 0|image 40x20 0 20 100 50 0 0 1 1 0|image 40x20 30 110 40 20 0 0 1 1 12", c.calls.join("|"));
+	}
+
+	// --- themes: rules by slot, variant, size and state; tokens; the node's own style ---
+
+static function transitions() {
+		// parsed as CSS writes them; CSS's easings
+		var t = Transition.parse("background-color 150ms ease-in-out, opacity 0.2s 50ms, box-shadow 1s cubic-bezier(0.4, 0, 0.2, 1)");
+		check("transitions: parsed", t.properties.join(",") == "background,opacity,shadow" && t.durations.join(",") == "0.15,0.2,1"
+			&& t.delays.join(",") == "0,0.05,0" && t.easings[0] == Transition.EASE_IN_OUT && t.easings[2].join(",") == "0.4,0,0.2,1"
+			&& t.timing("color") == null && Transition.parse("all 1s").timing("borderColor").duration == 1 && Transition.parse("none") == null,
+			t.properties.join(","));
+		check("transitions: ease's curve as CSS's", Math.abs(Transition.ease(Transition.EASE, 0.5) - 0.8024) < 1e-3
+			&& Math.abs(Transition.ease(Transition.LINEAR, 0.3) - 0.3) < 1e-6 && Math.abs(Transition.ease(Transition.EASE_IN_OUT, 0.5) - 0.5) < 1e-6,
+			"" + Transition.ease(Transition.EASE, 0.5));
+		check("transitions: colours with their alphas premultiplied", Color.between(Color.TRANSPARENT, Color.rgb(0xFF0000), 0.5) == Color.rgba(0xFF0000, 0.5)
+			&& Color.between(Color.rgb(0x000000), Color.rgb(0xFFFFFF), 0.5) == Color.rgb(0x808080));
+		var tr = Transform.between(null, Transform.parse("translateX(14px)"), 0.5).toString();
+		var sh = Shadow.between(null, Shadow.parse("0 4px 8px #00000080"), 0.5);
+		check("transitions: a transform from none, a shadow from none", tr == "translatex(7)" && sh.y == 2 && sh.blur == 4 && sh.color.a == 64,
+			tr + " " + sh.y + " " + sh.blur + " " + sh.color.a);
+		// a node's change, once drawn, eases on the Clock; the target known
+		var ui = new Ui(new MonoText(), 100, 100);
+		var n = new Node("n");
+		n.style.set({width: 20, height: 20, background: Color.rgb(0x000000), transition: Transition.parse("background-color 100ms linear")});
+		ui.root.append(n);
+		n.style.background = Color.rgb(0x0000FF);
+		check("transitions: not drawn yet, a change jumps", n.style.background == Color.rgb(0x0000FF));
+		ui.update();
+		ui.paint(new Recording());
+		Clock.tick(10);
+		n.style.background = Color.rgb(0xFFFFFF);
+		check("transitions: drawn, a change starts where it is", n.style.background == Color.rgb(0x0000FF) && n.style.target("background") == Color.rgb(0xFFFFFF)
+			&& Clock.active);
+		Clock.tick(10.5);
+		Clock.tick(10.55);
+		var mid = n.style.background;
+		Clock.tick(10.61);
+		check("transitions: halfway, then there", Math.abs(mid.r - 0x80) <= 1 && mid.b == 0xFF && n.style.background == Color.rgb(0xFFFFFF) && !Clock.active, mid.toHex());
+		// (set back mid-way: from where it is; the same value again: the run stopped)
+		n.style.background = Color.rgb(0x000000);
+		Clock.tick(20);
+		Clock.tick(20.05);
+		n.style.background = Color.rgb(0xFFFFFF);
+		var from = n.style.background;
+		Clock.tick(20.06);
+		Clock.tick(20.11);
+		check("transitions: turned back from where it was", Math.abs(from.r - 0x80) <= 1 && n.style.background.r > 0x80 && n.style.background.r < 0xFF,
+			from.toHex() + " " + n.style.background.toHex());
+		Clock.finish();
+		// a theme's rules: a hover's colour eased, the rules still the node's own's judge
+		var sheet:StyleSheet = {rules: [
+			{slot: "b", style: {background: Color.rgb(0x000000), transition: Transition.parse("background-color 150ms linear")}},
+			{slot: "b", when: ["hover"], style: {background: Color.rgb(0xFFFFFF)}}
+		]};
+		ui.theme = sheet;
+		var b = new Node("b");
+		b.slot = "b";
+		b.style.set({width: 20, height: 20});
+		ui.root.append(b);
+		ui.update();
+		ui.paint(new Recording());
+		check("transitions: a theme's first style jumps", b.style.background == Color.rgb(0x000000));
+		ui.pointerMove(b.absX + 5, b.absY + 5);
+		ui.update();
+		check("transitions: the hover's colour eases", b.style.background == Color.rgb(0x000000) && b.style.target("background") == Color.rgb(0xFFFFFF));
+		Clock.finish();
+		ui.pointerMove(90, 90);
+		ui.update();
+		Clock.finish();
+		check("transitions: and back, the rules' all along", b.style.background == Color.rgb(0x000000), b.style.background.toHex());
+		// (starting rules, as CSS's @starting-style: before the first draw; then eased from)
+		ui.theme = {rules: [
+			{slot: "pop", style: {opacity: 1, transition: Transition.parse("opacity 100ms linear")}},
+			{slot: "pop", when: ["starting"], style: {opacity: 0}}
+		]};
+		var pop = new Node("pop");
+		pop.slot = "pop";
+		pop.style.set({width: 10, height: 10});
+		ui.root.append(pop);
+		ui.update();
+		var first = pop.style.opacity;
+		ui.paint(new Recording());
+		ui.update();
+		Clock.tick(200);
+		Clock.tick(200.05);
+		var mid = pop.style.opacity;
+		Clock.finish();
+		check("themes: starting rules before the first draw, then eased from", first == 0 && mid > 0.4 && mid < 0.6 && pop.style.opacity == 1,
+			first + " " + mid + " " + pop.style.opacity);
+		ui.root.remove(pop);
+		ui.root.append(pop);
+		ui.update();
+		check("themes: again when it comes back", pop.style.opacity == 0, "" + pop.style.opacity);
+		Clock.finish();
+		// (one side of padding from one rule over the four from another; an auto margin from a rule)
+		ui.theme = {rules: [
+			{slot: "p", style: {padding: [8, 16]}},
+			{slot: "p", when: ["data-dense"], style: {paddingTop: 2}},
+			{slot: "row", style: {direction: Row, width: 100}},
+			{slot: "end", style: {width: 10, height: 10, marginLeft: Edges.AUTO}}
+		]};
+		var pn = new Node("p"), row = new Node("row"), end = new Node("end");
+		pn.slot = "p";
+		row.slot = "row";
+		end.slot = "end";
+		row.append(end);
+		ui.root.append(pn);
+		ui.root.append(row);
+		pn.setAttr("data-dense", "");
+		ui.update();
+		ui.update();
+		check("themes: padding-top over padding, an auto margin (ml-auto)", pn.style.padding.top == 2 && pn.style.padding.left == 16
+			&& pn.style.padding.bottom == 8 && end.x == 90, pn.style.padding.top + " " + end.x);
+		pn.setAttr("data-dense", null);
+		ui.update();
+		check("themes: the side back with the rule gone", pn.style.padding.top == 8 && pn.style.padding.left == 16, "" + pn.style.padding.top);
+		ui.root.remove(pn);
+		ui.root.remove(row);
+		// (a radius from the sheet's lengths, calc(var(--radius) - 4px); another sheet, another radius)
+		var rad = new Node("rad");
+		rad.slot = "rad";
+		ui.root.append(rad);
+		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4), color: Color.rgb(0x112233), borderColor: Color.token("currentcolor")}}], lengths: ["radius" => 10.0]};
+		ui.update();
+		var first = rad.style.radius;
+		check("themes: currentColor beside a resolved length", rad.style.borderColor == Color.rgb(0x112233), "" + rad.style.borderColor);
+		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4)}}], lengths: ["radius" => 2.0]};
+		ui.update();
+		check("themes: a radius from the sheet's lengths (clamped at 0)", first == 6 && rad.style.radius == 0 && Length.tokenOffset(Length.token("x", -2.5)) == -2.5,
+			first + " " + rad.style.radius);
+		ui.root.remove(rad);
+		// (other nodes' states: a group's hover, a named peer's attribute, a descendant's, first and last, not)
+		ui.theme = {
+			rules: [
+				{slot: "gi", style: {opacity: 0.5}},
+				{slot: "gi", when: ["group:hover"], style: {opacity: 1}},
+				{slot: "pi", when: ["peer/box:data-state=checked"], style: {opacity: 0.25}},
+				{slot: "hb", when: ["has:data-state=open"], style: {opacity: 0.75}},
+				{slot: "hb", when: ["has:>data-slot=pi"], style: {zIndex: 2}},
+				{slot: "li", when: ["first"], style: {opacity: 0.1}},
+				{slot: "li", when: ["last"], style: {opacity: 0.9}},
+				{slot: "li", when: ["not:first", "not:last"], style: {opacity: 0.5}}
+			]
+		};
+		var group = new Node("g"), inner = new Node("gi"), box = new Node("box"), peerOf = new Node("pi"), deep = new Node("deep");
+		group.setAttr("group", "");
+		inner.slot = "gi";
+		box.setAttr("peer", "box");
+		peerOf.slot = "pi";
+		group.slot = "hb";
+		var mid = new Node();
+		mid.append(inner);
+		mid.append(deep);
+		group.append(mid);
+		group.append(box);
+		group.append(peerOf);
+		ui.root.append(group);
+		ui.update();
+		var before = inner.style.opacity;
+		@:privateAccess group.setState(true, false, false);
+		ui.update();
+		check("themes: group:hover from a hovered ancestor marked group", before == 0.5 && inner.style.opacity == 1, before + " " + inner.style.opacity);
+		box.setAttr("data-state", "checked");
+		deep.setAttr("data-state", "open");
+		ui.update();
+		check("themes: a named peer's attribute; has: a descendant's, a child's slot", peerOf.style.opacity == 0.25 && group.style.opacity == 0.75
+			&& group.style.zIndex == 2, peerOf.style.opacity + " " + group.style.opacity + " " + group.style.zIndex);
+		deep.setAttr("data-state", null);
+		@:privateAccess group.setState(false, false, false);
+		ui.update();
+		check("themes: back as the others change", inner.style.opacity == 0.5 && group.style.opacity == 1, inner.style.opacity + " " + group.style.opacity);
+		ui.root.remove(group);
+		var list = new Node(), items = [for (i in 0...3) new Node("li" + i)];
+		for (it in items) {
+			it.slot = "li";
+			list.append(it);
+		}
+		ui.root.append(list);
+		ui.update();
+		var placed = [for (it in items) it.style.opacity].join(" ");
+		var extra = new Node("li3");
+		extra.slot = "li";
+		list.append(extra);
+		list.remove(items[0]);
+		ui.update();
+		check("themes: first, last and not:, again as children come and go", placed == "0.1 0.5 0.9" && items[1].style.opacity == 0.1
+			&& items[2].style.opacity == 0.5 && extra.style.opacity == 0.9, placed + " / " + items[1].style.opacity + " " + items[2].style.opacity + " " + extra.style.opacity);
+		ui.root.remove(list);
+		// (rules for a breakpoint: the window at least so wide; again across it)
+		ui.theme = {rules: [{slot: "w", style: {opacity: 0.5}}, {slot: "w", when: ["md"], style: {opacity: 0.75}}]};
+		var wide = new Node("w");
+		wide.slot = "w";
+		ui.root.append(wide);
+		ui.update();
+		var narrow = wide.style.opacity;
+		ui.resize(800, 100);
+		ui.update();
+		check("themes: md rules from 768 pixels wide", narrow == 0.5 && wide.style.opacity == 0.75, narrow + " " + wide.style.opacity);
+		ui.resize(100, 100);
+		// (a rule for right to left: again when the direction changes)
+		ui.theme = {rules: [{slot: "t", style: {opacity: 0.5}}, {slot: "t", when: ["rtl"], style: {opacity: 0.25}}]};
+		var th = new Node("t");
+		th.slot = "t";
+		ui.root.append(th);
+		ui.update();
+		var ltr = th.style.opacity;
+		ui.root.style.dir = Rtl;
+		ui.update();
+		check("themes: rtl rules, again when the direction changes", ltr == 0.5 && th.style.opacity == 0.25, ltr + " " + th.style.opacity);
+		ui.root.style.dir = null;
+		ui.theme = null;
+	}
+
+	static function themes() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.alignItems = Start;
+		var sheet:StyleSheet = {
+			rules: [
+				{slot: "button", style: {background: Color.parse("var(--primary)"), radius: 6, padding: 8}},
+				{slot: "button", when: ["hover"], style: {background: Color.parse("var(--primary)/50")}},
+				{slot: "button", variant: "outline", style: {background: Color.TRANSPARENT, borderWidth: 1, borderColor: Color.parse("var(--border)")}},
+				{slot: "button", size: "sm", style: {padding: 4}},
+				{slot: "button", when: ["focus-visible"], style: {shadow: Shadow.parse("0 0 0 3px var(--ring)/50")}},
+				{slot: "button", when: ["dark"], style: {radius: 2}},
+				{slot: "switch", style: {background: Color.parse("var(--input)")}},
+				{slot: "switch", when: ["data-state=checked"], style: {background: Color.parse("var(--primary)")}},
+				{slot: "input", when: ["placeholder"], style: {color: Color.parse("var(--muted-foreground)")}},
+				{slot: "input", when: ["selection"], style: {background: Color.parse("var(--primary)/30")}}
+			],
+			light: ["primary" => Color.rgb(0x171717), "border" => Color.rgb(0xE5E5E5), "ring" => Color.rgb(0xA1A1A1), "input" => Color.rgb(0xE5E5E5),
+				"muted-foreground" => Color.rgb(0x737373)],
+			dark: ["primary" => Color.rgb(0xE5E5E5), "border" => Color.rgb(0x262626), "ring" => Color.rgb(0x737373), "input" => Color.rgb(0x333333),
+				"muted-foreground" => Color.rgb(0xA1A1A1)]
+		};
+		var a = new Node("a"), b = new Node("b"), own = new Node("own"), sw = new Node("sw");
+		for (n in [a, b, own, sw]) {
+			n.style.set({width: 30, height: 20});
+			ui.root.append(n);
+		}
+		a.slot = b.slot = own.slot = "button";
+		b.variant = "outline";
+		b.size = "sm";
+		own.style.background = Color.rgb(0xFF0000);
+		sw.slot = "switch";
+		ui.update();
+		check("themes: no sheet, no style", a.style.background == Color.TRANSPARENT && a.style.radius == 0);
+		ui.theme = sheet;
+		ui.update();
+		ui.update();
+		check("themes: a slot's rules, tokens resolved", a.style.background == Color.rgb(0x171717) && a.style.radius == 6 && a.style.padding.left == 8);
+		ui.update();
+		check("themes: a variant's and a size's rules after the slot's", b.style.background == Color.TRANSPARENT && b.style.borderWidth == 1
+			&& b.style.borderColor == Color.rgb(0xE5E5E5) && b.style.padding.left == 4 && b.style.radius == 6);
+		ui.update();
+		check("themes: the node's own style wins", own.style.background == Color.rgb(0xFF0000) && own.style.radius == 6);
+		// (hover: on and off again)
+		ui.pointerMove(a.absX + 5, a.absY + 5);
+		ui.update();
+		check("themes: hover, an alpha on the token", a.style.background == Color.rgb(0x171717).fade(0.5), StringTools.hex(a.style.background));
+		ui.pointerMove(190, 90);
+		ui.update();
+		check("themes: hover left", a.style.background == Color.rgb(0x171717));
+		// (an attribute's state)
+		ui.update();
+		check("themes: an attribute's state, off", sw.style.background == Color.rgb(0xE5E5E5));
+		sw.setAttr("data-state", "checked");
+		ui.update();
+		check("themes: data-state=checked", sw.style.background == Color.rgb(0x171717));
+		sw.setAttr("data-state", "unchecked");
+		ui.update();
+		check("themes: data-state=unchecked", sw.style.background == Color.rgb(0xE5E5E5));
+		// (focus-visible: a ring as a shadow, its token resolved)
+		a.focusable = true;
+		ui.keyDown(Key.TAB, 0);
+		ui.update();
+		check("themes: focus-visible", ui.focus == a && a.style.shadow != null && a.style.shadow.spread == 3 && a.style.shadow.color == Color.rgb(0xA1A1A1).fade(0.5));
+		ui.pointerDown(190, 90, 1);
+		ui.pointerUp(190, 90, 1);
+		ui.update();
+		check("themes: no ring after a press", a.style.shadow == null);
+		// (dark: the dark colours, the rules for dark)
+		ui.dark = true;
+		ui.update();
+		check("themes: dark", a.style.background == Color.rgb(0xE5E5E5) && a.style.radius == 2 && sw.style.background == Color.rgb(0x333333));
+		ui.dark = false;
+		ui.update();
+		check("themes: light again", a.style.background == Color.rgb(0x171717) && a.style.radius == 6);
+		// (a subtree's own sheet)
+		var other:StyleSheet = {rules: [{slot: "button", style: {background: Color.rgb(0x00FF00)}}]};
+		var box = new Node("box"), inner = new Node("inner");
+		inner.slot = "button";
+		box.append(inner);
+		ui.root.append(box);
+		box.theme = other;
+		ui.update();
+		check("themes: a subtree's sheet", inner.style.background == Color.rgb(0x00FF00) && inner.style.radius == 0);
+		box.theme = null;
+		ui.update();
+		check("themes: the window's again", inner.style.background == Color.rgb(0x171717) && inner.style.radius == 6);
+		// (a placeholder's colour)
+		var f = new TextField("");
+		f.slot = "input";
+		ui.root.append(f);
+		ui.update();
+		check("themes: a placeholder's colour, a selection's", f.placeholderColor == Color.rgb(0x737373) && f.selectionColor == Color.rgb(0x171717).fade(0.3));
+		// (no sheet: what the rules wrote taken back, the node's own kept)
+		ui.theme = null;
+		ui.update();
+		check("themes: taken back", a.style.background == Color.TRANSPARENT && a.style.radius == 0 && a.style.padding.left == 0 && b.style.borderWidth == 0
+			&& own.style.background == Color.rgb(0xFF0000) && f.placeholderColor == Color.rgba(0, 0.4) && f.selectionColor == Color.rgba(0x3B82F6, 0.3));
+		// (a change of the node's own after the rules: kept)
+		ui.theme = sheet;
+		a.style.radius = 9;
+		a.variant = "outline";
+		ui.update();
+		check("themes: a value set over the rules' kept", a.style.radius == 9 && a.style.borderWidth == 1);
+		// (tokens and oklch() in colours)
+		var t = Color.parse("var(--ring)/50");
+		ui.update();
+		check("themes: token references", t.isToken && t.tokenName() == "ring" && t.tokenAlpha() == 0.5 && !Color.parse("rgba(255, 0, 0, 0)").isToken
+			&& Color.parse("oklch(0.205 0 0)") == Color.rgb(0x171717) && Color.parse("oklch(0.577 0.245 27.325)") == Color.rgb(0xE7000B)
+			&& Color.parse("oklch(1 0 0 / 10%)") == Color.rgba(0xFFFFFF, 0.1));
 	}
 
 	// --- paint ---
@@ -1239,6 +1616,13 @@ class UiTest {
 			"pop"
 		];
 		check("paint: calls", c.calls.join("|") == want.join("|"), c.calls.join("|"));
+		// (a ring and its offset: over the shadow, as Tailwind composes them; each from its own property)
+		a.style.set({ringWidth: 3, ringColor: Color.rgb(0xFF0000), ringOffsetWidth: 2});
+		var r = new Recording();
+		ui.paint(r);
+		check("paint: a ring and its offset over the shadow", r.calls[0] == want[0] && r.calls[1] == "shadow 5 5 110 60 13 ffff0000 0"
+			&& r.calls[2] == "shadow 8 8 104 54 10 ffffffff 0" && r.calls[3] == want[1], r.calls.slice(0, 4).join("|"));
+		a.style.set({ringWidth: 0, ringOffsetWidth: 0});
 		var sh = Shadow.parse("0 4");
 		check("paint: Shadow.parse defaults", sh.x == 0 && sh.y == 4 && sh.blur == 0 && sh.spread == 0 && sh.color == 0x40000000);
 		var threw = try {
@@ -1260,12 +1644,98 @@ class UiTest {
 		var kinds = [for (c in rec2.calls) c.split(" ")[0]];
 		check("paint: outer shadows under the background, inset ones over it in the padding box", kinds.join(",") == "shadow,rect,inset"
 			&& rec2.calls[2].indexOf("inset 2 2 36 16 0 ") == 0, rec2.calls.join("|"));
+		// "none": no shadow; as a text shadow, stopping the parent's
+		sb.style.shadow = Shadow.parse(" none ");
+		var rec3 = new Recording();
+		ui2.paint(rec3);
+		check("paint: Shadow.parse(\"none\") draws none", sb.style.shadow == Shadow.NONE && rec3.calls.join("|").indexOf("shadow") < 0, rec3.calls.join("|"));
+		// text shadows: inherited, under the text and its underline (the
+		// last first), without a colour the text's; "none" stopping them
+		var ui3 = new Ui(new MonoText(), 200, 100);
+		ui3.root.style.alignItems = Start;
+		var box = new Node("box");
+		box.style.set({textShadow: Shadow.parse("1 2 4 #ff0000, -1 0"), color: Color.rgb(0x0000FF)});
+		var t = new TextNode("ab");
+		t.style.textDecoration = (TextDecoration.Underline : Int);
+		box.append(t);
+		var plain = new TextNode("cd");
+		plain.style.textShadow = Shadow.NONE;
+		box.append(plain);
+		ui3.root.append(box);
+		ui3.update();
+		var rec4 = new Recording();
+		ui3.paint(rec4);
+		var calls = rec4.calls.join("|");
+		var underline = [for (c in rec4.calls) if (c.indexOf("rect ") == 0) c];
+		check("paint: text shadows, the last first, each under the text", rec4.calls.length == 7 && rec4.calls[1].indexOf("textShadow -1 0 ") == 0
+			&& StringTools.endsWith(rec4.calls[1], " ff0000ff 0") && rec4.calls[3].indexOf("textShadow 1 2 ") == 0
+			&& StringTools.endsWith(rec4.calls[3], " ffff0000 4") && rec4.calls[5].indexOf("text 0 0 ") == 0 && rec4.calls[6].indexOf("text 0 18 ") == 0, calls);
+		check("paint: a text shadow's underline: offset, blurred as a box shadow", rec4.calls[0].indexOf("rect -1 ") == 0
+			&& rec4.calls[2].indexOf("shadow 1 ") == 0 && StringTools.endsWith(rec4.calls[2], " ffff0000 4") && underline.length == 2, calls);
+		check("paint: Shadow.NONE stops an inherited text shadow", t.textShadow() == box.style.textShadow && plain.textShadow() == null);
+		// text-decoration-color: the lines' own colour, the glyphs keeping theirs
+		t.style.set({textDecorationColor: Color.rgb(0x00FF00), textShadow: Shadow.NONE});
+		var rec5 = new Recording();
+		ui3.paint(rec5);
+		var lines = [for (c in rec5.calls) if (c.indexOf("rect ") == 0) c];
+		check("paint: text-decoration-color", lines.length == 1 && lines[0].indexOf(" ff00ff00 ") > 0 && rec5.calls.join("|").indexOf("text 0 0 14") >= 0,
+			rec5.calls.join("|"));
+		// its thickness (a percentage of the font size) and the underline's offset (inherited)
+		var before = lines[0].split(" ");
+		t.style.textDecorationThickness = "25%";
+		box.style.textUnderlineOffset = 3;
+		var rec7 = new Recording();
+		ui3.paint(rec7);
+		var after = [for (c in rec7.calls) if (c.indexOf("rect ") == 0) c][0].split(" ");
+		check("paint: text-decoration-thickness and an inherited text-underline-offset", Std.parseFloat(after[4]) == t.font().size / 4
+			&& Std.parseFloat(after[2]) == Std.parseFloat(before[2]) + 3, before.join(" ") + " | " + after.join(" "));
+		t.style.textDecorationThickness = "auto";
+		box.style.textUnderlineOffset = "auto";
+		// an outline: around the border box, over the children, the focus ring over it
+		var framed = new Node("framed"), inner = new Node("inner");
+		framed.style.set({width: 20, height: 10, radius: 4, outlineWidth: 2, outlineOffset: 1, color: Color.rgb(0x112233)});
+		inner.style.set({height: 10, background: Color.rgb(0xFF0000)});
+		framed.append(inner);
+		framed.focusable = true;
+		ui3.root.append(framed);
+		ui3.update();
+		ui3.keyDown(Key.TAB, 0);
+		var rec6 = new Recording();
+		ui3.paint(rec6);
+		var at = rec6.calls.indexOf("rect " + framed.absX + " " + framed.absY + " 20 10 0 ffff0000 0 0");
+		var o = "rect " + (framed.absX - 3) + " " + (framed.absY - 3) + " 26 16 7 0 2 ff112233";
+		check("paint: an outline over the children, in the text colour, the ring over it", at >= 0 && rec6.calls[at + 1] == o
+			&& rec6.calls[at + 2].indexOf("rect " + (framed.absX - 4)) == 0, rec6.calls.slice(at).join("|"));
+		framed.parent.remove(framed);
+		ui3.update();
+		// a text field's text and placeholder: shadowed too
+		var field = new TextField("");
+		field.placeholder = "Name";
+		field.style.set({width: 80, textShadow: Shadow.parse("0 1 2 #000000")});
+		ui3.root.append(field);
+		ui3.update();
+		function fieldCalls() {
+			var r = new Recording();
+			ui3.paint(r);
+			var at = r.calls.indexOf("clip " + field.absX + " " + field.absY + " 80 " + field.height + " 0");
+			return [for (k in at + 1...r.calls.length) if (StringTools.startsWith(r.calls[k], "text")) r.calls[k].split(" ")[0]].join(",");
+		}
+		var placeholderCalls = fieldCalls();
+		field.text = "Bo";
+		check("paint: a text field's shadows under its placeholder and its text", placeholderCalls == "textShadow,text" && fieldCalls() == "textShadow,text",
+			placeholderCalls + " | " + fieldCalls());
 		// the focus ring: shown when Tab moves the focus, hidden by a press
 		a.focusable = true;
 		ui.keyDown(Key.TAB, 0);
 		var c = new Recording();
 		ui.paint(c);
 		check("paint: the focus ring", ui.focus == a && c.calls[c.calls.length - 1] == "rect 6 6 108 58 12 0 2 ff3b82f6", c.calls[c.calls.length - 1]);
+		// (outline-style none: no ring, a theme drawing its own)
+		a.style.outlineStyle = None;
+		var c2 = new Recording();
+		ui.paint(c2);
+		check("paint: outline-style none, no focus ring", c2.calls.length == c.calls.length - 1, c2.calls[c2.calls.length - 1]);
+		a.style.outlineStyle = null;
 		ui.pointerDown(50, 30, 1);
 		ui.pointerUp(50, 30, 1);
 		var c = new Recording();
@@ -1327,7 +1797,7 @@ class UiTest {
 	static function dim(v:Dynamic):Dim {
 		if (Std.isOfType(v, String)) {
 			var s:String = v;
-			return s == "auto" ? Auto : Percent(Std.parseFloat(s.substr(0, s.length - 1)));
+			return s == "auto" || StringTools.endsWith(s, "content") ? Dim.parse(s) : Percent(Std.parseFloat(s.substr(0, s.length - 1)));
 		}
 		return Px(v);
 	}
@@ -1450,6 +1920,19 @@ class UiTest {
 		var p = a.laidOut();
 		check("text: paragraph", p != null && p.lineCount == 1 && p.caret(3).x == 12);
 		check("text: font resolves", b.font().size == 16 && b.font().lineHeight == 1.5 && a.font().size == 8);
+		// (a line height in pixels, inherited as pixels: 20 at 8 and at 16; em letter spacing, the pixels at its node)
+		row.style.lineHeightPx = 20;
+		row.style.letterSpacingEm = 0.25;
+		ui.update();
+		check("text: line height in pixels, letter spacing in em", a.height == 20 && b.height == 20 && a.font().lineHeight == 2.5
+			&& b.font().lineHeight == 1.25 && a.font().letterSpacing == 4 && b.font().letterSpacing == 4, a.height + " " + b.height + " " + a.font().letterSpacing);
+		row.style.lineHeight = 3;
+		ui.update();
+		check("text: pixels over a multiple on one node", b.height == 20, "" + b.height);
+		row.style.lineHeightPx = null;
+		row.style.letterSpacingEm = null;
+		row.style.lineHeight = null;
+		ui.update();
 		// a long word in a narrow column: cut
 		var narrow = new TextNode("abcdefghij");
 		narrow.style.width = 40;
@@ -1550,6 +2033,17 @@ class UiTest {
 		check("scroll: clamped", list.scrollY == 200);
 		ui.wheel(50, 50, 0, -5000);
 		check("scroll: back to the top", list.scrollY == 0);
+		// (overflow-y hidden: still clipped, not scrolled by the wheel, no scrollbar; scrollTo still moves it)
+		list.style.overflowY = Hidden;
+		ui.wheel(50, 50, 0, 50);
+		var r = new Recording();
+		ui.paint(r);
+		var thumbs = r.calls.filter(c -> StringTools.startsWith(c, "rect 92")).length;
+		ui.scrollTo(list, 0, 30);
+		check("scroll: overflow-y hidden: clipped, not scrolled by the wheel, scrolled by scrollTo", list.style.overflow == Scroll && thumbs == 0
+			&& list.scrollY == 30, list.scrollY + " " + thumbs);
+		list.style.overflowY = Scroll;
+		ui.scrollTo(list, 0, 0);
 		// the keys, when the focus takes none of them: arrows by 40, pages by seven eighths, the ends; eased on the clock
 		var item1 = list.children[1];
 		item1.focusable = true;
@@ -1686,6 +2180,9 @@ class Recording implements Canvas {
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)
 		calls.push('text $x $y $width' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));
+
+	public function textShadow(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, blur:Float, ?colors:Array<Color>)
+		calls.push('textShadow $x $y $width ${hex(color)} $blur' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners)
 		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius' + cs(corners));

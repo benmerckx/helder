@@ -20,11 +20,16 @@ import hxmc.unsafe.*;
 	static function buffer(size:Int, usage:Int, data:Ptr, length:Int):Int;
 	// size bytes at data into the buffer at offset (multiples of 4: WebGPU's writeBuffer)
 	static function write_buffer(buffer:Int, offset:Int, data:Ptr, size:Int):Void;
-	// an RGBA8 texture (rgba8unorm), its texels at data (width * height * 4 bytes, or none)
-	static function texture(width:Int, height:Int, data:Ptr):Int;
-	static function write_texture(texture:Int, x:Int, y:Int, width:Int, height:Int, data:Ptr):Void;
-	// a sampler: Filter, Wrap
-	static function sampler(filter:Int, wrap:Int):Int;
+	// a texture: its TextureFormat, mip levels, whether it is a render
+	// target; its first level's texels at data (or none)
+	static function texture(width:Int, height:Int, format:Int, levels:Int, target:Int, data:Ptr):Int;
+	// width x height texels at data into the mip level at x, y
+	static function write_texture(texture:Int, x:Int, y:Int, width:Int, height:Int, level:Int, data:Ptr):Void;
+	// the levels after the first, each a pass sampling the one before (in
+	// the frame's command encoder, else in one of its own)
+	static function generate_mips(texture:Int):Void;
+	// a sampler: Filter, mip filter (0: none, 1: Nearest, 2: Linear), Wrap
+	static function sampler(filter:Int, mipFilter:Int, wrap:Int):Int;
 	// WGSL; errors are reported asynchronously, on the console
 	static function shader(wgsl:CString):Int;
 	// a pipeline: its vertex buffers (instance: 1 steps per instance) and
@@ -35,13 +40,16 @@ import hxmc.unsafe.*;
 	// a resource of the pipeline (ShaderCode.bindings: kind, slot, a uniform
 	// block's size): its bind group layout
 	static function pipeline_binding(slot:Int, kind:Int, size:Int):Void;
-	static function pipeline_end(vertex:Int, fragment:Int, target:Int, topology:Int, cull:Int, blend:Int, depthCompare:Int, depthWrite:Int):Int;
+	// (colorFormat: a TextureFormat, -1 the target's; depthFormat: -1 none)
+	static function pipeline_end(vertex:Int, fragment:Int, target:Int, topology:Int, cull:Int, blend:Int, depthCompare:Int, depthWrite:Int,
+		colorFormat:Int, depthFormat:Int):Int;
 	// a frame: a command encoder for the target's texture (the canvas's
 	// current one) and its depth texture (depth32float, remade when the size
 	// changes); 0: none now
 	static function frame_begin(target:Int):Int;
-	// (depthLoad: a LoadOp)
-	static function pass_begin(load:Int, r:Float, g:Float, b:Float, a:Float, depthLoad:Int, depth:Float):Void;
+	// a pass into the color texture (0: the frame's target and its depth
+	// texture) and the depth texture (0: none); loads: LoadOp
+	static function pass_begin(color:Int, load:Int, r:Float, g:Float, b:Float, a:Float, depthTexture:Int, depthLoad:Int, depth:Float):Void;
 	static function set_pipeline(pipeline:Int):Void;
 	static function set_vertex_buffer(slot:Int, buffer:Int, offset:Int):Void;
 	// size bytes at data into the frame's uniform ring at offset (256-byte

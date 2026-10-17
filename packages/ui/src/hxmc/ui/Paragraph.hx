@@ -23,6 +23,14 @@ interface Paragraph {
 	// underline, a line-through or an overline), snapped to the pixels of
 	// scale (the window's per UI pixel), line by line: rectangles, each with
 	// its line's width (the text drawn aligned in a box moves them as it
-	// moves the line)
-	function decoration(start:Int, end:Int, kind:TextDecoration, scale:Float):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}>;
+	// moves the line); thickness and offset (an underline's, below the
+	// baseline): CSS's text-decoration-thickness and text-underline-offset
+	// in pixels (null or NaN: auto)
+	function decoration(start:Int, end:Int, kind:TextDecoration, scale:Float, ?thickness:Float, ?offset:Float):Array<{
+		x:Float,
+		y:Float,
+		width:Float,
+		height:Float,
+		lineWidth:Float
+	}>;
 }

@@ -11,8 +11,8 @@ vec4 fs(InstanceVaryings i) {
 }
 in vec3 v_color;
 in vec2 v_corner;
-uniform float u_target_height;
+uniform vec2 u_target;
 out vec4 out_color;
 void main() {
-	out_color = fs(InstanceVaryings(vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw), v_color, v_corner));
+	out_color = fs(InstanceVaryings(vec4(gl_FragCoord.x, u_target.x + u_target.y * gl_FragCoord.y, gl_FragCoord.zw), v_color, v_corner));
 }

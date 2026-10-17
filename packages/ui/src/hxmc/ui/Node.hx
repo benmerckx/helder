@@ -78,6 +78,28 @@ class Node {
 	public var hovered(default, null) = false;
 	public var pressed(default, null) = false;
 	public var focused(default, null) = false;
+	// what a theme styles it as (Rule, StyleSheet): the part of a widget
+	// (shadcn's data-slot names: "button", "switch-thumb"), its variant and
+	// size ("destructive", "sm"); its attributes, the states rules match
+	// ("data-state" "checked", "data-disabled" present: attr, setAttr); and
+	// a theme for this subtree (null: the parent's, else the window's)
+	public var slot(default, set):Null<String> = null;
+	public var variant(default, set):Null<String> = null;
+	public var size(default, set):Null<String> = null;
+	public var theme(default, set):Null<StyleSheet> = null;
+	var attrs:Null<Map<String, String>> = null;
+	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
+	var themedNames:Null<Array<String>> = null;
+	var themedValues:Null<Array<Dynamic>> = null;
+	var restylePending = false;
+
+	// (asks for its rules to be applied again, at the next update: several changes, one restyle)
+	function restyleLater() {
+		if (ui == null || restylePending || slot == null && themedNames == null) return;
+		restylePending = true;
+		@:privateAccess ui.restyles.push(this);
+		ui.requestFrame();
+	}
 
 	// layout state (Layout): unrounded results, the measure cache, dirty
 	@:allow(hxmc.ui.Layout) var lx = 0.0;
@@ -122,6 +144,7 @@ class Node {
 			if (p == child) throw "Node: a node is not inside itself";
 			p = p.parent;
 		}
+		var first = children.length > 0 ? children[0] : null, last = children.length > 0 ? children[children.length - 1] : null;
 		if (child.parent == this) {
 			var i = indexOf(child);
 			children.splice(i, 1);
@@ -133,8 +156,10 @@ class Node {
 		var moved = child.parent != this;
 		child.parent = this;
 		child.attach(ui);
-		// (under another parent: what it inherits may differ)
+		// (under another parent: what it inherits may differ, and the states of nodes around it)
 		if (moved) child.inheritedChanged();
+		if (moved && ui != null && @:privateAccess Rules.relational != 0) Rules.restyleTree(child);
+		Rules.placed(this, child, first, last);
 		markDirty();
 		return child;
 	}
@@ -162,14 +187,19 @@ class Node {
 				changed = true;
 			}
 		}
-		if (changed) markDirty();
+		if (changed) {
+			Rules.placed(this, null, children[0], children[children.length - 1]);
+			markDirty();
+		}
 	}
 
 	public function remove(child:Node) {
 		if (child.parent != this) return;
+		var first = children[0], last = children[children.length - 1];
 		children.remove(child);
 		child.parent = null;
 		child.attach(null);
+		Rules.placed(this, child, first == child ? null : first, last == child ? null : last);
 		markDirty();
 	}
 
@@ -179,6 +209,7 @@ class Node {
 			c.attach(null);
 		}
 		children.resize(0);
+		Rules.placed(this, null, null, null);
 		markDirty();
 	}
 
@@ -186,6 +217,9 @@ class Node {
 		if (ui == u) return;
 		if (ui != null) ui.detached(this);
 		ui = u;
+		// (out of a window: drawn anew when back, its starting rules again)
+		if (u == null) @:privateAccess style.drawn = false;
+		restyleLater();
 		for (c in children)
 			c.attach(u);
 	}
@@ -503,7 +537,9 @@ class Node {
 		if (fontCache != null) return fontCache;
 		// (unset: NaN, -1; no boxes)
 		var family:Null<String> = null, size = Math.NaN, weight = -1, italic = -1, lh = Math.NaN, ls = Math.NaN, ws = Math.NaN;
-		var ow:Null<OverflowWrap> = null, wb:Null<WordBreak> = null;
+		// (a line height in pixels, made a multiple of this font's size once it is known)
+		var lhPx = Math.NaN;
+		var ow:Null<OverflowWrap> = null, wb:Null<WordBreak> = null, ff:Null<String> = null, fvn:Null<String> = null;
 		var n = this;
 		while (n != null) {
 			var s = n.style;
@@ -511,20 +547,64 @@ class Node {
 			if (Math.isNaN(size) && s.fontSize != null) size = s.fontSize;
 			if (weight < 0 && s.fontWeight != null) weight = s.fontWeight;
 			if (italic < 0 && s.italic != null) italic = s.italic ? 1 : 0;
-			if (Math.isNaN(lh) && s.lineHeight != null) lh = s.lineHeight;
-			if (Math.isNaN(ls) && s.letterSpacing != null) ls = s.letterSpacing;
+			if (Math.isNaN(lh) && Math.isNaN(lhPx)) {
+				if (s.lineHeightPx != null) lhPx = s.lineHeightPx else if (s.lineHeight != null) lh = s.lineHeight;
+			}
+			if (Math.isNaN(ls)) {
+				if (s.letterSpacingEm != null) ls = s.letterSpacingEm * n.fontSizeHere() else if (s.letterSpacing != null) ls = s.letterSpacing;
+			}
 			if (Math.isNaN(ws) && s.wordSpacing != null) ws = s.wordSpacing;
 			if (ow == null) ow = s.overflowWrap;
 			if (wb == null) wb = s.wordBreak;
+			if (ff == null) ff = s.fontFeatureSettings;
+			if (fvn == null) fvn = s.fontVariantNumeric;
 			n = n.parent;
 		}
-		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, Math.isNaN(size) ? Style.DEFAULT_SIZE : size,
+		if (Math.isNaN(size)) size = Style.DEFAULT_SIZE;
+		if (!Math.isNaN(lhPx)) lh = size > 0 ? lhPx / size : Style.DEFAULT_LINE_HEIGHT;
+		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, size,
 			weight < 0 ? Style.DEFAULT_WEIGHT : weight, italic == 1, Math.isNaN(lh) ? Style.DEFAULT_LINE_HEIGHT : lh, Math.isNaN(ls) ? 0 : ls,
-			Math.isNaN(ws) ? 0 : ws, ow == null ? BreakWord : ow, wb == null ? WordBreak.Normal : wb);
+			Math.isNaN(ws) ? 0 : ws, ow == null ? BreakWord : ow, wb == null ? WordBreak.Normal : wb, features(fvn, ff));
+	}
+
+	// (the font size here: its own or the nearest ancestor's)
+	function fontSizeHere():Float {
+		var n = this;
+		while (n != null) {
+			if (n.style.fontSize != null) return n.style.fontSize;
+			n = n.parent;
+		}
+		return Style.DEFAULT_SIZE;
+	}
+
+	// (the features asked for: font-variant-numeric's, then font-feature-settings', which win)
+	static function features(numeric:Null<String>, settings:Null<String>):String {
+		var a = numeric == null ? "" : Style.numericFeatures(numeric), b = settings == null || StringTools.trim(settings) == "normal" ? "" : settings;
+		return a == "" ? b : b == "" ? a : a + ", " + b;
 	}
 
 	// (the font, until it or an ancestor changes a text property: markDirty clears it)
 	var fontCache:Null<Font> = null;
+
+	// the text shadows its text casts (Style.textShadow, inherited; null: none)
+	public function textShadow():Null<Shadow> {
+		var n = this;
+		while (n != null) {
+			var sh = n.style.textShadow;
+			if (sh != null) return sh == Shadow.NONE ? null : sh;
+			n = n.parent;
+		}
+		return null;
+	}
+
+	// a paragraph's text shadows (textShadow()), the last first, under where
+	// it is drawn at x, y in color (or its spans' colors)
+	function paintTextShadows(canvas:Canvas, p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {
+		var shadows = textShadow();
+		if (shadows != null)
+			for (sh in shadows.painted())
+				canvas.textShadow(p, x + sh.x, y + sh.y, width, align, sh.currentColor ? color : sh.color, sh.blur, sh.currentColor ? colors : null);
+	}
 
 	public function textColor():Color {
 		var n = this;
@@ -590,6 +670,17 @@ class Node {
 	}
 
 	// whether its inline direction is right to left (Style.dir, inherited)
+	// its text's user-select as set on it or an ancestor (Auto: none set)
+	public function userSelect():UserSelect {
+		var n = this;
+		while (n != null) {
+			var u = n.style.userSelect;
+			if (u != null && u != Auto) return u;
+			n = n.parent;
+		}
+		return Auto;
+	}
+
 	public function rtl():Bool
 		return dir() == Rtl;
 
@@ -949,8 +1040,84 @@ class Node {
 		this.hovered = hovered;
 		this.pressed = pressed;
 		this.focused = focused;
-		if (changed && ui != null) ui.requestFrame();
+		if (changed && ui != null) {
+			ui.requestFrame();
+			restyleLater();
+		}
+		if (changed) statesChanged();
 	}
+
+	// called when its states (hover, press, focus, the focus ring's
+	// visibility) or attributes change: hxmc.ui.view.States' signals
+	public var onStates:Null<Void->Void> = null;
+	// (its States, once made: hxmc.ui.view's)
+	@:allow(hxmc.ui.view) var statesOf:Any = null;
+
+	@:allow(hxmc.ui.Ui) function statesChanged() {
+		Rules.related(this);
+		if (onStates != null) onStates();
+	}
+
+	// --- theme ---
+
+	// an attribute (null: not set; "" when it is present without a value)
+	public function attr(name:String):Null<String>
+		return attrs == null ? null : attrs.get(name);
+
+	// sets an attribute (null: removes it); the rules matching it follow
+	public function setAttr(name:String, value:Null<String>) {
+		if (attr(name) == value) return;
+		if (value == null) attrs.remove(name) else {
+			if (attrs == null) attrs = new Map();
+			attrs.set(name, value);
+		}
+		restyleLater();
+		// (a group or peer no longer: what its marking styled, again)
+		if (value == null && (name == "group" || name == "peer") && parent != null) Rules.restyleTree(parent);
+		statesChanged();
+	}
+
+	// the theme it is styled by: its own or the nearest ancestor's, else the window's
+	public function sheet():Null<StyleSheet> {
+		var n = this;
+		while (n != null) {
+			if (n.theme != null) return n.theme;
+			n = n.parent;
+		}
+		return ui == null ? null : ui.theme;
+	}
+
+	function set_slot(v:Null<String>):Null<String> {
+		if (v == slot) return v;
+		slot = v;
+		restyleLater();
+		return v;
+	}
+
+	function set_variant(v:Null<String>):Null<String> {
+		if (v == variant) return v;
+		variant = v;
+		restyleLater();
+		return v;
+	}
+
+	function set_size(v:Null<String>):Null<String> {
+		if (v == size) return v;
+		size = v;
+		restyleLater();
+		return v;
+	}
+
+	function set_theme(v:Null<StyleSheet>):Null<StyleSheet> {
+		if (v == theme) return v;
+		theme = v;
+		Rules.restyleTree(this);
+		return v;
+	}
+
+	// (a theme's colours for its placeholder's text and its selection, null:
+	// none; EditableText's)
+	function themePseudo(placeholder:Null<Color>, selection:Null<Color>) {}
 }
 
 // a node's event handlers (Node.onClick...)

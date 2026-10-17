@@ -37,8 +37,8 @@ vec4 fs(BuiltinVaryings i) {
 }
 in float v_a;
 in vec2 v_b;
-uniform float u_target_height;
+uniform vec2 u_target;
 out vec4 out_color;
 void main() {
-	out_color = fs(BuiltinVaryings(vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw), v_a, v_b));
+	out_color = fs(BuiltinVaryings(vec4(gl_FragCoord.x, u_target.x + u_target.y * gl_FragCoord.y, gl_FragCoord.zw), v_a, v_b));
 }

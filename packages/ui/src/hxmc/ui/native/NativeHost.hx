@@ -13,7 +13,8 @@ import hxmc.unsafe.Mem;
 // change; run is the loop (in the browser it returns, and
 // requestAnimationFrame runs the steps). The backends: GTK 3 on Linux
 // (glibc mode), Win32's controls on Windows, AppKit's on macOS, the DOM in
-// the browser.
+// the browser, android.widget's views on Android (whose main thread runs
+// the steps: run waits for the window to close).
 class NativeHost {
 	public final backend:NativeBackend;
 	public final ui:Ui;
@@ -44,7 +45,8 @@ class NativeHost {
 	// (one chain of constant tests: only the target's branch is compiled)
 	static function platform():NativeBackend {
 		return if (Mem.os() == 3) new hxmc.ui.native.dom.DomBackend() else if (Mem.os() == 1) new hxmc.ui.native.appkit.AppKitBackend() else
-			if (Mem.os() == 2) new hxmc.ui.native.win32.Win32Backend() else new hxmc.ui.native.gtk.GtkBackend();
+			if (Mem.os() == 2) new hxmc.ui.native.win32.Win32Backend() else if (Mem.target() >= 9) new hxmc.ui.native.android.AndroidBackend() else
+			new hxmc.ui.native.gtk.GtkBackend();
 	}
 
 	// the backend of the host a Ui belongs to (null: none)
@@ -154,6 +156,10 @@ class NativeHost {
 			hxmc.ui.native.dom.DomBackend.start(this);
 			return;
 		}
+		if (Mem.target() >= 9) {
+			hxmc.ui.native.android.AndroidBackend.run(this);
+			return;
+		}
 		while (!closed) {
 			if (!backend.pump(false)) break;
 			step();
@@ -196,4 +202,6 @@ private class NoCanvas implements Canvas {
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners) {}
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {}
+
+	public function textShadow(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, blur:Float, ?colors:Array<Color>) {}
 }

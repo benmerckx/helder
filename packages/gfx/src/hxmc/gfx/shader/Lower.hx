@@ -622,7 +622,7 @@ class Lower {
 				case name:
 					// (a Float bound or weight of a vector function: a vector, as WGSL wants it)
 					switch t {
-						case TVec(n) if (name != "reflect" && name != "cross"):
+						case TVec(n) if (name != "reflect" && name != "cross" && name != "sampleLevel"):
 							xs = [for (x in xs) x.t == TFloat ? {e: ENew([x]), t: t} : x];
 						case _:
 					}

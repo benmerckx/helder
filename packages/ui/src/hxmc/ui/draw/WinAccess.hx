@@ -293,6 +293,8 @@ class WinAccess {
 			case 30016 | 30017: bool(v, true); // IsControlElement, IsContentElement
 			case 30019: bool(v, n.secret); // IsPassword
 			case 30135 if (n.live != Off): int(v, n.live == Assertive ? 2 : 1); // LiveSetting (Polite, Assertive)
+			case 30157 if (n.role == Navigation): int(v, 80003); // LandmarkType (Navigation)
+			case 30102 if (n.current): str(v, "current=page"); // AriaProperties
 			case 30045 if (n.value != null): str(v, n.value); // Value.Value
 			case _:
 		}

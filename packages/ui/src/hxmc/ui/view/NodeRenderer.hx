@@ -10,7 +10,8 @@ import hxmc.ui.*;
 // Intrinsic elements: view (a Node), text (a TextNode of its children's
 // text; elements in it are its spans: span, b, i, or text again), scroll (a
 // Node with Overflow Scroll), image (an ImageNode: src, an Image, an
-// AnimatedImage, played, or an Svg, drawn in the node's color; fit, "fill",
+// AnimatedImage, played, or an Svg, drawn in the node's color; object-position
+// ("left top", CSS's), its place; fit, "fill",
 // "contain", "cover" or "none"); elements registers more. Their
 // attributes: Style properties (StyleAttrs: direction="row", padding={8},
 // background="#3b82f6"; style={StyleProps} for several), the events
@@ -19,7 +20,9 @@ import hxmc.ui.*;
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
 // role, label, description, checked, selected, expanded, level, disabled,
-// value-now, value-min, value-max, value-text, hidden). A text node holds
+// value-now, value-min, value-max, value-text, hidden), and what a theme
+// styles it as (Rule: slot, variant, size, data-* and aria-* attributes,
+// data-state="checked"). A text node holds
 // text: its text children are its text, its elements its spans.
 class NodeRenderer implements hxmc.view.Renders<Node> {
 	// intrinsic element names and the nodes they make
@@ -124,6 +127,16 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 				(cast n : TextNode).text = v == null ? "" : Std.string(v);
 			case "tag":
 				n.tag = v;
+			// (what a theme styles it as: Rule)
+			case "slot":
+				n.slot = v == null ? null : Std.string(v);
+			case "variant":
+				n.variant = v == null ? null : Std.string(v);
+			case "size":
+				n.size = v == null ? null : Std.string(v);
+			// (a theme's states: data-state="checked", data-disabled={true}; false or null removes it)
+			case _ if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")):
+				n.setAttr(name, v == null || v == false ? null : v == true ? "" : Std.string(v));
 			case "role":
 				semantics(n).role = role(v);
 			case "label":
@@ -139,6 +152,8 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 				semantics(n).live = v == null || v == "off" ? Off : v == "assertive" ? Assertive : v == "polite" ? Polite : v;
 			case "multiselectable":
 				semantics(n).multiselectable = v == true || v == "true";
+			case "current":
+				semantics(n).current = v == true || v == "true" || v == "page";
 			case "expanded":
 				semantics(n).expanded = v == null ? null : v == true || v == "true";
 			case "level":
@@ -162,6 +177,8 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 					(cast n : ImageNode).image = anim.image;
 					anim.play();
 				} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
+			case "object-position" | "objectPosition" if (Std.isOfType(n, ImageNode)):
+				(cast n : ImageNode).position(v);
 			case "fit" if (Std.isOfType(n, ImageNode)):
 				(cast n : ImageNode).fit = Std.isOfType(v, String) ? switch (v : String).toLowerCase() {
 					case "fill": Fill;

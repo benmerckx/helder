@@ -133,13 +133,19 @@ class TextArea extends EditableText {
 				ly += lh;
 			}
 		}
-		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(placeholderParagraph(ui.text, width), x, y, aw, align, placeholderColor);
-		else canvas.text(p, x, top, aw, align, textColor());
+		if (text.length == 0 && composition == "" && placeholder != "") {
+			var pp = placeholderParagraph(ui.text, width);
+			paintTextShadows(canvas, pp, x, y, aw, align, placeholderColor);
+			canvas.text(pp, x, y, aw, align, placeholderColor);
+		} else {
+			paintTextShadows(canvas, p, x, top, aw, align, textColor());
+			canvas.text(p, x, top, aw, align, textColor());
+		}
 		paintComposition(canvas, p, x + cs, top);
 		caretX = x + cs + c.x;
 		caretY = top + c.y;
 		caretHeight = lh;
-		if (focused) canvas.rect(x + cs + c.x, top + c.y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
+		if (focused) canvas.rect(x + cs + c.x, top + c.y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor ?? textColor(), 0, 0);
 		canvas.popClip();
 	}
 }

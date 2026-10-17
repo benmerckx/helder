@@ -36,20 +36,24 @@ final class Device {
 		impl.writeBuffer(b.id(), offset, data, dataOffset, size);
 	}
 
-	public function createTexture(d:TextureDesc):Texture {
-		if (d.width <= 0 || d.height <= 0) throw "hxmc.gfx: createTexture: a size of " + d.width + "x" + d.height;
-		if (d.data != null && d.data.length < d.width * d.height * 4) throw "hxmc.gfx: createTexture: data has fewer than width * height * 4 bytes";
+	// (checked by the back end: TextureInfo.of)
+	public function createTexture(d:TextureDesc):Texture
 		return new Texture(impl.createTexture(d));
+
+	// texels into the texture's mip level (default 0), rows top to bottom:
+	// all of them (its width * height * texelSize bytes), or the region w x h
+	// at x, y (w * h * texelSize bytes from dataOffset), as a glyph atlas
+	// updates the part that changed; not into a render target
+	public function writeTexture(t:Texture, data:haxe.io.Bytes, x = 0, y = 0, w = -1, h = -1, dataOffset = 0, level = 0) {
+		impl.writeTexture(t.id(), data, x, y, w, h, dataOffset, level);
 	}
 
-	// texels into the texture, rows top to bottom: all of them (width *
-	// height * 4 bytes), or the region w x h at x, y (w * h * 4 bytes from
-	// dataOffset), as a glyph atlas updates the part that changed
-	public function writeTexture(t:Texture, data:haxe.io.Bytes, x = 0, y = 0, w = -1, h = -1, dataOffset = 0) {
-		if (x < 0 || y < 0 || dataOffset < 0) throw "hxmc.gfx: writeTexture: a negative offset";
-		if (w >= 0 && dataOffset + w * Math.max(h, 0) * 4 > data.length) throw "hxmc.gfx: writeTexture: data has fewer than w * h * 4 bytes";
-		impl.writeTexture(t.id(), data, x, y, w, h, dataOffset);
-	}
+	// the texture's mip levels after the first, each filtered down from the
+	// one before (GL's glGenerateMipmap, D3D11's GenerateMips, Metal's blit,
+	// a pass on WebGPU); outside a pass, after the first level was written or
+	// rendered (not R32F or a depth format)
+	public function generateMips(t:Texture)
+		impl.generateMips(t.id());
 
 	// frees a buffer or a texture (its handle is not used again)
 	public function destroyBuffer(b:Buffer)
@@ -76,7 +80,9 @@ final class Device {
 				cull: d.cull,
 				blend: d.blend,
 				depthCompare: d.depthCompare,
-				depthWrite: d.depthWrite
+				depthWrite: d.depthWrite,
+				colorFormat: d.colorFormat,
+				depthFormat: d.depthFormat
 			};
 		return new Pipeline(impl.createPipeline(d));
 	}

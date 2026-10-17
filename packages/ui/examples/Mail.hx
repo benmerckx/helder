@@ -8,7 +8,6 @@ import hxmc.view.*;
 import hxmc.view.Flow.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
-import hxmc.ui.widgets.Theme;
 import hxmc.ui.widgets.Toasts;
 
 // A mail client's window on hxmc.ui (no network: the messages are made
@@ -18,12 +17,14 @@ import hxmc.ui.widgets.Toasts;
 // the third pane (which marks it read). The toolbar archives, deletes (a
 // toast offers to undo) or marks it unread again; the menu bar opens the
 // same actions (their shortcuts: E, Delete, Mod+Shift+U, from anywhere but
-// the search field) and switches the theme. In a window:
+// the search field) and switches dark mode (the window's Ui.dark, at
+// first the system's). In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
 class Mail implements Markup {
 	static function main() {
 		var w = new UiWindow("Mail", 860, 560);
+		w.ui.theme = Plain.sheet;
 		Render.render(new Mail().view(), w.root);
 		UiWindow.run();
 	}
@@ -40,7 +41,8 @@ class Mail implements Markup {
 	public final selected:Signal<Null<Message>> = signal(null);
 	public final query = signal("");
 	public final pane = signal(190.0);
-	public final dark = signal(false);
+	public final dark = signal(UiWindow.dark.peek());
+	var root:Null<Node> = null;
 
 	public function new() {
 		folder = signal(folders[0]);
@@ -54,7 +56,10 @@ class Mail implements Markup {
 			var m = selected.value;
 			if (m != null) untrack(() -> m.unread.value = false);
 		});
-		effect(() -> Theme.current.value = dark.value ? Theme.DARK : Theme.LIGHT);
+		effect(() -> {
+			var d = dark.value;
+			if (root != null && root.ui != null) root.ui.dark = d;
+		});
 	}
 
 	// the folder's messages that the search matches
@@ -107,7 +112,7 @@ class Mail implements Markup {
 	function folderRow(f:Folder):View
 		return <view direction="row" grow={1} justify="space-between" padding="0 8 0 0">
 			{f.name}
-			<text color={() -> Theme.current.value.secondary}>{() -> count(unread(f))}</text>
+			<text opacity={0.7}>{() -> count(unread(f))}</text>
 		</view>;
 
 	static function count(n:Int):String
@@ -118,17 +123,15 @@ class Mail implements Markup {
 		return <text font-weight={() -> m.unread.value ? 700 : 400} text-wrap="nowrap" text-overflow="ellipsis">{text}</text>;
 
 	public function view():View
-		return <view grow={1} font-family="DejaVu Sans" font-size={13} background={() -> Theme.current.value.background}
-			color={() -> Theme.current.value.text}>
-			<view direction="row" align-items="center" column-gap={12} padding="8 12" border-color={() -> Theme.current.value.borderMuted}
-				borders={[0, 0, 1, 0]}>
+		return <view slot="body" ref={n -> root = n} grow={1} font-family="DejaVu Sans" font-size={13}>
+			<view direction="row" align-items="center" column-gap={12} padding="8 12">
 				<Menubar tag="menus" label="Mail" menus={[
 					{label: "Message", items: [
 						{label: "Archive", onSelect: () -> moveTo("Archive", true), shortcut: "E"},
 						{label: "Delete", onSelect: () -> moveTo("Trash", true), shortcut: "Delete"},
 						{label: "Mark unread", onSelect: markUnread, shortcut: "Mod+Shift+U"}
 					]},
-					{label: "View", items: [{label: "Dark theme", onSelect: () -> dark.value = !dark.peek()}]}
+					{label: "View", items: [{label: "Dark mode", onSelect: () -> dark.value = !dark.peek()}]}
 				]}/>
 				<Toolbar tag="actions" label="Message">
 					<Button tag="archive" label="Archive" onClick={() -> moveTo("Archive", true)}/>
@@ -136,8 +139,9 @@ class Mail implements Markup {
 					<Button tag="unread" label="Mark unread" onClick={markUnread}/>
 				</Toolbar>
 				<view grow={1}/>
-				<view width={200}><Field tag="search" value={query} placeholder="Search" label="Search messages"/></view>
+				<view width={200}><Input tag="search" value={query} placeholder="Search" label="Search messages"/></view>
 			</view>
+			<Separator/>
 			<view grow={1} min-height={0} padding={12}>
 				<Split tag="panes" size={pane} min={140} max={320} label="Folders"
 					first={<Tree tag="folders" roots={folders} children={(f:Folder) -> f.children} expanded={open} selected={folder} label="Folders"
@@ -151,16 +155,16 @@ class Mail implements Markup {
 								{title: "Date", width: "54px", cell: (m:Message) -> "Oct " + m.day, compare: (a:Message, b:Message) -> a.day - b.day}
 							]}/>
 						</view>
-						<view tag="reader" grow={1} min-width={0} padding={16} row-gap={10} radius={6} border-width={1}
-							border-color={() -> Theme.current.value.borderMuted} background={() -> Theme.current.value.control}>
-							<Show when={() -> selected.value != null} fallback={<text color={() -> Theme.current.value.muted}>No message selected</text>}>
-								<text tag="reader-subject" font-size={18} font-weight={700}>{() -> selected.value?.subject}</text>
-								<text color={() -> Theme.current.value.secondary}>{() -> selected.value == null ? "" : "From " + selected.value.from
-									+ ", October " + selected.value.day}</text>
-								<view height={1} background={() -> Theme.current.value.borderMuted}/>
-								<text tag="reader-body" line-height={1.5}>{() -> selected.value?.body}</text>
+						<view grow={1} min-width={0}><Card tag="reader">
+							<Show when={() -> selected.value != null} fallback={<text opacity={0.6}>No message selected</text>}>
+								<CardHeader>
+									<CardTitle tag="reader-subject">{() -> selected.value?.subject}</CardTitle>
+									<CardDescription>{() -> selected.value == null ? "" : "From " + selected.value.from + ", October " + selected.value.day}</CardDescription>
+								</CardHeader>
+								<Separator/>
+								<CardContent><text tag="reader-body" line-height={1.5}>{() -> selected.value?.body}</text></CardContent>
 							</Show>
-						</view>
+						</Card></view>
 					</view>}/>
 			</view>
 			<Toaster/>

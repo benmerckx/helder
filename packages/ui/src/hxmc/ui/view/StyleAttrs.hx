@@ -35,6 +35,10 @@ class StyleAttrs {
 	static function transform(style:Style, v:Dynamic)
 		style.transform = v == null || v == "none" ? null : Std.isOfType(v, String) ? Transform.parse(v) : (v : Transform);
 
+	// CSS's shorthand ("background-color 150ms ease, opacity 0.2s"), or a Transition
+	static function transition(style:Style, v:Dynamic)
+		style.transition = v == null ? null : Std.isOfType(v, String) ? Transition.parse(v) : (v : Transition);
+
 	static function transformOrigin(style:Style, v:Dynamic)
 		style.transformOrigin = v == null ? null : Std.isOfType(v, String) ? Transform.origin(v) : (v : Array<Dim>);
 
@@ -49,6 +53,29 @@ class StyleAttrs {
 
 	static function corners(style:Style, v:Dynamic)
 		style.corners = v == null ? null : Std.isOfType(v, String) ? CornersValue.parse(v) : Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Corners);
+
+	// CSS's shorthand: a width, "solid" and a colour, any order ("2px solid
+	// red", "3 #0ea5e9"; the colour the text's when left out), or "none"
+	static function outline(style:Style, v:Dynamic) {
+		if (v == null || v == "none") {
+			style.outlineWidth = 0;
+			return;
+		}
+		var width = 3.0, color:Null<Color> = null;
+		for (p in StringTools.trim(Std.string(v)).split(" ")) {
+			if (p == "" || p == "solid") continue;
+			var f = Std.parseFloat(StringTools.replace(p, "px", ""));
+			if (!Math.isNaN(f) && ~/^-?[0-9.]+(px)?$/.match(p)) {
+				width = f;
+				continue;
+			}
+			var c = Color.tryParse(p);
+			if (c == null) throw "outline: " + v + " (a width, solid and a colour)";
+			color = c;
+		}
+		style.outlineWidth = width;
+		style.outlineColor = color;
+	}
 
 	static function letterSpacing(style:Style, v:Dynamic)
 		style.letterSpacing = v == "normal" ? 0 : float(v);

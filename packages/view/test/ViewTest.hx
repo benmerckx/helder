@@ -171,6 +171,9 @@ class ViewTest implements Markup {
 	static function item(label:String):View
 		return <li class="item">{label}</li>;
 
+	static function section(title:String, content:View):View
+		return <section title={title}>{content}</section>;
+
 	static function markup() {
 		check("elements and attributes", html(<div id="main" class='a b' hidden data-x={1 + 1}><span>static</span>{"dynamic"}</div>)
 			== '<div class="a b" data-x="2" hidden="true" id="main"><span>static</span>dynamic</div>');
@@ -215,6 +218,23 @@ class ViewTest implements Markup {
 		check("markup inside an expression", html(<ul>{[for (i in items) item(i)]}</ul>) == '<ul><li class="item">a</li><li class="item">b</li><li class="item">c</li></ul>');
 		check("a ternary of markup", html(<div>{items.length > 2 ? <b>{"many " + items.join("")}</b> : <i>few</i>}</div>) == "<div><b>many abc</b></div>");
 		check("View.view", html(View.view(<b>{1}</b>)) == "<b>1</b>");
+		// an expression's end found past the markup and strings in it
+		check("an apostrophe in a nested attribute", html(<div>{section("X", <Button label="it's"/>)}</div>)
+			== '<div><section title="X"><button class="plain">it\'s</button></section></div>');
+		check("a quote in a nested single-quoted attribute", html(<div>{section("Y", <b title='say "hi"'/>)}</div>)
+			== '<div><section title="Y"><b title="say &quot;hi&quot;"></b></section></div>');
+		check("braces in nested attributes and text", html(<div>{section("{", <b title="}{" data-x='{'>a } b</b>)}</div>)
+			== '<div><section title="{"><b data-x="{" title="}{">a } b</b></section></div>');
+		check("comment starts in nested attributes and text", html(<div>{section("//", <a href="http://x/*y">http://x /* z</a>)}</div>)
+			== '<div><section title="//"><a href="http://x/*y">http://x /* z</a></section></div>');
+		check("an apostrophe and a quote in nested text", html(<div>{section("t", <i>it's "q"</i>)}</div>)
+			== '<div><section title="t"><i>it\'s "q"</i></section></div>');
+		check("markup in braces in markup in braces", html(<div>{section("o", <b>{section("i", <i title="it's">it's</i>)}</b>)}</div>)
+			== '<div><section title="o"><b><section title="i"><i title="it&#039;s">it\'s</i></section></b></section></div>');
+		check("interpolation in an expression", html(<b>{'it${"'"}s ${[for (i in items) '<$i>'].join("")} {x}'}</b>) == "<b>it's &lt;a&gt;&lt;b&gt;&lt;c&gt; {x}</b>");
+		var one = 1, two = 2;
+		check("less-than and type parameters in an expression", html(<b>{one<two ? "lt" : "ge"}{(one < two) ? (new Array<Int>()).length : -1}{(cast items : Array<String>).length}</b>) == "<b>lt03</b>");
+		check("markup after a condition", html(<div>{if (one < two) <i>it's</i> else <b>{"no"}</b>}</div>) == "<div><i>it's</i></div>");
 		// events and refs
 		var clicked = 0, got:Null<TestNode> = null;
 		var root2 = new TestNode(Element, "root");

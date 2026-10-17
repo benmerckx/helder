@@ -10,6 +10,10 @@ class FontSet {
 	public final size:Float;
 	// italic asked of a face that is not: drawn slanted (GlyphAtlas's oblique)
 	public var oblique = false;
+	// OpenType features asked for (FontFeature.parse; null: the default ones)
+	public var features(default, set):Null<Array<FontFeature>> = null;
+	// (the features as one string: FontFeature.key)
+	public var featuresKey(default, null) = "";
 	public final more:Null<Int->Null<FontFile>>;
 	// colour emoji faces (SystemFonts' emojiFor)
 	public final emoji:Null<Int->Null<FontFile>>;
@@ -20,6 +24,19 @@ class FontSet {
 		this.emoji = emoji;
 		this.fallbacks = fallbacks == null ? [] : [for (f in fallbacks) if (f != primary) f];
 		this.size = size;
+	}
+
+	function set_features(v:Null<Array<FontFeature>>):Null<Array<FontFeature>> {
+		featuresKey = v == null ? "" : FontFeature.key(v);
+		return features = v == null || v.length == 0 ? null : v;
+	}
+
+	// a feature's value asked for (-1: not asked, its default)
+	public function feature(tag:String):Int {
+		if (features != null)
+			for (f in features)
+				if (f.tag == tag) return f.value;
+		return -1;
 	}
 
 	// pixels per font unit of a face

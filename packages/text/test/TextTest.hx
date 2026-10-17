@@ -16,8 +16,12 @@ import hxmc.text.*;
 //   Chromium's; fallback faces looked up lazily
 // - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines;
 //   Inter: CFF outlines, GPOS kerning
+// - features (CSS's font-feature-settings): parsed; liga and kern off, and
+//   with Inter calt by default (its arrows, ×), tnum, cv11, salt, dlig on,
+//   aalt's alternates: widths as Chromium measures them
 // - variations: a variable font's instances (var.ttf) against Chromium
-// - layout: widths, wrapping, hard breaks, caret and hit
+// - layout: widths, wrapping, hard breaks, caret and hit; decorations' rows
+//   (their thickness, an underline's offset) as Chromium draws them
 // - a sample of text rendered through the atlas against sample.png; with
 //   Inter (CFF outlines), against sample-cff.png
 //   (our own rasterizer: the same pixels on every machine with that font)
@@ -43,12 +47,14 @@ class TextTest {
 			justified(sans);
 			tabs(sans);
 			breaks(sans, fonts);
+			features(sans, null);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
 		// CFF outlines: Inter (fonts-inter), an OpenType font with cubic curves
 		var inter = fonts.match("Inter");
 		if (inter == null || inter.family != "Inter") Sys.println("TextTest: no Inter: CFF checks skipped") else {
 			cff(inter);
+			features(sans, inter);
 			sample(inter, fonts, here + "/sample-cff.png", bless);
 		}
 		Sys.println('TextTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
@@ -72,6 +78,14 @@ class TextTest {
 			}
 			check("decorations: " + c.face.family + " " + c.size + " as Chromium draws them", got.join(",") == c.rows.join(",") && l.decoration(0, 7, 0)[0].width == l.width, got.join(","));
 		}
+		// (thickness and an underline's offset asked for: Chromium's rows, DejaVu Sans at 20: kind, thickness, offset, top, rows)
+		var l = new TextLayout("Hamburg", new FontSet(sans, [], 20), 1.5, Math.NaN), got = [], want = [];
+		for (c in ([[0, 3, Math.NaN, 24, 3], [0, Math.NaN, 4, 26, 2], [0, 3, 4, 26, 3], [0, 1, 0, 22, 1], [1, 4, Math.NaN, 14, 4], [2, 3, Math.NaN, 0, 3], [0, 2.5, Math.NaN, 24, 3]] : Array<Array<Float>>)) {
+			var d = l.decoration(0, 7, Std.int(c[0]), 1, c[1], c[2])[0];
+			got.push(d.y + "+" + d.height);
+			want.push(c[3] + "+" + c[4]);
+		}
+		check("decorations: thickness and underline offset as Chromium draws them", got.join(",") == want.join(","), got.join(","));
 		var l = new TextLayout("Hamburg x ", new FontSet(sans, [], 20), 1.5, Math.NaN);
 		var u = l.decoration(0, 10, 0, 2)[0];
 		check("decorations: snapped to the pixels of the scale; not under trailing spaces", u.height == 2 && u.y * 2 == Math.round(u.y * 2) && u.width == l.lines[0].width
@@ -93,6 +107,20 @@ class TextTest {
 		// (a run's own: only its characters)
 		var run = new TextRun(0, 3, set, 1.2, 4, 0);
 		check("spacing: a run's", Math.abs(new TextLayout("Hamburg", set, 1.2, Math.NaN, [run]).width - (92.71875 + 12)) < 0.02);
+		// (none in Arabic, a cursive script; a space, digit or sign taking the
+		// script before it, else after it; a ligature spaced once; Chromium's
+		// widths, letter spacing 10, word spacing 10 for the second)
+		var forced = new FontSet(sans, [], 20);
+		forced.features = FontFeature.parse("'liga' 1");
+		var got = [
+			w("abc لا def", 10, 0), w("لا سلام", 0, 10), w("لا سلام 12", 10, 0), w("12 لا", 10, 0),
+			w("(لا)", 10, 0), new TextLayout("office", forced, 1.2, Math.NaN, null, 0, 10).width
+		];
+		var chromium = [162.125, 68.84375, 90.65625, 43.21875, 27.03125, 94.875];
+		var ok = true;
+		for (i in 0...got.length)
+			if (Math.abs(got[i] - chromium[i]) > 0.03) ok = false;
+		check("spacing: none in a cursive script, a ligature once", ok, got.join(" "));
 	}
 
 	// the standard ligatures: widths as Chromium measures them (DejaVu Sans
@@ -173,6 +201,52 @@ class TextTest {
 	// where lines break with CSS's overflow-wrap and word-break, and at soft
 	// hyphens: each line's start and the min-content width as Chromium's
 	// (DejaVu Sans at 16; a line's trailing spaces on it; CJK's widths: its fallback face's, not compared)
+	// features asked for: widths as Chromium measures them (a span's
+	// getBoundingClientRect, font-feature-settings set); Inter's with inter
+	static function features(sans:FontFile, inter:Null<FontFile>) {
+		if (inter == null) {
+			var fs = FontFeature.parse("'tnum', \"liga\" 0, 'salt' 2 , 'ss01' off, 'tnum' on");
+			check("features: parsed (a tag again: its last value)", FontFeature.key(fs) == "liga=0,salt=2,ss01=0,tnum=1" && FontFeature.parse("normal").length == 0,
+				FontFeature.key(fs));
+			var bad = 0;
+			for (s in ["tnum", "'tnu'", "'tnum' x", "'tnum' -1", ""])
+				if (try {
+					FontFeature.parse(s);
+					false;
+				} catch (e:Dynamic) true) bad++;
+			check("features: rejected as CSS rejects them", bad == 5);
+		}
+		var cases:Array<{face:FontFile, text:String, size:Float, features:String, width:Float, ?spacing:Float}> = inter == null ? [
+			{face: sans, text: "office", size: 100, features: "normal", width: 274.375},
+			{face: sans, text: "office", size: 100, features: "'liga' 0", width: 275.890625},
+			{face: sans, text: "AVAVAV", size: 20, features: "normal", width: 75.703125},
+			{face: sans, text: "AVAVAV", size: 20, features: "'kern' 0", width: 82.09375}
+		] : [
+			{face: inter, text: "1111100000", size: 20, features: "normal", width: 103.765625},
+			{face: inter, text: "1111100000", size: 20, features: "'tnum'", width: 129.6875},
+			{face: inter, text: "1111100000", size: 20, features: "'tnum' 1, 'kern' 0", width: 129.6875},
+			{face: inter, text: "Ag Gaj 0", size: 20, features: "'cv11'", width: 81.953125},
+			{face: inter, text: "a", size: 20, features: "'salt'", width: 12.25},
+			{face: inter, text: "a", size: 20, features: "'salt' 9", width: 12.25},
+			{face: inter, text: "a", size: 20, features: "'aalt'", width: 9},
+			{face: inter, text: "a", size: 20, features: "'aalt' 2", width: 8.03125},
+			{face: inter, text: "a", size: 20, features: "'aalt' 99", width: 11.234375},
+			// (calt by default: chained contexts with ligatures, single substitutions; not where letters are spaced)
+			{face: inter, text: "a -> b", size: 20, features: "normal", width: 53.8125},
+			{face: inter, text: "x => y", size: 20, features: "normal", width: 52.5},
+			{face: inter, text: "3x4", size: 20, features: "normal", width: 38.515625},
+			{face: inter, text: "a -> b", size: 20, features: "'calt' 0", width: 57.171875},
+			{face: inter, text: "a -> b", size: 20, features: "normal", width: 63.171875, spacing: 1},
+			{face: inter, text: "fi", size: 40, features: "'dlig'", width: 23.125}
+		];
+		for (c in cases) {
+			var set = new FontSet(c.face, [], c.size);
+			set.features = FontFeature.parse(c.features);
+			var w = new TextLayout(c.text, set, 1.2, Math.NaN, null, 0, c.spacing == null ? 0 : c.spacing).width;
+			check('features: ${c.face.family} "${c.text}" ${c.features}', Math.abs(w - c.width) < 0.02, w + " (Chromium " + c.width + ")");
+		}
+	}
+
 	static function breaks(sans:FontFile, fonts:SystemFonts) {
 		var long = "abcdefghijkl mnop", shy = "super\u00ADcali\u00ADfragilistic";
 		var cases:Array<{text:String, max:Float, breaking:Int, starts:String, min:Float}> = [

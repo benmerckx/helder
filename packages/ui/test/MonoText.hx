@@ -122,12 +122,24 @@ class MonoParagraph implements Paragraph {
 		return out;
 	}
 
-	// (a line a tenth of the size thick: an underline at 0.9 of the line, a line-through at the half, an overline at the top)
-	public function decoration(start:Int, end:Int, kind:TextDecoration, scale:Float):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}>
+	// (a line a tenth of the size thick, or as thick as asked: an underline at 0.9 of the line, or offset from there, a line-through at the half, an overline at the top)
+	public function decoration(start:Int, end:Int, kind:TextDecoration, scale:Float, ?thickness:Float, ?offset:Float):Array<{
+		x:Float,
+		y:Float,
+		width:Float,
+		height:Float,
+		lineWidth:Float
+	}>
 		return [
 			for (r in selection(start, end)) {
-				var k = Std.int(r.y / line);
-				{x: r.x, y: r.y + line * (kind == Underline ? 0.9 : kind == LineThrough ? 0.5 : 0), width: r.width, height: char / 5, lineWidth: lines[k].length * char};
+				var k = Std.int(r.y / line), off = offset == null || Math.isNaN(offset) ? 0.0 : offset;
+				{
+					x: r.x,
+					y: r.y + line * (kind == Underline ? 0.9 : kind == LineThrough ? 0.5 : 0) + (kind == Underline ? off : 0),
+					width: r.width,
+					height: thickness == null || Math.isNaN(thickness) ? char / 5 : thickness,
+					lineWidth: lines[k].length * char
+				};
 			}
 		];
 

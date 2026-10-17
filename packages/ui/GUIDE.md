@@ -31,12 +31,16 @@ cover the examples below:
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;                 // Markup, View, Render, Signal...
-import hxmc.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
 import hxmc.view.Reactive.*;        // signal, memo, effect, batch, context, use...
 import hxmc.ui.view.*;              // Motion, NodeRenderer
 import hxmc.ui.view.UiFlow.*;       // Popover, Hotkey, VirtualList
-import hxmc.ui.widgets.Widgets.*;   // Button, Checkbox, Field, Select, Dialog...
+import hxmc.ui.widgets.Widgets.*;   // Button, Checkbox, Input, Select, Dialog...
+import hxmc.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
 ```
+
+(The widgets' `Switch`, shadcn's toggle switch, and Flow's `Switch`, the
+control flow, share a name; the later import wins, so put the one a file
+writes as `<Switch>` last.)
 
 A window holds a tree of nodes. `Render.render` mounts markup into its
 root, and `UiWindow.run` runs the loop until the last window closes:
@@ -180,6 +184,11 @@ button is pushed to the right end of its row:
 </view>
 ```
 
+`align-items="baseline"` lines a row's texts up on their first
+baselines (a label beside a field, text of two sizes); `width` also takes
+`min-content`, `max-content` and `fit-content`; `gap`, `inset` and `flex`
+are CSS's shorthands (`gap="4 8"`, `inset={0}`, `flex={1}`).
+
 Colours are CSS's: hex, `rgb()`, `hsl()` and the named ones. A background
 can be a CSS gradient, linear or radial, repeating or not, drawn under the
 border:
@@ -238,6 +247,14 @@ var height = Motion.spring(() -> open.value ? 200 : 0);
 <view height={height} overflow="hidden">...</view>
 ```
 
+A style's `transition`, as CSS's, eases its colours, opacity, transform
+and shadow whenever they change (a hover's colour from a theme, a value
+bound to a signal) once the node has been drawn:
+
+```haxe
+<view transition="background-color 150ms ease-in-out" background={() -> hot.value ? "#e4e4e7" : "#ffffff"}>...</view>
+```
+
 ## Images and icons
 
 An `image` shows an `Image` (`Image.decode`: PNG, JPEG, GIF), an
@@ -271,7 +288,11 @@ The spans wrap as one paragraph. A larger span makes its line taller, as
 in CSS, and a click on a span's text goes to that span. `text-decoration`
 (`underline`, `line-through`, `overline`) draws its lines where Chromium
 draws them, in the colour of the element that asks for them, under the text
-inside it. A `selectable` text can be selected with the pointer (a
+inside it. `text-shadow="0 1 2 #00000060"` casts the text's shadows (several,
+separated by commas; without a colour the text's), inherited as in CSS;
+`text-shadow="none"` stops a parent's. `font-variant-numeric="tabular-nums"` gives
+figures one width (a column of numbers that lines up), as in CSS;
+`font-feature-settings="'ss01', 'liga' 0"` asks for any OpenType feature. A `selectable` text can be selected with the pointer (a
 drag, a double click for a word, a triple click for all of it) and copied
 with Control+C or Command+C; `Ui.selectedText()` reads it.
 
@@ -293,23 +314,43 @@ static function Accent(props:{label:String}):View {
 
 ## Themes and dark mode
 
-The widgets draw with `Theme.current`, a signal holding `Theme.LIGHT` or
-`Theme.DARK` (or a theme of your own: colours by role). Setting it
-recolours every widget, with their usual transition. `UiWindow.dark`
-follows the system's appearance, so one line makes an app follow it:
+The widgets ship unstyled, as React Aria's: behaviour, semantics and
+their parts' states, no look at all; a theme gives them their looks. A page takes the slot `"body"` for its surface
+(`<view slot="body">`, as shadcn styles body). A theme is a `StyleSheet`: rules for the
+widgets' slots (shadcn's data-slot names), variants and states, and the
+colours their tokens name, light and dark. `@hxmc/theme` is shadcn/ui's;
+a small one of your own:
 
 ```haxe
-Theme.follow(() -> UiWindow.dark.value);
+static final sheet:StyleSheet = {
+	rules: [
+		{slot: "button", style: {background: Color.parse("var(--primary)"), color: Color.parse("var(--primary-foreground)"), radius: 6, padding: [8, 16]}},
+		{slot: "button", when: ["hover"], style: {background: Color.parse("var(--primary)/90")}},
+		{slot: "button", variant: "outline", style: {background: Color.TRANSPARENT, color: Color.parse("var(--foreground)"), borderWidth: 1, borderColor: Color.parse("var(--border)")}}
+	],
+	light: ["primary" => Color.parse("oklch(0.205 0 0)"), "primary-foreground" => Color.parse("oklch(0.985 0 0)"), "foreground" => Color.parse("oklch(0.145 0 0)"), "border" => Color.parse("oklch(0.922 0 0)")],
+	dark: ["primary" => Color.parse("oklch(0.922 0 0)"), "primary-foreground" => Color.parse("oklch(0.205 0 0)"), "foreground" => Color.parse("oklch(0.985 0 0)"), "border" => Color.parse("oklch(1 0 0 / 10%)")]
+};
 ```
 
-Paint your own surfaces with the theme's roles too, read inside a
-function so that they follow it:
-`<view background={() -> Theme.current.value.background} color={() -> Theme.current.value.text}>`.
+An instance's look can follow its states without a theme, as React
+Aria's render props: a widget's `style` is a function of its part's
+`States` (signals: `hovered`, `pressed`, `focusVisible`, `disabled`,
+`attr("data-state")`):
+
+```haxe
+<Button label="Save" style={s -> s.hovered.value ? {background: Color.parse("#e4e4e7")} : {}}/>
+```
+
+`ui.theme = sheet` installs it (`node.theme` for a subtree), and
+`ui.dark` picks its dark colours; a `UiWindow`'s follows the system's
+appearance (`UiWindow.dark`). A widget's own style (an attribute in
+markup) wins over the theme's.
 
 ## Popups
 
 Popups are layers over the tree, so a parent's clipping does not cut them.
-`Select`, `Menu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
+`Select`, `DropdownMenu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
 puts any content in one while `open` is true (its `at` places it at a point). A modal dialog keeps the
 focus inside, and Escape or a press outside asks it to close:
 
@@ -321,7 +362,7 @@ static function Confirm(props:{onYes:Void->Void}):View {
 		<Dialog open={open} title="Delete this file?">
 			<view direction="row" column-gap={8} justify="end">
 				<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
-				<Button tag="yes" label="Delete" primary onClick={() -> {
+				<Button tag="yes" label="Delete" onClick={() -> {
 					open.value = false;
 					props.onYes();
 				}}/>
@@ -379,7 +420,7 @@ window, for as long as it is mounted; with `local`, only while the
 focus is inside the node it is in. `Mod` is Control, or Command on a
 Mac. A key the focused node takes first (a text field's Control+C, a
 letter typed into it) is not a shortcut, and under a modal dialog only
-the dialog's own shortcuts work. Menu items take a `shortcut` too:
+the dialog's own shortcuts work. Menu items take a `shortcut` too (and `disabled`, `variant: "destructive"`, or are a `separator`):
 it is shown in the menu, in the platform's notation, and works while
 the menu is mounted.
 
@@ -387,8 +428,8 @@ the menu is mounted.
 static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 	return <view row-gap={8}>
 		<Hotkey keys="Mod+S" action={props.onSave}/>
-		<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
-		<Area value={props.text}/>
+		<DropdownMenu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
+		<Textarea value={props.text}/>
 	</view>;
 ```
 

@@ -89,7 +89,7 @@ class TextNode extends Node {
 				b.add(s);
 				spans.push(new TextSpan(pos, pos + s.length, f));
 				colors.push(t.textColor());
-				key.add(pos + ":" + f.family + "/" + f.size + "/" + f.weight + "/" + f.italic + "/" + f.lineHeight + "/" + f.letterSpacing + "/" + f.wordSpacing + ";");
+				key.add(pos + ":" + f.family + "/" + f.size + "/" + f.weight + "/" + f.italic + "/" + f.lineHeight + "/" + f.letterSpacing + "/" + f.wordSpacing + "/" + f.features + ";");
 				pos += s.length;
 			}
 		}
@@ -239,7 +239,7 @@ class TextNode extends Node {
 		function draw(through:Bool)
 			for (d in decos)
 				if ((d.kind == LineThrough) == through)
-					for (r in p.decoration(d.start, d.end, d.kind, ui.scale)) {
+					for (r in p.decoration(d.start, d.end, d.kind, ui.scale, d.thickness, d.offset)) {
 						var lx = align == Center ? (width - r.lineWidth) / 2 : align == Right ? width - r.lineWidth : 0.0;
 						canvas.rect(x + lx + r.x, y + r.y, r.width, r.height, 0, d.color, 0, 0);
 					}
@@ -254,19 +254,41 @@ class TextNode extends Node {
 				canvas.rect(x + alignOffset(p, r.y, width) + r.x, y + r.y, r.width, bottom - r.y, 0, ui.selectionColor, 0, 0);
 			}
 		}
+		// (its text shadows under it all, the last first: the glyphs' and
+		// the decorations'; without a colour, the text's, or each span's)
+		var shadows = textShadow();
+		if (shadows != null)
+			for (sh in shadows.painted()) {
+				for (d in decos)
+					for (r in p.decoration(d.start, d.end, d.kind, ui.scale, d.thickness, d.offset)) {
+						var lx = align == Center ? (width - r.lineWidth) / 2 : align == Right ? width - r.lineWidth : 0.0;
+						var c = sh.currentColor ? d.color : sh.color, rx = x + lx + r.x + sh.x, ry = y + r.y + sh.y;
+						if (sh.blur > 0) canvas.shadow(rx, ry, r.width, r.height, 0, c, sh.blur) else canvas.rect(rx, ry, r.width, r.height, 0, c, 0, 0);
+					}
+				canvas.textShadow(p, x + sh.x, y + sh.y, width, align, sh.currentColor ? textColor() : sh.color, sh.blur,
+					sh.currentColor && rich != null ? rich.colors : null);
+			}
 		draw(false);
 		canvas.text(p, x, y, width, align, textColor(), rich != null ? rich.colors : null);
 		draw(true);
 	}
 
-	// the decorations to draw: each range of the text, its line, its colour
-	function decorations(length:Int):Array<{start:Int, end:Int, kind:TextDecoration, color:Color}> {
+	// the decorations to draw: each range of the text, its line, its colour,
+	// its thickness and an underline's offset (pixels; NaN: auto)
+	function decorations(length:Int):Array<{start:Int, end:Int, kind:TextDecoration, color:Color, thickness:Float, offset:Float}> {
 		var out = [];
 		function add(n:Node, start:Int, end:Int) {
 			var f = n.style.textDecoration;
 			if (f == 0) return;
+			// (the thickness the node's own, its percentage of its font size; the offset inherited)
+			var size = n.font().size, thickness = n.style.textDecorationThickness.resolve(size), offset = Math.NaN, o:Null<Node> = n;
+			while (o != null && Math.isNaN(offset)) {
+				offset = o.style.textUnderlineOffset.resolve(size);
+				o = o.parent;
+			}
 			for (k in [TextDecoration.Underline, TextDecoration.Overline, TextDecoration.LineThrough])
-				if (f & (k : Int) != 0) out.push({start: start, end: end, kind: k, color: n.textColor()});
+				if (f & (k : Int) != 0)
+					out.push({start: start, end: end, kind: k, color: n.style.textDecorationColor ?? n.textColor(), thickness: thickness, offset: offset});
 		}
 		var n:Node = this;
 		while (n != null) {

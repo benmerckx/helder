@@ -1,3 +1,4 @@
+diagnostic(off, derivative_uniformity);
 struct TexVaryings {
 	pos: vec4f,
 	uv: vec2f,
@@ -7,10 +8,10 @@ struct Fade {
 	amount: f32,
 }
 fn tinted(t: texture_2d<f32>, t_smp: sampler, uv: vec2f) -> vec4f {
-	return textureSampleLevel(t, t_smp, uv * 2.0, 0.0) * vec4f(1.0, 0.5, 0.5, 1.0);
+	return textureSample(t, t_smp, uv * 2.0) * vec4f(1.0, 0.5, 0.5, 1.0);
 }
 fn fs(i: TexVaryings, fade: Fade, albedo: texture_2d<f32>, albedo_smp: sampler, height: texture_2d<f32>, height_smp: sampler) -> vec4f {
-	return mix(tinted(albedo, albedo_smp, i.uv), textureSampleLevel(height, height_smp, i.uv, 0.0), vec4f(fade.amount)) * i.lift;
+	return mix(tinted(albedo, albedo_smp, i.uv), textureSampleLevel(height, height_smp, i.uv, 1.5), vec4f(fade.amount)) * i.lift;
 }
 @group(0) @binding(1) var<uniform> u_1: Fade;
 @group(0) @binding(2) var tex_2: texture_2d<f32>;

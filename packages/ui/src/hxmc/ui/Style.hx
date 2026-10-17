@@ -102,6 +102,16 @@ class Style {
 	public var padding(default, set):EdgesValue = Edges.ZERO;
 
 	public var margin(default, set):EdgesValue = Edges.ZERO;
+	// one side of each (CSS's padding-top...: Tailwind's pt-2 and px-4 from
+	// separate rules; a margin's side may be Edges.AUTO, ml-auto)
+	public var paddingTop(get, set):Float;
+	public var paddingRight(get, set):Float;
+	public var paddingBottom(get, set):Float;
+	public var paddingLeft(get, set):Float;
+	public var marginTop(get, set):Float;
+	public var marginRight(get, set):Float;
+	public var marginBottom(get, set):Float;
+	public var marginLeft(get, set):Float;
 
 	// on all four sides, inside the border box
 	public var borderWidth(default, set):Float = 0;
@@ -133,7 +143,13 @@ class Style {
 	// the four offsets at once (CSS's inset shorthand; markup "10 20": as margins write them)
 	public var inset(never, set):Dim;
 
+	// what overflows it, on both axes (CSS's shorthand); read, the two
+	// together: Scroll if either scrolls, else Hidden if either clips. As
+	// CSS's, both axes clip when either does; an axis scrolls by the wheel,
+	// the keys and a scrollbar only where it is Scroll (Hidden: by scrollTo)
 	public var overflow(default, set):Overflow = Visible;
+	public var overflowX(default, set):Overflow = Visible;
+	public var overflowY(default, set):Overflow = Visible;
 
 	public var background(default, set):Color = Color.TRANSPARENT;
 
@@ -156,6 +172,33 @@ class Style {
 	// under the background (null: none)
 	public var shadow(get, set):Null<Shadow>;
 
+	// a line around the border box, over the node's content: outlineWidth
+	// wide (0: none), outlineOffset outside it (negative: inside), in
+	// outlineColor (null: the text colour), its corners the box's grown by
+	// both, as Chromium draws CSS's solid outline; markup's outline="2px
+	// solid red" sets them, outline="none" none
+	public var outlineWidth(get, set):Float;
+	public var outlineOffset(get, set):Float;
+	public var outlineColor(get, set):Null<Color>;
+	// a solid outline this wide in the text colour (CSS's shorthand; markup also "2px solid red", "none")
+	public var outline(never, set):Float;
+	// whether its text can be selected by the pointer (UserSelect; null: the parent's)
+	public var userSelect(get, set):Null<UserSelect>;
+
+	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
+	public var outlineStyle(get, set):Null<OutlineStyle>;
+
+	// a ring around the border box (Tailwind's ring: a box-shadow of no
+	// blur, ringWidth wide, in ringColor, null: the text's; ringInset:
+	// inside), outside a gap of ringOffsetWidth in ringOffsetColor; drawn
+	// with the shadows as Tailwind composes them, the offset over the ring
+	// over the shadow, so that each comes from its own rule
+	public var ringWidth(get, set):Float;
+	public var ringColor(get, set):Null<Color>;
+	public var ringOffsetWidth(get, set):Float;
+	public var ringOffsetColor(get, set):Color;
+	public var ringInset(get, set):Bool;
+
 	// how the node and its subtree are drawn and hit, not laid out (Transform.parse; null: none)
 	public var transform(get, set):Null<Transform>;
 
@@ -174,10 +217,18 @@ class Style {
 
 	public var italic(default, set):Null<Bool> = null;
 
-	// a multiple of the font size
+	// a multiple of the font size (inherited as the multiple), or pixels
+	// (lineHeightPx, CSS's line-height: 24px, inherited as the pixels;
+	// over lineHeight where a node has both, as Tailwind's leading-6 is over
+	// text-sm's)
 	public var lineHeight(default, set):Null<Float> = null;
-	// pixels after each character, and on each space (CSS's letter-spacing, word-spacing)
+	public var lineHeightPx(get, set):Null<Float>;
+	// pixels after each character, and on each space (CSS's letter-spacing,
+	// word-spacing); letterSpacingEm: a multiple of the node's font size
+	// (tracking-tight's -0.025em), inherited as the pixels it comes to, over
+	// letterSpacing where a node has both
 	public var letterSpacing(get, set):Null<Float>;
+	public var letterSpacingEm(get, set):Null<Float>;
 	public var wordSpacing(get, set):Null<Float>;
 
 	public var textAlign(default, set):Null<TextAlign> = null;
@@ -222,6 +273,18 @@ class Style {
 	// KeepAll not between CJK characters
 	public var wordBreak(get, set):Null<WordBreak>;
 
+	// OpenType features, inherited, as CSS's font-feature-settings writes
+	// them ("'tnum'", "'liga' 0, 'ss01'"; null: the parent's; "normal": the
+	// default ones): their substitutions added, or liga, clig, calt and
+	// kern turned off (hxmc.text.FontFeature)
+	public var fontFeatureSettings(get, set):Null<String>;
+
+	// figures' forms, inherited, as CSS's font-variant-numeric writes them
+	// ("tabular-nums", "oldstyle-nums slashed-zero"; null: the parent's;
+	// "normal"): their features (tnum, onum, zero...), under
+	// fontFeatureSettings
+	public var fontVariantNumeric(get, set):Null<String>;
+
 	// its text's letters as shown, inherited (null: the parent's; None at
 	// the root; CSS's text-transform): upper or lower case, or each word's
 	// first in upper case; a text field's own text is shown as typed
@@ -239,6 +302,28 @@ class Style {
 	// this node's colour (TextDecoration's flags; 0: none; not inherited,
 	// as in CSS: it reaches the text inside)
 	public var textDecoration(get, set):Int;
+
+	// the colour of the lines textDecoration draws (null: the node's text
+	// colour; not inherited, as CSS's text-decoration-color)
+	public var textDecorationColor(get, set):Null<Color>;
+	// their thickness (auto: a tenth of the font size; a percentage of it;
+	// not inherited) and an underline's place below the baseline (auto: the
+	// font's; inherited), as CSS's text-decoration-thickness and
+	// text-underline-offset
+	public var textDecorationThickness(get, set):Dim;
+	public var textUnderlineOffset(get, set):Dim;
+
+	// shadows of the text in this node and its descendants and of its
+	// decorations, under them (Shadow.parse, as CSS's text-shadow: x, y,
+	// blur and a colour, the text's without one; null: the parent's;
+	// Shadow.NONE: none)
+	public var textShadow(get, set):Null<Shadow>;
+
+	// how its colours, opacity, transform and shadow ease to a new value
+	// once it has been drawn (Transition.parse, as CSS's transition; null:
+	// they jump; not inherited). While one moves, the property reads where
+	// it is; target, where it goes.
+	public var transition(get, set):Null<Transition>;
 
 	// --- the properties rarely set: in a StyleRare made when one is ---
 
@@ -297,6 +382,15 @@ class Style {
 	inline function get_shadow():Null<Shadow>
 		return rare == null ? null : rare.shadow;
 
+	inline function get_outlineWidth():Float
+		return rare == null ? 0 : rare.outlineWidth;
+
+	inline function get_outlineOffset():Float
+		return rare == null ? 0 : rare.outlineOffset;
+
+	inline function get_outlineColor():Null<Color>
+		return rare == null ? null : rare.outlineColor;
+
 	inline function get_transform():Null<Transform>
 		return rare == null ? null : rare.transform;
 
@@ -309,11 +403,106 @@ class Style {
 	inline function get_wordSpacing():Null<Float>
 		return rare == null ? null : rare.wordSpacing;
 
+	inline function get_lineHeightPx():Null<Float>
+		return rare == null ? null : rare.lineHeightPx;
+
+	inline function get_letterSpacingEm():Null<Float>
+		return rare == null ? null : rare.letterSpacingEm;
+
 	inline function get_maxLines():Int
 		return rare == null ? 0 : rare.maxLines;
 
 	inline function get_dir():Null<Dir>
 		return rare == null ? null : rare.dir;
+
+	inline function get_userSelect():Null<UserSelect>
+		return rare == null ? null : rare.userSelect;
+
+	function set_userSelect(v:Null<UserSelect>):Null<UserSelect> {
+		if (v == userSelect) return v;
+		more().userSelect = v;
+		return v;
+	}
+
+	inline function get_outlineStyle():Null<OutlineStyle>
+		return rare == null ? null : rare.outlineStyle;
+
+	inline function get_ringWidth():Float
+		return rare == null ? 0 : rare.ringWidth;
+
+	inline function get_ringColor():Null<Color>
+		return rare == null ? null : rare.ringColor;
+
+	inline function get_ringOffsetWidth():Float
+		return rare == null ? 0 : rare.ringOffsetWidth;
+
+	inline function get_ringOffsetColor():Color
+		return rare == null ? Color.WHITE : rare.ringOffsetColor;
+
+	inline function get_ringInset():Bool
+		return rare == null ? false : rare.ringInset;
+
+	function set_ringWidth(v:Float):Float {
+		if (rare != null && rare.transition != null && eases("ringWidth", ringWidth, v)) return v;
+		if (v == ringWidth) return v;
+		more().ringWidth = v;
+		ringed();
+		return v;
+	}
+
+	function set_ringColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("ringColor", ringColor, v)) return v;
+		if (v == ringColor) return v;
+		more().ringColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_ringOffsetWidth(v:Float):Float {
+		if (v == ringOffsetWidth) return v;
+		more().ringOffsetWidth = v;
+		ringed();
+		return v;
+	}
+
+	function set_ringOffsetColor(v:Color):Color {
+		if (v == ringOffsetColor) return v;
+		more().ringOffsetColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_ringInset(v:Bool):Bool {
+		if (v == ringInset) return v;
+		more().ringInset = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	// (how far outside its box a ring draws: the paint's culling widens bounds by the most seen, as for shadows)
+	function ringed() {
+		Ui.shadowReach = Math.max(Ui.shadowReach, ringWidth + ringOffsetWidth + 1);
+		node.styleChanged(false);
+	}
+
+	// its shadows as drawn, the last (the lowest) first: its ring and the
+	// ring's offset over its shadow (null: none)
+	public function paintedShadows():Null<Array<Shadow>> {
+		var r = rare;
+		if (r == null || r.ringWidth <= 0 && r.ringOffsetWidth <= 0) return r == null || r.shadow == null ? null : r.shadow.painted();
+		var all = r.shadow == null ? [] : r.shadow.painted();
+		if (r.ringWidth > 0)
+			all.push({spread: r.ringWidth + r.ringOffsetWidth, color: r.ringColor ?? node.textColor(), inset: r.ringInset});
+		if (r.ringOffsetWidth > 0) all.push({spread: r.ringOffsetWidth, color: r.ringOffsetColor, inset: r.ringInset});
+		return all;
+	}
+
+	function set_outlineStyle(v:Null<OutlineStyle>):Null<OutlineStyle> {
+		if (v == outlineStyle) return v;
+		more().outlineStyle = v;
+		node.styleChanged(false);
+		return v;
+	}
 
 	inline function get_visibility():Null<Visibility>
 		return rare == null ? null : rare.visibility;
@@ -330,6 +519,33 @@ class Style {
 	inline function get_wordBreak():Null<WordBreak>
 		return rare == null ? null : rare.wordBreak;
 
+	inline function get_fontFeatureSettings():Null<String>
+		return rare == null ? null : rare.fontFeatureSettings;
+
+	inline function get_fontVariantNumeric():Null<String>
+		return rare == null ? null : rare.fontVariantNumeric;
+
+	// font-variant-numeric's keywords as font-feature-settings ("": normal)
+	public static function numericFeatures(v:String):String {
+		var out = [];
+		for (w in StringTools.trim(v).split(" ")) {
+			var tag = switch w {
+				case "normal" | "": continue;
+				case "lining-nums": "lnum";
+				case "oldstyle-nums": "onum";
+				case "proportional-nums": "pnum";
+				case "tabular-nums": "tnum";
+				case "diagonal-fractions": "frac";
+				case "stacked-fractions": "afrc";
+				case "ordinal": "ordn";
+				case "slashed-zero": "zero";
+				case _: throw "Style.fontVariantNumeric: " + v;
+			}
+			out.push("'" + tag + "'");
+		}
+		return out.join(", ");
+	}
+
 	inline function get_textTransform():Null<TextTransform>
 		return rare == null ? null : rare.textTransform;
 
@@ -344,6 +560,99 @@ class Style {
 
 	inline function get_textDecoration():Int
 		return rare == null ? 0 : rare.textDecoration;
+
+	inline function get_textDecorationThickness():Dim
+		return rare == null ? DimValue.Auto : rare.textDecorationThickness;
+
+	inline function get_textUnderlineOffset():Dim
+		return rare == null ? DimValue.Auto : rare.textUnderlineOffset;
+
+	inline function get_textDecorationColor():Null<Color>
+		return rare == null ? null : rare.textDecorationColor;
+
+	inline function get_textShadow():Null<Shadow>
+		return rare == null ? null : rare.textShadow;
+
+	inline function get_transition():Null<Transition>
+		return rare == null ? null : rare.transition;
+
+	function set_transition(v:Null<Transition>):Null<Transition> {
+		if (v == transition) return v;
+		more().transition = v;
+		// (none: what moves there at once)
+		if (v == null && rare.moving != null) step(1e300);
+		return v;
+	}
+
+	// (drawn once: what changes from now on eases, under a transition; Ui's paint sets it)
+	@:allow(hxmc.ui.Ui) var drawn = false;
+	// (rules for starting asked of it: restyled once it is drawn)
+	@:allow(hxmc.ui.Rules) var starting = false;
+
+	// a property's value (StyleFields' names), or the one it is moving to under a transition
+	public function target(name:String):Dynamic {
+		if (rare != null && rare.moving != null)
+			for (run in rare.moving)
+				if (run.name == name) return run.to;
+		return StyleFields.get(this, name);
+	}
+
+	// (a change of an eased property, drawn, under a transition that names
+	// it: the property moving to it on the Clock from where it is, whether
+	// it does; the same value again: a run toward another one stopped)
+	function eases(name:String, from:Dynamic, to:Dynamic):Bool {
+		var r = rare;
+		if (r.stepping) return false;
+		var m = r.moving, i = -1;
+		if (m != null)
+			for (k in 0...m.length)
+				if (m[k].name == name) i = k;
+		var t = r.transition == null || !drawn || node.ui == null || from == null || to == null || from == to ? null : r.transition.timing(name);
+		if (t == null) {
+			if (i < 0) return false;
+			m.splice(i, 1);
+			return from == to;
+		}
+		if (i >= 0 && m[i].to == to) return true;
+		var run:Moving = {name: name, from: from, to: to, start: -1, duration: t.duration, delay: t.delay, easing: t.easing};
+		if (i >= 0) m[i] = run else {
+			if (m == null) r.moving = m = [];
+			m.push(run);
+		}
+		if (!r.ticking) {
+			r.ticking = true;
+			Clock.add(step);
+		}
+		node.styleChanged(false);
+		return true;
+	}
+
+	// (the Clock's tick: each run's value at now; the ones done at their ends)
+	function step(now:Float):Bool {
+		var r = rare, m = r.moving;
+		r.stepping = true;
+		var i = 0;
+		while (m != null && i < m.length) {
+			var run = m[i];
+			// (the start is the first tick's time, after the delay: the clock may have been idle)
+			if (run.start < 0) run.start = (now >= 1e300 ? 0 : now) + run.delay;
+			var k = node.ui == null ? 1 : (now - run.start) / run.duration;
+			if (k >= 1) {
+				StyleFields.set(this, run.name, run.to);
+				m.splice(i, 1);
+				continue;
+			}
+			if (k > 0) StyleFields.set(this, run.name, Transition.between(run.name, run.from, run.to, Transition.ease(run.easing, k)));
+			i++;
+		}
+		r.stepping = false;
+		if (m == null || m.length == 0) {
+			r.moving = null;
+			r.ticking = false;
+			return false;
+		}
+		return true;
+	}
 
 	inline function get_left():Dim
 		return rare == null ? DimValue.Auto : rare.left;
@@ -426,8 +735,9 @@ class Style {
 		if (v == dir) return v;
 		more().dir = v;
 		node.styleChanged(true);
-		// (inherited: every container under it lays out again)
+		// (inherited: every container under it lays out again, its rules for rtl hold or not)
 		@:privateAccess node.dirChanged();
+		if (node.ui != null) Rules.restyleTree(node);
 		return v;
 	}
 
@@ -457,6 +767,23 @@ class Style {
 	function set_overflowWrap(v:Null<OverflowWrap>):Null<OverflowWrap> {
 		if (v == overflowWrap) return v;
 		more().overflowWrap = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_fontVariantNumeric(v:Null<String>):Null<String> {
+		if (v == fontVariantNumeric) return v;
+		if (v != null) numericFeatures(v);
+		more().fontVariantNumeric = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_fontFeatureSettings(v:Null<String>):Null<String> {
+		if (v == fontFeatureSettings) return v;
+		// (parsed now: a mistake throws where it is made)
+		if (v != null) hxmc.text.FontFeature.parse(v);
+		more().fontFeatureSettings = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -667,6 +994,82 @@ class Style {
 		return v;
 	}
 
+	inline function get_paddingTop():Float
+		return padding.top;
+
+	inline function get_paddingRight():Float
+		return padding.right;
+
+	inline function get_paddingBottom():Float
+		return padding.bottom;
+
+	inline function get_paddingLeft():Float
+		return padding.left;
+
+	inline function get_marginTop():Float
+		return margin.top;
+
+	inline function get_marginRight():Float
+		return margin.right;
+
+	inline function get_marginBottom():Float
+		return margin.bottom;
+
+	inline function get_marginLeft():Float
+		return margin.left;
+
+	// (a side the same: NaN, auto, as auto)
+	static inline function sameSide(a:Float, b:Float):Bool
+		return a == b || Math.isNaN(a) && Math.isNaN(b);
+
+	function set_paddingTop(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.top)) padding = new Edges(v, p.right, p.bottom, p.left);
+		return v;
+	}
+
+	function set_paddingRight(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.right)) padding = new Edges(p.top, v, p.bottom, p.left);
+		return v;
+	}
+
+	function set_paddingBottom(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.bottom)) padding = new Edges(p.top, p.right, v, p.left);
+		return v;
+	}
+
+	function set_paddingLeft(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.left)) padding = new Edges(p.top, p.right, p.bottom, v);
+		return v;
+	}
+
+	function set_marginTop(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.top)) margin = new Edges(v, m.right, m.bottom, m.left);
+		return v;
+	}
+
+	function set_marginRight(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.right)) margin = new Edges(m.top, v, m.bottom, m.left);
+		return v;
+	}
+
+	function set_marginBottom(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.bottom)) margin = new Edges(m.top, m.right, v, m.left);
+		return v;
+	}
+
+	function set_marginLeft(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.left)) margin = new Edges(m.top, m.right, m.bottom, v);
+		return v;
+	}
+
 	function set_margin(v:EdgesValue):EdgesValue {
 		if (false) return v;
 		margin = v;
@@ -749,13 +1152,34 @@ class Style {
 	}
 
 	function set_overflow(v:Overflow):Overflow {
-		if (v == overflow) return v;
-		overflow = v;
+		if (v == overflow && v == overflowX && v == overflowY) return v;
+		overflow = overflowX = overflowY = v;
 		node.styleChanged(true);
 		return v;
 	}
 
+	function set_overflowX(v:Overflow):Overflow {
+		if (v == overflowX) return v;
+		overflowX = v;
+		bothAxes();
+		return v;
+	}
+
+	function set_overflowY(v:Overflow):Overflow {
+		if (v == overflowY) return v;
+		overflowY = v;
+		bothAxes();
+		return v;
+	}
+
+	// (the two axes together, as overflow reads)
+	function bothAxes() {
+		@:bypassAccessor overflow = overflowX == Scroll || overflowY == Scroll ? Scroll : overflowX == Hidden || overflowY == Hidden ? Hidden : Visible;
+		node.styleChanged(true);
+	}
+
 	function set_background(v:Color):Color {
+		if (rare != null && rare.transition != null && eases("background", background, v)) return v;
 		if (v == background) return v;
 		background = v;
 		node.styleChanged(false);
@@ -770,6 +1194,7 @@ class Style {
 	}
 
 	function set_transform(v:Null<Transform>):Null<Transform> {
+		if (rare != null && rare.transition != null && eases("transform", transform, v)) return v;
 		if (v == transform) return v;
 		var was = transform != null;
 		more().transform = v;
@@ -787,6 +1212,7 @@ class Style {
 	}
 
 	function set_borderColor(v:Color):Color {
+		if (rare != null && rare.transition != null && eases("borderColor", borderColor, v)) return v;
 		if (v == borderColor) return v;
 		borderColor = v;
 		node.styleChanged(false);
@@ -801,6 +1227,7 @@ class Style {
 	}
 
 	function set_opacity(v:Float):Float {
+		if (rare != null && rare.transition != null && eases("opacity", opacity, v)) return v;
 		if (v == opacity) return v;
 		if ((v <= 0) != (opacity <= 0)) Ui.accessEpoch++;
 		opacity = v;
@@ -815,7 +1242,42 @@ class Style {
 		return v;
 	}
 
+	function set_outline(v:Float):Float {
+		outlineWidth = v;
+		outlineColor = null;
+		return v;
+	}
+
+	function set_outlineWidth(v:Float):Float {
+		if (v == outlineWidth) return v;
+		more().outlineWidth = v;
+		outlined();
+		return v;
+	}
+
+	function set_outlineOffset(v:Float):Float {
+		if (v == outlineOffset) return v;
+		more().outlineOffset = v;
+		outlined();
+		return v;
+	}
+
+	function set_outlineColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("outlineColor", outlineColor, v)) return v;
+		if (v == outlineColor) return v;
+		more().outlineColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	// (how far outside its box an outline draws: the paint's culling widens bounds by the most seen, as for shadows)
+	function outlined() {
+		if (outlineWidth > 0) Ui.shadowReach = Math.max(Ui.shadowReach, outlineWidth + Math.max(0, outlineOffset) + 1);
+		node.styleChanged(false);
+	}
+
 	function set_shadow(v:Null<Shadow>):Null<Shadow> {
+		if (rare != null && rare.transition != null && eases("shadow", shadow, v)) return v;
 		if (v == shadow) return v;
 		more().shadow = v;
 		// (how far outside its box a shadow draws: the paint's culling widens bounds by the most seen)
@@ -829,6 +1291,7 @@ class Style {
 	}
 
 	function set_color(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("color", color, v)) return v;
 		if (v == color) return v;
 		color = v;
 		node.styleChanged(false);
@@ -877,10 +1340,59 @@ class Style {
 		return v;
 	}
 
+	function set_lineHeightPx(v:Null<Float>):Null<Float> {
+		if (v == lineHeightPx) return v;
+		more().lineHeightPx = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_letterSpacingEm(v:Null<Float>):Null<Float> {
+		if (v == letterSpacingEm) return v;
+		more().letterSpacingEm = v;
+		node.styleChanged(true);
+		return v;
+	}
+
 	function set_lineHeight(v:Null<Float>):Null<Float> {
 		if (v == lineHeight) return v;
 		lineHeight = v;
 		node.styleChanged(true);
+		return v;
+	}
+
+	function set_textDecorationThickness(v:Dim):Dim {
+		if (v == textDecorationThickness) return v;
+		more().textDecorationThickness = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_textUnderlineOffset(v:Dim):Dim {
+		if (v == textUnderlineOffset) return v;
+		more().textUnderlineOffset = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_textDecorationColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("textDecorationColor", textDecorationColor, v)) return v;
+		if (v == textDecorationColor) return v;
+		more().textDecorationColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_textShadow(v:Null<Shadow>):Null<Shadow> {
+		if (v == textShadow) return v;
+		more().textShadow = v;
+		// (its reach outside the text's box, as a box shadow's)
+		var sh = v;
+		while (sh != null) {
+			Ui.shadowReach = Math.max(Ui.shadowReach, Math.max(Math.abs(sh.x), Math.abs(sh.y)) + 1.5 * sh.blur + 1);
+			sh = sh.next;
+		}
+		node.styleChanged(false);
 		return v;
 	}
 
@@ -922,6 +1434,14 @@ class Style {
 		if (p.aspectRatio != null) aspectRatio = p.aspectRatio;
 		if (p.padding != null) padding = p.padding;
 		if (p.margin != null) margin = p.margin;
+		if (p.paddingTop != null) paddingTop = p.paddingTop;
+		if (p.paddingRight != null) paddingRight = p.paddingRight;
+		if (p.paddingBottom != null) paddingBottom = p.paddingBottom;
+		if (p.paddingLeft != null) paddingLeft = p.paddingLeft;
+		if (p.marginTop != null) marginTop = p.marginTop;
+		if (p.marginRight != null) marginRight = p.marginRight;
+		if (p.marginBottom != null) marginBottom = p.marginBottom;
+		if (p.marginLeft != null) marginLeft = p.marginLeft;
 		if (p.borderWidth != null) borderWidth = p.borderWidth;
 		if (p.borders != null) borders = p.borders;
 		if (p.rowGap != null) rowGap = p.rowGap;
@@ -931,6 +1451,8 @@ class Style {
 		if (p.right != null) right = p.right;
 		if (p.bottom != null) bottom = p.bottom;
 		if (p.overflow != null) overflow = p.overflow;
+		if (p.overflowX != null) overflowX = p.overflowX;
+		if (p.overflowY != null) overflowY = p.overflowY;
 		if (p.background != null) background = p.background;
 		if (p.backgroundImage != null) backgroundImage = p.backgroundImage;
 		if (p.borderColor != null) borderColor = p.borderColor;
@@ -939,6 +1461,9 @@ class Style {
 		if (p.opacity != null) opacity = p.opacity;
 		if (p.cursor != null) cursor = p.cursor;
 		if (p.shadow != null) shadow = p.shadow;
+		if (p.outlineWidth != null) outlineWidth = p.outlineWidth;
+		if (p.outlineOffset != null) outlineOffset = p.outlineOffset;
+		if (p.outlineColor != null) outlineColor = p.outlineColor;
 		if (p.transform != null) transform = p.transform;
 		if (p.transformOrigin != null) transformOrigin = p.transformOrigin;
 		if (p.color != null) color = p.color;
@@ -949,9 +1474,18 @@ class Style {
 		if (p.lineHeight != null) lineHeight = p.lineHeight;
 		if (p.letterSpacing != null) letterSpacing = p.letterSpacing;
 		if (p.wordSpacing != null) wordSpacing = p.wordSpacing;
+		if (p.lineHeightPx != null) lineHeightPx = p.lineHeightPx;
+		if (p.letterSpacingEm != null) letterSpacingEm = p.letterSpacingEm;
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
+		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
+		if (p.userSelect != null) userSelect = p.userSelect;
+		if (p.ringWidth != null) ringWidth = p.ringWidth;
+		if (p.ringColor != null) ringColor = p.ringColor;
+		if (p.ringOffsetWidth != null) ringOffsetWidth = p.ringOffsetWidth;
+		if (p.ringOffsetColor != null) ringOffsetColor = p.ringOffsetColor;
+		if (p.ringInset != null) ringInset = p.ringInset;
 		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
 		if (p.gap != null) gap = p.gap;
@@ -959,11 +1493,18 @@ class Style {
 		if (p.flex != null) flex = p.flex;
 		if (p.overflowWrap != null) overflowWrap = p.overflowWrap;
 		if (p.wordBreak != null) wordBreak = p.wordBreak;
+		if (p.fontFeatureSettings != null) fontFeatureSettings = p.fontFeatureSettings;
+		if (p.fontVariantNumeric != null) fontVariantNumeric = p.fontVariantNumeric;
 		if (p.textTransform != null) textTransform = p.textTransform;
 		if (p.textOverflow != null) textOverflow = p.textOverflow;
 		if (p.order != null) order = p.order;
 		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
+		if (p.textShadow != null) textShadow = p.textShadow;
+		if (p.transition != null) transition = p.transition;
+		if (p.textDecorationColor != null) textDecorationColor = p.textDecorationColor;
+		if (p.textDecorationThickness != null) textDecorationThickness = p.textDecorationThickness;
+		if (p.textUnderlineOffset != null) textUnderlineOffset = p.textUnderlineOffset;
 		if (p.maxLines != null) maxLines = p.maxLines;
 		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
 		if (p.gridTemplateRows != null) gridTemplateRows = p.gridTemplateRows;
@@ -998,22 +1539,45 @@ private class StyleRare {
 	public var corners:Null<CornersValue> = null;
 	public var backgroundImage:Null<Gradient> = null;
 	public var shadow:Null<Shadow> = null;
+	public var outlineWidth:Float = 0;
+	public var outlineOffset:Float = 0;
+	public var outlineColor:Null<Color> = null;
 	public var transform:Null<Transform> = null;
 	public var transformOrigin:Null<Array<Dim>> = null;
 	public var letterSpacing:Null<Float> = null;
 	public var wordSpacing:Null<Float> = null;
+	public var lineHeightPx:Null<Float> = null;
+	public var letterSpacingEm:Null<Float> = null;
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
+	public var outlineStyle:Null<OutlineStyle> = null;
+	public var userSelect:Null<UserSelect> = null;
+	public var ringWidth:Float = 0;
+	public var ringColor:Null<Color> = null;
+	public var ringOffsetWidth:Float = 0;
+	public var ringOffsetColor:Color = Color.WHITE;
+	public var ringInset = false;
 	public var pointerEvents:Null<PointerEvents> = null;
 	public var textWrap:Null<TextWrap> = null;
 	public var overflowWrap:Null<OverflowWrap> = null;
 	public var wordBreak:Null<WordBreak> = null;
+	public var fontFeatureSettings:Null<String> = null;
+	public var fontVariantNumeric:Null<String> = null;
 	public var textTransform:Null<TextTransform> = null;
 	public var textOverflow:TextOverflow = Clip;
 	public var order:Int = 0;
 	public var zIndex:Int = 0;
 	public var textDecoration:Int = 0;
+	public var textShadow:Null<Shadow> = null;
+	public var textDecorationColor:Null<Color> = null;
+	public var transition:Null<Transition> = null;
+	// (the properties moving under it; whether the Clock steps them, whether a step is writing them)
+	public var moving:Null<Array<Moving>> = null;
+	public var ticking = false;
+	public var stepping = false;
+	public var textDecorationThickness:Dim = DimValue.Auto;
+	public var textUnderlineOffset:Dim = DimValue.Auto;
 	public var left:Dim = DimValue.Auto;
 	public var top:Dim = DimValue.Auto;
 	public var right:Dim = DimValue.Auto;
@@ -1021,3 +1585,6 @@ private class StyleRare {
 
 	public function new() {}
 }
+
+// (a property moving under a transition: from where, to what, since when (-1: the next tick), its timing)
+private typedef Moving = {name:String, from:Dynamic, to:Dynamic, start:Float, duration:Float, delay:Float, easing:Array<Float>};

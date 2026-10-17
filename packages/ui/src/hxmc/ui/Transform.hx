@@ -15,11 +15,34 @@ class Transform {
 	final args:Array<Array<Float>>;
 	final percent:Array<Array<Bool>>;
 
-	function new(names, args, percent) {
+	// the functions as parse reads them, without the text: names (CSS's,
+	// any case: "translateX"), arguments, and which are percentages (none
+	// when not given): new Transform(["translate"], [[-50, -50]], [[true,
+	// true]]) is translate(-50%, -50%)
+	public function new(names:Array<String>, args:Array<Array<Float>>, ?percent:Array<Array<Bool>>) {
+		if (args.length != names.length || (percent != null && percent.length != names.length))
+			throw "Transform: " + names.length + " functions, " + args.length + " argument lists";
+		names = [for (n in names) n.toLowerCase()];
+		for (k => n in names) {
+			var vs = args[k];
+			if (!arity(n, vs.length)) throw "Transform: wrong arguments to " + n + ": " + vs;
+			if (percent != null && percent[k].length != vs.length) throw "Transform: percentages not one to an argument of " + n;
+			for (v in vs)
+				if (Math.isNaN(v)) throw "Transform: not a value in " + n;
+		}
 		this.names = names;
 		this.args = args;
-		this.percent = percent;
+		this.percent = percent ?? [for (vs in args) [for (_ in vs) false]];
 	}
+
+	// (whether name takes count arguments; throws on a name not CSS's)
+	static function arity(name:String, count:Int):Bool
+		return switch name {
+			case "translate" | "scale" | "skew": count == 1 || count == 2;
+			case "translatex" | "translatey" | "scalex" | "scaley" | "rotate" | "skewx" | "skewy": count == 1;
+			case "matrix": count == 6;
+			case _: throw "Transform: unknown function: " + name;
+		}
 
 	public static function parse(css:String):Transform {
 		var names = [], args = [], percent = [];
@@ -43,12 +66,7 @@ class Transform {
 				vs.push(v);
 				ps.push(!angle && StringTools.endsWith(r, "%"));
 			}
-			var count = switch name {
-				case "translate" | "scale" | "skew": vs.length == 1 || vs.length == 2;
-				case "translatex" | "translatey" | "scalex" | "scaley" | "rotate" | "skewx" | "skewy": vs.length == 1;
-				case "matrix": vs.length == 6;
-				case _: throw "Transform: unknown function: " + name + " in " + css;
-			}
+			var count = try arity(name, vs.length) catch (e:String) throw e + " in " + css;
 			if (!count) throw "Transform: wrong arguments to " + name + " in " + css;
 			names.push(name);
 			args.push(vs);
@@ -131,6 +149,35 @@ class Transform {
 		var p = Gradient.position(StringTools.trim(css));
 		return [Dim.parse(p.x), Dim.parse(p.y)];
 	}
+
+	// a transform a fraction k of the way from a to b (null: none), as CSS
+	// interpolates them: function by function where both have the same
+	// ones, none against the other's functions at their identity; else
+	// their matrices' entries (a box's pixels: a percentage translation as
+	// it is at k's end)
+	public static function between(a:Null<Transform>, b:Null<Transform>, k:Float):Null<Transform> {
+		if (a == null && b == null) return null;
+		if (a == null || a.names.length == 0) a = b.identity();
+		if (b == null || b.names.length == 0) b = a.identity();
+		var same = a.names.length == b.names.length;
+		if (same)
+			for (i in 0...a.names.length)
+				if (a.names[i] != b.names[i] || a.args[i].length != b.args[i].length || a.percent[i].join(",") != b.percent[i].join(",")) same = false;
+		if (!same) {
+			var m = a.toMatrix(0, 0), n = b.toMatrix(0, 0);
+			return matrix(m[0] + (n[0] - m[0]) * k, m[1] + (n[1] - m[1]) * k, m[2] + (n[2] - m[2]) * k, m[3] + (n[3] - m[3]) * k, m[4] + (n[4] - m[4]) * k,
+				m[5] + (n[5] - m[5]) * k);
+		}
+		return new Transform(a.names.copy(), [for (i in 0...a.args.length) [for (j in 0...a.args[i].length) a.args[i][j] + (b.args[i][j] - a.args[i][j]) * k]],
+			[for (p in a.percent) p.copy()]);
+	}
+
+	// (its functions at their identities: no translation, scale 1, no turn or skew)
+	function identity():Transform
+		return new Transform(names.copy(), [
+			for (i in 0...names.length)
+				[for (j in 0...args[i].length) names[i] == "matrix" ? (j == 0 || j == 3 ? 1.0 : 0.0) : StringTools.startsWith(names[i], "scale") ? 1.0 : 0.0]
+		], [for (p in percent) p.copy()]);
 
 	public function toString():String
 		return [for (i in 0...names.length) names[i] + "(" + [for (k in 0...args[i].length) args[i][k] + (percent[i][k] ? "%" : "")].join(", ") + ")"].join(" ");

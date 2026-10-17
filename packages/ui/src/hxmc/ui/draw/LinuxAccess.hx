@@ -281,6 +281,8 @@ class LinuxAccess {
 			case SpinButton: 52;
 			case MenuBar: 34;
 			case Toolbar: 63;
+			// (ATSPI_ROLE_LANDMARK)
+			case Navigation: 110;
 			case Group | TabPanel: 39;
 		}
 
@@ -289,7 +291,7 @@ class LinuxAccess {
 		35 => "menu item", 37 => "page tab", 38 => "page tab list", 39 => "panel", 42 => "progress bar", 43 => "push button", 44 => "radio button",
 		49 => "scroll pane", 51 => "slider", 62 => "toggle button", 64 => "tool tip", 75 => "application", 79 => "entry", 83 => "heading", 88 => "link",
 		98 => "list box", 99 => "grouping", 55 => "table", 56 => "table cell", 57 => "table column header", 90 => "table row", 65 => "tree",
-		91 => "tree item", 50 => "separator", 52 => "spin button"
+		91 => "tree item", 50 => "separator", 52 => "spin button", 63 => "tool bar", 110 => "landmark"
 	];
 
 	function roleOf(id:Int):Int
@@ -507,9 +509,18 @@ class LinuxAccess {
 					basicInt(a, sub, "u".code, b);
 				DBus.dbus_message_iter_close_container(it, sub);
 			case ["org.a11y.atspi.Accessible", "GetAttributes"]:
-				// (a live region: live and container-live, as Chromium gives them)
+				// (a live region: live and container-live, as Chromium gives them; a landmark's kind, the current one of a set)
 				var sub = a.alloc(128), entry = a.alloc(128), live = n == null ? null : n.live.aria();
 				DBus.dbus_message_iter_open_container(it, "a".code, a.cstring("{ss}"), sub);
+				var pairs = [];
+				if (n != null && n.role == Navigation) pairs.push(["xml-roles", "navigation"]);
+				if (n != null && n.current) pairs.push(["current", "page"]);
+				for (p in pairs) {
+					DBus.dbus_message_iter_open_container(sub, "e".code, Ptr.nil(), entry);
+					basicString(a, entry, "s".code, p[0]);
+					basicString(a, entry, "s".code, p[1]);
+					DBus.dbus_message_iter_close_container(sub, entry);
+				}
 				if (live != null)
 					for (k in ["live", "container-live"]) {
 						DBus.dbus_message_iter_open_container(sub, "e".code, Ptr.nil(), entry);

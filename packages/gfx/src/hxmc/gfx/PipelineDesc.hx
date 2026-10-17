@@ -13,5 +13,11 @@ typedef PipelineDesc = {
 	// the depth test (default Always: none) and whether fragments that pass
 	// it write their depth (default false)
 	?depthCompare:Compare,
-	?depthWrite:Bool
+	?depthWrite:Bool,
+	// the passes it draws in (Metal and WebGPU make pipelines for their
+	// targets' formats): by default the frame's (its colour and the device's
+	// depth buffer); colorFormat, a render target's, and depthFormat, its
+	// depth texture's (by default none)
+	?colorFormat:TextureFormat,
+	?depthFormat:TextureFormat
 }

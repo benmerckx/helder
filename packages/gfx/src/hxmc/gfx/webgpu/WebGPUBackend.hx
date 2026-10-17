@@ -15,7 +15,9 @@ import hxmc.unsafe.*;
 // a browser: the JavaScript side's readPixels (imports.mjs) reads a frame
 // back asynchronously instead. Uniform blocks and textures are a bind group
 // (group 0, its layout from the shaders' bindings; uniform blocks at dynamic
-// offsets into one ring buffer, written each frame before the submit).
+// offsets into one ring buffer, written each frame before the submit). A
+// pass into a texture renders into its first level's view; generateMips is
+// a pass per level on the JavaScript side.
 class WebGPUBackend {
 	public final backend = Backend.WebGPU;
 	public var width(default, null) = 0;
@@ -25,7 +27,7 @@ class WebGPUBackend {
 	final target:Int;
 	final handles:Array<Int> = []; // what dispose releases
 	final bindings = new Map<Int, Array<ShaderBinding>>(); // each shader's
-	final textureSizes = new Map<Int, Int>(); // each texture's width * height
+	final infos = new Map<Int, TextureInfo>(); // each texture's
 	var cursor = 0; // into the frame's uniform ring
 
 	public function new(surface:Surface) {
@@ -56,17 +58,23 @@ class WebGPUBackend {
 	}
 
 	public function createTexture(d:TextureDesc):Int {
+		var info = TextureInfo.of(d);
 		// (the Bytes cannot move during the call: no collection in an import)
-		var t = WebGPU.texture(d.width, d.height, d.data == null ? Ptr.nil() : Mem.addr(d.data).add(8));
-		textureSizes.set(t, d.width * d.height);
+		var t = WebGPU.texture(info.width, info.height, cast info.format, info.levels, info.target ? 1 : 0, d.data == null ? Ptr.nil() : Mem.addr(d.data).add(8));
+		infos.set(t, info);
 		handles.push(t);
 		return t;
 	}
 
-	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int) {
-		if (w < 0 && data.length < textureSizes.get(id) * 4) throw "hxmc.gfx: writeTexture: data has fewer than width * height * 4 bytes";
-		// (w < 0: all of it, the JavaScript side knows its size)
-		WebGPU.write_texture(id, x, y, w, h, Mem.addr(data).add(8 + dataOffset));
+	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
+		var info = infos.get(id);
+		info.checkWrite(data, x, y, w, h, dataOffset, level);
+		WebGPU.write_texture(id, x, y, info.w, info.h, level, Mem.addr(data).add(8 + dataOffset));
+	}
+
+	public function generateMips(id:Int) {
+		infos.get(id).checkMips();
+		WebGPU.generate_mips(id);
 	}
 
 	public function destroyBuffer(id:Int) {
@@ -75,13 +83,13 @@ class WebGPUBackend {
 	}
 
 	public function destroyTexture(id:Int) {
-		textureSizes.remove(id);
+		infos.remove(id);
 		destroyBuffer(id);
 	}
 
 	public function createSampler(d:SamplerDesc):Int {
 		var f:Filter = d.filter == null ? Linear : d.filter, w:Wrap = d.wrap == null ? Repeat : d.wrap;
-		var s = WebGPU.sampler(cast f, cast w);
+		var s = WebGPU.sampler(cast f, d.mipFilter == null ? 0 : d.mipFilter == Nearest ? 1 : 2, cast w);
 		handles.push(s);
 		return s;
 	}
@@ -109,7 +117,10 @@ class WebGPUBackend {
 			}
 		var topology:Topology = d.topology == null ? Triangles : d.topology, cull:Cull = d.cull == null ? None : d.cull;
 		var blend:Blend = d.blend == null ? Opaque : d.blend, compare:Compare = d.depthCompare == null ? Always : d.depthCompare;
-		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull, cast blend, cast compare, d.depthWrite == true ? 1 : 0);
+		var color = d.colorFormat == null ? -1 : (cast d.colorFormat : Int);
+		var depth = d.depthFormat != null ? (cast d.depthFormat : Int) : d.colorFormat == null ? (cast TextureFormat.Depth32F : Int) : -1;
+		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull, cast blend, cast compare, d.depthWrite == true ? 1 : 0,
+			color, depth);
 		handles.push(p);
 		return p;
 	}
@@ -125,7 +136,10 @@ class WebGPUBackend {
 	public function beginPass(p:PassDesc) {
 		var c = p.colors[0], k = c.clear, d = p.depth;
 		var depthLoad:LoadOp = d == null ? Load : d.load, depth = d == null || d.clear == null ? 1.0 : d.clear;
-		if (k == null) WebGPU.pass_begin(cast c.load, 0, 0, 0, 1, cast depthLoad, depth) else WebGPU.pass_begin(cast c.load, k.r, k.g, k.b, k.a, cast depthLoad, depth);
+		var color = c.texture == null ? 0 : c.texture.id(), depthTexture = d == null || d.texture == null ? 0 : d.texture.id();
+		if (color != 0) infos.get(color).checkPass(d);
+		if (k == null) WebGPU.pass_begin(color, cast c.load, 0, 0, 0, 1, depthTexture, cast depthLoad, depth) else
+			WebGPU.pass_begin(color, cast c.load, k.r, k.g, k.b, k.a, depthTexture, cast depthLoad, depth);
 	}
 
 	public inline function setPipeline(id:Int)

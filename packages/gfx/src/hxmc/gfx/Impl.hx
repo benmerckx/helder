@@ -57,10 +57,13 @@ abstract Impl(Any) {
 	public inline function createTexture(d:TextureDesc):Int
 		return Mem.os() == 1 ? mtl().createTexture(d) : Mem.os() == 2 ? d3d().createTexture(d) : Mem.os() != 3 ? gl().createTexture(d) : webgl() ? gl().createTexture(d) : wgpu().createTexture(d);
 
-	public inline function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int)
-		Mem.os() == 1 ? mtl().writeTexture(id, data, x, y, w, h, dataOffset) : Mem.os() == 2 ? d3d().writeTexture(id, data, x, y, w, h,
-			dataOffset) : Mem.os() != 3 ? gl().writeTexture(id, data, x, y, w, h, dataOffset) : webgl() ? gl().writeTexture(id, data, x, y, w, h,
-			dataOffset) : wgpu().writeTexture(id, data, x, y, w, h, dataOffset);
+	public inline function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int)
+		Mem.os() == 1 ? mtl().writeTexture(id, data, x, y, w, h, dataOffset, level) : Mem.os() == 2 ? d3d().writeTexture(id, data, x, y, w, h, dataOffset,
+			level) : Mem.os() != 3 ? gl().writeTexture(id, data, x, y, w, h, dataOffset, level) : webgl() ? gl().writeTexture(id, data, x, y, w, h,
+			dataOffset, level) : wgpu().writeTexture(id, data, x, y, w, h, dataOffset, level);
+
+	public inline function generateMips(id:Int)
+		Mem.os() == 1 ? mtl().generateMips(id) : Mem.os() == 2 ? d3d().generateMips(id) : Mem.os() != 3 ? gl().generateMips(id) : webgl() ? gl().generateMips(id) : wgpu().generateMips(id);
 
 	public inline function destroyBuffer(id:Int)
 		Mem.os() == 1 ? mtl().destroyBuffer(id) : Mem.os() == 2 ? d3d().destroyBuffer(id) : Mem.os() != 3 ? gl().destroyBuffer(id) : webgl() ? gl().destroyBuffer(id) : wgpu().destroyBuffer(id);

@@ -5,7 +5,7 @@ import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
-import hxmc.ui.widgets.Widgets.Field;
+import hxmc.ui.widgets.Widgets.Input;
 
 // hxmc.ui's accessibility on Linux (LinuxAccess; make ui-draw-check, under
 // Xvfb and a D-Bus session with AT-SPI's bus): a window of widgets whose
@@ -26,7 +26,7 @@ class LinuxAccessTest implements Markup {
 			}}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<Field tag="name" value={name} placeholder="Name"/>
+			<Input tag="name" value={name} placeholder="Name"/>
 			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var start = haxe.Timer.stamp();

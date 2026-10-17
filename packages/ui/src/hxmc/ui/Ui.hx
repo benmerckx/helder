@@ -35,7 +35,54 @@ class Ui {
 	public var pointerX(default, null) = 0.0;
 	public var pointerY(default, null) = 0.0;
 	// the focus was moved by the keyboard: its ring shows
-	public var focusVisible(default, null) = false;
+	public var focusVisible(default, set) = false;
+	// the window's theme (StyleSheet: its rules for the nodes with a slot,
+	// its colours; a subtree's own wins, Node.theme), and whether the dark
+	// colours and the rules for "dark" apply
+	public var theme(default, set):Null<StyleSheet> = null;
+	public var dark(default, set) = false;
+
+	function set_focusVisible(v:Bool):Bool {
+		if (v == focusVisible) return v;
+		focusVisible = v;
+		// (the focused node's rules for focus-visible)
+		if (focus != null) {
+			@:privateAccess focus.restyleLater();
+			focus.statesChanged();
+		}
+		return v;
+	}
+
+	// (the nodes whose rules apply again at the next update: Node.restyleLater)
+	var restyles:Array<Node> = [];
+
+	// applies the rules of the nodes waiting for it (update does, before layout)
+	public function flushRestyles() {
+		while (restyles.length > 0) {
+			var list = restyles;
+			restyles = [];
+			for (n in list) {
+				@:privateAccess n.restylePending = false;
+				Rules.restyle(n);
+			}
+		}
+	}
+
+	function set_theme(v:Null<StyleSheet>):Null<StyleSheet> {
+		if (v == theme) return v;
+		theme = v;
+		Rules.restyleTree(root);
+		requestFrame();
+		return v;
+	}
+
+	function set_dark(v:Bool):Bool {
+		if (v == dark) return v;
+		dark = v;
+		Rules.restyleTree(root);
+		requestFrame();
+		return v;
+	}
 	// where widgets copy and paste text (UiWindow: the system's)
 	// the window's pixels to the UI's (a Retina display's 2): what drawings are rasterized at
 	public var scale = 1.0;
@@ -77,10 +124,27 @@ class Ui {
 
 	public function resize(width:Float, height:Float) {
 		if (width == this.width && height == this.height) return;
+		var was = breakpoint(this.width);
 		this.width = width;
 		this.height = height;
 		root.markDirty();
 		overlay.markDirty();
+		// (across a breakpoint: the rules for sm, md... hold or not)
+		if (breakpoint(width) != was) {
+			Rules.restyleTree(root);
+			Rules.restyleTree(overlay);
+		}
+	}
+
+	// Tailwind's breakpoints (sm, md, lg, xl, 2xl: the window at least so wide, in pixels)
+	public static final BREAKPOINTS = ["sm" => 640.0, "md" => 768.0, "lg" => 1024.0, "xl" => 1280.0, "2xl" => 1536.0];
+
+	// (how many of them a width reaches)
+	static function breakpoint(w:Float):Int {
+		var k = 0;
+		for (b in BREAKPOINTS)
+			if (w >= b) k++;
+		return k;
 	}
 
 	public function requestFrame()
@@ -88,6 +152,7 @@ class Ui {
 
 	// lays the tree out if it changed (a tree that did not: nothing done)
 	public function update() {
+		flushRestyles();
 		Layout.run(root, width, height, text, rounded);
 		if (root.inkStale) refreshInk(root);
 		if (overlay.children.length > 0) {
@@ -134,6 +199,10 @@ class Ui {
 	function paintNode(n:Node, canvas:Canvas) {
 		var s = n.style;
 		if (s.display == None || n.width <= 0 && n.height <= 0 && n.children.length == 0) return;
+		if (!@:privateAccess s.drawn) {
+			@:privateAccess s.drawn = true;
+			if (@:privateAccess s.starting) @:privateAccess n.restyleLater();
+		}
 		if (s.opacity <= 0) return;
 		var m = n.transformMatrix();
 		// (its ink, widened by what rings, shadows and glyphs' overhang add, out of sight: left out)
@@ -163,7 +232,7 @@ class Ui {
 		}
 		// (the shadows outside: the last one first, under the others; not
 		// under the box, as CSS clips them, unless its background hides them)
-		var shadows = s.shadow == null || hidden ? null : s.shadow.painted();
+		var shadows = hidden ? null : s.paintedShadows();
 		var opaque = s.background.a == 255 && s.backgroundImage == null;
 		if (shadows != null)
 			for (sh in shadows) {
@@ -231,7 +300,15 @@ class Ui {
 				if (t != null) canvas.rect(t[0], t[1], t[2], t[3], SCROLLBAR / 2, drag == n && dragX == x ? scrollbarActiveColor : scrollbarColor, 0, 0);
 			}
 		}
-		if (n == focus && focusVisible && focusRingWidth > 0 && !hidden) {
+		// (its outline over its content, the focus ring over that)
+		if (s.outlineWidth > 0 && !hidden && s.outlineStyle != None) {
+			var o = s.outlineOffset + s.outlineWidth;
+			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, Color.TRANSPARENT,
+				s.outlineWidth, s.outlineColor ?? n.textColor(), cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0,
+					cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0, cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0,
+					cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0));
+		}
+		if (n == focus && focusVisible && focusRingWidth > 0 && !hidden && (s.outlineStyle == null || s.outlineStyle == Auto)) {
 			var o = focusRingOffset + focusRingWidth;
 			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
 				focusRingColor, cs == null ? null : new Corners(cs.topLeft > 0 ? cs.topLeft + o : 0, cs.topRight > 0 ? cs.topRight + o : 0,
@@ -463,8 +540,12 @@ class Ui {
 	// a word on a double click, all of it on a triple; elsewhere it is dropped
 	function selectAt(target:Null<Node>, x:Float, y:Float, button:Int) {
 		var t:Null<TextNode> = null, n = target;
+		// (a text selectable by its own flag, or by user-select text or all; none: not)
 		while (n != null) {
-			if (Std.isOfType(n, TextNode) && (cast n : TextNode).selectable) t = cast n;
+			if (Std.isOfType(n, TextNode)) {
+				var u = n.userSelect();
+				if (u == Text || u == All || (cast n : TextNode).selectable && n.style.userSelect != None) t = cast n;
+			}
 			n = n.parent;
 		}
 		if (t == null || button != 1) {
@@ -492,9 +573,9 @@ class Ui {
 				b++;
 			if (a == b && b < text.length) b++;
 			textSelection = {node: t, anchor: a, caret: b};
-		} else if (selClicks >= 3) textSelection = {node: t, anchor: 0, caret: text.length};
+		} else if (selClicks >= 3 || t.userSelect() == All) textSelection = {node: t, anchor: 0, caret: text.length};
 		else textSelection = {node: t, anchor: i, caret: i};
-		selecting = selClicks == 1;
+		selecting = selClicks == 1 && t.userSelect() != All;
 		requestFrame();
 	}
 
@@ -921,7 +1002,7 @@ class Ui {
 	}
 
 	static function canScroll(n:Node, d:Float, x:Bool):Bool {
-		if (d == 0) return false;
+		if (d == 0 || (x ? n.style.overflowX : n.style.overflowY) != Scroll) return false;
 		var lo = scrollStart(n, x), v = x ? n.scrollX : n.scrollY;
 		return d > 0 ? v < lo + maxScroll(n, x) : v > lo;
 	}
@@ -1049,6 +1130,7 @@ class Ui {
 	// the thumb's rectangle (x, y, w, h: absolute, unscrolled), or null when n
 	// does not overflow on the axis
 	static function thumb(n:Node, x:Bool):Null<Array<Float>> {
+		if ((x ? n.style.overflowX : n.style.overflowY) != Scroll) return null;
 		var max = maxScroll(n, x);
 		if (max <= 0) return null;
 		var t = track(n, x);

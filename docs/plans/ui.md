@@ -355,6 +355,15 @@ Since the design above (October 2026), in this order:
   selection), Toolbar (Role.Toolbar on every adapter), Sortable, RangeSlider and
   ColorPicker; tabs, radio
   groups and toolbars one stop for Tab, moved through by the arrows.
+- Layout closer to CSS, each piece against Chromium (layout-cases.mjs,
+  and random flex trees, about 97% of them exactly as Chromium lays them
+  out): auto margins, baseline alignment, `min-content`, `max-content`
+  and `fit-content` widths, the `gap`, `inset` and `flex` shorthands,
+  percentages of indefinite heights as auto, the content-box base size in
+  shrinking, absolute boxes' shrink-to-fit width and self-alignment;
+  text's `overflowWrap`, `wordBreak` and soft hyphens. SegmentedControl,
+  Breadcrumbs and Pagination, with a navigation landmark role and
+  aria-current on every adapter.
 - Images: animated PNGs (APNG) as Chromium composes them, and PNG
   decoding about three times faster (hxmc's haxe.zip.InflateImpl inflating a
   BytesInput whole).
@@ -372,11 +381,13 @@ Where this departs from section 6:
 - **Text starts with a built-in rasterizer** rather than the platforms'
   shapers: the same pixels on every machine and target (golden images in
   CI, the browser without font files). Its limits are the shapers' reasons
-  to come next: no optional ligatures or Indic shaping (GSUB beyond
-  Arabic's forms, the standard ligatures and colour sequences), no
-  explicit bidi embeddings, no hinting or subpixel rendering, no variable
-  fonts' CFF2. Bidi ordering, Arabic's joining, the ligatures and marks on
-  their bases match Chromium's widths and ink on the test strings.
+  to come next: no Indic shaping (GSUB's multiple and reverse chained
+  substitutions, lookup flags), no explicit bidi embeddings, no hinting or
+  subpixel rendering, no variable fonts' CFF2. Bidi ordering, Arabic's
+  joining, the standard and contextual ligatures and alternates (liga,
+  clig, calt), the features asked for (font-feature-settings,
+  font-variant-numeric), letter spacing (none in cursive scripts) and
+  marks on their bases match Chromium's widths and ink on the test strings.
 - **Layout uses CSS's automatic minimum size**, not Yoga's 0: items do not
   shrink below their content, so text is not squashed (a container that
   must shrink sets `minHeight: 0`, as in CSS).

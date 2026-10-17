@@ -23,8 +23,11 @@ import hxmc.unsafe.*;
 // vertex, so drawIndexed's moves the vertex attributes' offsets instead
 // (not an instance buffer's: its attributes have divisor 1).
 // A texture at slot n is bound to texture unit n with its sampler object.
-// The shader macro's fragment stages flip the fragment position with the
-// target's height (u_target_height), set when a pipeline is.
+// The shader macro's stages flip the fragment position with the frame's
+// height and, in a pass into a texture, the position, so that the texture's
+// first row is the image's top as elsewhere (u_target, set when a pipeline
+// is; the front faces turn clockwise there). A pass into a texture renders
+// into one framebuffer object, attached anew when the textures change.
 class GLBackend {
 	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
@@ -50,7 +53,7 @@ class GLBackend {
 	final bindings:Array<Array<ShaderBinding>> = []; // each shader's
 	final pipelines:Array<GLPipeline> = [];
 	final textures:Array<Int> = [];
-	final textureSizes:Array<Int> = []; // width, height
+	final infos:Array<TextureInfo> = [];
 	final samplers:Array<Int> = [];
 
 	// draw state
@@ -67,6 +70,15 @@ class GLBackend {
 	var ioffset = 0;
 	var depthMask = true; // glDepthMask as it is
 	final units = [for (_ in 0...16) 0]; // each texture unit's texture (setTexture)
+	// passes into textures: the framebuffer object (made at the first), its
+	// attachments (texture names), the framebuffer bound; the pass's flip
+	// (rendering upside down into a texture, front faces clockwise)
+	var fbo = 0;
+	var fboColor = 0;
+	var fboDepth = 0;
+	var framebuffer = 0;
+	var flipped = false;
+	var frontCW = false;
 	// the uniform rings (one per frame in flight: made at the first
 	// setUniforms), the frame's, and the next offset into it
 	final rings = [0, 0];
@@ -193,28 +205,47 @@ class GLBackend {
 	}
 
 	public function createTexture(d:TextureDesc):Int {
+		var info = TextureInfo.of(d);
 		GL.glGenTextures(1, scratch);
 		var t = scratch.value;
-		upload(t, d.width, d.height, d.data, true);
 		textures.push(t);
-		textureSizes.push(d.width);
-		textureSizes.push(d.height);
+		infos.push(info);
+		GL.glActiveTexture(GL.TEXTURE0);
+		GL.glBindTexture(GL.TEXTURE_2D, t);
+		// (immutable storage: every level, complete with any sampler)
+		GL.glTexStorage2D(GL.TEXTURE_2D, info.levels, switch info.format {
+			case RGBA8: GL.RGBA8;
+			case RGBA8Srgb: GL.SRGB8_ALPHA8;
+			case R8: GL.R8;
+			case RG8: GL.RG8;
+			case RGBA16F: GL.RGBA16F;
+			case R32F: GL.R32F;
+			case Depth16: GL.DEPTH_COMPONENT16;
+			case Depth32F: GL.DEPTH_COMPONENT32F;
+		}, info.width, info.height);
+		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
+		if (d.data != null) writeTexture(textures.length, d.data, 0, 0, -1, -1, 0, 0);
 		return textures.length;
 	}
 
-	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int) {
-		var tw = textureSizes[2 * id - 2], th = textureSizes[2 * id - 1];
-		if (w < 0) {
-			w = tw;
-			h = th;
-		}
-		if (x + w > tw || y + h > th) throw "hxmc.gfx: writeTexture: outside the texture";
-		if (dataOffset + w * h * 4 > data.length) throw "hxmc.gfx: writeTexture: data has fewer than w * h * 4 bytes";
+	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
+		var info = infos[id - 1];
+		info.checkWrite(data, x, y, w, h, dataOffset, level);
+		var f = info.format;
 		GL.glActiveTexture(GL.TEXTURE0);
 		GL.glBindTexture(GL.TEXTURE_2D, textures[id - 1]);
-		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 4);
+		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 1);
 		// (a fast call: the Bytes cannot move during it)
-		GL.glTexSubImage2D(GL.TEXTURE_2D, 0, x, y, w, h, GL.RGBA, GL.UNSIGNED_BYTE, Mem.addr(data).add(8 + dataOffset));
+		GL.glTexSubImage2D(GL.TEXTURE_2D, level, x, y, info.w, info.h, f == R8 ? GL.RED : f == RG8 ? GL.RG : f == R32F ? GL.RED : GL.RGBA,
+			f == RGBA16F ? GL.HALF_FLOAT : f == R32F ? GL.FLOAT : GL.UNSIGNED_BYTE, Mem.addr(data).add(8 + dataOffset));
+		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
+	}
+
+	public function generateMips(id:Int) {
+		infos[id - 1].checkMips();
+		GL.glActiveTexture(GL.TEXTURE0);
+		GL.glBindTexture(GL.TEXTURE_2D, textures[id - 1]);
+		GL.glGenerateMipmap(GL.TEXTURE_2D);
 		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
 	}
 
@@ -226,38 +257,28 @@ class GLBackend {
 	}
 
 	public function destroyTexture(id:Int) {
-		if (textures[id - 1] == 0) return;
-		scratch.value = textures[id - 1];
+		var t = textures[id - 1];
+		if (t == 0) return;
+		// (a name GL may give again: not the framebuffer's attachment any more)
+		if (t == fboColor) fboColor = -1;
+		if (t == fboDepth) fboDepth = -1;
+		scratch.value = t;
 		GL.glDeleteTextures(1, scratch);
 		textures[id - 1] = 0;
-	}
-
-	// the texels (none: undefined) of a new texture or all of one, through unit
-	// 0, whose texture is put back
-	function upload(t:Int, w:Int, h:Int, data:Null<haxe.io.Bytes>, create:Bool) {
-		GL.glActiveTexture(GL.TEXTURE0);
-		GL.glBindTexture(GL.TEXTURE_2D, t);
-		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 4);
-		// (fast calls: the Bytes cannot move during them)
-		if (create) {
-			GL.glTexImage2D(GL.TEXTURE_2D, 0, GL.RGBA8, w, h, 0, GL.RGBA, GL.UNSIGNED_BYTE, data == null ? Ptr.nil() : Mem.addr(data).add(8));
-			// (one level: complete with any sampler)
-			GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAX_LEVEL, 0);
-			GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR);
-		} else GL.glTexSubImage2D(GL.TEXTURE_2D, 0, 0, 0, w, h, GL.RGBA, GL.UNSIGNED_BYTE, Mem.addr(data).add(8));
-		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
 	}
 
 	public function createSampler(d:SamplerDesc):Int {
 		GL.glGenSamplers(1, scratch);
 		var s = scratch.value;
-		var f = d.filter == Nearest ? GL.NEAREST : GL.LINEAR;
+		var nearest = d.filter == Nearest, mip = d.mipFilter;
+		var f = nearest ? GL.NEAREST : GL.LINEAR;
+		var min = mip == null ? f : GL.NEAREST_MIPMAP_NEAREST + (nearest ? 0 : 1) + (mip == Nearest ? 0 : 2);
 		var w = switch d.wrap {
 			case null | Repeat: GL.REPEAT;
 			case Clamp: GL.CLAMP_TO_EDGE;
 			case Mirror: GL.MIRRORED_REPEAT;
 		}
-		GL.glSamplerParameteri(s, GL.TEXTURE_MIN_FILTER, f);
+		GL.glSamplerParameteri(s, GL.TEXTURE_MIN_FILTER, min);
 		GL.glSamplerParameteri(s, GL.TEXTURE_MAG_FILTER, f);
 		GL.glSamplerParameteri(s, GL.TEXTURE_WRAP_S, w);
 		GL.glSamplerParameteri(s, GL.TEXTURE_WRAP_T, w);
@@ -317,10 +338,10 @@ class GLBackend {
 					if (loc >= 0) GL.glUniform1i(loc, b.slot);
 				}
 			});
-		var heightLoc = Arena.scopedValue(a -> GL.glGetUniformLocation(p, a.cstring("u_target_height")));
+		var targetLoc = Arena.scopedValue(a -> GL.glGetUniformLocation(p, a.cstring("u_target")));
 		GL.glUseProgram(pipeline == null ? 0 : pipeline.program);
 		if (d.layout.length > MAX_SLOTS) throw "hxmc.gfx: more than " + MAX_SLOTS + " vertex buffers";
-		pipelines.push(new GLPipeline(p, heightLoc, d));
+		pipelines.push(new GLPipeline(p, targetLoc, d));
 		return pipelines.length;
 	}
 
@@ -363,14 +384,37 @@ class GLBackend {
 	}
 
 	public function beginPass(p:PassDesc) {
-		GL.glViewport(0, 0, width, height);
-		var c = p.colors[0], mask = 0;
+		var c = p.colors[0], d = p.depth, mask = 0;
+		if (c.texture == null) {
+			if (framebuffer != 0) GL.glBindFramebuffer(GL.FRAMEBUFFER, framebuffer = 0);
+			GL.glViewport(0, 0, width, height);
+			flipped = false;
+		} else {
+			// (one framebuffer object, its attachments changed when the pass's textures do)
+			var info = infos[c.texture.id() - 1];
+			info.checkPass(d);
+			if (fbo == 0) {
+				GL.glGenFramebuffers(1, scratch);
+				fbo = scratch.value;
+			}
+			if (framebuffer != fbo) GL.glBindFramebuffer(GL.FRAMEBUFFER, framebuffer = fbo);
+			var color = textures[c.texture.id() - 1], depth = d == null ? 0 : textures[d.texture.id() - 1];
+			if (color != fboColor || depth != fboDepth) {
+				GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, fboColor = color, 0);
+				GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.DEPTH_ATTACHMENT, GL.TEXTURE_2D, fboDepth = depth, 0);
+				var status = GL.glCheckFramebufferStatus(GL.FRAMEBUFFER);
+				if (status != GL.FRAMEBUFFER_COMPLETE) throw "hxmc.gfx: beginPass: the textures are no complete framebuffer (status " + status + ")";
+			}
+			GL.glViewport(0, 0, info.width, info.height);
+			flipped = true;
+		}
+		// (upside down into a texture: its faces turn clockwise)
+		if (flipped != frontCW) GL.glFrontFace((frontCW = flipped) ? GL.CW : GL.CCW);
 		if (c.load != Load) {
 			var k = c.clear;
 			k == null ? GL.glClearColor(0, 0, 0, 1) : GL.glClearColor(k.r, k.g, k.b, k.a);
 			mask |= GL.COLOR_BUFFER_BIT;
 		}
-		var d = p.depth;
 		if (d != null && d.load != Load) {
 			GL.glClearDepthf(d.clear == null ? 1 : d.clear);
 			// (the mask applies to clears too)
@@ -386,10 +430,12 @@ class GLBackend {
 		if (p == pipeline) return;
 		pipeline = p;
 		GL.glUseProgram(p.program);
-		// (the fragment position's flip: the shader macro's GLSL)
-		if (p.heightLoc >= 0 && p.height != height) {
-			p.height = height;
-			GL.glUniform1f(p.heightLoc, height);
+		// (the flips of the shader macro's GLSL: the fragment position's in
+		// the frame, the position's into a texture)
+		var target = flipped ? -1 : height;
+		if (p.targetLoc >= 0 && p.target != target) {
+			p.target = target;
+			flipped ? GL.glUniform2f(p.targetLoc, 0, 1) : GL.glUniform2f(p.targetLoc, height, -1);
 		}
 		if (p.cull == 0) GL.glDisable(GL.CULL_FACE) else {
 			GL.glEnable(GL.CULL_FACE);
@@ -496,6 +542,7 @@ class GLBackend {
 			pixels = LibC.malloc((size : Int64));
 			pixelsSize = size;
 		}
+		if (framebuffer != 0) GL.glBindFramebuffer(GL.FRAMEBUFFER, framebuffer = 0);
 		GL.glPixelStorei(GL.PACK_ALIGNMENT, 1);
 		GL.glReadPixels(0, 0, width, height, GL.RGBA, GL.UNSIGNED_BYTE, pixels);
 		// GL's rows go bottom to top
@@ -504,6 +551,10 @@ class GLBackend {
 	}
 
 	public function dispose() {
+		if (fbo != 0) {
+			scratch.value = fbo;
+			GL.glDeleteFramebuffers(1, scratch);
+		}
 		for (r in rings)
 			if (r != 0) {
 				scratch.value = r;
@@ -524,8 +575,8 @@ class GLBackend {
 // a linked program and its vertex attributes, flattened for draw
 private class GLPipeline {
 	public final program:Int;
-	public final heightLoc:Int; // u_target_height (-1: none), as set
-	public var height = -1;
+	public final targetLoc:Int; // u_target (-1: none), as set: the frame's height, or -1 (a texture)
+	public var target = -2;
 	public final topology:Int;
 	public final cull:Int; // 0: none, else GL.FRONT or GL.BACK
 	public final depthFunc:Int; // 0: no depth test, else GL.NEVER + Compare
@@ -540,9 +591,9 @@ private class GLPipeline {
 	public final normalized:Array<Bool> = [];
 	public final offsets:Array<Int> = [];
 
-	public function new(program:Int, heightLoc:Int, d:PipelineDesc) {
+	public function new(program:Int, targetLoc:Int, d:PipelineDesc) {
 		this.program = program;
-		this.heightLoc = heightLoc;
+		this.targetLoc = targetLoc;
 		topology = switch d.topology {
 			case null | Triangles: GL.TRIANGLES;
 			case TriangleStrip: GL.TRIANGLE_STRIP;

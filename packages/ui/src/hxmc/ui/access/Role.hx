@@ -48,6 +48,8 @@ enum abstract Role(Int) to Int {
 	var MenuBar;
 	// a row of controls (buttons, toggles, menus' buttons), one Tab stop, arrows between them
 	var Toolbar;
+	// a group of links that navigate (a landmark: ARIA's navigation; breadcrumbs, pages)
+	var Navigation;
 
 	// the ARIA role of each (the browser's mirror)
 	public function aria():String
@@ -88,6 +90,7 @@ enum abstract Role(Int) to Int {
 			case SpinButton: "spinbutton";
 			case MenuBar: "menubar";
 			case Toolbar: "toolbar";
+			case Navigation: "navigation";
 		}
 
 	// a role whose name comes from its contents' text (ARIA's "name from

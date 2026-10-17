@@ -34,7 +34,29 @@ class EditableText extends TextNode {
 	}
 	public var placeholderColor:Color = Color.rgba(0x000000, 0.4);
 	public var selectionColor:Color = Color.rgba(0x3B82F6, 0.3);
-	public var caretColor:Color = Color.rgb(0x111111);
+	// null: the text's colour (as Chromium's caret)
+	public var caretColor:Null<Color> = null;
+	// (the colours before a theme gave its own: put back when it takes them away)
+	var ownPlaceholder:Null<Color> = null;
+	var ownSelection:Null<Color> = null;
+
+	override function themePseudo(placeholder:Null<Color>, selection:Null<Color>) {
+		if (placeholder != null) {
+			if (ownPlaceholder == null) ownPlaceholder = placeholderColor;
+			placeholderColor = placeholder;
+		} else if (ownPlaceholder != null) {
+			placeholderColor = ownPlaceholder;
+			ownPlaceholder = null;
+		}
+		if (selection != null) {
+			if (ownSelection == null) ownSelection = selectionColor;
+			selectionColor = selection;
+		} else if (ownSelection != null) {
+			selectionColor = ownSelection;
+			ownSelection = null;
+		}
+		if (ui != null) ui.requestFrame();
+	}
 	public var onChange:Null<String->Void>;
 	// the caret (and the selection's other end), UTF-16 indices
 	public var caret(default, null) = 0;

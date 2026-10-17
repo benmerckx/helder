@@ -44,17 +44,20 @@ class DrawText implements TextEngine {
 	// the faces a font is laid out with (shared: a FontSet does not change)
 	final sets = new Map<String, FontSet>();
 	var lastSet:Null<FontSet>;
+	var lastFeatures = "";
 
 	function fontSet(font:Font):FontSet {
 		var f = face(font), oblique = font.italic && !f.italic;
-		if (lastSet != null && lastSet.primary == f && lastSet.size == font.size && lastSet.oblique == oblique) return lastSet;
-		var key = f.id + "|" + font.size + "|" + oblique;
+		if (lastSet != null && lastSet.primary == f && lastSet.size == font.size && lastSet.oblique == oblique && lastFeatures == font.features) return lastSet;
+		var key = f.id + "|" + font.size + "|" + oblique + "|" + font.features;
 		var set = sets.get(key);
 		if (set == null) {
 			set = new FontSet(f, fallbackFaces, font.size, more, emoji);
 			set.oblique = oblique;
+			if (font.features != "") set.features = hxmc.text.FontFeature.parse(font.features);
 			sets.set(key, set);
 		}
+		lastFeatures = font.features;
 		return lastSet = set;
 	}
 
@@ -130,6 +133,13 @@ class DrawParagraph implements Paragraph {
 		return ls.length == 0 ? 0 : ls[k].width;
 	}
 
-	public function decoration(start:Int, end:Int, kind:hxmc.ui.TextDecoration, scale:Float):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}>
-		return layout.decoration(start, end, kind == LineThrough ? 1 : kind == Overline ? 2 : 0, scale);
+	public function decoration(start:Int, end:Int, kind:hxmc.ui.TextDecoration, scale:Float, ?thickness:Float, ?offset:Float):Array<{
+		x:Float,
+		y:Float,
+		width:Float,
+		height:Float,
+		lineWidth:Float
+	}>
+		return layout.decoration(start, end, kind == LineThrough ? 1 : kind == Overline ? 2 : 0, scale, thickness == null ? Math.NaN : thickness,
+			offset == null ? Math.NaN : offset);
 }

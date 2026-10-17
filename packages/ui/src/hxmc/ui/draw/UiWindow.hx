@@ -34,7 +34,7 @@ class UiWindow {
 	// changes the UI from outside its events shows within it
 	public static var idleWait = 0.1;
 	// whether the system's appearance is dark (App.prefersDark), asked again
-	// every second while the loop runs: Theme.follow(() -> UiWindow.dark.value)
+	// every second while the loop runs; each window's Ui.dark follows it
 	public static final dark:hxmc.view.Signal<Bool> = hxmc.view.Reactive.signal(App.prefersDark());
 	static var darkAsked = 0.0;
 
@@ -61,10 +61,13 @@ class UiWindow {
 		window = new hxmc.os.Window(title, width, height);
 		// (shortcuts labelled as macOS's menus do)
 		Shortcut.mac = Mem.os() == 1;
+		// (Android: text fields get the soft keyboard and the input method)
+		if (Mem.target() >= 9) hxmc.os.android.TextInput.enable();
 		device = Device.create(window.surface);
 		renderer = new Renderer(device);
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
+		ui.dark = dark.peek();
 		open.push(this);
 	}
 
@@ -221,7 +224,11 @@ class UiWindow {
 			if (now - darkAsked > 1) {
 				darkAsked = now;
 				var d = App.prefersDark();
-				if (d != dark.peek()) dark.value = d;
+				if (d != dark.peek()) {
+					dark.value = d;
+					for (w in open)
+						w.ui.dark = d;
+				}
 			}
 			var drew = false;
 			for (w in open.copy())

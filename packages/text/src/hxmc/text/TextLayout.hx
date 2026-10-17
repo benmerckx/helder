@@ -191,18 +191,41 @@ class TextLayout {
 			if (l.width > this.width) this.width = l.width;
 	}
 
-	// letter and word spacing: after each character (a mark, a hidden or
-	// zero-width glyph takes none) and on each space, the run's or the paragraph's
+	// letter and word spacing: after each glyph (a ligature takes one; a
+	// mark, a hidden or zero-width glyph none) and on each space, the run's
+	// or the paragraph's, as Chromium adds them; no letter spacing in a
+	// cursive script (CSS's: Arabic, Syriac... joined), a space, digit or
+	// sign taking the script before it (at a paragraph's start, after it)
 	function space(gs:Array<Glyph>, letter:Float, word:Float) {
-		for (g in gs) {
+		var joined = false, k = 0;
+		for (i in 0...gs.length) {
+			var g = gs[i];
+			if (g.cp == 10) joined = false;
+			// (the script of what has none: the last one's, else the next one's)
+			if (!common(g.cp)) joined = cursive(g.cp) else if (i >= k) {
+				k = i;
+				while (k < gs.length && common(gs[k].cp) && gs[k].cp != 10)
+					k++;
+				if (i == 0 || gs[i - 1].cp == 10) joined = k < gs.length && cursive(gs[k].cp);
+			}
 			if (g.hidden || g.cp == 10 || g.cp == 13 || g.attach != null) continue;
 			var l = g.run < 0 ? letter : runs[g.run].letterSpacing, w = g.run < 0 ? word : runs[g.run].wordSpacing;
 			if (l == 0 && w == 0) continue;
+			if (joined) l = 0;
 			// (a tab: TAB_SIZE spaces, each with both)
-			if (g.cp == 9) g.advance += TAB_SIZE * (l + w) else if (g.advance > 0 || g.parts > 1) g.advance += l * (g.parts > 1 ? g.parts : 1);
+			if (g.cp == 9) g.advance += TAB_SIZE * (l + w) else if (g.advance > 0 || g.parts > 1) g.advance += l;
 			if (g.cp == 32 || g.cp == 0xA0) g.advance += w;
 		}
 	}
+
+	// (the cursive scripts letter spacing leaves alone: Arabic, Syriac, N'Ko, Mandaic, Mongolian)
+	static inline function cursive(c:Int):Bool
+		return Arabic.isArabic(c) || c >= 0x700 && c <= 0x74F || c >= 0x7C0 && c <= 0x85F || c >= 0x1800 && c <= 0x18AF;
+
+	// (no script of its own: spaces, digits, punctuation, signs)
+	static inline function common(c:Int):Bool
+		return c < 0x80 ? !(c >= "A".code && c <= "Z".code || c >= "a".code && c <= "z".code) : c <= 0xBF || c == 0xD7 || c == 0xF7
+			|| c >= 0x2000 && c <= 0x2BFF || c >= 0x3000 && c <= 0x303F;
 
 	static function shape(text:String, base:FontSet, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
 		var out:Array<Glyph> = [];
@@ -261,7 +284,7 @@ class TextLayout {
 		out.resize(count);
 		// (Arabic's forms and ligatures: other glyphs; a colour font's sequences: one glyph)
 		out = Arabic.shape(out);
-		out = ligatures(out, runs, letterSpacing);
+		out = gsub(out, base, runs, letterSpacing);
 		if (emoji != null) out = colorLigatures(out);
 		for (g in out)
 			if (ignorable(g.cp)) g.hidden = true;
@@ -272,7 +295,7 @@ class TextLayout {
 			} else {
 				var f = g.font, fonts = setOf(g);
 				g.advance = g.hidden ? 0 : (f.bitmapsOnly ? f.advanceAt(g.id, fonts.size) : f.advance(g.id) * fonts.scale(f)) * (c == 9 ? TAB_SIZE : 1);
-				if (prev != null && prev.font == f && prev.run == g.run && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
+				if (prev != null && prev.font == f && prev.run == g.run && prev.cp != 10 && kerns(fonts)) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
 			}
 			prev = g;
 		}
@@ -280,75 +303,91 @@ class TextLayout {
 		return out;
 	}
 
-	// the standard ligatures (GSUB's liga and clig lookups for the script, in
-	// the lookup list's order) on runs of one face, as Chromium applies them
-	// by default: not Arabic's (its own), a colour face's or across lines,
-	// and none where letters are spaced (CSS turns them off with
-	// letter-spacing). A ligature's caret positions are its characters'
-	// equal parts.
-	static function ligatures(gs:Array<Glyph>, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
-		var n = gs.length;
-		// (the glyphs that may take part: their ids, else -1, which no ligature has;
-		// none when no face has these lookups)
-		var ids:Null<Array<Int>> = null;
-		var lastFont:Null<FontFile> = null, lastScript = "", lastLookups:Array<Int> = [], starts:Null<haxe.io.Bytes> = null;
-		for (k in 0...n) {
-			var g = gs[k];
-			var spaced = (g.run < 0 ? letterSpacing : runs[g.run].letterSpacing) != 0;
-			var ok = g.font != null && g.cp != 10 && g.cp != 13 && g.cp != 9 && !g.font.hasColor && !g.font.bitmapsOnly && !spaced && !Arabic.isArabic(g.cp);
-			if (ok && ids == null) {
-				var sc = script(g.cp);
-				if (g.font != lastFont || sc != lastScript) {
-					lastFont = g.font;
-					lastScript = sc;
-					lastLookups = g.font.ligatureLookups(sc);
-				}
-				if (lastLookups.length == 0) continue;
-				ids = [];
-				ids.resize(n);
-				for (j in 0...k)
-					ids[j] = -1;
-			}
-			if (ids != null) ids[k] = ok ? g.id : -1;
-		}
-		if (ids == null) return gs;
-		var out:Null<Array<Glyph>> = null;
-		var i = 0;
+	// (kerning unless turned off: FontSet.features' kern 0)
+	static inline function kerns(set:FontSet):Bool
+		return set.features == null || set.feature("kern") != 0;
+
+	// GSUB's substitutions as Chromium (HarfBuzz) makes them by default (the
+	// standard and contextual ligatures and alternates: liga, clig, calt) and
+	// those asked for (FontSet.features: tnum, ss01, dlig, liga 0...): on
+	// each segment of glyphs of one face, run and script, its lookups
+	// (FontFile.gsubLookupsFor) one after another, each over the segment;
+	// not Arabic's (its own), a colour face's or across lines. A ligature's
+	// caret positions are its characters' equal parts.
+	static function gsub(gs:Array<Glyph>, base:FontSet, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
+		var n = gs.length, out:Null<Array<Glyph>> = null, i = 0;
+		inline function substitutable(g:Glyph):Bool
+			return g.font != null && g.cp != 10 && g.cp != 13 && g.cp != 9 && !g.font.hasColor && !g.font.bitmapsOnly && !Arabic.isArabic(g.cp);
 		while (i < n) {
-			var g = gs[i], merged = false;
-			if (ids[i] >= 0 && i + 1 < n && ids[i + 1] >= 0) {
-				var f = g.font, sc = script(g.cp);
-				if (f != lastFont || sc != lastScript || starts == null) {
-					lastFont = f;
-					lastScript = sc;
-					lastLookups = f.ligatureLookups(sc);
-					starts = f.ligatureStarts(lastLookups);
+			var g = gs[i];
+			if (!substitutable(g)) {
+				if (out != null) out.push(g);
+				i++;
+				continue;
+			}
+			var sc = script(g.cp), j = i + 1;
+			while (j < n && gs[j].font == g.font && gs[j].run == g.run && substitutable(gs[j]) && script(gs[j].cp) == sc)
+				j++;
+			var set = g.run < 0 ? base : runs[g.run].fonts;
+			var spaced = (g.run < 0 ? letterSpacing : runs[g.run].letterSpacing) != 0;
+			var lookups = g.font.gsubLookupsFor(sc, set.features, set.featuresKey, spaced);
+			if (lookups.length == 0) {
+				if (out != null) for (k in i...j)
+					out.push(gs[k]);
+				i = j;
+				continue;
+			}
+			var seg = gs.slice(i, j), ids = [for (x in seg) x.id];
+			for (l in lookups) {
+				var starts = g.font.lookupStarts(l.lookup), k = 0;
+				while (k < seg.length) {
+					var id = ids[k];
+					k += id < starts.length && starts.get(id) != 0 ? applyAt(g.font, l.lookup, l.value, seg, ids, k, 0) : 1;
 				}
-				// (a glyph no ligature begins with: none tried)
-				if (ids[i] < starts.length && starts.get(ids[i]) != 0) for (l in lastLookups) {
-					var lig = f.ligature(l, ids, i);
-					if (lig.count < 2) continue;
-					// (its parts in this face and run)
-					var same = true;
-					for (k in i + 1...i + lig.count)
-						if (gs[k].font != f || gs[k].run != g.run) same = false;
-					if (!same) continue;
-					if (out == null) out = gs.slice(0, i);
-					var last = gs[i + lig.count - 1];
+			}
+			if (out == null && seg.length != j - i) out = gs.slice(0, i);
+			if (out != null) for (x in seg)
+				out.push(x);
+			i = j;
+		}
+		return out == null ? gs : out;
+	}
+
+	// (a lookup at seg[at]: its substitution there, if it has one; how far
+	// to go on: past a context's input, else one glyph; a context's
+	// lookups applied in it, nested as deep as eight)
+	static function applyAt(f:FontFile, lookup:Int, value:Int, seg:Array<Glyph>, ids:Array<Int>, at:Int, depth:Int):Int {
+		switch f.gsubType(lookup) {
+			case 1 | 3:
+				var id = f.substitute(lookup, ids[at], value);
+				ids[at] = id;
+				seg[at].id = id;
+			case 4:
+				var lig = f.ligature(lookup, ids, at);
+				if (lig.count >= 2) {
+					var g = seg[at], last = seg[at + lig.count - 1];
 					g.id = lig.glyph;
 					g.length = last.cluster + last.length - g.cluster;
 					g.parts = g.length;
-					out.push(g);
-					i += lig.count;
-					merged = true;
-					break;
+					ids[at] = lig.glyph;
+					seg.splice(at + 1, lig.count - 1);
+					ids.splice(at + 1, lig.count - 1);
 				}
-			}
-			if (merged) continue;
-			if (out != null) out.push(g);
-			i++;
+			case 5 | 6:
+				var m = f.context(lookup, ids, at, 0, seg.length);
+				if (m == null) return 1;
+				var length = m.length, k = 0;
+				while (k < m.records.length && depth < 8) {
+					var p = at + m.records[k], before = seg.length;
+					if (p < seg.length && p < at + length) applyAt(f, m.records[k + 1], 1, seg, ids, p, depth + 1);
+					// (a ligature in it: the input shorter by its parts)
+					length -= before - seg.length;
+					k += 2;
+				}
+				return length < 1 ? 1 : length;
+			case _:
 		}
-		return out == null ? gs : out;
+		return 1;
 	}
 
 	// which UTF-16 units are in an emoji's sequence (a grapheme cluster with
@@ -498,8 +537,9 @@ class TextLayout {
 				if (id != 0) g.id = id;
 			}
 			// (a right-to-left pair's kerning: on its left glyph, the second)
-			if (i > 0 && gs[i - 1].level & 1 == 1 && gs[i - 1].font == g.font && gs[i - 1].run == g.run && gs[i - 1].cp != 10) {
-				var p = gs[i - 1], k = g.font.kerning(p.id, g.id) * (g.run < 0 ? fonts : runs[g.run].fonts).scale(g.font);
+			var set = g.run < 0 ? fonts : runs[g.run].fonts;
+			if (i > 0 && gs[i - 1].level & 1 == 1 && gs[i - 1].font == g.font && gs[i - 1].run == g.run && gs[i - 1].cp != 10 && kerns(set)) {
+				var p = gs[i - 1], k = g.font.kerning(p.id, g.id) * set.scale(g.font);
 				p.advance -= k;
 				g.advance += k;
 			}
@@ -642,12 +682,17 @@ class TextLayout {
 		}
 	}
 
+	var levelsOf:Array<Glyph> = null;
+	var bidiCps:Array<Int> = null;
+	var bidiLevels:Array<Int> = null;
+
 	function addLine(gs:Array<Glyph>, start:Int, end:Int, ?emptyAt:Int) {
 		var l = new TextLine();
 		// (its line box: the paragraph's strut and each run on it, on one baseline)
 		var above = baseline, below = lineHeight - baseline;
-		var seen = new Map<Int, Bool>();
-		for (i in start...end) {
+		// (each run once; none to look for without runs)
+		var seen:Map<Int, Bool> = runs.length == 0 ? null : new Map();
+		if (seen != null) for (i in start...end) {
 			var r = gs[i].run;
 			if (r < 0 || seen.exists(r)) continue;
 			seen.set(r, true);
@@ -666,8 +711,13 @@ class TextLayout {
 			for (p in paragraphLevels)
 				if (start >= p.start && start <= p.end) base = p.base;
 			l.base = base;
-			var cps = [for (g in gs) g.cp], lv = [for (g in gs) g.level];
-			var order = Bidi.reorder(cps, lv, base, start, end);
+			// (the code points and levels taken once per glyph array, not per line)
+			if (levelsOf != gs) {
+				levelsOf = gs;
+				bidiCps = [for (g in gs) g.cp];
+				bidiLevels = [for (g in gs) g.level];
+			}
+			var order = Bidi.reorder(bidiCps, bidiLevels, base, start, end);
 			// (a right-to-left base's marks before it, as HarfBuzz leaves them: at its origin, unattached)
 			var k = 0;
 			for (i in order) {
@@ -823,13 +873,20 @@ class TextLayout {
 	// line-through centred a third of the ascent above it, an overline its
 	// thickness above the ascent. On each line, not past a left-to-right
 	// line's trailing spaces: rectangles, each with its line's width (to align it)
-	public function decoration(start:Int, end:Int, kind:Int, scale = 1.0):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}> {
+	public function decoration(start:Int, end:Int, kind:Int, scale = 1.0, thickness = Math.NaN, offset = Math.NaN):Array<{
+		x:Float,
+		y:Float,
+		width:Float,
+		height:Float,
+		lineWidth:Float
+	}> {
 		var set = fonts;
 		if (runs != null)
 			for (r in runs)
 				if (r.start <= start && start < r.end) set = r.fonts;
 		var f = set.primary, size = set.size * scale;
-		var t = Math.max(1, Math.round(size / 10)), ascent = f.ascender * size / f.unitsPerEm;
+		// (thickness and an underline's offset below the baseline: CSS's text-decoration-thickness, text-underline-offset; NaN: auto)
+		var t = Math.max(1, Math.round(Math.isNaN(thickness) ? size / 10 : thickness * scale)), ascent = f.ascender * size / f.unitsPerEm;
 		var out = [];
 		for (r in selection(start, end)) {
 			var line:Null<TextLine> = null;
@@ -844,7 +901,7 @@ class TextLayout {
 			var top = switch kind {
 				case 1: Math.round(b - ascent / 3 - t / 2);
 				case 2: Math.round(b - ascent - t);
-				case _: b + Math.max(1, Math.ceil(t / 2));
+				case _: Math.isNaN(offset) ? b + Math.max(1, Math.ceil(t / 2)) : b + Math.round(offset * scale);
 			}
 			out.push({x: x0, y: top / scale, width: x1 - x0, height: t / scale, lineWidth: line.width});
 		}

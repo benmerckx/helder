@@ -6,8 +6,9 @@ on the activity's window), Metal (macOS),
 Direct3D 11 (Windows), WebGPU and WebGL2 (the browser). See
 `examples/Triangle.hx` (the least a program needs), `examples/Cube.hx`
 (textures, depth, uniforms, blending, indices), `examples/Instances.hx`
-(instanced draws) and the design notes and what is left in
-docs/plans/graphics.md.
+(instanced draws), `examples/Targets.hx` (render targets),
+`examples/Mips.hx` (mip maps), `examples/Formats.hx` (texture formats)
+and the design notes and what is left in docs/plans/graphics.md.
 
 ## API
 
@@ -21,7 +22,7 @@ var vb = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
 var ib = device.createBuffer({size: indices.length, usage: Index, data: indices});
 device.writeBuffer(vb, 0, newBytes);                  // later updates
 var tex = device.createTexture({width: 64, height: 64, format: RGBA8, data: texels});
-device.writeTexture(tex, texels);                     // all of it, or a region: (tex, bytes, x, y, w, h)
+device.writeTexture(tex, texels);                     // all of it, or a region: (tex, bytes, x, y, w, h[, offset, level])
 device.destroyTexture(tex);                           // (and destroyBuffer)
 var smp = device.createSampler({filter: Linear, wrap: Repeat});
 var pipeline = device.createPipeline(CubeShader.pipeline({
@@ -75,10 +76,53 @@ enc.setVertexBuffer(1, instances, first * 28);       // the instances from first
 enc.drawIndexed(6, count);                            // count instances of the quad
 ```
 
+Textures: `TextureFormat` has the formats every back end has: `RGBA8`,
+`RGBA8Srgb` (decoded when sampled, encoded when rendered to), `R8`, `RG8`,
+`RGBA16F` (half floats), `R32F` and the depth formats `Depth16` and
+`Depth32F`; data is `format.texelSize` bytes a texel. R32F and depth
+textures are not filterable everywhere: they are read through a sampler of
+`Nearest` filters and have no generated mip levels.
+
+Mip maps: `mipLevels` levels (0: all of them, down to 1x1), each written
+with `writeTexture`'s level or generated from the first (GL's
+`glGenerateMipmap`, D3D11's `GenerateMips`, Metal's blit, a small pass on
+WebGPU; outside a pass); a sampler's `mipFilter` reads between them
+(`Linear` with `filter: Linear`: trilinear; none: the first level only):
+
+```haxe
+var checks = device.createTexture({width: 256, height: 256, mipLevels: 0, data: texels});
+device.generateMips(checks);                          // or writeTexture(t, bytes, 0, 0, -1, -1, 0, level)
+var trilinear = device.createSampler({filter: Linear, mipFilter: Linear});
+```
+
+Render targets: a texture made with `renderTarget: true` (and every depth
+texture) is a pass's colour target (`ColorTarget.texture`) or depth target
+(`DepthTarget.texture`, of the same size; a pass into a texture has a depth
+buffer only when it names one), filled by passes (not data), then sampled
+like any texture (after `endPass`). Metal and WebGPU make a pipeline for
+its targets' formats: `PipelineDesc.colorFormat` and `depthFormat` (by
+default the frame's colour and the device's depth buffer):
+
+```haxe
+var color = device.createTexture({width: 128, height: 128, renderTarget: true});
+var depth = device.createTexture({width: 128, height: 128, format: Depth32F});
+var d = SceneShader.pipeline({depthCompare: Less, depthWrite: true});
+d.colorFormat = RGBA8;
+d.depthFormat = Depth32F;
+var offscreen = device.createPipeline(d);
+...
+enc.beginPass({colors: [{load: Clear, texture: color}], depth: {load: Clear, texture: depth}});
+enc.setPipeline(offscreen);                           // ... draw into it
+enc.endPass();
+enc.beginPass(framePass);
+enc.setTexture(1, color, sampler);                    // ... and sample it
+```
+
 Conventions, the same on every back end: clip space y up and z from 0
 (near) to w (far), counter-clockwise front faces; the fragment position in
 pixels from the target's top left; a texture's first row is its top
-(v = 0); `readPixels` rows top to bottom. `Mat4.perspective` and
+(v = 0), a render target's too (GL renders into it upside down, its front
+faces clockwise, so that it reads alike); `readPixels` rows top to bottom. `Mat4.perspective` and
 `Mat4.orthographic` project into that clip space. The GLSL the shader macro
 emits makes GL match (its clip z and `gl_FragCoord.y` differ).
 
@@ -87,7 +131,9 @@ emits makes GL match (its clip z and `gl_FragCoord.y` differ).
 Shaders are Haxe (`hxmc.gfx.shader`): static functions of a class that
 implements `Shaders`, on the math types (`Vec2`, `Vec3`, `Vec4`, `Mat4`,
 swizzles, operators, `ShaderMath`'s builtins), `@:structInit` classes of
-them and `Texture2D` parameters. They run on the CPU as they are; a macro
+them and `Texture2D` parameters (`sample(t, uv)`: in the fragment stage at
+the mip level the fragment's footprint needs, in the vertex stage the
+first; `sampleLevel(t, uv, level)` at a given one). They run on the CPU as they are; a macro
 compiles the `@:vertex` and `@:fragment` stages to GLSL ES 3.00, WGSL, MSL
 and HLSL (the target's only), with the vertex layout, the uniform blocks'
 layout, the slots and the CPU writers:
@@ -110,5 +156,5 @@ var bytes = SpriteShader.vertexBytes([{pos: vec2(0, 0.6), uv: vec2(0.5, 0)}, ...
 
 `src/hxmc/gfx/shader/Shaders.hx` lists the generated members; the tests are
 `test/ShaderTest.hx` (`make gfx-shader-check`) and GfxTest and WebTest,
-the examples' frames against `test/triangle.png` and `test/cube.png` on
-each back end (`make gfx-check`, `make gfx-web-check`).
+the examples' frames against `test/<scene>.png` (triangle, cube,
+instances, targets, mips, formats) on each back end (`make gfx-check`, `make gfx-web-check`).

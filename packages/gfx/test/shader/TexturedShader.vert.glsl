@@ -19,9 +19,10 @@ layout(location = 0) in vec2 in_pos;
 layout(location = 1) in vec2 in_uv;
 out vec2 v_uv;
 out float v_lift;
+uniform vec2 u_target;
 void main() {
 	TexVaryings r = vs(TexVertex(in_pos, in_uv), tex_0);
-	gl_Position = vec4(r.pos.xy, 2.0 * r.pos.z - r.pos.w, r.pos.w);
+	gl_Position = vec4(r.pos.x, -u_target.y * r.pos.y, 2.0 * r.pos.z - r.pos.w, r.pos.w);
 	v_uv = r.uv;
 	v_lift = r.lift;
 }

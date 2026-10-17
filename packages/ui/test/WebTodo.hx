@@ -12,6 +12,7 @@ import hxmc.view.Render;
 class WebTodo {
 	static function main() {
 		var w = new UiWindow("Todo", 420, 480);
+		w.ui.theme = Plain.sheet;
 		var app = new Todo();
 		Render.render(app.view(), w.root);
 		var last = "", wheel = 0.0;

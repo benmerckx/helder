@@ -3,7 +3,7 @@ package hxmc.ui.access;
 // What a node declares about itself for assistive technology (Node.semantics;
 // in markup, the attributes role, label, description, checked, selected,
 // expanded, level, disabled, value-now, value-min, value-max, value-text,
-// multiselectable, live, hidden). Unset
+// multiselectable, live, current, hidden). Unset
 // fields say nothing: a TextNode is a Label of its text, an ImageNode an
 // Image, a focusable node a Group.
 @:structInit class Semantics {
@@ -31,6 +31,8 @@ package hxmc.ui.access;
 	// a region whose changes are announced (its text when it changes; a Group
 	// when it has no role of its own)
 	public var live(default, set):Live = Off;
+	// the current one of a set (ARIA's aria-current="page": a breadcrumb's last, a page's link)
+	public var current(default, set):Bool = false;
 	// left out with its subtree (decoration)
 	public var hidden(default, set):Bool = false;
 
@@ -58,6 +60,11 @@ package hxmc.ui.access;
 	function set_secret(v:Bool):Bool {
 		if (v != secret) hxmc.ui.Ui.accessEpoch++;
 		return secret = v;
+	}
+
+	function set_current(v:Bool):Bool {
+		if (v != current) hxmc.ui.Ui.accessEpoch++;
+		return current = v;
 	}
 
 	function set_multiselectable(v:Bool):Bool {

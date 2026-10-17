@@ -46,6 +46,8 @@ class Activity {
 	public static var pendingWindow:Ptr;
 	public static var pendingQueue:Ptr;
 	public static var looper:Ptr;
+	// the main thread's (MainThread)
+	public static var mainLooper:Ptr;
 	public static var commandRead:Int;
 	static var commandWrite:Int;
 	static var lock:Ptr;
@@ -94,6 +96,8 @@ class Activity {
 			// (once per process: the runtime starts once; the manifest keeps
 			// configuration changes from recreating the activity)
 			lock = LibC.malloc(64);
+			mainLooper = Android.ALooper_forThread();
+			Android.ALooper_acquire(mainLooper);
 			cond = LibC.malloc(64);
 			Threads.pthread_mutex_init(lock, Ptr.nil());
 			Threads.pthread_cond_init(cond, Ptr.nil());
