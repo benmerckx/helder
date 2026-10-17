@@ -7,12 +7,13 @@ import hxmc.ui.reactive.*;
 import hxmc.ui.reactive.Reactive.*;
 
 // The same markup and signals as the drawn widgets, on the platform's own
-// controls (hxmc.ui.native: GTK 3 on Linux): laid out by hxmc.ui's flexbox
-// at the sizes GTK measures. In a window:
+// controls (hxmc.ui.native: GTK 3 on Linux, the DOM in a browser), laid
+// out by hxmc.ui's flexbox
+// at the sizes the platform measures. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main NativeForm --custom-target hxmc=form -D hxmc.libc=glibc
 //
-// (NativeTest drives it under Xvfb.)
+// (NativeTest drives it under Xvfb, native-web.mjs in Chromium.)
 class NativeForm implements Markup {
 	static function main() {
 		var host = new NativeHost("Native controls", 440, 380);
@@ -42,6 +43,6 @@ class NativeForm implements Markup {
 				<Button tag="submit" label="Submit" enabled={agree} onClick={() -> submitted.value++}/>
 				<Button tag="count" label={() -> "Submitted " + submitted.value + " times"}/>
 			</view>
-			<text color="#52525b" font-size={12}>The text above wraps as GTK's labels wrap it, and the layout follows the sizes GTK reports for each control.</text>
+			<text color="#52525b" font-size={12}>The text above wraps as the platform's labels wrap it, and the layout follows the sizes the platform reports for each control.</text>
 		</view>;
 }

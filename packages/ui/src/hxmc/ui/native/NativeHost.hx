@@ -10,7 +10,9 @@ import hxmc.unsafe.Mem;
 // (the design's native backend: hxmc/UI.md, section 6). Plain nodes only
 // lay out (their paint properties are not drawn); scrolling is not done.
 // step lays out and brings the widgets in step with the tree after a
-// change; run is the loop. The backend: GTK 3 on Linux (glibc mode).
+// change; run is the loop (in the browser it returns, and
+// requestAnimationFrame runs the steps). The backends: GTK 3 on Linux
+// (glibc mode), the DOM in the browser.
 class NativeHost {
 	public final backend:NativeBackend;
 	public final ui:Ui;
@@ -37,10 +39,11 @@ class NativeHost {
 		hosts.push(this);
 	}
 
-	// the platform's backend (GTK 3 elsewhere than Windows, macOS and the browser, for now)
+	// the platform's backend (none yet on Windows and macOS)
+	// (one chain of constant tests: only the target's branch is compiled)
 	static function platform():NativeBackend {
-		if (Mem.os() == 1 || Mem.os() == 2 || Mem.os() == 3) throw "hxmc.ui.native: no backend for this platform yet (GTK 3 on Linux)";
-		return new hxmc.ui.native.gtk.GtkBackend();
+		return if (Mem.os() == 3) new hxmc.ui.native.dom.DomBackend() else if (Mem.os() == 1) throw "hxmc.ui.native: no backend for macOS yet" else
+			if (Mem.os() == 2) throw "hxmc.ui.native: no backend for Windows yet" else new hxmc.ui.native.gtk.GtkBackend();
 	}
 
 	// the backend of the host a Ui belongs to (null: none)
@@ -145,6 +148,10 @@ class NativeHost {
 
 	// the loop: the platform's events, a step after them, until the window closes
 	public function run() {
+		if (Mem.os() == 3) {
+			hxmc.ui.native.dom.DomBackend.start(this);
+			return;
+		}
 		while (!closed) {
 			if (!backend.pump(false)) break;
 			step();

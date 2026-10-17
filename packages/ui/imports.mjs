@@ -11,7 +11,19 @@
 // node with the keyboard focus gets the page's focus (keys still reach the
 // program). An activation (a screen reader's click) or a focus moved by
 // assistive technology comes back as an action (AccessAction).
+//
+// hxmc.ui.native's DOM backend (src/hxmc/ui/native/dom/DomBackend.hx): a
+// container (run's option nativeContainer, an element or its id, else a
+// new div) where the page's own controls are placed absolutely at the
+// layout's positions: button, a span for a label, input (text, checkbox
+// in a label, range), progress. Measured by the browser (their size with
+// no size set, text in a span); their events queued for the module, text
+// as string handles; frames from requestAnimationFrame.
 export default function (host) {
+	const nativeQueue = [];
+	let nativeFirst = true;
+	const KINDS = ['button', 'label', 'field', 'checkbox', 'slider', 'progress'];
+	let measurer = null;
 	// per canvas: the mirror's root, its elements by node id
 	const mirrors = new Map();
 	const actions = [];
@@ -68,7 +80,143 @@ export default function (host) {
 		e.hxmcChildren = n.children;
 	}
 
+	const nat = {
+		native_open(title, w, h) {
+			const given = nativeFirst && host.options.nativeContainer;
+			nativeFirst = false;
+			let c = typeof given === 'string' ? document.getElementById(given) : given;
+			if (!c) {
+				c = document.createElement('div');
+				c.setAttribute('aria-label', host.string(title));
+				document.body.appendChild(c);
+			}
+			c.style.position = 'relative';
+			if (!c.style.width) c.style.width = w + 'px';
+			if (!c.style.height) c.style.height = h + 'px';
+			c.style.overflow = 'hidden';
+			return host.handles.add(c);
+		},
+		native_width: (c) => host.handles.get(c).clientWidth,
+		native_height: (c) => host.handles.get(c).clientHeight,
+		native_create(c, kind) {
+			const k = KINDS[kind] ?? 'label';
+			let e, input = null;
+			switch (k) {
+				case 'button': e = document.createElement('button'); break;
+				case 'field': e = input = document.createElement('input'); input.type = 'text'; break;
+				case 'checkbox':
+					e = document.createElement('label');
+					input = document.createElement('input');
+					input.type = 'checkbox';
+					e.append(input, document.createElement('span'));
+					break;
+				case 'slider': e = input = document.createElement('input'); input.type = 'range'; break;
+				case 'progress': e = document.createElement('progress'); e.max = 1; break;
+				default: e = document.createElement('span'); e.style.whiteSpace = 'pre-wrap'; e.style.overflowWrap = 'anywhere';
+			}
+			e.style.position = 'absolute';
+			e.style.boxSizing = 'border-box';
+			e.style.margin = '0';
+			const h = host.handles.add(e);
+			e.hxmcInput = input;
+			if (k === 'button') e.addEventListener('click', () => nativeQueue.push([h, 0, 0]));
+			if (k === 'field') {
+				input.addEventListener('input', () => nativeQueue.push([h, 1, host.handles.add(input.value)]));
+				input.addEventListener('keydown', (ev) => ev.key === 'Enter' && nativeQueue.push([h, 2, 0]));
+			}
+			if (k === 'checkbox') input.addEventListener('change', () => nativeQueue.push([h, 3, input.checked ? 1 : 0]));
+			if (k === 'slider') input.addEventListener('input', () => nativeQueue.push([h, 4, host.handles.add(input.value)]));
+			host.handles.get(c).appendChild(e);
+			return h;
+		},
+		// a control's or label's properties (JSON: text, placeholder, checked, value, min, max, step, enabled; font, color, align)
+		native_update(h, json) {
+			const e = host.handles.get(h), p = JSON.parse(host.string(json)), i = e.hxmcInput;
+			if (p.font) e.style.font = p.font;
+			if (p.color) e.style.color = p.color;
+			if (p.align) e.style.textAlign = p.align;
+			switch (e.tagName) {
+				case 'BUTTON': e.textContent = p.text; break;
+				case 'SPAN': e.textContent = p.text; break;
+				case 'PROGRESS': e.value = p.value; break;
+				case 'LABEL': i.checked = p.checked; e.lastChild.textContent = ' ' + p.text; break;
+				case 'INPUT':
+					if (i.type === 'text') {
+						if (i.value !== p.text) i.value = p.text;
+						i.placeholder = p.placeholder ?? '';
+					} else {
+						i.min = p.min;
+						i.max = p.max;
+						i.step = p.step > 0 ? p.step : 'any';
+						i.value = p.value;
+					}
+			}
+			if (p.enabled !== undefined) (i ?? e).disabled = !p.enabled;
+		},
+		native_place(h, x, y, w, ht) {
+			const s = host.handles.get(h).style;
+			s.left = x + 'px';
+			s.top = y + 'px';
+			s.width = w + 'px';
+			s.height = ht + 'px';
+		},
+		native_destroy(h) {
+			host.handles.get(h)?.remove();
+			host.handles.remove(h);
+		},
+		// a control's own size (no size set) into p (two Float64)
+		native_measure(h, p) {
+			const e = host.handles.get(h), s = e.style;
+			const w = s.width, ht = s.height;
+			s.width = s.height = '';
+			const r = e.getBoundingClientRect();
+			s.width = w;
+			s.height = ht;
+			new Float64Array(host.memory().buffer, p, 2).set([r.width, r.height]);
+		},
+		// text's size in a font (CSS), within maxWidth (negative: none), into p
+		native_measure_text(text, font, maxWidth, p) {
+			if (!measurer) {
+				measurer = document.createElement('span');
+				measurer.style.cssText = 'position:absolute;visibility:hidden;left:-10000px;top:0;white-space:pre-wrap;overflow-wrap:anywhere;';
+				document.body.appendChild(measurer);
+			}
+			measurer.style.font = host.string(font);
+			measurer.style.width = maxWidth >= 0 ? maxWidth + 'px' : '';
+			measurer.style.maxWidth = '';
+			measurer.textContent = host.string(text);
+			let r = measurer.getBoundingClientRect();
+			if (maxWidth >= 0) {
+				// (its lines' width, not the box's)
+				measurer.style.width = 'max-content';
+				measurer.style.maxWidth = maxWidth + 'px';
+				r = { width: measurer.getBoundingClientRect().width, height: r.height };
+			}
+			new Float64Array(host.memory().buffer, p, 2).set([r.width, r.height]);
+		},
+		// the next event into p (three Int32: the handle, the kind: 0 click,
+		// 1 text, 2 submit, 3 toggle, 4 value; its value or string handle)
+		native_next(p) {
+			const ev = nativeQueue.shift();
+			if (!ev) return 0;
+			new Int32Array(host.memory().buffer, p, 3).set(ev);
+			return 1;
+		},
+		native_string_length: (h) => new TextEncoder().encode(String(host.handles.get(h))).length,
+		native_string_take(h, p) {
+			const b = new TextEncoder().encode(String(host.handles.get(h)));
+			new Uint8Array(host.memory().buffer, p, b.length).set(b);
+			host.handles.remove(h);
+		},
+		// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
+		native_start(frame) {
+			const tick = () => host.call(frame) && requestAnimationFrame(tick);
+			requestAnimationFrame(tick);
+		},
+	};
+
 	const hxmc_ui = {
+		...nat,
 		// an update of the tree of the window whose canvas is that handle (JSON:
 		// full, root, focus, nodes, removed)
 		access_update(canvas, json) {

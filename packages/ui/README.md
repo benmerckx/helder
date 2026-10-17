@@ -114,9 +114,12 @@ slider, progress bar) are native widgets and whose `TextNode`s are native
 labels, measured by the platform, laid out by hxmc.ui's flexbox and placed
 absolutely; the markup and signals are the same (`import
 hxmc.ui.native.Controls.*`: `Button`, `Checkbox`, `Field`, `Slider`,
-`Progress`). The backend is GTK 3 on Linux (glibc mode) for now
-(`examples/NativeForm.hx`, tested under Xvfb by `NativeTest`); plain nodes
-only lay out there (no backgrounds), and nothing scrolls yet.
+`Progress`). The backends: GTK 3 on Linux (glibc mode; tested under Xvfb by
+`NativeTest`) and the DOM in a browser (the page's own controls in a
+container, `nativeContainer` in run's options, with
+`packages/ui/imports.mjs`; tested in Chromium by `native-web.mjs`); the
+same `examples/NativeForm.hx` runs on both. Plain nodes only lay out (no
+backgrounds), and nothing scrolls yet; Win32 and AppKit are next.
 
 ## Accessibility
 
