@@ -149,6 +149,8 @@ class UiTest {
 		check("css: not a colour", Color.tryParse("bluish") == null && Color.tryParse("rgb(1, 2)") == null && Color.tryParse("#12345") == null);
 		check("css: hex in either case, short and long", Color.tryParse("#AbCdEf") == Color.rgb(0xabcdef) && Color.tryParse("#F0a") == Color.rgb(0xff00aa)
 			&& Color.tryParse("#0F08") == Color.rgba(0x00ff00, 0x88 / 255) && Color.tryParse(" #fff ") == Color.WHITE && Color.tryParse("#ggg") == null);
+		check("css: toHex, and back", Color.rgba(0x3366ff, 0.5).toHex() == "#3366FF80" && Color.parse(Color.rgb(0xa1b2c3).toHex()) == Color.rgb(0xa1b2c3)
+			&& Color.TRANSPARENT.toHex() == "#00000000", Color.rgba(0x3366ff, 0.5).toHex());
 		var stats = Sys.getEnv("CSS_STATS") != null;
 		var cases:Array<{name:String, css:String, width:Int, height:Int}> = haxe.Json.parse(sys.io.File.getContent(dir + "/gradients.json"));
 		for (c in cases) {

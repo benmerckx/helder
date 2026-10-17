@@ -44,10 +44,17 @@ class AttrMacro {
 				var conv = convert(f.type, fields, enums);
 				macro style.$name = $conv;
 			}
-			cases.push({values: [macro $v{name}], expr: value});
+			// (matched as written, either way: no conversion on the way)
+			var kebab = ~/([A-Z])/g.map(name, r -> "-" + r.matched(1).toLowerCase());
+			cases.push({values: kebab == name ? [macro $v{name}] : [macro $v{name}, macro $v{kebab}], expr: value});
 			names.push(macro $v{name} => true);
 		}
-		var sw = {expr: ESwitch(macro camel(name), cases, macro return false), pos: Context.currentPos()};
+		// (another spelling camel turns into a property's name)
+		var other = macro {
+			var c = camel(name);
+			return c != name && NAMES.exists(c) ? apply(style, c, v) : false;
+		};
+		var sw = {expr: ESwitch(macro name, cases, other), pos: Context.currentPos()};
 		fields.push({
 			name: "apply",
 			access: [APublic, AStatic],

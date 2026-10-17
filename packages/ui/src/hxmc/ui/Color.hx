@@ -46,9 +46,22 @@ abstract Color(Int) from Int to Int {
 		return (ch(a.a, b.a) << 24) | (ch(a.r, b.r) << 16) | (ch(a.g, b.g) << 8) | ch(a.b, b.b);
 	}
 
-	// "#rrggbbaa"
-	public function toHex():String
-		return "#" + StringTools.hex(r, 2) + StringTools.hex(g, 2) + StringTools.hex(b, 2) + StringTools.hex(a, 2);
+	// "#RRGGBBAA" (built a character at a time: animated colours make one a frame)
+	public function toHex():String {
+		inline function digit(d:Int):Int
+			return d < 10 ? "0".code + d : "A".code - 10 + d;
+		var s = new StringBuf();
+		s.addChar("#".code);
+		inline function byte(v:Int) {
+			s.addChar(digit(v >> 4));
+			s.addChar(digit(v & 15));
+		}
+		byte(r);
+		byte(g);
+		byte(b);
+		byte(a);
+		return s.toString();
+	}
 
 	// a CSS colour: "#rgb", "#rgba", "#rrggbb", "#rrggbbaa" (the # may be
 	// left out), rgb() and rgba() (numbers or percentages, commas or
