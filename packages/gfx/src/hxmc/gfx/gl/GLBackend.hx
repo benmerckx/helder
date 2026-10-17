@@ -6,7 +6,11 @@ import hxmc.os.Surface;
 import hxmc.unsafe.*;
 
 // The GL back end: an OpenGL ES 3.0 context through EGL, on an X11 window's
-// surface or, headless, on a pbuffer of Mesa's surfaceless platform; in the
+// surface or, headless, on a pbuffer of Mesa's surfaceless platform (on
+// Android: the default display, the activity's ANativeWindow or a pbuffer;
+// the GL functions from libGLESv3.so; when the system takes the window,
+// Surface.lost, its EGL surface goes and the next frame makes one on the
+// new window, the context and everything in it kept); in the
 // browser (WebAssembly, without WebGPU: hxmc.gfx.Impl), a WebGL2 context on
 // a canvas or an offscreen one (WebGL), the same GL calls going to
 // imports. One vertex array object; vertex attributes are set at the first
@@ -29,6 +33,9 @@ class GLBackend {
 	var display = Ptr.nil();
 	var eglSurface = Ptr.nil();
 	var context = Ptr.nil();
+	var config = Ptr.nil();
+	// (Android) the native window eglSurface was made on
+	var window = Ptr.nil();
 	var web = 0; // the WebGL2 context
 	// native memory for out-parameters, and the pixels of readPixels
 	final scratch:Ptr<Int32>;
@@ -84,7 +91,9 @@ class GLBackend {
 			return;
 		}
 		var headless = surface.kind == Headless;
-		if (headless)
+		if (Mem.target() >= 9)
+			display = Egl.eglGetDisplay(Ptr.nil()); // (EGL_DEFAULT_DISPLAY)
+		else if (headless)
 			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_SURFACELESS_MESA, Ptr.nil(), Ptr.nil());
 		else {
 			display = Egl.eglGetPlatformDisplay(EGL.PLATFORM_X11_KHR, surface.display, Ptr.nil());
@@ -98,17 +107,27 @@ class GLBackend {
 				EGL.SURFACE_TYPE, headless ? EGL.PBUFFER_BIT : EGL.WINDOW_BIT, EGL.RENDERABLE_TYPE, EGL.OPENGL_ES3_BIT, EGL.RED_SIZE, 8, EGL.GREEN_SIZE, 8,
 				EGL.BLUE_SIZE, 8, EGL.ALPHA_SIZE, 8, EGL.DEPTH_SIZE, 24, EGL.NONE
 			]);
-			var config:Ptr<Ptr> = a.alloc(8);
-			if (Egl.eglChooseConfig(display, attribs, config, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8 and a 24-bit depth buffer");
-			eglSurface = headless ? Egl.eglCreatePbufferSurface(display, config.value,
-				ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE])) : Egl.eglCreateWindowSurface(display, config.value,
+			var configs:Ptr<Ptr> = a.alloc(8);
+			if (Egl.eglChooseConfig(display, attribs, configs, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8 and a 24-bit depth buffer");
+			config = configs.value;
+			eglSurface = headless ? Egl.eglCreatePbufferSurface(display, config,
+				ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE])) : Egl.eglCreateWindowSurface(display, config,
 					surface.handle, Ptr.nil());
 			if (eglSurface.isNull()) fail("cannot create the EGL surface");
-			context = Egl.eglCreateContext(display, config.value, Ptr.nil(), ints(a, [EGL.CONTEXT_MAJOR_VERSION, 3, EGL.CONTEXT_MINOR_VERSION, 0, EGL.NONE]));
+			window = surface.handle;
+			context = Egl.eglCreateContext(display, config, Ptr.nil(), ints(a, [EGL.CONTEXT_MAJOR_VERSION, 3, EGL.CONTEXT_MINOR_VERSION, 0, EGL.NONE]));
 			if (context.isNull()) fail("cannot create a GLES 3.0 context");
 		});
 		if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
-		var missing = GL.load(name -> Egl.eglGetProcAddress(name));
+		// (Android: libGLESv3.so's own functions; eglGetProcAddress may know only extensions there)
+		var gles = Mem.target() >= 9 ? Posix.dlopen(Mem.cstr("libGLESv3.so"), 2) : Ptr.nil();
+		var missing = GL.load(name -> {
+			var f = gles.isNull() ? Ptr.nil() : Posix.dlsym(gles, name);
+			f.isNull() ? Egl.eglGetProcAddress(name) : f;
+		});
+		if (Mem.target() >= 9) {
+			if (!headless) surface.lost = release;
+		}
 		if (missing != null) throw "hxmc.gfx: no GL function " + missing;
 		GL.glGenVertexArrays(1, scratch);
 		GL.glBindVertexArray(scratch.value);
@@ -303,7 +322,29 @@ class GLBackend {
 		return pipelines.length;
 	}
 
+	// (Android) the system takes the window: its EGL surface goes first
+	function release() {
+		// (Android only: no EGL import elsewhere, WebGL2's among them)
+		if (Mem.target() < 9) return;
+		if (eglSurface.isNull()) return;
+		Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
+		Egl.eglDestroySurface(display, eglSurface);
+		eglSurface = Ptr.nil();
+		window = Ptr.nil();
+	}
+
 	public function beginFrame():Bool {
+		// (Android: a new window after a Resume; one comparison of the target, folded elsewhere)
+		if (Mem.target() >= 9) {
+			if (surface.kind != Headless && surface.handle != window) {
+				release();
+				if (surface.handle.isNull()) return false;
+				eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
+				if (eglSurface.isNull()) fail("cannot create the EGL surface");
+				window = surface.handle;
+				if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+			}
+		}
 		ring ^= 1;
 		cursor = 0;
 		if (surface.kind != Headless) querySize();
@@ -427,7 +468,7 @@ class GLBackend {
 	public function endPass() {}
 
 	public function endFrame() {
-		if (Mem.os() == 3) WebGL.swap(web) else if (surface.kind != Headless) Egl.eglSwapBuffers(display, eglSurface);
+		if (Mem.os() == 3) WebGL.swap(web) else if (surface.kind != Headless && !eglSurface.isNull()) Egl.eglSwapBuffers(display, eglSurface);
 	}
 
 	public function readPixels(dst:haxe.io.Bytes) {
@@ -454,7 +495,8 @@ class GLBackend {
 		if (Mem.os() == 3) WebGL.release(web) else {
 			Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 			Egl.eglDestroyContext(display, context);
-			Egl.eglDestroySurface(display, eglSurface);
+			if (!eglSurface.isNull()) Egl.eglDestroySurface(display, eglSurface);
+			if (Mem.target() >= 9) surface.lost = null;
 			Egl.eglTerminate(display);
 		}
 		LibC.free(pixels);

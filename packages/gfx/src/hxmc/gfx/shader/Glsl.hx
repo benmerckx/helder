@@ -13,6 +13,39 @@ import hxmc.gfx.shader.Ir;
 // is from the bottom: flipped with the target's height, u_target_height,
 // which the back end sets).
 class Glsl extends Emit {
+	// structs made through make_<Struct> functions instead of their
+	// constructors (as Hlsl): the shader compiler of Android's emulator
+	// (its GLES translator) rejects a struct constructor whose argument is a
+	// constructor call ("Structure constructor arguments do not match
+	// structure fields"); for the Android targets
+	final makers:Bool;
+
+	public function new(makers = false) {
+		super();
+		this.makers = makers;
+	}
+
+	override function struct(s:SStruct) {
+		super.struct(s);
+		if (!makers) return;
+		line('${s.name} make_${s.name}(' + [for (i in 0...s.fields.length) type(s.fields[i].type) + " f" + i].join(", ") + ") {");
+		line('	${s.name} s;');
+		for (i in 0...s.fields.length)
+			line('	s.${s.fields[i].name} = f$i;');
+		line("\treturn s;");
+		line("}");
+	}
+
+	override function construct(t:SType, args:Array<SExpr>):String
+		return switch t {
+			case TStruct(s) if (makers): 'make_${s.name}(' + [for (a in args) expr(a)].join(", ") + ")";
+			case _: super.construct(t, args);
+		}
+
+	// a struct's constructor in the entry point
+	inline function make(name:String):String
+		return makers ? "make_" + name : name;
+
 	override function header(e:SEntry) {
 		line("#version 300 es");
 		if (e.stage == Fragment) {
@@ -49,7 +82,7 @@ class Glsl extends Emit {
 		var args = [
 			for (r in e.resources)
 				switch r {
-					case RUniform(u): u.struct.name + "(" + [for (f in u.struct.fields) 'u_${u.binding}.${f.name}'].join(", ") + ")";
+					case RUniform(u): make(u.struct.name) + "(" + [for (f in u.struct.fields) 'u_${u.binding}.${f.name}'].join(", ") + ")";
 					case RTexture(t): 'tex_${t.slot}';
 				}
 		];
@@ -61,7 +94,7 @@ class Glsl extends Emit {
 			for (f in Emit.varyings(p))
 				line('out ${type(f.type)} v_${f.name};');
 			line("void main() {");
-			args.unshift(e.input.name + "(" + [for (f in e.input.fields) 'in_${f.name}'].join(", ") + ")");
+			args.unshift(make(e.input.name) + "(" + [for (f in e.input.fields) 'in_${f.name}'].join(", ") + ")");
 			line('\t${p.varyings.name} r = ${e.fn.name}(${args.join(", ")});');
 			// (clip z from 0..w to GL's -w..w)
 			var pos = 'r.${Emit.position(p).name}';
@@ -75,7 +108,7 @@ class Glsl extends Emit {
 			line("uniform float u_target_height;");
 			line("out vec4 out_color;");
 			line("void main() {");
-			args.unshift(e.input.name + "(" + [for (f in e.input.fields) f.position ? "vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw)" : 'v_${f.name}'].join(", ") + ")");
+			args.unshift(make(e.input.name) + "(" + [for (f in e.input.fields) f.position ? "vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw)" : 'v_${f.name}'].join(", ") + ")");
 			line('\tout_color = ${e.fn.name}(${args.join(", ")});');
 			line("}");
 		}

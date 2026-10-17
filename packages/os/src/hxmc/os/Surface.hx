@@ -15,6 +15,8 @@ enum abstract SurfaceKind(Int) {
 	var Win32;
 	// a canvas element in the browser (WebAssembly)
 	var Canvas;
+	// an ANativeWindow (Android: the activity's window)
+	var Android;
 }
 
 class Surface {
@@ -22,8 +24,14 @@ class Surface {
 	// X11: the Display*; Cocoa: the CAMetalLayer*; Win32: the HINSTANCE (or nil)
 	public final display:Ptr;
 	// X11: the Window (an XID); Cocoa: the NSView*; Win32: the HWND; Canvas:
-	// the canvas's handle in the JavaScript side's table (packages/os/browser.mjs)
-	public final handle:Ptr;
+	// the canvas's handle in the JavaScript side's table (packages/os/browser.mjs);
+	// Android: the ANativeWindow* (another after a Resume: reattach)
+	public var handle(default, null):Ptr;
+	// Android: what the GPU back end does when the system takes the window
+	// (the app goes to the background): let go of everything made on it,
+	// before the window goes (a Suspend event follows; the next frame after
+	// Resume renders to the new handle)
+	public var lost:Null<Void->Void> = null;
 	// the size in pixels
 	public var width(default, null):Int;
 	public var height(default, null):Int;
@@ -50,5 +58,11 @@ class Surface {
 	@:allow(hxmc.os) function resized(w:Int, h:Int) {
 		width = w;
 		height = h;
+	}
+
+	@:allow(hxmc.os) function reattach(h:Ptr, w:Int, ht:Int) {
+		handle = h;
+		width = w;
+		height = ht;
 	}
 }

@@ -1,5 +1,6 @@
 package hxmc.os;
 
+import hxmc.os.android.AndroidWindow;
 import hxmc.os.cocoa.CocoaWindow;
 import hxmc.os.web.CanvasWindow;
 import hxmc.os.win32.Win32Window;
@@ -11,7 +12,9 @@ import hxmc.unsafe.Mem;
 // macOS (hxmc.os.cocoa.CocoaWindow), Win32 on Windows
 // (hxmc.os.win32.Win32Window), a canvas in the browser (WebAssembly:
 // hxmc.os.web.CanvasWindow, its size in CSS pixels), X11 elsewhere
-// (hxmc.os.x11.X11Window); Wayland comes in behind the same class.
+// (hxmc.os.x11.X11Window); on Android the activity's window
+// (hxmc.os.android.AndroidWindow: full screen, one per app, the size and
+// title the system's); Wayland comes in behind the same class.
 class Window {
 	public final surface:Surface;
 	// its title bar's text (the browser: the page's title)
@@ -25,9 +28,10 @@ class Window {
 	public function new(title:String, width:Int, height:Int) {
 		this.title = title;
 		native = Mem.os() == 1 ? new CocoaWindow(this, title, width, height) : Mem.os() == 2 ? new Win32Window(this, title, width,
-			height) : Mem.os() == 3 ? new CanvasWindow(this, title, width, height) : new X11Window(this, title, width, height);
+			height) : Mem.os() == 3 ? new CanvasWindow(this, title, width, height) : Mem.target() >= 9 ? new AndroidWindow(this, title, width,
+				height) : new X11Window(this, title, width, height);
 		surface = Mem.os() == 1 ? (cast native : CocoaWindow).surface : Mem.os() == 2 ? (cast native : Win32Window).surface :
-			Mem.os() == 3 ? (cast native : CanvasWindow).surface : (cast native : X11Window).surface;
+			Mem.os() == 3 ? (cast native : CanvasWindow).surface : Mem.target() >= 9 ? (cast native : AndroidWindow).surface : (cast native : X11Window).surface;
 		App.windows.push(this);
 	}
 
@@ -46,7 +50,7 @@ class Window {
 	public var scale(get, never):Float;
 
 	function get_scale():Float
-		return Mem.os() == 1 ? (cast native : CocoaWindow).scale : Mem.os() == 2 ? (cast native : Win32Window).scale : Mem.os() == 3 ? (cast native : CanvasWindow).scale : 1;
+		return Mem.os() == 1 ? (cast native : CocoaWindow).scale : Mem.os() == 2 ? (cast native : Win32Window).scale : Mem.os() == 3 ? (cast native : CanvasWindow).scale : Mem.target() >= 9 ? (cast native : AndroidWindow).scale : 1;
 
 	// the pointer's shape over the window
 	public var cursor(default, set):Cursor = Default;
@@ -55,7 +59,7 @@ class Window {
 		if (c == cursor || closed) return c;
 		cursor = c;
 		if (Mem.os() == 1) (cast native : CocoaWindow).setCursor(c) else if (Mem.os() == 2) (cast native : Win32Window).setCursor(c) else if (Mem.os() == 3)
-			(cast native : CanvasWindow).setCursor(c) else (cast native : X11Window).setCursor(c);
+			(cast native : CanvasWindow).setCursor(c) else if (Mem.target() >= 9) {} else (cast native : X11Window).setCursor(c);
 		return c;
 	}
 
@@ -83,7 +87,7 @@ class Window {
 		title = v;
 		if (native == null || closed) return v;
 		if (Mem.os() == 1) (cast native : CocoaWindow).setTitle(v) else if (Mem.os() == 2) (cast native : Win32Window).setTitle(v) else if (Mem.os() == 3)
-			(cast native : CanvasWindow).setTitle(v) else (cast native : X11Window).setTitle(v);
+			(cast native : CanvasWindow).setTitle(v) else if (Mem.target() >= 9) {} else (cast native : X11Window).setTitle(v);
 		return v;
 	}
 
@@ -92,21 +96,23 @@ class Window {
 	public function resize(width:Int, height:Int) {
 		if (closed) return;
 		if (Mem.os() == 1) (cast native : CocoaWindow).resize(width, height) else if (Mem.os() == 2) (cast native : Win32Window).resize(width,
-			height) else if (Mem.os() == 3) (cast native : CanvasWindow).resize(width, height) else (cast native : X11Window).resize(width, height);
+			height) else if (Mem.os() == 3) (cast native : CanvasWindow).resize(width, height) else if (Mem.target() >= 9) {} else
+			(cast native : X11Window).resize(width, height);
 	}
 
 	// the smallest content the user may resize it to, in points (the browser: the canvas's CSS minimum)
 	public function setMinSize(width:Int, height:Int) {
 		if (closed) return;
 		if (Mem.os() == 1) (cast native : CocoaWindow).setMinSize(width, height) else if (Mem.os() == 2) (cast native : Win32Window).setMinSize(width,
-			height) else if (Mem.os() == 3) (cast native : CanvasWindow).setMinSize(width, height) else (cast native : X11Window).setMinSize(width, height);
+			height) else if (Mem.os() == 3) (cast native : CanvasWindow).setMinSize(width, height) else if (Mem.target() >= 9) {} else
+			(cast native : X11Window).setMinSize(width, height);
 	}
 
 	public function close() {
 		if (closed) return;
 		closed = true;
 		if (Mem.os() == 1) (cast native : CocoaWindow).destroy() else if (Mem.os() == 2) (cast native : Win32Window).destroy() else if (Mem.os() == 3)
-			(cast native : CanvasWindow).destroy() else (cast native : X11Window).destroy();
+			(cast native : CanvasWindow).destroy() else if (Mem.target() >= 9) (cast native : AndroidWindow).destroy() else (cast native : X11Window).destroy();
 		App.windows.remove(this);
 	}
 }
