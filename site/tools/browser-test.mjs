@@ -158,8 +158,12 @@ async function visit(page, p, { gfxErrors = false } = {}) {
 		await page.waitForTimeout(150);
 	}
 	await page.evaluate(() => scrollTo(0, 0));
-	// (every island but those a click starts: hydrated, or failed)
-	await page.waitForFunction(() => [...document.querySelectorAll('hxmc-island')].every((el) => el.dataset.load === 'click' || el.hasAttribute('data-stopped') || el.hasAttribute('data-hydrated') || el.hasAttribute('data-error')), null, { timeout: 90000 }).catch(() => {});
+	// (back at the top, those in view there start again: data-stop)
+	await page.evaluate(() => new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))));
+	// (every island but those a click starts: hydrated, or failed, or stopped
+	// once scrolled away; none still starting)
+	await page.waitForFunction(() => [...document.querySelectorAll('hxmc-island')].every((el) => el.dataset.load === 'click'
+		|| (!el.hasAttribute('data-loading') && (el.hasAttribute('data-stopped') || el.hasAttribute('data-hydrated') || el.hasAttribute('data-error')))), null, { timeout: 90000 }).catch(() => {});
 	return page.evaluate(() => {
 		const all = [...document.querySelectorAll('hxmc-island')];
 		return {
