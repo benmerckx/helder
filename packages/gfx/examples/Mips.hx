@@ -42,13 +42,13 @@ class Mips {
 
 	public function new(device:Device) {
 		this.device = device;
-		// the checks: 8 by 8 of 32 texels, their edges soft (so that GPUs
+		// the checks: 4 by 4 of 64 texels, their edges soft (so that GPUs
 		// filter them alike), every level, the first written
 		var b = Bytes.alloc(CHECKS * CHECKS * 4);
-		var wave = [for (i in 0...CHECKS) clamp(3 * Math.cos(Math.PI * (i + 0.5) / 32), -1, 1)];
+		var wave = [for (i in 0...CHECKS) clamp(3 * Math.cos(Math.PI * (i + 0.5) / 64), -1, 1)];
 		for (y in 0...CHECKS)
 			for (x in 0...CHECKS) {
-				var c = mix(vec3(0.3, 0.33, 0.38), vec3(0.82, 0.8, 0.74), 0.5 + 0.5 * wave[x] * wave[y]), p = 4 * (y * CHECKS + x);
+				var c = mix(vec3(0.34, 0.37, 0.42), vec3(0.78, 0.76, 0.7), 0.5 + 0.5 * wave[x] * wave[y]), p = 4 * (y * CHECKS + x);
 				b.set(p, Math.round(c.x * 255));
 				b.set(p + 1, Math.round(c.y * 255));
 				b.set(p + 2, Math.round(c.z * 255));
@@ -67,7 +67,7 @@ class Mips {
 			device.writeTexture(levels, c, 0, 0, -1, -1, 0, l);
 		}
 		trilinear = device.createSampler({filter: Linear, mipFilter: Linear, wrap: Repeat});
-		// the floor: DEPTH long, its sides out of sight, a check half a unit square
+		// the floor: DEPTH long, its sides out of sight, a check a unit square
 		var bytes = FloorShader.vertexBytes([
 			for (c in [[-48.0, 0.0], [48.0, 0.0], [48.0, -DEPTH], [-48.0, -DEPTH]]) {pos: vec3(c[0], -1, c[1]), uv: vec2(c[0] / 4, c[1] / 4)}
 		]);
