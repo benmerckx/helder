@@ -1,7 +1,9 @@
 import haxe.io.Bytes;
 
 // 8-bit RGB PNG files for the tests: written with stored (uncompressed)
-// deflate blocks, read with any compression and filters (haxe.zip.InflateImpl).
+// deflate blocks, read with any compression and filters (haxe.zip.InflateImpl,
+// 32 KiB at a time: its window takes no more at once, and a stored block may
+// hold 65535 bytes).
 class Png {
 	// rgba: width * height * 4 bytes, rows top to bottom; alpha is dropped
 	public static function encode(rgba:Bytes, width:Int, height:Int):Bytes {
@@ -22,8 +24,8 @@ class Png {
 		z.writeByte(0x01);
 		var pos = 0;
 		while (true) {
-			// (blocks of 32 KiB at most: InflateImpl's window takes no larger one)
-			var n = data.length - pos > 32768 ? 32768 : data.length - pos;
+			// (blocks of 65535 bytes at most, as deflate allows)
+			var n = data.length - pos > 65535 ? 65535 : data.length - pos;
 			z.writeByte(pos + n == data.length ? 1 : 0);
 			z.writeByte(n & 0xFF);
 			z.writeByte(n >> 8);
@@ -81,7 +83,7 @@ class Png {
 				case _:
 			}
 		}
-		var raw = haxe.zip.InflateImpl.run(new haxe.io.BytesInput(idat.getBytes()));
+		var raw = haxe.zip.InflateImpl.run(new haxe.io.BytesInput(idat.getBytes()), 32768);
 		var stride = width * channels;
 		var out = Bytes.alloc(width * height * 4);
 		var prev = Bytes.alloc(stride), cur = Bytes.alloc(stride);
