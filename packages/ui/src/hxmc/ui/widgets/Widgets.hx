@@ -611,14 +611,32 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// a progress bar: value from 0 to 1 (a signal, a function or a number)
+	// a progress bar: value from 0 to 1 (a signal, a function or a number);
+	// null: not known (indeterminate: a bar sliding across, every 1.5
+	// seconds, on the Clock; no value for assistive technology)
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):View {
+		var known = () -> Render.read(props.value) != null;
 		var frac = () -> {
-			var v:Float = Render.read(props.value);
-			v < 0 ? 0.0 : v > 1 ? 1.0 : v;
+			var v:Null<Float> = Render.read(props.value);
+			v == null ? 0.0 : v < 0 ? 0.0 : v > 1 ? 1.0 : v;
 		};
-		return <view tag={props.tag ?? "progress"} role="progressbar" label={props.label} value-now={frac} value-min={0} value-max={1} width={props.width ?? 160} height={8} radius={4} overflow="hidden" direction="row" background={() -> t().subtle}>
+		var phase = signal(0.0), running = false, stopped = false;
+		effect(() -> if (!known() && !running) {
+			running = true;
+			var start = -1.0;
+			Clock.add(now -> {
+				if (stopped || untrack(known)) return running = false;
+				if (start < 0) start = now;
+				phase.value = ((now - start) % 1.5) / 1.5;
+				return true;
+			});
+		});
+		onCleanup(() -> stopped = true);
+		return <view tag={props.tag ?? "progress"} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
+			width={props.width ?? 160} height={8} radius={4} overflow="hidden" direction="row" background={() -> t().subtle}>
 			<view width={() -> (frac() * 100) + "%"} background={() -> t().accent}/>
+			{() -> known() ? null : <view tag="progress-slide" position="absolute" top={0} bottom={0} width="40%" left={() -> ((phase.value * 1.4 - 0.4) * 100) + "%"}
+				background={() -> t().accent}/>}
 		</view>;
 	}
 

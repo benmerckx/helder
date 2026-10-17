@@ -22,6 +22,7 @@ import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.ui.widgets.Widgets.Tabs;
 import hxmc.ui.widgets.Widgets.Radio;
+import hxmc.ui.widgets.Widgets.Progress;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Split;
@@ -60,6 +61,7 @@ class MarkupTest implements Markup {
 		menubar();
 		tabs();
 		mixedCheckbox();
+		indeterminate();
 		focusTips();
 		virtual();
 		table();
@@ -319,6 +321,23 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function indeterminate() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var v:Signal<Null<Float>> = signal(null);
+		Render.render(<view padding={10}><Progress tag="p" value={v} width={100}/></view>, ui.root);
+		ui.update();
+		Clock.tick(100);
+		Clock.tick(100.75);
+		ui.update();
+		var slide = ui.root.find("progress-slide"), bar = ui.root.find("p");
+		var t = ui.accessTree(), node = [for (id in t.order) if (t.nodes.get(id).role == ProgressIndicator) t.nodes.get(id)][0];
+		check("progress: not known, a bar sliding across, no value", slide != null && slide.absX == bar.absX + 30 && slide.width == 40 && node.valueNow == null,
+			slide == null ? "none" : slide.absX + " " + slide.width);
+		v.value = 0.5;
+		ui.update();
+		check("progress: known again, the bar its value, the clock left", ui.root.find("progress-slide") == null && !Clock.tick(101) && node != null);
 	}
 
 	static function mixedCheckbox() {
