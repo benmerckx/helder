@@ -42,7 +42,7 @@ abstract Dim(DimValue) from DimValue to DimValue {
 			while (j < b.length && (j == i || (b.charAt(j) != "+" && b.charAt(j) != "-") || b.charAt(j - 1) == "e")) j++;
 			var t = b.substring(i, j), pct = StringTools.endsWith(t, "%");
 			var num = pct ? t.substr(0, t.length - 1) : StringTools.endsWith(t, "px") ? t.substr(0, t.length - 2) : t;
-			if (!~/^([0-9]+\.?[0-9]*|\.[0-9]+)(e[-+]?[0-9]+)?$/.match(num)) throw "Dim: not a length in calc(" + body + "): " + t;
+			if (!isNumber(num)) throw "Dim: not a length in calc(" + body + "): " + t;
 			if (pct) p += sign * Std.parseFloat(num) else px += sign * Std.parseFloat(num);
 			any = true;
 			sign = 1;
@@ -50,6 +50,45 @@ abstract Dim(DimValue) from DimValue to DimValue {
 		}
 		if (!any) throw "Dim: an empty calc()";
 		return p == 0 ? DimValue.Px(px) : DimValue.Calc(p, px);
+	}
+
+	// (digits with at most one dot, at least one digit, then e and an exponent, maybe)
+	static function isNumber(s:String):Bool {
+		var i = 0, n = s.length, digits = 0;
+		inline function at(k:Int):Int
+			return k < n ? StringTools.fastCodeAt(s, k) : -1;
+		inline function digit(c:Int):Bool
+			return c >= "0".code && c <= "9".code;
+		while (digit(at(i))) {
+			i++;
+			digits++;
+		}
+		if (at(i) == ".".code) i++;
+		while (digit(at(i))) {
+			i++;
+			digits++;
+		}
+		if (digits == 0) return false;
+		if (at(i) == "e".code) {
+			i++;
+			if (at(i) == "+".code || at(i) == "-".code) i++;
+			if (!digit(at(i))) return false;
+			while (digit(at(i)))
+				i++;
+		}
+		return i == n;
+	}
+
+	// a number of pixels as CSS writes one: digits and dots, maybe a minus before and px after
+	public static function isPixels(s:String):Bool {
+		var n = StringTools.endsWith(s, "px") ? s.length - 2 : s.length;
+		var i = n > 0 && StringTools.fastCodeAt(s, 0) == "-".code ? 1 : 0;
+		if (i >= n) return false;
+		for (k in i...n) {
+			var c = StringTools.fastCodeAt(s, k);
+			if (!(c >= "0".code && c <= "9".code || c == ".".code)) return false;
+		}
+		return true;
 	}
 
 	// the pixels of this length against a containing size (NaN: unknown);

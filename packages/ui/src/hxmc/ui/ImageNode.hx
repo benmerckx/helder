@@ -84,7 +84,7 @@ class ImageNode extends Node {
 				return Math.isNaN(f) ? null : {share: f / 100, px: 0.0};
 			}
 			var f = Std.parseFloat(StringTools.endsWith(w, "px") ? w.substr(0, w.length - 2) : w);
-			return Math.isNaN(f) || !~/^-?[0-9.]+(px)?$/.match(w) ? null : {share: 0.0, px: f};
+			return Math.isNaN(f) || !Dim.isPixels(w) ? null : {share: 0.0, px: f};
 		}
 		// (keyword with an offset from its side: right 10px, bottom 5px)
 		var i = 0, axis = 0, xSet = false, ySet = false;
