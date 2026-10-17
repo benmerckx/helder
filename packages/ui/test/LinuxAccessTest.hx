@@ -17,7 +17,6 @@ import hxmc.ui.widgets.Widgets.Input;
 class LinuxAccessTest implements Markup {
 	static function main() {
 		var w = new UiWindow("LinuxAccessTest", 320, 240);
-		w.ui.theme = Plain.sheet;
 		var pressed = false, checked = signal(false), volume = signal(0.5), name = signal("");
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>

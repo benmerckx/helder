@@ -38,7 +38,6 @@ class MacAccessTest implements Markup {
 
 	static function main() {
 		var w = new UiWindow("MacAccessTest", 320, 240);
-		w.ui.theme = Plain.sheet;
 		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal("");
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
