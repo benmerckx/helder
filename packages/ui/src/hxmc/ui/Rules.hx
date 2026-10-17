@@ -251,10 +251,14 @@ class Rules {
 	static function same(a:Dynamic, b:Dynamic):Bool {
 		if (a == b) return true;
 		if (a == null || b == null) return false;
+		// (auto margins: NaN, the same as NaN)
+		if (Std.isOfType(a, Float) && Std.isOfType(b, Float)) return Math.isNaN(a) && Math.isNaN(b);
 		if (Reflect.isEnumValue(a) && Reflect.isEnumValue(b)) return Type.enumEq(a, b);
 		if (Std.isOfType(a, Edges) && Std.isOfType(b, Edges)) {
 			var x:Edges = a, y:Edges = b;
-			return x.top == y.top && x.right == y.right && x.bottom == y.bottom && x.left == y.left;
+			inline function side(p:Float, q:Float):Bool
+				return p == q || Math.isNaN(p) && Math.isNaN(q);
+			return side(x.top, y.top) && side(x.right, y.right) && side(x.bottom, y.bottom) && side(x.left, y.left);
 		}
 		return false;
 	}

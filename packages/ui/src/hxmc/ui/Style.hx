@@ -102,6 +102,16 @@ class Style {
 	public var padding(default, set):EdgesValue = Edges.ZERO;
 
 	public var margin(default, set):EdgesValue = Edges.ZERO;
+	// one side of each (CSS's padding-top...: Tailwind's pt-2 and px-4 from
+	// separate rules; a margin's side may be Edges.AUTO, ml-auto)
+	public var paddingTop(get, set):Float;
+	public var paddingRight(get, set):Float;
+	public var paddingBottom(get, set):Float;
+	public var paddingLeft(get, set):Float;
+	public var marginTop(get, set):Float;
+	public var marginRight(get, set):Float;
+	public var marginBottom(get, set):Float;
+	public var marginLeft(get, set):Float;
 
 	// on all four sides, inside the border box
 	public var borderWidth(default, set):Float = 0;
@@ -952,6 +962,82 @@ class Style {
 		return v;
 	}
 
+	inline function get_paddingTop():Float
+		return padding.top;
+
+	inline function get_paddingRight():Float
+		return padding.right;
+
+	inline function get_paddingBottom():Float
+		return padding.bottom;
+
+	inline function get_paddingLeft():Float
+		return padding.left;
+
+	inline function get_marginTop():Float
+		return margin.top;
+
+	inline function get_marginRight():Float
+		return margin.right;
+
+	inline function get_marginBottom():Float
+		return margin.bottom;
+
+	inline function get_marginLeft():Float
+		return margin.left;
+
+	// (a side the same: NaN, auto, as auto)
+	static inline function sameSide(a:Float, b:Float):Bool
+		return a == b || Math.isNaN(a) && Math.isNaN(b);
+
+	function set_paddingTop(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.top)) padding = new Edges(v, p.right, p.bottom, p.left);
+		return v;
+	}
+
+	function set_paddingRight(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.right)) padding = new Edges(p.top, v, p.bottom, p.left);
+		return v;
+	}
+
+	function set_paddingBottom(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.bottom)) padding = new Edges(p.top, p.right, v, p.left);
+		return v;
+	}
+
+	function set_paddingLeft(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.left)) padding = new Edges(p.top, p.right, p.bottom, v);
+		return v;
+	}
+
+	function set_marginTop(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.top)) margin = new Edges(v, m.right, m.bottom, m.left);
+		return v;
+	}
+
+	function set_marginRight(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.right)) margin = new Edges(m.top, v, m.bottom, m.left);
+		return v;
+	}
+
+	function set_marginBottom(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.bottom)) margin = new Edges(m.top, m.right, v, m.left);
+		return v;
+	}
+
+	function set_marginLeft(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.left)) margin = new Edges(m.top, m.right, m.bottom, v);
+		return v;
+	}
+
 	function set_margin(v:EdgesValue):EdgesValue {
 		if (false) return v;
 		margin = v;
@@ -1282,6 +1368,14 @@ class Style {
 		if (p.aspectRatio != null) aspectRatio = p.aspectRatio;
 		if (p.padding != null) padding = p.padding;
 		if (p.margin != null) margin = p.margin;
+		if (p.paddingTop != null) paddingTop = p.paddingTop;
+		if (p.paddingRight != null) paddingRight = p.paddingRight;
+		if (p.paddingBottom != null) paddingBottom = p.paddingBottom;
+		if (p.paddingLeft != null) paddingLeft = p.paddingLeft;
+		if (p.marginTop != null) marginTop = p.marginTop;
+		if (p.marginRight != null) marginRight = p.marginRight;
+		if (p.marginBottom != null) marginBottom = p.marginBottom;
+		if (p.marginLeft != null) marginLeft = p.marginLeft;
 		if (p.borderWidth != null) borderWidth = p.borderWidth;
 		if (p.borders != null) borders = p.borders;
 		if (p.rowGap != null) rowGap = p.rowGap;

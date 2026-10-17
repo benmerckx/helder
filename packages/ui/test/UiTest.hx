@@ -1331,6 +1331,30 @@ static function transitions() {
 		ui.update();
 		check("themes: again when it comes back", pop.style.opacity == 0, "" + pop.style.opacity);
 		Clock.finish();
+		// (one side of padding from one rule over the four from another; an auto margin from a rule)
+		ui.theme = {rules: [
+			{slot: "p", style: {padding: [8, 16]}},
+			{slot: "p", when: ["data-dense"], style: {paddingTop: 2}},
+			{slot: "row", style: {direction: Row, width: 100}},
+			{slot: "end", style: {width: 10, height: 10, marginLeft: Edges.AUTO}}
+		]};
+		var pn = new Node("p"), row = new Node("row"), end = new Node("end");
+		pn.slot = "p";
+		row.slot = "row";
+		end.slot = "end";
+		row.append(end);
+		ui.root.append(pn);
+		ui.root.append(row);
+		pn.setAttr("data-dense", "");
+		ui.update();
+		ui.update();
+		check("themes: padding-top over padding, an auto margin (ml-auto)", pn.style.padding.top == 2 && pn.style.padding.left == 16
+			&& pn.style.padding.bottom == 8 && end.x == 90, pn.style.padding.top + " " + end.x);
+		pn.setAttr("data-dense", null);
+		ui.update();
+		check("themes: the side back with the rule gone", pn.style.padding.top == 8 && pn.style.padding.left == 16, "" + pn.style.padding.top);
+		ui.root.remove(pn);
+		ui.root.remove(row);
 		// (rules for a breakpoint: the window at least so wide; again across it)
 		ui.theme = {rules: [{slot: "w", style: {opacity: 0.5}}, {slot: "w", when: ["md"], style: {opacity: 0.75}}]};
 		var wide = new Node("w");
