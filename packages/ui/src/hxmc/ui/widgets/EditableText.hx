@@ -4,7 +4,8 @@ import hxmc.ui.*;
 
 // Text edited in place: what TextField (one line) and TextArea (several)
 // share. Focusable, edited with the keyboard (characters, Backspace,
-// Delete, Left, Right, Home, End; Shift extends the selection; Control or
+// Delete, Left, Right, Home, End: by grapheme clusters, but Backspace
+// takes a letter's marks one at a time; Shift extends the selection; Control or
 // Alt (Option) with Left, Right, Backspace and Delete: by words; Command
 // with Left and Right: Home and End; Control+A selects all, Control+C, X
 // and V copy, cut and paste through Ui.clipboard, Control+Z undoes,
@@ -173,7 +174,7 @@ class EditableText extends TextNode {
 			case Key.HOME: move(0, shift);
 			case Key.END: move(text.length, shift);
 			case Key.BACKSPACE:
-				if (selectionStart == selectionEnd) anchor = word ? prevWord(caret) : prev(caret);
+				if (selectionStart == selectionEnd) anchor = word ? prevWord(caret) : backspaced(caret);
 				replace("");
 			case Key.DELETE:
 				if (selectionStart == selectionEnd) anchor = word ? nextWord(caret) : next(caret);
@@ -263,17 +264,24 @@ class EditableText extends TextNode {
 		if (onChange != null) onChange(text);
 	}
 
-	// (surrogate pairs move as one character)
-	function prev(i:Int):Int {
+	// (by grapheme clusters: a letter and its marks, an emoji sequence, a flag)
+	inline function prev(i:Int):Int
+		return hxmc.text.Grapheme.prev(text, i);
+
+	inline function next(i:Int):Int
+		return hxmc.text.Grapheme.next(text, i);
+
+	// where Backspace deletes back to: a cluster, but a letter's marks one at a time (as browsers do)
+	function backspaced(i:Int):Int {
+		var start = prev(i);
 		if (i <= 0) return 0;
 		var c = StringTools.fastCodeAt(text, i - 1);
-		return c >= 0xDC00 && c < 0xE000 && i >= 2 ? i - 2 : i - 1;
-	}
-
-	function next(i:Int):Int {
-		if (i >= text.length) return text.length;
-		var c = StringTools.fastCodeAt(text, i);
-		return c >= 0xD800 && c < 0xDC00 && i + 2 <= text.length ? i + 2 : i + 1;
+		var surrogate = c >= 0xDC00 && c < 0xE000 && i >= 2;
+		var last = surrogate ? i - 2 : i - 1;
+		if (last > start && !surrogate && c >= 0x300 && c != 0x200D && !(c >= 0xFE00 && c <= 0xFE0F) && !(c >= 0x20D0 && c <= 0x20F0)
+			&& hxmc.text.Bidi.classOf(c) == hxmc.text.Bidi.NSM)
+			return last;
+		return start;
 	}
 
 	// words: letters, digits, _ and every non-ASCII character but spaces

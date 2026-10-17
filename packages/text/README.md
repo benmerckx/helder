@@ -33,6 +33,9 @@ text with, usable on its own.
   become the composed character when the face has it (`Compose`:
   Unicode's canonical pairs), as HarfBuzz does; Arabic, Hebrew and
   combining accents match Chromium's ink in the tests.
+- `Grapheme`: grapheme clusters (a letter and its marks, emoji sequences,
+  flags, Hangul syllables from jamo), the steps a caret takes; checked
+  against `Intl.Segmenter`.
 - `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
   packed into an R8 bitmap for a GPU texture, its changed region tracked.
 

@@ -29,6 +29,7 @@ class TextTest {
 		var here = "packages/text/test";
 		rasterizer();
 		bidi();
+		graphemes();
 		var fonts = SystemFonts.get();
 		var sans = fonts.match("DejaVu Sans");
 		if (sans == null || sans.family != "DejaVu Sans") Sys.println("TextTest: no DejaVu Sans: font checks skipped (families: " + fonts.families().join(", ") + ")") else {
@@ -44,6 +45,37 @@ class TextTest {
 		}
 		Sys.println('TextTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// grapheme clusters: their boundaries as Intl.Segmenter finds them (node), forward and back
+	static function graphemes() {
+		graphemeCase("a letter and its mark", "e\u0301x", "2,3", "2,3");
+		graphemeCase("two marks", "a\u0323\u0302b", "3,4", "3,4");
+		graphemeCase("an emoji modifier", "\u{1f44d}\u{1f3fd}!", "4,5", "2,3");
+		graphemeCase("a family (zero width joiners)", "\u{1f468}\u200d\u{1f469}\u200d\u{1f467}x", "8,9", "5,6");
+		graphemeCase("flags", "\u{1f1e7}\u{1f1ea}\u{1f1eb}\u{1f1f7}\u{1f1e9}", "4,8,10", "2,4,5");
+		graphemeCase("a keycap", "1\ufe0f\u20e3a", "3,4", "3,4");
+		graphemeCase("Hangul jamo", "\u1100\u1161\u11a8\uac00", "3,4", "3,4");
+		graphemeCase("CR LF", "a\r\nb", "1,3,4", "1,3,4");
+		graphemeCase("Hebrew points", "\u05e9\u05b8\u05c1\u05dc\u05d5\u05b9\u05dd", "3,4,6,7", "3,4,6,7");
+		graphemeCase("an emoji", "x\u{1f600}y", "1,3,4", "1,2,3");
+		graphemeCase("a variation selector", "\u2764\ufe0fz", "2,3", "2,3");
+	}
+
+	// (expected: in UTF-16 units; in code points where strings count those, as on Eval)
+	static function graphemeCase(what:String, s:String, utf16:String, codePoints:String) {
+		var expected = "\u{1F600}".length == 2 ? utf16 : codePoints;
+		var fwd = [], i = 0;
+		while (i < s.length) {
+			i = Grapheme.next(s, i);
+			fwd.push(i);
+		}
+		var back = [], j = s.length;
+		while (j > 0) {
+			back.unshift(j);
+			j = Grapheme.prev(s, j);
+		}
+		check("graphemes: " + what, fwd.join(",") == expected && back.join(",") == expected, fwd.join(",") + " / " + back.join(","));
 	}
 
 	// a string's visual order by the bidi algorithm (base: -1 from its first strong character)
@@ -251,6 +283,9 @@ class TextTest {
 				if (Math.abs(ours[i] - c.ink[i]) > 1.2) ok = false;
 			check("marks: " + c.s + ", its ink as Chromium's", ok, [for (v in ours) Math.round(v * 10) / 10].join(" ") + " / " + c.ink.join(" "));
 		}
+		var xm = new TextLayout("x\u0301y", big, 1.25, Math.NaN), xw = xm.lines[0].glyphs[0].advance;
+		check("marks: a hit is not between a letter and its mark", xm.hit(xw * 0.4, 5) == 0 && xm.hit(xw * 0.6, 5) == 2 && xm.hit(xw * 1.1, 5) == 2,
+			'${xm.hit(xw * 0.6, 5)}');
 		var composed = new TextLayout("é", big, 1.25, Math.NaN).lines[0].glyphs;
 		check("marks: e and an acute as é", composed.length == 1 && composed[0].id == sans.glyph(0xE9) && composed[0].length == 2, '${composed.length}');
 		var empty = new TextLayout("", set, 1.25, 100);

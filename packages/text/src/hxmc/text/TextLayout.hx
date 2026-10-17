@@ -362,7 +362,7 @@ class TextLayout {
 	function bidiHit(l:TextLine, x:Float):Int {
 		if (l.glyphs.length == 0) return l.start;
 		for (g in l.glyphs)
-			if (x < g.x + g.advance) {
+			if (g.advance > 0 && x < g.x + g.advance) {
 				if (g.parts > 1) {
 					var f = (x - g.x) / g.advance;
 					var k = Math.round((g.level & 1 == 1 ? 1 - f : f) * g.parts);
@@ -382,7 +382,8 @@ class TextLayout {
 		if (l.bidi) return bidiHit(l, x);
 		for (g in l.glyphs) {
 			if (g.cp == 10) break;
-			if (x < g.x + g.advance / 2) return g.cluster;
+			// (a mark, no advance of its own: not between it and its base)
+			if (g.advance > 0 && x < g.x + g.advance / 2) return g.cluster;
 		}
 		// (the end of a wrapped line: before its trailing break)
 		return k < lines.length - 1 && l.glyphs.length > 0 ? l.end : l.end;

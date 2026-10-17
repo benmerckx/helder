@@ -247,6 +247,28 @@ class UiTest {
 		clickH(h.absX + h.style.borderWidth + h.style.padding.left + 1, 30, Key.MOD_SHIFT);
 		check("clicks: Shift+click extends the selection", h.selectionStart == 0 && h.selectionEnd == 6, '${h.selectionStart}-${h.selectionEnd}');
 		EditableText.now = haxe.Timer.stamp;
+		// grapheme clusters: a letter and its marks, an emoji with its modifier, a flag move as one; Backspace takes a mark at a time
+		var q = "e\u0301\u{1F44D}\u{1F3FD}\u{1F1E7}\u{1F1EA}";
+		var units = "\u{1F600}".length;
+		h.setText(q);
+		h.select(0, 0);
+		var steps = [];
+		for (_ in 0...4) {
+			ui.keyDown(Key.RIGHT, 0);
+			steps.push(h.caret);
+		}
+		check("graphemes: Right steps over clusters", steps.join(",") == [2, 2 + 2 * units, 2 + 4 * units, 2 + 4 * units].join(","), steps.join(","));
+		ui.keyDown(Key.LEFT, 0);
+		check("graphemes: Left too", h.caret == 2 + 2 * units, '${h.caret}');
+		h.select(2, 2);
+		ui.keyDown(Key.BACKSPACE, 0);
+		check("graphemes: Backspace takes a mark", h.text == "e\u{1F44D}\u{1F3FD}\u{1F1E7}\u{1F1EA}" && h.caret == 1, h.text);
+		h.select(1 + 2 * units, 1 + 2 * units);
+		ui.keyDown(Key.BACKSPACE, 0);
+		check("graphemes: Backspace takes an emoji with its modifier", h.text == "e\u{1F1E7}\u{1F1EA}", h.text);
+		h.select(1, 1);
+		ui.keyDown(Key.DELETE, 0);
+		check("graphemes: Delete takes a flag", h.text == "e", h.text);
 		// an input method's composition: shown at the caret, underlined, typed when committed
 		var ui = new Ui(new MonoText(), 300, 100);
 		ui.root.style.fontSize = 10;
