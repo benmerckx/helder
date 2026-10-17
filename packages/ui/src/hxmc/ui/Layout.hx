@@ -210,10 +210,14 @@ class Layout {
 		// lines: runs of the items
 		var firstLine = lineTop;
 		var line = takeLine(first), sum = 0.0;
+		// (where lines break: the main size, else a row's room within its min and max, else the max:
+		// a column of auto height breaks only at its max-height)
+		var finiteMax = maxMain < Math.POSITIVE_INFINITY ? maxMain : Math.NaN;
+		var breakAt = known(innerMain) ? innerMain : row && known(availMain) ? clamp(availMain, Math.max(0, minMain), maxMain) : finiteMax;
 		for (i in first...itemTop) {
 			var it = items[i];
 			var outer = it.hypo + it.mMainStart + it.mMainEnd;
-			if (multi && known(availMain) && line.end > line.start && sum + gapMain + outer > availMain + 1e-6) {
+			if (multi && known(breakAt) && line.end > line.start && sum + gapMain + outer > breakAt + 1e-6) {
 				line = takeLine(i);
 				sum = 0;
 			}
@@ -233,6 +237,13 @@ class Layout {
 					t += contribution(it, row, innerW, innerH) + it.mMainStart + it.mMainEnd + (i > l.start ? gapMain : 0);
 				}
 				if (t > content) content = t;
+			}
+			// (a wrapping row's max-content: its items on one line)
+			if (row && multi && lastLine - firstLine > 1) {
+				var t = 0.0;
+				for (i in first...itemTop)
+					t += contribution(items[i], row, innerW, innerH) + items[i].mMainStart + items[i].mMainEnd + (i > first ? gapMain : 0);
+				content = t;
 			}
 			// (a row shrinks to fit the room; a column's auto height is its content's, the room or not)
 			mainSize = known(availMain) && row ? Math.min(content, availMain) : content;

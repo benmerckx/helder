@@ -3215,6 +3215,60 @@
 		}
 	},
 	{
+		"name": "wrapping at max-width, not at the room",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"maxWidth": 80,
+						"columnGap": 10
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 60,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"wrap": true,
+						"height": 50
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 40
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "row intrinsic width without flex-basis",
 		"width": 300,
 		"height": 100,
