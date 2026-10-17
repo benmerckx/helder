@@ -1046,7 +1046,7 @@ class Layout {
 		if (s.display == None) return 0;
 		var minW = min(s.minWidth, parentW), maxW = max(s.maxWidth, parentW);
 		var w = s.width.resolve(parentW);
-		if (contribution && known(w)) return clamp(w, minW, maxW);
+		if (contribution && known(w)) return Math.max(clamp(w, minW, maxW), edgesH(s));
 		var cached = n.minContent;
 		if (known(cached)) return cached;
 		var padH = s.padding.left + s.padding.right + s.borderEdges.left + s.borderEdges.right;

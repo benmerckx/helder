@@ -3643,6 +3643,72 @@
 		}
 	},
 	{
+		"name": "width under its padding, min-content",
+		"width": 200,
+		"height": 150,
+		"tree": {
+			"style": {
+				"wrap": true,
+				"padding": [
+					2,
+					6
+				]
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "RowReverse",
+						"shrink": 0,
+						"maxHeight": 80
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "Row",
+								"margin": [
+									0,
+									5
+								],
+								"position": "Absolute",
+								"top": 7,
+								"bottom": 4
+							},
+							"children": [
+								{
+									"style": {
+										"basis": 50,
+										"width": 60,
+										"height": 30
+									}
+								},
+								{
+									"style": {
+										"wrap": true,
+										"grow": 2,
+										"shrink": 0,
+										"width": 10,
+										"padding": [
+											2,
+											6
+										]
+									}
+								},
+								{
+									"style": {
+										"width": 10,
+										"height": 30,
+										"grow": 0.5,
+										"margin": 3
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "shrink by the content-box base size",
 		"width": 200,
 		"height": 60,
