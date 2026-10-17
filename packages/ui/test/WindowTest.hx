@@ -8,7 +8,8 @@ import hxmc.unsafe.*;
 // back through the platform's own calls (make ui-draw-check under Xvfb: X11's
 // _NET_WM_NAME, WM_NAME, the window's geometry, WM_NORMAL_HINTS; CI:
 // Win32's window text, client rectangle and WM_GETMINMAXINFO's answer,
-// Cocoa's title and content sizes).
+// Cocoa's title and content sizes, its menu bar and Command-Q asking the
+// window to close).
 //   WindowTest
 class WindowTest {
 	static var failed = 0;
@@ -28,15 +29,21 @@ class WindowTest {
 		w.title = title;
 		w.resize(300, 150);
 		w.setMinSize(120, 80);
-		var frames = 0, resized = false;
+		var frames = 0, resized = false, closes = 0;
 		App.run(() -> {
-			if (++frames > 20 && resized || frames > 400) {
+			if (Mem.os() == 1 && frames == 5) quit(w);
+			if (++frames > 20 && resized && (Mem.os() != 1 || closes > 0) || frames > 400) {
 				if (Mem.os() == 0) x11(w, title) else if (Mem.os() == 2) win32(w, title) else if (Mem.os() == 1) cocoa(w, title);
 				w.close();
 			}
 			App.wait(0.01);
-		}, e -> if (e.kind == Resize) resized = true);
+		}, e -> switch e.kind {
+			case Resize: resized = true;
+			case Close: closes++;
+			case _:
+		});
 		check("a Resize event", resized);
+		if (Mem.os() == 1) check("cocoa: Command-Q asks the window to close", closes == 1, '$closes');
 		Sys.println('WindowTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -91,6 +98,19 @@ class WindowTest {
 		});
 	}
 
+	// a Command-Q key press posted to the application
+	static function quit(w:Window) {
+		// (macOS only: Msg's struct arguments are arm64 calls)
+		if (Mem.os() == 1) {
+			var window = Msg.id(w.surface.handle, ObjC.sel("window")), q = ObjC.str("q");
+			var ev = Msg.idIntPointIntFloatIntPtrPtrPtrBoolU16(ObjC.cls("NSEvent"),
+				ObjC.sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"), 10,
+				Msg.point(ObjC.cls("NSEvent"), ObjC.sel("mouseLocation")), 1 << 20, 0, Msg.i(window, ObjC.sel("windowNumber")), Ptr.nil(), q, q, false, 12);
+			Msg.vPtrBool(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("postEvent:atStart:"), ev, false);
+			ObjC.release(q);
+		}
+	}
+
 	static function cocoa(w:Window, title:String) {
 		var view = w.surface.handle, window = Msg.id(view, ObjC.sel("window"));
 		var t = ObjC.string(Msg.id(window, ObjC.sel("title")));
@@ -99,5 +119,11 @@ class WindowTest {
 		check("cocoa: resized", f.size.width == 300 && f.size.height == 150, '${f.size.width}x${f.size.height}');
 		var m = Msg.point(window, ObjC.sel("contentMinSize"));
 		check("cocoa: the minimum size", m.x == 120 && m.y == 80, '${m.x}x${m.y}');
+		var bar = Msg.id(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("mainMenu"));
+		var own = bar.isNull() ? Ptr.nil() : Msg.id(Msg.idInt(bar, ObjC.sel("itemAtIndex:"), 0), ObjC.sel("submenu"));
+		var last = own.isNull() ? Ptr.nil() : Msg.idInt(own, ObjC.sel("itemAtIndex:"), Msg.i(own, ObjC.sel("numberOfItems")) - 1);
+		var quitTitle = last.isNull() ? null : ObjC.string(Msg.id(last, ObjC.sel("title")));
+		check("cocoa: the menu bar, Quit last in the application's menu", !bar.isNull() && Msg.i(bar, ObjC.sel("numberOfItems")) == 2 && quitTitle != null
+			&& StringTools.startsWith(quitTitle, "Quit ") && ObjC.string(Msg.id(last, ObjC.sel("keyEquivalent"))) == "q", quitTitle);
 	}
 }

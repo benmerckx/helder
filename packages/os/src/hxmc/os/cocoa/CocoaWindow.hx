@@ -19,6 +19,11 @@ import hxmc.unsafe.*;
 // and dead keys compose in it: its marked text comes as TextEditing events,
 // what it is given to insert as TextInput (and not kept), its commands
 // (moves, deletions: KeyDown's) ignored.
+// The application has the menu bar Mac apps have: its own menu (Hide,
+// Hide Others, Show All, Quit) and a Window menu (Minimize, Zoom, Close,
+// the windows), their shortcuts taken before the keys are ours. Quit (and
+// the Dock's) asks every window to close: a Close event each, as their
+// close buttons; the app ends when it closes them.
 // Sizes and positions are in pixels (points times the backing scale), y down.
 @:allow(hxmc.os)
 class CocoaWindow {
@@ -96,8 +101,12 @@ class CocoaWindow {
 		Runtime.class_addMethod(cls, ObjC.sel("windowShouldClose:"), Callback.addr(shouldClose), Mem.cstr("c@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("windowDidResize:"), Callback.addr(didResize), Mem.cstr("v@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didResize), Mem.cstr("v@:@"));
+		// (the application's delegate too)
+		Runtime.class_addMethod(cls, ObjC.sel("applicationShouldTerminate:"), Callback.addr(shouldTerminate), Mem.cstr("Q@:@"));
 		Runtime.objc_registerClassPair(cls);
 		delegate = Msg.id(Msg.id(cls, ObjC.sel("alloc")), ObjC.sel("init"));
+		Msg.vPtr(app, ObjC.sel("setDelegate:"), delegate);
+		menus();
 		// (an NSRange by value after the text: not read)
 		var t = Runtime.objc_allocateClassPair(ObjC.cls("NSTextView"), Mem.cstr("HxmcTextView"), 0);
 		Runtime.class_addMethod(t, ObjC.sel("insertText:replacementRange:"), Callback.addr(insertText), Mem.cstr("v@:@{_NSRange=QQ}"));
@@ -105,6 +114,54 @@ class CocoaWindow {
 		Runtime.class_addMethod(t, ObjC.sel("doCommandBySelector:"), Callback.addr(doCommand), Mem.cstr("v@::"));
 		Runtime.objc_registerClassPair(t);
 		textViewClass = t;
+	}
+
+	// the menu bar: the application's menu and the Window menu
+	static function menus() {
+		var name = ObjC.string(Msg.id(Msg.id(ObjC.cls("NSProcessInfo"), ObjC.sel("processInfo")), ObjC.sel("processName")));
+		function menu(title:String):Ptr {
+			var t = ObjC.str(title);
+			var m = Msg.idPtr(Msg.id(ObjC.cls("NSMenu"), ObjC.sel("alloc")), ObjC.sel("initWithTitle:"), t);
+			ObjC.release(t);
+			return m;
+		}
+		// (modifiers: NSEventModifierFlagOption, Command)
+		function item(m:Ptr, title:String, action:Ptr, key:String, ?mods:Int) {
+			var t = ObjC.str(title), k = ObjC.str(key);
+			var it = Msg.idPtrPtrPtr(Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("alloc")), ObjC.sel("initWithTitle:action:keyEquivalent:"), t, action, k);
+			if (mods != null) Msg.vInt(it, ObjC.sel("setKeyEquivalentModifierMask:"), mods);
+			Msg.vPtr(m, ObjC.sel("addItem:"), it);
+			ObjC.release(it);
+			ObjC.release(t);
+			ObjC.release(k);
+		}
+		function separator(m:Ptr)
+			Msg.vPtr(m, ObjC.sel("addItem:"), Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("separatorItem")));
+		function submenu(bar:Ptr, m:Ptr) {
+			var it = Msg.id(Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("alloc")), ObjC.sel("init"));
+			Msg.vPtr(it, ObjC.sel("setSubmenu:"), m);
+			Msg.vPtr(bar, ObjC.sel("addItem:"), it);
+			ObjC.release(it);
+		}
+		var bar = menu("");
+		var own = menu(name);
+		item(own, "Hide " + name, ObjC.sel("hide:"), "h");
+		item(own, "Hide Others", ObjC.sel("hideOtherApplications:"), "h", (1 << 19) | (1 << 20));
+		item(own, "Show All", ObjC.sel("unhideAllApplications:"), "");
+		separator(own);
+		item(own, "Quit " + name, ObjC.sel("terminate:"), "q");
+		submenu(bar, own);
+		var windows = menu("Window");
+		item(windows, "Minimize", ObjC.sel("performMiniaturize:"), "m");
+		item(windows, "Zoom", ObjC.sel("performZoom:"), "");
+		item(windows, "Close", ObjC.sel("performClose:"), "w");
+		separator(windows);
+		submenu(bar, windows);
+		Msg.vPtr(app, ObjC.sel("setMainMenu:"), bar);
+		Msg.vPtr(app, ObjC.sel("setWindowsMenu:"), windows);
+		ObjC.release(own);
+		ObjC.release(windows);
+		ObjC.release(bar);
 	}
 
 	// the size in pixels and the backing scale, from the content view; the
@@ -312,6 +369,17 @@ class CocoaWindow {
 		return 0;
 	}
 
+	// Quit: each window asked to close; NSTerminateCancel (the loop is ours)
+	@:hxmc.callback static function shouldTerminate(self:Ptr, cmd:Ptr, sender:Ptr):Int64 {
+		for (w in open.copy()) {
+			var e = event;
+			e.kind = Close;
+			e.window = w.owner;
+			dispatch(e);
+		}
+		return 0;
+	}
+
 	@:hxmc.callback static function didResize(self:Ptr, cmd:Ptr, note:Ptr):Void {
 		var w = find(Msg.id(note, ObjC.sel("object")));
 		if (w != null && w.measure()) w.resized();
@@ -338,6 +406,9 @@ class CocoaWindow {
 			var w = find(Msg.id(ev, ObjC.sel("window")));
 			var type = Msg.i(ev, ObjC.sel("type")).toInt();
 			var key = type == NS.KeyDown || type == NS.KeyUp;
+			// (the menus' shortcuts first: Command and a key one of them has)
+			if (type == NS.KeyDown && Msg.i(ev, ObjC.sel("modifierFlags")).toInt() & (1 << 20) != 0
+				&& Msg.bPtr(Msg.id(app, ObjC.sel("mainMenu")), ObjC.sel("performKeyEquivalent:"), ev)) continue;
 			if (w != null) w.translate(ev, type);
 			if (w != null) w.composition();
 			// (keys stay ours: unhandled, AppKit would beep at each)

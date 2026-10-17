@@ -82,7 +82,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   with borders, soft shadows and glyphs from an atlas, every fragment
   clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a
   `Ui` in an `hxmc.os` window, shows the hovered node's cursor and runs
-  the loop.
+  the loop. On macOS the app has the usual menu bar (Hide, Quit, the Window
+  menu); Quit asks each window to close, as its close button does.
 - **`hxmc.ui.reactive`**: `signal`, `memo`, `effect`, `batch`, `untrack`,
   `root`, `onCleanup`, `onMount`, contexts (`context`, `provide`, `use`,
   the `Provider` component), and `Render`, which mounts markup into nodes
