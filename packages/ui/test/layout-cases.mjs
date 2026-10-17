@@ -153,6 +153,11 @@ export const cases = [
 	{ name: 'auto margins in a column and a grid', width: 300, height: 300, tree: { style: { direction: 'Row', columnGap: 10, alignItems: 'Start' }, children: [
 		{ style: { height: 200, width: 80 }, children: [box(40, 20, { margin: ['auto', 'auto', 0, 'auto'] }), box(40, 20), box(40, 20, { margin: [0, 0, 'auto', 'auto'] }), h(20)] },
 		{ style: { display: 'Grid', gridTemplateColumns: '80px 80px', gridAutoRows: '60px', width: 160 }, children: [box(30, 20, { margin: 'auto' }), box(30, 20, { margin: [0, 0, 'auto', 'auto'] }), { style: { height: 20, margin: [0, 'auto'] } }, { style: { margin: ['auto', 0] } }] }] } },
+	{ name: 'auto margins overflowing, justify-content kept', width: 300, height: 100, tree: { style: { justify: 'Center' }, children: [{ style: { height: 80, shrink: 0 } }, box(40, 60, { margin: ['auto', 0, 0, 'auto'], shrink: 0 })] } },
+	// an absolute box with both offsets and an auto size: stretched only when its self-alignment is auto or stretch, else fit-content
+	{ name: 'absolute self-aligned fit-content', width: 300, height: 200, tree: { style: { height: 200 }, children: [
+		{ style: { position: 'Absolute', left: 10, right: 10, top: 10, bottom: 10, alignSelf: 'End', justifySelf: 'Center' }, children: [box(40, 20)] },
+		{ style: { position: 'Absolute', left: 10, top: 0, bottom: 0, alignSelf: 'Baseline', margin: ['auto', 0, 0, 0] }, children: [box(30, 10)] }] } },
 	{ name: 'auto margins on absolute boxes', width: 300, height: 200, tree: { style: { height: 200 }, children: [
 		{ style: { position: 'Absolute', left: 10, right: 10, top: 10, bottom: 10, width: 100, height: 50, margin: 'auto' } },
 		{ style: { position: 'Absolute', left: 10, right: 10, top: 0, width: 100, height: 20, margin: [0, 0, 0, 'auto'] } },

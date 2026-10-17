@@ -4223,6 +4223,91 @@
 		}
 	},
 	{
+		"name": "auto margins overflowing, justify-content kept",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"justify": "Center"
+			},
+			"children": [
+				{
+					"style": {
+						"height": 80,
+						"shrink": 0
+					}
+				},
+				{
+					"style": {
+						"width": 40,
+						"height": 60,
+						"margin": [
+							"auto",
+							0,
+							0,
+							"auto"
+						],
+						"shrink": 0
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "absolute self-aligned fit-content",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"height": 200
+			},
+			"children": [
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"right": 10,
+						"top": 10,
+						"bottom": 10,
+						"alignSelf": "End",
+						"justifySelf": "Center"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"top": 0,
+						"bottom": 0,
+						"alignSelf": "Baseline",
+						"margin": [
+							"auto",
+							0,
+							0,
+							0
+						]
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "auto margins on absolute boxes",
 		"width": 300,
 		"height": 200,

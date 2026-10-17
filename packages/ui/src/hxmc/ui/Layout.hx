@@ -380,12 +380,13 @@ class Layout {
 			}
 			taken += gapMain * (n - 1);
 			var free = mainSize - taken, pos = 0.0, gap = gapMain;
-			// (auto margins along: the free space shared among them, justify-content left out)
+			// (auto margins along: the free space shared among them, justify-content left out; none
+			// when it overflows, justify-content as usual)
 			var autos = 0;
 			for (i in l.start...l.end)
 				autos += (items[i].autoMain & 1) + (items[i].autoMain >> 1);
 			var share = autos > 0 && free > 0 ? free / autos : 0.0;
-			if (autos > 0) free = 0;
+			if (share > 0) free = 0;
 			switch s.justify {
 				case Start | Normal:
 				case End: pos = free;
@@ -1008,8 +1009,9 @@ class Layout {
 			// (what an auto or fit-content width fits in: the room its offsets and margins leave)
 			var room = Math.max(0, pbW - (known(l) ? l : 0) - (known(r) ? r : 0) - mz(m.left) - mz(m.right));
 			var aw = cs.width.intrinsic() ? intrinsicWidth(c, cs.width, pbW, room) : cs.width.resolve(pbW), ah = cs.height.resolve(pbH);
-			if (!known(aw) && known(l) && known(r)) aw = Math.max(0, pbW - l - r - mz(m.left) - mz(m.right));
-			if (!known(ah) && known(t) && known(b)) ah = Math.max(0, pbH - t - b - mz(m.top) - mz(m.bottom));
+			// (both offsets: the room between them, unless its self-alignment is set: fit-content then)
+			if (!known(aw) && known(l) && known(r) && (cs.justifySelf == Auto || cs.justifySelf == Stretch)) aw = Math.max(0, pbW - l - r - mz(m.left) - mz(m.right));
+			if (!known(ah) && known(t) && known(b) && (cs.alignSelf == Auto || cs.alignSelf == Stretch)) ah = Math.max(0, pbH - t - b - mz(m.top) - mz(m.bottom));
 			aw = clamp(aw, Math.max(minWidthOf(c, cs.minWidth, pbW, room), edgesH(cs)), maxWidthOf(c, cs.maxWidth, pbW, room));
 			ah = clamp(ah, Math.max(min(cs.minHeight, pbH), edgesV(cs)), max(cs.maxHeight, pbH));
 			var heightGiven = known(ah);
