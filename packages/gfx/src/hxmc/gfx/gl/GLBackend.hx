@@ -125,7 +125,9 @@ class GLBackend {
 			var f = gles.isNull() ? Ptr.nil() : Posix.dlsym(gles, name);
 			f.isNull() ? Egl.eglGetProcAddress(name) : f;
 		});
-		if (Mem.target() >= 9 && !headless) surface.lost = release;
+		if (Mem.target() >= 9) {
+			if (!headless) surface.lost = release;
+		}
 		if (missing != null) throw "hxmc.gfx: no GL function " + missing;
 		GL.glGenVertexArrays(1, scratch);
 		GL.glBindVertexArray(scratch.value);
@@ -322,6 +324,8 @@ class GLBackend {
 
 	// (Android) the system takes the window: its EGL surface goes first
 	function release() {
+		// (Android only: no EGL import elsewhere, WebGL2's among them)
+		if (Mem.target() < 9) return;
 		if (eglSurface.isNull()) return;
 		Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 		Egl.eglDestroySurface(display, eglSurface);
@@ -330,14 +334,16 @@ class GLBackend {
 	}
 
 	public function beginFrame():Bool {
-		if (Mem.target() >= 9 && surface.kind != Headless && surface.handle != window) {
-			// (a new window after a Resume)
-			release();
-			if (surface.handle.isNull()) return false;
-			eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
-			if (eglSurface.isNull()) fail("cannot create the EGL surface");
-			window = surface.handle;
-			if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+		// (Android: a new window after a Resume; one comparison of the target, folded elsewhere)
+		if (Mem.target() >= 9) {
+			if (surface.kind != Headless && surface.handle != window) {
+				release();
+				if (surface.handle.isNull()) return false;
+				eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
+				if (eglSurface.isNull()) fail("cannot create the EGL surface");
+				window = surface.handle;
+				if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+			}
 		}
 		ring ^= 1;
 		cursor = 0;
