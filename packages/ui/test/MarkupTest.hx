@@ -495,7 +495,7 @@ class MarkupTest implements Markup {
 		ui.pointerMove(b.absX + 20, b.absY + 2);
 		ui.update();
 		var line = [for (c in b.children) if (c.style.position == Absolute && c.style.display != None) c];
-		check("sortable: a line where it will go, above it", line.length == 1 && line[0].absY < b.absY, "" + line.length);
+		check("sortable: a line where it will go, above it, the hand closed", line.length == 1 && line[0].absY < b.absY && ui.cursor() == Grabbing, "" + line.length);
 		ui.pointerUp(b.absX + 20, b.absY + 2, 1);
 		ui.update();
 		check("sortable: dropped before it", items.value.join("") == "cdba" && moves[moves.length - 1] == "d1", items.value.join(""));

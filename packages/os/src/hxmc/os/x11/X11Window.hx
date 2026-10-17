@@ -146,12 +146,13 @@ class X11Window {
 		});
 
 	// (cursorfont.h: XC_left_ptr, XC_hand2, XC_xterm, XC_crosshair, XC_fleur,
-	// XC_X_cursor, XC_sb_h_double_arrow, XC_sb_v_double_arrow)
+	// XC_X_cursor, XC_sb_h_double_arrow, XC_sb_v_double_arrow; the font has no
+	// open or closed hand: XC_hand1 and XC_fleur)
 	function setCursor(c:Cursor) {
 		var i:Int = c;
 		while (cursors.length <= i)
 			cursors.push(0);
-		if (cursors[i] == 0) cursors[i] = Xlib.XCreateFontCursor(display, [68, 60, 152, 34, 52, 0, 108, 116][i]);
+		if (cursors[i] == 0) cursors[i] = Xlib.XCreateFontCursor(display, [68, 60, 152, 34, 52, 0, 108, 116, 58, 52][i]);
 		Xlib.XDefineCursor(display, id, cursors[i]);
 		Xlib.XFlush(display);
 	}

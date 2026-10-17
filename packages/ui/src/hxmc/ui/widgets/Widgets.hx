@@ -938,8 +938,8 @@ class Widgets implements Markup {
 	// move, the item and its new index
 	public static function Sortable<T>(props:{items:Signal<Array<T>>, render:T->Any, ?onMove:(T, Int)->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "sortable", active = signal(0), refs:Array<{item:T, node:Null<Node>}> = [];
-		// (where a drop goes: 2 * the item's index, plus 1 after it; -1: nowhere)
-		var over = signal(-1);
+		// (where a drop goes: 2 * the item's index, plus 1 after it; -1: nowhere), whether one is dragged
+		var over = signal(-1), held = signal(false);
 		function nodeOf(item:T):Null<Node> {
 			for (r in refs)
 				if (r.item == item) return r.node;
@@ -982,7 +982,8 @@ class Widgets implements Markup {
 				var at = () -> props.items.value.indexOf(item), entry:{item:T, node:Null<Node>} = {item: item, node: null};
 				refs.push(entry);
 				onCleanup(() -> refs.remove(entry));
-				<view role="listitem" ref={n -> entry.node = n} drag-data={item} focusable={() -> at() == active.value} cursor="move"
+				<view role="listitem" ref={n -> entry.node = n} drag-data={item} focusable={() -> at() == active.value}
+					cursor={() -> held.value ? "grabbing" : "grab"} onDragStart={_ -> held.value = true} onDragEnd={_ -> held.value = false}
 					direction="row" align-items="center" column-gap={8} padding="6 10" radius={6} border-width={1} border-color={() -> t().borderMuted}
 					background={() -> t().control}
 					onPointerDown={_ -> active.value = at()} onKeyDown={e -> key(e, item)}

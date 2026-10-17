@@ -247,6 +247,8 @@ class CocoaWindow {
 			case NotAllowed: Msg.id(cls, ObjC.sel("operationNotAllowedCursor"));
 			case ResizeEW: Msg.id(cls, ObjC.sel("resizeLeftRightCursor"));
 			case ResizeNS: Msg.id(cls, ObjC.sel("resizeUpDownCursor"));
+			case Grab: Msg.id(cls, ObjC.sel("openHandCursor"));
+			case Grabbing: Msg.id(cls, ObjC.sel("closedHandCursor"));
 			case _: Msg.id(cls, ObjC.sel("arrowCursor"));
 		}
 		Msg.v(ns, ObjC.sel("set"));

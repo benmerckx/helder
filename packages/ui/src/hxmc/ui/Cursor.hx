@@ -12,4 +12,6 @@ enum abstract Cursor(Int) to Int {
 	var NotAllowed;
 	@:css("ew-resize") var ResizeEW;
 	@:css("ns-resize") var ResizeNS;
+	var Grab;
+	var Grabbing;
 }

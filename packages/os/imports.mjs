@@ -467,7 +467,7 @@ export default function (host) {
 			}
 		},
 		set_cursor(h, c) {
-			host.handles.get(h).style.cursor = ['default', 'pointer', 'text', 'crosshair', 'move', 'not-allowed', 'ew-resize', 'ns-resize'][c] ?? 'default';
+			host.handles.get(h).style.cursor = ['default', 'pointer', 'text', 'crosshair', 'move', 'not-allowed', 'ew-resize', 'ns-resize', 'grab', 'grabbing'][c] ?? 'default';
 		},
 		next_event(p) {
 			const ev = queue.shift();

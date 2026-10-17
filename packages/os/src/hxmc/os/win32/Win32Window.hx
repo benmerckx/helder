@@ -137,9 +137,10 @@ class Win32Window {
 		minH = h;
 	}
 
-	// (IDC_ARROW, IDC_HAND, IDC_IBEAM, IDC_CROSS, IDC_SIZEALL, IDC_NO, IDC_SIZEWE, IDC_SIZENS)
+	// (IDC_ARROW, IDC_HAND, IDC_IBEAM, IDC_CROSS, IDC_SIZEALL, IDC_NO, IDC_SIZEWE, IDC_SIZENS;
+	// no open or closed hand: IDC_HAND and IDC_SIZEALL)
 	function setCursor(c:Cursor) {
-		cursor = User32.LoadCursorW(Ptr.nil(), Ptr.ofI64([32512, 32649, 32513, 32515, 32646, 32648, 32644, 32645][(c : Int)]));
+		cursor = User32.LoadCursorW(Ptr.nil(), Ptr.ofI64([32512, 32649, 32513, 32515, 32646, 32648, 32644, 32645, 32649, 32646][(c : Int)]));
 		User32.SetCursor(cursor);
 	}
 

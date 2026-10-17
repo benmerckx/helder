@@ -14,4 +14,7 @@ enum abstract Cursor(Int) to Int {
 	// resizing left and right, up and down
 	var ResizeEW;
 	var ResizeNS;
+	// something that can be dragged, and being dragged: an open and a closed hand
+	var Grab;
+	var Grabbing;
 }
