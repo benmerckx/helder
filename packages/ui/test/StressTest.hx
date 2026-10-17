@@ -28,7 +28,8 @@ class StressTest implements Markup {
 	}
 
 	function view():View
-		return <view grow={1} padding={12} row-gap={8} font-family="DejaVu Sans" font-size={13} color="#18181b" background="#fafafa">
+		// (min-height 0: as in CSS, a flex item holding a scroller is otherwise as tall as all its rows)
+		return <view grow={1} min-height={0} padding={12} row-gap={8} font-family="DejaVu Sans" font-size={13} color="#18181b" background="#fafafa">
 			<text font-size={18} font-weight={700}>{() -> list.value.length + " rows"}</text>
 			<scroll tag="list" grow={1} min-height={0} row-gap={2} background="#ffffff" border-width={1} border-color="#e4e4e7" radius={8} padding={6}>
 				<For each={list} render={(r:Row) -> <view direction="row" align-items="center" column-gap={10} padding="3 6" radius={4}

@@ -71,7 +71,10 @@ class Layout {
 			return;
 		}
 		// the style's own size, clamped
-		var bw = bareW, bh = bareH, own = !bw && !bh;
+		// (bare on an axis where the node has no size, min or max of its own: as measured normally, cached alike)
+		var bw = bareW && (s.width != DimValue.Auto || s.minWidth != DimValue.Auto || s.maxWidth != DimValue.Auto);
+		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
+		var own = !bw && !bh;
 		bareW = bareH = false;
 		var minW = Math.max(bw ? 0.0 : min(s.minWidth, parentW), edgesH(s)), maxW = bw ? Math.POSITIVE_INFINITY : max(s.maxWidth, parentW);
 		var minH = Math.max(bh ? 0.0 : min(s.minHeight, parentH), edgesV(s)), maxH = bh ? Math.POSITIVE_INFINITY : max(s.maxHeight, parentH);
@@ -230,7 +233,8 @@ class Layout {
 				}
 				if (t > content) content = t;
 			}
-			mainSize = known(availMain) ? Math.min(content, availMain) : content;
+			// (a row shrinks to fit the room; a column's auto height is its content's, the room or not)
+			mainSize = known(availMain) && row ? Math.min(content, availMain) : content;
 			mainSize = clamp(mainSize, Math.max(0, minMain), maxMain);
 		}
 

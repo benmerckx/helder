@@ -59,7 +59,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     size, so content is not squashed (their content's, not their own
     `height`: an empty box of a fixed height shrinks in a column it
     overflows, as in CSS; `shrink: 0` keeps it; a scroll container's is 0,
-    in grid tracks too). `display: Grid` lays children out
+    in grid tracks too). A column's auto height is its content's, however tall: a
+    flex item holding a scroller wants `minHeight: 0`, as in CSS, else it
+    grows to all of the scroller's content. `display: Grid` lays children out
     on CSS grid tracks instead: `gridTemplateColumns` and
     `gridTemplateRows` (px, %, fr, auto, min-content, max-content,
     minmax(), repeat()), `gridAutoRows`, `gridAutoColumns`,
