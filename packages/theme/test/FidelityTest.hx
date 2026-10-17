@@ -14,8 +14,8 @@ import hxmc.view.*;
 // case of ref/cases.json (a component, its variant, size, state, light or
 // dark, right to left) drawn headless in its frame (padding 16, Inter),
 // hovered by the pointer, focused by Tab, opened by a click or a key as the
-// case asks, its transitions run to their ends, then compared as BoxTest
-// compares: a small mean difference, few pixels far apart (edges and
+// case asks, its transitions run to their ends, then compared by ImageDiff (as
+// the image tests compare): a small mean difference, few pixels far apart (edges and
 // glyphs are anti-aliased differently). A popup (crop) is compared in its
 // box, 8px around it: hxmc places it by its trigger. Prints each case's
 // numbers; writes each drawing to <out dir>.
@@ -35,8 +35,6 @@ class FidelityTest implements Markup {
 		"badge-destructive" => CLIP,
 		"switch-checked" => CLIP,
 		"input-value" => "a single-line field's text at the top of its content box, not centred in it as a browser's <input> centres it",
-		"textarea-focus" => "its rows give it more height than min-h-16 with field-sizing-content",
-		"textarea-invalid" => "its rows give it more height than min-h-16 with field-sizing-content",
 		"radio-group-" => "a <button>'s content is centred vertically by the browser; the item's indicator, at its top here, is not",
 		"progress-" => "the indicator is not moved by translateX(-(100 - value)%) as shadcn's, and the widget's own width (160) wins over w-full",
 		"slider-" => "Slider and its track carry no data-orientation: data-[orientation=horizontal]:h-1.5 w-full never apply, the track has no size",
@@ -292,21 +290,11 @@ class FidelityTest implements Markup {
 			Toasts.clear();
 			sys.io.File.saveBytes('${args[1]}/${c.name}.png', Png.encode(got, w, h));
 			var want = PngDecoder.decode(sys.io.File.getBytes('${args[0]}/${c.name}.png'));
-			var total = 0.0, far = 0;
-			for (i in 0...w * h) {
-				var d = 0;
-				for (k in 0...3) {
-					var v = Std.int(Math.abs(got.get(4 * i + k) - want.rgba.get(4 * i + k)));
-					if (v > d) d = v;
-				}
-				total += d;
-				if (d > FAR) far++;
-			}
-			var mean = total / (w * h);
-			var ok = mean < MEAN && far <= MAX_FAR * w * h, why = known(c.name);
+			var diff = ImageDiff.of(got, want.rgba, w, h, FAR);
+			var ok = diff.within(MAX_FAR, MEAN), why = known(c.name);
 			if (!ok && why == null) failed++;
 			var verdict = why == null ? (ok ? "ok" : "FAILED") : ok ? 'ok, though known to differ ($why)' : 'differs, as known ($why)';
-			Sys.println('FidelityTest: ${c.name} $verdict (mean ${Math.round(mean * 100) / 100}, $far pixels off by more than $FAR)');
+			Sys.println('FidelityTest: ${c.name} $verdict ($diff)');
 		}
 		device.dispose();
 		Sys.println('FidelityTest: ${cases.length - skipped} cases ($skipped without a widget yet)' + (failed == 0 ? ", ok" : ', $failed FAILED'));

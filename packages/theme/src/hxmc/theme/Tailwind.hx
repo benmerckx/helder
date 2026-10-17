@@ -85,14 +85,10 @@ class Tailwind {
 		"@container", "@container/*",
 		// inherited already
 		"text-current",
-		// (no StyleProps for them yet: text-underline-offset, auto margins,
-		// sizes by calc(), scroll margins, touch-action)
-		"underline-offset-*", "h-[calc(100%-1px)]",
-		"max-w-[calc(100%-2rem)]", "scroll-my-*", "scroll-py-*", "touch-none",
+		// (no StyleProps for them yet: text-underline-offset, scroll margins, touch-action)
+		"underline-offset-*", "scroll-my-*", "scroll-py-*", "touch-none",
 		// what Radix's popper measures (--radix-*): ui's popups place and size themselves
 		"*(--radix-*", "*[var(--radix-*",
-		// a textarea growing with its text: the widget's behaviour
-		"field-sizing-content",
 		// a table's own layout (caption side, collapsed borders, a cell's
 		// vertical alignment): ui's Table lays out its cells
 		"caption-bottom", "border-collapse", "align-middle",
@@ -467,6 +463,8 @@ class Tailwind {
 				set("outlineWidth", VNum(1));
 				en("outlineStyle", "OutlineStyle", "Solid");
 			case "animate-in": set("enter", VBool(true));
+			case "field-sizing-content": en("fieldSizing", "FieldSizing", "Content");
+			case "field-sizing-fixed": en("fieldSizing", "FieldSizing", "Fixed");
 			case "underline": set("textDecoration", VInt(1));
 			case "line-through": set("textDecoration", VInt(2));
 			case "overline": set("textDecoration", VInt(4));
@@ -883,6 +881,11 @@ class Tailwind {
 			case _:
 		}
 		if (max && CONTAINERS.exists(v)) return Px(CONTAINERS[v] * REM);
+		// (calc(100%-2rem): a percentage plus pixels)
+		if (v.startsWith("[calc(") && v.endsWith(")]")) {
+			var c = calc(v.substring(6, v.length - 2).replace("_", ""));
+			return c == null ? null : Calc(c.p, c.px);
+		}
 		var slash = v.indexOf("/");
 		if (slash > 0) {
 			var a = number(v.substr(0, slash)), b = number(v.substr(slash + 1));
@@ -944,6 +947,18 @@ class Tailwind {
 			case _: return null;
 		}
 		return alpha == null ? 'rgb($rgb)' : 'rgba($rgb, ${alpha / 100})';
+	}
+
+	// (calc()'s body as a percentage plus pixels: 100%-2px, -50% - 2px, 100%+0.5rem)
+	static function calc(body:String):Null<{p:Float, px:Float}> {
+		var op = body.indexOf("-", 1);
+		var plus = body.indexOf("+", 1);
+		if (plus > 0 && (op < 0 || plus < op)) op = plus;
+		if (op < 0) return null;
+		var p = body.substr(0, op), l = length(body.substr(op + 1));
+		var n = p.endsWith("%") ? number(p.startsWith("-") ? p.substring(1, p.length - 1) : p.substr(0, p.length - 1)) : null;
+		if (n == null || l == null) return null;
+		return {p: p.startsWith("-") ? -n : n, px: body.charAt(op) == "-" ? -l : l};
 	}
 
 	// a translation: spacing, a fraction or full (of the box), an arbitrary
@@ -1150,6 +1165,7 @@ class Tailwind {
 			case VBool(b): '$b';
 			case VEnum(_, name): name;
 			case VDim(Percent(p)): num(p) + "%";
+			case VDim(Calc(p, px)): 'calc(' + num(p) + '% ' + (px < 0 ? '- ' + num(-px) : '+ ' + num(px)) + 'px)';
 			case VDim(d): '$d';
 			case VEdges(t, r, b, l): t == r && r == b && b == l ? num(t) : [t, r, b, l].map(num).join(" ");
 			case VCorners(tl, tr, br, bl): tl == tr && tr == br && br == bl ? num(tl) : [tl, tr, br, bl].map(num).join(" ");

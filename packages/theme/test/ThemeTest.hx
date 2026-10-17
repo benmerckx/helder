@@ -180,6 +180,7 @@ class ThemeTest {
 			+ "outlineColor 500ms cubic-bezier(0.4,0,0.2,1), textDecorationColor 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), "
 			+ "shadow 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1)\n"
 			+ "x data-state=open starting: transform=translateX(100%)");
+		same("h-[calc(100%-1px)] max-w-[calc(100%-2rem)] field-sizing-content", "x height=calc(100% - 1px) maxWidth=calc(100% - 32px) fieldSizing=Content");
 		same("select-none ml-auto mx-auto overflow-x-auto overflow-y-hidden", "x userSelect=None marginRight=auto marginLeft=auto overflowX=Scroll overflowY=Hidden");
 		same("group-hover/item:opacity-100 peer-data-[state=checked]/box:hidden not-first:border-l", "x not:first: borders=0 0 0 1\nx group/item:hover: opacity=1\nx peer/box:data-state=checked: display=None");
 		same("selection:bg-primary rtl:pl-2 md:p-1", "x selection: background=var(--primary)\nx md: padding=4\nx rtl: paddingLeft=8");
@@ -193,7 +194,7 @@ class ThemeTest {
 		rejected("hover:p-wat", "unknown class hover:p-wat");
 		rejected("wat:p-2", "unknown variant wat: in wat:p-2");
 		rejected("mx-[auto]", "unknown class mx-[auto]");
-		rejected("w-[calc(100%-2rem)]", "unknown class w-[calc(100%-2rem)]");
+		rejected("w-[calc(100%*2)]", "unknown class w-[calc(100%*2)]");
 	}
 
 	// (Tw's rules at compile time: object literals of StyleProps)
