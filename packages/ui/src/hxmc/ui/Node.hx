@@ -541,6 +541,18 @@ class Node {
 		return true;
 	}
 
+	// whether the pointer finds it: seen, and its pointerEvents (else its
+	// nearest ancestor's) not None
+	public function hittable():Bool {
+		var n = this;
+		while (n != null) {
+			var p = n.style.pointerEvents;
+			if (p != null) return p == Auto && visible();
+			n = n.parent;
+		}
+		return visible();
+	}
+
 	// whether its text wraps: its textWrap, else its nearest ancestor's (Style.textWrap)
 	public function wraps():Bool {
 		var n = this;
@@ -822,7 +834,7 @@ class Node {
 				var c = order[i].hitTest(sx, sy);
 				if (c != null) return c;
 			}
-			return inside && visible() ? this : null;
+			return inside && hittable() ? this : null;
 		}
 		for (pass in 0...2) {
 			var i = children.length;
@@ -832,7 +844,7 @@ class Node {
 				if (c != null) return c;
 			}
 		}
-		return inside && visible() ? this : null;
+		return inside && hittable() ? this : null;
 	}
 
 	// the bounds of what it and its subtree draw, from its layout (window

@@ -48,6 +48,7 @@ class UiTest {
 		sticky();
 		stacking();
 		visibility();
+		pointerEvents();
 		rtlScroll();
 		noWrap();
 		textTransform();
@@ -371,6 +372,25 @@ class UiTest {
 	// right to left, a row overflowing a scroller overflows on the left:
 	// scrolled there by negative offsets (Chromium's scrollLeft), from 0 at
 	// its right end; the vertical bar on the left
+	// pointerEvents None: the pointer through to what is under it; an Auto descendant still found
+	static function pointerEvents() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		var under = new Node("under"), cover = new Node("cover"), knob = new Node("knob");
+		under.style.set({width: 100, height: 50});
+		cover.style.set({position: Absolute, left: 0, top: 0, width: 100, height: 50, pointerEvents: None});
+		knob.style.set({width: 20, height: 20, pointerEvents: Auto});
+		cover.append(knob);
+		ui.root.append(under);
+		ui.root.append(cover);
+		ui.update();
+		var clicked = 0;
+		under.onClick = _ -> clicked++;
+		ui.pointerDown(50, 30, 1);
+		ui.pointerUp(50, 30, 1);
+		check("pointer events: through a None node to the one under it", ui.root.hitTest(50, 30) == under && clicked == 1, "" + ui.root.hitTest(50, 30));
+		check("pointer events: its Auto child still found", ui.root.hitTest(10, 10) == knob);
+	}
+
 	static function rtlScroll() {
 		var ui = new Ui(new MonoText(), 200, 100);
 		ui.scrollDuration = 0;

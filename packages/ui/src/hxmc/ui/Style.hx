@@ -192,6 +192,11 @@ class Style {
 	// nothing of it to assistive technology (its Visible descendants still are)
 	public var visibility(get, set):Null<Visibility>;
 
+	// whether the pointer finds it, inherited (null: the parent's; Auto at
+	// the root; CSS's pointer-events): None lets presses, hovers and the
+	// wheel through to what is under it (its Auto descendants still take them)
+	public var pointerEvents(get, set):Null<PointerEvents>;
+
 	// whether text wraps at its box's width, inherited (null: the parent's;
 	// Wrap at the root; CSS's text-wrap-mode): NoWrap lays each line out
 	// whole, its min-content width that wide (line breaks still break)
@@ -287,6 +292,9 @@ class Style {
 
 	inline function get_visibility():Null<Visibility>
 		return rare == null ? null : rare.visibility;
+
+	inline function get_pointerEvents():Null<PointerEvents>
+		return rare == null ? null : rare.pointerEvents;
 
 	inline function get_textWrap():Null<TextWrap>
 		return rare == null ? null : rare.textWrap;
@@ -395,6 +403,12 @@ class Style {
 		node.styleChanged(false);
 		// (what assistive technology sees changes)
 		Ui.accessEpoch++;
+		return v;
+	}
+
+	function set_pointerEvents(v:Null<PointerEvents>):Null<PointerEvents> {
+		if (v == pointerEvents) return v;
+		more().pointerEvents = v;
 		return v;
 	}
 
@@ -866,6 +880,7 @@ class Style {
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
+		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
 		if (p.textTransform != null) textTransform = p.textTransform;
 		if (p.order != null) order = p.order;
@@ -912,6 +927,7 @@ private class StyleRare {
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
+	public var pointerEvents:Null<PointerEvents> = null;
 	public var textWrap:Null<TextWrap> = null;
 	public var textTransform:Null<TextTransform> = null;
 	public var order:Int = 0;

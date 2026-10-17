@@ -86,7 +86,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     Chromium blurs them, within a few levels of its pixels), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
-    `Visible` descendant still is). Colours are
+    `Visible` descendant still is), `pointerEvents` (inherited; `None` lets
+    the pointer through to what is under it, an `Auto` descendant still
+    found). Colours are
     CSS's (`Color.parse`: hex, `rgb()`, `hsl()`, the 148 names, as Chromium
     computes them); `backgroundImage` (markup: `background="linear-gradient(...)"`)
     is a CSS gradient, linear or radial, repeating or not (`Gradient`: within
