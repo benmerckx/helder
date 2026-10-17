@@ -126,7 +126,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     blur over the node's own `shadow`, the offset over the ring, each from
     its own property or rule), `paddingTop`...`paddingLeft`, `marginTop`...
     `marginLeft` (one side each, a margin's may be `Edges.AUTO`: rules for
-    `pt-2` and `px-4` combine), corner radii scaled down together where a side's
+    `pt-2` and `px-4` combine), `userSelect` (inherited: `None`, `Text`, `All`:
+    whether a drag selects its text, as CSS's user-select), corner radii scaled down together where a side's
     two add up to more than it (as CSS: `9999` a pill), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a

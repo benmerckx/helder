@@ -643,6 +643,17 @@ class Node {
 	}
 
 	// whether its inline direction is right to left (Style.dir, inherited)
+	// its text's user-select as set on it or an ancestor (Auto: none set)
+	public function userSelect():UserSelect {
+		var n = this;
+		while (n != null) {
+			var u = n.style.userSelect;
+			if (u != null && u != Auto) return u;
+			n = n.parent;
+		}
+		return Auto;
+	}
+
 	public function rtl():Bool
 		return dir() == Rtl;
 

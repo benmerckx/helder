@@ -650,6 +650,31 @@ class UiTest {
 		time = 20;
 		ui.pointerDown(other.absX + 5, other.absY + 5, 1);
 		check("selection: a press elsewhere drops it", ui.textSelection == null);
+		// (user-select: none on it, not selected; all, all of it at a click; text on an ancestor, a text of its own flag unset)
+		t.style.userSelect = None;
+		time = 30;
+		ui.pointerDown(t.absX + 3, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 3, t.absY + 5, 1);
+		var none = ui.textSelection == null;
+		t.style.userSelect = All;
+		time = 40;
+		ui.pointerDown(t.absX + 3, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 3, t.absY + 5, 1);
+		var all = ui.selectedText();
+		t.style.userSelect = null;
+		t.selectable = false;
+		ui.root.style.userSelect = Text;
+		time = 50;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		time = 50.2;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		check("selection: user-select none, all, text inherited", none && all == "hello world foo" && ui.selectedText() == "world", all + " " + ui.selectedText());
+		ui.root.style.userSelect = null;
+		t.selectable = true;
+		time = 60;
+		ui.pointerDown(other.absX + 5, other.absY + 5, 1);
 		// (centred in 300: the line of 75 starts at 112.5)
 		t.style.width = 300;
 		t.style.textAlign = Center;

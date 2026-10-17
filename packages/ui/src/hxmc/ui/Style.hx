@@ -176,6 +176,9 @@ class Style {
 	public var outlineColor(get, set):Null<Color>;
 	// a solid outline this wide in the text colour (CSS's shorthand; markup also "2px solid red", "none")
 	public var outline(never, set):Float;
+	// whether its text can be selected by the pointer (UserSelect; null: the parent's)
+	public var userSelect(get, set):Null<UserSelect>;
+
 	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
 	public var outlineStyle(get, set):Null<OutlineStyle>;
 
@@ -391,6 +394,15 @@ class Style {
 
 	inline function get_dir():Null<Dir>
 		return rare == null ? null : rare.dir;
+
+	inline function get_userSelect():Null<UserSelect>
+		return rare == null ? null : rare.userSelect;
+
+	function set_userSelect(v:Null<UserSelect>):Null<UserSelect> {
+		if (v == userSelect) return v;
+		more().userSelect = v;
+		return v;
+	}
 
 	inline function get_outlineStyle():Null<OutlineStyle>
 		return rare == null ? null : rare.outlineStyle;
@@ -1410,6 +1422,7 @@ class Style {
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
 		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
+		if (p.userSelect != null) userSelect = p.userSelect;
 		if (p.ringWidth != null) ringWidth = p.ringWidth;
 		if (p.ringColor != null) ringColor = p.ringColor;
 		if (p.ringOffsetWidth != null) ringOffsetWidth = p.ringOffsetWidth;
@@ -1479,6 +1492,7 @@ private class StyleRare {
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
 	public var outlineStyle:Null<OutlineStyle> = null;
+	public var userSelect:Null<UserSelect> = null;
 	public var ringWidth:Float = 0;
 	public var ringColor:Null<Color> = null;
 	public var ringOffsetWidth:Float = 0;

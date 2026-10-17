@@ -540,8 +540,12 @@ class Ui {
 	// a word on a double click, all of it on a triple; elsewhere it is dropped
 	function selectAt(target:Null<Node>, x:Float, y:Float, button:Int) {
 		var t:Null<TextNode> = null, n = target;
+		// (a text selectable by its own flag, or by user-select text or all; none: not)
 		while (n != null) {
-			if (Std.isOfType(n, TextNode) && (cast n : TextNode).selectable) t = cast n;
+			if (Std.isOfType(n, TextNode)) {
+				var u = n.userSelect();
+				if (u == Text || u == All || (cast n : TextNode).selectable && n.style.userSelect != None) t = cast n;
+			}
 			n = n.parent;
 		}
 		if (t == null || button != 1) {
@@ -569,9 +573,9 @@ class Ui {
 				b++;
 			if (a == b && b < text.length) b++;
 			textSelection = {node: t, anchor: a, caret: b};
-		} else if (selClicks >= 3) textSelection = {node: t, anchor: 0, caret: text.length};
+		} else if (selClicks >= 3 || t.userSelect() == All) textSelection = {node: t, anchor: 0, caret: text.length};
 		else textSelection = {node: t, anchor: i, caret: i};
-		selecting = selClicks == 1;
+		selecting = selClicks == 1 && t.userSelect() != All;
 		requestFrame();
 	}
 
