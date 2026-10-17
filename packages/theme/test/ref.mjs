@@ -194,7 +194,7 @@ const frames = {
 	'radio-group': { w: 180, h: 76 }, slider: { w: 240, h: 48, block: true }, tabs: { w: 320, h: 112 }, progress: { w: 240, h: 40, block: true },
 	separator: { w: 240, h: 92, block: true }, skeleton: { w: 300, h: 80 }, toggle: { w: 120, h: 68 }, 'toggle-group': { w: 280, h: 68 },
 	alert: { w: 400, h: 116, block: true }, select: { w: 220, h: 68 }, 'select-content': { w: 200, h: 200 }, table: { w: 360, h: 200, block: true },
-	accordion: { w: 400, h: 200, block: true }, breadcrumb: { w: 300, h: 52 }, pagination: { w: 420, h: 68, block: true }, dialog: { w: 800, h: 600 },
+	accordion: { w: 400, h: 200, block: true }, breadcrumb: { w: 360, h: 52 }, pagination: { w: 420, h: 68, block: true }, dialog: { w: 800, h: 600 },
 	popover: { w: 320, h: 120 }, tooltip: { w: 160, h: 60 }, 'dropdown-menu': { w: 240, h: 240 }, menubar: { w: 240, h: 68 },
 	// (a popup: drawn in a larger frame, compared in its box, 8px around it for its shadow; refCrop: the element, where it is not the slot hxmc crops)
 	command: { w: 320, h: 300, crop: 'command-list', refCrop: 'popover-content' }, 'context-menu': { w: 320, h: 300, crop: 'context-menu-content' },

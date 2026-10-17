@@ -79,8 +79,6 @@ class Tailwind {
 		// pulse, an accordion's height (Radix measures it), a spinner's turn
 		// (ui's Spinner turns by itself)
 		"animate-pulse", "animate-accordion-*", "animate-spin",
-		// no text selection to forbid
-		"select-none",
 		// markers of group-* and peer-* variants
 		"group", "group/*", "peer", "peer/*",
 		// container queries
@@ -89,7 +87,7 @@ class Tailwind {
 		"text-current",
 		// (no StyleProps for them yet: text-underline-offset, auto margins,
 		// sizes by calc(), scroll margins, touch-action)
-		"underline-offset-*", "m-auto", "mx-auto", "my-auto", "ml-auto", "mr-auto", "mt-auto", "mb-auto", "h-[calc(100%-1px)]",
+		"underline-offset-*", "h-[calc(100%-1px)]",
 		"max-w-[calc(100%-2rem)]", "scroll-my-*", "scroll-py-*", "touch-none",
 		// what Radix's popper measures (--radix-*): ui's popups place and size themselves
 		"*(--radix-*", "*[var(--radix-*",
@@ -365,13 +363,16 @@ class Tailwind {
 		for (prefix in ["group", "peer", "has", "not"])
 			if (v.startsWith(prefix + "-")) {
 				var inner = v.substr(prefix.length + 1);
-				// (group-data-[size=sm]/switch: the name of the group left out)
-				var slash = inner.lastIndexOf("/");
-				if (slash > inner.lastIndexOf("]")) inner = inner.substr(0, slash);
+				// (group-hover/item: the group named item, "group/item:hover"; a group's data-[size=sm] selects the size, its name aside)
+				var slash = inner.lastIndexOf("/"), name = "";
+				if (slash > inner.lastIndexOf("]")) {
+					name = prefix == "group" || prefix == "peer" ? "/" + inner.substr(slash + 1) : "";
+					inner = inner.substr(0, slash);
+				}
 				var r = readVariant(inner);
 				if (r == null) return null;
 				if (r.size != null || r.variant != null) return {order: ord(prefix), size: r.size, variant: r.variant};
-				return {order: ord(prefix), state: prefix + ":" + r.state};
+				return {order: ord(prefix), state: prefix + name + ":" + r.state};
 			}
 		if (v.startsWith("aria-")) {
 			var a = v.substr(5);
@@ -438,9 +439,19 @@ class Tailwind {
 			case "relative": en("position", "Position", "Relative");
 			case "absolute" | "fixed": en("position", "Position", "Absolute");
 			case "sticky": en("position", "Position", "Sticky");
-			case "overflow-hidden" | "overflow-x-hidden" | "overflow-y-hidden" | "overflow-clip": en("overflow", "Overflow", "Hidden");
+			case "overflow-hidden" | "overflow-clip": en("overflow", "Overflow", "Hidden");
+			case "overflow-x-hidden" | "overflow-x-clip": en("overflowX", "Overflow", "Hidden");
+			case "overflow-y-hidden" | "overflow-y-clip": en("overflowY", "Overflow", "Hidden");
+			case "overflow-x-auto" | "overflow-x-scroll": en("overflowX", "Overflow", "Scroll");
+			case "overflow-y-auto" | "overflow-y-scroll": en("overflowY", "Overflow", "Scroll");
+			case "overflow-x-visible": en("overflowX", "Overflow", "Visible");
+			case "overflow-y-visible": en("overflowY", "Overflow", "Visible");
+			case "select-none": en("userSelect", "UserSelect", "None");
+			case "select-text": en("userSelect", "UserSelect", "Text");
+			case "select-all": en("userSelect", "UserSelect", "All");
+			case "select-auto": en("userSelect", "UserSelect", "Auto");
 			case "overflow-visible": en("overflow", "Overflow", "Visible");
-			case "overflow-auto" | "overflow-scroll" | "overflow-x-auto" | "overflow-y-auto": en("overflow", "Overflow", "Scroll");
+			case "overflow-auto" | "overflow-scroll": en("overflow", "Overflow", "Scroll");
 			case "visible": en("visibility", "Visibility", "Visible");
 			case "invisible": en("visibility", "Visibility", "Hidden");
 			case "pointer-events-none": en("pointerEvents", "PointerEvents", "None");
@@ -494,7 +505,8 @@ class Tailwind {
 			var field = p == "p" ? "padding" : "margin";
 			for (side in ["", "x", "y", "t", "r", "b", "l", "s", "e"])
 				if ((v = after(p + side + "-")) != null) {
-					var n = signed(spacing(v));
+					// (an auto margin: NaN, as Edges.AUTO)
+					var n = p == "m" && v == "auto" && !neg ? Math.NaN : signed(spacing(v));
 					if (n == null || p == "p" && neg) return null;
 					for (i in (side == "" ? [0, 1, 2, 3] : SIDES[side]))
 						set('$field.$i', VNum(n));
@@ -1030,7 +1042,11 @@ class Tailwind {
 			done[base] = true;
 			switch base {
 				case "padding" | "margin":
-					field(base, VEdges(num('$base.0', 0), num('$base.1', 0), num('$base.2', 0), num('$base.3', 0)));
+					// (all four sides: the shorthand; else each side the rule sets, as CSS's longhands)
+					var all = [for (s in 0...4) g.parts.exists('$base.$s')].indexOf(false) < 0;
+					if (all) field(base, VEdges(num('$base.0', 0), num('$base.1', 0), num('$base.2', 0), num('$base.3', 0))) else
+						for (s in 0...4)
+							if (g.parts.exists('$base.$s')) field(base + ["Top", "Right", "Bottom", "Left"][s], g.parts['$base.$s']);
 				case "border":
 					var e = [for (s in 0...4) num('border.$s', 0)];
 					if (sides.exists("border")) field("borders", VEdges(e[0], e[1], e[2], e[3])) else field("borderWidth", VNum(e[0]));
@@ -1069,11 +1085,12 @@ class Tailwind {
 				case "leading" | "textLeading":
 					done["leading"] = done["textLeading"] = true;
 					switch inherited("leading") ?? inherited("textLeading") {
-						case VDim(Px(px)): field("lineHeight", VNum(px / num("fontSize", 16)));
+						// (leading-6: pixels, over any multiple, as Tailwind's --tw-leading over text-sm's)
+						case VDim(Px(px)): field("lineHeightPx", VNum(px));
 						case v: field("lineHeight", v);
 					}
 				case "tracking":
-					field("letterSpacing", VNum(num("tracking", 0) * num("fontSize", 16)));
+					field("letterSpacingEm", g.parts["tracking"]);
 				case "translate" | "rotate" | "scale":
 					done["translate"] = done["rotate"] = done["scale"] = true;
 					var css = [];
@@ -1110,9 +1127,6 @@ class Tailwind {
 					field(k, g.parts[k]);
 			}
 		}
-		// (letter spacing in em follows a font size set without it)
-		if (g.parts.exists("fontSize") && !g.parts.exists("tracking") && inherited("tracking") != null)
-			field("letterSpacing", VNum(num("tracking", 0) * num("fontSize", 16)));
 		return r;
 	}
 
@@ -1146,7 +1160,7 @@ class Tailwind {
 
 	// (rounded to 4 places)
 	static function num(n:Float):String
-		return Math.abs(n) >= 1e5 ? "" + n : "" + Math.round(n * 10000) / 10000;
+		return Math.isNaN(n) ? "auto" : Math.abs(n) >= 1e5 ? "" + n : "" + Math.round(n * 10000) / 10000;
 }
 
 // the classes of a slot that share variants: one rule

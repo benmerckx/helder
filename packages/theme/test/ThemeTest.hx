@@ -57,7 +57,7 @@ class ThemeTest {
 	static function layout() {
 		same("p-2", "x padding=8");
 		same("px-4 py-2", "x padding=8 16 8 16");
-		same("pl-8 -mx-1 my-1", "x padding=0 0 0 32 margin=4 -4 4 -4");
+		same("pl-8 -mx-1 my-1", "x paddingLeft=32 margin=4 -4 4 -4");
 		same("size-4", "x width=16 height=16");
 		same("h-9 w-full min-w-0 max-w-lg", "x height=36 width=100% minWidth=0 maxWidth=512");
 		same("h-[1.15rem] w-1/2 h-px min-w-[8rem] w-fit h-auto", "x height=Auto width=FitContent minWidth=128");
@@ -98,8 +98,8 @@ class ThemeTest {
 		// (leading-* beats text-*'s line height, whichever comes first)
 		same("leading-none text-sm", "x lineHeight=1 fontSize=14");
 		same("text-sm leading-none", "x fontSize=14 lineHeight=1");
-		same("text-sm/6", "x fontSize=14 lineHeight=1.7143");
-		same("text-xs tracking-widest", "x fontSize=12 lineHeight=1.3333 letterSpacing=1.2");
+		same("text-sm/6", "x fontSize=14 lineHeightPx=24");
+		same("text-xs tracking-widest", "x fontSize=12 lineHeight=1.3333 letterSpacingEm=0.1");
 		same("text-[0.8rem] whitespace-nowrap truncate", "x fontSize=12.8 textWrap=NoWrap overflow=Hidden textOverflow=Ellipsis");
 		same("underline uppercase text-center font-mono tabular-nums",
 			"x textDecoration=1 textTransform=Uppercase textAlign=Center fontFamily=monospace fontVariantNumeric=tabular-nums");
@@ -124,15 +124,15 @@ class ThemeTest {
 		same("data-[size=sm]:h-3.5 group-data-[size=default]/switch:size-4 data-[variant=destructive]:text-destructive",
 			"x(default) width=16 height=16\nx(sm) height=14\nx[destructive] color=var(--destructive)");
 		same("bg-primary hover:bg-primary/90", "x[default] background=var(--primary)\nx[default] hover: background=var(--primary)/90", "default");
-		same("h-8 px-3", "x(sm) height=32 padding=0 12 0 12", null, "sm");
+		same("h-8 px-3", "x(sm) height=32 paddingRight=12 paddingLeft=12", null, "sm");
 		same("md:text-sm text-base", "x fontSize=16 lineHeight=1.5\nx md: fontSize=14 lineHeight=1.4286");
 	}
 
 	static function shorthands() {
-		// (the sides a rule leaves out are those of the rules holding with it)
-		same("px-4 py-2 hover:px-6", "x padding=8 16 8 16\nx hover: padding=8 24 8 24");
+		// (a rule's sides as CSS's longhands; the shorthands it sets in part, from the rules holding with it)
+		same("px-4 py-2 hover:px-6", "x padding=8 16 8 16\nx hover: paddingRight=24 paddingLeft=24");
 		same("rounded-md border hover:rounded-t-none hover:border-b-2", "x corners=8 borders=1\nx hover: corners=0 0 8 8 borders=1 1 2 1");
-		same("text-sm hover:leading-6", "x fontSize=14 lineHeight=1.4286\nx hover: lineHeight=1.7143");
+		same("text-sm hover:leading-6", "x fontSize=14 lineHeight=1.4286\nx hover: lineHeightPx=24");
 		same("translate-x-1 data-[state=open]:translate-y-1", "x transform=translateX(4px)\nx data-state=open: transform=translateX(4px) translateY(4px)");
 		same("flex flex-col md:flex", "x display=Flex direction=Column\nx md: display=Flex");
 	}
@@ -150,14 +150,14 @@ class ThemeTest {
 		// (CSS variables from the sheet: calendar's --cell-size)
 		var tw = new Tailwind(10, (m, _, _) -> throw m, ["--cell-size" => "2rem"]);
 		var got = tw.slot("x", [{classes: "size-(--cell-size) px-(--cell-size)", offset: 0}]).map(Tailwind.describe).join("\n");
-		check("vars", got == "x width=32 height=32 padding=0 32 0 32", got);
+		check("vars", got == "x width=32 height=32 paddingRight=32 paddingLeft=32", got);
 		// (a class list after a size's, as cn's className after cva's: later than it)
 		got = tw.slot("x", [
 			{classes: "h-9 px-4", offset: 0},
 			{classes: "h-8 px-2", offset: 0, size: "sm"},
 			{classes: "px-3", offset: 0}
 		]).map(Tailwind.describe).join("\n");
-		check("className after cva", got == "x height=36 padding=0 16 0 16\nx(sm) height=32 padding=0 8 0 8\nx padding=0 12 0 12", got);
+		check("className after cva", got == "x height=36 paddingRight=16 paddingLeft=16\nx(sm) height=32 paddingRight=8 paddingLeft=8\nx paddingRight=12 paddingLeft=12", got);
 	}
 
 	static function motion() {
@@ -180,11 +180,13 @@ class ThemeTest {
 			+ "outlineColor 500ms cubic-bezier(0.4,0,0.2,1), textDecorationColor 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), "
 			+ "shadow 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1)\n"
 			+ "x data-state=open starting: transform=translateX(100%)");
-		same("selection:bg-primary rtl:pl-2 md:p-1", "x selection: background=var(--primary)\nx md: padding=4\nx rtl: padding=0 0 0 8");
+		same("select-none ml-auto mx-auto overflow-x-auto overflow-y-hidden", "x userSelect=None marginRight=auto marginLeft=auto overflowX=Scroll overflowY=Hidden");
+		same("group-hover/item:opacity-100 peer-data-[state=checked]/box:hidden not-first:border-l", "x not:first: borders=0 0 0 1\nx group/item:hover: opacity=1\nx peer/box:data-state=checked: display=None");
+		same("selection:bg-primary rtl:pl-2 md:p-1", "x selection: background=var(--primary)\nx md: padding=4\nx rtl: paddingLeft=8");
 	}
 
 	static function ignored() {
-		same("select-none peer group/switch @container/card-header text-current animate-out fade-out-0 zoom-out-95 animate-pulse", "");
+		same("peer group/switch @container/card-header text-current animate-out fade-out-0 zoom-out-95 animate-pulse", "");
 		same("[&_svg]:size-4 [&_svg:not([class*='size-'])]:size-4 has-[>svg]:px-3 [a&]:hover:bg-accent [.border-b]:pb-6 file:h-7", "");
 		rejected("foo-bar", "unknown class foo-bar");
 		rejected("bg-blue-500", "unknown class bg-blue-500");
@@ -199,7 +201,7 @@ class ThemeTest {
 		var r = Tw.rules("button", "h-9 px-4 rounded-md hover:opacity-90 data-[size=sm]:h-8", "default");
 		check("Tw.rules: 3 rules", r.length == 3, '${r.length}');
 		check("Tw.rules: base", r[0].slot == "button" && r[0].variant == "default" && r[0].when == null && Type.enumEq(r[0].style.height, Px(36))
-			&& r[0].style.radius == 8 && r[0].style.padding.left == 16 && r[0].style.padding.top == 0);
+			&& r[0].style.radius == 8 && r[0].style.paddingLeft == 16 && r[0].style.paddingTop == null);
 		check("Tw.rules: hover", r[1].when[0] == "hover" && r[1].style.opacity == 0.9);
 		check("Tw.rules: size", r[2].size == "sm" && Type.enumEq(r[2].style.height, Px(32)));
 	}

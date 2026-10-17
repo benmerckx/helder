@@ -27,7 +27,8 @@ class RuleData {
 		+ "lineHeight:f textAlign:e visibility:e pointerEvents:e textWrap:e gap:f flex:f overflowWrap:e wordBreak:e fontVariantNumeric:s "
 		+ "textTransform:e textOverflow:e order:i zIndex:i maxLines:i gridTemplateColumns:T gridTemplateRows:T gridAutoColumns:k gridAutoRows:k "
 		+ "gridColumn:p gridRow:p justifyItems:e justifySelf:e transform:t outlineStyle:e ringWidth:f ringColor:c ringOffsetWidth:f ringOffsetColor:c "
-		+ "ringInset:b transition:r";
+		+ "ringInset:b transition:r paddingTop:f paddingRight:f paddingBottom:f paddingLeft:f marginTop:f marginRight:f marginBottom:f marginLeft:f "
+		+ "overflowX:e overflowY:e letterSpacingEm:f userSelect:e lineHeightPx:f";
 
 	final data:String;
 	final table:Array<String>;

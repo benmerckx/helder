@@ -690,7 +690,7 @@
 	{
 		"name": "breadcrumb-default",
 		"component": "breadcrumb",
-		"w": 300,
+		"w": 360,
 		"h": 52,
 		"dark": false
 	},
@@ -1532,7 +1532,7 @@
 	{
 		"name": "breadcrumb-default-dark",
 		"component": "breadcrumb",
-		"w": 300,
+		"w": 360,
 		"h": 52,
 		"dark": true
 	},
@@ -1719,7 +1719,7 @@
 	{
 		"name": "breadcrumb-default-rtl",
 		"component": "breadcrumb",
-		"w": 300,
+		"w": 360,
 		"h": 52,
 		"rtl": true
 	},
