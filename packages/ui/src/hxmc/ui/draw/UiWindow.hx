@@ -14,7 +14,8 @@ import hxmc.unsafe.*;
 // resized or lost its pixels). run() is the app loop for every UiWindow
 // open, which sleeps while none has a frame to draw. In the browser each
 // frame's accessibility tree goes to the mirror in the canvas (WebAccess:
-// load packages/ui/imports.mjs), and the actions asked for come back.
+// load packages/ui/imports.mjs), on macOS to NSAccessibility (MacAccess),
+// and the actions asked for come back.
 class UiWindow {
 	public final window:hxmc.os.Window;
 	public final device:Device;
@@ -40,6 +41,8 @@ class UiWindow {
 	var drawnScale = 0.0;
 	// the tree sent to the browser's mirror last
 	var access:Null<hxmc.ui.access.AccessTree>;
+	// macOS's adapter (a MacAccess; Any: the other targets never reach its type)
+	var macAccess:Any = null;
 	// the text input area last given to the window ("": off)
 	var typing = "";
 	final pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
@@ -114,7 +117,7 @@ class UiWindow {
 		typing = now;
 	}
 
-	// the tree's changes to the browser's mirror (the guards inside: an
+	// the tree's changes to the browser's mirror or to macOS (the guards inside: an
 	// instance method is compiled whether called or not, and the browser's
 	// imports must stay out of the other targets)
 	function sendAccess() {
@@ -123,6 +126,9 @@ class UiWindow {
 			var json = t.changesJson(access);
 			access = t;
 			if (json != null) WebMirror.send(window.surface.handle.toI64().toInt(), json);
+		} else if (Mem.os() == 1) {
+			if (macAccess == null) macAccess = new MacAccess(window, ui);
+			(cast macAccess : MacAccess).update();
 		}
 	}
 
@@ -168,6 +174,10 @@ class UiWindow {
 	}
 
 	public function close() {
+		// (nested: only a constant condition drops the branch)
+		if (Mem.os() == 1) {
+			if (macAccess != null) (cast macAccess : MacAccess).dispose();
+		}
 		window.close();
 		open.remove(this);
 		device.dispose();

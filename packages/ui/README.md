@@ -145,8 +145,11 @@ the incremental update, `Ui.accessAction` does what a screen reader asks
 (click, focus, increment, decrement, set a value). In a browser the window
 mirrors it as ARIA elements inside its canvas (the canvas's fallback
 content: in the page's accessibility tree, not drawn): load
-`packages/ui/imports.mjs` with the others. The native adapters (UI
-Automation, NSAccessibility, AT-SPI) are not written yet.
+`packages/ui/imports.mjs` with the others. On macOS the window gives it to
+NSAccessibility (`MacAccess`: an element per node, its role, label, value
+and frame; press, increment and decrement come back as actions), which
+VoiceOver reads. The adapters for UI Automation and AT-SPI are not
+written yet.
 
 ## Text input
 

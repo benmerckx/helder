@@ -17,4 +17,7 @@ import hxmc.unsafe.*;
 	static function objc_release(o:Ptr):Void;
 	static function objc_autoreleasePoolPush():Ptr;
 	static function objc_autoreleasePoolPop(pool:Ptr):Void;
+	// an object's class changed (to a subclass made at run time: its methods added)
+	static function object_setClass(o:Ptr, cls:Ptr):Ptr;
+	static function object_getClass(o:Ptr):Ptr;
 }

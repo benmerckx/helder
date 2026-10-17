@@ -25,6 +25,10 @@ class Msg {
 	static function idIntPtrPtrBool(self:Ptr, sel:Ptr, a:Int64, b:Ptr, c:Ptr, d:Bool):Ptr;
 	static function idRectIntIntBool(self:Ptr, sel:Ptr, r:CGRect, a:Int64, b:Int64, c:Bool):Ptr;
 	static function idRect(self:Ptr, sel:Ptr, r:CGRect):Ptr;
+	static function idPoint(self:Ptr, sel:Ptr, p:CGPoint):Ptr;
+	static function idPtrInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64):Ptr;
+	static function rectRect(self:Ptr, sel:Ptr, r:CGRect):CGRect;
+	static function rectRectPtr(self:Ptr, sel:Ptr, r:CGRect, a:Ptr):CGRect;
 	static function idIntPointIntFloatIntPtrPtrPtrBoolU16(self:Ptr, sel:Ptr, a:Int64, p:CGPoint, b:Int64, c:Float, d:Int64, e:Ptr, f:Ptr, g:Ptr, h:Bool,
 		i:UInt16):Ptr;
 	static function v(self:Ptr, sel:Ptr):Void;
