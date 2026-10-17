@@ -514,12 +514,14 @@ class Parser {
 		}
 	}
 
-	// {...}: the code between the braces (balanced; strings, comments and
-	// nested markup's text skipped)
+	// {...}: the code between the braces (balanced; strings, their ${...},
+	// comments and nested markup skipped, the markup read as markup)
 	function braces():String {
 		var start = i;
 		expect("{");
 		var depth = 1;
+		// (whether each open "(" is a condition's, after if, while or for; whether the last closed one was)
+		var parens:Array<Bool> = [], cond = false;
 		while (i < s.length) {
 			var c = s.charAt(i);
 			switch c {
@@ -530,11 +532,21 @@ class Parser {
 					depth--;
 					i++;
 					if (depth == 0) return s.substring(start + 1, i - 1);
+				case "(":
+					parens.push(["if", "while", "for"].indexOf(wordBefore(start)) >= 0);
+					i++;
+				case ")":
+					cond = parens.length > 0 && parens.pop();
+					i++;
 				case '"' | "'":
 					i++;
 					while (i < s.length && s.charAt(i) != c) {
-						if (s.charAt(i) == "\\") i++;
-						i++;
+						if (s.charAt(i) == "\\") i += 2;
+						else if (c == "'" && s.charAt(i) == "$" && s.charAt(i + 1) == "{") {
+							i++;
+							braces();
+						} else if (c == "'" && s.substr(i, 2) == "$$") i += 2;
+						else i++;
 					}
 					i++;
 				case "/" if (s.charAt(i + 1) == "/"):
@@ -543,11 +555,42 @@ class Parser {
 				case "/" if (s.charAt(i + 1) == "*"):
 					var e = s.indexOf("*/", i + 2);
 					i = e < 0 ? s.length : e + 2;
+				case "<" if (markupAt(start, cond)):
+					element();
 				case _:
 					i++;
 			}
 		}
 		return error("unterminated {", start);
+	}
+
+	// whether the "<" at i starts markup: "<name" or "<>" where an expression
+	// starts (not after a value: a name, a number, ")" but a condition's, "]",
+	// a string; after return, throw, else, do, untyped)
+	function markupAt(start:Int, cond:Bool):Bool {
+		var n = s.charCodeAt(i + 1);
+		if (!(n == ">".code || n == "_".code || (n >= "a".code && n <= "z".code) || (n >= "A".code && n <= "Z".code))) return false;
+		var w = wordBefore(start);
+		if (w != "") return ["return", "throw", "else", "do", "untyped"].indexOf(w) >= 0;
+		var j = i - 1;
+		while (j > start && StringTools.isSpace(s, j))
+			j--;
+		return switch s.charAt(j) {
+			case ")": cond;
+			case "]" | '"' | "'": false;
+			case _: true;
+		}
+	}
+
+	// the name or number right before i (spaces between), or ""
+	function wordBefore(start:Int):String {
+		var j = i;
+		while (j > start + 1 && StringTools.isSpace(s, j - 1))
+			j--;
+		var e = j;
+		while (j > start + 1 && ~/[A-Za-z0-9_]/.match(s.charAt(j - 1)))
+			j--;
+		return s.substring(j, e);
 	}
 
 	function readName():String {
