@@ -1,7 +1,8 @@
 package hxmc.gfx.shader;
 
 // A 4x4 matrix of four columns (c0..c3, read only): mat4 in a shader, an
-// immutable value in CPU code. m * v transforms a column vector, a * b
+// immutable value in CPU code (a @:hxmc.struct value on hxmc's targets, as
+// the vectors). m * v transforms a column vector, a * b
 // applies b first; uniforms store it column by column (std140).
 @:forward(c0, c1, c2, c3)
 abstract Mat4(Mat4Data) {
@@ -55,7 +56,7 @@ abstract Mat4(Mat4Data) {
 	}
 }
 
-@:noCompletion final class Mat4Data {
+@:hxmc.struct @:noCompletion final class Mat4Data {
 	public final c0:Vec4;
 	public final c1:Vec4;
 	public final c2:Vec4;

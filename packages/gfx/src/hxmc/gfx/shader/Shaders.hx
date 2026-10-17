@@ -49,10 +49,9 @@ package hxmc.gfx.shader;
 //
 // A class without stages holds helpers for other shader classes. Haxe
 // runs a build macro only from @:build or @:autoBuild, hence an interface
-// (rather than a @:shader metadata). The structs are @:structInit classes,
-// not @:hxmc.struct ones: those have no values yet (only pointers to them)
-// and C-typed fields, while a shader's structs are values of math types
-// that CPU code builds, passes and returns.
+// (rather than a @:shader metadata). The structs are @:structInit classes
+// (objects in CPU code, whose math-type fields are stored inline), so that
+// vertex Arrays hold them as they are.
 @:autoBuild(hxmc.gfx.shader.Macro.build())
 interface Shaders {}
 
