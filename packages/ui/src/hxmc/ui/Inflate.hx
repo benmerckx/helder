@@ -149,17 +149,21 @@ class Inflate {
 		}
 	}
 
-	// a symbol: the table for codes up to FAST bits, else bit by bit from the
-	// canonical counts (the code's first bit its most significant)
-	function decode(h:Huffman):Int {
+	// a symbol: the table for codes up to FAST bits (inline: once a byte), else
+	// bit by bit from the canonical counts (the code's first bit its most significant)
+	inline function decode(h:Huffman):Int {
 		need(15);
 		var e = h.fast[buf & ((1 << FAST) - 1)];
-		if (e != 0) {
+		return if (e != 0) {
 			var len = e >> 9;
 			buf >>>= len;
 			cnt -= len;
-			return e & 511;
-		}
+			e & 511;
+		} else slow(h);
+	}
+
+	// (a code longer than FAST bits)
+	function slow(h:Huffman):Int {
 		var code = 0, first = 0, index = 0;
 		for (len in 1...16) {
 			code |= bits(1);
@@ -186,9 +190,17 @@ private class Huffman {
 			fast[i] = 0;
 		for (l in lengths)
 			if (l > 0) counts[l]++;
-		for (len in 1...16)
-			for (s in 0...lengths.length)
-				if (lengths[s] == len) symbols.push(s);
+		// (the symbols by length, then by value: each length's first place, then each in turn)
+		var at = [for (i in 0...16) 0], total = 0;
+		for (len in 1...16) {
+			at[len] = total;
+			total += counts[len];
+		}
+		symbols.resize(total);
+		for (s in 0...lengths.length) {
+			var l = lengths[s];
+			if (l > 0) symbols[at[l]++] = s;
+		}
 		var code = 0, k = 0;
 		for (len in 1...16) {
 			for (i in 0...counts[len]) {

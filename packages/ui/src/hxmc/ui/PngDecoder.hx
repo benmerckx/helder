@@ -83,23 +83,30 @@ class PngDecoder {
 			for (j in 0...h) {
 				if (pos + 1 + stride > raw.length) throw "PngDecoder: the image data ends early";
 				var f = raw.get(pos), r = pos + 1;
-				// (each filter its own loop: the first bpp bytes have nothing to their left)
+				// (each filter its own loop, the first bpp bytes apart: nothing to their left)
+				var lead = bpp < stride ? bpp : stride;
 				switch f {
 					case 0:
 						cur.blit(0, raw, r, stride);
 					case 1:
-						for (x in 0...stride)
-							cur.set(x, (raw.get(r + x) + (x >= bpp ? cur.get(x - bpp) : 0)) & 0xFF);
+						cur.blit(0, raw, r, lead);
+						for (x in lead...stride)
+							cur.set(x, (raw.get(r + x) + cur.get(x - bpp)) & 0xFF);
 					case 2:
 						for (x in 0...stride)
 							cur.set(x, (raw.get(r + x) + prev.get(x)) & 0xFF);
 					case 3:
-						for (x in 0...stride)
-							cur.set(x, (raw.get(r + x) + (((x >= bpp ? cur.get(x - bpp) : 0) + prev.get(x)) >> 1)) & 0xFF);
+						for (x in 0...lead)
+							cur.set(x, (raw.get(r + x) + (prev.get(x) >> 1)) & 0xFF);
+						for (x in lead...stride)
+							cur.set(x, (raw.get(r + x) + ((cur.get(x - bpp) + prev.get(x)) >> 1)) & 0xFF);
 					case 4:
-						for (x in 0...stride) {
-							var a = x >= bpp ? cur.get(x - bpp) : 0, b = prev.get(x), c = x >= bpp ? prev.get(x - bpp) : 0;
-							var pp = a + b - c, pa = abs(pp - a), pb = abs(pp - b), pc = abs(pp - c);
+						// (with nothing to the left, Paeth takes the byte above)
+						for (x in 0...lead)
+							cur.set(x, (raw.get(r + x) + prev.get(x)) & 0xFF);
+						for (x in lead...stride) {
+							var a = cur.get(x - bpp), b = prev.get(x), c = prev.get(x - bpp);
+							var pa = abs(b - c), pb = abs(a - c), pc = abs(a + b - c - c);
 							cur.set(x, (raw.get(r + x) + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 0xFF);
 						}
 					case _:
@@ -116,6 +123,17 @@ class PngDecoder {
 						out.set(o + 1, cur.get(3 * i + 1));
 						out.set(o + 2, cur.get(3 * i + 2));
 						out.set(o + 3, 255);
+						o += 4;
+					}
+				} else if (depth == 16 && (type == 6 || type == 2 && trns == null) && dx == 1) {
+					// (16-bit RGBA and RGB: each sample's high byte)
+					var o = 4 * y * width, n = type == 6 ? 8 : 6;
+					for (i in 0...w) {
+						var k = n * i;
+						out.set(o, cur.get(k));
+						out.set(o + 1, cur.get(k + 2));
+						out.set(o + 2, cur.get(k + 4));
+						out.set(o + 3, type == 6 ? cur.get(k + 6) : 255);
 						o += 4;
 					}
 				} else
