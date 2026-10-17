@@ -14,7 +14,10 @@ import hxmc.ui.Event;
 class Node {
 	public final style:Style;
 	public var parent(default, null):Null<Node>;
-	public final children:Array<Node> = [];
+	// (a leaf's: one empty array shared by all, replaced by its own when a child comes)
+	public var children(default, null):Array<Node> = NO_CHILDREN;
+
+	static final NO_CHILDREN:Array<Node> = [];
 	// a name for debugging and markup (the element's name)
 	public var tag:String;
 	// the Ui this node's tree is attached to (null: detached)
@@ -75,7 +78,8 @@ class Node {
 	@:allow(hxmc.ui.Layout) var ly = 0.0;
 	@:allow(hxmc.ui.Layout) var lw = 0.0;
 	@:allow(hxmc.ui.Layout) var lh = 0.0;
-	@:allow(hxmc.ui.Layout) var cache:Array<Float> = [];
+	// (made when first stored to)
+	@:allow(hxmc.ui.Layout) var cache:Null<Array<Float>> = null;
 	@:allow(hxmc.ui.Layout) var dirty = true;
 	// (laid out since its edges were last rounded; the unrounded box they were rounded from)
 	@:allow(hxmc.ui.Layout) var relaid = true;
@@ -116,6 +120,7 @@ class Node {
 			if (i < index) index--;
 		} else if (child.parent != null) child.parent.remove(child);
 		if (index < 0 || index > children.length) index = children.length;
+		if (children == NO_CHILDREN) children = [];
 		children.insert(index, child);
 		child.parent = this;
 		child.attach(ui);
@@ -201,9 +206,9 @@ class Node {
 	public function markDirty() {
 		Ui.accessEpoch++;
 		var n = this;
-		while (n != null && !(n.dirty && n.cache.length == 0 && Math.isNaN(n.minContent))) {
+		while (n != null && !(n.dirty && (n.cache == null || n.cache.length == 0) && Math.isNaN(n.minContent))) {
 			n.dirty = true;
-			n.cache.resize(0);
+			if (n.cache != null) n.cache.resize(0);
 			n.minContent = Math.NaN;
 			n = n.parent;
 		}

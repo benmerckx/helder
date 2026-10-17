@@ -983,6 +983,7 @@ class Layout {
 
 	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float):Bool {
 		var c = n.cache;
+		if (c == null) return false;
 		var i = 0;
 		while (i < c.length) {
 			if (same(c[i], w) && same(c[i + 1], h) && same(c[i + 2], aw) && same(c[i + 3], ah)) {
@@ -997,6 +998,7 @@ class Layout {
 
 	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, rw:Float, rh:Float) {
 		var c = n.cache;
+		if (c == null) c = n.cache = [];
 		if (c.length >= CACHE * ENTRY) c.splice(0, ENTRY);
 		c.push(w);
 		c.push(h);
