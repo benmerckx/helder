@@ -1060,8 +1060,9 @@ class Node {
 		return v;
 	}
 
-	// (a theme's colour for its placeholder's text, null: none; EditableText's)
-	function themePlaceholder(c:Null<Color>) {}
+	// (a theme's colours for its placeholder's text and its selection, null:
+	// none; EditableText's)
+	function themePseudo(placeholder:Null<Color>, selection:Null<Color>) {}
 }
 
 // a node's event handlers (Node.onClick...)

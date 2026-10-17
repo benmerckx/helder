@@ -32,7 +32,7 @@ class Rules {
 		var sheet = n.sheet();
 		var applied = @:privateAccess n.themedNames, appliedValues = @:privateAccess n.themedValues;
 		if (n.slot == null && applied == null) {
-			@:privateAccess n.themePlaceholder(null);
+			@:privateAccess n.themePseudo(null, null);
 			return;
 		}
 		if (baseIndex == null) baseIndex = indexOf(base);
@@ -49,7 +49,7 @@ class Rules {
 				var ok = true;
 				if (r.when != null)
 					for (w in r.when)
-						if (w != "placeholder" && !holds(n, ui, w)) {
+						if (w != "placeholder" && w != "selection" && !holds(n, ui, w)) {
 							ok = false;
 							break;
 						}
@@ -91,12 +91,14 @@ class Rules {
 			}
 		@:privateAccess n.themedNames = names;
 		@:privateAccess n.themedValues = values;
-		@:privateAccess n.themePlaceholder(m.placeholder == null ? null : m.placeholder.isToken ? withCurrent(m.placeholder, current) : m.placeholder);
+		@:privateAccess n.themePseudo(m.placeholder == null ? null : withCurrent(m.placeholder, current),
+			m.selection == null ? null : withCurrent(m.selection, current));
 	}
 
 	// (a merge: the properties it sets and their values, tokens resolved but
-	// currentColor, which a node resolves; its placeholder's colour)
-	static final NONE:Merge = {names: [], values: [], placeholder: null, current: false};
+	// currentColor, which a node resolves; its placeholder's colour, its
+	// selection's: the "placeholder" rules' color, the "selection" rules' background)
+	static final NONE:Merge = {names: [], values: [], placeholder: null, selection: null, current: false};
 	static final merges = new Map<String, Merge>();
 	static final sheetIds = new haxe.ds.ObjectMap<{}, Int>();
 
@@ -110,12 +112,14 @@ class Rules {
 		var m = merges.get(key);
 		if (m != null) return m;
 		var tokens = sheet == null ? null : dark && sheet.dark != null ? sheet.dark : sheet.light;
-		var scratch = new Node().style, placeholder:Null<Color> = null;
+		var scratch = new Node().style, placeholder:Null<Color> = null, selection:Null<Color> = null;
 		var parts = key.split(",");
 		for (k in 1...parts.length) {
 			var r = rules[Std.parseInt(parts[k])];
 			if (r.when != null && r.when.indexOf("placeholder") >= 0) {
 				if (r.style.color != null) placeholder = r.style.color;
+			} else if (r.when != null && r.when.indexOf("selection") >= 0) {
+				if (r.style.background != null) selection = r.style.background;
 			} else scratch.set(r.style);
 		}
 		resolveColors(scratch, tokens, CURRENT, dark);
@@ -131,7 +135,11 @@ class Rules {
 			placeholder = resolve(placeholder, tokens, CURRENT, dark);
 			if (placeholder.isToken) current = true;
 		}
-		m = {names: names, values: values, placeholder: placeholder, current: current};
+		if (selection != null) {
+			selection = resolve(selection, tokens, CURRENT, dark);
+			if (selection.isToken) current = true;
+		}
+		m = {names: names, values: values, placeholder: placeholder, selection: selection, current: current};
 		merges.set(key, m);
 		return m;
 	}
@@ -271,4 +279,4 @@ class Rules {
 }
 
 // (a merge of rules: Rules.merged)
-private typedef Merge = {names:Array<String>, values:Array<Dynamic>, placeholder:Null<Color>, current:Bool};
+private typedef Merge = {names:Array<String>, values:Array<Dynamic>, placeholder:Null<Color>, selection:Null<Color>, current:Bool};

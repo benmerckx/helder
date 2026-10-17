@@ -77,7 +77,7 @@ class TextField extends EditableText {
 		caretX = ox + cx;
 		caretY = y;
 		caretHeight = lh;
-		if (focused) canvas.rect(ox + cx, y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
+		if (focused) canvas.rect(ox + cx, y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor ?? textColor(), 0, 0);
 		canvas.popClip();
 	}
 }

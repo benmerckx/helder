@@ -145,7 +145,7 @@ class TextArea extends EditableText {
 		caretX = x + cs + c.x;
 		caretY = top + c.y;
 		caretHeight = lh;
-		if (focused) canvas.rect(x + cs + c.x, top + c.y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
+		if (focused) canvas.rect(x + cs + c.x, top + c.y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor ?? textColor(), 0, 0);
 		canvas.popClip();
 	}
 }

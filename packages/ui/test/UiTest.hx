@@ -1253,7 +1253,8 @@ class UiTest {
 				{slot: "button", when: ["dark"], style: {radius: 2}},
 				{slot: "switch", style: {background: Color.parse("var(--input)")}},
 				{slot: "switch", when: ["data-state=checked"], style: {background: Color.parse("var(--primary)")}},
-				{slot: "input", when: ["placeholder"], style: {color: Color.parse("var(--muted-foreground)")}}
+				{slot: "input", when: ["placeholder"], style: {color: Color.parse("var(--muted-foreground)")}},
+				{slot: "input", when: ["selection"], style: {background: Color.parse("var(--primary)/30")}}
 			],
 			light: ["primary" => Color.rgb(0x171717), "border" => Color.rgb(0xE5E5E5), "ring" => Color.rgb(0xA1A1A1), "input" => Color.rgb(0xE5E5E5),
 				"muted-foreground" => Color.rgb(0x737373)],
@@ -1330,12 +1331,12 @@ class UiTest {
 		f.slot = "input";
 		ui.root.append(f);
 		ui.update();
-		check("themes: a placeholder's colour", f.placeholderColor == Color.rgb(0x737373));
+		check("themes: a placeholder's colour, a selection's", f.placeholderColor == Color.rgb(0x737373) && f.selectionColor == Color.rgb(0x171717).fade(0.3));
 		// (no sheet: what the rules wrote taken back, the node's own kept)
 		ui.theme = null;
 		ui.update();
 		check("themes: taken back", a.style.background == Color.TRANSPARENT && a.style.radius == 0 && a.style.padding.left == 0 && b.style.borderWidth == 0
-			&& own.style.background == Color.rgb(0xFF0000) && f.placeholderColor == Color.rgba(0, 0.4));
+			&& own.style.background == Color.rgb(0xFF0000) && f.placeholderColor == Color.rgba(0, 0.4) && f.selectionColor == Color.rgba(0x3B82F6, 0.3));
 		// (a change of the node's own after the rules: kept)
 		ui.theme = sheet;
 		a.style.radius = 9;
