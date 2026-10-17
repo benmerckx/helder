@@ -3611,7 +3611,7 @@
 	{
 		"name": "absolute self-alignment",
 		"width": 200,
-		"height": 300,
+		"height": 400,
 		"tree": {
 			"children": [
 				{
@@ -3709,6 +3709,34 @@
 								"bottom": 20,
 								"left": 10,
 								"alignSelf": "End"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 100
+					},
+					"children": [
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 95,
+								"top": 10,
+								"bottom": 20,
+								"left": 10
+							}
+						},
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 95,
+								"top": 10,
+								"bottom": 20,
+								"left": 60,
+								"alignSelf": "Start"
 							}
 						}
 					]
