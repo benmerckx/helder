@@ -299,11 +299,12 @@ class Layout {
 			case SpaceAround if (free > 0):
 				between = free / count;
 				start = between / 2;
-			case SpaceAround: start = free / 2;
+			// (overflowing: at the start, as Chromium falls back, safely)
+			case SpaceAround:
 			case SpaceEvenly if (free > 0):
 				between = free / (count + 1);
 				start = between;
-			case SpaceEvenly: start = free / 2;
+			case SpaceEvenly:
 		}
 		var lineStart = start;
 		// (right to left: the content's leftmost edge, what overflows that way scrolled to)
@@ -329,11 +330,12 @@ class Layout {
 				case SpaceAround if (free > 0):
 					gap += free / n;
 					pos = free / n / 2;
-				case SpaceAround: pos = free / 2;
+				// (overflowing: at the start, as Chromium falls back, safely)
+				case SpaceAround:
 				case SpaceEvenly if (free > 0):
 					gap += free / (n + 1);
 					pos = free / (n + 1);
-				case SpaceEvenly: pos = free / 2;
+				case SpaceEvenly:
 			}
 			for (i in l.start...l.end) {
 				var it = items[i];
