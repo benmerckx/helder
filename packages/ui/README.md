@@ -73,7 +73,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     by rows or columns, sparse or dense), aligned by `justifyItems`,
     `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify` and
     `alignContent` (no other named lines, no subgrid). Checked against
-    Chromium on 132 cases, 39 of them grids, 8 right to left.
+    Chromium on 133 cases, 39 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the
@@ -325,8 +325,8 @@ a steady frame; `RT_STATS=1` adds the collector's figures and the RSS, and
 a build with `-D hxmc.census` run with `RT_CENSUS=1` lists the live heap by
 type. At 5000 rows (40000 nodes) a steady frame paints in about 1.5 ms and a
 change to one row is laid out in about 3.
-The first layout of 1000 rows (8000 nodes) takes about 30 ms, two thirds
-of it shaping text and a quarter of that the collector copying the
+The first layout of 1000 rows (8000 nodes) takes about 30 ms, 60% of it
+laying out text and nearly half of that the collector copying the
 paragraphs' glyphs, which all survive: a compact glyph store in
 `hxmc.text` (arrays, not an object per glyph) is what would cut it next.
 

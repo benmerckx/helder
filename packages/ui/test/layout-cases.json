@@ -3400,6 +3400,80 @@
 		}
 	},
 	{
+		"name": "percentages in an absolute box",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 0,
+						"top": 0
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 20,
+								"height": "50%"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 50,
+						"top": 0,
+						"bottom": 100
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 20,
+								"height": "50%"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 100,
+						"top": 0,
+						"maxHeight": 30
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 20,
+								"height": "50%"
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "percentages in a stretched column",
 		"width": 300,
 		"height": 200,

@@ -956,6 +956,7 @@ class Layout {
 			if (!known(ah) && known(t) && known(b)) ah = Math.max(0, pbH - t - b - m.top - m.bottom);
 			aw = clamp(aw, Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
 			ah = clamp(ah, Math.max(min(cs.minHeight, pbH), edgesV(cs)), max(cs.maxHeight, pbH));
+			var heightGiven = known(ah);
 			if (!known(aw) || !known(ah)) {
 				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit
 				// the room its offsets and margins leave, not below its min-content width)
@@ -989,6 +990,8 @@ class Layout {
 			if (known(t) && known(b)) ay = selfAligned(cs.alignSelf, t + m.top, pbH - b - m.bottom, ah, pbH, false);
 			c.lx = be.left + ax;
 			c.ly = be.top + ay;
+			// (a height of its content's: not definite for its children's percentages)
+			looseH = !heightGiven;
 			size(c, aw, ah, pbW, pbH, aw, ah, true);
 			c.lw = aw;
 			c.lh = ah;
