@@ -7,7 +7,8 @@ import hxmc.ui.reactive.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
-// buttons, a checkbox and a switch, radio buttons, a slider driving a
+// buttons, a select, a menu, a tooltip and a dialog (popups over the
+// rest), a checkbox and a switch, radio buttons, a slider driving a
 // progress bar, tabs, images fitted three ways, a text field and a text
 // area. In a window:
 //
@@ -29,6 +30,9 @@ class Gallery implements Markup {
 	public final tab = signal(0);
 	public final name = signal("");
 	public final notes = signal("");
+	public final fruit = signal("Apple");
+	public final chosen = signal("nothing chosen");
+	public final dialog = signal(false);
 	final picture = landscape(120, 60);
 
 	public function new() {}
@@ -88,6 +92,20 @@ class Gallery implements Markup {
 				<Button tag="plain" label="Plain" onClick={() -> clicks.value++}/>
 				<Button tag="primary" label="Primary" primary onClick={() -> clicks.value += 10}/>
 				<text tag="clicks" color="#52525b">{() -> "clicked " + clicks.value}</text>
+			</view>)}
+			{section("POPUPS", <view direction="row" column-gap={12} align-items="center">
+				<Select tag="fruit" value={fruit} options={["Apple", "Pear", "Plum"]} label="Fruit" width={110}/>
+				<Menu tag="file" label="File" items={[
+					{label: "New", onSelect: () -> chosen.value = "New"},
+					{label: "Open…", onSelect: () -> chosen.value = "Open"},
+					{label: "Rename…", onSelect: () -> dialog.value = true}
+				]}/>
+				<Tooltip tag="tip" text="A tooltip, after half a second"><text color="#52525b">Hover me</text></Tooltip>
+				<text tag="chosen" color="#52525b">{() -> chosen.value}</text>
+				<Dialog open={dialog} title="Rename">
+					<Field tag="rename" value={name} placeholder="A new name"/>
+					<view direction="row" justify="end"><Button tag="done" label="Done" primary onClick={() -> dialog.value = false}/></view>
+				</Dialog>
 			</view>)}
 			{section("TOGGLES", <view direction="row" column-gap={24} align-items="center">
 				<Checkbox tag="check" checked={checked} label="Checkbox"/>

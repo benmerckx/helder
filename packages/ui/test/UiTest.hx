@@ -17,6 +17,9 @@ import hxmc.ui.widgets.TextArea;
 // - fields: TextField's editing and the clipboard (copy, cut, paste), an
 //   input method's composition (shown, then committed);
 //   TextArea's lines (wrapping, Enter, Up and Down, Home and End, scrolling)
+// - popups: placed by their anchors (flipped, kept in the window), drawn
+//   and hit over the tree, dismissed by outside presses and Escape, a
+//   modal one keeping the focus
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
 //   filters, Adam7; png-cases.mjs writes them and the pixels expected);
 //   jpeg/*.jpg against Chromium's pixels (jpeg-cases.mjs)
@@ -34,6 +37,7 @@ class UiTest {
 		paint();
 		images(here);
 		fields();
+		popups();
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -44,6 +48,88 @@ class UiTest {
 			failed++;
 			Sys.println('UiTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
+	}
+
+	// --- popups ---
+
+	static function popups() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		ui.root.style.alignItems = Start;
+		ui.root.style.padding = 10;
+		var clip = new Node("clip");
+		clip.style.set({width: 100, height: 30, overflow: Hidden});
+		var button = new Node("button");
+		button.style.set({width: 60, height: 20});
+		button.focusable = true;
+		clip.append(button);
+		ui.root.append(clip);
+		var p = new Popup("menu");
+		p.anchor = button;
+		p.style.set({width: 80, height: 50, background: Color.WHITE});
+		var item = new Node("item");
+		item.style.set({width: 80, height: 20});
+		item.focusable = true;
+		p.append(item);
+		var dismissed = 0;
+		p.onDismiss = () -> dismissed++;
+		ui.update();
+		ui.open(p);
+		ui.update();
+		check("popups: below the anchor, out of its clip", p.absX == 10 && p.absY == 34 && p.parent == ui.overlay, '${p.absX},${p.absY}');
+		check("popups: hit over the tree", @:privateAccess ui.hit(15, 40) == item && @:privateAccess ui.hit(15, 15) == button);
+		var rec = new Recording();
+		ui.paint(rec);
+		check("popups: drawn after the tree", rec.calls[rec.calls.length - 1].indexOf("80 50") >= 0, rec.calls.join("|"));
+		var at = ui.accessTree();
+		check("popups: in the accessibility tree", at.order.length > 0 && at.node(at.order[at.order.length - 1]) == item || [for (id in at.order) at.node(id)].contains(item));
+		// flipped above near the bottom, kept inside on the right
+		clip.style.set({margin: [150.0, 0, 0, 250]});
+		ui.update();
+		check("popups: flipped above, kept in the window", p.absY == 160 - 4 - 50 && p.absX == 300 - 80, '${p.absX},${p.absY}');
+		// dismissed by a press outside, not on the anchor or inside
+		ui.pointerDown(p.absX + 5, p.absY + 5, 1);
+		ui.pointerUp(p.absX + 5, p.absY + 5, 1);
+		ui.pointerDown(button.absX + 5, button.absY + 5, 1);
+		ui.pointerUp(button.absX + 5, button.absY + 5, 1);
+		check("popups: not dismissed inside or on the anchor", dismissed == 0, '$dismissed');
+		ui.pointerDown(5, 5, 1);
+		ui.pointerUp(5, 5, 1);
+		check("popups: dismissed by a press outside", dismissed == 1, '$dismissed');
+		ui.keyDown(Key.ESCAPE, 0);
+		check("popups: dismissed by Escape", dismissed == 2, '$dismissed');
+		ui.close(p);
+		ui.update();
+		check("popups: closed", p.parent == null && ui.overlay.children.length == 0);
+		// a modal dialog: the focus inside, Tab cycling in it, the tree covered
+		ui.setFocus(button);
+		var d = new Popup("dialog");
+		d.modal = true;
+		var box = new Node("box");
+		box.style.set({width: 120, height: 60});
+		var a = new Node("a"), b = new Node("b");
+		for (n in [a, b]) {
+			n.style.set({width: 40, height: 20});
+			n.focusable = true;
+			box.append(n);
+		}
+		d.append(box);
+		var closed = 0;
+		d.onDismiss = () -> closed++;
+		ui.open(d);
+		ui.update();
+		check("popups: a modal covers the window, its content centred", d.width == 300 && d.height == 200 && box.absX == 90 && box.absY == 70, '${d.width}x${d.height} ${box.absX},${box.absY}');
+		check("popups: a modal takes the focus", ui.focus == a);
+		ui.keyDown(Key.TAB, 0);
+		ui.keyDown(Key.TAB, 0);
+		check("popups: Tab cycles inside it", ui.focus == a, '${ui.focus}');
+		check("popups: the tree under it covered", @:privateAccess ui.hit(button.absX + 2, button.absY + 2) == d);
+		ui.pointerDown(box.absX + 2, box.absY + 2, 1);
+		ui.pointerUp(box.absX + 2, box.absY + 2, 1);
+		ui.pointerDown(2, 2, 1);
+		ui.pointerUp(2, 2, 1);
+		check("popups: its backdrop dismisses it, its content does not", closed == 1, '$closed');
+		ui.close(d);
+		check("popups: closing gives the focus back", ui.focus == button, '${ui.focus}');
 	}
 
 	// --- fields ---

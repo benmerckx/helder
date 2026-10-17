@@ -6,7 +6,8 @@ import hxmc.ui.draw.*;
 import hxmc.ui.reactive.*;
 
 // The widget gallery (examples/Gallery.hx) driven headless through its Ui:
-// buttons, the checkbox and switch (clicked and with the keyboard), radio
+// buttons, the select, menu and dialog (popups: clicked, keys), the
+// checkbox and switch (clicked and with the keyboard), radio
 // buttons, the slider (dragged, clicked, arrow keys, Home and End), tabs,
 // the field, the images' sizes; PNG files decoded natively (png/*.png,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
@@ -34,7 +35,7 @@ class GalleryTest {
 		Render.render(app.view(), ui.root);
 		ui.update();
 		function find(tag:String):Node {
-			var n = ui.root.find(tag);
+			var n = ui.root.find(tag) ?? ui.overlay.find(tag);
 			if (n == null) throw "GalleryTest: no " + tag;
 			return n;
 		}
@@ -55,6 +56,24 @@ class GalleryTest {
 		click("plain");
 		click("primary");
 		check("buttons", app.clicks.value == 11 && shown("clicks") == "clicked 11", shown("clicks"));
+		// popups: the select's list, the menu, the dialog it opens
+		click("fruit");
+		check("the select opens", ui.overlay.find("fruit-list") != null && ui.focus == find("fruit-Apple"));
+		key(Key.DOWN);
+		key(Key.ENTER);
+		check("an option chosen with the keys", app.fruit.value == "Pear" && ui.overlay.children.length == 0 && ui.focus == find("fruit"), app.fruit.value);
+		click("file");
+		click("file-1");
+		check("a menu item clicked", app.chosen.value == "Open" && shown("chosen") == "Open", app.chosen.value);
+		ui.setFocus(find("file"));
+		key(Key.DOWN);
+		key(Key.UP);
+		key(Key.DOWN);
+		key(Key.DOWN);
+		key(Key.ENTER);
+		check("the dialog, opened from the menu, its field focused", app.dialog.value && ui.focus == find("rename"), '${ui.focus}');
+		click("done");
+		check("the dialog closed by its button", !app.dialog.value && ui.overlay.children.length == 0);
 		click("check");
 		click("switch");
 		check("a checkbox and a switch, clicked", !app.checked.value && app.on.value && shown("toggles") == "unchecked, on", shown("toggles"));
@@ -127,6 +146,8 @@ class GalleryTest {
 				}
 			check("PNG files decoded", n >= 20 && bad.length == 0, bad.join(" "));
 		}
+		// (the frame with the select's list open over the toggles)
+		click("fruit");
 		Sys.println('GalleryTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		// the frame (the widgets' transitions finished)
 		Clock.finish();

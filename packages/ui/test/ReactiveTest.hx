@@ -9,6 +9,10 @@ import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Field;
+import hxmc.ui.widgets.Widgets.Select;
+import hxmc.ui.widgets.Widgets.Menu;
+import hxmc.ui.widgets.Widgets.Tooltip;
+import hxmc.ui.widgets.Widgets.Dialog;
 
 // hxmc.ui.reactive's tests, on Eval (make ui-check runs them after UiTest):
 // signals, memos and effects (tracking, batching, no glitches, ownership
@@ -17,7 +21,8 @@ import hxmc.ui.widgets.Widgets.Field;
 // For and Show, components, events through a Ui; then context, onMount,
 // Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
 // transitions, springs and colours on a Clock ticked by hand; the
-// accessibility tree of widgets in markup, its actions and changes
+// accessibility tree of widgets in markup, its actions and changes; the
+// popover widgets (Select, Menu, Tooltip, Dialog) driven by pointer and keys
 class ReactiveTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -28,6 +33,7 @@ class ReactiveTest implements Markup {
 		flow();
 		motion();
 		access();
+		popovers();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -143,6 +149,83 @@ class ReactiveTest implements Markup {
 			if (props.when.value) throw "boom";
 			"fine";
 		}}</text>;
+	}
+
+	static function popovers() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var fruit = signal("pear"), log = [], dialog = signal(false), field = signal("");
+		Render.render(<view padding={10} row-gap={10} align-items="start">
+			<Select tag="fruit" value={fruit} options={["apple", "pear", "plum"]} label="Fruit"/>
+			<Menu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open")}]}/>
+			<Tooltip text="Saves the file" tag="tip"><text>Save</text></Tooltip>
+			<Dialog open={dialog} title="Rename"><Field tag="rename" value={field}/></Dialog>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var select = ui.root.find("fruit");
+		click(select);
+		var list = ui.overlay.find("fruit-list");
+		check("popover: a click opens the select's list under it", list != null && list.absY >= select.absY + select.height && ui.focus == ui.overlay.find("fruit-pear"),
+			'${list} focus ${ui.focus}');
+		ui.keyDown(Key.DOWN, 0);
+		check("popover: Down moves to the next option", ui.focus == ui.overlay.find("fruit-plum"), '${ui.focus}');
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("popover: Enter chooses, closes, gives the focus back", fruit.value == "plum" && ui.overlay.children.length == 0 && ui.focus == select, '${fruit.value} ${ui.focus}');
+		ui.keyDown(Key.UP, 0);
+		check("popover: Up on the closed select", fruit.value == "pear");
+		click(select);
+		click(ui.overlay.find("fruit-apple"));
+		check("popover: a click on an option chooses it", fruit.value == "apple" && ui.overlay.children.length == 0);
+		click(select);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("popover: Escape closes", ui.overlay.children.length == 0 && fruit.value == "apple");
+		click(select);
+		ui.pointerDown(390, 290, 1);
+		ui.pointerUp(390, 290, 1);
+		ui.update();
+		check("popover: a click outside closes", ui.overlay.children.length == 0);
+		var t = ui.accessTree();
+		var combo = [for (id in t.order) t.nodes.get(id)].filter(n -> n.role == ComboBox)[0];
+		check("popover: the select's role, name and value", combo != null && combo.expanded == false && combo.name == "Fruit" && combo.children.length == 1 && t.nodes.get(combo.children[0]).name == "apple", combo == null ? "none" : combo.name + " " + combo.expanded + " " + [for (c in combo.children) t.nodes.get(c).name].join(","));
+		// a menu: chosen with the keys
+		var file = ui.root.find("file");
+		ui.setFocus(file);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("popover: the menu opens on Down, its first item focused", ui.focus == ui.overlay.find("file-0"));
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("popover: a menu item chosen", log.join(",") == "open" && ui.overlay.children.length == 0 && ui.focus == file, log.join(","));
+		// a tooltip: after the pointer rests half a second
+		var tip = ui.root.find("tip");
+		Clock.tick(100);
+		ui.pointerMove(tip.absX + 2, tip.absY + 2);
+		Clock.tick(100.1);
+		Clock.tick(100.3);
+		check("popover: no tooltip before the delay", ui.overlay.children.length == 0);
+		Clock.tick(100.7);
+		ui.update();
+		var shown = ui.overlay.find("tooltip");
+		check("popover: the tooltip above, after the delay", shown != null && shown.absY + shown.height <= tip.absY, '${shown}');
+		ui.pointerMove(390, 290);
+		ui.update();
+		check("popover: hidden when the pointer leaves", ui.overlay.children.length == 0);
+		// a dialog: modal, its field focused, Escape closes it
+		dialog.value = true;
+		ui.update();
+		check("popover: the dialog open, its field focused", ui.overlay.find("dialog") != null && ui.focus == ui.overlay.find("rename"), '${ui.focus}');
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("popover: Escape closes the dialog", !dialog.value && ui.overlay.children.length == 0);
 	}
 
 	static function access() {

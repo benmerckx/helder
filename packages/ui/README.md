@@ -80,7 +80,14 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
-  `Progress`, `Tabs`, `Field`, `Area`; `examples/Gallery.hx` shows them all.
+  `Progress`, `Tabs`, `Field`, `Area`, and the popups `Select`, `Menu`,
+  `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all.
+- **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
+  children of `Ui.overlay`, drawn and hit after the tree, not clipped by
+  it), anchored to a node (below, above, beside; flipped and kept in the
+  window) or modal (a backdrop, the focus kept inside); a press outside or
+  Escape asks them to close. In markup, `Flow.Popover` puts its children
+  in one while `open` is true.
 
 ## Markup
 

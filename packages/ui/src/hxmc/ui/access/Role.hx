@@ -25,6 +25,13 @@ enum abstract Role(Int) to Int {
 	var ListItem;
 	var Heading;
 	var Link;
+	var Dialog;
+	var Menu;
+	var MenuItem;
+	var ListBox;
+	var ListBoxOption;
+	var ComboBox;
+	var Tooltip;
 
 	// the ARIA role of each (the browser's mirror)
 	public function aria():String
@@ -48,13 +55,20 @@ enum abstract Role(Int) to Int {
 			case ListItem: "listitem";
 			case Heading: "heading";
 			case Link: "link";
+			case Dialog: "dialog";
+			case Menu: "menu";
+			case MenuItem: "menuitem";
+			case ListBox: "listbox";
+			case ListBoxOption: "option";
+			case ComboBox: "combobox";
+			case Tooltip: "tooltip";
 		}
 
 	// a role whose name comes from its contents' text (ARIA's "name from
 	// content"): that text is not a node of its own
 	public function namedByContent():Bool
 		return switch (cast this : Role) {
-			case Button | CheckBox | Switch | RadioButton | Tab | Link | Heading | ListItem: true;
+			case Button | CheckBox | Switch | RadioButton | Tab | Link | Heading | ListItem | MenuItem | ListBoxOption | Tooltip: true;
 			case _: false;
 		}
 }

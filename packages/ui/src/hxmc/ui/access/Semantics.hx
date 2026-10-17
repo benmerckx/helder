@@ -2,7 +2,8 @@ package hxmc.ui.access;
 
 // What a node declares about itself for assistive technology (Node.semantics;
 // in markup, the attributes role, label, description, checked, selected,
-// expanded, disabled, value-now, value-min, value-max, value-text). Unset
+// expanded, disabled, value-now, value-min, value-max, value-text,
+// hidden). Unset
 // fields say nothing: a TextNode is a Label of its text, an ImageNode an
 // Image, a focusable node a Group.
 @:structInit class Semantics {
@@ -19,4 +20,6 @@ package hxmc.ui.access;
 	public var valueMin:Null<Float> = null;
 	public var valueMax:Null<Float> = null;
 	public var valueText:Null<String> = null;
+	// left out with its subtree (decoration)
+	public var hidden:Bool = false;
 }

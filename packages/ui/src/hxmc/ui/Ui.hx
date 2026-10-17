@@ -14,9 +14,13 @@ import hxmc.ui.Event;
 // ancestor. A node that scrolls shows a scrollbar's thumb over its content
 // on each axis it overflows, dragged to scroll (a click on its track pages);
 // the focus moved by the keyboard shows a ring around the focused node (as
-// CSS's :focus-visible: a click hides it).
+// CSS's :focus-visible: a click hides it). Popups (open, close) are
+// layers over the tree: children of overlay, a second root laid out,
+// drawn and hit after it.
 class Ui {
 	public final root:Node;
+	// the layers above the tree (Popup nodes, the last on top)
+	public final overlay:Node;
 	public var text:TextEngine;
 	public var width(default, null):Float;
 	public var height(default, null):Float;
@@ -56,6 +60,8 @@ class Ui {
 		this.height = height;
 		root = new Node("root");
 		root.attach(this);
+		overlay = new Node("overlay");
+		overlay.attach(this);
 	}
 
 	public function resize(width:Float, height:Float) {
@@ -63,6 +69,7 @@ class Ui {
 		this.width = width;
 		this.height = height;
 		root.markDirty();
+		overlay.markDirty();
 	}
 
 	public function requestFrame()
@@ -72,12 +79,19 @@ class Ui {
 	public function update() {
 		Layout.run(root, width, height, text);
 		clampScroll(root);
+		if (overlay.children.length > 0) {
+			Layout.run(overlay, width, height, text);
+			// (placed from their sizes: laid out again when one moved)
+			if (placePopups()) Layout.run(overlay, width, height, text);
+			clampScroll(overlay);
+		}
 	}
 
 	// draws the tree (after update)
 	public function paint(canvas:Canvas) {
 		needsFrame = false;
 		paintNode(root, canvas);
+		if (overlay.children.length > 0) paintNode(overlay, canvas);
 	}
 
 	function paintNode(n:Node, canvas:Canvas) {
@@ -129,7 +143,7 @@ class Ui {
 			setScroll(n, dragX, v);
 			return;
 		}
-		var target = root.hitTest(x, y);
+		var target = hit(x, y);
 		setHover(target);
 		var to = capture != null ? capture : target;
 		if (to != null) bubble(new Event(PointerMove, to, x, y));
@@ -138,7 +152,8 @@ class Ui {
 	public function pointerDown(x:Float, y:Float, button:Int) {
 		pointerX = x;
 		pointerY = y;
-		var target = root.hitTest(x, y);
+		var target = hit(x, y);
+		dismissOutside(target);
 		setHover(target);
 		if (focusVisible) {
 			focusVisible = false;
@@ -168,10 +183,10 @@ class Ui {
 		if (drag != null) {
 			drag = null;
 			requestFrame();
-			setHover(root.hitTest(x, y));
+			setHover(hit(x, y));
 			return;
 		}
-		var target = root.hitTest(x, y);
+		var target = hit(x, y);
 		var pressed = capture;
 		capture = null;
 		var to = pressed != null ? pressed : target;
@@ -190,7 +205,7 @@ class Ui {
 	}
 
 	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float) {
-		var target = root.hitTest(x, y);
+		var target = hit(x, y);
 		if (target == null) return;
 		var e = new Event(Wheel, target, x, y);
 		e.deltaX = deltaX;
@@ -217,6 +232,17 @@ class Ui {
 		e.key = key;
 		e.mods = mods;
 		bubble(e);
+		if (!e.defaultPrevented && key == Key.ESCAPE) {
+			// the topmost popup that can be dismissed
+			var i = overlay.children.length;
+			while (--i >= 0) {
+				var p = popupAt(i);
+				if (p != null && p.onDismiss != null) {
+					p.onDismiss();
+					break;
+				}
+			}
+		}
 		if (!e.defaultPrevented && key == Key.TAB) {
 			moveFocus(mods & Key.MOD_SHIFT != 0 ? -1 : 1);
 			focusVisible = focus != null;
@@ -276,10 +302,152 @@ class Ui {
 			for (c in n.children)
 				collect(c);
 		}
-		collect(root);
+		// (in the topmost modal popup only; else the tree, then the popups)
+		var m = modal();
+		if (m != null) collect(m) else {
+			collect(root);
+			collect(overlay);
+		}
 		if (all.length == 0) return;
 		var i = focus == null ? (dir > 0 ? -1 : 0) : all.indexOf(focus);
 		setFocus(all[(i + dir + all.length) % all.length]);
+	}
+
+	// --- popups ---
+
+	// shows a popup over the tree, above those open; a modal one covers the
+	// window (its content centred) and takes the focus (its first focusable node)
+	public function open(p:Popup) {
+		if (p.parent == overlay) return;
+		p.returnFocus = focus;
+		if (p.modal) {
+			p.style.left = 0;
+			p.style.top = 0;
+			p.style.width = DimValue.Percent(100);
+			p.style.height = DimValue.Percent(100);
+			p.style.alignItems = Center;
+			p.style.justify = Center;
+		}
+		overlay.append(p);
+		if (p.modal) {
+			var f = firstFocusable(p);
+			setFocus(f);
+		}
+		requestFrame();
+	}
+
+	// removes a popup; the focus, if it was inside, goes back to where it was when it opened
+	public function close(p:Popup) {
+		if (p.parent != overlay) return;
+		var inside = focus != null && contains(p, focus);
+		overlay.remove(p);
+		if (inside || focus == null) {
+			var r = p.returnFocus;
+			setFocus(r != null && r.ui == this ? r : null);
+		}
+		p.returnFocus = null;
+		requestFrame();
+	}
+
+	function popupAt(i:Int):Null<Popup> {
+		var c = overlay.children[i];
+		return Std.isOfType(c, Popup) ? cast c : null;
+	}
+
+	// the topmost modal popup (null: none)
+	function modal():Null<Popup> {
+		var i = overlay.children.length;
+		while (--i >= 0) {
+			var p = popupAt(i);
+			if (p != null && p.modal) return p;
+		}
+		return null;
+	}
+
+	static function firstFocusable(n:Node):Null<Node> {
+		if (n.style.display == None) return null;
+		if (n.focusable) return n;
+		for (c in n.children) {
+			var f = firstFocusable(c);
+			if (f != null) return f;
+		}
+		return null;
+	}
+
+	// the topmost node under a point: in the popups (a modal one stops the
+	// search: what is under it is covered), then the tree
+	function hit(x:Float, y:Float):Null<Node> {
+		var i = overlay.children.length;
+		while (--i >= 0) {
+			var c = overlay.children[i];
+			var h = c.hitTest(x, y);
+			if (h != null) return h;
+			if (Std.isOfType(c, Popup) && (cast c : Popup).modal) return null;
+		}
+		return root.hitTest(x, y);
+	}
+
+	// a press outside the popups on top (and their anchors) dismisses them;
+	// on a modal one's backdrop, it
+	function dismissOutside(target:Null<Node>) {
+		var i = overlay.children.length;
+		while (--i >= 0) {
+			if (i >= overlay.children.length) continue;
+			var p = popupAt(i);
+			if (p == null) continue;
+			if (target != null && target != p && contains(p, target)) break;
+			if (p.modal) {
+				if (target == p && p.onDismiss != null) p.onDismiss();
+				break;
+			}
+			if (target != null && p.anchor != null && contains(p.anchor, target)) break;
+			if (p.onDismiss != null) p.onDismiss();
+		}
+	}
+
+	// the anchored popups placed (their style's left and top): true when one moved
+	function placePopups():Bool {
+		var moved = false;
+		for (c in overlay.children) {
+			if (!Std.isOfType(c, Popup)) continue;
+			var p:Popup = cast c;
+			if (p.modal || p.placement == Manual) continue;
+			var w = p.width, h = p.height, x = 0.0, y = 0.0;
+			if (p.placement == Center || p.anchor == null || p.anchor.ui != this) {
+				if (p.placement != Center && p.anchor != null) continue;
+				x = (width - w) / 2;
+				y = (height - h) / 2;
+			} else {
+				// the anchor where it is drawn: its ancestors' scrolling taken off
+				var a = p.anchor, ax = a.absX, ay = a.absY, n = a.parent;
+				while (n != null) {
+					if (n.style.overflow == Scroll) {
+						ax -= n.scrollX;
+						ay -= n.scrollY;
+					}
+					n = n.parent;
+				}
+				var g = p.gap;
+				switch p.placement {
+					case Below | Above:
+						x = ax;
+						var below = ay + a.height + g, above = ay - g - h;
+						y = p.placement == Below ? (below + h > height && above >= 0 ? above : below) : (above < 0 && below + h <= height ? below : above);
+					case _:
+						y = ay;
+						var right = ax + a.width + g, left = ax - g - w;
+						x = p.placement == Right ? (right + w > width && left >= 0 ? left : right) : (left < 0 && right + w <= width ? right : left);
+				}
+			}
+			x = Math.round(Math.max(0, Math.min(x, width - w)));
+			y = Math.round(Math.max(0, Math.min(y, height - h)));
+			if (p.style.left.resolve(0) != x || p.style.top.resolve(0) != y) {
+				p.style.left = x;
+				p.style.top = y;
+				moved = true;
+			}
+		}
+		return moved;
 	}
 
 	// --- internals ---

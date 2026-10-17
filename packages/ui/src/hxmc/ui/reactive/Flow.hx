@@ -37,6 +37,17 @@ class Flow {
 		return () -> on.value ? props.children : props.fallback;
 	}
 
+	// the children in a popup (hxmc.ui.Popup: a layer over the tree), open
+	// while open is true: anchored to anchor (else the node the markup puts
+	// it in), placed by placement ("below", "above", "right", "left",
+	// "center"; gap pixels away), modal or not; onDismiss when a click
+	// outside or Escape asks it to close; onOpen once it is open (to move
+	// the focus into it); a modal one's backdrop its colour. Its content is
+	// rendered once, kept while closed.
+	public static function Popover(props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color,
+			?onDismiss:Void->Void, ?onOpen:hxmc.ui.Popup->Void, ?tag:String, ?children:Any}):Any
+		return new PopoverMount(props);
+
 	public static function Match(props:{when:Dynamic, ?children:Any}):Any
 		return new MatchCase(props.when, props.children);
 
@@ -101,6 +112,47 @@ class Flow {
 // returns the ones it keeps there (an anchor: what it shows goes before it)
 interface Mountable {
 	function mount(parent:Node, before:Null<Node>):Array<Node>;
+}
+
+// Popover: a hidden marker where the markup puts it; the popup opened in
+// the marker's Ui while open is true
+class PopoverMount implements Mountable {
+	final props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color, ?onDismiss:Void->Void,
+		?onOpen:hxmc.ui.Popup->Void, ?tag:String, ?children:Any};
+
+	public function new(props)
+		this.props = props;
+
+	public function mount(parent:Node, before:Null<Node>):Array<Node> {
+		var marker = new Node("popover");
+		marker.style.display = None;
+		var i = before == null ? parent.children.length : parent.indexOf(before);
+		parent.insert(marker, i < 0 ? parent.children.length : i);
+		var p = new hxmc.ui.Popup(props.tag);
+		if (props.placement != null) p.placement = props.placement;
+		if (props.gap != null) p.gap = props.gap;
+		p.modal = props.modal == true;
+		if (props.backdrop != null) p.style.background = props.backdrop;
+		p.onDismiss = props.onDismiss;
+		p.anchor = props.anchor != null ? props.anchor : parent;
+		Render.insert(props.children, p, null);
+		function sync() {
+			var w:Dynamic = Render.read(props.open);
+			var on = w != null && w != false;
+			Reactive.untrack(() -> {
+				if (on && marker.ui != null && p.ui == null) {
+					marker.ui.open(p);
+					if (props.onOpen != null) props.onOpen(p);
+				} else if (!on && p.ui != null) p.ui.close(p);
+			});
+		}
+		// (opened once the marker is in its Ui: after the insertion)
+		Reactive.onMount(() -> {
+			Reactive.effect(sync);
+		});
+		Reactive.onCleanup(() -> if (p.ui != null) p.ui.close(p));
+		return [marker];
+	}
 }
 
 class MatchCase {

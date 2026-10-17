@@ -28,6 +28,9 @@ class AccessTree {
 		add(ui.root, top);
 		for (c in ui.root.children)
 			visit(c, top, 0, 0, false, ui);
+		// (the popups: after the tree)
+		for (c in ui.overlay.children)
+			visit(c, top, 0, 0, false, ui);
 		var f = ui.focus;
 		focus = f != null && byId.exists(f.accessId) ? f.accessId : 0;
 	}
@@ -56,6 +59,7 @@ class AccessTree {
 		var s = n.style;
 		if (s.display == None || s.opacity <= 0) return;
 		var sem = n.semantics;
+		if (sem != null && sem.hidden) return;
 		var role:Null<Role> = sem != null ? sem.role : null;
 		if (role == null) {
 			if (Std.isOfType(n, ImageNode)) role = sem != null && sem.label != null ? Image : null else if (Std.isOfType(n, TextNode))

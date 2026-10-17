@@ -25,7 +25,7 @@ import hxmc.ui.reactive.Memo;
 // onTextInput, onComposition, onFocus, onBlur: Event -> Void), focusable, ref (a
 // function given the node), and what the node is to assistive technology
 // (Semantics: role, label, description, checked, selected, expanded,
-// disabled, value-now, value-min, value-max, value-text). A Signal, Memo or function as a value (but an
+// disabled, value-now, value-min, value-max, value-text, hidden). A Signal, Memo or function as a value (but an
 // event's) is bound: set again when it changes. In a view, a run of text
 // and holes whose values are text becomes one TextNode (reactive if one of
 // them is). A component's factory is called once, untracked, inside its
@@ -258,6 +258,8 @@ class Render {
 				semantics(n).valueMin = number(v);
 			case "value-max" | "valueMax":
 				semantics(n).valueMax = number(v);
+			case "hidden":
+				semantics(n).hidden = v == true || v == "true";
 			case "value-text" | "valueText":
 				semantics(n).valueText = v == null ? null : Std.string(v);
 			case "src" if (Std.isOfType(n, ImageNode)):
@@ -297,7 +299,7 @@ class Render {
 
 	static final ROLES:Array<hxmc.ui.access.Role> = [
 		Group, Button, CheckBox, Switch, RadioGroup, RadioButton, Slider, ProgressIndicator, TextInput, Label, Image, TabList, Tab, TabPanel, ScrollView,
-		List, ListItem, Heading, Link
+		List, ListItem, Heading, Link, Dialog, Menu, MenuItem, ListBox, ListBoxOption, ComboBox, Tooltip
 	];
 
 	static function event(n:Node, name:String, v:Dynamic) {
