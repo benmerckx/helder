@@ -102,6 +102,9 @@ class EditableText extends TextNode {
 		return true;
 	}
 
+	override public function takesText():Bool
+		return true;
+
 	override public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
 		return focused && !Math.isNaN(caretX) ? {x: caretX, y: caretY, width: 1.0, height: caretHeight} : null;
 

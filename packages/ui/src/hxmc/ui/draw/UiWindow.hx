@@ -59,6 +59,8 @@ class UiWindow {
 
 	public function new(title:String, width:Int, height:Int, ?text:TextEngine) {
 		window = new hxmc.os.Window(title, width, height);
+		// (shortcuts labelled as macOS's menus do)
+		Shortcut.mac = Mem.os() == 1;
 		device = Device.create(window.surface);
 		renderer = new Renderer(device);
 		ui = new Ui(text == null ? new DrawText() : text, width, height);

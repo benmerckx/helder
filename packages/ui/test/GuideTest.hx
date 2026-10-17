@@ -33,6 +33,7 @@ class GuideTest implements Markup {
 		grids();
 		richText();
 		themes();
+		shortcuts();
 		dragAndDrop();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
@@ -321,6 +322,28 @@ class GuideTest implements Markup {
 		dark.value = false;
 		Clock.finish();
 		check("themes: and back", b.style.background == light);
+	}
+
+	// "Keyboard shortcuts"
+	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):Esx
+		return <view row-gap={8}>
+			<Hotkey keys="Mod+S" action={props.onSave}/>
+			<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
+			<Area value={props.text}/>
+		</view>;
+
+	static function shortcuts() {
+		var ui = window(), text = signal("draft"), saved = 0;
+		Render.render(<Editor text={text} onSave={() -> saved++}/>, ui.root);
+		ui.update();
+		var area:Node = null;
+		function find(n:Node)
+			if (Std.isOfType(n, hxmc.ui.widgets.TextArea)) area = n else for (c in n.children) find(c);
+		find(ui.root);
+		ui.setFocus(area);
+		ui.keyDown("s".code, Key.MOD_CONTROL);
+		ui.keyDown("k".code, Key.MOD_META | Key.MOD_SHIFT);
+		check("shortcuts: a Hotkey and a menu item's, the focus in the text", saved == 1 && text.value == "", saved + " " + text.value);
 	}
 
 	// "Drag and drop": a list sorted by dragging

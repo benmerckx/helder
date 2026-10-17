@@ -159,9 +159,9 @@ class ReactiveTest implements Markup {
 		var fruit = signal("pear"), log = [], dialog = signal(false), field = signal("");
 		Render.render(<view padding={10} row-gap={10} align-items="start">
 			<Select tag="fruit" value={fruit} options={["apple", "pear", "plum"]} label="Fruit"/>
-			<Menu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open")}]}/>
+			<Menu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open"), shortcut: "Mod+O"}]}/>
 			<Tooltip text="Saves the file" tag="tip"><text>Save</text></Tooltip>
-			<ContextMenu tag="ctx" items={[{label: "Cut", onSelect: () -> log.push("cut")}, {label: "Copy", onSelect: () -> log.push("copy")}]}>
+			<ContextMenu tag="ctx" items={[{label: "Cut", onSelect: () -> log.push("cut")}, {label: "Copy", onSelect: () -> log.push("copy"), shortcut: "Mod+C"}]}>
 				<view tag="area" focusable width={200} height={40}/>
 			</ContextMenu>
 			<Dialog open={dialog} title="Rename"><Field tag="rename" value={field}/></Dialog>
@@ -246,6 +246,29 @@ class ReactiveTest implements Markup {
 		ui.keyDown(Key.ENTER, 0);
 		ui.update();
 		check("popover: the menu key, then Enter on the first item", log.join(",") == "open,copy,cut" && ui.overlay.children.length == 0 && ui.focus == area, log.join(",") + ' ${ui.focus}');
+		// shortcuts: a menu's anywhere, shown in it; a context menu's in its children; a Hotkey while mounted
+		var at = log.length;
+		ui.setFocus(null);
+		ui.keyDown("o".code, Key.MOD_CONTROL);
+		ui.keyDown("c".code, Key.MOD_CONTROL);
+		ui.setFocus(area);
+		ui.keyDown("c".code, Key.MOD_META);
+		check("popover: a menu's shortcut anywhere, a context menu's in its children", log.slice(at).join(",") == "open,copy", log.slice(at).join(","));
+		ui.setFocus(file);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		var label = ui.overlay.find("file-1");
+		var shown = label == null ? "" : [for (c in label.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join("|");
+		check("popover: a menu item's shortcut shown", shown == "Open|Ctrl+O", shown);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		var on = signal(true), saved = 0;
+		var dispose = Render.render(<view><Show when={on}><Hotkey keys="Mod+S" action={() -> saved++}/></Show></view>, ui.root);
+		ui.keyDown("s".code, Key.MOD_CONTROL);
+		on.value = false;
+		ui.keyDown("s".code, Key.MOD_CONTROL);
+		dispose();
+		check("popover: a Hotkey while mounted", saved == 1, '$saved');
 		// a tooltip: after the pointer rests half a second
 		var tip = ui.root.find("tip");
 		Clock.tick(100);

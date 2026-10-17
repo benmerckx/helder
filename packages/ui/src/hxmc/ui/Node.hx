@@ -262,6 +262,10 @@ class Node {
 	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
 		return null;
 
+	// whether it takes typed text while focused (a text field): keys that type are its, not shortcuts
+	public function takesText():Bool
+		return false;
+
 	// whether its children are part of its content (a TextNode's spans), not boxes laid out
 	public function contentOwnsChildren():Bool
 		return false;

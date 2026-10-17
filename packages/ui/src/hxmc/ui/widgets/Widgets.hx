@@ -210,10 +210,11 @@ class Widgets implements Markup {
 	}
 
 	// a menu button: label; a click, Enter, Space or Down opens its items
-	// under it (the first focused), each a label and what choosing it does;
+	// under it (the first focused), each a label and what choosing it does
+	// (and a shortcut: shown, and choosing it from anywhere in the window);
 	// Up and Down move through them, a click, Enter or Space chooses (and
 	// closes), Escape, Tab or a click outside closes
-	public static function Menu(props:{label:String, items:Array<{label:String, onSelect:Void->Void}>, ?tag:String}):Esx {
+	public static function Menu(props:{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?tag:String}):Esx {
 		var tag = props.tag ?? "menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -225,6 +226,7 @@ class Widgets implements Markup {
 			}}>
 			{props.label}
 			<text color={() -> t().muted} hidden>▾</text>
+			{hotkeys(props.items, false)}
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
 				{menuItems(tag, props.label, props.items, open, items)}
 			</Popover>
@@ -234,8 +236,9 @@ class Widgets implements Markup {
 	// a context menu: the children, with items (as Menu's) opened by a right
 	// click on them where it was pressed, or by the menu key or Shift+F10
 	// when the focus is in them (at their top left, the first item focused);
-	// a press elsewhere, Escape or Tab closes it
-	public static function ContextMenu(props:{items:Array<{label:String, onSelect:Void->Void}>, ?label:String, ?tag:String, ?children:Any}):Esx {
+	// a press elsewhere, Escape or Tab closes it. The items' shortcuts work
+	// while the focus is in the children.
+	public static function ContextMenu(props:{items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?label:String, ?tag:String, ?children:Any}):Esx {
 		var tag = props.tag ?? "context-menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -259,11 +262,16 @@ class Widgets implements Markup {
 				e.stop();
 			}}>
 			{props.children}
+			{hotkeys(props.items, true)}
 			<Popover open={open} at={() -> {x: atX, y: atY}} onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
 				{menuItems(tag, props.label, props.items, open, items)}
 			</Popover>
 		</view>;
 	}
+
+	// the items' shortcuts (local: while the focus is in the parent)
+	static function hotkeys(list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, local:Bool):Array<Any>
+		return [for (it in list) if (it.shortcut != null) Flow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})];
 
 	// focuses nodes[i] if it is shown
 	static function focusIn(nodes:Array<Node>, i:Int)
@@ -272,7 +280,7 @@ class Widgets implements Markup {
 	// a menu's panel of items (their nodes into nodes): Up and Down move
 	// through them, a click, Enter or Space chooses one (and sets open to
 	// false), Tab closes
-	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void}>, open:Signal<Bool>, nodes:Array<Node>):Esx
+	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, open:Signal<Bool>, nodes:Array<Node>):Esx
 		return <view tag={tag + "-items"} role="menu" label={label} min-width={140} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
 			background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
 			for (i in 0...list.length) {
@@ -281,7 +289,8 @@ class Widgets implements Markup {
 					open.value = false;
 					it.onSelect();
 				}
-				<view tag={tag + "-" + i} role="menuitem" ref={n -> nodes[i] = n} focusable cursor="pointer" padding="5 8" radius={4}
+				<view tag={tag + "-" + i} role="menuitem" ref={n -> nodes[i] = n} focusable cursor="pointer" padding="5 8" radius={4} direction="row"
+					justify="space-between" column-gap={24}
 					background={() -> hover.value ? t().itemHover : Theme.clear(t().control)} onPointerEnter={_ -> hover.value = true}
 					onPointerLeave={_ -> hover.value = false} onClick={_ -> choose()}
 					onKeyDown={e -> switch e.key {
@@ -298,6 +307,7 @@ class Widgets implements Markup {
 						case _:
 					}}>
 					{it.label}
+					{it.shortcut == null ? null : <text color={() -> t().muted}>{Shortcut.parse(it.shortcut).label()}</text>}
 				</view>;
 			}
 		]}</view>;

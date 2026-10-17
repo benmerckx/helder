@@ -324,6 +324,38 @@ class Ui {
 
 	// --- keyboard ---
 
+	// the shortcuts, the latest first to match
+	final shortcuts:Array<{keys:Shortcut, action:Void->Void, scope:Null<Node>}> = [];
+
+	// runs action when keys (Shortcut.parse: "Mod+S") are pressed and the focused node's handlers
+	// neither stopped the key nor prevented its default: anywhere, or while
+	// the focus is inside scope (in this Ui). Under a modal popup only a
+	// scope inside it counts; keys without Control, Alt or Command that
+	// type (a character) not while the focus takes text. The latest added
+	// wins. Returns what removes it.
+	public function shortcut(keys:String, action:Void->Void, ?scope:Node):Void->Void {
+		var s = {keys: Shortcut.parse(keys), action: action, scope: scope};
+		shortcuts.push(s);
+		return () -> shortcuts.remove(s);
+	}
+
+	// the shortcut a key press is (run): true when one was
+	function runShortcut(key:Int, mods:Int):Bool {
+		var typing = focus != null && focus.takesText();
+		if (typing && mods & (Key.MOD_CONTROL | Key.MOD_ALT | Key.MOD_META) == 0 && key < 0xFF00) return false;
+		var top = modal();
+		var i = shortcuts.length;
+		while (--i >= 0) {
+			var s = shortcuts[i];
+			if (!s.keys.matches(key, mods)) continue;
+			if (s.scope != null && (s.scope.ui != this || focus == null || !contains(s.scope, focus))) continue;
+			if (top != null && (s.scope == null || !contains(top, s.scope))) continue;
+			s.action();
+			return true;
+		}
+		return false;
+	}
+
 	public function keyDown(key:Int, mods:Int) {
 		this.mods = mods | modOf(key);
 		// (Escape during a drag: it ends, not dropped)
@@ -342,10 +374,11 @@ class Ui {
 				var p = popupAt(i);
 				if (p != null && p.onDismiss != null) {
 					p.onDismiss();
-					break;
+					return;
 				}
 			}
 		}
+		if (!e.defaultPrevented && !e.stopped && runShortcut(key, mods)) return;
 		if (!e.defaultPrevented && key == Key.TAB) {
 			moveFocus(mods & Key.MOD_SHIFT != 0 ? -1 : 1);
 			focusVisible = focus != null;

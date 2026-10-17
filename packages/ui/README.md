@@ -114,6 +114,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   window), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
   Escape asks them to close. In markup, `Flow.Popover` puts its children
   in one while `open` is true.
+- **Shortcuts**: `Ui.shortcut("Mod+S", action, ?scope)` (`Shortcut`: Mod is
+  Control or Command; labels in each platform's notation), run when the
+  focused node does not take the key, scoped to a subtree or to a modal
+  popup; `Flow.Hotkey` in markup, and menu items' `shortcut`.
 
 ## Markup
 

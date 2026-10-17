@@ -286,6 +286,26 @@ right-clicked, or at their corner on the menu key or Shift+F10:
 </ContextMenu>
 ```
 
+## Keyboard shortcuts
+
+A `Hotkey` runs its action when its keys are pressed anywhere in the
+window, for as long as it is mounted; with `local`, only while the
+focus is inside the node it is in. `Mod` is Control, or Command on a
+Mac. A key the focused node takes first (a text field's Control+C, a
+letter typed into it) is not a shortcut, and under a modal dialog only
+the dialog's own shortcuts work. Menu items take a `shortcut` too:
+it is shown in the menu, in the platform's notation, and works while
+the menu is mounted.
+
+```haxe
+static function Editor(props:{text:Signal<String>, onSave:Void->Void}):Esx
+	return <view row-gap={8}>
+		<Hotkey keys="Mod+S" action={props.onSave}/>
+		<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
+		<Area value={props.text}/>
+	</view>;
+```
+
 ## Drag and drop
 
 A node with `drag-data` can be dragged: a press that moves past 4 pixels

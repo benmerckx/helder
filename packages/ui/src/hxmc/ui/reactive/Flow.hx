@@ -13,6 +13,7 @@ import hxmc.ui.reactive.Memo;
 //   <Switch fallback="other"><Match when={a}>A</Match><Match when={b}>B</Match></Switch>
 //   <Provider context={theme} value={dark}>{...}</Provider>
 //   <ErrorBoundary fallback={(e, reset) -> ...}>{...}</ErrorBoundary>
+//   <Hotkey keys="Mod+S" action={save}/>
 //
 // For keeps each item's nodes (keyed by the item itself): when the list
 // changes, items still there are moved, not made again; the others are
@@ -44,6 +45,12 @@ class Flow {
 	// outside or Escape asks it to close; onOpen once it is open (to move
 	// the focus into it); a modal one's backdrop its colour. Its content is
 	// rendered once, kept while closed.
+	// a keyboard shortcut while it is mounted (Ui.shortcut): keys
+	// (hxmc.ui.Shortcut: "Mod+S", "Shift+F10") run action anywhere in the
+	// window, or, local, while the focus is inside the node the markup puts it in
+	public static function Hotkey(props:{keys:String, action:Void->Void, ?local:Bool}):Any
+		return new HotkeyMount(props);
+
 	public static function Popover(props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color,
 			?onDismiss:Void->Void, ?onOpen:hxmc.ui.Popup->Void, ?at:Void->{x:Float, y:Float}, ?tag:String, ?children:Any}):Any
 		return new PopoverMount(props);
@@ -166,6 +173,26 @@ class PopoverMount implements Mountable {
 			Reactive.effect(sync);
 		});
 		Reactive.onCleanup(() -> if (p.ui != null) p.ui.close(p));
+		return [marker];
+	}
+}
+
+// Hotkey: a hidden marker; the shortcut added to its Ui once mounted
+class HotkeyMount implements Mountable {
+	final props:{keys:String, action:Void->Void, ?local:Bool};
+
+	public function new(props)
+		this.props = props;
+
+	public function mount(parent:Node, before:Null<Node>):Array<Node> {
+		var marker = anchorAt(parent, before, "hotkey");
+		// (a mistake in keys thrown at once)
+		Shortcut.parse(props.keys);
+		var remove:Null<Void->Void> = null;
+		Reactive.onMount(() -> {
+			if (marker.ui != null) remove = marker.ui.shortcut(props.keys, () -> props.action(), props.local == true ? parent : null);
+		});
+		Reactive.onCleanup(() -> if (remove != null) remove());
 		return [marker];
 	}
 }

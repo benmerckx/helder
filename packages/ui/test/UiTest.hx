@@ -41,6 +41,7 @@ class UiTest {
 		images(here);
 		fields();
 		popups();
+		shortcuts();
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -51,6 +52,75 @@ class UiTest {
 			failed++;
 			Sys.println('UiTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
+	}
+
+	// --- shortcuts ---
+
+	static function shortcuts() {
+		var s = Shortcut.parse("Mod+Shift+S");
+		check("shortcuts: Mod with Control or Command, Shift's capital", s.matches("s".code, Key.MOD_CONTROL | Key.MOD_SHIFT) && s.matches("S".code, Key.MOD_META | Key.MOD_SHIFT)
+			&& !s.matches("s".code, Key.MOD_CONTROL) && !s.matches("s".code, Key.MOD_CONTROL | Key.MOD_META | Key.MOD_SHIFT) && !s.matches("s".code, Key.MOD_SHIFT));
+		check("shortcuts: keys by name", Shortcut.parse("F5").matches(0xFFC2, 0) && Shortcut.parse("Ctrl+PageDown").matches(Key.PAGE_DOWN, Key.MOD_CONTROL)
+			&& Shortcut.parse("Mod++").matches("+".code, Key.MOD_CONTROL) && Shortcut.parse("alt+enter").matches(Key.ENTER, Key.MOD_ALT));
+		var labels = [s.label(), Shortcut.parse("Alt+F4").label(), Shortcut.parse("Escape").label()].join(" ");
+		Shortcut.mac = true;
+		var mac = [s.label(), Shortcut.parse("Ctrl+Alt+Delete").label(), Shortcut.parse("Mod+Enter").label()].join(" ");
+		Shortcut.mac = false;
+		check("shortcuts: labels", labels == "Ctrl+Shift+S Alt+F4 Esc" && mac == "⇧⌘S ⌃⌥⌦ ⌘↩", labels + " / " + mac);
+		var bad = 0;
+		for (t in ["Hyper+S", "Ctrl+", "Ctrl+Nope", "F99"])
+			try Shortcut.parse(t) catch (_:Dynamic) bad++;
+		check("shortcuts: what is not one throws", bad == 4, '$bad');
+		var ui = new Ui(new MonoText(), 300, 200);
+		var panel = new Node("panel"), button = new Node("button"), field = new TextField(""), other = new Node("other");
+		button.focusable = other.focusable = true;
+		panel.append(button);
+		panel.append(field);
+		ui.root.append(panel);
+		ui.root.append(other);
+		ui.update();
+		var log = [];
+		var removeSave = ui.shortcut("Mod+S", () -> log.push("save"));
+		ui.shortcut("Delete", () -> log.push("delete"), panel);
+		ui.shortcut("n", () -> log.push("n"));
+		ui.keyDown("s".code, Key.MOD_CONTROL);
+		ui.keyDown(Key.DELETE, 0);
+		check("shortcuts: a global one; a scoped one not with the focus outside", log.join(",") == "save", log.join(","));
+		ui.setFocus(button);
+		ui.keyDown(Key.DELETE, 0);
+		ui.keyDown("n".code, 0);
+		check("shortcuts: scoped, with the focus inside; a plain key", log.join(",") == "save,delete,n", log.join(","));
+		ui.setFocus(field);
+		ui.keyDown("n".code, 0);
+		ui.keyDown(Key.DELETE, 0);
+		ui.keyDown("s".code, Key.MOD_META);
+		check("shortcuts: not a typed key or one the field takes; Mod+S in a field", log.join(",") == "save,delete,n,save", log.join(","));
+		ui.shortcut("Mod+S", () -> log.push("later"));
+		ui.setFocus(other);
+		ui.keyDown("s".code, Key.MOD_CONTROL);
+		removeSave();
+		check("shortcuts: the latest added wins", log[log.length - 1] == "later");
+		var stopper = new Node("stopper");
+		stopper.focusable = true;
+		stopper.onKeyDown = e -> e.preventDefault();
+		ui.root.append(stopper);
+		ui.update();
+		ui.setFocus(stopper);
+		var n = log.length;
+		ui.keyDown("s".code, Key.MOD_CONTROL);
+		check("shortcuts: not a key the focused node took", log.length == n);
+		var d = new Popup("dialog");
+		d.modal = true;
+		var inside = new Node("inside");
+		inside.focusable = true;
+		d.append(inside);
+		ui.open(d);
+		ui.update();
+		ui.shortcut("Enter", () -> log.push("ok"), d);
+		ui.setFocus(inside);
+		ui.keyDown("s".code, Key.MOD_CONTROL);
+		ui.keyDown(Key.ENTER, 0);
+		check("shortcuts: under a modal popup, only its own", log.slice(n).join(",") == "ok", log.slice(n).join(","));
 	}
 
 	// --- popups ---
