@@ -222,8 +222,9 @@ class MarkupTest implements Markup {
 
 	static function rightToLeft() {
 		var ui = new Ui(new MonoText(), 300, 200);
-		var dir = signal("rtl");
+		var dir = signal("rtl"), vol = signal(0.0);
 		Render.render(<view dir={dir} padding={10} row-gap={6}>
+			<Slider tag="vol" value={vol} width={100} step={0.1}/>
 			<view tag="row" direction="row" column-gap={4}><view tag="a" width={40} height={20}/><view tag="b" width={30} height={20}/></view>
 			<text tag="words">Hello</text>
 		</view>, ui.root);
@@ -231,6 +232,12 @@ class MarkupTest implements Markup {
 		var a = ui.root.find("a"), b = ui.root.find("b"), words = ui.root.find("words");
 		check("rtl: a row from the right, in markup (dir=\"rtl\")", a.absX == 300 - 10 - 40 && b.absX == a.absX - 4 - 30, a.absX + " " + b.absX);
 		check("rtl: text aligned to the right by default", words.textAlign() == Right);
+		var slider = ui.root.find("vol"), knob = slider.children[1].children[1];
+		check("rtl: a slider's minimum at the right", knob.absX == slider.absX + 100 - 16, knob.absX + " " + slider.absX);
+		ui.setFocus(slider);
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("rtl: Left raises a slider, its knob moves left", vol.value == 0.1 && knob.absX < slider.absX + 100 - 16, vol.value + " " + knob.absX);
 		dir.value = "ltr";
 		ui.update();
 		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);
@@ -279,7 +286,7 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.DOWN, 0);
 		ui.keyDown(Key.DOWN, 0);
 		ui.update();
-		check("number field: a fractional step, as many decimals", price.value == 0.75 && p.text == "0.75", p.text);
+		check("number field: a fractional step", price.value == 0.75 && p.text == "0.75", p.text);
 		p.select(0, p.text.length);
 		ui.textInput("-3");
 		ui.setFocus(field);
@@ -288,6 +295,15 @@ class MarkupTest implements Markup {
 		var t = ui.accessTree(), an = t.nodes.get(t.focus);
 		check("number field: a spin button to assistive technology", an.role == SpinButton && an.valueNow == 9 && an.valueMin == 0 && an.valueMax == 10
 			&& an.value == "9" && an.editable() && an.name == "Quantity", an.role + " " + an.valueNow + " " + an.value);
+		ui.setFocus(field);
+		field.select(0, field.text.length);
+		ui.textInput("2.5");
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("number field: a value off the steps shown as it is", qty.value == 2.5 && field.text == "2.5", field.text);
+		ui.keyDown(Key.UP, 0);
+		ui.update();
+		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
 	}
 
 	static function popovers() {

@@ -69,8 +69,8 @@ class Widgets implements Markup {
 			}}>
 			<view width={36} height={20} radius={10} padding={2} direction="row"
 				background={Motion.color(() -> props.on.value ? t().accent : t().track)}>
-				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"
-					position="relative" left={Motion.transition(() -> props.on.value ? 16 : 0)}/>
+				<view width={Motion.transition(() -> props.on.value ? 16 : 0)}/>
+				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"/>
 			</view>
 			{props.label}
 		</view>;
@@ -89,21 +89,21 @@ class Widgets implements Markup {
 			props.value.value = v;
 		}
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
+		// (right to left: the minimum at the right)
 		function at(e:Event) {
-			var n = e.current;
-			set(lo + (n.localX(e.x, e.y) - knob / 2) / (w - knob) * (hi - lo));
+			var n = e.current, x = n.localX(e.x, e.y);
+			if (n.rtl()) x = w - x;
+			set(lo + (x - knob / 2) / (w - knob) * (hi - lo));
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		return <view tag={props.tag ?? "slider"} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo} value-max={hi}
 			width={w} height={knob + 4} focusable cursor="pointer" justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
 			onKeyDown={e -> switch e.key {
-				case Key.LEFT | Key.DOWN:
+				case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
 					e.preventDefault();
-					set(props.value.value - keyStep);
-				case Key.RIGHT | Key.UP:
-					e.preventDefault();
-					set(props.value.value + keyStep);
+					var less = e.key == Key.DOWN || (e.key == Key.LEFT) != e.current.rtl();
+					set(props.value.value + (less ? -keyStep : keyStep));
 				case Key.HOME:
 					e.preventDefault();
 					set(lo);
@@ -115,8 +115,11 @@ class Widgets implements Markup {
 			<view height={4} radius={2} margin={[0, knob / 2]} overflow="hidden" direction="row" background={() -> t().track}>
 				<view width={() -> (frac() * 100) + "%"} background={() -> t().accent}/>
 			</view>
-			<view position="absolute" top={2} left={() -> frac() * (w - knob)} width={knob} height={knob} radius={knob / 2} background={() -> t().knob}
-				border-width={1} border-color={() -> t().border} shadow="0 1 2 #00000033"/>
+			<view position="absolute" top={2} left={0} width={w} direction="row">
+				<view width={() -> frac() * (w - knob)}/>
+				<view width={knob} height={knob} radius={knob / 2} background={() -> t().knob} border-width={1} border-color={() -> t().border}
+					shadow="0 1 2 #00000033"/>
+			</view>
 		</view>;
 	}
 
@@ -924,8 +927,8 @@ class Widgets implements Markup {
 		</Popover>;
 	}
 
-	// a number field bound to a signal: its value as text (format; else
-	// with as many decimals as step has). Typed in, the value follows what
+	// a number field bound to a signal: its value as text (format; else as
+	// it is, steps' rounding errors left out). Typed in, the value follows what
 	// parses; Enter or the focus leaving puts it within min and max and
 	// shows it formatted. Up and Down, or the buttons beside it, step it
 	// (Page Up and Page Down: ten steps). A spin button to assistive
@@ -934,7 +937,7 @@ class Widgets implements Markup {
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
 		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
-		var format = props.format ?? decimals(step);
+		var format = props.format ?? plain;
 		var editing = false;
 		var f = new TextField(format(props.value.peek()));
 		f.tag = tag;
@@ -1001,18 +1004,10 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// (a number with as many decimals as step has: 0.25 -> two)
-	static function decimals(step:Float):Float->String {
-		var d = 0, x = Math.abs(step);
-		while (d < 10 && Math.abs(x - Math.fround(x)) > 1e-9) {
-			x *= 10;
-			d++;
-		}
-		var k = Math.pow(10, d);
-		return v -> {
-			var s = Std.string(Math.fround(v * k) / k);
-			StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
-		};
+	// (a number as it is, to ten decimals: 0.1 + 0.2 shown as 0.3)
+	static function plain(v:Float):String {
+		var s = Std.string(Math.fround(v * 1e10) / 1e10);
+		return StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
 	}
 
 	// a text area bound to a signal (two ways), rows lines high (3)

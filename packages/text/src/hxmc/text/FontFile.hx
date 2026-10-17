@@ -7,8 +7,10 @@ import haxe.io.Bytes;
 // advances, kerning (GPOS's pair adjustments for the kern feature, else
 // the kern table's format 0 pairs) and glyph outlines:
 // TrueType's (glyf: simple and composite glyphs, as quadratic contours) or
-// CFF's ('OTTO', .otf: Cff, cubic curves). CFF2 (variable) outlines are
-// not read: FontFile.parse throws.
+// CFF's ('OTTO', .otf: Cff, cubic curves). A variable TrueType font's
+// axes (axes) give instances (instance: gvar's deltas applied to outlines
+// and advances; Variations). CFF2 (variable) outlines are not read:
+// FontFile.parse throws.
 class FontFile {
 	public final data:Bytes;
 	// unique per parsed face (atlas keys)
@@ -16,6 +18,13 @@ class FontFile {
 	static var nextId = 1;
 	// where the face's table directory starts (a collection's face)
 	final base:Int;
+	final index:Int;
+	// a variable font's axes and deltas (null: not variable), this instance's
+	// normalized coordinates (null: the default instance)
+	var vars:Null<Variations> = null;
+	var coords:Null<Array<Float>> = null;
+	// (an instance's advances, by glyph)
+	var variedAdvances:Null<Map<Int, Float>> = null;
 	final tables = new Map<String, Int>();
 	final lengths = new Map<String, Int>();
 
@@ -58,6 +67,7 @@ class FontFile {
 
 	function new(data:Bytes, index:Int) {
 		this.data = data;
+		this.index = index;
 		var tag = data.getString(0, 4);
 		var b = 0;
 		if (tag == "ttcf") {
@@ -106,6 +116,8 @@ class FontFile {
 				lineGap = s16(data, os2 + 72);
 			}
 		}
+		if (tables.exists("fvar") && glyf != 0)
+			vars = new Variations(data, tables.get("fvar"), tables.exists("avar") ? tables.get("avar") : -1, tables.exists("gvar") ? tables.get("gvar") : -1);
 		readNames();
 		chooseCmap();
 		if (italic == false && subfamily.toLowerCase().indexOf("italic") >= 0 || subfamily.toLowerCase().indexOf("oblique") >= 0) italic = true;
@@ -132,9 +144,64 @@ class FontFile {
 		return g;
 	}
 
-	// the horizontal advance of a glyph, in font units
-	public function advance(g:Int):Int {
-		return u16(data, hmtx + 4 * (g < numHMetrics ? g : numHMetrics - 1));
+	// a variable font's axes (empty when it is not): each tag ("wght",
+	// "wdth"...), range and default, in the axis's own units
+	public var axes(get, never):Array<{tag:String, min:Float, def:Float, max:Float}>;
+
+	inline function get_axes()
+		return vars == null ? [] : vars.axes;
+
+	// the instance at values by axis tag (["wght" => 700]; the defaults for
+	// the others): a face of its own (its own id), the same data
+	public function instance(values:Map<String, Float>):FontFile {
+		var f = new FontFile(data, index);
+		if (vars == null) return f;
+		f.vars = vars;
+		f.coords = vars.normalize(values);
+		f.variedAdvances = new Map();
+		if (values.exists("wght")) f.weight = Std.int(values.get("wght"));
+		return f;
+	}
+
+	// the horizontal advance of a glyph, in font units (an instance's: with
+	// its phantom points' deltas)
+	public function advance(g:Int):Float {
+		var a:Float = u16(data, hmtx + 4 * (g < numHMetrics ? g : numHMetrics - 1));
+		if (coords == null) return a;
+		var v = variedAdvances.get(g);
+		if (v != null) return v;
+		var d = phantom(g);
+		v = a + d[1] - d[0];
+		variedAdvances.set(g, v);
+		return v;
+	}
+
+	// (an instance's glyph: its phantom points' x deltas, the origin's and the advance's)
+	function phantom(g:Int):Array<Float> {
+		var n = 0;
+		var start = loca(g), end = loca(g + 1);
+		if (end > start) {
+			var p = glyf + start, contours = s16(data, p);
+			if (contours >= 0) n = contours == 0 ? 0 : u16(data, p + 10 + 2 * (contours - 1)) + 1 else {
+				var q = p + 10;
+				while (true) {
+					var flags = u16(data, q);
+					n++;
+					q += 4 + (flags & 1 != 0 ? 4 : 2) + (flags & 8 != 0 ? 2 : flags & 0x40 != 0 ? 4 : flags & 0x80 != 0 ? 8 : 0);
+					if (flags & 0x20 == 0) break;
+				}
+			}
+		}
+		var dx = zeros(n + 4), dy = zeros(n + 4);
+		vars.deltas(g, coords, n + 4, null, null, null, dx, dy);
+		return [dx[n], dx[n + 1]];
+	}
+
+	static function zeros(n:Int):haxe.ds.Vector<Float> {
+		var v = new haxe.ds.Vector<Float>(n);
+		for (i in 0...n)
+			v[i] = 0;
+		return v;
 	}
 
 	// the left side bearing of a glyph, in font units
@@ -663,6 +730,12 @@ class FontFile {
 	public function bounds(g:Int):Array<Int> {
 		if (g < 0 || g >= numGlyphs || bitmapsOnly) return [0, 0, 0, 0];
 		if (cff != null) return cff.bounds(g);
+		if (coords != null) {
+			// (an instance's: its varied points', control points included)
+			var b = new Bounds();
+			outline(g, b);
+			return b.empty ? [0, 0, 0, 0] : [Math.floor(b.x0), Math.floor(b.y0), Math.ceil(b.x1), Math.ceil(b.y1)];
+		}
 		var start = loca(g), end = loca(g + 1);
 		if (end <= start) return [0, 0, 0, 0];
 		var p = glyf + start;
@@ -683,6 +756,7 @@ class FontFile {
 		var p = glyf + start;
 		var contours = s16(data, p);
 		var t = transform == null ? [1.0, 0, 0, 1, 0, 0] : transform;
+		glyphAt = g;
 		if (contours >= 0) simple(p, contours, out, t) else composite(p, out, t);
 	}
 
@@ -726,6 +800,15 @@ class FontFile {
 				q += 2;
 			}
 			ys[i] = v;
+		}
+		// (an instance: the points moved by their deltas, the origin by the first phantom point's)
+		if (coords != null) {
+			var dx = zeros(n + 4), dy = zeros(n + 4);
+			vars.deltas(glyphAt, coords, n + 4, xs, ys, ends, dx, dy);
+			for (i in 0...n) {
+				xs[i] += dx[i] - dx[n];
+				ys[i] += dy[i];
+			}
 		}
 		// transformed points
 		for (i in 0...n) {
@@ -789,8 +872,26 @@ class FontFile {
 		out.close();
 	}
 
+	// (the glyph being read: its deltas)
+	var glyphAt = 0;
+
 	function composite(p:Int, out:Outline, t:Array<Float>) {
 		var q = p + 10;
+		// (an instance: the components' offsets moved by their deltas)
+		var dxs:Null<haxe.ds.Vector<Float>> = null, dys:Null<haxe.ds.Vector<Float>> = null, n = 0;
+		if (coords != null) {
+			var r = q;
+			while (true) {
+				var flags = u16(data, r);
+				n++;
+				r += 4 + (flags & 1 != 0 ? 4 : 2) + (flags & 8 != 0 ? 2 : flags & 0x40 != 0 ? 4 : flags & 0x80 != 0 ? 8 : 0);
+				if (flags & 0x20 == 0) break;
+			}
+			dxs = zeros(n + 4);
+			dys = zeros(n + 4);
+			vars.deltas(glyphAt, coords, n + 4, null, null, null, dxs, dys);
+		}
+		var k = 0;
 		while (true) {
 			var flags = u16(data, q), g = u16(data, q + 2);
 			q += 4;
@@ -819,6 +920,11 @@ class FontFile {
 				d = f2dot14(q + 6);
 				q += 8;
 			}
+			if (dxs != null) {
+				dx += dxs[k] - dxs[n];
+				dy += dys[k];
+			}
+			k++;
 			// (ARGS_ARE_XY_VALUES assumed: point matching is rare)
 			var m = [
 				t[0] * a + t[2] * b, t[1] * a + t[3] * b, t[0] * c + t[2] * d, t[1] * c + t[3] * d, t[0] * dx + t[2] * dy + t[4],
@@ -982,4 +1088,44 @@ class FontFile {
 
 	static inline function s8(v:Int):Int
 		return v >= 128 ? v - 256 : v;
+}
+
+// (the box of an outline's points, its control points included)
+private class Bounds implements Outline {
+	public var x0 = Math.POSITIVE_INFINITY;
+	public var y0 = Math.POSITIVE_INFINITY;
+	public var x1 = Math.NEGATIVE_INFINITY;
+	public var y1 = Math.NEGATIVE_INFINITY;
+	public var empty(get, never):Bool;
+
+	public function new() {}
+
+	inline function get_empty()
+		return x0 > x1;
+
+	inline function add(x:Float, y:Float) {
+		if (x < x0) x0 = x;
+		if (x > x1) x1 = x;
+		if (y < y0) y0 = y;
+		if (y > y1) y1 = y;
+	}
+
+	public function moveTo(x:Float, y:Float)
+		add(x, y);
+
+	public function lineTo(x:Float, y:Float)
+		add(x, y);
+
+	public function quadTo(cx:Float, cy:Float, x:Float, y:Float) {
+		add(cx, cy);
+		add(x, y);
+	}
+
+	public function cubicTo(c1x:Float, c1y:Float, c2x:Float, c2y:Float, x:Float, y:Float) {
+		add(c1x, c1y);
+		add(c2x, c2y);
+		add(x, y);
+	}
+
+	public function close() {}
 }
