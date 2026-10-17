@@ -121,10 +121,27 @@ class Ui {
 
 	public function resize(width:Float, height:Float) {
 		if (width == this.width && height == this.height) return;
+		var was = breakpoint(this.width);
 		this.width = width;
 		this.height = height;
 		root.markDirty();
 		overlay.markDirty();
+		// (across a breakpoint: the rules for sm, md... hold or not)
+		if (breakpoint(width) != was) {
+			Rules.restyleTree(root);
+			Rules.restyleTree(overlay);
+		}
+	}
+
+	// Tailwind's breakpoints (sm, md, lg, xl, 2xl: the window at least so wide, in pixels)
+	public static final BREAKPOINTS = ["sm" => 640.0, "md" => 768.0, "lg" => 1024.0, "xl" => 1280.0, "2xl" => 1536.0];
+
+	// (how many of them a width reaches)
+	static function breakpoint(w:Float):Int {
+		var k = 0;
+		for (b in BREAKPOINTS)
+			if (w >= b) k++;
+		return k;
 	}
 
 	public function requestFrame()
@@ -281,14 +298,14 @@ class Ui {
 			}
 		}
 		// (its outline over its content, the focus ring over that)
-		if (s.outlineWidth > 0 && !hidden) {
+		if (s.outlineWidth > 0 && !hidden && s.outlineStyle != None) {
 			var o = s.outlineOffset + s.outlineWidth;
 			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, Color.TRANSPARENT,
 				s.outlineWidth, s.outlineColor ?? n.textColor(), cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0,
 					cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0, cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0,
 					cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0));
 		}
-		if (n == focus && focusVisible && focusRingWidth > 0 && !hidden) {
+		if (n == focus && focusVisible && focusRingWidth > 0 && !hidden && (s.outlineStyle == null || s.outlineStyle == Auto)) {
 			var o = focusRingOffset + focusRingWidth;
 			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
 				focusRingColor, cs == null ? null : new Corners(cs.topLeft > 0 ? cs.topLeft + o : 0, cs.topRight > 0 ? cs.topRight + o : 0,

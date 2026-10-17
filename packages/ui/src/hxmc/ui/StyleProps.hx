@@ -50,6 +50,7 @@ typedef StyleProps = {
 	?cursor:Cursor,
 	?shadow:Shadow,
 	?transition:Transition,
+	?outlineStyle:OutlineStyle,
 	?outlineWidth:Float,
 	?outlineOffset:Float,
 	?outlineColor:Color,

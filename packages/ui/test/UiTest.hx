@@ -1331,6 +1331,17 @@ static function transitions() {
 		ui.update();
 		check("themes: again when it comes back", pop.style.opacity == 0, "" + pop.style.opacity);
 		Clock.finish();
+		// (rules for a breakpoint: the window at least so wide; again across it)
+		ui.theme = {rules: [{slot: "w", style: {opacity: 0.5}}, {slot: "w", when: ["md"], style: {opacity: 0.75}}]};
+		var wide = new Node("w");
+		wide.slot = "w";
+		ui.root.append(wide);
+		ui.update();
+		var narrow = wide.style.opacity;
+		ui.resize(800, 100);
+		ui.update();
+		check("themes: md rules from 768 pixels wide", narrow == 0.5 && wide.style.opacity == 0.75, narrow + " " + wide.style.opacity);
+		ui.resize(100, 100);
 		// (a rule for right to left: again when the direction changes)
 		ui.theme = {rules: [{slot: "t", style: {opacity: 0.5}}, {slot: "t", when: ["rtl"], style: {opacity: 0.25}}]};
 		var th = new Node("t");
@@ -1586,6 +1597,12 @@ static function transitions() {
 		var c = new Recording();
 		ui.paint(c);
 		check("paint: the focus ring", ui.focus == a && c.calls[c.calls.length - 1] == "rect 6 6 108 58 12 0 2 ff3b82f6", c.calls[c.calls.length - 1]);
+		// (outline-style none: no ring, a theme drawing its own)
+		a.style.outlineStyle = None;
+		var c2 = new Recording();
+		ui.paint(c2);
+		check("paint: outline-style none, no focus ring", c2.calls.length == c.calls.length - 1, c2.calls[c2.calls.length - 1]);
+		a.style.outlineStyle = null;
 		ui.pointerDown(50, 30, 1);
 		ui.pointerUp(50, 30, 1);
 		var c = new Recording();

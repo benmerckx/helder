@@ -263,6 +263,16 @@ class Renderer implements Canvas {
 		clipY1 = Math.min(clipY1, y1);
 		var c0 = (corners == null ? radius : corners.topLeft) * k, c1 = (corners == null ? radius : corners.topRight) * k;
 		var c2 = (corners == null ? radius : corners.bottomRight) * k, c3 = (corners == null ? radius : corners.bottomLeft) * k;
+		// (scaled down together as CSS's, where a side's two add up to more than it: fit)
+		var f = 1.0, cw = w * k, ch = h * k;
+		if (c0 + c1 > cw && c0 + c1 > 0) f = Math.min(f, cw / (c0 + c1));
+		if (c3 + c2 > cw && c3 + c2 > 0) f = Math.min(f, cw / (c3 + c2));
+		if (c0 + c3 > ch && c0 + c3 > 0) f = Math.min(f, ch / (c0 + c3));
+		if (c1 + c2 > ch && c1 + c2 > 0) f = Math.min(f, ch / (c1 + c2));
+		c0 *= f;
+		c1 *= f;
+		c2 *= f;
+		c3 *= f;
 		if (inside) {
 			clipR0 = c0;
 			clipR1 = c1;
@@ -336,6 +346,24 @@ class Renderer implements Canvas {
 		qr3 = (c == null ? radius : c.bottomLeft) * s;
 	}
 
+	// (the corners scaled down together where two of a side's add up to
+	// more than it, as CSS's border-radius: a huge radius a pill, not an ellipse)
+	inline function fit(w:Float, h:Float) {
+		var f = 1.0;
+		inline function side(len:Float, a:Float, b:Float)
+			if (a + b > len && a + b > 0) f = Math.min(f, len / (a + b));
+		side(w, qr0, qr1);
+		side(w, qr3, qr2);
+		side(h, qr0, qr3);
+		side(h, qr1, qr2);
+		if (f < 1) {
+			qr0 *= f;
+			qr1 *= f;
+			qr2 *= f;
+			qr3 *= f;
+		}
+	}
+
 	inline function sides(e:Null<Edges>, width:Float) {
 		var s = scale;
 		qw0 = (e == null ? width : e.top) * s;
@@ -349,6 +377,7 @@ class Renderer implements Canvas {
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		this.corners(corners, radius);
+		fit(x1 - x0, y1 - y0);
 		this.sides(sides, borderWidth);
 		if (!flat) {
 			shape(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, 0, 0, 0, 0);
@@ -363,6 +392,7 @@ class Renderer implements Canvas {
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		this.corners(corners, radius);
+		fit(x1 - x0, y1 - y0);
 		// (the box casting it, not shaded: its offset and the spread)
 		if (offset != null) {
 			qw0 = offset[0] * s;
@@ -389,6 +419,7 @@ class Renderer implements Canvas {
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		this.corners(corners, radius);
+		fit(x1 - x0, y1 - y0);
 		qw0 = dx * s;
 		qw1 = dy * s;
 		qw2 = spread * s;
@@ -407,6 +438,7 @@ class Renderer implements Canvas {
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		this.corners(corners, radius);
+		fit(x1 - x0, y1 - y0);
 		sides(null, 0);
 		if (!flat) {
 			texture(img);

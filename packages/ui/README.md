@@ -118,7 +118,11 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     Chromium blurs them, within a few levels of its pixels), `outlineWidth`,
     `outlineOffset`, `outlineColor` (or markup `outline="2px solid red"`: a
     solid line around the border box over the content, its corners the
-    box's grown, as Chromium draws it; BoxTest compares them), `cursor`,
+    box's grown, as Chromium draws it; BoxTest compares them), `outlineStyle`
+    (`Auto`, the default: the window's focus ring while focused by the
+    keyboard; `Solid`: only the outline; `None`: neither, as CSS's
+    `outline-style: none`), corner radii scaled down together where a side's
+    two add up to more than it (as CSS: `9999` a pill), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
     `Visible` descendant still is), `pointerEvents` (inherited; `None` lets
@@ -285,7 +289,7 @@ shadcn/ui's). A theme is a `StyleSheet`: `rules`, each a `Rule`
 references name, `light` and `dark`. A node takes the rules of its
 `slot` (shadcn's data-slot names: `"button"`, `"switch-thumb"`),
 `variant` and `size` whose states all hold: `hover`, `active`,
-`focus`, `focus-visible`, `disabled`, `dark`, `rtl` and `ltr` (its direction), `starting` (until it is first drawn, as CSS's `@starting-style`: its transition then eases from there), `placeholder` (an
+`focus`, `focus-visible`, `disabled`, `dark`, `rtl` and `ltr` (its direction), `starting` (until it is first drawn, as CSS's `@starting-style`: its transition then eases from there), `sm`, `md`, `lg`, `xl`, `2xl` (the window at least Tailwind's breakpoint wide), `placeholder` (an
 input's placeholder colour), `selection` (its selection's background), attributes (`data-state=checked`, a bare
 `data-disabled`; `node.setAttr`, markup `data-state="checked"`). Later
 rules win, property by property; the node's own style wins over them.

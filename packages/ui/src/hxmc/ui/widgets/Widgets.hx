@@ -93,7 +93,8 @@ class Widgets implements Markup {
 			if (was) props.mixed.value = false;
 			props.checked.value = was || !props.checked.peek();
 		});
-		var box = <view tag={props.tag ?? "checkbox"} slot="checkbox" role="checkbox" label={props.label}
+		// (its indicator centred, as a <button>'s content)
+		var box = <view tag={props.tag ?? "checkbox"} slot="checkbox" role="checkbox" label={props.label} align-items="center" justify="center"
 			checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
 			data-disabled={disabled} onKeyDown={e -> if (e.key == Key.SPACE) {
 				e.preventDefault();
@@ -110,19 +111,20 @@ class Widgets implements Markup {
 
 	// a switch (shadcn's) bound to a signal, with its label: slots "switch"
 	// and "switch-thumb", data-state "checked" or "unchecked" on both (the
-	// thumb's place by its state's rules)
-	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?tag:String}):View {
+	// thumb's place by its state's rules); size "default" or "sm" (and data-size)
+	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?tag:String}):View {
 		Unstyled.install();
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
 		var toggle = () -> if (!disabled()) props.checked.value = !props.checked.peek();
-		var track = <view tag={props.tag ?? "switch"} slot="switch" role="switch" label={props.label} checked={() -> props.checked.value}
+		var track = <view tag={props.tag ?? "switch"} slot="switch" size={props.size ?? "default"} data-size={props.size ?? "default"} role="switch"
+			label={props.label} checked={() -> props.checked.value}
 			data-state={state} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled}
 			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
 				e.preventDefault();
 				toggle();
 			}}>
-			<view slot="switch-thumb" data-state={state}/>
+			<view slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
 		</view>;
 		return <view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> toggle()}>
 			{track}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
@@ -490,7 +492,7 @@ class Widgets implements Markup {
 				var o = options[i], text = props.labels != null && props.labels[i] != null ? props.labels[i] : o;
 				var state = () -> props.value.value == o ? "checked" : "unchecked";
 				<view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> if (!disabled()) props.value.value = o}>
-					<view tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} ref={n -> nodes[i] = n} checked={() -> props.value.value == o}
+					<view tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={n -> nodes[i] = n} checked={() -> props.value.value == o}
 						data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled} onKeyDown={e -> key(e, i)}>
 						<view slot="radio-group-indicator" data-state={state} display={() -> state() == "checked" ? "flex" : "none"}>
 							<image src={CIRCLE} width={8} height={8}/>
@@ -964,7 +966,8 @@ class Widgets implements Markup {
 	// a progress bar (shadcn's): value from 0 to 1 (a signal, a function or a
 	// number); null: not known (indeterminate: a bar sliding across, every
 	// 1.5 seconds, on the Clock; no value for assistive technology). Slots
-	// "progress" and "progress-indicator" (data-state "indeterminate" when sliding)
+	// "progress" and "progress-indicator" (data-state "indeterminate" when
+	// sliding); width: the bar's, else its rules'
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):View {
 		Unstyled.install();
 		var known = () -> Render.read(props.value) != null;
@@ -985,7 +988,7 @@ class Widgets implements Markup {
 		});
 		onCleanup(() -> stopped = true);
 		return <view tag={props.tag ?? "progress"} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
-			slot="progress" width={props.width ?? 160} overflow="hidden" direction="row">
+			slot="progress" width={props.width} overflow="hidden" direction="row">
 			<view slot="progress-indicator" width={() -> (frac() * 100) + "%"}/>
 			{() -> known() ? null : <view tag="progress-slide" slot="progress-indicator" data-state="indeterminate" position="absolute" top={0} bottom={0}
 				width="40%" left={() -> ((phase.value * 1.4 - 0.4) * 100) + "%"}/>}

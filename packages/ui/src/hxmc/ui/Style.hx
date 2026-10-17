@@ -166,6 +166,8 @@ class Style {
 	public var outlineColor(get, set):Null<Color>;
 	// a solid outline this wide in the text colour (CSS's shorthand; markup also "2px solid red", "none")
 	public var outline(never, set):Float;
+	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
+	public var outlineStyle(get, set):Null<OutlineStyle>;
 
 	// how the node and its subtree are drawn and hit, not laid out (Transform.parse; null: none)
 	public var transform(get, set):Null<Transform>;
@@ -368,6 +370,16 @@ class Style {
 
 	inline function get_dir():Null<Dir>
 		return rare == null ? null : rare.dir;
+
+	inline function get_outlineStyle():Null<OutlineStyle>
+		return rare == null ? null : rare.outlineStyle;
+
+	function set_outlineStyle(v:Null<OutlineStyle>):Null<OutlineStyle> {
+		if (v == outlineStyle) return v;
+		more().outlineStyle = v;
+		node.styleChanged(false);
+		return v;
+	}
 
 	inline function get_visibility():Null<Visibility>
 		return rare == null ? null : rare.visibility;
@@ -1222,6 +1234,7 @@ class Style {
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
+		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
 		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
 		if (p.gap != null) gap = p.gap;
@@ -1285,6 +1298,7 @@ private class StyleRare {
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
+	public var outlineStyle:Null<OutlineStyle> = null;
 	public var pointerEvents:Null<PointerEvents> = null;
 	public var textWrap:Null<TextWrap> = null;
 	public var overflowWrap:Null<OverflowWrap> = null;
