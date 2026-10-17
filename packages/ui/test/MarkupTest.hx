@@ -21,6 +21,7 @@ import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.ui.widgets.Widgets.Tabs;
+import hxmc.ui.widgets.Widgets.Radio;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Split;
@@ -344,6 +345,21 @@ class MarkupTest implements Markup {
 		ui.setFocus(ui.root.find("t-1"));
 		ui.keyDown(Key.LEFT, 0);
 		check("tabs: right to left, Left to the next", selected.value == 2, "" + selected.value);
+		// a radio group: one stop, the arrows check the next
+		var ui2 = new Ui(new MonoText(), 400, 300), size = signal("");
+		Render.render(<view padding={10}><Button tag="b" label="B"/><Radio tag="r" value={size} options={["S", "M", "L"]}/><Button tag="c" label="C"/></view>, ui2.root);
+		ui2.update();
+		ui2.setFocus(ui2.root.find("b"));
+		ui2.keyDown(Key.TAB, 0);
+		var first = ui2.focus == ui2.root.find("r-S");
+		ui2.keyDown(Key.DOWN, 0);
+		ui2.keyDown(Key.DOWN, 0);
+		ui2.keyDown(Key.DOWN, 0);
+		check("radio: one stop (the first, none checked), Down checks the next, wrapping", first && size.value == "S" && ui2.focus == ui2.root.find("r-S"),
+			size.value);
+		ui2.keyDown(Key.UP, 0);
+		ui2.keyDown(Key.TAB, 0);
+		check("radio: Up, then Tab out", size.value == "L" && ui2.focus == ui2.root.find("c"), size.value);
 	}
 
 	static function menubar() {

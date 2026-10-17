@@ -124,22 +124,39 @@ class Widgets implements Markup {
 	}
 
 	// radio buttons bound to a signal: one per option (tag: the group's tag,
-	// "-", the option)
+	// "-", the option); one stop for Tab (the checked one, else the first),
+	// the arrows checking and focusing the next or previous (wrapping)
 	public static function Radio(props:{value:Signal<String>, options:Array<String>, ?label:String, ?tag:String}):View {
-		var tag = props.tag ?? "radio";
+		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
+		// (the Tab stop: the checked option, else the first)
+		function stop(i:Int):Bool {
+			var k = options.indexOf(props.value.value);
+			return i == (k < 0 ? 0 : k);
+		}
+		function key(e:Event, i:Int) {
+			var n = options.length;
+			var j = switch mirrored(e) {
+				case Key.SPACE: i;
+				case Key.DOWN | Key.RIGHT: (i + 1) % n;
+				case Key.UP | Key.LEFT: (i + n - 1) % n;
+				case _: return;
+			}
+			e.preventDefault();
+			props.value.value = options[j];
+			focusIn(nodes, j);
+		}
 		return <view tag={tag} role="radiogroup" label={props.label} row-gap={6}>{[
-			for (o in props.options)
-				<view tag={tag + "-" + o} role="radio" checked={() -> props.value.value == o} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> props.value.value = o}
-					onKeyDown={e -> if (e.key == Key.SPACE) {
-						e.preventDefault();
-						props.value.value = o;
-					}}>
+			for (i in 0...options.length) {
+				var o = options[i];
+				<view tag={tag + "-" + o} role="radio" ref={n -> nodes[i] = n} checked={() -> props.value.value == o} direction="row" align-items="center"
+					column-gap={8} focusable={() -> stop(i)} cursor="pointer" onClick={_ -> props.value.value = o} onKeyDown={e -> key(e, i)}>
 					<view width={16} height={16} radius={8} border-width={1.5} border-color={Motion.color(() -> props.value.value == o ? t().accentHover : t().mark)}
 						align-items="center" justify="center">
 						<view width={8} height={8} radius={4} background={Motion.color(() -> props.value.value == o ? t().accent : Theme.clear(t().accent))}/>
 					</view>
 					{o}
-				</view>
+				</view>;
+			}
 		]}</view>;
 	}
 
