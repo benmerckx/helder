@@ -97,7 +97,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     (underline, line-through, overline) draws its lines with the text inside
     the node, in its colour, where Chromium draws them. `textShadow`
     (`"1px 2px 4px #0006"`, several, inherited, `none`) draws the text's
-    and its lines' shadows under them, blurred as Chromium blurs them
+    and its lines' shadows under them (a text field's and its placeholder's
+    too), blurred as Chromium blurs them
     (BoxTest compares them). `fontFeatureSettings` (`"'tnum'"`,
     `"'liga' 0, 'ss01'"`, inherited) asks for OpenType features as CSS's
     font-feature-settings does. `maxLines` cuts a

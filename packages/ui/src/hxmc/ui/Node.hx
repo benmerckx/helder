@@ -538,6 +538,15 @@ class Node {
 		return null;
 	}
 
+	// a paragraph's text shadows (textShadow()), the last first, under where
+	// it is drawn at x, y in color (or its spans' colors)
+	function paintTextShadows(canvas:Canvas, p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {
+		var shadows = textShadow();
+		if (shadows != null)
+			for (sh in shadows.painted())
+				canvas.textShadow(p, x + sh.x, y + sh.y, width, align, sh.currentColor ? color : sh.color, sh.blur, sh.currentColor ? colors : null);
+	}
+
 	public function textColor():Color {
 		var n = this;
 		while (n != null) {

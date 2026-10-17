@@ -64,8 +64,15 @@ class TextField extends EditableText {
 			for (r in p.selection(selectionStart, selectionEnd))
 				canvas.rect(ox + r.x, y, r.width, lh, 0, selectionColor, 0, 0);
 		}
-		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(placeholderParagraph(ui.text, Math.NaN), x, y, width, fieldAlign(), placeholderColor);
-		else canvas.text(p, ox, y, p.width, Left, textColor());
+		// (its text shadows under it, the placeholder's too)
+		if (text.length == 0 && composition == "" && placeholder != "") {
+			var pp = placeholderParagraph(ui.text, Math.NaN);
+			paintTextShadows(canvas, pp, x, y, width, fieldAlign(), placeholderColor);
+			canvas.text(pp, x, y, width, fieldAlign(), placeholderColor);
+		} else {
+			paintTextShadows(canvas, p, ox, y, p.width, Left, textColor());
+			canvas.text(p, ox, y, p.width, Left, textColor());
+		}
 		paintComposition(canvas, p, ox, y);
 		caretX = ox + cx;
 		caretY = y;

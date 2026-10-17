@@ -1289,6 +1289,22 @@ class UiTest {
 		check("paint: a text shadow's underline: offset, blurred as a box shadow", rec4.calls[0].indexOf("rect -1 ") == 0
 			&& rec4.calls[2].indexOf("shadow 1 ") == 0 && StringTools.endsWith(rec4.calls[2], " ffff0000 4") && underline.length == 2, calls);
 		check("paint: Shadow.NONE stops an inherited text shadow", t.textShadow() == box.style.textShadow && plain.textShadow() == null);
+		// a text field's text and placeholder: shadowed too
+		var field = new TextField("");
+		field.placeholder = "Name";
+		field.style.set({width: 80, textShadow: Shadow.parse("0 1 2 #000000")});
+		ui3.root.append(field);
+		ui3.update();
+		function fieldCalls() {
+			var r = new Recording();
+			ui3.paint(r);
+			var at = r.calls.indexOf("clip " + field.absX + " " + field.absY + " 80 " + field.height + " 0");
+			return [for (k in at + 1...r.calls.length) if (StringTools.startsWith(r.calls[k], "text")) r.calls[k].split(" ")[0]].join(",");
+		}
+		var placeholderCalls = fieldCalls();
+		field.text = "Bo";
+		check("paint: a text field's shadows under its placeholder and its text", placeholderCalls == "textShadow,text" && fieldCalls() == "textShadow,text",
+			placeholderCalls + " | " + fieldCalls());
 		// the focus ring: shown when Tab moves the focus, hidden by a press
 		a.focusable = true;
 		ui.keyDown(Key.TAB, 0);
