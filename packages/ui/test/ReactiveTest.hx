@@ -14,6 +14,7 @@ import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
+import hxmc.ui.widgets.Widgets.Split;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
 
@@ -41,6 +42,7 @@ class ReactiveTest implements Markup {
 		virtual();
 		table();
 		tree();
+		split();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -409,6 +411,33 @@ class ReactiveTest implements Markup {
 		var item = [for (id in tree.order) if (tree.nodes.get(id).role == TreeItem) tree.nodes.get(id)][0];
 		check("tree: an item named by its text, not its triangle", item.name == "src" && item.expanded == true, item.name);
 		Ui.now = haxe.Timer.stamp;
+	}
+
+	static function split() {
+		var ui = new Ui(new MonoText(), 400, 200);
+		var size = signal(120.0);
+		Render.render(<view height={200}><Split tag="sp" size={size} min={50} label="Sidebar" first={<view tag="side"/>} second={<view tag="main"/>}/></view>, ui.root);
+		ui.update();
+		var side = ui.root.find("side").parent, main = ui.root.find("main").parent, div = ui.root.find("sp-divider");
+		check("split: the first pane at its size, the divider, the rest", side.width == 120 && div.absX == 120 && div.width == 6 && main.absX == 126 && main.width == 274,
+			side.width + " " + div.absX + " " + main.width);
+		ui.pointerDown(122, 100, 1);
+		ui.pointerMove(202, 100);
+		ui.pointerUp(202, 100, 1);
+		ui.update();
+		check("split: dragged by where it was grabbed", size.value == 200 && side.width == 200, "" + size.value);
+		ui.pointerDown(202, 100, 1);
+		ui.pointerMove(10, 100);
+		ui.pointerMove(1000, 100);
+		ui.pointerUp(1000, 100, 1);
+		check("split: within its bounds (the room less min)", size.value == 400 - 6 - 50, "" + size.value);
+		ui.setFocus(div);
+		ui.keyDown(Key.HOME, 0);
+		var home = size.value;
+		ui.keyDown(Key.RIGHT, 0);
+		check("split: the keys move it (Home: min)", home == 50 && size.value == 60, home + " " + size.value);
+		var tree = ui.accessTree(), sep = [for (id in tree.order) if (tree.nodes.get(id).role == Separator) tree.nodes.get(id)];
+		check("split: a separator with the size as its value", sep.length == 1 && sep[0].valueNow == 60 && sep[0].name == "Sidebar" && sep[0].focusable);
 	}
 
 	static function virtual() {

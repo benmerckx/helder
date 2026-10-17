@@ -224,6 +224,7 @@ class MacAccess {
 			// (an outline's rows, as AppKit's outline views have them)
 			case Tree: "AXOutline";
 			case TreeItem: "AXRow";
+			case Separator: "AXSplitter";
 		}
 
 	// --- the classes' methods ---

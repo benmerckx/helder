@@ -350,7 +350,7 @@ class Render {
 	static final ROLES:Array<hxmc.ui.access.Role> = [
 		Group, Button, CheckBox, Switch, RadioGroup, RadioButton, Slider, ProgressIndicator, TextInput, Label, Image, TabList, Tab, TabPanel, ScrollView,
 		List, ListItem, Heading, Link, Dialog, Menu, MenuItem, ListBox, ListBoxOption, ComboBox, Tooltip, Table, Row, Cell, ColumnHeader,
-		Tree, TreeItem
+		Tree, TreeItem, Separator
 	];
 
 	static function event(n:Node, name:String, v:Dynamic) {

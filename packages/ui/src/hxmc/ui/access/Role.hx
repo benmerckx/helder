@@ -40,6 +40,8 @@ enum abstract Role(Int) to Int {
 	// a tree of items (Semantics.level: an item's depth, from 1)
 	var Tree;
 	var TreeItem;
+	// a divider between panes, moved by its value (focusable: ARIA's window splitter)
+	var Separator;
 
 	// the ARIA role of each (the browser's mirror)
 	public function aria():String
@@ -76,6 +78,7 @@ enum abstract Role(Int) to Int {
 			case ColumnHeader: "columnheader";
 			case Tree: "tree";
 			case TreeItem: "treeitem";
+			case Separator: "separator";
 		}
 
 	// a role whose name comes from its contents' text (ARIA's "name from

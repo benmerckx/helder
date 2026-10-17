@@ -59,18 +59,14 @@ class Event {
 		this.target = target;
 		this.x = x;
 		this.y = y;
-		current = target;
+		at(target);
 	}
 
-	// the pointer relative to current's border box (Node.localX: through scrolling and transforms)
-	public var localX(get, never):Float;
-	public var localY(get, never):Float;
-
-	function get_localX()
-		return current.localX(x, y);
-
-	function get_localY()
-		return current.localY(x, y);
+	// the pointer relative to current's border box (Node.localX: through
+	// scrolling and transforms; fields, so that a handler's untyped event
+	// reads them too)
+	public var localX(default, null) = 0.0;
+	public var localY(default, null) = 0.0;
 
 	public inline function stop()
 		stopped = true;
@@ -80,6 +76,8 @@ class Event {
 
 	@:allow(hxmc.ui.Ui) function at(n:Node):Event {
 		current = n;
+		localX = n.localX(x, y);
+		localY = n.localY(x, y);
 		return this;
 	}
 }

@@ -136,7 +136,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`, `Area`, `Table` (sortable columns, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
-  pointer or the arrows, virtualised rows; ARIA's tree, with levels), and the popups `Select`, `Menu`,
+  pointer or the arrows, virtualised rows; ARIA's tree, with levels),
+  `Split` (two panes, a divider dragged or moved by the arrows), and the popups `Select`, `Menu`,
   `ContextMenu` (at the pointer), `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
   with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
   `Theme.follow(() -> UiWindow.dark.value)` follows the system's

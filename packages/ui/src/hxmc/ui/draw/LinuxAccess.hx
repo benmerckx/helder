@@ -255,6 +255,7 @@ class LinuxAccess {
 			// (ATSPI_ROLE_TREE, TREE_ITEM)
 			case Tree: 65;
 			case TreeItem: 91;
+			case Separator: 50;
 			case Group | TabPanel: 39;
 		}
 
@@ -263,7 +264,7 @@ class LinuxAccess {
 		35 => "menu item", 37 => "page tab", 38 => "page tab list", 39 => "panel", 42 => "progress bar", 43 => "push button", 44 => "radio button",
 		49 => "scroll pane", 51 => "slider", 62 => "toggle button", 64 => "tool tip", 75 => "application", 79 => "entry", 83 => "heading", 88 => "link",
 		98 => "list box", 99 => "grouping", 55 => "table", 56 => "table cell", 57 => "table column header", 90 => "table row", 65 => "tree",
-		91 => "tree item"
+		91 => "tree item", 50 => "separator"
 	];
 
 	function roleOf(id:Int):Int

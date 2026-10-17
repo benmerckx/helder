@@ -373,6 +373,60 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// two panes side by side (direction "row", the default) or one above
+	// the other ("column"), a divider between them: dragged, or moved by
+	// the arrow keys (10 pixels; Home and End: to the bounds) while focused
+	// (ARIA's separator, its value the first pane's size). size: the first
+	// pane's (a signal; 200 by default), from min (0) to max (the room less
+	// min); the second pane takes the rest. It fills its parent (grow 1).
+	public static function Split(props:{first:Any, second:Any, ?size:Signal<Float>, ?direction:String, ?min:Float, ?max:Float, ?label:String,
+			?tag:String}):Esx {
+		var tag = props.tag ?? "split", row = props.direction != "column";
+		var size:Signal<Float> = props.size ?? signal(200.0);
+		var lo = props.min ?? 0.0, grip = 6.0;
+		var self:Null<Node> = null;
+		function hi():Float {
+			var room = self == null || self.width <= 0 ? 1e9 : (row ? self.width : self.height) - grip - lo;
+			return Math.max(lo, props.max == null ? room : Math.min(props.max, room));
+		}
+		function set(v:Float)
+			size.value = Math.round(Math.max(lo, Math.min(hi(), v)));
+		// (where in the divider it was grabbed)
+		var grab = 0.0;
+		var hover = signal(false), active = signal(false);
+		var line = () -> hover.value || active.value ? 2 : 1;
+		return <view tag={tag} direction={row ? "row" : "column"} ref={n -> self = n} grow={1} min-width={0} min-height={0} overflow="hidden">
+			<view tag={tag + "-first"} basis={() -> size.value} grow={0} shrink={0} min-width={0} min-height={0} overflow="hidden">{props.first}</view>
+			<view tag={tag + "-divider"} role="separator" label={props.label} value-now={() -> size.value} value-min={lo} value-max={() -> {
+				size.value;
+				hi();
+			}} focusable cursor={row ? "ew-resize" : "ns-resize"} width={row ? (grip : Dynamic) : "auto"} height={row ? "auto" : (grip : Dynamic)} shrink={0}
+				align-items="center" justify="center" onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
+				onPointerDown={e -> {
+					grab = row ? e.localX : e.localY;
+					active.value = true;
+				}} onPointerUp={_ -> active.value = false}
+				onPointerMove={e -> if (active.peek() && self != null) set((row ? self.localX(e.x, e.y) : self.localY(e.x, e.y)) - grab)}
+				onKeyDown={e -> {
+					var v = switch e.key {
+						case Key.LEFT | Key.UP: size.peek() - 10;
+						case Key.RIGHT | Key.DOWN: size.peek() + 10;
+						case Key.HOME: lo;
+						case Key.END: hi();
+						case _: Math.NaN;
+					}
+					if (!Math.isNaN(v)) {
+						e.preventDefault();
+						set(v);
+					}
+				}}>
+				<view width={row ? (line : Dynamic) : "100%"} height={row ? "100%" : (line : Dynamic)}
+					background={Motion.color(() -> hover.value || active.value ? t().accent : t().borderMuted)}/>
+			</view>
+			<view tag={tag + "-second"} grow={1} shrink={1} basis={0} min-width={0} min-height={0} overflow="hidden">{props.second}</view>
+		</view>;
+	}
+
 	// a progress bar: value from 0 to 1 (a signal, a function or a number)
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):Esx {
 		var frac = () -> {

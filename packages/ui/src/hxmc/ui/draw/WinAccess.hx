@@ -335,6 +335,7 @@ class WinAccess {
 			case ColumnHeader: 50035;
 			case Tree: 50023;
 			case TreeItem: 50024;
+			case Separator: 50038;
 			case Dialog: 50032;
 			case ScrollView | TabPanel: 50033;
 			case _: 50026; // Group
