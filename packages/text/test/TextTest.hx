@@ -41,6 +41,7 @@ class TextTest {
 			spacing(sans);
 			ligatures(sans, fonts);
 			justified(sans);
+			tabs(sans);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
 		// CFF outlines: Inter (fonts-inter), an OpenType font with cubic curves
@@ -144,6 +145,28 @@ class TextTest {
 		for (k in 0...got.length)
 			if (ok && Math.abs(got[k] - chromium[k]) > 0.02) ok = false;
 		check("justify: the words where Chromium puts them", ok, got.join(" "));
+	}
+
+	// tabs: to their stops, every 8 spaces from the line's start, the next
+	// but one when nearer than half a space: each character where Chromium
+	// puts it (DejaVu Sans at 16, white-space: pre)
+	static function tabs(sans:FontFile) {
+		var cases:Array<{text:String, chromium:Array<Float>}> = [
+			{text: "a\tb", chromium: [0, 9.813, 40.688]},
+			{text: "abcdefgh\tb", chromium: [0, 9.797, 19.953, 28.75, 38.906, 48.75, 54.391, 64.547, 74.688, 81.375]},
+			{text: "\t\tx", chromium: [0, 40.688, 81.375]},
+			{text: "ab\tcd\tef", chromium: [0, 9.797, 19.969, 40.688, 49.484, 59.641, 81.375, 91.219]}
+		];
+		var bad = [];
+		for (c in cases) {
+			var l = new TextLayout(c.text, new FontSet(sans, [], 16), 1.25, Math.NaN);
+			var xs = [for (g in l.lines[0].glyphs) g.x];
+			var ok = xs.length == c.chromium.length;
+			for (k in 0...xs.length)
+				if (ok && Math.abs(xs[k] - c.chromium[k]) > 0.02) ok = false;
+			if (!ok) bad.push(c.text + ": " + xs.join(" "));
+		}
+		check("tabs: to their stops, as Chromium puts them", bad.length == 0, bad.join("; "));
 	}
 
 	// grapheme clusters: their boundaries as Intl.Segmenter finds them (node), forward and back

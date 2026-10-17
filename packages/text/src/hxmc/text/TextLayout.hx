@@ -34,6 +34,10 @@ class TextLayout {
 	public final baseline:Float;
 	// parts of the text in other fonts (each glyph's run: Glyph.run)
 	public final runs:Array<TextRun>;
+	// a tab's stops: every TAB_SIZE spaces from the line's start (CSS's tab-size)
+	public static inline var TAB_SIZE = 8;
+	// (each tab's glyph index: the distance between its stops)
+	var tabs:Null<Map<Int, Float>> = null;
 
 	// lineHeight: a multiple of the size; runs: parts of the text in other
 	// fonts and line heights (in order, not overlapping), the rest in fonts.
@@ -62,6 +66,11 @@ class TextLayout {
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
 		var glyphs = shape(text, fonts, this.runs, letterSpacing);
 		space(glyphs, letterSpacing, wordSpacing);
+		for (i in 0...glyphs.length)
+			if (glyphs[i].cp == 9) {
+				if (tabs == null) tabs = new Map();
+				tabs.set(i, glyphs[i].advance);
+			}
 		bidi(glyphs, base);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
@@ -174,7 +183,8 @@ class TextLayout {
 			if (g.hidden || g.cp == 10 || g.cp == 13 || g.attach != null) continue;
 			var l = g.run < 0 ? letter : runs[g.run].letterSpacing, w = g.run < 0 ? word : runs[g.run].wordSpacing;
 			if (l == 0 && w == 0) continue;
-			if (g.advance > 0 || g.parts > 1) g.advance += l * (g.parts > 1 ? g.parts : 1);
+			// (a tab: TAB_SIZE spaces, each with both)
+			if (g.cp == 9) g.advance += TAB_SIZE * (l + w) else if (g.advance > 0 || g.parts > 1) g.advance += l * (g.parts > 1 ? g.parts : 1);
 			if (g.cp == 32 || g.cp == 0xA0) g.advance += w;
 		}
 	}
@@ -246,7 +256,7 @@ class TextLayout {
 				g.advance = 0;
 			} else {
 				var f = g.font, fonts = setOf(g);
-				g.advance = g.hidden ? 0 : (f.bitmapsOnly ? f.advanceAt(g.id, fonts.size) : f.advance(g.id) * fonts.scale(f)) * (c == 9 ? 4 : 1);
+				g.advance = g.hidden ? 0 : (f.bitmapsOnly ? f.advanceAt(g.id, fonts.size) : f.advance(g.id) * fonts.scale(f)) * (c == 9 ? TAB_SIZE : 1);
 				if (prev != null && prev.font == f && prev.run == g.run && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
 			}
 			prev = g;
@@ -550,6 +560,13 @@ class TextLayout {
 			while (i < end) {
 				var g = gs[i];
 				if (i > lineStart && breakBefore(gs, i)) lastBreak = i;
+				// (a tab: to its next stop from the line's start, the next but one if that is
+				// closer than half a space, as CSS has it)
+				if (g.cp == 9 && tabs != null) {
+					var t = tabs.get(i), next = (Math.floor(w / t + 1e-9) + 1) * t;
+					if (next - w < t / TAB_SIZE / 2) next += t;
+					g.advance = next - w;
+				}
 				// (trailing spaces may overflow)
 				if (!isSpace(g.cp) && w + g.advance > max + 1e-3 && i > lineStart) break;
 				w += g.advance;

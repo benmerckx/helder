@@ -31,7 +31,8 @@ text with, usable on its own.
 - `TextLayout`: text shaped (each character's glyph from the first face
   that has it, kerning between glyphs of the same face) and broken into
   lines (after spaces and hyphens, around CJK; a word wider than a line is
-  cut), with `caret` and `hit` queries. Right-to-left text too: each
+  cut; tabs to stops every `TAB_SIZE`, 8, spaces, as CSS's `tab-size`), with
+  `caret` and `hit` queries. Right-to-left text too: each
   paragraph ordered by the bidi algorithm (`Bidi`: UAX #9's explicit
   levels left out, mirrored brackets), Arabic joined (`Arabic`: each
   letter's initial, medial, final or isolated form, then the required
