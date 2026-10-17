@@ -5,7 +5,8 @@
   "license": "MIT",
   "files": [
     "src/",
-    "imports.mjs"
+    "imports.mjs",
+    "GUIDE.md"
   ],
   "haxe": {
     "name": "hxmc.ui",
