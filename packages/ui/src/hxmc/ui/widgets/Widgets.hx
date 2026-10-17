@@ -199,7 +199,9 @@ class Widgets implements Markup {
 	// which), then the rows (a VirtualList: only those in view are made),
 	// each column's cell for each; a click selects a row (selected), a
 	// double click or Enter activates it (onActivate); Up, Down, Page Up,
-	// Page Down, Home and End move the selection, the view following.
+	// Page Down, Home and End move the selection, the view following. A
+	// column's edge in the header dragged sets its width (a double click
+	// there: its own again).
 	// columns: a title, a width (a grid track: "1fr" by default, "120px",
 	// "auto"), what a row's cell shows (cell), compare (sortable). rows: an
 	// array, or a signal or function of one; height: the whole table's.
@@ -208,7 +210,9 @@ class Widgets implements Markup {
 		var tag = props.tag ?? "table", rh = props.rowHeight ?? 28.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
 		var sortBy = signal(-1), descending = signal(false);
-		var template = [for (c in props.columns) c.width ?? "1fr"].join(" ");
+		// (a column dragged to a width: pixels, else its own track)
+		var widths:Array<Signal<Null<Float>>> = [for (c in props.columns) signal(null)];
+		var template = () -> [for (k in 0...props.columns.length) widths[k].value != null ? widths[k].value + "px" : props.columns[k].width ?? "1fr"].join(" ");
 		var sorted = memo(() -> {
 			var rows:Array<T> = Render.read(props.rows);
 			var k = sortBy.value;
@@ -270,15 +274,29 @@ class Widgets implements Markup {
 			<view tag={tag + "-head"} role="row" display="grid" grid-template-columns={template} column-gap={12} padding="0 10" height={rh} align-items="center"
 				font-weight={600} color={() -> t().secondary} background={() -> t().background}>{[
 				for (k in 0...props.columns.length) {
-					var c = props.columns[k];
-					<view tag={tag + "-head-" + k} role="columnheader" direction="row" column-gap={4} align-items="center" focusable={c.compare != null}
-						cursor={c.compare != null ? "pointer" : "auto"} onClick={_ -> sort(k)}
+					var c = props.columns[k], cell:Null<Node> = null, from = 0.0, start = 0.0, dragging = false, clicked = -1e9;
+					<view tag={tag + "-head-" + k} role="columnheader" ref={n -> cell = n} direction="row" column-gap={4} align-items="center"
+						focusable={c.compare != null} cursor={c.compare != null ? "pointer" : "auto"} onClick={_ -> sort(k)}
 						onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 							sort(k);
 							e.stop();
 						}}>
 						{c.title}
 						<text hidden color={() -> t().muted}>{() -> sortBy.value == k ? (descending.value ? "▼" : "▲") : ""}</text>
+						{k == props.columns.length - 1 ? null : <view tag={tag + "-resize-" + k} position="absolute" top={0} bottom={0}
+							left={() -> cell != null && cell.rtl() ? -10 : null} right={() -> cell != null && cell.rtl() ? null : -10} width={8} cursor="ew-resize"
+							onPointerDown={e -> {
+								dragging = true;
+								from = e.x;
+								start = cell.width;
+								e.stop();
+							}} onPointerMove={e -> if (dragging) widths[k].value = Math.round(Math.max(24, start + (cell.rtl() ? from - e.x : e.x - from)))}
+							onPointerUp={_ -> dragging = false} onClick={e -> {
+								var now = Ui.now();
+								if (now - clicked < 0.45) widths[k].value = null;
+								clicked = now;
+								e.stop();
+							}}></view>}
 					</view>;
 				}
 			]}</view>

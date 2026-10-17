@@ -163,7 +163,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
-  `Progress`, `Tabs`, `Field`, `Area`, `Table` (sortable columns, virtualised
+  `Progress`, `Tabs`, `Field`, `Area`, `Table` (sortable, resizable columns, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`

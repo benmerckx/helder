@@ -673,6 +673,24 @@ class MarkupTest implements Markup {
 		check("table: a double click activates", opened.join(",") == "file188,file199", opened.join(","));
 		var tree = ui.accessTree(), roles = [for (id in tree.order) tree.nodes.get(id).role];
 		check("table: a grid of rows, column headers and cells", roles.indexOf(Table) >= 0 && roles.indexOf(ColumnHeader) >= 0 && roles.indexOf(Row) >= 0 && roles.indexOf(Cell) >= 0);
+		// a column's edge dragged: its width, the rows' cells with it; not sorted by it; a double click its own again
+		var head = ui.root.find("t-head-1"), grip = ui.root.find("t-resize-1"), sorted = names().join(",");
+		var was = head.width, x = grip.absX + 4, y = grip.absY + 4;
+		ui.pointerDown(x, y, 1);
+		ui.pointerMove(x + 30, y);
+		ui.pointerUp(x + 30, y, 1);
+		ui.update();
+		var cell = rowNodes()[0].children[1];
+		check("table: a column dragged wider, its cells too, the order kept", head.width == was + 30 && cell.width == was + 30 && names().join(",") == sorted,
+			head.width + " " + cell.width);
+		t = 20;
+		ui.pointerDown(grip.absX + 4, y, 1);
+		ui.pointerUp(grip.absX + 4, y, 1);
+		t = 20.2;
+		ui.pointerDown(grip.absX + 4, y, 1);
+		ui.pointerUp(grip.absX + 4, y, 1);
+		ui.update();
+		check("table: a double click on its edge, its own width again", head.width == was, "" + head.width);
 		Ui.now = haxe.Timer.stamp;
 	}
 
