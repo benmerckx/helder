@@ -24,7 +24,8 @@ import hxmc.ui.widgets.EditableText;
 //   modal one keeping the focus
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
 //   filters, Adam7; png-cases.mjs writes them and the pixels expected);
-//   jpeg/*.jpg against Chromium's pixels (jpeg-cases.mjs)
+//   jpeg/*.jpg and gif/*.gif against Chromium's pixels (jpeg-cases.mjs,
+//   gif-cases.mjs)
 class UiTest {
 	static var checks = 0;
 	static var failed = 0;
@@ -349,14 +350,16 @@ class UiTest {
 			check("images: " + n, img.width == 13 && img.height == 11 && first < 0,
 				first < 0 ? '${img.width}x${img.height}' : 'pixel ${first >> 2} channel ${first & 3}: ${img.pixels.get(first)}, not ${want.get(first)}');
 		}
-		// JPEG: jpeg/*.jpg against the pixels Chromium decoded (jpeg-cases.mjs)
-		var jdir = here + "/jpeg";
+		// JPEG and GIF: jpeg/*.jpg and gif/*.gif against the pixels Chromium
+		// decoded (jpeg-cases.mjs, gif-cases.mjs)
+		for (kind in [{dir: "jpeg", ext: ".jpg", least: 15}, {dir: "gif", ext: ".gif", least: 8}]) {
+		var jdir = here + "/" + kind.dir;
 		var cases:Array<{name:String, width:Int, height:Int}> = haxe.Json.parse(sys.io.File.getContent(jdir + "/cases.json"));
-		check("jpeg: the cases", cases.length >= 15, '${cases.length}');
+		check(kind.dir + ": the cases", cases.length >= kind.least, '${cases.length}');
 		for (c in cases) {
 			var want = sys.io.File.getBytes(jdir + "/" + c.name + ".rgba");
-			var img = try Image.decode(sys.io.File.getBytes(jdir + "/" + c.name + ".jpg")) catch (e:Dynamic) {
-				check("jpeg: " + c.name, false, Std.string(e));
+			var img = try Image.decode(sys.io.File.getBytes(jdir + "/" + c.name + kind.ext)) catch (e:Dynamic) {
+				check(kind.dir + ": " + c.name, false, Std.string(e));
 				continue;
 			}
 			var differ = 0, most = 0, first = -1;
@@ -370,8 +373,9 @@ class UiTest {
 						if (d > most) most = d;
 					}
 				}
-			check("jpeg: " + c.name, img.width == c.width && img.height == c.height && differ == 0,
+			check(kind.dir + ": " + c.name, img.width == c.width && img.height == c.height && differ == 0,
 				'${img.width}x${img.height}' + (differ > 0 ? ': $differ values differ, by at most $most (first: pixel ${first >> 2} channel ${first & 3})' : ""));
+		}
 		}
 		var threw = try {
 			Image.decode(haxe.io.Bytes.ofString("GIF89a"));

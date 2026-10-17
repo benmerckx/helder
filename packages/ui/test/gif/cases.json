@@ -1,0 +1,42 @@
+[
+	{
+		"name": "dither-256",
+		"width": 37,
+		"height": 29
+	},
+	{
+		"name": "colors-4",
+		"width": 37,
+		"height": 29
+	},
+	{
+		"name": "monochrome",
+		"width": 37,
+		"height": 29
+	},
+	{
+		"name": "interlaced",
+		"width": 37,
+		"height": 29
+	},
+	{
+		"name": "transparent",
+		"width": 37,
+		"height": 29
+	},
+	{
+		"name": "offset-frame",
+		"width": 50,
+		"height": 40
+	},
+	{
+		"name": "animation",
+		"width": 37,
+		"height": 29
+	},
+	{
+		"name": "large",
+		"width": 160,
+		"height": 120
+	}
+]
