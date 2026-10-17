@@ -333,8 +333,9 @@ class Widgets implements Markup {
 	// the selection, Right opens an item or moves to its first child, Left
 	// closes it or moves to its parent, Home and End, the view following.
 	// roots: an array, or a signal or function of one; expanded: the open
-	// items (none by default); height: the whole tree's.
-	public static function Tree<T>(props:{roots:Dynamic, children:T->Null<Array<T>>, render:T->Any, ?expanded:Signal<Array<T>>,
+	// items (none by default); height: the whole tree's; text: an item's
+	// text, for type-ahead (letters typed to the row they start).
+	public static function Tree<T>(props:{roots:Dynamic, children:T->Null<Array<T>>, render:T->Any, ?text:T->String, ?expanded:Signal<Array<T>>,
 			?selected:Signal<Null<T>>, ?onActivate:T->Void, ?height:Float, ?rowHeight:Float, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "tree", rh = props.rowHeight ?? 26.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
@@ -388,6 +389,7 @@ class Widgets implements Markup {
 			lastAt = now;
 			selected.value = r.item;
 		}
+		var typed = new TypeAhead();
 		function key(e:Event) {
 			var rs = rows.peek(), i = indexOf(selected.peek()), j = i;
 			switch mirrored(e) {
@@ -405,7 +407,9 @@ class Widgets implements Markup {
 					}
 				case Key.ENTER:
 					if (i >= 0) activate(rs[i]);
-				case _: return;
+				case _:
+					j = props.text == null ? -1 : typed.find(e, [for (r in rs) props.text(r.item)], i);
+					if (j < 0) return;
 			}
 			e.stop();
 			if (rs.length == 0 || j == i) return;

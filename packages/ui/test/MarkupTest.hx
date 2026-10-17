@@ -785,7 +785,7 @@ class MarkupTest implements Markup {
 		var kids = ["src" => ["main", "ui"], "ui" => ["Node", "Style"], "docs" => ["guide"]];
 		var picked:Signal<Null<String>> = signal(null), open:Signal<Array<String>> = signal([]), opened = [];
 		Render.render(<view padding={10}><Tree tag="tr" roots={["src", "docs", "README"]} children={(s:String) -> kids.get(s)} render={(s:String) -> s}
-			expanded={open} selected={picked} height={200} rowHeight={20} label="Files" onActivate={s -> opened.push(s)}/></view>, ui.root);
+			text={(s:String) -> s} expanded={open} selected={picked} height={200} rowHeight={20} label="Files" onActivate={s -> opened.push(s)}/></view>, ui.root);
 		ui.update();
 		var list = ui.root.find("tr-rows");
 		function items():Array<Node>
@@ -844,6 +844,9 @@ class MarkupTest implements Markup {
 		ui.update();
 		check("tree: right to left, Right closes, Left opens", closed == "-src,  main,  +ui,+docs,README" && shown() == "-src,  main,  +ui,-docs,  guide,README",
 			closed + " / " + shown());
+		t = 30;
+		ui.keyDown("g".code, 0);
+		check("tree: type-ahead to the row its text starts", picked.value == "guide", "" + picked.value);
 		Ui.now = haxe.Timer.stamp;
 	}
 
