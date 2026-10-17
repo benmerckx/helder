@@ -14,8 +14,8 @@
     "dependencies": ["hxmc.os", "hxmc.gfx", "hxmc.text", "hxmc.esx"]
   },
   "dependencies": {
-    "@hxmc/os": "0.1.0",
-    "@hxmc/gfx": "0.1.0",
+    "@hxmc/os": "0.4.0",
+    "@hxmc/gfx": "0.3.0",
     "@hxmc/text": "0.1.0",
     "@hxmc/esx": "0.1.0"
   },
