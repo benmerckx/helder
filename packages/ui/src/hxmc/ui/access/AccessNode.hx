@@ -38,9 +38,9 @@ package hxmc.ui.access;
 		return true;
 	}
 
-	// a text input, or a combobox typed in (it has a value: its text)
+	// a text input, or a combobox or spin button typed in (it has a value: its text)
 	public function editable():Bool
-		return role == TextInput || role == MultilineTextInput || (role == ComboBox && value != null);
+		return role == TextInput || role == MultilineTextInput || ((role == ComboBox || role == SpinButton) && value != null);
 
 	// as JSON's fields (the browser adapter's format): unset ones left out
 	public function toJson():Dynamic {

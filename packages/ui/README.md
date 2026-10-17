@@ -148,7 +148,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
   (a month's grid of days, moved through by the keys) and `DatePicker` (a
   calendar in a popover; `Days`: dates as day numbers, no time zones),
-  `Disclosure` and `Accordion` (sections shown and hidden), and the popups `Select`, `Menu`,
+  `Disclosure` and `Accordion` (sections shown and hidden), `NumberField`
+  (typed or stepped, within bounds; a spin button), and the popups `Select`, `Menu`,
   `ContextMenu` (at the pointer), `Tooltip`, `Dialog`, `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
   field), `Toaster` (`Toasts.show`: messages in a corner for a while, with

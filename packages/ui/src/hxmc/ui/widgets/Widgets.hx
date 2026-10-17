@@ -922,6 +922,97 @@ class Widgets implements Markup {
 		</Popover>;
 	}
 
+	// a number field bound to a signal: its value as text (format; else
+	// with as many decimals as step has). Typed in, the value follows what
+	// parses; Enter or the focus leaving puts it within min and max and
+	// shows it formatted. Up and Down, or the buttons beside it, step it
+	// (Page Up and Page Down: ten steps). A spin button to assistive
+	// technology.
+	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
+			?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
+		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
+		var format = props.format ?? decimals(step);
+		var editing = false;
+		var f = new TextField(format(props.value.peek()));
+		f.tag = tag;
+		f.semantics.role = hxmc.ui.access.Role.SpinButton;
+		f.semantics.label = props.label;
+		if (Math.isFinite(min)) f.semantics.valueMin = min;
+		if (Math.isFinite(max)) f.semantics.valueMax = max;
+		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6, grow: 1, minWidth: 0});
+		themed(f);
+		inline function clamp(v:Float):Float
+			return v < min ? min : v > max ? max : v;
+		effect(() -> {
+			var v = props.value.value;
+			f.semantics.valueNow = v;
+			f.semantics.valueText = format(v);
+			if (!editing) f.setText(format(v));
+		});
+		function commit() {
+			editing = false;
+			var v = clamp(props.value.peek());
+			if (v != props.value.peek()) props.value.value = v;
+			f.setText(format(v));
+		}
+		function stepBy(n:Float) {
+			editing = false;
+			var v = clamp(props.value.peek() + n * step);
+			if (v != props.value.peek()) props.value.value = v else f.setText(format(v));
+		}
+		f.onChange = s -> {
+			var v = Std.parseFloat(StringTools.trim(s));
+			editing = true;
+			if (!Math.isNaN(v)) props.value.value = v;
+		};
+		f.onSubmit = _ -> commit();
+		// (after the field's own: its caret and composition)
+		var blur = f.onBlur;
+		f.onBlur = e -> {
+			if (blur != null) blur(e);
+			commit();
+		};
+		function arrow(label:String, glyph:String, n:Float):View
+			return <view tag={tag + (n > 0 ? "-up" : "-down")} role="button" label={label} cursor="pointer" grow={1} justify="center" align-items="center"
+				padding="0 6" font-size={9} color={() -> t().muted} onClick={_ -> stepBy(n)}>{glyph}</view>;
+		return <view tag={tag + "-box"} direction="row" align-items="stretch" column-gap={2} width={w} onKeyDown={e -> switch e.key {
+				case Key.UP:
+					e.stop();
+					stepBy(1);
+				case Key.DOWN:
+					e.stop();
+					stepBy(-1);
+				case Key.PAGE_UP:
+					e.stop();
+					stepBy(10);
+				case Key.PAGE_DOWN:
+					e.stop();
+					stepBy(-10);
+				case _:
+			}}>
+			{f}
+			<view row-gap={1}>
+				{arrow("Increase", "▲", 1)}
+				{arrow("Decrease", "▼", -1)}
+			</view>
+		</view>;
+	}
+
+	// (a number with as many decimals as step has: 0.25 -> two)
+	static function decimals(step:Float):Float->String {
+		var d = 0, x = Math.abs(step);
+		while (d < 10 && Math.abs(x - Math.fround(x)) > 1e-9) {
+			x *= 10;
+			d++;
+		}
+		var k = Math.pow(10, d);
+		return v -> {
+			var s = Std.string(Math.fround(v * k) / k);
+			StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
+		};
+	}
+
 	// a text area bound to a signal (two ways), rows lines high (3)
 	public static function Area(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?tag:String}):Node {
 		var f = new TextArea(props.value.peek());

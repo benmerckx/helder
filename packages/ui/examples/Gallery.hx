@@ -10,8 +10,8 @@ import hxmc.ui.widgets.Toasts;
 // buttons, a select, a menu, a tooltip and a dialog (popups over the
 // rest), a checkbox and a switch, radio buttons, a slider driving a
 // progress bar, tabs, a tree and a table in a split view, images fitted
-// three ways, a text field and a text area, a combobox, a disclosure and
-// toasts. In a window:
+// three ways, a text field and a text area, a combobox, a number field, a
+// disclosure and toasts. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
 //
@@ -41,6 +41,7 @@ class Gallery implements Markup {
 	public final file:Signal<Null<Entry>> = signal(null);
 	public final row:Signal<Null<Entry>> = signal(null);
 	public final city = signal("");
+	public final count = signal(3.0);
 	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
 		{name: "examples", children: [{name: "Gallery.hx", size: 6}, {name: "Todo.hx", size: 3}]},
@@ -158,8 +159,11 @@ class Gallery implements Markup {
 				<Area tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
 				<text tag="lines" color={() -> Theme.current.value.secondary}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
-			{section("COMBOBOX, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">
-				<Combobox tag="city" value={city} options={CITIES} placeholder="A city" label="City" onChoose={c -> Toasts.show("Chose " + c, {kind: "success"})}/>
+			{section("COMBOBOX, NUMBER, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">
+				<view direction="row" column-gap={12} align-items="center">
+					<Combobox tag="city" value={city} options={CITIES} placeholder="A city" label="City" onChoose={c -> Toasts.show("Chose " + c, {kind: "success"})}/>
+					<NumberField tag="count" value={count} min={0} max={99} width={90} label="Count"/>
+				</view>
 				<Disclosure tag="more" label="What these are">
 					<text color={() -> Theme.current.value.secondary}>A combobox filters its options as you type; a toast says what happened, for a while.</text>
 				</Disclosure>

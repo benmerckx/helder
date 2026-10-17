@@ -10,7 +10,7 @@ import hxmc.view.*;
 // checkbox and switch (clicked and with the keyboard), radio
 // buttons, the slider (dragged, clicked, arrow keys, Home and End), tabs,
 // the tree opened and the table sorted in their split view,
-// the field, the combobox, the disclosure and a toast, the images' sizes; PNG files decoded natively (png/*.png,
+// the field, the combobox, the number field, the disclosure and a toast, the images' sizes; PNG files decoded natively (png/*.png,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
 // With --dark, in Theme.DARK, against gallery-dark.png.
@@ -158,6 +158,10 @@ class GalleryTest {
 			&& hxmc.ui.widgets.Toasts.shown.value[0].text == "Chose Brussels", app.city.value);
 		hxmc.ui.widgets.Toasts.clear();
 		ui.update();
+		key(Key.TAB);
+		key(Key.UP);
+		key(Key.UP);
+		check("the number field stepped with the keyboard", ui.focus == find("count") && app.count.value == 5, "" + app.count.value);
 		key(Key.TAB);
 		key(Key.SPACE);
 		check("the disclosure opened with the keyboard", ui.focus == find("more-summary") && find("more-content") != null);

@@ -11,6 +11,7 @@ import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Field;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
+import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Disclosure;
 import hxmc.ui.widgets.Widgets.Accordion;
@@ -36,7 +37,7 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
 // popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog, Combobox) driven by pointer and keys;
-// Disclosure, Accordion and toasts;
+// Disclosure, Accordion, toasts and NumberField;
 // a VirtualList of 100000 rows scrolled
 class MarkupTest implements Markup {
 	static var checks = 0;
@@ -50,6 +51,7 @@ class MarkupTest implements Markup {
 		popovers();
 		combobox();
 		toasts();
+		numbers();
 		virtual();
 		table();
 		tree();
@@ -208,6 +210,60 @@ class MarkupTest implements Markup {
 		check("toasts: duration 0 stays until closed", Toasts.shown.value.length == 1 && !Clock.active);
 		click(tagged(ui.overlay, "toast-close")[0]);
 		check("toasts: the close button", t.closed && ui.overlay.children.length == 0);
+	}
+
+	static function numbers() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var qty = signal(2.0), price = signal(1.5);
+		Render.render(<view padding={10} row-gap={10} align-items="start">
+			<NumberField tag="qty" value={qty} min={0} max={10} label="Quantity"/>
+			<NumberField tag="price" value={price} step={0.25} min={0} label="Price"/>
+		</view>, ui.root);
+		ui.update();
+		var field:TextField = cast ui.root.find("qty");
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		check("number field: its value as text", field.text == "2" && (cast ui.root.find("price") : TextField).text == "1.5");
+		ui.setFocus(field);
+		ui.keyDown(Key.UP, 0);
+		ui.keyDown(Key.UP, 0);
+		ui.update();
+		check("number field: Up steps", qty.value == 4 && field.text == "4", field.text);
+		ui.keyDown(Key.PAGE_UP, 0);
+		ui.update();
+		check("number field: Page Up by ten steps, within max", qty.value == 10 && field.text == "10", field.text);
+		field.select(0, field.text.length);
+		ui.textInput("7");
+		ui.update();
+		check("number field: typed, the value follows", qty.value == 7 && field.text == "7");
+		ui.textInput("5");
+		ui.update();
+		check("number field: typed past max, kept while typing", qty.value == 75 && field.text == "75");
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("number field: Enter puts it within max", qty.value == 10 && field.text == "10", field.text);
+		click(ui.root.find("qty-down"));
+		check("number field: the buttons step", qty.value == 9 && field.text == "9", field.text);
+		var p:TextField = cast ui.root.find("price");
+		ui.setFocus(p);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("number field: a fractional step, as many decimals", price.value == 0.75 && p.text == "0.75", p.text);
+		p.select(0, p.text.length);
+		ui.textInput("-3");
+		ui.setFocus(field);
+		ui.update();
+		check("number field: the focus leaving puts it within min", price.value == 0 && p.text == "0", p.text);
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("number field: a spin button to assistive technology", an.role == SpinButton && an.valueNow == 9 && an.valueMin == 0 && an.valueMax == 10
+			&& an.value == "9" && an.editable() && an.name == "Quantity", an.role + " " + an.valueNow + " " + an.value);
 	}
 
 	static function popovers() {

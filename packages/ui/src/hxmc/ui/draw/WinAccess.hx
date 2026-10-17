@@ -242,7 +242,7 @@ class WinAccess {
 		return switch n.role {
 			case Button | MenuItem | Link | ListBoxOption | Tab: 3;
 			case CheckBox | Switch: 4;
-			case Slider | ProgressIndicator: 5;
+			case Slider | ProgressIndicator | SpinButton: 5;
 			case TextInput | MultilineTextInput: 6;
 			case ComboBox if (n.value != null): 6;
 			case RadioButton: 3;
@@ -326,6 +326,7 @@ class WinAccess {
 			case ProgressIndicator: 50012;
 			case RadioButton: 50013;
 			case Slider: 50015;
+			case SpinButton: 50016;
 			case TabList: 50018;
 			case Tab: 50019;
 			case Label | Heading: 50020;
