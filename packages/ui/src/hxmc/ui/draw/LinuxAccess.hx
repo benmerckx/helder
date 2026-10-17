@@ -307,6 +307,7 @@ class LinuxAccess {
 		if (n.checked != null) {
 			on(41); // CHECKABLE
 			if (n.checked) on(4); // CHECKED
+			if (n.mixed) on(32); // INDETERMINATE
 		}
 		if (n.selected != null) {
 			on(22); // SELECTABLE

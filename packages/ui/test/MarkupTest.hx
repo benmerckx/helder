@@ -59,6 +59,7 @@ class MarkupTest implements Markup {
 		editMenus();
 		menubar();
 		tabs();
+		mixedCheckbox();
 		focusTips();
 		virtual();
 		table();
@@ -318,6 +319,25 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function mixedCheckbox() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var on = signal(false), some = signal(true);
+		Render.render(<view padding={10}><Checkbox tag="all" checked={on} mixed={some} label="All"/></view>, ui.root);
+		ui.update();
+		function json():Dynamic {
+			var t = ui.accessTree();
+			for (id in t.order)
+				if (t.nodes.get(id).role == CheckBox) return t.nodes.get(id).toJson();
+			return null;
+		}
+		var before:Dynamic = json().checked;
+		var box = ui.root.find("all");
+		ui.pointerDown(box.absX + 4, box.absY + 4, 1);
+		ui.pointerUp(box.absX + 4, box.absY + 4, 1);
+		ui.update();
+		check("checkbox: mixed (ARIA's), checked once clicked", before == "mixed" && on.value && !some.value && json().checked == true, Std.string(before));
 	}
 
 	static function tabs() {

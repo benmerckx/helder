@@ -84,6 +84,7 @@ class AccessTree {
 			if (sem != null) {
 				a.description = sem.description;
 				a.checked = sem.checked;
+				a.mixed = sem.mixed;
 				a.selected = sem.selected;
 				a.expanded = sem.expanded;
 				a.level = sem.level;

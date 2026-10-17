@@ -43,17 +43,25 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// a checkbox bound to a signal, with its label
-	public static function Checkbox(props:{checked:Signal<Bool>, ?label:String, ?tag:String}):View {
-		var toggle = () -> props.checked.value = !props.checked.value;
-		return <view tag={props.tag ?? "checkbox"} role="checkbox" checked={() -> props.checked.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
+	// a checkbox bound to a signal, with its label; while mixed is true,
+	// neither checked nor not (a dash; ARIA's mixed), checked when clicked
+	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?tag:String}):View {
+		var mixed = () -> props.mixed != null && props.mixed.value;
+		// (mixed: checked once clicked)
+		var toggle = () -> batch(() -> {
+			var was = props.mixed != null && props.mixed.peek();
+			if (was) props.mixed.value = false;
+			props.checked.value = was || !props.checked.peek();
+		});
+		return <view tag={props.tag ?? "checkbox"} role="checkbox" checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE) {
 				e.preventDefault();
 				toggle();
 			}}>
-			<view width={16} height={16} radius={4} border-width={1.5} border-color={Motion.color(() -> props.checked.value ? t().accentHover : t().mark)}
-				background={Motion.color(() -> props.checked.value ? t().accent : t().control)} align-items="center" justify="center">
-				<view width={8} height={8} radius={2} background={Motion.color(() -> props.checked.value ? t().onAccent : Theme.clear(t().onAccent))}/>
+			<view width={16} height={16} radius={4} border-width={1.5} border-color={Motion.color(() -> props.checked.value || mixed() ? t().accentHover : t().mark)}
+				background={Motion.color(() -> props.checked.value || mixed() ? t().accent : t().control)} align-items="center" justify="center">
+				<view width={8} height={() -> mixed() ? 2 : 8} radius={() -> mixed() ? 1 : 2}
+					background={Motion.color(() -> props.checked.value || mixed() ? t().onAccent : Theme.clear(t().onAccent))}/>
 			</view>
 			{props.label}
 		</view>;

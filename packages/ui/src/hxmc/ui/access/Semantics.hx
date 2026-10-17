@@ -12,6 +12,8 @@ package hxmc.ui.access;
 	public var label(default, set):Null<String> = null;
 	public var description(default, set):Null<String> = null;
 	public var checked(default, set):Null<Bool> = null;
+	// a checkbox neither checked nor not (ARIA's checked="mixed"; markup: checked="mixed")
+	public var mixed(default, set):Bool = false;
 	public var selected(default, set):Null<Bool> = null;
 	public var expanded(default, set):Null<Bool> = null;
 	// a tree item's depth (from 1)
@@ -44,6 +46,11 @@ package hxmc.ui.access;
 	function set_checked(v:Null<Bool>):Null<Bool> {
 		if (v != checked) hxmc.ui.Ui.accessEpoch++;
 		return checked = v;
+	}
+
+	function set_mixed(v:Bool):Bool {
+		if (v != mixed) hxmc.ui.Ui.accessEpoch++;
+		return mixed = v;
 	}
 
 	function set_selected(v:Null<Bool>):Null<Bool> {

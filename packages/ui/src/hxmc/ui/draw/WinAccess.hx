@@ -474,7 +474,8 @@ class WinAccess {
 	@:hxmc.callback static function toggleState(self:Ptr, out:Ptr<Int32>):Int {
 		var n = node(self);
 		if (n == null) return NOT_AVAILABLE;
-		out.value = n.checked == true ? 1 : 0;
+		// (ToggleState: off, on, indeterminate)
+		out.value = n.mixed ? 2 : n.checked == true ? 1 : 0;
 		return S_OK;
 	}
 

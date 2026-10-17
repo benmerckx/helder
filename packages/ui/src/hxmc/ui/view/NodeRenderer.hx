@@ -132,6 +132,7 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 				semantics(n).description = v == null ? null : Std.string(v);
 			case "checked":
 				semantics(n).checked = v == null ? null : v == true || v == "true";
+				semantics(n).mixed = v == "mixed";
 			case "selected":
 				semantics(n).selected = v == null ? null : v == true || v == "true";
 			case "expanded":

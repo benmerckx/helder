@@ -173,7 +173,7 @@ class MacAccess {
 			Msg.vPtr(e, ObjC.sel("setAccessibilityLabel:"), str(n.name));
 		if (n.description != null) Msg.vPtr(e, ObjC.sel("setAccessibilityHelp:"), str(n.description));
 		if (n.value != null) Msg.vPtr(e, ObjC.sel("setAccessibilityValue:"), str(n.value));
-		if (n.checked != null) Msg.vPtr(e, ObjC.sel("setAccessibilityValue:"), number(n.checked ? 1 : 0));
+		if (n.checked != null) Msg.vPtr(e, ObjC.sel("setAccessibilityValue:"), number(n.mixed ? 2 : n.checked ? 1 : 0));
 		if (n.valueNow != null) Msg.vPtr(e, ObjC.sel("setAccessibilityValue:"), number(n.valueNow));
 		if (n.valueMin != null) Msg.vPtr(e, ObjC.sel("setAccessibilityMinValue:"), number(n.valueMin));
 		if (n.valueMax != null) Msg.vPtr(e, ObjC.sel("setAccessibilityMaxValue:"), number(n.valueMax));
