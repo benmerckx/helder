@@ -4223,6 +4223,91 @@
 		}
 	},
 	{
+		"name": "auto margins overflowing, justify-content kept",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"justify": "Center"
+			},
+			"children": [
+				{
+					"style": {
+						"height": 80,
+						"shrink": 0
+					}
+				},
+				{
+					"style": {
+						"width": 40,
+						"height": 60,
+						"margin": [
+							"auto",
+							0,
+							0,
+							"auto"
+						],
+						"shrink": 0
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "absolute self-aligned fit-content",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"height": 200
+			},
+			"children": [
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"right": 10,
+						"top": 10,
+						"bottom": 10,
+						"alignSelf": "End",
+						"justifySelf": "Center"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"top": 0,
+						"bottom": 0,
+						"alignSelf": "Baseline",
+						"margin": [
+							"auto",
+							0,
+							0,
+							0
+						]
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "auto margins on absolute boxes",
 		"width": 300,
 		"height": 200,
@@ -4410,6 +4495,35 @@
 				{
 					"style": {
 						"direction": "Row",
+						"alignItems": "Baseline"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 30
+							},
+							"children": [
+								{
+									"style": {
+										"width": 20,
+										"height": 50,
+										"shrink": 0
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
 						"wrap": true,
 						"alignItems": "Baseline",
 						"width": 100,
@@ -4458,7 +4572,20 @@
 						{
 							"style": {
 								"width": 60,
-								"height": 20
+								"height": 20,
+								"margin": [
+									0,
+									0,
+									0,
+									8
+								]
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10,
+								"alignSelf": "Start"
 							}
 						}
 					]
@@ -4540,6 +4667,237 @@
 							"style": {
 								"position": "Absolute",
 								"inset": 10
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "intrinsic widths",
+		"width": 300,
+		"height": 300,
+		"tree": {
+			"style": {
+				"width": 120,
+				"alignItems": "Start",
+				"rowGap": 4
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"width": "min-content"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"width": "max-content"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 60,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"width": "fit-content"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"width": "fit-content"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"width": 20,
+						"minWidth": "min-content"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"maxWidth": "min-content"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"alignSelf": "Stretch"
+					},
+					"children": [
+						{
+							"style": {
+								"width": "max-content",
+								"direction": "Row"
+							},
+							"children": [
+								{
+									"style": {
+										"width": 30,
+										"height": 10
+									}
+								},
+								{
+									"style": {
+										"width": 30,
+										"height": 10
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"width": "min-content",
+								"direction": "Row",
+								"wrap": true
+							},
+							"children": [
+								{
+									"style": {
+										"width": 20,
+										"height": 10
+									}
+								},
+								{
+									"style": {
+										"width": 25,
+										"height": 10
+									}
+								}
+							]
+						}
+					]
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 0,
+						"top": 200,
+						"width": "max-content",
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 100,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 100,
+								"height": 10
 							}
 						}
 					]

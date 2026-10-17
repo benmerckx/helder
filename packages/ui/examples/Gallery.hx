@@ -51,6 +51,8 @@ class Gallery implements Markup {
 	public final city = signal("");
 	public final rtl = signal(false);
 	public final count = signal(3.0);
+	public final period = signal("Week");
+	public final page = signal(4);
 	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
 		{name: "examples", children: [{name: "Gallery.hx", size: 6}, {name: "Todo.hx", size: 3}]},
@@ -170,6 +172,11 @@ class Gallery implements Markup {
 				<ColorPicker tag="colour" value={colour} size={130} label="Accent"/>
 			</view>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
+			{section("SEGMENTS, BREADCRUMBS, PAGES", <view row-gap={10} align-items="start">
+				<SegmentedControl tag="period" label="Period" value={period} options={["Day", "Week", "Month"]}/>
+				<Breadcrumbs tag="crumbs" items={["Home", "Projects", "Gallery"]} onSelect={i -> chosen.value = "crumb " + i}/>
+				<Pagination tag="pages" page={page} count={9}/>
+			</view>)}
 			{section("SPLIT: A TREE AND A TABLE", <Split tag="panes" size={pane} min={120} label="Sidebar"
 				first={<Tree tag="files" roots={FILES} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} expanded={open} selected={file}
 					height={150} rowHeight={24} label="Files"/>}

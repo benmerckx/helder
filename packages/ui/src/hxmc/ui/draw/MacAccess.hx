@@ -174,6 +174,7 @@ class MacAccess {
 			case Switch: "AXSwitch";
 			case Tab: "AXTabButton";
 			case Dialog: "AXApplicationDialog";
+			case Navigation: "AXLandmarkNavigation";
 			case TextInput if (n.secret): "AXSecureTextField";
 			case _: null;
 		}
@@ -238,6 +239,7 @@ class MacAccess {
 			case SpinButton: "AXIncrementor";
 			case MenuBar: "AXMenuBar";
 			case Toolbar: "AXToolbar";
+			case Navigation: "AXGroup";
 		}
 
 	// --- the classes' methods ---
