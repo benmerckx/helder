@@ -33,6 +33,8 @@ class Layout {
 	// (true: the next size()'s known height is a laid-out size, not a definite
 	// one: its children's percentages of it resolve as of an auto height, as CSS's)
 	var looseH = false;
+	// (a column measured bare: the height its lines break at, its own; flex takes it)
+	var breakH = Math.NaN;
 	// flex items and lines, kept from layout to layout: a container's are
 	// taken from the top and given back when it is done (its children's
 	// taken above them meanwhile)
@@ -79,6 +81,8 @@ class Layout {
 		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
 		var own = !bw && !bh;
 		bareW = bareH = false;
+		// (measured bare, a column still breaks its lines at its own height)
+		var bareBreak = bh ? s.height.resolve(parentH) : Math.NaN;
 		// (its height definite for its children: given so, or its own)
 		var defH = !looseH || known(s.height.resolve(parentH));
 		looseH = false;
@@ -124,7 +128,10 @@ class Layout {
 				n.relaid = true;
 			}
 		} else if (s.display == Grid) grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
-		else flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
+		else {
+			breakH = bareBreak;
+			flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
+		}
 		if (!perform && own) store(n, w, defH ? h : -1 - h, availW, availH, rw, rh);
 	}
 
@@ -133,6 +140,8 @@ class Layout {
 	function flex(n:Node, w:Float, h:Float, availW:Float, availH:Float, minW:Float, maxW:Float, minH:Float, maxH:Float, padL:Float, padT:Float,
 			padH:Float, padV:Float, perform:Bool, defH:Bool) {
 		var s = n.style;
+		var bareBreak = breakH;
+		breakH = Math.NaN;
 		var row = s.direction == Row || s.direction == RowReverse;
 		var reverse = s.direction == RowReverse || s.direction == ColumnReverse;
 		// (placed from the far side: a reversed direction, and right to left the
@@ -210,8 +219,9 @@ class Layout {
 				if (row) size(c, Math.NaN, kc, innerW, pctH, am, ac, false) else size(c, kc, Math.NaN, innerW, pctH, ac, am, false);
 				b = row ? rw : rh;
 			}
-			it.basis = b;
 			it.edges = row ? edgesH(cs) : edgesV(cs);
+			// (a border box no smaller than its padding and border: CSS's content box floored at 0)
+			it.basis = Math.max(b, it.edges);
 			// the automatic minimum
 			if ((row ? cs.minWidth : cs.minHeight) == DimValue.Auto && cs.overflow == Visible) {
 				var content:Float;
@@ -220,7 +230,8 @@ class Layout {
 					if (!known(kc) && it.align == Stretch && !multi && known(innerCross))
 						kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
 					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
-					// (its content's height: not its own, CSS's content size suggestion)
+					// (its content's height: not its own, CSS's content size suggestion; a wrapping
+					// column's lines broken at its own definite height, its tallest line's, as Chromium's)
 					bareH = true;
 					size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
 					content = rh;
@@ -238,7 +249,8 @@ class Layout {
 		// (where lines break: the main size, else a row's room within its min and max, else the max:
 		// a column of auto height breaks only at its max-height)
 		var finiteMax = maxMain < Math.POSITIVE_INFINITY ? maxMain : Math.NaN;
-		var breakAt = known(innerMain) ? innerMain : row && known(availMain) ? clamp(availMain, Math.max(0, minMain), maxMain) : finiteMax;
+		var breakAt = known(innerMain) ? innerMain : row && known(availMain) ? clamp(availMain, Math.max(0, minMain), maxMain) : !row
+			&& known(bareBreak) ? Math.max(0, bareBreak - padV) : finiteMax;
 		for (i in first...itemTop) {
 			var it = items[i];
 			var outer = it.hypo + it.mMainStart + it.mMainEnd;
@@ -291,7 +303,12 @@ class Layout {
 						// (a column's item's flexed height: definite when the column's is)
 						if (row) size(it.node, it.main, Math.NaN, innerW, pctH, it.main, ac, false) else {
 							looseH = !known(pctH);
-							size(it.node, Math.NaN, it.main, innerW, pctH, ac, it.main, false);
+							// (a wrapping column in a column of unknown width: as wide as on one line, unless
+							// its own height is definite, as Chromium sizes it; its flexed height then wraps it)
+							var ics = it.node.style;
+							var oneLine = !known(innerCross) && ics.wrap && (ics.direction == Column || ics.direction == ColumnReverse)
+								&& !known(ics.height.resolve(pctH));
+							size(it.node, Math.NaN, oneLine ? Math.NaN : it.main, innerW, pctH, ac, oneLine ? Math.NaN : it.main, false);
 						}
 						// (a column's item across: fit-content, its min-content when the room is less)
 						it.cross = clamp(row ? rh : Math.max(rw, minContentWidth(it.node, innerW, false)), it.minCross, it.maxCross);

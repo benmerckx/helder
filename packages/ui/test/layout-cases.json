@@ -5759,5 +5759,108 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "basis floored at padding",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"grow": 2
+					}
+				},
+				{
+					"style": {
+						"grow": 1,
+						"basis": 8,
+						"padding": 10
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "flexed wrapping column, one line wide",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"height": 30
+					},
+					"children": [
+						{
+							"style": {
+								"wrap": true,
+								"grow": 1,
+								"basis": 85,
+								"minHeight": 0
+							},
+							"children": [
+								{
+									"style": {
+										"width": 12,
+										"height": 20
+									}
+								},
+								{
+									"style": {
+										"width": 106,
+										"height": 15
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "wrapping column minimum at its own height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"justify": "End"
+			},
+			"children": [
+				{
+					"style": {
+						"wrap": true,
+						"basis": 40,
+						"height": 107,
+						"borderWidth": 2
+					},
+					"children": [
+						{
+							"style": {
+								"width": 10,
+								"height": 50
+							}
+						},
+						{
+							"style": {
+								"width": 10,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 10,
+								"height": 73
+							}
+						}
+					]
+				}
+			]
+		}
 	}
 ]
