@@ -131,6 +131,80 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a range slider: two knobs on one track, the range between them filled,
+	// low no more than high; a press moves the nearer knob (then drags it)
+	// and focuses it, each knob a slider for the keyboard and assistive
+	// technology (Left and Down lower it, Right and Up raise it, Home and End
+	// to its bounds, as far as the other knob)
+	public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
+			?tag:String}):View {
+		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, w = props.width ?? 160.0, tag = props.tag ?? "range";
+		var knob = 16.0, dragging = -1, name = props.label ?? "Range", knobs:Array<Node> = [];
+		function snap(v:Float):Float {
+			v = Math.max(lo, Math.min(hi, v));
+			return step > 0 ? Math.max(lo, Math.min(hi, Math.fround((lo + Math.fround((v - lo) / step) * step) * 1e9) / 1e9)) : v;
+		}
+		// (k: 0 the low knob, 1 the high one, each kept on its side of the other)
+		function set(k:Int, v:Float) {
+			v = snap(v);
+			if (k == 0) props.low.value = Math.min(v, props.high.peek()) else props.high.value = Math.max(v, props.low.peek());
+		}
+		var frac = (v:Float) -> hi > lo ? (v - lo) / (hi - lo) : 0.0;
+		// (right to left: the minimum at the right)
+		function valueAt(e:Event):Float {
+			var n = e.current, x = n.localX(e.x, e.y);
+			if (n.rtl()) x = w - x;
+			return lo + (x - knob / 2) / (w - knob) * (hi - lo);
+		}
+		var keyStep = step > 0 ? step : (hi - lo) / 20;
+		// (a knob in a row the width of the track, after a spacer: mirrored right to left as the row is)
+		function thumb(k:Int):View {
+			var value = k == 0 ? props.low : props.high;
+			return <view position="absolute" top={2} left={0} width={w} direction="row" pointer-events="none">
+				<view width={() -> frac(value.value) * (w - knob)}/>
+				<view tag={tag + (k == 0 ? "-low" : "-high")} role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
+					value-now={() -> value.value} value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi}
+					width={knob} height={knob} radius={knob / 2} focusable pointer-events="auto" background={() -> t().knob} border-width={1}
+					border-color={() -> t().border} shadow="0 1 2 #00000033"
+					onKeyDown={e -> switch e.key {
+						case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
+							e.preventDefault();
+							var less = e.key == Key.DOWN || (e.key == Key.LEFT) != e.current.rtl();
+							set(k, value.peek() + (less ? -keyStep : keyStep));
+						case Key.HOME:
+							e.preventDefault();
+							set(k, lo);
+						case Key.END:
+							e.preventDefault();
+							set(k, hi);
+						case _:
+					}}/>
+			</view>;
+		}
+		return <view tag={tag} role="group" label={name} width={w} height={knob + 4} cursor="pointer" justify="center"
+			onPointerDown={e -> {
+				var v = valueAt(e);
+				// (the nearer knob; where they meet, the one that can move that way)
+				var dl = Math.abs(v - props.low.peek()), dh = Math.abs(v - props.high.peek());
+				dragging = dl < dh || (dl == dh && v < props.low.peek()) ? 0 : 1;
+				set(dragging, v);
+				var n = knobs[dragging];
+				if (n != null && n.ui != null) {
+					n.ui.setFocus(n, false);
+					e.preventDefault();
+				}
+			}}
+			onPointerMove={e -> if (e.current.pressed && dragging >= 0) set(dragging, valueAt(e))}
+			onPointerUp={_ -> dragging = -1}>
+			<view height={4} radius={2} margin={[0, knob / 2]} direction="row" background={() -> t().track}>
+				<view width={() -> frac(props.low.value) * (w - knob)}/>
+				<view radius={2} background={() -> t().accent} width={() -> (frac(props.high.value) - frac(props.low.value)) * (w - knob)}/>
+			</view>
+			{thumb(0)}
+			{thumb(1)}
+		</view>;
+	}
+
 	// a colour picker: a square of saturation (to the right) and brightness
 	// (up) in the hue, a strip of hues under it, a swatch and the colour's
 	// hex in a field (left to right; what is typed there, once it is a CSS

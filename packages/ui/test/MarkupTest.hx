@@ -24,6 +24,7 @@ import hxmc.ui.widgets.Widgets.Listbox;
 import hxmc.ui.widgets.Widgets.Toolbar;
 import hxmc.ui.widgets.Widgets.ColorPicker;
 import hxmc.ui.widgets.Widgets.Sortable;
+import hxmc.ui.widgets.Widgets.RangeSlider;
 import hxmc.ui.widgets.Widgets.Tabs;
 import hxmc.ui.widgets.Widgets.Radio;
 import hxmc.ui.widgets.Widgets.Progress;
@@ -72,6 +73,7 @@ class MarkupTest implements Markup {
 		toolbar();
 		colorPicker();
 		sortable();
+		rangeSlider();
 		focusTips();
 		virtual();
 		table();
@@ -506,6 +508,38 @@ class MarkupTest implements Markup {
 		ui.pointerUp(a.absX + 20, a.absY + a.height - 2, 1);
 		ui.update();
 		check("sortable: dropped after the last", items.value.join("") == "dbac", items.value.join(""));
+	}
+
+	static function rangeSlider() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var low = signal(0.2), high = signal(0.8), rtl = signal(false);
+		Render.render(<view padding={10} dir={() -> rtl.value ? "rtl" : "ltr"}><RangeSlider tag="r" low={low} high={high} step={0.1} width={116}
+			label="Price"/></view>, ui.root);
+		ui.update();
+		var r = ui.root.find("r"), a = ui.root.find("r-low"), b = ui.root.find("r-high");
+		check("range slider: the knobs at their values", a.absX == r.absX + 20 && b.absX == r.absX + 80, a.absX - r.absX + " " + (b.absX - r.absX));
+		var y = r.absY + r.height / 2;
+		ui.pointerDown(r.absX + 8 + 30, y, 1);
+		ui.update();
+		check("range slider: a press moves the nearer knob and focuses it", low.value == 0.3 && high.value == 0.8 && ui.focus == a, low.value + " " + ui.focus);
+		ui.pointerMove(r.absX + 8 + 95, y);
+		ui.pointerUp(r.absX + 8 + 95, y, 1);
+		ui.update();
+		check("range slider: dragged past the other, held at it", low.value == 0.8 && high.value == 0.8, low.value + " " + high.value);
+		ui.setFocus(b);
+		ui.keyDown(Key.RIGHT, 0);
+		ui.keyDown(Key.HOME, 0);
+		ui.update();
+		check("range slider: the keys, Home only as far as the other knob", high.value == 0.8 && low.value == 0.8, high.value + "");
+		ui.keyDown(Key.END, 0);
+		ui.setFocus(a);
+		ui.keyDown(Key.HOME, 0);
+		rtl.value = true;
+		ui.update();
+		var t = ui.accessTree(), sliders = [for (id in t.order) if (t.nodes.get(id).role == Slider) t.nodes.get(id)];
+		check("range slider: right to left, the minimum at the right; two sliders, each bounded by the other",
+			a.absX == r.absX + 116 - 16 && b.absX == r.absX && sliders.length == 2 && sliders[0].valueMax == 1 && sliders[1].valueMin == 0
+			&& sliders[0].name == "Price: minimum", a.absX - r.absX + " " + (b.absX - r.absX) + " " + sliders.length);
 	}
 
 	static function password() {

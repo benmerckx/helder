@@ -167,7 +167,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   `cut`, `copy`, `paste`, `selectAll`; `Field` and `Area` add an edit menu
   on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
+  `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`, `RangeSlider` (two knobs, a
+  slider each for the keyboard),
   `Progress` (or indeterminate), `Tabs`, `Field` (or a password), `Area`, `Table` (sortable, resizable columns, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),

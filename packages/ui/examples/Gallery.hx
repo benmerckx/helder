@@ -1,5 +1,5 @@
 // title: Widgets
-// summary: ui's widgets bound to signals: a menu bar, a toolbar, a list box, a colour picker, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields; right to left at a switch
+// summary: ui's widgets bound to signals: a menu bar, a toolbar, a list box, a range slider, a colour picker, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields; right to left at a switch
 // tags: ui, widgets
 // demo: canvas 560x520
 import hxmc.ui.*;
@@ -36,6 +36,8 @@ class Gallery implements Markup {
 	public final days = signal(["Tue", "Thu"]);
 	public final colour = signal(Color.rgb(0x3B82F6));
 	public final volume = signal(0.4);
+	public final priceLow = signal(20.0);
+	public final priceHigh = signal(80.0);
 	public final tab = signal(0);
 	public final name = signal("");
 	public final notes = signal("");
@@ -160,6 +162,10 @@ class Gallery implements Markup {
 						<text tag="volume-shown" color={() -> Theme.current.value.secondary}>{() -> Math.round(volume.value * 100) + "%"}</text>
 					</view>
 					<Progress value={volume} width={200}/>
+					<view direction="row" column-gap={12} align-items="center">
+						<RangeSlider tag="price" low={priceLow} high={priceHigh} min={0} max={100} step={5} width={200} label="Price"/>
+						<text tag="price-shown" color={() -> Theme.current.value.secondary}>{() -> priceLow.value + "–" + priceHigh.value}</text>
+					</view>
 				</view>
 				<ColorPicker tag="colour" value={colour} size={130} label="Accent"/>
 			</view>)}

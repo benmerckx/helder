@@ -96,6 +96,9 @@ class GalleryTest {
 		ui.keyDown(Key.DOWN, Key.MOD_SHIFT);
 		ui.update();
 		check("the list box: a click, then Shift+Down", app.days.value.join(" ") == "Mon Tue" && shown("size-shown") == "size: Large, Mon Tue", shown("size-shown"));
+		click("price-high");
+		key(Key.LEFT);
+		check("the range slider: its high knob clicked, then Left", app.priceHigh.value == 75 && shown("price-shown") == "20–75", shown("price-shown"));
 		click("colour-hue");
 		key(Key.END);
 		check("the colour picker: its hue strip clicked, then End", app.colour.value != Color.rgb(0x3B82F6) && find("colour-hue").semantics.valueNow == 359
