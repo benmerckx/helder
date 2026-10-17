@@ -10,6 +10,8 @@ import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Field;
 import hxmc.ui.widgets.Widgets.Select;
+import hxmc.ui.widgets.Widgets.Combobox;
+import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Table;
@@ -29,7 +31,7 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
-// popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog) driven by pointer and keys;
+// popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog, Combobox) driven by pointer and keys;
 // a VirtualList of 100000 rows scrolled
 class MarkupTest implements Markup {
 	static var checks = 0;
@@ -41,6 +43,7 @@ class MarkupTest implements Markup {
 		motion();
 		access();
 		popovers();
+		combobox();
 		virtual();
 		table();
 		tree();
@@ -77,6 +80,70 @@ class MarkupTest implements Markup {
 			if (props.when.value) throw "boom";
 			"fine";
 		}}</text>;
+	}
+
+	// (every node under n tagged tag, in order)
+	static function tagged(n:Node, tag:String):Array<Node> {
+		var out = [];
+		function walk(n:Node) {
+			if (n.tag == tag) out.push(n);
+			for (c in n.children)
+				walk(c);
+		}
+		walk(n);
+		return out;
+	}
+
+	static function combobox() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var city = signal(""), chosen = [];
+		Render.render(<view padding={10} align-items="start">
+			<Combobox tag="city" value={city} options={["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels"]} label="City" onChoose={c -> chosen.push(c)}/>
+		</view>, ui.root);
+		ui.update();
+		var field = ui.root.find("city");
+		ui.setFocus(field);
+		ui.textInput("ber");
+		ui.update();
+		var list = ui.overlay.find("city-list");
+		function shown()
+			return list == null ? "" : [for (o in tagged(list, "city-option")) (cast o.children[0] : TextNode).text].join(",");
+		check("combobox: typing filters the options under it (either case)", list != null && shown() == "Berlin,Bern" && list.absY >= field.absY + field.height
+			&& ui.focus == field && field.semantics.expanded == true, shown());
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("combobox: an editable combobox to assistive technology", an.role == ComboBox && an.value == "ber" && an.expanded == true && an.editable()
+			&& [for (id in t.order) t.nodes.get(id).role].filter(r -> r == ListBoxOption).length == 2, an == null ? "none" : an.role + " " + an.value);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("combobox: Down highlights, the focus stays in the field", tagged(list, "city-option")[1].semantics.selected == true && ui.focus == field);
+		ui.keyDown(Key.UP, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("combobox: Enter chooses the highlighted option", city.value == "Berlin" && chosen.join(",") == "Berlin" && ui.overlay.children.length == 0
+			&& (cast field : TextField).text == "Berlin", '${city.value} ${chosen}');
+		city.value = "";
+		ui.update();
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		list = ui.overlay.find("city-list");
+		check("combobox: Down on the empty field lists every option", list != null && tagged(list, "city-option").length == 5);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("combobox: Escape closes", ui.overlay.children.length == 0 && ui.focus == field);
+		ui.textInput("Br");
+		ui.update();
+		var opt = tagged(ui.overlay.find("city-list"), "city-option")[0];
+		var x = opt.absX + opt.width / 2, y = opt.absY + opt.height / 2;
+		ui.pointerDown(x, y, 1);
+		ui.pointerUp(x, y, 1);
+		ui.update();
+		check("combobox: a click chooses", city.value == "Brussels" && ui.focus == field && ui.overlay.children.length == 0, city.value);
+		ui.textInput("x");
+		ui.update();
+		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
+		ui.keyDown(Key.ENTER, 0);
+		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
 	}
 
 	static function popovers() {

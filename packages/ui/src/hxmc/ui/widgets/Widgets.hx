@@ -775,6 +775,88 @@ class Widgets implements Markup {
 			</view>
 		});
 
+	// a combobox: a text field bound to value (two ways) whose typing
+	// filters options (those containing the text, in either case; options
+	// may be a signal) in a list under it. The focus stays in the field:
+	// Down opens the list and highlights the next option, Up the previous;
+	// Enter or a click chooses the highlighted one (the field takes its
+	// text; onChoose gets it), Enter with none highlighted submits the text
+	// as it is (onChoose), Escape or a click outside closes the list.
+	public static function Combobox(props:{value:Signal<String>, options:Dynamic, ?placeholder:String, ?width:Float, ?label:String,
+			?onChoose:String->Void, ?tag:String}):View {
+		var tag = props.tag ?? "combobox", w = props.width ?? 200.0;
+		var open = signal(false), active = signal(-1);
+		var options:Array<Node> = [];
+		var matches = memo(() -> {
+			var q = props.value.value.toLowerCase(), all:Array<String> = Render.read(props.options);
+			[for (o in all) if (o.toLowerCase().indexOf(q) >= 0) o];
+		});
+		var f = new TextField(props.value.peek());
+		f.tag = tag;
+		f.placeholder = props.placeholder ?? "";
+		f.semantics.role = hxmc.ui.access.Role.ComboBox;
+		f.semantics.label = props.label ?? props.placeholder;
+		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6, width: w});
+		themed(f);
+		effect(() -> f.setText(props.value.value));
+		effect(() -> f.semantics.expanded = open.value && matches.value.length > 0);
+		function choose(o:String) {
+			batch(() -> {
+				props.value.value = o;
+				open.value = false;
+				active.value = -1;
+			});
+			// (the caret after the chosen text)
+			f.select(o.length, o.length);
+			if (f.ui != null) f.ui.setFocus(f);
+			if (props.onChoose != null) props.onChoose(o);
+		}
+		function highlight(i:Int) {
+			active.value = i;
+			if (i >= 0 && i < options.length && options[i] != null && options[i].ui != null) options[i].ui.scrollIntoView(options[i]);
+		}
+		f.onChange = s -> batch(() -> {
+			props.value.value = s;
+			open.value = true;
+			active.value = -1;
+		});
+		f.onSubmit = s -> {
+			var m = matches.peek(), i = active.peek();
+			if (open.peek() && i >= 0 && i < m.length) choose(m[i]) else {
+				open.value = false;
+				if (props.onChoose != null) props.onChoose(s);
+			}
+		};
+		return <view tag={tag + "-box"} width={w} onKeyDown={e -> switch e.key {
+				case Key.DOWN:
+					e.stop();
+					var n = matches.peek().length;
+					if (!open.peek()) {
+						open.value = true;
+						highlight(n > 0 ? 0 : -1);
+					} else if (n > 0) highlight((active.peek() + 1) % n);
+				case Key.UP:
+					e.stop();
+					var n = matches.peek().length;
+					if (open.peek() && n > 0) highlight(active.peek() <= 0 ? n - 1 : active.peek() - 1);
+				case Key.ESCAPE if (open.peek()):
+					e.stop();
+					open.value = false;
+				case _:
+			}}>
+			{f}
+			<Popover open={() -> open.value && matches.value.length > 0} placement="below" onDismiss={() -> open.value = false}>
+				<scroll tag={tag + "-list"} role="listbox" label={props.label} width={w} max-height={240} padding={4} radius={6} border-width={1}
+					border-color={() -> t().borderMuted} background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">
+					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} role="option" selected={() -> active.value == i}
+						ref={n -> options[i] = n} cursor="pointer" padding="5 8" radius={4}
+						background={() -> active.value == i ? t().itemSelected : Theme.clear(t().control)} onPointerEnter={_ -> active.value = i}
+						onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
+				</scroll>
+			</Popover>
+		</view>;
+	}
+
 	// a text area bound to a signal (two ways), rows lines high (3)
 	public static function Area(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?tag:String}):Node {
 		var f = new TextArea(props.value.peek());

@@ -284,7 +284,7 @@ class LinuxAccess {
 		var out = ["org.a11y.atspi.Accessible", "org.a11y.atspi.Component"];
 		if (hasAction(n)) out.push("org.a11y.atspi.Action");
 		if (n.valueNow != null) out.push("org.a11y.atspi.Value");
-		if (n.role == TextInput || n.role == MultilineTextInput) out.push("org.a11y.atspi.Text");
+		if (n.editable()) out.push("org.a11y.atspi.Text");
 		return out;
 	}
 
@@ -314,9 +314,9 @@ class LinuxAccess {
 			on(9); // EXPANDABLE
 			on(n.expanded ? 10 : 5); // EXPANDED, COLLAPSED
 		}
-		if (n.role == TextInput || n.role == MultilineTextInput) {
+		if (n.editable()) {
 			on(7); // EDITABLE
-			on(n.role == TextInput ? 26 : 17); // SINGLE_LINE, MULTI_LINE
+			on(n.role == MultilineTextInput ? 17 : 26); // MULTI_LINE, SINGLE_LINE
 		}
 		return bits;
 	}

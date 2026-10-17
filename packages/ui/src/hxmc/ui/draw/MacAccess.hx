@@ -159,7 +159,8 @@ class MacAccess {
 
 	// an element's properties from its node
 	function set(e:Ptr, n:AccessNode) {
-		var role = macRole(n.role);
+		// (a combobox typed in: AppKit's combo box)
+		var role = n.role == ComboBox && n.value != null ? "AXComboBox" : macRole(n.role);
 		Msg.vPtr(e, ObjC.sel("setAccessibilityRole:"), str(role));
 		var sub = switch n.role {
 			case Switch: "AXSwitch";

@@ -244,6 +244,7 @@ class WinAccess {
 			case CheckBox | Switch: 4;
 			case Slider | ProgressIndicator: 5;
 			case TextInput | MultilineTextInput: 6;
+			case ComboBox if (n.value != null): 6;
 			case RadioButton: 3;
 			case _: 0;
 		}
