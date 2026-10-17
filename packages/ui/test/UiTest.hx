@@ -247,6 +247,29 @@ class UiTest {
 		clickH(h.absX + h.style.borderWidth + h.style.padding.left + 1, 30, Key.MOD_SHIFT);
 		check("clicks: Shift+click extends the selection", h.selectionStart == 0 && h.selectionEnd == 6, '${h.selectionStart}-${h.selectionEnd}');
 		EditableText.now = haxe.Timer.stamp;
+		// the focus moved by Tab: its node scrolled into view; a press does not scroll
+		var sui = new Ui(new MonoText(), 200, 100);
+		var box = new Node("scroller");
+		box.style.overflow = Scroll;
+		box.style.height = 60;
+		box.style.padding = 5;
+		sui.root.append(box);
+		var rows = [for (i in 0...10) {
+			var r = new Node("row" + i);
+			r.style.height = 20;
+			r.focusable = true;
+			box.append(r);
+			r;
+		}];
+		sui.update();
+		sui.setFocus(rows[0]);
+		for (_ in 0...4)
+			sui.keyDown(Key.TAB, 0);
+		check("focus: Tab scrolls the focused row into view", sui.focus == rows[4] && box.scrollY == 4 * 20 + 20 - 50, '${box.scrollY}');
+		sui.keyDown(Key.TAB, Key.MOD_SHIFT);
+		sui.keyDown(Key.TAB, Key.MOD_SHIFT);
+		sui.keyDown(Key.TAB, Key.MOD_SHIFT);
+		check("focus: and back up", sui.focus == rows[1] && box.scrollY == 20, '${box.scrollY}');
 		// grapheme clusters: a letter and its marks, an emoji with its modifier, a flag move as one; Backspace takes a mark at a time
 		var q = "e\u0301\u{1F44D}\u{1F3FD}\u{1F1E7}\u{1F1EA}";
 		var units = "\u{1F600}".length;

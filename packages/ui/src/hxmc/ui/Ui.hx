@@ -262,7 +262,7 @@ class Ui {
 			var f = target;
 			while (f != null && !f.focusable)
 				f = f.parent;
-			setFocus(f);
+			setFocus(f, false);
 		}
 	}
 
@@ -393,8 +393,11 @@ class Ui {
 
 	// --- focus ---
 
-	public function setFocus(n:Null<Node>) {
+	// the focus moved to n (null: none); scroll: n brought into view in its
+	// scrolling ancestors (not when a press focused it)
+	public function setFocus(n:Null<Node>, scroll = true) {
 		if (n == focus) return;
+		if (scroll && n != null) scrollIntoView(n);
 		var old = focus;
 		focus = n;
 		if (old != null) {
@@ -701,6 +704,25 @@ class Ui {
 				if (value == null || !n.accessSetValue(value)) return false;
 		}
 		return true;
+	}
+
+	// scrolls n's scrolling ancestors, nearest first, as little as brings it
+	// into each one's view (its far edge at the view's, unless it is larger)
+	public function scrollIntoView(n:Node) {
+		var p = n.parent, shiftX = 0.0, shiftY = 0.0;
+		while (p != null) {
+			if (p.style.overflow == Scroll) {
+				for (x in [false, true]) {
+					var s = p.style, inset = s.borderWidth + (x ? s.padding.left : s.padding.top);
+					var start = (x ? n.absX - p.absX - shiftX : n.absY - p.absY - shiftY) - inset, end = start + (x ? n.width : n.height);
+					var view = viewSize(p, x), cur = x ? p.scrollX : p.scrollY;
+					if (start < cur) setScroll(p, x, start) else if (end > cur + view) setScroll(p, x, Math.min(start, end - view));
+				}
+				shiftX += p.scrollX;
+				shiftY += p.scrollY;
+			}
+			p = p.parent;
+		}
 	}
 
 	// --- scrollbars ---
