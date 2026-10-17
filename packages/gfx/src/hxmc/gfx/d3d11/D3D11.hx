@@ -67,6 +67,7 @@ class ID3D11DeviceContext {
 	@:slot(48) static function UpdateSubresource(self:Ptr, dst:Ptr, subresource:Int, box:Ptr<D3D11_BOX>, src:Ptr, rowPitch:Int, depthPitch:Int):Void;
 	@:slot(50) static function ClearRenderTargetView(self:Ptr, view:Ptr, rgba:Ptr<Float32>):Void;
 	@:slot(53) static function ClearDepthStencilView(self:Ptr, view:Ptr, flags:Int, depth:Float32, stencil:Int):Void;
+	@:slot(54) static function GenerateMips(self:Ptr, view:Ptr):Void;
 	@:slot(110) static function ClearState(self:Ptr):Void;
 	@:slot(111) static function Flush(self:Ptr):Void;
 }
@@ -119,6 +120,14 @@ class D3D {
 	// DXGI_FORMAT
 	public static inline var FORMAT_UNKNOWN = 0;
 	public static inline var FORMAT_R32G32B32A32_FLOAT = 2;
+	public static inline var FORMAT_R16G16B16A16_FLOAT = 10;
+	public static inline var FORMAT_R8G8B8A8_UNORM_SRGB = 29;
+	public static inline var FORMAT_R32_TYPELESS = 39;
+	public static inline var FORMAT_R8G8_UNORM = 49;
+	public static inline var FORMAT_R16_TYPELESS = 53;
+	public static inline var FORMAT_D16_UNORM = 55;
+	public static inline var FORMAT_R16_UNORM = 56;
+	public static inline var FORMAT_R8_UNORM = 61;
 	public static inline var FORMAT_R32G32B32_FLOAT = 6;
 	public static inline var FORMAT_R8G8B8A8_UNORM = 28;
 	public static inline var FORMAT_R32G32_FLOAT = 16;
@@ -136,6 +145,10 @@ class D3D {
 	public static inline var BIND_SHADER_RESOURCE = 0x8;
 	public static inline var BIND_RENDER_TARGET = 0x20;
 	public static inline var BIND_DEPTH_STENCIL = 0x40;
+	public static inline var RESOURCE_MISC_GENERATE_MIPS = 0x1;
+	// D3D11_DSV_DIMENSION, D3D11_SRV_DIMENSION
+	public static inline var DSV_DIMENSION_TEXTURE2D = 3;
+	public static inline var SRV_DIMENSION_TEXTURE2D = 4;
 	public static inline var CPU_ACCESS_WRITE = 0x10000;
 	public static inline var CPU_ACCESS_READ = 0x20000;
 	public static inline var MAP_READ = 1;
@@ -159,7 +172,7 @@ class D3D {
 	public static inline var CLEAR_DEPTH = 1;
 	// D3D11_FILTER, D3D11_TEXTURE_ADDRESS_MODE
 	public static inline var FILTER_MIN_MAG_MIP_POINT = 0;
-	public static inline var FILTER_MIN_MAG_MIP_LINEAR = 0x15;
+	public static inline var FILTER_MIN_MAG_MIP_LINEAR = 0x15; // MIN_MAG_LINEAR_MIP_POINT: 0x14, MIN_MAG_POINT_MIP_LINEAR: 0x1
 	public static inline var TEXTURE_ADDRESS_WRAP = 1;
 	public static inline var TEXTURE_ADDRESS_MIRROR = 2;
 	public static inline var TEXTURE_ADDRESS_CLAMP = 3;

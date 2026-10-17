@@ -58,12 +58,28 @@ class GL {
 	public static inline var TEXTURE_MIN_FILTER = 0x2801;
 	public static inline var TEXTURE_WRAP_S = 0x2802;
 	public static inline var TEXTURE_WRAP_T = 0x2803;
-	public static inline var TEXTURE_MAX_LEVEL = 0x813D;
 	public static inline var NEAREST = 0x2600;
 	public static inline var LINEAR = 0x2601;
 	public static inline var REPEAT = 0x2901;
 	public static inline var CLAMP_TO_EDGE = 0x812F;
 	public static inline var MIRRORED_REPEAT = 0x8370;
+	public static inline var NEAREST_MIPMAP_NEAREST = 0x2700; // LINEAR_MIPMAP_NEAREST, NEAREST_MIPMAP_LINEAR, LINEAR_MIPMAP_LINEAR: + 1 to + 3
+	public static inline var CW = 0x0900;
+	public static inline var R8 = 0x8229;
+	public static inline var RG8 = 0x822B;
+	public static inline var SRGB8_ALPHA8 = 0x8C43;
+	public static inline var RGBA16F = 0x881A;
+	public static inline var R32F = 0x822E;
+	public static inline var DEPTH_COMPONENT16 = 0x81A5;
+	public static inline var DEPTH_COMPONENT32F = 0x8CAC;
+	public static inline var RED = 0x1903;
+	public static inline var RG = 0x8227;
+	public static inline var DEPTH_COMPONENT = 0x1902;
+	public static inline var HALF_FLOAT = 0x140B;
+	public static inline var FRAMEBUFFER = 0x8D40;
+	public static inline var COLOR_ATTACHMENT0 = 0x8CE0;
+	public static inline var DEPTH_ATTACHMENT = 0x8D00;
+	public static inline var FRAMEBUFFER_COMPLETE = 0x8CD5;
 
 	static function glGetString(name:Int):Ptr;
 	static function glGetError():Int;
@@ -110,6 +126,7 @@ class GL {
 	static function glGetUniformLocation(program:Int, name:Ptr):Int;
 	static function glUniform1i(location:Int, x:Int):Void;
 	static function glUniform1f(location:Int, x:Float32):Void;
+	static function glUniform2f(location:Int, x:Float32, y:Float32):Void;
 	static function glBlendFuncSeparate(srcRGB:Int, dstRGB:Int, srcAlpha:Int, dstAlpha:Int):Void;
 	static function glBlendEquation(mode:Int):Void;
 	static function glDepthFunc(func:Int):Void;
@@ -118,8 +135,13 @@ class GL {
 	static function glGenTextures(n:Int, textures:Ptr<Int32>):Void;
 	static function glBindTexture(target:Int, texture:Int):Void;
 	static function glActiveTexture(unit:Int):Void;
-	static function glTexParameteri(target:Int, pname:Int, param:Int):Void;
-	static function glTexImage2D(target:Int, level:Int, internalFormat:Int, width:Int, height:Int, border:Int, format:Int, type:Int, pixels:Ptr):Void;
+	static function glTexStorage2D(target:Int, levels:Int, internalFormat:Int, width:Int, height:Int):Void;
+	static function glGenerateMipmap(target:Int):Void;
+	static function glGenFramebuffers(n:Int, framebuffers:Ptr<Int32>):Void;
+	static function glDeleteFramebuffers(n:Int, framebuffers:Ptr<Int32>):Void;
+	static function glBindFramebuffer(target:Int, framebuffer:Int):Void;
+	static function glFramebufferTexture2D(target:Int, attachment:Int, textarget:Int, texture:Int, level:Int):Void;
+	static function glCheckFramebufferStatus(target:Int):Int;
 	static function glTexSubImage2D(target:Int, level:Int, x:Int, y:Int, width:Int, height:Int, format:Int, type:Int, pixels:Ptr):Void;
 	static function glGenSamplers(n:Int, samplers:Ptr<Int32>):Void;
 	static function glSamplerParameteri(sampler:Int, pname:Int, param:Int):Void;

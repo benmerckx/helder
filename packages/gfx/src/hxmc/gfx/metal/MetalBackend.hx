@@ -17,7 +17,8 @@ import hxmc.unsafe.*;
 // 4 KB). The colour target is BGRA8 (the layer's own format): readPixels
 // swaps it to RGBA. The depth buffer is a Depth32Float texture of the target's size,
 // remade when the drawable's size changes. A texture at slot n is [[texture(n)]] and its
-// sampler [[sampler(n)]], in both stages.
+// sampler [[sampler(n)]], in both stages. A render target is a texture in
+// the GPU's memory (StorageModePrivate); generateMips is a blit.
 class MetalBackend {
 	public final backend = Backend.Metal;
 	public var width(default, null) = 0;
@@ -51,6 +52,7 @@ class MetalBackend {
 	final libraries:Array<Ptr> = [];
 	final pipelines:Array<MtlPipeline> = [];
 	final textures:Array<Ptr> = []; // MTLTexture
+	final infos:Array<TextureInfo> = [];
 	final samplers:Array<Ptr> = []; // MTLSamplerState
 
 	// the frame
@@ -153,29 +155,43 @@ class MetalBackend {
 		LibC.memcpy(dst.add(offset), Mem.addr(data).add(8 + dataOffset), (size : Int64));
 	}
 
+	static function pixelFormat(f:TextureFormat):Int
+		return switch f {
+			case RGBA8: MTL.PixelFormatRGBA8Unorm;
+			case RGBA8Srgb: MTL.PixelFormatRGBA8UnormSrgb;
+			case R8: MTL.PixelFormatR8Unorm;
+			case RG8: MTL.PixelFormatRG8Unorm;
+			case RGBA16F: MTL.PixelFormatRGBA16Float;
+			case R32F: MTL.PixelFormatR32Float;
+			case Depth16: MTL.PixelFormatDepth16Unorm;
+			case Depth32F: MTL.PixelFormatDepth32Float;
+		}
+
 	public function createTexture(d:TextureDesc):Int {
+		var info = TextureInfo.of(d), target = info.target;
 		var desc = make("MTLTextureDescriptor");
-		Msg.vInt(desc, ObjC.sel("setPixelFormat:"), MTL.PixelFormatRGBA8Unorm);
-		Msg.vInt(desc, ObjC.sel("setWidth:"), d.width);
-		Msg.vInt(desc, ObjC.sel("setHeight:"), d.height);
-		Msg.vInt(desc, ObjC.sel("setUsage:"), MTL.TextureUsageShaderRead);
+		Msg.vInt(desc, ObjC.sel("setPixelFormat:"), pixelFormat(info.format));
+		Msg.vInt(desc, ObjC.sel("setWidth:"), info.width);
+		Msg.vInt(desc, ObjC.sel("setHeight:"), info.height);
+		Msg.vInt(desc, ObjC.sel("setMipmapLevelCount:"), info.levels);
+		// (a render target: in the GPU's memory only, as depth textures must be)
+		Msg.vInt(desc, ObjC.sel("setUsage:"), target ? MTL.TextureUsageShaderRead | MTL.TextureUsageRenderTarget : MTL.TextureUsageShaderRead);
+		if (target) Msg.vInt(desc, ObjC.sel("setStorageMode:"), MTL.StorageModePrivate);
 		var t = Msg.idPtr(device, ObjC.sel("newTextureWithDescriptor:"), desc);
 		Runtime.objc_release(desc);
 		if (t.isNull()) throw "hxmc.gfx: cannot create a " + d.width + "x" + d.height + " texture";
 		textures.push(t);
-		if (d.data != null) writeTexture(textures.length, d.data, 0, 0, -1, -1, 0);
+		infos.push(info);
+		if (d.data != null) writeTexture(textures.length, d.data, 0, 0, -1, -1, 0, 0);
 		return textures.length;
 	}
 
-	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int) {
-		var t = textures[id - 1];
-		var tw = Msg.i(t, S.width).toInt(), th = Msg.i(t, S.height).toInt();
-		if (w < 0) {
-			w = tw;
-			h = th;
-		}
-		if (x + w > tw || y + h > th) throw "hxmc.gfx: writeTexture: outside the texture";
-		if (dataOffset + w * h * 4 > data.length) throw "hxmc.gfx: writeTexture: data has fewer than w * h * 4 bytes";
+	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
+		var t = textures[id - 1], info = infos[id - 1];
+		info.checkWrite(data, x, y, w, h, dataOffset, level);
+		w = info.w;
+		h = info.h;
+		var n = info.format.texelSize;
 		region.value.origin.x = x;
 		region.value.origin.y = y;
 		region.value.origin.z = 0;
@@ -183,7 +199,22 @@ class MetalBackend {
 		region.value.size.height = h;
 		region.value.size.depth = 1;
 		// (a copy first: the Bytes may move during a message)
-		Arena.scoped(a -> MtlMsg.vRegionIntPtrInt(t, ObjC.sel("replaceRegion:mipmapLevel:withBytes:bytesPerRow:"), region.value, 0, a.copyBytes(data, dataOffset, w * h * 4), w * 4));
+		Arena.scoped(a -> MtlMsg.vRegionIntPtrInt(t, ObjC.sel("replaceRegion:mipmapLevel:withBytes:bytesPerRow:"), region.value, level, a.copyBytes(data, dataOffset, w * h * n), w * n));
+	}
+
+	// a blit in the frame's command buffer (between its passes), else in one of its own
+	public function generateMips(id:Int) {
+		infos[id - 1].checkMips();
+		var own = cmd.isNull();
+		var pool = own ? Runtime.objc_autoreleasePoolPush() : Ptr.nil();
+		var c = own ? Msg.id(queue, S.commandBuffer) : cmd;
+		var blit = Msg.id(c, ObjC.sel("blitCommandEncoder"));
+		Msg.vPtr(blit, ObjC.sel("generateMipmapsForTexture:"), textures[id - 1]);
+		Msg.v(blit, S.endEncoding);
+		if (own) {
+			Msg.v(c, S.commit);
+			Runtime.objc_autoreleasePoolPop(pool);
+		}
 	}
 
 	public function destroyBuffer(id:Int) {
@@ -210,6 +241,7 @@ class MetalBackend {
 		}
 		Msg.vInt(desc, ObjC.sel("setMinFilter:"), f);
 		Msg.vInt(desc, ObjC.sel("setMagFilter:"), f);
+		Msg.vInt(desc, ObjC.sel("setMipFilter:"), d.mipFilter == null ? 0 : d.mipFilter == Nearest ? 1 : 2);
 		Msg.vInt(desc, ObjC.sel("setSAddressMode:"), w);
 		Msg.vInt(desc, ObjC.sel("setTAddressMode:"), w);
 		var s = Msg.idPtr(device, ObjC.sel("newSamplerStateWithDescriptor:"), desc);
@@ -248,7 +280,7 @@ class MetalBackend {
 		Msg.vPtr(desc, ObjC.sel("setVertexFunction:"), shaders[d.vertex.id() - 1]);
 		Msg.vPtr(desc, ObjC.sel("setFragmentFunction:"), shaders[d.fragment.id() - 1]);
 		var color = Msg.idInt(Msg.id(desc, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
-		Msg.vInt(color, ObjC.sel("setPixelFormat:"), MTL.PixelFormatBGRA8Unorm);
+		Msg.vInt(color, ObjC.sel("setPixelFormat:"), d.colorFormat == null ? MTL.PixelFormatBGRA8Unorm : pixelFormat(d.colorFormat));
 		var blend:Blend = d.blend == null ? Opaque : d.blend;
 		if (blend != Opaque) {
 			Msg.vBool(color, ObjC.sel("setBlendingEnabled:"), true);
@@ -259,7 +291,7 @@ class MetalBackend {
 			Msg.vInt(color, ObjC.sel("setDestinationAlphaBlendFactor:"), blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
 			Msg.vInt(color, ObjC.sel("setAlphaBlendOperation:"), MTL.BlendOperationAdd);
 		}
-		Msg.vInt(desc, ObjC.sel("setDepthAttachmentPixelFormat:"), MTL.PixelFormatDepth32Float);
+		Msg.vInt(desc, ObjC.sel("setDepthAttachmentPixelFormat:"), d.depthFormat != null ? pixelFormat(d.depthFormat) : d.colorFormat == null ? MTL.PixelFormatDepth32Float : MTL.PixelFormatInvalid);
 		var vd = make("MTLVertexDescriptor");
 		var attributes = Msg.id(vd, ObjC.sel("attributes")), layouts = Msg.id(vd, ObjC.sel("layouts"));
 		for (slot in 0...d.layout.length) {
@@ -317,8 +349,17 @@ class MetalBackend {
 	}
 
 	public function beginPass(p:PassDesc) {
-		var c = p.colors[0];
-		Msg.vPtr(attachment, S.setTexture, texture);
+		var c = p.colors[0], d = p.depth, w = width, h = height;
+		var depthTexture = depth;
+		if (c.texture != null) {
+			// (a render target, its depth texture or none)
+			var info = infos[c.texture.id() - 1];
+			info.checkPass(d);
+			w = info.width;
+			h = info.height;
+			depthTexture = d == null ? Ptr.nil() : textures[d.texture.id() - 1];
+		}
+		Msg.vPtr(attachment, S.setTexture, c.texture == null ? texture : textures[c.texture.id() - 1]);
 		Msg.vInt(attachment, S.setLoadAction, switch c.load {
 			case Clear: MTL.LoadActionClear;
 			case Load: MTL.LoadActionLoad;
@@ -333,16 +374,15 @@ class MetalBackend {
 			clear.value.alpha = k == null ? 1 : k.a;
 			MtlMsg.vClear(attachment, S.setClearColor, clear.value);
 		}
-		var d = p.depth;
-		Msg.vPtr(depthAttachment, S.setTexture, depth);
+		Msg.vPtr(depthAttachment, S.setTexture, depthTexture);
 		Msg.vInt(depthAttachment, S.setLoadAction, d == null || d.load == Load ? MTL.LoadActionLoad : MTL.LoadActionClear);
 		Msg.vInt(depthAttachment, S.setStoreAction, MTL.StoreActionStore);
 		Msg.vFloat(depthAttachment, S.setClearDepth, d == null || d.clear == null ? 1 : d.clear);
 		enc = Msg.idPtr(cmd, S.renderCommandEncoderWithDescriptor, pass);
 		viewport.value.originX = 0;
 		viewport.value.originY = 0;
-		viewport.value.width = width;
-		viewport.value.height = height;
+		viewport.value.width = w;
+		viewport.value.height = h;
 		viewport.value.znear = 0;
 		viewport.value.zfar = 1;
 		MtlMsg.vViewport(enc, S.setViewport, viewport.value);

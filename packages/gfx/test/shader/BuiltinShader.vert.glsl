@@ -16,9 +16,10 @@ BuiltinVaryings vs(BuiltinVertex v) {
 layout(location = 0) in vec4 in_pos;
 out float v_a;
 out vec2 v_b;
+uniform vec2 u_target;
 void main() {
 	BuiltinVaryings r = vs(BuiltinVertex(in_pos));
-	gl_Position = vec4(r.pos.xy, 2.0 * r.pos.z - r.pos.w, r.pos.w);
+	gl_Position = vec4(r.pos.x, -u_target.y * r.pos.y, 2.0 * r.pos.z - r.pos.w, r.pos.w);
 	v_a = r.a;
 	v_b = r.b;
 }
