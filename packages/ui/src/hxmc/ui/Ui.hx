@@ -607,8 +607,8 @@ class Ui {
 	public function scrollBy(n:Node, dx:Float, dy:Float) {
 		var a = scrolls.get(n);
 		var tx = (a != null ? a[2] : n.scrollX) + dx, ty = (a != null ? a[3] : n.scrollY) + dy;
-		tx = Math.max(0, Math.min(tx, maxScroll(n, true)));
-		ty = Math.max(0, Math.min(ty, maxScroll(n, false)));
+		tx = clampTo(n, true, tx);
+		ty = clampTo(n, false, ty);
 		if (scrollDuration <= 0) {
 			scrollTo(n, tx, ty);
 			return;
@@ -920,20 +920,31 @@ class Ui {
 
 	static function canScroll(n:Node, d:Float, x:Bool):Bool {
 		if (d == 0) return false;
-		var max = maxScroll(n, x);
-		var v = x ? n.scrollX : n.scrollY;
-		return d > 0 ? v < max : v > 0;
+		var lo = scrollStart(n, x), v = x ? n.scrollX : n.scrollY;
+		return d > 0 ? v < lo + maxScroll(n, x) : v > lo;
 	}
 
+	// how far n scrolls on the axis (from scrollStart)
 	static function maxScroll(n:Node, x:Bool):Float {
 		var s = n.style, inset = x ? s.borderEdges.horizontal + s.padding.horizontal : s.borderEdges.vertical + s.padding.vertical;
 		var view = (x ? n.width : n.height) - inset;
 		return Math.max(0, (x ? n.contentWidth : n.contentHeight) - view);
 	}
 
+	// its least offset on the axis: 0, but right to left, sideways, its
+	// content overflows to the left: scrolled from 0 (its right end) down to
+	// less maxScroll, as Chromium's scrollLeft
+	static function scrollStart(n:Node, x:Bool):Float
+		return x && n.rtl() ? -maxScroll(n, true) : 0;
+
+	static inline function clampTo(n:Node, x:Bool, v:Float):Float {
+		var lo = scrollStart(n, x);
+		return Math.max(lo, Math.min(v, lo + maxScroll(n, x)));
+	}
+
 	// a scroller's offsets back within its extent
 	function clampScroll(n:Node) {
-		var x = Math.max(0, Math.min(n.scrollX, maxScroll(n, true))), y = Math.max(0, Math.min(n.scrollY, maxScroll(n, false)));
+		var x = clampTo(n, true, n.scrollX), y = clampTo(n, false, n.scrollY);
 		if (x != n.scrollX || y != n.scrollY) {
 			n.scrollX = x;
 			n.scrollY = y;
@@ -1020,13 +1031,14 @@ class Ui {
 	}
 
 	// a scrollbar's track on axis x (horizontal) or y: its start and length
-	// along the axis (absolute), its offset across it
+	// along the axis (absolute), its offset across it; right to left, the
+	// vertical one on the left, as Chromium has it
 	static function track(n:Node, x:Bool):Array<Float> {
-		var be = n.style.borderEdges, i = SCROLLBAR_INSET;
+		var be = n.style.borderEdges, i = SCROLLBAR_INSET, rtl = n.rtl();
 		// (the other axis's bar, if any, takes the corner)
 		var corner = maxScroll(n, !x) > 0 ? SCROLLBAR + i : 0;
-		return x ? [n.absX + be.left + i, n.width - be.horizontal - 2 * i - corner, n.absY + n.height - be.bottom - i - SCROLLBAR] : [n.absY + be.top + i,
-			n.height - be.vertical - 2 * i - corner, n.absX + n.width - be.right - i - SCROLLBAR];
+		return x ? [n.absX + be.left + i + (rtl ? corner : 0), n.width - be.horizontal - 2 * i - corner, n.absY + n.height - be.bottom - i - SCROLLBAR] : [
+			n.absY + be.top + i, n.height - be.vertical - 2 * i - corner, rtl ? n.absX + be.left + i : n.absX + n.width - be.right - i - SCROLLBAR];
 	}
 
 	static function thumbLength(trackLength:Float, view:Float, content:Float):Float
@@ -1040,7 +1052,7 @@ class Ui {
 		var t = track(n, x);
 		if (t[1] <= 0) return null;
 		var len = thumbLength(t[1], viewSize(n, x), x ? n.contentWidth : n.contentHeight);
-		var at = t[0] + (t[1] - len) * (x ? n.scrollX : n.scrollY) / max;
+		var at = t[0] + (t[1] - len) * ((x ? n.scrollX : n.scrollY) - scrollStart(n, x)) / max;
 		return x ? [at, t[2], len, SCROLLBAR] : [t[2], at, SCROLLBAR, len];
 	}
 
@@ -1094,7 +1106,7 @@ class Ui {
 	}
 
 	function setScroll(n:Node, x:Bool, v:Float) {
-		v = Math.max(0, Math.min(v, maxScroll(n, x)));
+		v = clampTo(n, x, v);
 		if (v == (x ? n.scrollX : n.scrollY)) return;
 		if (x) n.scrollX = v; else n.scrollY = v;
 		if (n.onScroll != null) n.onScroll();

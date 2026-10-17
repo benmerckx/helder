@@ -287,7 +287,8 @@ class Layout {
 			case SpaceEvenly: start = free / 2;
 		}
 		var lineStart = start;
-		var cw = 0.0, ch = 0.0;
+		// (right to left: the content's leftmost edge, what overflows that way scrolled to)
+		var cw = 0.0, ch = 0.0, left = 0.0;
 		for (k in firstLine...lastLine) {
 			var l = lines[k];
 			// stretch, then place along the main axis (justify) and across the line (align)
@@ -344,9 +345,11 @@ class Layout {
 				var ex = cx - padL + cwid + (row ? it.mMainEnd : it.mCrossEnd), ey = cy - padT + chei + (row ? it.mCrossEnd : it.mMainEnd);
 				if (ex > cw) cw = ex;
 				if (ey > ch) ch = ey;
+				if (cx - padL < left) left = cx - padL;
 			}
 			lineStart += l.cross + gapCross + between;
 		}
+		if (rtl) cw = (row ? mainSize : crossSize) - left;
 
 		itemTop = first;
 		lineTop = firstLine;
@@ -444,7 +447,7 @@ class Layout {
 			case SpaceEvenly: Justify.SpaceEvenly;
 			case _: Justify.Start;
 		});
-		var cw = 0.0, ch = 0.0;
+		var cw = 0.0, ch = 0.0, left = 0.0;
 		for (it in items) {
 			var c = it.node, cs = c.style, m = cs.margin;
 			var ax = colPos[it.col], aw = colPos[it.col + it.colSpan - 1] + cols[it.col + it.colSpan - 1] - ax;
@@ -493,7 +496,10 @@ class Layout {
 			c.lh = ih;
 			if (x + iw + m.right > cw) cw = x + iw + m.right;
 			if (y + ih + m.bottom > ch) ch = y + ih + m.bottom;
+			if (x - m.left < left) left = x - m.left;
 		}
+		// (right to left: what overflows on the left, the columns' too)
+		if (rtl) cw = width - Math.min(left, width - gridW);
 		absolutes(n, absolute, bw, bh, padL, padT);
 		n.lw = bw;
 		n.lh = bh;

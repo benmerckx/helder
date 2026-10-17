@@ -30,10 +30,12 @@ class Node {
 	public var height(default, null) = 0.0;
 	public var absX(default, null) = 0.0;
 	public var absY(default, null) = 0.0;
-	// the extent of the children past the padding box's origin (scrolling)
+	// the extent of the children past the padding box's origin (scrolling;
+	// right to left: from its right edge, what overflows on the left)
 	public var contentWidth(default, null) = 0.0;
 	public var contentHeight(default, null) = 0.0;
-	// Overflow Scroll: the children's offset (clamped by Ui to the content)
+	// Overflow Scroll: the children's offset (clamped by Ui to the content;
+	// right to left, scrollX from 0 down: Ui.scrollStart)
 	public var scrollX(default, set) = 0.0;
 	public var scrollY(default, set) = 0.0;
 

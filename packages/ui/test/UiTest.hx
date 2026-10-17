@@ -47,6 +47,7 @@ class UiTest {
 		sticky();
 		stacking();
 		visibility();
+		rtlScroll();
 		culling();
 		selection();
 		fields();
@@ -362,6 +363,40 @@ class UiTest {
 		a.style.visibility = null;
 		ui.update();
 		check("visibility: shown again", painted() == "11,33,22" && ui.root.hitTest(30, 30) == a, painted());
+	}
+
+	// right to left, a row overflowing a scroller overflows on the left:
+	// scrolled there by negative offsets (Chromium's scrollLeft), from 0 at
+	// its right end; the vertical bar on the left
+	static function rtlScroll() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.scrollDuration = 0;
+		var s = new Node("s");
+		s.style.set({width: 100, height: 50, overflow: Scroll, direction: Row, dir: Rtl});
+		for (i in 0...3) {
+			var c = new Node("c" + i);
+			c.style.set({width: 60, height: 20, shrink: 0});
+			s.append(c);
+		}
+		ui.root.append(s);
+		ui.update();
+		var c2 = s.children[2];
+		check("rtl scroll: the content to the left counted", s.contentWidth == 180 && s.scrollX == 0 && c2.absX == -80, s.contentWidth + " " + c2.absX);
+		ui.scrollBy(s, -1000, 0);
+		ui.update();
+		check("rtl scroll: scrolled left to its end", s.scrollX == -80 && ui.root.hitTest(5, 10) == c2, s.scrollX + " " + ui.root.hitTest(5, 10));
+		ui.scrollBy(s, 1000, 0);
+		check("rtl scroll: back to 0 at most", s.scrollX == 0, "" + s.scrollX);
+		// (a column taller than it: its bar on the left)
+		var t = new Node("t");
+		t.style.set({width: 100, height: 50, overflow: Scroll, dir: Rtl});
+		var tall = new Node("tall");
+		tall.style.set({height: 200, shrink: 0});
+		t.append(tall);
+		ui.root.append(t);
+		ui.update();
+		var bar:Array<Float> = @:privateAccess Ui.thumb(t, false);
+		check("rtl scroll: the vertical bar on the left", bar != null && bar[0] == t.absX + Ui.SCROLLBAR_INSET, "" + bar);
 	}
 
 	static function sticky() {

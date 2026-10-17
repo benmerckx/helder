@@ -48,7 +48,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     Scroll), `dir` (Rtl: rows from the right, columns' items across
     from the right, grids' columns from the right, text aligned right by
     default, paragraphs in that direction; inherited; margins and padding
-    stay physical; scrolling still starts at the left), `order` (laid out,
+    stay physical; a scroller's content overflowing to the left scrolled to
+    by negative `scrollX` from 0 at its right end, as Chromium's
+    scrollLeft, its vertical bar on the left), `order` (laid out,
     painted and hit in it; Tab keeps the tree's order), `zIndex` (painted
     and hit over or under siblings; no stacking contexts across levels).
     Sizes are border boxes. Items get CSS's automatic minimum
