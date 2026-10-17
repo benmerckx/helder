@@ -45,7 +45,7 @@ class Mips {
 		// the checks: 4 by 4 of 64 texels, their edges soft (so that GPUs
 		// filter them alike), every level, the first written
 		var b = Bytes.alloc(CHECKS * CHECKS * 4);
-		var wave = [for (i in 0...CHECKS) clamp(3 * Math.cos(Math.PI * (i + 0.5) / 64), -1, 1)];
+		var wave = [for (i in 0...CHECKS) clamp(1.4 * Math.cos(Math.PI * (i + 0.5) / 64), -1, 1)];
 		for (y in 0...CHECKS)
 			for (x in 0...CHECKS) {
 				var c = mix(vec3(0.34, 0.37, 0.42), vec3(0.78, 0.76, 0.7), 0.5 + 0.5 * wave[x] * wave[y]), p = 4 * (y * CHECKS + x);
