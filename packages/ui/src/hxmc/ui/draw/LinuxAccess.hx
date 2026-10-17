@@ -16,7 +16,8 @@ import hxmc.unsafe.*;
 // screen or window pixels, hit tests, focus), Action (a press: Click),
 // Value (a range: stepped toward a value set), Text (a text input's text),
 // Application; their properties through org.freedesktop.DBus.Properties. A
-// change of focus emits StateChanged "focused". libdbus is loaded at run
+// change of focus emits StateChanged "focused", a live region's change
+// Announcement (its new text). libdbus is loaded at run
 // time: without it, or without a bus, there is no adapter (and nothing to
 // adapt to). Messages are dispatched at each turn of the loop (pollAccess).
 class LinuxAccess {
@@ -139,13 +140,34 @@ class LinuxAccess {
 		}
 		var focusChanged = tree != null && tree.focus != t.focus;
 		var was = tree == null ? 0 : tree.focus;
+		var said = t.announcements(tree);
 		tree = t;
 		if (focusChanged) {
 			if (was != 0 && t.nodes.exists(was)) stateChanged(was, "focused", false);
 			if (t.focus != 0) stateChanged(t.focus, "focused", true);
-			DBus.dbus_connection_flush(conn);
 		}
+		for (s in said)
+			announce(s.id, s.text, s.live);
+		if (focusChanged || said.length > 0) DBus.dbus_connection_flush(conn);
 	}
+
+	// a live region's change: Object:Announcement, its text (detail1: the politeness, ATSPI_LIVE_POLITE or _ASSERTIVE)
+	function announce(id:Int, text:String, live:hxmc.ui.access.Live)
+		Arena.scoped(a -> {
+			var s = DBus.dbus_message_new_signal(a.cstring(PREFIX + id), a.cstring("org.a11y.atspi.Event.Object"), a.cstring("Announcement"));
+			var it = a.alloc(128), sub = a.alloc(128);
+			DBus.dbus_message_iter_init_append(s, it);
+			basicString(a, it, "s".code, "");
+			basicInt(a, it, "i".code, live == Assertive ? 2 : 1);
+			basicInt(a, it, "i".code, 0);
+			DBus.dbus_message_iter_open_container(it, "v".code, a.cstring("s"), sub);
+			basicString(a, sub, "s".code, text);
+			DBus.dbus_message_iter_close_container(it, sub);
+			DBus.dbus_message_iter_open_container(it, "a".code, a.cstring("{sv}"), sub);
+			DBus.dbus_message_iter_close_container(it, sub);
+			DBus.dbus_connection_send(conn, s, Ptr.nil());
+			DBus.dbus_message_unref(s);
+		});
 
 	function stateChanged(id:Int, name:String, on:Bool)
 		Arena.scoped(a -> {
@@ -485,8 +507,16 @@ class LinuxAccess {
 					basicInt(a, sub, "u".code, b);
 				DBus.dbus_message_iter_close_container(it, sub);
 			case ["org.a11y.atspi.Accessible", "GetAttributes"]:
-				var sub = a.alloc(128);
+				// (a live region: live and container-live, as Chromium gives them)
+				var sub = a.alloc(128), entry = a.alloc(128), live = n == null ? null : n.live.aria();
 				DBus.dbus_message_iter_open_container(it, "a".code, a.cstring("{ss}"), sub);
+				if (live != null)
+					for (k in ["live", "container-live"]) {
+						DBus.dbus_message_iter_open_container(sub, "e".code, Ptr.nil(), entry);
+						basicString(a, entry, "s".code, k);
+						basicString(a, entry, "s".code, live);
+						DBus.dbus_message_iter_close_container(sub, entry);
+					}
 				DBus.dbus_message_iter_close_container(it, sub);
 			case ["org.a11y.atspi.Accessible", "GetRelationSet"]:
 				var sub = a.alloc(128);

@@ -66,7 +66,7 @@ class AccessTree {
 		var role:Null<Role> = !seen ? null : sem != null ? sem.role : null;
 		if (role == null && seen) {
 			if (Std.isOfType(n, ImageNode)) role = sem != null && sem.label != null ? Image : null else if (Std.isOfType(n, TextNode))
-				role = inName || (cast n : TextNode).allText() == "" ? null : Label else if (n.focusable) role = Group;
+				role = inName || (cast n : TextNode).allText() == "" ? null : Label else if (n.focusable || sem != null && sem.live != Off) role = Group;
 		}
 		var here = parent;
 		if (role != null) {
@@ -87,6 +87,10 @@ class AccessTree {
 				a.mixed = sem.mixed;
 				a.selected = sem.selected;
 				a.multiselectable = sem.multiselectable;
+				if (sem.live != Off) {
+					a.live = sem.live;
+					a.liveText = textOf(n);
+				}
 				a.expanded = sem.expanded;
 				a.level = sem.level;
 				a.disabled = sem.disabled;
@@ -116,7 +120,6 @@ class AccessTree {
 				visit(c, here, sx, sy, named, seen, ui);
 	}
 
-	// the text of the TextNodes in n (space separated)
 	// whether it or an ancestor has a transform
 	static function transformed(n:Null<Node>):Bool {
 		while (n != null) {
@@ -126,7 +129,8 @@ class AccessTree {
 		return false;
 	}
 
-	static function textOf(n:Node):String {
+	// the text of the TextNodes in n (space separated): a name from content
+	public static function textOf(n:Node):String {
 		var parts = [];
 		function walk(m:Node) {
 			// (hidden text, a decoration such as a menu's triangle, is not part of the name)
@@ -156,6 +160,23 @@ class AccessTree {
 			for (id in prev.order)
 				if (!nodes.exists(id)) removed.push(id);
 		return {nodes: changed, removed: removed, root: root, focus: focus};
+	}
+
+	// what the live regions say since prev: each one there before whose text
+	// changed, its new text (what was added at its end, when it grew)
+	public function announcements(prev:Null<AccessTree>):Array<{id:Int, text:String, live:Live}> {
+		var out = [];
+		if (prev == null) return out;
+		for (id in order) {
+			var a = nodes.get(id);
+			if (a.live == Off) continue;
+			var b = prev.nodes.get(id);
+			if (b == null || b.liveText == a.liveText || a.liveText == null || a.liveText == "") continue;
+			var old = b.liveText ?? "", text = a.liveText;
+			if (old != "" && StringTools.startsWith(text, old)) text = StringTools.trim(text.substr(old.length));
+			if (text != "") out.push({id: id, text: text, live: a.live});
+		}
+		return out;
 	}
 
 	// changes as JSON (the browser adapter's update): null when nothing changed

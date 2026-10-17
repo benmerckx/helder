@@ -27,6 +27,7 @@ class LinuxAccessTest implements Markup {
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
 			<Field tag="name" value={name} placeholder="Name"/>
+			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var start = haxe.Timer.stamp();
 		var frames = 0, lazy = false;

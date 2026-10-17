@@ -19,7 +19,8 @@ import hxmc.unsafe.*;
 // focusability, focus, enabled state, automation id; navigation by the
 // tree; bounds in screen pixels; actions (invoke, toggle, a value set,
 // focus) come back as Ui.accessAction. A change of focus raises UI
-// Automation's focus event.
+// Automation's focus event, a live region's change (LiveSetting) its
+// LiveRegionChanged event.
 class WinAccess {
 	static inline var SLOTS = 7;
 	static inline var BLOCK = 16 * SLOTS + 16;
@@ -125,8 +126,11 @@ class WinAccess {
 				for (k in t.nodes.get(id).children)
 					parents.set(k, id);
 		}
+		var said = t.announcements(tree);
 		tree = t;
 		if (focusChanged && t.focus != 0 && Uia.UiaClientsAreListening() != 0) Uia.UiaRaiseAutomationEvent(block(t.focus), 20005); // UIA_AutomationFocusChangedEventId
+		for (s in said)
+			if (Uia.UiaClientsAreListening() != 0) Uia.UiaRaiseAutomationEvent(block(s.id), 20024); // UIA_LiveRegionChangedEventId
 	}
 
 	// the root's provider (IRawElementProviderSimple; tests)
@@ -288,6 +292,7 @@ class WinAccess {
 			case 30011: str(v, "hxmc-" + n.id); // AutomationId
 			case 30016 | 30017: bool(v, true); // IsControlElement, IsContentElement
 			case 30019: bool(v, n.secret); // IsPassword
+			case 30135 if (n.live != Off): int(v, n.live == Assertive ? 2 : 1); // LiveSetting (Polite, Assertive)
 			case 30045 if (n.value != null): str(v, n.value); // Value.Value
 			case _:
 		}

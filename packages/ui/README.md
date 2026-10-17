@@ -260,8 +260,12 @@ comctl32 5's classic look until a visual styles manifest) and AppKit run
 model: roles, names, states, actions) from the nodes: each node's
 `semantics` (in markup: `role`, `label`, `description`, `checked`,
 `selected`, `expanded`, `disabled`, `value-now`, `value-min`,
-`value-max`, `value-text`), text as labels, focusable nodes as groups; the
-widgets declare theirs. `Ui.accessTree()` gives it, `AccessTree.changes`
+`value-max`, `value-text`, `multiselectable`, `live`), text as labels,
+focusable nodes as groups; the widgets declare theirs. A live region
+(`live="polite"` or `"assertive"`) has its changes announced
+(`AccessTree.announcements`: its new text): ARIA's aria-live, AT-SPI's
+Announcement, UI Automation's LiveRegionChanged, macOS's announcement
+request; the toaster says each toast through one. `Ui.accessTree()` gives it, `AccessTree.changes`
 the incremental update, `Ui.accessAction` does what a screen reader asks
 (click, focus, increment, decrement, set a value). In a browser the window
 mirrors it as ARIA elements inside its canvas (the canvas's fallback

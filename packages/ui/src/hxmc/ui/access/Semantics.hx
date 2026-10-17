@@ -3,7 +3,7 @@ package hxmc.ui.access;
 // What a node declares about itself for assistive technology (Node.semantics;
 // in markup, the attributes role, label, description, checked, selected,
 // expanded, level, disabled, value-now, value-min, value-max, value-text,
-// multiselectable, hidden). Unset
+// multiselectable, live, hidden). Unset
 // fields say nothing: a TextNode is a Label of its text, an ImageNode an
 // Image, a focusable node a Group.
 @:structInit class Semantics {
@@ -28,6 +28,9 @@ package hxmc.ui.access;
 	public var valueText(default, set):Null<String> = null;
 	// a password's text: shown and given to assistive technology as dots
 	public var secret(default, set):Bool = false;
+	// a region whose changes are announced (its text when it changes; a Group
+	// when it has no role of its own)
+	public var live(default, set):Live = Off;
 	// left out with its subtree (decoration)
 	public var hidden(default, set):Bool = false;
 
@@ -60,6 +63,11 @@ package hxmc.ui.access;
 	function set_multiselectable(v:Bool):Bool {
 		if (v != multiselectable) hxmc.ui.Ui.accessEpoch++;
 		return multiselectable = v;
+	}
+
+	function set_live(v:Live):Live {
+		if (v != live) hxmc.ui.Ui.accessEpoch++;
+		return live = v;
 	}
 
 	function set_mixed(v:Bool):Bool {

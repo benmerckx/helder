@@ -16,7 +16,8 @@ import hxmc.unsafe.*;
 // answers its children, which element has the focus and which is under a
 // point. Nothing is built until assistive technology first asks the view
 // one of those; from then on updated after each frame from what changed
-// (AccessTree.changes), all the frames again when the window moved.
+// (AccessTree.changes), all the frames again when the window moved; a live
+// region's change is an announcement (AXAnnouncementRequested).
 class MacAccess {
 	static var elementClass = Ptr.nil();
 	static var viewClass = Ptr.nil();
@@ -120,6 +121,13 @@ class MacAccess {
 			}
 		}
 		if (tree != null) post(view, "AXLayoutChanged");
+		// (a live region's change: an announcement, high priority for an assertive one)
+		for (s in t.announcements(tree)) {
+			var info = Msg.id(ObjC.cls("NSMutableDictionary"), ObjC.sel("dictionary"));
+			Msg.idPtrPtr(info, ObjC.sel("setObject:forKey:"), str(s.text), str("AXAnnouncementKey"));
+			Msg.idPtrPtr(info, ObjC.sel("setObject:forKey:"), number(s.live == Assertive ? 90 : 50), str("AXPriorityKey"));
+			AppKitAccess.NSAccessibilityPostNotificationWithUserInfo(view, str("AXAnnouncementRequested"), info);
+		}
 		Runtime.objc_autoreleasePoolPop(pool);
 		tree = t;
 	}
@@ -313,4 +321,5 @@ class MacAccess {
 // AppKit's accessibility function
 @:hxmc.c @:hxmc.lib("/System/Library/Frameworks/AppKit.framework/AppKit") extern class AppKitAccess {
 	static function NSAccessibilityPostNotification(element:Ptr, notification:Ptr):Void;
+	static function NSAccessibilityPostNotificationWithUserInfo(element:Ptr, notification:Ptr, userInfo:Ptr):Void;
 }

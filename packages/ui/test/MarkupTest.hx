@@ -74,6 +74,7 @@ class MarkupTest implements Markup {
 		colorPicker();
 		sortable();
 		rangeSlider();
+		liveRegions();
 		focusTips();
 		virtual();
 		table();
@@ -482,8 +483,10 @@ class MarkupTest implements Markup {
 		check("sortable: a list, one Tab stop", ui.root.find("s").semantics.role == List && item("a").focusable && !item("b").focusable);
 		ui.setFocus(item("a"));
 		key(Key.DOWN, Key.MOD_ALT);
-		check("sortable: Alt+Down moves the item, the focus with it", items.value.join("") == "bacd" && ui.focus == item("a") && item("a").focusable
-			&& !item("b").focusable && item("a").absY > item("b").absY, items.value.join(""));
+		var live:TextNode = cast ui.root.find("s-live").children[0];
+		check("sortable: Alt+Down moves the item, the focus with it, a live region says it", items.value.join("") == "bacd" && ui.focus == item("a")
+			&& item("a").focusable && !item("b").focusable && item("a").absY > item("b").absY && live.text == "Moved a to position 2 of 4",
+			items.value.join("") + " " + live.text);
 		key(Key.DOWN);
 		key(Key.UP, Key.MOD_ALT);
 		key(Key.UP, Key.MOD_ALT);
@@ -540,6 +543,33 @@ class MarkupTest implements Markup {
 		check("range slider: right to left, the minimum at the right; two sliders, each bounded by the other",
 			a.absX == r.absX + 116 - 16 && b.absX == r.absX && sliders.length == 2 && sliders[0].valueMax == 1 && sliders[1].valueMin == 0
 			&& sliders[0].name == "Price: minimum", a.absX - r.absX + " " + (b.absX - r.absX) + " " + sliders.length);
+	}
+
+	static function liveRegions() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var msg = signal("");
+		Render.render(<view padding={10}><view tag="status" live="polite"><text>{msg}</text></view><Toaster/></view>, ui.root);
+		ui.update();
+		var t0 = ui.accessTree();
+		msg.value = "Saved";
+		ui.update();
+		var t1 = ui.accessTree();
+		var said = t1.announcements(t0);
+		var region = [for (id in t1.order) if (t1.nodes.get(id).live == Polite) t1.nodes.get(id)];
+		check("live: a region's new text announced, politely", said.length == 1 && said[0].text == "Saved" && said[0].live == Polite
+			&& region.length == 2 && region[0].toJson().live == "polite" && region[0].role == Group, [for (s in said) s.text].join("|"));
+		msg.value = "Saved and synced";
+		ui.update();
+		var t2 = ui.accessTree();
+		check("live: what was added at its end; nothing when nothing changed", [for (s in t2.announcements(t1)) s.text].join("|") == "and synced"
+			&& ui.accessTree().announcements(t2).length == 0, [for (s in t2.announcements(t1)) s.text].join("|"));
+		hxmc.ui.widgets.Toasts.show("Deleted 3 files");
+		ui.update();
+		var t3 = ui.accessTree();
+		check("live: a toast announced (the toaster's region, there before it)", [for (s in t3.announcements(t2)) s.text].join("|") == "Deleted 3 files",
+			[for (s in t3.announcements(t2)) s.text].join("|"));
+		for (t in hxmc.ui.widgets.Toasts.shown.peek().copy())
+			hxmc.ui.widgets.Toasts.close(t);
 	}
 
 	static function password() {

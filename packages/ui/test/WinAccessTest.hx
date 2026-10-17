@@ -50,6 +50,7 @@ class WinAccessTest implements Markup {
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
 			<Field tag="name" value={name} placeholder="Name"/>
+			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var step = 0;
 		var out:Ptr<Ptr> = LibC.malloc(8), v:Ptr = LibC.malloc(24), d:Ptr<Float> = LibC.malloc(32), i32:Ptr<Int32> = LibC.malloc(4);
@@ -91,9 +92,10 @@ class WinAccessTest implements Markup {
 					}
 					var simples = [for (k in kids) qi(k, SIMPLE)];
 					var shape = [for (s in simples) prop(s, 30005) + ":" + prop(s, 30003)];
-					check("the children: names and control types", shape.join(",") == "Settings:50020,Save:50000,Remember:50002,Volume:50015,Name:50004", shape.join(","));
-					if (simples.length == 5) {
+					check("the children: names and control types", shape.join(",") == "Settings:50020,Save:50000,Remember:50002,Volume:50015,Name:50004,:50026", shape.join(","));
+					if (simples.length == 6) {
 						check("focusable and enabled", prop(simples[1], 30009) == "true" && prop(simples[1], 30010) == "true");
+						check("a live region's LiveSetting (Polite)", prop(simples[5], 30135) == "1", prop(simples[5], 30135));
 						Fragment.get_BoundingRectangle(kids[1], d);
 						check("bounds in screen pixels", d[2] > 20 && d[3] > 10, '${d[2]}x${d[3]}');
 						out.value = Ptr.nil();

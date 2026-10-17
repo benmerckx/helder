@@ -24,6 +24,9 @@ package hxmc.ui.access;
 	public var valueMin:Null<Float> = null;
 	public var valueMax:Null<Float> = null;
 	public var valueText:Null<String> = null;
+	// a live region (Semantics.live) and its text, as announced when it changes
+	public var live:Live = Off;
+	public var liveText:Null<String> = null;
 	// the box in window pixels
 	public var x:Float = 0;
 	public var y:Float = 0;
@@ -34,7 +37,7 @@ package hxmc.ui.access;
 	// the same as another (an incremental update leaves it out)
 	public function equals(o:AccessNode):Bool {
 		if (o.role != role || o.name != name || o.description != description || o.value != value || o.secret != secret || o.checked != checked || o.mixed != mixed || o.selected != selected
-			|| o.multiselectable != multiselectable
+			|| o.multiselectable != multiselectable || o.live != live || o.liveText != liveText
 			|| o.expanded != expanded || o.level != level || o.disabled != disabled || o.focusable != focusable || o.valueNow != valueNow || o.valueMin != valueMin
 			|| o.valueMax != valueMax || o.valueText != valueText || o.x != x || o.y != y || o.width != width || o.height != height
 			|| o.children.length != children.length)
@@ -65,6 +68,7 @@ package hxmc.ui.access;
 		if (valueMin != null) o.valueMin = valueMin;
 		if (valueMax != null) o.valueMax = valueMax;
 		if (valueText != null) o.valueText = valueText;
+		if (live != Off) o.live = live.aria();
 		if (role == MultilineTextInput) o.multiline = true;
 		return o;
 	}

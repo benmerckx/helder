@@ -10,6 +10,7 @@ import hxmc.view.Flow.*;
 import hxmc.ui.view.UiFlow.*;
 import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Toasts;
+import hxmc.ui.access.AccessTree;
 
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
 typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
@@ -1011,7 +1012,7 @@ class Widgets implements Markup {
 	// move it), Alt+Up and Alt+Down move it in the list. onMove: after a
 	// move, the item and its new index
 	public static function Sortable<T>(props:{items:Signal<Array<T>>, render:T->Any, ?onMove:(T, Int)->Void, ?label:String, ?tag:String}):View {
-		var tag = props.tag ?? "sortable", active = signal(0), refs:Array<{item:T, node:Null<Node>}> = [];
+		var tag = props.tag ?? "sortable", active = signal(0), refs:Array<{item:T, node:Null<Node>}> = [], said = signal("");
 		// (where a drop goes: 2 * the item's index, plus 1 after it; -1: nowhere), whether one is dragged
 		var over = signal(-1), held = signal(false);
 		function nodeOf(item:T):Null<Node> {
@@ -1040,8 +1041,11 @@ class Widgets implements Markup {
 		function key(e:Event, item:T) {
 			var list = props.items.peek(), i = list.indexOf(item), alt = e.mods & Key.MOD_ALT != 0;
 			switch e.key {
-				case Key.UP if (alt): move(item, i - 1);
-				case Key.DOWN if (alt): move(item, i + 2);
+				case Key.UP | Key.DOWN if (alt):
+					move(item, e.key == Key.UP ? i - 1 : i + 2);
+					// (said: where it went, its text as assistive technology names it)
+					var n = nodeOf(item), at = props.items.peek().indexOf(item);
+					if (at != i && n != null) said.value = "Moved " + AccessTree.textOf(n) + " to position " + (at + 1) + " of " + list.length;
 				case Key.UP | Key.DOWN | Key.HOME | Key.END:
 					var j = e.key == Key.UP ? i - 1 : e.key == Key.DOWN ? i + 1 : e.key == Key.HOME ? 0 : list.length - 1;
 					if (j < 0 || j >= list.length) return;
@@ -1052,6 +1056,7 @@ class Widgets implements Markup {
 			e.preventDefault();
 		}
 		return <view tag={tag} role="list" label={props.label} description="Alt+Up and Alt+Down move an item" row-gap={4}>
+			<view tag={tag + "-live"} position="absolute" width={0} height={0} overflow="hidden" live="polite"><text>{said}</text></view>
 			<For each={props.items} render={(item:T) -> {
 				var at = () -> props.items.value.indexOf(item), entry:{item:T, node:Null<Node>} = {item: item, node: null};
 				refs.push(entry);
@@ -1487,7 +1492,13 @@ class Widgets implements Markup {
 		var tag = props.tag ?? "toaster";
 		function mark(kind:String):String
 			return kind == "success" ? t().success : kind == "error" ? t().danger : t().accent;
-		return <Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
+		// (a live region, always there and of no size, saying the newest toast: assistive technology announces it)
+		return <view tag={tag + "-live"} position="absolute" width={0} height={0} overflow="hidden" live="polite">
+			<text>{() -> {
+				var shown = Toasts.shown.value;
+				shown.length == 0 ? "" : shown[shown.length - 1].text;
+			}}</text>
+			<Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
 			<view tag={tag + "-list"} width={props.width ?? 320.0} row-gap={8} onPointerEnter={_ -> Toasts.paused = true}
 				onPointerLeave={_ -> Toasts.paused = false}>
 				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" role="group" label={toast.text} direction="row" align-items="center"
@@ -1503,7 +1514,8 @@ class Widgets implements Markup {
 						onClick={_ -> Toasts.close(toast)}>×</view>
 				</view>}/>
 			</view>
-		</Popover>;
+		</Popover>
+		</view>;
 	}
 
 	// a number field bound to a signal: its value as text (format; else as
