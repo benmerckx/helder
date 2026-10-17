@@ -3448,6 +3448,93 @@
 		}
 	},
 	{
+		"name": "absolute shrink-to-fit",
+		"width": 200,
+		"height": 200,
+		"tree": {
+			"style": {
+				"width": 120
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"position": "Absolute",
+						"left": 5,
+						"top": 0
+					},
+					"children": [
+						{
+							"style": {
+								"width": 60,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 70,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"position": "Absolute",
+						"left": 30,
+						"top": 40
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 20,
+								"minWidth": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"position": "Absolute",
+						"right": 0,
+						"top": 80,
+						"columnGap": 10
+					},
+					"children": [
+						{
+							"style": {
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"minWidth": 0,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"shrink": 0
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "shrink by the content-box base size",
 		"width": 200,
 		"height": 60,

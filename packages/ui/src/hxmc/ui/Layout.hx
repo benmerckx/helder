@@ -957,10 +957,23 @@ class Layout {
 			aw = clamp(aw, Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
 			ah = clamp(ah, Math.max(min(cs.minHeight, pbH), edgesV(cs)), max(cs.maxHeight, pbH));
 			if (!known(aw) || !known(ah)) {
-				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit the containing block)
-				size(c, aw, ah, pbW, pbH, known(aw) ? aw : pbW, known(ah) ? ah : Math.NaN, false);
+				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit
+				// the room its offsets and margins leave, not below its min-content width)
+				var room = Math.max(0, pbW - (known(l) ? l : 0) - (known(r) ? r : 0) - m.left - m.right);
+				var fit = !known(aw), fixedH = known(ah);
+				size(c, aw, ah, pbW, pbH, known(aw) ? aw : room, known(ah) ? ah : Math.NaN, false);
 				aw = rw;
 				ah = rh;
+				if (fit && aw >= room - 1e-6) {
+					var mc = clamp(minContentWidth(c, pbW, false), Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
+					if (mc > aw) {
+						aw = mc;
+						if (!fixedH) {
+							size(c, aw, Math.NaN, pbW, pbH, aw, Math.NaN, false);
+							ah = rh;
+						}
+					}
+				}
 			}
 			// (neither offset: its static position, as if it were the container's only
 			// item: justify along the main axis, its alignment across, in the content box)
