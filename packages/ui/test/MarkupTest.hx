@@ -222,8 +222,9 @@ class MarkupTest implements Markup {
 
 	static function rightToLeft() {
 		var ui = new Ui(new MonoText(), 300, 200);
-		var dir = signal("rtl");
+		var dir = signal("rtl"), vol = signal(0.0);
 		Render.render(<view dir={dir} padding={10} row-gap={6}>
+			<Slider tag="vol" value={vol} width={100} step={0.1}/>
 			<view tag="row" direction="row" column-gap={4}><view tag="a" width={40} height={20}/><view tag="b" width={30} height={20}/></view>
 			<text tag="words">Hello</text>
 		</view>, ui.root);
@@ -231,6 +232,12 @@ class MarkupTest implements Markup {
 		var a = ui.root.find("a"), b = ui.root.find("b"), words = ui.root.find("words");
 		check("rtl: a row from the right, in markup (dir=\"rtl\")", a.absX == 300 - 10 - 40 && b.absX == a.absX - 4 - 30, a.absX + " " + b.absX);
 		check("rtl: text aligned to the right by default", words.textAlign() == Right);
+		var slider = ui.root.find("vol"), knob = slider.children[1].children[1];
+		check("rtl: a slider's minimum at the right", knob.absX == slider.absX + 100 - 16, knob.absX + " " + slider.absX);
+		ui.setFocus(slider);
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("rtl: Left raises a slider, its knob moves left", vol.value == 0.1 && knob.absX < slider.absX + 100 - 16, vol.value + " " + knob.absX);
 		dir.value = "ltr";
 		ui.update();
 		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);

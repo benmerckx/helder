@@ -69,8 +69,8 @@ class Widgets implements Markup {
 			}}>
 			<view width={36} height={20} radius={10} padding={2} direction="row"
 				background={Motion.color(() -> props.on.value ? t().accent : t().track)}>
-				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"
-					position="relative" left={Motion.transition(() -> props.on.value ? 16 : 0)}/>
+				<view width={Motion.transition(() -> props.on.value ? 16 : 0)}/>
+				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"/>
 			</view>
 			{props.label}
 		</view>;
@@ -89,21 +89,21 @@ class Widgets implements Markup {
 			props.value.value = v;
 		}
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
+		// (right to left: the minimum at the right)
 		function at(e:Event) {
-			var n = e.current;
-			set(lo + (n.localX(e.x, e.y) - knob / 2) / (w - knob) * (hi - lo));
+			var n = e.current, x = n.localX(e.x, e.y);
+			if (n.rtl()) x = w - x;
+			set(lo + (x - knob / 2) / (w - knob) * (hi - lo));
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		return <view tag={props.tag ?? "slider"} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo} value-max={hi}
 			width={w} height={knob + 4} focusable cursor="pointer" justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
 			onKeyDown={e -> switch e.key {
-				case Key.LEFT | Key.DOWN:
+				case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
 					e.preventDefault();
-					set(props.value.value - keyStep);
-				case Key.RIGHT | Key.UP:
-					e.preventDefault();
-					set(props.value.value + keyStep);
+					var less = e.key == Key.DOWN || (e.key == Key.LEFT) != e.current.rtl();
+					set(props.value.value + (less ? -keyStep : keyStep));
 				case Key.HOME:
 					e.preventDefault();
 					set(lo);
@@ -115,8 +115,11 @@ class Widgets implements Markup {
 			<view height={4} radius={2} margin={[0, knob / 2]} overflow="hidden" direction="row" background={() -> t().track}>
 				<view width={() -> (frac() * 100) + "%"} background={() -> t().accent}/>
 			</view>
-			<view position="absolute" top={2} left={() -> frac() * (w - knob)} width={knob} height={knob} radius={knob / 2} background={() -> t().knob}
-				border-width={1} border-color={() -> t().border} shadow="0 1 2 #00000033"/>
+			<view position="absolute" top={2} left={0} width={w} direction="row">
+				<view width={() -> frac() * (w - knob)}/>
+				<view width={knob} height={knob} radius={knob / 2} background={() -> t().knob} border-width={1} border-color={() -> t().border}
+					shadow="0 1 2 #00000033"/>
+			</view>
 		</view>;
 	}
 
