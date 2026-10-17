@@ -72,9 +72,10 @@ class Jni {
 	static var loader = Ptr.nil();
 
 	// a class by its Java name (android.widget.Button), a global reference
-	// kept for the process: through the activity's class loader, which knows
-	// the app's classes (FindClass from a callback of the system's looper
-	// would ask the system's loader, which does not)
+	// kept for the process: through the app's class loader (the activity's
+	// getClassLoader), which knows classes.dex's (FindClass from a callback of
+	// the system's looper would ask the system's loader, and NativeActivity's
+	// own class is the framework's)
 	public static function cls(name:String):Ptr {
 		var c = classes.get(name);
 		if (c != null) return c;
@@ -82,8 +83,7 @@ class Jni {
 		if (loader.isNull()) {
 			args = LibC.malloc(64);
 			var ac = JniEnv.GetObjectClass(e, activity);
-			var classClass = JniEnv.GetObjectClass(e, ac);
-			loader = JniEnv.NewGlobalRef(e, obj(ac, method(classClass, "getClassLoader", "()Ljava/lang/ClassLoader;")));
+			loader = JniEnv.NewGlobalRef(e, obj(activity, method(ac, "getClassLoader", "()Ljava/lang/ClassLoader;")));
 			loadClass = method(JniEnv.GetObjectClass(e, loader), "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 		}
 		var s = string(name);
