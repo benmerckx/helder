@@ -594,6 +594,17 @@
 		[0, 0, 40, 80],
 		[0, 85, 40, 80]
 	],
+	"absolute static position: justify and align": [
+		[0, 0, 200, 150],
+		[5, 65, 30, 20],
+		[85, 126, 30, 20],
+		[164, 65, 30, 20]
+	],
+	"absolute static position in a reversed row": [
+		[0, 0, 200, 100],
+		[80, 80, 40, 20],
+		[85, 70, 30, 30]
+	],
 	"row intrinsic width without flex-basis": [
 		[0, 0, 300, 100],
 		[0, 0, 130, 30],

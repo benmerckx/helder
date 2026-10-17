@@ -2932,6 +2932,79 @@
 		}
 	},
 	{
+		"name": "absolute static position: justify and align",
+		"width": 200,
+		"height": 150,
+		"tree": {
+			"style": {
+				"justify": "SpaceEvenly",
+				"alignItems": "Center",
+				"padding": [
+					2,
+					6
+				]
+			},
+			"children": [
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"position": "Absolute",
+						"left": 5
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"position": "Absolute",
+						"bottom": 4
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"position": "Absolute",
+						"alignSelf": "End"
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "absolute static position in a reversed row",
+		"width": 200,
+		"height": 100,
+		"tree": {
+			"style": {
+				"direction": "RowReverse",
+				"justify": "Center",
+				"alignItems": "End"
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20,
+						"position": "Absolute"
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 30,
+						"position": "Absolute",
+						"margin": [
+							0,
+							10
+						]
+					}
+				}
+			]
+		}
+	},
+	{
 		"name": "row intrinsic width without flex-basis",
 		"width": 300,
 		"height": 100,

@@ -931,15 +931,48 @@ class Layout {
 				aw = rw;
 				ah = rh;
 			}
-			// (neither offset: where its content box starts, the right right to left)
-			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : rtl ? pbW - s.padding.right - aw - m.right : padL - be.left + m.left;
-			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : padT - be.top + m.top;
+			// (neither offset: its static position, as if it were the container's only
+			// item: justify along the main axis, its alignment across, in the content box)
+			var cx = padL - be.left, cy = padT - be.top;
+			var cw = pbW - s.padding.left - s.padding.right, ch = pbH - s.padding.top - s.padding.bottom;
+			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : cx + m.left
+				+ staticOffset(n, c, true, cw - aw - m.left - m.right);
+			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : cy + m.top + staticOffset(n, c, false, ch - ah - m.top - m.bottom);
 			c.lx = be.left + ax;
 			c.ly = be.top + ay;
 			size(c, aw, ah, pbW, pbH, aw, ah, true);
 			c.lw = aw;
 			c.lh = ah;
 		}
+	}
+
+	// an absolute child's static position on an axis (across: horizontal):
+	// its offset in the container's content box, free the room left on that
+	// axis, as the container's only flex item (in a grid: at the start, or the
+	// right right to left)
+	static function staticOffset(n:Node, c:Node, across:Bool, free:Float):Float {
+		var s = n.style, rtl = n.rtl();
+		if (s.display == Grid) return across && rtl ? free : 0;
+		var row = s.direction == Row || s.direction == RowReverse, reverse = s.direction == RowReverse || s.direction == ColumnReverse;
+		var main = across == row, k:Float;
+		if (main) {
+			k = switch s.justify {
+				case End: 1;
+				case Center | SpaceAround | SpaceEvenly: 0.5;
+				case _: 0;
+			}
+			// (the main axis's start: the right in a row right to left, the far end reversed)
+			if ((row && rtl) != reverse) k = 1 - k;
+		} else {
+			var a = c.style.alignSelf == Auto ? s.alignItems : c.style.alignSelf;
+			k = switch a {
+				case End: 1;
+				case Center: 0.5;
+				case _: 0;
+			}
+			if (across && rtl) k = 1 - k;
+		}
+		return free * k;
 	}
 
 	// the min-content width of a node's border box (CSS: its words unbroken,
