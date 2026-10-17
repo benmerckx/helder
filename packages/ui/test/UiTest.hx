@@ -1490,6 +1490,13 @@ static function transitions() {
 			"pop"
 		];
 		check("paint: calls", c.calls.join("|") == want.join("|"), c.calls.join("|"));
+		// (a ring and its offset: over the shadow, as Tailwind composes them; each from its own property)
+		a.style.set({ringWidth: 3, ringColor: Color.rgb(0xFF0000), ringOffsetWidth: 2});
+		var r = new Recording();
+		ui.paint(r);
+		check("paint: a ring and its offset over the shadow", r.calls[0] == want[0] && r.calls[1] == "shadow 5 5 110 60 13 ffff0000 0"
+			&& r.calls[2] == "shadow 8 8 104 54 10 ffffffff 0" && r.calls[3] == want[1], r.calls.slice(0, 4).join("|"));
+		a.style.set({ringWidth: 0, ringOffsetWidth: 0});
 		var sh = Shadow.parse("0 4");
 		check("paint: Shadow.parse defaults", sh.x == 0 && sh.y == 4 && sh.blur == 0 && sh.spread == 0 && sh.color == 0x40000000);
 		var threw = try {

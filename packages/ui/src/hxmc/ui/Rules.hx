@@ -220,6 +220,8 @@ class Rules {
 		s.borderColor = resolve(s.borderColor, tokens, current, dark);
 		if (s.color != null) s.color = resolve(s.color, tokens, current, dark);
 		if (s.outlineColor != null) s.outlineColor = resolve(s.outlineColor, tokens, current, dark);
+		if (s.ringColor != null) s.ringColor = resolve(s.ringColor, tokens, current, dark);
+		s.ringOffsetColor = resolve(s.ringOffsetColor, tokens, current, dark);
 		if (s.textDecorationColor != null) s.textDecorationColor = resolve(s.textDecorationColor, tokens, current, dark);
 		if (s.shadow != null) s.shadow = resolveShadow(s.shadow, tokens, current, dark);
 		if (s.textShadow != null) s.textShadow = resolveShadow(s.textShadow, tokens, current, dark);

@@ -13,7 +13,7 @@ package hxmc.ui;
 // others jump. A node's first style does not ease, as CSS's does not.
 class Transition {
 	// the Style properties that ease (as Style names them)
-	public static final EASED = ["background", "color", "borderColor", "outlineColor", "textDecorationColor", "opacity", "transform", "shadow"];
+	public static final EASED = ["background", "color", "borderColor", "outlineColor", "textDecorationColor", "opacity", "transform", "shadow", "ringColor", "ringWidth"];
 
 	// the properties (Style's names; "all": every one that eases), each with its own timing (several: CSS's lists)
 	public final properties:Array<String>;
@@ -38,6 +38,8 @@ class Transition {
 	// the timing of property (a Style name), null when it does not ease: its duration, delay, easing
 	public function timing(property:String):Null<{duration:Float, delay:Float, easing:Array<Float>}> {
 		var k = properties.lastIndexOf(property);
+		// (a ring is a box-shadow to CSS)
+		if (k < 0 && (property == "ringColor" || property == "ringWidth")) k = properties.lastIndexOf("shadow");
 		if (k < 0) k = properties.lastIndexOf("all");
 		if (k < 0 || EASED.indexOf(property) < 0) return null;
 		var d = durations[k % durations.length];
@@ -167,7 +169,7 @@ class Transition {
 	// a value of property between from and to (k: 0 to 1, eased)
 	public static function between(property:String, from:Dynamic, to:Dynamic, k:Float):Dynamic
 		return switch property {
-			case "opacity": (from : Float) + ((to : Float) - (from : Float)) * k;
+			case "opacity" | "ringWidth": (from : Float) + ((to : Float) - (from : Float)) * k;
 			case "transform": Transform.between(from, to, k);
 			case "shadow": Shadow.between(from, to, k);
 			case _: Color.between(from, to, k);

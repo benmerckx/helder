@@ -232,7 +232,7 @@ class Ui {
 		}
 		// (the shadows outside: the last one first, under the others; not
 		// under the box, as CSS clips them, unless its background hides them)
-		var shadows = s.shadow == null || hidden ? null : s.shadow.painted();
+		var shadows = hidden ? null : s.paintedShadows();
 		var opaque = s.background.a == 255 && s.backgroundImage == null;
 		if (shadows != null)
 			for (sh in shadows) {

@@ -169,6 +169,17 @@ class Style {
 	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
 	public var outlineStyle(get, set):Null<OutlineStyle>;
 
+	// a ring around the border box (Tailwind's ring: a box-shadow of no
+	// blur, ringWidth wide, in ringColor, null: the text's; ringInset:
+	// inside), outside a gap of ringOffsetWidth in ringOffsetColor; drawn
+	// with the shadows as Tailwind composes them, the offset over the ring
+	// over the shadow, so that each comes from its own rule
+	public var ringWidth(get, set):Float;
+	public var ringColor(get, set):Null<Color>;
+	public var ringOffsetWidth(get, set):Float;
+	public var ringOffsetColor(get, set):Color;
+	public var ringInset(get, set):Bool;
+
 	// how the node and its subtree are drawn and hit, not laid out (Transform.parse; null: none)
 	public var transform(get, set):Null<Transform>;
 
@@ -373,6 +384,76 @@ class Style {
 
 	inline function get_outlineStyle():Null<OutlineStyle>
 		return rare == null ? null : rare.outlineStyle;
+
+	inline function get_ringWidth():Float
+		return rare == null ? 0 : rare.ringWidth;
+
+	inline function get_ringColor():Null<Color>
+		return rare == null ? null : rare.ringColor;
+
+	inline function get_ringOffsetWidth():Float
+		return rare == null ? 0 : rare.ringOffsetWidth;
+
+	inline function get_ringOffsetColor():Color
+		return rare == null ? Color.WHITE : rare.ringOffsetColor;
+
+	inline function get_ringInset():Bool
+		return rare == null ? false : rare.ringInset;
+
+	function set_ringWidth(v:Float):Float {
+		if (rare != null && rare.transition != null && eases("ringWidth", ringWidth, v)) return v;
+		if (v == ringWidth) return v;
+		more().ringWidth = v;
+		ringed();
+		return v;
+	}
+
+	function set_ringColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("ringColor", ringColor, v)) return v;
+		if (v == ringColor) return v;
+		more().ringColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_ringOffsetWidth(v:Float):Float {
+		if (v == ringOffsetWidth) return v;
+		more().ringOffsetWidth = v;
+		ringed();
+		return v;
+	}
+
+	function set_ringOffsetColor(v:Color):Color {
+		if (v == ringOffsetColor) return v;
+		more().ringOffsetColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_ringInset(v:Bool):Bool {
+		if (v == ringInset) return v;
+		more().ringInset = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	// (how far outside its box a ring draws: the paint's culling widens bounds by the most seen, as for shadows)
+	function ringed() {
+		Ui.shadowReach = Math.max(Ui.shadowReach, ringWidth + ringOffsetWidth + 1);
+		node.styleChanged(false);
+	}
+
+	// its shadows as drawn, the last (the lowest) first: its ring and the
+	// ring's offset over its shadow (null: none)
+	public function paintedShadows():Null<Array<Shadow>> {
+		var r = rare;
+		if (r == null || r.ringWidth <= 0 && r.ringOffsetWidth <= 0) return r == null || r.shadow == null ? null : r.shadow.painted();
+		var all = r.shadow == null ? [] : r.shadow.painted();
+		if (r.ringWidth > 0)
+			all.push({spread: r.ringWidth + r.ringOffsetWidth, color: r.ringColor ?? node.textColor(), inset: r.ringInset});
+		if (r.ringOffsetWidth > 0) all.push({spread: r.ringOffsetWidth, color: r.ringOffsetColor, inset: r.ringInset});
+		return all;
+	}
 
 	function set_outlineStyle(v:Null<OutlineStyle>):Null<OutlineStyle> {
 		if (v == outlineStyle) return v;
@@ -1235,6 +1316,11 @@ class Style {
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
 		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
+		if (p.ringWidth != null) ringWidth = p.ringWidth;
+		if (p.ringColor != null) ringColor = p.ringColor;
+		if (p.ringOffsetWidth != null) ringOffsetWidth = p.ringOffsetWidth;
+		if (p.ringOffsetColor != null) ringOffsetColor = p.ringOffsetColor;
+		if (p.ringInset != null) ringInset = p.ringInset;
 		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
 		if (p.gap != null) gap = p.gap;
@@ -1299,6 +1385,11 @@ private class StyleRare {
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
 	public var outlineStyle:Null<OutlineStyle> = null;
+	public var ringWidth:Float = 0;
+	public var ringColor:Null<Color> = null;
+	public var ringOffsetWidth:Float = 0;
+	public var ringOffsetColor:Color = Color.WHITE;
+	public var ringInset = false;
 	public var pointerEvents:Null<PointerEvents> = null;
 	public var textWrap:Null<TextWrap> = null;
 	public var overflowWrap:Null<OverflowWrap> = null;

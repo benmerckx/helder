@@ -121,7 +121,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     box's grown, as Chromium draws it; BoxTest compares them), `outlineStyle`
     (`Auto`, the default: the window's focus ring while focused by the
     keyboard; `Solid`: only the outline; `None`: neither, as CSS's
-    `outline-style: none`), corner radii scaled down together where a side's
+    `outline-style: none`), `ringWidth`, `ringColor`, `ringOffsetWidth`,
+    `ringOffsetColor`, `ringInset` (Tailwind's ring: spread shadows of no
+    blur over the node's own `shadow`, the offset over the ring, each from
+    its own property or rule), corner radii scaled down together where a side's
     two add up to more than it (as CSS: `9999` a pill), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
