@@ -1,7 +1,9 @@
 package hxmc.gfx;
 
-// the swapchain's colour target for now (render textures later)
+// a pass's colour target: the frame's, or a render target
+// (TextureDesc.renderTarget) of the pipelines' colorFormat
 typedef ColorTarget = {
 	load:LoadOp,
-	?clear:Color
+	?clear:Color,
+	?texture:Texture
 }

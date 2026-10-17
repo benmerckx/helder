@@ -42,7 +42,8 @@ class Cube {
 	final pipeline:Pipeline;
 	final backdropPipeline:Pipeline;
 	final shadowPipeline:Pipeline;
-	final texture:Texture;
+	// what the cube's faces show (Targets.hx: a render target)
+	public var texture:Texture;
 	final sampler:Sampler;
 	final pass:PassDesc = {colors: [{load: Clear, clear: new Color(0.1, 0.1, 0.12)}], depth: {load: Clear}};
 	// the uniform blocks' bytes, written each frame

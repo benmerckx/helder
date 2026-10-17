@@ -19,10 +19,10 @@ Fade make_Fade(float f0) {
 	return s;
 }
 float4 tinted(Texture2D t, SamplerState t_smp, float2 uv) {
-	return t.SampleLevel(t_smp, uv * 2.0, 0.0) * float4(1.0, 0.5, 0.5, 1.0);
+	return t.Sample(t_smp, uv * 2.0) * float4(1.0, 0.5, 0.5, 1.0);
 }
 float4 fs(TexVaryings i, Fade fade, Texture2D albedo, SamplerState albedo_smp, Texture2D height, SamplerState height_smp) {
-	return lerp(tinted(albedo, albedo_smp, i.uv), height.SampleLevel(height_smp, i.uv, 0.0), ((float4)fade.amount)) * i.lift;
+	return lerp(tinted(albedo, albedo_smp, i.uv), height.SampleLevel(height_smp, i.uv, 1.5), ((float4)fade.amount)) * i.lift;
 }
 cbuffer Fade_block : register(b1) {
 	float u_1_amount : packoffset(c0);

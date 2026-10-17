@@ -1,6 +1,7 @@
-// The triangle, the cube and the instances on WebGPU, then on WebGL2 (forced: browser.mjs's
-// option gfx: 'webgl2'), in headless Chromium (make gfx-web-check), against
-// triangle.png, cube.png and instances.png with GfxTest's rule (compare.mjs): WebTest.wasm (WebTest.hx)
+// The examples' scenes (Scene.hx: triangle, cube, instances, targets, mips,
+// formats; SCENES=a,b for some) on WebGPU, then on WebGL2 (forced:
+// browser.mjs's option gfx: 'webgl2'), in headless Chromium (make
+// gfx-web-check), against <scene>.png with GfxTest's rule (compare.mjs): WebTest.wasm (WebTest.hx)
 // headless (on WebGL2 also Device.readPixels, whose checksum must be the
 // harness's), then in a 256x192 canvas, whose frames come from the
 // browser's loop after main returned; then the canvas is resized (a Resize
@@ -40,6 +41,9 @@ const files = {
 	'/triangle.png': path.join(here, 'triangle.png'),
 	'/cube.png': path.join(here, 'cube.png'),
 	'/instances.png': path.join(here, 'instances.png'),
+	'/targets.png': path.join(here, 'targets.png'),
+	'/mips.png': path.join(here, 'mips.png'),
+	'/formats.png': path.join(here, 'formats.png'),
 };
 const types = { '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png' };
 const page = `<!doctype html><title>WebTest</title>
@@ -79,7 +83,8 @@ const url = `http://localhost:${server.address().port}/`;
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
-for (const [scene, gfx, mode] of ['triangle', 'cube', 'instances'].flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']])) {
+const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['triangle', 'cube', 'instances', 'targets', 'mips', 'formats'];
+for (const [scene, gfx, mode] of scenes.flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']])) {
 	const p = await browser.newPage({ viewport: { width: 400, height: 300 } });
 	const errors = [];
 	p.on('pageerror', (e) => errors.push(e.message));

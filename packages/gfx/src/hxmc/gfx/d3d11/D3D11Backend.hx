@@ -17,7 +17,9 @@ import hxmc.unsafe.*;
 // SPIRV-Cross names them); a 32-bit float depth buffer of the target's
 // size; a pipeline's state objects (rasterizer, depth, blend) made with it.
 // A texture at slot n is a shader resource view at tn and its sampler at
-// sn, in both stages.
+// sn, in both stages. A render target has a render target view (a depth
+// texture a depth-stencil view, its texture typeless), bound by a pass into
+// it and unbound at its end; a texture of mip levels can GenerateMips.
 // readPixels copies the target into a staging texture
 // and maps it. Uniform blocks: with Direct3D 11.1's constant buffer offsets
 // (VSSetConstantBuffers1; WARP has them), a dynamic ring buffer written
@@ -67,6 +69,7 @@ class D3D11Backend {
 	// draw state
 	var pipeline:D3DPipeline = null;
 	var dirty = true;
+	var offscreen = false; // the pass is into a texture
 	// uniform blocks: the ID3D11DeviceContext1 (nil: no constant buffer
 	// offsets), its ring and the next offset into it; else a buffer per slot
 	var context1 = Ptr.nil();
@@ -246,51 +249,87 @@ class D3D11Backend {
 	}
 
 	public function createTexture(d:TextureDesc):Int {
+		// (a depth texture: typeless, its depth-stencil view and shader resource view typed)
+		var info = TextureInfo.of(d), format = info.format, levels = info.levels, target = info.target;
+		var depth = format.depth, mips = levels > 1 && format.filterable;
 		var hr = Arena.scopedValue(a -> {
 			var t = a.make(D3D11_TEXTURE2D_DESC);
-			t.value.Width = d.width;
-			t.value.Height = d.height;
-			t.value.MipLevels = 1;
+			t.value.Width = info.width;
+			t.value.Height = info.height;
+			t.value.MipLevels = levels;
 			t.value.ArraySize = 1;
-			t.value.Format = D3D.FORMAT_R8G8B8A8_UNORM;
+			t.value.Format = switch format {
+				case RGBA8: D3D.FORMAT_R8G8B8A8_UNORM;
+				case RGBA8Srgb: D3D.FORMAT_R8G8B8A8_UNORM_SRGB;
+				case R8: D3D.FORMAT_R8_UNORM;
+				case RG8: D3D.FORMAT_R8G8_UNORM;
+				case RGBA16F: D3D.FORMAT_R16G16B16A16_FLOAT;
+				case R32F: D3D.FORMAT_R32_FLOAT;
+				case Depth16: D3D.FORMAT_R16_TYPELESS;
+				case Depth32F: D3D.FORMAT_R32_TYPELESS;
+			}
 			t.value.SampleCount = 1;
 			t.value.Usage = D3D.USAGE_DEFAULT;
-			t.value.BindFlags = D3D.BIND_SHADER_RESOURCE;
-			var init:Ptr<D3D11_SUBRESOURCE_DATA> = Ptr.nil();
-			if (d.data != null) {
-				init = a.make(D3D11_SUBRESOURCE_DATA);
-				init.value.pSysMem = a.copyBytes(d.data, 0, d.width * d.height * 4);
-				init.value.SysMemPitch = d.width * 4;
-			}
-			ID3D11Device.CreateTexture2D(device, t, init, scratch);
+			// (GenerateMips draws into the levels)
+			t.value.BindFlags = D3D.BIND_SHADER_RESOURCE | (depth ? D3D.BIND_DEPTH_STENCIL : target || mips ? D3D.BIND_RENDER_TARGET : 0);
+			t.value.MiscFlags = mips ? D3D.RESOURCE_MISC_GENERATE_MIPS : 0;
+			ID3D11Device.CreateTexture2D(device, t, Ptr.nil(), scratch);
 		});
-		check(hr, "CreateTexture2D (" + d.width + "x" + d.height + ")");
+		check(hr, "CreateTexture2D (" + info.width + "x" + info.height + ")");
 		var tex = scratch.value;
-		hr = ID3D11Device.CreateShaderResourceView(device, tex, Ptr.nil(), scratch);
-		if (hr < 0) Com.release(tex);
+		var t = new D3DTexture(tex, info);
+		textures.push(t);
+		hr = Arena.scopedValue(a -> {
+			var v:Ptr<Int32> = Ptr.nil();
+			if (depth) {
+				v = a.alloc(32);
+				LibC.memset(v, 0, 32);
+				v[0] = format == Depth16 ? D3D.FORMAT_R16_UNORM : D3D.FORMAT_R32_FLOAT;
+				v[1] = D3D.SRV_DIMENSION_TEXTURE2D;
+				v[3] = levels; // (Texture2D.MostDetailedMip, MipLevels)
+			}
+			ID3D11Device.CreateShaderResourceView(device, tex, v, scratch);
+		});
 		check(hr, "CreateShaderResourceView");
-		textures.push(new D3DTexture(tex, scratch.value, d.width, d.height));
+		t.view = scratch.value;
+		if (depth) {
+			hr = Arena.scopedValue(a -> {
+				var v:Ptr<Int32> = a.alloc(32);
+				LibC.memset(v, 0, 32);
+				v[0] = format == Depth16 ? D3D.FORMAT_D16_UNORM : D3D.FORMAT_D32_FLOAT;
+				v[1] = D3D.DSV_DIMENSION_TEXTURE2D;
+				ID3D11Device.CreateDepthStencilView(device, tex, v, scratch);
+			});
+			check(hr, "CreateDepthStencilView");
+			t.dsv = scratch.value;
+		} else if (target) {
+			check(ID3D11Device.CreateRenderTargetView(device, tex, Ptr.nil(), scratch), "CreateRenderTargetView");
+			t.rtv = scratch.value;
+		}
+		if (d.data != null) writeTexture(textures.length, d.data, 0, 0, -1, -1, 0, 0);
 		return textures.length;
 	}
 
-	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int) {
-		var t = textures[id - 1];
-		if (w < 0) {
-			w = t.width;
-			h = t.height;
-		}
-		if (x + w > t.width || y + h > t.height) throw "hxmc.gfx: writeTexture: outside the texture";
-		if (dataOffset + w * h * 4 > data.length) throw "hxmc.gfx: writeTexture: data has fewer than w * h * 4 bytes";
+	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
+		var t = textures[id - 1], info = t.info;
+		info.checkWrite(data, x, y, w, h, dataOffset, level);
+		var n = info.format.texelSize;
 		Arena.scoped(a -> {
 			var box = a.make(D3D11_BOX);
 			box.value.left = x;
 			box.value.top = y;
 			box.value.front = 0;
-			box.value.right = x + w;
-			box.value.bottom = y + h;
+			box.value.right = x + info.w;
+			box.value.bottom = y + info.h;
 			box.value.back = 1;
-			ID3D11DeviceContext.UpdateSubresource(context, t.texture, 0, box, a.copyBytes(data, dataOffset, w * h * 4), w * 4, 0);
+			ID3D11DeviceContext.UpdateSubresource(context, t.texture, level, box, a.copyBytes(data, dataOffset, info.w * info.h * n), info.w * n, 0);
 		});
+	}
+
+	public function generateMips(id:Int) {
+		var t = textures[id - 1];
+		t.info.checkMips();
+		ID3D11DeviceContext.GenerateMips(context, t.view);
 	}
 
 	public function destroyBuffer(id:Int) {
@@ -302,15 +341,14 @@ class D3D11Backend {
 	public function destroyTexture(id:Int) {
 		var t = textures[id - 1];
 		if (t == null) return;
-		Com.release(t.view);
-		Com.release(t.texture);
+		t.release();
 		textures[id - 1] = null;
 	}
 
 	public function createSampler(d:SamplerDesc):Int {
 		var hr = Arena.scopedValue(a -> {
 			var s = a.make(D3D11_SAMPLER_DESC);
-			s.value.Filter = d.filter == Nearest ? D3D.FILTER_MIN_MAG_MIP_POINT : D3D.FILTER_MIN_MAG_MIP_LINEAR;
+			s.value.Filter = (d.filter == Nearest ? D3D.FILTER_MIN_MAG_MIP_POINT : 0x14) | (d.mipFilter == Linear ? 1 : 0);
 			var w = switch d.wrap {
 				case null | Repeat: D3D.TEXTURE_ADDRESS_WRAP;
 				case Clamp: D3D.TEXTURE_ADDRESS_CLAMP;
@@ -327,7 +365,8 @@ class D3D11Backend {
 			s.value.BorderColor2 = 0;
 			s.value.BorderColor3 = 0;
 			s.value.MinLOD = 0;
-			s.value.MaxLOD = 3.402823466e38;
+			// (no mip filter: the first level only)
+			s.value.MaxLOD = d.mipFilter == null ? 0 : 3.402823466e38;
 			ID3D11Device.CreateSamplerState(device, s, scratch);
 		});
 		check(hr, "CreateSamplerState");
@@ -464,26 +503,34 @@ class D3D11Backend {
 
 	public function beginPass(p:PassDesc) {
 		// (a flip-model swap chain unbinds its buffer at each Present)
-		scratch.value = view;
-		ID3D11DeviceContext.OMSetRenderTargets(context, 1, scratch, depthView);
+		var c = p.colors[0], d = p.depth, rtv = view, dsv = depthView, w = width, h = height;
+		offscreen = c.texture != null;
+		if (offscreen) {
+			var t = textures[c.texture.id() - 1];
+			t.info.checkPass(d);
+			rtv = t.rtv;
+			dsv = d == null ? Ptr.nil() : textures[d.texture.id() - 1].dsv;
+			w = t.info.width;
+			h = t.info.height;
+		}
+		scratch.value = rtv;
+		ID3D11DeviceContext.OMSetRenderTargets(context, 1, scratch, dsv);
 		viewport.value.TopLeftX = 0;
 		viewport.value.TopLeftY = 0;
-		viewport.value.Width = width;
-		viewport.value.Height = height;
+		viewport.value.Width = w;
+		viewport.value.Height = h;
 		viewport.value.MinDepth = 0;
 		viewport.value.MaxDepth = 1;
 		ID3D11DeviceContext.RSSetViewports(context, 1, viewport);
-		var c = p.colors[0];
 		if (c.load != Load) {
 			var k = c.clear;
 			clear[0] = k == null ? 0 : k.r;
 			clear[1] = k == null ? 0 : k.g;
 			clear[2] = k == null ? 0 : k.b;
 			clear[3] = k == null ? 1 : k.a;
-			ID3D11DeviceContext.ClearRenderTargetView(context, view, clear);
+			ID3D11DeviceContext.ClearRenderTargetView(context, rtv, clear);
 		}
-		var d = p.depth;
-		if (d != null && d.load != Load) ID3D11DeviceContext.ClearDepthStencilView(context, depthView, D3D.CLEAR_DEPTH, d.clear == null ? 1 : d.clear, 0);
+		if (d != null && d.load != Load) ID3D11DeviceContext.ClearDepthStencilView(context, dsv, D3D.CLEAR_DEPTH, d.clear == null ? 1 : d.clear, 0);
 		pipeline = null;
 		dirty = true;
 	}
@@ -593,7 +640,10 @@ class D3D11Backend {
 		dirty = false;
 	}
 
-	public function endPass() {}
+	// (a render target: unbound, so that it can be sampled next)
+	public function endPass() {
+		if (offscreen) ID3D11DeviceContext.OMSetRenderTargets(context, 0, Ptr.nil(), Ptr.nil());
+	}
 
 	public function endFrame() {
 		if (swapChain.isNull()) {
@@ -611,8 +661,6 @@ class D3D11Backend {
 		if (dst.length < row * height) throw "hxmc.gfx: readPixels: " + row * height + " bytes needed";
 		if (stagingWidth != width || stagingHeight != height) {
 			Com.release(staging);
-		Com.release(depthView);
-		Com.release(depth);
 			Arena.scoped(a -> {
 				var d = a.make(D3D11_TEXTURE2D_DESC);
 				d.value.Width = width;
@@ -655,15 +703,15 @@ class D3D11Backend {
 			Com.release(b);
 		for (b in slotBuffers)
 			Com.release(b);
-		for (t in textures) {
-			Com.release(t.view);
-			Com.release(t.texture);
-		}
+		for (t in textures)
+			if (t != null) t.release();
 		for (s in samplers)
 			Com.release(s);
 		Com.release(ring);
 		Com.release(context1);
 		Com.release(staging);
+		Com.release(depthView);
+		Com.release(depth);
 		Com.release(view);
 		Com.release(target);
 		Com.release(swapChain);
@@ -696,18 +744,25 @@ private class D3DShader {
 	}
 }
 
-// a texture and its shader resource view
+// a texture, its shader resource view and, a render target, its render
+// target view or depth-stencil view
 private class D3DTexture {
 	public final texture:Ptr;
-	public final view:Ptr;
-	public final width:Int;
-	public final height:Int;
+	public final info:TextureInfo;
+	public var view = Ptr.nil();
+	public var rtv = Ptr.nil();
+	public var dsv = Ptr.nil();
 
-	public function new(texture:Ptr, view:Ptr, width:Int, height:Int) {
+	public function new(texture:Ptr, info:TextureInfo) {
 		this.texture = texture;
-		this.view = view;
-		this.width = width;
-		this.height = height;
+		this.info = info;
+	}
+
+	public function release() {
+		Com.release(dsv);
+		Com.release(rtv);
+		Com.release(view);
+		Com.release(texture);
 	}
 }
 

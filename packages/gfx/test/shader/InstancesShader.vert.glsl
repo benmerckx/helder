@@ -33,9 +33,10 @@ layout(location = 3) in float in_angle;
 layout(location = 4) in vec3 in_color;
 out vec3 v_color;
 out vec2 v_corner;
+uniform vec2 u_target;
 void main() {
 	InstanceVaryings r = vs(InstanceVertex(in_corner, in_at, in_size, in_angle, in_color), InstanceField(u_0.scale, u_0.time));
-	gl_Position = vec4(r.pos.xy, 2.0 * r.pos.z - r.pos.w, r.pos.w);
+	gl_Position = vec4(r.pos.x, -u_target.y * r.pos.y, 2.0 * r.pos.z - r.pos.w, r.pos.w);
 	v_color = r.color;
 	v_corner = r.corner;
 }

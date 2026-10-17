@@ -33,6 +33,19 @@ const BLENDS = [
 const INFO_LOG_LENGTH = 0x8b84; // (GL's, not WebGL's)
 const RING = 256 * 1024; // the uniform ring (Encoder.UNIFORM_RING)
 const UNIFORM = 0, TEXTURE = 1; // BindingKind
+// TextureFormat: WebGPU's, bytes a texel; R32F and the depth formats are unfilterable from R32F on
+const TEXTURE_FORMATS = ['rgba8unorm', 'rgba8unorm-srgb', 'r8unorm', 'rg8unorm', 'rgba16float', 'r32float', 'depth16unorm', 'depth32float'];
+const TEXEL = [4, 4, 1, 2, 8, 4, 2, 4];
+const R32F = 5, DEPTH16 = 6;
+// generateMips: a level drawn from the one before, sampled at its texels' centres
+const MIPS = `@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var smp: sampler;
+struct V { @builtin(position) pos: vec4f, @location(0) uv: vec2f }
+@vertex fn vs(@builtin(vertex_index) i: u32) -> V {
+	let uv = vec2f(f32((i << 1u) & 2u), f32(i & 2u));
+	return V(vec4f(uv * vec2f(2, -2) + vec2f(-1, 1), 0, 1), uv);
+}
+@fragment fn fs(v: V) -> @location(0) vec4f { return textureSampleLevel(src, smp, v.uv, 0.0); }`;
 
 export default async function (host) {
 	let adapter = null, device = null;
@@ -48,7 +61,10 @@ export default async function (host) {
 	// pipeline_attribute and pipeline_binding give them
 	let layout = [], resources = [];
 	// the frame
-	let encoder = null, texture = null, frameTarget = null, pass = null;
+	let encoder = null, texture = null, frameTarget = null, frameView = null, pass = null;
+	// generateMips: its pipeline per format, its sampler
+	const mipPipelines = new Map();
+	let mipSampler = null;
 	// the uniform ring: the frame's blocks, copied at set_uniforms and written
 	// to the GPU buffer before the frame's submit (which the queue orders
 	// after the previous frames' reads); each slot's offset, for the bind group
@@ -110,7 +126,14 @@ export default async function (host) {
 	function bind() {
 		if (!dirty) return;
 		dirty = false;
-		const c = pipe;
+		// (an unfilterable texture bound: the pipeline made for those slots)
+		let mask = 0;
+		for (const t of pipe.textures) if (handles.get(textures[t.slot])?.unfilterable) mask |= 1 << t.slot;
+		const c = pipe.variants.get(mask) ?? variant(pipe, mask);
+		if (c !== pipe.active) {
+			pipe.active = c;
+			pass.setPipeline(c.pipeline);
+		}
 		let key = '';
 		for (const t of c.textures) key += textures[t.slot] + ':' + samplers[t.slot] + ',';
 		let group = c.groups.get(key);
@@ -124,6 +147,29 @@ export default async function (host) {
 		}
 		for (let i = 0; i < c.uniforms.length; i++) c.offsets[i] = offsets[c.uniforms[i].slot];
 		pass.setBindGroup(0, group, c.offsets);
+	}
+
+	// a pipeline's bind group layout: uniform blocks at dynamic offsets, a
+	// texture at its slot and its sampler at 16 + slot (in mask: an
+	// unfilterable texture and a non-filtering sampler)
+	function bindGroupLayout(resources, mask) {
+		const visibility = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
+		const entries = [];
+		for (const r of resources)
+			if (r.kind === UNIFORM) entries.push({ binding: r.slot, visibility, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: r.size } });
+			else {
+				const plain = (mask & (1 << r.slot)) === 0;
+				entries.push({ binding: r.slot, visibility, texture: { sampleType: plain ? 'float' : 'unfilterable-float' } }, { binding: 16 + r.slot, visibility, sampler: { type: plain ? 'filtering' : 'non-filtering' } });
+			}
+		return entries.length ? device.createBindGroupLayout({ entries }) : null;
+	}
+
+	// the pipeline p for unfilterable textures at the slots of mask
+	function variant(p, mask) {
+		const bgl = bindGroupLayout(p.resources, mask);
+		const v = { ...p.base, pipeline: device.createRenderPipeline({ ...p.desc, layout: device.createPipelineLayout({ bindGroupLayouts: [bgl] }) }), bgl, groups: new Map() };
+		p.variants.set(mask, v);
+		return v;
 	}
 
 	const hxmc_gfx = {
@@ -154,19 +200,49 @@ export default async function (host) {
 			return handles.add(b);
 		},
 		write_buffer: (b, offset, data, size) => device.queue.writeBuffer(handles.get(b), offset, host.bytes(data, size)),
-		texture(width, height, data) {
-			const texture = device.createTexture({ size: [width, height], format: 'rgba8unorm', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
-			if (data) device.queue.writeTexture({ texture }, host.bytes(data, width * height * 4), { bytesPerRow: width * 4 }, [width, height]);
-			return handles.add({ texture, view: texture.createView() });
+		texture(width, height, format, levels, target, data) {
+			// (a mip chain's levels are drawn by generate_mips)
+			const usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
+			const texture = device.createTexture({ size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, usage });
+			const t = { texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format], unfilterable: format >= R32F, depth: format >= DEPTH16 };
+			if (data) device.queue.writeTexture({ texture }, host.bytes(data, width * height * t.texel), { bytesPerRow: width * t.texel }, [width, height]);
+			return handles.add(t);
 		},
-		write_texture(t, x, y, w, h, data) {
-			const { texture } = handles.get(t);
-			if (w < 0) [x, y, w, h] = [0, 0, texture.width, texture.height];
-			device.queue.writeTexture({ texture, origin: [x, y] }, host.bytes(data, w * h * 4), { bytesPerRow: w * 4 }, [w, h]);
+		write_texture(h, x, y, w, height, level, data) {
+			const t = handles.get(h);
+			device.queue.writeTexture({ texture: t.texture, mipLevel: level, origin: [x, y] }, host.bytes(data, w * height * t.texel), { bytesPerRow: w * t.texel }, [w, height]);
 		},
-		sampler(filter, wrap) {
+		generate_mips(h) {
+			const t = handles.get(h), { texture } = t;
+			let pipeline = mipPipelines.get(texture.format);
+			if (!pipeline) {
+				const module = device.createShaderModule({ code: MIPS });
+				pipeline = device.createRenderPipeline({ layout: 'auto', vertex: { module, entryPoint: 'vs' }, fragment: { module, entryPoint: 'fs', targets: [{ format: texture.format }] } });
+				mipPipelines.set(texture.format, pipeline);
+				mipSampler ??= device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+			}
+			// (each level's view and the bind group reading the one before, made once)
+			if (!t.mips) {
+				const views = [];
+				for (let i = 0; i < texture.mipLevelCount; i++) views.push(texture.createView({ baseMipLevel: i, mipLevelCount: 1 }));
+				t.mips = views.slice(1).map((view, i) => ({
+					attachments: [{ view, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 0 } }],
+					group: device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [{ binding: 0, resource: views[i] }, { binding: 1, resource: mipSampler }] }),
+				}));
+			}
+			const enc = encoder ?? device.createCommandEncoder();
+			for (const m of t.mips) {
+				const p = enc.beginRenderPass({ colorAttachments: m.attachments });
+				p.setPipeline(pipeline);
+				p.setBindGroup(0, m.group);
+				p.draw(3);
+				p.end();
+			}
+			if (!encoder) device.queue.submit([enc.finish()]);
+		},
+		sampler(filter, mip, wrap) {
 			const f = filter ? 'linear' : 'nearest', w = WRAPS[wrap];
-			return handles.add(device.createSampler({ magFilter: f, minFilter: f, addressModeU: w, addressModeV: w }));
+			return handles.add(device.createSampler({ magFilter: f, minFilter: f, mipmapFilter: mip === 2 ? 'linear' : 'nearest', lodMaxClamp: mip ? 32 : 0, addressModeU: w, addressModeV: w }));
 		},
 		shader(code) {
 			const module = device.createShaderModule({ code: host.string(code) });
@@ -188,31 +264,29 @@ export default async function (host) {
 		pipeline_binding(slot, kind, size) {
 			resources.push({ slot, kind, size });
 		},
-		pipeline_end(vertex, fragment, target, topology, cull, blend, depthCompare, depthWrite) {
-			// (a bind group: uniform blocks at dynamic offsets, a texture at its slot and its sampler at 16 + slot)
-			const visibility = GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT;
-			const entries = [];
-			for (const r of resources)
-				if (r.kind === UNIFORM) entries.push({ binding: r.slot, visibility, buffer: { type: 'uniform', hasDynamicOffset: true, minBindingSize: r.size } });
-				else entries.push({ binding: r.slot, visibility, texture: { sampleType: 'float' } }, { binding: 16 + r.slot, visibility, sampler: { type: 'filtering' } });
+		pipeline_end(vertex, fragment, target, topology, cull, blend, depthCompare, depthWrite, colorFormat, depthFormat) {
 			const uniforms = resources.filter((r) => r.kind === UNIFORM).sort((a, b) => a.slot - b.slot);
-			const bgl = entries.length ? device.createBindGroupLayout({ entries }) : null;
-			const pipeline = device.createRenderPipeline({
-				layout: bgl ? device.createPipelineLayout({ bindGroupLayouts: [bgl] }) : 'auto',
+			const bgl = bindGroupLayout(resources, 0);
+			const desc = {
 				vertex: { module: handles.get(vertex), entryPoint: 'main', buffers: layout },
-				fragment: { module: handles.get(fragment), entryPoint: 'main', targets: [{ format: handles.get(target).format, blend: BLENDS[blend] }] },
-				depthStencil: { format: 'depth32float', depthWriteEnabled: !!depthWrite, depthCompare: COMPARES[depthCompare] },
+				fragment: { module: handles.get(fragment), entryPoint: 'main', targets: [{ format: colorFormat < 0 ? handles.get(target).format : TEXTURE_FORMATS[colorFormat], blend: BLENDS[blend] }] },
+				depthStencil: depthFormat < 0 ? undefined : { format: TEXTURE_FORMATS[depthFormat], depthWriteEnabled: !!depthWrite, depthCompare: COMPARES[depthCompare] },
 				// (GL's front faces)
 				primitive: { topology: TOPOLOGIES[topology], cullMode: CULLS[cull], frontFace: 'ccw' },
-			});
-			return handles.add({ pipeline, bgl, uniforms, textures: resources.filter((r) => r.kind === TEXTURE), groups: new Map(), offsets: new Uint32Array(uniforms.length) });
+			};
+			const pipeline = device.createRenderPipeline({ ...desc, layout: bgl ? device.createPipelineLayout({ bindGroupLayouts: [bgl] }) : 'auto' });
+			// (base: what its variants share, variant())
+			const base = { uniforms, textures: resources.filter((r) => r.kind === TEXTURE), offsets: new Uint32Array(uniforms.length) };
+			const p = { ...base, pipeline, bgl, groups: new Map(), base, desc, resources, variants: new Map(), active: null };
+			p.variants.set(0, p);
+			return handles.add(p);
 		},
 		frame_begin(target) {
 			const t = handles.get(target);
 			texture = t.texture ?? t.context.getCurrentTexture();
 			if (texture.width === 0 || texture.height === 0) return 0;
 			frameTarget = t;
-			attachment.view = texture.createView();
+			frameView = texture.createView();
 			// (the depth buffer, of the target's size)
 			if (!t.depth || t.depth.width !== texture.width || t.depth.height !== texture.height) {
 				t.depth?.destroy();
@@ -223,8 +297,13 @@ export default async function (host) {
 			encoder = device.createCommandEncoder();
 			return 1;
 		},
-		pass_begin(load, r, g, b, a, depthLoad, depth) {
+		pass_begin(color, load, r, g, b, a, depthTexture, depthLoad, depth) {
+			// (a render target: its first level, and its depth texture or none)
+			const t = color ? handles.get(color) : null, d = depthTexture ? handles.get(depthTexture) : null;
+			attachment.view = t ? t.target : frameView;
 			attachment.loadOp = LOADS[load];
+			depthAttachment.view = t ? d?.target : frameTarget.depthView;
+			passDesc.depthStencilAttachment = depthAttachment.view ? depthAttachment : undefined;
 			depthAttachment.depthLoadOp = LOADS[depthLoad];
 			depthAttachment.depthClearValue = depth;
 			const c = attachment.clearValue;
@@ -233,10 +312,12 @@ export default async function (host) {
 			c.b = b;
 			c.a = a;
 			pass = encoder.beginRenderPass(passDesc);
-			pass.setViewport(0, 0, texture.width, texture.height, 0, 1);
+			const size = t ? t.texture : texture;
+			pass.setViewport(0, 0, size.width, size.height, 0, 1);
 		},
 		set_pipeline(p) {
 			pipe = handles.get(p);
+			pipe.active = pipe;
 			pass.setPipeline(pipe.pipeline);
 			dirty = !!pipe.bgl;
 		},
@@ -275,7 +356,7 @@ export default async function (host) {
 			device.queue.submit([encoder.finish()]);
 			pixels?.().then((px) => waiting.forEach((w) => w.resolve(px)), (e) => waiting.forEach((w) => w.reject(e)));
 			encoder = null;
-			attachment.view = null;
+			attachment.view = frameView = null;
 			depthAttachment.view = null;
 			texture = null;
 		},
@@ -339,6 +420,8 @@ export default async function (host) {
 			// offscreen: nothing presents it, read back at any time)
 			const g = c.getContext('webgl2', { antialias: false, alpha: false, depth: true, preserveDrawingBuffer: offscreen });
 			if (!g) return 0;
+			// (RGBA16F and R32F render targets)
+			g.getExtension('EXT_color_buffer_float');
 			host.gfx.backend = 'webgl2';
 			return handles.add({ gl: g, canvas: c, offscreen, captures: [] });
 		},
@@ -431,6 +514,7 @@ export default async function (host) {
 		},
 		glUniform1i: (l, x) => gl.uniform1i(get(l), x),
 		glUniform1f: (l, x) => gl.uniform1f(get(l), x),
+		glUniform2f: (l, x, y) => gl.uniform2f(get(l), x, y),
 		glBlendFuncSeparate: (a, b, c, d) => gl.blendFuncSeparate(a, b, c, d),
 		glBlendEquation: (mode) => gl.blendEquation(mode),
 		glDepthFunc: (f) => gl.depthFunc(f),
@@ -440,11 +524,19 @@ export default async function (host) {
 		glBindTexture: (target, t) => gl.bindTexture(target, get(t)),
 		glActiveTexture: (unit) => gl.activeTexture(unit),
 		glTexParameteri: (target, pname, param) => gl.texParameteri(target, pname, param),
-		// (pixels: width * height * 4 bytes of the memory, RGBA8)
-		glTexImage2D(target, level, internal, w, h, border, format, type, p) {
-			gl.texImage2D(target, level, internal, w, h, border, format, type, p ? host.bytes(p, w * h * 4) : null);
+		glTexStorage2D: (target, levels, internal, w, h) => gl.texStorage2D(target, levels, internal, w, h),
+		// (pixels: w * h texels of the memory, in the view WebGL wants for the type, copied for floats: their address may be unaligned)
+		glTexSubImage2D(target, level, x, y, w, h, format, type, p) {
+			const n = w * h * (format === gl.RED ? 1 : format === gl.RG ? 2 : 4), size = type === gl.FLOAT ? 4 : type === gl.HALF_FLOAT ? 2 : 1;
+			const b = host.bytes(p, n * size);
+			gl.texSubImage2D(target, level, x, y, w, h, format, type, size === 1 ? b : new (size === 4 ? Float32Array : Uint16Array)(b.slice().buffer));
 		},
-		glTexSubImage2D: (target, level, x, y, w, h, format, type, p) => gl.texSubImage2D(target, level, x, y, w, h, format, type, host.bytes(p, w * h * 4)),
+		glGenerateMipmap: (target) => gl.generateMipmap(target),
+		glGenFramebuffers: (n, p) => gen(n, p, () => gl.createFramebuffer()),
+		glDeleteFramebuffers: (n, p) => del(n, p, (f) => gl.deleteFramebuffer(f)),
+		glBindFramebuffer: (target, f) => gl.bindFramebuffer(target, get(f)),
+		glFramebufferTexture2D: (target, attachment, textarget, t, level) => gl.framebufferTexture2D(target, attachment, textarget, get(t), level),
+		glCheckFramebufferStatus: (target) => gl.checkFramebufferStatus(target),
 		glGenSamplers: (n, p) => gen(n, p, () => gl.createSampler()),
 		glSamplerParameteri: (s, pname, param) => gl.samplerParameteri(get(s), pname, param),
 		glBindSampler: (unit, s) => gl.bindSampler(unit, get(s)),

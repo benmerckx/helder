@@ -6,7 +6,10 @@ package hxmc.gfx.shader;
 // Float and the vectors (abs, sign, floor, ceil, fract, sqrt, inversesqrt,
 // sin, cos, tan, exp, log, min, max, pow, step, mix, clamp, smoothstep) and
 // the geometric ones (dot, length, distance, normalize, reflect, cross),
-// and sample(t, uv), a Texture2D's colour at uv (its first mip level).
+// and sample(t, uv), a Texture2D's colour at uv (in the fragment stage at
+// the mip level its footprint needs, in the vertex stage the first), and
+// sampleLevel(t, uv, level) at a mip level (fractions blend two levels with
+// a sampler's mipFilter Linear).
 // Written out by VecBuild.builtins.
 @:build(hxmc.gfx.shader.VecBuild.builtins())
 class ShaderMath {}

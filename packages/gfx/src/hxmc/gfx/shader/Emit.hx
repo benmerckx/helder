@@ -11,16 +11,20 @@ import hxmc.gfx.shader.Ir;
 // main0, StageIn, StageOut, in_*, v_*, out_*, u_*, make_*, tex_*, smp_*) are
 // kept from the program's own names by Lower. A texture parameter is two
 // where the language separates the sampler (<name>_smp, which Lower keeps
-// free); sample reads the first mip level (textures have one for now; and
-// so no derivatives, which WGSL allows in uniform control flow only).
+// free); sample reads the mip level the fragment's footprint needs (its
+// derivatives) in the fragment stage and the first in the vertex stage,
+// sampleLevel the level given.
 class Emit {
 	var buf:StringBuf;
 	var indent = "";
+	// the stage being emitted is the fragment stage (sample's derivatives)
+	var fragment = false;
 
 	public function new() {}
 
 	public function stage(p:SProgram, e:SEntry):String {
 		buf = new StringBuf();
+		fragment = e.stage == Fragment;
 		header(e);
 		for (s in e.structs)
 			struct(s);

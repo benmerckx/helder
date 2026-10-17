@@ -10,7 +10,14 @@ import hxmc.unsafe.*;
 
 class MTL {
 	// MTLPixelFormat
+	public static inline var PixelFormatInvalid = 0;
+	public static inline var PixelFormatR8Unorm = 10;
+	public static inline var PixelFormatRG8Unorm = 30;
+	public static inline var PixelFormatR32Float = 55;
 	public static inline var PixelFormatRGBA8Unorm = 70;
+	public static inline var PixelFormatRGBA8UnormSrgb = 71;
+	public static inline var PixelFormatRGBA16Float = 115;
+	public static inline var PixelFormatDepth16Unorm = 250;
 	public static inline var PixelFormatBGRA8Unorm = 80;
 	public static inline var PixelFormatDepth32Float = 252;
 	// MTLVertexFormat
@@ -56,6 +63,7 @@ class MTL {
 	public static inline var SamplerAddressModeClampToEdge = 0;
 	public static inline var SamplerAddressModeRepeat = 2;
 	public static inline var SamplerAddressModeMirrorRepeat = 3;
+	// MTLSamplerMipFilter: NotMipmapped 0, Nearest 1, Linear 2
 	// MTLCommandBufferStatus
 	public static inline var CommandBufferStatusError = 5;
 }
