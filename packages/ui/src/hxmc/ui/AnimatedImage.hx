@@ -2,8 +2,8 @@ package hxmc.ui;
 
 import haxe.io.Bytes;
 
-// An animation's frames (a GIF's or WebP's: GifDecoder.frames,
-// WebpDecoder.frames) played on the Clock:
+// An animation's frames (a GIF's, WebP's or animated PNG's:
+// GifDecoder.frames, WebpDecoder.frames, PngDecoder.frames) played on the Clock:
 // image is the frame shown, its pixels written over at each change of
 // frame (a renderer uploads them again). Played as browsers play it: each
 // frame for its delay, one of 10 ms or less as 100 ms, the whole the
@@ -26,9 +26,10 @@ class AnimatedImage {
 		image = new Image(width, height, frames[0].rgba.sub(0, frames[0].rgba.length));
 	}
 
-	// a GIF or WebP file's animation (by its signature)
+	// a GIF, WebP or PNG file's animation (by its signature)
 	public static function decode(bytes:Bytes):AnimatedImage {
-		var a = bytes.length >= 12 && bytes.getString(0, 4) == "RIFF" && bytes.getString(8, 4) == "WEBP" ? WebpDecoder.frames(bytes) : GifDecoder.frames(bytes);
+		var a = bytes.length >= 12 && bytes.getString(0, 4) == "RIFF" && bytes.getString(8, 4) == "WEBP" ? WebpDecoder.frames(bytes) : bytes.length >= 8
+			&& bytes.get(0) == 0x89 && bytes.getString(1, 3) == "PNG" ? PngDecoder.frames(bytes) : GifDecoder.frames(bytes);
 		return new AnimatedImage(a.width, a.height, a.frames, a.repetitions);
 	}
 

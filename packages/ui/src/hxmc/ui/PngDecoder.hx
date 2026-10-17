@@ -5,18 +5,75 @@ import haxe.io.Bytes;
 // PNG files decoded to RGBA8 (Image.decode): every colour type (grey, RGB,
 // palette, grey with alpha, RGBA), bit depths 1 to 16 (16 kept to their
 // high byte), tRNS transparency (a palette's alphas, a grey or RGB colour
-// key), the five scanline filters, Adam7 interlacing. Ancillary chunks
-// other than tRNS (gamma, colour profiles) are not applied.
+// key), the five scanline filters, Adam7 interlacing; animated PNGs'
+// frames (frames: APNG's regions, blends and disposals, as Chromium
+// composes them). Ancillary chunks other than tRNS (gamma, colour
+// profiles) are not applied.
 class PngDecoder {
 	// the pixels: width * height * 4 bytes, rows top to bottom, straight alpha
+	// (an animated PNG's: its default image)
 	public static function decode(png:Bytes):{width:Int, height:Int, rgba:Bytes} {
+		var f = read(png);
+		return {width: f.width, height: f.height, rgba: pixels(f, f.idat, f.width, f.height)};
+	}
+
+	// an animated PNG's frames (APNG: acTL, fcTL, fdAT), each composed over
+	// the ones before as browsers compose them (its region drawn as it
+	// says: replacing what was there or over it; then left, cleared or put
+	// back as it was), with its delay (seconds) and the repetitions after
+	// the first play (-1: forever); a PNG without animation, its image as
+	// the one frame. A frame drawn over another blends with straight alpha.
+	public static function frames(png:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
+		var f = read(png);
+		if (f.animation.length == 0) return {width: f.width, height: f.height, repetitions: 0, frames: [{rgba: pixels(f, f.idat, f.width, f.height), delay: 0.0}]};
+		var w = f.width, canvas = Bytes.alloc(w * f.height * 4), out = [];
+		for (k in 0...f.animation.length) {
+			var a = f.animation[k];
+			if (a.x < 0 || a.y < 0 || a.width <= 0 || a.height <= 0 || a.x + a.width > w || a.y + a.height > f.height)
+				throw "PngDecoder: a frame outside the image";
+			var sub = pixels(f, a.data, a.width, a.height);
+			// (put back after it: the canvas before it; the first frame's "previous" is a clear)
+			var before = a.dispose == 2 && k > 0 ? canvas.sub(0, canvas.length) : null;
+			for (y in 0...a.height) {
+				var o = 4 * ((a.y + y) * w + a.x), s = 4 * y * a.width;
+				if (a.blend == 0) canvas.blit(o, sub, s, 4 * a.width) else
+					for (i in 0...a.width)
+						over(canvas, o + 4 * i, sub, s + 4 * i);
+			}
+			out.push({rgba: canvas.sub(0, canvas.length), delay: a.delay});
+			if (a.dispose == 1 || (a.dispose == 2 && before == null))
+				for (y in 0...a.height)
+					canvas.fill(4 * ((a.y + y) * w + a.x), 4 * a.width, 0);
+			else if (before != null) canvas = before;
+		}
+		return {width: w, height: f.height, repetitions: f.plays == 0 ? -1 : f.plays - 1, frames: out};
+	}
+
+	// (a pixel over another, straight alpha: the source's colour weighted by
+	// its alpha, the destination's by what of its alpha shows through)
+	static function over(dst:Bytes, d:Int, src:Bytes, s:Int) {
+		var sa = src.get(s + 3);
+		if (sa == 0) return;
+		var da = dst.get(d + 3);
+		if (sa == 255 || da == 0) {
+			dst.blit(d, src, s, 4);
+			return;
+		}
+		var keep = da * (255 - sa), a = sa * 255 + keep;
+		for (c in 0...3)
+			dst.set(d + c, Std.int((src.get(s + c) * sa * 255 + dst.get(d + c) * keep + (a >> 1)) / a));
+		dst.set(d + 3, Std.int((a + 127) / 255));
+	}
+
+	// the chunks: the header, the palette and transparency, the default
+	// image's data, an animation's frames
+	static function read(png:Bytes):PngFile {
 		var sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 		if (png.length < 8) throw "PngDecoder: not a PNG file";
 		for (k in 0...8)
 			if (png.get(k) != sig[k]) throw "PngDecoder: not a PNG file";
-		var width = 0, height = 0, depth = 0, type = -1, interlace = 0;
-		var palette:Null<Bytes> = null, trns:Null<Bytes> = null;
-		var idat = new haxe.io.BytesBuffer();
+		var f = new PngFile();
+		var idat = new haxe.io.BytesBuffer(), frame:Null<ApngFrame> = null, seenIdat = false;
 		var p = 8;
 		while (p + 8 <= png.length) {
 			var n = u32(png, p), name = png.getString(p + 4, 4);
@@ -24,34 +81,62 @@ class PngDecoder {
 			var at = p + 8;
 			switch name {
 				case "IHDR":
-					width = u32(png, at);
-					height = u32(png, at + 4);
-					depth = png.get(at + 8);
-					type = png.get(at + 9);
+					f.width = u32(png, at);
+					f.height = u32(png, at + 4);
+					f.depth = png.get(at + 8);
+					f.type = png.get(at + 9);
 					if (png.get(at + 10) != 0 || png.get(at + 11) != 0) throw "PngDecoder: an unknown compression or filter method";
-					interlace = png.get(at + 12);
-					var depths = switch type {
+					f.interlace = png.get(at + 12);
+					var depths = switch f.type {
 						case 0: [1, 2, 4, 8, 16];
 						case 3: [1, 2, 4, 8];
 						case 2 | 4 | 6: [8, 16];
 						case _: [];
 					}
-					if (depths.indexOf(depth) < 0) throw 'PngDecoder: colour type $type at bit depth $depth';
-					if (width <= 0 || height <= 0) throw "PngDecoder: an empty image";
+					if (depths.indexOf(f.depth) < 0) throw 'PngDecoder: colour type ${f.type} at bit depth ${f.depth}';
+					if (f.width <= 0 || f.height <= 0) throw "PngDecoder: an empty image";
 				case "PLTE":
-					palette = png.sub(at, n);
+					f.palette = png.sub(at, n);
 				case "tRNS":
-					trns = png.sub(at, n);
+					f.trns = png.sub(at, n);
+				case "acTL" if (n >= 8):
+					f.plays = u32(png, at + 4);
+				case "fcTL" if (n >= 26):
+					frame = new ApngFrame();
+					frame.width = u32(png, at + 4);
+					frame.height = u32(png, at + 8);
+					frame.x = u32(png, at + 12);
+					frame.y = u32(png, at + 16);
+					var num = (png.get(at + 20) << 8) | png.get(at + 21), den = (png.get(at + 22) << 8) | png.get(at + 23);
+					frame.delay = num / (den == 0 ? 100 : den);
+					frame.dispose = png.get(at + 24);
+					frame.blend = png.get(at + 25);
+					// (before the image data: the default image is the first frame)
+					frame.inIdat = !seenIdat;
+					f.animation.push(frame);
 				case "IDAT":
+					seenIdat = true;
 					idat.addBytes(png, at, n);
+				case "fdAT" if (frame != null && n >= 4):
+					frame.parts.addBytes(png, at + 4, n - 4);
 				case "IEND":
 					break;
 				case _:
 			}
 			p += 12 + n;
 		}
-		if (type < 0) throw "PngDecoder: no IHDR chunk";
-		if (type == 3 && palette == null) throw "PngDecoder: a palette image without PLTE";
+		if (f.type < 0) throw "PngDecoder: no IHDR chunk";
+		if (f.type == 3 && f.palette == null) throw "PngDecoder: a palette image without PLTE";
+		f.idat = idat.getBytes();
+		for (a in f.animation)
+			a.data = a.inIdat ? f.idat : a.parts.getBytes();
+		return f;
+	}
+
+	// a zlib stream of an image width by height (the whole, or a frame's
+	// region) unfiltered and turned to RGBA8
+	static function pixels(f:PngFile, data:Bytes, width:Int, height:Int):Bytes {
+		var depth = f.depth, type = f.type, interlace = f.interlace, palette = f.palette, trns = f.trns;
 		var channels = switch type {
 			case 0: 1;
 			case 2: 3;
@@ -67,7 +152,6 @@ class PngDecoder {
 			var w = Std.int((width - a[0] + a[2] - 1) / a[2]), h = Std.int((height - a[1] + a[3] - 1) / a[3]);
 			if (w > 0 && h > 0) expected += h * (1 + ((w * bits + 7) >> 3));
 		}
-		var data = idat.getBytes();
 		var raw = Inflate.zlib(data, 0, data.length, expected);
 		// the bytes a filter looks back (at least one)
 		var bpp = bits < 8 ? 1 : bits >> 3;
@@ -147,7 +231,7 @@ class PngDecoder {
 		if (interlace > 1) throw "PngDecoder: interlace method " + interlace;
 		for (a in passes)
 			pass(a[0], a[1], a[2], a[3]);
-		return {width: width, height: height, rgba: out};
+		return out;
 	}
 
 	// pixel i of an unfiltered row into out at o
@@ -202,4 +286,38 @@ class PngDecoder {
 
 	static inline function abs(v:Int)
 		return v < 0 ? -v : v;
+}
+
+// (what read finds in a PNG file)
+private class PngFile {
+	public var width = 0;
+	public var height = 0;
+	public var depth = 0;
+	public var type = -1;
+	public var interlace = 0;
+	public var palette:Null<Bytes> = null;
+	public var trns:Null<Bytes> = null;
+	public var idat:Bytes;
+	// acTL's plays (0: forever) and the frames
+	public var plays = 0;
+	public final animation:Array<ApngFrame> = [];
+
+	public function new() {}
+}
+
+// (an fcTL's frame: its region, delay, how it is drawn (blend: 0 source,
+// 1 over) and left (dispose: 0 none, 1 background, 2 previous), its data)
+private class ApngFrame {
+	public var width = 0;
+	public var height = 0;
+	public var x = 0;
+	public var y = 0;
+	public var delay = 0.0;
+	public var dispose = 0;
+	public var blend = 0;
+	public var inIdat = false;
+	public final parts = new haxe.io.BytesBuffer();
+	public var data:Bytes;
+
+	public function new() {}
 }

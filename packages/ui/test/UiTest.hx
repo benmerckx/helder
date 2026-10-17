@@ -25,7 +25,8 @@ import hxmc.ui.widgets.EditableText;
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
 //   filters, Adam7; png-cases.mjs writes them and the pixels expected);
 //   jpeg/*.jpg and gif/*.gif against Chromium's pixels (jpeg-cases.mjs,
-//   gif-cases.mjs); webp/*.webp against libwebp's (webp-cases.mjs)
+//   gif-cases.mjs); webp/*.webp against libwebp's (webp-cases.mjs);
+//   apng/*.png's frames against Chromium's (apng-cases.mjs)
 class UiTest {
 	static var checks = 0;
 	static var failed = 0;
@@ -1089,7 +1090,7 @@ class UiTest {
 		}
 		// JPEG and GIF: jpeg/*.jpg and gif/*.gif against the pixels Chromium
 		// decoded (jpeg-cases.mjs, gif-cases.mjs)
-		for (kind in [{dir: "jpeg", ext: ".jpg", least: 15}, {dir: "gif", ext: ".gif", least: 8}, {dir: "webp", ext: ".webp", least: 25}]) {
+		for (kind in [{dir: "jpeg", ext: ".jpg", least: 15}, {dir: "gif", ext: ".gif", least: 8}, {dir: "webp", ext: ".webp", least: 25}, {dir: "apng", ext: ".png", least: 3}]) {
 		var jdir = here + "/" + kind.dir;
 		var cases:Array<{name:String, width:Int, height:Int, ?durations:Array<Float>, ?repetition:Int}> = haxe.Json.parse(sys.io.File.getContent(jdir + "/cases.json"));
 		check(kind.dir + ": the cases", cases.length >= kind.least, '${cases.length}');
@@ -1098,7 +1099,7 @@ class UiTest {
 			if (c.durations != null) {
 				var want = sys.io.File.getBytes(jdir + "/" + c.name + ".frames.rgba");
 				var bytes = sys.io.File.getBytes(jdir + "/" + c.name + kind.ext);
-				var a = try kind.dir == "webp" ? WebpDecoder.frames(bytes) : GifDecoder.frames(bytes) catch (e:Dynamic) {
+				var a = try kind.dir == "webp" ? WebpDecoder.frames(bytes) : kind.dir == "apng" ? PngDecoder.frames(bytes) : GifDecoder.frames(bytes) catch (e:Dynamic) {
 					check(kind.dir + ": " + c.name, false, Std.string(e));
 					continue;
 				}
@@ -1108,6 +1109,9 @@ class UiTest {
 				check(kind.dir + ": " + c.name + ", its frames", a.width == c.width && a.frames.length == c.durations.length && bad.length == 0
 					&& [for (f in a.frames) f.delay].join(",") == c.durations.join(",") && a.repetitions == c.repetition,
 					'${a.frames.length} frames, wrong: ${bad.join(",")}; ' + [for (f in a.frames) f.delay].join(",") + ' ${a.repetitions}');
+				// (an APNG's default image: libpng's, whether in the animation or not)
+				if (kind.dir == "apng")
+					check("apng: " + c.name + ", its default image", Image.decode(bytes).pixels.compare(sys.io.File.getBytes(jdir + "/" + c.name + ".rgba")) == 0);
 				continue;
 			}
 			var want = sys.io.File.getBytes(jdir + "/" + c.name + ".rgba");
