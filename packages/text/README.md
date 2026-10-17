@@ -4,8 +4,8 @@ Fonts and text layout in pure Haxe, no C library: what `@hxmc/ui` draws
 text with, usable on its own.
 
 - `FontFile`: an OpenType font (or a face of a `.ttc` collection): metrics,
-  the character map (formats 4 and 12), advances, kerning (the `kern`
-  table), glyph outlines: TrueType's (simple and composite glyphs) or
+  the character map (formats 4 and 12), advances, kerning (GPOS's pair
+  adjustments for the `kern` feature, else the `kern` table), glyph outlines: TrueType's (simple and composite glyphs) or
   CFF's (`.otf`: Type 2 charstrings with their subroutines, CID-keyed
   fonts such as Noto Sans CJK too). CFF2 (variable) outlines are not read.
 - `Rasterizer`: anti-aliased coverage of outlines, after Raph Levien's

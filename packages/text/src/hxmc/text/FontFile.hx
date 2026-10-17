@@ -4,7 +4,8 @@ import haxe.io.Bytes;
 
 // An OpenType font (an sfnt; one face of a collection, .ttc): its metrics
 // in font units, the character map (formats 4 and 12), horizontal
-// advances, kerning pairs (the kern table's format 0) and glyph outlines:
+// advances, kerning (GPOS's pair adjustments for the kern feature, else
+// the kern table's format 0 pairs) and glyph outlines:
 // TrueType's (glyf: simple and composite glyphs, as quadratic contours) or
 // CFF's ('OTTO', .otf: Cff, cubic curves). CFF2 (variable) outlines are
 // not read: FontFile.parse throws.
@@ -33,6 +34,9 @@ class FontFile {
 	var cmap = -1; // the chosen subtable's offset
 	var cmapFormat = 0;
 	var kernPairs:Null<Map<Int, Int>> = null;
+	// GPOS's kern lookups' pair adjustment subtables (null: not read; empty: none)
+	var pairPos:Null<Array<Int>> = null;
+	final kernCache = new Map<Int, Int>();
 	// the tables read per glyph
 	var hmtx = 0;
 	var glyf = 0;
@@ -133,11 +137,145 @@ class FontFile {
 		return g < numHMetrics ? s16(data, hmtx + 4 * g + 2) : s16(data, hmtx + 4 * numHMetrics + 2 * (g - numHMetrics));
 	}
 
-	// the kerning between two glyphs, in font units (the kern table)
+	// the kerning between two glyphs, in font units: GPOS's kern feature
+	// (pair adjustments: the first glyph's advance), else the kern table
 	public function kerning(left:Int, right:Int):Int {
+		if (pairPos == null) readGpos();
+		var key = (left << 16) | right;
+		if (pairPos.length > 0) {
+			var c = kernCache.get(key);
+			if (c == null) {
+				c = 0;
+				// (each lookup: its first subtable that covers the pair)
+				var i = 0;
+				while (i < pairPos.length) {
+					var end = pairPos[i];
+					i++;
+					while (i < end) {
+						var v = pairAdjustment(pairPos[i], left, right);
+						i++;
+						if (v != NONE) {
+							c += v;
+							i = end;
+						}
+					}
+				}
+				kernCache.set(key, c);
+			}
+			return c;
+		}
 		if (kernPairs == null) readKern();
-		var k = kernPairs.get((left << 16) | right);
+		var k = kernPairs.get(key);
 		return k == null ? 0 : k;
+	}
+
+	static inline var NONE = 0x7FFFFFFF;
+
+	// GPOS: the subtables of the lookups the kern feature uses (pair
+	// adjustment, type 2; in an extension, type 9), as runs: each lookup's
+	// end index, then its subtables' offsets
+	function readGpos() {
+		pairPos = [];
+		if (!tables.exists("GPOS")) return;
+		var g = tables.get("GPOS");
+		var features = g + u16(data, g + 6), lookups = g + u16(data, g + 8);
+		var used = new Map<Int, Bool>();
+		for (i in 0...u16(data, features)) {
+			var r = features + 2 + 6 * i;
+			if (data.getString(r, 4) != "kern") continue;
+			var f = features + u16(data, r + 4);
+			for (k in 0...u16(data, f + 2))
+				used.set(u16(data, f + 4 + 2 * k), true);
+		}
+		var order = [for (k in used.keys()) k];
+		order.sort(Reflect.compare);
+		for (l in order) {
+			if (l >= u16(data, lookups)) continue;
+			var t = lookups + u16(data, lookups + 2 + 2 * l);
+			var type = u16(data, t);
+			var at = pairPos.length;
+			pairPos.push(0);
+			for (s in 0...u16(data, t + 4)) {
+				var st = t + u16(data, t + 6 + 2 * s);
+				var stType = type;
+				if (type == 9) {
+					stType = u16(data, st + 2);
+					st += u32(data, st + 4);
+				}
+				if (stType == 2) pairPos.push(st);
+			}
+			if (pairPos.length == at + 1) pairPos.pop() else pairPos[at] = pairPos.length;
+		}
+	}
+
+	// a pair adjustment subtable's change to the first glyph's advance (NONE: it does not cover the pair)
+	function pairAdjustment(st:Int, left:Int, right:Int):Int {
+		var ci = coverage(st + u16(data, st + 2), left);
+		if (ci < 0) return NONE;
+		var f1 = u16(data, st + 4), f2 = u16(data, st + 6);
+		var s1 = valueSize(f1), s2 = valueSize(f2);
+		if (u16(data, st) == 1) {
+			if (ci >= u16(data, st + 8)) return NONE;
+			var set = st + u16(data, st + 10 + 2 * ci);
+			var n = u16(data, set), rec = 2 + s1 + s2;
+			var lo = 0, hi = n - 1;
+			while (lo <= hi) {
+				var mid = (lo + hi) >> 1, r = set + 2 + rec * mid;
+				var g = u16(data, r);
+				if (g < right) lo = mid + 1 else if (g > right) hi = mid - 1 else return xAdvance(r + 2, f1);
+			}
+			return NONE;
+		}
+		if (u16(data, st) != 2) return NONE;
+		var c1 = classOf(st + u16(data, st + 8), left), c2 = classOf(st + u16(data, st + 10), right);
+		var n1 = u16(data, st + 12), n2 = u16(data, st + 14);
+		if (c1 >= n1 || c2 >= n2) return 0;
+		return xAdvance(st + 16 + (c1 * n2 + c2) * (s1 + s2), f1);
+	}
+
+	// a value record's size (two bytes a field) and its XAdvance (format bit 4: after XPlacement, YPlacement)
+	static function valueSize(format:Int):Int {
+		var n = 0;
+		for (b in 0...8)
+			if (format & (1 << b) != 0) n += 2;
+		return n;
+	}
+
+	function xAdvance(p:Int, format:Int):Int {
+		if (format & 4 == 0) return 0;
+		return s16(data, p + (format & 1 != 0 ? 2 : 0) + (format & 2 != 0 ? 2 : 0));
+	}
+
+	// a coverage table's index of a glyph (-1: not covered)
+	function coverage(c:Int, g:Int):Int {
+		var n = u16(data, c + 2);
+		var lo = 0, hi = n - 1;
+		if (u16(data, c) == 1) {
+			while (lo <= hi) {
+				var mid = (lo + hi) >> 1, v = u16(data, c + 4 + 2 * mid);
+				if (v < g) lo = mid + 1 else if (v > g) hi = mid - 1 else return mid;
+			}
+			return -1;
+		}
+		while (lo <= hi) {
+			var mid = (lo + hi) >> 1, r = c + 4 + 6 * mid;
+			if (g < u16(data, r)) hi = mid - 1 else if (g > u16(data, r + 2)) lo = mid + 1 else return u16(data, r + 4) + g - u16(data, r);
+		}
+		return -1;
+	}
+
+	// a class definition table's class of a glyph (0: the rest)
+	function classOf(c:Int, g:Int):Int {
+		if (u16(data, c) == 1) {
+			var start = u16(data, c + 2), n = u16(data, c + 4);
+			return g >= start && g < start + n ? u16(data, c + 6 + 2 * (g - start)) : 0;
+		}
+		var lo = 0, hi = u16(data, c + 2) - 1;
+		while (lo <= hi) {
+			var mid = (lo + hi) >> 1, r = c + 4 + 6 * mid;
+			if (g < u16(data, r)) hi = mid - 1 else if (g > u16(data, r + 2)) lo = mid + 1 else return u16(data, r + 4);
+		}
+		return 0;
 	}
 
 	// --- outlines ---

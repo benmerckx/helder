@@ -1,13 +1,13 @@
 package hxmc.text;
 
 // Text laid out in lines: shaped (each character's glyph from the first
-// face of the FontSet that has it, advances from hmtx, kerning pairs
+// face of the FontSet that has it, advances from hmtx, kerning (GPOS, kern)
 // between glyphs of the same face) and broken greedily at break
 // opportunities (after spaces and hyphens, around CJK ideographs, kana and
 // hangul) to fit maxWidth (NaN: only at "\n"); a word wider than a line is
 // cut between characters, except at a maxWidth of 0: the min-content
 // layout, every opportunity taken and no word cut. Left to right only (no bidi), no ligatures or
-// mark positioning (no GSUB, GPOS). Positions are pixels; character
+// mark positioning (no GSUB; GPOS for kerning only). Positions are pixels; character
 // indices are the text's UTF-16 units (String indices).
 class TextLayout {
 	public final text:String;

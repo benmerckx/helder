@@ -8,7 +8,8 @@ import hxmc.text.*;
 //
 // - the rasterizer on shapes with known coverage (a half-covered square,
 //   a triangle's area)
-// - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines
+// - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines;
+//   Inter: CFF outlines, GPOS kerning
 // - layout: widths, wrapping, hard breaks, caret and hit
 // - a sample of text rendered through the atlas against sample.png; with
 //   Inter (CFF outlines), against sample-cff.png
@@ -131,6 +132,9 @@ class TextTest {
 		var o = new CountOutline();
 		f.outline(f.glyph("o".code), o);
 		check("cff: o, two contours", o.contours == 2 && o.cubics >= 8, '${o.contours} ${o.cubics}');
+		// kerning in GPOS only (pair adjustments, by glyph classes)
+		var av = f.kerning(f.glyph("A".code), f.glyph("V".code)), wa = f.kerning(f.glyph("W".code), f.glyph("a".code));
+		check("cff: GPOS kerning (A V, W a)", av < 0 && wa < 0 && f.kerning(f.glyph("H".code), f.glyph("H".code)) == 0, '$av $wa');
 	}
 
 	static function layout(sans:FontFile, fonts:SystemFonts) {
