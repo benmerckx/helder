@@ -34,16 +34,18 @@ class Tw {
 	// variant and size fixed or not}; and a class after them, as cn's
 	// className), "global" before each slot's that has borders (shadcn's
 	// `* { border-border }`), --radius ("radius"), CSS variables a class may
-	// name ("vars"), and the light and dark tokens
+	// name ("vars"), the light and dark tokens, and other files' slots
+	// ("include": their "slots", over the file's)
 	public static macro function sheet(file:String):Expr {
 		var pos = Context.currentPos();
 		var path = haxe.io.Path.join([haxe.io.Path.directory(Context.getPosInfos(pos).file), file]);
 		var text = try sys.io.File.getContent(path) catch (e) Context.error('Tw.sheet: $path: $e', pos);
 		Context.registerModuleDependency(Context.getLocalModule(), path);
 		var json:Dynamic = try haxe.Json.parse(text) catch (e) Context.error('Tw.sheet: $path: $e', pos);
-		// (a class list's offset in the file)
+		// (the file a slot is read from, and a class list's offset in it)
+		var main = {path: path, text: text}, file = main;
 		function offset(s:String):Int
-			return text.indexOf('"' + s + '"') + 1;
+			return file.text.indexOf('"' + s + '"') + 1;
 		function sorted(m:haxe.DynamicAccess<Dynamic>):Array<String> {
 			var keys = [for (k in m.keys()) k];
 			keys.sort(Reflect.compare);
@@ -53,15 +55,26 @@ class Tw {
 		var v:haxe.DynamicAccess<String> = json.vars;
 		if (v != null) for (k => x in v)
 			vars[k] = x;
-		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: path, min: at, max: at + n})), vars);
+		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: file.path, min: at, max: at + n})), vars);
 		var global = {classes: (json.global : String) ?? "", offset: offset(json.global ?? "")};
 		var rules = [];
-		// (shadcn's slots, then ours: hxmc's widgets and parts shadcn has not, in its style; ours win)
-		var slots:haxe.DynamicAccess<Dynamic> = Reflect.copy(json.slots);
-		var ours:haxe.DynamicAccess<Dynamic> = json.ours;
-		if (ours != null) for (k => x in ours)
-			slots[k] = x;
+		// (the file's slots, then those of the files it includes, which win:
+		// shadcn's, then ours, extras.json)
+		var slots:haxe.DynamicAccess<Dynamic> = Reflect.copy(json.slots), from = new Map<String, {path:String, text:String}>();
+		var include:Array<String> = json.include == null ? [] : json.include;
+		for (inc in include) {
+			var p = haxe.io.Path.join([haxe.io.Path.directory(path), inc]);
+			var t = try sys.io.File.getContent(p) catch (e) Context.error('Tw.sheet: $p: $e', pos);
+			Context.registerModuleDependency(Context.getLocalModule(), p);
+			var j:Dynamic = try haxe.Json.parse(t) catch (e) Context.error('Tw.sheet: $p: $e', pos);
+			var more:haxe.DynamicAccess<Dynamic> = j.slots;
+			if (more != null) for (k => x in more) {
+				slots[k] = x;
+				from[k] = {path: p, text: t};
+			}
+		}
 		for (name in sorted(slots)) {
+			file = from[name] ?? main;
 			var lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String, ?prefix:String}> = [];
 			function add(s:String, ?variant:String, ?size:String, ?prefix:String)
 				lists.push({classes: s, offset: offset(s), variant: variant, size: size, prefix: prefix});

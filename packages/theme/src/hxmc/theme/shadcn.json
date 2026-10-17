@@ -2,6 +2,9 @@
 	"shadcn": "shadcn-ui/ui d2fba50ee5b9113008b5bb908563527b7efd2f27 (shadcn 4.22.0): apps/v4/registry/new-york-v4/ui, apps/v4/registry/themes.ts (neutral)",
 	"radius": "0.625rem",
 	"global": "border-border",
+	"include": [
+		"extras.json"
+	],
 	"slots": {
 		"body": [
 			"font-sans text-base",
@@ -261,10 +264,6 @@
 			"size": "icon",
 			"class": "flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground dark:hover:text-accent-foreground [&>span]:text-xs [&>span]:opacity-70"
 		},
-		"toast": "flex w-[356px] items-center gap-1.5 rounded-lg border border-border bg-popover p-4 text-[13px] text-popover-foreground shadow-[0_4px_12px_rgba(0,0,0,0.1)]",
-		"toast-title": "font-medium leading-normal",
-		"toast-description": "font-normal leading-[1.4]",
-		"toast-icon": "size-4",
 		"sheet-overlay": "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
 		"sheet-content": {
 			"base": "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
@@ -392,72 +391,5 @@
 	},
 	"vars": {
 		"--cell-size": "2rem"
-	},
-	"ours": {
-		"calendar": [
-			"group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
-			"flex w-fit flex-col gap-4"
-		],
-		"calendar-day": {
-			"extends": "button",
-			"variant": "ghost",
-			"size": "icon",
-			"class": [
-				"relative aspect-square size-(--cell-size) p-0 text-center leading-none font-normal select-none dark:hover:text-accent-foreground",
-				"data-[today=true]:bg-accent data-[today=true]:text-accent-foreground data-[outside=true]:text-muted-foreground",
-				"data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground",
-				"data-[focused=true]:z-10 data-[focused=true]:border-ring data-[focused=true]:ring-[3px] data-[focused=true]:ring-ring/50"
-			]
-		},
-		"calendar-nav": "flex h-(--cell-size) w-full items-center justify-between gap-1",
-		"checkbox-field": "flex items-center gap-3",
-		"collapsible": "flex flex-col gap-2",
-		"collapsible-content": "text-sm",
-		"collapsible-trigger": "flex items-center gap-2 rounded-md text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50",
-		"color-picker": "flex flex-col gap-3",
-		"color-picker-area": "relative cursor-crosshair overflow-hidden rounded-md border outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-		"color-picker-hue": "relative rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-		"color-picker-row": "flex items-center gap-2",
-		"color-picker-swatch": "rounded-md border shadow-xs",
-		"color-picker-thumb": "rounded-full border-2 border-white shadow-sm ring-1 ring-black/20",
-		"command-group-heading": "px-2 py-1.5 text-xs font-medium text-muted-foreground",
-		"context-menu-item-indicator-icon": "size-4",
-		"context-menu-sub-trigger-icon": "ml-auto size-4",
-		"dropdown-menu-item-indicator-icon": "size-4",
-		"dropdown-menu-sub-trigger-icon": "ml-auto size-4",
-		"dropdown-menu-trigger-icon": "size-4 opacity-50",
-		"input-otp-separator-icon": "size-6",
-		"listbox": "flex flex-col rounded-md border bg-background p-1 shadow-xs",
-		"listbox-option": "relative flex shrink-0 cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-selected:bg-accent aria-selected:text-accent-foreground",
-		"menubar-item-indicator-icon": "size-4",
-		"menubar-sub-trigger-icon": "ml-auto size-4",
-		"number-field": "flex items-stretch gap-1",
-		"number-field-decrement": "flex flex-1 cursor-default items-center justify-center rounded-b-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
-		"number-field-increment": "flex flex-1 cursor-default items-center justify-center rounded-t-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
-		"number-field-steppers": "flex flex-col gap-px",
-		"pagination-link": {
-			"extends": "button",
-			"variant": "ghost",
-			"size": "icon",
-			"class": "data-[active=true]:border data-[active=true]:bg-background data-[active=true]:shadow-xs data-[active=true]:hover:bg-accent data-[active=true]:hover:text-accent-foreground dark:data-[active=true]:border-input dark:data-[active=true]:bg-input/30 dark:data-[active=true]:hover:bg-input/50"
-		},
-		"radio-group-option": "flex items-center gap-3",
-		"select-value": "line-clamp-1 flex items-center gap-2",
-		"sortable": "flex flex-col gap-2",
-		"sortable-handle": "cursor-grab text-muted-foreground select-none",
-		"sortable-indicator": "h-0.5 rounded-full bg-primary data-[side=top]:-top-[5px] data-[side=bottom]:-bottom-[5px]",
-		"sortable-item": "relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm text-card-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-		"switch-field": "flex items-center gap-2",
-		"tag-input": "flex min-h-9 w-full min-w-0 flex-wrap items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 text-base shadow-xs transition-[color,box-shadow] md:text-sm dark:bg-input/30",
-		"tag-input-field": "h-7 w-full min-w-0 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground md:text-sm",
-		"tag-input-list": "flex flex-wrap items-center gap-1",
-		"tag-input-remove": "ml-0.5 cursor-pointer rounded-full opacity-70 hover:opacity-100",
-		"toast-action": "ml-auto flex h-6 shrink-0 cursor-pointer items-center rounded-[4px] bg-popover-foreground px-2 text-xs font-medium text-popover outline-none focus-visible:shadow-[0_0_0_2px_rgba(0,0,0,0.4)]",
-		"toast-close": "absolute top-0 left-0 z-1 flex size-5 -translate-x-[35%] -translate-y-[35%] cursor-pointer items-center justify-center rounded-full border bg-popover p-0 text-popover-foreground",
-		"toaster": "flex flex-col gap-3.5",
-		"toolbar": "flex h-9 items-center gap-1 rounded-md border bg-background p-1 shadow-xs",
-		"tree": "flex flex-col rounded-md border bg-background p-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
-		"tree-item": "flex cursor-default items-center gap-1 rounded-sm px-2 text-sm select-none hover:bg-accent/50 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
-		"tree-toggle": "flex shrink-0 items-center justify-center text-muted-foreground"
 	}
 }

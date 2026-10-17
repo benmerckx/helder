@@ -86,8 +86,8 @@ or a sheet of one's own, `Tw.sheet("my-theme.json")` (beside the calling
 module), in shadcn.json's format: `slots`, each a class list (a string, a
 list as cn's, cva's `{base, variant: {...}, size: {...}}`, another slot's
 `{extends: "button", variant: "ghost", class: "..."}`, classes under a
-state the widget sets `{states: {"data-[side=right]": "..."}}`), `ours`
-(slots replacing them), `radius`, `vars` (CSS variables a class names:
+state the widget sets `{states: {"data-[side=right]": "..."}}`), `include`
+(other files whose `slots` replace these), `radius`, `vars` (CSS variables a class names:
 `size-(--cell-size)`), `global` (classes before every slot's that has
 borders: shadcn's `* { border-border }`), and the `light` and `dark`
 tokens. A class Tw does not know is a compile error at the class, in the
@@ -105,21 +105,23 @@ RadioGroup, Slider, Tabs, Select, DropdownMenu, ContextMenu, Menubar,
 Dialog, AlertDialog, Sheet, Popover, HoverCard, Tooltip, Table, Progress, Accordion,
 Toggle, ToggleGroup, Separator, Alert, Skeleton, Breadcrumb, Pagination,
 Calendar (react-day-picker's parts as `calendar-<part>`), Command (cmdk's parts),
-Resizable, Avatar, Kbd, Spinner, Drawer (vaul's), InputOTP, and sonner's toast (sonner's own
-stylesheet's values written as classes: `toast`, `toast-title`,
-`toast-icon`, and in `ours` `toaster`, `toast-action`, `toast-close`).
+Resizable, Avatar, Kbd, Spinner, Drawer (vaul's), InputOTP, and sonner's toast (in
+extras.json: sonner's own stylesheet's values written as classes, `toaster`,
+`toast`, `toast-title`, `toast-description`, `toast-icon`, `toast-action`,
+`toast-close`).
 Where shadcn styles an element without a slot, it is named after its
 parent: `checkbox-icon`, `radio-group-icon`, `select-trigger-icon`,
 `select-viewport`, `accordion-trigger-icon`, `dialog-close-icon`,
 `sheet-close-icon`, `tooltip-arrow`, `pagination-previous`,
-`pagination-next`, `drawer-handle`, `input-otp-caret`; in `ours`, the
+`pagination-next`, `drawer-handle`, `input-otp-caret`; in extras.json, the
 menus' `-item-indicator-icon` and `-sub-trigger-icon` (lucide's `size-4`,
 `ml-auto size-4`) and `input-otp-separator-icon`. AccordionContent's inner box is folded into
 `accordion-content`.
 
-`ours` in shadcn.json: not shadcn's, written in its style from its own
-patterns and tokens, for what hxmc has and shadcn has not, or has
-otherwise:
+`src/hxmc/theme/extras.json` is ours, not shadcn's (shadcn.json stays a
+transcription of shadcn's registry and includes it): class lists written
+in shadcn's style from its own patterns and tokens, for what hxmc has and
+shadcn has not, or has otherwise:
 
 - hxmc's widgets shadcn lacks: Tree (`tree`, `tree-item`, `tree-toggle`:
   a bordered list as `select-content`, its rows as `command-item`),
@@ -143,8 +145,8 @@ otherwise:
   (`checkbox-field`, `switch-field`, `radio-group-option`: shadcn's
   examples' `flex items-center gap-3`, `gap-2`); `select-value` (the
   trigger's `*:data-[slot=select-value]:` classes);
-  `dropdown-menu-trigger-icon`; sonner's `toaster`, `toast-action`,
-  `toast-close`.
+  `dropdown-menu-trigger-icon`, `collapsible-icon`, `table-sort-icon`,
+  `date-picker-value`, `tag-input-entry`; sonner's toast.
 
 ## Tw: Tailwind classes as rules
 
