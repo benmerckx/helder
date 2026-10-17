@@ -31,8 +31,8 @@ class Node {
 	public var contentWidth(default, null) = 0.0;
 	public var contentHeight(default, null) = 0.0;
 	// Overflow Scroll: the children's offset (clamped by Ui to the content)
-	public var scrollX = 0.0;
-	public var scrollY = 0.0;
+	public var scrollX(default, set) = 0.0;
+	public var scrollY(default, set) = 0.0;
 
 	// events (Ui dispatches them; Event.stop() ends bubbling to the ancestors)
 	public var onPointerDown:Null<Event->Void>;
@@ -60,9 +60,9 @@ class Node {
 	public var onDrop:Null<Event->Void>;
 	public var onDragEnd:Null<Event->Void>;
 	// takes the keyboard focus when clicked or tabbed to
-	public var focusable = false;
+	public var focusable(default, set) = false;
 	// what it is to assistive technology (hxmc.ui.access.AccessTree)
-	public var semantics:Null<hxmc.ui.access.Semantics> = null;
+	public var semantics(default, set):Null<hxmc.ui.access.Semantics> = null;
 	// its id in the accessibility tree (0: none yet)
 	@:allow(hxmc.ui.access) var accessId = 0;
 	// the pointer is over it (or a descendant), the button is down on it, it has the focus
@@ -77,6 +77,19 @@ class Node {
 	@:allow(hxmc.ui.Layout) var lh = 0.0;
 	@:allow(hxmc.ui.Layout) var cache:Array<Float> = [];
 	@:allow(hxmc.ui.Layout) var dirty = true;
+	// (laid out since its edges were last rounded; the unrounded box they were rounded from)
+	@:allow(hxmc.ui.Layout) var relaid = true;
+	@:allow(hxmc.ui.Layout) var rawX = 0.0;
+	@:allow(hxmc.ui.Layout) var rawY = 0.0;
+	@:allow(hxmc.ui.Layout) var rawW = 0.0;
+	@:allow(hxmc.ui.Layout) var rawH = 0.0;
+	// the bounds of what it and its subtree draw (measureInk), stale after a transform changed
+	@:allow(hxmc.ui) var inkX0 = 0.0;
+	@:allow(hxmc.ui) var inkY0 = 0.0;
+	@:allow(hxmc.ui) var inkX1 = 0.0;
+	@:allow(hxmc.ui) var inkY1 = 0.0;
+	@:allow(hxmc.ui) var inkAll = false;
+	@:allow(hxmc.ui) var inkStale = false;
 	@:allow(hxmc.ui.Layout) var minContent = Math.NaN;
 
 	public function new(?tag:String) {
@@ -164,7 +177,29 @@ class Node {
 	// --- changes ---
 
 	// the layout of this node (and so of its ancestors) must be redone
+	// (what the accessibility tree reads: a change builds it again)
+	function set_scrollX(v:Float):Float {
+		if (v != scrollX) Ui.accessEpoch++;
+		return scrollX = v;
+	}
+
+	function set_scrollY(v:Float):Float {
+		if (v != scrollY) Ui.accessEpoch++;
+		return scrollY = v;
+	}
+
+	function set_focusable(v:Bool):Bool {
+		if (v != focusable) Ui.accessEpoch++;
+		return focusable = v;
+	}
+
+	function set_semantics(v:Null<hxmc.ui.access.Semantics>):Null<hxmc.ui.access.Semantics> {
+		if (v != semantics) Ui.accessEpoch++;
+		return semantics = v;
+	}
+
 	public function markDirty() {
+		Ui.accessEpoch++;
 		var n = this;
 		while (n != null && !(n.dirty && n.cache.length == 0 && Math.isNaN(n.minContent))) {
 			n.dirty = true;
@@ -401,6 +436,8 @@ class Node {
 	// (clipped by Overflow, through the transforms), or null
 	public function hitTest(px:Float, py:Float):Null<Node> {
 		if (style.display == None) return null;
+		// (nothing of it there)
+		if (!inkAll && (px < inkX0 || px >= inkX1 || py < inkY0 || py >= inkY1)) return null;
 		var m = transformMatrix();
 		if (m != null) {
 			var inv = Transform.invert(m);
@@ -423,6 +460,55 @@ class Node {
 		}
 		return inside ? this : null;
 	}
+
+	// the bounds of what it and its subtree draw, from its layout (window
+	// pixels before scrolling; its children's too unless it clips them;
+	// unbounded when it or a child moves by a transform or sticks): paint and
+	// hit tests leave out subtrees whose bounds miss them (paint after widening
+	// them by what shadows and rings add: Ui.inkMargin)
+	@:allow(hxmc.ui) function measureInk() {
+		var s = style;
+		inkAll = s.transform != null || s.position == Sticky;
+		inkX0 = absX;
+		inkY0 = absY;
+		inkX1 = absX + width;
+		inkY1 = absY + height;
+		// (content wider or higher than its box: past it on either side, as aligned)
+		var c = contentInk();
+		if (c != null) {
+			var be = s.borderEdges, p = s.padding;
+			var ex = c.width - (width - be.horizontal - p.horizontal), ey = c.height - (height - be.vertical - p.vertical);
+			if (ex > 0) {
+				inkX0 -= ex;
+				inkX1 += ex;
+			}
+			if (ey > 0) inkY1 += ey;
+		}
+		if (s.overflow == Visible)
+			for (k in children) {
+				if (k.style.display == None) continue;
+				if (k.inkAll) inkAll = true;
+				if (k.inkX0 < inkX0) inkX0 = k.inkX0;
+				if (k.inkY0 < inkY0) inkY0 = k.inkY0;
+				if (k.inkX1 > inkX1) inkX1 = k.inkX1;
+				if (k.inkY1 > inkY1) inkY1 = k.inkY1;
+			}
+		inkStale = false;
+	}
+
+	// (a transform or sticking changed: its bounds and its ancestors' measured again at the next update)
+	@:allow(hxmc.ui) function inkChanged() {
+		var n = this;
+		while (n != null && !n.inkStale) {
+			n.inkStale = true;
+			n = n.parent;
+		}
+		if (ui != null) ui.requestFrame();
+	}
+
+	// what its content draws, from its content box's top left, when it may reach past the box (a text's paragraph)
+	public function contentInk():Null<Size>
+		return null;
 
 	// the first descendant (or this) with the tag, depth first
 	public function find(tag:String):Null<Node> {

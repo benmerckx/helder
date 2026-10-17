@@ -498,8 +498,11 @@ class Style {
 
 	function set_transform(v:Null<Transform>):Null<Transform> {
 		if (v == transform) return v;
+		var was = transform != null;
 		transform = v;
+		Ui.accessEpoch++;
 		node.styleChanged(false);
+		if (was != (v != null)) @:privateAccess node.inkChanged();
 		return v;
 	}
 
@@ -526,6 +529,7 @@ class Style {
 
 	function set_opacity(v:Float):Float {
 		if (v == opacity) return v;
+		if ((v <= 0) != (opacity <= 0)) Ui.accessEpoch++;
 		opacity = v;
 		node.styleChanged(false);
 		return v;
@@ -541,6 +545,12 @@ class Style {
 	function set_shadow(v:Null<Shadow>):Null<Shadow> {
 		if (v == shadow) return v;
 		shadow = v;
+		// (how far outside its box a shadow draws: the paint's culling widens bounds by the most seen)
+		var sh = v;
+		while (sh != null) {
+			if (!sh.inset) Ui.shadowReach = Math.max(Ui.shadowReach, Math.max(Math.abs(sh.x), Math.abs(sh.y)) + sh.spread + 1.5 * sh.blur + 1);
+			sh = sh.next;
+		}
 		node.styleChanged(false);
 		return v;
 	}

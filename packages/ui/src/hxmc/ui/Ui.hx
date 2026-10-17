@@ -86,31 +86,63 @@ class Ui {
 	public function requestFrame()
 		needsFrame = true;
 
-	// lays the tree out if it changed
+	// lays the tree out if it changed (a tree that did not: nothing done)
 	public function update() {
-		Layout.run(root, width, height, text);
-		clampScroll(root);
+		if (Layout.run(root, width, height, text)) clampScroll(root);
+		if (root.inkStale) refreshInk(root);
 		if (overlay.children.length > 0) {
-			Layout.run(overlay, width, height, text);
+			var laid = Layout.run(overlay, width, height, text);
 			// (placed from their sizes: laid out again when one moved)
-			if (placePopups()) Layout.run(overlay, width, height, text);
-			clampScroll(overlay);
+			if (placePopups()) laid = Layout.run(overlay, width, height, text) || laid;
+			if (laid) clampScroll(overlay);
+			if (overlay.inkStale) refreshInk(overlay);
 		}
 	}
 
-	// draws the tree (after update)
+	// the ink bounds that a transform's change left stale, measured again
+	static function refreshInk(n:Node) {
+		if (!n.inkStale) return;
+		for (c in n.children)
+			refreshInk(c);
+		n.measureInk();
+	}
+
+	// draws the tree (after update): subtrees whose ink misses what can be
+	// seen (the window, the scrollers' padding boxes) left out
 	public function paint(canvas:Canvas) {
 		needsFrame = false;
+		cullX0 = cullY0 = 0;
+		cullX1 = width;
+		cullY1 = height;
 		paintNode(root, canvas);
 		if (overlay.children.length > 0) paintNode(overlay, canvas);
 	}
+
+	// the farthest any shadow drawn reaches outside its box (Style.shadow)
+	public static var shadowReach = 0.0;
+	// (what can be seen, in the coordinates of the node being drawn)
+	var cullX0 = 0.0;
+	var cullY0 = 0.0;
+	var cullX1 = 0.0;
+	var cullY1 = 0.0;
 
 	function paintNode(n:Node, canvas:Canvas) {
 		var s = n.style;
 		if (s.display == None || n.width <= 0 && n.height <= 0 && n.children.length == 0) return;
 		if (s.opacity <= 0) return;
 		var m = n.transformMatrix();
-		if (m != null) canvas.pushTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+		// (its ink, widened by what rings, shadows and glyphs' overhang add, out of sight: left out)
+		if (m == null && !n.inkAll) {
+			var e = focusRingOffset + focusRingWidth + shadowReach + 8;
+			if (n.inkX1 + e <= cullX0 || n.inkX0 - e >= cullX1 || n.inkY1 + e <= cullY0 || n.inkY0 - e >= cullY1) return;
+		}
+		var c0 = cullX0, c1 = cullY0, c2 = cullX1, c3 = cullY1;
+		if (m != null) {
+			canvas.pushTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
+			// (under a transform: everything drawn)
+			cullX0 = cullY0 = -1e9;
+			cullX1 = cullY1 = 1e9;
+		}
 		if (s.opacity < 1) canvas.pushOpacity(s.opacity);
 		// (each corner's radius and each side's border, when the style gives them)
 		var cs = s.corners != null ? s.cornerRadii() : null, sides = s.borders != null ? s.borderEdges : null;
@@ -153,9 +185,21 @@ class Ui {
 				Math.max(0, n.height - be.top - be.bottom - pad.top - pad.bottom));
 		var clip = s.overflow != Visible;
 		// (the padding box: its corners' radii less the wider side meeting there)
-		if (clip) canvas.pushClip(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, padC);
+		if (clip) {
+			canvas.pushClip(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, padC);
+			cullX0 = Math.max(cullX0, n.absX + be.left);
+			cullY0 = Math.max(cullY0, n.absY + be.top);
+			cullX1 = Math.min(cullX1, n.absX + n.width - be.right);
+			cullY1 = Math.min(cullY1, n.absY + n.height - be.bottom);
+		}
 		var scroll = s.overflow == Scroll && (n.scrollX != 0 || n.scrollY != 0);
-		if (scroll) canvas.translate(-n.scrollX, -n.scrollY);
+		if (scroll) {
+			canvas.translate(-n.scrollX, -n.scrollY);
+			cullX0 += n.scrollX;
+			cullX1 += n.scrollX;
+			cullY0 += n.scrollY;
+			cullY1 += n.scrollY;
+		}
 		// (absolute and sticky children over the others, in their order, as CSS paints positioned boxes)
 		var positioned = false;
 		for (c in n.children)
@@ -165,6 +209,10 @@ class Ui {
 				if (c.style.position != Relative) paintNode(c, canvas);
 		if (scroll) canvas.translate(n.scrollX, n.scrollY);
 		if (clip) canvas.popClip();
+		cullX0 = c0;
+		cullY0 = c1;
+		cullX1 = c2;
+		cullY1 = c3;
 		if (s.overflow == Scroll) {
 			for (x in [false, true]) {
 				var t = thumb(n, x);
@@ -608,6 +656,7 @@ class Ui {
 	// scrolling ancestors (not when a press focused it)
 	public function setFocus(n:Null<Node>, scroll = true) {
 		if (n == focus) return;
+		accessEpoch++;
 		if (scroll && n != null) scrollIntoView(n);
 		var old = focus;
 		focus = n;
@@ -887,8 +936,17 @@ class Ui {
 	var lastAccess:Null<hxmc.ui.access.AccessTree>;
 
 	// the accessibility tree now (after update): what accessAction acts in
-	public function accessTree():hxmc.ui.access.AccessTree
+	// (built again only when something it reads changed: accessEpoch)
+	public function accessTree():hxmc.ui.access.AccessTree {
+		if (lastAccess != null && accessBuilt == accessEpoch) return lastAccess;
+		accessBuilt = accessEpoch;
 		return lastAccess = hxmc.ui.access.AccessTree.build(this);
+	}
+
+	// bumped by every change an accessibility tree reads (layout, scrolling,
+	// the focus, semantics, focusability, transforms, opacity to 0 and back)
+	public static var accessEpoch = 0;
+	var accessBuilt = -1;
 
 	// assistive technology's request on a node of the last accessTree():
 	// false when the node is gone or does not take it

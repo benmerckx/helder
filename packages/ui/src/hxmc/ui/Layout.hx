@@ -34,12 +34,15 @@ class Layout {
 		this.text = text;
 
 	// lays out the tree in a viewport of width x height
-	public static function run(root:Node, width:Float, height:Float, text:TextEngine) {
+	// whether anything was laid out again (a clean tree of the same size: nothing done)
+	public static function run(root:Node, width:Float, height:Float, text:TextEngine):Bool {
+		if (!root.dirty && root.lw == width && root.lh == height && !root.relaid) return false;
 		var l = new Layout(text);
-		if (root.dirty || root.lw != width || root.lh != height) l.size(root, width, height, width, height, width, height, true);
+		l.size(root, width, height, width, height, width, height, true);
 		root.lx = 0;
 		root.ly = 0;
 		round(root, 0, 0, 0, 0);
+		return true;
 	}
 
 	// --- one node ---
@@ -88,6 +91,7 @@ class Layout {
 				n.lw = rw;
 				n.lh = rh;
 				n.dirty = false;
+				n.relaid = true;
 			}
 		} else if (s.display == Grid) grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
 		else flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
@@ -325,6 +329,7 @@ class Layout {
 		@:privateAccess n.contentWidth = cw;
 		@:privateAccess n.contentHeight = ch;
 		n.dirty = false;
+		n.relaid = true;
 		rw = bw;
 		rh = bh;
 	}
@@ -466,6 +471,7 @@ class Layout {
 		@:privateAccess n.contentWidth = Math.max(cw, gridW);
 		@:privateAccess n.contentHeight = Math.max(ch, gridH);
 		n.dirty = false;
+		n.relaid = true;
 		rw = bw;
 		rh = bh;
 	}
@@ -952,18 +958,27 @@ class Layout {
 	static function hide(n:Node) {
 		n.lx = n.ly = n.lw = n.lh = 0;
 		n.dirty = false;
+		n.relaid = true;
 		for (c in n.children)
 			hide(c);
 	}
 
-	// rounds each box's edges in window coordinates
+	// rounds each box's edges in window coordinates (a subtree neither laid
+	// out again nor moved is as it was), then its ink's bounds
 	static function round(n:Node, parentAbsX:Float, parentAbsY:Float, parentRoundX:Float, parentRoundY:Float) {
 		var ax = parentAbsX + n.lx, ay = parentAbsY + n.ly;
+		if (!n.relaid && ax == n.rawX && ay == n.rawY && n.lw == n.rawW && n.lh == n.rawH) return;
+		n.relaid = false;
+		n.rawX = ax;
+		n.rawY = ay;
+		n.rawW = n.lw;
+		n.rawH = n.lh;
 		var x0 = Math.fround(ax), y0 = Math.fround(ay), x1 = Math.fround(ax + n.lw), y1 = Math.fround(ay + n.lh);
 		@:privateAccess n.setLayout(x0 - parentRoundX, y0 - parentRoundY, x1 - x0, y1 - y0, x0, y0, n.contentWidth, n.contentHeight);
 		// (scrolled children: the scroll offset moves them when drawn and hit, not here)
 		for (c in n.children)
 			round(c, ax, ay, x0, y0);
+		n.measureInk();
 	}
 
 	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float):Bool {
