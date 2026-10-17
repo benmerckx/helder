@@ -8,6 +8,7 @@ import hxmc.ui.reactive.Reactive.*;
 import hxmc.ui.reactive.Signal;
 import hxmc.ui.reactive.Motion;
 import hxmc.ui.reactive.Flow.*;
+import hxmc.ui.widgets.Days;
 
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
 typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
@@ -424,6 +425,125 @@ class Widgets implements Markup {
 					background={Motion.color(() -> hover.value || active.value ? t().accent : t().borderMuted)}/>
 			</view>
 			<view tag={tag + "-second"} grow={1} shrink={1} basis={0} min-width={0} min-height={0} overflow="hidden">{props.second}</view>
+		</view>;
+	}
+
+	// a month's days in a grid of six weeks (Monday first; firstDay: 0 for
+	// Sunday), the month and year above between arrows to the months before
+	// and after. The grid takes the focus: the arrows move its marked day (a
+	// day, a week), Page Up and Down a month, Home and End to the week's ends,
+	// the month shown following it; a click, Enter or Space chooses the day
+	// (value, onChoose). today is marked (by default the system's).
+	public static function Calendar(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void, ?label:String,
+			?tag:String}):Esx {
+		var tag = props.tag ?? "calendar", first = props.firstDay ?? 1;
+		var now = Date.now();
+		var today = props.today ?? {year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate()};
+		var start = props.value.peek() ?? today;
+		var cursor = signal(Days.of(start));
+		var shown = memo(() -> {
+			var d = Days.day(cursor.value);
+			return {year: d.year, month: d.month};
+		});
+		// (the grid's first day: the week day first before the month's first)
+		var gridStart = () -> {
+			var s = shown.value, f = Days.of({year: s.year, month: s.month, day: 1});
+			return f - ((Days.weekday(f) - first + 7) % 7);
+		};
+		function choose(n:Int) {
+			cursor.value = n;
+			var d = Days.day(n);
+			props.value.value = d;
+			if (props.onChoose != null) props.onChoose(d);
+		}
+		function month(delta:Int) {
+			var d = Days.day(cursor.peek());
+			var m = d.month - 1 + delta, y = d.year + Math.floor(m / 12);
+			m = ((m % 12) + 12) % 12 + 1;
+			cursor.value = Days.of({year: y, month: m, day: Std.int(Math.min(d.day, Days.length(y, m)))});
+		}
+		function key(e:Event) {
+			var c = cursor.peek(), wd = (Days.weekday(c) - first + 7) % 7;
+			switch e.key {
+				case Key.LEFT: cursor.value = c - 1;
+				case Key.RIGHT: cursor.value = c + 1;
+				case Key.UP: cursor.value = c - 7;
+				case Key.DOWN: cursor.value = c + 7;
+				case Key.HOME: cursor.value = c - wd;
+				case Key.END: cursor.value = c + 6 - wd;
+				case Key.PAGE_UP: month(-1);
+				case Key.PAGE_DOWN: month(1);
+				case Key.ENTER | Key.SPACE: choose(c);
+				case _: return;
+			}
+			e.preventDefault();
+		}
+		var names = [for (k in 0...7) Days.WEEKDAYS[(k + first) % 7]];
+		var chosen = (n:Int) -> {
+			var v = props.value.value;
+			return v != null && Days.of(v) == n;
+		};
+		return <view tag={tag} row-gap={6} padding={8} radius={8} border-width={1} border-color={() -> t().borderMuted} background={() -> t().control}
+			color={() -> t().text}>
+			<view direction="row" align-items="center" justify="space-between">
+				<view tag={tag + "-previous"} role="button" label="Previous month" cursor="pointer" padding="2 8" radius={4} onClick={_ -> month(-1)}>‹</view>
+				<text tag={tag + "-month"} font-weight={600}>{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
+				<view tag={tag + "-next"} role="button" label="Next month" cursor="pointer" padding="2 8" radius={4} onClick={_ -> month(1)}>›</view>
+			</view>
+			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable row-gap={2}
+				onKeyDown={key}>
+				<view role="row" display="grid" grid-template-columns="repeat(7, 32px)" color={() -> t().muted} font-size={11}>{[
+					for (n in names)
+						<view role="columnheader" align-items="center">{n}</view>
+				]}</view>
+				{[
+					for (w in 0...6)
+						<view role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
+							for (k in 0...7) {
+								var at = () -> gridStart() + w * 7 + k;
+								var inMonth = () -> Days.day(at()).month == shown.value.month;
+								<view tag={tag + "-day"} role="cell" label={() -> {
+									var d = Days.day(at());
+									d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
+								}} selected={() -> chosen(at())} height={28} align-items="center" justify="center" radius={14} cursor="pointer"
+									border-width={() -> cursor.value == at() ? 1.5 : 0} border-color={() -> t().accent}
+									background={() -> chosen(at()) ? t().accent : Days.of(today) == at() ? t().itemSelected : Theme.clear(t().control)}
+									color={() -> chosen(at()) ? t().onAccent : inMonth() ? t().text : t().muted} onClick={_ -> choose(at())}>
+									{() -> "" + Days.day(at()).day}
+								</view>;
+							}
+						]}</view>
+				]}
+			</view>
+		</view>;
+	}
+
+	// a date chosen on a button that opens a Calendar under it (closed by a
+	// choice, Escape or a click outside); the button shows it as written by
+	// format (by default "17 October 2026"), else placeholder
+	public static function DatePicker(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?format:Day->String, ?placeholder:String,
+			?label:String, ?tag:String}):Esx {
+		var tag = props.tag ?? "date", open = signal(false);
+		var format = props.format ?? (d:Day) -> d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
+		var self:Null<Node> = null;
+		return <view tag={tag} role="combobox" label={props.label} expanded={() -> open.value} focusable cursor="pointer" direction="row"
+			align-items="center" column-gap={8} padding="6 10" radius={6} border-width={1} border-color={() -> t().border} background={() -> t().control}
+			ref={n -> self = n} onClick={_ -> open.value = !open.value} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE || e.key == Key.DOWN) {
+				open.value = true;
+				e.preventDefault();
+			}}>
+			<text color={() -> props.value.value == null ? t().muted : t().text}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</text>
+			<Popover open={open} placement="below" onDismiss={() -> open.value = false}
+				onOpen={p -> {
+					var g = p.find(tag + "-calendar-grid");
+					if (g != null && g.ui != null) g.ui.setFocus(g);
+				}}>
+				<Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
+					onChoose={_ -> {
+						open.value = false;
+						if (self != null && self.ui != null) self.ui.setFocus(self);
+					}}/>
+			</Popover>
 		</view>;
 	}
 

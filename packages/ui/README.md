@@ -142,7 +142,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `Progress`, `Tabs`, `Field`, `Area`, `Table` (sortable columns, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
-  `Split` (two panes, a divider dragged or moved by the arrows), and the popups `Select`, `Menu`,
+  `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
+  (a month's grid of days, moved through by the keys) and `DatePicker` (a
+  calendar in a popover; `Days`: dates as day numbers, no time zones), and the popups `Select`, `Menu`,
   `ContextMenu` (at the pointer), `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
   with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
   `Theme.follow(() -> UiWindow.dark.value)` follows the system's
