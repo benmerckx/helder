@@ -77,7 +77,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     inner corners quarter ellipses as Chromium draws them), `opacity`, `shadow`
     (CSS's box-shadow: `"0 2px 8px rgba(0, 0, 0, 0.25)"`, x, y, blur, spread,
     colour; `inset`; several, comma-separated; blurred by a Gaussian as
-    Chromium blurs them, within a few levels of its pixels), `cursor`. Colours are
+    Chromium blurs them, within a few levels of its pixels), `cursor`,
+    `visibility` (inherited; `Hidden` keeps the node's place but draws,
+    hits, focuses and shows it to assistive technology no more, while a
+    `Visible` descendant still is). Colours are
     CSS's (`Color.parse`: hex, `rgb()`, `hsl()`, the 148 names, as Chromium
     computes them); `backgroundImage` (markup: `background="linear-gradient(...)"`)
     is a CSS gradient, linear or radial, repeating or not (`Gradient`: within

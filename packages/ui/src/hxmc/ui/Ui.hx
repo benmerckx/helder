@@ -128,6 +128,8 @@ class Ui {
 	var cullY0 = 0.0;
 	var cullX1 = 0.0;
 	var cullY1 = 0.0;
+	// (the node being drawn is hidden: Style.visibility, inherited)
+	var hidden = false;
 
 	function paintNode(n:Node, canvas:Canvas) {
 		var s = n.style;
@@ -147,6 +149,8 @@ class Ui {
 			cullX1 = cullY1 = 1e9;
 		}
 		if (s.opacity < 1) canvas.pushOpacity(s.opacity);
+		var wasHidden = hidden;
+		if (s.visibility != null) hidden = s.visibility == Hidden;
 		// (each corner's radius and each side's border, when the style gives them)
 		var cs = s.corners != null ? s.cornerRadii() : null, sides = s.borders != null ? s.borderEdges : null;
 		var be = s.borderEdges, bordered = be.top + be.right + be.bottom + be.left > 0 && s.borderColor.a > 0;
@@ -159,7 +163,7 @@ class Ui {
 		}
 		// (the shadows outside: the last one first, under the others; not
 		// under the box, as CSS clips them, unless its background hides them)
-		var shadows = s.shadow == null ? null : s.shadow.painted();
+		var shadows = s.shadow == null || hidden ? null : s.shadow.painted();
 		var opaque = s.background.a == 255 && s.backgroundImage == null;
 		if (shadows != null)
 			for (sh in shadows) {
@@ -169,7 +173,9 @@ class Ui {
 					sh.blur, cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0, cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0,
 						cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0, cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0), opaque ? null : [sh.x, sh.y, o]);
 			}
-		if (s.backgroundImage != null && n.width > 0 && n.height > 0) {
+		if (hidden) {
+			// (nothing of its own)
+		} else if (s.backgroundImage != null && n.width > 0 && n.height > 0) {
 			// (the colour, the gradient over it, then the border over both)
 			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
 			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius, cs);
@@ -183,7 +189,7 @@ class Ui {
 					canvas.insetShadow(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, sh.color, sh.blur, sh.x, sh.y,
 						sh.spread, padC);
 		var pad = s.padding;
-		if (n.hasContent())
+		if (n.hasContent() && !hidden)
 			n.paintContent(canvas, n.absX + be.left + pad.left, n.absY + be.top + pad.top, Math.max(0, n.width - be.left - be.right - pad.left - pad.right),
 				Math.max(0, n.height - be.top - be.bottom - pad.top - pad.bottom));
 		var clip = s.overflow != Visible;
@@ -219,18 +225,19 @@ class Ui {
 		cullY0 = c1;
 		cullX1 = c2;
 		cullY1 = c3;
-		if (s.overflow == Scroll) {
+		if (s.overflow == Scroll && !hidden) {
 			for (x in [false, true]) {
 				var t = thumb(n, x);
 				if (t != null) canvas.rect(t[0], t[1], t[2], t[3], SCROLLBAR / 2, drag == n && dragX == x ? scrollbarActiveColor : scrollbarColor, 0, 0);
 			}
 		}
-		if (n == focus && focusVisible && focusRingWidth > 0) {
+		if (n == focus && focusVisible && focusRingWidth > 0 && !hidden) {
 			var o = focusRingOffset + focusRingWidth;
 			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
 				focusRingColor, cs == null ? null : new Corners(cs.topLeft > 0 ? cs.topLeft + o : 0, cs.topRight > 0 ? cs.topRight + o : 0,
 					cs.bottomRight > 0 ? cs.bottomRight + o : 0, cs.bottomLeft > 0 ? cs.bottomLeft + o : 0));
 		}
+		hidden = wasHidden;
 		if (s.opacity < 1) canvas.popOpacity();
 		if (m != null) canvas.popTransform();
 	}
@@ -688,7 +695,7 @@ class Ui {
 		var all:Array<Node> = [];
 		function collect(n:Node) {
 			if (n.style.display == None) return;
-			if (n.focusable) all.push(n);
+			if (n.focusable && n.visible()) all.push(n);
 			for (c in n.children)
 				collect(c);
 		}
@@ -756,7 +763,7 @@ class Ui {
 
 	static function firstFocusable(n:Node):Null<Node> {
 		if (n.style.display == None) return null;
-		if (n.focusable) return n;
+		if (n.focusable && n.visible()) return n;
 		for (c in n.children) {
 			var f = firstFocusable(c);
 			if (f != null) return f;

@@ -46,6 +46,7 @@ class UiTest {
 		transforms();
 		sticky();
 		stacking();
+		visibility();
 		culling();
 		selection();
 		fields();
@@ -318,6 +319,49 @@ class UiTest {
 		ui2.update();
 		ui2.keyDown(Key.TAB, 0);
 		check("stacking: order moves it, Tab keeps the tree's order", y.absX == 0 && x.absX == 40 && ui2.focus == x, '${y.absX} ${x.absX} ${ui2.focus}');
+	}
+
+	// visibility: hidden keeps the place, draws, hits, focuses and shows
+	// nothing of the node, but a visible descendant still is
+	static function visibility() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.direction = Row;
+		var a = new Node("a"), b = new Node("b"), inner = new Node("inner");
+		for (n in [a, b]) {
+			n.style.set({width: 60, height: 40, background: Color.rgb(n == a ? 0x110000 : 0x220000)});
+			n.focusable = true;
+			n.semantics = {role: Button, label: n.tag};
+			ui.root.append(n);
+		}
+		inner.style.set({width: 20, height: 20, background: Color.rgb(0x330000)});
+		inner.focusable = true;
+		inner.semantics = {role: Button, label: "inner"};
+		a.append(inner);
+		a.style.visibility = Hidden;
+		ui.update();
+		function painted():String {
+			var rec = new Recording();
+			ui.paint(rec);
+			return [for (l in rec.calls) if (StringTools.startsWith(l, "rect")) l.split(" ")[6].substr(2, 2)].join(",");
+		}
+		function labels():String {
+			var at = ui.accessTree();
+			return [for (id in at.order) if (at.nodes.get(id).name != null && at.nodes.get(id).name != "") at.nodes.get(id).name].join(",");
+		}
+		check("visibility: hidden keeps its place, not drawn", b.absX == 60 && painted() == "22", painted());
+		check("visibility: hidden not hit, nor focused, nor seen", ui.root.hitTest(30, 30) == ui.root && labels() == "b" && {
+			ui.keyDown(Key.TAB, 0);
+			ui.focus == b;
+		}, labels());
+		// (its ring not drawn)
+		ui.setFocus(null);
+		inner.style.visibility = Visible;
+		ui.update();
+		check("visibility: a visible descendant drawn, hit, seen", painted() == "33,22" && ui.root.hitTest(10, 10) == inner && labels() == "inner,b",
+			painted() + " " + labels());
+		a.style.visibility = null;
+		ui.update();
+		check("visibility: shown again", painted() == "11,33,22" && ui.root.hitTest(30, 30) == a, painted());
 	}
 
 	static function sticky() {

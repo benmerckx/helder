@@ -27,10 +27,10 @@ class AccessTree {
 		root = top.id;
 		add(ui.root, top);
 		for (c in ui.root.children)
-			visit(c, top, 0, 0, false, ui);
+			visit(c, top, 0, 0, false, ui.root.visible(), ui);
 		// (the popups: after the tree)
 		for (c in ui.overlay.children)
-			visit(c, top, 0, 0, false, ui);
+			visit(c, top, 0, 0, false, ui.overlay.visible(), ui);
 		var f = ui.focus;
 		focus = f != null && byId.exists(f.accessId) ? f.accessId : 0;
 	}
@@ -54,14 +54,17 @@ class AccessTree {
 	}
 
 	// n under parent (the nearest node in the tree); sx, sy: the ancestors'
-	// scrolling; inName: inside a node named by its content (its text taken)
-	function visit(n:Node, parent:AccessNode, sx:Float, sy:Float, inName:Bool, ui:Ui) {
+	// scrolling; inName: inside a node named by its content (its text taken);
+	// seen: the parent visible (Style.visibility: a hidden node's own
+	// semantics left out, its visible descendants not)
+	function visit(n:Node, parent:AccessNode, sx:Float, sy:Float, inName:Bool, seen:Bool, ui:Ui) {
 		var s = n.style;
 		if (s.display == None || s.opacity <= 0) return;
 		var sem = n.semantics;
 		if (sem != null && sem.hidden) return;
-		var role:Null<Role> = sem != null ? sem.role : null;
-		if (role == null) {
+		if (s.visibility != null) seen = s.visibility == Visible;
+		var role:Null<Role> = !seen ? null : sem != null ? sem.role : null;
+		if (role == null && seen) {
 			if (Std.isOfType(n, ImageNode)) role = sem != null && sem.label != null ? Image : null else if (Std.isOfType(n, TextNode))
 				role = inName || (cast n : TextNode).allText() == "" ? null : Label else if (n.focusable) role = Group;
 		}
@@ -104,7 +107,7 @@ class AccessTree {
 		// (a TextNode's text is its own, its spans' included: no children to visit)
 		if (!Std.isOfType(n, TextNode))
 			for (c in n.children)
-				visit(c, here, sx, sy, named, ui);
+				visit(c, here, sx, sy, named, seen, ui);
 	}
 
 	// the text of the TextNodes in n (space separated)
@@ -123,6 +126,7 @@ class AccessTree {
 			// (hidden text, a decoration such as a menu's triangle, is not part of the name)
 			if (m.style.display == None || m.semantics != null && m.semantics.hidden) return;
 			if (Std.isOfType(m, TextNode)) {
+				if (!m.visible()) return;
 				var t = StringTools.trim((cast m : TextNode).allText());
 				if (t != "") parts.push(t);
 				return;

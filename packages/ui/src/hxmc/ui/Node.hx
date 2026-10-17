@@ -528,6 +528,17 @@ class Node {
 		return Style.DEFAULT_COLOR;
 	}
 
+	// whether it is seen: its visibility, else its nearest ancestor's (Style.visibility)
+	public function visible():Bool {
+		var n = this;
+		while (n != null) {
+			var v = n.style.visibility;
+			if (v != null) return v == Visible;
+			n = n.parent;
+		}
+		return true;
+	}
+
 	public function textAlign():TextAlign {
 		var n = this;
 		while (n != null) {
@@ -787,7 +798,7 @@ class Node {
 				var c = order[i].hitTest(sx, sy);
 				if (c != null) return c;
 			}
-			return inside ? this : null;
+			return inside && visible() ? this : null;
 		}
 		for (pass in 0...2) {
 			var i = children.length;
@@ -797,7 +808,7 @@ class Node {
 				if (c != null) return c;
 			}
 		}
-		return inside ? this : null;
+		return inside && visible() ? this : null;
 	}
 
 	// the bounds of what it and its subtree draw, from its layout (window

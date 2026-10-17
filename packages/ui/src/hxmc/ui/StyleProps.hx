@@ -53,6 +53,7 @@ typedef StyleProps = {
 	?lineHeight:Float,
 	?textAlign:TextAlign,
 	?dir:Dir,
+	?visibility:Visibility,
 	?order:Int,
 	?zIndex:Int,
 	?maxLines:Int,

@@ -187,6 +187,11 @@ class Style {
 	// default alignment; margins, padding and offsets stay physical
 	public var dir(get, set):Null<Dir>;
 
+	// whether it is seen, inherited (null: the parent's; Visible at the
+	// root): Hidden keeps its place but draws, hits, focuses and shows
+	// nothing of it to assistive technology (its Visible descendants still are)
+	public var visibility(get, set):Null<Visibility>;
+
 	// a text's lines at most (0: any), the last ending in an ellipsis when cut (CSS's line-clamp; not inherited)
 	public var maxLines(get, set):Int;
 
@@ -269,6 +274,9 @@ class Style {
 
 	inline function get_dir():Null<Dir>
 		return rare == null ? null : rare.dir;
+
+	inline function get_visibility():Null<Visibility>
+		return rare == null ? null : rare.visibility;
 
 	inline function get_order():Int
 		return rare == null ? 0 : rare.order;
@@ -362,6 +370,15 @@ class Style {
 		node.styleChanged(true);
 		// (inherited: every container under it lays out again)
 		@:privateAccess node.dirChanged();
+		return v;
+	}
+
+	function set_visibility(v:Null<Visibility>):Null<Visibility> {
+		if (v == visibility) return v;
+		more().visibility = v;
+		node.styleChanged(false);
+		// (what assistive technology sees changes)
+		Ui.accessEpoch++;
 		return v;
 	}
 
@@ -817,6 +834,7 @@ class Style {
 		if (p.wordSpacing != null) wordSpacing = p.wordSpacing;
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
+		if (p.visibility != null) visibility = p.visibility;
 		if (p.order != null) order = p.order;
 		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
@@ -860,6 +878,7 @@ private class StyleRare {
 	public var wordSpacing:Null<Float> = null;
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
+	public var visibility:Null<Visibility> = null;
 	public var order:Int = 0;
 	public var zIndex:Int = 0;
 	public var textDecoration:Int = 0;
