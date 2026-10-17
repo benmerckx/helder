@@ -28,7 +28,7 @@ class View {
 	// makes the nodes, with the code compiled for renderer r (its index in
 	// the program's: HostMacro), in parent before before (null: at the end);
 	// the top ones also pushed to out (when not null). Parent, before and
-	// out are that renderer's nodes (Runtime_<r> calls it)
+	// out are that renderer's nodes (ViewRuntime_<r> calls it)
 	public final mount:(r:Int, parent:Dynamic, before:Dynamic, out:Dynamic) -> Void;
 	// content of components, holes and fragments only (a Switch's Match
 	// cases): its parts as values, components called (null: it has elements

@@ -2,8 +2,8 @@ package hxmc.view;
 
 // Mounting content into one renderer's nodes, Solid's way: each part is
 // made once and bound to what it reads. Written against Host (the
-// renderer) and HostNode (its nodes), placeholders: Runtime is the first
-// renderer's runtime, Runtime_<i> the others' (HostMacro), so that every
+// renderer) and HostNode (its nodes), placeholders: ViewRuntime is the first
+// renderer's runtime, ViewRuntime_<i> the others' (HostMacro), so that every
 // call below is a direct call to its renderer. (Being copied, it names
 // other types by their full paths.)
 //
@@ -21,7 +21,7 @@ package hxmc.view;
 // or spans beside its child elements), components (called once,
 // untracked, in an owner of their own).
 @:build(hxmc.view.HostMacro.build())
-class Runtime {
+class ViewRuntime {
 	// renders content into parent (its root: dispose removes it and stops its effects)
 	public static function render(content:Any, parent:HostNode):Void->Void {
 		return hxmc.view.Reactive.root(dispose -> {

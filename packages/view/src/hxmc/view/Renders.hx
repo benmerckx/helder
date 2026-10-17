@@ -8,7 +8,7 @@ package hxmc.view;
 // the renderer whose nodes it is (Render.render picks it by the parent's
 // type), and everything mounted there, components included, is made by
 // that renderer with direct, inlinable calls: markup is compiled for each
-// renderer, the runtime copied for each (Runtime, HostMacro). A component
+// renderer, the runtime copied for each (ViewRuntime, HostMacro). A component
 // that makes one renderer's node and renders into it with another is a
 // boundary. The functions, checked when the renderer is first used:
 //

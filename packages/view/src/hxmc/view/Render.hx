@@ -7,7 +7,7 @@ import haxe.macro.Expr;
 import hxmc.view.Memo;
 import hxmc.view.Signal;
 
-// Mounting content: render and insert go to the runtime (Runtime) of the
+// Mounting content: render and insert go to the runtime (ViewRuntime) of the
 // renderer whose nodes parent is, chosen by its type when compiling; what
 // is mounted there is made by that renderer, components and all. A
 // component that makes a node of one renderer and renders into it with

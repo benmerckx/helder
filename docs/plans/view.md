@@ -54,7 +54,7 @@ What the web needs is in [web.md](web.md).
   per package: `-lib hxmc.ui` sets ui's). Components stay
   renderer-agnostic: each literal is compiled once per renderer (a
   `View` holds one mount function, which runs the code of the renderer
-  it is given), and the runtime (`Runtime`, written against the
+  it is given), and the runtime (`ViewRuntime`, written against the
   placeholders `Host` and `HostNode`) is copied for each renderer by a
   build macro. `Render.render(content, parent)` picks the renderer by the
   parent's type when compiling. Inside a subtree every node operation is

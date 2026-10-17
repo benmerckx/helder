@@ -78,7 +78,7 @@ time): `createElement`, `createText`, `createMarker`, `setText`,
 `hxmc.ui.view.NodeRenderer`); there may be several.
 
 Components are renderer-agnostic: each literal is compiled for each
-renderer, and the runtime (`Runtime`, written against placeholders) is
+renderer, and the runtime (`ViewRuntime`, written against placeholders) is
 copied for each. `Render.render(content, parent)` picks the renderer by
 the parent's type when compiling; everything mounted there is made by
 that renderer, every node operation a direct call to it. A component that

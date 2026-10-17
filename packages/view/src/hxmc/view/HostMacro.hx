@@ -12,11 +12,11 @@ using haxe.macro.ExprTools;
 // Renderers are named by defines: -D hxmc.view.renderer=<class> and any
 // -D hxmc.view.renderer.<name>=<class> (each package its own: -lib
 // hxmc.ui sets hxmc.view.renderer.ui), ordered by define name; each is a
-// class implementing Renders<N>, its functions checked once. Runtime is
+// class implementing Renders<N>, its functions checked once. ViewRuntime is
 // written against Host and HostNode, placeholders: its build macro keeps
-// its fields and makes Runtime itself the first renderer's runtime;
-// instance(i) defines Runtime_<i> for the others, the same fields with
-// Host, HostNode, Runtime and INDEX replaced. Markup compiles each literal
+// its fields and makes ViewRuntime itself the first renderer's runtime;
+// instance(i) defines ViewRuntime_<i> for the others, the same fields with
+// Host, HostNode, ViewRuntime and INDEX replaced. Markup compiles each literal
 // once per renderer, so that a subtree's calls go straight to the renderer
 // that owns it.
 class HostMacro {
@@ -72,13 +72,13 @@ class HostMacro {
 
 	// the runtime class of renderer i, as a path
 	public static function runtime(i:Int):Array<String> {
-		if (i == 0) return ["hxmc", "view", "Runtime"];
-		var name = 'Runtime_$i';
+		if (i == 0) return ["hxmc", "view", "ViewRuntime"];
+		var name = 'ViewRuntime_$i';
 		try {
 			Context.getType('hxmc.view.$name');
 		} catch (_:Dynamic) {
 			// (its build macro run: its fields asked for)
-			switch Context.getType("hxmc.view.Runtime") {
+			switch Context.getType("hxmc.view.ViewRuntime") {
 				case TInst(c, _): c.get().statics.get();
 				case _:
 			}
@@ -98,18 +98,18 @@ class HostMacro {
 	public static function rendererPath(i:Int):Array<String>
 		return renderers()[i].path.split(".");
 
-	// Runtime's build macro: its fields kept, made the first renderer's
+	// ViewRuntime's build macro: its fields kept, made the first renderer's
 	public static function build():Array<Field> {
 		template = Context.getBuildFields();
 		return [for (f in template) subst(f, 0)];
 	}
 
-	// a field with Host, HostNode, Runtime and INDEX those of renderer i
+	// a field with Host, HostNode, ViewRuntime and INDEX those of renderer i
 	static function subst(f:Field, i:Int):Field
 		return new Subst(renderers()[i].node, rendererPath(i), runtime0Name(i), i).field(f);
 
 	static function runtime0Name(i:Int):String
-		return i == 0 ? "Runtime" : 'Runtime_$i';
+		return i == 0 ? "ViewRuntime" : 'ViewRuntime_$i';
 }
 
 // (a field's copy for one renderer)
@@ -130,7 +130,7 @@ private class Subst {
 		return t == null ? null : switch t {
 			case TPath({pack: [], name: "HostNode", params: null | []}): node;
 			case TPath(p):
-				TPath({pack: p.pack, name: p.name == "Runtime" && p.pack.length == 0 ? self : p.name, sub: p.sub,
+				TPath({pack: p.pack, name: p.name == "ViewRuntime" && p.pack.length == 0 ? self : p.name, sub: p.sub,
 					params: p.params == null ? null : [for (x in p.params) switch x {
 						case TPType(t): TPType(ct(t));
 						case TPExpr(e): TPExpr(ex(e));
@@ -154,7 +154,7 @@ private class Subst {
 	function ex(e:Expr):Expr
 		return switch e.expr {
 			case EConst(CIdent("Host")): macro @:pos(e.pos) $p{host};
-			case EConst(CIdent("Runtime")): macro @:pos(e.pos) $i{self};
+			case EConst(CIdent("ViewRuntime")): macro @:pos(e.pos) $i{self};
 			case EConst(CIdent("INDEX")): macro @:pos(e.pos) $v{i};
 			case EVars(vs): {expr: EVars([for (v in vs) {name: v.name, type: ct(v.type), expr: v.expr == null ? null : ex(v.expr), isFinal: v.isFinal}]), pos: e.pos};
 			case ENew(t, args): {expr: ENew({pack: t.pack, name: t.name, sub: t.sub, params: t.params}, [for (a in args) ex(a)]), pos: e.pos};

@@ -101,7 +101,7 @@ class MatchCase {
 }
 
 // For's, Index's and ErrorBoundary's content, which each renderer's
-// Runtime mounts
+// ViewRuntime mounts
 class ForList {
 	public final each:Dynamic;
 	public final render:Dynamic->Any;
