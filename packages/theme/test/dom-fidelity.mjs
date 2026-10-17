@@ -132,7 +132,7 @@ for (const c of cases) {
 		case 'input-otp': await page.locator('[data-slot=input-otp] input').focus(); break;
 		case 'toast': await page.evaluate(([t, a]) => window.toast(t, a), [c.text, c.action]); break;
 	}
-	await page.mouse.move(799, 599);
+	if (c.component !== 'tooltip' && c.component !== 'hover-card') await page.mouse.move(799, 599);
 	const { root } = await cdp.send('DOM.getDocument');
 	const force = async (selector, states) => {
 		const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector });
@@ -142,7 +142,9 @@ for (const c of cases) {
 	await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 	let shot;
 	if (c.crop) {
-		const b = await page.locator(`[data-slot=${CROP[c.component] ?? c.crop}]`).first().boundingBox();
+		// (a popup alone, as ref.mjs draws it: what it opens from hidden, toasts aside, which are in the frame)
+		if (c.component !== 'toast') await page.evaluate(() => { for (const e of document.querySelectorAll('#frame > *')) e.style.visibility = 'hidden'; });
+		const b = await page.locator(`[data-slot=${CROP[c.component] ?? c.crop}]`).first().boundingBox({ timeout: 2000 }).catch(() => null);
 		shot = b ? await page.screenshot({ clip: { x: Math.round(b.x) - 8, y: Math.round(b.y) - 8, width: c.w, height: c.h } }) : null;
 	} else shot = await page.locator('#frame').screenshot();
 	if (c.states) await force(sel, []);

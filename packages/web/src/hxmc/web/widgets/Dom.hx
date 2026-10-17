@@ -108,6 +108,51 @@ class Dom {
 	public static function popup(open:Void->Bool, content:Void->Any, options:PopupOptions)
 		new Popup(open, content, options);
 
+	// shows content in a modal <dialog> (the top layer, the page behind it
+	// inert, the focus kept in it) while open() is true: Escape calls
+	// onDismiss; onOpen: the dialog, shown (where the focus goes first)
+	public static function modal(open:Void->Bool, content:Void->Any, onDismiss:Void->Void, ?onOpen:Element->Void) {
+		var d:Null<js.html.DialogElement> = null, dispose:Null<Void->Void> = null, before:Null<Element> = null;
+		function hide() {
+			if (d == null) return;
+			if (dispose != null) dispose();
+			d.close();
+			d.remove();
+			d = null;
+			// (the focus back where it was)
+			if (before != null) focus(before);
+		}
+		effect(() -> {
+			var on = open();
+			untrack(() -> if (on && d == null) {
+				before = cast document.activeElement;
+				d = cast document.createElement("dialog");
+				d.setAttribute("data-modal", "");
+				d.addEventListener("cancel", (e:js.html.Event) -> {
+					e.preventDefault();
+					onDismiss();
+				});
+				document.body.appendChild(d);
+				dispose = Render.render(content(), (d : Element));
+				d.showModal();
+				if (onOpen != null) onOpen(d);
+			} else if (!on) hide());
+		});
+		onCleanup(hide);
+	}
+
+	// the animation clock (hxmc.ui's Clock: toasts' time) ticked on the browser's frames while anything runs on it
+	public static function tick() {
+		if (ticking || !hxmc.ui.Clock.active) return;
+		ticking = true;
+		function frame(t:Float) {
+			if (hxmc.ui.Clock.tick(t / 1000)) window.requestAnimationFrame(frame) else ticking = false;
+		}
+		window.requestAnimationFrame(frame);
+	}
+
+	static var ticking = false;
+
 	@:allow(hxmc.web.widgets.Popup) static function push(p:Popup) {
 		if (stack.length == 0) {
 			document.addEventListener("pointerdown", outside, true);

@@ -109,6 +109,25 @@ class Css {
 		return out;
 	}
 
+	// a class list as CSS for the elements a selector picks (an instance's
+	// classes of its own: Css.classes("#search [data-slot=command]",
+	// "rounded-lg border shadow-md"), one rule per class, in its order
+	public static function classes(selector:String, list:String):String {
+		var out = new StringBuf();
+		for (c in ~/\s+/g.split(StringTools.trim(list))) {
+			var rs = c == "" ? [] : rules(c);
+			if (rs == null) throw 'Css: unknown class $c';
+			for (r in rs) {
+				if (r.decls.length == 0) continue;
+				var body = r.sel.replace("&", selector) + "{" + [for (d in r.decls) d[0] + ":" + minify(resolve(d[1]))].join(";") + "}";
+				for (i in 0...r.at.length)
+					body = r.at[r.at.length - 1 - i] + "{" + body + "}";
+				out.add(body + "\n");
+			}
+		}
+		return out.toString();
+	}
+
 	// (a class name as a selector writes it)
 	static function escape(s:String):String {
 		var b = new StringBuf();
@@ -285,7 +304,10 @@ class Css {
 		var d = utility(u);
 		if (d == null) return null;
 		if (u == "outline-hidden") return [{at: [], sel: "&", decls: d}, {at: ["@media (forced-colors: active)"], sel: "&", decls: [["outline", "2px solid transparent"], ["outline-offset", "2px"]]}];
-		return [{at: [], sel: "&", decls: d}];
+		// (tw-animate-css's starts: what an enter transition starts from)
+		var start = u.startsWith("fade-in") || u.startsWith("zoom-in") || u.startsWith("slide-in-from-") || u.startsWith("spin-in")
+			|| u.startsWith("-spin-in");
+		return [{at: start ? ["@starting-style"] : [], sel: "&", decls: d}];
 	}
 
 	// (an arbitrary value: _ a space, calc's operators spaced as Tailwind spaces them)
@@ -814,6 +836,10 @@ class Css {
 				}
 			}
 		}
+		// (the DOM's widgets: their popups' and modals' hosts in the top layer, laid out by their content; icons that point the way the line reads)
+		out.add("[data-popup]{position:fixed;inset:auto;margin:0;padding:0;border:0;background:none;color:inherit;overflow:visible}"
+			+ "dialog[data-modal]{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:none;color:inherit;overflow:visible}dialog[data-modal]::backdrop{background:none}"
+			+ "[data-slot=breadcrumb-separator]>svg:dir(rtl){transform:scaleX(-1)}\n");
 		if (dark.length > 0) out.add("@media (prefers-color-scheme:dark){\n" + dark.join("\n") + "\n}\n");
 		for (k in sorted(used))
 			out.add(KEYFRAMES[k] + "\n");

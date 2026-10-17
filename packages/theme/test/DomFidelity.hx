@@ -67,6 +67,69 @@ class DomFidelity implements Markup {
 				]}/>;
 			case "breadcrumb": <Breadcrumb items={["Home", "Components", "Breadcrumb"]} onSelect={_ -> {}}/>;
 			case "pagination": <Pagination page={new Signal(2)} count={10}/>;
+			case "select" if (c.text != null): <Select value={new Signal(text)} options={[text, "Banana"]}/>;
+			case "select": <Select value={new Signal("")} options={["Apple", "Banana"]} placeholder={c.placeholder}/>;
+			case "select-content": <Select value={new Signal("Apple")} options={["Apple", "Banana", "Blueberry", "Grapes"]}/>;
+			case "dialog":
+				<Dialog open={new Signal(true)} title="Edit profile" description="Make changes to your profile here. Click save when you're done." width={512}>
+					<DialogFooter><Button variant="outline" label="Cancel"/><Button label="Save changes"/></DialogFooter>
+				</Dialog>;
+			case "sheet":
+				<Sheet open={new Signal(true)} title="Edit profile" description="Make changes to your profile here. Click save when you're done.">
+					<SheetFooter><Button label="Save changes"/><Button variant="outline" label="Close"/></SheetFooter>
+				</Sheet>;
+			case "alert-dialog":
+				<AlertDialog open={new Signal(true)} title="Are you absolutely sure?" width={512}
+					description="This action cannot be undone. This will permanently delete your account and remove your data from our servers."/>;
+			case "drawer":
+				<Drawer open={new Signal(true)} title="Move Goal" description="Set your daily activity goal.">
+					<DrawerFooter><Button label="Submit"/><Button variant="outline" label="Cancel"/></DrawerFooter>
+				</Drawer>;
+			case "popover":
+				<PopoverButton label="Open popover">
+					<div data-slot="popover-header"><div data-slot="popover-title">Dimensions</div><div data-slot="popover-description">Set the dimensions for the layer.</div></div>
+				</PopoverButton>;
+			case "hover-card": <HoverCard content={<p style="font-size:14px;line-height:20px">The React Framework, created and maintained by @vercel.</p>}><Button variant="link" label="@nextjs"/></HoverCard>;
+			case "tooltip": <Tooltip text="Add to library"><Button variant="outline" label="Hover"/></Tooltip>;
+			case "dropdown-menu": <DropdownMenu label="Open" items={MENU}/>;
+			case "context-menu": <ContextMenu items={MENU}><div id="area" style="width:200px;height:80px"/></ContextMenu>;
+			case "menubar": <Menubar menus={[{label: "File", items: []}, {label: "Edit", items: []}, {label: "View", items: []}]}/>;
+			case "menubar-content":
+				<Menubar menus={[{label: "File", items: [
+					{label: "New Tab", shortcut: "Mod+T", onSelect: () -> {}},
+					{label: "New Window", shortcut: "Mod+N", onSelect: () -> {}},
+					{label: "", separator: true},
+					{label: "Share", onSelect: () -> {}},
+					{label: "Print", shortcut: "Mod+P", onSelect: () -> {}}
+				]}]}/>;
+			case "dropdown-menu-items":
+				<DropdownMenu label="Open" items={[
+					{label: "Appearance", heading: true},
+					{label: "Status Bar", checked: new Signal(true), onSelect: () -> {}},
+					{label: "Panel", checked: new Signal(false), onSelect: () -> {}},
+					{label: "", separator: true},
+					{label: "More", items: [{label: "Email", onSelect: () -> {}}]}
+				]}/>;
+			case "combobox": <Combobox value={new Signal("")} options={["Next.js", "SvelteKit", "Nuxt.js", "Remix", "Astro"]} width={200}/>;
+			case "command":
+				<div class="command-example" style="display:contents"><Command placeholder="Type a command or search..." groups={[
+					{heading: "Suggestions", items: [{label: "Calendar", onSelect: () -> {}}, {label: "Search Emoji", onSelect: () -> {}}, {label: "Calculator", disabled: true}]},
+					{heading: "Settings", items: [
+						{label: "Profile", shortcut: "Mod+P", onSelect: () -> {}},
+						{label: "Billing", shortcut: "Mod+B", onSelect: () -> {}},
+						{label: "Settings", shortcut: "Mod+S", onSelect: () -> {}}
+					]}
+				]}/></div>;
+			case "input-otp": <InputOTP value={new Signal("12")} length={6} groups={[3, 3]}/>;
+			case "calendar": <Calendar value={new Signal({year: 2026, month: 10, day: 12})} today={{year: 2026, month: 10, day: 17}} firstDay={0}/>;
+			case "toast": <Toaster placement="top-left"/>;
+			case "table":
+				var rows = [["INV001", "Paid", "$250.00"], ["INV002", "Pending", "$150.00"], ["INV003", "Unpaid", "$350.00"]];
+				var cols = [for (k in 0...3) {title: ["Invoice", "Status", "Amount"][k], cell: (r:Dynamic) -> (r[k] : String)}];
+				<Table rows={rows} selected={new Signal(rows[1])} columns={cols}/>;
+			case "resizable":
+				var pane = (t:String) -> <div style="display:flex;height:100%;align-items:center;justify-content:center;padding:24px"><span style="font-weight:600">{t}</span></div>;
+				<div class="resizable-example" style="display:contents"><Split first={pane("One")} second={pane("Two")} size={new Signal(150.0)}/></div>;
 			case "kbd": <Kbd text="Ctrl"/>;
 			case "spinner": <Spinner/>;
 			case _: null;
@@ -81,7 +144,9 @@ class DomFidelity implements Markup {
 		html.className = c.dark == true ? "dark" : "";
 		if (c.rtl == true) html.setAttribute("dir", "rtl") else html.removeAttribute("dir");
 		var frame = document.getElementById("frame");
+		// (a popup compared in its box: the frame away from the window's edges, which would push it)
 		frame.setAttribute("style", 'box-sizing:border-box;width:${w}px;height:${h}px;padding:16px;background-color:var(--background)'
+			+ (c.crop != null ? ";margin:120px 0 0 200px" : "")
 			+ (c.block == true ? "" : ";display:flex;align-items:flex-start"));
 		var v = widget(c);
 		if (v == null) return false;
@@ -90,6 +155,11 @@ class DomFidelity implements Markup {
 	}
 
 	static function main() {
+		// (the classes shadcn's example adds to its command)
+		var style = document.createStyleElement();
+		style.textContent = hxmc.theme.Css.classes(".command-example > [data-slot=command]", "rounded-lg border shadow-md md:min-w-[450px]")
+			+ hxmc.theme.Css.classes(".resizable-example > [data-slot=resizable-panel-group]", "rounded-lg border");
+		document.head.appendChild(style);
 		js.Syntax.code("window.renderCase = {0}", renderCase);
 		js.Syntax.code("window.toast = {0}", (text:String, action:String) -> Toasts.show(text, {action: action, duration: 0}));
 	}
