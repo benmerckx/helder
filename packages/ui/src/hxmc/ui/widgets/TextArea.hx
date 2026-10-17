@@ -40,6 +40,9 @@ class TextArea extends EditableText {
 	function laidAt():Null<Paragraph>
 		return ui == null ? null : layoutText(ui.text, innerWidth());
 
+	override function laid():Null<Paragraph>
+		return laidAt();
+
 	function lineHeight():Float
 		return font().size * font().lineHeight;
 

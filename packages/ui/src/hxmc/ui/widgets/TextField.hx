@@ -23,6 +23,9 @@ class TextField extends EditableText {
 	override function pasted(t:String):String
 		return StringTools.replace(StringTools.replace(StringTools.replace(t, "\r\n", " "), "\n", " "), "\r", " ");
 
+	override function laid():Null<Paragraph>
+		return ui == null ? null : layoutText(ui.text, Math.NaN);
+
 	override function indexAt(px:Float, py:Float):Int {
 		if (ui == null) return caret;
 		var p = layoutText(ui.text, Math.NaN);

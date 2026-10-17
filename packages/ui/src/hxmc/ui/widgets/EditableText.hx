@@ -5,7 +5,8 @@ import hxmc.ui.*;
 // Text edited in place: what TextField (one line) and TextArea (several)
 // share. Focusable, edited with the keyboard (characters, Backspace,
 // Delete, Left, Right, Home, End: by grapheme clusters, but Backspace
-// takes a letter's marks one at a time; Shift extends the selection; Control or
+// takes a letter's marks one at a time, and Left and Right in text with
+// right-to-left characters go the way they point; Shift extends the selection; Control or
 // Alt (Option) with Left, Right, Backspace and Delete: by words; Command
 // with Left and Right: Home and End; Control+A selects all, Control+C, X
 // and V copy, cut and paste through Ui.clipboard, Control+Z undoes,
@@ -169,8 +170,8 @@ class EditableText extends TextNode {
 			case Key.RIGHT if (edge): move(lineEnd(caret), shift);
 			case Key.LEFT if (word): move(prevWord(caret), shift);
 			case Key.RIGHT if (word): move(nextWord(caret), shift);
-			case Key.LEFT: move(selectionStart != selectionEnd && !shift ? selectionStart : prev(caret), shift);
-			case Key.RIGHT: move(selectionStart != selectionEnd && !shift ? selectionEnd : next(caret), shift);
+			case Key.LEFT: move(selectionStart != selectionEnd && !shift ? selectionStart : visualStep(caret, false), shift);
+			case Key.RIGHT: move(selectionStart != selectionEnd && !shift ? selectionEnd : visualStep(caret, true), shift);
 			case Key.HOME: move(0, shift);
 			case Key.END: move(text.length, shift);
 			case Key.BACKSPACE:
@@ -270,6 +271,33 @@ class EditableText extends TextNode {
 
 	inline function next(i:Int):Int
 		return hxmc.text.Grapheme.next(text, i);
+
+	// the text laid out as it is painted (subclasses: at their width)
+	function laid():Null<Paragraph>
+		return null;
+
+	// Left and Right: with right-to-left text, to the nearest caret place
+	// left or right of the caret on its line (the caret moves as it looks;
+	// at the line's edge it stays), else a cluster back or forward
+	function visualStep(i:Int, right:Bool):Int {
+		var p = laid();
+		if (p == null || !hxmc.text.Bidi.hasRtl([for (c in new haxe.iterators.StringIteratorUnicode(text)) c])) return right ? next(i) : prev(i);
+		var at = p.caret(i);
+		var best = i, bestX = at.x, j = 0;
+		while (true) {
+			if (j != i) {
+				var c = p.caret(j);
+				if (Math.abs(c.y - at.y) < 0.5 && (right ? c.x > at.x + 1e-6 : c.x < at.x - 1e-6)
+					&& (best == i || (right ? c.x < bestX : c.x > bestX))) {
+					best = j;
+					bestX = c.x;
+				}
+			}
+			if (j >= text.length) break;
+			j = next(j);
+		}
+		return best;
+	}
 
 	// where Backspace deletes back to: a cluster, but a letter's marks one at a time (as browsers do)
 	function backspaced(i:Int):Int {

@@ -269,6 +269,34 @@ class UiTest {
 		h.select(1, 1);
 		ui.keyDown(Key.DELETE, 0);
 		check("graphemes: Delete takes a flag", h.text == "e", h.text);
+		// Left and Right in right-to-left text move the caret as it looks (real fonts: DrawText, with DejaVu Sans)
+		var dejavu = hxmc.text.SystemFonts.get().match("DejaVu Sans");
+		if (dejavu != null && dejavu.family == "DejaVu Sans") {
+			var rui = new Ui(new hxmc.ui.draw.DrawText(), 300, 100);
+			rui.root.style.fontFamily = "DejaVu Sans";
+			rui.root.style.alignItems = Start;
+			var r = new TextField("ab \u05D0\u05D1\u05D2");
+			r.style.width = 200;
+			rui.root.append(r);
+			rui.update();
+			rui.setFocus(r);
+			r.select(2, 2);
+			var seq = [];
+			for (_ in 0...5) {
+				rui.keyDown(Key.RIGHT, 0);
+				seq.push(r.caret);
+			}
+			check("bidi: Right goes rightward through Hebrew, then stays", seq.join(",") == "6,5,4,3,3", seq.join(","));
+			r.setText("\u05D0\u05D1\u05D2");
+			r.select(0, 0);
+			var back = [];
+			for (_ in 0...4) {
+				rui.keyDown(Key.LEFT, 0);
+				back.push(r.caret);
+			}
+			rui.keyDown(Key.RIGHT, 0);
+			check("bidi: Left in Hebrew goes forward, Right back", back.join(",") == "1,2,3,3" && r.caret == 2, back.join(",") + " " + r.caret);
+		}
 		// an input method's composition: shown at the caret, underlined, typed when committed
 		var ui = new Ui(new MonoText(), 300, 100);
 		ui.root.style.fontSize = 10;
