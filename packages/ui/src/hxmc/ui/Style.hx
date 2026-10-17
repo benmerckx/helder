@@ -172,6 +172,16 @@ class Style {
 
 	public var textAlign(default, set):Null<TextAlign> = null;
 
+	// where it is laid out among its siblings (CSS's order: lower first, ties
+	// in the tree's order); painted and hit in that order too; Tab still
+	// follows the tree
+	public var order(get, set):Int;
+
+	// painted over its siblings with lower ones, under those with higher (and
+	// hit the other way round), whatever their order (CSS's z-index among
+	// siblings: no stacking contexts across levels)
+	public var zIndex(get, set):Int;
+
 	// the inline direction, inherited (null: the parent's; Ltr at the root):
 	// Rtl mirrors rows, columns' cross axis, grids' columns and text's
 	// default alignment; margins, padding and offsets stay physical
@@ -260,6 +270,12 @@ class Style {
 	inline function get_dir():Null<Dir>
 		return rare == null ? null : rare.dir;
 
+	inline function get_order():Int
+		return rare == null ? 0 : rare.order;
+
+	inline function get_zIndex():Int
+		return rare == null ? 0 : rare.zIndex;
+
 	inline function get_textDecoration():Int
 		return rare == null ? 0 : rare.textDecoration;
 
@@ -321,6 +337,22 @@ class Style {
 		if (v == alignSelf) return v;
 		alignSelf = v;
 		node.styleChanged(true);
+		return v;
+	}
+
+	function set_order(v:Int):Int {
+		if (v == order) return v;
+		more().order = v;
+		node.styleChanged(true);
+		// (the parent lays its children out in the new order)
+		if (node.parent != null) node.parent.markDirty();
+		return v;
+	}
+
+	function set_zIndex(v:Int):Int {
+		if (v == zIndex) return v;
+		more().zIndex = v;
+		node.styleChanged(false);
 		return v;
 	}
 
@@ -785,6 +817,8 @@ class Style {
 		if (p.wordSpacing != null) wordSpacing = p.wordSpacing;
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
+		if (p.order != null) order = p.order;
+		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.maxLines != null) maxLines = p.maxLines;
 		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
@@ -826,6 +860,8 @@ private class StyleRare {
 	public var wordSpacing:Null<Float> = null;
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
+	public var order:Int = 0;
+	public var zIndex:Int = 0;
 	public var textDecoration:Int = 0;
 	public var left:Dim = DimValue.Auto;
 	public var top:Dim = DimValue.Auto;

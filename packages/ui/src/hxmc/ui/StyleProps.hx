@@ -53,6 +53,8 @@ typedef StyleProps = {
 	?lineHeight:Float,
 	?textAlign:TextAlign,
 	?dir:Dir,
+	?order:Int,
+	?zIndex:Int,
 	?maxLines:Int,
 	?gridTemplateColumns:Array<Grid.Track>,
 	?gridTemplateRows:Array<Grid.Track>,

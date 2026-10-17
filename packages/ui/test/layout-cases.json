@@ -3144,6 +3144,112 @@
 		}
 	},
 	{
+		"name": "order in a row",
+		"width": 300,
+		"height": 60,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"columnGap": 5
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20,
+						"order": 2
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 20
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"order": -1
+					}
+				},
+				{
+					"style": {
+						"width": 20,
+						"height": 20,
+						"order": 2
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "order in a wrapping column",
+		"width": 200,
+		"height": 100,
+		"tree": {
+			"style": {
+				"wrap": true,
+				"columnGap": 4
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 40,
+						"order": 1
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 40
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 40,
+						"order": 1
+					}
+				},
+				{
+					"style": {
+						"width": 20,
+						"height": 30
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "order in a grid",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "repeat(3, 1fr)",
+				"gridAutoRows": "30px"
+			},
+			"children": [
+				{
+					"style": {
+						"order": 3
+					}
+				},
+				{},
+				{
+					"style": {
+						"order": 1,
+						"gridColumn": "span 2"
+					}
+				},
+				{}
+			]
+		}
+	},
+	{
 		"name": "rtl absolute static position",
 		"width": 300,
 		"height": 200,

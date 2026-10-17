@@ -135,7 +135,7 @@ class Layout {
 
 		// the items and their hypothetical main sizes
 		var first = itemTop, absolute:Null<Array<Node>> = null;
-		for (c in n.children) {
+		for (c in n.inOrder()) {
 			var cs = c.style;
 			if (cs.display == None) {
 				if (perform) hide(c);
@@ -381,7 +381,7 @@ class Layout {
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
 		var availInH = known(innerH) ? innerH : known(availH) ? Math.max(0, availH - padV) : Math.NaN;
 		var items:Array<GridItem> = [], absolute:Array<Node> = [];
-		for (c in n.children) {
+		for (c in n.inOrder()) {
 			var cs = c.style;
 			if (cs.display == None) {
 				if (perform) hide(c);
@@ -508,7 +508,7 @@ class Layout {
 	// a grid's min-content width: its columns sized at an available width of 0
 	function gridMinContent(n:Node):Float {
 		var s = n.style;
-		var items = [for (c in n.children) if (c.style.display != None && c.style.position != Absolute) new GridItem(c)];
+		var items = [for (c in n.inOrder()) if (c.style.display != None && c.style.position != Absolute) new GridItem(c)];
 		place(items, s);
 		var nCols = gridColumnCount(s);
 		for (it in items)

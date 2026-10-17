@@ -118,5 +118,9 @@ export const cases = [
 	{ name: 'rtl inherited', width: 300, height: 100, tree: { style: { dir: 'Rtl' }, children: [{ style: { direction: 'Row', height: 40 }, children: [box(40, 20), box(50, 20)] }, { style: { direction: 'Row', dir: 'Ltr', height: 40 }, children: [box(40, 20), box(50, 20)] }] } },
 	{ name: 'rtl grid', width: 300, height: 200, tree: { style: { display: 'Grid', dir: 'Rtl', gridTemplateColumns: '60px 1fr 80px', gridAutoRows: '40px', columnGap: 5, padding: [0, 10, 0, 0] },
 		children: [{}, { style: { gridColumn: '2 / 4' } }, box(30, 20, { justifySelf: 'Start' }), box(30, 20, { justifySelf: 'End', margin: [0, 0, 0, 6] })] } },
+	// order (CSS's): items laid out by it, ties in the tree's order
+	{ name: 'order in a row', width: 300, height: 60, tree: { style: { direction: 'Row', columnGap: 5 }, children: [box(40, 20, { order: 2 }), box(50, 20), box(30, 20, { order: -1 }), box(20, 20, { order: 2 })] } },
+	{ name: 'order in a wrapping column', width: 200, height: 100, tree: { style: { wrap: true, columnGap: 4 }, children: [box(40, 40, { order: 1 }), box(50, 40), box(30, 40, { order: 1 }), box(20, 30)] } },
+	{ name: 'order in a grid', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '30px' }, children: [{ style: { order: 3 } }, {}, { style: { order: 1, gridColumn: 'span 2' } }, {}] } },
 	{ name: 'rtl absolute static position', width: 300, height: 200, tree: { style: { dir: 'Rtl', padding: [10, 15, 10, 5], borderWidth: 2 }, children: [h(30), box(40, 40, { position: 'Absolute', margin: [0, 6, 0, 0] }), box(40, 40, { position: 'Absolute', left: 10, top: 50 })] } },
 ];

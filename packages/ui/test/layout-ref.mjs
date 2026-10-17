@@ -34,7 +34,7 @@ function css(style) {
 		const name = KEBAB[k] ?? k;
 		let value;
 		if (k === 'wrap') value = v ? 'wrap' : 'nowrap';
-		else if (k === 'grow' || k === 'shrink' || k === 'aspectRatio') value = String(v);
+		else if (k === 'grow' || k === 'shrink' || k === 'aspectRatio' || k === 'order') value = String(v);
 		else if (k === 'padding' || k === 'margin') value = (Array.isArray(v) ? v : [v]).map(px).join(' ');
 		else if (k === 'borders') { s += 'border-style:solid;border-width:' + v.map(px).join(' ') + ';'; continue; }
 		else if (k === 'alignContent' && v === 'Start') value = 'flex-start';

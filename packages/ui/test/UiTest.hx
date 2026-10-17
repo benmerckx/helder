@@ -45,6 +45,7 @@ class UiTest {
 		decorations();
 		transforms();
 		sticky();
+		stacking();
 		culling();
 		selection();
 		fields();
@@ -280,6 +281,45 @@ class UiTest {
 	// padding 4: a header sticking 5 inside its content box within its
 	// 120-high section; a footer sticking 3 above its bottom), at five scroll
 	// positions
+	// zIndex and order: painted and hit by them (zIndex, then positioned over
+	// in-flow, then order); Tab still in the tree's order
+	static function stacking() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		function box(tag:String, color:Int, x:Float):Node {
+			var n = new Node(tag);
+			n.style.set({width: 40, height: 40, background: Color.rgb(color), position: Absolute, left: x, top: 0});
+			ui.root.append(n);
+			return n;
+		}
+		var a = box("a", 0x110000, 10), b = box("b", 0x220000, 20), c = box("c", 0x330000, 30);
+		ui.update();
+		function painted():String {
+			var rec = new Recording();
+			ui.paint(rec);
+			return [for (l in rec.calls) if (StringTools.startsWith(l, "rect")) l.split(" ")[6].substr(2, 2)].join(",");
+		}
+		check("stacking: the tree's order", painted() == "11,22,33" && ui.root.hitTest(35, 10) == c, painted());
+		a.style.zIndex = 2;
+		ui.update();
+		check("stacking: a higher zIndex over the others, hit first", painted() == "22,33,11" && ui.root.hitTest(35, 10) == a, painted());
+		c.style.zIndex = -1;
+		ui.update();
+		check("stacking: a negative one under", painted() == "33,22,11" && ui.root.hitTest(55, 10) == b, painted());
+		// in the flow: order rearranges them; Tab follows the tree
+		var ui2 = new Ui(new MonoText(), 200, 100);
+		ui2.root.style.direction = Row;
+		var x = new Node("x"), y = new Node("y");
+		for (n in [x, y]) {
+			n.style.set({width: 40, height: 40});
+			n.focusable = true;
+			ui2.root.append(n);
+		}
+		y.style.order = -1;
+		ui2.update();
+		ui2.keyDown(Key.TAB, 0);
+		check("stacking: order moves it, Tab keeps the tree's order", y.absX == 0 && x.absX == 40 && ui2.focus == x, '${y.absX} ${x.absX} ${ui2.focus}');
+	}
+
 	static function sticky() {
 		var ui = new Ui(new MonoText(), 300, 300);
 		ui.root.style.alignItems = Start;
@@ -1143,6 +1183,7 @@ class UiTest {
 			case "padding": s.padding = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
 			case "margin": s.margin = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
 			case "dir": s.dir = v == "Rtl" ? Rtl : Ltr;
+			case "order": s.order = v;
 			case "direction": s.direction = switch (v : String) {
 					case "Row": Row;
 					case "RowReverse": RowReverse;

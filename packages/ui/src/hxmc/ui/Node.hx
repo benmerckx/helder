@@ -693,6 +693,48 @@ class Node {
 	// draws the content in its content box at (x, y), in window pixels
 	public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {}
 
+	// its children in their layout order (Style.order: lower first, ties in
+	// the tree's order): the children themselves when none has an order
+	@:allow(hxmc.ui) function inOrder():Array<Node> {
+		var any = false;
+		for (c in children)
+			if (c.style.order != 0) {
+				any = true;
+				break;
+			}
+		return any ? sorted((a, b) -> a.style.order - b.style.order) : children;
+	}
+
+	// its children in the order they paint (Style.zIndex; then positioned ones
+	// over those in the flow; then Style.order), hit the other way round; null
+	// when that is the tree's order with positioned ones last (the usual case)
+	@:allow(hxmc.ui) function paintOrder():Null<Array<Node>> {
+		var any = false;
+		for (c in children)
+			if (c.style.zIndex != 0 || c.style.order != 0) {
+				any = true;
+				break;
+			}
+		if (!any) return null;
+		inline function tier(n:Node):Int
+			return n.style.position != Relative ? 1 : 0;
+		return sorted((a, b) -> a.style.zIndex != b.style.zIndex ? a.style.zIndex - b.style.zIndex : tier(a) != tier(b) ? tier(a) - tier(b) : a.style.order - b.style.order);
+	}
+
+	// (a stable sort of the children: insertion, children being few)
+	function sorted(cmp:(Node, Node) -> Int):Array<Node> {
+		var a = children.copy();
+		for (i in 1...a.length) {
+			var x = a[i], j = i - 1;
+			while (j >= 0 && cmp(a[j], x) > 0) {
+				a[j + 1] = a[j];
+				j--;
+			}
+			a[j + 1] = x;
+		}
+		return a;
+	}
+
 	// --- queries ---
 
 	// the topmost node under (px, py) in window pixels, among this subtree
@@ -713,6 +755,15 @@ class Node {
 		if (!inside && style.overflow != Visible) return null;
 		// (absolute and sticky children first: they are drawn over the others)
 		var sx = px + (style.overflow == Scroll ? scrollX : 0), sy = py + (style.overflow == Scroll ? scrollY : 0);
+		var order = paintOrder();
+		if (order != null) {
+			var i = order.length;
+			while (--i >= 0) {
+				var c = order[i].hitTest(sx, sy);
+				if (c != null) return c;
+			}
+			return inside ? this : null;
+		}
 		for (pass in 0...2) {
 			var i = children.length;
 			while (--i >= 0) {
