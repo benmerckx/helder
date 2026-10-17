@@ -67,13 +67,15 @@ class AccessTree {
 		}
 		var here = parent;
 		if (role != null) {
+			// (where it is drawn: scrolled, transformed)
+			var b = sx == 0 && sy == 0 && !transformed(n) ? null : n.windowBounds();
 			var a:AccessNode = {
 				id: idOf(n),
 				role: role,
-				x: n.absX - sx,
-				y: n.absY - sy,
-				width: n.width,
-				height: n.height,
+				x: b == null ? n.absX : b.x,
+				y: b == null ? n.absY : b.y,
+				width: b == null ? n.width : b.width,
+				height: b == null ? n.height : b.height,
 				focusable: n.focusable
 			};
 			if (sem != null) {
@@ -106,6 +108,15 @@ class AccessTree {
 	}
 
 	// the text of the TextNodes in n (space separated)
+	// whether it or an ancestor has a transform
+	static function transformed(n:Null<Node>):Bool {
+		while (n != null) {
+			if (n.style.transform != null) return true;
+			n = n.parent;
+		}
+		return false;
+	}
+
 	static function textOf(n:Node):String {
 		var parts = [];
 		function walk(m:Node) {

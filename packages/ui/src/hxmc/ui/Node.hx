@@ -263,6 +263,32 @@ class Node {
 		return x ? px - absX : py - absY;
 	}
 
+	// the border box where it is drawn, in window pixels: its ancestors'
+	// scrolling taken off, through the transforms (its own too; the bounds
+	// of the box they turn)
+	public function windowBounds():{x:Float, y:Float, width:Float, height:Float} {
+		var xs = [absX, absX + width, absX, absX + width], ys = [absY, absY, absY + height, absY + height];
+		var a = this;
+		while (a != null) {
+			if (a != this && a.style.overflow == Scroll)
+				for (k in 0...4) {
+					xs[k] -= a.scrollX;
+					ys[k] -= a.scrollY;
+				}
+			var m = a.transformMatrix();
+			if (m != null)
+				for (k in 0...4) {
+					var x = xs[k];
+					xs[k] = m[0] * x + m[2] * ys[k] + m[4];
+					ys[k] = m[1] * x + m[3] * ys[k] + m[5];
+				}
+			a = a.parent;
+		}
+		var x0 = Math.min(Math.min(xs[0], xs[1]), Math.min(xs[2], xs[3])), y0 = Math.min(Math.min(ys[0], ys[1]), Math.min(ys[2], ys[3]));
+		var x1 = Math.max(Math.max(xs[0], xs[1]), Math.max(xs[2], xs[3])), y1 = Math.max(Math.max(ys[0], ys[1]), Math.max(ys[2], ys[3]));
+		return {x: x0, y: y0, width: x1 - x0, height: y1 - y0};
+	}
+
 	// the transform (Style.transform about Style.transformOrigin) in window
 	// pixels, as Canvas.pushTransform takes it; null: none
 	public function transformMatrix():Null<Array<Float>> {

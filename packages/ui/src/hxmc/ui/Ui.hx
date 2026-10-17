@@ -718,15 +718,8 @@ class Ui {
 				x = (width - w) / 2;
 				y = (height - h) / 2;
 			} else {
-				// the anchor where it is drawn: its ancestors' scrolling taken off
-				var a = p.anchor, ax = a.absX, ay = a.absY, n = a.parent;
-				while (n != null) {
-					if (n.style.overflow == Scroll) {
-						ax -= n.scrollX;
-						ay -= n.scrollY;
-					}
-					n = n.parent;
-				}
+				// the anchor where it is drawn: its ancestors' scrolling taken off, through transforms
+				var a = p.anchor.windowBounds(), ax = a.x, ay = a.y;
 				var g = p.gap;
 				switch p.placement {
 					case Below | Above:

@@ -227,6 +227,14 @@ class UiTest {
 			&& Std.parseFloat(first[3]) == -1 && Math.abs(Std.parseFloat(first[5]) - 160) < 1e-9 && Math.abs(Std.parseFloat(first[6]) - (-40)) < 1e-9;
 		check("transform: pushed around the subtree", drawn && calls[calls.length - 1] == "popTransform", calls.join(" | "));
 		var hitTop = ui.root.hitTest(100, 15), hitOld = ui.root.hitTest(140, 60);
+		var wb = box.windowBounds();
+		check("transform: its bounds where it is drawn", Math.abs(wb.x - 90) < 1e-9 && Math.abs(wb.y - 10) < 1e-9 && Math.abs(wb.width - 20) < 1e-9
+			&& Math.abs(wb.height - 100) < 1e-9, wb.x + "," + wb.y + " " + wb.width + "x" + wb.height);
+		inner.focusable = true;
+		var at = ui.accessTree(), ids = [for (id in at.order) if (at.node(id) == inner) id], an = ids.length == 1 ? at.nodes.get(ids[0]) : null;
+		check("transform: the accessibility tree's box through it", an != null && Math.abs(an.x - 100) < 1e-9 && Math.abs(an.y - 10) < 1e-9,
+			an == null ? "none" : an.x + "," + an.y);
+		inner.focusable = false;
 		check("transform: hit through it", hitTop == box && hitOld == ui.root, hitTop + " " + hitOld);
 		// (the inner box's top left (50, 50) turns to (110, 10): its 10x10 at x 100...110)
 		var hitInner = ui.root.hitTest(105, 15);
