@@ -61,7 +61,9 @@ class Hlsl extends Emit {
 			case "fract": super.builtin("frac", args, t);
 			case "mix": super.builtin("lerp", args, t);
 			case "inversesqrt": super.builtin("rsqrt", args, t);
+			case "sample" if (fragment): operand(args[0]) + ".Sample(" + expr(args[0]) + "_smp, " + expr(args[1]) + ")";
 			case "sample": operand(args[0]) + ".SampleLevel(" + expr(args[0]) + "_smp, " + expr(args[1]) + ", 0.0)";
+			case "sampleLevel": operand(args[0]) + ".SampleLevel(" + expr(args[0]) + "_smp, " + expr(args[1]) + ", " + expr(args[2]) + ")";
 			// (an int: back to floats)
 			case "sign": "((" + type(t) + ")" + super.builtin("sign", args, t) + ")";
 			case _: super.builtin(name, args, t);

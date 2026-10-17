@@ -37,9 +37,10 @@ layout(location = 2) in vec2 in_uv;
 out vec3 v_normal;
 out vec2 v_uv;
 out float v_shade;
+uniform vec2 u_target;
 void main() {
 	LitVaryings r = vs(LitVertex(in_pos, in_normal, in_uv), Camera(u_0.viewProj, u_0.eye, u_0.time));
-	gl_Position = vec4(r.clip.xy, 2.0 * r.clip.z - r.clip.w, r.clip.w);
+	gl_Position = vec4(r.clip.x, -u_target.y * r.clip.y, 2.0 * r.clip.z - r.clip.w, r.clip.w);
 	v_normal = r.normal;
 	v_uv = r.uv;
 	v_shade = r.shade;

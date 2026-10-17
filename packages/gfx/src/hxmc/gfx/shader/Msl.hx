@@ -41,7 +41,12 @@ class Msl extends Emit {
 		}
 
 	override function builtin(name:String, args:Array<SExpr>, t:SType):String
-		return name == "sample" ? operand(args[0]) + ".sample(" + expr(args[0]) + "_smp, " + expr(args[1]) + ", level(0.0))" : super.builtin(name == "inversesqrt" ? "rsqrt" : name, args, t);
+		return switch name {
+			case "sample" if (fragment): operand(args[0]) + ".sample(" + expr(args[0]) + "_smp, " + expr(args[1]) + ")";
+			case "sample": operand(args[0]) + ".sample(" + expr(args[0]) + "_smp, " + expr(args[1]) + ", level(0.0))";
+			case "sampleLevel": operand(args[0]) + ".sample(" + expr(args[0]) + "_smp, " + expr(args[1]) + ", level(" + expr(args[2]) + "))";
+			case _: super.builtin(name == "inversesqrt" ? "rsqrt" : name, args, t);
+		}
 
 	override function entry(p:SProgram, e:SEntry) {
 		for (u in e.uniforms) {

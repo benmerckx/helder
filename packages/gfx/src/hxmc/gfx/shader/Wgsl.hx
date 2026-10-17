@@ -6,7 +6,9 @@ import hxmc.gfx.shader.Ir;
 // at @location(n), the position @builtin(position); a uniform block is
 // `@group(0) @binding(n) var<uniform> u_<n>: <Struct>` (WGSL's uniform
 // layout is std140's for these types), a texture at slot n `tex_<n>:
-// texture_2d<f32>` at binding n and its `smp_<n>: sampler` at 16 + n. Locals are let unless assigned;
+// texture_2d<f32>` at binding n and its `smp_<n>: sampler` at 16 + n (a
+// fragment stage's samples may be in non-uniform control flow: the
+// derivative_uniformity diagnostic is off). Locals are let unless assigned;
 // an assigned parameter is copied into a var.
 class Wgsl extends Emit {
 	override function type(t:SType):String
@@ -63,7 +65,17 @@ class Wgsl extends Emit {
 		return "select(" + expr(b) + ", " + expr(a) + ", " + expr(c) + ")";
 
 	override function builtin(name:String, args:Array<SExpr>, t:SType):String
-		return name == "sample" ? "textureSampleLevel(" + arg(args[0]) + ", " + expr(args[1]) + ", 0.0)" : super.builtin(name == "inversesqrt" ? "inverseSqrt" : name, args, t);
+		return switch name {
+			case "sample" if (fragment): "textureSample(" + arg(args[0]) + ", " + expr(args[1]) + ")";
+			case "sample": "textureSampleLevel(" + arg(args[0]) + ", " + expr(args[1]) + ", 0.0)";
+			case "sampleLevel": "textureSampleLevel(" + arg(args[0]) + ", " + expr(args[1]) + ", " + expr(args[2]) + ")";
+			case _: super.builtin(name == "inversesqrt" ? "inverseSqrt" : name, args, t);
+		}
+
+	// (textureSample's derivatives are undefined in non-uniform control flow,
+	// as in the other languages, rather than an error)
+	override function header(e:SEntry)
+		if (e.stage == Fragment && e.textures.length > 0) line("diagnostic(off, derivative_uniformity);");
 
 	override function entry(p:SProgram, e:SEntry) {
 		for (u in e.uniforms)

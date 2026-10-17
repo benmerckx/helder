@@ -10,8 +10,10 @@ import hxmc.gfx.shader.Ir;
 // layout(binding): ShaderCode.bindings). The conventions are the other
 // languages' (Shaders): clip z from 0 to w (GL's from -w: the vertex stage
 // maps it), the fragment position from the top left (GL's gl_FragCoord.y
-// is from the bottom: flipped with the target's height, u_target_height,
-// which the back end sets).
+// is from the bottom: flipped with the frame's height) and a texture's
+// first row its top (in a pass into a texture, the position's y is
+// flipped instead): u_target, which the back end sets, is (height, -1) in
+// the frame, (0, 1) in a texture.
 class Glsl extends Emit {
 	// structs made through make_<Struct> functions instead of their
 	// constructors (as Hlsl): the shader compiler of Android's emulator
@@ -68,7 +70,12 @@ class Glsl extends Emit {
 		}
 
 	override function builtin(name:String, args:Array<SExpr>, t:SType):String
-		return name == "sample" ? "textureLod(" + expr(args[0]) + ", " + expr(args[1]) + ", 0.0)" : super.builtin(name, args, t);
+		return switch name {
+			case "sample" if (fragment): super.builtin("texture", args, t);
+			case "sample": "textureLod(" + expr(args[0]) + ", " + expr(args[1]) + ", 0.0)";
+			case "sampleLevel": super.builtin("textureLod", args, t);
+			case _: super.builtin(name, args, t);
+		}
 
 	override function entry(p:SProgram, e:SEntry) {
 		for (u in e.uniforms) {
@@ -93,22 +100,23 @@ class Glsl extends Emit {
 			}
 			for (f in Emit.varyings(p))
 				line('out ${type(f.type)} v_${f.name};');
+			line("uniform vec2 u_target;");
 			line("void main() {");
 			args.unshift(make(e.input.name) + "(" + [for (f in e.input.fields) 'in_${f.name}'].join(", ") + ")");
 			line('\t${p.varyings.name} r = ${e.fn.name}(${args.join(", ")});');
-			// (clip z from 0..w to GL's -w..w)
+			// (clip z from 0..w to GL's -w..w; y upside down into a texture)
 			var pos = 'r.${Emit.position(p).name}';
-			line('\tgl_Position = vec4($pos.xy, 2.0 * $pos.z - $pos.w, $pos.w);');
+			line('\tgl_Position = vec4($pos.x, -u_target.y * $pos.y, 2.0 * $pos.z - $pos.w, $pos.w);');
 			for (f in Emit.varyings(p))
 				line('\tv_${f.name} = r.${f.name};');
 			line("}");
 		} else {
 			for (f in Emit.varyings(p))
 				line('in ${type(f.type)} v_${f.name};');
-			line("uniform float u_target_height;");
+			line("uniform vec2 u_target;");
 			line("out vec4 out_color;");
 			line("void main() {");
-			args.unshift(make(e.input.name) + "(" + [for (f in e.input.fields) f.position ? "vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw)" : 'v_${f.name}'].join(", ") + ")");
+			args.unshift(make(e.input.name) + "(" + [for (f in e.input.fields) f.position ? "vec4(gl_FragCoord.x, u_target.x + u_target.y * gl_FragCoord.y, gl_FragCoord.zw)" : 'v_${f.name}'].join(", ") + ")");
 			line('\tout_color = ${e.fn.name}(${args.join(", ")});');
 			line("}");
 		}

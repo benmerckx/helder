@@ -13,8 +13,9 @@ Varyings vs(Vertex v) {
 layout(location = 0) in vec2 in_pos;
 layout(location = 1) in vec3 in_color;
 out vec3 v_color;
+uniform vec2 u_target;
 void main() {
 	Varyings r = vs(Vertex(in_pos, in_color));
-	gl_Position = vec4(r.pos.xy, 2.0 * r.pos.z - r.pos.w, r.pos.w);
+	gl_Position = vec4(r.pos.x, -u_target.y * r.pos.y, 2.0 * r.pos.z - r.pos.w, r.pos.w);
 	v_color = r.color;
 }
