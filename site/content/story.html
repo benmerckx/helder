@@ -1,20 +1,14 @@
 <h2>Port against an oracle</h2>
-<p>Each OCaml module in upstream's <code>haxe/src</code> became a Haxe module at the same path, with its functions, branches and data in the same order. The reference compiler, built from the pinned commit, is the oracle: same arguments, same HXB, byte for byte. An earlier attempt that reimplemented parts by hand was dropped for this.</p>
+<p>Each OCaml module in upstream's <code>haxe/src</code> became a Haxe module at the same path, its functions, branches and data in order. The reference compiler, built from the pinned commit, decides what is right: same arguments, same HXB, byte for byte.</p>
 
 <h2>OCaml leaks into the output</h2>
-<p>Most early mismatches were OCaml behaviour: <code>Hashtbl</code> iteration order (reproduced bucket by bucket), sorted <code>PMap</code> iteration, right-to-left argument evaluation, physical equality, 63-bit integers, float printing. These are emulated in <code>src/core/ds</code>.</p>
+<p>Most early mismatches were OCaml's: <code>Hashtbl</code> order (reproduced bucket by bucket), sorted <code>PMap</code> iteration, right-to-left argument evaluation, physical equality, 63-bit integers, float printing. All emulated in <code>src/core/ds</code>.</p>
 
 <h2>Macros</h2>
-<p>A port of the Eval interpreter and the macro API. Then the 66 macro cases, <code>--interp</code>, the compilation server, display and haxelib, each checked against the reference.</p>
+<p>A port of the Eval interpreter and the macro API, then the 66 macro cases, <code>--interp</code>, the server, display and haxelib.</p>
 
 <h2>A back end of its own</h2>
-<p>On the existing targets the port ran 1.3× to several times slower than OCaml. hxc, a back end that wrote C, closed the gap: built with clang, it compiled itself with about 13% less CPU and 15% less memory than the OCaml compiler. hxmc started as hxc's second back end, writing x86-64 instead of C, and grew into a target: SSA, a register allocator, ARM64, WebAssembly, its own ELF, PE and Mach-O linkers, a runtime in Haxe. It builds itself, so hxc was removed; the releases, lix and the playground are all built by hxmc.</p>
+<p>On existing targets the port ran 1.3× to several times slower than OCaml. hxc, a back end writing C, built with clang, beat it: about 13% less CPU and 15% less memory. hxmc began as hxc's second back end, writing x86-64 instead of C, and grew into a target with SSA, ARM64, WebAssembly, its own linkers and a runtime in Haxe. It builds itself, so hxc was removed.</p>
 
-<h2>Upstream's tests</h2>
-<p>Upstream's target-independent CI job (unit, misc, threads, display, server, two third-party projects) passes on the native build, and found bugs the conformance cases missed.</p>
-
-<h2>Every target</h2>
-<p>The JS, Lua, Python, PHP, Neko, HashLink, JVM, C++ and SWF generators came last, with the OCaml libraries they use (Neko bytecode, SWF and ABC writers, zlib deflate). A fuzzer generates well-typed programs and compares each target's output with the reference's.</p>
-
-<h2>Keeping up</h2>
-<p>The pin moves forward one upstream commit at a time, ported and rerun through the full test matrix.</p>
+<h2>Every target, and upstream's tests</h2>
+<p>The JS, Lua, Python, PHP, Neko, HashLink, JVM, C++ and SWF generators came last; a fuzzer compares their output with the reference's. Upstream's target-independent CI job passes on the native build, and found bugs the conformance cases missed. The pin moves one upstream commit at a time, each rerun through the full matrix.</p>

@@ -147,7 +147,7 @@ class Docs implements Markup {
 										for (p in Pages.PACKAGES)
 											<li><a href={Site.link('docs/api/${p[0]}.html')}>{p[1]}</a><span>{p[3]}</span></li>
 									] : [
-										for (d in docs) if (d.group == g) <li><a href={Site.link(d.page)}>{d.title}</a><span>{summary(d.src)}</span></li>
+										for (d in docs) if (d.group == g) <li><a href={Site.link(d.page)}>{d.title}</a>{g == "Plans" ? null : <span>{summary(d.src)}</span>}</li>
 									]
 								}</ul>
 							</section>

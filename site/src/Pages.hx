@@ -131,30 +131,29 @@ class Pages implements Markup {
 			</section>
 			<div class="wrap">
 				<dl class="stats" aria-label="In numbers">
-					<div><dt>279<small>/279</small></dt><dd>HXB conformance cases, byte for byte</dd></div>
-					<div><dt>10</dt><dd>targets with output identical to the reference</dd></div>
-					{self == null || ref == null ? null : <div><dt>{fixed(self.cpu_min, 1)}<small>s</small></dt><dd>to compile itself (OCaml reference: {fixed(ref.cpu_min, 1)} s)</dd></div>}
-					{self == null || ref == null ? null : <div><dt>−{Math.round(100 - 100 * self.maxrss_mb / ref.maxrss_mb)}<small>%</small></dt><dd>memory, against the OCaml reference</dd></div>}
+					<div><dt>279<small>/279</small></dt><dd>HXB cases, byte for byte</dd></div>
+					<div><dt>10</dt><dd>targets, identical output</dd></div>
+					{self == null || ref == null ? null : <div><dt>{fixed(self.cpu_min, 1)}<small>s</small></dt><dd>to compile itself (OCaml: {fixed(ref.cpu_min, 1)} s)</dd></div>}
+					{self == null || ref == null ? null : <div><dt>−{Math.round(100 - 100 * self.maxrss_mb / ref.maxrss_mb)}<small>%</small></dt><dd>memory, against OCaml</dd></div>}
 				</dl>
 				<section class="feature">
 					<div>
 						<h2>A port, not a rewrite.</h2>
-						<p>Every OCaml module of the compiler, translated at the same path, in the same order. Same arguments, same output.</p>
+						<p>Every OCaml module, translated at the same path, in the same order. Same arguments, same output.</p>
 						<p class="more"><a href={Site.link("compiler.html")}>The compiler →</a></p>
 					</div>
 					<div>
 						<dl class="facts">
 							<div><dt>HXB</dt><dd><b>279 / 279</b> conformance cases, <b>66 / 66</b> macro cases</dd></div>
 							<div><dt>Targets</dt><dd class="targets">JS · Lua · Python · PHP · Neko · HashLink · HL/C · JVM · C++ · SWF</dd></div>
-							<div><dt>Tooling</dt><dd><code>--interp</code>, display, the compilation server, the Eval debugger</dd></div>
-							<div><dt>Upstream CI</dt><dd>the target-independent job passes on the native build</dd></div>
+							<div><dt>Tooling</dt><dd><code>--interp</code>, display, the server, the debugger</dd></div>
 						</dl>
 					</div>
 				</section>
 				<section class="feature">
 					<div>
 						<h2>Machine code, no toolchain.</h2>
-						<p>hxmc lowers the typed program to SSA, optimizes it, and encodes x86-64, ARM64 or WebAssembly. Its own linkers write ELF, PE and Mach-O, so every target builds from any machine. It builds itself.</p>
+						<p>SSA, optimized, encoded as x86-64, ARM64 or WebAssembly, and linked by its own linkers. Any target from any machine. It builds itself.</p>
 						<p class="more"><a href={Site.link("hxmc.html")}>How hxmc works →</a></p>
 					</div>
 					<div>
@@ -167,7 +166,7 @@ class Pages implements Markup {
 				<section class="feature">
 					<div>
 						<h2>Packages in pure Haxe.</h2>
-						<p>Windows, the GPU, fonts and a UI toolkit, calling the system's APIs directly. No C of their own; the same code runs natively and in the browser.</p>
+						<p>Windows, the GPU, fonts and UI, calling the system directly. Native and in the browser.</p>
 						<p class="more"><a href={Site.link("examples.html")}>See them run →</a></p>
 					</div>
 					<div class="pkgs">{[
@@ -177,7 +176,6 @@ class Pages implements Markup {
 				</section>
 				<section class="closing">
 					<h2>Try the compiler in your browser.</h2>
-					<p class="muted">The port, compiled to WebAssembly by hxmc, with completion and diagnostics.</p>
 					<p class="actions"><a class="button primary" href={Site.link("playground.html")}>Open the playground</a><a class="button" href={Site.link("compiler.html#download")}>Download</a></p>
 				</section>
 			</div>
@@ -194,7 +192,7 @@ class Pages implements Markup {
 		var lixUse = "lix scope create                # a .haxerc here\nlix install haxe 4.3.7          # download it, use it here\nlix +lib tink_core              # haxe_libraries/tink_core.hxml\nhaxe -lib tink_core --run Main  # Haxe 4.3.7 with tink_core\nlix download                    # after a clone: what the scope needs";
 		return <Page title="The compiler" section="Compiler" description="The Haxe compiler ported from OCaml to Haxe: conformance, downloads, benchmarks and the target generators.">
 			<Hero title="Haxe's compiler, in Haxe">
-				<p class="lead">Each OCaml module of the upstream compiler, translated to Haxe at the same path, keeping its functions, branches and data in order. hxmc builds it for Linux, macOS, Windows and the browser.</p>
+				<p class="lead">Every OCaml module of the upstream compiler, translated to Haxe at the same path, in the same order. Built by hxmc for Linux, macOS, Windows and the browser.</p>
 				<nav class="links" aria-label="On this page">
 					<a href="#status">Status</a><a href="#download">Download</a><a href="#benchmarks">Benchmarks</a><a href="#targets">Target generators</a><a href="#tools">lix</a>
 				</nav>
@@ -203,14 +201,14 @@ class Pages implements Markup {
 				<section class="block" id="status">
 					<header><h2>Status</h2><p>Pinned to upstream <code>fef2847</code>.</p></header>
 					<div>
-						<p>For the same arguments, the port writes the same output as the reference compiler. Tested:</p>
+						<p>Same arguments, same output as the reference compiler:</p>
 						<dl class="facts">
 							<div><dt>HXB</dt><dd><b>279 / 279</b> conformance cases (and the 7 the reference rejects); <b>66 / 66</b> macro cases</dd></div>
 							<div><dt>Targets</dt><dd>JS, Lua, Python, PHP, Neko, HashLink, HL/C, JVM, C++, SWF, <code>--xml</code>, <code>--json</code>: a differential fuzzer and upstream's test projects</dd></div>
 							<div><dt>Tooling</dt><dd><code>--interp</code>, display requests, the compilation server, the Eval debugger</dd></div>
 							<div><dt>Upstream CI</dt><dd>the target-independent job (unit, misc, threads, tink_core, hxcoro) passes on the native build</dd></div>
 						</dl>
-						<p class="note">Details: <a href={Site.link("docs/testing.html")}>testing</a>. How it was done: <a href={Site.link("story.html")}>the story</a>.</p>
+						<p class="note">More: <a href={Site.link("docs/testing.html")}>testing</a>, <a href={Site.link("story.html")}>the story</a>.</p>
 					</div>
 				</section>
 				<section class="block" id="download">
@@ -226,20 +224,20 @@ class Pages implements Markup {
 							<li>The same arguments as <code>haxe</code>. Set <code>HAXE_STD_PATH</code> to the archive's <code>std</code>.</li>
 							<li>Built by hxmc on Linux, with mbedtls and libuv: <code>sys.ssl</code> and <code>eval.luv</code> work in macros and <code>--interp</code>.</li>
 							<li>macOS quarantines browser downloads: <code>xattr -d com.apple.quarantine haxe</code>.</li>
-							<li>Every file: the <a href="https://github.com/benmerckx/hxmc/releases/tag/nightly">nightly release</a>. With npm: <code>npm i -D @hxmc/cli</code> (<a href={Site.link("docs/using.html")}>using</a>).</li>
+							<li>All files: <a href="https://github.com/benmerckx/hxmc/releases/tag/nightly">nightly release</a>. npm: <code>npm i -D @hxmc/cli</code>.</li>
 						</ul>
 					</div>
 				</section>
 				<ScriptIsland name="tables" script="tables.js">
 					<section class="block" id="benchmarks">
-						<header><h2>Benchmarks</h2><p>CPU time, best of 3. A run counts only if its output matches the reference's.</p></header>
+						<header><h2>Benchmarks</h2></header>
 						<div>
-							<p>The port built by hxmc, as an x86-64 executable and as WebAssembly, compiling to HXB, against the OCaml reference (<code>-D disable-parallelism</code>).</p>
+							<p>The port (hxmc: x86-64 and WebAssembly) compiling to HXB, against the OCaml reference. CPU time, best of 3, <code>-D disable-parallelism</code>; only runs with identical output count.</p>
 							<div id="bench-results"><p class="note">Loading results…</p></div>
 							<p class="note" id="bench-builds"></p>
 							<p class="note" id="bench-machine"></p>
 							<h3>Programs</h3>
-							<p>The <a href="https://github.com/HaxeBenchmarks/benchmark-runner">HaxeBenchmarks</a> cases on hxmc (native, WebAssembly on Node, WasmGC) and on C++, the JVM, Node, HL/C and the HashLink JIT, every one compiled by the port. Measured nightly on a GitHub Actions runner; each case's output compared across targets.</p>
+							<p><a href="https://github.com/HaxeBenchmarks/benchmark-runner">HaxeBenchmarks</a> on hxmc (native, WebAssembly, WasmGC), C++, the JVM, Node, HL/C and HashLink, all compiled by the port. Nightly, on a GitHub Actions runner.</p>
 							<div id="programs-results"><p class="note">Loading results…</p></div>
 							<div id="programs-compile"></div>
 							<p class="note" id="programs-machine"></p>
@@ -252,18 +250,18 @@ class Pages implements Markup {
 						</div>
 					</section>
 					<section class="block" id="targets">
-						<header><h2>Target generators</h2><p>The port (hxmc, x86-64) against the reference, per target, on two projects.</p></header>
+						<header><h2>Target generators</h2></header>
 						<div>
-							<p>CPU time, best of 3. Every output file identical (HL/C: after renaming the few type names that hash the reference binary's own code). C++ and HL/C stop at the generated sources.</p>
+							<p>Compile time per target, port against reference, on two projects. Every output file identical (HL/C: after renaming a few type names that hash the reference binary). C++ and HL/C stop at the sources.</p>
 							<div id="targets-results"><p class="note">Loading results…</p></div>
 							<p class="note" id="targets-machine"></p>
 						</div>
 					</section>
 				</ScriptIsland>
 				<section class="block" id="tools">
-					<header><h2>lix</h2><p>The Haxe package manager, as one native binary.</p></header>
+					<header><h2>lix</h2><p>The Haxe package manager, native.</p></header>
 					<div>
-						<p><a href="https://github.com/lix-pm/lix.client">lix</a> and <a href="https://github.com/lix-pm/haxeshim">haxeshim</a>, ported from Node.js and built by hxmc: one file (<span data-info="lixSize">about 2 MB</span>) that is <code>lix</code>, <code>haxe</code>, <code>haxelib</code> or <code>neko</code>, by the name it is run as.</p>
+						<p><a href="https://github.com/lix-pm/lix.client">lix</a> and <a href="https://github.com/lix-pm/haxeshim">haxeshim</a>, built by hxmc: one file (<span data-info="lixSize">about 2 MB</span>) that acts as <code>lix</code>, <code>haxe</code>, <code>haxelib</code> or <code>neko</code> by its name.</p>
 						<table class="downloads"><tbody>
 							<tr><td>Linux</td><td><a href={Site.link("tools/lix-linux-x86_64")}>x86-64</a><a href={Site.link("tools/lix-linux-arm64")}>ARM64</a></td></tr>
 							<tr><td>macOS</td><td><a href={Site.link("tools/lix-macos-x86_64")}>x86-64</a><a href={Site.link("tools/lix-macos-arm64")}>ARM64</a></td></tr>
@@ -271,9 +269,9 @@ class Pages implements Markup {
 						</tbody></table>
 						<Code lang="sh" code={lixUnix}/>
 						<Code lang="sh" code={lixWin}/>
-						<p>In a project, <code>lix</code> fetches Haxe versions and libraries into its scope, and <code>haxe</code> runs the scope's, so editors and scripts get the right ones:</p>
+						<p>Per project:</p>
 						<Code lang="sh" code={lixUse}/>
-						<p class="note">The shim adds about 2 ms per call (Node.js: about 60 ms). Server modes run on libuv. Against the npm package on 26 scenarios, output and installed files are identical. More: <a href={Site.link("docs/using.html")}>using</a>.</p>
+						<p class="note">The shim adds about 2 ms a call (Node.js: 60 ms). Output and installed files match the npm package on 26 scenarios. More: <a href={Site.link("docs/using.html")}>using</a>.</p>
 					</div>
 				</section>
 			</div>
@@ -308,16 +306,16 @@ class Pages implements Markup {
 					</div>
 				</section>
 				<section class="block" id="sizes">
-					<header><h2>Sizes and build times</h2><p>Measured by this site's build.</p></header>
+					<header><h2>Sizes and build times</h2></header>
 					<div>
 						{props.measured.length == 0 ? <p class="note">(Measured by the site build.)</p> : <MeasuredTable measured={props.measured}/>}
-						<p class="note">Cold builds, one at a time, with an empty cache (std and packages compiled too). Sizes include the runtime, the collector and the C library: static musl on Linux, glibc for the graphical programs.</p>
+						<p class="note">Measured by this site's build: cold builds, empty cache. Sizes include the runtime and C library (static musl on Linux; glibc for graphics).</p>
 					</div>
 				</section>
 				<section class="block" id="how">
-					<header><h2>How it works</h2><p>Typed AST in, executable out.</p></header>
+					<header><h2>How it works</h2></header>
 					<div>
-						<p>hxmc runs as the port's generate hook. Each module is lowered to IR, then SSA, optimized (inlining, scalar replacement, value numbering, store forwarding, loop-invariant code motion), and either given to instruction selection, linear-scan register allocation and an encoder, or turned into structured WebAssembly. Objects are cached per module; the linkers write the executable.</p>
+						<p>The port types the program; hxmc lowers each module to SSA, optimizes it (inlining, scalar replacement, value numbering, store forwarding, LICM), then selects instructions, allocates registers and encodes them, or emits structured WebAssembly. One cached object per module.</p>
 						<Code lang="text" code={pipeline}/>
 						<ul>
 							<li>Program-wide numbers (type ids, field ids, offsets) are linker symbols, so a module's cached object survives renumbering.</li>
@@ -328,16 +326,15 @@ class Pages implements Markup {
 					</div>
 				</section>
 				<section class="block" id="runtime">
-					<header><h2>The runtime</h2><p>Haxe, compiled with the program.</p></header>
+					<header><h2>The runtime</h2><p>Haxe, too.</p></header>
 					<div>
-						<p>Strings, Dynamic, reflection, arrays, dates, inflate, the POSIX and Windows layers, Math (musl's libm, ported: the same results everywhere), the collector, threads, startup and exceptions. The only C linked is the C library, mbedtls and libuv.</p>
-						<p>The collector is precise and generational: a nursery per thread that sizes itself to what survives, a mark-sweep old space, shadow stacks for references live across calls.</p>
+						<p>Strings, Dynamic, reflection, the OS layers, Math (musl's libm, ported), threads, exceptions and the collector: precise and generational, a nursery per thread, a mark-sweep old space. The only C linked: the C library, mbedtls, libuv.</p>
 					</div>
 				</section>
 				<section class="block" id="interop">
 					<header><h2>Low-level Haxe</h2><p><code>hxmc.unsafe</code></p></header>
 					<div>
-						<p>Raw pointers, structs with C's layout, externs of system C functions, callbacks, thread-locals. The runtime and the packages use it to call X11, Cocoa, Win32, OpenGL, Metal, Direct3D and the browser.</p>
+						<p>Pointers, C-layout structs, C externs, callbacks, thread-locals: how the packages call X11, Cocoa, Win32, Metal, Direct3D and the browser.</p>
 						<Code code={interop}/>
 						<p class="note">The design, built in part: <a href={Site.link("docs/plans/lowlevel.html")}>docs/plans/lowlevel.md</a>.</p>
 					</div>
@@ -468,7 +465,7 @@ class Pages implements Markup {
 								<Raw html={Highlight.block(Site.read(e.sources[k]), "haxe")}/>
 							</div>
 					]}
-					<p class="meta"><a href={Site.github(e.file)}>{e.file}</a><span>{e.tags.join(" · ")}</span>{download(e) == null ? null : <span>{download(e) + ", gzipped"}</span>}</p>
+					<p class="meta"><a href={Site.github(e.file)}>{e.file}</a>{download(e) == null ? null : <span>{download(e) + ", gzipped"}</span>}</p>
 				</div>
 			</div>
 		</article>;
