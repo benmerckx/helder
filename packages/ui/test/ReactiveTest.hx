@@ -11,6 +11,7 @@ import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Field;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Menu;
+import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
 
@@ -22,7 +23,7 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
-// popover widgets (Select, Menu, Tooltip, Dialog) driven by pointer and keys;
+// popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog) driven by pointer and keys;
 // a VirtualList of 100000 rows scrolled
 class ReactiveTest implements Markup {
 	static var checks = 0;
@@ -160,6 +161,9 @@ class ReactiveTest implements Markup {
 			<Select tag="fruit" value={fruit} options={["apple", "pear", "plum"]} label="Fruit"/>
 			<Menu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open")}]}/>
 			<Tooltip text="Saves the file" tag="tip"><text>Save</text></Tooltip>
+			<ContextMenu tag="ctx" items={[{label: "Cut", onSelect: () -> log.push("cut")}, {label: "Copy", onSelect: () -> log.push("copy")}]}>
+				<view tag="area" focusable width={200} height={40}/>
+			</ContextMenu>
 			<Dialog open={dialog} title="Rename"><Field tag="rename" value={field}/></Dialog>
 		</view>, ui.root);
 		ui.update();
@@ -207,6 +211,41 @@ class ReactiveTest implements Markup {
 		ui.keyDown(Key.ENTER, 0);
 		ui.update();
 		check("popover: a menu item chosen", log.join(",") == "open" && ui.overlay.children.length == 0 && ui.focus == file, log.join(","));
+		// a context menu: at the pointer, flipped where it does not fit
+		var area = ui.root.find("area");
+		ui.pointerDown(area.absX + 30, area.absY + 10, 3);
+		ui.pointerUp(area.absX + 30, area.absY + 10, 3);
+		ui.update();
+		var cm = ui.overlay.find("ctx-items");
+		check("popover: a right click opens the context menu where it was pressed", cm != null && cm.absX == area.absX + 30 && cm.absY == area.absY + 10
+			&& ui.focus == ui.overlay.find("ctx-0"), cm == null ? "none" : '${cm.absX},${cm.absY} focus ${ui.focus}');
+		ui.pointerDown(area.absX + 190, area.absY + 30, 3);
+		ui.pointerUp(area.absX + 190, area.absY + 30, 3);
+		ui.update();
+		cm = ui.overlay.find("ctx-items");
+		check("popover: a second right click moves it", cm != null && ui.overlay.children.length == 1
+			&& cm.absX == area.absX + 190 && cm.absY == area.absY + 30, cm == null ? "none" : '${cm.absX}+${cm.width},${cm.absY}');
+		click(ui.overlay.find("ctx-1"));
+		check("popover: a context menu item chosen by a click", log.join(",") == "open,copy" && ui.overlay.children.length == 0, log.join(","));
+		ui.pointerDown(area.absX + 30, area.absY + 10, 3);
+		ui.pointerUp(area.absX + 30, area.absY + 10, 3);
+		ui.update();
+		ui.pointerDown(area.absX + 5, area.absY + 10, 1);
+		ui.pointerUp(area.absX + 5, area.absY + 10, 1);
+		ui.update();
+		check("popover: a left click in its children closes the context menu", ui.overlay.children.length == 0);
+		ui.setFocus(area);
+		ui.keyDown(Key.F10, Key.MOD_SHIFT);
+		ui.update();
+		cm = ui.overlay.find("ctx-items");
+		check("popover: Shift+F10 opens it at the children's corner", cm != null && cm.absX == area.absX && cm.absY == area.absY && ui.focus == ui.overlay.find("ctx-0"),
+			cm == null ? "none" : '${cm.absX},${cm.absY}');
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		ui.keyDown(Key.MENU, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("popover: the menu key, then Enter on the first item", log.join(",") == "open,copy,cut" && ui.overlay.children.length == 0 && ui.focus == area, log.join(",") + ' ${ui.focus}');
 		// a tooltip: after the pointer rests half a second
 		var tip = ui.root.find("tip");
 		Clock.tick(100);

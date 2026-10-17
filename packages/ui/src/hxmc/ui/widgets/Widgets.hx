@@ -217,8 +217,6 @@ class Widgets implements Markup {
 		var tag = props.tag ?? "menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
-		function focusItem(i:Int)
-			if (i >= 0 && i < items.length && items[i].ui != null) items[i].ui.setFocus(items[i]);
 		return <view tag={tag} role="button" expanded={() -> open.value} focusable cursor="pointer" padding="6 14" radius={6} border-width={1}
 			border-color={() -> t().border} background={() -> t().control} direction="row" column-gap={6} onClick={_ -> open.value = !open.value}
 			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE || e.key == Key.DOWN) {
@@ -227,38 +225,82 @@ class Widgets implements Markup {
 			}}>
 			{props.label}
 			<text color={() -> t().muted} hidden>▾</text>
-			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusItem(0)}>
-				<view tag={tag + "-items"} role="menu" label={props.label} min-width={140} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
-					background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
-					for (i in 0...props.items.length) {
-						var it = props.items[i], hover = signal(false);
-						function choose() {
-							open.value = false;
-							it.onSelect();
-						}
-						<view tag={tag + "-" + i} role="menuitem" ref={n -> items[i] = n} focusable cursor="pointer" padding="5 8" radius={4}
-							background={() -> hover.value ? t().itemHover : Theme.clear(t().control)} onPointerEnter={_ -> hover.value = true}
-							onPointerLeave={_ -> hover.value = false} onClick={_ -> choose()}
-							onKeyDown={e -> switch e.key {
-								case Key.DOWN:
-									focusItem(i + 1);
-									e.stop();
-								case Key.UP:
-									focusItem(i - 1);
-									e.stop();
-								case Key.ENTER | Key.SPACE:
-									choose();
-									e.stop();
-								case Key.TAB: open.value = false;
-								case _:
-							}}>
-							{it.label}
-						</view>;
-					}
-				]}</view>
+			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
+				{menuItems(tag, props.label, props.items, open, items)}
 			</Popover>
 		</view>;
 	}
+
+	// a context menu: the children, with items (as Menu's) opened by a right
+	// click on them where it was pressed, or by the menu key or Shift+F10
+	// when the focus is in them (at their top left, the first item focused);
+	// a press elsewhere, Escape or Tab closes it
+	public static function ContextMenu(props:{items:Array<{label:String, onSelect:Void->Void}>, ?label:String, ?tag:String, ?children:Any}):Esx {
+		var tag = props.tag ?? "context-menu";
+		var open = signal(false);
+		var items:Array<Node> = [];
+		var self:Node = null, atX = 0.0, atY = 0.0;
+		function show(x:Float, y:Float) {
+			atX = x;
+			atY = y;
+			// (open again where it was asked: a second right click moves it)
+			open.value = false;
+			open.value = true;
+		}
+		return <view tag={tag} ref={n -> self = n}
+			onPointerDown={e -> if (e.button == 3) {
+				show(e.x, e.y);
+				// (the focus stays in the menu)
+				e.preventDefault();
+				e.stop();
+			} else open.value = false}
+			onKeyDown={e -> if (e.key == Key.MENU || (e.key == Key.F10 && e.mods & Key.MOD_SHIFT != 0)) {
+				show(self.absX, self.absY);
+				e.stop();
+			}}>
+			{props.children}
+			<Popover open={open} at={() -> {x: atX, y: atY}} onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
+				{menuItems(tag, props.label, props.items, open, items)}
+			</Popover>
+		</view>;
+	}
+
+	// focuses nodes[i] if it is shown
+	static function focusIn(nodes:Array<Node>, i:Int)
+		if (i >= 0 && i < nodes.length && nodes[i].ui != null) nodes[i].ui.setFocus(nodes[i]);
+
+	// a menu's panel of items (their nodes into nodes): Up and Down move
+	// through them, a click, Enter or Space chooses one (and sets open to
+	// false), Tab closes
+	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void}>, open:Signal<Bool>, nodes:Array<Node>):Esx
+		return <view tag={tag + "-items"} role="menu" label={label} min-width={140} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
+			background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
+			for (i in 0...list.length) {
+				var it = list[i], hover = signal(false);
+				function choose() {
+					open.value = false;
+					it.onSelect();
+				}
+				<view tag={tag + "-" + i} role="menuitem" ref={n -> nodes[i] = n} focusable cursor="pointer" padding="5 8" radius={4}
+					background={() -> hover.value ? t().itemHover : Theme.clear(t().control)} onPointerEnter={_ -> hover.value = true}
+					onPointerLeave={_ -> hover.value = false} onClick={_ -> choose()}
+					onKeyDown={e -> switch e.key {
+						case Key.DOWN:
+							focusIn(nodes, i + 1);
+							e.stop();
+						case Key.UP:
+							focusIn(nodes, i - 1);
+							e.stop();
+						case Key.ENTER | Key.SPACE:
+							choose();
+							e.stop();
+						case Key.TAB: open.value = false;
+						case _:
+					}}>
+					{it.label}
+				</view>;
+			}
+		]}</view>;
 
 	// a tooltip: text shown by the children (above them) once the pointer
 	// has rested on them for delay seconds (0.5), hidden when it leaves or presses

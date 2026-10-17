@@ -426,6 +426,24 @@ class CocoaWindow {
 			case 124: return 0xFF53; // Right
 			case 125: return 0xFF54; // Down
 			case 126: return 0xFF52; // Up
+			case 115: return 0xFF50; // Home
+			case 119: return 0xFF57; // End
+			case 116: return 0xFF55; // Page Up
+			case 121: return 0xFF56; // Page Down
+			case 110: return 0xFF67; // Menu (kVK_ContextualMenu)
+			// (F1 to F12: their key codes; their characters are private ones)
+			case 122: return 0xFFBE;
+			case 120: return 0xFFBF;
+			case 99: return 0xFFC0;
+			case 118: return 0xFFC1;
+			case 96: return 0xFFC2;
+			case 97: return 0xFFC3;
+			case 98: return 0xFFC4;
+			case 100: return 0xFFC5;
+			case 101: return 0xFFC6;
+			case 109: return 0xFFC7;
+			case 103: return 0xFFC8;
+			case 111: return 0xFFC9;
 			case _:
 		}
 		var s = Msg.id(ev, ObjC.sel("charactersIgnoringModifiers"));

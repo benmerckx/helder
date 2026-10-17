@@ -45,7 +45,7 @@ class Flow {
 	// the focus into it); a modal one's backdrop its colour. Its content is
 	// rendered once, kept while closed.
 	public static function Popover(props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color,
-			?onDismiss:Void->Void, ?onOpen:hxmc.ui.Popup->Void, ?tag:String, ?children:Any}):Any
+			?onDismiss:Void->Void, ?onOpen:hxmc.ui.Popup->Void, ?at:Void->{x:Float, y:Float}, ?tag:String, ?children:Any}):Any
 		return new PopoverMount(props);
 
 	// a long list in a scrolling view height pixels high: only the rows in
@@ -126,7 +126,7 @@ interface Mountable {
 // the marker's Ui while open is true
 class PopoverMount implements Mountable {
 	final props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color, ?onDismiss:Void->Void,
-		?onOpen:hxmc.ui.Popup->Void, ?tag:String, ?children:Any};
+		?onOpen:hxmc.ui.Popup->Void, ?at:Void->{x:Float, y:Float}, ?tag:String, ?children:Any};
 
 	public function new(props)
 		this.props = props;
@@ -149,6 +149,13 @@ class PopoverMount implements Mountable {
 			var on = w != null && w != false;
 			Reactive.untrack(() -> {
 				if (on && marker.ui != null && p.ui == null) {
+					// (placement "point": where at says, when it opens)
+					if (props.at != null) {
+						var a = props.at();
+						p.placement = Point;
+						p.atX = a.x;
+						p.atY = a.y;
+					}
 					marker.ui.open(p);
 					if (props.onOpen != null) props.onOpen(p);
 				} else if (!on && p.ui != null) p.ui.close(p);

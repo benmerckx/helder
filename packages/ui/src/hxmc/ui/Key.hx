@@ -15,6 +15,12 @@ class Key {
 	public static inline var PAGE_UP = 0xFF55;
 	public static inline var PAGE_DOWN = 0xFF56;
 	public static inline var END = 0xFF57;
+	public static inline var INSERT = 0xFF63;
+	// the context menu key
+	public static inline var MENU = 0xFF67;
+	public static inline var F1 = 0xFFBE;
+	public static inline var F10 = 0xFFC7;
+	public static inline var F12 = 0xFFC9;
 	public static inline var DELETE = 0xFFFF;
 	public static inline var SHIFT = 0xFFE1;
 	public static inline var CONTROL = 0xFFE3;

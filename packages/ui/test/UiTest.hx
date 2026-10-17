@@ -89,6 +89,18 @@ class UiTest {
 		clip.style.set({margin: [150.0, 0, 0, 250]});
 		ui.update();
 		check("popups: flipped above, kept in the window", p.absY == 160 - 4 - 50 && p.absX == 300 - 80, '${p.absX},${p.absY}');
+		// at a point: there, flipped left and up where it does not fit
+		p.placement = Point;
+		p.atX = 20;
+		p.atY = 30;
+		ui.update();
+		var there = p.absX == 20 && p.absY == 30;
+		p.atX = 290;
+		p.atY = 190;
+		ui.update();
+		check("popups: at a point, flipped where it does not fit", there && p.absX == 290 - 80 && p.absY == 190 - 50, '${p.absX},${p.absY}');
+		p.placement = Below;
+		ui.update();
 		// dismissed by a press outside, not on the anchor or inside
 		ui.pointerDown(p.absX + 5, p.absY + 5, 1);
 		ui.pointerUp(p.absX + 5, p.absY + 5, 1);

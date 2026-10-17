@@ -195,6 +195,18 @@ class GuideTest implements Markup {
 		check("popups: the dialog opens over the tree", ui.overlay.find("yes") != null);
 		click(ui, "yes");
 		check("popups: its button acts and closes it", deleted == 1 && ui.overlay.find("yes") == null);
+		var ui = window(), log = [];
+		var copy = () -> log.push("copy"), remove = () -> log.push("delete");
+		Render.render(<ContextMenu items={[{label: "Copy", onSelect: copy}, {label: "Delete", onSelect: remove}]}>
+			<text>Right-click me</text>
+		</ContextMenu>, ui.root);
+		ui.update();
+		ui.pointerDown(15, 10, 3);
+		ui.pointerUp(15, 10, 3);
+		ui.update();
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.ENTER, 0);
+		check("popups: a context menu where it was right-clicked", log.join(",") == "delete" && ui.overlay.children.length == 0, log.join(","));
 	}
 
 	// "State", "Layout and style", "Accessibility": the short snippets

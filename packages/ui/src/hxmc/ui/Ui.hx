@@ -530,7 +530,10 @@ class Ui {
 			var p:Popup = cast c;
 			if (p.modal || p.placement == Manual) continue;
 			var w = p.width, h = p.height, x = 0.0, y = 0.0;
-			if (p.placement == Center || p.anchor == null || p.anchor.ui != this) {
+			if (p.placement == Point) {
+				x = p.atX + w > width && p.atX - w >= 0 ? p.atX - w : p.atX;
+				y = p.atY + h > height && p.atY - h >= 0 ? p.atY - h : p.atY;
+			} else if (p.placement == Center || p.anchor == null || p.anchor.ui != this) {
 				if (p.placement != Center && p.anchor != null) continue;
 				x = (width - w) / 2;
 				y = (height - h) / 2;

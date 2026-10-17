@@ -242,8 +242,8 @@ function so that they follow it:
 ## Popups
 
 Popups are layers over the tree, so a parent's clipping does not cut them.
-`Select`, `Menu`, `Tooltip` and `Dialog` are built on them, and `Popover`
-puts any content in one while `open` is true. A modal dialog keeps the
+`Select`, `Menu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
+puts any content in one while `open` is true (its `at` places it at a point). A modal dialog keeps the
 focus inside, and Escape or a press outside asks it to close:
 
 ```haxe
@@ -262,6 +262,15 @@ static function Confirm(props:{onYes:Void->Void}):Esx {
 		</Dialog>
 	</view>;
 }
+```
+
+A `ContextMenu` around some nodes opens its items where they are
+right-clicked, or at their corner on the menu key or Shift+F10:
+
+```haxe
+<ContextMenu items={[{label: "Copy", onSelect: copy}, {label: "Delete", onSelect: remove}]}>
+	<text>Right-click me</text>
+</ContextMenu>
 ```
 
 ## Drag and drop

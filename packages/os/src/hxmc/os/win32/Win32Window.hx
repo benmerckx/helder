@@ -344,6 +344,13 @@ class Win32Window {
 			case 0x10: 0xFFE1; // Shift_L
 			case 0x11: 0xFFE3; // Control_L
 			case 0x12: 0xFFE9; // Alt_L
+			case 0x24: 0xFF50; // Home
+			case 0x23: 0xFF57; // End
+			case 0x21: 0xFF55; // Prior (Page Up)
+			case 0x22: 0xFF56; // Next (Page Down)
+			case 0x2D: 0xFF63; // Insert
+			case 0x5D: 0xFF67; // Menu (VK_APPS)
+			case v if (v >= 0x70 && v <= 0x7B): 0xFFBE + v - 0x70; // F1 to F12
 			case _: 0;
 		}
 	}

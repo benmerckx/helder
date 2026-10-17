@@ -6,7 +6,9 @@ package hxmc.ui;
 // placed by placement (Below: under it, their left edges lined up; Above;
 // Right: beside it, their tops lined up; Left), flipped to the other side
 // when it does not fit and kept inside the window; Center centres it in
-// the window; Manual leaves it to its style (left, top). A modal one
+// the window; Point puts its top left at (atX, atY) in the window, flipped
+// left or up where it would not fit (a context menu); Manual leaves it to
+// its style (left, top). A modal one
 // covers the window (its own style: a backdrop; its content centred, as
 // Ui.open makes it) and keeps the keyboard focus inside: Tab cycles in
 // it, the tree under it takes no pointer events. onDismiss: asked to close
@@ -17,6 +19,9 @@ class Popup extends Node {
 	public var placement:Placement = Below;
 	// the space between the anchor and the popup
 	public var gap = 4.0;
+	// Point's place, in window pixels
+	public var atX = 0.0;
+	public var atY = 0.0;
 	public var modal = false;
 	public var onDismiss:Null<Void->Void>;
 	// the focus when it opened (given back when it closes)
@@ -35,6 +40,7 @@ enum abstract Placement(Int) {
 	var Left;
 	var Center;
 	var Manual;
+	var Point;
 
 	@:from public static function parse(s:String):Placement
 		return switch s.toLowerCase() {
@@ -44,6 +50,7 @@ enum abstract Placement(Int) {
 			case "left": Left;
 			case "center": Center;
 			case "manual": Manual;
+			case "point": Point;
 			case _: throw "Placement: not a placement: " + s;
 		}
 }

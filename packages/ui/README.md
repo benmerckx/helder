@@ -100,7 +100,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`, `Area`, and the popups `Select`, `Menu`,
-  `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
+  `ContextMenu` (at the pointer), `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
   with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
   `Theme.follow(() -> UiWindow.dark.value)` follows the system's
   appearance (`hxmc.os.App.prefersDark`: the browser's colour scheme,
@@ -108,7 +108,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 - **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the
-  window) or modal (a backdrop, the focus kept inside); a press outside or
+  window), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
   Escape asks them to close. In markup, `Flow.Popover` puts its children
   in one while `open` is true.
 
