@@ -734,6 +734,13 @@ class UiTest {
 		clip.style.set({margin: [150.0, 0, 0, 250]});
 		ui.update();
 		check("popups: flipped above, kept in the window", p.absY == 160 - 4 - 50 && p.absX == 300 - 80, '${p.absX},${p.absY}');
+		// right to left: the anchor's right edge and the popup's lined up
+		clip.style.set({margin: [0.0, 0, 0, 100]});
+		ui.root.style.dir = Rtl;
+		ui.update();
+		var anchorRight = button.absX + button.width;
+		check("popups: right to left, their right edges lined up", p.absX + p.width == anchorRight, '${p.absX + p.width} ${anchorRight}');
+		ui.root.style.dir = null;
 		// at a point: there, flipped left and up where it does not fit
 		p.placement = Point;
 		p.atX = 20;

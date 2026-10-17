@@ -826,7 +826,8 @@ class Ui {
 				var g = p.gap;
 				switch p.placement {
 					case Below | Above:
-						x = ax;
+						// (right to left: their right edges lined up)
+						x = p.anchor.rtl() ? ax + a.width - w : ax;
 						var below = ay + a.height + g, above = ay - g - h;
 						y = p.placement == Below ? (below + h > height && above >= 0 ? above : below) : (above < 0 && below + h <= height ? below : above);
 					case _:
