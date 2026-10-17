@@ -249,6 +249,10 @@ class Ui {
 			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
 			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius, cs);
 			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
+		} else if (s.background.a > 0 && s.borderColor.a < 255 && be.top + be.right + be.bottom + be.left > 0) {
+			// (the background under the border too, as CSS's background-clip: border-box, seen through a translucent one)
+			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
+			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
 		} else if (s.background.a > 0 || bordered)
 			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor, cs, sides);
 		// (the shadows inside: in the padding box, over the background)
