@@ -37,6 +37,9 @@ class FidelityTest implements Markup {
 		"input-value" => "md: (window at least 48rem wide) does not hold: text-base, not md:text-sm",
 		"input-invalid" => "md: (window at least 48rem wide) does not hold: text-base, not md:text-sm",
 		"switch-" => "Switch has no size (data-size): its data-[size=…] rules, its width and height, never apply",
+		"textarea-" => "md: does not hold (text-base, not md:text-sm), and its rows give it more height than min-h-16 with field-sizing-content",
+		"radio-group-" => "a <button>'s content is centred vertically by the browser; the item's indicator, at its top here, is not",
+		"progress-" => "the indicator is not moved by translateX(-(100 - value)%) as shadcn's, and the widget's own width (160) wins over w-full",
 	];
 
 	static function known(name:String):Null<String> {
@@ -57,6 +60,10 @@ class FidelityTest implements Markup {
 			case "checkbox": <Checkbox checked={new Signal(c.checked == true)}/>;
 			case "switch": <Switch checked={new Signal(c.checked == true)}/>;
 			case "label" if (c.peerDisabled != true): <Label text={text}/>;
+			case "textarea": <Textarea value={new Signal(text ?? "")} placeholder={c.placeholder}/>;
+			case "progress": <Progress value={(c.value : Float) / 100}/>;
+			case "radio-group": <RadioGroup value={new Signal("Default")} options={["Default", "Comfortable"]}/>;
+			case "alert": <Alert variant={variant}><AlertTitle text={c.title}/><AlertDescription text={text}/></Alert>;
 			case "card":
 				<Card>
 					<CardHeader>
