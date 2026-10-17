@@ -112,23 +112,36 @@ class Ui {
 		var m = n.transformMatrix();
 		if (m != null) canvas.pushTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
 		if (s.opacity < 1) canvas.pushOpacity(s.opacity);
+		// (each corner's radius and each side's border, when the style gives them)
+		var cs = s.corners != null ? s.cornerRadii() : null, sides = s.borders != null ? s.borderEdges : null;
+		var be = s.borderEdges, bordered = be.top + be.right + be.bottom + be.left > 0 && s.borderColor.a > 0;
 		var sh = s.shadow;
-		if (sh != null)
-			canvas.shadow(n.absX + sh.x - sh.spread, n.absY + sh.y - sh.spread, n.width + 2 * sh.spread, n.height + 2 * sh.spread,
-				s.radius > 0 ? s.radius + sh.spread : 0, sh.color, sh.blur);
+		if (sh != null) {
+			var o = sh.spread;
+			canvas.shadow(n.absX + sh.x - o, n.absY + sh.y - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, sh.color, sh.blur,
+				cs == null ? null : new Corners(cs.topLeft > 0 ? cs.topLeft + o : 0, cs.topRight > 0 ? cs.topRight + o : 0,
+					cs.bottomRight > 0 ? cs.bottomRight + o : 0, cs.bottomLeft > 0 ? cs.bottomLeft + o : 0));
+		}
 		if (s.backgroundImage != null && n.width > 0 && n.height > 0) {
 			// (the colour, the gradient over it, then the border over both)
-			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0);
-			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius);
-			if (s.borderWidth > 0 && s.borderColor.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor);
-		} else if (s.background.a > 0 || (s.borderWidth > 0 && s.borderColor.a > 0))
-			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor);
-		var bw = s.borderWidth, pad = s.padding;
+			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
+			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius, cs);
+			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
+		} else if (s.background.a > 0 || bordered)
+			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor, cs, sides);
+		var pad = s.padding;
 		if (n.hasContent())
-			n.paintContent(canvas, n.absX + bw + pad.left, n.absY + bw + pad.top, Math.max(0, n.width - 2 * bw - pad.left - pad.right),
-				Math.max(0, n.height - 2 * bw - pad.top - pad.bottom));
+			n.paintContent(canvas, n.absX + be.left + pad.left, n.absY + be.top + pad.top, Math.max(0, n.width - be.left - be.right - pad.left - pad.right),
+				Math.max(0, n.height - be.top - be.bottom - pad.top - pad.bottom));
 		var clip = s.overflow != Visible;
-		if (clip) canvas.pushClip(n.absX + bw, n.absY + bw, n.width - 2 * bw, n.height - 2 * bw, Math.max(0, s.radius - bw));
+		// (the padding box: its corners' radii less the wider side meeting there)
+		if (clip)
+			canvas.pushClip(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, Math.max(0, s.radius - s.borderWidth),
+				cs == null && sides == null ? null : {
+					var c = s.cornerRadii();
+					new Corners(Math.max(0, c.topLeft - Math.max(be.left, be.top)), Math.max(0, c.topRight - Math.max(be.top, be.right)),
+						Math.max(0, c.bottomRight - Math.max(be.right, be.bottom)), Math.max(0, c.bottomLeft - Math.max(be.bottom, be.left)));
+				});
 		var scroll = s.overflow == Scroll && (n.scrollX != 0 || n.scrollY != 0);
 		if (scroll) canvas.translate(-n.scrollX, -n.scrollY);
 		for (c in n.children)
@@ -144,7 +157,8 @@ class Ui {
 		if (n == focus && focusVisible && focusRingWidth > 0) {
 			var o = focusRingOffset + focusRingWidth;
 			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
-				focusRingColor);
+				focusRingColor, cs == null ? null : new Corners(cs.topLeft > 0 ? cs.topLeft + o : 0, cs.topRight > 0 ? cs.topRight + o : 0,
+					cs.bottomRight > 0 ? cs.bottomRight + o : 0, cs.bottomLeft > 0 ? cs.bottomLeft + o : 0));
 		}
 		if (s.opacity < 1) canvas.popOpacity();
 		if (m != null) canvas.popTransform();
@@ -493,7 +507,7 @@ class Ui {
 		var n = focus != null ? focus : hover;
 		while (n != null) {
 			if (n.style.overflow == Scroll) {
-				var s = n.style, view = (x ? n.width : n.height) - 2 * s.borderWidth - (x ? s.padding.horizontal : s.padding.vertical);
+				var s = n.style, view = (x ? n.width : n.height) - (x ? s.borderEdges.horizontal + s.padding.horizontal : s.borderEdges.vertical + s.padding.vertical);
 				var d = edge ? maxScroll(n, x) + 1 : page ? Math.max(1, view * 0.875) : ARROW_STEP;
 				if (back) d = -d;
 				if (canScroll(n, d, x)) {
@@ -821,7 +835,7 @@ class Ui {
 	}
 
 	static function maxScroll(n:Node, x:Bool):Float {
-		var s = n.style, inset = 2 * s.borderWidth + (x ? s.padding.horizontal : s.padding.vertical);
+		var s = n.style, inset = x ? s.borderEdges.horizontal + s.padding.horizontal : s.borderEdges.vertical + s.padding.vertical;
 		var view = (x ? n.width : n.height) - inset;
 		return Math.max(0, (x ? n.contentWidth : n.contentHeight) - view);
 	}
@@ -889,7 +903,7 @@ class Ui {
 		while (p != null) {
 			if (p.style.overflow == Scroll) {
 				for (x in [false, true]) {
-					var s = p.style, inset = s.borderWidth + (x ? s.padding.left : s.padding.top);
+					var s = p.style, inset = x ? s.borderEdges.left + s.padding.left : s.borderEdges.top + s.padding.top;
 					var start = (x ? n.absX - p.absX - shiftX : n.absY - p.absY - shiftY) - inset, end = start + (x ? n.width : n.height);
 					var view = viewSize(p, x), cur = x ? p.scrollX : p.scrollY;
 					if (start < cur) setScroll(p, x, start) else if (end > cur + view) setScroll(p, x, Math.min(start, end - view));
@@ -905,17 +919,17 @@ class Ui {
 
 	static function viewSize(n:Node, x:Bool):Float {
 		var s = n.style;
-		return (x ? n.width : n.height) - 2 * s.borderWidth - (x ? s.padding.horizontal : s.padding.vertical);
+		return (x ? n.width : n.height) - (x ? s.borderEdges.horizontal + s.padding.horizontal : s.borderEdges.vertical + s.padding.vertical);
 	}
 
 	// a scrollbar's track on axis x (horizontal) or y: its start and length
 	// along the axis (absolute), its offset across it
 	static function track(n:Node, x:Bool):Array<Float> {
-		var bw = n.style.borderWidth, i = SCROLLBAR_INSET;
+		var be = n.style.borderEdges, i = SCROLLBAR_INSET;
 		// (the other axis's bar, if any, takes the corner)
 		var corner = maxScroll(n, !x) > 0 ? SCROLLBAR + i : 0;
-		return x ? [n.absX + bw + i, n.width - 2 * bw - 2 * i - corner, n.absY + n.height - bw - i - SCROLLBAR] : [n.absY + bw + i,
-			n.height - 2 * bw - 2 * i - corner, n.absX + n.width - bw - i - SCROLLBAR];
+		return x ? [n.absX + be.left + i, n.width - be.horizontal - 2 * i - corner, n.absY + n.height - be.bottom - i - SCROLLBAR] : [n.absY + be.top + i,
+			n.height - be.vertical - 2 * i - corner, n.absX + n.width - be.right - i - SCROLLBAR];
 	}
 
 	static function thumbLength(trackLength:Float, view:Float, content:Float):Float

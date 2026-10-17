@@ -31,7 +31,13 @@ class StyleAttrs {
 			case "aspectRatio": style.aspectRatio = float(v);
 			case "padding": style.padding = edges(v);
 			case "margin": style.margin = edges(v);
-			case "borderWidth": style.borderWidth = float(v);
+			case "borderWidth":
+				// (several values: each side's)
+				if (Std.isOfType(v, String) && StringTools.trim(v).indexOf(" ") > 0 || Std.isOfType(v, Array)) style.borders = edges(v) else {
+					style.borders = null;
+					style.borderWidth = float(v);
+				}
+			case "borders": style.borders = v == null ? null : edges(v);
 			case "rowGap": style.rowGap = float(v);
 			case "columnGap": style.columnGap = float(v);
 			case "left": style.left = dim(v);
@@ -52,7 +58,14 @@ class StyleAttrs {
 			case "transform": style.transform = v == null || v == "none" ? null : Std.isOfType(v, String) ? Transform.parse(v) : (v : Transform);
 			case "transformOrigin": style.transformOrigin = v == null ? null : Std.isOfType(v, String) ? Transform.origin(v) : (v : Array<Dim>);
 			case "borderColor": style.borderColor = color(v);
-			case "radius": style.radius = float(v);
+			case "radius":
+				// (several values: each corner's, as CSS's border-radius)
+				if (Std.isOfType(v, String) && StringTools.trim(v).indexOf(" ") > 0) style.corners = CornersValue.parse(v) else if (Std.isOfType(v, Array))
+					style.corners = (v : Array<Float>) else {
+					style.corners = null;
+					style.radius = float(v);
+				}
+			case "corners": style.corners = v == null ? null : Std.isOfType(v, String) ? CornersValue.parse(v) : Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Corners);
 			case "opacity": style.opacity = float(v);
 			case "cursor": style.cursor = cursorValue(v);
 			case "shadow": style.shadow = v == null ? null : Std.isOfType(v, String) ? Shadow.parse(v) : (v : Shadow);
@@ -86,7 +99,7 @@ class StyleAttrs {
 	public static function isStyle(name:String):Bool
 		return NAMES.exists(camel(name));
 
-	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "backgroundImage" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "transform" => true, "transformOrigin" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "letterSpacing" => true, "wordSpacing" => true, "textAlign" => true, "maxLines" => true, "textDecoration" => true, "gridTemplateColumns" => true, "gridTemplateRows" => true, "gridAutoColumns" => true, "gridAutoRows" => true, "gridAutoFlow" => true, "gridColumn" => true, "gridRow" => true, "gridArea" => true, "gridTemplateAreas" => true, "justifyItems" => true, "justifySelf" => true];
+	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "borders" => true, "corners" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "backgroundImage" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "transform" => true, "transformOrigin" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "letterSpacing" => true, "wordSpacing" => true, "textAlign" => true, "maxLines" => true, "textDecoration" => true, "gridTemplateColumns" => true, "gridTemplateRows" => true, "gridAutoColumns" => true, "gridAutoRows" => true, "gridAutoFlow" => true, "gridColumn" => true, "gridRow" => true, "gridArea" => true, "gridTemplateAreas" => true, "justifyItems" => true, "justifySelf" => true];
 
 	// (kebab-case names converted once each)
 	static final camels = new Map<String, String>();

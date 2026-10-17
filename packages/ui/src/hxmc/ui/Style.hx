@@ -99,6 +99,12 @@ class Style {
 	// on all four sides, inside the border box
 	public var borderWidth(default, set):Float = 0;
 
+	// each side's (CSS's border-top-width...; null: borderWidth on all four)
+	public var borders(default, set):Null<EdgesValue> = null;
+
+	// the border's widths as laid out and drawn: borders, else borderWidth on each side
+	public var borderEdges(default, null):Edges = Edges.ZERO;
+
 	// between lines (Column: between items)
 	public var rowGap(default, set):Float = 0;
 
@@ -122,6 +128,9 @@ class Style {
 
 	// the corners' radius
 	public var radius(default, set):Float = 0;
+
+	// each corner's (CSS's border-radius with several values; null: radius on all four)
+	public var corners(default, set):Null<CornersValue> = null;
 
 	// of the node and its subtree
 	public var opacity(default, set):Float = 1;
@@ -395,9 +404,34 @@ class Style {
 	function set_borderWidth(v:Float):Float {
 		if (v == borderWidth) return v;
 		borderWidth = v;
+		if (borders == null) borderEdges = new Edges(v, v, v, v);
 		node.styleChanged(true);
 		return v;
 	}
+
+	function set_borders(v:Null<EdgesValue>):Null<EdgesValue> {
+		if (v == borders) return v;
+		borders = v;
+		borderEdges = v == null ? new Edges(borderWidth, borderWidth, borderWidth, borderWidth) : v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_corners(v:Null<CornersValue>):Null<CornersValue> {
+		if (v == corners) return v;
+		corners = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	// the corners as drawn: corners, else radius on each
+	public function cornerRadii():Corners
+		return corners != null ? corners : Corners.all(radius);
+
+	// whether the corners or the border's sides differ (drawn by Canvas.rect's corners and sides)
+	public function irregular():Bool
+		return corners != null && !(corners : Corners).uniform() || borders != null && !(borderEdges.top == borderEdges.right
+			&& borderEdges.right == borderEdges.bottom && borderEdges.bottom == borderEdges.left);
 
 	function set_rowGap(v:Float):Float {
 		if (v == rowGap) return v;
@@ -606,6 +640,7 @@ class Style {
 		if (p.padding != null) padding = p.padding;
 		if (p.margin != null) margin = p.margin;
 		if (p.borderWidth != null) borderWidth = p.borderWidth;
+		if (p.borders != null) borders = p.borders;
 		if (p.rowGap != null) rowGap = p.rowGap;
 		if (p.columnGap != null) columnGap = p.columnGap;
 		if (p.left != null) left = p.left;
@@ -617,6 +652,7 @@ class Style {
 		if (p.backgroundImage != null) backgroundImage = p.backgroundImage;
 		if (p.borderColor != null) borderColor = p.borderColor;
 		if (p.radius != null) radius = p.radius;
+		if (p.corners != null) corners = p.corners;
 		if (p.opacity != null) opacity = p.opacity;
 		if (p.cursor != null) cursor = p.cursor;
 		if (p.shadow != null) shadow = p.shadow;

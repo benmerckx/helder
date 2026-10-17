@@ -94,7 +94,9 @@ class ImageNode extends Node {
 				@:bypassAccessor image = svg.render(pw, ph, c);
 			}
 		}
-		var s = style, inset = s.borderWidth + Math.max(Math.max(s.padding.left, s.padding.right), Math.max(s.padding.top, s.padding.bottom));
-		canvas.image(image, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], Math.max(0, s.radius - inset));
+		var s = style, be = s.borderEdges;
+		var inset = Math.max(Math.max(be.left, be.right), Math.max(be.top, be.bottom))
+			+ Math.max(Math.max(s.padding.left, s.padding.right), Math.max(s.padding.top, s.padding.bottom));
+		canvas.image(image, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], Math.max(0, s.radius - inset), s.corners == null ? null : s.cornerRadii().grow(-inset));
 	}
 }

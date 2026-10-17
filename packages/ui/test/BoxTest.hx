@@ -4,19 +4,20 @@ import hxmc.os.*;
 import hxmc.ui.*;
 import hxmc.ui.draw.*;
 
-// CSS transforms drawn by hxmc.ui.draw headless (make ui-draw-check):
-// transforms.json's boxes (turned, scaled, skewed, about other origins,
-// nested) against transform.png, Chromium drawing the same
-// (transform-ref.mjs). Edges are anti-aliased differently (Skia's
+// Boxes drawn by hxmc.ui.draw headless (make ui-draw-check): boxes.json's
+// (corners with their own radii, borders with their own sides' widths, a
+// clip to a padding box's rounded corners; turned, scaled, skewed, about
+// other origins, nested) against boxes.png, Chromium drawing the same
+// (box-ref.mjs). Edges are anti-aliased differently (Skia's
 // coverage against our signed distance), so the shapes must agree: a
 // small mean difference, few pixels far apart. And a text under scale(2)
 // must come out as the same text at twice the size (its glyphs
 // rasterized at the scaled size, on the pixel grid), and turned, drawn
 // where the turn puts it.
-//   TransformTest <transform.png> <out.png> [<turned.png>: the turned text]
-class TransformTest {
-	static inline var W = 240;
-	static inline var H = 160;
+//   BoxTest <boxes.png> <out.png> [<turned.png>: the turned text]
+class BoxTest {
+	static inline var W = 320;
+	static inline var H = 240;
 	static inline var MEAN = 1.5;
 	static inline var FAR = 64;
 	static inline var MAX_FAR = 0.002;
@@ -24,12 +25,15 @@ class TransformTest {
 	static function box(b:Dynamic):Node {
 		var n = new Node("box");
 		n.style.set({position: Absolute, left: (b.left : Float), top: (b.top : Float), width: (b.width : Float), height: (b.height : Float),
-			background: Color.parse(b.background), radius: b.radius == null ? 0 : (b.radius : Float)});
+			background: Color.parse(b.background)});
+		// (one value, or each corner's and each side's)
+		if (Std.isOfType(b.radius, String)) n.style.corners = CornersValue.parse(b.radius) else if (b.radius != null) n.style.radius = b.radius;
 		if (b.border != null) {
-			n.style.borderWidth = b.border;
+			if (Std.isOfType(b.border, String)) n.style.borders = [for (p in (b.border : String).split(" ")) Std.parseFloat(p)] else n.style.borderWidth = b.border;
 			n.style.borderColor = Color.parse(b.borderColor);
 		}
-		n.style.transform = Transform.parse(b.transform);
+		if (b.overflow == "hidden") n.style.overflow = Hidden;
+		if (b.transform != null) n.style.transform = Transform.parse(b.transform);
 		if (b.origin != null) n.style.transformOrigin = Transform.origin(b.origin);
 		if (b.children != null) for (c in (b.children : Array<Dynamic>))
 			n.append(box(c));
@@ -67,7 +71,7 @@ class TransformTest {
 	static function main() {
 		var args = Sys.args();
 		var dir = haxe.io.Path.directory(args[0]);
-		var boxes:Array<Dynamic> = haxe.Json.parse(sys.io.File.getContent(dir + "/transforms.json"));
+		var boxes:Array<Dynamic> = haxe.Json.parse(sys.io.File.getContent(dir + "/boxes.json"));
 		var ui = new Ui(new DrawText(), W, H);
 		for (b in boxes)
 			ui.root.append(box(b));
@@ -91,7 +95,7 @@ class TransformTest {
 			}
 		}
 		var textOk = inked > 200 && apart <= inked / 50 && turnedInk > 100 && outside == 0;
-		Sys.println('TransformTest: text ${textOk ? "ok" : "FAILED"} ($apart of $inked inked pixels apart scaled; turned: $turnedInk inked, $outside outside)');
+		Sys.println('BoxTest: text ${textOk ? "ok" : "FAILED"} ($apart of $inked inked pixels apart scaled; turned: $turnedInk inked, $outside outside)');
 		var want = PngDecoder.decode(sys.io.File.getBytes(args[0]));
 		var total = 0.0, far = 0;
 		for (i in 0...W * H) {
@@ -105,7 +109,7 @@ class TransformTest {
 		}
 		var mean = total / (W * H);
 		var ok = mean < MEAN && far <= MAX_FAR * W * H;
-		Sys.println('TransformTest: boxes ${ok ? "ok" : "FAILED"} (mean ${Math.round(mean * 100) / 100}, $far pixels off by more than $FAR)');
+		Sys.println('BoxTest: boxes ${ok ? "ok" : "FAILED"} (mean ${Math.round(mean * 100) / 100}, $far pixels off by more than $FAR)');
 		Sys.exit(ok && textOk ? 0 : 1);
 	}
 }

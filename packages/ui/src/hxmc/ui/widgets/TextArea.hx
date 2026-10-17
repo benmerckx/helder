@@ -32,10 +32,10 @@ class TextArea extends EditableText {
 	}
 
 	function innerWidth():Float
-		return Math.max(1, width - 2 * style.borderWidth - style.padding.horizontal);
+		return Math.max(1, width - style.borderEdges.horizontal - style.padding.horizontal);
 
 	function innerHeight():Float
-		return Math.max(1, height - 2 * style.borderWidth - style.padding.vertical);
+		return Math.max(1, height - style.borderEdges.vertical - style.padding.vertical);
 
 	function laidAt():Null<Paragraph>
 		return ui == null ? null : layoutText(ui.text, innerWidth());
@@ -74,7 +74,7 @@ class TextArea extends EditableText {
 		var p = laidAt();
 		if (p == null) return caret;
 		var s = style;
-		return p.hit(localX(px, py) - s.borderWidth - s.padding.left, localY(px, py) - s.borderWidth - s.padding.top + offset);
+		return p.hit(localX(px, py) - s.borderEdges.left - s.padding.left, localY(px, py) - s.borderEdges.top - s.padding.top + offset);
 	}
 
 	// as wide as it is given (its text wrapped to that), rows lines high

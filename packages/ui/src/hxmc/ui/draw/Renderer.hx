@@ -10,7 +10,7 @@ import hxmc.ui.draw.DrawText;
 // images become quads of one vertex buffer (UiShader: six vertices each),
 // drawn in one call per run of quads with the same image (texture slot 1:
 // an image's texture, else a white texel). Every vertex carries the clip (a rectangle in target pixels and
-// its corner radius) that UiShader clips its fragments by, so clips need no
+// its corners' radii) that UiShader clips its fragments by, so clips need no
 // scissor and rounded ones clip to their corners. The UI's pixels are scaled
 // to the target's (scale: a Retina display's 2); glyphs are rasterized at the
 // scaled size into the GlyphAtlas, its coverage uploaded into a texture's
@@ -55,12 +55,25 @@ class Renderer implements Canvas {
 	var ty = 0.0;
 	var alpha = 1.0;
 	final alphas:Array<Float> = [];
-	final clips:Array<Array<Float>> = []; // the clips pushed over: x0, y0, x1, y1, radius
+	final clips:Array<Array<Float>> = []; // the clips pushed over: x0, y0, x1, y1, the corners' radii
 	var clipX0 = 0.0;
 	var clipY0 = 0.0;
 	var clipX1 = 0.0;
 	var clipY1 = 0.0;
-	var clipR = 0.0;
+	// (its corners' radii: top left, top right, bottom right, bottom left)
+	var clipR0 = 0.0;
+	var clipR1 = 0.0;
+	var clipR2 = 0.0;
+	var clipR3 = 0.0;
+	// the next quad's corners' radii and border sides (top, right, bottom, left), in its pixels
+	var qr0 = 0.0;
+	var qr1 = 0.0;
+	var qr2 = 0.0;
+	var qr3 = 0.0;
+	var qw0 = 0.0;
+	var qw1 = 0.0;
+	var qw2 = 0.0;
+	var qw3 = 0.0;
 	// the transform pushed (target pixels from the scaled pixels after the
 	// translation, scale, and transforms before it): m* (flat: none), its
 	// scale (mk), whether it keeps glyphs on the pixel grid (aligned: no
@@ -76,7 +89,7 @@ class Renderer implements Canvas {
 	var aligned = true;
 	final transforms:Array<Array<Float>> = [];
 
-	static inline var STRIDE = 108; // UiVertex: 27 floats
+	static inline var STRIDE = 144; // UiVertex: 36 floats
 
 	public function new(device:Device, ?atlas:GlyphAtlas) {
 		this.device = device;
@@ -115,7 +128,7 @@ class Renderer implements Canvas {
 		ma = md = mk = 1;
 		mb = mc = me = mf = 0;
 		flat = aligned = true;
-		clipX0 = clipY0 = clipR = 0;
+		clipX0 = clipY0 = clipR0 = clipR1 = clipR2 = clipR3 = 0;
 		clipX1 = width;
 		clipY1 = height;
 	}
@@ -195,11 +208,13 @@ class Renderer implements Canvas {
 		ty += dy;
 	}
 
-	// the clip becomes the intersection, with the new clip's radius where the
+	// the clip becomes the intersection, with the new clip's radii where the
 	// new clip is inside the old one (a rounded clip inside a rounded clip
-	// that cuts into its corners keeps only the inner one's corners)
-	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float) {
-		clips.push([clipX0, clipY0, clipX1, clipY1, clipR]);
+	// that cuts into its corners keeps only the inner one's corners), else
+	// the smaller of each
+	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float, ?corners:Corners) {
+		clips.push([clipX0, clipY0, clipX1, clipY1, clipR0, clipR1, clipR2, clipR3]);
+		var k = scale;
 		var x0 = (x + tx) * scale, y0 = (y + ty) * scale, x1 = (x + w + tx) * scale, y1 = (y + h + ty) * scale;
 		if (!flat) {
 			// (the transformed corners' bounds)
@@ -214,7 +229,7 @@ class Renderer implements Canvas {
 			x1 = Math.max(Math.max(ax, bx), Math.max(cx, dx)) + me;
 			y0 = Math.min(Math.min(ay, by), Math.min(cy, dy)) + mf;
 			y1 = Math.max(Math.max(ay, by), Math.max(cy, dy)) + mf;
-			radius *= k;
+			k *= mk;
 		}
 		var inside = x0 >= clipX0 && y0 >= clipY0 && x1 <= clipX1 && y1 <= clipY1;
 		var outside = x0 <= clipX0 && y0 <= clipY0 && x1 >= clipX1 && y1 >= clipY1;
@@ -222,7 +237,19 @@ class Renderer implements Canvas {
 		clipY0 = Math.max(clipY0, y0);
 		clipX1 = Math.min(clipX1, x1);
 		clipY1 = Math.min(clipY1, y1);
-		if (inside) clipR = radius * scale; else if (!outside) clipR = Math.min(clipR, radius * scale);
+		var c0 = (corners == null ? radius : corners.topLeft) * k, c1 = (corners == null ? radius : corners.topRight) * k;
+		var c2 = (corners == null ? radius : corners.bottomRight) * k, c3 = (corners == null ? radius : corners.bottomLeft) * k;
+		if (inside) {
+			clipR0 = c0;
+			clipR1 = c1;
+			clipR2 = c2;
+			clipR3 = c3;
+		} else if (!outside) {
+			clipR0 = Math.min(clipR0, c0);
+			clipR1 = Math.min(clipR1, c1);
+			clipR2 = Math.min(clipR2, c2);
+			clipR3 = Math.min(clipR3, c3);
+		}
 	}
 
 	public function popClip() {
@@ -231,7 +258,10 @@ class Renderer implements Canvas {
 		clipY0 = c[1];
 		clipX1 = c[2];
 		clipY1 = c[3];
-		clipR = c[4];
+		clipR0 = c[4];
+		clipR1 = c[5];
+		clipR2 = c[6];
+		clipR3 = c[7];
 	}
 
 	public function pushTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float) {
@@ -273,43 +303,66 @@ class Renderer implements Canvas {
 	public function popOpacity()
 		alpha = alphas.pop();
 
-	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color) {
+	// (the next quad's corners: each corner's, else radius; sides: each side's, else width; in device pixels)
+	inline function corners(c:Null<Corners>, radius:Float) {
+		var s = scale;
+		qr0 = (c == null ? radius : c.topLeft) * s;
+		qr1 = (c == null ? radius : c.topRight) * s;
+		qr2 = (c == null ? radius : c.bottomRight) * s;
+		qr3 = (c == null ? radius : c.bottomLeft) * s;
+	}
+
+	inline function sides(e:Null<Edges>, width:Float) {
+		var s = scale;
+		qw0 = (e == null ? width : e.top) * s;
+		qw1 = (e == null ? width : e.right) * s;
+		qw2 = (e == null ? width : e.bottom) * s;
+		qw3 = (e == null ? width : e.left) * s;
+	}
+
+	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color, ?corners:Corners, ?sides:Edges) {
 		if (w <= 0 || h <= 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		this.corners(corners, radius);
+		this.sides(sides, borderWidth);
 		if (!flat) {
-			shape(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0, 0, 0, 0);
+			shape(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, 0, 0, 0, 0);
 			return;
 		}
 		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
-		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0, 0, 1, 0);
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, 0, 0, 1, 0);
 	}
 
-	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float) {
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners) {
 		if (w <= 0 || h <= 0 || color.a == 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		this.corners(corners, radius);
+		sides(null, 0);
 		if (!flat) {
-			shape(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, radius * s, 0, 3, blur * s, blur * s, 0);
+			shape(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 3, blur * s, blur * s, 0);
 			return;
 		}
 		var m = blur * s + 1;
 		if (culled(x0 - m, y0 - m, x1 + m, y1 + m)) return;
-		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, radius * s, 0, 3, blur * s, m, 0);
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 3, blur * s, m, 0);
 	}
 
-	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float) {
+	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners) {
 		if (w <= 0 || h <= 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		this.corners(corners, radius);
+		sides(null, 0);
 		if (!flat) {
 			texture(img);
-			shape(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, radius * s, 0, 2, 0, 0, img.id);
+			shape(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, 2, 0, 0, img.id);
 			return;
 		}
 		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
 		texture(img);
-		quad(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, radius * s, 0, 2, 0, 1, img.id);
+		quad(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, 2, 0, 1, img.id);
 	}
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {
@@ -353,7 +406,8 @@ class Renderer implements Canvas {
 						var qx = Math.round(gx + b.left + ex) - ex, qy = gy - b.top - ey;
 						if (!flat || !culled(qx, qy, qx + b.image.width, qy + b.image.height)) {
 							texture(b.image);
-							quad(qx, qy, qx + b.image.width, qy + b.image.height, 0, 0, 1, 1, Color.WHITE, 0, 0, 0, 2, 0, 1, b.image.id);
+							qr0 = qr1 = qr2 = qr3 = qw0 = qw1 = qw2 = qw3 = 0;
+							quad(qx, qy, qx + b.image.width, qy + b.image.height, 0, 0, 1, 1, Color.WHITE, 0, 2, 0, 1, b.image.id);
 						}
 						continue;
 					}
@@ -374,9 +428,11 @@ class Renderer implements Canvas {
 		var a = atlas.get(f, id, size, sub, oblique);
 		if (a.w > 0) {
 			var qx = ix - ex + a.left, qy = gy + a.top - ey;
-			if (!flat || !culled(qx, qy, qx + a.w, qy + a.h))
-				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0, 1, 0,
-					0, 0);
+			if (!flat || !culled(qx, qy, qx + a.w, qy + a.h)) {
+				qr0 = qr1 = qr2 = qr3 = qw0 = qw1 = qw2 = qw3 = 0;
+				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 1, 0, 0,
+					0);
+			}
 		}
 	}
 
@@ -448,8 +504,8 @@ class Renderer implements Canvas {
 	// a rectangle, shadow or image under a transform: from device pixels to
 	// the scaled ones (lengths too), culled by its turned corners' bounds;
 	// blur: the margin it grows by before its anti-aliased pixel
-	function shape(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, radius:Float,
-			borderWidth:Float, mode:Float, blur:Float, grow:Float, image:Int) {
+	function shape(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, mode:Float, blur:Float,
+			grow:Float, image:Int) {
 		var k = mk;
 		if (k < 1e-6) return;
 		x0 *= k;
@@ -464,13 +520,22 @@ class Renderer implements Canvas {
 		if (culled(Math.min(Math.min(ax, bx), Math.min(cx, dx)) + me, Math.min(Math.min(ay, by), Math.min(cy, dy)) + mf,
 			Math.max(Math.max(ax, bx), Math.max(cx, dx)) + me, Math.max(Math.max(ay, by), Math.max(cy, dy)) + mf))
 			return;
-		quad(x0, y0, x1, y1, u0, v0, u1, v1, fill, border, radius * k, borderWidth * k, mode, blur * k, m, image);
+		qr0 *= k;
+		qr1 *= k;
+		qr2 *= k;
+		qr3 *= k;
+		qw0 *= k;
+		qw1 *= k;
+		qw2 *= k;
+		qw3 *= k;
+		quad(x0, y0, x1, y1, u0, v0, u1, v1, fill, border, mode, blur * k, m, image);
 	}
 
 	// a quad over x0, y0, x1, y1 grown by margin m (a rectangle's anti-aliased
-	// edge, a shadow's blur), its texture coordinates growing with it
-	function quad(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, radius:Float,
-			borderWidth:Float, mode:Float, blur:Float, m:Float, image:Int) {
+	// edge, a shadow's blur), its texture coordinates growing with it; its
+	// corners and border sides: qr*, qw*
+	function quad(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, mode:Float, blur:Float,
+			m:Float, image:Int) {
 		// (a new run where the image changes, or how glyphs are read)
 		var key = image * 2 + (mode == 1 && !aligned ? 1 : 0);
 		var nb = batches.length;
@@ -491,7 +556,8 @@ class Renderer implements Canvas {
 		var fa = fill.a / 255 * alpha, ba = border.a / 255 * alpha;
 		var fr = fill.r / 255 * fa, fg = fill.g / 255 * fa, fb = fill.b / 255 * fa;
 		var br = border.r / 255 * ba, bg = border.g / 255 * ba, bb = border.b / 255 * ba;
-		var cx0 = clipX0, cy0 = clipY0, cx1 = clipX1, cy1 = clipY1, cr = clipR;
+		var cx0 = clipX0, cy0 = clipY0, cx1 = clipX1, cy1 = clipY1, c0 = clipR0, c1 = clipR1, c2 = clipR2, c3 = clipR3;
+		var r0 = qr0, r1 = qr1, r2 = qr2, r3 = qr3, w0 = qw0, w1 = qw1, w2 = qw2, w3 = qw3;
 		// (the transform less its scale: exact for none)
 		var k = mk, ra = flat ? 1 : ma / k, rb = flat ? 0 : mb / k, rc = flat ? 0 : mc / k, rd = flat ? 1 : md / k, te = flat ? 0 : me, tf = flat ? 0 : mf;
 		inline function vertex(px:Float, py:Float, u:Float, v:Float) {
@@ -513,17 +579,26 @@ class Renderer implements Canvas {
 			bytes.setFloat(o + 52, bg);
 			bytes.setFloat(o + 56, bb);
 			bytes.setFloat(o + 60, ba);
-			bytes.setFloat(o + 64, radius);
-			bytes.setFloat(o + 68, borderWidth);
-			bytes.setFloat(o + 72, mode);
-			bytes.setFloat(o + 76, blur);
-			bytes.setFloat(o + 80, X);
-			bytes.setFloat(o + 84, Y);
-			bytes.setFloat(o + 88, cr);
-			bytes.setFloat(o + 92, cx0);
-			bytes.setFloat(o + 96, cy0);
-			bytes.setFloat(o + 100, cx1);
-			bytes.setFloat(o + 104, cy1);
+			bytes.setFloat(o + 64, r0);
+			bytes.setFloat(o + 68, r1);
+			bytes.setFloat(o + 72, r2);
+			bytes.setFloat(o + 76, r3);
+			bytes.setFloat(o + 80, w0);
+			bytes.setFloat(o + 84, w1);
+			bytes.setFloat(o + 88, w2);
+			bytes.setFloat(o + 92, w3);
+			bytes.setFloat(o + 96, mode);
+			bytes.setFloat(o + 100, blur);
+			bytes.setFloat(o + 104, X);
+			bytes.setFloat(o + 108, Y);
+			bytes.setFloat(o + 112, cx0);
+			bytes.setFloat(o + 116, cy0);
+			bytes.setFloat(o + 120, cx1);
+			bytes.setFloat(o + 124, cy1);
+			bytes.setFloat(o + 128, c0);
+			bytes.setFloat(o + 132, c1);
+			bytes.setFloat(o + 136, c2);
+			bytes.setFloat(o + 140, c3);
 			used += STRIDE;
 		}
 		var mu = (u1 - u0) * m / (x1 - x0), mv = (v1 - v0) * m / (y1 - y0);
