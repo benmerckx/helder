@@ -416,7 +416,7 @@ class Widgets implements Markup {
 	// there: its own again).
 	// columns: a title, a width (a grid track: "1fr" by default, "120px",
 	// "auto"), what a row's cell shows (cell), compare (sortable), numeric
-	// (its title and cells at the end, figures of one width: 'tnum'). rows:
+	// (its title and cells at the end, figures of one width: tabular-nums). rows:
 	// an array, or a signal or function of one; height: the whole table's.
 	public static function Table<T>(props:{rows:Dynamic, columns:Array<{title:String, ?width:String, cell:T->Any, ?compare:(T, T)->Int, ?numeric:Bool}>,
 			?height:Float, ?rowHeight:Float, ?selected:Signal<Null<T>>, ?onActivate:T->Void, ?label:String, ?tag:String}):View {
@@ -523,7 +523,7 @@ class Widgets implements Markup {
 						onClick={_ -> if (item.value != null) click(item.value)}>{[
 						for (c in props.columns)
 							<view role="cell" overflow="hidden" align-items={c.numeric == true ? "flex-end" : "stretch"}
-								font-feature-settings={c.numeric == true ? "'tnum'" : null}>{() -> item.value == null ? null : c.cell(item.value)}</view>
+								font-variant-numeric={c.numeric == true ? "tabular-nums" : null}>{() -> item.value == null ? null : c.cell(item.value)}</view>
 					]}</view>;
 				}}/>
 			</view>

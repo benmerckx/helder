@@ -228,6 +228,12 @@ class Style {
 	// kern turned off (hxmc.text.FontFeature)
 	public var fontFeatureSettings(get, set):Null<String>;
 
+	// figures' forms, inherited, as CSS's font-variant-numeric writes them
+	// ("tabular-nums", "oldstyle-nums slashed-zero"; null: the parent's;
+	// "normal"): their features (tnum, onum, zero...), under
+	// fontFeatureSettings
+	public var fontVariantNumeric(get, set):Null<String>;
+
 	// its text's letters as shown, inherited (null: the parent's; None at
 	// the root; CSS's text-transform): upper or lower case, or each word's
 	// first in upper case; a text field's own text is shown as typed
@@ -344,6 +350,30 @@ class Style {
 
 	inline function get_fontFeatureSettings():Null<String>
 		return rare == null ? null : rare.fontFeatureSettings;
+
+	inline function get_fontVariantNumeric():Null<String>
+		return rare == null ? null : rare.fontVariantNumeric;
+
+	// font-variant-numeric's keywords as font-feature-settings ("": normal)
+	public static function numericFeatures(v:String):String {
+		var out = [];
+		for (w in StringTools.trim(v).split(" ")) {
+			var tag = switch w {
+				case "normal" | "": continue;
+				case "lining-nums": "lnum";
+				case "oldstyle-nums": "onum";
+				case "proportional-nums": "pnum";
+				case "tabular-nums": "tnum";
+				case "diagonal-fractions": "frac";
+				case "stacked-fractions": "afrc";
+				case "ordinal": "ordn";
+				case "slashed-zero": "zero";
+				case _: throw "Style.fontVariantNumeric: " + v;
+			}
+			out.push("'" + tag + "'");
+		}
+		return out.join(", ");
+	}
 
 	inline function get_textTransform():Null<TextTransform>
 		return rare == null ? null : rare.textTransform;
@@ -475,6 +505,14 @@ class Style {
 	function set_overflowWrap(v:Null<OverflowWrap>):Null<OverflowWrap> {
 		if (v == overflowWrap) return v;
 		more().overflowWrap = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_fontVariantNumeric(v:Null<String>):Null<String> {
+		if (v == fontVariantNumeric) return v;
+		if (v != null) numericFeatures(v);
+		more().fontVariantNumeric = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -1000,6 +1038,7 @@ class Style {
 		if (p.overflowWrap != null) overflowWrap = p.overflowWrap;
 		if (p.wordBreak != null) wordBreak = p.wordBreak;
 		if (p.fontFeatureSettings != null) fontFeatureSettings = p.fontFeatureSettings;
+		if (p.fontVariantNumeric != null) fontVariantNumeric = p.fontVariantNumeric;
 		if (p.textTransform != null) textTransform = p.textTransform;
 		if (p.textOverflow != null) textOverflow = p.textOverflow;
 		if (p.order != null) order = p.order;
@@ -1052,6 +1091,7 @@ private class StyleRare {
 	public var overflowWrap:Null<OverflowWrap> = null;
 	public var wordBreak:Null<WordBreak> = null;
 	public var fontFeatureSettings:Null<String> = null;
+	public var fontVariantNumeric:Null<String> = null;
 	public var textTransform:Null<TextTransform> = null;
 	public var textOverflow:TextOverflow = Clip;
 	public var order:Int = 0;

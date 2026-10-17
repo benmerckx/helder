@@ -1685,6 +1685,14 @@ class MarkupTest implements Markup {
 			featured.style.fontFeatureSettings = "tnum";
 			false;
 		} catch (e:Dynamic) true;
+		var numeric:Null<Node> = null;
+		Render.render(<view font-variant-numeric="tabular-nums slashed-zero" font-feature-settings="'zero' 0"><text ref={n -> numeric = n}>10</text></view>, ui.root);
+		var badNumeric = try {
+			numeric.style.fontVariantNumeric = "tabular";
+			false;
+		} catch (e:Dynamic) true;
+		check("render: font-variant-numeric as features, font-feature-settings after them", numeric.font().features == "'tnum', 'zero', 'zero' 0" && badNumeric
+			&& hxmc.text.FontFeature.key(hxmc.text.FontFeature.parse(numeric.font().features)) == "tnum=1,zero=0", numeric.font().features);
 		check("render: font-feature-settings, inherited", inner.font().features == "'tnum', 'liga' 0" && plain.font().features == "" && badFeature
 			&& !inner.font().equals(plain.font()));
 		var bad = try {

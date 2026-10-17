@@ -101,7 +101,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     too), blurred as Chromium blurs them
     (BoxTest compares them). `fontFeatureSettings` (`"'tnum'"`,
     `"'liga' 0, 'ss01'"`, inherited) asks for OpenType features as CSS's
-    font-feature-settings does. `maxLines` cuts a
+    font-feature-settings does; `fontVariantNumeric` (`"tabular-nums"`,
+    `"oldstyle-nums slashed-zero"`) as font-variant-numeric does, under it.
+    `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's
     line-clamp puts it.
   - Paint: `background`, `borderColor`, `radius` (`corners`, or markup
