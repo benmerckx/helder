@@ -30,6 +30,9 @@ class Layout {
 	// size, min and max left out: CSS's flex base size and content size suggestion)
 	var bareW = false;
 	var bareH = false;
+	// (true: the next size()'s known height is a laid-out size, not a definite
+	// one: its children's percentages of it resolve as of an auto height, as CSS's)
+	var looseH = false;
 	// flex items and lines, kept from layout to layout: a container's are
 	// taken from the top and given back when it is done (its children's
 	// taken above them meanwhile)
@@ -76,6 +79,9 @@ class Layout {
 		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
 		var own = !bw && !bh;
 		bareW = bareH = false;
+		// (its height definite for its children: given so, or its own)
+		var defH = !looseH || known(s.height.resolve(parentH));
+		looseH = false;
 		var minW = Math.max(bw ? 0.0 : min(s.minWidth, parentW), edgesH(s)), maxW = bw ? Math.POSITIVE_INFINITY : max(s.maxWidth, parentW);
 		var minH = Math.max(bh ? 0.0 : min(s.minHeight, parentH), edgesV(s)), maxH = bh ? Math.POSITIVE_INFINITY : max(s.maxHeight, parentH);
 		var w = known(knownW) ? knownW : bw ? Math.NaN : clamp(s.width.resolve(parentW), minW, maxW);
@@ -100,7 +106,7 @@ class Layout {
 				rh = h;
 				return;
 			}
-		} else if (own && lookup(n, w, h, availW, availH)) return;
+		} else if (own && lookup(n, w, defH ? h : -1 - h, availW, availH)) return;
 		var pad = s.padding, be = s.borderEdges;
 		var padL = pad.left + be.left, padT = pad.top + be.top, padH = pad.left + pad.right + be.left + be.right, padV = pad.top + pad.bottom + be.top + be.bottom;
 		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) {
@@ -118,14 +124,14 @@ class Layout {
 				n.relaid = true;
 			}
 		} else if (s.display == Grid) grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
-		else flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
-		if (!perform && own) store(n, w, h, availW, availH, rw, rh);
+		else flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
+		if (!perform && own) store(n, w, defH ? h : -1 - h, availW, availH, rw, rh);
 	}
 
 	// --- a flex container ---
 
 	function flex(n:Node, w:Float, h:Float, availW:Float, availH:Float, minW:Float, maxW:Float, minH:Float, maxH:Float, padL:Float, padT:Float,
-			padH:Float, padV:Float, perform:Bool) {
+			padH:Float, padV:Float, perform:Bool, defH:Bool) {
 		var s = n.style;
 		var row = s.direction == Row || s.direction == RowReverse;
 		var reverse = s.direction == RowReverse || s.direction == ColumnReverse;
@@ -139,6 +145,9 @@ class Layout {
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
 		var availInH = known(innerH) ? innerH : known(availH) ? Math.max(0, availH - padV) : Math.NaN;
 		var innerMain = row ? innerW : innerH, innerCross = row ? innerH : innerW;
+		// (what the items' percentages resolve against: the content box, its height when definite)
+		var pctH = defH ? innerH : Math.NaN;
+		var pctMain = row ? innerW : pctH, pctCross = row ? pctH : innerW;
 		var availMain = row ? availInW : availInH, availCross = row ? availInH : availInW;
 		var gapMain = row ? s.columnGap : s.rowGap, gapCross = row ? s.rowGap : s.columnGap;
 		var minMain = (row ? minW : minH) - (row ? padH : padV), maxMain = (row ? maxW : maxH) - (row ? padH : padV);
@@ -164,16 +173,18 @@ class Layout {
 			it.mMainEnd = row ? (flipMain ? m.left : m.right) : (flipMain ? m.top : m.bottom);
 			it.mCrossStart = row ? m.top : (flipCross ? m.right : m.left);
 			it.mCrossEnd = row ? m.bottom : (flipCross ? m.left : m.right);
-			it.minMain = Math.max(min(row ? cs.minWidth : cs.minHeight, innerMain), row ? edgesH(cs) : edgesV(cs));
-			it.maxMain = max(row ? cs.maxWidth : cs.maxHeight, innerMain);
-			it.minCross = Math.max(min(row ? cs.minHeight : cs.minWidth, innerCross), row ? edgesV(cs) : edgesH(cs));
-			it.maxCross = max(row ? cs.maxHeight : cs.maxWidth, innerCross);
+			it.minMain = Math.max(min(row ? cs.minWidth : cs.minHeight, pctMain), row ? edgesH(cs) : edgesV(cs));
+			it.maxMain = max(row ? cs.maxWidth : cs.maxHeight, pctMain);
+			it.minCross = Math.max(min(row ? cs.minHeight : cs.minWidth, pctCross), row ? edgesV(cs) : edgesH(cs));
+			it.maxCross = max(row ? cs.maxHeight : cs.maxWidth, pctCross);
 			it.align = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (it.align == Auto) it.align = Stretch;
-			it.styleCross = clamp((row ? cs.height : cs.width).resolve(innerCross), it.minCross, it.maxCross);
-			var b = cs.basis.resolve(innerMain);
+			// (stretched only when its size across is auto: a percentage of an indefinite one is not)
+			if (it.align == Stretch && (row ? cs.height : cs.width) != DimValue.Auto) it.align = Start;
+			it.styleCross = clamp((row ? cs.height : cs.width).resolve(pctCross), it.minCross, it.maxCross);
+			var b = cs.basis.resolve(pctMain);
 			// (a percentage basis of an indefinite size: content, the width or height left out)
-			if (!known(b) && cs.basis == DimValue.Auto) b = (row ? cs.width : cs.height).resolve(innerMain);
+			if (!known(b) && cs.basis == DimValue.Auto) b = (row ? cs.width : cs.height).resolve(pctMain);
 			var contentBasis = !known(b);
 			if (!known(b) && cs.aspectRatio > 0 && known(it.styleCross)) b = row ? it.styleCross * cs.aspectRatio : it.styleCross / cs.aspectRatio;
 			if (!known(b)) {
@@ -184,7 +195,7 @@ class Layout {
 				var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 				// (the base size: not clamped by its own min or max, which the hypothetical size is)
 				if (row) bareW = true else bareH = true;
-				if (row) size(c, Math.NaN, kc, innerW, innerH, am, ac, false) else size(c, kc, Math.NaN, innerW, innerH, ac, am, false);
+				if (row) size(c, Math.NaN, kc, innerW, pctH, am, ac, false) else size(c, kc, Math.NaN, innerW, pctH, ac, am, false);
 				b = row ? rw : rh;
 			}
 			it.basis = b;
@@ -198,10 +209,10 @@ class Layout {
 					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 					// (its content's height: not its own, CSS's content size suggestion)
 					bareH = true;
-					size(c, kc, Math.NaN, innerW, innerH, ac, Math.NaN, false);
+					size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
 					content = rh;
 				}
-				var spec = (row ? cs.width : cs.height).resolve(innerMain);
+				var spec = (row ? cs.width : cs.height).resolve(pctMain);
 				if (known(spec) && spec < content) content = spec;
 				it.minMain = Math.max(Math.min(content, it.maxMain), row ? edgesH(cs) : edgesV(cs));
 			}
@@ -235,7 +246,7 @@ class Layout {
 				var l = lines[k], t = 0.0;
 				for (i in l.start...l.end) {
 					var it = items[i];
-					t += contribution(it, row, innerW, innerH) + it.mMainStart + it.mMainEnd + (i > l.start ? gapMain : 0);
+					t += contribution(it, row, innerW, pctH) + it.mMainStart + it.mMainEnd + (i > l.start ? gapMain : 0);
 				}
 				if (t > content) content = t;
 			}
@@ -243,7 +254,7 @@ class Layout {
 			if (row && multi && lastLine - firstLine > 1) {
 				var t = 0.0;
 				for (i in first...itemTop)
-					t += contribution(items[i], row, innerW, innerH) + items[i].mMainStart + items[i].mMainEnd + (i > first ? gapMain : 0);
+					t += contribution(items[i], row, innerW, pctH) + items[i].mMainStart + items[i].mMainEnd + (i > first ? gapMain : 0);
 				content = t;
 			}
 			// (a row shrinks to fit the room; a column's auto height is its content's, the room or not)
@@ -262,8 +273,11 @@ class Layout {
 					var ac = known(innerCross) ? Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd) : known(availCross) ? Math.max(0,
 						availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 					if (it.align == Stretch && !multi && known(innerCross)) it.cross = clamp(ac, it.minCross, it.maxCross) else {
-						if (row) size(it.node, it.main, Math.NaN, innerW, innerH, it.main, ac, false) else size(it.node, Math.NaN, it.main, innerW, innerH, ac,
-							it.main, false);
+						// (a column's item's flexed height: definite when the column's is)
+						if (row) size(it.node, it.main, Math.NaN, innerW, pctH, it.main, ac, false) else {
+							looseH = !known(pctH);
+							size(it.node, Math.NaN, it.main, innerW, pctH, ac, it.main, false);
+						}
 						// (a column's item across: fit-content, its min-content when the room is less)
 						it.cross = clamp(row ? rh : Math.max(rw, minContentWidth(it.node, innerW, false)), it.minCross, it.maxCross);
 					}
@@ -364,14 +378,16 @@ class Layout {
 				var cwid = row ? it.main : it.cross, chei = row ? it.cross : it.main;
 				// (Relative: shifted by its offsets)
 				var cs = c.style;
-				var dx = cs.left.resolve(innerW), dy = cs.top.resolve(innerH);
+				var dx = cs.left.resolve(innerW), dy = cs.top.resolve(pctH);
 				if (!known(dx)) dx = -cs.right.resolve(innerW);
-				if (!known(dy)) dy = -cs.bottom.resolve(innerH);
+				if (!known(dy)) dy = -cs.bottom.resolve(pctH);
 				// (Sticky: its offsets are where it sticks, not a shift)
 				if (cs.position == Sticky) dx = dy = Math.NaN;
 				c.lx = cx + (known(dx) ? dx : 0);
 				c.ly = cy + (known(dy) ? dy : 0);
-				size(c, cwid, chei, innerW, innerH, cwid, chei, true);
+				// (its height definite: stretched, a column's item when the column's is, or its own)
+				looseH = row ? !(it.align == Stretch && !known(it.styleCross)) : !known(pctH);
+				size(c, cwid, chei, innerW, pctH, cwid, chei, true);
 				c.lw = cwid;
 				c.lh = chei;
 				pos += it.main + it.mMainStart + it.mMainEnd + gap;
