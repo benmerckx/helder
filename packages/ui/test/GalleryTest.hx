@@ -83,8 +83,10 @@ class GalleryTest {
 			click("file-1");
 			check("a menu item clicked", app.chosen.value == "Open" && shown("chosen") == "Open", app.chosen.value);
 			ui.setFocus(find("file"));
+			// (Up from the first item wraps to the last, Down back to the first)
 			key(Key.DOWN);
 			key(Key.UP);
+			key(Key.DOWN);
 			key(Key.DOWN);
 			key(Key.DOWN);
 			key(Key.ENTER);
