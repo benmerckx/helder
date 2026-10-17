@@ -72,7 +72,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   (a row per index, its item a signal), `Show`, `Switch` with `Match`
   (a branch made again only when the branch chosen changes; `null` and
   `false` choose none), `ErrorBoundary` (a fallback, with a reset, for
-  errors while rendering its children or later in their computations).
+  errors while rendering its children or later in their computations),
+  `VirtualList` (only the rows in view made: a list of 100000 rows scrolls
+  as one of 20), `Popover`.
   `Motion`: `transition`, `spring` and `color` are signals moving toward
   a target as the `Clock` ticks (a window ticks it each frame and keeps
   drawing while anything moves; `Clock.finish()` ends every animation, for

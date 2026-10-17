@@ -45,6 +45,8 @@ class Node {
 	public var onKeyDown:Null<Event->Void>;
 	public var onKeyUp:Null<Event->Void>;
 	public var onTextInput:Null<Event->Void>;
+	// Overflow Scroll: its scrollX or scrollY changed (the wheel, a thumb, clamping)
+	public var onScroll:Null<Void->Void>;
 	public var onComposition:Null<Event->Void>;
 	public var onFocus:Null<Event->Void>;
 	public var onBlur:Null<Event->Void>;

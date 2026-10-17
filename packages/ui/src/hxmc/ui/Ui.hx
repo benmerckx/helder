@@ -218,6 +218,7 @@ class Ui {
 				n.scrollX += deltaX;
 				n.scrollY += deltaY;
 				clampScroll(n);
+				if (n.onScroll != null) n.onScroll();
 				requestFrame();
 				return;
 			}
@@ -533,8 +534,12 @@ class Ui {
 
 	function clampScroll(n:Node) {
 		if (n.style.overflow == Scroll) {
-			n.scrollX = Math.max(0, Math.min(n.scrollX, maxScroll(n, true)));
-			n.scrollY = Math.max(0, Math.min(n.scrollY, maxScroll(n, false)));
+			var x = Math.max(0, Math.min(n.scrollX, maxScroll(n, true))), y = Math.max(0, Math.min(n.scrollY, maxScroll(n, false)));
+			if (x != n.scrollX || y != n.scrollY) {
+				n.scrollX = x;
+				n.scrollY = y;
+				if (n.onScroll != null) n.onScroll();
+			}
 		}
 		for (c in n.children)
 			clampScroll(c);
@@ -661,6 +666,7 @@ class Ui {
 		v = Math.max(0, Math.min(v, maxScroll(n, x)));
 		if (v == (x ? n.scrollX : n.scrollY)) return;
 		if (x) n.scrollX = v; else n.scrollY = v;
+		if (n.onScroll != null) n.onScroll();
 		requestFrame();
 	}
 

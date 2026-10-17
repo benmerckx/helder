@@ -22,7 +22,8 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
-// popover widgets (Select, Menu, Tooltip, Dialog) driven by pointer and keys
+// popover widgets (Select, Menu, Tooltip, Dialog) driven by pointer and keys;
+// a VirtualList of 100000 rows scrolled
 class ReactiveTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -34,6 +35,7 @@ class ReactiveTest implements Markup {
 		motion();
 		access();
 		popovers();
+		virtual();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -226,6 +228,35 @@ class ReactiveTest implements Markup {
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("popover: Escape closes the dialog", !dialog.value && ui.overlay.children.length == 0);
+	}
+
+	static function virtual() {
+		var ui = new Ui(new MonoText(), 300, 300);
+		var items = signal([for (i in 0...100000) "item " + i]);
+		var made = 0;
+		var dispose = Render.render(<view><VirtualList tag="list" each={items} itemHeight={20} height={200}
+			render={(item:Signal<String>, i:Int) -> {
+				made++;
+				<text>{() -> item.value}</text>;
+			}}/></view>, ui.root);
+		ui.update();
+		var list = ui.root.find("list");
+		function rows():Array<String>
+			return [for (c in list.children) if (c.tag == "row") (cast c.children[0] : TextNode).text];
+		check("virtual: only the rows in view (and 3 more)", rows().length == 14 && rows()[0] == "item 0" && made == 14, rows().join(","));
+		check("virtual: scrolls the whole list", list.contentHeight == 2000000, '${list.contentHeight}');
+		ui.wheel(list.absX + 5, list.absY + 5, 0, 1000);
+		ui.update();
+		var r = rows();
+		check("virtual: rows made as it scrolls", r.length == 17 && r.indexOf("item 47") >= 0 && r.indexOf("item 63") >= 0 && r.indexOf("item 0") < 0, r.join(","));
+		var at = [for (c in list.children) if (c.tag == "row") c].filter(c -> (cast c.children[0] : TextNode).text == "item 50")[0];
+		check("virtual: a row at its index's height", at != null && at.y == 1000, at == null ? "none" : '${at.y}');
+		items.value = [for (i in 0...60) "new " + i];
+		ui.update();
+		r = rows();
+		check("virtual: a shorter list: its rows, the scroll clamped", r.length > 0 && r.indexOf("new 59") >= 0 && list.scrollY == 60 * 20 - 200, r.join(",") + " " + list.scrollY);
+		dispose();
+		check("virtual: disposed", ui.root.find("list") == null);
 	}
 
 	static function access() {

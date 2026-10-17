@@ -48,6 +48,14 @@ class Flow {
 			?onDismiss:Void->Void, ?onOpen:hxmc.ui.Popup->Void, ?tag:String, ?children:Any}):Any
 		return new PopoverMount(props);
 
+	// a long list in a scrolling view height pixels high: only the rows in
+	// view are made (and overscan more on each side, 3), each itemHeight
+	// high, again as it scrolls; render gets a row's item (a signal: what is
+	// at its index when the list changes) and its index
+	public static function VirtualList<T>(props:{each:Dynamic, itemHeight:Float, height:Float, render:(Signal<T>, Int)->Any, ?overscan:Int,
+			?tag:String}):Any
+		return new VirtualRows(props.each, props.itemHeight, props.height, props.render, props.overscan ?? 3, props.tag);
+
 	public static function Match(props:{when:Dynamic, ?children:Any}):Any
 		return new MatchCase(props.when, props.children);
 
@@ -305,6 +313,90 @@ class IndexList<T> implements Mountable {
 			for (n in r.nodes)
 				if (n.parent == parent) parent.remove(n));
 		return [anchor];
+	}
+}
+
+// VirtualList: a scrolling view, a spacer as tall as every row, the rows in
+// view placed absolutely at their index's height (each with its owner,
+// under the list's)
+class VirtualRows<T> implements Mountable {
+	final each:Dynamic;
+	final itemHeight:Float;
+	final height:Float;
+	final render:(Signal<T>, Int)->Any;
+	final overscan:Int;
+	final tag:Null<String>;
+
+	public function new(each, itemHeight, height, render, overscan, tag) {
+		this.each = each;
+		this.itemHeight = itemHeight;
+		this.height = height;
+		this.render = render;
+		this.overscan = overscan;
+		this.tag = tag;
+	}
+
+	public function mount(parent:Node, before:Null<Node>):Array<Node> {
+		var view = new Node(tag ?? "virtual-list");
+		view.style.overflow = Scroll;
+		view.style.height = height;
+		var spacer = new Node("spacer");
+		view.append(spacer);
+		var i = before == null ? parent.children.length : parent.indexOf(before);
+		parent.insert(view, i < 0 ? parent.children.length : i);
+		var home = Reactive.owner;
+		var first = new Signal(0);
+		view.onScroll = () -> first.value = Math.floor(view.scrollY / itemHeight);
+		var rows = new Map<Int, {item:Signal<T>, node:Node, owner:Owner}>();
+		function drop(k:Int) {
+			var r = rows.get(k);
+			r.owner.dispose();
+			view.remove(r.node);
+			rows.remove(k);
+		}
+		Reactive.effect(() -> {
+			var items:Array<T> = Render.read(each);
+			if (items == null) items = [];
+			var f = first.value;
+			Reactive.untrack(() -> {
+				spacer.style.height = items.length * itemHeight;
+				var lo = f - overscan, hi = f + Math.ceil(height / itemHeight) + 1 + overscan;
+				if (lo < 0) lo = 0;
+				if (hi > items.length) hi = items.length;
+				for (k in [for (k in rows.keys()) k])
+					if (k < lo || k >= hi) drop(k);
+				Reactive.batch(() -> for (k in lo...hi) {
+					var r = rows.get(k);
+					if (r != null) r.item.value = items[k];
+				});
+				for (k in lo...hi) {
+					if (rows.exists(k)) continue;
+					var row = new Node("row");
+					row.style.position = Absolute;
+					row.style.left = 0;
+					row.style.right = 0;
+					row.style.top = k * itemHeight;
+					row.style.height = itemHeight;
+					var o = new Owner(home);
+					var saved = Reactive.owner;
+					Reactive.owner = o;
+					var item = new Signal(items[k]);
+					try Render.insert(render(item, k), row, null) catch (e:Dynamic) {
+						Reactive.owner = saved;
+						throw e;
+					}
+					Reactive.owner = saved;
+					view.append(row);
+					rows.set(k, {item: item, node: row, owner: o});
+				}
+			});
+		});
+		Reactive.onCleanup(() -> {
+			for (k in [for (k in rows.keys()) k])
+				drop(k);
+			if (view.parent == parent) parent.remove(view);
+		});
+		return [view];
 	}
 }
 
