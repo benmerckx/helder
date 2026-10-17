@@ -132,6 +132,9 @@ class RuleData {
 			case 2: DimValue.Auto;
 			case 3: DimValue.MinContent;
 			case 4: DimValue.MaxContent;
+			case 6:
+				var p = num();
+				DimValue.Calc(p, num());
 			case _: DimValue.FitContent;
 		}
 

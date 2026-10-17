@@ -112,20 +112,13 @@ class UiDrawTest {
 
 	static function compare(pixels:Bytes, golden:String):Bool {
 		var g = Png.decode(sys.io.File.getBytes(golden));
-		var off = 0, differ = 0, max = 0;
-		for (p in 0...W * H) {
-			var d = 0;
-			for (k in 0...3) {
-				var v = pixels.get(4 * p + k) - g.rgba.get(4 * p + k);
-				if (v < 0) v = -v;
-				if (v > d) d = v;
-			}
-			if (d > 0) differ++;
-			if (d > TOLERANCE) off++;
-			if (d > max) max = d;
+		if (g.width != W || g.height != H) {
+			Sys.println('UiDrawTest: FAIL: the golden image is ${g.width}x${g.height}');
+			return false;
 		}
-		var ok = g.width == W && off <= MAX_OFF * W * H;
-		Sys.println('UiDrawTest: ' + (ok ? "ok" : "FAIL") + (differ == 0 ? " (exact)" : ' ($differ pixels differ, $off by more than $TOLERANCE, at most $max)'));
+		var d = ImageDiff.of(pixels, g.rgba, W, H, TOLERANCE);
+		var ok = d.within(MAX_OFF);
+		Sys.println('UiDrawTest: ' + (ok ? "ok" : "FAIL") + ' ($d)');
 		return ok;
 	}
 }
