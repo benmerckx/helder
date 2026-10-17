@@ -170,7 +170,17 @@ export const cases = [
 		{ style: { direction: 'Row', gap: 10, height: 20 }, children: [{ style: { flex: 1 } }, { style: { flex: 2 } }, box(30, 20)] },
 		{ style: { direction: 'Row', alignItems: 'Start' }, children: [{ children: [{ style: { flex: 1 }, children: [box(20, 30)] }, box(20, 10)] }] },
 		{ style: { height: 60 }, children: [{ style: { position: 'Absolute', inset: 10 } }] }] } },
-
+	// intrinsic widths: min-content (its widest item), max-content (all on one line), fit-content (the latter within the room)
+	{ name: 'intrinsic widths', width: 300, height: 300, tree: { style: { width: 120, alignItems: 'Start', rowGap: 4 }, children: [
+		{ style: { direction: 'Row', wrap: true, width: 'min-content' }, children: [box(40, 10), box(50, 10), box(30, 10)] },
+		{ style: { direction: 'Row', wrap: true, width: 'max-content' }, children: [box(60, 10), box(50, 10), box(30, 10)] },
+		{ style: { direction: 'Row', wrap: true, width: 'fit-content' }, children: [box(40, 10), box(50, 10), box(30, 10)] },
+		{ style: { direction: 'Row', wrap: true, width: 'fit-content' }, children: [box(40, 10), box(30, 10)] },
+		{ style: { direction: 'Row', wrap: true, width: 20, minWidth: 'min-content' }, children: [box(40, 10), box(50, 10)] },
+		{ style: { direction: 'Row', wrap: true, maxWidth: 'min-content' }, children: [box(40, 10), box(50, 10)] },
+		{ style: { direction: 'Row', alignSelf: 'Stretch' }, children: [{ style: { width: 'max-content', direction: 'Row' }, children: [box(30, 10), box(30, 10)] }, { style: { width: 'min-content', direction: 'Row', wrap: true }, children: [box(20, 10), box(25, 10)] }] },
+		{ style: { position: 'Absolute', left: 0, top: 200, width: 'max-content', direction: 'Row' }, children: [box(100, 10), box(100, 10)] }] } },
+	// shrinking weighs each item's base size inside its padding and border
 	{ name: 'shrink by the content-box base size', width: 200, height: 60, tree: { style: { direction: 'Row' }, children: [box(100, 20, { padding: [0, 20] }), box(100, 20, { borderWidth: 10 }), box(100, 20)] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },
 	// a scroll container's automatic minimum is 0 (its padding and border): a wide one does not widen its fr or auto track

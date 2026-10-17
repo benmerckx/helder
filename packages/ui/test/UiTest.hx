@@ -1327,7 +1327,7 @@ class UiTest {
 	static function dim(v:Dynamic):Dim {
 		if (Std.isOfType(v, String)) {
 			var s:String = v;
-			return s == "auto" ? Auto : Percent(Std.parseFloat(s.substr(0, s.length - 1)));
+			return s == "auto" || StringTools.endsWith(s, "content") ? Dim.parse(s) : Percent(Std.parseFloat(s.substr(0, s.length - 1)));
 		}
 		return Px(v);
 	}
