@@ -60,6 +60,12 @@ abstract Impl(Any) {
 	public inline function writeTexture(id:Int, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset:Int)
 		Mem.os() == 1 ? mtl().writeTexture(id, x, y, w, h, data, dataOffset) : Mem.os() == 2 ? d3d().writeTexture(id, x, y, w, h, data, dataOffset) : Mem.os() != 3 ? gl().writeTexture(id, x, y, w, h, data, dataOffset) : webgl() ? gl().writeTexture(id, x, y, w, h, data, dataOffset) : wgpu().writeTexture(id, x, y, w, h, data, dataOffset);
 
+	public inline function destroyBuffer(id:Int)
+		Mem.os() == 1 ? mtl().destroyBuffer(id) : Mem.os() == 2 ? d3d().destroyBuffer(id) : Mem.os() != 3 ? gl().destroyBuffer(id) : webgl() ? gl().destroyBuffer(id) : wgpu().destroyBuffer(id);
+
+	public inline function destroyTexture(id:Int)
+		Mem.os() == 1 ? mtl().destroyTexture(id) : Mem.os() == 2 ? d3d().destroyTexture(id) : Mem.os() != 3 ? gl().destroyTexture(id) : webgl() ? gl().destroyTexture(id) : wgpu().destroyTexture(id);
+
 	public inline function setTexture(slot:Int, id:Int)
 		Mem.os() == 1 ? mtl().setTexture(slot, id) : Mem.os() == 2 ? d3d().setTexture(slot, id) : Mem.os() != 3 ? gl().setTexture(slot, id) : webgl() ? gl().setTexture(slot, id) : wgpu().setTexture(slot, id);
 

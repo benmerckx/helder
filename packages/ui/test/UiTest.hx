@@ -12,6 +12,8 @@ import hxmc.ui.DimValue;
 //   the wheel scrolling an Overflow Scroll node, relayout after changes
 // - paint: what Ui draws on a Canvas, in order (shadows under backgrounds,
 //   rounded clips inside borders), and Shadow.parse
+// - images: png/*.png decoded (every colour type and depth, tRNS, the
+//   filters, Adam7; png-cases.mjs writes them and the pixels expected)
 class UiTest {
 	static var checks = 0;
 	static var failed = 0;
@@ -24,6 +26,7 @@ class UiTest {
 		events();
 		dirty();
 		paint();
+		images(here);
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -34,6 +37,57 @@ class UiTest {
 			failed++;
 			Sys.println('UiTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
+	}
+
+	// --- images ---
+
+	static function images(here:String) {
+		var dir = here + "/png";
+		var names = [for (f in sys.FileSystem.readDirectory(dir)) if (StringTools.endsWith(f, ".png")) f.substr(0, f.length - 4)];
+		names.sort(Reflect.compare);
+		check("images: the cases", names.length >= 20, '${names.length}');
+		for (n in names) {
+			var want = sys.io.File.getBytes(dir + "/" + n + ".rgba");
+			var img = try Image.decode(sys.io.File.getBytes(dir + "/" + n + ".png")) catch (e:Dynamic) {
+				check("images: " + n, false, Std.string(e));
+				continue;
+			}
+			var first = -1;
+			for (i in 0...want.length)
+				if (img.pixels.get(i) != want.get(i)) {
+					first = i;
+					break;
+				}
+			check("images: " + n, img.width == 13 && img.height == 11 && first < 0,
+				first < 0 ? '${img.width}x${img.height}' : 'pixel ${first >> 2} channel ${first & 3}: ${img.pixels.get(first)}, not ${want.get(first)}');
+		}
+		var threw = try {
+			Image.decode(haxe.io.Bytes.ofString("GIF89a"));
+			false;
+		} catch (e:Dynamic) true;
+		check("images: not a PNG file", threw);
+		// ImageNode: its size from the image's, its placement by fit
+		var ui = new Ui(new MonoText(), 300, 200);
+		ui.root.style.alignItems = Start;
+		var img = new Image(40, 20);
+		var natural = new ImageNode(img), wide = new ImageNode(img), box = new ImageNode(img);
+		wide.style.width = 100;
+		box.style.set({width: 100, height: 100, radius: 12});
+		for (n in [natural, wide, box])
+			ui.root.append(n);
+		ui.update();
+		check("images: the natural size", natural.width == 40 && natural.height == 20, '${natural.width}x${natural.height}');
+		check("images: the aspect ratio kept", wide.width == 100 && wide.height == 50, '${wide.width}x${wide.height}');
+		check("images: Fill", box.placement(0, 0, 100, 100).join(",") == "0,0,100,100,0,0,1,1");
+		box.fit = Contain;
+		check("images: Contain", box.placement(0, 0, 100, 100).join(",") == "0,25,100,50,0,0,1,1", box.placement(0, 0, 100, 100).join(","));
+		box.fit = Cover;
+		check("images: Cover", box.placement(0, 0, 100, 100).join(",") == "0,0,100,100,0.25,0,0.75,1", box.placement(0, 0, 100, 100).join(","));
+		box.fit = ImageFit.None;
+		check("images: None", box.placement(0, 0, 100, 100).join(",") == "30,40,40,20,0,0,1,1", box.placement(0, 0, 100, 100).join(","));
+		var c = new Recording();
+		ui.paint(c);
+		check("images: painted", c.calls.join("|") == "image 40x20 0 0 40 20 0 0 1 1 0|image 40x20 0 20 100 50 0 0 1 1 0|image 40x20 30 110 40 20 0 0 1 1 12", c.calls.join("|"));
 	}
 
 	// --- paint ---
@@ -413,4 +467,7 @@ class Recording implements Canvas {
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color)
 		calls.push('text $x $y $width');
+
+	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float)
+		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius');
 }

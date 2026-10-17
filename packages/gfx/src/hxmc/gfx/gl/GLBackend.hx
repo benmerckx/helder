@@ -176,6 +176,22 @@ class GLBackend {
 		GL.glTexSubImage2D(GL.TEXTURE_2D, 0, x, y, w, h, t.format, GL.UNSIGNED_BYTE, Mem.addr(data).add(8 + dataOffset));
 	}
 
+	// (the id stays taken: ids are indices)
+	public function destroyBuffer(id:Int) {
+		if (buffers[id - 1] == 0) return;
+		scratch.value = buffers[id - 1];
+		GL.glDeleteBuffers(1, scratch);
+		buffers[id - 1] = 0;
+	}
+
+	public function destroyTexture(id:Int) {
+		var t = textures[id - 1];
+		if (t == null) return;
+		scratch.value = t.name;
+		GL.glDeleteTextures(1, scratch);
+		textures[id - 1] = null;
+	}
+
 	public function setTexture(slot:Int, id:Int) {
 		GL.glActiveTexture(GL.TEXTURE0 + slot);
 		GL.glBindTexture(GL.TEXTURE_2D, id == 0 ? 0 : textures[id - 1].name);

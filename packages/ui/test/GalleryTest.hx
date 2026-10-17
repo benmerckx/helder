@@ -8,12 +8,13 @@ import hxmc.ui.reactive.*;
 // The widget gallery (examples/Gallery.hx) driven headless through its Ui:
 // buttons, the checkbox and switch (clicked and with the keyboard), radio
 // buttons, the slider (dragged, clicked, arrow keys, Home and End), tabs,
-// the field; its state checked, then its frame against gallery.png (Linux:
+// the field, the images' sizes; PNG files decoded natively (png/*.png,
+// as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
 //   GalleryTest <golden.png> <out.png> [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 720;
+	static inline var H = 840;
 	static var failed = 0;
 	static var checks = 0;
 
@@ -99,6 +100,20 @@ class GalleryTest {
 		// Plain button), its focus ring shown
 		key(Key.TAB);
 		check("Tab wraps to the first button", ui.focus == find("plain") && ui.focusVisible);
+		var natural = find("natural");
+		check("an image's natural size", natural.width == 120 && natural.height == 60, '${natural.width}x${natural.height}');
+		// the PNG cases, decoded by the native build
+		var dir = "packages/ui/test/png";
+		if (sys.FileSystem.exists(dir)) {
+			var n = 0, bad = [];
+			for (f in sys.FileSystem.readDirectory(dir))
+				if (StringTools.endsWith(f, ".png")) {
+					n++;
+					var img = Image.decode(sys.io.File.getBytes(dir + "/" + f));
+					if (img.pixels.compare(sys.io.File.getBytes(dir + "/" + f.substr(0, f.length - 4) + ".rgba")) != 0) bad.push(f);
+				}
+			check("PNG files decoded", n >= 20 && bad.length == 0, bad.join(" "));
+		}
 		Sys.println('GalleryTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		// the frame
 		var r = new Renderer(device);

@@ -14,6 +14,9 @@ interface Canvas {
 	function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color):Void;
 	// a rounded rectangle faded over blur pixels on each side of its edge
 	function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float):Void;
+	// the part u0, v0, u1, v1 (0...1) of an image stretched over a rectangle
+	// with rounded corners
+	function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float):Void;
 	// a TextEngine's paragraph with its first line's top left at (x, y), aligned in width
 	function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color):Void;
 }

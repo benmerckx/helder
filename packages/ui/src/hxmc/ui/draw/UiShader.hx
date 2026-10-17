@@ -8,7 +8,8 @@ import hxmc.gfx.shader.ShaderMath.*;
 // centre (local), so that its edge is anti-aliased by the signed distance
 // to it and a border of borderWidth is drawn inside it (mode 0); or a
 // glyph, the atlas's coverage of the colour (mode 1); or an image, its
-// texels tinted by the colour's alpha (mode 2); or a shadow, the rectangle
+// texels (premultiplied) times the colour's alpha, its corners rounded as a
+// rectangle's (mode 2); or a shadow, the rectangle
 // faded over its blur (mode 3). Every fragment is also clipped by a
 // rounded rectangle (clip, in target pixels, and its radius: extra.z), from
 // its own position (extra.xy): clips need no scissor and nest on the CPU.
@@ -68,7 +69,7 @@ class UiShader implements Shaders {
 			var blur = max(i.params.w, 0.5);
 			return i.color * (1 - smoothstep(-blur, blur, box(i.local, i.half, i.params.x))) * clipped;
 		}
-		if (mode > 1.5) return texel * i.color.w * clipped;
+		if (mode > 1.5) return texel * i.color.w * clamp(0.5 - box(i.local, i.half, i.params.x), 0, 1) * clipped;
 		if (mode > 0.5) return i.color * coverage * clipped;
 		var d = box(i.local, i.half, i.params.x);
 		var edge = clamp(0.5 - d, 0, 1);

@@ -8,7 +8,7 @@ import hxmc.ui.widgets.Widgets.*;
 
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
 // buttons, a checkbox and a switch, radio buttons, a slider driving a
-// progress bar, tabs, a text field. In a window:
+// progress bar, tabs, a text field, images fitted three ways. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
 //
@@ -27,8 +27,42 @@ class Gallery implements Markup {
 	public final volume = signal(0.4);
 	public final tab = signal(0);
 	public final name = signal("");
+	final picture = landscape(120, 60);
 
 	public function new() {}
+
+	// a landscape drawn pixel by pixel: sky, a sun, hills (an image without a file)
+	public static function landscape(w:Int, h:Int):Image {
+		var img = new Image(w, h);
+		for (y in 0...h)
+			for (x in 0...w) {
+				var fx = x / w, fy = y / h;
+				var r = 96 + 80 * fy, g = 165 + 60 * fy, b = 250 - 20 * fy;
+				var dx = fx - 0.75, dy = fy - 0.3, sun = Math.sqrt(dx * dx * w * w + dy * dy * h * h) / (h * 0.16);
+				if (sun < 1) {
+					r = 253;
+					g = 224 - 40 * sun;
+					b = 71;
+				}
+				var hill = 0.62 + 0.1 * Math.sin(fx * 7.0), far = 0.55 + 0.08 * Math.sin(fx * 4.0 + 1.3);
+				if (fy > far) {
+					r = 74;
+					g = 158 - 30 * (fy - far);
+					b = 110;
+				}
+				if (fy > hill) {
+					r = 34 + 20 * fy;
+					g = 120 + 30 * fy;
+					b = 60;
+				}
+				var o = 4 * (y * w + x);
+				img.pixels.set(o, Std.int(r));
+				img.pixels.set(o + 1, Std.int(g));
+				img.pixels.set(o + 2, Std.int(b));
+				img.pixels.set(o + 3, 255);
+			}
+		return img;
+	}
 
 	function section(title:String, content:Esx):Esx
 		return <view row-gap={8}>
@@ -70,6 +104,12 @@ class Gallery implements Markup {
 				<Progress value={volume} width={200}/>
 			</view>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
+			{section("IMAGES: FILL, CONTAIN, COVER", <view direction="row" column-gap={12} align-items="start">
+				<image tag="fill" src={picture} width={110} height={70} radius={8}/>
+				<image tag="contain" src={picture} fit="contain" width={110} height={70} radius={8} background="#e4e4e7"/>
+				<image tag="cover" src={picture} fit="cover" width={110} height={70} radius={8}/>
+				<image tag="natural" src={picture} radius={30}/>
+			</view>)}
 			{section("FIELD", <view row-gap={6}>
 				<Field tag="name" value={name} placeholder="Your name"/>
 				<text tag="greeting" color="#52525b">{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>

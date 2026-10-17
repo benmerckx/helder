@@ -117,6 +117,14 @@ class WebGPUBackend {
 	public function readPixels(dst:haxe.io.Bytes)
 		throw "hxmc.gfx: readPixels: WebGPU reads back asynchronously (readPixels in packages/gfx/imports.mjs)";
 
+	public function destroyBuffer(id:Int) {
+		if (!handles.remove(id)) return;
+		WebGPU.release(id);
+	}
+
+	public function destroyTexture(id:Int)
+		destroyBuffer(id);
+
 	public function dispose() {
 		for (h in handles)
 			WebGPU.release(h);

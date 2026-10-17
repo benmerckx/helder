@@ -36,6 +36,11 @@ final class Device {
 		if (size > 0) impl.writeBuffer(b.id(), offset, data, dataOffset, size);
 	}
 
+	// frees a buffer (after the frames that use it are submitted: the GPU
+	// keeps what a submitted frame needs)
+	public function destroyBuffer(b:Buffer)
+		if (b.id() != 0) impl.destroyBuffer(b.id());
+
 	public function createTexture(d:TextureDesc):Texture {
 		if (d.data != null && d.data.length < d.width * d.height * d.format.bytesPerPixel)
 			throw "hxmc.gfx: createTexture: data has fewer than width * height * " + d.format.bytesPerPixel + " bytes";
@@ -49,6 +54,10 @@ final class Device {
 		if (w <= 0 || h <= 0) return;
 		impl.writeTexture(t.id(), x, y, w, h, data, dataOffset);
 	}
+
+	// frees a texture (destroyBuffer's rule)
+	public function destroyTexture(t:Texture)
+		if (t.id() != 0) impl.destroyTexture(t.id());
 
 	// throws the compiler's log when the source does not compile
 	public function createShader(d:ShaderDesc):Shader

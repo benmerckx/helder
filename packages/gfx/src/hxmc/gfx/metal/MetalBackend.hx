@@ -382,14 +382,29 @@ class MetalBackend {
 		}
 	}
 
+	// (the id stays taken: ids are indices; a command buffer retains what it uses)
+	public function destroyBuffer(id:Int) {
+		var b = buffers[id - 1];
+		if (b.isNull()) return;
+		Runtime.objc_release(b);
+		buffers[id - 1] = Ptr.nil();
+	}
+
+	public function destroyTexture(id:Int) {
+		var t = textures[id - 1];
+		if (t == null) return;
+		Runtime.objc_release(t.texture);
+		textures[id - 1] = null;
+	}
+
 	public function dispose() {
 		for (p in pipelines)
 			Runtime.objc_release(p.state);
 		idle();
 		for (o in shaders.concat(libraries).concat(buffers))
-			Runtime.objc_release(o);
+			if (!o.isNull()) Runtime.objc_release(o);
 		for (t in textures)
-			Runtime.objc_release(t.texture);
+			if (t != null) Runtime.objc_release(t.texture);
 		for (s in samplers)
 			ObjC.release(s);
 		ObjC.release(readback);

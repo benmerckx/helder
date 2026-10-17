@@ -50,6 +50,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     `fontWeight`, `italic`, `lineHeight`, `textAlign`.
   - Paint: `background`, `borderColor`, `radius`, `opacity`, `shadow`
     (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`.
+  - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
+    colour type, depth and interlacing), shown by an `ImageNode` at its own
+    size or the style's (keeping its aspect ratio), fitted as `Fill`,
+    `Contain`, `Cover` or `None`, its corners rounded with the node's.
   - `Ui` dispatches pointer, wheel, key and text events to nodes (bubbling
     to ancestors), tracks hover and press, moves the focus (click, Tab,
     Shift+Tab; a ring shows when the keyboard moved it) and scrolls
@@ -70,7 +74,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 ## Markup
 
 Intrinsic elements: `view` (a box), `text` (a run of text), `scroll` (a box
-that scrolls). Attributes:
+that scrolls), `image` (an `ImageNode`: `src={image}`, `fit="cover"`).
+Attributes:
 
 - any Style property, in camelCase or kebab-case, with values as CSS
   writes them: `direction="row"`, `justify="space-between"`,

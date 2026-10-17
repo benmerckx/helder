@@ -6,13 +6,16 @@ import hxmc.text.GlyphAtlas;
 import hxmc.ui.*;
 import hxmc.ui.draw.DrawText;
 
-// hxmc.ui's Canvas on hxmc.gfx: a frame's rectangles, shadows and glyphs
-// become quads of one vertex buffer (UiShader: six vertices each), drawn in
-// one call. Every vertex carries the clip (a rectangle in target pixels and
+// hxmc.ui's Canvas on hxmc.gfx: a frame's rectangles, shadows, glyphs and
+// images become quads of one vertex buffer (UiShader: six vertices each),
+// drawn in one call per run of quads with the same image (texture slot 1:
+// an image's texture, else a white texel). Every vertex carries the clip (a rectangle in target pixels and
 // its corner radius) that UiShader clips its fragments by, so clips need no
 // scissor and rounded ones clip to their corners. The UI's pixels are scaled
 // to the target's (scale: a Retina display's 2); glyphs are rasterized at the
 // scaled size into the GlyphAtlas, uploaded to an R8 texture when it changed.
+// An image is uploaded once (premultiplied, filtered linearly) and again
+// when its version changes; forget(image) frees its texture.
 class Renderer implements Canvas {
 	public final device:Device;
 	public var scale = 1.0;
@@ -25,6 +28,9 @@ class Renderer implements Canvas {
 	var capacity:Int;
 	var bytes:Bytes;
 	var used = 0; // bytes of vertices this frame
+	// the runs of quads by image texture: first vertex, count, image id (0: none)
+	final batches:Array<Int> = [];
+	final textures = new Map<Int, {texture:Texture, version:Int}>();
 	var targetW = 1.0;
 	var targetH = 1.0;
 
@@ -58,6 +64,7 @@ class Renderer implements Canvas {
 		targetW = width;
 		targetH = height;
 		used = 0;
+		batches.resize(0);
 		tx = ty = 0;
 		alpha = 1;
 		alphas.resize(0);
@@ -81,14 +88,51 @@ class Renderer implements Canvas {
 		if (used > capacity) {
 			while (capacity < used)
 				capacity *= 2;
+			device.destroyBuffer(buffer);
 			buffer = device.createBuffer({size: capacity, usage: Vertex});
 		}
 		device.writeBuffer(buffer, 0, bytes, 0, used);
 		enc.setPipeline(pipeline);
 		enc.setVertexBuffer(0, buffer);
 		enc.setTexture(0, atlasTexture);
-		enc.setTexture(1, blank);
-		enc.draw(Std.int(used / STRIDE), 1, 0);
+		var i = 0;
+		while (i < batches.length) {
+			var e = batches[i + 2] == 0 ? null : textures.get(batches[i + 2]);
+			enc.setTexture(1, e == null ? blank : e.texture);
+			enc.draw(batches[i + 1], 1, batches[i]);
+			i += 3;
+		}
+	}
+
+	// frees the texture of an image drawn before
+	public function forget(img:Image) {
+		var e = textures.get(img.id);
+		if (e == null) return;
+		device.destroyTexture(e.texture);
+		textures.remove(img.id);
+	}
+
+	// the image's texture, uploaded (premultiplied) when new or changed
+	function texture(img:Image):Texture {
+		var e = textures.get(img.id);
+		if (e != null && e.version == img.version) return e.texture;
+		var px = img.pixels, n = img.width * img.height;
+		var pre = haxe.io.Bytes.alloc(n * 4);
+		for (k in 0...n) {
+			var a = px.get(4 * k + 3);
+			pre.set(4 * k, Std.int((px.get(4 * k) * a + 127) / 255));
+			pre.set(4 * k + 1, Std.int((px.get(4 * k + 1) * a + 127) / 255));
+			pre.set(4 * k + 2, Std.int((px.get(4 * k + 2) * a + 127) / 255));
+			pre.set(4 * k + 3, a);
+		}
+		if (e == null) {
+			e = {texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, filter: Linear, data: pre}), version: img.version};
+			textures.set(img.id, e);
+		} else {
+			device.writeTexture(e.texture, 0, 0, img.width, img.height, pre);
+			e.version = img.version;
+		}
+		return e.texture;
 	}
 
 	// --- Canvas ---
@@ -135,7 +179,7 @@ class Renderer implements Canvas {
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
-		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0, 0, 1);
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0, 0, 1, 0);
 	}
 
 	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float) {
@@ -144,7 +188,16 @@ class Renderer implements Canvas {
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		var m = blur * s + 1;
 		if (culled(x0 - m, y0 - m, x1 + m, y1 + m)) return;
-		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, radius * s, 0, 3, blur * s, m);
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, radius * s, 0, 3, blur * s, m, 0);
+	}
+
+	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float) {
+		if (w <= 0 || h <= 0) return;
+		var s = scale;
+		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
+		texture(img);
+		quad(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, radius * s, 0, 2, 0, 1, img.id);
 	}
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color) {
@@ -169,7 +222,7 @@ class Renderer implements Canvas {
 				var qx = ix + a.left, qy = by + a.top;
 				if (culled(qx, qy, qx + a.w, qy + a.h)) continue;
 				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0,
-					1, 0, 0);
+					1, 0, 0, 0);
 			}
 		}
 	}
@@ -182,7 +235,16 @@ class Renderer implements Canvas {
 	// a quad over x0, y0, x1, y1 grown by margin m (a rectangle's anti-aliased
 	// edge, a shadow's blur), its texture coordinates growing with it
 	function quad(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, radius:Float,
-			borderWidth:Float, mode:Float, blur:Float, m:Float) {
+			borderWidth:Float, mode:Float, blur:Float, m:Float, image:Int) {
+		// (a new run where the image changes)
+		var nb = batches.length;
+		if (nb == 0 || batches[nb - 1] != image) {
+			batches.push(Std.int(used / STRIDE));
+			batches.push(0);
+			batches.push(image);
+			nb += 3;
+		}
+		batches[nb - 2] += 6;
 		if (used + 6 * STRIDE > bytes.length) {
 			var b = Bytes.alloc(bytes.length * 2);
 			b.blit(0, bytes, 0, used);

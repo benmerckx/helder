@@ -16,7 +16,8 @@ import hxmc.ui.reactive.Memo;
 // a hidden node, its computations disposed with them).
 //
 // Intrinsic elements: view (a Node), text (a TextNode of its children's
-// text), scroll (a Node with Overflow Scroll); elements registers more.
+// text), scroll (a Node with Overflow Scroll), image (an ImageNode: src, an
+// Image; fit, "fill", "contain", "cover" or "none"); elements registers more.
 // Their attributes: Style properties (StyleAttrs: direction="row",
 // padding={8}, background="#3b82f6"; style={StyleProps} for several), the
 // events (onClick, onPointerDown, onPointerUp, onPointerMove,
@@ -36,7 +37,8 @@ class Render {
 			var n = new Node("scroll");
 			n.style.overflow = Scroll;
 			n;
-		}
+		},
+		"image" => () -> new ImageNode()
 	];
 
 	// renders content into parent (its root: dispose removes it and stops its effects)
@@ -234,6 +236,16 @@ class Render {
 				(cast n : TextNode).text = v == null ? "" : Std.string(v);
 			case "tag":
 				n.tag = v;
+			case "src" if (Std.isOfType(n, ImageNode)):
+				(cast n : ImageNode).image = v;
+			case "fit" if (Std.isOfType(n, ImageNode)):
+				(cast n : ImageNode).fit = Std.isOfType(v, String) ? switch (v : String).toLowerCase() {
+					case "fill": Fill;
+					case "contain": Contain;
+					case "cover": Cover;
+					case "none": ImageFit.None;
+					case _: throw 'hxmc.ui: fit="$v" is not fill, contain, cover or none';
+				} : v;
 			case _:
 				if (!StyleAttrs.apply(n.style, name, v)) throw 'hxmc.ui: <${n.tag}> has no attribute $name';
 		}

@@ -479,6 +479,20 @@ class D3D11Backend {
 		ID3D11DeviceContext.Unmap(context, staging, 0);
 	}
 
+	// (the id stays taken: ids are indices; the context keeps what it has bound)
+	public function destroyBuffer(id:Int) {
+		Com.release(buffers[id - 1]);
+		buffers[id - 1] = Ptr.nil();
+	}
+
+	public function destroyTexture(id:Int) {
+		var t = textures[id - 1];
+		if (t == null) return;
+		Com.release(t.view);
+		Com.release(t.texture);
+		textures[id - 1] = null;
+	}
+
 	public function dispose() {
 		ID3D11DeviceContext.ClearState(context);
 		ID3D11DeviceContext.Flush(context);
@@ -487,10 +501,11 @@ class D3D11Backend {
 			Com.release(p.rasterizer);
 			Com.release(p.blend);
 		}
-		for (t in textures) {
-			Com.release(t.view);
-			Com.release(t.texture);
-		}
+		for (t in textures)
+			if (t != null) {
+				Com.release(t.view);
+				Com.release(t.texture);
+			}
 		for (s in samplers)
 			Com.release(s);
 		for (s in shaders) {
