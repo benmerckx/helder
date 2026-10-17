@@ -80,6 +80,8 @@ export const cases = [
 	{ name: 'grid template rows', width: 200, height: 200, tree: { style: { display: 'Grid', gridTemplateRows: '40px 1fr 30px' }, children: [{}, {}, {}] } },
 	{ name: 'grid placement', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '40px' }, children: [{ style: { gridColumn: '2 / 4' } }, { style: { gridColumn: '1', gridRow: '2' } }, {}, {}] } },
 	{ name: 'grid spans', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '30px', columnGap: 4 }, children: [{ style: { gridColumn: 'span 2' } }, {}, {}, { style: { gridColumn: 'span 3' } }, { style: { gridRow: 'span 2' } }, {}] } },
+	// (an item's percentages of its grid area: the calendar's days, aspect-square w-full h-full)
+	{ name: 'grid percent items', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 40px)', alignContent: 'Start' }, children: [{ style: { width: '100%', height: '100%', aspectRatio: 1 } }, { style: { width: '50%' }, children: [box(10, 10)] }, h(20)] } },
 	{ name: 'grid negative lines', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '50px 1fr 50px', gridAutoRows: '30px' }, children: [{ style: { gridColumn: '1 / -1' } }, { style: { gridColumn: '-2' } }] } },
 	{ name: 'grid minmax', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: 'minmax(100px, 1fr) minmax(50px, 80px) 1fr' }, children: [h(20), h(20), h(20)] } },
 	{ name: 'grid percent columns', width: 400, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '25% 75%' }, children: [h(20), h(20)] } },

@@ -584,22 +584,23 @@ class Layout {
 			var autoS = Math.isNaN(rtl ? m.right : m.left), autoE = Math.isNaN(rtl ? m.left : m.right), autoT = Math.isNaN(m.top), autoB = Math.isNaN(m.bottom);
 			if ((autoS || autoE) && jx == Stretch) jx = Start;
 			if ((autoT || autoB) && jy == Stretch) jy = Start;
+			// (its percentages of its grid area, as CSS's)
 			var roomW = Math.max(0, aw - mz(m.left) - mz(m.right)), roomH = Math.max(0, ah - mz(m.top) - mz(m.bottom));
-			var minCW = Math.max(minWidthOf(c, cs.minWidth, width, roomW), edgesH(cs)), maxCW = maxWidthOf(c, cs.maxWidth, width, roomW);
-			var minCH = Math.max(min(cs.minHeight, height), edgesV(cs)), maxCH = max(cs.maxHeight, height);
-			var iw = clamp(cs.width.intrinsic() ? intrinsicWidth(c, cs.width, width, roomW) : cs.width.resolve(width), minCW, maxCW);
-			var ih = clamp(cs.height.resolve(height), minCH, maxCH);
+			var minCW = Math.max(minWidthOf(c, cs.minWidth, aw, roomW), edgesH(cs)), maxCW = maxWidthOf(c, cs.maxWidth, aw, roomW);
+			var minCH = Math.max(min(cs.minHeight, ah), edgesV(cs)), maxCH = max(cs.maxHeight, ah);
+			var iw = clamp(cs.width.intrinsic() ? intrinsicWidth(c, cs.width, aw, roomW) : cs.width.resolve(aw), minCW, maxCW);
+			var ih = clamp(cs.height.resolve(ah), minCH, maxCH);
 			if (!known(iw)) {
 				if (jx == Stretch) iw = clamp(roomW, minCW, maxCW) else {
 					// (fit-content: its max-content width, no more than the area)
-					size(c, Math.NaN, ih, width, height, roomW, known(ih) ? ih : roomH, false);
-					iw = clamp(Math.min(rw, Math.max(roomW, minContentWidth(c, width, false))), minCW, maxCW);
+					size(c, Math.NaN, ih, aw, ah, roomW, known(ih) ? ih : roomH, false);
+					iw = clamp(Math.min(rw, Math.max(roomW, minContentWidth(c, aw, false))), minCW, maxCW);
 					if (rw <= roomW) iw = clamp(rw, minCW, maxCW);
 				}
 			}
 			if (!known(ih)) {
 				if (jy == Stretch) ih = clamp(roomH, minCH, maxCH) else {
-					size(c, iw, Math.NaN, width, height, iw, roomH, false);
+					size(c, iw, Math.NaN, aw, ah, iw, roomH, false);
 					ih = clamp(rh, minCH, maxCH);
 				}
 			}
@@ -618,13 +619,13 @@ class Layout {
 				case Center: (roomH - ih) / 2;
 				case _: 0;
 			}
-			var dx = cs.left.resolve(width), dy = cs.top.resolve(height);
-			if (!known(dx)) dx = -cs.right.resolve(width);
-			if (!known(dy)) dy = -cs.bottom.resolve(height);
+			var dx = cs.left.resolve(aw), dy = cs.top.resolve(ah);
+			if (!known(dx)) dx = -cs.right.resolve(aw);
+			if (!known(dy)) dy = -cs.bottom.resolve(ah);
 			if (cs.position == Sticky) dx = dy = Math.NaN;
 			c.lx = padL + x + (known(dx) ? dx : 0);
 			c.ly = padT + y + (known(dy) ? dy : 0);
-			size(c, iw, ih, width, height, iw, ih, true);
+			size(c, iw, ih, aw, ah, iw, ih, true);
 			c.lw = iw;
 			c.lh = ih;
 			if (x + iw + mz(m.right) > cw) cw = x + iw + mz(m.right);
@@ -880,11 +881,12 @@ class Layout {
 				size(c, Math.NaN, Math.NaN, gridW, gridH, Math.NaN, Math.NaN, false);
 				maxes.push(rw + mz(m.left) + mz(m.right));
 			} else {
+				// (its percentages of its area: its width's known, its height's the rows' to come, auto meanwhile)
 				var room2 = Math.max(0, it.areaW - mz(m.left) - mz(m.right));
-				var iw = cs.width.resolve(gridW);
+				var iw = cs.width.resolve(it.areaW);
 				var jx = cs.justifySelf == Auto ? it.node.parent.style.justifyItems : cs.justifySelf;
 				if (!known(iw) && (jx == Stretch || jx == Auto)) iw = room2;
-				size(c, iw, Math.NaN, gridW, gridH, known(iw) ? iw : room2, Math.NaN, false);
+				size(c, iw, Math.NaN, it.areaW, Math.NaN, known(iw) ? iw : room2, Math.NaN, false);
 				var v = rh + mz(m.top) + mz(m.bottom);
 				mins.push(v);
 				maxes.push(v);
