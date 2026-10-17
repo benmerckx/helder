@@ -982,12 +982,30 @@ class Layout {
 			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : cx + m.left
 				+ staticOffset(n, c, true, cw - aw - m.left - m.right);
 			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : cy + m.top + staticOffset(n, c, false, ch - ah - m.top - m.bottom);
+			// (both offsets and a size that leaves room: placed in the rectangle they leave by its
+			// justifySelf and alignSelf, start by default (the right right to left), as Chromium; one
+			// that overflows it moved back into the containing block as far as it fits)
+			if (known(l) && known(r)) ax = selfAligned(cs.justifySelf, l + m.left, pbW - r - m.right, aw, pbW, rtl);
+			if (known(t) && known(b)) ay = selfAligned(cs.alignSelf, t + m.top, pbH - b - m.bottom, ah, pbH, false);
 			c.lx = be.left + ax;
 			c.ly = be.top + ay;
 			size(c, aw, ah, pbW, pbH, aw, ah, true);
 			c.lw = aw;
 			c.lh = ah;
 		}
+	}
+
+	// a box size wide placed between from and to by its self-alignment (flip: start at the far end),
+	// within 0...room if it overflows them and is not at the start
+	static function selfAligned(a:Align, from:Float, to:Float, size:Float, room:Float, flip:Bool):Float {
+		var free = to - from - size;
+		var at = switch a {
+			case End: flip ? from : from + free;
+			case Center: from + free / 2;
+			case _: flip ? from + free : from;
+		}
+		if (free < 0 && at != from) at = Math.max(0, Math.min(at, room - size));
+		return at;
 	}
 
 	// an absolute child's static position on an axis (across: horizontal):
