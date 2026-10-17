@@ -1351,6 +1351,9 @@ class UiTest {
 			case "wrap": s.wrap = v;
 			case "rowGap": s.rowGap = v;
 			case "columnGap": s.columnGap = v;
+			case "gap": s.gap = v;
+			case "inset": s.inset = (v : Float);
+			case "flex": s.flex = v;
 			case "borderWidth": s.borderWidth = v;
 			case "borders": s.borders = (v : Array<Float>);
 			case "padding": s.padding = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);

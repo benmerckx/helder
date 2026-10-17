@@ -106,6 +106,51 @@ class StyleAttrs {
 	// (kebab-case names converted once each)
 	static final camels = new Map<String, String>();
 
+	// (the shorthands' other forms: two gaps; one to four offsets; flex's keywords and values)
+	static function gap(style:Style, v:Dynamic) {
+		var p = Std.isOfType(v, String) ? [for (x in StringTools.trim(v).split(" ")) if (x != "") x] : null;
+		if (p != null && p.length == 2) {
+			style.rowGap = float(StringTools.replace(p[0], "px", ""));
+			style.columnGap = float(StringTools.replace(p[1], "px", ""));
+		} else style.gap = float(Std.isOfType(v, String) ? StringTools.replace(v, "px", "") : v);
+	}
+
+	static function inset(style:Style, v:Dynamic) {
+		var p:Array<Dynamic> = Std.isOfType(v, String) ? [for (x in StringTools.trim(v).split(" ")) if (x != "") x] : Std.isOfType(v, Array) ? v : [v];
+		var d = [for (x in p) dim(x)];
+		switch d.length {
+			case 1: style.inset = d[0];
+			case 2: style.top = style.bottom = d[0]; style.left = style.right = d[1];
+			case 3: style.top = d[0]; style.left = style.right = d[1]; style.bottom = d[2];
+			case 4: style.top = d[0]; style.right = d[1]; style.bottom = d[2]; style.left = d[3];
+			case _: throw "inset: 1 to 4 values";
+		}
+	}
+
+	static function flex(style:Style, v:Dynamic) {
+		if (!Std.isOfType(v, String)) {
+			style.flex = (v : Float);
+			return;
+		}
+		var p = [for (x in StringTools.trim(v).split(" ")) if (x != "") x];
+		switch p {
+			case ["none"]: style.grow = 0; style.shrink = 0; style.basis = DimValue.Auto;
+			case ["auto"]: style.grow = 1; style.shrink = 1; style.basis = DimValue.Auto;
+			case ["initial"]: style.grow = 0; style.shrink = 1; style.basis = DimValue.Auto;
+			case [g]: style.flex = float(g);
+			// (CSS's: a second number is the shrink factor, else the basis)
+			case [g, b]: if (Math.isNaN(Std.parseFloat(b)) || StringTools.endsWith(b, "%") || StringTools.endsWith(b, "px")) {
+					style.flex = float(g);
+					style.basis = dim(b);
+				} else {
+					style.flex = float(g);
+					style.shrink = float(b);
+				}
+			case [g, s, b]: style.grow = float(g); style.shrink = float(s); style.basis = dim(b);
+			case _: throw "flex: " + v;
+		}
+	}
+
 	static function camel(n:String):String {
 		if (n.indexOf("-") < 0) return n;
 		var c = camels.get(n);

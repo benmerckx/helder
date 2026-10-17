@@ -77,6 +77,10 @@ class Style {
 	// flex-basis (Auto: the main size, else the content's)
 	public var basis(default, set):Dim = DimValue.Auto;
 
+	// grow, shrink and basis at once (CSS's flex shorthand): a number n is n 1 0%,
+	// as CSS's; markup also "none" (0 0 auto), "auto" (1 1 auto), "2 0 40px"
+	public var flex(never, set):Float;
+
 	// the border box's size
 	public var width(default, set):Dim = DimValue.Auto;
 
@@ -114,6 +118,9 @@ class Style {
 	// between items (Column: between lines)
 	public var columnGap(default, set):Float = 0;
 
+	// both gaps at once (CSS's gap shorthand; markup "8 12": the rows', then the columns')
+	public var gap(never, set):Float;
+
 	// Absolute: the offsets from the parent's padding box; Relative: shifts
 	public var left(get, set):Dim;
 
@@ -122,6 +129,9 @@ class Style {
 	public var right(get, set):Dim;
 
 	public var bottom(get, set):Dim;
+
+	// the four offsets at once (CSS's inset shorthand; markup "10 20": as margins write them)
+	public var inset(never, set):Dim;
 
 	public var overflow(default, set):Overflow = Visible;
 
@@ -577,6 +587,23 @@ class Style {
 		return v;
 	}
 
+	function set_gap(v:Float):Float {
+		rowGap = columnGap = v;
+		return v;
+	}
+
+	function set_inset(v:Dim):Dim {
+		left = top = right = bottom = v;
+		return v;
+	}
+
+	function set_flex(v:Float):Float {
+		grow = v;
+		shrink = 1;
+		basis = DimValue.Percent(0);
+		return v;
+	}
+
 	function set_basis(v:Dim):Dim {
 		if (v == basis) return v;
 		basis = v;
@@ -927,6 +954,9 @@ class Style {
 		if (p.visibility != null) visibility = p.visibility;
 		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
+		if (p.gap != null) gap = p.gap;
+		if (p.inset != null) inset = p.inset;
+		if (p.flex != null) flex = p.flex;
 		if (p.overflowWrap != null) overflowWrap = p.overflowWrap;
 		if (p.wordBreak != null) wordBreak = p.wordBreak;
 		if (p.textTransform != null) textTransform = p.textTransform;

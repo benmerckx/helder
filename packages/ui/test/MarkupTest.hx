@@ -65,6 +65,7 @@ class MarkupTest implements Markup {
 		wordBreaks();
 		autoMargins();
 		baselines();
+		shorthands();
 		editMenus();
 		menubar();
 		tabs();
@@ -287,6 +288,22 @@ class MarkupTest implements Markup {
 		var b = ui.root.find("b"), c = ui.root.find("c");
 		check("auto margins: a row's item pushed to the end (markup)", b.absX == 260, "" + b.absX);
 		check("auto margins: centred across a column (Edges.AUTO)", c.absX == 100, "" + c.absX);
+	}
+
+	// the shorthands' markup forms
+	static function shorthands() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		Render.render(<view tag="holder" gap="4 8" height={200}>
+			<view tag="none" flex="none" width={20}/>
+			<view tag="fill" flex="2 0 40px"/>
+			<view tag="abs" position="absolute" inset="5 10"/>
+		</view>, ui.root);
+		ui.update();
+		var holder = ui.root.find("holder"), none = ui.root.find("none"), fill = ui.root.find("fill"), abs = ui.root.find("abs");
+		check("shorthands: gap \"4 8\"", holder.style.rowGap == 4 && holder.style.columnGap == 8);
+		check("shorthands: flex none and three values", none.style.grow == 0 && none.style.shrink == 0 && fill.style.grow == 2 && fill.style.shrink == 0
+			&& fill.style.basis.resolve(0) == 40);
+		check("shorthands: inset \"5 10\"", abs.absX == 10 && abs.absY == 5 && abs.width == 280 && abs.height == 190, abs.absX + " " + abs.absY + " " + abs.width + " " + abs.height);
 	}
 
 	// align-items: baseline: texts of two sizes on one baseline (MonoText's: four fifths down a line)

@@ -165,7 +165,12 @@ export const cases = [
 		{ style: { direction: 'Row', alignItems: 'Baseline', height: 80, borderWidth: 2 }, children: [box(30, 20), box(30, 40)] },
 		{ style: { direction: 'Row', wrap: true, alignItems: 'Baseline', width: 100, columnGap: 4, rowGap: 4 }, children: [box(40, 20), box(40, 30), box(40, 10), box(40, 25)] },
 		{ style: { alignItems: 'Baseline', width: 100 }, children: [box(40, 20), box(60, 20)] }] } },
-	// shrinking weighs each item's base size inside its padding and border
+	// the shorthands: gap (both gaps), inset (the four offsets), flex: n (n 1 0%)
+	{ name: 'gap, inset and flex shorthands', width: 300, height: 200, tree: { style: { gap: 6 }, children: [
+		{ style: { direction: 'Row', gap: 10, height: 20 }, children: [{ style: { flex: 1 } }, { style: { flex: 2 } }, box(30, 20)] },
+		{ style: { direction: 'Row', alignItems: 'Start' }, children: [{ children: [{ style: { flex: 1 }, children: [box(20, 30)] }, box(20, 10)] }] },
+		{ style: { height: 60 }, children: [{ style: { position: 'Absolute', inset: 10 } }] }] } },
+
 	{ name: 'shrink by the content-box base size', width: 200, height: 60, tree: { style: { direction: 'Row' }, children: [box(100, 20, { padding: [0, 20] }), box(100, 20, { borderWidth: 10 }), box(100, 20)] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },
 	// a scroll container's automatic minimum is 0 (its padding and border): a wide one does not widen its fr or auto track

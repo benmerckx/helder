@@ -49,7 +49,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     `shrink`, `basis`, `width`, `height`, min and max, `aspectRatio`,
     `padding`, `margin` (`auto`, `Edges.AUTO`: CSS's auto margins, along and
     across flex lines, in grid areas, on absolute boxes), `borderWidth`,
-    `rowGap`, `columnGap`, `position`
+    `rowGap`, `columnGap` (`gap` both; `flex`, `inset`: CSS's shorthands,
+    `flex="none"`, `inset="0 10"` in markup), `position`
     (Absolute with `left`, `top`, `right`, `bottom`; both offsets and a
     size on an axis: placed between them by `justifySelf` and `alignSelf`;
     an auto width shrinks to fit), `overflow` (Hidden,
@@ -77,7 +78,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     by rows or columns, sparse or dense), aligned by `justifyItems`,
     `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify` and
     `alignContent` (no other named lines, no subgrid). Checked against
-    Chromium on 139 cases, 39 of them grids, 8 right to left.
+    Chromium on 140 cases, 39 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the
