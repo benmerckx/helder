@@ -61,7 +61,10 @@ What the web needs is in [web.md](web.md).
   a direct call to its renderer, which hxmc can inline; the only choice
   made at run time is which code a `View` runs, once per literal mounted
   (Leptos and Sycamore get the same by monomorphizing over a renderer
-  trait). With one renderer, nothing is copied and nothing chosen.
+  trait). With one renderer, nothing is copied and nothing chosen. The
+  cost of several: each literal's code once per renderer (a class's
+  literals limited to some renderers, by metadata, is a later
+  refinement, for widgets that only make sense in one).
 - **Boundaries are components.** A component that makes a node of one
   renderer and renders its children into it with another switches
   renderers there; content passes through unchanged and stays reactive
