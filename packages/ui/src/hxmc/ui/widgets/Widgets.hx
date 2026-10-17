@@ -1320,6 +1320,7 @@ class Widgets implements Markup {
 		keys: {
 			"Enter, Space": "on the button, open the options, the chosen one focused; on an option, choose it and close them",
 			"Up, Down": "on the button, choose the option before or after; in the options, move the focus through them",
+			"Home, End": "in the options, to the first or last",
 			"letters, digits": "on the button, choose the next option whose label starts with what was typed; in the options, focus it",
 			"Escape, Tab": "close the options"
 		}
@@ -1377,6 +1378,12 @@ class Widgets implements Markup {
 									e.stop();
 								case Key.UP:
 									focusItem(i - 1);
+									e.stop();
+								case Key.HOME:
+									focusItem(0);
+									e.stop();
+								case Key.END:
+									focusItem(props.options.length - 1);
 									e.stop();
 								case Key.ENTER | Key.SPACE:
 									choose(o);
@@ -2473,9 +2480,10 @@ class Widgets implements Markup {
 	}
 
 	// a hover card (shadcn's): the children, and content shown by them
-	// (below) once the pointer has rested on them for delay seconds (0.7),
-	// kept while it is over either, hidden when it leaves both (after 0.3
-	// seconds) or by Escape (slot "hover-card-content")
+	// (below) once the pointer has rested on them for delay seconds (0.7)
+	// or the keyboard's focus came into them, kept while it is over either,
+	// hidden when it leaves both (after 0.3 seconds), the focus leaves, or by
+	// Escape (slot "hover-card-content")
 	@:widget({
 		popup: true,
 		props: {
@@ -2484,7 +2492,7 @@ class Widgets implements Markup {
 			placement: "where the card goes: below (the default), above, right or left",
 			children: "what the pointer rests on to show the card"
 		},
-		keys: {"Escape": "hides the card"}
+		keys: {"Tab": "into the children: shows the card (after delay); out of them: hides it", "Escape": "hides the card"}
 	})
 	public static function HoverCard(props:{content:Any, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
 		var show = signal(false), over = 0, delay = props.delay ?? 0.7;
@@ -2499,8 +2507,10 @@ class Widgets implements Markup {
 				return false;
 			});
 		}
+		// (also while the keyboard's focus is in it, as Radix's)
 		return <view tag={props.tag} onPointerEnter={_ -> if (!show.peek()) after(delay, true) else over++}
-			onPointerLeave={_ -> after(0.3, false)}>
+			onPointerLeave={_ -> after(0.3, false)} onFocusIn={e -> if (e.current.ui != null && e.current.ui.focusVisible) after(delay, true)}
+			onFocusOut={_ -> after(0.3, false)}>
 			{props.children}
 			<Popover open={show} placement={props.placement ?? "below"} tag="hover-card" onDismiss={() -> {
 				over++;
