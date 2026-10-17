@@ -24,6 +24,7 @@ import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.Command;
 import hxmc.ui.widgets.Widgets.AlertDialog;
 import hxmc.ui.widgets.Widgets.InputOTP;
+import hxmc.ui.widgets.Widgets.Drawer;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
@@ -94,6 +95,7 @@ class MarkupTest implements Markup {
 		combobox();
 		command();
 		otp();
+		drawer();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -224,6 +226,34 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function drawer() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var open = signal(false);
+		Render.render(<view padding={10} align-items="start">
+			<Drawer tag="dr" open={open} title="Move goal" description="Set your daily goal"><view tag="dr-body" height={100}/></Drawer>
+		</view>, ui.root);
+		open.value = true;
+		ui.update();
+		var c = ui.overlay.find("dr-content");
+		check("drawer: along the bottom edge, modal, a handle and its title", c != null && c.attr("data-vaul-drawer-direction") == "bottom"
+			&& c.absY + c.height == 300 && c.width == 400 && c.children[0].slot == "drawer-handle" && c.parent.slot == "drawer-overlay"
+			&& c.semantics.role == hxmc.ui.access.Role.Dialog, c == null ? "none" : c.absY + " " + c.height);
+		var x = c.absX + 50, y = c.absY + 10;
+		ui.pointerDown(x, y, 1);
+		ui.pointerMove(x, y + 10);
+		ui.update();
+		var followed = c.style.transform != null && c.style.transform.toMatrix(c.width, c.height)[5] == 10;
+		ui.pointerUp(x, y + 10, 1);
+		ui.update();
+		check("drawer: a drag follows the pointer, a short one back in place", followed && open.value && c.style.transform == null || followed && open.value
+			&& c.style.transform.isIdentity(), "" + c.style.transform);
+		ui.pointerDown(x, y, 1);
+		ui.pointerMove(x, y + 60);
+		ui.pointerUp(x, y + 60, 1);
+		ui.update();
+		check("drawer: dragged down past a quarter of it, closed", !open.value);
 	}
 
 	static function otp() {

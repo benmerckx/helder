@@ -1727,6 +1727,58 @@ class Widgets implements Markup {
 	public static function SheetFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "sheet-footer"} slot="sheet-footer">{props.children}</view>;
 
+	// a drawer (shadcn's, vaul's): a sheet along an edge (direction
+	// "bottom", the default, "top", "left" or "right") with a handle, its
+	// title, description and the children; modal, closed as a dialog is or
+	// by a drag towards its edge past a quarter of its size, which it
+	// follows (less: back in place). Slots "drawer-overlay", "drawer-content"
+	// (data-vaul-drawer-direction), "drawer-handle", "drawer-header",
+	// "drawer-title", "drawer-description"; DrawerFooter's "drawer-footer"
+	public static function Drawer(props:{open:Signal<Bool>, title:String, ?description:String, ?direction:String, ?tag:String, ?children:Any}):Any {
+		var dir = props.direction ?? "bottom", tag = props.tag ?? "drawer", close = () -> props.open.value = false;
+		var across = dir == "left" || dir == "right", sign = dir == "bottom" || dir == "right" ? 1 : -1;
+		var pull = signal(0.0), from = 0.0, dragging = false;
+		function along(e:Event):Float
+			return (across ? e.x : e.y) * sign;
+		return Popover({
+			open: props.open,
+			modal: true,
+			slot: "drawer-overlay",
+			onDismiss: close,
+			tag: tag,
+			children: <view tag={tag + "-content"} slot="drawer-content" data-state="open" data-vaul-drawer-direction={dir} role="dialog" label={props.title}
+				position="absolute" top={dir == "bottom" ? null : 0} bottom={dir == "top" ? null : 0} left={dir == "right" ? null : 0}
+				right={dir == "left" ? null : 0} width={across ? "75%" : null} max-width={across ? 384 : null}
+				transform={() -> pull.value == 0 ? "none" : (across ? "translateX(" : "translateY(") + (pull.value * sign) + "px)"}
+				onPointerDown={e -> {
+					from = along(e);
+					dragging = false;
+				}}
+				onPointerMove={e -> if (e.current.pressed || dragging) {
+					var d = along(e) - from;
+					// (a drag past a few pixels, not a click)
+					if (!dragging && d > 4) dragging = true;
+					if (dragging) pull.value = Math.max(0, d);
+				}}
+				onPointerUp={e -> if (dragging) {
+					dragging = false;
+					var size = across ? e.current.width : e.current.height;
+					if (pull.peek() > size / 4) close();
+					pull.value = 0;
+				}}>
+				<view slot="drawer-handle" hidden/>
+				<view slot="drawer-header">
+					<text slot="drawer-title" role="heading">{props.title}</text>
+					{props.description == null ? null : <text slot="drawer-description">{props.description}</text>}
+				</view>
+				{props.children}
+			</view>
+		});
+	}
+
+	public static function DrawerFooter(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "drawer-footer"} slot="drawer-footer">{props.children}</view>;
+
 	// a popover (shadcn's Popover, its trigger an outline button): label on
 	// the button, a click, Enter or Space opens the children under it (the
 	// first focusable focused), Escape or a click outside closes; open (a

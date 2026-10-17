@@ -250,7 +250,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   saturation and brightness square, a hue strip and the hex: sliders for
   the keyboard), and the popups `Select`, `DropdownMenu`,
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
-  through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `AlertDialog` (cancel or confirm; a click outside does nothing), `Sheet` (a dialog along an edge), `Combobox` (a text
+  through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `AlertDialog` (cancel or confirm; a click outside does nothing), `Sheet` (a dialog along an edge), `Drawer` (vaul's: a sheet with a handle, dragged towards its edge to close), `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
   field), `InputOTP` (a one-time code's slots over a transparent field), `Command` (cmdk's: a search field over groups of items, the
   matches shown, one selected by Up and Down, run by Enter), `Toaster` (`Toasts.show`: messages in a corner for a while, with
