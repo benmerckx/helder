@@ -8,7 +8,9 @@
 //   console error, no horizontal scrolling, every island it starts
 //   hydrated (JavaScript islands) or running (WebAssembly ones); the menu
 //   (a phone's) and the theme switch work;
-// - the examples: each canvas example running with a graphics API; the
+// - the examples: each canvas example running with a graphics API once
+//   its Run button is clicked at a phone's width, those scrolled away
+//   stopped (data-stop); the
 //   triangle and the cube (still: ?angle through hxmcWasmOptions) read back
 //   at 256x192 against packages/gfx/test/triangle.png and cube.png
 //   (compare.mjs): WebGPU on SwiftShader and WebGL2 in Chromium, WebGL2 in
@@ -157,12 +159,12 @@ async function visit(page, p, { gfxErrors = false } = {}) {
 	}
 	await page.evaluate(() => scrollTo(0, 0));
 	// (every island but those a click starts: hydrated, or failed)
-	await page.waitForFunction(() => [...document.querySelectorAll('hxmc-island')].every((el) => el.dataset.load === 'click' || el.hasAttribute('data-hydrated') || el.hasAttribute('data-error')), null, { timeout: 90000 }).catch(() => {});
+	await page.waitForFunction(() => [...document.querySelectorAll('hxmc-island')].every((el) => el.dataset.load === 'click' || el.hasAttribute('data-stopped') || el.hasAttribute('data-hydrated') || el.hasAttribute('data-error')), null, { timeout: 90000 }).catch(() => {});
 	return page.evaluate(() => {
 		const all = [...document.querySelectorAll('hxmc-island')];
 		return {
 			islands: all.length,
-			pending: all.filter((el) => el.dataset.load !== 'click' && !el.hasAttribute('data-hydrated') && !el.hasAttribute('data-error')).map((el) => el.id || el.dataset.island),
+			pending: all.filter((el) => el.dataset.load !== 'click' && !el.hasAttribute('data-stopped') && !el.hasAttribute('data-hydrated') && !el.hasAttribute('data-error')).map((el) => el.id || el.dataset.island),
 			failedIslands: all.filter((el) => el.hasAttribute('data-error')).map((el) => `${el.id || el.dataset.island}: ${el.dataset.error}`),
 			gfxIslands: all.filter((el) => (el.dataset.imports || '').includes('gfx/')).map((el) => el.id),
 			scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -277,6 +279,7 @@ async function gfxTest(browser, label, id, golden, expect, gfx) {
 	}, [id, gfx]);
 	await page.goto(url('examples.html'));
 	await page.evaluate((id) => document.getElementById(id).scrollIntoView(), id);
+	await run(page, id);
 	let r;
 	try {
 		await page.waitForFunction((id) => { const el = document.getElementById('demo-' + id); return el.hasAttribute('data-hydrated') || el.hasAttribute('data-error'); }, id, { timeout: 60000 });
@@ -302,15 +305,33 @@ async function gfxTest(browser, label, id, golden, expect, gfx) {
 	return check(ok, `${id} (${label}) ${r.backend ? 'through ' + r.backend + ', ' : ''}${r.text}${errors.length ? '; errors: ' + errors.join('; ') : ''}`);
 }
 
-// every canvas example running, with a graphics API
+// a gallery demo (example id) run: its Run button clicked unless it has
+// started already (on a large screen it starts once in view)
+async function run(page, id) {
+	await page.evaluate((id) => {
+		const el = document.getElementById('demo-' + id);
+		if (el && el.dataset.load === 'click' && !el.hasAttribute('data-hydrated') && !el.hasAttribute('data-loading')) el.querySelector('.run').click();
+	}, id);
+}
+
+// every canvas example running, with a graphics API, when run in turn (a
+// phone's width: a tap starts each); those scrolled away stopped, their GPU
+// memory given back
 async function examplesTest(browser) {
-	const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+	const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 	const r = await visit(page, 'examples.html');
-	const facts = await page.evaluate(() => [...document.querySelectorAll('.example-demo hxmc-island[data-wasm]')].filter((el) => el.querySelector('canvas'))
-		.map((el) => ({ id: el.id, gfx: el.dataset.gfx ?? null, error: el.dataset.error ?? null })));
+	const ids = await page.evaluate(() => [...document.querySelectorAll('.example-demo hxmc-island[data-wasm]')].filter((el) => el.querySelector('canvas')).map((el) => el.id.slice(5)));
+	const facts = [];
+	for (const id of ids) {
+		await page.evaluate((id) => document.getElementById('demo-' + id).scrollIntoView({ block: 'center' }), id);
+		await run(page, id);
+		await page.waitForFunction((id) => { const el = document.getElementById('demo-' + id); return el.hasAttribute('data-hydrated') || el.hasAttribute('data-error'); }, id, { timeout: 60000 }).catch(() => {});
+		facts.push(await page.evaluate((id) => { const el = document.getElementById('demo-' + id); return { id: el.id, gfx: el.dataset.gfx ?? null, error: el.dataset.error ?? null }; }, id));
+	}
+	const stopped = await page.evaluate(() => document.querySelectorAll('hxmc-island[data-stopped]').length);
 	await page.close();
 	const bad = facts.filter((f) => !f.gfx || f.error);
-	check(facts.length > 0 && bad.length === 0 && r.errors.length === 0, `examples: ${facts.length} canvas examples running (${facts.map((f) => f.id + ' ' + f.gfx).join(', ')})${bad.length ? '; not: ' + JSON.stringify(bad) : ''}${r.errors.length ? '; errors: ' + r.errors.join('; ') : ''}`);
+	check(facts.length > 0 && bad.length === 0 && r.errors.length === 0 && stopped >= facts.length - 3, `examples: ${facts.length} canvas examples running (${facts.map((f) => f.id + ' ' + f.gfx).join(', ')}), ${stopped} stopped once scrolled away${bad.length ? '; not: ' + JSON.stringify(bad) : ''}${r.errors.length ? '; errors: ' + r.errors.join('; ') : ''}`);
 }
 
 // the cube on a phone (touch emulated, a 390x844 viewport): a horizontal
@@ -329,6 +350,7 @@ async function touchTest(browser) {
 	try {
 		await page.goto(url('examples.html'));
 		await page.evaluate(() => document.querySelector('#demo-gfx-cube canvas').scrollIntoView({ block: 'center' }));
+		await page.tap('#demo-gfx-cube .run');
 		await page.waitForSelector('#demo-gfx-cube[data-hydrated]', { timeout: 60000 });
 		const cdp = await context.newCDPSession(page);
 		const frames = (n) => page.evaluate((n) => new Promise((ok) => { const f = () => (n-- > 0 ? requestAnimationFrame(f) : ok()); f(); }), n);

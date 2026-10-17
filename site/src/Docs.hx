@@ -118,13 +118,15 @@ class Docs implements Markup {
 		</Page>;
 	}
 
-	// the first paragraph of a doc, as text
+	// the first sentence of a doc, as text
 	static function summary(src:String):String {
 		for (block in ~/\n\s*\n/g.split(Site.read(src))) {
 			var t = block.trim();
 			if (t == "" || t.startsWith("#") || t.startsWith("|") || t.startsWith("```") || t.startsWith("-") || t.startsWith(">")) continue;
 			var s = Markdown.plain(t.replace("\n", " "));
-			return s.length > 180 ? s.substr(0, s.lastIndexOf(" ", 177)) + "…" : s;
+			var dot = ~/\.(\s|$)/;
+			if (dot.match(s)) s = s.substr(0, dot.matchedPos().pos) + ".";
+			return s.length > 120 ? s.substr(0, s.lastIndexOf(" ", 117)) + "…" : s;
 		}
 		return "";
 	}
@@ -135,7 +137,7 @@ class Docs implements Markup {
 				<Sidebar current="docs/index.html"/>
 				<article class="doc">
 					<h1>Docs</h1>
-					<p class="lead">Generated from the repository at each build: the guides in <code>docs/</code>, each package's README, an API reference read from the packages' types by the compiler, the roadmap and the design plans.</p>
+					<p class="lead">Guides, package READMEs, an API reference and the design plans, generated from the repository on every build.</p>
 					{[
 						for (g in GROUPS)
 							<section class="doc-group">
@@ -143,7 +145,7 @@ class Docs implements Markup {
 								<ul class="doc-list">{
 									g == "API" ? [
 										for (p in Pages.PACKAGES)
-											<li><a href={Site.link('docs/api/${p[0]}.html')}>{p[1]}</a><span>{p[2]}</span></li>
+											<li><a href={Site.link('docs/api/${p[0]}.html')}>{p[1]}</a><span>{p[3]}</span></li>
 									] : [
 										for (d in docs) if (d.group == g) <li><a href={Site.link(d.page)}>{d.title}</a><span>{summary(d.src)}</span></li>
 									]

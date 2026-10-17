@@ -6,7 +6,6 @@ import hxmc.web.*;
 // and the footer; and the small components the pages share
 class Layout implements Markup {
 	public static final SECTIONS = [
-		["index.html", "Home"],
 		["compiler.html", "Compiler"],
 		["hxmc.html", "hxmc"],
 		["packages.html", "Packages"],
@@ -16,6 +15,8 @@ class Layout implements Markup {
 		["story.html", "Story"],
 	];
 
+	// (GitHub's mark, the header's link to the source)
+	static final GH = "M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z";
 	// (the saved theme, before the page is painted: no flash of the other one)
 	static final THEME_SCRIPT = "try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}";
 
@@ -48,18 +49,23 @@ class Layout implements Markup {
 				<a class="skip" href="#main">Skip to content</a>
 				<header class="top">
 					<div class="wrap bar">
-						<a class="brand" href={Site.link("index.html")}><span class="logo" aria-hidden="true"></span>hxmc</a>
+						<a class="brand" href={Site.link("index.html")} aria-label="hxmc, home">hxmc</a>
 						<SiteIslands.Menu links={links}/>
+						<a class="gh" href={Site.REPO} aria-label="Source on GitHub" title="Source on GitHub"><svg width="18" height="18" viewBox="0 0 16 16" aria-hidden="true"><path d={GH}/></svg></a>
 						<SiteIslands.Theme/>
 					</div>
 				</header>
 				<main id="main">{props.children}</main>
 				<footer class="foot">
 					<div class="wrap">
-						<p>hxmc: <a href="https://haxe.org">Haxe</a>'s compiler ported to Haxe, and a target that writes machine code and WebAssembly.{" "}
-						<a href={Site.REPO}>Source</a> · <a href={Site.link("docs/index.html")}>Docs</a> · <a href={Site.link("story.html")}>Story</a></p>
-						<p class="muted">Built {Date.now().toString().substr(0, 10)}{Site.version == null ? "" : " from commit " + Site.version}.
-						The compiler is GPL-2.0-or-later, as Haxe's; the runtime, std and packages are MIT.</p>
+						<p><a class="brand" href={Site.link("index.html")}>hxmc</a> The <a href="https://haxe.org">Haxe</a> compiler in Haxe, and a machine-code target.</p>
+						<nav aria-label="More">
+							<a href={Site.link("docs/index.html")}>Docs</a>
+							<a href={Site.link("story.html")}>Story</a>
+							<a href={Site.link("compiler.html#download")}>Download</a>
+							<a href={Site.REPO}>GitHub</a>
+						</nav>
+						<p class="legal">Compiler GPL-2.0-or-later, as Haxe; runtime, std and packages MIT. Built {Date.now().toString().substr(0, 10)}{Site.version == null ? "" : " from " + Site.version}.</p>
 					</div>
 				</footer>
 			</body>

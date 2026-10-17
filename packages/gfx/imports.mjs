@@ -9,6 +9,10 @@
 // live in the loader's handle table; the enums are hxmc.gfx's, GL's are
 // GL's own.
 //
+// host.gfx.release() destroys the device and loses the WebGL contexts (a page
+// done with the program); a device or context lost otherwise goes to run's
+// option onError when given.
+//
 // host.gfx.backend is the API a device was created on ('webgpu', 'webgl2';
 // null: none yet). Reading a frame back on WebGPU waits for the GPU, which a
 // browser does asynchronously only: host.gfx.readPixels() resolves to
@@ -62,6 +66,11 @@ export default async function (host) {
 		console.error('hxmc.gfx: no WebGPU device:', e);
 	}
 	if (device) device.addEventListener('uncapturederror', (e) => console.error('hxmc.gfx: WebGPU:', e.error.message));
+	// (a device or context lost, but by release: run's option onError)
+	let released = false;
+	const lost = (what) => !released && host.options.onError && host.options.onError(new Error(what));
+	if (device) device.lost.then((info) => lost('the WebGPU device was lost' + (info.message ? ': ' + info.message : '')));
+	const contexts = [];
 	const { handles } = host;
 	// a pipeline's vertex buffers and resources, as pipeline_buffer,
 	// pipeline_attribute and pipeline_binding give them
@@ -112,6 +121,13 @@ export default async function (host) {
 		adapter,
 		device,
 		backend: null,
+		// the GPU's memory given back: the device destroyed, the WebGL contexts lost
+		release() {
+			released = true;
+			if (device) device.destroy();
+			for (const g of contexts) g.getExtension('WEBGL_lose_context')?.loseContext();
+			contexts.length = 0;
+		},
 		readPixels() {
 			if (current) {
 				if (current.offscreen) return Promise.resolve(read(current));
@@ -428,6 +444,8 @@ export default async function (host) {
 			if (!g) return 0;
 			// (RGBA16F and R32F render targets)
 			g.getExtension('EXT_color_buffer_float');
+			contexts.push(g);
+			if (!offscreen) c.addEventListener('webglcontextlost', () => lost('the WebGL2 context was lost'));
 			host.gfx.backend = 'webgl2';
 			return handles.add({ gl: g, canvas: c, offscreen, captures: [] });
 		},

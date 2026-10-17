@@ -26,9 +26,10 @@ typedef Example = {
 	demo:DemoKind,
 	// the files shown: the example and the files of its folder it uses
 	sources:Array<String>,
-	// (a WebAssembly build: its file in the site, its size)
+	// (a WebAssembly build: its file in the site, its size, gzipped)
 	?wasm:String,
 	?size:Int,
+	?gz:Int,
 }
 
 // The examples gallery's examples: each package's examples/ folder, every
@@ -147,6 +148,14 @@ class Examples {
 		return found;
 	}
 
+	// a file's size gzipped (gzip -9: what a server sends, about)
+	public static function gzipped(file:String):Null<Int> {
+		var p = new Process("sh", ["-c", "gzip -9c " + Site.quote(file) + " | wc -c"]);
+		var n = Std.parseInt(StringTools.trim(p.stdout.readAll().toString()));
+		p.close();
+		return n;
+	}
+
 	// each wasm32-wasi example built (in parallel, jobs at a time), into the site's examples/
 	public static function buildAll(examples:Array<Example>) {
 		var todo = [for (e in examples) if (e.demo.match(Canvas(_, _) | Sound | Module)) e];
@@ -166,6 +175,7 @@ class Examples {
 			Static.copy(r.out, Site.out + "/" + to);
 			r.e.wasm = to;
 			r.e.size = FileSystem.stat(r.out).size;
+			r.e.gz = gzipped(r.out);
 		}
 		while (todo.length > 0 || running.length > 0) {
 			while (todo.length > 0 && running.length < Site.jobs) {
