@@ -52,6 +52,15 @@ import hxmc.unsafe.*;
 	@:hxmc.indirect static function call0(f:Ptr):Void;
 }
 
+// JNI from the activity's callbacks (Activity: no-GC code on the main
+// thread, inside a call from Java): fast calls through a JNIEnv's table
+// (jni.h's slots, as Jni's JniEnv), by their arguments' shapes
+@:hxmc.c @:hxmc.fast extern class JniFast {
+	@:hxmc.indirect static function call1(f:Ptr, env:Ptr, a:Ptr):Ptr;
+	@:hxmc.indirect static function call3(f:Ptr, env:Ptr, a:Ptr, b:Ptr, c:Ptr):Ptr;
+	@:hxmc.indirect static function callInt3(f:Ptr, env:Ptr, a:Ptr, b:Ptr, c:Ptr):Int;
+}
+
 @:hxmc.c @:hxmc.fast @:hxmc.lib("liblog.so") extern class Log {
 	// prio: 3 debug, 4 info, 5 warn, 6 error
 	static function __android_log_write(prio:Int, tag:Ptr, text:Ptr):Int;

@@ -2,6 +2,7 @@ package hxmc.os.android;
 
 import hxmc.os.android.Native;
 import hxmc.unsafe.*;
+import hxmc.os.VTable;
 
 // The NativeActivity glue (what the NDK's android_native_app_glue does in
 // C, in no-GC Haxe): Android loads the app's lib<name>.so and calls its
@@ -16,6 +17,13 @@ import hxmc.unsafe.*;
 // pause, destroy), wait until the program's thread has handled it
 // (AndroidWindow.command: Window, App). Everything here is plain memory
 // and C calls: the collector is not involved.
+// An activity can be destroyed and made again in the same process without
+// finishing (a relaunch: ActivityThread's on an ApplicationInfo change,
+// which the manifest's configChanges do not prevent): only a finishing
+// one ends the program (destroyed); otherwise its window goes as any
+// window does and the new activity's comes. Each callback is logged at the
+// debug level under the tag hxmc.os (with the window's size, the content's
+// rect), so logcat shows the order things came in.
 @:hxmc.android @:keep
 class Activity {
 	// the commands (one byte each through the pipe)
@@ -35,6 +43,12 @@ class Activity {
 	public static inline var FOCUS_LOST = 14;
 	public static inline var LOW_MEMORY = 15;
 	public static inline var DESTROY = 16;
+	// the activity destroyed without finishing (recreated: a relaunch, such
+	// as the one an app's first launch after its install can get when the
+	// system updates its ApplicationInfo; a configuration change the manifest
+	// does not take), and a new activity made in the running process
+	public static inline var GONE = 17;
+	public static inline var CREATED = 18;
 
 	// the looper's identifiers of the pipe and of the input queue
 	public static inline var LOOPER_COMMANDS = 1;
@@ -66,8 +80,10 @@ class Activity {
 	// ---- the UI thread
 
 	// the library's entry: NativeActivity calls it with the activity (its
-	// saved state is not kept: a restarted activity starts afresh)
+	// saved state is not kept: a restarted activity starts afresh), again
+	// for each new activity while the process lives
 	@:hxmc.export("ANativeActivity_onCreate") @:hxmc.noGc static function onCreate(a:Ptr, saved:Ptr, savedSize:Int64):Void {
+		lifecycle(lock.isNull() ? Mem.cstr("onCreate") : Mem.cstr("onCreate: a new activity in the running process"));
 		var cb = Mem.getPtr(a, 0); // ANativeActivity.callbacks
 		// (ANativeActivityCallbacks: onStart, onResume, onSaveInstanceState,
 		// onPause, onStop, onDestroy, onWindowFocusChanged,
@@ -122,6 +138,7 @@ class Activity {
 			Threads.pthread_mutex_unlock(lock);
 		} else {
 			destroyed = 0;
+			send(CREATED, false);
 		}
 	}
 
@@ -140,66 +157,160 @@ class Activity {
 		Threads.pthread_mutex_unlock(lock);
 	}
 
-	@:hxmc.callback @:hxmc.noGc static function onStart(a:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onStart(a:Ptr):Void {
+		lifecycle(Mem.cstr("onStart"));
 		send(START, false);
+	}
 
-	@:hxmc.callback @:hxmc.noGc static function onResume(a:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onResume(a:Ptr):Void {
+		lifecycle(Mem.cstr("onResume"));
 		send(RESUME, false);
+	}
 
 	@:hxmc.callback @:hxmc.noGc static function onSaveInstanceState(a:Ptr, outSize:Ptr):Ptr {
 		Mem.setI64(outSize, 0, 0);
 		return Ptr.nil();
 	}
 
-	@:hxmc.callback @:hxmc.noGc static function onPause(a:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onPause(a:Ptr):Void {
+		lifecycle(Mem.cstr("onPause"));
 		send(PAUSE, true);
-
-	@:hxmc.callback @:hxmc.noGc static function onStop(a:Ptr):Void
-		send(STOP, false);
-
-	@:hxmc.callback @:hxmc.noGc static function onDestroy(a:Ptr):Void {
-		destroyed = 1;
-		send(DESTROY, true);
 	}
 
-	@:hxmc.callback @:hxmc.noGc static function onWindowFocusChanged(a:Ptr, focused:Int):Void
+	@:hxmc.callback @:hxmc.noGc static function onStop(a:Ptr):Void {
+		lifecycle(Mem.cstr("onStop"));
+		send(STOP, false);
+	}
+
+	// (finishing: the program's end; otherwise a new activity comes, or none
+	// until the app is started again, and the program waits for its window)
+	@:hxmc.callback @:hxmc.noGc static function onDestroy(a:Ptr):Void {
+		if (finishing(a)) {
+			lifecycle(Mem.cstr("onDestroy: finishing"));
+			destroyed = 1;
+			send(DESTROY, true);
+		} else {
+			lifecycle(Mem.cstr("onDestroy: not finishing (recreated: the program goes on)"));
+			send(GONE, true);
+		}
+		// (NativeActivity frees it once this returns)
+		if (activity == a) activity = Ptr.nil();
+	}
+
+	@:hxmc.callback @:hxmc.noGc static function onWindowFocusChanged(a:Ptr, focused:Int):Void {
+		lifecycle(focused != 0 ? Mem.cstr("onWindowFocusChanged: gained") : Mem.cstr("onWindowFocusChanged: lost"));
 		send(focused != 0 ? FOCUS_GAINED : FOCUS_LOST, false);
+	}
 
 	@:hxmc.callback @:hxmc.noGc static function onNativeWindowCreated(a:Ptr, w:Ptr):Void {
+		lifecycleSize(Mem.cstr("onNativeWindowCreated"), w.isNull() ? -1 : Android.ANativeWindow_getWidth(w),
+			w.isNull() ? -1 : Android.ANativeWindow_getHeight(w));
 		Threads.pthread_mutex_lock(lock);
 		pendingWindow = w;
 		Threads.pthread_mutex_unlock(lock);
 		send(WINDOW_CREATED, true);
 	}
 
-	@:hxmc.callback @:hxmc.noGc static function onNativeWindowResized(a:Ptr, w:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onNativeWindowResized(a:Ptr, w:Ptr):Void {
+		lifecycleSize(Mem.cstr("onNativeWindowResized"), w.isNull() ? -1 : Android.ANativeWindow_getWidth(w),
+			w.isNull() ? -1 : Android.ANativeWindow_getHeight(w));
 		send(RESIZED, false);
+	}
 
-	@:hxmc.callback @:hxmc.noGc static function onNativeWindowRedrawNeeded(a:Ptr, w:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onNativeWindowRedrawNeeded(a:Ptr, w:Ptr):Void {
+		lifecycleSize(Mem.cstr("onNativeWindowRedrawNeeded"), w.isNull() ? -1 : Android.ANativeWindow_getWidth(w),
+			w.isNull() ? -1 : Android.ANativeWindow_getHeight(w));
 		send(REDRAW, false);
+	}
 
 	// (the window stays valid until this returns: the program lets go of it first)
-	@:hxmc.callback @:hxmc.noGc static function onNativeWindowDestroyed(a:Ptr, w:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onNativeWindowDestroyed(a:Ptr, w:Ptr):Void {
+		lifecycleSize(Mem.cstr("onNativeWindowDestroyed"), w.isNull() ? -1 : Android.ANativeWindow_getWidth(w),
+			w.isNull() ? -1 : Android.ANativeWindow_getHeight(w));
 		send(WINDOW_DESTROYED, true);
+	}
 
 	@:hxmc.callback @:hxmc.noGc static function onInputQueueCreated(a:Ptr, q:Ptr):Void {
+		lifecycle(Mem.cstr("onInputQueueCreated"));
 		Threads.pthread_mutex_lock(lock);
 		pendingQueue = q;
 		Threads.pthread_mutex_unlock(lock);
 		send(INPUT_CREATED, true);
 	}
 
-	@:hxmc.callback @:hxmc.noGc static function onInputQueueDestroyed(a:Ptr, q:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onInputQueueDestroyed(a:Ptr, q:Ptr):Void {
+		lifecycle(Mem.cstr("onInputQueueDestroyed"));
 		send(INPUT_DESTROYED, true);
+	}
 
-	@:hxmc.callback @:hxmc.noGc static function onContentRectChanged(a:Ptr, rect:Ptr):Void
+	// (ARect: left, top, right, bottom)
+	@:hxmc.callback @:hxmc.noGc static function onContentRectChanged(a:Ptr, rect:Ptr):Void {
+		lifecycleSize(Mem.cstr("onContentRectChanged"), Mem.getI32(rect, 8) - Mem.getI32(rect, 0), Mem.getI32(rect, 12) - Mem.getI32(rect, 4));
 		send(CONTENT_RECT, false);
+	}
 
-	@:hxmc.callback @:hxmc.noGc static function onConfigurationChanged(a:Ptr):Void
+	@:hxmc.callback @:hxmc.noGc static function onConfigurationChanged(a:Ptr):Void {
+		lifecycle(Mem.cstr("onConfigurationChanged"));
 		send(CONFIG, false);
+	}
 
 	@:hxmc.callback @:hxmc.noGc static function onLowMemory(a:Ptr):Void
 		send(LOW_MEMORY, false);
+
+	// whether the activity is finishing (Activity.isFinishing, through JNI:
+	// the callbacks run inside NativeActivity's calls from Java, with its env)
+	@:hxmc.noGc static function finishing(a:Ptr):Bool {
+		var env = Mem.getPtr(a, 16), obj = Mem.getPtr(a, 24); // ANativeActivity.env, .clazz
+		var cls = JniFast.call1(VTable.method(env, 31), env, obj); // GetObjectClass
+		var m = JniFast.call3(VTable.method(env, 33), env, cls, Mem.cstr("isFinishing"), Mem.cstr("()Z")); // GetMethodID
+		var r = 1;
+		if (m.isNull()) JniFast.call1(VTable.method(env, 17), env, Ptr.nil()); // ExceptionClear (then: finishing, as before)
+		else r = JniFast.callInt3(VTable.method(env, 39), env, obj, m, Ptr.nil()) & 0xff; // CallBooleanMethodA
+		JniFast.call1(VTable.method(env, 23), env, cls); // DeleteLocalRef
+		return r != 0;
+	}
+
+	// a line of the lifecycle in logcat (debug, tag hxmc.os; logcat stamps it)
+	@:hxmc.noGc static function lifecycle(text:Ptr)
+		Log.__android_log_write(3, Mem.cstr("hxmc.os"), text);
+
+	// text, then " <w>x<h>" (-1: no window)
+	@:hxmc.noGc static function lifecycleSize(text:Ptr, w:Int, h:Int) {
+		var b = Mem.stack(160);
+		var n = 0;
+		while (n < 120 && Mem.getU8(text, n) != 0) {
+			Mem.setI8(b, n, Mem.getU8(text, n));
+			n++;
+		}
+		if (w < 0) {
+			Mem.setI8(b, n++, " ".code);
+			Mem.setI8(b, n++, "-".code);
+		} else {
+			Mem.setI8(b, n++, " ".code);
+			n = digits(b, n, w);
+			Mem.setI8(b, n++, "x".code);
+			n = digits(b, n, h);
+		}
+		Mem.setI8(b, n, 0);
+		lifecycle(b);
+	}
+
+	// v's decimal digits at b + n (v >= 0); the index after them
+	@:hxmc.noGc static function digits(b:Ptr, n:Int, v:Int):Int {
+		if (v < 0) v = 0;
+		var k = 1, p = 10;
+		while (p <= v && k < 10) {
+			k++;
+			p *= 10;
+		}
+		var i = n + k;
+		while (i > n) {
+			i--;
+			Mem.setI8(b, i, "0".code + v % 10);
+			v = Std.int(v / 10);
+		}
+		return n + k;
+	}
 
 	// ---- the program's thread
 
@@ -220,7 +331,7 @@ class Activity {
 		done = 1;
 		Threads.pthread_cond_broadcast(cond);
 		Threads.pthread_mutex_unlock(lock);
-		if (destroyed == 0) Android.ANativeActivity_finish(activity);
+		if (destroyed == 0 && !activity.isNull()) Android.ANativeActivity_finish(activity);
 		// (what it printed reaches logcat first: the pipe's writers closed, its reader to the end)
 		Posix.close(1);
 		Posix.close(2);
