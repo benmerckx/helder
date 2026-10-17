@@ -104,8 +104,12 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     Shift+Tab; a ring shows when the keyboard moved it) and scrolls
     `Overflow Scroll` nodes (the wheel or a trackpad, by the pixels it
     moved, Shift turning a wheel sideways; in a browser a finger's drag,
-    gliding on when let go moving, a tap a click; or their scrollbars'
-    thumbs).
+    gliding on when let go moving, a tap a click; their scrollbars'
+    thumbs; or the keys a browser scrolls with, when the focus took none of
+    them: the arrows by 40 pixels, Page Up, Page Down and Space by seven
+    eighths of the view, Home and End, eased over `Ui.scrollDuration`;
+    `Ui.scrollBy` eases the same way). A widget's key handler calls
+    `preventDefault` (or `stop`) on the keys it takes.
 - **`hxmc.ui.draw`**: the GPU renderer. One shader draws rounded rectangles
   with borders, soft shadows and glyphs from an atlas, every fragment
   clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a

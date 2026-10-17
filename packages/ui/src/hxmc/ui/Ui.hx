@@ -330,6 +330,7 @@ class Ui {
 		var n = target;
 		while (n != null) {
 			if (n.style.overflow == Scroll && (canScroll(n, deltaX, true) || canScroll(n, deltaY, false))) {
+				scrolls.remove(n);
 				n.scrollX += deltaX;
 				n.scrollY += deltaY;
 				clampScroll(n);
@@ -458,6 +459,7 @@ class Ui {
 			}
 		}
 		if (!e.defaultPrevented && !e.stopped && runShortcut(key, mods)) return;
+		if (!e.defaultPrevented && !e.stopped && keyScroll(key, mods)) return;
 		// (Control or Command and C: the selected text copied, when the focus took no such key)
 		if (!e.defaultPrevented && !e.stopped && (key == "c".code || key == "C".code) && mods & (Key.MOD_CONTROL | Key.MOD_META) != 0 && selectedText() != "") {
 			clipboard.write(selectedText());
@@ -468,6 +470,67 @@ class Ui {
 			focusVisible = focus != null;
 			requestFrame();
 		}
+	}
+
+	// how long a scroll by the keys eases (seconds; 0: at once)
+	public var scrollDuration = 0.15;
+	// (the scrolls easing: from x, y to x, y, since)
+	final scrolls = new Map<Node, Array<Float>>();
+
+	// keys that scroll, when the focus took none of them (as a browser's):
+	// the arrows by 40 pixels, Page Up and Down and Space (Shift: up) by
+	// seven eighths of the view, Home and End to the ends; the nearest
+	// scroller that can move that way around the focus, else the pointer
+	static inline var ARROW_STEP = 40;
+
+	function keyScroll(key:Int, mods:Int):Bool {
+		if (mods & (Key.MOD_CONTROL | Key.MOD_META | Key.MOD_ALT) != 0) return false;
+		if (focus != null && focus.takesText()) return false;
+		var x = key == Key.LEFT || key == Key.RIGHT;
+		var back = key == Key.UP || key == Key.LEFT || key == Key.PAGE_UP || key == Key.HOME || key == Key.SPACE && mods & Key.MOD_SHIFT != 0;
+		var page = key == Key.PAGE_UP || key == Key.PAGE_DOWN || key == Key.SPACE, edge = key == Key.HOME || key == Key.END;
+		if (!(x || page || edge || key == Key.UP || key == Key.DOWN)) return false;
+		var n = focus != null ? focus : hover;
+		while (n != null) {
+			if (n.style.overflow == Scroll) {
+				var s = n.style, view = (x ? n.width : n.height) - 2 * s.borderWidth - (x ? s.padding.horizontal : s.padding.vertical);
+				var d = edge ? maxScroll(n, x) + 1 : page ? Math.max(1, view * 0.875) : ARROW_STEP;
+				if (back) d = -d;
+				if (canScroll(n, d, x)) {
+					scrollBy(n, x ? d : 0, x ? 0 : d);
+					return true;
+				}
+			}
+			n = n.parent;
+		}
+		return false;
+	}
+
+	// scrolls by dx, dy eased over scrollDuration (a scroll easing already: from where it is, to its end moved on)
+	public function scrollBy(n:Node, dx:Float, dy:Float) {
+		var a = scrolls.get(n);
+		var tx = (a != null ? a[2] : n.scrollX) + dx, ty = (a != null ? a[3] : n.scrollY) + dy;
+		tx = Math.max(0, Math.min(tx, maxScroll(n, true)));
+		ty = Math.max(0, Math.min(ty, maxScroll(n, false)));
+		if (scrollDuration <= 0) {
+			scrollTo(n, tx, ty);
+			return;
+		}
+		scrolls.set(n, [n.scrollX, n.scrollY, tx, ty, Clock.now]);
+		requestFrame();
+		if (a != null) return;
+		Clock.add(t -> {
+			var a = scrolls.get(n);
+			if (a == null) return false;
+			var k = Math.min(1, Math.max(0, (t - a[4]) / scrollDuration));
+			// (ease in and out)
+			var e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+			setScroll(n, true, a[0] + (a[2] - a[0]) * e);
+			setScroll(n, false, a[1] + (a[3] - a[1]) * e);
+			if (k < 1) return true;
+			scrolls.remove(n);
+			return false;
+		});
 	}
 
 	public function keyUp(key:Int, mods:Int) {
@@ -921,6 +984,7 @@ class Ui {
 
 	// scrolls n (an overflow: scroll node) to x, y (clamped to what it can scroll)
 	public function scrollTo(n:Node, x:Float, y:Float) {
+		scrolls.remove(n);
 		setScroll(n, true, x);
 		setScroll(n, false, y);
 	}

@@ -1189,6 +1189,44 @@ class UiTest {
 		check("scroll: clamped", list.scrollY == 200);
 		ui.wheel(50, 50, 0, -5000);
 		check("scroll: back to the top", list.scrollY == 0);
+		// the keys, when the focus takes none of them: arrows by 40, pages by seven eighths, the ends; eased on the clock
+		var item1 = list.children[1];
+		item1.focusable = true;
+		ui.setFocus(item1, false);
+		ui.keyDown(Key.DOWN, 0);
+		var mid = -1.0;
+		Clock.tick(Clock.now + ui.scrollDuration / 2);
+		mid = list.scrollY;
+		Clock.finish();
+		check("scroll keys: an arrow, eased", list.scrollY == 40 && mid > 0 && mid < 40, mid + " " + list.scrollY);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		Clock.finish();
+		check("scroll keys: twice before it ends, twice as far", list.scrollY == 120, "" + list.scrollY);
+		ui.keyDown(Key.PAGE_UP, 0);
+		Clock.finish();
+		check("scroll keys: a page up", list.scrollY == 120 - 87.5, "" + list.scrollY);
+		ui.keyDown(Key.END, 0);
+		Clock.finish();
+		var end = list.scrollY;
+		ui.keyDown(Key.SPACE, Key.MOD_SHIFT);
+		Clock.finish();
+		var shiftSpace = list.scrollY;
+		ui.keyDown(Key.HOME, 0);
+		Clock.finish();
+		check("scroll keys: the end, Shift+Space up a page, home", end == 200 && shiftSpace == 112.5 && list.scrollY == 0, end + " " + shiftSpace + " " + list.scrollY);
+		item1.onKeyDown = e -> if (e.key == Key.DOWN) e.preventDefault();
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, Key.MOD_CONTROL);
+		Clock.finish();
+		check("scroll keys: not a key the focus took, nor with Control", list.scrollY == 0, "" + list.scrollY);
+		item1.onKeyDown = null;
+		ui.scrollDuration = 0;
+		ui.keyDown(Key.PAGE_DOWN, 0);
+		check("scroll keys: at once without easing", list.scrollY == 87.5 && !Clock.active, "" + list.scrollY);
+		ui.scrollDuration = 0.15;
+		ui.scrollTo(list, 0, 0);
+		ui.setFocus(null, false);
 		// the scrollbar: a track from y 2 of 96 px at x 92, its thumb 96 * 100 / 300 = 32 px
 		var clicks = 0;
 		for (c in list.children)

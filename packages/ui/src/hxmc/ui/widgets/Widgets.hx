@@ -30,7 +30,10 @@ class Widgets implements Markup {
 				down.value = false;
 			}} onPointerDown={_ -> down.value = true} onPointerUp={_ -> down.value = false}
 			onClick={_ -> if (props.onClick != null) props.onClick()}
-			onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && props.onClick != null) props.onClick()}>
+			onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && props.onClick != null) {
+				e.preventDefault();
+				props.onClick();
+			}}>
 			{props.label}{props.children}
 		</view>;
 	}
@@ -39,7 +42,10 @@ class Widgets implements Markup {
 	public static function Checkbox(props:{checked:Signal<Bool>, ?label:String, ?tag:String}):Esx {
 		var toggle = () -> props.checked.value = !props.checked.value;
 		return <view tag={props.tag ?? "checkbox"} role="checkbox" checked={() -> props.checked.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
-			onKeyDown={e -> if (e.key == Key.SPACE) toggle()}>
+			onKeyDown={e -> if (e.key == Key.SPACE) {
+				e.preventDefault();
+				toggle();
+			}}>
 			<view width={16} height={16} radius={4} border-width={1.5} border-color={Motion.color(() -> props.checked.value ? t().accentHover : t().mark)}
 				background={Motion.color(() -> props.checked.value ? t().accent : t().control)} align-items="center" justify="center">
 				<view width={8} height={8} radius={2} background={Motion.color(() -> props.checked.value ? t().onAccent : Theme.clear(t().onAccent))}/>
@@ -52,7 +58,10 @@ class Widgets implements Markup {
 	public static function Toggle(props:{on:Signal<Bool>, ?label:String, ?tag:String}):Esx {
 		var toggle = () -> props.on.value = !props.on.value;
 		return <view tag={props.tag ?? "switch"} role="switch" checked={() -> props.on.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
-			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) toggle()}>
+			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
+				e.preventDefault();
+				toggle();
+			}}>
 			<view width={36} height={20} radius={10} padding={2} direction="row"
 				background={Motion.color(() -> props.on.value ? t().accent : t().track)}>
 				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"
@@ -84,10 +93,18 @@ class Widgets implements Markup {
 			width={w} height={knob + 4} focusable cursor="pointer" justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
 			onKeyDown={e -> switch e.key {
-				case Key.LEFT | Key.DOWN: set(props.value.value - keyStep);
-				case Key.RIGHT | Key.UP: set(props.value.value + keyStep);
-				case Key.HOME: set(lo);
-				case Key.END: set(hi);
+				case Key.LEFT | Key.DOWN:
+					e.preventDefault();
+					set(props.value.value - keyStep);
+				case Key.RIGHT | Key.UP:
+					e.preventDefault();
+					set(props.value.value + keyStep);
+				case Key.HOME:
+					e.preventDefault();
+					set(lo);
+				case Key.END:
+					e.preventDefault();
+					set(hi);
 				case _:
 			}}>
 			<view height={4} radius={2} margin={[0, knob / 2]} overflow="hidden" direction="row" background={() -> t().track}>
@@ -105,7 +122,10 @@ class Widgets implements Markup {
 		return <view tag={tag} role="radiogroup" label={props.label} row-gap={6}>{[
 			for (o in props.options)
 				<view tag={tag + "-" + o} role="radio" checked={() -> props.value.value == o} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> props.value.value = o}
-					onKeyDown={e -> if (e.key == Key.SPACE) props.value.value = o}>
+					onKeyDown={e -> if (e.key == Key.SPACE) {
+						e.preventDefault();
+						props.value.value = o;
+					}}>
 					<view width={16} height={16} radius={8} border-width={1.5} border-color={Motion.color(() -> props.value.value == o ? t().accentHover : t().mark)}
 						align-items="center" justify="center">
 						<view width={8} height={8} radius={4} background={Motion.color(() -> props.value.value == o ? t().accent : Theme.clear(t().accent))}/>
@@ -123,7 +143,10 @@ class Widgets implements Markup {
 			<view role="tablist" direction="row" column-gap={4}>{[
 				for (i in 0...props.labels.length)
 					<view tag={tag + "-" + i} role="tab" selected={() -> props.selected.value == i} focusable cursor="pointer" padding="6 10 0 10" row-gap={6} align-items="center"
-						onClick={_ -> props.selected.value = i} onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) props.selected.value = i}
+						onClick={_ -> props.selected.value = i} onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
+							e.preventDefault();
+							props.selected.value = i;
+						}}
 						color={Motion.color(() -> props.selected.value == i ? t().accentText : t().secondary)}>
 						{props.labels[i]}
 						<view align-self="stretch" height={2} radius={1} background={Motion.color(() -> props.selected.value == i ? t().accent : Theme.clear(t().accent))}/>
@@ -278,8 +301,12 @@ class Widgets implements Markup {
 				case Key.ENTER | Key.SPACE:
 					open.value = true;
 					e.stop();
-				case Key.DOWN: step(1);
-				case Key.UP: step(-1);
+				case Key.DOWN:
+					e.preventDefault();
+					step(1);
+				case Key.UP:
+					e.preventDefault();
+					step(-1);
 				case _:
 			}}>
 			{() -> labelOf(props.value.value)}
