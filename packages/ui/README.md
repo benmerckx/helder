@@ -51,7 +51,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   - Paint: `background`, `borderColor`, `radius`, `opacity`, `shadow`
     (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`.
   - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
-    colour type, depth and interlacing), shown by an `ImageNode` at its own
+    colour type, depth and interlacing, and JPEG files, baseline or
+    progressive, decoded as browsers do, the EXIF orientation applied), shown by an `ImageNode` at its own
     size or the style's (keeping its aspect ratio), fitted as `Fill`,
     `Contain`, `Cover` or `None`, its corners rounded with the node's.
   - `Ui` dispatches pointer, wheel, key and text events to nodes (bubbling

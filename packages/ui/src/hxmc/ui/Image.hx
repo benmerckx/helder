@@ -4,8 +4,8 @@ import haxe.io.Bytes;
 
 // An image's pixels for the UI (an ImageNode, the markup's image element):
 // RGBA8, rows top to bottom, straight (not premultiplied) alpha. decode
-// reads a PNG file (PngDecoder); renderers upload it once (id: their key)
-// and again after changed().
+// reads a PNG file (PngDecoder) or a JPEG one (JpegDecoder); renderers
+// upload it once (id: their key) and again after changed().
 class Image {
 	public final width:Int;
 	public final height:Int;
@@ -25,9 +25,9 @@ class Image {
 		this.pixels = pixels == null ? Bytes.alloc(width * height * 4) : pixels;
 	}
 
-	// a PNG file's image
+	// a PNG or JPEG file's image (by its signature)
 	public static function decode(bytes:Bytes):Image {
-		var d = PngDecoder.decode(bytes);
+		var d = bytes.length >= 2 && bytes.get(0) == 0xFF && bytes.get(1) == 0xD8 ? JpegDecoder.decode(bytes) : PngDecoder.decode(bytes);
 		return new Image(d.width, d.height, d.rgba);
 	}
 

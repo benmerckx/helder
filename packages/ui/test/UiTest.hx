@@ -18,7 +18,8 @@ import hxmc.ui.widgets.TextArea;
 //   input method's composition (shown, then committed);
 //   TextArea's lines (wrapping, Enter, Up and Down, Home and End, scrolling)
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
-//   filters, Adam7; png-cases.mjs writes them and the pixels expected)
+//   filters, Adam7; png-cases.mjs writes them and the pixels expected);
+//   jpeg/*.jpg against Chromium's pixels (jpeg-cases.mjs)
 class UiTest {
 	static var checks = 0;
 	static var failed = 0;
@@ -198,6 +199,30 @@ class UiTest {
 				}
 			check("images: " + n, img.width == 13 && img.height == 11 && first < 0,
 				first < 0 ? '${img.width}x${img.height}' : 'pixel ${first >> 2} channel ${first & 3}: ${img.pixels.get(first)}, not ${want.get(first)}');
+		}
+		// JPEG: jpeg/*.jpg against the pixels Chromium decoded (jpeg-cases.mjs)
+		var jdir = here + "/jpeg";
+		var cases:Array<{name:String, width:Int, height:Int}> = haxe.Json.parse(sys.io.File.getContent(jdir + "/cases.json"));
+		check("jpeg: the cases", cases.length >= 15, '${cases.length}');
+		for (c in cases) {
+			var want = sys.io.File.getBytes(jdir + "/" + c.name + ".rgba");
+			var img = try Image.decode(sys.io.File.getBytes(jdir + "/" + c.name + ".jpg")) catch (e:Dynamic) {
+				check("jpeg: " + c.name, false, Std.string(e));
+				continue;
+			}
+			var differ = 0, most = 0, first = -1;
+			if (img.pixels.length == want.length)
+				for (i in 0...want.length) {
+					var d = img.pixels.get(i) - want.get(i);
+					if (d != 0) {
+						if (first < 0) first = i;
+						differ++;
+						if (d < 0) d = -d;
+						if (d > most) most = d;
+					}
+				}
+			check("jpeg: " + c.name, img.width == c.width && img.height == c.height && differ == 0,
+				'${img.width}x${img.height}' + (differ > 0 ? ': $differ values differ, by at most $most (first: pixel ${first >> 2} channel ${first & 3})' : ""));
 		}
 		var threw = try {
 			Image.decode(haxe.io.Bytes.ofString("GIF89a"));
