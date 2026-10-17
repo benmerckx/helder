@@ -8,6 +8,7 @@ import hxmc.view.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.ui.widgets.Toasts;
+import hxmc.ui.widgets.Days;
 
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
 // buttons, a select, a menu, a tooltip and a dialog (popups over the
@@ -53,6 +54,10 @@ class Gallery implements Markup {
 	public final period = signal("Week");
 	public final page = signal(4);
 	public final labels = signal(["design", "review"]);
+	public final bold = signal(true);
+	public final due:Signal<Null<Day>> = signal(null);
+	public final faq = signal(0);
+	static final TODAY:Day = {year: 2026, month: 10, day: 17};
 	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
 		{name: "examples", children: [{name: "Gallery.hx", size: 6}, {name: "Todo.hx", size: 3}]},
@@ -205,6 +210,28 @@ class Gallery implements Markup {
 					<text opacity={0.7}>A combobox filters its options as you type; a toast says what happened, for a while.</text>
 				</Collapsible>
 				<Button tag="notify" label="Show a toast" onClick={() -> Toasts.show("Deleted 3 files", {action: "Undo", onAction: () -> Toasts.show("Restored")})}/>
+			</view>)}
+			{section("CARDS, BADGES, ALERTS AND MORE", <view row-gap={12} align-items="stretch">
+				<Card tag="card">
+					<CardHeader><CardTitle text="Unstyled widgets"/><CardDescription text="Their looks come from a theme, else the colour of the text."/></CardHeader>
+					<CardContent><view direction="row" column-gap={6}><Badge label="New"/><Badge label="Widgets" variant="secondary"/><Badge label="Beta" variant="outline"/></view></CardContent>
+					<CardFooter><Button tag="read" label="Read" size="sm"/><Button tag="later" label="Later" variant="ghost" size="sm"/></CardFooter>
+				</Card>
+				<Alert tag="alert"><AlertTitle text="Heads up"/><AlertDescription text="An alert: a title and a description, default or destructive."/></Alert>
+				<view direction="row" column-gap={12} align-items="center">
+					<Toggle tag="bold" pressed={bold} label="Bold"/>
+					<Separator orientation="vertical"/>
+					<Label text="Due"/>
+					<DatePicker tag="due" value={due} today={TODAY} placeholder="Pick a date"/>
+				</view>
+				<Accordion tag="faq" open={faq} sections={[
+					{label: "Is it accessible?", render: () -> <text opacity={0.7}>Each widget has the roles and states assistive technology reads.</text>},
+					{label: "Can it be themed?", render: () -> <text opacity={0.7}>By the rules of a StyleSheet, for each slot, variant, size and state.</text>}
+				]}/>
+				<view direction="row" column-gap={10} align-items="center">
+					<Skeleton width={40} height={40}/>
+					<view row-gap={6}><Skeleton width={180} height={12}/><Skeleton width={120} height={12}/></view>
+				</view>
 			</view>)}
 			<Toaster/>
 		</scroll>;
