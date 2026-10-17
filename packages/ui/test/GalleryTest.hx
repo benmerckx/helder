@@ -260,19 +260,9 @@ class GalleryTest {
 			Sys.exit(failed == 0 ? 0 : 1);
 		}
 		var g = Png.decode(sys.io.File.getBytes(args[0]));
-		var off = 0, max = 0;
-		for (p in 0...W * H) {
-			var d = 0;
-			for (k in 0...3) {
-				var v = pixels.get(4 * p + k) - g.rgba.get(4 * p + k);
-				if (v < 0) v = -v;
-				if (v > d) d = v;
-			}
-			if (d > 3) off++;
-			if (d > max) max = d;
-		}
-		var ok = g.width == W && off <= 0.003 * W * H;
-		Sys.println('GalleryTest: frame ' + (ok ? "ok" : "FAIL") + (off == 0 && max == 0 ? " (exact)" : ' ($off pixels off, at most $max)'));
+		var d = g.width == W && g.height == H ? ImageDiff.of(pixels, g.rgba, W, H, 3) : null;
+		var ok = d != null && d.within(0.003);
+		Sys.println('GalleryTest: frame ' + (ok ? "ok" : "FAIL") + (d == null ? ' (the golden image is ${g.width}x${g.height})' : ' ($d)'));
 		Sys.exit(failed == 0 && ok ? 0 : 1);
 	}
 }

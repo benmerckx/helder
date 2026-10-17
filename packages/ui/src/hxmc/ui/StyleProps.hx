@@ -63,6 +63,7 @@ typedef StyleProps = {
 	?transition:Transition,
 	?outlineStyle:OutlineStyle,
 	?userSelect:UserSelect,
+	?fieldSizing:FieldSizing,
 	?ringWidth:Float,
 	?ringColor:Color,
 	?ringOffsetWidth:Float,

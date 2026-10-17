@@ -184,6 +184,8 @@ class Style {
 	public var outline(never, set):Float;
 	// whether its text can be selected by the pointer (UserSelect; null: the parent's)
 	public var userSelect(get, set):Null<UserSelect>;
+	// how a text field is sized where this style gives no size (FieldSizing; null: Fixed)
+	public var fieldSizing(get, set):Null<FieldSizing>;
 
 	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
 	public var outlineStyle(get, set):Null<OutlineStyle>;
@@ -421,6 +423,16 @@ class Style {
 	function set_userSelect(v:Null<UserSelect>):Null<UserSelect> {
 		if (v == userSelect) return v;
 		more().userSelect = v;
+		return v;
+	}
+
+	inline function get_fieldSizing():Null<FieldSizing>
+		return rare == null ? null : rare.fieldSizing;
+
+	function set_fieldSizing(v:Null<FieldSizing>):Null<FieldSizing> {
+		if (v == fieldSizing) return v;
+		more().fieldSizing = v;
+		node.styleChanged(true);
 		return v;
 	}
 
@@ -1481,6 +1493,7 @@ class Style {
 		if (p.visibility != null) visibility = p.visibility;
 		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
 		if (p.userSelect != null) userSelect = p.userSelect;
+		if (p.fieldSizing != null) fieldSizing = p.fieldSizing;
 		if (p.ringWidth != null) ringWidth = p.ringWidth;
 		if (p.ringColor != null) ringColor = p.ringColor;
 		if (p.ringOffsetWidth != null) ringOffsetWidth = p.ringOffsetWidth;
@@ -1553,6 +1566,7 @@ private class StyleRare {
 	public var visibility:Null<Visibility> = null;
 	public var outlineStyle:Null<OutlineStyle> = null;
 	public var userSelect:Null<UserSelect> = null;
+	public var fieldSizing:Null<FieldSizing> = null;
 	public var ringWidth:Float = 0;
 	public var ringColor:Null<Color> = null;
 	public var ringOffsetWidth:Float = 0;
