@@ -18,6 +18,9 @@ class Image {
 	// "webp"), kept for a writer to embed as it is (a PDF's JPEG); null once
 	// its pixels change, or when it was made from pixels
 	public var source(default, null):Null<{bytes:Bytes, type:String}> = null;
+	// the drawing it was rendered from (Svg.render: an icon) in its colour
+	// (currentColor's), for a writer to draw as vectors; null once its pixels change
+	@:allow(hxmc.ui.Svg) public var drawing(default, null):Null<{svg:Drawing, color:Color}> = null;
 
 	static var nextId = 1;
 
@@ -48,5 +51,6 @@ class Image {
 	public function changed() {
 		version++;
 		source = null;
+		drawing = null;
 	}
 }

@@ -114,12 +114,15 @@ class Renderer implements Canvas {
 	public function begin(width:Int, height:Int) {
 		// (the textures of images no longer drawn: a replaced image, an svg drawn again at another size)
 		frames++;
-		if (frames % 60 == 0)
+		if (frames % 60 == 0) {
 			for (id => e in [for (k => v in textures) k => v])
 				if (frames - e.frame > EVICT) {
 					device.destroyTexture(e.texture);
 					textures.remove(id);
 				}
+			for (p in [for (k in paths.keys()) k])
+				if (frames - paths.get(p).frame > EVICT) paths.remove(p);
+		}
 		targetW = width;
 		targetH = height;
 		used = 0;
@@ -431,6 +434,27 @@ class Renderer implements Canvas {
 		}
 		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
 		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 4, sigma, 1, 0);
+	}
+
+	// (a path rasterized at the scale it is drawn at, its stroke's reach
+	// around it, kept while it is drawn the same way: by path, its paints and the scale)
+	final paths = new haxe.ds.ObjectMap<Path, {key:String, img:Image, x:Float, y:Float, frame:Int}>();
+
+	public function path(p:Path, fill:Null<Paint>, ?stroke:Stroke) {
+		var b = p.bounds(), s = scale;
+		var reach = stroke == null ? 0.0 : stroke.width / 2 * ((stroke.join ?? Miter) == Miter ? Math.max(1, stroke.miterLimit ?? 4) : 1.5);
+		var x0 = Math.floor((b.x - reach) * s) - 1, y0 = Math.floor((b.y - reach) * s) - 1;
+		var w = Std.int(Math.ceil((b.x + b.width + reach) * s) + 1 - x0), h = Std.int(Math.ceil((b.y + b.height + reach) * s) + 1 - y0);
+		if (w <= 0 || h <= 0 || w * h > 4096 * 4096) return;
+		var key = s + "/" + p.commands.length + "/" + p.evenOdd + "/" + Std.string(fill) + "/" + (stroke == null ? "" : stroke.width + Std.string(stroke.paint)
+			+ stroke.cap + stroke.join + stroke.miterLimit + stroke.dashes + stroke.dashOffset);
+		var e = paths.get(p);
+		if (e == null || e.key != key) {
+			e = {key: key, img: p.render(w, h, [s, 0, 0, s, -x0, -y0], fill, stroke), x: x0 / s, y: y0 / s, frame: frames};
+			paths.set(p, e);
+		}
+		e.frame = frames;
+		image(e.img, e.x, e.y, w / s, h / s, 0, 0, 1, 1, 0);
 	}
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners) {

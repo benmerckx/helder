@@ -47,6 +47,7 @@ class UiTest {
 		css(here);
 		decorations();
 		transforms();
+		paths();
 		calcs();
 		sticky();
 		stacking();
@@ -299,6 +300,33 @@ class UiTest {
 	// positions
 	// zIndex and order: painted and hit by them (zIndex, then positioned over
 	// in-flow, then order); Tab still in the tree's order
+	// vector paths (Canvas.path): filled, stroked, a gradient, even-odd, SVG's data
+	static function paths() {
+		inline function px(img:Image, x:Int, y:Int):Int
+			return img.pixels.getInt32((y * img.width + x) * 4);
+		var id = [1.0, 0, 0, 1, 0, 0];
+		var sq = new Path().rect(2, 2, 6, 6).render(10, 10, id, Color.rgb(0xFF0000));
+		check("paths: a filled rectangle", px(sq, 5, 5) == 0xFF0000FF && px(sq, 0, 0) == 0, StringTools.hex(px(sq, 5, 5)));
+		var line = new Path().moveTo(0, 5).lineTo(10, 5).render(10, 10, id, null, {width: 2, paint: Color.BLACK});
+		check("paths: a stroke, its width about the line", line.pixels.get((5 * 10 + 5) * 4 + 3) == 255 && line.pixels.get((1 * 10 + 5) * 4 + 3) == 0);
+		var grad = new Path().rect(0, 0, 20, 4).render(20, 4, id, Gradient.parse("linear-gradient(to right, #ff0000, #0000ff)"));
+		check("paths: a gradient over it", grad.pixels.get(4 * 1) > 200 && grad.pixels.get(4 * 18 + 2) > 200);
+		var ring = new Path().rect(0, 0, 10, 10).rect(3, 3, 4, 4);
+		ring.evenOdd = true;
+		var hole = ring.render(10, 10, id, Color.BLACK);
+		check("paths: even-odd leaves the inner one a hole", hole.pixels.get((5 * 10 + 5) * 4 + 3) == 0 && hole.pixels.get((1 * 10 + 1) * 4 + 3) == 255);
+		var tri = new Path("M0 0 L10 0 L10 10 Z"), b = tri.bounds();
+		var scaled = tri.render(20, 20, [2.0, 0, 0, 2, 0, 0], Color.BLACK);
+		check("paths: SVG's data, its bounds, drawn at a scale", b.width == 10 && b.height == 10 && scaled.pixels.get((2 * 20 + 17) * 4 + 3) == 255
+			&& scaled.pixels.get((17 * 20 + 2) * 4 + 3) == 0);
+		var curve = new Path().moveTo(0, 0).quadTo(5, 10, 10, 0).arcTo(5, 5, 0, false, true, 0, 0).close();
+		check("paths: curves made cubic", curve.commands.filter(c -> c == 2).length >= 2);
+		var icon = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>');
+		var drawn = icon.render(24, 24, Color.rgb(0x112233));
+		check("paths: an svg's image keeps the drawing, for a writer's vectors", drawn.drawing != null && drawn.drawing.svg == icon
+			&& drawn.drawing.color == Color.rgb(0x112233));
+	}
+
 	// calc(): a percentage plus pixels, against the containing box as a percentage is
 	static function calcs() {
 		var ui = new Ui(new MonoText(), 200, 100);
@@ -2239,6 +2267,9 @@ class Recording implements Canvas {
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners)
 		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius' + cs(corners));
+
+	public function path(p:Path, fill:Null<Paint>, ?stroke:Stroke)
+		calls.push('path ${p.commands.length}' + (fill == null ? "" : " fill") + (stroke == null ? "" : ' stroke ${stroke.width}'));
 }
 
 // a clipboard whose reads are answered by the test, later (UiTest's fields)
