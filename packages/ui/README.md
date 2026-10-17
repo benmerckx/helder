@@ -77,7 +77,11 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     `textAlign` (left, center, right, justify: the room shared among the
     spaces as Chromium shares it; spacing added as Chromium adds it),
     `textWrap` (`NoWrap`, CSS's text-wrap-mode: each line kept whole, past
-    its box, its min-content width that wide), `textTransform` (`Uppercase`,
+    its box, its min-content width that wide), `overflowWrap` (`BreakWord`
+    by default, where CSS's is `Normal`: a word too wide is cut, not
+    overflowing; `Anywhere`: its min-content width too), `wordBreak`
+    (`BreakAll`, `KeepAll`; soft hyphens break as in CSS: lines as
+    Chromium breaks them), `textTransform` (`Uppercase`,
     `Lowercase`, `Capitalize`: letter for letter; a span its own; a text
     field's text as typed), `textOverflow` (`Ellipsis`, not inherited: a
     line too wide for its box ends in one within it). `textDecoration`

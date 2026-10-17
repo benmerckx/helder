@@ -69,7 +69,17 @@ class DrawText implements TextEngine {
 			for (s in spans)
 				new TextRun(s.start, s.end, fontSet(s.font), s.font.lineHeight, s.font.letterSpacing, s.font.wordSpacing)
 		];
-		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut < 0 ? Math.NaN : cut);
+		var breaking = (switch font.overflowWrap {
+			case Normal: 0;
+			case BreakWord: TextLayout.BREAK_WORD;
+			case Anywhere: TextLayout.ANYWHERE;
+		}) + (switch font.wordBreak {
+			case Normal: 0;
+			case BreakAll: TextLayout.BREAK_ALL;
+			case KeepAll: TextLayout.KEEP_ALL;
+		});
+		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut < 0 ? Math.NaN : cut,
+			breaking);
 		if (justify) l.justify(maxWidth);
 		return new DrawParagraph(l);
 	}
