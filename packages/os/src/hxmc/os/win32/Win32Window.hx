@@ -117,6 +117,9 @@ class Win32Window {
 		User32.SetWindowPos(hwnd, Ptr.nil(), 0, 0, o.w, o.h, 0x2 | 0x4 | 0x10);
 	}
 
+	// a Resize not told yet (before the loop)
+	var pending = false;
+
 	// (answered at WM_GETMINMAXINFO)
 	var minW = 0;
 	var minH = 0;
@@ -209,6 +212,16 @@ class Win32Window {
 	// dispatches the pending events (through the window procedure)
 	static function poll(onEvent:Event->Void) {
 		Win32Window.onEvent = onEvent;
+		for (w in open.copy())
+			if (w.pending) {
+				w.pending = false;
+				var e = event;
+				e.kind = Resize;
+				e.window = w.owner;
+				e.x = w.surface.width;
+				e.y = w.surface.height;
+				dispatch(e);
+			}
 		while (User32.PeekMessageW(msg, Ptr.nil(), 0, 0, WM.PM_REMOVE) != 0) {
 			User32.TranslateMessage(msg);
 			User32.DispatchMessageW(msg);
@@ -254,10 +267,13 @@ class Win32Window {
 				// (DefWindowProc validates the window)
 				e.kind = Redraw;
 			case WM.SIZE:
+				// (no loop yet, a size set before App.run: told at its first poll)
 				if (w.measure()) {
-					e.kind = Resize;
-					e.x = w.surface.width;
-					e.y = w.surface.height;
+					if (onEvent == null) w.pending = true else {
+						e.kind = Resize;
+						e.x = w.surface.width;
+						e.y = w.surface.height;
+					}
 				}
 			case WM.KEYDOWN | WM.KEYUP | WM.SYSKEYDOWN | WM.SYSKEYUP:
 				e.kind = message == WM.KEYDOWN || message == WM.SYSKEYDOWN ? KeyDown : KeyUp;
