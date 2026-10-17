@@ -36,6 +36,8 @@ class NativeParagraph implements Paragraph {
 	public var height(get, never):Float;
 	public var lineCount(get, never):Int;
 	public var minWidth(get, never):Float;
+	// (estimated: four fifths down its first line, the platform's metrics not asked)
+	public var baseline(get, never):Float;
 
 	final w:Float;
 	final h:Float;
@@ -60,6 +62,9 @@ class NativeParagraph implements Paragraph {
 
 	inline function get_minWidth()
 		return min;
+
+	inline function get_baseline()
+		return h / lines * 0.8;
 
 	// (no carets: the platform's labels are not edited)
 	public function caret(i:Int):{x:Float, y:Float, height:Float}

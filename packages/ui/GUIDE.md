@@ -180,6 +180,11 @@ button is pushed to the right end of its row:
 </view>
 ```
 
+`align-items="baseline"` lines a row's texts up on their first
+baselines (a label beside a field, text of two sizes); `width` also takes
+`min-content`, `max-content` and `fit-content`; `gap`, `inset` and `flex`
+are CSS's shorthands (`gap="4 8"`, `inset={0}`, `flex={1}`).
+
 Colours are CSS's: hex, `rgb()`, `hsl()` and the named ones. A background
 can be a CSS gradient, linear or radial, repeating or not, drawn under the
 border:

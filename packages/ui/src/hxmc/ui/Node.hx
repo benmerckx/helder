@@ -101,6 +101,8 @@ class Node {
 	@:allow(hxmc.ui) var inkAll = false;
 	@:allow(hxmc.ui) var inkStale = false;
 	@:allow(hxmc.ui.Layout) var minContent = Math.NaN;
+	// (a row's items' baseline, those aligned on it, below its top; NaN: none)
+	@:allow(hxmc.ui.Layout) var lb = Math.NaN;
 
 	public function new(?tag:String) {
 		this.tag = tag == null ? "view" : tag;
@@ -898,6 +900,21 @@ class Node {
 	}
 
 	// what its content draws, from its content box's top left, when it may reach past the box (a text's paragraph)
+	// its first baseline below its border box's top, once laid out: a text's
+	// first line's, a row's items aligned on theirs, else its first item's
+	// (one without any: its bottom edge, as CSS's flexbox synthesizes it);
+	// NaN: none (no text, no items)
+	public function firstBaseline():Float {
+		if (!Math.isNaN(lb)) return lb;
+		for (c in inOrder()) {
+			var cs = c.style;
+			if (cs.display == None || cs.position == Absolute) continue;
+			var b = c.firstBaseline();
+			return c.ly + (Math.isNaN(b) ? c.lh : b);
+		}
+		return Math.NaN;
+	}
+
 	public function contentInk():Null<Size>
 		return null;
 

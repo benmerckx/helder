@@ -355,6 +355,15 @@ Since the design above (October 2026), in this order:
   selection), Toolbar (Role.Toolbar on every adapter), Sortable, RangeSlider and
   ColorPicker; tabs, radio
   groups and toolbars one stop for Tab, moved through by the arrows.
+- Layout closer to CSS, each piece against Chromium (layout-cases.mjs,
+  and random flex trees, about 97% of them exactly as Chromium lays them
+  out): auto margins, baseline alignment, `min-content`, `max-content`
+  and `fit-content` widths, the `gap`, `inset` and `flex` shorthands,
+  percentages of indefinite heights as auto, the content-box base size in
+  shrinking, absolute boxes' shrink-to-fit width and self-alignment;
+  text's `overflowWrap`, `wordBreak` and soft hyphens. SegmentedControl,
+  Breadcrumbs and Pagination, with a navigation landmark role and
+  aria-current on every adapter.
 - Images: animated PNGs (APNG) as Chromium composes them, and PNG
   decoding about three times faster (hxmc's haxe.zip.InflateImpl inflating a
   BytesInput whole).

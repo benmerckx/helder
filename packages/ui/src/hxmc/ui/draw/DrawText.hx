@@ -92,9 +92,13 @@ class DrawParagraph implements Paragraph {
 	public var height(get, never):Float;
 	public var lineCount(get, never):Int;
 	public var minWidth(get, never):Float;
+	public var baseline(get, never):Float;
 
 	public function new(layout:TextLayout)
 		this.layout = layout;
+
+	inline function get_baseline()
+		return layout.lines.length == 0 ? layout.baseline : layout.lines[0].top + layout.lines[0].baseline;
 
 	inline function get_width()
 		return layout.width;

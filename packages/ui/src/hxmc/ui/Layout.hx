@@ -2,7 +2,7 @@ package hxmc.ui;
 
 // Flexbox layout of a Node tree, after CSS Flexible Box Layout (section 9),
 // and CSS grid for a Display Grid container (grid() below):
-// margins are pixels or auto (NaN), no baseline alignment. A flex
+// margins are pixels or auto (NaN), a column's baselines its start edges. A flex
 // item's min size on the main axis is CSS's automatic minimum when auto
 // (its content's: the min-content width in a row, the content's height in
 // a column; no more than its width or height when given; 0 for Overflow
@@ -82,9 +82,9 @@ class Layout {
 		// (its height definite for its children: given so, or its own)
 		var defH = !looseH || known(s.height.resolve(parentH));
 		looseH = false;
-		var minW = Math.max(bw ? 0.0 : min(s.minWidth, parentW), edgesH(s)), maxW = bw ? Math.POSITIVE_INFINITY : max(s.maxWidth, parentW);
+		var minW = Math.max(bw ? 0.0 : minWidthOf(n, s.minWidth, parentW, availW), edgesH(s)), maxW = bw ? Math.POSITIVE_INFINITY : maxWidthOf(n, s.maxWidth, parentW, availW);
 		var minH = Math.max(bh ? 0.0 : min(s.minHeight, parentH), edgesV(s)), maxH = bh ? Math.POSITIVE_INFINITY : max(s.maxHeight, parentH);
-		var w = known(knownW) ? knownW : bw ? Math.NaN : clamp(s.width.resolve(parentW), minW, maxW);
+		var w = known(knownW) ? knownW : bw ? Math.NaN : clamp(s.width.intrinsic() ? intrinsicWidth(n, s.width, parentW, availW) : s.width.resolve(parentW), minW, maxW);
 		var h = known(knownH) ? knownH : bh ? Math.NaN : clamp(s.height.resolve(parentH), minH, maxH);
 		var ar = s.aspectRatio;
 		if (ar > 0) {
@@ -178,20 +178,24 @@ class Layout {
 			it.mMainEnd = mz(me);
 			it.mCrossStart = mz(cs0);
 			it.mCrossEnd = mz(ce);
-			it.minMain = Math.max(min(row ? cs.minWidth : cs.minHeight, pctMain), row ? edgesH(cs) : edgesV(cs));
-			it.maxMain = max(row ? cs.maxWidth : cs.maxHeight, pctMain);
-			it.minCross = Math.max(min(row ? cs.minHeight : cs.minWidth, pctCross), row ? edgesV(cs) : edgesH(cs));
-			it.maxCross = max(row ? cs.maxHeight : cs.maxWidth, pctCross);
+			// (the room across and along it, what fit-content fits in)
+			var roomC = known(innerCross) ? Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd) : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
+			var roomM = known(availMain) ? Math.max(0, availMain - it.mMainStart - it.mMainEnd) : Math.NaN;
+			it.minMain = Math.max(row ? minWidthOf(c, cs.minWidth, pctMain, roomM) : min(cs.minHeight, pctMain), row ? edgesH(cs) : edgesV(cs));
+			it.maxMain = row ? maxWidthOf(c, cs.maxWidth, pctMain, roomM) : max(cs.maxHeight, pctMain);
+			it.minCross = Math.max(row ? min(cs.minHeight, pctCross) : minWidthOf(c, cs.minWidth, pctCross, roomC), row ? edgesV(cs) : edgesH(cs));
+			it.maxCross = row ? max(cs.maxHeight, pctCross) : maxWidthOf(c, cs.maxWidth, pctCross, roomC);
 			it.align = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (it.align == Auto) it.align = Stretch;
 			// (an auto margin across: not stretched, placed by its margins)
 			if (it.autoCross != 0) it.align = Start;
 			// (stretched only when its size across is auto: a percentage of an indefinite one is not)
 			if (it.align == Stretch && (row ? cs.height : cs.width) != DimValue.Auto) it.align = Start;
-			it.styleCross = clamp((row ? cs.height : cs.width).resolve(pctCross), it.minCross, it.maxCross);
+			it.styleCross = clamp(!row && cs.width.intrinsic() ? intrinsicWidth(c, cs.width, pctCross, roomC) : (row ? cs.height : cs.width).resolve(pctCross), it.minCross,
+				it.maxCross);
 			var b = cs.basis.resolve(pctMain);
 			// (a percentage basis of an indefinite size: content, the width or height left out)
-			if (!known(b) && cs.basis == DimValue.Auto) b = (row ? cs.width : cs.height).resolve(pctMain);
+			if (!known(b) && cs.basis == DimValue.Auto) b = row && cs.width.intrinsic() ? intrinsicWidth(c, cs.width, pctMain, roomM) : (row ? cs.width : cs.height).resolve(pctMain);
 			var contentBasis = !known(b);
 			if (!known(b) && cs.aspectRatio > 0 && known(it.styleCross)) b = row ? it.styleCross * cs.aspectRatio : it.styleCross / cs.aspectRatio;
 			if (!known(b)) {
@@ -275,7 +279,9 @@ class Layout {
 		for (k in firstLine...lastLine) {
 			var l = lines[k];
 			resolveFlexible(l, mainSize, gapMain);
-			var lc = 0.0;
+			// (items on their baselines: laid out to find them, the line as deep as the deepest above
+			// them and below them)
+			var lc = 0.0, above = 0.0, below = 0.0;
 			for (i in l.start...l.end) {
 				var it = items[i];
 				if (known(it.styleCross)) it.cross = it.styleCross else {
@@ -293,8 +299,23 @@ class Layout {
 				}
 				var oc = it.cross + it.mCrossStart + it.mCrossEnd;
 				if (oc > lc) lc = oc;
+				if (it.align == Baseline) {
+					// (a column's: each one's start edge, as Chromium synthesizes it across)
+					var b = 0.0;
+					if (row) {
+						looseH = true;
+						size(it.node, it.main, it.cross, innerW, pctH, it.main, it.cross, true);
+						b = it.node.firstBaseline();
+						if (Math.isNaN(b)) b = it.cross;
+					}
+					it.baseline = it.mCrossStart + b;
+					if (it.baseline > above) above = it.baseline;
+					if (oc - it.baseline > below) below = oc - it.baseline;
+				}
 			}
+			if (above + below > lc) lc = above + below;
 			l.cross = lc;
+			l.baseline = above;
 		}
 		if (!multi && known(innerCross)) lines[firstLine].cross = innerCross;
 
@@ -342,6 +363,14 @@ class Layout {
 			case SpaceEvenly:
 		}
 		var lineStart = start;
+		// (its first baseline: its first line's items aligned on theirs, if any)
+		n.lb = Math.NaN;
+		if (row)
+			for (i in lines[firstLine].start...lines[firstLine].end)
+				if (items[i].align == Baseline) {
+					n.lb = padT + start + lines[firstLine].baseline;
+					break;
+				}
 		// (right to left: the content's leftmost edge, what overflows that way scrolled to)
 		var cw = 0.0, ch = 0.0, left = 0.0;
 		for (k in firstLine...lastLine) {
@@ -356,12 +385,13 @@ class Layout {
 			}
 			taken += gapMain * (n - 1);
 			var free = mainSize - taken, pos = 0.0, gap = gapMain;
-			// (auto margins along: the free space shared among them, justify-content left out)
+			// (auto margins along: the free space shared among them, justify-content left out; none
+			// when it overflows, justify-content as usual)
 			var autos = 0;
 			for (i in l.start...l.end)
 				autos += (items[i].autoMain & 1) + (items[i].autoMain >> 1);
 			var share = autos > 0 && free > 0 ? free / autos : 0.0;
-			if (autos > 0) free = 0;
+			if (share > 0) free = 0;
 			switch s.justify {
 				case Start | Normal:
 				case End: pos = free;
@@ -390,6 +420,7 @@ class Layout {
 				var crossPos = lineStart + if (it.autoCross != 0) it.mCrossStart + (roomC <= 0 ? 0 : it.autoCross == 3 ? roomC / 2 : it.autoCross == 1 ? roomC : 0) else switch it.align {
 					case End: l.cross - it.cross - it.mCrossEnd;
 					case Center: it.mCrossStart + (l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2;
+					case Baseline: l.baseline - it.baseline + it.mCrossStart;
 					case _: it.mCrossStart;
 				}
 				if (flipMain) mainPos = mainSize - mainPos - it.main;
@@ -530,10 +561,11 @@ class Layout {
 			var autoS = Math.isNaN(rtl ? m.right : m.left), autoE = Math.isNaN(rtl ? m.left : m.right), autoT = Math.isNaN(m.top), autoB = Math.isNaN(m.bottom);
 			if ((autoS || autoE) && jx == Stretch) jx = Start;
 			if ((autoT || autoB) && jy == Stretch) jy = Start;
-			var minCW = Math.max(min(cs.minWidth, width), edgesH(cs)), maxCW = max(cs.maxWidth, width);
-			var minCH = Math.max(min(cs.minHeight, height), edgesV(cs)), maxCH = max(cs.maxHeight, height);
-			var iw = clamp(cs.width.resolve(width), minCW, maxCW), ih = clamp(cs.height.resolve(height), minCH, maxCH);
 			var roomW = Math.max(0, aw - mz(m.left) - mz(m.right)), roomH = Math.max(0, ah - mz(m.top) - mz(m.bottom));
+			var minCW = Math.max(minWidthOf(c, cs.minWidth, width, roomW), edgesH(cs)), maxCW = maxWidthOf(c, cs.maxWidth, width, roomW);
+			var minCH = Math.max(min(cs.minHeight, height), edgesV(cs)), maxCH = max(cs.maxHeight, height);
+			var iw = clamp(cs.width.intrinsic() ? intrinsicWidth(c, cs.width, width, roomW) : cs.width.resolve(width), minCW, maxCW);
+			var ih = clamp(cs.height.resolve(height), minCH, maxCH);
 			if (!known(iw)) {
 				if (jx == Stretch) iw = clamp(roomW, minCW, maxCW) else {
 					// (fit-content: its max-content width, no more than the area)
@@ -979,16 +1011,18 @@ class Layout {
 		for (c in absolute) {
 			var cs = c.style, m = cs.margin;
 			var l = cs.left.resolve(pbW), r = cs.right.resolve(pbW), t = cs.top.resolve(pbH), b = cs.bottom.resolve(pbH);
-			var aw = cs.width.resolve(pbW), ah = cs.height.resolve(pbH);
-			if (!known(aw) && known(l) && known(r)) aw = Math.max(0, pbW - l - r - mz(m.left) - mz(m.right));
-			if (!known(ah) && known(t) && known(b)) ah = Math.max(0, pbH - t - b - mz(m.top) - mz(m.bottom));
-			aw = clamp(aw, Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
+			// (what an auto or fit-content width fits in: the room its offsets and margins leave)
+			var room = Math.max(0, pbW - (known(l) ? l : 0) - (known(r) ? r : 0) - mz(m.left) - mz(m.right));
+			var aw = cs.width.intrinsic() ? intrinsicWidth(c, cs.width, pbW, room) : cs.width.resolve(pbW), ah = cs.height.resolve(pbH);
+			// (both offsets: the room between them, unless its self-alignment is set: fit-content then)
+			if (!known(aw) && known(l) && known(r) && (cs.justifySelf == Auto || cs.justifySelf == Stretch)) aw = Math.max(0, pbW - l - r - mz(m.left) - mz(m.right));
+			if (!known(ah) && known(t) && known(b) && (cs.alignSelf == Auto || cs.alignSelf == Stretch)) ah = Math.max(0, pbH - t - b - mz(m.top) - mz(m.bottom));
+			aw = clamp(aw, Math.max(minWidthOf(c, cs.minWidth, pbW, room), edgesH(cs)), maxWidthOf(c, cs.maxWidth, pbW, room));
 			ah = clamp(ah, Math.max(min(cs.minHeight, pbH), edgesV(cs)), max(cs.maxHeight, pbH));
 			var heightGiven = known(ah);
 			if (!known(aw) || !known(ah)) {
 				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit
-				// the room its offsets and margins leave, not below its min-content width)
-				var room = Math.max(0, pbW - (known(l) ? l : 0) - (known(r) ? r : 0) - mz(m.left) - mz(m.right));
+				// the room, not below its min-content width)
 				var fit = !known(aw), fixedH = known(ah);
 				size(c, aw, ah, pbW, pbH, known(aw) ? aw : room, known(ah) ? ah : Math.NaN, false);
 				aw = rw;
@@ -1089,6 +1123,8 @@ class Layout {
 		var minW = min(s.minWidth, parentW), maxW = max(s.maxWidth, parentW);
 		var w = s.width.resolve(parentW);
 		if (contribution && known(w)) return Math.max(clamp(w, minW, maxW), edgesH(s));
+		// (an intrinsic width's min-content contribution: max-content's, the others' min-content)
+		if (contribution && s.width == DimValue.MaxContent) return Math.max(clamp(intrinsicWidth(n, s.width, parentW, Math.NaN), minW, maxW), edgesH(s));
 		var cached = n.minContent;
 		if (known(cached)) return cached;
 		var padH = s.padding.left + s.padding.right + s.borderEdges.left + s.borderEdges.right;
@@ -1134,7 +1170,7 @@ class Layout {
 	function contribution(it:Item, row:Bool, innerW:Float, innerH:Float):Float {
 		var cs = it.node.style;
 		if (!row || cs.basis == DimValue.Auto) return it.hypo;
-		var w = cs.width.resolve(innerW);
+		var w = cs.width == DimValue.MinContent ? minContentWidth(it.node, innerW, false) : cs.width.resolve(innerW);
 		if (!known(w)) {
 			size(it.node, Math.NaN, known(it.styleCross) ? it.styleCross : Math.NaN, innerW, innerH, Math.NaN, Math.NaN, false);
 			w = rw;
@@ -1217,7 +1253,7 @@ class Layout {
 		if (lineTop == lines.length) lines.push(new Line());
 		var l = lines[lineTop++];
 		l.start = l.end = first;
-		l.cross = 0;
+		l.cross = l.baseline = 0;
 		return l;
 	}
 
@@ -1302,6 +1338,23 @@ class Layout {
 	static inline function fits(was:Float, got:Float, now:Float):Bool
 		return same(was, now) || ((Math.isNaN(was) || got < was) && (Math.isNaN(now) || got <= now));
 
+	// the width CSS's min-content, max-content or fit-content gives n (room: what
+	// fit-content fits in; NaN: none, its max-content), its own width, min and max left out
+	function intrinsicWidth(n:Node, d:Dim, parentW:Float, room:Float):Float {
+		if (d == DimValue.MinContent) return minContentWidth(n, parentW, false);
+		bareW = true;
+		size(n, Math.NaN, Math.NaN, parentW, Math.NaN, Math.NaN, Math.NaN, false);
+		var widest = rw;
+		return d == DimValue.MaxContent || !known(room) ? widest : Math.min(widest, Math.max(minContentWidth(n, parentW, false), room));
+	}
+
+	// a min or max width, an intrinsic one too
+	inline function minWidthOf(n:Node, d:Dim, base:Float, room:Float):Float
+		return d.intrinsic() ? intrinsicWidth(n, d, base, room) : min(d, base);
+
+	inline function maxWidthOf(n:Node, d:Dim, base:Float, room:Float):Float
+		return d.intrinsic() ? intrinsicWidth(n, d, base, room) : max(d, base);
+
 	// a margin: auto (NaN) as 0
 	static inline function mz(v:Float):Float
 		return Math.isNaN(v) ? 0 : v;
@@ -1356,6 +1409,8 @@ private class Item {
 	public var cross = 0.0;
 	public var frozen = false;
 	public var violation = 0.0;
+	// (on its baseline: that below its outer start)
+	public var baseline = 0.0;
 
 	public function new() {}
 
@@ -1365,7 +1420,7 @@ private class Item {
 		autoMain = autoCross = 0;
 		minMain = maxMain = minCross = maxCross = 0;
 		align = Stretch;
-		styleCross = basis = edges = hypo = main = cross = violation = 0;
+		styleCross = basis = edges = hypo = main = cross = violation = baseline = 0;
 		frozen = false;
 	}
 }
@@ -1389,6 +1444,8 @@ private class Line {
 	public var start = 0;
 	public var end = 0;
 	public var cross = 0.0;
+	// its items' baseline below its start, those aligned on it
+	public var baseline = 0.0;
 
 	public function new() {}
 }

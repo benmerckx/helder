@@ -43,11 +43,16 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
 - **`hxmc.ui`**, the core, plain Haxe (it runs on any target; its tests
   run on Eval): `Node` and `TextNode`, `Style`, `Layout`, `Ui`.
   - Layout is CSS flexbox, column by default: `direction`, `wrap`,
-    `justify`, `alignItems`, `alignSelf`, `alignContent`, `grow`,
-    `shrink`, `basis`, `width`, `height`, min and max, `aspectRatio`,
+    `justify`, `alignItems`, `alignSelf` (`Baseline`: a row's items on their
+    first baselines, a text's first line's, a box without one on its bottom
+    edge; a column's on their start edges), `alignContent`, `grow`,
+    `shrink`, `basis`, `width`, `height`, min and max (widths also
+    `min-content`, `max-content`, `fit-content`: CSS's intrinsic sizes),
+    `aspectRatio`,
     `padding`, `margin` (`auto`, `Edges.AUTO`: CSS's auto margins, along and
     across flex lines, in grid areas, on absolute boxes), `borderWidth`,
-    `rowGap`, `columnGap`, `position`
+    `rowGap`, `columnGap` (`gap` both; `flex`, `inset`: CSS's shorthands,
+    `flex="none"`, `inset="0 10"` in markup), `position`
     (Absolute with `left`, `top`, `right`, `bottom`; both offsets and a
     size on an axis: placed between them by `justifySelf` and `alignSelf`;
     an auto width shrinks to fit), `overflow` (Hidden,
@@ -75,7 +80,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     by rows or columns, sparse or dense), aligned by `justifyItems`,
     `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify` and
     `alignContent` (no other named lines, no subgrid). Checked against
-    Chromium on 138 cases, 39 of them grids, 8 right to left.
+    Chromium on 143 cases, 39 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the
@@ -189,7 +194,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   (typed or stepped, within bounds; a spin button), `Listbox` (one option
   selected or several: Shift and Control with the arrows and clicks,
   Control+A; ARIA's multiselectable), `Toolbar` (its focusable children
-  one Tab stop, Left and Right between them), `Sortable` (a list
+  one Tab stop, Left and Right between them), `SegmentedControl` (one of
+  options among joined buttons: a radio group), `Breadcrumbs` and
+  `Pagination` (navigation landmarks, the current step or page marked
+  current: ARIA's aria-current), `Sortable` (a list
   reordered by dragging, a line where the item will go, or by Alt+Up and
   Alt+Down), `ColorPicker` (a
   saturation and brightness square, a hue strip and the hex: sliders for
@@ -270,8 +278,12 @@ comctl32 5's classic look until a visual styles manifest) and AppKit run
 model: roles, names, states, actions) from the nodes: each node's
 `semantics` (in markup: `role`, `label`, `description`, `checked`,
 `selected`, `expanded`, `disabled`, `value-now`, `value-min`,
-`value-max`, `value-text`, `multiselectable`, `live`), text as labels,
-focusable nodes as groups; the widgets declare theirs. A live region
+`value-max`, `value-text`, `multiselectable`, `live`, `current`), text as labels,
+focusable nodes as groups; the widgets declare theirs. A `navigation`
+role is a landmark (ARIA's navigation, AT-SPI's landmark, UI Automation's
+navigation landmark type, macOS's AXLandmarkNavigation); `current` marks
+the current one of a set (aria-current="page"; AT-SPI's current
+attribute, UI Automation's AriaProperties; macOS has no property for it). A live region
 (`live="polite"` or `"assertive"`) has its changes announced
 (`AccessTree.announcements`: its new text): ARIA's aria-live, AT-SPI's
 Announcement, UI Automation's LiveRegionChanged, macOS's announcement
