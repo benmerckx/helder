@@ -263,9 +263,9 @@ class MarkupTest implements Markup {
 		var toasts = list == null ? [] : tagged(list, "toast");
 		check("toasts: shown in the bottom right corner, the newest last, the focus kept", toasts.length == 2 && list.absX + list.width == 400 - 16
 			&& list.absY + list.height == 300 - 16 && toasts[0].absY < toasts[1].absY && ui.focus == focus, list == null ? "none" : '${list.absX} ${list.absY} ${list.width} ${list.height}');
-		check("toasts: sonner's slots, the kind data-type", list.slot == "sonner-toaster" && toasts[0].slot == "sonner-toast"
-			&& toasts[0].attr("data-type") == "success" && toasts[0].children[0].slot == "sonner-icon" && toasts[1].attr("data-type") == "info"
-			&& tagged(list, "toast-action")[0].slot == "sonner-action");
+		check("toasts: sonner's slots, the kind data-type", list.slot == "toaster" && toasts[0].slot == "toast"
+			&& toasts[0].attr("data-type") == "success" && toasts[0].children[0].slot == "toast-icon" && toasts[1].attr("data-type") == "info"
+			&& tagged(list, "toast-action")[0].slot == "toast-action");
 		Clock.tick(500.1);
 		var l = ui.overlay.find("toaster-list");
 		ui.pointerMove(l.absX + 10, l.absY + 10);
@@ -1423,7 +1423,7 @@ class MarkupTest implements Markup {
 		var first = pages()[0];
 		check("unstyled: pagination's slots, sizes, the current page active, Previous disabled on the first",
 			ui.root.find("p").slot == "pagination" && prev.parent.slot == "pagination-item" && prev.parent.parent.slot == "pagination-content"
-			&& prev.slot == "pagination-link" && prev.size == "default" && first.size == "icon" && first.attr("data-active") == "true"
+			&& prev.slot == "pagination-previous" && ui.root.find("p-next").slot == "pagination-next" && prev.size == "default" && first.size == "icon" && first.attr("data-active") == "true"
 			&& pages()[1].attr("data-active") == null && prev.attr("data-disabled") == "" && next.attr("data-disabled") == null);
 		click(next);
 		check("unstyled: pagination's Next", page.value == 2 && pages()[1].attr("data-active") == "true" && prev.attr("data-disabled") == null);
@@ -1459,7 +1459,7 @@ class MarkupTest implements Markup {
 		var chosen = days.filter(d -> d.attr("data-selected") == "true"), today = days.filter(d -> d.attr("data-today") == "true");
 		var outside = days.filter(d -> d.attr("data-outside") == "true");
 		check("unstyled: a calendar's slots, its days' data-selected, data-today, data-outside", ui.root.find("cal").slot == "calendar"
-			&& ui.root.find("cal-previous").slot == "button" && ui.root.find("cal-previous").variant == "ghost" && ui.root.find("cal-month").slot == "calendar-caption"
+			&& ui.root.find("cal-previous").slot == "calendar-button-previous" && ui.root.find("cal-previous").variant == "ghost" && ui.root.find("cal-month").slot == "calendar-caption-label"
 			&& days.length == 42 && days[0].slot == "calendar-day" && chosen.length == 1 && (cast chosen[0].children[0] : TextNode).text == "17"
 			&& today.length == 1 && outside.length > 0 && chosen[0].attr("data-focused") == "true" && chosen[0].style.background != Color.TRANSPARENT);
 		var date = ui.root.find("date");

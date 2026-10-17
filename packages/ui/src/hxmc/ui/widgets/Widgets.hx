@@ -98,7 +98,7 @@ class Widgets implements Markup {
 				toggle();
 			}}>
 			<view slot="checkbox-indicator" data-state={state} display={() -> state() == "unchecked" ? "none" : "flex"}>
-				<image src={() -> mixed() ? MINUS : CHECK} width={14} height={14}/>
+				<image slot="checkbox-icon" src={() -> mixed() ? MINUS : CHECK} hidden/>
 			</view>
 		</view>;
 		return <view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> toggle()}>
@@ -487,7 +487,7 @@ class Widgets implements Markup {
 					<view tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={n -> nodes[i] = n} checked={() -> props.value.value == o}
 						data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled} onKeyDown={e -> key(e, i)}>
 						<view slot="radio-group-indicator" data-state={state} display={() -> state() == "checked" ? "flex" : "none"}>
-							<image src={CIRCLE} width={8} height={8}/>
+							<image slot="radio-group-icon" src={CIRCLE} hidden/>
 						</view>
 					</view>
 					<text slot="label" data-disabled={disabled} hidden>{text}</text>
@@ -888,9 +888,9 @@ class Widgets implements Markup {
 		};
 		return <view tag={tag} slot="calendar">
 			<view slot="calendar-nav">
-				<view tag={tag + "-previous"} slot="button" variant="ghost" size="icon" role="button" label="Previous month" onClick={_ -> month(-1)}>{arrow(() -> "‹")}</view>
-				<text tag={tag + "-month"} slot="calendar-caption">{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
-				<view tag={tag + "-next"} slot="button" variant="ghost" size="icon" role="button" label="Next month" onClick={_ -> month(1)}>{arrow(() -> "›")}</view>
+				<view tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" onClick={_ -> month(-1)}>{arrow(() -> "‹")}</view>
+				<text tag={tag + "-month"} slot="calendar-caption-label">{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
+				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" onClick={_ -> month(1)}>{arrow(() -> "›")}</view>
 			</view>
 			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}>
 				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
@@ -1029,9 +1029,9 @@ class Widgets implements Markup {
 					}
 			}}>
 			<text slot="select-value">{() -> labelOf(props.value.value)}</text>
-			<image src={CHEVRON} width={16} height={16} opacity={0.5} hidden/>
+			<image slot="select-trigger-icon" src={CHEVRON} hidden/>
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusItem(props.options.indexOf(props.value.peek()))}>
-				<view tag={tag + "-list"} slot="select-content" data-state="open" role="listbox" label={props.label} min-width={w}>{[
+				<view tag={tag + "-list"} slot="select-content" data-state="open" role="listbox" label={props.label} min-width={w}><view slot="select-viewport">{[
 					for (i in 0...props.options.length) {
 						var o = props.options[i], state = () -> props.value.value == o ? "checked" : "unchecked";
 						<view tag={tag + "-" + o} slot="select-item" data-state={state} role="option" selected={() -> props.value.value == o} ref={n -> items[i] = n}
@@ -1056,11 +1056,11 @@ class Widgets implements Markup {
 							}}>
 							{props.labels != null ? props.labels[i] : o}
 							<view slot="select-item-indicator" display={() -> state() == "checked" ? "flex" : "none"}>
-								<image src={CHECK} width={14} height={14}/>
+								<image src={CHECK} width="100%" height="100%" hidden/>
 							</view>
 						</view>;
 					}
-				]}</view>
+				]}</view></view>
 			</Popover>
 		</view>;
 	}
@@ -1290,7 +1290,7 @@ class Widgets implements Markup {
 				e.stop();
 			}}>
 			{props.label}
-			<image src={CHEVRON} width={16} height={16} opacity={0.5} hidden/>
+			<image slot="dropdown-menu-trigger-icon" src={CHEVRON} hidden/>
 			{hotkeys(props.items, false)}
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusFirst(items)}>
 				{menuItems("dropdown-menu", tag, props.label, props.items, open, items)}
@@ -1482,9 +1482,9 @@ class Widgets implements Markup {
 				}
 			return out;
 		}
-		function button(label:Void->String, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool):View {
+		function button(label:Void->String, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool, slot = "pagination-link"):View {
 			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
-			return <view slot="pagination-item"><view tag={tagged} slot="pagination-link" size={size} role="button" focusable={() -> !off()} disabled={off}
+			return <view slot="pagination-item"><view tag={tagged} slot={slot} size={size} role="button" focusable={() -> !off()} disabled={off}
 				data-disabled={off} current={cur} data-active={() -> cur() ? "true" : null} onClick={_ -> if (!off()) onClick()}
 				onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && !off()) {
 					e.preventDefault();
@@ -1493,14 +1493,14 @@ class Widgets implements Markup {
 		}
 		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "Pages"}>
 			<view slot="pagination-content">
-				{button(() -> "Previous", tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1)}
+				{button(() -> "Previous", tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1, "pagination-previous")}
 				<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
 					<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", "icon", () -> go(p.peek()),
 						() -> props.page.value == p.value)}>
 						<view slot="pagination-ellipsis" hidden><text>…</text></view>
 					</Show>
 				</view>}/>
-				{button(() -> "Next", tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count)}
+				{button(() -> "Next", tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count, "pagination-next")}
 			</view>
 		</view>;
 	}
@@ -1637,7 +1637,7 @@ class Widgets implements Markup {
 					onClick={_ -> close()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 						e.preventDefault();
 						close();
-					}}><image src={X} width={16} height={16}/></view>}
+					}}><image slot="dialog-close-icon" src={X}/></view>}
 			</view>
 		});
 	}
@@ -1673,7 +1673,7 @@ class Widgets implements Markup {
 					onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 						e.preventDefault();
 						close();
-					}}><image src={X} width={16} height={16}/></view>}
+					}}><image slot="sheet-close-icon" src={X}/></view>}
 			</view>
 		});
 	}
@@ -1760,7 +1760,7 @@ class Widgets implements Markup {
 		});
 		onCleanup(() -> stopped = true);
 		return <view tag={props.tag ?? "spinner"} slot="spinner" role="progressbar" label={props.label ?? "Loading"}>
-			<image src={LOADER} width={16} height={16} transform={() -> "rotate(" + turn.value + "deg)"}/>
+			<image src={LOADER} width="100%" height="100%" transform={() -> "rotate(" + turn.value + "deg)"}/>
 		</view>;
 	}
 
@@ -1873,7 +1873,7 @@ class Widgets implements Markup {
 				<view tag={tag + "-" + i} slot="accordion-item" data-state={state}>
 					{trigger(tag + "-" + i + "-summary", "accordion-trigger", state, () -> open.value = open.peek() == i ? -1 : i, [
 						<text grow={1}>{s.label}</text>,
-						<image src={CHEVRON} width={16} height={16} opacity={0.5} hidden transform={() -> open.value == i ? "rotate(180deg)" : "none"}/>
+						<image slot="accordion-trigger-icon" src={CHEVRON} hidden transform={() -> open.value == i ? "rotate(180deg)" : "none"}/>
 					])}
 					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} slot="accordion-content" data-state="open">{s.render()}</view></Show>
 				</view>;
@@ -1903,16 +1903,16 @@ class Widgets implements Markup {
 				shown.length == 0 ? "" : shown[shown.length - 1].text;
 			}}</text>
 			<Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
-			<view tag={tag + "-list"} slot="sonner-toaster" width={props.width ?? 320.0} onPointerEnter={_ -> Toasts.paused = true}
+			<view tag={tag + "-list"} slot="toaster" width={props.width ?? 320.0} onPointerEnter={_ -> Toasts.paused = true}
 				onPointerLeave={_ -> Toasts.paused = false}>
-				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" slot="sonner-toast" data-type={toast.kind} role="group" label={toast.text}>
-					{toast.kind == "success" || toast.kind == "error" ? <text slot="sonner-icon" hidden>{toast.kind == "success" ? "✓" : "!"}</text> : null}
-					<text slot="sonner-title" grow={1}>{toast.text}</text>
-					{toast.action == null ? null : <view tag="toast-action" slot="sonner-action" role="button" focusable onClick={_ -> {
+				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" slot="toast" data-type={toast.kind} role="group" label={toast.text}>
+					{toast.kind == "success" || toast.kind == "error" ? <text slot="toast-icon" hidden>{toast.kind == "success" ? "✓" : "!"}</text> : null}
+					<text slot="toast-title" grow={1}>{toast.text}</text>
+					{toast.action == null ? null : <view tag="toast-action" slot="toast-action" role="button" focusable onClick={_ -> {
 						Toasts.close(toast);
 						if (toast.onAction != null) toast.onAction();
 					}}>{toast.action}</view>}
-					<view tag="toast-close" slot="sonner-close" role="button" label="Close" focusable onClick={_ -> Toasts.close(toast)}>×</view>
+					<view tag="toast-close" slot="toast-close" role="button" label="Close" focusable onClick={_ -> Toasts.close(toast)}>×</view>
 				</view>}/>
 			</view>
 		</Popover>
