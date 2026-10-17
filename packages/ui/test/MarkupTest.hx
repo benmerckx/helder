@@ -1698,6 +1698,12 @@ class MarkupTest implements Markup {
 			numeric.style.fontVariantNumeric = "tabular";
 			false;
 		} catch (e:Dynamic) true;
+		var slotted:Null<Node> = null, checkedNow = signal("checked");
+		Render.render(<view ref={n -> slotted = n} slot="button" variant="outline" size="sm" data-state={() -> checkedNow.value} data-disabled={true} aria-invalid="true"/>, ui.root);
+		var firstState = slotted.attr("data-state");
+		checkedNow.value = "unchecked";
+		check("render: slot, variant, size and data-/aria- attributes (reactive)", slotted.slot == "button" && slotted.variant == "outline" && slotted.size == "sm"
+			&& firstState == "checked" && slotted.attr("data-state") == "unchecked" && slotted.attr("data-disabled") == "" && slotted.attr("aria-invalid") == "true");
 		var pic:Null<Node> = null;
 		Render.render(<image ref={n -> pic = n} src={new Image(4, 4)} width={10} height={10} fit="contain" object-position="right 2px top"/>, ui.root);
 		var pn:ImageNode = cast pic;

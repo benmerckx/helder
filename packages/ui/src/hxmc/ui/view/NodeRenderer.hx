@@ -20,7 +20,9 @@ import hxmc.ui.*;
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
 // role, label, description, checked, selected, expanded, level, disabled,
-// value-now, value-min, value-max, value-text, hidden). A text node holds
+// value-now, value-min, value-max, value-text, hidden), and what a theme
+// styles it as (Rule: slot, variant, size, data-* and aria-* attributes,
+// data-state="checked"). A text node holds
 // text: its text children are its text, its elements its spans.
 class NodeRenderer implements hxmc.view.Renders<Node> {
 	// intrinsic element names and the nodes they make
@@ -125,6 +127,16 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 				(cast n : TextNode).text = v == null ? "" : Std.string(v);
 			case "tag":
 				n.tag = v;
+			// (what a theme styles it as: Rule)
+			case "slot":
+				n.slot = v == null ? null : Std.string(v);
+			case "variant":
+				n.variant = v == null ? null : Std.string(v);
+			case "size":
+				n.size = v == null ? null : Std.string(v);
+			// (a theme's states: data-state="checked", data-disabled={true}; false or null removes it)
+			case _ if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")):
+				n.setAttr(name, v == null || v == false ? null : v == true ? "" : Std.string(v));
 			case "role":
 				semantics(n).role = role(v);
 			case "label":

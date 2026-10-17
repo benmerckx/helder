@@ -265,6 +265,27 @@ A value that is a signal, a memo or a function is reactive: the attribute,
 text or region follows it. In a `view`, text and text-valued holes next to
 each other become one `TextNode`.
 
+## Themes
+
+The widgets are moving to ship unstyled (behaviour, semantics and the
+geometry their interaction needs), their looks from a theme
+([docs/plans/theme.md](../../docs/plans/theme.md); `@hxmc/theme` is
+shadcn/ui's). A theme is a `StyleSheet`: `rules`, each a `Rule`
+`{slot, ?variant, ?size, ?when, style}`, and the colours its token
+references name, `light` and `dark`. A node takes the rules of its
+`slot` (shadcn's data-slot names: `"button"`, `"switch-thumb"`),
+`variant` and `size` whose states all hold: `hover`, `active`,
+`focus`, `focus-visible`, `disabled`, `dark`, `placeholder` (an
+input's placeholder colour), attributes (`data-state=checked`, a bare
+`data-disabled`; `node.setAttr`, markup `data-state="checked"`). Later
+rules win, property by property; the node's own style wins over them.
+Colours may be token references, `Color.parse("var(--primary)")`,
+`"var(--ring)/50"`, resolved with the sheet's colours when applied;
+`oklch()` and `oklab()` parse as CSS converts them (Chromium's pixels).
+`ui.theme = sheet` installs one for a window, `node.theme` for a subtree,
+`ui.dark` picks the dark colours and the `dark` rules; every change of a
+state, attribute, variant, sheet or of dark applies them again.
+
 ## Fonts
 
 Text is shaped and rasterized by `@hxmc/text` with the system's fonts

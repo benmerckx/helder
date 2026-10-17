@@ -33,6 +33,19 @@ class EditableText extends TextNode {
 		return v;
 	}
 	public var placeholderColor:Color = Color.rgba(0x000000, 0.4);
+	// (the colour before a theme gave one: put back when it takes it away)
+	var ownPlaceholder:Null<Color> = null;
+
+	override function themePlaceholder(c:Null<Color>) {
+		if (c != null) {
+			if (ownPlaceholder == null) ownPlaceholder = placeholderColor;
+			placeholderColor = c;
+		} else if (ownPlaceholder != null) {
+			placeholderColor = ownPlaceholder;
+			ownPlaceholder = null;
+		}
+		if (ui != null) ui.requestFrame();
+	}
 	public var selectionColor:Color = Color.rgba(0x3B82F6, 0.3);
 	public var caretColor:Color = Color.rgb(0x111111);
 	public var onChange:Null<String->Void>;

@@ -39,6 +39,7 @@ class UiTest {
 		events();
 		dirty();
 		paint();
+		themes();
 		images(here);
 		svgs(here);
 		svgApi();
@@ -1235,6 +1236,99 @@ class UiTest {
 		var c = new Recording();
 		ui.paint(c);
 		check("images: painted", c.calls.join("|") == "image 40x20 0 0 40 20 0 0 1 1 0|image 40x20 0 20 100 50 0 0 1 1 0|image 40x20 30 110 40 20 0 0 1 1 12", c.calls.join("|"));
+	}
+
+	// --- themes: rules by slot, variant, size and state; tokens; the node's own style ---
+
+	static function themes() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.alignItems = Start;
+		var sheet:StyleSheet = {
+			rules: [
+				{slot: "button", style: {background: Color.parse("var(--primary)"), radius: 6, padding: 8}},
+				{slot: "button", when: ["hover"], style: {background: Color.parse("var(--primary)/50")}},
+				{slot: "button", variant: "outline", style: {background: Color.TRANSPARENT, borderWidth: 1, borderColor: Color.parse("var(--border)")}},
+				{slot: "button", size: "sm", style: {padding: 4}},
+				{slot: "button", when: ["focus-visible"], style: {shadow: Shadow.parse("0 0 0 3px var(--ring)/50")}},
+				{slot: "button", when: ["dark"], style: {radius: 2}},
+				{slot: "switch", style: {background: Color.parse("var(--input)")}},
+				{slot: "switch", when: ["data-state=checked"], style: {background: Color.parse("var(--primary)")}},
+				{slot: "input", when: ["placeholder"], style: {color: Color.parse("var(--muted-foreground)")}}
+			],
+			light: ["primary" => Color.rgb(0x171717), "border" => Color.rgb(0xE5E5E5), "ring" => Color.rgb(0xA1A1A1), "input" => Color.rgb(0xE5E5E5),
+				"muted-foreground" => Color.rgb(0x737373)],
+			dark: ["primary" => Color.rgb(0xE5E5E5), "border" => Color.rgb(0x262626), "ring" => Color.rgb(0x737373), "input" => Color.rgb(0x333333),
+				"muted-foreground" => Color.rgb(0xA1A1A1)]
+		};
+		var a = new Node("a"), b = new Node("b"), own = new Node("own"), sw = new Node("sw");
+		for (n in [a, b, own, sw]) {
+			n.style.set({width: 30, height: 20});
+			ui.root.append(n);
+		}
+		a.slot = b.slot = own.slot = "button";
+		b.variant = "outline";
+		b.size = "sm";
+		own.style.background = Color.rgb(0xFF0000);
+		sw.slot = "switch";
+		check("themes: no sheet, no style", a.style.background == Color.TRANSPARENT && a.style.radius == 0);
+		ui.theme = sheet;
+		ui.update();
+		check("themes: a slot's rules, tokens resolved", a.style.background == Color.rgb(0x171717) && a.style.radius == 6 && a.style.padding.left == 8);
+		check("themes: a variant's and a size's rules after the slot's", b.style.background == Color.TRANSPARENT && b.style.borderWidth == 1
+			&& b.style.borderColor == Color.rgb(0xE5E5E5) && b.style.padding.left == 4 && b.style.radius == 6);
+		check("themes: the node's own style wins", own.style.background == Color.rgb(0xFF0000) && own.style.radius == 6);
+		// (hover: on and off again)
+		ui.pointerMove(a.absX + 5, a.absY + 5);
+		check("themes: hover, an alpha on the token", a.style.background == Color.rgb(0x171717).fade(0.5), StringTools.hex(a.style.background));
+		ui.pointerMove(190, 90);
+		check("themes: hover left", a.style.background == Color.rgb(0x171717));
+		// (an attribute's state)
+		check("themes: an attribute's state, off", sw.style.background == Color.rgb(0xE5E5E5));
+		sw.setAttr("data-state", "checked");
+		check("themes: data-state=checked", sw.style.background == Color.rgb(0x171717));
+		sw.setAttr("data-state", "unchecked");
+		check("themes: data-state=unchecked", sw.style.background == Color.rgb(0xE5E5E5));
+		// (focus-visible: a ring as a shadow, its token resolved)
+		a.focusable = true;
+		ui.keyDown(Key.TAB, 0);
+		check("themes: focus-visible", ui.focus == a && a.style.shadow != null && a.style.shadow.spread == 3 && a.style.shadow.color == Color.rgb(0xA1A1A1).fade(0.5));
+		ui.pointerDown(190, 90, 1);
+		ui.pointerUp(190, 90, 1);
+		check("themes: no ring after a press", a.style.shadow == null);
+		// (dark: the dark colours, the rules for dark)
+		ui.dark = true;
+		check("themes: dark", a.style.background == Color.rgb(0xE5E5E5) && a.style.radius == 2 && sw.style.background == Color.rgb(0x333333));
+		ui.dark = false;
+		check("themes: light again", a.style.background == Color.rgb(0x171717) && a.style.radius == 6);
+		// (a subtree's own sheet)
+		var other:StyleSheet = {rules: [{slot: "button", style: {background: Color.rgb(0x00FF00)}}]};
+		var box = new Node("box"), inner = new Node("inner");
+		inner.slot = "button";
+		box.append(inner);
+		ui.root.append(box);
+		box.theme = other;
+		check("themes: a subtree's sheet", inner.style.background == Color.rgb(0x00FF00) && inner.style.radius == 0);
+		box.theme = null;
+		check("themes: the window's again", inner.style.background == Color.rgb(0x171717) && inner.style.radius == 6);
+		// (a placeholder's colour)
+		var f = new TextField("");
+		f.slot = "input";
+		ui.root.append(f);
+		check("themes: a placeholder's colour", f.placeholderColor == Color.rgb(0x737373));
+		// (no sheet: what the rules wrote taken back, the node's own kept)
+		ui.theme = null;
+		check("themes: taken back", a.style.background == Color.TRANSPARENT && a.style.radius == 0 && a.style.padding.left == 0 && b.style.borderWidth == 0
+			&& own.style.background == Color.rgb(0xFF0000) && f.placeholderColor == Color.rgba(0, 0.4));
+		// (a change of the node's own after the rules: kept)
+		ui.theme = sheet;
+		a.style.radius = 9;
+		a.variant = "outline";
+		check("themes: a value set over the rules' kept", a.style.radius == 9 && a.style.borderWidth == 1);
+		// (tokens and oklch() in colours)
+		var t = Color.parse("var(--ring)/50");
+		check("themes: token references", t.isToken && t.tokenName() == "ring" && t.tokenAlpha() == 0.5 && !Color.parse("rgba(255, 0, 0, 0)").isToken
+			&& Color.parse("oklch(0.205 0 0)") == Color.rgb(0x171717) && Color.parse("oklch(0.577 0.245 27.325)") == Color.rgb(0xE7000B)
+			&& Color.parse("oklch(1 0 0 / 10%)") == Color.rgba(0xFFFFFF, 0.1));
 	}
 
 	// --- paint ---
