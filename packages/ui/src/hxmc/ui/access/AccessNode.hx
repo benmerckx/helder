@@ -12,6 +12,7 @@ package hxmc.ui.access;
 	public var checked:Null<Bool> = null;
 	public var selected:Null<Bool> = null;
 	public var expanded:Null<Bool> = null;
+	public var level:Null<Int> = null;
 	public var disabled:Bool = false;
 	public var focusable:Bool = false;
 	public var valueNow:Null<Float> = null;
@@ -28,7 +29,7 @@ package hxmc.ui.access;
 	// the same as another (an incremental update leaves it out)
 	public function equals(o:AccessNode):Bool {
 		if (o.role != role || o.name != name || o.description != description || o.value != value || o.checked != checked || o.selected != selected
-			|| o.expanded != expanded || o.disabled != disabled || o.focusable != focusable || o.valueNow != valueNow || o.valueMin != valueMin
+			|| o.expanded != expanded || o.level != level || o.disabled != disabled || o.focusable != focusable || o.valueNow != valueNow || o.valueMin != valueMin
 			|| o.valueMax != valueMax || o.valueText != valueText || o.x != x || o.y != y || o.width != width || o.height != height
 			|| o.children.length != children.length)
 			return false;
@@ -45,6 +46,7 @@ package hxmc.ui.access;
 		if (checked != null) o.checked = checked;
 		if (selected != null) o.selected = selected;
 		if (expanded != null) o.expanded = expanded;
+		if (level != null) o.level = level;
 		if (disabled) o.disabled = true;
 		if (focusable) o.focusable = true;
 		if (valueNow != null) o.valueNow = valueNow;

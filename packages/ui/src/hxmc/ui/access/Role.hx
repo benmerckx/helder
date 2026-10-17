@@ -37,6 +37,9 @@ enum abstract Role(Int) to Int {
 	var Row;
 	var Cell;
 	var ColumnHeader;
+	// a tree of items (Semantics.level: an item's depth, from 1)
+	var Tree;
+	var TreeItem;
 
 	// the ARIA role of each (the browser's mirror)
 	public function aria():String
@@ -71,13 +74,15 @@ enum abstract Role(Int) to Int {
 			case Row: "row";
 			case Cell: "gridcell";
 			case ColumnHeader: "columnheader";
+			case Tree: "tree";
+			case TreeItem: "treeitem";
 		}
 
 	// a role whose name comes from its contents' text (ARIA's "name from
 	// content"): that text is not a node of its own
 	public function namedByContent():Bool
 		return switch (cast this : Role) {
-			case Button | CheckBox | Switch | RadioButton | Tab | Link | Heading | ListItem | MenuItem | ListBoxOption | Tooltip | Row | Cell | ColumnHeader: true;
+			case Button | CheckBox | Switch | RadioButton | Tab | Link | Heading | ListItem | MenuItem | ListBoxOption | Tooltip | Row | Cell | ColumnHeader | TreeItem: true;
 			case _: false;
 		}
 }

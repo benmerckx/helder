@@ -344,6 +344,21 @@ static function People(props:{people:Array<Person>, onOpen:Person->Void}):Esx
 	]}/>;
 ```
 
+## Trees
+
+A `Tree` shows items under their parents: give it the roots, how to find
+an item's children (none: a leaf) and what an item shows. Items open and
+close by a click on their triangle, a double click, or the Right and Left
+keys; Enter or a double click on a leaf activates it. `expanded` is a
+signal of the open items, for keeping or setting them:
+
+```haxe
+typedef Entry = {name:String, ?children:Array<Entry>};
+
+static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):Esx
+	return <Tree tag="files" roots={props.root} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} height={200} label="Files" onActivate={props.onOpen}/>;
+```
+
 ## Keyboard shortcuts
 
 A `Hotkey` runs its action when its keys are pressed anywhere in the

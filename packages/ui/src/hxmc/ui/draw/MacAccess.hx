@@ -221,6 +221,9 @@ class MacAccess {
 			case Table: "AXTable";
 			case Row: "AXRow";
 			case Cell | ColumnHeader: "AXCell";
+			// (an outline's rows, as AppKit's outline views have them)
+			case Tree: "AXOutline";
+			case TreeItem: "AXRow";
 		}
 
 	// --- the classes' methods ---

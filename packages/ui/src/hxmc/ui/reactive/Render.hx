@@ -24,7 +24,7 @@ import hxmc.ui.reactive.Memo;
 // onPointerEnter, onPointerLeave, onWheel, onKeyDown, onKeyUp,
 // onTextInput, onComposition, onFocus, onBlur: Event -> Void), focusable, ref (a
 // function given the node), and what the node is to assistive technology
-// (Semantics: role, label, description, checked, selected, expanded,
+// (Semantics: role, label, description, checked, selected, expanded, level,
 // disabled, value-now, value-min, value-max, value-text, hidden). A Signal, Memo or function as a value (but an
 // event's) is bound: set again when it changes. In a view, a run of text
 // and holes whose values are text becomes one TextNode (reactive if one of
@@ -291,6 +291,8 @@ class Render {
 				semantics(n).selected = v == null ? null : v == true || v == "true";
 			case "expanded":
 				semantics(n).expanded = v == null ? null : v == true || v == "true";
+			case "level":
+				semantics(n).level = v == null ? null : Std.int(number(v));
 			case "disabled":
 				semantics(n).disabled = v == true || v == "true";
 			case "value-now" | "valueNow":
@@ -347,7 +349,8 @@ class Render {
 
 	static final ROLES:Array<hxmc.ui.access.Role> = [
 		Group, Button, CheckBox, Switch, RadioGroup, RadioButton, Slider, ProgressIndicator, TextInput, Label, Image, TabList, Tab, TabPanel, ScrollView,
-		List, ListItem, Heading, Link, Dialog, Menu, MenuItem, ListBox, ListBoxOption, ComboBox, Tooltip, Table, Row, Cell, ColumnHeader
+		List, ListItem, Heading, Link, Dialog, Menu, MenuItem, ListBox, ListBoxOption, ComboBox, Tooltip, Table, Row, Cell, ColumnHeader,
+		Tree, TreeItem
 	];
 
 	static function event(n:Node, name:String, v:Dynamic) {

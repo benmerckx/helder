@@ -13,6 +13,7 @@ import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Table;
+import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
 
@@ -39,6 +40,7 @@ class ReactiveTest implements Markup {
 		popovers();
 		virtual();
 		table();
+		tree();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -348,6 +350,64 @@ class ReactiveTest implements Markup {
 		check("table: a double click activates", opened.join(",") == "file188,file199", opened.join(","));
 		var tree = ui.accessTree(), roles = [for (id in tree.order) tree.nodes.get(id).role];
 		check("table: a grid of rows, column headers and cells", roles.indexOf(Table) >= 0 && roles.indexOf(ColumnHeader) >= 0 && roles.indexOf(Row) >= 0 && roles.indexOf(Cell) >= 0);
+		Ui.now = haxe.Timer.stamp;
+	}
+
+	static function tree() {
+		var ui = new Ui(new MonoText(), 300, 300);
+		ui.root.style.fontSize = 10;
+		var kids = ["src" => ["main", "ui"], "ui" => ["Node", "Style"], "docs" => ["guide"]];
+		var picked:Signal<Null<String>> = signal(null), open:Signal<Array<String>> = signal([]), opened = [];
+		Render.render(<view padding={10}><Tree tag="tr" roots={["src", "docs", "README"]} children={(s:String) -> kids.get(s)} render={(s:String) -> s}
+			expanded={open} selected={picked} height={200} rowHeight={20} label="Files" onActivate={s -> opened.push(s)}/></view>, ui.root);
+		ui.update();
+		var list = ui.root.find("tr-rows");
+		function items():Array<Node>
+			return [for (c in list.children) if (c.tag == "row" && c.children.length > 0 && c.children[0].children.length > 1) c.children[0]];
+		function shown():String
+			return [for (r in items()) {
+				var label = r.children[1];
+				var t = Std.isOfType(label, TextNode) ? (cast label : TextNode).text : "?";
+				(r.semantics.level > 1 ? "  " : "") + (r.semantics.expanded == true ? "-" : r.semantics.expanded == false ? "+" : "") + t;
+			}].join(",");
+		check("tree: the roots, closed", shown() == "+src,+docs,README", shown());
+		function click(n:Node) {
+			ui.update();
+			ui.pointerDown(n.absX + 2, n.absY + 2, 1);
+			ui.pointerUp(n.absX + 2, n.absY + 2, 1);
+			ui.update();
+		}
+		click(items()[0].children[0]);
+		check("tree: its triangle opens an item, without selecting it", shown() == "-src,  main,  +ui,+docs,README" && picked.value == null, shown());
+		var t = 0.0;
+		Ui.now = () -> t;
+		click(items()[1]);
+		check("tree: a click selects", picked.value == "main", "" + picked.value);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		check("tree: Down, then Right opens", picked.value == "ui" && shown() == "-src,  main,  -ui,  Node,  Style,+docs,README", shown());
+		ui.keyDown(Key.RIGHT, 0);
+		ui.keyDown(Key.ENTER, 0);
+		check("tree: Right again, its first child; Enter activates a leaf", picked.value == "Node" && opened.join(",") == "Node", picked.value + " " + opened.join(","));
+		ui.keyDown(Key.LEFT, 0);
+		check("tree: Left on a leaf, its parent", picked.value == "ui");
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("tree: Left on an open item closes it", picked.value == "ui" && shown() == "-src,  main,  +ui,+docs,README", shown());
+		ui.keyDown(Key.END, 0);
+		check("tree: End, the last row", picked.value == "README");
+		var docs = items()[3];
+		t = 10;
+		click(docs);
+		t = 10.2;
+		click(docs);
+		check("tree: a double click opens an item", shown() == "-src,  main,  +ui,-docs,  guide,README" && open.value.indexOf("docs") >= 0, shown());
+		var tree = ui.accessTree(), roles = [for (id in tree.order) tree.nodes.get(id).role];
+		var levels = [for (id in tree.order) if (tree.nodes.get(id).role == TreeItem) tree.nodes.get(id).level];
+		check("tree: a tree of items with their levels", roles.indexOf(Tree) >= 0 && levels.join(",") == "1,2,2,1,2,1", levels.join(","));
+		var item = [for (id in tree.order) if (tree.nodes.get(id).role == TreeItem) tree.nodes.get(id)][0];
+		check("tree: an item named by its text, not its triangle", item.name == "src" && item.expanded == true, item.name);
 		Ui.now = haxe.Timer.stamp;
 	}
 

@@ -11,6 +11,7 @@ import UiTest.Recording;
 // The examples of packages/ui/GUIDE.md, compiled and run on Eval (make
 // ui-check): what the guide shows works as it says. Keep the two in step.
 typedef Person = {name:String, age:Int};
+typedef Entry = {name:String, ?children:Array<Entry>};
 
 class GuideTest implements Markup {
 	static var checks = 0;
@@ -38,6 +39,7 @@ class GuideTest implements Markup {
 		shortcuts();
 		icons();
 		tables();
+		trees();
 		dragAndDrop();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
@@ -384,6 +386,20 @@ class GuideTest implements Markup {
 		ui.keyDown(Key.DOWN, 0);
 		ui.keyDown(Key.ENTER, 0);
 		check("tables: sorted by age, the first row opened", opened.join(",") == "Ann", opened.join(","));
+	}
+
+	// "Trees"
+	static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):Esx
+		return <Tree tag="files" roots={props.root} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} height={200} label="Files" onActivate={props.onOpen}/>;
+
+	static function trees() {
+		var ui = window(), opened = [];
+		Render.render(<Files root={[{name: "src", children: [{name: "Main.hx"}]}, {name: "README.md"}]} onOpen={e -> opened.push(e.name)}/>, ui.root);
+		ui.update();
+		ui.setFocus(ui.root.find("files"));
+		for (k in [Key.DOWN, Key.RIGHT, Key.RIGHT, Key.ENTER])
+			ui.keyDown(k, 0);
+		check("trees: a folder opened, its file opened", opened.join(",") == "Main.hx", opened.join(","));
 	}
 
 	// "Keyboard shortcuts"

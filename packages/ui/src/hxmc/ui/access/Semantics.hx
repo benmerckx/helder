@@ -2,7 +2,7 @@ package hxmc.ui.access;
 
 // What a node declares about itself for assistive technology (Node.semantics;
 // in markup, the attributes role, label, description, checked, selected,
-// expanded, disabled, value-now, value-min, value-max, value-text,
+// expanded, level, disabled, value-now, value-min, value-max, value-text,
 // hidden). Unset
 // fields say nothing: a TextNode is a Label of its text, an ImageNode an
 // Image, a focusable node a Group.
@@ -14,6 +14,8 @@ package hxmc.ui.access;
 	public var checked:Null<Bool> = null;
 	public var selected:Null<Bool> = null;
 	public var expanded:Null<Bool> = null;
+	// a tree item's depth (from 1)
+	public var level:Null<Int> = null;
 	public var disabled:Bool = false;
 	// a range's value (Slider, ProgressIndicator) and bounds, and its text
 	public var valueNow:Null<Float> = null;

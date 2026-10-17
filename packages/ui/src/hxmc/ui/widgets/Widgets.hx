@@ -9,6 +9,9 @@ import hxmc.ui.reactive.Signal;
 import hxmc.ui.reactive.Motion;
 import hxmc.ui.reactive.Flow.*;
 
+// a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
+typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
+
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
 // hxmc.ui.reactive, styled plainly (props override the look), in
 // Theme.current's colours; their colours and the switch's knob move with
@@ -257,6 +260,116 @@ class Widgets implements Markup {
 					]}</view>;
 				}}/>
 			</view>
+		</view>;
+	}
+
+	// a tree: the roots' rows and, under each open item, its children's,
+	// indented by level, a triangle on the items with children
+	// (children(item): null or empty, a leaf); the rows are a VirtualList's
+	// (only those in view are made). A click selects an item (selected), a
+	// click on its triangle opens or closes it, as a double click does (on a
+	// leaf, it activates it: onActivate, as Enter does); Up and Down move
+	// the selection, Right opens an item or moves to its first child, Left
+	// closes it or moves to its parent, Home and End, the view following.
+	// roots: an array, or a signal or function of one; expanded: the open
+	// items (none by default); height: the whole tree's.
+	public static function Tree<T>(props:{roots:Dynamic, children:T->Null<Array<T>>, render:T->Any, ?expanded:Signal<Array<T>>,
+			?selected:Signal<Null<T>>, ?onActivate:T->Void, ?height:Float, ?rowHeight:Float, ?label:String, ?tag:String}):Esx {
+		var tag = props.tag ?? "tree", rh = props.rowHeight ?? 26.0, h = props.height ?? 240.0;
+		var selected:Signal<Null<T>> = props.selected ?? signal(null);
+		var expanded:Signal<Array<T>> = props.expanded ?? signal([]);
+		var rows = memo(() -> {
+			var out:Array<TreeRow<T>> = [], open = expanded.value;
+			function add(items:Null<Array<T>>, level:Int, parent:Int) {
+				if (items == null) return;
+				for (it in items) {
+					var kids = props.children(it);
+					var leaf = kids == null || kids.length == 0;
+					var isOpen = !leaf && open.indexOf(it) >= 0;
+					out.push({item: it, level: level, parent: parent, leaf: leaf, open: isOpen});
+					if (isOpen) add(kids, level + 1, out.length - 1);
+				}
+			}
+			add(Render.read(props.roots), 1, -1);
+			return out;
+		});
+		function setOpen(it:T, open:Bool) {
+			var cur = expanded.peek(), i = cur.indexOf(it);
+			if (open == (i >= 0)) return;
+			var next = cur.copy();
+			if (open) next.push(it) else next.splice(i, 1);
+			expanded.value = next;
+		}
+		function indexOf(it:Null<T>):Int {
+			var rs = rows.peek();
+			if (it != null)
+				for (i in 0...rs.length)
+					if (rs[i].item == it) return i;
+			return -1;
+		}
+		var body:Null<Node> = null;
+		// (a row's index brought into the view)
+		function show(i:Int) {
+			var list = body == null ? null : body.find(tag + "-rows");
+			if (list == null || list.ui == null) return;
+			var top = i * rh, view = list.height;
+			if (top < list.scrollY) list.ui.scrollTo(list, 0, top) else if (top + rh > list.scrollY + view) list.ui.scrollTo(list, 0, top + rh - view);
+		}
+		function activate(r:Null<TreeRow<T>>) {
+			if (r == null) return;
+			if (!r.leaf) setOpen(r.item, !r.open) else if (props.onActivate != null) props.onActivate(r.item);
+		}
+		var lastClick:Null<T> = null, lastAt = -1e9;
+		function click(r:TreeRow<T>) {
+			var now = Ui.now();
+			if (lastClick == r.item && now - lastAt < 0.45) activate(r);
+			lastClick = r.item;
+			lastAt = now;
+			selected.value = r.item;
+		}
+		function key(e:Event) {
+			var rs = rows.peek(), i = indexOf(selected.peek()), j = i;
+			switch e.key {
+				case Key.DOWN: j = i < 0 ? 0 : i + 1;
+				case Key.UP: j = i < 0 ? 0 : i - 1;
+				case Key.HOME: j = 0;
+				case Key.END: j = rs.length - 1;
+				case Key.RIGHT:
+					if (i >= 0 && !rs[i].leaf) {
+						if (!rs[i].open) setOpen(rs[i].item, true) else j = i + 1;
+					}
+				case Key.LEFT:
+					if (i >= 0) {
+						if (rs[i].open) setOpen(rs[i].item, false) else if (rs[i].parent >= 0) j = rs[i].parent;
+					}
+				case Key.ENTER:
+					if (i >= 0) activate(rs[i]);
+				case _: return;
+			}
+			e.stop();
+			if (rs.length == 0 || j == i) return;
+			j = j < 0 ? 0 : j >= rs.length ? rs.length - 1 : j;
+			selected.value = rs[j].item;
+			show(j);
+		}
+		return <view tag={tag} role="tree" label={props.label} focusable ref={n -> body = n} onKeyDown={key} height={h} radius={6} border-width={1}
+			border-color={() -> t().borderMuted} overflow="hidden" background={() -> t().control} color={() -> t().text}>
+			<VirtualList each={rows} itemHeight={rh} height={h - 2} tag={tag + "-rows"} render={(row:Signal<TreeRow<T>>, i:Int) -> {
+				var hover = signal(false);
+				var on = () -> row.value != null && selected.value == row.value.item;
+				<view tag={tag + "-item"} role="treeitem" level={() -> row.value == null ? null : row.value.level}
+					expanded={() -> row.value == null || row.value.leaf ? null : row.value.open} selected={on} direction="row" align-items="center"
+					column-gap={4} height={rh} padding={() -> '0 8 0 ${row.value == null ? 0 : 6 + (row.value.level - 1) * 16}'}
+					background={() -> on() ? t().itemSelected : hover.value ? t().itemHover : Theme.clear(t().control)}
+					onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
+					onClick={_ -> if (row.value != null) click(row.value)}>
+					<view tag={tag + "-toggle"} width={14} align-items="center" cursor="pointer" onClick={e -> if (row.value != null && !row.value.leaf) {
+						setOpen(row.value.item, !row.value.open);
+						e.stop();
+					}}><text hidden color={() -> t().muted}>{() -> row.value == null || row.value.leaf ? "" : row.value.open ? "▾" : "▸"}</text></view>
+					{() -> row.value == null ? null : props.render(row.value.item)}
+				</view>;
+			}}/>
 		</view>;
 	}
 

@@ -81,6 +81,7 @@ class AccessTree {
 				a.checked = sem.checked;
 				a.selected = sem.selected;
 				a.expanded = sem.expanded;
+				a.level = sem.level;
 				a.disabled = sem.disabled;
 				a.valueNow = sem.valueNow;
 				a.valueMin = sem.valueMin;
@@ -108,7 +109,8 @@ class AccessTree {
 	static function textOf(n:Node):String {
 		var parts = [];
 		function walk(m:Node) {
-			if (m.style.display == None) return;
+			// (hidden text, a decoration such as a menu's triangle, is not part of the name)
+			if (m.style.display == None || m.semantics != null && m.semantics.hidden) return;
 			if (Std.isOfType(m, TextNode)) {
 				var t = StringTools.trim((cast m : TextNode).allText());
 				if (t != "") parts.push(t);

@@ -73,6 +73,7 @@ export default function (host) {
 		set('aria-checked', n.checked);
 		set('aria-selected', n.selected);
 		set('aria-expanded', n.expanded);
+		set('aria-level', n.level);
 		set('aria-disabled', n.disabled ? 'true' : null);
 		set('aria-valuenow', n.valueNow);
 		set('aria-valuemin', n.valueMin);
