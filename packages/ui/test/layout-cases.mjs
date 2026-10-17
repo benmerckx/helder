@@ -107,4 +107,16 @@ export const cases = [
 		children: [{ style: { gridArea: 'c' } }, {}, { style: { gridArea: 'a' } }, {}, {}] } },
 	{ name: 'grid area lines by name', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '40px', gridTemplateAreas: "'x x y' 'z . y'" },
 		children: [{ style: { gridColumn: 'x-start / y-end', gridRow: '2' } }, { style: { gridColumn: 'y', gridRow: 'x' } }, { style: { gridColumn: 'z / 3' } }, { style: { gridColumn: 'nowhere' } }, { style: { gridArea: '1 / 2 / 3' } }] } },
+	// reversed directions with margins on one side; right to left (dir: CSS's direction)
+	{ name: 'row reverse, one-sided margins', width: 300, height: 60, tree: { style: { direction: 'RowReverse' }, children: [box(40, 20, { margin: [0, 0, 0, 10] }), box(50, 20, { margin: [0, 20, 0, 0] })] } },
+	{ name: 'column reverse, one-sided margins', width: 100, height: 200, tree: { style: { direction: 'ColumnReverse' }, children: [box(40, 20, { margin: [5, 0, 0, 0] }), box(50, 20, { margin: [0, 0, 15, 0] })] } },
+	{ name: 'rtl row', width: 300, height: 60, tree: { style: { direction: 'Row', dir: 'Rtl', padding: [0, 12, 0, 4], columnGap: 6 }, children: [box(40, 20, { margin: [0, 0, 0, 10] }), box(50, 20, { margin: [0, 8, 0, 0] }), grow(1, { height: 10, maxWidth: 30 })] } },
+	{ name: 'rtl row justified', width: 300, height: 60, tree: { style: { direction: 'Row', dir: 'Rtl', justify: 'SpaceBetween' }, children: [box(40, 20), box(50, 20), box(30, 20)] } },
+	{ name: 'rtl row reverse', width: 300, height: 60, tree: { style: { direction: 'RowReverse', dir: 'Rtl' }, children: [box(40, 20, { margin: [0, 0, 0, 10] }), box(50, 20)] } },
+	{ name: 'rtl column', width: 200, height: 200, tree: { style: { dir: 'Rtl', alignItems: 'Start', padding: [4, 20, 4, 6] }, children: [box(40, 20, { margin: [0, 0, 0, 10] }), box(60, 20, { margin: [0, 5, 0, 0] }), box(30, 20, { alignSelf: 'Center' }), box(30, 20, { alignSelf: 'End' }), h(20)] } },
+	{ name: 'rtl wrap', width: 200, height: 200, tree: { style: { direction: 'Row', wrap: true, dir: 'Rtl', rowGap: 4, columnGap: 4 }, children: [box(80, 20), box(80, 30), box(80, 20), box(30, 20)] } },
+	{ name: 'rtl inherited', width: 300, height: 100, tree: { style: { dir: 'Rtl' }, children: [{ style: { direction: 'Row', height: 40 }, children: [box(40, 20), box(50, 20)] }, { style: { direction: 'Row', dir: 'Ltr', height: 40 }, children: [box(40, 20), box(50, 20)] }] } },
+	{ name: 'rtl grid', width: 300, height: 200, tree: { style: { display: 'Grid', dir: 'Rtl', gridTemplateColumns: '60px 1fr 80px', gridAutoRows: '40px', columnGap: 5, padding: [0, 10, 0, 0] },
+		children: [{}, { style: { gridColumn: '2 / 4' } }, box(30, 20, { justifySelf: 'Start' }), box(30, 20, { justifySelf: 'End', margin: [0, 0, 0, 6] })] } },
+	{ name: 'rtl absolute static position', width: 300, height: 200, tree: { style: { dir: 'Rtl', padding: [10, 15, 10, 5], borderWidth: 2 }, children: [h(30), box(40, 40, { position: 'Absolute', margin: [0, 6, 0, 0] }), box(40, 40, { position: 'Absolute', left: 10, top: 50 })] } },
 ];

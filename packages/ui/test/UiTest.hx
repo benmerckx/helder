@@ -1142,6 +1142,7 @@ class UiTest {
 			case "borders": s.borders = (v : Array<Float>);
 			case "padding": s.padding = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
 			case "margin": s.margin = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
+			case "dir": s.dir = v == "Rtl" ? Rtl : Ltr;
 			case "direction": s.direction = switch (v : String) {
 					case "Row": Row;
 					case "RowReverse": RowReverse;

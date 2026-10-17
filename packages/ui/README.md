@@ -45,7 +45,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     `shrink`, `basis`, `width`, `height`, min and max, `aspectRatio`,
     `padding`, `margin`, `borderWidth`, `rowGap`, `columnGap`, `position`
     (Absolute with `left`, `top`, `right`, `bottom`), `overflow` (Hidden,
-    Scroll). Sizes are border boxes. Items get CSS's automatic minimum
+    Scroll), `dir` (Rtl: rows from the right, columns' items across
+    from the right, grids' columns from the right, text aligned right by
+    default; inherited; margins and padding stay physical; scrolling
+    still starts at the left). Sizes are border boxes. Items get CSS's automatic minimum
     size, so content is not squashed. `display: Grid` lays children out
     on CSS grid tracks instead: `gridTemplateColumns` and
     `gridTemplateRows` (px, %, fr, auto, min-content, max-content,
@@ -55,8 +58,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     lines, an area's name) or `gridArea`, or auto-placed, aligned by
     `justifyItems`, `justifySelf`, `alignItems`, `alignSelf`, the tracks
     by `justify` and `alignContent` (no other named lines, no subgrid,
-    no dense packing). Checked against Chromium on 89 cases, 29 of them
-    grids.
+    no dense packing). Checked against Chromium on 102 cases, 30 of them
+    grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the

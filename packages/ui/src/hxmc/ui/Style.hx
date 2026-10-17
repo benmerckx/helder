@@ -172,6 +172,11 @@ class Style {
 
 	public var textAlign(default, set):Null<TextAlign> = null;
 
+	// the inline direction, inherited (null: the parent's; Ltr at the root):
+	// Rtl mirrors rows, columns' cross axis, grids' columns and text's
+	// default alignment; margins, padding and offsets stay physical
+	public var dir(get, set):Null<Dir>;
+
 	// a text's lines at most (0: any), the last ending in an ellipsis when cut (CSS's line-clamp; not inherited)
 	public var maxLines(get, set):Int;
 
@@ -252,6 +257,9 @@ class Style {
 	inline function get_maxLines():Int
 		return rare == null ? 0 : rare.maxLines;
 
+	inline function get_dir():Null<Dir>
+		return rare == null ? null : rare.dir;
+
 	inline function get_textDecoration():Int
 		return rare == null ? 0 : rare.textDecoration;
 
@@ -313,6 +321,15 @@ class Style {
 		if (v == alignSelf) return v;
 		alignSelf = v;
 		node.styleChanged(true);
+		return v;
+	}
+
+	function set_dir(v:Null<Dir>):Null<Dir> {
+		if (v == dir) return v;
+		more().dir = v;
+		node.styleChanged(true);
+		// (inherited: every container under it lays out again)
+		@:privateAccess node.dirChanged();
 		return v;
 	}
 
@@ -767,6 +784,7 @@ class Style {
 		if (p.letterSpacing != null) letterSpacing = p.letterSpacing;
 		if (p.wordSpacing != null) wordSpacing = p.wordSpacing;
 		if (p.textAlign != null) textAlign = p.textAlign;
+		if (p.dir != null) dir = p.dir;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.maxLines != null) maxLines = p.maxLines;
 		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
@@ -807,6 +825,7 @@ private class StyleRare {
 	public var letterSpacing:Null<Float> = null;
 	public var wordSpacing:Null<Float> = null;
 	public var maxLines:Int = 0;
+	public var dir:Null<Dir> = null;
 	public var textDecoration:Int = 0;
 	public var left:Dim = DimValue.Auto;
 	public var top:Dim = DimValue.Auto;

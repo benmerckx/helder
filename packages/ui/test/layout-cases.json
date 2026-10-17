@@ -2753,5 +2753,440 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "row reverse, one-sided margins",
+		"width": 300,
+		"height": 60,
+		"tree": {
+			"style": {
+				"direction": "RowReverse"
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20,
+						"margin": [
+							0,
+							0,
+							0,
+							10
+						]
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 20,
+						"margin": [
+							0,
+							20,
+							0,
+							0
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "column reverse, one-sided margins",
+		"width": 100,
+		"height": 200,
+		"tree": {
+			"style": {
+				"direction": "ColumnReverse"
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20,
+						"margin": [
+							5,
+							0,
+							0,
+							0
+						]
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 20,
+						"margin": [
+							0,
+							0,
+							15,
+							0
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl row",
+		"width": 300,
+		"height": 60,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"dir": "Rtl",
+				"padding": [
+					0,
+					12,
+					0,
+					4
+				],
+				"columnGap": 6
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20,
+						"margin": [
+							0,
+							0,
+							0,
+							10
+						]
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 20,
+						"margin": [
+							0,
+							8,
+							0,
+							0
+						]
+					}
+				},
+				{
+					"style": {
+						"grow": 1,
+						"height": 10,
+						"maxWidth": 30
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl row justified",
+		"width": 300,
+		"height": 60,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"dir": "Rtl",
+				"justify": "SpaceBetween"
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 20
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl row reverse",
+		"width": 300,
+		"height": 60,
+		"tree": {
+			"style": {
+				"direction": "RowReverse",
+				"dir": "Rtl"
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20,
+						"margin": [
+							0,
+							0,
+							0,
+							10
+						]
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl column",
+		"width": 200,
+		"height": 200,
+		"tree": {
+			"style": {
+				"dir": "Rtl",
+				"alignItems": "Start",
+				"padding": [
+					4,
+					20,
+					4,
+					6
+				]
+			},
+			"children": [
+				{
+					"style": {
+						"width": 40,
+						"height": 20,
+						"margin": [
+							0,
+							0,
+							0,
+							10
+						]
+					}
+				},
+				{
+					"style": {
+						"width": 60,
+						"height": 20,
+						"margin": [
+							0,
+							5,
+							0,
+							0
+						]
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"alignSelf": "Center"
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"alignSelf": "End"
+					}
+				},
+				{
+					"style": {
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl wrap",
+		"width": 200,
+		"height": 200,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"wrap": true,
+				"dir": "Rtl",
+				"rowGap": 4,
+				"columnGap": 4
+			},
+			"children": [
+				{
+					"style": {
+						"width": 80,
+						"height": 20
+					}
+				},
+				{
+					"style": {
+						"width": 80,
+						"height": 30
+					}
+				},
+				{
+					"style": {
+						"width": 80,
+						"height": 20
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl inherited",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"dir": "Rtl"
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"height": 40
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"dir": "Ltr",
+						"height": 40
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 20
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl grid",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"dir": "Rtl",
+				"gridTemplateColumns": "60px 1fr 80px",
+				"gridAutoRows": "40px",
+				"columnGap": 5,
+				"padding": [
+					0,
+					10,
+					0,
+					0
+				]
+			},
+			"children": [
+				{},
+				{
+					"style": {
+						"gridColumn": "2 / 4"
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"justifySelf": "Start"
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 20,
+						"justifySelf": "End",
+						"margin": [
+							0,
+							0,
+							0,
+							6
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "rtl absolute static position",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"dir": "Rtl",
+				"padding": [
+					10,
+					15,
+					10,
+					5
+				],
+				"borderWidth": 2
+			},
+			"children": [
+				{
+					"style": {
+						"height": 30
+					}
+				},
+				{
+					"style": {
+						"width": 40,
+						"height": 40,
+						"position": "Absolute",
+						"margin": [
+							0,
+							6,
+							0,
+							0
+						]
+					}
+				},
+				{
+					"style": {
+						"width": 40,
+						"height": 40,
+						"position": "Absolute",
+						"left": 10,
+						"top": 50
+					}
+				}
+			]
+		}
 	}
 ]

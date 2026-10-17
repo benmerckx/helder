@@ -117,6 +117,11 @@ class Layout {
 		var s = n.style;
 		var row = s.direction == Row || s.direction == RowReverse;
 		var reverse = s.direction == RowReverse || s.direction == ColumnReverse;
+		// (placed from the far side: a reversed direction, and right to left the
+		// inline axis, a row's main and a column's cross; each item's margins
+		// on its own sides)
+		var rtl = n.rtl();
+		var flipMain = row ? reverse != rtl : reverse, flipCross = !row && rtl;
 		// the content box, known or available, on each axis
 		var innerW = known(w) ? Math.max(0, w - padH) : Math.NaN, innerH = known(h) ? Math.max(0, h - padV) : Math.NaN;
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
@@ -143,10 +148,10 @@ class Layout {
 			}
 			var it = takeItem(c);
 			var m = cs.margin;
-			it.mMainStart = row ? m.left : m.top;
-			it.mMainEnd = row ? m.right : m.bottom;
-			it.mCrossStart = row ? m.top : m.left;
-			it.mCrossEnd = row ? m.bottom : m.right;
+			it.mMainStart = row ? (flipMain ? m.right : m.left) : (flipMain ? m.bottom : m.top);
+			it.mMainEnd = row ? (flipMain ? m.left : m.right) : (flipMain ? m.top : m.bottom);
+			it.mCrossStart = row ? m.top : (flipCross ? m.right : m.left);
+			it.mCrossEnd = row ? m.bottom : (flipCross ? m.left : m.right);
 			it.minMain = min(row ? cs.minWidth : cs.minHeight, innerMain);
 			it.maxMain = max(row ? cs.maxWidth : cs.maxHeight, innerMain);
 			it.minCross = min(row ? cs.minHeight : cs.minWidth, innerCross);
@@ -318,7 +323,8 @@ class Layout {
 					case Center: it.mCrossStart + (l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2;
 					case _: it.mCrossStart;
 				}
-				if (reverse) mainPos = mainSize - mainPos - it.main;
+				if (flipMain) mainPos = mainSize - mainPos - it.main;
+				if (flipCross) crossPos = crossSize - crossPos - it.cross;
 				var c = it.node;
 				var cx = padL + (row ? mainPos : crossPos), cy = padT + (row ? crossPos : mainPos);
 				var cwid = row ? it.main : it.cross, chei = row ? it.cross : it.main;
@@ -370,7 +376,7 @@ class Layout {
 	// placed by their names), no other named lines, no subgrid.
 	function grid(n:Node, w:Float, h:Float, availW:Float, availH:Float, minW:Float, maxW:Float, minH:Float, maxH:Float, padL:Float, padT:Float,
 			padH:Float, padV:Float, perform:Bool) {
-		var s = n.style;
+		var s = n.style, rtl = n.rtl();
 		var innerW = known(w) ? Math.max(0, w - padH) : Math.NaN, innerH = known(h) ? Math.max(0, h - padV) : Math.NaN;
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
 		var availInH = known(innerH) ? innerH : known(availH) ? Math.max(0, availH - padV) : Math.NaN;
@@ -464,11 +470,13 @@ class Layout {
 					ih = clamp(rh, minCH, maxCH);
 				}
 			}
-			var x = ax + m.left + switch jx {
+			// (right to left: the columns from the right, each item's margins on its own sides)
+			var x = ax + (rtl ? m.right : m.left) + switch jx {
 				case End: roomW - iw;
 				case Center: (roomW - iw) / 2;
 				case _: 0;
 			}
+			if (rtl) x = width - x - iw;
 			var y = ay + m.top + switch jy {
 				case End: roomH - ih;
 				case Center: (roomH - ih) / 2;
@@ -867,6 +875,7 @@ class Layout {
 	function absolutes(n:Node, absolute:Array<Node>, bw:Float, bh:Float, padL:Float, padT:Float) {
 		var s = n.style;
 		var be = s.borderEdges, pbW = bw - be.left - be.right, pbH = bh - be.top - be.bottom;
+		var rtl = n.rtl();
 		for (c in absolute) {
 			var cs = c.style, m = cs.margin;
 			var l = cs.left.resolve(pbW), r = cs.right.resolve(pbW), t = cs.top.resolve(pbH), b = cs.bottom.resolve(pbH);
@@ -880,7 +889,8 @@ class Layout {
 				aw = rw;
 				ah = rh;
 			}
-			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : padL - be.left + m.left;
+			// (neither offset: where its content box starts, the right right to left)
+			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : rtl ? pbW - s.padding.right - aw - m.right : padL - be.left + m.left;
 			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : padT - be.top + m.top;
 			c.lx = be.left + ax;
 			c.ly = be.top + ay;

@@ -453,6 +453,14 @@ class Node {
 		} else if (ui != null) ui.requestFrame();
 	}
 
+	// (the direction changed above: the descendants laid out again)
+	function dirChanged() {
+		for (c in children) {
+			c.markDirty();
+			c.dirChanged();
+		}
+	}
+
 	function inheritedChanged() {
 		fontCache = null;
 		if (hasContent()) markDirty();
@@ -501,7 +509,18 @@ class Node {
 			if (n.style.textAlign != null) return n.style.textAlign;
 			n = n.parent;
 		}
-		return Left;
+		return rtl() ? Right : Left;
+	}
+
+	// whether its inline direction is right to left (Style.dir, inherited)
+	public function rtl():Bool {
+		var n = this;
+		while (n != null) {
+			var d = n.style.dir;
+			if (d != null) return d == Rtl;
+			n = n.parent;
+		}
+		return false;
 	}
 
 	// a window position in this node's coordinates (from its border box's

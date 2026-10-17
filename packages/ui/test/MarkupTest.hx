@@ -52,6 +52,7 @@ class MarkupTest implements Markup {
 		combobox();
 		toasts();
 		numbers();
+		rightToLeft();
 		virtual();
 		table();
 		tree();
@@ -217,6 +218,22 @@ class MarkupTest implements Markup {
 		check("toasts: duration 0 stays until closed", Toasts.shown.value.length == 1 && !Clock.active);
 		click(tagged(ui.overlay, "toast-close")[0]);
 		check("toasts: the close button", t.closed && ui.overlay.children.length == 0);
+	}
+
+	static function rightToLeft() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		var dir = signal("rtl");
+		Render.render(<view dir={dir} padding={10} row-gap={6}>
+			<view tag="row" direction="row" column-gap={4}><view tag="a" width={40} height={20}/><view tag="b" width={30} height={20}/></view>
+			<text tag="words">Hello</text>
+		</view>, ui.root);
+		ui.update();
+		var a = ui.root.find("a"), b = ui.root.find("b"), words = ui.root.find("words");
+		check("rtl: a row from the right, in markup (dir=\"rtl\")", a.absX == 300 - 10 - 40 && b.absX == a.absX - 4 - 30, a.absX + " " + b.absX);
+		check("rtl: text aligned to the right by default", words.textAlign() == Right);
+		dir.value = "ltr";
+		ui.update();
+		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);
 	}
 
 	static function numbers() {
