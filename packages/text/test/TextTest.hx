@@ -17,8 +17,8 @@ import hxmc.text.*;
 // - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines;
 //   Inter: CFF outlines, GPOS kerning
 // - features (CSS's font-feature-settings): parsed; liga and kern off, and
-//   with Inter tnum, cv11, salt on, aalt's alternates: widths as Chromium
-//   measures them
+//   with Inter calt by default (its arrows, ×), tnum, cv11, salt, dlig on,
+//   aalt's alternates: widths as Chromium measures them
 // - variations: a variable font's instances (var.ttf) against Chromium
 // - layout: widths, wrapping, hard breaks, caret and hit
 // - a sample of text rendered through the atlas against sample.png; with
@@ -193,7 +193,7 @@ class TextTest {
 				} catch (e:Dynamic) true) bad++;
 			check("features: rejected as CSS rejects them", bad == 5);
 		}
-		var cases:Array<{face:FontFile, text:String, size:Float, features:String, width:Float}> = inter == null ? [
+		var cases:Array<{face:FontFile, text:String, size:Float, features:String, width:Float, ?spacing:Float}> = inter == null ? [
 			{face: sans, text: "office", size: 100, features: "normal", width: 274.375},
 			{face: sans, text: "office", size: 100, features: "'liga' 0", width: 275.890625},
 			{face: sans, text: "AVAVAV", size: 20, features: "normal", width: 75.703125},
@@ -207,12 +207,19 @@ class TextTest {
 			{face: inter, text: "a", size: 20, features: "'salt' 9", width: 12.25},
 			{face: inter, text: "a", size: 20, features: "'aalt'", width: 9},
 			{face: inter, text: "a", size: 20, features: "'aalt' 2", width: 8.03125},
-			{face: inter, text: "a", size: 20, features: "'aalt' 99", width: 11.234375}
+			{face: inter, text: "a", size: 20, features: "'aalt' 99", width: 11.234375},
+			// (calt by default: chained contexts with ligatures, single substitutions; not where letters are spaced)
+			{face: inter, text: "a -> b", size: 20, features: "normal", width: 53.8125},
+			{face: inter, text: "x => y", size: 20, features: "normal", width: 52.5},
+			{face: inter, text: "3x4", size: 20, features: "normal", width: 38.515625},
+			{face: inter, text: "a -> b", size: 20, features: "'calt' 0", width: 57.171875},
+			{face: inter, text: "a -> b", size: 20, features: "normal", width: 63.171875, spacing: 1},
+			{face: inter, text: "fi", size: 40, features: "'dlig'", width: 23.125}
 		];
 		for (c in cases) {
 			var set = new FontSet(c.face, [], c.size);
 			set.features = FontFeature.parse(c.features);
-			var w = new TextLayout(c.text, set, 1.2, Math.NaN).width;
+			var w = new TextLayout(c.text, set, 1.2, Math.NaN, null, 0, c.spacing == null ? 0 : c.spacing).width;
 			check('features: ${c.face.family} "${c.text}" ${c.features}', Math.abs(w - c.width) < 0.02, w + " (Chromium " + c.width + ")");
 		}
 	}

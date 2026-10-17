@@ -261,8 +261,7 @@ class TextLayout {
 		out.resize(count);
 		// (Arabic's forms and ligatures: other glyphs; a colour font's sequences: one glyph)
 		out = Arabic.shape(out);
-		substitutions(out, base, runs);
-		out = ligatures(out, base, runs, letterSpacing);
+		out = gsub(out, base, runs, letterSpacing);
 		if (emoji != null) out = colorLigatures(out);
 		for (g in out)
 			if (ignorable(g.cp)) g.hidden = true;
@@ -285,104 +284,87 @@ class TextLayout {
 	static inline function kerns(set:FontSet):Bool
 		return set.features == null || set.feature("kern") != 0;
 
-	// the features asked for (FontSet.features) that put a glyph for a glyph
-	// (single and alternate substitutions: tnum, ss01, cv11, salt...) on each
-	// glyph of a set that asks, in the lookup list's order; not Arabic's or a
-	// colour face's
-	static function substitutions(gs:Array<Glyph>, base:FontSet, runs:Array<TextRun>) {
-		var lastFont:Null<FontFile> = null, lastSet:Null<FontSet> = null, lastScript = "", lookups:Array<{lookup:Int, value:Int}> = [];
-		for (g in gs) {
-			var set = g.run < 0 ? base : runs[g.run].fonts;
-			if (set.features == null || g.font == null || g.cp == 10 || g.cp == 13 || g.cp == 9 || g.font.hasColor || g.font.bitmapsOnly || Arabic.isArabic(g.cp))
+	// GSUB's substitutions as Chromium (HarfBuzz) makes them by default (the
+	// standard and contextual ligatures and alternates: liga, clig, calt) and
+	// those asked for (FontSet.features: tnum, ss01, dlig, liga 0...): on
+	// each segment of glyphs of one face, run and script, its lookups
+	// (FontFile.gsubLookupsFor) one after another, each over the segment;
+	// not Arabic's (its own), a colour face's or across lines. A ligature's
+	// caret positions are its characters' equal parts.
+	static function gsub(gs:Array<Glyph>, base:FontSet, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
+		var n = gs.length, out:Null<Array<Glyph>> = null, i = 0;
+		inline function substitutable(g:Glyph):Bool
+			return g.font != null && g.cp != 10 && g.cp != 13 && g.cp != 9 && !g.font.hasColor && !g.font.bitmapsOnly && !Arabic.isArabic(g.cp);
+		while (i < n) {
+			var g = gs[i];
+			if (!substitutable(g)) {
+				if (out != null) out.push(g);
+				i++;
 				continue;
-			var sc = script(g.cp);
-			if (g.font != lastFont || set != lastSet || sc != lastScript) {
-				lastFont = g.font;
-				lastSet = set;
-				lastScript = sc;
-				lookups = g.font.substitutionLookups(sc, set.features, set.featuresKey);
 			}
-			for (l in lookups)
-				g.id = g.font.substitute(l.lookup, g.id, l.value);
+			var sc = script(g.cp), j = i + 1;
+			while (j < n && gs[j].font == g.font && gs[j].run == g.run && substitutable(gs[j]) && script(gs[j].cp) == sc)
+				j++;
+			var set = g.run < 0 ? base : runs[g.run].fonts;
+			var spaced = (g.run < 0 ? letterSpacing : runs[g.run].letterSpacing) != 0;
+			var lookups = g.font.gsubLookupsFor(sc, set.features, set.featuresKey, spaced);
+			if (lookups.length == 0) {
+				if (out != null) for (k in i...j)
+					out.push(gs[k]);
+				i = j;
+				continue;
+			}
+			var seg = gs.slice(i, j), ids = [for (x in seg) x.id];
+			for (l in lookups) {
+				var starts = g.font.lookupStarts(l.lookup), k = 0;
+				while (k < seg.length) {
+					var id = ids[k];
+					k += id < starts.length && starts.get(id) != 0 ? applyAt(g.font, l.lookup, l.value, seg, ids, k, 0) : 1;
+				}
+			}
+			if (out == null && seg.length != j - i) out = gs.slice(0, i);
+			if (out != null) for (x in seg)
+				out.push(x);
+			i = j;
 		}
+		return out == null ? gs : out;
 	}
 
-	// the ligatures' lookups of a face for a script in a set (its features')
-	static inline function ligatureLookupsIn(f:FontFile, sc:String, set:FontSet):Array<Int>
-		return set.features == null ? f.ligatureLookups(sc) : f.ligatureLookupsWith(sc, set.features, set.featuresKey);
-
-	// the standard ligatures (GSUB's liga and clig lookups for the script, in
-	// the lookup list's order) on runs of one face, as Chromium applies them
-	// by default: not Arabic's (its own), a colour face's or across lines,
-	// and none where letters are spaced (CSS turns them off with
-	// letter-spacing). A ligature's caret positions are its characters'
-	// equal parts. Features asked for turn liga and clig off or others on
-	// (dlig...: ligatureLookupsIn).
-	static function ligatures(gs:Array<Glyph>, base:FontSet, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
-		var n = gs.length;
-		// (the glyphs that may take part: their ids, else -1, which no ligature has;
-		// none when no face has these lookups)
-		var ids:Null<Array<Int>> = null;
-		var lastFont:Null<FontFile> = null, lastSet:Null<FontSet> = null, lastScript = "", lastLookups:Array<Int> = [], starts:Null<haxe.io.Bytes> = null;
-		for (k in 0...n) {
-			var g = gs[k];
-			var spaced = (g.run < 0 ? letterSpacing : runs[g.run].letterSpacing) != 0;
-			var ok = g.font != null && g.cp != 10 && g.cp != 13 && g.cp != 9 && !g.font.hasColor && !g.font.bitmapsOnly && !spaced && !Arabic.isArabic(g.cp);
-			if (ok && ids == null) {
-				var sc = script(g.cp), set = g.run < 0 ? base : runs[g.run].fonts;
-				if (g.font != lastFont || set != lastSet || sc != lastScript) {
-					lastFont = g.font;
-					lastSet = set;
-					lastScript = sc;
-					lastLookups = ligatureLookupsIn(g.font, sc, set);
-				}
-				if (lastLookups.length == 0) continue;
-				ids = [];
-				ids.resize(n);
-				for (j in 0...k)
-					ids[j] = -1;
-			}
-			if (ids != null) ids[k] = ok ? g.id : -1;
-		}
-		if (ids == null) return gs;
-		var out:Null<Array<Glyph>> = null;
-		var i = 0;
-		while (i < n) {
-			var g = gs[i], merged = false;
-			if (ids[i] >= 0 && i + 1 < n && ids[i + 1] >= 0) {
-				var f = g.font, sc = script(g.cp), set = g.run < 0 ? base : runs[g.run].fonts;
-				if (f != lastFont || set != lastSet || sc != lastScript || starts == null) {
-					lastFont = f;
-					lastSet = set;
-					lastScript = sc;
-					lastLookups = ligatureLookupsIn(f, sc, set);
-					starts = f.ligatureStarts(lastLookups);
-				}
-				// (a glyph no ligature begins with: none tried)
-				if (ids[i] < starts.length && starts.get(ids[i]) != 0) for (l in lastLookups) {
-					var lig = f.ligature(l, ids, i);
-					if (lig.count < 2) continue;
-					// (its parts in this face and run)
-					var same = true;
-					for (k in i + 1...i + lig.count)
-						if (gs[k].font != f || gs[k].run != g.run) same = false;
-					if (!same) continue;
-					if (out == null) out = gs.slice(0, i);
-					var last = gs[i + lig.count - 1];
+	// (a lookup at seg[at]: its substitution there, if it has one; how far
+	// to go on: past a context's input, else one glyph; a context's
+	// lookups applied in it, nested as deep as eight)
+	static function applyAt(f:FontFile, lookup:Int, value:Int, seg:Array<Glyph>, ids:Array<Int>, at:Int, depth:Int):Int {
+		switch f.gsubType(lookup) {
+			case 1 | 3:
+				var id = f.substitute(lookup, ids[at], value);
+				ids[at] = id;
+				seg[at].id = id;
+			case 4:
+				var lig = f.ligature(lookup, ids, at);
+				if (lig.count >= 2) {
+					var g = seg[at], last = seg[at + lig.count - 1];
 					g.id = lig.glyph;
 					g.length = last.cluster + last.length - g.cluster;
 					g.parts = g.length;
-					out.push(g);
-					i += lig.count;
-					merged = true;
-					break;
+					ids[at] = lig.glyph;
+					seg.splice(at + 1, lig.count - 1);
+					ids.splice(at + 1, lig.count - 1);
 				}
-			}
-			if (merged) continue;
-			if (out != null) out.push(g);
-			i++;
+			case 5 | 6:
+				var m = f.context(lookup, ids, at, 0, seg.length);
+				if (m == null) return 1;
+				var length = m.length, k = 0;
+				while (k < m.records.length && depth < 8) {
+					var p = at + m.records[k], before = seg.length;
+					if (p < seg.length && p < at + length) applyAt(f, m.records[k + 1], 1, seg, ids, p, depth + 1);
+					// (a ligature in it: the input shorter by its parts)
+					length -= before - seg.length;
+					k += 2;
+				}
+				return length < 1 ? 1 : length;
+			case _:
 		}
-		return out == null ? gs : out;
+		return 1;
 	}
 
 	// which UTF-16 units are in an emoji's sequence (a grapheme cluster with

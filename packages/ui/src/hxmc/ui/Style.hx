@@ -224,8 +224,8 @@ class Style {
 
 	// OpenType features, inherited, as CSS's font-feature-settings writes
 	// them ("'tnum'", "'liga' 0, 'ss01'"; null: the parent's; "normal": the
-	// default ones): single, alternate and ligature substitutions, liga,
-	// clig and kern turned off (hxmc.text.FontFeature)
+	// default ones): their substitutions added, or liga, clig, calt and
+	// kern turned off (hxmc.text.FontFeature)
 	public var fontFeatureSettings(get, set):Null<String>;
 
 	// its text's letters as shown, inherited (null: the parent's; None at
