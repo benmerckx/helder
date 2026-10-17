@@ -1378,6 +1378,7 @@ class UiTest {
 					case "End": End;
 					case "Center": Center;
 					case "Stretch": Stretch;
+					case "Baseline": Baseline;
 					case _: Auto;
 				}
 				switch k {

@@ -158,6 +158,13 @@ export const cases = [
 		{ style: { position: 'Absolute', left: 10, right: 10, top: 0, width: 100, height: 20, margin: [0, 0, 0, 'auto'] } },
 		{ style: { position: 'Absolute', left: 10, right: 10, top: 30, bottom: 0, width: 400, height: 20, margin: ['auto', 'auto', 0, 'auto'] } },
 		{ style: { position: 'Absolute', left: 0, right: 0, top: 60, margin: [0, 'auto'], height: 10 } }] } },
+	// baselines: a box without text has its bottom edge's, a container its first item's (a row's: its items aligned on theirs)
+	{ name: 'baseline alignment', width: 300, height: 300, tree: { style: { rowGap: 6 }, children: [
+		{ style: { direction: 'Row', alignItems: 'Baseline', columnGap: 4 }, children: [box(30, 20), box(30, 40, { margin: [5, 0, 3, 0] }), { style: { padding: [4, 0, 0, 0] }, children: [box(20, 10), box(20, 30)] },
+			{ style: { direction: 'Row', alignItems: 'Baseline' }, children: [box(20, 15), box(20, 25, { margin: [0, 0, 6, 0] })] }, box(30, 10, { alignSelf: 'Center' })] },
+		{ style: { direction: 'Row', alignItems: 'Baseline', height: 80, borderWidth: 2 }, children: [box(30, 20), box(30, 40)] },
+		{ style: { direction: 'Row', wrap: true, alignItems: 'Baseline', width: 100, columnGap: 4, rowGap: 4 }, children: [box(40, 20), box(40, 30), box(40, 10), box(40, 25)] },
+		{ style: { alignItems: 'Baseline', width: 100 }, children: [box(40, 20), box(60, 20)] }] } },
 	// shrinking weighs each item's base size inside its padding and border
 	{ name: 'shrink by the content-box base size', width: 200, height: 60, tree: { style: { direction: 'Row' }, children: [box(100, 20, { padding: [0, 20] }), box(100, 20, { borderWidth: 10 }), box(100, 20)] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },

@@ -23,7 +23,7 @@ const KEBAB = { direction: 'flex-direction', wrap: 'flex-wrap', justify: 'justif
 	gridTemplateColumns: 'grid-template-columns', gridTemplateRows: 'grid-template-rows', gridAutoColumns: 'grid-auto-columns', gridAutoRows: 'grid-auto-rows',
 	gridAutoFlow: 'grid-auto-flow', gridColumn: 'grid-column', gridRow: 'grid-row', gridArea: 'grid-area', gridTemplateAreas: 'grid-template-areas', justifyItems: 'justify-items', justifySelf: 'justify-self', dir: 'direction' };
 const VALUES = { Row: 'row', Column: 'column', RowReverse: 'row-reverse', ColumnReverse: 'column-reverse', Start: 'flex-start', End: 'flex-end',
-	Center: 'center', Stretch: 'stretch', SpaceBetween: 'space-between', SpaceAround: 'space-around', SpaceEvenly: 'space-evenly', Auto: 'auto',
+	Center: 'center', Stretch: 'stretch', Baseline: 'baseline', SpaceBetween: 'space-between', SpaceAround: 'space-around', SpaceEvenly: 'space-evenly', Auto: 'auto',
 	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex', Grid: 'grid', Visible: 'visible', Hidden: 'hidden', Scroll: 'scroll',
 	Rtl: 'rtl', Ltr: 'ltr', RowDense: 'row dense', ColumnDense: 'column dense' };
 

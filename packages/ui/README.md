@@ -43,7 +43,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
 - **`hxmc.ui`**, the core, plain Haxe (it runs on any target; its tests
   run on Eval): `Node` and `TextNode`, `Style`, `Layout`, `Ui`.
   - Layout is CSS flexbox, column by default: `direction`, `wrap`,
-    `justify`, `alignItems`, `alignSelf`, `alignContent`, `grow`,
+    `justify`, `alignItems`, `alignSelf` (`Baseline`: a row's items on their
+    first baselines, a text's first line's, a box without one on its bottom
+    edge), `alignContent`, `grow`,
     `shrink`, `basis`, `width`, `height`, min and max, `aspectRatio`,
     `padding`, `margin` (`auto`, `Edges.AUTO`: CSS's auto margins, along and
     across flex lines, in grid areas, on absolute boxes), `borderWidth`,
@@ -75,7 +77,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     by rows or columns, sparse or dense), aligned by `justifyItems`,
     `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify` and
     `alignContent` (no other named lines, no subgrid). Checked against
-    Chromium on 138 cases, 39 of them grids, 8 right to left.
+    Chromium on 139 cases, 39 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the

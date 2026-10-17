@@ -2,7 +2,7 @@ package hxmc.ui;
 
 // Flexbox layout of a Node tree, after CSS Flexible Box Layout (section 9),
 // and CSS grid for a Display Grid container (grid() below):
-// margins are pixels or auto (NaN), no baseline alignment. A flex
+// margins are pixels or auto (NaN), baselines a row's only. A flex
 // item's min size on the main axis is CSS's automatic minimum when auto
 // (its content's: the min-content width in a row, the content's height in
 // a column; no more than its width or height when given; 0 for Overflow
@@ -184,8 +184,8 @@ class Layout {
 			it.maxCross = max(row ? cs.maxHeight : cs.maxWidth, pctCross);
 			it.align = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (it.align == Auto) it.align = Stretch;
-			// (an auto margin across: not stretched, placed by its margins)
-			if (it.autoCross != 0) it.align = Start;
+			// (an auto margin across: not stretched, placed by its margins; baselines: a row's)
+			if (it.autoCross != 0 || (it.align == Baseline && !row)) it.align = Start;
 			// (stretched only when its size across is auto: a percentage of an indefinite one is not)
 			if (it.align == Stretch && (row ? cs.height : cs.width) != DimValue.Auto) it.align = Start;
 			it.styleCross = clamp((row ? cs.height : cs.width).resolve(pctCross), it.minCross, it.maxCross);
@@ -275,7 +275,9 @@ class Layout {
 		for (k in firstLine...lastLine) {
 			var l = lines[k];
 			resolveFlexible(l, mainSize, gapMain);
-			var lc = 0.0;
+			// (items on their baselines: laid out to find them, the line as deep as the deepest above
+			// them and below them)
+			var lc = 0.0, above = 0.0, below = 0.0;
 			for (i in l.start...l.end) {
 				var it = items[i];
 				if (known(it.styleCross)) it.cross = it.styleCross else {
@@ -293,8 +295,18 @@ class Layout {
 				}
 				var oc = it.cross + it.mCrossStart + it.mCrossEnd;
 				if (oc > lc) lc = oc;
+				if (it.align == Baseline) {
+					looseH = true;
+					size(it.node, it.main, it.cross, innerW, pctH, it.main, it.cross, true);
+					var b = it.node.firstBaseline();
+					it.baseline = it.mCrossStart + (Math.isNaN(b) ? it.cross : b);
+					if (it.baseline > above) above = it.baseline;
+					if (oc - it.baseline > below) below = oc - it.baseline;
+				}
 			}
+			if (above + below > lc) lc = above + below;
 			l.cross = lc;
+			l.baseline = above;
 		}
 		if (!multi && known(innerCross)) lines[firstLine].cross = innerCross;
 
@@ -342,6 +354,14 @@ class Layout {
 			case SpaceEvenly:
 		}
 		var lineStart = start;
+		// (its first baseline: its first line's items aligned on theirs, if any)
+		n.lb = Math.NaN;
+		if (row)
+			for (i in lines[firstLine].start...lines[firstLine].end)
+				if (items[i].align == Baseline) {
+					n.lb = padT + start + lines[firstLine].baseline;
+					break;
+				}
 		// (right to left: the content's leftmost edge, what overflows that way scrolled to)
 		var cw = 0.0, ch = 0.0, left = 0.0;
 		for (k in firstLine...lastLine) {
@@ -390,6 +410,7 @@ class Layout {
 				var crossPos = lineStart + if (it.autoCross != 0) it.mCrossStart + (roomC <= 0 ? 0 : it.autoCross == 3 ? roomC / 2 : it.autoCross == 1 ? roomC : 0) else switch it.align {
 					case End: l.cross - it.cross - it.mCrossEnd;
 					case Center: it.mCrossStart + (l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2;
+					case Baseline: l.baseline - it.baseline + it.mCrossStart;
 					case _: it.mCrossStart;
 				}
 				if (flipMain) mainPos = mainSize - mainPos - it.main;
@@ -1217,7 +1238,7 @@ class Layout {
 		if (lineTop == lines.length) lines.push(new Line());
 		var l = lines[lineTop++];
 		l.start = l.end = first;
-		l.cross = 0;
+		l.cross = l.baseline = 0;
 		return l;
 	}
 
@@ -1356,6 +1377,8 @@ private class Item {
 	public var cross = 0.0;
 	public var frozen = false;
 	public var violation = 0.0;
+	// (on its baseline: that below its outer start)
+	public var baseline = 0.0;
 
 	public function new() {}
 
@@ -1365,7 +1388,7 @@ private class Item {
 		autoMain = autoCross = 0;
 		minMain = maxMain = minCross = maxCross = 0;
 		align = Stretch;
-		styleCross = basis = edges = hypo = main = cross = violation = 0;
+		styleCross = basis = edges = hypo = main = cross = violation = baseline = 0;
 		frozen = false;
 	}
 }
@@ -1389,6 +1412,8 @@ private class Line {
 	public var start = 0;
 	public var end = 0;
 	public var cross = 0.0;
+	// its items' baseline below its start, those aligned on it
+	public var baseline = 0.0;
 
 	public function new() {}
 }

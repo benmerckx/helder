@@ -205,6 +205,10 @@ class TextNode extends Node {
 	public function laidOut():Null<Paragraph>
 		return paragraph;
 
+	// (its first line's, in its content box)
+	override public function firstBaseline():Float
+		return paragraph == null ? Math.NaN : style.borderEdges.top + style.padding.top + paragraph.baseline;
+
 	override public function contentInk():Null<Size>
 		return paragraph == null ? null : {width: paragraph.width, height: paragraph.height};
 

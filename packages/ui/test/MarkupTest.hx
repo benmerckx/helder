@@ -64,6 +64,7 @@ class MarkupTest implements Markup {
 		rightToLeft();
 		wordBreaks();
 		autoMargins();
+		baselines();
 		editMenus();
 		menubar();
 		tabs();
@@ -286,6 +287,20 @@ class MarkupTest implements Markup {
 		var b = ui.root.find("b"), c = ui.root.find("c");
 		check("auto margins: a row's item pushed to the end (markup)", b.absX == 260, "" + b.absX);
 		check("auto margins: centred across a column (Edges.AUTO)", c.absX == 100, "" + c.absX);
+	}
+
+	// align-items: baseline: texts of two sizes on one baseline (MonoText's: four fifths down a line)
+	static function baselines() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		Render.render(<view direction="row" align-items="baseline" line-height={1}>
+			<text tag="small" font-size={10}>small</text>
+			<text tag="big" font-size={20}>big</text>
+			<view tag="box" width={10} height={5}/>
+		</view>, ui.root);
+		ui.update();
+		var small = ui.root.find("small"), big = ui.root.find("big"), box = ui.root.find("box");
+		check("baselines: the texts' baselines level", big.absY == 0 && small.absY == 8, small.absY + " " + big.absY);
+		check("baselines: a box without text on its bottom edge", box.absY + 5 == 16, "" + box.absY);
 	}
 
 	// overflow-wrap and word-break: inherited into the text's font (what the engine breaks lines by)

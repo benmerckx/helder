@@ -4293,6 +4293,180 @@
 		}
 	},
 	{
+		"name": "baseline alignment",
+		"width": 300,
+		"height": 300,
+		"tree": {
+			"style": {
+				"rowGap": 6
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"alignItems": "Baseline",
+						"columnGap": 4
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 40,
+								"margin": [
+									5,
+									0,
+									3,
+									0
+								]
+							}
+						},
+						{
+							"style": {
+								"padding": [
+									4,
+									0,
+									0,
+									0
+								]
+							},
+							"children": [
+								{
+									"style": {
+										"width": 20,
+										"height": 10
+									}
+								},
+								{
+									"style": {
+										"width": 20,
+										"height": 30
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"direction": "Row",
+								"alignItems": "Baseline"
+							},
+							"children": [
+								{
+									"style": {
+										"width": 20,
+										"height": 15
+									}
+								},
+								{
+									"style": {
+										"width": 20,
+										"height": 25,
+										"margin": [
+											0,
+											0,
+											6,
+											0
+										]
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10,
+								"alignSelf": "Center"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"alignItems": "Baseline",
+						"height": 80,
+						"borderWidth": 2
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 40
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"alignItems": "Baseline",
+						"width": 100,
+						"columnGap": 4,
+						"rowGap": 4
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 30
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 25
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"alignItems": "Baseline",
+						"width": 100
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 60,
+								"height": 20
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "shrink by the content-box base size",
 		"width": 200,
 		"height": 60,
