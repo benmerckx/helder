@@ -40,6 +40,8 @@ typedef StyleProps = {
 	?right:Dim,
 	?bottom:Dim,
 	?overflow:Overflow,
+	?overflowX:Overflow,
+	?overflowY:Overflow,
 	?background:Color,
 	?letterSpacing:Float,
 	?wordSpacing:Float,

@@ -1943,6 +1943,17 @@ static function transitions() {
 		check("scroll: clamped", list.scrollY == 200);
 		ui.wheel(50, 50, 0, -5000);
 		check("scroll: back to the top", list.scrollY == 0);
+		// (overflow-y hidden: still clipped, not scrolled by the wheel, no scrollbar; scrollTo still moves it)
+		list.style.overflowY = Hidden;
+		ui.wheel(50, 50, 0, 50);
+		var r = new Recording();
+		ui.paint(r);
+		var thumbs = r.calls.filter(c -> StringTools.startsWith(c, "rect 92")).length;
+		ui.scrollTo(list, 0, 30);
+		check("scroll: overflow-y hidden: clipped, not scrolled by the wheel, scrolled by scrollTo", list.style.overflow == Scroll && thumbs == 0
+			&& list.scrollY == 30, list.scrollY + " " + thumbs);
+		list.style.overflowY = Scroll;
+		ui.scrollTo(list, 0, 0);
 		// the keys, when the focus takes none of them: arrows by 40, pages by seven eighths, the ends; eased on the clock
 		var item1 = list.children[1];
 		item1.focusable = true;

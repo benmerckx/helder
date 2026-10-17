@@ -143,7 +143,13 @@ class Style {
 	// the four offsets at once (CSS's inset shorthand; markup "10 20": as margins write them)
 	public var inset(never, set):Dim;
 
+	// what overflows it, on both axes (CSS's shorthand); read, the two
+	// together: Scroll if either scrolls, else Hidden if either clips. As
+	// CSS's, both axes clip when either does; an axis scrolls by the wheel,
+	// the keys and a scrollbar only where it is Scroll (Hidden: by scrollTo)
 	public var overflow(default, set):Overflow = Visible;
+	public var overflowX(default, set):Overflow = Visible;
+	public var overflowY(default, set):Overflow = Visible;
 
 	public var background(default, set):Color = Color.TRANSPARENT;
 
@@ -1132,10 +1138,30 @@ class Style {
 	}
 
 	function set_overflow(v:Overflow):Overflow {
-		if (v == overflow) return v;
-		overflow = v;
+		if (v == overflow && v == overflowX && v == overflowY) return v;
+		overflow = overflowX = overflowY = v;
 		node.styleChanged(true);
 		return v;
+	}
+
+	function set_overflowX(v:Overflow):Overflow {
+		if (v == overflowX) return v;
+		overflowX = v;
+		bothAxes();
+		return v;
+	}
+
+	function set_overflowY(v:Overflow):Overflow {
+		if (v == overflowY) return v;
+		overflowY = v;
+		bothAxes();
+		return v;
+	}
+
+	// (the two axes together, as overflow reads)
+	function bothAxes() {
+		@:bypassAccessor overflow = overflowX == Scroll || overflowY == Scroll ? Scroll : overflowX == Hidden || overflowY == Hidden ? Hidden : Visible;
+		node.styleChanged(true);
 	}
 
 	function set_background(v:Color):Color {
@@ -1397,6 +1423,8 @@ class Style {
 		if (p.right != null) right = p.right;
 		if (p.bottom != null) bottom = p.bottom;
 		if (p.overflow != null) overflow = p.overflow;
+		if (p.overflowX != null) overflowX = p.overflowX;
+		if (p.overflowY != null) overflowY = p.overflowY;
 		if (p.background != null) background = p.background;
 		if (p.backgroundImage != null) backgroundImage = p.backgroundImage;
 		if (p.borderColor != null) borderColor = p.borderColor;

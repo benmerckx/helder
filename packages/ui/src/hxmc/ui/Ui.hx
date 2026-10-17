@@ -1002,7 +1002,7 @@ class Ui {
 	}
 
 	static function canScroll(n:Node, d:Float, x:Bool):Bool {
-		if (d == 0) return false;
+		if (d == 0 || (x ? n.style.overflowX : n.style.overflowY) != Scroll) return false;
 		var lo = scrollStart(n, x), v = x ? n.scrollX : n.scrollY;
 		return d > 0 ? v < lo + maxScroll(n, x) : v > lo;
 	}
@@ -1130,6 +1130,7 @@ class Ui {
 	// the thumb's rectangle (x, y, w, h: absolute, unscrolled), or null when n
 	// does not overflow on the axis
 	static function thumb(n:Node, x:Bool):Null<Array<Float>> {
+		if ((x ? n.style.overflowX : n.style.overflowY) != Scroll) return null;
 		var max = maxScroll(n, x);
 		if (max <= 0) return null;
 		var t = track(n, x);
