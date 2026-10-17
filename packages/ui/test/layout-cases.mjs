@@ -142,6 +142,8 @@ export const cases = [
 		{ style: { direction: 'RowReverse', justify: 'SpaceEvenly', width: 60, height: 10, dir: 'Rtl' }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
 		{ style: { direction: 'RowReverse', justify: 'SpaceBetween', width: 60, height: 10 }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
 		{ style: { direction: 'Row', alignItems: 'Start', columnGap: 4 }, children: [{ style: { direction: 'ColumnReverse', justify: 'SpaceAround', width: 10, height: 60 }, children: [box(10, 40, { shrink: 0 }), box(10, 40, { shrink: 0 })] }] }] } },
+	// a stretched item's content measured at its own max-width: its wrapping row's lines as wide
+	{ name: 'stretched item measured within its max-width', width: 200, height: 150, tree: { style: { justify: 'End' }, children: [{ style: { maxWidth: 40 }, children: [{ style: { direction: 'Row', wrap: true }, children: [box(30, 60), box(20, 40)] }, { style: { basis: 50, height: 60 } }] }] } },
 	// shrinking weighs each item's base size inside its padding and border
 	{ name: 'shrink by the content-box base size', width: 200, height: 60, tree: { style: { direction: 'Row' }, children: [box(100, 20, { padding: [0, 20] }), box(100, 20, { borderWidth: 10 }), box(100, 20)] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },

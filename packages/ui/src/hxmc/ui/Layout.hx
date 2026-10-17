@@ -190,7 +190,8 @@ class Layout {
 			if (!known(b)) {
 				// the content's main size, its cross size known when stretched in a known line
 				var kc = it.styleCross;
-				if (!known(kc) && it.align == Stretch && !multi && known(innerCross)) kc = Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd);
+				if (!known(kc) && it.align == Stretch && !multi && known(innerCross))
+					kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
 				var am = known(availMain) ? Math.max(0, availMain - it.mMainStart - it.mMainEnd) : Math.NaN;
 				var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 				// (the base size: not clamped by its own min or max, which the hypothetical size is)
@@ -205,7 +206,8 @@ class Layout {
 				var content:Float;
 				if (row) content = minContentWidth(c, innerW, false) else if (contentBasis) content = b else {
 					var kc = it.styleCross;
-					if (!known(kc) && it.align == Stretch && !multi && known(innerCross)) kc = Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd);
+					if (!known(kc) && it.align == Stretch && !multi && known(innerCross))
+						kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
 					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 					// (its content's height: not its own, CSS's content size suggestion)
 					bareH = true;

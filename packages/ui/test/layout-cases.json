@@ -3930,6 +3930,51 @@
 		}
 	},
 	{
+		"name": "stretched item measured within its max-width",
+		"width": 200,
+		"height": 150,
+		"tree": {
+			"style": {
+				"justify": "End"
+			},
+			"children": [
+				{
+					"style": {
+						"maxWidth": 40
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "Row",
+								"wrap": true
+							},
+							"children": [
+								{
+									"style": {
+										"width": 30,
+										"height": 60
+									}
+								},
+								{
+									"style": {
+										"width": 20,
+										"height": 40
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"basis": 50,
+								"height": 60
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "shrink by the content-box base size",
 		"width": 200,
 		"height": 60,
