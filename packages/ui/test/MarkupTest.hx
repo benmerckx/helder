@@ -20,6 +20,7 @@ import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Menubar;
+import hxmc.ui.widgets.Widgets.Tabs;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Split;
@@ -56,6 +57,7 @@ class MarkupTest implements Markup {
 		rightToLeft();
 		editMenus();
 		menubar();
+		tabs();
 		focusTips();
 		virtual();
 		table();
@@ -315,6 +317,33 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function tabs() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var selected = signal(1);
+		Render.render(<view padding={10}><Button tag="before" label="Before"/><Tabs tag="t" labels={["One", "Two", "Three"]} selected={selected}
+			render={i -> <text tag="panel">{"panel " + i}</text>}/><Button tag="after" label="After"/></view>, ui.root);
+		ui.update();
+		var before = ui.root.find("before");
+		ui.setFocus(before);
+		ui.keyDown(Key.TAB, 0);
+		check("tabs: one stop for Tab, the selected tab", ui.focus == ui.root.find("t-1"));
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		check("tabs: Right selects the next, the focus with it", selected.value == 2 && ui.focus == ui.root.find("t-2")
+			&& (cast ui.root.find("panel") : TextNode).text == "panel 2");
+		ui.keyDown(Key.RIGHT, 0);
+		ui.keyDown(Key.END, 0);
+		ui.keyDown(Key.LEFT, 0);
+		check("tabs: wrapping, End, Left", selected.value == 1, "" + selected.value);
+		ui.keyDown(Key.TAB, 0);
+		check("tabs: Tab out of them", ui.focus == ui.root.find("after"));
+		ui.root.style.dir = Rtl;
+		ui.update();
+		ui.setFocus(ui.root.find("t-1"));
+		ui.keyDown(Key.LEFT, 0);
+		check("tabs: right to left, Left to the next", selected.value == 2, "" + selected.value);
 	}
 
 	static function menubar() {

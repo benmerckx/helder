@@ -144,17 +144,30 @@ class Widgets implements Markup {
 	}
 
 	// tabs: a row of labels (tag: the tabs' tag, "-", the index), the
-	// selected one underlined, and what render gives for it below
+	// selected one underlined, and what render gives for it below. One stop
+	// for Tab, the selected one; Left and Right (the way they point, wrapping),
+	// Home and End select another and move the focus there
 	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?tag:String}):View {
-		var tag = props.tag ?? "tabs";
+		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
+		function key(e:Event, i:Int) {
+			var j = switch mirrored(e) {
+				case Key.LEFT: (i + count - 1) % count;
+				case Key.RIGHT: (i + 1) % count;
+				case Key.HOME: 0;
+				case Key.END: count - 1;
+				case Key.SPACE | Key.ENTER: i;
+				case _: return;
+			}
+			e.preventDefault();
+			props.selected.value = j;
+			focusIn(tabs, j);
+		}
 		return <view tag={tag} row-gap={10}>
 			<view role="tablist" direction="row" column-gap={4}>{[
-				for (i in 0...props.labels.length)
-					<view tag={tag + "-" + i} role="tab" selected={() -> props.selected.value == i} focusable cursor="pointer" padding="6 10 0 10" row-gap={6} align-items="center"
-						onClick={_ -> props.selected.value = i} onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
-							e.preventDefault();
-							props.selected.value = i;
-						}}
+				for (i in 0...count)
+					<view tag={tag + "-" + i} role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
+						focusable={() -> props.selected.value == i} cursor="pointer" padding="6 10 0 10" row-gap={6} align-items="center"
+						onClick={_ -> props.selected.value = i} onKeyDown={e -> key(e, i)}
 						color={Motion.color(() -> props.selected.value == i ? t().accentText : t().secondary)}>
 						{props.labels[i]}
 						<view align-self="stretch" height={2} radius={1} background={Motion.color(() -> props.selected.value == i ? t().accent : Theme.clear(t().accent))}/>
