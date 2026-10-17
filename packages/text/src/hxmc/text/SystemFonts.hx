@@ -2,7 +2,7 @@ package hxmc.text;
 
 import haxe.io.Bytes;
 
-// The fonts a program can use: the system's (TrueType files found in the
+// The fonts a program can use: the system's (OpenType files found in the
 // usual directories of Linux, Windows and macOS, their names read without
 // loading them; in a browser, the fonts the page gives: WebFonts) and fonts
 // added from bytes (add: a program may bring its own). match picks a face as CSS does: the
@@ -154,7 +154,7 @@ class SystemFonts {
 			for (e in entries) {
 				var p = dir + "/" + e;
 				var lower = e.toLowerCase();
-				if (StringTools.endsWith(lower, ".ttf") || StringTools.endsWith(lower, ".ttc")) {
+				if (StringTools.endsWith(lower, ".ttf") || StringTools.endsWith(lower, ".ttc") || StringTools.endsWith(lower, ".otf")) {
 					for (fi in FaceInfo.read(p))
 						faces.push(fi);
 				} else if (lower.indexOf(".") < 0 && try sys.FileSystem.isDirectory(p) catch (e:Dynamic) false) walk(p, depth + 1);
@@ -183,7 +183,7 @@ class FaceInfo {
 		this.italic = italic;
 	}
 
-	// the faces of a TrueType file, from its tables' directory, name and OS/2
+	// the faces of an OpenType file, from its tables' directory, name and OS/2
 	// tables only (read from the file at their offsets)
 	public static function read(path:String):Array<FaceInfo> {
 		var out = [];
@@ -201,7 +201,8 @@ class FaceInfo {
 			for (i in 0...offsets.length) {
 				f.seek(offsets[i], SeekBegin);
 				var version = f.readInt32();
-				if (version != 0x00010000 && version != 0x74727565) continue; // (not 'OTTO': CFF)
+				// (TrueType's, 'true', 'OTTO': CFF's)
+				if (version != 0x00010000 && version != 0x74727565 && version != 0x4F54544F) continue;
 				var n = f.readUInt16();
 				f.read(6);
 				var name = -1, nameLen = 0, os2 = -1, os2Len = 0;

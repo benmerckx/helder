@@ -2,11 +2,12 @@ package hxmc.text;
 
 import haxe.io.Bytes;
 
-// A TrueType font (an sfnt with glyf outlines; one face of a collection,
-// .ttc): its metrics in font units, the character map (formats 4 and 12),
-// horizontal advances, kerning pairs (the kern table's format 0) and glyph
-// outlines (simple and composite glyphs, as quadratic contours). CFF
-// outlines (.otf with 'OTTO') are not read: FontFile.parse throws.
+// An OpenType font (an sfnt; one face of a collection, .ttc): its metrics
+// in font units, the character map (formats 4 and 12), horizontal
+// advances, kerning pairs (the kern table's format 0) and glyph outlines:
+// TrueType's (glyf: simple and composite glyphs, as quadratic contours) or
+// CFF's ('OTTO', .otf: Cff, cubic curves). CFF2 (variable) outlines are
+// not read: FontFile.parse throws.
 class FontFile {
 	public final data:Bytes;
 	// unique per parsed face (atlas keys)
@@ -36,6 +37,8 @@ class FontFile {
 	var hmtx = 0;
 	var glyf = 0;
 	var locaAt = 0;
+	// the CFF outlines (null: glyf's)
+	var cff:Null<Cff> = null;
 	// cmap lookups cached per character: pages of 256 (-1: not looked up)
 	final glyphPages:Array<haxe.ds.Vector<Int>> = [];
 
@@ -56,8 +59,7 @@ class FontFile {
 			b = u32(data, 12 + 4 * index);
 			tag = data.getString(b, 4);
 		}
-		if (tag == "OTTO") throw "FontFile: CFF outlines are not supported";
-		if (u32(data, b) != 0x00010000 && tag != "true") throw "FontFile: not a TrueType font";
+		if (u32(data, b) != 0x00010000 && tag != "true" && tag != "OTTO") throw "FontFile: not an OpenType font";
 		base = b;
 		var n = u16(data, b + 4);
 		for (i in 0...n) {
@@ -65,13 +67,17 @@ class FontFile {
 			tables.set(data.getString(r, 4), u32(data, r + 8));
 			lengths.set(data.getString(r, 4), u32(data, r + 12));
 		}
-		for (t in ["head", "hhea", "hmtx", "maxp", "cmap", "loca", "glyf"])
+		var outlines = tag == "OTTO" ? ["CFF "] : ["loca", "glyf"];
+		if (tag == "OTTO" && !tables.exists("CFF ") && tables.exists("CFF2")) throw "FontFile: CFF2 outlines are not supported";
+		for (t in ["head", "hhea", "hmtx", "maxp", "cmap"].concat(outlines))
 			if (!tables.exists(t)) throw "FontFile: no " + t + " table";
 		hmtx = tables.get("hmtx");
-		glyf = tables.get("glyf");
-		locaAt = tables.get("loca");
 		var head = tables.get("head");
 		unitsPerEm = u16(data, head + 18);
+		if (tag == "OTTO") cff = new Cff(data, tables.get("CFF "), unitsPerEm) else {
+			glyf = tables.get("glyf");
+			locaAt = tables.get("loca");
+		}
 		longLoca = s16(data, head + 50) != 0;
 		var hhea = tables.get("hhea");
 		ascender = s16(data, hhea + 4);
@@ -139,6 +145,7 @@ class FontFile {
 	// the glyph's bounding box in font units (xMin, yMin, xMax, yMax; all 0 when empty)
 	public function bounds(g:Int):Array<Int> {
 		if (g < 0 || g >= numGlyphs) return [0, 0, 0, 0];
+		if (cff != null) return cff.bounds(g);
 		var start = loca(g), end = loca(g + 1);
 		if (end <= start) return [0, 0, 0, 0];
 		var p = glyf + start;
@@ -146,9 +153,14 @@ class FontFile {
 	}
 
 	// the glyph's outline in font units, y up: each contour a closed list of
-	// segments (a line, or a quadratic curve through a control point)
+	// segments (a line, a quadratic curve through a control point, or CFF's
+	// cubic curves through two)
 	public function outline(g:Int, out:Outline, ?transform:Array<Float>) {
 		if (g < 0 || g >= numGlyphs) return;
+		if (cff != null) {
+			cff.outline(g, out);
+			return;
+		}
 		var start = loca(g), end = loca(g + 1);
 		if (end <= start) return; // (an empty glyph: a space)
 		var p = glyf + start;

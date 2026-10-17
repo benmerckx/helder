@@ -5,8 +5,8 @@ import haxe.ds.Vector;
 // An anti-aliased rasterizer of outlines into a coverage bitmap, after
 // Raph Levien's font-rs: each line adds its exact signed area to an
 // accumulation buffer, a running sum along each row then gives every
-// pixel's coverage (the nonzero rule, overlaps clamped). Quadratic curves
-// are flattened into lines within a third of a pixel. Coordinates are
+// pixel's coverage (the nonzero rule, overlaps clamped). Quadratic and
+// cubic curves are flattened into lines within a third of a pixel. Coordinates are
 // pixels, y down; the transform maps outline units to them (scale, then
 // offset).
 class Rasterizer implements Outline {
@@ -67,6 +67,28 @@ class Rasterizer implements Outline {
 		}
 		px = x2;
 		py = y2;
+	}
+
+	public function cubicTo(c1x:Float, c1y:Float, c2x:Float, c2y:Float, x:Float, y:Float) {
+		var x1 = c1x * scaleX + offsetX, y1 = c1y * scaleY + offsetY;
+		var x2 = c2x * scaleX + offsetX, y2 = c2y * scaleY + offsetY;
+		var x3 = x * scaleX + offsetX, y3 = y * scaleY + offsetY;
+		// (the second differences bound the distance to the chords: 3/4 of
+		// the larger over n squared)
+		var ax = px - 2 * x1 + x2, ay = py - 2 * y1 + y2, bx = x1 - 2 * x2 + x3, by = y1 - 2 * y2 + y3;
+		var dev = Math.sqrt(Math.max(ax * ax + ay * ay, bx * bx + by * by));
+		var n = 1 + Math.floor(Math.sqrt(dev * 0.75 / 0.2));
+		var lx = px, ly = py;
+		for (i in 1...n + 1) {
+			var t = i / n, u = 1 - t;
+			var a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+			var qx = a * px + b * x1 + c * x2 + d * x3, qy = a * py + b * y1 + c * y2 + d * y3;
+			line(lx, ly, qx, qy);
+			lx = qx;
+			ly = qy;
+		}
+		px = x3;
+		py = y3;
 	}
 
 	public function close() {

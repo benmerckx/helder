@@ -10,7 +10,8 @@ import hxmc.text.*;
 //   a triangle's area)
 // - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines
 // - layout: widths, wrapping, hard breaks, caret and hit
-// - a sample of text rendered through the atlas against sample.png
+// - a sample of text rendered through the atlas against sample.png; with
+//   Inter (CFF outlines), against sample-cff.png
 //   (our own rasterizer: the same pixels on every machine with that font)
 class TextTest {
 	static var checks = 0;
@@ -26,6 +27,12 @@ class TextTest {
 			font(sans, fonts);
 			layout(sans, fonts);
 			sample(sans, fonts, here + "/sample.png", bless);
+		}
+		// CFF outlines: Inter (fonts-inter), an OpenType font with cubic curves
+		var inter = fonts.match("Inter");
+		if (inter == null || inter.family != "Inter") Sys.println("TextTest: no Inter: CFF checks skipped") else {
+			cff(inter);
+			sample(inter, fonts, here + "/sample-cff.png", bless);
 		}
 		Sys.println('TextTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
@@ -70,6 +77,18 @@ class TextTest {
 		var b = Bytes.alloc(16);
 		r.writeTo(b, 0, 4);
 		check("raster: overlap clamps", b.get(5) == 255 && b.get(0) == 255);
+		// a cubic curve: a quarter circle's (control points at 0.5523 of the radius), its area pi r^2 / 4 with the corner's square
+		var r = new Rasterizer(16, 16);
+		r.moveTo(0, 0);
+		r.lineTo(16, 0);
+		r.cubicTo(16, 16 * 0.5523, 16 * 0.5523, 16, 0, 16);
+		r.close();
+		var b = Bytes.alloc(256);
+		r.writeTo(b, 0, 16);
+		var sum = 0.0;
+		for (i in 0...256)
+			sum += b.get(i) / 255;
+		check("raster: a cubic curve's area (its chords within a fifth of a pixel)", Math.abs(sum - Math.PI * 64) < 3, '$sum');
 	}
 
 	static function square(r:Rasterizer, x0:Float, y0:Float, x1:Float, y1:Float) {
@@ -100,6 +119,18 @@ class TextTest {
 		var o = new CountOutline();
 		f.outline(f.glyph("é".code), o);
 		check("font: composite é", o.contours >= 2, '${o.contours}');
+	}
+
+	// an OpenType font with CFF outlines: Type 2 charstrings (subroutines,
+	// hints skipped) into cubic curves
+	static function cff(f:FontFile) {
+		var h = f.glyph("H".code), o = new CountOutline();
+		f.outline(h, o);
+		check("cff: H, one contour of 12 sides", o.contours == 1 && o.segments == 11, '${o.contours} ${o.segments}');
+		check("cff: H's bounds and advance", f.bounds(h).join(",") == "179,0,1342,1490" && f.advance(h) == 1522, f.bounds(h).join(",") + " " + f.advance(h));
+		var o = new CountOutline();
+		f.outline(f.glyph("o".code), o);
+		check("cff: o, two contours", o.contours == 2 && o.cubics >= 8, '${o.contours} ${o.cubics}');
 	}
 
 	static function layout(sans:FontFile, fonts:SystemFonts) {
@@ -164,12 +195,13 @@ class TextTest {
 			Sys.println("TextTest: blessed " + golden);
 			return;
 		}
-		sys.io.File.saveBytes("bin/text-sample.png", png);
+		var mine = "bin/text-" + haxe.io.Path.withoutDirectory(golden);
+		sys.io.File.saveBytes(mine, png);
 		var g = Png.decode(sys.io.File.getBytes(golden));
 		var diff = 0;
 		for (i in 0...W * H)
 			if (g.rgba.get(4 * i) != img.get(4 * i)) diff++;
-		check("sample: the same pixels as sample.png", g.width == W && diff == 0, '$diff pixels differ (bin/text-sample.png)');
+		check("sample: the same pixels as " + haxe.io.Path.withoutDirectory(golden), g.width == W && diff == 0, '$diff pixels differ ($mine)');
 	}
 }
 
@@ -187,6 +219,13 @@ class CountOutline implements Outline {
 
 	public function quadTo(cx:Float, cy:Float, x:Float, y:Float)
 		segments++;
+
+	public var cubics = 0;
+
+	public function cubicTo(c1x:Float, c1y:Float, c2x:Float, c2y:Float, x:Float, y:Float) {
+		segments++;
+		cubics++;
+	}
 
 	public function close() {}
 }
