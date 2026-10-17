@@ -15,6 +15,12 @@
 // {width, height, data} (RGBA8, rows top to bottom) of a headless target as
 // it is now, or of a canvas's next frame (copied before it is presented);
 // on WebGL2 the same, read synchronously (Device.readPixels works there too).
+//
+// WebGPU's textures: their TextureFormat's GPU format; a pipeline is made
+// for its bind group layout reading every texture as filterable, and again
+// (once, at the first draw binding one) for R32F or depth textures at some
+// slots, read unfilterable; generate_mips draws each level from the one
+// before (MIPS).
 
 const FORMATS = ['float32', 'float32x2', 'float32x3', 'float32x4', 'unorm8x4']; // VertexFormat
 const TOPOLOGIES = ['triangle-list', 'triangle-strip', 'line-list', 'point-list']; // Topology
@@ -523,7 +529,6 @@ export default async function (host) {
 		glGenTextures: (n, p) => gen(n, p, () => gl.createTexture()),
 		glBindTexture: (target, t) => gl.bindTexture(target, get(t)),
 		glActiveTexture: (unit) => gl.activeTexture(unit),
-		glTexParameteri: (target, pname, param) => gl.texParameteri(target, pname, param),
 		glTexStorage2D: (target, levels, internal, w, h) => gl.texStorage2D(target, levels, internal, w, h),
 		// (pixels: w * h texels of the memory, in the view WebGL wants for the type, copied for floats: their address may be unaligned)
 		glTexSubImage2D(target, level, x, y, w, h, format, type, p) {

@@ -15,7 +15,9 @@ import hxmc.unsafe.*;
 // a browser: the JavaScript side's readPixels (imports.mjs) reads a frame
 // back asynchronously instead. Uniform blocks and textures are a bind group
 // (group 0, its layout from the shaders' bindings; uniform blocks at dynamic
-// offsets into one ring buffer, written each frame before the submit).
+// offsets into one ring buffer, written each frame before the submit). A
+// pass into a texture renders into its first level's view; generateMips is
+// a pass per level on the JavaScript side.
 class WebGPUBackend {
 	public final backend = Backend.WebGPU;
 	public var width(default, null) = 0;

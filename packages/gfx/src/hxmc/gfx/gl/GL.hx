@@ -58,7 +58,6 @@ class GL {
 	public static inline var TEXTURE_MIN_FILTER = 0x2801;
 	public static inline var TEXTURE_WRAP_S = 0x2802;
 	public static inline var TEXTURE_WRAP_T = 0x2803;
-	public static inline var TEXTURE_MAX_LEVEL = 0x813D;
 	public static inline var NEAREST = 0x2600;
 	public static inline var LINEAR = 0x2601;
 	public static inline var REPEAT = 0x2901;
@@ -136,7 +135,6 @@ class GL {
 	static function glGenTextures(n:Int, textures:Ptr<Int32>):Void;
 	static function glBindTexture(target:Int, texture:Int):Void;
 	static function glActiveTexture(unit:Int):Void;
-	static function glTexParameteri(target:Int, pname:Int, param:Int):Void;
 	static function glTexStorage2D(target:Int, levels:Int, internalFormat:Int, width:Int, height:Int):Void;
 	static function glGenerateMipmap(target:Int):Void;
 	static function glGenFramebuffers(n:Int, framebuffers:Ptr<Int32>):Void;
