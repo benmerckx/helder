@@ -6,7 +6,8 @@
 // between the editors and the drawn widgets (the page's focus following);
 // a newline typed in the text area; the program's own change shown in the
 // editor; an editor hidden while the select's list covers it, shown again
-// when it closes.
+// when it closes; Tab from a drawn field (its host drawn, typed in through
+// the window's text input) into a native one, which keeps the focus.
 //   node packages/ui/test/web-field.mjs <WebField.wasm> [screenshot.png]
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -140,6 +141,19 @@ await settle();
 input = await editor('input[data-hxmc-editor]');
 check('the list closed: shown again', input.shown, JSON.stringify(input));
 if (shot) await p.screenshot({ path: shot });
+// a drawn field typed in (the window's text input), then Tab into the native one: its focus kept
+({ m } = await state());
+await p.mouse.click(m.drawn.x + m.drawn.w / 2, m.drawn.y + m.drawn.h / 2);
+await settle();
+await p.keyboard.type('hi');
+await settle();
+({ s } = await state());
+check('a drawn field (host drawn) typed in', s.drawn === 'hi' && s.focus === 'drawn' && !(await editor('input[data-hxmc-editor]')).focused, JSON.stringify(s));
+await p.keyboard.press('Tab');
+await settle();
+({ s } = await state());
+input = await editor('input[data-hxmc-editor]');
+check('Tab from the drawn field to the native one: its editor keeps the page\'s focus', s.focus === 'name' && input.focused, JSON.stringify({ s, input }));
 check('no errors', errors.length === 0, errors.join(' | '));
 const failed = results.filter((r) => !r.ok);
 for (const r of failed) console.log(`web-field.mjs: FAIL: ${r.what}: ${r.detail}`);

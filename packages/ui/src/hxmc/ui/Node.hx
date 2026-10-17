@@ -498,6 +498,9 @@ class Node {
 	// (Ui.update's, after the layout, for the nodes that joined Ui.natives: a platform's view kept in step)
 	@:allow(hxmc.ui.Ui) function syncNative() {}
 
+	// (the window took the keyboard's focus from its platform view: given back)
+	function refocusNative() {}
+
 	// the layout of this node (and so of its ancestors) must be redone
 	public function markDirty() {
 		Ui.accessEpoch++;

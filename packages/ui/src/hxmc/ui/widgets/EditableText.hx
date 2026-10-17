@@ -549,6 +549,9 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		}
 	}
 
+	override function refocusNative()
+		if (editor != null && editorShown && ui != null && ui.focus == this) editor.focus(true);
+
 	// (what shows behind its text: its own background or the nearest opaque
 	// one around it, else the window's, white or black when dark)
 	function behind():Color {

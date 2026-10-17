@@ -132,7 +132,11 @@ class UiWindow {
 		}
 		var now = a == null ? "" : '$x,$y,$w,$h';
 		if (now == typing) return;
-		if (a == null) window.stopTextInput() else window.startTextInput(x, y, w, h);
+		if (a == null) {
+			window.stopTextInput();
+			// (which takes the keyboard's focus back from a native editor that just took it)
+			if (ui.focus != null) @:privateAccess ui.focus.refocusNative();
+		} else window.startTextInput(x, y, w, h);
 		typing = now;
 	}
 
