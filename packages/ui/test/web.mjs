@@ -207,6 +207,14 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	await touch('touchEnd', []);
 	await p.waitForTimeout(1500);
 	const flicked = Number((await boxes()).line.split(' | ')[3].split(' ')[1]) - 227.5;
+	// the system's appearance: the page's colour scheme made dark, the window asks within a second
+	const lightBefore = (await boxes()).line.split(' | ')[4];
+	await p.emulateMedia({ colorScheme: 'dark' });
+	await p.waitForTimeout(1500);
+	await p.evaluate(() => window.result.host.os.redraw());
+	await settle();
+	const darkAfter = (await boxes()).line.split(' | ')[4];
+	const appearance = lightBefore === 'dark false' && darkAfter === 'dark true';
 	const touched = dragged === 'wheel 227.5' && tapped === '3 items left' && flicked > 150;
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
@@ -217,9 +225,9 @@ for (const gfx of ['webgpu', 'webgl2']) {
 		});
 		await writeFile(path.join(out, `todo-${gfx}.png`), Buffer.from(png));
 	}
-	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && ime && wheel === 'wheel 127.5' && touched && errors.length === 0 && backend === gfx;
+	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && ime && wheel === 'wheel 127.5' && touched && appearance && errors.length === 0 && backend === gfx;
 	if (!ok) failed++;
-	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}; input method: ${ime ? 'ok' : `${typing}, composed ${composed !== before}, cancelled ${cancelled === before}, committed ${committed}`}; ${wheel}; touch: ${touched ? 'ok' : dragged + ', ' + tapped + ', flicked ' + flicked}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}; input method: ${ime ? 'ok' : `${typing}, composed ${composed !== before}, cancelled ${cancelled === before}, committed ${committed}`}; ${wheel}; appearance: ${appearance ? 'ok' : lightBefore + ', then ' + darkAfter}; touch: ${touched ? 'ok' : dragged + ', ' + tapped + ', flicked ' + flicked}${ok ? '' : ' FAILED'}`);
 	if (missing.length) console.log(aria);
 	for (const e of errors) console.log('  error: ' + e);
 	if (backend !== gfx) console.log('  on ' + backend);

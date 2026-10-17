@@ -5,6 +5,7 @@ import hxmc.ui.draw.UiWindow;
 import hxmc.ui.reactive.*;
 import hxmc.ui.reactive.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
+import hxmc.ui.widgets.Theme;
 
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
 // buttons, a select, a menu, a tooltip and a dialog (popups over the
@@ -72,7 +73,7 @@ class Gallery implements Markup {
 
 	function section(title:String, content:Esx):Esx
 		return <view row-gap={8}>
-			<text font-size={12} font-weight={700} color="#71717a">{title}</text>
+			<text font-size={12} font-weight={700} color={() -> Theme.current.value.muted}>{title}</text>
 			{content}
 		</view>;
 
@@ -83,15 +84,15 @@ class Gallery implements Markup {
 	];
 
 	function tabContent(i:Int):Esx
-		return <view tag="tab-content" padding={12} radius={8} background="#ffffff" border-width={1} border-color="#e4e4e7">{TABS[i]}</view>;
+		return <view tag="tab-content" padding={12} radius={8} background={() -> Theme.current.value.control} border-width={1} border-color={() -> Theme.current.value.subtle}>{TABS[i]}</view>;
 
 	public function view():Esx
-		return <scroll grow={1} padding={20} row-gap={18} background="#fafafa" font-family="DejaVu Sans" font-size={14} color="#18181b">
+		return <scroll grow={1} padding={20} row-gap={18} background={() -> Theme.current.value.background} font-family="DejaVu Sans" font-size={14} color={() -> Theme.current.value.text}>
 			<text font-size={22} font-weight={700}>Widgets</text>
 			{section("BUTTONS", <view direction="row" column-gap={8} align-items="center">
 				<Button tag="plain" label="Plain" onClick={() -> clicks.value++}/>
 				<Button tag="primary" label="Primary" primary onClick={() -> clicks.value += 10}/>
-				<text tag="clicks" color="#52525b">{() -> "clicked " + clicks.value}</text>
+				<text tag="clicks" color={() -> Theme.current.value.secondary}>{() -> "clicked " + clicks.value}</text>
 			</view>)}
 			{section("POPUPS", <view direction="row" column-gap={12} align-items="center">
 				<Select tag="fruit" value={fruit} options={["Apple", "Pear", "Plum"]} label="Fruit" width={110}/>
@@ -100,8 +101,8 @@ class Gallery implements Markup {
 					{label: "Open…", onSelect: () -> chosen.value = "Open"},
 					{label: "Rename…", onSelect: () -> dialog.value = true}
 				]}/>
-				<Tooltip tag="tip" text="A tooltip, after half a second"><text color="#52525b">Hover me</text></Tooltip>
-				<text tag="chosen" color="#52525b">{() -> chosen.value}</text>
+				<Tooltip tag="tip" text="A tooltip, after half a second"><text color={() -> Theme.current.value.secondary}>Hover me</text></Tooltip>
+				<text tag="chosen" color={() -> Theme.current.value.secondary}>{() -> chosen.value}</text>
 				<Dialog open={dialog} title="Rename">
 					<Field tag="rename" value={name} placeholder="A new name"/>
 					<view direction="row" justify="end"><Button tag="done" label="Done" primary onClick={() -> dialog.value = false}/></view>
@@ -110,31 +111,31 @@ class Gallery implements Markup {
 			{section("TOGGLES", <view direction="row" column-gap={24} align-items="center">
 				<Checkbox tag="check" checked={checked} label="Checkbox"/>
 				<Toggle tag="switch" on={on} label={"Switch"}/>
-				<text tag="toggles" color="#52525b">{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
+				<text tag="toggles" color={() -> Theme.current.value.secondary}>{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
 			</view>)}
 			{section("RADIO", <view direction="row" column-gap={24}>
 				<Radio tag="size" value={size} options={["Small", "Medium", "Large"]}/>
-				<text tag="size-shown" color="#52525b">{() -> "size: " + size.value}</text>
+				<text tag="size-shown" color={() -> Theme.current.value.secondary}>{() -> "size: " + size.value}</text>
 			</view>)}
 			{section("SLIDER AND PROGRESS", <view row-gap={10}>
 				<view direction="row" column-gap={12} align-items="center">
 					<Slider tag="volume" value={volume} step={0.05} width={200}/>
-					<text tag="volume-shown" color="#52525b">{() -> Math.round(volume.value * 100) + "%"}</text>
+					<text tag="volume-shown" color={() -> Theme.current.value.secondary}>{() -> Math.round(volume.value * 100) + "%"}</text>
 				</view>
 				<Progress value={volume} width={200}/>
 			</view>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
 			{section("IMAGES: FILL, CONTAIN, COVER", <view direction="row" column-gap={12} align-items="start">
 				<image tag="fill" src={picture} width={110} height={70} radius={8}/>
-				<image tag="contain" src={picture} fit="contain" width={110} height={70} radius={8} background="#e4e4e7"/>
+				<image tag="contain" src={picture} fit="contain" width={110} height={70} radius={8} background={() -> Theme.current.value.subtle}/>
 				<image tag="cover" src={picture} fit="cover" width={110} height={70} radius={8}/>
 				<image tag="natural" src={picture} radius={30}/>
 			</view>)}
 			{section("FIELD AND AREA", <view row-gap={6}>
 				<Field tag="name" value={name} placeholder="Your name"/>
-				<text tag="greeting" color="#52525b">{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
+				<text tag="greeting" color={() -> Theme.current.value.secondary}>{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
 				<Area tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
-				<text tag="lines" color="#52525b">{() -> notes.value.split("\n").length + " lines"}</text>
+				<text tag="lines" color={() -> Theme.current.value.secondary}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
 		</scroll>;
 }

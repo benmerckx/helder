@@ -163,3 +163,8 @@ class WM {
 	var biClrUsed:UInt32;
 	var biClrImportant:UInt32;
 }
+
+// the registry (the system's appearance)
+@:hxmc.c @:hxmc.lib("advapi32") extern class Advapi32 {
+	static function RegGetValueW(key:Ptr, subKey:Ptr, value:Ptr, flags:Int, type:Ptr, data:Ptr, size:Ptr):Int;
+}

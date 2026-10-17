@@ -17,6 +17,8 @@ import hxmc.unsafe.*;
 	static function height(canvas:Int):Int;
 	// device pixels per CSS pixel
 	static function scale():Float;
+	// the page's prefers-color-scheme: dark (1) or not (0)
+	static function prefers_dark():Int;
 	// the next pending event into ev (seven Int32: canvas, EventKind, key (a
 	// TextInput's code point, a TextEditing's string handle, 0 for none), x,
 	// y, button, mods); 0: none

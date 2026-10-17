@@ -263,6 +263,7 @@ export default function (host) {
 		width: (h) => host.handles.get(h).width,
 		height: (h) => host.handles.get(h).height,
 		scale: () => devicePixelRatio,
+		prefers_dark: () => (matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0),
 		clipboard_write(p) {
 			const s = host.string(p);
 			navigator.clipboard?.writeText(s).catch(() => {});

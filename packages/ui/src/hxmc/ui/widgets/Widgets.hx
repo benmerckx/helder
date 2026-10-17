@@ -10,16 +10,21 @@ import hxmc.ui.reactive.Motion;
 import hxmc.ui.reactive.Flow.*;
 
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
-// hxmc.ui.reactive, styled plainly (props override the look); their
-// colours and the switch's knob move with Motion's transitions
+// hxmc.ui.reactive, styled plainly (props override the look), in
+// Theme.current's colours; their colours and the switch's knob move with
+// Motion's transitions
 class Widgets implements Markup {
+	// (the theme: read inside reactive values, so that they follow it)
+	static inline function t():Theme
+		return Theme.current.value;
+
 	// a button: label or children; a primary one is filled
 	public static function Button(props:{?label:String, ?onClick:Void->Void, ?primary:Bool, ?children:Esx, ?tag:String}):Esx {
 		var hover = signal(false), down = signal(false);
 		var primary = props.primary == true;
-		var bg = () -> primary ? (down.value ? "#1d4ed8" : hover.value ? "#2563eb" : "#3b82f6") : (down.value ? "#d4d4d8" : hover.value ? "#e4e4e7" : "#ffffff");
-		return <view tag={props.tag ?? "button"} role="button" focusable cursor="pointer" padding="6 14" radius={6} border-width={primary ? 0 : 1} border-color="#a1a1aa" background={Motion.color(bg)}
-			color={primary ? "#ffffff" : "#18181b"} align-items="center" onPointerEnter={_ -> hover.value = true}
+		var bg = () -> primary ? (down.value ? t().accentPressed : hover.value ? t().accentHover : t().accent) : (down.value ? t().controlPressed : hover.value ? t().controlHover : t().control);
+		return <view tag={props.tag ?? "button"} role="button" focusable cursor="pointer" padding="6 14" radius={6} border-width={primary ? 0 : 1} border-color={() -> t().border} background={Motion.color(bg)}
+			color={() -> primary ? t().onAccent : t().text} align-items="center" onPointerEnter={_ -> hover.value = true}
 			onPointerLeave={_ -> {
 				hover.value = false;
 				down.value = false;
@@ -35,9 +40,9 @@ class Widgets implements Markup {
 		var toggle = () -> props.checked.value = !props.checked.value;
 		return <view tag={props.tag ?? "checkbox"} role="checkbox" checked={() -> props.checked.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE) toggle()}>
-			<view width={16} height={16} radius={4} border-width={1.5} border-color={Motion.color(() -> props.checked.value ? "#2563eb" : "#71717a")}
-				background={Motion.color(() -> props.checked.value ? "#3b82f6" : "#ffffff")} align-items="center" justify="center">
-				<view width={8} height={8} radius={2} background={Motion.color(() -> props.checked.value ? "#ffffff" : "#ffffff00")}/>
+			<view width={16} height={16} radius={4} border-width={1.5} border-color={Motion.color(() -> props.checked.value ? t().accentHover : t().mark)}
+				background={Motion.color(() -> props.checked.value ? t().accent : t().control)} align-items="center" justify="center">
+				<view width={8} height={8} radius={2} background={Motion.color(() -> props.checked.value ? t().onAccent : Theme.clear(t().onAccent))}/>
 			</view>
 			{props.label}
 		</view>;
@@ -49,8 +54,8 @@ class Widgets implements Markup {
 		return <view tag={props.tag ?? "switch"} role="switch" checked={() -> props.on.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) toggle()}>
 			<view width={36} height={20} radius={10} padding={2} direction="row"
-				background={Motion.color(() -> props.on.value ? "#3b82f6" : "#d4d4d8")}>
-				<view width={16} height={16} radius={8} background="#ffffff" shadow="0 1 2 #00000040"
+				background={Motion.color(() -> props.on.value ? t().accent : t().track)}>
+				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"
 					position="relative" left={Motion.transition(() -> props.on.value ? 16 : 0)}/>
 			</view>
 			{props.label}
@@ -85,11 +90,11 @@ class Widgets implements Markup {
 				case Key.END: set(hi);
 				case _:
 			}}>
-			<view height={4} radius={2} margin={[0, knob / 2]} overflow="hidden" direction="row" background="#d4d4d8">
-				<view width={() -> (frac() * 100) + "%"} background="#3b82f6"/>
+			<view height={4} radius={2} margin={[0, knob / 2]} overflow="hidden" direction="row" background={() -> t().track}>
+				<view width={() -> (frac() * 100) + "%"} background={() -> t().accent}/>
 			</view>
-			<view position="absolute" top={2} left={() -> frac() * (w - knob)} width={knob} height={knob} radius={knob / 2} background="#ffffff"
-				border-width={1} border-color="#a1a1aa" shadow="0 1 2 #00000033"/>
+			<view position="absolute" top={2} left={() -> frac() * (w - knob)} width={knob} height={knob} radius={knob / 2} background={() -> t().knob}
+				border-width={1} border-color={() -> t().border} shadow="0 1 2 #00000033"/>
 		</view>;
 	}
 
@@ -101,9 +106,9 @@ class Widgets implements Markup {
 			for (o in props.options)
 				<view tag={tag + "-" + o} role="radio" checked={() -> props.value.value == o} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> props.value.value = o}
 					onKeyDown={e -> if (e.key == Key.SPACE) props.value.value = o}>
-					<view width={16} height={16} radius={8} border-width={1.5} border-color={Motion.color(() -> props.value.value == o ? "#2563eb" : "#71717a")}
+					<view width={16} height={16} radius={8} border-width={1.5} border-color={Motion.color(() -> props.value.value == o ? t().accentHover : t().mark)}
 						align-items="center" justify="center">
-						<view width={8} height={8} radius={4} background={Motion.color(() -> props.value.value == o ? "#3b82f6" : "#3b82f600")}/>
+						<view width={8} height={8} radius={4} background={Motion.color(() -> props.value.value == o ? t().accent : Theme.clear(t().accent))}/>
 					</view>
 					{o}
 				</view>
@@ -119,9 +124,9 @@ class Widgets implements Markup {
 				for (i in 0...props.labels.length)
 					<view tag={tag + "-" + i} role="tab" selected={() -> props.selected.value == i} focusable cursor="pointer" padding="6 10 0 10" row-gap={6} align-items="center"
 						onClick={_ -> props.selected.value = i} onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) props.selected.value = i}
-						color={Motion.color(() -> props.selected.value == i ? "#1d4ed8" : "#52525b")}>
+						color={Motion.color(() -> props.selected.value == i ? t().accentText : t().secondary)}>
 						{props.labels[i]}
-						<view align-self="stretch" height={2} radius={1} background={Motion.color(() -> props.selected.value == i ? "#3b82f6" : "#3b82f600")}/>
+						<view align-self="stretch" height={2} radius={1} background={Motion.color(() -> props.selected.value == i ? t().accent : Theme.clear(t().accent))}/>
 					</view>
 			]}</view>
 			<view role="tabpanel" label={() -> props.labels[props.selected.value]}>{() -> props.render(props.selected.value)}</view>
@@ -134,8 +139,8 @@ class Widgets implements Markup {
 			var v:Float = Render.read(props.value);
 			v < 0 ? 0.0 : v > 1 ? 1.0 : v;
 		};
-		return <view tag={props.tag ?? "progress"} role="progressbar" label={props.label} value-now={frac} value-min={0} value-max={1} width={props.width ?? 160} height={8} radius={4} overflow="hidden" direction="row" background="#e4e4e7">
-			<view width={() -> (frac() * 100) + "%"} background="#3b82f6"/>
+		return <view tag={props.tag ?? "progress"} role="progressbar" label={props.label} value-now={frac} value-min={0} value-max={1} width={props.width ?? 160} height={8} radius={4} overflow="hidden" direction="row" background={() -> t().subtle}>
+			<view width={() -> (frac() * 100) + "%"} background={() -> t().accent}/>
 		</view>;
 	}
 
@@ -163,7 +168,7 @@ class Widgets implements Markup {
 			if (i >= 0 && i < props.options.length) props.value.value = props.options[i];
 		}
 		return <view tag={tag} role="combobox" label={props.label} expanded={() -> open.value} focusable cursor="pointer" direction="row" align-items="center"
-			justify="space-between" column-gap={8} width={w} padding="6 10" radius={6} border-width={1} border-color="#a1a1aa" background="#ffffff"
+			justify="space-between" column-gap={8} width={w} padding="6 10" radius={6} border-width={1} border-color={() -> t().border} background={() -> t().control}
 			onClick={_ -> open.value = !open.value}
 			onKeyDown={e -> switch e.key {
 				case Key.ENTER | Key.SPACE:
@@ -174,14 +179,14 @@ class Widgets implements Markup {
 				case _:
 			}}>
 			{() -> labelOf(props.value.value)}
-			<text color="#71717a" hidden>▾</text>
+			<text color={() -> t().muted} hidden>▾</text>
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusItem(props.options.indexOf(props.value.peek()))}>
-				<view tag={tag + "-list"} role="listbox" label={props.label} min-width={w} padding={4} radius={6} border-width={1} border-color="#d4d4d8"
-					background="#ffffff" shadow="0 4 12 #00000026">{[
+				<view tag={tag + "-list"} role="listbox" label={props.label} min-width={w} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
+					background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
 					for (i in 0...props.options.length) {
 						var o = props.options[i], hover = signal(false);
 						<view tag={tag + "-" + o} role="option" selected={() -> props.value.value == o} ref={n -> items[i] = n} focusable cursor="pointer" padding="5 8"
-							radius={4} background={() -> props.value.value == o ? "#dbeafe" : hover.value ? "#f4f4f5" : "#ffffff00"}
+							radius={4} background={() -> props.value.value == o ? t().itemSelected : hover.value ? t().itemHover : Theme.clear(t().control)}
 							onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false} onClick={_ -> choose(o)}
 							onKeyDown={e -> switch e.key {
 								case Key.DOWN:
@@ -215,16 +220,16 @@ class Widgets implements Markup {
 		function focusItem(i:Int)
 			if (i >= 0 && i < items.length && items[i].ui != null) items[i].ui.setFocus(items[i]);
 		return <view tag={tag} role="button" expanded={() -> open.value} focusable cursor="pointer" padding="6 14" radius={6} border-width={1}
-			border-color="#a1a1aa" background="#ffffff" direction="row" column-gap={6} onClick={_ -> open.value = !open.value}
+			border-color={() -> t().border} background={() -> t().control} direction="row" column-gap={6} onClick={_ -> open.value = !open.value}
 			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE || e.key == Key.DOWN) {
 				open.value = true;
 				e.stop();
 			}}>
 			{props.label}
-			<text color="#71717a" hidden>▾</text>
+			<text color={() -> t().muted} hidden>▾</text>
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusItem(0)}>
-				<view tag={tag + "-items"} role="menu" label={props.label} min-width={140} padding={4} radius={6} border-width={1} border-color="#d4d4d8"
-					background="#ffffff" shadow="0 4 12 #00000026">{[
+				<view tag={tag + "-items"} role="menu" label={props.label} min-width={140} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
+					background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
 					for (i in 0...props.items.length) {
 						var it = props.items[i], hover = signal(false);
 						function choose() {
@@ -232,7 +237,7 @@ class Widgets implements Markup {
 							it.onSelect();
 						}
 						<view tag={tag + "-" + i} role="menuitem" ref={n -> items[i] = n} focusable cursor="pointer" padding="5 8" radius={4}
-							background={() -> hover.value ? "#f4f4f5" : "#ffffff00"} onPointerEnter={_ -> hover.value = true}
+							background={() -> hover.value ? t().itemHover : Theme.clear(t().control)} onPointerEnter={_ -> hover.value = true}
 							onPointerLeave={_ -> hover.value = false} onClick={_ -> choose()}
 							onKeyDown={e -> switch e.key {
 								case Key.DOWN:
@@ -278,7 +283,7 @@ class Widgets implements Markup {
 		return <view tag={props.tag} onPointerEnter={_ -> enter()} onPointerLeave={_ -> leave()} onPointerDown={_ -> leave()}>
 			{props.children}
 			<Popover open={show} placement={props.placement ?? "above"} tag="tooltip">
-				<view role="tooltip" padding="4 8" radius={4} background="#27272a" color="#ffffff" font-size={12}>{props.text}</view>
+				<view role="tooltip" padding="4 8" radius={4} background={() -> t().tooltip} color={() -> t().onTooltip} font-size={12}>{props.text}</view>
 			</Popover>
 		</view>;
 	}
@@ -293,8 +298,8 @@ class Widgets implements Markup {
 			backdrop: Color.rgba(0x000000, 0.4),
 			onDismiss: () -> props.open.value = false,
 			tag: props.tag ?? "dialog",
-			children: <view role="dialog" label={props.title} width={props.width ?? 360} padding={20} row-gap={12} radius={10} background="#ffffff"
-				shadow="0 10 30 #00000040">
+			children: <view role="dialog" label={props.title} width={props.width ?? 360} padding={20} row-gap={12} radius={10} background={() -> t().control}
+				color={() -> t().text} shadow="0 10 30 #00000040">
 				<text font-size={17} font-weight={600}>{props.title}</text>
 				{props.children}
 			</view>
@@ -307,11 +312,24 @@ class Widgets implements Markup {
 		f.rows = props.rows ?? 3;
 		f.placeholder = props.placeholder ?? "";
 		f.semantics.label = props.label ?? props.placeholder;
-		f.style.set({padding: [6, 8], borderWidth: 1, borderColor: Color.rgb(0xA1A1AA), radius: 6, background: Color.WHITE});
+		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6});
+		themed(f);
 		f.onChange = s -> props.value.value = s;
 		effect(() -> f.setText(props.value.value));
 		return f;
 	}
+
+	// (a text field's colours from the theme, following it)
+	static function themed(f:EditableText)
+		effect(() -> {
+			var th = t();
+			f.style.background = Color.parse(th.control);
+			f.style.borderColor = Color.parse(th.border);
+			f.placeholderColor = Color.parse(th.placeholder);
+			f.selectionColor = Color.parse(th.selection);
+			f.caretColor = Color.parse(th.caret);
+			f.markDirty();
+		});
 
 	// a text field bound to a signal (two ways)
 	public static function Field(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?tag:String}):Node {
@@ -319,7 +337,8 @@ class Widgets implements Markup {
 		if (props.tag != null) f.tag = props.tag;
 		f.placeholder = props.placeholder ?? "";
 		f.semantics.label = props.label ?? props.placeholder;
-		f.style.set({padding: [6, 8], borderWidth: 1, borderColor: Color.rgb(0xA1A1AA), radius: 6, background: Color.WHITE});
+		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6});
+		themed(f);
 		f.onChange = s -> props.value.value = s;
 		f.onSubmit = props.onSubmit;
 		effect(() -> f.setText(props.value.value));

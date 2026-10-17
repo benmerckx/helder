@@ -214,15 +214,30 @@ A context passes a value down the tree without threading it through every
 component. `use` reads the nearest `Provider`'s value, else the default:
 
 ```haxe
-static final Theme = context({accent: "#3b82f6"});
+static final Brand = context({accent: "#3b82f6"});
 
 static function Accent(props:{label:String}):Esx {
-	var theme = use(Theme);
-	return <text color={theme.accent}>{props.label}</text>;
+	var brand = use(Brand);
+	return <text color={brand.accent}>{props.label}</text>;
 }
 
-<Provider context={Theme} value={{accent: "#e11d48"}}><Accent label="rose"/></Provider>
+<Provider context={Brand} value={{accent: "#e11d48"}}><Accent label="rose"/></Provider>
 ```
+
+## Themes and dark mode
+
+The widgets draw with `Theme.current`, a signal holding `Theme.LIGHT` or
+`Theme.DARK` (or a theme of your own: colours by role). Setting it
+recolours every widget, with their usual transition. `UiWindow.dark`
+follows the system's appearance, so one line makes an app follow it:
+
+```haxe
+Theme.follow(() -> UiWindow.dark.value);
+```
+
+Paint your own surfaces with the theme's roles too, read inside a
+function so that they follow it:
+`<view background={() -> Theme.current.value.background} color={() -> Theme.current.value.text}>`.
 
 ## Popups
 

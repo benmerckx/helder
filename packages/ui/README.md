@@ -100,7 +100,11 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`, `Area`, and the popups `Select`, `Menu`,
-  `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all.
+  `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
+  with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
+  `Theme.follow(() -> UiWindow.dark.value)` follows the system's
+  appearance (`hxmc.os.App.prefersDark`: the browser's colour scheme,
+  macOS's, Windows', GTK's settings).
 - **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the

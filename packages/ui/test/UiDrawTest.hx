@@ -74,6 +74,7 @@ class UiDrawTest {
 				}
 			var ok = dark > 400;
 			Sys.println('UiDrawTest: smoke: the font ${face.family} ${face.subfamily}, $dark dark pixels in the paragraph: ' + (ok ? "ok" : "FAIL"));
+			Sys.println('UiDrawTest: smoke: the system\'s appearance ' + (App.prefersDark() ? "dark" : "light"));
 			Sys.exit(ok ? 0 : 1);
 		}
 		Sys.exit(compare(pixels, golden) ? 0 : 1);

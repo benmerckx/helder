@@ -33,6 +33,10 @@ class UiWindow {
 	// how long the loop sleeps at most with nothing to draw (seconds): what
 	// changes the UI from outside its events shows within it
 	public static var idleWait = 0.1;
+	// whether the system's appearance is dark (App.prefersDark), asked again
+	// every second while the loop runs: Theme.follow(() -> UiWindow.dark.value)
+	public static final dark:hxmc.ui.reactive.Signal<Bool> = hxmc.ui.reactive.Reactive.signal(App.prefersDark());
+	static var darkAsked = 0.0;
 
 	static final open:Array<UiWindow> = [];
 	// the last frame drawn: its size and scale (a change needs a frame)
@@ -210,6 +214,12 @@ class UiWindow {
 	// the app loop: every UiWindow's frames and events until the last closes
 	public static function run() {
 		App.run(() -> {
+			var now = haxe.Timer.stamp();
+			if (now - darkAsked > 1) {
+				darkAsked = now;
+				var d = App.prefersDark();
+				if (d != dark.peek()) dark.value = d;
+			}
 			var drew = false;
 			for (w in open.copy())
 				w.pollAccess();

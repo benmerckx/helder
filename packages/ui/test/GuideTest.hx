@@ -5,6 +5,7 @@ import hxmc.ui.reactive.*;
 import hxmc.ui.reactive.Flow.*;
 import hxmc.ui.reactive.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
+import hxmc.ui.widgets.Theme;
 import UiTest.Recording;
 
 // The examples of packages/ui/GUIDE.md, compiled and run on Eval (make
@@ -31,6 +32,7 @@ class GuideTest implements Markup {
 		snippets();
 		grids();
 		richText();
+		themes();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -80,11 +82,11 @@ class GuideTest implements Markup {
 		</Switch>;
 
 	// "Context"
-	static final Theme = context({accent: "#3b82f6"});
+	static final Brand = context({accent: "#3b82f6"});
 
 	static function Accent(props:{label:String}):Esx {
-		var theme = use(Theme);
-		return <text tag="accent" color={theme.accent}>{props.label}</text>;
+		var brand = use(Brand);
+		return <text tag="accent" color={brand.accent}>{props.label}</text>;
 	}
 
 	// "Popups"
@@ -176,7 +178,7 @@ class GuideTest implements Markup {
 		var ui = window();
 		Render.render(<view>
 			<Accent label="default"/>
-			<Provider context={Theme} value={{accent: "#e11d48"}}><Accent label="rose"/></Provider>
+			<Provider context={Brand} value={{accent: "#e11d48"}}><Accent label="rose"/></Provider>
 		</view>, ui.root);
 		ui.update();
 		var colors = [for (n in ui.root.children[0].children) n.style.color];
@@ -274,6 +276,24 @@ class GuideTest implements Markup {
 		var ct = clamped.root.find("clamped");
 		check("max-lines: two lines of a long text", ct.height == 25, '${ct.height}');
 		check("rich text: the spans' colours drawn", line != null && StringTools.endsWith(line, "colors ff000000,ff000000,ff000000,ff2563eb,ff000000"), line);
+	}
+
+	// "Themes": the widgets follow Theme.current
+	static function themes() {
+		var ui = window();
+		var dark = signal(false);
+		Theme.follow(() -> dark.value);
+		Render.render(<view><Button tag="themed" label="Themed"/></view>, ui.root);
+		ui.update();
+		var b = ui.root.find("themed");
+		var light = b.style.background;
+		dark.value = true;
+		Clock.finish();
+		check("themes: a widget follows the theme", Theme.current.value == Theme.DARK && light == Color.parse(Theme.LIGHT.control) && b.style.background == Color.parse(Theme.DARK.control),
+			StringTools.hex(b.style.background, 8));
+		dark.value = false;
+		Clock.finish();
+		check("themes: and back", b.style.background == light);
 	}
 
 	static function customNodes() {

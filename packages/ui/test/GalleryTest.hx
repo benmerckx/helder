@@ -12,7 +12,8 @@ import hxmc.ui.reactive.*;
 // the field, the images' sizes; PNG files decoded natively (png/*.png,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
-//   GalleryTest <golden.png> <out.png> [--bless]
+// With --dark, in Theme.DARK, against gallery-dark.png.
+//   GalleryTest <golden.png> <out.png> [--dark] [--bless]
 class GalleryTest {
 	static inline var W = 560;
 	static inline var H = 960;
@@ -29,6 +30,7 @@ class GalleryTest {
 
 	static function main() {
 		var args = Sys.args();
+		if (args.indexOf("--dark") >= 0) hxmc.ui.widgets.Theme.current.value = hxmc.ui.widgets.Theme.DARK;
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
 		var app = new Gallery();
@@ -165,7 +167,7 @@ class GalleryTest {
 		device.endFrame();
 		device.dispose();
 		sys.io.File.saveBytes(args[1], Png.encode(pixels, W, H));
-		if (args[2] == "--bless") {
+		if (args.indexOf("--bless") >= 0) {
 			sys.io.File.saveBytes(args[0], Png.encode(pixels, W, H));
 			Sys.println('GalleryTest: blessed ${args[0]}');
 			Sys.exit(failed == 0 ? 0 : 1);
