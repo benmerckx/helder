@@ -12,7 +12,7 @@ import hxmc.unsafe.*;
 // GtkProgressBar. Measured with GTK's preferred sizes. Signals come back
 // through @:hxmc.callback functions, the widget's handle as their data;
 // what update sets itself is not reported back.
-class GtkBackend implements NativeBackend {
+class GtkBackend implements NativeBackend implements NativeDriver {
 	static var started = false;
 	static var nextHandle = 1;
 	// by handle: the backend, the widget, its node
@@ -246,6 +246,26 @@ class GtkBackend implements NativeBackend {
 	// the widget's pointer (tests drive it with GTK's own calls)
 	public function widget(h:Int):Ptr
 		return widgets.get(h);
+
+	// --- NativeDriver: GTK's own calls, its signals following ---
+
+	public function click(h:Int)
+		Gtk.gtk_button_clicked(widgets.get(h));
+
+	public function type(h:Int, s:String)
+		Arena.scoped(a -> Gtk.gtk_entry_set_text(widgets.get(h), a.cstring(s)));
+
+	public function toggle(h:Int, on:Bool)
+		Gtk.gtk_toggle_button_set_active(widgets.get(h), on ? 1 : 0);
+
+	public function slide(h:Int, v:Float)
+		Gtk.gtk_range_set_value(widgets.get(h), v);
+
+	public function fieldText(h:Int):String
+		return text(Gtk.gtk_entry_get_text(widgets.get(h)));
+
+	public function sliderValue(h:Int):Float
+		return Gtk.gtk_range_get_value(widgets.get(h));
 
 	// the window's pixels saved as a PNG file (tests)
 	public function screenshot(path:String):Bool {
