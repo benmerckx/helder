@@ -35,6 +35,10 @@ class StyleAttrs {
 	static function transform(style:Style, v:Dynamic)
 		style.transform = v == null || v == "none" ? null : Std.isOfType(v, String) ? Transform.parse(v) : (v : Transform);
 
+	// CSS's shorthand ("background-color 150ms ease, opacity 0.2s"), or a Transition
+	static function transition(style:Style, v:Dynamic)
+		style.transition = v == null ? null : Std.isOfType(v, String) ? Transition.parse(v) : (v : Transition);
+
 	static function transformOrigin(style:Style, v:Dynamic)
 		style.transformOrigin = v == null ? null : Std.isOfType(v, String) ? Transform.origin(v) : (v : Array<Dim>);
 

@@ -118,7 +118,14 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     Chromium blurs them, within a few levels of its pixels), `outlineWidth`,
     `outlineOffset`, `outlineColor` (or markup `outline="2px solid red"`: a
     solid line around the border box over the content, its corners the
-    box's grown, as Chromium draws it; BoxTest compares them), `cursor`,
+    box's grown, as Chromium draws it; BoxTest compares them), `outlineStyle`
+    (`Auto`, the default: the window's focus ring while focused by the
+    keyboard; `Solid`: only the outline; `None`: neither, as CSS's
+    `outline-style: none`), `ringWidth`, `ringColor`, `ringOffsetWidth`,
+    `ringOffsetColor`, `ringInset` (Tailwind's ring: spread shadows of no
+    blur over the node's own `shadow`, the offset over the ring, each from
+    its own property or rule), corner radii scaled down together where a side's
+    two add up to more than it (as CSS: `9999` a pill), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
     `Visible` descendant still is), `pointerEvents` (inherited; `None` lets
@@ -143,6 +150,14 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     scaled size (on the pixel grid when the transform only moves and
     scales evenly), within half a level of Chromium's pixels on average.
     Under a turning transform a clip is its bounds.
+  - Transitions: `transition` (CSS's shorthand, `"background-color
+    150ms ease-in-out, opacity 0.2s"`; `Transition.parse`): once a node
+    has been drawn, a change of a property it names (colours, opacity,
+    transform, box-shadow; `all`) eases on the `Clock` from where it is,
+    along CSS's timing functions (cubic Béziers), colours with their
+    alphas premultiplied, transforms function by function, shadows shadow
+    by shadow, as Chromium interpolates them; `style.target(name)` is
+    where it goes. A theme's rules set it as any property.
   - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
     colour type, depth and interlacing, JPEG files, baseline or
     progressive, decoded as browsers do, the EXIF orientation applied,
@@ -198,39 +213,38 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   `cut`, `copy`, `paste`, `selectAll`; `Input` and `Textarea` add an edit menu
   on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`, with an input method's composition shown at the caret), and the components; unstyled with slots for a theme (Themes) so far:
+  `EditableText`, with an input method's composition shown at the caret), and the components, unstyled with slots for a theme (Themes):
   `Button` (variants, sizes, disabled), `Toggle` (a pressed button), `Checkbox`, `Switch`, `Input` (or a password,
   invalid), `Textarea`, `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
   `CardFooter`), `RadioGroup`, `Slider`, `RangeSlider` (two knobs, a
   slider each for the keyboard), `Progress` (or indeterminate), `Tabs`, `Separator`, `Skeleton`, `Alert`
-  (`AlertTitle`, `AlertDescription`); still drawn with `Theme.current`: `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
+  (`AlertTitle`, `AlertDescription`), `Avatar` (an image or initials), `Kbd`, `Spinner`, `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
   (a month's grid of days, moved through by the keys) and `DatePicker` (a
   calendar in a popover; `Days`: dates as day numbers, no time zones),
-  `Disclosure` and `Accordion` (sections shown and hidden), `NumberField`
+  `Collapsible` and `Accordion` (sections shown and hidden), `NumberField`
   (typed or stepped, within bounds; a spin button), `Listbox` (one option
   selected or several: Shift and Control with the arrows and clicks,
   Control+A; ARIA's multiselectable), `Toolbar` (its focusable children
-  one Tab stop, Left and Right between them), `SegmentedControl` (one of
-  options among joined buttons: a radio group), `Breadcrumbs` and
+  one Tab stop, Left and Right between them), `ToggleGroup` (one of
+  options among joined buttons: a radio group), `Breadcrumb` and
   `Pagination` (navigation landmarks, the current step or page marked
   current: ARIA's aria-current), `TagInput` (chips before a text field:
   Enter or a comma adds, Backspace or a chip's × removes), `Sortable` (a list
   reordered by dragging, a line where the item will go, or by Alt+Up and
   Alt+Down), `ColorPicker` (a
   saturation and brightness square, a hue strip and the hex: sliders for
-  the keyboard), and the popups `Select`, `Menu`,
+  the keyboard), and the popups `Select`, `DropdownMenu`,
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
-  through by Left and Right, one open at a time), `Tooltip`, `Dialog`, `Combobox` (a text
+  through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `Sheet` (a dialog along an edge), `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
   field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
-  an action); `examples/Gallery.hx` shows them all. They draw
-  with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
-  `Theme.follow(() -> UiWindow.dark.value)` follows the system's
-  appearance (`hxmc.os.App.prefersDark`: the browser's colour scheme,
-  macOS's, Windows', GTK's settings).
+  an action); `examples/Gallery.hx` shows them all, unstyled. A
+  `UiWindow`'s `Ui.dark` follows the system's appearance
+  (`hxmc.os.App.prefersDark`: the browser's colour scheme, macOS's,
+  Windows', GTK's settings).
 - **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the
@@ -270,16 +284,16 @@ each other become one `TextNode`.
 
 ## Themes
 
-The widgets are moving to ship unstyled (behaviour, semantics and the
-geometry their interaction needs), their looks from a theme
+The widgets ship unstyled (behaviour, semantics and the geometry their
+interaction needs), their looks from a theme
 ([docs/plans/theme.md](../../docs/plans/theme.md); `@hxmc/theme` is
 shadcn/ui's). A theme is a `StyleSheet`: `rules`, each a `Rule`
 `{slot, ?variant, ?size, ?when, style}`, and the colours its token
 references name, `light` and `dark`. A node takes the rules of its
 `slot` (shadcn's data-slot names: `"button"`, `"switch-thumb"`),
 `variant` and `size` whose states all hold: `hover`, `active`,
-`focus`, `focus-visible`, `disabled`, `dark`, `placeholder` (an
-input's placeholder colour), attributes (`data-state=checked`, a bare
+`focus`, `focus-visible`, `disabled`, `dark`, `rtl` and `ltr` (its direction), `starting` (until it is first drawn, as CSS's `@starting-style`: its transition then eases from there), `sm`, `md`, `lg`, `xl`, `2xl` (the window at least Tailwind's breakpoint wide), `placeholder` (an
+input's placeholder colour), `selection` (its selection's background), attributes (`data-state=checked`, a bare
 `data-disabled`; `node.setAttr`, markup `data-state="checked"`). Later
 rules win, property by property; the node's own style wins over them.
 Colours may be token references, `Color.parse("var(--primary)")`,
@@ -289,9 +303,20 @@ Colours may be token references, `Color.parse("var(--primary)")`,
 `ui.dark` picks the dark colours and the `dark` rules; every change of a
 state, attribute, variant, sheet or of dark applies them again, at the
 window's next update (several changes, one restyle). Without a sheet a
-widget takes its base rules (`Unstyled`: legible outlines and states in
-the text's colour, `currentColor`); a sheet starts from none of them, as
-shadcn's classes from Tailwind's preflight.
+widget has no look at all (React Aria's way: behaviour, semantics and
+its parts' states only), unless a program adds base rules
+(`Rules.addBase`: where no sheet applies); `examples/Plain.hx` is a plain
+sheet in the text's colour (`currentColor`) that the examples and tests
+use. A part's states are signals (`hxmc.ui.view.States.of(node)`:
+`hovered`, `pressed`, `focused`, `focusVisible`, `disabled`,
+`attr("data-state")`...), and a widget's `style` prop is a function of
+them, as React Aria's render props: `<Button style={s -> s.pressed.value ?
+{opacity: 0.8} : {}}/>` (over the theme's rules; what it stops giving,
+the theme's again). The system colours `Canvas` and `CanvasText` are a sheet's colours of those
+names, else Chromium's, light or dark; a page's slot `"body"` takes them
+(shadcn's `bg-background text-foreground` on the body). Menus' and a
+select's items take the focus under the pointer (`focus` rules, as
+Radix's `focus:`).
 
 ## Fonts
 

@@ -26,6 +26,35 @@ package hxmc.ui;
 	// no shadow (CSS's none): drawn as none, and a text shadow it sets stops its ancestors'
 	public static final NONE:Shadow = {};
 
+	// shadows a fraction k of the way from a to b (null or none: no
+	// shadow), as CSS interpolates them: shadow by shadow, the shorter list
+	// (or none) taken as transparent shadows of no size; inset against not:
+	// no easing (b's at the end)
+	public static function between(a:Null<Shadow>, b:Null<Shadow>, k:Float):Null<Shadow> {
+		if (a == NONE) a = null;
+		if (b == NONE) b = null;
+		if (a == null && b == null) return b;
+		var first:Null<Shadow> = null, last:Null<Shadow> = null, x = a, y = b;
+		while (x != null || y != null) {
+			var p:Shadow = x ?? {color: Color.TRANSPARENT, inset: y.inset}, q:Shadow = y ?? {color: Color.TRANSPARENT, inset: x.inset};
+			if (p.inset != q.inset) return k < 1 ? a : b;
+			var c:Shadow = {
+				x: p.x + (q.x - p.x) * k,
+				y: p.y + (q.y - p.y) * k,
+				blur: Math.max(0, p.blur + (q.blur - p.blur) * k),
+				spread: p.spread + (q.spread - p.spread) * k,
+				color: Color.between(x == null ? q.color.fade(0) : p.color, y == null ? p.color.fade(0) : q.color, k),
+				inset: p.inset,
+				currentColor: p.currentColor
+			};
+			if (first == null) first = c else last.next = c;
+			last = c;
+			x = x?.next;
+			y = y?.next;
+		}
+		return first;
+	}
+
 	public static function parse(s:String):Shadow {
 		if (StringTools.trim(s) == "none") return NONE;
 		return list(s);

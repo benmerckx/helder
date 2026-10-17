@@ -5,7 +5,6 @@ import hxmc.ui.view.UiFlow.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.view.Flow.*;
-import hxmc.ui.widgets.Theme;
 import UiTest.Recording;
 
 // The examples of packages/ui/GUIDE.md, compiled and run on Eval (make
@@ -26,6 +25,8 @@ class GuideTest implements Markup {
 	}
 
 	public static function main() {
+		// (the examples' plain look where a test sets no theme)
+		Rules.addBase("plain", Plain.sheet.rules);
 		components();
 		state();
 		lists();
@@ -426,7 +427,7 @@ class GuideTest implements Markup {
 	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 		return <view row-gap={8}>
 			<Hotkey keys="Mod+S" action={props.onSave}/>
-			<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
+			<DropdownMenu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
 			<Textarea value={props.text}/>
 		</view>;
 

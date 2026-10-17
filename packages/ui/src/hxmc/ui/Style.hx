@@ -166,6 +166,19 @@ class Style {
 	public var outlineColor(get, set):Null<Color>;
 	// a solid outline this wide in the text colour (CSS's shorthand; markup also "2px solid red", "none")
 	public var outline(never, set):Float;
+	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
+	public var outlineStyle(get, set):Null<OutlineStyle>;
+
+	// a ring around the border box (Tailwind's ring: a box-shadow of no
+	// blur, ringWidth wide, in ringColor, null: the text's; ringInset:
+	// inside), outside a gap of ringOffsetWidth in ringOffsetColor; drawn
+	// with the shadows as Tailwind composes them, the offset over the ring
+	// over the shadow, so that each comes from its own rule
+	public var ringWidth(get, set):Float;
+	public var ringColor(get, set):Null<Color>;
+	public var ringOffsetWidth(get, set):Float;
+	public var ringOffsetColor(get, set):Color;
+	public var ringInset(get, set):Bool;
 
 	// how the node and its subtree are drawn and hit, not laid out (Transform.parse; null: none)
 	public var transform(get, set):Null<Transform>;
@@ -279,6 +292,12 @@ class Style {
 	// Shadow.NONE: none)
 	public var textShadow(get, set):Null<Shadow>;
 
+	// how its colours, opacity, transform and shadow ease to a new value
+	// once it has been drawn (Transition.parse, as CSS's transition; null:
+	// they jump; not inherited). While one moves, the property reads where
+	// it is; target, where it goes.
+	public var transition(get, set):Null<Transition>;
+
 	// --- the properties rarely set: in a StyleRare made when one is ---
 
 	var rare:Null<StyleRare> = null;
@@ -363,6 +382,86 @@ class Style {
 	inline function get_dir():Null<Dir>
 		return rare == null ? null : rare.dir;
 
+	inline function get_outlineStyle():Null<OutlineStyle>
+		return rare == null ? null : rare.outlineStyle;
+
+	inline function get_ringWidth():Float
+		return rare == null ? 0 : rare.ringWidth;
+
+	inline function get_ringColor():Null<Color>
+		return rare == null ? null : rare.ringColor;
+
+	inline function get_ringOffsetWidth():Float
+		return rare == null ? 0 : rare.ringOffsetWidth;
+
+	inline function get_ringOffsetColor():Color
+		return rare == null ? Color.WHITE : rare.ringOffsetColor;
+
+	inline function get_ringInset():Bool
+		return rare == null ? false : rare.ringInset;
+
+	function set_ringWidth(v:Float):Float {
+		if (rare != null && rare.transition != null && eases("ringWidth", ringWidth, v)) return v;
+		if (v == ringWidth) return v;
+		more().ringWidth = v;
+		ringed();
+		return v;
+	}
+
+	function set_ringColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("ringColor", ringColor, v)) return v;
+		if (v == ringColor) return v;
+		more().ringColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_ringOffsetWidth(v:Float):Float {
+		if (v == ringOffsetWidth) return v;
+		more().ringOffsetWidth = v;
+		ringed();
+		return v;
+	}
+
+	function set_ringOffsetColor(v:Color):Color {
+		if (v == ringOffsetColor) return v;
+		more().ringOffsetColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_ringInset(v:Bool):Bool {
+		if (v == ringInset) return v;
+		more().ringInset = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	// (how far outside its box a ring draws: the paint's culling widens bounds by the most seen, as for shadows)
+	function ringed() {
+		Ui.shadowReach = Math.max(Ui.shadowReach, ringWidth + ringOffsetWidth + 1);
+		node.styleChanged(false);
+	}
+
+	// its shadows as drawn, the last (the lowest) first: its ring and the
+	// ring's offset over its shadow (null: none)
+	public function paintedShadows():Null<Array<Shadow>> {
+		var r = rare;
+		if (r == null || r.ringWidth <= 0 && r.ringOffsetWidth <= 0) return r == null || r.shadow == null ? null : r.shadow.painted();
+		var all = r.shadow == null ? [] : r.shadow.painted();
+		if (r.ringWidth > 0)
+			all.push({spread: r.ringWidth + r.ringOffsetWidth, color: r.ringColor ?? node.textColor(), inset: r.ringInset});
+		if (r.ringOffsetWidth > 0) all.push({spread: r.ringOffsetWidth, color: r.ringOffsetColor, inset: r.ringInset});
+		return all;
+	}
+
+	function set_outlineStyle(v:Null<OutlineStyle>):Null<OutlineStyle> {
+		if (v == outlineStyle) return v;
+		more().outlineStyle = v;
+		node.styleChanged(false);
+		return v;
+	}
+
 	inline function get_visibility():Null<Visibility>
 		return rare == null ? null : rare.visibility;
 
@@ -431,6 +530,87 @@ class Style {
 
 	inline function get_textShadow():Null<Shadow>
 		return rare == null ? null : rare.textShadow;
+
+	inline function get_transition():Null<Transition>
+		return rare == null ? null : rare.transition;
+
+	function set_transition(v:Null<Transition>):Null<Transition> {
+		if (v == transition) return v;
+		more().transition = v;
+		// (none: what moves there at once)
+		if (v == null && rare.moving != null) step(1e300);
+		return v;
+	}
+
+	// (drawn once: what changes from now on eases, under a transition; Ui's paint sets it)
+	@:allow(hxmc.ui.Ui) var drawn = false;
+	// (rules for starting asked of it: restyled once it is drawn)
+	@:allow(hxmc.ui.Rules) var starting = false;
+
+	// a property's value (StyleFields' names), or the one it is moving to under a transition
+	public function target(name:String):Dynamic {
+		if (rare != null && rare.moving != null)
+			for (run in rare.moving)
+				if (run.name == name) return run.to;
+		return StyleFields.get(this, name);
+	}
+
+	// (a change of an eased property, drawn, under a transition that names
+	// it: the property moving to it on the Clock from where it is, whether
+	// it does; the same value again: a run toward another one stopped)
+	function eases(name:String, from:Dynamic, to:Dynamic):Bool {
+		var r = rare;
+		if (r.stepping) return false;
+		var m = r.moving, i = -1;
+		if (m != null)
+			for (k in 0...m.length)
+				if (m[k].name == name) i = k;
+		var t = r.transition == null || !drawn || node.ui == null || from == null || to == null || from == to ? null : r.transition.timing(name);
+		if (t == null) {
+			if (i < 0) return false;
+			m.splice(i, 1);
+			return from == to;
+		}
+		if (i >= 0 && m[i].to == to) return true;
+		var run:Moving = {name: name, from: from, to: to, start: -1, duration: t.duration, delay: t.delay, easing: t.easing};
+		if (i >= 0) m[i] = run else {
+			if (m == null) r.moving = m = [];
+			m.push(run);
+		}
+		if (!r.ticking) {
+			r.ticking = true;
+			Clock.add(step);
+		}
+		node.styleChanged(false);
+		return true;
+	}
+
+	// (the Clock's tick: each run's value at now; the ones done at their ends)
+	function step(now:Float):Bool {
+		var r = rare, m = r.moving;
+		r.stepping = true;
+		var i = 0;
+		while (m != null && i < m.length) {
+			var run = m[i];
+			// (the start is the first tick's time, after the delay: the clock may have been idle)
+			if (run.start < 0) run.start = (now >= 1e300 ? 0 : now) + run.delay;
+			var k = node.ui == null ? 1 : (now - run.start) / run.duration;
+			if (k >= 1) {
+				StyleFields.set(this, run.name, run.to);
+				m.splice(i, 1);
+				continue;
+			}
+			if (k > 0) StyleFields.set(this, run.name, Transition.between(run.name, run.from, run.to, Transition.ease(run.easing, k)));
+			i++;
+		}
+		r.stepping = false;
+		if (m == null || m.length == 0) {
+			r.moving = null;
+			r.ticking = false;
+			return false;
+		}
+		return true;
+	}
 
 	inline function get_left():Dim
 		return rare == null ? DimValue.Auto : rare.left;
@@ -513,8 +693,9 @@ class Style {
 		if (v == dir) return v;
 		more().dir = v;
 		node.styleChanged(true);
-		// (inherited: every container under it lays out again)
+		// (inherited: every container under it lays out again, its rules for rtl hold or not)
 		@:privateAccess node.dirChanged();
+		if (node.ui != null) Rules.restyleTree(node);
 		return v;
 	}
 
@@ -860,6 +1041,7 @@ class Style {
 	}
 
 	function set_background(v:Color):Color {
+		if (rare != null && rare.transition != null && eases("background", background, v)) return v;
 		if (v == background) return v;
 		background = v;
 		node.styleChanged(false);
@@ -874,6 +1056,7 @@ class Style {
 	}
 
 	function set_transform(v:Null<Transform>):Null<Transform> {
+		if (rare != null && rare.transition != null && eases("transform", transform, v)) return v;
 		if (v == transform) return v;
 		var was = transform != null;
 		more().transform = v;
@@ -891,6 +1074,7 @@ class Style {
 	}
 
 	function set_borderColor(v:Color):Color {
+		if (rare != null && rare.transition != null && eases("borderColor", borderColor, v)) return v;
 		if (v == borderColor) return v;
 		borderColor = v;
 		node.styleChanged(false);
@@ -905,6 +1089,7 @@ class Style {
 	}
 
 	function set_opacity(v:Float):Float {
+		if (rare != null && rare.transition != null && eases("opacity", opacity, v)) return v;
 		if (v == opacity) return v;
 		if ((v <= 0) != (opacity <= 0)) Ui.accessEpoch++;
 		opacity = v;
@@ -940,6 +1125,7 @@ class Style {
 	}
 
 	function set_outlineColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("outlineColor", outlineColor, v)) return v;
 		if (v == outlineColor) return v;
 		more().outlineColor = v;
 		node.styleChanged(false);
@@ -953,6 +1139,7 @@ class Style {
 	}
 
 	function set_shadow(v:Null<Shadow>):Null<Shadow> {
+		if (rare != null && rare.transition != null && eases("shadow", shadow, v)) return v;
 		if (v == shadow) return v;
 		more().shadow = v;
 		// (how far outside its box a shadow draws: the paint's culling widens bounds by the most seen)
@@ -966,6 +1153,7 @@ class Style {
 	}
 
 	function set_color(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("color", color, v)) return v;
 		if (v == color) return v;
 		color = v;
 		node.styleChanged(false);
@@ -1036,6 +1224,7 @@ class Style {
 	}
 
 	function set_textDecorationColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("textDecorationColor", textDecorationColor, v)) return v;
 		if (v == textDecorationColor) return v;
 		more().textDecorationColor = v;
 		node.styleChanged(false);
@@ -1126,6 +1315,12 @@ class Style {
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
+		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
+		if (p.ringWidth != null) ringWidth = p.ringWidth;
+		if (p.ringColor != null) ringColor = p.ringColor;
+		if (p.ringOffsetWidth != null) ringOffsetWidth = p.ringOffsetWidth;
+		if (p.ringOffsetColor != null) ringOffsetColor = p.ringOffsetColor;
+		if (p.ringInset != null) ringInset = p.ringInset;
 		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
 		if (p.gap != null) gap = p.gap;
@@ -1141,6 +1336,7 @@ class Style {
 		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.textShadow != null) textShadow = p.textShadow;
+		if (p.transition != null) transition = p.transition;
 		if (p.textDecorationColor != null) textDecorationColor = p.textDecorationColor;
 		if (p.textDecorationThickness != null) textDecorationThickness = p.textDecorationThickness;
 		if (p.textUnderlineOffset != null) textUnderlineOffset = p.textUnderlineOffset;
@@ -1188,6 +1384,12 @@ private class StyleRare {
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
+	public var outlineStyle:Null<OutlineStyle> = null;
+	public var ringWidth:Float = 0;
+	public var ringColor:Null<Color> = null;
+	public var ringOffsetWidth:Float = 0;
+	public var ringOffsetColor:Color = Color.WHITE;
+	public var ringInset = false;
 	public var pointerEvents:Null<PointerEvents> = null;
 	public var textWrap:Null<TextWrap> = null;
 	public var overflowWrap:Null<OverflowWrap> = null;
@@ -1201,6 +1403,11 @@ private class StyleRare {
 	public var textDecoration:Int = 0;
 	public var textShadow:Null<Shadow> = null;
 	public var textDecorationColor:Null<Color> = null;
+	public var transition:Null<Transition> = null;
+	// (the properties moving under it; whether the Clock steps them, whether a step is writing them)
+	public var moving:Null<Array<Moving>> = null;
+	public var ticking = false;
+	public var stepping = false;
 	public var textDecorationThickness:Dim = DimValue.Auto;
 	public var textUnderlineOffset:Dim = DimValue.Auto;
 	public var left:Dim = DimValue.Auto;
@@ -1210,3 +1417,6 @@ private class StyleRare {
 
 	public function new() {}
 }
+
+// (a property moving under a transition: from where, to what, since when (-1: the next tick), its timing)
+private typedef Moving = {name:String, from:Dynamic, to:Dynamic, start:Float, duration:Float, delay:Float, easing:Array<Float>};

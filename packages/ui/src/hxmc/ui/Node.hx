@@ -208,6 +208,8 @@ class Node {
 		if (ui == u) return;
 		if (ui != null) ui.detached(this);
 		ui = u;
+		// (out of a window: drawn anew when back, its starting rules again)
+		if (u == null) @:privateAccess style.drawn = false;
 		restyleLater();
 		for (c in children)
 			c.attach(u);
@@ -1004,7 +1006,17 @@ class Node {
 			ui.requestFrame();
 			restyleLater();
 		}
+		if (changed) statesChanged();
 	}
+
+	// called when its states (hover, press, focus, the focus ring's
+	// visibility) or attributes change: hxmc.ui.view.States' signals
+	public var onStates:Null<Void->Void> = null;
+	// (its States, once made: hxmc.ui.view's)
+	@:allow(hxmc.ui.view) var statesOf:Any = null;
+
+	@:allow(hxmc.ui.Ui) function statesChanged()
+		if (onStates != null) onStates();
 
 	// --- theme ---
 
@@ -1020,6 +1032,7 @@ class Node {
 			attrs.set(name, value);
 		}
 		restyleLater();
+		statesChanged();
 	}
 
 	// the theme it is styled by: its own or the nearest ancestor's, else the window's
@@ -1060,8 +1073,9 @@ class Node {
 		return v;
 	}
 
-	// (a theme's colour for its placeholder's text, null: none; EditableText's)
-	function themePlaceholder(c:Null<Color>) {}
+	// (a theme's colours for its placeholder's text and its selection, null:
+	// none; EditableText's)
+	function themePseudo(placeholder:Null<Color>, selection:Null<Color>) {}
 }
 
 // a node's event handlers (Node.onClick...)

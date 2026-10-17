@@ -247,6 +247,14 @@ var height = Motion.spring(() -> open.value ? 200 : 0);
 <view height={height} overflow="hidden">...</view>
 ```
 
+A style's `transition`, as CSS's, eases its colours, opacity, transform
+and shadow whenever they change (a hover's colour from a theme, a value
+bound to a signal) once the node has been drawn:
+
+```haxe
+<view transition="background-color 150ms ease-in-out" background={() -> hot.value ? "#e4e4e7" : "#ffffff"}>...</view>
+```
+
 ## Images and icons
 
 An `image` shows an `Image` (`Image.decode`: PNG, JPEG, GIF), an
@@ -306,10 +314,9 @@ static function Accent(props:{label:String}):View {
 
 ## Themes and dark mode
 
-The widgets are moving to ship unstyled (Button, Input, Checkbox, Switch,
-Label, Card, Badge, Toggle so far; the rest still draw with
-`Theme.current`): they work and stay legible in the text's colour, and a
-theme gives them their looks. A theme is a `StyleSheet`: rules for the
+The widgets ship unstyled, as React Aria's: behaviour, semantics and
+their parts' states, no look at all; a theme gives them their looks. A page takes the slot `"body"` for its surface
+(`<view slot="body">`, as shadcn styles body). A theme is a `StyleSheet`: rules for the
 widgets' slots (shadcn's data-slot names), variants and states, and the
 colours their tokens name, light and dark. `@hxmc/theme` is shadcn/ui's;
 a small one of your own:
@@ -326,15 +333,24 @@ static final sheet:StyleSheet = {
 };
 ```
 
+An instance's look can follow its states without a theme, as React
+Aria's render props: a widget's `style` is a function of its part's
+`States` (signals: `hovered`, `pressed`, `focusVisible`, `disabled`,
+`attr("data-state")`):
+
+```haxe
+<Button label="Save" style={s -> s.hovered.value ? {background: Color.parse("#e4e4e7")} : {}}/>
+```
+
 `ui.theme = sheet` installs it (`node.theme` for a subtree), and
-`ui.dark` picks its dark colours; `UiWindow.dark` follows the system's
-appearance: `effect(() -> ui.dark = UiWindow.dark.value)`. A widget's own
-style (an attribute in markup) wins over the theme's.
+`ui.dark` picks its dark colours; a `UiWindow`'s follows the system's
+appearance (`UiWindow.dark`). A widget's own style (an attribute in
+markup) wins over the theme's.
 
 ## Popups
 
 Popups are layers over the tree, so a parent's clipping does not cut them.
-`Select`, `Menu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
+`Select`, `DropdownMenu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
 puts any content in one while `open` is true (its `at` places it at a point). A modal dialog keeps the
 focus inside, and Escape or a press outside asks it to close:
 
@@ -404,7 +420,7 @@ window, for as long as it is mounted; with `local`, only while the
 focus is inside the node it is in. `Mod` is Control, or Command on a
 Mac. A key the focused node takes first (a text field's Control+C, a
 letter typed into it) is not a shortcut, and under a modal dialog only
-the dialog's own shortcuts work. Menu items take a `shortcut` too:
+the dialog's own shortcuts work. Menu items take a `shortcut` too (and `disabled`, `variant: "destructive"`, or are a `separator`):
 it is shown in the menu, in the platform's notation, and works while
 the menu is mounted.
 
@@ -412,7 +428,7 @@ the menu is mounted.
 static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 	return <view row-gap={8}>
 		<Hotkey keys="Mod+S" action={props.onSave}/>
-		<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
+		<DropdownMenu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
 		<Textarea value={props.text}/>
 	</view>;
 ```

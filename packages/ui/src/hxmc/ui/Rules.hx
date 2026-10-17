@@ -10,7 +10,9 @@ package hxmc.ui;
 // set itself (its value still the default, or still what the rules last
 // wrote) written, and those the rules no longer set taken back to the
 // default. Again whenever a state changes: hover, press, focus, the focus
-// ring's visibility, an attribute, the variant or size, the sheet, dark.
+// ring's visibility, an attribute, the variant or size, the sheet, dark,
+// the direction (rtl, ltr), the first draw (starting: CSS's @starting-style),
+// the window's width across a breakpoint (sm, md, lg, xl, 2xl: Tailwind's).
 class Rules {
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
@@ -32,7 +34,7 @@ class Rules {
 		var sheet = n.sheet();
 		var applied = @:privateAccess n.themedNames, appliedValues = @:privateAccess n.themedValues;
 		if (n.slot == null && applied == null) {
-			@:privateAccess n.themePlaceholder(null);
+			@:privateAccess n.themePseudo(null, null);
 			return;
 		}
 		if (baseIndex == null) baseIndex = indexOf(base);
@@ -49,7 +51,7 @@ class Rules {
 				var ok = true;
 				if (r.when != null)
 					for (w in r.when)
-						if (w != "placeholder" && !holds(n, ui, w)) {
+						if (w != "placeholder" && w != "selection" && !holds(n, ui, w)) {
 							ok = false;
 							break;
 						}
@@ -70,7 +72,7 @@ class Rules {
 		for (i in 0...m.names.length) {
 			var name = m.names[i], want:Dynamic = m.values[i];
 			if (m.current) want = withCurrent(want, current);
-			var cur = StyleFields.get(n.style, name);
+			var cur = n.style.target(name);
 			var k = applied == null ? -1 : applied.indexOf(name);
 			// (the node's own value: left as it is)
 			if (k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initial(name))) continue;
@@ -80,23 +82,25 @@ class Rules {
 				values = [];
 			}
 			names.push(name);
-			values.push(StyleFields.get(n.style, name));
+			values.push(n.style.target(name));
 		}
 		// (what the rules wrote and no longer set, still as they wrote it: back to the default)
 		if (applied != null)
 			for (k in 0...applied.length) {
 				var name = applied[k];
-				if ((names == null || names.indexOf(name) < 0) && same(StyleFields.get(n.style, name), appliedValues[k]))
+				if ((names == null || names.indexOf(name) < 0) && same(n.style.target(name), appliedValues[k]))
 					StyleFields.set(n.style, name, initial(name));
 			}
 		@:privateAccess n.themedNames = names;
 		@:privateAccess n.themedValues = values;
-		@:privateAccess n.themePlaceholder(m.placeholder == null ? null : m.placeholder.isToken ? withCurrent(m.placeholder, current) : m.placeholder);
+		@:privateAccess n.themePseudo(m.placeholder == null ? null : withCurrent(m.placeholder, current),
+			m.selection == null ? null : withCurrent(m.selection, current));
 	}
 
 	// (a merge: the properties it sets and their values, tokens resolved but
-	// currentColor, which a node resolves; its placeholder's colour)
-	static final NONE:Merge = {names: [], values: [], placeholder: null, current: false};
+	// currentColor, which a node resolves; its placeholder's colour, its
+	// selection's: the "placeholder" rules' color, the "selection" rules' background)
+	static final NONE:Merge = {names: [], values: [], placeholder: null, selection: null, current: false};
 	static final merges = new Map<String, Merge>();
 	static final sheetIds = new haxe.ds.ObjectMap<{}, Int>();
 
@@ -110,15 +114,17 @@ class Rules {
 		var m = merges.get(key);
 		if (m != null) return m;
 		var tokens = sheet == null ? null : dark && sheet.dark != null ? sheet.dark : sheet.light;
-		var scratch = new Node().style, placeholder:Null<Color> = null;
+		var scratch = new Node().style, placeholder:Null<Color> = null, selection:Null<Color> = null;
 		var parts = key.split(",");
 		for (k in 1...parts.length) {
 			var r = rules[Std.parseInt(parts[k])];
 			if (r.when != null && r.when.indexOf("placeholder") >= 0) {
 				if (r.style.color != null) placeholder = r.style.color;
+			} else if (r.when != null && r.when.indexOf("selection") >= 0) {
+				if (r.style.background != null) selection = r.style.background;
 			} else scratch.set(r.style);
 		}
-		resolveColors(scratch, tokens, CURRENT);
+		resolveColors(scratch, tokens, CURRENT, dark);
 		var names = [], values:Array<Dynamic> = [], current = false;
 		for (name in StyleFields.NAMES) {
 			var v = StyleFields.get(scratch, name);
@@ -128,10 +134,14 @@ class Rules {
 			if (usesCurrent(v)) current = true;
 		}
 		if (placeholder != null) {
-			placeholder = resolve(placeholder, tokens, CURRENT);
+			placeholder = resolve(placeholder, tokens, CURRENT, dark);
 			if (placeholder.isToken) current = true;
 		}
-		m = {names: names, values: values, placeholder: placeholder, current: current};
+		if (selection != null) {
+			selection = resolve(selection, tokens, CURRENT, dark);
+			if (selection.isToken) current = true;
+		}
+		m = {names: names, values: values, placeholder: placeholder, selection: selection, current: current};
 		merges.set(key, m);
 		return m;
 	}
@@ -177,6 +187,13 @@ class Rules {
 			case "focus-visible": n.focused && ui.focusVisible;
 			case "disabled": n.attr("disabled") != null || n.attr("data-disabled") != null;
 			case "dark": ui.dark;
+			case "rtl": n.rtl();
+			case "sm" | "md" | "lg" | "xl" | "2xl": ui.width >= Ui.BREAKPOINTS.get(w);
+			case "starting":
+				// (CSS's @starting-style: until its first draw; then again, its transition easing from these)
+				@:privateAccess n.style.starting = true;
+				!@:privateAccess n.style.drawn;
+			case "ltr": !n.rtl();
 			case _:
 				var eq = w.indexOf("=");
 				eq < 0 ? n.attr(w) != null : n.attr(w.substr(0, eq)) == w.substr(eq + 1);
@@ -184,27 +201,33 @@ class Rules {
 	}
 
 	// a token reference as the sheet's colour (its alpha times the reference's;
-	// "currentColor" as current; a name the sheet lacks: transparent), else the colour itself
-	public static function resolve(c:Color, tokens:Null<Map<String, Color>>, current:Color):Color {
+	// "currentColor" as current; Canvas and CanvasText, where the sheet has
+	// none, as Chromium's, light or dark; another name the sheet lacks:
+	// transparent), else the colour itself
+	public static function resolve(c:Color, tokens:Null<Map<String, Color>>, current:Color, dark = false):Color {
 		if (!c.isToken) return c;
 		var name = c.tokenName();
 		if (name == "currentcolor") return current.isToken ? c : current.fade(c.tokenAlpha());
 		var v = tokens == null ? null : tokens.get(name);
+		if (v == null && name == "canvas") v = dark ? Color.rgb(0x121212) : Color.WHITE;
+		if (v == null && name == "canvastext") v = dark ? Color.WHITE : Color.BLACK;
 		return v == null ? Color.TRANSPARENT : v.fade(c.tokenAlpha());
 	}
 
 	// (the colours a rule can give, tokens resolved: background, text, border, outline, decoration, shadows')
-	static function resolveColors(s:Style, tokens:Null<Map<String, Color>>, current:Color) {
-		s.background = resolve(s.background, tokens, current);
-		s.borderColor = resolve(s.borderColor, tokens, current);
-		if (s.color != null) s.color = resolve(s.color, tokens, current);
-		if (s.outlineColor != null) s.outlineColor = resolve(s.outlineColor, tokens, current);
-		if (s.textDecorationColor != null) s.textDecorationColor = resolve(s.textDecorationColor, tokens, current);
-		if (s.shadow != null) s.shadow = resolveShadow(s.shadow, tokens, current);
-		if (s.textShadow != null) s.textShadow = resolveShadow(s.textShadow, tokens, current);
+	static function resolveColors(s:Style, tokens:Null<Map<String, Color>>, current:Color, dark:Bool) {
+		s.background = resolve(s.background, tokens, current, dark);
+		s.borderColor = resolve(s.borderColor, tokens, current, dark);
+		if (s.color != null) s.color = resolve(s.color, tokens, current, dark);
+		if (s.outlineColor != null) s.outlineColor = resolve(s.outlineColor, tokens, current, dark);
+		if (s.ringColor != null) s.ringColor = resolve(s.ringColor, tokens, current, dark);
+		s.ringOffsetColor = resolve(s.ringOffsetColor, tokens, current, dark);
+		if (s.textDecorationColor != null) s.textDecorationColor = resolve(s.textDecorationColor, tokens, current, dark);
+		if (s.shadow != null) s.shadow = resolveShadow(s.shadow, tokens, current, dark);
+		if (s.textShadow != null) s.textShadow = resolveShadow(s.textShadow, tokens, current, dark);
 	}
 
-	static function resolveShadow(sh:Shadow, tokens:Null<Map<String, Color>>, current:Color):Shadow {
+	static function resolveShadow(sh:Shadow, tokens:Null<Map<String, Color>>, current:Color, dark = false):Shadow {
 		if (sh == Shadow.NONE) return sh;
 		var first:Null<Shadow> = null, last:Null<Shadow> = null, s:Null<Shadow> = sh;
 		while (s != null) {
@@ -213,7 +236,7 @@ class Rules {
 				y: s.y,
 				blur: s.blur,
 				spread: s.spread,
-				color: resolve(s.color, tokens, current),
+				color: resolve(s.color, tokens, current, dark),
 				inset: s.inset,
 				currentColor: s.currentColor
 			};
@@ -267,4 +290,4 @@ class Rules {
 }
 
 // (a merge of rules: Rules.merged)
-private typedef Merge = {names:Array<String>, values:Array<Dynamic>, placeholder:Null<Color>, current:Bool};
+private typedef Merge = {names:Array<String>, values:Array<Dynamic>, placeholder:Null<Color>, selection:Null<Color>, current:Bool};

@@ -23,13 +23,13 @@ import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
-import hxmc.ui.widgets.Widgets.Disclosure;
+import hxmc.ui.widgets.Widgets.Collapsible;
 import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
-import hxmc.ui.widgets.Widgets.Menu;
-import hxmc.ui.widgets.Widgets.SegmentedControl;
-import hxmc.ui.widgets.Widgets.Breadcrumbs;
+import hxmc.ui.widgets.Widgets.DropdownMenu;
+import hxmc.ui.widgets.Widgets.ToggleGroup;
+import hxmc.ui.widgets.Widgets.Breadcrumb;
 import hxmc.ui.widgets.Widgets.Pagination;
 import hxmc.ui.widgets.Widgets.TagInput;
 import hxmc.ui.widgets.Widgets.ContextMenu;
@@ -56,6 +56,13 @@ import hxmc.ui.widgets.Widgets.DatePicker;
 import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
+import hxmc.ui.widgets.Widgets.DialogFooter;
+import hxmc.ui.widgets.Widgets.Sheet;
+import hxmc.ui.widgets.Widgets.PopoverButton;
+import hxmc.ui.widgets.Widgets.HoverCard;
+import hxmc.ui.widgets.Widgets.Avatar;
+import hxmc.ui.widgets.Widgets.Kbd;
+import hxmc.ui.widgets.Widgets.Spinner;
 
 // Markup rendered into hxmc.ui's nodes (hxmc.view on NodeRenderer), on Eval
 // (make ui-check runs it after UiTest; hxmc.view's own tests are
@@ -66,13 +73,16 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
 // popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog, Combobox) driven by pointer and keys;
-// Disclosure, Accordion, toasts and NumberField;
+// Collapsible, Accordion, toasts and NumberField;
 // a VirtualList of 100000 rows scrolled
 class MarkupTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
 
 	public static function main() {
+		// (first with no rules at all: the widgets' behaviour, no look; then on the examples' plain look)
+		noLook();
+		Rules.addBase("plain", Plain.sheet.rules);
 		rendering();
 		flow();
 		motion();
@@ -99,6 +109,11 @@ class MarkupTest implements Markup {
 		tagInput();
 		unstyled();
 		unstyledMore();
+		unstyledPopups();
+		unstyledNav();
+		unstyledRest();
+		unstyledExtras();
+		statesStyle();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -211,7 +226,7 @@ class MarkupTest implements Markup {
 		var undone = 0, more = signal(false), section = signal(-1);
 		Render.render(<view padding={10} row-gap={10} align-items="start">
 			<view tag="focus-here" focusable width={20} height={20}/>
-			<Disclosure tag="more" label="More" open={more}><text tag="more-text">Details</text></Disclosure>
+			<Collapsible tag="more" label="More" open={more}><text tag="more-text">Details</text></Collapsible>
 			<Accordion tag="faq" open={section} sections={[{label: "One", render: () -> <text>First</text>}, {label: "Two", render: () -> <text>Second</text>}]}/>
 			<Toaster/>
 		</view>, ui.root);
@@ -248,6 +263,9 @@ class MarkupTest implements Markup {
 		var toasts = list == null ? [] : tagged(list, "toast");
 		check("toasts: shown in the bottom right corner, the newest last, the focus kept", toasts.length == 2 && list.absX + list.width == 400 - 16
 			&& list.absY + list.height == 300 - 16 && toasts[0].absY < toasts[1].absY && ui.focus == focus, list == null ? "none" : '${list.absX} ${list.absY} ${list.width} ${list.height}');
+		check("toasts: sonner's slots, the kind data-type", list.slot == "toaster" && toasts[0].slot == "toast"
+			&& toasts[0].attr("data-type") == "success" && toasts[0].children[0].slot == "toast-icon" && toasts[1].attr("data-type") == "info"
+			&& tagged(list, "toast-action")[0].slot == "toast-action");
 		Clock.tick(500.1);
 		var l = ui.overlay.find("toaster-list");
 		ui.pointerMove(l.absX + 10, l.absY + 10);
@@ -522,8 +540,8 @@ class MarkupTest implements Markup {
 		var ui = new Ui(new MonoText(), 500, 300);
 		var view = signal("Day"), page = signal(1), chosen = [];
 		Render.render(<view padding={10} row-gap={10}>
-			<SegmentedControl tag="seg" label="View" value={view} options={["Day", "Week", "Month"]}/>
-			<Breadcrumbs tag="crumbs" items={["Home", "Docs", "Layout"]} onSelect={i -> chosen.push(i)}/>
+			<ToggleGroup tag="seg" label="View" value={view} options={["Day", "Week", "Month"]}/>
+			<Breadcrumb tag="crumbs" items={["Home", "Docs", "Layout"]} onSelect={i -> chosen.push(i)}/>
 			<Pagination tag="pages" page={page} count={10}/>
 		</view>, ui.root);
 		ui.update();
@@ -771,7 +789,7 @@ class MarkupTest implements Markup {
 		var t = 50.0;
 		Ui.now = () -> t;
 		Render.render(<view padding={10} row-gap={10} align-items="start"><Select tag="f" value={fruit} options={["Apple", "Banana", "Blueberry", "Cherry"]}/>
-			<Menu tag="m" label="Edit" items={[{label: "Copy", onSelect: () -> chosen.push("copy")}, {label: "Cut", onSelect: () -> chosen.push("cut")},
+			<DropdownMenu tag="m" label="Edit" items={[{label: "Copy", onSelect: () -> chosen.push("copy")}, {label: "Cut", onSelect: () -> chosen.push("cut")},
 				{label: "Paste", onSelect: () -> chosen.push("paste")}]}/></view>, ui.root);
 		ui.update();
 		function type(c:String) {
@@ -1012,7 +1030,7 @@ class MarkupTest implements Markup {
 		var fruit = signal("pear"), log = [], dialog = signal(false), field = signal("");
 		Render.render(<view padding={10} row-gap={10} align-items="start">
 			<Select tag="fruit" value={fruit} options={["apple", "pear", "plum"]} label="Fruit"/>
-			<Menu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open"), shortcut: "Mod+O"}]}/>
+			<DropdownMenu tag="file" label="File" items={[{label: "New", onSelect: () -> log.push("new")}, {label: "Open", onSelect: () -> log.push("open"), shortcut: "Mod+O"}]}/>
 			<Tooltip text="Saves the file" tag="tip"><text>Save</text></Tooltip>
 			<ContextMenu tag="ctx" items={[{label: "Cut", onSelect: () -> log.push("cut")}, {label: "Copy", onSelect: () -> log.push("copy"), shortcut: "Mod+C"}]}>
 				<view tag="area" focusable width={200} height={40}/>
@@ -1147,6 +1165,32 @@ class MarkupTest implements Markup {
 
 	// the unstyled widgets (Unstyled; a theme's looks: Rule): slots,
 	// variants, sizes and states for a theme; legible without one
+	// with no rules, a widget has no look (React Aria's way: behaviour and
+	// semantics only): no border, padding, background or size of its own;
+	// it still works
+	static function noLook() {
+		var ui = new Ui(new MonoText(), 400, 300), ticked = signal(false), clicks = 0;
+		Render.render(<view align-items="start">
+			<Button tag="b" label="Go" onClick={() -> clicks++}/>
+			<Checkbox tag="c" checked={ticked} label="Agree"/>
+			<SwitchWidget tag="s" checked={signal(false)} label="Wi-Fi"/>
+			<Input tag="i" value={signal("")}/>
+		</view>, ui.root);
+		ui.update();
+		var b = ui.root.find("b"), c = ui.root.find("c"), s = ui.root.find("s"), i = ui.root.find("i");
+		check("no look: no border, padding, background or size of their own", b.style.borderWidth == 0 && b.style.padding.left == 0
+			&& b.style.background == Color.TRANSPARENT && Std.string(c.style.width) == "Auto" && c.style.borderWidth == 0 && Std.string(s.children[0].style.width) == "Auto"
+			&& i.style.borderWidth == 0 && b.slot == "button" && c.slot == "checkbox", b.style.borderWidth + " " + b.style.padding.left + " " + b.style.background.toHex() + " " + c.style.width + " " + c.style.borderWidth + " " + s.children[0].style.width + " " + i.style.borderWidth);
+		ui.pointerDown(b.absX + 2, b.absY + 2, 1);
+		ui.pointerUp(b.absX + 2, b.absY + 2, 1);
+		var label = c.parent.children[1];
+		ui.pointerDown(label.absX + 2, label.absY + 2, 1);
+		ui.pointerUp(label.absX + 2, label.absY + 2, 1);
+		ui.update();
+		check("no look: still working, the states on their parts", clicks == 1 && ticked.value && c.attr("data-state") == "checked"
+			&& c.semantics.checked == true);
+	}
+
 	static function unstyled() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var on = signal(false), pressed = signal(false), ticked = signal(false), mixed = signal(false), off = signal(false), clicks = 0;
@@ -1176,13 +1220,13 @@ class MarkupTest implements Markup {
 		check("unstyled: legible without a theme: outlines in the text's colour", b.style.borderWidth == 1 && b.style.borderColor == Color.BLACK
 			&& c.style.width.resolve(0) == 16 && c.style.borderWidth == 1 && s.style.borderWidth == 1);
 		// (states: data-state, the indicator shown when checked, the thumb moved)
-		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), thumb.style.transform == null ? "start" : "moved"];
+		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), s.style.justify == End ? "moved" : "start"];
 		click(c);
 		click(s);
 		click(t);
 		check("unstyled: data-state as Radix's, the checked state visible", before.join(",") == "unchecked,hidden,unchecked,start" && ticked.peek() && c.attr("data-state") == "checked"
 			&& indicator.style.display != None && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
-			&& thumb.style.transform != null && pressed.peek() && t.attr("data-state") == "on", before.join(","));
+			&& s.style.justify == End && pressed.peek() && t.attr("data-state") == "on", before.join(","));
 		mixed.value = true;
 		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator.attr("data-state") == "indeterminate");
 		// (disabled: data-disabled, no clicks, not focusable)
@@ -1228,7 +1272,7 @@ class MarkupTest implements Markup {
 		check("unstyled: a click on a trigger activates it", tab.value == 1 && t1.attr("data-state") == "active" && t0.attr("data-state") == "inactive");
 		var track = v.children[0];
 		check("unstyled: a slider's track, range and thumb", v.slot == "slider" && track.slot == "slider-track" && track.children[0].slot == "slider-range"
-			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 42, '${track.children[0].width}');
+			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 50, '${track.children[0].width}');
 		var p = ui.root.find("p");
 		check("unstyled: a progress bar's indicator", p.slot == "progress" && p.children[0].slot == "progress-indicator" && p.children[0].width == 25
 			&& p.style.height.resolve(0) == 8);
@@ -1248,6 +1292,298 @@ class MarkupTest implements Markup {
 		click(v);
 		check("unstyled: disabled radio group, slider and textarea", size.value == "S" && !m.focusable && m.attr("data-disabled") == ""
 			&& vol.value == before && !v.focusable && v.style.opacity == 0.5 && !ta.focusable && ta.attr("disabled") == "" && ta.style.opacity == 0.5);
+	}
+
+	static function unstyledPopups() {
+		var ui = new Ui(new MonoText(), 400, 400);
+		var fruit = signal("Pear"), open = signal(false), chosen = [];
+		Render.render(<view align-items="start" row-gap={4} padding={10}>
+			<Select tag="sel" value={fruit} options={["Apple", "Pear"]}/>
+			<DropdownMenu tag="m" label="Edit" items={[{label: "Copy", onSelect: () -> chosen.push("copy"), shortcut: "Mod+C"}, {label: "Cut", onSelect: () -> chosen.push("cut")}]}/>
+			<Dialog open={open} title="Rename" description="A new name"><DialogFooter><Button tag="ok" label="OK"/></DialogFooter></Dialog>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var sel = ui.root.find("sel"), m = ui.root.find("m");
+		check("unstyled: a select's trigger and value", sel.slot == "select-trigger" && sel.attr("data-state") == "closed" && sel.children[0].slot == "select-value"
+			&& sel.style.borderWidth == 1);
+		click(sel);
+		var list = ui.overlay.find("sel-list"), pear = ui.overlay.find("sel-Pear"), apple = ui.overlay.find("sel-Apple");
+		check("unstyled: a select's content and items, the chosen one's indicator shown, an opaque surface", sel.attr("data-state") == "open"
+			&& list.slot == "select-content" && pear.slot == "select-item" && pear.attr("data-state") == "checked" && apple.attr("data-state") == "unchecked"
+			&& pear.children[1].slot == "select-item-indicator" && pear.children[1].style.display != None && apple.children[1].style.display == None
+			&& list.style.background == Color.WHITE && ui.focus == pear);
+		ui.pointerMove(apple.absX + 4, apple.absY + 4);
+		ui.update();
+		check("unstyled: the pointer over an item focuses it, which the theme shows", ui.focus == apple && apple.style.background != Color.TRANSPARENT);
+		click(apple);
+		check("unstyled: an item chosen", fruit.value == "Apple" && sel.attr("data-state") == "closed");
+		check("unstyled: a dropdown menu's trigger an outline button", m.slot == "button" && m.variant == "outline" && m.attr("data-state") == "closed");
+		click(m);
+		var items = ui.overlay.find("m-items"), copy = ui.overlay.find("m-0");
+		check("unstyled: a dropdown menu's content, items and shortcut", m.attr("data-state") == "open" && items.slot == "dropdown-menu-content"
+			&& copy.slot == "dropdown-menu-item" && copy.children[1].slot == "dropdown-menu-shortcut" && ui.focus == copy);
+		click(copy);
+		check("unstyled: an item chosen, the menu closed", chosen.join(",") == "copy" && m.attr("data-state") == "closed");
+		open.value = true;
+		ui.update();
+		var close = ui.overlay.find("dialog-close"), content = close.parent;
+		check("unstyled: a dialog's overlay, content, header, title, description, footer and close", content.slot == "dialog-content"
+			&& content.parent.slot == "dialog-overlay" && content.children[0].slot == "dialog-header" && content.children[0].children[0].slot == "dialog-title"
+			&& content.children[0].children[1].slot == "dialog-description" && ui.overlay.find("dialog-footer").slot == "dialog-footer"
+			&& close.slot == "dialog-close" && content.parent.style.background != Color.TRANSPARENT && ui.focus == ui.overlay.find("ok"));
+		click(close);
+		check("unstyled: the close button closes it", !open.value && ui.overlay.find("dialog-close") == null);
+		ui.dark = true;
+		open.value = true;
+		ui.update();
+		check("unstyled: Canvas dark when the window is", ui.overlay.find("dialog-close").parent.style.background == Color.rgb(0x121212));
+		// a menu's separator and disabled items: shown, skipped by the keys
+		var ui2 = new Ui(new MonoText(), 400, 300), log = [];
+		Render.render(<view padding={10} align-items="start"><DropdownMenu tag="m2" label="Edit" items={[
+			{label: "Cut", onSelect: () -> log.push("cut")},
+			{label: "", separator: true},
+			{label: "Paste", onSelect: () -> log.push("paste"), disabled: true, shortcut: "Mod+V"},
+			{label: "Delete", onSelect: () -> log.push("delete"), variant: "destructive"}
+		]}/></view>, ui2.root);
+		ui2.update();
+		ui2.setFocus(ui2.root.find("m2"));
+		ui2.keyDown(Key.ENTER, 0);
+		ui2.update();
+		var sep = ui2.overlay.find("m2-items").children[1], paste = ui2.overlay.find("m2-2"), del = ui2.overlay.find("m2-3");
+		ui2.keyDown(Key.DOWN, 0);
+		ui2.update();
+		check("unstyled: a menu's separator and disabled item skipped by Down", sep.slot == "dropdown-menu-separator" && sep.style.height.resolve(0) == 1
+			&& paste.attr("data-disabled") == "" && !paste.focusable && paste.style.opacity == 0.5 && del.variant == "destructive" && ui2.focus == del);
+		ui2.keyDown(Key.UP, 0);
+		ui2.update();
+		check("unstyled: and by Up", ui2.focus == ui2.overlay.find("m2-0"));
+		ui2.pointerDown(paste.absX + 4, paste.absY + 4, 1);
+		ui2.pointerUp(paste.absX + 4, paste.absY + 4, 1);
+		ui2.update();
+		check("unstyled: a disabled item not chosen by a click, its shortcut off", log.length == 0 && ui2.overlay.find("m2-items") != null);
+	}
+
+	static function unstyledNav() {
+		var ui = new Ui(new MonoText(), 500, 400);
+		var more = signal(false), section = signal(-1), view = signal("Week"), page = signal(1);
+		Render.render(<view align-items="start" row-gap={4} padding={10}>
+			<Collapsible tag="c" label="More" open={more}><text>Details</text></Collapsible>
+			<Accordion tag="a" open={section} sections={[{label: "One", render: () -> <text>First</text>}, {label: "Two", render: () -> <text>Second</text>}]}/>
+			<ToggleGroup tag="g" value={view} options={["Day", "Week"]} labels={["D", "W"]} variant="outline" size="sm"/>
+			<Breadcrumb tag="b" items={["Home", "Docs"]} onSelect={_ -> {}}/>
+			<Pagination tag="p" page={page} count={9}/>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var c = ui.root.find("c"), ct = ui.root.find("c-summary");
+		check("unstyled: a collapsible's slots and data-state", c.slot == "collapsible" && ct.slot == "collapsible-trigger" && ct.attr("data-state") == "closed"
+			&& ui.root.find("c-content") == null);
+		click(ct);
+		check("unstyled: a collapsible opened", more.value && c.attr("data-state") == "open" && ct.attr("data-state") == "open"
+			&& ui.root.find("c-content").slot == "collapsible-content");
+		var item = ui.root.find("a-1"), at = ui.root.find("a-1-summary"), chevron = at.children[1];
+		check("unstyled: an accordion's slots, the chevron at the end", ui.root.find("a").slot == "accordion" && item.slot == "accordion-item"
+			&& at.slot == "accordion-trigger" && item.attr("data-state") == "closed" && chevron.absX > at.children[0].absX && chevron.style.transform == null);
+		click(at);
+		check("unstyled: an accordion's section opened, its chevron turned", section.value == 1 && item.attr("data-state") == "open"
+			&& at.attr("data-state") == "open" && ui.root.find("a-1-content").slot == "accordion-content" && chevron.style.transform != null);
+		var g = ui.root.find("g"), d = ui.root.find("g-0"), w = ui.root.find("g-1");
+		check("unstyled: a toggle group's items: data-state, variant, size, labels", g.slot == "toggle-group" && d.slot == "toggle-group-item"
+			&& d.variant == "outline" && d.size == "sm" && w.attr("data-state") == "on" && d.attr("data-state") == "off" && d.semantics.role == RadioButton);
+		click(d);
+		check("unstyled: a toggle group's item chosen", view.value == "Day" && d.attr("data-state") == "on" && w.attr("data-state") == "off");
+		var b0 = ui.root.find("b-0"), b1 = ui.root.find("b-1");
+		check("unstyled: a breadcrumb's slots", ui.root.find("b").slot == "breadcrumb" && b0.parent.slot == "breadcrumb-item"
+			&& b0.parent.parent.slot == "breadcrumb-list" && b0.slot == "breadcrumb-link" && b1.slot == "breadcrumb-page"
+			&& b0.parent.parent.children[1].slot == "breadcrumb-separator" && b1.semantics.current == true);
+		var prev = ui.root.find("p-prev"), next = ui.root.find("p-next");
+		function pages():Array<Node> {
+			var out = [];
+			function walk(n:Node) {
+				if (n.tag == "p-page") out.push(n);
+				for (k in n.children)
+					walk(k);
+			}
+			walk(ui.root);
+			return out;
+		}
+		var first = pages()[0];
+		check("unstyled: pagination's slots, sizes, the current page active, Previous disabled on the first",
+			ui.root.find("p").slot == "pagination" && prev.parent.slot == "pagination-item" && prev.parent.parent.slot == "pagination-content"
+			&& prev.slot == "pagination-previous" && ui.root.find("p-next").slot == "pagination-next" && prev.size == "default" && first.size == "icon" && first.attr("data-active") == "true"
+			&& pages()[1].attr("data-active") == null && prev.attr("data-disabled") == "" && next.attr("data-disabled") == null);
+		click(next);
+		check("unstyled: pagination's Next", page.value == 2 && pages()[1].attr("data-active") == "true" && prev.attr("data-disabled") == null);
+	}
+
+	static function unstyledRest() {
+		var ui = new Ui(new MonoText(), 500, 500);
+		var day:Signal<Null<Day>> = signal(({year: 2026, month: 10, day: 17} : Day)), picked:Signal<Null<Day>> = signal(null);
+		var city = signal(""), count = signal(3.0), tags = signal(["a"]), colour = signal(Color.rgb(0x3B82F6));
+		Render.render(<view slot="body" tag="page" align-items="start" row-gap={4} padding={10}>
+			<Calendar tag="cal" value={day} today={({year: 2026, month: 10, day: 16} : Day)}/>
+			<DatePicker tag="date" value={picked}/>
+			<Combobox tag="city" value={city} options={["Bern", "Berlin"]}/>
+			<NumberField tag="n" value={count}/>
+			<TagInput tag="tags" tags={tags}/>
+			<ColorPicker tag="col" value={colour} size={60}/>
+		</view>, ui.root);
+		ui.update();
+		var page = ui.root.find("page");
+		check("unstyled: a page's body: Canvas and CanvasText", page.style.background == Color.WHITE && page.style.color == Color.BLACK);
+		ui.dark = true;
+		ui.update();
+		check("unstyled: dark: the body follows", page.style.background == Color.rgb(0x121212) && page.style.color == Color.WHITE);
+		ui.dark = false;
+		ui.update();
+		var days = [];
+		function walk(n:Node) {
+			if (n.tag == "cal-day") days.push(n);
+			for (c in n.children)
+				walk(c);
+		}
+		walk(ui.root);
+		var chosen = days.filter(d -> d.attr("data-selected") == "true"), today = days.filter(d -> d.attr("data-today") == "true");
+		var outside = days.filter(d -> d.attr("data-outside") == "true");
+		check("unstyled: a calendar's slots, its days' data-selected, data-today, data-outside", ui.root.find("cal").slot == "calendar"
+			&& ui.root.find("cal-previous").slot == "calendar-button-previous" && ui.root.find("cal-previous").variant == "ghost" && ui.root.find("cal-month").slot == "calendar-caption-label"
+			&& days.length == 42 && days[0].slot == "calendar-day" && chosen.length == 1 && (cast chosen[0].children[0] : TextNode).text == "17"
+			&& today.length == 1 && outside.length > 0 && chosen[0].attr("data-focused") == "true" && chosen[0].style.background != Color.TRANSPARENT);
+		var date = ui.root.find("date");
+		check("unstyled: a date picker an outline button, empty", date.slot == "button" && date.variant == "outline" && date.attr("data-empty") == "true");
+		date.ui.setFocus(date);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("unstyled: its calendar in a popover's content", ui.overlay.find("date-calendar").parent.slot == "popover-content"
+			&& ui.overlay.find("date-calendar").parent.style.background == Color.WHITE);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		var f = ui.root.find("city");
+		ui.setFocus(f);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		var opts = [];
+		function walk2(n:Node) {
+			if (n.tag == "city-option") opts.push(n);
+			for (c in n.children)
+				walk2(c);
+		}
+		walk2(ui.overlay);
+		check("unstyled: a combobox's field an input, its list a command list, the highlighted item data-selected", f.slot == "input"
+			&& ui.overlay.find("city-list").slot == "command-list" && opts.length == 2 && opts[0].slot == "command-item" && opts[0].attr("data-selected") == "true"
+			&& opts[1].attr("data-selected") == null);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("unstyled: a number field's input and steppers", ui.root.find("n").slot == "input" && ui.root.find("n-box").slot == "number-field"
+			&& ui.root.find("n-up").slot == "number-field-increment" && ui.root.find("n-down").slot == "number-field-decrement");
+		check("unstyled: a tag input's chips badges", ui.root.find("tags").slot == "tag-input" && ui.root.find("tags-a").slot == "badge"
+			&& ui.root.find("tags-a").variant == "secondary" && ui.root.find("tags-a-remove").slot == "tag-input-remove"
+			&& ui.root.find("tags-field").slot == "tag-input-field");
+		check("unstyled: a colour picker's parts", ui.root.find("col").slot == "color-picker" && ui.root.find("col-area").slot == "color-picker-area"
+			&& ui.root.find("col-hue").slot == "color-picker-hue" && ui.root.find("col-swatch").slot == "color-picker-swatch"
+			&& ui.root.find("col-area").children[1].slot == "color-picker-thumb" && ui.root.find("col-area").children[1].style.borderWidth == 2);
+	}
+
+// a part's states as signals (React Aria's render props): an instance's
+	// style a function of them, over the theme's rules, taken back when it
+	// no longer gives a property
+	static function statesStyle() {
+		var ui = new Ui(new MonoText(), 400, 300), ticked = signal(false);
+		ui.theme = {rules: [{slot: "button", style: {background: Color.rgb(0x111111), padding: 4}}]};
+		Render.render(<view align-items="start" padding={10}>
+			<Button tag="b" label="Go" style={s -> s.hovered.value ? {background: Color.rgb(0xFF0000)} : {}}/>
+			<Checkbox tag="c" checked={ticked} label="A" style={s -> s.attr("data-state").value == "checked" ? {opacity: 0.5} : {}}/>
+		</view>, ui.root);
+		ui.update();
+		var b = ui.root.find("b"), c = ui.root.find("c");
+		var before = b.style.background;
+		ui.pointerMove(b.absX + 2, b.absY + 2);
+		ui.update();
+		var hovered = b.style.background, states = States.of(b);
+		ui.pointerMove(390, 290);
+		ui.update();
+		check("states: an instance's style a function of its states, over the theme's, the theme's again after", before == Color.rgb(0x111111)
+			&& hovered == Color.rgb(0xFF0000) && b.style.background == Color.rgb(0x111111) && !states.hovered.value, hovered.toHex() + " " + b.style.background.toHex());
+		ticked.value = true;
+		ui.update();
+		check("states: an attribute as a signal (data-state)", c.style.opacity == 0.5 && States.of(c).attr("data-state").value == "checked");
+		ui.setFocus(b);
+		ui.keyDown(Key.TAB, 0);
+		ui.keyDown(Key.TAB, 0);
+		ui.setFocus(b, true);
+		check("states: focused, focus-visible", States.of(b).focused.value);
+	}
+
+	static function unstyledExtras() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null);
+		Render.render(<view align-items="start" row-gap={4} padding={10}>
+			<Button tag="before" label="Before"/>
+			<PopoverButton tag="pop" label="Settings" open={pop}><Input tag="pop-field" value={signal("")}/></PopoverButton>
+			<HoverCard tag="card" content={<text tag="card-text">More</text>}><text>Hover</text></HoverCard>
+			<Avatar tag="av" src={pic} fallback="AB"/>
+			<Kbd text="Ctrl K"/>
+			<Spinner tag="spin"/>
+			<Sheet open={sheet} title="Edit" description="Make changes" side="left"><Button tag="save" label="Save"/></Sheet>
+		</view>, ui.root);
+		ui.update();
+		var p = ui.root.find("pop");
+		check("unstyled: a popover's trigger an outline button", p.slot == "button" && p.variant == "outline" && p.attr("data-state") == "closed");
+		ui.setFocus(p);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		var content = ui.overlay.find("pop-content");
+		check("unstyled: its content below, its first field focused", pop.value && content.slot == "popover-content" && content.absY >= p.absY + p.height
+			&& ui.focus == ui.overlay.find("pop-field") && content.style.background == Color.WHITE);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("unstyled: Escape closes it", !pop.value && ui.overlay.find("pop-content") == null);
+		var av = ui.root.find("av");
+		check("unstyled: an avatar's fallback without an image", av.slot == "avatar" && av.children[0].slot == "avatar-fallback" && av.style.radius == 16);
+		pic.value = new Image(4, 4);
+		ui.update();
+		check("unstyled: its image once there is one", av.children[0].slot == "avatar-image");
+		check("unstyled: kbd and a spinner", ui.root.find("kbd").slot == "kbd" && ui.root.find("spin").slot == "spinner"
+			&& ui.root.find("spin").semantics.role == hxmc.ui.access.Role.ProgressIndicator);
+		// (the hover card: after its delay; kept over its content; gone after the pointer leaves both)
+		var c = ui.root.find("card");
+		Clock.tick(100);
+		ui.pointerMove(c.absX + 2, c.absY + 2);
+		Clock.tick(100.1);
+		Clock.tick(100.5);
+		ui.update();
+		var early = ui.overlay.find("card-text") != null;
+		Clock.tick(100.9);
+		ui.update();
+		check("unstyled: a hover card after its delay", !early && ui.overlay.find("card-text") != null
+			&& ui.overlay.find("card-text").parent.slot == "hover-card-content");
+		ui.pointerMove(390, 290);
+		Clock.tick(101);
+		Clock.tick(101.4);
+		ui.update();
+		check("unstyled: gone after the pointer leaves", ui.overlay.find("card-text") == null);
+		sheet.value = true;
+		ui.update();
+		var save = ui.overlay.find("save"), sc = save.parent;
+		check("unstyled: a sheet along its edge, modal, its first control focused", sc.slot == "sheet-content" && sc.attr("data-side") == "left"
+			&& sc.absX == 0 && sc.absY == 0 && sc.height == 300 && sc.width == 300 && sc.parent.slot == "sheet-overlay" && ui.focus == save
+			&& ui.overlay.find("sheet-close").slot == "sheet-close", '${sc.absX} ${sc.width} ${sc.height}');
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("unstyled: Escape closes the sheet", !sheet.value);
 	}
 
 	static function table() {
@@ -1308,7 +1644,7 @@ class MarkupTest implements Markup {
 		var sizeCell = rowNodes()[0].children[1], nameCell = rowNodes()[0].children[0], sizeText = sizeCell.children[0];
 		check("table: a numeric column's cells at the end, tabular figures", sizeCell.style.alignItems == Align.End && nameCell.style.alignItems == Align.Stretch
 			&& sizeText.font().features == "'tnum'" && nameCell.children[0].font().features == ""
-			&& ui.root.find("t-head-1").style.justify == Justify.End && sizeText.absX + sizeText.width > sizeCell.absX + sizeCell.width - 0.5
+			&& ui.root.find("t-head-1").style.justify == Justify.End && sizeText.absX + sizeText.width > sizeCell.absX + sizeCell.width - 8.5
 			&& sizeText.width < sizeCell.width);
 		// a column's edge dragged: its width, the rows' cells with it; not sorted by it; a double click its own again
 		var head = ui.root.find("t-head-1"), grip = ui.root.find("t-resize-1"), sorted = names().join(",");

@@ -7,8 +7,8 @@ import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
-import hxmc.ui.widgets.Theme;
 import hxmc.ui.widgets.Toasts;
+import hxmc.ui.widgets.Days;
 
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
 // buttons, a select, a menu, a tooltip and a dialog (popups over the
@@ -25,6 +25,7 @@ typedef Entry = {name:String, ?children:Array<Entry>, ?size:Int};
 class Gallery implements Markup {
 	static function main() {
 		var w = new UiWindow("Gallery", 560, 520);
+		w.ui.theme = Plain.sheet;
 		Render.render(new Gallery().view(), w.root);
 		UiWindow.run();
 	}
@@ -54,6 +55,10 @@ class Gallery implements Markup {
 	public final period = signal("Week");
 	public final page = signal(4);
 	public final labels = signal(["design", "review"]);
+	public final bold = signal(true);
+	public final due:Signal<Null<Day>> = signal(null);
+	public final faq = signal(0);
+	static final TODAY:Day = {year: 2026, month: 10, day: 17};
 	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
 		{name: "examples", children: [{name: "Gallery.hx", size: 6}, {name: "Todo.hx", size: 3}]},
@@ -100,7 +105,7 @@ class Gallery implements Markup {
 
 	function section(title:String, content:View):View
 		return <view row-gap={8}>
-			<text font-size={12} font-weight={700} color={() -> Theme.current.value.muted}>{title}</text>
+			<text font-size={12} font-weight={700} opacity={0.6}>{title}</text>
 			{content}
 		</view>;
 
@@ -111,11 +116,10 @@ class Gallery implements Markup {
 	];
 
 	function tabContent(i:Int):View
-		return <view tag="tab-content" padding={12} radius={8} background={() -> Theme.current.value.control} border-width={1} border-color={() -> Theme.current.value.subtle}>{TABS[i]}</view>;
+		return <Card tag="tab-content"><text>{TABS[i]}</text></Card>;
 
 	public function view():View
-		return <scroll grow={1} padding={20} row-gap={18} background={() -> Theme.current.value.background} font-family="DejaVu Sans" font-size={14} color={() -> Theme.current.value.text}
-			dir={() -> rtl.value ? "rtl" : "ltr"}>
+		return <scroll slot="body" grow={1} padding={20} row-gap={18} font-family="DejaVu Sans" font-size={14} dir={() -> rtl.value ? "rtl" : "ltr"}>
 			<view direction="row" align-items="center" justify="space-between">
 				<view direction="row" align-items="center" column-gap={14}>
 					<text font-size={22} font-weight={700}>Widgets</text>
@@ -132,50 +136,50 @@ class Gallery implements Markup {
 					<Button tag="plain" label="Plain" onClick={() -> clicks.value++}/>
 					<Button tag="primary" label="Primary" onClick={() -> clicks.value += 10}/>
 				</Toolbar>
-				<text tag="clicks" color={() -> Theme.current.value.secondary}>{() -> "clicked " + clicks.value}</text>
+				<text tag="clicks" opacity={0.7}>{() -> "clicked " + clicks.value}</text>
 			</view>)}
 			{section("POPUPS", <view direction="row" column-gap={12} align-items="center">
 				<Select tag="fruit" value={fruit} options={["Apple", "Pear", "Plum"]} label="Fruit" width={110}/>
-				<Menu tag="file" label="File" items={[
+				<DropdownMenu tag="file" label="File" items={[
 					{label: "New", onSelect: () -> chosen.value = "New"},
 					{label: "Open…", onSelect: () -> chosen.value = "Open"},
 					{label: "Rename…", onSelect: () -> dialog.value = true}
 				]}/>
-				<Tooltip tag="tip" text="A tooltip, after half a second"><text color={() -> Theme.current.value.secondary}>Hover me</text></Tooltip>
-				<text tag="chosen" color={() -> Theme.current.value.secondary}>{() -> chosen.value}</text>
-				<Dialog open={dialog} title="Rename">
+				<Tooltip tag="tip" text="A tooltip, after half a second"><text opacity={0.7}>Hover me</text></Tooltip>
+				<text tag="chosen" opacity={0.7}>{() -> chosen.value}</text>
+				<Dialog open={dialog} title="Rename" description="The name the greeting below uses.">
 					<Input tag="rename" value={name} placeholder="A new name"/>
-					<view direction="row" justify="end"><Button tag="done" label="Done" onClick={() -> dialog.value = false}/></view>
+					<DialogFooter><Button tag="done" label="Done" onClick={() -> dialog.value = false}/></DialogFooter>
 				</Dialog>
 			</view>)}
 			{section("TOGGLES", <view direction="row" column-gap={24} align-items="center">
 				<Checkbox tag="check" checked={checked} label="Checkbox"/>
 				<Switch tag="switch" checked={on} label={"Switch"}/>
-				<text tag="toggles" color={() -> Theme.current.value.secondary}>{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
+				<text tag="toggles" opacity={0.7}>{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
 			</view>)}
 			{section("RADIO AND LISTBOX", <view direction="row" column-gap={24} align-items="start">
 				<RadioGroup tag="size" value={size} options={["Small", "Medium", "Large"]}/>
 				<Listbox tag="days" selected={days} options={["Mon", "Tue", "Wed", "Thu", "Fri"]} multiple label="Days" width={110} height={104}/>
-				<text tag="size-shown" color={() -> Theme.current.value.secondary}>{() -> "size: " + size.value + ", " + days.value.join(" ")}</text>
+				<text tag="size-shown" opacity={0.7}>{() -> "size: " + size.value + ", " + days.value.join(" ")}</text>
 			</view>)}
 			{section("SLIDER, PROGRESS AND COLOUR", <view direction="row" column-gap={32} align-items="start">
 				<view row-gap={10}>
 					<view direction="row" column-gap={12} align-items="center">
 						<Slider tag="volume" value={volume} step={0.05} width={200}/>
-						<text tag="volume-shown" color={() -> Theme.current.value.secondary}>{() -> Math.round(volume.value * 100) + "%"}</text>
+						<text tag="volume-shown" opacity={0.7}>{() -> Math.round(volume.value * 100) + "%"}</text>
 					</view>
 					<Progress value={volume} width={200}/>
 					<view direction="row" column-gap={12} align-items="center">
 						<RangeSlider tag="price" low={priceLow} high={priceHigh} min={0} max={100} step={5} width={200} label="Price"/>
-						<text tag="price-shown" color={() -> Theme.current.value.secondary}>{() -> priceLow.value + "–" + priceHigh.value}</text>
+						<text tag="price-shown" opacity={0.7}>{() -> priceLow.value + "–" + priceHigh.value}</text>
 					</view>
 				</view>
 				<ColorPicker tag="colour" value={colour} size={130} label="Accent"/>
 			</view>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
 			{section("SEGMENTS, BREADCRUMBS, PAGES", <view row-gap={10} align-items="start">
-				<SegmentedControl tag="period" label="Period" value={period} options={["Day", "Week", "Month"]}/>
-				<Breadcrumbs tag="crumbs" items={["Home", "Projects", "Gallery"]} onSelect={i -> chosen.value = "crumb " + i}/>
+				<ToggleGroup tag="period" label="Period" value={period} options={["Day", "Week", "Month"]}/>
+				<Breadcrumb tag="crumbs" items={["Home", "Projects", "Gallery"]} onSelect={i -> chosen.value = "crumb " + i}/>
 				<Pagination tag="pages" page={page} count={9}/>
 			</view>)}
 			{section("SPLIT: A TREE AND A TABLE", <Split tag="panes" size={pane} min={120} label="Sidebar"
@@ -187,26 +191,48 @@ class Gallery implements Markup {
 				]}/>}></Split>)}
 			{section("IMAGES: FILL, CONTAIN, COVER", <view direction="row" column-gap={12} align-items="start">
 				<image tag="fill" src={picture} width={110} height={70} radius={8}/>
-				<image tag="contain" src={picture} fit="contain" width={110} height={70} radius={8} background={() -> Theme.current.value.subtle}/>
+				<image tag="contain" src={picture} fit="contain" width={110} height={70} radius={8} background="#80808033"/>
 				<image tag="cover" src={picture} fit="cover" width={110} height={70} radius={8}/>
 				<image tag="natural" src={picture} radius={30}/>
 			</view>)}
 			{section("FIELD, TAGS AND AREA", <view row-gap={6}>
 				<Input tag="name" value={name} placeholder="Your name"/>
-				<text tag="greeting" color={() -> Theme.current.value.secondary}>{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
+				<text tag="greeting" opacity={0.7}>{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
 				<TagInput tag="labels" tags={labels} label="Labels" placeholder="Add a label"/>
 				<Textarea tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
-				<text tag="lines" color={() -> Theme.current.value.secondary}>{() -> notes.value.split("\n").length + " lines"}</text>
+				<text tag="lines" opacity={0.7}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
 			{section("COMBOBOX, NUMBER, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">
 				<view direction="row" column-gap={12} align-items="center">
 					<Combobox tag="city" value={city} options={CITIES} placeholder="A city" label="City" onChoose={c -> Toasts.show("Chose " + c, {kind: "success"})}/>
 					<NumberField tag="count" value={count} min={0} max={99} width={90} label="Count"/>
 				</view>
-				<Disclosure tag="more" label="What these are">
-					<text color={() -> Theme.current.value.secondary}>A combobox filters its options as you type; a toast says what happened, for a while.</text>
-				</Disclosure>
+				<Collapsible tag="more" label="What these are">
+					<text opacity={0.7}>A combobox filters its options as you type; a toast says what happened, for a while.</text>
+				</Collapsible>
 				<Button tag="notify" label="Show a toast" onClick={() -> Toasts.show("Deleted 3 files", {action: "Undo", onAction: () -> Toasts.show("Restored")})}/>
+			</view>)}
+			{section("CARDS, BADGES, ALERTS AND MORE", <view row-gap={12} align-items="stretch">
+				<Card tag="card">
+					<CardHeader><CardTitle text="Unstyled widgets"/><CardDescription text="Their looks come from a theme, else the colour of the text."/></CardHeader>
+					<CardContent><view direction="row" column-gap={6}><Badge label="New"/><Badge label="Widgets" variant="secondary"/><Badge label="Beta" variant="outline"/></view></CardContent>
+					<CardFooter><Button tag="read" label="Read" size="sm"/><Button tag="later" label="Later" variant="ghost" size="sm"/></CardFooter>
+				</Card>
+				<Alert tag="alert"><AlertTitle text="Heads up"/><AlertDescription text="An alert: a title and a description, default or destructive."/></Alert>
+				<view direction="row" column-gap={12} align-items="center">
+					<Toggle tag="bold" pressed={bold} label="Bold"/>
+					<Separator orientation="vertical"/>
+					<Label text="Due"/>
+					<DatePicker tag="due" value={due} today={TODAY} placeholder="Pick a date"/>
+				</view>
+				<Accordion tag="faq" open={faq} sections={[
+					{label: "Is it accessible?", render: () -> <text opacity={0.7}>Each widget has the roles and states assistive technology reads.</text>},
+					{label: "Can it be themed?", render: () -> <text opacity={0.7}>By the rules of a StyleSheet, for each slot, variant, size and state.</text>}
+				]}/>
+				<view direction="row" column-gap={10} align-items="center">
+					<Skeleton width={40} height={40}/>
+					<view row-gap={6}><Skeleton width={180} height={12}/><Skeleton width={120} height={12}/></view>
+				</view>
 			</view>)}
 			<Toaster/>
 		</scroll>;
