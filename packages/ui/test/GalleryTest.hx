@@ -13,8 +13,9 @@ import hxmc.view.*;
 // the field, the combobox, the number field, the disclosure and a toast, the images' sizes; PNG and WebP files decoded natively (png/*.png, webp/*.webp,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
-// With --dark, in Theme.DARK, against gallery-dark.png.
-//   GalleryTest <golden.png> <out.png> [--dark] [--bless]
+// With --dark, in Theme.DARK, against gallery-dark.png; with --rtl, right to
+// left, against gallery-rtl.png.
+//   GalleryTest <golden.png> <out.png> [--dark] [--rtl] [--bless]
 class GalleryTest {
 	static inline var W = 560;
 	static inline var H = 1320;
@@ -206,6 +207,8 @@ class GalleryTest {
 				}
 			check("WebP files decoded", n >= 25 && bad.length == 0, bad.join(" "));
 		}
+		// (with --rtl, the frame right to left)
+		if (args.indexOf("--rtl") >= 0) click("rtl");
 		// (the frame with the select's list open over the toggles)
 		click("fruit");
 		Sys.println('GalleryTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));

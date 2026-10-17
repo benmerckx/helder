@@ -371,7 +371,7 @@ class Widgets implements Markup {
 					<view tag={tag + "-toggle"} width={14} align-items="center" cursor="pointer" onClick={e -> if (row.value != null && !row.value.leaf) {
 						setOpen(row.value.item, !row.value.open);
 						e.stop();
-					}}><text hidden color={() -> t().muted}>{() -> row.value == null || row.value.leaf ? "" : row.value.open ? "▾" : "▸"}</text></view>
+					}}>{arrow(() -> row.value == null || row.value.leaf ? "" : row.value.open ? "▾" : "▸")}</view>
 					{() -> row.value == null ? null : props.render(row.value.item)}
 				</view>;
 			}}/>
@@ -897,7 +897,7 @@ class Widgets implements Markup {
 				e.preventDefault();
 				flip();
 			}}>
-			<text width={12} color={() -> t().muted} hidden>{() -> isOpen() ? "▾" : "▸"}</text>
+			<view width={12}>{arrow(() -> isOpen() ? "▾" : "▸")}</view>
 			{label}
 		</view>;
 
@@ -1037,6 +1037,16 @@ class Widgets implements Markup {
 		]}>{f}</ContextMenu>;
 
 	// (a text field's colours from the theme, following it)
+	// (a disclosure's arrow, a tree's or a summary's: hidden from assistive
+	// technology, muted; closed, to the line's end)
+	static function arrow(shown:Void->String):Node {
+		var n = new Arrow("");
+		n.semantics = {hidden: true};
+		effect(() -> n.text = shown());
+		effect(() -> n.style.color = Color.parse(t().muted));
+		return n;
+	}
+
 	static function themed(f:EditableText)
 		effect(() -> {
 			var th = t();
@@ -1062,4 +1072,11 @@ class Widgets implements Markup {
 		effect(() -> f.setText(props.value.value));
 		return editMenu(f, props.tag ?? "field");
 	}
+}
+
+// a disclosure's arrow: closed (▸), it points to the line's end, right to
+// left the other way (as Chromium's disclosure-closed marker)
+private class Arrow extends TextNode {
+	override function shownText():String
+		return text == "▸" && rtl() ? "◂" : text;
 }

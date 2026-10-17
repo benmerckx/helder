@@ -3,9 +3,10 @@ package hxmc.ui.widgets;
 import hxmc.ui.*;
 
 // A one-line text field (EditableText's keys and pointer; Enter submits):
-// its text scrolls sideways to keep the caret in view; the placeholder
-// shows while it is empty; a paste goes on one line. onSubmit gets the
-// text on Enter. A composition shows at the caret, underlined.
+// its text scrolls sideways to keep the caret in view, and while it fits
+// it is aligned as the style says (else the start side: right to left, on
+// the right); the placeholder shows while it is empty; a paste goes on one
+// line. onSubmit gets the text on Enter. A composition shows at the caret, underlined.
 class TextField extends EditableText {
 	public var onSubmit:Null<String->Void>;
 
@@ -29,9 +30,13 @@ class TextField extends EditableText {
 	override function indexAt(px:Float, py:Float):Int {
 		if (ui == null) return caret;
 		var p = layoutText(ui.text, Math.NaN);
-		var left = localX(px, py) - style.borderEdges.left - style.padding.left + scroll;
+		var left = localX(px, py) - style.borderEdges.left - style.padding.left + scroll - aligned(p, innerWidth());
 		return p.hit(left, 0);
 	}
+
+	// the text's offset for its alignment while it fits (scrolled: none)
+	inline function aligned(p:Paragraph, width:Float):Float
+		return scroll > 0 ? 0 : alignShift(p.width, width);
 
 	// (a field shrinks: its text scrolls)
 	override public function minContentWidth(engine:TextEngine):Float
@@ -52,19 +57,20 @@ class TextField extends EditableText {
 		if (cx - scroll > width - 1) scroll = cx - width + 1;
 		if (cx - scroll < 0) scroll = cx;
 		if (p.width - scroll < width - 1 && scroll > 0) scroll = Math.max(0, p.width - width + 1);
+		var ox = x - scroll + aligned(p, width);
 		var lh = font().size * font().lineHeight;
 		canvas.pushClip(x, y, width, height, 0);
 		if (focused && selectionStart != selectionEnd && composition == "") {
 			for (r in p.selection(selectionStart, selectionEnd))
-				canvas.rect(x + r.x - scroll, y, r.width, lh, 0, selectionColor, 0, 0);
+				canvas.rect(ox + r.x, y, r.width, lh, 0, selectionColor, 0, 0);
 		}
-		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), Math.NaN), x, y, width, Left, placeholderColor);
-		else canvas.text(p, x - scroll, y, p.width, Left, textColor());
-		paintComposition(canvas, p, x - scroll, y);
-		caretX = x + cx - scroll;
+		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(placeholderParagraph(ui.text, Math.NaN), x, y, width, fieldAlign(), placeholderColor);
+		else canvas.text(p, ox, y, p.width, Left, textColor());
+		paintComposition(canvas, p, ox, y);
+		caretX = ox + cx;
 		caretY = y;
 		caretHeight = lh;
-		if (focused) canvas.rect(x + cx - scroll, y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
+		if (focused) canvas.rect(ox + cx, y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
 		canvas.popClip();
 	}
 }

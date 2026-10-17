@@ -7,7 +7,8 @@ import hxmc.ui.*;
 // (the wheel, and to keep the caret in view). Enter types a new line; Up
 // and Down move a line keeping the column; Home and End go to the line's
 // start and end (with Control: the text's). A composition shows at the
-// caret, underlined.
+// caret, underlined. Its lines are aligned as the style says (else the
+// start side: right to left, on the right).
 class TextArea extends EditableText {
 	// the height in lines when the style gives none
 	public var rows = 3;
@@ -31,9 +32,6 @@ class TextArea extends EditableText {
 		};
 	}
 
-	function innerWidth():Float
-		return Math.max(1, width - style.borderEdges.horizontal - style.padding.horizontal);
-
 	function innerHeight():Float
 		return Math.max(1, height - style.borderEdges.vertical - style.padding.vertical);
 
@@ -46,6 +44,10 @@ class TextArea extends EditableText {
 	function lineHeight():Float
 		return font().size * font().lineHeight;
 
+	// the offset of the line at y for the text's alignment
+	inline function lineShift(p:Paragraph, y:Float):Float
+		return alignShift(p.lineWidth(y), innerWidth());
+
 	override function moreKeys(e:Event, shift:Bool, ctrl:Bool):Bool {
 		var p = laidAt();
 		switch e.key {
@@ -54,9 +56,9 @@ class TextArea extends EditableText {
 				replace("\n");
 			case Key.UP | Key.DOWN if (p != null):
 				var c = p.caret(caret), lh = lineHeight();
-				if (Math.isNaN(goalX)) goalX = c.x;
+				if (Math.isNaN(goalX)) goalX = c.x + lineShift(p, c.y);
 				var y = c.y + (e.key == Key.UP ? -lh : lh) + lh / 2;
-				var i = y < 0 ? 0 : y > p.height ? text.length : p.hit(goalX, y);
+				var i = y < 0 ? 0 : y > p.height ? text.length : p.hit(goalX - lineShift(p, y), y);
 				move(i, shift);
 				return true;
 			case Key.HOME | Key.END if (p != null && !ctrl):
@@ -74,7 +76,8 @@ class TextArea extends EditableText {
 		var p = laidAt();
 		if (p == null) return caret;
 		var s = style;
-		return p.hit(localX(px, py) - s.borderEdges.left - s.padding.left, localY(px, py) - s.borderEdges.top - s.padding.top + offset);
+		var y = localY(px, py) - s.borderEdges.top - s.padding.top + offset;
+		return p.hit(localX(px, py) - s.borderEdges.left - s.padding.left - lineShift(p, y), y);
 	}
 
 	// as wide as it is given (its text wrapped to that), rows lines high
@@ -100,6 +103,8 @@ class TextArea extends EditableText {
 		offset = Math.max(0, Math.min(offset, Math.max(0, p.height - height)));
 		canvas.pushClip(x, y, width, height, 0);
 		var top = y - offset;
+		// (the lines aligned as lineShift has them: right, short of the caret's pixel)
+		var align = fieldAlign(), aw = align == Right ? width - 1 : width, cs = lineShift(p, c.y);
 		if (focused && selectionStart != selectionEnd && composition == "") {
 			// (each line's runs; a line the selection goes past reaches the right edge, an empty one is filled)
 			var runs = p.selection(selectionStart, selectionEnd);
@@ -113,21 +118,24 @@ class TextArea extends EditableText {
 				}
 				var through = ly < last - 1e-6;
 				if (mine.length == 0 && through) canvas.rect(x, top + ly, width, lh, 0, selectionColor, 0, 0);
+				// (right to left, the line's end is its left)
+				var sx = lineShift(p, ly), back = rtl();
 				for (i in 0...mine.length) {
-					var r = mine[i];
-					var w = through && i == mine.length - 1 ? width - r.x : r.width;
-					canvas.rect(x + r.x, top + ly, w, lh, 0, selectionColor, 0, 0);
+					var r = mine[i], rx = sx + r.x;
+					if (through && !back && i == mine.length - 1) canvas.rect(x + rx, top + ly, width - rx, lh, 0, selectionColor, 0, 0);
+					else if (through && back && i == 0) canvas.rect(x, top + ly, rx + r.width, lh, 0, selectionColor, 0, 0);
+					else canvas.rect(x + rx, top + ly, r.width, lh, 0, selectionColor, 0, 0);
 				}
 				ly += lh;
 			}
 		}
-		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), width), x, y, width, Left, placeholderColor);
-		else canvas.text(p, x, top, width, Left, textColor());
-		paintComposition(canvas, p, x, top);
-		caretX = x + c.x;
+		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(placeholderParagraph(ui.text, width), x, y, aw, align, placeholderColor);
+		else canvas.text(p, x, top, aw, align, textColor());
+		paintComposition(canvas, p, x + cs, top);
+		caretX = x + cs + c.x;
 		caretY = top + c.y;
 		caretHeight = lh;
-		if (focused) canvas.rect(x + c.x, top + c.y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
+		if (focused) canvas.rect(x + cs + c.x, top + c.y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
 		canvas.popClip();
 	}
 }

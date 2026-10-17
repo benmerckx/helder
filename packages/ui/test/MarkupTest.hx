@@ -224,11 +224,12 @@ class MarkupTest implements Markup {
 
 	static function rightToLeft() {
 		var ui = new Ui(new MonoText(), 300, 200);
-		var dir = signal("rtl"), vol = signal(0.0);
+		var dir = signal("rtl"), vol = signal(0.0), name = signal("Ada");
 		Render.render(<view dir={dir} padding={10} row-gap={6}>
 			<Slider tag="vol" value={vol} width={100} step={0.1}/>
 			<view tag="row" direction="row" column-gap={4}><view tag="a" width={40} height={20}/><view tag="b" width={30} height={20}/></view>
 			<text tag="words">Hello</text>
+			<Field tag="name" value={name}/>
 		</view>, ui.root);
 		ui.update();
 		var a = ui.root.find("a"), b = ui.root.find("b"), words = ui.root.find("words");
@@ -240,6 +241,12 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.LEFT, 0);
 		ui.update();
 		check("rtl: Left raises a slider, its knob moves left", vol.value == 0.1 && knob.absX < slider.absX + 100 - 16, vol.value + " " + knob.absX);
+		// (a field's text at its right, short of the caret's pixel: a click in its middle between its letters)
+		var field:TextField = cast ui.root.find("name");
+		var p = field.laidOut(), right = field.absX + field.width - field.style.borderEdges.right - field.style.padding.right - 1;
+		ui.pointerDown(right - p.width / 2, field.absY + field.height / 2, 1);
+		ui.pointerUp(right - p.width / 2, field.absY + field.height / 2, 1);
+		check("rtl: a field's text at the right, clicked there", field.caret == 1 || field.caret == 2, "" + field.caret);
 		dir.value = "ltr";
 		ui.update();
 		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);

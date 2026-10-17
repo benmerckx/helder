@@ -131,6 +131,43 @@ class EditableText extends TextNode {
 		return composition == "" ? caret : caret + compositionCaret;
 
 	// the composition's underline, line by line, in p (drawn at x, y)
+	// the width inside the borders and padding
+	function innerWidth():Float
+		return Math.max(1, width - style.borderEdges.horizontal - style.padding.horizontal);
+
+	// the text's alignment in the box: its own, else the start side (as an
+	// input's; not inherited), justified lines from the left
+	function fieldAlign():TextAlign {
+		var a = style.textAlign ?? (rtl() ? Right : Left);
+		return a == Justify ? Left : a;
+	}
+
+	// a line's offset in a box this wide for that alignment (right: room
+	// left for the caret)
+	function alignShift(lineWidth:Float, width:Float):Float
+		return switch fieldAlign() {
+			case Right: Math.max(0, width - 1 - lineWidth);
+			case Center: Math.max(0, (width - lineWidth) / 2);
+			case _: 0;
+		}
+
+	var placeholderKey:Null<String> = null;
+	var placeholderLaid:Null<Paragraph> = null;
+	var placeholderFont:Null<Font> = null;
+
+	// the placeholder laid out (in the text's direction), kept while it,
+	// the font and the width are the same
+	function placeholderParagraph(engine:TextEngine, width:Float):Paragraph {
+		var d = dir(), f = font();
+		var key = placeholder + "\u0000" + width + "\u0000" + (d == null ? -1 : d == Rtl ? 1 : 0);
+		if (placeholderLaid == null || key != placeholderKey || !f.equals(placeholderFont)) {
+			placeholderLaid = engine.layout(placeholder, f, width, null, 0, false, d == null ? -1 : d == Rtl ? 1 : 0);
+			placeholderKey = key;
+			placeholderFont = f;
+		}
+		return placeholderLaid;
+	}
+
 	function paintComposition(canvas:Canvas, p:Paragraph, x:Float, y:Float) {
 		if (composition == "") return;
 		var lh = font().size * font().lineHeight, t = Math.max(1, Math.round(font().size / 14));
