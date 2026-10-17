@@ -7,8 +7,10 @@ package hxmc.ui.access;
 	public var role:Role;
 	public var name:String = "";
 	public var description:Null<String> = null;
-	// a text input's text
+	// a text input's text (a password's: dots)
 	public var value:Null<String> = null;
+	// a password field (Semantics.secret)
+	public var secret:Bool = false;
 	public var checked:Null<Bool> = null;
 	// checked neither way (Semantics.mixed)
 	public var mixed:Bool = false;
@@ -30,7 +32,7 @@ package hxmc.ui.access;
 
 	// the same as another (an incremental update leaves it out)
 	public function equals(o:AccessNode):Bool {
-		if (o.role != role || o.name != name || o.description != description || o.value != value || o.checked != checked || o.mixed != mixed || o.selected != selected
+		if (o.role != role || o.name != name || o.description != description || o.value != value || o.secret != secret || o.checked != checked || o.mixed != mixed || o.selected != selected
 			|| o.expanded != expanded || o.level != level || o.disabled != disabled || o.focusable != focusable || o.valueNow != valueNow || o.valueMin != valueMin
 			|| o.valueMax != valueMax || o.valueText != valueText || o.x != x || o.y != y || o.width != width || o.height != height
 			|| o.children.length != children.length)
@@ -49,6 +51,7 @@ package hxmc.ui.access;
 		var o:Dynamic = {id: id, role: role.aria(), name: name, x: x, y: y, w: width, h: height, children: children};
 		if (description != null) o.description = description;
 		if (value != null) o.value = value;
+		if (secret) o.secret = true;
 		if (checked != null) o.checked = mixed ? "mixed" : checked;
 		if (selected != null) o.selected = selected;
 		if (expanded != null) o.expanded = expanded;

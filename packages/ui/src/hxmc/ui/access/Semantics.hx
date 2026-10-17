@@ -24,6 +24,8 @@ package hxmc.ui.access;
 	public var valueMin(default, set):Null<Float> = null;
 	public var valueMax(default, set):Null<Float> = null;
 	public var valueText(default, set):Null<String> = null;
+	// a password's text: shown and given to assistive technology as dots
+	public var secret(default, set):Bool = false;
 	// left out with its subtree (decoration)
 	public var hidden(default, set):Bool = false;
 
@@ -46,6 +48,11 @@ package hxmc.ui.access;
 	function set_checked(v:Null<Bool>):Null<Bool> {
 		if (v != checked) hxmc.ui.Ui.accessEpoch++;
 		return checked = v;
+	}
+
+	function set_secret(v:Bool):Bool {
+		if (v != secret) hxmc.ui.Ui.accessEpoch++;
+		return secret = v;
 	}
 
 	function set_mixed(v:Bool):Bool {

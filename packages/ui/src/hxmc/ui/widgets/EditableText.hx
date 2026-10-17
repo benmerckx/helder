@@ -21,6 +21,17 @@ import hxmc.ui.*;
 // is the input method's (textInputArea).
 class EditableText extends TextNode {
 	public var placeholder:String = "";
+	// a password: shown as dots (one a UTF-16 unit, the indices kept), not
+	// copied or cut, moved through by words as one (Semantics.secret)
+	public var secret(default, set) = false;
+
+	function set_secret(v:Bool):Bool {
+		secret = v;
+		if (semantics == null) semantics = {};
+		semantics.secret = v;
+		markDirty();
+		return v;
+	}
 	public var placeholderColor:Color = Color.rgba(0x000000, 0.4);
 	public var selectionColor:Color = Color.rgba(0x3B82F6, 0.3);
 	public var caretColor:Color = Color.rgb(0x111111);
@@ -123,8 +134,10 @@ class EditableText extends TextNode {
 		changed();
 	}
 
-	override function shownText():String
-		return composition == "" ? text : text.substr(0, caret) + composition + text.substr(caret);
+	override function shownText():String {
+		var s = composition == "" ? text : text.substr(0, caret) + composition + text.substr(caret);
+		return secret ? StringTools.lpad("", "\u2022", s.length) : s;
+	}
 
 	// the caret in the text shown (in the composition while there is one)
 	function shownCaret():Int
@@ -248,14 +261,14 @@ class EditableText extends TextNode {
 
 	// the selection to the clipboard, and out of the text
 	public function cut() {
-		if (selectionStart == selectionEnd || ui == null) return;
+		if (selectionStart == selectionEnd || ui == null || secret) return;
 		ui.clipboard.write(text.substring(selectionStart, selectionEnd));
 		replace("");
 	}
 
 	// the selection to the clipboard
 	public function copy()
-		if (selectionStart != selectionEnd && ui != null) ui.clipboard.write(text.substring(selectionStart, selectionEnd));
+		if (selectionStart != selectionEnd && ui != null && !secret) ui.clipboard.write(text.substring(selectionStart, selectionEnd));
 
 	// the clipboard's text over the selection (it may come later: typed where the selection is then)
 	public function paste()
@@ -382,6 +395,7 @@ class EditableText extends TextNode {
 
 	// the start of the word before i (over the spaces first)
 	function prevWord(i:Int):Int {
+		if (secret) return 0;
 		while (i > 0 && !isWord(i - 1))
 			i--;
 		while (i > 0 && isWord(i - 1))
@@ -391,6 +405,7 @@ class EditableText extends TextNode {
 
 	// the end of the word after i (over the spaces first)
 	function nextWord(i:Int):Int {
+		if (secret) return text.length;
 		while (i < text.length && !isWord(i))
 			i++;
 		while (i < text.length && isWord(i))

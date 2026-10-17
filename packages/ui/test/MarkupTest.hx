@@ -63,6 +63,7 @@ class MarkupTest implements Markup {
 		mixedCheckbox();
 		indeterminate();
 		typeAhead();
+		password();
 		focusTips();
 		virtual();
 		table();
@@ -322,6 +323,26 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function password() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var pw = signal("hunter2");
+		Render.render(<view padding={10}><Field tag="pw" value={pw} password label="Password"/></view>, ui.root);
+		ui.update();
+		var f:TextField = cast ui.root.find("pw");
+		var clip:hxmc.ui.ClipboardHost.MemoryClipboard = cast ui.clipboard;
+		clip.text = "before";
+		ui.setFocus(f);
+		f.selectAll();
+		ui.keyDown("c".code, Key.MOD_CONTROL);
+		ui.keyDown("x".code, Key.MOD_CONTROL);
+		var t = ui.accessTree(), node = [for (id in t.order) if (t.nodes.get(id).role == TextInput) t.nodes.get(id)][0];
+		check("password: shown and given as dots, not copied or cut", (cast f.layoutText(ui.text, Math.NaN) : MonoText.MonoParagraph).width == 7 * 7
+			&& clip.text == "before" && pw.value == "hunter2" && node.secret && node.value == "•••••••" && node.toJson().secret == true, node.value);
+		f.select(3, 3);
+		ui.keyDown(Key.LEFT, Key.MOD_CONTROL);
+		check("password: a word is all of it", f.caret == 0, "" + f.caret);
 	}
 
 	static function typeAhead() {

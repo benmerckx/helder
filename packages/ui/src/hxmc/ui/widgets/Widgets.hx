@@ -1229,10 +1229,12 @@ class Widgets implements Markup {
 		});
 
 	// a text field bound to a signal (two ways); a right click (or the menu
-	// key) opens its edit menu
-	public static function Field(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?tag:String}):View {
+	// key) opens its edit menu; password: its text shown as dots, not copied
+	// or cut, a password field for assistive technology
+	public static function Field(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool, ?tag:String}):View {
 		var f = new TextField(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
+		if (props.password == true) f.secret = true;
 		f.placeholder = props.placeholder ?? "";
 		f.semantics.label = props.label ?? props.placeholder;
 		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6});

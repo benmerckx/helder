@@ -166,6 +166,7 @@ class MacAccess {
 			case Switch: "AXSwitch";
 			case Tab: "AXTabButton";
 			case Dialog: "AXApplicationDialog";
+			case TextInput if (n.secret): "AXSecureTextField";
 			case _: null;
 		}
 		if (sub != null) Msg.vPtr(e, ObjC.sel("setAccessibilitySubrole:"), str(sub));
