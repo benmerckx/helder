@@ -41,6 +41,8 @@ class FontFile {
 	var hmtx = 0;
 	var glyf = 0;
 	var locaAt = 0;
+	// no outlines, colour bitmaps only
+	public var bitmapsOnly(default, null) = false;
 	// the CFF outlines (null: glyf's)
 	var cff:Null<Cff> = null;
 	// cmap lookups cached per character: pages of 256 (-1: not looked up)
@@ -71,14 +73,16 @@ class FontFile {
 			tables.set(data.getString(r, 4), u32(data, r + 8));
 			lengths.set(data.getString(r, 4), u32(data, r + 12));
 		}
-		var outlines = tag == "OTTO" ? ["CFF "] : ["loca", "glyf"];
+		// (a font of colour bitmaps only, as Noto Color Emoji: no outlines)
+		bitmapsOnly = tag != "OTTO" && !tables.exists("glyf") && (tables.exists("CBDT") && tables.exists("CBLC") || tables.exists("sbix"));
+		var outlines = tag == "OTTO" ? ["CFF "] : bitmapsOnly ? [] : ["loca", "glyf"];
 		if (tag == "OTTO" && !tables.exists("CFF ") && tables.exists("CFF2")) throw "FontFile: CFF2 outlines are not supported";
 		for (t in ["head", "hhea", "hmtx", "maxp", "cmap"].concat(outlines))
 			if (!tables.exists(t)) throw "FontFile: no " + t + " table";
 		hmtx = tables.get("hmtx");
 		var head = tables.get("head");
 		unitsPerEm = u16(data, head + 18);
-		if (tag == "OTTO") cff = new Cff(data, tables.get("CFF "), unitsPerEm) else {
+		if (tag == "OTTO") cff = new Cff(data, tables.get("CFF "), unitsPerEm) else if (!bitmapsOnly) {
 			glyf = tables.get("glyf");
 			locaAt = tables.get("loca");
 		}
@@ -465,11 +469,176 @@ class FontFile {
 		return 0;
 	}
 
+	// --- colour glyphs ---
+
+	// whether glyphs have colour: bitmaps (CBDT, sbix) or layers (COLR)
+	public var hasColor(get, never):Bool;
+
+	function get_hasColor():Bool
+		return tables.exists("CBLC") && tables.exists("CBDT") || tables.exists("sbix") || tables.exists("COLR") && tables.exists("CPAL");
+
+	// a glyph's colour bitmap for a size in pixels (the strike nearest above,
+	// else the largest): a PNG file, its strike's pixels per em, and its
+	// place in those pixels (from the glyph's origin: left, top above the
+	// baseline; its size); null: none
+	public function colorBitmap(g:Int, size:Float):Null<{png:Bytes, ppem:Int, left:Int, top:Int, width:Int, height:Int}> {
+		if (tables.exists("CBLC") && tables.exists("CBDT")) return cbdt(g, size, true);
+		if (tables.exists("sbix")) return sbix(g, size);
+		return null;
+	}
+
+	// a glyph's advance at a size, in pixels: a colour bitmap's own (CBDT's
+	// metrics, as Skia measures them) in a font of bitmaps only, else hmtx's
+	public function advanceAt(g:Int, size:Float):Float {
+		if (bitmapsOnly && tables.exists("CBLC")) {
+			var b = cbdt(g, size, false);
+			if (b != null && b.advance > 0) return b.advance * size / b.ppem;
+		}
+		return advance(g) * size / unitsPerEm;
+	}
+
+	function cbdt(g:Int, size:Float, withPng:Bool):Null<{png:Bytes, ppem:Int, left:Int, top:Int, width:Int, height:Int, advance:Int}> {
+		var c = tables.get("CBLC"), d = tables.get("CBDT");
+		var n = u32(data, c + 4), best = -1, bestPpem = 0;
+		for (i in 0...n) {
+			var r = c + 8 + 48 * i;
+			if (g < u16(data, r + 40) || g > u16(data, r + 42)) continue;
+			var ppem = data.get(r + 45);
+			if (best < 0 || (bestPpem < size ? ppem > bestPpem : ppem >= size && ppem < bestPpem)) {
+				best = r;
+				bestPpem = ppem;
+			}
+		}
+		if (best < 0) return null;
+		var array = c + u32(data, best), count = u32(data, best + 8);
+		for (k in 0...count) {
+			var a = array + 8 * k, first = u16(data, a), last = u16(data, a + 2);
+			if (g < first || g > last) continue;
+			var sub = array + u32(data, a + 4);
+			var indexFormat = u16(data, sub), imageFormat = u16(data, sub + 2), imageData = d + u32(data, sub + 4);
+			// (where the glyph's data is, and the metrics the index gives: formats 2 and 5)
+			var at = -1, big = -1;
+			switch indexFormat {
+				case 1:
+					var o0 = u32(data, sub + 8 + 4 * (g - first)), o1 = u32(data, sub + 12 + 4 * (g - first));
+					if (o1 > o0) at = imageData + o0;
+				case 3:
+					var o0 = u16(data, sub + 8 + 2 * (g - first)), o1 = u16(data, sub + 10 + 2 * (g - first));
+					if (o1 > o0) at = imageData + o0;
+				case 2:
+					at = imageData + u32(data, sub + 8) * (g - first);
+					big = sub + 12;
+				case 4:
+					var m = u32(data, sub + 8);
+					for (j in 0...m)
+						if (u16(data, sub + 12 + 4 * j) == g) at = imageData + u16(data, sub + 14 + 4 * j);
+				case 5:
+					var m = u32(data, sub + 20);
+					for (j in 0...m)
+						if (u16(data, sub + 24 + 2 * j) == g) at = imageData + u32(data, sub + 8) * j;
+					big = sub + 12;
+				case _:
+			}
+			if (at < 0) return null;
+			// image formats 17 (small metrics), 18 (big metrics), 19 (the index's): a PNG
+			var h = 0, w = 0, bx = 0, by = 0, len = 0, png = 0, adv = 0;
+			switch imageFormat {
+				case 17:
+					h = data.get(at);
+					w = data.get(at + 1);
+					bx = s8(data.get(at + 2));
+					by = s8(data.get(at + 3));
+					adv = data.get(at + 4);
+					len = u32(data, at + 5);
+					png = at + 9;
+				case 18:
+					h = data.get(at);
+					w = data.get(at + 1);
+					bx = s8(data.get(at + 2));
+					by = s8(data.get(at + 3));
+					adv = data.get(at + 4);
+					len = u32(data, at + 8);
+					png = at + 12;
+				case 19 if (big >= 0):
+					h = data.get(big);
+					w = data.get(big + 1);
+					bx = s8(data.get(big + 2));
+					by = s8(data.get(big + 3));
+					adv = data.get(big + 4);
+					len = u32(data, at);
+					png = at + 4;
+				case _:
+					return null;
+			}
+			return {png: withPng ? data.sub(png, len) : null, ppem: bestPpem, left: bx, top: by, width: w, height: h, advance: adv};
+		}
+		return null;
+	}
+
+	// sbix: per strike, each glyph's PNG with its origin (its bottom left from the glyph's, in the strike's pixels); 'dupe': another glyph's
+	function sbix(g:Int, size:Float):Null<{png:Bytes, ppem:Int, left:Int, top:Int, width:Int, height:Int}> {
+		if (g < 0 || g >= numGlyphs) return null;
+		var t = tables.get("sbix"), n = u32(data, t + 4), best = -1, bestPpem = 0;
+		for (i in 0...n) {
+			var st = t + u32(data, t + 8 + 4 * i), ppem = u16(data, st);
+			if (best < 0 || (bestPpem < size ? ppem > bestPpem : ppem >= size && ppem < bestPpem)) {
+				best = st;
+				bestPpem = ppem;
+			}
+		}
+		if (best < 0) return null;
+		var id = g;
+		for (_ in 0...4) {
+			var o0 = u32(data, best + 4 + 4 * id), o1 = u32(data, best + 8 + 4 * id);
+			if (o1 - o0 < 8) return null;
+			var at = best + o0, type = data.getString(at + 4, 4);
+			if (type == "dupe") {
+				id = u16(data, at + 8);
+				continue;
+			}
+			if (type != "png ") return null;
+			var png = data.sub(at + 8, o1 - o0 - 8);
+			if (png.length < 24) return null;
+			var w = u32(png, 16), h = u32(png, 20);
+			return {png: png, ppem: bestPpem, left: s16(data, at), top: s16(data, at + 2) + h, width: w, height: h};
+		}
+		return null;
+	}
+
+	// a glyph's colour layers (COLR version 0, CPAL's first palette): each a
+	// glyph drawn over the ones before in its colour (ARGB; -1: the text's
+	// colour); null: none
+	public function colorLayers(g:Int):Null<Array<{glyph:Int, color:Int}>> {
+		if (!tables.exists("COLR") || !tables.exists("CPAL")) return null;
+		var c = tables.get("COLR"), n = u16(data, c + 2), base = c + u32(data, c + 4), layers = c + u32(data, c + 8);
+		var lo = 0, hi = n - 1;
+		while (lo <= hi) {
+			var mid = (lo + hi) >> 1, r = base + 6 * mid, id = u16(data, r);
+			if (id < g) lo = mid + 1 else if (id > g) hi = mid - 1 else {
+				var first = u16(data, r + 2), count = u16(data, r + 4);
+				var cp = tables.get("CPAL"), entries = u16(data, cp + 2), records = cp + u32(data, cp + 8), palette = u16(data, cp + 12);
+				return [
+					for (k in 0...count) {
+						var l = layers + 4 * (first + k), index = u16(data, l + 2);
+						var color = -1;
+						if (index != 0xFFFF && index < entries) {
+							var q = records + 4 * (palette + index);
+							// (BGRA bytes)
+							color = (data.get(q + 3) << 24) | (data.get(q + 2) << 16) | (data.get(q + 1) << 8) | data.get(q);
+						}
+						{glyph: u16(data, l), color: color};
+					}
+				];
+			}
+		}
+		return null;
+	}
+
 	// --- outlines ---
 
 	// the glyph's bounding box in font units (xMin, yMin, xMax, yMax; all 0 when empty)
 	public function bounds(g:Int):Array<Int> {
-		if (g < 0 || g >= numGlyphs) return [0, 0, 0, 0];
+		if (g < 0 || g >= numGlyphs || bitmapsOnly) return [0, 0, 0, 0];
 		if (cff != null) return cff.bounds(g);
 		var start = loca(g), end = loca(g + 1);
 		if (end <= start) return [0, 0, 0, 0];
@@ -481,7 +650,7 @@ class FontFile {
 	// segments (a line, a quadratic curve through a control point, or CFF's
 	// cubic curves through two)
 	public function outline(g:Int, out:Outline, ?transform:Array<Float>) {
-		if (g < 0 || g >= numGlyphs) return;
+		if (g < 0 || g >= numGlyphs || bitmapsOnly) return;
 		if (cff != null) {
 			cff.outline(g, out);
 			return;

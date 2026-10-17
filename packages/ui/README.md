@@ -118,7 +118,8 @@ each other become one `TextNode`.
 ## Fonts
 
 Text is shaped and rasterized by `@hxmc/text` with the system's fonts
-(`sans-serif` by default). In a browser, give the page's fonts to `run`
+(`sans-serif` by default). Colour emoji come from the system's emoji font,
+drawn from its bitmaps (scaled down as a browser does) or colour layers. In a browser, give the page's fonts to `run`
 (`fonts: [...]` with `packages/text/imports.mjs`).
 
 ## Native controls

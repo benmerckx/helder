@@ -27,9 +27,11 @@ class SystemFonts {
 
 	// fonts tried for characters the matched face lacks, in order
 	public static final FALLBACK = [
-		"DejaVu Sans", "Noto Sans", "Segoe UI", "Segoe UI Symbol", "Arial Unicode MS", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "FreeSans",
-		"FreeSerif"
+		"DejaVu Sans", "Noto Sans", "Segoe UI", "Segoe UI Symbol", "Arial Unicode MS", "FreeSans", "FreeSerif"
 	];
+
+	// colour emoji fonts, each loaded when an emoji first needs it
+	public static final EMOJI = ["Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"];
 
 	// fonts tried after those, each loaded when a character first needs it: CJK, other scripts
 	public static final MORE = [
@@ -114,6 +116,32 @@ class SystemFonts {
 	}
 
 	var moreFaces:Null<Array<FaceInfo>> = null;
+
+	// the first of EMOJI's faces that has a character (null: none)
+	public function emojiFor(cp:Int):Null<FontFile> {
+		if (emojiFound.exists(cp)) return emojiFound.get(cp);
+		if (emojiFaces == null) {
+			scan();
+			emojiFaces = [];
+			for (name in EMOJI) {
+				var fi = pick(name, 400, false);
+				if (fi != null && !emojiFaces.contains(fi)) emojiFaces.push(fi);
+			}
+		}
+		var found:Null<FontFile> = null;
+		for (fi in emojiFaces) {
+			var f = load(fi);
+			if (f != null && f.glyph(cp) != 0) {
+				found = f;
+				break;
+			}
+		}
+		emojiFound.set(cp, found);
+		return found;
+	}
+
+	var emojiFaces:Null<Array<FaceInfo>> = null;
+	final emojiFound = new Map<Int, Null<FontFile>>();
 	final moreFound = new Map<Int, Null<FontFile>>();
 
 	// the families found, sorted

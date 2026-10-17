@@ -302,6 +302,23 @@ class TextTest {
 		var half = lamAlef.selection(0, 1);
 		check("selection: half a ligature, from its right", half.length == 1 && Math.abs(half[0].x - lamAlef.width / 2) < 0.01 && Math.abs(half[0].width - lamAlef.width / 2) < 0.01,
 			[for (r in half) r.x + "+" + r.width].join(" "));
+		// colour emoji (Noto Color Emoji, where it is): widths as Chromium measures them at 100px
+		var emojiSet = new FontSet(sans, fonts.fallbacks(), 100, fonts.fallbackFor, fonts.emojiFor);
+		if (fonts.emojiFor(0x1F44D) != null && fonts.emojiFor(0x1F44D).family == "Noto Color Emoji") {
+			for (c in [
+				{s: "\u{1F600}", w: 104.248046875, what: "an emoji the face has: its own glyph"},
+				{s: "\u2764\uFE0F", w: 124.7706298828125, what: "VS16: the colour face"},
+				{s: "\u{1F44D}\u{1F3FD}", w: 124.7706298828125, what: "a skin tone: one glyph"},
+				{s: "\u{1F1E7}\u{1F1EA}", w: 124.7706298828125, what: "a flag"},
+				{s: "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}", w: 124.7706298828125, what: "a family joined"},
+				{s: "1\uFE0F\u20E3", w: 124.7706298828125, what: "a keycap"},
+				{s: "\u{1F3F3}\uFE0F\u200D\u{1F308}", w: 124.7706298828125, what: "VS16 inside a sequence"},
+				{s: "\u263A\uFE0Fx", w: 183.9503173828125, what: "then text"}
+			]) {
+				var t = new TextLayout(c.s, emojiSet, 1.25, Math.NaN);
+				check("emoji: " + c.what, Math.abs(t.width - c.w) < 0.01, '${t.width} ${c.w}');
+			}
+		} else Sys.println("TextTest: no Noto Color Emoji: emoji checks skipped");
 		var empty = new TextLayout("", set, 1.25, 100);
 		check("layout: empty text is one line", empty.lines.length == 1 && empty.height == 20 && empty.width == 0);
 	}
@@ -324,6 +341,7 @@ class TextTest {
 			for (l in t.lines) {
 				var by = Math.round(y + l.top + t.baseline);
 				for (g in l.glyphs) {
+					if (g.hidden) continue;
 					var gx = 4 + g.x + g.dx, ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
 					var a = atlas.get(g.font, g.id, size, sub);
 					for (py in 0...a.h)

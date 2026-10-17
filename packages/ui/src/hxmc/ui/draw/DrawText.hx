@@ -13,6 +13,7 @@ class DrawText implements TextEngine {
 	final faces = new Map<String, FontFile>();
 	var fallbackFaces:Null<Array<FontFile>>;
 	var more:Null<Int->Null<FontFile>>;
+	var emoji:Null<Int->Null<FontFile>>;
 
 	public function new(?fonts:SystemFonts)
 		this.fonts = fonts == null ? SystemFonts.get() : fonts;
@@ -43,8 +44,9 @@ class DrawText implements TextEngine {
 		if (fallbackFaces == null) {
 			fallbackFaces = fonts.fallbacks();
 			more = fonts.fallbackFor;
+			emoji = fonts.emojiFor;
 		}
-		var set = new FontSet(face(font), fallbackFaces, font.size, more);
+		var set = new FontSet(face(font), fallbackFaces, font.size, more, emoji);
 		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth));
 	}
 }

@@ -10,6 +10,9 @@ text with, usable on its own.
   TrueType's (simple and composite glyphs) or
   CFF's (`.otf`: Type 2 charstrings with their subroutines, CID-keyed
   fonts such as Noto Sans CJK too). CFF2 (variable) outlines are not read.
+  Colour glyphs: CBDT/CBLC and sbix bitmaps (Noto Color Emoji, Apple
+  Color Emoji: their PNG files, a font of bitmaps only loads too) and COLR
+  version 0 layers with CPAL's palette (Segoe UI Emoji).
 - `Rasterizer`: anti-aliased coverage of outlines, after Raph Levien's
   font-rs (exact area per pixel, quadratic and cubic curves flattened
   within a third of a pixel).
@@ -28,6 +31,9 @@ text with, usable on its own.
   levels left out, mirrored brackets), Arabic joined (`Arabic`: each
   letter's initial, medial, final or isolated form, then the required
   ligatures such as lam-alef), the caret at a character's leading edge.
+  Emoji sequences (VS16, skin tones, zero width joiners, flags, keycaps)
+  take a colour face and its ligatures, their widths as Chromium's;
+  default ignorable characters are hidden.
   Marks are placed by GPOS's anchors (`mark`, `mkmk`: on the base, its
   ligature component or the mark before), and a character and its marks
   become the composed character when the face has it (`Compose`:

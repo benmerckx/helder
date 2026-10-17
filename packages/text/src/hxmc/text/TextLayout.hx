@@ -51,6 +51,7 @@ class TextLayout {
 		var i = 0, n = text.length, count = 0;
 		// (at most a glyph per UTF-16 unit: allocated once, cut to the count after)
 		out.resize(n);
+		var emoji = emojiClusters(text);
 		var prev:Null<Glyph> = null;
 		while (i < n) {
 			var c = StringTools.fastCodeAt(text, i), len = 1;
@@ -80,7 +81,8 @@ class TextLayout {
 				g.font = fonts.primary;
 				g.id = 0;
 			} else {
-				var f = c == 9 ? fonts.primary : fonts.faceFor(c);
+				// (in an emoji's sequence: a colour face; a variation selector or joiner keeps the face before it, its run unbroken)
+				var f = c == 9 ? fonts.primary : emoji != null && emoji[i] ? (ignorable(c) && count > 0 ? out[count - 1].font : fonts.emojiFaceFor(c)) : fonts.faceFor(c);
 				g.font = f;
 				g.id = c == 9 ? f.glyph(32) : f.glyph(c);
 			}
@@ -88,15 +90,18 @@ class TextLayout {
 			i += len;
 		}
 		out.resize(count);
-		// (Arabic's forms and ligatures: other glyphs)
+		// (Arabic's forms and ligatures: other glyphs; a colour font's sequences: one glyph)
 		out = Arabic.shape(out);
+		if (emoji != null) out = colorLigatures(out);
+		for (g in out)
+			if (ignorable(g.cp)) g.hidden = true;
 		for (g in out) {
 			var c = g.cp;
 			if (c == 10 || c == 13) {
 				g.advance = 0;
 			} else {
 				var f = g.font;
-				g.advance = f.advance(g.id) * fonts.scale(f) * (c == 9 ? 4 : 1);
+				g.advance = g.hidden ? 0 : (f.bitmapsOnly ? f.advanceAt(g.id, fonts.size) : f.advance(g.id) * fonts.scale(f)) * (c == 9 ? 4 : 1);
 				if (prev != null && prev.font == f && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
 			}
 			prev = g;
@@ -104,6 +109,83 @@ class TextLayout {
 		marks(out, fonts);
 		return out;
 	}
+
+	// which UTF-16 units are in an emoji's sequence (a grapheme cluster with
+	// VS16, an emoji modifier, a zero width joiner, regional indicators or a
+	// keycap): drawn with a colour face; null: none in the text
+	static function emojiClusters(text:String):Null<haxe.ds.Vector<Bool>> {
+		var any = false;
+		for (i in 0...text.length) {
+			var c = StringTools.fastCodeAt(text, i);
+			if (c == 0xFE0F || c == 0x200D || c == 0x20E3 || c == 0xD83C || c >= 0x1F1E6 && c <= 0x1F1FF || c >= 0x1F3FB && c <= 0x1F3FF) any = true;
+		}
+		if (!any) return null;
+		var out = new haxe.ds.Vector<Bool>(text.length);
+		for (i in 0...text.length)
+			out[i] = false;
+		var b = Grapheme.boundaries(text);
+		for (k in 0...b.length - 1) {
+			var marked = false, i = b[k];
+			while (i < b[k + 1]) {
+				var c = StringTools.fastCodeAt(text, i), len = 1;
+				if (c >= 0xD800 && c < 0xDC00 && i + 1 < text.length) {
+					c = 0x10000 + ((c - 0xD800) << 10) + (StringTools.fastCodeAt(text, i + 1) - 0xDC00);
+					len = 2;
+				}
+				if (c == 0xFE0F || c == 0x200D || c == 0x20E3 || c >= 0x1F1E6 && c <= 0x1F1FF || c >= 0x1F3FB && c <= 0x1F3FF) marked = true;
+				i += len;
+			}
+			if (marked)
+				for (j in b[k]...b[k + 1])
+					out[j] = true;
+		}
+		return out;
+	}
+
+	// a colour font's sequences (its ccmp ligatures: a person and a skin tone,
+	// a family joined by zero width joiners, a flag) as one glyph
+	static function colorLigatures(gs:Array<Glyph>):Array<Glyph> {
+		var out:Array<Glyph> = [];
+		var i = 0, n = gs.length;
+		while (i < n) {
+			var g = gs[i], f = g.font;
+			if (f != null && f.hasColor && g.cp != 10) {
+				var j = i;
+				while (j < n && gs[j].font == f && gs[j].cp != 10)
+					j++;
+				if (j - i > 1 && !(g.cp >= 0xFE00 && g.cp <= 0xFE0F)) {
+					// (variation selectors skipped in the match, as HarfBuzz skips them; taken into the ligature)
+					var keep = [for (k in i...j) if (!(gs[k].cp >= 0xFE00 && gs[k].cp <= 0xFE0F)) k];
+					var ids = [for (k in keep) gs[k].id];
+					var merged = false;
+					for (l in f.gsubLookups("DFLT", "ccmp")) {
+						var lig = f.ligature(l, ids, 0);
+						if (lig.count > 1) {
+							var end = keep[lig.count - 1] + 1;
+							while (end < j && gs[end].cp >= 0xFE00 && gs[end].cp <= 0xFE0F)
+								end++;
+							g.id = lig.glyph;
+							var last = gs[end - 1];
+							g.length = last.cluster + last.length - g.cluster;
+							out.push(g);
+							i = end;
+							merged = true;
+							break;
+						}
+					}
+					if (merged) continue;
+				}
+			}
+			out.push(g);
+			i++;
+		}
+		return out;
+	}
+
+	// default ignorable characters (variation selectors, joiners, tags...): not drawn, no advance, as HarfBuzz hides them
+	static inline function ignorable(c:Int):Bool
+		return c >= 0xFE00 && c <= 0xFE0F || c >= 0x200B && c <= 0x200F || c >= 0x2060 && c <= 0x2064 || c >= 0xE0000 && c <= 0xE0FFF || c == 0x34F
+			|| c >= 0x180B && c <= 0x180D || c == 0xAD;
 
 	// GPOS's mark positioning (the features mark and mkmk, for the base's
 	// script), as HarfBuzz applies it: a glyph a lookup covers attached to
@@ -446,6 +528,8 @@ class Glyph {
 	public var parts = 1;
 	// its bidi level (odd: right to left)
 	public var level = 0;
+	// not drawn (a default ignorable character: a variation selector, a joiner)
+	public var hidden = false;
 	// where it is drawn from its place (pixels, y down): a mark on its base by GPOS's anchors
 	public var dx = 0.0;
 	public var dy = 0.0;

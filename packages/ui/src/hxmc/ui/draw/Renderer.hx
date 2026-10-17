@@ -214,17 +214,103 @@ class Renderer implements Canvas {
 			var by = Math.round((oy + l.top + t.baseline) * s);
 			if (by - size * 1.5 > clipY1 || by + size < clipY0) continue;
 			for (g in l.glyphs) {
-				if (g.cp == 32 || g.cp == 10 || g.cp == 9) continue;
-				var gx = (ox + lx + g.x + g.dx) * s, ix = Math.floor(gx);
-				var sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
-				var a = atlas.get(g.font, g.id, size, sub);
-				if (a.w == 0) continue;
-				var qx = ix + a.left, qy = by + Math.round(g.dy * s) + a.top;
-				if (culled(qx, qy, qx + a.w, qy + a.h)) continue;
-				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0,
-					1, 0, 0, 0);
+				if (g.hidden || g.cp == 32 || g.cp == 10 || g.cp == 9) continue;
+				var gx = (ox + lx + g.x + g.dx) * s, gy = by + Math.round(g.dy * s);
+				var f = g.font;
+				if (f.hasColor) {
+					// (colour layers: each its glyph in its colour; else a colour bitmap)
+					var layers = f.colorLayers(g.id);
+					if (layers != null) {
+						for (layer in layers)
+							glyph(f, layer.glyph, size, gx, gy, layer.color == -1 ? color : (layer.color : Color));
+						continue;
+					}
+					var b = colorGlyph(f, g.id, size);
+					if (b != null) {
+						var qx = Math.round(gx + b.left), qy = gy - b.top;
+						if (!culled(qx, qy, qx + b.image.width, qy + b.image.height)) {
+							texture(b.image);
+							quad(qx, qy, qx + b.image.width, qy + b.image.height, 0, 0, 1, 1, Color.WHITE, 0, 0, 0, 2, 0, 1, b.image.id);
+						}
+						continue;
+					}
+				}
+				glyph(f, g.id, size, gx, gy, color);
 			}
 		}
+	}
+
+	// a glyph from the atlas at (gx, gy): device pixels, the baseline
+	inline function glyph(f:hxmc.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color) {
+		var ix = Math.floor(gx);
+		var sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
+		var a = atlas.get(f, id, size, sub);
+		if (a.w > 0) {
+			var qx = ix + a.left, qy = gy + a.top;
+			if (!culled(qx, qy, qx + a.w, qy + a.h))
+				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0, 1, 0,
+					0, 0);
+		}
+	}
+
+	// a colour bitmap glyph at a size (device pixels): its PNG decoded and
+	// scaled down (averaged over each pixel's area, as a browser draws it
+	// small), kept per face, glyph and size; its place from the origin
+	final colorGlyphs = new Map<String, Null<{image:Image, left:Float, top:Int}>>();
+
+	function colorGlyph(f:hxmc.text.FontFile, id:Int, size:Float):Null<{image:Image, left:Float, top:Int}> {
+		var key = f.id + ":" + id + ":" + size;
+		if (colorGlyphs.exists(key)) return colorGlyphs.get(key);
+		var r:Null<{image:Image, left:Float, top:Int}> = null;
+		var b = f.colorBitmap(id, size);
+		if (b != null) {
+			var d = try PngDecoder.decode(b.png) catch (e:Dynamic) null;
+			if (d != null) {
+				var k = size / b.ppem;
+				var w = Std.int(Math.max(1, Math.round(d.width * k))), h = Std.int(Math.max(1, Math.round(d.height * k)));
+				r = {image: new Image(w, h, scaleDown(d.rgba, d.width, d.height, w, h)), left: b.left * k, top: Math.round(b.top * k)};
+			}
+		}
+		colorGlyphs.set(key, r);
+		return r;
+	}
+
+	// RGBA8 pixels (straight alpha) to a smaller size: each pixel the
+	// average of the source area it covers, weighted by alpha
+	static function scaleDown(src:Bytes, sw:Int, sh:Int, w:Int, h:Int):Bytes {
+		var out = Bytes.alloc(w * h * 4);
+		var fx = sw / w, fy = sh / h;
+		for (y in 0...h) {
+			var y0 = y * fy, y1 = y0 + fy;
+			for (x in 0...w) {
+				var x0 = x * fx, x1 = x0 + fx;
+				var r = 0.0, g = 0.0, b = 0.0, a = 0.0, area = 0.0;
+				var sy = Std.int(y0);
+				while (sy < y1 && sy < sh) {
+					var wy = Math.min(y1, sy + 1) - Math.max(y0, sy);
+					var sx = Std.int(x0);
+					while (sx < x1 && sx < sw) {
+						var wgt = (Math.min(x1, sx + 1) - Math.max(x0, sx)) * wy;
+						var o = 4 * (sy * sw + sx), al = src.get(o + 3) * wgt;
+						r += src.get(o) * al;
+						g += src.get(o + 1) * al;
+						b += src.get(o + 2) * al;
+						a += al;
+						area += wgt;
+						sx++;
+					}
+					sy++;
+				}
+				var o = 4 * (y * w + x);
+				if (a > 0) {
+					out.set(o, Std.int(r / a + 0.5));
+					out.set(o + 1, Std.int(g / a + 0.5));
+					out.set(o + 2, Std.int(b / a + 0.5));
+				}
+				out.set(o + 3, Std.int(a / area + 0.5));
+			}
+		}
+		return out;
 	}
 
 	// --- vertices ---

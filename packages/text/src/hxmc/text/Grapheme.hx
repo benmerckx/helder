@@ -29,6 +29,16 @@ class Grapheme {
 		return last;
 	}
 
+	// every boundary of s, in one pass (0 and its length included)
+	public static function boundaries(s:String):Array<Int> {
+		var out = [0], i = 0;
+		while (i < s.length) {
+			i = step(s, i);
+			out.push(i);
+		}
+		return out;
+	}
+
 	// whether i is a boundary
 	public static function isBoundary(s:String, i:Int):Bool {
 		if (i <= 0 || i >= s.length) return true;
