@@ -47,6 +47,7 @@ import hxmc.unsafe.*;
 
 @:hxmc.c @:hxmc.fast extern class Threads {
 	static function pthread_create(t:Ptr, attr:Ptr, entry:Ptr, arg:Ptr):Int;
+	static function pthread_join(t:Int64, ret:Ptr):Int;
 	static function pthread_mutex_init(m:Ptr, attr:Ptr):Int;
 	static function pthread_mutex_lock(m:Ptr):Int;
 	static function pthread_mutex_unlock(m:Ptr):Int;

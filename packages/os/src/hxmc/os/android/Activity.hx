@@ -58,6 +58,8 @@ class Activity {
 	static var done:Int;
 	public static var destroyed:Int;
 	static var logRead:Int;
+	static var logWrite:Int;
+	static var logThreadId:Int64;
 
 	// ---- the UI thread
 
@@ -102,10 +104,12 @@ class Activity {
 			// stdout and stderr: lines to logcat, from a thread of their own
 			Posix.pipe(fds);
 			logRead = Mem.getI32(fds, 0);
-			Posix.dup2(Mem.getI32(fds, 4), 1);
-			Posix.dup2(Mem.getI32(fds, 4), 2);
+			logWrite = Mem.getI32(fds, 4);
+			Posix.dup2(logWrite, 1);
+			Posix.dup2(logWrite, 2);
 			var t = Mem.stack(16);
 			Threads.pthread_create(t, Ptr.nil(), Callback.addr(logThread), Ptr.nil());
+			logThreadId = Mem.getI64(t, 0);
 			Threads.pthread_create(t, Ptr.nil(), Callback.addr(programThread), Ptr.nil());
 			// (until its looper is ready: the commands below have a reader)
 			Threads.pthread_mutex_lock(lock);
@@ -213,6 +217,11 @@ class Activity {
 		Threads.pthread_cond_broadcast(cond);
 		Threads.pthread_mutex_unlock(lock);
 		if (destroyed == 0) Android.ANativeActivity_finish(activity);
+		// (what it printed reaches logcat first: the pipe's writers closed, its reader to the end)
+		Posix.close(1);
+		Posix.close(2);
+		Posix.close(logWrite);
+		Threads.pthread_join(logThreadId, Ptr.nil());
 		Posix._exit(0); // (not exit: the system's libraries' destructors, with their threads still running)
 		return Ptr.nil();
 	}
