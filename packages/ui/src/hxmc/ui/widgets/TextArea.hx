@@ -98,8 +98,11 @@ class TextArea extends EditableText {
 	override public function minContentWidth(engine:TextEngine):Float
 		return 0;
 
+	override function hostKind():String
+		return "text-area";
+
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
-		if (ui == null) return;
+		if (ui == null || !drawsText()) return;
 		var p = layoutText(ui.text, width);
 		var lh = lineHeight();
 		var c = p.caret(shownCaret());

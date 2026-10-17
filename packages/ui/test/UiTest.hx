@@ -61,8 +61,82 @@ class UiTest {
 		fields();
 		popups();
 		shortcuts();
+		natives();
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// native text editors (a platform's views, faked): which host the
+	// policy and the tree give, the editor over the content box, the text
+	// and the focus kept in step both ways, the keys it leaves to the
+	// window, drawn again while covered or clipped, gone with its node
+	static function natives() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		var f = new TextField("hi");
+		f.style.set({width: 120, padding: [4, 8], borderWidth: 1});
+		f.placeholder = "Name";
+		var submitted = "";
+		f.onSubmit = t -> submitted = t;
+		var changes = 0;
+		f.onChange = _ -> changes++;
+		ui.root.append(f);
+		ui.update();
+		check("natives: no platform, drawn", ui.hostOf(f, "text-field") == Drawn);
+		var views = new FakeViews();
+		ui.platform = views;
+		ui.update();
+		var e = views.made[0];
+		check("natives: the policy's text-field native", ui.hostOf(f, "text-field") == Native && views.made.length == 1 && !e.multiline);
+		check("natives: over the content box", e.x == 9 && e.y == 5 && e.w == 102 && e.shown, '${e.x},${e.y} ${e.w}x${e.h} ${e.shown}');
+		check("natives: its text and style", e.text == "hi" && e.placeholder == "Name");
+		var rec = new Recording();
+		ui.paint(rec);
+		check("natives: its text not drawn", !Lambda.exists(rec.calls, c -> StringTools.startsWith(c, "text ")), rec.calls.join("|"));
+		e.listener.editorEdited("hello", 5, 5);
+		check("natives: typed in the editor", f.text == "hello" && f.caret == 5 && changes == 1);
+		f.setText("set");
+		ui.update();
+		check("natives: set by the program", e.text == "set");
+		ui.setFocus(f);
+		ui.update();
+		check("natives: the focus given", e.focused);
+		e.listener.editorKey(Key.ENTER, 0);
+		check("natives: Enter left to the window submits", submitted == "set");
+		var b = new Node("b");
+		b.focusable = true;
+		b.style.set({width: 20, height: 20});
+		ui.root.append(b);
+		e.listener.editorKey(Key.TAB, 0);
+		ui.update();
+		check("natives: Tab moves the window's focus, the editor's taken back", ui.focus == b && !e.focused);
+		e.listener.editorFocused(true);
+		check("natives: a click in the editor focuses the field", ui.focus == f);
+		var p = new Popup("dialog");
+		p.style.set({width: 300, height: 200});
+		ui.open(p);
+		ui.update();
+		check("natives: covered by a popup, drawn", !e.shown);
+		ui.close(p);
+		ui.update();
+		check("natives: shown again", e.shown);
+		f.host = Drawn;
+		ui.update();
+		check("natives: host Drawn: the editor gone", e.disposed);
+		f.host = Auto;
+		ui.root.host = Drawn;
+		ui.update();
+		check("natives: drawn by an ancestor's host", views.made.length == 2 && views.made[1].disposed || views.made.length == 1);
+		ui.root.host = Auto;
+		ui.policy["text-field"] = Host.Drawn;
+		var a = new TextArea("x");
+		a.host = Native;
+		ui.root.append(a);
+		ui.update();
+		var last = views.made[views.made.length - 1];
+		check("natives: host Native over the policy, a text area multiline", last.multiline && !last.disposed && ui.hostOf(f, "text-field") == Drawn);
+		ui.root.remove(a);
+		ui.update();
+		check("natives: removed from the tree, its editor gone", last.disposed);
 	}
 
 	static function check(what:String, ok:Bool, ?detail:String) {
@@ -2282,4 +2356,59 @@ class LaterClipboard implements ClipboardHost {
 
 	public function read(callback:Null<String>->Void)
 		waiting.push(callback);
+}
+
+// a platform's views for UiTest.natives: editors that record what they are told
+class FakeViews implements PlatformViews {
+	public final made:Array<FakeEditor> = [];
+
+	public function new() {}
+
+	public function editor(multiline:Bool):Null<PlatformEditor> {
+		var e = new FakeEditor(multiline);
+		made.push(e);
+		return e;
+	}
+
+	public function poll() {}
+}
+
+class FakeEditor implements PlatformEditor {
+	public final multiline:Bool;
+	public var listener:Null<PlatformEditorListener> = null;
+	public var text = "";
+	public var placeholder = "";
+	public var x = 0.0;
+	public var y = 0.0;
+	public var w = 0.0;
+	public var h = 0.0;
+	public var shown = false;
+	public var focused = false;
+	public var disposed = false;
+
+	public function new(multiline:Bool)
+		this.multiline = multiline;
+
+	public function listen(l:PlatformEditorListener)
+		listener = l;
+
+	public function setText(text:String, start:Int, end:Int)
+		this.text = text;
+
+	public function place(x:Float, y:Float, width:Float, height:Float, shown:Bool) {
+		this.x = x;
+		this.y = y;
+		w = width;
+		h = height;
+		this.shown = shown;
+	}
+
+	public function setStyle(font:Font, color:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool)
+		this.placeholder = placeholder;
+
+	public function focus(on:Bool)
+		focused = on;
+
+	public function dispose()
+		disposed = true;
 }

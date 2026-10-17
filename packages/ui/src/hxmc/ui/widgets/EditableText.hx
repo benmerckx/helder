@@ -18,8 +18,13 @@ import hxmc.ui.*;
 // take the keys that differ (moreKeys: Enter, Up and Down, Home and End).
 // An input method's composition shows at the caret, underlined, until its
 // commit types it (the selection goes when it starts); the caret's place
-// is the input method's (textInputArea).
-class EditableText extends TextNode {
+// is the input method's (textInputArea). Native where the window says
+// (Ui.hostOf, kind "text-field" or "text-area"): the platform's editor
+// (Ui.platform) over its content box, its text and focus kept in step,
+// the keys it leaves to the program (Tab, Escape, Enter on one line, Up
+// and Down) given to the window; drawn again while covered by a popup or
+// clipped by a scroller.
+class EditableText extends TextNode implements PlatformEditorListener {
 	public var placeholder:String = "";
 	// a password: shown as dots (one a UTF-16 unit, the indices kept), not
 	// copied or cut, moved through by words as one (Semantics.secret)
@@ -472,4 +477,140 @@ class EditableText extends TextNode {
 
 	function changed()
 		if (ui != null) ui.requestFrame();
+
+	// --- native ---
+
+	// the platform's editor while native, whether it shows (the text not
+	// drawn then), and what both sides last agreed on
+	var editor:Null<PlatformEditor> = null;
+	var editorShown = false;
+	var editorHasFocus = false;
+	var editorText:Null<String> = null;
+	var editorStyle = "";
+
+	// (Ui.policy's name for it; a text area's "text-area")
+	function hostKind():String
+		return "text-field";
+
+	override function attach(u:Null<Ui>) {
+		if (ui != null && ui != u) {
+			@:privateAccess ui.natives.remove(this);
+			dropEditor();
+		}
+		super.attach(u);
+		if (u != null && @:privateAccess u.natives.indexOf(this) < 0) @:privateAccess u.natives.push(this);
+	}
+
+	function dropEditor() {
+		if (editor == null) return;
+		editor.dispose();
+		editor = null;
+		if (editorShown) changed();
+		editorShown = editorHasFocus = false;
+	}
+
+	// (after each layout: the editor made, placed and kept in step, or dropped)
+	override function syncNative() {
+		if (ui == null || ui.hostOf(this, hostKind()) != Native) {
+			dropEditor();
+			return;
+		}
+		if (editor == null) {
+			editor = ui.platform.editor(hostKind() == "text-area");
+			if (editor == null) return;
+			editor.listen(this);
+			editorText = null;
+			editorStyle = "";
+		}
+		if (text != editorText) {
+			editor.setText(text, selectionStart, selectionEnd);
+			editorText = text;
+		}
+		var f = font(), c = textColor(), a = style.textAlign;
+		var key = f.family + "|" + f.size + "|" + f.weight + "|" + f.italic + "|" + (c : Int) + "|" + placeholder + "|" + (placeholderColor : Int) + "|" + a + "|" + secret;
+		if (key != editorStyle) {
+			editor.setStyle(f, c, placeholder, placeholderColor, a, secret);
+			editorStyle = key;
+		}
+		var be = style.borderEdges, pad = style.padding;
+		var x = absX + be.left + pad.left, y = absY + be.top + pad.top;
+		var w = width - be.left - be.right - pad.left - pad.right, h = height - be.top - be.bottom - pad.top - pad.bottom;
+		var shown = visible() && w > 0 && h > 0 && !clippedOut(x, y, w, h) && !covered(x, y, w, h);
+		editor.place(x, y, w, h, shown);
+		if (shown != editorShown) {
+			editorShown = shown;
+			changed();
+		}
+		var on = ui.focus == this;
+		if (on != editorHasFocus) {
+			editor.focus(on);
+			editorHasFocus = on;
+		}
+	}
+
+	// (a scroller above cuts into it: drawn instead)
+	function clippedOut(x:Float, y:Float, w:Float, h:Float):Bool {
+		var p = parent;
+		while (p != null) {
+			if (p.style.overflow != Visible) {
+				var be = p.style.borderEdges;
+				var x0 = p.absX + be.left, y0 = p.absY + be.top, x1 = p.absX + p.width - be.right, y1 = p.absY + p.height - be.bottom;
+				if (x < x0 - 0.5 || y < y0 - 0.5 || x + w > x1 + 0.5 || y + h > y1 + 0.5) return true;
+			}
+			p = p.parent;
+		}
+		return false;
+	}
+
+	// (a popup over it, itself not in that popup: drawn instead)
+	function covered(x:Float, y:Float, w:Float, h:Float):Bool {
+		var top:Node = this;
+		while (top.parent != null)
+			top = top.parent;
+		for (o in ui.overlay.children) {
+			if (o == top || isIn(o)) continue;
+			if (o.absX < x + w && o.absX + o.width > x && o.absY < y + h && o.absY + o.height > y) return true;
+		}
+		return false;
+	}
+
+	function isIn(n:Node):Bool {
+		var p:Node = this;
+		while (p != null) {
+			if (p == n) return true;
+			p = p.parent;
+		}
+		return false;
+	}
+
+	// the text isn't drawn while the editor shows it
+	inline function drawsText():Bool
+		return !editorShown;
+
+	public function editorEdited(t:String, start:Int, end:Int) {
+		editorText = t;
+		if (t != text) {
+			undos.push({text: text, caret: caret, anchor: anchor});
+			if (undos.length > 200) undos.shift();
+			redos.resize(0);
+			text = t;
+		}
+		anchor = clampIndex(start);
+		caret = clampIndex(end);
+		changed();
+		if (onChange != null) onChange(t);
+	}
+
+	public function editorFocused(on:Bool) {
+		editorHasFocus = on;
+		if (ui == null) return;
+		if (on && ui.focus != this) ui.setFocus(this, false);
+		changed();
+	}
+
+	public function editorKey(k:Int, mods:Int) {
+		if (ui == null) return;
+		ui.keyDown(k, mods);
+		ui.keyUp(k, mods);
+	}
 }

@@ -136,6 +136,9 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 				n.size = v == null ? null : Std.string(v);
 			// (a theme's states: data-state="checked", data-disabled={true}; false or null removes it;
 			// group="tabs" and peer mark a node whose states others' rules ask for)
+			// (what draws its widgets: Host's names, auto, native or drawn)
+			case "host":
+				n.host = Host.fromString(v == null ? null : Std.string(v));
 			case "group" | "peer":
 				n.setAttr(name, v == null || v == false ? null : v == true ? "" : Std.string(v));
 			case _ if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")):

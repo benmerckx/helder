@@ -87,6 +87,8 @@ class Node {
 	public var variant(default, set):Null<String> = null;
 	public var size(default, set):Null<String> = null;
 	public var theme(default, set):Null<StyleSheet> = null;
+	// what draws the widgets of this subtree (Host: Auto, the parent's; Ui.hostOf)
+	public var host:Host = Auto;
 	var attrs:Null<Map<String, String>> = null;
 	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
 	var themedNames:Null<Array<String>> = null;
@@ -492,6 +494,9 @@ class Node {
 		}
 		return handlers.onDragEnd = v;
 	}
+
+	// (Ui.update's, after the layout, for the nodes that joined Ui.natives: a platform's view kept in step)
+	@:allow(hxmc.ui.Ui) function syncNative() {}
 
 	// the layout of this node (and so of its ancestors) must be redone
 	public function markDirty() {
