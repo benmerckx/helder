@@ -663,6 +663,7 @@ class Widgets implements Markup {
 			var i = props.options.indexOf(props.value.peek()) + d;
 			if (i >= 0 && i < props.options.length) props.value.value = props.options[i];
 		}
+		var typed = new TypeAhead(), shown = [for (i in 0...props.options.length) props.labels != null ? props.labels[i] : props.options[i]];
 		return <view tag={tag} role="combobox" label={props.label} expanded={() -> open.value} focusable cursor="pointer" direction="row" align-items="center"
 			justify="space-between" column-gap={8} width={w} padding="6 10" radius={6} border-width={1} border-color={() -> t().border} background={() -> t().control}
 			onClick={_ -> open.value = !open.value}
@@ -677,6 +678,12 @@ class Widgets implements Markup {
 					e.preventDefault();
 					step(-1);
 				case _:
+					// (typed: the option it starts, chosen)
+					var j = typed.find(e, shown, props.options.indexOf(props.value.peek()));
+					if (j >= 0) {
+						props.value.value = props.options[j];
+						e.stop();
+					}
 			}}>
 			{() -> labelOf(props.value.value)}
 			<text color={() -> t().muted} hidden>▾</text>
@@ -700,6 +707,11 @@ class Widgets implements Markup {
 									e.stop();
 								case Key.TAB: open.value = false;
 								case _:
+									var j = typed.find(e, shown, i);
+									if (j >= 0) {
+										focusItem(j);
+										e.stop();
+									}
 							}}>
 							{props.labels != null ? props.labels[i] : o}
 						</view>;
@@ -846,9 +858,10 @@ class Widgets implements Markup {
 		if (i >= 0 && i < nodes.length && nodes[i].ui != null) nodes[i].ui.setFocus(nodes[i]);
 
 	// a menu's panel of items (their nodes into nodes): Up and Down move
-	// through them, a click, Enter or Space chooses one (and sets open to
-	// false), Tab closes
-	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, open:Signal<Bool>, nodes:Array<Node>):View
+	// through them, letters typed to the one they start, a click, Enter or
+	// Space chooses one (and sets open to false), Tab closes
+	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, open:Signal<Bool>, nodes:Array<Node>):View {
+		var typed = new TypeAhead(), labels = [for (it in list) it.label];
 		return <view tag={tag + "-items"} role="menu" label={label} min-width={140} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
 			background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
 			for (i in 0...list.length) {
@@ -873,15 +886,22 @@ class Widgets implements Markup {
 							e.stop();
 						case Key.TAB: open.value = false;
 						case _:
+							var j = typed.find(e, labels, i);
+							if (j >= 0) {
+								focusIn(nodes, j);
+								e.stop();
+							}
 					}}>
 					{it.label}
 					{it.shortcut == null ? null : <text color={() -> t().muted}>{Shortcut.parse(it.shortcut).label()}</text>}
 				</view>;
 			}
 		]}</view>;
+	}
 
 	// a tooltip: text shown by the children (above them) once the pointer
-	// has rested on them for delay seconds (0.5), hidden when it leaves or presses, or by Escape
+	// has rested on them for delay seconds (0.5), hidden when it leaves or
+	// presses, or by Escape
 	public static function Tooltip(props:{text:String, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
 		var show = signal(false), over = 0;
 		var delay = props.delay ?? 0.5;
@@ -1225,4 +1245,31 @@ class Widgets implements Markup {
 private class Arrow extends TextNode {
 	override function shownText():String
 		return text == "▸" && rtl() ? "◂" : text;
+}
+
+// type-ahead in a list (a select's, a menu's): letters and digits typed
+// within a second of each other make a prefix, the item it starts found
+// from the one after (the same letter again: the next with it), case aside
+private class TypeAhead {
+	var prefix = "";
+	var at = -1e9;
+
+	public function new() {}
+
+	// the item's index for a key typed at item from, else -1
+	public function find(e:Event, labels:Array<String>, from:Int):Int {
+		if (e.mods & (Key.MOD_CONTROL | Key.MOD_META | Key.MOD_ALT) != 0) return -1;
+		var k = e.key;
+		if (k >= "A".code && k <= "Z".code) k += 32;
+		if (!(k >= "a".code && k <= "z".code || k >= "0".code && k <= "9".code)) return -1;
+		var now = Ui.now(), c = String.fromCharCode(k);
+		prefix = now - at < 1 && prefix != c ? prefix + c : c;
+		at = now;
+		var n = labels.length, start = prefix.length > 1 ? from : from + 1;
+		for (j in 0...n) {
+			var i = ((start + j) % n + n) % n;
+			if (StringTools.startsWith(labels[i].toLowerCase(), prefix)) return i;
+		}
+		return -1;
+	}
 }

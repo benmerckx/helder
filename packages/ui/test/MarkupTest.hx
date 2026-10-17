@@ -62,6 +62,7 @@ class MarkupTest implements Markup {
 		tabs();
 		mixedCheckbox();
 		indeterminate();
+		typeAhead();
 		focusTips();
 		virtual();
 		table();
@@ -321,6 +322,43 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function typeAhead() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var fruit = signal("Apple"), chosen = [];
+		var t = 50.0;
+		Ui.now = () -> t;
+		Render.render(<view padding={10} row-gap={10} align-items="start"><Select tag="f" value={fruit} options={["Apple", "Banana", "Blueberry", "Cherry"]}/>
+			<Menu tag="m" label="Edit" items={[{label: "Copy", onSelect: () -> chosen.push("copy")}, {label: "Cut", onSelect: () -> chosen.push("cut")},
+				{label: "Paste", onSelect: () -> chosen.push("paste")}]}/></view>, ui.root);
+		ui.update();
+		function type(c:String) {
+			ui.keyDown(c.charCodeAt(0), 0);
+			ui.update();
+		}
+		ui.setFocus(ui.root.find("f"));
+		type("c");
+		check("type-ahead: a select's option chosen by its first letter", fruit.value == "Cherry", fruit.value);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		t = 52;
+		type("b");
+		t = 52.3;
+		type("l");
+		check("type-ahead: letters typed together, the option they start", ui.focus == ui.overlay.find("f-Blueberry"), "" + ui.focus);
+		t = 54;
+		type("b");
+		check("type-ahead: the same letter again, the next with it", ui.focus == ui.overlay.find("f-Banana"), "" + ui.focus);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.setFocus(ui.root.find("m"));
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		t = 56;
+		type("p");
+		ui.keyDown(Key.ENTER, 0);
+		check("type-ahead: in a menu", chosen.join(",") == "paste", chosen.join(","));
+		Ui.now = haxe.Timer.stamp;
 	}
 
 	static function indeterminate() {
