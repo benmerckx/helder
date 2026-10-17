@@ -64,7 +64,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   binds every value that is a `Signal`, a `Memo` or a function. `For`
   (keyed: rows are kept and moved) and `Show` are components.
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
-  and the components `Button`, `Checkbox`, `Field`.
+  and the components `Button`, `Checkbox`, `Switch`, `Radio`, `Slider`,
+  `Progress`, `Tabs`, `Field`; `examples/Gallery.hx` shows them all.
 
 ## Markup
 

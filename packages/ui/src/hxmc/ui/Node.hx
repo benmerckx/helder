@@ -210,6 +210,23 @@ class Node {
 		return Left;
 	}
 
+	// a window position in this node's coordinates (from its border box's
+	// top left), its ancestors' scrolling taken into account
+	public function localX(windowX:Float):Float
+		return windowX + scrolled(true) - absX;
+
+	public function localY(windowY:Float):Float
+		return windowY + scrolled(false) - absY;
+
+	function scrolled(x:Bool):Float {
+		var d = 0.0, p = parent;
+		while (p != null) {
+			if (p.style.overflow == Scroll) d += x ? p.scrollX : p.scrollY;
+			p = p.parent;
+		}
+		return d;
+	}
+
 	// --- content (subclasses) ---
 
 	public function hasContent():Bool
