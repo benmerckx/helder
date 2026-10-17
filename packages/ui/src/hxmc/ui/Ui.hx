@@ -29,6 +29,8 @@ class Ui {
 	// the node a button went down on (gets the pointer until it is up)
 	public var capture(default, null):Null<Node>;
 	public var needsFrame(default, null) = true;
+	// the modifier keys held (Key.MOD_*: from the key events), which pointer events carry too
+	public var mods(default, null) = 0;
 	// the last pointer position
 	public var pointerX(default, null) = 0.0;
 	public var pointerY(default, null) = 0.0;
@@ -168,6 +170,7 @@ class Ui {
 		setPressed(target, true);
 		var e = new Event(PointerDown, target, x, y);
 		e.button = button;
+		e.mods = mods;
 		bubble(e);
 		if (!e.defaultPrevented) {
 			var f = target;
@@ -194,6 +197,7 @@ class Ui {
 		if (pressed != null) setPressed(pressed, false);
 		var e = new Event(PointerUp, to, x, y);
 		e.button = button;
+		e.mods = mods;
 		bubble(e);
 		// a click: released over the node it went down on (or inside it)
 		if (pressed != null && target != null && contains(pressed, target)) {
@@ -229,6 +233,7 @@ class Ui {
 	// --- keyboard ---
 
 	public function keyDown(key:Int, mods:Int) {
+		this.mods = mods | modOf(key);
 		var e = new Event(KeyDown, focus != null ? focus : root, pointerX, pointerY);
 		e.key = key;
 		e.mods = mods;
@@ -252,6 +257,7 @@ class Ui {
 	}
 
 	public function keyUp(key:Int, mods:Int) {
+		this.mods = mods & ~modOf(key);
 		var e = new Event(KeyUp, focus != null ? focus : root, pointerX, pointerY);
 		e.key = key;
 		e.mods = mods;
@@ -277,6 +283,16 @@ class Ui {
 	// input method's place; null: the focus takes no text
 	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
 		return focus == null ? null : focus.textInputArea();
+
+	// the modifier a modifier key is (0: none)
+	static function modOf(key:Int):Int
+		return switch key {
+			case Key.SHIFT | 0xFFE2: Key.MOD_SHIFT;
+			case Key.CONTROL | 0xFFE4: Key.MOD_CONTROL;
+			case Key.ALT | 0xFFEA: Key.MOD_ALT;
+			case Key.META | 0xFFE8 | 0xFFEB | 0xFFEC: Key.MOD_META;
+			case _: 0;
+		}
 
 	// --- focus ---
 

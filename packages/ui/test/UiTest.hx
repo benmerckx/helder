@@ -2,6 +2,7 @@ import hxmc.ui.*;
 import hxmc.ui.DimValue;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.TextArea;
+import hxmc.ui.widgets.EditableText;
 
 // hxmc.ui's tests, on Eval (make ui-check):
 //
@@ -14,7 +15,8 @@ import hxmc.ui.widgets.TextArea;
 //   the wheel scrolling an Overflow Scroll node, relayout after changes
 // - paint: what Ui draws on a Canvas, in order (shadows under backgrounds,
 //   rounded clips inside borders), and Shadow.parse
-// - fields: TextField's editing and the clipboard (copy, cut, paste), an
+// - fields: TextField's editing (words, undo and redo, double and triple
+//   clicks, Shift+click) and the clipboard (copy, cut, paste), an
 //   input method's composition (shown, then committed);
 //   TextArea's lines (wrapping, Enter, Up and Down, Home and End, scrolling)
 // - popups: placed by their anchors (flipped, kept in the window), drawn
@@ -183,6 +185,67 @@ class UiTest {
 		check("fields: a paste waits for the text", f.text == "two lines " && later.length == 1);
 		later[0]("later");
 		check("fields: then types it", f.text == "two lines later", f.text);
+		// words, undo and redo, clicks in a row
+		var ui = new Ui(new MonoText(), 300, 100);
+		ui.root.style.fontSize = 10;
+		ui.root.style.alignItems = Start;
+		var h = new TextField("");
+		h.style.width = 200;
+		ui.root.append(h);
+		ui.update();
+		ui.setFocus(h);
+		function typeH(t:String)
+			for (c in new haxe.iterators.StringIteratorUnicode(t))
+				ui.textInput(String.fromCharCode(c));
+		typeH("hello big world");
+		ui.keyDown(Key.LEFT, Key.MOD_CONTROL);
+		check("words: Control+Left to the word's start", h.caret == 10, '${h.caret}');
+		ui.keyDown(Key.LEFT, Key.MOD_ALT);
+		check("words: Alt+Left (Option) too", h.caret == 6, '${h.caret}');
+		ui.keyDown(Key.RIGHT, Key.MOD_CONTROL | Key.MOD_SHIFT);
+		check("words: Shift selects to the word's end", h.selectionStart == 6 && h.selectionEnd == 9, '${h.selectionStart}-${h.selectionEnd}');
+		ui.keyDown(Key.END, 0);
+		ui.keyDown(Key.BACKSPACE, Key.MOD_CONTROL);
+		check("words: Control+Backspace deletes a word", h.text == "hello big ", h.text);
+		ui.keyDown(Key.LEFT, Key.MOD_META);
+		check("words: Command+Left to the start", h.caret == 0);
+		check("undo: a word deleted, undone", { ui.keyDown("z".code, Key.MOD_CONTROL); h.text == "hello big world"; }, h.text);
+		ui.keyDown("z".code, Key.MOD_META);
+		check("undo: typing undone as runs (words apart)", h.text == "hello big ", h.text);
+		ui.keyDown("z".code, Key.MOD_CONTROL | Key.MOD_SHIFT);
+		check("redo: Control+Shift+Z", h.text == "hello big world", h.text);
+		ui.keyDown("y".code, Key.MOD_CONTROL);
+		check("redo: Control+Y", h.text == "hello big ", h.text);
+		for (_ in 0...10)
+			ui.keyDown("z".code, Key.MOD_CONTROL);
+		check("undo: back to empty", h.text == "", h.text);
+		ui.keyDown("y".code, Key.MOD_CONTROL);
+		typeH("x");
+		ui.keyDown("y".code, Key.MOD_CONTROL);
+		check("redo: an edit clears what was undone", StringTools.endsWith(h.text, "x"), h.text);
+		h.setText("one two three");
+		ui.update();
+		ui.paint(new Recording());
+		var t = 0.0;
+		EditableText.now = () -> t;
+		var cx = h.absX + h.style.borderWidth + h.style.padding.left + 5.5 * 5; // (within "two")
+		var cy = h.absY + h.height / 2;
+		function clickH(x:Float, at:Float, mods = 0) {
+			t = at;
+			if (mods != 0) ui.keyDown(Key.SHIFT, mods);
+			ui.pointerDown(x, cy, 1);
+			ui.pointerUp(x, cy, 1);
+			if (mods != 0) ui.keyUp(Key.SHIFT, 0);
+		}
+		clickH(cx, 10);
+		clickH(cx, 10.2);
+		check("clicks: a double click selects a word", h.selectionStart == 4 && h.selectionEnd == 7, '${h.selectionStart}-${h.selectionEnd}');
+		clickH(cx, 10.4);
+		check("clicks: a triple click the line", h.selectionStart == 0 && h.selectionEnd == 13, '${h.selectionStart}-${h.selectionEnd}');
+		clickH(cx, 20);
+		clickH(h.absX + h.style.borderWidth + h.style.padding.left + 1, 30, Key.MOD_SHIFT);
+		check("clicks: Shift+click extends the selection", h.selectionStart == 0 && h.selectionEnd == 6, '${h.selectionStart}-${h.selectionEnd}');
+		EditableText.now = haxe.Timer.stamp;
 		// an input method's composition: shown at the caret, underlined, typed when committed
 		var ui = new Ui(new MonoText(), 300, 100);
 		ui.root.style.fontSize = 10;
