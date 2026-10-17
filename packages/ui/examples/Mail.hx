@@ -17,7 +17,8 @@ import hxmc.ui.widgets.Toasts;
 // in bold, filtered by the search field), the selected message read in
 // the third pane (which marks it read). The toolbar archives, deletes (a
 // toast offers to undo) or marks it unread again; the menu bar opens the
-// same actions and switches the theme. In a window:
+// same actions (their shortcuts: E, Delete, Mod+Shift+U, from anywhere but
+// the search field) and switches the theme. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
 class Mail implements Markup {
@@ -123,9 +124,9 @@ class Mail implements Markup {
 				borders={[0, 0, 1, 0]}>
 				<Menubar tag="menus" label="Mail" menus={[
 					{label: "Message", items: [
-						{label: "Archive", onSelect: () -> moveTo("Archive", true)},
-						{label: "Delete", onSelect: () -> moveTo("Trash", true)},
-						{label: "Mark unread", onSelect: markUnread}
+						{label: "Archive", onSelect: () -> moveTo("Archive", true), shortcut: "E"},
+						{label: "Delete", onSelect: () -> moveTo("Trash", true), shortcut: "Delete"},
+						{label: "Mark unread", onSelect: markUnread, shortcut: "Mod+Shift+U"}
 					]},
 					{label: "View", items: [{label: "Dark theme", onSelect: () -> dark.value = !dark.peek()}]}
 				]}/>
