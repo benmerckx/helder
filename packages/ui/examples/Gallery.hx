@@ -4,12 +4,14 @@ import hxmc.view.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.ui.widgets.Theme;
+import hxmc.ui.widgets.Toasts;
 
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
 // buttons, a select, a menu, a tooltip and a dialog (popups over the
 // rest), a checkbox and a switch, radio buttons, a slider driving a
 // progress bar, tabs, a tree and a table in a split view, images fitted
-// three ways, a text field and a text area. In a window:
+// three ways, a text field and a text area, a combobox, a disclosure and
+// toasts. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
 //
@@ -38,6 +40,8 @@ class Gallery implements Markup {
 	public final open:Signal<Array<Entry>> = signal([]);
 	public final file:Signal<Null<Entry>> = signal(null);
 	public final row:Signal<Null<Entry>> = signal(null);
+	public final city = signal("");
+	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
 		{name: "examples", children: [{name: "Gallery.hx", size: 6}, {name: "Todo.hx", size: 3}]},
 		{name: "src", children: [{name: "Node.hx", size: 12}, {name: "Ui.hx", size: 38}, {name: "Style.hx", size: 21}]},
@@ -154,5 +158,13 @@ class Gallery implements Markup {
 				<Area tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
 				<text tag="lines" color={() -> Theme.current.value.secondary}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
+			{section("COMBOBOX, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">
+				<Combobox tag="city" value={city} options={CITIES} placeholder="A city" label="City" onChoose={c -> Toasts.show("Chose " + c, {kind: "success"})}/>
+				<Disclosure tag="more" label="What these are">
+					<text color={() -> Theme.current.value.secondary}>A combobox filters its options as you type; a toast says what happened, for a while.</text>
+				</Disclosure>
+				<Button tag="notify" label="Show a toast" onClick={() -> Toasts.show("Deleted 3 files", {action: "Undo", onAction: () -> Toasts.show("Restored")})}/>
+			</view>)}
+			<Toaster/>
 		</scroll>;
 }

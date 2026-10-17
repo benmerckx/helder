@@ -10,14 +10,14 @@ import hxmc.view.*;
 // checkbox and switch (clicked and with the keyboard), radio
 // buttons, the slider (dragged, clicked, arrow keys, Home and End), tabs,
 // the tree opened and the table sorted in their split view,
-// the field, the images' sizes; PNG files decoded natively (png/*.png,
+// the field, the combobox, the disclosure and a toast, the images' sizes; PNG files decoded natively (png/*.png,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
 // With --dark, in Theme.DARK, against gallery-dark.png.
 //   GalleryTest <golden.png> <out.png> [--dark] [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 1160;
+	static inline var H = 1320;
 	static var failed = 0;
 	static var checks = 0;
 
@@ -144,7 +144,26 @@ class GalleryTest {
 		}
 		ui.update();
 		check("the area", StringTools.startsWith(app.notes.value, "One\nTwo") && shown("lines") == "2 lines", shown("lines"));
-		// Tab from the area: no further focusable node, back to the first (the
+		// Tab from the area to the combobox: typed in, an option chosen, a toast says so
+		key(Key.TAB);
+		check("Tab to the combobox", ui.focus == find("city"));
+		for (c in new haxe.iterators.StringIteratorUnicode("br")) {
+			ui.keyDown(c, 0);
+			ui.textInput(String.fromCharCode(c));
+		}
+		ui.update();
+		key(Key.DOWN);
+		key(Key.ENTER);
+		check("the combobox: typed, an option chosen, a toast", app.city.value == "Brussels" && hxmc.ui.widgets.Toasts.shown.value.length == 1
+			&& hxmc.ui.widgets.Toasts.shown.value[0].text == "Chose Brussels", app.city.value);
+		hxmc.ui.widgets.Toasts.clear();
+		ui.update();
+		key(Key.TAB);
+		key(Key.SPACE);
+		check("the disclosure opened with the keyboard", ui.focus == find("more-summary") && find("more-content") != null);
+		key(Key.TAB);
+		check("Tab to the last button", ui.focus == find("notify"));
+		// Tab from there: no further focusable node, back to the first (the
 		// Plain button), its focus ring shown
 		key(Key.TAB);
 		check("Tab wraps to the first button", ui.focus == find("plain") && ui.focusVisible);

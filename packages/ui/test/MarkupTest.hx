@@ -11,6 +11,10 @@ import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Field;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
+import hxmc.ui.widgets.Widgets.Toaster;
+import hxmc.ui.widgets.Widgets.Disclosure;
+import hxmc.ui.widgets.Widgets.Accordion;
+import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
@@ -32,6 +36,7 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
 // popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog, Combobox) driven by pointer and keys;
+// Disclosure, Accordion and toasts;
 // a VirtualList of 100000 rows scrolled
 class MarkupTest implements Markup {
 	static var checks = 0;
@@ -44,6 +49,7 @@ class MarkupTest implements Markup {
 		access();
 		popovers();
 		combobox();
+		toasts();
 		virtual();
 		table();
 		tree();
@@ -144,6 +150,64 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function toasts() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var undone = 0, more = signal(false), section = signal(-1);
+		Render.render(<view padding={10} row-gap={10} align-items="start">
+			<view tag="focus-here" focusable width={20} height={20}/>
+			<Disclosure tag="more" label="More" open={more}><text tag="more-text">Details</text></Disclosure>
+			<Accordion tag="faq" open={section} sections={[{label: "One", render: () -> <text>First</text>}, {label: "Two", render: () -> <text>Second</text>}]}/>
+			<Toaster/>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var summary = ui.root.find("more-summary");
+		check("disclosure: closed at first", ui.root.find("more-text") == null && summary.semantics.expanded == false);
+		click(summary);
+		check("disclosure: a click opens it", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true);
+		ui.setFocus(summary);
+		ui.keyDown(Key.SPACE, 0);
+		ui.update();
+		check("disclosure: Space closes it", !more.value && ui.root.find("more-text") == null);
+		click(ui.root.find("faq-1-summary"));
+		check("accordion: a click opens a section", section.value == 1 && ui.root.find("faq-1-content") != null && ui.root.find("faq-0-content") == null);
+		click(ui.root.find("faq-0-summary"));
+		check("accordion: opening one closes the other", section.value == 0 && ui.root.find("faq-0-content") != null && ui.root.find("faq-1-content") == null);
+		click(ui.root.find("faq-0-summary"));
+		check("accordion: a click on the open one closes it", section.value == -1 && ui.root.find("faq-0-content") == null);
+
+		var focus = ui.root.find("focus-here");
+		ui.setFocus(focus);
+		Clock.tick(500);
+		Toasts.show("Saved", {kind: "success"});
+		Toasts.show("Deleted 3 items", {action: "Undo", onAction: () -> undone++, duration: 10});
+		ui.update();
+		var list = ui.overlay.find("toaster-list");
+		var toasts = list == null ? [] : tagged(list, "toast");
+		check("toasts: shown in the bottom right corner, the newest last, the focus kept", toasts.length == 2 && list.absX + list.width == 400 - 16
+			&& list.absY + list.height == 300 - 16 && toasts[0].absY < toasts[1].absY && ui.focus == focus, list == null ? "none" : '${list.absX} ${list.absY} ${list.width} ${list.height}');
+		Clock.tick(500.1);
+		Clock.tick(504.2);
+		ui.update();
+		check("toasts: one goes after its time", Toasts.shown.value.length == 1 && tagged(ui.overlay, "toast").length == 1);
+		click(tagged(ui.overlay, "toast-action")[0]);
+		check("toasts: its action runs and closes it", undone == 1 && Toasts.shown.value.length == 0 && ui.overlay.children.length == 0 && ui.focus == focus,
+			'$undone ${Toasts.shown.value.length} ${ui.focus}');
+		var t = Toasts.show("Stays", {duration: 0});
+		ui.update();
+		Clock.finish();
+		ui.update();
+		check("toasts: duration 0 stays until closed", Toasts.shown.value.length == 1 && !Clock.active);
+		click(tagged(ui.overlay, "toast-close")[0]);
+		check("toasts: the close button", t.closed && ui.overlay.children.length == 0);
 	}
 
 	static function popovers() {

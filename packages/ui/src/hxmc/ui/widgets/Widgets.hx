@@ -9,6 +9,7 @@ import hxmc.ui.view.Motion;
 import hxmc.view.Flow.*;
 import hxmc.ui.view.UiFlow.*;
 import hxmc.ui.widgets.Days;
+import hxmc.ui.widgets.Toasts;
 
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
 typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
@@ -840,7 +841,8 @@ class Widgets implements Markup {
 					var n = matches.peek().length;
 					if (open.peek() && n > 0) highlight(active.peek() <= 0 ? n - 1 : active.peek() - 1);
 				case Key.ESCAPE if (open.peek()):
-					e.stop();
+					// (only the list closes: not a dialog it is in)
+					e.preventDefault();
 					open.value = false;
 				case _:
 			}}>
@@ -855,6 +857,69 @@ class Widgets implements Markup {
 				</scroll>
 			</Popover>
 		</view>;
+	}
+
+	// a disclosure: its label on a button (an arrow turning with it) that
+	// shows or hides the children under it, by a click, Enter or Space; open
+	// (a signal; closed at first) says which
+	public static function Disclosure(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
+		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
+		return <view tag={tag}>
+			{summary(tag, props.label, () -> open.value, () -> open.value = !open.peek())}
+			<Show when={open}><view tag={tag + "-content"} padding="4 0 4 20">{props.children}</view></Show>
+		</view>;
+	}
+
+	// an accordion: sections, each a disclosure, at most one open: open is
+	// its index (-1: none; a signal); opening one closes the other
+	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
+		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion";
+		return <view tag={tag} row-gap={2}>{[
+			for (i in 0...props.sections.length) {
+				var s = props.sections[i];
+				<view tag={tag + "-" + i}>
+					{summary(tag + "-" + i, s.label, () -> open.value == i, () -> open.value = open.peek() == i ? -1 : i)}
+					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} padding="4 0 4 20">{s.render()}</view></Show>
+				</view>;
+			}
+		]}</view>;
+	}
+
+	// (a disclosure's button)
+	static function summary(tag:String, label:String, isOpen:Void->Bool, flip:Void->Void):View
+		return <view tag={tag + "-summary"} role="button" expanded={isOpen} focusable cursor="pointer" direction="row" align-items="center" column-gap={6}
+			padding="4 2" radius={4} onClick={_ -> flip()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
+				e.preventDefault();
+				flip();
+			}}>
+			<text width={12} color={() -> t().muted} hidden>{() -> isOpen() ? "▾" : "▸"}</text>
+			{label}
+		</view>;
+
+	// where Toasts.show's toasts are shown: in a corner of the window
+	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),
+	// over everything, width wide (320); each with its mark, text, action
+	// and a close button. They do not take the focus.
+	public static function Toaster(props:{?placement:String, ?width:Float, ?tag:String}):View {
+		var tag = props.tag ?? "toaster";
+		function mark(kind:String):String
+			return kind == "success" ? t().success : kind == "error" ? t().danger : t().accent;
+		return <Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
+			<view tag={tag + "-list"} width={props.width ?? 320.0} row-gap={8}>
+				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" role="group" label={toast.text} direction="row" align-items="center"
+					column-gap={10} padding="10 12" radius={8} background={() -> t().tooltip} color={() -> t().onTooltip} shadow="0 4 12 #00000033">
+					<view width={4} height={20} radius={2} background={() -> mark(toast.kind)}/>
+					<text grow={1}>{toast.text}</text>
+					{toast.action == null ? null : <view tag="toast-action" role="button" focusable cursor="pointer" padding="2 6" radius={4}
+						color={() -> t().accentHover} onClick={_ -> {
+							Toasts.close(toast);
+							if (toast.onAction != null) toast.onAction();
+						}}>{toast.action}</view>}
+					<view tag="toast-close" role="button" label="Close" focusable cursor="pointer" padding="0 4" color={() -> t().muted}
+						onClick={_ -> Toasts.close(toast)}>×</view>
+				</view>}/>
+			</view>
+		</Popover>;
 	}
 
 	// a text area bound to a signal (two ways), rows lines high (3)

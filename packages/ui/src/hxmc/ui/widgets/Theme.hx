@@ -34,7 +34,9 @@ class Theme {
 		onTooltip: "#ffffff",
 		placeholder: "#00000066",
 		selection: "#3b82f64d",
-		caret: "#111111"
+		caret: "#111111",
+		success: "#16a34a",
+		danger: "#dc2626"
 	});
 
 	public static final DARK = new Theme(true, {
@@ -62,7 +64,9 @@ class Theme {
 		onTooltip: "#18181b",
 		placeholder: "#ffffff66",
 		selection: "#3b82f666",
-		caret: "#f4f4f5"
+		caret: "#f4f4f5",
+		success: "#22c55e",
+		danger: "#ef4444"
 	});
 
 	// the theme the widgets draw with
@@ -103,11 +107,14 @@ class Theme {
 	public final placeholder:String;
 	public final selection:String;
 	public final caret:String;
+	// what went well, what went wrong (a toast's mark; an app's own signs)
+	public final success:String;
+	public final danger:String;
 
 	public function new(dark:Bool, c:{background:String, text:String, muted:String, control:String, controlHover:String, controlPressed:String,
 		border:String, borderMuted:String, mark:String, accent:String, accentHover:String, accentPressed:String, accentText:String, onAccent:String,
 		secondary:String, track:String, subtle:String, knob:String, itemHover:String, itemSelected:String, tooltip:String, onTooltip:String,
-		placeholder:String, selection:String, caret:String}) {
+		placeholder:String, selection:String, caret:String, ?success:String, ?danger:String}) {
 		this.dark = dark;
 		background = c.background;
 		text = c.text;
@@ -134,6 +141,8 @@ class Theme {
 		placeholder = c.placeholder;
 		selection = c.selection;
 		caret = c.caret;
+		success = c.success ?? (dark ? "#22c55e" : "#16a34a");
+		danger = c.danger ?? (dark ? "#ef4444" : "#dc2626");
 	}
 
 	// the theme set from a reactive question (Theme.follow(() -> UiWindow.dark.value)): DARK when it says so

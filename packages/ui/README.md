@@ -147,8 +147,12 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
   (a month's grid of days, moved through by the keys) and `DatePicker` (a
-  calendar in a popover; `Days`: dates as day numbers, no time zones), and the popups `Select`, `Menu`,
-  `ContextMenu` (at the pointer), `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
+  calendar in a popover; `Days`: dates as day numbers, no time zones),
+  `Disclosure` and `Accordion` (sections shown and hidden), and the popups `Select`, `Menu`,
+  `ContextMenu` (at the pointer), `Tooltip`, `Dialog`, `Combobox` (a text
+  field whose typing filters options under it; the focus stays in the
+  field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
+  an action); `examples/Gallery.hx` shows them all. They draw
   with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
   `Theme.follow(() -> UiWindow.dark.value)` follows the system's
   appearance (`hxmc.os.App.prefersDark`: the browser's colour scheme,
@@ -156,7 +160,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 - **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the
-  window), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
+  window), in a corner of the window (notifications), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
   Escape asks them to close. In markup, `UiFlow.Popover` puts its children
   in one while `open` is true.
 - **Shortcuts**: `Ui.shortcut("Mod+S", action, ?scope)` (`Shortcut`: Mod is
