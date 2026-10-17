@@ -57,6 +57,12 @@ import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
 import hxmc.ui.widgets.Widgets.DialogFooter;
+import hxmc.ui.widgets.Widgets.Sheet;
+import hxmc.ui.widgets.Widgets.PopoverButton;
+import hxmc.ui.widgets.Widgets.HoverCard;
+import hxmc.ui.widgets.Widgets.Avatar;
+import hxmc.ui.widgets.Widgets.Kbd;
+import hxmc.ui.widgets.Widgets.Spinner;
 
 // Markup rendered into hxmc.ui's nodes (hxmc.view on NodeRenderer), on Eval
 // (make ui-check runs it after UiTest; hxmc.view's own tests are
@@ -103,6 +109,7 @@ class MarkupTest implements Markup {
 		unstyledPopups();
 		unstyledNav();
 		unstyledRest();
+		unstyledExtras();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -1458,6 +1465,65 @@ class MarkupTest implements Markup {
 		check("unstyled: a colour picker's parts", ui.root.find("col").slot == "color-picker" && ui.root.find("col-area").slot == "color-picker-area"
 			&& ui.root.find("col-hue").slot == "color-picker-hue" && ui.root.find("col-swatch").slot == "color-picker-swatch"
 			&& ui.root.find("col-area").children[1].slot == "color-picker-thumb" && ui.root.find("col-area").children[1].style.borderWidth == 2);
+	}
+
+	static function unstyledExtras() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null);
+		Render.render(<view align-items="start" row-gap={4} padding={10}>
+			<Button tag="before" label="Before"/>
+			<PopoverButton tag="pop" label="Settings" open={pop}><Input tag="pop-field" value={signal("")}/></PopoverButton>
+			<HoverCard tag="card" content={<text tag="card-text">More</text>}><text>Hover</text></HoverCard>
+			<Avatar tag="av" src={pic} fallback="AB"/>
+			<Kbd text="Ctrl K"/>
+			<Spinner tag="spin"/>
+			<Sheet open={sheet} title="Edit" description="Make changes" side="left"><Button tag="save" label="Save"/></Sheet>
+		</view>, ui.root);
+		ui.update();
+		var p = ui.root.find("pop");
+		check("unstyled: a popover's trigger an outline button", p.slot == "button" && p.variant == "outline" && p.attr("data-state") == "closed");
+		ui.setFocus(p);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		var content = ui.overlay.find("pop-content");
+		check("unstyled: its content below, its first field focused", pop.value && content.slot == "popover-content" && content.absY >= p.absY + p.height
+			&& ui.focus == ui.overlay.find("pop-field") && content.style.background == Color.WHITE);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("unstyled: Escape closes it", !pop.value && ui.overlay.find("pop-content") == null);
+		var av = ui.root.find("av");
+		check("unstyled: an avatar's fallback without an image", av.slot == "avatar" && av.children[0].slot == "avatar-fallback" && av.style.radius == 16);
+		pic.value = new Image(4, 4);
+		ui.update();
+		check("unstyled: its image once there is one", av.children[0].slot == "avatar-image");
+		check("unstyled: kbd and a spinner", ui.root.find("kbd").slot == "kbd" && ui.root.find("spin").slot == "spinner"
+			&& ui.root.find("spin").semantics.role == hxmc.ui.access.Role.ProgressIndicator);
+		// (the hover card: after its delay; kept over its content; gone after the pointer leaves both)
+		var c = ui.root.find("card");
+		Clock.tick(100);
+		ui.pointerMove(c.absX + 2, c.absY + 2);
+		Clock.tick(100.1);
+		Clock.tick(100.5);
+		ui.update();
+		var early = ui.overlay.find("card-text") != null;
+		Clock.tick(100.9);
+		ui.update();
+		check("unstyled: a hover card after its delay", !early && ui.overlay.find("card-text") != null
+			&& ui.overlay.find("card-text").parent.slot == "hover-card-content");
+		ui.pointerMove(390, 290);
+		Clock.tick(101);
+		Clock.tick(101.4);
+		ui.update();
+		check("unstyled: gone after the pointer leaves", ui.overlay.find("card-text") == null);
+		sheet.value = true;
+		ui.update();
+		var save = ui.overlay.find("save"), sc = save.parent;
+		check("unstyled: a sheet along its edge, modal, its first control focused", sc.slot == "sheet-content" && sc.attr("data-side") == "left"
+			&& sc.absX == 0 && sc.absY == 0 && sc.height == 300 && sc.width == 300 && sc.parent.slot == "sheet-overlay" && ui.focus == save
+			&& ui.overlay.find("sheet-close").slot == "sheet-close", '${sc.absX} ${sc.width} ${sc.height}');
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("unstyled: Escape closes the sheet", !sheet.value);
 	}
 
 	static function table() {

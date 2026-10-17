@@ -211,7 +211,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   invalid), `Textarea`, `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
   `CardFooter`), `RadioGroup`, `Slider`, `RangeSlider` (two knobs, a
   slider each for the keyboard), `Progress` (or indeterminate), `Tabs`, `Separator`, `Skeleton`, `Alert`
-  (`AlertTitle`, `AlertDescription`), `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
+  (`AlertTitle`, `AlertDescription`), `Avatar` (an image or initials), `Kbd`, `Spinner`, `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
@@ -231,7 +231,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   saturation and brightness square, a hue strip and the hex: sliders for
   the keyboard), and the popups `Select`, `DropdownMenu`,
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
-  through by Left and Right, one open at a time), `Tooltip`, `Dialog`, `Combobox` (a text
+  through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `Sheet` (a dialog along an edge), `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
   field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
   an action); `examples/Gallery.hx` shows them all, unstyled. A

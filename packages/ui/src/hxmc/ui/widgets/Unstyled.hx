@@ -174,7 +174,6 @@ class Unstyled {
 			{slot: "calendar-day", when: ["data-today"], style: {background: tint}},
 			{slot: "calendar-day", when: ["data-focused"], style: {borderColor: line}},
 			{slot: "calendar-day", when: ["data-selected"], style: {background: canvasText, color: canvas}},
-			{slot: "popover-content", style: {background: canvas, color: canvasText}},
 			{slot: "command-list", style: {padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
 			{slot: "command-item", style: {padding: [4, 8], cursor: Pointer}},
 			{slot: "command-item", when: ["data-selected"], style: {background: faint}},
@@ -196,7 +195,25 @@ class Unstyled {
 			{slot: "color-picker-hue", style: {radius: 7, cursor: Pointer}},
 			{slot: "color-picker-thumb", style: {radius: 7, borderWidth: 2, borderColor: Color.WHITE, shadow: Shadow.parse("0 0 2px #00000099")}},
 			{slot: "color-picker-row", style: {columnGap: 8}},
-			{slot: "color-picker-swatch", style: {borderWidth: 1, borderColor: faint}}
+			{slot: "color-picker-swatch", style: {borderWidth: 1, borderColor: faint}},
+			{slot: "sheet-overlay", style: {background: Color.rgba(0x000000, 0.5)}},
+			{slot: "sheet-content", style: {direction: Column, rowGap: 12, padding: 16, background: canvas, color: canvasText}},
+			{slot: "sheet-content", when: ["data-side=right"], style: {borders: [0, 0, 0, 1], borderColor: canvasText}},
+			{slot: "sheet-content", when: ["data-side=left"], style: {borders: [0, 1, 0, 0], borderColor: canvasText}},
+			{slot: "sheet-content", when: ["data-side=top"], style: {borders: [0, 0, 1, 0], borderColor: canvasText}},
+			{slot: "sheet-content", when: ["data-side=bottom"], style: {borders: [1, 0, 0, 0], borderColor: canvasText}},
+			{slot: "sheet-header", style: {direction: Column, rowGap: 4}},
+			{slot: "sheet-title", style: {fontWeight: 600}},
+			{slot: "sheet-description", style: {opacity: 0.7}},
+			{slot: "sheet-footer", style: {direction: Column, rowGap: 8, margin: [0, 0, 0, 0]}},
+			{slot: "sheet-close", style: {position: Absolute, top: 12, right: 12, padding: 2, cursor: Pointer, opacity: 0.7}},
+			{slot: "sheet-close", when: ["hover"], style: {opacity: 1}},
+			{slot: "hover-card-content", style: {padding: 12, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "popover-content", style: {padding: 12, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "avatar", style: {width: 32, height: 32, radius: 16, borderWidth: 1, borderColor: faint, shrink: 0}},
+			{slot: "avatar-fallback", style: {width: Dim.parse("100%"), height: Dim.parse("100%"), alignItems: Center, justify: Center, background: tint}},
+			{slot: "kbd", style: {padding: [0, 4], borderWidth: 1, borderColor: faint, fontSize: 12}},
+			{slot: "spinner", style: {alignItems: Center, justify: Center}}
 		];
 	}
 }

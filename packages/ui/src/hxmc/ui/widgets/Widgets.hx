@@ -35,6 +35,7 @@ class Widgets implements Markup {
 	static final CIRCLE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>');
 	static final CHEVRON = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
 	static final X = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>');
+	static final LOADER = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>');
 	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
@@ -951,7 +952,7 @@ class Widgets implements Markup {
 					var g = p.find(tag + "-calendar-grid");
 					if (g != null && g.ui != null) g.ui.setFocus(g);
 				}}>
-				<view slot="popover-content" data-state="open"><Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
+				<view slot="popover-content" data-state="open" padding={0}><Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
 					onChoose={_ -> {
 						open.value = false;
 						if (self != null && self.ui != null) self.ui.setFocus(self);
@@ -1667,6 +1668,131 @@ class Widgets implements Markup {
 
 	public static function DialogFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "dialog-footer"} slot="dialog-footer">{props.children}</view>;
+
+	// a sheet (shadcn's): a dialog along an edge of the window (side
+	// "right", the default, "left", "top" or "bottom"), its title,
+	// description and the children, a close button (close: false, none);
+	// modal, closed as a dialog is. Slots "sheet-overlay", "sheet-content"
+	// (data-side), "sheet-header", "sheet-title", "sheet-description",
+	// "sheet-close"; SheetFooter's "sheet-footer"
+	public static function Sheet(props:{open:Signal<Bool>, title:String, ?description:String, ?side:String, ?close:Bool, ?tag:String,
+			?children:Any}):Any {
+		Unstyled.install();
+		var side = props.side ?? "right", close = () -> props.open.value = false, tag = props.tag ?? "sheet";
+		var across = side == "left" || side == "right";
+		return Popover({
+			open: props.open,
+			modal: true,
+			slot: "sheet-overlay",
+			onDismiss: close,
+			tag: tag,
+			children: <view slot="sheet-content" data-state="open" data-side={side} role="dialog" label={props.title} position="absolute"
+				top={side == "bottom" ? null : 0} bottom={side == "top" ? null : 0} left={side == "right" ? null : 0} right={side == "left" ? null : 0}
+				width={across ? "75%" : null} max-width={across ? 384 : null}>
+				<view slot="sheet-header">
+					<text slot="sheet-title" role="heading">{props.title}</text>
+					{props.description == null ? null : <text slot="sheet-description">{props.description}</text>}
+				</view>
+				{props.children}
+				{props.close == false ? null : <view tag={tag + "-close"} slot="sheet-close" role="button" label="Close" focusable onClick={_ -> close()}
+					onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
+						e.preventDefault();
+						close();
+					}}><image src={X} width={16} height={16}/></view>}
+			</view>
+		});
+	}
+
+	public static function SheetFooter(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "sheet-footer"} slot="sheet-footer">{props.children}</view>;
+
+	// a popover (shadcn's Popover, its trigger an outline button): label on
+	// the button, a click, Enter or Space opens the children under it (the
+	// first focusable focused), Escape or a click outside closes; open (a
+	// signal) says whether it is. Slots "popover-trigger" (the button, a
+	// "button" of variant, data-state "open" or "closed") and
+	// "popover-content" (data-state, data-side "bottom")
+	public static function PopoverButton(props:{label:String, ?open:Signal<Bool>, ?variant:String, ?tag:String, ?children:Any}):View {
+		Unstyled.install();
+		var open = props.open ?? signal(false), tag = props.tag ?? "popover";
+		return <view tag={tag} slot="button" variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
+			data-state={() -> open.value ? "open" : "closed"} focusable onClick={_ -> open.value = !open.peek()}
+			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
+				open.value = true;
+				e.stop();
+			}}>
+			{props.label}
+			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={p -> {
+				var f = @:privateAccess Ui.firstFocusable(p);
+				if (f != null) p.ui.setFocus(f);
+			}}>
+				<view tag={tag + "-content"} slot="popover-content" data-state="open" data-side="bottom" role="dialog" label={props.label}>{props.children}</view>
+			</Popover>
+		</view>;
+	}
+
+	// a hover card (shadcn's): the children, and content shown by them
+	// (below) once the pointer has rested on them for delay seconds (0.7),
+	// kept while it is over either, hidden when it leaves both (after 0.3
+	// seconds) or by Escape (slot "hover-card-content")
+	public static function HoverCard(props:{content:Any, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
+		Unstyled.install();
+		var show = signal(false), over = 0, delay = props.delay ?? 0.7;
+		// (show or hide after a wait: the last asked wins)
+		function after(wait:Float, v:Bool) {
+			var mine = ++over, start = -1.0;
+			Clock.add(now -> {
+				if (mine != over) return false;
+				if (start < 0) start = now;
+				if (now - start < wait) return true;
+				show.value = v;
+				return false;
+			});
+		}
+		return <view tag={props.tag} onPointerEnter={_ -> if (!show.peek()) after(delay, true) else over++}
+			onPointerLeave={_ -> after(0.3, false)}>
+			{props.children}
+			<Popover open={show} placement={props.placement ?? "below"} tag="hover-card" onDismiss={() -> {
+				over++;
+				show.value = false;
+			}}>
+				<view slot="hover-card-content" data-state="open" onPointerEnter={_ -> over++} onPointerLeave={_ -> after(0.3, false)}>{props.content}</view>
+			</Popover>
+		</view>;
+	}
+
+	// an avatar (shadcn's): an image, else its fallback (initials) while
+	// there is none. Slots "avatar", "avatar-image" and "avatar-fallback"
+	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?tag:String}):View {
+		Unstyled.install();
+		return <view tag={props.tag ?? "avatar"} slot="avatar" role="img" label={props.label ?? props.fallback} overflow="hidden">
+			{() -> read(props.src) == null ? <view slot="avatar-fallback" hidden><text>{props.fallback}</text></view> : <image slot="avatar-image"
+				src={props.src} fit="cover" width="100%" height="100%" hidden/>}
+		</view>;
+	}
+
+	// a key or keys as typed (shadcn's Kbd: slot "kbd"), e.g. "⌘K" or a Shortcut's label
+	public static function Kbd(props:{?text:String, ?children:Any, ?tag:String}):View {
+		Unstyled.install();
+		return <text tag={props.tag ?? "kbd"} slot="kbd">{props.children ?? props.text}</text>;
+	}
+
+	// a spinner (shadcn's): a loading circle turning once a second while
+	// shown, on the Clock (slot "spinner"; an indeterminate progress bar for
+	// assistive technology, label "Loading")
+	public static function Spinner(props:{?label:String, ?tag:String}):View {
+		Unstyled.install();
+		var turn = signal(0.0), stopped = false;
+		Clock.add(now -> {
+			if (stopped) return false;
+			turn.value = (now % 1) * 360;
+			return true;
+		});
+		onCleanup(() -> stopped = true);
+		return <view tag={props.tag ?? "spinner"} slot="spinner" role="progressbar" label={props.label ?? "Loading"}>
+			<image src={LOADER} width={16} height={16} transform={() -> "rotate(" + turn.value + "deg)"}/>
+		</view>;
+	}
 
 	// a combobox: a text field bound to value (two ways) whose typing
 	// filters options (those containing the text, in either case; options
