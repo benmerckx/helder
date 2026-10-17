@@ -41,6 +41,7 @@ class FidelityTest implements Markup {
 		"breadcrumb-" => "the separator a ▸ glyph at 0.6 opacity, not lucide's chevron-right (size-3.5): the items after it shifted",
 		"pagination-" => "Previous and Next without lucide's chevrons, the ellipsis a … glyph, not MoreHorizontal",
 		"combobox-" => "Combobox's popup is a bare command-list (the slot Command's list has too): shadcn's combobox is a Popover holding a Command, its border, background and shadow theirs",
+		"drawer-" => "drawer-content is not marked a group (group/drawer-content): its handle stays hidden, its header left-aligned; and popups do not inherit the body's text-base (the title's 16px)",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
 	];
 	static inline var SELECT = "Select's own width (160) wins over w-fit; the trigger has no size (data-[size=default]:h-9)";
@@ -153,6 +154,19 @@ class FidelityTest implements Markup {
 			case "alert-dialog":
 				<AlertDialog open={new Signal(true)} title="Are you absolutely sure?" width={512}
 					description="This action cannot be undone. This will permanently delete your account and remove your data from our servers."/>;
+			case "drawer":
+				<Drawer open={new Signal(true)} title="Move Goal" description="Set your daily activity goal.">
+					<DrawerFooter><Button label="Submit"/><Button variant="outline" label="Cancel"/></DrawerFooter>
+				</Drawer>;
+			case "input-otp": <InputOTP value={new Signal("12")} length={6} groups={[3, 3]}/>;
+			case "dropdown-menu-items":
+				<DropdownMenu label="Open" items={[
+					{label: "Appearance", heading: true},
+					{label: "Status Bar", checked: new Signal(true), onSelect: () -> {}},
+					{label: "Panel", checked: new Signal(false), onSelect: () -> {}},
+					{label: "", separator: true},
+					{label: "More", items: [{label: "Email", onSelect: () -> {}}]}
+				]}/>;
 			case "avatar": <Avatar fallback="CN"/>;
 			case "kbd": <Kbd text="Ctrl"/>;
 			case "spinner": <Spinner/>;
@@ -174,7 +188,8 @@ class FidelityTest implements Markup {
 		}
 		switch (c.component : String) {
 			case "select-content": click(find(ui.root, "select-trigger"));
-			case "dropdown-menu": click(find(ui.root, "button"));
+			case "dropdown-menu" | "dropdown-menu-items": click(find(ui.root, "button"));
+			case "input-otp": ui.setFocus(ui.root.find("otp-input"));
 			case "popover": click(find(ui.root, "button"));
 			case "menubar-content": click(find(ui.root, "menubar-trigger"));
 			case "context-menu":

@@ -771,6 +771,30 @@
 		"dark": false
 	},
 	{
+		"name": "drawer-open",
+		"component": "drawer",
+		"w": 800,
+		"h": 600,
+		"dark": false
+	},
+	{
+		"name": "input-otp-active",
+		"component": "input-otp",
+		"w": 320,
+		"h": 68,
+		"dark": false
+	},
+	{
+		"name": "dropdown-menu-items-open",
+		"component": "dropdown-menu-items",
+		"w": 144,
+		"h": 163,
+		"dark": false,
+		"crop": "dropdown-menu-content",
+		"fw": 320,
+		"fh": 300
+	},
+	{
 		"name": "context-menu-open",
 		"component": "context-menu",
 		"w": 144,
@@ -1625,6 +1649,30 @@
 		"w": 800,
 		"h": 600,
 		"dark": true
+	},
+	{
+		"name": "drawer-open-dark",
+		"component": "drawer",
+		"w": 800,
+		"h": 600,
+		"dark": true
+	},
+	{
+		"name": "input-otp-active-dark",
+		"component": "input-otp",
+		"w": 320,
+		"h": 68,
+		"dark": true
+	},
+	{
+		"name": "dropdown-menu-items-open-dark",
+		"component": "dropdown-menu-items",
+		"w": 144,
+		"h": 163,
+		"dark": true,
+		"crop": "dropdown-menu-content",
+		"fw": 320,
+		"fh": 300
 	},
 	{
 		"name": "context-menu-open-dark",

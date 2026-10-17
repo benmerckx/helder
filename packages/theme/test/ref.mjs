@@ -51,7 +51,7 @@ const el = (tag, slot, inner = '', a = {}, variant, size) => `<${tag} data-slot=
 const ICONS = {
 	check: '<path d="M20 6 9 17l-5-5"/>', circle: '<circle cx="12" cy="12" r="10"/>', 'chevron-down': '<path d="m6 9 6 6 6-6"/>',
 	'chevron-right': '<path d="m9 18 6-6-6-6"/>', 'chevron-left': '<path d="m15 18-6-6 6-6"/>',
-	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>', loader: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', minus: '<path d="M5 12h14"/>', search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>', loader: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
 	more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
 };
 const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls}">${ICONS[name]}</svg>`;
@@ -154,6 +154,19 @@ const markup = {
 		el('div', 'alert-dialog-header', el('h2', 'alert-dialog-title', 'Are you absolutely sure?') + el('p', 'alert-dialog-description', 'This action cannot be undone. This will permanently delete your account and remove your data from our servers.'))
 		+ el('div', 'alert-dialog-footer', markup.button({ variant: 'outline', text: 'Cancel' }) + markup.button({ text: 'Continue' })),
 		{ role: 'alertdialog', 'data-state': 'open', 'data-size': 'default' }),
+	'input-otp': c => el('div', 'input-otp', [[0, 1, 2], [3, 4, 5]].map((g, k) => (k > 0 ? `<div data-slot="input-otp-separator" role="separator">${icon('minus')}</div>` : '')
+		+ el('div', 'input-otp-group', g.map(i => el('div', 'input-otp-slot', (i < 2 ? '12'[i] : '') + (i === 2 ? `<div class="pointer-events-none absolute inset-0 flex items-center justify-center"><div class="${twMerge(sheet.slots['input-otp-caret'])}"></div></div>` : ''),
+			{ 'data-active': i === 2 ? 'true' : 'false' })).join(''))).join('')),
+	drawer: c => el('div', 'drawer-overlay', '', { 'data-state': 'open' }) + el('div', 'drawer-content',
+		el('div', 'drawer-handle') + el('div', 'drawer-header', el('h2', 'drawer-title', 'Move Goal') + el('p', 'drawer-description', 'Set your daily activity goal.'))
+		+ el('div', 'drawer-footer', markup.button({ text: 'Submit' }) + markup.button({ variant: 'outline', text: 'Cancel' })),
+		{ role: 'dialog', 'data-state': 'open', 'data-vaul-drawer-direction': 'bottom' }),
+	'dropdown-menu-items': c => el('div', 'dropdown-menu-content', el('div', 'dropdown-menu-label', 'Appearance')
+		+ el('div', 'dropdown-menu-checkbox-item', `<span data-slot="dropdown-menu-item-indicator" class="${twMerge(sheet.slots['dropdown-menu-item-indicator'])}">${icon('check', 'size-4')}</span>Status Bar`, { role: 'menuitemcheckbox', 'aria-checked': 'true', 'data-state': 'checked', 'data-highlighted': '', 'data-force-focus': '' })
+		+ el('div', 'dropdown-menu-checkbox-item', `<span data-slot="dropdown-menu-item-indicator" class="${twMerge(sheet.slots['dropdown-menu-item-indicator'])}"></span>Panel`, { role: 'menuitemcheckbox', 'aria-checked': 'false', 'data-state': 'unchecked' })
+		+ el('div', 'dropdown-menu-separator', '', { role: 'separator' })
+		+ el('div', 'dropdown-menu-sub-trigger', 'More' + icon('chevron-right', 'ml-auto size-4'), { role: 'menuitem', 'data-state': 'closed' }),
+		{ role: 'menu', 'data-state': 'open', 'data-side': 'bottom' }),
 	avatar: c => el('span', 'avatar', el('span', 'avatar-fallback', 'CN'), { 'data-size': 'default' }),
 	kbd: c => el('kbd', 'kbd', 'Ctrl'),
 	spinner: c => icon('loader', classes('spinner')).replace('<svg ', '<svg data-slot="spinner" role="status" aria-label="Loading" '),
@@ -207,7 +220,8 @@ const frames = {
 	accordion: { w: 400, h: 200, block: true }, breadcrumb: { w: 360, h: 52 }, pagination: { w: 420, h: 68, block: true }, dialog: { w: 800, h: 600 },
 	popover: { w: 320, h: 120 }, tooltip: { w: 160, h: 60 }, 'dropdown-menu': { w: 240, h: 240 }, menubar: { w: 240, h: 68 },
 	// (a popup: drawn in a larger frame, compared in its box, 8px around it for its shadow; refCrop: the element, where it is not the slot hxmc crops)
-	command: { w: 482, h: 300 }, combobox: { w: 320, h: 300, crop: 'command-list', refCrop: 'popover-content' }, 'alert-dialog': { w: 800, h: 600 }, 'context-menu': { w: 320, h: 300, crop: 'context-menu-content' },
+	command: { w: 482, h: 300 }, combobox: { w: 320, h: 300, crop: 'command-list', refCrop: 'popover-content' }, 'alert-dialog': { w: 800, h: 600 }, drawer: { w: 800, h: 600 }, 'input-otp': { w: 320, h: 68 },
+	'dropdown-menu-items': { w: 320, h: 300, crop: 'dropdown-menu-content' }, 'context-menu': { w: 320, h: 300, crop: 'context-menu-content' },
 	'menubar-content': { w: 320, h: 300, crop: 'menubar-content' }, 'hover-card': { w: 320, h: 200, crop: 'hover-card-content' },
 	sheet: { w: 800, h: 600 }, avatar: { w: 64, h: 64 }, kbd: { w: 80, h: 52 }, spinner: { w: 48, h: 48 }, resizable: { w: 400, h: 192, block: true },
 	calendar: { w: 300, h: 340 }, toast: { w: 420, h: 140, crop: 'toast', refCrop: '[data-sonner-toast]' },
@@ -284,6 +298,9 @@ for (const dark of [false, true]) {
 	add('command', `default${d}`, { dark });
 	add('combobox', `open${d}`, { dark });
 	add('alert-dialog', `open${d}`, { dark });
+	add('drawer', `open${d}`, { dark });
+	add('input-otp', `active${d}`, { dark });
+	add('dropdown-menu-items', `open${d}`, { dark });
 	add('context-menu', `open${d}`, { dark });
 	add('menubar-content', `open${d}`, { dark });
 	add('hover-card', `open${d}`, { dark });

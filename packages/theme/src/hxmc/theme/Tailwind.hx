@@ -78,13 +78,15 @@ class Tailwind {
 		// keyframe animations, which ui's styles have none of: a skeleton's
 		// pulse, an accordion's height (Radix measures it), a spinner's turn
 		// (ui's Spinner turns by itself)
-		"animate-pulse", "animate-accordion-*", "animate-spin",
+		"animate-pulse", "animate-accordion-*", "animate-spin", "animate-caret-blink",
 		// markers of group-* and peer-* variants
 		"group", "group/*", "peer", "peer/*",
 		// container queries
 		"@container", "@container/*",
 		// inherited already
 		"text-current",
+		// viewport units (a drawer's max-h-[80vh]): no length of the window's yet
+		"*vh]*",
 		// (no StyleProps for them yet: scroll margins, touch-action)
 		"scroll-my-*", "scroll-py-*", "touch-none",
 		// what Radix's popper measures (--radix-*): ui's popups place and size themselves

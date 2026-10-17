@@ -302,7 +302,27 @@
 		"alert-dialog-title": "text-lg font-semibold sm:group-data-[size=default]/alert-dialog-content:group-has-data-[slot=alert-dialog-media]/alert-dialog-content:col-start-2",
 		"alert-dialog-description": "text-sm text-muted-foreground",
 		"alert-dialog-media": "mb-2 inline-flex size-16 items-center justify-center rounded-md bg-muted sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-8",
-		"command-input-icon": "size-4 shrink-0 opacity-50"
+		"command-input-icon": "size-4 shrink-0 opacity-50",
+		"drawer-overlay": "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+		"drawer-content": [
+			"group/drawer-content fixed z-50 flex h-auto flex-col bg-background",
+			"data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0 data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:max-h-[80vh] data-[vaul-drawer-direction=top]:rounded-b-lg data-[vaul-drawer-direction=top]:border-b",
+			"data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:mt-24 data-[vaul-drawer-direction=bottom]:max-h-[80vh] data-[vaul-drawer-direction=bottom]:rounded-t-lg data-[vaul-drawer-direction=bottom]:border-t",
+			"data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:w-3/4 data-[vaul-drawer-direction=right]:border-l data-[vaul-drawer-direction=right]:sm:max-w-sm",
+			"data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-3/4 data-[vaul-drawer-direction=left]:border-r data-[vaul-drawer-direction=left]:sm:max-w-sm"
+		],
+		"drawer-handle": "mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block",
+		"drawer-header": "flex flex-col gap-0.5 p-4 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-center group-data-[vaul-drawer-direction=top]/drawer-content:text-center md:gap-1.5 md:text-left",
+		"drawer-footer": "mt-auto flex flex-col gap-2 p-4",
+		"drawer-title": "font-semibold text-foreground",
+		"drawer-description": "text-sm text-muted-foreground",
+		"input-otp": [
+			"flex items-center gap-2 has-disabled:opacity-50",
+			"disabled:cursor-not-allowed"
+		],
+		"input-otp-group": "flex items-center",
+		"input-otp-slot": "relative flex h-9 w-9 items-center justify-center border-y border-r border-input text-sm shadow-xs transition-all outline-none first:rounded-l-md first:border-l last:rounded-r-md aria-invalid:border-destructive data-[active=true]:z-10 data-[active=true]:border-ring data-[active=true]:ring-[3px] data-[active=true]:ring-ring/50 data-[active=true]:aria-invalid:border-destructive data-[active=true]:aria-invalid:ring-destructive/20 dark:bg-input/30 dark:data-[active=true]:aria-invalid:ring-destructive/40",
+		"input-otp-caret": "h-4 w-px animate-caret-blink bg-foreground duration-1000"
 	},
 	"light": {
 		"background": "oklch(1 0 0)",
@@ -401,9 +421,16 @@
 		"color-picker-swatch": "rounded-md border shadow-xs",
 		"color-picker-thumb": "rounded-full border-2 border-white shadow-sm ring-1 ring-black/20",
 		"command-group-heading": "px-2 py-1.5 text-xs font-medium text-muted-foreground",
+		"context-menu-item-indicator-icon": "size-4",
+		"context-menu-sub-trigger-icon": "ml-auto size-4",
+		"dropdown-menu-item-indicator-icon": "size-4",
+		"dropdown-menu-sub-trigger-icon": "ml-auto size-4",
 		"dropdown-menu-trigger-icon": "size-4 opacity-50",
+		"input-otp-separator-icon": "size-6",
 		"listbox": "flex flex-col rounded-md border bg-background p-1 shadow-xs",
 		"listbox-option": "relative flex shrink-0 cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-selected:bg-accent aria-selected:text-accent-foreground",
+		"menubar-item-indicator-icon": "size-4",
+		"menubar-sub-trigger-icon": "ml-auto size-4",
 		"number-field": "flex items-stretch gap-1",
 		"number-field-decrement": "flex flex-1 cursor-default items-center justify-center rounded-b-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
 		"number-field-increment": "flex flex-1 cursor-default items-center justify-center rounded-t-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
