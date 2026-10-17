@@ -5,7 +5,9 @@ text with, usable on its own.
 
 - `FontFile`: an OpenType font (or a face of a `.ttc` collection): metrics,
   the character map (formats 4 and 12), advances, kerning (GPOS's pair
-  adjustments for the `kern` feature, else the `kern` table), glyph outlines: TrueType's (simple and composite glyphs) or
+  adjustments for the `kern` feature, else the `kern` table), GSUB's
+  single and ligature substitutions by script and feature, glyph outlines:
+  TrueType's (simple and composite glyphs) or
   CFF's (`.otf`: Type 2 charstrings with their subroutines, CID-keyed
   fonts such as Noto Sans CJK too). CFF2 (variable) outlines are not read.
 - `Rasterizer`: anti-aliased coverage of outlines, after Raph Levien's
@@ -19,7 +21,11 @@ text with, usable on its own.
 - `TextLayout`: text shaped (each character's glyph from the first face
   that has it, kerning between glyphs of the same face) and broken into
   lines (after spaces and hyphens, around CJK; a word wider than a line is
-  cut), with `caret` and `hit` queries.
+  cut), with `caret` and `hit` queries. Right-to-left text too: each
+  paragraph ordered by the bidi algorithm (`Bidi`: UAX #9's explicit
+  levels left out, mirrored brackets), Arabic joined (`Arabic`: each
+  letter's initial, medial, final or isolated form, then the required
+  ligatures such as lam-alef), the caret at a character's leading edge.
 - `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
   packed into an R8 bitmap for a GPU texture, its changed region tracked.
 
@@ -38,8 +44,10 @@ font files: give the page's fonts to `run` with this package's
 `imports.mjs` and the option `fonts: ['DejaVuSans.ttf', ...]` (URLs or
 ArrayBuffers); `SystemFonts` adds them.
 
-Limits, for now: left to right only (no bidi), no ligatures or mark
-positioning (no GSUB or GPOS), no hinting, grayscale anti-aliasing. The same
+Limits, for now: no explicit bidi embeddings (LRE, RLI and the like), no
+optional ligatures or contextual alternates (GSUB's other lookups), no
+mark positioning (GPOS's marks: Arabic's vowel marks keep their own
+advances), no hinting, grayscale anti-aliasing. The same
 pixels on every machine, which makes golden-image tests portable; the
 platforms' shapers are the planned upgrade (`hxmc/UI.md`).
 

@@ -208,6 +208,94 @@ class FontFile {
 		}
 	}
 
+	// --- GSUB ---
+
+	// the GSUB lookups of a feature for a script (its default language
+	// system, else DFLT's), in the lookup list's order
+	public function gsubLookups(script:String, feature:String):Array<Int> {
+		var key = script + "/" + feature;
+		var cached = gsubCache.get(key);
+		if (cached != null) return cached;
+		var out:Array<Int> = [];
+		gsubCache.set(key, out);
+		if (!tables.exists("GSUB")) return out;
+		var g = tables.get("GSUB");
+		var scripts = g + u16(data, g + 4), features = g + u16(data, g + 6);
+		var langSys = -1;
+		for (want in [script, "DFLT"]) {
+			for (i in 0...u16(data, scripts)) {
+				var r = scripts + 2 + 6 * i;
+				if (data.getString(r, 4) != want) continue;
+				var st = scripts + u16(data, r + 4);
+				if (u16(data, st) != 0) langSys = st + u16(data, st);
+			}
+			if (langSys >= 0) break;
+		}
+		if (langSys < 0) return out;
+		for (k in 0...u16(data, langSys + 4)) {
+			var fi = u16(data, langSys + 6 + 2 * k), r = features + 2 + 6 * fi;
+			if (data.getString(r, 4) != feature) continue;
+			var ft = features + u16(data, r + 4);
+			for (j in 0...u16(data, ft + 2))
+				out.push(u16(data, ft + 4 + 2 * j));
+		}
+		out.sort(Reflect.compare);
+		return out;
+	}
+
+	final gsubCache = new Map<String, Array<Int>>();
+
+	// a GSUB lookup's subtables (offsets) and type, extensions unwrapped
+	function gsubSubtables(lookup:Int):{type:Int, flag:Int, subtables:Array<Int>} {
+		var g = tables.get("GSUB"), list = g + u16(data, g + 8);
+		var t = list + u16(data, list + 2 + 2 * lookup);
+		var type = u16(data, t), flag = u16(data, t + 2), out = [];
+		for (s in 0...u16(data, t + 4)) {
+			var st = t + u16(data, t + 6 + 2 * s);
+			if (type == 7) {
+				type = u16(data, st + 2);
+				st += u32(data, st + 4);
+			}
+			out.push(st);
+		}
+		return {type: type, flag: flag, subtables: out};
+	}
+
+	// a single substitution lookup's glyph for g (g: not covered)
+	public function substitute(lookup:Int, g:Int):Int {
+		var l = gsubSubtables(lookup);
+		if (l.type != 1) return g;
+		for (st in l.subtables) {
+			var ci = coverage(st + u16(data, st + 2), g);
+			if (ci < 0) continue;
+			return u16(data, st) == 1 ? (g + s16(data, st + 4)) & 0xFFFF : u16(data, st + 6 + 2 * ci);
+		}
+		return g;
+	}
+
+	// a ligature substitution lookup's ligature starting at gs[at]: its glyph
+	// and how many glyphs it takes (count 0: none)
+	public function ligature(lookup:Int, gs:Array<Int>, at:Int):{glyph:Int, count:Int} {
+		var l = gsubSubtables(lookup);
+		if (l.type == 4)
+			for (st in l.subtables) {
+				var ci = coverage(st + u16(data, st + 2), gs[at]);
+				if (ci < 0) continue;
+				var set = st + u16(data, st + 6 + 2 * ci);
+				for (k in 0...u16(data, set)) {
+					var lig = set + u16(data, set + 2 + 2 * k);
+					var n = u16(data, lig + 2), ok = at + n <= gs.length;
+					var j = 1;
+					while (ok && j < n) {
+						if (gs[at + j] != u16(data, lig + 4 + 2 * (j - 1))) ok = false;
+						j++;
+					}
+					if (ok) return {glyph: u16(data, lig), count: n};
+				}
+			}
+		return {glyph: 0, count: 0};
+	}
+
 	// a pair adjustment subtable's change to the first glyph's advance (NONE: it does not cover the pair)
 	function pairAdjustment(st:Int, left:Int, right:Int):Int {
 		var ci = coverage(st + u16(data, st + 2), left);

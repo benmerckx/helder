@@ -6,9 +6,15 @@ package hxmc.text;
 // opportunities (after spaces and hyphens, around CJK ideographs, kana and
 // hangul) to fit maxWidth (NaN: only at "\n"); a word wider than a line is
 // cut between characters, except at a maxWidth of 0: the min-content
-// layout, every opportunity taken and no word cut. Left to right only (no bidi), no ligatures or
-// mark positioning (no GSUB; GPOS for kerning only). Positions are pixels; character
-// indices are the text's UTF-16 units (String indices).
+// layout, every opportunity taken and no word cut. Text written right to
+// left is ordered by the bidirectional algorithm (Bidi: each paragraph's
+// levels; each line's glyphs placed in visual order, mirrored brackets on
+// right-to-left levels; a base's marks drawn after it), its caret and hits
+// by each glyph's direction. Other scripts' ligatures and mark positioning
+// are not applied (GPOS: kerning only).
+// Positions are pixels; character indices are the text's UTF-16 units
+// (String indices). Arabic is shaped (Arabic: its letters' joining forms
+// and required ligatures, through the font's GSUB).
 class TextLayout {
 	public final text:String;
 	public final fonts:FontSet;
@@ -19,6 +25,8 @@ class TextLayout {
 	// the min-content width: the widest run between break opportunities
 	// (trailing spaces excluded), the width of the layout at a maxWidth of 0
 	public var minWidth(default, null) = 0.0;
+	// the first paragraph's direction: 0 left to right, 1 right to left
+	public var direction(default, null) = 0;
 	// a line's height and its baseline below its top
 	public final lineHeight:Float;
 	public final baseline:Float;
@@ -31,6 +39,7 @@ class TextLayout {
 		var a = fonts.ascent, d = fonts.descent;
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
 		var glyphs = shape(text, fonts);
+		bidi(glyphs);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
 	}
@@ -59,21 +68,70 @@ class TextLayout {
 			if (c == 10 || c == 13) {
 				g.font = fonts.primary;
 				g.id = 0;
-				g.advance = 0;
 			} else {
 				var f = c == 9 ? fonts.primary : fonts.faceFor(c);
 				g.font = f;
 				g.id = c == 9 ? f.glyph(32) : f.glyph(c);
-				g.advance = f.advance(g.id) * fonts.scale(f) * (c == 9 ? 4 : 1);
-				if (prev != null && prev.font == f && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
 			}
 			out[count++] = g;
-			prev = g;
 			i += len;
 		}
 		out.resize(count);
+		// (Arabic's forms and ligatures: other glyphs)
+		out = Arabic.shape(out);
+		for (g in out) {
+			var c = g.cp;
+			if (c == 10 || c == 13) {
+				g.advance = 0;
+			} else {
+				var f = g.font;
+				g.advance = f.advance(g.id) * fonts.scale(f) * (c == 9 ? 4 : 1);
+				if (prev != null && prev.font == f && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
+			}
+			prev = g;
+		}
 		return out;
 	}
+
+	// the glyphs' bidi levels, by paragraph (between "\n"s), when any is
+	// written right to left: mirrored brackets, kerning on the visual side
+	function bidi(gs:Array<Glyph>) {
+		var cps = [for (g in gs) g.cp];
+		if (!Bidi.hasRtl(cps)) return;
+		var start = 0, first = true;
+		while (start <= gs.length) {
+			var end = start;
+			while (end < gs.length && gs[end].cp != 10)
+				end++;
+			var r = Bidi.levels(cps.slice(start, end), -1);
+			if (first) direction = r.base;
+			first = false;
+			for (i in start...end)
+				gs[i].level = r.levels[i - start];
+			if (end < gs.length) gs[end].level = r.base;
+			paragraphLevels.push({start: start, end: end, base: r.base});
+			start = end + 1;
+		}
+		for (i in 0...gs.length) {
+			var g = gs[i];
+			if (g.level & 1 == 0) continue;
+			var m = Bidi.mirror(g.cp);
+			if (m != g.cp) {
+				var id = g.font.glyph(m);
+				if (id != 0) g.id = id;
+			}
+			// (a right-to-left pair's kerning: on its left glyph, the second)
+			if (i > 0 && gs[i - 1].level & 1 == 1 && gs[i - 1].font == g.font && gs[i - 1].cp != 10) {
+				var p = gs[i - 1], k = g.font.kerning(p.id, g.id) * fonts.scale(g.font);
+				p.advance -= k;
+				g.advance += k;
+			}
+		}
+		hasBidi = true;
+	}
+
+	var hasBidi = false;
+	final paragraphLevels:Array<{start:Int, end:Int, base:Int}> = [];
 
 	// --- line breaking ---
 
@@ -157,17 +215,56 @@ class TextLayout {
 		l.top = lines.length * lineHeight;
 		var x = 0.0, visible = 0.0;
 		l.glyphs.resize(end - start);
-		for (i in start...end) {
-			var g = gs[i];
-			g.x = x;
-			l.glyphs[i - start] = g;
-			x += g.advance;
-			if (!isSpace(g.cp)) visible = x;
-		}
+		if (hasBidi && end > start) {
+			// in visual order (its paragraph's base level for its trailing spaces)
+			var base = 0;
+			for (p in paragraphLevels)
+				if (start >= p.start && start <= p.end) base = p.base;
+			l.base = base;
+			var cps = [for (g in gs) g.cp], lv = [for (g in gs) g.level];
+			var order = Bidi.reorder(cps, lv, base, start, end);
+			// (a right-to-left base's marks reversed before it: put back after it, as left to right draws them)
+			var m = 0;
+			while (m < order.length) {
+				var e = m;
+				while (e < order.length && gs[order[e]].level & 1 == 1 && Bidi.classOf(gs[order[e]].cp) == Bidi.NSM)
+					e++;
+				if (e > m && e < order.length && gs[order[e]].level & 1 == 1) {
+					var marks = order.slice(m, e);
+					marks.reverse();
+					order[m] = order[e];
+					for (k in 0...marks.length)
+						order[m + 1 + k] = marks[k];
+					m = e + 1;
+				} else m = e > m ? e : m + 1;
+			}
+			var k = 0;
+			for (i in order) {
+				var g = gs[i];
+				g.x = x;
+				l.glyphs[k++] = g;
+				x += g.advance;
+			}
+			// (without the spaces at the line's logical end)
+			var trailing = 0.0, e = end - 1;
+			while (e >= start && isSpace(gs[e].cp)) {
+				trailing += gs[e].advance;
+				e--;
+			}
+			visible = x - trailing;
+		} else
+			for (i in start...end) {
+				var g = gs[i];
+				g.x = x;
+				l.glyphs[i - start] = g;
+				x += g.advance;
+				if (!isSpace(g.cp)) visible = x;
+			}
 		l.width = visible;
 		l.advance = x;
 		l.start = start < end ? gs[start].cluster : emptyAt != null ? emptyAt : (start < gs.length ? gs[start].cluster : text.length);
 		l.end = start < end ? gs[end - 1].cluster + gs[end - 1].length : l.start;
+		l.bidi = hasBidi;
 		if (visible > width) width = visible;
 		lines.push(l);
 	}
@@ -189,6 +286,7 @@ class TextLayout {
 			if (index >= l.start) k = j;
 		}
 		var l = lines[k];
+		if (l.bidi) return {x: bidiCaret(l, index), y: l.top, line: k};
 		var x = 0.0;
 		for (g in l.glyphs) {
 			if (g.cluster >= index) break;
@@ -198,10 +296,46 @@ class TextLayout {
 		return {x: x, y: l.top, line: k};
 	}
 
+	// the caret before index in a line placed by the bidi algorithm: its
+	// character's leading edge (the left of a left-to-right glyph, the right
+	// of a right-to-left one), else the trailing edge of the one before
+	function bidiCaret(l:TextLine, index:Int):Float {
+		var lead:Null<Glyph> = null, trail:Null<Glyph> = null;
+		for (g in l.glyphs) {
+			if (index >= g.cluster && index < g.cluster + g.length) lead = g;
+			if (g.cluster + g.length == index) trail = g;
+		}
+		if (lead != null) {
+			var f = lead.parts > 1 ? (index - lead.cluster) / lead.parts : 0.0;
+			return lead.level & 1 == 1 ? lead.x + lead.advance * (1 - f) : lead.x + lead.advance * f;
+		}
+		if (trail != null) return trail.level & 1 == 1 ? trail.x : trail.x + trail.advance;
+		return l.base & 1 == 1 ? l.advance : 0;
+	}
+
+	// the index nearest to x in such a line: before or after the glyph under
+	// it, by its half and its direction
+	function bidiHit(l:TextLine, x:Float):Int {
+		if (l.glyphs.length == 0) return l.start;
+		for (g in l.glyphs)
+			if (x < g.x + g.advance) {
+				if (g.parts > 1) {
+					var f = (x - g.x) / g.advance;
+					var k = Math.round((g.level & 1 == 1 ? 1 - f : f) * g.parts);
+					return g.cluster + k;
+				}
+				var left = x < g.x + g.advance / 2, rtl = g.level & 1 == 1;
+				return left != rtl ? g.cluster : g.cluster + g.length;
+			}
+		var last = l.glyphs[l.glyphs.length - 1];
+		return last.level & 1 == 1 ? last.cluster : last.cluster + last.length;
+	}
+
 	// the character index nearest to (x, y)
 	public function hit(x:Float, y:Float):Int {
 		var k = Std.int(Math.max(0, Math.min(lines.length - 1, Math.floor(y / lineHeight))));
 		var l = lines[k];
+		if (l.bidi) return bidiHit(l, x);
 		for (g in l.glyphs) {
 			if (g.cp == 10) break;
 			if (x < g.x + g.advance / 2) return g.cluster;
@@ -222,6 +356,10 @@ class Glyph {
 	// the character it shows: its index in the text and length (UTF-16 units)
 	public var cluster = 0;
 	public var length = 1;
+	// the characters a ligature shows (each one UTF-16 unit: Arabic), the caret placed between them by equal parts
+	public var parts = 1;
+	// its bidi level (odd: right to left)
+	public var level = 0;
 
 	public function new() {}
 }
@@ -235,6 +373,9 @@ class TextLine {
 	public var width = 0.0;
 	public var advance = 0.0;
 	public var top = 0.0;
+	// its glyphs in visual order by the bidi algorithm, its paragraph's base level
+	public var bidi = false;
+	public var base = 0;
 
 	public function new() {}
 }

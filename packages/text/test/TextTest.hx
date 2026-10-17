@@ -8,6 +8,10 @@ import hxmc.text.*;
 //
 // - the rasterizer on shapes with known coverage (a half-covered square,
 //   a triangle's area)
+// - the bidi algorithm: levels and visual order of mixed text, numbers in
+//   right-to-left text, mirrored brackets; Hebrew laid out, its caret and hits
+// - Arabic: joining forms and the lam-alef ligature from GSUB, widths as
+//   Chromium (HarfBuzz) measures them, the caret inside the ligature
 // - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines;
 //   Inter: CFF outlines, GPOS kerning
 // - layout: widths, wrapping, hard breaks, caret and hit
@@ -22,6 +26,7 @@ class TextTest {
 		var bless = Sys.args().contains("--bless");
 		var here = "packages/text/test";
 		rasterizer();
+		bidi();
 		var fonts = SystemFonts.get();
 		var sans = fonts.match("DejaVu Sans");
 		if (sans == null || sans.family != "DejaVu Sans") Sys.println("TextTest: no DejaVu Sans: font checks skipped (families: " + fonts.families().join(", ") + ")") else {
@@ -37,6 +42,30 @@ class TextTest {
 		}
 		Sys.println('TextTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// a string's visual order by the bidi algorithm (base: -1 from its first strong character)
+	static function visual(s:String, base = -1):String {
+		var cps = [for (c in new haxe.iterators.StringIteratorUnicode(s)) c];
+		var r = Bidi.levels(cps, base);
+		var order = Bidi.reorder(cps, r.levels, r.base, 0, cps.length);
+		var b = new StringBuf();
+		for (i in order)
+			b.addChar(r.levels[i] & 1 == 1 ? Bidi.mirror(cps[i]) : cps[i]);
+		return b.toString();
+	}
+
+	static function bidi() {
+		var cps = [for (c in new haxe.iterators.StringIteratorUnicode("abc אבג def")) c];
+		var r = Bidi.levels(cps, -1);
+		check("bidi: levels of mixed text", r.base == 0 && r.levels.join("") == "00001110000", r.levels.join(""));
+		check("bidi: visual order", visual("abc אבג def") == "abc גבא def", visual("abc אבג def"));
+		check("bidi: a right-to-left paragraph, numbers left to right in it", visual("אבג 123 דהו") == "והד 123 גבא", visual("אבג 123 דהו"));
+		check("bidi: mirrored brackets", visual("א(ב)") == "(ב)א", visual("א(ב)"));
+		check("bidi: Arabic digits and letters", visual("مرحبا ١٢٣") == "١٢٣ ابحرم", visual("مرحبا ١٢٣"));
+		check("bidi: left to right untouched", visual("plain (text) 12") == "plain (text) 12");
+		check("bidi: a given base level", visual("abc", 1) == "abc" && visual("א b", 0) == "א b", visual("א b", 0));
+		check("bidi: trailing spaces at the base level", visual("abc אבג  ") == "abc גבא  ", "[" + visual("abc אבג  ") + "]");
 	}
 
 	static function check(what:String, ok:Bool, ?detail:String) {
@@ -153,6 +182,36 @@ class TextTest {
 		check("layout: hit", t.hit(c.x + 1, 5) == 5 && t.hit(-10, 5) == 0 && t.hit(1000, 5) == 11);
 		var t5 = new TextLayout("日本語のテキスト", set, 1.25, 40);
 		check("layout: CJK breaks anywhere", t5.lines.length >= 2, '${t5.lines.length}');
+		// Hebrew: placed right to left, the caret at each character's leading (right) edge
+		var he = new TextLayout("שלום", set, 1.25, Math.NaN);
+		var hw = he.width;
+		check("bidi: Hebrew, its direction", he.direction == 1 && hw > 20, '${he.direction} $hw');
+		check("bidi: its first character at the right", Math.abs(he.caret(0).x - hw) < 0.01 && he.caret(4).x == 0, '${he.caret(0).x} ${he.caret(4).x}');
+		check("bidi: hits by direction", he.hit(-5, 5) == 4 && he.hit(hw + 5, 5) == 0 && he.hit(hw - 1, 5) == 0, '${he.hit(-5, 5)} ${he.hit(hw + 5, 5)} ${he.hit(hw - 1, 5)}');
+		var mixed = new TextLayout("ab שלום cd", set, 1.25, Math.NaN);
+		var order = [for (g in mixed.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
+		check("bidi: a mixed line in visual order", order == "ab םולש cd", order);
+		// Arabic: joining forms and the lam-alef ligature from DejaVu Sans's GSUB; the widths at 100px are Chromium's
+		// (HarfBuzz: measureText with the font "100px DejaVu Sans")
+		var big = new FontSet(sans, fonts.fallbacks(), 100);
+		for (c in [{s: "سلام", w: 205.37109375}, {s: "ببب", w: 156.201171875}, {s: "مرحبا", w: 231.201171875}, {s: "العربية", w: 273.291015625}, {s: "كتاب", w: 202.392578125}]) {
+			var s = c.s, w = c.w;
+			var t = new TextLayout(s, big, 1.25, Math.NaN);
+			check("arabic: " + s + ", its width as Chromium's", Math.abs(t.width - w) < 0.01, '${t.width} $w');
+		}
+		var beh = new TextLayout("ببب", big, 1.25, Math.NaN).lines[0].glyphs, b1 = sans.glyph(0x628);
+		check("arabic: initial, medial and final forms", beh.length == 3 && beh[0].id != b1 && beh[1].id != b1 && beh[2].id != b1
+			&& beh[0].id != beh[1].id && beh[1].id != beh[2].id, [for (g in beh) g.id].join(","));
+		var la = new TextLayout("لا", big, 1.25, Math.NaN);
+		var lg = la.lines[0].glyphs;
+		check("arabic: lam and alef, one glyph for two characters", lg.length == 1 && lg[0].length == 2 && Math.abs(la.width - 57.03125) < 0.01,
+			'${lg.length} ${la.width}');
+		check("arabic: the caret between lam and alef, at the ligature's middle", Math.abs(la.caret(1).x - la.width / 2) < 0.01 && la.hit(la.width * 0.5 + 1, 5) == 1
+			&& la.hit(la.width - 2, 5) == 0 && la.hit(2, 5) == 2, '${la.caret(1).x} ${la.hit(la.width * 0.5 + 1, 5)}');
+		// (the ligature glyph carries the lam)
+		var mixedAr = new TextLayout("ab سلام", set, 1.25, Math.NaN);
+		var arOrder = [for (g in mixedAr.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
+		check("arabic: a mixed line in visual order", arOrder == "ab ملس", arOrder);
 		var empty = new TextLayout("", set, 1.25, 100);
 		check("layout: empty text is one line", empty.lines.length == 1 && empty.height == 20 && empty.width == 0);
 	}
