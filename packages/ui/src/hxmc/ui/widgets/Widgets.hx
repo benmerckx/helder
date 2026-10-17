@@ -2299,6 +2299,11 @@ class Widgets implements Markup {
 			slot: "alert-dialog-overlay",
 			onDismiss: cancel,
 			dismissOnOutside: false,
+			// (the focus on Cancel, as Radix's: the safe choice under Enter)
+			onOpen: p -> {
+				var c = p.find(tag + "-cancel");
+				if (c != null && c.ui != null) c.ui.setFocus(c, false);
+			},
 			tag: tag,
 			children: <view slot="alert-dialog-content" data-state="open" role="alertdialog" label={props.title} width={props.width ?? 360}>
 				<view slot="alert-dialog-header">
