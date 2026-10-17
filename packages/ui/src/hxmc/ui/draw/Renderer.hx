@@ -334,12 +334,18 @@ class Renderer implements Canvas {
 		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, 0, 0, 1, 0);
 	}
 
-	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners) {
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners, ?offset:Array<Float>) {
 		if (w <= 0 || h <= 0 || color.a == 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		this.corners(corners, radius);
-		sides(null, 0);
+		// (the box casting it, not shaded: its offset and the spread)
+		if (offset != null) {
+			qw0 = offset[0] * s;
+			qw1 = offset[1] * s;
+			qw2 = offset[2] * s;
+			qw3 = 1;
+		} else sides(null, 0);
 		// (CSS's blur: a Gaussian whose standard deviation is half of it, drawn out to three of them)
 		var sigma = blur * s / 2;
 		if (!flat) {

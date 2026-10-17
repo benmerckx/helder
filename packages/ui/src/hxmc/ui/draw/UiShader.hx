@@ -12,7 +12,9 @@ import hxmc.gfx.shader.ShaderMath.*;
 // colour (mode 1); or an image, its texels (premultiplied) times the
 // colour's alpha, its corners rounded as a rectangle's (mode 2); or a
 // shadow, the rectangle blurred by a Gaussian (its standard deviation:
-// blur), as Skia blurs CSS's box shadows (mode 3); or an inset shadow, the
+// blur), as Skia blurs CSS's box shadows, not under the box that casts it
+// (the rectangle moved back by widths' x, y and shrunk by z: CSS clips an
+// outer shadow to outside the border box) (mode 3); or an inset shadow, the
 // rectangle's padding box darkened from outside a rectangle offset and
 // shrunk by widths' x, y and z (mode 4). Every fragment is
 // also clipped by a rectangle with rounded corners (clip, in target pixels,
@@ -142,7 +144,11 @@ class UiShader implements Shaders {
 		}
 		if (mode > 2.5) {
 			var a = i.params.y > 0.01 ? blurred(i.local, i.half, i.radii, i.params.y) : clamp(0.5 - box(i.local, i.half, i.radii), 0, 1);
-			return i.color * a * clipped;
+			var o = i.widths;
+			var caster = max(i.half - vec2(o.z, o.z), vec2(0, 0));
+			var cr = max(i.radii - vec4(o.z, o.z, o.z, o.z), vec4(0, 0, 0, 0));
+			var under = o.w > 0 ? clamp(0.5 - box(i.local + o.xy, caster, cr), 0, 1) : 0.0;
+			return i.color * a * (1 - under) * clipped;
 		}
 		if (mode > 1.5) return texel * i.color.w * clamp(0.5 - box(i.local, i.half, i.radii), 0, 1) * clipped;
 		if (mode > 0.5) return i.color * coverage * clipped;

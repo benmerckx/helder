@@ -122,15 +122,17 @@ class Ui {
 			padC = new Corners(Math.max(0, c.topLeft - Math.max(be.left, be.top)), Math.max(0, c.topRight - Math.max(be.top, be.right)),
 				Math.max(0, c.bottomRight - Math.max(be.right, be.bottom)), Math.max(0, c.bottomLeft - Math.max(be.bottom, be.left)));
 		}
-		// (the shadows outside: the last one first, under the others)
+		// (the shadows outside: the last one first, under the others; not
+		// under the box, as CSS clips them, unless its background hides them)
 		var shadows = s.shadow == null ? null : s.shadow.painted();
+		var opaque = s.background.a == 255 && s.backgroundImage == null;
 		if (shadows != null)
 			for (sh in shadows) {
 				if (sh.inset) continue;
 				var o = sh.spread;
 				canvas.shadow(n.absX + sh.x - o, n.absY + sh.y - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, sh.color,
 					sh.blur, cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0, cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0,
-						cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0, cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0));
+						cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0, cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0), opaque ? null : [sh.x, sh.y, o]);
 			}
 		if (s.backgroundImage != null && n.width > 0 && n.height > 0) {
 			// (the colour, the gradient over it, then the border over both)

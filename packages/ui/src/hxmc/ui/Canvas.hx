@@ -19,8 +19,10 @@ interface Canvas {
 	// a rectangle with rounded corners, filled, with a border inside it;
 	// sides (given): each side's width, over borderWidth
 	function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color, ?corners:Corners, ?sides:Edges):Void;
-	// a rounded rectangle faded over blur pixels on each side of its edge
-	function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners):Void;
+	// a rounded rectangle blurred (CSS's blur: a Gaussian whose standard
+	// deviation is half of it); offset (given): x, y and spread from the box
+	// that casts it, which it is not drawn under (CSS's outer box shadow)
+	function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners, ?offset:Array<Float>):Void;
 	// an inset shadow inside a padding box (its corners): the box darkened
 	// from outside a rectangle moved by dx, dy and shrunk by spread, blurred
 	function insetShadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, dx:Float, dy:Float, spread:Float,

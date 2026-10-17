@@ -1353,7 +1353,7 @@ class Recording implements Canvas {
 		calls.push('rect $x $y $w $h $radius ${hex(fill)} $borderWidth ${hex(border)}' + cs(corners)
 			+ (sides == null ? "" : ' sides ${sides.top},${sides.right},${sides.bottom},${sides.left}'));
 
-	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners)
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners, ?offset:Array<Float>)
 		calls.push('shadow $x $y $w $h $radius ${hex(color)} $blur' + cs(corners));
 
 	public function insetShadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, dx:Float, dy:Float, spread:Float,
