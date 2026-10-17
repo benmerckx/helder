@@ -26,6 +26,8 @@ class Layout {
 	// the last size() result
 	var rw = 0.0;
 	var rh = 0.0;
+	// (false: the next size() measures its node's content, its own height and min-height left out)
+	var ownHeight = true;
 	// flex items and lines, kept from layout to layout: a container's are
 	// taken from the top and given back when it is done (its children's
 	// taken above them meanwhile)
@@ -67,10 +69,12 @@ class Layout {
 			return;
 		}
 		// the style's own size, clamped
+		var own = ownHeight;
+		ownHeight = true;
 		var minW = min(s.minWidth, parentW), maxW = max(s.maxWidth, parentW);
-		var minH = min(s.minHeight, parentH), maxH = max(s.maxHeight, parentH);
+		var minH = own ? min(s.minHeight, parentH) : 0.0, maxH = max(s.maxHeight, parentH);
 		var w = known(knownW) ? knownW : clamp(s.width.resolve(parentW), minW, maxW);
-		var h = known(knownH) ? knownH : clamp(s.height.resolve(parentH), minH, maxH);
+		var h = known(knownH) ? knownH : own ? clamp(s.height.resolve(parentH), minH, maxH) : Math.NaN;
 		var ar = s.aspectRatio;
 		if (ar > 0) {
 			if (!known(w) && known(h)) w = clamp(h * ar, minW, maxW);
@@ -88,7 +92,7 @@ class Layout {
 				rh = h;
 				return;
 			}
-		} else if (lookup(n, w, h, availW, availH)) return;
+		} else if (own && lookup(n, w, h, availW, availH)) return;
 		var pad = s.padding, be = s.borderEdges;
 		var padL = pad.left + be.left, padT = pad.top + be.top, padH = pad.left + pad.right + be.left + be.right, padV = pad.top + pad.bottom + be.top + be.bottom;
 		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) {
@@ -180,6 +184,8 @@ class Layout {
 					var kc = it.styleCross;
 					if (!known(kc) && it.align == Stretch && !multi && known(innerCross)) kc = Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd);
 					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
+					// (its content's height: not its own, CSS's content size suggestion)
+					ownHeight = false;
 					size(c, kc, Math.NaN, innerW, innerH, ac, Math.NaN, false);
 					content = rh;
 				}
@@ -730,10 +736,18 @@ class Layout {
 				case Percent(_): !known(room);
 				case _: false;
 			}
-		// the items' contributions on this axis (outer sizes)
-		var mins = [], maxes = [];
+		// the items' contributions on this axis (outer sizes); autoMins: their
+		// minimum contributions to a track whose minimum is auto (CSS's
+		// automatic minimum size: a min-width or min-height set, else 0 for a
+		// scroll container, its padding and border, else the min-content)
+		var mins = [], maxes = [], autoMins = [];
 		for (it in items) {
 			var c = it.node, cs = c.style, m = cs.margin;
+			var given = (columns ? cs.minWidth : cs.minHeight).resolve(columns ? gridW : gridH);
+			var edges = columns ? m.left + m.right : m.top + m.bottom;
+			var clipped = cs.overflow != Visible ? edges
+				+ (columns ? cs.padding.left + cs.padding.right + cs.borderEdges.left + cs.borderEdges.right : cs.padding.top + cs.padding.bottom
+					+ cs.borderEdges.top + cs.borderEdges.bottom) : Math.NaN;
 			if (columns) {
 				mins.push(minContentWidth(c, gridW, true) + m.left + m.right);
 				size(c, Math.NaN, Math.NaN, gridW, gridH, Math.NaN, Math.NaN, false);
@@ -748,6 +762,7 @@ class Layout {
 				mins.push(v);
 				maxes.push(v);
 			}
+			autoMins.push(known(given) ? given + edges : known(clipped) ? clipped : mins[mins.length - 1]);
 		}
 		inline function startOf(it:GridItem):Int
 			return columns ? it.col : it.row;
@@ -774,7 +789,8 @@ class Layout {
 				}
 				var wantMin = switch span == 1 ? defs[a].min : Grid.TrackSize.Auto {
 					case MaxContent: maxes[k];
-					case _: mins[k];
+					case MinContent: mins[k];
+					case _: autoMins[k];
 				}
 				if (wantMin > have && targets.length > 0)
 					for (i in targets)
@@ -811,9 +827,9 @@ class Layout {
 				have += base[i];
 				if (flex[i] > 0 && intrinsicMin(i)) fsum += flex[i];
 			}
-			if (fsum > 0 && mins[k] > have)
+			if (fsum > 0 && autoMins[k] > have)
 				for (i in a...a + span)
-					if (flex[i] > 0 && intrinsicMin(i)) base[i] += (mins[k] - have) * flex[i] / fsum;
+					if (flex[i] > 0 && intrinsicMin(i)) base[i] += (autoMins[k] - have) * flex[i] / fsum;
 		}
 		var gaps = n > 1 ? gap * (n - 1) : 0.0;
 		// the free space up to the limits (indefinite: every limit)

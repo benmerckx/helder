@@ -952,6 +952,8 @@ class UiTest {
 		var rows = [for (i in 0...10) {
 			var r = new Node("row" + i);
 			r.style.height = 20;
+			// (as in CSS: an empty box of a fixed height shrinks in a column it overflows)
+			r.style.shrink = 0;
 			r.focusable = true;
 			box.append(r);
 			r;

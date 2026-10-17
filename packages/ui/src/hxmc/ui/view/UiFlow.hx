@@ -141,6 +141,8 @@ class VirtualRows<T> implements Mountable<Node> {
 		view.style.overflow = Scroll;
 		view.style.height = height;
 		var spacer = new Node("spacer");
+		// (its height the rows' extent: kept, not shrunk to the view)
+		spacer.style.shrink = 0;
 		view.append(spacer);
 		var i = before == null ? parent.children.length : parent.indexOf(before);
 		parent.insert(view, i < 0 ? parent.children.length : i);

@@ -2782,6 +2782,145 @@
 		}
 	},
 	{
+		"name": "grid clipped wide item in fr",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "50px 1fr 40px",
+				"alignContent": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"height": 20
+					}
+				},
+				{
+					"style": {
+						"overflow": "Hidden",
+						"padding": [
+							0,
+							6
+						]
+					},
+					"children": [
+						{
+							"style": {
+								"width": 400,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "grid clipped item in an auto track",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "auto 1fr",
+				"alignContent": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"overflow": "Hidden"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 400,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "grid clipped tall item in fr rows",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "1fr",
+				"gridTemplateRows": "1fr 30px"
+			},
+			"children": [
+				{
+					"style": {
+						"overflow": "Hidden"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 200
+							}
+						}
+					]
+				},
+				{}
+			]
+		}
+	},
+	{
+		"name": "grid clipped item with a min width",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "50px 1fr 40px",
+				"alignContent": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"height": 20
+					}
+				},
+				{
+					"style": {
+						"overflow": "Hidden",
+						"minWidth": 250
+					},
+					"children": [
+						{
+							"style": {
+								"width": 400,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
 		"name": "grid template areas",
 		"width": 300,
 		"height": 200,

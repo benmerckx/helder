@@ -54,7 +54,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     painted and hit in it; Tab keeps the tree's order), `zIndex` (painted
     and hit over or under siblings; no stacking contexts across levels).
     Sizes are border boxes. Items get CSS's automatic minimum
-    size, so content is not squashed. `display: Grid` lays children out
+    size, so content is not squashed (their content's, not their own
+    `height`: an empty box of a fixed height shrinks in a column it
+    overflows, as in CSS; `shrink: 0` keeps it; a scroll container's is 0,
+    in grid tracks too). `display: Grid` lays children out
     on CSS grid tracks instead: `gridTemplateColumns` and
     `gridTemplateRows` (px, %, fr, auto, min-content, max-content,
     minmax(), repeat()), `gridAutoRows`, `gridAutoColumns`,
@@ -64,7 +67,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     by rows or columns, sparse or dense), aligned by `justifyItems`,
     `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify` and
     `alignContent` (no other named lines, no subgrid). Checked against
-    Chromium on 109 cases, 35 of them grids, 8 right to left.
+    Chromium on 113 cases, 39 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the
