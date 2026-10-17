@@ -244,8 +244,8 @@ class WinAccess {
 	// the pattern interface's slot of a node (0: none): Invoke, Toggle, RangeValue, Value
 	static function pattern(n:AccessNode):Int
 		return switch n.role {
-			case Button | MenuItem | Link | ListBoxOption | Tab: 3;
-			case CheckBox | Switch: 4;
+			case Button | MenuItem | Link | ListBoxOption | Tab | MenuItemRadio: 3;
+			case CheckBox | Switch | MenuItemCheckBox: 4;
 			case Slider | ProgressIndicator | SpinButton: 5;
 			case TextInput | MultilineTextInput: 6;
 			case ComboBox if (n.value != null): 6;
@@ -332,7 +332,7 @@ class WinAccess {
 			case Menu: 50009;
 			case MenuBar: 50010;
 			case Toolbar: 50021;
-			case MenuItem: 50011;
+			case MenuItem | MenuItemCheckBox | MenuItemRadio: 50011;
 			case ProgressIndicator: 50012;
 			case RadioButton: 50013;
 			case Slider: 50015;
@@ -348,7 +348,7 @@ class WinAccess {
 			case Tree: 50023;
 			case TreeItem: 50024;
 			case Separator: 50038;
-			case Dialog: 50032;
+			case Dialog | AlertDialog: 50032;
 			case ScrollView | TabPanel: 50033;
 			case _: 50026; // Group
 		}

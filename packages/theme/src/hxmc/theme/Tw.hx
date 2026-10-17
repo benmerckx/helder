@@ -34,16 +34,18 @@ class Tw {
 	// variant and size fixed or not}; and a class after them, as cn's
 	// className), "global" before each slot's that has borders (shadcn's
 	// `* { border-border }`), --radius ("radius"), CSS variables a class may
-	// name ("vars"), and the light and dark tokens
+	// name ("vars"), the light and dark tokens, and other files' slots
+	// ("include": their "slots", over the file's)
 	public static macro function sheet(file:String):Expr {
 		var pos = Context.currentPos();
 		var path = haxe.io.Path.join([haxe.io.Path.directory(Context.getPosInfos(pos).file), file]);
 		var text = try sys.io.File.getContent(path) catch (e) Context.error('Tw.sheet: $path: $e', pos);
 		Context.registerModuleDependency(Context.getLocalModule(), path);
 		var json:Dynamic = try haxe.Json.parse(text) catch (e) Context.error('Tw.sheet: $path: $e', pos);
-		// (a class list's offset in the file)
+		// (the file a slot is read from, and a class list's offset in it)
+		var main = {path: path, text: text}, file = main;
 		function offset(s:String):Int
-			return text.indexOf('"' + s + '"') + 1;
+			return file.text.indexOf('"' + s + '"') + 1;
 		function sorted(m:haxe.DynamicAccess<Dynamic>):Array<String> {
 			var keys = [for (k in m.keys()) k];
 			keys.sort(Reflect.compare);
@@ -53,14 +55,29 @@ class Tw {
 		var v:haxe.DynamicAccess<String> = json.vars;
 		if (v != null) for (k => x in v)
 			vars[k] = x;
-		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: path, min: at, max: at + n})), vars);
+		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: file.path, min: at, max: at + n})), vars);
 		var global = {classes: (json.global : String) ?? "", offset: offset(json.global ?? "")};
 		var rules = [];
-		var slots:haxe.DynamicAccess<Dynamic> = json.slots;
+		// (the file's slots, then those of the files it includes, which win:
+		// shadcn's, then ours, extras.json)
+		var slots:haxe.DynamicAccess<Dynamic> = Reflect.copy(json.slots), from = new Map<String, {path:String, text:String}>();
+		var include:Array<String> = json.include == null ? [] : json.include;
+		for (inc in include) {
+			var p = haxe.io.Path.join([haxe.io.Path.directory(path), inc]);
+			var t = try sys.io.File.getContent(p) catch (e) Context.error('Tw.sheet: $p: $e', pos);
+			Context.registerModuleDependency(Context.getLocalModule(), p);
+			var j:Dynamic = try haxe.Json.parse(t) catch (e) Context.error('Tw.sheet: $p: $e', pos);
+			var more:haxe.DynamicAccess<Dynamic> = j.slots;
+			if (more != null) for (k => x in more) {
+				slots[k] = x;
+				from[k] = {path: p, text: t};
+			}
+		}
 		for (name in sorted(slots)) {
-			var lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String}> = [];
-			function add(s:String, ?variant:String, ?size:String)
-				lists.push({classes: s, offset: offset(s), variant: variant, size: size});
+			file = from[name] ?? main;
+			var lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String, ?prefix:String}> = [];
+			function add(s:String, ?variant:String, ?size:String, ?prefix:String)
+				lists.push({classes: s, offset: offset(s), variant: variant, size: size, prefix: prefix});
 			function some(v:Dynamic, f:String->Void)
 				if (Std.isOfType(v, Array)) for (s in (v : Array<String>)) f(s) else if (v != null) f(v);
 			// (cva's: its base, then each variant's and size's, or the
@@ -82,6 +99,10 @@ class Tw {
 								if (k == fixed) add(m[k]);
 							} else if (kind == "variant") add(m[k], k) else add(m[k], null, k);
 					}
+					// (classes under a state the widget sets, as a prop's in the component: sheet's side, data-[side=right])
+					var states:haxe.DynamicAccess<String> = Reflect.field(v, "states");
+					if (states != null) for (k in sorted(states))
+						add(states[k], null, null, k);
 				}
 				some(Reflect.field(v, "class"), s -> add(s));
 			}
@@ -92,9 +113,6 @@ class Tw {
 				out = tw.slot(name, [global].concat(lists));
 			rules = rules.concat(out);
 		}
-		// (-D hxmc.theme.dump: each rule as Tailwind.describe writes it)
-		if (Context.defined("hxmc.theme.dump")) for (r in rules)
-			Sys.println(Tailwind.describe(r));
 		var e = new Encoder();
 		e.int(rules.length);
 		for (r in rules)
@@ -107,6 +125,13 @@ class Tw {
 				e.str(k);
 				e.str(tokens[k]);
 			}
+		}
+		e.str(Std.string(css(json.radius)));
+		// (-D hxmc.theme.dump: each rule as Tailwind.describe writes it, and the data's size)
+		if (Context.defined("hxmc.theme.dump")) {
+			for (r in rules)
+				Sys.println(Tailwind.describe(r));
+			Sys.println('Tw.sheet: ${rules.length} rules, ${e.data.length} bytes of rules, ${e.strings.join("\n").length} of strings');
 		}
 		return macro hxmc.theme.RuleData.sheet($v{e.data.toString()}, $v{e.strings.join("\n")});
 	}
@@ -160,8 +185,9 @@ private class Encoder {
 	public function str(s:String)
 		int(intern(s));
 
+	// (--radius plus px: "r" and the px, Length.token("radius", px) when read)
 	function num(f:Float)
-		str(Std.string(f));
+		str(Tailwind.isRadius(f) ? "r" + (f - Tailwind.RADIUS) : Std.string(f));
 
 	public function rule(r:TwRule) {
 		str(r.slot);
@@ -204,7 +230,7 @@ private class Encoder {
 					case Px(_):
 				}
 			case ["E", VEdges(t, r, b, l)] | ["C", VCorners(t, r, b, l)]: for (n in [t, r, b, l]) num(n);
-			case ["c", VColor(s)] | ["s", VStr(s)] | ["t", VTransform(s)]: str(s);
+			case ["c", VColor(s)] | ["s", VStr(s)] | ["t", VTransform(s)] | ["r", VTransition(s)]: str(s);
 			case ["S", VShadow(list)]:
 				int(list.length);
 				for (s in list) {

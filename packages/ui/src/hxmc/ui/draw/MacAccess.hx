@@ -173,7 +173,7 @@ class MacAccess {
 		var sub = switch n.role {
 			case Switch: "AXSwitch";
 			case Tab: "AXTabButton";
-			case Dialog: "AXApplicationDialog";
+			case Dialog | AlertDialog: "AXApplicationDialog";
 			case Navigation: "AXLandmarkNavigation";
 			case TextInput if (n.secret): "AXSecureTextField";
 			case _: null;
@@ -208,7 +208,7 @@ class MacAccess {
 
 	static function macRole(r:Role):String
 		return switch r {
-			case Group | TabPanel | ListItem | Dialog: "AXGroup";
+			case Group | TabPanel | ListItem | Dialog | AlertDialog: "AXGroup";
 			case Button: "AXButton";
 			case CheckBox | Switch: "AXCheckBox";
 			case RadioGroup: "AXRadioGroup";
@@ -225,7 +225,7 @@ class MacAccess {
 			case Heading: "AXHeading";
 			case Link: "AXLink";
 			case Menu: "AXMenu";
-			case MenuItem: "AXMenuItem";
+			case MenuItem | MenuItemCheckBox | MenuItemRadio: "AXMenuItem";
 			case ListBoxOption: "AXStaticText";
 			case ComboBox: "AXPopUpButton";
 			case Tooltip: "AXHelpTag";

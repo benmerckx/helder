@@ -664,9 +664,12 @@
 	{
 		"name": "select-content-open",
 		"component": "select-content",
-		"w": 200,
-		"h": 200,
-		"dark": false
+		"w": 144,
+		"h": 154,
+		"dark": false,
+		"crop": "select-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "table-default",
@@ -687,7 +690,7 @@
 	{
 		"name": "breadcrumb-default",
 		"component": "breadcrumb",
-		"w": 300,
+		"w": 360,
 		"h": 52,
 		"dark": false
 	},
@@ -709,23 +712,32 @@
 	{
 		"name": "popover-open",
 		"component": "popover",
-		"w": 320,
-		"h": 120,
-		"dark": false
+		"w": 304,
+		"h": 94,
+		"dark": false,
+		"crop": "popover-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "tooltip-open",
 		"component": "tooltip",
-		"w": 160,
-		"h": 60,
-		"dark": false
+		"w": 117,
+		"h": 44,
+		"dark": false,
+		"crop": "tooltip-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "dropdown-menu-open",
 		"component": "dropdown-menu",
-		"w": 240,
-		"h": 240,
-		"dark": false
+		"w": 144,
+		"h": 163,
+		"dark": false,
+		"crop": "dropdown-menu-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "menubar-default",
@@ -738,8 +750,134 @@
 		"name": "command-default",
 		"component": "command",
 		"w": 482,
-		"h": 240,
+		"h": 300,
 		"dark": false
+	},
+	{
+		"name": "combobox-open",
+		"component": "combobox",
+		"w": 216,
+		"h": 186,
+		"dark": false,
+		"crop": "command-list",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "alert-dialog-open",
+		"component": "alert-dialog",
+		"w": 800,
+		"h": 600,
+		"dark": false
+	},
+	{
+		"name": "drawer-open",
+		"component": "drawer",
+		"w": 800,
+		"h": 600,
+		"dark": false
+	},
+	{
+		"name": "input-otp-active",
+		"component": "input-otp",
+		"w": 320,
+		"h": 68,
+		"dark": false
+	},
+	{
+		"name": "dropdown-menu-items-open",
+		"component": "dropdown-menu-items",
+		"w": 144,
+		"h": 163,
+		"dark": false,
+		"crop": "dropdown-menu-content",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "context-menu-open",
+		"component": "context-menu",
+		"w": 144,
+		"h": 163,
+		"dark": false,
+		"crop": "context-menu-content",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "menubar-content-open",
+		"component": "menubar-content",
+		"w": 208,
+		"h": 163,
+		"dark": false,
+		"crop": "menubar-content",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "hover-card-open",
+		"component": "hover-card",
+		"w": 272,
+		"h": 90,
+		"dark": false,
+		"crop": "hover-card-content",
+		"fw": 320,
+		"fh": 200
+	},
+	{
+		"name": "sheet-open",
+		"component": "sheet",
+		"w": 800,
+		"h": 600,
+		"dark": false
+	},
+	{
+		"name": "avatar-fallback",
+		"component": "avatar",
+		"w": 64,
+		"h": 64,
+		"dark": false
+	},
+	{
+		"name": "kbd-default",
+		"component": "kbd",
+		"w": 80,
+		"h": 52,
+		"dark": false
+	},
+	{
+		"name": "spinner-default",
+		"component": "spinner",
+		"w": 48,
+		"h": 48,
+		"dark": false
+	},
+	{
+		"name": "resizable-horizontal",
+		"component": "resizable",
+		"w": 400,
+		"h": 192,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "calendar-default",
+		"component": "calendar",
+		"w": 300,
+		"h": 340,
+		"dark": false
+	},
+	{
+		"name": "toast-default",
+		"component": "toast",
+		"w": 372,
+		"h": 74,
+		"text": "Event has been created",
+		"dark": false,
+		"action": "Undo",
+		"crop": "toast",
+		"fw": 420,
+		"fh": 140
 	},
 	{
 		"name": "button-default-dark",
@@ -1406,9 +1544,12 @@
 	{
 		"name": "select-content-open-dark",
 		"component": "select-content",
-		"w": 200,
-		"h": 200,
-		"dark": true
+		"w": 144,
+		"h": 154,
+		"dark": true,
+		"crop": "select-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "table-default-dark",
@@ -1429,7 +1570,7 @@
 	{
 		"name": "breadcrumb-default-dark",
 		"component": "breadcrumb",
-		"w": 300,
+		"w": 360,
 		"h": 52,
 		"dark": true
 	},
@@ -1451,23 +1592,32 @@
 	{
 		"name": "popover-open-dark",
 		"component": "popover",
-		"w": 320,
-		"h": 120,
-		"dark": true
+		"w": 304,
+		"h": 94,
+		"dark": true,
+		"crop": "popover-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "tooltip-open-dark",
 		"component": "tooltip",
-		"w": 160,
-		"h": 60,
-		"dark": true
+		"w": 117,
+		"h": 44,
+		"dark": true,
+		"crop": "tooltip-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "dropdown-menu-open-dark",
 		"component": "dropdown-menu",
-		"w": 240,
-		"h": 240,
-		"dark": true
+		"w": 144,
+		"h": 163,
+		"dark": true,
+		"crop": "dropdown-menu-content",
+		"fw": 360,
+		"fh": 300
 	},
 	{
 		"name": "menubar-default-dark",
@@ -1480,8 +1630,199 @@
 		"name": "command-default-dark",
 		"component": "command",
 		"w": 482,
-		"h": 240,
+		"h": 300,
 		"dark": true
+	},
+	{
+		"name": "combobox-open-dark",
+		"component": "combobox",
+		"w": 216,
+		"h": 186,
+		"dark": true,
+		"crop": "command-list",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "alert-dialog-open-dark",
+		"component": "alert-dialog",
+		"w": 800,
+		"h": 600,
+		"dark": true
+	},
+	{
+		"name": "drawer-open-dark",
+		"component": "drawer",
+		"w": 800,
+		"h": 600,
+		"dark": true
+	},
+	{
+		"name": "input-otp-active-dark",
+		"component": "input-otp",
+		"w": 320,
+		"h": 68,
+		"dark": true
+	},
+	{
+		"name": "dropdown-menu-items-open-dark",
+		"component": "dropdown-menu-items",
+		"w": 144,
+		"h": 163,
+		"dark": true,
+		"crop": "dropdown-menu-content",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "context-menu-open-dark",
+		"component": "context-menu",
+		"w": 144,
+		"h": 163,
+		"dark": true,
+		"crop": "context-menu-content",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "menubar-content-open-dark",
+		"component": "menubar-content",
+		"w": 208,
+		"h": 163,
+		"dark": true,
+		"crop": "menubar-content",
+		"fw": 320,
+		"fh": 300
+	},
+	{
+		"name": "hover-card-open-dark",
+		"component": "hover-card",
+		"w": 272,
+		"h": 90,
+		"dark": true,
+		"crop": "hover-card-content",
+		"fw": 320,
+		"fh": 200
+	},
+	{
+		"name": "sheet-open-dark",
+		"component": "sheet",
+		"w": 800,
+		"h": 600,
+		"dark": true
+	},
+	{
+		"name": "avatar-fallback-dark",
+		"component": "avatar",
+		"w": 64,
+		"h": 64,
+		"dark": true
+	},
+	{
+		"name": "kbd-default-dark",
+		"component": "kbd",
+		"w": 80,
+		"h": 52,
+		"dark": true
+	},
+	{
+		"name": "spinner-default-dark",
+		"component": "spinner",
+		"w": 48,
+		"h": 48,
+		"dark": true
+	},
+	{
+		"name": "resizable-horizontal-dark",
+		"component": "resizable",
+		"w": 400,
+		"h": 192,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "calendar-default-dark",
+		"component": "calendar",
+		"w": 300,
+		"h": 340,
+		"dark": true
+	},
+	{
+		"name": "toast-default-dark",
+		"component": "toast",
+		"w": 372,
+		"h": 74,
+		"text": "Event has been created",
+		"dark": true,
+		"action": "Undo",
+		"crop": "toast",
+		"fw": 420,
+		"fh": 140
+	},
+	{
+		"name": "card-full-rtl",
+		"component": "card",
+		"w": 360,
+		"h": 248,
+		"block": true,
+		"text": "Card Content",
+		"title": "Card Title",
+		"description": "Card Description",
+		"action": "Card Action",
+		"footer": "Card Footer",
+		"rtl": true
+	},
+	{
+		"name": "alert-default-rtl",
+		"component": "alert",
+		"w": 400,
+		"h": 116,
+		"block": true,
+		"variant": "default",
+		"text": "You can add components to your app using the cli.",
+		"title": "Heads up!",
+		"rtl": true
+	},
+	{
+		"name": "input-value-rtl",
+		"component": "input",
+		"w": 280,
+		"h": 68,
+		"block": true,
+		"text": "hello@example.com",
+		"rtl": true
+	},
+	{
+		"name": "breadcrumb-default-rtl",
+		"component": "breadcrumb",
+		"w": 360,
+		"h": 52,
+		"rtl": true
+	},
+	{
+		"name": "pagination-default-rtl",
+		"component": "pagination",
+		"w": 420,
+		"h": 68,
+		"block": true,
+		"rtl": true
+	},
+	{
+		"name": "dropdown-menu-open-rtl",
+		"component": "dropdown-menu",
+		"w": 144,
+		"h": 163,
+		"rtl": true,
+		"crop": "dropdown-menu-content",
+		"fw": 360,
+		"fh": 300
+	},
+	{
+		"name": "calendar-default-rtl",
+		"component": "calendar",
+		"w": 300,
+		"h": 340,
+		"rtl": true
 	},
 	{
 		"name": "button-size-default",
