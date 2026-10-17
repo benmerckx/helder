@@ -75,6 +75,6 @@ optional ligatures or contextual alternates (GSUB's other lookups), no
 cursive attachment or Indic shaping, marks not reordered by combining
 class, no hinting, grayscale anti-aliasing. The same
 pixels on every machine, which makes golden-image tests portable; the
-platforms' shapers are the planned upgrade (`hxmc/UI.md`).
+platforms' shapers are the planned upgrade (`docs/plans/ui.md`).
 
 Tests: `make text-check` (`test/TextTest.hx`).
