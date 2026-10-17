@@ -1400,6 +1400,63 @@ static function transitions() {
 		check("themes: a radius from the sheet's lengths (clamped at 0)", first == 6 && rad.style.radius == 0 && Length.tokenOffset(Length.token("x", -2.5)) == -2.5,
 			first + " " + rad.style.radius);
 		ui.root.remove(rad);
+		// (other nodes' states: a group's hover, a named peer's attribute, a descendant's, first and last, not)
+		ui.theme = {
+			rules: [
+				{slot: "gi", style: {opacity: 0.5}},
+				{slot: "gi", when: ["group:hover"], style: {opacity: 1}},
+				{slot: "pi", when: ["peer/box:data-state=checked"], style: {opacity: 0.25}},
+				{slot: "hb", when: ["has:data-state=open"], style: {opacity: 0.75}},
+				{slot: "hb", when: ["has:>data-slot=pi"], style: {zIndex: 2}},
+				{slot: "li", when: ["first"], style: {opacity: 0.1}},
+				{slot: "li", when: ["last"], style: {opacity: 0.9}},
+				{slot: "li", when: ["not:first", "not:last"], style: {opacity: 0.5}}
+			]
+		};
+		var group = new Node("g"), inner = new Node("gi"), box = new Node("box"), peerOf = new Node("pi"), deep = new Node("deep");
+		group.setAttr("group", "");
+		inner.slot = "gi";
+		box.setAttr("peer", "box");
+		peerOf.slot = "pi";
+		group.slot = "hb";
+		var mid = new Node();
+		mid.append(inner);
+		mid.append(deep);
+		group.append(mid);
+		group.append(box);
+		group.append(peerOf);
+		ui.root.append(group);
+		ui.update();
+		var before = inner.style.opacity;
+		@:privateAccess group.setState(true, false, false);
+		ui.update();
+		check("themes: group:hover from a hovered ancestor marked group", before == 0.5 && inner.style.opacity == 1, before + " " + inner.style.opacity);
+		box.setAttr("data-state", "checked");
+		deep.setAttr("data-state", "open");
+		ui.update();
+		check("themes: a named peer's attribute; has: a descendant's, a child's slot", peerOf.style.opacity == 0.25 && group.style.opacity == 0.75
+			&& group.style.zIndex == 2, peerOf.style.opacity + " " + group.style.opacity + " " + group.style.zIndex);
+		deep.setAttr("data-state", null);
+		@:privateAccess group.setState(false, false, false);
+		ui.update();
+		check("themes: back as the others change", inner.style.opacity == 0.5 && group.style.opacity == 1, inner.style.opacity + " " + group.style.opacity);
+		ui.root.remove(group);
+		var list = new Node(), items = [for (i in 0...3) new Node("li" + i)];
+		for (it in items) {
+			it.slot = "li";
+			list.append(it);
+		}
+		ui.root.append(list);
+		ui.update();
+		var placed = [for (it in items) it.style.opacity].join(" ");
+		var extra = new Node("li3");
+		extra.slot = "li";
+		list.append(extra);
+		list.remove(items[0]);
+		ui.update();
+		check("themes: first, last and not:, again as children come and go", placed == "0.1 0.5 0.9" && items[1].style.opacity == 0.1
+			&& items[2].style.opacity == 0.5 && extra.style.opacity == 0.9, placed + " / " + items[1].style.opacity + " " + items[2].style.opacity + " " + extra.style.opacity);
+		ui.root.remove(list);
 		// (rules for a breakpoint: the window at least so wide; again across it)
 		ui.theme = {rules: [{slot: "w", style: {opacity: 0.5}}, {slot: "w", when: ["md"], style: {opacity: 0.75}}]};
 		var wide = new Node("w");

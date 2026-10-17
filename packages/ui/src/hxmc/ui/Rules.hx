@@ -13,7 +13,21 @@ package hxmc.ui;
 // ring's visibility, an attribute, the variant or size, the sheet, dark,
 // the direction (rtl, ltr), the first draw (starting: CSS's @starting-style),
 // the window's width across a breakpoint (sm, md, lg, xl, 2xl: Tailwind's).
+// States of other nodes, as Tailwind's variants: "group:hover" holds while
+// an ancestor marked with a "group" attribute is hovered ("group/item:..."
+// one whose group attribute names item among its words), "peer:checked"
+// while an earlier sibling marked "peer" holds it, "has:data-state=open"
+// while a descendant does ("has:>x": a child), "first" and "last" for the
+// first and last child, "not:x" while x does not; "data-slot=x" is the
+// node's slot. They nest ("group:has:focus").
 class Rules {
+	// (whether a rule anywhere asks for another node's states, so that its changes restyle: group, peer, has, first or last)
+	static var relational = 0;
+	static inline var GROUP = 1;
+	static inline var PEER = 2;
+	static inline var HAS = 4;
+	static inline var PLACE = 8;
+
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
 	static final bases = new Map<String, Bool>();
@@ -209,9 +223,116 @@ class Rules {
 				@:privateAccess n.style.starting = true;
 				!@:privateAccess n.style.drawn;
 			case "ltr": !n.rtl();
+			case "first": n.parent != null && n.parent.children[0] == n;
+			case "last": n.parent != null && n.parent.children[n.parent.children.length - 1] == n;
 			case _:
-				var eq = w.indexOf("=");
-				eq < 0 ? n.attr(w) != null : n.attr(w.substr(0, eq)) == w.substr(eq + 1);
+				var colon = w.indexOf(":");
+				if (colon > 0) {
+					var head = w.substr(0, colon), inner = w.substr(colon + 1);
+					var slash = head.indexOf("/"), name = slash < 0 ? null : head.substr(slash + 1);
+					switch slash < 0 ? head : head.substr(0, slash) {
+						case "not": !holds(n, ui, inner);
+						case "group":
+							var p = n.parent;
+							while (p != null && !(marked(p, "group", name) && holds(p, ui, inner)))
+								p = p.parent;
+							p != null;
+						case "peer":
+							var found = false;
+							if (n.parent != null)
+								for (c in n.parent.children) {
+									if (c == n) break;
+									if (marked(c, "peer", name) && holds(c, ui, inner)) {
+										found = true;
+										break;
+									}
+								}
+							found;
+						case "has":
+							StringTools.startsWith(inner, ">") ? Lambda.exists(n.children, c -> holds(c, ui, inner.substr(1))) : below(n, ui, inner);
+						case _: false;
+					}
+				} else {
+					var eq = w.indexOf("=");
+					if (eq < 0) n.attr(w) != null else {
+						var key = w.substr(0, eq), value = w.substr(eq + 1);
+						key == "data-slot" ? n.slot == value : n.attr(key) == value;
+					}
+				}
+		}
+	}
+
+	// (whether n is marked as a group or peer: the attribute, naming name among its words when given)
+	static function marked(n:Node, attr:String, name:Null<String>):Bool {
+		var v = n.attr(attr);
+		return v != null && (name == null || v.split(" ").indexOf(name) >= 0);
+	}
+
+	// (whether a descendant of n holds w)
+	static function below(n:Node, ui:Ui, w:String):Bool {
+		for (c in n.children)
+			if (holds(c, ui, w) || below(c, ui, w)) return true;
+		return false;
+	}
+
+	// (what rules over other nodes' states w asks for)
+	static function relations(w:String):Int {
+		var r = 0, colon = w.indexOf(":");
+		if (w == "first" || w == "last") r |= PLACE;
+		if (colon > 0) {
+			var head = w.substr(0, colon);
+			if (StringTools.startsWith(head, "group")) r |= GROUP;
+			if (StringTools.startsWith(head, "peer")) r |= PEER;
+			if (head == "has") r |= HAS;
+			r |= relations(w.substr(colon + 1));
+		}
+		return r;
+	}
+
+	// (n's states or attributes changed: the nodes whose rules over other nodes' states may follow, restyled)
+	@:allow(hxmc.ui.Node) @:allow(hxmc.ui.Ui) static function related(n:Node) {
+		if (relational == 0 || n.ui == null) return;
+		if (relational & GROUP != 0 && n.attr("group") != null)
+			for (c in n.children)
+				restyleTree(c);
+		if (relational & PEER != 0 && n.attr("peer") != null && n.parent != null) {
+			var after = false;
+			for (c in n.parent.children) {
+				if (after) restyleTree(c);
+				if (c == n) after = true;
+			}
+		}
+		if (relational & HAS != 0) {
+			var p = n.parent;
+			while (p != null) {
+				@:privateAccess p.restyleLater();
+				p = p.parent;
+			}
+		}
+	}
+
+	// (parent's children changed, child put in or taken out, first and last
+	// maybe others: theirs, the peers' siblings', and the ancestors' has rules, restyled)
+	@:allow(hxmc.ui.Node) static function placed(parent:Node, child:Null<Node>, first:Null<Node>, last:Null<Node>) {
+		if (relational == 0 || parent.ui == null) return;
+		if (relational & PLACE != 0) {
+			if (first != null) @:privateAccess first.restyleLater();
+			if (last != null) @:privateAccess last.restyleLater();
+			var c = parent.children;
+			if (c.length > 0) {
+				@:privateAccess c[0].restyleLater();
+				@:privateAccess c[c.length - 1].restyleLater();
+			}
+		}
+		if (relational & PEER != 0 && (child == null ? Lambda.exists(parent.children, c -> c.attr("peer") != null) : child.attr("peer") != null))
+			for (c in parent.children)
+				restyleTree(c);
+		if (relational & HAS != 0) {
+			var p = parent;
+			while (p != null) {
+				@:privateAccess p.restyleLater();
+				p = p.parent;
+			}
 		}
 	}
 
@@ -300,6 +421,9 @@ class Rules {
 	static function indexOf(rules:Array<Rule>):Map<String, Array<Rule>> {
 		var m = new Map<String, Array<Rule>>();
 		for (r in rules) {
+			if (r.when != null)
+				for (w in r.when)
+					relational |= relations(w);
 			var l = m.get(r.slot);
 			if (l == null) m.set(r.slot, l = []);
 			l.push(r);

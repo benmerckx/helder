@@ -144,6 +144,7 @@ class Node {
 			if (p == child) throw "Node: a node is not inside itself";
 			p = p.parent;
 		}
+		var first = children.length > 0 ? children[0] : null, last = children.length > 0 ? children[children.length - 1] : null;
 		if (child.parent == this) {
 			var i = indexOf(child);
 			children.splice(i, 1);
@@ -155,8 +156,10 @@ class Node {
 		var moved = child.parent != this;
 		child.parent = this;
 		child.attach(ui);
-		// (under another parent: what it inherits may differ)
+		// (under another parent: what it inherits may differ, and the states of nodes around it)
 		if (moved) child.inheritedChanged();
+		if (moved && ui != null && @:privateAccess Rules.relational != 0) Rules.restyleTree(child);
+		Rules.placed(this, child, first, last);
 		markDirty();
 		return child;
 	}
@@ -184,14 +187,19 @@ class Node {
 				changed = true;
 			}
 		}
-		if (changed) markDirty();
+		if (changed) {
+			Rules.placed(this, null, children[0], children[children.length - 1]);
+			markDirty();
+		}
 	}
 
 	public function remove(child:Node) {
 		if (child.parent != this) return;
+		var first = children[0], last = children[children.length - 1];
 		children.remove(child);
 		child.parent = null;
 		child.attach(null);
+		Rules.placed(this, child, first == child ? null : first, last == child ? null : last);
 		markDirty();
 	}
 
@@ -201,6 +209,7 @@ class Node {
 			c.attach(null);
 		}
 		children.resize(0);
+		Rules.placed(this, null, null, null);
 		markDirty();
 	}
 
@@ -1044,8 +1053,10 @@ class Node {
 	// (its States, once made: hxmc.ui.view's)
 	@:allow(hxmc.ui.view) var statesOf:Any = null;
 
-	@:allow(hxmc.ui.Ui) function statesChanged()
+	@:allow(hxmc.ui.Ui) function statesChanged() {
+		Rules.related(this);
 		if (onStates != null) onStates();
+	}
 
 	// --- theme ---
 
@@ -1061,6 +1072,8 @@ class Node {
 			attrs.set(name, value);
 		}
 		restyleLater();
+		// (a group or peer no longer: what its marking styled, again)
+		if (value == null && (name == "group" || name == "peer") && parent != null) Rules.restyleTree(parent);
 		statesChanged();
 	}
 
