@@ -8,7 +8,7 @@ class MonoText implements TextEngine {
 	public function new() {}
 
 	// (justify: ignored, the characters keep their places)
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false):Paragraph
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1):Paragraph
 {
 		var p = new MonoParagraph(text, font, maxWidth, maxLines);
 		p.justified = justify;

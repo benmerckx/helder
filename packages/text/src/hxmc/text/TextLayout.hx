@@ -46,9 +46,11 @@ class TextLayout {
 	// maxLines: at most so many lines (0: any), the last ending in an
 	// ellipsis that fits the width when more were cut, as CSS's line-clamp;
 	// letterSpacing and wordSpacing: pixels after each character and on each
-	// space, as CSS adds them (outside the runs, which have their own)
+	// space, as CSS adds them (outside the runs, which have their own);
+	// base: each paragraph's direction (0 left to right, 1 right to left, as
+	// CSS's direction sets it; -1: from its first strong character)
 	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>, maxLines = 0, letterSpacing = 0.0,
-			wordSpacing = 0.0) {
+			wordSpacing = 0.0, base = -1) {
 		this.text = text;
 		this.fonts = fonts;
 		this.runs = runs == null ? [] : runs;
@@ -57,7 +59,7 @@ class TextLayout {
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
 		var glyphs = shape(text, fonts, this.runs, letterSpacing);
 		space(glyphs, letterSpacing, wordSpacing);
-		bidi(glyphs);
+		bidi(glyphs, base);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
 		if (maxLines > 0 && lines.length > maxLines) clamp(maxLines, maxWidth);
@@ -433,16 +435,17 @@ class TextLayout {
 	}
 
 	// the glyphs' bidi levels, by paragraph (between "\n"s), when any is
-	// written right to left: mirrored brackets, kerning on the visual side
-	function bidi(gs:Array<Glyph>) {
+	// written right to left or the base is: mirrored brackets, kerning on the
+	// visual side
+	function bidi(gs:Array<Glyph>, base:Int) {
 		var cps = [for (g in gs) g.cp];
-		if (!Bidi.hasRtl(cps)) return;
+		if (base != 1 && !Bidi.hasRtl(cps)) return;
 		var start = 0, first = true;
 		while (start <= gs.length) {
 			var end = start;
 			while (end < gs.length && gs[end].cp != 10)
 				end++;
-			var r = Bidi.levels(cps.slice(start, end), -1);
+			var r = Bidi.levels(cps.slice(start, end), base);
 			if (first) direction = r.base;
 			first = false;
 			for (i in start...end)

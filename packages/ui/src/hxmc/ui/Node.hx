@@ -513,14 +513,18 @@ class Node {
 	}
 
 	// whether its inline direction is right to left (Style.dir, inherited)
-	public function rtl():Bool {
+	public function rtl():Bool
+		return dir() == Rtl;
+
+	// its direction as set on it or an ancestor (null: none set)
+	public function dir():Null<Dir> {
 		var n = this;
 		while (n != null) {
 			var d = n.style.dir;
-			if (d != null) return d == Rtl;
+			if (d != null) return d;
 			n = n.parent;
 		}
-		return false;
+		return null;
 	}
 
 	// a window position in this node's coordinates (from its border box's

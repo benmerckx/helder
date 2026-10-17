@@ -47,8 +47,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     (Absolute with `left`, `top`, `right`, `bottom`), `overflow` (Hidden,
     Scroll), `dir` (Rtl: rows from the right, columns' items across
     from the right, grids' columns from the right, text aligned right by
-    default; inherited; margins and padding stay physical; scrolling
-    still starts at the left). Sizes are border boxes. Items get CSS's automatic minimum
+    default, paragraphs in that direction; inherited; margins and padding
+    stay physical; scrolling still starts at the left). Sizes are border boxes. Items get CSS's automatic minimum
     size, so content is not squashed. `display: Grid` lays children out
     on CSS grid tracks instead: `gridTemplateColumns` and
     `gridTemplateRows` (px, %, fr, auto, min-content, max-content,

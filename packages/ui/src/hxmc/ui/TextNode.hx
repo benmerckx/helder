@@ -149,13 +149,16 @@ class TextNode extends Node {
 		if (clamp > 0) text += "\u0001" + clamp;
 		var justify = textAlign() == Justify;
 		if (justify) text += "\u0002";
+		// (a direction set: its paragraphs in it)
+		var d = dir(), base = d == null ? -1 : d == Rtl ? 1 : 0;
+		if (base >= 0) text += "\u0003" + base;
 		// (to 1/64 pixel up: a width measured from this text fits it again)
 		var w = Math.isNaN(maxWidth) ? maxWidth : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		var mp = maxParagraph != null && maxText == text && f.equals(maxFont) ? maxParagraph : null;
 		// (the unbounded paragraph first: the layout asks for it anyway, and a
 		// width it fits in lays it out the same)
 		if (mp == null) {
-			mp = engine.layout(shown, f, Math.NaN, spans, clamp);
+			mp = engine.layout(shown, f, Math.NaN, spans, clamp, false, base);
 			maxParagraph = mp;
 			maxFont = f;
 			maxText = text;
@@ -168,7 +171,7 @@ class TextNode extends Node {
 			return mp;
 		}
 		if (paragraph != null && laidText == text && f.equals(laidFont) && w == laidWidth) return paragraph;
-		paragraph = engine.layout(shown, f, w, spans, clamp, justify);
+		paragraph = engine.layout(shown, f, w, spans, clamp, justify, base);
 		laidFont = f;
 		laidWidth = w;
 		laidText = text;
