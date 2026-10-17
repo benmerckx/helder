@@ -114,7 +114,7 @@ checked by events, keys, focus order and the accessibility tree. The
 examples and tests that want something visible without shadcn use
 `packages/ui/examples/Plain.hx`, a few rules in the text's colour.
 
-Themed, `ui.theme = Shadcn.sheet` (or a subtree's `node.theme`): 705
+Themed, `ui.theme = Shadcn.sheet` (or a subtree's `node.theme`): 769
 rules made at compile time from shadcn's class lists (`packages/theme`,
 README) style every slot by its variant, size and states, light and dark
 (`ui.dark`), with rings, outline-style, transitions and enter animations
@@ -122,5 +122,5 @@ README) style every slot by its variant, size and states, light and dark
 Sortable, NumberField, TagInput, ColorPicker, Toolbar) has rules in
 shadcn's style, marked as ours. An instance's own style, or a function of
 its states, wins over every rule. Checked against shadcn's markup drawn by
-Chromium (`make theme-fidelity-check`, 193 cases), what still differs
+Chromium (`make theme-fidelity-check`, 203 cases), what still differs
 listed with its reason in `FidelityTest.KNOWN`.

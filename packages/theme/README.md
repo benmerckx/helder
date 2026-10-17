@@ -105,14 +105,16 @@ RadioGroup, Slider, Tabs, Select, DropdownMenu, ContextMenu, Menubar,
 Dialog, AlertDialog, Sheet, Popover, HoverCard, Tooltip, Table, Progress, Accordion,
 Toggle, ToggleGroup, Separator, Alert, Skeleton, Breadcrumb, Pagination,
 Calendar (react-day-picker's parts as `calendar-<part>`), Command (cmdk's parts),
-Resizable, Avatar, Kbd, Spinner, and sonner's toast (sonner's own
+Resizable, Avatar, Kbd, Spinner, Drawer (vaul's), InputOTP, and sonner's toast (sonner's own
 stylesheet's values written as classes: `toast`, `toast-title`,
 `toast-icon`, and in `ours` `toaster`, `toast-action`, `toast-close`).
 Where shadcn styles an element without a slot, it is named after its
 parent: `checkbox-icon`, `radio-group-icon`, `select-trigger-icon`,
 `select-viewport`, `accordion-trigger-icon`, `dialog-close-icon`,
 `sheet-close-icon`, `tooltip-arrow`, `pagination-previous`,
-`pagination-next`. AccordionContent's inner box is folded into
+`pagination-next`, `drawer-handle`, `input-otp-caret`; in `ours`, the
+menus' `-item-indicator-icon` and `-sub-trigger-icon` (lucide's `size-4`,
+`ml-auto size-4`) and `input-otp-separator-icon`. AccordionContent's inner box is folded into
 `accordion-content`.
 
 `ours` in shadcn.json: not shadcn's, written in its style from its own
@@ -148,8 +150,8 @@ otherwise:
 
 `Tw.rules` and `Tw.sheet` run at compile time. The rules are written as
 compact data (`RuleData.hx`: a string table and a stream of small numbers)
-read when the sheet is first used: shadcn's 705 rules are 21 KB of data
-(12 KB of rules, 9 KB of strings); a native program grows 98 KB over one
+read when the sheet is first used: shadcn's 769 rules are 23 KB of data
+(13 KB of rules, 10 KB of strings); a native program grows 99 KB over one
 with an empty sheet (the data, its reader, and the colour, transform and
 transition parsers it brings), and a build by under a second.
 `-D hxmc.theme.dump` prints them and their size.
@@ -224,7 +226,7 @@ the part's own slot where hxmc has one), pseudo-elements (`after:`) and
 rules, Tw's rules made at compile time, shadcn's sheet made, the
 classes Tw rejects. `make theme-fidelity-check`: each themed widget drawn
 headless against shadcn's own markup and CSS drawn by Chromium
-(`test/ref/*.png`, 193 cases of every shadcn component: variants, sizes,
+(`test/ref/*.png`, 203 cases of every shadcn component: variants, sizes,
 hover, focus, disabled, invalid, checked, open, light, dark and right to
 left; `test/ref.mjs` writes them with Tailwind 4.3.3 and sonner 2.0.8),
 popups compared in their box; the cases known to differ, for what
