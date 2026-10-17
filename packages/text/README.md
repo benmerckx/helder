@@ -9,7 +9,12 @@ text with, usable on its own.
   single and ligature substitutions by script and feature, glyph outlines:
   TrueType's (simple and composite glyphs) or
   CFF's (`.otf`: Type 2 charstrings with their subroutines, CID-keyed
-  fonts such as Noto Sans CJK too). CFF2 (variable) outlines are not read.
+  fonts such as Noto Sans CJK too). Variable TrueType fonts: `axes`
+  (fvar) and `instance(["wght" => 700])`, avar's mappings and gvar's
+  deltas applied to outlines and advances (`Variations`; checked against
+  Chromium on `test/var.ttf`); `SystemFonts.match` gives a variable
+  face's instance at the weight asked for. CFF2 (variable) outlines are
+  not read; HVAR, MVAR and GPOS's variations are not applied.
   Colour glyphs: CBDT/CBLC and sbix bitmaps (Noto Color Emoji, Apple
   Color Emoji: their PNG files, a font of bitmaps only loads too) and COLR
   version 0 layers with CPAL's palette (Segoe UI Emoji).

@@ -204,12 +204,15 @@ class Ui {
 			cullY1 += n.scrollY;
 		}
 		// (absolute and sticky children over the others, in their order, as CSS paints positioned boxes)
-		var positioned = false;
-		for (c in n.children)
-			if (c.style.position != Relative) positioned = true else paintNode(c, canvas);
-		if (positioned)
+		var order = n.paintOrder();
+		if (order != null) for (c in order) paintNode(c, canvas) else {
+			var positioned = false;
 			for (c in n.children)
-				if (c.style.position != Relative) paintNode(c, canvas);
+				if (c.style.position != Relative) positioned = true else paintNode(c, canvas);
+			if (positioned)
+				for (c in n.children)
+					if (c.style.position != Relative) paintNode(c, canvas);
+		}
 		if (scroll) canvas.translate(n.scrollX, n.scrollY);
 		if (clip) canvas.popClip();
 		cullX0 = c0;
@@ -798,6 +801,9 @@ class Ui {
 			if (p.placement == Point) {
 				x = p.atX + w > width && p.atX - w >= 0 ? p.atX - w : p.atX;
 				y = p.atY + h > height && p.atY - h >= 0 ? p.atY - h : p.atY;
+			} else if (p.placement == TopLeft || p.placement == TopRight || p.placement == BottomLeft || p.placement == BottomRight) {
+				x = p.placement == TopLeft || p.placement == BottomLeft ? p.gap : width - w - p.gap;
+				y = p.placement == TopLeft || p.placement == TopRight ? p.gap : height - h - p.gap;
 			} else if (p.placement == Center || p.anchor == null || p.anchor.ui != this) {
 				if (p.placement != Center && p.anchor != null) continue;
 				x = (width - w) / 2;

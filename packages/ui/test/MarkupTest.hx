@@ -10,6 +10,13 @@ import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Field;
 import hxmc.ui.widgets.Widgets.Select;
+import hxmc.ui.widgets.Widgets.Combobox;
+import hxmc.ui.widgets.Widgets.NumberField;
+import hxmc.ui.widgets.Widgets.Toaster;
+import hxmc.ui.widgets.Widgets.Disclosure;
+import hxmc.ui.widgets.Widgets.Accordion;
+import hxmc.ui.widgets.Toasts;
+import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Table;
@@ -29,7 +36,8 @@ import hxmc.ui.widgets.Widgets.Dialog;
 // Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
-// popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog) driven by pointer and keys;
+// popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog, Combobox) driven by pointer and keys;
+// Disclosure, Accordion, toasts and NumberField;
 // a VirtualList of 100000 rows scrolled
 class MarkupTest implements Markup {
 	static var checks = 0;
@@ -41,6 +49,10 @@ class MarkupTest implements Markup {
 		motion();
 		access();
 		popovers();
+		combobox();
+		toasts();
+		numbers();
+		rightToLeft();
 		virtual();
 		table();
 		tree();
@@ -77,6 +89,221 @@ class MarkupTest implements Markup {
 			if (props.when.value) throw "boom";
 			"fine";
 		}}</text>;
+	}
+
+	// (every node under n tagged tag, in order)
+	static function tagged(n:Node, tag:String):Array<Node> {
+		var out = [];
+		function walk(n:Node) {
+			if (n.tag == tag) out.push(n);
+			for (c in n.children)
+				walk(c);
+		}
+		walk(n);
+		return out;
+	}
+
+	static function combobox() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var city = signal(""), chosen = [];
+		Render.render(<view padding={10} align-items="start">
+			<Combobox tag="city" value={city} options={["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels"]} label="City" onChoose={c -> chosen.push(c)}/>
+		</view>, ui.root);
+		ui.update();
+		var field = ui.root.find("city");
+		ui.setFocus(field);
+		ui.textInput("ber");
+		ui.update();
+		var list = ui.overlay.find("city-list");
+		function shown()
+			return list == null ? "" : [for (o in tagged(list, "city-option")) (cast o.children[0] : TextNode).text].join(",");
+		check("combobox: typing filters the options under it (either case)", list != null && shown() == "Berlin,Bern" && list.absY >= field.absY + field.height
+			&& ui.focus == field && field.semantics.expanded == true, shown());
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("combobox: an editable combobox to assistive technology", an.role == ComboBox && an.value == "ber" && an.expanded == true && an.editable()
+			&& [for (id in t.order) t.nodes.get(id).role].filter(r -> r == ListBoxOption).length == 2, an == null ? "none" : an.role + " " + an.value);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("combobox: Down highlights, the focus stays in the field", tagged(list, "city-option")[1].semantics.selected == true && ui.focus == field);
+		ui.keyDown(Key.UP, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("combobox: Enter chooses the highlighted option", city.value == "Berlin" && chosen.join(",") == "Berlin" && ui.overlay.children.length == 0
+			&& (cast field : TextField).text == "Berlin", '${city.value} ${chosen}');
+		city.value = "";
+		ui.update();
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		list = ui.overlay.find("city-list");
+		check("combobox: Down on the empty field lists every option", list != null && tagged(list, "city-option").length == 5);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("combobox: Escape closes", ui.overlay.children.length == 0 && ui.focus == field);
+		ui.textInput("Br");
+		ui.update();
+		var opt = tagged(ui.overlay.find("city-list"), "city-option")[0];
+		var x = opt.absX + opt.width / 2, y = opt.absY + opt.height / 2;
+		ui.pointerDown(x, y, 1);
+		ui.pointerUp(x, y, 1);
+		ui.update();
+		check("combobox: a click chooses", city.value == "Brussels" && ui.focus == field && ui.overlay.children.length == 0, city.value);
+		ui.textInput("x");
+		ui.update();
+		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
+		ui.keyDown(Key.ENTER, 0);
+		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function toasts() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var undone = 0, more = signal(false), section = signal(-1);
+		Render.render(<view padding={10} row-gap={10} align-items="start">
+			<view tag="focus-here" focusable width={20} height={20}/>
+			<Disclosure tag="more" label="More" open={more}><text tag="more-text">Details</text></Disclosure>
+			<Accordion tag="faq" open={section} sections={[{label: "One", render: () -> <text>First</text>}, {label: "Two", render: () -> <text>Second</text>}]}/>
+			<Toaster/>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var summary = ui.root.find("more-summary");
+		check("disclosure: closed at first", ui.root.find("more-text") == null && summary.semantics.expanded == false);
+		click(summary);
+		check("disclosure: a click opens it", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true);
+		ui.setFocus(summary);
+		ui.keyDown(Key.SPACE, 0);
+		ui.update();
+		check("disclosure: Space closes it", !more.value && ui.root.find("more-text") == null);
+		click(ui.root.find("faq-1-summary"));
+		check("accordion: a click opens a section", section.value == 1 && ui.root.find("faq-1-content") != null && ui.root.find("faq-0-content") == null);
+		click(ui.root.find("faq-0-summary"));
+		check("accordion: opening one closes the other", section.value == 0 && ui.root.find("faq-0-content") != null && ui.root.find("faq-1-content") == null);
+		click(ui.root.find("faq-0-summary"));
+		check("accordion: a click on the open one closes it", section.value == -1 && ui.root.find("faq-0-content") == null);
+
+		var focus = ui.root.find("focus-here");
+		ui.setFocus(focus);
+		Clock.tick(500);
+		Toasts.show("Saved", {kind: "success"});
+		Toasts.show("Deleted 3 items", {action: "Undo", onAction: () -> undone++, duration: 10});
+		ui.update();
+		var list = ui.overlay.find("toaster-list");
+		var toasts = list == null ? [] : tagged(list, "toast");
+		check("toasts: shown in the bottom right corner, the newest last, the focus kept", toasts.length == 2 && list.absX + list.width == 400 - 16
+			&& list.absY + list.height == 300 - 16 && toasts[0].absY < toasts[1].absY && ui.focus == focus, list == null ? "none" : '${list.absX} ${list.absY} ${list.width} ${list.height}');
+		Clock.tick(500.1);
+		var l = ui.overlay.find("toaster-list");
+		ui.pointerMove(l.absX + 10, l.absY + 10);
+		Clock.tick(504.2);
+		ui.update();
+		check("toasts: the pointer over them holds their time", Toasts.shown.value.length == 2 && Toasts.paused);
+		ui.pointerMove(5, 5);
+		Clock.tick(504.3);
+		Clock.tick(508.3);
+		ui.update();
+		check("toasts: one goes after its time", Toasts.shown.value.length == 1 && tagged(ui.overlay, "toast").length == 1);
+		click(tagged(ui.overlay, "toast-action")[0]);
+		check("toasts: its action runs and closes it", undone == 1 && Toasts.shown.value.length == 0 && ui.overlay.children.length == 0 && ui.focus == focus,
+			'$undone ${Toasts.shown.value.length} ${ui.focus}');
+		var t = Toasts.show("Stays", {duration: 0});
+		ui.update();
+		Clock.finish();
+		ui.update();
+		check("toasts: duration 0 stays until closed", Toasts.shown.value.length == 1 && !Clock.active);
+		click(tagged(ui.overlay, "toast-close")[0]);
+		check("toasts: the close button", t.closed && ui.overlay.children.length == 0);
+	}
+
+	static function rightToLeft() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		var dir = signal("rtl"), vol = signal(0.0);
+		Render.render(<view dir={dir} padding={10} row-gap={6}>
+			<Slider tag="vol" value={vol} width={100} step={0.1}/>
+			<view tag="row" direction="row" column-gap={4}><view tag="a" width={40} height={20}/><view tag="b" width={30} height={20}/></view>
+			<text tag="words">Hello</text>
+		</view>, ui.root);
+		ui.update();
+		var a = ui.root.find("a"), b = ui.root.find("b"), words = ui.root.find("words");
+		check("rtl: a row from the right, in markup (dir=\"rtl\")", a.absX == 300 - 10 - 40 && b.absX == a.absX - 4 - 30, a.absX + " " + b.absX);
+		check("rtl: text aligned to the right by default", words.textAlign() == Right);
+		var slider = ui.root.find("vol"), knob = slider.children[1].children[1];
+		check("rtl: a slider's minimum at the right", knob.absX == slider.absX + 100 - 16, knob.absX + " " + slider.absX);
+		ui.setFocus(slider);
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("rtl: Left raises a slider, its knob moves left", vol.value == 0.1 && knob.absX < slider.absX + 100 - 16, vol.value + " " + knob.absX);
+		dir.value = "ltr";
+		ui.update();
+		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);
+	}
+
+	static function numbers() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var qty = signal(2.0), price = signal(1.5);
+		Render.render(<view padding={10} row-gap={10} align-items="start">
+			<NumberField tag="qty" value={qty} min={0} max={10} label="Quantity"/>
+			<NumberField tag="price" value={price} step={0.25} min={0} label="Price"/>
+		</view>, ui.root);
+		ui.update();
+		var field:TextField = cast ui.root.find("qty");
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		check("number field: its value as text", field.text == "2" && (cast ui.root.find("price") : TextField).text == "1.5");
+		ui.setFocus(field);
+		ui.keyDown(Key.UP, 0);
+		ui.keyDown(Key.UP, 0);
+		ui.update();
+		check("number field: Up steps", qty.value == 4 && field.text == "4", field.text);
+		ui.keyDown(Key.PAGE_UP, 0);
+		ui.update();
+		check("number field: Page Up by ten steps, within max", qty.value == 10 && field.text == "10", field.text);
+		field.select(0, field.text.length);
+		ui.textInput("7");
+		ui.update();
+		check("number field: typed, the value follows", qty.value == 7 && field.text == "7");
+		ui.textInput("5");
+		ui.update();
+		check("number field: typed past max, kept while typing", qty.value == 75 && field.text == "75");
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("number field: Enter puts it within max", qty.value == 10 && field.text == "10", field.text);
+		click(ui.root.find("qty-down"));
+		check("number field: the buttons step", qty.value == 9 && field.text == "9", field.text);
+		var p:TextField = cast ui.root.find("price");
+		ui.setFocus(p);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("number field: a fractional step", price.value == 0.75 && p.text == "0.75", p.text);
+		p.select(0, p.text.length);
+		ui.textInput("-3");
+		ui.setFocus(field);
+		ui.update();
+		check("number field: the focus leaving puts it within min", price.value == 0 && p.text == "0", p.text);
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("number field: a spin button to assistive technology", an.role == SpinButton && an.valueNow == 9 && an.valueMin == 0 && an.valueMax == 10
+			&& an.value == "9" && an.editable() && an.name == "Quantity", an.role + " " + an.valueNow + " " + an.value);
+		ui.setFocus(field);
+		field.select(0, field.text.length);
+		ui.textInput("2.5");
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("number field: a value off the steps shown as it is", qty.value == 2.5 && field.text == "2.5", field.text);
+		ui.keyDown(Key.UP, 0);
+		ui.update();
+		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
 	}
 
 	static function popovers() {

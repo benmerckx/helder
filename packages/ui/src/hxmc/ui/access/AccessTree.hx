@@ -91,7 +91,7 @@ class AccessTree {
 				a.valueText = sem.valueText;
 			}
 			a.name = sem != null && sem.label != null ? sem.label : role == Label ? (cast n : TextNode).allText() : role.namedByContent() ? textOf(n) : "";
-			if ((role == TextInput || role == MultilineTextInput) && Std.isOfType(n, TextNode)) a.value = (cast n : TextNode).text;
+			if ((role == TextInput || role == MultilineTextInput || role == ComboBox || role == SpinButton) && Std.isOfType(n, TextNode)) a.value = (cast n : TextNode).text;
 			parent.children.push(a.id);
 			add(n, a);
 			here = a;

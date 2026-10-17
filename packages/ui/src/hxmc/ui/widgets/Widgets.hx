@@ -9,6 +9,7 @@ import hxmc.ui.view.Motion;
 import hxmc.view.Flow.*;
 import hxmc.ui.view.UiFlow.*;
 import hxmc.ui.widgets.Days;
+import hxmc.ui.widgets.Toasts;
 
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
 typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
@@ -68,8 +69,8 @@ class Widgets implements Markup {
 			}}>
 			<view width={36} height={20} radius={10} padding={2} direction="row"
 				background={Motion.color(() -> props.on.value ? t().accent : t().track)}>
-				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"
-					position="relative" left={Motion.transition(() -> props.on.value ? 16 : 0)}/>
+				<view width={Motion.transition(() -> props.on.value ? 16 : 0)}/>
+				<view width={16} height={16} radius={8} background={() -> t().knob} shadow="0 1 2 #00000040"/>
 			</view>
 			{props.label}
 		</view>;
@@ -88,21 +89,21 @@ class Widgets implements Markup {
 			props.value.value = v;
 		}
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
+		// (right to left: the minimum at the right)
 		function at(e:Event) {
-			var n = e.current;
-			set(lo + (n.localX(e.x, e.y) - knob / 2) / (w - knob) * (hi - lo));
+			var n = e.current, x = n.localX(e.x, e.y);
+			if (n.rtl()) x = w - x;
+			set(lo + (x - knob / 2) / (w - knob) * (hi - lo));
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		return <view tag={props.tag ?? "slider"} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo} value-max={hi}
 			width={w} height={knob + 4} focusable cursor="pointer" justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
 			onKeyDown={e -> switch e.key {
-				case Key.LEFT | Key.DOWN:
+				case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
 					e.preventDefault();
-					set(props.value.value - keyStep);
-				case Key.RIGHT | Key.UP:
-					e.preventDefault();
-					set(props.value.value + keyStep);
+					var less = e.key == Key.DOWN || (e.key == Key.LEFT) != e.current.rtl();
+					set(props.value.value + (less ? -keyStep : keyStep));
 				case Key.HOME:
 					e.preventDefault();
 					set(lo);
@@ -114,8 +115,11 @@ class Widgets implements Markup {
 			<view height={4} radius={2} margin={[0, knob / 2]} overflow="hidden" direction="row" background={() -> t().track}>
 				<view width={() -> (frac() * 100) + "%"} background={() -> t().accent}/>
 			</view>
-			<view position="absolute" top={2} left={() -> frac() * (w - knob)} width={knob} height={knob} radius={knob / 2} background={() -> t().knob}
-				border-width={1} border-color={() -> t().border} shadow="0 1 2 #00000033"/>
+			<view position="absolute" top={2} left={0} width={w} direction="row">
+				<view width={() -> frac() * (w - knob)}/>
+				<view width={knob} height={knob} radius={knob / 2} background={() -> t().knob} border-width={1} border-color={() -> t().border}
+					shadow="0 1 2 #00000033"/>
+			</view>
 		</view>;
 	}
 
@@ -774,6 +778,237 @@ class Widgets implements Markup {
 				{props.children}
 			</view>
 		});
+
+	// a combobox: a text field bound to value (two ways) whose typing
+	// filters options (those containing the text, in either case; options
+	// may be a signal) in a list under it. The focus stays in the field:
+	// Down opens the list and highlights the next option, Up the previous;
+	// Enter or a click chooses the highlighted one (the field takes its
+	// text; onChoose gets it), Enter with none highlighted submits the text
+	// as it is (onChoose), Escape or a click outside closes the list.
+	public static function Combobox(props:{value:Signal<String>, options:Dynamic, ?placeholder:String, ?width:Float, ?label:String,
+			?onChoose:String->Void, ?tag:String}):View {
+		var tag = props.tag ?? "combobox", w = props.width ?? 200.0;
+		var open = signal(false), active = signal(-1);
+		var options:Array<Node> = [];
+		var matches = memo(() -> {
+			var q = props.value.value.toLowerCase(), all:Array<String> = Render.read(props.options);
+			[for (o in all) if (o.toLowerCase().indexOf(q) >= 0) o];
+		});
+		var f = new TextField(props.value.peek());
+		f.tag = tag;
+		f.placeholder = props.placeholder ?? "";
+		f.semantics.role = hxmc.ui.access.Role.ComboBox;
+		f.semantics.label = props.label ?? props.placeholder;
+		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6, width: w});
+		themed(f);
+		effect(() -> f.setText(props.value.value));
+		effect(() -> f.semantics.expanded = open.value && matches.value.length > 0);
+		function choose(o:String) {
+			batch(() -> {
+				props.value.value = o;
+				open.value = false;
+				active.value = -1;
+			});
+			// (the caret after the chosen text)
+			f.select(o.length, o.length);
+			if (f.ui != null) f.ui.setFocus(f);
+			if (props.onChoose != null) props.onChoose(o);
+		}
+		function highlight(i:Int) {
+			active.value = i;
+			if (i >= 0 && i < options.length && options[i] != null && options[i].ui != null) options[i].ui.scrollIntoView(options[i]);
+		}
+		f.onChange = s -> batch(() -> {
+			props.value.value = s;
+			open.value = true;
+			active.value = -1;
+		});
+		f.onSubmit = s -> {
+			var m = matches.peek(), i = active.peek();
+			if (open.peek() && i >= 0 && i < m.length) choose(m[i]) else {
+				open.value = false;
+				if (props.onChoose != null) props.onChoose(s);
+			}
+		};
+		return <view tag={tag + "-box"} width={w} onKeyDown={e -> switch e.key {
+				case Key.DOWN:
+					e.stop();
+					var n = matches.peek().length;
+					if (!open.peek()) {
+						open.value = true;
+						highlight(n > 0 ? 0 : -1);
+					} else if (n > 0) highlight((active.peek() + 1) % n);
+				case Key.UP:
+					e.stop();
+					var n = matches.peek().length;
+					if (open.peek() && n > 0) highlight(active.peek() <= 0 ? n - 1 : active.peek() - 1);
+				case Key.ESCAPE if (open.peek()):
+					// (only the list closes: not a dialog it is in)
+					e.preventDefault();
+					open.value = false;
+				case _:
+			}}>
+			{f}
+			<Popover open={() -> open.value && matches.value.length > 0} placement="below" onDismiss={() -> open.value = false}>
+				<scroll tag={tag + "-list"} role="listbox" label={props.label} width={w} max-height={240} padding={4} radius={6} border-width={1}
+					border-color={() -> t().borderMuted} background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">
+					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} role="option" selected={() -> active.value == i}
+						ref={n -> options[i] = n} cursor="pointer" padding="5 8" radius={4}
+						background={() -> active.value == i ? t().itemSelected : Theme.clear(t().control)} onPointerEnter={_ -> active.value = i}
+						onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
+				</scroll>
+			</Popover>
+		</view>;
+	}
+
+	// a disclosure: its label on a button (an arrow turning with it) that
+	// shows or hides the children under it, by a click, Enter or Space; open
+	// (a signal; closed at first) says which
+	public static function Disclosure(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
+		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
+		return <view tag={tag}>
+			{summary(tag, props.label, () -> open.value, () -> open.value = !open.peek())}
+			<Show when={open}><view tag={tag + "-content"} padding="4 0 4 20">{props.children}</view></Show>
+		</view>;
+	}
+
+	// an accordion: sections, each a disclosure, at most one open: open is
+	// its index (-1: none; a signal); opening one closes the other
+	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
+		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion";
+		return <view tag={tag} row-gap={2}>{[
+			for (i in 0...props.sections.length) {
+				var s = props.sections[i];
+				<view tag={tag + "-" + i}>
+					{summary(tag + "-" + i, s.label, () -> open.value == i, () -> open.value = open.peek() == i ? -1 : i)}
+					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} padding="4 0 4 20">{s.render()}</view></Show>
+				</view>;
+			}
+		]}</view>;
+	}
+
+	// (a disclosure's button)
+	static function summary(tag:String, label:String, isOpen:Void->Bool, flip:Void->Void):View
+		return <view tag={tag + "-summary"} role="button" expanded={isOpen} focusable cursor="pointer" direction="row" align-items="center" column-gap={6}
+			padding="4 2" radius={4} onClick={_ -> flip()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
+				e.preventDefault();
+				flip();
+			}}>
+			<text width={12} color={() -> t().muted} hidden>{() -> isOpen() ? "▾" : "▸"}</text>
+			{label}
+		</view>;
+
+	// where Toasts.show's toasts are shown: in a corner of the window
+	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),
+	// over everything, width wide (320); each with its mark, text, action
+	// and a close button. They do not take the focus; the pointer over them
+	// holds their time.
+	public static function Toaster(props:{?placement:String, ?width:Float, ?tag:String}):View {
+		var tag = props.tag ?? "toaster";
+		function mark(kind:String):String
+			return kind == "success" ? t().success : kind == "error" ? t().danger : t().accent;
+		return <Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
+			<view tag={tag + "-list"} width={props.width ?? 320.0} row-gap={8} onPointerEnter={_ -> Toasts.paused = true}
+				onPointerLeave={_ -> Toasts.paused = false}>
+				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" role="group" label={toast.text} direction="row" align-items="center"
+					column-gap={10} padding="10 12" radius={8} background={() -> t().tooltip} color={() -> t().onTooltip} shadow="0 4 12 #00000033">
+					<view width={4} height={20} radius={2} background={() -> mark(toast.kind)}/>
+					<text grow={1}>{toast.text}</text>
+					{toast.action == null ? null : <view tag="toast-action" role="button" focusable cursor="pointer" padding="2 6" radius={4}
+						color={() -> t().accentHover} onClick={_ -> {
+							Toasts.close(toast);
+							if (toast.onAction != null) toast.onAction();
+						}}>{toast.action}</view>}
+					<view tag="toast-close" role="button" label="Close" focusable cursor="pointer" padding="0 4" color={() -> t().muted}
+						onClick={_ -> Toasts.close(toast)}>×</view>
+				</view>}/>
+			</view>
+		</Popover>;
+	}
+
+	// a number field bound to a signal: its value as text (format; else as
+	// it is, steps' rounding errors left out). Typed in, the value follows what
+	// parses; Enter or the focus leaving puts it within min and max and
+	// shows it formatted. Up and Down, or the buttons beside it, step it
+	// (Page Up and Page Down: ten steps). A spin button to assistive
+	// technology.
+	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
+			?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
+		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
+		var format = props.format ?? plain;
+		var editing = false;
+		var f = new TextField(format(props.value.peek()));
+		f.tag = tag;
+		f.semantics.role = hxmc.ui.access.Role.SpinButton;
+		f.semantics.label = props.label;
+		if (Math.isFinite(min)) f.semantics.valueMin = min;
+		if (Math.isFinite(max)) f.semantics.valueMax = max;
+		f.style.set({padding: [6, 8], borderWidth: 1, radius: 6, grow: 1, minWidth: 0});
+		themed(f);
+		inline function clamp(v:Float):Float
+			return v < min ? min : v > max ? max : v;
+		effect(() -> {
+			var v = props.value.value;
+			f.semantics.valueNow = v;
+			f.semantics.valueText = format(v);
+			if (!editing) f.setText(format(v));
+		});
+		function commit() {
+			editing = false;
+			var v = clamp(props.value.peek());
+			if (v != props.value.peek()) props.value.value = v;
+			f.setText(format(v));
+		}
+		function stepBy(n:Float) {
+			editing = false;
+			var v = clamp(props.value.peek() + n * step);
+			if (v != props.value.peek()) props.value.value = v else f.setText(format(v));
+		}
+		f.onChange = s -> {
+			var v = Std.parseFloat(StringTools.trim(s));
+			editing = true;
+			if (!Math.isNaN(v)) props.value.value = v;
+		};
+		f.onSubmit = _ -> commit();
+		// (after the field's own: its caret and composition)
+		var blur = f.onBlur;
+		f.onBlur = e -> {
+			if (blur != null) blur(e);
+			commit();
+		};
+		function arrow(label:String, glyph:String, n:Float):View
+			return <view tag={tag + (n > 0 ? "-up" : "-down")} role="button" label={label} cursor="pointer" grow={1} justify="center" align-items="center"
+				padding="0 6" font-size={9} color={() -> t().muted} onClick={_ -> stepBy(n)}>{glyph}</view>;
+		return <view tag={tag + "-box"} direction="row" align-items="stretch" column-gap={2} width={w} onKeyDown={e -> switch e.key {
+				case Key.UP:
+					e.stop();
+					stepBy(1);
+				case Key.DOWN:
+					e.stop();
+					stepBy(-1);
+				case Key.PAGE_UP:
+					e.stop();
+					stepBy(10);
+				case Key.PAGE_DOWN:
+					e.stop();
+					stepBy(-10);
+				case _:
+			}}>
+			{f}
+			<view row-gap={1}>
+				{arrow("Increase", "▲", 1)}
+				{arrow("Decrease", "▼", -1)}
+			</view>
+		</view>;
+	}
+
+	// (a number as it is, to ten decimals: 0.1 + 0.2 shown as 0.3)
+	static function plain(v:Float):String {
+		var s = Std.string(Math.fround(v * 1e10) / 1e10);
+		return StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
+	}
 
 	// a text area bound to a signal (two ways), rows lines high (3)
 	public static function Area(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?tag:String}):Node {

@@ -104,12 +104,17 @@ class Motion {
 		if (ease == null) ease = easeOut;
 		inline function parse(v:Dynamic):Color
 			return Std.isOfType(v, String) ? Color.parse(v) : (v : Int);
-		var cur:Color = parse(untrack(target));
-		var out = new Signal(cur.toHex());
-		var from = cur, to = cur, start = -1.0, running = false, stopped = false;
+		var out:Null<Signal<String>> = null;
+		var cur:Color = 0, from:Color = 0, to:Color = 0, start = -1.0, running = false, stopped = false;
+		// (the effect runs at once: its first value is where it starts)
 		effect(() -> {
 			var c = parse(target());
 			untrack(() -> {
+				if (out == null) {
+					cur = from = to = c;
+					out = new Signal(c.toHex());
+					return;
+				}
 				if (c == to) return;
 				from = cur;
 				to = c;

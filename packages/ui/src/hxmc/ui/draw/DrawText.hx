@@ -41,22 +41,35 @@ class DrawText implements TextEngine {
 		return face;
 	}
 
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false):Paragraph {
+	// the faces a font is laid out with (shared: a FontSet does not change)
+	final sets = new Map<String, FontSet>();
+	var lastSet:Null<FontSet>;
+
+	function fontSet(font:Font):FontSet {
+		var f = face(font), oblique = font.italic && !f.italic;
+		if (lastSet != null && lastSet.primary == f && lastSet.size == font.size && lastSet.oblique == oblique) return lastSet;
+		var key = f.id + "|" + font.size + "|" + oblique;
+		var set = sets.get(key);
+		if (set == null) {
+			set = new FontSet(f, fallbackFaces, font.size, more, emoji);
+			set.oblique = oblique;
+			sets.set(key, set);
+		}
+		return lastSet = set;
+	}
+
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1):Paragraph {
 		if (fallbackFaces == null) {
 			fallbackFaces = fonts.fallbacks();
 			more = fonts.fallbackFor;
 			emoji = fonts.emojiFor;
 		}
-		var set = new FontSet(face(font), fallbackFaces, font.size, more, emoji);
-		set.oblique = font.italic && !set.primary.italic;
+		var set = fontSet(font);
 		var runs = spans == null ? null : [
-			for (s in spans) {
-				var fs = new FontSet(face(s.font), fallbackFaces, s.font.size, more, emoji);
-				fs.oblique = s.font.italic && !fs.primary.italic;
-				new TextRun(s.start, s.end, fs, s.font.lineHeight, s.font.letterSpacing, s.font.wordSpacing);
-			}
+			for (s in spans)
+				new TextRun(s.start, s.end, fontSet(s.font), s.font.lineHeight, s.font.letterSpacing, s.font.wordSpacing)
 		];
-		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing);
+		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base);
 		if (justify) l.justify(maxWidth);
 		return new DrawParagraph(l);
 	}

@@ -65,7 +65,7 @@ export default function (host) {
 		const set = (k, v) => (v === undefined || v === null ? e.removeAttribute(k) : e.setAttribute(k, String(v)));
 		set('role', n.role === 'text' ? null : n.role);
 		if (n.role === 'text') e.textContent = n.name;
-		else if (n.role === 'textbox') {
+		else if (n.role === 'textbox' || ((n.role === 'combobox' || n.role === 'spinbutton') && n.value !== undefined)) {
 			set('aria-label', n.name || null);
 			set('aria-multiline', n.multiline ? 'true' : null);
 		} else set('aria-label', n.name || null);
@@ -245,7 +245,7 @@ export default function (host) {
 				const e = m.elements.get(n.id);
 				const kids = n.children.map((k) => element(m, k));
 				// (a textbox's value is its text, before its children)
-				const want = n.role === 'textbox' && n.value ? [document.createTextNode(n.value), ...kids] : kids;
+				const want = (n.role === 'textbox' || n.role === 'combobox' || n.role === 'spinbutton') && n.value ? [document.createTextNode(n.value), ...kids] : kids;
 				if (n.role === 'text') continue;
 				// (only what differs moves: the focused element stays put)
 				const have = [...e.childNodes];
@@ -259,8 +259,15 @@ export default function (host) {
 			if (inside) {
 				const f = u.focus ? m.elements.get(u.focus) : null;
 				focusing = true;
-				if (f && input && document.activeElement === input && f.getAttribute('role') === 'textbox') {
+				const role = f ? f.getAttribute('role') : null;
+				const typed = f && (role === 'textbox' || ((role === 'combobox' || role === 'spinbutton') && f.hxmcValue !== undefined));
+				if (f && input && document.activeElement === input && typed) {
 					input.setAttribute('aria-label', f.getAttribute('aria-label') ?? '');
+					// (a combobox or spin button typed in: the textarea is one, with its states)
+					const copy = (k) => (f.hasAttribute(k) ? input.setAttribute(k, f.getAttribute(k)) : input.removeAttribute(k));
+					if (role === 'textbox') input.removeAttribute('role');
+					else input.setAttribute('role', role);
+					for (const k of ['aria-expanded', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-valuetext']) copy(k);
 					if (f.getAttribute('aria-multiline')) input.setAttribute('aria-multiline', 'true');
 					else input.removeAttribute('aria-multiline');
 				} else if (f && document.activeElement !== f) f.focus({ preventScroll: true });

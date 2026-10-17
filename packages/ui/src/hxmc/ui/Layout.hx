@@ -117,6 +117,11 @@ class Layout {
 		var s = n.style;
 		var row = s.direction == Row || s.direction == RowReverse;
 		var reverse = s.direction == RowReverse || s.direction == ColumnReverse;
+		// (placed from the far side: a reversed direction, and right to left the
+		// inline axis, a row's main and a column's cross; each item's margins
+		// on its own sides)
+		var rtl = n.rtl();
+		var flipMain = row ? reverse != rtl : reverse, flipCross = !row && rtl;
 		// the content box, known or available, on each axis
 		var innerW = known(w) ? Math.max(0, w - padH) : Math.NaN, innerH = known(h) ? Math.max(0, h - padV) : Math.NaN;
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
@@ -130,7 +135,7 @@ class Layout {
 
 		// the items and their hypothetical main sizes
 		var first = itemTop, absolute:Null<Array<Node>> = null;
-		for (c in n.children) {
+		for (c in n.inOrder()) {
 			var cs = c.style;
 			if (cs.display == None) {
 				if (perform) hide(c);
@@ -143,10 +148,10 @@ class Layout {
 			}
 			var it = takeItem(c);
 			var m = cs.margin;
-			it.mMainStart = row ? m.left : m.top;
-			it.mMainEnd = row ? m.right : m.bottom;
-			it.mCrossStart = row ? m.top : m.left;
-			it.mCrossEnd = row ? m.bottom : m.right;
+			it.mMainStart = row ? (flipMain ? m.right : m.left) : (flipMain ? m.bottom : m.top);
+			it.mMainEnd = row ? (flipMain ? m.left : m.right) : (flipMain ? m.top : m.bottom);
+			it.mCrossStart = row ? m.top : (flipCross ? m.right : m.left);
+			it.mCrossEnd = row ? m.bottom : (flipCross ? m.left : m.right);
 			it.minMain = min(row ? cs.minWidth : cs.minHeight, innerMain);
 			it.maxMain = max(row ? cs.maxWidth : cs.maxHeight, innerMain);
 			it.minCross = min(row ? cs.minHeight : cs.minWidth, innerCross);
@@ -318,7 +323,8 @@ class Layout {
 					case Center: it.mCrossStart + (l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2;
 					case _: it.mCrossStart;
 				}
-				if (reverse) mainPos = mainSize - mainPos - it.main;
+				if (flipMain) mainPos = mainSize - mainPos - it.main;
+				if (flipCross) crossPos = crossSize - crossPos - it.cross;
 				var c = it.node;
 				var cx = padL + (row ? mainPos : crossPos), cy = padT + (row ? crossPos : mainPos);
 				var cwid = row ? it.main : it.cross, chei = row ? it.cross : it.main;
@@ -370,12 +376,12 @@ class Layout {
 	// placed by their names), no other named lines, no subgrid.
 	function grid(n:Node, w:Float, h:Float, availW:Float, availH:Float, minW:Float, maxW:Float, minH:Float, maxH:Float, padL:Float, padT:Float,
 			padH:Float, padV:Float, perform:Bool) {
-		var s = n.style;
+		var s = n.style, rtl = n.rtl();
 		var innerW = known(w) ? Math.max(0, w - padH) : Math.NaN, innerH = known(h) ? Math.max(0, h - padV) : Math.NaN;
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
 		var availInH = known(innerH) ? innerH : known(availH) ? Math.max(0, availH - padV) : Math.NaN;
 		var items:Array<GridItem> = [], absolute:Array<Node> = [];
-		for (c in n.children) {
+		for (c in n.inOrder()) {
 			var cs = c.style;
 			if (cs.display == None) {
 				if (perform) hide(c);
@@ -464,11 +470,13 @@ class Layout {
 					ih = clamp(rh, minCH, maxCH);
 				}
 			}
-			var x = ax + m.left + switch jx {
+			// (right to left: the columns from the right, each item's margins on its own sides)
+			var x = ax + (rtl ? m.right : m.left) + switch jx {
 				case End: roomW - iw;
 				case Center: (roomW - iw) / 2;
 				case _: 0;
 			}
+			if (rtl) x = width - x - iw;
 			var y = ay + m.top + switch jy {
 				case End: roomH - ih;
 				case Center: (roomH - ih) / 2;
@@ -500,7 +508,7 @@ class Layout {
 	// a grid's min-content width: its columns sized at an available width of 0
 	function gridMinContent(n:Node):Float {
 		var s = n.style;
-		var items = [for (c in n.children) if (c.style.display != None && c.style.position != Absolute) new GridItem(c)];
+		var items = [for (c in n.inOrder()) if (c.style.display != None && c.style.position != Absolute) new GridItem(c)];
 		place(items, s);
 		var nCols = gridColumnCount(s);
 		for (it in items)
@@ -867,6 +875,7 @@ class Layout {
 	function absolutes(n:Node, absolute:Array<Node>, bw:Float, bh:Float, padL:Float, padT:Float) {
 		var s = n.style;
 		var be = s.borderEdges, pbW = bw - be.left - be.right, pbH = bh - be.top - be.bottom;
+		var rtl = n.rtl();
 		for (c in absolute) {
 			var cs = c.style, m = cs.margin;
 			var l = cs.left.resolve(pbW), r = cs.right.resolve(pbW), t = cs.top.resolve(pbH), b = cs.bottom.resolve(pbH);
@@ -880,7 +889,8 @@ class Layout {
 				aw = rw;
 				ah = rh;
 			}
-			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : padL - be.left + m.left;
+			// (neither offset: where its content box starts, the right right to left)
+			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : rtl ? pbW - s.padding.right - aw - m.right : padL - be.left + m.left;
 			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : padT - be.top + m.top;
 			c.lx = be.left + ax;
 			c.ly = be.top + ay;
@@ -1032,9 +1042,9 @@ class Layout {
 	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float):Bool {
 		var c = n.cache;
 		if (c == null) return false;
-		var i = 0;
-		while (i < c.length) {
-			if (same(c[i], w) && same(c[i + 1], h) && same(c[i + 2], aw) && same(c[i + 3], ah)) {
+		var i = 1, end = 1 + Std.int(c[0]);
+		while (i < end) {
+			if (same(c[i], w) && same(c[i + 1], h) && fits(c[i + 2], c[i + 4], aw) && fits(c[i + 3], c[i + 5], ah)) {
 				rw = c[i + 4];
 				rh = c[i + 5];
 				return true;
@@ -1044,16 +1054,30 @@ class Layout {
 		return false;
 	}
 
+	// (the cache: its length in slot 0, then up to CACHE entries; the oldest
+	// dropped. Room for one at first, twice as many when full: most nodes
+	// are measured once or twice)
 	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, rw:Float, rh:Float) {
 		var c = n.cache;
-		if (c == null) c = n.cache = [];
-		if (c.length >= CACHE * ENTRY) c.splice(0, ENTRY);
-		c.push(w);
-		c.push(h);
-		c.push(aw);
-		c.push(ah);
-		c.push(rw);
-		c.push(rh);
+		if (c == null) c = n.cache = new haxe.ds.Vector(1 + ENTRY, 0.0);
+		var at = 1 + Std.int(c[0]);
+		if (at >= c.length && c.length < 1 + CACHE * ENTRY) {
+			var g = new haxe.ds.Vector(Std.int(Math.min(2 * c.length - 1, 1 + CACHE * ENTRY)), 0.0);
+			haxe.ds.Vector.blit(c, 0, g, 0, c.length);
+			c = n.cache = g;
+		}
+		if (at >= 1 + CACHE * ENTRY) {
+			for (i in 1...at - ENTRY)
+				c[i] = c[i + ENTRY];
+			at -= ENTRY;
+		}
+		c[at] = w;
+		c[at + 1] = h;
+		c[at + 2] = aw;
+		c[at + 3] = ah;
+		c[at + 4] = rw;
+		c[at + 5] = rh;
+		c[0] = at + ENTRY - 1;
 	}
 
 	static inline function known(v:Float):Bool
@@ -1061,6 +1085,11 @@ class Layout {
 
 	static inline function same(a:Float, b:Float):Bool
 		return a == b || (Math.isNaN(a) && Math.isNaN(b));
+
+	// (a size measured in the room `was` is `got` in the room `now` too: the
+	// same room, or neither room bounded it, as Yoga reuses its measurements)
+	static inline function fits(was:Float, got:Float, now:Float):Bool
+		return same(was, now) || ((Math.isNaN(was) || got < was) && (Math.isNaN(now) || got <= now));
 
 	// NaN stays NaN
 	static inline function clamp(v:Float, lo:Float, hi:Float):Float
