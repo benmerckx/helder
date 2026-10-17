@@ -34,6 +34,7 @@ class GuideTest implements Markup {
 		richText();
 		themes();
 		shortcuts();
+		icons();
 		dragAndDrop();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
@@ -322,6 +323,31 @@ class GuideTest implements Markup {
 		dark.value = false;
 		Clock.finish();
 		check("themes: and back", b.style.background == light);
+	}
+
+	// "Images and icons"
+	static final SEARCH = Svg.parse('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+		stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>');
+
+	static function SearchButton(props:{onClick:Void->Void}):Esx
+		return <view tag="search" role="button" label="Search" focusable direction="row" column-gap={6} align-items="center"
+			color="#2563eb" onClick={_ -> props.onClick()}>
+			<image src={SEARCH} width={16} height={16}/>
+			<text>Search</text>
+		</view>;
+
+	static function icons() {
+		var ui = window(), clicks = 0;
+		Render.render(<SearchButton onClick={() -> clicks++}/>, ui.root);
+		ui.update();
+		ui.paint(new Recording());
+		var b = ui.root.find("search"), img:ImageNode = cast b.children[0];
+		// (the circle's top: the stroke in the button's colour)
+		var px = img.image.pixels, o = (1 * 16 + 7) * 4;
+		check("icons: an svg drawn in the node's colour, at its size", img.image.width == 16 && px.get(o + 2) == 0xEB && px.get(o + 3) > 128,
+			img.image.width + " " + px.get(o + 2) + " " + px.get(o + 3));
+		click(ui, "search");
+		check("icons: the button", clicks == 1);
 	}
 
 	// "Keyboard shortcuts"

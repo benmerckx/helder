@@ -39,6 +39,8 @@ class UiTest {
 		dirty();
 		paint();
 		images(here);
+		svgs(here);
+		svgApi();
 		fields();
 		popups();
 		shortcuts();
@@ -52,6 +54,74 @@ class UiTest {
 			failed++;
 			Sys.println('UiTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
+	}
+
+	// --- svg ---
+
+	// svg/*.svg drawn by Svg.render against Chromium's pixels (svg-cases.mjs):
+	// compared premultiplied. Edge pixels differ by their anti-aliasing
+	// (Skia's approximates; ours is the exact area, within a few levels of
+	// a 16x16 supersampling of the true curves, where Skia's strokes of
+	// quadratic curves are off by up to 80), so the shapes must agree: a
+	// small mean difference, few pixels far apart.
+	static function svgs(here:String) {
+		var dir = here + "/svg";
+		var cases:Array<{name:String, width:Int, height:Int}> = haxe.Json.parse(sys.io.File.getContent(dir + "/cases.json"));
+		check("svg: the cases", cases.length >= 20, '${cases.length}');
+		var stats = Sys.getEnv("SVG_STATS") != null;
+		for (c in cases) {
+			var img = Svg.parse(sys.io.File.getContent(dir + "/" + c.name + ".svg")).render(c.width, c.height);
+			var ref = PngDecoder.decode(sys.io.File.getBytes(dir + "/" + c.name + ".png"));
+			var total = 0.0, worst = 0, far = 0, a = img.pixels, b = ref.rgba;
+			for (i in 0...c.width * c.height) {
+				var o = i * 4, aa = a.get(o + 3), ba = b.get(o + 3), d = Std.int(Math.abs(aa - ba));
+				for (k in 0...3) {
+					var e = Std.int(Math.abs(a.get(o + k) * aa / 255 - b.get(o + k) * ba / 255));
+					if (e > d) d = e;
+				}
+				total += d;
+				if (d > worst) worst = d;
+				if (d > 64) far++;
+			}
+			var mean = total / (c.width * c.height);
+			if (stats) Sys.println('svg ${c.name}: mean ${Math.round(mean * 100) / 100} worst $worst far $far');
+			check("svg: " + c.name + " as Chromium draws it", mean < 4 && far <= c.width * c.height / 100, 'mean $mean, worst $worst, $far pixels off by more than 64');
+		}
+	}
+
+	// Svg's own behaviour, and an svg in an ImageNode
+	static function svgApi() {
+		var icon = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="currentColor"/></svg>');
+		check("svg: the viewBox's size by itself", icon.width == 24 && icon.height == 24);
+		var img = icon.render(4, 4, 0xFF2563EB);
+		check("svg: currentColor painted render's colour", img.pixels.get(0) == 0x25 && img.pixels.get(1) == 0x63 && img.pixels.get(2) == 0xEB && img.pixels.get(3) == 255);
+		var none = 0;
+		try Svg.parse("<html/>") catch (_:Dynamic) none++;
+		check("svg: no svg element throws", none == 1);
+		var nums = Svg.SvgParse.numbers("1,2 3-4.5.5e1 -.5");
+		check("svg: number lists as SVG splits them", nums.join(" ") == "1 2 3 -4.5 5 -0.5", nums.join(" "));
+		var p = Svg.SvgParse.pathData("M1 1 L2 2 X 3 3");
+		check("svg: path data up to an error", p.length == 6, '$p');
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.alignItems = Start;
+		ui.root.style.color = Color.rgb(0xFF0000);
+		var n = new ImageNode();
+		n.svg = icon;
+		ui.root.append(n);
+		ui.scale = 2;
+		ui.update();
+		var rec = new Recording();
+		ui.paint(rec);
+		var drawn = [for (c in rec.calls) if (StringTools.startsWith(c, "image")) c];
+		check("svg: an ImageNode its size, drawn at the window's pixels", n.width == 24 && n.height == 24 && drawn.length == 1 && StringTools.startsWith(drawn[0], "image 48x48 0 0 24 24")
+			&& n.image.pixels.get(0) == 255 && n.image.pixels.get(2) == 0, drawn.join("|"));
+		n.style.width = 40;
+		ui.root.style.color = Color.rgb(0x0000FF);
+		ui.update();
+		rec = new Recording();
+		ui.paint(rec);
+		drawn = [for (c in rec.calls) if (StringTools.startsWith(c, "image")) c];
+		check("svg: drawn again at a new size and colour", n.height == 40 && StringTools.startsWith(drawn[0], "image 80x80") && n.image.pixels.get(2) == 255, drawn.join("|"));
 	}
 
 	// --- shortcuts ---

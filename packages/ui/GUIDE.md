@@ -208,6 +208,25 @@ var height = Motion.spring(() -> open.value ? 200 : 0);
 <view height={height} overflow="hidden">...</view>
 ```
 
+## Images and icons
+
+An `image` shows an `Image` (`Image.decode`: PNG, JPEG, GIF), an
+`AnimatedImage`, or an `Svg`. An SVG is drawn at the size it is shown,
+sharp at any scale, in the node's text colour wherever it says
+`currentColor`, so icons follow the theme like text does:
+
+```haxe
+static final SEARCH = Svg.parse('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+	stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>');
+
+static function SearchButton(props:{onClick:Void->Void}):Esx
+	return <view tag="search" role="button" label="Search" focusable direction="row" column-gap={6} align-items="center"
+		color="#2563eb" onClick={_ -> props.onClick()}>
+		<image src={SEARCH} width={16} height={16}/>
+		<text>Search</text>
+	</view>;
+```
+
 ## Rich text
 
 Inside a `text`, elements are spans: `span`, `b`, `i`, or `text` again.

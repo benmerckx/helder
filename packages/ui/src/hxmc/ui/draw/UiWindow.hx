@@ -83,6 +83,7 @@ class UiWindow {
 		var s = window.scale;
 		renderer.scale = device.width / Math.max(1, Math.round(device.width / s));
 		ui.resize(device.width / renderer.scale, device.height / renderer.scale);
+		ui.scale = renderer.scale;
 		ui.update();
 		var enc = device.beginFrame();
 		if (enc == null) return;

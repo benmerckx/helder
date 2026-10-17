@@ -97,7 +97,28 @@ class Rasterizer implements Outline {
 		py = sy;
 	}
 
+	// a line clipped to the bitmap's columns: a part left of it as the
+	// same rise at its left edge (it winds every pixel to its right), a part
+	// right of it dropped (it winds none)
 	function line(x0:Float, y0:Float, x1:Float, y1:Float) {
+		if (Math.abs(y0 - y1) <= 1e-9) return;
+		if (x0 >= 0 && x1 >= 0 && x0 <= width && x1 <= width) {
+			scan(x0, y0, x1, y1);
+			return;
+		}
+		if (x0 >= width && x1 >= width) return;
+		if (x0 <= 0 && x1 <= 0) {
+			scan(0, y0, 0, y1);
+			return;
+		}
+		// (split where it crosses an edge, each part again)
+		var edge = (x0 < 0 || x1 < 0) && !((x0 - 0) * (x1 - 0) > 0) ? 0.0 : width;
+		var t = (edge - x0) / (x1 - x0), ym = y0 + (y1 - y0) * t;
+		line(x0, y0, edge, ym);
+		line(edge, ym, x1, y1);
+	}
+
+	function scan(x0:Float, y0:Float, x1:Float, y1:Float) {
 		if (Math.abs(y0 - y1) <= 1e-9) return;
 		var dir = 1.0;
 		if (y0 > y1) {
@@ -150,13 +171,18 @@ class Rasterizer implements Outline {
 		}
 	}
 
-	// the coverage as bytes (0 to 255), rows of width at dst's offset with a stride
-	public function writeTo(dst:haxe.io.Bytes, offset:Int, dstStride:Int) {
+	// the coverage as bytes (0 to 255), rows of width at dst's offset with a
+	// stride; evenOdd: by the even-odd rule (a winding of 2 is outside)
+	public function writeTo(dst:haxe.io.Bytes, offset:Int, dstStride:Int, evenOdd = false) {
 		for (y in 0...height) {
 			var sum = 0.0, row = y * stride, o = offset + y * dstStride;
 			for (x in 0...width) {
 				sum += acc[row + x];
 				var c = Math.abs(sum);
+				if (evenOdd) {
+					c = c % 2;
+					if (c > 1) c = 2 - c;
+				}
 				dst.set(o + x, c >= 1 ? 255 : Std.int(c * 255 + 0.5));
 			}
 		}

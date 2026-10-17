@@ -71,6 +71,12 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     composed as Chromium composes it, on the clock), shown by an `ImageNode` at its own
     size or the style's (keeping its aspect ratio), fitted as `Fill`,
     `Contain`, `Cover` or `None`, its corners rounded with the node's.
+  - SVG: `Svg.parse` reads the static subset icon sets use (shapes, all of
+    path data, fills and strokes with their joins and caps, opacities,
+    transforms, CSS colours, currentColor); `render` draws it at any size,
+    checked against Chromium's pixels on 23 cases. An `ImageNode`'s `svg`
+    (markup: `src={svg}`) is drawn at the window's pixel size in the node's
+    colour. Not drawn: text, gradients, clipping, masks, filters, dashes.
   - `Ui` dispatches pointer, wheel, key and text events to nodes (bubbling
     to ancestors), tracks hover and press, moves the focus (click, Tab,
     Shift+Tab; a ring shows when the keyboard moved it) and scrolls
@@ -122,7 +128,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 ## Markup
 
 Intrinsic elements: `view` (a box), `text` (a run of text), `scroll` (a box
-that scrolls), `image` (an `ImageNode`: `src={image}`, `fit="cover"`).
+that scrolls), `image` (an `ImageNode`: `src={image}` or `src={svg}`, `fit="cover"`).
 Inside a `text`, elements are spans of rich text: `span`, `b`, `i` or
 `text` again, each with its own style (colour, weight, size...) and
 handlers (a link: `<span color="#2563eb" onClick={...}>`); lines are as

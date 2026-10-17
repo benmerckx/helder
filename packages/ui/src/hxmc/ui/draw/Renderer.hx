@@ -30,7 +30,11 @@ class Renderer implements Canvas {
 	var used = 0; // bytes of vertices this frame
 	// the runs of quads by image texture: first vertex, count, image id (0: none)
 	final batches:Array<Int> = [];
-	final textures = new Map<Int, {texture:Texture, version:Int}>();
+	// (frame: the last one that drew it; one not drawn for EVICT frames is freed)
+	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int}>();
+	var frames = 0;
+
+	static inline var EVICT = 300;
 	var targetW = 1.0;
 	var targetH = 1.0;
 
@@ -61,6 +65,14 @@ class Renderer implements Canvas {
 
 	// starts a frame's drawing into a target of width x height pixels
 	public function begin(width:Int, height:Int) {
+		// (the textures of images no longer drawn: a replaced image, an svg drawn again at another size)
+		frames++;
+		if (frames % 60 == 0)
+			for (id => e in [for (k => v in textures) k => v])
+				if (frames - e.frame > EVICT) {
+					device.destroyTexture(e.texture);
+					textures.remove(id);
+				}
 		targetW = width;
 		targetH = height;
 		used = 0;
@@ -115,6 +127,7 @@ class Renderer implements Canvas {
 	// the image's texture, uploaded (premultiplied) when new or changed
 	function texture(img:Image):Texture {
 		var e = textures.get(img.id);
+		if (e != null) e.frame = frames;
 		if (e != null && e.version == img.version) return e.texture;
 		var px = img.pixels, n = img.width * img.height;
 		var pre = haxe.io.Bytes.alloc(n * 4);
@@ -126,7 +139,7 @@ class Renderer implements Canvas {
 			pre.set(4 * k + 3, a);
 		}
 		if (e == null) {
-			e = {texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, filter: Linear, data: pre}), version: img.version};
+			e = {texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, filter: Linear, data: pre}), version: img.version, frame: frames};
 			textures.set(img.id, e);
 		} else {
 			device.writeTexture(e.texture, 0, 0, img.width, img.height, pre);
