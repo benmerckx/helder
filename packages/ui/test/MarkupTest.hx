@@ -7,8 +7,18 @@ import hxmc.view.Reactive.*;
 import hxmc.ui.access.*;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
+import hxmc.ui.widgets.Widgets.Switch as SwitchWidget;
+import hxmc.ui.widgets.Widgets.Toggle;
+import hxmc.ui.widgets.Widgets.Label;
+import hxmc.ui.widgets.Widgets.Badge;
+import hxmc.ui.widgets.Widgets.Card;
+import hxmc.ui.widgets.Widgets.CardHeader;
+import hxmc.ui.widgets.Widgets.CardTitle;
+import hxmc.ui.widgets.Widgets.CardDescription;
+import hxmc.ui.widgets.Widgets.CardContent;
+import hxmc.ui.widgets.Widgets.CardFooter;
 import hxmc.ui.widgets.Widgets.Slider;
-import hxmc.ui.widgets.Widgets.Field;
+import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.NumberField;
@@ -81,6 +91,7 @@ class MarkupTest implements Markup {
 		toolbar();
 		navigation();
 		tagInput();
+		unstyled();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -260,7 +271,7 @@ class MarkupTest implements Markup {
 			<Slider tag="vol" value={vol} width={100} step={0.1}/>
 			<view tag="row" direction="row" column-gap={4}><view tag="a" width={40} height={20}/><view tag="b" width={30} height={20}/></view>
 			<text tag="words">Hello</text>
-			<Field tag="name" value={name}/>
+			<Input tag="name" value={name}/>
 		</view>, ui.root);
 		ui.update();
 		var a = ui.root.find("a"), b = ui.root.find("b"), words = ui.root.find("words");
@@ -730,7 +741,7 @@ class MarkupTest implements Markup {
 	static function password() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var pw = signal("hunter2");
-		Render.render(<view padding={10}><Field tag="pw" value={pw} password label="Password"/></view>, ui.root);
+		Render.render(<view padding={10}><Input tag="pw" value={pw} password label="Password"/></view>, ui.root);
 		ui.update();
 		var f:TextField = cast ui.root.find("pw");
 		var clip:hxmc.ui.ClipboardHost.MemoryClipboard = cast ui.clipboard;
@@ -915,7 +926,7 @@ class MarkupTest implements Markup {
 	static function editMenus() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var text = signal("hello world");
-		Render.render(<view padding={10}><Field tag="note" value={text}/></view>, ui.root);
+		Render.render(<view padding={10}><Input tag="note" value={text}/></view>, ui.root);
 		ui.update();
 		var f:TextField = cast ui.root.find("note");
 		ui.setFocus(f);
@@ -999,7 +1010,7 @@ class MarkupTest implements Markup {
 			<ContextMenu tag="ctx" items={[{label: "Cut", onSelect: () -> log.push("cut")}, {label: "Copy", onSelect: () -> log.push("copy"), shortcut: "Mod+C"}]}>
 				<view tag="area" focusable width={200} height={40}/>
 			</ContextMenu>
-			<Dialog open={dialog} title="Rename"><Field tag="rename" value={field}/></Dialog>
+			<Dialog open={dialog} title="Rename"><Input tag="rename" value={field}/></Dialog>
 		</view>, ui.root);
 		ui.update();
 		function click(n:Node) {
@@ -1125,6 +1136,53 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("popover: Escape closes the dialog", !dialog.value && ui.overlay.children.length == 0);
+	}
+
+	// the unstyled widgets (Unstyled; a theme's looks: Rule): slots,
+	// variants, sizes and states for a theme; legible without one
+	static function unstyled() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var on = signal(false), pressed = signal(false), ticked = signal(false), mixed = signal(false), off = signal(false), clicks = 0;
+		Render.render(<view align-items="start" row-gap={4}>
+			<Button tag="b" label="Go" variant="destructive" size="sm" disabled={off} onClick={() -> clicks++}/>
+			<Toggle tag="t" pressed={pressed} label="Bold" variant="outline"/>
+			<Checkbox tag="c" checked={ticked} mixed={mixed} label="Agree"/>
+			<SwitchWidget tag="s" checked={on} label="Wi-Fi"/>
+			<Label text="Name"/>
+			<Badge label="New" variant="secondary"/>
+			<Card tag="card"><CardHeader><CardTitle text="Title"/><CardDescription text="More"/></CardHeader><CardContent><text>Body</text></CardContent><CardFooter><Button label="OK"/></CardFooter></Card>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var b = ui.root.find("b"), t = ui.root.find("t"), c = ui.root.find("c"), s = ui.root.find("s"), card = ui.root.find("card");
+		var thumb = s.children[0], indicator = c.children[0];
+		check("unstyled: slots, variants and sizes for a theme", b.slot == "button" && b.variant == "destructive" && b.size == "sm" && t.slot == "toggle"
+			&& c.slot == "checkbox" && indicator.slot == "checkbox-indicator" && s.slot == "switch" && thumb.slot == "switch-thumb" && card.slot == "card"
+			&& ui.root.find("card-header").slot == "card-header" && ui.root.find("card-title").slot == "card-title" && ui.root.find("badge").variant == "secondary"
+			&& ui.root.find("label").slot == "label");
+		check("unstyled: legible without a theme: outlines in the text's colour", b.style.borderWidth == 1 && b.style.borderColor == Color.BLACK
+			&& c.style.width.resolve(0) == 16 && c.style.borderWidth == 1 && s.style.borderWidth == 1);
+		// (states: data-state, the indicator shown when checked, the thumb moved)
+		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), thumb.style.transform == null ? "start" : "moved"];
+		click(c);
+		click(s);
+		click(t);
+		check("unstyled: data-state as Radix's, the checked state visible", before.join(",") == "unchecked,hidden,unchecked,start" && ticked.peek() && c.attr("data-state") == "checked"
+			&& indicator.style.display != None && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
+			&& thumb.style.transform != null && pressed.peek() && t.attr("data-state") == "on", before.join(","));
+		mixed.value = true;
+		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator.attr("data-state") == "indeterminate");
+		// (disabled: data-disabled, no clicks, not focusable)
+		click(b);
+		off.value = true;
+		click(b);
+		check("unstyled: disabled", clicks == 1 && b.attr("data-disabled") == "" && !b.focusable && b.style.opacity == 0.5);
 	}
 
 	static function table() {
@@ -1420,7 +1478,7 @@ class MarkupTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="check" checked={checked} label="Remember"/>
 			<Slider tag="vol" value={vol} step={0.1} label="Volume"/>
-			<Field tag="name" value={name} placeholder="Name"/>
+			<Input tag="name" value={name} placeholder="Name"/>
 			<view><text>nested</text><image label="a picture" src={new Image(4, 4)} width={4} height={4}/></view>
 		</view>, ui.root);
 		ui.update();

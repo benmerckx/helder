@@ -46,8 +46,23 @@ class Ui {
 		if (v == focusVisible) return v;
 		focusVisible = v;
 		// (the focused node's rules for focus-visible)
-		if (focus != null) Rules.restyle(focus);
+		if (focus != null) @:privateAccess focus.restyleLater();
 		return v;
+	}
+
+	// (the nodes whose rules apply again at the next update: Node.restyleLater)
+	var restyles:Array<Node> = [];
+
+	// applies the rules of the nodes waiting for it (update does, before layout)
+	public function flushRestyles() {
+		while (restyles.length > 0) {
+			var list = restyles;
+			restyles = [];
+			for (n in list) {
+				@:privateAccess n.restylePending = false;
+				Rules.restyle(n);
+			}
+		}
 	}
 
 	function set_theme(v:Null<StyleSheet>):Null<StyleSheet> {
@@ -117,6 +132,7 @@ class Ui {
 
 	// lays the tree out if it changed (a tree that did not: nothing done)
 	public function update() {
+		flushRestyles();
 		Layout.run(root, width, height, text, rounded);
 		if (root.inkStale) refreshInk(root);
 		if (overlay.children.length > 0) {

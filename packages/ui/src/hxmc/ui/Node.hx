@@ -88,8 +88,18 @@ class Node {
 	public var size(default, set):Null<String> = null;
 	public var theme(default, set):Null<StyleSheet> = null;
 	var attrs:Null<Map<String, String>> = null;
-	// (what the rules wrote, by property: Rules)
-	var themed:Null<Map<String, Dynamic>> = null;
+	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
+	var themedNames:Null<Array<String>> = null;
+	var themedValues:Null<Array<Dynamic>> = null;
+	var restylePending = false;
+
+	// (asks for its rules to be applied again, at the next update: several changes, one restyle)
+	function restyleLater() {
+		if (ui == null || restylePending || slot == null && themedNames == null) return;
+		restylePending = true;
+		@:privateAccess ui.restyles.push(this);
+		ui.requestFrame();
+	}
 
 	// layout state (Layout): unrounded results, the measure cache, dirty
 	@:allow(hxmc.ui.Layout) var lx = 0.0;
@@ -198,7 +208,7 @@ class Node {
 		if (ui == u) return;
 		if (ui != null) ui.detached(this);
 		ui = u;
-		if (u != null && (slot != null || themed != null)) Rules.restyle(this);
+		restyleLater();
 		for (c in children)
 			c.attach(u);
 	}
@@ -992,7 +1002,7 @@ class Node {
 		this.focused = focused;
 		if (changed && ui != null) {
 			ui.requestFrame();
-			if (slot != null || themed != null) Rules.restyle(this);
+			restyleLater();
 		}
 	}
 
@@ -1009,7 +1019,7 @@ class Node {
 			if (attrs == null) attrs = new Map();
 			attrs.set(name, value);
 		}
-		if (slot != null || themed != null) Rules.restyle(this);
+		restyleLater();
 	}
 
 	// the theme it is styled by: its own or the nearest ancestor's, else the window's
@@ -1025,21 +1035,21 @@ class Node {
 	function set_slot(v:Null<String>):Null<String> {
 		if (v == slot) return v;
 		slot = v;
-		Rules.restyle(this);
+		restyleLater();
 		return v;
 	}
 
 	function set_variant(v:Null<String>):Null<String> {
 		if (v == variant) return v;
 		variant = v;
-		if (slot != null) Rules.restyle(this);
+		restyleLater();
 		return v;
 	}
 
 	function set_size(v:Null<String>):Null<String> {
 		if (v == size) return v;
 		size = v;
-		if (slot != null) Rules.restyle(this);
+		restyleLater();
 		return v;
 	}
 

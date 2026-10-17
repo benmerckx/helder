@@ -31,12 +31,16 @@ cover the examples below:
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;                 // Markup, View, Render, Signal...
-import hxmc.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
 import hxmc.view.Reactive.*;        // signal, memo, effect, batch, context, use...
 import hxmc.ui.view.*;              // Motion, NodeRenderer
 import hxmc.ui.view.UiFlow.*;       // Popover, Hotkey, VirtualList
-import hxmc.ui.widgets.Widgets.*;   // Button, Checkbox, Field, Select, Dialog...
+import hxmc.ui.widgets.Widgets.*;   // Button, Checkbox, Input, Select, Dialog...
+import hxmc.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
 ```
+
+(The widgets' `Switch`, shadcn's toggle switch, and Flow's `Switch`, the
+control flow, share a name; the later import wins, so put the one a file
+writes as `<Switch>` last.)
 
 A window holds a tree of nodes. `Render.render` mounts markup into its
 root, and `UiWindow.run` runs the loop until the last window closes:
@@ -302,18 +306,30 @@ static function Accent(props:{label:String}):View {
 
 ## Themes and dark mode
 
-The widgets draw with `Theme.current`, a signal holding `Theme.LIGHT` or
-`Theme.DARK` (or a theme of your own: colours by role). Setting it
-recolours every widget, with their usual transition. `UiWindow.dark`
-follows the system's appearance, so one line makes an app follow it:
+The widgets are moving to ship unstyled (Button, Input, Checkbox, Switch,
+Label, Card, Badge, Toggle so far; the rest still draw with
+`Theme.current`): they work and stay legible in the text's colour, and a
+theme gives them their looks. A theme is a `StyleSheet`: rules for the
+widgets' slots (shadcn's data-slot names), variants and states, and the
+colours their tokens name, light and dark. `@hxmc/theme` is shadcn/ui's;
+a small one of your own:
 
 ```haxe
-Theme.follow(() -> UiWindow.dark.value);
+static final sheet:StyleSheet = {
+	rules: [
+		{slot: "button", style: {background: Color.parse("var(--primary)"), color: Color.parse("var(--primary-foreground)"), radius: 6, padding: [8, 16]}},
+		{slot: "button", when: ["hover"], style: {background: Color.parse("var(--primary)/90")}},
+		{slot: "button", variant: "outline", style: {background: Color.TRANSPARENT, color: Color.parse("var(--foreground)"), borderWidth: 1, borderColor: Color.parse("var(--border)")}}
+	],
+	light: ["primary" => Color.parse("oklch(0.205 0 0)"), "primary-foreground" => Color.parse("oklch(0.985 0 0)"), "foreground" => Color.parse("oklch(0.145 0 0)"), "border" => Color.parse("oklch(0.922 0 0)")],
+	dark: ["primary" => Color.parse("oklch(0.922 0 0)"), "primary-foreground" => Color.parse("oklch(0.205 0 0)"), "foreground" => Color.parse("oklch(0.985 0 0)"), "border" => Color.parse("oklch(1 0 0 / 10%)")]
+};
 ```
 
-Paint your own surfaces with the theme's roles too, read inside a
-function so that they follow it:
-`<view background={() -> Theme.current.value.background} color={() -> Theme.current.value.text}>`.
+`ui.theme = sheet` installs it (`node.theme` for a subtree), and
+`ui.dark` picks its dark colours; `UiWindow.dark` follows the system's
+appearance: `effect(() -> ui.dark = UiWindow.dark.value)`. A widget's own
+style (an attribute in markup) wins over the theme's.
 
 ## Popups
 
@@ -330,7 +346,7 @@ static function Confirm(props:{onYes:Void->Void}):View {
 		<Dialog open={open} title="Delete this file?">
 			<view direction="row" column-gap={8} justify="end">
 				<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
-				<Button tag="yes" label="Delete" primary onClick={() -> {
+				<Button tag="yes" label="Delete" onClick={() -> {
 					open.value = false;
 					props.onYes();
 				}}/>

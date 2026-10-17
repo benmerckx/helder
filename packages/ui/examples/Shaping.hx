@@ -42,7 +42,7 @@ class Shaping implements Markup {
 				<Sample label="Marks" text={"n\u0303 a\u0308 o\u0323\u0302 e\u0301"}/>
 				<Sample label="Scripts" text="Ελληνικά Кириллица"/>
 			</view>
-			<Field value={input} placeholder="Type in any script"/>
+			<Input value={input} placeholder="Type in any script"/>
 			<text font-size={26}>{input}</text>
 		</view>;
 }

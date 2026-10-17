@@ -195,12 +195,15 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   control flow components `For`, `Index`, `Show`, `Switch`,
   `ErrorBoundary` are `@hxmc/view`'s ([its README](../view/README.md)).
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing,
-  `cut`, `copy`, `paste`, `selectAll`; `Field` and `Area` add an edit menu
+  `cut`, `copy`, `paste`, `selectAll`; `Input` and `Area` add an edit menu
   on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`, `RangeSlider` (two knobs, a
+  `EditableText`, with an input method's composition shown at the caret), and the components; unstyled with slots for a theme (Themes) so far:
+  `Button` (variants, sizes, disabled), `Toggle` (a pressed button), `Checkbox`, `Switch`, `Input` (or a password,
+  invalid), `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
+  `CardFooter`); still drawn with `Theme.current`: `Radio`, `Slider`, `RangeSlider` (two knobs, a
   slider each for the keyboard),
-  `Progress` (or indeterminate), `Tabs`, `Field` (or a password), `Area`, `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
+  `Progress` (or indeterminate), `Tabs`, `Area`, `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
@@ -284,7 +287,11 @@ Colours may be token references, `Color.parse("var(--primary)")`,
 `oklch()` and `oklab()` parse as CSS converts them (Chromium's pixels).
 `ui.theme = sheet` installs one for a window, `node.theme` for a subtree,
 `ui.dark` picks the dark colours and the `dark` rules; every change of a
-state, attribute, variant, sheet or of dark applies them again.
+state, attribute, variant, sheet or of dark applies them again, at the
+window's next update (several changes, one restyle). Without a sheet a
+widget takes its base rules (`Unstyled`: legible outlines and states in
+the text's colour, `currentColor`); a sheet starts from none of them, as
+shadcn's classes from Tailwind's preflight.
 
 ## Fonts
 
