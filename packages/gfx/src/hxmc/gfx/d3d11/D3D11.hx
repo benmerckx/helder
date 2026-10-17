@@ -146,6 +146,7 @@ class D3D {
 	public static inline var FEATURE_D3D11_OPTIONS = 7;
 	// D3D11_INPUT_CLASSIFICATION
 	public static inline var INPUT_PER_VERTEX_DATA = 0;
+	public static inline var INPUT_PER_INSTANCE_DATA = 1;
 	// D3D11_FILL_MODE, D3D11_CULL_MODE
 	public static inline var FILL_SOLID = 3;
 	public static inline var CULL_NONE = 1;

@@ -266,7 +266,7 @@ class TextLayout {
 		// (the glyphs that may take part: their ids, else -1, which no ligature has;
 		// none when no face has these lookups)
 		var ids:Null<Array<Int>> = null;
-		var lastFont:Null<FontFile> = null, lastScript = "", lastLookups:Array<Int> = [];
+		var lastFont:Null<FontFile> = null, lastScript = "", lastLookups:Array<Int> = [], starts:Null<haxe.io.Bytes> = null;
 		for (k in 0...n) {
 			var g = gs[k];
 			var spaced = (g.run < 0 ? letterSpacing : runs[g.run].letterSpacing) != 0;
@@ -293,12 +293,14 @@ class TextLayout {
 			var g = gs[i], merged = false;
 			if (ids[i] >= 0 && i + 1 < n && ids[i + 1] >= 0) {
 				var f = g.font, sc = script(g.cp);
-				if (f != lastFont || sc != lastScript) {
+				if (f != lastFont || sc != lastScript || starts == null) {
 					lastFont = f;
 					lastScript = sc;
 					lastLookups = f.ligatureLookups(sc);
+					starts = f.ligatureStarts(lastLookups);
 				}
-				for (l in lastLookups) {
+				// (a glyph no ligature begins with: none tried)
+				if (ids[i] < starts.length && starts.get(ids[i]) != 0) for (l in lastLookups) {
 					var lig = f.ligature(l, ids, i);
 					if (lig.count < 2) continue;
 					// (its parts in this face and run)
@@ -497,6 +499,8 @@ class TextLayout {
 		if (i == 0) return false;
 		var p = gs[i - 1].cp, c = gs[i].cp;
 		if (isSpace(c)) return false; // (spaces stay at the end of the line)
+		// (most text: letters before letters, the tests below all false)
+		if (p < 0x2010 && c < 0x2E80) return p == 32 || p == 9 || p == 0x2D || p == 0x2F;
 		return isSpace(p) || p == 0x2D || p == 0x2010 || p == 0x2013 || p == 0x2014 || p == 0x2F || isCJK(p) || isCJK(c);
 	}
 

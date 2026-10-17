@@ -143,9 +143,14 @@ class GridAreas {
 	}
 }
 
+// how auto-placed items fill the grid (CSS's grid-auto-flow): by rows or
+// by columns; dense, each from the grid's start (filling holes earlier
+// items left), not after the one before (markup: "row dense", "dense")
 enum abstract GridFlow(Int) {
 	var Row;
 	var Column;
+	var RowDense;
+	var ColumnDense;
 }
 
 class Grid {

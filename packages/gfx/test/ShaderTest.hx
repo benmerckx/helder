@@ -179,7 +179,9 @@ class ShaderTest {
 			{name: "BuiltinShader.vert", code: BuiltinShader.vertexCode},
 			{name: "BuiltinShader.frag", code: BuiltinShader.fragmentCode},
 			{name: "TexturedShader.vert", code: TexturedShader.vertexCode},
-			{name: "TexturedShader.frag", code: TexturedShader.fragmentCode}
+			{name: "TexturedShader.frag", code: TexturedShader.fragmentCode},
+			{name: "InstancesShader.vert", code: InstancesShader.vertexCode},
+			{name: "InstancesShader.frag", code: InstancesShader.fragmentCode}
 		];
 		for (c in codes)
 			for (l in ["glsl", "wgsl", "msl", "hlsl"]) {

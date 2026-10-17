@@ -431,6 +431,37 @@ class FontFile {
 
 	final ligaCache = new Map<String, Array<Int>>();
 
+	// the glyphs that begin a ligature of these lookups (their subtables'
+	// coverages), a byte by glyph id (1: may begin one); kept by lookups
+	public function ligatureStarts(lookups:Array<Int>):haxe.io.Bytes {
+		var key = lookups.join(",");
+		var b = startsCache.get(key);
+		if (b != null) return b;
+		b = haxe.io.Bytes.alloc(numGlyphs + 1);
+		for (l in lookups) {
+			var t = gsubSubtables(l);
+			if (t.type != 4) continue;
+			for (st in t.subtables) {
+				var c = st + u16(data, st + 2), n = u16(data, c + 2);
+				if (u16(data, c) == 1)
+					for (k in 0...n) {
+						var g = u16(data, c + 4 + 2 * k);
+						if (g < b.length) b.set(g, 1);
+					}
+				else
+					for (k in 0...n) {
+						var r = c + 4 + 6 * k, end = u16(data, r + 2);
+						for (g in u16(data, r)...end + 1)
+							if (g < b.length) b.set(g, 1);
+					}
+			}
+		}
+		startsCache.set(key, b);
+		return b;
+	}
+
+	final startsCache = new Map<String, haxe.io.Bytes>();
+
 	var gdefClasses = -2;
 
 	public var hasGlyphClasses(get, never):Bool;

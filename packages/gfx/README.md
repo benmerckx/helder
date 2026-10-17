@@ -5,8 +5,9 @@ immutable pipelines, back ends over GL through EGL (Linux, Android: GLES 3.0
 on the activity's window), Metal (macOS),
 Direct3D 11 (Windows), WebGPU and WebGL2 (the browser). See
 `examples/Triangle.hx` (the least a program needs), `examples/Cube.hx`
-(textures, depth, uniforms, blending, indices) and the design notes and
-what is left in docs/plans/graphics.md.
+(textures, depth, uniforms, blending, indices), `examples/Instances.hx`
+(instanced draws) and the design notes and what is left in
+docs/plans/graphics.md.
 
 ## API
 
@@ -49,6 +50,30 @@ ring per frame in flight; Metal: `setVertexBytes`, at most 4 KB a block).
 The device has a depth buffer of the target's size; `PassDesc.depth`
 clears or keeps it. `Device.readPixels` reads the frame back (tests,
 screenshots; on WebGPU, `readPixels` in `imports.mjs`, asynchronously).
+
+Instancing: a vertex buffer slot whose layout has `step: Instance` advances
+once per instance instead of once per vertex (GL's and WebGL2's attribute
+divisor 1, D3D11's per-instance input slots, Metal's per-instance step
+function, WebGPU's `stepMode: 'instance'`); `draw` and `drawIndexed` take
+the instance count, and `drawIndexed`'s base vertex moves the per-vertex
+buffers only. A shader reads both kinds of attributes from its one input
+struct; the pipeline's layout says which buffer each location comes from:
+
+```haxe
+var d = InstancesShader.pipeline();
+d.layout = [
+	{stride: 8, attributes: [{location: 0, format: Float2, offset: 0}]},  // the shape's corners
+	{stride: 28, step: Instance, attributes: [                             // each instance's
+		{location: 1, format: Float2, offset: 0}, {location: 2, format: Float1, offset: 8},
+		{location: 3, format: Float1, offset: 12}, {location: 4, format: Float3, offset: 16}
+	]}
+];
+var pipeline = device.createPipeline(d);
+...
+enc.setVertexBuffer(0, shapes);
+enc.setVertexBuffer(1, instances, first * 28);       // the instances from first
+enc.drawIndexed(6, count);                            // count instances of the quad
+```
 
 Conventions, the same on every back end: clip space y up and z from 0
 (near) to w (far), counter-clockwise front faces; the fragment position in

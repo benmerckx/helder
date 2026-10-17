@@ -20,7 +20,8 @@ import hxmc.unsafe.*;
 // layout(binding)); setUniforms writes into the frame's uniform buffer, one
 // of two (frames in flight), and binds the range (glBindBufferRange). The
 // depth buffer is the default framebuffer's (24 bits); ES 3.0 has no base
-// vertex, so drawIndexed's moves the vertex attributes' offsets instead.
+// vertex, so drawIndexed's moves the vertex attributes' offsets instead
+// (not an instance buffer's: its attributes have divisor 1).
 // A texture at slot n is bound to texture unit n with its sampler object.
 // The shader macro's fragment stages flip the fragment position with the
 // target's height (u_target_height), set when a pipeline is.
@@ -59,6 +60,7 @@ class GLBackend {
 	var dirty = true;
 	var base = 0; // the vertices' first: the attributes' offsets move by its stride
 	var enabled = 0; // the attribute locations enabled, a mask
+	var divided = 0; // the attribute locations with divisor 1 (per instance), a mask
 	var ibuf = 0; // the index buffer bound, the one set, its type (GL.UNSIGNED_*), its offset
 	var ibufSet = 0;
 	var itype = GL.UNSIGNED_SHORT;
@@ -463,8 +465,14 @@ class GLBackend {
 		for (i in 0...p.locations.length) {
 			var slot = p.slots[i], loc = p.locations[i];
 			GL.glBindBuffer(GL.ARRAY_BUFFER, vbufs[slot]);
-			GL.glVertexAttribPointer(loc, p.sizes[i], p.types[i], p.normalized[i], p.strides[slot], Ptr.ofI64(voffs[slot] + first * p.strides[slot] + p.offsets[i]));
+			var instanced = p.instanced & (1 << slot) != 0;
+			var at:Int = voffs[slot] + (instanced ? 0 : first * p.strides[slot]) + p.offsets[i];
+			GL.glVertexAttribPointer(loc, p.sizes[i], p.types[i], p.normalized[i], p.strides[slot], Ptr.ofI64(at));
 			if (enabled & (1 << loc) == 0) GL.glEnableVertexAttribArray(loc);
+			if ((divided & (1 << loc) != 0) != instanced) {
+				GL.glVertexAttribDivisor(loc, instanced ? 1 : 0);
+				divided ^= 1 << loc;
+			}
 			mask |= 1 << loc;
 		}
 		for (loc in 0...16)
@@ -524,6 +532,7 @@ private class GLPipeline {
 	public final depthWrite:Bool;
 	public final blend:Blend;
 	public final strides:Array<Int> = [];
+	public var instanced = 0; // the slots stepping per instance, a mask
 	public final slots:Array<Int> = [];
 	public final locations:Array<Int> = [];
 	public final sizes:Array<Int> = [];
@@ -553,6 +562,7 @@ private class GLPipeline {
 		for (slot in 0...d.layout.length) {
 			var l = d.layout[slot];
 			strides.push(l.stride);
+			if (l.step == Instance) instanced |= 1 << slot;
 			for (a in l.attributes) {
 				slots.push(slot);
 				locations.push(a.location);

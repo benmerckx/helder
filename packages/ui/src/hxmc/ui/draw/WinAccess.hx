@@ -287,6 +287,7 @@ class WinAccess {
 			case 30010: bool(v, !n.disabled); // IsEnabled
 			case 30011: str(v, "hxmc-" + n.id); // AutomationId
 			case 30016 | 30017: bool(v, true); // IsControlElement, IsContentElement
+			case 30019: bool(v, n.secret); // IsPassword
 			case 30045 if (n.value != null): str(v, n.value); // Value.Value
 			case _:
 		}

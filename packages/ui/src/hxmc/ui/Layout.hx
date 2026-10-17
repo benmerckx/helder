@@ -561,9 +561,11 @@ class Layout {
 		return s.gridTemplateAreas == null ? s.gridTemplateRows.length : Std.int(Math.max(s.gridTemplateRows.length, s.gridTemplateAreas.rows));
 
 	// the items' cells: those with both lines first, then those locked to a
-	// row (a column, flowing by columns), then the rest by the cursor (sparse)
+	// row (a column, flowing by columns), then the rest by the cursor
+	// (sparse; dense: the cursor back at the start for each)
 	static function place(items:Array<GridItem>, s:Style) {
-		var explicitCols = gridColumnCount(s), explicitRows = gridRowCount(s), byColumn = s.gridAutoFlow == Column;
+		var explicitCols = gridColumnCount(s), explicitRows = gridRowCount(s), flow = s.gridAutoFlow;
+		var byColumn = flow == Column || flow == ColumnDense, dense = flow == RowDense || flow == ColumnDense;
 		var areas = s.gridTemplateAreas;
 		// (a line's index from 0; negative lines from the explicit grid's end;
 		// a name's: its area's start or end line, else the first line past the explicit grid)
@@ -659,7 +661,7 @@ class Layout {
 			if (done[k]) continue;
 			var a = res[k].major, b = res[k].minor;
 			if (a.start < 0) continue;
-			var minor = cursors.exists(a.start) ? cursors.get(a.start) : 0;
+			var minor = !dense && cursors.exists(a.start) ? cursors.get(a.start) : 0;
 			while (!free(a.start, minor, a.span, b.span))
 				minor++;
 			take(items[k], a.start, minor, a.span, b.span);
@@ -672,9 +674,13 @@ class Layout {
 		for (k in 0...items.length) {
 			if (done[k]) continue;
 			var a = res[k].major, b = res[k].minor;
+			if (dense) {
+				curMajor = 0;
+				curMinor = b.start >= 0 ? b.start : 0;
+			}
 			if (b.start >= 0) {
 				// (its minor line given: the next major track where it fits)
-				if (b.start < curMinor) curMajor++;
+				if (!dense && b.start < curMinor) curMajor++;
 				curMinor = b.start;
 				while (!free(curMajor, curMinor, a.span, b.span))
 					curMajor++;

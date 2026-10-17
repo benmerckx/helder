@@ -152,7 +152,8 @@ class PngDecoder {
 			var w = Std.int((width - a[0] + a[2] - 1) / a[2]), h = Std.int((height - a[1] + a[3] - 1) / a[3]);
 			if (w > 0 && h > 0) expected += h * (1 + ((w * bits + 7) >> 3));
 		}
-		var raw = Inflate.zlib(data, 0, data.length, expected);
+		// (hxmc's std inflates a BytesInput whole; the size known, allocated once)
+		var raw = haxe.zip.InflateImpl.run(new haxe.io.BytesInput(data), expected > 0 ? expected : 1024);
 		// the bytes a filter looks back (at least one)
 		var bpp = bits < 8 ? 1 : bits >> 3;
 		var out = Bytes.alloc(width * height * 4);

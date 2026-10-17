@@ -179,8 +179,8 @@ export default async function (host) {
 			layout = [];
 			resources = [];
 		},
-		pipeline_buffer(stride) {
-			layout.push({ arrayStride: stride, attributes: [] });
+		pipeline_buffer(stride, instance) {
+			layout.push({ arrayStride: stride, stepMode: instance ? 'instance' : 'vertex', attributes: [] });
 		},
 		pipeline_attribute(location, format, offset) {
 			layout[layout.length - 1].attributes.push({ shaderLocation: location, format: FORMATS[format], offset });
@@ -414,6 +414,7 @@ export default async function (host) {
 		glEnableVertexAttribArray: (i) => gl.enableVertexAttribArray(i),
 		glDisableVertexAttribArray: (i) => gl.disableVertexAttribArray(i),
 		glVertexAttribPointer: (i, size, type, normalized, stride, offset) => gl.vertexAttribPointer(i, size, type, !!normalized, stride, offset),
+		glVertexAttribDivisor: (i, divisor) => gl.vertexAttribDivisor(i, divisor),
 		glDrawArrays: (mode, first, count) => gl.drawArrays(mode, first, count),
 		glDrawArraysInstanced: (mode, first, count, instances) => gl.drawArraysInstanced(mode, first, count, instances),
 		// (offset: a byte offset into the index buffer)

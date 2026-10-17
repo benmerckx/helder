@@ -270,7 +270,8 @@ class LinuxAccess {
 	];
 
 	function roleOf(id:Int):Int
-		return id == tree.root ? 23 : atspiRole(tree.nodes.get(id).role);
+		// (a password's: PASSWORD_TEXT)
+		return id == tree.root ? 23 : tree.nodes.get(id).secret ? 40 : atspiRole(tree.nodes.get(id).role);
 
 	function nameOf(id:Int):String
 		return id == tree.root ? window.title : tree.nodes.get(id).name;
