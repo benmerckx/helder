@@ -37,6 +37,7 @@ class JniEnv {
 	@:slot(109) static function SetIntField(env:Ptr, o:Ptr, f:Ptr, v:Int):Void;
 	@:slot(113) static function GetStaticMethodID(env:Ptr, cls:Ptr, name:Ptr, sig:Ptr):Ptr;
 	@:slot(116) static function CallStaticObjectMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Ptr;
+	@:slot(131) static function CallStaticIntMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Int;
 	@:slot(143) static function CallStaticVoidMethodA(env:Ptr, cls:Ptr, m:Ptr, args:Ptr):Void;
 	@:slot(163) static function NewString(env:Ptr, chars:Ptr, length:Int):Ptr;
 	@:slot(164) static function GetStringLength(env:Ptr, s:Ptr):Int;
@@ -185,6 +186,13 @@ class Jni {
 
 	public static function staticObj(cls:Ptr, m:Ptr, a:Int64 = 0, b:Int64 = 0, c:Int64 = 0, d:Int64 = 0):Ptr {
 		var r = JniEnv.CallStaticObjectMethodA(env, cls, m, set(a, b, c, d));
+		check();
+		return r;
+	}
+
+	// (a static method of the class its id was found in: CallStatic*MethodA ignores the class with ART)
+	public static function staticInt(m:Ptr, a:Int64 = 0, b:Int64 = 0, c:Int64 = 0, d:Int64 = 0):Int {
+		var r = JniEnv.CallStaticIntMethodA(env, Ptr.nil(), m, set(a, b, c, d));
 		check();
 		return r;
 	}

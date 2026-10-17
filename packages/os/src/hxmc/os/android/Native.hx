@@ -30,6 +30,7 @@ import hxmc.unsafe.*;
 	static function ANativeWindow_getHeight(window:Ptr):Int;
 	static function ANativeWindow_acquire(window:Ptr):Void;
 	static function ANativeWindow_release(window:Ptr):Void;
+	static function ANativeWindow_fromSurface(env:Ptr, surface:Ptr):Ptr;
 	static function ANativeActivity_finish(activity:Ptr):Void;
 	static function AChoreographer_getInstance():Ptr;
 	static function AChoreographer_postFrameCallback64(choreographer:Ptr, callback:Ptr, data:Ptr):Void;

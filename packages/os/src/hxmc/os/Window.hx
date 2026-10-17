@@ -68,18 +68,21 @@ class Window {
 	// its composition and candidates there. In the browser keys then reach an
 	// input element of the page, on macOS through a text view (NSTextInputClient)
 	// at the caret: their compositions as TextEditing events; Windows places
-	// the IME's windows (imm32); X11's input method keeps its own place
+	// the IME's windows (imm32); X11's input method keeps its own place;
+	// Android shows the soft keyboard, its input method through a hidden
+	// EditText (hxmc.os.android.TextInput, once enabled), compositions as
+	// TextEditing
 	public function startTextInput(x:Int, y:Int, width:Int, height:Int) {
 		if (closed) return;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(true, x, y, width, height) else if (Mem.os() == 2)
 			(cast native : Win32Window).textInputArea(x, y, width, height) else if (Mem.os() == 1) (cast native : CocoaWindow).textInput(true, x, y,
-				width, height);
+				width, height) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(true, x, y, width, height);
 	}
 
 	public function stopTextInput() {
 		if (closed) return;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.os() == 1)
-			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0);
+			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(false, 0, 0, 0, 0);
 	}
 
 	function set_title(v:String):String {

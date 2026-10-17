@@ -13,7 +13,8 @@ import hxmc.unsafe.*;
 // (hxmc.os.android.Jni), in an AbsoluteLayout that is the activity's
 // content view, each placed with its LayoutParams at the layout's position
 // and size; Button, TextView (labels: their node's font, size and colour),
-// EditText (one line), CheckBox, SeekBar, ProgressBar. Sizes are the
+// EditText (one line), CheckBox, SeekBar, ProgressBar; a GpuView's
+// SurfaceView, where hxmc.gfx draws on its frames. Sizes are the
 // layout's units, dp: pixels over the screen's density. Measured with the
 // views' own onMeasure; text with a TextView kept for it. Accessibility
 // is the views': TalkBack and the system's tools read them as they are.
@@ -69,7 +70,7 @@ class AndroidBackend implements NativeBackend implements NativeDriver {
 				0;
 			});
 			Jni.call(root, J.addOnLayoutChangeListener, l.obj.toI64());
-			Jni.call(act, J.setContentView, root.toI64());
+			Glue.setContentView(root);
 			var t = Jni.string(title);
 			Jni.call(act, J.setTitle, t.toI64());
 			// (layout params of its own: a TextView measured again after setText reads them)
@@ -95,12 +96,56 @@ class AndroidBackend implements NativeBackend implements NativeDriver {
 	// the steps started, without waiting (tests drive the host with MainThread.run meanwhile)
 	public static function start(host:NativeHost)
 		MainThread.run(() -> {
+			var b:AndroidBackend = cast host.backend;
 			MainThread.onFrame = () -> {
+				var laid = host.ui.needsFrame;
 				host.step();
-				!host.closed && (host.ui.needsFrame || Clock.active);
+				var more = !host.closed && b.gpuFrames(host.root, laid);
+				!host.closed && (host.ui.needsFrame || Clock.active || more);
 			};
 			MainThread.requestFrame();
 		});
+
+	// the GPU views (GpuView): their SurfaceViews made, placed and taken
+	// away after a layout, then their frames; true while one animates
+	final gpus = new haxe.ds.ObjectMap<GpuView, String>();
+
+	function gpuFrames(root:Node, laid:Bool):Bool {
+		if (laid) {
+			var seen = new haxe.ds.ObjectMap<GpuView, Bool>();
+			function walk(n:Node) {
+				if (n.style.display == None) return;
+				if (Std.isOfType(n, GpuView)) {
+					var g:GpuView = cast n;
+					if (g.child == null) {
+						var c = new hxmc.os.android.ChildSurface();
+						c.changed = () -> g.wanted = true;
+						g.child = c;
+						Jni.call(this.root, J.addView, c.view.toI64());
+						gpus.set(g, "");
+					}
+					gpus.set(g, box(g.child.view, gpus.get(g), n.absX, n.absY, n.width, n.height));
+					seen.set(g, true);
+				}
+				for (c in n.children)
+					walk(c);
+			}
+			walk(root);
+			for (g in [for (g in gpus.keys()) g])
+				if (!seen.exists(g)) {
+					Jni.call(this.root, J.removeView, g.child.view.toI64());
+					g.child.dispose();
+					g.child = null;
+					gpus.remove(g);
+				}
+		}
+		var more = false;
+		for (g in gpus.keys()) {
+			g.frame();
+			if (g.animate && !g.child.surface.handle.isNull()) more = true;
+		}
+		return more;
+	}
 
 	public function closeWindow() {
 		if (!open) return;
@@ -265,15 +310,19 @@ class AndroidBackend implements NativeBackend implements NativeDriver {
 
 	public function place(h:Int, x:Float, y:Float, w:Float, ht:Float) {
 		var v = views.get(h);
-		if (v == null) return;
+		if (v != null) placed.set(h, box(v, placed.get(h), x, y, w, ht));
+	}
+
+	// a view's LayoutParams at a box, unless they are at it already (was: their key); the new key
+	function box(v:Ptr, was:Null<String>, x:Float, y:Float, w:Float, ht:Float):String {
 		var px = Math.round(x * density), py = Math.round(y * density), pw = Math.round(Math.max(1, w) * density),
 			ph = Math.round(Math.max(1, ht) * density);
 		var key = px + "," + py + "," + pw + "," + ph;
-		if (placed.get(h) == key) return;
-		placed.set(h, key);
+		if (was == key) return key;
 		var lp = Jni.newObject(J.layoutParams, J.layoutParamsNew, pw, ph, px, py);
 		Jni.call(v, J.setLayoutParams, lp.toI64());
 		Jni.deleteLocal(lp);
+		return key;
 	}
 
 	public function destroy(h:Int) {
@@ -387,7 +436,6 @@ private class J {
 	public static var density:Ptr;
 	public static var widthPixels:Ptr;
 	public static var heightPixels:Ptr;
-	public static var setContentView:Ptr;
 	public static var setTitle:Ptr;
 	public static var addView:Ptr;
 	public static var removeView:Ptr;
@@ -459,7 +507,6 @@ private class J {
 		density = Jni.field(metrics, "density", "F");
 		widthPixels = Jni.field(metrics, "widthPixels", "I");
 		heightPixels = Jni.field(metrics, "heightPixels", "I");
-		setContentView = m(activity, "setContentView", "(Landroid/view/View;)V");
 		setTitle = m(activity, "setTitle", cs);
 		addView = m(group, "addView", "(Landroid/view/View;)V");
 		removeView = m(group, "removeView", "(Landroid/view/View;)V");

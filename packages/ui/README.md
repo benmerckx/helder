@@ -268,7 +268,9 @@ comctl32 5's classic look until a visual styles manifest) and AppKit run
 `NativeTest` in CI. On Android the controls are `android.widget`'s views
 (through JNI; `NativeHost.run` hands the steps to Java's main thread),
 checked on an emulator by `AndroidNativeTest` with taps, text typed
-through the input method and the accessibility tree.
+through the input method and the accessibility tree; a `GpuView`
+(`hxmc.ui.native.android`) is a GPU view among them, where gfx draws
+(`AndroidMixTest`).
 
 ## Accessibility
 

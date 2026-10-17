@@ -34,8 +34,11 @@ for it): the program runs on a thread of its own, `App.run` draws while the
 activity has its window, a touch is the left button and its drag also
 `Scroll`, `Suspend` and `Resume` come when the system takes the window and
 gives one back (`Surface.lost`: the GPU back end lets go of it), and what
-the program prints goes to logcat (`adb logcat -s hxmc`). No clipboard
-there yet. Java from Haxe: `hxmc.os.android.Jni` (JNI's function tables,
+the program prints goes to logcat (`adb logcat -s hxmc`). Text input
+(`startTextInput`, once `hxmc.os.android.TextInput.enable()` was called:
+hxmc.ui's drawn windows do) shows the soft keyboard and brings the input
+method's compositions and commits through a hidden `EditText`; a
+`ChildSurface` is a GPU view among Android's views. No clipboard there yet. Java from Haxe: `hxmc.os.android.Jni` (JNI's function tables,
 bound like COM's by `hxmc.os.VTable`), `MainThread` (Java's main
 thread, where views live: work handed to it, Choreographer's frames
 there) and `Glue` (Java's listeners calling Haxe: hxmc then writes a
