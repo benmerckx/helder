@@ -1380,6 +1380,18 @@ static function transitions() {
 		check("themes: the side back with the rule gone", pn.style.padding.top == 8 && pn.style.padding.left == 16, "" + pn.style.padding.top);
 		ui.root.remove(pn);
 		ui.root.remove(row);
+		// (a radius from the sheet's lengths, calc(var(--radius) - 4px); another sheet, another radius)
+		var rad = new Node("rad");
+		rad.slot = "rad";
+		ui.root.append(rad);
+		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4)}}], lengths: ["radius" => 10.0]};
+		ui.update();
+		var first = rad.style.radius;
+		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4)}}], lengths: ["radius" => 2.0]};
+		ui.update();
+		check("themes: a radius from the sheet's lengths (clamped at 0)", first == 6 && rad.style.radius == 0 && Length.tokenOffset(Length.token("x", -2.5)) == -2.5,
+			first + " " + rad.style.radius);
+		ui.root.remove(rad);
 		// (rules for a breakpoint: the window at least so wide; again across it)
 		ui.theme = {rules: [{slot: "w", style: {opacity: 0.5}}, {slot: "w", when: ["md"], style: {opacity: 0.75}}]};
 		var wide = new Node("w");

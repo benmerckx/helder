@@ -125,14 +125,21 @@ class Rules {
 			} else scratch.set(r.style);
 		}
 		resolveColors(scratch, tokens, CURRENT, dark);
+		// (lengths naming the sheet's: radii, one corner's)
+		var lengths = sheet == null ? null : sheet.lengths;
+		if (Length.isToken(scratch.radius)) scratch.radius = Math.max(0, Length.resolve(scratch.radius, lengths));
+		var cr = scratch.corners;
+		if (cr != null && (Length.isToken(cr.topLeft) || Length.isToken(cr.topRight) || Length.isToken(cr.bottomRight) || Length.isToken(cr.bottomLeft)))
+			scratch.corners = new Corners(Length.resolve(cr.topLeft, lengths), Length.resolve(cr.topRight, lengths), Length.resolve(cr.bottomRight, lengths),
+				Length.resolve(cr.bottomLeft, lengths));
 		var names = [], values:Array<Dynamic> = [], current = false;
 		for (name in StyleFields.NAMES) {
 			var v = StyleFields.get(scratch, name);
 			if (same(v, initial(name))) continue;
 			names.push(name);
 			values.push(v);
-			if (usesCurrent(v)) current = true;
 		}
+		current = usesCurrent(scratch);
 		if (placeholder != null) {
 			placeholder = resolve(placeholder, tokens, CURRENT, dark);
 			if (placeholder.isToken) current = true;
@@ -149,10 +156,11 @@ class Rules {
 	// (currentColor kept through a merge: its own token, resolved per node)
 	static final CURRENT = Color.token("currentcolor");
 
-	static function usesCurrent(v:Dynamic):Bool {
-		if (Std.isOfType(v, Int)) return (v : Color).isToken;
-		if (Std.isOfType(v, Shadow)) {
-			var s:Null<Shadow> = v;
+	static function usesCurrent(st:Style):Bool {
+		var colors:Array<Null<Color>> = [st.background, st.borderColor, st.color, st.outlineColor, st.ringColor, st.ringOffsetColor, st.textDecorationColor];
+		for (c in colors) if (c != null && c.isToken) return true;
+		for (sh in [st.shadow, st.textShadow]) {
+			var s:Null<Shadow> = sh;
 			while (s != null) {
 				if (s.color.isToken) return true;
 				s = s.next;
