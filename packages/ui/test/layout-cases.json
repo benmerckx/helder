@@ -3811,6 +3811,125 @@
 		}
 	},
 	{
+		"name": "reversed overflow fallback",
+		"width": 300,
+		"height": 300,
+		"tree": {
+			"style": {
+				"alignItems": "Start",
+				"rowGap": 4
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "RowReverse",
+						"justify": "SpaceAround",
+						"width": 60,
+						"height": 10
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "RowReverse",
+						"justify": "SpaceEvenly",
+						"width": 60,
+						"height": 10,
+						"dir": "Rtl"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "RowReverse",
+						"justify": "SpaceBetween",
+						"width": 60,
+						"height": 10
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"alignItems": "Start",
+						"columnGap": 4
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "ColumnReverse",
+								"justify": "SpaceAround",
+								"width": 10,
+								"height": 60
+							},
+							"children": [
+								{
+									"style": {
+										"width": 10,
+										"height": 40,
+										"shrink": 0
+									}
+								},
+								{
+									"style": {
+										"width": 10,
+										"height": 40,
+										"shrink": 0
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "shrink by the content-box base size",
 		"width": 200,
 		"height": 60,

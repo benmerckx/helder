@@ -356,11 +356,14 @@ class Layout {
 				case SpaceAround if (free > 0):
 					gap += free / n;
 					pos = free / n / 2;
-				// (overflowing: at the start, as Chromium falls back, safely)
+				// (overflowing: at the start, safely, as Chromium falls back: the writing mode's, not
+				// the flex start, so a reversed direction's far end)
+				case SpaceAround if (reverse): pos = free;
 				case SpaceAround:
 				case SpaceEvenly if (free > 0):
 					gap += free / (n + 1);
 					pos = free / (n + 1);
+				case SpaceEvenly if (reverse): pos = free;
 				case SpaceEvenly:
 			}
 			for (i in l.start...l.end) {

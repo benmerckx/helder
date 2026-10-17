@@ -136,6 +136,12 @@ export const cases = [
 	// a width under the padding: its border box no smaller than the padding, in the min-content width too
 	{ name: 'width under its padding, min-content', width: 200, height: 150, tree: { style: { wrap: true, padding: [2, 6] }, children: [{ style: { direction: 'RowReverse', shrink: 0, maxHeight: 80 }, children: [{ style: { direction: 'Row', margin: [0, 5], position: 'Absolute', top: 7, bottom: 4 },
 		children: [{ style: { basis: 50, width: 60, height: 30 } }, { style: { wrap: true, grow: 2, shrink: 0, width: 10, padding: [2, 6] } }, box(10, 30, { grow: 0.5, margin: 3 })] }] }] } },
+	// space-around and space-evenly overflowing: at the writing mode's start (a reversed direction's far end); space-between at the flex start
+	{ name: 'reversed overflow fallback', width: 300, height: 300, tree: { style: { alignItems: 'Start', rowGap: 4 }, children: [
+		{ style: { direction: 'RowReverse', justify: 'SpaceAround', width: 60, height: 10 }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
+		{ style: { direction: 'RowReverse', justify: 'SpaceEvenly', width: 60, height: 10, dir: 'Rtl' }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
+		{ style: { direction: 'RowReverse', justify: 'SpaceBetween', width: 60, height: 10 }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
+		{ style: { direction: 'Row', alignItems: 'Start', columnGap: 4 }, children: [{ style: { direction: 'ColumnReverse', justify: 'SpaceAround', width: 10, height: 60 }, children: [box(10, 40, { shrink: 0 }), box(10, 40, { shrink: 0 })] }] }] } },
 	// shrinking weighs each item's base size inside its padding and border
 	{ name: 'shrink by the content-box base size', width: 200, height: 60, tree: { style: { direction: 'Row' }, children: [box(100, 20, { padding: [0, 20] }), box(100, 20, { borderWidth: 10 }), box(100, 20)] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },
