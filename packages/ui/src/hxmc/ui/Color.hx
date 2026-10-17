@@ -39,6 +39,17 @@ abstract Color(Int) from Int to Int {
 	public inline function fade(f:Float):Color
 		return (Std.int(a * clamp(f) + 0.5) << 24) | (this & 0xFFFFFF);
 
+	// the colour a fraction t of the way from a to b (each channel)
+	public static function mix(a:Color, b:Color, t:Float):Color {
+		inline function ch(x:Int, y:Int):Int
+			return Std.int(x + (y - x) * t + 0.5);
+		return (ch(a.a, b.a) << 24) | (ch(a.r, b.r) << 16) | (ch(a.g, b.g) << 8) | ch(a.b, b.b);
+	}
+
+	// "#rrggbbaa"
+	public function toHex():String
+		return "#" + StringTools.hex(r, 2) + StringTools.hex(g, 2) + StringTools.hex(b, 2) + StringTools.hex(a, 2);
+
 	// a CSS-like hex string: "#rgb", "#rrggbb", "#rrggbbaa"
 	public static function parse(s:String):Color {
 		if (s.charAt(0) == "#") s = s.substr(1);

@@ -54,10 +54,11 @@ class UiWindow {
 
 	// there is something new to draw
 	public function needsFrame():Bool
-		return redraw || ui.needsFrame || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale;
+		return redraw || ui.needsFrame || Clock.active || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale;
 
-	// draws a frame (the loop calls it when needsFrame)
+	// draws a frame (the loop calls it when needsFrame): the clock ticked first
 	public function frame() {
+		Clock.tick(haxe.Timer.stamp());
 		var s = window.scale;
 		renderer.scale = device.width / Math.max(1, Math.round(device.width / s));
 		ui.resize(device.width / renderer.scale, device.height / renderer.scale);

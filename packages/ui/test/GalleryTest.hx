@@ -42,6 +42,7 @@ class GalleryTest {
 			var n = find(tag);
 			ui.pointerDown(n.absX + n.width / 2, n.absY + n.height / 2, 1);
 			ui.pointerUp(n.absX + n.width / 2, n.absY + n.height / 2, 1);
+			Clock.finish();
 			ui.update();
 		}
 		function key(k:Int) {
@@ -115,7 +116,8 @@ class GalleryTest {
 			check("PNG files decoded", n >= 20 && bad.length == 0, bad.join(" "));
 		}
 		Sys.println('GalleryTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		// the frame
+		// the frame (the widgets' transitions finished)
+		Clock.finish();
 		var r = new Renderer(device);
 		var pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
 		var pixels = Bytes.alloc(W * H * 4);

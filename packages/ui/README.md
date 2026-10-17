@@ -72,6 +72,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   (a branch made again only when the branch chosen changes; `null` and
   `false` choose none), `ErrorBoundary` (a fallback, with a reset, for
   errors while rendering its children or later in their computations).
+  `Motion`: `transition`, `spring` and `color` are signals moving toward
+  a target as the `Clock` ticks (a window ticks it each frame and keeps
+  drawing while anything moves; `Clock.finish()` ends every animation, for
+  tests); the widgets' colours and the switch's knob use them.
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
   and the components `Button`, `Checkbox`, `Switch`, `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`; `examples/Gallery.hx` shows them all.

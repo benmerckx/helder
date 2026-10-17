@@ -10,7 +10,8 @@ import hxmc.ui.reactive.Reactive.*;
 // and cleanup), then markup rendered into nodes (Render): elements and
 // style attributes, text runs, reactive text and attributes, regions,
 // For and Show, components, events through a Ui; then context, onMount,
-// Index, Switch and Match, Show's branches kept, ErrorBoundary
+// Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
+// transitions, springs and colours on a Clock ticked by hand
 class ReactiveTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -19,6 +20,7 @@ class ReactiveTest implements Markup {
 		signals();
 		rendering();
 		flow();
+		motion();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -134,6 +136,56 @@ class ReactiveTest implements Markup {
 			if (props.when.value) throw "boom";
 			"fine";
 		}}</text>;
+	}
+
+	static function motion() {
+		var target = signal(0.0);
+		var t = Motion.transition(() -> target.value, 1.0, Motion.linear);
+		check("motion: a transition starts at its target", t.value == 0 && !Clock.active);
+		target.value = 10;
+		check("motion: it moves on ticks", t.value == 0 && Clock.active);
+		Clock.tick(100);
+		check("motion: from the first tick", t.value == 0, '${t.value}');
+		Clock.tick(100.5);
+		check("motion: half way", t.value == 5, '${t.value}');
+		target.value = 20;
+		Clock.tick(101);
+		check("motion: a new target, from where it is", t.value == 5, '${t.value}');
+		Clock.tick(101.25);
+		check("motion: a quarter to the new target", Math.abs(t.value - 8.75) < 1e-9, '${t.value}');
+		Clock.tick(102);
+		check("motion: there, and done", t.value == 20 && !Clock.active, '${t.value}');
+		// a spring settles on its target (an underdamped one, overshooting)
+		var s = Motion.spring(() -> target.value, 170, 12);
+		target.value = 0;
+		var time = 200.0, peak = 20.0, steps = 0;
+		while (Clock.active && steps < 1000) {
+			Clock.tick(time);
+			time += 1 / 60;
+			steps++;
+			if (s.value < peak) peak = s.value;
+		}
+		check("motion: a spring settles", s.value == 0 && !Clock.active && steps < 400, '${s.value} after $steps steps');
+		check("motion: overshooting", peak < -1 && peak > -10, '$peak');
+		// a colour
+		var c = signal("#000000");
+		var col = Motion.color(() -> c.value, 1.0, Motion.linear);
+		c.value = "#ffffff";
+		Clock.tick(300);
+		Clock.tick(300.5);
+		check("motion: a colour half way", col.value == "#808080FF", col.value);
+		Clock.tick(301);
+		check("motion: the colour reached", col.value == "#FFFFFFFF" && !Clock.active, col.value);
+		// stopped with its owner
+		var other = signal(0.0);
+		var stop = root(dispose -> {
+			Motion.transition(() -> other.value, 1.0);
+			dispose;
+		});
+		other.value = 5;
+		stop();
+		Clock.tick(400);
+		check("motion: a disposed transition stops", !Clock.active);
 	}
 
 	static function flow() {

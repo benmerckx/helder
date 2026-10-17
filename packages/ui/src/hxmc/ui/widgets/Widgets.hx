@@ -6,16 +6,18 @@ import hxmc.ui.*;
 import hxmc.ui.reactive.*;
 import hxmc.ui.reactive.Reactive.*;
 import hxmc.ui.reactive.Signal;
+import hxmc.ui.reactive.Motion;
 
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
-// hxmc.ui.reactive, styled plainly (props override the look)
+// hxmc.ui.reactive, styled plainly (props override the look); their
+// colours and the switch's knob move with Motion's transitions
 class Widgets implements Markup {
 	// a button: label or children; a primary one is filled
 	public static function Button(props:{?label:String, ?onClick:Void->Void, ?primary:Bool, ?children:Esx, ?tag:String}):Esx {
 		var hover = signal(false), down = signal(false);
 		var primary = props.primary == true;
 		var bg = () -> primary ? (down.value ? "#1d4ed8" : hover.value ? "#2563eb" : "#3b82f6") : (down.value ? "#d4d4d8" : hover.value ? "#e4e4e7" : "#ffffff");
-		return <view tag={props.tag ?? "button"} focusable cursor="pointer" padding="6 14" radius={6} border-width={primary ? 0 : 1} border-color="#a1a1aa" background={bg}
+		return <view tag={props.tag ?? "button"} focusable cursor="pointer" padding="6 14" radius={6} border-width={primary ? 0 : 1} border-color="#a1a1aa" background={Motion.color(bg)}
 			color={primary ? "#ffffff" : "#18181b"} align-items="center" onPointerEnter={_ -> hover.value = true}
 			onPointerLeave={_ -> {
 				hover.value = false;
@@ -32,9 +34,9 @@ class Widgets implements Markup {
 		var toggle = () -> props.checked.value = !props.checked.value;
 		return <view tag={props.tag ?? "checkbox"} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE) toggle()}>
-			<view width={16} height={16} radius={4} border-width={1.5} border-color={() -> props.checked.value ? "#2563eb" : "#71717a"}
-				background={() -> props.checked.value ? "#3b82f6" : "#ffffff"} align-items="center" justify="center">
-				<view width={8} height={8} radius={2} background={() -> props.checked.value ? "#ffffff" : "#00000000"}/>
+			<view width={16} height={16} radius={4} border-width={1.5} border-color={Motion.color(() -> props.checked.value ? "#2563eb" : "#71717a")}
+				background={Motion.color(() -> props.checked.value ? "#3b82f6" : "#ffffff")} align-items="center" justify="center">
+				<view width={8} height={8} radius={2} background={Motion.color(() -> props.checked.value ? "#ffffff" : "#ffffff00")}/>
 			</view>
 			{props.label}
 		</view>;
@@ -45,9 +47,10 @@ class Widgets implements Markup {
 		var toggle = () -> props.on.value = !props.on.value;
 		return <view tag={props.tag ?? "switch"} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) toggle()}>
-			<view width={36} height={20} radius={10} padding={2} direction="row" justify={() -> props.on.value ? "end" : "start"}
-				background={() -> props.on.value ? "#3b82f6" : "#d4d4d8"}>
-				<view width={16} height={16} radius={8} background="#ffffff" shadow="0 1 2 #00000040"/>
+			<view width={36} height={20} radius={10} padding={2} direction="row"
+				background={Motion.color(() -> props.on.value ? "#3b82f6" : "#d4d4d8")}>
+				<view width={16} height={16} radius={8} background="#ffffff" shadow="0 1 2 #00000040"
+					position="relative" left={Motion.transition(() -> props.on.value ? 16 : 0)}/>
 			</view>
 			{props.label}
 		</view>;
@@ -94,9 +97,9 @@ class Widgets implements Markup {
 			for (o in props.options)
 				<view tag={tag + "-" + o} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> props.value.value = o}
 					onKeyDown={e -> if (e.key == Key.SPACE) props.value.value = o}>
-					<view width={16} height={16} radius={8} border-width={1.5} border-color={() -> props.value.value == o ? "#2563eb" : "#71717a"}
+					<view width={16} height={16} radius={8} border-width={1.5} border-color={Motion.color(() -> props.value.value == o ? "#2563eb" : "#71717a")}
 						align-items="center" justify="center">
-						<view width={8} height={8} radius={4} background={() -> props.value.value == o ? "#3b82f6" : "#00000000"}/>
+						<view width={8} height={8} radius={4} background={Motion.color(() -> props.value.value == o ? "#3b82f6" : "#3b82f600")}/>
 					</view>
 					{o}
 				</view>
@@ -112,9 +115,9 @@ class Widgets implements Markup {
 				for (i in 0...props.labels.length)
 					<view tag={tag + "-" + i} focusable cursor="pointer" padding="6 10 0 10" row-gap={6} align-items="center"
 						onClick={_ -> props.selected.value = i} onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) props.selected.value = i}
-						color={() -> props.selected.value == i ? "#1d4ed8" : "#52525b"}>
+						color={Motion.color(() -> props.selected.value == i ? "#1d4ed8" : "#52525b")}>
 						{props.labels[i]}
-						<view align-self="stretch" height={2} radius={1} background={() -> props.selected.value == i ? "#3b82f6" : "#00000000"}/>
+						<view align-self="stretch" height={2} radius={1} background={Motion.color(() -> props.selected.value == i ? "#3b82f6" : "#3b82f600")}/>
 					</view>
 			]}</view>
 			{() -> props.render(props.selected.value)}
