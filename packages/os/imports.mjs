@@ -213,8 +213,15 @@ export default function (host) {
 		}, { passive: true });
 		// touch: a drag scrolls what is under where it started (the content
 		// follows the finger, then glides when let go moving), a tap clicks
-		// (no mouse events of the browser's own for either)
-		c.style.touchAction = 'none';
+		// (no mouse events of the browser's own for either). The option
+		// touchAction (the canvas's CSS touch-action, by default 'none')
+		// leaves the browser the drags along the axes it pans: with 'pan-y', a
+		// drag that starts vertical scrolls the page (the browser cancels the
+		// pointer when it takes it over) and only the others reach the program
+		const action = host.options.touchAction ?? 'none';
+		c.style.touchAction = action;
+		const words = action.split(/\s+/), pans = (...w) => words.some((a) => a === 'auto' || a === 'manipulation' || w.includes(a));
+		const panX = pans('pan-x', 'pan-left', 'pan-right'), panY = pans('pan-y', 'pan-up', 'pan-down');
 		let touch = null, glide = 0;
 		const scrollBy = (x, y, dx, dy) => push([h, SCROLL, Math.round(dx * 256), x, y, Math.round(dy * 256), 0]);
 		on('pointerdown', (e) => {
@@ -228,7 +235,15 @@ export default function (host) {
 		on('pointermove', (e) => {
 			if (!touch || e.pointerId !== touch.id) return;
 			const [x, y] = pos(e), now = performance.now();
-			if (!touch.drag && Math.hypot(x - touch.x, y - touch.y) > 8 * devicePixelRatio) touch.drag = true;
+			if (!touch.drag && Math.hypot(x - touch.x, y - touch.y) > 8 * devicePixelRatio) {
+				// (along an axis the browser pans: its gesture, neither a drag nor a tap)
+				const vertical = Math.abs(y - touch.y) > Math.abs(x - touch.x);
+				if (vertical ? panY : panX) {
+					touch = null;
+					return;
+				}
+				touch.drag = true;
+			}
 			if (!touch.drag) return;
 			const dx = touch.lx - x, dy = touch.ly - y, dt = Math.max(1, now - touch.t);
 			scrollBy(touch.x, touch.y, dx, dy);
@@ -241,6 +256,8 @@ export default function (host) {
 			if (!touch || e.pointerId !== touch.id) return;
 			const t = touch;
 			touch = null;
+			// (cancelled: the browser took the pointer over, to pan the page)
+			if (e.type === 'pointercancel') return;
 			if (!t.drag) {
 				if (c.hxmcTyping) ta.focus({ preventScroll: true });
 				else c.focus();
@@ -250,7 +267,7 @@ export default function (host) {
 				return;
 			}
 			// (let go moving: on at that speed, slowing 5% a frame)
-			if (e.type !== 'pointerup' || performance.now() - t.t > 100) return;
+			if (performance.now() - t.t > 100) return;
 			let vx = t.vx * 16, vy = t.vy * 16;
 			const step = () => {
 				vx *= 0.95;
