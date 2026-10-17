@@ -324,6 +324,7 @@ class WinAccess {
 			case List | ListBox: 50008;
 			case Menu: 50009;
 			case MenuBar: 50010;
+			case Toolbar: 50021;
 			case MenuItem: 50011;
 			case ProgressIndicator: 50012;
 			case RadioButton: 50013;

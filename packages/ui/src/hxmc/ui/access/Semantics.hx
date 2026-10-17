@@ -3,7 +3,7 @@ package hxmc.ui.access;
 // What a node declares about itself for assistive technology (Node.semantics;
 // in markup, the attributes role, label, description, checked, selected,
 // expanded, level, disabled, value-now, value-min, value-max, value-text,
-// hidden). Unset
+// multiselectable, hidden). Unset
 // fields say nothing: a TextNode is a Label of its text, an ImageNode an
 // Image, a focusable node a Group.
 @:structInit class Semantics {
@@ -15,6 +15,8 @@ package hxmc.ui.access;
 	// a checkbox neither checked nor not (ARIA's checked="mixed"; markup: checked="mixed")
 	public var mixed(default, set):Bool = false;
 	public var selected(default, set):Null<Bool> = null;
+	// a list box (or tree, table) whose options can be selected together
+	public var multiselectable(default, set):Bool = false;
 	public var expanded(default, set):Null<Bool> = null;
 	// a tree item's depth (from 1)
 	public var level(default, set):Null<Int> = null;
@@ -53,6 +55,11 @@ package hxmc.ui.access;
 	function set_secret(v:Bool):Bool {
 		if (v != secret) hxmc.ui.Ui.accessEpoch++;
 		return secret = v;
+	}
+
+	function set_multiselectable(v:Bool):Bool {
+		if (v != multiselectable) hxmc.ui.Ui.accessEpoch++;
+		return multiselectable = v;
 	}
 
 	function set_mixed(v:Bool):Bool {

@@ -1,5 +1,5 @@
 // title: Widgets
-// summary: ui's widgets bound to signals: a menu bar, buttons, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields; right to left at a switch
+// summary: ui's widgets bound to signals: a menu bar, a toolbar, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields; right to left at a switch
 // tags: ui, widgets
 // demo: canvas 560x520
 import hxmc.ui.*;
@@ -33,6 +33,7 @@ class Gallery implements Markup {
 	public final checked = signal(true);
 	public final on = signal(false);
 	public final size = signal("Medium");
+	public final days = signal(["Tue", "Thu"]);
 	public final volume = signal(0.4);
 	public final tab = signal(0);
 	public final name = signal("");
@@ -120,9 +121,11 @@ class Gallery implements Markup {
 				</view>
 				<Toggle tag="rtl" on={rtl} label="Right to left"/>
 			</view>
-			{section("BUTTONS", <view direction="row" column-gap={8} align-items="center">
-				<Button tag="plain" label="Plain" onClick={() -> clicks.value++}/>
-				<Button tag="primary" label="Primary" primary onClick={() -> clicks.value += 10}/>
+			{section("BUTTONS IN A TOOLBAR", <view direction="row" column-gap={8} align-items="center">
+				<Toolbar tag="buttons" label="Buttons">
+					<Button tag="plain" label="Plain" onClick={() -> clicks.value++}/>
+					<Button tag="primary" label="Primary" primary onClick={() -> clicks.value += 10}/>
+				</Toolbar>
 				<text tag="clicks" color={() -> Theme.current.value.secondary}>{() -> "clicked " + clicks.value}</text>
 			</view>)}
 			{section("POPUPS", <view direction="row" column-gap={12} align-items="center">
@@ -144,9 +147,10 @@ class Gallery implements Markup {
 				<Toggle tag="switch" on={on} label={"Switch"}/>
 				<text tag="toggles" color={() -> Theme.current.value.secondary}>{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
 			</view>)}
-			{section("RADIO", <view direction="row" column-gap={24}>
+			{section("RADIO AND LISTBOX", <view direction="row" column-gap={24} align-items="start">
 				<Radio tag="size" value={size} options={["Small", "Medium", "Large"]}/>
-				<text tag="size-shown" color={() -> Theme.current.value.secondary}>{() -> "size: " + size.value}</text>
+				<Listbox tag="days" selected={days} options={["Mon", "Tue", "Wed", "Thu", "Fri"]} multiple label="Days" width={110} height={104}/>
+				<text tag="size-shown" color={() -> Theme.current.value.secondary}>{() -> "size: " + size.value + ", " + days.value.join(" ")}</text>
 			</view>)}
 			{section("SLIDER AND PROGRESS", <view row-gap={10}>
 				<view direction="row" column-gap={12} align-items="center">

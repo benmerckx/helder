@@ -91,7 +91,11 @@ class GalleryTest {
 		key(Key.SPACE);
 		check("the switch with the keyboard", !app.on.value);
 		click("size-Large");
-		check("a radio button", app.size.value == "Large" && shown("size-shown") == "size: Large", shown("size-shown"));
+		check("a radio button", app.size.value == "Large" && shown("size-shown") == "size: Large, Tue Thu", shown("size-shown"));
+		click("days-Mon");
+		ui.keyDown(Key.DOWN, Key.MOD_SHIFT);
+		ui.update();
+		check("the list box: a click, then Shift+Down", app.days.value.join(" ") == "Mon Tue" && shown("size-shown") == "size: Large, Mon Tue", shown("size-shown"));
 		// the slider: 200 wide, the knob 16 (its centre travels from 8 to 192)
 		var s = find("volume");
 		var y = s.absY + s.height / 2;
@@ -177,13 +181,17 @@ class GalleryTest {
 		check("Tab to the last button", ui.focus == find("notify"));
 		// Tab from there: no further focusable node, back to the first (the
 		// menu bar's first title), its focus ring shown; then the direction
-		// switch, the Plain button
+		// switch, the toolbar
 		key(Key.TAB);
 		check("Tab wraps to the first control", ui.focus == find("app-0") && ui.focusVisible);
 		key(Key.TAB);
 		check("the menu bar one stop", ui.focus == find("rtl"));
 		key(Key.TAB);
-		check("then the first button", ui.focus == find("plain"));
+		check("then the toolbar, on the button last clicked", ui.focus == find("primary"));
+		key(Key.LEFT);
+		check("the toolbar: Left to the one before", ui.focus == find("plain"));
+		key(Key.TAB);
+		check("the toolbar one stop", ui.focus == find("fruit"));
 		var natural = find("natural");
 		check("an image's natural size", natural.width == 120 && natural.height == 60, '${natural.width}x${natural.height}');
 		// the PNG cases, decoded by the native build

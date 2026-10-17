@@ -170,7 +170,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   (a month's grid of days, moved through by the keys) and `DatePicker` (a
   calendar in a popover; `Days`: dates as day numbers, no time zones),
   `Disclosure` and `Accordion` (sections shown and hidden), `NumberField`
-  (typed or stepped, within bounds; a spin button), and the popups `Select`, `Menu`,
+  (typed or stepped, within bounds; a spin button), `Listbox` (one option
+  selected or several: Shift and Control with the arrows and clicks,
+  Control+A; ARIA's multiselectable), `Toolbar` (its focusable children
+  one Tab stop, Left and Right between them), and the popups `Select`, `Menu`,
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
   through by Left and Right, one open at a time), `Tooltip`, `Dialog`, `Combobox` (a text
   field whose typing filters options under it; the focus stays in the

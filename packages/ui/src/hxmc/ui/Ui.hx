@@ -407,6 +407,7 @@ class Ui {
 		if (pressed != null && target != null && contains(pressed, target)) {
 			var c = new Event(Click, pressed, x, y);
 			c.button = button;
+			c.mods = mods;
 			bubble(c);
 		}
 		setHover(target);
