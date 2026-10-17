@@ -98,6 +98,13 @@ class CanvasWindow {
 				e.text = String.fromCharCode(ev[2]);
 				e.key = 0;
 			}
+			// (Scroll: the deltas in 1/256 pixels, in key and button)
+			if (e.kind == Scroll) {
+				e.deltaX = ev[2] / 256;
+				e.deltaY = ev[5] / 256;
+				e.key = 0;
+				e.button = 0;
+			}
 			// (TextEditing: the composition's string handle in key)
 			if (e.kind == TextEditing) {
 				e.text = ev[2] == 0 ? "" : take(ev[2]);

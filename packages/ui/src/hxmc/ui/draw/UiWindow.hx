@@ -164,11 +164,16 @@ class UiWindow {
 				if (onClose != null) onClose() else close();
 			case MouseMove:
 				ui.pointerMove(e.x / k, e.y / k);
-			case MouseDown if (e.button == 4 || e.button == 5):
-				ui.wheel(e.x / k, e.y / k, 0, e.button == 4 ? -40 : 40);
+			case Scroll:
+				// (Shift turns a vertical wheel sideways, as browsers do)
+				var dx = e.deltaX, dy = e.deltaY;
+				if (e.mods & hxmc.os.Event.Mods.SHIFT != 0 && dx == 0) {
+					dx = dy;
+					dy = 0;
+				}
+				ui.wheel(e.x / k, e.y / k, dx / k, dy / k);
 			case MouseDown:
 				ui.pointerDown(e.x / k, e.y / k, e.button);
-			case MouseUp if (e.button == 4 || e.button == 5):
 			case MouseUp:
 				ui.pointerUp(e.x / k, e.y / k, e.button);
 			case KeyDown:

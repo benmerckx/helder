@@ -23,7 +23,7 @@
 // TextInput.
 
 // EventKind (src/hxmc/os/Event.hx)
-const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8, REDRAW = 9, TEXT_EDITING = 10;
+const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8, REDRAW = 9, TEXT_EDITING = 10, SCROLL = 11;
 // (not an EventKind: CanvasWindow hands the text to Clipboard.read's callback)
 const CLIPBOARD = 100;
 
@@ -56,6 +56,11 @@ export default function (host) {
 	function push(ev) {
 		// (moves between two frames, compositions: the last one)
 		const last = queue[queue.length - 1];
+		// (scrolls between two frames: added up, at the last position)
+		if (ev[1] === SCROLL && last && last[1] === SCROLL && last[0] === ev[0] && last[6] === ev[6]) {
+			queue[queue.length - 1] = [ev[0], SCROLL, last[2] + ev[2], ev[3], ev[4], last[5] + ev[5], ev[6]];
+			return;
+		}
 		if ((ev[1] === MOUSE_MOVE || ev[1] === TEXT_EDITING) && last && last[1] === ev[1] && last[0] === ev[0]) {
 			if (last[1] === TEXT_EDITING && last[2]) host.handles.remove(last[2]);
 			queue[queue.length - 1] = ev;
@@ -144,10 +149,10 @@ export default function (host) {
 			push([h, MOUSE_DOWN, 0, ...pos(e), e.button + 1, mods(e)]);
 		});
 		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1, mods(e)]));
+		// (the deltas in canvas pixels, in 1/256ths: in key and button; lines 40 pixels, pages the canvas)
 		on('wheel', (e) => {
-			const b = e.deltaY < 0 ? 4 : 5;
-			push([h, MOUSE_DOWN, 0, ...pos(e), b, mods(e)]);
-			push([h, MOUSE_UP, 0, ...pos(e), b, mods(e)]);
+			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * devicePixelRatio * 256;
+			push([h, SCROLL, Math.round(e.deltaX * k), ...pos(e), Math.round(e.deltaY * k), mods(e)]);
 		}, { passive: true });
 		on('contextmenu', (e) => e.preventDefault());
 		const paste = (e) => {

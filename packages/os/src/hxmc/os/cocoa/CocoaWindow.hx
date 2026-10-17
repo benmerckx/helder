@@ -358,11 +358,15 @@ class CocoaWindow {
 				e.button = 0;
 				if (cursor != Default) applyCursor();
 			case NS.ScrollWheel:
-				var dy = Msg.f(ev, ObjC.sel("scrollingDeltaY"));
-				if (dy == 0) return;
-				// (the wheel as X11 has it: a press and a release of button 4 or 5)
-				e.kind = MouseDown;
-				e.button = dy > 0 ? 4 : 5;
+				var dx = Msg.f(ev, ObjC.sel("scrollingDeltaX")), dy = Msg.f(ev, ObjC.sel("scrollingDeltaY"));
+				if (dx == 0 && dy == 0) return;
+				// (a trackpad's points, exact; a wheel's lines, 40 pixels each; the
+				// content follows the fingers, so the view scrolls the other way)
+				var k = Msg.b(ev, ObjC.sel("hasPreciseScrollingDeltas")) ? scale : 40 * scale;
+				e.kind = Scroll;
+				e.mods = mods(ev);
+				e.deltaX = -dx * k;
+				e.deltaY = -dy * k;
 			case _:
 				return;
 		}
@@ -373,10 +377,6 @@ class CocoaWindow {
 			e.y = Math.floor((b.size.height - p.y) * scale);
 		}
 		dispatch(e);
-		if (type == NS.ScrollWheel) {
-			e.kind = MouseUp;
-			dispatch(e);
-		}
 	}
 
 	// NSEventModifierFlags: Shift 1 << 17, Control 1 << 18, Option 1 << 19, Command 1 << 20

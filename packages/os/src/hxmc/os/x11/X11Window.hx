@@ -358,11 +358,20 @@ class X11Window {
 					}
 				case t = X.ButtonPress | X.ButtonRelease | X.MotionNotify:
 					var b:Ptr<XKeyEvent> = xev;
-					e.kind = t == X.ButtonPress ? MouseDown : t == X.ButtonRelease ? MouseUp : MouseMove;
+					var button = t == X.MotionNotify ? 0 : (b.value.keycode : Int);
 					e.x = b.value.x;
 					e.y = b.value.y;
-					e.button = t == X.MotionNotify ? 0 : (b.value.keycode : Int);
 					e.mods = mods(b.value.state);
+					if (button >= 4 && button <= 7) {
+						// (the wheel: buttons 4 and 5 up and down, 6 and 7 left and right; a notch on the press)
+						if (t != X.ButtonPress) continue;
+						e.kind = Scroll;
+						e.deltaX = button == 6 ? -40 : button == 7 ? 40 : 0;
+						e.deltaY = button == 4 ? -40 : button == 5 ? 40 : 0;
+					} else {
+						e.kind = t == X.ButtonPress ? MouseDown : t == X.ButtonRelease ? MouseUp : MouseMove;
+						e.button = button;
+					}
 			}
 			if (e.kind != None) onEvent(e);
 		}

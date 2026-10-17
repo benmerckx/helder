@@ -7,13 +7,18 @@ import hxmc.ui.reactive.Render;
 // fonts the page gives (DejaVu Sans). After each frame whose layout
 // changed it prints the boxes of the nodes the test clicks ("boxes
 // draft=x,y,w,h add=... "), so that the page can drive it with real
-// pointer and keyboard events.
+// pointer and keyboard events, then the count, the items and the wheel's
+// scrolling the root heard (pixels, added up).
 class WebTodo {
 	static function main() {
 		var w = new UiWindow("Todo", 420, 480);
 		var app = new Todo();
 		Render.render(app.view(), w.root);
-		var last = "";
+		var last = "", wheel = 0.0;
+		w.root.onWheel = e -> {
+			wheel += e.deltaY;
+			w.ui.requestFrame();
+		};
 		w.onFrame = () -> {
 			var parts = [];
 			for (tag in ["draft", "add", "checkbox", "filter-all", "filter-active", "left"]) {
@@ -21,7 +26,7 @@ class WebTodo {
 				if (n != null) parts.push('$tag=${n.absX},${n.absY},${n.width},${n.height}');
 			}
 			var t:TextNode = cast w.root.find("left");
-			var s = "boxes " + parts.join(" ") + " | " + (t != null ? t.text : "") + " | " + app.todos.peek().length;
+			var s = "boxes " + parts.join(" ") + " | " + (t != null ? t.text : "") + " | " + app.todos.peek().length + " | wheel " + wheel;
 			if (s != last) {
 				last = s;
 				Sys.println(s);

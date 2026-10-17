@@ -91,6 +91,7 @@ class WM {
 	public static inline var MBUTTONDOWN = 0x0207;
 	public static inline var MBUTTONUP = 0x0208;
 	public static inline var MOUSEWHEEL = 0x020A;
+	public static inline var MOUSEHWHEEL = 0x020E;
 	// window and class styles, ShowWindow, PeekMessage
 	public static inline var WS_OVERLAPPEDWINDOW = 0x00CF0000;
 	public static inline var CW_USEDEFAULT = 0x80000000;

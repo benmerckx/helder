@@ -8,7 +8,8 @@ import hxmc.unsafe.*;
 // with the keyboard's last three keycodes given other symbols
 // (XChangeKeyboardMapping, which every client hears of: MappingNotify): a
 // Cyrillic letter (beyond Latin-1) and a dead key's compose sequence
-// (dead_acute then e: one "é"). macOS: with text input on, a key event
+// (dead_acute then e: one "é"); then the wheel's buttons (4 up, 7 right) as
+// Scroll events, their releases as nothing. macOS: with text input on, a key event
 // typed through the text view (interpretKeyEvents:), then a composition
 // set in it and committed, as an input method does (setMarkedText:,
 // insertText:).
@@ -65,7 +66,24 @@ class X11TextInput {
 				k.value.same_screen = 1;
 				Xlib.XSendEvent(d, id, 0, X.KeyPressMask, raw);
 			});
+		function button(press:Bool, b:Int)
+			Arena.scoped(a -> {
+				var raw = a.alloc(X.EVENT_SIZE);
+				for (i in 0...X.EVENT_SIZE)
+					(raw : Ptr<UInt8>)[i] = 0;
+				var k:Ptr<XKeyEvent> = raw;
+				k.value.type = press ? X.ButtonPress : X.ButtonRelease;
+				k.value.display = d;
+				k.value.window = id;
+				k.value.keycode = b;
+				k.value.x = 10;
+				k.value.y = 12;
+				k.value.same_screen = 1;
+				Xlib.XSendEvent(d, id, 0, press ? X.ButtonPressMask : X.ButtonReleaseMask, raw);
+			});
 		var typed = [];
+		var scrolls = [];
+		var buttons = 0;
 		var keys = 0;
 		var sent = false;
 		var start = haxe.Timer.stamp();
@@ -76,13 +94,19 @@ class X11TextInput {
 				press(first);
 				press(first + 1);
 				press(first + 2);
+				for (b in [4, 7]) {
+					button(true, b);
+					button(false, b);
+				}
 				Xlib.XFlush(d);
 			}
-			if (typed.length >= 2 || haxe.Timer.stamp() - start > 5) w.close();
+			if (typed.length >= 2 && scrolls.length >= 2 || haxe.Timer.stamp() - start > 5) w.close();
 			App.wait(0.01);
 		}, e -> switch e.kind {
 			case TextInput: typed.push(e.text);
 			case KeyDown: keys++;
+			case Scroll: scrolls.push('${e.deltaX},${e.deltaY}@${e.x},${e.y}');
+			case MouseDown | MouseUp: buttons++;
 			case _:
 		});
 		check("a Cyrillic letter typed", typed[0] == "а", typed[0]);
@@ -90,6 +114,7 @@ class X11TextInput {
 		check("nothing else typed", typed.length == 2, typed.join("|"));
 		// (the dead key goes to the input method, not the program)
 		check("the keys the program sees", keys == 2, '$keys');
+		check("the wheel: scrolls of a notch, up and right", scrolls.join(" ") == "0,-40@10,12 40,0@10,12" && buttons == 0, scrolls.join(" ") + ' $buttons');
 	}
 }
 

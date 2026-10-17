@@ -23,6 +23,11 @@ enum abstract EventKind(Int) {
 	// (committed: TextInput follows; or cancelled). In the browser and on
 	// macOS, while Window.startTextInput is on
 	var TextEditing;
+	// the wheel or a trackpad: deltaX, deltaY in pixels (as a browser's wheel
+	// event: positive scrolls toward the right and the bottom), at the
+	// pointer (x, y); a wheel's notch is 40 pixels, a trackpad's motion
+	// exact
+	var Scroll;
 }
 
 // Event.mods bits
@@ -44,9 +49,12 @@ class Event {
 	// the pointer (Mouse*, from the top left) or the new size (Resize), in pixels
 	public var x = 0;
 	public var y = 0;
-	// MouseDown, MouseUp: 1 left, 2 middle, 3 right, 4 and 5 the wheel
+	// MouseDown, MouseUp: 1 left, 2 middle, 3 right
 	public var button = 0;
-	// keys and mouse buttons: the modifiers held (Mods: Shift, Control, Alt, Meta: the Windows or Command key)
+	// Scroll: pixels toward the right and the bottom
+	public var deltaX = 0.0;
+	public var deltaY = 0.0;
+	// keys, mouse buttons and scrolls: the modifiers held (Mods: Shift, Control, Alt, Meta: the Windows or Command key)
 	public var mods = 0;
 	// TextInput: the characters; TextEditing: the composition
 	public var text = "";

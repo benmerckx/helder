@@ -261,9 +261,9 @@ class Win32Window {
 				// (signed 16-bit client coordinates)
 				e.x = lParam.toInt() << 16 >> 16;
 				e.y = lParam.toInt() >> 16;
-			case WM.MOUSEWHEEL:
-				// (the wheel as X11 has it: a press and a release of button 4 or 5;
-				// the position in screen coordinates)
+			case WM.MOUSEWHEEL | WM.MOUSEHWHEEL:
+				// (WHEEL_DELTA, 120, a notch: 40 pixels, a precision touchpad's
+				// part of one in proportion; the position in screen coordinates)
 				var delta = wParam.toInt() >> 16;
 				if (delta != 0) {
 					Arena.scoped(a -> {
@@ -274,10 +274,12 @@ class Win32Window {
 						e.x = p.value.x;
 						e.y = p.value.y;
 					});
-					e.kind = MouseDown;
-					e.button = delta > 0 ? 4 : 5;
-					dispatch(e);
-					e.kind = MouseUp;
+					e.kind = Scroll;
+					e.mods = mods();
+					var px = delta / 120 * 40 * w.scale;
+					// (the vertical wheel up is positive, the horizontal one right)
+					e.deltaX = message == WM.MOUSEHWHEEL ? px : 0;
+					e.deltaY = message == WM.MOUSEWHEEL ? -px : 0;
 					dispatch(e);
 					return 0;
 				}

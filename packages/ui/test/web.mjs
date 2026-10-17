@@ -137,7 +137,7 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	// (the pointer stays over the last button clicked, hovered, as in TodoTest)
 	await p.waitForTimeout(300);
 	const { line } = await boxes();
-	const state = line.split(' | ').slice(1).join(' | ');
+	const state = line.split(' | ').slice(1, 3).join(' | ');
 	const r = await p.evaluate(() => window.check());
 	// (over a button: Window.cursor set the canvas's CSS cursor)
 	const cursor = await p.evaluate(() => document.querySelector('canvas').style.cursor);
@@ -173,6 +173,14 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	const ax2 = (await cdp.send('Accessibility.getFullAXTree')).nodes.filter((n) => !n.ignored);
 	const committed = ax2.some((n) => n.role?.value === 'checkbox' && n.name?.value === '日本');
 	const ime = typing === 'TEXTAREA What needs to be done?' && composed !== before && cancelled === before && committed;
+	// the wheel over the list: a notch's pixels and a trackpad's part of one, as the root hears them
+	const { m: at } = await boxes();
+	await p.mouse.move(at.left.x, at.left.y - 80);
+	await p.mouse.wheel(0, 120);
+	await settle();
+	await p.mouse.wheel(0, 7.5);
+	await settle();
+	const wheel = (await boxes()).line.split(' | ')[3];
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
 		const png = await p.evaluate(async () => {
@@ -182,9 +190,9 @@ for (const gfx of ['webgpu', 'webgl2']) {
 		});
 		await writeFile(path.join(out, `todo-${gfx}.png`), Buffer.from(png));
 	}
-	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && ime && errors.length === 0 && backend === gfx;
+	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && ime && wheel === 'wheel 127.5' && errors.length === 0 && backend === gfx;
 	if (!ok) failed++;
-	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}; input method: ${ime ? 'ok' : `${typing}, composed ${composed !== before}, cancelled ${cancelled === before}, committed ${committed}`}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}; input method: ${ime ? 'ok' : `${typing}, composed ${composed !== before}, cancelled ${cancelled === before}, committed ${committed}`}; ${wheel}${ok ? '' : ' FAILED'}`);
 	if (missing.length) console.log(aria);
 	for (const e of errors) console.log('  error: ' + e);
 	if (backend !== gfx) console.log('  on ' + backend);
