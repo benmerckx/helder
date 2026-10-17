@@ -107,6 +107,12 @@ function linkCheck() {
 			if (!existsSync(path.join(dir, file)) || statSync(path.join(dir, file)).isDirectory()) broken.push(`${page}: ${ref} (no ${file})`);
 			else if (hash && file.endsWith('.html') && !idsOf(file).has(decodeURIComponent(hash))) broken.push(`${page}: ${ref} (no #${hash})`);
 		}
+		// (and each id once)
+		const seen = new Set();
+		for (const m of html.matchAll(/\sid="([^"]*)"/g)) {
+			if (seen.has(m[1])) broken.push(`${page}: id ${m[1]} twice`);
+			seen.add(m[1]);
+		}
 	}
 	for (const b of broken.slice(0, 40)) console.log('    ' + b);
 	check(broken.length === 0, `links: ${n} links of ${PAGES.length} pages, ${broken.length} broken`);
@@ -254,17 +260,17 @@ async function gfxTest(browser, label, id, golden, expect, gfx) {
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	await page.route(/^https:\/\/cdn\.jsdelivr\.net\//, (r) => r.abort());
 	await page.addInitScript(([id, gfx]) => {
-		window.hxmcWasmOptions = { [id]: { args: id === 'gfx-cube' ? ['--angle', '0.6'] : [], ...(gfx ? { gfx } : {}) } };
+		window.hxmcWasmOptions = { ['demo-' + id]: { args: id === 'gfx-cube' ? ['--angle', '0.6'] : [], ...(gfx ? { gfx } : {}) } };
 	}, [id, gfx]);
 	await page.goto(url('examples.html'));
 	await page.evaluate((id) => document.getElementById(id).scrollIntoView(), id);
 	let r;
 	try {
-		await page.waitForFunction((id) => { const el = document.querySelector(`hxmc-island#${id}`); return el.hasAttribute('data-hydrated') || el.hasAttribute('data-error'); }, id, { timeout: 60000 });
+		await page.waitForFunction((id) => { const el = document.getElementById('demo-' + id); return el.hasAttribute('data-hydrated') || el.hasAttribute('data-error'); }, id, { timeout: 60000 });
 		r = await page.evaluate(async ([id, golden]) => {
-			const el = document.querySelector(`hxmc-island#${id}`);
+			const el = document.getElementById('demo-' + id);
 			if (el.dataset.error) return { drawn: false, text: el.dataset.error };
-			const { host } = await hxmcWasm[id];
+			const { host } = await hxmcWasm['demo-' + id];
 			const c = el.querySelector('canvas');
 			c.style.boxSizing = 'content-box';
 			c.style.width = '256px';
@@ -305,12 +311,12 @@ async function touchTest(browser) {
 	const page = await context.newPage();
 	const errors = [];
 	page.on('pageerror', (e) => errors.push(e.message));
-	await page.addInitScript(() => (window.hxmcWasmOptions = { 'gfx-cube': { args: ['--angle', '0.6'] } }));
+	await page.addInitScript(() => (window.hxmcWasmOptions = { 'demo-gfx-cube': { args: ['--angle', '0.6'] } }));
 	let r = {}, ok = false;
 	try {
 		await page.goto(url('examples.html'));
-		await page.evaluate(() => document.querySelector('hxmc-island#gfx-cube canvas').scrollIntoView({ block: 'center' }));
-		await page.waitForSelector('hxmc-island#gfx-cube[data-hydrated]', { timeout: 60000 });
+		await page.evaluate(() => document.querySelector('#demo-gfx-cube canvas').scrollIntoView({ block: 'center' }));
+		await page.waitForSelector('#demo-gfx-cube[data-hydrated]', { timeout: 60000 });
 		const cdp = await context.newCDPSession(page);
 		const frames = (n) => page.evaluate((n) => new Promise((ok) => { const f = () => (n-- > 0 ? requestAnimationFrame(f) : ok()); f(); }), n);
 		const touch = async (from, to, steps = 12) => {
@@ -323,8 +329,8 @@ async function touchTest(browser) {
 			await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 		};
 		const state = () => page.evaluate(async () => {
-			const { host } = await hxmcWasm['gfx-cube'];
-			const c = document.querySelector('hxmc-island#gfx-cube canvas'), px = await host.gfx.readPixels(), b = c.getBoundingClientRect();
+			const { host } = await hxmcWasm['demo-gfx-cube'];
+			const c = document.querySelector('#demo-gfx-cube canvas'), px = await host.gfx.readPixels(), b = c.getBoundingClientRect();
 			return { scrollY: Math.round(scrollY), box: [b.left, b.top, b.width, b.height], width: px.width, height: px.height, data: Array.from(px.data) };
 		});
 		await frames(2);

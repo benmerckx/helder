@@ -47,15 +47,16 @@ class Pages implements Markup {
 	static function example(examples:Array<Example>, id:String):Null<Example>
 		return Lambda.find(examples, e -> e.id == id);
 
-	// a wasm example's island (the cube on the home page, every card of the gallery)
+	// a wasm example's island (the cube on the home page, every card of the
+	// gallery), its id demo-<example>: hxmcWasm's and hxmcWasmOptions' key
 	public static function Demo(props:{e:Example, ?load:Island.Load, ?children:Any}):View {
 		var e = props.e;
 		return switch e.demo {
 			case Canvas(w, h):
-				<Island.Wasm src={e.wasm == null ? 'examples/${e.id}.wasm' : e.wasm} id={e.id} imports={Examples.imports(e.pkg)} fonts={Examples.fonts(e.pkg)}
+				<Island.Wasm src={e.wasm == null ? 'examples/${e.id}.wasm' : e.wasm} id={"demo-" + e.id} imports={Examples.imports(e.pkg)} fonts={Examples.fonts(e.pkg)}
 					width={w} height={h} load={props.load}>{props.children}</Island.Wasm>;
 			case Sound:
-				<Island.Wasm src={e.wasm == null ? 'examples/${e.id}.wasm' : e.wasm} id={e.id} imports={Examples.imports(e.pkg)} canvas={false} load={Island.Load.Click}>
+				<Island.Wasm src={e.wasm == null ? 'examples/${e.id}.wasm' : e.wasm} id={"demo-" + e.id} imports={Examples.imports(e.pkg)} canvas={false} load={Island.Load.Click}>
 					<button type="button" class="primary play-sound">Play the tone</button>
 					<p class="note">Browsers start audio only after a click: the module is fetched and run then.</p>
 				</Island.Wasm>;
@@ -80,7 +81,7 @@ class Pages implements Markup {
 					<h1>hxmc</h1>
 					<p class="lead">The Haxe compiler ported to Haxe, compiled to machine code and WebAssembly by its own back end, with no C compiler, assembler or linker, and packages for windows, graphics, text and UI written in Haxe.</p>
 					<div class="install">
-						<Code lang="sh" code={"npm i -D @hxmc/cli\nnpx haxe -cp src -main Main --custom-target hxmc=bin/app"}/>
+						<Code lang="sh" code={"npm i -D @hxmc/cli\nnpx haxe -main Main --custom-target hxmc=app"}/>
 					</div>
 					<p class="cta"><a class="button primary" href={Site.link("examples.html")}>See the examples</a> <a class="button" href={Site.link("playground.html")}>Try the playground</a> <a class="button" href={Site.link("docs/using.html")}>Get started</a></p>
 				</div>

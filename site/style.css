@@ -253,8 +253,7 @@ img, canvas, svg { max-width: 100%; }
 	.nav a { padding: 10px 8px; font-size: 16px; }
 }
 main { min-height: 60vh; }
-.foot { margin-top: 72px; }
-.foot .wrap { padding: 0; }
+.foot { margin-top: 72px; padding-left: 0; padding-right: 0; }
 .foot p { margin: 6px 0; }
 .hero { padding: 48px 0 28px; }
 .hero .links { margin-top: 8px; }
@@ -292,7 +291,7 @@ pre.code code { background: none; padding: 0; font-size: inherit; }
 .tile > a { font-weight: 600; margin-top: 4px; }
 .tile-demo { margin: 0 0 12px; }
 .tile-demo canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; background: #1a1a1f; border-radius: 8px; }
-.onward { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 28px; }
+.onward { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 40vw), 1fr)); gap: 12px; margin-top: 28px; }
 .onward .card { text-decoration: none; color: var(--fg); }
 .onward .card b { font-size: 18px; }
 .onward .card:hover { border-color: var(--accent); }
@@ -336,7 +335,7 @@ table.measured .sub { display: block; color: var(--muted); font-size: 12.5px; }
 .lab input { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; max-width: 100%; }
 .lab input[type="number"] { width: 6em; }
 .lab-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-@media (max-width: 860px) { .example-body { grid-template-columns: 1fr; } }
+@media (max-width: 860px) { .example-body { grid-template-columns: 1fr; } .example-source pre.code { max-height: 320px; } }
 
 /* ---- Docs (Docs.hx) ---- */
 .docs { display: grid; grid-template-columns: 220px minmax(0, 1fr) 200px; gap: 32px; margin-top: 28px; align-items: start; }

@@ -4,8 +4,8 @@ One reactive view layer with several renderers, a web package built on
 it, and the project's site rebuilt with both. Step 1, `@hxmc/view`, is
 built; its design (what was looked at, chosen and rejected) is
 [view.md](view.md). Step 2, `@hxmc/web`, is built
-([packages/web](../../packages/web/README.md)). Next: step 3, the site.
-The current site is `hxmc/web`.
+([packages/web](../../packages/web/README.md)), and step 3, the site
+(`site/`), built with it, has replaced `hxmc/web`.
 
 ## `@hxmc/view` (built)
 
@@ -161,19 +161,43 @@ What the site takes from it: pages rendered from components at build time
 build), islands of either kind, and an example's source read when the
 page is rendered (the demo's `Source` component).
 
-## The site: `site/`
+## The site: `site/` (built)
 
-`site/` replaces `hxmc/web`, built with `@hxmc/web`: static pages with
-islands for the playground, the benchmark charts and the examples.
+`site/` replaced `hxmc/web`, built with `@hxmc/web`: static pages
+rendered at build time by a generator in Haxe (`site/src`, on the tool's
+Eval or natively), with islands; how to build it:
+[development.md](../development.md#the-site).
 
-- Docs generated from the sources: the narrative docs (`docs/`), each
-  package's README, and an API reference extracted with the compiler (the
-  port's typed modules or HXB, doc comments included), so the site never
-  repeats what the repository says.
-- An examples gallery from each package's `examples/` (gfx's triangle and
-  cube today, then ui's and view's), each built for the browser and shown
-  with its source.
-- The playground and the benchmark history carried over from `hxmc/web`;
-  graphics programs in the playground ([graphics.md](graphics.md)).
-- CI keeps today's browser checks (the `site` and `playground` jobs) on
-  the new site.
+- Pages: home (three tiles, each with a proof: conformance, the
+  self-compile's time and memory, the cube running), compiler (conformance,
+  downloads, the benchmarks and target tables, lix), hxmc (targets, sizes
+  and cold build times measured by the build, how it works, low-level
+  Haxe), packages (each with its README's sample), examples, playground,
+  docs and story. One layout; light and dark (the system's, or a switch
+  kept in `localStorage`, applied before the first paint); a menu button on
+  a phone.
+- Islands: JavaScript for the menu, the theme and the examples' source tabs
+  (`site.js`: 49 KB, 10 KB gzipped, loaded when idle), and the examples'
+  Counter and Lab; WebAssembly for the examples, each loaded once visible;
+  the playground's and the benchmark tables' scripts as islands of their
+  own (an `<hxmc-island>` whose hydration is a hand-written function). The
+  home page loads 81 KB (20 KB gzipped) before its cube.
+- Examples: each package's `examples/` files with a header (title,
+  summary, tags, demo) built for wasm32-wasi by the site's build and shown
+  next to their source; `@hxmc/web` gained what they needed (`Island.url`
+  for pages in folders and cache-busting, a click load for sound, fonts and
+  no canvas for wasm islands, `hxmcWasmOptions` for tests).
+- Docs generated from the sources: the narrative docs, the roadmap and the
+  plans, each package's README and ui's guide (a small Markdown renderer at
+  build time, code highlighted), and an API reference read with the
+  compiler: the packages' modules typed together (`--json`: signatures as
+  typed) and the `//` comment above each declaration read from its source
+  (the packages do not write `/** */`, which the compiler would keep).
+- Tests (`make site-check`, CI's `playground` job): links, every page at
+  two widths in Chromium (the key pages in Firefox and WebKit), islands
+  hydrated, the examples drawing (the triangle and cube against their
+  golden images), the playground's compiler.
+
+Left: graphics programs in the playground ([graphics.md](graphics.md));
+the history charts (hidden, as before); NativeForm (native controls as DOM
+elements) in the gallery, which needs the loader to give a container.
