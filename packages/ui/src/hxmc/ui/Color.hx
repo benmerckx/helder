@@ -60,6 +60,12 @@ abstract Color(Int) from Int to Int {
 		return c;
 	}
 
+	// (a hex digit's value, either case; -1 for anything else)
+	static inline function hexDigit(c:Int):Int {
+		var l = c | 32;
+		return c >= "0".code && c <= "9".code ? c - "0".code : l >= "a".code && l <= "f".code ? l - "a".code + 10 : -1;
+	}
+
 	// (hex digits only; lower case)
 	static function isHex(s:String):Bool {
 		for (i in 0...s.length) {
@@ -71,6 +77,20 @@ abstract Color(Int) from Int to Int {
 
 	// as parse, null when it is not one
 	public static function tryParse(s:String):Null<Color> {
+		// (#rgb, #rgba, #rrggbb and #rrggbbaa as written, digit by digit: no strings made)
+		var n = s.length;
+		if ((n == 4 || n == 5 || n == 7 || n == 9) && StringTools.fastCodeAt(s, 0) == "#".code) {
+			var x = 0, ok = true;
+			for (i in 1...n) {
+				var d = hexDigit(StringTools.fastCodeAt(s, i));
+				if (d < 0) {
+					ok = false;
+					break;
+				}
+				x = n <= 5 ? (x << 8) | (d * 17) : (x << 4) | d;
+			}
+			if (ok) return n == 4 || n == 7 ? rgb(x) : ((x & 0xFF) << 24) | (x >>> 8);
+		}
 		var v = StringTools.trim(s).toLowerCase();
 		if (v == "transparent") return TRANSPARENT;
 		var hex = v.charAt(0) == "#" ? v.substr(1) : v;

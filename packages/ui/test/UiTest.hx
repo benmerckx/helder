@@ -147,6 +147,8 @@ class UiTest {
 		}
 		check("css: colours as Chromium computes them (" + colors.length + ")", bad.length == 0, bad.join("; "));
 		check("css: not a colour", Color.tryParse("bluish") == null && Color.tryParse("rgb(1, 2)") == null && Color.tryParse("#12345") == null);
+		check("css: hex in either case, short and long", Color.tryParse("#AbCdEf") == Color.rgb(0xabcdef) && Color.tryParse("#F0a") == Color.rgb(0xff00aa)
+			&& Color.tryParse("#0F08") == Color.rgba(0x00ff00, 0x88 / 255) && Color.tryParse(" #fff ") == Color.WHITE && Color.tryParse("#ggg") == null);
 		var stats = Sys.getEnv("CSS_STATS") != null;
 		var cases:Array<{name:String, css:String, width:Int, height:Int}> = haxe.Json.parse(sys.io.File.getContent(dir + "/gradients.json"));
 		for (c in cases) {
