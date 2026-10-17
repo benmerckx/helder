@@ -799,12 +799,80 @@ class Glyph {
 	// its run in the layout (TextLayout.runs; -1: the paragraph's own font)
 	public var run = -1;
 	// where it is drawn from its place (pixels, y down): a mark on its base by GPOS's anchors
-	public var dx = 0.0;
-	public var dy = 0.0;
+	public var dx(get, set):Float;
+	public var dy(get, set):Float;
 	// (a mark: the glyph it is attached to, and its offset from that glyph's origin)
+	public var attach(get, set):Null<Glyph>;
+	public var ax(get, set):Float;
+	public var ay(get, set):Float;
+
+	// (those five: in a GlyphMark made when one is set, marks being few)
+	var mark:Null<GlyphMark> = null;
+
+	public function new() {}
+
+	inline function get_dx():Float
+		return mark == null ? 0.0 : mark.dx;
+
+	function set_dx(v:Float):Float {
+		if (mark == null) {
+			if (v == 0) return v;
+			mark = new GlyphMark();
+		}
+		return mark.dx = v;
+	}
+
+	inline function get_dy():Float
+		return mark == null ? 0.0 : mark.dy;
+
+	function set_dy(v:Float):Float {
+		if (mark == null) {
+			if (v == 0) return v;
+			mark = new GlyphMark();
+		}
+		return mark.dy = v;
+	}
+
+	inline function get_attach():Null<Glyph>
+		return mark == null ? null : mark.attach;
+
+	function set_attach(v:Null<Glyph>):Null<Glyph> {
+		if (mark == null) {
+			if (v == null) return v;
+			mark = new GlyphMark();
+		}
+		return mark.attach = v;
+	}
+
+	inline function get_ax():Float
+		return mark == null ? 0.0 : mark.ax;
+
+	function set_ax(v:Float):Float {
+		if (mark == null) {
+			if (v == 0) return v;
+			mark = new GlyphMark();
+		}
+		return mark.ax = v;
+	}
+
+	inline function get_ay():Float
+		return mark == null ? 0.0 : mark.ay;
+
+	function set_ay(v:Float):Float {
+		if (mark == null) {
+			if (v == 0) return v;
+			mark = new GlyphMark();
+		}
+		return mark.ay = v;
+	}
+}
+
+private class GlyphMark {
+	public var dx:Float = 0.0;
+	public var dy:Float = 0.0;
 	public var attach:Null<Glyph> = null;
-	public var ax = 0.0;
-	public var ay = 0.0;
+	public var ax:Float = 0.0;
+	public var ay:Float = 0.0;
 
 	public function new() {}
 }
