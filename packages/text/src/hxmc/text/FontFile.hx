@@ -93,6 +93,7 @@ class FontFile {
 		lineGap = s16(data, hhea + 8);
 		numHMetrics = u16(data, hhea + 34);
 		numGlyphs = u16(data, tables.get("maxp") + 4);
+		hasColor = tables.exists("CBLC") && tables.exists("CBDT") || tables.exists("sbix") || tables.exists("COLR") && tables.exists("CPAL");
 		if (tables.exists("OS/2")) {
 			var os2 = tables.get("OS/2");
 			weight = u16(data, os2 + 4);
@@ -335,8 +336,33 @@ class FontFile {
 				if (o != 0) gdefClasses = d + o;
 			}
 		}
-		return gdefClasses < 0 ? 0 : classOf(gdefClasses, g);
+		if (gdefClasses < 0) return 0;
+		// (each glyph's class looked up once)
+		if (g < 0 || g >= numGlyphs) return classOf(gdefClasses, g);
+		if (glyphClasses == null) {
+			glyphClasses = new haxe.ds.Vector(numGlyphs);
+			for (i in 0...numGlyphs)
+				glyphClasses[i] = -1;
+		}
+		var c = glyphClasses[g];
+		if (c < 0) c = glyphClasses[g] = classOf(gdefClasses, g);
+		return c;
 	}
+
+	var glyphClasses:Null<haxe.ds.Vector<Int>> = null;
+
+	// the standard ligatures' lookups for a script (liga and clig, in the lookup list's order)
+	public function ligatureLookups(script:String):Array<Int> {
+		var l = ligaCache.get(script);
+		if (l == null) {
+			l = gsubLookups(script, "liga").concat(gsubLookups(script, "clig"));
+			l.sort(Reflect.compare);
+			ligaCache.set(script, l);
+		}
+		return l;
+	}
+
+	final ligaCache = new Map<String, Array<Int>>();
 
 	var gdefClasses = -2;
 
@@ -472,10 +498,7 @@ class FontFile {
 	// --- colour glyphs ---
 
 	// whether glyphs have colour: bitmaps (CBDT, sbix) or layers (COLR)
-	public var hasColor(get, never):Bool;
-
-	function get_hasColor():Bool
-		return tables.exists("CBLC") && tables.exists("CBDT") || tables.exists("sbix") || tables.exists("COLR") && tables.exists("CPAL");
+	public var hasColor(default, null) = false;
 
 	// a glyph's colour bitmap for a size in pixels (the strike nearest above,
 	// else the largest): a PNG file, its strike's pixels per em, and its

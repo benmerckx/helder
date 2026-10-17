@@ -253,33 +253,42 @@ class TextLayout {
 	// equal parts.
 	static function ligatures(gs:Array<Glyph>, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
 		var n = gs.length;
-		// (the glyphs that may take part: their ids, else -1, which no ligature has)
-		var ids:Array<Int> = [];
-		ids.resize(n);
-		var any = false;
+		// (the glyphs that may take part: their ids, else -1, which no ligature has;
+		// none when no face has these lookups)
+		var ids:Null<Array<Int>> = null;
+		var lastFont:Null<FontFile> = null, lastScript = "", lastLookups:Array<Int> = [];
 		for (k in 0...n) {
 			var g = gs[k];
 			var spaced = (g.run < 0 ? letterSpacing : runs[g.run].letterSpacing) != 0;
 			var ok = g.font != null && g.cp != 10 && g.cp != 13 && g.cp != 9 && !g.font.hasColor && !g.font.bitmapsOnly && !spaced && !Arabic.isArabic(g.cp);
-			ids[k] = ok ? g.id : -1;
-			if (ok) any = true;
+			if (ok && ids == null) {
+				var sc = script(g.cp);
+				if (g.font != lastFont || sc != lastScript) {
+					lastFont = g.font;
+					lastScript = sc;
+					lastLookups = g.font.ligatureLookups(sc);
+				}
+				if (lastLookups.length == 0) continue;
+				ids = [];
+				ids.resize(n);
+				for (j in 0...k)
+					ids[j] = -1;
+			}
+			if (ids != null) ids[k] = ok ? g.id : -1;
 		}
-		if (!any) return gs;
+		if (ids == null) return gs;
 		var out:Null<Array<Glyph>> = null;
-		var cache = new Map<String, Array<Int>>();
 		var i = 0;
 		while (i < n) {
 			var g = gs[i], merged = false;
 			if (ids[i] >= 0 && i + 1 < n && ids[i + 1] >= 0) {
 				var f = g.font, sc = script(g.cp);
-				var key = f.id + "/" + sc;
-				var lookups = cache.get(key);
-				if (lookups == null) {
-					lookups = f.gsubLookups(sc, "liga").concat(f.gsubLookups(sc, "clig"));
-					lookups.sort(Reflect.compare);
-					cache.set(key, lookups);
+				if (f != lastFont || sc != lastScript) {
+					lastFont = f;
+					lastScript = sc;
+					lastLookups = f.ligatureLookups(sc);
 				}
-				for (l in lookups) {
+				for (l in lastLookups) {
 					var lig = f.ligature(l, ids, i);
 					if (lig.count < 2) continue;
 					// (its parts in this face and run)
@@ -388,18 +397,20 @@ class TextLayout {
 	// component), or to the mark just before it, drawn at the anchors'
 	// offset; marks (GDEF's, else Unicode's nonspacing marks) take no advance
 	static function marks(gs:Array<Glyph>, own:FontSet, runs:Array<TextRun>) {
+		// (which glyphs are marks: only they attach, the others are passed over)
+		var mark = [for (g in gs) g.font != null && g.cp != 10 && g.cp != 13 && isMark(g)];
 		for (i in 0...gs.length) {
+			if (!mark[i]) continue;
 			var g = gs[i], f = g.font;
-			if (f == null || g.cp == 10 || g.cp == 13) continue;
-			if (isMark(g)) g.advance = 0;
+			g.advance = 0;
 			var b = i - 1;
-			while (b >= 0 && gs[b].font == f && isMark(gs[b]))
+			while (b >= 0 && gs[b].font == f && mark[b])
 				b--;
 			if (b < 0 || gs[b].font != f || gs[b].cp == 10) continue;
 			var base = gs[b], prev = gs[i - 1];
 			var component = base.parts > 1 ? base.parts - 1 : -1;
 			for (l in f.markLookups(script(base.cp))) {
-				var a = f.markAttachment(l, base.id, component, prev.font == f && isMark(prev) ? prev.id : -1, g.id);
+				var a = f.markAttachment(l, base.id, component, prev.font == f && mark[i - 1] ? prev.id : -1, g.id);
 				if (a == null) continue;
 				var s = (g.run < 0 ? own : runs[g.run].fonts).scale(f);
 				g.attach = a.toPrev ? prev : base;

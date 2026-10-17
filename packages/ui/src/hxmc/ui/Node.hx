@@ -122,8 +122,11 @@ class Node {
 		if (index < 0 || index > children.length) index = children.length;
 		if (children == NO_CHILDREN) children = [];
 		children.insert(index, child);
+		var moved = child.parent != this;
 		child.parent = this;
 		child.attach(ui);
+		// (under another parent: what it inherits may differ)
+		if (moved) child.inheritedChanged();
 		markDirty();
 		return child;
 	}
@@ -205,6 +208,7 @@ class Node {
 
 	public function markDirty() {
 		Ui.accessEpoch++;
+		fontCache = null;
 		var n = this;
 		while (n != null && !(n.dirty && (n.cache == null || n.cache.length == 0) && Math.isNaN(n.minContent))) {
 			n.dirty = true;
@@ -225,6 +229,7 @@ class Node {
 	}
 
 	function inheritedChanged() {
+		fontCache = null;
 		if (hasContent()) markDirty();
 		for (c in children)
 			c.inheritedChanged();
@@ -233,23 +238,28 @@ class Node {
 	// --- inherited text properties ---
 
 	public function font():Font {
-		var family:Null<String> = null, size:Null<Float> = null, weight:Null<Int> = null, italic:Null<Bool> = null, lh:Null<Float> = null;
-		var ls:Null<Float> = null, ws:Null<Float> = null;
+		if (fontCache != null) return fontCache;
+		// (unset: NaN, -1; no boxes)
+		var family:Null<String> = null, size = Math.NaN, weight = -1, italic = -1, lh = Math.NaN, ls = Math.NaN, ws = Math.NaN;
 		var n = this;
 		while (n != null) {
 			var s = n.style;
 			if (family == null) family = s.fontFamily;
-			if (size == null) size = s.fontSize;
-			if (weight == null) weight = s.fontWeight;
-			if (italic == null) italic = s.italic;
-			if (lh == null) lh = s.lineHeight;
-			if (ls == null) ls = s.letterSpacing;
-			if (ws == null) ws = s.wordSpacing;
+			if (Math.isNaN(size) && s.fontSize != null) size = s.fontSize;
+			if (weight < 0 && s.fontWeight != null) weight = s.fontWeight;
+			if (italic < 0 && s.italic != null) italic = s.italic ? 1 : 0;
+			if (Math.isNaN(lh) && s.lineHeight != null) lh = s.lineHeight;
+			if (Math.isNaN(ls) && s.letterSpacing != null) ls = s.letterSpacing;
+			if (Math.isNaN(ws) && s.wordSpacing != null) ws = s.wordSpacing;
 			n = n.parent;
 		}
-		return new Font(family == null ? Style.DEFAULT_FAMILY : family, size == null ? Style.DEFAULT_SIZE : size,
-			weight == null ? Style.DEFAULT_WEIGHT : weight, italic == true, lh == null ? Style.DEFAULT_LINE_HEIGHT : lh, ls == null ? 0 : ls, ws == null ? 0 : ws);
+		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, Math.isNaN(size) ? Style.DEFAULT_SIZE : size,
+			weight < 0 ? Style.DEFAULT_WEIGHT : weight, italic == 1, Math.isNaN(lh) ? Style.DEFAULT_LINE_HEIGHT : lh, Math.isNaN(ls) ? 0 : ls,
+			Math.isNaN(ws) ? 0 : ws);
 	}
+
+	// (the font, until it or an ancestor changes a text property: markDirty clears it)
+	var fontCache:Null<Font> = null;
 
 	public function textColor():Color {
 		var n = this;

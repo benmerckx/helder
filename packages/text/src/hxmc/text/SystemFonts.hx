@@ -57,6 +57,7 @@ class SystemFonts {
 			var key = "added:" + f.id;
 			loaded.set(key, f);
 			faces.insert(0, new FaceInfo(key, i, f.family, f.subfamily, f.weight, f.italic));
+			fallbackList = null;
 			out.push(f);
 		}
 		return out;
@@ -83,14 +84,18 @@ class SystemFonts {
 
 	// the fallback faces (regular) found on this system
 	public function fallbacks():Array<FontFile> {
+		if (fallbackList != null) return fallbackList;
 		scan();
 		var out = [];
 		for (name in FALLBACK) {
 			var f = best(name, 400, false);
 			if (f != null && !out.contains(f)) out.push(f);
 		}
-		return out;
+		return fallbackList = out;
 	}
+
+	// (found once; fonts added later find them again)
+	var fallbackList:Null<Array<FontFile>> = null;
 
 	// the first of MORE's faces that has a character (null: none)
 	public function fallbackFor(cp:Int):Null<FontFile> {

@@ -35,8 +35,8 @@ package hxmc.ui;
 				inset = true;
 				continue;
 			}
-			var f = Std.parseFloat(StringTools.replace(p, "px", ""));
-			if (!Math.isNaN(f) && ~/^-?[0-9.]+(px)?$/.match(p)) {
+			var f = isLength(p) ? Std.parseFloat(StringTools.replace(p, "px", "")) : Math.NaN;
+			if (!Math.isNaN(f)) {
 				lengths.push(f);
 				continue;
 			}
@@ -50,6 +50,17 @@ package hxmc.ui;
 		if (lengths.length > 3) sh.spread = lengths[3];
 		if (color != null) sh.color = color;
 		return sh;
+	}
+
+	// (a number, px allowed: -1.5, 3px)
+	static function isLength(p:String):Bool {
+		var n = StringTools.endsWith(p, "px") ? p.length - 2 : p.length;
+		if (n == 0) return false;
+		for (i in 0...n) {
+			var c = StringTools.fastCodeAt(p, i);
+			if (!(c >= "0".code && c <= "9".code || c == ".".code || i == 0 && c == "-".code)) return false;
+		}
+		return true;
 	}
 
 	// the parts of s between separators outside parentheses, trimmed, empty ones left out
