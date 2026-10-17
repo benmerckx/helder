@@ -123,17 +123,41 @@ export const cases = [
 	// percentages of a height that is not definite (an auto one, laid out or not) resolve as auto; a stretched item's height is definite
 	{ name: 'percentages in an auto-height column', width: 300, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start', columnGap: 10 }, children: [{ children: [box(20, 40), box(20, '50%')] }, { children: [box(20, 40), { style: { width: 20, basis: '50%' } }] }, { style: { minHeight: 100 }, children: [{ style: { grow: 1 }, children: [box(20, '50%')] }] }] } },
 	{ name: 'percentages in an auto-height row', width: 300, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start', columnGap: 10 }, children: [{ style: { direction: 'Row' }, children: [box(20, 40), box(20, '50%')] }, { style: { direction: 'Row' }, children: [{ style: { direction: 'Row' }, children: [box(20, 40), box(20, '50%')] }, box(5, 80)] }] } },
+	{ name: 'percentages in an absolute box', width: 300, height: 200, tree: { children: [{ style: { position: 'Absolute', left: 0, top: 0 }, children: [box(20, 40), box(20, '50%')] }, { style: { position: 'Absolute', left: 50, top: 0, bottom: 100 }, children: [box(20, 40), box(20, '50%')] }, { style: { position: 'Absolute', left: 100, top: 0, maxHeight: 30 }, children: [box(20, 40), box(20, '50%')] }] } },
 	{ name: 'percentages in a stretched column', width: 300, height: 200, tree: { style: { direction: 'Row', height: 100 }, children: [{ children: [box(20, 40), box(20, '50%')] }, { style: { direction: 'Row' }, children: [box(20, 40), box(20, '50%')] }] } },
 	// an absolute box's auto width: shrink to fit the room its offsets leave, not below its min-content width
 	{ name: 'absolute shrink-to-fit', width: 200, height: 200, tree: { style: { width: 120 }, children: [{ style: { direction: 'Row', position: 'Absolute', left: 5, top: 0 }, children: [box(60, 20), box(70, 20)] }, { style: { direction: 'Row', position: 'Absolute', left: 30, top: 40 }, children: [box(40, 20), { style: { width: 50, height: 20, minWidth: 0 } }] }, { style: { direction: 'Row', position: 'Absolute', right: 0, top: 80, columnGap: 10 }, children: [h(20), { style: { width: 30, minWidth: 0, height: 20 } }, box(40, 20, { shrink: 0 })] }] } },
 	// an absolute box with both offsets and a size on an axis: placed between them by its justifySelf and alignSelf
-	{ name: 'absolute self-alignment', width: 200, height: 300, tree: { children: [
+	{ name: 'absolute self-alignment', width: 200, height: 400, tree: { children: [
 		{ style: { height: 100 }, children: [{ style: { position: 'Absolute', width: 40, height: 30, top: 10, bottom: 20, left: 10, right: 20 } }, { style: { position: 'Absolute', width: 40, height: 30, top: 10, bottom: 20, left: 10, right: 20, alignSelf: 'End', justifySelf: 'Center' } }, { style: { position: 'Absolute', width: 40, height: 30, top: 10, bottom: 20, left: 10, right: 20, alignSelf: 'Center', justifySelf: 'End', margin: [5, 6, 7, 8] } }] },
 		{ style: { height: 100, dir: 'Rtl' }, children: [{ style: { position: 'Absolute', width: 40, height: 30, top: 10, bottom: 20, left: 10, right: 20 } }, { style: { position: 'Absolute', width: 40, height: 30, top: 10, bottom: 20, left: 10, right: 20, justifySelf: 'End' } }] },
-		{ style: { height: 100 }, children: [{ style: { position: 'Absolute', width: 40, height: 300, top: 10, bottom: 20, left: 10, alignSelf: 'End' } }] }] } },
+		{ style: { height: 100 }, children: [{ style: { position: 'Absolute', width: 40, height: 300, top: 10, bottom: 20, left: 10, alignSelf: 'End' } }] },
+		{ style: { height: 100 }, children: [{ style: { position: 'Absolute', width: 40, height: 95, top: 10, bottom: 20, left: 10 } }, { style: { position: 'Absolute', width: 40, height: 95, top: 10, bottom: 20, left: 60, alignSelf: 'Start' } }] }] } },
 	// a width under the padding: its border box no smaller than the padding, in the min-content width too
 	{ name: 'width under its padding, min-content', width: 200, height: 150, tree: { style: { wrap: true, padding: [2, 6] }, children: [{ style: { direction: 'RowReverse', shrink: 0, maxHeight: 80 }, children: [{ style: { direction: 'Row', margin: [0, 5], position: 'Absolute', top: 7, bottom: 4 },
 		children: [{ style: { basis: 50, width: 60, height: 30 } }, { style: { wrap: true, grow: 2, shrink: 0, width: 10, padding: [2, 6] } }, box(10, 30, { grow: 0.5, margin: 3 })] }] }] } },
+	// space-around and space-evenly overflowing: at the writing mode's start (a reversed direction's far end); space-between at the flex start
+	{ name: 'reversed overflow fallback', width: 300, height: 300, tree: { style: { alignItems: 'Start', rowGap: 4 }, children: [
+		{ style: { direction: 'RowReverse', justify: 'SpaceAround', width: 60, height: 10 }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
+		{ style: { direction: 'RowReverse', justify: 'SpaceEvenly', width: 60, height: 10, dir: 'Rtl' }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
+		{ style: { direction: 'RowReverse', justify: 'SpaceBetween', width: 60, height: 10 }, children: [box(40, 10, { shrink: 0 }), box(40, 10, { shrink: 0 })] },
+		{ style: { direction: 'Row', alignItems: 'Start', columnGap: 4 }, children: [{ style: { direction: 'ColumnReverse', justify: 'SpaceAround', width: 10, height: 60 }, children: [box(10, 40, { shrink: 0 }), box(10, 40, { shrink: 0 })] }] }] } },
+	// a stretched item's content measured at its own max-width: its wrapping row's lines as wide
+	{ name: 'stretched item measured within its max-width', width: 200, height: 150, tree: { style: { justify: 'End' }, children: [{ style: { maxWidth: 40 }, children: [{ style: { direction: 'Row', wrap: true }, children: [box(30, 60), box(20, 40)] }, { style: { basis: 50, height: 60 } }] }] } },
+	// auto margins: the free space along shared among them (justify-content left out), across the line's room left (not stretched)
+	{ name: 'auto margins in a row', width: 300, height: 200, tree: { style: { rowGap: 4 }, children: [
+		{ style: { direction: 'Row', height: 30, justify: 'Center' }, children: [box(40, 20), box(40, 20, { margin: [0, 0, 0, 'auto'] }), box(40, 20)] },
+		{ style: { direction: 'Row', height: 30, columnGap: 10 }, children: [box(40, 20, { margin: [0, 'auto'] }), box(40, 20, { margin: ['auto', 0, 0, 'auto'] }), { style: { width: 40, margin: ['auto', 5, 'auto', 5] } }] },
+		{ style: { direction: 'Row', height: 30 }, children: [box(200, 20, { margin: [0, 'auto'], shrink: 0 }), box(150, 20, { margin: ['auto', 0, 'auto', 0], height: 50 })] },
+		{ style: { direction: 'RowReverse', height: 30, dir: 'Rtl' }, children: [box(40, 20, { margin: [0, 'auto', 0, 0] }), box(40, 20)] }] } },
+	{ name: 'auto margins in a column and a grid', width: 300, height: 300, tree: { style: { direction: 'Row', columnGap: 10, alignItems: 'Start' }, children: [
+		{ style: { height: 200, width: 80 }, children: [box(40, 20, { margin: ['auto', 'auto', 0, 'auto'] }), box(40, 20), box(40, 20, { margin: [0, 0, 'auto', 'auto'] }), h(20)] },
+		{ style: { display: 'Grid', gridTemplateColumns: '80px 80px', gridAutoRows: '60px', width: 160 }, children: [box(30, 20, { margin: 'auto' }), box(30, 20, { margin: [0, 0, 'auto', 'auto'] }), { style: { height: 20, margin: [0, 'auto'] } }, { style: { margin: ['auto', 0] } }] }] } },
+	{ name: 'auto margins on absolute boxes', width: 300, height: 200, tree: { style: { height: 200 }, children: [
+		{ style: { position: 'Absolute', left: 10, right: 10, top: 10, bottom: 10, width: 100, height: 50, margin: 'auto' } },
+		{ style: { position: 'Absolute', left: 10, right: 10, top: 0, width: 100, height: 20, margin: [0, 0, 0, 'auto'] } },
+		{ style: { position: 'Absolute', left: 10, right: 10, top: 30, bottom: 0, width: 400, height: 20, margin: ['auto', 'auto', 0, 'auto'] } },
+		{ style: { position: 'Absolute', left: 0, right: 0, top: 60, margin: [0, 'auto'], height: 10 } }] } },
 	// shrinking weighs each item's base size inside its padding and border
 	{ name: 'shrink by the content-box base size', width: 200, height: 60, tree: { style: { direction: 'Row' }, children: [box(100, 20, { padding: [0, 20] }), box(100, 20, { borderWidth: 10 }), box(100, 20)] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },

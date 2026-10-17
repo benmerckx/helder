@@ -3400,6 +3400,80 @@
 		}
 	},
 	{
+		"name": "percentages in an absolute box",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 0,
+						"top": 0
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 20,
+								"height": "50%"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 50,
+						"top": 0,
+						"bottom": 100
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 20,
+								"height": "50%"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 100,
+						"top": 0,
+						"maxHeight": 30
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 40
+							}
+						},
+						{
+							"style": {
+								"width": 20,
+								"height": "50%"
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "percentages in a stretched column",
 		"width": 300,
 		"height": 200,
@@ -3537,7 +3611,7 @@
 	{
 		"name": "absolute self-alignment",
 		"width": 200,
-		"height": 300,
+		"height": 400,
 		"tree": {
 			"children": [
 				{
@@ -3638,6 +3712,34 @@
 							}
 						}
 					]
+				},
+				{
+					"style": {
+						"height": 100
+					},
+					"children": [
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 95,
+								"top": 10,
+								"bottom": 20,
+								"left": 10
+							}
+						},
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 95,
+								"top": 10,
+								"bottom": 20,
+								"left": 60,
+								"alignSelf": "Start"
+							}
+						}
+					]
 				}
 			]
 		}
@@ -3704,6 +3806,488 @@
 							]
 						}
 					]
+				}
+			]
+		}
+	},
+	{
+		"name": "reversed overflow fallback",
+		"width": 300,
+		"height": 300,
+		"tree": {
+			"style": {
+				"alignItems": "Start",
+				"rowGap": 4
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "RowReverse",
+						"justify": "SpaceAround",
+						"width": 60,
+						"height": 10
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "RowReverse",
+						"justify": "SpaceEvenly",
+						"width": 60,
+						"height": 10,
+						"dir": "Rtl"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "RowReverse",
+						"justify": "SpaceBetween",
+						"width": 60,
+						"height": 10
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 10,
+								"shrink": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"alignItems": "Start",
+						"columnGap": 4
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "ColumnReverse",
+								"justify": "SpaceAround",
+								"width": 10,
+								"height": 60
+							},
+							"children": [
+								{
+									"style": {
+										"width": 10,
+										"height": 40,
+										"shrink": 0
+									}
+								},
+								{
+									"style": {
+										"width": 10,
+										"height": 40,
+										"shrink": 0
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "stretched item measured within its max-width",
+		"width": 200,
+		"height": 150,
+		"tree": {
+			"style": {
+				"justify": "End"
+			},
+			"children": [
+				{
+					"style": {
+						"maxWidth": 40
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "Row",
+								"wrap": true
+							},
+							"children": [
+								{
+									"style": {
+										"width": 30,
+										"height": 60
+									}
+								},
+								{
+									"style": {
+										"width": 20,
+										"height": 40
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"basis": 50,
+								"height": 60
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "auto margins in a row",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"rowGap": 4
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"height": 30,
+						"justify": "Center"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"margin": [
+									0,
+									0,
+									0,
+									"auto"
+								]
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"height": 30,
+						"columnGap": 10
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"margin": [
+									0,
+									"auto"
+								]
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"margin": [
+									"auto",
+									0,
+									0,
+									"auto"
+								]
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"margin": [
+									"auto",
+									5,
+									"auto",
+									5
+								]
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"height": 30
+					},
+					"children": [
+						{
+							"style": {
+								"width": 200,
+								"height": 20,
+								"margin": [
+									0,
+									"auto"
+								],
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"width": 150,
+								"height": 50,
+								"margin": [
+									"auto",
+									0,
+									"auto",
+									0
+								]
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "RowReverse",
+						"height": 30,
+						"dir": "Rtl"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"margin": [
+									0,
+									"auto",
+									0,
+									0
+								]
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "auto margins in a column and a grid",
+		"width": 300,
+		"height": 300,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"columnGap": 10,
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"height": 200,
+						"width": 80
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"margin": [
+									"auto",
+									"auto",
+									0,
+									"auto"
+								]
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"margin": [
+									0,
+									0,
+									"auto",
+									"auto"
+								]
+							}
+						},
+						{
+							"style": {
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"display": "Grid",
+						"gridTemplateColumns": "80px 80px",
+						"gridAutoRows": "60px",
+						"width": 160
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 20,
+								"margin": "auto"
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 20,
+								"margin": [
+									0,
+									0,
+									"auto",
+									"auto"
+								]
+							}
+						},
+						{
+							"style": {
+								"height": 20,
+								"margin": [
+									0,
+									"auto"
+								]
+							}
+						},
+						{
+							"style": {
+								"margin": [
+									"auto",
+									0
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "auto margins on absolute boxes",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"height": 200
+			},
+			"children": [
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"right": 10,
+						"top": 10,
+						"bottom": 10,
+						"width": 100,
+						"height": 50,
+						"margin": "auto"
+					}
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"right": 10,
+						"top": 0,
+						"width": 100,
+						"height": 20,
+						"margin": [
+							0,
+							0,
+							0,
+							"auto"
+						]
+					}
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"right": 10,
+						"top": 30,
+						"bottom": 0,
+						"width": 400,
+						"height": 20,
+						"margin": [
+							"auto",
+							"auto",
+							0,
+							"auto"
+						]
+					}
+				},
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 0,
+						"right": 0,
+						"top": 60,
+						"margin": [
+							0,
+							"auto"
+						],
+						"height": 10
+					}
 				}
 			]
 		}
