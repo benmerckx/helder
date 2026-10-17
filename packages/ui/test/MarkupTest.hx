@@ -23,13 +23,13 @@ import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
-import hxmc.ui.widgets.Widgets.Disclosure;
+import hxmc.ui.widgets.Widgets.Collapsible;
 import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.DropdownMenu;
-import hxmc.ui.widgets.Widgets.SegmentedControl;
-import hxmc.ui.widgets.Widgets.Breadcrumbs;
+import hxmc.ui.widgets.Widgets.ToggleGroup;
+import hxmc.ui.widgets.Widgets.Breadcrumb;
 import hxmc.ui.widgets.Widgets.Pagination;
 import hxmc.ui.widgets.Widgets.TagInput;
 import hxmc.ui.widgets.Widgets.ContextMenu;
@@ -67,7 +67,7 @@ import hxmc.ui.widgets.Widgets.DialogFooter;
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of widgets in markup, its actions and changes; the
 // popover widgets (Select, Menu, ContextMenu, Tooltip, Dialog, Combobox) driven by pointer and keys;
-// Disclosure, Accordion, toasts and NumberField;
+// Collapsible, Accordion, toasts and NumberField;
 // a VirtualList of 100000 rows scrolled
 class MarkupTest implements Markup {
 	static var checks = 0;
@@ -101,6 +101,7 @@ class MarkupTest implements Markup {
 		unstyled();
 		unstyledMore();
 		unstyledPopups();
+		unstyledNav();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -213,7 +214,7 @@ class MarkupTest implements Markup {
 		var undone = 0, more = signal(false), section = signal(-1);
 		Render.render(<view padding={10} row-gap={10} align-items="start">
 			<view tag="focus-here" focusable width={20} height={20}/>
-			<Disclosure tag="more" label="More" open={more}><text tag="more-text">Details</text></Disclosure>
+			<Collapsible tag="more" label="More" open={more}><text tag="more-text">Details</text></Collapsible>
 			<Accordion tag="faq" open={section} sections={[{label: "One", render: () -> <text>First</text>}, {label: "Two", render: () -> <text>Second</text>}]}/>
 			<Toaster/>
 		</view>, ui.root);
@@ -524,8 +525,8 @@ class MarkupTest implements Markup {
 		var ui = new Ui(new MonoText(), 500, 300);
 		var view = signal("Day"), page = signal(1), chosen = [];
 		Render.render(<view padding={10} row-gap={10}>
-			<SegmentedControl tag="seg" label="View" value={view} options={["Day", "Week", "Month"]}/>
-			<Breadcrumbs tag="crumbs" items={["Home", "Docs", "Layout"]} onSelect={i -> chosen.push(i)}/>
+			<ToggleGroup tag="seg" label="View" value={view} options={["Day", "Week", "Month"]}/>
+			<Breadcrumb tag="crumbs" items={["Home", "Docs", "Layout"]} onSelect={i -> chosen.push(i)}/>
 			<Pagination tag="pages" page={page} count={10}/>
 		</view>, ui.root);
 		ui.update();
@@ -1302,6 +1303,65 @@ class MarkupTest implements Markup {
 		open.value = true;
 		ui.update();
 		check("unstyled: Canvas dark when the window is", ui.overlay.find("dialog-close").parent.style.background == Color.rgb(0x121212));
+	}
+
+	static function unstyledNav() {
+		var ui = new Ui(new MonoText(), 500, 400);
+		var more = signal(false), section = signal(-1), view = signal("Week"), page = signal(1);
+		Render.render(<view align-items="start" row-gap={4} padding={10}>
+			<Collapsible tag="c" label="More" open={more}><text>Details</text></Collapsible>
+			<Accordion tag="a" open={section} sections={[{label: "One", render: () -> <text>First</text>}, {label: "Two", render: () -> <text>Second</text>}]}/>
+			<ToggleGroup tag="g" value={view} options={["Day", "Week"]} labels={["D", "W"]} variant="outline" size="sm"/>
+			<Breadcrumb tag="b" items={["Home", "Docs"]} onSelect={_ -> {}}/>
+			<Pagination tag="p" page={page} count={9}/>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var c = ui.root.find("c"), ct = ui.root.find("c-summary");
+		check("unstyled: a collapsible's slots and data-state", c.slot == "collapsible" && ct.slot == "collapsible-trigger" && ct.attr("data-state") == "closed"
+			&& ui.root.find("c-content") == null);
+		click(ct);
+		check("unstyled: a collapsible opened", more.value && c.attr("data-state") == "open" && ct.attr("data-state") == "open"
+			&& ui.root.find("c-content").slot == "collapsible-content");
+		var item = ui.root.find("a-1"), at = ui.root.find("a-1-summary"), chevron = at.children[1];
+		check("unstyled: an accordion's slots, the chevron at the end", ui.root.find("a").slot == "accordion" && item.slot == "accordion-item"
+			&& at.slot == "accordion-trigger" && item.attr("data-state") == "closed" && chevron.absX > at.children[0].absX && chevron.style.transform == null);
+		click(at);
+		check("unstyled: an accordion's section opened, its chevron turned", section.value == 1 && item.attr("data-state") == "open"
+			&& at.attr("data-state") == "open" && ui.root.find("a-1-content").slot == "accordion-content" && chevron.style.transform != null);
+		var g = ui.root.find("g"), d = ui.root.find("g-0"), w = ui.root.find("g-1");
+		check("unstyled: a toggle group's items: data-state, variant, size, labels", g.slot == "toggle-group" && d.slot == "toggle-group-item"
+			&& d.variant == "outline" && d.size == "sm" && w.attr("data-state") == "on" && d.attr("data-state") == "off" && d.semantics.role == RadioButton);
+		click(d);
+		check("unstyled: a toggle group's item chosen", view.value == "Day" && d.attr("data-state") == "on" && w.attr("data-state") == "off");
+		var b0 = ui.root.find("b-0"), b1 = ui.root.find("b-1");
+		check("unstyled: a breadcrumb's slots", ui.root.find("b").slot == "breadcrumb" && b0.parent.slot == "breadcrumb-item"
+			&& b0.parent.parent.slot == "breadcrumb-list" && b0.slot == "breadcrumb-link" && b1.slot == "breadcrumb-page"
+			&& b0.parent.parent.children[1].slot == "breadcrumb-separator" && b1.semantics.current == true);
+		var prev = ui.root.find("p-prev"), next = ui.root.find("p-next");
+		function pages():Array<Node> {
+			var out = [];
+			function walk(n:Node) {
+				if (n.tag == "p-page") out.push(n);
+				for (k in n.children)
+					walk(k);
+			}
+			walk(ui.root);
+			return out;
+		}
+		var first = pages()[0];
+		check("unstyled: pagination's slots, sizes, the current page active, Previous disabled on the first",
+			ui.root.find("p").slot == "pagination" && prev.parent.slot == "pagination-item" && prev.parent.parent.slot == "pagination-content"
+			&& prev.slot == "pagination-link" && prev.size == "default" && first.size == "icon" && first.attr("data-active") == "true"
+			&& pages()[1].attr("data-active") == null && prev.attr("data-disabled") == "" && next.attr("data-disabled") == null);
+		click(next);
+		check("unstyled: pagination's Next", page.value == 2 && pages()[1].attr("data-active") == "true" && prev.attr("data-disabled") == null);
 	}
 
 	static function table() {

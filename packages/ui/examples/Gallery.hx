@@ -174,8 +174,8 @@ class Gallery implements Markup {
 			</view>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
 			{section("SEGMENTS, BREADCRUMBS, PAGES", <view row-gap={10} align-items="start">
-				<SegmentedControl tag="period" label="Period" value={period} options={["Day", "Week", "Month"]}/>
-				<Breadcrumbs tag="crumbs" items={["Home", "Projects", "Gallery"]} onSelect={i -> chosen.value = "crumb " + i}/>
+				<ToggleGroup tag="period" label="Period" value={period} options={["Day", "Week", "Month"]}/>
+				<Breadcrumb tag="crumbs" items={["Home", "Projects", "Gallery"]} onSelect={i -> chosen.value = "crumb " + i}/>
 				<Pagination tag="pages" page={page} count={9}/>
 			</view>)}
 			{section("SPLIT: A TREE AND A TABLE", <Split tag="panes" size={pane} min={120} label="Sidebar"
@@ -203,9 +203,9 @@ class Gallery implements Markup {
 					<Combobox tag="city" value={city} options={CITIES} placeholder="A city" label="City" onChoose={c -> Toasts.show("Chose " + c, {kind: "success"})}/>
 					<NumberField tag="count" value={count} min={0} max={99} width={90} label="Count"/>
 				</view>
-				<Disclosure tag="more" label="What these are">
+				<Collapsible tag="more" label="What these are">
 					<text color={() -> Theme.current.value.secondary}>A combobox filters its options as you type; a toast says what happened, for a while.</text>
-				</Disclosure>
+				</Collapsible>
 				<Button tag="notify" label="Show a toast" onClick={() -> Toasts.show("Deleted 3 files", {action: "Undo", onAction: () -> Toasts.show("Restored")})}/>
 			</view>)}
 			<Toaster/>

@@ -1404,10 +1404,16 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// a segmented control: one of options, chosen among buttons joined in a
-	// row (a radio group: one Tab stop, the chosen one; Left and Right, the
-	// way they point, wrapping, and Home and End choose another)
-	public static function SegmentedControl(props:{value:Signal<String>, options:Array<String>, ?label:String, ?tag:String}):View {
+	// a toggle group (shadcn's): one of options (labels: what each shows),
+	// chosen among toggles joined in a row (a radio group: one Tab stop, the
+	// chosen one; Left and Right, the way they point, wrapping, and Home and
+	// End choose another); variant "default" or "outline", size "default",
+	// "sm" or "lg". Slots "toggle-group" and "toggle-group-item" (data-state
+	// "on" or "off"), each with the variant and size
+	public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
+			?label:String, ?tag:String}):View {
+		Unstyled.install();
+		var variant = props.variant ?? "default", size = props.size ?? "default";
 		var tag = props.tag ?? "segments", options = props.options, nodes:Array<Node> = [], n = options.length;
 		function stop(i:Int):Bool {
 			var k = options.indexOf(props.value.value);
@@ -1426,46 +1432,52 @@ class Widgets implements Markup {
 			props.value.value = options[j];
 			focusIn(nodes, j);
 		}
-		return <view tag={tag} role="radiogroup" label={props.label} direction="row" padding={2} column-gap={2} radius={8} background={() -> t().track}
-			align-self="start">{[
+		return <view tag={tag} slot="toggle-group" variant={variant} size={size} role="radiogroup" label={props.label}>{[
 			for (i in 0...n) {
 				var o = options[i], on = () -> props.value.value == o;
-				<view tag={tag + "-" + i} role="radio" ref={n -> nodes[i] = n} checked={on} focusable={() -> stop(i)} cursor="pointer" padding="4 12" radius={6}
-					background={Motion.color(() -> on() ? t().control : Theme.clear(t().control))} color={() -> on() ? t().text : t().secondary}
-					shadow={() -> on() ? "0 1px 2px rgba(0,0,0,0.15)" : null} onClick={_ -> props.value.value = o} onKeyDown={e -> key(e, i)}>{o}</view>;
+				<view tag={tag + "-" + i} slot="toggle-group-item" variant={variant} size={size} role="radio" ref={n -> nodes[i] = n} checked={on}
+					data-state={() -> on() ? "on" : "off"} focusable={() -> stop(i)} onClick={_ -> props.value.value = o}
+					onKeyDown={e -> key(e, i)}>{props.labels != null && props.labels[i] != null ? props.labels[i] : o}</view>;
 			}
 		]}</view>;
 	}
 
-	// breadcrumbs: the path to where one is, each step but the last a link
-	// (chosen by a click or Enter: onSelect with its index), the last the
-	// current one, in a navigation landmark; the separators decoration
-	public static function Breadcrumbs(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
+	// a breadcrumb (shadcn's): the path to where one is, each step but the
+	// last a link (chosen by a click or Enter: onSelect with its index), the
+	// last the current page, in a navigation landmark; the separators (a
+	// chevron, the way the line reads) decoration. Slots "breadcrumb",
+	// "breadcrumb-list", "breadcrumb-item", "breadcrumb-link",
+	// "breadcrumb-page", "breadcrumb-separator"
+	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "crumbs", items = props.items;
-		return <view tag={tag} role="navigation" label={props.label ?? "Breadcrumb"} direction="row" align-items="center" column-gap={6}>{[
-			for (i in 0...items.length) {
-				var last = i == items.length - 1;
-				[
-					last ? <text tag={tag + "-" + i} current color={() -> t().text}>{items[i]}</text> : {
-						var hover = signal(false);
-						<view tag={tag + "-" + i} role="link" focusable cursor="pointer" color={() -> t().accentText}
-							text-decoration={() -> hover.value ? (TextDecoration.Underline : Int) : 0} onPointerEnter={_ -> hover.value = true}
-							onPointerLeave={_ -> hover.value = false} onClick={_ -> props.onSelect(i)} onKeyDown={e -> if (e.key == Key.ENTER) {
+		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "Breadcrumb"}>
+			<view slot="breadcrumb-list">{[
+				for (i in 0...items.length) {
+					var last = i == items.length - 1;
+					[
+						<view slot="breadcrumb-item">{last ? <text tag={tag + "-" + i} slot="breadcrumb-page" current>{items[i]}</text> : <text tag={tag + "-" + i}
+							slot="breadcrumb-link" role="link" focusable onClick={_ -> props.onSelect(i)} onKeyDown={e -> if (e.key == Key.ENTER) {
 								e.preventDefault();
 								props.onSelect(i);
-							}}>{items[i]}</view>;
-					},
-					last ? null : <text hidden color={() -> t().muted}>/</text>
-				];
-			}
-		]}</view>;
+							}}>{items[i]}</text>}</view>,
+						last ? null : <view slot="breadcrumb-separator">{arrow(() -> "▸")}</view>
+					];
+				}
+			]}</view>
+		</view>;
 	}
 
-	// pagination: Previous, the pages (the first, the last, the current one
-	// and its neighbours, "…" for the rest, a page instead where it hides only
-	// one), Next, in a navigation landmark; pages count from 1, the current
-	// page's button marked current
+	// pagination (shadcn's): Previous, the pages (the first, the last, the
+	// current one and its neighbours, "…" for the rest, a page instead where
+	// it hides only one), Next, in a navigation landmark; pages count from
+	// 1, the current page's button marked current. Slots "pagination",
+	// "pagination-content", "pagination-item", "pagination-link" (size "icon"
+	// for a page, "default" for Previous and Next; data-active on the
+	// current page's, data-disabled on Previous on the first, Next on the
+	// last) and "pagination-ellipsis"
 	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
+		Unstyled.install();
 		var tag = props.tag ?? "pages", count = props.count;
 		function go(p:Int)
 			if (p >= 1 && p <= count) props.page.value = p;
@@ -1479,27 +1491,26 @@ class Widgets implements Markup {
 				}
 			return out;
 		}
-		function button(label:Void->String, tagged:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool):View {
-			var hover = signal(false);
+		function button(label:Void->String, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool):View {
 			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
-			return <view tag={tagged} role="button" focusable={() -> !off()} disabled={off} current={cur} cursor={() -> off() ? "default" : "pointer"}
-				padding="4 10" radius={6} min-width={32} align-items="center" border-width={1}
-				border-color={() -> cur() ? t().accent : hover.value && !off() ? t().border : Theme.clear(t().border)}
-				background={() -> cur() ? t().accent : t().background} color={() -> cur() ? t().onAccent : off() ? t().muted : t().text}
-				onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false} onClick={_ -> if (!off()) onClick()}
+			return <view slot="pagination-item"><view tag={tagged} slot="pagination-link" size={size} role="button" focusable={() -> !off()} disabled={off}
+				data-disabled={off} current={cur} data-active={() -> cur() ? "true" : null} onClick={_ -> if (!off()) onClick()}
 				onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && !off()) {
 					e.preventDefault();
 					onClick();
-				}}>{label}</view>;
+				}}>{label}</view></view>;
 		}
-		return <view tag={tag} role="navigation" label={props.label ?? "Pages"} direction="row" align-items="center" column-gap={4}>
-			{button(() -> "Previous", tag + "-prev", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1)}
-			<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
-				<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", () -> go(p.peek()), () -> props.page.value == p.value)}>
-					<text hidden padding="4 6" color={() -> t().muted}>…</text>
-				</Show>
-			</view>}/>
-			{button(() -> "Next", tag + "-next", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count)}
+		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "Pages"}>
+			<view slot="pagination-content">
+				{button(() -> "Previous", tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1)}
+				<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
+					<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", "icon", () -> go(p.peek()),
+						() -> props.page.value == p.value)}>
+						<view slot="pagination-ellipsis" hidden><text>…</text></view>
+					</Show>
+				</view>}/>
+				{button(() -> "Next", tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count)}
+			</view>
 		</view>;
 	}
 
@@ -1707,42 +1718,51 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// a disclosure: its label on a button (an arrow turning with it) that
-	// shows or hides the children under it, by a click, Enter or Space; open
-	// (a signal; closed at first) says which
-	public static function Disclosure(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
+	// a collapsible (shadcn's): its label on a button (an arrow turning
+	// with it) that shows or hides the children under it, by a click, Enter
+	// or Space; open (a signal; closed at first) says which. Slots
+	// "collapsible", "collapsible-trigger" and "collapsible-content", each
+	// with data-state "open" or "closed"
+	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
+		Unstyled.install();
 		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
-		return <view tag={tag}>
-			{summary(tag, props.label, () -> open.value, () -> open.value = !open.peek())}
-			<Show when={open}><view tag={tag + "-content"} padding="4 0 4 20">{props.children}</view></Show>
+		var state = () -> open.value ? "open" : "closed";
+		return <view tag={tag} slot="collapsible" data-state={state}>
+			{trigger(tag + "-summary", "collapsible-trigger", state, () -> open.value = !open.peek(),
+				[<view width={12}>{arrow(() -> open.value ? "▾" : "▸")}</view>, props.label])}
+			<Show when={open}><view tag={tag + "-content"} slot="collapsible-content" data-state="open">{props.children}</view></Show>
 		</view>;
 	}
 
-	// an accordion: sections, each a disclosure, at most one open: open is
-	// its index (-1: none; a signal); opening one closes the other
+	// an accordion (shadcn's): sections, at most one open: open is its index
+	// (-1: none; a signal); a section's trigger, its label and a chevron
+	// (turned when open), opens it and closes the other. Slots "accordion",
+	// "accordion-item", "accordion-trigger" and "accordion-content", each
+	// item's with data-state "open" or "closed"
 	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
+		Unstyled.install();
 		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion";
-		return <view tag={tag} row-gap={2}>{[
+		return <view tag={tag} slot="accordion">{[
 			for (i in 0...props.sections.length) {
-				var s = props.sections[i];
-				<view tag={tag + "-" + i}>
-					{summary(tag + "-" + i, s.label, () -> open.value == i, () -> open.value = open.peek() == i ? -1 : i)}
-					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} padding="4 0 4 20">{s.render()}</view></Show>
+				var s = props.sections[i], state = () -> open.value == i ? "open" : "closed";
+				<view tag={tag + "-" + i} slot="accordion-item" data-state={state}>
+					{trigger(tag + "-" + i + "-summary", "accordion-trigger", state, () -> open.value = open.peek() == i ? -1 : i, [
+						<text grow={1}>{s.label}</text>,
+						<image src={CHEVRON} width={16} height={16} opacity={0.5} hidden transform={() -> open.value == i ? "rotate(180deg)" : "none"}/>
+					])}
+					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} slot="accordion-content" data-state="open">{s.render()}</view></Show>
 				</view>;
 			}
 		]}</view>;
 	}
 
-	// (a disclosure's button)
-	static function summary(tag:String, label:String, isOpen:Void->Bool, flip:Void->Void):View
-		return <view tag={tag + "-summary"} role="button" expanded={isOpen} focusable cursor="pointer" direction="row" align-items="center" column-gap={6}
-			padding="4 2" radius={4} onClick={_ -> flip()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
+	// (a collapsible's or an accordion's button: expanded, data-state)
+	static function trigger(tag:String, slot:String, state:Void->String, flip:Void->Void, children:Array<Any>):View
+		return <view tag={tag} slot={slot} role="button" expanded={() -> state() == "open"} data-state={state} focusable onClick={_ -> flip()}
+			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 				e.preventDefault();
 				flip();
-			}}>
-			<view width={12}>{arrow(() -> isOpen() ? "▾" : "▸")}</view>
-			{label}
-		</view>;
+			}}>{children}</view>;
 
 	// where Toasts.show's toasts are shown: in a corner of the window
 	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),
@@ -1906,8 +1926,8 @@ class Widgets implements Markup {
 	static function arrow(shown:Void->String):Node {
 		var n = new Arrow("");
 		n.semantics = {hidden: true};
+		n.style.opacity = 0.6;
 		effect(() -> n.text = shown());
-		effect(() -> n.style.color = Color.parse(t().muted));
 		return n;
 	}
 

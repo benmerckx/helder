@@ -102,7 +102,26 @@ class Unstyled {
 			{slot: "dialog-description", style: {opacity: 0.7}},
 			{slot: "dialog-footer", style: {direction: Row, justify: End, columnGap: 8}},
 			{slot: "dialog-close", style: {position: Absolute, top: 12, right: 12, padding: 2, cursor: Pointer, opacity: 0.7}},
-			{slot: "dialog-close", when: ["hover"], style: {opacity: 1}}
+			{slot: "dialog-close", when: ["hover"], style: {opacity: 1}},
+			{slot: "collapsible-trigger", style: {direction: Row, alignItems: Center, columnGap: 6, padding: [4, 2], cursor: Pointer}},
+			{slot: "collapsible-content", style: {padding: [4, 0, 4, 20]}},
+			{slot: "accordion-item", style: {borders: [0, 0, 1, 0], borderColor: faint}},
+			{slot: "accordion-trigger", style: {direction: Row, alignItems: Center, columnGap: 16, padding: [8, 0], cursor: Pointer}},
+			{slot: "accordion-trigger", when: ["hover"], style: {textDecoration: (TextDecoration.Underline : Int)}},
+			{slot: "accordion-content", style: {padding: [0, 0, 8, 0]}},
+			{slot: "toggle-group", style: {direction: Row, alignSelf: Start, borderWidth: 1, borderColor: line}},
+			{slot: "toggle-group-item", style: {padding: [4, 10], cursor: Pointer}},
+			{slot: "toggle-group-item", size: "sm", style: {padding: [2, 8]}},
+			{slot: "toggle-group-item", size: "lg", style: {padding: [6, 14]}},
+			{slot: "toggle-group-item", when: ["data-state=on"], style: {background: faint}},
+			{slot: "breadcrumb-list", style: {direction: Row, wrap: true, alignItems: Center, columnGap: 6}},
+			{slot: "breadcrumb-item", style: {direction: Row, alignItems: Center}},
+			{slot: "breadcrumb-link", style: {textDecoration: (TextDecoration.Underline : Int), cursor: Pointer}},
+			{slot: "pagination-content", style: {direction: Row, alignItems: Center, columnGap: 4}},
+			{slot: "pagination-link", style: {direction: Row, alignItems: Center, justify: Center, minWidth: 32, padding: [4, 10], borderWidth: 1, borderColor: Color.TRANSPARENT, cursor: Pointer}},
+			{slot: "pagination-link", when: ["data-active"], style: {borderColor: line}},
+			{slot: "pagination-link", when: ["disabled"], style: {opacity: 0.5, cursor: Default}},
+			{slot: "pagination-ellipsis", style: {padding: [4, 6]}}
 		];
 	}
 }

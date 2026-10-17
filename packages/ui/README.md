@@ -209,12 +209,12 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
   (a month's grid of days, moved through by the keys) and `DatePicker` (a
   calendar in a popover; `Days`: dates as day numbers, no time zones),
-  `Disclosure` and `Accordion` (sections shown and hidden), `NumberField`
+  `Collapsible` and `Accordion` (sections shown and hidden), `NumberField`
   (typed or stepped, within bounds; a spin button), `Listbox` (one option
   selected or several: Shift and Control with the arrows and clicks,
   Control+A; ARIA's multiselectable), `Toolbar` (its focusable children
-  one Tab stop, Left and Right between them), `SegmentedControl` (one of
-  options among joined buttons: a radio group), `Breadcrumbs` and
+  one Tab stop, Left and Right between them), `ToggleGroup` (one of
+  options among joined buttons: a radio group), `Breadcrumb` and
   `Pagination` (navigation landmarks, the current step or page marked
   current: ARIA's aria-current), `TagInput` (chips before a text field:
   Enter or a comma adds, Backspace or a chip's × removes), `Sortable` (a list
