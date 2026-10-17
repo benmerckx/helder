@@ -593,6 +593,42 @@ class TextLayout {
 		return out;
 	}
 
+	// the lines a decoration of the characters start...end draws (kind: 0
+	// underline, 1 line-through, 2 overline), placed as Chromium places
+	// text-decoration's auto lines in the font of the run at start (else the
+	// paragraph's), snapped to the pixels of scale: a tenth of the size
+	// thick; an underline a gap of half that below the baseline, a
+	// line-through centred a third of the ascent above it, an overline its
+	// thickness above the ascent. On each line, not past a left-to-right
+	// line's trailing spaces: rectangles, each with its line's width (to align it)
+	public function decoration(start:Int, end:Int, kind:Int, scale = 1.0):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}> {
+		var set = fonts;
+		if (runs != null)
+			for (r in runs)
+				if (r.start <= start && start < r.end) set = r.fonts;
+		var f = set.primary, size = set.size * scale;
+		var t = Math.max(1, Math.round(size / 10)), ascent = f.ascender * size / f.unitsPerEm;
+		var out = [];
+		for (r in selection(start, end)) {
+			var line:Null<TextLine> = null;
+			for (l in lines)
+				if (l.top == r.y) line = l;
+			if (line == null) continue;
+			var x0 = r.x, x1 = r.x + r.width;
+			// (a left-to-right line's trailing spaces: not decorated)
+			if (line.base == 0 && x1 > line.width) x1 = line.width;
+			if (x1 <= x0) continue;
+			var b = Math.round((line.top + line.baseline) * scale);
+			var top = switch kind {
+				case 1: Math.round(b - ascent / 3 - t / 2);
+				case 2: Math.round(b - ascent - t);
+				case _: b + Math.max(1, Math.ceil(t / 2));
+			}
+			out.push({x: x0, y: top / scale, width: x1 - x0, height: t / scale, lineWidth: line.width});
+		}
+		return out;
+	}
+
 	// the character index nearest to (x, y)
 	public function hit(x:Float, y:Float):Int {
 		var k = 0;

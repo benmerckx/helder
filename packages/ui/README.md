@@ -59,7 +59,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     no dense packing). Checked against Chromium on 89 cases, 29 of them
     grids.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
-    `fontWeight`, `italic`, `lineHeight`, `textAlign`. `maxLines` cuts a
+    `fontWeight`, `italic`, `lineHeight`, `textAlign`. `textDecoration`
+    (underline, line-through, overline) draws its lines with the text inside
+    the node, in its colour, where Chromium draws them. `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's
     line-clamp puts it.
   - Paint: `background`, `borderColor`, `radius`, `opacity`, `shadow`

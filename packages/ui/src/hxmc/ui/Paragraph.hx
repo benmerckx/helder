@@ -15,4 +15,10 @@ interface Paragraph {
 	// what the characters start...end cover, line by line (top to bottom, left to right): a
 	// rectangle for each visual run (several on a line of mixed directions), its line's top
 	function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}>;
+	// the lines a text decoration of the characters start...end draws (an
+	// underline, a line-through or an overline), snapped to the pixels of
+	// scale (the window's per UI pixel), line by line: rectangles, each with
+	// its line's width (the text drawn aligned in a box moves them as it
+	// moves the line)
+	function decoration(start:Int, end:Int, kind:TextDecoration, scale:Float):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}>;
 }

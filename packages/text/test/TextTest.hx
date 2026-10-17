@@ -35,6 +35,7 @@ class TextTest {
 		if (sans == null || sans.family != "DejaVu Sans") Sys.println("TextTest: no DejaVu Sans: font checks skipped (families: " + fonts.families().join(", ") + ")") else {
 			font(sans, fonts);
 			layout(sans, fonts);
+			decorations(sans, fonts);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
 		// CFF outlines: Inter (fonts-inter), an OpenType font with cubic curves
@@ -45,6 +46,29 @@ class TextTest {
 		}
 		Sys.println('TextTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// text decorations' lines where Chromium draws them (rows of a
+	// screenshot: "Hamburg", line-height 1.5, underline, line-through, overline:
+	// top and thickness), DejaVu Sans at 20 and 13, DejaVu Serif at 31; at
+	// scale 2, twice as fine
+	static function decorations(sans:FontFile, fonts:SystemFonts) {
+		var serif = fonts.match("DejaVu Serif");
+		var cases:Array<{face:FontFile, size:Float, rows:Array<Int>}> = [{face: sans, size: 20, rows: [23, 2, 15, 2, 1, 2]}, {face: sans, size: 13, rows: [15, 1, 9, 1, 1, 1]}];
+		if (serif != null && serif.family == "DejaVu Serif") cases.push({face: serif, size: 31, rows: [36, 3, 23, 3, 2, 3]});
+		for (c in cases) {
+			var l = new TextLayout("Hamburg", new FontSet(c.face, [], c.size), 1.5, Math.NaN), got = [];
+			for (k in 0...3) {
+				var d = l.decoration(0, 7, k)[0];
+				got.push(d.y);
+				got.push(d.height);
+			}
+			check("decorations: " + c.face.family + " " + c.size + " as Chromium draws them", got.join(",") == c.rows.join(",") && l.decoration(0, 7, 0)[0].width == l.width, got.join(","));
+		}
+		var l = new TextLayout("Hamburg x ", new FontSet(sans, [], 20), 1.5, Math.NaN);
+		var u = l.decoration(0, 10, 0, 2)[0];
+		check("decorations: snapped to the pixels of the scale; not under trailing spaces", u.height == 2 && u.y * 2 == Math.round(u.y * 2) && u.width == l.lines[0].width
+			&& l.lines[0].advance > l.lines[0].width, '$u');
 	}
 
 	// grapheme clusters: their boundaries as Intl.Segmenter finds them (node), forward and back

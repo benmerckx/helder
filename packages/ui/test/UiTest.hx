@@ -42,6 +42,7 @@ class UiTest {
 		svgs(here);
 		svgApi();
 		css(here);
+		decorations();
 		fields();
 		popups();
 		shortcuts();
@@ -176,6 +177,26 @@ class UiTest {
 		check("css: a node's gradient between its colour and its border", calls.join(",") == "rect 0,image 80x40,rect 0", calls.join(","));
 		var img = n.backgroundImage(2);
 		check("css: kept while the node's size stays", n.backgroundImage(2) == img && img.pixels.get(0) > 200 && img.pixels.get((79) * 4 + 2) > 200);
+	}
+
+	// an ancestor's decorations over a text: the underline before it, the
+	// line-through after, both moved with its centred lines, in its colour
+	static function decorations() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.fontSize = 10;
+		var box = new Node("box");
+		box.style.set({textDecoration: (TextDecoration.Underline : Int) | (TextDecoration.LineThrough : Int), color: Color.rgb(0xAA0000), textAlign: Center, width: 100});
+		var t = new TextNode("abcd");
+		t.style.color = Color.rgb(0x0000AA);
+		box.append(t);
+		ui.root.append(box);
+		ui.update();
+		var rec = new Recording();
+		ui.paint(rec);
+		var calls = [for (c in rec.calls) if (StringTools.startsWith(c, "rect") || StringTools.startsWith(c, "text")) c.split(" ").slice(0, 6).join(" ")];
+		// (MonoText at 10: 5 a character, lines 12.5 high; "abcd" 20 wide, centred in 100 at 40)
+		check("decorations: an ancestor's, around the text, aligned, in its colour",
+			calls.join("|") == "rect 40 11.25 20 1 0|text 0 0 100|rect 40 6.25 20 1 0" && rec.calls.filter(c -> c.indexOf("ffaa0000") >= 0).length == 2, calls.join("|"));
 	}
 
 	// --- shortcuts ---

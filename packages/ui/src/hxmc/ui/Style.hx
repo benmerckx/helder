@@ -154,6 +154,11 @@ class Style {
 	// a text's lines at most (0: any), the last ending in an ellipsis when cut (CSS's line-clamp; not inherited)
 	public var maxLines(default, set):Int = 0;
 
+	// the lines drawn with the text in this node and its descendants, in
+	// this node's colour (TextDecoration's flags; 0: none; not inherited,
+	// as in CSS: it reaches the text inside)
+	public var textDecoration(default, set):Int = 0;
+
 	function set_display(v:Display):Display {
 		if (v == display) return v;
 		display = v;
@@ -525,6 +530,13 @@ class Style {
 		return v;
 	}
 
+	function set_textDecoration(v:Int):Int {
+		if (v == textDecoration) return v;
+		textDecoration = v;
+		node.styleChanged(false);
+		return v;
+	}
+
 	function set_textAlign(v:Null<TextAlign>):Null<TextAlign> {
 		if (v == textAlign) return v;
 		textAlign = v;
@@ -576,6 +588,7 @@ class Style {
 		if (p.italic != null) italic = p.italic;
 		if (p.lineHeight != null) lineHeight = p.lineHeight;
 		if (p.textAlign != null) textAlign = p.textAlign;
+		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.maxLines != null) maxLines = p.maxLines;
 		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
 		if (p.gridTemplateRows != null) gridTemplateRows = p.gridTemplateRows;

@@ -62,6 +62,7 @@ class StyleAttrs {
 			case "lineHeight": style.lineHeight = float(v);
 			case "textAlign": style.textAlign = textAlignValue(v);
 			case "maxLines": style.maxLines = Std.int(float(v));
+			case "textDecoration": style.textDecoration = decorationValue(v);
 			case "gridTemplateColumns": style.gridTemplateColumns = Std.isOfType(v, String) ? Grid.tracks(v) : v;
 			case "gridTemplateRows": style.gridTemplateRows = Std.isOfType(v, String) ? Grid.tracks(v) : v;
 			case "gridAutoColumns": style.gridAutoColumns = Std.isOfType(v, String) ? Grid.tracks(v)[0] : v;
@@ -81,7 +82,7 @@ class StyleAttrs {
 	public static function isStyle(name:String):Bool
 		return NAMES.exists(camel(name));
 
-	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "backgroundImage" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true, "maxLines" => true, "gridTemplateColumns" => true, "gridTemplateRows" => true, "gridAutoColumns" => true, "gridAutoRows" => true, "gridAutoFlow" => true, "gridColumn" => true, "gridRow" => true, "gridArea" => true, "gridTemplateAreas" => true, "justifyItems" => true, "justifySelf" => true];
+	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "backgroundImage" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true, "maxLines" => true, "textDecoration" => true, "gridTemplateColumns" => true, "gridTemplateRows" => true, "gridAutoColumns" => true, "gridAutoRows" => true, "gridAutoFlow" => true, "gridColumn" => true, "gridRow" => true, "gridArea" => true, "gridTemplateAreas" => true, "justifyItems" => true, "justifySelf" => true];
 
 	// (kebab-case names converted once each)
 	static final camels = new Map<String, String>();
@@ -110,6 +111,22 @@ class StyleAttrs {
 		return Std.isOfType(v, String) ? Dim.parse(v) : Std.isOfType(v, DimValue) ? (v : DimValue) : DimValue.Px((v : Float));
 
 	// an Int without alpha (0xRRGGBB) is opaque; a string as CSS writes it
+	// "underline", "line-through", "overline", several, "none" (or the flags)
+	static function decorationValue(v:Dynamic):Int {
+		if (v == null) return 0;
+		if (!Std.isOfType(v, String)) return Std.int(v);
+		var flags = 0;
+		for (w in StringTools.trim((v : String).toLowerCase()).split(" "))
+			flags |= switch w {
+				case "underline": (TextDecoration.Underline : Int);
+				case "line-through": (TextDecoration.LineThrough : Int);
+				case "overline": (TextDecoration.Overline : Int);
+				case "none" | "": 0;
+				case _: throw "hxmc.ui: not a text decoration: " + w;
+			}
+		return flags;
+	}
+
 	static function color(v:Dynamic):Null<Color> {
 		if (v == null) return null;
 		if (Std.isOfType(v, String)) return Color.parse(v);

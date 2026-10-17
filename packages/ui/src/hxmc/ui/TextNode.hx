@@ -161,6 +161,47 @@ class TextNode extends Node {
 		// rounding the box's edges may have made up to a pixel narrower)
 		var p = paragraph != null && laidText == text && font().equals(laidFont)
 			&& (Math.abs(laidWidth - width) < 1.5 || (Math.isNaN(laidWidth) && paragraph.width <= width + 1.5)) ? paragraph : layoutText(ui.text, width + 0.5);
-		canvas.text(p, x, y, width, textAlign(), textColor(), rich != null ? rich.colors : null);
+		// decorations: its ancestors' and its own over all of it, its spans' over theirs;
+		// underlines and overlines under the glyphs, line-throughs over them
+		var decos = decorations(rich != null ? rich.text.length : text.length);
+		var align = textAlign();
+		function draw(through:Bool)
+			for (d in decos)
+				if ((d.kind == LineThrough) == through)
+					for (r in p.decoration(d.start, d.end, d.kind, ui.scale)) {
+						var lx = align == Center ? (width - r.lineWidth) / 2 : align == Right ? width - r.lineWidth : 0.0;
+						canvas.rect(x + lx + r.x, y + r.y, r.width, r.height, 0, d.color, 0, 0);
+					}
+		draw(false);
+		canvas.text(p, x, y, width, align, textColor(), rich != null ? rich.colors : null);
+		draw(true);
+	}
+
+	// the decorations to draw: each range of the text, its line, its colour
+	function decorations(length:Int):Array<{start:Int, end:Int, kind:TextDecoration, color:Color}> {
+		var out = [];
+		function add(n:Node, start:Int, end:Int) {
+			var f = n.style.textDecoration;
+			if (f == 0) return;
+			for (k in [TextDecoration.Underline, TextDecoration.Overline, TextDecoration.LineThrough])
+				if (f & (k : Int) != 0) out.push({start: start, end: end, kind: k, color: n.textColor()});
+		}
+		var n:Node = this;
+		while (n != null) {
+			add(n, 0, length);
+			n = n.parent;
+		}
+		// (the spans', at their places in the text)
+		var pos = 0;
+		function walk(n:Node) {
+			for (c in n.children) {
+				if (!Std.isOfType(c, TextNode) || c.style.display == None) continue;
+				var t:TextNode = cast c, start = pos;
+				if (t.children.length > 0) walk(t) else pos += t.text.length;
+				add(t, start, pos);
+			}
+		}
+		if (children.length > 0) walk(this);
+		return out;
 	}
 }

@@ -242,11 +242,14 @@ Each takes style attributes and handlers, and holes in it stay reactive:
 
 ```haxe
 static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):Esx
-	return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
+	return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" text-decoration="underline" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
 ```
 
 The spans wrap as one paragraph. A larger span makes its line taller, as
-in CSS, and a click on a span's text goes to that span.
+in CSS, and a click on a span's text goes to that span. `text-decoration`
+(`underline`, `line-through`, `overline`) draws its lines where Chromium
+draws them, in the colour of the element that asks for them, under the text
+inside it.
 
 ## Context
 

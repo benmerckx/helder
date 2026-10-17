@@ -279,7 +279,7 @@ class GuideTest implements Markup {
 
 	// "Rich text": spans in a paragraph
 	static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):Esx
-		return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
+		return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" text-decoration="underline" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
 
 	static function richText() {
 		var ui = window();
@@ -302,6 +302,11 @@ class GuideTest implements Markup {
 		var rec = new Recording();
 		ui.paint(rec);
 		var line = [for (c in rec.calls) if (StringTools.startsWith(c, "text")) c][0];
+		// (the underline: under the link's characters (15 to 24, after "Bo"), in its colour, drawn before the text)
+		var calls = [for (c in rec.calls) if (StringTools.startsWith(c, "text") || c.indexOf("ff2563eb") >= 0) c];
+		var under = calls.length > 0 ? calls[0].split(" ") : [];
+		check("rich text: the link underlined under its text", calls.length == 2 && under[0] == "rect" && Std.parseFloat(under[1]) == t.absX + 5 * 15
+			&& Std.parseFloat(under[3]) == 5 * 9 && StringTools.startsWith(calls[1], "text"), calls.join("|"));
 		var clamped = window();
 		Render.render(<view width={100}><text tag="clamped" max-lines={2}>one two three four five six seven eight nine ten</text></view>, clamped.root);
 		clamped.update();
