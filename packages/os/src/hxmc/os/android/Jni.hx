@@ -190,9 +190,8 @@ class Jni {
 		return r;
 	}
 
-	// (a static method of the class its id was found in: CallStatic*MethodA ignores the class with ART)
-	public static function staticInt(m:Ptr, a:Int64 = 0, b:Int64 = 0, c:Int64 = 0, d:Int64 = 0):Int {
-		var r = JniEnv.CallStaticIntMethodA(env, Ptr.nil(), m, set(a, b, c, d));
+	public static function staticInt(cls:Ptr, m:Ptr, a:Int64 = 0, b:Int64 = 0, c:Int64 = 0, d:Int64 = 0):Int {
+		var r = JniEnv.CallStaticIntMethodA(env, cls, m, set(a, b, c, d));
 		check();
 		return r;
 	}

@@ -28,6 +28,8 @@ class TextInput {
 	static var ignoring = false;
 	static var composing = "";
 	static var m:Map<String, Ptr>;
+	static var connection = Ptr.nil();
+	static var selection = Ptr.nil();
 
 	// Window.startTextInput through this from now on (otherwise a program
 	// that never takes text has none of this, nor classes.dex)
@@ -47,6 +49,8 @@ class TextInput {
 	static function init() {
 		var view = Jni.cls("android.view.View"), text = Jni.cls("android.widget.TextView"), act = Jni.activity;
 		var editText = Jni.cls("android.widget.EditText"), manager = Jni.cls("android.view.inputmethod.InputMethodManager");
+		connection = Jni.cls("android.view.inputmethod.BaseInputConnection");
+		selection = Jni.cls("android.text.Selection");
 		m = [
 			"setTranslationX" => Jni.method(view, "setTranslationX", "(F)V"),
 			"setTranslationY" => Jni.method(view, "setTranslationY", "(F)V"),
@@ -57,9 +61,9 @@ class TextInput {
 			"hide" => Jni.method(manager, "hideSoftInputFromWindow", "(Landroid/os/IBinder;I)Z"),
 			"getText" => Jni.method(text, "getText", "()Ljava/lang/CharSequence;"),
 			"clear" => Jni.method(Jni.cls("android.text.Editable"), "clear", "()V"),
-			"spanStart" => Jni.staticMethod(Jni.cls("android.view.inputmethod.BaseInputConnection"), "getComposingSpanStart", "(Landroid/text/Spannable;)I"),
-			"spanEnd" => Jni.staticMethod(Jni.cls("android.view.inputmethod.BaseInputConnection"), "getComposingSpanEnd", "(Landroid/text/Spannable;)I"),
-			"selectionEnd" => Jni.staticMethod(Jni.cls("android.text.Selection"), "getSelectionEnd", "(Ljava/lang/CharSequence;)I")
+			"spanStart" => Jni.staticMethod(connection, "getComposingSpanStart", "(Landroid/text/Spannable;)I"),
+			"spanEnd" => Jni.staticMethod(connection, "getComposingSpanEnd", "(Landroid/text/Spannable;)I"),
+			"selectionEnd" => Jni.staticMethod(selection, "getSelectionEnd", "(Ljava/lang/CharSequence;)I")
 		];
 		var e = Jni.newObject(editText, Jni.method(editText, "<init>", "(Landroid/content/Context;)V"), act.toI64());
 		edit = Jni.global(e);
@@ -109,9 +113,9 @@ class TextInput {
 	static function changed(e:Ptr) {
 		if (ignoring || !on) return;
 		var text = Jni.text(e);
-		var start = Jni.staticInt(m["spanStart"], e.toI64()), end = Jni.staticInt(m["spanEnd"], e.toI64());
+		var start = Jni.staticInt(connection, m["spanStart"], e.toI64()), end = Jni.staticInt(connection, m["spanEnd"], e.toI64());
 		if (start >= 0 && end > start) {
-			var comp = text.substring(start, end), caret = Jni.staticInt(m["selectionEnd"], e.toI64()) - start;
+			var comp = text.substring(start, end), caret = Jni.staticInt(selection, m["selectionEnd"], e.toI64()) - start;
 			if (comp != composing) push(TextEditing, comp, caret < 0 ? 0 : caret > comp.length ? comp.length : caret);
 			composing = comp;
 			return;
