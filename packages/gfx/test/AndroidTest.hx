@@ -13,7 +13,7 @@ import hxmc.os.*;
 // - in the activity's window: frames drawn (the cube turning), the window's
 //   pixels read back after a few (lit: the cube is there), a line per 60
 //   frames; touches and keys logged as their events. The app keeps running
-//   (the screenshot comes from adb).
+//   (the screenshot comes from adb) until Back (Escape) closes the window.
 class AndroidTest {
 	static inline var WIDTH = 256;
 	static inline var HEIGHT = 192;
@@ -48,11 +48,22 @@ class AndroidTest {
 			}
 			device.endFrame();
 			if (frames % 60 == 0) Sys.println('AndroidTest: frames $frames');
-		}, e -> switch e.kind {
-			case MouseDown | MouseUp | KeyDown | KeyUp | TextInput | Resize | Suspend | Resume | Close:
-				Sys.println('AndroidTest: event ${e.kind} ${e.x},${e.y} key ${e.key} "${e.text}"');
-				if (e.kind == Close) w.close();
-			case _:
+		}, e -> {
+			var name = switch e.kind {
+				case MouseDown: "MouseDown";
+				case MouseUp: "MouseUp";
+				case KeyDown: "KeyDown";
+				case KeyUp: "KeyUp";
+				case TextInput: "TextInput";
+				case Resize: "Resize";
+				case Suspend: "Suspend";
+				case Resume: "Resume";
+				case Close: "Close";
+				case _: null;
+			}
+			if (name != null) Sys.println('AndroidTest: event $name ${e.x},${e.y} key ${e.key} "${e.text}"');
+			// (Back is Escape: closed as the examples do; Android 12+ keeps a launcher's activity on Back)
+			if (e.kind == Close || (e.kind == KeyDown && e.key == 0xFF1B)) w.close();
 		});
 		Sys.println("AndroidTest: done");
 	}

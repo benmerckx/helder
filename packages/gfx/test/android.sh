@@ -10,8 +10,8 @@
 #   - Home takes the window (Suspend), starting the activity again gives it
 #     back (Resume) and frames go on;
 #   - a screenshot (screencap) to <out>/cube-android.png, the log to
-#     <out>/logcat.txt; Back finishes the activity (Close, the app's main
-#     returns).
+#     <out>/logcat.txt; Back (Escape) closes the window and the app's main
+#     returns.
 #   sh packages/gfx/test/android.sh <AndroidTest.apk> [out dir]
 set -u
 apk=$1
