@@ -21,6 +21,10 @@ class Win32Window {
 	static final open:Array<Win32Window> = [];
 	// the App.run callback, for the window procedure's events
 	static var onEvent:Null<Event->Void>;
+	// WM_GETOBJECT's answer (an accessibility provider: hxmc.ui's UI
+	// Automation adapter), given the window and the message's parameters;
+	// 0: DefWindowProc's
+	public static var getObject:Null<(hwnd:Ptr, wParam:Int64, lParam:Int64) -> Int64> = null;
 
 	static inline var STYLE = WM.WS_OVERLAPPEDWINDOW;
 
@@ -201,6 +205,10 @@ class Win32Window {
 		e.kind = None;
 		e.window = w.owner;
 		switch message {
+			case WM.GETOBJECT if (getObject != null):
+				var r = getObject(hwnd, wParam, lParam);
+				var none:Int64 = 0;
+				if (r != none) return r;
 			case WM.SETCURSOR if (lParam.toInt() & 0xFFFF == WM.HTCLIENT && !w.cursor.isNull()):
 				User32.SetCursor(w.cursor);
 				return 1;

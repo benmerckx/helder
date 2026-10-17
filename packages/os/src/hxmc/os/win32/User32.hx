@@ -101,6 +101,7 @@ class WM {
 	public static inline var PM_REMOVE = 1;
 	public static inline var IDC_ARROW = 32512;
 	public static inline var SETCURSOR = 0x0020;
+	public static inline var GETOBJECT = 0x003D;
 	public static inline var PAINT = 0x000F;
 	public static inline var QS_ALLINPUT = 0x04FF;
 	public static inline var HTCLIENT = 1;

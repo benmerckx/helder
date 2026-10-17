@@ -148,8 +148,10 @@ content: in the page's accessibility tree, not drawn): load
 `packages/ui/imports.mjs` with the others. On macOS the window gives it to
 NSAccessibility (`MacAccess`: an element per node, its role, label, value
 and frame; press, increment and decrement come back as actions), which
-VoiceOver reads. The adapters for UI Automation and AT-SPI are not
-written yet.
+VoiceOver reads; on Windows to UI Automation (`WinAccess`: a COM
+provider per node, made here: navigation, properties, bounds, the
+invoke, toggle, range value and value patterns), which Narrator reads.
+The AT-SPI adapter (Linux) is not written yet.
 
 ## Text input
 
