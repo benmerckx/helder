@@ -151,7 +151,7 @@ class TextNode extends Node {
 		var justify = textAlign() == Justify;
 		// (a direction set: its paragraphs in it)
 		var d = dir(), base = d == null ? -1 : d == Rtl ? 1 : 0;
-		text = paragraphKey(text, rich);
+		text = paragraphKey(text, rich, justify, d);
 		// (to 1/64 pixel up: a width measured from this text fits it again; not wrapped: none)
 		var w = Math.isNaN(maxWidth) || !wraps() ? Math.NaN : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		var mp = maxParagraph != null && maxText == text && f.equals(maxFont) ? maxParagraph : null;
@@ -187,11 +187,10 @@ class TextNode extends Node {
 
 	// (what the laid out paragraph depends on besides its font and width:
 	// the text, its spans' fonts, the lines' limit, justification, direction)
-	function paragraphKey(text:String, rich:Null<{text:String, spans:Array<TextSpan>, colors:Array<Color>, key:String}>):String {
+	function paragraphKey(text:String, rich:Null<{text:String, spans:Array<TextSpan>, colors:Array<Color>, key:String}>, justify:Bool, d:Null<Dir>):String {
 		if (rich != null) text = rich.text + "\u0000" + rich.key;
 		if (style.maxLines > 0) text += "\u0001" + style.maxLines;
-		if (textAlign() == Justify) text += "\u0002";
-		var d = dir();
+		if (justify) text += "\u0002";
 		if (d != null) text += "\u0003" + (d == Rtl ? 1 : 0);
 		return text;
 	}
@@ -199,16 +198,15 @@ class TextNode extends Node {
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
 		var text = shownText();
 		if (ui == null || text.length == 0) return;
-		var rich = children.length > 0 ? spanned() : null;
-		text = paragraphKey(text, rich);
+		var rich = children.length > 0 ? spanned() : null, align = textAlign(), length = text.length;
+		text = paragraphKey(text, rich, align == Justify, dir());
 		// (the layout's paragraph: its width was the unrounded one, which
 		// rounding the box's edges may have made up to a pixel narrower)
 		var p = paragraph != null && laidText == text && font().equals(laidFont)
 			&& (Math.abs(laidWidth - width) < 1.5 || (Math.isNaN(laidWidth) && paragraph.width <= width + 1.5)) ? paragraph : layoutText(ui.text, width + 0.5);
 		// decorations: its ancestors' and its own over all of it, its spans' over theirs;
 		// underlines and overlines under the glyphs, line-throughs over them
-		var decos = decorations(rich != null ? rich.text.length : text.length);
-		var align = textAlign();
+		var decos = decorations(rich != null ? rich.text.length : length);
 		function draw(through:Bool)
 			for (d in decos)
 				if ((d.kind == LineThrough) == through)
