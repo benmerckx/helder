@@ -21,7 +21,9 @@ import hxmc.unsafe.*;
 // back end lets go of it before the callback returns) and a Suspend event
 // comes; with a new window, once it has a size, Resume at that size. (At
 // a launch a window can come without a size yet, or be replaced as soon
-// as it came: nothing is made on one until it has a size.)
+// as it came: nothing is made on one until it has a size. The activity
+// itself can be destroyed and made again then (a relaunch: Activity), its
+// window with it: only a finishing activity ends the wait.)
 // While paused or without a window App.run sleeps in the looper.
 @:hxmc.android @:allow(hxmc.os)
 class AndroidWindow {
@@ -37,6 +39,8 @@ class AndroidWindow {
 	// events waiting for this thread
 	@:allow(hxmc.os.android) static var textInputHook:Null<(on:Bool, x:Int, y:Int, width:Int, height:Int) -> Void> = null;
 	@:allow(hxmc.os.android) static var textEvents:Null<((kind:EventKind, text:String, caret:Int) -> Void)->Void> = null;
+	// a new activity in the running process (Glue: the content moves to it)
+	@:allow(hxmc.os.android) static var recreated:Null<Void->Void> = null;
 
 	final owner:Window;
 	final surface:Surface;
@@ -45,11 +49,15 @@ class AndroidWindow {
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		if (current != null) throw "hxmc.os: Android has one window, the activity's";
 		this.owner = owner;
-		// (the activity's window: the program waits for it; current once there is a surface)
+		// (the activity's window: the program waits for it, through the
+		// activity's commands, until it has a size; current once there is a surface)
+		log("Window: waiting for the activity's window", window);
 		while (!ready() && Activity.destroyed == 0)
 			pump(-1, null);
-		surface = new Surface(Android, Ptr.nil(), window, window.isNull() ? 0 : Android.ANativeWindow_getWidth(window),
-			window.isNull() ? 0 : Android.ANativeWindow_getHeight(window));
+		if (!ready()) throw "hxmc.os: the activity finished before its window came";
+		var w = Android.ANativeWindow_getWidth(window), h = Android.ANativeWindow_getHeight(window);
+		log("Window: the activity's window, ready", window);
+		surface = new Surface(Android, Ptr.nil(), window, w, h);
 		current = this;
 	}
 
@@ -79,7 +87,7 @@ class AndroidWindow {
 
 	function destroy() {
 		current = null;
-		if (Activity.destroyed == 0) Android.ANativeActivity_finish(Activity.activity);
+		if (Activity.destroyed == 0 && !Activity.activity.isNull()) Android.ANativeActivity_finish(Activity.activity);
 	}
 
 	// the native window is there and has a size (the system's resize
@@ -120,9 +128,11 @@ class AndroidWindow {
 		var nw = Android.ANativeWindow_getWidth(window), nh = Android.ANativeWindow_getHeight(window);
 		if (w.suspended) {
 			w.suspended = false;
+			log("Window: Resume", window);
 			w.surface.reattach(window, nw, nh);
 			dispatch(onEvent, Resume, nw, nh);
 		} else if (nw != w.surface.width || nh != w.surface.height) {
+			log("Window: Resize", window);
 			w.surface.resized(nw, nh);
 			dispatch(onEvent, Resize, nw, nh);
 		}
@@ -180,12 +190,23 @@ class AndroidWindow {
 				queue = Ptr.nil();
 				Activity.acknowledge();
 			case Activity.PAUSE:
+				log("command: pause", window);
 				paused = true;
 				Activity.acknowledge();
 			case Activity.RESUME:
+				log("command: resume", window);
 				paused = false;
 				Activity.acknowledge();
+			case Activity.GONE:
+				// (its window and input queue went before: commands of their own)
+				log("command: activity gone, not finishing", window);
+				Activity.acknowledge();
+			case Activity.CREATED:
+				log("command: a new activity", window);
+				Activity.acknowledge();
+				if (recreated != null) recreated();
 			case Activity.DESTROY:
+				log("command: destroy (finishing)", window);
 				Activity.acknowledge();
 				// (the window's close: the program decides, App ends without windows)
 				dispatch(onEvent, Close);
@@ -194,6 +215,7 @@ class AndroidWindow {
 					App.quit();
 				}
 			case Activity.REDRAW | Activity.CONTENT_RECT | Activity.CONFIG | Activity.RESIZED:
+				if (cmd == Activity.RESIZED) log("command: window resized", window);
 				Activity.acknowledge();
 				dispatch(onEvent, Redraw);
 			case _:
