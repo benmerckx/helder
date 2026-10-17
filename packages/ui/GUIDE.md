@@ -278,7 +278,8 @@ in CSS, and a click on a span's text goes to that span. `text-decoration`
 draws them, in the colour of the element that asks for them, under the text
 inside it. `text-shadow="0 1 2 #00000060"` casts the text's shadows (several,
 separated by commas; without a colour the text's), inherited as in CSS;
-`text-shadow="none"` stops a parent's. A `selectable` text can be selected with the pointer (a
+`text-shadow="none"` stops a parent's. `font-feature-settings="'tnum'"` gives
+figures one width (a column of numbers that lines up), as in CSS. A `selectable` text can be selected with the pointer (a
 drag, a double click for a word, a triple click for all of it) and copied
 with Control+C or Command+C; `Ui.selectedText()` reads it.
 

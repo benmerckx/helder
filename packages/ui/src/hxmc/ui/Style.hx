@@ -222,6 +222,12 @@ class Style {
 	// KeepAll not between CJK characters
 	public var wordBreak(get, set):Null<WordBreak>;
 
+	// OpenType features, inherited, as CSS's font-feature-settings writes
+	// them ("'tnum'", "'liga' 0, 'ss01'"; null: the parent's; "normal": the
+	// default ones): single, alternate and ligature substitutions, liga,
+	// clig and kern turned off (hxmc.text.FontFeature)
+	public var fontFeatureSettings(get, set):Null<String>;
+
 	// its text's letters as shown, inherited (null: the parent's; None at
 	// the root; CSS's text-transform): upper or lower case, or each word's
 	// first in upper case; a text field's own text is shown as typed
@@ -335,6 +341,9 @@ class Style {
 
 	inline function get_wordBreak():Null<WordBreak>
 		return rare == null ? null : rare.wordBreak;
+
+	inline function get_fontFeatureSettings():Null<String>
+		return rare == null ? null : rare.fontFeatureSettings;
 
 	inline function get_textTransform():Null<TextTransform>
 		return rare == null ? null : rare.textTransform;
@@ -466,6 +475,15 @@ class Style {
 	function set_overflowWrap(v:Null<OverflowWrap>):Null<OverflowWrap> {
 		if (v == overflowWrap) return v;
 		more().overflowWrap = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_fontFeatureSettings(v:Null<String>):Null<String> {
+		if (v == fontFeatureSettings) return v;
+		// (parsed now: a mistake throws where it is made)
+		if (v != null) hxmc.text.FontFeature.parse(v);
+		more().fontFeatureSettings = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -981,6 +999,7 @@ class Style {
 		if (p.flex != null) flex = p.flex;
 		if (p.overflowWrap != null) overflowWrap = p.overflowWrap;
 		if (p.wordBreak != null) wordBreak = p.wordBreak;
+		if (p.fontFeatureSettings != null) fontFeatureSettings = p.fontFeatureSettings;
 		if (p.textTransform != null) textTransform = p.textTransform;
 		if (p.textOverflow != null) textOverflow = p.textOverflow;
 		if (p.order != null) order = p.order;
@@ -1032,6 +1051,7 @@ private class StyleRare {
 	public var textWrap:Null<TextWrap> = null;
 	public var overflowWrap:Null<OverflowWrap> = null;
 	public var wordBreak:Null<WordBreak> = null;
+	public var fontFeatureSettings:Null<String> = null;
 	public var textTransform:Null<TextTransform> = null;
 	public var textOverflow:TextOverflow = Clip;
 	public var order:Int = 0;

@@ -1672,6 +1672,15 @@ class MarkupTest implements Markup {
 			&& st.gridAutoFlow == Grid.GridFlow.Column && st.fontWeight == 700 && st.italic == true && st.aspectRatio == 2 && st.textAlign == TextAlign.Center
 			&& st.padding.left == 12 && st.borderColor == Color.parse("red") && st.shadow != null
 			&& st.textShadow != null && st.textShadow.blur == 2 && st.textShadow.color == Color.parse("red") && !st.textShadow.currentColor);
+		// font-feature-settings: inherited into the font, "normal" the default ones, a mistake thrown
+		var featured:Null<Node> = null, inner:Null<Node> = null, plain:Null<Node> = null;
+		Render.render(<view ref={n -> featured = n} font-feature-settings="'tnum', 'liga' 0"><text ref={n -> inner = n}>12</text><view font-feature-settings="normal"><text ref={n -> plain = n}>34</text></view></view>, ui.root);
+		var badFeature = try {
+			featured.style.fontFeatureSettings = "tnum";
+			false;
+		} catch (e:Dynamic) true;
+		check("render: font-feature-settings, inherited", inner.font().features == "'tnum', 'liga' 0" && plain.font().features == "" && badFeature
+			&& !inner.font().equals(plain.font()));
 		var bad = try {
 			Render.render(<view justify="sideways"/>, ui.root);
 			"";

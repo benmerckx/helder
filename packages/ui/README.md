@@ -98,7 +98,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     the node, in its colour, where Chromium draws them. `textShadow`
     (`"1px 2px 4px #0006"`, several, inherited, `none`) draws the text's
     and its lines' shadows under them, blurred as Chromium blurs them
-    (BoxTest compares them). `maxLines` cuts a
+    (BoxTest compares them). `fontFeatureSettings` (`"'tnum'"`,
+    `"'liga' 0, 'ss01'"`, inherited) asks for OpenType features as CSS's
+    font-feature-settings does. `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's
     line-clamp puts it.
   - Paint: `background`, `borderColor`, `radius` (`corners`, or markup

@@ -357,17 +357,43 @@ class FontFile {
 		return {type: type, flag: flag, subtables: out};
 	}
 
-	// a single substitution lookup's glyph for g (g: not covered)
-	public function substitute(lookup:Int, g:Int):Int {
+	// a single substitution lookup's glyph for g (g: not covered); an
+	// alternate substitution's nth (from 1; g: not that many)
+	public function substitute(lookup:Int, g:Int, nth = 1):Int {
 		var l = gsubSubtables(lookup);
-		if (l.type != 1) return g;
+		if (l.type != 1 && l.type != 3) return g;
 		for (st in l.subtables) {
 			var ci = coverage(st + u16(data, st + 2), g);
 			if (ci < 0) continue;
+			if (l.type == 3) {
+				var set = st + u16(data, st + 6 + 2 * ci);
+				return nth >= 1 && nth <= u16(data, set) ? u16(data, set + 2 * nth) : g;
+			}
 			return u16(data, st) == 1 ? (g + s16(data, st + 4)) & 0xFFFF : u16(data, st + 6 + 2 * ci);
 		}
 		return g;
 	}
+
+	// the single and alternate substitution lookups of the features turned
+	// on (FontSet.features) for a script, in the lookup list's order, each
+	// with its feature's value; kept by script and features
+	public function substitutionLookups(script:String, features:Array<FontFeature>, key:String):Array<{lookup:Int, value:Int}> {
+		var k = script + "|" + key, l = substCache.get(k);
+		if (l != null) return l;
+		l = [];
+		for (f in features) {
+			if (f.value == 0) continue;
+			for (i in gsubLookups(script, f.tag)) {
+				var t = gsubSubtables(i).type;
+				if ((t == 1 || t == 3) && !Lambda.exists(l, e -> e.lookup == i)) l.push({lookup: i, value: f.value});
+			}
+		}
+		l.sort((a, b) -> a.lookup - b.lookup);
+		substCache.set(k, l);
+		return l;
+	}
+
+	final substCache = new Map<String, Array<{lookup:Int, value:Int}>>();
 
 	// a ligature substitution lookup's ligature starting at gs[at]: its glyph
 	// and how many glyphs it takes (count 0: none)
@@ -430,6 +456,25 @@ class FontFile {
 	}
 
 	final ligaCache = new Map<String, Array<Int>>();
+
+	// the ligatures' lookups with features asked for (FontSet.features): liga
+	// and clig unless turned off, and the ligature lookups of those turned on
+	// (dlig, hlig...), in the lookup list's order; kept by script and features
+	public function ligatureLookupsWith(script:String, features:Array<FontFeature>, key:String):Array<Int> {
+		var k = script + "|" + key, l = ligaCache.get(k);
+		if (l != null) return l;
+		var off = tag -> Lambda.exists(features, f -> f.tag == tag && f.value == 0);
+		l = [];
+		for (tag in ["liga", "clig"])
+			if (!off(tag)) for (i in gsubLookups(script, tag))
+				if (l.indexOf(i) < 0) l.push(i);
+		for (f in features)
+			if (f.value > 0 && f.tag != "liga" && f.tag != "clig") for (i in gsubLookups(script, f.tag))
+				if (gsubSubtables(i).type == 4 && l.indexOf(i) < 0) l.push(i);
+		l.sort(Reflect.compare);
+		ligaCache.set(k, l);
+		return l;
+	}
 
 	// the glyphs that begin a ligature of these lookups (their subtables'
 	// coverages), a byte by glyph id (1: may begin one); kept by lookups

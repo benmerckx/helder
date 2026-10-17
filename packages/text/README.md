@@ -45,7 +45,11 @@ text with, usable on its own.
   default ignorable characters are hidden. The standard ligatures (GSUB's
   `liga` and `clig`: DejaVu's ff, fi, ffi...) are applied as Chromium
   applies them, not where letters are spaced; widths match Chromium's,
-  carets and hits divide a ligature by its characters.
+  carets and hits divide a ligature by its characters. Features asked of a
+  `FontSet` (`features`, `FontFeature.parse`: CSS's font-feature-settings,
+  `"'tnum', 'liga' 0"`) apply their single and alternate substitutions
+  (tabular figures, character variants, stylistic sets and alternates) and
+  ligatures, or turn `liga`, `clig` and `kern` off; widths match Chromium's.
   Marks are placed by GPOS's anchors (`mark`, `mkmk`: on the base, its
   ligature component or the mark before), and a character and its marks
   become the composed character when the face has it (`Compose`:
@@ -80,7 +84,7 @@ font files: give the page's fonts to `run` with this package's
 ArrayBuffers); `SystemFonts` adds them.
 
 Limits, for now: no explicit bidi embeddings (LRE, RLI and the like), no
-optional ligatures or contextual alternates (GSUB's other lookups), no
+contextual substitutions (GSUB's chained lookups: `calt`, `frac`), no
 cursive attachment or Indic shaping, marks not reordered by combining
 class, no hinting, grayscale anti-aliasing. The same
 pixels on every machine, which makes golden-image tests portable; the

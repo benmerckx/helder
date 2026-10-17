@@ -62,6 +62,7 @@ typedef StyleProps = {
 	?flex:Float,
 	?overflowWrap:OverflowWrap,
 	?wordBreak:WordBreak,
+	?fontFeatureSettings:String,
 	?textTransform:TextTransform,
 	?textOverflow:TextOverflow,
 	?order:Int,

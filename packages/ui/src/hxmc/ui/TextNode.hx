@@ -89,7 +89,7 @@ class TextNode extends Node {
 				b.add(s);
 				spans.push(new TextSpan(pos, pos + s.length, f));
 				colors.push(t.textColor());
-				key.add(pos + ":" + f.family + "/" + f.size + "/" + f.weight + "/" + f.italic + "/" + f.lineHeight + "/" + f.letterSpacing + "/" + f.wordSpacing + ";");
+				key.add(pos + ":" + f.family + "/" + f.size + "/" + f.weight + "/" + f.italic + "/" + f.lineHeight + "/" + f.letterSpacing + "/" + f.wordSpacing + "/" + f.features + ";");
 				pos += s.length;
 			}
 		}
