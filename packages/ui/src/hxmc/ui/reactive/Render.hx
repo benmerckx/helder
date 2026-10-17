@@ -3,7 +3,7 @@ package hxmc.ui.reactive;
 import hxmc.esx.Esx;
 import hxmc.esx.Template;
 import hxmc.ui.*;
-import hxmc.ui.reactive.Flow.ForList;
+import hxmc.ui.reactive.Flow.Mountable;
 import hxmc.ui.reactive.Reactive;
 import hxmc.ui.reactive.Signal;
 import hxmc.ui.reactive.Memo;
@@ -54,7 +54,7 @@ class Render {
 	// inserts content into parent before a node (null: at the end); the nodes made
 	public static function insert(content:Any, parent:Node, before:Null<Node>):Array<Node> {
 		var out:Array<Node> = [];
-		add(content, parent, before, out);
+		Reactive.mount(() -> add(content, parent, before, out));
 		return out;
 	}
 
@@ -64,8 +64,8 @@ class Render {
 			var e:Esx = v;
 			node(e.template.root, e.values, parent, before, out);
 		} else if (Std.isOfType(v, Node)) put(v, parent, before, out);
-		else if (Std.isOfType(v, ForList)) {
-			for (n in (cast v : ForList<Dynamic>).mount(parent, before))
+		else if (Std.isOfType(v, Mountable)) {
+			for (n in (cast v : Mountable).mount(parent, before))
 				out.push(n);
 		}
 		else if (Std.isOfType(v, Array)) {

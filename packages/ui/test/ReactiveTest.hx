@@ -9,7 +9,8 @@ import hxmc.ui.reactive.Reactive.*;
 // signals, memos and effects (tracking, batching, no glitches, ownership
 // and cleanup), then markup rendered into nodes (Render): elements and
 // style attributes, text runs, reactive text and attributes, regions,
-// For and Show, components, events through a Ui
+// For and Show, components, events through a Ui; then context, onMount,
+// Index, Switch and Match, Show's branches kept, ErrorBoundary
 class ReactiveTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -17,6 +18,7 @@ class ReactiveTest implements Markup {
 	public static function main() {
 		signals();
 		rendering();
+		flow();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -119,6 +121,118 @@ class ReactiveTest implements Markup {
 			<text>{props.label ?? "count"}: {count}</text>
 			<view tag="inc" focusable onClick={_ -> count.value++} padding={2}>+</view>
 		</view>;
+	}
+
+	static final theme = context("light");
+
+	// a component reading the theme where it is rendered
+	static function Themed(props:{tag:String}):Esx
+		return <text tag={props.tag}>{"theme " + use(theme)}</text>;
+
+	static function Thrower(props:{when:Signal<Bool>}):Esx {
+		return <text>{() -> {
+			if (props.when.value) throw "boom";
+			"fine";
+		}}</text>;
+	}
+
+	static function flow() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		// context: a Provider's value for what it renders, the default elsewhere
+		Render.render(<view>
+			<Themed tag="outside"/>
+			<Provider context={theme} value={"dark"}><Themed tag="inside"/></Provider>
+		</view>, ui.root);
+		var text = (tag:String) -> (cast ui.root.find(tag) : TextNode).text;
+		check("context: the default", text("outside") == "theme light", text("outside"));
+		check("context: provided", text("inside") == "theme dark", text("inside"));
+		check("context: provide()", provide(theme, "blue", () -> use(theme)) == "blue" && use(theme) == "light");
+		// onMount: after the nodes are in the tree
+		var parentAtMount:Null<Node> = null, mounted = 0;
+		var probe:Null<Node> = null;
+		Render.render(<view tag="probe" ref={n -> {
+			probe = n;
+			onMount(() -> {
+				mounted++;
+				parentAtMount = n.parent;
+			});
+		}}/>, ui.root);
+		check("onMount: after the insertion", mounted == 1 && parentAtMount == ui.root);
+		// Index: rows by index, an item's signal set in place
+		var names = signal(["a", "b", "c"]);
+		var rowsMade = 0;
+		Render.render(<view tag="index"><Index each={names} render={(n:Signal<String>, i:Int) -> {
+			rowsMade++;
+			<text>{() -> i + ":" + n.value}</text>;
+		}}/></view>, ui.root);
+		var idx = ui.root.find("index");
+		var shownRows = () -> [for (c in idx.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
+		check("Index: rows", shownRows() == "0:a,1:b,2:c" && rowsMade == 3, shownRows());
+		names.value = ["x", "b"];
+		check("Index: items set in place, extra rows removed", shownRows() == "0:x,1:b" && rowsMade == 3, shownRows());
+		names.value = ["x", "b", "y", "z"];
+		check("Index: rows added", shownRows() == "0:x,1:b,2:y,3:z" && rowsMade == 5, shownRows());
+		// For: a row kept when the list changes stays bound (its computations
+		// belong to the list's owner, not to the effect that runs again)
+		var first = signal("one"), second = signal("two");
+		var list = signal([first]);
+		Render.render(<view tag="kept"><For each={list} render={(sg:Signal<String>) -> <text>{sg}</text>}/></view>, ui.root);
+		list.value = [first, second];
+		first.value = "ONE";
+		var kept = ui.root.find("kept");
+		var keptText = [for (c in kept.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
+		check("For: a kept row stays bound", keptText == "ONE,two", keptText);
+		list.value = [second];
+		first.value = "gone";
+		second.value = "TWO";
+		keptText = [for (c in kept.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
+		check("For: a removed row's computations disposed, the rest bound", keptText == "TWO" && @:privateAccess first.observers.length == 0, keptText);
+		// Switch and Match
+		var n = signal(1);
+		Render.render(<view tag="switch"><Switch fallback="many">
+			<Match when={() -> n.value == 0}><text>none</text></Match>
+			<Match when={() -> n.value == 1}><text>one</text></Match>
+		</Switch></view>, ui.root);
+		var sw = ui.root.find("switch");
+		var switched = () -> [for (c in sw.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
+		check("Switch: the first case true", switched() == "one", switched());
+		n.value = 0;
+		check("Switch: another case", switched() == "none", switched());
+		n.value = 5;
+		check("Switch: the fallback", switched() == "many", switched());
+		// Show renders its children again only when the branch changes
+		var count = signal(1), made = 0;
+		Render.render(<view tag="show"><Show when={() -> count.value > 0}><view ref={_ -> made++}/></Show></view>, ui.root);
+		count.value = 2;
+		count.value = 3;
+		check("Show: the branch kept while it stays chosen", made == 1, '$made');
+		count.value = 0;
+		count.value = 4;
+		check("Show: made again when chosen again", made == 2, '$made');
+		// ErrorBoundary: an error while rendering, one later, reset
+		var fail = signal(false);
+		Render.render(<view tag="boundary"><ErrorBoundary fallback={(e:Dynamic, reset:Void->Void) -> <text tag="fallback" onClick={_ -> reset()}>{"error: " + e}</text>}>
+			<Thrower when={fail}/>
+		</ErrorBoundary></view>, ui.root);
+		var bd = ui.root.find("boundary");
+		var bounded = () -> [for (c in bd.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
+		check("ErrorBoundary: the children", bounded() == "fine", bounded());
+		fail.value = true;
+		check("ErrorBoundary: a later error shows the fallback", bounded() == "error: boom", bounded());
+		fail.value = false;
+		var fb = ui.root.find("fallback");
+		ui.update();
+		ui.pointerDown(fb.absX + 1, fb.absY + 1, 1);
+		ui.pointerUp(fb.absX + 1, fb.absY + 1, 1);
+		check("ErrorBoundary: reset renders the children again", bounded() == "fine", bounded());
+		var fail2 = signal(true);
+		Render.render(<view tag="boundary2"><ErrorBoundary fallback={(e:Dynamic, reset:Void->Void) -> "caught " + e}>
+			<text>before</text>
+			<Thrower when={fail2}/>
+		</ErrorBoundary></view>, ui.root);
+		var bd2 = ui.root.find("boundary2");
+		var bounded2 = [for (c in bd2.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
+		check("ErrorBoundary: an error while rendering, what was made before removed", bounded2 == "caught boom", bounded2);
 	}
 
 	static function rendering() {

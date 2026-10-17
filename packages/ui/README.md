@@ -64,9 +64,14 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `Ui` in an `hxmc.os` window, shows the hovered node's cursor and runs
   the loop.
 - **`hxmc.ui.reactive`**: `signal`, `memo`, `effect`, `batch`, `untrack`,
-  `root`, `onCleanup`, and `Render`, which mounts markup into nodes once and
-  binds every value that is a `Signal`, a `Memo` or a function. `For`
-  (keyed: rows are kept and moved) and `Show` are components.
+  `root`, `onCleanup`, `onMount`, contexts (`context`, `provide`, `use`,
+  the `Provider` component), and `Render`, which mounts markup into nodes
+  once and binds every value that is a `Signal`, a `Memo` or a function.
+  Control flow components: `For` (keyed: rows are kept and moved), `Index`
+  (a row per index, its item a signal), `Show`, `Switch` with `Match`
+  (a branch made again only when the branch chosen changes; `null` and
+  `false` choose none), `ErrorBoundary` (a fallback, with a reset, for
+  errors while rendering its children or later in their computations).
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
   and the components `Button`, `Checkbox`, `Switch`, `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`; `examples/Gallery.hx` shows them all.

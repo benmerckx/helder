@@ -21,6 +21,9 @@ class Reactive {
 	// the owner new computations and cleanups attach to
 	@:allow(hxmc.ui.reactive) static var owner:Null<Owner> = null;
 	static var batching = 0;
+	// Render inserting nodes: onMount waits for the outermost insertion's end
+	static var mounting = 0;
+	static final mounts:Array<{fn:Void->Void, owner:Null<Owner>}> = [];
 	static final queue:Array<Computation> = [];
 	static var flushing = false;
 
@@ -58,6 +61,72 @@ class Reactive {
 	// fn runs when the current owner is disposed or runs again
 	public static function onCleanup(fn:Void->Void)
 		if (owner != null) owner.cleanups.push(fn);
+
+	// a context with its default value (Context)
+	public static inline function context<T>(defaultValue:T):Context<T>
+		return new Context(defaultValue);
+
+	// runs fn with c set to value for everything created inside it
+	public static function provide<T, R>(c:Context<T>, value:T, fn:Void->R):R {
+		var o = new Owner(owner);
+		if (o.contexts == null) o.contexts = new Map();
+		o.contexts.set(c.id, value);
+		var saved = owner;
+		owner = o;
+		try {
+			var r = fn();
+			owner = saved;
+			return r;
+		} catch (e:Dynamic) {
+			owner = saved;
+			throw e;
+		}
+	}
+
+	// sets c to value in the current owner (a component's: what it renders sees it)
+	public static function setContext<T>(c:Context<T>, value:T) {
+		if (owner == null) throw "hxmc.ui.reactive: setContext outside an owner (a root, a component)";
+		if (owner.contexts == null) owner.contexts = new Map();
+		owner.contexts.set(c.id, value);
+	}
+
+	// the nearest value of c above the code running (else its default)
+	public static function use<T>(c:Context<T>):T {
+		if (owner == null) return c.defaultValue;
+		var l = owner.lookup(c.id);
+		return l.found ? l.value : c.defaultValue;
+	}
+
+	// fn runs (untracked) once the nodes being rendered are in the tree: at
+	// the end of the outermost Render insertion, or now outside one
+	public static function onMount(fn:Void->Void) {
+		if (mounting > 0) mounts.push({fn: fn, owner: owner}) else untrack(fn);
+	}
+
+	// Render's insertions: onMount's functions run after the outermost
+	@:allow(hxmc.ui.reactive) static function mount(fn:Void->Void) {
+		mounting++;
+		try fn() catch (e:Dynamic) {
+			mounting--;
+			if (mounting == 0) mounts.resize(0);
+			throw e;
+		}
+		mounting--;
+		if (mounting == 0 && mounts.length > 0) {
+			var ms = mounts.copy();
+			mounts.resize(0);
+			for (m in ms)
+				if (m.owner == null || !m.owner.isDisposed) {
+					var saved = owner;
+					owner = m.owner;
+					try untrack(m.fn) catch (e:Dynamic) {
+						owner = saved;
+						throw e;
+					}
+					owner = saved;
+				}
+		}
+	}
 
 	// fn's reads are not tracked
 	public static function untrack<T>(fn:Void->T):T {

@@ -35,7 +35,9 @@ class Computation extends Owner {
 			Reactive.owner = savedOwner;
 			Reactive.current = savedCurrent;
 			state = Clean;
-			throw e;
+			// (an ErrorBoundary above takes it)
+			if (!handle(e)) throw e;
+			return;
 		}
 		running = false;
 		Reactive.owner = savedOwner;
