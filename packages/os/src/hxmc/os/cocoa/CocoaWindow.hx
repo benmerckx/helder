@@ -144,14 +144,33 @@ class CocoaWindow {
 		size.value.width = w;
 		size.value.height = h;
 		Msg.vSize(window, ObjC.sel("setContentSize:"), size.value);
-		measure();
+		if (measure()) resized();
 	}
 
 	function setMinSize(w:Int, h:Int) {
 		size.value.width = w;
 		size.value.height = h;
 		Msg.vSize(window, ObjC.sel("setContentMinSize:"), size.value);
-		measure();
+		if (measure()) resized();
+	}
+
+	// a resize told: as a Resize event, or at the next poll when there is
+	// no loop yet (a size set before App.run: setContentSize: tells the
+	// delegate at once)
+	var pending = false;
+
+	function resized() {
+		if (onEvent == null) {
+			pending = true;
+			return;
+		}
+		pending = false;
+		var e = event;
+		e.kind = Resize;
+		e.window = owner;
+		e.x = surface.width;
+		e.y = surface.height;
+		dispatch(e);
 	}
 
 	function setCursor(c:Cursor) {
@@ -295,13 +314,7 @@ class CocoaWindow {
 
 	@:hxmc.callback static function didResize(self:Ptr, cmd:Ptr, note:Ptr):Void {
 		var w = find(Msg.id(note, ObjC.sel("object")));
-		if (w == null || !w.measure()) return;
-		var e = event;
-		e.kind = Resize;
-		e.window = w.owner;
-		e.x = w.surface.width;
-		e.y = w.surface.height;
-		dispatch(e);
+		if (w != null && w.measure()) w.resized();
 	}
 
 	// waits for an event (left in the queue for poll), or seconds
@@ -316,6 +329,8 @@ class CocoaWindow {
 	// dispatches the pending events
 	static function poll(onEvent:Event->Void) {
 		CocoaWindow.onEvent = onEvent;
+		for (w in open.copy())
+			if (w.pending) w.resized();
 		var past = Msg.id(ObjC.cls("NSDate"), ObjC.sel("distantPast"));
 		while (!app.isNull()) {
 			var ev = Msg.idIntPtrPtrBool(app, ObjC.sel("nextEventMatchingMask:untilDate:inMode:dequeue:"), -1, past, mode, true);
