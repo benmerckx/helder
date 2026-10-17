@@ -26,11 +26,13 @@ class RuleData {
 		+ "opacity:f cursor:e shadow:S outlineWidth:f outlineOffset:f outlineColor:c color:c fontFamily:s fontSize:f fontWeight:i italic:b "
 		+ "lineHeight:f textAlign:e visibility:e pointerEvents:e textWrap:e gap:f flex:f overflowWrap:e wordBreak:e fontVariantNumeric:s "
 		+ "textTransform:e textOverflow:e order:i zIndex:i maxLines:i gridTemplateColumns:T gridTemplateRows:T gridAutoColumns:k gridAutoRows:k "
-		+ "gridColumn:p gridRow:p justifyItems:e justifySelf:e transform:t";
+		+ "gridColumn:p gridRow:p justifyItems:e justifySelf:e transform:t outlineStyle:e ringWidth:f ringColor:c ringOffsetWidth:f ringOffsetColor:c "
+		+ "ringInset:b transition:r";
 
 	final data:String;
 	final table:Array<String>;
 	final colors:Array<Null<Color>> = [];
+	final transitions = new Map<Int, Transition>();
 	final kinds = FIELDS.split(" ");
 	var at = 0;
 
@@ -99,6 +101,12 @@ class RuleData {
 			case "c".code: color();
 			case "s".code: str();
 			case "t".code: Transform.parse(str());
+			case "r".code:
+				// (one Transition for each, as each colour)
+				var i = int();
+				var t = transitions[i];
+				if (t == null) t = transitions[i] = Transition.parse(table[i]);
+				t;
 			case "S".code:
 				var n = int();
 				if (n == 0) Shadow.NONE else {

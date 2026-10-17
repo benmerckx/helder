@@ -44,6 +44,7 @@ class ThemeTest {
 		variants();
 		shorthands();
 		more();
+		motion();
 		ignored();
 		macro_();
 		sheet();
@@ -83,10 +84,10 @@ class ThemeTest {
 
 	static function colours() {
 		same("bg-primary text-primary-foreground", "x background=var(--primary) color=var(--primary-foreground)");
-		same("bg-primary/90 border-input ring-ring/50", "x background=var(--primary)/90 borderColor=var(--input) outlineColor=var(--ring)/50");
+		same("bg-primary/90 border-input ring-ring/50", "x background=var(--primary)/90 borderColor=var(--input) ringColor=var(--ring)/50");
 		same("text-white bg-black/50 bg-transparent border-transparent", "x color=rgb(255, 255, 255) background=transparent borderColor=transparent");
-		same("ring-[3px]", "x outlineWidth=3 outlineOffset=0");
-		same("ring-2 ring-offset-2 ring-offset-background", "x outlineWidth=2 outlineOffset=2", null);
+		same("ring-[3px]", "x ringWidth=3");
+		same("ring-2 ring-offset-2 ring-offset-background ring-inset", "x ringWidth=2 ringOffsetWidth=2 ringOffsetColor=var(--background) ringInset=true");
 		same("shadow-xs", "x shadow=0 1 2 0 rgba(0, 0, 0, 0.05)");
 		same("shadow-sm", "x shadow=0 1 3 0 rgba(0, 0, 0, 0.1), 0 1 2 -1 rgba(0, 0, 0, 0.1)");
 		same("shadow-none", "x shadow=none");
@@ -109,8 +110,8 @@ class ThemeTest {
 		same("hover:bg-accent bg-primary", "x background=var(--primary)\nx hover: background=var(--accent)");
 		// (Tailwind's order, not the list's: aria after focus-visible, dark after both)
 		same("dark:aria-invalid:ring-destructive/40 aria-invalid:ring-destructive/20 focus-visible:ring-ring/50",
-			"x focus-visible: outlineColor=var(--ring)/50\nx aria-invalid=true: outlineColor=var(--destructive)/20\n"
-			+ "x dark aria-invalid=true: outlineColor=var(--destructive)/40");
+			"x focus-visible: ringColor=var(--ring)/50\nx aria-invalid=true: ringColor=var(--destructive)/20\n"
+			+ "x dark aria-invalid=true: ringColor=var(--destructive)/40");
 		same("data-[state=checked]:bg-primary data-[disabled]:opacity-50 data-[state=\"open\"]:bg-accent",
 			"x data-state=checked: background=var(--primary)\nx data-disabled: opacity=0.5\nx data-state=open: background=var(--accent)");
 		same("aria-selected:bg-accent data-placeholder:text-muted-foreground",
@@ -137,10 +138,12 @@ class ThemeTest {
 	}
 
 	static function more() {
-		// (a ring is an outline at no offset; with an outline in the same rule, the ring wins)
+		// (rings and outlines apart, as CSS draws them; outline-none: no focus ring of the window's either)
 		same("focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring",
-			"x focus-visible: outlineWidth=3 outlineOffset=0 outlineColor=var(--ring)/50");
-		same("outline-2 outline-offset-2 outline-ring", "x outlineWidth=2 outlineOffset=2 outlineColor=var(--ring)");
+			"x focus-visible: ringWidth=3 ringColor=var(--ring)/50 outlineWidth=1 outlineStyle=Solid outlineColor=var(--ring)");
+		same("outline-2 outline-offset-2 outline-ring", "x outlineWidth=2 outlineStyle=Solid outlineOffset=2 outlineColor=var(--ring)");
+		same("outline-none", "x outlineStyle=None");
+		same("outline-hidden", "x outlineStyle=None");
 		same("fill-primary shadow-[0_4px_12px_rgba(0,0,0,0.1)] leading-[1.4]", "x color=var(--primary) shadow=0 4 12 0 rgba(0,0,0,0.1) lineHeight=1.4");
 		same("*:data-[slot=select-value]:flex **:data-[slot=x]:h-12 after:absolute rtl:**:[.rdp-button]:rotate-180", "");
 		same("max-h-(--radix-select-content-available-height) origin-(--radix-popover-content-transform-origin)", "");
@@ -157,8 +160,31 @@ class ThemeTest {
 		check("className after cva", got == "x height=36 padding=0 16 0 16\nx(sm) height=32 padding=0 8 0 8\nx padding=0 12 0 12", got);
 	}
 
+	static function motion() {
+		same("transition-all", "x transition=all 150ms cubic-bezier(0.4,0,0.2,1)");
+		same("transition-[color,box-shadow] duration-200 ease-out",
+			"x transition=color 200ms cubic-bezier(0,0,0.2,1), shadow 200ms cubic-bezier(0,0,0.2,1)");
+		same("transition-none", "x transition=all 0s");
+		same("duration-300", "x transition=all 300ms cubic-bezier(0.4,0,0.2,1)");
+		// (animate-in: opacity and transform eased from the starting state; a side's slide and the zoom composed)
+		same("data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
+			"x data-state=open: transition=opacity 150ms ease, transform 150ms ease\n"
+			+ "x data-state=open starting: opacity=0 transform=scale(0.95)\n"
+			+ "x data-side=bottom starting: transform=translateY(-8px)\n"
+			+ "x data-state=open starting data-side=bottom: transform=translateY(-8px) scale(0.95)");
+		same("transition ease-in-out data-[state=open]:animate-in data-[state=open]:duration-500 data-[state=open]:slide-in-from-right",
+			"x transition=color 150ms cubic-bezier(0.4,0,0.2,1), background 150ms cubic-bezier(0.4,0,0.2,1), borderColor 150ms cubic-bezier(0.4,0,0.2,1), "
+			+ "outlineColor 150ms cubic-bezier(0.4,0,0.2,1), textDecorationColor 150ms cubic-bezier(0.4,0,0.2,1), opacity 150ms cubic-bezier(0.4,0,0.2,1), "
+			+ "shadow 150ms cubic-bezier(0.4,0,0.2,1), transform 150ms cubic-bezier(0.4,0,0.2,1)\n"
+			+ "x data-state=open: transition=color 500ms cubic-bezier(0.4,0,0.2,1), background 500ms cubic-bezier(0.4,0,0.2,1), borderColor 500ms cubic-bezier(0.4,0,0.2,1), "
+			+ "outlineColor 500ms cubic-bezier(0.4,0,0.2,1), textDecorationColor 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), "
+			+ "shadow 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1)\n"
+			+ "x data-state=open starting: transform=translateX(100%)");
+		same("selection:bg-primary rtl:pl-2 md:p-1", "x selection: background=var(--primary)\nx md: padding=4\nx rtl: padding=0 0 0 8");
+	}
+
 	static function ignored() {
-		same("transition-all outline-none select-none peer group/switch @container/card-header text-current", "");
+		same("select-none peer group/switch @container/card-header text-current animate-out fade-out-0 zoom-out-95 animate-pulse", "");
 		same("[&_svg]:size-4 [&_svg:not([class*='size-'])]:size-4 has-[>svg]:px-3 [a&]:hover:bg-accent [.border-b]:pb-6 file:h-7", "");
 		rejected("foo-bar", "unknown class foo-bar");
 		rejected("bg-blue-500", "unknown class bg-blue-500");

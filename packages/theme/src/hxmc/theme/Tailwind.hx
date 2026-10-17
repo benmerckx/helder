@@ -25,6 +25,8 @@ enum TwValue {
 	VTransform(css:String);
 	VTracks(list:Array<{min:TrackSize, max:TrackSize}>);
 	VPlacement(start:Int, end:Int, span:Int);
+	// CSS's transition shorthand, as Transition.parse reads it
+	VTransition(css:String);
 }
 
 typedef TwShadow = {x:Float, y:Float, blur:Float, spread:Float, color:String};
@@ -71,10 +73,12 @@ class Tailwind {
 
 	// utilities dropped, and why: (a trailing * is a prefix, *x* a part)
 	public static final IGNORED = [
-		// motion is not themed
-		"transition", "transition-*", "duration-*", "ease-*", "delay-*", "animate-*", "fade-*", "zoom-*", "slide-*",
-		// resets of what an unstyled widget never draws
-		"outline-none", "outline-hidden",
+		// exit animations: ui removes a popup as it closes, nothing is left to animate
+		"animate-out", "fade-out*", "zoom-out*", "slide-out-to-*", "spin-out*",
+		// keyframe animations, which ui's styles have none of: a skeleton's
+		// pulse, an accordion's height (Radix measures it), a spinner's turn
+		// (ui's Spinner turns by itself)
+		"animate-pulse", "animate-accordion-*", "animate-spin",
 		// no text selection to forbid
 		"select-none",
 		// markers of group-* and peer-* variants
@@ -83,8 +87,6 @@ class Tailwind {
 		"@container", "@container/*",
 		// inherited already
 		"text-current",
-		// the gap under a ring offset: an outline's shows what is behind, the background
-		"ring-offset-background",
 		// (no StyleProps for them yet: text-underline-offset, auto margins,
 		// sizes by calc(), scroll margins, touch-action)
 		"underline-offset-*", "m-auto", "mx-auto", "my-auto", "ml-auto", "mr-auto", "mt-auto", "mb-auto", "h-[calc(100%-1px)]",
@@ -135,8 +137,22 @@ class Tailwind {
 	// the states a bare variant names
 	static final STATES = [
 		"hover", "focus", "focus-visible", "active", "disabled", "enabled", "placeholder", "selection", "first", "last", "only", "odd", "even",
-		"open", "checked", "indeterminate", "invalid", "focus-within", "dark", "sm", "md", "lg", "xl", "2xl", "ltr", "rtl"
+		"open", "checked", "indeterminate", "invalid", "focus-within", "dark", "sm", "md", "lg", "xl", "2xl", "ltr", "rtl", "starting"
 	];
+
+	// Tailwind v4's transition-* (the properties as Style names them; the
+	// colours, opacity, box-shadow and transform are what eases), and its
+	// default timing (--default-transition-*)
+	static final TRANSITIONS = [
+		"" => "color,background,borderColor,outlineColor,textDecorationColor,opacity,shadow,transform", "all" => "all",
+		"colors" => "color,background,borderColor,outlineColor,textDecorationColor", "opacity" => "opacity", "shadow" => "shadow",
+		"transform" => "transform", "none" => "none"
+	];
+	static final EASINGS = [
+		"linear" => "linear", "in" => "cubic-bezier(0.4,0,1,1)", "out" => "cubic-bezier(0,0,0.2,1)", "in-out" => "cubic-bezier(0.4,0,0.2,1)"
+	];
+	static inline var EASE_DEFAULT = "cubic-bezier(0.4,0,0.2,1)";
+	static inline var DURATION_DEFAULT = 150.0;
 
 	static final TEXT_SIZES = [
 		"xs" => [0.75, 1 / 0.75], "sm" => [0.875, 1.25 / 0.875], "base" => [1, 1.5], "lg" => [1.125, 1.75 / 1.125], "xl" => [1.25, 1.75 / 1.25],
@@ -201,7 +217,7 @@ class Tailwind {
 
 	// a slot's rules from several class lists (cva's base, then each
 	// variant's and size's), offsets for errors
-	public function slot(name:String, lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String}>):Array<TwRule> {
+	public function slot(name:String, lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String, ?prefix:String}>):Array<TwRule> {
 		var groups:Array<Group> = [];
 		sides = new Map();
 		// (a class list after a variant's or size's, as cn's className after
@@ -222,11 +238,27 @@ class Tailwind {
 					j++;
 				if (j > i) {
 					at = l.offset + i;
-					parse(s.substring(i, j), l.variant, l.size, groups);
+					parse((l.prefix == null ? "" : l.prefix + ":") + s.substring(i, j), l.variant, l.size, groups);
 				}
 				i = j;
 			}
 		}
+		// (two enter animations' starts that hold together, a popup side's
+		// slide and its open state's zoom: one transform of both, after
+		// them, as tw-animate-css's variables compose)
+		var starts = [for (g in groups) if (g.when.contains("starting") && Lambda.exists(g.keys, isTransform)) g];
+		for (i in 0...starts.length)
+			for (j in i + 1...starts.length) {
+				var a = starts[i], b = starts[j];
+				if (a.holdsWith(b) || b.holdsWith(a) || a.variant != null && b.variant != null && a.variant != b.variant
+					|| a.size != null && b.size != null && a.size != b.size) continue;
+				var u = new Group(a.key + "+" + b.key, a.variant ?? b.variant, a.size ?? b.size, a.when.concat([for (w in b.when) if (!a.when.contains(w)) w]),
+					a.order.concat(b.order));
+				u.order.sort((x, y) -> y - x);
+				for (k in a.keys.concat(b.keys))
+					if (isTransform(k) && !u.keys.contains(k)) u.keys.push(k);
+				groups.push(u);
+			}
 		// (stable: the same variants keep the classes' order)
 		var seq = [for (i in 0...groups.length) groups[i] => i];
 		groups.sort((a, b) -> {
@@ -240,6 +272,9 @@ class Tailwind {
 		}
 		return out;
 	}
+
+	static function isTransform(k:String):Bool
+		return k.startsWith("translate.") || k == "rotate" || k == "scale";
 
 	// (variant orders compared as Tailwind's bitmasks: the latest variant decides)
 	static function compareOrder(a:Array<Int>, b:Array<Int>):Int {
@@ -295,6 +330,15 @@ class Tailwind {
 		if (props == null) {
 			error('unknown class $c', at, c.length);
 			return;
+		}
+		// (an enter animation's from: tw-animate-css's fade-in, zoom-in,
+		// slide-in-from-*, as the starting state the node's transition eases from)
+		if (Lambda.exists(props, p -> p.key.startsWith("start."))) {
+			props = [for (p in props) {key: p.key.substr(6), value: p.value}];
+			if (!when.contains("starting")) {
+				when.push("starting");
+				order.push(ORDER.indexOf("starting"));
+			}
 		}
 		order.sort((a, b) -> b - a);
 		var key = '$layer|$variant|$size|' + when.join("&");
@@ -404,8 +448,14 @@ class Tailwind {
 			case "border": for (i in 0...4) set('border.$i', VNum(1));
 			case "rounded": for (i in 0...4) set('corner.$i', VNum(4));
 			case "shadow-none": set("shadow", VShadow([]));
-			case "ring": set("ring.width", VNum(1));
-			case "outline": set("outline.width", VNum(1));
+			case "ring": set("ringWidth", VNum(1));
+			case "ring-inset": set("ringInset", VBool(true));
+			// (outline-hidden: a transparent outline, shown only in forced colours; neither draws the window's focus ring)
+			case "outline-none" | "outline-hidden": en("outlineStyle", "OutlineStyle", "None");
+			case "outline":
+				set("outlineWidth", VNum(1));
+				en("outlineStyle", "OutlineStyle", "Solid");
+			case "animate-in": set("enter", VBool(true));
 			case "underline": set("textDecoration", VInt(1));
 			case "line-through": set("textDecoration", VInt(2));
 			case "overline": set("textDecoration", VInt(4));
@@ -671,22 +721,78 @@ class Tailwind {
 			set("shadow", VShadow([for (x in s) {x: x[0], y: x[1], blur: x[2], spread: x[3], color: 'rgba(0, 0, 0, ${x[4]})'}]));
 			return out;
 		}
+		// (a ring: Tailwind's box-shadow of no blur outside the border box, and its offset's gap)
 		for (o in ["ring", "outline"]) {
 			if ((v = after('$o-offset-')) != null) {
 				var w = borderWidth(v);
-				if (w == null) return null;
-				set('$o.offset', VNum(w));
+				if (w != null) set(o == "ring" ? "ringOffsetWidth" : "outlineOffset", VNum(w)) else {
+					var c = o == "ring" ? color(v) : null;
+					if (c == null) return null;
+					set("ringOffsetColor", VColor(c));
+				}
 				return out;
 			}
 			if ((v = after('$o-')) != null) {
 				var w = borderWidth(v);
-				if (w != null) set('$o.width', VNum(w)) else {
+				if (w != null) {
+					set('${o}Width', VNum(w));
+					if (o == "outline") en("outlineStyle", "OutlineStyle", "Solid");
+				} else {
 					var c = color(v);
 					if (c == null) return null;
-					set('$o.color', VColor(c));
+					set('${o}Color', VColor(c));
 				}
 				return out;
 			}
+		}
+		// transitions: their properties, duration, easing and delay
+		if ((v = u == "transition" ? "" : after("transition-")) != null) {
+			var p = TRANSITIONS[v];
+			if (p == null && v.startsWith("[") && v.endsWith("]")) p = [for (c in v.substring(1, v.length - 1).split(",")) styleName(c)].join(",");
+			if (p == null) return null;
+			set("transition.property", VStr(p));
+			return out;
+		}
+		for (t in [["duration-", "transition.duration"], ["delay-", "transition.delay"]])
+			if ((v = after(t[0])) != null) {
+				var n = number(v);
+				if (n == null) return null;
+				set(t[1], VNum(n));
+				return out;
+			}
+		if ((v = after("ease-")) != null) {
+			var e = EASINGS[v];
+			if (e == null) return null;
+			set("transition.easing", VStr(e));
+			return out;
+		}
+		// an enter animation's start (tw-animate-css: with animate-in, from these to the node's own)
+		if (u == "fade-in" || (v = after("fade-in-")) != null) {
+			var n = u == "fade-in" ? 0 : number(v);
+			if (n == null) return null;
+			set("start.opacity", VNum(n / 100));
+			return out;
+		}
+		if (u == "zoom-in" || (v = after("zoom-in-")) != null) {
+			var n = u == "zoom-in" ? 0 : number(v);
+			if (n == null) return null;
+			set("start.scale", VStr("" + n / 100));
+			return out;
+		}
+		if ((v = after("spin-in-")) != null) {
+			var n = number(v);
+			if (n == null) return null;
+			set("start.rotate", VStr(n + "deg"));
+			return out;
+		}
+		if ((v = after("slide-in-from-")) != null) {
+			var dash = v.indexOf("-");
+			var side = dash < 0 ? v : v.substr(0, dash), amount = dash < 0 ? "full" : v.substr(dash + 1);
+			var axis = side == "top" || side == "bottom" ? "y" : side == "left" || side == "right" ? "x" : null;
+			var t = axis == null ? null : translate(amount, side == "top" || side == "left");
+			if (t == null) return null;
+			set('start.translate.$axis', VStr(t));
+			return out;
 		}
 		if ((v = after("fill-")) != null) {
 			var c = color(v);
@@ -861,6 +967,15 @@ class Tailwind {
 		return n == null ? null : sign(n + "px");
 	}
 
+	// (a CSS property as Style names it, as Transition.parse does: box-shadow is shadow)
+	static function styleName(css:String):String
+		return switch css {
+			case "background-color" | "background": "background";
+			case "box-shadow": "shadow";
+			case "translate" | "scale" | "rotate": "transform";
+			case _: [for (i => w in css.split("-")) i == 0 ? w : w.charAt(0).toUpperCase() + w.substr(1)].join("");
+		}
+
 	// grid-cols-[1fr_auto], grid-rows-[auto_auto]
 	static function tracks(v:String):Null<Array<{min:TrackSize, max:TrackSize}>> {
 		var out = [];
@@ -922,15 +1037,32 @@ class Tailwind {
 				case "corner":
 					var c = [for (s in 0...4) num('corner.$s', 0)];
 					if (sides.exists("corner")) field("corners", VCorners(c[0], c[1], c[2], c[3])) else field("radius", VNum(c[0]));
-				case "ring" | "outline":
-					// (ring-N: a box shadow of that spread outside the border box,
-					// which an outline at no offset draws, rounded as the box;
-					// in a rule with both, the ring wins)
-					done["ring"] = done["outline"] = true;
-					var o = g.parts.exists("ring.width") || g.parts.exists("ring.color") || g.parts.exists("ring.offset") ? "ring" : "outline";
-					if (g.parts.exists('$o.width')) field("outlineWidth", g.parts['$o.width']);
-					if (g.parts.exists('$o.width') || g.parts.exists('$o.offset')) field("outlineOffset", g.parts['$o.offset'] ?? VNum(0));
-					if (g.parts.exists('$o.color')) field("outlineColor", g.parts['$o.color']);
+				case "transition" | "enter":
+					// (transition-* with duration-*, ease-*, delay-* (Tailwind's
+					// defaults else: 150ms, its ease); duration-* alone: CSS's
+					// initial property, all; animate-in: opacity and transform
+					// too, eased from the starting state over the same
+					// duration (tw-animate-css's 150ms, ease, else))
+					done["transition"] = done["enter"] = true;
+					var property = switch inherited("transition.property") {
+						case VStr(p): p;
+						case _: null;
+					}
+					var easing = switch inherited("transition.easing") {
+						case VStr(e): e;
+						case _: null;
+					}
+					var given = inherited("transition.duration") != null;
+					var duration = num("transition.duration", DURATION_DEFAULT), delay = num("transition.delay", 0);
+					var list = [];
+					function add(p:String, ms:Float, e:String)
+						list.push('$p ${ms}ms $e' + (delay != 0 ? ' ${delay}ms' : ""));
+					if (property == null && given) property = "all";
+					if (property != null && property != "none") for (p in property.split(","))
+						add(p, duration, easing ?? EASE_DEFAULT);
+					if (inherited("enter") != null) for (p in ["opacity", "transform"])
+						add(p, given ? duration : DURATION_DEFAULT, easing ?? "ease");
+					field("transition", VTransition(list.length == 0 ? "all 0s" : list.join(", ")));
 				case "direction":
 					if (g.parts.exists("direction")) field("direction", g.parts["direction"]) else if (inherited("direction") == null)
 						field("direction", g.parts["direction.default"]);
@@ -1000,7 +1132,7 @@ class Tailwind {
 		return switch v {
 			case VNum(n) | VDim(Px(n)): num(n);
 			case VInt(n): '$n';
-			case VStr(s) | VColor(s) | VTransform(s): s;
+			case VStr(s) | VColor(s) | VTransform(s) | VTransition(s): s;
 			case VBool(b): '$b';
 			case VEnum(_, name): name;
 			case VDim(Percent(p)): num(p) + "%";

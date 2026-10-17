@@ -237,7 +237,10 @@
 		"calendar-dropdowns": "flex h-(--cell-size) w-full items-center justify-center gap-1.5 text-sm font-medium",
 		"calendar-dropdown-root": "relative rounded-md border border-input shadow-xs has-focus:border-ring has-focus:ring-[3px] has-focus:ring-ring/50",
 		"calendar-dropdown": "absolute inset-0 bg-popover opacity-0",
-		"calendar-caption-label": "font-medium select-none",
+		"calendar-caption-label": [
+			"font-medium select-none",
+			"text-sm"
+		],
 		"calendar-month-grid": "w-full border-collapse",
 		"calendar-weekdays": "flex",
 		"calendar-weekday": "flex-1 rounded-md text-[0.8rem] font-normal text-muted-foreground select-none",
@@ -261,7 +264,37 @@
 		"toast": "flex w-[356px] items-center gap-1.5 rounded-lg border border-border bg-popover p-4 text-[13px] text-popover-foreground shadow-[0_4px_12px_rgba(0,0,0,0.1)]",
 		"toast-title": "font-medium leading-normal",
 		"toast-description": "font-normal leading-[1.4]",
-		"toast-icon": "size-4"
+		"toast-icon": "size-4",
+		"sheet-overlay": "fixed inset-0 z-50 bg-black/50 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+		"sheet-content": {
+			"base": "fixed z-50 flex flex-col gap-4 bg-background shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
+			"states": {
+				"data-[side=right]": "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+				"data-[side=left]": "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+				"data-[side=top]": "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+				"data-[side=bottom]": "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom"
+			}
+		},
+		"sheet-close": "absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary",
+		"sheet-close-icon": "size-4",
+		"sheet-header": "flex flex-col gap-1.5 p-4",
+		"sheet-footer": "mt-auto flex flex-col gap-2 p-4",
+		"sheet-title": "font-semibold text-foreground",
+		"sheet-description": "text-sm text-muted-foreground",
+		"dialog-close-icon": "size-4",
+		"hover-card-content": "z-50 w-64 origin-(--radix-hover-card-content-transform-origin) rounded-md border bg-popover p-4 text-popover-foreground shadow-md outline-hidden data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+		"avatar": "group/avatar relative flex size-8 shrink-0 overflow-hidden rounded-full select-none data-[size=lg]:size-10 data-[size=sm]:size-6",
+		"avatar-image": "aspect-square size-full",
+		"avatar-fallback": "flex size-full items-center justify-center rounded-full bg-muted text-sm text-muted-foreground group-data-[size=sm]/avatar:text-xs",
+		"kbd": [
+			"pointer-events-none inline-flex h-5 w-fit min-w-5 items-center justify-center gap-1 rounded-sm bg-muted px-1 font-sans text-xs font-medium text-muted-foreground select-none",
+			"[&_svg:not([class*='size-'])]:size-3",
+			"[[data-slot=tooltip-content]_&]:bg-background/20 [[data-slot=tooltip-content]_&]:text-background dark:[[data-slot=tooltip-content]_&]:bg-background/10"
+		],
+		"kbd-group": "inline-flex items-center gap-1",
+		"spinner": "size-4 animate-spin",
+		"resizable-panel-group": "flex h-full w-full aria-[orientation=vertical]:flex-col",
+		"resizable-handle": "relative flex w-px items-center justify-center bg-border after:absolute after:inset-y-0 after:left-1/2 after:w-1 after:-translate-x-1/2 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:outline-hidden aria-[orientation=horizontal]:h-px aria-[orientation=horizontal]:w-full aria-[orientation=horizontal]:after:left-0 aria-[orientation=horizontal]:after:h-1 aria-[orientation=horizontal]:after:w-full aria-[orientation=horizontal]:after:translate-x-0 aria-[orientation=horizontal]:after:-translate-y-1/2 [&[aria-orientation=horizontal]>div]:rotate-90"
 	},
 	"light": {
 		"background": "oklch(1 0 0)",
@@ -331,5 +364,51 @@
 	},
 	"vars": {
 		"--cell-size": "2rem"
+	},
+	"ours": {
+		"select-value": "line-clamp-1 flex items-center gap-2",
+		"dropdown-menu-trigger-icon": "size-4 opacity-50",
+		"calendar-nav": "flex h-(--cell-size) w-full items-center justify-between gap-1",
+		"calendar-day": {
+			"extends": "button",
+			"variant": "ghost",
+			"size": "icon",
+			"class": [
+				"relative aspect-square size-auto w-full min-w-(--cell-size) p-0 text-center leading-none font-normal select-none dark:hover:text-accent-foreground",
+				"data-[today=true]:bg-accent data-[today=true]:text-accent-foreground data-[outside=true]:text-muted-foreground",
+				"data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground",
+				"data-[focused=true]:z-10 data-[focused=true]:border-ring data-[focused=true]:ring-[3px] data-[focused=true]:ring-ring/50"
+			]
+		},
+		"collapsible": "flex flex-col gap-2",
+		"collapsible-trigger": "flex items-center gap-2 rounded-md text-sm font-medium transition-all outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50",
+		"collapsible-content": "text-sm",
+		"toaster": "flex flex-col gap-3.5",
+		"toast-action": "ml-auto flex h-6 shrink-0 cursor-pointer items-center rounded-[4px] bg-popover-foreground px-2 text-xs font-medium text-popover outline-none focus-visible:shadow-[0_0_0_2px_rgba(0,0,0,0.4)]",
+		"toast-close": "absolute top-0 left-0 z-1 flex size-5 -translate-x-[35%] -translate-y-[35%] cursor-pointer items-center justify-center rounded-full border bg-popover p-0 text-popover-foreground",
+		"toolbar": "flex h-9 items-center gap-1 rounded-md border bg-background p-1 shadow-xs",
+		"tree": "flex flex-col rounded-md border bg-background p-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+		"tree-item": "flex cursor-default items-center gap-1 rounded-sm px-2 text-sm select-none hover:bg-accent/50 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
+		"tree-toggle": "flex shrink-0 items-center justify-center text-muted-foreground",
+		"listbox": "flex flex-col rounded-md border bg-background p-1 shadow-xs",
+		"listbox-option": "relative flex shrink-0 cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-selected:bg-accent aria-selected:text-accent-foreground",
+		"sortable": "flex flex-col gap-2",
+		"sortable-item": "relative flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm text-card-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+		"sortable-handle": "cursor-grab text-muted-foreground select-none",
+		"sortable-indicator": "h-0.5 rounded-full bg-primary data-[side=top]:-top-[5px] data-[side=bottom]:-bottom-[5px]",
+		"number-field": "flex items-stretch gap-1",
+		"number-field-steppers": "flex flex-col gap-px",
+		"number-field-increment": "flex flex-1 cursor-default items-center justify-center rounded-t-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
+		"number-field-decrement": "flex flex-1 cursor-default items-center justify-center rounded-b-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
+		"tag-input": "flex min-h-9 w-full min-w-0 flex-wrap items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 text-base shadow-xs transition-[color,box-shadow] md:text-sm dark:bg-input/30",
+		"tag-input-list": "flex flex-wrap items-center gap-1",
+		"tag-input-field": "h-7 w-full min-w-0 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground md:text-sm",
+		"tag-input-remove": "ml-0.5 cursor-pointer rounded-full opacity-70 hover:opacity-100",
+		"color-picker": "flex flex-col gap-3",
+		"color-picker-area": "relative cursor-crosshair overflow-hidden rounded-md border outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+		"color-picker-hue": "relative rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+		"color-picker-thumb": "rounded-full border-2 border-white shadow-sm ring-1 ring-black/20",
+		"color-picker-row": "flex items-center gap-2",
+		"color-picker-swatch": "rounded-md border shadow-xs"
 	}
 }

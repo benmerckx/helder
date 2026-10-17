@@ -56,11 +56,15 @@ class Tw {
 		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: path, min: at, max: at + n})), vars);
 		var global = {classes: (json.global : String) ?? "", offset: offset(json.global ?? "")};
 		var rules = [];
-		var slots:haxe.DynamicAccess<Dynamic> = json.slots;
+		// (shadcn's slots, then ours: hxmc's widgets and parts shadcn has not, in its style; ours win)
+		var slots:haxe.DynamicAccess<Dynamic> = Reflect.copy(json.slots);
+		var ours:haxe.DynamicAccess<Dynamic> = json.ours;
+		if (ours != null) for (k => x in ours)
+			slots[k] = x;
 		for (name in sorted(slots)) {
-			var lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String}> = [];
-			function add(s:String, ?variant:String, ?size:String)
-				lists.push({classes: s, offset: offset(s), variant: variant, size: size});
+			var lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String, ?prefix:String}> = [];
+			function add(s:String, ?variant:String, ?size:String, ?prefix:String)
+				lists.push({classes: s, offset: offset(s), variant: variant, size: size, prefix: prefix});
 			function some(v:Dynamic, f:String->Void)
 				if (Std.isOfType(v, Array)) for (s in (v : Array<String>)) f(s) else if (v != null) f(v);
 			// (cva's: its base, then each variant's and size's, or the
@@ -82,6 +86,10 @@ class Tw {
 								if (k == fixed) add(m[k]);
 							} else if (kind == "variant") add(m[k], k) else add(m[k], null, k);
 					}
+					// (classes under a state the widget sets, as a prop's in the component: sheet's side, data-[side=right])
+					var states:haxe.DynamicAccess<String> = Reflect.field(v, "states");
+					if (states != null) for (k in sorted(states))
+						add(states[k], null, null, k);
 				}
 				some(Reflect.field(v, "class"), s -> add(s));
 			}
@@ -200,7 +208,7 @@ private class Encoder {
 					case Px(_):
 				}
 			case ["E", VEdges(t, r, b, l)] | ["C", VCorners(t, r, b, l)]: for (n in [t, r, b, l]) num(n);
-			case ["c", VColor(s)] | ["s", VStr(s)] | ["t", VTransform(s)]: str(s);
+			case ["c", VColor(s)] | ["s", VStr(s)] | ["t", VTransform(s)] | ["r", VTransition(s)]: str(s);
 			case ["S", VShadow(list)]:
 				int(list.length);
 				for (s in list) {
