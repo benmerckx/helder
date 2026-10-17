@@ -15,6 +15,7 @@ class MonoParagraph implements Paragraph {
 	public var width(get, never):Float;
 	public var height(get, never):Float;
 	public var lineCount(get, never):Int;
+	public var minWidth(get, never):Float;
 
 	// each line: its first character and its length
 	public final lines:Array<{start:Int, length:Int}> = [];
@@ -49,6 +50,15 @@ class MonoParagraph implements Paragraph {
 			}
 			start += hard.length + 1;
 		}
+	}
+
+	// (the longest word)
+	function get_minWidth():Float {
+		var w = 0;
+		for (hard in text.split("\n"))
+			for (word in hard.split(" "))
+				if (word.length > w) w = word.length;
+		return w * char;
 	}
 
 	function get_width():Float {

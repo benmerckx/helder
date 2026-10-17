@@ -361,7 +361,7 @@ class Layout {
 		if (known(cached)) return cached;
 		var bw = s.borderWidth, padH = s.padding.left + s.padding.right + 2 * bw;
 		var inner = 0.0;
-		if (n.hasContent() && n.children.length == 0) inner = n.measureContent(text, Math.NaN, Math.NaN, 0, Math.NaN).width else {
+		if (n.hasContent() && n.children.length == 0) inner = n.minContentWidth(text) else {
 			var row = (s.direction == Row || s.direction == RowReverse) && !s.wrap;
 			var count = 0;
 			for (c in n.children) {

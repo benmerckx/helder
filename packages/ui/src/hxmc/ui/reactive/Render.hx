@@ -74,7 +74,7 @@ class Render {
 	}
 
 	static function put(n:Node, parent:Node, before:Null<Node>, out:Array<Node>) {
-		var i = before == null ? parent.children.length : parent.children.indexOf(before);
+		var i = before == null ? parent.children.length : parent.indexOf(before);
 		parent.insert(n, i < 0 ? parent.children.length : i);
 		out.push(n);
 	}

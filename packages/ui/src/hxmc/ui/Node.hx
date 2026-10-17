@@ -82,7 +82,7 @@ class Node {
 			p = p.parent;
 		}
 		if (child.parent == this) {
-			var i = children.indexOf(child);
+			var i = indexOf(child);
 			children.splice(i, 1);
 			if (i < index) index--;
 		} else if (child.parent != null) child.parent.remove(child);
@@ -92,6 +92,32 @@ class Node {
 		child.attach(ui);
 		markDirty();
 		return child;
+	}
+
+	// the index of a child (-1: not one), looked for from the end, where
+	// anchors and new children usually are
+	public function indexOf(child:Node):Int {
+		if (child.parent != this) return -1;
+		var i = children.length;
+		while (--i >= 0)
+			if (children[i] == child) return i;
+		return -1;
+	}
+
+	// puts nodes, all children of this node and as many as the children from
+	// start, in that order from start (a keyed list's rows, reordered at once)
+	public function reorder(start:Int, nodes:Array<Node>) {
+		if (start < 0 || start + nodes.length > children.length) throw "Node.reorder: out of range";
+		var changed = false;
+		for (k in 0...nodes.length) {
+			var n = nodes[k];
+			if (n.parent != this) throw "Node.reorder: not a child";
+			if (children[start + k] != n) {
+				children[start + k] = n;
+				changed = true;
+			}
+		}
+		if (changed) markDirty();
 	}
 
 	public function remove(child:Node) {
@@ -193,6 +219,10 @@ class Node {
 	// or unbounded)
 	public function measureContent(text:TextEngine, knownWidth:Float, knownHeight:Float, availWidth:Float, availHeight:Float):Size
 		return Size.ZERO;
+
+	// the content's min-content width (its widest unbreakable part)
+	public function minContentWidth(text:TextEngine):Float
+		return measureContent(text, Math.NaN, Math.NaN, 0, Math.NaN).width;
 
 	// draws the content in its content box at (x, y), in window pixels
 	public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {}

@@ -87,6 +87,9 @@ class StressTest implements Markup {
 		var app = new StressTest(n);
 		lap("start");
 		times.resize(0);
+		// (the fonts found and loaded: once, apart from the layout)
+		ui.text.layout("fonts", new Font("DejaVu Sans", 13, 400, false, 1.25), Math.NaN);
+		lap("fonts");
 		Render.render(app.view(), ui.root);
 		lap("mount");
 		ui.update();

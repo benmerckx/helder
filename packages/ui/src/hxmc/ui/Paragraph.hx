@@ -6,6 +6,8 @@ interface Paragraph {
 	var width(get, never):Float;
 	var height(get, never):Float;
 	var lineCount(get, never):Int;
+	// the min-content width: the widest word (what a width of 0 lays out)
+	var minWidth(get, never):Float;
 	// the caret's position before character index i (UTF-16 units of the text): x, the line's top, its height
 	function caret(i:Int):{x:Float, y:Float, height:Float};
 	// the character index nearest to (x, y) in the paragraph

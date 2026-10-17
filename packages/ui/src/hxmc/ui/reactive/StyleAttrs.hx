@@ -62,14 +62,25 @@ class StyleAttrs {
 
 	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true];
 
+	// (kebab-case names converted once each)
+	static final camels = new Map<String, String>();
+
 	static function camel(n:String):String {
 		if (n.indexOf("-") < 0) return n;
+		var c = camels.get(n);
+		if (c != null) return c;
 		var parts = n.split("-");
-		return parts[0] + [for (p in parts.slice(1)) p.charAt(0).toUpperCase() + p.substr(1)].join("");
+		c = parts[0] + [for (p in parts.slice(1)) p.charAt(0).toUpperCase() + p.substr(1)].join("");
+		camels.set(n, c);
+		return c;
 	}
 
-	static function key(v:Dynamic):String
-		return StringTools.replace(StringTools.replace(Std.string(v), "-", ""), "_", "").toLowerCase();
+	static function key(v:Dynamic):String {
+		var s = Std.string(v);
+		if (s.indexOf("-") >= 0) s = StringTools.replace(s, "-", "");
+		if (s.indexOf("_") >= 0) s = StringTools.replace(s, "_", "");
+		return s.toLowerCase();
+	}
 
 	static function float(v:Dynamic):Float
 		return Std.isOfType(v, String) ? Std.parseFloat(v) : (v : Float);

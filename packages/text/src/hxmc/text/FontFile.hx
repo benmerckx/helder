@@ -32,8 +32,12 @@ class FontFile {
 	var cmap = -1; // the chosen subtable's offset
 	var cmapFormat = 0;
 	var kernPairs:Null<Map<Int, Int>> = null;
-	// format 4 lookups are cached per character
-	final glyphCache = new Map<Int, Int>();
+	// the tables read per glyph
+	var hmtx = 0;
+	var glyf = 0;
+	var locaAt = 0;
+	// cmap lookups cached per character: pages of 256 (-1: not looked up)
+	final glyphPages:Array<haxe.ds.Vector<Int>> = [];
 
 	// the face at index of a font file's bytes (a collection has several)
 	public static function parse(data:Bytes, index = 0):FontFile
@@ -63,6 +67,9 @@ class FontFile {
 		}
 		for (t in ["head", "hhea", "hmtx", "maxp", "cmap", "loca", "glyf"])
 			if (!tables.exists(t)) throw "FontFile: no " + t + " table";
+		hmtx = tables.get("hmtx");
+		glyf = tables.get("glyf");
+		locaAt = tables.get("loca");
 		var head = tables.get("head");
 		unitsPerEm = u16(data, head + 18);
 		longLoca = s16(data, head + 50) != 0;
@@ -93,22 +100,30 @@ class FontFile {
 
 	// the glyph of a Unicode code point (0: none, the .notdef glyph)
 	public function glyph(cp:Int):Int {
-		var g = glyphCache.get(cp);
-		if (g != null) return g;
-		g = lookup(cp);
-		glyphCache.set(cp, g);
+		var p = cp >> 8;
+		if (p < 0 || p > 0x10FF) return 0;
+		while (glyphPages.length <= p)
+			glyphPages.push(null);
+		var page = glyphPages[p];
+		if (page == null) {
+			page = new haxe.ds.Vector(256, -1);
+			glyphPages[p] = page;
+		}
+		var g = page[cp & 255];
+		if (g < 0) {
+			g = lookup(cp);
+			page[cp & 255] = g;
+		}
 		return g;
 	}
 
 	// the horizontal advance of a glyph, in font units
 	public function advance(g:Int):Int {
-		var hmtx = tables.get("hmtx");
 		return u16(data, hmtx + 4 * (g < numHMetrics ? g : numHMetrics - 1));
 	}
 
 	// the left side bearing of a glyph, in font units
 	public function leftBearing(g:Int):Int {
-		var hmtx = tables.get("hmtx");
 		return g < numHMetrics ? s16(data, hmtx + 4 * g + 2) : s16(data, hmtx + 4 * numHMetrics + 2 * (g - numHMetrics));
 	}
 
@@ -126,7 +141,7 @@ class FontFile {
 		if (g < 0 || g >= numGlyphs) return [0, 0, 0, 0];
 		var start = loca(g), end = loca(g + 1);
 		if (end <= start) return [0, 0, 0, 0];
-		var p = tables.get("glyf") + start;
+		var p = glyf + start;
 		return [s16(data, p + 2), s16(data, p + 4), s16(data, p + 6), s16(data, p + 8)];
 	}
 
@@ -136,7 +151,7 @@ class FontFile {
 		if (g < 0 || g >= numGlyphs) return;
 		var start = loca(g), end = loca(g + 1);
 		if (end <= start) return; // (an empty glyph: a space)
-		var p = tables.get("glyf") + start;
+		var p = glyf + start;
 		var contours = s16(data, p);
 		var t = transform == null ? [1.0, 0, 0, 1, 0, 0] : transform;
 		if (contours >= 0) simple(p, contours, out, t) else composite(p, out, t);
@@ -289,7 +304,7 @@ class FontFile {
 		return s16(data, p) / 16384;
 
 	inline function loca(g:Int):Int {
-		var l = tables.get("loca");
+		var l = locaAt;
 		return longLoca ? u32(data, l + 4 * g) : u16(data, l + 2 * g) * 2;
 	}
 

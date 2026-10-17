@@ -16,6 +16,9 @@ class TextLayout {
 	// the widest line (trailing spaces excluded), the lines' total height
 	public var width(default, null) = 0.0;
 	public var height(default, null) = 0.0;
+	// the min-content width: the widest run between break opportunities
+	// (trailing spaces excluded), the width of the layout at a maxWidth of 0
+	public var minWidth(default, null) = 0.0;
 	// a line's height and its baseline below its top
 	public final lineHeight:Float;
 	public final baseline:Float;
@@ -28,6 +31,7 @@ class TextLayout {
 		var a = fonts.ascent, d = fonts.descent;
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
 		var glyphs = shape(text, fonts);
+		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
 	}
 
@@ -35,7 +39,9 @@ class TextLayout {
 
 	static function shape(text:String, fonts:FontSet):Array<Glyph> {
 		var out:Array<Glyph> = [];
-		var i = 0, n = text.length;
+		var i = 0, n = text.length, count = 0;
+		// (at most a glyph per UTF-16 unit: allocated once, cut to the count after)
+		out.resize(n);
 		var prev:Null<Glyph> = null;
 		while (i < n) {
 			var c = StringTools.fastCodeAt(text, i), len = 1;
@@ -61,10 +67,11 @@ class TextLayout {
 				g.advance = f.advance(g.id) * fonts.scale(f) * (c == 9 ? 4 : 1);
 				if (prev != null && prev.font == f && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
 			}
-			out.push(g);
+			out[count++] = g;
 			prev = g;
 			i += len;
 		}
+		out.resize(count);
 		return out;
 	}
 
@@ -83,6 +90,21 @@ class TextLayout {
 		var p = gs[i - 1].cp, c = gs[i].cp;
 		if (isSpace(c)) return false; // (spaces stay at the end of the line)
 		return isSpace(p) || p == 0x2D || p == 0x2010 || p == 0x2013 || p == 0x2014 || p == 0x2F || isCJK(p) || isCJK(c);
+	}
+
+	static function minContent(gs:Array<Glyph>):Float {
+		var widest = 0.0, x = 0.0, visible = 0.0;
+		for (i in 0...gs.length) {
+			var g = gs[i];
+			if (g.cp == 10 || breakBefore(gs, i)) {
+				if (visible > widest) widest = visible;
+				x = visible = 0;
+				if (g.cp == 10) continue;
+			}
+			x += g.advance;
+			if (!isSpace(g.cp)) visible = x;
+		}
+		return visible > widest ? visible : widest;
 	}
 
 	function breakLines(gs:Array<Glyph>, maxWidth:Float) {
@@ -134,10 +156,11 @@ class TextLayout {
 		var l = new TextLine();
 		l.top = lines.length * lineHeight;
 		var x = 0.0, visible = 0.0;
+		l.glyphs.resize(end - start);
 		for (i in start...end) {
 			var g = gs[i];
 			g.x = x;
-			l.glyphs.push(g);
+			l.glyphs[i - start] = g;
 			x += g.advance;
 			if (!isSpace(g.cp)) visible = x;
 		}

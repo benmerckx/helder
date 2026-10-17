@@ -16,7 +16,14 @@ class DrawText implements TextEngine {
 	public function new(?fonts:SystemFonts)
 		this.fonts = fonts == null ? SystemFonts.get() : fonts;
 
+	// (the last face asked for: most text has its neighbour's font)
+	var lastFamily = "";
+	var lastWeight = -1;
+	var lastItalic = false;
+	var lastFace:Null<FontFile>;
+
 	public function face(f:Font):FontFile {
+		if (lastFace != null && f.family == lastFamily && f.weight == lastWeight && f.italic == lastItalic) return lastFace;
 		var key = f.family + "|" + f.weight + "|" + f.italic;
 		var face = faces.get(key);
 		if (face == null) {
@@ -24,6 +31,10 @@ class DrawText implements TextEngine {
 			if (face == null) throw "hxmc.ui.draw: no font (no system fonts found: SystemFonts.add one)";
 			faces.set(key, face);
 		}
+		lastFamily = f.family;
+		lastWeight = f.weight;
+		lastItalic = f.italic;
+		lastFace = face;
 		return face;
 	}
 
@@ -40,6 +51,7 @@ class DrawParagraph implements Paragraph {
 	public var width(get, never):Float;
 	public var height(get, never):Float;
 	public var lineCount(get, never):Int;
+	public var minWidth(get, never):Float;
 
 	public function new(layout:TextLayout)
 		this.layout = layout;
@@ -49,6 +61,9 @@ class DrawParagraph implements Paragraph {
 
 	inline function get_height()
 		return layout.height;
+
+	inline function get_minWidth()
+		return layout.minWidth;
 
 	inline function get_lineCount()
 		return layout.lines.length;
