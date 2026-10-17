@@ -56,7 +56,13 @@ class SystemFonts {
 			if (f == null) continue;
 			var key = "added:" + f.id;
 			loaded.set(key, f);
-			faces.insert(0, new FaceInfo(key, i, f.family, f.subfamily, f.weight, f.italic));
+			var fi = new FaceInfo(key, i, f.family, f.subfamily, f.weight, f.italic);
+			for (a in f.axes)
+				if (a.tag == "wght") {
+					fi.minWeight = Std.int(a.min);
+					fi.maxWeight = Std.int(a.max);
+				}
+			faces.insert(0, fi);
 			fallbackList = null;
 			out.push(f);
 		}
@@ -162,7 +168,14 @@ class SystemFonts {
 
 	function best(name:String, weight:Int, italic:Bool):Null<FontFile> {
 		var pick = pick(name, weight, italic);
-		return pick == null ? null : load(pick);
+		if (pick == null) return null;
+		var f = load(pick);
+		// (a variable face: its instance at the weight, within its range)
+		if (f == null || pick.maxWeight <= pick.minWeight) return f;
+		var w = weight < pick.minWeight ? pick.minWeight : weight > pick.maxWeight ? pick.maxWeight : weight;
+		var key = pick.path + "#" + pick.index + "@" + w;
+		if (!loaded.exists(key)) loaded.set(key, f.instance(["wght" => w]));
+		return loaded.get(key);
 	}
 
 	function pick(name:String, weight:Int, italic:Bool):Null<FaceInfo> {
@@ -170,7 +183,9 @@ class SystemFonts {
 		var pick:Null<FaceInfo> = null, score = 1 << 30;
 		for (fi in faces) {
 			if (fi.family.toLowerCase() != lower) continue;
-			var s = (fi.italic == italic ? 0 : 10000) + Std.int(Math.abs(fi.weight - weight)) + (fi.weight > weight && weight <= 400 ? 50 : 0);
+			// (a variable face has every weight of its range)
+			var w = fi.maxWeight > fi.minWeight ? (weight < fi.minWeight ? fi.minWeight : weight > fi.maxWeight ? fi.maxWeight : weight) : fi.weight;
+			var s = (fi.italic == italic ? 0 : 10000) + Std.int(Math.abs(w - weight)) + (w > weight && weight <= 400 ? 50 : 0);
 			if (s < score) {
 				score = s;
 				pick = fi;
@@ -244,6 +259,9 @@ class FaceInfo {
 	public final subfamily:String;
 	public final weight:Int;
 	public final italic:Bool;
+	// a variable face's wght axis (the weights it has; 0, 0: not variable)
+	public var minWeight = 0;
+	public var maxWeight = 0;
 
 	public function new(path, index, family, subfamily, weight, italic) {
 		this.path = path;
@@ -276,7 +294,7 @@ class FaceInfo {
 				if (version != 0x00010000 && version != 0x74727565 && version != 0x4F54544F) continue;
 				var n = f.readUInt16();
 				f.read(6);
-				var name = -1, nameLen = 0, os2 = -1, os2Len = 0;
+				var name = -1, nameLen = 0, os2 = -1, os2Len = 0, fvar = -1, fvarLen = 0;
 				for (_ in 0...n) {
 					var t = f.readString(4);
 					f.readInt32();
@@ -287,6 +305,9 @@ class FaceInfo {
 					} else if (t == "OS/2") {
 						os2 = off;
 						os2Len = len;
+					} else if (t == "fvar") {
+						fvar = off;
+						fvarLen = len;
 					}
 				}
 				if (name < 0) continue;
@@ -303,7 +324,22 @@ class FaceInfo {
 				var names = Names.read(nameBytes);
 				var sub = names.subfamily.toLowerCase();
 				if (sub.indexOf("italic") >= 0 || sub.indexOf("oblique") >= 0) italic = true;
-				out.push(new FaceInfo(path, i, names.family, names.subfamily, weight, italic));
+				var fi = new FaceInfo(path, i, names.family, names.subfamily, weight, italic);
+				// (a variable face: its wght axis's range)
+				if (fvar >= 0 && fvarLen >= 16) {
+					f.seek(fvar, SeekBegin);
+					var v = f.read(fvarLen);
+					var arrays = (v.get(4) << 8) | v.get(5), count = (v.get(8) << 8) | v.get(9), size = (v.get(10) << 8) | v.get(11);
+					for (k in 0...count) {
+						var p = arrays + k * size;
+						if (p + 16 > fvarLen || v.getString(p, 4) != "wght") continue;
+						inline function fixed(q:Int):Int
+							return ((v.get(q) << 24) | (v.get(q + 1) << 16)) >> 16;
+						fi.minWeight = fixed(p + 4);
+						fi.maxWeight = fixed(p + 12);
+					}
+				}
+				out.push(fi);
 			}
 		} catch (e:Dynamic) {}
 		f.close();

@@ -16,6 +16,7 @@ import hxmc.text.*;
 //   Chromium's; fallback faces looked up lazily
 // - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines;
 //   Inter: CFF outlines, GPOS kerning
+// - variations: a variable font's instances (var.ttf) against Chromium
 // - layout: widths, wrapping, hard breaks, caret and hit
 // - a sample of text rendered through the atlas against sample.png; with
 //   Inter (CFF outlines), against sample-cff.png
@@ -30,6 +31,7 @@ class TextTest {
 		rasterizer();
 		bidi();
 		graphemes();
+		variations(here);
 		var fonts = SystemFonts.get();
 		var sans = fonts.match("DejaVu Sans");
 		if (sans == null || sans.family != "DejaVu Sans") Sys.println("TextTest: no DejaVu Sans: font checks skipped (families: " + fonts.families().join(", ") + ")") else {
@@ -184,6 +186,38 @@ class TextTest {
 		for (i in order)
 			b.addChar(r.levels[i] & 1 == 1 ? Bidi.mirror(cps[i]) : cps[i]);
 		return b.toString();
+	}
+
+	// a variable font (var.ttf, from var-font.mjs): instances by wght, gvar's
+	// deltas (every point, named points and inferred ones, a composite's
+	// offsets, an intermediate region) and avar's mapping, against Chromium's
+	// advances (within 0.05 units: implementations round the normalized
+	// coordinates in their own steps) and ink bounds (rounded out to 1/64 em)
+	static function variations(here:String) {
+		var path = here + "/var.ttf";
+		if (!sys.FileSystem.exists(path)) return;
+		var f = FontFile.parse(sys.io.File.getBytes(path));
+		check("variations: the axes", f.axes.length == 1 && f.axes[0].tag == "wght" && f.axes[0].min == 100 && f.axes[0].def == 400 && f.axes[0].max == 900,
+			[for (a in f.axes) a.tag + " " + a.min + " " + a.def + " " + a.max].join(";"));
+		var expected:Array<{ch:String, weight:Int, advance:Float, left:Float, right:Float, top:Float}> = haxe.Json.parse(sys.io.File.getContent(here
+			+ "/var-expected.json"));
+		var bad = [], step = 1000 / 64;
+		for (e in expected) {
+			var v = f.instance(["wght" => e.weight]), g = v.glyph(e.ch.charCodeAt(0));
+			var a = v.advance(g), b = v.bounds(g);
+			inline function near(ours:Float, theirs:Float, out:Bool)
+				return out ? theirs >= ours - 0.01 && theirs < ours + step : theirs <= ours + 0.01 && theirs > ours - step;
+			if (Math.abs(a - e.advance) > 0.05 || !near(b[0], e.left, false) || !near(b[2], e.right, true) || !near(b[3], e.top, true))
+				bad.push(e.ch + "@" + e.weight + ": " + a + " [" + b.join(",") + "] vs " + e.advance + " [" + e.left + ",," + e.right + "," + e.top + "]");
+		}
+		check("variations: advances and bounds as Chromium's (" + expected.length + ")", bad.length == 0, bad.join("; "));
+		// as SystemFonts gives it: the instance at the weight asked for, within its range
+		var found = new SystemFonts();
+		found.add(sys.io.File.getBytes(path));
+		var bold = found.match("VarTest", 700), thin = found.match("VarTest", 50);
+		check("variations: SystemFonts' instance by weight", bold != null && bold.weight == 700 && bold.advance(bold.glyph("A".code)) > 619 && thin != null && thin.weight == 100
+			&& thin.advance(thin.glyph("A".code)) == 400 && found.match("VarTest", 700) == bold, bold == null ? "none" : bold.weight + " " + bold.advance(bold.glyph("A".code)));
+		check("variations: an instance is a face of its own", f.instance(["wght" => 700]).id != f.id && f.instance(["wght" => 700]).weight == 700);
 	}
 
 	static function bidi() {
