@@ -14,8 +14,9 @@
 // adds to run's options (args, gfx). Once it runs, the element gets
 // data-gfx, the graphics API it draws with, if any. While an island starts,
 // its element has data-loading; once it has started, data-hydrated and an
-// hxmc:hydrated event; if it fails (also later: a frame that throws, a GPU
-// device lost), data-error (the message) and an hxmc:error event.
+// hxmc:hydrated event; if it fails (main exits with an error code, or later:
+// a frame that throws or exits so, a GPU device lost: the message the last
+// line of its stderr), data-error (the message) and an hxmc:error event.
 // data-stop="offscreen" on a WebAssembly island: once it has scrolled out
 // of view, its program is stopped (host.os.stop, host.gfx.release: its GPU
 // memory given back), its canvas replaced by a fresh one, and the element
@@ -46,13 +47,17 @@
 			const extra = (g.hxmcWasmOptions || {})[el.id], canvas = el.querySelector('canvas');
 			// (the canvas as the page wrote it: the one a stopped program's is replaced by)
 			if (canvas && !el.hxmcCanvas) el.hxmcCanvas = canvas.cloneNode(false);
+			// (the last line the program wrote to stderr: what a failure says)
+			let last = '';
+			const failed = (e) => new Error(last || (e && e.message) || String(e));
 			const started = import(new URL(d.runner, base).href).then((m) => m.run(new URL(d.wasm, base).href, {
 				imports: json(d.imports, []), args: json(d.args, []), fonts: json(d.fonts, []), canvas, touchAction: 'pan-y',
-				onError: (e) => run === el.hxmcRun && fail(el, e), ...extra,
+				stderr: (l) => console.error((last = l)), onError: (e) => run === el.hxmcRun && fail(el, failed(e)), ...extra,
 			}));
 			if (el.id) wasm[el.id] = started;
 			const r = await started, gfx = r && r.host && r.host.gfx;
 			if (run !== el.hxmcRun) return;
+			if (r && r.exitCode) throw failed('the program exited with code ' + r.exitCode);
 			if (gfx && gfx.backend) el.setAttribute('data-gfx', gfx.backend);
 			if (d.stop === 'offscreen') offscreen(el, r);
 		} else {

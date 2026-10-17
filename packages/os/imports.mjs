@@ -23,7 +23,8 @@
 // commits (and text inserted without keys: an emoji picker, dictation) as
 // TextInput.
 // host.os.stop() ends the frames and lets go of the canvases; a frame that
-// throws ends them too, and goes to run's option onError when given.
+// throws ends them too, and goes to run's option onError when given (as an
+// exit with an error code in a frame does).
 //
 // Audio (hxmc.os.audio.WebAudioOutput): an AudioContext at the rate asked
 // for, and an AudioWorklet node (PROCESSOR, loaded from a blob) that plays
@@ -513,6 +514,7 @@ export default function (host) {
 					host.options.onError(e);
 					return;
 				}
+				if (host.exitCode && host.options.onError) host.options.onError(new Error('the program exited with code ' + host.exitCode));
 				if (more) requestAnimationFrame(tick);
 			};
 			requestAnimationFrame(tick);
