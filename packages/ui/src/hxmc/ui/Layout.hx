@@ -304,10 +304,11 @@ class Layout {
 						if (row) size(it.node, it.main, Math.NaN, innerW, pctH, it.main, ac, false) else {
 							looseH = !known(pctH);
 							// (a wrapping column in a column of unknown width: as wide as on one line, unless
-							// its own height is definite, as Chromium sizes it; its flexed height then wraps it)
+							// its own height is fixed (pixels: a percentage is not, sizing it), as Chromium sizes
+							// it; its flexed height then wraps it)
 							var ics = it.node.style;
 							var oneLine = !known(innerCross) && ics.wrap && (ics.direction == Column || ics.direction == ColumnReverse)
-								&& !known(ics.height.resolve(pctH));
+								&& !ics.height.match(DimValue.Px(_));
 							size(it.node, Math.NaN, oneLine ? Math.NaN : it.main, innerW, pctH, ac, oneLine ? Math.NaN : it.main, false);
 						}
 						// (a column's item across: fit-content, its min-content when the room is less)
