@@ -58,7 +58,7 @@ class FidelityTest implements Markup {
 			case "toggle": <Toggle pressed={new Signal(c.on == true)} label={text} variant={variant} size={size}/>;
 			case "input": <Input value={new Signal(text ?? "")} placeholder={c.placeholder}/>;
 			case "checkbox": <Checkbox checked={new Signal(c.checked == true)}/>;
-			case "switch": <Switch checked={new Signal(c.checked == true)}/>;
+			case "switch": <Switch checked={new Signal(c.checked == true)} size={size}/>;
 			case "label" if (c.peerDisabled != true): <Label text={text}/>;
 			case "textarea": <Textarea value={new Signal(text ?? "")} placeholder={c.placeholder}/>;
 			case "progress": <Progress value={(c.value : Float) / 100}/>;
