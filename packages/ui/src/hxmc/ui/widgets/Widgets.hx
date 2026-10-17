@@ -64,9 +64,10 @@ class Widgets implements Markup {
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, w = props.width ?? 160.0;
 		var knob = 16.0;
 		function set(v:Float) {
+			v = Math.max(lo, Math.min(hi, v));
 			// (to the step, without the binary fractions' noise: 0.6, not 0.6000000000000001)
-			if (step > 0) v = Math.round((lo + Math.round((v - lo) / step) * step) * 1e9) / 1e9;
-			props.value.value = Math.max(lo, Math.min(hi, v));
+			if (step > 0) v = Math.max(lo, Math.min(hi, Math.fround((lo + Math.fround((v - lo) / step) * step) * 1e9) / 1e9));
+			props.value.value = v;
 		}
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
 		function at(e:Event) {
