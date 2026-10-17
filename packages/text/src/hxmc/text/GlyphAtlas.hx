@@ -25,7 +25,13 @@ class GlyphAtlas {
 
 	public static inline var SUBPIXELS = 4;
 
-	final glyphs = new Map<String, AtlasGlyph>();
+	// per face (font, size, oblique): its glyphs by glyph * SUBPIXELS + sub
+	final faces = new Map<String, haxe.ds.IntMap<AtlasGlyph>>();
+	// (the face asked for last: a paragraph's glyphs share one)
+	var lastFont:Null<FontFile> = null;
+	var lastSize = 0.0;
+	var lastOblique = false;
+	var lastFace:Null<haxe.ds.IntMap<AtlasGlyph>> = null;
 	final shelves:Array<Shelf> = [];
 
 	public function new(width = 1024, height = 1024) {
@@ -39,18 +45,30 @@ class GlyphAtlas {
 	// quarter-pixel offset of its origin (0 to 3); oblique: slanted a quarter
 	// of its height, as browsers make an italic the font lacks
 	public function get(font:FontFile, glyph:Int, size:Float, sub:Int, oblique = false):AtlasGlyph {
-		var key = font.id + ":" + glyph + ":" + size + ":" + sub + (oblique ? ":o" : "");
+		var glyphs = face(font, size, oblique), key = glyph * SUBPIXELS + sub;
 		var g = glyphs.get(key);
 		if (g != null) return g;
 		g = rasterize(font, glyph, size, sub, oblique);
 		if (g == null) {
 			// full: start again
 			clear();
+			glyphs = face(font, size, oblique);
 			g = rasterize(font, glyph, size, sub, oblique);
 			if (g == null) g = new AtlasGlyph(0, 0, 0, 0, 0, 0);
 		}
 		glyphs.set(key, g);
 		return g;
+	}
+
+	function face(font:FontFile, size:Float, oblique:Bool):haxe.ds.IntMap<AtlasGlyph> {
+		if (lastFace != null && font == lastFont && size == lastSize && oblique == lastOblique) return lastFace;
+		var key = font.id + ":" + size + (oblique ? ":o" : "");
+		var m = faces.get(key);
+		if (m == null) faces.set(key, m = new haxe.ds.IntMap());
+		lastFont = font;
+		lastSize = size;
+		lastOblique = oblique;
+		return lastFace = m;
 	}
 
 	function rasterize(font:FontFile, glyph:Int, size:Float, sub:Int, oblique:Bool):Null<AtlasGlyph> {
@@ -110,7 +128,8 @@ class GlyphAtlas {
 	}
 
 	public function clear() {
-		glyphs.clear();
+		faces.clear();
+		lastFace = null;
 		shelves.resize(0);
 		pixels.fill(0, pixels.length, 0);
 		generation++;
