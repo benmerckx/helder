@@ -36,4 +36,12 @@ package hxmc.view;
 //   static function arrange(parent:N, nodes:Array<N>, before:N):Void;
 //   // content that is a node already (rendered as it is)
 //   static function isNode(v:Dynamic):Bool;
+//
+// Optional: a macro giving the function that sets one property, named by a
+// literal, (el, name, value): markup binds a reactive attribute with it
+// instead of calling setProperty with the name, so that a renderer whose
+// setProperty is a macro resolving literal names (ui's) links only the
+// properties a program's markup names:
+//
+//   static macro function setter(name:String):Expr;
 interface Renders<N> {}

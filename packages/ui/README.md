@@ -292,6 +292,12 @@ A value that is a signal, a memo or a function is reactive: the attribute,
 text or region follows it. In a `view`, text and text-valued holes next to
 each other become one `TextNode`.
 
+Tags and attribute names are resolved at compile time, so a program links
+only the nodes, attributes and value parsers its markup names (a gradient
+parser only with a gradient, image nodes only with `image`); a name markup
+does not know is a compile error. A spread (`{...props}`) or
+`NodeRenderer.setAttribute` takes any name at run time and links them all.
+
 ## Themes
 
 The widgets ship unstyled (behaviour, semantics and the geometry their
