@@ -686,6 +686,16 @@ class MarkupTest implements Markup {
 		check("tree: a tree of items with their levels", roles.indexOf(Tree) >= 0 && levels.join(",") == "1,2,2,1,2,1", levels.join(","));
 		var item = [for (id in tree.order) if (tree.nodes.get(id).role == TreeItem) tree.nodes.get(id)][0];
 		check("tree: an item named by its text, not its triangle", item.name == "src" && item.expanded == true, item.name);
+		// right to left: Right closes, Left opens (the way they point)
+		ui.root.style.dir = Rtl;
+		ui.update();
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		var closed = shown();
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("tree: right to left, Right closes, Left opens", closed == "-src,  main,  +ui,+docs,README" && shown() == "-src,  main,  +ui,-docs,  guide,README",
+			closed + " / " + shown());
 		Ui.now = haxe.Timer.stamp;
 	}
 
@@ -714,6 +724,18 @@ class MarkupTest implements Markup {
 		check("split: the keys move it (Home: min)", home == 50 && size.value == 60, home + " " + size.value);
 		var tree = ui.accessTree(), sep = [for (id in tree.order) if (tree.nodes.get(id).role == Separator) tree.nodes.get(id)];
 		check("split: a separator with the size as its value", sep.length == 1 && sep[0].valueNow == 60 && sep[0].name == "Sidebar" && sep[0].focusable);
+		// right to left: the first pane on the right; Left widens it, a drag moves the divider with the pointer
+		ui.root.style.dir = Rtl;
+		ui.update();
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("split: right to left, the first pane on the right, Left widens it", size.value == 70 && side.absX == 400 - 70 && div.absX == 400 - 70 - 6,
+			size.value + " " + side.absX);
+		var x = div.absX + 3;
+		ui.pointerDown(x, 100, 1);
+		ui.pointerMove(x - 30, 100);
+		ui.pointerUp(x - 30, 100, 1);
+		check("split: right to left, dragged left, wider", size.value == 100, "" + size.value);
 	}
 
 	static function calendar() {
@@ -754,6 +776,14 @@ class MarkupTest implements Markup {
 		var tree = ui.accessTree();
 		var sel = [for (id in tree.order) if (tree.nodes.get(id).role == Cell && tree.nodes.get(id).selected == true) tree.nodes.get(id).name];
 		check("calendar: a grid, the chosen day's cell selected and named", sel.join(",") == "3 November 2026", sel.join(","));
+
+		// right to left: Left to the next day (the week from the right)
+		ui.root.style.dir = Rtl;
+		ui.update();
+		ui.setFocus(ui.root.find("cal-grid"));
+		ui.keyDown(Key.LEFT, 0);
+		ui.keyDown(Key.ENTER, 0);
+		check("calendar: right to left, Left to the next day", picked.value.day == 4, "" + picked.value.day);
 
 		var ui2 = new Ui(new MonoText(), 400, 400);
 		ui2.root.style.alignItems = Start;

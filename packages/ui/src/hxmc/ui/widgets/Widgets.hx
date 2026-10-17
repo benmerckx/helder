@@ -334,7 +334,7 @@ class Widgets implements Markup {
 		}
 		function key(e:Event) {
 			var rs = rows.peek(), i = indexOf(selected.peek()), j = i;
-			switch e.key {
+			switch mirrored(e) {
 				case Key.DOWN: j = i < 0 ? 0 : i + 1;
 				case Key.UP: j = i < 0 ? 0 : i - 1;
 				case Key.HOME: j = 0;
@@ -411,9 +411,13 @@ class Widgets implements Markup {
 					grab = row ? e.localX : e.localY;
 					active.value = true;
 				}} onPointerUp={_ -> active.value = false}
-				onPointerMove={e -> if (active.peek() && self != null) set((row ? self.localX(e.x, e.y) : self.localY(e.x, e.y)) - grab)}
+				onPointerMove={e -> if (active.peek() && self != null) {
+					var at = (row ? self.localX(e.x, e.y) : self.localY(e.x, e.y)) - grab;
+					// (right to left, the first pane on the right)
+					set(row && self.rtl() ? self.width - grip - at : at);
+				}}
 				onKeyDown={e -> {
-					var v = switch e.key {
+					var v = switch row ? mirrored(e) : e.key {
 						case Key.LEFT | Key.UP: size.peek() - 10;
 						case Key.RIGHT | Key.DOWN: size.peek() + 10;
 						case Key.HOME: lo;
@@ -468,7 +472,7 @@ class Widgets implements Markup {
 		}
 		function key(e:Event) {
 			var c = cursor.peek(), wd = (Days.weekday(c) - first + 7) % 7;
-			switch e.key {
+			switch mirrored(e) {
 				case Key.LEFT: cursor.value = c - 1;
 				case Key.RIGHT: cursor.value = c + 1;
 				case Key.UP: cursor.value = c - 7;
@@ -757,6 +761,11 @@ class Widgets implements Markup {
 	// the items' shortcuts (local: while the focus is in the parent)
 	static function hotkeys(list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, local:Bool):Array<Any>
 		return [for (it in list) if (it.shortcut != null) UiFlow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})];
+
+	// an event's key, Left and Right swapped where it is right to left (the
+	// way they point, in a mirrored row or grid)
+	static function mirrored(e:Event):Int
+		return e.key != Key.LEFT && e.key != Key.RIGHT || !e.current.rtl() ? e.key : e.key == Key.LEFT ? Key.RIGHT : Key.LEFT;
 
 	// focuses nodes[i] if it is shown
 	static function focusIn(nodes:Array<Node>, i:Int)
