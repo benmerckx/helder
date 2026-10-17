@@ -13,7 +13,7 @@ class Plain {
 		var line = Color.parse("currentColor"), faint = Color.parse("currentColor/30"), half = Color.parse("currentColor/50");
 		var tint = Color.parse("currentColor/10");
 		var canvas = Color.parse("Canvas"), canvasText = Color.parse("CanvasText");
-		return [
+		var out:Array<Rule> = [
 			{slot: "body", style: {background: canvas, color: canvasText}},
 			{slot: "button", style: {direction: Row, alignItems: Center, justify: Center, columnGap: 6, padding: [4, 10], borderWidth: 1, borderColor: line, cursor: Pointer}},
 			{slot: "button", size: "sm", style: {padding: [2, 8]}},
@@ -258,5 +258,27 @@ class Plain {
 			{slot: "kbd", style: {padding: [0, 4], borderWidth: 1, borderColor: faint, fontSize: 12}},
 			{slot: "spinner", style: {width: 16, height: 16}}
 		];
+		for (kind in ["dropdown-menu", "context-menu", "menubar"])
+			out = out.concat(menuKinds(kind, line, faint, canvas, canvasText));
+		return out;
+	}
+
+	// (a menu's checkbox and radio items, headings and submenus: as its items)
+	static function menuKinds(kind:String, line:Color, faint:Color, canvas:Color, canvasText:Color):Array<Rule> {
+		var out:Array<Rule> = [
+			{slot: kind + "-sub-content", style: {minWidth: 128, padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: kind + "-label", style: {padding: [4, 8], fontSize: 11, opacity: 0.6}},
+			{slot: kind + "-item-indicator", style: {width: 16, height: 16, alignItems: Center, justify: Center}},
+			{slot: kind + "-item-indicator-icon", style: {width: 12, height: 12}},
+			{slot: kind + "-sub-trigger-icon", style: {width: 16, height: 16, opacity: 0.6}},
+			{slot: kind + "-sub-trigger", when: ["data-state=open"], style: {background: faint}}
+		];
+		for (item in ["-checkbox-item", "-radio-item", "-sub-trigger"])
+			out = out.concat([
+				{slot: kind + item, style: {direction: Row, alignItems: Center, columnGap: 8, padding: [4, 8], cursor: Pointer}},
+				{slot: kind + item, when: ["focus"], style: {background: faint}},
+				{slot: kind + item, when: ["disabled"], style: {opacity: 0.5, cursor: Default}}
+			]);
+		return out;
 	}
 }

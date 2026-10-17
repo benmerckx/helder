@@ -96,6 +96,7 @@ class MarkupTest implements Markup {
 		command();
 		otp();
 		drawer();
+		menuKinds();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -226,6 +227,58 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function menuKinds() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var bar = signal(true), pos = signal("top"), ran = [];
+		Render.render(<view padding={10} align-items="start">
+			<DropdownMenu tag="vm" label="View" items={[
+				{label: "Appearance", heading: true},
+				{label: "Status Bar", checked: bar},
+				{separator: true, label: ""},
+				{label: "Top", radio: {group: pos, value: "top"}},
+				{label: "Bottom", radio: {group: pos, value: "bottom"}},
+				{label: "More", items: [{label: "Zoom In", onSelect: () -> ran.push("zoom")}, {label: "Zoom Out"}]}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		function open() {
+			ui.setFocus(ui.root.find("vm"));
+			ui.keyDown(Key.ENTER, 0);
+			ui.update();
+		}
+		open();
+		var status = ui.overlay.find("vm-1");
+		check("menu kinds: a heading skipped, the checkbox item first focused, checked to assistive technology", ui.focus == status
+			&& status.slot == "dropdown-menu-checkbox-item" && status.semantics.checked == true && status.attr("data-state") == "checked"
+			&& ui.overlay.find("vm-items").children[0].slot == "dropdown-menu-label", ui.focus == null ? "none" : ui.focus.tag);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("menu kinds: a checkbox item toggles and closes", !bar.value && ui.overlay.children.length == 0);
+		open();
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		check("menu kinds: Down past the separator to a radio item", ui.focus.tag == "vm-4" && ui.focus.slot == "dropdown-menu-radio-item", ui.focus.tag);
+		ui.keyDown(Key.SPACE, 0);
+		ui.update();
+		check("menu kinds: a radio item sets its group", pos.value == "bottom");
+		open();
+		for (_ in 0...3)
+			ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		var trig = ui.overlay.find("vm-5"), zoom = ui.overlay.find("vm-5-0");
+		check("menu kinds: Right opens a submenu beside its trigger, its first item focused", trig.slot == "dropdown-menu-sub-trigger" && trig.attr("data-state") == "open"
+			&& zoom != null && ui.focus == zoom && zoom.absX >= trig.absX + trig.width - 1 && zoom.parent.slot == "dropdown-menu-sub-content",
+			zoom == null ? "none" : zoom.absX + " " + (trig.absX + trig.width));
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("menu kinds: Left closes it, the focus back on its trigger", ui.overlay.find("vm-5-0") == null && ui.focus == trig);
+		ui.keyDown(Key.ENTER, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("menu kinds: a submenu item runs and closes every menu", ran.join(",") == "zoom" && ui.overlay.children.length == 0, ran.join(","));
 	}
 
 	static function drawer() {
