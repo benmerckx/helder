@@ -12,4 +12,7 @@ interface Paragraph {
 	function caret(i:Int):{x:Float, y:Float, height:Float};
 	// the character index nearest to (x, y) in the paragraph
 	function hit(x:Float, y:Float):Int;
+	// what the characters start...end cover, line by line (top to bottom, left to right): a
+	// rectangle for each visual run (several on a line of mixed directions), its line's top
+	function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}>;
 }

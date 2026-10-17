@@ -79,4 +79,7 @@ class DrawParagraph implements Paragraph {
 
 	public function hit(x:Float, y:Float):Int
 		return layout.hit(x, y);
+
+	public function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}>
+		return layout.selection(start, end);
 }

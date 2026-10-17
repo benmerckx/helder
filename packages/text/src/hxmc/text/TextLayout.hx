@@ -375,6 +375,47 @@ class TextLayout {
 		return last.level & 1 == 1 ? last.cluster : last.cluster + last.length;
 	}
 
+	// what the characters start...end cover: each line's runs of selected
+	// glyphs in visual order (one run on a line of one direction), with its
+	// top; a ligature partly selected by its parts
+	public function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}> {
+		var out = [];
+		if (end <= start) return out;
+		for (l in lines) {
+			if (l.end <= start || l.start >= end) continue;
+			var x0 = 0.0, x1 = 0.0, open = false;
+			for (g in l.glyphs) {
+				var a = g.x, b = g.x + g.advance;
+				var s = g.cluster, e = g.cluster + g.length;
+				var inside = s < end && e > start && g.cp != 10;
+				if (inside && g.parts > 1 && (s < start || e > end)) {
+					// (part of a ligature: its characters by equal parts, from its leading edge)
+					var f0 = (Math.max(start, s) - s) / g.parts, f1 = (Math.min(end, e) - s) / g.parts;
+					if (g.level & 1 == 1) {
+						a = g.x + g.advance * (1 - f1);
+						b = g.x + g.advance * (1 - f0);
+					} else {
+						a = g.x + g.advance * f0;
+						b = g.x + g.advance * f1;
+					}
+				}
+				if (inside && g.advance > 0) {
+					if (open && Math.abs(a - x1) < 1e-6) x1 = b else {
+						if (open) out.push({x: x0, y: l.top, width: x1 - x0});
+						x0 = a;
+						x1 = b;
+						open = true;
+					}
+				} else if (!inside && g.advance > 0 && open) {
+					out.push({x: x0, y: l.top, width: x1 - x0});
+					open = false;
+				}
+			}
+			if (open) out.push({x: x0, y: l.top, width: x1 - x0});
+		}
+		return out;
+	}
+
 	// the character index nearest to (x, y)
 	public function hit(x:Float, y:Float):Int {
 		var k = Std.int(Math.max(0, Math.min(lines.length - 1, Math.floor(y / lineHeight))));

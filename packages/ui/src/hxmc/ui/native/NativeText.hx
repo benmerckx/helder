@@ -64,4 +64,7 @@ class NativeParagraph implements Paragraph {
 
 	public function hit(x:Float, y:Float):Int
 		return 0;
+
+	public function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}>
+		return [];
 }

@@ -52,8 +52,8 @@ class TextField extends EditableText {
 		var lh = font().size * font().lineHeight;
 		canvas.pushClip(x, y, width, height, 0);
 		if (focused && selectionStart != selectionEnd && composition == "") {
-			var a = p.caret(selectionStart).x, b = p.caret(selectionEnd).x;
-			canvas.rect(x + a - scroll, y, b - a, lh, 0, selectionColor, 0, 0);
+			for (r in p.selection(selectionStart, selectionEnd))
+				canvas.rect(x + r.x - scroll, y, r.width, lh, 0, selectionColor, 0, 0);
 		}
 		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), Math.NaN), x, y, width, Left, placeholderColor);
 		else canvas.text(p, x - scroll, y, p.width, Left, textColor());

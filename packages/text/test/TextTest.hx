@@ -288,6 +288,20 @@ class TextTest {
 			'${xm.hit(xw * 0.6, 5)}');
 		var composed = new TextLayout("é", big, 1.25, Math.NaN).lines[0].glyphs;
 		check("marks: e and an acute as é", composed.length == 1 && composed[0].id == sans.glyph(0xE9) && composed[0].length == 2, '${composed.length}');
+		// selections: one run on a line of one direction, two across a direction change
+		var plain = new TextLayout("Hello world", set, 1.25, Math.NaN);
+		var ps = plain.selection(2, 8);
+		check("selection: one run", ps.length == 1 && Math.abs(ps[0].x - plain.caret(2).x) < 1e-6 && Math.abs(ps[0].x + ps[0].width - plain.caret(8).x) < 1e-6,
+			[for (r in ps) r.x + "+" + r.width].join(" "));
+		var mixedSel = new TextLayout("ab שלום cd", set, 1.25, Math.NaN);
+		var ms = mixedSel.selection(1, 5);
+		var hebrewAt = [for (g in mixedSel.lines[0].glyphs) if (g.cluster == 3) g][0];
+		check("selection: across a direction change, two runs", ms.length == 2 && ms[0].x < ms[1].x && Math.abs(ms[1].x + ms[1].width - (hebrewAt.x + hebrewAt.advance)) < 1e-6,
+			[for (r in ms) Math.round(r.x) + "+" + Math.round(r.width)].join(" "));
+		var lamAlef = new TextLayout("لا", big, 1.25, Math.NaN);
+		var half = lamAlef.selection(0, 1);
+		check("selection: half a ligature, from its right", half.length == 1 && Math.abs(half[0].x - lamAlef.width / 2) < 0.01 && Math.abs(half[0].width - lamAlef.width / 2) < 0.01,
+			[for (r in half) r.x + "+" + r.width].join(" "));
 		var empty = new TextLayout("", set, 1.25, 100);
 		check("layout: empty text is one line", empty.lines.length == 1 && empty.height == 20 && empty.width == 0);
 	}

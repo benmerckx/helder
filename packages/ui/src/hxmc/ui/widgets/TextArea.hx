@@ -98,12 +98,24 @@ class TextArea extends EditableText {
 		canvas.pushClip(x, y, width, height, 0);
 		var top = y - offset;
 		if (focused && selectionStart != selectionEnd && composition == "") {
-			var a = p.caret(selectionStart), b = p.caret(selectionEnd);
-			if (a.y == b.y) canvas.rect(x + a.x, top + a.y, b.x - a.x, lh, 0, selectionColor, 0, 0) else {
-				// (to the end of the first line, whole lines, the start of the last)
-				canvas.rect(x + a.x, top + a.y, width - a.x, lh, 0, selectionColor, 0, 0);
-				if (b.y - a.y > lh) canvas.rect(x, top + a.y + lh, width, b.y - a.y - lh, 0, selectionColor, 0, 0);
-				canvas.rect(x, top + b.y, b.x, lh, 0, selectionColor, 0, 0);
+			// (each line's runs; a line the selection goes past reaches the right edge, an empty one is filled)
+			var runs = p.selection(selectionStart, selectionEnd);
+			var first = p.caret(selectionStart).y, last = p.caret(selectionEnd).y;
+			var ly = first, k = 0;
+			while (ly <= last + 1e-6) {
+				var mine = [];
+				while (k < runs.length && runs[k].y < ly + lh / 2) {
+					if (runs[k].y > ly - lh / 2) mine.push(runs[k]);
+					k++;
+				}
+				var through = ly < last - 1e-6;
+				if (mine.length == 0 && through) canvas.rect(x, top + ly, width, lh, 0, selectionColor, 0, 0);
+				for (i in 0...mine.length) {
+					var r = mine[i];
+					var w = through && i == mine.length - 1 ? width - r.x : r.width;
+					canvas.rect(x + r.x, top + ly, w, lh, 0, selectionColor, 0, 0);
+				}
+				ly += lh;
 			}
 		}
 		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), width), x, y, width, Left, placeholderColor);

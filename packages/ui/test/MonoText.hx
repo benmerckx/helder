@@ -82,6 +82,16 @@ class MonoParagraph implements Paragraph {
 		return {x: 0, y: 0, height: line};
 	}
 
+	public function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}> {
+		var out = [];
+		for (k in 0...lines.length) {
+			var l = lines[k];
+			var a = Std.int(Math.max(start, l.start)), b = Std.int(Math.min(end, l.start + l.length));
+			if (b > a) out.push({x: (a - l.start) * char, y: k * line, width: (b - a) * char});
+		}
+		return out;
+	}
+
 	public function hit(x:Float, y:Float):Int {
 		var k = Std.int(Math.max(0, Math.min(lines.length - 1, Math.floor(y / line))));
 		var l = lines[k];
