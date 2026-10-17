@@ -1,60 +1,162 @@
 # @hxmc/theme
 
-The look of `@hxmc/ui`'s widgets, which ship unstyled (behaviour only,
-docs/plans/theme.md): one theme, based on [shadcn/ui](https://ui.shadcn.com)
-(MIT, see LICENSE). Its token names and values (the neutral theme, light
-and dark, in `oklch()`), its slot names (`data-slot`), Radix's state
-attributes, its variants and sizes, and its components' Tailwind class
-lists, copied verbatim from shadcn's new-york-v4 registry into
-`src/hxmc/theme/shadcn.json` (its `shadcn` field names the commit:
-d2fba50, shadcn 4.22.0), become `hxmc.ui` rules at compile time.
+The look of `@hxmc/ui`'s widgets, which ship unstyled (behaviour and
+semantics only, docs/plans/theme.md): one theme, based on
+[shadcn/ui](https://ui.shadcn.com) (MIT, see LICENSE). Its token names and
+values (the neutral theme, light and dark, in `oklch()`), its slot names
+(`data-slot`), Radix's state attributes, its variants and sizes, and its
+components' Tailwind class lists, copied verbatim from shadcn's
+new-york-v4 registry into `src/hxmc/theme/shadcn.json` (its `shadcn` field
+names the commit: d2fba50, shadcn 4.22.0), become `hxmc.ui` rules at
+compile time.
 
-The components: Button, Input, Checkbox, Switch, Label, Card, Badge,
-Textarea, RadioGroup, Slider, Tabs, Select, DropdownMenu, Dialog, Popover,
-Tooltip, Table, Progress, Accordion, Toggle, ToggleGroup, Separator,
-Alert, Skeleton, Breadcrumb, Pagination, Calendar (react-day-picker's
-parts as `calendar-<part>`), Command, Menubar, ContextMenu, and sonner's
-toast (`toast`, `toast-title`, `toast-description`, `toast-icon`: sonner's
-own stylesheet's values, written as classes). Slots are shadcn's
-`data-slot` names; where shadcn styles an element without one, it is
-named after its parent: `checkbox-icon`, `radio-group-icon`,
-`select-trigger-icon`, `select-viewport`, `accordion-trigger-icon`,
-`dropdown-menu-item-indicator` (and the context menu's and menubar's),
-`tooltip-arrow`, `pagination-previous`, `pagination-next`; `body` is
-the window's root (Tailwind's preflight, then globals.css's body).
-AccordionContent's inner box is folded into `accordion-content`.
-
-hxmc.ui's widgets that shadcn has no component for (Toolbar, Listbox,
-Tree, ColorPicker, NumberField, TagInput, Collapsible, Sortable, the
-resizable handle, the toast's action and close, the fields around a
-checkbox, switch or radio, icons shadcn draws with a selector) are in
-`src/hxmc/theme/extras.json`, in shadcn's manner (its tokens, sizes and
-states; not copied from anywhere), which `shadcn.json` includes.
+## Usage
 
 ```haxe
 import hxmc.theme.Shadcn;
 
-ui.theme = Shadcn.sheet;   // or node.theme, for a subtree
-ui.dark = true;            // shadcn's .dark tokens, and dark: rules
+ui.theme = Shadcn.sheet;   // the window's; node.theme for a subtree
 ```
 
+Give the page's surface the `body` slot (shadcn's `body`: `bg-background
+text-foreground`, Tailwind's `font-sans text-base`):
+
+```haxe
+Render.render(<view slot="body" grow={1} padding={24}>...</view>, w.root);
+```
+
+Then every widget of `hxmc.ui.widgets.Widgets` looks as shadcn's:
+`<Button variant="outline" size="sm" label="Cancel"/>`, `<Badge
+variant="secondary"/>`, `<Switch size="sm"/>`, `<Alert
+variant="destructive">`... An instance's own style wins over every rule:
+`<Button style={s -> {radius: s.hovered.value ? 0 : 999}}/>` (a function of
+its states, as React Aria's render props).
+
 `examples/Signup.hx`: a card with an input, a checkbox, a switch, badges
-and buttons.
+and buttons, the switch turning dark mode on.
+
+## Dark mode
+
+`ui.dark = true` picks the sheet's dark tokens (shadcn's `.dark`) and
+makes the `dark:` rules hold; switching re-resolves every colour without
+new rules. A window follows the system's appearance unless set.
+
+## Tokens of one's own
+
+The rules name tokens (`var(--primary)`, `var(--ring)/50`), resolved
+when a rule applies. `Shadcn.withTokens` makes a sheet of the same rules
+with some tokens replaced, light and dark (names without the dashes, CSS
+colours):
+
+```haxe
+ui.theme = Shadcn.withTokens(
+	["primary" => "oklch(0.546 0.245 262.881)", "ring" => "oklch(0.623 0.214 259.815)"],
+	["primary" => "oklch(0.707 0.165 254.624)"]);
+```
+
+The tokens: `background`, `foreground`, `card`, `card-foreground`,
+`popover`, `popover-foreground`, `primary`, `primary-foreground`,
+`secondary`, `secondary-foreground`, `muted`, `muted-foreground`,
+`accent`, `accent-foreground`, `destructive`, `border`, `input`, `ring`,
+`chart-1`...`chart-5`, `sidebar-*`; and `--radius` (0.625rem, 10px), a
+length token (`StyleSheet.lengths`, `Length.token`): `Shadcn.withTokens(null,
+null, 6)` rounds every corner less. shadcn's scale multiplies it
+(`rounded-sm` 0.6, `-md` 0.8, `-lg` 1, `-xl` 1.4...); the rules hold
+`--radius` plus what each multiple adds at 10px (`rounded-md` is
+`var(--radius)-2`), the same at shadcn's radius, another moving them all
+by as much (as shadcn's earlier `calc(var(--radius) - 2px)`).
+
+## Rules of one's own
+
+A sheet is data, `{rules: Array<Rule>, light, dark}`, later rules
+winning. `Tw.rules(slot, classes, ?variant, ?size)` turns a Tailwind class
+list into rules at compile time; add them after shadcn's:
+
+```haxe
+ui.theme = {
+	rules: Shadcn.sheet.rules.concat(Tw.rules("button", "rounded-full px-6"))
+		.concat(Tw.rules("button", "bg-destructive/80 hover:bg-destructive", "danger")),
+	light: Shadcn.sheet.light,
+	dark: Shadcn.sheet.dark,
+	lengths: Shadcn.sheet.lengths
+};
+```
+
+or a sheet of one's own, `Tw.sheet("my-theme.json")` (beside the calling
+module), in shadcn.json's format: `slots`, each a class list (a string, a
+list as cn's, cva's `{base, variant: {...}, size: {...}}`, another slot's
+`{extends: "button", variant: "ghost", class: "..."}`, classes under a
+state the widget sets `{states: {"data-[side=right]": "..."}}`), `include`
+(other files whose `slots` replace these), `radius`, `vars` (CSS variables a class names:
+`size-(--cell-size)`), `global` (classes before every slot's that has
+borders: shadcn's `* { border-border }`), and the `light` and `dark`
+tokens. A class Tw does not know is a compile error at the class, in the
+JSON file or the string; nothing is parsed when the program runs.
+
+Or hand-written: `{slot: "button", variant: "danger", when: ["hover"],
+style: {background: Color.parse("var(--destructive)")}}`; `when` holds
+states (`hover`, `focus-visible`, `data-state=checked`, `aria-invalid=true`,
+`dark`, `md`, `rtl`, `starting`, `group/name:hover`, `has:data-slot=x`...).
+
+## The components
+
+shadcn's: Button, Input, Checkbox, Switch, Label, Card, Badge, Textarea,
+RadioGroup, Slider, Tabs, Select, DropdownMenu, ContextMenu, Menubar,
+Dialog, AlertDialog, Sheet, Popover, HoverCard, Tooltip, Table, Progress, Accordion,
+Toggle, ToggleGroup, Separator, Alert, Skeleton, Breadcrumb, Pagination,
+Calendar (react-day-picker's parts as `calendar-<part>`), Command (cmdk's parts),
+Resizable, Avatar, Kbd, Spinner, Drawer (vaul's), InputOTP, and sonner's toast (in
+extras.json: sonner's own stylesheet's values written as classes, `toaster`,
+`toast`, `toast-title`, `toast-description`, `toast-icon`, `toast-action`,
+`toast-close`).
+Where shadcn styles an element without a slot, it is named after its
+parent: `checkbox-icon`, `radio-group-icon`, `select-trigger-icon`,
+`select-viewport`, `accordion-trigger-icon`, `dialog-close-icon`,
+`sheet-close-icon`, `tooltip-arrow`, `pagination-previous`,
+`pagination-next`, `drawer-handle`, `input-otp-caret`; in extras.json, the
+menus' `-item-indicator-icon` and `-sub-trigger-icon` (lucide's `size-4`,
+`ml-auto size-4`) and `input-otp-separator-icon`. AccordionContent's inner box is folded into
+`accordion-content`.
+
+`src/hxmc/theme/extras.json` is ours, not shadcn's (shadcn.json stays a
+transcription of shadcn's registry and includes it): class lists written
+in shadcn's style from its own patterns and tokens, for what hxmc has and
+shadcn has not, or has otherwise:
+
+- hxmc's widgets shadcn lacks: Tree (`tree`, `tree-item`, `tree-toggle`:
+  a bordered list as `select-content`, its rows as `command-item`),
+  Listbox (`listbox`, `listbox-option`: the same, `aria-selected` the
+  accent), Sortable (`sortable`, `sortable-item` as a small card,
+  `sortable-handle`, `sortable-indicator` a primary line), NumberField
+  (`number-field`, `number-field-steppers`, `number-field-increment` and
+  `-decrement` as small outline buttons), TagInput (`tag-input` as
+  `input`, chips as secondary badges, `tag-input-field`,
+  `tag-input-remove`), ColorPicker (`color-picker-*`: bordered and ringed
+  as an input), Toolbar (as `menubar`), Collapsible (shadcn styles none:
+  its trigger as `accordion-trigger`);
+- hxmc's parts that are not shadcn's: the calendar's `calendar-nav` (the
+  caption between its buttons, in flow), `calendar` (its month's column)
+  and `calendar-day` (react-day-picker's day and day button in one, its
+  modifiers as `data-today`, `data-outside`, `data-selected`,
+  `data-focused`); `pagination-link` (shadcn's
+  `isActive` outline variant as `data-active`); `command-group-heading`
+  (the group's `[&_[cmdk-group-heading]]:` classes); the rows of a
+  checkbox, a switch and a radio option with their labels
+  (`checkbox-field`, `switch-field`, `radio-group-option`: shadcn's
+  examples' `flex items-center gap-3`, `gap-2`); `select-value` (the
+  trigger's `*:data-[slot=select-value]:` classes);
+  `dropdown-menu-trigger-icon`, `collapsible-icon`, `table-sort-icon`,
+  `date-picker-value`, `tag-input-entry`; sonner's toast.
 
 ## Tw: Tailwind classes as rules
 
-`Tw.rules(slot, classes, ?variant, ?size)` turns a class list into
-`Array<Rule>`; `Tw.sheet(file)` a JSON file of slots' class lists (a
-string, cn's several, cva's `{base, variant: {...}, size: {...}}`, or
-another slot's, `{extends: "button", variant: "ghost", class: "..."}` as
-`cn(buttonVariants({variant: "ghost"}), "...")`), `--radius`, CSS
-variables a class may name (`size-(--cell-size)`) and the tokens into a
-`StyleSheet` (`include`: other files beside it whose slots are added). Both run at compile time: no class is parsed when the
-program runs. The rules are written as compact data (`RuleData.hx`: a
-string table and a stream of small numbers) read when the sheet is first
-used: shadcn's 449 rules add 23 KB to a native program (the reader, 19
-KB, once), and half a second to a build. `-D hxmc.theme.dump` prints
-them.
+`Tw.rules` and `Tw.sheet` run at compile time. The rules are written as
+compact data (`RuleData.hx`: a string table and a stream of small numbers)
+read when the sheet is first used: shadcn's 769 rules are 23 KB of data
+(13 KB of rules, 10 KB of strings); a native program grows 99 KB over one
+with an empty sheet (the data, its reader, and the colour, transform and
+transition parsers it brings), and a build by under a second.
+`-D hxmc.theme.dump` prints them and their size.
 
 The subset of Tailwind v4 shadcn's components use (`Tailwind.hx`), read
 with Tailwind's default theme and shadcn's on top, 1rem = 16px:
@@ -65,55 +167,60 @@ with Tailwind's default theme and shadcn's on top, 1rem = 16px:
   `justify-self-*`, `place-content-center`, `place-items-center`,
   `grid-cols-*`, `grid-rows-[...]`, `auto-rows-*`, `col-*`, `row-*`;
   `relative`, `absolute`, `fixed` (as absolute), `inset-*`, `top-*`...,
-  `z-*`, `overflow-*`;
-- spacing and sizes: `p-*`, `px-*`, `m-*` (negative too), `gap-*`,
-  `w-*`, `h-*`, `size-*`, `min-*`, `max-*` (the spacing scale, fractions,
-  `full`, `fit`, `auto`, containers, `[1.15rem]`);
+  `z-*`, `overflow-*`, `overflow-x-*`, `overflow-y-*`;
+- spacing and sizes: `p-*`, `px-*`, `m-*` (negative and `auto` too),
+  `gap-*`, `w-*`, `h-*`, `size-*`, `min-*`, `max-*` (the spacing scale,
+  fractions, `full`, `fit`, `auto`, containers, `[1.15rem]`); a side's
+  class is that side's property (`paddingLeft`), as CSS's longhands;
 - borders and corners: `border`, `border-*` (widths, sides, colours),
-  `rounded-*` (shadcn's multiples of `--radius`: sm 0.6, md 0.8, lg 1, xl
-  1.4...), sides and corners;
+  `rounded-*` (`--radius` live, as above), sides and corners;
 - colours: shadcn's tokens as `var(--name)`, with an alpha in percent
-  (`bg-primary/90` is `var(--primary)/90`), resolved by the engine when a
-  rule applies, so that light and dark switch without new rules; `white`,
-  `black`, `transparent`; `fill-*` (an icon's fill, as its colour);
-- `shadow-*` (Tailwind's, and `shadow-[0_4px_12px_rgba(0,0,0,0.1)]`),
-  `ring-*` (a ring is a box shadow outside the border box, drawn here as
-  an outline at no offset, which has its shape), `ring-offset-*`,
-  `outline-*`, `opacity-*`, `cursor-*`, `pointer-events-*`, `translate-*`
-  (`[calc(100%-2px)]` too), `rotate-*`, `scale-*`;
+  (`bg-primary/90` is `var(--primary)/90`), `white`, `black`,
+  `transparent`; `fill-*` (an icon's fill, as its colour);
+- `shadow-*`, `ring-*`, `ring-offset-*`, `ring-inset` (rings as the
+  engine's ring, drawn over the shadow as Tailwind composes them),
+  `outline-*`, `outline-none` and `outline-hidden` (outline-style none:
+  no focus ring of the window's either), `opacity-*`, `cursor-*`,
+  `pointer-events-*`, `select-*`, `translate-*`, `rotate-*`, `scale-*`;
+- motion: `transition`, `transition-*` (colours, opacity, shadow,
+  transform, `[color,box-shadow]`...), `duration-*`, `ease-*`, `delay-*`;
+  tw-animate-css's enter animations (`animate-in` with `fade-in-*`,
+  `zoom-in-*`, `slide-in-from-*`, `spin-in-*`) as the `starting` state
+  (CSS's `@starting-style`) the node's transition eases from, a side's
+  slide and the open state's zoom composed into one transform;
 - text: `text-xs`...`text-4xl` (with their line heights), `text-[0.8rem]`,
-  `font-*`, `leading-*` (beating `text-*`'s line height, as in CSS),
-  `tracking-*` (em of the font size), `underline`, `uppercase`,
-  `truncate`, `whitespace-nowrap`, `tabular-nums`, `text-center`...
+  `font-*`, `underline-offset-*`, `leading-*` (beating `text-*`'s line height, as in CSS: px as
+  `lineHeightPx`), `tracking-*` (`letterSpacingEm`), `underline`,
+  `uppercase`, `truncate`, `whitespace-nowrap`, `tabular-nums`,
+  `text-center`...
 
 Variants become the rule's `when` states, in Tailwind's order (the rule
 of a later variant later, so that "later rules win" is CSS's cascade):
 `hover`, `focus`, `focus-visible`, `active`, `disabled`, `placeholder`,
-`dark`, `data-[state=checked]` (`data-state=checked`), `data-[disabled]`,
-`data-placeholder`, `aria-invalid` (`aria-invalid=true`), `aria-selected`;
-`data-[size=…]` and `data-[variant=…]` (also a group's) select the rule's
-size and variant instead. Beyond the contract, for the engine to take up:
-`group:<state>` (`group-data-[disabled=true]`: an ancestor's),
-`peer:<state>` (`peer-disabled`: a previous sibling's), `has:<state>`
-(`has-data-[slot=card-action]`: a descendant's), `md` and the other
-breakpoints (the window's width, as the viewport's), `selection`.
+`selection`, `first`, `last`, `sm`...`2xl` (the window's width), `rtl`,
+`ltr`, `starting`, `dark`, `data-[state=checked]`
+(`data-state=checked`), `data-[disabled]`, `aria-invalid`
+(`aria-invalid=true`), `aria-[orientation=vertical]`, `group-*`
+(`group-data-[disabled=true]` is `group:data-disabled=true`, named groups
+`group/name:`), `peer-*`, `has-*` (`has-data-[slot=card-action]` is
+`has:data-slot=card-action`), `not-*`; `data-[size=…]` and
+`data-[variant=…]` (also a group's) select the rule's size and variant.
+A group or a peer is a node with a `group` or `peer` attribute: the theme
+cannot mark one, the widget does.
 
-A rule that sets part of a shorthand (`px-4`, `border-b`, `rounded-t-md`,
-`translate-x-1`) takes the other parts from the rules that hold whenever
-it does, as CSS's separate properties would. A class that is neither known
-nor listed in `Tailwind.IGNORED` or `IGNORED_VARIANTS` is a compile error
-at the class, in the JSON file or the string. Ignored: motion
-(`transition-*`, `animate-*`, `duration-*`...), resets of what an
-unstyled widget never draws (`outline-none`), `select-none`, the markers
-`group` and `peer`, container queries, what Radix's popper measures
-(`max-h-(--radix-…)`, `origin-(--radix-…)`), what has no property yet
-(`underline-offset-*`, auto margins such as `ml-auto`, sizes by
-`calc()`, `scroll-m*`), a table's own layout (`align-middle`,
-`caption-bottom`), `text-balance`, `sr-only`; arbitrary selectors
-(`[&_svg]:size-4`, `[a&]:hover:`, `[.border-b]:pb-6`, `has-[>svg]:px-3`),
-children's and descendants' (`*:`, `**:`), pseudo-elements (`after:`)
-and `file:`. Rings and outlines share hxmc's one outline: in a rule with
-both (tabs' trigger), the ring wins.
+A rule that sets part of a shorthand (`border-b`, `rounded-t-md`,
+`translate-x-1`, `duration-200` of a transition) takes the other parts
+from the rules that hold whenever it does, as CSS's separate properties
+would. A class that is neither known nor listed in `Tailwind.IGNORED` or
+`IGNORED_VARIANTS` is a compile error. Ignored, each with its reason
+there: exit animations (ui removes a closed popup), keyframe animations
+(`animate-pulse`, `animate-spin`, `animate-accordion-*`), the markers
+`group` and `peer`, container queries, what Radix's popper measures,
+what has no property yet (`scroll-m*`, `touch-none`), a table's own layout, `text-balance`,
+`sr-only`; arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`,
+`has-[>svg]:px-3`), children's and descendants' (`*:`, `**:`, given to
+the part's own slot where hxmc has one), pseudo-elements (`after:`) and
+`file:`.
 
 ## Checks
 
@@ -121,8 +228,9 @@ both (tabs' trigger), the ring wins.
 rules, Tw's rules made at compile time, shadcn's sheet made, the
 classes Tw rejects. `make theme-fidelity-check`: each themed widget drawn
 headless against shadcn's own markup and CSS drawn by Chromium
-(`test/ref/*.png`, 166 cases of every component but Calendar and the
-toast: variants, sizes, hover, focus, disabled, invalid, checked, open,
-light and dark; `test/ref.mjs` writes them with Tailwind 4.3.3), for the
-widgets `hxmc.ui` has converted so far; the cases known to differ, for
-what `hxmc.ui` lacks yet, reported, not failed (`FidelityTest.KNOWN`).
+(`test/ref/*.png`, 203 cases of every shadcn component: variants, sizes,
+hover, focus, disabled, invalid, checked, open, light, dark and right to
+left; `test/ref.mjs` writes them with Tailwind 4.3.3 and sonner 2.0.8),
+popups compared in their box; the cases known to differ, for what
+`hxmc.ui` lacks yet, reported, not failed (`FidelityTest.KNOWN`, each with
+its reason).

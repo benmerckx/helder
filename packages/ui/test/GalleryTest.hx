@@ -65,11 +65,12 @@ class GalleryTest {
 		if (!unstyled) {
 			// right to left: the buttons from the right; then back
 			click("rtl");
-			var plain = find("plain");
-			check("right to left: mirrored", app.rtl.value && plain.absX + plain.width == W - 20 && find("primary").absX < plain.absX,
+			// (the buttons at the ends of their toolbar's content box)
+			var plain = find("plain"), bar = plain.parent, inset = bar.style.borderEdges.left + bar.style.padding.left;
+			check("right to left: mirrored", app.rtl.value && plain.absX + plain.width == bar.absX + bar.width - inset && find("primary").absX < plain.absX,
 				'${plain.absX} ${plain.width}');
 			click("rtl");
-			check("left to right again", find("plain").absX == 20, '${find("plain").absX}');
+			check("left to right again", find("plain").absX == bar.absX + inset, '${find("plain").absX}');
 			click("plain");
 			click("primary");
 			check("buttons", app.clicks.value == 11 && shown("clicks") == "clicked 11", shown("clicks"));
@@ -259,11 +260,22 @@ class GalleryTest {
 		// (the frame with the select's list open over the toggles)
 		click("fruit");
 		Sys.println('GalleryTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		// the frame (the widgets' transitions finished)
-		Clock.finish();
+		// the frame (the widgets' transitions finished: a frame drawn first, after
+		// which the next update starts those of the nodes drawn for the first
+		// time, the list's fade in)
 		var r = new Renderer(device);
 		var pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
 		var pixels = Bytes.alloc(W * H * 4);
+		ui.update();
+		var first = device.beginFrame();
+		first.beginPass(pass);
+		r.begin(W, H);
+		ui.paint(r);
+		r.end(first);
+		first.endPass();
+		device.endFrame();
+		ui.update();
+		Clock.finish();
 		ui.update();
 		var enc = device.beginFrame();
 		enc.beginPass(pass);
