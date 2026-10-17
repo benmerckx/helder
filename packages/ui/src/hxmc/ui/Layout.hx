@@ -341,8 +341,13 @@ class Layout {
 		var crossSize = innerCross;
 		if (!known(crossSize)) {
 			crossSize = 0;
-			for (k in firstLine...lastLine)
+			var widest = 0.0;
+			for (k in firstLine...lastLine) {
 				crossSize += lines[k].cross + (k > firstLine ? gapCross : 0);
+				if (lines[k].cross > widest) widest = lines[k].cross;
+			}
+			// (a wrapping column's width, fit-content: its lines', within the room but no narrower than its widest)
+			if (!row && multi && known(availCross)) crossSize = Math.min(crossSize, Math.max(widest, availCross));
 			crossSize = clamp(crossSize, Math.max(0, minCross), maxCross);
 			if (!multi) lines[firstLine].cross = crossSize;
 		}

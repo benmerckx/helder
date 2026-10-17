@@ -220,5 +220,6 @@ export const cases = [
 	// as on one line unless its height is its own; its automatic minimum its lines broken at its own height
 	{ name: 'basis floored at padding', width: 300, height: 200, tree: { children: [grow(2), grow(1, { basis: 8, padding: 10 })] } },
 	{ name: 'flexed wrapping column, one line wide', width: 300, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { height: 30 }, children: [{ style: { wrap: true, grow: 1, basis: 85, minHeight: 0 }, children: [box(12, 20), box(106, 15)] }] }] } },
+	{ name: 'wrapping column fit-content within the room', width: 300, height: 200, tree: { style: { alignItems: 'Start' }, children: [{ style: { width: 67, alignItems: 'Start' }, children: [{ style: { wrap: true, height: 20 }, children: [box(50, 20), box(40, 20)] }] }] } },
 	{ name: 'wrapping column minimum at its own height', width: 300, height: 200, tree: { style: { justify: 'End' }, children: [{ style: { wrap: true, basis: 40, height: 107, borderWidth: 2 }, children: [box(10, 50), box(10, 40), box(10, 73)] }] } },
 ];

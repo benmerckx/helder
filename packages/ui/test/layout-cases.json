@@ -5824,6 +5824,46 @@
 		}
 	},
 	{
+		"name": "wrapping column fit-content within the room",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"width": 67,
+						"alignItems": "Start"
+					},
+					"children": [
+						{
+							"style": {
+								"wrap": true,
+								"height": 20
+							},
+							"children": [
+								{
+									"style": {
+										"width": 50,
+										"height": 20
+									}
+								},
+								{
+									"style": {
+										"width": 40,
+										"height": 20
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "wrapping column minimum at its own height",
 		"width": 300,
 		"height": 200,
