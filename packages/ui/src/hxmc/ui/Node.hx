@@ -184,7 +184,6 @@ class Node {
 
 	// --- changes ---
 
-	// the layout of this node (and so of its ancestors) must be redone
 	// (what the accessibility tree reads: a change builds it again)
 	function set_scrollX(v:Float):Float {
 		if (v != scrollX) Ui.accessEpoch++;
@@ -206,6 +205,7 @@ class Node {
 		return semantics = v;
 	}
 
+	// the layout of this node (and so of its ancestors) must be redone
 	public function markDirty() {
 		Ui.accessEpoch++;
 		fontCache = null;

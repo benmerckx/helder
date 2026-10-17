@@ -88,15 +88,18 @@ class Ui {
 
 	// lays the tree out if it changed (a tree that did not: nothing done)
 	public function update() {
-		if (Layout.run(root, width, height, text)) clampScroll(root);
+		Layout.run(root, width, height, text, rounded);
 		if (root.inkStale) refreshInk(root);
 		if (overlay.children.length > 0) {
-			var laid = Layout.run(overlay, width, height, text);
+			Layout.run(overlay, width, height, text, rounded);
 			// (placed from their sizes: laid out again when one moved)
-			if (placePopups()) laid = Layout.run(overlay, width, height, text) || laid;
-			if (laid) clampScroll(overlay);
+			if (placePopups()) Layout.run(overlay, width, height, text, rounded);
 			if (overlay.inkStale) refreshInk(overlay);
 		}
+		// (the scrollers whose extents may have changed)
+		for (n in rounded)
+			clampScroll(n);
+		rounded.resize(0);
 	}
 
 	// the ink bounds that a transform's change left stale, measured again
@@ -555,6 +558,8 @@ class Ui {
 	public var scrollDuration = 0.15;
 	// (the scrolls easing: from x, y to x, y, since)
 	final scrolls = new Map<Node, Array<Float>>();
+	// the scrollers rounded by the last layouts, clamped after them
+	final rounded:Array<Node> = [];
 
 	// keys that scroll, when the focus took none of them (as a browser's):
 	// the arrows by 40 pixels, Page Up and Down and Space (Shift: up) by
@@ -906,17 +911,14 @@ class Ui {
 		return Math.max(0, (x ? n.contentWidth : n.contentHeight) - view);
 	}
 
+	// a scroller's offsets back within its extent
 	function clampScroll(n:Node) {
-		if (n.style.overflow == Scroll) {
-			var x = Math.max(0, Math.min(n.scrollX, maxScroll(n, true))), y = Math.max(0, Math.min(n.scrollY, maxScroll(n, false)));
-			if (x != n.scrollX || y != n.scrollY) {
-				n.scrollX = x;
-				n.scrollY = y;
-				if (n.onScroll != null) n.onScroll();
-			}
+		var x = Math.max(0, Math.min(n.scrollX, maxScroll(n, true))), y = Math.max(0, Math.min(n.scrollY, maxScroll(n, false)));
+		if (x != n.scrollX || y != n.scrollY) {
+			n.scrollX = x;
+			n.scrollY = y;
+			if (n.onScroll != null) n.onScroll();
 		}
-		for (c in n.children)
-			clampScroll(c);
 	}
 
 	// the pointer's shape: the style of the node under it (or that has it
