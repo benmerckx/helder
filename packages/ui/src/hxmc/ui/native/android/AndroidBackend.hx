@@ -293,8 +293,11 @@ class AndroidBackend implements NativeBackend implements NativeDriver {
 		}
 	}
 
-	// MeasureSpec: UNSPECIFIED 0, EXACTLY 1 << 30, AT_MOST 2 << 30
+	// MeasureSpec: UNSPECIFIED 0, EXACTLY 1 << 30, AT_MOST 2 << 30 (forced:
+	// a view at a fixed size does not ask for a layout when its text changes,
+	// and would answer from its measure cache)
 	function measured(v:Ptr, widthSpec:Int):Size {
+		Jni.call(v, J.forceLayout);
 		Jni.call(v, J.measure, widthSpec, 0);
 		return new Size(Math.ceil(Jni.int(v, J.getMeasuredWidth) / density), Math.ceil(Jni.int(v, J.getMeasuredHeight) / density));
 	}
@@ -397,6 +400,7 @@ private class J {
 	public static var getPaddingRight:Ptr;
 	public static var getPaddingBottom:Ptr;
 	public static var measure:Ptr;
+	public static var forceLayout:Ptr;
 	public static var getMeasuredWidth:Ptr;
 	public static var getMeasuredHeight:Ptr;
 	public static var setEnabled:Ptr;
@@ -468,6 +472,7 @@ private class J {
 		getPaddingRight = m(view, "getPaddingRight", "()I");
 		getPaddingBottom = m(view, "getPaddingBottom", "()I");
 		measure = m(view, "measure", "(II)V");
+		forceLayout = m(view, "forceLayout", "()V");
 		getMeasuredWidth = m(view, "getMeasuredWidth", "()I");
 		getMeasuredHeight = m(view, "getMeasuredHeight", "()I");
 		setEnabled = m(view, "setEnabled", "(Z)V");

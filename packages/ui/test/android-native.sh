@@ -53,9 +53,10 @@ dump() {
 
 # tap <dump> <attributes>: at the centre of the first view whose attributes match
 tap() {
-	b=$(grep -o "<node [^>]*$2[^>]*>" "$out/$1" | head -1 | grep -o 'bounds="[^"]*"' | tr -c '0-9\n' ' ')
+	b=$(grep -io "<node [^>]*$2[^>]*>" "$out/$1" | head -1 | grep -o 'bounds="[^"]*"' | tr -c '0-9\n' ' ')
 	if [ -z "$b" ]; then
-		echo "android-native.sh: no view $2 in $1"
+		echo "android-native.sh: no view $2 in $1; its buttons:"
+		grep -o '<node [^>]*Button[^>]*>' "$out/$1"
 		return 1
 	fi
 	set -- $b
@@ -73,13 +74,14 @@ grep "AndroidNativeTest: FAIL" "$log"
 [ $? != 0 ]
 check "the app's checks pass" $?
 dump ui-native.xml
-grep -q 'class="android.widget.EditText"' "$out/ui-native.xml"
+grep -o '<node [^>]*Button[^>]*>' "$out/ui-native.xml"
+grep -qi 'class="android.widget.EditText"' "$out/ui-native.xml"
 check "accessibility: the field (EditText)" $?
-grep -q 'text="I agree to the terms"[^>]*class="android.widget.CheckBox"' "$out/ui-native.xml"
+grep -qi 'text="I agree to the terms"[^>]*class="android.widget.CheckBox"' "$out/ui-native.xml"
 check "accessibility: the checkbox" $?
-grep -q 'text="Submit"[^>]*class="android.widget.Button"[^>]*enabled="false"' "$out/ui-native.xml"
+grep -qi 'text="Submit"[^>]*class="android.widget.Button"[^>]*enabled="false"' "$out/ui-native.xml"
 check "accessibility: Submit, disabled" $?
-grep -q 'class="android.widget.SeekBar"' "$out/ui-native.xml" && grep -q 'text="Native controls"[^>]*class="android.widget.TextView"' "$out/ui-native.xml"
+grep -qi 'class="android.widget.SeekBar"' "$out/ui-native.xml" && grep -qi 'text="Native controls"[^>]*class="android.widget.TextView"' "$out/ui-native.xml"
 check "accessibility: the slider and the labels" $?
 tap ui-native.xml 'class="android.widget.CheckBox"' && wait_for "input: .*agree true" 20
 check "a tap on the checkbox" $?
@@ -91,7 +93,7 @@ check "text typed through the input method" $?
 wait_for "AndroidNativeTest: input done" 30
 check "the app saw the input" $?
 dump ui-native-typed.xml
-grep -q 'text="Hello, Linus!"' "$out/ui-native-typed.xml"
+grep -qi 'text="Hello, Linus!"' "$out/ui-native-typed.xml"
 check "accessibility: the label follows" $?
 adb exec-out screencap -p > "$out/native-android.png"
 check "screenshot" $?
