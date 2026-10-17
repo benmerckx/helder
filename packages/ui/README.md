@@ -47,7 +47,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     first baselines, a text's first line's, a box without one on its bottom
     edge; a column's on their start edges), `alignContent`, `grow`,
     `shrink`, `basis`, `width`, `height`, min and max (widths also
-    `min-content`, `max-content`, `fit-content`: CSS's intrinsic sizes),
+    `min-content`, `max-content`, `fit-content`: CSS's intrinsic sizes;
+    `"calc(100% - 2px)"`, `Calc(100, -2)`: a percentage plus pixels),
     `aspectRatio`,
     `padding`, `margin` (`auto`, `Edges.AUTO`: CSS's auto margins, along and
     across flex lines, in grid areas, on absolute boxes), `borderWidth`,
@@ -82,7 +83,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     `alignContent` (no other named lines, no subgrid). Checked against
     Chromium on 143 cases, 39 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
-    `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
+    `fontWeight`, `italic`, `lineHeight` (a multiple of the font size;
+    `lineHeightPx`: pixels, inherited as pixels), `letterSpacing`
+    (`letterSpacingEm`: a multiple of the node's font size, inherited as
+    the pixels it comes to), `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the
     spaces as Chromium shares it; spacing added as Chromium adds it),
     `textWrap` (`NoWrap`, CSS's text-wrap-mode: each line kept whole, past
@@ -129,7 +133,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     `pt-2` and `px-4` combine), `userSelect` (inherited: `None`, `Text`, `All`:
     whether a drag selects its text, as CSS's user-select), `overflowX` and
     `overflowY` (both clip when either does, as CSS's; an axis scrolls by the
-    wheel, keys and scrollbar only where it is `Scroll`), corner radii scaled down together where a side's
+    wheel, keys and scrollbar only where it is `Scroll`), `fieldSizing`
+    (`Content`: a text area as tall as its lines, as CSS's field-sizing), corner radii scaled down together where a side's
     two add up to more than it (as CSS: `9999` a pill), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
@@ -299,8 +304,16 @@ references name, `light` and `dark`. A node takes the rules of its
 `variant` and `size` whose states all hold: `hover`, `active`,
 `focus`, `focus-visible`, `disabled`, `dark`, `rtl` and `ltr` (its direction), `starting` (until it is first drawn, as CSS's `@starting-style`: its transition then eases from there), `sm`, `md`, `lg`, `xl`, `2xl` (the window at least Tailwind's breakpoint wide), `placeholder` (an
 input's placeholder colour), `selection` (its selection's background), attributes (`data-state=checked`, a bare
-`data-disabled`; `node.setAttr`, markup `data-state="checked"`). Later
+`data-disabled`; `node.setAttr`, markup `data-state="checked"`;
+`data-slot=x` is the slot), and other nodes' states, as Tailwind's
+variants: `group:hover` (an ancestor with a `group` attribute hovered;
+`group/item:` one whose attribute names `item`), `peer:data-state=checked`
+(an earlier sibling with a `peer` attribute), `has:focus` (a descendant;
+`has:>x` a child), `first`, `last`, `not:x`, nested as
+`group:has:focus`. Later
 rules win, property by property; the node's own style wins over them.
+Lengths may be token references too: `Length.token("radius", -4)` is
+`calc(var(--radius) - 4px)`, resolved with the sheet's `lengths` (radii).
 Colours may be token references, `Color.parse("var(--primary)")`,
 `"var(--ring)/50"`, resolved with the sheet's colours when applied;
 `oklch()` and `oklab()` parse as CSS converts them (Chromium's pixels).

@@ -47,6 +47,7 @@ class UiTest {
 		css(here);
 		decorations();
 		transforms();
+		calcs();
 		sticky();
 		stacking();
 		visibility();
@@ -298,6 +299,28 @@ class UiTest {
 	// positions
 	// zIndex and order: painted and hit by them (zIndex, then positioned over
 	// in-flow, then order); Tab still in the tree's order
+	// calc(): a percentage plus pixels, against the containing box as a percentage is
+	static function calcs() {
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.alignItems = Start;
+		var a = new Node(), b = new Node();
+		a.style.width = "calc(100% - 20px)";
+		a.style.height = "calc(50% + 2px)";
+		b.style.width = 400;
+		b.style.maxWidth = "calc(100% - 32px)";
+		b.style.height = 10;
+		ui.root.append(a);
+		ui.root.append(b);
+		ui.update();
+		check("calc: a percentage minus or plus pixels; in a maximum", a.width == 180 && a.height == 52 && b.width == 168, a.width + " " + a.height + " " + b.width);
+		check("calc: only pixels is pixels", Dim.parse("calc(10px + 4px)").equals(DimValue.Px(14)) && Dim.parse("calc(-50% - 1px)").equals(DimValue.Calc(-50, -1)));
+		var bad = try {
+			Dim.parse("calc(10em)");
+			false;
+		} catch (e:Dynamic) true;
+		check("calc: another unit an error", bad);
+	}
+
 	static function stacking() {
 		var ui = new Ui(new MonoText(), 200, 100);
 		function box(tag:String, color:Int, x:Float):Node {
@@ -1100,6 +1123,21 @@ class UiTest {
 		ui.root.append(a);
 		ui.update();
 		check("area: rows high", a.height == 25 && a.width == 100, '${a.width}x${a.height}');
+		// (sized by its text: a line empty, then three, over a minimum height)
+		var grown = new TextArea("");
+		grown.style.width = 100;
+		grown.style.fieldSizing = Content;
+		ui.root.append(grown);
+		ui.update();
+		var empty = grown.height;
+		grown.setText("a\nb\nc");
+		ui.update();
+		var three = grown.height;
+		grown.style.minHeight = 64;
+		ui.update();
+		check("area: field-sizing content, as tall as its lines; a minimum over it", empty == 13 && three == 38 && grown.height == 64,
+			empty + " " + three + " " + grown.height);
+		ui.root.remove(grown);
 		ui.setFocus(a);
 		function typeIn(t:String)
 			for (c in new haxe.iterators.StringIteratorUnicode(t)) {

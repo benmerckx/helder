@@ -49,21 +49,14 @@ class EmojiTest {
 		sys.io.File.saveBytes(args[1], Png.encode(pixels, W, H));
 		var golden = family == "Noto Color Emoji";
 		var want = golden ? PngDecoder.decode(sys.io.File.getBytes(args[0])) : {width: W, height: H, rgba: pixels};
-		var off = 0, most = 0, colored = 0;
+		var diff = ImageDiff.of(pixels, want.rgba, W, H, TOLERANCE), colored = 0;
 		for (i in 0...W * H) {
-			var d = 0;
-			for (c in 0...3) {
-				var v = Std.int(Math.abs(pixels.get(4 * i + c) - want.rgba.get(4 * i + c)));
-				if (v > d) d = v;
-			}
-			if (d > TOLERANCE) off++;
-			if (d > most) most = d;
 			// (a colour: channels apart)
 			var r0 = pixels.get(4 * i), g0 = pixels.get(4 * i + 1), b0 = pixels.get(4 * i + 2);
 			if (Math.max(r0, Math.max(g0, b0)) - Math.min(r0, Math.min(g0, b0)) > 80) colored++;
 		}
-		var ok = off <= MAX_OFF * W * H && colored > 300;
-		Sys.println('EmojiTest: $family: ${ok ? "ok" : "FAILED"} (' + (golden ? '$off pixels off by more than $TOLERANCE, at most $most; ' : "") + '$colored coloured)');
+		var ok = diff.within(MAX_OFF) && colored > 300;
+		Sys.println('EmojiTest: $family: ${ok ? "ok" : "FAILED"} (' + (golden ? '$diff; ' : "") + '$colored coloured)');
 		Sys.exit(ok ? 0 : 1);
 	}
 }
