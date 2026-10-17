@@ -260,7 +260,10 @@ container, `nativeContainer` in run's options, with
 same `examples/NativeForm.hx` runs on both. Plain nodes only lay out (no
 backgrounds), and nothing scrolls yet. Win32 (the standard controls,
 comctl32 5's classic look until a visual styles manifest) and AppKit run
-`NativeTest` in CI.
+`NativeTest` in CI. On Android the controls are `android.widget`'s views
+(through JNI; `NativeHost.run` hands the steps to Java's main thread),
+checked on an emulator by `AndroidNativeTest` with taps, text typed
+through the input method and the accessibility tree.
 
 ## Accessibility
 
