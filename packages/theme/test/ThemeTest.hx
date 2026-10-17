@@ -44,6 +44,7 @@ class ThemeTest {
 		variants();
 		shorthands();
 		more();
+		motion();
 		ignored();
 		macro_();
 		sheet();
@@ -56,7 +57,7 @@ class ThemeTest {
 	static function layout() {
 		same("p-2", "x padding=8");
 		same("px-4 py-2", "x padding=8 16 8 16");
-		same("pl-8 -mx-1 my-1", "x padding=0 0 0 32 margin=4 -4 4 -4");
+		same("pl-8 -mx-1 my-1", "x paddingLeft=32 margin=4 -4 4 -4");
 		same("size-4", "x width=16 height=16");
 		same("h-9 w-full min-w-0 max-w-lg", "x height=36 width=100% minWidth=0 maxWidth=512");
 		same("h-[1.15rem] w-1/2 h-px min-w-[8rem] w-fit h-auto", "x height=Auto width=FitContent minWidth=128");
@@ -70,9 +71,10 @@ class ThemeTest {
 		same("absolute inset-0 top-1/2 z-50", "x position=Absolute left=0 right=0 top=50% bottom=0 zIndex=50");
 		same("overflow-hidden pointer-events-none opacity-50 cursor-not-allowed",
 			"x overflow=Hidden pointerEvents=None opacity=0.5 cursor=NotAllowed");
-		same("rounded-md", "x radius=8");
+		same("rounded-md", "x radius=var(--radius)-2");
+		same("rounded-lg rounded-xl", "x radius=var(--radius)+4");
 		same("rounded-sm rounded-xl rounded-[4px] rounded-full", "x radius=1000000");
-		same("rounded-t-md rounded-b-[2px]", "x corners=8 8 2 2");
+		same("rounded-t-md rounded-b-[2px]", "x corners=var(--radius)-2 var(--radius)-2 2 2");
 		same("border", "x borderWidth=1");
 		same("border border-b-0", "x borders=1 1 0 1");
 		same("border-x-2", "x borders=0 2 0 2");
@@ -83,10 +85,10 @@ class ThemeTest {
 
 	static function colours() {
 		same("bg-primary text-primary-foreground", "x background=var(--primary) color=var(--primary-foreground)");
-		same("bg-primary/90 border-input ring-ring/50", "x background=var(--primary)/90 borderColor=var(--input) outlineColor=var(--ring)/50");
+		same("bg-primary/90 border-input ring-ring/50", "x background=var(--primary)/90 borderColor=var(--input) ringColor=var(--ring)/50");
 		same("text-white bg-black/50 bg-transparent border-transparent", "x color=rgb(255, 255, 255) background=transparent borderColor=transparent");
-		same("ring-[3px]", "x outlineWidth=3 outlineOffset=0");
-		same("ring-2 ring-offset-2 ring-offset-background", "x outlineWidth=2 outlineOffset=2", null);
+		same("ring-[3px]", "x ringWidth=3");
+		same("ring-2 ring-offset-2 ring-offset-background ring-inset", "x ringWidth=2 ringOffsetWidth=2 ringOffsetColor=var(--background) ringInset=true");
 		same("shadow-xs", "x shadow=0 1 2 0 rgba(0, 0, 0, 0.05)");
 		same("shadow-sm", "x shadow=0 1 3 0 rgba(0, 0, 0, 0.1), 0 1 2 -1 rgba(0, 0, 0, 0.1)");
 		same("shadow-none", "x shadow=none");
@@ -97,9 +99,10 @@ class ThemeTest {
 		// (leading-* beats text-*'s line height, whichever comes first)
 		same("leading-none text-sm", "x lineHeight=1 fontSize=14");
 		same("text-sm leading-none", "x fontSize=14 lineHeight=1");
-		same("text-sm/6", "x fontSize=14 lineHeight=1.7143");
-		same("text-xs tracking-widest", "x fontSize=12 lineHeight=1.3333 letterSpacing=1.2");
+		same("text-sm/6", "x fontSize=14 lineHeightPx=24");
+		same("text-xs tracking-widest", "x fontSize=12 lineHeight=1.3333 letterSpacingEm=0.1");
 		same("text-[0.8rem] whitespace-nowrap truncate", "x fontSize=12.8 textWrap=NoWrap overflow=Hidden textOverflow=Ellipsis");
+		same("underline underline-offset-4", "x textDecoration=1 textUnderlineOffset=4");
 		same("underline uppercase text-center font-mono tabular-nums",
 			"x textDecoration=1 textTransform=Uppercase textAlign=Center fontFamily=monospace fontVariantNumeric=tabular-nums");
 		same("text-destructive!", "x color=var(--destructive)");
@@ -109,8 +112,8 @@ class ThemeTest {
 		same("hover:bg-accent bg-primary", "x background=var(--primary)\nx hover: background=var(--accent)");
 		// (Tailwind's order, not the list's: aria after focus-visible, dark after both)
 		same("dark:aria-invalid:ring-destructive/40 aria-invalid:ring-destructive/20 focus-visible:ring-ring/50",
-			"x focus-visible: outlineColor=var(--ring)/50\nx aria-invalid=true: outlineColor=var(--destructive)/20\n"
-			+ "x dark aria-invalid=true: outlineColor=var(--destructive)/40");
+			"x focus-visible: ringColor=var(--ring)/50\nx aria-invalid=true: ringColor=var(--destructive)/20\n"
+			+ "x dark aria-invalid=true: ringColor=var(--destructive)/40");
 		same("data-[state=checked]:bg-primary data-[disabled]:opacity-50 data-[state=\"open\"]:bg-accent",
 			"x data-state=checked: background=var(--primary)\nx data-disabled: opacity=0.5\nx data-state=open: background=var(--accent)");
 		same("aria-selected:bg-accent data-placeholder:text-muted-foreground",
@@ -123,49 +126,77 @@ class ThemeTest {
 		same("data-[size=sm]:h-3.5 group-data-[size=default]/switch:size-4 data-[variant=destructive]:text-destructive",
 			"x(default) width=16 height=16\nx(sm) height=14\nx[destructive] color=var(--destructive)");
 		same("bg-primary hover:bg-primary/90", "x[default] background=var(--primary)\nx[default] hover: background=var(--primary)/90", "default");
-		same("h-8 px-3", "x(sm) height=32 padding=0 12 0 12", null, "sm");
+		same("h-8 px-3", "x(sm) height=32 paddingRight=12 paddingLeft=12", null, "sm");
 		same("md:text-sm text-base", "x fontSize=16 lineHeight=1.5\nx md: fontSize=14 lineHeight=1.4286");
 	}
 
 	static function shorthands() {
-		// (the sides a rule leaves out are those of the rules holding with it)
-		same("px-4 py-2 hover:px-6", "x padding=8 16 8 16\nx hover: padding=8 24 8 24");
-		same("rounded-md border hover:rounded-t-none hover:border-b-2", "x corners=8 borders=1\nx hover: corners=0 0 8 8 borders=1 1 2 1");
-		same("text-sm hover:leading-6", "x fontSize=14 lineHeight=1.4286\nx hover: lineHeight=1.7143");
+		// (a rule's sides as CSS's longhands; the shorthands it sets in part, from the rules holding with it)
+		same("px-4 py-2 hover:px-6", "x padding=8 16 8 16\nx hover: paddingRight=24 paddingLeft=24");
+		same("rounded-md border hover:rounded-t-none hover:border-b-2", "x corners=var(--radius)-2 borders=1\nx hover: corners=0 0 var(--radius)-2 var(--radius)-2 borders=1 1 2 1");
+		same("text-sm hover:leading-6", "x fontSize=14 lineHeight=1.4286\nx hover: lineHeightPx=24");
 		same("translate-x-1 data-[state=open]:translate-y-1", "x transform=translateX(4px)\nx data-state=open: transform=translateX(4px) translateY(4px)");
 		same("flex flex-col md:flex", "x display=Flex direction=Column\nx md: display=Flex");
 	}
 
 	static function more() {
-		// (a ring is an outline at no offset; with an outline in the same rule, the ring wins)
+		// (rings and outlines apart, as CSS draws them; outline-none: no focus ring of the window's either)
 		same("focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring",
-			"x focus-visible: outlineWidth=3 outlineOffset=0 outlineColor=var(--ring)/50");
-		same("outline-2 outline-offset-2 outline-ring", "x outlineWidth=2 outlineOffset=2 outlineColor=var(--ring)");
+			"x focus-visible: ringWidth=3 ringColor=var(--ring)/50 outlineWidth=1 outlineStyle=Solid outlineColor=var(--ring)");
+		same("outline-2 outline-offset-2 outline-ring", "x outlineWidth=2 outlineStyle=Solid outlineOffset=2 outlineColor=var(--ring)");
+		same("outline-none", "x outlineStyle=None");
+		same("outline-hidden", "x outlineStyle=None");
 		same("fill-primary shadow-[0_4px_12px_rgba(0,0,0,0.1)] leading-[1.4]", "x color=var(--primary) shadow=0 4 12 0 rgba(0,0,0,0.1) lineHeight=1.4");
 		same("*:data-[slot=select-value]:flex **:data-[slot=x]:h-12 after:absolute rtl:**:[.rdp-button]:rotate-180", "");
 		same("max-h-(--radix-select-content-available-height) origin-(--radix-popover-content-transform-origin)", "");
 		// (CSS variables from the sheet: calendar's --cell-size)
 		var tw = new Tailwind(10, (m, _, _) -> throw m, ["--cell-size" => "2rem"]);
 		var got = tw.slot("x", [{classes: "size-(--cell-size) px-(--cell-size)", offset: 0}]).map(Tailwind.describe).join("\n");
-		check("vars", got == "x width=32 height=32 padding=0 32 0 32", got);
+		check("vars", got == "x width=32 height=32 paddingRight=32 paddingLeft=32", got);
 		// (a class list after a size's, as cn's className after cva's: later than it)
 		got = tw.slot("x", [
 			{classes: "h-9 px-4", offset: 0},
 			{classes: "h-8 px-2", offset: 0, size: "sm"},
 			{classes: "px-3", offset: 0}
 		]).map(Tailwind.describe).join("\n");
-		check("className after cva", got == "x height=36 padding=0 16 0 16\nx(sm) height=32 padding=0 8 0 8\nx padding=0 12 0 12", got);
+		check("className after cva", got == "x height=36 paddingRight=16 paddingLeft=16\nx(sm) height=32 paddingRight=8 paddingLeft=8\nx paddingRight=12 paddingLeft=12", got);
+	}
+
+	static function motion() {
+		same("transition-all", "x transition=all 150ms cubic-bezier(0.4,0,0.2,1)");
+		same("transition-[color,box-shadow] duration-200 ease-out",
+			"x transition=color 200ms cubic-bezier(0,0,0.2,1), shadow 200ms cubic-bezier(0,0,0.2,1)");
+		same("transition-none", "x transition=all 0s");
+		same("duration-300", "x transition=all 300ms cubic-bezier(0.4,0,0.2,1)");
+		// (animate-in: opacity and transform eased from the starting state; a side's slide and the zoom composed)
+		same("data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2",
+			"x data-state=open: transition=opacity 150ms ease, transform 150ms ease\n"
+			+ "x data-state=open starting: opacity=0 transform=scale(0.95)\n"
+			+ "x data-side=bottom starting: transform=translateY(-8px)\n"
+			+ "x data-state=open starting data-side=bottom: transform=translateY(-8px) scale(0.95)");
+		same("transition ease-in-out data-[state=open]:animate-in data-[state=open]:duration-500 data-[state=open]:slide-in-from-right",
+			"x transition=color 150ms cubic-bezier(0.4,0,0.2,1), background 150ms cubic-bezier(0.4,0,0.2,1), borderColor 150ms cubic-bezier(0.4,0,0.2,1), "
+			+ "outlineColor 150ms cubic-bezier(0.4,0,0.2,1), textDecorationColor 150ms cubic-bezier(0.4,0,0.2,1), opacity 150ms cubic-bezier(0.4,0,0.2,1), "
+			+ "shadow 150ms cubic-bezier(0.4,0,0.2,1), transform 150ms cubic-bezier(0.4,0,0.2,1)\n"
+			+ "x data-state=open: transition=color 500ms cubic-bezier(0.4,0,0.2,1), background 500ms cubic-bezier(0.4,0,0.2,1), borderColor 500ms cubic-bezier(0.4,0,0.2,1), "
+			+ "outlineColor 500ms cubic-bezier(0.4,0,0.2,1), textDecorationColor 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), "
+			+ "shadow 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1), opacity 500ms cubic-bezier(0.4,0,0.2,1), transform 500ms cubic-bezier(0.4,0,0.2,1)\n"
+			+ "x data-state=open starting: transform=translateX(100%)");
+		same("h-[calc(100%-1px)] max-w-[calc(100%-2rem)] field-sizing-content", "x height=calc(100% - 1px) maxWidth=calc(100% - 32px) fieldSizing=Content");
+		same("select-none ml-auto mx-auto overflow-x-auto overflow-y-hidden", "x userSelect=None marginRight=auto marginLeft=auto overflowX=Scroll overflowY=Hidden");
+		same("group-hover/item:opacity-100 peer-data-[state=checked]/box:hidden not-first:border-l", "x not:first: borders=0 0 0 1\nx group/item:hover: opacity=1\nx peer/box:data-state=checked: display=None");
+		same("selection:bg-primary rtl:pl-2 md:p-1", "x selection: background=var(--primary)\nx md: padding=4\nx rtl: paddingLeft=8");
 	}
 
 	static function ignored() {
-		same("transition-all outline-none select-none peer group/switch @container/card-header text-current", "");
+		same("peer group/switch @container/card-header text-current animate-out fade-out-0 zoom-out-95 animate-pulse", "");
 		same("[&_svg]:size-4 [&_svg:not([class*='size-'])]:size-4 has-[>svg]:px-3 [a&]:hover:bg-accent [.border-b]:pb-6 file:h-7", "");
 		rejected("foo-bar", "unknown class foo-bar");
 		rejected("bg-blue-500", "unknown class bg-blue-500");
 		rejected("hover:p-wat", "unknown class hover:p-wat");
 		rejected("wat:p-2", "unknown variant wat: in wat:p-2");
 		rejected("mx-[auto]", "unknown class mx-[auto]");
-		rejected("w-[calc(100%-2rem)]", "unknown class w-[calc(100%-2rem)]");
+		rejected("w-[calc(100%*2)]", "unknown class w-[calc(100%*2)]");
 	}
 
 	// (Tw's rules at compile time: object literals of StyleProps)
@@ -173,7 +204,7 @@ class ThemeTest {
 		var r = Tw.rules("button", "h-9 px-4 rounded-md hover:opacity-90 data-[size=sm]:h-8", "default");
 		check("Tw.rules: 3 rules", r.length == 3, '${r.length}');
 		check("Tw.rules: base", r[0].slot == "button" && r[0].variant == "default" && r[0].when == null && Type.enumEq(r[0].style.height, Px(36))
-			&& r[0].style.radius == 8 && r[0].style.padding.left == 16 && r[0].style.padding.top == 0);
+			&& hxmc.ui.Length.isToken(r[0].style.radius) && hxmc.ui.Length.resolve(r[0].style.radius, ["radius" => 10]) == 8 && r[0].style.paddingLeft == 16 && r[0].style.paddingTop == null);
 		check("Tw.rules: hover", r[1].when[0] == "hover" && r[1].style.opacity == 0.9);
 		check("Tw.rules: size", r[2].size == "sm" && Type.enumEq(r[2].style.height, Px(32)));
 	}
@@ -182,6 +213,10 @@ class ThemeTest {
 		var s = Shadcn.sheet;
 		check("sheet: rules", s.rules.length > 50, '${s.rules.length}');
 		check("sheet: tokens", s.light["primary"] != null && s.dark["primary"] != null && s.light.get("primary") != s.dark.get("primary"));
+		var t = Shadcn.withTokens(["primary" => "#ff0000"]);
+		check("withTokens radius", Shadcn.withTokens(null, null, 6).lengths["radius"] == 6 && s.lengths["radius"] == 10);
+		check("withTokens", t.rules == s.rules && t.light["primary"] == hxmc.ui.Color.parse("#ff0000") && t.dark["primary"] == s.dark["primary"]
+			&& s.light["primary"] != t.light["primary"]);
 		Sys.println('ThemeTest: Shadcn.sheet: ${s.rules.length} rules');
 	}
 

@@ -134,7 +134,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     whether a drag selects its text, as CSS's user-select), `overflowX` and
     `overflowY` (both clip when either does, as CSS's; an axis scrolls by the
     wheel, keys and scrollbar only where it is `Scroll`), `fieldSizing`
-    (`Content`: a text area as tall as its lines, as CSS's field-sizing), corner radii scaled down together where a side's
+    (`Content`: a text area as tall as its lines, as CSS's field-sizing), `scrollbarWidth` (`Thin`, `None`:
+    CSS's scrollbar-width), `scrollbarColor` and `scrollbarTrackColor` (inherited,
+    CSS's scrollbar-color), corner radii scaled down together where a side's
     two add up to more than it (as CSS: `9999` a pill), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
@@ -248,9 +250,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   saturation and brightness square, a hue strip and the hex: sliders for
   the keyboard), and the popups `Select`, `DropdownMenu`,
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
-  through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `Sheet` (a dialog along an edge), `Combobox` (a text
+  through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `AlertDialog` (cancel or confirm; a click outside does nothing), `Sheet` (a dialog along an edge), `Drawer` (vaul's: a sheet with a handle, dragged towards its edge to close), `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
-  field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
+  field), `InputOTP` (a one-time code's slots over a transparent field), `Command` (cmdk's: a search field over groups of items, the
+  matches shown, one selected by Up and Down, run by Enter), `Toaster` (`Toasts.show`: messages in a corner for a while, with
   an action); `examples/Gallery.hx` shows them all, unstyled. A
   `UiWindow`'s `Ui.dark` follows the system's appearance
   (`hxmc.os.App.prefersDark`: the browser's colour scheme, macOS's,

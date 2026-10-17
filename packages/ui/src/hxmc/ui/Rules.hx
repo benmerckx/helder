@@ -171,7 +171,8 @@ class Rules {
 	static final CURRENT = Color.token("currentcolor");
 
 	static function usesCurrent(st:Style):Bool {
-		var colors:Array<Null<Color>> = [st.background, st.borderColor, st.color, st.outlineColor, st.ringColor, st.ringOffsetColor, st.textDecorationColor];
+		var colors:Array<Null<Color>> = [st.background, st.borderColor, st.color, st.outlineColor, st.ringColor, st.ringOffsetColor, st.textDecorationColor,
+			st.scrollbarColor, st.scrollbarTrackColor];
 		for (c in colors)
 			if (c != null && c.isToken) return true;
 		return shadowUsesCurrent(st.shadow) || shadowUsesCurrent(st.textShadow);
@@ -187,7 +188,8 @@ class Rules {
 	}
 
 	// (the properties that are a colour, by Style's names)
-	static final COLORS = ["background", "borderColor", "color", "outlineColor", "ringColor", "ringOffsetColor", "textDecorationColor"];
+	static final COLORS = ["background", "borderColor", "color", "outlineColor", "ringColor", "ringOffsetColor", "textDecorationColor", "scrollbarColor",
+		"scrollbarTrackColor"];
 
 	// (a value with currentColor, a token's alpha kept, as a node's colour)
 	static function withCurrent(name:String, v:Dynamic, current:Color):Dynamic {
@@ -359,6 +361,8 @@ class Rules {
 		if (s.ringColor != null) s.ringColor = resolve(s.ringColor, tokens, current, dark);
 		s.ringOffsetColor = resolve(s.ringOffsetColor, tokens, current, dark);
 		if (s.textDecorationColor != null) s.textDecorationColor = resolve(s.textDecorationColor, tokens, current, dark);
+		if (s.scrollbarColor != null) s.scrollbarColor = resolve(s.scrollbarColor, tokens, current, dark);
+		if (s.scrollbarTrackColor != null) s.scrollbarTrackColor = resolve(s.scrollbarTrackColor, tokens, current, dark);
 		if (s.shadow != null) s.shadow = resolveShadow(s.shadow, tokens, current, dark);
 		if (s.textShadow != null) s.textShadow = resolveShadow(s.textShadow, tokens, current, dark);
 	}

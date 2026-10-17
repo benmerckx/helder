@@ -25,6 +25,8 @@ enum TwValue {
 	VTransform(css:String);
 	VTracks(list:Array<{min:TrackSize, max:TrackSize}>);
 	VPlacement(start:Int, end:Int, span:Int);
+	// CSS's transition shorthand, as Transition.parse reads it
+	VTransition(css:String);
 }
 
 typedef TwShadow = {x:Float, y:Float, blur:Float, spread:Float, color:String};
@@ -71,28 +73,24 @@ class Tailwind {
 
 	// utilities dropped, and why: (a trailing * is a prefix, *x* a part)
 	public static final IGNORED = [
-		// motion is not themed
-		"transition", "transition-*", "duration-*", "ease-*", "delay-*", "animate-*", "fade-*", "zoom-*", "slide-*",
-		// resets of what an unstyled widget never draws
-		"outline-none", "outline-hidden",
-		// no text selection to forbid
-		"select-none",
+		// exit animations: ui removes a popup as it closes, nothing is left to animate
+		"animate-out", "fade-out*", "zoom-out*", "slide-out-to-*", "spin-out*",
+		// keyframe animations, which ui's styles have none of: a skeleton's
+		// pulse, an accordion's height (Radix measures it), a spinner's turn
+		// (ui's Spinner turns by itself)
+		"animate-pulse", "animate-accordion-*", "animate-spin", "animate-caret-blink",
 		// markers of group-* and peer-* variants
 		"group", "group/*", "peer", "peer/*",
 		// container queries
 		"@container", "@container/*",
 		// inherited already
 		"text-current",
-		// the gap under a ring offset: an outline's shows what is behind, the background
-		"ring-offset-background",
-		// (no StyleProps for them yet: text-underline-offset, auto margins,
-		// sizes by calc(), scroll margins, touch-action)
-		"underline-offset-*", "m-auto", "mx-auto", "my-auto", "ml-auto", "mr-auto", "mt-auto", "mb-auto", "h-[calc(100%-1px)]",
-		"max-w-[calc(100%-2rem)]", "scroll-my-*", "scroll-py-*", "touch-none",
+		// viewport units (a drawer's max-h-[80vh]): no length of the window's yet
+		"*vh]*",
+		// (no StyleProps for them yet: scroll margins, touch-action)
+		"scroll-my-*", "scroll-py-*", "touch-none",
 		// what Radix's popper measures (--radix-*): ui's popups place and size themselves
 		"*(--radix-*", "*[var(--radix-*",
-		// a textarea growing with its text: the widget's behaviour
-		"field-sizing-content",
 		// a table's own layout (caption side, collapsed borders, a cell's
 		// vertical alignment): ui's Table lays out its cells
 		"caption-bottom", "border-collapse", "align-middle",
@@ -135,8 +133,22 @@ class Tailwind {
 	// the states a bare variant names
 	static final STATES = [
 		"hover", "focus", "focus-visible", "active", "disabled", "enabled", "placeholder", "selection", "first", "last", "only", "odd", "even",
-		"open", "checked", "indeterminate", "invalid", "focus-within", "dark", "sm", "md", "lg", "xl", "2xl", "ltr", "rtl"
+		"open", "checked", "indeterminate", "invalid", "focus-within", "dark", "sm", "md", "lg", "xl", "2xl", "ltr", "rtl", "starting"
 	];
+
+	// Tailwind v4's transition-* (the properties as Style names them; the
+	// colours, opacity, box-shadow and transform are what eases), and its
+	// default timing (--default-transition-*)
+	static final TRANSITIONS = [
+		"" => "color,background,borderColor,outlineColor,textDecorationColor,opacity,shadow,transform", "all" => "all",
+		"colors" => "color,background,borderColor,outlineColor,textDecorationColor", "opacity" => "opacity", "shadow" => "shadow",
+		"transform" => "transform", "none" => "none"
+	];
+	static final EASINGS = [
+		"linear" => "linear", "in" => "cubic-bezier(0.4,0,1,1)", "out" => "cubic-bezier(0,0,0.2,1)", "in-out" => "cubic-bezier(0.4,0,0.2,1)"
+	];
+	static inline var EASE_DEFAULT = "cubic-bezier(0.4,0,0.2,1)";
+	static inline var DURATION_DEFAULT = 150.0;
 
 	static final TEXT_SIZES = [
 		"xs" => [0.75, 1 / 0.75], "sm" => [0.875, 1.25 / 0.875], "base" => [1, 1.5], "lg" => [1.125, 1.75 / 1.125], "xl" => [1.25, 1.75 / 1.25],
@@ -201,7 +213,7 @@ class Tailwind {
 
 	// a slot's rules from several class lists (cva's base, then each
 	// variant's and size's), offsets for errors
-	public function slot(name:String, lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String}>):Array<TwRule> {
+	public function slot(name:String, lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String, ?prefix:String}>):Array<TwRule> {
 		var groups:Array<Group> = [];
 		sides = new Map();
 		// (a class list after a variant's or size's, as cn's className after
@@ -222,11 +234,27 @@ class Tailwind {
 					j++;
 				if (j > i) {
 					at = l.offset + i;
-					parse(s.substring(i, j), l.variant, l.size, groups);
+					parse((l.prefix == null ? "" : l.prefix + ":") + s.substring(i, j), l.variant, l.size, groups);
 				}
 				i = j;
 			}
 		}
+		// (two enter animations' starts that hold together, a popup side's
+		// slide and its open state's zoom: one transform of both, after
+		// them, as tw-animate-css's variables compose)
+		var starts = [for (g in groups) if (g.when.contains("starting") && Lambda.exists(g.keys, isTransform)) g];
+		for (i in 0...starts.length)
+			for (j in i + 1...starts.length) {
+				var a = starts[i], b = starts[j];
+				if (a.holdsWith(b) || b.holdsWith(a) || a.variant != null && b.variant != null && a.variant != b.variant
+					|| a.size != null && b.size != null && a.size != b.size) continue;
+				var u = new Group(a.key + "+" + b.key, a.variant ?? b.variant, a.size ?? b.size, a.when.concat([for (w in b.when) if (!a.when.contains(w)) w]),
+					a.order.concat(b.order));
+				u.order.sort((x, y) -> y - x);
+				for (k in a.keys.concat(b.keys))
+					if (isTransform(k) && !u.keys.contains(k)) u.keys.push(k);
+				groups.push(u);
+			}
 		// (stable: the same variants keep the classes' order)
 		var seq = [for (i in 0...groups.length) groups[i] => i];
 		groups.sort((a, b) -> {
@@ -240,6 +268,9 @@ class Tailwind {
 		}
 		return out;
 	}
+
+	static function isTransform(k:String):Bool
+		return k.startsWith("translate.") || k == "rotate" || k == "scale";
 
 	// (variant orders compared as Tailwind's bitmasks: the latest variant decides)
 	static function compareOrder(a:Array<Int>, b:Array<Int>):Int {
@@ -296,6 +327,15 @@ class Tailwind {
 			error('unknown class $c', at, c.length);
 			return;
 		}
+		// (an enter animation's from: tw-animate-css's fade-in, zoom-in,
+		// slide-in-from-*, as the starting state the node's transition eases from)
+		if (Lambda.exists(props, p -> p.key.startsWith("start."))) {
+			props = [for (p in props) {key: p.key.substr(6), value: p.value}];
+			if (!when.contains("starting")) {
+				when.push("starting");
+				order.push(ORDER.indexOf("starting"));
+			}
+		}
 		order.sort((a, b) -> b - a);
 		var key = '$layer|$variant|$size|' + when.join("&");
 		var g = null;
@@ -321,13 +361,16 @@ class Tailwind {
 		for (prefix in ["group", "peer", "has", "not"])
 			if (v.startsWith(prefix + "-")) {
 				var inner = v.substr(prefix.length + 1);
-				// (group-data-[size=sm]/switch: the name of the group left out)
-				var slash = inner.lastIndexOf("/");
-				if (slash > inner.lastIndexOf("]")) inner = inner.substr(0, slash);
+				// (group-hover/item: the group named item, "group/item:hover"; a group's data-[size=sm] selects the size, its name aside)
+				var slash = inner.lastIndexOf("/"), name = "";
+				if (slash > inner.lastIndexOf("]")) {
+					name = prefix == "group" || prefix == "peer" ? "/" + inner.substr(slash + 1) : "";
+					inner = inner.substr(0, slash);
+				}
 				var r = readVariant(inner);
 				if (r == null) return null;
 				if (r.size != null || r.variant != null) return {order: ord(prefix), size: r.size, variant: r.variant};
-				return {order: ord(prefix), state: prefix + ":" + r.state};
+				return {order: ord(prefix), state: prefix + name + ":" + r.state};
 			}
 		if (v.startsWith("aria-")) {
 			var a = v.substr(5);
@@ -388,15 +431,26 @@ class Tailwind {
 			case "place-content-center":
 				en("alignContent", "AlignContent", "Center");
 				en("justify", "Justify", "Center");
-			case "place-items-center":
-				en("alignItems", "Align", "Center");
-				en("justifyItems", "Align", "Center");
+			case "place-items-center" | "place-items-start" | "place-items-end" | "place-items-stretch":
+				var a = ALIGN[u.substr(12)];
+				en("alignItems", "Align", a);
+				en("justifyItems", "Align", a);
 			case "relative": en("position", "Position", "Relative");
 			case "absolute" | "fixed": en("position", "Position", "Absolute");
 			case "sticky": en("position", "Position", "Sticky");
-			case "overflow-hidden" | "overflow-x-hidden" | "overflow-y-hidden" | "overflow-clip": en("overflow", "Overflow", "Hidden");
+			case "overflow-hidden" | "overflow-clip": en("overflow", "Overflow", "Hidden");
+			case "overflow-x-hidden" | "overflow-x-clip": en("overflowX", "Overflow", "Hidden");
+			case "overflow-y-hidden" | "overflow-y-clip": en("overflowY", "Overflow", "Hidden");
+			case "overflow-x-auto" | "overflow-x-scroll": en("overflowX", "Overflow", "Scroll");
+			case "overflow-y-auto" | "overflow-y-scroll": en("overflowY", "Overflow", "Scroll");
+			case "overflow-x-visible": en("overflowX", "Overflow", "Visible");
+			case "overflow-y-visible": en("overflowY", "Overflow", "Visible");
+			case "select-none": en("userSelect", "UserSelect", "None");
+			case "select-text": en("userSelect", "UserSelect", "Text");
+			case "select-all": en("userSelect", "UserSelect", "All");
+			case "select-auto": en("userSelect", "UserSelect", "Auto");
 			case "overflow-visible": en("overflow", "Overflow", "Visible");
-			case "overflow-auto" | "overflow-scroll" | "overflow-x-auto" | "overflow-y-auto": en("overflow", "Overflow", "Scroll");
+			case "overflow-auto" | "overflow-scroll": en("overflow", "Overflow", "Scroll");
 			case "visible": en("visibility", "Visibility", "Visible");
 			case "invisible": en("visibility", "Visibility", "Hidden");
 			case "pointer-events-none": en("pointerEvents", "PointerEvents", "None");
@@ -404,8 +458,16 @@ class Tailwind {
 			case "border": for (i in 0...4) set('border.$i', VNum(1));
 			case "rounded": for (i in 0...4) set('corner.$i', VNum(4));
 			case "shadow-none": set("shadow", VShadow([]));
-			case "ring": set("ring.width", VNum(1));
-			case "outline": set("outline.width", VNum(1));
+			case "ring": set("ringWidth", VNum(1));
+			case "ring-inset": set("ringInset", VBool(true));
+			// (outline-hidden: a transparent outline, shown only in forced colours; neither draws the window's focus ring)
+			case "outline-none" | "outline-hidden": en("outlineStyle", "OutlineStyle", "None");
+			case "outline":
+				set("outlineWidth", VNum(1));
+				en("outlineStyle", "OutlineStyle", "Solid");
+			case "animate-in": set("enter", VBool(true));
+			case "field-sizing-content": en("fieldSizing", "FieldSizing", "Content");
+			case "field-sizing-fixed": en("fieldSizing", "FieldSizing", "Fixed");
 			case "underline": set("textDecoration", VInt(1));
 			case "line-through": set("textDecoration", VInt(2));
 			case "overline": set("textDecoration", VInt(4));
@@ -444,7 +506,8 @@ class Tailwind {
 			var field = p == "p" ? "padding" : "margin";
 			for (side in ["", "x", "y", "t", "r", "b", "l", "s", "e"])
 				if ((v = after(p + side + "-")) != null) {
-					var n = signed(spacing(v));
+					// (an auto margin: NaN, as Edges.AUTO)
+					var n = p == "m" && v == "auto" && !neg ? Math.NaN : signed(spacing(v));
 					if (n == null || p == "p" && neg) return null;
 					for (i in (side == "" ? [0, 1, 2, 3] : SIDES[side]))
 						set('$field.$i', VNum(n));
@@ -671,22 +734,84 @@ class Tailwind {
 			set("shadow", VShadow([for (x in s) {x: x[0], y: x[1], blur: x[2], spread: x[3], color: 'rgba(0, 0, 0, ${x[4]})'}]));
 			return out;
 		}
+		// (a ring: Tailwind's box-shadow of no blur outside the border box, and its offset's gap)
 		for (o in ["ring", "outline"]) {
 			if ((v = after('$o-offset-')) != null) {
 				var w = borderWidth(v);
-				if (w == null) return null;
-				set('$o.offset', VNum(w));
+				if (w != null) set(o == "ring" ? "ringOffsetWidth" : "outlineOffset", VNum(w)) else {
+					var c = o == "ring" ? color(v) : null;
+					if (c == null) return null;
+					set("ringOffsetColor", VColor(c));
+				}
 				return out;
 			}
 			if ((v = after('$o-')) != null) {
 				var w = borderWidth(v);
-				if (w != null) set('$o.width', VNum(w)) else {
+				if (w != null) {
+					set('${o}Width', VNum(w));
+					if (o == "outline") en("outlineStyle", "OutlineStyle", "Solid");
+				} else {
 					var c = color(v);
 					if (c == null) return null;
-					set('$o.color', VColor(c));
+					set('${o}Color', VColor(c));
 				}
 				return out;
 			}
+		}
+		// transitions: their properties, duration, easing and delay
+		if ((v = u == "transition" ? "" : after("transition-")) != null) {
+			var p = TRANSITIONS[v];
+			if (p == null && v.startsWith("[") && v.endsWith("]")) p = [for (c in v.substring(1, v.length - 1).split(",")) styleName(c)].join(",");
+			if (p == null) return null;
+			set("transition.property", VStr(p));
+			return out;
+		}
+		for (t in [["duration-", "transition.duration"], ["delay-", "transition.delay"]])
+			if ((v = after(t[0])) != null) {
+				var n = number(v);
+				if (n == null) return null;
+				set(t[1], VNum(n));
+				return out;
+			}
+		if ((v = after("ease-")) != null) {
+			var e = EASINGS[v];
+			if (e == null) return null;
+			set("transition.easing", VStr(e));
+			return out;
+		}
+		// an enter animation's start (tw-animate-css: with animate-in, from these to the node's own)
+		if (u == "fade-in" || (v = after("fade-in-")) != null) {
+			var n = u == "fade-in" ? 0 : number(v);
+			if (n == null) return null;
+			set("start.opacity", VNum(n / 100));
+			return out;
+		}
+		if (u == "zoom-in" || (v = after("zoom-in-")) != null) {
+			var n = u == "zoom-in" ? 0 : number(v);
+			if (n == null) return null;
+			set("start.scale", VStr("" + n / 100));
+			return out;
+		}
+		if ((v = after("spin-in-")) != null) {
+			var n = number(v);
+			if (n == null) return null;
+			set("start.rotate", VStr(n + "deg"));
+			return out;
+		}
+		if ((v = after("slide-in-from-")) != null) {
+			var dash = v.indexOf("-");
+			var side = dash < 0 ? v : v.substr(0, dash), amount = dash < 0 ? "full" : v.substr(dash + 1);
+			var axis = side == "top" || side == "bottom" ? "y" : side == "left" || side == "right" ? "x" : null;
+			var t = axis == null ? null : translate(amount, side == "top" || side == "left");
+			if (t == null) return null;
+			set('start.translate.$axis', VStr(t));
+			return out;
+		}
+		if ((v = after("underline-offset-")) != null) {
+			var n = borderWidth(v);
+			if (n == null) return null;
+			set("textUnderlineOffset", VDim(Px(n)));
+			return out;
 		}
 		if ((v = after("fill-")) != null) {
 			var c = color(v);
@@ -765,6 +890,11 @@ class Tailwind {
 			case _:
 		}
 		if (max && CONTAINERS.exists(v)) return Px(CONTAINERS[v] * REM);
+		// (calc(100%-2rem): a percentage plus pixels)
+		if (v.startsWith("[calc(") && v.endsWith(")]")) {
+			var c = calc(v.substring(6, v.length - 2).replace("_", ""));
+			return c == null ? null : Calc(c.p, c.px);
+		}
 		var slash = v.indexOf("/");
 		if (slash > 0) {
 			var a = number(v.substr(0, slash)), b = number(v.substr(slash + 1));
@@ -786,18 +916,22 @@ class Tailwind {
 	}
 
 	// rounded-*: shadcn's multiples of --radius (globals.css's @theme), Tailwind's otherwise
+	// (shadcn's scale multiplies --radius; a rule's radius is --radius plus
+	// what the multiple adds to the sheet's, as Length.token: the same at the
+	// sheet's radius, another moving them all by as much, as shadcn's earlier
+	// calc(var(--radius) - 2px))
 	function rounded(v:String):Null<Float>
 		return switch v {
 			case "": 4;
 			case "none": 0;
 			case "xs": 2;
-			case "sm": radius * 0.6;
-			case "md": radius * 0.8;
-			case "lg": radius;
-			case "xl": radius * 1.4;
-			case "2xl": radius * 1.8;
-			case "3xl": radius * 2.2;
-			case "4xl": radius * 2.6;
+			case "sm": radiusToken(radius * 0.6 - radius);
+			case "md": radiusToken(radius * 0.8 - radius);
+			case "lg": radiusToken(0);
+			case "xl": radiusToken(radius * 1.4 - radius);
+			case "2xl": radiusToken(radius * 1.8 - radius);
+			case "3xl": radiusToken(radius * 2.2 - radius);
+			case "4xl": radiusToken(radius * 2.6 - radius);
 			// (calc(infinity * 1px): as many px as any box needs)
 			case "full": 1e6;
 			case _: v.startsWith("[") ? length(v.substring(1, v.length - 1)) : null;
@@ -811,6 +945,16 @@ class Tailwind {
 		var n = spacing(v);
 		return n == null ? null : VDim(Px(n));
 	}
+
+	// --radius plus offset px, as a number far from any length (RADIUS +
+	// offset; Tw writes it as Length.token("radius", offset))
+	public static inline var RADIUS = 1e9;
+
+	static function radiusToken(offset:Float):Float
+		return RADIUS + Math.round(offset * 16) / 16;
+
+	public static function isRadius(n:Float):Bool
+		return Math.abs(n - RADIUS) < 1e5;
 
 	// a colour: a token (with an alpha in percent), white, black, transparent
 	static function color(v:String):Null<String> {
@@ -826,6 +970,18 @@ class Tailwind {
 			case _: return null;
 		}
 		return alpha == null ? 'rgb($rgb)' : 'rgba($rgb, ${alpha / 100})';
+	}
+
+	// (calc()'s body as a percentage plus pixels: 100%-2px, -50% - 2px, 100%+0.5rem)
+	static function calc(body:String):Null<{p:Float, px:Float}> {
+		var op = body.indexOf("-", 1);
+		var plus = body.indexOf("+", 1);
+		if (plus > 0 && (op < 0 || plus < op)) op = plus;
+		if (op < 0) return null;
+		var p = body.substr(0, op), l = length(body.substr(op + 1));
+		var n = p.endsWith("%") ? number(p.startsWith("-") ? p.substring(1, p.length - 1) : p.substr(0, p.length - 1)) : null;
+		if (n == null || l == null) return null;
+		return {p: p.startsWith("-") ? -n : n, px: body.charAt(op) == "-" ? -l : l};
 	}
 
 	// a translation: spacing, a fraction or full (of the box), an arbitrary
@@ -860,6 +1016,15 @@ class Tailwind {
 		var n = spacing(v);
 		return n == null ? null : sign(n + "px");
 	}
+
+	// (a CSS property as Style names it, as Transition.parse does: box-shadow is shadow)
+	static function styleName(css:String):String
+		return switch css {
+			case "background-color" | "background": "background";
+			case "box-shadow": "shadow";
+			case "translate" | "scale" | "rotate": "transform";
+			case _: [for (i => w in css.split("-")) i == 0 ? w : w.charAt(0).toUpperCase() + w.substr(1)].join("");
+		}
 
 	// grid-cols-[1fr_auto], grid-rows-[auto_auto]
 	static function tracks(v:String):Null<Array<{min:TrackSize, max:TrackSize}>> {
@@ -915,33 +1080,55 @@ class Tailwind {
 			done[base] = true;
 			switch base {
 				case "padding" | "margin":
-					field(base, VEdges(num('$base.0', 0), num('$base.1', 0), num('$base.2', 0), num('$base.3', 0)));
+					// (all four sides: the shorthand; else each side the rule sets, as CSS's longhands)
+					var all = [for (s in 0...4) g.parts.exists('$base.$s')].indexOf(false) < 0;
+					if (all) field(base, VEdges(num('$base.0', 0), num('$base.1', 0), num('$base.2', 0), num('$base.3', 0))) else
+						for (s in 0...4)
+							if (g.parts.exists('$base.$s')) field(base + ["Top", "Right", "Bottom", "Left"][s], g.parts['$base.$s']);
 				case "border":
 					var e = [for (s in 0...4) num('border.$s', 0)];
 					if (sides.exists("border")) field("borders", VEdges(e[0], e[1], e[2], e[3])) else field("borderWidth", VNum(e[0]));
 				case "corner":
 					var c = [for (s in 0...4) num('corner.$s', 0)];
 					if (sides.exists("corner")) field("corners", VCorners(c[0], c[1], c[2], c[3])) else field("radius", VNum(c[0]));
-				case "ring" | "outline":
-					// (ring-N: a box shadow of that spread outside the border box,
-					// which an outline at no offset draws, rounded as the box;
-					// in a rule with both, the ring wins)
-					done["ring"] = done["outline"] = true;
-					var o = g.parts.exists("ring.width") || g.parts.exists("ring.color") || g.parts.exists("ring.offset") ? "ring" : "outline";
-					if (g.parts.exists('$o.width')) field("outlineWidth", g.parts['$o.width']);
-					if (g.parts.exists('$o.width') || g.parts.exists('$o.offset')) field("outlineOffset", g.parts['$o.offset'] ?? VNum(0));
-					if (g.parts.exists('$o.color')) field("outlineColor", g.parts['$o.color']);
+				case "transition" | "enter":
+					// (transition-* with duration-*, ease-*, delay-* (Tailwind's
+					// defaults else: 150ms, its ease); duration-* alone: CSS's
+					// initial property, all; animate-in: opacity and transform
+					// too, eased from the starting state over the same
+					// duration (tw-animate-css's 150ms, ease, else))
+					done["transition"] = done["enter"] = true;
+					var property = switch inherited("transition.property") {
+						case VStr(p): p;
+						case _: null;
+					}
+					var easing = switch inherited("transition.easing") {
+						case VStr(e): e;
+						case _: null;
+					}
+					var given = inherited("transition.duration") != null;
+					var duration = num("transition.duration", DURATION_DEFAULT), delay = num("transition.delay", 0);
+					var list = [];
+					function add(p:String, ms:Float, e:String)
+						list.push('$p ${ms}ms $e' + (delay != 0 ? ' ${delay}ms' : ""));
+					if (property == null && given) property = "all";
+					if (property != null && property != "none") for (p in property.split(","))
+						add(p, duration, easing ?? EASE_DEFAULT);
+					if (inherited("enter") != null) for (p in ["opacity", "transform"])
+						add(p, given ? duration : DURATION_DEFAULT, easing ?? "ease");
+					field("transition", VTransition(list.length == 0 ? "all 0s" : list.join(", ")));
 				case "direction":
 					if (g.parts.exists("direction")) field("direction", g.parts["direction"]) else if (inherited("direction") == null)
 						field("direction", g.parts["direction.default"]);
 				case "leading" | "textLeading":
 					done["leading"] = done["textLeading"] = true;
 					switch inherited("leading") ?? inherited("textLeading") {
-						case VDim(Px(px)): field("lineHeight", VNum(px / num("fontSize", 16)));
+						// (leading-6: pixels, over any multiple, as Tailwind's --tw-leading over text-sm's)
+						case VDim(Px(px)): field("lineHeightPx", VNum(px));
 						case v: field("lineHeight", v);
 					}
 				case "tracking":
-					field("letterSpacing", VNum(num("tracking", 0) * num("fontSize", 16)));
+					field("letterSpacingEm", g.parts["tracking"]);
 				case "translate" | "rotate" | "scale":
 					done["translate"] = done["rotate"] = done["scale"] = true;
 					var css = [];
@@ -978,9 +1165,6 @@ class Tailwind {
 					field(k, g.parts[k]);
 			}
 		}
-		// (letter spacing in em follows a font size set without it)
-		if (g.parts.exists("fontSize") && !g.parts.exists("tracking") && inherited("tracking") != null)
-			field("letterSpacing", VNum(num("tracking", 0) * num("fontSize", 16)));
 		return r;
 	}
 
@@ -1000,10 +1184,11 @@ class Tailwind {
 		return switch v {
 			case VNum(n) | VDim(Px(n)): num(n);
 			case VInt(n): '$n';
-			case VStr(s) | VColor(s) | VTransform(s): s;
+			case VStr(s) | VColor(s) | VTransform(s) | VTransition(s): s;
 			case VBool(b): '$b';
 			case VEnum(_, name): name;
 			case VDim(Percent(p)): num(p) + "%";
+			case VDim(Calc(p, px)): 'calc(' + num(p) + '% ' + (px < 0 ? '- ' + num(-px) : '+ ' + num(px)) + 'px)';
 			case VDim(d): '$d';
 			case VEdges(t, r, b, l): t == r && r == b && b == l ? num(t) : [t, r, b, l].map(num).join(" ");
 			case VCorners(tl, tr, br, bl): tl == tr && tr == br && br == bl ? num(tl) : [tl, tr, br, bl].map(num).join(" ");
@@ -1014,7 +1199,7 @@ class Tailwind {
 
 	// (rounded to 4 places)
 	static function num(n:Float):String
-		return Math.abs(n) >= 1e5 ? "" + n : "" + Math.round(n * 10000) / 10000;
+		return Math.isNaN(n) ? "auto" : isRadius(n) ? "var(--radius)" + (n == RADIUS ? "" : (n > RADIUS ? "+" : "") + num(n - RADIUS)) : Math.abs(n) >= 1e5 ? "" + n : "" + Math.round(n * 10000) / 10000;
 }
 
 // the classes of a slot that share variants: one rule

@@ -26,8 +26,13 @@ enum abstract Role(Int) to Int {
 	var Heading;
 	var Link;
 	var Dialog;
+	// a dialog asking to confirm or cancel (ARIA's alertdialog)
+	var AlertDialog;
 	var Menu;
 	var MenuItem;
+	// a menu item checked or not (ARIA's menuitemcheckbox), one of a group of which one is (menuitemradio)
+	var MenuItemCheckBox;
+	var MenuItemRadio;
 	var ListBox;
 	var ListBoxOption;
 	var ComboBox;
@@ -74,8 +79,11 @@ enum abstract Role(Int) to Int {
 			case Heading: "heading";
 			case Link: "link";
 			case Dialog: "dialog";
+			case AlertDialog: "alertdialog";
 			case Menu: "menu";
 			case MenuItem: "menuitem";
+			case MenuItemCheckBox: "menuitemcheckbox";
+			case MenuItemRadio: "menuitemradio";
 			case ListBox: "listbox";
 			case ListBoxOption: "option";
 			case ComboBox: "combobox";
@@ -97,7 +105,7 @@ enum abstract Role(Int) to Int {
 	// content"): that text is not a node of its own
 	public function namedByContent():Bool
 		return switch (cast this : Role) {
-			case Button | CheckBox | Switch | RadioButton | Tab | Link | Heading | ListItem | MenuItem | ListBoxOption | Tooltip | Row | Cell | ColumnHeader | TreeItem: true;
+			case Button | CheckBox | Switch | RadioButton | Tab | Link | Heading | ListItem | MenuItem | MenuItemCheckBox | MenuItemRadio | ListBoxOption | Tooltip | Row | Cell | ColumnHeader | TreeItem: true;
 			case _: false;
 		}
 }

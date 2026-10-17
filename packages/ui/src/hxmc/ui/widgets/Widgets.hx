@@ -18,7 +18,11 @@ typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
 // a menu's item: its label, what choosing it does, a shortcut (shown, and
 // choosing it from the window); variant "destructive" (shadcn's: for a
 // theme), disabled (not chosen, skipped by the keys), or a separator
-typedef MenuItem = {label:String, ?onSelect:Void->Void, ?shortcut:String, ?variant:String, ?disabled:Bool, ?separator:Bool};
+// (a menu's item: what choosing it does, a shortcut; a separator, a heading;
+// checked: a checkbox item toggling it, radio: one of a group setting it;
+// items: a submenu)
+typedef MenuItem = {label:String, ?onSelect:Void->Void, ?shortcut:String, ?variant:String, ?disabled:Bool, ?separator:Bool, ?heading:Bool,
+	?checked:Signal<Bool>, ?radio:{group:Signal<String>, value:String}, ?items:Array<MenuItem>};
 
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
 // hxmc.view, unstyled: behaviour, semantics and the geometry their
@@ -36,6 +40,8 @@ class Widgets implements Markup {
 	static final CHEVRON = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
 	static final X = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>');
 	static final LOADER = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>');
+	static final SEARCH = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>');
+	static final CHEVRON_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>');
 	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
@@ -79,7 +85,7 @@ class Widgets implements Markup {
 	// is true, neither checked nor not (a dash; ARIA's mixed), checked when
 	// clicked. Slots "checkbox" (data-state "checked", "unchecked" or
 	// "indeterminate") and "checkbox-indicator" (shown when not unchecked),
-	// the label a "label"
+	// the label a "label", the two in a row "checkbox-field"
 	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
 		var mixed = () -> props.mixed != null && props.mixed.value;
 		var disabled = () -> read(props.disabled) == true;
@@ -101,14 +107,15 @@ class Widgets implements Markup {
 				<image slot="checkbox-icon" src={() -> mixed() ? MINUS : CHECK} hidden/>
 			</view>
 		</view>;
-		return <view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> toggle()}>
+		return <view slot="checkbox-field" direction="row" align-items="center" onClick={_ -> toggle()}>
 			{box}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
 		</view>;
 	}
 
 	// a switch (shadcn's) bound to a signal, with its label: slots "switch"
 	// and "switch-thumb", data-state "checked" or "unchecked" on both (the
-	// thumb's place by its state's rules); size "default" or "sm" (and data-size)
+	// thumb's place by its state's rules); size "default" or "sm" (and data-size);
+	// the label a "label", the two in a row "switch-field"
 	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
@@ -122,7 +129,7 @@ class Widgets implements Markup {
 			}}>
 			<view slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
 		</view>;
-		return <view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> toggle()}>
+		return <view slot="switch-field" direction="row" align-items="center" onClick={_ -> toggle()}>
 			{track}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
 		</view>;
 	}
@@ -380,7 +387,7 @@ class Widgets implements Markup {
 		return <view tag={tag} slot="color-picker" role="group" label={name} width={size}>
 			<view tag={tag + "-area"} role="slider" label={name + ": saturation and brightness"} value-now={() -> pct(sat.value)} value-min={0} value-max={100}
 				value-text={() -> "saturation " + pct(sat.value) + "%, brightness " + pct(val.value) + "%"} slot="color-picker-area" width={size} height={size} focusable
-				cursor="crosshair" background-image={() -> "linear-gradient(to right, #FFFFFF, " + hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
+				background-image={() -> "linear-gradient(to right, #FFFFFF, " + hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
 				onPointerDown={e -> area(e)} onPointerMove={e -> if (e.current.pressed) area(e)}
 				onKeyDown={e -> {
 					var d = e.mods & Key.MOD_SHIFT != 0 ? 0.1 : 0.01;
@@ -396,10 +403,11 @@ class Widgets implements Markup {
 				}}>
 				<view slot="color-picker-area-shade" position="absolute" left={0} top={0} right={0} bottom={0}
 					background-image="linear-gradient(to bottom, transparent, #000000)"/>
-				<view slot="color-picker-thumb" position="absolute" left={() -> sat.value * size - 6} top={() -> (1 - val.value) * size - 6} width={12} height={12}/>
+				<view slot="color-picker-thumb" position="absolute" left={() -> sat.value * size} top={() -> (1 - val.value) * size}
+					transform="translate(-50%, -50%)"/>
 			</view>
 			<view tag={tag + "-hue"} role="slider" label={name + ": hue"} value-now={() -> Math.round(hue.value)} value-min={0} value-max={359}
-				value-text={() -> Math.round(hue.value) + "°"} slot="color-picker-hue" width={size} height={14} focusable background-image={spectrum}
+				value-text={() -> Math.round(hue.value) + "°"} slot="color-picker-hue" width={size} focusable background-image={spectrum}
 				onPointerDown={e -> strip(e)} onPointerMove={e -> if (e.current.pressed) strip(e)}
 				onKeyDown={e -> {
 					var d = e.mods & Key.MOD_SHIFT != 0 ? 10 : 1;
@@ -413,12 +421,11 @@ class Widgets implements Markup {
 					e.preventDefault();
 					store();
 				}}>
-				<view slot="color-picker-thumb" position="absolute" left={() -> hue.value / 360 * size - 7} top={0} width={14} height={14}
-					background={() -> hsv(hue.value, 1, 1)}/>
+				<view slot="color-picker-thumb" data-hue="" position="absolute" left={() -> hue.value / 360 * size} top="50%"
+					transform="translate(-50%, -50%)" background={() -> hsv(hue.value, 1, 1)}/>
 			</view>
 			<view slot="color-picker-row" direction="row" align-items="center">
-				<view tag={tag + "-swatch"} slot="color-picker-swatch" width={28} height={28} shrink={0}
-					background={() -> props.value.value}/>
+				<view tag={tag + "-swatch"} slot="color-picker-swatch" shrink={0} background={() -> props.value.value}/>
 				<view grow={1} dir="ltr"><Input tag={tag + "-hex"} value={hex} label={name + ": hex"}/></view>
 			</view>
 		</view>;
@@ -456,7 +463,8 @@ class Widgets implements Markup {
 	// arrows checking and focusing the next or previous (wrapping); disabled:
 	// none of them. Slots "radio-group", "radio-group-item" (data-state
 	// "checked" or "unchecked") and "radio-group-indicator" (shown when
-	// checked), each label a "label"
+	// checked), each label a "label", an item and its label in a row
+	// "radio-group-option"
 	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
@@ -483,7 +491,7 @@ class Widgets implements Markup {
 			for (i in 0...options.length) {
 				var o = options[i], text = props.labels != null && props.labels[i] != null ? props.labels[i] : o;
 				var state = () -> props.value.value == o ? "checked" : "unchecked";
-				<view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> if (!disabled()) props.value.value = o}>
+				<view slot="radio-group-option" direction="row" align-items="center" onClick={_ -> if (!disabled()) props.value.value = o}>
 					<view tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={n -> nodes[i] = n} checked={() -> props.value.value == o}
 						data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled} onKeyDown={e -> key(e, i)}>
 						<view slot="radio-group-indicator" data-state={state} display={() -> state() == "checked" ? "flex" : "none"}>
@@ -613,14 +621,14 @@ class Widgets implements Markup {
 			<view slot="table-header"><view tag={tag + "-head"} slot="table-row" role="row" display="grid" grid-template-columns={template} height={rh}>{[
 				for (k in 0...props.columns.length) {
 					var c = props.columns[k], cell:Null<Node> = null, from = 0.0, start = 0.0, dragging = false, clicked = -1e9;
-					<view tag={tag + "-head-" + k} slot="table-head" role="columnheader" ref={n -> cell = n} direction="row" column-gap={4} align-items="center"
-						justify={c.numeric == true ? "flex-end" : "flex-start"} focusable={c.compare != null} cursor={c.compare != null ? "pointer" : "auto"} onClick={_ -> sort(k)}
+					<view tag={tag + "-head-" + k} slot="table-head" role="columnheader" ref={n -> cell = n} direction="row" align-items="center"
+						justify={c.numeric == true ? "flex-end" : "flex-start"} focusable={c.compare != null} data-sortable={c.compare != null} onClick={_ -> sort(k)}
 						onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 							sort(k);
 							e.stop();
 						}}>
 						{c.title}
-						<text hidden opacity={0.6}>{() -> sortBy.value == k ? (descending.value ? "▼" : "▲") : ""}</text>
+						<text slot="table-sort-icon" hidden>{() -> sortBy.value == k ? (descending.value ? "▼" : "▲") : ""}</text>
 						{k == props.columns.length - 1 ? null : <view tag={tag + "-resize-" + k} position="absolute" top={0} bottom={0}
 							left={() -> cell != null && cell.rtl() ? 0 : null} right={() -> cell != null && cell.rtl() ? null : 0} width={6} cursor="ew-resize"
 							onPointerDown={e -> {
@@ -934,7 +942,7 @@ class Widgets implements Markup {
 				open.value = true;
 				e.preventDefault();
 			}}>
-			<text opacity={() -> props.value.value == null ? 0.6 : 1}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</text>
+			<text slot="date-picker-value" data-placeholder={() -> props.value.value == null}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</text>
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false}
 				onOpen={p -> {
 					var g = p.find(tag + "-calendar-grid");
@@ -953,7 +961,9 @@ class Widgets implements Markup {
 	// number); null: not known (indeterminate: a bar sliding across, every
 	// 1.5 seconds, on the Clock; no value for assistive technology). Slots
 	// "progress" and "progress-indicator" (data-state "indeterminate" when
-	// sliding); width: the bar's, else its rules'
+	// sliding; known, moved left by what is not done, translateX(-40%) at
+	// 0.6, as shadcn's: as wide as the bar by its rules); width: the
+	// bar's, else its rules'
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
 		var known = () -> Render.read(props.value) != null;
 		var frac = () -> {
@@ -974,7 +984,7 @@ class Widgets implements Markup {
 		onCleanup(() -> stopped = true);
 		return <view tag={props.tag ?? "progress"} ref={n -> States.apply(n, props.style)} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
 			slot="progress" width={props.width} overflow="hidden" direction="row">
-			<view slot="progress-indicator" width={() -> (frac() * 100) + "%"}/>
+			<view slot="progress-indicator" transform={() -> "translateX(" + (-(1 - frac()) * 100) + "%)"}/>
 			{() -> known() ? null : <view tag="progress-slide" slot="progress-indicator" data-state="indeterminate" position="absolute" top={0} bottom={0}
 				width="40%" left={() -> ((phase.value * 1.4 - 0.4) * 100) + "%"}/>}
 		</view>;
@@ -1506,11 +1516,24 @@ class Widgets implements Markup {
 	}
 
 	// the items' shortcuts (local: while the focus is in the parent)
-	static function hotkeys(list:Array<MenuItem>, local:Bool):Array<Any>
-		return [
-			for (it in list)
-				if (it.shortcut != null && it.onSelect != null && it.disabled != true) UiFlow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})
-		];
+	static function hotkeys(list:Array<MenuItem>, local:Bool):Array<Any> {
+		var out:Array<Any> = [];
+		for (it in list) {
+			if (it.disabled == true) continue;
+			if (it.items != null) out = out.concat(hotkeys(it.items, local));
+			else if (it.shortcut != null && (it.onSelect != null || it.checked != null || it.radio != null))
+				out.push(UiFlow.Hotkey({
+					keys: it.shortcut,
+					action: () -> {
+						if (it.checked != null) it.checked.value = !it.checked.peek();
+						if (it.radio != null) it.radio.group.value = it.radio.value;
+						if (it.onSelect != null) it.onSelect();
+					},
+					local: local
+				}));
+		}
+		return out;
+	}
 
 	// focuses the first of nodes that takes the focus
 	static function focusFirst(nodes:Array<Node>)
@@ -1531,54 +1554,105 @@ class Widgets implements Markup {
 
 	// a menu's panel of items (their nodes into nodes): Up and Down move
 	// through them, letters typed to the one they start, the pointer over
-	// one focuses it, a click, Enter or Space chooses one (and sets open to
-	// false), Tab closes; separators and disabled items skipped. Slots:
-	// kind, "-content", "-item" (variant; data-disabled), "-shortcut", "-separator"
+	// one focuses it, a click, Enter or Space chooses one (and closes the
+	// menu: root, else open), Tab closes; separators, headings and disabled
+	// items skipped. A checkbox item toggles its signal, a radio item sets its
+	// group's; an item with items opens them beside it (a submenu: the
+	// pointer resting on it, Right, Enter or Space; Left or Escape closes it,
+	// the focus back on it). Slots: kind, "-content" (a submenu's
+	// "-sub-content"), "-item" (variant; data-disabled; a checkbox or radio
+	// item's data-state "checked" or "unchecked"), "-item-indicator",
+	// "-checkbox-item", "-radio-item", "-label" (a heading), "-sub-trigger"
+	// (data-state "open" or "closed"), "-shortcut", "-separator"
 	static function menuItems(kind:String, tag:String, label:Null<String>, list:Array<MenuItem>,
-			open:Signal<Bool>, nodes:Array<Node>):View {
-		var typed = new TypeAhead(), labels = [for (it in list) it.separator == true || it.disabled == true ? "" : it.label];
+			open:Signal<Bool>, nodes:Array<Node>, ?root:Signal<Bool>, ?content:String):View {
+		var typed = new TypeAhead(), labels = [for (it in list) skipped(it) ? "" : it.label];
+		var close = root ?? open;
+		// (a submenu closed with its menu)
+		if (root != null) effect(() -> if (!root.value) untrack(() -> open.value = false));
 		// (the next item that can be chosen, the way d goes)
 		function move(from:Int, d:Int) {
 			var j = from + d;
-			while (j >= 0 && j < list.length && (list[j].separator == true || list[j].disabled == true))
+			while (j >= 0 && j < list.length && skipped(list[j]))
 				j += d;
 			focusIn(nodes, j);
 		}
-		return <view tag={tag + "-items"} slot={kind + "-content"} data-state="open" role="menu" label={label}>{[
+		return <view tag={tag + "-items"} slot={kind + (content ?? "-content")} data-state="open" role="menu" label={label}>{[
 			for (i in 0...list.length) {
 				var it = list[i], off = it.disabled == true;
-				function choose()
-					if (!off) {
-						open.value = false;
-						if (it.onSelect != null) it.onSelect();
-					}
-				it.separator == true ? <view slot={kind + "-separator"} role="separator" hidden/> : <view tag={tag + "-" + i} slot={kind + "-item"}
-					variant={it.variant ?? "default"} role="menuitem" ref={n -> nodes[i] = n} focusable={!off} disabled={off} data-disabled={off}
-					onPointerEnter={_ -> if (!off) focusIn(nodes, i)} onClick={_ -> choose()}
-					onKeyDown={e -> switch e.key {
-						case Key.DOWN:
-							move(i, 1);
-							e.stop();
-						case Key.UP:
-							move(i, -1);
-							e.stop();
-						case Key.ENTER | Key.SPACE:
-							choose();
-							e.stop();
-						case Key.TAB: open.value = false;
-						case _:
-							var j = typed.find(e, labels, i);
-							if (j >= 0) {
-								focusIn(nodes, j);
-								e.stop();
+				if (it.separator == true) <view slot={kind + "-separator"} role="separator" hidden/>;
+				else if (it.heading == true) <text slot={kind + "-label"} role="heading">{it.label}</text>;
+				else {
+					var sub = it.items == null ? null : signal(false), subNodes:Array<Node> = [];
+					var checked = it.checked != null ? () -> it.checked.value : it.radio != null ? () -> it.radio.group.value == it.radio.value : null;
+					function choose()
+						if (!off) {
+							if (sub != null) {
+								sub.value = true;
+								return;
 							}
-					}}>
-					{it.label}
-					{it.shortcut == null ? null : <text slot={kind + "-shortcut"}>{Shortcut.parse(it.shortcut).label()}</text>}
-				</view>;
+							close.value = false;
+							if (it.checked != null) it.checked.value = !it.checked.peek();
+							if (it.radio != null) it.radio.group.value = it.radio.value;
+							if (it.onSelect != null) it.onSelect();
+						}
+					var slot = sub != null ? "-sub-trigger" : it.checked != null ? "-checkbox-item" : it.radio != null ? "-radio-item" : "-item";
+					<view tag={tag + "-" + i} slot={kind + slot} variant={it.variant ?? "default"}
+						role={it.checked != null ? "menuitemcheckbox" : it.radio != null ? "menuitemradio" : "menuitem"}
+						checked={checked == null ? null : checked} data-state={checked != null ? () -> checked() ? "checked" : "unchecked" : sub != null ? () -> sub.value ? "open" : "closed" : null}
+						expanded={sub == null ? null : () -> sub.value} ref={n -> nodes[i] = n} focusable={!off} disabled={off} data-disabled={off}
+						onPointerEnter={_ -> if (!off) {
+							focusIn(nodes, i);
+							if (sub != null) sub.value = true;
+						}}
+						onClick={_ -> choose()}
+						onKeyDown={e -> switch mirrored(e) {
+							case Key.DOWN:
+								move(i, 1);
+								e.stop();
+							case Key.UP:
+								move(i, -1);
+								e.stop();
+							case Key.ENTER | Key.SPACE | Key.RIGHT if (sub != null):
+								sub.value = true;
+								focusFirst(subNodes);
+								e.stop();
+							case Key.ENTER | Key.SPACE:
+								choose();
+								e.stop();
+							case Key.TAB: close.value = false;
+							case _:
+								var j = typed.find(e, labels, i);
+								if (j >= 0) {
+									focusIn(nodes, j);
+									e.stop();
+								}
+						}}>
+						{checked == null ? null : <view slot={kind + "-item-indicator"} hidden>
+							<Show when={checked}><image slot={kind + "-item-indicator-icon"} src={it.radio != null ? CIRCLE : CHECK} hidden/></Show>
+						</view>}
+						{it.label}
+						{it.shortcut == null ? null : <text slot={kind + "-shortcut"}>{Shortcut.parse(it.shortcut).label()}</text>}
+						{sub == null ? null : [
+							<image slot={kind + "-sub-trigger-icon"} src={CHEVRON_RIGHT} hidden/>,
+							<Popover open={sub} placement="right" onDismiss={() -> sub.value = false}>
+								<view onKeyDown={e -> if (mirrored(e) == Key.LEFT || e.key == Key.ESCAPE) {
+									sub.value = false;
+									focusIn(nodes, i);
+									e.preventDefault();
+									e.stop();
+								}}>{menuItems(kind, tag + "-" + i, it.label, it.items, sub, subNodes, close, "-sub-content")}</view>
+							</Popover>
+						]}
+					</view>;
+				}
 			}
 		]}</view>;
 	}
+
+	// (an item not chosen or moved to: a separator, a heading, a disabled one)
+	static function skipped(it:MenuItem):Bool
+		return it.separator == true || it.heading == true || it.disabled == true;
 
 	// a tooltip: text shown by the children (above them) once the pointer
 	// has rested on them for delay seconds (0.5), hidden when it leaves or
@@ -1645,6 +1719,47 @@ class Widgets implements Markup {
 	public static function DialogFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "dialog-footer"} slot="dialog-footer">{props.children}</view>;
 
+	// an alert dialog (shadcn's): a modal asking to confirm while open is
+	// true: its title and description, the children, then the cancel and
+	// action buttons (labels cancel, default "Cancel", and action, default
+	// "Continue"; the action's variant default "default", "destructive" for
+	// a deletion), the cancel button focused first. Cancel or Escape closes
+	// it (onCancel), the action closes it and runs onAction; a click outside
+	// does nothing. Slots "alert-dialog-overlay", "alert-dialog-content",
+	// "alert-dialog-header", "alert-dialog-title", "alert-dialog-description",
+	// "alert-dialog-footer"; the buttons "button"s
+	public static function AlertDialog(props:{open:Signal<Bool>, title:String, ?description:String, ?cancel:String, ?action:String,
+			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):Any {
+		var tag = props.tag ?? "alert-dialog";
+		function cancel() {
+			props.open.value = false;
+			if (props.onCancel != null) props.onCancel();
+		}
+		function act() {
+			props.open.value = false;
+			if (props.onAction != null) props.onAction();
+		}
+		return Popover({
+			open: props.open,
+			modal: true,
+			slot: "alert-dialog-overlay",
+			onDismiss: cancel,
+			dismissOnOutside: false,
+			tag: tag,
+			children: <view slot="alert-dialog-content" data-state="open" role="alertdialog" label={props.title} width={props.width ?? 360}>
+				<view slot="alert-dialog-header">
+					<text slot="alert-dialog-title" role="heading">{props.title}</text>
+					{props.description == null ? null : <text slot="alert-dialog-description">{props.description}</text>}
+				</view>
+				{props.children}
+				<view slot="alert-dialog-footer" direction="row">
+					<Button tag={tag + "-cancel"} label={props.cancel ?? "Cancel"} variant="outline" onClick={cancel}/>
+					<Button tag={tag + "-action"} label={props.action ?? "Continue"} variant={props.variant ?? "default"} onClick={act}/>
+				</view>
+			</view>
+		});
+	}
+
 	// a sheet (shadcn's): a dialog along an edge of the window (side
 	// "right", the default, "left", "top" or "bottom"), its title,
 	// description and the children, a close button (close: false, none);
@@ -1680,6 +1795,58 @@ class Widgets implements Markup {
 
 	public static function SheetFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "sheet-footer"} slot="sheet-footer">{props.children}</view>;
+
+	// a drawer (shadcn's, vaul's): a sheet along an edge (direction
+	// "bottom", the default, "top", "left" or "right") with a handle, its
+	// title, description and the children; modal, closed as a dialog is or
+	// by a drag towards its edge past a quarter of its size, which it
+	// follows (less: back in place). Slots "drawer-overlay", "drawer-content"
+	// (data-vaul-drawer-direction), "drawer-handle", "drawer-header",
+	// "drawer-title", "drawer-description"; DrawerFooter's "drawer-footer"
+	public static function Drawer(props:{open:Signal<Bool>, title:String, ?description:String, ?direction:String, ?tag:String, ?children:Any}):Any {
+		var dir = props.direction ?? "bottom", tag = props.tag ?? "drawer", close = () -> props.open.value = false;
+		var across = dir == "left" || dir == "right", sign = dir == "bottom" || dir == "right" ? 1 : -1;
+		var pull = signal(0.0), from = 0.0, dragging = false;
+		function along(e:Event):Float
+			return (across ? e.x : e.y) * sign;
+		return Popover({
+			open: props.open,
+			modal: true,
+			slot: "drawer-overlay",
+			onDismiss: close,
+			tag: tag,
+			children: <view tag={tag + "-content"} slot="drawer-content" data-state="open" data-vaul-drawer-direction={dir} role="dialog" label={props.title}
+				position="absolute" top={dir == "bottom" ? null : 0} bottom={dir == "top" ? null : 0} left={dir == "right" ? null : 0}
+				right={dir == "left" ? null : 0} width={across ? "75%" : null} max-width={across ? 384 : null}
+				transform={() -> pull.value == 0 ? "none" : (across ? "translateX(" : "translateY(") + (pull.value * sign) + "px)"}
+				onPointerDown={e -> {
+					from = along(e);
+					dragging = false;
+				}}
+				onPointerMove={e -> if (e.current.pressed || dragging) {
+					var d = along(e) - from;
+					// (a drag past a few pixels, not a click)
+					if (!dragging && d > 4) dragging = true;
+					if (dragging) pull.value = Math.max(0, d);
+				}}
+				onPointerUp={e -> if (dragging) {
+					dragging = false;
+					var size = across ? e.current.width : e.current.height;
+					if (pull.peek() > size / 4) close();
+					pull.value = 0;
+				}}>
+				<view slot="drawer-handle" hidden/>
+				<view slot="drawer-header">
+					<text slot="drawer-title" role="heading">{props.title}</text>
+					{props.description == null ? null : <text slot="drawer-description">{props.description}</text>}
+				</view>
+				{props.children}
+			</view>
+		});
+	}
+
+	public static function DrawerFooter(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "drawer-footer"} slot="drawer-footer">{props.children}</view>;
 
 	// a popover (shadcn's Popover, its trigger an outline button): label on
 	// the button, a click, Enter or Space opens the children under it (the
@@ -1836,12 +2003,194 @@ class Widgets implements Markup {
 			}}>
 			{f}
 			<Popover open={() -> open.value && matches.value.length > 0} placement="below" onDismiss={() -> open.value = false}>
-				<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label} width={w} max-height={240}>
+				<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label} width={w}>
 					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} slot="command-item" role="option"
 						selected={() -> active.value == i} data-selected={() -> active.value == i ? "true" : null} ref={n -> options[i] = n}
 						onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
 				</scroll>
 			</Popover>
+		</view>;
+	}
+
+	// a command menu (shadcn's, cmdk's): a search field over groups of items,
+	// each a label, what choosing it does and a shortcut (shown); only the
+	// items whose label holds the query (in any case) shown, a group with
+	// none hidden, separators only while the query is empty, empty's text
+	// (default "No results found.") when nothing matches. One item is
+	// selected: the first that can be chosen as the query changes, the one
+	// under the pointer; Up and Down move it (stopping at the ends; Home and
+	// End stay the field's); Enter or a click chooses it. Slots
+	// "command", "command-input-wrapper", "command-input-icon",
+	// "command-input", "command-list", "command-empty", "command-group",
+	// "command-group-heading", "command-item" (data-selected and
+	// data-disabled "true"), "command-shortcut", "command-separator"
+	public static function Command(props:{groups:Array<{?heading:String, items:Array<MenuItem>}>, ?placeholder:String, ?empty:String,
+			?query:Signal<String>, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "command", query = props.query ?? signal("");
+		// (every item, group by group, by its place in all of them)
+		var all:Array<MenuItem> = [], groupOf:Array<Int> = [];
+		for (g => group in props.groups)
+			for (it in group.items) {
+				all.push(it);
+				groupOf.push(g);
+			}
+		var shown = memo(() -> {
+			var q = query.value.toLowerCase();
+			[for (it in all) it.separator == true ? q == "" : it.label.toLowerCase().indexOf(q) >= 0];
+		});
+		var choosable = memo(() -> {
+			var s = shown.value;
+			[for (k in 0...all.length) if (s[k] && all[k].separator != true && all[k].disabled != true) k];
+		});
+		var selected = signal(-1), rows:Array<Node> = [];
+		effect(() -> {
+			var c = choosable.value;
+			selected.value = c.length > 0 ? c[0] : -1;
+		});
+		function select(k:Int) {
+			selected.value = k;
+			if (k >= 0 && rows[k] != null && rows[k].ui != null) rows[k].ui.scrollIntoView(rows[k]);
+		}
+		function choose(k:Int) {
+			if (k < 0 || all[k].disabled == true) return;
+			if (all[k].onSelect != null) all[k].onSelect();
+		}
+		var f = new TextField(query.peek());
+		f.tag = tag + "-input";
+		f.slot = "command-input";
+		f.placeholder = props.placeholder ?? "";
+		f.semantics.role = hxmc.ui.access.Role.ComboBox;
+		f.semantics.label = props.label ?? props.placeholder;
+		f.semantics.expanded = true;
+		effect(() -> f.setText(query.value));
+		f.onChange = s -> query.value = s;
+		f.onSubmit = _ -> choose(selected.peek());
+		var anyShown = () -> {
+			var s = shown.value;
+			for (k in 0...all.length)
+				if (s[k] && all[k].separator != true) return true;
+			return false;
+		};
+		return <view tag={tag} slot="command" onKeyDown={e -> {
+			var c = choosable.peek(), at = c.indexOf(selected.peek());
+			switch e.key {
+				case Key.DOWN if (c.length > 0):
+					e.stop();
+					select(c[at < 0 ? 0 : Std.int(Math.min(at + 1, c.length - 1))]);
+				case Key.UP if (c.length > 0):
+					e.stop();
+					select(c[at <= 0 ? 0 : at - 1]);
+				case _:
+			}
+		}}>
+			<view tag={tag + "-input-wrapper"} slot="command-input-wrapper" direction="row" align-items="center">
+				<image slot="command-input-icon" src={SEARCH} hidden/>
+				{f}
+			</view>
+			<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label}>
+				<Show when={() -> !anyShown()}><view tag={tag + "-empty"} slot="command-empty">{props.empty ?? "No results found."}</view></Show>
+				{[
+					for (g => group in props.groups) {
+						var mine = [for (k in 0...all.length) if (groupOf[k] == g) k];
+						var visible = () -> Lambda.exists(mine, k -> shown.value[k] && all[k].separator != true);
+						[
+							g == 0 ? null : <Show when={() -> query.value == "" && visible()}><view slot="command-separator" hidden/></Show>,
+							<Show when={visible}>
+								<view tag={tag + "-group-" + g} slot="command-group" role="group" label={group.heading}>
+									{group.heading == null ? null : <text slot="command-group-heading" hidden>{group.heading}</text>}
+									{[
+										for (k in mine) {
+											var it = all[k];
+											it.separator == true ? <Show when={() -> shown.value[k]}><view slot="command-separator" hidden/></Show> : <Show when={() -> shown.value[k]}>
+												<view tag={tag + "-item-" + k} slot="command-item" role="option" direction="row" align-items="center"
+													selected={() -> selected.value == k} data-selected={() -> selected.value == k ? "true" : null}
+													data-disabled={it.disabled == true ? "true" : null} disabled={it.disabled == true} ref={n -> rows[k] = n}
+													onPointerEnter={_ -> if (it.disabled != true) selected.value = k} onClick={_ -> choose(k)}>
+													<text grow={1}>{it.label}</text>
+													{it.shortcut == null ? null : <text slot="command-shortcut">{Shortcut.parse(it.shortcut).label()}</text>}
+												</view>
+											</Show>;
+										}
+									]}
+								</view>
+							</Show>
+						];
+					}
+				]}
+			</scroll>
+		</view>;
+	}
+
+	// a one-time code field (shadcn's InputOTP, input-otp's): length
+	// slots of one character each (digits only unless digits is false),
+	// in groups (sizes; a separator between), over which a text field is laid,
+	// transparent: typing fills the next slot, Backspace empties the last, a
+	// paste fills them from the start; what does not fit or is not allowed
+	// is dropped. onComplete gets the code once every slot is filled. Slots
+	// "input-otp" (data-disabled), "input-otp-group", "input-otp-slot"
+	// (data-active "true" on the slot typing goes to while focused),
+	// "input-otp-caret" (in the active slot while it is empty),
+	// "input-otp-separator"
+	public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
+			?disabled:Dynamic, ?tag:String}):View {
+		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false;
+		var groups = props.groups ?? [n];
+		function allowed(s:String):String {
+			var out = new StringBuf(), count = 0;
+			for (c in new haxe.iterators.StringIteratorUnicode(s)) {
+				if (count >= n) break;
+				if (digits ? c >= "0".code && c <= "9".code : c > 32) {
+					out.addChar(c);
+					count++;
+				}
+			}
+			return out.toString();
+		}
+		var f = new TextField(allowed(props.value.peek()));
+		f.tag = tag + "-input";
+		f.semantics.label = props.label ?? "One-time code";
+		// (drawing nothing: its text in the slots, its focus the active slot's; to assistive technology the field)
+		f.style.width = "100%";
+		f.style.height = "100%";
+		f.style.color = Color.TRANSPARENT;
+		f.style.outlineStyle = None;
+		f.caretColor = Color.TRANSPARENT;
+		f.selectionColor = Color.TRANSPARENT;
+		var focused = States.of(f).focused;
+		effect(() -> {
+			var v = allowed(props.value.value);
+			untrack(() -> {
+				f.setText(v);
+				f.select(v.length, v.length);
+			});
+		});
+		f.onChange = s -> {
+			var v = allowed(s), was = props.value.peek();
+			props.value.value = v;
+			// (what was dropped: gone from the field too, the caret at the end)
+			f.setText(v);
+			f.select(v.length, v.length);
+			if (v.length == n && was.length < n && props.onComplete != null) props.onComplete(v);
+		};
+		invalidAndDisabled(f, null, props.disabled);
+		var chars = () -> [for (c in new haxe.iterators.StringIteratorUnicode(props.value.value)) String.fromCharCode(c)];
+		var active = () -> focused.value ? Std.int(Math.min(chars().length, n - 1)) : -1;
+		var slots = [], k = 0;
+		for (g => size in groups) {
+			if (g > 0) slots.push(<view slot="input-otp-separator" role="separator"><image slot="input-otp-separator-icon" src={MINUS} hidden/></view>);
+			var cells = [];
+			for (_ in 0...size) {
+				var i = k++;
+				cells.push(<view tag={tag + "-slot-" + i} slot="input-otp-slot" data-active={() -> active() == i ? "true" : null} hidden>
+					<text>{() -> i < chars().length ? chars()[i] : ""}</text>
+					<Show when={() -> active() == i && i >= chars().length}><view slot="input-otp-caret"/></Show>
+				</view>);
+			}
+			slots.push(<view slot="input-otp-group" direction="row" align-items="center">{cells}</view>);
+		}
+		return <view tag={tag} slot="input-otp" direction="row" align-items="center" data-disabled={() -> read(props.disabled) == true}>
+			{slots}
+			<view position="absolute" left={0} top={0} right={0} bottom={0}>{f}</view>
 		</view>;
 	}
 
@@ -1855,7 +2204,7 @@ class Widgets implements Markup {
 		var state = () -> open.value ? "open" : "closed";
 		return <view tag={tag} slot="collapsible" data-state={state}>
 			{trigger(tag + "-summary", "collapsible-trigger", state, () -> open.value = !open.peek(),
-				[<view width={12}>{arrow(() -> open.value ? "▾" : "▸")}</view>, props.label])}
+				[<view slot="collapsible-icon">{arrow(() -> open.value ? "▾" : "▸")}</view>, props.label])}
 			<Show when={open}><view tag={tag + "-content"} slot="collapsible-content" data-state="open">{props.children}</view></Show>
 		</view>;
 	}
@@ -2045,7 +2394,7 @@ class Widgets implements Markup {
 	static function arrow(shown:Void->String):Node {
 		var n = new Arrow("");
 		n.semantics = {hidden: true};
-		n.style.opacity = 0.6;
+		n.slot = "arrow-icon";
 		effect(() -> n.text = shown());
 		return n;
 	}
@@ -2111,7 +2460,7 @@ class Widgets implements Markup {
 					<view tag={tag + "-" + v + "-remove"} slot="tag-input-remove" role="button" label={"Remove " + v} onClick={_ -> remove(v)}>×</view>
 				</view>}/>
 			</view>
-			<view grow={1} min-width={60}>{editMenu(f, tag)}</view>
+			<view slot="tag-input-entry" grow={1}>{editMenu(f, tag)}</view>
 		</view>;
 	}
 }

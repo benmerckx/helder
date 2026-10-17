@@ -186,6 +186,12 @@ class Style {
 	public var userSelect(get, set):Null<UserSelect>;
 	// how a text field is sized where this style gives no size (FieldSizing; null: Fixed)
 	public var fieldSizing(get, set):Null<FieldSizing>;
+	// a scroller's scrollbar: its thickness (ScrollbarWidth; null: Auto), its
+	// thumb's and track's colours (CSS's scrollbar-color, inherited; null:
+	// the parent's, else the window's, Ui.scrollbarColor, and no track)
+	public var scrollbarWidth(get, set):Null<ScrollbarWidth>;
+	public var scrollbarColor(get, set):Null<Color>;
+	public var scrollbarTrackColor(get, set):Null<Color>;
 
 	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
 	public var outlineStyle(get, set):Null<OutlineStyle>;
@@ -428,6 +434,36 @@ class Style {
 
 	inline function get_fieldSizing():Null<FieldSizing>
 		return rare == null ? null : rare.fieldSizing;
+
+	inline function get_scrollbarWidth():Null<ScrollbarWidth>
+		return rare == null ? null : rare.scrollbarWidth;
+
+	function set_scrollbarWidth(v:Null<ScrollbarWidth>):Null<ScrollbarWidth> {
+		if (v == scrollbarWidth) return v;
+		more().scrollbarWidth = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	inline function get_scrollbarColor():Null<Color>
+		return rare == null ? null : rare.scrollbarColor;
+
+	function set_scrollbarColor(v:Null<Color>):Null<Color> {
+		if (v == scrollbarColor) return v;
+		more().scrollbarColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	inline function get_scrollbarTrackColor():Null<Color>
+		return rare == null ? null : rare.scrollbarTrackColor;
+
+	function set_scrollbarTrackColor(v:Null<Color>):Null<Color> {
+		if (v == scrollbarTrackColor) return v;
+		more().scrollbarTrackColor = v;
+		node.styleChanged(false);
+		return v;
+	}
 
 	function set_fieldSizing(v:Null<FieldSizing>):Null<FieldSizing> {
 		if (v == fieldSizing) return v;
@@ -1494,6 +1530,9 @@ class Style {
 		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
 		if (p.userSelect != null) userSelect = p.userSelect;
 		if (p.fieldSizing != null) fieldSizing = p.fieldSizing;
+		if (p.scrollbarWidth != null) scrollbarWidth = p.scrollbarWidth;
+		if (p.scrollbarColor != null) scrollbarColor = p.scrollbarColor;
+		if (p.scrollbarTrackColor != null) scrollbarTrackColor = p.scrollbarTrackColor;
 		if (p.ringWidth != null) ringWidth = p.ringWidth;
 		if (p.ringColor != null) ringColor = p.ringColor;
 		if (p.ringOffsetWidth != null) ringOffsetWidth = p.ringOffsetWidth;
@@ -1567,6 +1606,9 @@ private class StyleRare {
 	public var outlineStyle:Null<OutlineStyle> = null;
 	public var userSelect:Null<UserSelect> = null;
 	public var fieldSizing:Null<FieldSizing> = null;
+	public var scrollbarWidth:Null<ScrollbarWidth> = null;
+	public var scrollbarColor:Null<Color> = null;
+	public var scrollbarTrackColor:Null<Color> = null;
 	public var ringWidth:Float = 0;
 	public var ringColor:Null<Color> = null;
 	public var ringOffsetWidth:Float = 0;

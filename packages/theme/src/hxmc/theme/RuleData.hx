@@ -13,8 +13,9 @@ using StringTools;
 // else 112 + n / 64, then 48 + n % 64). A rule is its slot, variant and
 // size (strings, 0 for none, else 1 + index), its states (a count, then
 // each), its fields (a count, then each field's index in FIELDS and its
-// value, read as its kind says). A sheet is a count of rules, the rules,
-// then the light and dark tokens (a count, then name and colour each).
+// value, read as its kind says; a number "r" and px is --radius plus px,
+// Length.token's). A sheet is a count of rules, the rules, the light and
+// dark tokens (a count, then name and colour each), then --radius in px.
 class RuleData {
 	// StyleProps's fields the rules may set and their kinds: e an enum
 	// abstract's Int, b Bool, f Float, i Int, d Dim, E EdgesValue, C
@@ -26,11 +27,14 @@ class RuleData {
 		+ "opacity:f cursor:e shadow:S outlineWidth:f outlineOffset:f outlineColor:c color:c fontFamily:s fontSize:f fontWeight:i italic:b "
 		+ "lineHeight:f textAlign:e visibility:e pointerEvents:e textWrap:e gap:f flex:f overflowWrap:e wordBreak:e fontVariantNumeric:s "
 		+ "textTransform:e textOverflow:e order:i zIndex:i maxLines:i gridTemplateColumns:T gridTemplateRows:T gridAutoColumns:k gridAutoRows:k "
-		+ "gridColumn:p gridRow:p justifyItems:e justifySelf:e transform:t";
+		+ "gridColumn:p gridRow:p justifyItems:e justifySelf:e transform:t outlineStyle:e ringWidth:f ringColor:c ringOffsetWidth:f ringOffsetColor:c "
+		+ "ringInset:b transition:r paddingTop:f paddingRight:f paddingBottom:f paddingLeft:f marginTop:f marginRight:f marginBottom:f marginLeft:f "
+		+ "overflowX:e overflowY:e letterSpacingEm:f userSelect:e lineHeightPx:f fieldSizing:e textUnderlineOffset:d";
 
 	final data:String;
 	final table:Array<String>;
 	final colors:Array<Null<Color>> = [];
+	final transitions = new Map<Int, Transition>();
 	final kinds = FIELDS.split(" ");
 	var at = 0;
 
@@ -47,7 +51,8 @@ class RuleData {
 	public static function sheet(data:String, table:String):StyleSheet {
 		var r = new RuleData(data, table);
 		var rules = [for (_ in 0...r.int()) r.rule()];
-		return {rules: rules, light: r.tokens(), dark: r.tokens()};
+		var light = r.tokens(), dark = r.tokens();
+		return {rules: rules, light: light, dark: dark, lengths: ["radius" => r.num()]};
 	}
 
 	inline function int():Int {
@@ -58,8 +63,11 @@ class RuleData {
 	inline function str():String
 		return table[int()];
 
-	inline function num():Float
-		return Std.parseFloat(str());
+	// (a number; "r" and px: --radius plus px, Length.token's)
+	function num():Float {
+		var s = str();
+		return s.fastCodeAt(0) == "r".code ? Length.token("radius", Std.parseFloat(s.substr(1))) : Std.parseFloat(s);
+	}
 
 	function color():Color {
 		var i = int();
@@ -99,6 +107,12 @@ class RuleData {
 			case "c".code: color();
 			case "s".code: str();
 			case "t".code: Transform.parse(str());
+			case "r".code:
+				// (one Transition for each, as each colour)
+				var i = int();
+				var t = transitions[i];
+				if (t == null) t = transitions[i] = Transition.parse(table[i]);
+				t;
 			case "S".code:
 				var n = int();
 				if (n == 0) Shadow.NONE else {
