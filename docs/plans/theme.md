@@ -1,8 +1,13 @@
 # Unstyled widgets and a shadcn theme
 
-`@hxmc/ui`'s widgets ship unstyled: behaviour, semantics and the geometry
-their interaction needs, no colours, borders, radii, shadows, padding or
-fonts. Looks come from a theme. One theme ships, `@hxmc/theme`, based on
+`@hxmc/ui`'s widgets ship unstyled, as React Aria Components do: only
+behaviour (pointer, keyboard, focus, selection, popups, drag), semantics
+(roles, states, labels for assistive technology) and the structure of
+parts; no colours, borders, radii, shadows, padding, sizes or fonts, and
+no fallback look. Each widget exposes its states (hover, pressed,
+focus-visible, selected, disabled, open, …) as signals and as attributes
+on its parts, and an instance's style may be a function of them. Looks
+come from a theme. One theme ships, `@hxmc/theme`, based on
 [shadcn/ui](https://ui.shadcn.com) (MIT): its components, token names,
 slot names, variants and sizes, and its class lists copied verbatim.
 
@@ -72,8 +77,9 @@ Both halves build against this; neither waits for the other.
     sizes added, the renames, the added widgets; `Theme.hx` removed. In
     this order, so the theme can be checked early: Button, Input,
     Checkbox, Switch, Label, Card, Badge; then the rest.
-  - unstyled, a widget still works and stays legible: a focus outline, a
-    visible checked state, text in the system foreground.
+  - unstyled means behaviour only: no built-in look to fall back on; the
+    checks for an unstyled widget are behaviour and semantics (events,
+    keyboard, focus order, the accessibility tree), not pixels.
 - **Here** (`packages/theme`, new):
   - a compile-time macro that turns Tailwind class lists into `Rule`s:
     the subset shadcn's components use (spacing, sizing, flex, radius,
