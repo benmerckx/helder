@@ -3,7 +3,9 @@
 One reactive view layer with several renderers, a web package built on
 it, and the project's site rebuilt with both. Step 1, `@hxmc/view`, is
 built; its design (what was looked at, chosen and rejected) is
-[view.md](view.md). The current site is `hxmc/web`.
+[view.md](view.md). Step 2, `@hxmc/web`, is built
+([packages/web](../../packages/web/README.md)). Next: step 3, the site.
+The current site is `hxmc/web`.
 
 ## `@hxmc/view` (built)
 
@@ -102,19 +104,62 @@ there:
   hydrate into JavaScript islands by default, WebAssembly ones where an
   island chooses it.
 
-## `@hxmc/web`
+## `@hxmc/web` (built)
 
-The browser, for programs compiled to wasm32-wasi:
+`hxmc.web` ([packages/web](../../packages/web/README.md), 0.1.0); `-lib
+hxmc.web` names its renderer, the DOM's in JavaScript and static HTML's
+elsewhere. `@hxmc/view` needed no change.
 
-- DOM bindings through `imports.mjs`, the convention `@hxmc/os` and
-  `@hxmc/gfx` use (docs/hxmc.md, "WebAssembly"): elements, properties,
-  events and the few browser APIs a site needs, JavaScript objects as
-  handles.
-- A DOM renderer for `@hxmc/view`, in JavaScript first.
-- A static renderer: the same components rendered to HTML at build time
-  (natively or on any target), for pages that need no WebAssembly.
-- Hydration islands: a static page in which only the interactive parts
-  load a module and take over their pre-rendered markup.
+- **The DOM renderer** (`DomRenderer`, JavaScript): the sketch above,
+  but for two choices. Listeners are the elements' own, not delegated: a
+  fine-grained renderer adds each once, so delegation would save little
+  and cost `stopPropagation` and handler order their DOM meaning. SVG's
+  namespace comes from the tag (SVG's own elements; `svg:a` for the
+  names both have), since an element is made before it is inserted.
+- **The static renderer** (`StaticRenderer`, `Static`): a tree of
+  elements, texts and comments, serialized once; natively, on Eval or in
+  node. The markers as sketched (a pair of comments, `<!---->` between
+  adjacent texts) and `<!--#-->` for an empty text, which the parser
+  would lose; no separators inside `script`, `style`, `textarea` and
+  `title`, whose content is one text.
+- **Hydration**, a mode of the DOM renderer (`DomRenderer.hydrate`). A
+  node is claimed when it is made, not when it is inserted: the runtime
+  keeps the node a create call returned, so that node must be the page's.
+  Markup makes each element and inserts it before its attributes and
+  children, so creation follows document order but for markers, which a
+  region makes before its content: a marker claims the end of the pair
+  at the cursor and removes its start, and its content is claimed next.
+  A mismatch (another element, nodes missing or left over, or an error)
+  renders the island again from scratch, with a warning in debug builds;
+  the end is found by an `onMount` of a `Mountable` placed first in the
+  content.
+- **Islands** (`Island.define`, `Island.Wasm`, `Islands.start`,
+  `loader.js`): an `<hxmc-island>` element with the island's name, its
+  props as JSON in an attribute and its bundle; the loader (1.2 KB
+  gzipped) loads a bundle once and hydrates on load, on idle or once
+  visible. One shared bundle per page is the smaller choice: a small
+  island alone is 42 KB (9 KB gzipped), nearly all `@hxmc/view`'s
+  runtime, which a shared bundle holds once. A WebAssembly island is a
+  canvas the loader hands to `@hxmc/os`'s `browser.mjs`: gfx's cube in
+  the demo page.
+- **JavaScript calling WebAssembly** (`Exports`, `WasmModule`): a class
+  declares the functions, compiled into both programs; in the module each
+  gets a `@:hxmc.callback` wrapper named to `imports.mjs` at start (the
+  way in for JavaScript the WebAssembly target has: its module exports
+  only `memory`, `_start` and the table, and `@:hxmc.export` is the
+  runtime's, for symbols its C code calls), in JavaScript a typed call of
+  it. Bytes and strings cross in bulk through the C heap, which the
+  collector does not move.
+
+Not built: DOM bindings for wasm32-wasi programs through `imports.mjs`
+(a WebAssembly DOM renderer, `N` a handle), until a program needs DOM
+nodes from WebAssembly (the text input overlay over a canvas, case (b)
+above).
+
+What the site takes from it: pages rendered from components at build time
+(`Static.document`, `Static.write`, `Static.copy` for an example's wasm
+build), islands of either kind, and an example's source read when the
+page is rendered (the demo's `Source` component).
 
 ## The site: `site/`
 

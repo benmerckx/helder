@@ -103,4 +103,4 @@ What the web needs is in [web.md](web.md).
   page (Solid's `getNextElement`, hydration keys and comment markers)
   bends every create call and needs markers ui has no use for; it
   belongs to the web layer, not to the contract ui implements
-  ([web.md](web.md#hxmcweb)).
+  ([web.md](web.md#hxmcweb-built)).
