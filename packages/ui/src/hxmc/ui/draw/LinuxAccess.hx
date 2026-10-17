@@ -264,6 +264,7 @@ class LinuxAccess {
 			case Heading: 83;
 			case Link: 88;
 			case Dialog: 16;
+			case AlertDialog: 2;
 			case Menu: 33;
 			case MenuItem: 35;
 			case ListBox: 98;
@@ -287,7 +288,7 @@ class LinuxAccess {
 		}
 
 	static final ROLE_NAMES = [
-		7 => "check box", 11 => "combo box", 16 => "dialog", 23 => "frame", 27 => "image", 29 => "label", 31 => "list", 32 => "list item", 33 => "menu",
+		2 => "alert", 7 => "check box", 11 => "combo box", 16 => "dialog", 23 => "frame", 27 => "image", 29 => "label", 31 => "list", 32 => "list item", 33 => "menu",
 		35 => "menu item", 37 => "page tab", 38 => "page tab list", 39 => "panel", 42 => "progress bar", 43 => "push button", 44 => "radio button",
 		49 => "scroll pane", 51 => "slider", 62 => "toggle button", 64 => "tool tip", 75 => "application", 79 => "entry", 83 => "heading", 88 => "link",
 		98 => "list box", 99 => "grouping", 55 => "table", 56 => "table cell", 57 => "table column header", 90 => "table row", 65 => "tree",

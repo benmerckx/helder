@@ -216,4 +216,10 @@ export const cases = [
 	{ name: 'order in a wrapping column', width: 200, height: 100, tree: { style: { wrap: true, columnGap: 4 }, children: [box(40, 40, { order: 1 }), box(50, 40), box(30, 40, { order: 1 }), box(20, 30)] } },
 	{ name: 'order in a grid', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '30px' }, children: [{ style: { order: 3 } }, {}, { style: { order: 1, gridColumn: 'span 2' } }, {}] } },
 	{ name: 'rtl absolute static position', width: 300, height: 200, tree: { style: { dir: 'Rtl', padding: [10, 15, 10, 5], borderWidth: 2 }, children: [h(30), box(40, 40, { position: 'Absolute', margin: [0, 6, 0, 0] }), box(40, 40, { position: 'Absolute', left: 10, top: 50 })] } },
+	// (found by random trees against Chromium) a basis under the padding: the padding and border; a wrapping column of unknown width as wide
+	// as on one line unless its height is its own; its automatic minimum its lines broken at its own height
+	{ name: 'basis floored at padding', width: 300, height: 200, tree: { children: [grow(2), grow(1, { basis: 8, padding: 10 })] } },
+	{ name: 'flexed wrapping column, one line wide', width: 300, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { height: 30 }, children: [{ style: { wrap: true, grow: 1, basis: 85, minHeight: 0 }, children: [box(12, 20), box(106, 15)] }] }] } },
+	{ name: 'wrapping column fit-content within the room', width: 300, height: 200, tree: { style: { alignItems: 'Start' }, children: [{ style: { width: 67, alignItems: 'Start' }, children: [{ style: { wrap: true, height: 20 }, children: [box(50, 20), box(40, 20)] }] }] } },
+	{ name: 'wrapping column minimum at its own height', width: 300, height: 200, tree: { style: { justify: 'End' }, children: [{ style: { wrap: true, basis: 40, height: 107, borderWidth: 2 }, children: [box(10, 50), box(10, 40), box(10, 73)] }] } },
 ];

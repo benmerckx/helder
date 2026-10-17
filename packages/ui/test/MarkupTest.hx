@@ -21,6 +21,8 @@ import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
+import hxmc.ui.widgets.Widgets.Command;
+import hxmc.ui.widgets.Widgets.AlertDialog;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
@@ -89,6 +91,7 @@ class MarkupTest implements Markup {
 		access();
 		popovers();
 		combobox();
+		command();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -219,6 +222,66 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function command() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var ran = [];
+		Render.render(<view padding={10} align-items="start">
+			<Command tag="cmd" placeholder="Type a command" groups={[
+				{heading: "Suggestions", items: [{label: "Calendar", onSelect: () -> ran.push("calendar")}, {label: "Search Emoji", disabled: true},
+					{label: "Calculator", onSelect: () -> ran.push("calculator")}]},
+				{heading: "Settings", items: [{label: "Profile", shortcut: "Mod+P", onSelect: () -> ran.push("profile")}, {label: "Billing"}]}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		var list = ui.root.find("cmd-list");
+		function items():Array<Node> {
+			var out = [];
+			function walk(n:Node) {
+				if (n.slot == "command-item") out.push(n);
+				for (c in n.children)
+					walk(c);
+			}
+			walk(list);
+			return out;
+		}
+		function shown()
+			return [for (o in items()) (cast o.children[0] : TextNode).text].join(",");
+		function selected()
+			return [for (o in items()) if (o.attr("data-selected") == "true") (cast o.children[0] : TextNode).text].join(",");
+		var separators = 0;
+		function count(n:Node) {
+			if (n.slot == "command-separator") separators++;
+			for (c in n.children)
+				count(c);
+		}
+		count(list);
+		check("command: every item, the first selected, a separator between groups", shown() == "Calendar,Search Emoji,Calculator,Profile,Billing"
+			&& selected() == "Calendar" && separators == 1 && items()[1].attr("data-disabled") == "true", shown() + " / " + selected());
+		var field = ui.root.find("cmd-input");
+		ui.setFocus(field);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("command: Down skips a disabled item", selected() == "Calculator" && ui.focus == field, selected());
+		for (_ in 0...4)
+			ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("command: Down stops at the last", selected() == "Billing", selected());
+		ui.textInput("CAL");
+		ui.update();
+		separators = 0;
+		count(list);
+		check("command: the query filters (either case), hides an empty group and the separators, selects the first", shown() == "Calendar,Calculator"
+			&& selected() == "Calendar" && ui.root.find("cmd-group-1") == null && separators == 0, shown() + " / " + selected());
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.ENTER, 0);
+		check("command: Enter chooses the selected item", ran.join(",") == "calculator", ran.join(","));
+		ui.textInput("zz");
+		ui.update();
+		check("command: nothing matches, the empty text", shown() == "" && ui.root.find("cmd-empty") != null);
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("command: a combobox over a listbox to assistive technology", an.role == ComboBox && an.expanded == true);
 	}
 
 	static function toasts() {
@@ -1244,6 +1307,7 @@ class MarkupTest implements Markup {
 			<Tabs tag="tabs" labels={["One", "Two"]} selected={tab} render={i -> <text>{"Panel " + i}</text>}/>
 			<Slider tag="vol" value={vol} width={100} disabled={off}/>
 			<Progress tag="p" value={0.25} width={100}/>
+			<Progress tag="p2" value={0.5}/>
 			<Separator tag="sep"/>
 			<Separator tag="vsep" orientation="vertical" decorative={false}/>
 			<Skeleton tag="sk" width={40} height={10}/>
@@ -1274,8 +1338,11 @@ class MarkupTest implements Markup {
 		check("unstyled: a slider's track, range and thumb", v.slot == "slider" && track.slot == "slider-track" && track.children[0].slot == "slider-range"
 			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 50, '${track.children[0].width}');
 		var p = ui.root.find("p");
-		check("unstyled: a progress bar's indicator", p.slot == "progress" && p.children[0].slot == "progress-indicator" && p.children[0].width == 25
-			&& p.style.height.resolve(0) == 8);
+		var ind = p.children[0];
+		check("unstyled: a progress bar's indicator, the bar's width moved left by what is not done", p.slot == "progress" && ind.slot == "progress-indicator"
+			&& ind.width == 100 && ind.style.transform.toMatrix(ind.width, ind.height)[4] == -75 && p.style.height.resolve(0) == 8);
+		check("unstyled: a width not given (null) is no width of its own: the rules'", ui.root.find("p2").style.width.equals(DimValue.Percent(100)),
+			"" + ui.root.find("p2").style.width);
 		var sep = ui.root.find("sep"), vsep = ui.root.find("vsep");
 		check("unstyled: separators: a line across, data-orientation; decorative ones hidden", sep.slot == "separator" && sep.height == 1
 			&& sep.attr("data-orientation") == "horizontal" && vsep.style.width.resolve(0) == 1 && vsep.semantics.role == Separator
@@ -1529,7 +1596,7 @@ class MarkupTest implements Markup {
 
 	static function unstyledExtras() {
 		var ui = new Ui(new MonoText(), 400, 300);
-		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null);
+		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null), confirm = signal(false), outcome = [];
 		Render.render(<view align-items="start" row-gap={4} padding={10}>
 			<Button tag="before" label="Before"/>
 			<PopoverButton tag="pop" label="Settings" open={pop}><Input tag="pop-field" value={signal("")}/></PopoverButton>
@@ -1538,6 +1605,8 @@ class MarkupTest implements Markup {
 			<Kbd text="Ctrl K"/>
 			<Spinner tag="spin"/>
 			<Sheet open={sheet} title="Edit" description="Make changes" side="left"><Button tag="save" label="Save"/></Sheet>
+			<AlertDialog tag="sure" open={confirm} title="Delete it?" description="This cannot be undone." action="Delete" variant="destructive"
+				onAction={() -> outcome.push("deleted")} onCancel={() -> outcome.push("kept")}/>
 		</view>, ui.root);
 		ui.update();
 		var p = ui.root.find("pop");
@@ -1584,6 +1653,25 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("unstyled: Escape closes the sheet", !sheet.value);
+		confirm.value = true;
+		ui.update();
+		var cancel = ui.overlay.find("sure-cancel"), act = ui.overlay.find("sure-action");
+		check("alert dialog: an alertdialog, Cancel focused first, the action destructive", cancel != null && ui.focus == cancel
+			&& cancel.parent.parent.semantics.role == hxmc.ui.access.Role.AlertDialog && act.variant == "destructive"
+			&& cancel.parent.parent.parent.slot == "alert-dialog-overlay");
+		ui.pointerDown(395, 295, 1);
+		ui.pointerUp(395, 295, 1);
+		ui.update();
+		check("alert dialog: a click outside leaves it open", confirm.value && outcome.length == 0);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("alert dialog: Escape cancels", !confirm.value && outcome.join(",") == "kept", outcome.join(","));
+		confirm.value = true;
+		ui.update();
+		ui.setFocus(ui.overlay.find("sure-action"));
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("alert dialog: the action runs and closes it", !confirm.value && outcome.join(",") == "kept,deleted", outcome.join(","));
 	}
 
 	static function table() {

@@ -18,7 +18,7 @@ import hxmc.view.*;
 //   GalleryTest <golden.png> <out.png> [--dark] [--rtl] [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 2052;
+	static inline var H = 2152;
 	static var failed = 0;
 	static var checks = 0;
 
@@ -182,6 +182,19 @@ class GalleryTest {
 		key(Key.UP);
 		key(Key.UP);
 		check("the number field stepped with the keyboard", ui.focus == find("count") && app.count.value == 5, "" + app.count.value);
+		// the command menu: typed in, its first match chosen by Enter, a toast
+		key(Key.TAB);
+		check("Tab to the command menu's field", ui.focus == find("command-input"));
+		for (c in new haxe.iterators.StringIteratorUnicode("op")) {
+			ui.keyDown(c, 0);
+			ui.textInput(String.fromCharCode(c));
+		}
+		ui.update();
+		key(Key.ENTER);
+		check("the command menu: filtered, Enter runs the match", hxmc.ui.widgets.Toasts.shown.value.length == 1
+			&& hxmc.ui.widgets.Toasts.shown.value[0].text == "Open recent");
+		hxmc.ui.widgets.Toasts.clear();
+		ui.update();
 		key(Key.TAB);
 		key(Key.SPACE);
 		check("the disclosure opened with the keyboard", ui.focus == find("more-summary") && find("more-content") != null);

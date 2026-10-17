@@ -249,6 +249,10 @@ class Ui {
 			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
 			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius, cs);
 			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
+		} else if (s.background.a > 0 && s.borderColor.a < 255 && be.top + be.right + be.bottom + be.left > 0) {
+			// (the background under the border too, as CSS's background-clip: border-box, seen through a translucent one)
+			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
+			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
 		} else if (s.background.a > 0 || bordered)
 			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor, cs, sides);
 		// (the shadows inside: in the padding box, over the background)
@@ -876,11 +880,11 @@ class Ui {
 			if (p == null) continue;
 			if (target != null && target != p && contains(p, target)) break;
 			if (p.modal) {
-				if (target == p && p.onDismiss != null) p.onDismiss();
+				if (target == p && p.onDismiss != null && p.dismissOnOutside) p.onDismiss();
 				break;
 			}
 			if (target != null && p.anchor != null && contains(p.anchor, target)) break;
-			if (p.onDismiss != null) p.onDismiss();
+			if (p.onDismiss != null && p.dismissOnOutside) p.onDismiss();
 		}
 	}
 
@@ -1011,7 +1015,9 @@ class Ui {
 	static function maxScroll(n:Node, x:Bool):Float {
 		var s = n.style, inset = x ? s.borderEdges.horizontal + s.padding.horizontal : s.borderEdges.vertical + s.padding.vertical;
 		var view = (x ? n.width : n.height) - inset;
-		return Math.max(0, (x ? n.contentWidth : n.contentHeight) - view);
+		// (less than half a pixel over: none, the box being rounded and the content not, as Chromium snaps scrollHeight)
+		var over = (x ? n.contentWidth : n.contentHeight) - view;
+		return over < 0.5 ? 0 : over;
 	}
 
 	// its least offset on the axis: 0, but right to left, sideways, its

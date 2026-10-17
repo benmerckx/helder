@@ -202,11 +202,15 @@ class Gallery implements Markup {
 				<Textarea tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
 				<text tag="lines" opacity={0.7}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
-			{section("COMBOBOX, NUMBER, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">
+			{section("COMBOBOX, COMMAND, NUMBER, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">
 				<view direction="row" column-gap={12} align-items="center">
 					<Combobox tag="city" value={city} options={CITIES} placeholder="A city" label="City" onChoose={c -> Toasts.show("Chose " + c, {kind: "success"})}/>
 					<NumberField tag="count" value={count} min={0} max={99} width={90} label="Count"/>
 				</view>
+				<view width={280}><Command tag="command" placeholder="Type a command" label="Commands" groups={[
+					{heading: "Suggestions", items: [{label: "New file", shortcut: "Mod+N", onSelect: () -> Toasts.show("New file")},
+						{label: "Open recent", onSelect: () -> Toasts.show("Open recent")}, {label: "Share", disabled: true}]}
+				]}/></view>
 				<Collapsible tag="more" label="What these are">
 					<text opacity={0.7}>A combobox filters its options as you type; a toast says what happened, for a while.</text>
 				</Collapsible>
