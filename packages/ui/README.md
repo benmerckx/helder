@@ -60,11 +60,11 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     minmax(), repeat()), `gridAutoRows`, `gridAutoColumns`,
     `gridAutoFlow`, `gridTemplateAreas` ("'head head' 'side main'"), items
     placed by `gridColumn` and `gridRow` ("1 / 3", "span 2", negative
-    lines, an area's name) or `gridArea`, or auto-placed, aligned by
-    `justifyItems`, `justifySelf`, `alignItems`, `alignSelf`, the tracks
-    by `justify` and `alignContent` (no other named lines, no subgrid,
-    no dense packing). Checked against Chromium on 105 cases, 31 of them
-    grids, 8 right to left.
+    lines, an area's name) or `gridArea`, or auto-placed (`gridAutoFlow`:
+    by rows or columns, sparse or dense), aligned by `justifyItems`,
+    `justifySelf`, `alignItems`, `alignSelf`, the tracks by `justify` and
+    `alignContent` (no other named lines, no subgrid). Checked against
+    Chromium on 109 cases, 35 of them grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the

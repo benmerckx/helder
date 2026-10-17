@@ -2221,6 +2221,140 @@
 		}
 	},
 	{
+		"name": "grid sparse holes",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "repeat(3, 1fr)",
+				"gridAutoRows": "30px"
+			},
+			"children": [
+				{},
+				{
+					"style": {
+						"gridColumn": "span 3"
+					}
+				},
+				{},
+				{
+					"style": {
+						"gridColumn": "span 2"
+					}
+				},
+				{},
+				{}
+			]
+		}
+	},
+	{
+		"name": "grid dense",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "repeat(3, 1fr)",
+				"gridAutoRows": "30px",
+				"gridAutoFlow": "RowDense"
+			},
+			"children": [
+				{},
+				{
+					"style": {
+						"gridColumn": "span 3"
+					}
+				},
+				{},
+				{
+					"style": {
+						"gridColumn": "span 2"
+					}
+				},
+				{},
+				{}
+			]
+		}
+	},
+	{
+		"name": "grid dense locked",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "repeat(4, 1fr)",
+				"gridAutoRows": "30px",
+				"gridAutoFlow": "RowDense"
+			},
+			"children": [
+				{
+					"style": {
+						"gridColumn": "3",
+						"gridRow": "1"
+					}
+				},
+				{
+					"style": {
+						"gridRow": "1",
+						"gridColumn": "span 2"
+					}
+				},
+				{
+					"style": {
+						"gridRow": "1"
+					}
+				},
+				{
+					"style": {
+						"gridColumn": "2"
+					}
+				},
+				{},
+				{
+					"style": {
+						"gridColumn": "span 3"
+					}
+				},
+				{}
+			]
+		}
+	},
+	{
+		"name": "grid dense columns",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateRows": "40px 40px 40px",
+				"gridAutoColumns": "50px",
+				"gridAutoFlow": "ColumnDense"
+			},
+			"children": [
+				{
+					"style": {
+						"gridRow": "span 2"
+					}
+				},
+				{
+					"style": {
+						"gridRow": "span 2"
+					}
+				},
+				{},
+				{},
+				{
+					"style": {
+						"gridRow": "span 3"
+					}
+				},
+				{}
+			]
+		}
+	},
+	{
 		"name": "grid auto columns from content",
 		"width": 400,
 		"height": 200,

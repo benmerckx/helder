@@ -86,6 +86,17 @@ class StyleAttrs {
 	static function gridAutoRows(style:Style, v:Dynamic)
 		style.gridAutoRows = Std.isOfType(v, String) ? Grid.tracks(v)[0] : v;
 
+	// "row", "column", "dense", "row dense", "column dense" (or the GridFlow)
+	static function gridAutoFlow(style:Style, v:Dynamic) {
+		if (!Std.isOfType(v, String)) {
+			style.gridAutoFlow = v;
+			return;
+		}
+		var words = StringTools.trim(v).split(" ").filter(w -> w != "");
+		var column = words.indexOf("column") >= 0, dense = words.indexOf("dense") >= 0;
+		style.gridAutoFlow = column ? (dense ? ColumnDense : Column) : (dense ? RowDense : Row);
+	}
+
 	static function gridColumn(style:Style, v:Dynamic)
 		style.gridColumn = Std.isOfType(v, String) ? Grid.GridPlacement.parse(v) : Std.isOfType(v, Int) ? new Grid.GridPlacement(v, 0, 1) : v;
 

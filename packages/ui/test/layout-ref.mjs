@@ -25,7 +25,7 @@ const KEBAB = { direction: 'flex-direction', wrap: 'flex-wrap', justify: 'justif
 const VALUES = { Row: 'row', Column: 'column', RowReverse: 'row-reverse', ColumnReverse: 'column-reverse', Start: 'flex-start', End: 'flex-end',
 	Center: 'center', Stretch: 'stretch', SpaceBetween: 'space-between', SpaceAround: 'space-around', SpaceEvenly: 'space-evenly', Auto: 'auto',
 	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex', Grid: 'grid', Visible: 'visible', Hidden: 'hidden', Scroll: 'scroll',
-	Rtl: 'rtl', Ltr: 'ltr' };
+	Rtl: 'rtl', Ltr: 'ltr', RowDense: 'row dense', ColumnDense: 'column dense' };
 
 function css(style) {
 	// (a grid: CSS's normal track alignment, auto tracks stretched, where the page's rule says flex-start)

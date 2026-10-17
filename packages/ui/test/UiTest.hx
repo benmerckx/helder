@@ -1387,7 +1387,12 @@ class UiTest {
 			case "gridTemplateRows": s.gridTemplateRows = Grid.tracks(v);
 			case "gridAutoColumns": s.gridAutoColumns = Grid.tracks(v)[0];
 			case "gridAutoRows": s.gridAutoRows = Grid.tracks(v)[0];
-			case "gridAutoFlow": s.gridAutoFlow = v == "Column" ? Grid.GridFlow.Column : Grid.GridFlow.Row;
+			case "gridAutoFlow": s.gridAutoFlow = switch v {
+					case "Column": Grid.GridFlow.Column;
+					case "RowDense": Grid.GridFlow.RowDense;
+					case "ColumnDense": Grid.GridFlow.ColumnDense;
+					case _: Grid.GridFlow.Row;
+				}
 			case "gridColumn": s.gridColumn = Grid.GridPlacement.parse(Std.string(v));
 			case "gridRow": s.gridRow = Grid.GridPlacement.parse(Std.string(v));
 			case "gridArea": s.gridArea = Std.string(v);
