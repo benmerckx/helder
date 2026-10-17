@@ -3,7 +3,8 @@ package hxmc.ui.widgets;
 import hxmc.ui.*;
 
 // Several lines of text edited in place (EditableText's keys and pointer):
-// wrapped to its width, rows lines high unless its style says, scrolled
+// wrapped to its width, rows lines high unless its style says (a height;
+// fieldSizing Content: as tall as its lines), scrolled
 // (the wheel, and to keep the caret in view). Enter types a new line; Up
 // and Down move a line keeping the column; Home and End go to the line's
 // start and end (with Control: the text's). A composition shows at the
@@ -84,13 +85,14 @@ class TextArea extends EditableText {
 		return p.hit(localX(px, py) - s.borderEdges.left - s.padding.left - lineShift(p, y), y);
 	}
 
-	// as wide as it is given (its text wrapped to that), rows lines high
+	// as wide as it is given (its text wrapped to that), rows lines high (or its lines', at least one)
 	override public function measureContent(engine:TextEngine, knownWidth:Float, knownHeight:Float, availWidth:Float, availHeight:Float):Size {
 		var w = Math.isNaN(knownWidth) ? availWidth : knownWidth;
 		var p = layoutText(engine, w);
 		if (Math.isNaN(w)) w = p.width;
 		var lh = font().size * font().lineHeight;
-		return new Size(Math.max(w, 1), Math.isNaN(knownHeight) ? Math.max(rows, 1) * lh : knownHeight);
+		var h = style.fieldSizing == Content ? Math.max(p.height, lh) : Math.max(rows, 1) * lh;
+		return new Size(Math.max(w, 1), Math.isNaN(knownHeight) ? h : knownHeight);
 	}
 
 	override public function minContentWidth(engine:TextEngine):Float

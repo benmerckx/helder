@@ -1123,6 +1123,21 @@ class UiTest {
 		ui.root.append(a);
 		ui.update();
 		check("area: rows high", a.height == 25 && a.width == 100, '${a.width}x${a.height}');
+		// (sized by its text: a line empty, then three, over a minimum height)
+		var grown = new TextArea("");
+		grown.style.width = 100;
+		grown.style.fieldSizing = Content;
+		ui.root.append(grown);
+		ui.update();
+		var empty = grown.height;
+		grown.setText("a\nb\nc");
+		ui.update();
+		var three = grown.height;
+		grown.style.minHeight = 64;
+		ui.update();
+		check("area: field-sizing content, as tall as its lines; a minimum over it", empty == 13 && three == 38 && grown.height == 64,
+			empty + " " + three + " " + grown.height);
+		ui.root.remove(grown);
 		ui.setFocus(a);
 		function typeIn(t:String)
 			for (c in new haxe.iterators.StringIteratorUnicode(t)) {
