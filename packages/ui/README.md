@@ -485,8 +485,22 @@ laying out text and nearly half of that the collector copying the
 paragraphs' glyphs, which all survive: a compact glyph store in
 `hxmc.text` (arrays, not an object per glyph) is what would cut it next.
 
+## The widgets' reference
+
+Each widget in `Widgets.hx` carries its doc comment and `@:widget` metadata:
+each prop's doc, its variants and sizes, the keys it takes and what they do
+(in order), `part` (a part of another widget, documented with it) and
+`popup` (its parts show only when the user opens it). `test/WidgetDocs.hx`
+reads them with each widget's props, slots, data- attributes and roles, and
+its example (`examples/widgets/<Name>Example.hx`: a `view()`; run one in a
+window with `-main WidgetExample -D widget=<Name>`), into JSON (`make
+ui-check` writes `bin/ui/widgets.json`), the site's component pages.
+`WidgetExamplesTest` renders every example with `Shadcn.sheet` and with no
+sheet, finds its widget's slots, and fails while a widget, a prop or an
+example is missing.
+
 ## Tests
 
-`make ui-check` (Eval: layout against Chromium, events, markup rendered into nodes, the guide),
+`make ui-check` (Eval: layout against Chromium, events, markup rendered into nodes, the guide, the widgets' examples and reference),
 `make ui-draw-check` (natively, golden images), `make ui-web-check`
 (Chromium, WebGPU and WebGL2, real input events). See `docs/testing.md`.
