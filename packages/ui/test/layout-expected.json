@@ -647,6 +647,12 @@
 		[0, 30, 30, 40],
 		[30, 30, 30, 40]
 	],
+	"shrink by the content-box base size": [
+		[0, 0, 200, 60],
+		[0, 0, 75, 20],
+		[75, 0, 67, 20],
+		[142, 0, 58, 20]
+	],
 	"row intrinsic width without flex-basis": [
 		[0, 0, 300, 100],
 		[0, 0, 130, 30],

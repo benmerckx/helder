@@ -188,6 +188,7 @@ class Layout {
 				b = row ? rw : rh;
 			}
 			it.basis = b;
+			it.edges = row ? edgesH(cs) : edgesV(cs);
 			// the automatic minimum
 			if ((row ? cs.minWidth : cs.minHeight) == DimValue.Auto && cs.overflow == Visible) {
 				var content:Float;
@@ -1086,7 +1087,7 @@ class Layout {
 				remaining -= (it.frozen ? it.main : it.basis) + it.mMainStart + it.mMainEnd;
 				if (!it.frozen) {
 					factors += growing ? it.node.style.grow : it.node.style.shrink;
-					scaled += it.node.style.shrink * it.basis;
+					scaled += it.node.style.shrink * inner(it);
 				}
 			}
 			if (factors < 1 && Math.abs(initial * factors) < Math.abs(remaining)) remaining = initial * factors;
@@ -1096,7 +1097,7 @@ class Layout {
 				if (!it.frozen) {
 					var target = it.basis;
 					if (growing) target += remaining * it.node.style.grow / factors;
-					else if (scaled > 0) target += remaining * (it.node.style.shrink * it.basis) / scaled;
+					else if (scaled > 0) target += remaining * (it.node.style.shrink * inner(it)) / scaled;
 					var c = clamp(target, it.minMain, it.maxMain);
 					if (c < 0) c = 0;
 					it.violation = c - target;
@@ -1212,6 +1213,10 @@ class Layout {
 	static inline function fits(was:Float, got:Float, now:Float):Bool
 		return same(was, now) || ((Math.isNaN(was) || got < was) && (Math.isNaN(now) || got <= now));
 
+	// an item's base size inside its padding and border: what its shrink factor scales, as Chromium
+	static inline function inner(it:Item):Float
+		return Math.max(0, it.basis - it.edges);
+
 	// NaN stays NaN
 	static inline function clamp(v:Float, lo:Float, hi:Float):Float
 		return Math.isNaN(v) ? v : v > hi ? (hi < lo ? lo : hi) : v < lo ? lo : v;
@@ -1249,6 +1254,7 @@ private class Item {
 	public var align:Align = Stretch;
 	public var styleCross = 0.0;
 	public var basis = 0.0;
+	public var edges = 0.0;
 	public var hypo = 0.0;
 	public var main = 0.0;
 	public var cross = 0.0;
@@ -1262,7 +1268,7 @@ private class Item {
 		mMainStart = mMainEnd = mCrossStart = mCrossEnd = 0;
 		minMain = maxMain = minCross = maxCross = 0;
 		align = Stretch;
-		styleCross = basis = hypo = main = cross = violation = 0;
+		styleCross = basis = edges = hypo = main = cross = violation = 0;
 		frozen = false;
 	}
 }
