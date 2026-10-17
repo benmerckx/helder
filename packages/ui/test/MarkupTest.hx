@@ -53,6 +53,7 @@ class MarkupTest implements Markup {
 		toasts();
 		numbers();
 		rightToLeft();
+		editMenus();
 		virtual();
 		table();
 		tree();
@@ -304,6 +305,45 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function editMenus() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var text = signal("hello world");
+		Render.render(<view padding={10}><Field tag="note" value={text}/></view>, ui.root);
+		ui.update();
+		var f:TextField = cast ui.root.find("note");
+		ui.setFocus(f);
+		f.select(6, 11);
+		var r = f.layoutText(ui.text, Math.NaN).caret(8);
+		var clip:hxmc.ui.ClipboardHost.MemoryClipboard = cast ui.clipboard;
+		function press(button:Int, x:Float, y:Float) {
+			ui.pointerDown(x, y, button);
+			ui.pointerUp(x, y, button);
+			ui.update();
+		}
+		press(3, f.absX + 9 + r.x, f.absY + 7 + r.y + 2);
+		var menu = ui.overlay.find("note-menu-items");
+		check("edit menu: a right click in the selection opens it, the selection kept", menu != null && f.selectionStart == 6 && f.selectionEnd == 11,
+			'${menu} ${f.selectionStart}-${f.selectionEnd}');
+		var copy = ui.overlay.find("note-menu-1");
+		press(1, copy.absX + 4, copy.absY + 4);
+		check("edit menu: Copy", clip.text == "world" && ui.overlay.children.length == 0 && ui.focus == f, clip.text);
+		ui.keyDown(Key.END, 0);
+		ui.keyDown(Key.MENU, 0);
+		ui.update();
+		var paste = ui.overlay.find("note-menu-2");
+		press(1, paste.absX + 4, paste.absY + 4);
+		check("edit menu: the menu key, Paste", text.value == "hello worldworld", text.value);
+		ui.keyDown(Key.MENU, 0);
+		ui.update();
+		var all = ui.overlay.find("note-menu-3");
+		press(1, all.absX + 4, all.absY + 4);
+		ui.keyDown(Key.MENU, 0);
+		ui.update();
+		var cut = ui.overlay.find("note-menu-0");
+		press(1, cut.absX + 4, cut.absY + 4);
+		check("edit menu: Select All, Cut", text.value == "" && clip.text == "hello worldworld", text.value);
 	}
 
 	static function popovers() {

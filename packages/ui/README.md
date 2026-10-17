@@ -146,7 +146,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `memo`, `effect`, `batch`, `untrack`, contexts), `Render` and the
   control flow components `For`, `Index`, `Show`, `Switch`,
   `ErrorBoundary` are `@hxmc/view`'s ([its README](../view/README.md)).
-- **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
+- **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing,
+  `cut`, `copy`, `paste`, `selectAll`; `Field` and `Area` add an edit menu
+  on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`, `Area`, `Table` (sortable columns, virtualised

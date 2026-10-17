@@ -1010,8 +1010,9 @@ class Widgets implements Markup {
 		return StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
 	}
 
-	// a text area bound to a signal (two ways), rows lines high (3)
-	public static function Area(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?tag:String}):Node {
+	// a text area bound to a signal (two ways), rows lines high (3); a right
+	// click (or the menu key) opens its edit menu
+	public static function Area(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?tag:String}):View {
 		var f = new TextArea(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
 		f.rows = props.rows ?? 3;
@@ -1021,8 +1022,17 @@ class Widgets implements Markup {
 		themed(f);
 		f.onChange = s -> props.value.value = s;
 		effect(() -> f.setText(props.value.value));
-		return f;
+		return editMenu(f, props.tag ?? "area");
 	}
+
+	// (a text field in a context menu of its edits: cut, copy, paste, select all)
+	static function editMenu(f:EditableText, tag:String):View
+		return <ContextMenu tag={tag + "-menu"} label="Edit" items={[
+			{label: "Cut", onSelect: () -> f.cut(), shortcut: "Mod+X"},
+			{label: "Copy", onSelect: () -> f.copy(), shortcut: "Mod+C"},
+			{label: "Paste", onSelect: () -> f.paste(), shortcut: "Mod+V"},
+			{label: "Select All", onSelect: () -> f.selectAll(), shortcut: "Mod+A"}
+		]}>{f}</ContextMenu>;
 
 	// (a text field's colours from the theme, following it)
 	static function themed(f:EditableText)
@@ -1036,8 +1046,9 @@ class Widgets implements Markup {
 			f.markDirty();
 		});
 
-	// a text field bound to a signal (two ways)
-	public static function Field(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?tag:String}):Node {
+	// a text field bound to a signal (two ways); a right click (or the menu
+	// key) opens its edit menu
+	public static function Field(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?tag:String}):View {
 		var f = new TextField(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
 		f.placeholder = props.placeholder ?? "";
@@ -1047,6 +1058,6 @@ class Widgets implements Markup {
 		f.onChange = s -> props.value.value = s;
 		f.onSubmit = props.onSubmit;
 		effect(() -> f.setText(props.value.value));
-		return f;
+		return editMenu(f, props.tag ?? "field");
 	}
 }

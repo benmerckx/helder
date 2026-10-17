@@ -64,6 +64,11 @@ class EditableText extends TextNode {
 		onComposition = e -> compose(e.text, e.caret);
 		onPointerDown = e -> {
 			var i = indexAt(e.x, e.y), t = now();
+			// (a right click: the selection kept when it is inside it, else the caret there; no drag)
+			if (e.button == 3) {
+				if (i < selectionStart || i > selectionEnd || selectionStart == selectionEnd) select(i, i);
+				return;
+			}
 			clicks = t - clickAt < 0.45 && Math.abs(e.x - clickX) < 5 && Math.abs(e.y - clickY) < 5 ? clicks + 1 : 1;
 			clickAt = t;
 			clickX = e.x;
@@ -190,21 +195,37 @@ class EditableText extends TextNode {
 			case "y".code if (ctrl):
 				redo();
 			case "a".code if (ctrl):
-				select(0, text.length);
-			case "c".code | "x".code if (ctrl):
-				if (selectionStart != selectionEnd && ui != null) {
-					ui.clipboard.write(text.substring(selectionStart, selectionEnd));
-					if (e.key == "x".code) replace("");
-				}
+				selectAll();
+			case "c".code if (ctrl):
+				copy();
+			case "x".code if (ctrl):
+				cut();
 			case "v".code if (ctrl):
-				// (the text may come later: typed where the selection is then)
-				if (ui != null) ui.clipboard.read(t -> if (t != null && t != "") replace(pasted(t)));
+				paste();
 			case _:
 				return;
 		}
 		// (handled: Tab still moves the focus)
 		e.stop();
 	}
+
+	// the selection to the clipboard, and out of the text
+	public function cut() {
+		if (selectionStart == selectionEnd || ui == null) return;
+		ui.clipboard.write(text.substring(selectionStart, selectionEnd));
+		replace("");
+	}
+
+	// the selection to the clipboard
+	public function copy()
+		if (selectionStart != selectionEnd && ui != null) ui.clipboard.write(text.substring(selectionStart, selectionEnd));
+
+	// the clipboard's text over the selection (it may come later: typed where the selection is then)
+	public function paste()
+		if (ui != null) ui.clipboard.read(t -> if (t != null && t != "") replace(pasted(t)));
+
+	public function selectAll()
+		select(0, text.length);
 
 	// the keys a subclass takes before the common ones: true when handled
 	function moreKeys(e:Event, shift:Bool, ctrl:Bool):Bool
