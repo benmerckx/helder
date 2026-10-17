@@ -50,11 +50,27 @@ class TextNode extends Node {
 
 	// the text laid out and drawn (EditableText: with its composition; with spans: theirs)
 	function shownText():String
-		return children.length > 0 ? spanned().text : text;
+		return children.length > 0 ? spanned().text : transformed(text);
 
-	// the whole text: its own, or its spans'
+	// the whole text, as shown: its own, or its spans'
 	public function allText():String
-		return children.length > 0 ? spanned().text : text;
+		return children.length > 0 ? spanned().text : transformed(text);
+
+	// its text as its textTransform shows it (letter for letter: the indices kept)
+	function transformed(s:String):String
+		return switch textTransform() {
+			case Uppercase: s.toUpperCase();
+			case Lowercase: s.toLowerCase();
+			case Capitalize:
+				var b = new StringBuf(), start = true;
+				for (i in 0...s.length) {
+					var c = s.charAt(i);
+					b.add(start ? c.toUpperCase() : c);
+					start = c == " " || c == "\n" || c == "\t";
+				}
+				b.toString();
+			case _: s;
+		}
 
 	// (spans: the text, each span's place, font and colour, and a key of them all)
 	function spanned():{text:String, spans:Array<TextSpan>, colors:Array<Color>, key:String} {
@@ -67,7 +83,7 @@ class TextNode extends Node {
 					walk(t);
 					continue;
 				}
-				var s = t.text, f = t.font();
+				var s = t.transformed(t.text), f = t.font();
 				if (s.length == 0) continue;
 				b.add(s);
 				spans.push(new TextSpan(pos, pos + s.length, f));

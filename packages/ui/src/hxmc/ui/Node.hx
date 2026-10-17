@@ -552,6 +552,17 @@ class Node {
 		return true;
 	}
 
+	// how its text's letters are shown: its textTransform, else its nearest ancestor's
+	public function textTransform():TextTransform {
+		var n = this;
+		while (n != null) {
+			var t = n.style.textTransform;
+			if (t != null) return t;
+			n = n.parent;
+		}
+		return None;
+	}
+
 	public function textAlign():TextAlign {
 		var n = this;
 		while (n != null) {

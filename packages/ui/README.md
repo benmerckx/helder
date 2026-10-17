@@ -70,7 +70,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     `textAlign` (left, center, right, justify: the room shared among the
     spaces as Chromium shares it; spacing added as Chromium adds it),
     `textWrap` (`NoWrap`, CSS's text-wrap-mode: each line kept whole, past
-    its box, its min-content width that wide). `textDecoration`
+    its box, its min-content width that wide), `textTransform` (`Uppercase`,
+    `Lowercase`, `Capitalize`: letter for letter; a span its own; a text
+    field's text as typed). `textDecoration`
     (underline, line-through, overline) draws its lines with the text inside
     the node, in its colour, where Chromium draws them. `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's

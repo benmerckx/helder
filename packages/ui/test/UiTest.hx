@@ -49,6 +49,7 @@ class UiTest {
 		visibility();
 		rtlScroll();
 		noWrap();
+		textTransform();
 		culling();
 		selection();
 		fields();
@@ -425,6 +426,27 @@ class UiTest {
 		box.style.width = 40;
 		ui.update();
 		check("no wrap: Wrap again inside", t.laidOut().lineCount > 1, "" + t.laidOut().lineCount);
+	}
+
+	// textTransform (inherited): the letters shown, the indices kept; a span its own
+	static function textTransform() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		var box = new Node("box"), t = new TextNode("hello big world");
+		box.append(t);
+		ui.root.append(box);
+		box.style.textTransform = Uppercase;
+		ui.update();
+		check("text transform: inherited, upper case", t.allText() == "HELLO BIG WORLD" && t.text == "hello big world", t.allText());
+		t.style.textTransform = Capitalize;
+		ui.update();
+		check("text transform: each word's first letter", t.allText() == "Hello Big World", t.allText());
+		var rich = new TextNode(""), a = new TextNode("one "), b = new TextNode("two");
+		rich.append(a);
+		rich.append(b);
+		b.style.textTransform = Lowercase;
+		box.append(rich);
+		ui.update();
+		check("text transform: a span its own", rich.allText() == "ONE two", rich.allText());
 	}
 
 	static function sticky() {
