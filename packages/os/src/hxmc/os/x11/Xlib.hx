@@ -42,15 +42,32 @@ import hxmc.unsafe.*;
 		actualFormat:Ptr<Int32>, count:Ptr<Int64>, after:Ptr<Int64>, data:Ptr<Ptr>):Int;
 	static function XDeleteProperty(d:Ptr, w:Int64, property:Int64):Int;
 	static function XFree(data:Ptr):Int;
+	// the input method (any keyboard layout, dead keys, compose sequences):
+	// opened once, a context per window; events it takes are filtered out
+	static function XSetLocaleModifiers(modifiers:Ptr):Ptr;
+	static function XOpenIM(d:Ptr, db:Ptr, resName:Ptr, resClass:Ptr):Ptr;
+	@:hxmc.varargs(1) static function XCreateIC(im:Ptr, n1:Ptr, v1:Int64, n2:Ptr, v2:Int64, n3:Ptr, v3:Int64, end:Ptr):Ptr;
+	static function XDestroyIC(ic:Ptr):Void;
+	static function XSetICFocus(ic:Ptr):Void;
+	static function XFilterEvent(event:Ptr<XAnyEvent>, w:Int64):Int;
+	static function Xutf8LookupString(ic:Ptr, event:Ptr<XKeyEvent>, buffer:Ptr, bytes:Int, keysym:Ptr<Int64>, status:Ptr<Int32>):Int;
+	// the keyboard's mapping (tests: a key given another symbol)
+	static function XDisplayKeycodes(d:Ptr, min:Ptr<Int32>, max:Ptr<Int32>):Int;
+	static function XChangeKeyboardMapping(d:Ptr, first:Int, perKeycode:Int, keysyms:Ptr<Int64>, count:Int):Int;
+	static function XSync(d:Ptr, discard:Int):Int;
+	// a MappingNotify: the keyboard mapping Xlib keeps read again
+	static function XRefreshKeyboardMapping(event:Ptr<XAnyEvent>):Int;
 	// a cursor of the cursor font (X11/cursorfont.h's shapes)
 	static function XCreateFontCursor(d:Ptr, shape:Int):Int64;
 	static function XDefineCursor(d:Ptr, w:Int64, cursor:Int64):Int;
 }
 
 // select(2), to wait on the connection's socket: in a safe region (it
-// blocks), where hxmc.unsafe.Posix's calls are fast ones
+// blocks), where hxmc.unsafe.Posix's calls are fast ones; setlocale for the
+// input method (its character set: UTF-8)
 @:hxmc.c @:hxmc.lib("libc.so.6") extern class Select {
 	static function select(n:Int, r:Ptr, w:Ptr, e:Ptr, timeout:Ptr):Int;
+	static function setlocale(category:Int, locale:Ptr):Ptr;
 }
 
 // XEvent is a union of 192 bytes (24 longs): an XEvent buffer is read
@@ -73,6 +90,7 @@ class X {
 	public static inline var XA_STRING = 31;
 	public static inline var ConfigureNotify = 22;
 	public static inline var ClientMessage = 33;
+	public static inline var MappingNotify = 34;
 	// input masks
 	public static inline var KeyPressMask = 1 << 0;
 	public static inline var KeyReleaseMask = 1 << 1;

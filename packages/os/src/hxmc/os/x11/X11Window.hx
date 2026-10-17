@@ -22,6 +22,8 @@ class X11Window {
 	static var TARGETS:Int64 = 0;
 	static var HXMC_CLIPBOARD:Int64 = 0;
 	static var clipboardText:Null<String> = null;
+	// the input method (nil: none, XLookupString then)
+	static var im = Ptr.nil();
 	static final clipboardReads:Array<{window:X11Window, callback:Null<String>->Void}> = [];
 	// the cursors made (by Cursor; 0: not yet)
 	static final cursors:Array<Int64> = [];
@@ -29,6 +31,8 @@ class X11Window {
 	final owner:Window;
 	final id:Int64;
 	final surface:Surface;
+	// this window's input context (nil: none)
+	var ic = Ptr.nil();
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		this.owner = owner;
@@ -45,6 +49,11 @@ class X11Window {
 		Xlib.XSelectInput(display, id, (X.KeyPressMask | X.KeyReleaseMask | X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask
 			| X.StructureNotifyMask | X.ExposureMask : Int64));
 		Xlib.XMapWindow(display, id);
+		if (!im.isNull()) {
+			// (XIMPreeditNothing | XIMStatusNothing: the input method draws its own)
+			ic = Xlib.XCreateIC(im, Mem.cstr("inputStyle"), 0x0008 | 0x0400, Mem.cstr("clientWindow"), id, Mem.cstr("focusWindow"), id, Ptr.nil());
+			if (!ic.isNull()) Xlib.XSetICFocus(ic);
+		}
 		Xlib.XFlush(display);
 		surface = new Surface(X11, display, Ptr.ofI64(id), width, height);
 		open.push(this);
@@ -59,10 +68,27 @@ class X11Window {
 		TARGETS = Xlib.XInternAtom(display, Mem.cstr("TARGETS"), 0);
 		HXMC_CLIPBOARD = Xlib.XInternAtom(display, Mem.cstr("HXMC_CLIPBOARD"), 0);
 		xev = LibC.malloc((X.EVENT_SIZE : Int64));
+		openInputMethod();
+	}
+
+	// the input method in a UTF-8 locale (the environment's, else C.UTF-8);
+	// the user's (XMODIFIERS), else Xlib's own (dead keys and compose)
+	static function openInputMethod() {
+		var l = Select.setlocale(0, Mem.cstr("")); // LC_CTYPE
+		var name = l.isNull() ? "" : (cast l : CString).toString();
+		if (name.indexOf("UTF-8") < 0 && name.indexOf("utf8") < 0 && name.indexOf("UTF8") < 0) Select.setlocale(0, Mem.cstr("C.UTF-8"));
+		Xlib.XSetLocaleModifiers(Mem.cstr(""));
+		im = Xlib.XOpenIM(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
+		if (im.isNull()) {
+			Xlib.XSetLocaleModifiers(Mem.cstr("@im=none"));
+			im = Xlib.XOpenIM(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
+		}
 	}
 
 	function destroy() {
 		open.remove(this);
+		if (!ic.isNull()) Xlib.XDestroyIC(ic);
+		ic = Ptr.nil();
 		Xlib.XDestroyWindow(display, id);
 		Xlib.XFlush(display);
 		for (r in clipboardReads.copy())
@@ -203,7 +229,14 @@ class X11Window {
 	static function poll(onEvent:Event->Void) {
 		while (!display.isNull() && Xlib.XPending(display) > 0) {
 			Xlib.XNextEvent(display, xev);
+			// (what the input method takes: a dead key, a compose sequence's keys)
+			if (!im.isNull() && Xlib.XFilterEvent(xev, 0) != 0) continue;
 			var any:Ptr<XAnyEvent> = xev;
+			// (the keyboard mapping changed: another layout; it has no window)
+			if (any.value.type == X.MappingNotify) {
+				Xlib.XRefreshKeyboardMapping(xev);
+				continue;
+			}
 			var w = find(any.value.window);
 			if (w == null) continue;
 			var e = event;
@@ -237,11 +270,11 @@ class X11Window {
 					e.mods = mods(k.value.state);
 					if (t == X.KeyPress) {
 						onEvent(e);
-						// then its character
-						var cp = character(k);
-						if (cp == 0 || e.mods & (Mods.CONTROL | Mods.ALT) != 0) continue;
+						// then its characters
+						var s = w.typed(k);
+						if (s == "" || e.mods & (Mods.CONTROL | Mods.ALT) != 0) continue;
 						e.kind = TextInput;
-						e.text = String.fromCharCode(cp);
+						e.text = s;
 					}
 				case t = X.ButtonPress | X.ButtonRelease | X.MotionNotify:
 					var b:Ptr<XKeyEvent> = xev;
@@ -272,6 +305,28 @@ class X11Window {
 	// the modifiers of an event's state (ShiftMask, ControlMask, Mod1Mask: Alt, Mod4Mask: Super)
 	static function mods(state:Int):Int
 		return (state & 1 != 0 ? Mods.SHIFT : 0) | (state & 4 != 0 ? Mods.CONTROL : 0) | (state & 8 != 0 ? Mods.ALT : 0) | (state & 64 != 0 ? Mods.META : 0);
+
+	// what a key press types: the input context's text (UTF-8), else the
+	// KeySym's character; control characters left out
+	function typed(k:Ptr<XKeyEvent>):String {
+		if (ic.isNull()) {
+			var cp = character(k);
+			return cp == 0 ? "" : String.fromCharCode(cp);
+		}
+		return Arena.scopedValue(a -> {
+			var buf:Ptr<UInt8> = a.alloc(64), ks:Ptr<Int64> = a.alloc(8), status:Ptr<Int32> = a.alloc(4);
+			var n = Xlib.Xutf8LookupString(ic, k, buf, 63, ks, status);
+			// (XLookupChars 2, XLookupBoth 4: text there)
+			if (n <= 0 || (status.value != 2 && status.value != 4)) "" else {
+				var b = haxe.io.Bytes.alloc(n);
+				for (i in 0...n)
+					b.set(i, buf[i]);
+				var s = b.toString();
+				var c = StringTools.fastCodeAt(s, 0);
+				c < 0x20 || c == 0x7F ? "" : s;
+			}
+		});
+	}
 
 	// the code point a key press types (0: none): its KeySym with the
 	// modifiers applied, Latin-1 or a Unicode KeySym (0x100xxxx)
