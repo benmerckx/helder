@@ -15,11 +15,34 @@ class Transform {
 	final args:Array<Array<Float>>;
 	final percent:Array<Array<Bool>>;
 
-	function new(names, args, percent) {
+	// the functions as parse reads them, without the text: names (CSS's,
+	// any case: "translateX"), arguments, and which are percentages (none
+	// when not given): new Transform(["translate"], [[-50, -50]], [[true,
+	// true]]) is translate(-50%, -50%)
+	public function new(names:Array<String>, args:Array<Array<Float>>, ?percent:Array<Array<Bool>>) {
+		if (args.length != names.length || (percent != null && percent.length != names.length))
+			throw "Transform: " + names.length + " functions, " + args.length + " argument lists";
+		names = [for (n in names) n.toLowerCase()];
+		for (k => n in names) {
+			var vs = args[k];
+			if (!arity(n, vs.length)) throw "Transform: wrong arguments to " + n + ": " + vs;
+			if (percent != null && percent[k].length != vs.length) throw "Transform: percentages not one to an argument of " + n;
+			for (v in vs)
+				if (Math.isNaN(v)) throw "Transform: not a value in " + n;
+		}
 		this.names = names;
 		this.args = args;
-		this.percent = percent;
+		this.percent = percent ?? [for (vs in args) [for (_ in vs) false]];
 	}
+
+	// (whether name takes count arguments; throws on a name not CSS's)
+	static function arity(name:String, count:Int):Bool
+		return switch name {
+			case "translate" | "scale" | "skew": count == 1 || count == 2;
+			case "translatex" | "translatey" | "scalex" | "scaley" | "rotate" | "skewx" | "skewy": count == 1;
+			case "matrix": count == 6;
+			case _: throw "Transform: unknown function: " + name;
+		}
 
 	public static function parse(css:String):Transform {
 		var names = [], args = [], percent = [];
@@ -43,12 +66,7 @@ class Transform {
 				vs.push(v);
 				ps.push(!angle && StringTools.endsWith(r, "%"));
 			}
-			var count = switch name {
-				case "translate" | "scale" | "skew": vs.length == 1 || vs.length == 2;
-				case "translatex" | "translatey" | "scalex" | "scaley" | "rotate" | "skewx" | "skewy": vs.length == 1;
-				case "matrix": vs.length == 6;
-				case _: throw "Transform: unknown function: " + name + " in " + css;
-			}
+			var count = try arity(name, vs.length) catch (e:String) throw e + " in " + css;
 			if (!count) throw "Transform: wrong arguments to " + name + " in " + css;
 			names.push(name);
 			args.push(vs);

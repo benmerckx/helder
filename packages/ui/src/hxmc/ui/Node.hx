@@ -144,6 +144,7 @@ class Node {
 			if (p == child) throw "Node: a node is not inside itself";
 			p = p.parent;
 		}
+		var first = children.length > 0 ? children[0] : null, last = children.length > 0 ? children[children.length - 1] : null;
 		if (child.parent == this) {
 			var i = indexOf(child);
 			children.splice(i, 1);
@@ -155,8 +156,10 @@ class Node {
 		var moved = child.parent != this;
 		child.parent = this;
 		child.attach(ui);
-		// (under another parent: what it inherits may differ)
+		// (under another parent: what it inherits may differ, and the states of nodes around it)
 		if (moved) child.inheritedChanged();
+		if (moved && ui != null && @:privateAccess Rules.relational != 0) Rules.restyleTree(child);
+		Rules.placed(this, child, first, last);
 		markDirty();
 		return child;
 	}
@@ -184,14 +187,19 @@ class Node {
 				changed = true;
 			}
 		}
-		if (changed) markDirty();
+		if (changed) {
+			Rules.placed(this, null, children[0], children[children.length - 1]);
+			markDirty();
+		}
 	}
 
 	public function remove(child:Node) {
 		if (child.parent != this) return;
+		var first = children[0], last = children[children.length - 1];
 		children.remove(child);
 		child.parent = null;
 		child.attach(null);
+		Rules.placed(this, child, first == child ? null : first, last == child ? null : last);
 		markDirty();
 	}
 
@@ -201,6 +209,7 @@ class Node {
 			c.attach(null);
 		}
 		children.resize(0);
+		Rules.placed(this, null, null, null);
 		markDirty();
 	}
 
@@ -528,6 +537,8 @@ class Node {
 		if (fontCache != null) return fontCache;
 		// (unset: NaN, -1; no boxes)
 		var family:Null<String> = null, size = Math.NaN, weight = -1, italic = -1, lh = Math.NaN, ls = Math.NaN, ws = Math.NaN;
+		// (a line height in pixels, made a multiple of this font's size once it is known)
+		var lhPx = Math.NaN;
 		var ow:Null<OverflowWrap> = null, wb:Null<WordBreak> = null, ff:Null<String> = null, fvn:Null<String> = null;
 		var n = this;
 		while (n != null) {
@@ -536,8 +547,12 @@ class Node {
 			if (Math.isNaN(size) && s.fontSize != null) size = s.fontSize;
 			if (weight < 0 && s.fontWeight != null) weight = s.fontWeight;
 			if (italic < 0 && s.italic != null) italic = s.italic ? 1 : 0;
-			if (Math.isNaN(lh) && s.lineHeight != null) lh = s.lineHeight;
-			if (Math.isNaN(ls) && s.letterSpacing != null) ls = s.letterSpacing;
+			if (Math.isNaN(lh) && Math.isNaN(lhPx)) {
+				if (s.lineHeightPx != null) lhPx = s.lineHeightPx else if (s.lineHeight != null) lh = s.lineHeight;
+			}
+			if (Math.isNaN(ls)) {
+				if (s.letterSpacingEm != null) ls = s.letterSpacingEm * n.fontSizeHere() else if (s.letterSpacing != null) ls = s.letterSpacing;
+			}
 			if (Math.isNaN(ws) && s.wordSpacing != null) ws = s.wordSpacing;
 			if (ow == null) ow = s.overflowWrap;
 			if (wb == null) wb = s.wordBreak;
@@ -545,9 +560,21 @@ class Node {
 			if (fvn == null) fvn = s.fontVariantNumeric;
 			n = n.parent;
 		}
-		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, Math.isNaN(size) ? Style.DEFAULT_SIZE : size,
+		if (Math.isNaN(size)) size = Style.DEFAULT_SIZE;
+		if (!Math.isNaN(lhPx)) lh = size > 0 ? lhPx / size : Style.DEFAULT_LINE_HEIGHT;
+		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, size,
 			weight < 0 ? Style.DEFAULT_WEIGHT : weight, italic == 1, Math.isNaN(lh) ? Style.DEFAULT_LINE_HEIGHT : lh, Math.isNaN(ls) ? 0 : ls,
 			Math.isNaN(ws) ? 0 : ws, ow == null ? BreakWord : ow, wb == null ? WordBreak.Normal : wb, features(fvn, ff));
+	}
+
+	// (the font size here: its own or the nearest ancestor's)
+	function fontSizeHere():Float {
+		var n = this;
+		while (n != null) {
+			if (n.style.fontSize != null) return n.style.fontSize;
+			n = n.parent;
+		}
+		return Style.DEFAULT_SIZE;
 	}
 
 	// (the features asked for: font-variant-numeric's, then font-feature-settings', which win)
@@ -643,6 +670,17 @@ class Node {
 	}
 
 	// whether its inline direction is right to left (Style.dir, inherited)
+	// its text's user-select as set on it or an ancestor (Auto: none set)
+	public function userSelect():UserSelect {
+		var n = this;
+		while (n != null) {
+			var u = n.style.userSelect;
+			if (u != null && u != Auto) return u;
+			n = n.parent;
+		}
+		return Auto;
+	}
+
 	public function rtl():Bool
 		return dir() == Rtl;
 
@@ -1015,8 +1053,10 @@ class Node {
 	// (its States, once made: hxmc.ui.view's)
 	@:allow(hxmc.ui.view) var statesOf:Any = null;
 
-	@:allow(hxmc.ui.Ui) function statesChanged()
+	@:allow(hxmc.ui.Ui) function statesChanged() {
+		Rules.related(this);
 		if (onStates != null) onStates();
+	}
 
 	// --- theme ---
 
@@ -1032,6 +1072,8 @@ class Node {
 			attrs.set(name, value);
 		}
 		restyleLater();
+		// (a group or peer no longer: what its marking styled, again)
+		if (value == null && (name == "group" || name == "peer") && parent != null) Rules.restyleTree(parent);
 		statesChanged();
 	}
 
