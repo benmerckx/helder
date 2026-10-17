@@ -46,9 +46,22 @@ abstract Color(Int) from Int to Int {
 		return (ch(a.a, b.a) << 24) | (ch(a.r, b.r) << 16) | (ch(a.g, b.g) << 8) | ch(a.b, b.b);
 	}
 
-	// "#rrggbbaa"
-	public function toHex():String
-		return "#" + StringTools.hex(r, 2) + StringTools.hex(g, 2) + StringTools.hex(b, 2) + StringTools.hex(a, 2);
+	// "#RRGGBBAA" (built a character at a time: animated colours make one a frame)
+	public function toHex():String {
+		inline function digit(d:Int):Int
+			return d < 10 ? "0".code + d : "A".code - 10 + d;
+		var s = new StringBuf();
+		s.addChar("#".code);
+		inline function byte(v:Int) {
+			s.addChar(digit(v >> 4));
+			s.addChar(digit(v & 15));
+		}
+		byte(r);
+		byte(g);
+		byte(b);
+		byte(a);
+		return s.toString();
+	}
 
 	// a CSS colour: "#rgb", "#rgba", "#rrggbb", "#rrggbbaa" (the # may be
 	// left out), rgb() and rgba() (numbers or percentages, commas or
@@ -58,6 +71,12 @@ abstract Color(Int) from Int to Int {
 		var c = tryParse(s);
 		if (c == null) throw "Color.parse: " + s;
 		return c;
+	}
+
+	// (a hex digit's value, either case; -1 for anything else)
+	static inline function hexDigit(c:Int):Int {
+		var l = c | 32;
+		return c >= "0".code && c <= "9".code ? c - "0".code : l >= "a".code && l <= "f".code ? l - "a".code + 10 : -1;
 	}
 
 	// (hex digits only; lower case)
@@ -71,6 +90,20 @@ abstract Color(Int) from Int to Int {
 
 	// as parse, null when it is not one
 	public static function tryParse(s:String):Null<Color> {
+		// (#rgb, #rgba, #rrggbb and #rrggbbaa as written, digit by digit: no strings made)
+		var n = s.length;
+		if ((n == 4 || n == 5 || n == 7 || n == 9) && StringTools.fastCodeAt(s, 0) == "#".code) {
+			var x = 0, ok = true;
+			for (i in 1...n) {
+				var d = hexDigit(StringTools.fastCodeAt(s, i));
+				if (d < 0) {
+					ok = false;
+					break;
+				}
+				x = n <= 5 ? (x << 8) | (d * 17) : (x << 4) | d;
+			}
+			if (ok) return n == 4 || n == 7 ? rgb(x) : ((x & 0xFF) << 24) | (x >>> 8);
+		}
 		var v = StringTools.trim(s).toLowerCase();
 		if (v == "transparent") return TRANSPARENT;
 		var hex = v.charAt(0) == "#" ? v.substr(1) : v;

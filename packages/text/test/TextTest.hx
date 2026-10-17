@@ -329,6 +329,12 @@ class TextTest {
 		var mixed = new TextLayout("ab שלום cd", set, 1.25, Math.NaN);
 		var order = [for (g in mixed.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
 		check("bidi: a mixed line in visual order", order == "ab םולש cd", order);
+		// a base direction given (CSS's direction): its neutrals placed by it
+		var rtl = new TextLayout("Hello!", set, 1.25, Math.NaN, null, 0, 0, 0, 1);
+		var shown = [for (g in rtl.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
+		check("bidi: a right-to-left base, a left-to-right word", rtl.direction == 1 && shown == "!Hello", shown);
+		var ltr = new TextLayout("שלום!", set, 1.25, Math.NaN, null, 0, 0, 0, 0);
+		check("bidi: a left-to-right base, a right-to-left word", ltr.direction == 0 && String.fromCharCode(ltr.lines[0].glyphs[ltr.lines[0].glyphs.length - 1].cp) == "!");
 		// Arabic: joining forms and the lam-alef ligature from DejaVu Sans's GSUB; the widths at 100px are Chromium's
 		// (HarfBuzz: measureText with the font "100px DejaVu Sans")
 		var big = new FontSet(sans, fonts.fallbacks(), 100);

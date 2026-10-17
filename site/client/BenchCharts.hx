@@ -67,10 +67,10 @@ typedef Latest = {
 }
 
 class BenchCharts {
-	// the targets in their color order (style.css: --s1 ... --s7)
+	// the targets in their color order (style.css: --s1 ... --s8)
 	static final TARGETS = [
 		["hxmc", "hxmc, x86-64"], ["hxmc-wasm", "hxmc, wasm (Node)"], ["cpp", "C++ (hxcpp)"], ["jvm", "JVM"], ["js", "JS (Node)"], ["hlc", "HL/C"],
-		["hl", "HashLink JIT"],
+		["hl", "HashLink JIT"], ["hxmc-wasmgc", "hxmc, WasmGC (Node)"],
 	];
 	static final CASES = [
 		["alloc", "allocation"], ["bcrypt", "bcrypt"], ["binarytrees", "binary trees"], ["json", "JSON"], ["mandelbrot", "Mandelbrot"],
@@ -318,7 +318,7 @@ class BenchCharts {
 					if (r.cc_s != null && r.haxe_s != null) {
 						td.append(el("span", "parts", fixed(r.haxe_s, 2) + " + " + fixed(r.cc_s, 2)));
 						td.title = 'Haxe ${secs(r.haxe_s)}, ${x == "cpp" ? "C++ (hxcpp, g++)" : "C (gcc)"} ${secs(r.cc_s)}';
-					} else if (r.haxe_s != null) td.title = x == "hxmc" || x == "hxmc-wasm" ? 'hxmc ${secs(r.haxe_s)}: typing, code generation and link' : 'Haxe ${secs(r.haxe_s)}';
+					} else if (r.haxe_s != null) td.title = x == "hxmc" || x == "hxmc-wasm" || x == "hxmc-wasmgc" ? 'hxmc ${secs(r.haxe_s)}: typing, code generation and link' : 'Haxe ${secs(r.haxe_s)}';
 				}
 				tr.append(td);
 			}

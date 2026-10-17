@@ -21,10 +21,11 @@ const KEBAB = { direction: 'flex-direction', wrap: 'flex-wrap', justify: 'justif
 	alignContent: 'align-content', grow: 'flex-grow', shrink: 'flex-shrink', basis: 'flex-basis', minWidth: 'min-width', minHeight: 'min-height',
 	maxWidth: 'max-width', maxHeight: 'max-height', rowGap: 'row-gap', columnGap: 'column-gap', borderWidth: 'border-width', aspectRatio: 'aspect-ratio',
 	gridTemplateColumns: 'grid-template-columns', gridTemplateRows: 'grid-template-rows', gridAutoColumns: 'grid-auto-columns', gridAutoRows: 'grid-auto-rows',
-	gridAutoFlow: 'grid-auto-flow', gridColumn: 'grid-column', gridRow: 'grid-row', gridArea: 'grid-area', gridTemplateAreas: 'grid-template-areas', justifyItems: 'justify-items', justifySelf: 'justify-self' };
+	gridAutoFlow: 'grid-auto-flow', gridColumn: 'grid-column', gridRow: 'grid-row', gridArea: 'grid-area', gridTemplateAreas: 'grid-template-areas', justifyItems: 'justify-items', justifySelf: 'justify-self', dir: 'direction' };
 const VALUES = { Row: 'row', Column: 'column', RowReverse: 'row-reverse', ColumnReverse: 'column-reverse', Start: 'flex-start', End: 'flex-end',
 	Center: 'center', Stretch: 'stretch', SpaceBetween: 'space-between', SpaceAround: 'space-around', SpaceEvenly: 'space-evenly', Auto: 'auto',
-	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex', Grid: 'grid', Visible: 'visible', Hidden: 'hidden', Scroll: 'scroll' };
+	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex', Grid: 'grid', Visible: 'visible', Hidden: 'hidden', Scroll: 'scroll',
+	Rtl: 'rtl', Ltr: 'ltr' };
 
 function css(style) {
 	// (a grid: CSS's normal track alignment, auto tracks stretched, where the page's rule says flex-start)
@@ -33,7 +34,7 @@ function css(style) {
 		const name = KEBAB[k] ?? k;
 		let value;
 		if (k === 'wrap') value = v ? 'wrap' : 'nowrap';
-		else if (k === 'grow' || k === 'shrink' || k === 'aspectRatio') value = String(v);
+		else if (k === 'grow' || k === 'shrink' || k === 'aspectRatio' || k === 'order') value = String(v);
 		else if (k === 'padding' || k === 'margin') value = (Array.isArray(v) ? v : [v]).map(px).join(' ');
 		else if (k === 'borders') { s += 'border-style:solid;border-width:' + v.map(px).join(' ') + ';'; continue; }
 		else if (k === 'alignContent' && v === 'Start') value = 'flex-start';

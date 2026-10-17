@@ -654,10 +654,25 @@ class Renderer implements Canvas {
 			bytes.setFloat(o + 140, c3);
 			used += STRIDE;
 		}
+		// (the other corners: the first copied, what differs written over it)
+		inline function corner(px:Float, py:Float, u:Float, v:Float) {
+			var o = used;
+			bytes.blit(o, bytes, o - STRIDE, STRIDE);
+			var X = ra * px + rc * py + te, Y = rb * px + rd * py + tf;
+			bytes.setFloat(o, X / targetW * 2 - 1);
+			bytes.setFloat(o + 4, 1 - Y / targetH * 2);
+			bytes.setFloat(o + 8, px - x0 - hx);
+			bytes.setFloat(o + 12, py - y0 - hy);
+			bytes.setFloat(o + 24, u);
+			bytes.setFloat(o + 28, v);
+			bytes.setFloat(o + 104, X);
+			bytes.setFloat(o + 108, Y);
+			used += STRIDE;
+		}
 		var mu = (u1 - u0) * m / (x1 - x0), mv = (v1 - v0) * m / (y1 - y0);
 		vertex(ax, ay, u0 - mu, v0 - mv);
-		vertex(ax, by, u0 - mu, v1 + mv);
-		vertex(bx, ay, u1 + mu, v0 - mv);
-		vertex(bx, by, u1 + mu, v1 + mv);
+		corner(ax, by, u0 - mu, v1 + mv);
+		corner(bx, ay, u1 + mu, v0 - mv);
+		corner(bx, by, u1 + mu, v1 + mv);
 	}
 }

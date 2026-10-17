@@ -7,8 +7,9 @@ package hxmc.ui;
 // Right: beside it, their tops lined up; Left), flipped to the other side
 // when it does not fit and kept inside the window; Center centres it in
 // the window; Point puts its top left at (atX, atY) in the window, flipped
-// left or up where it would not fit (a context menu); Manual leaves it to
-// its style (left, top). A modal one
+// left or up where it would not fit (a context menu); TopLeft, TopRight,
+// BottomLeft and BottomRight put it in that corner of the window, gap from
+// its edges (notifications); Manual leaves it to its style (left, top). A modal one
 // covers the window (its own style: a backdrop; its content centred, as
 // Ui.open makes it) and keeps the keyboard focus inside: Tab cycles in
 // it, the tree under it takes no pointer events. onDismiss: asked to close
@@ -41,6 +42,10 @@ enum abstract Placement(Int) {
 	var Center;
 	var Manual;
 	var Point;
+	var TopLeft;
+	var TopRight;
+	var BottomLeft;
+	var BottomRight;
 
 	@:from public static function parse(s:String):Placement
 		return switch s.toLowerCase() {
@@ -51,6 +56,10 @@ enum abstract Placement(Int) {
 			case "center": Center;
 			case "manual": Manual;
 			case "point": Point;
+			case "top-left": TopLeft;
+			case "top-right": TopRight;
+			case "bottom-left": BottomLeft;
+			case "bottom-right": BottomRight;
 			case _: throw "Placement: not a placement: " + s;
 		}
 }

@@ -45,7 +45,13 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     `shrink`, `basis`, `width`, `height`, min and max, `aspectRatio`,
     `padding`, `margin`, `borderWidth`, `rowGap`, `columnGap`, `position`
     (Absolute with `left`, `top`, `right`, `bottom`), `overflow` (Hidden,
-    Scroll). Sizes are border boxes. Items get CSS's automatic minimum
+    Scroll), `dir` (Rtl: rows from the right, columns' items across
+    from the right, grids' columns from the right, text aligned right by
+    default, paragraphs in that direction; inherited; margins and padding
+    stay physical; scrolling still starts at the left), `order` (laid out,
+    painted and hit in it; Tab keeps the tree's order), `zIndex` (painted
+    and hit over or under siblings; no stacking contexts across levels).
+    Sizes are border boxes. Items get CSS's automatic minimum
     size, so content is not squashed. `display: Grid` lays children out
     on CSS grid tracks instead: `gridTemplateColumns` and
     `gridTemplateRows` (px, %, fr, auto, min-content, max-content,
@@ -55,8 +61,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     lines, an area's name) or `gridArea`, or auto-placed, aligned by
     `justifyItems`, `justifySelf`, `alignItems`, `alignSelf`, the tracks
     by `justify` and `alignContent` (no other named lines, no subgrid,
-    no dense packing). Checked against Chromium on 89 cases, 29 of them
-    grids.
+    no dense packing). Checked against Chromium on 105 cases, 31 of them
+    grids, 8 right to left.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
     `textAlign` (left, center, right, justify: the room shared among the
@@ -147,8 +153,13 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
   (a month's grid of days, moved through by the keys) and `DatePicker` (a
-  calendar in a popover; `Days`: dates as day numbers, no time zones), and the popups `Select`, `Menu`,
-  `ContextMenu` (at the pointer), `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
+  calendar in a popover; `Days`: dates as day numbers, no time zones),
+  `Disclosure` and `Accordion` (sections shown and hidden), `NumberField`
+  (typed or stepped, within bounds; a spin button), and the popups `Select`, `Menu`,
+  `ContextMenu` (at the pointer), `Tooltip`, `Dialog`, `Combobox` (a text
+  field whose typing filters options under it; the focus stays in the
+  field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
+  an action); `examples/Gallery.hx` shows them all. They draw
   with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
   `Theme.follow(() -> UiWindow.dark.value)` follows the system's
   appearance (`hxmc.os.App.prefersDark`: the browser's colour scheme,
@@ -156,7 +167,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 - **Popups**: `Popup` nodes are layers over the tree (`Ui.open`, `Ui.close`:
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the
-  window), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
+  window), in a corner of the window (notifications), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
   Escape asks them to close. In markup, `UiFlow.Popover` puts its children
   in one while `open` is true.
 - **Shortcuts**: `Ui.shortcut("Mod+S", action, ?scope)` (`Shortcut`: Mod is
@@ -250,6 +261,29 @@ transparent textarea at the caret, which input methods compose in
 (`NSTextInputClient`: input methods and dead keys); on Windows the IME's
 own windows are placed at the caret; X11's input method draws its
 composition itself.
+
+## Performance
+
+A frame does the work of what changed and what is seen. `Ui.update` lays
+out nothing on a clean tree; after a change it lays out again the dirty
+path (a node's measures are cached per constraints) and rounds only the
+subtrees that moved. Paint and hit tests skip subtrees whose bounds
+(their ink: the box, overflowing text, children unless clipped, widened
+by shadows and the focus ring) miss the window or their scrollers. The
+accessibility tree is built again only when something it reads changed.
+The renderer draws a quad as four vertices and six indices, batched by
+texture.
+
+Memory per node is kept small: leaves share one empty children array; event
+handlers and the rarely set style properties (grid, transforms, shadows,
+offsets...) are allocated when first set; paragraphs share their font sets.
+
+`StressTest [rows]` (`make ui-draw-check` runs it) prints the times of the
+first layout, of the frames after a change, a scroll and an append, and of
+a steady frame; `RT_STATS=1` adds the collector's figures and the RSS, and
+a build with `-D hxmc.census` run with `RT_CENSUS=1` lists the live heap by
+type. At 5000 rows (40000 nodes) a steady frame paints in about 1.5 ms and a
+change to one row is laid out in about 3.
 
 ## Tests
 
