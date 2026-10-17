@@ -55,11 +55,11 @@ class Widgets implements Markup {
 			label: "its text",
 			onClick: "called when it is clicked, or pressed with Enter or Space",
 			variant: "its look: default (the main action), destructive, outline, secondary, ghost or link",
-			size: "default, sm, lg or icon",
+			size: "default, xs, sm, lg, or a square icon one: icon, icon-xs, icon-sm, icon-lg",
 			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
 		},
 		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
-		sizes: ["default", "sm", "lg", "icon"],
+		sizes: ["default", "xs", "sm", "lg", "icon", "icon-xs", "icon-sm", "icon-lg"],
 		keys: {"Enter, Space": "clicks it"}
 	})
 	public static function Button(props:{?label:String, ?onClick:Void->Void, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
@@ -79,6 +79,18 @@ class Widgets implements Markup {
 	// a toggle (shadcn's): a button pressed or not, bound to a signal;
 	// variant "default" or "outline", size "default", "sm" or "lg" (slot
 	// "toggle", data-state "on" or "off"; ARIA's pressed button)
+	@:widget({
+		props: {
+			pressed: "a signal of whether it is pressed, flipped when it is clicked, or pressed with Enter or Space",
+			label: "its text",
+			variant: "its look: default or outline",
+			size: "default, sm or lg",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
+		},
+		variants: ["default", "outline"],
+		sizes: ["default", "sm", "lg"],
+		keys: {"Enter, Space": "presses or releases it"}
+	})
 	public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
@@ -98,6 +110,15 @@ class Widgets implements Markup {
 	// clicked. Slots "checkbox" (data-state "checked", "unchecked" or
 	// "indeterminate") and "checkbox-indicator" (shown when not unchecked),
 	// the label a "label", the two in a row "checkbox-field"
+	@:widget({
+		props: {
+			checked: "a signal of whether it is checked, flipped when it or its label is clicked, or with Space",
+			mixed: "a signal: while true, neither checked nor not (a dash); checked and cleared when it is clicked",
+			label: "its text beside it, and its name for assistive technology",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
+		},
+		keys: {"Space": "checks or unchecks it (checks it when mixed)"}
+	})
 	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
 		var mixed = () -> props.mixed != null && props.mixed.value;
 		var disabled = () -> read(props.disabled) == true;
@@ -128,6 +149,16 @@ class Widgets implements Markup {
 	// and "switch-thumb", data-state "checked" or "unchecked" on both (the
 	// thumb's place by its state's rules); size "default" or "sm" (and data-size);
 	// the label a "label", the two in a row "switch-field"
+	@:widget({
+		props: {
+			checked: "a signal of whether it is on, flipped when it or its label is clicked, or with Space or Enter",
+			label: "its text beside it, and its name for assistive technology",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored",
+			size: "default or sm"
+		},
+		sizes: ["default", "sm"],
+		keys: {"Space, Enter": "turns it on or off"}
+	})
 	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
@@ -147,12 +178,26 @@ class Widgets implements Markup {
 	}
 
 	// a label (shadcn's): its text or children (slot "label")
+	@:widget({
+		props: {
+			text: "its text, when it has no children",
+			disabled: "a Bool, a signal or a function of one: dimmed by the theme (data-disabled)",
+			children: "its content, in place of text"
+		}
+	})
 	public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?style:States->StyleProps, ?tag:String}):View {
 		return <text tag={props.tag ?? "label"} slot="label" ref={n -> States.apply(n, props.style)} data-disabled={() -> read(props.disabled) == true}>{props.children ?? props.text}</text>;
 	}
 
 	// a badge (shadcn's): its label or children; variant "default",
-	// "secondary", "destructive" or "outline" (slot "badge")
+	// "secondary", "destructive", "outline", "ghost" or "link" (slot "badge")
+	@:widget({
+		props: {
+			label: "its text",
+			variant: "its look: default, secondary, destructive, outline, ghost or link"
+		},
+		variants: ["default", "secondary", "destructive", "outline", "ghost", "link"]
+	})
 	public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
 		return <view tag={props.tag ?? "badge"} slot="badge" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"}>{props.label}{props.children}</view>;
 	}
@@ -160,31 +205,80 @@ class Widgets implements Markup {
 	// a card (shadcn's) and its parts, each its children: slots "card",
 	// "card-header", "card-title", "card-description", "card-action",
 	// "card-content", "card-footer"
+	@:widget({
+		props: {
+			children: "its parts: a CardHeader, a CardContent, a CardFooter"
+		}
+	})
 	public static function Card(props:{?children:View, ?style:States->StyleProps, ?tag:String}):View {
 		return <view tag={props.tag ?? "card"} slot="card" ref={n -> States.apply(n, props.style)}>{props.children}</view>;
 	}
 
+	@:widget({
+		props: {
+			children: "its CardTitle, CardDescription and CardAction"
+		},
+		part: "Card"
+	})
 	public static function CardHeader(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "card-header"} slot="card-header">{props.children}</view>;
 
+	@:widget({
+		props: {
+			text: "its text, when it has no children (a heading for assistive technology)",
+			children: "its content, in place of text"
+		},
+		part: "Card"
+	})
 	public static function CardTitle(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <text tag={props.tag ?? "card-title"} slot="card-title" role="heading">{props.children ?? props.text}</text>;
 
+	@:widget({
+		props: {
+			text: "its text, under the title, when it has no children",
+			children: "its content, in place of text"
+		},
+		part: "Card"
+	})
 	public static function CardDescription(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <text tag={props.tag ?? "card-description"} slot="card-description">{props.children ?? props.text}</text>;
 
+	@:widget({
+		props: {
+			children: "its content: a button or a link at the header's end, beside the title"
+		},
+		part: "Card"
+	})
 	public static function CardAction(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "card-action"} slot="card-action">{props.children}</view>;
 
+	@:widget({
+		props: {
+			children: "the card's body"
+		},
+		part: "Card"
+	})
 	public static function CardContent(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "card-content"} slot="card-content">{props.children}</view>;
 
+	@:widget({
+		props: {
+			children: "its content at the card's foot, in a row: its actions"
+		},
+		part: "Card"
+	})
 	public static function CardFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "card-footer"} slot="card-footer">{props.children}</view>;
 
 	// a separator (shadcn's): a line across, orientation "horizontal" (the
 	// default) or "vertical" (slot "separator", data-orientation); not
 	// decorative: a separator for assistive technology
+	@:widget({
+		props: {
+			orientation: "horizontal (the default: a line across) or vertical (a line down)",
+			decorative: "false: a separator for assistive technology; else (the default) hidden from it"
+		}
+	})
 	public static function Separator(props:{?orientation:String, ?decorative:Bool, ?tag:String}):View {
 		var o = props.orientation ?? "horizontal";
 		return props.decorative == false ? <view tag={props.tag ?? "separator"} slot="separator" role="separator" data-orientation={o}/> : <view
@@ -193,6 +287,13 @@ class Widgets implements Markup {
 
 	// a skeleton (shadcn's): a placeholder where content is still coming,
 	// its size the props' or its children's (slot "skeleton")
+	@:widget({
+		props: {
+			width: "its width (pixels or a length), else its children's",
+			height: "its height (pixels or a length), else its children's",
+			children: "content giving it its size, hidden from assistive technology"
+		}
+	})
 	public static function Skeleton(props:{?width:Dynamic, ?height:Dynamic, ?children:View, ?tag:String}):View {
 		return <view tag={props.tag ?? "skeleton"} slot="skeleton" width={props.width} height={props.height} hidden>{props.children}</view>;
 	}
@@ -200,13 +301,34 @@ class Widgets implements Markup {
 	// an alert (shadcn's): a callout of its children, variant "default" or
 	// "destructive"; its title and description (slots "alert",
 	// "alert-title", "alert-description")
+	@:widget({
+		props: {
+			variant: "its look: default or destructive",
+			children: "its AlertTitle and AlertDescription"
+		},
+		variants: ["default", "destructive"]
+	})
 	public static function Alert(props:{?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
 		return <view tag={props.tag ?? "alert"} slot="alert" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"}>{props.children}</view>;
 	}
 
+	@:widget({
+		props: {
+			text: "its text, when it has no children",
+			children: "its content, in place of text"
+		},
+		part: "Alert"
+	})
 	public static function AlertTitle(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <text tag={props.tag ?? "alert-title"} slot="alert-title">{props.children ?? props.text}</text>;
 
+	@:widget({
+		props: {
+			text: "its text, under the title, when it has no children",
+			children: "its content, in place of text"
+		},
+		part: "Alert"
+	})
 	public static function AlertDescription(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <text tag={props.tag ?? "alert-description"} slot="alert-description">{props.children ?? props.text}</text>;
 
@@ -218,6 +340,22 @@ class Widgets implements Markup {
 	// "horizontal" (Radix's; the thumb placed along the track by the value,
 	// within it at whatever size its rules give it, the range in the track's flow);
 	// width: the slider's, else its rules'
+	@:widget({
+		props: {
+			value: "a signal of its value, set by a drag, a click along it or the keys",
+			min: "its least value (0)",
+			max: "its greatest value (1)",
+			step: "the steps its value snaps to (0: any value)",
+			width: "its width, else its rules'",
+			disabled: "a Bool, a signal or a function of one: not focusable, its pointer and keys ignored",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Left, Right (mirrored right to left)": "lowers or raises it by a step (a twentieth of the range without one)",
+			"Down, Up": "lowers or raises it by a step (a twentieth of the range without one)",
+			"Home, End": "sets it to min or max"
+		}
+	})
 	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
@@ -277,6 +415,22 @@ class Widgets implements Markup {
 	// technology (Left and Down lower it, Right and Up raise it, Home and End
 	// to its bounds, as far as the other knob). The slider's slots, a thumb
 	// each knob; width: the slider's, else its rules'
+	@:widget({
+		props: {
+			low: "a signal of the range's low end, no more than high",
+			high: "a signal of the range's high end, no less than low",
+			min: "its least value (0)",
+			max: "its greatest value (1)",
+			step: "the steps the values snap to (0: any value)",
+			width: "its width, else its rules'",
+			label: "its name for assistive technology (Range), each knob's with minimum or maximum after it"
+		},
+		keys: {
+			"Left, Right (mirrored right to left)": "lowers or raises the focused knob by a step (a twentieth of the range without one), as far as the other",
+			"Down, Up": "lowers or raises the focused knob by a step (a twentieth of the range without one), as far as the other",
+			"Home, End": "the focused knob to min or max, as far as the other"
+		}
+	})
 	public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
 			?tag:String}):View {
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, tag = props.tag ?? "range";
@@ -347,6 +501,19 @@ class Widgets implements Markup {
 	// colour, sets it); value: an opaque colour. The square and the strip
 	// are sliders for the keyboard: Left and Right move the saturation or
 	// the hue, Up and Down the brightness, Shift ten times as far
+	@:widget({
+		props: {
+			value: "a signal of its colour, opaque: set by the square, the hue strip or a CSS colour typed in its field",
+			size: "the side of its square and the width of the whole, in pixels (160)",
+			label: "its name for assistive technology (Colour), its parts' with what each sets after it"
+		},
+		keys: {
+			"Left, Right": "on the square, less or more saturation; on the strip, a lower or higher hue",
+			"Down, Up": "on the square, less or more brightness; on the strip, a lower or higher hue",
+			"Home, End": "on the strip, the first or last hue",
+			"Shift": "with the arrows, ten times as far"
+		}
+	})
 	public static function ColorPicker(props:{value:Signal<Color>, ?size:Float, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "color", size = props.size ?? 160.0, name = props.label ?? "Colour";
 		var hue = signal(0.0), sat = signal(0.0), val = signal(0.0), hex = signal("");
@@ -478,6 +645,20 @@ class Widgets implements Markup {
 	// "checked" or "unchecked") and "radio-group-indicator" (shown when
 	// checked), each label a "label", an item and its label in a row
 	// "radio-group-option"
+	@:widget({
+		props: {
+			value: "a signal of the checked option",
+			options: "the options' values, a radio button each",
+			labels: "each option's label, else the option",
+			disabled: "a Bool, a signal or a function of one: none of them focusable, their clicks and keys ignored",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Down, Right (mirrored right to left)": "checks and focuses the next option, wrapping",
+			"Up, Left (mirrored right to left)": "checks and focuses the previous option, wrapping",
+			"Space": "checks the focused option"
+		}
+	})
 	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
@@ -524,6 +705,18 @@ class Widgets implements Markup {
 	// "tabs-list", "tabs-trigger" (data-state "active" or "inactive") and
 	// "tabs-content", all data-orientation "horizontal" (Radix's); the tabs a
 	// group, the list and its triggers variant "default" (shadcn's)
+	@:widget({
+		props: {
+			labels: "the tabs' labels, a tab each",
+			selected: "a signal of the selected tab's index, set by a click or the keys",
+			render: "what to show below for a tab's index, called when it is selected"
+		},
+		keys: {
+			"Left, Right (mirrored right to left)": "selects and focuses the previous or next tab, wrapping",
+			"Home, End": "selects and focuses the first or last tab",
+			"Enter, Space": "selects the focused tab"
+		}
+	})
 	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
 		function key(e:Event, i:Int) {
@@ -567,6 +760,24 @@ class Widgets implements Markup {
 	// Slots (shadcn's) "table", "table-header", "table-body", "table-row"
 	// (data-state "selected"), "table-head" and "table-cell"; rows rowHeight
 	// high (28), whatever the theme pads
+	@:widget({
+		props: {
+			rows: "its rows: an array, or a signal or function of one",
+			columns: "its columns, each a title, a width (a grid track: 1fr by default, 120px, auto), cell (what a row's cell shows), compare (a sort order: the column sorts by it from its header) and numeric (its title and cells at the end, figures of one width)",
+			height: "the whole table's height, its header's included; its rows scroll past it",
+			rowHeight: "each row's height, the header's too",
+			selected: "a signal of the selected row (null: none)",
+			onActivate: "called with a row when it is double clicked, or Enter is pressed with it selected",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Up, Down": "select the row before or after, the view following",
+			"Page Up, Page Down": "select the row a page before or after",
+			"Home, End": "select the first or last row",
+			"Enter": "activates the selected row (onActivate); on a sortable column's header, sorts by it, again the other way",
+			"Space": "on a sortable column's header, sorts by it, again the other way"
+		}
+	})
 	public static function Table<T>(props:{rows:Dynamic, columns:Array<{title:String, ?width:String, cell:T->Any, ?compare:(T, T)->Int, ?numeric:Bool}>,
 			?height:Float, ?rowHeight:Float, ?selected:Signal<Null<T>>, ?onActivate:T->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "table", rh = props.rowHeight ?? 28.0, h = props.height ?? 240.0;
@@ -687,6 +898,28 @@ class Widgets implements Markup {
 	// text, for type-ahead (letters typed to the row they start). Slots
 	// "tree", "tree-item" (data-selected; data-state "open" or "closed" on an
 	// item with children; indented by its level) and "tree-toggle"
+	@:widget({
+		props: {
+			roots: "its top items: an array, or a signal or function of one",
+			children: "a function of an item giving its children (null or empty: a leaf)",
+			render: "a function of an item giving what its row shows",
+			text: "a function of an item giving its text, for type-ahead",
+			expanded: "a signal of the open items (none by default)",
+			selected: "a signal of the selected item (null: none)",
+			onActivate: "called with a leaf when it is double clicked, or Enter is pressed with it selected",
+			height: "the whole tree's height; its rows scroll past it",
+			rowHeight: "each row's height",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Up, Down": "select the item before or after, the view following",
+			"Home, End": "select the first or last item",
+			"Right": "opens the selected item, or once open selects its first child (Left right to left)",
+			"Left": "closes the selected item, or selects its parent (Right right to left)",
+			"Enter": "opens or closes the selected item, or activates it when a leaf (onActivate)",
+			"letters, digits": "with text, select the next item whose text starts with what was typed"
+		}
+	})
 	public static function Tree<T>(props:{roots:Dynamic, children:T->Null<Array<T>>, render:T->Any, ?text:T->String, ?expanded:Signal<Array<T>>,
 			?selected:Signal<Null<T>>, ?onActivate:T->Void, ?height:Float, ?rowHeight:Float, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "tree", rh = props.rowHeight ?? 26.0, h = props.height ?? 240.0;
@@ -797,6 +1030,22 @@ class Widgets implements Markup {
 	// and "resizable-handle" (the line in the divider:
 	// data-panel-group-direction "horizontal" or "vertical",
 	// data-resize-handle-state "inactive", "hover" or "drag")
+	@:widget({
+		props: {
+			first: "the first pane's content: on the left (on the right right to left), or above",
+			second: "the second pane's content: it takes the rest",
+			size: "a signal of the first pane's size, in pixels",
+			direction: "row (side by side, the default) or column (one above the other)",
+			min: "the first pane's least size",
+			max: "the first pane's greatest size (by default the room less min)",
+			label: "the divider's name for assistive technology"
+		},
+		keys: {
+			"Left, Up": "shrink the first pane by 10 pixels (Right, not Left, right to left)",
+			"Right, Down": "grow the first pane by 10 pixels (Left, not Right, right to left)",
+			"Home, End": "the first pane to its least or greatest size"
+		}
+	})
 	public static function Split(props:{first:Any, second:Any, ?size:Signal<Float>, ?direction:String, ?min:Float, ?max:Float, ?label:String,
 			?tag:String}):View {
 		var tag = props.tag ?? "split", row = props.direction != "column";
@@ -856,9 +1105,26 @@ class Widgets implements Markup {
 	// the month shown following it; a click, Enter or Space chooses the day
 	// (value, onChoose). today is marked (by default the system's). Slots
 	// (shadcn's calendar's parts) "calendar", "calendar-nav" (its arrows
-	// ghost "button"s, size "icon"), "calendar-caption", "calendar-weekdays",
+	// "calendar-button-previous" and "calendar-button-next"),
+	// "calendar-caption-label", "calendar-weekdays",
 	// "calendar-weekday", "calendar-week" and "calendar-day" (data-selected,
 	// data-today, data-outside, data-focused: "true")
+	@:widget({
+		props: {
+			value: "a signal of the chosen day (a Day: year, month from 1, day; null: none), the month shown at first",
+			today: "the day marked as today (by default the system's)",
+			firstDay: "the weeks' first day: 1 Monday (the default), 0 Sunday, to 6 Saturday",
+			onChoose: "called with a day when it is chosen",
+			label: "not used: the grid is named by the month shown"
+		},
+		keys: {
+			"Left, Right": "move the marked day a day back or on (swapped right to left), the month shown following",
+			"Up, Down": "move the marked day a week back or on",
+			"Home, End": "move the marked day to its week's first or last day",
+			"Page Up, Page Down": "move the marked day a month back or on (its last day where it is shorter)",
+			"Enter, Space": "choose the marked day"
+		}
+	})
 	public static function Calendar(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void, ?label:String,
 			?tag:String}):View {
 		var tag = props.tag ?? "calendar", first = props.firstDay ?? 1;
@@ -945,6 +1211,22 @@ class Widgets implements Markup {
 	// format (by default "17 October 2026"), else placeholder. As shadcn's
 	// date picker: the button an outline "button" (data-empty "true" with no
 	// date), the calendar in a "popover-content"
+	@:widget({
+		props: {
+			value: "a signal of the chosen day (a Day: year, month from 1, day; null: none)",
+			today: "the day the calendar marks as today (by default the system's)",
+			firstDay: "the weeks' first day: 1 Monday (the default), 0 Sunday, to 6 Saturday",
+			format: "a function of a day giving its text on the button (by default 17 October 2026)",
+			placeholder: "the button's text with no date",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Enter, Space": "on the button, open the calendar, its grid focused; in the calendar, choose the marked day, closing it",
+			"Down": "on the button, opens the calendar",
+			"Left, Right, Up, Down, Home, End, Page Up, Page Down": "in the calendar, move its marked day as Calendar's do",
+			"Escape": "closes the calendar, the focus back on the button"
+		}
+	})
 	public static function DatePicker(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?format:Day->String, ?placeholder:String,
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "date", open = signal(false);
@@ -978,6 +1260,13 @@ class Widgets implements Markup {
 	// sliding; known, moved left by what is not done, translateX(-40%) at
 	// 0.6, as shadcn's: as wide as the bar by its rules); width: the
 	// bar's, else its rules'
+	@:widget({
+		props: {
+			value: "how much is done, from 0 to 1: a number, a signal or a function of one; null: not known (a bar sliding across)",
+			width: "the bar's width (else its rules')",
+			label: "its name for assistive technology"
+		}
+	})
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
 		var known = () -> Render.read(props.value) != null;
 		var frac = () -> {
@@ -1013,6 +1302,21 @@ class Widgets implements Markup {
 	// "select-trigger" (data-state "open" or "closed"), "select-value",
 	// "select-content", "select-item" (data-state "checked" or "unchecked")
 	// and "select-item-indicator" (shown when checked)
+	@:widget({
+		props: {
+			value: "a signal of the chosen option",
+			options: "the options' values",
+			labels: "what each option shows (else the option itself)",
+			width: "the button's width, and the list's least",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Enter, Space": "on the button, open the options, the chosen one focused; on an option, choose it and close them",
+			"Up, Down": "on the button, choose the option before or after; in the options, move the focus through them",
+			"letters, digits": "on the button, choose the next option whose label starts with what was typed; in the options, focus it",
+			"Escape, Tab": "close the options"
+		}
+	})
 	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "select", w = props.width ?? 160.0;
 		var open = signal(false);
@@ -1098,6 +1402,29 @@ class Widgets implements Markup {
 	// without selecting, Space (or a Control click) adds or takes away one,
 	// Control+A selects them all. A double click or Enter: onActivate. Slots
 	// "listbox" and "listbox-option" (aria-selected "true" or "false")
+	@:widget({
+		props: {
+			selected: "a signal of the selected options, in the options' order",
+			options: "the options' values",
+			labels: "what each option shows (else the option itself)",
+			multiple: "any number of options selected (else at most one)",
+			height: "its height: the options scroll past it (else all shown)",
+			width: "its width",
+			onActivate: "called with an option when it is double clicked, or Enter is pressed on it",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Up, Down": "move to the option before or after, selecting it",
+			"Page Up, Page Down": "move a page up or down, selecting",
+			"Home, End": "move to the first or last option, selecting it",
+			"letters, digits": "move to the next option whose label starts with what was typed, selecting it",
+			"Shift with a move": "with multiple, extend the selection from where it began",
+			"Control with a move": "with multiple, move without selecting",
+			"Space": "with multiple, add or take away the focused option; else select it",
+			"Control+A": "with multiple, select them all",
+			"Enter": "activates the focused option (onActivate)"
+		}
+	})
 	public static function Listbox(props:{selected:Signal<Array<String>>, options:Array<String>, ?labels:Array<String>, ?multiple:Bool, ?height:Float,
 			?width:Float, ?onActivate:String->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "listbox", options = props.options, multiple = props.multiple == true, nodes:Array<Node> = [];
@@ -1171,6 +1498,20 @@ class Widgets implements Markup {
 	// move, the item and its new index. Slots "sortable", "sortable-item"
 	// (data-dragging while one is held), "sortable-handle" and
 	// "sortable-indicator" (data-side "top" or "bottom", shown where a drop goes)
+	@:widget({
+		props: {
+			items: "a signal of the items (distinct values) in their order, changed by a move",
+			render: "a function of an item giving what it shows",
+			onMove: "called after a move with the item and its new index",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Up, Down": "move the focus to the item before or after",
+			"Home, End": "move the focus to the first or last item",
+			"Alt+Up, Alt+Down": "move the focused item up or down the list, said to assistive technology",
+			"Escape": "cancels a drag"
+		}
+	})
 	public static function Sortable<T>(props:{items:Signal<Array<T>>, render:T->Any, ?onMove:(T, Int)->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "sortable", active = signal(0), refs:Array<{item:T, node:Null<Node>}> = [], said = signal("");
 		// (where a drop goes: 2 * the item's index, plus 1 after it; -1: nowhere), whether one is dragged
@@ -1248,6 +1589,16 @@ class Widgets implements Markup {
 	// when it is shown) one Tab stop, the last focused (at first the first);
 	// Left and Right (the way they point, wrapping), Home and End move the
 	// focus between them (not out of a text field's text). Slot "toolbar"
+	@:widget({
+		props: {
+			label: "its name for assistive technology",
+			children: "its content, in a row: its focusable nodes (as they are when it is shown) one Tab stop"
+		},
+		keys: {
+			"Left, Right": "move the focus to the item before or after, wrapping (swapped right to left); not out of a text field",
+			"Home, End": "move the focus to the first or last item; not out of a text field"
+		}
+	})
 	public static function Toolbar(props:{?label:String, ?tag:String, ?children:Any}):View {
 		var bar:Null<Node> = null, items:Array<Node> = [];
 		function rove(k:Int)
@@ -1302,6 +1653,24 @@ class Widgets implements Markup {
 	// Escape, Tab or a click outside closes. The button a "button" of
 	// variant (default "outline"), data-state "open" or "closed"; slots
 	// "dropdown-menu-content", "dropdown-menu-item" and "dropdown-menu-shortcut"
+	@:widget({
+		props: {
+			label: "the button's text",
+			items: "its items (MenuItem), each a label, onSelect (called when it is chosen), a shortcut (shown, and choosing it from anywhere in the window), variant destructive, disabled, separator, heading, checked (a signal of a Bool: a checkbox item), radio (a group's signal and its value) or items (a submenu)",
+			variant: "the button's look: outline (the default), default, destructive, secondary, ghost or link"
+		},
+		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
+		keys: {
+			"Enter, Space": "on the button, open the menu, its first item focused; on an item, choose it, closing the menu, or open its submenu",
+			"Down": "on the button, opens the menu",
+			"Up, Down": "in the menu, move through its items, past separators, headings and disabled ones",
+			"Right": "on an item with items, opens its submenu (Left right to left)",
+			"Left": "in a submenu, closes it, the focus back on its item (Right right to left)",
+			"letters, digits": "focus the next item whose label starts with what was typed",
+			"Escape": "closes a submenu, else the menu, the focus back on the button",
+			"Tab": "closes the menu"
+		}
+	})
 	public static function DropdownMenu(props:{label:String, items:Array<MenuItem>, ?variant:String,
 			?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "menu";
@@ -1322,7 +1691,7 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// a menu bar: a row of menus' titles, each opening its items (as Menu's)
+	// a menu bar: a row of menus' titles, each opening its items (as DropdownMenu's)
 	// under it on a click, Down, Enter or Space; while one is open, the
 	// pointer over another title opens that one instead; Left and Right move
 	// between the titles the way they point (from an open menu: the next one
@@ -1331,6 +1700,23 @@ class Widgets implements Markup {
 	// title last moved to. The items' shortcuts work from anywhere in the
 	// window. Slots (shadcn's) "menubar", "menubar-trigger" (data-state
 	// "open" or "closed"), "menubar-content", "menubar-item", "menubar-shortcut"
+	@:widget({
+		props: {
+			menus: "its menus, each a title (label) and its items (MenuItem, as DropdownMenu's: a label, onSelect, a shortcut working from anywhere in the window, variant, disabled, separator, heading, checked, radio or items, a submenu)",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Left, Right": "move between the titles the way they point, wrapping; from an open menu, open the next one",
+			"Down, Enter, Space": "on a title, open its menu, its first item focused",
+			"Up, Down": "in a menu, move through its items, past separators, headings and disabled ones",
+			"Enter, Space": "on an item, choose it, closing the menu, or open its submenu",
+			"Right": "on an item with items, opens its submenu (Left right to left)",
+			"Left": "in a submenu, closes it, the focus back on its item (Right right to left)",
+			"letters, digits": "in a menu, focus the next item whose label starts with what was typed",
+			"Escape": "closes a submenu, else the menu, the focus back on its title",
+			"Tab": "closes the menu"
+		}
+	})
 	public static function Menubar(props:{menus:Array<{label:String, items:Array<MenuItem>}>, ?label:String,
 			?tag:String}):View {
 		var tag = props.tag ?? "menubar", count = props.menus.length;
@@ -1385,12 +1771,30 @@ class Widgets implements Markup {
 		]}</view>;
 	}
 
-	// a context menu: the children, with items (as Menu's) opened by a right
+	// a context menu: the children, with items (as DropdownMenu's) opened by a right
 	// click on them where it was pressed, or by the menu key or Shift+F10
 	// when the focus is in them (at their top left, the first item focused);
 	// a press elsewhere, Escape or Tab closes it. The items' shortcuts work
 	// while the focus is in the children. Slots (shadcn's)
 	// "context-menu-content", "context-menu-item", "context-menu-shortcut"
+	@:widget({
+		popup: true,
+		props: {
+			items: "its items (MenuItem, as DropdownMenu's: a label, onSelect, a shortcut working while the focus is in the children, variant, disabled, separator, heading, checked, radio or items, a submenu)",
+			label: "its menu's name for assistive technology",
+			children: "what it is the menu of: a right click on them opens it where pressed"
+		},
+		keys: {
+			"Menu, Shift+F10": "with the focus in the children, open the menu at their top left, its first item focused",
+			"Up, Down": "in the menu, move through its items, past separators, headings and disabled ones",
+			"Enter, Space": "on an item, choose it, closing the menu, or open its submenu",
+			"Right": "on an item with items, opens its submenu (Left right to left)",
+			"Left": "in a submenu, closes it, the focus back on its item (Right right to left)",
+			"letters, digits": "in the menu, focus the next item whose label starts with what was typed",
+			"Escape": "closes a submenu, else the menu",
+			"Tab": "closes the menu"
+		}
+	})
 	public static function ContextMenu(props:{items:Array<MenuItem>, ?label:String, ?tag:String, ?children:Any}):View {
 		var tag = props.tag ?? "context-menu";
 		var open = signal(false);
@@ -1428,6 +1832,24 @@ class Widgets implements Markup {
 	// End choose another); variant "default" or "outline", size "default",
 	// "sm" or "lg". Slots "toggle-group" and "toggle-group-item" (data-state
 	// "on" or "off"), each with the variant and size
+	@:widget({
+		props: {
+			value: "a signal of the chosen option",
+			options: "the options' values",
+			labels: "what each option shows (else the option itself)",
+			variant: "its toggles' look: default or outline",
+			size: "default, sm or lg",
+			label: "its name for assistive technology"
+		},
+		variants: ["default", "outline"],
+		sizes: ["default", "sm", "lg"],
+		keys: {
+			"Left, Right": "choose the option before or after, wrapping (swapped right to left)",
+			"Up, Down": "choose the option before or after, wrapping",
+			"Home, End": "choose the first or last option",
+			"Enter, Space": "choose the focused option"
+		}
+	})
 	public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
 			?label:String, ?tag:String}):View {
 		var variant = props.variant ?? "default", size = props.size ?? "default";
@@ -1465,6 +1887,14 @@ class Widgets implements Markup {
 	// chevron, the way the line reads) decoration. Slots "breadcrumb",
 	// "breadcrumb-list", "breadcrumb-item", "breadcrumb-link",
 	// "breadcrumb-page", "breadcrumb-separator"
+	@:widget({
+		props: {
+			items: "the steps' texts, from the first to the current page",
+			onSelect: "called with a step's index when it is clicked, or Enter is pressed on it (all but the last)",
+			label: "its landmark's name"
+		},
+		keys: {"Enter": "on a step, chooses it (onSelect)"}
+	})
 	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "crumbs", items = props.items;
 		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "Breadcrumb"}>
@@ -1492,6 +1922,14 @@ class Widgets implements Markup {
 	// for a page, "default" for Previous and Next; data-active on the
 	// current page's, data-disabled on Previous on the first, Next on the
 	// last) and "pagination-ellipsis"
+	@:widget({
+		props: {
+			page: "a signal of the current page, from 1",
+			count: "the number of pages",
+			label: "its landmark's name"
+		},
+		keys: {"Enter, Space": "on a button, go to its page (Previous and Next: the page before or after)"}
+	})
 	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "pages", count = props.count;
 		function go(p:Int)
@@ -1671,6 +2109,19 @@ class Widgets implements Markup {
 	// a tooltip: text shown by the children (above them) once the pointer
 	// has rested on them for delay seconds (0.5), hidden when it leaves or
 	// presses, or by Escape (slot "tooltip-content", shadcn's)
+	@:widget({
+		popup: true,
+		props: {
+			text: "its text",
+			delay: "the seconds the pointer rests on the children before it shows",
+			placement: "where it shows: above (the default), below, right or left, flipped where it does not fit",
+			children: "what shows it: the pointer resting on them, or the keyboard's focus in them"
+		},
+		keys: {
+			"Tab": "into the children, shows it after delay; out of them, hides it",
+			"Escape": "hides it"
+		}
+	})
 	public static function Tooltip(props:{text:String, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
 		var show = signal(false), over = 0;
 		var delay = props.delay ?? 0.5;
@@ -1706,6 +2157,21 @@ class Widgets implements Markup {
 	// closes it (open set to false). Slots "dialog-overlay", "dialog-content",
 	// "dialog-header", "dialog-title", "dialog-description", "dialog-close";
 	// DialogFooter's "dialog-footer"
+	@:widget({
+		props: {
+			open: "a signal of whether it is shown, set to false when it closes",
+			title: "its heading, and its name for assistive technology",
+			description: "a line of text under the title",
+			width: "its panel's width in pixels (360)",
+			close: "false: no close button",
+			children: "its body, under the title: fields, then a DialogFooter"
+		},
+		keys: {
+			"Tab, Shift+Tab": "moves the focus to the next or previous node in it, wrapping: it stays inside",
+			"Escape": "closes it",
+			"Enter, Space": "on the close button: closes it"
+		}
+	})
 	public static function Dialog(props:{open:Signal<Bool>, title:String, ?description:String, ?width:Float, ?close:Bool, ?tag:String,
 			?children:Any}):Any {
 		var close = () -> props.open.value = false;
@@ -1730,6 +2196,12 @@ class Widgets implements Markup {
 		});
 	}
 
+	@:widget({
+		props: {
+			children: "its buttons, at the dialog's foot"
+		},
+		part: "Dialog"
+	})
 	public static function DialogFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "dialog-footer"} slot="dialog-footer">{props.children}</view>;
 
@@ -1742,6 +2214,26 @@ class Widgets implements Markup {
 	// does nothing. Slots "alert-dialog-overlay", "alert-dialog-content",
 	// "alert-dialog-header", "alert-dialog-title", "alert-dialog-description",
 	// "alert-dialog-footer"; the buttons "button"s
+	@:widget({
+		props: {
+			open: "a signal of whether it is shown, set to false when it closes",
+			title: "its heading, the question, and its name for assistive technology",
+			description: "a line of text under the title",
+			cancel: "the cancel button's label (Cancel)",
+			action: "the action button's label (Continue)",
+			variant: "the action button's look: default, or destructive for a deletion (a button's variants)",
+			onAction: "called when the action button closes it",
+			onCancel: "called when the cancel button or Escape closes it",
+			width: "its panel's width in pixels (360)",
+			children: "more content, between the description and the buttons"
+		},
+		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
+		keys: {
+			"Tab, Shift+Tab": "moves the focus between its buttons, wrapping: it stays inside",
+			"Escape": "cancels it (onCancel)",
+			"Enter, Space": "presses the focused button (the cancel button at first)"
+		}
+	})
 	public static function AlertDialog(props:{open:Signal<Bool>, title:String, ?description:String, ?cancel:String, ?action:String,
 			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):Any {
 		var tag = props.tag ?? "alert-dialog";
@@ -1780,6 +2272,21 @@ class Widgets implements Markup {
 	// modal, closed as a dialog is. Slots "sheet-overlay", "sheet-content"
 	// (data-side), "sheet-header", "sheet-title", "sheet-description",
 	// "sheet-close"; SheetFooter's "sheet-footer"
+	@:widget({
+		props: {
+			open: "a signal of whether it is shown, set to false when it closes",
+			title: "its heading, and its name for assistive technology",
+			description: "a line of text under the title",
+			side: "the window's edge it is along: right (the default), left, top or bottom",
+			close: "false: no close button",
+			children: "its body, under the title: fields, then a SheetFooter"
+		},
+		keys: {
+			"Tab, Shift+Tab": "moves the focus to the next or previous node in it, wrapping: it stays inside",
+			"Escape": "closes it",
+			"Enter, Space": "on the close button: closes it"
+		}
+	})
 	public static function Sheet(props:{open:Signal<Bool>, title:String, ?description:String, ?side:String, ?close:Bool, ?tag:String,
 			?children:Any}):Any {
 		var side = props.side ?? "right", close = () -> props.open.value = false, tag = props.tag ?? "sheet";
@@ -1807,6 +2314,12 @@ class Widgets implements Markup {
 		});
 	}
 
+	@:widget({
+		props: {
+			children: "its buttons, at the sheet's foot"
+		},
+		part: "Sheet"
+	})
 	public static function SheetFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "sheet-footer"} slot="sheet-footer">{props.children}</view>;
 
@@ -1817,6 +2330,19 @@ class Widgets implements Markup {
 	// follows (less: back in place). Slots "drawer-overlay", "drawer-content"
 	// (data-vaul-drawer-direction), "drawer-handle", "drawer-header",
 	// "drawer-title", "drawer-description"; DrawerFooter's "drawer-footer"
+	@:widget({
+		props: {
+			open: "a signal of whether it is shown, set to false when it closes",
+			title: "its heading, and its name for assistive technology",
+			description: "a line of text under the title",
+			direction: "the window's edge it comes from: bottom (the default), top, left or right",
+			children: "its body, under the title: content, then a DrawerFooter"
+		},
+		keys: {
+			"Tab, Shift+Tab": "moves the focus to the next or previous node in it, wrapping: it stays inside",
+			"Escape": "closes it"
+		}
+	})
 	public static function Drawer(props:{open:Signal<Bool>, title:String, ?description:String, ?direction:String, ?tag:String, ?children:Any}):Any {
 		var dir = props.direction ?? "bottom", tag = props.tag ?? "drawer", close = () -> props.open.value = false;
 		var across = dir == "left" || dir == "right", sign = dir == "bottom" || dir == "right" ? 1 : -1;
@@ -1859,6 +2385,12 @@ class Widgets implements Markup {
 		});
 	}
 
+	@:widget({
+		props: {
+			children: "its buttons, at the drawer's foot"
+		},
+		part: "Drawer"
+	})
 	public static function DrawerFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "drawer-footer"} slot="drawer-footer">{props.children}</view>;
 
@@ -1868,6 +2400,19 @@ class Widgets implements Markup {
 	// signal) says whether it is. Slots "popover-trigger" (the button, a
 	// "button" of variant, data-state "open" or "closed") and
 	// "popover-content" (data-state, data-side "bottom")
+	@:widget({
+		props: {
+			label: "the button's text, and the popover's name for assistive technology",
+			open: "a signal of whether the popover is shown (its own when not given)",
+			variant: "the button's look: outline (the default), default, destructive, secondary, ghost or link",
+			children: "the popover's content, under the button"
+		},
+		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
+		keys: {
+			"Enter, Space": "opens it, its first focusable node focused",
+			"Escape": "closes it"
+		}
+	})
 	public static function PopoverButton(props:{label:String, ?open:Signal<Bool>, ?variant:String, ?style:States->StyleProps, ?tag:String, ?children:Any}):View {
 		var open = props.open ?? signal(false), tag = props.tag ?? "popover";
 		return <view tag={tag} slot="button" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
@@ -1890,6 +2435,16 @@ class Widgets implements Markup {
 	// (below) once the pointer has rested on them for delay seconds (0.7),
 	// kept while it is over either, hidden when it leaves both (after 0.3
 	// seconds) or by Escape (slot "hover-card-content")
+	@:widget({
+		popup: true,
+		props: {
+			content: "what the card shows",
+			delay: "the seconds the pointer rests on the children before the card shows (0.7)",
+			placement: "where the card goes: below (the default), above, right or left",
+			children: "what the pointer rests on to show the card"
+		},
+		keys: {"Escape": "hides the card"}
+	})
 	public static function HoverCard(props:{content:Any, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
 		var show = signal(false), over = 0, delay = props.delay ?? 0.7;
 		// (show or hide after a wait: the last asked wins)
@@ -1917,6 +2472,13 @@ class Widgets implements Markup {
 
 	// an avatar (shadcn's): an image, else its fallback (initials) while
 	// there is none. Slots "avatar", "avatar-image" and "avatar-fallback"
+	@:widget({
+		props: {
+			src: "its image (an Image or an Svg), a signal or a function of one; null: the fallback",
+			fallback: "the text shown while there is no image: initials",
+			label: "its name for assistive technology (the fallback)"
+		}
+	})
 	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?tag:String}):View {
 		return <view tag={props.tag ?? "avatar"} slot="avatar" role="img" label={props.label ?? props.fallback} overflow="hidden">
 			{() -> read(props.src) == null ? <view slot="avatar-fallback" hidden><text>{props.fallback}</text></view> : <image slot="avatar-image"
@@ -1925,6 +2487,12 @@ class Widgets implements Markup {
 	}
 
 	// a key or keys as typed (shadcn's Kbd: slot "kbd"), e.g. "⌘K" or a Shortcut's label
+	@:widget({
+		props: {
+			text: "the key or keys as typed, e.g. ⌘K",
+			children: "its content, instead of text"
+		}
+	})
 	public static function Kbd(props:{?text:String, ?children:Any, ?tag:String}):View {
 		return <text tag={props.tag ?? "kbd"} slot="kbd">{props.children ?? props.text}</text>;
 	}
@@ -1932,6 +2500,11 @@ class Widgets implements Markup {
 	// a spinner (shadcn's): a loading circle turning once a second while
 	// shown, on the Clock (slot "spinner"; an indeterminate progress bar for
 	// assistive technology, label "Loading")
+	@:widget({
+		props: {
+			label: "its name for assistive technology (Loading)"
+		}
+	})
 	public static function Spinner(props:{?label:String, ?tag:String}):View {
 		var turn = signal(0.0), stopped = false;
 		Clock.add(now -> {
@@ -1952,6 +2525,23 @@ class Widgets implements Markup {
 	// Enter or a click chooses the highlighted one (the field takes its
 	// text; onChoose gets it), Enter with none highlighted submits the text
 	// as it is (onChoose), Escape or a click outside closes the list.
+	@:widget({
+		props: {
+			value: "a signal of the field's text, set as it is typed or an option is chosen",
+			options: "the options' texts, or a signal of them: those holding the text, in any case, listed",
+			placeholder: "the text shown while the field is empty",
+			width: "its width in pixels, the list's too (200)",
+			label: "its name for assistive technology (the placeholder)",
+			onChoose: "called with an option's text when it is chosen, or the text as it is when Enter submits it"
+		},
+		keys: {
+			"Down": "opens the list, else highlights the next option, wrapping",
+			"Up": "while the list is open: highlights the previous option, wrapping",
+			"Enter": "chooses the highlighted option, else submits the text as it is",
+			"Escape": "closes the list",
+			"Left, Right, Home, End, Backspace, Mod+A, Mod+C, Mod+X, Mod+V, Mod+Z": "edit the text, as an input's"
+		}
+	})
 	public static function Combobox(props:{value:Signal<String>, options:Dynamic, ?placeholder:String, ?width:Float, ?label:String,
 			?onChoose:String->Void, ?tag:String}):View {
 		var tag = props.tag ?? "combobox", w = props.width ?? 200.0;
@@ -2038,6 +2628,21 @@ class Widgets implements Markup {
 	// "command-input", "command-list", "command-empty", "command-group",
 	// "command-group-heading", "command-item" (data-selected and
 	// data-disabled "true"), "command-shortcut", "command-separator"
+	@:widget({
+		props: {
+			groups: "its groups, each a heading and items (a menu's: a label, onSelect, a shortcut shown, disabled, a separator)",
+			placeholder: "the search field's text while it is empty",
+			empty: "the text shown when no item matches (No results found.)",
+			query: "a signal of the search field's text (its own when not given)",
+			label: "its name for assistive technology (the placeholder)"
+		},
+		keys: {
+			"Down": "selects the next item that can be chosen, stopping at the last",
+			"Up": "selects the previous item that can be chosen, stopping at the first",
+			"Enter": "chooses the selected item",
+			"Left, Right, Home, End, Backspace, Mod+A, Mod+C, Mod+X, Mod+V, Mod+Z": "edit the query, as an input's"
+		}
+	})
 	public static function Command(props:{groups:Array<{?heading:String, items:Array<MenuItem>}>, ?placeholder:String, ?empty:String,
 			?query:Signal<String>, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "command", query = props.query ?? signal("");
@@ -2145,6 +2750,22 @@ class Widgets implements Markup {
 	// (data-active "true" on the slot typing goes to while focused),
 	// "input-otp-caret" (in the active slot while it is empty),
 	// "input-otp-separator"
+	@:widget({
+		props: {
+			value: "a signal of the code typed, what is not allowed or does not fit dropped",
+			length: "the number of slots, a character each",
+			groups: "the groups' sizes, a separator between (one group of all)",
+			digits: "false: any character allowed, not only digits",
+			onComplete: "called with the code once every slot is filled",
+			label: "its name for assistive technology (One-time code)",
+			disabled: "a Bool, a signal or a function of one: not focusable or typed in"
+		},
+		keys: {
+			"0 to 9": "fill the next slot (any character when digits is false)",
+			"Backspace": "empties the last filled slot",
+			"Mod+V": "pastes into the next slots, what does not fit dropped"
+		}
+	})
 	public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
 			?disabled:Dynamic, ?tag:String}):View {
 		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false;
@@ -2213,6 +2834,14 @@ class Widgets implements Markup {
 	// or Space; open (a signal; closed at first) says which. Slots
 	// "collapsible", "collapsible-trigger" and "collapsible-content", each
 	// with data-state "open" or "closed"
+	@:widget({
+		props: {
+			label: "the trigger's text",
+			open: "a signal of whether the children are shown (its own, closed at first, when not given)",
+			children: "what it shows or hides, under the trigger"
+		},
+		keys: {"Enter, Space": "opens or closes it"}
+	})
 	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
 		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
 		var state = () -> open.value ? "open" : "closed";
@@ -2228,6 +2857,13 @@ class Widgets implements Markup {
 	// (turned when open), opens it and closes the other. Slots "accordion",
 	// "accordion-item", "accordion-trigger" and "accordion-content", each
 	// item's with data-state "open" or "closed"
+	@:widget({
+		props: {
+			sections: "its sections, each a label and render (a function giving its content)",
+			open: "a signal of the open section's index, -1 for none (its own when not given)"
+		},
+		keys: {"Enter, Space": "on a section's trigger: opens it and closes the other, or closes it when open"}
+	})
 	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
 		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion";
 		return <view tag={tag} slot="accordion">{[
@@ -2257,6 +2893,12 @@ class Widgets implements Markup {
 	// over everything, width wide (320); each with its mark, text, action
 	// and a close button. They do not take the focus; the pointer over them
 	// holds their time.
+	@:widget({
+		props: {
+			placement: "the window's corner they are in: bottom-right (the default), bottom-left, top-right or top-left",
+			width: "the toasts' width in pixels (320)"
+		}
+	})
 	public static function Toaster(props:{?placement:String, ?width:Float, ?tag:String}):View {
 		var tag = props.tag ?? "toaster";
 		// (a live region, always there and of no size, saying the newest toast: assistive technology announces it)
@@ -2288,6 +2930,23 @@ class Widgets implements Markup {
 	// shows it formatted. Up and Down, or the buttons beside it, step it
 	// (Page Up and Page Down: ten steps). A spin button to assistive
 	// technology.
+	@:widget({
+		props: {
+			value: "a signal of its number, following what is typed while it parses",
+			min: "the least it can be, once committed (no limit)",
+			max: "the most it can be, once committed (no limit)",
+			step: "what Up, Down and the buttons add or take off (1)",
+			width: "its width in pixels, the buttons' too (120)",
+			format: "its number as text (as it is, rounded to ten decimals)",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Up, Down": "steps it up or down",
+			"Page Up, Page Down": "steps it up or down by ten steps",
+			"Enter": "puts it within min and max, shown formatted (as the focus leaving does)",
+			"Left, Right, Home, End, Backspace, Mod+A, Mod+C, Mod+X, Mod+V, Mod+Z": "edit the text, as an input's"
+		}
+	})
 	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
@@ -2368,6 +3027,28 @@ class Widgets implements Markup {
 	// a textarea (shadcn's): a text area bound to a signal (two ways), rows
 	// lines high (3); a right click (or the menu key) opens its edit menu;
 	// invalid and disabled as an input's (slot "textarea")
+	@:widget({
+		props: {
+			value: "a signal of its text, set as it is typed (and shown when set)",
+			rows: "its height in lines (3)",
+			placeholder: "the text shown while it is empty",
+			label: "its name for assistive technology (the placeholder)",
+			invalid: "a Bool, a signal or a function of one: aria-invalid, for the theme",
+			disabled: "a Bool, a signal or a function of one: not focusable or edited"
+		},
+		keys: {
+			"Enter": "types a new line",
+			"Left, Right": "move the caret (Shift: extending the selection; Control or Alt: by words)",
+			"Up, Down": "move the caret a line, keeping its column",
+			"Home, End": "go to the line's start or end (Mod: the text's)",
+			"Backspace, Delete": "delete before or after the caret (Control or Alt: a word)",
+			"Mod+A": "selects all",
+			"Mod+C, Mod+X, Mod+V": "copy, cut and paste",
+			"Mod+Z": "undoes",
+			"Mod+Shift+Z, Mod+Y": "redo",
+			"Menu, Shift+F10": "opens its edit menu"
+		}
+	})
 	public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
 			?style:States->StyleProps, ?tag:String}):View {
 		var f = new TextArea(props.value.peek());
@@ -2418,6 +3099,28 @@ class Widgets implements Markup {
 	// shown as dots, not copied or cut, a password field for assistive
 	// technology; invalid: aria-invalid; disabled: not focusable or edited
 	// (slot "input"; its placeholder's colour a "placeholder" rule's)
+	@:widget({
+		props: {
+			value: "a signal of its text, set as it is typed (and shown when set)",
+			placeholder: "the text shown while it is empty",
+			label: "its name for assistive technology (the placeholder)",
+			onSubmit: "called with its text on Enter",
+			password: "true: its text shown as dots, not copied or cut",
+			invalid: "a Bool, a signal or a function of one: aria-invalid, for the theme",
+			disabled: "a Bool, a signal or a function of one: not focusable or edited"
+		},
+		keys: {
+			"Enter": "submits it (onSubmit)",
+			"Left, Right": "move the caret (Shift: extending the selection; Control or Alt: by words)",
+			"Home, End": "go to the start or end",
+			"Backspace, Delete": "delete before or after the caret (Control or Alt: a word)",
+			"Mod+A": "selects all",
+			"Mod+C, Mod+X, Mod+V": "copy, cut and paste (a password: paste only)",
+			"Mod+Z": "undoes",
+			"Mod+Shift+Z, Mod+Y": "redo",
+			"Menu, Shift+F10": "opens its edit menu"
+		}
+	})
 	public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
 			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
 		var f = new TextField(props.value.peek());
@@ -2438,6 +3141,19 @@ class Widgets implements Markup {
 	// comma adds what is typed (trimmed, once), Backspace in an empty field
 	// takes the last one off, a chip's × takes it off; a click in the box
 	// focuses the field. The chips a list, each × a button named for its tag
+	@:widget({
+		props: {
+			tags: "a signal of its tags, in order",
+			placeholder: "the field's text while it is empty",
+			label: "its field's and its list's name for assistive technology (the field's: the placeholder)"
+		},
+		keys: {
+			"Enter, Comma": "adds what is typed as a tag, trimmed, unless it is empty or there already",
+			"Backspace": "in an empty field: takes the last tag off",
+			"Left, Right, Home, End, Mod+A, Mod+C, Mod+X, Mod+V, Mod+Z": "edit the text, as an input's",
+			"Menu, Shift+F10": "opens its edit menu"
+		}
+	})
 	public static function TagInput(props:{tags:Signal<Array<String>>, ?placeholder:String, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "tags";
 		var f = new TextField("");

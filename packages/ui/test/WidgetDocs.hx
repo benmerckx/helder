@@ -3,8 +3,10 @@
 // props (name, type, whether optional, a default where the code gives one:
 // props.x ?? value), the slots and data- attributes a theme targets, the
 // roles it declares, and what its @:widget metadata says (props: each
-// one's doc; variants, sizes; keys: what each key does; part: the widget
-// whose part it is, documented and shown with it), and its example
+// one's doc; variants, sizes; keys: what each key does, written out as
+// [{keys, does}] in their order; part: the widget whose part it is,
+// documented and shown with it; popup: its parts show only when the user
+// opens it), and its example
 // (examples/widgets/<Name>Example.hx) when there is one; host: "drawn"
 // (hxmc.ui's own) unless the metadata says otherwise.
 //   WidgetDocs <Widgets.hx> <examples dir> [out.json]
@@ -101,6 +103,12 @@ class WidgetDocs {
 			var m:Dynamic = haxe.Json.parse(json(meta));
 			for (k in Reflect.fields(m))
 				if (k != "props") Reflect.setField(w, k, Reflect.field(m, k));
+			// (the keys in the order written: an object's fields have none)
+			var at = meta.indexOf("keys:");
+			if (at >= 0) {
+				var keys:haxe.DynamicAccess<String> = m.keys, close = meta.indexOf("}", meta.indexOf("{", at));
+				w.keys = [for (k in found(~/"((?:[^"\\]|\\.)*)"\s*:/, meta.substring(at, close))) {keys: k, does: keys[k]}];
+			}
 			var docs:haxe.DynamicAccess<String> = m.props;
 			if (docs != null) for (p in (w.props : Array<Dynamic>))
 				if (docs.exists(p.name)) p.doc = docs[p.name];

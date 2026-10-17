@@ -6,7 +6,8 @@ import hxmc.view.*;
 
 // The widgets' reference checked (make ui-check, on Eval): each example of
 // examples/widgets rendered under Shadcn.sheet and with no sheet, laid out,
-// a slot of its widget in the tree (or the overlay's); then WidgetDocs read
+// a slot of its widget in the tree (or the overlay's; not for one whose
+// parts show only when the user opens it: popup); then WidgetDocs read
 // from Widgets.hx: every widget documented, each of its props, and every
 // widget not a part of another with an example.
 //   WidgetExamplesTest
@@ -70,7 +71,8 @@ class WidgetExamplesTest {
 					check(e.name + "Example" + (sheet == null ? " (no sheet)" : "") + " renders", false, Std.string(x));
 					continue;
 				}
-				if (w == null) continue;
+				// (a widget whose parts show only when the user opens it: hovered, right-clicked)
+				if (w == null || w.popup == true) continue;
 				var mine = [for (s in (w.slots : Array<String>)) if (seen.exists(s)) s];
 				check(e.name + "Example" + (sheet == null ? " (no sheet)" : "") + ": its widget's slots in the tree", (w.slots : Array<String>).length == 0 || mine.length > 0,
 					(w.slots : Array<String>).join(" "));
