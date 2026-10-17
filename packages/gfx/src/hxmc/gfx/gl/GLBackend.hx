@@ -335,6 +335,8 @@ class GLBackend {
 
 	// an EGL surface on the window the Surface has now
 	function attach() {
+		// (not in the browser: no EGL import there)
+		if (Mem.os() == 3) return;
 		eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
 		if (eglSurface.isNull()) fail("cannot create the EGL surface");
 		window = surface.handle;
