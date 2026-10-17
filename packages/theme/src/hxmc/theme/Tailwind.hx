@@ -85,8 +85,8 @@ class Tailwind {
 		"@container", "@container/*",
 		// inherited already
 		"text-current",
-		// (no StyleProps for them yet: text-underline-offset, scroll margins, touch-action)
-		"underline-offset-*", "scroll-my-*", "scroll-py-*", "touch-none",
+		// (no StyleProps for them yet: scroll margins, touch-action)
+		"scroll-my-*", "scroll-py-*", "touch-none",
 		// what Radix's popper measures (--radix-*): ui's popups place and size themselves
 		"*(--radix-*", "*[var(--radix-*",
 		// a table's own layout (caption side, collapsed borders, a cell's
@@ -805,6 +805,12 @@ class Tailwind {
 			set('start.translate.$axis', VStr(t));
 			return out;
 		}
+		if ((v = after("underline-offset-")) != null) {
+			var n = borderWidth(v);
+			if (n == null) return null;
+			set("textUnderlineOffset", VDim(Px(n)));
+			return out;
+		}
 		if ((v = after("fill-")) != null) {
 			var c = color(v);
 			if (c == null) return null;
@@ -908,18 +914,22 @@ class Tailwind {
 	}
 
 	// rounded-*: shadcn's multiples of --radius (globals.css's @theme), Tailwind's otherwise
+	// (shadcn's scale multiplies --radius; a rule's radius is --radius plus
+	// what the multiple adds to the sheet's, as Length.token: the same at the
+	// sheet's radius, another moving them all by as much, as shadcn's earlier
+	// calc(var(--radius) - 2px))
 	function rounded(v:String):Null<Float>
 		return switch v {
 			case "": 4;
 			case "none": 0;
 			case "xs": 2;
-			case "sm": radius * 0.6;
-			case "md": radius * 0.8;
-			case "lg": radius;
-			case "xl": radius * 1.4;
-			case "2xl": radius * 1.8;
-			case "3xl": radius * 2.2;
-			case "4xl": radius * 2.6;
+			case "sm": radiusToken(radius * 0.6 - radius);
+			case "md": radiusToken(radius * 0.8 - radius);
+			case "lg": radiusToken(0);
+			case "xl": radiusToken(radius * 1.4 - radius);
+			case "2xl": radiusToken(radius * 1.8 - radius);
+			case "3xl": radiusToken(radius * 2.2 - radius);
+			case "4xl": radiusToken(radius * 2.6 - radius);
 			// (calc(infinity * 1px): as many px as any box needs)
 			case "full": 1e6;
 			case _: v.startsWith("[") ? length(v.substring(1, v.length - 1)) : null;
@@ -933,6 +943,16 @@ class Tailwind {
 		var n = spacing(v);
 		return n == null ? null : VDim(Px(n));
 	}
+
+	// --radius plus offset px, as a number far from any length (RADIUS +
+	// offset; Tw writes it as Length.token("radius", offset))
+	public static inline var RADIUS = 1e9;
+
+	static function radiusToken(offset:Float):Float
+		return RADIUS + Math.round(offset * 16) / 16;
+
+	public static function isRadius(n:Float):Bool
+		return Math.abs(n - RADIUS) < 1e5;
 
 	// a colour: a token (with an alpha in percent), white, black, transparent
 	static function color(v:String):Null<String> {
@@ -1177,7 +1197,7 @@ class Tailwind {
 
 	// (rounded to 4 places)
 	static function num(n:Float):String
-		return Math.isNaN(n) ? "auto" : Math.abs(n) >= 1e5 ? "" + n : "" + Math.round(n * 10000) / 10000;
+		return Math.isNaN(n) ? "auto" : isRadius(n) ? "var(--radius)" + (n == RADIUS ? "" : (n > RADIUS ? "+" : "") + num(n - RADIUS)) : Math.abs(n) >= 1e5 ? "" + n : "" + Math.round(n * 10000) / 10000;
 }
 
 // the classes of a slot that share variants: one rule

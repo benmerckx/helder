@@ -113,6 +113,7 @@ class Tw {
 				e.str(tokens[k]);
 			}
 		}
+		e.str(Std.string(css(json.radius)));
 		// (-D hxmc.theme.dump: each rule as Tailwind.describe writes it, and the data's size)
 		if (Context.defined("hxmc.theme.dump")) {
 			for (r in rules)
@@ -171,8 +172,9 @@ private class Encoder {
 	public function str(s:String)
 		int(intern(s));
 
+	// (--radius plus px: "r" and the px, Length.token("radius", px) when read)
 	function num(f:Float)
-		str(Std.string(f));
+		str(Tailwind.isRadius(f) ? "r" + (f - Tailwind.RADIUS) : Std.string(f));
 
 	public function rule(r:TwRule) {
 		str(r.slot);

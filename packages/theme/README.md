@@ -58,10 +58,13 @@ The tokens: `background`, `foreground`, `card`, `card-foreground`,
 `popover`, `popover-foreground`, `primary`, `primary-foreground`,
 `secondary`, `secondary-foreground`, `muted`, `muted-foreground`,
 `accent`, `accent-foreground`, `destructive`, `border`, `input`, `ring`,
-`chart-1`...`chart-5`, `sidebar-*`. `--radius` (0.625rem) is read at
-compile time: its multiples (`rounded-sm` 0.6, `-md` 0.8, `-lg` 1,
-`-xl` 1.4...) are in the rules; another radius takes a JSON file of one's
-own (below).
+`chart-1`...`chart-5`, `sidebar-*`; and `--radius` (0.625rem, 10px), a
+length token (`StyleSheet.lengths`, `Length.token`): `Shadcn.withTokens(null,
+null, 6)` rounds every corner less. shadcn's scale multiplies it
+(`rounded-sm` 0.6, `-md` 0.8, `-lg` 1, `-xl` 1.4...); the rules hold
+`--radius` plus what each multiple adds at 10px (`rounded-md` is
+`var(--radius)-2`), the same at shadcn's radius, another moving them all
+by as much (as shadcn's earlier `calc(var(--radius) - 2px)`).
 
 ## Rules of one's own
 
@@ -74,7 +77,8 @@ ui.theme = {
 	rules: Shadcn.sheet.rules.concat(Tw.rules("button", "rounded-full px-6"))
 		.concat(Tw.rules("button", "bg-destructive/80 hover:bg-destructive", "danger")),
 	light: Shadcn.sheet.light,
-	dark: Shadcn.sheet.dark
+	dark: Shadcn.sheet.dark,
+	lengths: Shadcn.sheet.lengths
 };
 ```
 
@@ -162,7 +166,7 @@ with Tailwind's default theme and shadcn's on top, 1rem = 16px:
   fractions, `full`, `fit`, `auto`, containers, `[1.15rem]`); a side's
   class is that side's property (`paddingLeft`), as CSS's longhands;
 - borders and corners: `border`, `border-*` (widths, sides, colours),
-  `rounded-*` (shadcn's multiples of `--radius`), sides and corners;
+  `rounded-*` (`--radius` live, as above), sides and corners;
 - colours: shadcn's tokens as `var(--name)`, with an alpha in percent
   (`bg-primary/90` is `var(--primary)/90`), `white`, `black`,
   `transparent`; `fill-*` (an icon's fill, as its colour);
@@ -178,7 +182,7 @@ with Tailwind's default theme and shadcn's on top, 1rem = 16px:
   (CSS's `@starting-style`) the node's transition eases from, a side's
   slide and the open state's zoom composed into one transform;
 - text: `text-xs`...`text-4xl` (with their line heights), `text-[0.8rem]`,
-  `font-*`, `leading-*` (beating `text-*`'s line height, as in CSS: px as
+  `font-*`, `underline-offset-*`, `leading-*` (beating `text-*`'s line height, as in CSS: px as
   `lineHeightPx`), `tracking-*` (`letterSpacingEm`), `underline`,
   `uppercase`, `truncate`, `whitespace-nowrap`, `tabular-nums`,
   `text-center`...
@@ -205,8 +209,7 @@ would. A class that is neither known nor listed in `Tailwind.IGNORED` or
 there: exit animations (ui removes a closed popup), keyframe animations
 (`animate-pulse`, `animate-spin`, `animate-accordion-*`), the markers
 `group` and `peer`, container queries, what Radix's popper measures,
-what has no property yet (`underline-offset-*`, sizes by `calc()`,
-`scroll-m*`, `touch-none`), a table's own layout, `text-balance`,
+what has no property yet (`scroll-m*`, `touch-none`), a table's own layout, `text-balance`,
 `sr-only`; arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`,
 `has-[>svg]:px-3`), children's and descendants' (`*:`, `**:`, given to
 the part's own slot where hxmc has one), pseudo-elements (`after:`) and

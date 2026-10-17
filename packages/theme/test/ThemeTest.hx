@@ -71,9 +71,10 @@ class ThemeTest {
 		same("absolute inset-0 top-1/2 z-50", "x position=Absolute left=0 right=0 top=50% bottom=0 zIndex=50");
 		same("overflow-hidden pointer-events-none opacity-50 cursor-not-allowed",
 			"x overflow=Hidden pointerEvents=None opacity=0.5 cursor=NotAllowed");
-		same("rounded-md", "x radius=8");
+		same("rounded-md", "x radius=var(--radius)-2");
+		same("rounded-lg rounded-xl", "x radius=var(--radius)+4");
 		same("rounded-sm rounded-xl rounded-[4px] rounded-full", "x radius=1000000");
-		same("rounded-t-md rounded-b-[2px]", "x corners=8 8 2 2");
+		same("rounded-t-md rounded-b-[2px]", "x corners=var(--radius)-2 var(--radius)-2 2 2");
 		same("border", "x borderWidth=1");
 		same("border border-b-0", "x borders=1 1 0 1");
 		same("border-x-2", "x borders=0 2 0 2");
@@ -101,6 +102,7 @@ class ThemeTest {
 		same("text-sm/6", "x fontSize=14 lineHeightPx=24");
 		same("text-xs tracking-widest", "x fontSize=12 lineHeight=1.3333 letterSpacingEm=0.1");
 		same("text-[0.8rem] whitespace-nowrap truncate", "x fontSize=12.8 textWrap=NoWrap overflow=Hidden textOverflow=Ellipsis");
+		same("underline underline-offset-4", "x textDecoration=1 textUnderlineOffset=4");
 		same("underline uppercase text-center font-mono tabular-nums",
 			"x textDecoration=1 textTransform=Uppercase textAlign=Center fontFamily=monospace fontVariantNumeric=tabular-nums");
 		same("text-destructive!", "x color=var(--destructive)");
@@ -131,7 +133,7 @@ class ThemeTest {
 	static function shorthands() {
 		// (a rule's sides as CSS's longhands; the shorthands it sets in part, from the rules holding with it)
 		same("px-4 py-2 hover:px-6", "x padding=8 16 8 16\nx hover: paddingRight=24 paddingLeft=24");
-		same("rounded-md border hover:rounded-t-none hover:border-b-2", "x corners=8 borders=1\nx hover: corners=0 0 8 8 borders=1 1 2 1");
+		same("rounded-md border hover:rounded-t-none hover:border-b-2", "x corners=var(--radius)-2 borders=1\nx hover: corners=0 0 var(--radius)-2 var(--radius)-2 borders=1 1 2 1");
 		same("text-sm hover:leading-6", "x fontSize=14 lineHeight=1.4286\nx hover: lineHeightPx=24");
 		same("translate-x-1 data-[state=open]:translate-y-1", "x transform=translateX(4px)\nx data-state=open: transform=translateX(4px) translateY(4px)");
 		same("flex flex-col md:flex", "x display=Flex direction=Column\nx md: display=Flex");
@@ -202,7 +204,7 @@ class ThemeTest {
 		var r = Tw.rules("button", "h-9 px-4 rounded-md hover:opacity-90 data-[size=sm]:h-8", "default");
 		check("Tw.rules: 3 rules", r.length == 3, '${r.length}');
 		check("Tw.rules: base", r[0].slot == "button" && r[0].variant == "default" && r[0].when == null && Type.enumEq(r[0].style.height, Px(36))
-			&& r[0].style.radius == 8 && r[0].style.paddingLeft == 16 && r[0].style.paddingTop == null);
+			&& hxmc.ui.Length.isToken(r[0].style.radius) && hxmc.ui.Length.resolve(r[0].style.radius, ["radius" => 10]) == 8 && r[0].style.paddingLeft == 16 && r[0].style.paddingTop == null);
 		check("Tw.rules: hover", r[1].when[0] == "hover" && r[1].style.opacity == 0.9);
 		check("Tw.rules: size", r[2].size == "sm" && Type.enumEq(r[2].style.height, Px(32)));
 	}
@@ -212,6 +214,7 @@ class ThemeTest {
 		check("sheet: rules", s.rules.length > 50, '${s.rules.length}');
 		check("sheet: tokens", s.light["primary"] != null && s.dark["primary"] != null && s.light.get("primary") != s.dark.get("primary"));
 		var t = Shadcn.withTokens(["primary" => "#ff0000"]);
+		check("withTokens radius", Shadcn.withTokens(null, null, 6).lengths["radius"] == 6 && s.lengths["radius"] == 10);
 		check("withTokens", t.rules == s.rules && t.light["primary"] == hxmc.ui.Color.parse("#ff0000") && t.dark["primary"] == s.dark["primary"]
 			&& s.light["primary"] != t.light["primary"]);
 		Sys.println('ThemeTest: Shadcn.sheet: ${s.rules.length} rules');

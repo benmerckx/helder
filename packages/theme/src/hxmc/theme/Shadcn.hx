@@ -17,10 +17,11 @@ class Shadcn {
 	}
 
 	// the sheet with tokens of one's own (names without the dashes:
-	// "primary", "ring"; CSS colours: "oklch(0.6 0.2 260)", "#2563eb"), the
-	// others shadcn's: a new sheet sharing its rules, so that switching
-	// between it and others re-resolves their colours
-	public static function withTokens(?light:Map<String, String>, ?dark:Map<String, String>):StyleSheet {
+	// "primary", "ring"; CSS colours: "oklch(0.6 0.2 260)", "#2563eb"; radius:
+	// --radius in px, every rounded-* moving with it), the others shadcn's:
+	// a new sheet sharing its rules, so that switching between it and others
+	// re-resolves their colours and corners
+	public static function withTokens(?light:Map<String, String>, ?dark:Map<String, String>, ?radius:Float):StyleSheet {
 		function merged(base:Map<String, Color>, own:Null<Map<String, String>>):Map<String, Color> {
 			var m = base.copy();
 			if (own != null) for (k => v in own)
@@ -28,6 +29,6 @@ class Shadcn {
 			return m;
 		}
 		var s = sheet;
-		return {rules: s.rules, light: merged(s.light, light), dark: merged(s.dark, dark), lengths: s.lengths};
+		return {rules: s.rules, light: merged(s.light, light), dark: merged(s.dark, dark), lengths: radius == null ? s.lengths : ["radius" => radius]};
 	}
 }
