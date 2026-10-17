@@ -1,7 +1,8 @@
 // The todo example in a browser (make ui-web-check): WebTodo.wasm in
 // headless Chromium on WebGPU, then on WebGL2 (forced), its canvas driven
 // by real events (Playwright's mouse and keyboard: clicks, typing, Enter,
-// Shift+Left), the same steps as TodoTest's, then its pixels compared with
+// Shift+Left; Control+A, X and V through the page's clipboard), the same
+// steps as TodoTest's, then its pixels compared with
 // todo.png (TodoTest's frame: our own text rasterizer, so the glyphs are
 // the same; the GPUs' edges may differ a little).
 //   node packages/ui/test/web.mjs <WebTodo.wasm> [out dir]
@@ -69,6 +70,7 @@ console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
 for (const gfx of ['webgpu', 'webgl2']) {
 	const p = await browser.newPage({ viewport: { width: 500, height: 600 } });
+	await p.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: url });
 	const errors = [];
 	p.on('pageerror', (e) => errors.push(e.message));
 	p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -107,6 +109,13 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	await click('add');
 	await click('draft');
 	await p.keyboard.type('Ship it');
+	// cut to the clipboard, then pasted back
+	await p.keyboard.press('Control+A');
+	await p.keyboard.press('Control+X');
+	await settle();
+	const cut = await p.evaluate(() => navigator.clipboard.readText());
+	await p.keyboard.press('Control+V');
+	await settle();
 	await click('add');
 	await click('checkbox');
 	await click('filter-active');
@@ -127,9 +136,9 @@ for (const gfx of ['webgpu', 'webgl2']) {
 		});
 		await writeFile(path.join(out, `todo-${gfx}.png`), Buffer.from(png));
 	}
-	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && errors.length === 0 && backend === gfx;
+	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && errors.length === 0 && backend === gfx;
 	if (!ok) failed++;
-	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}${ok ? '' : ' FAILED'}`);
 	for (const e of errors) console.log('  error: ' + e);
 	if (backend !== gfx) console.log('  on ' + backend);
 	await p.close();

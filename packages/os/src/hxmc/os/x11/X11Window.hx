@@ -15,6 +15,14 @@ class X11Window {
 	static var xev:Ptr = Ptr.nil();
 	static final event = new Event();
 	static final open:Array<X11Window> = [];
+	// the clipboard: the atoms, the text this process owns it with (null: it
+	// does not), the reads waiting for SelectionNotify
+	static var CLIPBOARD:Int64 = 0;
+	static var UTF8_STRING:Int64 = 0;
+	static var TARGETS:Int64 = 0;
+	static var HXMC_CLIPBOARD:Int64 = 0;
+	static var clipboardText:Null<String> = null;
+	static final clipboardReads:Array<{window:X11Window, callback:Null<String>->Void}> = [];
 	// the cursors made (by Cursor; 0: not yet)
 	static final cursors:Array<Int64> = [];
 
@@ -46,6 +54,10 @@ class X11Window {
 		display = Xlib.XOpenDisplay(Ptr.nil());
 		if (display.isNull()) throw "hxmc.os: cannot open the X display (DISPLAY=" + Sys.getEnv("DISPLAY") + ")";
 		wmDelete = Xlib.XInternAtom(display, Mem.cstr("WM_DELETE_WINDOW"), 0);
+		CLIPBOARD = Xlib.XInternAtom(display, Mem.cstr("CLIPBOARD"), 0);
+		UTF8_STRING = Xlib.XInternAtom(display, Mem.cstr("UTF8_STRING"), 0);
+		TARGETS = Xlib.XInternAtom(display, Mem.cstr("TARGETS"), 0);
+		HXMC_CLIPBOARD = Xlib.XInternAtom(display, Mem.cstr("HXMC_CLIPBOARD"), 0);
 		xev = LibC.malloc((X.EVENT_SIZE : Int64));
 	}
 
@@ -53,9 +65,15 @@ class X11Window {
 		open.remove(this);
 		Xlib.XDestroyWindow(display, id);
 		Xlib.XFlush(display);
+		for (r in clipboardReads.copy())
+			if (r.window == this) {
+				clipboardReads.remove(r);
+				r.callback(null);
+			}
 		if (open.length == 0) {
-			// (the cursors go with the connection)
+			// (the cursors and the selection go with the connection)
 			cursors.resize(0);
+			clipboardText = null;
 			Xlib.XCloseDisplay(display);
 			LibC.free(xev);
 			display = Ptr.nil();
@@ -71,6 +89,108 @@ class X11Window {
 		if (cursors[i] == 0) cursors[i] = Xlib.XCreateFontCursor(display, [68, 60, 152, 34, 52, 0, 108, 116][i]);
 		Xlib.XDefineCursor(display, id, cursors[i]);
 		Xlib.XFlush(display);
+	}
+
+	// owns CLIPBOARD with text (answering SelectionRequest from then on)
+	function writeClipboard(text:String) {
+		clipboardText = text;
+		Xlib.XSetSelectionOwner(display, CLIPBOARD, id, 0);
+		if (Xlib.XGetSelectionOwner(display, CLIPBOARD) != id) clipboardText = null;
+		Xlib.XFlush(display);
+	}
+
+	// the text this process owns the clipboard with, else the owner's
+	// (converted to UTF8_STRING into a property of this window: SelectionNotify)
+	function readClipboard(callback:Null<String>->Void) {
+		if (clipboardText != null && Xlib.XGetSelectionOwner(display, CLIPBOARD) == id) {
+			callback(clipboardText);
+			return;
+		}
+		if (Xlib.XGetSelectionOwner(display, CLIPBOARD) == 0) {
+			callback(null);
+			return;
+		}
+		clipboardReads.push({window: this, callback: callback});
+		Xlib.XConvertSelection(display, CLIPBOARD, UTF8_STRING, HXMC_CLIPBOARD, id, 0);
+		Xlib.XFlush(display);
+	}
+
+	// another client asks for the selection this process owns: its text into
+	// the property it names (UTF-8 for UTF8_STRING, Latin-1 for STRING; the
+	// two for TARGETS), then SelectionNotify (property 0: refused)
+	static function answerSelection(r:Ptr<XSelectionRequestEvent>) {
+		var property = r.value.property == 0 ? r.value.target : r.value.property;
+		var ok = clipboardText != null && r.value.selection == CLIPBOARD;
+		if (ok) Arena.scoped(a -> {
+			if (r.value.target == TARGETS) {
+				var atoms:Ptr<Int64> = a.alloc(24);
+				atoms[0] = TARGETS;
+				atoms[1] = UTF8_STRING;
+				atoms[2] = X.XA_STRING;
+				Xlib.XChangeProperty(display, r.value.requestor, property, X.XA_ATOM, 32, X.PropModeReplace, atoms, 3);
+			} else if (r.value.target == UTF8_STRING || r.value.target == X.XA_STRING) {
+				var b = r.value.target == UTF8_STRING ? haxe.io.Bytes.ofString(clipboardText) : latin1(clipboardText);
+				Xlib.XChangeProperty(display, r.value.requestor, property, r.value.target, 8, X.PropModeReplace, a.copyBytes(b), b.length);
+			} else ok = false;
+			var raw = a.alloc(X.EVENT_SIZE);
+			var n:Ptr<XSelectionEvent> = raw;
+			n.value.type = X.SelectionNotify;
+			n.value.display = display;
+			n.value.requestor = r.value.requestor;
+			n.value.selection = r.value.selection;
+			n.value.target = r.value.target;
+			n.value.property = ok ? property : 0;
+			n.value.time = r.value.time;
+			Xlib.XSendEvent(display, r.value.requestor, 0, 0, raw);
+		}) else Arena.scoped(a -> {
+			var raw = a.alloc(X.EVENT_SIZE);
+			var n:Ptr<XSelectionEvent> = raw;
+			n.value.type = X.SelectionNotify;
+			n.value.display = display;
+			n.value.requestor = r.value.requestor;
+			n.value.selection = r.value.selection;
+			n.value.target = r.value.target;
+			n.value.property = 0;
+			n.value.time = r.value.time;
+			Xlib.XSendEvent(display, r.value.requestor, 0, 0, raw);
+		});
+		Xlib.XFlush(display);
+	}
+
+	static function latin1(s:String):haxe.io.Bytes {
+		var b = haxe.io.Bytes.alloc(s.length);
+		for (i in 0...s.length) {
+			var c = StringTools.fastCodeAt(s, i);
+			b.set(i, c < 256 ? c : "?".code);
+		}
+		return b;
+	}
+
+	// the converted selection arrived (or was refused): the first read of
+	// this window gets it. (A selection sent in parts, INCR, over 256 KB or
+	// so, is not read: the callback gets null.)
+	function selectionArrived(e:Ptr<XSelectionEvent>) {
+		var text:Null<String> = null;
+		if (e.value.property != (0 : Int64)) Arena.scoped(a -> {
+			var type:Ptr<Int64> = a.alloc(8), format:Ptr<Int32> = a.alloc(4), count:Ptr<Int64> = a.alloc(8), after:Ptr<Int64> = a.alloc(8);
+			var data:Ptr<Ptr> = a.alloc(8);
+			if (Xlib.XGetWindowProperty(display, id, e.value.property, 0, 1 << 24, 1, X.AnyPropertyType, type, format, count, after, data) == 0
+				&& !data.value.isNull()) {
+				if (format.value == 8 && (type.value == UTF8_STRING || type.value == X.XA_STRING)) {
+					var n = count.value.toInt();
+					var b = haxe.io.Bytes.alloc(n);
+					LibC.memcpy(Mem.addr(b).add(8), data.value, (n : Int64));
+					text = type.value == UTF8_STRING ? b.toString() : [for (i in 0...n) String.fromCharCode(b.get(i))].join("");
+				}
+				Xlib.XFree(data.value);
+			}
+		});
+		for (r in clipboardReads)
+			if (r.window == this) {
+				clipboardReads.remove(r);
+				r.callback(text);
+				break;
+			}
 	}
 
 	static function find(id:Int64):Null<X11Window> {
@@ -93,6 +213,12 @@ class X11Window {
 				case X.ClientMessage:
 					var m:Ptr<XClientMessageEvent> = xev;
 					if (m.value.l0 == wmDelete) e.kind = Close;
+				case X.SelectionRequest:
+					answerSelection(xev);
+				case X.SelectionClear:
+					clipboardText = null;
+				case X.SelectionNotify:
+					w.selectionArrived(xev);
 				case X.Expose:
 					var x:Ptr<XExposeEvent> = xev;
 					if (x.value.count == 0) e.kind = Redraw;

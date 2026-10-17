@@ -20,6 +20,9 @@ class CanvasWindow {
 	static var onFrame:Null<Void->Void>;
 	static var onEvent:Null<Event->Void>;
 
+	// Clipboard.read's callbacks, in order
+	static final clipboardReads:Array<Null<String>->Void> = [];
+
 	final owner:Window;
 	final canvas:Int;
 	final surface:Surface;
@@ -36,6 +39,14 @@ class CanvasWindow {
 
 	inline function get_scale():Float
 		return Dom.scale();
+
+	static function writeClipboard(text:String)
+		Arena.scoped(a -> Dom.clipboard_write(a.cstring(text)));
+
+	static function readClipboard(callback:Null<String>->Void) {
+		clipboardReads.push(callback);
+		Dom.clipboard_read();
+	}
 
 	function setCursor(c:Cursor)
 		Dom.set_cursor(canvas, c);
@@ -63,6 +74,22 @@ class CanvasWindow {
 	static function poll(onEvent:Event->Void) {
 		if (ev.isNull()) ev = LibC.malloc(28);
 		while (Dom.next_event(ev) != 0) {
+			if (ev[1] == 100) {
+				var h = ev[2], text:Null<String> = null;
+				if (h != 0) {
+					var n = Dom.text_length(h);
+					var b = haxe.io.Bytes.alloc(n);
+					Arena.scoped(a -> {
+						var p = a.alloc(n + 1, 1);
+						Dom.text_take(h, p);
+						LibC.memcpy(Mem.addr(b).add(8), p, (n : Int64));
+					});
+					text = b.toString();
+				}
+				var cb = clipboardReads.shift();
+				if (cb != null) cb(text);
+				continue;
+			}
 			var w = find(ev[0]);
 			if (w == null) continue;
 			var e = event;

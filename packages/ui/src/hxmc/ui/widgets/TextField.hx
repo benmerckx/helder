@@ -4,7 +4,8 @@ import hxmc.ui.*;
 
 // A one-line text field: focusable, edited with the keyboard (characters,
 // Backspace, Delete, Left, Right, Home, End; Shift extends the selection,
-// Control+A selects all; Enter submits) and the pointer (a click places
+// Control+A selects all, Control+C, X and V copy, cut and paste through
+// Ui.clipboard (Command on macOS: either works); Enter submits) and the pointer (a click places
 // the caret, a drag selects). Its text scrolls sideways to keep the caret
 // in view; the placeholder shows while it is empty. onChange gets each new
 // text, onSubmit the text on Enter.
@@ -86,6 +87,14 @@ class TextField extends TextNode {
 				if (onSubmit != null) onSubmit(text);
 			case "a".code if (ctrl):
 				select(0, text.length);
+			case "c".code | "x".code if (ctrl):
+				if (selectionStart != selectionEnd && ui != null) {
+					ui.clipboard.write(text.substring(selectionStart, selectionEnd));
+					if (e.key == "x".code) replace("");
+				}
+			case "v".code if (ctrl):
+				// (the text may come later: typed where the selection is then; one line)
+				if (ui != null) ui.clipboard.read(t -> if (t != null && t != "") replace(StringTools.replace(StringTools.replace(StringTools.replace(t, "\r\n", " "), "\n", " "), "\r", " ")));
 			case _:
 				return;
 		}

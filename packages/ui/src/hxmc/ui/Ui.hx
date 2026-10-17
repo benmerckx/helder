@@ -30,6 +30,8 @@ class Ui {
 	public var pointerY(default, null) = 0.0;
 	// the focus was moved by the keyboard: its ring shows
 	public var focusVisible(default, null) = false;
+	// where widgets copy and paste text (UiWindow: the system's)
+	public var clipboard:ClipboardHost = new ClipboardHost.MemoryClipboard();
 	public var focusRingColor:Color = 0xFF3B82F6;
 	public var focusRingWidth = 2.0;
 	// the ring's gap outside the node

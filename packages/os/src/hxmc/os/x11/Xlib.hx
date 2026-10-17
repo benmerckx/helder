@@ -32,6 +32,16 @@ import hxmc.unsafe.*;
 	// an XImage* of the window's pixels (ZPixmap: 32 bits per pixel on a 24-bit visual)
 	static function XGetImage(d:Ptr, drawable:Int64, x:Int, y:Int, width:Int, height:Int, planes:Int64, format:Int):Ptr<XImage>;
 	static function XDestroyImage(image:Ptr<XImage>):Int;
+	// selections (the clipboard): owning one, asking its owner for it, the
+	// properties its text travels in
+	static function XSetSelectionOwner(d:Ptr, selection:Int64, owner:Int64, time:Int64):Int;
+	static function XGetSelectionOwner(d:Ptr, selection:Int64):Int64;
+	static function XConvertSelection(d:Ptr, selection:Int64, target:Int64, property:Int64, requestor:Int64, time:Int64):Int;
+	static function XChangeProperty(d:Ptr, w:Int64, property:Int64, type:Int64, format:Int, mode:Int, data:Ptr, count:Int):Int;
+	static function XGetWindowProperty(d:Ptr, w:Int64, property:Int64, offset:Int64, length:Int64, delete:Int, type:Int64, actualType:Ptr<Int64>,
+		actualFormat:Ptr<Int32>, count:Ptr<Int64>, after:Ptr<Int64>, data:Ptr<Ptr>):Int;
+	static function XDeleteProperty(d:Ptr, w:Int64, property:Int64):Int;
+	static function XFree(data:Ptr):Int;
 	// a cursor of the cursor font (X11/cursorfont.h's shapes)
 	static function XCreateFontCursor(d:Ptr, shape:Int):Int64;
 	static function XDefineCursor(d:Ptr, w:Int64, cursor:Int64):Int;
@@ -54,6 +64,13 @@ class X {
 	public static inline var ButtonRelease = 5;
 	public static inline var MotionNotify = 6;
 	public static inline var Expose = 12;
+	public static inline var SelectionClear = 29;
+	public static inline var SelectionRequest = 30;
+	public static inline var SelectionNotify = 31;
+	public static inline var PropModeReplace = 0;
+	public static inline var AnyPropertyType = 0;
+	public static inline var XA_ATOM = 4;
+	public static inline var XA_STRING = 31;
 	public static inline var ConfigureNotify = 22;
 	public static inline var ClientMessage = 33;
 	// input masks
@@ -106,6 +123,33 @@ class X {
 	var width:Int32;
 	var height:Int32;
 	var count:Int32; // the Expose events that follow this one
+}
+
+// SelectionRequest: another client asks the owner for the selection
+@:hxmc.struct @:publicFields class XSelectionRequestEvent {
+	var type:Int32;
+	var serial:Int64;
+	var send_event:Int32;
+	var display:Ptr;
+	var owner:Int64;
+	var requestor:Int64;
+	var selection:Int64;
+	var target:Int64;
+	var property:Int64;
+	var time:Int64;
+}
+
+// SelectionNotify: the selection converted (property 0: refused)
+@:hxmc.struct @:publicFields class XSelectionEvent {
+	var type:Int32;
+	var serial:Int64;
+	var send_event:Int32;
+	var display:Ptr;
+	var requestor:Int64;
+	var selection:Int64;
+	var target:Int64;
+	var property:Int64;
+	var time:Int64;
 }
 
 @:hxmc.struct @:publicFields class XConfigureEvent {

@@ -128,6 +128,26 @@ class CocoaWindow {
 		Msg.v(ns, ObjC.sel("set"));
 	}
 
+	// the general pasteboard's string (NSPasteboardTypeString: public.utf8-plain-text)
+	static function writeClipboard(text:String) {
+		var pb = Msg.id(ObjC.cls("NSPasteboard"), ObjC.sel("generalPasteboard"));
+		Msg.i(pb, ObjC.sel("clearContents"));
+		var s = ObjC.str(text), type = ObjC.str("public.utf8-plain-text");
+		Msg.idPtrPtr(pb, ObjC.sel("setString:forType:"), s, type);
+		ObjC.release(s);
+		ObjC.release(type);
+	}
+
+	static function readClipboard():Null<String> {
+		var pool = Runtime.objc_autoreleasePoolPush();
+		var pb = Msg.id(ObjC.cls("NSPasteboard"), ObjC.sel("generalPasteboard"));
+		var type = ObjC.str("public.utf8-plain-text");
+		var text = ObjC.string(Msg.idPtr(pb, ObjC.sel("stringForType:"), type));
+		ObjC.release(type);
+		Runtime.objc_autoreleasePoolPop(pool);
+		return text;
+	}
+
 	static function find(window:Ptr):Null<CocoaWindow> {
 		for (w in open)
 			if (w.window == window) return w;

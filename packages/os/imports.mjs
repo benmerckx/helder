@@ -12,10 +12,15 @@
 // pixels from the top left. Frames pause while no window's canvas is in
 // view (as requestAnimationFrame pauses in a hidden tab). host.os.redraw()
 // asks every window for a frame (a Redraw event): the page wants its pixels
-// (host.gfx.readPixels) while the program has nothing new to draw.
+// (host.gfx.readPixels) while the program has nothing new to draw. The
+// clipboard: writes go to navigator.clipboard; a read takes the text of the
+// paste event the key press that asked for it brought (no permission
+// needed), else navigator.clipboard.readText, and comes back as an event.
 
 // EventKind (src/hxmc/os/Event.hx)
 const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8, REDRAW = 9;
+// (not an EventKind: CanvasWindow hands the text to Clipboard.read's callback)
+const CLIPBOARD = 100;
 
 // KeyboardEvent.key to an X11 KeySym: Latin-1 characters are their
 // (unshifted) code, the others from this table
@@ -39,6 +44,8 @@ export default function (host) {
 	const queue = [];
 	const windows = new Set();
 	let first = true;
+	// the last paste event's text, and when
+	let pasted = null;
 	host.os = { redraw: () => { for (const h of windows) push([h, REDRAW, 0, 0, 0, 0, 0]); } };
 
 	function push(ev) {
@@ -86,6 +93,10 @@ export default function (host) {
 			push([h, MOUSE_UP, 0, ...pos(e), b, mods(e)]);
 		}, { passive: true });
 		on('contextmenu', (e) => e.preventDefault());
+		on('paste', (e) => {
+			pasted = { text: e.clipboardData ? e.clipboardData.getData('text/plain') : '', at: performance.now() };
+			e.preventDefault();
+		});
 		return off;
 	}
 
@@ -135,6 +146,26 @@ export default function (host) {
 		width: (h) => host.handles.get(h).width,
 		height: (h) => host.handles.get(h).height,
 		scale: () => devicePixelRatio,
+		clipboard_write(p) {
+			const s = host.string(p);
+			navigator.clipboard?.writeText(s).catch(() => {});
+		},
+		clipboard_read() {
+			const deliver = (s) => queue.push([0, CLIPBOARD, s == null ? 0 : host.handles.add(String(s)), 0, 0, 0, 0]);
+			if (pasted && performance.now() - pasted.at < 1000) {
+				const t = pasted.text;
+				pasted = null;
+				deliver(t);
+			} else if (navigator.clipboard?.readText) navigator.clipboard.readText().then(deliver, () => deliver(null));
+			else deliver(null);
+		},
+		// a string handle's UTF-8 length, then its bytes into p (the handle freed)
+		text_length: (h) => new TextEncoder().encode(host.handles.get(h)).length,
+		text_take(h, p) {
+			const b = new TextEncoder().encode(host.handles.get(h));
+			new Uint8Array(host.memory().buffer, p, b.length).set(b);
+			host.handles.remove(h);
+		},
 		set_cursor(h, c) {
 			host.handles.get(h).style.cursor = ['default', 'pointer', 'text', 'crosshair', 'move', 'not-allowed', 'ew-resize', 'ns-resize'][c] ?? 'default';
 		},

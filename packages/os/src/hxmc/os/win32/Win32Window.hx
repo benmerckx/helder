@@ -100,6 +100,46 @@ class Win32Window {
 		User32.SetCursor(cursor);
 	}
 
+	// the clipboard's text: UTF-16 in movable global memory (CF_UNICODETEXT),
+	// which the clipboard owns once set
+	function writeClipboard(text:String) {
+		if (User32.OpenClipboard(hwnd) == 0) throw "hxmc.os: OpenClipboard failed (error " + Kernel32.GetLastError() + ")";
+		User32.EmptyClipboard();
+		var n = text.length;
+		var mem = Kernel32.GlobalAlloc(2, (2 * n + 2 : Int64)); // GMEM_MOVEABLE
+		if (mem.isNull()) {
+			User32.CloseClipboard();
+			throw "hxmc.os: GlobalAlloc failed";
+		}
+		var p:Ptr<UInt16> = Kernel32.GlobalLock(mem);
+		for (i in 0...n)
+			p[i] = StringTools.fastCodeAt(text, i);
+		p[n] = 0;
+		Kernel32.GlobalUnlock(mem);
+		if (User32.SetClipboardData(13, mem).isNull()) Kernel32.GlobalFree(mem);
+		User32.CloseClipboard();
+	}
+
+	function readClipboard():Null<String> {
+		if (User32.OpenClipboard(hwnd) == 0) return null;
+		var mem = User32.GetClipboardData(13);
+		var text:Null<String> = null;
+		if (!mem.isNull()) {
+			var p:Ptr<UInt16> = Kernel32.GlobalLock(mem);
+			if (!p.isNull()) {
+				var max = Kernel32.GlobalSize(mem).toInt() >> 1, b = new StringBuf(), i = 0;
+				while (i < max && p[i] != 0) {
+					b.addChar(p[i]);
+					i++;
+				}
+				text = b.toString();
+				Kernel32.GlobalUnlock(mem);
+			}
+		}
+		User32.CloseClipboard();
+		return text;
+	}
+
 	static function find(hwnd:Ptr):Null<Win32Window> {
 		for (w in open)
 			if (w.hwnd == hwnd) return w;

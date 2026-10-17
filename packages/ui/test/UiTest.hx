@@ -1,5 +1,6 @@
 import hxmc.ui.*;
 import hxmc.ui.DimValue;
+import hxmc.ui.widgets.TextField;
 
 // hxmc.ui's tests, on Eval (make ui-check):
 //
@@ -12,6 +13,7 @@ import hxmc.ui.DimValue;
 //   the wheel scrolling an Overflow Scroll node, relayout after changes
 // - paint: what Ui draws on a Canvas, in order (shadows under backgrounds,
 //   rounded clips inside borders), and Shadow.parse
+// - fields: TextField's editing and the clipboard (copy, cut, paste)
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
 //   filters, Adam7; png-cases.mjs writes them and the pixels expected)
 class UiTest {
@@ -27,6 +29,7 @@ class UiTest {
 		dirty();
 		paint();
 		images(here);
+		fields();
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -37,6 +40,59 @@ class UiTest {
 			failed++;
 			Sys.println('UiTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
+	}
+
+	// --- fields ---
+
+	static function fields() {
+		var ui = new Ui(new MonoText(), 300, 100);
+		var f = new TextField("");
+		var changes = 0;
+		f.onChange = _ -> changes++;
+		ui.root.append(f);
+		ui.update();
+		ui.setFocus(f);
+		function type(t:String)
+			for (c in new haxe.iterators.StringIteratorUnicode(t)) {
+				ui.keyDown(c, 0);
+				ui.textInput(String.fromCharCode(c));
+			}
+		function key(k:Int, mods = 0)
+			ui.keyDown(k, mods);
+		type("hello world");
+		check("fields: typing", f.text == "hello world" && f.caret == 11 && changes == 11, f.text);
+		key(Key.LEFT, Key.MOD_SHIFT);
+		key(Key.LEFT, Key.MOD_SHIFT);
+		key(Key.LEFT, Key.MOD_SHIFT);
+		key(Key.LEFT, Key.MOD_SHIFT);
+		key(Key.LEFT, Key.MOD_SHIFT);
+		key("c".code, Key.MOD_CONTROL);
+		var clip:ClipboardHost.MemoryClipboard = cast ui.clipboard;
+		check("fields: copy", clip.text == "world" && f.text == "hello world", clip.text);
+		key("x".code, Key.MOD_CONTROL);
+		check("fields: cut", clip.text == "world" && f.text == "hello " && f.caret == 6, f.text);
+		key(Key.HOME);
+		key("v".code, Key.MOD_META);
+		check("fields: paste (Command too)", f.text == "worldhello " && f.caret == 5, f.text);
+		clip.text = "two\nlines\r\nhere";
+		key("a".code, Key.MOD_CONTROL);
+		key("v".code, Key.MOD_CONTROL);
+		check("fields: a paste over the selection, on one line", f.text == "two lines here", f.text);
+		key(Key.BACKSPACE);
+		key(Key.BACKSPACE);
+		key(Key.BACKSPACE);
+		key(Key.BACKSPACE);
+		check("fields: Backspace", f.text == "two lines ", f.text);
+		key("c".code, Key.MOD_CONTROL);
+		check("fields: copy without a selection leaves the clipboard", clip.text == "two\nlines\r\nhere");
+		// a clipboard that answers later
+		var lc = new LaterClipboard();
+		var later = lc.waiting;
+		ui.clipboard = lc;
+		key("v".code, Key.MOD_CONTROL);
+		check("fields: a paste waits for the text", f.text == "two lines " && later.length == 1);
+		later[0]("later");
+		check("fields: then types it", f.text == "two lines later", f.text);
 	}
 
 	// --- images ---
@@ -470,4 +526,16 @@ class Recording implements Canvas {
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float)
 		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius');
+}
+
+// a clipboard whose reads are answered by the test, later (UiTest's fields)
+class LaterClipboard implements ClipboardHost {
+	public final waiting:Array<Null<String>->Void> = [];
+
+	public function new() {}
+
+	public function write(text:String) {}
+
+	public function read(callback:Null<String>->Void)
+		waiting.push(callback);
 }

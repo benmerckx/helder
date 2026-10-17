@@ -26,6 +26,12 @@ import hxmc.unsafe.*;
 	static function ClientToScreen(hwnd:Ptr, p:Ptr<POINT>):Int;
 	static function LoadCursorW(instance:Ptr, name:Ptr):Ptr;
 	static function SetCursor(cursor:Ptr):Ptr;
+	// the clipboard (CF_UNICODETEXT: 13)
+	static function OpenClipboard(hwnd:Ptr):Int;
+	static function CloseClipboard():Int;
+	static function EmptyClipboard():Int;
+	static function SetClipboardData(format:Int, data:Ptr):Ptr;
+	static function GetClipboardData(format:Int):Ptr;
 	static function MsgWaitForMultipleObjects(count:Int, handles:Ptr, waitAll:Int, ms:Int, wakeMask:Int):Int;
 	static function SetWindowTextW(hwnd:Ptr, text:Ptr):Int;
 	// Windows 10 1607 and later (pixels, not points)
@@ -40,6 +46,12 @@ import hxmc.unsafe.*;
 @:hxmc.c @:hxmc.fast @:hxmc.lib("kernel32") extern class Kernel32 {
 	static function GetModuleHandleW(name:Ptr):Ptr;
 	static function GetLastError():Int;
+	// movable global memory (the clipboard's)
+	static function GlobalAlloc(flags:Int, bytes:Int64):Ptr;
+	static function GlobalLock(mem:Ptr):Ptr;
+	static function GlobalUnlock(mem:Ptr):Int;
+	static function GlobalFree(mem:Ptr):Ptr;
+	static function GlobalSize(mem:Ptr):Int64;
 }
 
 // a window's pixels (GfxTest's capture)

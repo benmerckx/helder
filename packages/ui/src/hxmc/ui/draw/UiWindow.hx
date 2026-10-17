@@ -43,6 +43,7 @@ class UiWindow {
 		device = Device.create(window.surface);
 		renderer = new Renderer(device);
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
+		ui.clipboard = new SystemClipboard(window);
 		open.push(this);
 	}
 
@@ -136,4 +137,18 @@ class UiWindow {
 			if (!drew) App.wait(idleWait);
 		}, e -> for (w in open.copy()) if (w.window == e.window) w.handle(e));
 	}
+}
+
+// the system's clipboard (hxmc.os.Clipboard) for a window's Ui
+class SystemClipboard implements ClipboardHost {
+	final window:hxmc.os.Window;
+
+	public function new(window:hxmc.os.Window)
+		this.window = window;
+
+	public function write(text:String)
+		hxmc.os.Clipboard.write(window, text);
+
+	public function read(callback:Null<String>->Void)
+		hxmc.os.Clipboard.read(window, callback);
 }
