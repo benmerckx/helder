@@ -1,8 +1,9 @@
-package hxmc.ui.reactive;
+package hxmc.ui.view;
 
 import hxmc.ui.Clock;
 import hxmc.ui.Color;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.Signal;
+import hxmc.view.Reactive.*;
 
 // Values that move toward a target as the Clock ticks: a transition eases
 // over a duration from where it is to the target's new value, a spring

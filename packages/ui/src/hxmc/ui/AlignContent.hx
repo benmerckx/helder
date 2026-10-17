@@ -2,8 +2,8 @@ package hxmc.ui;
 
 // the lines of a wrapping container across the main axis
 enum abstract AlignContent(Int) {
-	var Start;
-	var End;
+	@:css("flex-start") var Start;
+	@:css("flex-end") var End;
 	var Center;
 	var Stretch;
 	var SpaceBetween;

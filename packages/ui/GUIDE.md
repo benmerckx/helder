@@ -22,16 +22,19 @@ npm i -D @hxmc/cli @hxmc/ui
 ```
 
 `npx haxe app.hxml` builds `app`, a native executable for this machine.
-Markup compiles in a class that `implements hxmc.esx.Markup`. These imports
+Markup and signals come from `@hxmc/view`, which `@hxmc/ui` depends on
+and renders with its nodes (`-lib hxmc.ui` names its renderer). Markup
+compiles in a class that `implements hxmc.view.Markup`. These imports
 cover the examples below:
 
 ```haxe
-import hxmc.esx.*;
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Flow.*;     // For, Index, Show, Switch, Match, Provider, Popover...
-import hxmc.ui.reactive.Reactive.*; // signal, memo, effect, batch, context, use...
+import hxmc.view.*;                 // Markup, View, Render, Signal...
+import hxmc.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
+import hxmc.view.Reactive.*;        // signal, memo, effect, batch, context, use...
+import hxmc.ui.view.*;              // Motion, NodeRenderer
+import hxmc.ui.view.UiFlow.*;       // Popover, Hotkey, VirtualList
 import hxmc.ui.widgets.Widgets.*;   // Button, Checkbox, Field, Select, Dialog...
 ```
 
@@ -56,7 +59,7 @@ is a compile error at the attribute. Optional props are `?name`. Nested
 content arrives as the `children` prop.
 
 ```haxe
-static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):Esx {
+static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):View {
 	var step = props.step ?? 1;
 	return <view direction="row" align-items="center" column-gap={8}>
 		<text grow={1}>{props.label}</text>
@@ -66,7 +69,7 @@ static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):Esx 
 	</view>;
 }
 
-static function Card(props:{title:String, ?children:Any}):Esx
+static function Card(props:{title:String, ?children:Any}):View
 	return <view padding={16} row-gap={8} radius={8} background="#ffffff" shadow="0 1 4 #0000001a">
 		<text font-weight={700}>{props.title}</text>
 		{props.children}
@@ -78,7 +81,7 @@ state changes, so its local variables live as long as its nodes do. That
 makes the body the place for local state:
 
 ```haxe
-static function Order(props:{}):Esx {
+static function Order(props:{}):View {
 	var adults = signal(2), children = signal(0);
 	var total = memo(() -> adults.value * 30 + children.value * 12);
 	return <Card title="Tickets">
@@ -133,7 +136,7 @@ instead of being made again when the array is reordered. `Show` renders its
 children while `when` holds, else its `fallback`:
 
 ```haxe
-static function Names(props:{names:Signal<Array<String>>}):Esx
+static function Names(props:{names:Signal<Array<String>>}):View
 	return <view row-gap={4}>
 		<For each={props.names} render={(name:String) -> <text>{name}</text>}/>
 		<Show when={() -> props.names.value.length == 0} fallback={<text tag="count">{() -> props.names.value.length + " names"}</text>}>
@@ -148,7 +151,7 @@ for lists of plain values that change in place. `Switch` picks the first
 `Match` whose `when` holds:
 
 ```haxe
-static function Page(props:{tab:Signal<String>}):Esx
+static function Page(props:{tab:Signal<String>}):View
 	return <Switch fallback={<text>Not found</text>}>
 		<Match when={() -> props.tab.value == "home"}><text tag="home">Home</text></Match>
 		<Match when={() -> props.tab.value == "settings"}><text tag="settings">Settings</text></Match>
@@ -190,7 +193,7 @@ grid tracks: fixed sizes, percentages, `fr` shares, `auto`,
 placed by line numbers or spans and the rest auto-placed:
 
 ```haxe
-static function Dashboard(props:{}):Esx
+static function Dashboard(props:{}):View
 	return <view display="grid" grid-template-columns="200px 1fr 1fr" grid-auto-rows="80px" column-gap={12} row-gap={12} padding={12}>
 		<view tag="nav" grid-row="span 2" background="#e4e4e7"/>
 		<view tag="chart" grid-column="span 2" background="#dbeafe"/>
@@ -202,7 +205,7 @@ static function Dashboard(props:{}):Esx
 Named areas draw the layout as text, and items go to an area by its name:
 
 ```haxe
-static function Shell(props:{}):Esx
+static function Shell(props:{}):View
 	return <view display="grid" grid-template-columns="160px 1fr" grid-template-rows="48px 1fr 32px" height="100%"
 		grid-template-areas="'head head' 'side main' 'foot foot'">
 		<view tag="head" grid-area="head" background="#e4e4e7"/>
@@ -236,7 +239,7 @@ sharp at any scale, in the node's text colour wherever it says
 static final SEARCH = Svg.parse('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
 	stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>');
 
-static function SearchButton(props:{onClick:Void->Void}):Esx
+static function SearchButton(props:{onClick:Void->Void}):View
 	return <view tag="search" role="button" label="Search" focusable direction="row" column-gap={6} align-items="center"
 		color="#2563eb" onClick={_ -> props.onClick()}>
 		<image src={SEARCH} width={16} height={16}/>
@@ -250,7 +253,7 @@ Inside a `text`, elements are spans: `span`, `b`, `i`, or `text` again.
 Each takes style attributes and handlers, and holes in it stay reactive:
 
 ```haxe
-static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):Esx
+static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):View
 	return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" text-decoration="underline" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
 ```
 
@@ -270,7 +273,7 @@ component. `use` reads the nearest `Provider`'s value, else the default:
 ```haxe
 static final Brand = context({accent: "#3b82f6"});
 
-static function Accent(props:{label:String}):Esx {
+static function Accent(props:{label:String}):View {
 	var brand = use(Brand);
 	return <text color={brand.accent}>{props.label}</text>;
 }
@@ -301,7 +304,7 @@ puts any content in one while `open` is true (its `at` places it at a point). A 
 focus inside, and Escape or a press outside asks it to close:
 
 ```haxe
-static function Confirm(props:{onYes:Void->Void}):Esx {
+static function Confirm(props:{onYes:Void->Void}):View {
 	var open = signal(false);
 	return <view>
 		<Button tag="delete" label="Delete" onClick={() -> open.value = true}/>
@@ -337,7 +340,7 @@ a double click or Enter activates it, the arrow keys move the selection:
 ```haxe
 typedef Person = {name:String, age:Int};
 
-static function People(props:{people:Array<Person>, onOpen:Person->Void}):Esx
+static function People(props:{people:Array<Person>, onOpen:Person->Void}):View
 	return <Table tag="people" rows={props.people} height={200} label="People" onActivate={props.onOpen} columns={[
 		{title: "Name", cell: p -> p.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
 		{title: "Age", width: "60px", cell: p -> "" + p.age, compare: (a, b) -> a.age - b.age}
@@ -355,7 +358,7 @@ signal of the open items, for keeping or setting them:
 ```haxe
 typedef Entry = {name:String, ?children:Array<Entry>};
 
-static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):Esx
+static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):View
 	return <Tree tag="files" roots={props.root} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} height={200} label="Files" onActivate={props.onOpen}/>;
 ```
 
@@ -371,7 +374,7 @@ it is shown in the menu, in the platform's notation, and works while
 the menu is mounted.
 
 ```haxe
-static function Editor(props:{text:Signal<String>, onSave:Void->Void}):Esx
+static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 	return <view row-gap={8}>
 		<Hotkey keys="Mod+S" action={props.onSave}/>
 		<Menu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
@@ -389,7 +392,7 @@ on, and `onDrop` with `e.data` on release. The source hears
 `onDragStart` and `onDragEnd` (`e.dropped`), and Escape cancels:
 
 ```haxe
-static function Sortable(props:{items:Signal<Array<String>>}):Esx {
+static function Sortable(props:{items:Signal<Array<String>>}):View {
 	var over = signal("");
 	function move(what:String, before:String) {
 		var list = props.items.value.filter(x -> x != what);
@@ -460,7 +463,7 @@ content, override `measureContent` and call `markDirty` when that changes,
 as `TextNode` and `ImageNode` do. Events are the node's `onPointerDown`,
 `onKeyDown` and the rest, and `focusable = true` puts it in the Tab order.
 To use it as an element instead, register it:
-`Render.elements.set("sparkline", () -> new Sparkline())`.
+`NodeRenderer.elements.set("sparkline", () -> new Sparkline())`.
 
 ## Accessibility
 

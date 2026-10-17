@@ -3,7 +3,7 @@ import hxmc.gfx.*;
 import hxmc.os.*;
 import hxmc.ui.*;
 import hxmc.ui.draw.*;
-import hxmc.ui.reactive.*;
+import hxmc.view.*;
 
 // The widget gallery (examples/Gallery.hx) driven headless through its Ui:
 // buttons, the select, menu and dialog (popups: clicked, keys), the

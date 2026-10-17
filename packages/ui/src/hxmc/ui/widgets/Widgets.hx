@@ -1,19 +1,19 @@
 package hxmc.ui.widgets;
 
-import hxmc.esx.Esx;
-import hxmc.esx.Markup;
 import hxmc.ui.*;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Reactive.*;
-import hxmc.ui.reactive.Signal;
-import hxmc.ui.reactive.Motion;
-import hxmc.ui.reactive.Flow.*;
+import hxmc.view.*;
+import hxmc.ui.view.*;
+import hxmc.view.Reactive.*;
+import hxmc.view.Signal;
+import hxmc.ui.view.Motion;
+import hxmc.view.Flow.*;
+import hxmc.ui.view.UiFlow.*;
 
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
 typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
 
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
-// hxmc.ui.reactive, styled plainly (props override the look), in
+// hxmc.view, styled plainly (props override the look), in
 // Theme.current's colours; their colours and the switch's knob move with
 // Motion's transitions
 class Widgets implements Markup {
@@ -22,7 +22,7 @@ class Widgets implements Markup {
 		return Theme.current.value;
 
 	// a button: label or children; a primary one is filled
-	public static function Button(props:{?label:String, ?onClick:Void->Void, ?primary:Bool, ?children:Esx, ?tag:String}):Esx {
+	public static function Button(props:{?label:String, ?onClick:Void->Void, ?primary:Bool, ?children:View, ?tag:String}):View {
 		var hover = signal(false), down = signal(false);
 		var primary = props.primary == true;
 		var bg = () -> primary ? (down.value ? t().accentPressed : hover.value ? t().accentHover : t().accent) : (down.value ? t().controlPressed : hover.value ? t().controlHover : t().control);
@@ -42,7 +42,7 @@ class Widgets implements Markup {
 	}
 
 	// a checkbox bound to a signal, with its label
-	public static function Checkbox(props:{checked:Signal<Bool>, ?label:String, ?tag:String}):Esx {
+	public static function Checkbox(props:{checked:Signal<Bool>, ?label:String, ?tag:String}):View {
 		var toggle = () -> props.checked.value = !props.checked.value;
 		return <view tag={props.tag ?? "checkbox"} role="checkbox" checked={() -> props.checked.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE) {
@@ -58,7 +58,7 @@ class Widgets implements Markup {
 	}
 
 	// a switch (Toggle: Flow has the control flow Switch) bound to a signal, with its label
-	public static function Toggle(props:{on:Signal<Bool>, ?label:String, ?tag:String}):Esx {
+	public static function Toggle(props:{on:Signal<Bool>, ?label:String, ?tag:String}):View {
 		var toggle = () -> props.on.value = !props.on.value;
 		return <view tag={props.tag ?? "switch"} role="switch" checked={() -> props.on.value} direction="row" align-items="center" column-gap={8} focusable cursor="pointer" onClick={_ -> toggle()}
 			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
@@ -77,7 +77,7 @@ class Widgets implements Markup {
 	// a slider bound to a signal: from min to max (0 to 1), in steps (0: any
 	// value), width pixels wide (160); dragged, clicked, or moved with the
 	// arrow keys (a step, or a twentieth), Home and End
-	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String, ?tag:String}):Esx {
+	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String, ?tag:String}):View {
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, w = props.width ?? 160.0;
 		var knob = 16.0;
 		function set(v:Float) {
@@ -120,7 +120,7 @@ class Widgets implements Markup {
 
 	// radio buttons bound to a signal: one per option (tag: the group's tag,
 	// "-", the option)
-	public static function Radio(props:{value:Signal<String>, options:Array<String>, ?label:String, ?tag:String}):Esx {
+	public static function Radio(props:{value:Signal<String>, options:Array<String>, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "radio";
 		return <view tag={tag} role="radiogroup" label={props.label} row-gap={6}>{[
 			for (o in props.options)
@@ -140,7 +140,7 @@ class Widgets implements Markup {
 
 	// tabs: a row of labels (tag: the tabs' tag, "-", the index), the
 	// selected one underlined, and what render gives for it below
-	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?tag:String}):Esx {
+	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?tag:String}):View {
 		var tag = props.tag ?? "tabs";
 		return <view tag={tag} row-gap={10}>
 			<view role="tablist" direction="row" column-gap={4}>{[
@@ -169,7 +169,7 @@ class Widgets implements Markup {
 	// "auto"), what a row's cell shows (cell), compare (sortable). rows: an
 	// array, or a signal or function of one; height: the whole table's.
 	public static function Table<T>(props:{rows:Dynamic, columns:Array<{title:String, ?width:String, cell:T->Any, ?compare:(T, T)->Int}>,
-			?height:Float, ?rowHeight:Float, ?selected:Signal<Null<T>>, ?onActivate:T->Void, ?label:String, ?tag:String}):Esx {
+			?height:Float, ?rowHeight:Float, ?selected:Signal<Null<T>>, ?onActivate:T->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "table", rh = props.rowHeight ?? 28.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
 		var sortBy = signal(-1), descending = signal(false);
@@ -274,7 +274,7 @@ class Widgets implements Markup {
 	// roots: an array, or a signal or function of one; expanded: the open
 	// items (none by default); height: the whole tree's.
 	public static function Tree<T>(props:{roots:Dynamic, children:T->Null<Array<T>>, render:T->Any, ?expanded:Signal<Array<T>>,
-			?selected:Signal<Null<T>>, ?onActivate:T->Void, ?height:Float, ?rowHeight:Float, ?label:String, ?tag:String}):Esx {
+			?selected:Signal<Null<T>>, ?onActivate:T->Void, ?height:Float, ?rowHeight:Float, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "tree", rh = props.rowHeight ?? 26.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
 		var expanded:Signal<Array<T>> = props.expanded ?? signal([]);
@@ -380,7 +380,7 @@ class Widgets implements Markup {
 	// pane's (a signal; 200 by default), from min (0) to max (the room less
 	// min); the second pane takes the rest. It fills its parent (grow 1).
 	public static function Split(props:{first:Any, second:Any, ?size:Signal<Float>, ?direction:String, ?min:Float, ?max:Float, ?label:String,
-			?tag:String}):Esx {
+			?tag:String}):View {
 		var tag = props.tag ?? "split", row = props.direction != "column";
 		var size:Signal<Float> = props.size ?? signal(200.0);
 		var lo = props.min ?? 0.0, grip = 6.0;
@@ -428,7 +428,7 @@ class Widgets implements Markup {
 	}
 
 	// a progress bar: value from 0 to 1 (a signal, a function or a number)
-	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):Esx {
+	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):View {
 		var frac = () -> {
 			var v:Float = Render.read(props.value);
 			v < 0 ? 0.0 : v > 1 ? 1.0 : v;
@@ -443,7 +443,7 @@ class Widgets implements Markup {
 	// under it, the chosen one focused; Up and Down move through them, a
 	// click, Enter or Space chooses, Escape, Tab or a click outside closes.
 	// On the closed button Up and Down choose the previous or next option.
-	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?tag:String}):Esx {
+	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "select", w = props.width ?? 160.0;
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -512,7 +512,7 @@ class Widgets implements Markup {
 	// (and a shortcut: shown, and choosing it from anywhere in the window);
 	// Up and Down move through them, a click, Enter or Space chooses (and
 	// closes), Escape, Tab or a click outside closes
-	public static function Menu(props:{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?tag:String}):Esx {
+	public static function Menu(props:{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?tag:String}):View {
 		var tag = props.tag ?? "menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -536,7 +536,7 @@ class Widgets implements Markup {
 	// when the focus is in them (at their top left, the first item focused);
 	// a press elsewhere, Escape or Tab closes it. The items' shortcuts work
 	// while the focus is in the children.
-	public static function ContextMenu(props:{items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?label:String, ?tag:String, ?children:Any}):Esx {
+	public static function ContextMenu(props:{items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?label:String, ?tag:String, ?children:Any}):View {
 		var tag = props.tag ?? "context-menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -569,7 +569,7 @@ class Widgets implements Markup {
 
 	// the items' shortcuts (local: while the focus is in the parent)
 	static function hotkeys(list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, local:Bool):Array<Any>
-		return [for (it in list) if (it.shortcut != null) Flow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})];
+		return [for (it in list) if (it.shortcut != null) UiFlow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})];
 
 	// focuses nodes[i] if it is shown
 	static function focusIn(nodes:Array<Node>, i:Int)
@@ -578,7 +578,7 @@ class Widgets implements Markup {
 	// a menu's panel of items (their nodes into nodes): Up and Down move
 	// through them, a click, Enter or Space chooses one (and sets open to
 	// false), Tab closes
-	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, open:Signal<Bool>, nodes:Array<Node>):Esx
+	static function menuItems(tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, open:Signal<Bool>, nodes:Array<Node>):View
 		return <view tag={tag + "-items"} role="menu" label={label} min-width={140} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
 			background={() -> t().control} color={() -> t().text} shadow="0 4 12 #00000026">{[
 			for (i in 0...list.length) {
@@ -612,7 +612,7 @@ class Widgets implements Markup {
 
 	// a tooltip: text shown by the children (above them) once the pointer
 	// has rested on them for delay seconds (0.5), hidden when it leaves or presses
-	public static function Tooltip(props:{text:String, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):Esx {
+	public static function Tooltip(props:{text:String, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
 		var show = signal(false), over = 0;
 		var delay = props.delay ?? 0.5;
 		function enter() {

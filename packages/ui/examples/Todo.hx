@@ -1,10 +1,8 @@
-import hxmc.esx.Esx;
-import hxmc.esx.Markup;
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Flow.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.view.Flow.*;
+import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 
 // A todo list in markup on hxmc.ui: signals hold the state, For keeps a
@@ -46,7 +44,7 @@ class Todo implements Markup {
 			case _: true;
 		});
 
-	public function view():Esx {
+	public function view():View {
 		var left = memo(() -> todos.value.filter(i -> !i.done.value).length);
 		return <view grow={1} padding={24} row-gap={14} background="#fafafa" font-family="DejaVu Sans" font-size={14} color="#18181b">
 			<text font-size={28} font-weight={700} color="#3b82f6">todos</text>

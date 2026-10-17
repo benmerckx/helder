@@ -1,4 +1,4 @@
-package hxmc.ui.reactive;
+package hxmc.view;
 
 // what owns computations and cleanups
 class Owner {
@@ -6,9 +6,9 @@ class Owner {
 	public final children:Array<Owner> = [];
 	public final cleanups:Array<Void->Void> = [];
 	// the context values set here (Reactive.provide), by Context id
-	@:allow(hxmc.ui.reactive) var contexts:Null<Map<Int, Dynamic>>;
+	@:allow(hxmc.view) var contexts:Null<Map<Int, Dynamic>>;
 	// what catches errors thrown below (ErrorBoundary)
-	@:allow(hxmc.ui.reactive) var onError:Null<Dynamic->Void>;
+	@:allow(hxmc.view) var onError:Null<Dynamic->Void>;
 	var disposed = false;
 
 	public function new(parent:Null<Owner>) {
@@ -28,7 +28,7 @@ class Owner {
 	}
 
 	// the nearest context value of id, here or above (found: whether one was)
-	@:allow(hxmc.ui.reactive) function lookup(id:Int):{found:Bool, value:Dynamic} {
+	@:allow(hxmc.view) function lookup(id:Int):{found:Bool, value:Dynamic} {
 		var o = this;
 		while (o != null) {
 			if (o.contexts != null && o.contexts.exists(id)) return {found: true, value: o.contexts.get(id)};
@@ -38,7 +38,7 @@ class Owner {
 	}
 
 	// hands an error to the nearest handler (onError) here or above: false when there is none
-	@:allow(hxmc.ui.reactive) function handle(e:Dynamic):Bool {
+	@:allow(hxmc.view) function handle(e:Dynamic):Bool {
 		var o = this;
 		while (o != null) {
 			if (o.onError != null) {

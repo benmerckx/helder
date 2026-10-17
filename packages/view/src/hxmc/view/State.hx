@@ -1,4 +1,4 @@
-package hxmc.ui.reactive;
+package hxmc.view;
 
 enum abstract State(Int) to Int {
 	var Clean;

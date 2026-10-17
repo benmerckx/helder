@@ -1,14 +1,14 @@
-package hxmc.ui.reactive;
+package hxmc.view;
 
-import hxmc.ui.reactive.Memo;
-import hxmc.ui.reactive.Signal;
+import hxmc.view.Memo;
+import hxmc.view.Signal;
 
 // a memo or an effect: it runs fn, tracking its sources
 class Computation extends Owner {
 	final fn:Void->Void;
 	public final isEffect:Bool;
-	@:allow(hxmc.ui.reactive) var state:State = Dirty;
-	@:allow(hxmc.ui.reactive) var sources:Array<Source> = [];
+	@:allow(hxmc.view) var state:State = Dirty;
+	@:allow(hxmc.view) var sources:Array<Source> = [];
 	var running = false;
 
 	public function new(fn:Void->Void, isEffect:Bool) {
@@ -17,9 +17,9 @@ class Computation extends Owner {
 		this.isEffect = isEffect;
 	}
 
-	@:allow(hxmc.ui.reactive) function update() {
+	@:allow(hxmc.view) function update() {
 		if (isDisposed) return;
-		if (running) throw "hxmc.ui.reactive: a computation depends on itself";
+		if (running) throw "hxmc.view: a computation depends on itself";
 		clean();
 		for (s in sources)
 			s.observers.remove(this);
@@ -46,7 +46,7 @@ class Computation extends Owner {
 	}
 
 	// a source changed (Dirty) or may have (Check)
-	@:allow(hxmc.ui.reactive) function stale(s:State) {
+	@:allow(hxmc.view) function stale(s:State) {
 		if ((state : Int) >= (s : Int)) return;
 		var was = state;
 		state = s;
@@ -58,7 +58,7 @@ class Computation extends Owner {
 
 	function markObservers() {}
 
-	@:allow(hxmc.ui.reactive) function updateIfNecessary() {
+	@:allow(hxmc.view) function updateIfNecessary() {
 		if (state == Check) {
 			for (s in sources.copy()) {
 				if (Std.isOfType(s, MemoBase)) (cast s : MemoBase).updateIfNecessary();

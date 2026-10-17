@@ -1,4 +1,4 @@
-package hxmc.ui.reactive;
+package hxmc.view;
 
 // a derived value: recomputed when read and its sources changed; its
 // observers are notified only when the result differs
@@ -46,7 +46,7 @@ class Memo<T> extends MemoBase {
 		return 'Memo($v)';
 }
 
-@:allow(hxmc.ui.reactive)
+@:allow(hxmc.view)
 class MemoBase extends Computation implements Source {
 	public var observers(default, null):Array<Computation> = [];
 

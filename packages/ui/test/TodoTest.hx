@@ -3,7 +3,7 @@ import hxmc.gfx.*;
 import hxmc.os.*;
 import hxmc.ui.*;
 import hxmc.ui.draw.*;
-import hxmc.ui.reactive.*;
+import hxmc.view.*;
 
 // The todo example (examples/Todo.hx) driven headless through its Ui:
 // typing into the field and Enter, the Add button, a checkbox, a filter,

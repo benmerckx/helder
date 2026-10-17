@@ -1,6 +1,6 @@
 import hxmc.ui.*;
 import hxmc.ui.native.*;
-import hxmc.ui.reactive.*;
+import hxmc.view.*;
 import hxmc.unsafe.*;
 
 // hxmc.ui.native on the platform's backend (make ui-draw-check: GTK 3 under

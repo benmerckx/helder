@@ -1,14 +1,13 @@
 # @hxmc/ui
 
 A UI toolkit for hxmc in pure Haxe: a node tree laid out with flexbox,
-drawn with the GPU (`@hxmc/gfx`), written in markup (`@hxmc/esx`) with
-fine-grained signals, Solid's way.
+drawn with the GPU (`@hxmc/gfx`), written in markup with fine-grained
+signals, Solid's way (`@hxmc/view`, which renders into its nodes).
 
 ```haxe
-import hxmc.esx.*;
 import hxmc.ui.draw.UiWindow;
-import hxmc.ui.reactive.*;
-import hxmc.ui.reactive.Reactive.*;
+import hxmc.view.*;
+import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.*;
 
 class Counter implements Markup {
@@ -119,21 +118,20 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `Ui` in an `hxmc.os` window, shows the hovered node's cursor and runs
   the loop. On macOS the app has the usual menu bar (Hide, Quit, the Window
   menu); Quit asks each window to close, as its close button does.
-- **`hxmc.ui.reactive`**: `signal`, `memo`, `effect`, `batch`, `untrack`,
-  `root`, `onCleanup`, `onMount`, contexts (`context`, `provide`, `use`,
-  the `Provider` component), and `Render`, which mounts markup into nodes
-  once and binds every value that is a `Signal`, a `Memo` or a function.
-  Control flow components: `For` (keyed: rows are kept and moved), `Index`
-  (a row per index, its item a signal), `Show`, `Switch` with `Match`
-  (a branch made again only when the branch chosen changes; `null` and
-  `false` choose none), `ErrorBoundary` (a fallback, with a reset, for
-  errors while rendering its children or later in their computations),
+- **`hxmc.ui.view`**: `@hxmc/view`'s renderer for these nodes
+  (`NodeRenderer`; `-lib hxmc.ui` names it with `-D
+  hxmc.view.renderer`), the markup's attributes (`StyleAttrs`, generated
+  from `Style`'s properties: a property added to `Style` is an
+  attribute), and what is ui's own: the control flow components
   `VirtualList` (only the rows in view made: a list of 100000 rows scrolls
-  as one of 20), `Popover`.
-  `Motion`: `transition`, `spring` and `color` are signals moving toward
-  a target as the `Clock` ticks (a window ticks it each frame and keeps
-  drawing while anything moves; `Clock.finish()` ends every animation, for
-  tests); the widgets' colours and the switch's knob use them.
+  as one of 20), `Popover` and `Hotkey` (`UiFlow`), and `Motion`:
+  `transition`, `spring` and `color` are signals moving toward a target
+  as the `Clock` ticks (a window ticks it each frame and keeps drawing
+  while anything moves; `Clock.finish()` ends every animation, for tests);
+  the widgets' colours and the switch's knob use them. Signals (`signal`,
+  `memo`, `effect`, `batch`, `untrack`, contexts), `Render` and the
+  control flow components `For`, `Index`, `Show`, `Switch`,
+  `ErrorBoundary` are `@hxmc/view`'s ([its README](../view/README.md)).
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
@@ -150,12 +148,12 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   children of `Ui.overlay`, drawn and hit after the tree, not clipped by
   it), anchored to a node (below, above, beside; flipped and kept in the
   window), at a point (a context menu) or modal (a backdrop, the focus kept inside); a press outside or
-  Escape asks them to close. In markup, `Flow.Popover` puts its children
+  Escape asks them to close. In markup, `UiFlow.Popover` puts its children
   in one while `open` is true.
 - **Shortcuts**: `Ui.shortcut("Mod+S", action, ?scope)` (`Shortcut`: Mod is
   Control or Command; labels in each platform's notation), run when the
   focused node does not take the key, scoped to a subtree or to a modal
-  popup; `Flow.Hotkey` in markup, and menu items' `shortcut`.
+  popup; `UiFlow.Hotkey` in markup, and menu items' `shortcut`.
 
 ## Markup
 
@@ -246,6 +244,6 @@ composition itself.
 
 ## Tests
 
-`make ui-check` (Eval: layout against Chromium, events, signals, markup),
+`make ui-check` (Eval: layout against Chromium, events, markup rendered into nodes, the guide),
 `make ui-draw-check` (natively, golden images), `make ui-web-check`
 (Chromium, WebGPU and WebGL2, real input events). See `docs/testing.md`.

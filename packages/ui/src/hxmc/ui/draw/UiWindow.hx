@@ -35,7 +35,7 @@ class UiWindow {
 	public static var idleWait = 0.1;
 	// whether the system's appearance is dark (App.prefersDark), asked again
 	// every second while the loop runs: Theme.follow(() -> UiWindow.dark.value)
-	public static final dark:hxmc.ui.reactive.Signal<Bool> = hxmc.ui.reactive.Reactive.signal(App.prefersDark());
+	public static final dark:hxmc.view.Signal<Bool> = hxmc.view.Reactive.signal(App.prefersDark());
 	static var darkAsked = 0.0;
 
 	static final open:Array<UiWindow> = [];
