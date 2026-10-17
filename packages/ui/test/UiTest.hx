@@ -2403,7 +2403,7 @@ class FakeEditor implements PlatformEditor {
 		this.shown = shown;
 	}
 
-	public function setStyle(font:Font, color:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool)
+	public function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool)
 		this.placeholder = placeholder;
 
 	public function focus(on:Bool)

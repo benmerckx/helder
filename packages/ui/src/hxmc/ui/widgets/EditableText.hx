@@ -527,10 +527,10 @@ class EditableText extends TextNode implements PlatformEditorListener {
 			editor.setText(text, selectionStart, selectionEnd);
 			editorText = text;
 		}
-		var f = font(), c = textColor(), a = style.textAlign;
-		var key = f.family + "|" + f.size + "|" + f.weight + "|" + f.italic + "|" + (c : Int) + "|" + placeholder + "|" + (placeholderColor : Int) + "|" + a + "|" + secret;
+		var f = font(), c = textColor(), a = style.textAlign, bg = behind();
+		var key = f.family + "|" + f.size + "|" + f.weight + "|" + f.italic + "|" + (c : Int) + "|" + (bg : Int) + "|" + placeholder + "|" + (placeholderColor : Int) + "|" + a + "|" + secret;
 		if (key != editorStyle) {
-			editor.setStyle(f, c, placeholder, placeholderColor, a, secret);
+			editor.setStyle(f, c, bg, placeholder, placeholderColor, a, secret);
 			editorStyle = key;
 		}
 		var be = style.borderEdges, pad = style.padding;
@@ -547,6 +547,18 @@ class EditableText extends TextNode implements PlatformEditorListener {
 			editor.focus(on);
 			editorHasFocus = on;
 		}
+	}
+
+	// (what shows behind its text: its own background or the nearest opaque
+	// one around it, else the window's, white or black when dark)
+	function behind():Color {
+		var n:Node = this;
+		while (n != null) {
+			var b = n.style.background;
+			if (b.a == 255) return b;
+			n = n.parent;
+		}
+		return ui != null && ui.dark ? Color.BLACK : Color.WHITE;
 	}
 
 	// (a scroller above cuts into it: drawn instead)

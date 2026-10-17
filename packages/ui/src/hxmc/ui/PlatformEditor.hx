@@ -9,7 +9,9 @@ interface PlatformEditor {
 	function setText(text:String, start:Int, end:Int):Void;
 	// its place in the window's coordinates (logical pixels); hidden: not shown (covered, or out of view)
 	function place(x:Float, y:Float, width:Float, height:Float, shown:Bool):Void;
-	function setStyle(font:Font, color:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool):Void;
+	// (background: what shows behind it, the nearest opaque background around
+	// it, for an editor that cannot be transparent)
+	function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool):Void;
 	// the keyboard's focus given (true) or taken back for the drawn tree (false)
 	function focus(on:Bool):Void;
 	function dispose():Void;

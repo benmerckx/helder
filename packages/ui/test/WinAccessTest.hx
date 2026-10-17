@@ -1,6 +1,8 @@
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.ui.draw.WinAccess;
+import hxmc.ui.draw.WinViews;
+import hxmc.ui.native.win32.Win32;
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
 import hxmc.ui.widgets.Widgets.Button;
@@ -14,7 +16,9 @@ import hxmc.unsafe.*;
 // interfaces as UI Automation calls them (navigation, properties, bounds,
 // the patterns: invoke, toggle, range value, value), and the window's root
 // element asked of UI Automation itself (UiaNodeFromHandle: the provider
-// WM_GETOBJECT gives).
+// WM_GETOBJECT gives). Its field native (WinViews: an EDIT over the window):
+// the value set through UI Automation in it, a character typed into it in
+// the field's signal, Tab from it moving the window's focus on.
 //   WinAccessTest
 class WinAccessTest implements Markup {
 	static var failed = 0;
@@ -138,7 +142,24 @@ class WinAccessTest implements Markup {
 						Simple.GetPatternProvider(t, 10015, out);
 						check("the toggle state after it", !out.value.isNull() && Toggle.get_ToggleState(out.value, i32) == 0 && i32.value == 1);
 					}
+					var eds:Array<WinEditor> = @:privateAccess WinViews.editors;
+					check("the field native: one EDIT", eds.length == 1, "" + eds.length);
+					if (eds.length == 1) {
+						var edit:Ptr = @:privateAccess eds[0].hwnd;
+						check("the value set in the EDIT", @:privateAccess eds[0].text() == "Ada", @:privateAccess eds[0].text());
+						W32.SendMessageW(edit, 0xB1, 3, 3);
+						W32.SendMessageW(edit, 0x102, "x".code, 0);
+						w.ui.setFocus(w.root.find("name"));
+					}
 					step = 2;
+				case 2:
+					check("typed into the EDIT, the field's signal follows", name.value == "Adax", name.value);
+					var eds:Array<WinEditor> = @:privateAccess WinViews.editors;
+					if (eds.length == 1) W32.SendMessageW(@:privateAccess eds[0].hwnd, 0x100, 9, 0);
+					step = 3;
+				case 3:
+					check("Tab from the EDIT: the window's focus on", w.ui.focus != null && w.ui.focus.tag == "save", w.ui.focus == null ? "none" : w.ui.focus.tag);
+					step = 4;
 					w.close();
 				case _:
 			}
@@ -146,7 +167,7 @@ class WinAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('WinAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 12 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 16 ? 0 : 1);
 	}
 }
 

@@ -70,6 +70,8 @@ class UiWindow {
 		ui.dark = dark.peek();
 		// (the browser's own views: native text editors over the canvas)
 		if (Mem.os() == 3) ui.platform = WebMirror.views(window.surface.handle.toI64().toInt());
+		// (Windows': EDIT controls over the window)
+		else if (Mem.os() == 2) ui.platform = new WinViews(window.surface.handle, ui, () -> renderer.scale);
 		open.push(this);
 	}
 

@@ -96,7 +96,8 @@ class WebEditor implements PlatformEditor {
 	public function place(x:Float, y:Float, width:Float, height:Float, shown:Bool)
 		WebEditors.editor_place(h, x, y, width, height, shown ? 1 : 0);
 
-	public function setStyle(font:Font, color:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool) {
+	// (transparent over the drawn box: the background unused)
+	public function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool) {
 		var css = 'font: ${font.italic ? "italic " : ""}${font.weight} ${font.size}px "${font.family}"; line-height: ${font.size * font.lineHeight}px; color: ${rgba(color)}; text-align: ${align == Center ? "center" : align == Right ? "right" : align == Justify ? "justify" : "left"};';
 		Arena.scoped(a -> WebEditors.editor_style(h, a.cstring(css), a.cstring(placeholder), a.cstring(rgba(placeholderColor)), secret ? 1 : 0));
 	}
