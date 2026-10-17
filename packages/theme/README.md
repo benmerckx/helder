@@ -43,7 +43,7 @@ another slot's, `{extends: "button", variant: "ghost", class: "..."}` as
 `cn(buttonVariants({variant: "ghost"}), "...")`), `--radius`, CSS
 variables a class may name (`size-(--cell-size)`) and the tokens into a
 `StyleSheet`. Both run at compile time: no class is parsed when the
-program runs. The rules are written as compact data (`Rules.hx`: a
+program runs. The rules are written as compact data (`RuleData.hx`: a
 string table and a stream of small numbers) read when the sheet is first
 used: shadcn's 449 rules add 23 KB to a native program (the reader, 19
 KB, once), and half a second to a build. `-D hxmc.theme.dump` prints
@@ -69,11 +69,11 @@ with Tailwind's default theme and shadcn's on top, 1rem = 16px:
   (`bg-primary/90` is `var(--primary)/90`), resolved by the engine when a
   rule applies, so that light and dark switch without new rules; `white`,
   `black`, `transparent`; `fill-*` (an icon's fill, as its colour);
-- `shadow-*` (Tailwind's, and `shadow-[0_4px_12px_rgba(0,0,0,0.1)]`), `ring-*` (a ring is a box shadow outside the
-  border box, drawn here as an outline at no offset, which has its
-  shape), `ring-offset-*`, `outline-*`, `opacity-*`, `cursor-*`,
-  `pointer-events-*`, `translate-*` (`[calc(100%-2px)]` too), `rotate-*`,
-  `scale-*`;
+- `shadow-*` (Tailwind's, and `shadow-[0_4px_12px_rgba(0,0,0,0.1)]`),
+  `ring-*` (a ring is a box shadow outside the border box, drawn here as
+  an outline at no offset, which has its shape), `ring-offset-*`,
+  `outline-*`, `opacity-*`, `cursor-*`, `pointer-events-*`, `translate-*`
+  (`[calc(100%-2px)]` too), `rotate-*`, `scale-*`;
 - text: `text-xs`...`text-4xl` (with their line heights), `text-[0.8rem]`,
   `font-*`, `leading-*` (beating `text-*`'s line height, as in CSS),
   `tracking-*` (em of the font size), `underline`, `uppercase`,

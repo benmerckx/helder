@@ -15,7 +15,7 @@ using StringTools;
 // each), its fields (a count, then each field's index in FIELDS and its
 // value, read as its kind says). A sheet is a count of rules, the rules,
 // then the light and dark tokens (a count, then name and colour each).
-class Rules {
+class RuleData {
 	// StyleProps's fields the rules may set and their kinds: e an enum
 	// abstract's Int, b Bool, f Float, i Int, d Dim, E EdgesValue, C
 	// CornersValue, c Color, s String, S Shadow, t Transform, T an array of
@@ -40,12 +40,12 @@ class Rules {
 	}
 
 	public static function rules(data:String, table:String):Array<Rule> {
-		var r = new Rules(data, table);
+		var r = new RuleData(data, table);
 		return [while (r.at < data.length) r.rule()];
 	}
 
 	public static function sheet(data:String, table:String):StyleSheet {
-		var r = new Rules(data, table);
+		var r = new RuleData(data, table);
 		var rules = [for (_ in 0...r.int()) r.rule()];
 		return {rules: rules, light: r.tokens(), dark: r.tokens()};
 	}
@@ -113,7 +113,7 @@ class Rules {
 			case "T".code: [for (_ in 0...int()) track()];
 			case "k".code: track();
 			case "p".code: new GridPlacement(Std.int(num()), Std.int(num()), Std.int(num()));
-			case _: throw "Rules: kind " + String.fromCharCode(kind);
+			case _: throw "RuleData: kind " + String.fromCharCode(kind);
 		}
 
 	function dim():Dim

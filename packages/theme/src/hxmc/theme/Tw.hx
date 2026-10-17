@@ -8,7 +8,7 @@ import hxmc.theme.Tailwind;
 #end
 
 // Tailwind class lists as hxmc.ui's rules, at compile time (Tailwind.hx:
-// what is read and how; Rules.hx: the data the rules become, read once when
+// what is read and how; RuleData.hx: the data the rules become, read once when
 // the program first needs them). An unknown class is a compile error at it.
 //   Tw.rules("button", "inline-flex h-9 px-4 hover:bg-primary/90")
 //   Tw.rules("button", "bg-destructive text-white", "destructive")
@@ -25,7 +25,7 @@ class Tw {
 		var e = new Encoder();
 		for (r in tw.slot(slot, [{classes: s, offset: 0, variant: variant, size: size}]))
 			e.rule(r);
-		return macro hxmc.theme.Rules.rules($v{e.data.toString()}, $v{e.strings.join("\n")});
+		return macro hxmc.theme.RuleData.rules($v{e.data.toString()}, $v{e.strings.join("\n")});
 	}
 
 	// a StyleSheet from a JSON file beside the calling module: its slots'
@@ -108,7 +108,7 @@ class Tw {
 				e.str(tokens[k]);
 			}
 		}
-		return macro hxmc.theme.Rules.sheet($v{e.data.toString()}, $v{e.strings.join("\n")});
+		return macro hxmc.theme.RuleData.sheet($v{e.data.toString()}, $v{e.strings.join("\n")});
 	}
 
 	#if macro
@@ -119,7 +119,7 @@ class Tw {
 }
 
 #if macro
-// rules written as Rules reads them
+// rules written as RuleData reads them
 private class Encoder {
 	static var fields:Null<Map<String, {id:Int, kind:String}>> = null;
 	static final enums = new Map<String, Int>();
@@ -131,7 +131,7 @@ private class Encoder {
 	public function new() {
 		if (fields == null) {
 			fields = [];
-			var list = Rules.FIELDS.split(" ");
+			var list = RuleData.FIELDS.split(" ");
 			for (i in 0...list.length) {
 				var f = list[i].split(":");
 				fields[f[0]] = {id: i, kind: f[1]};
@@ -140,7 +140,7 @@ private class Encoder {
 	}
 
 	public function int(v:Int) {
-		if (v < 0 || v >= 15 * 64) Context.error('Tw: $v is beyond what Rules reads', Context.currentPos());
+		if (v < 0 || v >= 15 * 64) Context.error('Tw: $v is beyond what RuleData reads', Context.currentPos());
 		if (v < 64) data.addChar(48 + v) else {
 			data.addChar(112 + (v >> 6));
 			data.addChar(48 + (v & 63));
@@ -173,7 +173,7 @@ private class Encoder {
 		int(r.fields.length);
 		for (k in r.fields) {
 			var f = fields[k];
-			if (f == null) Context.error('Tw: Rules.FIELDS has no $k', Context.currentPos());
+			if (f == null) Context.error('Tw: RuleData.FIELDS has no $k', Context.currentPos());
 			int(f.id);
 			value(f.kind, r.props[k]);
 		}
