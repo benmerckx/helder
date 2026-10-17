@@ -112,25 +112,11 @@ class BoxTest {
 		var textOk = inked > 200 && apart <= inked / 50 && turnedInk > 100 && outside == 0;
 		Sys.println('BoxTest: text ${textOk ? "ok" : "FAILED"} ($apart of $inked inked pixels apart scaled; turned: $turnedInk inked, $outside outside)');
 		var want = PngDecoder.decode(sys.io.File.getBytes(args[0]));
-		var total = 0.0, far = 0, shadowTotal = 0.0, shadowFar = 0;
-		for (i in 0...W * H) {
-			var d = 0;
-			for (c in 0...3) {
-				var v = Std.int(Math.abs(pixels.get(4 * i + c) - want.rgba.get(4 * i + c)));
-				if (v > d) d = v;
-			}
-			total += d;
-			if (d > FAR) far++;
-			if (Std.int(i / W) >= SHADOW_TOP) {
-				shadowTotal += d;
-				if (d > FAR) shadowFar++;
-			}
-		}
-		var mean = total / (W * H), shadowMean = shadowTotal / (W * (H - SHADOW_TOP));
-		var ok = mean < MEAN && far <= MAX_FAR * W * H;
-		Sys.println('BoxTest: boxes ${ok ? "ok" : "FAILED"} (mean ${Math.round(mean * 100) / 100}, $far pixels off by more than $FAR)');
-		var shadowOk = shadowMean < SHADOW_MEAN && shadowFar == 0;
-		Sys.println('BoxTest: text shadows ${shadowOk ? "ok" : "FAILED"} (mean ${Math.round(shadowMean * 100) / 100}, $shadowFar pixels off by more than $FAR)');
+		var all = ImageDiff.of(pixels, want.rgba, W, H, FAR), shadows = ImageDiff.of(pixels, want.rgba, W, H, FAR, SHADOW_TOP);
+		var ok = all.within(MAX_FAR, MEAN);
+		Sys.println('BoxTest: boxes ${ok ? "ok" : "FAILED"} ($all)');
+		var shadowOk = shadows.within(0, SHADOW_MEAN);
+		Sys.println('BoxTest: text shadows ${shadowOk ? "ok" : "FAILED"} ($shadows)');
 		Sys.exit(ok && textOk && shadowOk ? 0 : 1);
 	}
 }
