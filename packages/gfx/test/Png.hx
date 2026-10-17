@@ -22,7 +22,8 @@ class Png {
 		z.writeByte(0x01);
 		var pos = 0;
 		while (true) {
-			var n = data.length - pos > 65535 ? 65535 : data.length - pos;
+			// (blocks of 32 KiB at most: InflateImpl's window takes no larger one)
+			var n = data.length - pos > 32768 ? 32768 : data.length - pos;
 			z.writeByte(pos + n == data.length ? 1 : 0);
 			z.writeByte(n & 0xFF);
 			z.writeByte(n >> 8);
