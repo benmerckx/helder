@@ -879,8 +879,8 @@ class Recording implements Canvas {
 	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float)
 		calls.push('shadow $x $y $w $h $radius ${hex(color)} $blur');
 
-	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color)
-		calls.push('text $x $y $width');
+	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)
+		calls.push('text $x $y $width' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float)
 		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius');

@@ -200,7 +200,7 @@ class Renderer implements Canvas {
 		quad(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, radius * s, 0, 2, 0, 1, img.id);
 	}
 
-	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color) {
+	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {
 		var dp = cast(p, DrawParagraph);
 		var t = dp.layout, s = scale;
 		var size = t.fonts.size * s;
@@ -211,18 +211,22 @@ class Renderer implements Canvas {
 				case Right: width - l.width;
 				case _: 0.0;
 			}
-			var by = Math.round((oy + l.top + t.baseline) * s);
+			var by = Math.round((oy + l.top + l.baseline) * s);
 			if (by - size * 1.5 > clipY1 || by + size < clipY0) continue;
 			for (g in l.glyphs) {
 				if (g.hidden || g.cp == 32 || g.cp == 10 || g.cp == 9) continue;
 				var gx = (ox + lx + g.x + g.dx) * s, gy = by + Math.round(g.dy * s);
 				var f = g.font;
+				// (a run's glyphs: its size and colour)
+				var set = g.run < 0 ? t.fonts : t.runs[g.run].fonts;
+				var size = g.run < 0 ? size : set.size * s, oblique = set.oblique;
+				var color = g.run >= 0 && colors != null && g.run < colors.length ? colors[g.run] : color;
 				if (f.hasColor) {
 					// (colour layers: each its glyph in its colour; else a colour bitmap)
 					var layers = f.colorLayers(g.id);
 					if (layers != null) {
 						for (layer in layers)
-							glyph(f, layer.glyph, size, gx, gy, layer.color == -1 ? color : (layer.color : Color));
+							glyph(f, layer.glyph, size, gx, gy, layer.color == -1 ? color : (layer.color : Color), oblique);
 						continue;
 					}
 					var b = colorGlyph(f, g.id, size);
@@ -235,16 +239,16 @@ class Renderer implements Canvas {
 						continue;
 					}
 				}
-				glyph(f, g.id, size, gx, gy, color);
+				glyph(f, g.id, size, gx, gy, color, oblique);
 			}
 		}
 	}
 
 	// a glyph from the atlas at (gx, gy): device pixels, the baseline
-	inline function glyph(f:hxmc.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color) {
+	inline function glyph(f:hxmc.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool) {
 		var ix = Math.floor(gx);
 		var sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
-		var a = atlas.get(f, id, size, sub);
+		var a = atlas.get(f, id, size, sub, oblique);
 		if (a.w > 0) {
 			var qx = ix + a.left, qy = gy + a.top;
 			if (!culled(qx, qy, qx + a.w, qy + a.h))

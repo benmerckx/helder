@@ -1,13 +1,13 @@
 import hxmc.ui.*;
 
-// A TextEngine for tests: every character is half the font size wide, a
+// A TextEngine for tests (spans laid out in the paragraph's font): every character is half the font size wide, a
 // line is size * lineHeight high, lines break at spaces (or anywhere in a
 // word wider than the line, unless the width is 0: the min-content layout)
 // and at "\n".
 class MonoText implements TextEngine {
 	public function new() {}
 
-	public function layout(text:String, font:Font, maxWidth:Float):Paragraph
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>):Paragraph
 		return new MonoParagraph(text, font, maxWidth);
 }
 

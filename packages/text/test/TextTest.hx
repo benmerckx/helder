@@ -319,6 +319,19 @@ class TextTest {
 				check("emoji: " + c.what, Math.abs(t.width - c.w) < 0.01, '${t.width} ${c.w}');
 			}
 		} else Sys.println("TextTest: no Noto Color Emoji: emoji checks skipped");
+		// runs in other fonts: widths and line boxes as Chromium lays out spans (16px DejaVu Sans, line height 1.25)
+		var bold = fonts.match("DejaVu Sans", 700), fb = fonts.fallbacks();
+		var at = (size:Float) -> new FontSet(sans, fb, size);
+		for (c in [
+			{s: "Hello bold world", runs: [new TextRun(6, 10, new FontSet(bold, fb, 16), 1.25)], max: Math.NaN, w: 134.171875, h: 20.0, what: "a bold run"},
+			{s: "small BIG small", runs: [new TextRun(6, 9, at(32), 1.25)], max: Math.NaN, w: 151.59375, h: 40.0, what: "a larger run: its line box"},
+			{s: "tiny tiny tiny", runs: [new TextRun(5, 9, at(10), 1.25)], max: Math.NaN, w: 89.8125, h: 20.0, what: "a smaller run: the paragraph's strut"},
+			{s: "a tall b", runs: [new TextRun(2, 6, at(24), 2)], max: Math.NaN, w: 67.59375, h: 48.0, what: "a run's own line height"},
+			{s: "one two three four five six seven eight", runs: [new TextRun(14, 18, at(32), 1.25)], max: 150.0, w: Math.NaN, h: 80.0, what: "wrapped: each line its own height"}
+		]) {
+			var t = new TextLayout(c.s, set, 1.25, c.max, c.runs);
+			check("runs: " + c.what, (Math.isNaN(c.w) || Math.abs(t.width - c.w) < 0.05) && t.height == c.h, '${t.width} ${t.height}');
+		}
 		var empty = new TextLayout("", set, 1.25, 100);
 		check("layout: empty text is one line", empty.lines.length == 1 && empty.height == 20 && empty.width == 0);
 	}
@@ -339,7 +352,7 @@ class TextTest {
 			var set = new FontSet(sans, fonts.fallbacks(), size);
 			var t = new TextLayout("The quick brown fox jumps over the lazy dog. AV Wa é ß 0123", set, 1.2, W - 8);
 			for (l in t.lines) {
-				var by = Math.round(y + l.top + t.baseline);
+				var by = Math.round(y + l.top + l.baseline);
 				for (g in l.glyphs) {
 					if (g.hidden) continue;
 					var gx = 4 + g.x + g.dx, ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);

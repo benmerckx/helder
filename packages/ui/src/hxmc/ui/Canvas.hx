@@ -17,6 +17,7 @@ interface Canvas {
 	// the part u0, v0, u1, v1 (0...1) of an image stretched over a rectangle
 	// with rounded corners
 	function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float):Void;
-	// a TextEngine's paragraph with its first line's top left at (x, y), aligned in width
-	function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color):Void;
+	// a TextEngine's paragraph with its first line's top left at (x, y), aligned in width;
+	// colors: its spans' (in the order of the spans it was laid out with), else color
+	function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>):Void;
 }

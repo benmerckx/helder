@@ -2,7 +2,10 @@ package hxmc.ui;
 
 // A run of text: measured and wrapped by the Ui's TextEngine to the width
 // its parent gives it (the content box), with the node's inherited font,
-// colour and alignment.
+// colour and alignment. Its children, when it has some, are spans: TextNodes
+// whose texts (or their own spans) make the paragraph instead of its own
+// text, each in its style (inheriting this one's): bold, a colour, a size.
+// They are not laid out as boxes; a pointer over one's text hits it.
 class TextNode extends Node {
 	public var text(default, set):String;
 
@@ -42,20 +45,88 @@ class TextNode extends Node {
 	override public function minContentWidth(engine:TextEngine):Float
 		return layoutText(engine, Math.NaN).minWidth;
 
-	// the text laid out and drawn (EditableText: with its composition)
+	// the text laid out and drawn (EditableText: with its composition; with spans: theirs)
 	function shownText():String
-		return text;
+		return children.length > 0 ? spanned().text : text;
+
+	// the whole text: its own, or its spans'
+	public function allText():String
+		return children.length > 0 ? spanned().text : text;
+
+	// (spans: the text, each span's place, font and colour, and a key of them all)
+	function spanned():{text:String, spans:Array<TextSpan>, colors:Array<Color>, key:String} {
+		var b = new StringBuf(), spans:Array<TextSpan> = [], colors:Array<Color> = [], key = new StringBuf(), pos = 0;
+		function walk(n:Node) {
+			for (c in n.children) {
+				if (!Std.isOfType(c, TextNode) || c.style.display == None) continue;
+				var t:TextNode = cast c;
+				if (t.children.length > 0) {
+					walk(t);
+					continue;
+				}
+				var s = t.text, f = t.font();
+				if (s.length == 0) continue;
+				b.add(s);
+				spans.push(new TextSpan(pos, pos + s.length, f));
+				colors.push(t.textColor());
+				key.add(pos + ":" + f.family + "/" + f.size + "/" + f.weight + "/" + f.italic + "/" + f.lineHeight + ";");
+				pos += s.length;
+			}
+		}
+		walk(this);
+		return {text: b.toString(), spans: spans, colors: colors, key: key.toString()};
+	}
+
+	// the span whose text is at index i (null: none, or no spans)
+	public function spanAt(i:Int):Null<TextNode> {
+		var pos = 0, found:Null<TextNode> = null;
+		function walk(n:Node) {
+			for (c in n.children) {
+				if (found != null || !Std.isOfType(c, TextNode) || c.style.display == None) continue;
+				var t:TextNode = cast c;
+				if (t.children.length > 0) {
+					walk(t);
+					continue;
+				}
+				if (i >= pos && i < pos + t.text.length) found = t;
+				pos += t.text.length;
+			}
+		}
+		walk(this);
+		return found;
+	}
+
+	// (laid out as content: its spans are not boxes)
+	override public function contentOwnsChildren():Bool
+		return true;
+
+	// a point over a span's text: that span (its handlers, its cursor)
+	override public function hitTest(px:Float, py:Float):Null<Node> {
+		var own = super.hitTest(px, py);
+		if (own != this || children.length == 0 || paragraph == null) return own;
+		var s = style, x = localX(px) - s.borderWidth - s.padding.left, y = localY(py) - s.borderWidth - s.padding.top;
+		var i = paragraph.hit(x, y);
+		var c = paragraph.caret(i);
+		// (the hit's character: before the caret it gave when that is right of the point)
+		var at = c.x > x && i > 0 ? i - 1 : i;
+		var span = spanAt(at);
+		return span != null ? span : this;
+	}
 
 	// the paragraph for a width (NaN: unbounded), from the last one when the same
 	public function layoutText(engine:TextEngine, maxWidth:Float):Paragraph {
 		var f = font(), text = shownText();
+		var rich = children.length > 0 ? spanned() : null;
+		// (spans: their fonts in the key)
+		if (rich != null) text = rich.text + "\u0000" + rich.key;
+		var shown = rich != null ? rich.text : text, spans = rich != null ? rich.spans : null;
 		// (to 1/64 pixel up: a width measured from this text fits it again)
 		var w = Math.isNaN(maxWidth) ? maxWidth : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		var mp = maxParagraph != null && maxText == text && f.equals(maxFont) ? maxParagraph : null;
 		// (the unbounded paragraph first: the layout asks for it anyway, and a
 		// width it fits in lays it out the same)
 		if (mp == null) {
-			mp = engine.layout(text, f, Math.NaN);
+			mp = engine.layout(shown, f, Math.NaN, spans);
 			maxParagraph = mp;
 			maxFont = f;
 			maxText = text;
@@ -68,7 +139,7 @@ class TextNode extends Node {
 			return mp;
 		}
 		if (paragraph != null && laidText == text && f.equals(laidFont) && w == laidWidth) return paragraph;
-		paragraph = engine.layout(text, f, w);
+		paragraph = engine.layout(shown, f, w, spans);
 		laidFont = f;
 		laidWidth = w;
 		laidText = text;
@@ -82,10 +153,12 @@ class TextNode extends Node {
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
 		var text = shownText();
 		if (ui == null || text.length == 0) return;
+		var rich = children.length > 0 ? spanned() : null;
+		if (rich != null) text = rich.text + "\u0000" + rich.key;
 		// (the layout's paragraph: its width was the unrounded one, which
 		// rounding the box's edges may have made up to a pixel narrower)
 		var p = paragraph != null && laidText == text && font().equals(laidFont)
 			&& (Math.abs(laidWidth - width) < 1.5 || (Math.isNaN(laidWidth) && paragraph.width <= width + 1.5)) ? paragraph : layoutText(ui.text, width + 0.5);
-		canvas.text(p, x, y, width, textAlign(), textColor());
+		canvas.text(p, x, y, width, textAlign(), textColor(), rich != null ? rich.colors : null);
 	}
 }

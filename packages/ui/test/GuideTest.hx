@@ -30,6 +30,7 @@ class GuideTest implements Markup {
 		customNodes();
 		snippets();
 		grids();
+		richText();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -240,6 +241,34 @@ class GuideTest implements Markup {
 		}
 		check("grid: tracks, spans and gaps", box("nav") == "12,12,200,172" && box("chart") == "224,12,364,80" && box("a") == "224,104,176,80" && box("b") == "412,104,176,80",
 			[for (t in ["nav", "chart", "a", "b"]) box(t)].join(" "));
+	}
+
+	// "Rich text": spans in a paragraph
+	static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):Esx
+		return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
+
+	static function richText() {
+		var ui = window();
+		var name = signal("Ann"), clicks = 0;
+		Render.render(<view padding={10}><Greeting name={name} onLink={() -> clicks++}/></view>, ui.root);
+		ui.update();
+		var t:TextNode = cast ui.root.find("greeting");
+		check("rich text: the spans make one paragraph", t.allText() == "Hello Ann, read the guide." && t.children.length == 5, t.allText());
+		name.value = "Bo";
+		ui.update();
+		check("rich text: a span follows its signal", t.allText() == "Hello Bo, read the guide.", t.allText());
+		// (MonoText: 5 pixels a character; "the guide" from character 16)
+		var x = t.absX + 5 * 18 + 2, y = t.absY + 5;
+		ui.pointerDown(x, y, 1);
+		ui.pointerUp(x, y, 1);
+		check("rich text: a click on a span is its", clicks == 1, '$clicks');
+		ui.pointerDown(t.absX + 3, y, 1);
+		ui.pointerUp(t.absX + 3, y, 1);
+		check("rich text: elsewhere it is not", clicks == 1);
+		var rec = new Recording();
+		ui.paint(rec);
+		var line = [for (c in rec.calls) if (StringTools.startsWith(c, "text")) c][0];
+		check("rich text: the spans' colours drawn", line != null && StringTools.endsWith(line, "colors ff000000,ff000000,ff000000,ff2563eb,ff000000"), line);
 	}
 
 	static function customNodes() {

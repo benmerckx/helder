@@ -76,7 +76,7 @@ class Layout {
 		} else if (lookup(n, w, h, availW, availH)) return;
 		var pad = s.padding, bw = s.borderWidth;
 		var padL = pad.left + bw, padT = pad.top + bw, padH = pad.left + pad.right + 2 * bw, padV = pad.top + pad.bottom + 2 * bw;
-		if (n.hasContent() && n.children.length == 0) {
+		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) {
 			// content: its measure in the content box
 			var iw = known(w) ? Math.max(0, w - padH) : Math.NaN, ih = known(h) ? Math.max(0, h - padV) : Math.NaN;
 			var aw = known(iw) ? iw : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
@@ -839,7 +839,7 @@ class Layout {
 		if (known(cached)) return cached;
 		var bw = s.borderWidth, padH = s.padding.left + s.padding.right + 2 * bw;
 		var inner = 0.0;
-		if (n.hasContent() && n.children.length == 0) inner = n.minContentWidth(text) else if (s.display == Grid) inner = gridMinContent(n) else {
+		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) inner = n.minContentWidth(text) else if (s.display == Grid) inner = gridMinContent(n) else {
 			var row = (s.direction == Row || s.direction == RowReverse) && !s.wrap;
 			var count = 0;
 			for (c in n.children) {

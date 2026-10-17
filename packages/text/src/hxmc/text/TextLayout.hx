@@ -27,18 +27,26 @@ class TextLayout {
 	public var minWidth(default, null) = 0.0;
 	// the first paragraph's direction: 0 left to right, 1 right to left
 	public var direction(default, null) = 0;
-	// a line's height and its baseline below its top
+	// a line's height and its baseline below its top, in the paragraph's own
+	// font (with runs of others, each line's own: TextLine.height, baseline)
 	public final lineHeight:Float;
 	public final baseline:Float;
+	// parts of the text in other fonts (each glyph's run: Glyph.run)
+	public final runs:Array<TextRun>;
 
-	// lineHeight: a multiple of the size
-	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float) {
+	// lineHeight: a multiple of the size; runs: parts of the text in other
+	// fonts and line heights (in order, not overlapping), the rest in fonts.
+	// A line is as high as CSS makes its line box: the paragraph's own font
+	// and each run on it, each centred in its line height (half the leading
+	// above, half below) on the common baseline
+	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>) {
 		this.text = text;
 		this.fonts = fonts;
+		this.runs = runs == null ? [] : runs;
 		this.lineHeight = fonts.size * lineHeight;
 		var a = fonts.ascent, d = fonts.descent;
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
-		var glyphs = shape(text, fonts);
+		var glyphs = shape(text, fonts, this.runs);
 		bidi(glyphs);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
@@ -46,9 +54,13 @@ class TextLayout {
 
 	// --- shaping ---
 
-	static function shape(text:String, fonts:FontSet):Array<Glyph> {
+	static function shape(text:String, base:FontSet, runs:Array<TextRun>):Array<Glyph> {
 		var out:Array<Glyph> = [];
 		var i = 0, n = text.length, count = 0;
+		// (the run of each unit: the current one, moved along)
+		var run = -1, next = 0;
+		inline function setOf(g:Glyph):FontSet
+			return g.run < 0 ? base : runs[g.run].fonts;
 		// (at most a glyph per UTF-16 unit: allocated once, cut to the count after)
 		out.resize(n);
 		var emoji = emojiClusters(text);
@@ -62,8 +74,14 @@ class TextLayout {
 					len = 2;
 				}
 			}
+			while (next < runs.length && runs[next].start <= i) {
+				run = next;
+				next++;
+			}
+			if (run >= 0 && i >= runs[run].end) run = -1;
+			var fonts = run < 0 ? base : runs[run].fonts;
 			// (a mark composed with the character before it when that one's face has the composition, as HarfBuzz does)
-			if (count > 0 && c >= 0x300 && Bidi.classOf(c) == Bidi.NSM) {
+			if (count > 0 && c >= 0x300 && Bidi.classOf(c) == Bidi.NSM && out[count - 1].run == run) {
 				var p = out[count - 1], k = Compose.pair(p.cp, c);
 				if (k > 0 && p.font.glyph(k) != 0) {
 					p.cp = k;
@@ -77,6 +95,7 @@ class TextLayout {
 			g.cp = c;
 			g.cluster = i;
 			g.length = len;
+			g.run = run;
 			if (c == 10 || c == 13) {
 				g.font = fonts.primary;
 				g.id = 0;
@@ -100,13 +119,13 @@ class TextLayout {
 			if (c == 10 || c == 13) {
 				g.advance = 0;
 			} else {
-				var f = g.font;
+				var f = g.font, fonts = setOf(g);
 				g.advance = g.hidden ? 0 : (f.bitmapsOnly ? f.advanceAt(g.id, fonts.size) : f.advance(g.id) * fonts.scale(f)) * (c == 9 ? 4 : 1);
-				if (prev != null && prev.font == f && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
+				if (prev != null && prev.font == f && prev.run == g.run && prev.cp != 10) prev.advance += f.kerning(prev.id, g.id) * fonts.scale(f);
 			}
 			prev = g;
 		}
-		marks(out, fonts);
+		marks(out, base, runs);
 		return out;
 	}
 
@@ -192,7 +211,7 @@ class TextLayout {
 	// the glyph before it that is not a mark (or that ligature's last
 	// component), or to the mark just before it, drawn at the anchors'
 	// offset; marks (GDEF's, else Unicode's nonspacing marks) take no advance
-	static function marks(gs:Array<Glyph>, fonts:FontSet) {
+	static function marks(gs:Array<Glyph>, own:FontSet, runs:Array<TextRun>) {
 		for (i in 0...gs.length) {
 			var g = gs[i], f = g.font;
 			if (f == null || g.cp == 10 || g.cp == 13) continue;
@@ -206,7 +225,7 @@ class TextLayout {
 			for (l in f.markLookups(script(base.cp))) {
 				var a = f.markAttachment(l, base.id, component, prev.font == f && isMark(prev) ? prev.id : -1, g.id);
 				if (a == null) continue;
-				var s = fonts.scale(f);
+				var s = (g.run < 0 ? own : runs[g.run].fonts).scale(f);
 				g.attach = a.toPrev ? prev : base;
 				g.ax = a.x * s;
 				g.ay = -a.y * s;
@@ -254,8 +273,8 @@ class TextLayout {
 				if (id != 0) g.id = id;
 			}
 			// (a right-to-left pair's kerning: on its left glyph, the second)
-			if (i > 0 && gs[i - 1].level & 1 == 1 && gs[i - 1].font == g.font && gs[i - 1].cp != 10) {
-				var p = gs[i - 1], k = g.font.kerning(p.id, g.id) * fonts.scale(g.font);
+			if (i > 0 && gs[i - 1].level & 1 == 1 && gs[i - 1].font == g.font && gs[i - 1].run == g.run && gs[i - 1].cp != 10) {
+				var p = gs[i - 1], k = g.font.kerning(p.id, g.id) * (g.run < 0 ? fonts : runs[g.run].fonts).scale(g.font);
 				p.advance -= k;
 				g.advance += k;
 			}
@@ -312,7 +331,9 @@ class TextLayout {
 			start = end + 1;
 		}
 		if (lines.length == 0) addLine(gs, 0, 0);
-		height = lines.length * lineHeight;
+		height = 0;
+		for (l in lines)
+			height += l.height;
 	}
 
 	// the glyphs start...end (no "\n") in lines no wider than max
@@ -345,7 +366,20 @@ class TextLayout {
 
 	function addLine(gs:Array<Glyph>, start:Int, end:Int, ?emptyAt:Int) {
 		var l = new TextLine();
-		l.top = lines.length * lineHeight;
+		// (its line box: the paragraph's strut and each run on it, on one baseline)
+		var above = baseline, below = lineHeight - baseline;
+		var seen = new Map<Int, Bool>();
+		for (i in start...end) {
+			var r = gs[i].run;
+			if (r < 0 || seen.exists(r)) continue;
+			seen.set(r, true);
+			var f = runs[r].fonts, lh = f.size * runs[r].lineHeight, half = (lh - (f.ascent + f.descent)) / 2;
+			if (f.ascent + half > above) above = f.ascent + half;
+			if (f.descent + half > below) below = f.descent + half;
+		}
+		l.height = above + below;
+		l.baseline = above;
+		l.top = lines.length == 0 ? 0 : lines[lines.length - 1].top + lines[lines.length - 1].height;
 		var x = 0.0, visible = 0.0;
 		l.glyphs.resize(end - start);
 		if (hasBidi && end > start) {
@@ -500,7 +534,9 @@ class TextLayout {
 
 	// the character index nearest to (x, y)
 	public function hit(x:Float, y:Float):Int {
-		var k = Std.int(Math.max(0, Math.min(lines.length - 1, Math.floor(y / lineHeight))));
+		var k = 0;
+		while (k < lines.length - 1 && y >= lines[k].top + lines[k].height)
+			k++;
 		var l = lines[k];
 		if (l.bidi) return bidiHit(l, x);
 		for (g in l.glyphs) {
@@ -530,6 +566,8 @@ class Glyph {
 	public var level = 0;
 	// not drawn (a default ignorable character: a variation selector, a joiner)
 	public var hidden = false;
+	// its run in the layout (TextLayout.runs; -1: the paragraph's own font)
+	public var run = -1;
 	// where it is drawn from its place (pixels, y down): a mark on its base by GPOS's anchors
 	public var dx = 0.0;
 	public var dy = 0.0;
@@ -550,6 +588,9 @@ class TextLine {
 	public var width = 0.0;
 	public var advance = 0.0;
 	public var top = 0.0;
+	// its height and its baseline below its top
+	public var height = 0.0;
+	public var baseline = 0.0;
 	// its glyphs in visual order by the bidi algorithm, its paragraph's base level
 	public var bidi = false;
 	public var base = 0;

@@ -4,6 +4,7 @@ import hxmc.text.*;
 import hxmc.ui.Font;
 import hxmc.ui.Paragraph;
 import hxmc.ui.TextEngine;
+import hxmc.ui.TextSpan;
 
 // hxmc.ui's TextEngine on hxmc.text: a node's Font matched among the
 // system's fonts (and those added: SystemFonts.add), laid out by TextLayout
@@ -40,14 +41,22 @@ class DrawText implements TextEngine {
 		return face;
 	}
 
-	public function layout(text:String, font:Font, maxWidth:Float):Paragraph {
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>):Paragraph {
 		if (fallbackFaces == null) {
 			fallbackFaces = fonts.fallbacks();
 			more = fonts.fallbackFor;
 			emoji = fonts.emojiFor;
 		}
 		var set = new FontSet(face(font), fallbackFaces, font.size, more, emoji);
-		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth));
+		set.oblique = font.italic && !set.primary.italic;
+		var runs = spans == null ? null : [
+			for (s in spans) {
+				var fs = new FontSet(face(s.font), fallbackFaces, s.font.size, more, emoji);
+				fs.oblique = s.font.italic && !fs.primary.italic;
+				new TextRun(s.start, s.end, fs, s.font.lineHeight);
+			}
+		];
+		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth, runs));
 	}
 }
 
@@ -76,7 +85,7 @@ class DrawParagraph implements Paragraph {
 
 	public function caret(i:Int):{x:Float, y:Float, height:Float} {
 		var c = layout.caret(i);
-		return {x: c.x, y: c.y, height: layout.lineHeight};
+		return {x: c.x, y: c.y, height: layout.lines[c.line].height};
 	}
 
 	public function hit(x:Float, y:Float):Int

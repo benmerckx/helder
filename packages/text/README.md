@@ -42,6 +42,11 @@ text with, usable on its own.
 - `Grapheme`: grapheme clusters (a letter and its marks, emoji sequences,
   flags, Hangul syllables from jamo), the steps a caret takes; checked
   against `Intl.Segmenter`.
+- Rich text: `TextRun`s give parts of a layout other fonts and line
+  heights; each line is as high as CSS makes its line box (the
+  paragraph's own font and each run on it, half the leading above and
+  below, one baseline), checked against Chromium. An italic the face
+  lacks is slanted (`FontSet.oblique`), as browsers synthesize it.
 - `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
   packed into an R8 bitmap for a GPU texture, its changed region tracked.
 

@@ -195,6 +195,19 @@ var height = Motion.spring(() -> open.value ? 200 : 0);
 <view height={height} overflow="hidden">...</view>
 ```
 
+## Rich text
+
+Inside a `text`, elements are spans: `span`, `b`, `i`, or `text` again.
+Each takes style attributes and handlers, and holes in it stay reactive:
+
+```haxe
+static function Greeting(props:{name:Signal<String>, onLink:Void->Void}):Esx
+	return <text tag="greeting">Hello <b>{props.name}</b>, read <span tag="link" color="#2563eb" cursor="pointer" onClick={_ -> props.onLink()}>the guide</span>.</text>;
+```
+
+The spans wrap as one paragraph. A larger span makes its line taller, as
+in CSS, and a click on a span's text goes to that span.
+
 ## Context
 
 A context passes a value down the tree without threading it through every

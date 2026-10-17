@@ -63,7 +63,7 @@ class AccessTree {
 		var role:Null<Role> = sem != null ? sem.role : null;
 		if (role == null) {
 			if (Std.isOfType(n, ImageNode)) role = sem != null && sem.label != null ? Image : null else if (Std.isOfType(n, TextNode))
-				role = inName || (cast n : TextNode).text == "" ? null : Label else if (n.focusable) role = Group;
+				role = inName || (cast n : TextNode).allText() == "" ? null : Label else if (n.focusable) role = Group;
 		}
 		var here = parent;
 		if (role != null) {
@@ -87,7 +87,7 @@ class AccessTree {
 				a.valueMax = sem.valueMax;
 				a.valueText = sem.valueText;
 			}
-			a.name = sem != null && sem.label != null ? sem.label : role == Label ? (cast n : TextNode).text : role.namedByContent() ? textOf(n) : "";
+			a.name = sem != null && sem.label != null ? sem.label : role == Label ? (cast n : TextNode).allText() : role.namedByContent() ? textOf(n) : "";
 			if ((role == TextInput || role == MultilineTextInput) && Std.isOfType(n, TextNode)) a.value = (cast n : TextNode).text;
 			parent.children.push(a.id);
 			add(n, a);
@@ -98,9 +98,10 @@ class AccessTree {
 			sx += n.scrollX;
 			sy += n.scrollY;
 		}
-		// (a TextNode's text is its own: no children to visit)
-		for (c in n.children)
-			visit(c, here, sx, sy, named, ui);
+		// (a TextNode's text is its own, its spans' included: no children to visit)
+		if (!Std.isOfType(n, TextNode))
+			for (c in n.children)
+				visit(c, here, sx, sy, named, ui);
 	}
 
 	// the text of the TextNodes in n (space separated)
@@ -109,8 +110,9 @@ class AccessTree {
 		function walk(m:Node) {
 			if (m.style.display == None) return;
 			if (Std.isOfType(m, TextNode)) {
-				var t = StringTools.trim((cast m : TextNode).text);
+				var t = StringTools.trim((cast m : TextNode).allText());
 				if (t != "") parts.push(t);
+				return;
 			}
 			for (c in m.children)
 				walk(c);

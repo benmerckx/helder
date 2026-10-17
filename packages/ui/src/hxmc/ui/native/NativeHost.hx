@@ -188,5 +188,5 @@ private class NoCanvas implements Canvas {
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float) {}
 
-	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color) {}
+	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {}
 }

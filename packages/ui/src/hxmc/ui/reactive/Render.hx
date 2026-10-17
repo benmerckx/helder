@@ -16,7 +16,7 @@ import hxmc.ui.reactive.Memo;
 // a hidden node, its computations disposed with them).
 //
 // Intrinsic elements: view (a Node), text (a TextNode of its children's
-// text), scroll (a Node with Overflow Scroll), image (an ImageNode: src, an
+// text; elements in it are its spans: span, b, i, or text again), scroll (a Node with Overflow Scroll), image (an ImageNode: src, an
 // Image or an AnimatedImage, played; fit, "fill", "contain", "cover" or "none"); elements registers more.
 // Their attributes: Style properties (StyleAttrs: direction="row",
 // padding={8}, background="#3b82f6"; style={StyleProps} for several), the
@@ -35,6 +35,18 @@ class Render {
 	public static final elements:Map<String, Void->Node> = [
 		"view" => () -> new Node("view"),
 		"text" => () -> new TextNode("", "text"),
+		// (spans in a text: plain, bold, italic)
+		"span" => () -> new TextNode("", "span"),
+		"b" => () -> {
+			var t = new TextNode("", "b");
+			t.style.fontWeight = 700;
+			t;
+		},
+		"i" => () -> {
+			var t = new TextNode("", "i");
+			t.style.italic = true;
+			t;
+		},
 		"scroll" => () -> {
 			var n = new Node("scroll");
 			n.style.overflow = Scroll;
@@ -177,6 +189,31 @@ class Render {
 	}
 
 	static function textContent(t:TextNode, cs:Array<TNode>, values:Array<Any>) {
+		// (elements inside: spans, the text around them spans of their own)
+		var nested = false;
+		for (c in cs)
+			if (c.kind == Element || c.kind == Component) nested = true;
+		if (nested) {
+			var run:Array<Dynamic> = [];
+			function flush() {
+				if (run.length == 0) return;
+				var span = new TextNode("", "span");
+				t.append(span);
+				bindText(span, run);
+				run = [];
+			}
+			for (c in cs) {
+				var p = textPart(c, values);
+				if (p != null) {
+					run.push(p);
+					continue;
+				}
+				flush();
+				node(c, values, t, null, []);
+			}
+			flush();
+			return;
+		}
 		var parts:Array<Dynamic> = [];
 		for (c in cs) {
 			var p = textPart(c, values);

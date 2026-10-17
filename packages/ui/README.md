@@ -108,6 +108,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
 
 Intrinsic elements: `view` (a box), `text` (a run of text), `scroll` (a box
 that scrolls), `image` (an `ImageNode`: `src={image}`, `fit="cover"`).
+Inside a `text`, elements are spans of rich text: `span`, `b`, `i` or
+`text` again, each with its own style (colour, weight, size...) and
+handlers (a link: `<span color="#2563eb" onClick={...}>`); lines are as
+high as CSS makes them, their spans on one baseline.
 Attributes:
 
 - any Style property, in camelCase or kebab-case, with values as CSS

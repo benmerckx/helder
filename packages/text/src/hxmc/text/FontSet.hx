@@ -8,6 +8,8 @@ class FontSet {
 	public final primary:FontFile;
 	public final fallbacks:Array<FontFile>;
 	public final size:Float;
+	// italic asked of a face that is not: drawn slanted (GlyphAtlas's oblique)
+	public var oblique = false;
 	public final more:Null<Int->Null<FontFile>>;
 	// colour emoji faces (SystemFonts' emojiFor)
 	public final emoji:Null<Int->Null<FontFile>>;
