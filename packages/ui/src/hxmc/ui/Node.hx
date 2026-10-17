@@ -80,7 +80,7 @@ class Node {
 	@:allow(hxmc.ui.Layout) var lw = 0.0;
 	@:allow(hxmc.ui.Layout) var lh = 0.0;
 	// (made when first stored to)
-	@:allow(hxmc.ui.Layout) var cache:Null<Array<Float>> = null;
+	@:allow(hxmc.ui.Layout) var cache:Null<haxe.ds.Vector<Float>> = null;
 	@:allow(hxmc.ui.Layout) var dirty = true;
 	// (laid out since its edges were last rounded; the unrounded box they were rounded from)
 	@:allow(hxmc.ui.Layout) var relaid = true;
@@ -435,9 +435,9 @@ class Node {
 		Ui.accessEpoch++;
 		fontCache = null;
 		var n = this;
-		while (n != null && !(n.dirty && (n.cache == null || n.cache.length == 0) && Math.isNaN(n.minContent))) {
+		while (n != null && !(n.dirty && (n.cache == null || n.cache[0] == 0) && Math.isNaN(n.minContent))) {
 			n.dirty = true;
-			if (n.cache != null) n.cache.resize(0);
+			if (n.cache != null) n.cache[0] = 0;
 			n.minContent = Math.NaN;
 			n = n.parent;
 		}

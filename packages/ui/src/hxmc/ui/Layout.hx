@@ -1032,8 +1032,8 @@ class Layout {
 	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float):Bool {
 		var c = n.cache;
 		if (c == null) return false;
-		var i = 0;
-		while (i < c.length) {
+		var i = 1, end = 1 + Std.int(c[0]);
+		while (i < end) {
 			if (same(c[i], w) && same(c[i + 1], h) && same(c[i + 2], aw) && same(c[i + 3], ah)) {
 				rw = c[i + 4];
 				rh = c[i + 5];
@@ -1044,16 +1044,23 @@ class Layout {
 		return false;
 	}
 
+	// (the cache: its length in slot 0, then up to CACHE entries; the oldest dropped)
 	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, rw:Float, rh:Float) {
 		var c = n.cache;
-		if (c == null) c = n.cache = [];
-		if (c.length >= CACHE * ENTRY) c.splice(0, ENTRY);
-		c.push(w);
-		c.push(h);
-		c.push(aw);
-		c.push(ah);
-		c.push(rw);
-		c.push(rh);
+		if (c == null) c = n.cache = new haxe.ds.Vector(1 + CACHE * ENTRY, 0.0);
+		var at = 1 + Std.int(c[0]);
+		if (at >= 1 + CACHE * ENTRY) {
+			for (i in 1...at - ENTRY)
+				c[i] = c[i + ENTRY];
+			at -= ENTRY;
+		}
+		c[at] = w;
+		c[at + 1] = h;
+		c[at + 2] = aw;
+		c[at + 3] = ah;
+		c[at + 4] = rw;
+		c[at + 5] = rh;
+		c[0] = at + ENTRY - 1;
 	}
 
 	static inline function known(v:Float):Bool
