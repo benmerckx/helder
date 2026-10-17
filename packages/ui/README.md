@@ -57,7 +57,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     and `alignContent` (no named lines or areas, no subgrid, no dense
     packing). Checked against Chromium on 86 cases, 26 of them grids.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
-    `fontWeight`, `italic`, `lineHeight`, `textAlign`.
+    `fontWeight`, `italic`, `lineHeight`, `textAlign`. `maxLines` cuts a
+    text to so many lines, the last ending in an ellipsis where Chromium's
+    line-clamp puts it.
   - Paint: `background`, `borderColor`, `radius`, `opacity`, `shadow`
     (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`.
   - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every

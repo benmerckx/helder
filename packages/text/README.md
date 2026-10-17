@@ -47,6 +47,8 @@ text with, usable on its own.
   paragraph's own font and each run on it, half the leading above and
   below, one baseline), checked against Chromium. An italic the face
   lacks is slanted (`FontSet.oblique`), as browsers synthesize it.
+  `maxLines` keeps so many lines, the last ending in an ellipsis that fits
+  (CSS's line-clamp, checked against Chromium's).
 - `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
   packed into an R8 bitmap for a GPU texture, its changed region tracked.
 

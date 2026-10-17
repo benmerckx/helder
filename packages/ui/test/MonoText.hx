@@ -7,8 +7,8 @@ import hxmc.ui.*;
 class MonoText implements TextEngine {
 	public function new() {}
 
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>):Paragraph
-		return new MonoParagraph(text, font, maxWidth);
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0):Paragraph
+		return new MonoParagraph(text, font, maxWidth, maxLines);
 }
 
 class MonoParagraph implements Paragraph {
@@ -23,7 +23,10 @@ class MonoParagraph implements Paragraph {
 	final line:Float;
 	final text:String;
 
-	public function new(text:String, font:Font, maxWidth:Float) {
+	// (maxLines: the last line kept cut to leave room for an ellipsis, one character, counted in its width)
+	public var ellipsis(default, null) = false;
+
+	public function new(text:String, font:Font, maxWidth:Float, maxLines = 0) {
 		this.text = text;
 		char = font.size / 2;
 		line = font.size * font.lineHeight;
@@ -49,6 +52,13 @@ class MonoParagraph implements Paragraph {
 					pos++;
 			}
 			start += hard.length + 1;
+		}
+		if (maxLines > 0 && lines.length > maxLines) {
+			lines.resize(maxLines);
+			ellipsis = true;
+			var l = lines[maxLines - 1];
+			var keep = Math.isNaN(maxWidth) ? l.length : Std.int(Math.min(l.length, Math.max(0, perLine - 1)));
+			lines[maxLines - 1] = {start: l.start, length: keep + 1};
 		}
 	}
 

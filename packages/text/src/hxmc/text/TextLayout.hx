@@ -39,7 +39,12 @@ class TextLayout {
 	// A line is as high as CSS makes its line box: the paragraph's own font
 	// and each run on it, each centred in its line height (half the leading
 	// above, half below) on the common baseline
-	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>) {
+	// whether maxLines cut lines off (the last one then ends in an ellipsis)
+	public var truncated(default, null) = false;
+
+	// maxLines: at most so many lines (0: any), the last ending in an
+	// ellipsis that fits the width when more were cut, as CSS's line-clamp
+	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>, maxLines = 0) {
 		this.text = text;
 		this.fonts = fonts;
 		this.runs = runs == null ? [] : runs;
@@ -50,6 +55,62 @@ class TextLayout {
 		bidi(glyphs);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
+		if (maxLines > 0 && lines.length > maxLines) clamp(maxLines, maxWidth);
+	}
+
+	// the lines after the n-th dropped; the n-th's end given up (its trailing
+	// spaces, then characters) until an ellipsis after it fits the width
+	function clamp(n:Int, maxWidth:Float) {
+		lines.resize(n);
+		truncated = true;
+		var l = lines[n - 1], gs = l.glyphs;
+		var rtl = l.bidi && l.base & 1 == 1;
+		// (the logical end: the right in a left-to-right line, the left in a right-to-left one)
+		inline function endGlyph():Null<Glyph>
+			return gs.length == 0 ? null : rtl ? gs[0] : gs[gs.length - 1];
+		inline function dropEnd()
+			if (rtl) gs.shift() else gs.pop();
+		var last = endGlyph();
+		var set = last == null || last.run < 0 ? fonts : runs[last.run].fonts;
+		var f = set.faceFor(0x2026);
+		var e = new Glyph();
+		e.cp = 0x2026;
+		e.font = f;
+		e.id = f.glyph(0x2026);
+		e.advance = f.advance(e.id) * set.scale(f);
+		e.run = last == null ? -1 : last.run;
+		e.level = rtl ? 1 : 0;
+		function used():Float {
+			var w = 0.0;
+			for (g in gs)
+				w += g.advance;
+			return w;
+		}
+		while (gs.length > 0 && isSpace(endGlyph().cp))
+			dropEnd();
+		// (characters given up one by one: a space they leave at the end stays, as Chromium leaves it)
+		if (!Math.isNaN(maxWidth))
+			while (gs.length > 0 && used() + e.advance > maxWidth + 1e-6)
+				dropEnd();
+		var endAt = l.start;
+		for (g in gs)
+			if (g.cluster + g.length > endAt) endAt = g.cluster + g.length;
+		e.cluster = endAt;
+		e.length = 0;
+		if (rtl) gs.unshift(e) else gs.push(e);
+		var x = 0.0;
+		for (g in gs) {
+			g.x = x;
+			x += g.advance;
+		}
+		l.end = endAt;
+		l.width = l.advance = x;
+		width = 0;
+		height = 0;
+		for (k in lines) {
+			if (k.width > width) width = k.width;
+			height += k.height;
+		}
 	}
 
 	// --- shaping ---

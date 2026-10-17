@@ -142,6 +142,9 @@ class Style {
 
 	public var textAlign(default, set):Null<TextAlign> = null;
 
+	// a text's lines at most (0: any), the last ending in an ellipsis when cut (CSS's line-clamp; not inherited)
+	public var maxLines(default, set):Int = 0;
+
 	function set_display(v:Display):Display {
 		if (v == display) return v;
 		display = v;
@@ -187,6 +190,13 @@ class Style {
 	function set_alignSelf(v:Align):Align {
 		if (v == alignSelf) return v;
 		alignSelf = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_maxLines(v:Int):Int {
+		if (v == maxLines) return v;
+		maxLines = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -535,6 +545,7 @@ class Style {
 		if (p.italic != null) italic = p.italic;
 		if (p.lineHeight != null) lineHeight = p.lineHeight;
 		if (p.textAlign != null) textAlign = p.textAlign;
+		if (p.maxLines != null) maxLines = p.maxLines;
 		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
 		if (p.gridTemplateRows != null) gridTemplateRows = p.gridTemplateRows;
 		if (p.gridAutoColumns != null) gridAutoColumns = p.gridAutoColumns;

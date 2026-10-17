@@ -268,6 +268,11 @@ class GuideTest implements Markup {
 		var rec = new Recording();
 		ui.paint(rec);
 		var line = [for (c in rec.calls) if (StringTools.startsWith(c, "text")) c][0];
+		var clamped = window();
+		Render.render(<view width={100}><text tag="clamped" max-lines={2}>one two three four five six seven eight nine ten</text></view>, clamped.root);
+		clamped.update();
+		var ct = clamped.root.find("clamped");
+		check("max-lines: two lines of a long text", ct.height == 25, '${ct.height}');
 		check("rich text: the spans' colours drawn", line != null && StringTools.endsWith(line, "colors ff000000,ff000000,ff000000,ff2563eb,ff000000"), line);
 	}
 

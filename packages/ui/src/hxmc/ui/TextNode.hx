@@ -117,16 +117,17 @@ class TextNode extends Node {
 	public function layoutText(engine:TextEngine, maxWidth:Float):Paragraph {
 		var f = font(), text = shownText();
 		var rich = children.length > 0 ? spanned() : null;
-		// (spans: their fonts in the key)
+		var shown = rich != null ? rich.text : text, spans = rich != null ? rich.spans : null, clamp = style.maxLines;
+		// (spans: their fonts in the key; and the lines' limit)
 		if (rich != null) text = rich.text + "\u0000" + rich.key;
-		var shown = rich != null ? rich.text : text, spans = rich != null ? rich.spans : null;
+		if (clamp > 0) text += "\u0001" + clamp;
 		// (to 1/64 pixel up: a width measured from this text fits it again)
 		var w = Math.isNaN(maxWidth) ? maxWidth : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		var mp = maxParagraph != null && maxText == text && f.equals(maxFont) ? maxParagraph : null;
 		// (the unbounded paragraph first: the layout asks for it anyway, and a
 		// width it fits in lays it out the same)
 		if (mp == null) {
-			mp = engine.layout(shown, f, Math.NaN, spans);
+			mp = engine.layout(shown, f, Math.NaN, spans, clamp);
 			maxParagraph = mp;
 			maxFont = f;
 			maxText = text;
@@ -139,7 +140,7 @@ class TextNode extends Node {
 			return mp;
 		}
 		if (paragraph != null && laidText == text && f.equals(laidFont) && w == laidWidth) return paragraph;
-		paragraph = engine.layout(shown, f, w, spans);
+		paragraph = engine.layout(shown, f, w, spans, clamp);
 		laidFont = f;
 		laidWidth = w;
 		laidText = text;
@@ -155,6 +156,7 @@ class TextNode extends Node {
 		if (ui == null || text.length == 0) return;
 		var rich = children.length > 0 ? spanned() : null;
 		if (rich != null) text = rich.text + "\u0000" + rich.key;
+		if (style.maxLines > 0) text += "\u0001" + style.maxLines;
 		// (the layout's paragraph: its width was the unrounded one, which
 		// rounding the box's edges may have made up to a pixel narrower)
 		var p = paragraph != null && laidText == text && font().equals(laidFont)

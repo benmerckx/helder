@@ -41,7 +41,7 @@ class DrawText implements TextEngine {
 		return face;
 	}
 
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>):Paragraph {
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0):Paragraph {
 		if (fallbackFaces == null) {
 			fallbackFaces = fonts.fallbacks();
 			more = fonts.fallbackFor;
@@ -56,7 +56,7 @@ class DrawText implements TextEngine {
 				new TextRun(s.start, s.end, fs, s.font.lineHeight);
 			}
 		];
-		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth, runs));
+		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines));
 	}
 }
 

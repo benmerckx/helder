@@ -44,6 +44,7 @@ typedef StyleProps = {
 	?italic:Bool,
 	?lineHeight:Float,
 	?textAlign:TextAlign,
+	?maxLines:Int,
 	?gridTemplateColumns:Array<Grid.Track>,
 	?gridTemplateRows:Array<Grid.Track>,
 	?gridAutoColumns:Grid.Track,

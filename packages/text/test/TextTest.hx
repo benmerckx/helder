@@ -332,6 +332,22 @@ class TextTest {
 			var t = new TextLayout(c.s, set, 1.25, c.max, c.runs);
 			check("runs: " + c.what, (Math.isNaN(c.w) || Math.abs(t.width - c.w) < 0.05) && t.height == c.h, '${t.width} ${t.height}');
 		}
+		// maxLines: the lines cut, the last ending in an ellipsis where Chromium's line-clamp puts it (its ink's right edge)
+		for (c in [
+			{s: "The quick brown fox jumps over the lazy dog and keeps on running far away", w: 200.0, n: 2, right: 197.0},
+			{s: "Supercalifragilisticexpialidocious word", w: 120.0, n: 1, right: 110.0},
+			{s: "short line here and then a second one that is long", w: 150.0, n: 1, right: 131.0},
+			{s: "a b c d e f g h i j k l m n o p q r s t u v w x y z", w: 100.0, n: 3, right: 96.0},
+			{s: "one two three four five six seven", w: 90.0, n: 2, right: 87.0},
+			{s: "aaaa bbbbbbbbbbbbbbbbbbb ccc", w: 80.0, n: 1, right: 54.0}
+		]) {
+			var t = new TextLayout(c.s, set, 1.25, c.w, null, c.n);
+			var l = t.lines[t.lines.length - 1], e = l.glyphs[l.glyphs.length - 1];
+			var r = e.x + e.font.bounds(e.id)[2] * set.scale(e.font);
+			check("maxLines: " + c.s.substr(0, 16) + ", " + c.n + " lines", t.truncated && t.lines.length == c.n && t.height == 20 * c.n && e.cp == 0x2026 && Math.abs(r - c.right) < 1,
+				'${t.lines.length} ${t.height} $r');
+		}
+		check("maxLines: not cut when it fits", !new TextLayout("short", set, 1.25, 200, null, 1).truncated);
 		var empty = new TextLayout("", set, 1.25, 100);
 		check("layout: empty text is one line", empty.lines.length == 1 && empty.height == 20 && empty.width == 0);
 	}

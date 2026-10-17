@@ -5,6 +5,7 @@ package hxmc.ui;
 // Canvas of the same renderer draws it.
 interface TextEngine {
 	// the text in lines no wider than maxWidth (NaN: one line per hard break);
-	// spans: parts of it in other fonts (in order, not overlapping)
-	function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>):Paragraph;
+	// spans: parts of it in other fonts (in order, not overlapping); maxLines:
+	// at most so many (0: any), the last ending in an ellipsis when cut
+	function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0):Paragraph;
 }
