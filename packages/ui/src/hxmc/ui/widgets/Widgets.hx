@@ -45,10 +45,10 @@ class Widgets implements Markup {
 	// a function of one): not focusable, clicks and keys ignored,
 	// data-disabled for the theme
 	public static function Button(props:{?label:String, ?onClick:Void->Void, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
-			?tag:String}):View {
+			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var press = () -> if (!disabled() && props.onClick != null) props.onClick();
-		return <view tag={props.tag ?? "button"} slot="button" variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
+		return <view tag={props.tag ?? "button"} slot="button" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
 			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} onClick={_ -> press()}
 			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 				e.preventDefault();
@@ -62,10 +62,10 @@ class Widgets implements Markup {
 	// variant "default" or "outline", size "default", "sm" or "lg" (slot
 	// "toggle", data-state "on" or "off"; ARIA's pressed button)
 	public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
-			?tag:String}):View {
+			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var flip = () -> if (!disabled()) props.pressed.value = !props.pressed.peek();
-		return <view tag={props.tag ?? "toggle"} slot="toggle" variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
+		return <view tag={props.tag ?? "toggle"} slot="toggle" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
 			checked={() -> props.pressed.value} data-state={() -> props.pressed.value ? "on" : "off"} focusable={() -> !disabled()} disabled={disabled}
 			data-disabled={disabled} onClick={_ -> flip()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 				e.preventDefault();
@@ -80,7 +80,7 @@ class Widgets implements Markup {
 	// clicked. Slots "checkbox" (data-state "checked", "unchecked" or
 	// "indeterminate") and "checkbox-indicator" (shown when not unchecked),
 	// the label a "label"
-	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?tag:String}):View {
+	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
 		var mixed = () -> props.mixed != null && props.mixed.value;
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> mixed() ? "indeterminate" : props.checked.value ? "checked" : "unchecked";
@@ -91,7 +91,7 @@ class Widgets implements Markup {
 			props.checked.value = was || !props.checked.peek();
 		});
 		// (its indicator centred, as a <button>'s content)
-		var box = <view tag={props.tag ?? "checkbox"} slot="checkbox" role="checkbox" label={props.label} align-items="center" justify="center"
+		var box = <view tag={props.tag ?? "checkbox"} slot="checkbox" ref={n -> States.apply(n, props.style)} role="checkbox" label={props.label} align-items="center" justify="center"
 			checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
 			data-disabled={disabled} onKeyDown={e -> if (e.key == Key.SPACE) {
 				e.preventDefault();
@@ -109,11 +109,11 @@ class Widgets implements Markup {
 	// a switch (shadcn's) bound to a signal, with its label: slots "switch"
 	// and "switch-thumb", data-state "checked" or "unchecked" on both (the
 	// thumb's place by its state's rules); size "default" or "sm" (and data-size)
-	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?tag:String}):View {
+	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
 		var toggle = () -> if (!disabled()) props.checked.value = !props.checked.peek();
-		var track = <view tag={props.tag ?? "switch"} slot="switch" size={props.size ?? "default"} data-size={props.size ?? "default"} role="switch"
+		var track = <view tag={props.tag ?? "switch"} slot="switch" ref={n -> States.apply(n, props.style)} size={props.size ?? "default"} data-size={props.size ?? "default"} role="switch"
 			label={props.label} checked={() -> props.checked.value}
 			data-state={state} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled}
 			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
@@ -128,21 +128,21 @@ class Widgets implements Markup {
 	}
 
 	// a label (shadcn's): its text or children (slot "label")
-	public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?tag:String}):View {
-		return <text tag={props.tag ?? "label"} slot="label" data-disabled={() -> read(props.disabled) == true}>{props.children ?? props.text}</text>;
+	public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?style:States->StyleProps, ?tag:String}):View {
+		return <text tag={props.tag ?? "label"} slot="label" ref={n -> States.apply(n, props.style)} data-disabled={() -> read(props.disabled) == true}>{props.children ?? props.text}</text>;
 	}
 
 	// a badge (shadcn's): its label or children; variant "default",
 	// "secondary", "destructive" or "outline" (slot "badge")
-	public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?tag:String}):View {
-		return <view tag={props.tag ?? "badge"} slot="badge" variant={props.variant ?? "default"}>{props.label}{props.children}</view>;
+	public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
+		return <view tag={props.tag ?? "badge"} slot="badge" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"}>{props.label}{props.children}</view>;
 	}
 
 	// a card (shadcn's) and its parts, each its children: slots "card",
 	// "card-header", "card-title", "card-description", "card-action",
 	// "card-content", "card-footer"
-	public static function Card(props:{?children:View, ?tag:String}):View {
-		return <view tag={props.tag ?? "card"} slot="card">{props.children}</view>;
+	public static function Card(props:{?children:View, ?style:States->StyleProps, ?tag:String}):View {
+		return <view tag={props.tag ?? "card"} slot="card" ref={n -> States.apply(n, props.style)}>{props.children}</view>;
 	}
 
 	public static function CardHeader(props:{?children:View, ?tag:String}):View
@@ -181,8 +181,8 @@ class Widgets implements Markup {
 	// an alert (shadcn's): a callout of its children, variant "default" or
 	// "destructive"; its title and description (slots "alert",
 	// "alert-title", "alert-description")
-	public static function Alert(props:{?variant:String, ?children:View, ?tag:String}):View {
-		return <view tag={props.tag ?? "alert"} slot="alert" variant={props.variant ?? "default"}>{props.children}</view>;
+	public static function Alert(props:{?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
+		return <view tag={props.tag ?? "alert"} slot="alert" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"}>{props.children}</view>;
 	}
 
 	public static function AlertTitle(props:{?text:String, ?children:Any, ?tag:String}):View
@@ -199,7 +199,7 @@ class Widgets implements Markup {
 	// track by the value, within it at whatever size its rules give it);
 	// width: the slider's, else its rules'
 	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
-			?tag:String}):View {
+			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0;
 		function set(v:Float) {
@@ -218,7 +218,7 @@ class Widgets implements Markup {
 			set(lo + x / n.width * (hi - lo));
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
-		return <view tag={props.tag ?? "slider"} slot="slider" role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
+		return <view tag={props.tag ?? "slider"} slot="slider" ref={n -> States.apply(n, props.style)} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
 			value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
 			onKeyDown={e -> if (!disabled()) switch e.key {
@@ -458,7 +458,7 @@ class Widgets implements Markup {
 	// "checked" or "unchecked") and "radio-group-indicator" (shown when
 	// checked), each label a "label"
 	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
-			?tag:String}):View {
+			?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
 		var disabled = () -> read(props.disabled) == true;
 		// (the Tab stop: the checked option, else the first)
@@ -479,7 +479,7 @@ class Widgets implements Markup {
 			props.value.value = options[j];
 			focusIn(nodes, j);
 		}
-		return <view tag={tag} slot="radio-group" role="radiogroup" label={props.label} data-disabled={disabled}>{[
+		return <view tag={tag} slot="radio-group" ref={n -> States.apply(n, props.style)} role="radiogroup" label={props.label} data-disabled={disabled}>{[
 			for (i in 0...options.length) {
 				var o = options[i], text = props.labels != null && props.labels[i] != null ? props.labels[i] : o;
 				var state = () -> props.value.value == o ? "checked" : "unchecked";
@@ -502,7 +502,7 @@ class Widgets implements Markup {
 	// and End select another and move the focus there. Slots "tabs",
 	// "tabs-list", "tabs-trigger" (data-state "active" or "inactive") and
 	// "tabs-content"
-	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?tag:String}):View {
+	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
 		function key(e:Event, i:Int) {
 			var j = switch mirrored(e) {
@@ -517,7 +517,7 @@ class Widgets implements Markup {
 			props.selected.value = j;
 			focusIn(tabs, j);
 		}
-		return <view tag={tag} slot="tabs">
+		return <view tag={tag} slot="tabs" ref={n -> States.apply(n, props.style)}>
 			<view slot="tabs-list" role="tablist">{[
 				for (i in 0...count)
 					<view tag={tag + "-" + i} slot="tabs-trigger" role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
@@ -954,7 +954,7 @@ class Widgets implements Markup {
 	// 1.5 seconds, on the Clock; no value for assistive technology). Slots
 	// "progress" and "progress-indicator" (data-state "indeterminate" when
 	// sliding); width: the bar's, else its rules'
-	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):View {
+	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
 		var known = () -> Render.read(props.value) != null;
 		var frac = () -> {
 			var v:Null<Float> = Render.read(props.value);
@@ -972,7 +972,7 @@ class Widgets implements Markup {
 			});
 		});
 		onCleanup(() -> stopped = true);
-		return <view tag={props.tag ?? "progress"} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
+		return <view tag={props.tag ?? "progress"} ref={n -> States.apply(n, props.style)} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
 			slot="progress" width={props.width} overflow="hidden" direction="row">
 			<view slot="progress-indicator" width={() -> (frac() * 100) + "%"}/>
 			{() -> known() ? null : <view tag="progress-slide" slot="progress-indicator" data-state="indeterminate" position="absolute" top={0} bottom={0}
@@ -989,7 +989,7 @@ class Widgets implements Markup {
 	// "select-trigger" (data-state "open" or "closed"), "select-value",
 	// "select-content", "select-item" (data-state "checked" or "unchecked")
 	// and "select-item-indicator" (shown when checked)
-	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?tag:String}):View {
+	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "select", w = props.width ?? 160.0;
 		var open = signal(false);
 		var items:Array<Node> = [];
@@ -1008,7 +1008,7 @@ class Widgets implements Markup {
 			if (i >= 0 && i < props.options.length) props.value.value = props.options[i];
 		}
 		var typed = new TypeAhead(), shown = [for (i in 0...props.options.length) props.labels != null ? props.labels[i] : props.options[i]];
-		return <view tag={tag} slot="select-trigger" role="combobox" label={props.label} expanded={() -> open.value}
+		return <view tag={tag} slot="select-trigger" ref={n -> States.apply(n, props.style)} role="combobox" label={props.label} expanded={() -> open.value}
 			data-state={() -> open.value ? "open" : "closed"} focusable width={w} onClick={_ -> open.value = !open.value}
 			onKeyDown={e -> switch e.key {
 				case Key.ENTER | Key.SPACE:
@@ -1279,11 +1279,11 @@ class Widgets implements Markup {
 	// variant (default "outline"), data-state "open" or "closed"; slots
 	// "dropdown-menu-content", "dropdown-menu-item" and "dropdown-menu-shortcut"
 	public static function DropdownMenu(props:{label:String, items:Array<MenuItem>, ?variant:String,
-			?tag:String}):View {
+			?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "menu";
 		var open = signal(false);
 		var items:Array<Node> = [];
-		return <view tag={tag} slot="button" variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
+		return <view tag={tag} slot="button" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
 			data-state={() -> open.value ? "open" : "closed"} focusable onClick={_ -> open.value = !open.value}
 			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE || e.key == Key.DOWN) {
 				open.value = true;
@@ -1687,9 +1687,9 @@ class Widgets implements Markup {
 	// signal) says whether it is. Slots "popover-trigger" (the button, a
 	// "button" of variant, data-state "open" or "closed") and
 	// "popover-content" (data-state, data-side "bottom")
-	public static function PopoverButton(props:{label:String, ?open:Signal<Bool>, ?variant:String, ?tag:String, ?children:Any}):View {
+	public static function PopoverButton(props:{label:String, ?open:Signal<Bool>, ?variant:String, ?style:States->StyleProps, ?tag:String, ?children:Any}):View {
 		var open = props.open ?? signal(false), tag = props.tag ?? "popover";
-		return <view tag={tag} slot="button" variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
+		return <view tag={tag} slot="button" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
 			data-state={() -> open.value ? "open" : "closed"} focusable onClick={_ -> open.value = !open.peek()}
 			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 				open.value = true;
@@ -2006,10 +2006,11 @@ class Widgets implements Markup {
 	// lines high (3); a right click (or the menu key) opens its edit menu;
 	// invalid and disabled as an input's (slot "textarea")
 	public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
-			?tag:String}):View {
+			?style:States->StyleProps, ?tag:String}):View {
 		var f = new TextArea(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
 		f.slot = "textarea";
+		States.apply(f, props.style);
 		f.rows = props.rows ?? 3;
 		f.placeholder = props.placeholder ?? "";
 		f.semantics.label = props.label ?? props.placeholder;
@@ -2055,10 +2056,11 @@ class Widgets implements Markup {
 	// technology; invalid: aria-invalid; disabled: not focusable or edited
 	// (slot "input"; its placeholder's colour a "placeholder" rule's)
 	public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?tag:String}):View {
+			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
 		var f = new TextField(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
 		f.slot = "input";
+		States.apply(f, props.style);
 		if (props.password == true) f.secret = true;
 		f.placeholder = props.placeholder ?? "";
 		f.semantics.label = props.label ?? props.placeholder;

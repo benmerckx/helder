@@ -46,7 +46,10 @@ class Ui {
 		if (v == focusVisible) return v;
 		focusVisible = v;
 		// (the focused node's rules for focus-visible)
-		if (focus != null) @:privateAccess focus.restyleLater();
+		if (focus != null) {
+			@:privateAccess focus.restyleLater();
+			focus.statesChanged();
+		}
 		return v;
 	}
 

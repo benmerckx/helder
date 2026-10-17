@@ -333,6 +333,15 @@ static final sheet:StyleSheet = {
 };
 ```
 
+An instance's look can follow its states without a theme, as React
+Aria's render props: a widget's `style` is a function of its part's
+`States` (signals: `hovered`, `pressed`, `focusVisible`, `disabled`,
+`attr("data-state")`):
+
+```haxe
+<Button label="Save" style={s -> s.hovered.value ? {background: Color.parse("#e4e4e7")} : {}}/>
+```
+
 `ui.theme = sheet` installs it (`node.theme` for a subtree), and
 `ui.dark` picks its dark colours; a `UiWindow`'s follows the system's
 appearance (`UiWindow.dark`). A widget's own style (an attribute in

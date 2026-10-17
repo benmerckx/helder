@@ -1006,7 +1006,17 @@ class Node {
 			ui.requestFrame();
 			restyleLater();
 		}
+		if (changed) statesChanged();
 	}
+
+	// called when its states (hover, press, focus, the focus ring's
+	// visibility) or attributes change: hxmc.ui.view.States' signals
+	public var onStates:Null<Void->Void> = null;
+	// (its States, once made: hxmc.ui.view's)
+	@:allow(hxmc.ui.view) var statesOf:Any = null;
+
+	@:allow(hxmc.ui.Ui) function statesChanged()
+		if (onStates != null) onStates();
 
 	// --- theme ---
 
@@ -1022,6 +1032,7 @@ class Node {
 			attrs.set(name, value);
 		}
 		restyleLater();
+		statesChanged();
 	}
 
 	// the theme it is styled by: its own or the nearest ancestor's, else the window's

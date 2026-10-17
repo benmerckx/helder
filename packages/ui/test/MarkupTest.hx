@@ -113,6 +113,7 @@ class MarkupTest implements Markup {
 		unstyledNav();
 		unstyledRest();
 		unstyledExtras();
+		statesStyle();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -1494,6 +1495,36 @@ class MarkupTest implements Markup {
 		check("unstyled: a colour picker's parts", ui.root.find("col").slot == "color-picker" && ui.root.find("col-area").slot == "color-picker-area"
 			&& ui.root.find("col-hue").slot == "color-picker-hue" && ui.root.find("col-swatch").slot == "color-picker-swatch"
 			&& ui.root.find("col-area").children[1].slot == "color-picker-thumb" && ui.root.find("col-area").children[1].style.borderWidth == 2);
+	}
+
+// a part's states as signals (React Aria's render props): an instance's
+	// style a function of them, over the theme's rules, taken back when it
+	// no longer gives a property
+	static function statesStyle() {
+		var ui = new Ui(new MonoText(), 400, 300), ticked = signal(false);
+		ui.theme = {rules: [{slot: "button", style: {background: Color.rgb(0x111111), padding: 4}}]};
+		Render.render(<view align-items="start" padding={10}>
+			<Button tag="b" label="Go" style={s -> s.hovered.value ? {background: Color.rgb(0xFF0000)} : {}}/>
+			<Checkbox tag="c" checked={ticked} label="A" style={s -> s.attr("data-state").value == "checked" ? {opacity: 0.5} : {}}/>
+		</view>, ui.root);
+		ui.update();
+		var b = ui.root.find("b"), c = ui.root.find("c");
+		var before = b.style.background;
+		ui.pointerMove(b.absX + 2, b.absY + 2);
+		ui.update();
+		var hovered = b.style.background, states = States.of(b);
+		ui.pointerMove(390, 290);
+		ui.update();
+		check("states: an instance's style a function of its states, over the theme's, the theme's again after", before == Color.rgb(0x111111)
+			&& hovered == Color.rgb(0xFF0000) && b.style.background == Color.rgb(0x111111) && !states.hovered.value, hovered.toHex() + " " + b.style.background.toHex());
+		ticked.value = true;
+		ui.update();
+		check("states: an attribute as a signal (data-state)", c.style.opacity == 0.5 && States.of(c).attr("data-state").value == "checked");
+		ui.setFocus(b);
+		ui.keyDown(Key.TAB, 0);
+		ui.keyDown(Key.TAB, 0);
+		ui.setFocus(b, true);
+		check("states: focused, focus-visible", States.of(b).focused.value);
 	}
 
 	static function unstyledExtras() {

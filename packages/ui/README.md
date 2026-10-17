@@ -304,7 +304,12 @@ widget has no look at all (React Aria's way: behaviour, semantics and
 its parts' states only), unless a program adds base rules
 (`Rules.addBase`: where no sheet applies); `examples/Plain.hx` is a plain
 sheet in the text's colour (`currentColor`) that the examples and tests
-use. The system colours `Canvas` and `CanvasText` are a sheet's colours of those
+use. A part's states are signals (`hxmc.ui.view.States.of(node)`:
+`hovered`, `pressed`, `focused`, `focusVisible`, `disabled`,
+`attr("data-state")`...), and a widget's `style` prop is a function of
+them, as React Aria's render props: `<Button style={s -> s.pressed.value ?
+{opacity: 0.8} : {}}/>` (over the theme's rules; what it stops giving,
+the theme's again). The system colours `Canvas` and `CanvasText` are a sheet's colours of those
 names, else Chromium's, light or dark; a page's slot `"body"` takes them
 (shadcn's `bg-background text-foreground` on the body). Menus' and a
 select's items take the focus under the pointer (`focus` rules, as
