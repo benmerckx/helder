@@ -70,6 +70,7 @@ export default function (host) {
 			set('aria-multiline', n.multiline ? 'true' : null);
 		} else set('aria-label', n.name || null);
 		set('aria-description', n.description);
+		set('data-href', n.href);
 		set('aria-checked', n.checked);
 		set('aria-selected', n.selected);
 		set('aria-multiselectable', n.multiselectable ? 'true' : null);

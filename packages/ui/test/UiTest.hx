@@ -1187,6 +1187,11 @@ class UiTest {
 		var names = [for (f in sys.FileSystem.readDirectory(dir)) if (StringTools.endsWith(f, ".png")) f.substr(0, f.length - 4)];
 		names.sort(Reflect.compare);
 		check("images: the cases", names.length >= 20, '${names.length}');
+		// (the file kept as it was, for a writer to embed; gone once the pixels change)
+		var file = sys.io.File.getBytes(dir + "/" + names[0] + ".png"), kept = Image.decode(file);
+		var had = kept.source != null && kept.source.type == "png" && kept.source.bytes == file;
+		kept.changed();
+		check("images: the file it was decoded from, until its pixels change", had && kept.source == null && new Image(1, 1).source == null);
 		for (n in names) {
 			var want = sys.io.File.getBytes(dir + "/" + n + ".rgba");
 			var img = try Image.decode(sys.io.File.getBytes(dir + "/" + n + ".png")) catch (e:Dynamic) {

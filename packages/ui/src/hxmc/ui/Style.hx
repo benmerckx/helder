@@ -190,6 +190,12 @@ class Style {
 	// thumb's and track's colours (CSS's scrollbar-color, inherited; null:
 	// the parent's, else the window's, Ui.scrollbarColor, and no track)
 	public var scrollbarWidth(get, set):Null<ScrollbarWidth>;
+	// paged layout (a document host's; nothing in a window): where pages may
+	// break (PageBreak; null: Auto), the named page it is on (CSS's page)
+	public var breakBefore(get, set):Null<PageBreak>;
+	public var breakAfter(get, set):Null<PageBreak>;
+	public var breakInside(get, set):Null<PageBreak>;
+	public var page(get, set):Null<String>;
 	public var scrollbarColor(get, set):Null<Color>;
 	public var scrollbarTrackColor(get, set):Null<Color>;
 
@@ -434,6 +440,42 @@ class Style {
 
 	inline function get_fieldSizing():Null<FieldSizing>
 		return rare == null ? null : rare.fieldSizing;
+
+	inline function get_breakBefore():Null<PageBreak>
+		return rare == null ? null : rare.breakBefore;
+
+	function set_breakBefore(v:Null<PageBreak>):Null<PageBreak> {
+		if (v == breakBefore) return v;
+		more().breakBefore = v;
+		return v;
+	}
+
+	inline function get_breakAfter():Null<PageBreak>
+		return rare == null ? null : rare.breakAfter;
+
+	function set_breakAfter(v:Null<PageBreak>):Null<PageBreak> {
+		if (v == breakAfter) return v;
+		more().breakAfter = v;
+		return v;
+	}
+
+	inline function get_breakInside():Null<PageBreak>
+		return rare == null ? null : rare.breakInside;
+
+	function set_breakInside(v:Null<PageBreak>):Null<PageBreak> {
+		if (v == breakInside) return v;
+		more().breakInside = v;
+		return v;
+	}
+
+	inline function get_page():Null<String>
+		return rare == null ? null : rare.page;
+
+	function set_page(v:Null<String>):Null<String> {
+		if (v == page) return v;
+		more().page = v;
+		return v;
+	}
 
 	inline function get_scrollbarWidth():Null<ScrollbarWidth>
 		return rare == null ? null : rare.scrollbarWidth;
@@ -1531,6 +1573,10 @@ class Style {
 		if (p.userSelect != null) userSelect = p.userSelect;
 		if (p.fieldSizing != null) fieldSizing = p.fieldSizing;
 		if (p.scrollbarWidth != null) scrollbarWidth = p.scrollbarWidth;
+		if (p.breakBefore != null) breakBefore = p.breakBefore;
+		if (p.breakAfter != null) breakAfter = p.breakAfter;
+		if (p.breakInside != null) breakInside = p.breakInside;
+		if (p.page != null) page = p.page;
 		if (p.scrollbarColor != null) scrollbarColor = p.scrollbarColor;
 		if (p.scrollbarTrackColor != null) scrollbarTrackColor = p.scrollbarTrackColor;
 		if (p.ringWidth != null) ringWidth = p.ringWidth;
@@ -1607,6 +1653,10 @@ private class StyleRare {
 	public var userSelect:Null<UserSelect> = null;
 	public var fieldSizing:Null<FieldSizing> = null;
 	public var scrollbarWidth:Null<ScrollbarWidth> = null;
+	public var breakBefore:Null<PageBreak> = null;
+	public var breakAfter:Null<PageBreak> = null;
+	public var breakInside:Null<PageBreak> = null;
+	public var page:Null<String> = null;
 	public var scrollbarColor:Null<Color> = null;
 	public var scrollbarTrackColor:Null<Color> = null;
 	public var ringWidth:Float = 0;

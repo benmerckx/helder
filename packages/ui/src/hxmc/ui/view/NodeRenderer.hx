@@ -19,7 +19,7 @@ import hxmc.ui.*;
 // onPointerLeave, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
-// role, label, description, checked, selected, expanded, level, disabled,
+// role, label, description, href, checked, selected, expanded, level, disabled,
 // value-now, value-min, value-max, value-text, hidden), and what a theme
 // styles it as (Rule: slot, variant, size, data-* and aria-* attributes,
 // data-state="checked"). A text node holds
@@ -143,6 +143,10 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 				semantics(n).label = v == null ? null : Std.string(v);
 			case "description":
 				semantics(n).description = v == null ? null : Std.string(v);
+			case "href":
+				var sem = semantics(n);
+				sem.href = v == null ? null : Std.string(v);
+				if (sem.role == null && v != null) sem.role = Link;
 			case "checked":
 				semantics(n).checked = v == null ? null : v == true || v == "true";
 				semantics(n).mixed = v == "mixed";

@@ -97,6 +97,7 @@ class MarkupTest implements Markup {
 		otp();
 		drawer();
 		menuKinds();
+		documentNames();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -1719,6 +1720,23 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.TAB, 0);
 		ui.setFocus(b, true);
 		check("states: focused, focus-visible", States.of(b).focused.value);
+	}
+
+	// a link's href (a Link to assistive technology, a document's annotation); paged layout's names in a window: kept, nothing more
+	static function documentNames() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		Render.render(<view padding={10}>
+			<text tag="docs" href="https://hxmc.dev/docs" focusable>Docs</text>
+			<view tag="chapter" break-before="page" break-inside="avoid" page="wide" height={20}/>
+		</view>, ui.root);
+		ui.update();
+		var link = ui.root.find("docs"), t = ui.accessTree();
+		var an = [for (id in t.order) t.nodes.get(id)].filter(a -> a.href != null)[0];
+		var ch = ui.root.find("chapter");
+		check("document: a link's href, a Link", link.semantics.role == hxmc.ui.access.Role.Link && an != null && an.href == "https://hxmc.dev/docs"
+			&& an.toJson().href == "https://hxmc.dev/docs");
+		check("document: break-before, break-inside and page kept in a window", ch.style.breakBefore == Page && ch.style.breakInside == Avoid
+			&& ch.style.page == "wide" && ch.height == 20);
 	}
 
 	static function unstyledExtras() {

@@ -14,6 +14,10 @@ class Image {
 	public final id:Int = nextId++;
 	// bumped by changed(): the pixels were written to
 	public var version(default, null) = 0;
+	// the file it was decoded from (decode; type "png", "jpeg", "gif" or
+	// "webp"), kept for a writer to embed as it is (a PDF's JPEG); null once
+	// its pixels change, or when it was made from pixels
+	public var source(default, null):Null<{bytes:Bytes, type:String}> = null;
 
 	static var nextId = 1;
 
@@ -27,13 +31,22 @@ class Image {
 
 	// a PNG, JPEG, GIF or WebP file's image (by its signature)
 	public static function decode(bytes:Bytes):Image {
-		var d = bytes.length >= 2 && bytes.get(0) == 0xFF && bytes.get(1) == 0xD8 ? JpegDecoder.decode(bytes) : bytes.length >= 4
-			&& bytes.getString(0, 4) == "GIF8" ? GifDecoder.decode(bytes) : bytes.length >= 12 && bytes.getString(0, 4) == "RIFF"
-			&& bytes.getString(8, 4) == "WEBP" ? WebpDecoder.decode(bytes) : PngDecoder.decode(bytes);
-		return new Image(d.width, d.height, d.rgba);
+		var type = bytes.length >= 2 && bytes.get(0) == 0xFF && bytes.get(1) == 0xD8 ? "jpeg" : bytes.length >= 4
+			&& bytes.getString(0, 4) == "GIF8" ? "gif" : bytes.length >= 12 && bytes.getString(0, 4) == "RIFF" && bytes.getString(8, 4) == "WEBP" ? "webp" : "png";
+		var d = switch type {
+			case "jpeg": JpegDecoder.decode(bytes);
+			case "gif": GifDecoder.decode(bytes);
+			case "webp": WebpDecoder.decode(bytes);
+			case _: PngDecoder.decode(bytes);
+		}
+		var img = new Image(d.width, d.height, d.rgba);
+		img.source = {bytes: bytes, type: type};
+		return img;
 	}
 
 	// the pixels changed: renderers upload them again
-	public function changed()
+	public function changed() {
 		version++;
+		source = null;
+	}
 }
