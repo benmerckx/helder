@@ -1307,6 +1307,18 @@ static function transitions() {
 		ui.update();
 		Clock.finish();
 		check("transitions: and back, the rules' all along", b.style.background == Color.rgb(0x000000), b.style.background.toHex());
+		// (a rule for right to left: again when the direction changes)
+		ui.theme = {rules: [{slot: "t", style: {opacity: 0.5}}, {slot: "t", when: ["rtl"], style: {opacity: 0.25}}]};
+		var th = new Node("t");
+		th.slot = "t";
+		ui.root.append(th);
+		ui.update();
+		var ltr = th.style.opacity;
+		ui.root.style.dir = Rtl;
+		ui.update();
+		check("themes: rtl rules, again when the direction changes", ltr == 0.5 && th.style.opacity == 0.25, ltr + " " + th.style.opacity);
+		ui.root.style.dir = null;
+		ui.theme = null;
 	}
 
 	static function themes() {

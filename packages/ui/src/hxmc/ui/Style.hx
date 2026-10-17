@@ -598,8 +598,9 @@ class Style {
 		if (v == dir) return v;
 		more().dir = v;
 		node.styleChanged(true);
-		// (inherited: every container under it lays out again)
+		// (inherited: every container under it lays out again, its rules for rtl hold or not)
 		@:privateAccess node.dirChanged();
+		if (node.ui != null) Rules.restyleTree(node);
 		return v;
 	}
 

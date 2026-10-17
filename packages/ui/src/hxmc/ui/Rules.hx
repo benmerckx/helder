@@ -10,7 +10,8 @@ package hxmc.ui;
 // set itself (its value still the default, or still what the rules last
 // wrote) written, and those the rules no longer set taken back to the
 // default. Again whenever a state changes: hover, press, focus, the focus
-// ring's visibility, an attribute, the variant or size, the sheet, dark.
+// ring's visibility, an attribute, the variant or size, the sheet, dark,
+// the direction (rtl, ltr).
 class Rules {
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
@@ -185,6 +186,8 @@ class Rules {
 			case "focus-visible": n.focused && ui.focusVisible;
 			case "disabled": n.attr("disabled") != null || n.attr("data-disabled") != null;
 			case "dark": ui.dark;
+			case "rtl": n.rtl();
+			case "ltr": !n.rtl();
 			case _:
 				var eq = w.indexOf("=");
 				eq < 0 ? n.attr(w) != null : n.attr(w.substr(0, eq)) == w.substr(eq + 1);

@@ -285,7 +285,7 @@ shadcn/ui's). A theme is a `StyleSheet`: `rules`, each a `Rule`
 references name, `light` and `dark`. A node takes the rules of its
 `slot` (shadcn's data-slot names: `"button"`, `"switch-thumb"`),
 `variant` and `size` whose states all hold: `hover`, `active`,
-`focus`, `focus-visible`, `disabled`, `dark`, `placeholder` (an
+`focus`, `focus-visible`, `disabled`, `dark`, `rtl` and `ltr` (its direction), `placeholder` (an
 input's placeholder colour), `selection` (its selection's background), attributes (`data-state=checked`, a bare
 `data-disabled`; `node.setAttr`, markup `data-state="checked"`). Later
 rules win, property by property; the node's own style wins over them.
