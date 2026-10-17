@@ -1354,7 +1354,8 @@ class UiTest {
 			case "borderWidth": s.borderWidth = v;
 			case "borders": s.borders = (v : Array<Float>);
 			case "padding": s.padding = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
-			case "margin": s.margin = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
+			// ("auto": NaN)
+			case "margin": s.margin = Std.isOfType(v, Array) ? [for (x in (v : Array<Dynamic>)) x == "auto" ? Math.NaN : (x : Float)] : v == "auto" ? Math.NaN : (v : Float);
 			case "dir": s.dir = v == "Rtl" ? Rtl : Ltr;
 			case "order": s.order = v;
 			case "direction": s.direction = switch (v : String) {

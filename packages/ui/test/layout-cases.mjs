@@ -144,6 +144,20 @@ export const cases = [
 		{ style: { direction: 'Row', alignItems: 'Start', columnGap: 4 }, children: [{ style: { direction: 'ColumnReverse', justify: 'SpaceAround', width: 10, height: 60 }, children: [box(10, 40, { shrink: 0 }), box(10, 40, { shrink: 0 })] }] }] } },
 	// a stretched item's content measured at its own max-width: its wrapping row's lines as wide
 	{ name: 'stretched item measured within its max-width', width: 200, height: 150, tree: { style: { justify: 'End' }, children: [{ style: { maxWidth: 40 }, children: [{ style: { direction: 'Row', wrap: true }, children: [box(30, 60), box(20, 40)] }, { style: { basis: 50, height: 60 } }] }] } },
+	// auto margins: the free space along shared among them (justify-content left out), across the line's room left (not stretched)
+	{ name: 'auto margins in a row', width: 300, height: 200, tree: { style: { rowGap: 4 }, children: [
+		{ style: { direction: 'Row', height: 30, justify: 'Center' }, children: [box(40, 20), box(40, 20, { margin: [0, 0, 0, 'auto'] }), box(40, 20)] },
+		{ style: { direction: 'Row', height: 30, columnGap: 10 }, children: [box(40, 20, { margin: [0, 'auto'] }), box(40, 20, { margin: ['auto', 0, 0, 'auto'] }), { style: { width: 40, margin: ['auto', 5, 'auto', 5] } }] },
+		{ style: { direction: 'Row', height: 30 }, children: [box(200, 20, { margin: [0, 'auto'], shrink: 0 }), box(150, 20, { margin: ['auto', 0, 'auto', 0], height: 50 })] },
+		{ style: { direction: 'RowReverse', height: 30, dir: 'Rtl' }, children: [box(40, 20, { margin: [0, 'auto', 0, 0] }), box(40, 20)] }] } },
+	{ name: 'auto margins in a column and a grid', width: 300, height: 300, tree: { style: { direction: 'Row', columnGap: 10, alignItems: 'Start' }, children: [
+		{ style: { height: 200, width: 80 }, children: [box(40, 20, { margin: ['auto', 'auto', 0, 'auto'] }), box(40, 20), box(40, 20, { margin: [0, 0, 'auto', 'auto'] }), h(20)] },
+		{ style: { display: 'Grid', gridTemplateColumns: '80px 80px', gridAutoRows: '60px', width: 160 }, children: [box(30, 20, { margin: 'auto' }), box(30, 20, { margin: [0, 0, 'auto', 'auto'] }), { style: { height: 20, margin: [0, 'auto'] } }, { style: { margin: ['auto', 0] } }] }] } },
+	{ name: 'auto margins on absolute boxes', width: 300, height: 200, tree: { style: { height: 200 }, children: [
+		{ style: { position: 'Absolute', left: 10, right: 10, top: 10, bottom: 10, width: 100, height: 50, margin: 'auto' } },
+		{ style: { position: 'Absolute', left: 10, right: 10, top: 0, width: 100, height: 20, margin: [0, 0, 0, 'auto'] } },
+		{ style: { position: 'Absolute', left: 10, right: 10, top: 30, bottom: 0, width: 400, height: 20, margin: ['auto', 'auto', 0, 'auto'] } },
+		{ style: { position: 'Absolute', left: 0, right: 0, top: 60, margin: [0, 'auto'], height: 10 } }] } },
 	// shrinking weighs each item's base size inside its padding and border
 	{ name: 'shrink by the content-box base size', width: 200, height: 60, tree: { style: { direction: 'Row' }, children: [box(100, 20, { padding: [0, 20] }), box(100, 20, { borderWidth: 10 }), box(100, 20)] } },
 	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },

@@ -2,7 +2,7 @@ package hxmc.ui;
 
 // Flexbox layout of a Node tree, after CSS Flexible Box Layout (section 9),
 // and CSS grid for a Display Grid container (grid() below):
-// margins are pixels (no auto margins), no baseline alignment. A flex
+// margins are pixels or auto (NaN), no baseline alignment. A flex
 // item's min size on the main axis is CSS's automatic minimum when auto
 // (its content's: the min-content width in a row, the content's height in
 // a column; no more than its width or height when given; 0 for Overflow
@@ -169,16 +169,23 @@ class Layout {
 			}
 			var it = takeItem(c);
 			var m = cs.margin;
-			it.mMainStart = row ? (flipMain ? m.right : m.left) : (flipMain ? m.bottom : m.top);
-			it.mMainEnd = row ? (flipMain ? m.left : m.right) : (flipMain ? m.top : m.bottom);
-			it.mCrossStart = row ? m.top : (flipCross ? m.right : m.left);
-			it.mCrossEnd = row ? m.bottom : (flipCross ? m.left : m.right);
+			var ms = row ? (flipMain ? m.right : m.left) : (flipMain ? m.bottom : m.top), me = row ? (flipMain ? m.left : m.right) : (flipMain ? m.top : m.bottom);
+			var cs0 = row ? m.top : (flipCross ? m.right : m.left), ce = row ? m.bottom : (flipCross ? m.left : m.right);
+			// (auto margins: 0 until the free space is shared among them)
+			it.autoMain = (Math.isNaN(ms) ? 1 : 0) | (Math.isNaN(me) ? 2 : 0);
+			it.autoCross = (Math.isNaN(cs0) ? 1 : 0) | (Math.isNaN(ce) ? 2 : 0);
+			it.mMainStart = mz(ms);
+			it.mMainEnd = mz(me);
+			it.mCrossStart = mz(cs0);
+			it.mCrossEnd = mz(ce);
 			it.minMain = Math.max(min(row ? cs.minWidth : cs.minHeight, pctMain), row ? edgesH(cs) : edgesV(cs));
 			it.maxMain = max(row ? cs.maxWidth : cs.maxHeight, pctMain);
 			it.minCross = Math.max(min(row ? cs.minHeight : cs.minWidth, pctCross), row ? edgesV(cs) : edgesH(cs));
 			it.maxCross = max(row ? cs.maxHeight : cs.maxWidth, pctCross);
 			it.align = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (it.align == Auto) it.align = Stretch;
+			// (an auto margin across: not stretched, placed by its margins)
+			if (it.autoCross != 0) it.align = Start;
 			// (stretched only when its size across is auto: a percentage of an indefinite one is not)
 			if (it.align == Stretch && (row ? cs.height : cs.width) != DimValue.Auto) it.align = Start;
 			it.styleCross = clamp((row ? cs.height : cs.width).resolve(pctCross), it.minCross, it.maxCross);
@@ -349,6 +356,12 @@ class Layout {
 			}
 			taken += gapMain * (n - 1);
 			var free = mainSize - taken, pos = 0.0, gap = gapMain;
+			// (auto margins along: the free space shared among them, justify-content left out)
+			var autos = 0;
+			for (i in l.start...l.end)
+				autos += (items[i].autoMain & 1) + (items[i].autoMain >> 1);
+			var share = autos > 0 && free > 0 ? free / autos : 0.0;
+			if (autos > 0) free = 0;
 			switch s.justify {
 				case Start | Normal:
 				case End: pos = free;
@@ -370,8 +383,11 @@ class Layout {
 			}
 			for (i in l.start...l.end) {
 				var it = items[i];
-				var mainPos = pos + it.mMainStart;
-				var crossPos = lineStart + switch it.align {
+				var startMargin = it.mMainStart + (it.autoMain & 1 != 0 ? share : 0), endMargin = it.mMainEnd + (it.autoMain & 2 != 0 ? share : 0);
+				var mainPos = pos + startMargin;
+				// (auto margins across: the line's room left shared among them, none when it overflows)
+				var roomC = l.cross - it.mCrossStart - it.mCrossEnd - it.cross;
+				var crossPos = lineStart + if (it.autoCross != 0) it.mCrossStart + (roomC <= 0 ? 0 : it.autoCross == 3 ? roomC / 2 : it.autoCross == 1 ? roomC : 0) else switch it.align {
 					case End: l.cross - it.cross - it.mCrossEnd;
 					case Center: it.mCrossStart + (l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2;
 					case _: it.mCrossStart;
@@ -395,7 +411,7 @@ class Layout {
 				size(c, cwid, chei, innerW, pctH, cwid, chei, true);
 				c.lw = cwid;
 				c.lh = chei;
-				pos += it.main + it.mMainStart + it.mMainEnd + gap;
+				pos += it.main + startMargin + endMargin + gap;
 				var ex = cx - padL + cwid + (row ? it.mMainEnd : it.mCrossEnd), ey = cy - padT + chei + (row ? it.mCrossEnd : it.mMainEnd);
 				if (ex > cw) cw = ex;
 				if (ey > ch) ch = ey;
@@ -510,10 +526,14 @@ class Layout {
 			if (jx == Auto) jx = Stretch;
 			var jy = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (jy == Auto) jy = Stretch;
+			// (auto margins: not stretched on that axis; placed by them once sized)
+			var autoS = Math.isNaN(rtl ? m.right : m.left), autoE = Math.isNaN(rtl ? m.left : m.right), autoT = Math.isNaN(m.top), autoB = Math.isNaN(m.bottom);
+			if ((autoS || autoE) && jx == Stretch) jx = Start;
+			if ((autoT || autoB) && jy == Stretch) jy = Start;
 			var minCW = Math.max(min(cs.minWidth, width), edgesH(cs)), maxCW = max(cs.maxWidth, width);
 			var minCH = Math.max(min(cs.minHeight, height), edgesV(cs)), maxCH = max(cs.maxHeight, height);
 			var iw = clamp(cs.width.resolve(width), minCW, maxCW), ih = clamp(cs.height.resolve(height), minCH, maxCH);
-			var roomW = Math.max(0, aw - m.left - m.right), roomH = Math.max(0, ah - m.top - m.bottom);
+			var roomW = Math.max(0, aw - mz(m.left) - mz(m.right)), roomH = Math.max(0, ah - mz(m.top) - mz(m.bottom));
 			if (!known(iw)) {
 				if (jx == Stretch) iw = clamp(roomW, minCW, maxCW) else {
 					// (fit-content: its max-content width, no more than the area)
@@ -528,14 +548,17 @@ class Layout {
 					ih = clamp(rh, minCH, maxCH);
 				}
 			}
+			// (the room left shared among its auto margins, none when it overflows)
+			if (autoS || autoE) jx = roomW - iw <= 0 ? Start : autoS && autoE ? Center : autoS ? End : Start;
+			if (autoT || autoB) jy = roomH - ih <= 0 ? Start : autoT && autoB ? Center : autoT ? End : Start;
 			// (right to left: the columns from the right, each item's margins on its own sides)
-			var x = ax + (rtl ? m.right : m.left) + switch jx {
+			var x = ax + (rtl ? mz(m.right) : mz(m.left)) + switch jx {
 				case End: roomW - iw;
 				case Center: (roomW - iw) / 2;
 				case _: 0;
 			}
 			if (rtl) x = width - x - iw;
-			var y = ay + m.top + switch jy {
+			var y = ay + mz(m.top) + switch jy {
 				case End: roomH - ih;
 				case Center: (roomH - ih) / 2;
 				case _: 0;
@@ -549,9 +572,9 @@ class Layout {
 			size(c, iw, ih, width, height, iw, ih, true);
 			c.lw = iw;
 			c.lh = ih;
-			if (x + iw + m.right > cw) cw = x + iw + m.right;
-			if (y + ih + m.bottom > ch) ch = y + ih + m.bottom;
-			if (x - m.left < left) left = x - m.left;
+			if (x + iw + mz(m.right) > cw) cw = x + iw + mz(m.right);
+			if (y + ih + mz(m.bottom) > ch) ch = y + ih + mz(m.bottom);
+			if (x - mz(m.left) < left) left = x - mz(m.left);
 		}
 		// (right to left: what overflows on the left, the columns' too)
 		if (rtl) cw = width - Math.min(left, width - gridW);
@@ -793,21 +816,21 @@ class Layout {
 		for (it in items) {
 			var c = it.node, cs = c.style, m = cs.margin;
 			var given = (columns ? cs.minWidth : cs.minHeight).resolve(columns ? gridW : gridH);
-			var edges = columns ? m.left + m.right : m.top + m.bottom;
+			var edges = columns ? mz(m.left) + mz(m.right) : mz(m.top) + mz(m.bottom);
 			var clipped = cs.overflow != Visible ? edges
 				+ (columns ? cs.padding.left + cs.padding.right + cs.borderEdges.left + cs.borderEdges.right : cs.padding.top + cs.padding.bottom
 					+ cs.borderEdges.top + cs.borderEdges.bottom) : Math.NaN;
 			if (columns) {
-				mins.push(minContentWidth(c, gridW, true) + m.left + m.right);
+				mins.push(minContentWidth(c, gridW, true) + mz(m.left) + mz(m.right));
 				size(c, Math.NaN, Math.NaN, gridW, gridH, Math.NaN, Math.NaN, false);
-				maxes.push(rw + m.left + m.right);
+				maxes.push(rw + mz(m.left) + mz(m.right));
 			} else {
-				var room2 = Math.max(0, it.areaW - m.left - m.right);
+				var room2 = Math.max(0, it.areaW - mz(m.left) - mz(m.right));
 				var iw = cs.width.resolve(gridW);
 				var jx = cs.justifySelf == Auto ? it.node.parent.style.justifyItems : cs.justifySelf;
 				if (!known(iw) && (jx == Stretch || jx == Auto)) iw = room2;
 				size(c, iw, Math.NaN, gridW, gridH, known(iw) ? iw : room2, Math.NaN, false);
-				var v = rh + m.top + m.bottom;
+				var v = rh + mz(m.top) + mz(m.bottom);
 				mins.push(v);
 				maxes.push(v);
 			}
@@ -957,15 +980,15 @@ class Layout {
 			var cs = c.style, m = cs.margin;
 			var l = cs.left.resolve(pbW), r = cs.right.resolve(pbW), t = cs.top.resolve(pbH), b = cs.bottom.resolve(pbH);
 			var aw = cs.width.resolve(pbW), ah = cs.height.resolve(pbH);
-			if (!known(aw) && known(l) && known(r)) aw = Math.max(0, pbW - l - r - m.left - m.right);
-			if (!known(ah) && known(t) && known(b)) ah = Math.max(0, pbH - t - b - m.top - m.bottom);
+			if (!known(aw) && known(l) && known(r)) aw = Math.max(0, pbW - l - r - mz(m.left) - mz(m.right));
+			if (!known(ah) && known(t) && known(b)) ah = Math.max(0, pbH - t - b - mz(m.top) - mz(m.bottom));
 			aw = clamp(aw, Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
 			ah = clamp(ah, Math.max(min(cs.minHeight, pbH), edgesV(cs)), max(cs.maxHeight, pbH));
 			var heightGiven = known(ah);
 			if (!known(aw) || !known(ah)) {
 				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit
 				// the room its offsets and margins leave, not below its min-content width)
-				var room = Math.max(0, pbW - (known(l) ? l : 0) - (known(r) ? r : 0) - m.left - m.right);
+				var room = Math.max(0, pbW - (known(l) ? l : 0) - (known(r) ? r : 0) - mz(m.left) - mz(m.right));
 				var fit = !known(aw), fixedH = known(ah);
 				size(c, aw, ah, pbW, pbH, known(aw) ? aw : room, known(ah) ? ah : Math.NaN, false);
 				aw = rw;
@@ -985,14 +1008,24 @@ class Layout {
 			// item: justify along the main axis, its alignment across, in the content box)
 			var cx = padL - be.left, cy = padT - be.top;
 			var cw = pbW - s.padding.left - s.padding.right, ch = pbH - s.padding.top - s.padding.bottom;
-			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : cx + m.left
-				+ staticOffset(n, c, true, cw - aw - m.left - m.right);
-			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : cy + m.top + staticOffset(n, c, false, ch - ah - m.top - m.bottom);
+			var ax = known(l) ? l + mz(m.left) : known(r) ? pbW - r - aw - mz(m.right) : cx + mz(m.left)
+				+ staticOffset(n, c, true, cw - aw - mz(m.left) - mz(m.right));
+			var ay = known(t) ? t + mz(m.top) : known(b) ? pbH - b - ah - mz(m.bottom) : cy + mz(m.top) + staticOffset(n, c, false, ch - ah - mz(m.top) - mz(m.bottom));
 			// (both offsets and a size that leaves room: placed in the rectangle they leave by its
 			// justifySelf and alignSelf, start by default (the right right to left), as Chromium; one
 			// that overflows it moved back into the containing block as far as it fits, unless its alignment is Auto)
-			if (known(l) && known(r)) ax = selfAligned(cs.justifySelf, l + m.left, pbW - r - m.right, aw, pbW, rtl);
-			if (known(t) && known(b)) ay = selfAligned(cs.alignSelf, t + m.top, pbH - b - m.bottom, ah, pbH, false);
+			if (known(l) && known(r)) ax = selfAligned(cs.justifySelf, l + mz(m.left), pbW - r - mz(m.right), aw, pbW, rtl);
+			if (known(t) && known(b)) ay = selfAligned(cs.alignSelf, t + mz(m.top), pbH - b - mz(m.bottom), ah, pbH, false);
+			// (auto margins with both offsets: the room left theirs, shared when both are, as CSS 2's
+			// equations solve them; both auto and too little room: the start one 0)
+			if (known(l) && known(r) && (Math.isNaN(m.left) || Math.isNaN(m.right))) {
+				var free = pbW - l - r - mz(m.left) - mz(m.right) - aw;
+				ax = Math.isNaN(m.left) && Math.isNaN(m.right) ? l + (free >= 0 ? free / 2 : rtl ? free : 0) : Math.isNaN(m.left) ? l + free : l + mz(m.left);
+			}
+			if (known(t) && known(b) && (Math.isNaN(m.top) || Math.isNaN(m.bottom))) {
+				var free = pbH - t - b - mz(m.top) - mz(m.bottom) - ah;
+				ay = Math.isNaN(m.top) && Math.isNaN(m.bottom) ? t + Math.max(0, free) / 2 : Math.isNaN(m.top) ? t + free : t + mz(m.top);
+			}
 			c.lx = be.left + ax;
 			c.ly = be.top + ay;
 			// (a height of its content's: not definite for its children's percentages)
@@ -1080,7 +1113,7 @@ class Layout {
 					}
 					cw = clamp(cw, Math.max(min(cs.minWidth, Math.NaN), edgesH(cs)), max(cs.maxWidth, Math.NaN));
 				}
-				cw += m.left + m.right;
+				cw += mz(m.left) + mz(m.right);
 				if (row) inner += cw + (count > 0 ? s.columnGap : 0) else if (cw > inner) inner = cw;
 				count++;
 			}
@@ -1269,6 +1302,10 @@ class Layout {
 	static inline function fits(was:Float, got:Float, now:Float):Bool
 		return same(was, now) || ((Math.isNaN(was) || got < was) && (Math.isNaN(now) || got <= now));
 
+	// a margin: auto (NaN) as 0
+	static inline function mz(v:Float):Float
+		return Math.isNaN(v) ? 0 : v;
+
 	// an item's base size inside its padding and border: what its shrink factor scales, as Chromium
 	static inline function inner(it:Item):Float
 		return Math.max(0, it.basis - it.edges);
@@ -1303,6 +1340,9 @@ private class Item {
 	public var mMainEnd = 0.0;
 	public var mCrossStart = 0.0;
 	public var mCrossEnd = 0.0;
+	// its auto margins: 1 at the start, 2 at the end
+	public var autoMain = 0;
+	public var autoCross = 0;
 	public var minMain = 0.0;
 	public var maxMain = 0.0;
 	public var minCross = 0.0;
@@ -1322,6 +1362,7 @@ private class Item {
 	public function reset(node:Node) {
 		this.node = node;
 		mMainStart = mMainEnd = mCrossStart = mCrossEnd = 0;
+		autoMain = autoCross = 0;
 		minMain = maxMain = minCross = maxCross = 0;
 		align = Stretch;
 		styleCross = basis = edges = hypo = main = cross = violation = 0;

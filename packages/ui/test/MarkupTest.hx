@@ -63,6 +63,7 @@ class MarkupTest implements Markup {
 		numbers();
 		rightToLeft();
 		wordBreaks();
+		autoMargins();
 		editMenus();
 		menubar();
 		tabs();
@@ -272,6 +273,19 @@ class MarkupTest implements Markup {
 		dir.value = "ltr";
 		ui.update();
 		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);
+	}
+
+	// auto margins from markup ("auto") and code (Edges.AUTO)
+	static function autoMargins() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		Render.render(<view>
+			<view direction="row" height={30}><view tag="a" width={40} height={20}/><view tag="b" width={40} height={20} margin="0 0 0 auto"/></view>
+			<view tag="c" width={100} height={20} margin={[0, Edges.AUTO]}/>
+		</view>, ui.root);
+		ui.update();
+		var b = ui.root.find("b"), c = ui.root.find("c");
+		check("auto margins: a row's item pushed to the end (markup)", b.absX == 260, "" + b.absX);
+		check("auto margins: centred across a column (Edges.AUTO)", c.absX == 100, "" + c.absX);
 	}
 
 	// overflow-wrap and word-break: inherited into the text's font (what the engine breaks lines by)
