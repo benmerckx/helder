@@ -72,7 +72,7 @@ class Unstyled {
 			{slot: "slider", when: ["disabled"], style: {opacity: 0.5, cursor: Default}},
 			{slot: "slider-track", style: {height: 4, radius: 2, background: faint}},
 			{slot: "slider-range", style: {background: line}},
-			{slot: "slider-thumb", style: {radius: 8, background: line}},
+			{slot: "slider-thumb", style: {width: 16, height: 16, radius: 8, background: line}},
 			{slot: "progress", style: {width: Dim.parse("100%"), height: 8, radius: 4, background: faint}},
 			{slot: "progress-indicator", style: {background: line}},
 			{slot: "separator", style: {background: faint, alignSelf: Stretch, shrink: 0}},

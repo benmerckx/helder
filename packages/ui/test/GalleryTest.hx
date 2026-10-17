@@ -103,17 +103,17 @@ class GalleryTest {
 		key(Key.END);
 		check("the colour picker: its hue strip clicked, then End", app.colour.value != Color.rgb(0x3B82F6) && find("colour-hue").semantics.valueNow == 359
 			&& (cast find("colour-hex") : hxmc.ui.widgets.TextField).text == app.colour.value.toHex().substr(0, 7), app.colour.value.toHex());
-		// the slider: 200 wide, the knob 16 (its centre travels from 8 to 192)
+		// the slider: 200 wide, the value where the pointer is along it (as Radix's)
 		var s = find("volume");
 		var y = s.absY + s.height / 2;
-		ui.pointerDown(s.absX + 8, y, 1);
+		ui.pointerDown(s.absX + 1, y, 1);
 		check("a press at the start", app.volume.value == 0, '${app.volume.value}');
-		ui.pointerMove(s.absX + 8 + 184 * 0.75, y);
+		ui.pointerMove(s.absX + 200 * 0.75, y);
 		check("a drag", Math.abs(app.volume.value - 0.75) < 1e-9, '${app.volume.value}');
 		ui.pointerMove(s.absX + 400, y);
 		check("a drag past the end", app.volume.value == 1, '${app.volume.value}');
-		ui.pointerMove(s.absX + 8 + 184 * 0.5, y);
-		ui.pointerUp(s.absX + 8 + 184 * 0.5, y, 1);
+		ui.pointerMove(s.absX + 200 * 0.5, y);
+		ui.pointerUp(s.absX + 200 * 0.5, y, 1);
 		ui.update();
 		check("released at the middle", Math.abs(app.volume.value - 0.5) < 1e-9 && shown("volume-shown") == "50%", shown("volume-shown"));
 		check("the slider took the focus", ui.focus == s);

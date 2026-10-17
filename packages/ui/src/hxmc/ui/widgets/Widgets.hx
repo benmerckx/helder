@@ -202,16 +202,17 @@ class Widgets implements Markup {
 		return <text tag={props.tag ?? "alert-description"} slot="alert-description">{props.children ?? props.text}</text>;
 
 	// a slider (shadcn's) bound to a signal: from min to max (0 to 1), in
-	// steps (0: any value), width pixels wide (160); dragged, clicked, or
-	// moved with the arrow keys (a step, or a twentieth), Home and End;
-	// disabled: none of them. Slots "slider", "slider-track", "slider-range"
-	// and "slider-thumb" (16 pixels square, where it is placed)
+	// steps (0: any value); dragged, clicked (the value where the pointer is
+	// along it, as Radix's), or moved with the arrow keys (a step, or a
+	// twentieth), Home and End; disabled: none of them. Slots "slider",
+	// "slider-track", "slider-range" and "slider-thumb" (placed along the
+	// track by the value, within it at whatever size its rules give it);
+	// width: the slider's, else its rules'
 	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
 			?tag:String}):View {
 		Unstyled.install();
 		var disabled = () -> read(props.disabled) == true;
-		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, w = props.width ?? 160.0;
-		var knob = 16.0;
+		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0;
 		function set(v:Float) {
 			v = Math.max(lo, Math.min(hi, v));
 			// (to the step, without the binary fractions' noise: 0.6, not 0.6000000000000001)
@@ -223,12 +224,13 @@ class Widgets implements Markup {
 		function at(e:Event) {
 			if (disabled()) return;
 			var n = e.current, x = n.localX(e.x, e.y);
-			if (n.rtl()) x = w - x;
-			set(lo + (x - knob / 2) / (w - knob) * (hi - lo));
+			if (n.width <= 0) return;
+			if (n.rtl()) x = n.width - x;
+			set(lo + x / n.width * (hi - lo));
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		return <view tag={props.tag ?? "slider"} slot="slider" role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
-			value-max={hi} width={w} height={knob + 4} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} justify="center"
+			value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
 			onKeyDown={e -> if (!disabled()) switch e.key {
 				case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
@@ -243,26 +245,34 @@ class Widgets implements Markup {
 					set(hi);
 				case _:
 			}}>
-			<view slot="slider-track" margin={[0, knob / 2]} overflow="hidden" direction="row">
+			<view slot="slider-track" overflow="hidden" direction="row">
 				<view slot="slider-range" width={() -> (frac() * 100) + "%"}/>
 			</view>
-			<view position="absolute" top={2} left={0} width={w} direction="row" pointer-events="none">
-				<view width={() -> frac() * (w - knob)}/>
-				<view slot="slider-thumb" width={knob} height={knob}/>
-			</view>
+			{along(frac, <view slot="slider-thumb" shrink={0}/>)}
 		</view>;
 	}
+
+	// (a thumb along a slider's track, a fraction f of the way: between two
+	// spacers sharing the room it leaves, f and 1 - f of it; mirrored right
+	// to left as the row is)
+	static function along(f:Void->Float, thumb:View):View
+		return <view position="absolute" top={0} bottom={0} left={0} right={0} direction="row" align-items="center" pointer-events="none">
+			<view grow={f} shrink={0} basis={0}/>
+			{thumb}
+			<view grow={() -> 1 - f()} shrink={0} basis={0}/>
+		</view>;
 
 	// a range slider: two knobs on one track, the range between them filled,
 	// low no more than high; a press moves the nearer knob (then drags it)
 	// and focuses it, each knob a slider for the keyboard and assistive
 	// technology (Left and Down lower it, Right and Up raise it, Home and End
-	// to its bounds, as far as the other knob). The slider's slots, a thumb each knob
+	// to its bounds, as far as the other knob). The slider's slots, a thumb
+	// each knob; width: the slider's, else its rules'
 	public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
 			?tag:String}):View {
 		Unstyled.install();
-		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, w = props.width ?? 160.0, tag = props.tag ?? "range";
-		var knob = 16.0, dragging = -1, name = props.label ?? "Range", knobs:Array<Node> = [];
+		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, tag = props.tag ?? "range";
+		var dragging = -1, name = props.label ?? "Range", knobs:Array<Node> = [];
 		function snap(v:Float):Float {
 			v = Math.max(lo, Math.min(hi, v));
 			return step > 0 ? Math.max(lo, Math.min(hi, Math.fround((lo + Math.fround((v - lo) / step) * step) * 1e9) / 1e9)) : v;
@@ -275,19 +285,16 @@ class Widgets implements Markup {
 		var frac = (v:Float) -> hi > lo ? (v - lo) / (hi - lo) : 0.0;
 		// (right to left: the minimum at the right)
 		function valueAt(e:Event):Float {
-			var n = e.current, x = n.localX(e.x, e.y);
+			var n = e.current, x = n.localX(e.x, e.y), w = Math.max(1, n.width);
 			if (n.rtl()) x = w - x;
-			return lo + (x - knob / 2) / (w - knob) * (hi - lo);
+			return lo + x / w * (hi - lo);
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
-		// (a knob in a row the width of the track, after a spacer: mirrored right to left as the row is)
 		function thumb(k:Int):View {
 			var value = k == 0 ? props.low : props.high;
-			return <view position="absolute" top={2} left={0} width={w} direction="row" pointer-events="none">
-				<view width={() -> frac(value.value) * (w - knob)}/>
-				<view tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
+			return along(() -> frac(value.value), <view tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
 					value-now={() -> value.value} value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi}
-					width={knob} height={knob} focusable pointer-events="auto"
+					shrink={0} focusable pointer-events="auto"
 					onKeyDown={e -> switch e.key {
 						case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
 							e.preventDefault();
@@ -300,10 +307,9 @@ class Widgets implements Markup {
 							e.preventDefault();
 							set(k, hi);
 						case _:
-					}}/>
-			</view>;
+					}}/>);
 		}
-		return <view tag={tag} slot="slider" role="group" label={name} width={w} height={knob + 4} justify="center"
+		return <view tag={tag} slot="slider" role="group" label={name} width={props.width} justify="center"
 			onPointerDown={e -> {
 				var v = valueAt(e);
 				// (the nearer knob; where they meet, the one that can move that way)
@@ -318,9 +324,9 @@ class Widgets implements Markup {
 			}}
 			onPointerMove={e -> if (e.current.pressed && dragging >= 0) set(dragging, valueAt(e))}
 			onPointerUp={_ -> dragging = -1}>
-			<view slot="slider-track" margin={[0, knob / 2]} overflow="hidden" direction="row">
-				<view width={() -> frac(props.low.value) * (w - knob)}/>
-				<view slot="slider-range" width={() -> (frac(props.high.value) - frac(props.low.value)) * (w - knob)}/>
+			<view slot="slider-track" overflow="hidden" direction="row">
+				<view width={() -> (frac(props.low.value) * 100) + "%"}/>
+				<view slot="slider-range" width={() -> ((frac(props.high.value) - frac(props.low.value)) * 100) + "%"}/>
 			</view>
 			{thumb(0)}
 			{thumb(1)}

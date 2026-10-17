@@ -1242,7 +1242,7 @@ class MarkupTest implements Markup {
 		check("unstyled: a click on a trigger activates it", tab.value == 1 && t1.attr("data-state") == "active" && t0.attr("data-state") == "inactive");
 		var track = v.children[0];
 		check("unstyled: a slider's track, range and thumb", v.slot == "slider" && track.slot == "slider-track" && track.children[0].slot == "slider-range"
-			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 42, '${track.children[0].width}');
+			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 50, '${track.children[0].width}');
 		var p = ui.root.find("p");
 		check("unstyled: a progress bar's indicator", p.slot == "progress" && p.children[0].slot == "progress-indicator" && p.children[0].width == 25
 			&& p.style.height.resolve(0) == 8);
