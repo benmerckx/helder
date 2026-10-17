@@ -72,7 +72,9 @@ class AndroidBackend implements NativeBackend implements NativeDriver {
 			Jni.call(act, J.setContentView, root.toI64());
 			var t = Jni.string(title);
 			Jni.call(act, J.setTitle, t.toI64());
+			// (layout params of its own: a TextView measured again after setText reads them)
 			measurer = Jni.global(Jni.newObject(J.textView, J.textViewNew, act.toI64()));
+			Jni.call(measurer, J.setLayoutParams, Jni.newObject(J.layoutParams, J.layoutParamsNew, -2, -2, 0, 0).toI64());
 		});
 		open = true;
 	}
