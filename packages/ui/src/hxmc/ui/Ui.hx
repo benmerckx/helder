@@ -179,7 +179,10 @@ class Ui {
 	function paintNode(n:Node, canvas:Canvas) {
 		var s = n.style;
 		if (s.display == None || n.width <= 0 && n.height <= 0 && n.children.length == 0) return;
-		@:privateAccess s.drawn = true;
+		if (!@:privateAccess s.drawn) {
+			@:privateAccess s.drawn = true;
+			if (@:privateAccess s.starting) @:privateAccess n.restyleLater();
+		}
 		if (s.opacity <= 0) return;
 		var m = n.transformMatrix();
 		// (its ink, widened by what rings, shadows and glyphs' overhang add, out of sight: left out)

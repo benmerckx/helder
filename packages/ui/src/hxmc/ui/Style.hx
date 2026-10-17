@@ -451,6 +451,8 @@ class Style {
 
 	// (drawn once: what changes from now on eases, under a transition; Ui's paint sets it)
 	@:allow(hxmc.ui.Ui) var drawn = false;
+	// (rules for starting asked of it: restyled once it is drawn)
+	@:allow(hxmc.ui.Rules) var starting = false;
 
 	// a property's value (StyleFields' names), or the one it is moving to under a transition
 	public function target(name:String):Dynamic {

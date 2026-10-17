@@ -11,7 +11,7 @@ package hxmc.ui;
 // wrote) written, and those the rules no longer set taken back to the
 // default. Again whenever a state changes: hover, press, focus, the focus
 // ring's visibility, an attribute, the variant or size, the sheet, dark,
-// the direction (rtl, ltr).
+// the direction (rtl, ltr), the first draw (starting: CSS's @starting-style).
 class Rules {
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
@@ -187,6 +187,10 @@ class Rules {
 			case "disabled": n.attr("disabled") != null || n.attr("data-disabled") != null;
 			case "dark": ui.dark;
 			case "rtl": n.rtl();
+			case "starting":
+				// (CSS's @starting-style: until its first draw; then again, its transition easing from these)
+				@:privateAccess n.style.starting = true;
+				!@:privateAccess n.style.drawn;
 			case "ltr": !n.rtl();
 			case _:
 				var eq = w.indexOf("=");

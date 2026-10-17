@@ -1307,6 +1307,30 @@ static function transitions() {
 		ui.update();
 		Clock.finish();
 		check("transitions: and back, the rules' all along", b.style.background == Color.rgb(0x000000), b.style.background.toHex());
+		// (starting rules, as CSS's @starting-style: before the first draw; then eased from)
+		ui.theme = {rules: [
+			{slot: "pop", style: {opacity: 1, transition: Transition.parse("opacity 100ms linear")}},
+			{slot: "pop", when: ["starting"], style: {opacity: 0}}
+		]};
+		var pop = new Node("pop");
+		pop.slot = "pop";
+		pop.style.set({width: 10, height: 10});
+		ui.root.append(pop);
+		ui.update();
+		var first = pop.style.opacity;
+		ui.paint(new Recording());
+		ui.update();
+		Clock.tick(200);
+		Clock.tick(200.05);
+		var mid = pop.style.opacity;
+		Clock.finish();
+		check("themes: starting rules before the first draw, then eased from", first == 0 && mid > 0.4 && mid < 0.6 && pop.style.opacity == 1,
+			first + " " + mid + " " + pop.style.opacity);
+		ui.root.remove(pop);
+		ui.root.append(pop);
+		ui.update();
+		check("themes: again when it comes back", pop.style.opacity == 0, "" + pop.style.opacity);
+		Clock.finish();
 		// (a rule for right to left: again when the direction changes)
 		ui.theme = {rules: [{slot: "t", style: {opacity: 0.5}}, {slot: "t", when: ["rtl"], style: {opacity: 0.25}}]};
 		var th = new Node("t");

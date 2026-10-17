@@ -208,6 +208,8 @@ class Node {
 		if (ui == u) return;
 		if (ui != null) ui.detached(this);
 		ui = u;
+		// (out of a window: drawn anew when back, its starting rules again)
+		if (u == null) @:privateAccess style.drawn = false;
 		restyleLater();
 		for (c in children)
 			c.attach(u);
