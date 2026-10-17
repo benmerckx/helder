@@ -125,11 +125,17 @@ const optionalUrl = (u) => /\/bench\/[^/]*\.json/.test(new URL(u).pathname);
 // the pages every browser checks; Chromium checks them all
 const KEY = ['index.html', 'examples.html', 'docs/index.html', 'docs/using.html', 'docs/api/ui.html', 'compiler.html', 'playground.html', 'story.html'];
 
+// an uncaught error's stack as the page sees it, WebAssembly frames included
+// (a pageerror's stack has only the JavaScript ones), as a console error
+const stacks = () => addEventListener('error', (e) => e.error?.stack && console.error('stack: ' + e.error.stack.split('\n').slice(0, 24).join(' < ')));
+
 // a page scrolled through (so that its islands start), then every island it
 // started hydrated or failed; {errors, islands, failedIslands, scroll}
 async function visit(page, p, { gfxErrors = false } = {}) {
 	const errors = [];
 	page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+	page.on('crash', () => errors.push('the page crashed'));
+	await page.addInitScript(stacks);
 	// (a missing file by its address, not the console's message; the editor
 	// from the CDN is blocked, the benchmark history optional)
 	page.on('console', (m) => m.type() === 'error' && !m.text().startsWith('Failed to load resource') && errors.push(m.text()));
@@ -192,7 +198,7 @@ async function pagesTest(browser, name, hasGfx) {
 			if (shots && KEY.includes(p)) await page.screenshot({ path: path.join(shots, `page-${name}-${width}-${p.replace(/\//g, '_')}.png`), fullPage: true });
 			await page.close();
 		}
-		for (const b of bad) console.log('    ' + b.slice(0, 600));
+		for (const b of bad) console.log('    ' + b.slice(0, 2000));
 		check(bad.length === 0, `pages at ${width} px: ${pages.length - bad.length} of ${pages.length} rendered, islands hydrated, no errors, no horizontal scrolling`);
 		await context.close();
 	}
@@ -422,20 +428,39 @@ async function inPage([code, wasm]) {
 async function pageTest(browser, query, expect) {
 	const page = await browser.newPage();
 	const fetched = [];
+	// (what the page and its workers said: on a failure, with where it stood)
+	const said = [];
 	page.on('request', (r) => { const p = new URL(r.url()).pathname; if (/^\/hih(-legacy)?\.wasm$/.test(p)) fetched.push(path.basename(p)); });
+	page.on('pageerror', (e) => said.push('pageerror: ' + e.message));
+	page.on('console', (m) => said.push(`console.${m.type()}: ${m.text()}`));
+	page.on('crash', () => said.push('the page crashed'));
+	page.on('worker', (w) => w.on('close', () => said.push('a worker closed')));
+	await page.addInitScript(stacks);
 	await page.route(/^https:\/\/cdn\.jsdelivr\.net\//, (r) => r.abort());
-	await page.goto(url('playground.html' + query));
-	const state = () => page.evaluate(() => document.getElementById('state').textContent);
-	await page.waitForFunction(() => /^Ready|cannot|could not/.test(document.getElementById('state').textContent), null, { timeout: 180000 });
-	const ready = await state();
-	let run = '';
-	if (ready.startsWith('Ready')) {
-		await page.waitForFunction(() => document.querySelector('textarea[aria-label="Haxe source"]')?.value, null, { timeout: 30000 });
-		await page.click('#run');
-		await page.waitForFunction(() => /^exit/.test(document.getElementById('timing').textContent), null, { timeout: 180000 });
-		run = await page.evaluate(() => document.getElementById('timing').textContent + ': ' + document.getElementById('out').textContent.trim().split('\n')[0]);
+	let ready = '', run = '', stage = 'loading';
+	try {
+		await page.goto(url('playground.html' + query));
+		await page.waitForFunction(() => /^Ready|cannot|could not/.test(document.getElementById('state').textContent), null, { timeout: 180000 });
+		ready = await page.evaluate(() => document.getElementById('state').textContent);
+		if (ready.startsWith('Ready')) {
+			stage = 'the example';
+			await page.waitForFunction(() => document.querySelector('textarea[aria-label="Haxe source"]')?.value, null, { timeout: 30000 });
+			stage = 'running';
+			await page.click('#run');
+			// (its exit, or the compiler instance failing: Playground.hx prints that and starts a new one)
+			await page.waitForFunction(() => /^exit/.test(document.getElementById('timing').textContent) || /The compiler instance failed/.test(document.getElementById('out').textContent), null, { timeout: 180000 });
+			run = await page.evaluate(() => {
+				const timing = document.getElementById('timing').textContent, out = document.getElementById('out').textContent.trim();
+				return /^exit/.test(timing) ? timing + ': ' + out.split('\n')[0] : 'failed: ' + out.slice(0, 3000);
+			});
+			if (!run.startsWith('exit')) for (const l of said) console.log('    ' + l.slice(0, 2000));
+		}
+	} catch (e) {
+		const at = await page.evaluate(() => ['state', 'timing', 'out'].map((id) => `${id}: ${JSON.stringify((document.getElementById(id)?.textContent ?? "").slice(0, 3000))}`).join(', ')).catch(() => 'the page is gone');
+		run = `${e.message.split('\n')[0]} (${stage}; ${at})`;
+		for (const l of said) console.log('    ' + l.slice(0, 2000));
 	}
-	await page.close();
+	await page.close().catch(() => {});
 	return check(fetched.length === 1 && fetched[0] === expect && run.startsWith('exit 0'), `playground.html${query}: fetched ${fetched.join(', ') || 'nothing'} (expected ${expect}); ${ready}; ${run}`);
 }
 
@@ -526,7 +551,19 @@ async function benchTest(browser, name) {
 linkCheck();
 // (Chromium: WebGPU on SwiftShader's Vulkan, as packages/gfx/test/web.mjs)
 const WEBGPU = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
-const launches = names.map((name) => ({ name, label: name, opts: name === 'chromium' ? { args: WEBGPU } : {} }));
+// (WebKit: without its optimizing wasm tier, OMG. In the WebKit of Playwright
+// 1.56 (26.0), WebAssembly running for a while (the examples' frames, the
+// playground's compiler) at times traps where the program cannot (in code
+// that is correct everywhere else: "Out of bounds memory access", "access to
+// a null reference", which JSC reports for a fault below the lowest mapped
+// address, "Unreachable code should not be executed" after a loop that only
+// returns), hangs, or crashes the page: about one session in twenty, on any
+// of the modules, with either exception handling and either memory mode, and
+// still with OSR entry, OMG inlining or the freeing of retired code off.
+// With OMG off (JSC_useOMGJIT=0) it never happened in 84 sessions, nor in
+// the WebKit of Playwright 1.63 (26.6) in 54; docs/testing.md.)
+const WEBKIT = { env: { ...process.env, JSC_useOMGJIT: '0' } };
+const launches = names.map((name) => ({ name, label: name, opts: name === 'chromium' ? { args: WEBGPU } : name === 'webkit' ? WEBKIT : {} }));
 // (a Chromium without exnref: the playground falls back to the legacy module by itself)
 if (names.includes('chromium') && modules.includes('hih-legacy.wasm'))
 	launches.push({ name: 'chromium', label: 'chromium without exnref', opts: { args: ['--js-flags=--no-experimental-wasm-exnref'] }, noExnref: true });
@@ -550,9 +587,12 @@ for (const { name, label, opts, noExnref } of launches) {
 		}
 		for (const wasm of modules) {
 			const page = await browser.newPage();
+			const said = [];
+			page.on('crash', () => said.push('the page crashed'));
+			page.on('console', (m) => said.push(`console.${m.type()}: ${m.text()}`));
 			await page.goto(url(''));
-			const log = await page.evaluate(inPage, [code, wasm]);
-			await page.close();
+			const log = await page.evaluate(inPage, [code, wasm]).catch((e) => [e.message.split('\n')[0], ...said]);
+			await page.close().catch(() => {});
 			console.log(`  ${wasm}`);
 			for (const l of log) console.log('    ' + l);
 			check(log.some((l) => l.startsWith('run 0')) && log.some((l) => l.startsWith('hxb 0')), `the worker with ${wasm}`);
