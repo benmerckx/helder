@@ -96,13 +96,17 @@ class Cube {
 		return b;
 	}
 
+	// pixels per point (Window.scale), for the panel
+	public var scale = 1.0;
+
 	// records the frame's pass, the cube turned by angle radians; the caller ends the frame
 	public function draw(enc:Encoder, angle:Float) {
 		var w = device.width, h = device.height;
 		var model = Mat4.rotationX(0.45) * Mat4.rotationY(angle);
 		var mvp = Mat4.perspective(Math.PI / 3, w / h, 0.1, 100) * Mat4.translation(0, 0, -4) * model;
 		CubeShader.writeCubeCamera({mvp: mvp, model: model}, camera);
-		PanelShader.writeTarget({size: vec2(w, h), top: 8, height: 36}, target);
+		// (the panel is laid out in points: scale pixels each)
+		PanelShader.writeTarget({size: vec2(w / scale, h / scale), top: 8 * scale, height: 36 * scale}, target);
 		enc.beginPass(pass);
 		enc.setPipeline(pipeline);
 		enc.setUniforms(0, camera);
@@ -131,7 +135,10 @@ class Cube {
 		var cube = new Cube(Device.create(window.surface));
 		// (turning with time, plus what the mouse dragged)
 		var start = Sys.time(), drag = 0.0, from = -1;
-		App.run(() -> cube.frame(still >= 0 ? Std.parseFloat(args[still + 1]) : Sys.time() - start + drag), e -> switch e.kind {
+		App.run(() -> {
+			cube.scale = window.scale;
+			cube.frame(still >= 0 ? Std.parseFloat(args[still + 1]) : Sys.time() - start + drag);
+		}, e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
 			case MouseDown if (e.button == 1): from = e.x;

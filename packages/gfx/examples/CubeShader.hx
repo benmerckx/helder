@@ -33,7 +33,7 @@ class CubeShader implements Shaders {
 }
 
 @:structInit @:publicFields class PanelVertex {
-	var pos:Vec2; // pixels from the top left
+	var pos:Vec2; // points from the top left
 	var color:Vec4;
 }
 
@@ -43,8 +43,8 @@ class CubeShader implements Shaders {
 }
 
 @:structInit @:publicFields class Target {
-	var size:Vec2; // the target's, in pixels
-	var top:Float; // the panel's, where it fades from
+	var size:Vec2; // the target's, in points (pixels / Window.scale)
+	var top:Float; // the panel's, where it fades from, in pixels
 	var height:Float;
 }
 
