@@ -10,7 +10,8 @@ import hxmc.ui.*;
 // Intrinsic elements: view (a Node), text (a TextNode of its children's
 // text; elements in it are its spans: span, b, i, or text again), scroll (a
 // Node with Overflow Scroll), image (an ImageNode: src, an Image, an
-// AnimatedImage, played, or an Svg, drawn in the node's color; fit, "fill",
+// AnimatedImage, played, or an Svg, drawn in the node's color; object-position
+// ("left top", CSS's), its place; fit, "fill",
 // "contain", "cover" or "none"); elements registers more. Their
 // attributes: Style properties (StyleAttrs: direction="row", padding={8},
 // background="#3b82f6"; style={StyleProps} for several), the events
@@ -164,6 +165,8 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 					(cast n : ImageNode).image = anim.image;
 					anim.play();
 				} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
+			case "object-position" | "objectPosition" if (Std.isOfType(n, ImageNode)):
+				(cast n : ImageNode).position(v);
 			case "fit" if (Std.isOfType(n, ImageNode)):
 				(cast n : ImageNode).fit = Std.isOfType(v, String) ? switch (v : String).toLowerCase() {
 					case "fill": Fill;

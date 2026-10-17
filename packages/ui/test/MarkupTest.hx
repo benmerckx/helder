@@ -1698,6 +1698,10 @@ class MarkupTest implements Markup {
 			numeric.style.fontVariantNumeric = "tabular";
 			false;
 		} catch (e:Dynamic) true;
+		var pic:Null<Node> = null;
+		Render.render(<image ref={n -> pic = n} src={new Image(4, 4)} width={10} height={10} fit="contain" object-position="right 2px top"/>, ui.root);
+		var pn:ImageNode = cast pic;
+		check("render: an image's object-position", pn.positionX == 1 && pn.offsetX == -2 && pn.positionY == 0 && pn.offsetY == 0);
 		check("render: font-variant-numeric as features, font-feature-settings after them", numeric.font().features == "'tnum', 'zero', 'zero' 0" && badNumeric
 			&& hxmc.text.FontFeature.key(hxmc.text.FontFeature.parse(numeric.font().features)) == "tnum=1,zero=0", numeric.font().features);
 		check("render: font-feature-settings, inherited", inner.font().features == "'tnum', 'liga' 0" && plain.font().features == "" && badFeature

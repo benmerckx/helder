@@ -1211,6 +1211,27 @@ class UiTest {
 		check("images: Cover", box.placement(0, 0, 100, 100).join(",") == "0,0,100,100,0.25,0,0.75,1", box.placement(0, 0, 100, 100).join(","));
 		box.fit = ImageFit.None;
 		check("images: None", box.placement(0, 0, 100, 100).join(",") == "30,40,40,20,0,0,1,1", box.placement(0, 0, 100, 100).join(","));
+		// object-position: a share of the room left over and pixels more, the part outside cut
+		function placed(fit:ImageFit, pos:String):String {
+			box.fit = fit;
+			box.position(pos);
+			return box.placement(0, 0, 100, 100).join(",");
+		}
+		var got = [
+			placed(Contain, "left top"), placed(Contain, "bottom"), placed(Cover, "right"), placed(Cover, "25% 0"), placed(ImageFit.None, "right 10px bottom 5px"),
+			placed(ImageFit.None, "-30px 10px"), placed(ImageFit.None, "center top")
+		];
+		var want = [
+			"0,0,100,50,0,0,1,1", "0,50,100,50,0,0,1,1", "0,0,100,100,0.5,0,1,1", "0,0,100,100,0.125,0,0.625,1", "50,75,40,20,0,0,1,1",
+			"0,10,10,20,0.75,0,1,1", "30,0,40,20,0,0,1,1"
+		];
+		check("images: object-position", got.join("|") == want.join("|"), got.join("|"));
+		var badPosition = try {
+			box.position("sideways");
+			false;
+		} catch (e:Dynamic) true;
+		box.position("center");
+		check("images: object-position rejects what CSS does not write", badPosition && box.positionX == 0.5 && box.positionY == 0.5);
 		var c = new Recording();
 		ui.paint(c);
 		check("images: painted", c.calls.join("|") == "image 40x20 0 0 40 20 0 0 1 1 0|image 40x20 0 20 100 50 0 0 1 1 0|image 40x20 30 110 40 20 0 0 1 1 12", c.calls.join("|"));

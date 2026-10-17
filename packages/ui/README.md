@@ -148,7 +148,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     (pixel-exact with libwebp's decoding), an animation's first frame; `AnimatedImage` plays a GIF's,
     WebP's or animated PNG's frames, each composed as Chromium composes it, on the clock), shown by an `ImageNode` at its own
     size or the style's (keeping its aspect ratio), fitted as `Fill`,
-    `Contain`, `Cover` or `None`, its corners rounded with the node's.
+    `Contain`, `Cover` or `None`, placed by `position` (CSS's object-position:
+    `"right 10px top"`, markup `object-position`; centred by default, the
+    part outside cut), its corners rounded with the node's.
   - SVG: `Svg.parse` reads the static subset icon sets use (shapes, all of
     path data, fills and strokes with their joins, caps and dashes, linear
     and radial gradients, opacities, transforms, use and symbol, clip-path,
@@ -238,7 +240,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
 ## Markup
 
 Intrinsic elements: `view` (a box), `text` (a run of text), `scroll` (a box
-that scrolls), `image` (an `ImageNode`: `src={image}` or `src={svg}`, `fit="cover"`).
+that scrolls), `image` (an `ImageNode`: `src={image}` or `src={svg}`, `fit="cover"`, `object-position="left top"`).
 Inside a `text`, elements are spans of rich text: `span`, `b`, `i` or
 `text` again, each with its own style (colour, weight, size...) and
 handlers (a link: `<span color="#2563eb" onClick={...}>`); lines are as
