@@ -280,7 +280,7 @@ class TextNode extends Node {
 			var f = n.style.textDecoration;
 			if (f == 0) return;
 			for (k in [TextDecoration.Underline, TextDecoration.Overline, TextDecoration.LineThrough])
-				if (f & (k : Int) != 0) out.push({start: start, end: end, kind: k, color: n.textColor()});
+				if (f & (k : Int) != 0) out.push({start: start, end: end, kind: k, color: n.style.textDecorationColor ?? n.textColor()});
 		}
 		var n:Node = this;
 		while (n != null) {

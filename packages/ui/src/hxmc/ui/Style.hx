@@ -252,6 +252,10 @@ class Style {
 	// as in CSS: it reaches the text inside)
 	public var textDecoration(get, set):Int;
 
+	// the colour of the lines textDecoration draws (null: the node's text
+	// colour; not inherited, as CSS's text-decoration-color)
+	public var textDecorationColor(get, set):Null<Color>;
+
 	// shadows of the text in this node and its descendants and of its
 	// decorations, under them (Shadow.parse, as CSS's text-shadow: x, y,
 	// blur and a colour, the text's without one; null: the parent's;
@@ -389,6 +393,9 @@ class Style {
 
 	inline function get_textDecoration():Int
 		return rare == null ? 0 : rare.textDecoration;
+
+	inline function get_textDecorationColor():Null<Color>
+		return rare == null ? null : rare.textDecorationColor;
 
 	inline function get_textShadow():Null<Shadow>
 		return rare == null ? null : rare.textShadow;
@@ -949,6 +956,13 @@ class Style {
 		return v;
 	}
 
+	function set_textDecorationColor(v:Null<Color>):Null<Color> {
+		if (v == textDecorationColor) return v;
+		more().textDecorationColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
 	function set_textShadow(v:Null<Shadow>):Null<Shadow> {
 		if (v == textShadow) return v;
 		more().textShadow = v;
@@ -1045,6 +1059,7 @@ class Style {
 		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.textShadow != null) textShadow = p.textShadow;
+		if (p.textDecorationColor != null) textDecorationColor = p.textDecorationColor;
 		if (p.maxLines != null) maxLines = p.maxLines;
 		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
 		if (p.gridTemplateRows != null) gridTemplateRows = p.gridTemplateRows;
@@ -1098,6 +1113,7 @@ private class StyleRare {
 	public var zIndex:Int = 0;
 	public var textDecoration:Int = 0;
 	public var textShadow:Null<Shadow> = null;
+	public var textDecorationColor:Null<Color> = null;
 	public var left:Dim = DimValue.Auto;
 	public var top:Dim = DimValue.Auto;
 	public var right:Dim = DimValue.Auto;

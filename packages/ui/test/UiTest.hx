@@ -1289,6 +1289,13 @@ class UiTest {
 		check("paint: a text shadow's underline: offset, blurred as a box shadow", rec4.calls[0].indexOf("rect -1 ") == 0
 			&& rec4.calls[2].indexOf("shadow 1 ") == 0 && StringTools.endsWith(rec4.calls[2], " ffff0000 4") && underline.length == 2, calls);
 		check("paint: Shadow.NONE stops an inherited text shadow", t.textShadow() == box.style.textShadow && plain.textShadow() == null);
+		// text-decoration-color: the lines' own colour, the glyphs keeping theirs
+		t.style.set({textDecorationColor: Color.rgb(0x00FF00), textShadow: Shadow.NONE});
+		var rec5 = new Recording();
+		ui3.paint(rec5);
+		var lines = [for (c in rec5.calls) if (c.indexOf("rect ") == 0) c];
+		check("paint: text-decoration-color", lines.length == 1 && lines[0].indexOf(" ff00ff00 ") > 0 && rec5.calls.join("|").indexOf("text 0 0 14") >= 0,
+			rec5.calls.join("|"));
 		// a text field's text and placeholder: shadowed too
 		var field = new TextField("");
 		field.placeholder = "Name";

@@ -37,6 +37,7 @@ typedef StyleProps = {
 	?wordSpacing:Float,
 	?textDecoration:Int,
 	?textShadow:Shadow,
+	?textDecorationColor:Color,
 	?backgroundImage:Gradient,
 	?transform:Transform,
 	?transformOrigin:Array<Dim>,
