@@ -1,3 +1,7 @@
+// title: Widgets
+// summary: ui's widgets bound to signals: buttons, a select, a menu, a dialog, sliders, tabs, a tree and a table, images, text fields
+// tags: ui, widgets
+// demo: canvas 560x520
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;

@@ -1,3 +1,7 @@
+// title: JavaScript calls wasm
+// summary: A JavaScript island calling a wasm32-wasi module through typed exports: strings, numbers and bytes in bulk
+// tags: web, javascript, wasm, exports
+// demo: module
 import haxe.io.Bytes;
 
 // A wasm32-wasi module JavaScript calls (LabExports): main names its exports

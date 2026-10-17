@@ -1,3 +1,7 @@
+// title: Triangle
+// summary: A coloured triangle: a vertex buffer, a pipeline and shaders written in Haxe, compiled to WGSL, GLSL, MSL and HLSL
+// tags: gfx, shaders
+// demo: canvas 512x384
 import hxmc.gfx.*;
 import hxmc.gfx.shader.ShaderMath.*;
 import hxmc.os.*;

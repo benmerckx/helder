@@ -1,3 +1,7 @@
+// title: Tone
+// summary: A 440 Hz sine for two seconds from an audio callback that allocates nothing: WebAudio here, ALSA, Core Audio or WASAPI natively
+// tags: os, audio
+// demo: sound
 import hxmc.os.audio.Audio;
 import hxmc.unsafe.*;
 

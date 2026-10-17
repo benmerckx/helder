@@ -10,6 +10,9 @@ enum abstract Load(String) to String {
 	var Idle = "idle";
 	// at once, when the page has loaded
 	var Eager = "load";
+	// on the first click or key press inside it (a sound: the browsers start
+	// audio only after one)
+	var Click = "click";
 }
 
 typedef IslandOptions = {
@@ -44,6 +47,11 @@ class Island<P> implements hxmc.view.Markup {
 	public static final all = new Map<String, Island<Dynamic>>();
 	// the default runner of WebAssembly islands (@hxmc/os's browser.mjs)
 	public static var runner = "os/browser.mjs";
+	// the address written for each file an island loads (its bundle, a
+	// module, the runner, imports, fonts), from the name it was given: a
+	// site sets it per page, for pages in folders and for its build in the
+	// address (a cache-busting query)
+	public static var url:String->String = s -> s;
 
 	public final name:String;
 	public final component:P->Any;
@@ -73,7 +81,7 @@ class Island<P> implements hxmc.view.Markup {
 
 	// the island in its element
 	public function render(props:P):View
-		return <hxmc-island data-island={name} data-props={haxe.Json.stringify(props)} data-load={(load : String)} data-src={script}>{content(props)}</hxmc-island>;
+		return <hxmc-island data-island={name} data-props={haxe.Json.stringify(props)} data-load={(load : String)} data-src={script == null ? null : url(script)}>{content(props)}</hxmc-island>;
 
 	// its content: the component called when mounted (what hydration mounts)
 	public function content(props:P):View
@@ -85,8 +93,9 @@ class Island<P> implements hxmc.view.Markup {
 	// a WebAssembly island: a canvas (width x height, when given) the loader
 	// hands to src, a wasm32-wasi module, run by runner (Island.runner) with
 	// imports (each package's imports.mjs, as browser.mjs takes them) and
-	// args; its id names it (Wasm.island); children shown with the canvas
-	// (a caption, what shows before it runs)
+	// args, and fonts (files hxmc.text may use: a browser gives a module
+	// none); its id names it (Wasm.island); children shown with the canvas
+	// (a caption, what shows before it runs); canvas false: none (a sound)
 	public static function Wasm(props:{
 		src:String,
 		?imports:Array<String>,
@@ -96,13 +105,16 @@ class Island<P> implements hxmc.view.Markup {
 		?id:String,
 		?width:Int,
 		?height:Int,
+		?fonts:Array<String>,
+		?canvas:Bool,
 		?children:Any
 	}):View {
 		var load:String = props.load == null ? Visible : props.load;
-		return <hxmc-island id={props.id} data-wasm={props.src} data-runner={props.runner == null ? runner : props.runner}
-			data-imports={haxe.Json.stringify(props.imports == null ? [] : props.imports)}
+		return <hxmc-island id={props.id} data-wasm={url(props.src)} data-runner={url(props.runner == null ? runner : props.runner)}
+			data-imports={haxe.Json.stringify(props.imports == null ? [] : props.imports.map(url))}
+			data-fonts={props.fonts == null ? null : haxe.Json.stringify(props.fonts.map(url))}
 			data-args={props.args == null ? null : haxe.Json.stringify(props.args)} data-load={load}>
-			<canvas width={props.width} height={props.height}></canvas>
+			{props.canvas == false ? null : <canvas width={props.width} height={props.height}></canvas>}
 			{props.children}
 		</hxmc-island>;
 	}
