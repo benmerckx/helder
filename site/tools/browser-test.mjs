@@ -551,19 +551,7 @@ async function benchTest(browser, name) {
 linkCheck();
 // (Chromium: WebGPU on SwiftShader's Vulkan, as packages/gfx/test/web.mjs)
 const WEBGPU = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
-// (WebKit: without its optimizing wasm tier, OMG. In the WebKit of Playwright
-// 1.56 (26.0), WebAssembly running for a while (the examples' frames, the
-// playground's compiler) at times traps where the program cannot (in code
-// that is correct everywhere else: "Out of bounds memory access", "access to
-// a null reference", which JSC reports for a fault below the lowest mapped
-// address, "Unreachable code should not be executed" after a loop that only
-// returns), hangs, or crashes the page: about one session in twenty, on any
-// of the modules, with either exception handling and either memory mode, and
-// still with OSR entry, OMG inlining or the freeing of retired code off.
-// With OMG off (JSC_useOMGJIT=0) it never happened in 84 sessions, nor in
-// the WebKit of Playwright 1.63 (26.6) in 54; docs/testing.md.)
-const WEBKIT = { env: { ...process.env, JSC_useOMGJIT: '0' } };
-const launches = names.map((name) => ({ name, label: name, opts: name === 'chromium' ? { args: WEBGPU } : name === 'webkit' ? WEBKIT : {} }));
+const launches = names.map((name) => ({ name, label: name, opts: name === 'chromium' ? { args: WEBGPU } : {} }));
 // (a Chromium without exnref: the playground falls back to the legacy module by itself)
 if (names.includes('chromium') && modules.includes('hih-legacy.wasm'))
 	launches.push({ name: 'chromium', label: 'chromium without exnref', opts: { args: ['--js-flags=--no-experimental-wasm-exnref'] }, noExnref: true });
