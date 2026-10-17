@@ -1855,6 +1855,19 @@ static function transitions() {
 		var p = a.laidOut();
 		check("text: paragraph", p != null && p.lineCount == 1 && p.caret(3).x == 12);
 		check("text: font resolves", b.font().size == 16 && b.font().lineHeight == 1.5 && a.font().size == 8);
+		// (a line height in pixels, inherited as pixels: 20 at 8 and at 16; em letter spacing, the pixels at its node)
+		row.style.lineHeightPx = 20;
+		row.style.letterSpacingEm = 0.25;
+		ui.update();
+		check("text: line height in pixels, letter spacing in em", a.height == 20 && b.height == 20 && a.font().lineHeight == 2.5
+			&& b.font().lineHeight == 1.25 && a.font().letterSpacing == 4 && b.font().letterSpacing == 4, a.height + " " + b.height + " " + a.font().letterSpacing);
+		row.style.lineHeight = 3;
+		ui.update();
+		check("text: pixels over a multiple on one node", b.height == 20, "" + b.height);
+		row.style.lineHeightPx = null;
+		row.style.letterSpacingEm = null;
+		row.style.lineHeight = null;
+		ui.update();
 		// a long word in a narrow column: cut
 		var narrow = new TextNode("abcdefghij");
 		narrow.style.width = 40;

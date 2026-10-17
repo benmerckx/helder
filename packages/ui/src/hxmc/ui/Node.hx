@@ -528,6 +528,8 @@ class Node {
 		if (fontCache != null) return fontCache;
 		// (unset: NaN, -1; no boxes)
 		var family:Null<String> = null, size = Math.NaN, weight = -1, italic = -1, lh = Math.NaN, ls = Math.NaN, ws = Math.NaN;
+		// (a line height in pixels, made a multiple of this font's size once it is known)
+		var lhPx = Math.NaN;
 		var ow:Null<OverflowWrap> = null, wb:Null<WordBreak> = null, ff:Null<String> = null, fvn:Null<String> = null;
 		var n = this;
 		while (n != null) {
@@ -536,8 +538,12 @@ class Node {
 			if (Math.isNaN(size) && s.fontSize != null) size = s.fontSize;
 			if (weight < 0 && s.fontWeight != null) weight = s.fontWeight;
 			if (italic < 0 && s.italic != null) italic = s.italic ? 1 : 0;
-			if (Math.isNaN(lh) && s.lineHeight != null) lh = s.lineHeight;
-			if (Math.isNaN(ls) && s.letterSpacing != null) ls = s.letterSpacing;
+			if (Math.isNaN(lh) && Math.isNaN(lhPx)) {
+				if (s.lineHeightPx != null) lhPx = s.lineHeightPx else if (s.lineHeight != null) lh = s.lineHeight;
+			}
+			if (Math.isNaN(ls)) {
+				if (s.letterSpacingEm != null) ls = s.letterSpacingEm * n.fontSizeHere() else if (s.letterSpacing != null) ls = s.letterSpacing;
+			}
 			if (Math.isNaN(ws) && s.wordSpacing != null) ws = s.wordSpacing;
 			if (ow == null) ow = s.overflowWrap;
 			if (wb == null) wb = s.wordBreak;
@@ -545,9 +551,21 @@ class Node {
 			if (fvn == null) fvn = s.fontVariantNumeric;
 			n = n.parent;
 		}
-		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, Math.isNaN(size) ? Style.DEFAULT_SIZE : size,
+		if (Math.isNaN(size)) size = Style.DEFAULT_SIZE;
+		if (!Math.isNaN(lhPx)) lh = size > 0 ? lhPx / size : Style.DEFAULT_LINE_HEIGHT;
+		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, size,
 			weight < 0 ? Style.DEFAULT_WEIGHT : weight, italic == 1, Math.isNaN(lh) ? Style.DEFAULT_LINE_HEIGHT : lh, Math.isNaN(ls) ? 0 : ls,
 			Math.isNaN(ws) ? 0 : ws, ow == null ? BreakWord : ow, wb == null ? WordBreak.Normal : wb, features(fvn, ff));
+	}
+
+	// (the font size here: its own or the nearest ancestor's)
+	function fontSizeHere():Float {
+		var n = this;
+		while (n != null) {
+			if (n.style.fontSize != null) return n.style.fontSize;
+			n = n.parent;
+		}
+		return Style.DEFAULT_SIZE;
 	}
 
 	// (the features asked for: font-variant-numeric's, then font-feature-settings', which win)

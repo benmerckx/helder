@@ -217,10 +217,18 @@ class Style {
 
 	public var italic(default, set):Null<Bool> = null;
 
-	// a multiple of the font size
+	// a multiple of the font size (inherited as the multiple), or pixels
+	// (lineHeightPx, CSS's line-height: 24px, inherited as the pixels;
+	// over lineHeight where a node has both, as Tailwind's leading-6 is over
+	// text-sm's)
 	public var lineHeight(default, set):Null<Float> = null;
-	// pixels after each character, and on each space (CSS's letter-spacing, word-spacing)
+	public var lineHeightPx(get, set):Null<Float>;
+	// pixels after each character, and on each space (CSS's letter-spacing,
+	// word-spacing); letterSpacingEm: a multiple of the node's font size
+	// (tracking-tight's -0.025em), inherited as the pixels it comes to, over
+	// letterSpacing where a node has both
 	public var letterSpacing(get, set):Null<Float>;
+	public var letterSpacingEm(get, set):Null<Float>;
 	public var wordSpacing(get, set):Null<Float>;
 
 	public var textAlign(default, set):Null<TextAlign> = null;
@@ -394,6 +402,12 @@ class Style {
 
 	inline function get_wordSpacing():Null<Float>
 		return rare == null ? null : rare.wordSpacing;
+
+	inline function get_lineHeightPx():Null<Float>
+		return rare == null ? null : rare.lineHeightPx;
+
+	inline function get_letterSpacingEm():Null<Float>
+		return rare == null ? null : rare.letterSpacingEm;
 
 	inline function get_maxLines():Int
 		return rare == null ? 0 : rare.maxLines;
@@ -1326,6 +1340,20 @@ class Style {
 		return v;
 	}
 
+	function set_lineHeightPx(v:Null<Float>):Null<Float> {
+		if (v == lineHeightPx) return v;
+		more().lineHeightPx = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_letterSpacingEm(v:Null<Float>):Null<Float> {
+		if (v == letterSpacingEm) return v;
+		more().letterSpacingEm = v;
+		node.styleChanged(true);
+		return v;
+	}
+
 	function set_lineHeight(v:Null<Float>):Null<Float> {
 		if (v == lineHeight) return v;
 		lineHeight = v;
@@ -1446,6 +1474,8 @@ class Style {
 		if (p.lineHeight != null) lineHeight = p.lineHeight;
 		if (p.letterSpacing != null) letterSpacing = p.letterSpacing;
 		if (p.wordSpacing != null) wordSpacing = p.wordSpacing;
+		if (p.lineHeightPx != null) lineHeightPx = p.lineHeightPx;
+		if (p.letterSpacingEm != null) letterSpacingEm = p.letterSpacingEm;
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
@@ -1516,6 +1546,8 @@ private class StyleRare {
 	public var transformOrigin:Null<Array<Dim>> = null;
 	public var letterSpacing:Null<Float> = null;
 	public var wordSpacing:Null<Float> = null;
+	public var lineHeightPx:Null<Float> = null;
+	public var letterSpacingEm:Null<Float> = null;
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
