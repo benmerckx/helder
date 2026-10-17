@@ -452,6 +452,16 @@ class UiTest {
 		ui.update();
 		var bar:Array<Float> = @:privateAccess Ui.thumb(t, false);
 		check("rtl scroll: the vertical bar on the left", bar != null && bar[0] == t.absX + Ui.SCROLLBAR_INSET, "" + bar);
+		// (scrollbar-width: thin, two thirds as thick; none, no bar to draw or grab, still scrolled by the wheel; colours inherited)
+		t.style.scrollbarWidth = Thin;
+		var thin:Array<Float> = @:privateAccess Ui.thumb(t, false);
+		t.style.scrollbarWidth = None;
+		var none:Array<Float> = @:privateAccess Ui.thumb(t, false);
+		ui.wheel(t.absX + 50, t.absY + 20, 0, 30);
+		ui.update();
+		ui.root.style.scrollbarColor = Color.rgb(0xFF0000);
+		check("scrollbars: thin, none (the wheel still scrolls), the colour inherited", thin != null && thin[2] == 4 && none == null && t.scrollY == 30
+			&& @:privateAccess Ui.inheritedBar(t, false) == Color.rgb(0xFF0000) && @:privateAccess Ui.inheritedBar(t, true) == null, thin + " " + t.scrollY);
 	}
 
 	// textWrap NoWrap (inherited): a line kept whole past its box, its

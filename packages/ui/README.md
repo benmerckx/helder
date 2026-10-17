@@ -134,7 +134,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     whether a drag selects its text, as CSS's user-select), `overflowX` and
     `overflowY` (both clip when either does, as CSS's; an axis scrolls by the
     wheel, keys and scrollbar only where it is `Scroll`), `fieldSizing`
-    (`Content`: a text area as tall as its lines, as CSS's field-sizing), corner radii scaled down together where a side's
+    (`Content`: a text area as tall as its lines, as CSS's field-sizing), `scrollbarWidth` (`Thin`, `None`:
+    CSS's scrollbar-width), `scrollbarColor` and `scrollbarTrackColor` (inherited,
+    CSS's scrollbar-color), corner radii scaled down together where a side's
     two add up to more than it (as CSS: `9999` a pill), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
