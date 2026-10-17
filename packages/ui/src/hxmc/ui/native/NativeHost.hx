@@ -7,7 +7,7 @@ import hxmc.unsafe.Mem;
 // A window of platform controls: a Ui whose Controls are the platform's
 // widgets and whose TextNodes are its labels, measured by the platform,
 // laid out by hxmc.ui's flexbox and placed absolutely in the window
-// (the design's native backend: hxmc/UI.md, section 6). Plain nodes only
+// (the design's native backend: docs/plans/ui.md, section 6). Plain nodes only
 // lay out (their paint properties are not drawn); scrolling is not done.
 // step lays out and brings the widgets in step with the tree after a
 // change; run is the loop (in the browser it returns, and

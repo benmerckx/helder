@@ -4,8 +4,8 @@ Windows, input, the app loop and audio output for hxmc in pure Haxe
 (`hxmc.os`): raw OS bindings (X11, the Objective-C runtime and AppKit,
 Win32, a canvas in the browser; ALSA, CoreAudio, WASAPI, WebAudio) and a
 portable layer over them. No C of its own: the system's C APIs through
-externs, COM vtables, `objc_msgSend` and `dlopen`. See hxmc/PLANS.md,
-"Graphics" and "Audio".
+externs, COM vtables, `objc_msgSend` and `dlopen`. The design and what is
+left: docs/plans/graphics.md.
 
 ## Windows and the loop
 
@@ -63,7 +63,7 @@ against a deadline: preallocate, do not allocate (that can start a
 collection, and any thread's collection pauses this one), lock, block or
 print there, and never stop or close the output from it (both wait for
 the audio thread). CoreAudio calls back on a thread the runtime does not
-know, where only `@:hxmc.noGc` code may run (hxmc/LOWLEVEL.md,
+know, where only `@:hxmc.noGc` code may run (docs/plans/lowlevel.md,
 "Callbacks"): that is why it only copies from the ring. In the browser the
 module's memory is not shared with the worklet's thread, so each chunk is
 copied and posted, keeping about 50 ms queued; the callback may close the
