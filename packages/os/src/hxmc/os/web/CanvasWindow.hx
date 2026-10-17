@@ -51,6 +51,9 @@ class CanvasWindow {
 	function setCursor(c:Cursor)
 		Dom.set_cursor(canvas, c);
 
+	function textInput(on:Bool, x:Int, y:Int, width:Int, height:Int)
+		Dom.text_input(canvas, on ? 1 : 0, x, y, width, height);
+
 	function destroy() {
 		open.remove(this);
 		Dom.window_close(canvas);
@@ -75,17 +78,7 @@ class CanvasWindow {
 		if (ev.isNull()) ev = LibC.malloc(28);
 		while (Dom.next_event(ev) != 0) {
 			if (ev[1] == 100) {
-				var h = ev[2], text:Null<String> = null;
-				if (h != 0) {
-					var n = Dom.text_length(h);
-					var b = haxe.io.Bytes.alloc(n);
-					Arena.scoped(a -> {
-						var p = a.alloc(n + 1, 1);
-						Dom.text_take(h, p);
-						LibC.memcpy(Mem.addr(b).add(8), p, (n : Int64));
-					});
-					text = b.toString();
-				}
+				var h = ev[2], text:Null<String> = h == 0 ? null : take(h);
 				var cb = clipboardReads.shift();
 				if (cb != null) cb(text);
 				continue;
@@ -105,9 +98,26 @@ class CanvasWindow {
 				e.text = String.fromCharCode(ev[2]);
 				e.key = 0;
 			}
+			// (TextEditing: the composition's string handle in key)
+			if (e.kind == TextEditing) {
+				e.text = ev[2] == 0 ? "" : take(ev[2]);
+				e.key = 0;
+			}
 			if (e.kind == Resize) w.surface.resized(e.x, e.y);
 			onEvent(e);
 		}
+	}
+
+	// a string handle's text (the handle freed)
+	static function take(h:Int):String {
+		var n = Dom.text_length(h);
+		var b = haxe.io.Bytes.alloc(n);
+		Arena.scoped(a -> {
+			var p = a.alloc(n + 1, 1);
+			Dom.text_take(h, p);
+			LibC.memcpy(Mem.addr(b).add(8), p, (n : Int64));
+		});
+		return b.toString();
 	}
 
 	static function find(canvas:Int):Null<CanvasWindow> {

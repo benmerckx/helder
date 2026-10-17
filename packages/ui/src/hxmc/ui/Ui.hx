@@ -238,6 +238,19 @@ class Ui {
 		bubble(e);
 	}
 
+	// an input method's composition (empty: it ended), caret in it: to the focus
+	public function composition(text:String, caret:Int) {
+		var e = new Event(Composition, focus != null ? focus : root, pointerX, pointerY);
+		e.text = text;
+		e.caret = caret;
+		bubble(e);
+	}
+
+	// where text is typed now (the focused node's caret, window pixels): the
+	// input method's place; null: the focus takes no text
+	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
+		return focus == null ? null : focus.textInputArea();
+
 	// --- focus ---
 
 	public function setFocus(n:Null<Node>) {
@@ -283,6 +296,7 @@ class Ui {
 				case KeyDown: n.onKeyDown;
 				case KeyUp: n.onKeyUp;
 				case TextInput: n.onTextInput;
+				case Composition: n.onComposition;
 				case _: null;
 			}
 			if (h != null) h(e.at(n));

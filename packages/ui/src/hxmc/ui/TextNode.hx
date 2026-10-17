@@ -42,9 +42,13 @@ class TextNode extends Node {
 	override public function minContentWidth(engine:TextEngine):Float
 		return layoutText(engine, Math.NaN).minWidth;
 
+	// the text laid out and drawn (EditableText: with its composition)
+	function shownText():String
+		return text;
+
 	// the paragraph for a width (NaN: unbounded), from the last one when the same
 	public function layoutText(engine:TextEngine, maxWidth:Float):Paragraph {
-		var f = font();
+		var f = font(), text = shownText();
 		// (to 1/64 pixel up: a width measured from this text fits it again)
 		var w = Math.isNaN(maxWidth) ? maxWidth : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		var mp = maxParagraph != null && maxText == text && f.equals(maxFont) ? maxParagraph : null;
@@ -76,6 +80,7 @@ class TextNode extends Node {
 		return paragraph;
 
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
+		var text = shownText();
 		if (ui == null || text.length == 0) return;
 		// (the layout's paragraph: its width was the unrounded one, which
 		// rounding the box's edges may have made up to a pixel narrower)

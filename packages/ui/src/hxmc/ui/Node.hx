@@ -45,6 +45,7 @@ class Node {
 	public var onKeyDown:Null<Event->Void>;
 	public var onKeyUp:Null<Event->Void>;
 	public var onTextInput:Null<Event->Void>;
+	public var onComposition:Null<Event->Void>;
 	public var onFocus:Null<Event->Void>;
 	public var onBlur:Null<Event->Void>;
 	// takes the keyboard focus when clicked or tabbed to
@@ -244,6 +245,11 @@ class Node {
 	// assistive technology sets its value (a text input's text): false when it has none
 	public function accessSetValue(value:String):Bool
 		return false;
+
+	// where text is typed into it (its caret, window pixels, after a paint):
+	// an input method's place; null: it takes no text
+	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
+		return null;
 
 	// the content's min-content width (its widest unbreakable part)
 	public function minContentWidth(text:TextEngine):Float

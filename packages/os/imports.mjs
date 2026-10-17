@@ -16,9 +16,14 @@
 // clipboard: writes go to navigator.clipboard; a read takes the text of the
 // paste event the key press that asked for it brought (no permission
 // needed), else navigator.clipboard.readText, and comes back as an event.
+// Text input (Window.startTextInput): keys go to a transparent textarea of
+// the page placed at the caret, focused instead of the canvas, so that
+// input methods work: their compositions come as TextEditing events, their
+// commits (and text inserted without keys: an emoji picker, dictation) as
+// TextInput.
 
 // EventKind (src/hxmc/os/Event.hx)
-const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8, REDRAW = 9;
+const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8, REDRAW = 9, TEXT_EDITING = 10;
 // (not an EventKind: CanvasWindow hands the text to Clipboard.read's callback)
 const CLIPBOARD = 100;
 
@@ -49,10 +54,12 @@ export default function (host) {
 	host.os = { redraw: () => { for (const h of windows) push([h, REDRAW, 0, 0, 0, 0, 0]); } };
 
 	function push(ev) {
-		// (moves between two frames: the last one)
+		// (moves between two frames, compositions: the last one)
 		const last = queue[queue.length - 1];
-		if (ev[1] === MOUSE_MOVE && last && last[1] === MOUSE_MOVE && last[0] === ev[0]) queue[queue.length - 1] = ev;
-		else queue.push(ev);
+		if ((ev[1] === MOUSE_MOVE || ev[1] === TEXT_EDITING) && last && last[1] === ev[1] && last[0] === ev[0]) {
+			if (last[1] === TEXT_EDITING && last[2]) host.handles.remove(last[2]);
+			queue[queue.length - 1] = ev;
+		} else queue.push(ev);
 	}
 
 	function sync(h) {
@@ -72,18 +79,68 @@ export default function (host) {
 		const on = (type, f, o = {}) => c.addEventListener(type, f, { ...o, signal: off.signal });
 		// (Event.mods: Shift 1, Control 2, Alt 4, Meta 8)
 		const mods = (e) => (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
-		on('keydown', (e) => {
+		// the text input's element (text_input)
+		const ta = document.createElement('textarea');
+		for (const [k, v] of [['autocomplete', 'off'], ['autocapitalize', 'off'], ['spellcheck', 'false'], ['tabindex', '-1']]) ta.setAttribute(k, v);
+		ta.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;resize:none;border:0;padding:0;margin:0;outline:none;overflow:hidden;white-space:pre;';
+		document.body.appendChild(ta);
+		c.hxmcInput = ta;
+		const onInput = (type, f) => ta.addEventListener(type, f, { signal: off.signal });
+		const keydown = (e) => {
+			// (an input method's keys: its composition's)
+			if (e.isComposing || e.keyCode === 229) return;
 			push([h, KEY_DOWN, keysym(e), 0, 0, 0, mods(e)]);
 			// then its character (one code point: not a named key), as the native windows type them
 			const cp = e.key.codePointAt(0);
-			if (!e.ctrlKey && !e.metaKey && e.key.length === String.fromCodePoint(cp).length && cp >= 0x20) push([h, TEXT_INPUT, cp, 0, 0, 0, mods(e)]);
+			if (!e.ctrlKey && !e.metaKey && e.key.length === String.fromCodePoint(cp).length && cp >= 0x20) {
+				push([h, TEXT_INPUT, cp, 0, 0, 0, mods(e)]);
+				// (not typed into the textarea too)
+				if (e.currentTarget === ta) e.preventDefault();
+			}
 			// (Tab stays in the canvas: the program moves its own focus)
 			if (e.key === 'Tab' || e.key === 'Backspace') e.preventDefault();
+		};
+		const keyup = (e) => {
+			if (!e.isComposing && e.keyCode !== 229) push([h, KEY_UP, keysym(e), 0, 0, 0, mods(e)]);
+		};
+		on('keydown', keydown);
+		on('keyup', keyup);
+		onInput('keydown', keydown);
+		onInput('keyup', keyup);
+		// the composition: the textarea's text from where it started to what
+		// followed it then, the caret in it
+		let composing = false, start = 0, tail = 0;
+		const editing = (t, caret) => push([h, TEXT_EDITING, t ? host.handles.add(t) : 0, Math.max(0, Math.min(t.length, caret)), 0, 0, 0]);
+		onInput('compositionstart', () => {
+			composing = true;
+			start = ta.selectionStart;
+			tail = ta.value.length - ta.selectionEnd;
 		});
-		on('keyup', (e) => push([h, KEY_UP, keysym(e), 0, 0, 0, mods(e)]));
+		// (before the textarea changes: its caret at the end, until the input event)
+		onInput('compositionupdate', (e) => editing(e.data ?? '', (e.data ?? '').length));
+		onInput('compositionend', (e) => {
+			composing = false;
+			editing('', 0);
+			for (const ch of e.data ?? '') push([h, TEXT_INPUT, ch.codePointAt(0), 0, 0, 0, 0]);
+			setTimeout(() => composing || (ta.value = ''));
+		});
+		onInput('input', (e) => {
+			if (composing) {
+				const t = ta.value.slice(start, ta.value.length - tail);
+				return editing(t, ta.selectionEnd - start);
+			}
+			// (text inserted without its keys; not a composition's, which compositionend gave)
+			if ((e.inputType === 'insertText' || e.inputType === 'insertReplacementText') && e.data)
+				for (const ch of e.data) push([h, TEXT_INPUT, ch.codePointAt(0), 0, 0, 0, 0]);
+			ta.value = '';
+		});
 		on('mousemove', (e) => push([h, MOUSE_MOVE, 0, ...pos(e), 0, mods(e)]));
 		on('mousedown', (e) => {
-			c.focus();
+			// (typing: the focus stays the textarea's)
+			if (c.hxmcTyping) {
+				e.preventDefault();
+				ta.focus({ preventScroll: true });
+			} else c.focus();
 			push([h, MOUSE_DOWN, 0, ...pos(e), e.button + 1, mods(e)]);
 		});
 		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1, mods(e)]));
@@ -93,10 +150,12 @@ export default function (host) {
 			push([h, MOUSE_UP, 0, ...pos(e), b, mods(e)]);
 		}, { passive: true });
 		on('contextmenu', (e) => e.preventDefault());
-		on('paste', (e) => {
+		const paste = (e) => {
 			pasted = { text: e.clipboardData ? e.clipboardData.getData('text/plain') : '', at: performance.now() };
 			e.preventDefault();
-		});
+		};
+		on('paste', paste);
+		onInput('paste', paste);
 		return off;
 	}
 
@@ -135,6 +194,7 @@ export default function (host) {
 			const c = host.handles.get(h);
 			c.hxmcOff.abort();
 			c.hxmcSeen.disconnect();
+			c.hxmcInput.remove();
 			if (c.hxmcMade) c.remove();
 			windows.delete(h);
 			host.handles.remove(h);
@@ -165,6 +225,24 @@ export default function (host) {
 			const b = new TextEncoder().encode(host.handles.get(h));
 			new Uint8Array(host.memory().buffer, p, b.length).set(b);
 			host.handles.remove(h);
+		},
+		// text input on: the textarea at that area of the canvas (buffer
+		// pixels), focused while the focus is the canvas's (or its fallback
+		// content's: hxmc.ui's accessibility mirror); off: the canvas focused again
+		text_input(h, on, x, y, w, ht) {
+			const c = host.handles.get(h), ta = c.hxmcInput;
+			c.hxmcTyping = !!on;
+			const a = document.activeElement;
+			if (on) {
+				const r = c.getBoundingClientRect();
+				const kx = c.clientWidth / Math.max(1, c.width), ky = c.clientHeight / Math.max(1, c.height);
+				const s = ta.style;
+				s.left = r.left + c.clientLeft + x * kx + 'px';
+				s.top = r.top + c.clientTop + y * ky + 'px';
+				s.width = Math.max(1, w * kx) + 'px';
+				s.height = s.lineHeight = Math.max(1, ht * ky) + 'px';
+				if (a === c || c.contains(a)) ta.focus({ preventScroll: true });
+			} else if (a === ta) c.focus({ preventScroll: true });
 		},
 		set_cursor(h, c) {
 			host.handles.get(h).style.cursor = ['default', 'pointer', 'text', 'crosshair', 'move', 'not-allowed', 'ew-resize', 'ns-resize'][c] ?? 'default';

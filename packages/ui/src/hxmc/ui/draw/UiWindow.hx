@@ -40,6 +40,8 @@ class UiWindow {
 	var drawnScale = 0.0;
 	// the tree sent to the browser's mirror last
 	var access:Null<hxmc.ui.access.AccessTree>;
+	// the text input area last given to the window ("": off)
+	var typing = "";
 	final pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
 	var buttons = 0;
 
@@ -90,8 +92,26 @@ class UiWindow {
 			capture = null;
 		}
 		device.endFrame();
+		updateTextInput();
 		sendAccess();
 		if (onFrame != null) onFrame();
+	}
+
+	// the window's text input: on at the focus's caret while it takes text
+	// (the input method's place), else off; told when it changes
+	function updateTextInput() {
+		var a = ui.textInputArea(), k = renderer.scale;
+		var x = 0, y = 0, w = 0, h = 0;
+		if (a != null) {
+			x = Math.round(a.x * k);
+			y = Math.round(a.y * k);
+			w = Math.round(Math.max(1, a.width * k));
+			h = Math.round(a.height * k);
+		}
+		var now = a == null ? "" : '$x,$y,$w,$h';
+		if (now == typing) return;
+		if (a == null) window.stopTextInput() else window.startTextInput(x, y, w, h);
+		typing = now;
 	}
 
 	// the tree's changes to the browser's mirror (the guards inside: an
@@ -138,6 +158,8 @@ class UiWindow {
 				ui.keyUp(e.key, e.mods);
 			case TextInput:
 				ui.textInput(e.text);
+			case TextEditing:
+				ui.composition(e.text, e.x);
 			case Resize | Redraw:
 				redraw = true;
 			case _:

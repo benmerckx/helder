@@ -11,12 +11,18 @@ enum abstract EventKind(Int) {
 	var MouseDown;
 	var MouseUp;
 	// a character typed (after KeyDown: with Shift, the layout and dead keys
-	// applied), one code point each; not with Control, Alt (Option) or the
-	// Command key held, nor for the keys without a character
+	// applied), one code point each (an input method's commit: its text); not
+	// with Control, Alt (Option) or the Command key held, nor for the keys
+	// without a character
 	var TextInput;
 	// the system lost the window's pixels (X11's Expose, Win32's WM_PAINT):
 	// draw a frame again, even with nothing changed
 	var Redraw;
+	// an input method's composition (the text not committed yet, shown where
+	// it is typed): text, the caret in it (x, UTF-16); empty: it ended
+	// (committed: TextInput follows; or cancelled). In the browser, while
+	// Window.startTextInput is on
+	var TextEditing;
 }
 
 // Event.mods bits
@@ -42,7 +48,7 @@ class Event {
 	public var button = 0;
 	// keys and mouse buttons: the modifiers held (Mods: Shift, Control, Alt, Meta: the Windows or Command key)
 	public var mods = 0;
-	// TextInput: the character
+	// TextInput: the characters; TextEditing: the composition
 	public var text = "";
 
 	public function new() {}

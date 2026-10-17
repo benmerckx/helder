@@ -43,6 +43,14 @@ import hxmc.unsafe.*;
 	static function PrintWindow(hwnd:Ptr, dc:Ptr, flags:Int):Int;
 }
 
+// the IME's windows: where they show (COMPOSITIONFORM, CANDIDATEFORM: raw Int32s)
+@:hxmc.c @:hxmc.lib("imm32") extern class Imm32 {
+	static function ImmGetContext(hwnd:Ptr):Ptr;
+	static function ImmReleaseContext(hwnd:Ptr, imc:Ptr):Int;
+	static function ImmSetCompositionWindow(imc:Ptr, form:Ptr<Int32>):Int;
+	static function ImmSetCandidateWindow(imc:Ptr, form:Ptr<Int32>):Int;
+}
+
 @:hxmc.c @:hxmc.fast @:hxmc.lib("kernel32") extern class Kernel32 {
 	static function GetModuleHandleW(name:Ptr):Ptr;
 	static function GetLastError():Int;

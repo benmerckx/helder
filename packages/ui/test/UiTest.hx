@@ -14,7 +14,8 @@ import hxmc.ui.widgets.TextArea;
 //   the wheel scrolling an Overflow Scroll node, relayout after changes
 // - paint: what Ui draws on a Canvas, in order (shadows under backgrounds,
 //   rounded clips inside borders), and Shadow.parse
-// - fields: TextField's editing and the clipboard (copy, cut, paste);
+// - fields: TextField's editing and the clipboard (copy, cut, paste), an
+//   input method's composition (shown, then committed);
 //   TextArea's lines (wrapping, Enter, Up and Down, Home and End, scrolling)
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
 //   filters, Adam7; png-cases.mjs writes them and the pixels expected)
@@ -95,6 +96,45 @@ class UiTest {
 		check("fields: a paste waits for the text", f.text == "two lines " && later.length == 1);
 		later[0]("later");
 		check("fields: then types it", f.text == "two lines later", f.text);
+		// an input method's composition: shown at the caret, underlined, typed when committed
+		var ui = new Ui(new MonoText(), 300, 100);
+		ui.root.style.fontSize = 10;
+		ui.root.style.alignItems = Start;
+		var g = new TextField("ab");
+		g.style.width = 100;
+		var gc = 0;
+		g.onChange = _ -> gc++;
+		ui.root.append(g);
+		ui.update();
+		ui.paint(new Recording());
+		check("composition: no text input without the focus", ui.textInputArea() == null);
+		ui.setFocus(g);
+		ui.update();
+		ui.paint(new Recording());
+		var at = ui.textInputArea();
+		check("composition: the caret's area", at != null && at.height == 12.5 && at.width == 1, '$at');
+		var x0 = at == null ? 0.0 : at.x;
+		g.select(1, 2);
+		ui.composition("にほん", 3);
+		check("composition: the selection goes, the text waits", g.text == "a" && g.composition == "にほん" && gc == 1, g.text + "|" + g.composition);
+		ui.update();
+		var rec = new Recording();
+		ui.paint(rec);
+		check("composition: drawn in the text", rec.calls.filter(s -> StringTools.startsWith(s, "text")).map(s -> s.split(" ")[3]).join(",") == "20", rec.calls.join("|"));
+		check("composition: underlined", rec.calls.filter(s -> StringTools.startsWith(s, "rect") && s.split(" ")[3] == "15" && s.split(" ")[4] == "1").length == 1, rec.calls.join("|"));
+		at = ui.textInputArea();
+		check("composition: the caret in it", at != null && at.x == x0 - 5 + 15, '$at $x0');
+		ui.composition("日本", 1);
+		ui.update();
+		ui.paint(new Recording());
+		at = ui.textInputArea();
+		check("composition: its caret moves", at != null && at.x == x0 - 5 + 5 && g.text == "a", '$at');
+		ui.composition("", 0);
+		ui.textInput("日本");
+		check("composition: committed", g.text == "a日本" && g.composition == "" && g.caret == 3 && gc == 2, g.text);
+		ui.composition("x", 1);
+		ui.setFocus(null);
+		check("composition: dropped on blur", g.composition == "" && g.text == "a日本" && ui.textInputArea() == null);
 		// a text area: 100 wide, 20 characters a line (MonoText at 10: 5 each, lines of 12.5)
 		var ui = new Ui(new MonoText(), 300, 200);
 		ui.root.style.fontSize = 10;

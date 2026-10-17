@@ -4,7 +4,9 @@
 // Shift+Left; Control+A, X and V through the page's clipboard), the same
 // steps as TodoTest's; its accessibility tree (the ARIA mirror in the
 // canvas) checked, a checkbox activated through it as a screen reader
-// would; then its pixels compared with
+// would; an input method's composition (the DevTools protocol's
+// Input.imeSetComposition: drawn in the field, cancelled, then committed
+// and added); then its pixels compared with
 // todo.png (TodoTest's frame: our own text rasterizer, so the glyphs are
 // the same; the GPUs' edges may differ a little).
 //   node packages/ui/test/web.mjs <WebTodo.wasm> [out dir]
@@ -54,6 +56,15 @@ window.check = async () => {
 	window.pixels = Array.from(px.data);
 	// (a light scene: the Add button's fill must differ from the corner)
 	return compare('todo', px, await decode('todo.png'), [360, 88, 'contrast']);
+};
+// the next frame's pixels, as a hash
+window.snap = async () => {
+	const pixels = window.result.host.gfx.readPixels();
+	window.result.host.os.redraw();
+	const d = (await pixels).data;
+	let h = 0;
+	for (let i = 0; i < d.length; i++) h = (Math.imul(h, 31) + d[i]) | 0;
+	return h;
 };
 </script>`;
 const server = createServer(async (req, res) => {
@@ -144,6 +155,24 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	await p.evaluate(() => [...document.querySelectorAll('#c [role=checkbox]')].find((e) => e.getAttribute('aria-label') === 'Write the renderer').click());
 	await settle();
 	const activated = (await boxes()).line.split(' | ')[1];
+	// an input method: the field takes text (its textarea focused, named as
+	// the field); a composition drawn, cancelled (as before), committed
+	await click('draft');
+	const typing = await p.evaluate(() => document.activeElement.tagName + ' ' + document.activeElement.getAttribute('aria-label'));
+	const before = await p.evaluate(() => window.snap());
+	await cdp.send('Input.imeSetComposition', { text: 'にほん', selectionStart: 3, selectionEnd: 3 });
+	await settle();
+	const composed = await p.evaluate(() => window.snap());
+	await cdp.send('Input.imeSetComposition', { text: '', selectionStart: 0, selectionEnd: 0 });
+	await settle();
+	const cancelled = await p.evaluate(() => window.snap());
+	await cdp.send('Input.imeSetComposition', { text: 'にほん', selectionStart: 3, selectionEnd: 3 });
+	await cdp.send('Input.insertText', { text: '日本' });
+	await p.keyboard.press('Enter');
+	await settle();
+	const ax2 = (await cdp.send('Accessibility.getFullAXTree')).nodes.filter((n) => !n.ignored);
+	const committed = ax2.some((n) => n.role?.value === 'checkbox' && n.name?.value === '日本');
+	const ime = typing === 'TEXTAREA What needs to be done?' && composed !== before && cancelled === before && committed;
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
 		const png = await p.evaluate(async () => {
@@ -153,9 +182,9 @@ for (const gfx of ['webgpu', 'webgl2']) {
 		});
 		await writeFile(path.join(out, `todo-${gfx}.png`), Buffer.from(png));
 	}
-	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && errors.length === 0 && backend === gfx;
+	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && ime && errors.length === 0 && backend === gfx;
 	if (!ok) failed++;
-	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}; input method: ${ime ? 'ok' : `${typing}, composed ${composed !== before}, cancelled ${cancelled === before}, committed ${committed}`}${ok ? '' : ' FAILED'}`);
 	if (missing.length) console.log(aria);
 	for (const e of errors) console.log('  error: ' + e);
 	if (backend !== gfx) console.log('  on ' + backend);

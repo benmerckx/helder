@@ -22,7 +22,7 @@ import hxmc.ui.reactive.Memo;
 // padding={8}, background="#3b82f6"; style={StyleProps} for several), the
 // events (onClick, onPointerDown, onPointerUp, onPointerMove,
 // onPointerEnter, onPointerLeave, onWheel, onKeyDown, onKeyUp,
-// onTextInput, onFocus, onBlur: Event -> Void), focusable, ref (a
+// onTextInput, onComposition, onFocus, onBlur: Event -> Void), focusable, ref (a
 // function given the node), and what the node is to assistive technology
 // (Semantics: role, label, description, checked, selected, expanded,
 // disabled, value-now, value-min, value-max, value-text). A Signal, Memo or function as a value (but an
@@ -312,6 +312,7 @@ class Render {
 			case "onWheel": n.onWheel = h;
 			case "onKeyDown": n.onKeyDown = h;
 			case "onKeyUp": n.onKeyUp = h;
+			case "onComposition": n.onComposition = h;
 			case "onTextInput": n.onTextInput = h;
 			case "onFocus": n.onFocus = h;
 			case "onBlur": n.onBlur = h;

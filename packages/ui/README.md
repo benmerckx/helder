@@ -78,7 +78,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   tests); the widgets' colours and the switch's knob use them.
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
+  `EditableText`, with an input method's composition shown at the caret), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`, `Area`; `examples/Gallery.hx` shows them all.
 
 ## Markup
@@ -137,6 +137,19 @@ mirrors it as ARIA elements inside its canvas (the canvas's fallback
 content: in the page's accessibility tree, not drawn): load
 `packages/ui/imports.mjs` with the others. The native adapters (UI
 Automation, NSAccessibility, AT-SPI) are not written yet.
+
+## Text input
+
+Keys come as `KeyDown` and characters as `TextInput` (Shift, the
+keyboard layout, dead keys and compose sequences applied: on X11 through
+the input method, `XMODIFIERS`'s or Xlib's own). While a text field has
+the focus the window takes text at its caret (`hxmc.os.Window.startTextInput`):
+an input method's composition (Japanese, Chinese, Korean) shows in the
+field, underlined, until committed. In the browser keys then go through a
+transparent textarea at the caret, which input methods compose in
+(`TextEditing` events); on Windows the IME's own windows are placed at
+the caret; X11's and macOS's input methods draw their compositions
+themselves.
 
 ## Tests
 

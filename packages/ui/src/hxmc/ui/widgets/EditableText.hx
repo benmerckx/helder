@@ -10,6 +10,9 @@ import hxmc.ui.*;
 // caret, a drag selects). onChange gets each new text. Subclasses lay the
 // text out and draw it, find the index under the pointer (indexAt), and
 // take the keys that differ (moreKeys: Enter, Up and Down, Home and End).
+// An input method's composition shows at the caret, underlined, until its
+// commit types it (the selection goes when it starts); the caret's place
+// is the input method's (textInputArea).
 class EditableText extends TextNode {
 	public var placeholder:String = "";
 	public var placeholderColor:Color = Color.rgba(0x000000, 0.4);
@@ -19,6 +22,15 @@ class EditableText extends TextNode {
 	// the caret (and the selection's other end), UTF-16 indices
 	public var caret(default, null) = 0;
 	public var anchor(default, null) = 0;
+
+	// an input method's composition (Ui.composition): shown at the caret, not
+	// in text until committed; the caret in it
+	public var composition(default, null) = "";
+	var compositionCaret = 0;
+	// the caret as last drawn (window pixels; NaN: not yet)
+	var caretX = Math.NaN;
+	var caretY = 0.0;
+	var caretHeight = 0.0;
 
 	var dragging = false;
 
@@ -30,6 +42,7 @@ class EditableText extends TextNode {
 		style.cursor = Text;
 		onKeyDown = key;
 		onTextInput = e -> typeText(e.text);
+		onComposition = e -> compose(e.text, e.caret);
 		onPointerDown = e -> {
 			var i = indexAt(e.x, e.y);
 			caret = i;
@@ -43,7 +56,11 @@ class EditableText extends TextNode {
 		};
 		onPointerUp = e -> dragging = false;
 		onFocus = e -> changed();
-		onBlur = e -> changed();
+		onBlur = e -> {
+			// (an input method commits it to the next focus, or drops it)
+			if (composition != "") compose("", 0);
+			changed();
+		};
 		semantics = {role: hxmc.ui.access.Role.TextInput};
 	}
 
@@ -51,6 +68,42 @@ class EditableText extends TextNode {
 		select(0, text.length);
 		replace(value);
 		return true;
+	}
+
+	override public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
+		return focused && !Math.isNaN(caretX) ? {x: caretX, y: caretY, width: 1.0, height: caretHeight} : null;
+
+	// the composition now (empty: none), the caret in it: shown, not typed
+	public function compose(s:String, at:Int) {
+		if (s == composition && at == compositionCaret) return;
+		if (s != "" && composition == "" && selectionStart != selectionEnd) replace("");
+		composition = s;
+		compositionCaret = at < 0 ? 0 : at > s.length ? s.length : at;
+		markDirty();
+		changed();
+	}
+
+	override function shownText():String
+		return composition == "" ? text : text.substr(0, caret) + composition + text.substr(caret);
+
+	// the caret in the text shown (in the composition while there is one)
+	function shownCaret():Int
+		return composition == "" ? caret : caret + compositionCaret;
+
+	// the composition's underline, line by line, in p (drawn at x, y)
+	function paintComposition(canvas:Canvas, p:Paragraph, x:Float, y:Float) {
+		if (composition == "") return;
+		var lh = font().size * font().lineHeight, t = Math.max(1, Math.round(font().size / 14));
+		var start = p.caret(caret), last = start;
+		for (i in caret + 1...caret + composition.length + 1) {
+			var c = p.caret(i);
+			if (c.y != start.y) {
+				canvas.rect(x + start.x, y + start.y + lh - t, last.x - start.x, t, 0, textColor(), 0, 0);
+				start = c;
+			}
+			last = c;
+		}
+		canvas.rect(x + start.x, y + start.y + lh - t, last.x - start.x, t, 0, textColor(), 0, 0);
 	}
 
 	// sets the text from outside (the caret clamped)

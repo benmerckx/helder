@@ -10,7 +10,10 @@
 // div with its ARIA role, name and states, its children in order; the
 // node with the keyboard focus gets the page's focus (keys still reach the
 // program). An activation (a screen reader's click) or a focus moved by
-// assistive technology comes back as an action (AccessAction).
+// assistive technology comes back as an action (AccessAction). While a
+// text field has it and the window takes text (hxmc.os's text input: its
+// textarea focused, for input methods), the focus stays the textarea's,
+// named as the field.
 //
 // hxmc.ui.native's DOM backend (src/hxmc/ui/native/dom/DomBackend.hx): a
 // container (run's option nativeContainer, an element or its id, else a
@@ -225,7 +228,8 @@ export default function (host) {
 			const m = mirror(c);
 			// (whether the page's focus is the canvas's, before the elements
 			// move: moving the focused one would blur it)
-			const inside = document.activeElement === c || c.contains(document.activeElement);
+			const input = c.hxmcInput;
+			const inside = document.activeElement === c || c.contains(document.activeElement) || (input && document.activeElement === input);
 			if (u.full) {
 				m.elements.clear();
 				m.root.replaceChildren();
@@ -254,7 +258,11 @@ export default function (host) {
 			if (inside) {
 				const f = u.focus ? m.elements.get(u.focus) : null;
 				focusing = true;
-				if (f && document.activeElement !== f) f.focus({ preventScroll: true });
+				if (f && input && document.activeElement === input && f.getAttribute('role') === 'textbox') {
+					input.setAttribute('aria-label', f.getAttribute('aria-label') ?? '');
+					if (f.getAttribute('aria-multiline')) input.setAttribute('aria-multiline', 'true');
+					else input.removeAttribute('aria-multiline');
+				} else if (f && document.activeElement !== f) f.focus({ preventScroll: true });
 				else if (!f && document.activeElement !== c) c.focus({ preventScroll: true });
 				focusing = false;
 			}

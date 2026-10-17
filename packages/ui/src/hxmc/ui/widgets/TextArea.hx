@@ -6,7 +6,8 @@ import hxmc.ui.*;
 // wrapped to its width, rows lines high unless its style says, scrolled
 // (the wheel, and to keep the caret in view). Enter types a new line; Up
 // and Down move a line keeping the column; Home and End go to the line's
-// start and end (with Control: the text's).
+// start and end (with Control: the text's). A composition shows at the
+// caret, underlined.
 class TextArea extends EditableText {
 	// the height in lines when the style gives none
 	public var rows = 3;
@@ -89,14 +90,14 @@ class TextArea extends EditableText {
 		if (ui == null) return;
 		var p = layoutText(ui.text, width);
 		var lh = lineHeight();
-		var c = p.caret(caret);
+		var c = p.caret(shownCaret());
 		// (keep the caret in view)
 		if (c.y + lh - offset > height) offset = c.y + lh - height;
 		if (c.y < offset) offset = c.y;
 		offset = Math.max(0, Math.min(offset, Math.max(0, p.height - height)));
 		canvas.pushClip(x, y, width, height, 0);
 		var top = y - offset;
-		if (focused && selectionStart != selectionEnd) {
+		if (focused && selectionStart != selectionEnd && composition == "") {
 			var a = p.caret(selectionStart), b = p.caret(selectionEnd);
 			if (a.y == b.y) canvas.rect(x + a.x, top + a.y, b.x - a.x, lh, 0, selectionColor, 0, 0) else {
 				// (to the end of the first line, whole lines, the start of the last)
@@ -105,8 +106,12 @@ class TextArea extends EditableText {
 				canvas.rect(x, top + b.y, b.x, lh, 0, selectionColor, 0, 0);
 			}
 		}
-		if (text.length == 0 && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), width), x, y, width, Left, placeholderColor);
+		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), width), x, y, width, Left, placeholderColor);
 		else canvas.text(p, x, top, width, Left, textColor());
+		paintComposition(canvas, p, x, top);
+		caretX = x + c.x;
+		caretY = top + c.y;
+		caretHeight = lh;
 		if (focused) canvas.rect(x + c.x, top + c.y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
 		canvas.popClip();
 	}

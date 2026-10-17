@@ -100,6 +100,34 @@ class Win32Window {
 		User32.SetCursor(cursor);
 	}
 
+	// the IME's composition at the caret, its candidates below it (CFS_POINT;
+	// CFS_EXCLUDE: not over the caret's area)
+	function textInputArea(x:Int, y:Int, width:Int, height:Int) {
+		var imc = Imm32.ImmGetContext(hwnd);
+		if (imc.isNull()) return;
+		Arena.scoped(a -> {
+			var f:Ptr<Int32> = a.alloc(32);
+			f[0] = 2;
+			f[1] = x;
+			f[2] = y;
+			f[3] = x;
+			f[4] = y;
+			f[5] = x + width;
+			f[6] = y + height;
+			Imm32.ImmSetCompositionWindow(imc, f);
+			f[0] = 0;
+			f[1] = 0x80;
+			f[2] = x;
+			f[3] = y + height;
+			f[4] = x;
+			f[5] = y;
+			f[6] = x + width;
+			f[7] = y + height;
+			Imm32.ImmSetCandidateWindow(imc, f);
+		});
+		Imm32.ImmReleaseContext(hwnd, imc);
+	}
+
 	// the clipboard's text: UTF-16 in movable global memory (CF_UNICODETEXT),
 	// which the clipboard owns once set
 	function writeClipboard(text:String) {

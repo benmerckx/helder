@@ -11,6 +11,7 @@ enum abstract EventType(Int) {
 	var KeyDown;
 	var KeyUp;
 	var TextInput;
+	var Composition;
 	var Focus;
 	var Blur;
 }
@@ -31,8 +32,11 @@ class Event {
 	// KeyDown, KeyUp: the key (Key) and the modifiers (Key.MOD_*)
 	public var key = 0;
 	public var mods = 0;
-	// TextInput: the characters typed (an IME's composed text, too)
+	// TextInput: the characters typed (an IME's composed text, too);
+	// Composition: an input method's text not committed yet (empty: none)
 	public var text = "";
+	// Composition: the caret in text (UTF-16)
+	public var caret = 0;
 	// Wheel: the scroll in pixels (down and right positive)
 	public var deltaX = 0.0;
 	public var deltaY = 0.0;

@@ -5,7 +5,7 @@ import hxmc.ui.*;
 // A one-line text field (EditableText's keys and pointer; Enter submits):
 // its text scrolls sideways to keep the caret in view; the placeholder
 // shows while it is empty; a paste goes on one line. onSubmit gets the
-// text on Enter.
+// text on Enter. A composition shows at the caret, underlined.
 class TextField extends EditableText {
 	public var onSubmit:Null<String->Void>;
 
@@ -44,19 +44,23 @@ class TextField extends EditableText {
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
 		if (ui == null) return;
 		var p = layoutText(ui.text, Math.NaN);
-		var cx = p.caret(caret).x;
+		var cx = p.caret(shownCaret()).x;
 		// (keep the caret in view)
 		if (cx - scroll > width - 1) scroll = cx - width + 1;
 		if (cx - scroll < 0) scroll = cx;
 		if (p.width - scroll < width - 1 && scroll > 0) scroll = Math.max(0, p.width - width + 1);
 		var lh = font().size * font().lineHeight;
 		canvas.pushClip(x, y, width, height, 0);
-		if (focused && selectionStart != selectionEnd) {
+		if (focused && selectionStart != selectionEnd && composition == "") {
 			var a = p.caret(selectionStart).x, b = p.caret(selectionEnd).x;
 			canvas.rect(x + a - scroll, y, b - a, lh, 0, selectionColor, 0, 0);
 		}
-		if (text.length == 0 && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), Math.NaN), x, y, width, Left, placeholderColor);
+		if (text.length == 0 && composition == "" && placeholder != "") canvas.text(ui.text.layout(placeholder, font(), Math.NaN), x, y, width, Left, placeholderColor);
 		else canvas.text(p, x - scroll, y, p.width, Left, textColor());
+		paintComposition(canvas, p, x - scroll, y);
+		caretX = x + cx - scroll;
+		caretY = y;
+		caretHeight = lh;
 		if (focused) canvas.rect(x + cx - scroll, y + 1, Math.max(1, font().size / 14), lh - 2, 0, caretColor, 0, 0);
 		canvas.popClip();
 	}
