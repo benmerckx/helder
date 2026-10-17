@@ -369,6 +369,25 @@ through the input method and the accessibility tree; a `GpuView`
 (`hxmc.ui.native.android`) is a GPU view among them, where gfx draws
 (`AndroidMixTest`).
 
+### Native or drawn, per widget
+
+In a drawn window a widget can also be the platform's own control
+(docs/plans/native-or-drawn.md): `host` on a node (`Auto`, `Native`,
+`Drawn`; markup's `host="native"`) holds for its subtree, and where the
+tree leaves it `Auto` the window's `Ui.policy` decides per kind of widget
+(`"text-field"` and `"text-area"`: native, the plan's defaults). Native
+needs the window's `Ui.platform` (`PlatformViews`); without one, or for a
+kind it lacks, the widget is drawn. Text fields and areas first: the
+platform's editor sits over the field's content box, borderless and
+transparent in the field's font, colour and alignment, the theme drawing
+the box, ring and placeholder's colour; its text, selection and focus
+follow the node's both ways, the keys it leaves to the program (Tab,
+Escape; Enter, Up and Down on one line) go to the window, and the field is
+drawn again while a popup covers it or a scroller clips it. In the
+browser the editors are the page's input and textarea over the canvas
+(`WebViews`; `web-field.mjs` drives them in Chromium); the desktop and
+Android come next. InputOTP keeps its field drawn.
+
 ## Accessibility
 
 `hxmc.ui.access` builds the tree assistive technology sees (AccessKit's

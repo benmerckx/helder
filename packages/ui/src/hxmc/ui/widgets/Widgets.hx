@@ -2784,6 +2784,8 @@ class Widgets implements Markup {
 		var f = new TextField(allowed(props.value.peek()));
 		f.tag = tag + "-input";
 		f.semantics.label = props.label ?? "One-time code";
+		// (drawn, never the platform's editor: the slots show its text)
+		f.host = Drawn;
 		// (drawing nothing: its text in the slots, its focus the active slot's; to assistive technology the field)
 		f.style.width = "100%";
 		f.style.height = "100%";

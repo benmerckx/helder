@@ -16,6 +16,8 @@ class WebTodo {
 		// (shadcn's, its buttons' cursor a pointer as many apps make it: what
 		// Window.cursor gives the canvas over one)
 		var sheet = Shadcn.sheet;
+		// (its fields drawn: web.mjs types into the canvas, input methods included; web-field.mjs has the native editors)
+		w.ui.policy["text-field"] = Host.Drawn;
 		w.ui.theme = {rules: sheet.rules.concat([{slot: "button", style: {cursor: Pointer}}]), light: sheet.light, dark: sheet.dark, lengths: sheet.lengths};
 		var app = new Todo();
 		Render.render(app.view(), w.root);

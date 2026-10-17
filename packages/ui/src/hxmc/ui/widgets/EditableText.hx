@@ -145,11 +145,12 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		return true;
 	}
 
+	// (native: the editor takes it, not the window's text input)
 	override public function takesText():Bool
-		return true;
+		return !editorShown;
 
 	override public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
-		return focused && !Math.isNaN(caretX) ? {x: caretX, y: caretY, width: 1.0, height: caretHeight} : null;
+		return focused && !editorShown && !Math.isNaN(caretX) ? {x: caretX, y: caretY, width: 1.0, height: caretHeight} : null;
 
 	// the composition now (empty: none), the caret in it: shown, not typed
 	public function compose(s:String, at:Int) {

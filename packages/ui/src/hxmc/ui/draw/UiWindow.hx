@@ -68,6 +68,8 @@ class UiWindow {
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
 		ui.dark = dark.peek();
+		// (the browser's own views: native text editors over the canvas)
+		if (Mem.os() == 3) ui.platform = WebMirror.views(window.surface.handle.toI64().toInt());
 		open.push(this);
 	}
 
@@ -260,6 +262,9 @@ class SystemClipboard implements ClipboardHost {
 // the browser's accessibility mirror (WebAccess), apart: its imports are
 // reached only from the browser's branches
 class WebMirror {
+	public static function views(canvas:Int):PlatformViews
+		return new WebViews(canvas);
+
 	public static function send(canvas:Int, json:String)
 		Arena.scoped(a -> WebAccess.access_update(canvas, a.cstring(json)));
 
