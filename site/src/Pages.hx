@@ -68,15 +68,17 @@ class Pages implements Markup {
 
 	// a wasm example's island (the cube on the home page, every demo of the
 	// gallery), its id demo-<example>: hxmcWasm's and hxmcWasmOptions' key.
-	// In the gallery (gallery: true) a canvas demo runs when asked (a tap;
-	// on a large screen, once in view: fit's script) and stops once out of view
+	// In the gallery (gallery: true) a canvas demo runs when asked (a tap; a
+	// small one on a large screen, once in view: FIT) and stops once out of view
 	public static function Demo(props:{e:Example, ?load:Island.Load, ?gallery:Bool, ?children:Any}):View {
 		var e = props.e;
 		var src = e.wasm == null ? 'examples/${e.id}.wasm' : e.wasm;
 		return switch e.demo {
 			case Canvas(w, h) if (props.gallery == true):
 				var size = download(e);
-				<div class="stage" style={'--w:$w;--h:$h'}>
+				// (small ones, under 150 KB gzipped, run once in view on a large screen)
+				var small = e.gz != null && e.gz < 150 * 1024 && Examples.fonts(e.pkg) == null;
+				<div class={small ? "stage auto" : "stage"} style={'--w:$w;--h:$h'}>
 					<Island.Wasm src={src} id={"demo-" + e.id} imports={Examples.imports(e.pkg)} fonts={Examples.fonts(e.pkg)} width={w} height={h}
 						load={Island.Load.Click} stop={Island.Stop.Offscreen}>
 						<button type="button" class="run" aria-label={"Run " + e.title + (size == null ? "" : ", downloads " + size)}><span class="play" aria-hidden="true"></span><span>Run</span>{size == null ? null : <small>{size}</small>}</button>
@@ -98,12 +100,12 @@ class Pages implements Markup {
 	}
 
 	// the gallery's stages scaled to their column (--k), and on a large screen
-	// with a mouse (and no Save-Data) each demo run once it is in view rather
-	// than on a tap; before the loader starts (a deferred script)
+	// with a mouse (and no Save-Data) the small demos (.auto) run once in view
+	// rather than on a tap; before the loader starts (a deferred script)
 	static final FIT = "(()=>{var big=matchMedia('(min-width: 900px) and (pointer: fine)').matches&&!(navigator.connection&&navigator.connection.saveData);"
 		+ "var fit=function(s){s.style.setProperty('--k',Math.min(1,s.clientWidth/+s.style.getPropertyValue('--w')))};"
 		+ "var o=new ResizeObserver(function(es){es.forEach(function(e){fit(e.target)})});"
-		+ "document.querySelectorAll('.stage').forEach(function(s){fit(s);o.observe(s);var i=s.querySelector('hxmc-island');if(big&&i)i.dataset.load='visible'})})()";
+		+ "document.querySelectorAll('.stage').forEach(function(s){fit(s);o.observe(s);var i=s.querySelector('hxmc-island');if(big&&i&&s.classList.contains('auto'))i.dataset.load='visible'})})()";
 
 	// --- Home ---
 
