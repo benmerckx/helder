@@ -11,7 +11,10 @@ import hxmc.unsafe.*;
 //     660 Hz right), then stops; checks that each callback asked for at most
 //     Audio.frames frames and that the callbacks covered all of them; with
 //     --rate, that they came at the sample rate (within RATE_TOLERANCE,
-//     once the buffer is full: a device or a sink that paces); with
+//     once the buffer is full: a device or a sink that paces; the point is
+//     pacing against a clock, as an unpaced sink runs many times faster: a
+//     two-second run on a shared CI machine's device measured 42–44k frames
+//     per second for 48k); with
 //     --expect, that <file> (raw interleaved floats: an ALSA file plugin's or
 //     the "file:" device's) holds the signal, from its first sample, within
 //     SAMPLE_TOLERANCE (exact through ALSA alone; Wine converts and mixes)
@@ -21,7 +24,7 @@ import hxmc.unsafe.*;
 class AudioTest {
 	static inline var RATE = 48000;
 	static inline var CHANNELS = 2;
-	static inline var RATE_TOLERANCE = 0.1;
+	static inline var RATE_TOLERANCE = 0.25;
 	static inline var SAMPLE_TOLERANCE = 1e-3;
 
 	// the callback's state, read by the main thread when it ends
