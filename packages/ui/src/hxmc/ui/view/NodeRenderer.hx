@@ -16,7 +16,7 @@ import hxmc.ui.*;
 // background="#3b82f6"; style={StyleProps} for several), the events
 // (onClick, onPointerDown, onPointerUp, onPointerMove, onPointerEnter,
 // onPointerLeave, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
-// onFocus, onBlur, the drag events: Event -> Void), focusable, selectable,
+// onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
 // role, label, description, checked, selected, expanded, level, disabled,
 // value-now, value-min, value-max, value-text, hidden). A text node holds
@@ -211,6 +211,8 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 			case "onTextInput": n.onTextInput = h;
 			case "onFocus": n.onFocus = h;
 			case "onBlur": n.onBlur = h;
+			case "onFocusIn": n.onFocusIn = h;
+			case "onFocusOut": n.onFocusOut = h;
 			case "onDragStart": n.onDragStart = h;
 			case "onDragOver": n.onDragOver = h;
 			case "onDragLeave": n.onDragLeave = h;

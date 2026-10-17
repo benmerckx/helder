@@ -194,7 +194,7 @@ Attributes:
   `style={...}` takes a typed `StyleProps` object;
 - events: `onClick`, `onPointerDown`, `onPointerUp`, `onPointerMove`,
   `onPointerEnter`, `onPointerLeave`, `onWheel`, `onKeyDown`, `onKeyUp`,
-  `onTextInput`, `onFocus`, `onBlur` (an `Event -> Void`);
+  `onTextInput`, `onFocus`, `onBlur`, `onFocusIn`, `onFocusOut` (bubbling) (an `Event -> Void`);
 - `focusable`, `ref={n -> ...}` (the node), `tag="name"` (for `Node.find`).
 - drag and drop: `drag-data={value}` makes a node draggable; `onDragStart`,
   `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`

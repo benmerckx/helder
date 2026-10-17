@@ -54,6 +54,9 @@ class Node {
 	public var onComposition(get, set):Null<Event->Void>;
 	public var onFocus(get, set):Null<Event->Void>;
 	public var onBlur(get, set):Null<Event->Void>;
+	// (bubbling: the focus coming into this node or one under it, or leaving)
+	public var onFocusIn(get, set):Null<Event->Void>;
+	public var onFocusOut(get, set):Null<Event->Void>;
 	// drag and drop: dragData makes it draggable (what its drag carries);
 	// the handlers of a source (start, end) and of a target (over: call
 	// preventDefault to accept; leave; drop)
@@ -355,6 +358,28 @@ class Node {
 
 	inline function get_onBlur():Null<Event->Void>
 		return handlers == null ? null : handlers.onBlur;
+
+	inline function get_onFocusIn():Null<Event->Void>
+		return handlers == null ? null : handlers.onFocusIn;
+
+	function set_onFocusIn(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onFocusIn = v;
+	}
+
+	inline function get_onFocusOut():Null<Event->Void>
+		return handlers == null ? null : handlers.onFocusOut;
+
+	function set_onFocusOut(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onFocusOut = v;
+	}
 
 	function set_onBlur(v:Null<Event->Void>):Null<Event->Void> {
 		if (handlers == null) {
@@ -875,6 +900,8 @@ private class Handlers {
 	public var onComposition:Null<Event->Void> = null;
 	public var onFocus:Null<Event->Void> = null;
 	public var onBlur:Null<Event->Void> = null;
+	public var onFocusIn:Null<Event->Void> = null;
+	public var onFocusOut:Null<Event->Void> = null;
 	public var dragData:Dynamic = null;
 	public var onDragStart:Null<Event->Void> = null;
 	public var onDragOver:Null<Event->Void> = null;

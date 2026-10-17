@@ -54,6 +54,7 @@ class MarkupTest implements Markup {
 		numbers();
 		rightToLeft();
 		editMenus();
+		focusTips();
 		virtual();
 		table();
 		tree();
@@ -344,6 +345,36 @@ class MarkupTest implements Markup {
 		var cut = ui.overlay.find("note-menu-0");
 		press(1, cut.absX + 4, cut.absY + 4);
 		check("edit menu: Select All, Cut", text.value == "" && clip.text == "hello worldworld", text.value);
+	}
+
+	static function focusTips() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var log = [];
+		Render.render(<view padding={20} row-gap={10} onFocusIn={e -> log.push("in " + e.target.tag)} onFocusOut={e -> log.push("out " + e.target.tag)}>
+			<Button tag="first" label="First"/>
+			<Tooltip tag="tip" text="Saves it" delay={0.5}><Button tag="save" label="Save"/></Tooltip>
+		</view>, ui.root);
+		ui.update();
+		Clock.tick(1000);
+		ui.keyDown(Key.TAB, 0);
+		ui.keyDown(Key.TAB, 0);
+		ui.update();
+		check("focus in, focus out: bubbling", log.join(",") == "in first,out first,in save", log.join(","));
+		Clock.tick(1000.1);
+		Clock.tick(1000.7);
+		ui.update();
+		check("tooltip: shown for the keyboard's focus", ui.overlay.find("tooltip") != null);
+		ui.keyDown(Key.TAB, 0);
+		ui.update();
+		check("tooltip: hidden when the focus leaves", ui.overlay.find("tooltip") == null);
+		var save = ui.root.find("save");
+		ui.pointerDown(save.absX + 4, save.absY + 4, 1);
+		ui.pointerUp(save.absX + 4, save.absY + 4, 1);
+		ui.pointerMove(390, 290);
+		Clock.tick(1001);
+		Clock.tick(1002);
+		ui.update();
+		check("tooltip: not for a click's focus", ui.focus == save && ui.overlay.find("tooltip") == null);
 	}
 
 	static function popovers() {

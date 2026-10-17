@@ -754,7 +754,9 @@ class Widgets implements Markup {
 			over++;
 			show.value = false;
 		}
-		return <view tag={props.tag} onPointerEnter={_ -> enter()} onPointerLeave={_ -> leave()} onPointerDown={_ -> leave()}>
+		// (also while the keyboard's focus is in it)
+		return <view tag={props.tag} onPointerEnter={_ -> enter()} onPointerLeave={_ -> leave()} onPointerDown={_ -> leave()}
+			onFocusIn={e -> if (e.current.ui != null && e.current.ui.focusVisible) enter()} onFocusOut={_ -> leave()}>
 			{props.children}
 			<Popover open={show} placement={props.placement ?? "above"} tag="tooltip">
 				<view role="tooltip" padding="4 8" radius={4} background={() -> t().tooltip} color={() -> t().onTooltip} font-size={12}>{props.text}</view>

@@ -21,6 +21,10 @@ enum abstract EventType(Int) {
 	var DragLeave;
 	var Drop;
 	var DragEnd;
+	// the focus came into a node or its subtree, or left it: as Focus and
+	// Blur, but bubbling (the DOM's focusin, focusout)
+	var FocusIn;
+	var FocusOut;
 }
 
 // An event as Ui dispatches it: to the target, then (unless stopped) to

@@ -339,12 +339,13 @@ class Ui {
 		pointerY = y;
 		var target = hit(x, y);
 		dismissOutside(target);
-		selectAt(target, x, y, button);
-		setHover(target);
+		// (a press focuses without the ring: hidden before the focus moves)
 		if (focusVisible) {
 			focusVisible = false;
 			requestFrame();
 		}
+		selectAt(target, x, y, button);
+		setHover(target);
 		if (target == null) {
 			setFocus(null);
 			return;
@@ -551,6 +552,8 @@ class Ui {
 			return;
 		}
 		if (!e.defaultPrevented && key == Key.TAB) {
+			// (shown before the focus moves: its handlers see it)
+			focusVisible = true;
 			moveFocus(mods & Key.MOD_SHIFT != 0 ? -1 : 1);
 			focusVisible = focus != null;
 			requestFrame();
@@ -671,10 +674,12 @@ class Ui {
 		if (old != null) {
 			@:privateAccess old.setState(old.hovered, old.pressed, false);
 			if (old.onBlur != null) old.onBlur(new Event(Blur, old, pointerX, pointerY));
+			bubble(new Event(FocusOut, old, pointerX, pointerY));
 		}
 		if (n != null) {
 			@:privateAccess n.setState(n.hovered, n.pressed, true);
 			if (n.onFocus != null) n.onFocus(new Event(Focus, n, pointerX, pointerY));
+			bubble(new Event(FocusIn, n, pointerX, pointerY));
 		}
 	}
 
@@ -851,6 +856,8 @@ class Ui {
 				case Composition: n.onComposition;
 				case DragStart: n.onDragStart;
 				case DragEnd: n.onDragEnd;
+				case FocusIn: n.onFocusIn;
+				case FocusOut: n.onFocusOut;
 				case _: null;
 			}
 			if (h != null) h(e.at(n));
@@ -967,8 +974,8 @@ class Ui {
 				bubble(new Event(Click, n, x, y));
 			case Focus:
 				if (!n.focusable) return false;
-				setFocus(n);
 				focusVisible = true;
+				setFocus(n);
 				requestFrame();
 			case Increment | Decrement:
 				if (n.focusable) setFocus(n);
