@@ -2646,10 +2646,10 @@ class Widgets implements Markup {
 						open.value = true;
 						highlight(n > 0 ? 0 : -1);
 					} else if (n > 0) highlight((active.peek() + 1) % n);
-				case Key.UP:
+				case Key.UP if (open.peek()):
 					e.stop();
 					var n = matches.peek().length;
-					if (open.peek() && n > 0) highlight(active.peek() <= 0 ? n - 1 : active.peek() - 1);
+					if (n > 0) highlight(active.peek() <= 0 ? n - 1 : active.peek() - 1);
 				case Key.ESCAPE if (open.peek()):
 					// (only the list closes: not a dialog it is in)
 					e.preventDefault();
