@@ -1,57 +1,22 @@
 package hxmc.os.win32;
 
 #if macro
-import haxe.macro.Context;
-import haxe.macro.Expr;
-
 // The build macro of COM interfaces (hxmc.os.audio.Wasapi and
-// hxmc.gfx's Direct3D 11): each function declared without a body and
-// with @:slot(n) is the method at index n of the interface's vtable (the
-// order of the official headers' C vtables, the base interfaces' methods
-// first), its first argument the object. It becomes a C call through that
-// slot (c_<name>, @:hxmc.indirect: in a safe region, since methods may
-// block) and an inline wrapper of the declared name that reads the slot
-// from the object's vtable.
+// hxmc.gfx's Direct3D 11): hxmc.os.VTable's, each function declared without
+// a body and with @:slot(n) the method at index n of the interface's vtable
+// (the order of the official headers' C vtables, the base interfaces'
+// methods first), its first argument the object.
 class Com {
-	public static function build():Array<Field> {
-		var out:Array<Field> = [];
-		var ptr = macro :hxmc.unsafe.Ptr;
-		for (f in Context.getBuildFields())
-			switch f.kind {
-				case FFun(fn) if (fn.expr == null):
-					var slot = Lambda.find(f.meta, m -> m.name == ":slot");
-					if (slot == null) Context.error("a COM method needs @:slot(index)", f.pos);
-					var raw = "c_" + f.name;
-					out.push({
-						name: raw,
-						access: [AStatic, AExtern],
-						meta: [{name: ":hxmc.indirect", pos: f.pos}],
-						kind: FFun({args: [{name: "fn", type: ptr}].concat(fn.args), ret: fn.ret, expr: null}),
-						pos: f.pos
-					});
-					var self = fn.args[0].name;
-					var args = [macro hxmc.os.win32.Com.method($i{self}, ${slot.params[0]})].concat([for (a in fn.args) macro $i{a.name}]);
-					out.push({
-						name: f.name,
-						access: [APublic, AStatic, AInline],
-						kind: FFun({args: fn.args, ret: fn.ret, expr: macro return $i{raw}($a{args})}),
-						pos: f.pos
-					});
-				case _:
-					out.push(f);
-			}
-		return out;
-	}
+	public static function build():Array<haxe.macro.Expr.Field>
+		return hxmc.os.VTable.build();
 }
 #else
 import hxmc.unsafe.*;
 
 class Com {
 	// the method at a slot of a COM object's vtable
-	public static inline function method(self:Ptr, slot:Int):Ptr {
-		var vtable:Ptr<Ptr> = (self : Ptr<Ptr>).value;
-		return vtable[slot];
-	}
+	public static inline function method(self:Ptr, slot:Int):Ptr
+		return hxmc.os.VTable.method(self, slot);
 
 	// IUnknown::Release, when there is an object
 	public static inline function release(o:Ptr)

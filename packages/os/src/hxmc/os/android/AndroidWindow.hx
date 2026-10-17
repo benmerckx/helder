@@ -14,7 +14,9 @@ import hxmc.unsafe.*;
 // finger), and its drag scrolls too (Scroll by the finger's motion, as a
 // touch screen scrolls); keys come as X11 KeySyms like the other systems'
 // (Back is Escape: the system still finishes the activity), with
-// TextInput for the printable ones. When the system takes the window (the
+// TextInput for the printable ones; with text input on and enabled
+// (TextInput.enable: hxmc.ui's UiWindow does), the soft keyboard and the
+// input method's commits and compositions. When the system takes the window (the
 // app goes to the background) the Surface is lost (Surface.lost: the GPU
 // back end lets go of it before the callback returns) and a Suspend event
 // comes; with a new window, once it has a size, Resume at that size. (At
@@ -31,6 +33,10 @@ class AndroidWindow {
 	// the finger's last position (a drag's Scroll), -1: none down
 	static var lastX = -1.0;
 	static var lastY = -1.0;
+	// text input (TextInput, in the programs that enable it): on or off, its
+	// events waiting for this thread
+	@:allow(hxmc.os.android) static var textInputHook:Null<(on:Bool, x:Int, y:Int, width:Int, height:Int) -> Void> = null;
+	@:allow(hxmc.os.android) static var textEvents:Null<((kind:EventKind, text:String, caret:Int) -> Void)->Void> = null;
 
 	final owner:Window;
 	final surface:Surface;
@@ -107,6 +113,7 @@ class AndroidWindow {
 			} else if (id == Activity.LOOPER_INPUT) input(onEvent);
 			else if (id < 0 && id != -1) break; // (ALOOPER_POLL_TIMEOUT, _ERROR; -1: woken)
 		}
+		if (textEvents != null) textEvents((kind, text, caret) -> dispatch(onEvent, kind, caret, 0, text));
 		// (a new window with a size: Resume; a size the system changed: Resize)
 		var w = current;
 		if (w == null || !ready()) return;
@@ -121,7 +128,7 @@ class AndroidWindow {
 		}
 	}
 
-	static function dispatch(onEvent:Null<Event->Void>, kind:EventKind, x = 0, y = 0) {
+	static function dispatch(onEvent:Null<Event->Void>, kind:EventKind, x = 0, y = 0, text = "") {
 		if (onEvent == null || current == null) return;
 		var e = event;
 		e.kind = kind;
@@ -130,9 +137,14 @@ class AndroidWindow {
 		e.y = y;
 		e.button = 0;
 		e.mods = 0;
-		e.text = "";
+		e.text = text;
 		onEvent(e);
 	}
+
+	// Window.startTextInput, stopTextInput: the keyboard and the input method
+	// (TextInput, once enabled: otherwise only the input queue's keys)
+	function textInput(on:Bool, x:Int, y:Int, width:Int, height:Int)
+		if (textInputHook != null) textInputHook(on, x, y, width, height);
 
 	// one command of the activity's callbacks (Activity), acknowledged once
 	// its state is taken

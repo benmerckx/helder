@@ -61,6 +61,8 @@ class UiWindow {
 		window = new hxmc.os.Window(title, width, height);
 		// (shortcuts labelled as macOS's menus do)
 		Shortcut.mac = Mem.os() == 1;
+		// (Android: text fields get the soft keyboard and the input method)
+		if (Mem.target() >= 9) hxmc.os.android.TextInput.enable();
 		device = Device.create(window.surface);
 		renderer = new Renderer(device);
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
