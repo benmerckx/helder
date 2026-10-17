@@ -8,8 +8,7 @@ import hxmc.ui.reactive.Reactive.*;
 
 // The same markup and signals as the drawn widgets, on the platform's own
 // controls (hxmc.ui.native: GTK 3 on Linux, the DOM in a browser), laid
-// out by hxmc.ui's flexbox
-// at the sizes the platform measures. In a window:
+// out by hxmc.ui's flexbox at the sizes the platform measures. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main NativeForm --custom-target hxmc=form -D hxmc.libc=glibc
 //
