@@ -899,13 +899,15 @@ class Widgets implements Markup {
 	// where Toasts.show's toasts are shown: in a corner of the window
 	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),
 	// over everything, width wide (320); each with its mark, text, action
-	// and a close button. They do not take the focus.
+	// and a close button. They do not take the focus; the pointer over them
+	// holds their time.
 	public static function Toaster(props:{?placement:String, ?width:Float, ?tag:String}):View {
 		var tag = props.tag ?? "toaster";
 		function mark(kind:String):String
 			return kind == "success" ? t().success : kind == "error" ? t().danger : t().accent;
 		return <Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
-			<view tag={tag + "-list"} width={props.width ?? 320.0} row-gap={8}>
+			<view tag={tag + "-list"} width={props.width ?? 320.0} row-gap={8} onPointerEnter={_ -> Toasts.paused = true}
+				onPointerLeave={_ -> Toasts.paused = false}>
 				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" role="group" label={toast.text} direction="row" align-items="center"
 					column-gap={10} padding="10 12" radius={8} background={() -> t().tooltip} color={() -> t().onTooltip} shadow="0 4 12 #00000033">
 					<view width={4} height={20} radius={2} background={() -> mark(toast.kind)}/>

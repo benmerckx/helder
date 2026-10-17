@@ -197,7 +197,14 @@ class MarkupTest implements Markup {
 		check("toasts: shown in the bottom right corner, the newest last, the focus kept", toasts.length == 2 && list.absX + list.width == 400 - 16
 			&& list.absY + list.height == 300 - 16 && toasts[0].absY < toasts[1].absY && ui.focus == focus, list == null ? "none" : '${list.absX} ${list.absY} ${list.width} ${list.height}');
 		Clock.tick(500.1);
+		var l = ui.overlay.find("toaster-list");
+		ui.pointerMove(l.absX + 10, l.absY + 10);
 		Clock.tick(504.2);
+		ui.update();
+		check("toasts: the pointer over them holds their time", Toasts.shown.value.length == 2 && Toasts.paused);
+		ui.pointerMove(5, 5);
+		Clock.tick(504.3);
+		Clock.tick(508.3);
 		ui.update();
 		check("toasts: one goes after its time", Toasts.shown.value.length == 1 && tagged(ui.overlay, "toast").length == 1);
 		click(tagged(ui.overlay, "toast-action")[0]);

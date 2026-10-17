@@ -9,21 +9,25 @@ import hxmc.view.Reactive.signal;
 // (duration seconds, 4; 0: until closed) or until its close button or its
 // action (a button: onAction runs, the toast closes). Toasts.show adds
 // one from anywhere; its kind ("info", "success", "error") colours its
-// mark. Its time runs on the animation clock (Clock).
+// mark. Its time runs on the animation clock (Clock), held while paused
+// (the pointer over them).
 class Toasts {
 	// the toasts shown, oldest first
 	public static final shown:Signal<Array<Toast>> = signal([]);
+	// while true their time stands still (Toaster: the pointer over them)
+	public static var paused = false;
 
 	public static function show(text:String, ?options:{?kind:String, ?duration:Float, ?action:String, ?onAction:Void->Void}):Toast {
 		var t = new Toast(text, options?.kind ?? "info", options?.action, options?.onAction);
 		shown.value = shown.peek().concat([t]);
-		var duration = options?.duration ?? 4.0, start = -1.0;
+		var duration = options?.duration ?? 4.0, left = duration, last = -1.0;
 		// (from the clock's next tick: its last may be long past)
 		if (duration > 0)
 			Clock.add(now -> {
 				if (t.closed) return false;
-				if (start < 0) start = now;
-				if (now - start < duration) return true;
+				if (last >= 0 && !paused) left -= now - last;
+				last = now;
+				if (left > 0) return true;
 				close(t);
 				return false;
 			});
@@ -34,6 +38,8 @@ class Toasts {
 		if (t.closed) return;
 		@:privateAccess t.closed = true;
 		shown.value = shown.peek().filter(x -> x != t);
+		// (none left: the pointer leaves no toaster to say it left)
+		if (shown.peek().length == 0) paused = false;
 	}
 
 	// closes them all
@@ -41,6 +47,7 @@ class Toasts {
 		for (t in shown.peek())
 			@:privateAccess t.closed = true;
 		shown.value = [];
+		paused = false;
 	}
 }
 
