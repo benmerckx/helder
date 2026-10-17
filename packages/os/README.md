@@ -2,7 +2,8 @@
 
 Windows, input, the app loop and audio output for hxmc in pure Haxe
 (`hxmc.os`): raw OS bindings (X11, the Objective-C runtime and AppKit,
-Win32, a canvas in the browser; ALSA, CoreAudio, WASAPI, WebAudio) and a
+Win32, Android's NativeActivity, a canvas in the browser; ALSA, CoreAudio,
+WASAPI, WebAudio) and a
 portable layer over them. No C of its own: the system's C APIs through
 externs, COM vtables, `objc_msgSend` and `dlopen`. The design and what is
 left: docs/plans/graphics.md.
@@ -26,6 +27,15 @@ and `requestAnimationFrame` runs the loop). `Event` is one object, refilled
 for each event: keys as X11 KeySyms, `TextInput` characters (and an input
 method's `TextEditing`), the mouse in
 pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`.
+
+On Android (`-D hxmc.target=android-arm64` with an output ending in `.apk`)
+the window is the activity's (full screen, one per app; `new Window` waits
+for it): the program runs on a thread of its own, `App.run` draws while the
+activity has its window, a touch is the left button and its drag also
+`Scroll`, `Suspend` and `Resume` come when the system takes the window and
+gives one back (`Surface.lost`: the GPU back end lets go of it), and what
+the program prints goes to logcat (`adb logcat -s hxmc`). No clipboard or
+text input there yet (Java's: docs/plans/targets.md).
 
 In the browser a touch drag on the canvas is `Scroll` (the content following
 the finger, gliding when let go) and a tap a click. `browser.mjs`'s option

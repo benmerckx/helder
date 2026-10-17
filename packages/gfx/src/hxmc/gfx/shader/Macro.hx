@@ -46,7 +46,8 @@ class Macro {
 		var fields:Array<ObjectField> = [];
 		for (l in languages()) {
 			var src = switch l {
-				case "glsl": new Glsl().stage(p, e);
+				// (Android: structs through make_ functions, Glsl.makers)
+				case "glsl": new Glsl(StringTools.startsWith(Context.definedValue("hxmc.target") ?? "", "android")).stage(p, e);
 				case "wgsl": new Wgsl().stage(p, e);
 				case "msl": new Msl().stage(p, e);
 				case _: new Hlsl().stage(p, e);
