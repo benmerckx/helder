@@ -351,8 +351,9 @@ Since the design above (October 2026), in this order:
   variable fonts (fvar, avar, gvar: SystemFonts' weights as instances).
 - More widgets and their keyboards: Menubar (ARIA's menubar), Combobox,
   NumberField, Disclosure and Accordion, Toaster, resizable table columns,
-  a mixed checkbox, an indeterminate progress bar; tabs and radio groups
-  one stop for Tab, moved through by the arrows.
+  a mixed checkbox, an indeterminate progress bar, Listbox (multiple
+  selection) and Toolbar (Role.Toolbar on every adapter); tabs, radio
+  groups and toolbars one stop for Tab, moved through by the arrows.
 - Images: animated PNGs (APNG) as Chromium composes them, and PNG
   decoding about three times faster (hxmc's haxe.zip.InflateImpl inflating a
   BytesInput whole).

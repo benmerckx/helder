@@ -258,6 +258,7 @@ class LinuxAccess {
 			case Separator: 50;
 			case SpinButton: 52;
 			case MenuBar: 34;
+			case Toolbar: 63;
 			case Group | TabPanel: 39;
 		}
 
@@ -314,6 +315,7 @@ class LinuxAccess {
 			on(22); // SELECTABLE
 			if (n.selected) on(23); // SELECTED
 		}
+		if (n.multiselectable) on(16); // MULTISELECTABLE
 		if (n.expanded != null) {
 			on(9); // EXPANDABLE
 			on(n.expanded ? 10 : 5); // EXPANDED, COLLAPSED

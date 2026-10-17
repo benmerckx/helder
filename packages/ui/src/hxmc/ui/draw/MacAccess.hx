@@ -229,6 +229,7 @@ class MacAccess {
 			case Separator: "AXSplitter";
 			case SpinButton: "AXIncrementor";
 			case MenuBar: "AXMenuBar";
+			case Toolbar: "AXToolbar";
 		}
 
 	// --- the classes' methods ---

@@ -20,6 +20,8 @@ import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Menubar;
+import hxmc.ui.widgets.Widgets.Listbox;
+import hxmc.ui.widgets.Widgets.Toolbar;
 import hxmc.ui.widgets.Widgets.Tabs;
 import hxmc.ui.widgets.Widgets.Radio;
 import hxmc.ui.widgets.Widgets.Progress;
@@ -64,6 +66,8 @@ class MarkupTest implements Markup {
 		indeterminate();
 		typeAhead();
 		password();
+		listbox();
+		toolbar();
 		focusTips();
 		virtual();
 		table();
@@ -323,6 +327,98 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function listbox() {
+		var ui = new Ui(new MonoText(), 400, 400);
+		var picked = signal(["b"]), many = signal(new Array<String>()), activated = [];
+		Render.render(<view padding={10} row-gap={10}>
+			<Listbox tag="one" options={["apple", "b", "cherry", "date"]} selected={picked} label="Fruit" onActivate={o -> activated.push(o)}/>
+			<Listbox tag="many" options={["red", "green", "blue", "gold"]} selected={many} multiple label="Colours"/>
+		</view>, ui.root);
+		ui.update();
+		function key(k:Int, mods = 0) {
+			ui.keyDown(k, mods);
+			ui.update();
+		}
+		// (a modifier held down for the click)
+		function click(n:Node, mods = 0) {
+			var held = mods == Key.MOD_SHIFT ? Key.SHIFT : mods == Key.MOD_CONTROL ? Key.CONTROL : 0;
+			if (held != 0) ui.keyDown(held, 0);
+			ui.pointerDown(n.absX + 4, n.absY + 4, 1);
+			ui.pointerUp(n.absX + 4, n.absY + 4, 1);
+			if (held != 0) ui.keyUp(held, mods);
+			ui.update();
+		}
+		var b = ui.root.find("one-b");
+		check("listbox: one Tab stop, the selected option", b.focusable && !ui.root.find("one-apple").focusable && !ui.root.find("many-green").focusable
+			&& ui.root.find("many-red").focusable);
+		ui.setFocus(b);
+		key(Key.DOWN);
+		check("listbox: Down selects the next", picked.value.join(",") == "cherry" && ui.focus == ui.root.find("one-cherry") && !b.focusable, picked.value.join(","));
+		key("d".code);
+		key(Key.HOME);
+		check("listbox: a letter typed, Home", picked.value.join(",") == "apple" && ui.focus == ui.root.find("one-apple"), picked.value.join(","));
+		key(Key.ENTER);
+		click(ui.root.find("one-date"));
+		click(ui.root.find("one-date"));
+		check("listbox: Enter and a double click activate", activated.join(",") == "apple,date" && picked.value.join(",") == "date", activated.join(","));
+		var red = ui.root.find("many-red");
+		click(red);
+		key(Key.DOWN, Key.MOD_SHIFT);
+		key(Key.DOWN, Key.MOD_SHIFT);
+		check("listbox: multiple, Shift extends from the anchor", many.value.join(",") == "red,green,blue", many.value.join(","));
+		key(Key.UP, Key.MOD_CONTROL);
+		key(Key.SPACE);
+		check("listbox: Control moves without selecting, Space takes one away", many.value.join(",") == "red,blue" && ui.focus == ui.root.find("many-green"),
+			many.value.join(","));
+		click(ui.root.find("many-gold"), Key.MOD_CONTROL);
+		click(red, Key.MOD_CONTROL);
+		check("listbox: Control clicks add and take away", many.value.join(",") == "blue,gold", many.value.join(","));
+		click(ui.root.find("many-green"), Key.MOD_SHIFT);
+		check("listbox: a Shift click extends from the last one clicked", many.value.join(",") == "red,green", many.value.join(","));
+		key("a".code, Key.MOD_CONTROL);
+		var t = ui.accessTree(), boxes = [for (id in t.order) if (t.nodes.get(id).role == ListBox) t.nodes.get(id)];
+		var options = [for (id in t.order) if (t.nodes.get(id).role == ListBoxOption && t.nodes.get(id).selected == true) t.nodes.get(id).name];
+		check("listbox: Control+A, the roles, multiselectable", many.value.length == 4 && boxes.length == 2 && !boxes[0].multiselectable
+			&& boxes[1].multiselectable && boxes[1].toJson().multiselectable == true && options.join(",") == "date,red,green,blue,gold", options.join(","));
+	}
+
+	static function toolbar() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var pressed = [];
+		Render.render(<view padding={10} row-gap={10}>
+			<Toolbar tag="tools" label="Format">
+				<Button tag="bold" label="B" onClick={() -> pressed.push("bold")}/>
+				<Button tag="italic" label="I" onClick={() -> pressed.push("italic")}/>
+				<view><Button tag="under" label="U" onClick={() -> pressed.push("under")}/></view>
+			</Toolbar>
+			<Button tag="after" label="After"/>
+		</view>, ui.root);
+		ui.update();
+		var bold = ui.root.find("bold"), italic = ui.root.find("italic"), under = ui.root.find("under");
+		function key(k:Int, mods = 0) {
+			ui.keyDown(k, mods);
+			ui.update();
+		}
+		check("toolbar: one Tab stop, the first, a toolbar role", bold.focusable && !italic.focusable && !under.focusable
+			&& ui.root.find("tools").semantics.role == Toolbar);
+		ui.setFocus(bold);
+		key(Key.RIGHT);
+		key(Key.RIGHT);
+		check("toolbar: Right moves through them (into a child)", ui.focus == under && under.focusable && !bold.focusable);
+		key(Key.RIGHT);
+		check("toolbar: wrapping", ui.focus == bold);
+		key(Key.END);
+		key(Key.LEFT);
+		key(Key.TAB);
+		check("toolbar: End, Left, then Tab out", ui.focus == ui.root.find("after") && italic.focusable && !bold.focusable && !under.focusable);
+		key(Key.TAB, Key.MOD_SHIFT);
+		check("toolbar: back in, on the last focused", ui.focus == italic);
+		ui.pointerDown(under.absX + 2, under.absY + 2, 1);
+		ui.pointerUp(under.absX + 2, under.absY + 2, 1);
+		ui.update();
+		check("toolbar: a click focuses and presses it", ui.focus == under && pressed.join(",") == "under", pressed.join(","));
 	}
 
 	static function password() {

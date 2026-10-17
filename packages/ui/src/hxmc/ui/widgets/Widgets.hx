@@ -725,6 +725,132 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a list box: the options in a column (labels: what each shows), the
+	// selection in selected (multiple: any number of them, else at most
+	// one), height: scrolled past it. One Tab stop, the active option (the
+	// first selected at first); Up, Down, Home, End and letters typed move
+	// it, selecting it, and so does a click; with multiple, Shift extends
+	// the selection from where it began (or a Shift click), Control moves
+	// without selecting, Space (or a Control click) adds or takes away one,
+	// Control+A selects them all. A double click or Enter: onActivate
+	public static function Listbox(props:{selected:Signal<Array<String>>, options:Array<String>, ?labels:Array<String>, ?multiple:Bool, ?height:Float,
+			?width:Float, ?onActivate:String->Void, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "listbox", options = props.options, multiple = props.multiple == true, nodes:Array<Node> = [];
+		var shown = [for (i in 0...options.length) props.labels != null ? props.labels[i] : options[i]];
+		var first = options.indexOf(props.selected.peek()[0]);
+		var active = signal(first < 0 ? 0 : first), anchor = first < 0 ? 0 : first, typed = new TypeAhead();
+		// (the selection kept in the options' order)
+		function range(a:Int, b:Int)
+			props.selected.value = [for (i in (a < b ? a : b)...(a < b ? b : a) + 1) options[i]];
+		function toggle(i:Int) {
+			var now = props.selected.peek();
+			props.selected.value = [for (o in options) if ((o == options[i]) != now.contains(o)) o];
+			anchor = i;
+		}
+		function select(i:Int) {
+			range(i, i);
+			anchor = i;
+		}
+		function move(i:Int, mods:Int) {
+			if (i < 0 || i >= options.length) return;
+			if (multiple && mods & Key.MOD_SHIFT != 0) range(anchor, i) else if (!multiple || mods & (Key.MOD_CONTROL | Key.MOD_META) == 0) select(i);
+			active.value = i;
+			focusIn(nodes, i);
+		}
+		var lastAt = -1e9, last = -1;
+		function click(e:Event, i:Int) {
+			var now = Ui.now();
+			if (multiple && e.mods & Key.MOD_SHIFT != 0) range(anchor, i) else if (multiple && e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) toggle(i) else select(i);
+			active.value = i;
+			if (last == i && now - lastAt < 0.45 && props.onActivate != null) props.onActivate(options[i]);
+			last = i;
+			lastAt = now;
+		}
+		function key(e:Event, i:Int) {
+			var page = props.height == null ? options.length : Std.int(Math.max(1, Math.floor(props.height / 28) - 1));
+			switch e.key {
+				case Key.DOWN: move(i + 1, e.mods);
+				case Key.UP: move(i - 1, e.mods);
+				case Key.PAGE_DOWN: move(Std.int(Math.min(i + page, options.length - 1)), e.mods);
+				case Key.PAGE_UP: move(Std.int(Math.max(i - page, 0)), e.mods);
+				case Key.HOME: move(0, e.mods);
+				case Key.END: move(options.length - 1, e.mods);
+				case Key.SPACE: multiple ? toggle(i) : select(i);
+				case Key.ENTER: if (props.onActivate != null) props.onActivate(options[i]);
+				case "a".code | "A".code if (multiple && e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0): props.selected.value = options.copy();
+				case _:
+					var j = typed.find(e, shown, i);
+					if (j < 0) return;
+					move(j, 0);
+			}
+			e.stop();
+		}
+		return <view tag={tag} role="listbox" label={props.label} multiselectable={multiple} width={props.width} height={props.height}
+			overflow={props.height == null ? "visible" : "scroll"} padding={4} radius={6} border-width={1} border-color={() -> t().borderMuted}
+			background={() -> t().control} color={() -> t().text}>{[
+			for (i in 0...options.length) {
+				var o = options[i], hover = signal(false);
+				<view tag={tag + "-" + o} role="option" ref={n -> nodes[i] = n} selected={() -> props.selected.value.contains(o)} focusable={() -> active.value == i}
+					cursor="pointer" padding="5 8" radius={4} shrink={0}
+					background={() -> props.selected.value.contains(o) ? t().itemSelected : hover.value ? t().itemHover : Theme.clear(t().control)}
+					onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
+					onPointerDown={_ -> active.value = i} onClick={e -> click(e, i)} onKeyDown={e -> key(e, i)}>
+					{shown[i]}
+				</view>;
+			}
+		]}</view>;
+	}
+
+	// a toolbar: its children in a row, its focusable ones (as they are
+	// when it is shown) one Tab stop, the last focused (at first the first);
+	// Left and Right (the way they point, wrapping), Home and End move the
+	// focus between them (not out of a text field's text)
+	public static function Toolbar(props:{?label:String, ?tag:String, ?children:Any}):View {
+		var bar:Null<Node> = null, items:Array<Node> = [];
+		function rove(k:Int)
+			for (j in 0...items.length)
+				items[j].focusable = j == k;
+		function itemOf(n:Null<Node>):Int {
+			while (n != null && n != bar) {
+				var j = items.indexOf(n);
+				if (j >= 0) return j;
+				n = n.parent;
+			}
+			return -1;
+		}
+		onMount(() -> {
+			function walk(n:Node)
+				for (c in n.children) {
+					if (c.focusable) items.push(c) else walk(c);
+				}
+			if (bar != null) walk(bar);
+			rove(0);
+		});
+		return <view tag={props.tag ?? "toolbar"} role="toolbar" label={props.label} ref={n -> bar = n} direction="row" align-items="center" column-gap={4}
+			onPointerDown={(e:Event) -> {
+				var j = itemOf(e.target);
+				if (j >= 0) rove(j);
+			}}
+			onFocusIn={(e:Event) -> {
+				var j = itemOf(e.target);
+				if (j >= 0) rove(j);
+			}}
+			onKeyDown={(e:Event) -> {
+				var i = itemOf(e.target), n = items.length;
+				if (i < 0 || Std.isOfType(e.target, EditableText)) return;
+				var j = switch mirrored(e) {
+					case Key.LEFT: (i + n - 1) % n;
+					case Key.RIGHT: (i + 1) % n;
+					case Key.HOME: 0;
+					case Key.END: n - 1;
+					case _: return;
+				}
+				e.preventDefault();
+				rove(j);
+				focusIn(items, j);
+			}}>{props.children}</view>;
+	}
+
 	// a menu button: label; a click, Enter, Space or Down opens its items
 	// under it (the first focused), each a label and what choosing it does
 	// (and a shortcut: shown, and choosing it from anywhere in the window);

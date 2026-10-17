@@ -86,6 +86,7 @@ class AccessTree {
 				a.checked = sem.checked;
 				a.mixed = sem.mixed;
 				a.selected = sem.selected;
+				a.multiselectable = sem.multiselectable;
 				a.expanded = sem.expanded;
 				a.level = sem.level;
 				a.disabled = sem.disabled;
