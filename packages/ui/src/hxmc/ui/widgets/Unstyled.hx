@@ -19,6 +19,7 @@ class Unstyled {
 
 	static function rules():Array<Rule> {
 		var line = Color.parse("currentColor"), faint = Color.parse("currentColor/30"), half = Color.parse("currentColor/50");
+		var tint = Color.parse("currentColor/10");
 		var canvas = Color.parse("Canvas"), canvasText = Color.parse("CanvasText");
 		return [
 			{slot: "button", style: {direction: Row, alignItems: Center, justify: Center, columnGap: 6, padding: [4, 10], borderWidth: 1, borderColor: line, cursor: Pointer}},
@@ -121,7 +122,36 @@ class Unstyled {
 			{slot: "pagination-link", style: {direction: Row, alignItems: Center, justify: Center, minWidth: 32, padding: [4, 10], borderWidth: 1, borderColor: Color.TRANSPARENT, cursor: Pointer}},
 			{slot: "pagination-link", when: ["data-active"], style: {borderColor: line}},
 			{slot: "pagination-link", when: ["disabled"], style: {opacity: 0.5, cursor: Default}},
-			{slot: "pagination-ellipsis", style: {padding: [4, 6]}}
+			{slot: "pagination-ellipsis", style: {padding: [4, 6]}},
+			{slot: "table", style: {borderWidth: 1, borderColor: faint}},
+			{slot: "table-header", style: {borders: [0, 0, 1, 0], borderColor: faint, fontWeight: 600}},
+			{slot: "table-row", style: {alignItems: Center}},
+			{slot: "table-row", when: ["hover"], style: {background: tint}},
+			{slot: "table-row", when: ["data-state=selected"], style: {background: faint}},
+			{slot: "table-head", style: {padding: [0, 8]}},
+			{slot: "table-cell", style: {padding: [0, 8]}},
+			{slot: "tree", style: {borderWidth: 1, borderColor: faint}},
+			{slot: "tree-item", style: {direction: Row, alignItems: Center, columnGap: 4, padding: [0, 8, 0, 6]}},
+			{slot: "tree-item", when: ["hover"], style: {background: tint}},
+			{slot: "tree-item", when: ["data-selected"], style: {background: faint}},
+			{slot: "tree-toggle", style: {cursor: Pointer}},
+			{slot: "resizable-handle", style: {background: faint}},
+			{slot: "resizable-handle", when: ["data-panel-group-direction=horizontal"], style: {width: 1}},
+			{slot: "resizable-handle", when: ["data-panel-group-direction=vertical"], style: {height: 1}},
+			{slot: "resizable-handle", when: ["data-resize-handle-state=hover"], style: {background: line}},
+			{slot: "resizable-handle", when: ["data-resize-handle-state=drag"], style: {background: line}},
+			{slot: "listbox", style: {padding: 2, borderWidth: 1, borderColor: faint}},
+			{slot: "listbox-option", style: {padding: [4, 8], cursor: Pointer}},
+			{slot: "listbox-option", when: ["hover"], style: {background: tint}},
+			{slot: "listbox-option", when: ["aria-selected=true"], style: {background: faint}},
+			{slot: "sortable", style: {rowGap: 4}},
+			{slot: "sortable-item", style: {direction: Row, alignItems: Center, columnGap: 8, padding: [4, 8], borderWidth: 1, borderColor: faint, cursor: Grab}},
+			{slot: "sortable-item", when: ["data-dragging"], style: {cursor: Grabbing}},
+			{slot: "sortable-handle", style: {opacity: 0.6}},
+			{slot: "sortable-indicator", style: {height: 2, background: line}},
+			{slot: "sortable-indicator", when: ["data-side=top"], style: {top: -3}},
+			{slot: "sortable-indicator", when: ["data-side=bottom"], style: {bottom: -3}},
+			{slot: "toolbar", style: {direction: Row, alignItems: Center, columnGap: 4}}
 		];
 	}
 }

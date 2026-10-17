@@ -1422,7 +1422,7 @@ class MarkupTest implements Markup {
 		var sizeCell = rowNodes()[0].children[1], nameCell = rowNodes()[0].children[0], sizeText = sizeCell.children[0];
 		check("table: a numeric column's cells at the end, tabular figures", sizeCell.style.alignItems == Align.End && nameCell.style.alignItems == Align.Stretch
 			&& sizeText.font().features == "'tnum'" && nameCell.children[0].font().features == ""
-			&& ui.root.find("t-head-1").style.justify == Justify.End && sizeText.absX + sizeText.width > sizeCell.absX + sizeCell.width - 0.5
+			&& ui.root.find("t-head-1").style.justify == Justify.End && sizeText.absX + sizeText.width > sizeCell.absX + sizeCell.width - 8.5
 			&& sizeText.width < sizeCell.width);
 		// a column's edge dragged: its width, the rows' cells with it; not sorted by it; a double click its own again
 		var head = ui.root.find("t-head-1"), grip = ui.root.find("t-resize-1"), sorted = names().join(",");
