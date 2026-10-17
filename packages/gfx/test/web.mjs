@@ -1,6 +1,6 @@
-// The triangle and the cube on WebGPU, then on WebGL2 (forced: browser.mjs's
+// The triangle, the cube and the instances on WebGPU, then on WebGL2 (forced: browser.mjs's
 // option gfx: 'webgl2'), in headless Chromium (make gfx-web-check), against
-// triangle.png and cube.png with GfxTest's rule (compare.mjs): WebTest.wasm (WebTest.hx)
+// triangle.png, cube.png and instances.png with GfxTest's rule (compare.mjs): WebTest.wasm (WebTest.hx)
 // headless (on WebGL2 also Device.readPixels, whose checksum must be the
 // harness's), then in a 256x192 canvas, whose frames come from the
 // browser's loop after main returned; then the canvas is resized (a Resize
@@ -39,6 +39,7 @@ const files = {
 	'/compare.mjs': path.join(here, 'compare.mjs'),
 	'/triangle.png': path.join(here, 'triangle.png'),
 	'/cube.png': path.join(here, 'cube.png'),
+	'/instances.png': path.join(here, 'instances.png'),
 };
 const types = { '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png' };
 const page = `<!doctype html><title>WebTest</title>
@@ -78,7 +79,7 @@ const url = `http://localhost:${server.address().port}/`;
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
-for (const [scene, gfx, mode] of ['triangle', 'cube'].flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']])) {
+for (const [scene, gfx, mode] of ['triangle', 'cube', 'instances'].flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']])) {
 	const p = await browser.newPage({ viewport: { width: 400, height: 300 } });
 	const errors = [];
 	p.on('pageerror', (e) => errors.push(e.message));

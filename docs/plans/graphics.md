@@ -104,6 +104,9 @@ Decisions worth keeping, per back end (the code is the reference):
   vertex formats and flat varyings, `switch`, arrays of constant size,
   matrices other than 4x4, SPIR-V, caching emitted code across
   compilations (the compilation server).
+- Instancing in the shader macro: instance attributes it lays out and
+  writes itself (today a program splits the input struct's locations over
+  two buffers in the pipeline's layout: examples/Instances.hx).
 - Input methods: X11 (`XOpenIM`, `Xutf8LookupString`: variadic calls),
   Cocoa (`NSTextInputClient`).
 - macOS: frames during a live resize (AppKit's tracking loop runs inside

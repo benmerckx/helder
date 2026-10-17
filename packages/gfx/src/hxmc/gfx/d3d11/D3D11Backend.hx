@@ -386,7 +386,10 @@ class D3D11Backend {
 					}
 					el.value.InputSlot = slot;
 					el.value.AlignedByteOffset = at.offset;
-					el.value.InputSlotClass = D3D.INPUT_PER_VERTEX_DATA;
+					// (an instance buffer's elements advance once per instance)
+					var instanced = d.layout[slot].step == Instance;
+					el.value.InputSlotClass = instanced ? D3D.INPUT_PER_INSTANCE_DATA : D3D.INPUT_PER_VERTEX_DATA;
+					el.value.InstanceDataStepRate = instanced ? 1 : 0;
 				}
 			ID3D11Device.CreateInputLayout(device, e, count, ID3DBlob.GetBufferPointer(vs.code), ID3DBlob.GetBufferSize(vs.code), scratch);
 		});

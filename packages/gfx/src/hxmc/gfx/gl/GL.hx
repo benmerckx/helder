@@ -98,6 +98,7 @@ class GL {
 	static function glEnableVertexAttribArray(index:Int):Void;
 	static function glDisableVertexAttribArray(index:Int):Void;
 	static function glVertexAttribPointer(index:Int, size:Int, type:Int, normalized:Bool, stride:Int, offset:Ptr):Void;
+	static function glVertexAttribDivisor(index:Int, divisor:Int):Void;
 	static function glDrawArrays(mode:Int, first:Int, count:Int):Void;
 	static function glDrawArraysInstanced(mode:Int, first:Int, count:Int, instances:Int):Void;
 	static function glDrawElements(mode:Int, count:Int, type:Int, offset:Ptr):Void;

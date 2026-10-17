@@ -27,9 +27,10 @@ import hxmc.unsafe.*;
 	static function sampler(filter:Int, wrap:Int):Int;
 	// WGSL; errors are reported asynchronously, on the console
 	static function shader(wgsl:CString):Int;
-	// a pipeline: its vertex buffers and their attributes, then the rest
+	// a pipeline: its vertex buffers (instance: 1 steps per instance) and
+	// their attributes, then the rest
 	static function pipeline_begin():Void;
-	static function pipeline_buffer(stride:Int):Void;
+	static function pipeline_buffer(stride:Int, instance:Int):Void;
 	static function pipeline_attribute(location:Int, format:Int, offset:Int):Void;
 	// a resource of the pipeline (ShaderCode.bindings: kind, slot, a uniform
 	// block's size): its bind group layout

@@ -264,7 +264,10 @@ class MetalBackend {
 		var attributes = Msg.id(vd, ObjC.sel("attributes")), layouts = Msg.id(vd, ObjC.sel("layouts"));
 		for (slot in 0...d.layout.length) {
 			var l = d.layout[slot];
-			Msg.vInt(Msg.idInt(layouts, ObjC.sel("objectAtIndexedSubscript:"), VERTEX_BUFFERS + slot), ObjC.sel("setStride:"), l.stride);
+			var ld = Msg.idInt(layouts, ObjC.sel("objectAtIndexedSubscript:"), VERTEX_BUFFERS + slot);
+			Msg.vInt(ld, ObjC.sel("setStride:"), l.stride);
+			// (an instance buffer: one element per instance, the step rate 1 by default)
+			if (l.step == Instance) Msg.vInt(ld, ObjC.sel("setStepFunction:"), MTL.VertexStepFunctionPerInstance);
 			for (a in l.attributes) {
 				var ad = Msg.idInt(attributes, ObjC.sel("objectAtIndexedSubscript:"), a.location);
 				Msg.vInt(ad, ObjC.sel("setFormat:"), switch a.format {

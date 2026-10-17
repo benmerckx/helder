@@ -3,8 +3,9 @@ import hxmc.os.*;
 
 // The examples' frames in a browser, on WebGPU or WebGL2 (web.mjs runs it
 // in headless Chromium, forcing WebGL2 with browser.mjs's option gfx:
-// 'webgl2', and compares the pixels with triangle.png and cube.png, as
-// GfxTest does natively; the scene, triangle or cube, the second argument):
+// 'webgl2', and compares the pixels with triangle.png, cube.png and
+// instances.png, as GfxTest does natively; the scene, triangle, cube or
+// instances, the second argument):
 //
 //   WebTest headless   an offscreen target, drawn once by main; on WebGL2
 //                      also read back by Device.readPixels (its checksum)

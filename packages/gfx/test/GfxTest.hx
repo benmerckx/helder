@@ -5,15 +5,16 @@ import hxmc.os.x11.Xlib;
 import hxmc.unsafe.*;
 
 // The examples' frames, checked against golden images (make gfx-check): the
-// triangle (Triangle.hx, triangle.png) and the cube (Cube.hx, turned by
-// Scene.ANGLE: cube.png)
+// triangle (Triangle.hx, triangle.png), the cube (Cube.hx, turned by
+// Scene.ANGLE: cube.png) and the instances (Instances.hx, at Scene.TIME:
+// instances.png)
 //
-//   GfxTest headless triangle|cube <golden.png> <out.png> [--bless]
+//   GfxTest headless triangle|cube|instances <golden.png> <out.png> [--bless]
 //     Linux: on an EGL pbuffer (Mesa's surfaceless platform), read back with
 //     glReadPixels; macOS: Metal, on an offscreen texture copied to a buffer;
 //     Windows: D3D11 (WARP with HXMC_GFX_SOFTWARE=1), on an offscreen
 //     texture copied to a staging texture
-//   GfxTest window triangle|cube <golden.png> <out.png> [frames]
+//   GfxTest window triangle|cube|instances <golden.png> <out.png> [frames]
 //     in a window (X11 under Xvfb, Cocoa, Win32): the last frame's back
 //     buffer before the present (readPixels) and the window's pixels after
 //     it (XGetImage, CGWindowListCreateImage, PrintWindow or the screen's DC);
@@ -36,8 +37,8 @@ class GfxTest {
 
 	static function main() {
 		var args = Sys.args();
-		if (args.length < 4 || (args[1] != "triangle" && args[1] != "cube")) {
-			Sys.println("usage: GfxTest headless|window triangle|cube <golden.png> <out.png> [--bless | frames]");
+		if (args.length < 4 || !["triangle", "cube", "instances"].contains(args[1])) {
+			Sys.println("usage: GfxTest headless|window triangle|cube|instances <golden.png> <out.png> [--bless | frames]");
 			Sys.exit(2);
 		}
 		var name = args[1], golden = args[2], out = args[3];

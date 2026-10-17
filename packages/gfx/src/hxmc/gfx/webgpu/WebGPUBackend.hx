@@ -97,7 +97,7 @@ class WebGPUBackend {
 	public function createPipeline(d:PipelineDesc):Int {
 		WebGPU.pipeline_begin();
 		for (l in d.layout) {
-			WebGPU.pipeline_buffer(l.stride);
+			WebGPU.pipeline_buffer(l.stride, l.step == Instance ? 1 : 0);
 			for (a in l.attributes)
 				WebGPU.pipeline_attribute(a.location, cast a.format, a.offset);
 		}

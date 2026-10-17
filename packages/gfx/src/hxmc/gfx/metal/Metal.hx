@@ -19,6 +19,8 @@ class MTL {
 	public static inline var VertexFormatFloat2 = 29;
 	public static inline var VertexFormatFloat3 = 30;
 	public static inline var VertexFormatFloat4 = 31;
+	// MTLVertexStepFunction
+	public static inline var VertexStepFunctionPerInstance = 2;
 	// MTLPrimitiveType
 	public static inline var PrimitiveTypePoint = 0;
 	public static inline var PrimitiveTypeLine = 1;
