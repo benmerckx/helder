@@ -225,7 +225,7 @@ class MacAccess {
 			case Heading: "AXHeading";
 			case Link: "AXLink";
 			case Menu: "AXMenu";
-			case MenuItem: "AXMenuItem";
+			case MenuItem | MenuItemCheckBox | MenuItemRadio: "AXMenuItem";
 			case ListBoxOption: "AXStaticText";
 			case ComboBox: "AXPopUpButton";
 			case Tooltip: "AXHelpTag";

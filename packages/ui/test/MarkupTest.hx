@@ -23,6 +23,8 @@ import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.Command;
 import hxmc.ui.widgets.Widgets.AlertDialog;
+import hxmc.ui.widgets.Widgets.InputOTP;
+import hxmc.ui.widgets.Widgets.Drawer;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
@@ -92,6 +94,9 @@ class MarkupTest implements Markup {
 		popovers();
 		combobox();
 		command();
+		otp();
+		drawer();
+		menuKinds();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -222,6 +227,128 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function menuKinds() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var bar = signal(true), pos = signal("top"), ran = [];
+		Render.render(<view padding={10} align-items="start">
+			<DropdownMenu tag="vm" label="View" items={[
+				{label: "Appearance", heading: true},
+				{label: "Status Bar", checked: bar},
+				{separator: true, label: ""},
+				{label: "Top", radio: {group: pos, value: "top"}},
+				{label: "Bottom", radio: {group: pos, value: "bottom"}},
+				{label: "More", items: [{label: "Zoom In", onSelect: () -> ran.push("zoom")}, {label: "Zoom Out"}]}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		function open() {
+			ui.setFocus(ui.root.find("vm"));
+			ui.keyDown(Key.ENTER, 0);
+			ui.update();
+		}
+		open();
+		var status = ui.overlay.find("vm-1");
+		check("menu kinds: a heading skipped, the checkbox item first focused, checked to assistive technology", ui.focus == status
+			&& status.slot == "dropdown-menu-checkbox-item" && status.semantics.checked == true && status.attr("data-state") == "checked"
+			&& ui.overlay.find("vm-items").children[0].slot == "dropdown-menu-label", ui.focus == null ? "none" : ui.focus.tag);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("menu kinds: a checkbox item toggles and closes", !bar.value && ui.overlay.children.length == 0);
+		open();
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		check("menu kinds: Down past the separator to a radio item", ui.focus.tag == "vm-4" && ui.focus.slot == "dropdown-menu-radio-item", ui.focus.tag);
+		ui.keyDown(Key.SPACE, 0);
+		ui.update();
+		check("menu kinds: a radio item sets its group", pos.value == "bottom");
+		open();
+		for (_ in 0...3)
+			ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		var trig = ui.overlay.find("vm-5"), zoom = ui.overlay.find("vm-5-0");
+		check("menu kinds: Right opens a submenu beside its trigger, its first item focused", trig.slot == "dropdown-menu-sub-trigger" && trig.attr("data-state") == "open"
+			&& zoom != null && ui.focus == zoom && zoom.absX >= trig.absX + trig.width - 1 && zoom.parent.slot == "dropdown-menu-sub-content",
+			zoom == null ? "none" : zoom.absX + " " + (trig.absX + trig.width));
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("menu kinds: Left closes it, the focus back on its trigger", ui.overlay.find("vm-5-0") == null && ui.focus == trig);
+		ui.keyDown(Key.ENTER, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("menu kinds: a submenu item runs and closes every menu", ran.join(",") == "zoom" && ui.overlay.children.length == 0, ran.join(","));
+	}
+
+	static function drawer() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var open = signal(false);
+		Render.render(<view padding={10} align-items="start">
+			<Drawer tag="dr" open={open} title="Move goal" description="Set your daily goal"><view tag="dr-body" height={100}/></Drawer>
+		</view>, ui.root);
+		open.value = true;
+		ui.update();
+		var c = ui.overlay.find("dr-content");
+		check("drawer: along the bottom edge, modal, a handle and its title", c != null && c.attr("data-vaul-drawer-direction") == "bottom"
+			&& c.absY + c.height == 300 && c.width == 400 && c.children[0].slot == "drawer-handle" && c.parent.slot == "drawer-overlay"
+			&& c.semantics.role == hxmc.ui.access.Role.Dialog, c == null ? "none" : c.absY + " " + c.height);
+		var x = c.absX + 50, y = c.absY + 10;
+		ui.pointerDown(x, y, 1);
+		ui.pointerMove(x, y + 10);
+		ui.update();
+		var followed = c.style.transform != null && c.style.transform.toMatrix(c.width, c.height)[5] == 10;
+		ui.pointerUp(x, y + 10, 1);
+		ui.update();
+		check("drawer: a drag follows the pointer, a short one back in place", followed && open.value && c.style.transform == null || followed && open.value
+			&& c.style.transform.isIdentity(), "" + c.style.transform);
+		ui.pointerDown(x, y, 1);
+		ui.pointerMove(x, y + 60);
+		ui.pointerUp(x, y + 60, 1);
+		ui.update();
+		check("drawer: dragged down past a quarter of it, closed", !open.value);
+	}
+
+	static function otp() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var code = signal(""), done = [];
+		Render.render(<view padding={10} align-items="start">
+			<InputOTP tag="otp" value={code} length={6} groups={[3, 3]} onComplete={c -> done.push(c)}/>
+		</view>, ui.root);
+		ui.update();
+		function slots()
+			return [for (i in 0...6) {
+				var s = ui.root.find("otp-slot-" + i);
+				(cast s.children[0] : TextNode).text + (s.attr("data-active") == "true" ? "^" : "");
+			}].join("|");
+		var field = ui.root.find("otp-input");
+		var s0 = ui.root.find("otp-slot-0");
+		ui.pointerDown(s0.absX + 2, s0.absY + 2, 1);
+		ui.pointerUp(s0.absX + 2, s0.absY + 2, 1);
+		ui.update();
+		check("otp: a click on a slot focuses the field over them, the first slot active", ui.focus == field && slots() == "^|||||", slots());
+		ui.textInput("1");
+		ui.textInput("a");
+		ui.textInput("2");
+		ui.update();
+		check("otp: typing fills the slots, what is not a digit dropped", code.value == "12" && slots() == "1|2|^|||", slots());
+		ui.keyDown(Key.BACKSPACE, 0);
+		ui.update();
+		check("otp: Backspace empties the last", code.value == "1" && slots() == "1|^||||", slots());
+		ui.textInput("23456789");
+		ui.update();
+		check("otp: a paste fills to the length, the rest dropped, complete once", code.value == "123456" && slots() == "1|2|3|4|5|6^"
+			&& done.join(",") == "123456", code.value + " " + slots());
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("otp: one text field to assistive technology, its slots hidden", an.name == "One-time code" && an.editable() && an.value == "123456");
+		var seps = 0;
+		function walk(n:Node) {
+			if (n.slot == "input-otp-separator") seps++;
+			for (c in n.children)
+				walk(c);
+		}
+		walk(ui.root);
+		check("otp: a separator between its groups", seps == 1);
 	}
 
 	static function command() {
