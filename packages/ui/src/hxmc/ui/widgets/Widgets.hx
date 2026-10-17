@@ -382,7 +382,7 @@ class Widgets implements Markup {
 		return <view tag={tag} slot="color-picker" role="group" label={name} width={size}>
 			<view tag={tag + "-area"} role="slider" label={name + ": saturation and brightness"} value-now={() -> pct(sat.value)} value-min={0} value-max={100}
 				value-text={() -> "saturation " + pct(sat.value) + "%, brightness " + pct(val.value) + "%"} slot="color-picker-area" width={size} height={size} focusable
-				cursor="crosshair" background-image={() -> "linear-gradient(to right, #FFFFFF, " + hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
+				background-image={() -> "linear-gradient(to right, #FFFFFF, " + hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
 				onPointerDown={e -> area(e)} onPointerMove={e -> if (e.current.pressed) area(e)}
 				onKeyDown={e -> {
 					var d = e.mods & Key.MOD_SHIFT != 0 ? 0.1 : 0.01;
@@ -398,10 +398,11 @@ class Widgets implements Markup {
 				}}>
 				<view slot="color-picker-area-shade" position="absolute" left={0} top={0} right={0} bottom={0}
 					background-image="linear-gradient(to bottom, transparent, #000000)"/>
-				<view slot="color-picker-thumb" position="absolute" left={() -> sat.value * size - 6} top={() -> (1 - val.value) * size - 6} width={12} height={12}/>
+				<view slot="color-picker-thumb" position="absolute" left={() -> sat.value * size} top={() -> (1 - val.value) * size}
+					transform="translate(-50%, -50%)"/>
 			</view>
 			<view tag={tag + "-hue"} role="slider" label={name + ": hue"} value-now={() -> Math.round(hue.value)} value-min={0} value-max={359}
-				value-text={() -> Math.round(hue.value) + "°"} slot="color-picker-hue" width={size} height={14} focusable background-image={spectrum}
+				value-text={() -> Math.round(hue.value) + "°"} slot="color-picker-hue" width={size} focusable background-image={spectrum}
 				onPointerDown={e -> strip(e)} onPointerMove={e -> if (e.current.pressed) strip(e)}
 				onKeyDown={e -> {
 					var d = e.mods & Key.MOD_SHIFT != 0 ? 10 : 1;
@@ -415,12 +416,11 @@ class Widgets implements Markup {
 					e.preventDefault();
 					store();
 				}}>
-				<view slot="color-picker-thumb" position="absolute" left={() -> hue.value / 360 * size - 7} top={0} width={14} height={14}
-					background={() -> hsv(hue.value, 1, 1)}/>
+				<view slot="color-picker-thumb" data-hue="" position="absolute" left={() -> hue.value / 360 * size} top="50%"
+					transform="translate(-50%, -50%)" background={() -> hsv(hue.value, 1, 1)}/>
 			</view>
 			<view slot="color-picker-row" direction="row" align-items="center">
-				<view tag={tag + "-swatch"} slot="color-picker-swatch" width={28} height={28} shrink={0}
-					background={() -> props.value.value}/>
+				<view tag={tag + "-swatch"} slot="color-picker-swatch" shrink={0} background={() -> props.value.value}/>
 				<view grow={1} dir="ltr"><Input tag={tag + "-hex"} value={hex} label={name + ": hex"}/></view>
 			</view>
 		</view>;
@@ -616,14 +616,14 @@ class Widgets implements Markup {
 			<view slot="table-header"><view tag={tag + "-head"} slot="table-row" role="row" display="grid" grid-template-columns={template} height={rh}>{[
 				for (k in 0...props.columns.length) {
 					var c = props.columns[k], cell:Null<Node> = null, from = 0.0, start = 0.0, dragging = false, clicked = -1e9;
-					<view tag={tag + "-head-" + k} slot="table-head" role="columnheader" ref={n -> cell = n} direction="row" column-gap={4} align-items="center"
-						justify={c.numeric == true ? "flex-end" : "flex-start"} focusable={c.compare != null} cursor={c.compare != null ? "pointer" : "auto"} onClick={_ -> sort(k)}
+					<view tag={tag + "-head-" + k} slot="table-head" role="columnheader" ref={n -> cell = n} direction="row" align-items="center"
+						justify={c.numeric == true ? "flex-end" : "flex-start"} focusable={c.compare != null} data-sortable={c.compare != null} onClick={_ -> sort(k)}
 						onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
 							sort(k);
 							e.stop();
 						}}>
 						{c.title}
-						<text hidden opacity={0.6}>{() -> sortBy.value == k ? (descending.value ? "▼" : "▲") : ""}</text>
+						<text slot="table-sort-icon" hidden>{() -> sortBy.value == k ? (descending.value ? "▼" : "▲") : ""}</text>
 						{k == props.columns.length - 1 ? null : <view tag={tag + "-resize-" + k} position="absolute" top={0} bottom={0}
 							left={() -> cell != null && cell.rtl() ? 0 : null} right={() -> cell != null && cell.rtl() ? null : 0} width={6} cursor="ew-resize"
 							onPointerDown={e -> {
@@ -937,7 +937,7 @@ class Widgets implements Markup {
 				open.value = true;
 				e.preventDefault();
 			}}>
-			<text opacity={() -> props.value.value == null ? 0.6 : 1}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</text>
+			<text slot="date-picker-value" data-placeholder={() -> props.value.value == null}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</text>
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false}
 				onOpen={p -> {
 					var g = p.find(tag + "-calendar-grid");
@@ -1882,7 +1882,7 @@ class Widgets implements Markup {
 			}}>
 			{f}
 			<Popover open={() -> open.value && matches.value.length > 0} placement="below" onDismiss={() -> open.value = false}>
-				<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label} width={w} max-height={240}>
+				<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label} width={w}>
 					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} slot="command-item" role="option"
 						selected={() -> active.value == i} data-selected={() -> active.value == i ? "true" : null} ref={n -> options[i] = n}
 						onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
@@ -2010,7 +2010,7 @@ class Widgets implements Markup {
 		var state = () -> open.value ? "open" : "closed";
 		return <view tag={tag} slot="collapsible" data-state={state}>
 			{trigger(tag + "-summary", "collapsible-trigger", state, () -> open.value = !open.peek(),
-				[<view width={12}>{arrow(() -> open.value ? "▾" : "▸")}</view>, props.label])}
+				[<view slot="collapsible-icon">{arrow(() -> open.value ? "▾" : "▸")}</view>, props.label])}
 			<Show when={open}><view tag={tag + "-content"} slot="collapsible-content" data-state="open">{props.children}</view></Show>
 		</view>;
 	}
@@ -2200,7 +2200,7 @@ class Widgets implements Markup {
 	static function arrow(shown:Void->String):Node {
 		var n = new Arrow("");
 		n.semantics = {hidden: true};
-		n.style.opacity = 0.6;
+		n.slot = "arrow-icon";
 		effect(() -> n.text = shown());
 		return n;
 	}
@@ -2266,7 +2266,7 @@ class Widgets implements Markup {
 					<view tag={tag + "-" + v + "-remove"} slot="tag-input-remove" role="button" label={"Remove " + v} onClick={_ -> remove(v)}>×</view>
 				</view>}/>
 			</view>
-			<view grow={1} min-width={60}>{editMenu(f, tag)}</view>
+			<view slot="tag-input-entry" grow={1}>{editMenu(f, tag)}</view>
 		</view>;
 	}
 }
