@@ -10,12 +10,14 @@ import hxmc.ui.widgets.Theme;
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
 // buttons, a select, a menu, a tooltip and a dialog (popups over the
 // rest), a checkbox and a switch, radio buttons, a slider driving a
-// progress bar, tabs, images fitted three ways, a text field and a text
-// area. In a window:
+// progress bar, tabs, a tree and a table in a split view, images fitted
+// three ways, a text field and a text area. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
 //
 // (GalleryTest drives it headless.)
+typedef Entry = {name:String, ?children:Array<Entry>, ?size:Int};
+
 class Gallery implements Markup {
 	static function main() {
 		var w = new UiWindow("Gallery", 560, 520);
@@ -34,6 +36,16 @@ class Gallery implements Markup {
 	public final fruit = signal("Apple");
 	public final chosen = signal("nothing chosen");
 	public final dialog = signal(false);
+	public final pane = signal(200.0);
+	public final open:Signal<Array<Entry>> = signal([]);
+	public final file:Signal<Null<Entry>> = signal(null);
+	public final row:Signal<Null<Entry>> = signal(null);
+	static final FILES:Array<Entry> = [
+		{name: "examples", children: [{name: "Gallery.hx", size: 6}, {name: "Todo.hx", size: 3}]},
+		{name: "src", children: [{name: "Node.hx", size: 12}, {name: "Ui.hx", size: 38}, {name: "Style.hx", size: 21}]},
+		{name: "README.md", size: 9}
+	];
+	static final SIZES:Array<Entry> = [for (d in FILES) for (e in d.children ?? [d]) e];
 	final picture = landscape(120, 60);
 
 	public function new() {}
@@ -125,6 +137,13 @@ class Gallery implements Markup {
 				<Progress value={volume} width={200}/>
 			</view>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
+			{section("SPLIT: A TREE AND A TABLE", <Split tag="panes" size={pane} min={120} label="Sidebar"
+				first={<Tree tag="files" roots={FILES} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} expanded={open} selected={file}
+					height={150} rowHeight={24} label="Files"/>}
+				second={<Table tag="sizes" rows={SIZES} selected={row} height={150} rowHeight={24} label="Sizes" columns={[
+					{title: "Name", cell: (e:Entry) -> e.name, compare: (a:Entry, b:Entry) -> Reflect.compare(a.name, b.name)},
+					{title: "KB", width: "50px", cell: (e:Entry) -> "" + e.size, compare: (a:Entry, b:Entry) -> a.size - b.size}
+				]}/>}></Split>)}
 			{section("IMAGES: FILL, CONTAIN, COVER", <view direction="row" column-gap={12} align-items="start">
 				<image tag="fill" src={picture} width={110} height={70} radius={8}/>
 				<image tag="contain" src={picture} fit="contain" width={110} height={70} radius={8} background={() -> Theme.current.value.subtle}/>

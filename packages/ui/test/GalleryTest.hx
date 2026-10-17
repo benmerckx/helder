@@ -9,6 +9,7 @@ import hxmc.ui.reactive.*;
 // buttons, the select, menu and dialog (popups: clicked, keys), the
 // checkbox and switch (clicked and with the keyboard), radio
 // buttons, the slider (dragged, clicked, arrow keys, Home and End), tabs,
+// the tree opened and the table sorted in their split view,
 // the field, the images' sizes; PNG files decoded natively (png/*.png,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
@@ -16,7 +17,7 @@ import hxmc.ui.reactive.*;
 //   GalleryTest <golden.png> <out.png> [--dark] [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 960;
+	static inline var H = 1160;
 	static var failed = 0;
 	static var checks = 0;
 
@@ -111,6 +112,19 @@ class GalleryTest {
 		click("tab-1");
 		var content:Null<TextNode> = Std.downcast(find("tab-content").children[0], TextNode);
 		check("a tab", app.tab.value == 1 && content != null && StringTools.startsWith(content.text, "Details"), content == null ? "no text" : content.text);
+		// the split view: the tree's first folder opened, a file chosen; the table sorted by size
+		click("files-toggle");
+		check("a tree's folder opened", app.open.value.length == 1 && app.open.value[0].name == "examples");
+		ui.setFocus(find("files"));
+		key(Key.DOWN);
+		key(Key.DOWN);
+		check("a tree's file chosen with the keys", app.file.value != null && app.file.value.name == "Gallery.hx", app.file.value == null ? "none" : app.file.value.name);
+		click("sizes-head-1");
+		click("sizes-head-1");
+		ui.setFocus(find("sizes-body"));
+		key(Key.HOME);
+		check("the table sorted by size, the other way", app.row.value != null && app.row.value.name == "Ui.hx", app.row.value == null ? "none" : app.row.value.name);
+		check("the split's panes", find("panes-first").width == 200 && find("panes-divider").absX == find("panes").absX + 200);
 		click("name");
 		for (c in new haxe.iterators.StringIteratorUnicode("Ada")) {
 			ui.keyDown(c, 0);
