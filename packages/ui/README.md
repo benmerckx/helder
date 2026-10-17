@@ -72,7 +72,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     `textWrap` (`NoWrap`, CSS's text-wrap-mode: each line kept whole, past
     its box, its min-content width that wide), `textTransform` (`Uppercase`,
     `Lowercase`, `Capitalize`: letter for letter; a span its own; a text
-    field's text as typed). `textDecoration`
+    field's text as typed), `textOverflow` (`Ellipsis`, not inherited: a
+    line too wide for its box ends in one within it). `textDecoration`
     (underline, line-through, overline) draws its lines with the text inside
     the node, in its colour, where Chromium draws them. `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's
