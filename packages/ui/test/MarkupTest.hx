@@ -1672,12 +1672,19 @@ class MarkupTest implements Markup {
 		var styled:Null<Node> = null;
 		Render.render(<view ref={n -> styled = n} position="sticky" justify="flex-start" align-content="space-between" cursor="ew-resize" grid-auto-flow="column"
 			font-weight="700" italic aspect-ratio={2} text-align="center" padding="8 12" min-width="50%" border-color="red" shadow="0 2 8 #00000040"
-			text-shadow="1px 1px 2px red"/>, ui.root);
+			text-shadow="1px 1px 2px red" outline="2px solid red" outline-offset={3}/>, ui.root);
 		var st = styled.style;
 		check("render: Style's properties as attributes", st.position == Position.Sticky && st.justify == Justify.Start && st.alignContent == AlignContent.SpaceBetween && st.cursor == Cursor.ResizeEW
 			&& st.gridAutoFlow == Grid.GridFlow.Column && st.fontWeight == 700 && st.italic == true && st.aspectRatio == 2 && st.textAlign == TextAlign.Center
 			&& st.padding.left == 12 && st.borderColor == Color.parse("red") && st.shadow != null
-			&& st.textShadow != null && st.textShadow.blur == 2 && st.textShadow.color == Color.parse("red") && !st.textShadow.currentColor);
+			&& st.textShadow != null && st.textShadow.blur == 2 && st.textShadow.color == Color.parse("red") && !st.textShadow.currentColor
+			&& st.outlineWidth == 2 && st.outlineColor == Color.parse("red") && st.outlineOffset == 3);
+		hxmc.ui.view.StyleAttrs.apply(st, "outline", "none");
+		var badOutline = try {
+			hxmc.ui.view.StyleAttrs.apply(st, "outline", "2px dashed red");
+			false;
+		} catch (e:Dynamic) true;
+		check("render: outline=\"none\", a style it lacks thrown", st.outlineWidth == 0 && badOutline);
 		// font-feature-settings: inherited into the font, "normal" the default ones, a mistake thrown
 		var featured:Null<Node> = null, inner:Null<Node> = null, plain:Null<Node> = null;
 		Render.render(<view ref={n -> featured = n} font-feature-settings="'tnum', 'liga' 0"><text ref={n -> inner = n}>12</text><view font-feature-settings="normal"><text ref={n -> plain = n}>34</text></view></view>, ui.root);

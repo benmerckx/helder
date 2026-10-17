@@ -6,7 +6,7 @@ import hxmc.ui.draw.*;
 
 // Boxes drawn by hxmc.ui.draw headless (make ui-draw-check): boxes.json's
 // (corners with their own radii, borders with their own sides' widths, a
-// clip to a padding box's rounded corners; box shadows, several, inset; turned, scaled, skewed, about
+// clip to a padding box's rounded corners; box shadows, several, inset; outlines, offset; turned, scaled, skewed, about
 // other origins, nested) against boxes.png, Chromium drawing the same
 // (box-ref.mjs). Edges are anti-aliased differently (Skia's
 // coverage against our signed distance), so the shapes must agree: a
@@ -39,6 +39,10 @@ class BoxTest {
 		}
 		if (b.overflow == "hidden") n.style.overflow = Hidden;
 		if (b.shadow != null) n.style.shadow = Shadow.parse(b.shadow);
+		if (b.outline != null) {
+			hxmc.ui.view.StyleAttrs.apply(n.style, "outline", b.outline);
+			n.style.outlineOffset = b.outlineOffset ?? 0;
+		}
 		if (b.transform != null) n.style.transform = Transform.parse(b.transform);
 		if (b.origin != null) n.style.transformOrigin = Transform.origin(b.origin);
 		if (b.text != null) {

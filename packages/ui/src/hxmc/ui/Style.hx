@@ -156,6 +156,17 @@ class Style {
 	// under the background (null: none)
 	public var shadow(get, set):Null<Shadow>;
 
+	// a line around the border box, over the node's content: outlineWidth
+	// wide (0: none), outlineOffset outside it (negative: inside), in
+	// outlineColor (null: the text colour), its corners the box's grown by
+	// both, as Chromium draws CSS's solid outline; markup's outline="2px
+	// solid red" sets them, outline="none" none
+	public var outlineWidth(get, set):Float;
+	public var outlineOffset(get, set):Float;
+	public var outlineColor(get, set):Null<Color>;
+	// a solid outline this wide in the text colour (CSS's shorthand; markup also "2px solid red", "none")
+	public var outline(never, set):Float;
+
 	// how the node and its subtree are drawn and hit, not laid out (Transform.parse; null: none)
 	public var transform(get, set):Null<Transform>;
 
@@ -318,6 +329,15 @@ class Style {
 
 	inline function get_shadow():Null<Shadow>
 		return rare == null ? null : rare.shadow;
+
+	inline function get_outlineWidth():Float
+		return rare == null ? 0 : rare.outlineWidth;
+
+	inline function get_outlineOffset():Float
+		return rare == null ? 0 : rare.outlineOffset;
+
+	inline function get_outlineColor():Null<Color>
+		return rare == null ? null : rare.outlineColor;
 
 	inline function get_transform():Null<Transform>
 		return rare == null ? null : rare.transform;
@@ -887,6 +907,39 @@ class Style {
 		return v;
 	}
 
+	function set_outline(v:Float):Float {
+		outlineWidth = v;
+		outlineColor = null;
+		return v;
+	}
+
+	function set_outlineWidth(v:Float):Float {
+		if (v == outlineWidth) return v;
+		more().outlineWidth = v;
+		outlined();
+		return v;
+	}
+
+	function set_outlineOffset(v:Float):Float {
+		if (v == outlineOffset) return v;
+		more().outlineOffset = v;
+		outlined();
+		return v;
+	}
+
+	function set_outlineColor(v:Null<Color>):Null<Color> {
+		if (v == outlineColor) return v;
+		more().outlineColor = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	// (how far outside its box an outline draws: the paint's culling widens bounds by the most seen, as for shadows)
+	function outlined() {
+		if (outlineWidth > 0) Ui.shadowReach = Math.max(Ui.shadowReach, outlineWidth + Math.max(0, outlineOffset) + 1);
+		node.styleChanged(false);
+	}
+
 	function set_shadow(v:Null<Shadow>):Null<Shadow> {
 		if (v == shadow) return v;
 		more().shadow = v;
@@ -1031,6 +1084,9 @@ class Style {
 		if (p.opacity != null) opacity = p.opacity;
 		if (p.cursor != null) cursor = p.cursor;
 		if (p.shadow != null) shadow = p.shadow;
+		if (p.outlineWidth != null) outlineWidth = p.outlineWidth;
+		if (p.outlineOffset != null) outlineOffset = p.outlineOffset;
+		if (p.outlineColor != null) outlineColor = p.outlineColor;
 		if (p.transform != null) transform = p.transform;
 		if (p.transformOrigin != null) transformOrigin = p.transformOrigin;
 		if (p.color != null) color = p.color;
@@ -1094,6 +1150,9 @@ private class StyleRare {
 	public var corners:Null<CornersValue> = null;
 	public var backgroundImage:Null<Gradient> = null;
 	public var shadow:Null<Shadow> = null;
+	public var outlineWidth:Float = 0;
+	public var outlineOffset:Float = 0;
+	public var outlineColor:Null<Color> = null;
 	public var transform:Null<Transform> = null;
 	public var transformOrigin:Null<Array<Dim>> = null;
 	public var letterSpacing:Null<Float> = null;

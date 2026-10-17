@@ -113,7 +113,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     inner corners quarter ellipses as Chromium draws them), `opacity`, `shadow`
     (CSS's box-shadow: `"0 2px 8px rgba(0, 0, 0, 0.25)"`, x, y, blur, spread,
     colour; `inset`; several, comma-separated; blurred by a Gaussian as
-    Chromium blurs them, within a few levels of its pixels), `cursor`,
+    Chromium blurs them, within a few levels of its pixels), `outlineWidth`,
+    `outlineOffset`, `outlineColor` (or markup `outline="2px solid red"`: a
+    solid line around the border box over the content, its corners the
+    box's grown, as Chromium draws it; BoxTest compares them), `cursor`,
     `visibility` (inherited; `Hidden` keeps the node's place but draws,
     hits, focuses and shows it to assistive technology no more, while a
     `Visible` descendant still is), `pointerEvents` (inherited; `None` lets

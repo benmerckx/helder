@@ -50,6 +50,29 @@ class StyleAttrs {
 	static function corners(style:Style, v:Dynamic)
 		style.corners = v == null ? null : Std.isOfType(v, String) ? CornersValue.parse(v) : Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Corners);
 
+	// CSS's shorthand: a width, "solid" and a colour, any order ("2px solid
+	// red", "3 #0ea5e9"; the colour the text's when left out), or "none"
+	static function outline(style:Style, v:Dynamic) {
+		if (v == null || v == "none") {
+			style.outlineWidth = 0;
+			return;
+		}
+		var width = 3.0, color:Null<Color> = null;
+		for (p in StringTools.trim(Std.string(v)).split(" ")) {
+			if (p == "" || p == "solid") continue;
+			var f = Std.parseFloat(StringTools.replace(p, "px", ""));
+			if (!Math.isNaN(f) && ~/^-?[0-9.]+(px)?$/.match(p)) {
+				width = f;
+				continue;
+			}
+			var c = Color.tryParse(p);
+			if (c == null) throw "outline: " + v + " (a width, solid and a colour)";
+			color = c;
+		}
+		style.outlineWidth = width;
+		style.outlineColor = color;
+	}
+
 	static function letterSpacing(style:Style, v:Dynamic)
 		style.letterSpacing = v == "normal" ? 0 : float(v);
 

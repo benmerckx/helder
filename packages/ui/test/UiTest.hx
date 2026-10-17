@@ -1296,6 +1296,23 @@ class UiTest {
 		var lines = [for (c in rec5.calls) if (c.indexOf("rect ") == 0) c];
 		check("paint: text-decoration-color", lines.length == 1 && lines[0].indexOf(" ff00ff00 ") > 0 && rec5.calls.join("|").indexOf("text 0 0 14") >= 0,
 			rec5.calls.join("|"));
+		// an outline: around the border box, over the children, the focus ring over it
+		var framed = new Node("framed"), inner = new Node("inner");
+		framed.style.set({width: 20, height: 10, radius: 4, outlineWidth: 2, outlineOffset: 1, color: Color.rgb(0x112233)});
+		inner.style.set({height: 10, background: Color.rgb(0xFF0000)});
+		framed.append(inner);
+		framed.focusable = true;
+		ui3.root.append(framed);
+		ui3.update();
+		ui3.keyDown(Key.TAB, 0);
+		var rec6 = new Recording();
+		ui3.paint(rec6);
+		var at = rec6.calls.indexOf("rect " + framed.absX + " " + framed.absY + " 20 10 0 ffff0000 0 0");
+		var o = "rect " + (framed.absX - 3) + " " + (framed.absY - 3) + " 26 16 7 0 2 ff112233";
+		check("paint: an outline over the children, in the text colour, the ring over it", at >= 0 && rec6.calls[at + 1] == o
+			&& rec6.calls[at + 2].indexOf("rect " + (framed.absX - 4)) == 0, rec6.calls.slice(at).join("|"));
+		framed.parent.remove(framed);
+		ui3.update();
 		// a text field's text and placeholder: shadowed too
 		var field = new TextField("");
 		field.placeholder = "Name";

@@ -231,6 +231,14 @@ class Ui {
 				if (t != null) canvas.rect(t[0], t[1], t[2], t[3], SCROLLBAR / 2, drag == n && dragX == x ? scrollbarActiveColor : scrollbarColor, 0, 0);
 			}
 		}
+		// (its outline over its content, the focus ring over that)
+		if (s.outlineWidth > 0 && !hidden) {
+			var o = s.outlineOffset + s.outlineWidth;
+			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, Color.TRANSPARENT,
+				s.outlineWidth, s.outlineColor ?? n.textColor(), cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0,
+					cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0, cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0,
+					cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0));
+		}
 		if (n == focus && focusVisible && focusRingWidth > 0 && !hidden) {
 			var o = focusRingOffset + focusRingWidth;
 			canvas.rect(n.absX - o, n.absY - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, Color.TRANSPARENT, focusRingWidth,
