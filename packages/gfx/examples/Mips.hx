@@ -25,7 +25,7 @@ import hxmc.os.*;
 // second and the third). The shaders are MipsShader.hx.
 class Mips {
 	public static inline var DEPTH = 40.0;
-	static inline var CHECKS = 256;
+	static inline var CHECKS = 128;
 
 	final device:Device;
 	final floor:Buffer;
@@ -42,10 +42,10 @@ class Mips {
 
 	public function new(device:Device) {
 		this.device = device;
-		// the checks: 4 by 4 of 64 texels, their edges soft (so that GPUs
+		// the checks: 4 by 4 of 32 texels, their edges soft (so that GPUs
 		// filter them alike), every level, the first written
 		var b = Bytes.alloc(CHECKS * CHECKS * 4);
-		var wave = [for (i in 0...CHECKS) clamp(1.4 * Math.cos(Math.PI * (i + 0.5) / 64), -1, 1)];
+		var wave = [for (i in 0...CHECKS) clamp(1.4 * Math.cos(Math.PI * (i + 0.5) / 32), -1, 1)];
 		for (y in 0...CHECKS)
 			for (x in 0...CHECKS) {
 				var c = mix(vec3(0.34, 0.37, 0.42), vec3(0.78, 0.76, 0.7), 0.5 + 0.5 * wave[x] * wave[y]), p = 4 * (y * CHECKS + x);
@@ -67,7 +67,7 @@ class Mips {
 			device.writeTexture(levels, c, 0, 0, -1, -1, 0, l);
 		}
 		trilinear = device.createSampler({filter: Linear, mipFilter: Linear, wrap: Repeat});
-		// the floor: DEPTH long, its sides out of sight, a check a unit square
+		// the floor: DEPTH long, its sides out of sight, a check a unit square (32 texels: low levels, whose rounding differs least between GPUs)
 		var bytes = FloorShader.vertexBytes([
 			for (c in [[-48.0, 0.0], [48.0, 0.0], [48.0, -DEPTH], [-48.0, -DEPTH]]) {pos: vec3(c[0], -1, c[1]), uv: vec2(c[0] / 4, c[1] / 4)}
 		]);

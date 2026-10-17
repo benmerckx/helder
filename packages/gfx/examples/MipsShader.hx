@@ -25,7 +25,7 @@ class FloorShader implements Shaders {
 		return {pos: cam.mvp * vec4(v.pos, 1), uv: v.uv, far: -v.pos.z / 40};
 
 	@:fragment static function fs(i:FloorVaryings, checks:Texture2D):Vec4
-		return vec4(mix(sample(checks, i.uv).xyz, vec3(0.1, 0.1, 0.12), smoothstep(0.02, 0.3, i.far)), 1);
+		return vec4(mix(sample(checks, i.uv).xyz, vec3(0.1, 0.1, 0.12), smoothstep(0.01, 0.25, i.far)), 1);
 }
 
 @:structInit @:publicFields class SwatchVertex {
