@@ -45,7 +45,25 @@ class AndroidNativeTest {
 		var app = new NativeForm();
 		Render.render(app.view(), host.root);
 		AndroidBackend.start(host);
-		settle(1.5);
+		// (the first steps make the views: up to 10 s)
+		var made = false, t0 = haxe.Timer.stamp(), frames = 0;
+		on(() -> {
+			var f = MainThread.onFrame;
+			MainThread.onFrame = () -> {
+				frames++;
+				f();
+			};
+		});
+		while (!made && haxe.Timer.stamp() - t0 < 10) {
+			settle(0.25);
+			on(() -> made = (cast host.root.find("submit") : Control).handle != 0);
+		}
+		settle(0.5);
+		if (!made) {
+			check("the widgets made", false, frames + " frames");
+			on(() -> host.close());
+			return;
+		}
 		var field:Control = null, agree:Control = null, volume:Control = null, submit:Control = null, count:Control = null, greeting:TextNode = null;
 		on(() -> {
 			field = cast host.root.find("name");
@@ -113,7 +131,8 @@ class AndroidNativeTest {
 		settle();
 		Sys.println("AndroidNativeTest: ready for input");
 		// what the user does, logged as it changes; done once all three came
-		var last = "", t0 = haxe.Timer.stamp(), done = false;
+		var last = "", done = false;
+		t0 = haxe.Timer.stamp();
 		while (!done && haxe.Timer.stamp() - t0 < 120 && !host.closed) {
 			on(() -> {
 				var now = 'name "${app.name.value}", agree ${app.agree.value}, submitted ${app.submitted.value}, greeting "${greeting.text}"';

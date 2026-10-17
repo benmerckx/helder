@@ -27,7 +27,8 @@ wait_for() {
 		adb logcat -d -s hxmc:I > "$log" 2>/dev/null
 		grep -q "$1" "$log" && return 0
 		if adb logcat -d 2>/dev/null | grep -q "Fatal signal\|FATAL EXCEPTION\|dlopen failed\|CANNOT LINK\|JNI DETECTED ERROR"; then
-			echo "android-native.sh: the app crashed or did not load"
+			echo "android-native.sh: the app crashed or did not load:"
+			adb logcat -d 2>/dev/null | grep -E -A40 "Fatal signal|FATAL EXCEPTION|dlopen failed|CANNOT LINK|JNI DETECTED ERROR" | head -120
 			return 1
 		fi
 		sleep 1
@@ -52,11 +53,12 @@ dump() {
 
 # tap <dump> <attributes>: at the centre of the first view whose attributes match
 tap() {
-	set -- $(grep -o "<node [^>]*$2[^>]*>" "$out/$1" | head -1 | grep -o 'bounds="[^"]*"' | tr -c '0-9\n' ' ')
-	if [ $# -lt 4 ]; then
+	b=$(grep -o "<node [^>]*$2[^>]*>" "$out/$1" | head -1 | grep -o 'bounds="[^"]*"' | tr -c '0-9\n' ' ')
+	if [ -z "$b" ]; then
 		echo "android-native.sh: no view $2 in $1"
 		return 1
 	fi
+	set -- $b
 	adb shell input tap $((($1 + $3) / 2)) $((($2 + $4) / 2))
 }
 
@@ -101,6 +103,6 @@ adb logcat -d > "$out/native-logcat-all.txt" 2>/dev/null
 cat "$log"
 if [ $failed != 0 ]; then
 	echo "android-native.sh: the system's log around the app:"
-	grep -E "AndroidRuntime|DEBUG|JNI|hxmc|art  |VerifyError|Rejecting" "$out/native-logcat-all.txt" | tail -80
+	grep -E "AndroidRuntime|DEBUG|JNI|hxmc|nativetest|VerifyError|Rejecting|linker" "$out/native-logcat-all.txt" | tail -150
 fi
 exit $failed
