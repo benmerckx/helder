@@ -30,9 +30,11 @@ class Tw {
 
 	// a StyleSheet from a JSON file beside the calling module: its slots'
 	// class lists (a string, cn's several, or cva's {base, variant: {name:
-	// classes}, size: {name: classes}}), "global" before each slot's that
-	// has borders (shadcn's `* { border-border }`), --radius ("radius") and
-	// the light and dark tokens
+	// classes}, size: {name: classes}}, or another slot's: {extends: slot,
+	// variant and size fixed or not}; and a class after them, as cn's
+	// className), "global" before each slot's that has borders (shadcn's
+	// `* { border-border }`), --radius ("radius"), CSS variables a class may
+	// name ("vars"), and the light and dark tokens
 	public static macro function sheet(file:String):Expr {
 		var pos = Context.currentPos();
 		var path = haxe.io.Path.join([haxe.io.Path.directory(Context.getPosInfos(pos).file), file]);
@@ -47,28 +49,52 @@ class Tw {
 			keys.sort(Reflect.compare);
 			return keys;
 		}
-		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: path, min: at, max: at + n})));
+		var vars = new Map<String, String>();
+		var v:haxe.DynamicAccess<String> = json.vars;
+		if (v != null) for (k => x in v)
+			vars[k] = x;
+		var tw = new Tailwind(css(json.radius), (m, at, n) -> Context.error(m, Context.makePosition({file: path, min: at, max: at + n})), vars);
 		var global = {classes: (json.global : String) ?? "", offset: offset(json.global ?? "")};
 		var rules = [];
 		var slots:haxe.DynamicAccess<Dynamic> = json.slots;
 		for (name in sorted(slots)) {
-			var v = slots[name];
 			var lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String}> = [];
 			function add(s:String, ?variant:String, ?size:String)
 				lists.push({classes: s, offset: offset(s), variant: variant, size: size});
-			if (Std.isOfType(v, String)) add(v) else if (Std.isOfType(v, Array)) for (s in (v : Array<String>)) add(s) else {
-				add(v.base);
-				for (kind in ["variant", "size"]) {
-					var m:haxe.DynamicAccess<String> = Reflect.field(v, kind);
-					if (m != null) for (k in sorted(m))
-						if (kind == "variant") add(m[k], k) else add(m[k], null, k);
+			function some(v:Dynamic, f:String->Void)
+				if (Std.isOfType(v, Array)) for (s in (v : Array<String>)) f(s) else if (v != null) f(v);
+			// (cva's: its base, then each variant's and size's, or the
+			// variant and size an entry fixes; then the entry's class, as cn's className)
+			function cva(v:Dynamic, ?variant:String, ?size:String) {
+				var parent:String = Reflect.field(v, "extends");
+				if (parent != null) {
+					var base:Dynamic = slots[parent];
+					if (base == null) Context.error('Tw.sheet: $name extends $parent, which is not a slot', pos);
+					// (one fixed: the other cva's default)
+					if (v.variant != null || v.size != null) cva(base, v.variant ?? "default", v.size ?? "default") else cva(base, variant, size);
+				} else {
+					some(v.base, s -> add(s));
+					for (kind in ["variant", "size"]) {
+						var m:haxe.DynamicAccess<String> = Reflect.field(v, kind);
+						var fixed = kind == "variant" ? variant : size;
+						if (m != null) for (k in sorted(m))
+							if (fixed != null) {
+								if (k == fixed) add(m[k]);
+							} else if (kind == "variant") add(m[k], k) else add(m[k], null, k);
+					}
 				}
+				some(Reflect.field(v, "class"), s -> add(s));
 			}
+			var v = slots[name];
+			if (Std.isOfType(v, String) || Std.isOfType(v, Array)) some(v, s -> add(s)) else cva(v);
 			var out = tw.slot(name, lists);
 			if (global.classes != "" && Lambda.exists(out, r -> r.props.exists("borderWidth") || r.props.exists("borders")))
 				out = tw.slot(name, [global].concat(lists));
 			rules = rules.concat(out);
 		}
+		// (-D hxmc.theme.dump: each rule as Tailwind.describe writes it)
+		if (Context.defined("hxmc.theme.dump")) for (r in rules)
+			Sys.println(Tailwind.describe(r));
 		var e = new Encoder();
 		e.int(rules.length);
 		for (r in rules)

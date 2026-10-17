@@ -9,6 +9,21 @@ lists, copied verbatim from shadcn's new-york-v4 registry into
 `src/hxmc/theme/shadcn.json` (its `shadcn` field names the commit:
 d2fba50, shadcn 4.22.0), become `hxmc.ui` rules at compile time.
 
+The components: Button, Input, Checkbox, Switch, Label, Card, Badge,
+Textarea, RadioGroup, Slider, Tabs, Select, DropdownMenu, Dialog, Popover,
+Tooltip, Table, Progress, Accordion, Toggle, ToggleGroup, Separator,
+Alert, Skeleton, Breadcrumb, Pagination, Calendar (react-day-picker's
+parts as `calendar-<part>`), Command, Menubar, ContextMenu, and sonner's
+toast (`toast`, `toast-title`, `toast-description`, `toast-icon`: sonner's
+own stylesheet's values, written as classes). Slots are shadcn's
+`data-slot` names; where shadcn styles an element without one, it is
+named after its parent: `checkbox-icon`, `radio-group-icon`,
+`select-trigger-icon`, `select-viewport`, `accordion-trigger-icon`,
+`dropdown-menu-item-indicator` (and the context menu's and menubar's),
+`tooltip-arrow`, `pagination-previous`, `pagination-next`; `body` is
+the window's root (Tailwind's preflight, then globals.css's body).
+AccordionContent's inner box is folded into `accordion-content`.
+
 ```haxe
 import hxmc.theme.Shadcn;
 
@@ -23,12 +38,16 @@ and buttons.
 
 `Tw.rules(slot, classes, ?variant, ?size)` turns a class list into
 `Array<Rule>`; `Tw.sheet(file)` a JSON file of slots' class lists (a
-string, cn's several, or cva's `{base, variant: {...}, size: {...}}`),
-`--radius` and the tokens into a `StyleSheet`. Both run at compile time:
-no class is parsed when the program runs. The rules are written as
-compact data (`Rules.hx`: a string table and a stream of small numbers)
-read when the sheet is first used; shadcn's seven first components, 88
-rules, add 4.8 KB to a native program (the reader, 19 KB, once).
+string, cn's several, cva's `{base, variant: {...}, size: {...}}`, or
+another slot's, `{extends: "button", variant: "ghost", class: "..."}` as
+`cn(buttonVariants({variant: "ghost"}), "...")`), `--radius`, CSS
+variables a class may name (`size-(--cell-size)`) and the tokens into a
+`StyleSheet`. Both run at compile time: no class is parsed when the
+program runs. The rules are written as compact data (`Rules.hx`: a
+string table and a stream of small numbers) read when the sheet is first
+used: shadcn's 449 rules add 23 KB to a native program (the reader, 19
+KB, once), and half a second to a build. `-D hxmc.theme.dump` prints
+them.
 
 The subset of Tailwind v4 shadcn's components use (`Tailwind.hx`), read
 with Tailwind's default theme and shadcn's on top, 1rem = 16px:
@@ -49,8 +68,8 @@ with Tailwind's default theme and shadcn's on top, 1rem = 16px:
 - colours: shadcn's tokens as `var(--name)`, with an alpha in percent
   (`bg-primary/90` is `var(--primary)/90`), resolved by the engine when a
   rule applies, so that light and dark switch without new rules; `white`,
-  `black`, `transparent`;
-- `shadow-*` (Tailwind's), `ring-*` (a ring is a box shadow outside the
+  `black`, `transparent`; `fill-*` (an icon's fill, as its colour);
+- `shadow-*` (Tailwind's, and `shadow-[0_4px_12px_rgba(0,0,0,0.1)]`), `ring-*` (a ring is a box shadow outside the
   border box, drawn here as an outline at no offset, which has its
   shape), `ring-offset-*`, `outline-*`, `opacity-*`, `cursor-*`,
   `pointer-events-*`, `translate-*` (`[calc(100%-2px)]` too), `rotate-*`,
@@ -79,9 +98,15 @@ nor listed in `Tailwind.IGNORED` or `IGNORED_VARIANTS` is a compile error
 at the class, in the JSON file or the string. Ignored: motion
 (`transition-*`, `animate-*`, `duration-*`...), resets of what an
 unstyled widget never draws (`outline-none`), `select-none`, the markers
-`group` and `peer`, container queries, `underline-offset-*` (no property
-yet), arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`,
-`[.border-b]:pb-6`, `has-[>svg]:px-3`) and `file:`.
+`group` and `peer`, container queries, what Radix's popper measures
+(`max-h-(--radix-…)`, `origin-(--radix-…)`), what has no property yet
+(`underline-offset-*`, auto margins such as `ml-auto`, sizes by
+`calc()`, `scroll-m*`), a table's own layout (`align-middle`,
+`caption-bottom`), `text-balance`, `sr-only`; arbitrary selectors
+(`[&_svg]:size-4`, `[a&]:hover:`, `[.border-b]:pb-6`, `has-[>svg]:px-3`),
+children's and descendants' (`*:`, `**:`), pseudo-elements (`after:`)
+and `file:`. Rings and outlines share hxmc's one outline: in a rule with
+both (tabs' trigger), the ring wins.
 
 ## Checks
 
@@ -89,6 +114,7 @@ yet), arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`,
 rules, Tw's rules made at compile time, shadcn's sheet compiled, the
 classes Tw rejects. `make theme-fidelity-check`: each themed widget drawn
 headless against shadcn's own markup and CSS drawn by Chromium
-(`test/ref/*.png`, 90 cases: variants, sizes, hover, focus, disabled,
-invalid, checked, light and dark; `test/ref.mjs` writes them with
-Tailwind 4.3.3); skipped until `hxmc.ui` has the rule engine.
+(`test/ref/*.png`, 166 cases of every component but Calendar and the
+toast: variants, sizes, hover, focus, disabled, invalid, checked, open,
+light and dark; `test/ref.mjs` writes them with Tailwind 4.3.3); skipped
+until `hxmc.ui` has the rule engine.

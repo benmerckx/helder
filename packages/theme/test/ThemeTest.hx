@@ -44,6 +44,7 @@ class ThemeTest {
 		text();
 		variants();
 		shorthands();
+		more();
 		ignored();
 		macro_();
 		sheet();
@@ -136,6 +137,27 @@ class ThemeTest {
 		same("flex flex-col md:flex", "x display=Flex direction=Column\nx md: display=Flex");
 	}
 
+	static function more() {
+		// (a ring is an outline at no offset; with an outline in the same rule, the ring wins)
+		same("focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring",
+			"x focus-visible: outlineWidth=3 outlineOffset=0 outlineColor=var(--ring)/50");
+		same("outline-2 outline-offset-2 outline-ring", "x outlineWidth=2 outlineOffset=2 outlineColor=var(--ring)");
+		same("fill-primary shadow-[0_4px_12px_rgba(0,0,0,0.1)] leading-[1.4]", "x color=var(--primary) shadow=0 4 12 0 rgba(0,0,0,0.1) lineHeight=1.4");
+		same("*:data-[slot=select-value]:flex **:data-[slot=x]:h-12 after:absolute rtl:**:[.rdp-button]:rotate-180", "");
+		same("max-h-(--radix-select-content-available-height) origin-(--radix-popover-content-transform-origin)", "");
+		// (CSS variables from the sheet: calendar's --cell-size)
+		var tw = new Tailwind(10, (m, _, _) -> throw m, ["--cell-size" => "2rem"]);
+		var got = tw.slot("x", [{classes: "size-(--cell-size) px-(--cell-size)", offset: 0}]).map(Tailwind.describe).join("\n");
+		check("vars", got == "x width=32 height=32 padding=0 32 0 32", got);
+		// (a class list after a size's, as cn's className after cva's: later than it)
+		got = tw.slot("x", [
+			{classes: "h-9 px-4", offset: 0},
+			{classes: "h-8 px-2", offset: 0, size: "sm"},
+			{classes: "px-3", offset: 0}
+		]).map(Tailwind.describe).join("\n");
+		check("className after cva", got == "x height=36 padding=0 16 0 16\nx(sm) height=32 padding=0 8 0 8\nx padding=0 12 0 12", got);
+	}
+
 	static function ignored() {
 		same("transition-all outline-none select-none peer group/switch @container/card-header text-current", "");
 		same("[&_svg]:size-4 [&_svg:not([class*='size-'])]:size-4 has-[>svg]:px-3 [a&]:hover:bg-accent [.border-b]:pb-6 file:h-7", "");
@@ -143,7 +165,7 @@ class ThemeTest {
 		rejected("bg-blue-500", "unknown class bg-blue-500");
 		rejected("hover:p-wat", "unknown class hover:p-wat");
 		rejected("wat:p-2", "unknown variant wat: in wat:p-2");
-		rejected("mx-auto", "unknown class mx-auto");
+		rejected("mx-[auto]", "unknown class mx-[auto]");
 		rejected("w-[calc(100%-2rem)]", "unknown class w-[calc(100%-2rem)]");
 	}
 

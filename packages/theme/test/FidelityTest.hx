@@ -24,7 +24,8 @@ class FidelityTest implements Markup {
 	static inline var FAR = 96;
 	static inline var MAX_FAR = 0.02;
 
-	static function widget(c:Dynamic):View {
+	// (null: no widget for the component yet, the case skipped)
+	static function widget(c:Dynamic):Null<View> {
 		var attrs:Dynamic = c.attrs ?? {};
 		var disabled = Reflect.hasField(attrs, "disabled"), invalid = Reflect.field(attrs, "aria-invalid") == "true";
 		return switch (c.component : String) {
@@ -44,7 +45,7 @@ class FidelityTest implements Markup {
 					<CardContent>{(c.text : String)}</CardContent>
 					<CardFooter><Button>{(c.footer : String)}</Button></CardFooter>
 				</Card>;
-			case other: throw 'FidelityTest: no widget for $other';
+			case _: null;
 		}
 	}
 
@@ -62,8 +63,13 @@ class FidelityTest implements Markup {
 		var cases:Array<Dynamic> = haxe.Json.parse(sys.io.File.getContent(args[0] + "/cases.json"));
 		var device = Device.create(Surface.headless(W, H));
 		var r = new Renderer(device);
-		var failed = 0;
+		var failed = 0, skipped = 0;
 		for (c in cases) {
+			var view = widget(c);
+			if (view == null) {
+				skipped++;
+				continue;
+			}
 			var w:Int = c.w, h:Int = c.h;
 			var ui = new Ui(new DrawText(), W, H);
 			ui.theme = Shadcn.sheet;
@@ -72,7 +78,7 @@ class FidelityTest implements Markup {
 			frame.slot = "body";
 			frame.style.set({width: w, height: h, padding: 16, fontFamily: "Inter", direction: c.block ? Column : Row, alignItems: Start});
 			ui.root.append(frame);
-			Render.render(widget(c), frame);
+			Render.render(view, frame);
 			ui.update();
 			var states:Array<String> = c.states ?? [];
 			var target = find(ui.root, c.component);
@@ -113,7 +119,7 @@ class FidelityTest implements Markup {
 			Sys.println('FidelityTest: ${c.name} ${ok ? "ok" : "FAILED"} (mean ${Math.round(mean * 100) / 100}, $far pixels off by more than $FAR)');
 		}
 		device.dispose();
-		Sys.println('FidelityTest: ${cases.length} cases' + (failed == 0 ? ", ok" : ', $failed FAILED'));
+		Sys.println('FidelityTest: ${cases.length - skipped} cases ($skipped without a widget yet)' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
 }

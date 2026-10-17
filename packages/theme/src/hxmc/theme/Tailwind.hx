@@ -69,7 +69,7 @@ class Tailwind {
 		"sidebar-accent", "sidebar-accent-foreground", "sidebar-border", "sidebar-ring"
 	];
 
-	// utilities dropped, and why: (a trailing * is a prefix)
+	// utilities dropped, and why: (a trailing * is a prefix, *x* a part)
 	public static final IGNORED = [
 		// motion is not themed
 		"transition", "transition-*", "duration-*", "ease-*", "delay-*", "animate-*", "fade-*", "zoom-*", "slide-*",
@@ -85,8 +85,25 @@ class Tailwind {
 		"text-current",
 		// the gap under a ring offset: an outline's shows what is behind, the background
 		"ring-offset-background",
-		// (no StyleProps for it yet)
-		"underline-offset-*",
+		// (no StyleProps for them yet: text-underline-offset, auto margins,
+		// sizes by calc(), scroll margins, touch-action)
+		"underline-offset-*", "m-auto", "mx-auto", "my-auto", "ml-auto", "mr-auto", "mt-auto", "mb-auto", "h-[calc(100%-1px)]",
+		"max-w-[calc(100%-2rem)]", "scroll-my-*", "scroll-py-*", "touch-none",
+		// what Radix's popper measures (--radix-*): ui's popups place and size themselves
+		"*(--radix-*", "*[var(--radix-*",
+		// a textarea growing with its text: the widget's behaviour
+		"field-sizing-content",
+		// a table's own layout (caption side, collapsed borders, a cell's
+		// vertical alignment): ui's Table lays out its cells
+		"caption-bottom", "border-collapse", "align-middle",
+		// balanced lines: ui's text wraps greedily
+		"text-balance",
+		// visually hidden text for assistive technology: ui's semantics carry it
+		"sr-only",
+		// toggle-group's gap from its spacing prop (--gap), 0 unless set: the widget's
+		"gap-[--spacing(var(--gap))]",
+		// calendar's --cell-size: shadcn.json's vars hold it
+		"[--cell-size:--spacing(8)]",
 	];
 
 	// variants whose classes are dropped, and why: (a trailing * is a prefix)
@@ -97,6 +114,11 @@ class Tailwind {
 		// element type ([a&]), class names ([.border-b]); has-[>svg]: a
 		// button's padding beside an icon
 		"[*", "has-[*",
+		// children's (*:) and descendants' (**:) styles, each of which ui's
+		// widgets give their own slot
+		"*", "**",
+		// pseudo-elements (tabs' line under the active trigger): no node for them
+		"after", "before",
 	];
 
 	// Tailwind v4's variant order (the later, the later in the CSS);
@@ -154,14 +176,19 @@ class Tailwind {
 
 	// --radius in px: rounded-sm, -md, -lg, -xl... are shadcn's multiples of it
 	final radius:Float;
+	// CSS variables (--cell-size) a class may name: size-(--cell-size)
+	final vars:Map<String, String>;
 	final error:(message:String, at:Int, length:Int) -> Void;
 	// (the class being read: where errors point)
 	var at = 0;
 	// (the slot has borders or corners on some sides only: borders and corners, not borderWidth and radius)
 	var sides = new Map<String, Bool>();
+	// (the class lists after variants' and sizes' so far)
+	var layer = 0;
 
-	public function new(radius:Float, error:(message:String, at:Int, length:Int) -> Void) {
+	public function new(radius:Float, error:(message:String, at:Int, length:Int) -> Void, ?vars:Map<String, String>) {
 		this.radius = radius;
+		this.vars = vars ?? new Map();
 		this.error = error;
 	}
 
@@ -177,7 +204,15 @@ class Tailwind {
 	public function slot(name:String, lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String}>):Array<TwRule> {
 		var groups:Array<Group> = [];
 		sides = new Map();
+		// (a class list after a variant's or size's, as cn's className after
+		// cva's: its rules after theirs, apart from the base's)
+		var selected = false;
+		layer = 0;
 		for (l in lists) {
+			if (l.variant != null || l.size != null) selected = true else if (selected) {
+				selected = false;
+				layer++;
+			}
 			var i = 0, s = l.classes;
 			while (i < s.length) {
 				while (i < s.length && s.charCodeAt(i) <= " ".code)
@@ -218,7 +253,9 @@ class Tailwind {
 
 	static function matches(list:Array<String>, name:String):Bool {
 		for (p in list)
-			if (p == name || p.endsWith("*") && name.startsWith(p.substr(0, p.length - 1))) return true;
+			if (p == name || p != "*" && p != "**" && p.endsWith("*")
+				&& (p.startsWith("*") && p.length > 2 ? name.indexOf(p.substring(1, p.length - 1)) >= 0 : name.startsWith(p.substr(0, p.length - 1))))
+				return true;
 		return false;
 	}
 
@@ -260,7 +297,7 @@ class Tailwind {
 			return;
 		}
 		order.sort((a, b) -> b - a);
-		var key = '$variant|$size|' + when.join("&");
+		var key = '$layer|$variant|$size|' + when.join("&");
 		var g = null;
 		for (x in groups)
 			if (x.key == key) g = x;
@@ -367,8 +404,8 @@ class Tailwind {
 			case "border": for (i in 0...4) set('border.$i', VNum(1));
 			case "rounded": for (i in 0...4) set('corner.$i', VNum(4));
 			case "shadow-none": set("shadow", VShadow([]));
-			case "ring": ring(out, 1);
-			case "outline": set("outlineWidth", VNum(1));
+			case "ring": set("ring.width", VNum(1));
+			case "outline": set("outline.width", VNum(1));
 			case "underline": set("textDecoration", VInt(1));
 			case "line-through": set("textDecoration", VInt(2));
 			case "overline": set("textDecoration", VInt(4));
@@ -623,41 +660,38 @@ class Tailwind {
 		}
 		// shadows, rings, outlines
 		if ((v = after("shadow-")) != null) {
+			if (v.startsWith("[")) {
+				var s = shadow(v.substring(1, v.length - 1));
+				if (s == null) return null;
+				set("shadow", VShadow([s]));
+				return out;
+			}
 			var s = SHADOWS[v];
 			if (s == null) return null;
 			set("shadow", VShadow([for (x in s) {x: x[0], y: x[1], blur: x[2], spread: x[3], color: 'rgba(0, 0, 0, ${x[4]})'}]));
 			return out;
 		}
-		if ((v = after("ring-offset-")) != null) {
-			var w = borderWidth(v);
-			if (w == null) return null;
-			set("outlineOffset", VNum(w));
-			return out;
-		}
-		if ((v = after("ring-")) != null) {
-			var w = borderWidth(v);
-			if (w != null) {
-				ring(out, w);
+		for (o in ["ring", "outline"]) {
+			if ((v = after('$o-offset-')) != null) {
+				var w = borderWidth(v);
+				if (w == null) return null;
+				set('$o.offset', VNum(w));
 				return out;
 			}
+			if ((v = after('$o-')) != null) {
+				var w = borderWidth(v);
+				if (w != null) set('$o.width', VNum(w)) else {
+					var c = color(v);
+					if (c == null) return null;
+					set('$o.color', VColor(c));
+				}
+				return out;
+			}
+		}
+		if ((v = after("fill-")) != null) {
 			var c = color(v);
 			if (c == null) return null;
-			set("outlineColor", VColor(c));
-			return out;
-		}
-		if ((v = after("outline-offset-")) != null) {
-			var w = borderWidth(v);
-			if (w == null) return null;
-			set("outlineOffset", VNum(w));
-			return out;
-		}
-		if ((v = after("outline-")) != null) {
-			var w = borderWidth(v);
-			if (w != null) set("outlineWidth", VNum(w)) else {
-				var c = color(v);
-				if (c == null) return null;
-				set("outlineColor", VColor(c));
-			}
+			set("color", VColor(c));
 			return out;
 		}
 		// transforms
@@ -683,16 +717,22 @@ class Tailwind {
 		return null;
 	}
 
-	// (ring-N: a box shadow of that spread outside the border box, which an
-	// outline at no offset draws, rounded as the box, under ring-* colours)
-	static function ring(out:Array<{key:String, value:TwValue}>, w:Float) {
-		out.push({key: "outlineWidth", value: VNum(w)});
-		out.push({key: "outlineOffset", value: VNum(0)});
+	// (shadow-[0_4px_12px_rgba(0,0,0,0.1)]: x, y, blur, spread in px, a colour)
+	static function shadow(v:String):Null<TwShadow> {
+		var paren = v.indexOf("(");
+		var parts = (paren < 0 ? v : v.substr(0, paren)).split("_").filter(p -> p != "");
+		var color = paren < 0 ? parts.pop() : parts.pop() + v.substr(paren);
+		var n = [for (p in parts) length(p)];
+		if (n.length < 2 || n.length > 4 || n.contains(null) || color == null) return null;
+		while (n.length < 4)
+			n.push(0);
+		return {x: n[0], y: n[1], blur: n[2], spread: n[3], color: color};
 	}
 
 	// --spacing (0.25rem) times n, px, or an arbitrary length
-	static function spacing(v:String):Null<Float> {
+	function spacing(v:String):Null<Float> {
 		if (v == "px") return 1;
+		if (v.startsWith("(") && v.endsWith(")")) return vars.exists(v.substring(1, v.length - 1)) ? length(vars[v.substring(1, v.length - 1)]) : null;
 		if (v.startsWith("[")) return length(v.substring(1, v.length - 1));
 		var n = number(v);
 		return n == null ? null : n * 0.25 * REM;
@@ -715,7 +755,7 @@ class Tailwind {
 	}
 
 	// a width, height, size or inset: spacing, a fraction, full, auto, fit...
-	static function size(v:String, max:Bool):Null<DimValue> {
+	function size(v:String, max:Bool):Null<DimValue> {
 		switch v {
 			case "full": return Percent(100);
 			case "auto" | "none": return Auto;
@@ -764,8 +804,10 @@ class Tailwind {
 		}
 
 	// leading-*: a multiple of the font size, or px (VDim) to divide by it
-	static function leading(v:String):Null<TwValue> {
+	function leading(v:String):Null<TwValue> {
 		if (LEADING.exists(v)) return VNum(LEADING[v]);
+		// (leading-[1.4]: a multiple)
+		if (v.startsWith("[") && number(v.substring(1, v.length - 1)) != null) return VNum(number(v.substring(1, v.length - 1)));
 		var n = spacing(v);
 		return n == null ? null : VDim(Px(n));
 	}
@@ -788,7 +830,7 @@ class Tailwind {
 
 	// a translation: spacing, a fraction or full (of the box), an arbitrary
 	// length or percentage, calc(a% - b px) as two
-	static function translate(v:String, neg:Bool):Null<String> {
+	function translate(v:String, neg:Bool):Null<String> {
 		inline function sign(s:String)
 			return neg ? (s.startsWith("-") ? s.substr(1) : "-" + s) : s;
 		if (v == "full") return sign("100%");
@@ -880,6 +922,15 @@ class Tailwind {
 				case "corner":
 					var c = [for (s in 0...4) num('corner.$s', 0)];
 					if (sides.exists("corner")) field("corners", VCorners(c[0], c[1], c[2], c[3])) else field("radius", VNum(c[0]));
+				case "ring" | "outline":
+					// (ring-N: a box shadow of that spread outside the border box,
+					// which an outline at no offset draws, rounded as the box;
+					// in a rule with both, the ring wins)
+					done["ring"] = done["outline"] = true;
+					var o = g.parts.exists("ring.width") || g.parts.exists("ring.color") || g.parts.exists("ring.offset") ? "ring" : "outline";
+					if (g.parts.exists('$o.width')) field("outlineWidth", g.parts['$o.width']);
+					if (g.parts.exists('$o.width') || g.parts.exists('$o.offset')) field("outlineOffset", g.parts['$o.offset'] ?? VNum(0));
+					if (g.parts.exists('$o.color')) field("outlineColor", g.parts['$o.color']);
 				case "direction":
 					if (g.parts.exists("direction")) field("direction", g.parts["direction"]) else if (inherited("direction") == null)
 						field("direction", g.parts["direction.default"]);

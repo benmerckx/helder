@@ -416,6 +416,332 @@
 		"footer": "Card Footer"
 	},
 	{
+		"name": "textarea-placeholder",
+		"component": "textarea",
+		"w": 280,
+		"h": 96,
+		"block": true,
+		"placeholder": "Type your message here.",
+		"dark": false
+	},
+	{
+		"name": "textarea-focus",
+		"component": "textarea",
+		"w": 280,
+		"h": 96,
+		"block": true,
+		"placeholder": "Type your message here.",
+		"dark": false,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "textarea-invalid",
+		"component": "textarea",
+		"w": 280,
+		"h": 96,
+		"block": true,
+		"text": "Too short",
+		"dark": false,
+		"attrs": {
+			"aria-invalid": "true"
+		}
+	},
+	{
+		"name": "radio-group-default",
+		"component": "radio-group",
+		"w": 180,
+		"h": 76,
+		"dark": false
+	},
+	{
+		"name": "radio-group-focus",
+		"component": "radio-group",
+		"w": 180,
+		"h": 76,
+		"dark": false,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "slider-default",
+		"component": "slider",
+		"w": 240,
+		"h": 48,
+		"block": true,
+		"value": 50,
+		"dark": false
+	},
+	{
+		"name": "slider-hover",
+		"component": "slider",
+		"w": 240,
+		"h": 48,
+		"block": true,
+		"value": 30,
+		"dark": false,
+		"states": [
+			"hover"
+		]
+	},
+	{
+		"name": "tabs-default",
+		"component": "tabs",
+		"w": 320,
+		"h": 112,
+		"dark": false
+	},
+	{
+		"name": "tabs-line",
+		"component": "tabs",
+		"w": 320,
+		"h": 112,
+		"variant": "line",
+		"dark": false
+	},
+	{
+		"name": "tabs-focus",
+		"component": "tabs",
+		"w": 320,
+		"h": 112,
+		"dark": false,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "progress-60",
+		"component": "progress",
+		"w": 240,
+		"h": 40,
+		"block": true,
+		"value": 60,
+		"dark": false
+	},
+	{
+		"name": "separator-horizontal",
+		"component": "separator",
+		"w": 240,
+		"h": 92,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "skeleton-default",
+		"component": "skeleton",
+		"w": 300,
+		"h": 80,
+		"dark": false
+	},
+	{
+		"name": "toggle-default-off",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "default",
+		"text": "Bold",
+		"dark": false
+	},
+	{
+		"name": "toggle-default-on",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "default",
+		"text": "Bold",
+		"on": true,
+		"dark": false
+	},
+	{
+		"name": "toggle-default-hover",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "default",
+		"text": "Bold",
+		"dark": false,
+		"states": [
+			"hover"
+		]
+	},
+	{
+		"name": "toggle-outline-off",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "outline",
+		"text": "Bold",
+		"dark": false
+	},
+	{
+		"name": "toggle-outline-on",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "outline",
+		"text": "Bold",
+		"on": true,
+		"dark": false
+	},
+	{
+		"name": "toggle-outline-hover",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "outline",
+		"text": "Bold",
+		"dark": false,
+		"states": [
+			"hover"
+		]
+	},
+	{
+		"name": "toggle-group-outline",
+		"component": "toggle-group",
+		"w": 280,
+		"h": 68,
+		"variant": "outline",
+		"dark": false
+	},
+	{
+		"name": "toggle-group-default",
+		"component": "toggle-group",
+		"w": 280,
+		"h": 68,
+		"dark": false
+	},
+	{
+		"name": "alert-default",
+		"component": "alert",
+		"w": 400,
+		"h": 116,
+		"block": true,
+		"variant": "default",
+		"text": "You can add components to your app using the cli.",
+		"dark": false,
+		"title": "Heads up!"
+	},
+	{
+		"name": "alert-destructive",
+		"component": "alert",
+		"w": 400,
+		"h": 116,
+		"block": true,
+		"variant": "destructive",
+		"text": "You can add components to your app using the cli.",
+		"dark": false,
+		"title": "Heads up!"
+	},
+	{
+		"name": "select-placeholder",
+		"component": "select",
+		"w": 220,
+		"h": 68,
+		"placeholder": "Select a fruit",
+		"dark": false
+	},
+	{
+		"name": "select-value",
+		"component": "select",
+		"w": 220,
+		"h": 68,
+		"text": "Apple",
+		"dark": false
+	},
+	{
+		"name": "select-focus",
+		"component": "select",
+		"w": 220,
+		"h": 68,
+		"text": "Apple",
+		"dark": false,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "select-content-open",
+		"component": "select-content",
+		"w": 200,
+		"h": 200,
+		"dark": false
+	},
+	{
+		"name": "table-default",
+		"component": "table",
+		"w": 360,
+		"h": 200,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "accordion-default",
+		"component": "accordion",
+		"w": 400,
+		"h": 200,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "breadcrumb-default",
+		"component": "breadcrumb",
+		"w": 300,
+		"h": 52,
+		"dark": false
+	},
+	{
+		"name": "pagination-default",
+		"component": "pagination",
+		"w": 420,
+		"h": 68,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "dialog-open",
+		"component": "dialog",
+		"w": 800,
+		"h": 600,
+		"dark": false
+	},
+	{
+		"name": "popover-open",
+		"component": "popover",
+		"w": 320,
+		"h": 120,
+		"dark": false
+	},
+	{
+		"name": "tooltip-open",
+		"component": "tooltip",
+		"w": 160,
+		"h": 60,
+		"dark": false
+	},
+	{
+		"name": "dropdown-menu-open",
+		"component": "dropdown-menu",
+		"w": 240,
+		"h": 240,
+		"dark": false
+	},
+	{
+		"name": "menubar-default",
+		"component": "menubar",
+		"w": 240,
+		"h": 68,
+		"dark": false
+	},
+	{
+		"name": "command-default",
+		"component": "command",
+		"w": 482,
+		"h": 240,
+		"dark": false
+	},
+	{
 		"name": "button-default-dark",
 		"component": "button",
 		"w": 160,
@@ -832,6 +1158,332 @@
 		"footer": "Card Footer"
 	},
 	{
+		"name": "textarea-placeholder-dark",
+		"component": "textarea",
+		"w": 280,
+		"h": 96,
+		"block": true,
+		"placeholder": "Type your message here.",
+		"dark": true
+	},
+	{
+		"name": "textarea-focus-dark",
+		"component": "textarea",
+		"w": 280,
+		"h": 96,
+		"block": true,
+		"placeholder": "Type your message here.",
+		"dark": true,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "textarea-invalid-dark",
+		"component": "textarea",
+		"w": 280,
+		"h": 96,
+		"block": true,
+		"text": "Too short",
+		"dark": true,
+		"attrs": {
+			"aria-invalid": "true"
+		}
+	},
+	{
+		"name": "radio-group-default-dark",
+		"component": "radio-group",
+		"w": 180,
+		"h": 76,
+		"dark": true
+	},
+	{
+		"name": "radio-group-focus-dark",
+		"component": "radio-group",
+		"w": 180,
+		"h": 76,
+		"dark": true,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "slider-default-dark",
+		"component": "slider",
+		"w": 240,
+		"h": 48,
+		"block": true,
+		"value": 50,
+		"dark": true
+	},
+	{
+		"name": "slider-hover-dark",
+		"component": "slider",
+		"w": 240,
+		"h": 48,
+		"block": true,
+		"value": 30,
+		"dark": true,
+		"states": [
+			"hover"
+		]
+	},
+	{
+		"name": "tabs-default-dark",
+		"component": "tabs",
+		"w": 320,
+		"h": 112,
+		"dark": true
+	},
+	{
+		"name": "tabs-line-dark",
+		"component": "tabs",
+		"w": 320,
+		"h": 112,
+		"variant": "line",
+		"dark": true
+	},
+	{
+		"name": "tabs-focus-dark",
+		"component": "tabs",
+		"w": 320,
+		"h": 112,
+		"dark": true,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "progress-60-dark",
+		"component": "progress",
+		"w": 240,
+		"h": 40,
+		"block": true,
+		"value": 60,
+		"dark": true
+	},
+	{
+		"name": "separator-horizontal-dark",
+		"component": "separator",
+		"w": 240,
+		"h": 92,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "skeleton-default-dark",
+		"component": "skeleton",
+		"w": 300,
+		"h": 80,
+		"dark": true
+	},
+	{
+		"name": "toggle-default-off-dark",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "default",
+		"text": "Bold",
+		"dark": true
+	},
+	{
+		"name": "toggle-default-on-dark",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "default",
+		"text": "Bold",
+		"on": true,
+		"dark": true
+	},
+	{
+		"name": "toggle-default-hover-dark",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "default",
+		"text": "Bold",
+		"dark": true,
+		"states": [
+			"hover"
+		]
+	},
+	{
+		"name": "toggle-outline-off-dark",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "outline",
+		"text": "Bold",
+		"dark": true
+	},
+	{
+		"name": "toggle-outline-on-dark",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "outline",
+		"text": "Bold",
+		"on": true,
+		"dark": true
+	},
+	{
+		"name": "toggle-outline-hover-dark",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"variant": "outline",
+		"text": "Bold",
+		"dark": true,
+		"states": [
+			"hover"
+		]
+	},
+	{
+		"name": "toggle-group-outline-dark",
+		"component": "toggle-group",
+		"w": 280,
+		"h": 68,
+		"variant": "outline",
+		"dark": true
+	},
+	{
+		"name": "toggle-group-default-dark",
+		"component": "toggle-group",
+		"w": 280,
+		"h": 68,
+		"dark": true
+	},
+	{
+		"name": "alert-default-dark",
+		"component": "alert",
+		"w": 400,
+		"h": 116,
+		"block": true,
+		"variant": "default",
+		"text": "You can add components to your app using the cli.",
+		"dark": true,
+		"title": "Heads up!"
+	},
+	{
+		"name": "alert-destructive-dark",
+		"component": "alert",
+		"w": 400,
+		"h": 116,
+		"block": true,
+		"variant": "destructive",
+		"text": "You can add components to your app using the cli.",
+		"dark": true,
+		"title": "Heads up!"
+	},
+	{
+		"name": "select-placeholder-dark",
+		"component": "select",
+		"w": 220,
+		"h": 68,
+		"placeholder": "Select a fruit",
+		"dark": true
+	},
+	{
+		"name": "select-value-dark",
+		"component": "select",
+		"w": 220,
+		"h": 68,
+		"text": "Apple",
+		"dark": true
+	},
+	{
+		"name": "select-focus-dark",
+		"component": "select",
+		"w": 220,
+		"h": 68,
+		"text": "Apple",
+		"dark": true,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "select-content-open-dark",
+		"component": "select-content",
+		"w": 200,
+		"h": 200,
+		"dark": true
+	},
+	{
+		"name": "table-default-dark",
+		"component": "table",
+		"w": 360,
+		"h": 200,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "accordion-default-dark",
+		"component": "accordion",
+		"w": 400,
+		"h": 200,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "breadcrumb-default-dark",
+		"component": "breadcrumb",
+		"w": 300,
+		"h": 52,
+		"dark": true
+	},
+	{
+		"name": "pagination-default-dark",
+		"component": "pagination",
+		"w": 420,
+		"h": 68,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "dialog-open-dark",
+		"component": "dialog",
+		"w": 800,
+		"h": 600,
+		"dark": true
+	},
+	{
+		"name": "popover-open-dark",
+		"component": "popover",
+		"w": 320,
+		"h": 120,
+		"dark": true
+	},
+	{
+		"name": "tooltip-open-dark",
+		"component": "tooltip",
+		"w": 160,
+		"h": 60,
+		"dark": true
+	},
+	{
+		"name": "dropdown-menu-open-dark",
+		"component": "dropdown-menu",
+		"w": 240,
+		"h": 240,
+		"dark": true
+	},
+	{
+		"name": "menubar-default-dark",
+		"component": "menubar",
+		"w": 240,
+		"h": 68,
+		"dark": true
+	},
+	{
+		"name": "command-default-dark",
+		"component": "command",
+		"w": 482,
+		"h": 240,
+		"dark": true
+	},
+	{
 		"name": "button-size-default",
 		"component": "button",
 		"w": 160,
@@ -894,5 +1546,21 @@
 		"h": 68,
 		"size": "icon-lg",
 		"text": "+"
+	},
+	{
+		"name": "toggle-size-sm",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"size": "sm",
+		"text": "Bold"
+	},
+	{
+		"name": "toggle-size-lg",
+		"component": "toggle",
+		"w": 120,
+		"h": 68,
+		"size": "lg",
+		"text": "Bold"
 	}
 ]
