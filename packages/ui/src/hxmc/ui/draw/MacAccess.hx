@@ -13,9 +13,10 @@ import hxmc.unsafe.*;
 // value, states and frame (in screen points) set through the element's
 // accessibility properties, its parent and children; the window's view the
 // top's parent, of a subclass made at run time (HxmcAccessView) that
-// answers which element has the focus and which is under a point. Updated
-// after each frame from what changed (AccessTree.changes), all the frames
-// again when the window moved.
+// answers its children, which element has the focus and which is under a
+// point. Nothing is built until assistive technology first asks the view
+// one of those; from then on updated after each frame from what changed
+// (AccessTree.changes), all the frames again when the window moved.
 class MacAccess {
 	static var elementClass = Ptr.nil();
 	static var viewClass = Ptr.nil();
@@ -32,6 +33,9 @@ class MacAccess {
 	var tree:Null<AccessTree>;
 	var windowX = Math.NaN;
 	var windowY = Math.NaN;
+	// (asked: building; the view's children, retained)
+	var active = false;
+	var rootChildren = Ptr.nil();
 
 	public function new(window:hxmc.os.Window, ui:Ui) {
 		this.ui = ui;
@@ -51,6 +55,7 @@ class MacAccess {
 		Runtime.objc_registerClassPair(e);
 		elementClass = e;
 		var v = Runtime.objc_allocateClassPair(ObjC.cls("NSView"), Mem.cstr("HxmcAccessView"), 0);
+		Runtime.class_addMethod(v, ObjC.sel("accessibilityChildren"), Callback.addr(children), Mem.cstr("@@:"));
 		Runtime.class_addMethod(v, ObjC.sel("accessibilityFocusedUIElement"), Callback.addr(focused), Mem.cstr("@@:"));
 		Runtime.class_addMethod(v, ObjC.sel("accessibilityHitTest:"), Callback.addr(hitTest), Mem.cstr("@@:{CGPoint=dd}"));
 		Runtime.objc_registerClassPair(v);
@@ -62,11 +67,14 @@ class MacAccess {
 			Runtime.objc_release(e);
 		elements.clear();
 		ids.clear();
+		if (!rootChildren.isNull()) Runtime.objc_release(rootChildren);
+		rootChildren = Ptr.nil();
 		all.remove(this);
 	}
 
 	// the tree after a frame: the elements of what changed made or set again
 	public function update() {
+		if (!active) return;
 		var t = ui.accessTree();
 		var wf = Msg.rect(nsWindow, ObjC.sel("frame"));
 		var moved = wf.origin.x != windowX || wf.origin.y != windowY;
@@ -95,7 +103,12 @@ class MacAccess {
 			var parent = n.id == t.root ? view : element(n.id);
 			for (k in kids)
 				Msg.vPtr(k, ObjC.sel("setAccessibilityParent:"), parent);
-			Msg.vPtr(parent, ObjC.sel("setAccessibilityChildren:"), array(kids));
+			var list = array(kids);
+			if (n.id == t.root) {
+				if (!rootChildren.isNull()) Runtime.objc_release(rootChildren);
+				rootChildren = Msg.id(list, ObjC.sel("retain"));
+			}
+			Msg.vPtr(parent, ObjC.sel("setAccessibilityChildren:"), list);
 		}
 		if (focusChanged) {
 			var f = t.focus != 0 ? elements.get(t.focus) : null;
@@ -236,8 +249,23 @@ class MacAccess {
 		return null;
 	}
 
+	// (the first question builds the tree)
+	function activate() {
+		if (active) return;
+		active = true;
+		update();
+	}
+
+	@:hxmc.callback static function children(self:Ptr, cmd:Ptr):Ptr {
+		var m = of(self);
+		if (m == null) return Ptr.nil();
+		m.activate();
+		return m.rootChildren;
+	}
+
 	@:hxmc.callback static function focused(self:Ptr, cmd:Ptr):Ptr {
 		var m = of(self);
+		if (m != null) m.activate();
 		if (m == null || m.tree == null || m.tree.focus == 0) return self;
 		var e = m.elements.get(m.tree.focus);
 		return e == null ? self : e;
@@ -246,6 +274,7 @@ class MacAccess {
 	// the deepest element whose frame holds the point (screen points), else the view
 	@:hxmc.callback static function hitTest(self:Ptr, cmd:Ptr, x:Float, y:Float):Ptr {
 		var m = of(self);
+		if (m != null) m.activate();
 		if (m == null || m.tree == null) return self;
 		var best = self;
 		var id = m.tree.root;

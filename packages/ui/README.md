@@ -155,7 +155,7 @@ VoiceOver reads; on Windows to UI Automation (`WinAccess`: a COM
 provider per node, made here: navigation, properties, bounds, the
 invoke, toggle, range value and value patterns), which Narrator reads; on
 Linux to AT-SPI over D-Bus (`LinuxAccess`, libdbus loaded at run time:
-Accessible, Component, Action, Value, Text), which Orca reads. On Windows
+Accessible, Component, Action, Value, Text), which Orca reads. On macOS, Windows
 and Linux the tree is built only once a client first asks for it, so a
 program nobody reads pays nothing for it.
 

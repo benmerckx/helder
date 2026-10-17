@@ -59,6 +59,8 @@ class MacAccessTest implements Markup {
 			frames++;
 			switch step {
 				case 0:
+					var ma:Null<hxmc.ui.draw.MacAccess> = cast @:privateAccess w.macAccess;
+					check("no tree before a question", ma != null && @:privateAccess ma.tree == null);
 					elements = children(view);
 					var shape = [for (e in elements) str(e, "accessibilityRole") + ":" + (str(e, "accessibilityRole") == "AXStaticText" ? str(e, "accessibilityValue") : str(e, "accessibilityLabel"))];
 					check("the view's children: roles and names", shape.join(",") == "AXStaticText:Settings,AXButton:Save,AXCheckBox:Remember,AXSlider:Volume,AXTextField:Name", shape.join(","));
