@@ -49,6 +49,7 @@ typedef StyleProps = {
 	?opacity:Float,
 	?cursor:Cursor,
 	?shadow:Shadow,
+	?transition:Transition,
 	?outlineWidth:Float,
 	?outlineOffset:Float,
 	?outlineColor:Color,

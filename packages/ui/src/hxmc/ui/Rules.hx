@@ -70,7 +70,7 @@ class Rules {
 		for (i in 0...m.names.length) {
 			var name = m.names[i], want:Dynamic = m.values[i];
 			if (m.current) want = withCurrent(want, current);
-			var cur = StyleFields.get(n.style, name);
+			var cur = n.style.target(name);
 			var k = applied == null ? -1 : applied.indexOf(name);
 			// (the node's own value: left as it is)
 			if (k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initial(name))) continue;
@@ -80,13 +80,13 @@ class Rules {
 				values = [];
 			}
 			names.push(name);
-			values.push(StyleFields.get(n.style, name));
+			values.push(n.style.target(name));
 		}
 		// (what the rules wrote and no longer set, still as they wrote it: back to the default)
 		if (applied != null)
 			for (k in 0...applied.length) {
 				var name = applied[k];
-				if ((names == null || names.indexOf(name) < 0) && same(StyleFields.get(n.style, name), appliedValues[k]))
+				if ((names == null || names.indexOf(name) < 0) && same(n.style.target(name), appliedValues[k]))
 					StyleFields.set(n.style, name, initial(name));
 			}
 		@:privateAccess n.themedNames = names;

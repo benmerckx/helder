@@ -132,6 +132,35 @@ class Transform {
 		return [Dim.parse(p.x), Dim.parse(p.y)];
 	}
 
+	// a transform a fraction k of the way from a to b (null: none), as CSS
+	// interpolates them: function by function where both have the same
+	// ones, none against the other's functions at their identity; else
+	// their matrices' entries (a box's pixels: a percentage translation as
+	// it is at k's end)
+	public static function between(a:Null<Transform>, b:Null<Transform>, k:Float):Null<Transform> {
+		if (a == null && b == null) return null;
+		if (a == null || a.names.length == 0) a = b.identity();
+		if (b == null || b.names.length == 0) b = a.identity();
+		var same = a.names.length == b.names.length;
+		if (same)
+			for (i in 0...a.names.length)
+				if (a.names[i] != b.names[i] || a.args[i].length != b.args[i].length || a.percent[i].join(",") != b.percent[i].join(",")) same = false;
+		if (!same) {
+			var m = a.toMatrix(0, 0), n = b.toMatrix(0, 0);
+			return matrix(m[0] + (n[0] - m[0]) * k, m[1] + (n[1] - m[1]) * k, m[2] + (n[2] - m[2]) * k, m[3] + (n[3] - m[3]) * k, m[4] + (n[4] - m[4]) * k,
+				m[5] + (n[5] - m[5]) * k);
+		}
+		return new Transform(a.names.copy(), [for (i in 0...a.args.length) [for (j in 0...a.args[i].length) a.args[i][j] + (b.args[i][j] - a.args[i][j]) * k]],
+			[for (p in a.percent) p.copy()]);
+	}
+
+	// (its functions at their identities: no translation, scale 1, no turn or skew)
+	function identity():Transform
+		return new Transform(names.copy(), [
+			for (i in 0...names.length)
+				[for (j in 0...args[i].length) names[i] == "matrix" ? (j == 0 || j == 3 ? 1.0 : 0.0) : StringTools.startsWith(names[i], "scale") ? 1.0 : 0.0]
+		], [for (p in percent) p.copy()]);
+
 	public function toString():String
 		return [for (i in 0...names.length) names[i] + "(" + [for (k in 0...args[i].length) args[i][k] + (percent[i][k] ? "%" : "")].join(", ") + ")"].join(" ");
 }

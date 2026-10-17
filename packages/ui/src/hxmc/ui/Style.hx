@@ -279,6 +279,12 @@ class Style {
 	// Shadow.NONE: none)
 	public var textShadow(get, set):Null<Shadow>;
 
+	// how its colours, opacity, transform and shadow ease to a new value
+	// once it has been drawn (Transition.parse, as CSS's transition; null:
+	// they jump; not inherited). While one moves, the property reads where
+	// it is; target, where it goes.
+	public var transition(get, set):Null<Transition>;
+
 	// --- the properties rarely set: in a StyleRare made when one is ---
 
 	var rare:Null<StyleRare> = null;
@@ -431,6 +437,85 @@ class Style {
 
 	inline function get_textShadow():Null<Shadow>
 		return rare == null ? null : rare.textShadow;
+
+	inline function get_transition():Null<Transition>
+		return rare == null ? null : rare.transition;
+
+	function set_transition(v:Null<Transition>):Null<Transition> {
+		if (v == transition) return v;
+		more().transition = v;
+		// (none: what moves there at once)
+		if (v == null && rare.moving != null) step(1e300);
+		return v;
+	}
+
+	// (drawn once: what changes from now on eases, under a transition; Ui's paint sets it)
+	@:allow(hxmc.ui.Ui) var drawn = false;
+
+	// a property's value (StyleFields' names), or the one it is moving to under a transition
+	public function target(name:String):Dynamic {
+		if (rare != null && rare.moving != null)
+			for (run in rare.moving)
+				if (run.name == name) return run.to;
+		return StyleFields.get(this, name);
+	}
+
+	// (a change of an eased property, drawn, under a transition that names
+	// it: the property moving to it on the Clock from where it is, whether
+	// it does; the same value again: a run toward another one stopped)
+	function eases(name:String, from:Dynamic, to:Dynamic):Bool {
+		var r = rare;
+		if (r.stepping) return false;
+		var m = r.moving, i = -1;
+		if (m != null)
+			for (k in 0...m.length)
+				if (m[k].name == name) i = k;
+		var t = r.transition == null || !drawn || node.ui == null || from == null || to == null || from == to ? null : r.transition.timing(name);
+		if (t == null) {
+			if (i < 0) return false;
+			m.splice(i, 1);
+			return from == to;
+		}
+		if (i >= 0 && m[i].to == to) return true;
+		var run:Moving = {name: name, from: from, to: to, start: -1, duration: t.duration, delay: t.delay, easing: t.easing};
+		if (i >= 0) m[i] = run else {
+			if (m == null) r.moving = m = [];
+			m.push(run);
+		}
+		if (!r.ticking) {
+			r.ticking = true;
+			Clock.add(step);
+		}
+		node.styleChanged(false);
+		return true;
+	}
+
+	// (the Clock's tick: each run's value at now; the ones done at their ends)
+	function step(now:Float):Bool {
+		var r = rare, m = r.moving;
+		r.stepping = true;
+		var i = 0;
+		while (m != null && i < m.length) {
+			var run = m[i];
+			// (the start is the first tick's time, after the delay: the clock may have been idle)
+			if (run.start < 0) run.start = (now >= 1e300 ? 0 : now) + run.delay;
+			var k = node.ui == null ? 1 : (now - run.start) / run.duration;
+			if (k >= 1) {
+				StyleFields.set(this, run.name, run.to);
+				m.splice(i, 1);
+				continue;
+			}
+			if (k > 0) StyleFields.set(this, run.name, Transition.between(run.name, run.from, run.to, Transition.ease(run.easing, k)));
+			i++;
+		}
+		r.stepping = false;
+		if (m == null || m.length == 0) {
+			r.moving = null;
+			r.ticking = false;
+			return false;
+		}
+		return true;
+	}
 
 	inline function get_left():Dim
 		return rare == null ? DimValue.Auto : rare.left;
@@ -860,6 +945,7 @@ class Style {
 	}
 
 	function set_background(v:Color):Color {
+		if (rare != null && rare.transition != null && eases("background", background, v)) return v;
 		if (v == background) return v;
 		background = v;
 		node.styleChanged(false);
@@ -874,6 +960,7 @@ class Style {
 	}
 
 	function set_transform(v:Null<Transform>):Null<Transform> {
+		if (rare != null && rare.transition != null && eases("transform", transform, v)) return v;
 		if (v == transform) return v;
 		var was = transform != null;
 		more().transform = v;
@@ -891,6 +978,7 @@ class Style {
 	}
 
 	function set_borderColor(v:Color):Color {
+		if (rare != null && rare.transition != null && eases("borderColor", borderColor, v)) return v;
 		if (v == borderColor) return v;
 		borderColor = v;
 		node.styleChanged(false);
@@ -905,6 +993,7 @@ class Style {
 	}
 
 	function set_opacity(v:Float):Float {
+		if (rare != null && rare.transition != null && eases("opacity", opacity, v)) return v;
 		if (v == opacity) return v;
 		if ((v <= 0) != (opacity <= 0)) Ui.accessEpoch++;
 		opacity = v;
@@ -940,6 +1029,7 @@ class Style {
 	}
 
 	function set_outlineColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("outlineColor", outlineColor, v)) return v;
 		if (v == outlineColor) return v;
 		more().outlineColor = v;
 		node.styleChanged(false);
@@ -953,6 +1043,7 @@ class Style {
 	}
 
 	function set_shadow(v:Null<Shadow>):Null<Shadow> {
+		if (rare != null && rare.transition != null && eases("shadow", shadow, v)) return v;
 		if (v == shadow) return v;
 		more().shadow = v;
 		// (how far outside its box a shadow draws: the paint's culling widens bounds by the most seen)
@@ -966,6 +1057,7 @@ class Style {
 	}
 
 	function set_color(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("color", color, v)) return v;
 		if (v == color) return v;
 		color = v;
 		node.styleChanged(false);
@@ -1036,6 +1128,7 @@ class Style {
 	}
 
 	function set_textDecorationColor(v:Null<Color>):Null<Color> {
+		if (rare != null && rare.transition != null && eases("textDecorationColor", textDecorationColor, v)) return v;
 		if (v == textDecorationColor) return v;
 		more().textDecorationColor = v;
 		node.styleChanged(false);
@@ -1141,6 +1234,7 @@ class Style {
 		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.textShadow != null) textShadow = p.textShadow;
+		if (p.transition != null) transition = p.transition;
 		if (p.textDecorationColor != null) textDecorationColor = p.textDecorationColor;
 		if (p.textDecorationThickness != null) textDecorationThickness = p.textDecorationThickness;
 		if (p.textUnderlineOffset != null) textUnderlineOffset = p.textUnderlineOffset;
@@ -1201,6 +1295,11 @@ private class StyleRare {
 	public var textDecoration:Int = 0;
 	public var textShadow:Null<Shadow> = null;
 	public var textDecorationColor:Null<Color> = null;
+	public var transition:Null<Transition> = null;
+	// (the properties moving under it; whether the Clock steps them, whether a step is writing them)
+	public var moving:Null<Array<Moving>> = null;
+	public var ticking = false;
+	public var stepping = false;
 	public var textDecorationThickness:Dim = DimValue.Auto;
 	public var textUnderlineOffset:Dim = DimValue.Auto;
 	public var left:Dim = DimValue.Auto;
@@ -1210,3 +1309,6 @@ private class StyleRare {
 
 	public function new() {}
 }
+
+// (a property moving under a transition: from where, to what, since when (-1: the next tick), its timing)
+private typedef Moving = {name:String, from:Dynamic, to:Dynamic, start:Float, duration:Float, delay:Float, easing:Array<Float>};

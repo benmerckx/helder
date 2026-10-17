@@ -143,6 +143,14 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     scaled size (on the pixel grid when the transform only moves and
     scales evenly), within half a level of Chromium's pixels on average.
     Under a turning transform a clip is its bounds.
+  - Transitions: `transition` (CSS's shorthand, `"background-color
+    150ms ease-in-out, opacity 0.2s"`; `Transition.parse`): once a node
+    has been drawn, a change of a property it names (colours, opacity,
+    transform, box-shadow; `all`) eases on the `Clock` from where it is,
+    along CSS's timing functions (cubic Béziers), colours with their
+    alphas premultiplied, transforms function by function, shadows shadow
+    by shadow, as Chromium interpolates them; `style.target(name)` is
+    where it goes. A theme's rules set it as any property.
   - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
     colour type, depth and interlacing, JPEG files, baseline or
     progressive, decoded as browsers do, the EXIF orientation applied,

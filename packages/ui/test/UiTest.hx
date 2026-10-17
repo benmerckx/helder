@@ -40,6 +40,7 @@ class UiTest {
 		dirty();
 		paint();
 		themes();
+		transitions();
 		images(here);
 		svgs(here);
 		svgApi();
@@ -1239,6 +1240,74 @@ class UiTest {
 	}
 
 	// --- themes: rules by slot, variant, size and state; tokens; the node's own style ---
+
+static function transitions() {
+		// parsed as CSS writes them; CSS's easings
+		var t = Transition.parse("background-color 150ms ease-in-out, opacity 0.2s 50ms, box-shadow 1s cubic-bezier(0.4, 0, 0.2, 1)");
+		check("transitions: parsed", t.properties.join(",") == "background,opacity,shadow" && t.durations.join(",") == "0.15,0.2,1"
+			&& t.delays.join(",") == "0,0.05,0" && t.easings[0] == Transition.EASE_IN_OUT && t.easings[2].join(",") == "0.4,0,0.2,1"
+			&& t.timing("color") == null && Transition.parse("all 1s").timing("borderColor").duration == 1 && Transition.parse("none") == null,
+			t.properties.join(","));
+		check("transitions: ease's curve as CSS's", Math.abs(Transition.ease(Transition.EASE, 0.5) - 0.8024) < 1e-3
+			&& Math.abs(Transition.ease(Transition.LINEAR, 0.3) - 0.3) < 1e-6 && Math.abs(Transition.ease(Transition.EASE_IN_OUT, 0.5) - 0.5) < 1e-6,
+			"" + Transition.ease(Transition.EASE, 0.5));
+		check("transitions: colours with their alphas premultiplied", Color.between(Color.TRANSPARENT, Color.rgb(0xFF0000), 0.5) == Color.rgba(0xFF0000, 0.5)
+			&& Color.between(Color.rgb(0x000000), Color.rgb(0xFFFFFF), 0.5) == Color.rgb(0x808080));
+		var tr = Transform.between(null, Transform.parse("translateX(14px)"), 0.5).toString();
+		var sh = Shadow.between(null, Shadow.parse("0 4px 8px #00000080"), 0.5);
+		check("transitions: a transform from none, a shadow from none", tr == "translatex(7)" && sh.y == 2 && sh.blur == 4 && sh.color.a == 64,
+			tr + " " + sh.y + " " + sh.blur + " " + sh.color.a);
+		// a node's change, once drawn, eases on the Clock; the target known
+		var ui = new Ui(new MonoText(), 100, 100);
+		var n = new Node("n");
+		n.style.set({width: 20, height: 20, background: Color.rgb(0x000000), transition: Transition.parse("background-color 100ms linear")});
+		ui.root.append(n);
+		n.style.background = Color.rgb(0x0000FF);
+		check("transitions: not drawn yet, a change jumps", n.style.background == Color.rgb(0x0000FF));
+		ui.update();
+		ui.paint(new Recording());
+		Clock.tick(10);
+		n.style.background = Color.rgb(0xFFFFFF);
+		check("transitions: drawn, a change starts where it is", n.style.background == Color.rgb(0x0000FF) && n.style.target("background") == Color.rgb(0xFFFFFF)
+			&& Clock.active);
+		Clock.tick(10.5);
+		Clock.tick(10.55);
+		var mid = n.style.background;
+		Clock.tick(10.61);
+		check("transitions: halfway, then there", Math.abs(mid.r - 0x80) <= 1 && mid.b == 0xFF && n.style.background == Color.rgb(0xFFFFFF) && !Clock.active, mid.toHex());
+		// (set back mid-way: from where it is; the same value again: the run stopped)
+		n.style.background = Color.rgb(0x000000);
+		Clock.tick(20);
+		Clock.tick(20.05);
+		n.style.background = Color.rgb(0xFFFFFF);
+		var from = n.style.background;
+		Clock.tick(20.06);
+		Clock.tick(20.11);
+		check("transitions: turned back from where it was", Math.abs(from.r - 0x80) <= 1 && n.style.background.r > 0x80 && n.style.background.r < 0xFF,
+			from.toHex() + " " + n.style.background.toHex());
+		Clock.finish();
+		// a theme's rules: a hover's colour eased, the rules still the node's own's judge
+		var sheet:StyleSheet = {rules: [
+			{slot: "b", style: {background: Color.rgb(0x000000), transition: Transition.parse("background-color 150ms linear")}},
+			{slot: "b", when: ["hover"], style: {background: Color.rgb(0xFFFFFF)}}
+		]};
+		ui.theme = sheet;
+		var b = new Node("b");
+		b.slot = "b";
+		b.style.set({width: 20, height: 20});
+		ui.root.append(b);
+		ui.update();
+		ui.paint(new Recording());
+		check("transitions: a theme's first style jumps", b.style.background == Color.rgb(0x000000));
+		ui.pointerMove(b.absX + 5, b.absY + 5);
+		ui.update();
+		check("transitions: the hover's colour eases", b.style.background == Color.rgb(0x000000) && b.style.target("background") == Color.rgb(0xFFFFFF));
+		Clock.finish();
+		ui.pointerMove(90, 90);
+		ui.update();
+		Clock.finish();
+		check("transitions: and back, the rules' all along", b.style.background == Color.rgb(0x000000), b.style.background.toHex());
+	}
 
 	static function themes() {
 		var ui = new Ui(new MonoText(), 200, 100);

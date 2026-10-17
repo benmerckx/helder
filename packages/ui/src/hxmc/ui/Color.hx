@@ -81,6 +81,19 @@ abstract Color(Int) from Int to Int {
 		return (ch(a.a, b.a) << 24) | (ch(a.r, b.r) << 16) | (ch(a.g, b.g) << 8) | ch(a.b, b.b);
 	}
 
+	// the colour a fraction t of the way from a to b with their alphas
+	// premultiplied, as CSS interpolates (transparent to red: red fading in,
+	// not through black)
+	public static function between(a:Color, b:Color, t:Float):Color {
+		var aa = a.a / 255, ba = b.a / 255, alpha = aa + (ba - aa) * t;
+		if (alpha <= 0) return TRANSPARENT;
+		inline function ch(x:Int, y:Int):Int {
+			var v = (x * aa + (y * ba - x * aa) * t) / alpha;
+			return Std.int(Math.max(0, Math.min(255, v + 0.5)));
+		}
+		return (Std.int(alpha * 255 + 0.5) << 24) | (ch(a.r, b.r) << 16) | (ch(a.g, b.g) << 8) | ch(a.b, b.b);
+	}
+
 	// "#RRGGBBAA" (built a character at a time: animated colours make one a frame)
 	public function toHex():String {
 		inline function digit(d:Int):Int

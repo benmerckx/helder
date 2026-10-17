@@ -247,6 +247,14 @@ var height = Motion.spring(() -> open.value ? 200 : 0);
 <view height={height} overflow="hidden">...</view>
 ```
 
+A style's `transition`, as CSS's, eases its colours, opacity, transform
+and shadow whenever they change (a hover's colour from a theme, a value
+bound to a signal) once the node has been drawn:
+
+```haxe
+<view transition="background-color 150ms ease-in-out" background={() -> hot.value ? "#e4e4e7" : "#ffffff"}>...</view>
+```
+
 ## Images and icons
 
 An `image` shows an `Image` (`Image.decode`: PNG, JPEG, GIF), an
