@@ -13,7 +13,9 @@ import hxmc.ui.draw.*;
 // small mean difference, few pixels far apart. And a text under scale(2)
 // must come out as the same text at twice the size (its glyphs
 // rasterized at the scaled size, on the pixel grid), and turned, drawn
-// where the turn puts it.
+// where the turn puts it. A text's blurred shadows (the text itself
+// transparent) must agree with Chromium's in their own rows too: blurred,
+// the glyphs' different edges hardly show.
 //   BoxTest <boxes.png> <out.png> [<turned.png>: the turned text]
 class BoxTest {
 	static inline var W = 320;
@@ -21,6 +23,9 @@ class BoxTest {
 	static inline var MEAN = 1.5;
 	static inline var FAR = 64;
 	static inline var MAX_FAR = 0.002;
+	// (the text shadows' rows, from the last box's top; their mean difference at most)
+	static inline var SHADOW_TOP = 284;
+	static inline var SHADOW_MEAN = 3.0;
 
 	static function box(b:Dynamic):Node {
 		var n = new Node("box");
@@ -36,6 +41,11 @@ class BoxTest {
 		if (b.shadow != null) n.style.shadow = Shadow.parse(b.shadow);
 		if (b.transform != null) n.style.transform = Transform.parse(b.transform);
 		if (b.origin != null) n.style.transformOrigin = Transform.origin(b.origin);
+		if (b.text != null) {
+			n.style.set({fontFamily: "DejaVu Sans", fontSize: (b.fontSize : Float), lineHeight: 1.25, color: Color.parse(b.color),
+				textShadow: Shadow.parse(b.textShadow)});
+			n.append(new TextNode(b.text));
+		}
 		if (b.children != null) for (c in (b.children : Array<Dynamic>))
 			n.append(box(c));
 		return n;
@@ -98,7 +108,7 @@ class BoxTest {
 		var textOk = inked > 200 && apart <= inked / 50 && turnedInk > 100 && outside == 0;
 		Sys.println('BoxTest: text ${textOk ? "ok" : "FAILED"} ($apart of $inked inked pixels apart scaled; turned: $turnedInk inked, $outside outside)');
 		var want = PngDecoder.decode(sys.io.File.getBytes(args[0]));
-		var total = 0.0, far = 0;
+		var total = 0.0, far = 0, shadowTotal = 0.0, shadowFar = 0;
 		for (i in 0...W * H) {
 			var d = 0;
 			for (c in 0...3) {
@@ -107,10 +117,16 @@ class BoxTest {
 			}
 			total += d;
 			if (d > FAR) far++;
+			if (Std.int(i / W) >= SHADOW_TOP) {
+				shadowTotal += d;
+				if (d > FAR) shadowFar++;
+			}
 		}
-		var mean = total / (W * H);
+		var mean = total / (W * H), shadowMean = shadowTotal / (W * (H - SHADOW_TOP));
 		var ok = mean < MEAN && far <= MAX_FAR * W * H;
 		Sys.println('BoxTest: boxes ${ok ? "ok" : "FAILED"} (mean ${Math.round(mean * 100) / 100}, $far pixels off by more than $FAR)');
-		Sys.exit(ok && textOk ? 0 : 1);
+		var shadowOk = shadowMean < SHADOW_MEAN && shadowFar == 0;
+		Sys.println('BoxTest: text shadows ${shadowOk ? "ok" : "FAILED"} (mean ${Math.round(shadowMean * 100) / 100}, $shadowFar pixels off by more than $FAR)');
+		Sys.exit(ok && textOk && shadowOk ? 0 : 1);
 	}
 }

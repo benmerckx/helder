@@ -7,7 +7,11 @@ package hxmc.ui;
 // edge of the rectangle offset and shrunk by spread. Parsed as CSS writes
 // it: "0 2 8 #00000040", "inset 0 1px 3px rgba(0, 0, 0, 0.3)" (x, y, blur,
 // spread optional, the colour first or last, any CSS colour), several
-// separated by commas (next: the one after; the first drawn on top).
+// separated by commas (next: the one after; the first drawn on top);
+// "none": NONE, no shadow. As a text shadow (Style.textShadow) the
+// glyphs' shapes instead, blurred the same; spread and inset left out,
+// and without a colour the text's (currentColor: CSS's default, for a box
+// shadow too, which keeps its translucent black instead).
 @:structInit class Shadow {
 	public var x:Float = 0;
 	public var y:Float = 0;
@@ -16,8 +20,18 @@ package hxmc.ui;
 	public var color:Color = 0x40000000;
 	public var inset:Bool = false;
 	public var next:Null<Shadow> = null;
+	// (no colour given: a text shadow takes the text's)
+	public var currentColor:Bool = false;
+
+	// no shadow (CSS's none): drawn as none, and a text shadow it sets stops its ancestors'
+	public static final NONE:Shadow = {};
 
 	public static function parse(s:String):Shadow {
+		if (StringTools.trim(s) == "none") return NONE;
+		return list(s);
+	}
+
+	static function list(s:String):Shadow {
 		var first:Null<Shadow> = null, last:Null<Shadow> = null;
 		for (part in split(s, ",".code)) {
 			var sh = one(part, s);
@@ -48,7 +62,7 @@ package hxmc.ui;
 		var sh:Shadow = {x: lengths[0], y: lengths[1], inset: inset};
 		if (lengths.length > 2) sh.blur = lengths[2];
 		if (lengths.length > 3) sh.spread = lengths[3];
-		if (color != null) sh.color = color;
+		if (color != null) sh.color = color else sh.currentColor = true;
 		return sh;
 	}
 
@@ -79,7 +93,7 @@ package hxmc.ui;
 
 	// the shadows in the order CSS paints them (the last first, under the others)
 	public function painted():Array<Shadow> {
-		var all = [], sh:Null<Shadow> = this;
+		var all = [], sh:Null<Shadow> = this == NONE ? null : this;
 		while (sh != null) {
 			all.unshift(sh);
 			sh = sh.next;

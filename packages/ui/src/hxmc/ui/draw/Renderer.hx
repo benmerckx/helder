@@ -418,7 +418,17 @@ class Renderer implements Canvas {
 		quad(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, 2, 0, 1, img.id);
 	}
 
-	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {
+	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)
+		glyphs(p, x, y, width, align, color, colors, -1);
+
+	// (a text shadow's glyphs: their outlines, a colour font's too, in its
+	// colour, blurred: CSS's blur, the Gaussian's standard deviation half of
+	// it; a colour bitmap's glyph has none and casts none)
+	public function textShadow(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, blur:Float, ?colors:Array<Color>)
+		glyphs(p, x, y, width, align, color, colors, blur);
+
+	// (blur < 0: the text itself)
+	function glyphs(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, colors:Null<Array<Color>>, blur:Float) {
 		var dp = cast(p, DrawParagraph);
 		var t = dp.layout, s = scale;
 		var size = t.fonts.size * s;
@@ -429,6 +439,8 @@ class Renderer implements Canvas {
 			s *= mk;
 			size *= mk;
 		}
+		// (a shadow's blur in device pixels, to a quarter: the atlas keeps each; how far it reaches)
+		var sigma = blur > 0 ? Math.round(blur * s / 2 * 4) / 4 : 0.0, reach = 3 * sigma;
 		for (l in t.lines) {
 			var lx = switch align {
 				case Center: (width - l.width) / 2;
@@ -436,7 +448,7 @@ class Renderer implements Canvas {
 				case _: 0.0;
 			}
 			var by = Math.round((oy + l.top + l.baseline) * s + (flat ? 0 : mf - Std.int(mf)));
-			if (flat && (by - size * 1.5 > clipY1 || by + size < clipY0)) continue;
+			if (flat && (by - size * 1.5 - reach > clipY1 || by + size + reach < clipY0)) continue;
 			for (g in l.glyphs) {
 				if (g.hidden || g.cp == 32 || g.cp == 10 || g.cp == 9) continue;
 				var gx = (ox + lx + g.x + g.dx) * s, gy = by + Math.round(g.dy * s);
@@ -445,7 +457,7 @@ class Renderer implements Canvas {
 				var set = g.run < 0 ? t.fonts : t.runs[g.run].fonts;
 				var size = g.run < 0 ? size : set.size * s, oblique = set.oblique;
 				var color = g.run >= 0 && colors != null && g.run < colors.length ? colors[g.run] : color;
-				if (f.hasColor) {
+				if (f.hasColor && blur < 0) {
 					// (colour layers: each its glyph in its colour; else a colour bitmap)
 					var layers = f.colorLayers(g.id);
 					if (layers != null) {
@@ -465,7 +477,7 @@ class Renderer implements Canvas {
 						continue;
 					}
 				}
-				glyph(f, g.id, size, gx, gy, color, oblique);
+				glyph(f, g.id, size, gx, gy, color, oblique, sigma);
 			}
 		}
 	}
@@ -473,12 +485,12 @@ class Renderer implements Canvas {
 	// a glyph from the atlas at (gx, gy): device pixels, the baseline
 	// (under a transform: scaled pixels, gy whole on the target's grid less
 	// the translation's fraction, which the glyph is moved back by)
-	inline function glyph(f:hxmc.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool) {
+	inline function glyph(f:hxmc.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool, sigma = 0.0) {
 		// (aligned: the subpixel offset on the target's grid, as the transform moves it)
 		var ex = flat ? 0.0 : me - Std.int(me), ey = flat ? 0.0 : mf - Std.int(mf);
 		var ix = Math.floor(gx + ex);
 		var sub = Std.int((gx + ex - ix) * GlyphAtlas.SUBPIXELS);
-		var a = atlas.get(f, id, size, sub, oblique);
+		var a = atlas.get(f, id, size, sub, oblique, sigma);
 		if (a.w > 0) {
 			var qx = ix - ex + a.left, qy = gy + a.top - ey;
 			if (!flat || !culled(qx, qy, qx + a.w, qy + a.h)) {

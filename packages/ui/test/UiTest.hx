@@ -1260,6 +1260,35 @@ class UiTest {
 		var kinds = [for (c in rec2.calls) c.split(" ")[0]];
 		check("paint: outer shadows under the background, inset ones over it in the padding box", kinds.join(",") == "shadow,rect,inset"
 			&& rec2.calls[2].indexOf("inset 2 2 36 16 0 ") == 0, rec2.calls.join("|"));
+		// "none": no shadow; as a text shadow, stopping the parent's
+		sb.style.shadow = Shadow.parse(" none ");
+		var rec3 = new Recording();
+		ui2.paint(rec3);
+		check("paint: Shadow.parse(\"none\") draws none", sb.style.shadow == Shadow.NONE && rec3.calls.join("|").indexOf("shadow") < 0, rec3.calls.join("|"));
+		// text shadows: inherited, under the text and its underline (the
+		// last first), without a colour the text's; "none" stopping them
+		var ui3 = new Ui(new MonoText(), 200, 100);
+		ui3.root.style.alignItems = Start;
+		var box = new Node("box");
+		box.style.set({textShadow: Shadow.parse("1 2 4 #ff0000, -1 0"), color: Color.rgb(0x0000FF)});
+		var t = new TextNode("ab");
+		t.style.textDecoration = (TextDecoration.Underline : Int);
+		box.append(t);
+		var plain = new TextNode("cd");
+		plain.style.textShadow = Shadow.NONE;
+		box.append(plain);
+		ui3.root.append(box);
+		ui3.update();
+		var rec4 = new Recording();
+		ui3.paint(rec4);
+		var calls = rec4.calls.join("|");
+		var underline = [for (c in rec4.calls) if (c.indexOf("rect ") == 0) c];
+		check("paint: text shadows, the last first, each under the text", rec4.calls.length == 7 && rec4.calls[1].indexOf("textShadow -1 0 ") == 0
+			&& StringTools.endsWith(rec4.calls[1], " ff0000ff 0") && rec4.calls[3].indexOf("textShadow 1 2 ") == 0
+			&& StringTools.endsWith(rec4.calls[3], " ffff0000 4") && rec4.calls[5].indexOf("text 0 0 ") == 0 && rec4.calls[6].indexOf("text 0 18 ") == 0, calls);
+		check("paint: a text shadow's underline: offset, blurred as a box shadow", rec4.calls[0].indexOf("rect -1 ") == 0
+			&& rec4.calls[2].indexOf("shadow 1 ") == 0 && StringTools.endsWith(rec4.calls[2], " ffff0000 4") && underline.length == 2, calls);
+		check("paint: Shadow.NONE stops an inherited text shadow", t.textShadow() == box.style.textShadow && plain.textShadow() == null);
 		// the focus ring: shown when Tab moves the focus, hidden by a press
 		a.focusable = true;
 		ui.keyDown(Key.TAB, 0);
@@ -1686,6 +1715,9 @@ class Recording implements Canvas {
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)
 		calls.push('text $x $y $width' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));
+
+	public function textShadow(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, blur:Float, ?colors:Array<Color>)
+		calls.push('textShadow $x $y $width ${hex(color)} $blur' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners)
 		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius' + cs(corners));

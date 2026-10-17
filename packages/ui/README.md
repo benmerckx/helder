@@ -95,7 +95,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     field's text as typed), `textOverflow` (`Ellipsis`, not inherited: a
     line too wide for its box ends in one within it). `textDecoration`
     (underline, line-through, overline) draws its lines with the text inside
-    the node, in its colour, where Chromium draws them. `maxLines` cuts a
+    the node, in its colour, where Chromium draws them. `textShadow`
+    (`"1px 2px 4px #0006"`, several, inherited, `none`) draws the text's
+    and its lines' shadows under them, blurred as Chromium blurs them
+    (BoxTest compares them). `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's
     line-clamp puts it.
   - Paint: `background`, `borderColor`, `radius` (`corners`, or markup

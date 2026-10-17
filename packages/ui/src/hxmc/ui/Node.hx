@@ -526,6 +526,17 @@ class Node {
 	// (the font, until it or an ancestor changes a text property: markDirty clears it)
 	var fontCache:Null<Font> = null;
 
+	// the text shadows its text casts (Style.textShadow, inherited; null: none)
+	public function textShadow():Null<Shadow> {
+		var n = this;
+		while (n != null) {
+			var sh = n.style.textShadow;
+			if (sh != null) return sh == Shadow.NONE ? null : sh;
+			n = n.parent;
+		}
+		return null;
+	}
+
 	public function textColor():Color {
 		var n = this;
 		while (n != null) {

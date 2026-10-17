@@ -254,6 +254,20 @@ class TextNode extends Node {
 				canvas.rect(x + alignOffset(p, r.y, width) + r.x, y + r.y, r.width, bottom - r.y, 0, ui.selectionColor, 0, 0);
 			}
 		}
+		// (its text shadows under it all, the last first: the glyphs' and
+		// the decorations'; without a colour, the text's, or each span's)
+		var shadows = textShadow();
+		if (shadows != null)
+			for (sh in shadows.painted()) {
+				for (d in decos)
+					for (r in p.decoration(d.start, d.end, d.kind, ui.scale)) {
+						var lx = align == Center ? (width - r.lineWidth) / 2 : align == Right ? width - r.lineWidth : 0.0;
+						var c = sh.currentColor ? d.color : sh.color, rx = x + lx + r.x + sh.x, ry = y + r.y + sh.y;
+						if (sh.blur > 0) canvas.shadow(rx, ry, r.width, r.height, 0, c, sh.blur) else canvas.rect(rx, ry, r.width, r.height, 0, c, 0, 0);
+					}
+				canvas.textShadow(p, x + sh.x, y + sh.y, width, align, sh.currentColor ? textColor() : sh.color, sh.blur,
+					sh.currentColor && rich != null ? rich.colors : null);
+			}
 		draw(false);
 		canvas.text(p, x, y, width, align, textColor(), rich != null ? rich.colors : null);
 		draw(true);

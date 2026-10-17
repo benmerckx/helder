@@ -33,4 +33,7 @@ interface Canvas {
 	// a TextEngine's paragraph with its first line's top left at (x, y), aligned in width;
 	// colors: its spans' (in the order of the spans it was laid out with), else color
 	function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>):Void;
+	// the same paragraph's shadow (Style.textShadow): its glyphs in one
+	// colour (or its spans'), blurred as CSS blurs a text shadow
+	function textShadow(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, blur:Float, ?colors:Array<Color>):Void;
 }

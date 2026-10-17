@@ -1665,11 +1665,13 @@ class MarkupTest implements Markup {
 		// attributes generated from Style's properties (StyleAttrs)
 		var styled:Null<Node> = null;
 		Render.render(<view ref={n -> styled = n} position="sticky" justify="flex-start" align-content="space-between" cursor="ew-resize" grid-auto-flow="column"
-			font-weight="700" italic aspect-ratio={2} text-align="center" padding="8 12" min-width="50%" border-color="red" shadow="0 2 8 #00000040"/>, ui.root);
+			font-weight="700" italic aspect-ratio={2} text-align="center" padding="8 12" min-width="50%" border-color="red" shadow="0 2 8 #00000040"
+			text-shadow="1px 1px 2px red"/>, ui.root);
 		var st = styled.style;
 		check("render: Style's properties as attributes", st.position == Position.Sticky && st.justify == Justify.Start && st.alignContent == AlignContent.SpaceBetween && st.cursor == Cursor.ResizeEW
 			&& st.gridAutoFlow == Grid.GridFlow.Column && st.fontWeight == 700 && st.italic == true && st.aspectRatio == 2 && st.textAlign == TextAlign.Center
-			&& st.padding.left == 12 && st.borderColor == Color.parse("red") && st.shadow != null);
+			&& st.padding.left == 12 && st.borderColor == Color.parse("red") && st.shadow != null
+			&& st.textShadow != null && st.textShadow.blur == 2 && st.textShadow.color == Color.parse("red") && !st.textShadow.currentColor);
 		var bad = try {
 			Render.render(<view justify="sideways"/>, ui.root);
 			"";
