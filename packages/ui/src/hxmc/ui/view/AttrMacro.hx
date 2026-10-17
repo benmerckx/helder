@@ -126,7 +126,7 @@ class AttrMacro {
 	}
 
 	// the function setting attribute name on a node, (node, name, v): one of
-	// NodeRenderer's own, data-* and aria-*, then Style's
+	// NodeRenderer's own, data-* and aria-*, then Style's, else setAttribute
 	public static function setter(name:String, pos:Position):Expr {
 		if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")) return macro @:pos(pos) hxmc.ui.view.NodeRenderer.setData;
 		switch Context.getType("hxmc.ui.view.NodeRenderer") {
@@ -143,20 +143,23 @@ class AttrMacro {
 				var fn = setterName(f.name);
 				return macro @:pos(pos) hxmc.ui.view.StyleAttrs.$fn;
 			}
-		return Context.error('hxmc.ui: no attribute $name (NodeRenderer\'s own, data-*, aria-* and Style\'s properties)', pos);
+		// (a name none of them has: looked up at run time, which throws when
+		// it is set; markup written for another renderer is compiled for each)
+		return macro @:pos(pos) hxmc.ui.view.NodeRenderer.setAttribute;
 	}
 
 	// v as the type t
 	static function convert(t:Type, fields:Array<Field>, enums:Map<String, Bool>):Expr {
 		var nullable = false;
-		switch t {
+		switch lazy(t) {
 			case TAbstract(_.get() => {name: "Null", pack: []}, [inner]):
-				t = inner;
+				t = lazy(inner);
 				nullable = true;
 			case TType(_.get() => {name: "Null", pack: []}, [inner]):
-				t = inner;
+				t = lazy(inner);
 				nullable = true;
-			case _:
+			case l:
+				t = l;
 		}
 		var e = switch t {
 			case TAbstract(_.get() => {name: "Float", pack: []}, _): macro float(v);
@@ -181,6 +184,15 @@ class AttrMacro {
 				} else return macro(v : $ct);
 		}
 		return nullable ? macro v == null ? null : $e : e;
+	}
+
+	// t, typed if it is not yet (a field's type read before its class is typed)
+	static function lazy(t:Type):Type {
+		while (true)
+			switch t {
+				case TLazy(f): t = f();
+				case _: return t;
+			}
 	}
 
 	static function hasParse(t:Type):Bool

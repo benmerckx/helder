@@ -297,9 +297,9 @@ each other become one `TextNode`.
 
 Tags and attribute names are resolved at compile time, so a program links
 only the nodes, attributes and value parsers its markup names (a gradient
-parser only with a gradient, image nodes only with `image`); a name markup
-does not know is a compile error. A spread (`{...props}`) or
-`NodeRenderer.setAttribute` takes any name at run time and links them all.
+parser only with a gradient, image nodes only with `image`). A name none of
+them has, a spread (`{...props}`) or `NodeRenderer.setAttribute` looks the
+name up at run time and links them all.
 
 ## Themes
 
