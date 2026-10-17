@@ -98,6 +98,20 @@ class TextTest {
 		// (a run's own: only its characters)
 		var run = new TextRun(0, 3, set, 1.2, 4, 0);
 		check("spacing: a run's", Math.abs(new TextLayout("Hamburg", set, 1.2, Math.NaN, [run]).width - (92.71875 + 12)) < 0.02);
+		// (none in Arabic, a cursive script; a space, digit or sign taking the
+		// script before it, else after it; a ligature spaced once; Chromium's
+		// widths, letter spacing 10, word spacing 10 for the second)
+		var forced = new FontSet(sans, [], 20);
+		forced.features = FontFeature.parse("'liga' 1");
+		var got = [
+			w("abc لا def", 10, 0), w("لا سلام", 0, 10), w("لا سلام 12", 10, 0), w("12 لا", 10, 0),
+			w("(لا)", 10, 0), new TextLayout("office", forced, 1.2, Math.NaN, null, 0, 10).width
+		];
+		var chromium = [162.125, 68.84375, 90.65625, 43.21875, 27.03125, 94.875];
+		var ok = true;
+		for (i in 0...got.length)
+			if (Math.abs(got[i] - chromium[i]) > 0.03) ok = false;
+		check("spacing: none in a cursive script, a ligature once", ok, got.join(" "));
 	}
 
 	// the standard ligatures: widths as Chromium measures them (DejaVu Sans

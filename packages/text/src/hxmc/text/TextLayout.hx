@@ -191,18 +191,41 @@ class TextLayout {
 			if (l.width > this.width) this.width = l.width;
 	}
 
-	// letter and word spacing: after each character (a mark, a hidden or
-	// zero-width glyph takes none) and on each space, the run's or the paragraph's
+	// letter and word spacing: after each glyph (a ligature takes one; a
+	// mark, a hidden or zero-width glyph none) and on each space, the run's
+	// or the paragraph's, as Chromium adds them; no letter spacing in a
+	// cursive script (CSS's: Arabic, Syriac... joined), a space, digit or
+	// sign taking the script before it (at a paragraph's start, after it)
 	function space(gs:Array<Glyph>, letter:Float, word:Float) {
-		for (g in gs) {
+		var joined = false, k = 0;
+		for (i in 0...gs.length) {
+			var g = gs[i];
+			if (g.cp == 10) joined = false;
+			// (the script of what has none: the last one's, else the next one's)
+			if (!common(g.cp)) joined = cursive(g.cp) else if (i >= k) {
+				k = i;
+				while (k < gs.length && common(gs[k].cp) && gs[k].cp != 10)
+					k++;
+				if (i == 0 || gs[i - 1].cp == 10) joined = k < gs.length && cursive(gs[k].cp);
+			}
 			if (g.hidden || g.cp == 10 || g.cp == 13 || g.attach != null) continue;
 			var l = g.run < 0 ? letter : runs[g.run].letterSpacing, w = g.run < 0 ? word : runs[g.run].wordSpacing;
 			if (l == 0 && w == 0) continue;
+			if (joined) l = 0;
 			// (a tab: TAB_SIZE spaces, each with both)
-			if (g.cp == 9) g.advance += TAB_SIZE * (l + w) else if (g.advance > 0 || g.parts > 1) g.advance += l * (g.parts > 1 ? g.parts : 1);
+			if (g.cp == 9) g.advance += TAB_SIZE * (l + w) else if (g.advance > 0 || g.parts > 1) g.advance += l;
 			if (g.cp == 32 || g.cp == 0xA0) g.advance += w;
 		}
 	}
+
+	// (the cursive scripts letter spacing leaves alone: Arabic, Syriac, N'Ko, Mandaic, Mongolian)
+	static inline function cursive(c:Int):Bool
+		return Arabic.isArabic(c) || c >= 0x700 && c <= 0x74F || c >= 0x7C0 && c <= 0x85F || c >= 0x1800 && c <= 0x18AF;
+
+	// (no script of its own: spaces, digits, punctuation, signs)
+	static inline function common(c:Int):Bool
+		return c < 0x80 ? !(c >= "A".code && c <= "Z".code || c >= "a".code && c <= "z".code) : c <= 0xBF || c == 0xD7 || c == 0xF7
+			|| c >= 0x2000 && c <= 0x2BFF || c >= 0x3000 && c <= 0x303F;
 
 	static function shape(text:String, base:FontSet, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
 		var out:Array<Glyph> = [];
