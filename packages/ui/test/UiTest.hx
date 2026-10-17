@@ -25,7 +25,7 @@ import hxmc.ui.widgets.EditableText;
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
 //   filters, Adam7; png-cases.mjs writes them and the pixels expected);
 //   jpeg/*.jpg and gif/*.gif against Chromium's pixels (jpeg-cases.mjs,
-//   gif-cases.mjs)
+//   gif-cases.mjs); webp/*.webp against libwebp's (webp-cases.mjs)
 class UiTest {
 	static var checks = 0;
 	static var failed = 0;
@@ -953,7 +953,7 @@ class UiTest {
 		}
 		// JPEG and GIF: jpeg/*.jpg and gif/*.gif against the pixels Chromium
 		// decoded (jpeg-cases.mjs, gif-cases.mjs)
-		for (kind in [{dir: "jpeg", ext: ".jpg", least: 15}, {dir: "gif", ext: ".gif", least: 8}]) {
+		for (kind in [{dir: "jpeg", ext: ".jpg", least: 15}, {dir: "gif", ext: ".gif", least: 8}, {dir: "webp", ext: ".webp", least: 25}]) {
 		var jdir = here + "/" + kind.dir;
 		var cases:Array<{name:String, width:Int, height:Int, ?durations:Array<Float>, ?repetition:Int}> = haxe.Json.parse(sys.io.File.getContent(jdir + "/cases.json"));
 		check(kind.dir + ": the cases", cases.length >= kind.least, '${cases.length}');

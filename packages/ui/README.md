@@ -99,8 +99,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     Under a turning transform a clip is its bounds.
   - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
     colour type, depth and interlacing, JPEG files, baseline or
-    progressive, decoded as browsers do, the EXIF orientation applied, and
-    GIF files' first frame; `AnimatedImage` plays a GIF's frames, each
+    progressive, decoded as browsers do, the EXIF orientation applied,
+    GIF files' first frame, and WebP files, lossless or lossy, with alpha
+    (pixel-exact with libwebp's decoding), an animation's first frame; `AnimatedImage` plays a GIF's frames, each
     composed as Chromium composes it, on the clock), shown by an `ImageNode` at its own
     size or the style's (keeping its aspect ratio), fitted as `Fill`,
     `Contain`, `Cover` or `None`, its corners rounded with the node's.

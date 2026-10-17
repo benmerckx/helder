@@ -10,7 +10,7 @@ import hxmc.view.*;
 // checkbox and switch (clicked and with the keyboard), radio
 // buttons, the slider (dragged, clicked, arrow keys, Home and End), tabs,
 // the tree opened and the table sorted in their split view,
-// the field, the combobox, the number field, the disclosure and a toast, the images' sizes; PNG files decoded natively (png/*.png,
+// the field, the combobox, the number field, the disclosure and a toast, the images' sizes; PNG and WebP files decoded natively (png/*.png, webp/*.webp,
 // as UiTest on Eval); its state checked, then its frame against gallery.png (Linux:
 // llvmpipe, DejaVu Sans) (make ui-draw-check):
 // With --dark, in Theme.DARK, against gallery-dark.png.
@@ -184,6 +184,18 @@ class GalleryTest {
 					if (img.pixels.compare(sys.io.File.getBytes(dir + "/" + f.substr(0, f.length - 4) + ".rgba")) != 0) bad.push(f);
 				}
 			check("PNG files decoded", n >= 20 && bad.length == 0, bad.join(" "));
+		}
+		// the WebP cases (lossless, lossy, alpha), decoded by the native build
+		var dir = "packages/ui/test/webp";
+		if (sys.FileSystem.exists(dir)) {
+			var n = 0, bad = [];
+			for (f in sys.FileSystem.readDirectory(dir))
+				if (StringTools.endsWith(f, ".webp")) {
+					n++;
+					var img = try Image.decode(sys.io.File.getBytes(dir + "/" + f)) catch (e:Dynamic) null;
+					if (img == null || img.pixels.compare(sys.io.File.getBytes(dir + "/" + f.substr(0, f.length - 5) + ".rgba")) != 0) bad.push(f);
+				}
+			check("WebP files decoded", n >= 25 && bad.length == 0, bad.join(" "));
 		}
 		// (the frame with the select's list open over the toggles)
 		click("fruit");
