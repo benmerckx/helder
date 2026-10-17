@@ -507,6 +507,14 @@ class MarkupTest implements Markup {
 		Clock.tick(1000.7);
 		ui.update();
 		check("tooltip: shown for the keyboard's focus", ui.overlay.find("tooltip") != null);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("tooltip: Escape hides it, the focus kept", ui.overlay.find("tooltip") == null && ui.focus == ui.root.find("save"));
+		ui.keyDown(Key.TAB, 0);
+		ui.keyDown(Key.TAB, Key.MOD_SHIFT);
+		Clock.tick(1001);
+		Clock.tick(1001.7);
+		ui.update();
 		ui.keyDown(Key.TAB, 0);
 		ui.update();
 		check("tooltip: hidden when the focus leaves", ui.overlay.find("tooltip") == null);

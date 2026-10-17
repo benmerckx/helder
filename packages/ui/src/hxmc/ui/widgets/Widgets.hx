@@ -881,7 +881,7 @@ class Widgets implements Markup {
 		]}</view>;
 
 	// a tooltip: text shown by the children (above them) once the pointer
-	// has rested on them for delay seconds (0.5), hidden when it leaves or presses
+	// has rested on them for delay seconds (0.5), hidden when it leaves or presses, or by Escape
 	public static function Tooltip(props:{text:String, ?delay:Float, ?placement:String, ?tag:String, ?children:Any}):View {
 		var show = signal(false), over = 0;
 		var delay = props.delay ?? 0.5;
@@ -904,7 +904,7 @@ class Widgets implements Markup {
 		return <view tag={props.tag} onPointerEnter={_ -> enter()} onPointerLeave={_ -> leave()} onPointerDown={_ -> leave()}
 			onFocusIn={e -> if (e.current.ui != null && e.current.ui.focusVisible) enter()} onFocusOut={_ -> leave()}>
 			{props.children}
-			<Popover open={show} placement={props.placement ?? "above"} tag="tooltip">
+			<Popover open={show} placement={props.placement ?? "above"} tag="tooltip" onDismiss={leave}>
 				<view role="tooltip" padding="4 8" radius={4} background={() -> t().tooltip} color={() -> t().onTooltip} font-size={12}>{props.text}</view>
 			</Popover>
 		</view>;
