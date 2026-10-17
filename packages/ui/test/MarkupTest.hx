@@ -258,6 +258,15 @@ class MarkupTest implements Markup {
 		ui.update();
 		check("menu kinds: a checkbox item toggles and closes", !bar.value && ui.overlay.children.length == 0);
 		open();
+		ui.keyDown(Key.UP, 0);
+		check("menu kinds: Up from the first wraps to the last", ui.focus.tag == "vm-5", ui.focus.tag);
+		ui.keyDown(Key.HOME, 0);
+		check("menu kinds: Home to the first that can be chosen", ui.focus.tag == "vm-1", ui.focus.tag);
+		ui.keyDown(Key.END, 0);
+		check("menu kinds: End to the last", ui.focus.tag == "vm-5", ui.focus.tag);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		open();
 		ui.keyDown(Key.DOWN, 0);
 		ui.keyDown(Key.DOWN, 0);
 		check("menu kinds: Down past the separator to a radio item", ui.focus.tag == "vm-4" && ui.focus.slot == "dropdown-menu-radio-item", ui.focus.tag);
@@ -336,6 +345,13 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.BACKSPACE, 0);
 		ui.update();
 		check("otp: Backspace empties the last", code.value == "1" && slots() == "1|^||||", slots());
+		ui.keyDown(Key.HOME, 0);
+		ui.keyDown(Key.LEFT, 0);
+		ui.textInput("2");
+		ui.update();
+		check("otp: the caret stays at the end (Home, Left do nothing)", code.value == "12" && slots() == "1|2|^|||", slots());
+		ui.keyDown(Key.BACKSPACE, 0);
+		ui.update();
 		ui.textInput("23456789");
 		ui.update();
 		check("otp: a paste fills to the length, the rest dropped, complete once", code.value == "123456" && slots() == "1|2|3|4|5|6^"
@@ -443,6 +459,14 @@ class MarkupTest implements Markup {
 		check("accordion: opening one closes the other", section.value == 0 && ui.root.find("faq-0-content") != null && ui.root.find("faq-1-content") == null);
 		click(ui.root.find("faq-0-summary"));
 		check("accordion: a click on the open one closes it", section.value == -1 && ui.root.find("faq-0-content") == null);
+		ui.keyDown(Key.DOWN, 0);
+		check("accordion: Down to the next trigger", ui.focus == ui.root.find("faq-1-summary"));
+		ui.keyDown(Key.DOWN, 0);
+		check("accordion: Down from the last wraps", ui.focus == ui.root.find("faq-0-summary"));
+		ui.keyDown(Key.END, 0);
+		check("accordion: End to the last", ui.focus == ui.root.find("faq-1-summary"));
+		ui.keyDown(Key.HOME, 0);
+		check("accordion: Home to the first", ui.focus == ui.root.find("faq-0-summary"));
 
 		var focus = ui.root.find("focus-here");
 		ui.setFocus(focus);
@@ -478,6 +502,18 @@ class MarkupTest implements Markup {
 		check("toasts: duration 0 stays until closed", Toasts.shown.value.length == 1 && !Clock.active);
 		click(tagged(ui.overlay, "toast-close")[0]);
 		check("toasts: the close button", t.closed && ui.overlay.children.length == 0);
+		var t2 = Toasts.show("Keys", {duration: 0, action: "Redo", onAction: () -> undone++});
+		ui.update();
+		ui.setFocus(tagged(ui.overlay, "toast-action")[0]);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("toasts: Enter presses its action", undone == 2 && t2.closed);
+		var t3 = Toasts.show("Escape me", {duration: 0});
+		ui.update();
+		ui.setFocus(tagged(ui.overlay, "toast-close")[0]);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("toasts: Escape closes the one the focus is in", t3.closed);
 	}
 
 	static function rightToLeft() {

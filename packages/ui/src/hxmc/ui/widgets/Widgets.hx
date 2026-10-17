@@ -1663,7 +1663,8 @@ class Widgets implements Markup {
 		keys: {
 			"Enter, Space": "on the button, open the menu, its first item focused; on an item, choose it, closing the menu, or open its submenu",
 			"Down": "on the button, opens the menu",
-			"Up, Down": "in the menu, move through its items, past separators, headings and disabled ones",
+			"Up, Down": "in the menu, move through its items, past separators, headings and disabled ones, wrapping",
+			"Home, End": "in the menu, to its first or last item",
 			"Right": "on an item with items, opens its submenu (Left right to left)",
 			"Left": "in a submenu, closes it, the focus back on its item (Right right to left)",
 			"letters, digits": "focus the next item whose label starts with what was typed",
@@ -1708,7 +1709,8 @@ class Widgets implements Markup {
 		keys: {
 			"Left, Right": "move between the titles the way they point, wrapping; from an open menu, open the next one",
 			"Down, Enter, Space": "on a title, open its menu, its first item focused",
-			"Up, Down": "in a menu, move through its items, past separators, headings and disabled ones",
+			"Up, Down": "in a menu, move through its items, past separators, headings and disabled ones, wrapping",
+			"Home, End": "in a menu, to its first or last item",
 			"Enter, Space": "on an item, choose it, closing the menu, or open its submenu",
 			"Right": "on an item with items, opens its submenu (Left right to left)",
 			"Left": "in a submenu, closes it, the focus back on its item (Right right to left)",
@@ -1786,7 +1788,8 @@ class Widgets implements Markup {
 		},
 		keys: {
 			"Menu, Shift+F10": "with the focus in the children, open the menu at their top left, its first item focused",
-			"Up, Down": "in the menu, move through its items, past separators, headings and disabled ones",
+			"Up, Down": "in the menu, move through its items, past separators, headings and disabled ones, wrapping",
+			"Home, End": "in the menu, to its first or last item",
 			"Enter, Space": "on an item, choose it, closing the menu, or open its submenu",
 			"Right": "on an item with items, opens its submenu (Left right to left)",
 			"Left": "in a submenu, closes it, the focus back on its item (Right right to left)",
@@ -2000,12 +2003,20 @@ class Widgets implements Markup {
 	static function mirrored(e:Event):Int
 		return e.key != Key.LEFT && e.key != Key.RIGHT || !e.current.rtl() ? e.key : e.key == Key.LEFT ? Key.RIGHT : Key.LEFT;
 
+	// (a button's keys: Enter and Space press it)
+	static function pressKeys(e:Event, press:Void->Void)
+		if (e.key == Key.ENTER || e.key == Key.SPACE) {
+			e.preventDefault();
+			press();
+		}
+
 	// focuses nodes[i] if it is shown
 	static function focusIn(nodes:Array<Node>, i:Int)
 		if (i >= 0 && i < nodes.length && nodes[i].ui != null) nodes[i].ui.setFocus(nodes[i]);
 
 	// a menu's panel of items (their nodes into nodes): Up and Down move
-	// through them, letters typed to the one they start, the pointer over
+	// through them (wrapping), Home and End to the first and last, letters
+	// typed to the one they start, the pointer over
 	// one focuses it, a click, Enter or Space chooses one (and closes the
 	// menu: root, else open), Tab closes; separators, headings and disabled
 	// items skipped. A checkbox item toggles its signal, a radio item sets its
@@ -2022,12 +2033,16 @@ class Widgets implements Markup {
 		var close = root ?? open;
 		// (a submenu closed with its menu)
 		if (root != null) effect(() -> if (!root.value) untrack(() -> open.value = false));
-		// (the next item that can be chosen, the way d goes)
+		// (the next item that can be chosen, the way d goes, wrapping)
 		function move(from:Int, d:Int) {
-			var j = from + d;
-			while (j >= 0 && j < list.length && skipped(list[j]))
-				j += d;
-			focusIn(nodes, j);
+			var n = list.length, j = from;
+			for (_ in 0...n) {
+				j = (j + d + n) % n;
+				if (!skipped(list[j])) {
+					focusIn(nodes, j);
+					return;
+				}
+			}
 		}
 		return <view tag={tag + "-items"} slot={kind + (content ?? "-content")} data-state="open" role="menu" label={label}>{[
 			for (i in 0...list.length) {
@@ -2064,6 +2079,12 @@ class Widgets implements Markup {
 								e.stop();
 							case Key.UP:
 								move(i, -1);
+								e.stop();
+							case Key.HOME:
+								move(-1, 1);
+								e.stop();
+							case Key.END:
+								move(list.length, -1);
 								e.stop();
 							case Key.ENTER | Key.SPACE | Key.RIGHT if (sub != null):
 								sub.value = true;
@@ -2396,7 +2417,7 @@ class Widgets implements Markup {
 
 	// a popover (shadcn's Popover, its trigger an outline button): label on
 	// the button, a click, Enter or Space opens the children under it (the
-	// first focusable focused), Escape or a click outside closes; open (a
+	// first focusable focused) or closes them, Escape or a click outside closes; open (a
 	// signal) says whether it is. Slots "popover-trigger" (the button, a
 	// "button" of variant, data-state "open" or "closed") and
 	// "popover-content" (data-state, data-side "bottom")
@@ -2409,7 +2430,7 @@ class Widgets implements Markup {
 		},
 		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
 		keys: {
-			"Enter, Space": "opens it, its first focusable node focused",
+			"Enter, Space": "opens it, its first focusable node focused, or closes it",
 			"Escape": "closes it"
 		}
 	})
@@ -2418,7 +2439,7 @@ class Widgets implements Markup {
 		return <view tag={tag} slot="button" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "outline"} size="default" role="button" expanded={() -> open.value}
 			data-state={() -> open.value ? "open" : "closed"} focusable onClick={_ -> open.value = !open.peek()}
 			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
-				open.value = true;
+				open.value = !open.peek();
 				e.stop();
 			}}>
 			{props.label}
@@ -2744,8 +2765,9 @@ class Widgets implements Markup {
 	// slots of one character each (digits only unless digits is false),
 	// in groups (sizes; a separator between), over which a text field is laid,
 	// transparent: typing fills the next slot, Backspace empties the last, a
-	// paste fills them from the start; what does not fit or is not allowed
-	// is dropped. onComplete gets the code once every slot is filled. Slots
+	// paste fills the next ones; what does not fit or is not allowed is
+	// dropped. The caret stays at the end (as input-otp's): the arrows,
+	// Home and End do nothing, a click puts it back there. onComplete gets the code once every slot is filled. Slots
 	// "input-otp" (data-disabled), "input-otp-group", "input-otp-slot"
 	// (data-active "true" on the slot typing goes to while focused),
 	// "input-otp-caret" (in the active slot while it is empty),
@@ -2763,7 +2785,8 @@ class Widgets implements Markup {
 		keys: {
 			"0 to 9": "fill the next slot (any character when digits is false)",
 			"Backspace": "empties the last filled slot",
-			"Mod+V": "pastes into the next slots, what does not fit dropped"
+			"Mod+V": "pastes into the next slots, what does not fit dropped",
+			"Left, Right, Home, End": "nothing: the caret stays at the end"
 		}
 	})
 	public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
@@ -2808,6 +2831,19 @@ class Widgets implements Markup {
 			f.setText(v);
 			f.select(v.length, v.length);
 			if (v.length == n && was.length < n && props.onComplete != null) props.onComplete(v);
+		};
+		// (the caret kept at the end: the keys that would move it taken, a click undone)
+		var keys = f.onKeyDown;
+		f.onKeyDown = e -> switch e.key {
+			case Key.LEFT | Key.RIGHT | Key.UP | Key.DOWN | Key.HOME | Key.END:
+				e.preventDefault();
+			case _:
+				keys(e);
+		};
+		var down = f.onPointerDown;
+		f.onPointerDown = e -> {
+			down(e);
+			f.select(f.text.length, f.text.length);
 		};
 		invalidAndDisabled(f, null, props.disabled);
 		var chars = () -> [for (c in new haxe.iterators.StringIteratorUnicode(props.value.value)) String.fromCharCode(c)];
@@ -2856,7 +2892,9 @@ class Widgets implements Markup {
 
 	// an accordion (shadcn's): sections, at most one open: open is its index
 	// (-1: none; a signal); a section's trigger, its label and a chevron
-	// (turned when open), opens it and closes the other. Slots "accordion",
+	// (turned when open), opens it and closes the other; Up and Down move
+	// between the triggers (wrapping), Home and End to the first and last,
+	// as Radix's. Slots "accordion",
 	// "accordion-item", "accordion-trigger" and "accordion-content", each
 	// item's with data-state "open" or "closed"
 	@:widget({
@@ -2864,11 +2902,29 @@ class Widgets implements Markup {
 			sections: "its sections, each a label and render (a function giving its content)",
 			open: "a signal of the open section's index, -1 for none (its own when not given)"
 		},
-		keys: {"Enter, Space": "on a section's trigger: opens it and closes the other, or closes it when open"}
+		keys: {
+			"Enter, Space": "on a section's trigger: opens it and closes the other, or closes it when open",
+			"Up, Down": "to the trigger before or after, wrapping",
+			"Home, End": "to the first or last trigger"
+		}
 	})
 	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
-		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion";
-		return <view tag={tag} slot="accordion">{[
+		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion", count = props.sections.length;
+		// (Up and Down between the triggers, wrapping; Home and End to the first and last)
+		function key(e:Event) {
+			var ts = [for (i in 0...count) e.current.find(tag + "-" + i + "-summary")], i = ts.indexOf(e.target);
+			var j = i < 0 ? -1 : switch e.key {
+				case Key.DOWN: (i + 1) % count;
+				case Key.UP: (i + count - 1) % count;
+				case Key.HOME: 0;
+				case Key.END: count - 1;
+				case _: -1;
+			}
+			if (j < 0) return;
+			e.preventDefault();
+			focusIn(ts, j);
+		}
+		return <view tag={tag} slot="accordion" onKeyDown={key}>{[
 			for (i in 0...props.sections.length) {
 				var s = props.sections[i], state = () -> open.value == i ? "open" : "closed";
 				<view tag={tag + "-" + i} slot="accordion-item" data-state={state}>
@@ -2893,13 +2949,15 @@ class Widgets implements Markup {
 	// where Toasts.show's toasts are shown: in a corner of the window
 	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),
 	// over everything, width wide (320); each with its mark, text, action
-	// and a close button. They do not take the focus; the pointer over them
+	// and a close button (Enter and Space press them; Escape closes the toast
+	// the focus is in). They do not take the focus; the pointer over them
 	// holds their time.
 	@:widget({
 		props: {
 			placement: "the window's corner they are in: bottom-right (the default), bottom-left, top-right or top-left",
 			width: "the toasts' width in pixels (320)"
-		}
+		},
+		keys: {"Enter, Space": "on a toast's action or close button: presses it", "Escape": "closes the toast the focus is in"}
 	})
 	public static function Toaster(props:{?placement:String, ?width:Float, ?tag:String}):View {
 		var tag = props.tag ?? "toaster";
@@ -2912,14 +2970,22 @@ class Widgets implements Markup {
 			<Popover open={() -> Toasts.shown.value.length > 0} placement={props.placement ?? "bottom-right"} gap={16} tag={tag}>
 			<view tag={tag + "-list"} slot="toaster" width={props.width ?? 320.0} onPointerEnter={_ -> Toasts.paused = true}
 				onPointerLeave={_ -> Toasts.paused = false}>
-				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" slot="toast" data-type={toast.kind} role="group" label={toast.text}>
+				<For each={Toasts.shown} render={(toast:Toast) -> <view tag="toast" slot="toast" data-type={toast.kind} role="group" label={toast.text}
+					onKeyDown={e -> if (e.key == Key.ESCAPE) {
+						e.preventDefault();
+						Toasts.close(toast);
+					}}>
 					{toast.kind == "success" || toast.kind == "error" ? <text slot="toast-icon" hidden>{toast.kind == "success" ? "✓" : "!"}</text> : null}
 					<text slot="toast-title" grow={1}>{toast.text}</text>
-					{toast.action == null ? null : <view tag="toast-action" slot="toast-action" role="button" focusable onClick={_ -> {
-						Toasts.close(toast);
-						if (toast.onAction != null) toast.onAction();
-					}}>{toast.action}</view>}
-					<view tag="toast-close" slot="toast-close" role="button" label="Close" focusable onClick={_ -> Toasts.close(toast)}>×</view>
+					{toast.action == null ? null : {
+						var act = () -> {
+							Toasts.close(toast);
+							if (toast.onAction != null) toast.onAction();
+						};
+						<view tag="toast-action" slot="toast-action" role="button" focusable onClick={_ -> act()} onKeyDown={e -> pressKeys(e, act)}>{toast.action}</view>;
+					}}
+					<view tag="toast-close" slot="toast-close" role="button" label="Close" focusable onClick={_ -> Toasts.close(toast)}
+						onKeyDown={e -> pressKeys(e, () -> Toasts.close(toast))}>×</view>
 				</view>}/>
 			</view>
 		</Popover>
