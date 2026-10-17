@@ -50,7 +50,11 @@ class NativeTest {
 		var submit:Control = cast find("submit"), count:Control = cast find("count");
 		check("the widgets made", field.handle != 0 && agree.handle != 0 && volume.handle != 0 && submit.handle != 0);
 		check("measured by GTK", submit.width > 30 && submit.height > 20 && field.height > 20, '${submit.width}x${submit.height}, field ${field.height}');
-		// (GTK's allocation: where the layout placed it)
+		// (GTK's allocation: where the layout placed it; a slow machine's first
+		// allocation may take more frames: up to 5 s)
+		var t0 = haxe.Timer.stamp();
+		while (haxe.Timer.stamp() - t0 < 5 && Lambda.exists([for (c in [field, agree, submit, count]) driver.allocation(c.handle)], a -> a.length < 4 || a[2] <= 1))
+			settle();
 		for (c in [field, agree, submit, count]) {
 			var a = driver.allocation(c.handle);
 			check("placed: " + c.tag, a[0] == Math.round(c.absX) && a[1] == Math.round(c.absY), a.join(",") + " for " + c.absX + "," + c.absY);
