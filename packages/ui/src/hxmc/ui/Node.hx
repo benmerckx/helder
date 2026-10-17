@@ -293,16 +293,56 @@ class Node {
 	// pixels, as Canvas.pushTransform takes it; null: none
 	public function transformMatrix():Null<Array<Float>> {
 		var t = style.transform;
-		if (t == null || t.isIdentity()) return null;
+		// (Sticky: moved where it sticks, then transformed there)
+		var sx = 0.0, sy = 0.0;
+		if (style.position == Sticky) {
+			var s = stickyOffset();
+			sx = s[0];
+			sy = s[1];
+		}
+		if (t == null || t.isIdentity()) return sx == 0 && sy == 0 ? null : [1.0, 0, 0, 1, sx, sy];
 		var o = style.transformOrigin;
 		var ox = o == null ? Math.NaN : o[0].resolve(width), oy = o == null ? Math.NaN : o[1].resolve(height);
 		ox = absX + (Math.isNaN(ox) ? width / 2 : ox);
 		oy = absY + (Math.isNaN(oy) ? height / 2 : oy);
 		var m = t.toMatrix(width, height);
 		// (about the origin: moved there, transformed, moved back)
-		m[4] += ox - (m[0] * ox + m[2] * oy);
-		m[5] += oy - (m[1] * ox + m[3] * oy);
+		m[4] += ox - (m[0] * ox + m[2] * oy) + sx;
+		m[5] += oy - (m[1] * ox + m[3] * oy) + sy;
 		return m;
+	}
+
+	// a Sticky node's move from where it was laid out: kept its insets
+	// (left, top, right, bottom: those given) inside the content box of the
+	// nearest scrolling ancestor as it scrolls, as far as its parent's
+	// content box lets it go (its margins inside), as CSS sticks it
+	function stickyOffset():Array<Float> {
+		var p = parent, sc = parent;
+		while (sc != null && sc.style.overflow != Scroll)
+			sc = sc.parent;
+		if (p == null) return [0, 0];
+		var out = [0.0, 0.0];
+		for (axis in 0...2) {
+			var x = axis == 0, s = style, m = s.margin;
+			var pos = x ? absX : absY, size = x ? width : height;
+			// (the view: the scroller's content box, scrolled; else the window's)
+			var v0 = 0.0, v1 = ui == null ? 1e9 : x ? ui.width : ui.height;
+			if (sc != null) {
+				var ss = sc.style, be = ss.borderEdges, pad = ss.padding;
+				v0 = (x ? sc.absX + be.left + pad.left + sc.scrollX : sc.absY + be.top + pad.top + sc.scrollY);
+				v1 = (x ? sc.absX + sc.width - be.right - pad.right + sc.scrollX : sc.absY + sc.height - be.bottom - pad.bottom + sc.scrollY);
+			}
+			// (the parent's content box, its margins inside)
+			var ps = p.style, pbe = ps.borderEdges, ppad = ps.padding;
+			var c0 = (x ? p.absX + pbe.left + ppad.left : p.absY + pbe.top + ppad.top) + (x ? m.left : m.top);
+			var c1 = (x ? p.absX + p.width - pbe.right - ppad.right : p.absY + p.height - pbe.bottom - ppad.bottom) - (x ? m.right : m.bottom);
+			var start = (x ? s.left : s.top).resolve(v1 - v0), end = (x ? s.right : s.bottom).resolve(v1 - v0);
+			var d = 0.0;
+			if (!Math.isNaN(start) && pos + d < v0 + start) d = Math.min(v0 + start - pos, Math.max(0, c1 - (pos + size)));
+			if (!Math.isNaN(end) && pos + d + size > v1 - end) d = Math.max(v1 - end - (pos + size), Math.min(0, c0 - pos));
+			out[axis] = d;
+		}
+		return out;
 	}
 
 	// --- content (subclasses) ---
@@ -371,10 +411,15 @@ class Node {
 		}
 		var inside = px >= absX && py >= absY && px < absX + width && py < absY + height;
 		if (!inside && style.overflow != Visible) return null;
-		var i = children.length;
-		while (--i >= 0) {
-			var c = children[i].hitTest(px + (style.overflow == Scroll ? scrollX : 0), py + (style.overflow == Scroll ? scrollY : 0));
-			if (c != null) return c;
+		// (absolute and sticky children first: they are drawn over the others)
+		var sx = px + (style.overflow == Scroll ? scrollX : 0), sy = py + (style.overflow == Scroll ? scrollY : 0);
+		for (pass in 0...2) {
+			var i = children.length;
+			while (--i >= 0) {
+				if ((children[i].style.position != Relative) != (pass == 0)) continue;
+				var c = children[i].hitTest(sx, sy);
+				if (c != null) return c;
+			}
 		}
 		return inside ? this : null;
 	}

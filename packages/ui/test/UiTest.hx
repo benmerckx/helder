@@ -44,6 +44,7 @@ class UiTest {
 		css(here);
 		decorations();
 		transforms();
+		sticky();
 		selection();
 		fields();
 		popups();
@@ -268,6 +269,64 @@ class UiTest {
 		ui.update();
 		check("transform: flattened, it hits nothing", ui.root.hitTest(50, 50) == ui.root && box.hitTest(50, 50) == null);
 		ui.root.remove(box);
+	}
+
+	// position: Sticky against Chromium's tops (a scroller 200x100, border 2,
+	// padding 4: a header sticking 5 inside its content box within its
+	// 120-high section; a footer sticking 3 above its bottom), at five scroll
+	// positions
+	static function sticky() {
+		var ui = new Ui(new MonoText(), 300, 300);
+		ui.root.style.alignItems = Start;
+		var s = new Node("s");
+		s.style.set({width: 200, height: 100, overflow: Scroll, borderWidth: 2, padding: 4});
+		function block(h:Float):Node {
+			var n = new Node();
+			n.style.set({height: h, shrink: 0});
+			return n;
+		}
+		var sec = block(120);
+		sec.style.padding = 6;
+		var h = block(20);
+		h.style.set({position: Sticky, top: 5});
+		sec.append(h);
+		sec.append(block(20));
+		var f = block(10);
+		f.style.set({position: Sticky, bottom: 3});
+		for (c in [block(30), sec, block(200), f, block(100)])
+			s.append(c);
+		ui.root.append(s);
+		ui.update();
+		var got = [], want = "0:42,81 50:11,81 100:11,81 140:-10,81 372:-242,-16";
+		for (st in [0.0, 50, 100, 140, 400]) {
+			ui.scrollTo(s, 0, st);
+			got.push(s.scrollY + ":" + h.windowBounds().y + "," + f.windowBounds().y);
+		}
+		check("sticky: where Chromium sticks it as it scrolls", got.join(" ") == want, got.join(" "));
+		ui.scrollTo(s, 0, 100);
+		check("sticky: hit where it sticks", ui.root.hitTest(50, 15) == h, "" + ui.root.hitTest(50, 15));
+		// (over what scrolls under it: drawn after its siblings)
+		sec.children[1].style.background = Color.rgb(0x00FF00);
+		h.style.background = Color.rgb(0xFF0000);
+		// (h is first in the section, its sibling after it)
+		ui.update();
+		var rec = new Recording();
+		ui.paint(rec);
+		var order = [for (c in rec.calls) if (c.indexOf("ff00ff00") > 0) "green" else if (c.indexOf("ffff0000") > 0) "red"].filter(x -> x != null);
+		check("sticky: drawn over its siblings", order.join(",") == "green,red", order.join(","));
+		// (an absolute box first, an in-flow one under it after: drawn and hit over it)
+		var ui2 = new Ui(new MonoText(), 100, 100);
+		var abs = new Node("abs");
+		abs.style.set({position: Absolute, left: 0, top: 0, width: 50, height: 50, background: Color.rgb(0xFF0000)});
+		var flow = new Node("flow");
+		flow.style.set({height: 50, background: Color.rgb(0x00FF00)});
+		ui2.root.append(abs);
+		ui2.root.append(flow);
+		ui2.update();
+		var rec2 = new Recording();
+		ui2.paint(rec2);
+		var order2 = [for (c in rec2.calls) if (c.indexOf("ff00ff00") > 0) "green" else if (c.indexOf("ffff0000") > 0) "red"].filter(x -> x != null);
+		check("absolute: drawn and hit over its in-flow siblings", order2.join(",") == "green,red" && ui2.root.hitTest(10, 10) == abs, order2.join(","));
 	}
 
 	// an ancestor's decorations over a text: the underline before it, the
@@ -934,6 +993,20 @@ class UiTest {
 			false;
 		} catch (e:Dynamic) true;
 		check("paint: Shadow.parse rejects one length", threw);
+		var list = Shadow.parse("0 0 0 3px #3b82f6, inset 0 1px 3px rgba(0, 0, 0, 0.5)");
+		check("paint: Shadow.parse, a list with inset and rgba()", list.spread == 3 && !list.inset && list.next != null && list.next.inset && list.next.y == 1
+			&& list.next.blur == 3 && list.next.color == Color.rgba(0, 0.5) && list.next.next == null && list.painted()[0] == list.next);
+		var ui2 = new Ui(new MonoText(), 200, 100);
+		ui2.root.style.alignItems = Start;
+		var sb = new Node("sb");
+		sb.style.set({width: 40, height: 20, background: Color.rgb(0xFFFFFF), borderWidth: 2, borderColor: Color.rgb(0), shadow: list});
+		ui2.root.append(sb);
+		ui2.update();
+		var rec2 = new Recording();
+		ui2.paint(rec2);
+		var kinds = [for (c in rec2.calls) c.split(" ")[0]];
+		check("paint: outer shadows under the background, inset ones over it in the padding box", kinds.join(",") == "shadow,rect,inset"
+			&& rec2.calls[2].indexOf("inset 2 2 36 16 0 ") == 0, rec2.calls.join("|"));
 		// the focus ring: shown when Tab moves the focus, hidden by a press
 		a.focusable = true;
 		ui.keyDown(Key.TAB, 0);
@@ -1339,8 +1412,12 @@ class Recording implements Canvas {
 		calls.push('rect $x $y $w $h $radius ${hex(fill)} $borderWidth ${hex(border)}' + cs(corners)
 			+ (sides == null ? "" : ' sides ${sides.top},${sides.right},${sides.bottom},${sides.left}'));
 
-	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners)
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners, ?offset:Array<Float>)
 		calls.push('shadow $x $y $w $h $radius ${hex(color)} $blur' + cs(corners));
+
+	public function insetShadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, dx:Float, dy:Float, spread:Float,
+			?corners:Corners)
+		calls.push('inset $x $y $w $h $radius ${hex(color)} $blur $dx $dy $spread' + cs(corners));
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)
 		calls.push('text $x $y $width' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));

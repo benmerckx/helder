@@ -69,11 +69,18 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     `radius="12 12 0 0"`: each corner's, as CSS's border-radius; `borders`,
     or `border-width="0 0 2 0"`: each side's width, laid out and drawn, the
     inner corners quarter ellipses as Chromium draws them), `opacity`, `shadow`
-    (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`. Colours are
+    (CSS's box-shadow: `"0 2px 8px rgba(0, 0, 0, 0.25)"`, x, y, blur, spread,
+    colour; `inset`; several, comma-separated; blurred by a Gaussian as
+    Chromium blurs them, within a few levels of its pixels), `cursor`. Colours are
     CSS's (`Color.parse`: hex, `rgb()`, `hsl()`, the 148 names, as Chromium
     computes them); `backgroundImage` (markup: `background="linear-gradient(...)"`)
     is a CSS gradient, linear or radial, repeating or not (`Gradient`: within
     two levels of Chromium's pixels on 19 cases), under the border.
+  - `position: Sticky` (Style only for now, markup to come with @hxmc/view):
+    laid out in the flow, then kept its `top`, `left`, `right` or `bottom`
+    inside its nearest scroller's content box as it scrolls, within its
+    parent's content box, drawn and hit over its siblings, where Chromium
+    sticks it.
   - Transforms: `transform` (CSS's: `translate`, `scale`, `rotate`,
     `skew`, `matrix`, composed left to right; `Transform.parse`, or
     `Transform.rotate(45)`) about `transformOrigin` (`"left top"`, `"50% 0"`;
@@ -138,7 +145,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   `Progress`, `Tabs`, `Field`, `Area`, `Table` (sortable columns, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
-  `Split` (two panes, a divider dragged or moved by the arrows), and the popups `Select`, `Menu`,
+  `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
+  (a month's grid of days, moved through by the keys) and `DatePicker` (a
+  calendar in a popover; `Days`: dates as day numbers, no time zones), and the popups `Select`, `Menu`,
   `ContextMenu` (at the pointer), `Tooltip`, `Dialog`; `examples/Gallery.hx` shows them all. They draw
   with `Theme.current` (`Theme.LIGHT`, `Theme.DARK`: colours by role);
   `Theme.follow(() -> UiWindow.dark.value)` follows the system's

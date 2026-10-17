@@ -115,13 +115,25 @@ class Ui {
 		// (each corner's radius and each side's border, when the style gives them)
 		var cs = s.corners != null ? s.cornerRadii() : null, sides = s.borders != null ? s.borderEdges : null;
 		var be = s.borderEdges, bordered = be.top + be.right + be.bottom + be.left > 0 && s.borderColor.a > 0;
-		var sh = s.shadow;
-		if (sh != null) {
-			var o = sh.spread;
-			canvas.shadow(n.absX + sh.x - o, n.absY + sh.y - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? s.radius + o : 0, sh.color, sh.blur,
-				cs == null ? null : new Corners(cs.topLeft > 0 ? cs.topLeft + o : 0, cs.topRight > 0 ? cs.topRight + o : 0,
-					cs.bottomRight > 0 ? cs.bottomRight + o : 0, cs.bottomLeft > 0 ? cs.bottomLeft + o : 0));
+		// (the padding box's corners: each less the wider side meeting there)
+		var padR = Math.max(0, s.radius - s.borderWidth), padC:Null<Corners> = null;
+		if (cs != null || sides != null) {
+			var c = s.cornerRadii();
+			padC = new Corners(Math.max(0, c.topLeft - Math.max(be.left, be.top)), Math.max(0, c.topRight - Math.max(be.top, be.right)),
+				Math.max(0, c.bottomRight - Math.max(be.right, be.bottom)), Math.max(0, c.bottomLeft - Math.max(be.bottom, be.left)));
 		}
+		// (the shadows outside: the last one first, under the others; not
+		// under the box, as CSS clips them, unless its background hides them)
+		var shadows = s.shadow == null ? null : s.shadow.painted();
+		var opaque = s.background.a == 255 && s.backgroundImage == null;
+		if (shadows != null)
+			for (sh in shadows) {
+				if (sh.inset) continue;
+				var o = sh.spread;
+				canvas.shadow(n.absX + sh.x - o, n.absY + sh.y - o, n.width + 2 * o, n.height + 2 * o, s.radius > 0 ? Math.max(0, s.radius + o) : 0, sh.color,
+					sh.blur, cs == null ? null : new Corners(cs.topLeft > 0 ? Math.max(0, cs.topLeft + o) : 0, cs.topRight > 0 ? Math.max(0, cs.topRight + o) : 0,
+						cs.bottomRight > 0 ? Math.max(0, cs.bottomRight + o) : 0, cs.bottomLeft > 0 ? Math.max(0, cs.bottomLeft + o) : 0), opaque ? null : [sh.x, sh.y, o]);
+			}
 		if (s.backgroundImage != null && n.width > 0 && n.height > 0) {
 			// (the colour, the gradient over it, then the border over both)
 			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
@@ -129,23 +141,28 @@ class Ui {
 			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
 		} else if (s.background.a > 0 || bordered)
 			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor, cs, sides);
+		// (the shadows inside: in the padding box, over the background)
+		if (shadows != null)
+			for (sh in shadows)
+				if (sh.inset)
+					canvas.insetShadow(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, sh.color, sh.blur, sh.x, sh.y,
+						sh.spread, padC);
 		var pad = s.padding;
 		if (n.hasContent())
 			n.paintContent(canvas, n.absX + be.left + pad.left, n.absY + be.top + pad.top, Math.max(0, n.width - be.left - be.right - pad.left - pad.right),
 				Math.max(0, n.height - be.top - be.bottom - pad.top - pad.bottom));
 		var clip = s.overflow != Visible;
 		// (the padding box: its corners' radii less the wider side meeting there)
-		if (clip)
-			canvas.pushClip(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, Math.max(0, s.radius - s.borderWidth),
-				cs == null && sides == null ? null : {
-					var c = s.cornerRadii();
-					new Corners(Math.max(0, c.topLeft - Math.max(be.left, be.top)), Math.max(0, c.topRight - Math.max(be.top, be.right)),
-						Math.max(0, c.bottomRight - Math.max(be.right, be.bottom)), Math.max(0, c.bottomLeft - Math.max(be.bottom, be.left)));
-				});
+		if (clip) canvas.pushClip(n.absX + be.left, n.absY + be.top, n.width - be.horizontal, n.height - be.vertical, padR, padC);
 		var scroll = s.overflow == Scroll && (n.scrollX != 0 || n.scrollY != 0);
 		if (scroll) canvas.translate(-n.scrollX, -n.scrollY);
+		// (absolute and sticky children over the others, in their order, as CSS paints positioned boxes)
+		var positioned = false;
 		for (c in n.children)
-			paintNode(c, canvas);
+			if (c.style.position != Relative) positioned = true else paintNode(c, canvas);
+		if (positioned)
+			for (c in n.children)
+				if (c.style.position != Relative) paintNode(c, canvas);
 		if (scroll) canvas.translate(n.scrollX, n.scrollY);
 		if (clip) canvas.popClip();
 		if (s.overflow == Scroll) {

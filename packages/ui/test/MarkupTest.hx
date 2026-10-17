@@ -15,6 +15,9 @@ import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Split;
+import hxmc.ui.widgets.Widgets.Calendar;
+import hxmc.ui.widgets.Widgets.DatePicker;
+import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Widgets.Tooltip;
 import hxmc.ui.widgets.Widgets.Dialog;
 
@@ -42,6 +45,7 @@ class MarkupTest implements Markup {
 		table();
 		tree();
 		split();
+		calendar();
 		Sys.println('MarkupTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -355,6 +359,62 @@ class MarkupTest implements Markup {
 		check("split: a separator with the size as its value", sep.length == 1 && sep[0].valueNow == 60 && sep[0].name == "Sidebar" && sep[0].focusable);
 	}
 
+	static function calendar() {
+		check("days: the epoch, a leap day, a weekday", Days.of({year: 1970, month: 1, day: 1}) == 0
+			&& Days.day(Days.of({year: 2000, month: 2, day: 29})).day == 29 && Days.weekday(Days.of({year: 2026, month: 10, day: 17})) == 6
+			&& Days.day(Days.of({year: 1969, month: 12, day: 31})).year == 1969 && Days.length(2100, 2) == 28);
+		var ui = new Ui(new MonoText(), 400, 400);
+		ui.root.style.alignItems = Start;
+		var picked:Signal<Null<Day>> = signal(null), chosen = [];
+		var today:Day = {year: 2026, month: 10, day: 17};
+		Render.render(<view><Calendar tag="cal" value={picked} today={today} onChoose={d -> chosen.push(d.day)}/></view>, ui.root);
+		ui.update();
+		function text(n:Node):String
+			return n == null ? "" : Std.isOfType(n, TextNode) ? (cast n : TextNode).text : n.children.length > 0 ? text(n.children[0]) : "";
+		var days = [];
+		function collect(n:Node) {
+			if (n.tag == "cal-day") days.push(n);
+			for (c in n.children)
+				collect(c);
+		}
+		collect(ui.root);
+		check("calendar: six weeks from the Monday before the 1st", days.length == 42 && text(days[0]) == "28" && text(days[3]) == "1"
+			&& text(ui.root.find("cal-month")) == "October 2026", days.length + " " + text(days[0]) + " " + text(ui.root.find("cal-month")));
+		ui.setFocus(ui.root.find("cal-grid"));
+		for (k in [Key.RIGHT, Key.DOWN, Key.PAGE_DOWN])
+			ui.keyDown(k, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("calendar: the keys move the marked day, the month follows; Enter chooses", picked.value != null && picked.value.month == 11
+			&& picked.value.day == 25 && chosen.join(",") == "25" && text(ui.root.find("cal-month")) == "November 2026",
+			picked.value == null ? "none" : picked.value.month + "-" + picked.value.day + " " + text(ui.root.find("cal-month")));
+		days = [];
+		collect(ui.root);
+		var third = days.filter(d -> text(d) == "3")[0];
+		ui.pointerDown(third.absX + 4, third.absY + 4, 1);
+		ui.pointerUp(third.absX + 4, third.absY + 4, 1);
+		check("calendar: a click chooses", picked.value.day == 3 && picked.value.month == 11, "" + picked.value.day);
+		var tree = ui.accessTree();
+		var sel = [for (id in tree.order) if (tree.nodes.get(id).role == Cell && tree.nodes.get(id).selected == true) tree.nodes.get(id).name];
+		check("calendar: a grid, the chosen day's cell selected and named", sel.join(",") == "3 November 2026", sel.join(","));
+
+		var ui2 = new Ui(new MonoText(), 400, 400);
+		ui2.root.style.alignItems = Start;
+		var when:Signal<Null<Day>> = signal(null);
+		Render.render(<view><DatePicker tag="dp" value={when} today={today}/></view>, ui2.root);
+		ui2.update();
+		var button = ui2.root.find("dp");
+		ui2.setFocus(button);
+		ui2.keyDown(Key.ENTER, 0);
+		ui2.update();
+		var opened = ui2.overlay.find("dp-calendar-grid") != null && ui2.focus == ui2.overlay.find("dp-calendar-grid");
+		ui2.keyDown(Key.LEFT, 0);
+		ui2.keyDown(Key.ENTER, 0);
+		ui2.update();
+		check("date picker: opened by Enter, the calendar focused; a day chosen closes it", opened && when.value != null && when.value.day == 16
+			&& ui2.overlay.children.length == 0 && ui2.focus == button && text(button) == "16 October 2026", opened + " " + text(button));
+	}
+
 	static function virtual() {
 		var ui = new Ui(new MonoText(), 300, 300);
 		var items = signal([for (i in 0...100000) "item " + i]);
@@ -643,10 +703,10 @@ class MarkupTest implements Markup {
 		check("render: and stops its effects", hello.text == "Hello Bo!");
 		// attributes generated from Style's properties (StyleAttrs)
 		var styled:Null<Node> = null;
-		Render.render(<view ref={n -> styled = n} justify="flex-start" align-content="space-between" cursor="ew-resize" grid-auto-flow="column"
+		Render.render(<view ref={n -> styled = n} position="sticky" justify="flex-start" align-content="space-between" cursor="ew-resize" grid-auto-flow="column"
 			font-weight="700" italic aspect-ratio={2} text-align="center" padding="8 12" min-width="50%" border-color="red" shadow="0 2 8 #00000040"/>, ui.root);
 		var st = styled.style;
-		check("render: Style's properties as attributes", st.justify == Justify.Start && st.alignContent == AlignContent.SpaceBetween && st.cursor == Cursor.ResizeEW
+		check("render: Style's properties as attributes", st.position == Position.Sticky && st.justify == Justify.Start && st.alignContent == AlignContent.SpaceBetween && st.cursor == Cursor.ResizeEW
 			&& st.gridAutoFlow == Grid.GridFlow.Column && st.fontWeight == 700 && st.italic == true && st.aspectRatio == 2 && st.textAlign == TextAlign.Center
 			&& st.padding.left == 12 && st.borderColor == Color.parse("red") && st.shadow != null);
 		var bad = try {
