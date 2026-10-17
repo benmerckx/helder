@@ -1307,6 +1307,30 @@ class MarkupTest implements Markup {
 		open.value = true;
 		ui.update();
 		check("unstyled: Canvas dark when the window is", ui.overlay.find("dialog-close").parent.style.background == Color.rgb(0x121212));
+		// a menu's separator and disabled items: shown, skipped by the keys
+		var ui2 = new Ui(new MonoText(), 400, 300), log = [];
+		Render.render(<view padding={10} align-items="start"><DropdownMenu tag="m2" label="Edit" items={[
+			{label: "Cut", onSelect: () -> log.push("cut")},
+			{label: "", separator: true},
+			{label: "Paste", onSelect: () -> log.push("paste"), disabled: true, shortcut: "Mod+V"},
+			{label: "Delete", onSelect: () -> log.push("delete"), variant: "destructive"}
+		]}/></view>, ui2.root);
+		ui2.update();
+		ui2.setFocus(ui2.root.find("m2"));
+		ui2.keyDown(Key.ENTER, 0);
+		ui2.update();
+		var sep = ui2.overlay.find("m2-items").children[1], paste = ui2.overlay.find("m2-2"), del = ui2.overlay.find("m2-3");
+		ui2.keyDown(Key.DOWN, 0);
+		ui2.update();
+		check("unstyled: a menu's separator and disabled item skipped by Down", sep.slot == "dropdown-menu-separator" && sep.style.height.resolve(0) == 1
+			&& paste.attr("data-disabled") == "" && !paste.focusable && paste.style.opacity == 0.5 && del.variant == "destructive" && ui2.focus == del);
+		ui2.keyDown(Key.UP, 0);
+		ui2.update();
+		check("unstyled: and by Up", ui2.focus == ui2.overlay.find("m2-0"));
+		ui2.pointerDown(paste.absX + 4, paste.absY + 4, 1);
+		ui2.pointerUp(paste.absX + 4, paste.absY + 4, 1);
+		ui2.update();
+		check("unstyled: a disabled item not chosen by a click, its shortcut off", log.length == 0 && ui2.overlay.find("m2-items") != null);
 	}
 
 	static function unstyledNav() {

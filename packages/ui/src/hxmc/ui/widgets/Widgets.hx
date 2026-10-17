@@ -15,6 +15,11 @@ import hxmc.ui.access.AccessTree;
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
 typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
 
+// a menu's item: its label, what choosing it does, a shortcut (shown, and
+// choosing it from the window); variant "destructive" (shadcn's: for a
+// theme), disabled (not chosen, skipped by the keys), or a separator
+typedef MenuItem = {label:String, ?onSelect:Void->Void, ?shortcut:String, ?variant:String, ?disabled:Bool, ?separator:Bool};
+
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
 // hxmc.view, unstyled: behaviour, semantics and the geometry their
 // interaction needs, their nodes' slots, states, variants and sizes (as
@@ -1288,7 +1293,7 @@ class Widgets implements Markup {
 	// Escape, Tab or a click outside closes. The button a "button" of
 	// variant (default "outline"), data-state "open" or "closed"; slots
 	// "dropdown-menu-content", "dropdown-menu-item" and "dropdown-menu-shortcut"
-	public static function DropdownMenu(props:{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?variant:String,
+	public static function DropdownMenu(props:{label:String, items:Array<MenuItem>, ?variant:String,
 			?tag:String}):View {
 		Unstyled.install();
 		var tag = props.tag ?? "menu";
@@ -1303,7 +1308,7 @@ class Widgets implements Markup {
 			{props.label}
 			<image src={CHEVRON} width={16} height={16} opacity={0.5} hidden/>
 			{hotkeys(props.items, false)}
-			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
+			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusFirst(items)}>
 				{menuItems("dropdown-menu", tag, props.label, props.items, open, items)}
 			</Popover>
 		</view>;
@@ -1318,7 +1323,7 @@ class Widgets implements Markup {
 	// title last moved to. The items' shortcuts work from anywhere in the
 	// window. Slots (shadcn's) "menubar", "menubar-trigger" (data-state
 	// "open" or "closed"), "menubar-content", "menubar-item", "menubar-shortcut"
-	public static function Menubar(props:{menus:Array<{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>}>, ?label:String,
+	public static function Menubar(props:{menus:Array<{label:String, items:Array<MenuItem>}>, ?label:String,
 			?tag:String}):View {
 		Unstyled.install();
 		var tag = props.tag ?? "menubar", count = props.menus.length;
@@ -1362,7 +1367,7 @@ class Widgets implements Markup {
 					}}>
 					{m.label}
 					{hotkeys(m.items, false)}
-					<Popover open={opens[i]} placement="below" onDismiss={() -> if (opens[i].peek()) show(-1)} onOpen={_ -> focusIn(items, 0)}>
+					<Popover open={opens[i]} placement="below" onDismiss={() -> if (opens[i].peek()) show(-1)} onOpen={_ -> focusFirst(items)}>
 						<view onKeyDown={e -> if (e.key == Key.LEFT || e.key == Key.RIGHT) {
 							step(i, e.key == Key.RIGHT, true);
 							e.stop();
@@ -1379,7 +1384,7 @@ class Widgets implements Markup {
 	// a press elsewhere, Escape or Tab closes it. The items' shortcuts work
 	// while the focus is in the children. Slots (shadcn's)
 	// "context-menu-content", "context-menu-item", "context-menu-shortcut"
-	public static function ContextMenu(props:{items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, ?label:String, ?tag:String, ?children:Any}):View {
+	public static function ContextMenu(props:{items:Array<MenuItem>, ?label:String, ?tag:String, ?children:Any}):View {
 		Unstyled.install();
 		var tag = props.tag ?? "context-menu";
 		var open = signal(false);
@@ -1405,7 +1410,7 @@ class Widgets implements Markup {
 			}}>
 			{props.children}
 			{hotkeys(props.items, true)}
-			<Popover open={open} at={() -> {x: atX, y: atY}} onDismiss={() -> open.value = false} onOpen={_ -> focusIn(items, 0)}>
+			<Popover open={open} at={() -> {x: atX, y: atY}} onDismiss={() -> open.value = false} onOpen={_ -> focusFirst(items)}>
 				{menuItems("context-menu", tag, props.label, props.items, open, items)}
 			</Popover>
 		</view>;
@@ -1522,8 +1527,19 @@ class Widgets implements Markup {
 	}
 
 	// the items' shortcuts (local: while the focus is in the parent)
-	static function hotkeys(list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, local:Bool):Array<Any>
-		return [for (it in list) if (it.shortcut != null) UiFlow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})];
+	static function hotkeys(list:Array<MenuItem>, local:Bool):Array<Any>
+		return [
+			for (it in list)
+				if (it.shortcut != null && it.onSelect != null && it.disabled != true) UiFlow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})
+		];
+
+	// focuses the first of nodes that takes the focus
+	static function focusFirst(nodes:Array<Node>)
+		for (i in 0...nodes.length)
+			if (nodes[i] != null && nodes[i].focusable) {
+				focusIn(nodes, i);
+				return;
+			}
 
 	// an event's key, Left and Right swapped where it is right to left (the
 	// way they point, in a mirrored row or grid)
@@ -1537,25 +1553,35 @@ class Widgets implements Markup {
 	// a menu's panel of items (their nodes into nodes): Up and Down move
 	// through them, letters typed to the one they start, the pointer over
 	// one focuses it, a click, Enter or Space chooses one (and sets open to
-	// false), Tab closes. Slots: kind, "-content", "-item", "-shortcut"
-	static function menuItems(kind:String, tag:String, label:Null<String>, list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>,
+	// false), Tab closes; separators and disabled items skipped. Slots:
+	// kind, "-content", "-item" (variant; data-disabled), "-shortcut", "-separator"
+	static function menuItems(kind:String, tag:String, label:Null<String>, list:Array<MenuItem>,
 			open:Signal<Bool>, nodes:Array<Node>):View {
-		var typed = new TypeAhead(), labels = [for (it in list) it.label];
+		var typed = new TypeAhead(), labels = [for (it in list) it.separator == true || it.disabled == true ? "" : it.label];
+		// (the next item that can be chosen, the way d goes)
+		function move(from:Int, d:Int) {
+			var j = from + d;
+			while (j >= 0 && j < list.length && (list[j].separator == true || list[j].disabled == true))
+				j += d;
+			focusIn(nodes, j);
+		}
 		return <view tag={tag + "-items"} slot={kind + "-content"} data-state="open" role="menu" label={label}>{[
 			for (i in 0...list.length) {
-				var it = list[i];
-				function choose() {
-					open.value = false;
-					it.onSelect();
-				}
-				<view tag={tag + "-" + i} slot={kind + "-item"} role="menuitem" ref={n -> nodes[i] = n} focusable onPointerEnter={_ -> focusIn(nodes, i)}
-					onClick={_ -> choose()}
+				var it = list[i], off = it.disabled == true;
+				function choose()
+					if (!off) {
+						open.value = false;
+						if (it.onSelect != null) it.onSelect();
+					}
+				it.separator == true ? <view slot={kind + "-separator"} role="separator" hidden/> : <view tag={tag + "-" + i} slot={kind + "-item"}
+					variant={it.variant ?? "default"} role="menuitem" ref={n -> nodes[i] = n} focusable={!off} disabled={off} data-disabled={off}
+					onPointerEnter={_ -> if (!off) focusIn(nodes, i)} onClick={_ -> choose()}
 					onKeyDown={e -> switch e.key {
 						case Key.DOWN:
-							focusIn(nodes, i + 1);
+							move(i, 1);
 							e.stop();
 						case Key.UP:
-							focusIn(nodes, i - 1);
+							move(i, -1);
 							e.stop();
 						case Key.ENTER | Key.SPACE:
 							choose();

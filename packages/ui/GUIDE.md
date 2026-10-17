@@ -404,7 +404,7 @@ window, for as long as it is mounted; with `local`, only while the
 focus is inside the node it is in. `Mod` is Control, or Command on a
 Mac. A key the focused node takes first (a text field's Control+C, a
 letter typed into it) is not a shortcut, and under a modal dialog only
-the dialog's own shortcuts work. Menu items take a `shortcut` too:
+the dialog's own shortcuts work. Menu items take a `shortcut` too (and `disabled`, `variant: "destructive"`, or are a `separator`):
 it is shown in the menu, in the platform's notation, and works while
 the menu is mounted.
 
