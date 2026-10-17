@@ -10,8 +10,9 @@ package hxmc.text;
 // left is ordered by the bidirectional algorithm (Bidi: each paragraph's
 // levels; each line's glyphs placed in visual order, mirrored brackets on
 // right-to-left levels; a base's marks drawn after it), its caret and hits
-// by each glyph's direction. Other scripts' ligatures and mark positioning
-// are not applied (GPOS: kerning only).
+// by each glyph's direction. The standard ligatures (GSUB's liga and clig)
+// are applied as Chromium applies them by default, except where letters
+// are spaced; GPOS gives kerning and marks' positions.
 // Positions are pixels; character indices are the text's UTF-16 units
 // (String indices). Arabic is shaped (Arabic: its letters' joining forms
 // and required ligatures, through the font's GSUB).
@@ -54,7 +55,7 @@ class TextLayout {
 		this.lineHeight = fonts.size * lineHeight;
 		var a = fonts.ascent, d = fonts.descent;
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
-		var glyphs = shape(text, fonts, this.runs);
+		var glyphs = shape(text, fonts, this.runs, letterSpacing);
 		space(glyphs, letterSpacing, wordSpacing);
 		bidi(glyphs);
 		minWidth = minContent(glyphs);
@@ -168,7 +169,7 @@ class TextLayout {
 		}
 	}
 
-	static function shape(text:String, base:FontSet, runs:Array<TextRun>):Array<Glyph> {
+	static function shape(text:String, base:FontSet, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
 		var out:Array<Glyph> = [];
 		var i = 0, n = text.length, count = 0;
 		// (the run of each unit: the current one, moved along)
@@ -225,6 +226,7 @@ class TextLayout {
 		out.resize(count);
 		// (Arabic's forms and ligatures: other glyphs; a colour font's sequences: one glyph)
 		out = Arabic.shape(out);
+		out = ligatures(out, runs, letterSpacing);
 		if (emoji != null) out = colorLigatures(out);
 		for (g in out)
 			if (ignorable(g.cp)) g.hidden = true;
@@ -241,6 +243,66 @@ class TextLayout {
 		}
 		marks(out, base, runs);
 		return out;
+	}
+
+	// the standard ligatures (GSUB's liga and clig lookups for the script, in
+	// the lookup list's order) on runs of one face, as Chromium applies them
+	// by default: not Arabic's (its own), a colour face's or across lines,
+	// and none where letters are spaced (CSS turns them off with
+	// letter-spacing). A ligature's caret positions are its characters'
+	// equal parts.
+	static function ligatures(gs:Array<Glyph>, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
+		var n = gs.length;
+		// (the glyphs that may take part: their ids, else -1, which no ligature has)
+		var ids:Array<Int> = [];
+		ids.resize(n);
+		var any = false;
+		for (k in 0...n) {
+			var g = gs[k];
+			var spaced = (g.run < 0 ? letterSpacing : runs[g.run].letterSpacing) != 0;
+			var ok = g.font != null && g.cp != 10 && g.cp != 13 && g.cp != 9 && !g.font.hasColor && !g.font.bitmapsOnly && !spaced && !Arabic.isArabic(g.cp);
+			ids[k] = ok ? g.id : -1;
+			if (ok) any = true;
+		}
+		if (!any) return gs;
+		var out:Null<Array<Glyph>> = null;
+		var cache = new Map<String, Array<Int>>();
+		var i = 0;
+		while (i < n) {
+			var g = gs[i], merged = false;
+			if (ids[i] >= 0 && i + 1 < n && ids[i + 1] >= 0) {
+				var f = g.font, sc = script(g.cp);
+				var key = f.id + "/" + sc;
+				var lookups = cache.get(key);
+				if (lookups == null) {
+					lookups = f.gsubLookups(sc, "liga").concat(f.gsubLookups(sc, "clig"));
+					lookups.sort(Reflect.compare);
+					cache.set(key, lookups);
+				}
+				for (l in lookups) {
+					var lig = f.ligature(l, ids, i);
+					if (lig.count < 2) continue;
+					// (its parts in this face and run)
+					var same = true;
+					for (k in i + 1...i + lig.count)
+						if (gs[k].font != f || gs[k].run != g.run) same = false;
+					if (!same) continue;
+					if (out == null) out = gs.slice(0, i);
+					var last = gs[i + lig.count - 1];
+					g.id = lig.glyph;
+					g.length = last.cluster + last.length - g.cluster;
+					g.parts = g.length;
+					out.push(g);
+					i += lig.count;
+					merged = true;
+					break;
+				}
+			}
+			if (merged) continue;
+			if (out != null) out.push(g);
+			i++;
+		}
+		return out == null ? gs : out;
 	}
 
 	// which UTF-16 units are in an emoji's sequence (a grapheme cluster with
@@ -564,6 +626,11 @@ class TextLayout {
 		var x = 0.0;
 		for (g in l.glyphs) {
 			if (g.cluster >= index) break;
+			// (inside a ligature: by its characters' equal parts)
+			if (g.parts > 1 && index < g.cluster + g.length) {
+				x = g.x + g.advance * (index - g.cluster) / g.parts;
+				break;
+			}
 			x = g.x + g.advance;
 		}
 		if (index <= l.start) x = 0;
@@ -691,6 +758,8 @@ class TextLayout {
 		if (l.bidi) return bidiHit(l, x);
 		for (g in l.glyphs) {
 			if (g.cp == 10) break;
+			// (a ligature: the nearest of its characters' boundaries)
+			if (g.parts > 1 && x < g.x + g.advance) return g.cluster + Math.round(Math.max(0, x - g.x) / g.advance * g.parts);
 			// (a mark, no advance of its own: not between it and its base)
 			if (g.advance > 0 && x < g.x + g.advance / 2) return g.cluster;
 		}
@@ -710,7 +779,7 @@ class Glyph {
 	// the character it shows: its index in the text and length (UTF-16 units)
 	public var cluster = 0;
 	public var length = 1;
-	// the characters a ligature shows (each one UTF-16 unit: Arabic), the caret placed between them by equal parts
+	// the characters a ligature shows (each one UTF-16 unit), the caret placed between them by equal parts
 	public var parts = 1;
 	// its bidi level (odd: right to left)
 	public var level = 0;

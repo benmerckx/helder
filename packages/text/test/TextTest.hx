@@ -37,6 +37,7 @@ class TextTest {
 			layout(sans, fonts);
 			decorations(sans, fonts);
 			spacing(sans);
+			ligatures(sans, fonts);
 			justified(sans);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
@@ -88,6 +89,32 @@ class TextTest {
 		// (a run's own: only its characters)
 		var run = new TextRun(0, 3, set, 1.2, 4, 0);
 		check("spacing: a run's", Math.abs(new TextLayout("Hamburg", set, 1.2, Math.NaN, [run]).width - (92.71875 + 12)) < 0.02);
+	}
+
+	// the standard ligatures: widths as Chromium measures them (DejaVu Sans
+	// and Serif at 100: ff, ffi, ffl, fi, fl ligatures), none with letter
+	// spacing; carets and hits inside one by its characters' equal parts
+	static function ligatures(sans:FontFile, fonts:SystemFonts) {
+		function w(face:FontFile, t:String, ls = 0.0):Float
+			return new TextLayout(t, new FontSet(face, [], 100), 1.2, Math.NaN, null, 0, ls).width;
+		var got = [w(sans, "ff"), w(sans, "ffi"), w(sans, "ffl"), w(sans, "office"), w(sans, "Affine fluffy")];
+		var chromium = [68.896484375, 96.6796875, 96.6796875, 274.365234375, 576.234375];
+		var serif = fonts.match("DejaVu Serif");
+		if (serif != null && serif.family == "DejaVu Serif") {
+			got = got.concat([w(serif, "fi"), w(serif, "ffi"), w(serif, "office"), w(serif, "file"), w(serif, "office", 2)]);
+			chromium = chromium.concat([66.69921875, 103.02734375, 278.41796875, 157.861328125, 293.40625]);
+		}
+		var ok = true;
+		for (i in 0...got.length)
+			if (Math.abs(got[i] - chromium[i]) > 0.02) ok = false;
+		check("ligatures: widths as Chromium's (none with letter spacing)", ok, got.join(" "));
+		var l = new TextLayout("office", new FontSet(sans, [], 100), 1.2, Math.NaN);
+		var glyphs = l.lines[0].glyphs;
+		var o = l.caret(1).x, third = 96.6796875 / 3;
+		check("ligatures: one glyph for ffi, its carets by thirds", glyphs.length == 4 && Math.abs(l.caret(2).x - (o + third)) < 0.01
+			&& Math.abs(l.caret(3).x - (o + 2 * third)) < 0.01 && Math.abs(l.caret(4).x - (o + 3 * third)) < 0.01, [for (k in 0...7) l.caret(k).x].join(" "));
+		check("ligatures: hit by thirds", l.hit(o + third * 0.4, 50) == 1 && l.hit(o + third * 0.6, 50) == 2 && l.hit(o + third * 1.6, 50) == 3,
+			l.hit(o + third * 0.4, 50) + " " + l.hit(o + third * 0.6, 50) + " " + l.hit(o + third * 1.6, 50));
 	}
 
 	// text-align: justify: each word where Chromium puts it (DejaVu Sans at

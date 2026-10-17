@@ -33,7 +33,10 @@ text with, usable on its own.
   ligatures such as lam-alef), the caret at a character's leading edge.
   Emoji sequences (VS16, skin tones, zero width joiners, flags, keycaps)
   take a colour face and its ligatures, their widths as Chromium's;
-  default ignorable characters are hidden.
+  default ignorable characters are hidden. The standard ligatures (GSUB's
+  `liga` and `clig`: DejaVu's ff, fi, ffi...) are applied as Chromium
+  applies them, not where letters are spaced; widths match Chromium's,
+  carets and hits divide a ligature by its characters.
   Marks are placed by GPOS's anchors (`mark`, `mkmk`: on the base, its
   ligature component or the mark before), and a character and its marks
   become the composed character when the face has it (`Compose`:
