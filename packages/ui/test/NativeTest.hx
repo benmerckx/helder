@@ -4,7 +4,7 @@ import hxmc.ui.reactive.*;
 import hxmc.unsafe.*;
 
 // hxmc.ui.native on the platform's backend (make ui-draw-check: GTK 3 under
-// Xvfb; Win32 in CI): the native form (examples/NativeForm.hx) rendered into
+// Xvfb; Win32 and AppKit in CI): the native form (examples/NativeForm.hx) rendered into
 // a NativeHost; its controls' widgets made, measured by the platform, placed
 // where the layout put them (the platform's positions and sizes checked),
 // driven by the platform's own calls (NativeDriver: a click, text typed, a
@@ -25,7 +25,8 @@ class NativeTest {
 
 	static function main() {
 		var out = Sys.args()[0];
-		var backend:NativeBackend = if (Mem.os() == 2) new hxmc.ui.native.win32.Win32Backend() else new hxmc.ui.native.gtk.GtkBackend();
+		var backend:NativeBackend = if (Mem.os() == 2) new hxmc.ui.native.win32.Win32Backend() else if (Mem.os() == 1) new hxmc.ui.native.appkit.AppKitBackend() else
+			new hxmc.ui.native.gtk.GtkBackend();
 		var driver:NativeDriver = cast backend;
 		var host = new NativeHost("NativeTest", 440, 380, backend);
 		var app = new NativeForm();

@@ -12,7 +12,8 @@ import hxmc.unsafe.Mem;
 // step lays out and brings the widgets in step with the tree after a
 // change; run is the loop (in the browser it returns, and
 // requestAnimationFrame runs the steps). The backends: GTK 3 on Linux
-// (glibc mode), Win32's controls on Windows, the DOM in the browser.
+// (glibc mode), Win32's controls on Windows, AppKit's on macOS, the DOM in
+// the browser.
 class NativeHost {
 	public final backend:NativeBackend;
 	public final ui:Ui;
@@ -42,7 +43,7 @@ class NativeHost {
 	// the platform's backend (none yet on Windows and macOS)
 	// (one chain of constant tests: only the target's branch is compiled)
 	static function platform():NativeBackend {
-		return if (Mem.os() == 3) new hxmc.ui.native.dom.DomBackend() else if (Mem.os() == 1) throw "hxmc.ui.native: no backend for macOS yet" else
+		return if (Mem.os() == 3) new hxmc.ui.native.dom.DomBackend() else if (Mem.os() == 1) new hxmc.ui.native.appkit.AppKitBackend() else
 			if (Mem.os() == 2) new hxmc.ui.native.win32.Win32Backend() else new hxmc.ui.native.gtk.GtkBackend();
 	}
 

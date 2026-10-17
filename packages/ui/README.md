@@ -120,8 +120,8 @@ container, `nativeContainer` in run's options, with
 `packages/ui/imports.mjs`; tested in Chromium by `native-web.mjs`); the
 same `examples/NativeForm.hx` runs on both. Plain nodes only lay out (no
 backgrounds), and nothing scrolls yet. Win32 (the standard controls,
-comctl32 5's classic look until a visual styles manifest) runs `NativeTest`
-in CI; AppKit is next.
+comctl32 5's classic look until a visual styles manifest) and AppKit run
+`NativeTest` in CI.
 
 ## Accessibility
 
