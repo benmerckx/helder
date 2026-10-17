@@ -14,5 +14,9 @@
 		{"left": -10, "top": -10, "width": 110, "height": 40, "background": "#16a34a"}
 	]},
 	{"left": 230, "top": 170, "width": 70, "height": 50, "background": "#bfdbfe", "radius": "0 20 0 20", "border": 3, "borderColor": "#1e3a8a"},
-	{"left": 250, "top": 135, "width": 60, "height": 24, "background": "#f1f5f9", "radius": "12 12 12 12", "border": "1 1 3 1", "borderColor": "#475569"}
+	{"left": 250, "top": 135, "width": 60, "height": 24, "background": "#f1f5f9", "radius": "12 12 12 12", "border": "1 1 3 1", "borderColor": "#475569"},
+	{"left": 20, "top": 250, "width": 60, "height": 40, "background": "#ffffff", "radius": 8, "shadow": "0 4px 12px rgba(0, 0, 0, 0.35)"},
+	{"left": 105, "top": 250, "width": 60, "height": 40, "background": "#ffffff", "radius": 4, "shadow": "0 0 0 3px #3b82f6, 0 2px 6px rgba(0, 0, 0, 0.3)"},
+	{"left": 190, "top": 250, "width": 60, "height": 40, "background": "#e2e8f0", "radius": 10, "shadow": "inset 0 2px 6px rgba(0, 0, 0, 0.45)"},
+	{"left": 270, "top": 250, "width": 36, "height": 36, "background": "#fde68a", "radius": "12 2", "shadow": "4px 4px 0 #1f2937, inset -3px -3px 4px 1px rgba(146, 64, 14, 0.5)"}
 ]

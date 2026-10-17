@@ -340,13 +340,36 @@ class Renderer implements Canvas {
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
 		this.corners(corners, radius);
 		sides(null, 0);
+		// (CSS's blur: a Gaussian whose standard deviation is half of it, drawn out to three of them)
+		var sigma = blur * s / 2;
 		if (!flat) {
-			shape(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 3, blur * s, blur * s, 0);
+			shape(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 3, sigma, 3 * sigma, 0);
 			return;
 		}
-		var m = blur * s + 1;
+		var m = 3 * sigma + 1;
 		if (culled(x0 - m, y0 - m, x1 + m, y1 + m)) return;
-		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 3, blur * s, m, 0);
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 3, sigma, m, 0);
+	}
+
+	// an inset shadow in a padding box x, y, w, h (its corners): darkened from
+	// outside the box moved by dx, dy and shrunk by spread, blurred
+	public function insetShadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, dx:Float, dy:Float, spread:Float,
+			?corners:Corners) {
+		if (w <= 0 || h <= 0 || color.a == 0) return;
+		var s = scale;
+		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		this.corners(corners, radius);
+		qw0 = dx * s;
+		qw1 = dy * s;
+		qw2 = spread * s;
+		qw3 = 0;
+		var sigma = blur * s / 2;
+		if (!flat) {
+			shape(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 4, sigma, 0, 0);
+			return;
+		}
+		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
+		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, 4, sigma, 1, 0);
 	}
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners) {

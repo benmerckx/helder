@@ -934,6 +934,20 @@ class UiTest {
 			false;
 		} catch (e:Dynamic) true;
 		check("paint: Shadow.parse rejects one length", threw);
+		var list = Shadow.parse("0 0 0 3px #3b82f6, inset 0 1px 3px rgba(0, 0, 0, 0.5)");
+		check("paint: Shadow.parse, a list with inset and rgba()", list.spread == 3 && !list.inset && list.next != null && list.next.inset && list.next.y == 1
+			&& list.next.blur == 3 && list.next.color == Color.rgba(0, 0.5) && list.next.next == null && list.painted()[0] == list.next);
+		var ui2 = new Ui(new MonoText(), 200, 100);
+		ui2.root.style.alignItems = Start;
+		var sb = new Node("sb");
+		sb.style.set({width: 40, height: 20, background: Color.rgb(0xFFFFFF), borderWidth: 2, borderColor: Color.rgb(0), shadow: list});
+		ui2.root.append(sb);
+		ui2.update();
+		var rec2 = new Recording();
+		ui2.paint(rec2);
+		var kinds = [for (c in rec2.calls) c.split(" ")[0]];
+		check("paint: outer shadows under the background, inset ones over it in the padding box", kinds.join(",") == "shadow,rect,inset"
+			&& rec2.calls[2].indexOf("inset 2 2 36 16 0 ") == 0, rec2.calls.join("|"));
 		// the focus ring: shown when Tab moves the focus, hidden by a press
 		a.focusable = true;
 		ui.keyDown(Key.TAB, 0);
@@ -1341,6 +1355,10 @@ class Recording implements Canvas {
 
 	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners)
 		calls.push('shadow $x $y $w $h $radius ${hex(color)} $blur' + cs(corners));
+
+	public function insetShadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, dx:Float, dy:Float, spread:Float,
+			?corners:Corners)
+		calls.push('inset $x $y $w $h $radius ${hex(color)} $blur $dx $dy $spread' + cs(corners));
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)
 		calls.push('text $x $y $width' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));
