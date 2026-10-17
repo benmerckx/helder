@@ -8,20 +8,22 @@ package hxmc.ui;
 // translation they were pushed at.
 interface Canvas {
 	function translate(dx:Float, dy:Float):Void;
-	function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float):Void;
+	// corners (given): each corner's radius, over radius (top left, top right, bottom right, bottom left)
+	function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float, ?corners:Corners):Void;
 	function popClip():Void;
 	function pushOpacity(alpha:Float):Void;
 	function popOpacity():Void;
 	// an affine transform, in the current coordinates: x' = a x + c y + e, y' = b x + d y + f
 	function pushTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float):Void;
 	function popTransform():Void;
-	// a rectangle with rounded corners, filled, with a border inside it
-	function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color):Void;
+	// a rectangle with rounded corners, filled, with a border inside it;
+	// sides (given): each side's width, over borderWidth
+	function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color, ?corners:Corners, ?sides:Edges):Void;
 	// a rounded rectangle faded over blur pixels on each side of its edge
-	function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float):Void;
+	function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners):Void;
 	// the part u0, v0, u1, v1 (0...1) of an image stretched over a rectangle
 	// with rounded corners
-	function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float):Void;
+	function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners):Void;
 	// a TextEngine's paragraph with its first line's top left at (x, y), aligned in width;
 	// colors: its spans' (in the order of the spans it was laid out with), else color
 	function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>):Void;

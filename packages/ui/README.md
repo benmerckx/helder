@@ -66,7 +66,10 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     the node, in its colour, where Chromium draws them. `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's
     line-clamp puts it.
-  - Paint: `background`, `borderColor`, `radius`, `opacity`, `shadow`
+  - Paint: `background`, `borderColor`, `radius` (`corners`, or markup
+    `radius="12 12 0 0"`: each corner's, as CSS's border-radius; `borders`,
+    or `border-width="0 0 2 0"`: each side's width, laid out and drawn, the
+    inner corners quarter ellipses as Chromium draws them), `opacity`, `shadow`
     (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`. Colours are
     CSS's (`Color.parse`: hex, `rgb()`, `hsl()`, the 148 names, as Chromium
     computes them); `backgroundImage` (markup: `background="linear-gradient(...)"`)

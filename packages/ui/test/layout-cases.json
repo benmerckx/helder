@@ -555,6 +555,102 @@
 		}
 	},
 	{
+		"name": "border sides",
+		"width": 200,
+		"height": 200,
+		"tree": {
+			"style": {
+				"padding": 5,
+				"borders": [
+					2,
+					10,
+					6,
+					4
+				]
+			},
+			"children": [
+				{
+					"style": {
+						"height": 30
+					}
+				},
+				{
+					"style": {
+						"width": 50,
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "row border sides",
+		"width": 300,
+		"height": 60,
+		"tree": {
+			"style": {
+				"direction": "Row",
+				"borders": [
+					0,
+					0,
+					4,
+					0
+				]
+			},
+			"children": [
+				{
+					"style": {
+						"grow": 1
+					}
+				},
+				{
+					"style": {
+						"grow": 1,
+						"borders": [
+							1,
+							8,
+							1,
+							2
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "absolute in border sides",
+		"width": 200,
+		"height": 200,
+		"tree": {
+			"style": {
+				"borders": [
+					3,
+					6,
+					9,
+					12
+				]
+			},
+			"children": [
+				{
+					"style": {
+						"position": "Absolute",
+						"left": 10,
+						"right": 20,
+						"top": 5,
+						"bottom": 15
+					}
+				},
+				{
+					"style": {
+						"width": 30,
+						"height": 30,
+						"position": "Absolute"
+					}
+				}
+			]
+		}
+	},
+	{
 		"name": "padding sides",
 		"width": 200,
 		"height": 200,

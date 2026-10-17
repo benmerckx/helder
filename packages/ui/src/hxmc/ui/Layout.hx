@@ -74,8 +74,8 @@ class Layout {
 				return;
 			}
 		} else if (lookup(n, w, h, availW, availH)) return;
-		var pad = s.padding, bw = s.borderWidth;
-		var padL = pad.left + bw, padT = pad.top + bw, padH = pad.left + pad.right + 2 * bw, padV = pad.top + pad.bottom + 2 * bw;
+		var pad = s.padding, be = s.borderEdges;
+		var padL = pad.left + be.left, padT = pad.top + be.top, padH = pad.left + pad.right + be.left + be.right, padV = pad.top + pad.bottom + be.top + be.bottom;
 		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) {
 			// content: its measure in the content box
 			var iw = known(w) ? Math.max(0, w - padH) : Math.NaN, ih = known(h) ? Math.max(0, h - padV) : Math.NaN;
@@ -836,7 +836,7 @@ class Layout {
 	// absolute children, in the padding box of a container bw x bh
 	function absolutes(n:Node, absolute:Array<Node>, bw:Float, bh:Float, padL:Float, padT:Float) {
 		var s = n.style;
-		var pbW = bw - 2 * s.borderWidth, pbH = bh - 2 * s.borderWidth;
+		var be = s.borderEdges, pbW = bw - be.left - be.right, pbH = bh - be.top - be.bottom;
 		for (c in absolute) {
 			var cs = c.style, m = cs.margin;
 			var l = cs.left.resolve(pbW), r = cs.right.resolve(pbW), t = cs.top.resolve(pbH), b = cs.bottom.resolve(pbH);
@@ -850,10 +850,10 @@ class Layout {
 				aw = rw;
 				ah = rh;
 			}
-			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : padL - s.borderWidth + m.left;
-			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : padT - s.borderWidth + m.top;
-			c.lx = s.borderWidth + ax;
-			c.ly = s.borderWidth + ay;
+			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : padL - be.left + m.left;
+			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : padT - be.top + m.top;
+			c.lx = be.left + ax;
+			c.ly = be.top + ay;
 			size(c, aw, ah, pbW, pbH, aw, ah, true);
 			c.lw = aw;
 			c.lh = ah;
@@ -872,7 +872,7 @@ class Layout {
 		if (contribution && known(w)) return clamp(w, minW, maxW);
 		var cached = n.minContent;
 		if (known(cached)) return cached;
-		var bw = s.borderWidth, padH = s.padding.left + s.padding.right + 2 * bw;
+		var padH = s.padding.left + s.padding.right + s.borderEdges.left + s.borderEdges.right;
 		var inner = 0.0;
 		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) inner = n.minContentWidth(text) else if (s.display == Grid) inner = gridMinContent(n) else {
 			var row = (s.direction == Row || s.direction == RowReverse) && !s.wrap;

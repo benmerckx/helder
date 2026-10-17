@@ -177,6 +177,20 @@ class UiTest {
 		ui.paint(rec);
 		var calls = [for (c in rec.calls) if (StringTools.startsWith(c, "rect") || StringTools.startsWith(c, "image")) c.split(" ").slice(0, 2).join(" ")];
 		check("css: a node's gradient between its colour and its border", calls.join(",") == "rect 0,image 80x40,rect 0", calls.join(","));
+		// each corner's radius and each side's border: drawn with them, the clip inside them
+		var card = new Node("card2");
+		card.style.set({width: 60, height: 40, corners: [12, 12, 0, 0], borders: [1, 2, 4, 2], borderColor: Color.rgb(0x000000), overflow: Hidden});
+		ui.root.append(card);
+		ui.scale = 1;
+		ui.update();
+		rec = new Recording();
+		ui.paint(rec);
+		var all = rec.calls.join("|");
+		// (the clip: the padding box, each corner less the wider side meeting there)
+		check("corners and sides: drawn with them, clipped inside them", all.indexOf("corners 12,12,0,0 sides 1,2,4,2") > 0
+			&& all.indexOf("clip " + (card.absX + 2) + " " + (card.absY + 1) + " 56 35 0 corners 10,10,0,0") >= 0, all);
+		ui.root.remove(card);
+		ui.scale = 2;
 		var img = n.backgroundImage(2);
 		check("css: kept while the node's size stays", n.backgroundImage(2) == img && img.pixels.get(0) > 200 && img.pixels.get((79) * 4 + 2) > 200);
 	}
@@ -1012,6 +1026,7 @@ class UiTest {
 			case "rowGap": s.rowGap = v;
 			case "columnGap": s.columnGap = v;
 			case "borderWidth": s.borderWidth = v;
+			case "borders": s.borders = (v : Array<Float>);
 			case "padding": s.padding = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
 			case "margin": s.margin = Std.isOfType(v, Array) ? (v : Array<Float>) : (v : Float);
 			case "direction": s.direction = switch (v : String) {
@@ -1299,8 +1314,11 @@ class Recording implements Canvas {
 	public function translate(dx:Float, dy:Float)
 		calls.push('translate $dx $dy');
 
-	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float)
-		calls.push('clip $x $y $w $h $radius');
+	static function cs(c:Null<Corners>):String
+		return c == null ? "" : ' corners ${c.topLeft},${c.topRight},${c.bottomRight},${c.bottomLeft}';
+
+	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float, ?corners:Corners)
+		calls.push('clip $x $y $w $h $radius' + cs(corners));
 
 	public function popClip()
 		calls.push("pop");
@@ -1317,17 +1335,18 @@ class Recording implements Canvas {
 	public function popTransform()
 		calls.push("popTransform");
 
-	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color)
-		calls.push('rect $x $y $w $h $radius ${hex(fill)} $borderWidth ${hex(border)}');
+	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color, ?corners:Corners, ?sides:Edges)
+		calls.push('rect $x $y $w $h $radius ${hex(fill)} $borderWidth ${hex(border)}' + cs(corners)
+			+ (sides == null ? "" : ' sides ${sides.top},${sides.right},${sides.bottom},${sides.left}'));
 
-	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float)
-		calls.push('shadow $x $y $w $h $radius ${hex(color)} $blur');
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners)
+		calls.push('shadow $x $y $w $h $radius ${hex(color)} $blur' + cs(corners));
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)
 		calls.push('text $x $y $width' + (colors == null ? "" : " colors " + [for (c in colors) hex(c)].join(",")));
 
-	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float)
-		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius');
+	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners)
+		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius' + cs(corners));
 }
 
 // a clipboard whose reads are answered by the test, later (UiTest's fields)

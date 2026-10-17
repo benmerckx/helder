@@ -128,9 +128,9 @@ class NativeHost {
 					backend.update(h, n);
 					labels.set(h, key);
 				}
-				backend.place(h, n.absX + n.style.borderWidth + n.style.padding.left, n.absY + n.style.borderWidth + n.style.padding.top,
-					Math.max(0, n.width - 2 * n.style.borderWidth - n.style.padding.horizontal),
-					Math.max(0, n.height - 2 * n.style.borderWidth - n.style.padding.vertical));
+				var be = n.style.borderEdges;
+				backend.place(h, n.absX + be.left + n.style.padding.left, n.absY + be.top + n.style.padding.top,
+					Math.max(0, n.width - be.horizontal - n.style.padding.horizontal), Math.max(0, n.height - be.vertical - n.style.padding.vertical));
 				seen.set(n, true);
 			}
 			for (c in n.children)
@@ -174,7 +174,7 @@ private class NoCanvas implements Canvas {
 
 	public function translate(dx:Float, dy:Float) {}
 
-	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float) {}
+	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float, ?corners:Corners) {}
 
 	public function popClip() {}
 
@@ -186,11 +186,11 @@ private class NoCanvas implements Canvas {
 
 	public function popTransform() {}
 
-	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color) {}
+	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color, ?corners:Corners, ?sides:Edges) {}
 
-	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float) {}
+	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners) {}
 
-	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float) {}
+	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners) {}
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>) {}
 }
