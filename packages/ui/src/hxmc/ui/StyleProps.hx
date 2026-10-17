@@ -54,6 +54,7 @@ typedef StyleProps = {
 	?textAlign:TextAlign,
 	?dir:Dir,
 	?visibility:Visibility,
+	?textWrap:TextWrap,
 	?order:Int,
 	?zIndex:Int,
 	?maxLines:Int,

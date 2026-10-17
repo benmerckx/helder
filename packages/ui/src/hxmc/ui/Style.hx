@@ -192,6 +192,11 @@ class Style {
 	// nothing of it to assistive technology (its Visible descendants still are)
 	public var visibility(get, set):Null<Visibility>;
 
+	// whether text wraps at its box's width, inherited (null: the parent's;
+	// Wrap at the root; CSS's text-wrap-mode): NoWrap lays each line out
+	// whole, its min-content width that wide (line breaks still break)
+	public var textWrap(get, set):Null<TextWrap>;
+
 	// a text's lines at most (0: any), the last ending in an ellipsis when cut (CSS's line-clamp; not inherited)
 	public var maxLines(get, set):Int;
 
@@ -277,6 +282,9 @@ class Style {
 
 	inline function get_visibility():Null<Visibility>
 		return rare == null ? null : rare.visibility;
+
+	inline function get_textWrap():Null<TextWrap>
+		return rare == null ? null : rare.textWrap;
 
 	inline function get_order():Int
 		return rare == null ? 0 : rare.order;
@@ -379,6 +387,14 @@ class Style {
 		node.styleChanged(false);
 		// (what assistive technology sees changes)
 		Ui.accessEpoch++;
+		return v;
+	}
+
+	function set_textWrap(v:Null<TextWrap>):Null<TextWrap> {
+		if (v == textWrap) return v;
+		more().textWrap = v;
+		// (inherited: the text under it laid out again)
+		node.styleChanged(true);
 		return v;
 	}
 
@@ -835,6 +851,7 @@ class Style {
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
+		if (p.textWrap != null) textWrap = p.textWrap;
 		if (p.order != null) order = p.order;
 		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
@@ -879,6 +896,7 @@ private class StyleRare {
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
+	public var textWrap:Null<TextWrap> = null;
 	public var order:Int = 0;
 	public var zIndex:Int = 0;
 	public var textDecoration:Int = 0;

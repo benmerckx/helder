@@ -48,6 +48,7 @@ class UiTest {
 		stacking();
 		visibility();
 		rtlScroll();
+		noWrap();
 		culling();
 		selection();
 		fields();
@@ -397,6 +398,33 @@ class UiTest {
 		ui.update();
 		var bar:Array<Float> = @:privateAccess Ui.thumb(t, false);
 		check("rtl scroll: the vertical bar on the left", bar != null && bar[0] == t.absX + Ui.SCROLLBAR_INSET, "" + bar);
+	}
+
+	// textWrap NoWrap (inherited): a line kept whole past its box, its
+	// min-content as wide; Wrap again inside
+	static function noWrap() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		ui.root.style.alignItems = Start;
+		var box = new Node("box"), t = new TextNode("one two three");
+		box.style.set({width: 40, textWrap: NoWrap});
+		box.append(t);
+		ui.root.append(box);
+		ui.update();
+		var p = t.laidOut(), whole = p.width;
+		check("no wrap: one line, past its box", p.lineCount == 1 && t.width == 40 && whole > 40, p.lineCount + " " + whole);
+		box.style.width = DimValue.Auto;
+		var row = new Node("row");
+		row.style.set({width: 10, direction: Row});
+		ui.root.append(row);
+		var u = new TextNode("alpha beta");
+		row.append(u);
+		row.style.textWrap = NoWrap;
+		ui.update();
+		check("no wrap: the min-content width the whole line", u.width == u.laidOut().width && u.laidOut().lineCount == 1, "" + u.width);
+		t.style.textWrap = Wrap;
+		box.style.width = 40;
+		ui.update();
+		check("no wrap: Wrap again inside", t.laidOut().lineCount > 1, "" + t.laidOut().lineCount);
 	}
 
 	static function sticky() {

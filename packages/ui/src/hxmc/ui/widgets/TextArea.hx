@@ -35,6 +35,10 @@ class TextArea extends EditableText {
 	function innerHeight():Float
 		return Math.max(1, height - style.borderEdges.vertical - style.padding.vertical);
 
+	// (always wrapped, whatever it inherits: as a textarea's own pre-wrap)
+	override public function wraps():Bool
+		return true;
+
 	function laidAt():Null<Paragraph>
 		return ui == null ? null : layoutText(ui.text, innerWidth());
 

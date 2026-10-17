@@ -42,8 +42,11 @@ class TextNode extends Node {
 	}
 
 	// (from the max-content paragraph, which the layout asks for too)
-	override public function minContentWidth(engine:TextEngine):Float
-		return layoutText(engine, Math.NaN).minWidth;
+	// (not wrapped: as wide as its longest line)
+	override public function minContentWidth(engine:TextEngine):Float {
+		var p = layoutText(engine, Math.NaN);
+		return wraps() ? p.minWidth : p.width;
+	}
 
 	// the text laid out and drawn (EditableText: with its composition; with spans: theirs)
 	function shownText():String
@@ -149,8 +152,8 @@ class TextNode extends Node {
 		// (a direction set: its paragraphs in it)
 		var d = dir(), base = d == null ? -1 : d == Rtl ? 1 : 0;
 		text = paragraphKey(text, rich);
-		// (to 1/64 pixel up: a width measured from this text fits it again)
-		var w = Math.isNaN(maxWidth) ? maxWidth : Math.fceil(maxWidth * 64 - 1e-6) / 64;
+		// (to 1/64 pixel up: a width measured from this text fits it again; not wrapped: none)
+		var w = Math.isNaN(maxWidth) || !wraps() ? Math.NaN : Math.fceil(maxWidth * 64 - 1e-6) / 64;
 		var mp = maxParagraph != null && maxText == text && f.equals(maxFont) ? maxParagraph : null;
 		// (the unbounded paragraph first: the layout asks for it anyway, and a
 		// width it fits in lays it out the same)

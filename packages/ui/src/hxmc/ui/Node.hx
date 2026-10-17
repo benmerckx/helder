@@ -541,6 +541,17 @@ class Node {
 		return true;
 	}
 
+	// whether its text wraps: its textWrap, else its nearest ancestor's (Style.textWrap)
+	public function wraps():Bool {
+		var n = this;
+		while (n != null) {
+			var w = n.style.textWrap;
+			if (w != null) return w == Wrap;
+			n = n.parent;
+		}
+		return true;
+	}
+
 	public function textAlign():TextAlign {
 		var n = this;
 		while (n != null) {
