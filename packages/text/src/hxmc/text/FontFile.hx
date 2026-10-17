@@ -212,14 +212,21 @@ class FontFile {
 
 	// the GSUB lookups of a feature for a script (its default language
 	// system, else DFLT's), in the lookup list's order
-	public function gsubLookups(script:String, feature:String):Array<Int> {
-		var key = script + "/" + feature;
+	public function gsubLookups(script:String, feature:String):Array<Int>
+		return featureLookups("GSUB", script, feature);
+
+	// the same in GPOS
+	public function gposLookups(script:String, feature:String):Array<Int>
+		return featureLookups("GPOS", script, feature);
+
+	function featureLookups(table:String, script:String, feature:String):Array<Int> {
+		var key = table + "/" + script + "/" + feature;
 		var cached = gsubCache.get(key);
 		if (cached != null) return cached;
 		var out:Array<Int> = [];
 		gsubCache.set(key, out);
-		if (!tables.exists("GSUB")) return out;
-		var g = tables.get("GSUB");
+		if (!tables.exists(table)) return out;
+		var g = tables.get(table);
 		var scripts = g + u16(data, g + 4), features = g + u16(data, g + 6);
 		var langSys = -1;
 		for (want in [script, "DFLT"]) {
@@ -246,13 +253,30 @@ class FontFile {
 	final gsubCache = new Map<String, Array<Int>>();
 
 	// a GSUB lookup's subtables (offsets) and type, extensions unwrapped
-	function gsubSubtables(lookup:Int):{type:Int, flag:Int, subtables:Array<Int>} {
-		var g = tables.get("GSUB"), list = g + u16(data, g + 8);
+	inline function gsubSubtables(lookup:Int):{type:Int, flag:Int, subtables:Array<Int>}
+		return subtables("GSUB", lookup, 7);
+
+	// a lookup's subtables in a table (GSUB, GPOS: its extension type)
+	function subtables(table:String, lookup:Int, extension:Int):{type:Int, flag:Int, subtables:Array<Int>} {
+		var cache = extension == 9 ? gposSubtables : gsubSubtableCache;
+		var c = cache.get(lookup);
+		if (c != null) return c;
+		var r = readSubtables(table, lookup, extension);
+		cache.set(lookup, r);
+		return r;
+	}
+
+	final gposSubtables = new Map<Int, {type:Int, flag:Int, subtables:Array<Int>}>();
+	final gsubSubtableCache = new Map<Int, {type:Int, flag:Int, subtables:Array<Int>}>();
+
+	function readSubtables(table:String, lookup:Int, extension:Int):{type:Int, flag:Int, subtables:Array<Int>} {
+		var g = tables.get(table), list = g + u16(data, g + 8);
 		var t = list + u16(data, list + 2 + 2 * lookup);
 		var type = u16(data, t), flag = u16(data, t + 2), out = [];
+		var ext = type == extension;
 		for (s in 0...u16(data, t + 4)) {
 			var st = t + u16(data, t + 6 + 2 * s);
-			if (type == 7) {
+			if (ext) {
 				type = u16(data, st + 2);
 				st += u32(data, st + 4);
 			}
@@ -294,6 +318,81 @@ class FontFile {
 				}
 			}
 		return {glyph: 0, count: 0};
+	}
+
+	// --- GPOS's marks ---
+
+	// GDEF's class of a glyph: 1 base, 2 ligature, 3 mark, 4 component (0: unclassed, or no GDEF)
+	public function glyphClass(g:Int):Int {
+		if (gdefClasses == -2) {
+			gdefClasses = -1;
+			if (tables.exists("GDEF")) {
+				var d = tables.get("GDEF"), o = u16(data, d + 4);
+				if (o != 0) gdefClasses = d + o;
+			}
+		}
+		return gdefClasses < 0 ? 0 : classOf(gdefClasses, g);
+	}
+
+	var gdefClasses = -2;
+
+	public var hasGlyphClasses(get, never):Bool;
+
+	function get_hasGlyphClasses():Bool {
+		glyphClass(0);
+		return gdefClasses >= 0;
+	}
+
+	// the lookups of the features mark and mkmk for a script, in the lookup list's order
+	public function markLookups(script:String):Array<Int> {
+		var cached = markCache.get(script);
+		if (cached != null) return cached;
+		var out = gposLookups(script, "mark").concat(gposLookups(script, "mkmk"));
+		out.sort(Reflect.compare);
+		markCache.set(script, out);
+		return out;
+	}
+
+	final markCache = new Map<String, Array<Int>>();
+
+	// a mark attachment lookup's place for a mark: the offset (font units) from
+	// the glyph it attaches to (base: a base glyph, or a ligature with its
+	// component; prev: the mark before it) to the mark's origin, and whether
+	// it attaches to prev (null: the lookup does not apply)
+	public function markAttachment(lookup:Int, base:Int, component:Int, prev:Int, mark:Int):Null<{x:Int, y:Int, toPrev:Bool}> {
+		var l = subtables("GPOS", lookup, 9);
+		if (l.type < 4 || l.type > 6) return null;
+		for (st in l.subtables) {
+			if (u16(data, st) != 1) continue;
+			var to = l.type == 6 ? prev : base;
+			if (to < 0) continue;
+			var mi = coverage(st + u16(data, st + 2), mark);
+			if (mi < 0) continue;
+			var bi = coverage(st + u16(data, st + 4), to);
+			if (bi < 0) continue;
+			var classes = u16(data, st + 6);
+			var marks = st + u16(data, st + 8), bases = st + u16(data, st + 10);
+			if (mi >= u16(data, marks) || bi >= u16(data, bases)) continue;
+			var mr = marks + 2 + 4 * mi;
+			var cls = u16(data, mr), ma = marks + u16(data, mr + 2);
+			if (cls >= classes) continue;
+			var anchor = 0;
+			if (l.type == 5) {
+				// (a ligature: its components' anchors, the last one for a component past them)
+				var attach = bases + u16(data, bases + 2 + 2 * bi);
+				var count = u16(data, attach);
+				if (count == 0) continue;
+				var c = component < 0 || component >= count ? count - 1 : component;
+				var o = u16(data, attach + 2 + 2 * (c * classes + cls));
+				if (o != 0) anchor = attach + o;
+			} else {
+				var o = u16(data, bases + 2 + 2 * (bi * classes + cls));
+				if (o != 0) anchor = bases + o;
+			}
+			if (anchor == 0) continue;
+			return {x: s16(data, anchor + 2) - s16(data, ma + 2), y: s16(data, anchor + 4) - s16(data, ma + 4), toPrev: l.type == 6};
+		}
+		return null;
 	}
 
 	// a pair adjustment subtable's change to the first glyph's advance (NONE: it does not cover the pair)

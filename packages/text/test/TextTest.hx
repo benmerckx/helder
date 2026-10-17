@@ -12,6 +12,8 @@ import hxmc.text.*;
 //   right-to-left text, mirrored brackets; Hebrew laid out, its caret and hits
 // - Arabic: joining forms and the lam-alef ligature from GSUB, widths as
 //   Chromium (HarfBuzz) measures them, the caret inside the ligature
+// - marks: GPOS anchors and canonical compositions, the ink against
+//   Chromium's; fallback faces looked up lazily
 // - DejaVu Sans: discovery, metrics, cmap, advances, kerning, outlines;
 //   Inter: CFF outlines, GPOS kerning
 // - layout: widths, wrapping, hard breaks, caret and hit
@@ -182,6 +184,13 @@ class TextTest {
 		check("layout: hit", t.hit(c.x + 1, 5) == 5 && t.hit(-10, 5) == 0 && t.hit(1000, 5) == 11);
 		var t5 = new TextLayout("日本語のテキスト", set, 1.25, 40);
 		check("layout: CJK breaks anywhere", t5.lines.length >= 2, '${t5.lines.length}');
+		var asked = [];
+		var lazy = new FontSet(sans, [], 16, cp -> {
+			asked.push(cp);
+			cp == 0x304B ? sans : null;
+		});
+		check("layout: more fallbacks asked for what the faces lack", lazy.faceFor(0x304B) == sans && lazy.faceFor("a".code) == sans && asked.join(",") == "12363",
+			asked.join(","));
 		// Hebrew: placed right to left, the caret at each character's leading (right) edge
 		var he = new TextLayout("שלום", set, 1.25, Math.NaN);
 		var hw = he.width;
@@ -212,6 +221,38 @@ class TextTest {
 		var mixedAr = new TextLayout("ab سلام", set, 1.25, Math.NaN);
 		var arOrder = [for (g in mixedAr.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
 		check("arabic: a mixed line in visual order", arOrder == "ab ملس", arOrder);
+		// marks: GPOS's anchors (mark, mkmk), compositions the face has; the ink's
+		// left, right, ascent and descent at 100px against Chromium's measureText
+		for (c in [
+			{s: "x́", ink: [-2.0, 56, 80, 0.0]},
+			{s: "q̣́", ink: [-5, 55, 80, 39.947265625]},
+			{s: "Ж́", ink: [-1, 106, 98.212890625, 0.0]},
+			{s: "بَ", ink: [-6, 87, 61.234375, 18.0]},
+			{s: "مُحَمَّد", ink: [-6, 220.853515625, 83.91015625, 3.0]},
+			{s: "لاَ", ink: [7.67578125, 47, 85.6484375, 1.0]},
+			{s: "בָּ", ink: [-4, 54, 55, 20.0]},
+			{s: "שָׁ", ink: [-4, 72, 70, 20.0]},
+			{s: "ố", ink: [-5, 61, 85, 2.0]},
+			{s: "ậ", ink: [-6, 53, 80, 19.0]}
+		]) {
+			var t = new TextLayout(c.s, big, 1.25, Math.NaN);
+			var x0 = 1e9, x1 = -1e9, top = -1e9, bottom = 1e9;
+			for (g in t.lines[0].glyphs) {
+				var b = g.font.bounds(g.id), k = big.scale(g.font);
+				if (b[2] <= b[0]) continue;
+				x0 = Math.min(x0, g.x + g.dx + b[0] * k);
+				x1 = Math.max(x1, g.x + g.dx + b[2] * k);
+				top = Math.max(top, b[3] * k - g.dy);
+				bottom = Math.min(bottom, b[1] * k - g.dy);
+			}
+			var ours = [-x0, x1, top, -bottom];
+			var ok = true;
+			for (i in 0...4)
+				if (Math.abs(ours[i] - c.ink[i]) > 1.2) ok = false;
+			check("marks: " + c.s + ", its ink as Chromium's", ok, [for (v in ours) Math.round(v * 10) / 10].join(" ") + " / " + c.ink.join(" "));
+		}
+		var composed = new TextLayout("é", big, 1.25, Math.NaN).lines[0].glyphs;
+		check("marks: e and an acute as é", composed.length == 1 && composed[0].id == sans.glyph(0xE9) && composed[0].length == 2, '${composed.length}');
 		var empty = new TextLayout("", set, 1.25, 100);
 		check("layout: empty text is one line", empty.lines.length == 1 && empty.height == 20 && empty.width == 0);
 	}
@@ -234,11 +275,11 @@ class TextTest {
 			for (l in t.lines) {
 				var by = Math.round(y + l.top + t.baseline);
 				for (g in l.glyphs) {
-					var gx = 4 + g.x, ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
+					var gx = 4 + g.x + g.dx, ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
 					var a = atlas.get(g.font, g.id, size, sub);
 					for (py in 0...a.h)
 						for (px in 0...a.w) {
-							var X = ix + a.left + px, Y = by + a.top + py;
+							var X = ix + a.left + px, Y = by + Math.round(g.dy) + a.top + py;
 							if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
 							var cov = atlas.pixels.get((a.y + py) * atlas.width + a.x + px);
 							var o = 4 * (Y * W + X);

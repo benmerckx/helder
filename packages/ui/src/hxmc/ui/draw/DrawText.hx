@@ -12,6 +12,7 @@ class DrawText implements TextEngine {
 	public final fonts:SystemFonts;
 	final faces = new Map<String, FontFile>();
 	var fallbackFaces:Null<Array<FontFile>>;
+	var more:Null<Int->Null<FontFile>>;
 
 	public function new(?fonts:SystemFonts)
 		this.fonts = fonts == null ? SystemFonts.get() : fonts;
@@ -39,8 +40,11 @@ class DrawText implements TextEngine {
 	}
 
 	public function layout(text:String, font:Font, maxWidth:Float):Paragraph {
-		if (fallbackFaces == null) fallbackFaces = fonts.fallbacks();
-		var set = new FontSet(face(font), fallbackFaces, font.size);
+		if (fallbackFaces == null) {
+			fallbackFaces = fonts.fallbacks();
+			more = fonts.fallbackFor;
+		}
+		var set = new FontSet(face(font), fallbackFaces, font.size, more);
 		return new DrawParagraph(new TextLayout(text, set, font.lineHeight, maxWidth));
 	}
 }

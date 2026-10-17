@@ -215,11 +215,11 @@ class Renderer implements Canvas {
 			if (by - size * 1.5 > clipY1 || by + size < clipY0) continue;
 			for (g in l.glyphs) {
 				if (g.cp == 32 || g.cp == 10 || g.cp == 9) continue;
-				var gx = (ox + lx + g.x) * s, ix = Math.floor(gx);
+				var gx = (ox + lx + g.x + g.dx) * s, ix = Math.floor(gx);
 				var sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
 				var a = atlas.get(g.font, g.id, size, sub);
 				if (a.w == 0) continue;
-				var qx = ix + a.left, qy = by + a.top;
+				var qx = ix + a.left, qy = by + Math.round(g.dy * s) + a.top;
 				if (culled(qx, qy, qx + a.w, qy + a.h)) continue;
 				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0,
 					1, 0, 0, 0);

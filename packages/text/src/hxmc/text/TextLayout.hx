@@ -61,6 +61,17 @@ class TextLayout {
 					len = 2;
 				}
 			}
+			// (a mark composed with the character before it when that one's face has the composition, as HarfBuzz does)
+			if (count > 0 && c >= 0x300 && Bidi.classOf(c) == Bidi.NSM) {
+				var p = out[count - 1], k = Compose.pair(p.cp, c);
+				if (k > 0 && p.font.glyph(k) != 0) {
+					p.cp = k;
+					p.id = p.font.glyph(k);
+					p.length += len;
+					i += len;
+					continue;
+				}
+			}
 			var g = new Glyph();
 			g.cp = c;
 			g.cluster = i;
@@ -90,7 +101,47 @@ class TextLayout {
 			}
 			prev = g;
 		}
+		marks(out, fonts);
 		return out;
+	}
+
+	// GPOS's mark positioning (the features mark and mkmk, for the base's
+	// script), as HarfBuzz applies it: a glyph a lookup covers attached to
+	// the glyph before it that is not a mark (or that ligature's last
+	// component), or to the mark just before it, drawn at the anchors'
+	// offset; marks (GDEF's, else Unicode's nonspacing marks) take no advance
+	static function marks(gs:Array<Glyph>, fonts:FontSet) {
+		for (i in 0...gs.length) {
+			var g = gs[i], f = g.font;
+			if (f == null || g.cp == 10 || g.cp == 13) continue;
+			if (isMark(g)) g.advance = 0;
+			var b = i - 1;
+			while (b >= 0 && gs[b].font == f && isMark(gs[b]))
+				b--;
+			if (b < 0 || gs[b].font != f || gs[b].cp == 10) continue;
+			var base = gs[b], prev = gs[i - 1];
+			var component = base.parts > 1 ? base.parts - 1 : -1;
+			for (l in f.markLookups(script(base.cp))) {
+				var a = f.markAttachment(l, base.id, component, prev.font == f && isMark(prev) ? prev.id : -1, g.id);
+				if (a == null) continue;
+				var s = fonts.scale(f);
+				g.attach = a.toPrev ? prev : base;
+				g.ax = a.x * s;
+				g.ay = -a.y * s;
+			}
+		}
+	}
+
+	static inline function isMark(g:Glyph):Bool
+		return g.font.hasGlyphClasses ? g.font.glyphClass(g.id) == 3 : Bidi.classOf(g.cp) == Bidi.NSM;
+
+	// the OpenType script tag of a base character, for its features
+	static function script(c:Int):String {
+		if (Arabic.isArabic(c)) return "arab";
+		if (c >= 0x590 && c <= 0x5FF) return "hebr";
+		if (c >= 0x370 && c <= 0x3FF) return "grek";
+		if (c >= 0x400 && c <= 0x52F) return "cyrl";
+		return "latn";
 	}
 
 	// the glyphs' bidi levels, by paragraph (between "\n"s), when any is
@@ -223,21 +274,7 @@ class TextLayout {
 			l.base = base;
 			var cps = [for (g in gs) g.cp], lv = [for (g in gs) g.level];
 			var order = Bidi.reorder(cps, lv, base, start, end);
-			// (a right-to-left base's marks reversed before it: put back after it, as left to right draws them)
-			var m = 0;
-			while (m < order.length) {
-				var e = m;
-				while (e < order.length && gs[order[e]].level & 1 == 1 && Bidi.classOf(gs[order[e]].cp) == Bidi.NSM)
-					e++;
-				if (e > m && e < order.length && gs[order[e]].level & 1 == 1) {
-					var marks = order.slice(m, e);
-					marks.reverse();
-					order[m] = order[e];
-					for (k in 0...marks.length)
-						order[m + 1 + k] = marks[k];
-					m = e + 1;
-				} else m = e > m ? e : m + 1;
-			}
+			// (a right-to-left base's marks before it, as HarfBuzz leaves them: at its origin, unattached)
 			var k = 0;
 			for (i in order) {
 				var g = gs[i];
@@ -260,6 +297,13 @@ class TextLayout {
 				x += g.advance;
 				if (!isSpace(g.cp)) visible = x;
 			}
+		// (marks: drawn on the glyph they are attached to, logical order putting it first)
+		for (i in start...end) {
+			var g = gs[i], a = g.attach;
+			if (a == null || a.cluster < gs[start].cluster) continue;
+			g.dx = a.x + a.dx + g.ax - g.x;
+			g.dy = a.dy + g.ay;
+		}
 		l.width = visible;
 		l.advance = x;
 		l.start = start < end ? gs[start].cluster : emptyAt != null ? emptyAt : (start < gs.length ? gs[start].cluster : text.length);
@@ -360,6 +404,13 @@ class Glyph {
 	public var parts = 1;
 	// its bidi level (odd: right to left)
 	public var level = 0;
+	// where it is drawn from its place (pixels, y down): a mark on its base by GPOS's anchors
+	public var dx = 0.0;
+	public var dy = 0.0;
+	// (a mark: the glyph it is attached to, and its offset from that glyph's origin)
+	public var attach:Null<Glyph> = null;
+	public var ax = 0.0;
+	public var ay = 0.0;
 
 	public function new() {}
 }

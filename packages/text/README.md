@@ -17,7 +17,9 @@ text with, usable on its own.
   Windows, macOS; names read from each file's tables without loading it),
   and fonts added from bytes; `match(family, weight, italic)` picks a face
   as CSS does, with `sans-serif`, `serif` and `monospace` mapped to each
-  system's usual families; `fallbacks()` for characters a face lacks.
+  system's usual families; `fallbacks()` for characters a face lacks, then
+  `fallbackFor(cp)`, which loads a CJK or other script's face only when a
+  character first needs one.
 - `TextLayout`: text shaped (each character's glyph from the first face
   that has it, kerning between glyphs of the same face) and broken into
   lines (after spaces and hyphens, around CJK; a word wider than a line is
@@ -26,6 +28,11 @@ text with, usable on its own.
   levels left out, mirrored brackets), Arabic joined (`Arabic`: each
   letter's initial, medial, final or isolated form, then the required
   ligatures such as lam-alef), the caret at a character's leading edge.
+  Marks are placed by GPOS's anchors (`mark`, `mkmk`: on the base, its
+  ligature component or the mark before), and a character and its marks
+  become the composed character when the face has it (`Compose`:
+  Unicode's canonical pairs), as HarfBuzz does; Arabic, Hebrew and
+  combining accents match Chromium's ink in the tests.
 - `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
   packed into an R8 bitmap for a GPU texture, its changed region tracked.
 
@@ -46,8 +53,8 @@ ArrayBuffers); `SystemFonts` adds them.
 
 Limits, for now: no explicit bidi embeddings (LRE, RLI and the like), no
 optional ligatures or contextual alternates (GSUB's other lookups), no
-mark positioning (GPOS's marks: Arabic's vowel marks keep their own
-advances), no hinting, grayscale anti-aliasing. The same
+cursive attachment or Indic shaping, marks not reordered by combining
+class, no hinting, grayscale anti-aliasing. The same
 pixels on every machine, which makes golden-image tests portable; the
 platforms' shapers are the planned upgrade (`hxmc/UI.md`).
 

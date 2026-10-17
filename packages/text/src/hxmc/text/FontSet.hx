@@ -1,14 +1,18 @@
 package hxmc.text;
 
 // A face and the faces tried after it for characters it lacks (SystemFonts'
-// fallbacks), at a size in pixels: what TextLayout shapes with.
+// fallbacks, then a lookup of more: SystemFonts' fallbackFor, which loads
+// a face when a character first needs it), at a size in pixels: what
+// TextLayout shapes with.
 class FontSet {
 	public final primary:FontFile;
 	public final fallbacks:Array<FontFile>;
 	public final size:Float;
+	public final more:Null<Int->Null<FontFile>>;
 
-	public function new(primary:FontFile, ?fallbacks:Array<FontFile>, size:Float) {
+	public function new(primary:FontFile, ?fallbacks:Array<FontFile>, size:Float, ?more:Int->Null<FontFile>) {
 		this.primary = primary;
+		this.more = more;
 		this.fallbacks = fallbacks == null ? [] : [for (f in fallbacks) if (f != primary) f];
 		this.size = size;
 	}
@@ -22,6 +26,10 @@ class FontSet {
 		if (primary.glyph(cp) != 0) return primary;
 		for (f in fallbacks)
 			if (f.glyph(cp) != 0) return f;
+		if (more != null) {
+			var f = more(cp);
+			if (f != null) return f;
+		}
 		return primary;
 	}
 

@@ -27,8 +27,15 @@ class SystemFonts {
 
 	// fonts tried for characters the matched face lacks, in order
 	public static final FALLBACK = [
-		"DejaVu Sans", "Noto Sans", "Segoe UI", "Segoe UI Symbol", "Arial Unicode MS", "Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", "PingFang SC",
-		"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "FreeSans", "FreeSerif"
+		"DejaVu Sans", "Noto Sans", "Segoe UI", "Segoe UI Symbol", "Arial Unicode MS", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "FreeSans",
+		"FreeSerif"
+	];
+
+	// fonts tried after those, each loaded when a character first needs it: CJK, other scripts
+	public static final MORE = [
+		"Noto Sans CJK SC", "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Hiragino Sans", "Yu Gothic", "Malgun Gothic", "Apple SD Gothic Neo",
+		"Source Han Sans SC", "WenQuanYi Zen Hei", "WenQuanYi Micro Hei", "Droid Sans Fallback", "IPAGothic", "Noto Sans Arabic", "Noto Sans Hebrew",
+		"Noto Sans Devanagari", "Noto Sans Thai"
 	];
 
 	public function new() {}
@@ -83,6 +90,32 @@ class SystemFonts {
 		return out;
 	}
 
+	// the first of MORE's faces that has a character (null: none)
+	public function fallbackFor(cp:Int):Null<FontFile> {
+		if (moreFound.exists(cp)) return moreFound.get(cp);
+		if (moreFaces == null) {
+			scan();
+			moreFaces = [];
+			for (name in MORE) {
+				var fi = pick(name, 400, false);
+				if (fi != null && !moreFaces.contains(fi)) moreFaces.push(fi);
+			}
+		}
+		var found:Null<FontFile> = null;
+		for (fi in moreFaces) {
+			var f = load(fi);
+			if (f != null && f.glyph(cp) != 0) {
+				found = f;
+				break;
+			}
+		}
+		moreFound.set(cp, found);
+		return found;
+	}
+
+	var moreFaces:Null<Array<FaceInfo>> = null;
+	final moreFound = new Map<Int, Null<FontFile>>();
+
 	// the families found, sorted
 	public function families():Array<String> {
 		scan();
@@ -95,6 +128,11 @@ class SystemFonts {
 	}
 
 	function best(name:String, weight:Int, italic:Bool):Null<FontFile> {
+		var pick = pick(name, weight, italic);
+		return pick == null ? null : load(pick);
+	}
+
+	function pick(name:String, weight:Int, italic:Bool):Null<FaceInfo> {
 		var lower = name.toLowerCase();
 		var pick:Null<FaceInfo> = null, score = 1 << 30;
 		for (fi in faces) {
@@ -105,7 +143,7 @@ class SystemFonts {
 				pick = fi;
 			}
 		}
-		return pick == null ? null : load(pick);
+		return pick;
 	}
 
 	function load(fi:FaceInfo):Null<FontFile> {
