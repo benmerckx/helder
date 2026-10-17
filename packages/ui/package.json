@@ -4,7 +4,8 @@
   "description": "A UI toolkit for hxmc, in pure Haxe: a retained node tree with flexbox layout, events and focus (hxmc.ui), drawn with the GPU on hxmc.gfx (hxmc.ui.draw), signals and a renderer for ESX markup (hxmc.ui.reactive)",
   "license": "MIT",
   "files": [
-    "src/"
+    "src/",
+    "imports.mjs"
   ],
   "haxe": {
     "name": "hxmc.ui",

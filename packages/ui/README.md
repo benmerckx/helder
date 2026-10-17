@@ -78,7 +78,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   tests); the widgets' colours and the switch's knob use them.
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`), and the components `Button`, `Checkbox`, `Switch`, `Radio`, `Slider`,
+  `EditableText`), and the components `Button`, `Checkbox`, `Toggle` (a switch), `Radio`, `Slider`,
   `Progress`, `Tabs`, `Field`, `Area`; `examples/Gallery.hx` shows them all.
 
 ## Markup
@@ -105,6 +105,21 @@ each other become one `TextNode`.
 Text is shaped and rasterized by `@hxmc/text` with the system's fonts
 (`sans-serif` by default). In a browser, give the page's fonts to `run`
 (`fonts: [...]` with `packages/text/imports.mjs`).
+
+## Accessibility
+
+`hxmc.ui.access` builds the tree assistive technology sees (AccessKit's
+model: roles, names, states, actions) from the nodes: each node's
+`semantics` (in markup: `role`, `label`, `description`, `checked`,
+`selected`, `expanded`, `disabled`, `value-now`, `value-min`,
+`value-max`, `value-text`), text as labels, focusable nodes as groups; the
+widgets declare theirs. `Ui.accessTree()` gives it, `AccessTree.changes`
+the incremental update, `Ui.accessAction` does what a screen reader asks
+(click, focus, increment, decrement, set a value). In a browser the window
+mirrors it as ARIA elements inside its canvas (the canvas's fallback
+content: in the page's accessibility tree, not drawn): load
+`packages/ui/imports.mjs` with the others. The native adapters (UI
+Automation, NSAccessibility, AT-SPI) are not written yet.
 
 ## Tests
 

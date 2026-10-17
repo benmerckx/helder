@@ -4,6 +4,7 @@ import hxmc.gfx.*;
 import hxmc.os.App;
 import hxmc.os.Event as OsEvent;
 import hxmc.ui.*;
+import hxmc.unsafe.*;
 
 // A window showing a UI tree drawn with the GPU: an hxmc.os Window, its
 // gfx Device, a Renderer and the Ui (root: the tree's root node, in the
@@ -11,7 +12,9 @@ import hxmc.ui.*;
 // keys, text); a frame lays the tree out and draws it, when there is
 // something new to draw (needsFrame: the Ui asked for one, the window was
 // resized or lost its pixels). run() is the app loop for every UiWindow
-// open, which sleeps while none has a frame to draw.
+// open, which sleeps while none has a frame to draw. In the browser each
+// frame's accessibility tree goes to the mirror in the canvas (WebAccess:
+// load packages/ui/imports.mjs), and the actions asked for come back.
 class UiWindow {
 	public final window:hxmc.os.Window;
 	public final device:Device;
@@ -35,6 +38,8 @@ class UiWindow {
 	var drawnW = 0;
 	var drawnH = 0;
 	var drawnScale = 0.0;
+	// the tree sent to the browser's mirror last
+	var access:Null<hxmc.ui.access.AccessTree>;
 	final pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
 	var buttons = 0;
 
@@ -85,7 +90,27 @@ class UiWindow {
 			capture = null;
 		}
 		device.endFrame();
+		sendAccess();
 		if (onFrame != null) onFrame();
+	}
+
+	// the tree's changes to the browser's mirror (the guards inside: an
+	// instance method is compiled whether called or not, and the browser's
+	// imports must stay out of the other targets)
+	function sendAccess() {
+		if (Mem.os() == 3) {
+			var t = ui.accessTree();
+			var json = t.changesJson(access);
+			access = t;
+			if (json != null) WebMirror.send(window.surface.handle.toI64().toInt(), json);
+		}
+	}
+
+	// the actions assistive technology asked for (the browser's), done
+	function pollAccess() {
+		if (Mem.os() == 3) {
+			if (access != null) WebMirror.poll(ui);
+		}
 	}
 
 	// the window's cursor: the Ui's (hxmc.os.Cursor has Default for Auto first)
@@ -131,6 +156,8 @@ class UiWindow {
 		App.run(() -> {
 			var drew = false;
 			for (w in open.copy())
+				w.pollAccess();
+			for (w in open.copy())
 				if (w.needsFrame()) {
 					w.frame();
 					drew = true;
@@ -152,4 +179,18 @@ class SystemClipboard implements ClipboardHost {
 
 	public function read(callback:Null<String>->Void)
 		hxmc.os.Clipboard.read(window, callback);
+}
+
+// the browser's accessibility mirror (WebAccess), apart: its imports are
+// reached only from the browser's branches
+class WebMirror {
+	public static function send(canvas:Int, json:String)
+		Arena.scoped(a -> WebAccess.access_update(canvas, a.cstring(json)));
+
+	public static function poll(ui:Ui)
+		Arena.scoped(a -> {
+			var p:Ptr<Int32> = a.alloc(8);
+			while (WebAccess.access_action(p) != 0)
+				ui.accessAction(p[0], p[1]);
+		});
 }

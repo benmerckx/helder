@@ -17,6 +17,7 @@ class TextArea extends EditableText {
 
 	public function new(text = "") {
 		super(text, "textarea");
+		semantics.role = MultilineTextInput;
 		onWheel = e -> {
 			var p = laidAt();
 			if (p == null) return;

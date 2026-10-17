@@ -2,7 +2,9 @@
 // headless Chromium on WebGPU, then on WebGL2 (forced), its canvas driven
 // by real events (Playwright's mouse and keyboard: clicks, typing, Enter,
 // Shift+Left; Control+A, X and V through the page's clipboard), the same
-// steps as TodoTest's, then its pixels compared with
+// steps as TodoTest's; its accessibility tree (the ARIA mirror in the
+// canvas) checked, a checkbox activated through it as a screen reader
+// would; then its pixels compared with
 // todo.png (TodoTest's frame: our own text rasterizer, so the glyphs are
 // the same; the GPUs' edges may differ a little).
 //   node packages/ui/test/web.mjs <WebTodo.wasm> [out dir]
@@ -25,6 +27,7 @@ const files = {
 	'/os/imports.mjs': path.join(here, '../../os/imports.mjs'),
 	'/gfx/imports.mjs': path.join(here, '../../gfx/imports.mjs'),
 	'/text/imports.mjs': path.join(here, '../../text/imports.mjs'),
+	'/ui/imports.mjs': path.join(here, '../imports.mjs'),
 	'/compare.mjs': path.join(here, '../../gfx/test/compare.mjs'),
 	'/todo.png': path.join(here, 'todo.png'),
 	'/DejaVuSans.ttf': FONT,
@@ -38,7 +41,7 @@ import { run } from './os/browser.mjs';
 import { decode, compare } from './compare.mjs';
 window.log = [];
 window.start = async (gfx) => {
-	window.r = run('todo.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs', 'text/imports.mjs'], canvas: 'c', gfx,
+	window.r = run('todo.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs', 'text/imports.mjs', 'ui/imports.mjs'], canvas: 'c', gfx,
 		fonts: ['DejaVuSans.ttf', 'DejaVuSans-Bold.ttf'], stdout: (s) => window.log.push(s), stderr: (s) => window.log.push('stderr: ' + s) });
 	window.result = await window.r;
 	return window.result.host.gfx.backend;
@@ -127,6 +130,20 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	const r = await p.evaluate(() => window.check());
 	// (over a button: Window.cursor set the canvas's CSS cursor)
 	const cursor = await p.evaluate(() => document.querySelector('canvas').style.cursor);
+	// the accessibility tree: roles, names, states (Chromium's own, through
+	// the DevTools protocol: a canvas's fallback content is in it)
+	const cdp = await p.context().newCDPSession(p);
+	const ax = (await cdp.send('Accessibility.getFullAXTree')).nodes.filter((n) => !n.ignored);
+	const aria = ax.map((n) => {
+		const checked = (n.properties ?? []).find((q) => q.name === 'checked');
+		return `${n.role?.value} "${n.name?.value ?? ''}"` + (checked && checked.value.value === 'true' ? ' [checked]' : '');
+	}).join('\n');
+	const want = ['textbox "What needs to be done?"', 'button "Add"', 'checkbox "Buy milk" [checked]', 'checkbox "Write the renderer"', 'button "Remove"', 'button "all"'];
+	const missing = want.filter((w) => !aria.includes(w));
+	// a screen reader's activation: a click on the mirror's checkbox, then the count
+	await p.evaluate(() => [...document.querySelectorAll('#c [role=checkbox]')].find((e) => e.getAttribute('aria-label') === 'Write the renderer').click());
+	await settle();
+	const activated = (await boxes()).line.split(' | ')[1];
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
 		const png = await p.evaluate(async () => {
@@ -136,9 +153,10 @@ for (const gfx of ['webgpu', 'webgl2']) {
 		});
 		await writeFile(path.join(out, `todo-${gfx}.png`), Buffer.from(png));
 	}
-	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && errors.length === 0 && backend === gfx;
+	const ok = r.ok && state === '2 items left | 3' && cursor === 'pointer' && cut === 'Ship it' && missing.length === 0 && activated === '1 item left' && errors.length === 0 && backend === gfx;
 	if (!ok) failed++;
-	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}${ok ? '' : ' FAILED'}`);
+	console.log(`web.mjs: ${gfx}: ${r.text}; state: ${state}; cursor: ${cursor}; cut: ${cut}; access: ${missing.length ? 'missing ' + missing.join(', ') : 'ok'}, activated: ${activated}${ok ? '' : ' FAILED'}`);
+	if (missing.length) console.log(aria);
 	for (const e of errors) console.log('  error: ' + e);
 	if (backend !== gfx) console.log('  on ' + backend);
 	await p.close();

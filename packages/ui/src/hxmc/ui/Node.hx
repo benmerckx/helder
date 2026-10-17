@@ -49,6 +49,10 @@ class Node {
 	public var onBlur:Null<Event->Void>;
 	// takes the keyboard focus when clicked or tabbed to
 	public var focusable = false;
+	// what it is to assistive technology (hxmc.ui.access.AccessTree)
+	public var semantics:Null<hxmc.ui.access.Semantics> = null;
+	// its id in the accessibility tree (0: none yet)
+	@:allow(hxmc.ui.access) var accessId = 0;
 	// the pointer is over it (or a descendant), the button is down on it, it has the focus
 	public var hovered(default, null) = false;
 	public var pressed(default, null) = false;
@@ -236,6 +240,10 @@ class Node {
 	// or unbounded)
 	public function measureContent(text:TextEngine, knownWidth:Float, knownHeight:Float, availWidth:Float, availHeight:Float):Size
 		return Size.ZERO;
+
+	// assistive technology sets its value (a text input's text): false when it has none
+	public function accessSetValue(value:String):Bool
+		return false;
 
 	// the content's min-content width (its widest unbreakable part)
 	public function minContentWidth(text:TextEngine):Float

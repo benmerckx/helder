@@ -370,6 +370,37 @@ class Ui {
 		return Default;
 	}
 
+	// --- accessibility ---
+
+	var lastAccess:Null<hxmc.ui.access.AccessTree>;
+
+	// the accessibility tree now (after update): what accessAction acts in
+	public function accessTree():hxmc.ui.access.AccessTree
+		return lastAccess = hxmc.ui.access.AccessTree.build(this);
+
+	// assistive technology's request on a node of the last accessTree():
+	// false when the node is gone or does not take it
+	public function accessAction(id:Int, action:hxmc.ui.access.AccessAction, ?value:String):Bool {
+		var n = lastAccess == null ? null : lastAccess.node(id);
+		if (n == null || n.ui != this) return false;
+		switch action {
+			case Click:
+				var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+				bubble(new Event(Click, n, x, y));
+			case Focus:
+				if (!n.focusable) return false;
+				setFocus(n);
+				focusVisible = true;
+				requestFrame();
+			case Increment | Decrement:
+				if (n.focusable) setFocus(n);
+				keyDown(action == Increment ? Key.RIGHT : Key.LEFT, 0);
+			case SetValue:
+				if (value == null || !n.accessSetValue(value)) return false;
+		}
+		return true;
+	}
+
 	// --- scrollbars ---
 
 	static function viewSize(n:Node, x:Bool):Float {

@@ -22,8 +22,10 @@ import hxmc.ui.reactive.Memo;
 // padding={8}, background="#3b82f6"; style={StyleProps} for several), the
 // events (onClick, onPointerDown, onPointerUp, onPointerMove,
 // onPointerEnter, onPointerLeave, onWheel, onKeyDown, onKeyUp,
-// onTextInput, onFocus, onBlur: Event -> Void), focusable, and ref (a
-// function given the node). A Signal, Memo or function as a value (but an
+// onTextInput, onFocus, onBlur: Event -> Void), focusable, ref (a
+// function given the node), and what the node is to assistive technology
+// (Semantics: role, label, description, checked, selected, expanded,
+// disabled, value-now, value-min, value-max, value-text). A Signal, Memo or function as a value (but an
 // event's) is bound: set again when it changes. In a view, a run of text
 // and holes whose values are text becomes one TextNode (reactive if one of
 // them is). A component's factory is called once, untracked, inside its
@@ -236,6 +238,28 @@ class Render {
 				(cast n : TextNode).text = v == null ? "" : Std.string(v);
 			case "tag":
 				n.tag = v;
+			case "role":
+				semantics(n).role = role(v);
+			case "label":
+				semantics(n).label = v == null ? null : Std.string(v);
+			case "description":
+				semantics(n).description = v == null ? null : Std.string(v);
+			case "checked":
+				semantics(n).checked = v == null ? null : v == true || v == "true";
+			case "selected":
+				semantics(n).selected = v == null ? null : v == true || v == "true";
+			case "expanded":
+				semantics(n).expanded = v == null ? null : v == true || v == "true";
+			case "disabled":
+				semantics(n).disabled = v == true || v == "true";
+			case "value-now" | "valueNow":
+				semantics(n).valueNow = number(v);
+			case "value-min" | "valueMin":
+				semantics(n).valueMin = number(v);
+			case "value-max" | "valueMax":
+				semantics(n).valueMax = number(v);
+			case "value-text" | "valueText":
+				semantics(n).valueText = v == null ? null : Std.string(v);
 			case "src" if (Std.isOfType(n, ImageNode)):
 				(cast n : ImageNode).image = v;
 			case "fit" if (Std.isOfType(n, ImageNode)):
@@ -250,6 +274,31 @@ class Render {
 				if (!StyleAttrs.apply(n.style, name, v)) throw 'hxmc.ui: <${n.tag}> has no attribute $name';
 		}
 	}
+
+	static function semantics(n:Node):hxmc.ui.access.Semantics {
+		if (n.semantics == null) n.semantics = {};
+		return n.semantics;
+	}
+
+	static function number(v:Dynamic):Null<Float>
+		return v == null ? null : Std.isOfType(v, String) ? Std.parseFloat(v) : (v : Float);
+
+	// a role as ARIA writes it ("button", "checkbox", "progressbar"), or a Role
+	static function role(v:Dynamic):Null<hxmc.ui.access.Role> {
+		if (v == null || !Std.isOfType(v, String)) return v;
+		for (r in ROLES)
+			if (r.aria() == v) return r;
+		return switch (v : String) {
+			case "textarea" | "multiline": MultilineTextInput;
+			case "label": Label;
+			case _: throw 'hxmc.ui: role="$v" is not one of hxmc.ui.access.Role\'s';
+		}
+	}
+
+	static final ROLES:Array<hxmc.ui.access.Role> = [
+		Group, Button, CheckBox, Switch, RadioGroup, RadioButton, Slider, ProgressIndicator, TextInput, Label, Image, TabList, Tab, TabPanel, ScrollView,
+		List, ListItem, Heading, Link
+	];
 
 	static function event(n:Node, name:String, v:Dynamic) {
 		var h:Null<Event->Void> = v;

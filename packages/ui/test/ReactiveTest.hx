@@ -4,6 +4,11 @@ import hxmc.ui.*;
 import hxmc.ui.reactive.*;
 import hxmc.ui.reactive.Flow.*;
 import hxmc.ui.reactive.Reactive.*;
+import hxmc.ui.access.*;
+import hxmc.ui.widgets.Widgets.Button;
+import hxmc.ui.widgets.Widgets.Checkbox;
+import hxmc.ui.widgets.Widgets.Slider;
+import hxmc.ui.widgets.Widgets.Field;
 
 // hxmc.ui.reactive's tests, on Eval (make ui-check runs them after UiTest):
 // signals, memos and effects (tracking, batching, no glitches, ownership
@@ -11,7 +16,8 @@ import hxmc.ui.reactive.Reactive.*;
 // style attributes, text runs, reactive text and attributes, regions,
 // For and Show, components, events through a Ui; then context, onMount,
 // Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
-// transitions, springs and colours on a Clock ticked by hand
+// transitions, springs and colours on a Clock ticked by hand; the
+// accessibility tree of widgets in markup, its actions and changes
 class ReactiveTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -21,6 +27,7 @@ class ReactiveTest implements Markup {
 		rendering();
 		flow();
 		motion();
+		access();
 		Sys.println('ReactiveTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -136,6 +143,51 @@ class ReactiveTest implements Markup {
 			if (props.when.value) throw "boom";
 			"fine";
 		}}</text>;
+	}
+
+	static function access() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var checked = signal(false), vol = signal(0.5), name = signal("");
+		var saved = 0;
+		Render.render(<view>
+			<text>Settings</text>
+			<Button tag="save" label="Save" onClick={() -> saved++}/>
+			<Checkbox tag="check" checked={checked} label="Remember"/>
+			<Slider tag="vol" value={vol} step={0.1} label="Volume"/>
+			<Field tag="name" value={name} placeholder="Name"/>
+			<view><text>nested</text><image label="a picture" src={new Image(4, 4)} width={4} height={4}/></view>
+		</view>, ui.root);
+		ui.update();
+		var t = ui.accessTree();
+		var top = t.nodes.get(t.root);
+		var kids = [for (id in top.children) t.nodes.get(id)];
+		var shape = [for (k in kids) k.role.aria() + ":" + k.name].join(",");
+		check("access: the tree (groups without a role left out, names from content)",
+			shape == "text:Settings,button:Save,checkbox:Remember,slider:Volume,textbox:Name,text:nested,img:a picture", shape);
+		var box = kids[2], slider = kids[3], field = kids[4];
+		check("access: states", box.checked == false && box.focusable && slider.valueNow == 0.5 && slider.valueMin == 0 && slider.valueMax == 1 && field.value == "");
+		check("access: a button's text is its name, not a node", kids[1].children.length == 0);
+		var save = ui.root.find("save");
+		check("access: bounds", kids[1].x == save.absX && kids[1].width == save.width);
+		// actions
+		check("access: Click", ui.accessAction(kids[1].id, Click) && saved == 1);
+		ui.accessAction(box.id, Click);
+		ui.update();
+		var t2 = ui.accessTree();
+		var c = t2.changes(t);
+		check("access: a click toggles the checkbox; only it changed", t2.nodes.get(box.id).checked == true && c.nodes.length == 1 && c.nodes[0].id == box.id,
+			[for (n in c.nodes) n.role.aria()].join(","));
+		ui.accessAction(slider.id, Increment);
+		ui.update();
+		var t3 = ui.accessTree();
+		check("access: Increment steps the slider and focuses it", Math.abs(t3.nodes.get(slider.id).valueNow - 0.6) < 1e-9 && t3.focus == slider.id);
+		check("access: SetValue types into a field", ui.accessAction(field.id, SetValue, "Ada") && name.value == "Ada");
+		ui.update();
+		var t4 = ui.accessTree();
+		check("access: the field's value", t4.nodes.get(field.id).value == "Ada");
+		check("access: Focus", ui.accessAction(field.id, Focus) && ui.focus == ui.root.find("name"));
+		check("access: no change, no update", t4.changesJson(t4) == null && t4.changesJson(null) != null);
+		check("access: an action on a node gone", !ui.accessAction(9999999, Click));
 	}
 
 	static function motion() {

@@ -91,7 +91,7 @@ class Gallery implements Markup {
 			</view>)}
 			{section("TOGGLES", <view direction="row" column-gap={24} align-items="center">
 				<Checkbox tag="check" checked={checked} label="Checkbox"/>
-				<Switch tag="switch" on={on} label={"Switch"}/>
+				<Toggle tag="switch" on={on} label={"Switch"}/>
 				<text tag="toggles" color="#52525b">{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
 			</view>)}
 			{section("RADIO", <view direction="row" column-gap={24}>

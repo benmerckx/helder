@@ -44,6 +44,13 @@ class EditableText extends TextNode {
 		onPointerUp = e -> dragging = false;
 		onFocus = e -> changed();
 		onBlur = e -> changed();
+		semantics = {role: hxmc.ui.access.Role.TextInput};
+	}
+
+	override public function accessSetValue(value:String):Bool {
+		select(0, text.length);
+		replace(value);
+		return true;
 	}
 
 	// sets the text from outside (the caret clamped)
