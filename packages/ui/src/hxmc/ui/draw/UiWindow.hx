@@ -72,6 +72,8 @@ class UiWindow {
 		if (Mem.os() == 3) ui.platform = WebMirror.views(window.surface.handle.toI64().toInt());
 		// (Windows': EDIT controls over the window)
 		else if (Mem.os() == 2) ui.platform = new WinViews(window.surface.handle, ui, () -> renderer.scale);
+		// (macOS': NSTextFields over the window)
+		else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
 		open.push(this);
 	}
 

@@ -385,8 +385,12 @@ follow the node's both ways, the keys it leaves to the program (Tab,
 Escape; Enter, Up and Down on one line) go to the window, and the field is
 drawn again while a popup covers it or a scroller clips it. In the
 browser the editors are the page's input and textarea over the canvas
-(`WebViews`; `web-field.mjs` drives them in Chromium); the desktop and
-Android come next. InputOTP keeps its field drawn.
+(`WebViews`; `web-field.mjs` drives them in Chromium); on Windows EDIT
+controls, children of the window, coloured through WM_CTLCOLOREDIT with the
+background behind them (`WinViews`; `WinAccessTest`); on macOS
+NSTextFields over the window's content view, in the system's font, a text
+area staying drawn (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
+and Android draw them still. InputOTP keeps its field drawn.
 
 ## Accessibility
 

@@ -13,7 +13,10 @@ import hxmc.unsafe.*;
 // widgets, its tree read back as assistive technology reads it, through
 // the NSAccessibility protocol (the view's children, their roles, labels,
 // values and frames; the focused element; a hit test), and the actions
-// performed on its elements (press, increment) reaching the widgets.
+// performed on its elements (press, increment) reaching the widgets. Its
+// field native (MacViews: an NSTextField over the window): the program's
+// text in it, an edit (its delegate told, as AppKit tells it) in the
+// field's signal, Tab left to the window moving its focus on.
 //   MacAccessTest
 class MacAccessTest implements Markup {
 	static var failed = 0;
@@ -88,7 +91,32 @@ class MacAccessTest implements Markup {
 							'${volume.value} ' + str(elements[3], "accessibilityValue"));
 						check("the focused element", Msg.id(view, ObjC.sel("accessibilityFocusedUIElement")) == elements[3]);
 					}
+					var eds:Array<hxmc.ui.draw.MacViews.MacEditor> = @:privateAccess hxmc.ui.draw.MacViews.editors;
+					check("the field native: one NSTextField", eds.length == 1, "" + eds.length);
+					name.value = "Ada";
 					step = 2;
+				case 2:
+					var eds:Array<hxmc.ui.draw.MacViews.MacEditor> = @:privateAccess hxmc.ui.draw.MacViews.editors;
+					if (eds.length == 1) {
+						var field = @:privateAccess eds[0].field;
+						check("the program's text in the NSTextField", @:privateAccess eds[0].text() == "Ada", @:privateAccess eds[0].text());
+						var t = ObjC.str("Adax");
+						Msg.vPtr(field, ObjC.sel("setStringValue:"), t);
+						var note = Msg.idPtrPtr(ObjC.cls("NSNotification"), ObjC.sel("notificationWithName:object:"), t, field);
+						Msg.vPtr(@:privateAccess hxmc.ui.draw.MacViews.delegate, ObjC.sel("controlTextDidChange:"), note);
+						w.ui.setFocus(w.root.find("name"));
+					}
+					step = 3;
+				case 3:
+					check("an edit in the NSTextField, the field's signal follows", name.value == "Adax", name.value);
+					var eds:Array<hxmc.ui.draw.MacViews.MacEditor> = @:privateAccess hxmc.ui.draw.MacViews.editors;
+					if (eds.length == 1)
+						Msg.idPtrPtrPtr(@:privateAccess hxmc.ui.draw.MacViews.delegate, ObjC.sel("control:textView:doCommandBySelector:"), @:privateAccess eds[0].field,
+							Ptr.nil(), ObjC.sel("insertTab:"));
+					step = 4;
+				case 4:
+					check("Tab left to the window: its focus on", w.ui.focus != null && w.ui.focus.tag == "save", w.ui.focus == null ? "none" : w.ui.focus.tag);
+					step = 5;
 					w.close();
 				case _:
 			}
@@ -97,6 +125,6 @@ class MacAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('MacAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 10 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 14 ? 0 : 1);
 	}
 }
