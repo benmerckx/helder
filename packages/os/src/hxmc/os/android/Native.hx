@@ -8,6 +8,9 @@ import hxmc.unsafe.*;
 // fast call (a collection may run while the thread waits in it).
 @:hxmc.c @:hxmc.fast @:hxmc.lib("libandroid.so") extern class Android {
 	static function ALooper_prepare(opts:Int):Ptr;
+	static function ALooper_forThread():Ptr;
+	static function ALooper_acquire(looper:Ptr):Void;
+	static function ALooper_wake(looper:Ptr):Void;
 	static function ALooper_addFd(looper:Ptr, fd:Int, ident:Int, events:Int, callback:Ptr, data:Ptr):Int;
 	static function AInputQueue_attachLooper(queue:Ptr, looper:Ptr, ident:Int, callback:Ptr, data:Ptr):Void;
 	static function AInputQueue_detachLooper(queue:Ptr):Void;
@@ -28,6 +31,8 @@ import hxmc.unsafe.*;
 	static function ANativeWindow_acquire(window:Ptr):Void;
 	static function ANativeWindow_release(window:Ptr):Void;
 	static function ANativeActivity_finish(activity:Ptr):Void;
+	static function AChoreographer_getInstance():Ptr;
+	static function AChoreographer_postFrameCallback64(choreographer:Ptr, callback:Ptr, data:Ptr):Void;
 	static function AConfiguration_new():Ptr;
 	static function AConfiguration_fromAssetManager(config:Ptr, assets:Ptr):Void;
 	static function AConfiguration_getDensity(config:Ptr):Int;
@@ -38,6 +43,12 @@ import hxmc.unsafe.*;
 @:hxmc.c @:hxmc.lib("libandroid.so") extern class Looper {
 	// (blocks: a safe region around it)
 	static function ALooper_pollOnce(timeoutMillis:Int, outFd:Ptr, outEvents:Ptr, outData:Ptr):Int;
+}
+
+// a call through a C function pointer from no-GC code (MainThread: a
+// @:hxmc.callback, whose wrapper leaves the thread's safe region)
+@:hxmc.c @:hxmc.fast extern class Indirect {
+	@:hxmc.indirect static function call0(f:Ptr):Void;
 }
 
 @:hxmc.c @:hxmc.fast @:hxmc.lib("liblog.so") extern class Log {
