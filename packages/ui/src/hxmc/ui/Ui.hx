@@ -47,6 +47,13 @@ class Ui {
 
 	// the thumb being dragged: its node, axis, the pointer and scroll it started at
 	var drag:Null<Node> = null;
+	// drag and drop: the node a press may drag (its dragData), where it went down; the drag, its target that accepts
+	var dragSource:Null<Node> = null;
+	var dragFromX = 0.0;
+	var dragFromY = 0.0;
+	// what is being dragged and where (null: nothing)
+	public var dragging(default, null):Null<{source:Node, data:Dynamic, x:Float, y:Float}> = null;
+	var dropTarget:Null<Node> = null;
 	var dragX = false;
 	var dragFrom = 0.0;
 	var dragScroll = 0.0;
@@ -145,10 +152,84 @@ class Ui {
 			setScroll(n, dragX, v);
 			return;
 		}
+		// (a press on a draggable moved past 4 pixels: its drag starts)
+		if (dragging == null && dragSource != null && capture != null && Math.abs(x - dragFromX) + Math.abs(y - dragFromY) > 4) {
+			var s = dragSource;
+			dragSource = null;
+			var e = new Event(DragStart, s, x, y);
+			e.data = s.dragData;
+			bubble(e);
+			if (!e.defaultPrevented) {
+				setPressed(capture, false);
+				capture = null;
+				dragging = {source: s, data: s.dragData, x: x, y: y};
+			}
+		}
 		var target = hit(x, y);
 		setHover(target);
+		if (dragging != null) {
+			dragging.x = x;
+			dragging.y = y;
+			dragOver(target, x, y);
+			requestFrame();
+			return;
+		}
 		var to = capture != null ? capture : target;
 		if (to != null) bubble(new Event(PointerMove, to, x, y));
+	}
+
+	// the drag over target: from it up, the first that accepts (DragOver
+	// with preventDefault) is the drop target; the one before it hears DragLeave
+	function dragOver(target:Null<Node>, x:Float, y:Float) {
+		// (left first: the pointer no longer inside the target that accepted, as HTML orders it)
+		if (dropTarget != null && (target == null || !contains(dropTarget, target))) {
+			leaveDrop(x, y);
+			dropTarget = null;
+		}
+		var accepted:Null<Node> = null;
+		var n = target;
+		while (n != null && accepted == null) {
+			if (n.onDragOver != null) {
+				var e = new Event(DragOver, target, x, y);
+				e.data = dragging.data;
+				n.onDragOver(e.at(n));
+				if (e.defaultPrevented) accepted = n;
+			}
+			n = n.parent;
+		}
+		if (dropTarget != null && dropTarget != accepted) leaveDrop(x, y);
+		dropTarget = accepted;
+	}
+
+	function leaveDrop(x:Float, y:Float) {
+		var t = dropTarget;
+		if (t == null || t.onDragLeave == null) return;
+		var e = new Event(DragLeave, t, x, y);
+		e.data = dragging.data;
+		t.onDragLeave(e.at(t));
+	}
+
+	// the drag ended: dropped on its target (Drop) or not, the source told (DragEnd)
+	function endDrag(drop:Bool, x:Float, y:Float) {
+		var d = dragging, t = dropTarget;
+		dragging = null;
+		dropTarget = null;
+		if (t != null && !drop && t.onDragLeave != null) {
+			var e = new Event(DragLeave, t, x, y);
+			e.data = d.data;
+			t.onDragLeave(e.at(t));
+		}
+		var dropped = drop && t != null;
+		if (dropped && t.onDrop != null) {
+			var e = new Event(Drop, t, x, y);
+			e.data = d.data;
+			t.onDrop(e.at(t));
+		}
+		var e = new Event(DragEnd, d.source, x, y);
+		e.data = d.data;
+		e.dropped = dropped;
+		bubble(e);
+		requestFrame();
 	}
 
 	public function pointerDown(x:Float, y:Float, button:Int) {
@@ -167,6 +248,11 @@ class Ui {
 		}
 		if (scrollbarDown(target, x, y)) return;
 		capture = target;
+		dragSource = target;
+		while (dragSource != null && dragSource.dragData == null)
+			dragSource = dragSource.parent;
+		dragFromX = x;
+		dragFromY = y;
 		setPressed(target, true);
 		var e = new Event(PointerDown, target, x, y);
 		e.button = button;
@@ -186,6 +272,12 @@ class Ui {
 		if (drag != null) {
 			drag = null;
 			requestFrame();
+			setHover(hit(x, y));
+			return;
+		}
+		dragSource = null;
+		if (dragging != null) {
+			endDrag(true, x, y);
 			setHover(hit(x, y));
 			return;
 		}
@@ -234,6 +326,11 @@ class Ui {
 
 	public function keyDown(key:Int, mods:Int) {
 		this.mods = mods | modOf(key);
+		// (Escape during a drag: it ends, not dropped)
+		if (dragging != null && key == Key.ESCAPE) {
+			endDrag(false, pointerX, pointerY);
+			return;
+		}
 		var e = new Event(KeyDown, focus != null ? focus : root, pointerX, pointerY);
 		e.key = key;
 		e.mods = mods;
@@ -482,6 +579,8 @@ class Ui {
 				case KeyUp: n.onKeyUp;
 				case TextInput: n.onTextInput;
 				case Composition: n.onComposition;
+				case DragStart: n.onDragStart;
+				case DragEnd: n.onDragEnd;
 				case _: null;
 			}
 			if (h != null) h(e.at(n));

@@ -269,6 +269,8 @@ class Render {
 		switch name {
 			case "focusable":
 				n.focusable = v == true || v == "true";
+			case "dragData" | "drag-data":
+				n.dragData = v;
 			case "style":
 				if (v != null) n.style.set(v);
 			case "text" if (Std.isOfType(n, TextNode)):
@@ -360,6 +362,11 @@ class Render {
 			case "onTextInput": n.onTextInput = h;
 			case "onFocus": n.onFocus = h;
 			case "onBlur": n.onBlur = h;
+			case "onDragStart": n.onDragStart = h;
+			case "onDragOver": n.onDragOver = h;
+			case "onDragLeave": n.onDragLeave = h;
+			case "onDrop": n.onDrop = h;
+			case "onDragEnd": n.onDragEnd = h;
 			case _: throw 'hxmc.ui: no event $name';
 		}
 	}

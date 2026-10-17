@@ -130,6 +130,9 @@ Attributes:
   `onPointerEnter`, `onPointerLeave`, `onWheel`, `onKeyDown`, `onKeyUp`,
   `onTextInput`, `onFocus`, `onBlur` (an `Event -> Void`);
 - `focusable`, `ref={n -> ...}` (the node), `tag="name"` (for `Node.find`).
+- drag and drop: `drag-data={value}` makes a node draggable; `onDragStart`,
+  `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`
+  accepts), `onDragLeave` and `onDrop` (`e.data`) on targets; Escape cancels.
 
 A value that is a signal, a memo or a function is reactive: the attribute,
 text or region follows it. In a `view`, text and text-valued holes next to

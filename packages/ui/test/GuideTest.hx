@@ -33,6 +33,7 @@ class GuideTest implements Markup {
 		grids();
 		richText();
 		themes();
+		dragAndDrop();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -294,6 +295,56 @@ class GuideTest implements Markup {
 		dark.value = false;
 		Clock.finish();
 		check("themes: and back", b.style.background == light);
+	}
+
+	// "Drag and drop": a list sorted by dragging
+	static function Sortable(props:{items:Signal<Array<String>>}):Esx {
+		var over = signal("");
+		function move(what:String, before:String) {
+			var list = props.items.value.filter(x -> x != what);
+			list.insert(list.indexOf(before), what);
+			props.items.value = list;
+		}
+		return <view row-gap={4}>
+			<For each={props.items} render={(name:String) -> <view tag={"item-" + name} drag-data={name} padding={6}
+				background={() -> over.value == name ? "#dbeafe" : "#ffffff"}
+				onDragOver={e -> {
+					e.preventDefault();
+					over.value = name;
+				}}
+				onDragLeave={_ -> over.value = ""}
+				onDrop={e -> {
+					over.value = "";
+					if (e.data != name) move(e.data, name);
+				}}>{name}</view>}/>
+		</view>;
+	}
+
+	static function dragAndDrop() {
+		var ui = window();
+		var items = signal(["a", "b", "c", "d"]), clicks = 0;
+		Render.render(<view onClick={_ -> clicks++}><Sortable items={items}/></view>, ui.root);
+		ui.update();
+		function center(tag:String) {
+			var n = ui.root.find(tag);
+			return {x: n.absX + n.width / 2, y: n.absY + n.height / 2};
+		}
+		var a = center("item-a"), c = center("item-c");
+		ui.pointerDown(a.x, a.y, 1);
+		ui.pointerMove(a.x, a.y + 10);
+		check("drag and drop: a drag starts past 4 pixels", ui.dragging != null && ui.dragging.data == "a");
+		ui.pointerMove(c.x, c.y);
+		ui.update();
+		check("drag and drop: the target under it accepts", ui.root.find("item-c").style.background == Color.parse("#dbeafe"));
+		ui.pointerUp(c.x, c.y, 1);
+		ui.update();
+		check("drag and drop: dropped, the list sorted", items.value.join("") == "bacd" && ui.dragging == null && clicks == 0, items.value.join("") + " " + clicks);
+		var d = center("item-d"), b = center("item-b");
+		ui.pointerDown(d.x, d.y, 1);
+		ui.pointerMove(b.x, b.y);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.pointerUp(b.x, b.y, 1);
+		check("drag and drop: Escape cancels", items.value.join("") == "bacd" && ui.root.find("item-b").style.background == Color.parse("#ffffff"), items.value.join(""));
 	}
 
 	static function customNodes() {

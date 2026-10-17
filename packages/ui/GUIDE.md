@@ -264,6 +264,41 @@ static function Confirm(props:{onYes:Void->Void}):Esx {
 }
 ```
 
+## Drag and drop
+
+A node with `drag-data` can be dragged: a press that moves past 4 pixels
+starts a drag carrying that value. Nodes under the pointer hear
+`onDragOver` and accept the drop by calling `e.preventDefault()`, as in
+HTML; the one that accepted hears `onDragLeave` when the pointer moves
+on, and `onDrop` with `e.data` on release. The source hears
+`onDragStart` and `onDragEnd` (`e.dropped`), and Escape cancels:
+
+```haxe
+static function Sortable(props:{items:Signal<Array<String>>}):Esx {
+	var over = signal("");
+	function move(what:String, before:String) {
+		var list = props.items.value.filter(x -> x != what);
+		list.insert(list.indexOf(before), what);
+		props.items.value = list;
+	}
+	return <view row-gap={4}>
+		<For each={props.items} render={(name:String) -> <view tag={"item-" + name} drag-data={name} padding={6}
+			background={() -> over.value == name ? "#dbeafe" : "#ffffff"}
+			onDragOver={e -> {
+				e.preventDefault();
+				over.value = name;
+			}}
+			onDragLeave={_ -> over.value = ""}
+			onDrop={e -> {
+				over.value = "";
+				if (e.data != name) move(e.data, name);
+			}}>{name}</view>}/>
+	</view>;
+}
+```
+
+`ui.dragging` gives what is dragged and where, to draw it under the pointer.
+
 ## Your own nodes
 
 The intrinsic elements cover boxes, text and images. For anything drawn,

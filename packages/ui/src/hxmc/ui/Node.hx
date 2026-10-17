@@ -50,6 +50,15 @@ class Node {
 	public var onComposition:Null<Event->Void>;
 	public var onFocus:Null<Event->Void>;
 	public var onBlur:Null<Event->Void>;
+	// drag and drop: dragData makes it draggable (what its drag carries);
+	// the handlers of a source (start, end) and of a target (over: call
+	// preventDefault to accept; leave; drop)
+	public var dragData:Dynamic = null;
+	public var onDragStart:Null<Event->Void>;
+	public var onDragOver:Null<Event->Void>;
+	public var onDragLeave:Null<Event->Void>;
+	public var onDrop:Null<Event->Void>;
+	public var onDragEnd:Null<Event->Void>;
 	// takes the keyboard focus when clicked or tabbed to
 	public var focusable = false;
 	// what it is to assistive technology (hxmc.ui.access.AccessTree)

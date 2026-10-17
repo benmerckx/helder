@@ -14,6 +14,13 @@ enum abstract EventType(Int) {
 	var Composition;
 	var Focus;
 	var Blur;
+	// drag and drop (Node.dragData): the source's start and end, a target's
+	// over (preventDefault accepts the drop), leave and drop
+	var DragStart;
+	var DragOver;
+	var DragLeave;
+	var Drop;
+	var DragEnd;
 }
 
 // An event as Ui dispatches it: to the target, then (unless stopped) to
@@ -38,6 +45,9 @@ class Event {
 	// Composition: the caret in text (UTF-16)
 	public var caret = 0;
 	// Wheel: the scroll in pixels (down and right positive)
+	// drag and drop: what is dragged (the source's dragData); DragEnd: whether it was dropped
+	public var data:Dynamic = null;
+	public var dropped = false;
 	public var deltaX = 0.0;
 	public var deltaY = 0.0;
 	public var stopped(default, null) = false;
