@@ -3,13 +3,25 @@ package hxmc.ui;
 import haxe.io.Bytes;
 
 // GIF files decoded to RGBA8 (Image.decode), as browsers show an image of
-// one: the first frame, on the logical screen's size (what it leaves
-// uncovered transparent), with its local or the global colour table, its
-// transparent index (the graphic control extension), interlaced or not;
-// the LZW codes from the minimum size up to 12 bits, clear and end codes.
-// Later frames (an animation) are not decoded.
+// one: each frame composed on the logical screen's size (what no frame
+// covered transparent) with its local or the global colour table, its
+// transparent index, interlaced or not, after the frame before was
+// disposed of as it asked (left, cleared to transparent, or the screen
+// restored to what it was before it); the LZW codes from the minimum size
+// up to 12 bits, clear and end codes. decode gives the first frame; frames
+// all of them, with their delays (seconds, as written: players make a
+// short one longer) and the repetitions after the first play (the
+// NETSCAPE2.0 extension's; 0 in it: forever, -1; without it: 0).
 class GifDecoder {
 	public static function decode(gif:Bytes):{width:Int, height:Int, rgba:Bytes} {
+		var a = read(gif, true);
+		return {width: a.width, height: a.height, rgba: a.frames[0].rgba};
+	}
+
+	public static function frames(gif:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>}
+		return read(gif, false);
+
+	static function read(gif:Bytes, first:Bool):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
 		if (gif.length < 13 || gif.getString(0, 3) != "GIF") throw "GifDecoder: not a GIF file";
 		inline function u16(p:Int):Int
 			return gif.get(p) | (gif.get(p + 1) << 8);
@@ -22,14 +34,29 @@ class GifDecoder {
 			global = p;
 			p += 3 * globalSize;
 		}
-		var transparent = -1;
+		var frames:Array<{rgba:Bytes, delay:Float}> = [];
+		var repetitions = 0;
+		// the screen, and the next frame's graphic control (transparent index, delay, disposal)
+		var screen = Bytes.alloc(width * height * 4);
+		screen.fill(0, screen.length, 0);
+		var transparent = -1, delay = 0.0, disposal = 0;
 		while (p < gif.length) {
 			var b = gif.get(p++);
 			if (b == 0x3B) break;
 			if (b == 0x21) {
 				var label = gif.get(p++);
-				// the graphic control extension: the transparent index
-				if (label == 0xF9 && gif.get(p) >= 4) transparent = gif.get(p + 1) & 1 != 0 ? gif.get(p + 4) : -1;
+				// the graphic control extension: disposal, delay (1/100 s), the transparent index
+				if (label == 0xF9 && gif.get(p) >= 4) {
+					var f = gif.get(p + 1);
+					disposal = (f >> 2) & 7;
+					delay = u16(p + 2) / 100;
+					transparent = f & 1 != 0 ? gif.get(p + 4) : -1;
+				}
+				// the application extension NETSCAPE2.0: the loop count
+				if (label == 0xFF && gif.get(p) == 11 && gif.getString(p + 1, 11) == "NETSCAPE2.0" && gif.get(p + 12) >= 3 && gif.get(p + 13) == 1) {
+					var n = u16(p + 14);
+					repetitions = n == 0 ? -1 : n;
+				}
 				while (p < gif.length && gif.get(p) != 0)
 					p += gif.get(p) + 1;
 				p++;
@@ -53,9 +80,10 @@ class GifDecoder {
 				data.addBytes(gif, p + 1, n);
 				p += n + 1;
 			}
+			p++;
 			var indices = lzw(data.getBytes(), minCode, w * h);
-			var rgba = Bytes.alloc(width * height * 4);
-			rgba.fill(0, rgba.length, 0);
+			// (restore to previous: the screen as it was before this frame)
+			var before = disposal == 3 ? screen.sub(0, screen.length) : null;
 			var interlaced = ip & 0x40 != 0;
 			// (interlaced: rows 0, 8, 16..., then 4, 12..., then 2, 6..., then 1, 3...)
 			var rows = interlaced ? [for (pass in [[0, 8], [4, 8], [2, 4], [1, 2]]) for (r in 0...Std.int((h - pass[0] + pass[1] - 1) / pass[1])) pass[0] + r * pass[1]] : [for (r in 0...h) r];
@@ -68,15 +96,25 @@ class GifDecoder {
 					var i = indices.get(k * w + x);
 					if (i == transparent || i >= tableSize) continue;
 					var o = 4 * (y * width + X), c = table + 3 * i;
-					rgba.set(o, gif.get(c));
-					rgba.set(o + 1, gif.get(c + 1));
-					rgba.set(o + 2, gif.get(c + 2));
-					rgba.set(o + 3, 255);
+					screen.set(o, gif.get(c));
+					screen.set(o + 1, gif.get(c + 1));
+					screen.set(o + 2, gif.get(c + 2));
+					screen.set(o + 3, 255);
 				}
 			}
-			return {width: width, height: height, rgba: rgba};
+			frames.push({rgba: screen.sub(0, screen.length), delay: delay});
+			if (first) break;
+			// this frame disposed of before the next: cleared to transparent, or the screen before it
+			if (disposal == 2) {
+				for (y in top...Std.int(Math.min(top + h, height)))
+					screen.fill(4 * (y * width + left), 4 * (Std.int(Math.min(left + w, width)) - left), 0);
+			} else if (before != null) screen = before;
+			transparent = -1;
+			delay = 0;
+			disposal = 0;
 		}
-		throw "GifDecoder: no image";
+		if (frames.length == 0) throw "GifDecoder: no image";
+		return {width: width, height: height, repetitions: repetitions, frames: frames};
 	}
 
 	// the LZW codes to n colour indices (what is missing: 0)

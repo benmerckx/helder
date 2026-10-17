@@ -17,7 +17,7 @@ import hxmc.ui.reactive.Memo;
 //
 // Intrinsic elements: view (a Node), text (a TextNode of its children's
 // text), scroll (a Node with Overflow Scroll), image (an ImageNode: src, an
-// Image; fit, "fill", "contain", "cover" or "none"); elements registers more.
+// Image or an AnimatedImage, played; fit, "fill", "contain", "cover" or "none"); elements registers more.
 // Their attributes: Style properties (StyleAttrs: direction="row",
 // padding={8}, background="#3b82f6"; style={StyleProps} for several), the
 // events (onClick, onPointerDown, onPointerUp, onPointerMove,
@@ -263,7 +263,12 @@ class Render {
 			case "value-text" | "valueText":
 				semantics(n).valueText = v == null ? null : Std.string(v);
 			case "src" if (Std.isOfType(n, ImageNode)):
-				(cast n : ImageNode).image = v;
+				// (an animation: its image, played)
+				if (Std.isOfType(v, AnimatedImage)) {
+					var anim:AnimatedImage = v;
+					(cast n : ImageNode).image = anim.image;
+					anim.play();
+				} else (cast n : ImageNode).image = v;
 			case "fit" if (Std.isOfType(n, ImageNode)):
 				(cast n : ImageNode).fit = Std.isOfType(v, String) ? switch (v : String).toLowerCase() {
 					case "fill": Fill;

@@ -3,8 +3,11 @@
 // transparent colour, a frame smaller than the screen at an offset, an
 // animation's first frame), each with the RGBA8 pixels Chromium decodes from
 // it (<case>.rgba; cases.json: names and sizes), which GifDecoder must give
-// exactly. ImageMagick (convert) encodes them. UiTest decodes them (make
-// ui-check).
+// exactly; and animations (frames at offsets, each disposal method,
+// transparency, a delay of 0), each frame as Chromium's ImageDecoder
+// composes it (<case>.frames.rgba, one after the other; cases.json: their
+// durations and the repetition count). ImageMagick (convert) encodes them.
+// UiTest decodes them (make ui-check).
 //   node packages/ui/test/gif-cases.mjs   (needs ImageMagick and Playwright)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -65,6 +68,14 @@ function png(px, w, h) {
 const tmp = fs.mkdtempSync(path.join(out, '.src-'));
 const src = path.join(tmp, 'src.png');
 fs.writeFileSync(src, png(source(37, 29), 37, 29));
+// (small frames: a solid red, a solid blue square)
+const solid = (name, r, g, b) => {
+	const f = path.join(tmp, name + '.png'), w = 12, h = 10, px = Buffer.alloc(w * h * 3);
+	for (let i = 0; i < w * h; i++) [px[3 * i], px[3 * i + 1], px[3 * i + 2]] = [r, g, b];
+	fs.writeFileSync(f, png(px, w, h));
+	return f;
+};
+const red = solid('red', 220, 30, 30), blue = solid('blue', 30, 60, 220);
 const cases = [
 	['dither-256', [src]],
 	['colors-4', [src, '+dither', '-colors', '4']],
@@ -75,11 +86,24 @@ const cases = [
 	['animation', [src, '(', src, '-negate', ')', '-delay', '10', '-loop', '0']],
 	['large', ['-size', '160x120', 'plasma:fractal', '-seed', '1']],
 ];
+// animations: the frames composed (each disposal method; transparency over the frame before)
+const animations = [
+	['anim-none', ['-delay', '20', '-dispose', 'None', src, '-page', '+5+4', red, '-page', '+14+12', blue, '-loop', '0']],
+	['anim-background', ['-delay', '15', '-dispose', 'Background', src, '-page', '+5+4', red, '-page', '+14+12', blue, '-loop', '3']],
+	['anim-previous', ['-delay', '10', '-dispose', 'None', src, '-dispose', 'Previous', '-page', '+5+4', red, '-dispose', 'None', '-page', '+14+12', blue]],
+	['anim-transparent', ['-delay', '0', '-dispose', 'None', src, '(', src, '-negate', '+dither', '-colors', '16', '-fuzz', '30%', '-transparent', 'rgb(25,235,215)', ')', '-loop', '0']],
+];
 const files = [];
 for (const [name, args] of cases) {
 	const file = path.join(out, name + '.gif');
 	execFileSync('convert', [...args, file]);
 	files.push([name, file]);
+}
+const animated = [];
+for (const [name, args] of animations) {
+	const file = path.join(out, name + '.gif');
+	execFileSync('convert', [...args, file]);
+	animated.push([name, file]);
 }
 fs.rmSync(tmp, { recursive: true });
 
@@ -97,6 +121,31 @@ for (const [name, file] of files) {
 	}, fs.readFileSync(file).toString('base64'));
 	fs.writeFileSync(path.join(out, name + '.rgba'), Buffer.from(r.data));
 	index.push({ name, width: r.w, height: r.h });
+}
+// Chromium's frames (ImageDecoder: a secure context, a page at localhost)
+await page.route('http://localhost/', (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html>' }));
+await page.goto('http://localhost/');
+for (const [name, file] of animated) {
+	const r = await page.evaluate(async (b64) => {
+		const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+		const dec = new ImageDecoder({ data: bytes, type: 'image/gif' });
+		await dec.tracks.ready;
+		const t = dec.tracks.selectedTrack, frames = [], data = [];
+		let w = 0, h = 0;
+		for (let i = 0; i < t.frameCount; i++) {
+			const { image } = await dec.decode({ frameIndex: i });
+			w = image.displayWidth;
+			h = image.displayHeight;
+			const c = new OffscreenCanvas(w, h), g = c.getContext('2d');
+			g.drawImage(image, 0, 0);
+			data.push(...g.getImageData(0, 0, w, h).data);
+			frames.push(image.duration / 1e6);
+			image.close();
+		}
+		return { w, h, frames, repetition: t.repetitionCount === Infinity ? -1 : t.repetitionCount, data };
+	}, fs.readFileSync(file).toString('base64'));
+	fs.writeFileSync(path.join(out, name + '.frames.rgba'), Buffer.from(r.data));
+	index.push({ name, width: r.w, height: r.h, durations: r.frames, repetition: r.repetition });
 }
 await browser.close();
 fs.writeFileSync(path.join(out, 'cases.json'), JSON.stringify(index, null, '\t') + '\n');

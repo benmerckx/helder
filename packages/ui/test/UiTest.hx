@@ -404,9 +404,24 @@ class UiTest {
 		// decoded (jpeg-cases.mjs, gif-cases.mjs)
 		for (kind in [{dir: "jpeg", ext: ".jpg", least: 15}, {dir: "gif", ext: ".gif", least: 8}]) {
 		var jdir = here + "/" + kind.dir;
-		var cases:Array<{name:String, width:Int, height:Int}> = haxe.Json.parse(sys.io.File.getContent(jdir + "/cases.json"));
+		var cases:Array<{name:String, width:Int, height:Int, ?durations:Array<Float>, ?repetition:Int}> = haxe.Json.parse(sys.io.File.getContent(jdir + "/cases.json"));
 		check(kind.dir + ": the cases", cases.length >= kind.least, '${cases.length}');
 		for (c in cases) {
+			// (an animation: every frame as Chromium's ImageDecoder composes it, its duration, the repetitions)
+			if (c.durations != null) {
+				var want = sys.io.File.getBytes(jdir + "/" + c.name + ".frames.rgba");
+				var a = try GifDecoder.frames(sys.io.File.getBytes(jdir + "/" + c.name + kind.ext)) catch (e:Dynamic) {
+					check(kind.dir + ": " + c.name, false, Std.string(e));
+					continue;
+				}
+				var size = c.width * c.height * 4, bad = [];
+				for (k in 0...a.frames.length)
+					if (k * size + size > want.length || a.frames[k].rgba.compare(want.sub(k * size, size)) != 0) bad.push(k);
+				check(kind.dir + ": " + c.name + ", its frames", a.width == c.width && a.frames.length == c.durations.length && bad.length == 0
+					&& [for (f in a.frames) f.delay].join(",") == c.durations.join(",") && a.repetitions == c.repetition,
+					'${a.frames.length} frames, wrong: ${bad.join(",")}; ' + [for (f in a.frames) f.delay].join(",") + ' ${a.repetitions}');
+				continue;
+			}
 			var want = sys.io.File.getBytes(jdir + "/" + c.name + ".rgba");
 			var img = try Image.decode(sys.io.File.getBytes(jdir + "/" + c.name + kind.ext)) catch (e:Dynamic) {
 				check(kind.dir + ": " + c.name, false, Std.string(e));
@@ -427,6 +442,27 @@ class UiTest {
 				'${img.width}x${img.height}' + (differ > 0 ? ': $differ values differ, by at most $most (first: pixel ${first >> 2} channel ${first & 3})' : ""));
 		}
 		}
+		// an animation played on the Clock: frames by their delays, three plays (two repetitions), then the last frame stays
+		var anim = AnimatedImage.decode(sys.io.File.getBytes(here + "/gif/anim-background.gif"));
+		var shown = [];
+		anim.play();
+		for (t in [10.0, 10.1, 10.2, 10.35, 10.5, 11.1, 11.4, 12.0]) {
+			Clock.tick(t);
+			shown.push(anim.frame);
+		}
+		check("animation: frames by their delays, played three times", shown.join(",") == "0,0,1,2,0,1,2,2" && !anim.playing && !Clock.active, shown.join(","));
+		check("animation: the image shows the frame", anim.image.pixels.compare(anim.frames[2].rgba) == 0 && anim.image.version > 0);
+		var zero = AnimatedImage.decode(sys.io.File.getBytes(here + "/gif/anim-transparent.gif"));
+		zero.play();
+		var z = [];
+		for (t in [20.0, 20.05, 20.15, 20.25]) {
+			Clock.tick(t);
+			z.push(zero.frame);
+		}
+		zero.stop();
+		check("animation: a delay of 0 shows for 100 ms, forever", z.join(",") == "0,0,1,0" && !zero.playing, z.join(","));
+		Clock.tick(21);
+		check("animation: stopped, nothing more animates", !Clock.active);
 		var threw = try {
 			Image.decode(haxe.io.Bytes.ofString("GIF89a"));
 			false;
