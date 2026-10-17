@@ -704,20 +704,25 @@ class Widgets implements Markup {
 	// and End select another and move the focus there. Slots "tabs",
 	// "tabs-list", "tabs-trigger" (data-state "active" or "inactive") and
 	// "tabs-content", all data-orientation "horizontal" (Radix's); the tabs a
-	// group, the list and its triggers variant "default" (shadcn's)
+	// group, the list and its triggers of variant (shadcn's "default", a
+	// pill; "line", underlined)
 	@:widget({
 		props: {
 			labels: "the tabs' labels, a tab each",
 			selected: "a signal of the selected tab's index, set by a click or the keys",
-			render: "what to show below for a tab's index, called when it is selected"
+			render: "what to show below for a tab's index, called when it is selected",
+			variant: "the list's look: default (the selected tab a raised pill) or line (underlined)"
 		},
+		variants: ["default", "line"],
 		keys: {
 			"Left, Right (mirrored right to left)": "selects and focuses the previous or next tab, wrapping",
 			"Home, End": "selects and focuses the first or last tab",
 			"Enter, Space": "selects the focused tab"
 		}
 	})
-	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?style:States->StyleProps, ?tag:String}):View {
+	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?variant:String, ?style:States->StyleProps,
+			?tag:String}):View {
+		var variant = props.variant ?? "default";
 		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
 		function key(e:Event, i:Int) {
 			var j = switch mirrored(e) {
@@ -733,9 +738,9 @@ class Widgets implements Markup {
 			focusIn(tabs, j);
 		}
 		return <view tag={tag} slot="tabs" group="tabs" data-orientation="horizontal" ref={n -> States.apply(n, props.style)}>
-			<view slot="tabs-list" variant="default" data-orientation="horizontal" role="tablist">{[
+			<view slot="tabs-list" variant={variant} data-variant={variant} data-orientation="horizontal" role="tablist">{[
 				for (i in 0...count)
-					<view tag={tag + "-" + i} slot="tabs-trigger" variant="default" data-orientation="horizontal" role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
+					<view tag={tag + "-" + i} slot="tabs-trigger" variant={variant} data-orientation="horizontal" role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
 						data-state={() -> props.selected.value == i ? "active" : "inactive"} focusable={() -> props.selected.value == i}
 						onClick={_ -> props.selected.value = i} onKeyDown={e -> key(e, i)}>
 						{props.labels[i]}
@@ -1122,7 +1127,7 @@ class Widgets implements Markup {
 			"Up, Down": "move the marked day a week back or on",
 			"Home, End": "move the marked day to its week's first or last day",
 			"Page Up, Page Down": "move the marked day a month back or on (its last day where it is shorter)",
-			"Enter, Space": "choose the marked day"
+			"Enter, Space": "choose the marked day; on a month arrow, show the month before or after"
 		}
 	})
 	public static function Calendar(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void, ?label:String,
@@ -1176,9 +1181,11 @@ class Widgets implements Markup {
 		};
 		return <view tag={tag} slot="calendar">
 			<view slot="calendar-nav">
-				<view tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" onClick={_ -> month(-1)}>{arrow(() -> "‹")}</view>
+				<view tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" focusable onClick={_ -> month(-1)}
+					onKeyDown={e -> pressKeys(e, () -> month(-1))}>{arrow(() -> "‹")}</view>
 				<text tag={tag + "-month"} slot="calendar-caption-label">{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
-				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" onClick={_ -> month(1)}>{arrow(() -> "›")}</view>
+				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable onClick={_ -> month(1)}
+					onKeyDown={e -> pressKeys(e, () -> month(1))}>{arrow(() -> "›")}</view>
 			</view>
 			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}>
 				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
@@ -1612,24 +1619,37 @@ class Widgets implements Markup {
 			}
 			return -1;
 		}
-		onMount(() -> {
+		// (its items: the focusable nodes in it, outermost, marked once found
+		// so that the ones roving made unfocusable stay items; again before
+		// each use, for those added since, the one focusable kept)
+		function collect() {
+			var was = [for (it in items) if (it.focusable) it][0];
+			items.resize(0);
 			function walk(n:Node)
 				for (c in n.children) {
-					if (c.focusable) items.push(c) else walk(c);
+					if (c.focusable || c.attr("data-toolbar-item") != null) {
+						c.setAttr("data-toolbar-item", "");
+						items.push(c);
+					} else walk(c);
 				}
 			if (bar != null) walk(bar);
-			rove(0);
-		});
+			var k = was == null ? -1 : items.indexOf(was);
+			rove(k < 0 ? 0 : k);
+		}
+		onMount(collect);
 		return <view tag={props.tag ?? "toolbar"} slot="toolbar" role="toolbar" label={props.label} ref={n -> bar = n}
 			onPointerDown={(e:Event) -> {
+				collect();
 				var j = itemOf(e.target);
 				if (j >= 0) rove(j);
 			}}
 			onFocusIn={(e:Event) -> {
+				collect();
 				var j = itemOf(e.target);
 				if (j >= 0) rove(j);
 			}}
 			onKeyDown={(e:Event) -> {
+				collect();
 				var i = itemOf(e.target), n = items.length;
 				if (i < 0 || Std.isOfType(e.target, EditableText)) return;
 				var j = switch mirrored(e) {
