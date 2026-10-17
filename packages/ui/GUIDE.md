@@ -416,6 +416,9 @@ static function Sortable(props:{items:Signal<Array<String>>}):View {
 ```
 
 `ui.dragging` gives what is dragged and where, to draw it under the pointer.
+The `Sortable` widget is this list done fully: any items, a line where
+the drop goes (before or after the item under the pointer), and the
+keyboard (Alt+Up and Alt+Down move the focused item).
 
 ## Your own nodes
 

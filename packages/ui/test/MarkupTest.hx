@@ -23,6 +23,7 @@ import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.ui.widgets.Widgets.Listbox;
 import hxmc.ui.widgets.Widgets.Toolbar;
 import hxmc.ui.widgets.Widgets.ColorPicker;
+import hxmc.ui.widgets.Widgets.Sortable;
 import hxmc.ui.widgets.Widgets.Tabs;
 import hxmc.ui.widgets.Widgets.Radio;
 import hxmc.ui.widgets.Widgets.Progress;
@@ -70,6 +71,7 @@ class MarkupTest implements Markup {
 		listbox();
 		toolbar();
 		colorPicker();
+		sortable();
 		focusTips();
 		virtual();
 		table();
@@ -461,6 +463,49 @@ class MarkupTest implements Markup {
 		ui.update();
 		check("color picker: set from outside, a grey: its hue kept", strip.semantics.valueNow == 120 && area.semantics.valueNow == 0 && field.text == "#808080",
 			strip.semantics.valueNow + " " + field.text);
+	}
+
+	static function sortable() {
+		var ui = new Ui(new MonoText(), 400, 400);
+		var items = signal(["a", "b", "c", "d"]), moves = [];
+		Render.render(<view padding={10}><Sortable tag="s" items={items} render={(s:String) -> <text tag={"s-" + s}>{s}</text>}
+			onMove={(s, i) -> moves.push(s + i)} label="Order"/></view>, ui.root);
+		ui.update();
+		function item(s:String):Node
+			return ui.root.find("s-" + s).parent;
+		function key(k:Int, mods = 0) {
+			ui.keyDown(k, mods);
+			ui.update();
+		}
+		check("sortable: a list, one Tab stop", ui.root.find("s").semantics.role == List && item("a").focusable && !item("b").focusable);
+		ui.setFocus(item("a"));
+		key(Key.DOWN, Key.MOD_ALT);
+		check("sortable: Alt+Down moves the item, the focus with it", items.value.join("") == "bacd" && ui.focus == item("a") && item("a").focusable
+			&& !item("b").focusable && item("a").absY > item("b").absY, items.value.join(""));
+		key(Key.DOWN);
+		key(Key.UP, Key.MOD_ALT);
+		key(Key.UP, Key.MOD_ALT);
+		key(Key.UP, Key.MOD_ALT);
+		check("sortable: Down to the next, Alt+Up, not past the top", items.value.join("") == "cbad" && ui.focus == item("c") && moves.join(",") == "a1,c1,c0",
+			items.value.join("") + " " + moves.join(","));
+		// d dragged over the top half of b, then dropped
+		var d = item("d"), b = item("b");
+		ui.pointerDown(d.absX + 20, d.absY + d.height / 2, 1);
+		ui.pointerMove(d.absX + 20, d.absY + d.height / 2 - 10);
+		ui.pointerMove(b.absX + 20, b.absY + 2);
+		ui.update();
+		var line = [for (c in b.children) if (c.style.position == Absolute && c.style.display != None) c];
+		check("sortable: a line where it will go, above it", line.length == 1 && line[0].absY < b.absY, "" + line.length);
+		ui.pointerUp(b.absX + 20, b.absY + 2, 1);
+		ui.update();
+		check("sortable: dropped before it", items.value.join("") == "cdba" && moves[moves.length - 1] == "d1", items.value.join(""));
+		var c = item("c"), a = item("a");
+		ui.pointerDown(c.absX + 20, c.absY + c.height / 2, 1);
+		ui.pointerMove(c.absX + 20, c.absY + c.height / 2 + 10);
+		ui.pointerMove(a.absX + 20, a.absY + a.height - 2);
+		ui.pointerUp(a.absX + 20, a.absY + a.height - 2, 1);
+		ui.update();
+		check("sortable: dropped after the last", items.value.join("") == "dbac", items.value.join(""));
 	}
 
 	static function password() {

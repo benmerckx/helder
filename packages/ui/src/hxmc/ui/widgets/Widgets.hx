@@ -930,6 +930,83 @@ class Widgets implements Markup {
 		]}</view>;
 	}
 
+	// a list its user reorders (items: distinct values, a signal of their
+	// array, each shown by render): an item dragged goes where a line shows
+	// it will, before or after the item under the pointer (by its halves;
+	// Escape cancels); one Tab stop, the active item (Up, Down, Home and End
+	// move it), Alt+Up and Alt+Down move it in the list. onMove: after a
+	// move, the item and its new index
+	public static function Sortable<T>(props:{items:Signal<Array<T>>, render:T->Any, ?onMove:(T, Int)->Void, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "sortable", active = signal(0), refs:Array<{item:T, node:Null<Node>}> = [];
+		// (where a drop goes: 2 * the item's index, plus 1 after it; -1: nowhere)
+		var over = signal(-1);
+		function nodeOf(item:T):Null<Node> {
+			for (r in refs)
+				if (r.item == item) return r.node;
+			return null;
+		}
+		function focus(item:T) {
+			var n = nodeOf(item);
+			if (n != null && n.ui != null) n.ui.setFocus(n);
+		}
+		// (to: the index it goes before, in the list as it is)
+		function move(item:T, to:Int) {
+			var list = props.items.peek().copy(), from = list.indexOf(item);
+			if (from < 0 || to < 0 || to > list.length) return;
+			list.splice(from, 1);
+			if (to > from) to--;
+			list.insert(to, item);
+			active.value = to;
+			if (to != from) {
+				props.items.value = list;
+				if (props.onMove != null) props.onMove(item, to);
+			}
+			focus(item);
+		}
+		function key(e:Event, item:T) {
+			var list = props.items.peek(), i = list.indexOf(item), alt = e.mods & Key.MOD_ALT != 0;
+			switch e.key {
+				case Key.UP if (alt): move(item, i - 1);
+				case Key.DOWN if (alt): move(item, i + 2);
+				case Key.UP | Key.DOWN | Key.HOME | Key.END:
+					var j = e.key == Key.UP ? i - 1 : e.key == Key.DOWN ? i + 1 : e.key == Key.HOME ? 0 : list.length - 1;
+					if (j < 0 || j >= list.length) return;
+					active.value = j;
+					focus(list[j]);
+				case _: return;
+			}
+			e.preventDefault();
+		}
+		return <view tag={tag} role="list" label={props.label} description="Alt+Up and Alt+Down move an item" row-gap={4}>
+			<For each={props.items} render={(item:T) -> {
+				var at = () -> props.items.value.indexOf(item), entry:{item:T, node:Null<Node>} = {item: item, node: null};
+				refs.push(entry);
+				onCleanup(() -> refs.remove(entry));
+				<view role="listitem" ref={n -> entry.node = n} drag-data={item} focusable={() -> at() == active.value} cursor="move"
+					direction="row" align-items="center" column-gap={8} padding="6 10" radius={6} border-width={1} border-color={() -> t().borderMuted}
+					background={() -> t().control}
+					onPointerDown={_ -> active.value = at()} onKeyDown={e -> key(e, item)}
+					onDragOver={e -> if (props.items.peek().indexOf(e.data) >= 0) {
+						e.preventDefault();
+						over.value = 2 * at() + (e.localY > e.current.height / 2 ? 1 : 0);
+					}}
+					onDragLeave={_ -> over.value = -1}
+					onDrop={e -> {
+						var to = over.peek();
+						over.value = -1;
+						if (to >= 0) move(e.data, (to >> 1) + (to & 1));
+					}}>
+					<text hidden color={() -> t().muted}>⋮⋮</text>
+					{props.render(item)}
+					<view position="absolute" left={0} right={0} top={-3} height={2} radius={1} background={() -> t().accent}
+						display={() -> over.value == 2 * at() ? "flex" : "none"}/>
+					<view position="absolute" left={0} right={0} bottom={-3} height={2} radius={1} background={() -> t().accent}
+						display={() -> over.value == 2 * at() + 1 ? "flex" : "none"}/>
+				</view>;
+			}}/>
+		</view>;
+	}
+
 	// a toolbar: its children in a row, its focusable ones (as they are
 	// when it is shown) one Tab stop, the last focused (at first the first);
 	// Left and Right (the way they point, wrapping), Home and End move the

@@ -173,7 +173,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   (typed or stepped, within bounds; a spin button), `Listbox` (one option
   selected or several: Shift and Control with the arrows and clicks,
   Control+A; ARIA's multiselectable), `Toolbar` (its focusable children
-  one Tab stop, Left and Right between them), `ColorPicker` (a
+  one Tab stop, Left and Right between them), `Sortable` (a list
+  reordered by dragging, a line where the item will go, or by Alt+Up and
+  Alt+Down), `ColorPicker` (a
   saturation and brightness square, a hue strip and the hex: sliders for
   the keyboard), and the popups `Select`, `Menu`,
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
