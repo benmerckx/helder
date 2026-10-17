@@ -95,7 +95,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     field's text as typed), `textOverflow` (`Ellipsis`, not inherited: a
     line too wide for its box ends in one within it). `textDecoration`
     (underline, line-through, overline) draws its lines with the text inside
-    the node, in its colour (`textDecorationColor`: another), where Chromium
+    the node, in its colour (`textDecorationColor`: another), as thick as
+    `textDecorationThickness` says (a tenth of the font size by default), an
+    underline `textUnderlineOffset` below the baseline, where Chromium
     draws them. `textShadow`
     (`"1px 2px 4px #0006"`, several, inherited, `none`) draws the text's
     and its lines' shadows under them (a text field's and its placeholder's

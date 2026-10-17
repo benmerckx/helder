@@ -266,6 +266,12 @@ class Style {
 	// the colour of the lines textDecoration draws (null: the node's text
 	// colour; not inherited, as CSS's text-decoration-color)
 	public var textDecorationColor(get, set):Null<Color>;
+	// their thickness (auto: a tenth of the font size; a percentage of it;
+	// not inherited) and an underline's place below the baseline (auto: the
+	// font's; inherited), as CSS's text-decoration-thickness and
+	// text-underline-offset
+	public var textDecorationThickness(get, set):Dim;
+	public var textUnderlineOffset(get, set):Dim;
 
 	// shadows of the text in this node and its descendants and of its
 	// decorations, under them (Shadow.parse, as CSS's text-shadow: x, y,
@@ -413,6 +419,12 @@ class Style {
 
 	inline function get_textDecoration():Int
 		return rare == null ? 0 : rare.textDecoration;
+
+	inline function get_textDecorationThickness():Dim
+		return rare == null ? DimValue.Auto : rare.textDecorationThickness;
+
+	inline function get_textUnderlineOffset():Dim
+		return rare == null ? DimValue.Auto : rare.textUnderlineOffset;
 
 	inline function get_textDecorationColor():Null<Color>
 		return rare == null ? null : rare.textDecorationColor;
@@ -1009,6 +1021,20 @@ class Style {
 		return v;
 	}
 
+	function set_textDecorationThickness(v:Dim):Dim {
+		if (v == textDecorationThickness) return v;
+		more().textDecorationThickness = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_textUnderlineOffset(v:Dim):Dim {
+		if (v == textUnderlineOffset) return v;
+		more().textUnderlineOffset = v;
+		node.styleChanged(false);
+		return v;
+	}
+
 	function set_textDecorationColor(v:Null<Color>):Null<Color> {
 		if (v == textDecorationColor) return v;
 		more().textDecorationColor = v;
@@ -1116,6 +1142,8 @@ class Style {
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
 		if (p.textShadow != null) textShadow = p.textShadow;
 		if (p.textDecorationColor != null) textDecorationColor = p.textDecorationColor;
+		if (p.textDecorationThickness != null) textDecorationThickness = p.textDecorationThickness;
+		if (p.textUnderlineOffset != null) textUnderlineOffset = p.textUnderlineOffset;
 		if (p.maxLines != null) maxLines = p.maxLines;
 		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
 		if (p.gridTemplateRows != null) gridTemplateRows = p.gridTemplateRows;
@@ -1173,6 +1201,8 @@ private class StyleRare {
 	public var textDecoration:Int = 0;
 	public var textShadow:Null<Shadow> = null;
 	public var textDecorationColor:Null<Color> = null;
+	public var textDecorationThickness:Dim = DimValue.Auto;
+	public var textUnderlineOffset:Dim = DimValue.Auto;
 	public var left:Dim = DimValue.Auto;
 	public var top:Dim = DimValue.Auto;
 	public var right:Dim = DimValue.Auto;

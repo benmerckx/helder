@@ -1317,6 +1317,17 @@ class UiTest {
 		var lines = [for (c in rec5.calls) if (c.indexOf("rect ") == 0) c];
 		check("paint: text-decoration-color", lines.length == 1 && lines[0].indexOf(" ff00ff00 ") > 0 && rec5.calls.join("|").indexOf("text 0 0 14") >= 0,
 			rec5.calls.join("|"));
+		// its thickness (a percentage of the font size) and the underline's offset (inherited)
+		var before = lines[0].split(" ");
+		t.style.textDecorationThickness = "25%";
+		box.style.textUnderlineOffset = 3;
+		var rec7 = new Recording();
+		ui3.paint(rec7);
+		var after = [for (c in rec7.calls) if (c.indexOf("rect ") == 0) c][0].split(" ");
+		check("paint: text-decoration-thickness and an inherited text-underline-offset", Std.parseFloat(after[4]) == t.font().size / 4
+			&& Std.parseFloat(after[2]) == Std.parseFloat(before[2]) + 3, before.join(" ") + " | " + after.join(" "));
+		t.style.textDecorationThickness = "auto";
+		box.style.textUnderlineOffset = "auto";
 		// an outline: around the border box, over the children, the focus ring over it
 		var framed = new Node("framed"), inner = new Node("inner");
 		framed.style.set({width: 20, height: 10, radius: 4, outlineWidth: 2, outlineOffset: 1, color: Color.rgb(0x112233)});
