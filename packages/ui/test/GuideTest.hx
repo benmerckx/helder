@@ -234,6 +234,12 @@ class GuideTest implements Markup {
 		ui.update();
 		var banner = ui.root.find("banner");
 		check("snippets: a gradient background", banner.style.backgroundImage != null && banner.style.background == Color.TRANSPARENT);
+		var other = new Ui(new MonoText(), 100, 100);
+		Render.render(<view tag="badge" width={24} height={24} radius={12} background="#ef4444" transform="rotate(15deg) scale(1.2)" transform-origin="left top"/>, other.root);
+		other.update();
+		var badge = other.root.find("badge"), bm = badge.transformMatrix();
+		check("snippets: a transform about its origin", bm != null && Math.abs(bm[0] - 1.2 * Math.cos(Math.PI / 12)) < 1e-9 && badge.width == 24
+			&& Math.abs(bm[4] - (badge.absX - (bm[0] * badge.absX + bm[2] * badge.absY))) < 1e-9);
 		check("snippets: bound and read-once holes", text(ui, "a") == "5" && text(ui, "b") == "10" && text(ui, "c") == "1", text(ui, "a") + text(ui, "b") + text(ui, "c"));
 		open.value = true;
 		Clock.finish();

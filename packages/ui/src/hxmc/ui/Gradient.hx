@@ -146,7 +146,7 @@ class Gradient {
 		return out;
 	}
 
-	static function angleOf(s:String):Null<Float> {
+	@:allow(hxmc.ui.Transform) static function angleOf(s:String):Null<Float> {
 		// (grad before rad: it ends the same)
 		for (u in [{unit: "deg", k: 1.0}, {unit: "grad", k: 0.9}, {unit: "rad", k: 180 / Math.PI}, {unit: "turn", k: 360.0}])
 			if (StringTools.endsWith(s, u.unit)) {
@@ -157,7 +157,7 @@ class Gradient {
 	}
 
 	// a position: one or two keywords, percentages or lengths
-	static function position(s:String):{x:String, y:String} {
+	@:allow(hxmc.ui.Transform) static function position(s:String):{x:String, y:String} {
 		var w = s.split(" ").filter(x -> x != "");
 		var x = "50%", y = "50%";
 		function kw(v:String):String

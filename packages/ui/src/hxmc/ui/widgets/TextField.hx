@@ -29,7 +29,7 @@ class TextField extends EditableText {
 	override function indexAt(px:Float, py:Float):Int {
 		if (ui == null) return caret;
 		var p = layoutText(ui.text, Math.NaN);
-		var left = localX(px) - style.borderWidth - style.padding.left + scroll;
+		var left = localX(px, py) - style.borderWidth - style.padding.left + scroll;
 		return p.hit(left, 0);
 	}
 

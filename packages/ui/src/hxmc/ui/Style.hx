@@ -134,6 +134,12 @@ class Style {
 	// under the background (null: none)
 	public var shadow(default, set):Null<Shadow> = null;
 
+	// how the node and its subtree are drawn and hit, not laid out (Transform.parse; null: none)
+	public var transform(default, set):Null<Transform> = null;
+
+	// the point the transform is about: x and y in the border box (Transform.origin; null: its centre)
+	public var transformOrigin(default, set):Null<Array<Dim>> = null;
+
 	// inherited from here on: null takes the parent's (the root's defaults: Style.ROOT)
 	public var color(default, set):Null<Color> = null;
 
@@ -456,6 +462,20 @@ class Style {
 		return v;
 	}
 
+	function set_transform(v:Null<Transform>):Null<Transform> {
+		if (v == transform) return v;
+		transform = v;
+		node.styleChanged(false);
+		return v;
+	}
+
+	function set_transformOrigin(v:Null<Array<Dim>>):Null<Array<Dim>> {
+		if (v == transformOrigin) return v;
+		transformOrigin = v;
+		node.styleChanged(false);
+		return v;
+	}
+
 	function set_borderColor(v:Color):Color {
 		if (v == borderColor) return v;
 		borderColor = v;
@@ -600,6 +620,8 @@ class Style {
 		if (p.opacity != null) opacity = p.opacity;
 		if (p.cursor != null) cursor = p.cursor;
 		if (p.shadow != null) shadow = p.shadow;
+		if (p.transform != null) transform = p.transform;
+		if (p.transformOrigin != null) transformOrigin = p.transformOrigin;
 		if (p.color != null) color = p.color;
 		if (p.fontFamily != null) fontFamily = p.fontFamily;
 		if (p.fontSize != null) fontSize = p.fontSize;

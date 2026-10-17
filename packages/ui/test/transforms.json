@@ -1,0 +1,10 @@
+[
+	{"left": 20, "top": 20, "width": 60, "height": 40, "background": "#3b82f6", "radius": 8, "transform": "rotate(30deg)"},
+	{"left": 120, "top": 25, "width": 40, "height": 30, "background": "#ef4444", "border": 3, "borderColor": "#111827", "transform": "scale(1.5)"},
+	{"left": 20, "top": 100, "width": 70, "height": 30, "background": "#10b981", "transform": "skewX(-20deg) translate(10px, 0)"},
+	{"left": 110, "top": 95, "width": 50, "height": 50, "background": "#f59e0b", "radius": 12, "transform": "translate(10px, 5px) rotate(45deg) scale(0.8)", "origin": "left top"},
+	{"left": 180, "top": 20, "width": 50, "height": 50, "background": "#8b5cf6", "radius": 6, "transform": "rotate(15deg)", "children": [
+		{"left": 10, "top": 10, "width": 30, "height": 30, "background": "#fde047", "radius": 4, "transform": "rotate(30deg)"}
+	]},
+	{"left": 190, "top": 100, "width": 36, "height": 36, "background": "#ec4899", "radius": 18, "transform": "scale(1.25, 0.75) rotate(-20deg)"}
+]

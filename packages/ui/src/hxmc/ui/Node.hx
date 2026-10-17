@@ -230,20 +230,53 @@ class Node {
 	}
 
 	// a window position in this node's coordinates (from its border box's
-	// top left), its ancestors' scrolling taken into account
-	public function localX(windowX:Float):Float
-		return windowX + scrolled(true) - absX;
+	// top left), its ancestors' scrolling and transforms (its own too) taken
+	// into account
+	public function localX(windowX:Float, windowY:Float):Float
+		return toLocal(windowX, windowY, true);
 
-	public function localY(windowY:Float):Float
-		return windowY + scrolled(false) - absY;
+	public function localY(windowX:Float, windowY:Float):Float
+		return toLocal(windowX, windowY, false);
 
-	function scrolled(x:Bool):Float {
-		var d = 0.0, p = parent;
-		while (p != null) {
-			if (p.style.overflow == Scroll) d += x ? p.scrollX : p.scrollY;
-			p = p.parent;
+	function toLocal(px:Float, py:Float, x:Bool):Float {
+		var chain = [], n = this;
+		while (n != null) {
+			chain.push(n);
+			n = n.parent;
 		}
-		return d;
+		var i = chain.length;
+		while (--i >= 0) {
+			var a = chain[i], m = a.transformMatrix();
+			if (m != null) {
+				var inv = Transform.invert(m);
+				if (inv != null) {
+					var tx = inv[0] * px + inv[2] * py + inv[4];
+					py = inv[1] * px + inv[3] * py + inv[5];
+					px = tx;
+				}
+			}
+			if (i > 0 && a.style.overflow == Scroll) {
+				px += a.scrollX;
+				py += a.scrollY;
+			}
+		}
+		return x ? px - absX : py - absY;
+	}
+
+	// the transform (Style.transform about Style.transformOrigin) in window
+	// pixels, as Canvas.pushTransform takes it; null: none
+	public function transformMatrix():Null<Array<Float>> {
+		var t = style.transform;
+		if (t == null || t.isIdentity()) return null;
+		var o = style.transformOrigin;
+		var ox = o == null ? Math.NaN : o[0].resolve(width), oy = o == null ? Math.NaN : o[1].resolve(height);
+		ox = absX + (Math.isNaN(ox) ? width / 2 : ox);
+		oy = absY + (Math.isNaN(oy) ? height / 2 : oy);
+		var m = t.toMatrix(width, height);
+		// (about the origin: moved there, transformed, moved back)
+		m[4] += ox - (m[0] * ox + m[2] * oy);
+		m[5] += oy - (m[1] * ox + m[3] * oy);
+		return m;
 	}
 
 	// --- content (subclasses) ---
@@ -299,9 +332,17 @@ class Node {
 	// --- queries ---
 
 	// the topmost node under (px, py) in window pixels, among this subtree
-	// (clipped by Overflow), or null
+	// (clipped by Overflow, through the transforms), or null
 	public function hitTest(px:Float, py:Float):Null<Node> {
 		if (style.display == None) return null;
+		var m = transformMatrix();
+		if (m != null) {
+			var inv = Transform.invert(m);
+			if (inv == null) return null;
+			var tx = inv[0] * px + inv[2] * py + inv[4];
+			py = inv[1] * px + inv[3] * py + inv[5];
+			px = tx;
+		}
 		var inside = px >= absX && py >= absY && px < absX + width && py < absY + height;
 		if (!inside && style.overflow != Visible) return null;
 		var i = children.length;

@@ -182,6 +182,10 @@ private class NoCanvas implements Canvas {
 
 	public function popOpacity() {}
 
+	public function pushTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float) {}
+
+	public function popTransform() {}
+
 	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color) {}
 
 	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float) {}

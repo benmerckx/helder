@@ -113,7 +113,7 @@ class TextNode extends Node {
 	// the character index nearest to a point in the window (its lines' alignment taken off)
 	public function textIndexAt(px:Float, py:Float):Int {
 		if (paragraph == null) return 0;
-		var s = style, x = localX(px) - s.borderWidth - s.padding.left, y = localY(py) - s.borderWidth - s.padding.top;
+		var s = style, x = localX(px, py) - s.borderWidth - s.padding.left, y = localY(px, py) - s.borderWidth - s.padding.top;
 		return paragraph.hit(x - alignOffset(paragraph, y, contentBoxWidth()), y);
 	}
 
@@ -130,7 +130,7 @@ class TextNode extends Node {
 	override public function hitTest(px:Float, py:Float):Null<Node> {
 		var own = super.hitTest(px, py);
 		if (own != this || children.length == 0 || paragraph == null) return own;
-		var s = style, x = localX(px) - s.borderWidth - s.padding.left, y = localY(py) - s.borderWidth - s.padding.top;
+		var s = style, x = localX(px, py) - s.borderWidth - s.padding.left, y = localY(px, py) - s.borderWidth - s.padding.top;
 		var i = paragraph.hit(x - alignOffset(paragraph, y, contentBoxWidth()), y);
 		var c = paragraph.caret(i);
 		// (the hit's character: before the caret it gave when that is right of the point)

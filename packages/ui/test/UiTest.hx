@@ -43,6 +43,7 @@ class UiTest {
 		svgApi();
 		css(here);
 		decorations();
+		transforms();
 		selection();
 		fields();
 		popups();
@@ -178,6 +179,73 @@ class UiTest {
 		check("css: a node's gradient between its colour and its border", calls.join(",") == "rect 0,image 80x40,rect 0", calls.join(","));
 		var img = n.backgroundImage(2);
 		check("css: kept while the node's size stays", n.backgroundImage(2) == img && img.pixels.get(0) > 200 && img.pixels.get((79) * 4 + 2) > 200);
+	}
+
+	// CSS transforms: parsed and composed as CSS composes them, about the
+	// origin; drawn by pushing the matrix around the subtree; hit and
+	// pointed at through the inverse
+	static function transforms() {
+		function near(a:Array<Float>, b:Array<Float>):Bool {
+			for (i in 0...6)
+				if (Math.abs(a[i] - b[i]) > 1e-9) return false;
+			return true;
+		}
+		var m = Transform.parse("translate(10px, 50%) rotate(90deg) scale(2)").toMatrix(100, 40);
+		check("transform: composed left to right", near(m, [0, 2, -2, 0, 10, 20]), "" + m);
+		var t2 = Transform.parse("skewX(45deg) matrix(1, 0, 0, 1, 5, 6) rotate(0.25turn)").toMatrix(10, 10);
+		check("transform: skew, matrix and turns", near(t2, [1, 1, -1, 0, 11, 6]), "" + t2);
+		check("transform: none", Transform.parse("none").isIdentity());
+		var bad = try {
+			Transform.parse("spin(3deg)");
+			false;
+		} catch (e:Dynamic) true;
+		check("transform: an unknown function is an error", bad);
+		var inv = Transform.invert(m);
+		check("transform: inverted", inv != null && near(Transform.multiply(m, inv), [1, 0, 0, 1, 0, 0]));
+		var o = Transform.origin("left top");
+		check("transform origin: keywords", o[0].resolve(80) == 0 && o[1].resolve(40) == 0);
+		var o2 = Transform.origin("bottom");
+		check("transform origin: one keyword, the other centred", o2[0].resolve(80) == 40 && o2[1].resolve(40) == 40);
+
+		var ui = new Ui(new MonoText(), 300, 300);
+		ui.root.style.alignItems = Start;
+		var box = new Node("box");
+		box.style.set({width: 100, height: 20, margin: 50, background: Color.rgb(0xFF0000)});
+		var inner = new Node("inner");
+		inner.style.set({width: 10, height: 10, background: Color.rgb(0x0000FF)});
+		box.append(inner);
+		ui.root.append(box);
+		ui.update();
+		// (rotated a quarter about its centre (100, 60): 100 wide becomes 100 high)
+		box.style.transform = Transform.rotate(90);
+		ui.update();
+		var rec = new Recording();
+		ui.paint(rec);
+		var calls = [for (c in rec.calls) if (!StringTools.startsWith(c, "text")) c];
+		var first = calls.length > 0 ? calls[0].split(" ") : [];
+		var drawn = first.length == 7 && first[0] == "transform" && Math.abs(Std.parseFloat(first[1])) < 1e-9 && Std.parseFloat(first[2]) == 1
+			&& Std.parseFloat(first[3]) == -1 && Math.abs(Std.parseFloat(first[5]) - 160) < 1e-9 && Math.abs(Std.parseFloat(first[6]) - (-40)) < 1e-9;
+		check("transform: pushed around the subtree", drawn && calls[calls.length - 1] == "popTransform", calls.join(" | "));
+		var hitTop = ui.root.hitTest(100, 15), hitOld = ui.root.hitTest(140, 60);
+		check("transform: hit through it", hitTop == box && hitOld == ui.root, hitTop + " " + hitOld);
+		// (the inner box's top left (50, 50) turns to (110, 10): its 10x10 at x 100...110)
+		var hitInner = ui.root.hitTest(105, 15);
+		check("transform: children hit through their ancestor's", hitInner == inner, "" + hitInner);
+		check("transform: local coordinates through it", Math.abs(box.localX(100, 15) - 5) < 1e-9 && Math.abs(box.localY(100, 15) - 10) < 1e-9,
+			box.localX(100, 15) + "," + box.localY(100, 15));
+		var at = [];
+		box.onPointerDown = e -> at.push(e.localX + "," + e.localY);
+		ui.pointerDown(102, 15, 1);
+		ui.pointerUp(102, 15, 1);
+		check("transform: events' local coordinates through it", at.length == 1 && at[0] == "5,8", at.join(" "));
+		box.style.transformOrigin = Transform.origin("left top");
+		box.style.transform = Transform.parse("scale(2)");
+		ui.update();
+		check("transform: about its origin", ui.root.hitTest(240, 85) == box && ui.root.hitTest(45, 55) == ui.root);
+		box.style.transform = Transform.parse("scale(0)");
+		ui.update();
+		check("transform: flattened, it hits nothing", ui.root.hitTest(50, 50) == ui.root && box.hitTest(50, 50) == null);
+		ui.root.remove(box);
 	}
 
 	// an ancestor's decorations over a text: the underline before it, the
@@ -1196,6 +1264,12 @@ class Recording implements Canvas {
 
 	public function popOpacity()
 		calls.push("popOpacity");
+
+	public function pushTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float)
+		calls.push('transform $a $b $c $d $e $f');
+
+	public function popTransform()
+		calls.push("popTransform");
 
 	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color)
 		calls.push('rect $x $y $w $h $radius ${hex(fill)} $borderWidth ${hex(border)}');

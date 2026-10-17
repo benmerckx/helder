@@ -77,7 +77,7 @@ class Widgets implements Markup {
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
 		function at(e:Event) {
 			var n = e.current;
-			set(lo + (n.localX(e.x) - knob / 2) / (w - knob) * (hi - lo));
+			set(lo + (n.localX(e.x, e.y) - knob / 2) / (w - knob) * (hi - lo));
 		}
 		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		return <view tag={props.tag ?? "slider"} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo} value-max={hi}

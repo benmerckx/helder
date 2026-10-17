@@ -109,6 +109,8 @@ class Ui {
 		var s = n.style;
 		if (s.display == None || n.width <= 0 && n.height <= 0 && n.children.length == 0) return;
 		if (s.opacity <= 0) return;
+		var m = n.transformMatrix();
+		if (m != null) canvas.pushTransform(m[0], m[1], m[2], m[3], m[4], m[5]);
 		if (s.opacity < 1) canvas.pushOpacity(s.opacity);
 		var sh = s.shadow;
 		if (sh != null)
@@ -145,6 +147,7 @@ class Ui {
 				focusRingColor);
 		}
 		if (s.opacity < 1) canvas.popOpacity();
+		if (m != null) canvas.popTransform();
 	}
 
 	// --- pointer ---

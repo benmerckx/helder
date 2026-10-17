@@ -74,7 +74,7 @@ class TextArea extends EditableText {
 		var p = laidAt();
 		if (p == null) return caret;
 		var s = style;
-		return p.hit(localX(px) - s.borderWidth - s.padding.left, localY(py) - s.borderWidth - s.padding.top + offset);
+		return p.hit(localX(px, py) - s.borderWidth - s.padding.left, localY(px, py) - s.borderWidth - s.padding.top + offset);
 	}
 
 	// as wide as it is given (its text wrapped to that), rows lines high

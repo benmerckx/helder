@@ -175,6 +175,15 @@ border:
 <view tag="banner" height={48} radius={8} background="linear-gradient(to right, #6366f1, rgb(236 72 153))"/>
 ```
 
+A `transform` turns, scales, skews or moves a node and its subtree as it
+is drawn and hit, about its centre unless `transform-origin` says
+otherwise, without changing the layout around it; animate it like any
+other attribute:
+
+```haxe
+<view tag="badge" width={24} height={24} radius={12} background="#ef4444" transform="rotate(15deg) scale(1.2)" transform-origin="left top"/>
+```
+
 For two-dimensional layouts, `display="grid"` places children on CSS
 grid tracks: fixed sizes, percentages, `fr` shares, `auto`,
 `min-content`, `max-content`, `minmax()` and `repeat()`, with items

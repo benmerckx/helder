@@ -62,15 +62,15 @@ class Event {
 		current = target;
 	}
 
-	// the pointer relative to current's border box
+	// the pointer relative to current's border box (Node.localX: through scrolling and transforms)
 	public var localX(get, never):Float;
 	public var localY(get, never):Float;
 
-	inline function get_localX()
-		return x - current.absX;
+	function get_localX()
+		return current.localX(x, y);
 
-	inline function get_localY()
-		return y - current.absY;
+	function get_localY()
+		return current.localY(x, y);
 
 	public inline function stop()
 		stopped = true;

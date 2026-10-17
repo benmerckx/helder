@@ -72,6 +72,16 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     computes them); `backgroundImage` (markup: `background="linear-gradient(...)"`)
     is a CSS gradient, linear or radial, repeating or not (`Gradient`: within
     two levels of Chromium's pixels on 19 cases), under the border.
+  - Transforms: `transform` (CSS's: `translate`, `scale`, `rotate`,
+    `skew`, `matrix`, composed left to right; `Transform.parse`, or
+    `Transform.rotate(45)`) about `transformOrigin` (`"left top"`, `"50% 0"`;
+    the centre by default) moves how a node and its subtree are drawn and
+    hit, not their layout; pointer events' `localX`/`localY` and
+    `Node.localX` go through it. The renderer turns quads on the GPU,
+    their edges anti-aliased over a pixel, and rasterizes glyphs at the
+    scaled size (on the pixel grid when the transform only moves and
+    scales evenly), within half a level of Chromium's pixels on average.
+    Under a turning transform a clip is its bounds.
   - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
     colour type, depth and interlacing, JPEG files, baseline or
     progressive, decoded as browsers do, the EXIF orientation applied, and

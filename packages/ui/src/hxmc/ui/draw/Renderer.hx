@@ -16,7 +16,13 @@ import hxmc.ui.draw.DrawText;
 // scaled size into the GlyphAtlas, its coverage uploaded into a texture's
 // red channel (read at the nearest texel) where it changed. An image is
 // uploaded once (premultiplied, filtered linearly) and again when its
-// version changes; forget(image) frees its texture.
+// version changes; forget(image) frees its texture. Under a transform
+// (pushTransform) a quad is built in the transform's scaled pixels (its
+// scale: the square root of its determinant) and its corners turned into the
+// target's by what remains (a rotation, or a skew), so that edges stay
+// anti-aliased over a pixel; glyphs are rasterized at the scaled size, and
+// read filtered where the transform turns them. A clip pushed under a turning
+// transform clips to its bounds.
 class Renderer implements Canvas {
 	public final device:Device;
 	public var scale = 1.0;
@@ -55,6 +61,20 @@ class Renderer implements Canvas {
 	var clipX1 = 0.0;
 	var clipY1 = 0.0;
 	var clipR = 0.0;
+	// the transform pushed (target pixels from the scaled pixels after the
+	// translation, scale, and transforms before it): m* (flat: none), its
+	// scale (mk), whether it keeps glyphs on the pixel grid (aligned: no
+	// turn, no skew, the same scale on both axes)
+	var ma = 1.0;
+	var mb = 0.0;
+	var mc = 0.0;
+	var md = 1.0;
+	var me = 0.0;
+	var mf = 0.0;
+	var mk = 1.0;
+	var flat = true;
+	var aligned = true;
+	final transforms:Array<Array<Float>> = [];
 
 	static inline var STRIDE = 108; // UiVertex: 27 floats
 
@@ -91,6 +111,10 @@ class Renderer implements Canvas {
 		alpha = 1;
 		alphas.resize(0);
 		clips.resize(0);
+		transforms.resize(0);
+		ma = md = mk = 1;
+		mb = mc = me = mf = 0;
+		flat = aligned = true;
 		clipX0 = clipY0 = clipR = 0;
 		clipX1 = width;
 		clipY1 = height;
@@ -120,10 +144,12 @@ class Renderer implements Canvas {
 		device.writeBuffer(buffer, 0, bytes, 0, used);
 		enc.setPipeline(pipeline);
 		enc.setVertexBuffer(0, buffer);
-		enc.setTexture(atlasSlot, atlasTexture, nearest);
 		var i = 0;
 		while (i < batches.length) {
-			var e = batches[i + 2] == 0 ? null : textures.get(batches[i + 2]);
+			// (a run's key: its image id, twice, plus whether glyphs are read filtered)
+			var key = batches[i + 2], image = key >> 1;
+			var e = image == 0 ? null : textures.get(image);
+			enc.setTexture(atlasSlot, atlasTexture, key & 1 == 1 ? linear : nearest);
 			enc.setTexture(imageSlot, e == null ? blank : e.texture, linear);
 			enc.draw(batches[i + 1], 1, batches[i]);
 			i += 3;
@@ -175,6 +201,21 @@ class Renderer implements Canvas {
 	public function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float) {
 		clips.push([clipX0, clipY0, clipX1, clipY1, clipR]);
 		var x0 = (x + tx) * scale, y0 = (y + ty) * scale, x1 = (x + w + tx) * scale, y1 = (y + h + ty) * scale;
+		if (!flat) {
+			// (the transformed corners' bounds)
+			var k = mk, ra = ma / k, rb = mb / k, rc = mc / k, rd = md / k;
+			x0 *= k;
+			y0 *= k;
+			x1 *= k;
+			y1 *= k;
+			var ax = ra * x0 + rc * y0, bx = ra * x1 + rc * y0, cx = ra * x0 + rc * y1, dx = ra * x1 + rc * y1;
+			var ay = rb * x0 + rd * y0, by = rb * x1 + rd * y0, cy = rb * x0 + rd * y1, dy = rb * x1 + rd * y1;
+			x0 = Math.min(Math.min(ax, bx), Math.min(cx, dx)) + me;
+			x1 = Math.max(Math.max(ax, bx), Math.max(cx, dx)) + me;
+			y0 = Math.min(Math.min(ay, by), Math.min(cy, dy)) + mf;
+			y1 = Math.max(Math.max(ay, by), Math.max(cy, dy)) + mf;
+			radius *= k;
+		}
 		var inside = x0 >= clipX0 && y0 >= clipY0 && x1 <= clipX1 && y1 <= clipY1;
 		var outside = x0 <= clipX0 && y0 <= clipY0 && x1 >= clipX1 && y1 >= clipY1;
 		clipX0 = Math.max(clipX0, x0);
@@ -193,6 +234,37 @@ class Renderer implements Canvas {
 		clipR = c[4];
 	}
 
+	public function pushTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float) {
+		transforms.push([ma, mb, mc, md, me, mf, mk, flat ? 1 : 0, aligned ? 1 : 0]);
+		// (in the scaled pixels after the translation: moved to it, transformed, moved back)
+		var s = scale;
+		var ne = s * (e - a * tx - c * ty + tx), nf = s * (f - b * tx - d * ty + ty);
+		var na = ma * a + mc * b, nb = mb * a + md * b, nc = ma * c + mc * d, nd = mb * c + md * d;
+		var e2 = ma * ne + mc * nf + me, f2 = mb * ne + md * nf + mf;
+		ma = na;
+		mb = nb;
+		mc = nc;
+		md = nd;
+		me = e2;
+		mf = f2;
+		mk = Math.sqrt(Math.abs(ma * md - mb * mc));
+		flat = ma == 1 && mb == 0 && mc == 0 && md == 1 && me == 0 && mf == 0;
+		aligned = mb == 0 && mc == 0 && ma == md && ma > 0;
+	}
+
+	public function popTransform() {
+		var t = transforms.pop();
+		ma = t[0];
+		mb = t[1];
+		mc = t[2];
+		md = t[3];
+		me = t[4];
+		mf = t[5];
+		mk = t[6];
+		flat = t[7] == 1;
+		aligned = t[8] == 1;
+	}
+
 	public function pushOpacity(a:Float) {
 		alphas.push(alpha);
 		alpha *= a;
@@ -205,6 +277,10 @@ class Renderer implements Canvas {
 		if (w <= 0 || h <= 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		if (!flat) {
+			shape(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0, 0, 0, 0);
+			return;
+		}
 		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
 		quad(x0, y0, x1, y1, 0, 0, 0, 0, fill, border, radius * s, borderWidth * s, 0, 0, 1, 0);
 	}
@@ -213,6 +289,10 @@ class Renderer implements Canvas {
 		if (w <= 0 || h <= 0 || color.a == 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		if (!flat) {
+			shape(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, radius * s, 0, 3, blur * s, blur * s, 0);
+			return;
+		}
 		var m = blur * s + 1;
 		if (culled(x0 - m, y0 - m, x1 + m, y1 + m)) return;
 		quad(x0, y0, x1, y1, 0, 0, 0, 0, color, 0, radius * s, 0, 3, blur * s, m, 0);
@@ -222,6 +302,11 @@ class Renderer implements Canvas {
 		if (w <= 0 || h <= 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		if (!flat) {
+			texture(img);
+			shape(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, radius * s, 0, 2, 0, 0, img.id);
+			return;
+		}
 		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
 		texture(img);
 		quad(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, radius * s, 0, 2, 0, 1, img.id);
@@ -232,14 +317,20 @@ class Renderer implements Canvas {
 		var t = dp.layout, s = scale;
 		var size = t.fonts.size * s;
 		var ox = x + tx, oy = y + ty;
+		if (!flat) {
+			if (mk < 1e-6) return;
+			// (in the scaled pixels: on the target's grid where aligned)
+			s *= mk;
+			size *= mk;
+		}
 		for (l in t.lines) {
 			var lx = switch align {
 				case Center: (width - l.width) / 2;
 				case Right: width - l.width;
 				case _: 0.0;
 			}
-			var by = Math.round((oy + l.top + l.baseline) * s);
-			if (by - size * 1.5 > clipY1 || by + size < clipY0) continue;
+			var by = Math.round((oy + l.top + l.baseline) * s + (flat ? 0 : mf - Std.int(mf)));
+			if (flat && (by - size * 1.5 > clipY1 || by + size < clipY0)) continue;
 			for (g in l.glyphs) {
 				if (g.hidden || g.cp == 32 || g.cp == 10 || g.cp == 9) continue;
 				var gx = (ox + lx + g.x + g.dx) * s, gy = by + Math.round(g.dy * s);
@@ -258,8 +349,9 @@ class Renderer implements Canvas {
 					}
 					var b = colorGlyph(f, g.id, size);
 					if (b != null) {
-						var qx = Math.round(gx + b.left), qy = gy - b.top;
-						if (!culled(qx, qy, qx + b.image.width, qy + b.image.height)) {
+						var ex = flat ? 0.0 : me - Std.int(me), ey = flat ? 0.0 : mf - Std.int(mf);
+						var qx = Math.round(gx + b.left + ex) - ex, qy = gy - b.top - ey;
+						if (!flat || !culled(qx, qy, qx + b.image.width, qy + b.image.height)) {
 							texture(b.image);
 							quad(qx, qy, qx + b.image.width, qy + b.image.height, 0, 0, 1, 1, Color.WHITE, 0, 0, 0, 2, 0, 1, b.image.id);
 						}
@@ -272,13 +364,17 @@ class Renderer implements Canvas {
 	}
 
 	// a glyph from the atlas at (gx, gy): device pixels, the baseline
+	// (under a transform: scaled pixels, gy whole on the target's grid less
+	// the translation's fraction, which the glyph is moved back by)
 	inline function glyph(f:hxmc.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool) {
-		var ix = Math.floor(gx);
-		var sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
+		// (aligned: the subpixel offset on the target's grid, as the transform moves it)
+		var ex = flat ? 0.0 : me - Std.int(me), ey = flat ? 0.0 : mf - Std.int(mf);
+		var ix = Math.floor(gx + ex);
+		var sub = Std.int((gx + ex - ix) * GlyphAtlas.SUBPIXELS);
 		var a = atlas.get(f, id, size, sub, oblique);
 		if (a.w > 0) {
-			var qx = ix + a.left, qy = gy + a.top;
-			if (!culled(qx, qy, qx + a.w, qy + a.h))
+			var qx = ix - ex + a.left, qy = gy + a.top - ey;
+			if (!flat || !culled(qx, qy, qx + a.w, qy + a.h))
 				quad(qx, qy, qx + a.w, qy + a.h, a.x / atlas.width, a.y / atlas.height, (a.x + a.w) / atlas.width, (a.y + a.h) / atlas.height, color, 0, 0, 0, 1, 0,
 					0, 0);
 		}
@@ -349,16 +445,39 @@ class Renderer implements Canvas {
 	inline function culled(x0:Float, y0:Float, x1:Float, y1:Float)
 		return x1 <= clipX0 || y1 <= clipY0 || x0 >= clipX1 || y0 >= clipY1 || clipX1 <= clipX0 || clipY1 <= clipY0;
 
+	// a rectangle, shadow or image under a transform: from device pixels to
+	// the scaled ones (lengths too), culled by its turned corners' bounds;
+	// blur: the margin it grows by before its anti-aliased pixel
+	function shape(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, radius:Float,
+			borderWidth:Float, mode:Float, blur:Float, grow:Float, image:Int) {
+		var k = mk;
+		if (k < 1e-6) return;
+		x0 *= k;
+		y0 *= k;
+		x1 *= k;
+		y1 *= k;
+		var m = grow * k + 1;
+		var ra = ma / k, rb = mb / k, rc = mc / k, rd = md / k;
+		var lx = x0 - m, ly = y0 - m, hx = x1 + m, hy = y1 + m;
+		var ax = ra * lx + rc * ly, bx = ra * hx + rc * ly, cx = ra * lx + rc * hy, dx = ra * hx + rc * hy;
+		var ay = rb * lx + rd * ly, by = rb * hx + rd * ly, cy = rb * lx + rd * hy, dy = rb * hx + rd * hy;
+		if (culled(Math.min(Math.min(ax, bx), Math.min(cx, dx)) + me, Math.min(Math.min(ay, by), Math.min(cy, dy)) + mf,
+			Math.max(Math.max(ax, bx), Math.max(cx, dx)) + me, Math.max(Math.max(ay, by), Math.max(cy, dy)) + mf))
+			return;
+		quad(x0, y0, x1, y1, u0, v0, u1, v1, fill, border, radius * k, borderWidth * k, mode, blur * k, m, image);
+	}
+
 	// a quad over x0, y0, x1, y1 grown by margin m (a rectangle's anti-aliased
 	// edge, a shadow's blur), its texture coordinates growing with it
 	function quad(x0:Float, y0:Float, x1:Float, y1:Float, u0:Float, v0:Float, u1:Float, v1:Float, fill:Color, border:Color, radius:Float,
 			borderWidth:Float, mode:Float, blur:Float, m:Float, image:Int) {
-		// (a new run where the image changes)
+		// (a new run where the image changes, or how glyphs are read)
+		var key = image * 2 + (mode == 1 && !aligned ? 1 : 0);
 		var nb = batches.length;
-		if (nb == 0 || batches[nb - 1] != image) {
+		if (nb == 0 || batches[nb - 1] != key) {
 			batches.push(Std.int(used / STRIDE));
 			batches.push(0);
-			batches.push(image);
+			batches.push(key);
 			nb += 3;
 		}
 		batches[nb - 2] += 6;
@@ -373,10 +492,13 @@ class Renderer implements Canvas {
 		var fr = fill.r / 255 * fa, fg = fill.g / 255 * fa, fb = fill.b / 255 * fa;
 		var br = border.r / 255 * ba, bg = border.g / 255 * ba, bb = border.b / 255 * ba;
 		var cx0 = clipX0, cy0 = clipY0, cx1 = clipX1, cy1 = clipY1, cr = clipR;
+		// (the transform less its scale: exact for none)
+		var k = mk, ra = flat ? 1 : ma / k, rb = flat ? 0 : mb / k, rc = flat ? 0 : mc / k, rd = flat ? 1 : md / k, te = flat ? 0 : me, tf = flat ? 0 : mf;
 		inline function vertex(px:Float, py:Float, u:Float, v:Float) {
 			var o = used;
-			bytes.setFloat(o, px / targetW * 2 - 1);
-			bytes.setFloat(o + 4, 1 - py / targetH * 2);
+			var X = ra * px + rc * py + te, Y = rb * px + rd * py + tf;
+			bytes.setFloat(o, X / targetW * 2 - 1);
+			bytes.setFloat(o + 4, 1 - Y / targetH * 2);
 			bytes.setFloat(o + 8, px - x0 - hx);
 			bytes.setFloat(o + 12, py - y0 - hy);
 			bytes.setFloat(o + 16, hx);
@@ -395,8 +517,8 @@ class Renderer implements Canvas {
 			bytes.setFloat(o + 68, borderWidth);
 			bytes.setFloat(o + 72, mode);
 			bytes.setFloat(o + 76, blur);
-			bytes.setFloat(o + 80, px);
-			bytes.setFloat(o + 84, py);
+			bytes.setFloat(o + 80, X);
+			bytes.setFloat(o + 84, Y);
 			bytes.setFloat(o + 88, cr);
 			bytes.setFloat(o + 92, cx0);
 			bytes.setFloat(o + 96, cy0);

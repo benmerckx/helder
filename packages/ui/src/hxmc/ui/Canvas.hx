@@ -2,14 +2,19 @@ package hxmc.ui;
 
 // What draws a UI tree: the GPU renderer (hxmc.ui.draw.Renderer) or a test's.
 // Coordinates are window pixels moved by the current translation (translate
-// adds to it: a scrolled node's children); clips nest (each intersects the
-// current one) and are restored with the translation they were pushed at.
+// adds to it: a scrolled node's children) and through the transforms pushed
+// (each applied to what is drawn after it, inside the ones pushed before);
+// clips nest (each intersects the current one) and are restored with the
+// translation they were pushed at.
 interface Canvas {
 	function translate(dx:Float, dy:Float):Void;
 	function pushClip(x:Float, y:Float, w:Float, h:Float, radius:Float):Void;
 	function popClip():Void;
 	function pushOpacity(alpha:Float):Void;
 	function popOpacity():Void;
+	// an affine transform, in the current coordinates: x' = a x + c y + e, y' = b x + d y + f
+	function pushTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float):Void;
+	function popTransform():Void;
 	// a rectangle with rounded corners, filled, with a border inside it
 	function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color):Void;
 	// a rounded rectangle faded over blur pixels on each side of its edge
