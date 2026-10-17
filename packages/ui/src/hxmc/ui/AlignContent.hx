@@ -9,4 +9,6 @@ enum abstract AlignContent(Int) {
 	var SpaceBetween;
 	var SpaceAround;
 	var SpaceEvenly;
+	// the default: Start in a flex container; a grid's auto rows stretched (CSS's normal)
+	var Normal;
 }

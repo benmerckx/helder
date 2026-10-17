@@ -44,4 +44,13 @@ typedef StyleProps = {
 	?italic:Bool,
 	?lineHeight:Float,
 	?textAlign:TextAlign,
+	?gridTemplateColumns:Array<Grid.Track>,
+	?gridTemplateRows:Array<Grid.Track>,
+	?gridAutoColumns:Grid.Track,
+	?gridAutoRows:Grid.Track,
+	?gridAutoFlow:Grid.GridFlow,
+	?gridColumn:Grid.GridPlacement,
+	?gridRow:Grid.GridPlacement,
+	?justifyItems:Align,
+	?justifySelf:Align,
 }

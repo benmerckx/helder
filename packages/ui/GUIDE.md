@@ -167,6 +167,21 @@ property is an attribute, in kebab-case or camelCase, with CSS's values:
 	width="50%" min-height={0} background="#3b82f6" radius={6} border-width={1} border-color="#1d4ed8"/>
 ```
 
+For two-dimensional layouts, `display="grid"` places children on CSS
+grid tracks: fixed sizes, percentages, `fr` shares, `auto`,
+`min-content`, `max-content`, `minmax()` and `repeat()`, with items
+placed by line numbers or spans and the rest auto-placed:
+
+```haxe
+static function Dashboard(props:{}):Esx
+	return <view display="grid" grid-template-columns="200px 1fr 1fr" grid-auto-rows="80px" column-gap={12} row-gap={12} padding={12}>
+		<view tag="nav" grid-row="span 2" background="#e4e4e7"/>
+		<view tag="chart" grid-column="span 2" background="#dbeafe"/>
+		<view tag="a" background="#fef3c7"/>
+		<view tag="b" background="#dcfce7"/>
+	</view>;
+```
+
 Sizes are border boxes, and items do not shrink below their content. A
 scrolling area is a `scroll` element, which needs a bounded height, often
 `grow={1} min-height={0}` inside a column. Text properties (`color`,

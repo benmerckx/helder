@@ -8,4 +8,6 @@ enum abstract Justify(Int) {
 	var SpaceBetween;
 	var SpaceAround;
 	var SpaceEvenly;
+	// the default: Start in a flex container; a grid's auto columns stretched (CSS's normal)
+	var Normal;
 }

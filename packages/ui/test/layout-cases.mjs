@@ -3,6 +3,7 @@
 // names; lengths in pixels or "<n>%"), the root sized width x height.
 const box = (w, h, style = {}) => ({ style: { width: w, height: h, ...style } });
 const grow = (g, style = {}) => ({ style: { grow: g, ...style } });
+const h = (v) => ({ style: { height: v } });
 
 export const cases = [
 	{ name: 'column of fixed boxes', width: 200, height: 200, tree: { children: [box(50, 30), box(80, 40), box(20, 10)] } },
@@ -68,4 +69,33 @@ export const cases = [
 		{ style: { direction: 'Row', alignItems: 'Center', padding: [4, 8], columnGap: 6, height: 40 }, children: [box(24, 24), box(80, 20), grow(1), box(60, 28)] },
 		{ style: { grow: 1, direction: 'Row' }, children: [{ style: { width: 120, padding: 8, rowGap: 4 }, children: [{ style: { height: 20 } }, { style: { height: 20 } }] }, { style: { grow: 1, padding: 12 } }] },
 		{ style: { height: 24 } }] } },
+	// grids
+	{ name: 'grid fixed columns', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '50px 100px' }, children: [h(20), h(30), h(25), h(10)] } },
+	{ name: 'grid fr columns', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 2fr' }, children: [h(30), h(30), h(30)] } },
+	{ name: 'grid px fr auto', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '80px 1fr auto', alignContent: 'Start' }, children: [h(20), h(20), { children: [box(40, 20)] }] } },
+	{ name: 'grid gaps', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr 1fr', rowGap: 10, columnGap: 6, alignContent: 'Start' }, children: [h(20), h(20), h(20), h(20), h(20)] } },
+	{ name: 'grid template rows', width: 200, height: 200, tree: { style: { display: 'Grid', gridTemplateRows: '40px 1fr 30px' }, children: [{}, {}, {}] } },
+	{ name: 'grid placement', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '40px' }, children: [{ style: { gridColumn: '2 / 4' } }, { style: { gridColumn: '1', gridRow: '2' } }, {}, {}] } },
+	{ name: 'grid spans', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '30px', columnGap: 4 }, children: [{ style: { gridColumn: 'span 2' } }, {}, {}, { style: { gridColumn: 'span 3' } }, { style: { gridRow: 'span 2' } }, {}] } },
+	{ name: 'grid negative lines', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '50px 1fr 50px', gridAutoRows: '30px' }, children: [{ style: { gridColumn: '1 / -1' } }, { style: { gridColumn: '-2' } }] } },
+	{ name: 'grid minmax', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: 'minmax(100px, 1fr) minmax(50px, 80px) 1fr' }, children: [h(20), h(20), h(20)] } },
+	{ name: 'grid percent columns', width: 400, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '25% 75%' }, children: [h(20), h(20)] } },
+	{ name: 'grid content columns', width: 400, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: 'min-content max-content auto', alignContent: 'Start' },
+		children: [{ style: { direction: 'Row', wrap: true }, children: [box(60, 20), box(50, 20)] }, { style: { direction: 'Row', wrap: true }, children: [box(60, 20), box(50, 20)] }, { children: [box(30, 20)] }] } },
+	{ name: 'grid items aligned', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '100px 100px', justifyItems: 'Center', alignItems: 'End' },
+		children: [box(40, 30), box(50, 20, { justifySelf: 'End', alignSelf: 'Start' }), box(30, 30, { justifySelf: 'Stretch', width: 'auto' }), { style: { height: 20, justifySelf: 'Start' }, children: [box(25, 10)] }] } },
+	{ name: 'grid auto flow column', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateRows: '50px 50px', gridAutoFlow: 'Column', gridAutoColumns: '60px' }, children: [{}, {}, {}, {}, {}] } },
+	{ name: 'grid auto columns from content', width: 400, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { display: 'Grid', gridTemplateColumns: 'auto auto', columnGap: 10, padding: 5 }, children: [box(70, 20), box(40, 30), box(20, 20)] }] } },
+	{ name: 'grid padding and border', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', padding: 10, borderWidth: 5, alignContent: 'Start' }, children: [h(30), h(30)] } },
+	{ name: 'grid absolute child', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr', padding: 10 }, children: [h(30), box(40, 40, { position: 'Absolute', right: 5, top: 5 })] } },
+	{ name: 'grid justify content center', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '60px 60px', gridTemplateRows: '40px', justify: 'Center', alignContent: 'End' }, children: [{}, {}] } },
+	{ name: 'grid space between', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '60px 60px 60px', gridTemplateRows: '40px 40px', justify: 'SpaceBetween', alignContent: 'SpaceBetween' }, children: [{}, {}, {}, {}] } },
+	{ name: 'grid rows from content', width: 300, height: 300, tree: { style: { display: 'Grid', gridTemplateColumns: '100px 1fr', alignContent: 'Start', columnGap: 8, rowGap: 4 }, children: [box(50, 40), { children: [h(20), h(25)] }, h(15), {}] } },
+	{ name: 'grid fr at indefinite width', width: 400, height: 100, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { display: 'Grid', gridTemplateColumns: '1fr 2fr' }, children: [box(60, 20), box(40, 20)] }] } },
+	{ name: 'grid item margins', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', gridAutoRows: '50px' }, children: [{ style: { margin: 5 } }, { style: { margin: [2, 4, 6, 8] } }, box(40, 20, { margin: 10, justifySelf: 'End', alignSelf: 'Center' })] } },
+	{ name: 'grid spanning content', width: 400, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { display: 'Grid', gridTemplateColumns: 'auto auto' }, children: [box(200, 20, { gridColumn: 'span 2' }), box(30, 20), box(50, 20)] }] } },
+	{ name: 'grid nested', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '100px 1fr', alignContent: 'Start' }, children: [h(40), { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', columnGap: 4 }, children: [h(20), h(30), h(10)] }] } },
+	{ name: 'grid min content in a row', width: 300, height: 100, tree: { style: { direction: 'Row' }, children: [{ style: { display: 'Grid', gridTemplateColumns: 'auto auto', columnGap: 10 }, children: [box(80, 20), box(60, 20)] }, box(250, 20)] } },
+	{ name: 'grid auto rows minmax', width: 300, height: 300, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', gridAutoRows: 'minmax(40px, auto)', alignContent: 'Start' }, children: [h(20), h(60), h(10)] } },
+	{ name: 'grid wide item in fr', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', alignContent: 'Start' }, children: [{ children: [box(200, 20)] }, h(20)] } },
 ];

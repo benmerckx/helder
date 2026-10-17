@@ -19,13 +19,16 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const px = (v) => (typeof v === 'number' ? v + 'px' : v);
 const KEBAB = { direction: 'flex-direction', wrap: 'flex-wrap', justify: 'justify-content', alignItems: 'align-items', alignSelf: 'align-self',
 	alignContent: 'align-content', grow: 'flex-grow', shrink: 'flex-shrink', basis: 'flex-basis', minWidth: 'min-width', minHeight: 'min-height',
-	maxWidth: 'max-width', maxHeight: 'max-height', rowGap: 'row-gap', columnGap: 'column-gap', borderWidth: 'border-width', aspectRatio: 'aspect-ratio' };
+	maxWidth: 'max-width', maxHeight: 'max-height', rowGap: 'row-gap', columnGap: 'column-gap', borderWidth: 'border-width', aspectRatio: 'aspect-ratio',
+	gridTemplateColumns: 'grid-template-columns', gridTemplateRows: 'grid-template-rows', gridAutoColumns: 'grid-auto-columns', gridAutoRows: 'grid-auto-rows',
+	gridAutoFlow: 'grid-auto-flow', gridColumn: 'grid-column', gridRow: 'grid-row', justifyItems: 'justify-items', justifySelf: 'justify-self' };
 const VALUES = { Row: 'row', Column: 'column', RowReverse: 'row-reverse', ColumnReverse: 'column-reverse', Start: 'flex-start', End: 'flex-end',
 	Center: 'center', Stretch: 'stretch', SpaceBetween: 'space-between', SpaceAround: 'space-around', SpaceEvenly: 'space-evenly', Auto: 'auto',
-	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex', Visible: 'visible', Hidden: 'hidden', Scroll: 'scroll' };
+	Absolute: 'absolute', Relative: 'relative', None: 'none', Flex: 'flex', Grid: 'grid', Visible: 'visible', Hidden: 'hidden', Scroll: 'scroll' };
 
 function css(style) {
-	let s = '';
+	// (a grid: CSS's normal track alignment, auto tracks stretched, where the page's rule says flex-start)
+	let s = style?.display === 'Grid' && style.alignContent === undefined ? 'align-content:normal;' : '';
 	for (const [k, v] of Object.entries(style ?? {})) {
 		const name = KEBAB[k] ?? k;
 		let value;

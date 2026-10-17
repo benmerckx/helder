@@ -30,7 +30,7 @@ class Style {
 	// items flow into more lines when the main size is too small
 	public var wrap(default, set):Bool = false;
 
-	public var justify(default, set):Justify = Start;
+	public var justify(default, set):Justify = Normal;
 
 	// the children's default alignment across the main axis
 	public var alignItems(default, set):Align = Stretch;
@@ -38,7 +38,26 @@ class Style {
 	// this node's alignment in its parent (Auto: the parent's alignItems)
 	public var alignSelf(default, set):Align = Align.Auto;
 
-	public var alignContent(default, set):AlignContent = Start;
+	public var alignContent(default, set):AlignContent = Normal;
+
+	// the explicit grid's columns and rows (Grid.tracks: "1fr 200px auto")
+	public var gridTemplateColumns(default, set):Array<Grid.Track> = [];
+	public var gridTemplateRows(default, set):Array<Grid.Track> = [];
+
+	// the size of the tracks auto-placement adds beyond them
+	public var gridAutoColumns(default, set):Grid.Track = Grid.Track.AUTO;
+	public var gridAutoRows(default, set):Grid.Track = Grid.Track.AUTO;
+
+	// what auto-placement fills first: rows (each across, then the next) or columns
+	public var gridAutoFlow(default, set):Grid.GridFlow = Grid.GridFlow.Row;
+
+	// the lines this node spans in a grid (Grid.GridPlacement.parse: "1 / 3", "span 2")
+	public var gridColumn(default, set):Grid.GridPlacement = Grid.GridPlacement.AUTO;
+	public var gridRow(default, set):Grid.GridPlacement = Grid.GridPlacement.AUTO;
+
+	// in a grid: the children's default alignment in their areas along a row, and this node's (Auto: its parent's justifyItems)
+	public var justifyItems(default, set):Align = Align.Stretch;
+	public var justifySelf(default, set):Align = Align.Auto;
 
 	// flex-grow
 	public var grow(default, set):Float = 0;
@@ -175,6 +194,69 @@ class Style {
 	function set_alignContent(v:AlignContent):AlignContent {
 		if (v == alignContent) return v;
 		alignContent = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridTemplateColumns(v:Array<Grid.Track>):Array<Grid.Track> {
+		if (v == gridTemplateColumns) return v;
+		gridTemplateColumns = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridTemplateRows(v:Array<Grid.Track>):Array<Grid.Track> {
+		if (v == gridTemplateRows) return v;
+		gridTemplateRows = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridAutoColumns(v:Grid.Track):Grid.Track {
+		if (v == gridAutoColumns) return v;
+		gridAutoColumns = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridAutoRows(v:Grid.Track):Grid.Track {
+		if (v == gridAutoRows) return v;
+		gridAutoRows = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridAutoFlow(v:Grid.GridFlow):Grid.GridFlow {
+		if (v == gridAutoFlow) return v;
+		gridAutoFlow = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridColumn(v:Grid.GridPlacement):Grid.GridPlacement {
+		if (v == gridColumn) return v;
+		gridColumn = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_gridRow(v:Grid.GridPlacement):Grid.GridPlacement {
+		if (v == gridRow) return v;
+		gridRow = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_justifyItems(v:Align):Align {
+		if (v == justifyItems) return v;
+		justifyItems = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_justifySelf(v:Align):Align {
+		if (v == justifySelf) return v;
+		justifySelf = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -453,6 +535,15 @@ class Style {
 		if (p.italic != null) italic = p.italic;
 		if (p.lineHeight != null) lineHeight = p.lineHeight;
 		if (p.textAlign != null) textAlign = p.textAlign;
+		if (p.gridTemplateColumns != null) gridTemplateColumns = p.gridTemplateColumns;
+		if (p.gridTemplateRows != null) gridTemplateRows = p.gridTemplateRows;
+		if (p.gridAutoColumns != null) gridAutoColumns = p.gridAutoColumns;
+		if (p.gridAutoRows != null) gridAutoRows = p.gridAutoRows;
+		if (p.gridAutoFlow != null) gridAutoFlow = p.gridAutoFlow;
+		if (p.gridColumn != null) gridColumn = p.gridColumn;
+		if (p.gridRow != null) gridRow = p.gridRow;
+		if (p.justifyItems != null) justifyItems = p.justifyItems;
+		if (p.justifySelf != null) justifySelf = p.justifySelf;
 		return this;
 	}
 }

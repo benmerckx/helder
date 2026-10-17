@@ -52,6 +52,15 @@ class StyleAttrs {
 			case "italic": style.italic = v == true || v == "true";
 			case "lineHeight": style.lineHeight = float(v);
 			case "textAlign": style.textAlign = textAlignValue(v);
+			case "gridTemplateColumns": style.gridTemplateColumns = Std.isOfType(v, String) ? Grid.tracks(v) : v;
+			case "gridTemplateRows": style.gridTemplateRows = Std.isOfType(v, String) ? Grid.tracks(v) : v;
+			case "gridAutoColumns": style.gridAutoColumns = Std.isOfType(v, String) ? Grid.tracks(v)[0] : v;
+			case "gridAutoRows": style.gridAutoRows = Std.isOfType(v, String) ? Grid.tracks(v)[0] : v;
+			case "gridAutoFlow": style.gridAutoFlow = v == "column" || v == "Column" ? Grid.GridFlow.Column : v == "row" || v == "Row" ? Grid.GridFlow.Row : v;
+			case "gridColumn": style.gridColumn = Std.isOfType(v, String) ? Grid.GridPlacement.parse(v) : Std.isOfType(v, Int) ? new Grid.GridPlacement(v, 0, 1) : v;
+			case "gridRow": style.gridRow = Std.isOfType(v, String) ? Grid.GridPlacement.parse(v) : Std.isOfType(v, Int) ? new Grid.GridPlacement(v, 0, 1) : v;
+			case "justifyItems": style.justifyItems = alignItemsValue(v);
+			case "justifySelf": style.justifySelf = alignSelfValue(v);
 			case _: return false;
 		}
 		return true;
@@ -60,7 +69,7 @@ class StyleAttrs {
 	public static function isStyle(name:String):Bool
 		return NAMES.exists(camel(name));
 
-	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true];
+	static final NAMES = ["display" => true, "position" => true, "direction" => true, "wrap" => true, "justify" => true, "alignItems" => true, "alignSelf" => true, "alignContent" => true, "grow" => true, "shrink" => true, "basis" => true, "width" => true, "height" => true, "minWidth" => true, "minHeight" => true, "maxWidth" => true, "maxHeight" => true, "aspectRatio" => true, "padding" => true, "margin" => true, "borderWidth" => true, "rowGap" => true, "columnGap" => true, "left" => true, "top" => true, "right" => true, "bottom" => true, "overflow" => true, "background" => true, "borderColor" => true, "radius" => true, "opacity" => true, "cursor" => true, "shadow" => true, "color" => true, "fontFamily" => true, "fontSize" => true, "fontWeight" => true, "italic" => true, "lineHeight" => true, "textAlign" => true, "gridTemplateColumns" => true, "gridTemplateRows" => true, "gridAutoColumns" => true, "gridAutoRows" => true, "gridAutoFlow" => true, "gridColumn" => true, "gridRow" => true, "justifyItems" => true, "justifySelf" => true];
 
 	// (kebab-case names converted once each)
 	static final camels = new Map<String, String>();
@@ -109,6 +118,7 @@ class StyleAttrs {
 		return switch key(v) {
 			case "flex": Display.Flex;
 			case "none": Display.None;
+			case "grid": Display.Grid;
 			case _: throw "hxmc.ui: " + v + " is not a Display";
 		}
 	}
@@ -145,6 +155,7 @@ class StyleAttrs {
 			case "spacebetween": Justify.SpaceBetween;
 			case "spacearound": Justify.SpaceAround;
 			case "spaceevenly": Justify.SpaceEvenly;
+			case "normal": Justify.Normal;
 			case _: throw "hxmc.ui: " + v + " is not a Justify";
 		}
 	}
@@ -186,6 +197,7 @@ class StyleAttrs {
 			case "spacebetween": AlignContent.SpaceBetween;
 			case "spacearound": AlignContent.SpaceAround;
 			case "spaceevenly": AlignContent.SpaceEvenly;
+			case "normal": AlignContent.Normal;
 			case _: throw "hxmc.ui: " + v + " is not a AlignContent";
 		}
 	}

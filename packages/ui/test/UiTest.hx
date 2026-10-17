@@ -630,7 +630,7 @@ class UiTest {
 					case "SpaceEvenly": SpaceEvenly;
 					case _: Start;
 				}
-			case "alignItems" | "alignSelf":
+			case "alignItems" | "alignSelf" | "justifyItems" | "justifySelf":
 				var a:Align = switch (v : String) {
 					case "Start": Start;
 					case "End": End;
@@ -638,7 +638,19 @@ class UiTest {
 					case "Stretch": Stretch;
 					case _: Auto;
 				}
-				if (k == "alignItems") s.alignItems = a else s.alignSelf = a;
+				switch k {
+					case "alignItems": s.alignItems = a;
+					case "alignSelf": s.alignSelf = a;
+					case "justifyItems": s.justifyItems = a;
+					case _: s.justifySelf = a;
+				}
+			case "gridTemplateColumns": s.gridTemplateColumns = Grid.tracks(v);
+			case "gridTemplateRows": s.gridTemplateRows = Grid.tracks(v);
+			case "gridAutoColumns": s.gridAutoColumns = Grid.tracks(v)[0];
+			case "gridAutoRows": s.gridAutoRows = Grid.tracks(v)[0];
+			case "gridAutoFlow": s.gridAutoFlow = v == "Column" ? Grid.GridFlow.Column : Grid.GridFlow.Row;
+			case "gridColumn": s.gridColumn = Grid.GridPlacement.parse(Std.string(v));
+			case "gridRow": s.gridRow = Grid.GridPlacement.parse(Std.string(v));
 			case "alignContent": s.alignContent = switch (v : String) {
 					case "End": End;
 					case "Center": Center;
@@ -649,7 +661,7 @@ class UiTest {
 					case _: Start;
 				}
 			case "position": s.position = v == "Absolute" ? Absolute : Relative;
-			case "display": s.display = v == "None" ? None : Flex;
+			case "display": s.display = v == "None" ? None : v == "Grid" ? Grid : Flex;
 			case "overflow": s.overflow = v == "Hidden" ? Hidden : v == "Scroll" ? Scroll : Visible;
 			case _: throw "UiTest: no style " + k;
 		}

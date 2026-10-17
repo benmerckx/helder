@@ -29,6 +29,7 @@ class GuideTest implements Markup {
 		popups();
 		customNodes();
 		snippets();
+		grids();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
 	}
@@ -218,6 +219,27 @@ class GuideTest implements Markup {
 		ui.setFocus(f);
 		ui.keyDown(Key.ENTER, 0);
 		check("snippets: a focusable node with a role", f.semantics != null && f.semantics.role == hxmc.ui.access.Role.Button && f.semantics.label == "Close" && closed == 1);
+	}
+
+	// "Layout and style": a grid
+	static function Dashboard(props:{}):Esx
+		return <view display="grid" grid-template-columns="200px 1fr 1fr" grid-auto-rows="80px" column-gap={12} row-gap={12} padding={12}>
+			<view tag="nav" grid-row="span 2" background="#e4e4e7"/>
+			<view tag="chart" grid-column="span 2" background="#dbeafe"/>
+			<view tag="a" background="#fef3c7"/>
+			<view tag="b" background="#dcfce7"/>
+		</view>;
+
+	static function grids() {
+		var ui = new Ui(new MonoText(), 600, 400);
+		Render.render(<Dashboard/>, ui.root);
+		ui.update();
+		var box = (tag:String) -> {
+			var n = ui.root.find(tag);
+			[n.absX, n.absY, n.width, n.height].join(",");
+		}
+		check("grid: tracks, spans and gaps", box("nav") == "12,12,200,172" && box("chart") == "224,12,364,80" && box("a") == "224,104,176,80" && box("b") == "412,104,176,80",
+			[for (t in ["nav", "chart", "a", "b"]) box(t)].join(" "));
 	}
 
 	static function customNodes() {
