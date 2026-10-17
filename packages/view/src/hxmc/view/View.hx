@@ -18,14 +18,18 @@ import haxe.macro.Expr;
 // The literal's holes ({expr} children and attribute values) are evaluated
 // where it is; mount then makes its elements (the renderer's, by tag:
 // lowercase names), sets their attributes and inserts them, each time it is
-// mounted. Other names are components: Button(props) called when mounted,
-// untracked, in an owner of its own, props an object of its attributes
-// (children: the content, a View), checked against Button's argument.
+// mounted, by the renderer that owns the place it is mounted in (each
+// literal is compiled for each of the program's renderers). Other names
+// are components: Button(props) called when mounted, untracked, in an
+// owner of its own, props an object of its attributes (children: the
+// content, a View), checked against Button's argument.
 class View {
 	#if !macro
-	// makes the nodes in parent before before (null: at the end); the top
-	// ones also pushed to out (when not null)
-	public final mount:(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>) -> Void;
+	// makes the nodes, with the code compiled for renderer r (its index in
+	// the program's: HostMacro), in parent before before (null: at the end);
+	// the top ones also pushed to out (when not null). Parent, before and
+	// out are that renderer's nodes (Runtime_<r> calls it)
+	public final mount:(r:Int, parent:Dynamic, before:Dynamic, out:Dynamic) -> Void;
 	// content of components, holes and fragments only (a Switch's Match
 	// cases): its parts as values, components called (null: it has elements
 	// or text)

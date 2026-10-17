@@ -1,10 +1,11 @@
 package hxmc.view;
 
-// what owns computations and cleanups
+// what owns computations and cleanups (its lists made when first needed:
+// most owners have no children, many no cleanups)
 class Owner {
 	public final parent:Null<Owner>;
-	public final children:Array<Owner> = [];
-	public final cleanups:Array<Void->Void> = [];
+	public var children(default, null):Null<Array<Owner>> = null;
+	public var cleanups(default, null):Null<Array<Void->Void>> = null;
 	// the context values set here (Reactive.provide), by Context id
 	@:allow(hxmc.view) var contexts:Null<Map<Int, Dynamic>>;
 	// what catches errors thrown below (ErrorBoundary)
@@ -13,18 +14,33 @@ class Owner {
 
 	public function new(parent:Null<Owner>) {
 		this.parent = parent;
-		if (parent != null) parent.children.push(this);
+		if (parent != null) {
+			if (parent.children == null) parent.children = [];
+			parent.children.push(this);
+		}
+	}
+
+	// fn runs when this owner is disposed or cleaned
+	public function onCleanup(fn:Void->Void) {
+		if (cleanups == null) cleanups = [];
+		cleanups.push(fn);
 	}
 
 	// disposes the children and runs the cleanups (the owner itself stays usable)
 	public function clean() {
-		for (c in children.copy())
-			c.dispose();
-		children.resize(0);
-		var cs = cleanups.copy();
-		cleanups.resize(0);
-		for (f in cs)
-			f();
+		if (children != null) {
+			// (taken first: each child disposed leaves a list no longer here)
+			var cs = children;
+			children = null;
+			for (c in cs)
+				c.dispose();
+		}
+		if (cleanups != null) {
+			var fs = cleanups;
+			cleanups = null;
+			for (f in fs)
+				f();
+		}
 	}
 
 	// the nearest context value of id, here or above (found: whether one was)
@@ -54,7 +70,7 @@ class Owner {
 		if (disposed) return;
 		disposed = true;
 		clean();
-		if (parent != null) parent.children.remove(this);
+		if (parent != null && parent.children != null) parent.children.remove(this);
 		detach();
 	}
 

@@ -2,11 +2,15 @@ package hxmc.view;
 
 // The renderer contract: what markup and hxmc.view's runtime do to a tree
 // of nodes. A renderer is a class of static functions over its node type N
-// that implements Renders<N>; a program names its renderer with
-// -D hxmc.view.renderer=<class> (@hxmc/ui's hxmc.ui.view.NodeRenderer is
-// set by -lib hxmc.ui), and every call to it is a direct, inlinable call
-// (Host is that class, HostNode its N). The functions, checked when the
-// renderer is first used (HostMacro):
+// that implements Renders<N>; a program names its renderers with defines,
+// -D hxmc.view.renderer.<name>=<class> (-lib hxmc.ui sets ui's,
+// hxmc.ui.view.NodeRenderer). Each place content is mounted in belongs to
+// the renderer whose nodes it is (Render.render picks it by the parent's
+// type), and everything mounted there, components included, is made by
+// that renderer with direct, inlinable calls: markup is compiled for each
+// renderer, the runtime copied for each (Runtime, HostMacro). A component
+// that makes one renderer's node and renders into it with another is a
+// boundary. The functions, checked when the renderer is first used:
 //
 //   // nodes
 //   static function createElement(tag:String):N;

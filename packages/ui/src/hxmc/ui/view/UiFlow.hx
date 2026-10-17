@@ -39,7 +39,7 @@ class UiFlow {
 
 // Popover: a hidden marker where the markup puts it; the popup opened in
 // the marker's Ui while open is true
-class PopoverMount implements Mountable {
+class PopoverMount implements Mountable<Node> {
 	final props:{open:Dynamic, ?anchor:Node, ?placement:String, ?gap:Float, ?modal:Bool, ?backdrop:Color, ?onDismiss:Void->Void,
 		?onOpen:hxmc.ui.Popup->Void, ?at:Void->{x:Float, y:Float}, ?tag:String, ?children:Any};
 
@@ -86,7 +86,7 @@ class PopoverMount implements Mountable {
 }
 
 // Hotkey: a hidden marker; the shortcut added to its Ui once mounted
-class HotkeyMount implements Mountable {
+class HotkeyMount implements Mountable<Node> {
 	final props:{keys:String, action:Void->Void, ?local:Bool};
 
 	public function new(props)
@@ -119,7 +119,7 @@ function anchorAt(parent:Node, before:Null<Node>, tag:String):Node {
 // VirtualList: a scrolling view, a spacer as tall as every row, the rows in
 // view placed absolutely at their index's height (each with its owner,
 // under the list's)
-class VirtualRows<T> implements Mountable {
+class VirtualRows<T> implements Mountable<Node> {
 	final each:Dynamic;
 	final itemHeight:Float;
 	final height:Float;

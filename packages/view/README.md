@@ -64,21 +64,40 @@ it makes its nodes, each time it is mounted.
 
 Each literal compiles to straight-line code: the elements made by tag,
 put in their parents, their static attributes set as they are, holes
-through `Render` (which binds the reactive ones), static text joined at
+through the runtime (which binds the reactive ones), static text joined at
 compile time. Nothing walks a template at run time.
 
-## The renderer contract
+## Renderers
 
 A renderer is a class of static functions over its node type that
 implements `Renders<N>` (the list is in `Renders.hx`, checked at compile
 time): `createElement`, `createText`, `createMarker`, `setText`,
 `holdsText`, `setProperty`, `setStyle`, `listen`, `insert`, `remove`,
-`parentOf`, `arrange`, `isNode`. A program names its renderer with
-`-D hxmc.view.renderer=<class>`; markup and the runtime call it as `Host`
-(its node type `HostNode`), so every operation is a direct call. `@hxmc/ui`'s
-is `hxmc.ui.view.NodeRenderer`, which `-lib hxmc.ui` sets.
+`parentOf`, `arrange`, `isNode`. A program names its renderers with
+`-D hxmc.view.renderer.<name>=<class>` (`-lib hxmc.ui` sets ui's,
+`hxmc.ui.view.NodeRenderer`); there may be several.
+
+Components are renderer-agnostic: each literal is compiled for each
+renderer, and the runtime (`Runtime`, written against placeholders) is
+copied for each. `Render.render(content, parent)` picks the renderer by
+the parent's type when compiling; everything mounted there is made by
+that renderer, every node operation a direct call to it. A component that
+makes a node of one renderer and renders its children into it with
+another is a boundary:
+
+```haxe
+// a ui canvas in a page: the page's element, ui inside it
+static function UiCanvas(props:{width:Int, height:Int, ?children:View}):Any {
+	var canvas = DomRenderer.createElement("canvas");
+	var window = new UiWindow(canvas, props.width, props.height);
+	Render.render(props.children, window.root);
+	return canvas;
+}
+```
 
 ## Tests
 
-`make view-check`: `test/ViewTest.hx` on a test renderer, on Eval and
-natively, and the programs the macro rejects (`test/reject`).
+`make view-check`: `test/ViewTest.hx` on two test renderers (boundaries
+between them included), on Eval, natively and in JavaScript, and the
+programs the macro rejects (`test/reject`). The core uses no hxmc-only
+feature, so components compile to JavaScript unchanged.

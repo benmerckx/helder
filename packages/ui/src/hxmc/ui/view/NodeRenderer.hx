@@ -2,7 +2,7 @@ package hxmc.ui.view;
 
 import hxmc.ui.*;
 
-// hxmc.view's renderer for hxmc.ui's nodes (-D hxmc.view.renderer=
+// hxmc.view's renderer for hxmc.ui's nodes (-D hxmc.view.renderer.ui=
 // hxmc.ui.view.NodeRenderer, which -lib hxmc.ui sets): the tree that the
 // drawn backend (hxmc.ui.draw) and the native one (hxmc.ui.native, whose
 // Controls are nodes in it) display.

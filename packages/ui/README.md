@@ -127,7 +127,7 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   menu); Quit asks each window to close, as its close button does.
 - **`hxmc.ui.view`**: `@hxmc/view`'s renderer for these nodes
   (`NodeRenderer`; `-lib hxmc.ui` names it with `-D
-  hxmc.view.renderer`), the markup's attributes (`StyleAttrs`, generated
+  hxmc.view.renderer.ui`), the markup's attributes (`StyleAttrs`, generated
   from `Style`'s properties: a property added to `Style` is an
   attribute), and what is ui's own: the control flow components
   `VirtualList` (only the rows in view made: a list of 100000 rows scrolls

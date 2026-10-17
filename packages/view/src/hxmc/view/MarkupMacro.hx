@@ -123,13 +123,24 @@ class Literal {
 
 	public function compile(root:PNode):Expr {
 		shared = valueOnly(root);
-		var body = switch root.kind {
-			case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
-				[macro @:pos(pos) hxmc.view.Render.component(__p, __b, __o, ${factory(name, attrs, children, at)})];
-			case PElement(name, attrs, children, _): element(name, attrs, children, P, true);
-			case PFragment(children): this.children(children, P, B, O, macro false);
-			case _: [];
+		// (the mount code for each renderer: the holes made by the first pass, found again by the others)
+		var rs = HostMacro.renderers();
+		var cases:Array<Case> = [];
+		var only:Null<Expr> = null;
+		for (i in 0...rs.length) {
+			pass = i;
+			cursor = 0;
+			var body = forRenderer(mountBody(root), i);
+			var n = rs[i].node;
+			var typed = macro {
+				var __p:$n = cast __p0;
+				var __b:Null<$n> = cast __b0;
+				var __o:Null<Array<$n>> = cast __o0;
+				$b{body};
+			};
+			if (rs.length == 1) only = typed else cases.push({values: [macro $v{i}], expr: typed});
 		}
+		var mountExpr = only != null ? only : {expr: ESwitch(macro __r, cases, macro {}), pos: pos};
 		var parts = macro null;
 		if (shared) {
 			var items = [];
@@ -138,13 +149,48 @@ class Literal {
 		}
 		var line = MarkupMacro.lineOf(file, base);
 		var source = haxe.io.Path.withoutDirectory(file) + ":" + line;
-		var mount = macro function(__p:hxmc.view.HostNode, __b:Null<hxmc.view.HostNode>, __o:Null<Array<hxmc.view.HostNode>>):Void $b{body};
+		var mount = macro function(__r:Int, __p0:Dynamic, __b0:Dynamic, __o0:Dynamic):Void $mountExpr;
 		var out = holes.concat([macro @:pos(pos) new hxmc.view.View($mount, $parts, $v{source})]);
 		return macro @:pos(pos) $b{out};
 	}
 
+	// (which renderer's code is being made; the next hole to find again)
+	var pass = 0;
+	var cursor = 0;
+
+	// the code made for a renderer: __HOST__ its class, __RT__ its runtime
+	static function forRenderer(body:Array<Expr>, i:Int):Array<Expr> {
+		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i);
+		function sub(e:Expr):Expr
+			return switch e.expr {
+				case EConst(CIdent("__HOST__")): macro @:pos(e.pos) $p{host};
+				case EConst(CIdent("__RT__")): macro @:pos(e.pos) $p{rt};
+				case EObjectDecl(fields):
+					// (in place: map would lose the fields' name_pos)
+					for (f in fields)
+						f.expr = sub(f.expr);
+					e;
+				case _: e.map(sub);
+			}
+		return [for (e in body) sub(e)];
+	}
+
+	function mountBody(root:PNode):Array<Expr> {
+		return switch root.kind {
+			case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
+				[macro @:pos(pos) __RT__.component(__p, __b, __o, ${factory(name, attrs, children, at)})];
+			case PElement(name, attrs, children, _): element(name, attrs, children, P, true);
+			case PFragment(children): this.children(children, P, B, O, macro false);
+			case _: [];
+		}
+	}
+
 	// the literal's hole for e: a local, evaluated in source order
 	function hole(e:Expr, ?type:ComplexType):Expr {
+		if (pass > 0) {
+			var name = '__h${id}_${cursor++}';
+			return macro @:pos(e.pos) $i{name};
+		}
 		var name = '__h${id}_${holes.length}';
 		holes.push({expr: EVars([{name: name, type: type == null ? macro :Any : type, expr: e}]), pos: e.pos});
 		return macro @:pos(e.pos) $i{name};
@@ -189,8 +235,8 @@ class Literal {
 		var v = fresh("e");
 		var e = macro $i{v};
 		var out = [
-			macro @:pos(pos) var $v = hxmc.view.Host.createElement($v{name}),
-			top ? macro @:pos(pos) hxmc.view.Render.put($parent, $e, __b, __o) : macro @:pos(pos) hxmc.view.Host.insert($parent, $e, null)
+			macro @:pos(pos) var $v = __HOST__.createElement($v{name}),
+			top ? macro @:pos(pos) __RT__.put($parent, $e, __b, __o) : macro @:pos(pos) __HOST__.insert($parent, $e, null)
 		];
 		for (a in attrs) {
 			var s = attr(e, a);
@@ -201,12 +247,12 @@ class Literal {
 		if (Lambda.foreach(kids, k -> k.kind.match(PText(_) | PExpr(_, _)))) {
 			// (text only: the element's own text when it holds text)
 			var parts = [for (k in kids) part(k)];
-			if (Lambda.foreach(kids, k -> k.kind.match(PText(_)))) out.push(macro @:pos(pos) hxmc.view.Render.textOf($e, ${join(kids)}));
-			else out.push(macro @:pos(pos) hxmc.view.Render.flat($e, $v{name}, ([$a{parts}] : Array<Any>)));
+			if (Lambda.foreach(kids, k -> k.kind.match(PText(_)))) out.push(macro @:pos(pos) __RT__.textOf($e, ${join(kids)}));
+			else out.push(macro @:pos(pos) __RT__.flat($e, $v{name}, ([$a{parts}] : Array<Any>)));
 			return out;
 		}
 		var t = fresh("t");
-		out.push(macro @:pos(pos) var $t = hxmc.view.Host.holdsText($e));
+		out.push(macro @:pos(pos) var $t = __HOST__.holdsText($e));
 		return out.concat(this.children(kids, e, macro null, macro null, macro $i{t}));
 	}
 
@@ -218,9 +264,9 @@ class Literal {
 		var top = !before.expr.match(EConst(CIdent("null")));
 		function flush() {
 			if (run.length == 0) return;
-			if (Lambda.foreach(run, k -> k.kind.match(PText(_)))) s.push(macro @:pos(pos) hxmc.view.Render.text($parent, $before, $out, ${join(run)}, $span));
-			else if (run.length == 1) s.push(macro @:pos(pos) hxmc.view.Render.hole($parent, $before, $out, ${parts[0]}, $span));
-			else s.push(macro @:pos(pos) hxmc.view.Render.run($parent, $before, $out, ([$a{parts}] : Array<Any>), $span));
+			if (Lambda.foreach(run, k -> k.kind.match(PText(_)))) s.push(macro @:pos(pos) __RT__.text($parent, $before, $out, ${join(run)}, $span));
+			else if (run.length == 1) s.push(macro @:pos(pos) __RT__.hole($parent, $before, $out, ${parts[0]}, $span));
+			else s.push(macro @:pos(pos) __RT__.run($parent, $before, $out, ([$a{parts}] : Array<Any>), $span));
 			run = [];
 			parts = [];
 		}
@@ -231,7 +277,7 @@ class Literal {
 					parts.push(part(c));
 				case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
 					flush();
-					s.push(macro @:pos(pos) hxmc.view.Render.component($parent, $before, $out, ${factory(name, attrs, children, at)}));
+					s.push(macro @:pos(pos) __RT__.component($parent, $before, $out, ${factory(name, attrs, children, at)}));
 				case PElement(name, attrs, children, _):
 					flush();
 					s = s.concat(element(name, attrs, children, parent, top));
@@ -249,7 +295,7 @@ class Literal {
 			case PText(t): macro $v{t};
 			case PExpr(code, at):
 				var h = hole(MarkupMacro.expr(code, file, base + at));
-				if (shared) valueHoles.push(h);
+				if (shared && pass == 0) valueHoles.push(h);
 				h;
 			case _: throw "unreachable";
 		}
@@ -271,29 +317,29 @@ class Literal {
 					case AStatic(s): macro $v{s};
 					case _: macro true;
 				}
-				if (event) macro @:pos(ap) hxmc.view.Host.listen($e, $v{name}, $v);
+				if (event) macro @:pos(ap) __HOST__.listen($e, $v{name}, $v);
 				else switch name {
 					case "key": null;
-					case "style": macro @:pos(ap) hxmc.view.Host.setStyle($e, $v);
-					case "ref": macro @:pos(ap) hxmc.view.Render.attr($e, $v{name}, $v);
-					case _: macro @:pos(ap) hxmc.view.Host.setProperty($e, $v{name}, $v);
+					case "style": macro @:pos(ap) __HOST__.setStyle($e, $v);
+					case "ref": macro @:pos(ap) __RT__.attr($e, $v{name}, $v);
+					case _: macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $v);
 				}
 			case AExpr(code, at):
 				var x = MarkupMacro.expr(code, file, base + at, true);
 				// (a literal number or string: set as a static value is, never bound)
 				if (!event && name != "ref" && name != "key" && name != "style" && x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes))))
-					return macro @:pos(ap) hxmc.view.Host.setProperty($e, $v{name}, $x);
+					return macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $x);
 				var h = hole(x);
-				if (event) macro @:pos(ap) hxmc.view.Host.listen($e, $v{name}, $h);
+				if (event) macro @:pos(ap) __HOST__.listen($e, $v{name}, $h);
 				else switch name {
 					case "key": null;
-					case "ref": macro @:pos(ap) hxmc.view.Render.ref($e, $h);
-					case "style": macro @:pos(ap) hxmc.view.Render.style($e, $h);
-					case _: macro @:pos(ap) hxmc.view.Render.prop($e, $v{name}, $h);
+					case "ref": macro @:pos(ap) __RT__.ref($e, $h);
+					case "style": macro @:pos(ap) __RT__.style($e, $h);
+					case _: macro @:pos(ap) __RT__.prop($e, $v{name}, $h);
 				}
 			case ASpread(code, at):
 				var h = hole(MarkupMacro.expr(code, file, base + at, true));
-				macro @:pos(ap) hxmc.view.Render.spread($e, $h);
+				macro @:pos(ap) __RT__.spread($e, $h);
 		}
 	}
 
@@ -322,7 +368,7 @@ class Literal {
 		var f = {expr: EFunction(FAnonymous, {args: [], ret: macro :Any, expr: {expr: EReturn(call), pos: p}}), pos: p};
 		if (!shared) return f;
 		var h = hole(f, macro :Void->Any);
-		factories.push(h);
+		if (pass == 0) factories.push(h);
 		return h;
 	}
 }

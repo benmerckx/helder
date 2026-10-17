@@ -81,7 +81,7 @@ class Reactive {
 
 	// fn runs when the current owner is disposed or runs again
 	public static function onCleanup(fn:Void->Void)
-		if (owner != null) owner.cleanups.push(fn);
+		if (owner != null) owner.onCleanup(fn);
 
 	// a context with its default value (Context)
 	public static inline function context<T>(defaultValue:T):Context<T>

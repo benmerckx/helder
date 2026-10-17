@@ -2,19 +2,23 @@ import hxmc.view.*;
 import hxmc.view.Flow.*;
 import hxmc.view.Reactive.*;
 import TestRenderer.TestNode;
+import OtherRenderer.OtherNode;
 
 // hxmc.view's tests, on Eval and natively (make view-check), on
 // TestRenderer:
 //
-//   <tool> -cp packages/view/src -cp packages/view/test -D hxmc.view.renderer=TestRenderer --run ViewTest <tool>
+//   <tool> -cp packages/view/src -cp packages/view/test -D hxmc.view.renderer=TestRenderer \
+//     -D hxmc.view.renderer.other=OtherRenderer --run ViewTest <tool>
 //
 // signals, memos and effects (tracking, batching, no glitches, ownership
 // and cleanup, contexts); markup (elements, attributes, JSX's whitespace
 // and entities, holes evaluated where the literal is, nesting, components
 // and their props, text runs, reactive text, attributes and regions); the
 // control flow components (For, Index, Show, Switch, ErrorBoundary,
-// Provider, onMount); and the programs the macro rejects (test/reject,
-// "// expect:" lines; with the tool's path as the argument)
+// Provider, onMount); two renderers (OtherRenderer: the same components
+// rendered by each, boundaries between them); and the programs the macro rejects (test/reject,
+// "// expect:" lines; with the tool's path as the argument); on Eval,
+// natively and in JavaScript (node)
 class ViewTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -25,17 +29,32 @@ class ViewTest implements Markup {
 		components();
 		reactive();
 		flow();
+		renderers();
+		#if sys
 		var tool = Sys.args()[0];
 		if (tool != null) rejects(tool, "packages/view/test/reject");
-		Sys.println('ViewTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
+		#end
+		println('ViewTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
+		#if js
+		js.Syntax.code("process.exit({0})", failed == 0 ? 0 : 1);
+		#else
 		Sys.exit(failed == 0 ? 0 : 1);
+		#end
+	}
+
+	static function println(s:String) {
+		#if js
+		js.Syntax.code("console.log({0})", s);
+		#else
+		Sys.println(s);
+		#end
 	}
 
 	static function check(what:String, ok:Bool, ?detail:String) {
 		checks++;
 		if (!ok) {
 			failed++;
-			Sys.println('ViewTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
+			println('ViewTest: FAIL: $what' + (detail == null ? "" : ": " + detail));
 		}
 	}
 
@@ -344,6 +363,53 @@ class ViewTest implements Markup {
 			== "<div>caught boom<!--boundary--></div>");
 	}
 
+
+	// a boundary: a node of TestRenderer's tree whose content is rendered
+	// by OtherRenderer into a root of its own (a canvas in a page)
+	static function Island(props:{?children:View}):Any {
+		var host = TestRenderer.createElement("island");
+		var root = new OtherNode("root");
+		host.props.set("root", root);
+		Render.render(props.children, root);
+		return host;
+	}
+
+	// the other way: TestRenderer's content in OtherRenderer's tree (a page's element over a canvas)
+	static function Overlay(props:{?children:View}):Any {
+		var host = OtherRenderer.createElement("overlay");
+		var root = new TestNode(Element, "root");
+		host.attrs.push("dom=" + root.tag);
+		Render.render(props.children, root);
+		overlays.push(root);
+		return host;
+	}
+
+	static final overlays:Array<TestNode> = [];
+
+	static function renderers() {
+		// one component, each renderer's nodes
+		var count = signal(1);
+		var test = new TestNode(Element, "root"), other = new OtherNode("root");
+		Render.render(<div><Counter start={3}/><For each={signal(["a", "b"])} render={(s:String) -> <i>{s}</i>}/></div>, test);
+		Render.render(<div><Counter start={3}/><For each={signal(["a", "b"])} render={(s:String) -> <i>{s}</i>}/></div>, other);
+		check("renderers: a component in each", test.toHtml() == "<root><div><b>3</b><i>a</i><i>b</i><!--for--></div></root>" && other.toString() == "[root[div[b3][ia][ib]]]",
+			test.toHtml() + " " + other.toString());
+		// boundaries, either way, content reactive across them
+		var label = signal("x");
+		var page = new TestNode(Element, "root");
+		Render.render(<div>
+			<Island><p>{label}</p><Overlay><span>{() -> "in " + label.value}</span></Overlay></Island>
+		</div>, page);
+		var island = page.find("island");
+		var inner:OtherNode = island.props.get("root");
+		check("renderers: an island", inner.toString() == "[root[px][overlay dom=root]]", inner.toString());
+		check("renderers: and in it a TestRenderer tree again", overlays[0].toHtml() == "<root><span>in x</span></root>", overlays[0].toHtml());
+		label.value = "y";
+		check("renderers: reactive across boundaries", inner.toString() == "[root[py][overlay dom=root]]" && overlays[0].toHtml() == "<root><span>in y</span></root>",
+			inner.toString() + " " + overlays[0].toHtml());
+	}
+
+	#if sys
 	static function rejects(tool:String, dir:String) {
 		var files = [for (f in sys.FileSystem.readDirectory(dir)) if (StringTools.endsWith(f, ".hx")) f];
 		files.sort(Reflect.compare);
@@ -364,4 +430,5 @@ class ViewTest implements Markup {
 				code == 0 ? "compiled, but must be rejected" : "missing: " + missing.join("; ") + "\n" + out);
 		}
 	}
+	#end
 }

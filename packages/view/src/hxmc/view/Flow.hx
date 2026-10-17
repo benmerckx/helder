@@ -23,10 +23,10 @@ import hxmc.view.Memo;
 // throws, or a computation inside them does later; reset tries again.
 class Flow {
 	public static function For<T>(props:{each:Dynamic, render:T->Any}):Any
-		return new ForList(props.each, props.render);
+		return new ForList(props.each, cast props.render);
 
 	public static function Index<T>(props:{each:Dynamic, render:(Signal<T>, Int)->Any}):Any
-		return new IndexList(props.each, props.render);
+		return new IndexList(props.each, cast props.render);
 
 	public static function Show(props:{when:Dynamic, ?fallback:Any, ?children:Any}):Any {
 		var on = Reactive.memo(() -> {
@@ -82,10 +82,12 @@ class Flow {
 		return new Boundary(props.fallback, props.children);
 }
 
-// content Render mounts itself: it inserts its nodes before before and
-// returns the ones it keeps there (a marker: what it shows goes before it)
-interface Mountable {
-	function mount(parent:HostNode, before:Null<HostNode>):Array<HostNode>;
+// content a renderer's own components mount (ui's Popover, VirtualList):
+// it inserts its nodes before before and returns the ones it keeps there
+// (a marker: what it shows goes before it); content of a renderer whose
+// nodes are not N is not one
+interface Mountable<N> {
+	function mount(parent:N, before:Null<N>):Array<N>;
 }
 
 class MatchCase {
@@ -98,171 +100,34 @@ class MatchCase {
 	}
 }
 
-// For's content: Render mounts it through mount()
-class ForList<T> implements Mountable {
-	final each:Dynamic;
-	final render:T->Any;
+// For's, Index's and ErrorBoundary's content, which each renderer's
+// Runtime mounts
+class ForList {
+	public final each:Dynamic;
+	public final render:Dynamic->Any;
 
-	public function new(each:Dynamic, render:T->Any) {
+	public function new(each:Dynamic, render:Dynamic->Any) {
 		this.each = each;
 		this.render = render;
 	}
-
-	public function mount(parent:HostNode, before:Null<HostNode>):Array<HostNode> {
-		var anchor = Render.marker(parent, before, "for");
-		// (the rows belong to the owner the list is mounted in, not to the
-		// effect below: its next run would dispose the rows it keeps)
-		var home = Reactive.owner;
-		var entries:Array<{item:T, nodes:Array<HostNode>, owner:Owner}> = [];
-		Reactive.effect(() -> {
-			var items:Array<T> = Render.read(each);
-			if (items == null) items = [];
-			Reactive.untrack(() -> {
-				var next = [];
-				// (the old entries matched: an item is looked for from the first
-				// one not taken, so that a list kept in order matches in one pass)
-				var old = entries, taken = [for (_ in old) false], first = 0;
-				for (item in items) {
-					var k = -1;
-					for (j in first...old.length)
-						if (!taken[j] && old[j].item == item) {
-							k = j;
-							break;
-						}
-					if (k >= 0) {
-						next.push(old[k]);
-						taken[k] = true;
-						while (first < old.length && taken[first])
-							first++;
-					} else {
-						var o = new Owner(home);
-						var saved = Reactive.owner;
-						Reactive.owner = o;
-						var nodes = try Render.insert(render(item), parent, anchor) catch (e:Dynamic) {
-							Reactive.owner = saved;
-							throw e;
-						}
-						Reactive.owner = saved;
-						next.push({item: item, nodes: nodes, owner: o});
-					}
-				}
-				for (j in 0...old.length)
-					if (!taken[j]) {
-						old[j].owner.dispose();
-						for (n in old[j].nodes)
-							Render.detach(parent, n);
-					}
-				// in order, before the anchor (where the rows are: the new ones
-				// were put there; a row's node moved out by hand is put back)
-				Host.arrange(parent, [for (e in next) for (n in e.nodes) n], anchor);
-				entries = next;
-			});
-		});
-		Reactive.onCleanup(() -> for (e in entries)
-			for (n in e.nodes)
-				Render.detach(parent, n));
-		return [anchor];
-	}
 }
 
-// Index's content: a row per index, its item in a signal
-class IndexList<T> implements Mountable {
-	final each:Dynamic;
-	final render:(Signal<T>, Int)->Any;
+class IndexList {
+	public final each:Dynamic;
+	public final render:(Signal<Dynamic>, Int)->Any;
 
-	public function new(each:Dynamic, render:(Signal<T>, Int)->Any) {
+	public function new(each:Dynamic, render:(Signal<Dynamic>, Int)->Any) {
 		this.each = each;
 		this.render = render;
 	}
-
-	public function mount(parent:HostNode, before:Null<HostNode>):Array<HostNode> {
-		var anchor = Render.marker(parent, before, "index");
-		var home = Reactive.owner;
-		var rows:Array<{item:Signal<T>, nodes:Array<HostNode>, owner:Owner}> = [];
-		Reactive.effect(() -> {
-			var items:Array<T> = Render.read(each);
-			if (items == null) items = [];
-			Reactive.untrack(() -> {
-				var keep = items.length < rows.length ? items.length : rows.length;
-				Reactive.batch(() -> for (i in 0...keep)
-					rows[i].item.value = items[i]);
-				while (rows.length > items.length) {
-					var r = rows.pop();
-					r.owner.dispose();
-					for (n in r.nodes)
-						Render.detach(parent, n);
-				}
-				for (i in rows.length...items.length) {
-					var o = new Owner(home);
-					var saved = Reactive.owner;
-					Reactive.owner = o;
-					var item = new Signal(items[i]);
-					var nodes = try Render.insert(render(item, i), parent, anchor) catch (e:Dynamic) {
-						Reactive.owner = saved;
-						throw e;
-					}
-					Reactive.owner = saved;
-					rows.push({item: item, nodes: nodes, owner: o});
-				}
-			});
-		});
-		Reactive.onCleanup(() -> for (r in rows)
-			for (n in r.nodes)
-				Render.detach(parent, n));
-		return [anchor];
-	}
 }
 
-// ErrorBoundary's content: its children, or the fallback for an error
-class Boundary implements Mountable {
-	final fallback:(Dynamic, Void->Void)->Any;
-	final children:Any;
+class Boundary {
+	public final fallback:(Dynamic, Void->Void)->Any;
+	public final children:Any;
 
 	public function new(fallback:(Dynamic, Void->Void)->Any, children:Any) {
 		this.fallback = fallback;
 		this.children = children;
-	}
-
-	public function mount(parent:HostNode, before:Null<HostNode>):Array<HostNode> {
-		var anchor = Render.marker(parent, before, "boundary");
-		// (the error, boxed: null is none)
-		var error = new Signal<Null<{e:Dynamic}>>(null);
-		var current:Array<HostNode> = [];
-		function clear() {
-			for (n in current)
-				Render.detach(parent, n);
-			current = [];
-		}
-		function show(err:Null<{e:Dynamic}>):Void {
-			clear();
-			if (err != null) {
-				current = Render.insert(fallback(err.e, () -> error.value = null), parent, anchor);
-				return;
-			}
-			// the children in an owner of their own, which catches their errors
-			var o = new Owner(Reactive.owner);
-			o.onError = e -> error.value = {e: e};
-			var saved = Reactive.owner;
-			Reactive.owner = o;
-			var made:Array<HostNode> = [];
-			try {
-				Render.insertTo(children, parent, anchor, made);
-				current = made;
-				Reactive.owner = saved;
-			} catch (e:Dynamic) {
-				Reactive.owner = saved;
-				// (what was put before the error, removed)
-				o.dispose();
-				for (n in made)
-					Render.detach(parent, n);
-				current = Render.insert(fallback(e, () -> error.value = null), parent, anchor);
-			}
-		}
-		Reactive.effect(() -> {
-			var err = error.value;
-			Reactive.untrack(() -> show(err));
-		});
-		Reactive.onCleanup(clear);
-		return [anchor];
 	}
 }

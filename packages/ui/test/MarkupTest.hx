@@ -589,7 +589,7 @@ class MarkupTest implements Markup {
 		first.value = "gone";
 		second.value = "TWO";
 		keptText = [for (c in kept.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
-		check("For: a removed row's computations disposed, the rest bound", keptText == "TWO" && @:privateAccess first.observers.length == 0, keptText);
+		check("For: a removed row's computations disposed, the rest bound", keptText == "TWO" && (first.observers == null || first.observers.length == 0), keptText);
 		// Switch and Match
 		var n = signal(1);
 		Render.render(<view tag="switch"><Switch fallback="many">

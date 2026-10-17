@@ -46,17 +46,18 @@ class Signal<T> extends SignalBase {
 
 @:allow(hxmc.view)
 class SignalBase implements Source {
-	public var observers(default, null):Array<Computation> = [];
+	public var observers(default, null):Null<Array<Computation>> = null;
 
 	function track() {
 		var c = Reactive.current;
-		if (c != null && !c.sources.contains(this)) {
-			c.sources.push(this);
+		if (c != null && c.depend(this)) {
+			if (observers == null) observers = [];
 			observers.push(c);
 		}
 	}
 
 	function notify() {
+		if (observers == null) return;
 		for (o in observers.copy())
 			o.stale(Dirty);
 	}
