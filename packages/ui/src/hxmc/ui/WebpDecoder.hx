@@ -7,8 +7,12 @@ import haxe.io.Bytes;
 // ALPH), lossless images (VP8L: the predictor, colour, subtract-green and
 // colour-indexing transforms, prefix codes by meta codes over the image,
 // the colour cache, backward references), lossy ones (VP8, Vp8Decoder) with
-// their alpha (ALPH: raw or lossless, filtered). The first frame of an
-// animation.
+// their alpha (ALPH: raw or lossless, filtered). decode gives an
+// animation's first frame; frames all of them as libwebp's animation
+// decoder composes them (each blended over the canvas, non-premultiplied,
+// or put on it; its rectangle cleared after it when it asks), with their
+// durations (seconds) and the repetitions after the first play (ANIM's
+// loop count: 0, forever, -1).
 class WebpDecoder {
 	public static function decode(webp:Bytes):{width:Int, height:Int, rgba:Bytes} {
 		if (webp.length < 16 || webp.getString(0, 4) != "RIFF" || webp.getString(8, 4) != "WEBP") throw "WebpDecoder: not a WebP file";
@@ -39,23 +43,80 @@ class WebpDecoder {
 		throw "WebpDecoder: no image data";
 	}
 
-	// an animation's frame: its image placed on the canvas (transparent elsewhere)
+	// an animation's first frame (its image on the transparent canvas)
 	static function frame(webp:Bytes, at:Int, size:Int, width:Int, height:Int):{width:Int, height:Int, rgba:Bytes} {
+		var canvas = Bytes.alloc(width * height * 4);
+		canvas.fill(0, canvas.length, 0);
+		place(webp, at, size, canvas, width, height);
+		return {width: width, height: height, rgba: canvas};
+	}
+
+	// every frame of an animation (a still image: one, its duration 0)
+	public static function frames(webp:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
+		if (webp.length < 16 || webp.getString(0, 4) != "RIFF" || webp.getString(8, 4) != "WEBP") throw "WebpDecoder: not a WebP file";
+		var width = 0, height = 0, loops = 0, p = 12;
+		var anmf:Array<{at:Int, size:Int}> = [];
+		while (p + 8 <= webp.length) {
+			var tag = webp.getString(p, 4), size = u32le(webp, p + 4), at = p + 8;
+			switch tag {
+				case "VP8X":
+					width = 1 + (webp.get(at + 4) | (webp.get(at + 5) << 8) | (webp.get(at + 6) << 16));
+					height = 1 + (webp.get(at + 7) | (webp.get(at + 8) << 8) | (webp.get(at + 9) << 16));
+				case "ANIM":
+					loops = webp.get(at + 4) | (webp.get(at + 5) << 8);
+				case "ANMF":
+					anmf.push({at: at, size: size});
+				case _:
+			}
+			p = at + size + (size & 1);
+		}
+		if (anmf.length == 0) {
+			var d = decode(webp);
+			return {width: d.width, height: d.height, repetitions: 0, frames: [{rgba: d.rgba, delay: 0.0}]};
+		}
+		var canvas = Bytes.alloc(width * height * 4);
+		canvas.fill(0, canvas.length, 0);
+		var out:Array<{rgba:Bytes, delay:Float}> = [];
+		for (f in anmf) {
+			var rect = place(webp, f.at, f.size, canvas, width, height);
+			var duration = webp.get(f.at + 12) | (webp.get(f.at + 13) << 8) | (webp.get(f.at + 14) << 16);
+			out.push({rgba: canvas.sub(0, canvas.length), delay: duration / 1000});
+			// (disposed to the background: its rectangle cleared for the next)
+			if (webp.get(f.at + 15) & 1 != 0)
+				for (y in rect.y...rect.y + rect.h)
+					canvas.fill((y * width + rect.x) * 4, rect.w * 4, 0);
+		}
+		return {width: width, height: height, repetitions: loops == 0 ? -1 : loops - 1, frames: out};
+	}
+
+	// an ANMF frame's image put on the canvas, blended (non-premultiplied, as
+	// libwebp's BlendPixelNonPremult) unless it asks not to; its rectangle
+	static function place(webp:Bytes, at:Int, size:Int, canvas:Bytes, width:Int, height:Int):{x:Int, y:Int, w:Int, h:Int} {
 		var fx = 2 * (webp.get(at) | (webp.get(at + 1) << 8) | (webp.get(at + 2) << 16));
 		var fy = 2 * (webp.get(at + 3) | (webp.get(at + 4) << 8) | (webp.get(at + 5) << 16));
+		var blend = webp.get(at + 15) & 2 == 0;
 		var inner = Bytes.alloc(12 + size - 16);
 		inner.blit(0, Bytes.ofString("RIFF"), 0, 4);
 		inner.blit(8, Bytes.ofString("WEBP"), 0, 4);
 		inner.blit(12, webp, at + 16, size - 16);
 		var d = decode(inner);
-		var out = Bytes.alloc(width * height * 4);
-		out.fill(0, out.length, 0);
-		for (y in 0...d.height) {
-			if (fy + y >= height) break;
-			var n = Std.int(Math.min(d.width, width - fx));
-			if (n > 0) out.blit(((fy + y) * width + fx) * 4, d.rgba, y * d.width * 4, n * 4);
-		}
-		return {width: width, height: height, rgba: out};
+		var w = Std.int(Math.min(d.width, width - fx)), h = Std.int(Math.min(d.height, height - fy));
+		for (y in 0...h)
+			for (x in 0...w) {
+				var s = (y * d.width + x) * 4, o = ((fy + y) * width + fx + x) * 4;
+				var sa = d.rgba.get(s + 3);
+				if (!blend || sa == 255) {
+					canvas.blit(o, d.rgba, s, 4);
+					continue;
+				}
+				if (sa == 0) continue;
+				var da = canvas.get(o + 3);
+				var dfa = (da * (256 - sa)) >> 8, ba = sa + dfa, scale = Std.int((1 << 24) / ba);
+				for (k in 0...3)
+					canvas.set(o + k, ((d.rgba.get(s + k) * sa + canvas.get(o + k) * dfa) * scale) >>> 24);
+				canvas.set(o + 3, ba);
+			}
+		return {x: fx, y: fy, w: w < 0 ? 0 : w, h: h < 0 ? 0 : h};
 	}
 
 	static inline function u32le(b:Bytes, p:Int):Int

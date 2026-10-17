@@ -961,7 +961,8 @@ class UiTest {
 			// (an animation: every frame as Chromium's ImageDecoder composes it, its duration, the repetitions)
 			if (c.durations != null) {
 				var want = sys.io.File.getBytes(jdir + "/" + c.name + ".frames.rgba");
-				var a = try GifDecoder.frames(sys.io.File.getBytes(jdir + "/" + c.name + kind.ext)) catch (e:Dynamic) {
+				var bytes = sys.io.File.getBytes(jdir + "/" + c.name + kind.ext);
+				var a = try kind.dir == "webp" ? WebpDecoder.frames(bytes) : GifDecoder.frames(bytes) catch (e:Dynamic) {
 					check(kind.dir + ": " + c.name, false, Std.string(e));
 					continue;
 				}

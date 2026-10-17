@@ -321,7 +321,8 @@ Since the design above (October 2026), in this order:
   and progressive, libjpeg's arithmetic: pixel-exact with Chromium's) and
   a GIF decoder (every frame composed as Chromium's ImageDecoder does,
   played by AnimatedImage); a WebP decoder (lossless VP8L, lossy VP8 with
-  its ALPH alpha: pixel-exact with libwebp's).
+  its ALPH alpha: pixel-exact with libwebp's; animations composed as
+  libwebp composes them).
 - Popups (a layer over the tree: anchored, modal), the widgets on them
   (Select, Menu, Tooltip, Dialog), and VirtualList.
 - Accessibility on every platform: NSAccessibility (macOS), UI Automation
@@ -364,8 +365,7 @@ Where this departs from section 6:
   shrink below their content, so text is not squashed (a container that
   must shrink sets `minHeight: 0`, as in CSS).
 - **Not yet**: Windows' compositions drawn in the field (its IME draws
-  its own), image formats beyond PNG, JPEG, GIF and WebP (AVIF), a WebP
-  animation's frames after the first.
+  its own), image formats beyond PNG, JPEG, GIF and WebP (AVIF).
 
 ## Sources
 

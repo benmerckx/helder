@@ -2,7 +2,7 @@
 // (lossless: photographic, few colours for colour indexing at 1, 2, 4 and 8
 // bits, with alpha, each encoder method; lossy: qualities, odd sizes, with
 // alpha raw or compressed and each alpha filter; an animation's first
-// frame), each with the RGBA8 pixels libwebp decodes from it (<case>.rgba,
+// frame; an animation's frames), each with the RGBA8 pixels libwebp decodes from it (<case>.rgba,
 // through ImageMagick's decoder: libwebp's defaults, as Chromium has them;
 // cases.json: names and sizes), which WebpDecoder must give exactly.
 // UiTest decodes them (make ui-check).
@@ -72,17 +72,25 @@ add('lossy-sharp', photo(48, 32, false), 48, 32, ['-quality', '85', '-define', '
 add('lossy-simple-filter', photo(40, 24, false), 40, 24, ['-quality', '70', '-define', 'webp:filter-type=0']);
 add('lossy-segments', photo(64, 64, false), 64, 64, ['-quality', '50', '-define', 'webp:segments=4', '-define', 'webp:partitions=3']);
 
-// an animation: its first frame (each frame a lossless image)
+// an animation (lossless frames; alpha 0 or 255, where every compositor
+// agrees): an opaque frame, one transparent but for a square (blended over
+// it), another opaque; each frame as ImageMagick composes them (-coalesce;
+// transparent pixels zeroed, as libwebp leaves them)
+// into <case>.frames.rgba, their durations and the repetitions
 {
-	const a = path.join(tmp, 'f1.png'), b = path.join(tmp, 'f2.png'), raw = path.join(tmp, 'anim.rgba');
-	fs.writeFileSync(raw, photo(24, 16, true));
-	execFileSync('convert', ['-size', '24x16', '-depth', '8', 'rgba:' + raw, a]);
-	execFileSync('convert', ['-size', '24x16', 'xc:#3366ff80', b]);
+	const raw = path.join(tmp, 'anim.rgba'), f = [1, 2, 3].map((i) => path.join(tmp, `f${i}.png`));
+	fs.writeFileSync(raw, photo(24, 16, false));
+	execFileSync('convert', ['-size', '24x16', '-depth', '8', 'rgba:' + raw, f[0]]);
+	execFileSync('convert', ['-size', '24x16', 'xc:none', '-fill', '#e01030', '-draw', 'rectangle 6,4 13,10', f[1]]);
+	execFileSync('convert', ['-size', '24x16', 'xc:#3366ff', f[2]]);
 	const file = path.join(out, 'animated.webp');
-	execFileSync('convert', ['-delay', '20', a, b, '-define', 'webp:lossless=true', '-loop', '0', file]);
-	const decoded = execFileSync('convert', [file + '[0]', '-depth', '8', 'rgba:-']);
-	fs.writeFileSync(path.join(out, 'animated.rgba'), decoded);
-	cases.push({ name: 'animated', width: 24, height: 16 });
+	execFileSync('convert', ['-delay', '20', f[0], '-delay', '5', f[1], '-delay', '30', f[2], '-define', 'webp:lossless=true', '-loop', '3', file]);
+	fs.writeFileSync(path.join(out, 'animated.rgba'), execFileSync('convert', [file + '[0]', '-depth', '8', 'rgba:-']));
+	// (transparent pixels as libwebp and Chromium leave a disposed rectangle: 0, 0, 0, 0; ImageMagick keeps their colours)
+	const frames = execFileSync('convert', [file, '-coalesce', '-depth', '8', 'rgba:-']);
+	for (let i = 0; i < frames.length; i += 4) if (frames[i + 3] == 0) frames.fill(0, i, i + 4);
+	fs.writeFileSync(path.join(out, 'animated.frames.rgba'), frames);
+	cases.push({ name: 'animated', width: 24, height: 16, durations: [0.2, 0.05, 0.3], repetition: 2 });
 }
 
 fs.writeFileSync(path.join(out, 'cases.json'), JSON.stringify(cases, null, '\t') + '\n');
