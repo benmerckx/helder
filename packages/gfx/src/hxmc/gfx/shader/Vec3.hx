@@ -1,8 +1,9 @@
 package hxmc.gfx.shader;
 
-// 3 floats: vec3 in a shader, an immutable value in CPU code (an object,
-// which Haxe's inline constructors remove where it does not escape). The
-// components and swizzles read only; the operators are VecBuild's.
+// 3 floats: vec3 in a shader, an immutable value in CPU code (a
+// @:hxmc.struct value on hxmc's targets: copied, never allocated; an object
+// elsewhere, such as the macro context). The components and swizzles read
+// only; the operators are VecBuild's.
 @:build(hxmc.gfx.shader.VecBuild.vector(3))
 @:forward(x, y, z)
 abstract Vec3(Vec3Data) {
@@ -10,7 +11,7 @@ abstract Vec3(Vec3Data) {
 		this = new Vec3Data(x, y, z);
 }
 
-@:noCompletion final class Vec3Data {
+@:hxmc.struct @:noCompletion final class Vec3Data {
 	public final x:Float;
 	public final y:Float;
 	public final z:Float;

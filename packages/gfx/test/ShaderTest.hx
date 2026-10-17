@@ -67,6 +67,14 @@ class ShaderTest {
 		var m = mat4(vec4(1, 0, 0, 0), vec4(0, 2, 0, 0), vec4(0, 0, 3, 0), vec4(4, 5, 6, 1));
 		nearVec("mat4 * vec4", m * vec4(1, 1, 1, 1), [5, 7, 9, 1]);
 		nearVec("mat4 * mat4", (m * mat4(2)) * vec4(1, 0, 0, 1), [2 + 4 * 2, 5 * 2, 6 * 2, 2]);
+		// the clip space: z from 0 at the near plane to w at the far one
+		var proj = Mat4.perspective(Math.PI / 2, 2, 1, 10), n = proj * vec4(0, 0, -1, 1), f = proj * vec4(0, 0, -10, 1);
+		near("perspective near", n.z / n.w, 0);
+		near("perspective far", f.z / f.w, 1);
+		nearVec("perspective, a corner", proj * vec4(2, 1, -1, 1), [1, 1, 0, 1]);
+		var o = Mat4.orthographic(0, 4, 0, 2, 1, 3) * vec4(4, 0, -3, 1);
+		nearVec("orthographic", o, [1, -1, 1, 1]);
+		nearVec("rotations", Mat4.translation(1, 0, 0) * Mat4.rotationZ(Math.PI / 2) * Mat4.rotationY(Math.PI / 2) * vec4(0, 0, 1, 1), [1, 1, 0, 1]);
 	}
 
 	// the shaders' functions on the CPU
@@ -94,15 +102,19 @@ class ShaderTest {
 		nearVec("BuiltinShader.vs", b.pos, [1, 2, 3, 0.5]);
 		var c = @:privateAccess BuiltinShader.fs(b);
 		check("BuiltinShader.fs", [c.x, c.y, c.z, c.w].filter(Math.isFinite).length == 4, Std.string([c.x, c.y, c.z, c.w]));
-		// textures on the CPU: an R8 mask read as (r, 0, 0, 1), an RGBA image bilinearly between texel centres
-		var mask = new Texture2D(2, 1, 1, Bytes.ofHex("ff00"));
-		var image = new Texture2D(2, 1, 4, Bytes.ofHex("ff0000ff0000ffff"));
-		nearVec("texture R8", texture(mask, vec2(0.25, 0.5)), [1, 0, 0, 1]);
-		nearVec("texture RGBA8, halfway", texture(image, vec2(0.5, 0.5)), [0.5, 0, 0.5, 1]);
-		nearVec("texture RGBA8, clamped", texture(image, vec2(1.5, -3)), [0, 0, 1, 1]);
-		var fv:FeatureShader.FeatureVaryings = {pos: vec4(0), uv: vec2(0.25, 0.5), color: vec4(1, 1, 0, 1), mode: 1};
-		nearVec("FeatureShader.fs, mask", @:privateAccess FeatureShader.fs(fv, mask, image), [1, 1, 0, 1]);
-		check("FeatureShader.textures", FeatureShader.textures == 2 && FeatureShader.pipeline({blend: Premultiplied}).textures == 2);
+		// (textures on the CPU: the nearest texel, repeating; rows top to bottom)
+		var texels = Bytes.alloc(2 * 2 * 4);
+		for (i in 0...4) {
+			texels.set(4 * i, 255);
+			texels.set(4 * i + 1, [0, 64, 128, 255][i]);
+			texels.set(4 * i + 3, 255);
+		}
+		var tex = new Texture2D(2, 2, texels);
+		near("sample", sample(tex, vec2(0.75, 0.25)).y, 64 / 255);
+		near("sample, repeating", sample(tex, vec2(-0.25, 1.75)).y, 255 / 255);
+		var tv = @:privateAccess TexturedShader.vs({pos: vec2(0, 0), uv: vec2(0.25, 0.75)}, tex);
+		near("TexturedShader.vs lift", tv.lift, 1);
+		nearVec("TexturedShader.fs", @:privateAccess TexturedShader.fs(tv, {amount: 0.5}, tex, tex), [1, (0.5 + 128 / 255) / 2, 0, 1]);
 	}
 
 	// the generated layouts and writers
@@ -127,6 +139,11 @@ class ShaderTest {
 		check("LitShader.writeCamera", [for (i in 0...20) bytes.getFloat(16 + 4 * i)].join(",") == "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,-1,-2,-3,7");
 		LitShader.writeMaterial({tint: vec4(0.5), steps: 3}, bytes);
 		check("LitShader.writeMaterial", bytes.getFloat(12) == 0.5 && bytes.getInt32(16) == 3);
+		var t = TexturedShader.textures, tu = TexturedShader.uniforms;
+		check("TexturedShader.textures", t.length == 2 && t[0].name == "height" && t[0].binding == 0 && t[1].name == "albedo" && t[1].binding == 2
+			&& tu.length == 1 && tu[0].binding == 1, Std.string(t) + " " + Std.string(tu));
+		var bs = TexturedShader.fragmentCode.bindings;
+		check("TexturedShader.fragmentCode.bindings", bs.length == 3 && bs[0].name == "Fade_block" && bs[0].slot == 1 && bs[1].name == "tex_2" && bs[2].name == "tex_0", Std.string(bs));
 	}
 
 	// the emitted source against the golden files
@@ -138,8 +155,8 @@ class ShaderTest {
 			{name: "LitShader.frag", code: LitShader.fragmentCode},
 			{name: "BuiltinShader.vert", code: BuiltinShader.vertexCode},
 			{name: "BuiltinShader.frag", code: BuiltinShader.fragmentCode},
-			{name: "FeatureShader.vert", code: FeatureShader.vertexCode},
-			{name: "FeatureShader.frag", code: FeatureShader.fragmentCode}
+			{name: "TexturedShader.vert", code: TexturedShader.vertexCode},
+			{name: "TexturedShader.frag", code: TexturedShader.fragmentCode}
 		];
 		for (c in codes)
 			for (l in ["glsl", "wgsl", "msl", "hlsl"]) {

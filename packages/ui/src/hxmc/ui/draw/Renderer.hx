@@ -13,9 +13,10 @@ import hxmc.ui.draw.DrawText;
 // its corner radius) that UiShader clips its fragments by, so clips need no
 // scissor and rounded ones clip to their corners. The UI's pixels are scaled
 // to the target's (scale: a Retina display's 2); glyphs are rasterized at the
-// scaled size into the GlyphAtlas, uploaded to an R8 texture when it changed.
-// An image is uploaded once (premultiplied, filtered linearly) and again
-// when its version changes; forget(image) frees its texture.
+// scaled size into the GlyphAtlas, its coverage uploaded into a texture's
+// red channel (read at the nearest texel) where it changed. An image is
+// uploaded once (premultiplied, filtered linearly) and again when its
+// version changes; forget(image) frees its texture.
 class Renderer implements Canvas {
 	public final device:Device;
 	public var scale = 1.0;
@@ -24,6 +25,11 @@ class Renderer implements Canvas {
 	final pipeline:Pipeline;
 	final atlasTexture:Texture;
 	final blank:Texture;
+	final nearest:Sampler;
+	final linear:Sampler;
+	// the shader's texture slots: the atlas's, the image's
+	final atlasSlot:Int;
+	final imageSlot:Int;
 	var buffer:Buffer;
 	var capacity:Int;
 	var bytes:Bytes;
@@ -56,8 +62,12 @@ class Renderer implements Canvas {
 		this.device = device;
 		this.atlas = atlas == null ? new GlyphAtlas(1024, 1024) : atlas;
 		pipeline = device.createPipeline(UiShader.pipeline({blend: Premultiplied}));
-		atlasTexture = device.createTexture({width: this.atlas.width, height: this.atlas.height, format: R8, filter: Nearest});
-		blank = device.createTexture({width: 1, height: 1, format: RGBA8, filter: Nearest, data: Bytes.ofHex("ffffffff")});
+		atlasTexture = device.createTexture({width: this.atlas.width, height: this.atlas.height, format: RGBA8});
+		blank = device.createTexture({width: 1, height: 1, format: RGBA8, data: Bytes.ofHex("ffffffff")});
+		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
+		linear = device.createSampler({filter: Linear, wrap: Clamp});
+		atlasSlot = UiShader.textures[0].binding;
+		imageSlot = UiShader.textures[1].binding;
 		capacity = 6 * STRIDE * 1024;
 		buffer = device.createBuffer({size: capacity, usage: Vertex});
 		bytes = Bytes.alloc(capacity);
@@ -90,10 +100,14 @@ class Renderer implements Canvas {
 	public function end(enc:Encoder) {
 		if (atlas.dirtyX1 > atlas.dirtyX0) {
 			var x = atlas.dirtyX0, y = atlas.dirtyY0, w = atlas.dirtyX1 - x, h = atlas.dirtyY1 - y;
-			var region = Bytes.alloc(w * h);
-			for (r in 0...h)
-				region.blit(r * w, atlas.pixels, (y + r) * atlas.width + x, w);
-			device.writeTexture(atlasTexture, x, y, w, h, region);
+			// (coverage in the red channel)
+			var region = Bytes.alloc(w * h * 4);
+			for (r in 0...h) {
+				var src = (y + r) * atlas.width + x, dst = r * w * 4;
+				for (c in 0...w)
+					region.set(dst + c * 4, atlas.pixels.get(src + c));
+			}
+			device.writeTexture(atlasTexture, region, x, y, w, h);
 			atlas.clean();
 		}
 		if (used == 0) return;
@@ -106,11 +120,11 @@ class Renderer implements Canvas {
 		device.writeBuffer(buffer, 0, bytes, 0, used);
 		enc.setPipeline(pipeline);
 		enc.setVertexBuffer(0, buffer);
-		enc.setTexture(0, atlasTexture);
+		enc.setTexture(atlasSlot, atlasTexture, nearest);
 		var i = 0;
 		while (i < batches.length) {
 			var e = batches[i + 2] == 0 ? null : textures.get(batches[i + 2]);
-			enc.setTexture(1, e == null ? blank : e.texture);
+			enc.setTexture(imageSlot, e == null ? blank : e.texture, linear);
 			enc.draw(batches[i + 1], 1, batches[i]);
 			i += 3;
 		}
@@ -139,10 +153,10 @@ class Renderer implements Canvas {
 			pre.set(4 * k + 3, a);
 		}
 		if (e == null) {
-			e = {texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, filter: Linear, data: pre}), version: img.version, frame: frames};
+			e = {texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}), version: img.version, frame: frames};
 			textures.set(img.id, e);
 		} else {
-			device.writeTexture(e.texture, 0, 0, img.width, img.height, pre);
+			device.writeTexture(e.texture, pre);
 			e.version = img.version;
 		}
 		return e.texture;

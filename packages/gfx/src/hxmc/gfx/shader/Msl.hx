@@ -7,9 +7,9 @@ import hxmc.gfx.shader.Ir;
 // stages share ([[position]], the others matched by name); a uniform block
 // is `constant <Struct>_buffer& u_<n> [[buffer(n)]]` (vertex buffers are at
 // 16 and up), a struct laid out as std140 (packed_float3 and padding),
-// converted to the program's struct for the stage's function. A texture is
-// `texture2d<float> tex_<slot> [[texture(slot)]]` with `sampler smp_<slot>
-// [[sampler(slot)]]`, sampled at level 0.
+// converted to the program's struct for the stage's function; a texture
+// at slot n `texture2d<float> tex_<n> [[texture(n)]]` and its `sampler
+// smp_<n> [[sampler(n)]]`.
 class Msl extends Emit {
 	override function header(e:SEntry) {
 		line("#include <metal_stdlib>");
@@ -24,12 +24,15 @@ class Msl extends Emit {
 			case TFloat: "float";
 			case TVec(n): 'float$n';
 			case TMat4: "float4x4";
-			case TStruct(s): s.name;
 			case TTexture: "texture2d<float>";
+			case TStruct(s): s.name;
 		}
 
-	override function sampler():String
-		return "sampler";
+	override function param(v:SVar):String
+		return type(v.type) + " " + v.name + (v.type == TTexture ? ", sampler " + v.name + "_smp" : "");
+
+	override function arg(e:SExpr):String
+		return e.t == TTexture ? expr(e) + ", " + expr(e) + "_smp" : expr(e);
 
 	override function construct(t:SType, args:Array<SExpr>):String
 		return switch t {
@@ -38,10 +41,7 @@ class Msl extends Emit {
 		}
 
 	override function builtin(name:String, args:Array<SExpr>, t:SType):String
-		return switch [name, args[0].e] {
-			case ["texture", ELocal(v)]: v.name + ".sample(" + v.sampler + ", " + expr(args[1]) + ", level(0.0))";
-			case _: super.builtin(name == "inversesqrt" ? "rsqrt" : name, args, t);
-		}
+		return name == "sample" ? operand(args[0]) + ".sample(" + expr(args[0]) + "_smp, " + expr(args[1]) + ", level(0.0))" : super.builtin(name == "inversesqrt" ? "rsqrt" : name, args, t);
 
 	override function entry(p:SProgram, e:SEntry) {
 		for (u in e.uniforms) {
@@ -59,13 +59,24 @@ class Msl extends Emit {
 			}
 			line("};");
 		}
-		var params = [for (u in e.uniforms) 'constant ${u.struct.name}_buffer& u_${u.binding} [[buffer(${u.binding})]]'];
-		for (i in 0...e.textures)
-			params.push('texture2d<float> tex_$i [[texture($i)]], sampler smp_$i [[sampler($i)]]');
-		var args = extraArgs(e, u -> u.struct.name + "{" + [
-			for (f in u.struct.fields)
-				f.type.match(TVec(3)) ? 'float3(u_${u.binding}.${f.name})' : 'u_${u.binding}.${f.name}'
-		].join(", ") + "}");
+		var params = [
+			for (r in e.resources)
+				switch r {
+					case RUniform(u): 'constant ${u.struct.name}_buffer& u_${u.binding} [[buffer(${u.binding})]]';
+					case RTexture(t): 'texture2d<float> tex_${t.slot} [[texture(${t.slot})]], sampler smp_${t.slot} [[sampler(${t.slot})]]';
+				}
+		];
+		var args = [
+			for (r in e.resources)
+				switch r {
+					case RUniform(u):
+						u.struct.name + "{" + [
+							for (f in u.struct.fields)
+								f.type.match(TVec(3)) ? 'float3(u_${u.binding}.${f.name})' : 'u_${u.binding}.${f.name}'
+						].join(", ") + "}";
+					case RTexture(t): 'tex_${t.slot}, smp_${t.slot}';
+				}
+		];
 		var vs = Emit.varyings(p), pos = Emit.position(p);
 		var input = e.input.name + "{" + [for (f in e.input.fields) 'i.${f.name}'].join(", ") + "}";
 		if (e.stage == Vertex) {

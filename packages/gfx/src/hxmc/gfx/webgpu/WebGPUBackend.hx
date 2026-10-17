@@ -13,7 +13,9 @@ import hxmc.unsafe.*;
 // with integer arguments (GPU objects are handles of the JavaScript side),
 // so a frame allocates nothing here. readPixels cannot wait for the GPU in
 // a browser: the JavaScript side's readPixels (imports.mjs) reads a frame
-// back asynchronously instead.
+// back asynchronously instead. Uniform blocks and textures are a bind group
+// (group 0, its layout from the shaders' bindings; uniform blocks at dynamic
+// offsets into one ring buffer, written each frame before the submit).
 class WebGPUBackend {
 	public final backend = Backend.WebGPU;
 	public var width(default, null) = 0;
@@ -22,6 +24,9 @@ class WebGPUBackend {
 	final surface:Surface;
 	final target:Int;
 	final handles:Array<Int> = []; // what dispose releases
+	final bindings = new Map<Int, Array<ShaderBinding>>(); // each shader's
+	final textureSizes = new Map<Int, Int>(); // each texture's width * height
+	var cursor = 0; // into the frame's uniform ring
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -46,29 +51,45 @@ class WebGPUBackend {
 	}
 
 	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
-		if (offset & 3 != 0 || size & 3 != 0) throw "hxmc.gfx: writeBuffer: WebGPU writes multiples of 4 bytes at offsets of 4";
+		if (offset & 3 != 0 || size & 3 != 0) throw "hxmc.gfx: writeBuffer: WebGPU writes multiples of 4 bytes at multiples of 4";
 		WebGPU.write_buffer(id, offset, Mem.addr(data).add(8 + dataOffset), size);
 	}
 
 	public function createTexture(d:TextureDesc):Int {
-		var data = d.data;
-		var t = WebGPU.texture(d.width, d.height, cast d.format, d.filter == null ? 0 : cast d.filter, data == null ? Ptr.nil() : Mem.addr(data).add(8));
+		// (the Bytes cannot move during the call: no collection in an import)
+		var t = WebGPU.texture(d.width, d.height, d.data == null ? Ptr.nil() : Mem.addr(d.data).add(8));
+		textureSizes.set(t, d.width * d.height);
 		handles.push(t);
 		return t;
 	}
 
-	public function writeTexture(id:Int, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset:Int)
+	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int) {
+		if (w < 0 && data.length < textureSizes.get(id) * 4) throw "hxmc.gfx: writeTexture: data has fewer than width * height * 4 bytes";
+		// (w < 0: all of it, the JavaScript side knows its size)
 		WebGPU.write_texture(id, x, y, w, h, Mem.addr(data).add(8 + dataOffset));
+	}
 
-	public inline function setTexture(slot:Int, id:Int)
-		WebGPU.set_texture(slot, id);
+	public function destroyBuffer(id:Int) {
+		if (!handles.remove(id)) return;
+		WebGPU.release(id);
+	}
 
-	public inline function setScissor(x:Int, y:Int, w:Int, h:Int)
-		WebGPU.set_scissor(x, y, w, h);
+	public function destroyTexture(id:Int) {
+		textureSizes.remove(id);
+		destroyBuffer(id);
+	}
+
+	public function createSampler(d:SamplerDesc):Int {
+		var f:Filter = d.filter == null ? Linear : d.filter, w:Wrap = d.wrap == null ? Repeat : d.wrap;
+		var s = WebGPU.sampler(cast f, cast w);
+		handles.push(s);
+		return s;
+	}
 
 	public function createShader(d:ShaderDesc):Int {
 		if (d.code.wgsl == null) throw "hxmc.gfx: createShader: no WGSL source for the WebGPU back end";
 		var s = Arena.scopedValue(a -> WebGPU.shader(a.cstring(d.code.wgsl)));
+		bindings.set(s, d.code.bindings == null ? [] : d.code.bindings);
 		handles.push(s);
 		return s;
 	}
@@ -80,23 +101,31 @@ class WebGPUBackend {
 			for (a in l.attributes)
 				WebGPU.pipeline_attribute(a.location, cast a.format, a.offset);
 		}
+		var seen = 0;
+		for (b in bindings.get(d.vertex.id()).concat(bindings.get(d.fragment.id())))
+			if (seen & (1 << b.slot) == 0) {
+				seen |= 1 << b.slot;
+				WebGPU.pipeline_binding(b.slot, cast b.kind, b.size == null ? 0 : b.size);
+			}
 		var topology:Topology = d.topology == null ? Triangles : d.topology, cull:Cull = d.cull == null ? None : d.cull;
-		var blend:Blend = d.blend == null ? Replace : d.blend;
-		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull, cast blend, d.textures == null ? 0 : d.textures);
+		var blend:Blend = d.blend == null ? Opaque : d.blend, compare:Compare = d.depthCompare == null ? Always : d.depthCompare;
+		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull, cast blend, cast compare, d.depthWrite == true ? 1 : 0);
 		handles.push(p);
 		return p;
 	}
 
 	public function beginFrame():Bool {
 		// (a canvas: its size now, which App's Resize events follow)
+		cursor = 0;
 		width = surface.width;
 		height = surface.height;
 		return WebGPU.frame_begin(target) != 0;
 	}
 
 	public function beginPass(p:PassDesc) {
-		var c = p.colors[0], k = c.clear;
-		if (k == null) WebGPU.pass_begin(cast c.load, 0, 0, 0, 1) else WebGPU.pass_begin(cast c.load, k.r, k.g, k.b, k.a);
+		var c = p.colors[0], k = c.clear, d = p.depth;
+		var depthLoad:LoadOp = d == null ? Load : d.load, depth = d == null || d.clear == null ? 1.0 : d.clear;
+		if (k == null) WebGPU.pass_begin(cast c.load, 0, 0, 0, 1, cast depthLoad, depth) else WebGPU.pass_begin(cast c.load, k.r, k.g, k.b, k.a, cast depthLoad, depth);
 	}
 
 	public inline function setPipeline(id:Int)
@@ -105,8 +134,25 @@ class WebGPUBackend {
 	public inline function setVertexBuffer(slot:Int, id:Int, offset:Int)
 		WebGPU.set_vertex_buffer(slot, id, offset);
 
+	public function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int) {
+		if (offset < 0 || size < 0 || offset + size > data.length) throw "hxmc.gfx: setUniforms: outside the data";
+		var n = (size + 255) & ~255;
+		if (cursor + n > Encoder.UNIFORM_RING) throw "hxmc.gfx: setUniforms: more than " + Encoder.UNIFORM_RING + " bytes of uniforms in a frame";
+		WebGPU.set_uniforms(slot, cursor, Mem.addr(data).add(8 + offset), size);
+		cursor += n;
+	}
+
 	public inline function draw(vertices:Int, instances:Int, first:Int)
 		WebGPU.draw(vertices, instances, first);
+
+	public inline function setTexture(slot:Int, texture:Int, sampler:Int)
+		WebGPU.set_texture(slot, texture, sampler);
+
+	public inline function setIndexBuffer(id:Int, format:IndexFormat, offset:Int)
+		WebGPU.set_index_buffer(id, cast format, offset);
+
+	public inline function drawIndexed(count:Int, instances:Int, first:Int, baseVertex:Int)
+		WebGPU.draw_indexed(count, instances, first, baseVertex);
 
 	public inline function endPass()
 		WebGPU.pass_end();
@@ -116,14 +162,6 @@ class WebGPUBackend {
 
 	public function readPixels(dst:haxe.io.Bytes)
 		throw "hxmc.gfx: readPixels: WebGPU reads back asynchronously (readPixels in packages/gfx/imports.mjs)";
-
-	public function destroyBuffer(id:Int) {
-		if (!handles.remove(id)) return;
-		WebGPU.release(id);
-	}
-
-	public function destroyTexture(id:Int)
-		destroyBuffer(id);
 
 	public function dispose() {
 		for (h in handles)

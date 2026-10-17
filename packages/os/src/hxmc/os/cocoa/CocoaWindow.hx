@@ -11,7 +11,8 @@ import hxmc.unsafe.*;
 // the frame's pace comes from the layer's drawables (vsync), as on X11; a
 // display link would call back on another thread, and the GPU layer is main
 // thread only. A delegate class made at run time turns the close button into
-// a Close event and resizes into Resize events (both from inside sendEvent:).
+// a Close event, resizes into Resize events and a new backing scale (another
+// display) into ScaleChange (from inside sendEvent:).
 // The content view holds the layer's view and, under it, a text view of a
 // class made at run time (HxmcTextView): while text input is on
 // (Window.startTextInput) it is the first responder, placed at the caret,
@@ -100,7 +101,7 @@ class CocoaWindow {
 		var cls = Runtime.objc_allocateClassPair(ObjC.cls("NSObject"), Mem.cstr("HxmcWindowDelegate"), 0);
 		Runtime.class_addMethod(cls, ObjC.sel("windowShouldClose:"), Callback.addr(shouldClose), Mem.cstr("c@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("windowDidResize:"), Callback.addr(didResize), Mem.cstr("v@:@"));
-		Runtime.class_addMethod(cls, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didResize), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didChangeScale), Mem.cstr("v@:@"));
 		// (the application's delegate too)
 		Runtime.class_addMethod(cls, ObjC.sel("applicationShouldTerminate:"), Callback.addr(shouldTerminate), Mem.cstr("Q@:@"));
 		Runtime.objc_registerClassPair(cls);
@@ -378,6 +379,20 @@ class CocoaWindow {
 			dispatch(e);
 		}
 		return 0;
+	}
+
+	// another display: a new scale (ScaleChange), and a Resize when the pixels changed
+	@:hxmc.callback static function didChangeScale(self:Ptr, cmd:Ptr, note:Ptr):Void {
+		var w = find(Msg.id(note, ObjC.sel("object")));
+		if (w == null) return;
+		var scale = w.scale, resized = w.measure();
+		if (w.scale != scale) {
+			var e = event;
+			e.kind = ScaleChange;
+			e.window = w.owner;
+			dispatch(e);
+		}
+		if (resized) w.resized();
 	}
 
 	@:hxmc.callback static function didResize(self:Ptr, cmd:Ptr, note:Ptr):Void {

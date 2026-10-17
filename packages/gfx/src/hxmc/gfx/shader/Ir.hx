@@ -14,10 +14,8 @@ enum SType {
 	TFloat;
 	TVec(n:Int); // 2 to 4 floats
 	TMat4; // 4 columns of vec4
+	TTexture; // a Texture2D: a texture and its sampler (parameters only)
 	TStruct(s:SStruct);
-	// a Texture2D: a parameter of the fragment stage's function only (with
-	// its sampler in the languages that separate them: SVar.sampler)
-	TTexture;
 }
 
 class SStruct {
@@ -46,8 +44,6 @@ class SVar {
 	public final type:SType;
 	// assigned after its declaration (WGSL: var, else let; a parameter: copied)
 	public var assigned = false;
-	// a texture: its sampler's name (HLSL, MSL, WGSL)
-	public var sampler:Null<String> = null;
 
 	public function new(name, type) {
 		this.name = name;
@@ -128,7 +124,7 @@ class SFunction {
 }
 
 // a uniform block: a struct parameter of an entry point after its input,
-// at a binding shared by both stages (std140 offsets: the same in WGSL for
+// at a binding (its slot) shared by both stages (std140 offsets: the same in WGSL for
 // these types; MSL and HLSL declare them explicitly)
 class SUniform {
 	public final struct:SStruct;
@@ -144,11 +140,22 @@ class SUniform {
 	}
 }
 
-// an entry point's parameter after its input, in order: a uniform block,
-// or a texture at its slot (tex_<slot>, smp_<slot>)
-enum SParam {
-	PUniform(u:SUniform);
-	PTexture(slot:Int);
+// a texture parameter of an entry point after its input (Texture2D), by
+// its name, at a slot shared by both stages
+class STexture {
+	public final name:String;
+	public final slot:Int;
+
+	public function new(name, slot) {
+		this.name = name;
+		this.slot = slot;
+	}
+}
+
+// an entry point's parameter after its input
+enum SResource {
+	RUniform(u:SUniform);
+	RTexture(t:STexture);
 }
 
 enum abstract SStage(Int) {
@@ -156,44 +163,47 @@ enum abstract SStage(Int) {
 	var Fragment;
 }
 
-// one stage: its function (input, then uniforms and textures: params),
-// what it needs in declaration order (structs, then functions, callees
-// first)
+// one stage: its function (input, then resources), what it needs in
+// declaration order (structs, then functions, callees first)
 class SEntry {
 	public final stage:SStage;
 	public final fn:SFunction;
 	public final input:SStruct;
+	public final resources:Array<SResource>;
 	public final uniforms:Array<SUniform>;
-	public final params:Array<SParam>;
+	public final textures:Array<STexture>;
 	public final structs:Array<SStruct>;
 	public final functions:Array<SFunction>;
 
-	public function new(stage, fn, input, uniforms, params, structs, functions) {
+	public function new(stage, fn, input, resources:Array<SResource>, structs, functions) {
 		this.stage = stage;
 		this.fn = fn;
 		this.input = input;
-		this.uniforms = uniforms;
-		this.params = params;
+		this.resources = resources;
+		uniforms = [for (r in resources) switch r {
+			case RUniform(u): u;
+			case _: continue;
+		}];
+		textures = [for (r in resources) switch r {
+			case RTexture(t): t;
+			case _: continue;
+		}];
 		this.structs = structs;
 		this.functions = functions;
 	}
-
-	// the number of texture slots
-	public var textures(get, never):Int;
-
-	function get_textures():Int
-		return Lambda.count(params, p -> p.match(PTexture(_)));
 }
 
 class SProgram {
 	public final vertex:SEntry;
 	public final fragment:SEntry;
 	public final uniforms:Array<SUniform>;
+	public final textures:Array<STexture>;
 
-	public function new(vertex, fragment, uniforms) {
+	public function new(vertex, fragment, uniforms, textures) {
 		this.vertex = vertex;
 		this.fragment = fragment;
 		this.uniforms = uniforms;
+		this.textures = textures;
 	}
 
 	// the vertex stage's output (the varyings): the fragment stage's input

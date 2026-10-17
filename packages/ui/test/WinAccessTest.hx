@@ -149,41 +149,41 @@ class WinAccessTest implements Markup {
 	}
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class Unknown {
 	@:slot(0) static function QueryInterface(o:Ptr, iid:Ptr, out:Ptr<Ptr>):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class Simple {
 	@:slot(4) static function GetPatternProvider(o:Ptr, id:Int, out:Ptr<Ptr>):Int;
 	@:slot(5) static function GetPropertyValue(o:Ptr, id:Int, v:Ptr):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class Fragment {
 	@:slot(3) static function Navigate(o:Ptr, dir:Int, out:Ptr<Ptr>):Int;
 	@:slot(5) static function get_BoundingRectangle(o:Ptr, r:Ptr<Float>):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class Invoke {
 	@:slot(3) static function Invoke(o:Ptr):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class Toggle {
 	@:slot(3) static function Toggle(o:Ptr):Int;
 	@:slot(4) static function get_ToggleState(o:Ptr, out:Ptr<Int32>):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class RangeValue {
 	@:slot(4) static function get_Value(o:Ptr, out:Ptr<Float>):Int;
 	@:slot(6) static function get_Maximum(o:Ptr, out:Ptr<Float>):Int;
 }
 
-@:build(hxmc.gfx.d3d11.Com.build())
+@:build(hxmc.os.win32.Com.build())
 class ValuePattern {
 	@:slot(3) static function SetValue(o:Ptr, s:Ptr):Int;
 }

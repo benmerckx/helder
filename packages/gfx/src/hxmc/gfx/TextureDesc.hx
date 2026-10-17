@@ -1,11 +1,11 @@
 package hxmc.gfx;
 
-// a 2D texture a shader samples (one level; Device.writeTexture updates it)
+// A 2D texture of one mip level, its rows top to bottom: the first row of
+// data is v = 0 (hxmc.gfx.shader.Texture2D), on every back end.
 typedef TextureDesc = {
 	width:Int,
 	height:Int,
-	format:TextureFormat,
-	?filter:Filter,
-	// the initial contents, rows top to bottom, tightly packed (else zeros)
+	?format:TextureFormat,
+	// the initial texels (width * height * 4 bytes for RGBA8)
 	?data:haxe.io.Bytes
 }

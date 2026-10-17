@@ -1,56 +1,59 @@
 import hxmc.gfx.*;
 import hxmc.os.*;
 
-// The triangle example's frame in a browser, on WebGPU or WebGL2 (web.mjs
-// runs it in headless Chromium, forcing WebGL2 with browser.mjs's option gfx:
-// 'webgl2', and compares the pixels with triangle.png, as GfxTest does
-// natively):
+// The examples' frames in a browser, on WebGPU or WebGL2 (web.mjs runs it
+// in headless Chromium, forcing WebGL2 with browser.mjs's option gfx:
+// 'webgl2', and compares the pixels with triangle.png and cube.png, as
+// GfxTest does natively; the scene, triangle or cube, the second argument):
 //
 //   WebTest headless   an offscreen target, drawn once by main; on WebGL2
 //                      also read back by Device.readPixels (its checksum)
-//   WebTest features   FeatureScene (GfxTest features) headless, drawn once
 //   WebTest window     a canvas of 256x192 pixels, drawn by App.run's frames
 //                      from the browser's loop after main returned; a Resize
-//                      when the page resizes it, Escape closes it (the loop ends)
+//                      when the page resizes it, characters typed and the wheel
+//                      printed, Escape closes it (the loop ends)
 //
 // WebGPU reads pixels back asynchronously only: the harness does, through
 // packages/gfx/imports.mjs (readPixels), on both.
 class WebTest {
 	static function main() {
-		if (Sys.args()[0] == "features") {
-			var device = Device.create(Surface.headless(FeatureScene.WIDTH, FeatureScene.HEIGHT));
-			var scene = new FeatureScene(device);
-			var enc = device.beginFrame();
-			scene.draw(enc);
-			device.endFrame();
-			Sys.println('WebTest: features: ${device.width}x${device.height} (${name(device.backend)})');
-			return;
-		}
+		var scene = Sys.args()[1];
 		if (Sys.args()[0] == "headless") {
 			var device = Device.create(Surface.headless(256, 192));
-			var triangle = new Triangle(device);
-			// (the shader macro's other test shaders, with uniform blocks and every builtin: this back end compiles them)
+			var draw = Scene.make(scene, device);
+			// (the shader macro's other test shaders, with uniform blocks, textures and every builtin: this back end compiles them)
 			device.createPipeline(LitShader.pipeline());
 			device.createPipeline(BuiltinShader.pipeline());
+			device.createPipeline(TexturedShader.pipeline());
 			if (device.backend == WebGL2) {
 				var pixels = haxe.io.Bytes.alloc(256 * 192 * 4);
-				triangle.draw(device.beginFrame());
+				draw(device.beginFrame());
 				device.readPixels(pixels);
 				device.endFrame();
 				Sys.println('WebTest: readPixels: ${fnv(pixels)}');
-			} else triangle.frame();
+			} else {
+				draw(device.beginFrame());
+				device.endFrame();
+			}
 			Sys.println('WebTest: headless: ${device.width}x${device.height} (${name(device.backend)})');
 			return;
 		}
 		var w = new Window("WebTest", 256, 192);
 		var device = Device.create(w.surface);
-		var triangle = new Triangle(device);
+		var draw = Scene.make(scene, device);
 		var frames = 0;
 		App.run(() -> {
-			triangle.frame();
+			var enc = device.beginFrame();
+			if (enc != null) {
+				draw(enc);
+				device.endFrame();
+			}
 			frames++;
 		}, e -> switch e.kind {
 			case Resize: Sys.println('WebTest: resized to ${e.x}x${e.y} (${w.width}x${w.height})');
+			case TextInput: Sys.println('WebTest: text ' + StringTools.hex(e.text.charCodeAt(0)));
+			// (in the page's pixels)
+			case Scroll: Sys.println('WebTest: scroll ${e.deltaX / w.scale} ${e.deltaY / w.scale}');
 			case KeyDown if (e.key == 0xFF1B):
 				Sys.println('WebTest: Escape after $frames frames');
 				w.close();

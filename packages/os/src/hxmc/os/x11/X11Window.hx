@@ -6,7 +6,9 @@ import hxmc.unsafe.*;
 
 // hxmc.os.Window on X11: one Display connection for the process, opened
 // with the first window; WM_DELETE_WINDOW turns the close button into a
-// Close event.
+// Close event. A key's text comes from XLookupString (Latin-1, or a Unicode
+// KeySym; no input method yet: compose sequences and IMEs), the wheel
+// from buttons 4 to 7. The scale stays 1.
 @:allow(hxmc.os)
 class X11Window {
 	static var display = Ptr.nil();

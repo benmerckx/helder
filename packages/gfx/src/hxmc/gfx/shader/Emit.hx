@@ -8,8 +8,11 @@ import hxmc.gfx.shader.Ir;
 // writes its result out. Statements and expressions print alike in all
 // four (C's syntax; WGSL's differs in declarations, which Wgsl overrides);
 // nested operations are parenthesized. The entry points' names (main,
-// main0, StageIn, StageOut, in_*, v_*, out_*, u_*, make_*) are kept from
-// the program's own names by Lower.
+// main0, StageIn, StageOut, in_*, v_*, out_*, u_*, make_*, tex_*, smp_*) are
+// kept from the program's own names by Lower. A texture parameter is two
+// where the language separates the sampler (<name>_smp, which Lower keeps
+// free); sample reads the first mip level (textures have one for now; and
+// so no derivatives, which WGSL allows in uniform control flow only).
 class Emit {
 	var buf:StringBuf;
 	var indent = "";
@@ -47,27 +50,13 @@ class Emit {
 		line("}");
 	}
 
-	// a parameter (a texture: with its sampler where the language separates them)
-	function param(p:SVar):String
-		return p.type == TTexture ? type(p.type) + " " + p.name + ", " + sampler() + " " + p.sampler : type(p.type) + " " + p.name;
+	// a parameter (a texture: with its sampler, where the language has one)
+	function param(v:SVar):String
+		return type(v.type) + " " + v.name;
 
-	// the sampler type (none: GLSL's sampler2D is both)
-	function sampler():String
-		return "";
-
-	// the arguments after an entry point's input: each uniform block (as
-	// uniform(u) builds it) and each texture with its sampler
-	function extraArgs(e:SEntry, uniform:SUniform->String):Array<String>
-		return [
-			for (x in e.params)
-				switch x {
-					case PUniform(u): uniform(u);
-					case PTexture(i): textureArg(i);
-				}
-		];
-
-	function textureArg(slot:Int):String
-		return 'tex_$slot, smp_$slot';
+	// an argument (a texture: with its sampler)
+	function arg(e:SExpr):String
+		return expr(e);
 
 	function declare(v:SVar, init:Null<SExpr>):String
 		return type(v.type) + " " + v.name + (init == null ? "" : " = " + expr(init)) + ";";
@@ -127,7 +116,7 @@ class Emit {
 			case ECond(c, a, b): cond(c, a, b);
 			case ENew(args): construct(e.t, args);
 			case EBuiltin(name, args): builtin(name, args, e.t);
-			case ECall(f, args): f.name + "(" + [for (a in args) expr(a)].join(", ") + ")";
+			case ECall(f, args): f.name + "(" + [for (a in args) arg(a)].join(", ") + ")";
 			case EConvert(x): type(e.t) + "(" + expr(x) + ")";
 		}
 

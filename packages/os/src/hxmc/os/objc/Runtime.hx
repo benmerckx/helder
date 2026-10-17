@@ -13,11 +13,10 @@ import hxmc.unsafe.*;
 	static function objc_registerClassPair(cls:Ptr):Void;
 	// types: the method's type encoding ("v@:@": void, self, _cmd, an id)
 	static function class_addMethod(cls:Ptr, sel:Ptr, imp:Ptr, types:Ptr):Bool;
+	static function object_getClass(o:Ptr):Ptr;
+	static function object_setClass(o:Ptr, cls:Ptr):Ptr;
 	static function objc_retain(o:Ptr):Ptr;
 	static function objc_release(o:Ptr):Void;
 	static function objc_autoreleasePoolPush():Ptr;
 	static function objc_autoreleasePoolPop(pool:Ptr):Void;
-	// an object's class changed (to a subclass made at run time: its methods added)
-	static function object_setClass(o:Ptr, cls:Ptr):Ptr;
-	static function object_getClass(o:Ptr):Ptr;
 }

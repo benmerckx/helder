@@ -36,7 +36,9 @@ import hxmc.unsafe.*;
 	static function MsgWaitForMultipleObjects(count:Int, handles:Ptr, waitAll:Int, ms:Int, wakeMask:Int):Int;
 	static function SetWindowTextW(hwnd:Ptr, text:Ptr):Int;
 	static function GetWindowTextW(hwnd:Ptr, text:Ptr, max:Int):Int;
-	static function SetWindowPos(hwnd:Ptr, after:Ptr, x:Int, y:Int, cx:Int, cy:Int, flags:Int):Int;
+	static function SetWindowPos(hwnd:Ptr, after:Ptr, x:Int, y:Int, width:Int, height:Int, flags:Int):Int;
+	static function SetTimer(hwnd:Ptr, id:Int64, ms:Int, fn:Ptr):Int64;
+	static function KillTimer(hwnd:Ptr, id:Int64):Int;
 	// Windows 10 1607 and later (pixels, not points)
 	static function SetProcessDpiAwarenessContext(context:Ptr):Int;
 	static function GetDpiForWindow(hwnd:Ptr):Int;
@@ -84,9 +86,10 @@ class WM {
 	public static inline var GETMINMAXINFO = 0x0024;
 	public static inline var KEYDOWN = 0x0100;
 	public static inline var KEYUP = 0x0101;
+	public static inline var CHAR = 0x0102;
 	public static inline var SYSKEYDOWN = 0x0104;
 	public static inline var SYSKEYUP = 0x0105;
-	public static inline var CHAR = 0x0102;
+	public static inline var TIMER = 0x0113;
 	public static inline var MOUSEMOVE = 0x0200;
 	public static inline var LBUTTONDOWN = 0x0201;
 	public static inline var LBUTTONUP = 0x0202;
@@ -96,6 +99,11 @@ class WM {
 	public static inline var MBUTTONUP = 0x0208;
 	public static inline var MOUSEWHEEL = 0x020A;
 	public static inline var MOUSEHWHEEL = 0x020E;
+	public static inline var ENTERSIZEMOVE = 0x0231;
+	public static inline var EXITSIZEMOVE = 0x0232;
+	public static inline var DPICHANGED = 0x02E0;
+	public static inline var SWP_NOZORDER = 0x0004;
+	public static inline var SWP_NOACTIVATE = 0x0010;
 	// window and class styles, ShowWindow, PeekMessage
 	public static inline var WS_OVERLAPPEDWINDOW = 0x00CF0000;
 	public static inline var CW_USEDEFAULT = 0x80000000;

@@ -1,14 +1,14 @@
 package hxmc.gfx;
 
-// A pipeline's colour blending (the colour target's alpha too: one-minus-
-// source-alpha, so that a target stays opaque)
+// How a pipeline's colour combines with the target's (src: the fragment's
+// colour, a its alpha; dst: the target's)
 enum abstract Blend(Int) {
-	// the fragment's colour replaces the target's
-	var Replace;
-	// straight alpha: src * a + dst * (1 - a)
+	// src
+	var Opaque;
+	// src * a + dst * (1 - a); the target's alpha a + dst.a * (1 - a)
 	var Alpha;
-	// premultiplied alpha: src + dst * (1 - a)
+	// src * a + dst; the target's alpha a + dst.a
+	var Additive;
+	// src + dst * (1 - a): colours already multiplied by their alpha
 	var Premultiplied;
-	// src + dst
-	var Add;
 }

@@ -11,11 +11,15 @@ import hxmc.unsafe.*;
 // a canvas or an offscreen one (WebGL), the same GL calls going to
 // imports. One vertex array object; vertex attributes are set at the first
 // draw after a pipeline or vertex buffer change (ES 3.0 has no separate
-// vertex formats). Textures are bound to the units of their slots
-// (Encoder.setTexture), a program's tex_<slot> samplers set to them when it
-// is linked; uploads go through the last unit (UPLOAD_UNIT) so that the
-// slots' bindings stay. The scissor test is always on (the whole target by
-// default).
+// vertex formats). Uniform blocks and samplers are bound to their slots by
+// name when a pipeline links (ShaderCode.bindings: ES 3.00 has no
+// layout(binding)); setUniforms writes into the frame's uniform buffer, one
+// of two (frames in flight), and binds the range (glBindBufferRange). The
+// depth buffer is the default framebuffer's (24 bits); ES 3.0 has no base
+// vertex, so drawIndexed's moves the vertex attributes' offsets instead.
+// A texture at slot n is bound to texture unit n with its sampler object.
+// The shader macro's fragment stages flip the fragment position with the
+// target's height (u_target_height), set when a pipeline is.
 class GLBackend {
 	public final backend = Mem.os() == 3 ? Backend.WebGL2 : Backend.GL;
 	public var width(default, null) = 0;
@@ -33,20 +37,35 @@ class GLBackend {
 
 	// tables (handle = index + 1)
 	final buffers:Array<Int> = [];
-	final targets:Array<Int> = []; // each buffer's binding target
-	final textures:Array<GLTexture> = [];
+	final indexBuffers:Array<Bool> = [];
 	final shaders:Array<Int> = [];
+	final bindings:Array<Array<ShaderBinding>> = []; // each shader's
 	final pipelines:Array<GLPipeline> = [];
+	final textures:Array<Int> = [];
+	final textureSizes:Array<Int> = []; // width, height
+	final samplers:Array<Int> = [];
 
 	// draw state
 	var pipeline:GLPipeline = null;
 	final vbufs = [for (_ in 0...MAX_SLOTS) 0];
 	final voffs = [for (_ in 0...MAX_SLOTS) 0];
 	var dirty = true;
+	var base = 0; // the vertices' first: the attributes' offsets move by its stride
 	var enabled = 0; // the attribute locations enabled, a mask
+	var ibuf = 0; // the index buffer bound, the one set, its type (GL.UNSIGNED_*), its offset
+	var ibufSet = 0;
+	var itype = GL.UNSIGNED_SHORT;
+	var ioffset = 0;
+	var depthMask = true; // glDepthMask as it is
+	final units = [for (_ in 0...16) 0]; // each texture unit's texture (setTexture)
+	// the uniform rings (one per frame in flight: made at the first
+	// setUniforms), the frame's, and the next offset into it
+	final rings = [0, 0];
+	var ring = 0;
+	var cursor = 0;
+	var uniformAlign = 256;
 
 	static inline var MAX_SLOTS = 8;
-	static inline var UPLOAD_UNIT = 15;
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -61,7 +80,7 @@ class GLBackend {
 			WebGL.make_current(web);
 			GL.glGenVertexArrays(1, scratch);
 			GL.glBindVertexArray(scratch.value);
-			querySize();
+			start();
 			return;
 		}
 		var headless = surface.kind == Headless;
@@ -77,10 +96,10 @@ class GLBackend {
 		Arena.scoped(a -> {
 			var attribs = ints(a, [
 				EGL.SURFACE_TYPE, headless ? EGL.PBUFFER_BIT : EGL.WINDOW_BIT, EGL.RENDERABLE_TYPE, EGL.OPENGL_ES3_BIT, EGL.RED_SIZE, 8, EGL.GREEN_SIZE, 8,
-				EGL.BLUE_SIZE, 8, EGL.ALPHA_SIZE, 8, EGL.NONE
+				EGL.BLUE_SIZE, 8, EGL.ALPHA_SIZE, 8, EGL.DEPTH_SIZE, 24, EGL.NONE
 			]);
 			var config:Ptr<Ptr> = a.alloc(8);
-			if (Egl.eglChooseConfig(display, attribs, config, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8");
+			if (Egl.eglChooseConfig(display, attribs, config, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8 and a 24-bit depth buffer");
 			eglSurface = headless ? Egl.eglCreatePbufferSurface(display, config.value,
 				ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE])) : Egl.eglCreateWindowSurface(display, config.value,
 					surface.handle, Ptr.nil());
@@ -93,7 +112,14 @@ class GLBackend {
 		if (missing != null) throw "hxmc.gfx: no GL function " + missing;
 		GL.glGenVertexArrays(1, scratch);
 		GL.glBindVertexArray(scratch.value);
+		start();
+	}
+
+	// (the context is current)
+	function start() {
 		querySize();
+		GL.glGetIntegerv(GL.UNIFORM_BUFFER_OFFSET_ALIGNMENT, scratch);
+		if (scratch.value > uniformAlign) uniformAlign = scratch.value;
 	}
 
 	function fail(what:String):Dynamic
@@ -128,55 +154,49 @@ class GLBackend {
 		if (data != null && data.length < size) throw "hxmc.gfx: createBuffer: data has fewer than size bytes";
 		// (a fast call: the Bytes cannot move during it)
 		if (data == null) GL.glBufferData(target, size, Ptr.nil(), GL.DYNAMIC_DRAW) else GL.glBufferData(target, size, Mem.addr(data).add(8), GL.STATIC_DRAW);
+		// (the vertex array's index buffer was this one: it is bound anew at the next drawIndexed)
+		if (target == GL.ELEMENT_ARRAY_BUFFER) ibuf = -1;
 		buffers.push(b);
-		targets.push(target);
+		indexBuffers.push(d.usage == Index);
 		return buffers.length;
 	}
 
 	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
-		var target = targets[id - 1];
+		// (an index buffer through its own target, as WebGL wants; the vertex
+		// array's then is it, until the next drawIndexed binds the set one)
+		var target = indexBuffers[id - 1] ? GL.ELEMENT_ARRAY_BUFFER : GL.ARRAY_BUFFER;
 		GL.glBindBuffer(target, buffers[id - 1]);
+		if (target == GL.ELEMENT_ARRAY_BUFFER) ibuf = -1;
 		// (a fast call: the Bytes cannot move during it)
 		GL.glBufferSubData(target, offset, size, Mem.addr(data).add(8 + dataOffset));
 	}
 
 	public function createTexture(d:TextureDesc):Int {
 		GL.glGenTextures(1, scratch);
-		var t = new GLTexture(scratch.value, d.format, d.width, d.height);
-		GL.glActiveTexture(GL.TEXTURE0 + UPLOAD_UNIT);
-		GL.glBindTexture(GL.TEXTURE_2D, t.name);
-		var filter = d.filter == Nearest ? GL.NEAREST : GL.LINEAR;
-		GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, filter);
-		GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAG_FILTER, filter);
-		GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_S, GL.CLAMP_TO_EDGE);
-		GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_WRAP_T, GL.CLAMP_TO_EDGE);
-		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 1);
-		var data = d.data;
-		GL.glTexImage2D(GL.TEXTURE_2D, 0, d.format == R8 ? GL.R8 : GL.RGBA8, d.width, d.height, 0, t.format, GL.UNSIGNED_BYTE,
-			data == null ? Ptr.nil() : Mem.addr(data).add(8));
-		if (data == null) {
-			// (zeros: GL leaves a texture without data undefined)
-			var n = d.width * d.height * d.format.bytesPerPixel;
-			var zeros = LibC.malloc((n : Int64));
-			LibC.memset(zeros, 0, (n : Int64));
-			GL.glTexSubImage2D(GL.TEXTURE_2D, 0, 0, 0, d.width, d.height, t.format, GL.UNSIGNED_BYTE, zeros);
-			LibC.free(zeros);
-		}
+		var t = scratch.value;
+		upload(t, d.width, d.height, d.data, true);
 		textures.push(t);
+		textureSizes.push(d.width);
+		textureSizes.push(d.height);
 		return textures.length;
 	}
 
-	public function writeTexture(id:Int, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset:Int) {
-		var t = textures[id - 1];
-		if (x < 0 || y < 0 || x + w > t.width || y + h > t.height) throw "hxmc.gfx: writeTexture: outside the texture";
-		if (dataOffset + w * h * t.bytes > data.length) throw "hxmc.gfx: writeTexture: data has too few bytes";
-		GL.glActiveTexture(GL.TEXTURE0 + UPLOAD_UNIT);
-		GL.glBindTexture(GL.TEXTURE_2D, t.name);
-		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 1);
-		GL.glTexSubImage2D(GL.TEXTURE_2D, 0, x, y, w, h, t.format, GL.UNSIGNED_BYTE, Mem.addr(data).add(8 + dataOffset));
+	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int) {
+		var tw = textureSizes[2 * id - 2], th = textureSizes[2 * id - 1];
+		if (w < 0) {
+			w = tw;
+			h = th;
+		}
+		if (x + w > tw || y + h > th) throw "hxmc.gfx: writeTexture: outside the texture";
+		if (dataOffset + w * h * 4 > data.length) throw "hxmc.gfx: writeTexture: data has fewer than w * h * 4 bytes";
+		GL.glActiveTexture(GL.TEXTURE0);
+		GL.glBindTexture(GL.TEXTURE_2D, textures[id - 1]);
+		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 4);
+		// (a fast call: the Bytes cannot move during it)
+		GL.glTexSubImage2D(GL.TEXTURE_2D, 0, x, y, w, h, GL.RGBA, GL.UNSIGNED_BYTE, Mem.addr(data).add(8 + dataOffset));
+		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
 	}
 
-	// (the id stays taken: ids are indices)
 	public function destroyBuffer(id:Int) {
 		if (buffers[id - 1] == 0) return;
 		scratch.value = buffers[id - 1];
@@ -185,25 +205,43 @@ class GLBackend {
 	}
 
 	public function destroyTexture(id:Int) {
-		var t = textures[id - 1];
-		if (t == null) return;
-		scratch.value = t.name;
+		if (textures[id - 1] == 0) return;
+		scratch.value = textures[id - 1];
 		GL.glDeleteTextures(1, scratch);
-		textures[id - 1] = null;
+		textures[id - 1] = 0;
 	}
 
-	public function setTexture(slot:Int, id:Int) {
-		GL.glActiveTexture(GL.TEXTURE0 + slot);
-		GL.glBindTexture(GL.TEXTURE_2D, id == 0 ? 0 : textures[id - 1].name);
+	// the texels (none: undefined) of a new texture or all of one, through unit
+	// 0, whose texture is put back
+	function upload(t:Int, w:Int, h:Int, data:Null<haxe.io.Bytes>, create:Bool) {
+		GL.glActiveTexture(GL.TEXTURE0);
+		GL.glBindTexture(GL.TEXTURE_2D, t);
+		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 4);
+		// (fast calls: the Bytes cannot move during them)
+		if (create) {
+			GL.glTexImage2D(GL.TEXTURE_2D, 0, GL.RGBA8, w, h, 0, GL.RGBA, GL.UNSIGNED_BYTE, data == null ? Ptr.nil() : Mem.addr(data).add(8));
+			// (one level: complete with any sampler)
+			GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MAX_LEVEL, 0);
+			GL.glTexParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, GL.LINEAR);
+		} else GL.glTexSubImage2D(GL.TEXTURE_2D, 0, 0, 0, w, h, GL.RGBA, GL.UNSIGNED_BYTE, Mem.addr(data).add(8));
+		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
 	}
 
-	public function setScissor(x:Int, y:Int, w:Int, h:Int) {
-		var x0 = x < 0 ? 0 : x > width ? width : x, y0 = y < 0 ? 0 : y > height ? height : y;
-		var x1 = x + w > width ? width : x + w, y1 = y + h > height ? height : y + h;
-		if (x1 < x0) x1 = x0;
-		if (y1 < y0) y1 = y0;
-		// (GL's rows go bottom to top)
-		GL.glScissor(x0, height - y1, x1 - x0, y1 - y0);
+	public function createSampler(d:SamplerDesc):Int {
+		GL.glGenSamplers(1, scratch);
+		var s = scratch.value;
+		var f = d.filter == Nearest ? GL.NEAREST : GL.LINEAR;
+		var w = switch d.wrap {
+			case null | Repeat: GL.REPEAT;
+			case Clamp: GL.CLAMP_TO_EDGE;
+			case Mirror: GL.MIRRORED_REPEAT;
+		}
+		GL.glSamplerParameteri(s, GL.TEXTURE_MIN_FILTER, f);
+		GL.glSamplerParameteri(s, GL.TEXTURE_MAG_FILTER, f);
+		GL.glSamplerParameteri(s, GL.TEXTURE_WRAP_S, w);
+		GL.glSamplerParameteri(s, GL.TEXTURE_WRAP_T, w);
+		samplers.push(s);
+		return samplers.length;
 	}
 
 	public function createShader(d:ShaderDesc):Int {
@@ -222,6 +260,7 @@ class GLBackend {
 			throw "hxmc.gfx: the shader does not compile:\n" + log;
 		}
 		shaders.push(s);
+		bindings.push(d.code.bindings == null ? [] : d.code.bindings);
 		return shaders.length;
 	}
 
@@ -246,36 +285,48 @@ class GLBackend {
 			GL.glDeleteProgram(p);
 			throw "hxmc.gfx: the pipeline does not link:\n" + log;
 		}
+		// the shaders' uniform blocks and samplers at their slots, by name
+		GL.glUseProgram(p);
+		for (b in bindings[d.vertex.id() - 1].concat(bindings[d.fragment.id() - 1]))
+			Arena.scoped(a -> {
+				var name = a.cstring(b.name);
+				var block = b.kind == Uniform ? GL.glGetUniformBlockIndex(p, name) : GL.INVALID_INDEX;
+				if (block != GL.INVALID_INDEX) GL.glUniformBlockBinding(p, block, b.slot) else {
+					var loc = GL.glGetUniformLocation(p, name);
+					if (loc >= 0) GL.glUniform1i(loc, b.slot);
+				}
+			});
+		var heightLoc = Arena.scopedValue(a -> GL.glGetUniformLocation(p, a.cstring("u_target_height")));
+		GL.glUseProgram(pipeline == null ? 0 : pipeline.program);
 		if (d.layout.length > MAX_SLOTS) throw "hxmc.gfx: more than " + MAX_SLOTS + " vertex buffers";
-		// the samplers' units: their slots
-		var n = d.textures == null ? 0 : d.textures;
-		if (n > 0) {
-			GL.glUseProgram(p);
-			for (i in 0...n) {
-				var loc = Arena.scopedValue(a -> GL.glGetUniformLocation(p, a.cstring("tex_" + i)));
-				if (loc >= 0) GL.glUniform1i(loc, i);
-			}
-			GL.glUseProgram(pipeline == null ? 0 : pipeline.program);
-		}
-		pipelines.push(new GLPipeline(p, d));
+		pipelines.push(new GLPipeline(p, heightLoc, d));
 		return pipelines.length;
 	}
 
 	public function beginFrame():Bool {
+		ring ^= 1;
+		cursor = 0;
 		if (surface.kind != Headless) querySize();
 		return true;
 	}
 
 	public function beginPass(p:PassDesc) {
 		GL.glViewport(0, 0, width, height);
-		GL.glEnable(GL.SCISSOR_TEST);
-		GL.glScissor(0, 0, width, height);
-		var c = p.colors[0];
-		if (c.load == Clear) {
+		var c = p.colors[0], mask = 0;
+		if (c.load != Load) {
 			var k = c.clear;
 			k == null ? GL.glClearColor(0, 0, 0, 1) : GL.glClearColor(k.r, k.g, k.b, k.a);
-			GL.glClear(GL.COLOR_BUFFER_BIT);
+			mask |= GL.COLOR_BUFFER_BIT;
 		}
+		var d = p.depth;
+		if (d != null && d.load != Load) {
+			GL.glClearDepthf(d.clear == null ? 1 : d.clear);
+			// (the mask applies to clears too)
+			if (!depthMask) GL.glDepthMask(depthMask = true);
+			mask |= GL.DEPTH_BUFFER_BIT;
+		}
+		if (mask != 0) GL.glClear(mask);
+		pipeline = null;
 	}
 
 	public function setPipeline(id:Int) {
@@ -283,13 +334,28 @@ class GLBackend {
 		if (p == pipeline) return;
 		pipeline = p;
 		GL.glUseProgram(p.program);
+		// (the fragment position's flip: the shader macro's GLSL)
+		if (p.heightLoc >= 0 && p.height != height) {
+			p.height = height;
+			GL.glUniform1f(p.heightLoc, height);
+		}
 		if (p.cull == 0) GL.glDisable(GL.CULL_FACE) else {
 			GL.glEnable(GL.CULL_FACE);
 			GL.glCullFace(p.cull);
 		}
-		if (p.src < 0) GL.glDisable(GL.BLEND) else {
+		if (p.depthFunc == 0) GL.glDisable(GL.DEPTH_TEST) else {
+			GL.glEnable(GL.DEPTH_TEST);
+			GL.glDepthFunc(p.depthFunc);
+		}
+		if (p.depthWrite != depthMask) GL.glDepthMask(depthMask = p.depthWrite);
+		if (p.blend == Opaque) GL.glDisable(GL.BLEND) else {
 			GL.glEnable(GL.BLEND);
-			GL.glBlendFuncSeparate(p.src, p.dst, GL.ONE, GL.ONE_MINUS_SRC_ALPHA);
+			GL.glBlendEquation(GL.FUNC_ADD);
+			switch p.blend {
+				case Alpha: GL.glBlendFuncSeparate(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA);
+				case Additive: GL.glBlendFuncSeparate(GL.SRC_ALPHA, GL.ONE, GL.ONE, GL.ONE);
+				case _: GL.glBlendFuncSeparate(GL.ONE, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA);
+			}
 		}
 		dirty = true;
 	}
@@ -300,23 +366,62 @@ class GLBackend {
 		dirty = true;
 	}
 
+	public function setUniforms(slot:Int, data:haxe.io.Bytes, offset:Int, size:Int) {
+		if (offset < 0 || size < 0 || offset + size > data.length) throw "hxmc.gfx: setUniforms: outside the data";
+		var n = (size + uniformAlign - 1) & ~(uniformAlign - 1);
+		if (cursor + n > Encoder.UNIFORM_RING) throw "hxmc.gfx: setUniforms: more than " + Encoder.UNIFORM_RING + " bytes of uniforms in a frame";
+		if (rings[ring] == 0) {
+			GL.glGenBuffers(1, scratch);
+			rings[ring] = scratch.value;
+			GL.glBindBuffer(GL.UNIFORM_BUFFER, rings[ring]);
+			GL.glBufferData(GL.UNIFORM_BUFFER, Encoder.UNIFORM_RING, Ptr.nil(), GL.STREAM_DRAW);
+		} else GL.glBindBuffer(GL.UNIFORM_BUFFER, rings[ring]);
+		// (a fast call: the Bytes cannot move during it; the range: whole 16-byte rows)
+		GL.glBufferSubData(GL.UNIFORM_BUFFER, cursor, size, Mem.addr(data).add(8 + offset));
+		GL.glBindBufferRange(GL.UNIFORM_BUFFER, slot, rings[ring], cursor, (size + 15) & ~15);
+		cursor += n;
+	}
+
 	public function draw(vertices:Int, instances:Int, first:Int) {
-		var p = pipeline;
-		if (dirty) {
-			var mask = 0;
-			for (i in 0...p.locations.length) {
-				var slot = p.slots[i], loc = p.locations[i];
-				GL.glBindBuffer(GL.ARRAY_BUFFER, vbufs[slot]);
-				GL.glVertexAttribPointer(loc, p.sizes[i], p.types[i], p.normalized[i], p.strides[slot], Ptr.ofI64(voffs[slot] + p.offsets[i]));
-				if (enabled & (1 << loc) == 0) GL.glEnableVertexAttribArray(loc);
-				mask |= 1 << loc;
-			}
-			for (loc in 0...16)
-				if (enabled & ~mask & (1 << loc) != 0) GL.glDisableVertexAttribArray(loc);
-			enabled = mask;
-			dirty = false;
+		attributes(0);
+		instances == 1 ? GL.glDrawArrays(pipeline.topology, first, vertices) : GL.glDrawArraysInstanced(pipeline.topology, first, vertices, instances);
+	}
+
+	public function setTexture(slot:Int, texture:Int, sampler:Int) {
+		GL.glActiveTexture(GL.TEXTURE0 + slot);
+		GL.glBindTexture(GL.TEXTURE_2D, units[slot] = textures[texture - 1]);
+		GL.glBindSampler(slot, samplers[sampler - 1]);
+	}
+
+	public function setIndexBuffer(id:Int, format:IndexFormat, offset:Int) {
+		ibufSet = buffers[id - 1];
+		itype = format == UInt16 ? GL.UNSIGNED_SHORT : GL.UNSIGNED_INT;
+		ioffset = offset;
+	}
+
+	public function drawIndexed(count:Int, instances:Int, first:Int, baseVertex:Int) {
+		attributes(baseVertex);
+		if (ibuf != ibufSet) GL.glBindBuffer(GL.ELEMENT_ARRAY_BUFFER, ibuf = ibufSet);
+		var at:Int = ioffset + first * (itype == GL.UNSIGNED_SHORT ? 2 : 4);
+		instances == 1 ? GL.glDrawElements(pipeline.topology, count, itype, Ptr.ofI64(at)) : GL.glDrawElementsInstanced(pipeline.topology, count, itype, Ptr.ofI64(at), instances);
+	}
+
+	// the vertex attributes, when the pipeline, a vertex buffer or the base vertex changed
+	function attributes(first:Int) {
+		if (!dirty && first == base) return;
+		var p = pipeline, mask = 0;
+		for (i in 0...p.locations.length) {
+			var slot = p.slots[i], loc = p.locations[i];
+			GL.glBindBuffer(GL.ARRAY_BUFFER, vbufs[slot]);
+			GL.glVertexAttribPointer(loc, p.sizes[i], p.types[i], p.normalized[i], p.strides[slot], Ptr.ofI64(voffs[slot] + first * p.strides[slot] + p.offsets[i]));
+			if (enabled & (1 << loc) == 0) GL.glEnableVertexAttribArray(loc);
+			mask |= 1 << loc;
 		}
-		instances == 1 ? GL.glDrawArrays(p.topology, first, vertices) : GL.glDrawArraysInstanced(p.topology, first, vertices, instances);
+		for (loc in 0...16)
+			if (enabled & ~mask & (1 << loc) != 0) GL.glDisableVertexAttribArray(loc);
+		enabled = mask;
+		base = first;
+		dirty = false;
 	}
 
 	public function endPass() {}
@@ -341,6 +446,11 @@ class GLBackend {
 	}
 
 	public function dispose() {
+		for (r in rings)
+			if (r != 0) {
+				scratch.value = r;
+				GL.glDeleteBuffers(1, scratch);
+			}
 		if (Mem.os() == 3) WebGL.release(web) else {
 			Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 			Egl.eglDestroyContext(display, context);
@@ -352,30 +462,16 @@ class GLBackend {
 	}
 }
 
-// a texture: its name, the GL format of its pixels, its size
-private class GLTexture {
-	public final name:Int;
-	public final format:Int;
-	public final bytes:Int;
-	public final width:Int;
-	public final height:Int;
-
-	public function new(name:Int, f:TextureFormat, width:Int, height:Int) {
-		this.name = name;
-		format = f == R8 ? GL.RED : GL.RGBA;
-		bytes = f.bytesPerPixel;
-		this.width = width;
-		this.height = height;
-	}
-}
-
 // a linked program and its vertex attributes, flattened for draw
 private class GLPipeline {
 	public final program:Int;
+	public final heightLoc:Int; // u_target_height (-1: none), as set
+	public var height = -1;
 	public final topology:Int;
 	public final cull:Int; // 0: none, else GL.FRONT or GL.BACK
-	public final src:Int; // the colour's blend factors (-1: no blending)
-	public final dst:Int;
+	public final depthFunc:Int; // 0: no depth test, else GL.NEVER + Compare
+	public final depthWrite:Bool;
+	public final blend:Blend;
 	public final strides:Array<Int> = [];
 	public final slots:Array<Int> = [];
 	public final locations:Array<Int> = [];
@@ -384,8 +480,9 @@ private class GLPipeline {
 	public final normalized:Array<Bool> = [];
 	public final offsets:Array<Int> = [];
 
-	public function new(program:Int, d:PipelineDesc) {
+	public function new(program:Int, heightLoc:Int, d:PipelineDesc) {
 		this.program = program;
+		this.heightLoc = heightLoc;
 		topology = switch d.topology {
 			case null | Triangles: GL.TRIANGLES;
 			case TriangleStrip: GL.TRIANGLE_STRIP;
@@ -397,12 +494,11 @@ private class GLPipeline {
 			case Front: GL.FRONT;
 			case Back: GL.BACK;
 		}
-		src = switch d.blend {
-			case null | Replace: -1;
-			case Alpha: GL.SRC_ALPHA;
-			case Premultiplied | Add: GL.ONE;
-		}
-		dst = d.blend == Add ? GL.ONE : GL.ONE_MINUS_SRC_ALPHA;
+		depthWrite = d.depthWrite == true;
+		var c:Compare = d.depthCompare == null ? Always : d.depthCompare;
+		// (GL tests nothing and writes nothing without the depth test)
+		depthFunc = c == Always && !depthWrite ? 0 : GL.NEVER + (cast c : Int);
+		blend = d.blend == null ? Opaque : d.blend;
 		for (slot in 0...d.layout.length) {
 			var l = d.layout[slot];
 			strides.push(l.stride);

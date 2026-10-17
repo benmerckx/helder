@@ -20,10 +20,9 @@ class Png {
 		z.bigEndian = true;
 		z.writeByte(0x78);
 		z.writeByte(0x01);
-		// (blocks of 16 KB: haxe.zip.InflateImpl's window takes at most 32 KB of a stored block at once)
 		var pos = 0;
 		while (true) {
-			var n = data.length - pos > 16384 ? 16384 : data.length - pos;
+			var n = data.length - pos > 65535 ? 65535 : data.length - pos;
 			z.writeByte(pos + n == data.length ? 1 : 0);
 			z.writeByte(n & 0xFF);
 			z.writeByte(n >> 8);

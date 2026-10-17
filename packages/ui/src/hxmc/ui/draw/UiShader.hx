@@ -60,8 +60,8 @@ class UiShader implements Shaders {
 	}
 
 	@:fragment static function fs(i:UiVaryings, atlas:Texture2D, image:Texture2D):Vec4 {
-		var coverage = texture(atlas, i.uv).x;
-		var texel = texture(image, i.uv);
+		var coverage = sample(atlas, i.uv).x;
+		var texel = sample(image, i.uv);
 		var ch = (i.clip.zw - i.clip.xy) * 0.5;
 		var clipped = clamp(0.5 - box(i.extra.xy - i.clip.xy - ch, ch, i.extra.z), 0, 1);
 		var mode = i.params.z;

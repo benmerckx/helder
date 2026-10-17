@@ -27,6 +27,7 @@ import hxmc.unsafe.*;
 	static function XLookupKeysym(event:Ptr<XKeyEvent>, index:Int):Int64;
 	// the key's characters (Latin-1) and KeySym with the modifiers applied
 	static function XLookupString(event:Ptr<XKeyEvent>, buffer:Ptr, bytes:Int, keysym:Ptr<Int64>, status:Ptr):Int;
+	static function XKeysymToKeycode(d:Ptr, keysym:Int64):Int;
 	static function XFlush(d:Ptr):Int;
 	// the connection's socket (to wait on with select)
 	static function XConnectionNumber(d:Ptr):Int;

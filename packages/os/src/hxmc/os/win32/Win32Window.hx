@@ -12,6 +12,12 @@ import hxmc.unsafe.*;
 // (a window's size in points times the system's scale, as on macOS). The
 // loop stays App.run's: each frame drains the thread's queue without
 // waiting (PeekMessage); the pace comes from the swap chain's Present.
+// Characters come from WM_CHAR (TranslateMessage: UTF-16, surrogate pairs
+// joined: TextInput), the wheels from WM_MOUSEWHEEL and WM_MOUSEHWHEEL; WM_DPICHANGED
+// moves the window to the size Windows suggests and is a ScaleChange.
+// While the user drags the window's edge or title bar, DispatchMessage runs
+// Windows' own loop until the drag ends: a timer then draws the frames
+// (onFrame from WM_TIMER), so that the content follows the size.
 @:allow(hxmc.os)
 class Win32Window {
 	static var instance = Ptr.nil(); // the HINSTANCE
@@ -19,12 +25,14 @@ class Win32Window {
 	static var msg:Ptr<MSG> = Ptr.nil();
 	static final event = new Event();
 	static final open:Array<Win32Window> = [];
-	// the App.run callback, for the window procedure's events
+	// the App.run callbacks, for the window procedure's events and frames
 	static var onEvent:Null<Event->Void>;
 	// WM_GETOBJECT's answer (an accessibility provider: hxmc.ui's UI
 	// Automation adapter), given the window and the message's parameters;
 	// 0: DefWindowProc's
 	public static var getObject:Null<(hwnd:Ptr, wParam:Int64, lParam:Int64) -> Int64> = null;
+	static var onFrame:Null<Void->Void>;
+	static inline var SIZING_TIMER = 1;
 
 	static inline var STYLE = WM.WS_OVERLAPPEDWINDOW;
 
@@ -210,7 +218,8 @@ class Win32Window {
 	}
 
 	// dispatches the pending events (through the window procedure)
-	static function poll(onEvent:Event->Void) {
+	static function poll(onFrame:Void->Void, onEvent:Event->Void) {
+		Win32Window.onFrame = onFrame;
 		Win32Window.onEvent = onEvent;
 		for (w in open.copy())
 			if (w.pending) {
@@ -333,6 +342,23 @@ class Win32Window {
 					dispatch(e);
 					return 0;
 				}
+			case WM.DPICHANGED:
+				// (the new DPI, then the size Windows suggests for it: a Resize from WM_SIZE)
+				w.scale = (wParam.toInt() & 0xFFFF) / 96;
+				e.kind = ScaleChange;
+				dispatch(e);
+				var r:Ptr<RECT> = Ptr.ofI64(lParam);
+				User32.SetWindowPos(hwnd, Ptr.nil(), r.value.left, r.value.top, r.value.right - r.value.left, r.value.bottom - r.value.top,
+					WM.SWP_NOZORDER | WM.SWP_NOACTIVATE);
+				return 0;
+			case WM.ENTERSIZEMOVE:
+				User32.SetTimer(hwnd, SIZING_TIMER, 10, Ptr.nil());
+			case WM.EXITSIZEMOVE:
+				User32.KillTimer(hwnd, SIZING_TIMER);
+			case WM.TIMER if (wParam == SIZING_TIMER):
+				// (a frame inside Windows' loop of a drag)
+				if (onFrame != null && App.windows.length > 0) onFrame();
+				return 0;
 			case _:
 		}
 		if (e.kind != None) dispatch(e);

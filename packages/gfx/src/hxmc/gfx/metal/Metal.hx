@@ -10,9 +10,9 @@ import hxmc.unsafe.*;
 
 class MTL {
 	// MTLPixelFormat
-	public static inline var PixelFormatR8Unorm = 10;
 	public static inline var PixelFormatRGBA8Unorm = 70;
 	public static inline var PixelFormatBGRA8Unorm = 80;
+	public static inline var PixelFormatDepth32Float = 252;
 	// MTLVertexFormat
 	public static inline var VertexFormatUChar4Normalized = 9;
 	public static inline var VertexFormatFloat = 28;
@@ -29,22 +29,31 @@ class MTL {
 	public static inline var CullModeFront = 1;
 	public static inline var CullModeBack = 2;
 	public static inline var WindingCounterClockwise = 1;
+	// MTLCompareFunction (Never: 0 .. Always: 7, as Compare), MTLIndexType
+	public static inline var IndexTypeUInt16 = 0;
+	public static inline var IndexTypeUInt32 = 1;
+	// MTLBlendFactor, MTLBlendOperation
+	public static inline var BlendFactorOne = 1;
+	public static inline var BlendFactorSourceAlpha = 4;
+	public static inline var BlendFactorOneMinusSourceAlpha = 5;
+	public static inline var BlendOperationAdd = 0;
 	// MTLLoadAction, MTLStoreAction
 	public static inline var LoadActionDontCare = 0;
 	public static inline var LoadActionLoad = 1;
 	public static inline var LoadActionClear = 2;
+	public static inline var StoreActionDontCare = 0;
 	public static inline var StoreActionStore = 1;
 	// MTLResourceOptions, MTLStorageMode, MTLTextureUsage
 	public static inline var ResourceStorageModeShared = 0;
 	public static inline var StorageModePrivate = 2;
 	public static inline var TextureUsageShaderRead = 1;
 	public static inline var TextureUsageRenderTarget = 4;
-	// MTLSamplerMinMagFilter, MTLBlendFactor
+	// MTLSamplerMinMagFilter, MTLSamplerAddressMode
 	public static inline var SamplerMinMagFilterNearest = 0;
 	public static inline var SamplerMinMagFilterLinear = 1;
-	public static inline var BlendFactorOne = 1;
-	public static inline var BlendFactorSourceAlpha = 4;
-	public static inline var BlendFactorOneMinusSourceAlpha = 5;
+	public static inline var SamplerAddressModeClampToEdge = 0;
+	public static inline var SamplerAddressModeRepeat = 2;
+	public static inline var SamplerAddressModeMirrorRepeat = 3;
 	// MTLCommandBufferStatus
 	public static inline var CommandBufferStatusError = 5;
 }
@@ -77,19 +86,7 @@ class MTL {
 	var depth:Int64;
 }
 
-// MTLRegion: an MTLOrigin and an MTLSize
 @:hxmc.struct @:publicFields class MTLRegion {
-	var x:Int64;
-	var y:Int64;
-	var z:Int64;
-	var width:Int64;
-	var height:Int64;
-	var depth:Int64;
-}
-
-@:hxmc.struct @:publicFields class MTLScissorRect {
-	var x:Int64;
-	var y:Int64;
-	var width:Int64;
-	var height:Int64;
+	var origin:MTLOrigin;
+	var size:MTLSize;
 }

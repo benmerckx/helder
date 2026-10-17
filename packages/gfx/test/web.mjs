@@ -1,11 +1,11 @@
-// The triangle on WebGPU, then on WebGL2 (forced: browser.mjs's option gfx:
-// 'webgl2'), in headless Chromium (make gfx-web-check), against
-// triangle.png with GfxTest's rule (compare.mjs): WebTest.wasm (WebTest.hx)
+// The triangle and the cube on WebGPU, then on WebGL2 (forced: browser.mjs's
+// option gfx: 'webgl2'), in headless Chromium (make gfx-web-check), against
+// triangle.png and cube.png with GfxTest's rule (compare.mjs): WebTest.wasm (WebTest.hx)
 // headless (on WebGL2 also Device.readPixels, whose checksum must be the
-// harness's), FeatureScene headless against features.png, then in a
-// 256x192 canvas, whose frames come from the
+// harness's), then in a 256x192 canvas, whose frames come from the
 // browser's loop after main returned; then the canvas is resized (a Resize
-// event) and Escape closes the window. A page served here loads the module
+// event), characters are typed and the wheel turned (TextInput and Scroll events)
+// and Escape closes the window. A page served here loads the module
 // with packages/os/browser.mjs and the packages' imports.mjs; Chromium
 // renders with WebGPU on SwiftShader and WebGL2 on ANGLE's SwiftShader (no
 // GPU needed).
@@ -38,7 +38,7 @@ const files = {
 	'/gfx/imports.mjs': path.join(here, '../imports.mjs'),
 	'/compare.mjs': path.join(here, 'compare.mjs'),
 	'/triangle.png': path.join(here, 'triangle.png'),
-	'/features.png': path.join(here, 'features.png'),
+	'/cube.png': path.join(here, 'cube.png'),
 };
 const types = { '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png' };
 const page = `<!doctype html><title>WebTest</title>
@@ -48,9 +48,9 @@ import { run } from './os/browser.mjs';
 import { decode, compare } from './compare.mjs';
 const log = [];
 window.log = log;
-window.start = async (gfx, mode) => {
-	const golden = await decode(mode === 'features' ? 'features.png' : 'triangle.png');
-	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'c', gfx, args: [mode], stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
+window.start = async (gfx, mode, scene) => {
+	const golden = await decode(scene + '.png');
+	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'c', gfx, args: [mode, scene], stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
 	log.push('exit ' + r.exitCode);
 	if (r.host.gfx.backend !== gfx) return { ok: false, text: gfx + ' ' + mode + ': on ' + r.host.gfx.backend };
 	const px = await r.host.gfx.readPixels();
@@ -59,7 +59,7 @@ window.start = async (gfx, mode) => {
 	let h = 0x811c9dc5;
 	for (const b of px.data) h = Math.imul(h ^ b, 0x01000193);
 	log.push('harness: readPixels: ' + (h >>> 0).toString(16).toUpperCase().padStart(8, '0'));
-	return compare(gfx + ' ' + mode, px, golden, mode === 'features' ? [208, 44] : undefined);
+	return compare(scene + ' ' + gfx + ' ' + mode, px, golden);
 };
 </script>`;
 const server = createServer(async (req, res) => {
@@ -78,25 +78,29 @@ const url = `http://localhost:${server.address().port}/`;
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
-for (const [gfx, mode] of [['webgpu', 'headless'], ['webgpu', 'features'], ['webgpu', 'window'], ['webgl2', 'headless'], ['webgl2', 'features'], ['webgl2', 'window']]) {
+for (const [scene, gfx, mode] of ['triangle', 'cube'].flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']])) {
 	const p = await browser.newPage({ viewport: { width: 400, height: 300 } });
 	const errors = [];
 	p.on('pageerror', (e) => errors.push(e.message));
 	p.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	await p.goto(url);
-	const r = await p.evaluate(([g, m]) => window.start(g, m), [gfx, mode]).catch((e) => ({ ok: false, text: e.message.split('\n')[0] }));
+	const r = await p.evaluate(([g, m, s]) => window.start(g, m, s), [gfx, mode, scene]).catch((e) => ({ ok: false, text: e.message.split('\n')[0] }));
 	const api = gfx === 'webgpu' ? 'WebGPU' : 'WebGL2';
 	const expect = [];
 	if (mode === 'window') {
-		if (out) await p.locator('#c').screenshot({ path: path.join(out, `${gfx}-canvas.png`) });
+		if (out) await p.locator('#c').screenshot({ path: path.join(out, `${scene}-${gfx}-canvas.png`) });
 		// a Resize from the page's layout, then Escape (the canvas has the focus once clicked)
 		await p.evaluate(() => { document.getElementById('c').style.width = '128px'; document.getElementById('c').style.height = '96px'; });
 		await p.waitForFunction(() => window.log.some((l) => l.startsWith('WebTest: resized')), null, { timeout: 10000 }).catch(() => {});
 		await p.click('#c');
+		// (characters and a notch of the wheel up)
+		await p.keyboard.type('aZ');
+		await p.mouse.wheel(0, -100);
+		await p.waitForFunction(() => window.log.some((l) => l.startsWith('WebTest: scroll')), null, { timeout: 10000 }).catch(() => {});
 		await p.keyboard.press('Escape');
 		await p.waitForFunction(() => window.log.some((l) => l.startsWith('WebTest: Escape')), null, { timeout: 10000 }).catch(() => {});
-		expect.push(`WebTest: window: 256x192, App.run returned (${api})`, 'WebTest: resized to 128x96 (128x96)', 'WebTest: Escape after');
-	} else expect.push(`WebTest: ${mode}: 256x192 (${api})`);
+		expect.push(`WebTest: window: 256x192, App.run returned (${api})`, 'WebTest: resized to 128x96 (128x96)', 'WebTest: text 61', 'WebTest: text 5A', 'WebTest: scroll 0 -100', 'WebTest: Escape after');
+	} else expect.push(`WebTest: headless: 256x192 (${api})`);
 	const log = await p.evaluate(() => window.log);
 	if (out) {
 		// (the pixels read back, as a PNG drawn by the page)
@@ -105,7 +109,7 @@ for (const [gfx, mode] of [['webgpu', 'headless'], ['webgpu', 'features'], ['web
 			g.putImageData(new ImageData(new Uint8ClampedArray(window.pixels ?? new Array(256 * 192 * 4).fill(0)), 256, 192), 0, 0);
 			return Array.from(new Uint8Array(await (await c.convertToBlob()).arrayBuffer()));
 		});
-		await writeFile(path.join(out, `${gfx}-${mode}.png`), Buffer.from(png));
+		await writeFile(path.join(out, `${scene}-${gfx}-${mode}.png`), Buffer.from(png));
 	}
 	const missing = expect.filter((e) => !log.some((l) => l.startsWith(e)));
 	// (WebGL2 headless: Device.readPixels read what the harness read)

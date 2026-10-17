@@ -28,6 +28,9 @@ enum abstract EventKind(Int) {
 	// pointer (x, y); a wheel's notch is 40 pixels, a trackpad's motion
 	// exact
 	var Scroll;
+	// the window's scale changed (Window.scale: another display's DPI);
+	// a Resize follows if its size in pixels changed too
+	var ScaleChange;
 }
 
 // Event.mods bits

@@ -10,9 +10,17 @@ package hxmc.gfx;
 // devices), the entry point named main, vertex inputs at semantic
 // `TEXCOORD<n>` (as SPIRV-Cross names them). WebGPU: WGSL, the entry point
 // named main, vertex inputs at `@location(n)`.
+//
+// Slots (Encoder.setUniforms, setTexture): a uniform block at slot n is
+// GLSL's block named in bindings, MSL's [[buffer(n)]], HLSL's register(bn)
+// and WGSL's @group(0) @binding(n); a texture at slot n is GLSL's sampler2D
+// named in bindings (texture unit n), MSL's [[texture(n)]] and
+// [[sampler(n)]], HLSL's register(tn) and register(sn), WGSL's @binding(n)
+// (the texture) and @binding(16 + n) (its sampler).
 typedef ShaderCode = {
 	?glsl:String,
 	?msl:String,
 	?hlsl:String,
-	?wgsl:String
+	?wgsl:String,
+	?bindings:Array<ShaderBinding>
 }

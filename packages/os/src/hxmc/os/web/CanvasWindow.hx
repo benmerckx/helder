@@ -10,7 +10,8 @@ import hxmc.unsafe.*;
 // one turn of App's loop: the pending events (queued by the JavaScript side
 // since the last frame), then onFrame. The canvas's drawing buffer follows
 // its displayed size in device pixels (a Resize event when it changes);
-// keys and the mouse come from the canvas (keys once it has the focus).
+// keys, their characters, the mouse and the wheel come from the canvas
+// (keys once it has the focus).
 @:allow(hxmc.os)
 class CanvasWindow {
 	static final event = new Event();

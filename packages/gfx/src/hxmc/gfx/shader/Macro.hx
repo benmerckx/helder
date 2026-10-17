@@ -19,8 +19,8 @@ import hxmc.gfx.shader.Ir;
 //                 and the functions they reach (in any shader class: their
 //                 __shaders forced first), the emitters print it in the
 //                 target's languages; once per class
-//   layout(), uniforms(), writeVertices(vs), writeUniforms(u, bytes, offset)
-//                 the vertex layout, the uniform blocks and the CPU writers,
+//   layout(), uniforms(), textures(), writeVertices(vs), writeUniforms(u, bytes, offset)
+//                 the vertex layout, the uniform blocks, the textures and the CPU writers,
 //                 from the same IR
 //
 // The languages: -D hxmc.gfx.shaders=glsl,wgsl,msl,hlsl (or all); else the
@@ -53,6 +53,16 @@ class Macro {
 			}
 			fields.push({field: l, expr: macro $v{src}});
 		}
+		// (the stage's uniform blocks and textures: GL binds them by their GLSL
+		// names, WebGPU makes its bind group layout of them)
+		var bindings = [
+			for (u in e.uniforms)
+				macro {name: $v{u.struct.name + "_block"}, slot: $v{u.binding}, kind: hxmc.gfx.ShaderBinding.BindingKind.Uniform, size: $v{u.size}}
+		].concat([
+			for (t in e.textures)
+				macro {name: $v{"tex_" + t.slot}, slot: $v{t.slot}, kind: hxmc.gfx.ShaderBinding.BindingKind.Texture}
+		]);
+		fields.push({field: "bindings", expr: macro [$a{bindings}]});
 		return {expr: EObjectDecl(fields), pos: Context.currentPos()};
 	}
 
@@ -75,13 +85,6 @@ class Macro {
 		return macro ([{stride: $v{off}, attributes: [$a{attrs}]}] : Array<hxmc.gfx.VertexBufferLayout>);
 	}
 
-	// the fragment stage's texture slots
-	public static macro function textures():Expr {
-		var p = compile();
-		if (p == null) return macro 0;
-		return macro $v{p.fragment.textures};
-	}
-
 	public static macro function uniforms():Expr {
 		var p = compile();
 		if (p == null) return macro cast null;
@@ -90,6 +93,13 @@ class Macro {
 				macro {name: $v{u.struct.name}, binding: $v{u.binding}, size: $v{u.size}}
 		];
 		return macro ([$a{us}] : Array<hxmc.gfx.shader.Shaders.UniformBlock>);
+	}
+
+	public static macro function textures():Expr {
+		var p = compile();
+		if (p == null) return macro cast null;
+		var ts = [for (t in p.textures) macro {name: $v{t.name}, binding: $v{t.slot}}];
+		return macro ([$a{ts}] : Array<hxmc.gfx.shader.Shaders.TextureBinding>);
 	}
 
 	// the vertices, packed as layout() says (Float32 each)
@@ -197,17 +207,24 @@ class Macro {
 			public static final fragmentCode:hxmc.gfx.ShaderCode = hxmc.gfx.shader.Macro.code(1);
 			public static final layout:Array<hxmc.gfx.VertexBufferLayout> = hxmc.gfx.shader.Macro.layout();
 			public static final uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock> = hxmc.gfx.shader.Macro.uniforms();
-			public static final textures:Int = hxmc.gfx.shader.Macro.textures();
+			public static final textures:Array<hxmc.gfx.shader.Shaders.TextureBinding> = hxmc.gfx.shader.Macro.textures();
 
 			// the pipeline of both stages and the vertex layout (Device.createPipeline compiles the code)
-			public static function pipeline(?options:{?topology:hxmc.gfx.Topology, ?cull:hxmc.gfx.Cull, ?blend:hxmc.gfx.Blend}):hxmc.gfx.PipelineDesc
-				return {
+			public static function pipeline(?options:{
+				?topology:hxmc.gfx.Topology,
+				?cull:hxmc.gfx.Cull,
+				?blend:hxmc.gfx.Blend,
+				?depthCompare:hxmc.gfx.Compare,
+				?depthWrite:Bool
+			}):hxmc.gfx.PipelineDesc
+				return options == null ? {program: {vertex: vertexCode, fragment: fragmentCode}, layout: layout} : {
 					program: {vertex: vertexCode, fragment: fragmentCode},
 					layout: layout,
-					topology: options == null ? null : options.topology,
-					cull: options == null ? null : options.cull,
-					blend: options == null ? null : options.blend,
-					textures: textures
+					topology: options.topology,
+					cull: options.cull,
+					blend: options.blend,
+					depthCompare: options.depthCompare,
+					depthWrite: options.depthWrite
 				};
 
 			// the vertex buffer's contents

@@ -4,13 +4,23 @@ import hxmc.os.win32.User32;
 import hxmc.unsafe.*;
 
 // GfxTest's window mode on Windows: the close button pressed (WM_CLOSE,
-// posted to the window's queue), and the window's pixels after the present:
+// posted to the window's queue), input (characters, the wheel: posted),
+// and the window's pixels after the present:
 // PrintWindow with PW_RENDERFULLCONTENT (which composes a flip-model swap
 // chain's content), else the screen's pixels where the client area is (a
 // BitBlt from the screen's DC: Wine's PrintWindow paints no swap chain).
 class WinTest {
 	public static function close(w:Window)
 		User32.PostMessageW(w.surface.handle, WM.CLOSE, 0, 0);
+
+	// characters (U+00E9, U+1F600 as a surrogate pair) and a notch of the wheel up
+	public static function input(w:Window) {
+		var hwnd = w.surface.handle;
+		User32.PostMessageW(hwnd, WM.CHAR, 0xE9, 0);
+		User32.PostMessageW(hwnd, WM.CHAR, 0xD83D, 0);
+		User32.PostMessageW(hwnd, WM.CHAR, 0xDE00, 0);
+		User32.PostMessageW(hwnd, WM.MOUSEWHEEL, 120 << 16, 0);
+	}
 
 	// the client area's pixels as RGBA, rows top to bottom; null: no capture
 	public static function capture(w:Window, width:Int, height:Int):Null<Bytes> {

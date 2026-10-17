@@ -1,0 +1,92 @@
+# @hxmc/os
+
+Windows, input, the app loop and audio output for hxmc in pure Haxe
+(`hxmc.os`): raw OS bindings (X11, the Objective-C runtime and AppKit,
+Win32, a canvas in the browser; ALSA, CoreAudio, WASAPI, WebAudio) and a
+portable layer over them. No C of its own: the system's C APIs through
+externs, COM vtables, `objc_msgSend` and `dlopen`. See hxmc/PLANS.md,
+"Graphics" and "Audio".
+
+## Windows and the loop
+
+```haxe
+var window = new Window("Hello", 640, 480);   // its size in points; window.surface for hxmc.gfx
+App.run(() -> {
+	// a frame (paced by the GPU's present)
+}, e -> switch e.kind {
+	case Close: window.close();               // the last window closed ends the loop
+	case KeyDown if (e.key == 0xFF1B): App.quit();
+	case _:
+});
+```
+
+X11 on Linux (the glibc mode, `-D hxmc.libc=glibc`), Cocoa on macOS,
+Win32 on Windows, a canvas in the browser (wasm32-wasi: `App.run` returns
+and `requestAnimationFrame` runs the loop). `Event` is one object, refilled
+for each event: keys as X11 KeySyms, `TextInput` characters (and an input
+method's `TextEditing`), the mouse in
+pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`.
+
+## Audio
+
+A pull model: the system asks for samples and a callback fills them.
+
+```haxe
+var out = Audio.open({sampleRate: 48000, channels: 2, frames: 512}, (buffer:Ptr<Float32>, frames:Int) -> {
+	for (i in 0...frames) {                   // interleaved, zeroed before the call
+		var v = 0.25 * Math.sin(phase);
+		buffer[i * 2] = v;
+		buffer[i * 2 + 1] = v;
+		phase += step;
+	}
+});
+out.start();          // the callback runs on the audio thread from now on
+out.stop();           // what the system queued is dropped; start plays again
+out.close();
+out.sampleRate; out.channels; out.frames; out.latency; // as the system gave them
+```
+
+`examples/Tone.hx` plays a 440 Hz sine for two seconds. `frames` is a hint:
+`out.frames` is the most frames a callback is asked for (the system's
+period or buffer), `out.latency` the seconds from a callback's samples to
+the output, as the system reports them.
+
+| Target | Back end | The audio thread |
+| --- | --- | --- |
+| Linux | ALSA (`libasound.so.2`, loaded with `dlopen` when an output opens: the glibc mode), the `default` PCM (PipeWire's or PulseAudio's plugin on most desktops), floats through ALSA's plug layer | ours: pulls a period, `snd_pcm_writei` (blocks while ALSA's buffer is full) |
+| macOS | CoreAudio's default output unit (AudioToolbox) | ours: fills a ring in native memory; CoreAudio's I/O thread runs a `@:hxmc.noGc` render callback that copies from it |
+| Windows | WASAPI, shared mode, event driven (COM through vtables), floats converted by the audio engine | ours: waits for WASAPI's event, fills what the buffer has free |
+| Browser | WebAudio: an AudioWorklet node fed chunks the page posts it | none: the main thread, when the worklet has played a chunk |
+
+The callback is ordinary Haxe on one of the runtime's threads, but it runs
+against a deadline: preallocate, do not allocate (that can start a
+collection, and any thread's collection pauses this one), lock, block or
+print there, and never stop or close the output from it (both wait for
+the audio thread). CoreAudio calls back on a thread the runtime does not
+know, where only `@:hxmc.noGc` code may run (hxmc/LOWLEVEL.md,
+"Callbacks"): that is why it only copies from the ring. In the browser the
+module's memory is not shared with the worklet's thread, so each chunk is
+copied and posted, keeping about 50 ms queued; the callback may close the
+output there. AudioWorklet rather than ScriptProcessorNode: the latter is
+deprecated and runs its callback on the main thread with the output
+waiting on it, where a busy main thread is a glitch either way, but the
+worklet keeps playing what it has. Browsers start audio after a user
+gesture: a context made before resumes on the page's next click or key.
+
+The device: `null` is the system's default; `"file:PATH"` (Linux and
+macOS) plays to no device, what the system's API renders written to PATH
+as raw interleaved floats (ALSA's file plugin over its null device;
+CoreAudio's generic output unit rendered at the clock's pace); on Linux
+any other name is ALSA's (`"null"`, `"hw:0"`). In the browser,
+`browser.mjs`'s option `audioContext` gives the context (an
+`OfflineAudioContext` in tests). An output that has no device throws
+`hxmc.os.audio: no output device (...)`.
+
+Tests (`test/AudioTest.hx`): a known signal through each back end's real
+API, the samples that reach it compared with the signal, the callbacks'
+count and rate. `make audio-check` (`test/audio.sh`): ALSA's null and file
+devices; CoreAudio's file device, then the default output where there is
+one; WASAPI on the default endpoint where there is one, or under Wine
+(`AUDIO_TARGET=windows-x86_64`) through winealsa to an ALSA file.
+`make audio-web-check` (`test/web.mjs`): headless Chromium, realtime (the
+rate) and an `OfflineAudioContext` (the rendered samples, exact).

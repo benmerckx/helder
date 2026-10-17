@@ -11,7 +11,8 @@ using haxe.macro.Tools;
 // The shader macro's middle: a shader class's stages, from Haxe's typed AST
 // (typed without inlining, Macro.typeClass, so that the math types' and
 // ShaderMath's calls stay calls) to the IR. What a shader may contain:
-// Float, Int and Bool, the math types, @:structInit classes of those;
+// Float, Int and Bool, the math types, @:structInit classes of those,
+// Texture2D parameters (passed on, or read by sample);
 // locals, assignments to them, if, while, for over an Int range, return,
 // break and continue; calls to ShaderMath, the math types' operators and
 // swizzles, a few of Math's functions, Std.int, and the static functions of
@@ -71,46 +72,39 @@ class Lower {
 			error('stage interface mismatch: @:fragment ${fcf.name} takes ' + (ff.params.length == 0 ? "nothing" : name(ff.params[0].type))
 				+ ', but @:vertex ${vcf.name} returns ${name(vf.ret)}', fcf.pos);
 		if (!same(ff.ret, TVec(4))) error('@:fragment ${fcf.name} returns a ${name(ff.ret)}, not a Vec4 (the colour)', fcf.pos);
-		// the further parameters: uniform blocks (a binding per struct) and
-		// the fragment stage's textures (a slot each, in order)
-		var uniforms:Array<SUniform> = [];
-		function extras(f:SFunction, cf:ClassField, stage:SStage):Array<SParam> {
-			var out:Array<SParam> = [], slot = 0;
-			for (p in f.params.slice(1))
-				switch p.type {
-					case TStruct(s):
-						var u = Lambda.find(uniforms, u -> u.struct == s);
-						if (u == null) {
-							u = std140(s, uniforms.length, cf.pos);
-							uniforms.push(u);
-						}
-						out.push(PUniform(u));
-					case TTexture if (stage == Fragment):
-						var vs = vars.get(f);
-						p.sampler = unique(p.name + "_smp", n -> !Lambda.exists(vs, w -> w.name == n));
-						vs.push(new SVar(p.sampler, TFloat));
-						out.push(PTexture(slot++));
-					case TTexture: error('${cf.name}: textures are parameters of the @:fragment function only', cf.pos);
-					case t: error('${cf.name}: the uniform ${p.name} is a ${name(t)}, not a @:structInit class', cf.pos);
+		// resources: the further parameters, uniform blocks (a slot per struct)
+		// and textures (a slot per name), slots in order of appearance
+		var uniforms:Array<SUniform> = [], textures:Array<STexture> = [];
+		function resources(f:SFunction, cf:ClassField):Array<SResource>
+			return [
+				for (p in f.params.slice(1)) {
+					var slot = uniforms.length + textures.length;
+					switch p.type {
+						case TStruct(s):
+							var u = Lambda.find(uniforms, u -> u.struct == s);
+							if (u == null) {
+								u = std140(s, slot, cf.pos);
+								uniforms.push(u);
+							}
+							RUniform(u);
+						case TTexture:
+							var t = Lambda.find(textures, t -> t.name == p.name);
+							if (t == null) {
+								t = new STexture(p.name, slot);
+								textures.push(t);
+							}
+							RTexture(t);
+						case t: error('${cf.name}: the parameter ${p.name} is a ${name(t)}, not a uniform block (a @:structInit class) or a Texture2D', cf.pos);
+					}
 				}
-			return out;
-		}
-		var vp = extras(vf, vcf, Vertex), fp = extras(ff, fcf, Fragment);
-		function blocks(ps:Array<SParam>):Array<SUniform>
-			return [for (p in ps) switch p {
-				case PUniform(u): u;
-				case PTexture(_): continue;
-			}];
+			];
+		var vr = resources(vf, vcf), fr = resources(ff, fcf);
+		if (uniforms.length + textures.length > MAX_SLOTS) error('more than $MAX_SLOTS uniform blocks and textures', vcf.pos);
 		// (a local may not hide a global of the same name)
 		for (f => vs in vars)
 			for (v in vs)
-				if (globals.exists(v.name)) {
-					var old = v.name;
-					v.name = unique(v.name, n -> !globals.exists(n) && !Lambda.exists(vs, w -> w.name == n));
-					for (p in f.params)
-						if (p.sampler == old) p.sampler = v.name;
-				}
-		return new SProgram(entry(Vertex, vf, input, blocks(vp), vp), entry(Fragment, ff, varyings, blocks(fp), fp), uniforms);
+				if (globals.exists(v.name)) v.name = unique(v.name, n -> !globals.exists(n) && !Lambda.exists(vs, w -> w.name == n));
+		return new SProgram(entry(Vertex, vf, input, vr), entry(Fragment, ff, varyings, fr), uniforms, textures);
 	}
 
 	function stageField(c:ClassType, meta:String):ClassField {
@@ -121,7 +115,7 @@ class Lower {
 	}
 
 	// the stage's function and what it reaches, in declaration order
-	function entry(stage:SStage, f:SFunction, input:SStruct, uniforms:Array<SUniform>, params:Array<SParam>):SEntry {
+	function entry(stage:SStage, f:SFunction, input:SStruct, resources:Array<SResource>):SEntry {
 		var fs:Array<SFunction> = [], ss:Array<SStruct> = [];
 		function ty(t:SType)
 			switch t {
@@ -179,9 +173,12 @@ class Lower {
 			fs.push(f);
 		}
 		visit(f);
-		for (u in uniforms)
-			ty(TStruct(u.struct));
-		return new SEntry(stage, f, input, uniforms, params, ss, fs);
+		for (r in resources)
+			switch r {
+				case RUniform(u): ty(TStruct(u.struct));
+				case RTexture(_):
+			}
+		return new SEntry(stage, f, input, resources, ss, fs);
 	}
 
 	// std140 (and WGSL's uniform layout, the same for these types)
@@ -231,6 +228,7 @@ class Lower {
 		var vs = [];
 		var params = [for (a in tf.args) declare(a.v, cf.pos, vs)];
 		f = new SFunction(global(cf.name), params, type(tf.t, cf.pos));
+		if (f.ret == TTexture) error('${cf.name}: a texture is not a result (pass the parameter on)', cf.pos);
 		fn = f;
 		vars.set(f, vs);
 		var body = [];
@@ -247,8 +245,11 @@ class Lower {
 	function declare(v:TVar, pos:Position, ?list:Array<SVar>):SVar {
 		var t = type(v.t, pos);
 		if (t == TVoid) error('${v.name} has no value', pos);
-		var s = new SVar(unique(sanitize(v.name), n -> !names.exists(n)), t);
+		// (a texture: a parameter, its sampler <name>_smp next to it where the language has one)
+		if (t == TTexture && list == null) error('${v.name}: a texture is a parameter, not a local', pos);
+		var s = new SVar(unique(sanitize(v.name), n -> !names.exists(n) && (t != TTexture || !names.exists(n + "_smp"))), t);
 		names.set(s.name, true);
+		if (t == TTexture) names.set(s.name + "_smp", true);
 		locals.set(v.id, s);
 		(list != null ? list : vars.get(fn)).push(s);
 		return s;
@@ -276,7 +277,6 @@ class Lower {
 					case [SHADER_PACK, "Vec3"]: TVec(3);
 					case [SHADER_PACK, "Vec4"]: TVec(4);
 					case [SHADER_PACK, "Mat4"]: TMat4;
-					case [SHADER_PACK, "Texture2D"]: TTexture;
 					case ["", "Null"]: error('${t.toString()}: a nullable type is not a shader type', pos);
 					case _: error('${t.toString()} is not a shader type (Float, Int, Bool, Vec2, Vec3, Vec4, Mat4 and @:structInit classes of them)', pos);
 				}
@@ -288,7 +288,7 @@ class Lower {
 					case [SHADER_PACK, "Vec3Data"]: TVec(3);
 					case [SHADER_PACK, "Vec4Data"]: TVec(4);
 					case [SHADER_PACK, "Mat4Data"]: TMat4;
-					case [SHADER_PACK, "Texture2DData"]: TTexture;
+					case [SHADER_PACK, "Texture2D"]: TTexture;
 					case _: TStruct(struct(c, pos));
 				}
 			case TDynamic(_): error('Dynamic is not a shader type', pos);
@@ -309,14 +309,13 @@ class Lower {
 		for (f in c.fields.get())
 			switch f.kind {
 				case FVar(AccNormal | AccNo, AccNormal | AccNo | AccNever | AccCtor):
-					var t = type(f.type, f.pos);
-					if (t == TTexture) error('$key.${f.name}: a texture is not a struct field (it is a parameter of the @:fragment function)', f.pos);
 					fields.push({
 						name: unique(sanitize(f.name), n -> !Lambda.exists(fields, g -> g.name == n)),
 						field: f.name,
-						type: t,
+						type: type(f.type, f.pos),
 						position: f.meta.has(":position")
 					});
+					if (fields[fields.length - 1].type == TTexture) error('$key.${f.name}: a texture is not a struct field (it is a parameter)', f.pos);
 				case FVar(_, _): error('$key.${f.name}: a property is not a struct field', f.pos);
 				case FMethod(_):
 			}
@@ -350,7 +349,6 @@ class Lower {
 			case TVar(v, init):
 				var x = init == null ? null : expr(init, out);
 				var s = declare(v, e.pos);
-				if (s.type == TTexture) error('${v.name}: a texture is not a local value (sample the parameter where it is needed)', e.pos);
 				out.push(SDecl(s, x == null ? null : coerce(x, s.type, init.pos)));
 			case TIf(c, a, b):
 				out.push(SIf(coerce(expr(c, out), TBool, c.pos), block(a), b == null ? null : block(b)));
@@ -418,7 +416,7 @@ class Lower {
 			case TLocal(v):
 				var s = locals.get(v.id);
 				if (s == null) error('${v.name} is not a local of this function', e.pos);
-				if (s.type == TTexture) error('${v.name}: a texture cannot be assigned', e.pos);
+				if (s.type == TTexture) error('${v.name}: a texture parameter is not assigned', e.pos);
 				s.assigned = true;
 				s;
 			case TParenthesis(x) | TMeta(_, x): target(x);
@@ -472,6 +470,7 @@ class Lower {
 			case TUnop(_, _, _): error("not supported in a shader", e.pos);
 			case TIf(c, a, b) if (b != null):
 				var t = type(e.t, e.pos);
+				if (t == TTexture) error("a texture is chosen by no condition (pass the parameter on)", e.pos);
 				var cond = coerce(expr(c, out), TBool, c.pos);
 				var pa = [], pb = [];
 				var x = coerce(expr(a, pa), t, a.pos), y = coerce(expr(b, pb), t, b.pos);
@@ -607,12 +606,6 @@ class Lower {
 			var xs = lowered();
 			return switch cf.name {
 				case "vec2" | "vec3" | "vec4": {e: ENew(xs), t: t};
-				case "texture":
-					switch xs[0].e {
-						case ELocal(v) if (v.sampler != null || fn.params.contains(v)):
-						case _: error("texture: the texture is a parameter of the @:fragment function", args[0].pos);
-					}
-					{e: EBuiltin("texture", xs), t: t};
 				case "mat4" if (xs.length == 4): {e: ENew(xs), t: t};
 				case "mat4":
 					// the diagonal
@@ -665,8 +658,6 @@ class Lower {
 		}
 		if (p == "Std" && cf.name == "int") return {e: EConvert(coerce(expr(args[0], out), TFloat, args[0].pos)), t: TInt};
 		var g = func(c, cf, e.pos);
-		for (p in g.params)
-			if (p.type == TTexture) error('${cf.name}: a texture is not passed to other functions (sample it in the @:fragment function)', e.pos);
 		var xs = [for (i in 0...args.length) coerce(expr(args[i], out), g.params[i].type, args[i].pos)];
 		return {e: ECall(g, xs), t: g.ret};
 	}
@@ -709,15 +700,15 @@ class Lower {
 			case TFloat: "Float";
 			case TVec(n): 'Vec$n';
 			case TMat4: "Mat4";
-			case TStruct(s): s.path;
 			case TTexture: "Texture2D";
+			case TStruct(s): s.path;
 		}
 
 	static function path(c:ClassType):String
 		return c.pack.concat([c.name]).join(".");
 
 	// a struct's or function's name: not one of the entry points' either
-	// (main, main0, i, r, o, s, StageIn, StageOut; in_*, v_*, out_*, u_*, make_*)
+	// (main, main0, i, r, o, s, StageIn, StageOut; in_*, v_*, out_*, u_*, make_*, tex_*, smp_*)
 	function global(n:String):String {
 		var s = unique(sanitize(n), n -> !globals.exists(n) && !ENTRY.match(n));
 		globals.set(s, true);
@@ -744,6 +735,7 @@ class Lower {
 	}
 
 	static final ENTRY = ~/^(main|main0|i|r|o|s|StageIn|StageOut|(in|v|out|u|make|tex|smp)_.*)$/;
+	static inline var MAX_SLOTS = 16;
 	static var RESERVED:Map<String, Bool>;
 
 	// the keywords and builtins of GLSL ES 3.00, WGSL, MSL (C++) and HLSL

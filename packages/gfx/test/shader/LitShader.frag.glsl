@@ -42,7 +42,8 @@ layout(std140) uniform Material_block {
 in vec3 v_normal;
 in vec2 v_uv;
 in float v_shade;
+uniform float u_target_height;
 out vec4 out_color;
 void main() {
-	out_color = fs(LitVaryings(v_normal, gl_FragCoord, v_uv, v_shade), Material(u_1.tint, u_1.steps));
+	out_color = fs(LitVaryings(v_normal, vec4(gl_FragCoord.x, u_target_height - gl_FragCoord.y, gl_FragCoord.zw), v_uv, v_shade), Material(u_1.tint, u_1.steps));
 }

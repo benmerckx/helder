@@ -2,9 +2,10 @@ package hxmc.gfx;
 
 import hxmc.os.Surface;
 
-// A GPU device rendering to one Surface (a window, or headless). Resources
-// are created up front; a frame is beginFrame, passes recorded through the
-// Encoder, endFrame (present). Main thread only.
+// A GPU device rendering to one Surface (a window, or headless), with a
+// depth buffer of the colour target's size. Resources are created up front;
+// a frame is beginFrame, passes recorded through the Encoder, endFrame
+// (present). Main thread only.
 final class Device {
 	public final backend:Backend;
 	public final surface:Surface;
@@ -25,39 +26,40 @@ final class Device {
 	public function createBuffer(d:BufferDesc):Buffer
 		return new Buffer(impl.createBuffer(d));
 
-	// replaces size bytes of a buffer from offset with data's from dataOffset
-	// (size -1: the rest of data). A write takes effect for the whole frame
-	// (WebGPU queues it before the frame's commands): write what a frame
-	// draws before its passes, and never a range an earlier draw of the same
-	// frame read.
+	// size bytes of data from dataOffset (default: the rest) into the buffer
+	// at offset, before the next commands: a frame's draws read what the
+	// buffer holds when the frame is submitted (endFrame), so data that
+	// changes within a frame goes to other offsets
 	public function writeBuffer(b:Buffer, offset:Int, data:haxe.io.Bytes, dataOffset = 0, size = -1) {
 		if (size < 0) size = data.length - dataOffset;
-		if (dataOffset < 0 || dataOffset + size > data.length) throw "hxmc.gfx: writeBuffer: out of data's bounds";
-		if (size > 0) impl.writeBuffer(b.id(), offset, data, dataOffset, size);
+		if (dataOffset < 0 || offset < 0 || dataOffset + size > data.length) throw "hxmc.gfx: writeBuffer: outside the data";
+		impl.writeBuffer(b.id(), offset, data, dataOffset, size);
 	}
 
-	// frees a buffer (after the frames that use it are submitted: the GPU
-	// keeps what a submitted frame needs)
-	public function destroyBuffer(b:Buffer)
-		if (b.id() != 0) impl.destroyBuffer(b.id());
-
 	public function createTexture(d:TextureDesc):Texture {
-		if (d.data != null && d.data.length < d.width * d.height * d.format.bytesPerPixel)
-			throw "hxmc.gfx: createTexture: data has fewer than width * height * " + d.format.bytesPerPixel + " bytes";
+		if (d.width <= 0 || d.height <= 0) throw "hxmc.gfx: createTexture: a size of " + d.width + "x" + d.height;
+		if (d.data != null && d.data.length < d.width * d.height * 4) throw "hxmc.gfx: createTexture: data has fewer than width * height * 4 bytes";
 		return new Texture(impl.createTexture(d));
 	}
 
-	// replaces a w x h region of a texture at (x, y) with data's pixels from
-	// dataOffset, rows of w pixels top to bottom (writeBuffer's rules on
-	// frames apply)
-	public function writeTexture(t:Texture, x:Int, y:Int, w:Int, h:Int, data:haxe.io.Bytes, dataOffset = 0) {
-		if (w <= 0 || h <= 0) return;
-		impl.writeTexture(t.id(), x, y, w, h, data, dataOffset);
+	// texels into the texture, rows top to bottom: all of them (width *
+	// height * 4 bytes), or the region w x h at x, y (w * h * 4 bytes from
+	// dataOffset), as a glyph atlas updates the part that changed
+	public function writeTexture(t:Texture, data:haxe.io.Bytes, x = 0, y = 0, w = -1, h = -1, dataOffset = 0) {
+		if (x < 0 || y < 0 || dataOffset < 0) throw "hxmc.gfx: writeTexture: a negative offset";
+		if (w >= 0 && dataOffset + w * Math.max(h, 0) * 4 > data.length) throw "hxmc.gfx: writeTexture: data has fewer than w * h * 4 bytes";
+		impl.writeTexture(t.id(), data, x, y, w, h, dataOffset);
 	}
 
-	// frees a texture (destroyBuffer's rule)
+	// frees a buffer or a texture (its handle is not used again)
+	public function destroyBuffer(b:Buffer)
+		impl.destroyBuffer(b.id());
+
 	public function destroyTexture(t:Texture)
-		if (t.id() != 0) impl.destroyTexture(t.id());
+		impl.destroyTexture(t.id());
+
+	public function createSampler(d:SamplerDesc):Sampler
+		return new Sampler(impl.createSampler(d));
 
 	// throws the compiler's log when the source does not compile
 	public function createShader(d:ShaderDesc):Shader
@@ -73,7 +75,8 @@ final class Device {
 				topology: d.topology,
 				cull: d.cull,
 				blend: d.blend,
-				textures: d.textures
+				depthCompare: d.depthCompare,
+				depthWrite: d.depthWrite
 			};
 		return new Pipeline(impl.createPipeline(d));
 	}

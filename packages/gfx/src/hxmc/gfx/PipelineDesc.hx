@@ -9,9 +9,9 @@ typedef PipelineDesc = {
 	layout:Array<VertexBufferLayout>,
 	?topology:Topology,
 	?cull:Cull,
-	// (default Replace)
 	?blend:Blend,
-	// the texture slots the fragment stage samples (a shader class's
-	// pipeline() gives its count)
-	?textures:Int
+	// the depth test (default Always: none) and whether fragments that pass
+	// it write their depth (default false)
+	?depthCompare:Compare,
+	?depthWrite:Bool
 }
