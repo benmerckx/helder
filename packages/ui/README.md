@@ -147,9 +147,10 @@ the focus the window takes text at its caret (`hxmc.os.Window.startTextInput`):
 an input method's composition (Japanese, Chinese, Korean) shows in the
 field, underlined, until committed. In the browser keys then go through a
 transparent textarea at the caret, which input methods compose in
-(`TextEditing` events); on Windows the IME's own windows are placed at
-the caret; X11's and macOS's input methods draw their compositions
-themselves.
+(`TextEditing` events), on macOS through a text view at the caret
+(`NSTextInputClient`: input methods and dead keys); on Windows the IME's
+own windows are placed at the caret; X11's input method draws its
+composition itself.
 
 ## Tests
 

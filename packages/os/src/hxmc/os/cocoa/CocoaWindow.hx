@@ -12,12 +12,20 @@ import hxmc.unsafe.*;
 // display link would call back on another thread, and the GPU layer is main
 // thread only. A delegate class made at run time turns the close button into
 // a Close event and resizes into Resize events (both from inside sendEvent:).
+// The content view holds the layer's view and, under it, a text view of a
+// class made at run time (HxmcTextView): while text input is on
+// (Window.startTextInput) it is the first responder, placed at the caret,
+// and the keys go through it (interpretKeyEvents:), so that input methods
+// and dead keys compose in it: its marked text comes as TextEditing events,
+// what it is given to insert as TextInput (and not kept), its commands
+// (moves, deletions: KeyDown's) ignored.
 // Sizes and positions are in pixels (points times the backing scale), y down.
 @:allow(hxmc.os)
 class CocoaWindow {
 	static var app = Ptr.nil();
 	static var delegate = Ptr.nil();
 	static var mode = Ptr.nil(); // the run loop's default mode, an NSString
+	static var textViewClass = Ptr.nil();
 	static final event = new Event();
 	static final open:Array<CocoaWindow> = [];
 	// the App.run callback, for the delegate's events
@@ -25,7 +33,11 @@ class CocoaWindow {
 
 	final owner:Window;
 	final window:Ptr; // NSWindow*
-	final view:Ptr; // its content view
+	final view:Ptr; // the layer's view, filling the content view
+	final textView:Ptr; // HxmcTextView, under it
+	// text input on; the composition last told (TextEditing)
+	var typing = false;
+	var marked = "";
 	final layer:Ptr; // CAMetalLayer*
 	final surface:Surface;
 	var scale = 1.0;
@@ -54,7 +66,13 @@ class CocoaWindow {
 		Msg.vBool(window, ObjC.sel("setAcceptsMouseMovedEvents:"), true);
 		// (no line under the title bar: it would hide the content's top pixels)
 		Msg.vInt(window, ObjC.sel("setTitlebarSeparatorStyle:"), 1);
-		view = Msg.id(window, ObjC.sel("contentView"));
+		var content = Msg.id(window, ObjC.sel("contentView"));
+		textView = Msg.idRect(Msg.id(textViewClass, ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), rect.value);
+		Msg.vBool(textView, ObjC.sel("setRichText:"), false);
+		Msg.vPtr(content, ObjC.sel("addSubview:"), textView);
+		view = Msg.idRect(Msg.id(ObjC.cls("NSView"), ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), rect.value);
+		Msg.vInt(view, ObjC.sel("setAutoresizingMask:"), 18); // (width and height sizable)
+		Msg.vPtr(content, ObjC.sel("addSubview:"), view);
 		// a layer-hosting view: the layer first, then wantsLayer
 		layer = Runtime.objc_retain(Msg.id(ObjC.cls("CAMetalLayer"), ObjC.sel("layer")));
 		Msg.vPtr(view, ObjC.sel("setLayer:"), layer);
@@ -80,6 +98,13 @@ class CocoaWindow {
 		Runtime.class_addMethod(cls, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didResize), Mem.cstr("v@:@"));
 		Runtime.objc_registerClassPair(cls);
 		delegate = Msg.id(Msg.id(cls, ObjC.sel("alloc")), ObjC.sel("init"));
+		// (an NSRange by value after the text: not read)
+		var t = Runtime.objc_allocateClassPair(ObjC.cls("NSTextView"), Mem.cstr("HxmcTextView"), 0);
+		Runtime.class_addMethod(t, ObjC.sel("insertText:replacementRange:"), Callback.addr(insertText), Mem.cstr("v@:@{_NSRange=QQ}"));
+		Runtime.class_addMethod(t, ObjC.sel("insertText:"), Callback.addr(insertText), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(t, ObjC.sel("doCommandBySelector:"), Callback.addr(doCommand), Mem.cstr("v@::"));
+		Runtime.objc_registerClassPair(t);
+		textViewClass = t;
 	}
 
 	// the size in pixels and the backing scale, from the content view; the
@@ -103,6 +128,8 @@ class CocoaWindow {
 		Msg.v(window, ObjC.sel("close"));
 		Runtime.objc_release(window);
 		Runtime.objc_release(layer);
+		Runtime.objc_release(view);
+		Runtime.objc_release(textView);
 		LibC.free(rect);
 		LibC.free(size);
 	}
@@ -127,6 +154,83 @@ class CocoaWindow {
 		}
 		Msg.v(ns, ObjC.sel("set"));
 	}
+
+	// text input on: the text view at that area (pixels from the top left)
+	// and the first responder; off: neither, its composition dropped
+	function textInput(on:Bool, x:Int, y:Int, width:Int, height:Int) {
+		if (!on) {
+			if (!typing) return;
+			typing = false;
+			if (marked != "") Msg.v(Msg.id(textView, ObjC.sel("inputContext")), ObjC.sel("discardMarkedText"));
+			marked = "";
+			clearText(textView);
+			Msg.bPtr(window, ObjC.sel("makeFirstResponder:"), Ptr.nil());
+			return;
+		}
+		var b = Msg.rect(view, ObjC.sel("bounds"));
+		rect.value.origin.x = x / scale;
+		rect.value.origin.y = b.size.height - (y + height) / scale;
+		rect.value.size.width = Math.max(1, width / scale);
+		rect.value.size.height = Math.max(1, height / scale);
+		Msg.vRect(textView, ObjC.sel("setFrame:"), rect.value);
+		if (!typing) {
+			typing = true;
+			Msg.bPtr(window, ObjC.sel("makeFirstResponder:"), textView);
+		}
+		Msg.v(Msg.id(textView, ObjC.sel("inputContext")), ObjC.sel("invalidateCharacterCoordinates"));
+	}
+
+	static function clearText(tv:Ptr) {
+		var e = ObjC.str("");
+		Msg.vPtr(tv, ObjC.sel("setString:"), e);
+		ObjC.release(e);
+	}
+
+	// the text view's marked text, told when it changed (TextEditing: the caret at its end)
+	function composition() {
+		if (!typing) return;
+		var now = Msg.b(textView, ObjC.sel("hasMarkedText")) ? ObjC.string(Msg.id(textView, ObjC.sel("string"))) ?? "" : "";
+		if (now == marked) return;
+		marked = now;
+		var e = event;
+		e.kind = TextEditing;
+		e.window = owner;
+		e.text = now;
+		e.x = now.length;
+		dispatch(e);
+	}
+
+	// the text view is given text (an NSString or NSAttributedString): typed,
+	// not kept; the composition it commits ends
+	@:hxmc.callback static function insertText(self:Ptr, cmd:Ptr, text:Ptr):Void {
+		var w:Null<CocoaWindow> = null;
+		for (o in open)
+			if (o.textView == self) w = o;
+		if (w == null || text.isNull()) return;
+		var s = Msg.bPtr(text, ObjC.sel("isKindOfClass:"), ObjC.cls("NSAttributedString")) ? Msg.id(text, ObjC.sel("string")) : text;
+		var str = ObjC.string(s) ?? "";
+		clearText(self);
+		var e = event;
+		e.window = w.owner;
+		if (w.marked != "") {
+			w.marked = "";
+			e.kind = TextEditing;
+			e.text = "";
+			e.x = 0;
+			dispatch(e);
+		}
+		var typed = new StringBuf();
+		for (cp in new haxe.iterators.StringIteratorUnicode(str))
+			if (cp >= 0x20 && cp != 0x7F && (cp < 0xF700 || cp > 0xF8FF)) typed.addChar(cp);
+		if (typed.length == 0) return;
+		e.kind = TextInput;
+		e.text = typed.toString();
+		e.mods = 0;
+		dispatch(e);
+	}
+
+	// (its commands are the keys': KeyDown events)
+	@:hxmc.callback static function doCommand(self:Ptr, cmd:Ptr, command:Ptr):Void {}
 
 	// the general pasteboard's string (NSPasteboardTypeString: public.utf8-plain-text)
 	static function writeClipboard(text:String) {
@@ -200,9 +304,13 @@ class CocoaWindow {
 			var type = Msg.i(ev, ObjC.sel("type")).toInt();
 			var key = type == NS.KeyDown || type == NS.KeyUp;
 			if (w != null) w.translate(ev, type);
+			if (w != null) w.composition();
 			// (keys stay ours: unhandled, AppKit would beep at each)
 			if (!key || w == null) Msg.vPtr(app, ObjC.sel("sendEvent:"), ev);
 		}
+		// (a composition changed outside a key: the input method's own window, a message)
+		for (w in open.copy())
+			w.composition();
 	}
 
 	function translate(ev:Ptr, type:Int) {
@@ -214,6 +322,14 @@ class CocoaWindow {
 				e.kind = type == NS.KeyDown ? KeyDown : KeyUp;
 				e.key = keySym(ev);
 				e.mods = mods(ev);
+				if (type == NS.KeyDown && typing && e.mods & (Mods.CONTROL | Mods.META) == 0) {
+					// (while an input method composes, its keys are its own)
+					if (marked == "") dispatch(e);
+					var pool = Runtime.objc_autoreleasePoolPush();
+					Msg.vPtr(textView, ObjC.sel("interpretKeyEvents:"), Msg.idPtr(ObjC.cls("NSArray"), ObjC.sel("arrayWithObject:"), ev));
+					Runtime.objc_autoreleasePoolPop(pool);
+					return;
+				}
 				if (type == NS.KeyDown) {
 					dispatch(e);
 					// then its characters (not with Command or Control; not the function keys' private-use ones)

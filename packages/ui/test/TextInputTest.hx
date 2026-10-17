@@ -1,18 +1,23 @@
 import hxmc.os.*;
 import hxmc.os.x11.Xlib;
+import hxmc.os.objc.*;
 import hxmc.unsafe.*;
 
-// hxmc.os's text input on X11 (make ui-draw-check, under Xvfb): key presses
-// typed through the input method (Xutf8LookupString), with the keyboard's
-// last three keycodes given other symbols (XChangeKeyboardMapping, which
-// every client hears of: MappingNotify): a Cyrillic letter (beyond Latin-1)
-// and a dead key's compose sequence (dead_acute then e: one "é").
+// hxmc.os's text input (make ui-draw-check under Xvfb; macOS in CI).
+// X11: key presses typed through the input method (Xutf8LookupString),
+// with the keyboard's last three keycodes given other symbols
+// (XChangeKeyboardMapping, which every client hears of: MappingNotify): a
+// Cyrillic letter (beyond Latin-1) and a dead key's compose sequence
+// (dead_acute then e: one "é"). macOS: with text input on, a key event
+// typed through the text view (interpretKeyEvents:), then a composition
+// set in it and committed, as an input method does (setMarkedText:,
+// insertText:).
 //   TextInputTest
 class TextInputTest {
 	static var failed = 0;
 	static var checks = 0;
 
-	static function check(what:String, ok:Bool, ?detail:String) {
+	public static function check(what:String, ok:Bool, ?detail:String) {
 		checks++;
 		if (!ok) {
 			failed++;
@@ -21,6 +26,15 @@ class TextInputTest {
 	}
 
 	static function main() {
+		if (Mem.os() == 1) CocoaTextInput.run() else X11TextInput.run();
+		Sys.println('TextInputTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
+		Sys.exit(failed == 0 ? 0 : 1);
+	}
+}
+
+class X11TextInput {
+	public static function run() {
+		var check = TextInputTest.check;
 		var w = new Window("TextInputTest", 64, 64);
 		var d = w.surface.display, id = w.surface.handle.toI64();
 		var last = Arena.scopedValue(a -> {
@@ -76,7 +90,64 @@ class TextInputTest {
 		check("nothing else typed", typed.length == 2, typed.join("|"));
 		// (the dead key goes to the input method, not the program)
 		check("the keys the program sees", keys == 2, '$keys');
-		Sys.println('TextInputTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 ? 0 : 1);
+	}
+}
+
+class CocoaTextInput {
+	// NSNotFound (NSIntegerMax)
+	static final NOT_FOUND = haxe.Int64.make(0x7FFFFFFF, 0xFFFFFFFF);
+
+	public static function run() {
+		var check = TextInputTest.check;
+		var w = new Window("TextInputTest", 120, 80);
+		w.startTextInput(20, 20, 2, 30);
+		// the text view: the first of the content view's subviews
+		var content = Msg.id(w.surface.handle, ObjC.sel("superview"));
+		var tv = Msg.idInt(Msg.id(content, ObjC.sel("subviews")), ObjC.sel("objectAtIndex:"), 0);
+		var nsWindow = Msg.id(tv, ObjC.sel("window"));
+		check("the text view is the first responder", Msg.id(nsWindow, ObjC.sel("firstResponder")) == tv);
+		var log = [];
+		var step = 0, frames = 0;
+		var start = haxe.Timer.stamp();
+		App.run(() -> {
+			frames++;
+			switch step {
+				case 0:
+					// a key typed: "a" (key code 0), posted to the window
+					var a = ObjC.str("a");
+					// (a location: the mouse's, a struct only a C call gives)
+					var ev = Msg.idIntPointIntFloatIntPtrPtrPtrBoolU16(ObjC.cls("NSEvent"),
+						ObjC.sel("keyEventWithType:location:modifierFlags:timestamp:windowNumber:context:characters:charactersIgnoringModifiers:isARepeat:keyCode:"),
+						10, Msg.point(ObjC.cls("NSEvent"), ObjC.sel("mouseLocation")), 0, 0, Msg.i(nsWindow, ObjC.sel("windowNumber")), Ptr.nil(), a, a, false, 0);
+					Msg.vPtrBool(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("postEvent:atStart:"), ev, false);
+					ObjC.release(a);
+					step = 1;
+				case 1 if (log.length > 0):
+					// an input method's composition, its caret at the end (NSNotFound: no replacement)
+					var s = ObjC.str("にほ");
+					Msg.vPtrIntIntIntInt(tv, ObjC.sel("setMarkedText:selectedRange:replacementRange:"), s, 2, 0, NOT_FOUND, 0);
+					ObjC.release(s);
+					step = 2;
+				case 2 if (log.length > 1):
+					var s = ObjC.str("日本");
+					Msg.vPtrIntInt(tv, ObjC.sel("insertText:replacementRange:"), s, NOT_FOUND, 0);
+					ObjC.release(s);
+					step = 3;
+				case 3:
+					w.stopTextInput();
+					check("text input off: not the first responder", Msg.id(nsWindow, ObjC.sel("firstResponder")) != tv);
+					w.close();
+				case _:
+			}
+			if (haxe.Timer.stamp() - start > 10) w.close();
+			App.wait(0.01);
+		}, e -> switch e.kind {
+			case TextInput: log.push("input " + e.text);
+			case TextEditing: log.push('editing ${e.text} ${e.x}');
+			case _:
+		});
+		check("a key typed through the text view", log[0] == "input a", log.join("|"));
+		check("the composition", log[1] == "editing にほ 2", log.join("|"));
+		check("committed: the composition ends, its text typed", log[2] == "editing  0" && log[3] == "input 日本" && log.length == 4, log.join("|"));
 	}
 }

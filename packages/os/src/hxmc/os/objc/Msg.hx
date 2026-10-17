@@ -24,12 +24,22 @@ class Msg {
 	static function idIntIntIntBool(self:Ptr, sel:Ptr, a:Int64, b:Int64, c:Int64, d:Bool):Ptr;
 	static function idIntPtrPtrBool(self:Ptr, sel:Ptr, a:Int64, b:Ptr, c:Ptr, d:Bool):Ptr;
 	static function idRectIntIntBool(self:Ptr, sel:Ptr, r:CGRect, a:Int64, b:Int64, c:Bool):Ptr;
+	static function idRect(self:Ptr, sel:Ptr, r:CGRect):Ptr;
+	static function idIntPointIntFloatIntPtrPtrPtrBoolU16(self:Ptr, sel:Ptr, a:Int64, p:CGPoint, b:Int64, c:Float, d:Int64, e:Ptr, f:Ptr, g:Ptr, h:Bool,
+		i:UInt16):Ptr;
 	static function v(self:Ptr, sel:Ptr):Void;
 	static function vPtr(self:Ptr, sel:Ptr, a:Ptr):Void;
 	static function vInt(self:Ptr, sel:Ptr, a:Int64):Void;
 	static function vBool(self:Ptr, sel:Ptr, a:Bool):Void;
 	static function vFloat(self:Ptr, sel:Ptr, a:Float):Void;
 	static function vSize(self:Ptr, sel:Ptr, a:CGSize):Void;
+	static function vRect(self:Ptr, sel:Ptr, a:CGRect):Void;
+	static function vPtrBool(self:Ptr, sel:Ptr, a:Ptr, b:Bool):Void;
+	// (an NSRange by value: two NSUIntegers)
+	static function vPtrIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64):Void;
+	static function vPtrIntIntIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64, d:Int64, e:Int64):Void;
+	static function b(self:Ptr, sel:Ptr):Bool;
+	static function bPtr(self:Ptr, sel:Ptr, a:Ptr):Bool;
 	static function i(self:Ptr, sel:Ptr):Int64;
 	static function iInt(self:Ptr, sel:Ptr, a:Int64):Int64;
 	static function u16Int(self:Ptr, sel:Ptr, a:Int64):UInt16;

@@ -11,7 +11,7 @@ enum abstract EventKind(Int) {
 	var MouseDown;
 	var MouseUp;
 	// a character typed (after KeyDown: with Shift, the layout and dead keys
-	// applied), one code point each (an input method's commit: its text); not
+	// applied), one code point each (an input method's commit: at once); not
 	// with Control, Alt (Option) or the Command key held, nor for the keys
 	// without a character
 	var TextInput;
@@ -20,8 +20,8 @@ enum abstract EventKind(Int) {
 	var Redraw;
 	// an input method's composition (the text not committed yet, shown where
 	// it is typed): text, the caret in it (x, UTF-16); empty: it ended
-	// (committed: TextInput follows; or cancelled). In the browser, while
-	// Window.startTextInput is on
+	// (committed: TextInput follows; or cancelled). In the browser and on
+	// macOS, while Window.startTextInput is on
 	var TextEditing;
 }
 

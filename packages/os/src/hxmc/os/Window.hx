@@ -61,18 +61,20 @@ class Window {
 	// where text is typed now (a text field's caret: x, y, width, height in
 	// pixels from the top left), until stopTextInput: an input method shows
 	// its composition and candidates there. In the browser keys then reach an
-	// input element of the page, its compositions as TextEditing events;
-	// Windows places the IME's windows (imm32); X11's and macOS's input
-	// methods keep their own places
+	// input element of the page, on macOS through a text view (NSTextInputClient)
+	// at the caret: their compositions as TextEditing events; Windows places
+	// the IME's windows (imm32); X11's input method keeps its own place
 	public function startTextInput(x:Int, y:Int, width:Int, height:Int) {
 		if (closed) return;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(true, x, y, width, height) else if (Mem.os() == 2)
-			(cast native : Win32Window).textInputArea(x, y, width, height);
+			(cast native : Win32Window).textInputArea(x, y, width, height) else if (Mem.os() == 1) (cast native : CocoaWindow).textInput(true, x, y,
+				width, height);
 	}
 
 	public function stopTextInput() {
 		if (closed) return;
-		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0);
+		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.os() == 1)
+			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0);
 	}
 
 	public function close() {
