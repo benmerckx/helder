@@ -9,7 +9,7 @@ import hxmc.unsafe.*;
 enum abstract SurfaceKind(Int) {
 	var Headless;
 	var X11;
-	// an NSView hosting a CAMetalLayer
+	// an NSView hosting a CAMetalLayer (iOS: a UIView backed by one)
 	var Cocoa;
 	// a window (HWND)
 	var Win32;
