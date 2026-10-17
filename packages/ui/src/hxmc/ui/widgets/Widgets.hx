@@ -80,7 +80,7 @@ class Widgets implements Markup {
 	// is true, neither checked nor not (a dash; ARIA's mixed), checked when
 	// clicked. Slots "checkbox" (data-state "checked", "unchecked" or
 	// "indeterminate") and "checkbox-indicator" (shown when not unchecked),
-	// the label a "label"
+	// the label a "label", the two in a row "checkbox-field"
 	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
 		var mixed = () -> props.mixed != null && props.mixed.value;
 		var disabled = () -> read(props.disabled) == true;
@@ -102,14 +102,15 @@ class Widgets implements Markup {
 				<image slot="checkbox-icon" src={() -> mixed() ? MINUS : CHECK} hidden/>
 			</view>
 		</view>;
-		return <view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> toggle()}>
+		return <view slot="checkbox-field" direction="row" align-items="center" onClick={_ -> toggle()}>
 			{box}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
 		</view>;
 	}
 
 	// a switch (shadcn's) bound to a signal, with its label: slots "switch"
 	// and "switch-thumb", data-state "checked" or "unchecked" on both (the
-	// thumb's place by its state's rules); size "default" or "sm" (and data-size)
+	// thumb's place by its state's rules); size "default" or "sm" (and data-size);
+	// the label a "label", the two in a row "switch-field"
 	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
@@ -123,7 +124,7 @@ class Widgets implements Markup {
 			}}>
 			<view slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
 		</view>;
-		return <view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> toggle()}>
+		return <view slot="switch-field" direction="row" align-items="center" onClick={_ -> toggle()}>
 			{track}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
 		</view>;
 	}
@@ -457,7 +458,8 @@ class Widgets implements Markup {
 	// arrows checking and focusing the next or previous (wrapping); disabled:
 	// none of them. Slots "radio-group", "radio-group-item" (data-state
 	// "checked" or "unchecked") and "radio-group-indicator" (shown when
-	// checked), each label a "label"
+	// checked), each label a "label", an item and its label in a row
+	// "radio-group-option"
 	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
 		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
@@ -484,7 +486,7 @@ class Widgets implements Markup {
 			for (i in 0...options.length) {
 				var o = options[i], text = props.labels != null && props.labels[i] != null ? props.labels[i] : o;
 				var state = () -> props.value.value == o ? "checked" : "unchecked";
-				<view direction="row" align-items="center" column-gap={8} cursor="pointer" onClick={_ -> if (!disabled()) props.value.value = o}>
+				<view slot="radio-group-option" direction="row" align-items="center" onClick={_ -> if (!disabled()) props.value.value = o}>
 					<view tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={n -> nodes[i] = n} checked={() -> props.value.value == o}
 						data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled} onKeyDown={e -> key(e, i)}>
 						<view slot="radio-group-indicator" data-state={state} display={() -> state() == "checked" ? "flex" : "none"}>
