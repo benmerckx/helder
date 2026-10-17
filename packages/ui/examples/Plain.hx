@@ -13,7 +13,7 @@ class Plain {
 		var line = Color.parse("currentColor"), faint = Color.parse("currentColor/30"), half = Color.parse("currentColor/50");
 		var tint = Color.parse("currentColor/10");
 		var canvas = Color.parse("Canvas"), canvasText = Color.parse("CanvasText");
-		return [
+		var out:Array<Rule> = [
 			{slot: "body", style: {background: canvas, color: canvasText}},
 			{slot: "button", style: {direction: Row, alignItems: Center, justify: Center, columnGap: 6, padding: [4, 10], borderWidth: 1, borderColor: line, cursor: Pointer}},
 			{slot: "button", size: "sm", style: {padding: [2, 8]}},
@@ -71,7 +71,7 @@ class Plain {
 			{slot: "slider-range", style: {background: line}},
 			{slot: "slider-thumb", style: {width: 16, height: 16, radius: 8, background: line}},
 			{slot: "progress", style: {width: Dim.parse("100%"), height: 8, radius: 4, background: faint}},
-			{slot: "progress-indicator", style: {background: line}},
+			{slot: "progress-indicator", style: {grow: 1, background: line}},
 			{slot: "separator", style: {background: faint, alignSelf: Stretch, shrink: 0}},
 			{slot: "separator", when: ["data-orientation=horizontal"], style: {height: 1}},
 			{slot: "separator", when: ["data-orientation=vertical"], style: {width: 1}},
@@ -115,7 +115,21 @@ class Plain {
 			{slot: "dialog-footer", style: {direction: Row, justify: End, columnGap: 8}},
 			{slot: "dialog-close", style: {position: Absolute, top: 12, right: 12, padding: 2, cursor: Pointer, opacity: 0.7}},
 			{slot: "dialog-close", when: ["hover"], style: {opacity: 1}},
+			{slot: "drawer-overlay", style: {background: Color.rgba(0x000000, 0.5)}},
+			{slot: "drawer-content", style: {direction: Column, rowGap: 12, padding: [8, 16, 16, 16], borderWidth: 1, borderColor: canvasText, background: canvas, color: canvasText}},
+			{slot: "drawer-handle", style: {width: 100, height: 6, radius: 3, alignSelf: Center, background: faint}},
+			{slot: "drawer-header", style: {direction: Column, rowGap: 4}},
+			{slot: "drawer-title", style: {fontWeight: 600}},
+			{slot: "drawer-description", style: {opacity: 0.7}},
+			{slot: "drawer-footer", style: {direction: Column, rowGap: 8}},
+			{slot: "alert-dialog-overlay", style: {background: Color.rgba(0x000000, 0.5)}},
+			{slot: "alert-dialog-content", style: {direction: Column, rowGap: 12, padding: 16, borderWidth: 1, borderColor: canvasText, background: canvas, color: canvasText}},
+			{slot: "alert-dialog-header", style: {direction: Column, rowGap: 4}},
+			{slot: "alert-dialog-title", style: {fontWeight: 600}},
+			{slot: "alert-dialog-description", style: {opacity: 0.7}},
+			{slot: "alert-dialog-footer", style: {direction: Row, justify: End, columnGap: 8}},
 			{slot: "collapsible-trigger", style: {direction: Row, alignItems: Center, columnGap: 6, padding: [4, 2], cursor: Pointer}},
+			{slot: "collapsible-icon", style: {width: 12}},
 			{slot: "collapsible-content", style: {padding: [4, 0, 4, 20]}},
 			{slot: "accordion-item", style: {borders: [0, 0, 1, 0], borderColor: faint}},
 			{slot: "accordion-trigger", style: {direction: Row, alignItems: Center, columnGap: 16, padding: [8, 0], cursor: Pointer}},
@@ -143,7 +157,9 @@ class Plain {
 			{slot: "table-row", style: {alignItems: Center}},
 			{slot: "table-row", when: ["hover"], style: {background: tint}},
 			{slot: "table-row", when: ["data-state=selected"], style: {background: faint}},
-			{slot: "table-head", style: {padding: [0, 8]}},
+			{slot: "table-head", style: {padding: [0, 8], columnGap: 4}},
+			{slot: "table-head", when: ["data-sortable"], style: {cursor: Pointer}},
+			{slot: "table-sort-icon", style: {opacity: 0.6}},
 			{slot: "table-cell", style: {padding: [0, 8]}},
 			{slot: "tree", style: {borderWidth: 1, borderColor: faint}},
 			{slot: "tree-item", style: {direction: Row, alignItems: Center, columnGap: 4, padding: [0, 8, 0, 6]}},
@@ -179,9 +195,29 @@ class Plain {
 			{slot: "calendar-day", when: ["data-today"], style: {background: tint}},
 			{slot: "calendar-day", when: ["data-focused"], style: {borderColor: line}},
 			{slot: "calendar-day", when: ["data-selected"], style: {background: canvasText, color: canvas}},
-			{slot: "command-list", style: {padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: "arrow-icon", style: {opacity: 0.6}},
+			{slot: "date-picker-value", when: ["data-placeholder"], style: {opacity: 0.6}},
+			{slot: "command-list", style: {maxHeight: 240, padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
 			{slot: "command-item", style: {padding: [4, 8], cursor: Pointer}},
 			{slot: "command-item", when: ["data-selected"], style: {background: faint}},
+			{slot: "checkbox-field", style: {columnGap: 8, cursor: Pointer}},
+			{slot: "switch-field", style: {columnGap: 8, cursor: Pointer}},
+			{slot: "radio-group-option", style: {columnGap: 8, cursor: Pointer}},
+			{slot: "command-item", when: ["data-disabled"], style: {opacity: 0.5, cursor: Default}},
+			{slot: "command", style: {rowGap: 4}},
+			{slot: "input-otp", style: {columnGap: 8}},
+			{slot: "input-otp-slot", style: {width: 32, height: 36, alignItems: Center, justify: Center, borderWidth: 1, borderColor: faint, cursor: Text}},
+			{slot: "input-otp-slot", when: ["data-active"], style: {borderColor: canvasText}},
+			{slot: "input-otp-caret", style: {width: 1, height: 16, background: canvasText}},
+			{slot: "input-otp-separator-icon", style: {width: 16, height: 16, opacity: 0.6}},
+			{slot: "command-input-wrapper", style: {columnGap: 6, padding: [0, 8], borderWidth: 1, borderColor: line, background: canvas}},
+			{slot: "command-input-icon", style: {width: 16, height: 16, opacity: 0.5}},
+			{slot: "command-input", style: {grow: 1, padding: [6, 0]}},
+			{slot: "command-group", style: {padding: 2}},
+			{slot: "command-group-heading", style: {padding: [4, 8], fontSize: 11, opacity: 0.6}},
+			{slot: "command-separator", style: {height: 1, margin: [2, 0], background: faint}},
+			{slot: "command-shortcut", style: {marginLeft: 16, fontSize: 11, opacity: 0.6}},
+			{slot: "command-empty", style: {padding: 12, opacity: 0.6}},
 			{slot: "number-field", style: {columnGap: 2}},
 			{slot: "number-field-steppers", style: {rowGap: 1}},
 			{slot: "number-field-increment", style: {justify: Center, alignItems: Center, padding: [0, 6], fontSize: 9, opacity: 0.6, cursor: Pointer}},
@@ -189,6 +225,7 @@ class Plain {
 			{slot: "tag-input", style: {columnGap: 4, rowGap: 4, padding: [2, 4], borderWidth: 1, borderColor: line, cursor: Text}},
 			{slot: "tag-input-list", style: {columnGap: 4, rowGap: 4}},
 			{slot: "tag-input-field", style: {padding: 2}},
+			{slot: "tag-input-entry", style: {minWidth: 60}},
 			{slot: "tag-input-field", when: ["placeholder"], style: {color: half}},
 			{slot: "tag-input-remove", style: {padding: [0, 2], cursor: Pointer, opacity: 0.6}},
 			{slot: "toaster", style: {rowGap: 8}},
@@ -196,11 +233,12 @@ class Plain {
 			{slot: "toast-action", style: {padding: [2, 6], textDecoration: (TextDecoration.Underline : Int), cursor: Pointer}},
 			{slot: "toast-close", style: {padding: [0, 4], opacity: 0.7, cursor: Pointer}},
 			{slot: "color-picker", style: {rowGap: 8}},
-			{slot: "color-picker-area", style: {cursor: Pointer}},
-			{slot: "color-picker-hue", style: {radius: 7, cursor: Pointer}},
-			{slot: "color-picker-thumb", style: {radius: 7, borderWidth: 2, borderColor: Color.WHITE, shadow: Shadow.parse("0 0 2px #00000099")}},
+			{slot: "color-picker-area", style: {cursor: Crosshair}},
+			{slot: "color-picker-hue", style: {height: 14, radius: 7, cursor: Pointer}},
+			{slot: "color-picker-thumb", style: {width: 12, height: 12, radius: 7, borderWidth: 2, borderColor: Color.WHITE, shadow: Shadow.parse("0 0 2px #00000099")}},
+			{slot: "color-picker-thumb", when: ["data-hue"], style: {width: 14, height: 14}},
 			{slot: "color-picker-row", style: {columnGap: 8}},
-			{slot: "color-picker-swatch", style: {borderWidth: 1, borderColor: faint}},
+			{slot: "color-picker-swatch", style: {width: 28, height: 28, borderWidth: 1, borderColor: faint}},
 			{slot: "sheet-overlay", style: {background: Color.rgba(0x000000, 0.5)}},
 			{slot: "sheet-content", style: {direction: Column, rowGap: 12, padding: 16, background: canvas, color: canvasText}},
 			{slot: "sheet-content", when: ["data-side=right"], style: {borders: [0, 0, 0, 1], borderColor: canvasText}},
@@ -220,5 +258,27 @@ class Plain {
 			{slot: "kbd", style: {padding: [0, 4], borderWidth: 1, borderColor: faint, fontSize: 12}},
 			{slot: "spinner", style: {width: 16, height: 16}}
 		];
+		for (kind in ["dropdown-menu", "context-menu", "menubar"])
+			out = out.concat(menuKinds(kind, line, faint, canvas, canvasText));
+		return out;
+	}
+
+	// (a menu's checkbox and radio items, headings and submenus: as its items)
+	static function menuKinds(kind:String, line:Color, faint:Color, canvas:Color, canvasText:Color):Array<Rule> {
+		var out:Array<Rule> = [
+			{slot: kind + "-sub-content", style: {minWidth: 128, padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
+			{slot: kind + "-label", style: {padding: [4, 8], fontSize: 11, opacity: 0.6}},
+			{slot: kind + "-item-indicator", style: {width: 16, height: 16, alignItems: Center, justify: Center}},
+			{slot: kind + "-item-indicator-icon", style: {width: 12, height: 12}},
+			{slot: kind + "-sub-trigger-icon", style: {width: 16, height: 16, opacity: 0.6}},
+			{slot: kind + "-sub-trigger", when: ["data-state=open"], style: {background: faint}}
+		];
+		for (item in ["-checkbox-item", "-radio-item", "-sub-trigger"])
+			out = out.concat([
+				{slot: kind + item, style: {direction: Row, alignItems: Center, columnGap: 8, padding: [4, 8], cursor: Pointer}},
+				{slot: kind + item, when: ["focus"], style: {background: faint}},
+				{slot: kind + item, when: ["disabled"], style: {opacity: 0.5, cursor: Default}}
+			]);
+		return out;
 	}
 }

@@ -13,8 +13,9 @@ package hxmc.ui;
 // covers the window (its own style: a backdrop; its content centred, as
 // Ui.open makes it) and keeps the keyboard focus inside: Tab cycles in
 // it, the tree under it takes no pointer events. onDismiss: asked to close
-// by a click outside it (not on its anchor) or by Escape; Ui.close closes
-// it and gives the focus back to where it was.
+// by a click outside it (not on its anchor; unless dismissOnOutside is
+// false, as an alert dialog) or by Escape; Ui.close closes it and gives the
+// focus back to where it was.
 class Popup extends Node {
 	public var anchor:Null<Node>;
 	public var placement:Placement = Below;
@@ -25,6 +26,7 @@ class Popup extends Node {
 	public var atY = 0.0;
 	public var modal = false;
 	public var onDismiss:Null<Void->Void>;
+	public var dismissOnOutside = true;
 	// the focus when it opened (given back when it closes)
 	@:allow(hxmc.ui.Ui) var returnFocus:Null<Node>;
 

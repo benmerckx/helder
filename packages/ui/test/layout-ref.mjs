@@ -5,6 +5,7 @@
 // which UiTest compares with (make ui-check). Run it after changing the
 // cases (Playwright from npm, with Chromium):
 //   node packages/ui/test/layout-ref.mjs
+// (boxes: Chromium's boxes of any such cases, for layout-fuzz.mjs)
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -54,28 +55,35 @@ div { display: flex; flex-direction: column; box-sizing: border-box; position: r
 #root > div { position: absolute; left: 0; top: 0 }
 </style><div id="root"></div>`;
 
-const browser = await pw.chromium.launch();
-const p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
-await p.setContent(page);
-const expected = {};
-for (const c of cases) {
-	// (the root is the viewport: its size given)
-	const tree = { ...c.tree, style: { ...c.tree.style, width: c.width, height: c.height } };
-	expected[c.name] = await p.evaluate((h) => {
-		const root = document.getElementById('root');
-		root.innerHTML = h;
-		const boxes = [];
-		const r0 = root.firstChild.getBoundingClientRect();
-		(function walk(e) {
-			const r = e.getBoundingClientRect();
-			const x0 = Math.round(r.left - r0.left), y0 = Math.round(r.top - r0.top), x1 = Math.round(r.right - r0.left), y1 = Math.round(r.bottom - r0.top);
-			boxes.push(e.style.display === 'none' ? [0, 0, 0, 0] : [x0, y0, x1 - x0, y1 - y0]);
-			for (const ch of e.children) walk(ch);
-		})(root.firstChild);
-		return boxes;
-	}, html(tree));
+export async function boxes(cases) {
+	const browser = await pw.chromium.launch();
+	const p = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+	await p.setContent(page);
+	const expected = {};
+	for (const c of cases) {
+		// (the root is the viewport: its size given)
+		const tree = { ...c.tree, style: { ...c.tree.style, width: c.width, height: c.height } };
+		expected[c.name] = await p.evaluate((h) => {
+			const root = document.getElementById('root');
+			root.innerHTML = h;
+			const boxes = [];
+			const r0 = root.firstChild.getBoundingClientRect();
+			(function walk(e) {
+				const r = e.getBoundingClientRect();
+				const x0 = Math.round(r.left - r0.left), y0 = Math.round(r.top - r0.top), x1 = Math.round(r.right - r0.left), y1 = Math.round(r.bottom - r0.top);
+				boxes.push(e.style.display === 'none' ? [0, 0, 0, 0] : [x0, y0, x1 - x0, y1 - y0]);
+				for (const ch of e.children) walk(ch);
+			})(root.firstChild);
+			return boxes;
+		}, html(tree));
+	}
+	await browser.close();
+	return { expected, version: browser.version() };
 }
-await browser.close();
-await writeFile(path.join(here, 'layout-cases.json'), JSON.stringify(cases, null, '\t') + '\n');
-await writeFile(path.join(here, 'layout-expected.json'), JSON.stringify(expected, null, '\t').replace(/\[\s+(-?\d+),\s+(-?\d+),\s+(-?\d+),\s+(-?\d+)\s+\]/g, '[$1, $2, $3, $4]') + '\n');
-console.log(`layout-ref.mjs: ${cases.length} cases (chromium ${browser.version()})`);
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+	const { expected, version } = await boxes(cases);
+	await writeFile(path.join(here, 'layout-cases.json'), JSON.stringify(cases, null, '\t') + '\n');
+	await writeFile(path.join(here, 'layout-expected.json'), JSON.stringify(expected, null, '\t').replace(/\[\s+(-?\d+),\s+(-?\d+),\s+(-?\d+),\s+(-?\d+)\s+\]/g, '[$1, $2, $3, $4]') + '\n');
+	console.log(`layout-ref.mjs: ${cases.length} cases (chromium ${version})`);
+}

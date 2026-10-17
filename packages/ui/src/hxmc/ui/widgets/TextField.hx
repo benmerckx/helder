@@ -6,7 +6,8 @@ import hxmc.ui.*;
 // its text scrolls sideways to keep the caret in view, and while it fits
 // it is aligned as the style says (else the start side: right to left, on
 // the right); the placeholder shows while it is empty; a paste goes on one
-// line. onSubmit gets the text on Enter. A composition shows at the caret, underlined.
+// line. onSubmit gets the text on Enter. A composition shows at the caret,
+// underlined. Its line is centred in a taller box, as a browser's input's.
 class TextField extends EditableText {
 	public var onSubmit:Null<String->Void>;
 
@@ -60,6 +61,7 @@ class TextField extends EditableText {
 		var ox = x - scroll + aligned(p, width);
 		var lh = font().size * font().lineHeight;
 		canvas.pushClip(x, y, width, height, 0);
+		y += Math.max(0, (height - lh) / 2);
 		if (focused && selectionStart != selectionEnd && composition == "") {
 			for (r in p.selection(selectionStart, selectionEnd))
 				canvas.rect(ox + r.x, y, r.width, lh, 0, selectionColor, 0, 0);

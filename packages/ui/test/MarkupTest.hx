@@ -21,6 +21,10 @@ import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
+import hxmc.ui.widgets.Widgets.Command;
+import hxmc.ui.widgets.Widgets.AlertDialog;
+import hxmc.ui.widgets.Widgets.InputOTP;
+import hxmc.ui.widgets.Widgets.Drawer;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
@@ -89,6 +93,10 @@ class MarkupTest implements Markup {
 		access();
 		popovers();
 		combobox();
+		command();
+		otp();
+		drawer();
+		menuKinds();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -219,6 +227,188 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function menuKinds() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var bar = signal(true), pos = signal("top"), ran = [];
+		Render.render(<view padding={10} align-items="start">
+			<DropdownMenu tag="vm" label="View" items={[
+				{label: "Appearance", heading: true},
+				{label: "Status Bar", checked: bar},
+				{separator: true, label: ""},
+				{label: "Top", radio: {group: pos, value: "top"}},
+				{label: "Bottom", radio: {group: pos, value: "bottom"}},
+				{label: "More", items: [{label: "Zoom In", onSelect: () -> ran.push("zoom")}, {label: "Zoom Out"}]}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		function open() {
+			ui.setFocus(ui.root.find("vm"));
+			ui.keyDown(Key.ENTER, 0);
+			ui.update();
+		}
+		open();
+		var status = ui.overlay.find("vm-1");
+		check("menu kinds: a heading skipped, the checkbox item first focused, checked to assistive technology", ui.focus == status
+			&& status.slot == "dropdown-menu-checkbox-item" && status.semantics.checked == true && status.attr("data-state") == "checked"
+			&& ui.overlay.find("vm-items").children[0].slot == "dropdown-menu-label", ui.focus == null ? "none" : ui.focus.tag);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("menu kinds: a checkbox item toggles and closes", !bar.value && ui.overlay.children.length == 0);
+		open();
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.DOWN, 0);
+		check("menu kinds: Down past the separator to a radio item", ui.focus.tag == "vm-4" && ui.focus.slot == "dropdown-menu-radio-item", ui.focus.tag);
+		ui.keyDown(Key.SPACE, 0);
+		ui.update();
+		check("menu kinds: a radio item sets its group", pos.value == "bottom");
+		open();
+		for (_ in 0...3)
+			ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		var trig = ui.overlay.find("vm-5"), zoom = ui.overlay.find("vm-5-0");
+		check("menu kinds: Right opens a submenu beside its trigger, its first item focused", trig.slot == "dropdown-menu-sub-trigger" && trig.attr("data-state") == "open"
+			&& zoom != null && ui.focus == zoom && zoom.absX >= trig.absX + trig.width - 1 && zoom.parent.slot == "dropdown-menu-sub-content",
+			zoom == null ? "none" : zoom.absX + " " + (trig.absX + trig.width));
+		ui.keyDown(Key.LEFT, 0);
+		ui.update();
+		check("menu kinds: Left closes it, the focus back on its trigger", ui.overlay.find("vm-5-0") == null && ui.focus == trig);
+		ui.keyDown(Key.ENTER, 0);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("menu kinds: a submenu item runs and closes every menu", ran.join(",") == "zoom" && ui.overlay.children.length == 0, ran.join(","));
+	}
+
+	static function drawer() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var open = signal(false);
+		Render.render(<view padding={10} align-items="start">
+			<Drawer tag="dr" open={open} title="Move goal" description="Set your daily goal"><view tag="dr-body" height={100}/></Drawer>
+		</view>, ui.root);
+		open.value = true;
+		ui.update();
+		var c = ui.overlay.find("dr-content");
+		check("drawer: along the bottom edge, modal, a handle and its title", c != null && c.attr("data-vaul-drawer-direction") == "bottom"
+			&& c.absY + c.height == 300 && c.width == 400 && c.children[0].slot == "drawer-handle" && c.parent.slot == "drawer-overlay"
+			&& c.semantics.role == hxmc.ui.access.Role.Dialog, c == null ? "none" : c.absY + " " + c.height);
+		var x = c.absX + 50, y = c.absY + 10;
+		ui.pointerDown(x, y, 1);
+		ui.pointerMove(x, y + 10);
+		ui.update();
+		var followed = c.style.transform != null && c.style.transform.toMatrix(c.width, c.height)[5] == 10;
+		ui.pointerUp(x, y + 10, 1);
+		ui.update();
+		check("drawer: a drag follows the pointer, a short one back in place", followed && open.value && c.style.transform == null || followed && open.value
+			&& c.style.transform.isIdentity(), "" + c.style.transform);
+		ui.pointerDown(x, y, 1);
+		ui.pointerMove(x, y + 60);
+		ui.pointerUp(x, y + 60, 1);
+		ui.update();
+		check("drawer: dragged down past a quarter of it, closed", !open.value);
+	}
+
+	static function otp() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var code = signal(""), done = [];
+		Render.render(<view padding={10} align-items="start">
+			<InputOTP tag="otp" value={code} length={6} groups={[3, 3]} onComplete={c -> done.push(c)}/>
+		</view>, ui.root);
+		ui.update();
+		function slots()
+			return [for (i in 0...6) {
+				var s = ui.root.find("otp-slot-" + i);
+				(cast s.children[0] : TextNode).text + (s.attr("data-active") == "true" ? "^" : "");
+			}].join("|");
+		var field = ui.root.find("otp-input");
+		var s0 = ui.root.find("otp-slot-0");
+		ui.pointerDown(s0.absX + 2, s0.absY + 2, 1);
+		ui.pointerUp(s0.absX + 2, s0.absY + 2, 1);
+		ui.update();
+		check("otp: a click on a slot focuses the field over them, the first slot active", ui.focus == field && slots() == "^|||||", slots());
+		ui.textInput("1");
+		ui.textInput("a");
+		ui.textInput("2");
+		ui.update();
+		check("otp: typing fills the slots, what is not a digit dropped", code.value == "12" && slots() == "1|2|^|||", slots());
+		ui.keyDown(Key.BACKSPACE, 0);
+		ui.update();
+		check("otp: Backspace empties the last", code.value == "1" && slots() == "1|^||||", slots());
+		ui.textInput("23456789");
+		ui.update();
+		check("otp: a paste fills to the length, the rest dropped, complete once", code.value == "123456" && slots() == "1|2|3|4|5|6^"
+			&& done.join(",") == "123456", code.value + " " + slots());
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("otp: one text field to assistive technology, its slots hidden", an.name == "One-time code" && an.editable() && an.value == "123456");
+		var seps = 0;
+		function walk(n:Node) {
+			if (n.slot == "input-otp-separator") seps++;
+			for (c in n.children)
+				walk(c);
+		}
+		walk(ui.root);
+		check("otp: a separator between its groups", seps == 1);
+	}
+
+	static function command() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var ran = [];
+		Render.render(<view padding={10} align-items="start">
+			<Command tag="cmd" placeholder="Type a command" groups={[
+				{heading: "Suggestions", items: [{label: "Calendar", onSelect: () -> ran.push("calendar")}, {label: "Search Emoji", disabled: true},
+					{label: "Calculator", onSelect: () -> ran.push("calculator")}]},
+				{heading: "Settings", items: [{label: "Profile", shortcut: "Mod+P", onSelect: () -> ran.push("profile")}, {label: "Billing"}]}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		var list = ui.root.find("cmd-list");
+		function items():Array<Node> {
+			var out = [];
+			function walk(n:Node) {
+				if (n.slot == "command-item") out.push(n);
+				for (c in n.children)
+					walk(c);
+			}
+			walk(list);
+			return out;
+		}
+		function shown()
+			return [for (o in items()) (cast o.children[0] : TextNode).text].join(",");
+		function selected()
+			return [for (o in items()) if (o.attr("data-selected") == "true") (cast o.children[0] : TextNode).text].join(",");
+		var separators = 0;
+		function count(n:Node) {
+			if (n.slot == "command-separator") separators++;
+			for (c in n.children)
+				count(c);
+		}
+		count(list);
+		check("command: every item, the first selected, a separator between groups", shown() == "Calendar,Search Emoji,Calculator,Profile,Billing"
+			&& selected() == "Calendar" && separators == 1 && items()[1].attr("data-disabled") == "true", shown() + " / " + selected());
+		var field = ui.root.find("cmd-input");
+		ui.setFocus(field);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("command: Down skips a disabled item", selected() == "Calculator" && ui.focus == field, selected());
+		for (_ in 0...4)
+			ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("command: Down stops at the last", selected() == "Billing", selected());
+		ui.textInput("CAL");
+		ui.update();
+		separators = 0;
+		count(list);
+		check("command: the query filters (either case), hides an empty group and the separators, selects the first", shown() == "Calendar,Calculator"
+			&& selected() == "Calendar" && ui.root.find("cmd-group-1") == null && separators == 0, shown() + " / " + selected());
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.ENTER, 0);
+		check("command: Enter chooses the selected item", ran.join(",") == "calculator", ran.join(","));
+		ui.textInput("zz");
+		ui.update();
+		check("command: nothing matches, the empty text", shown() == "" && ui.root.find("cmd-empty") != null);
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("command: a combobox over a listbox to assistive technology", an.role == ComboBox && an.expanded == true);
 	}
 
 	static function toasts() {
@@ -1244,6 +1434,7 @@ class MarkupTest implements Markup {
 			<Tabs tag="tabs" labels={["One", "Two"]} selected={tab} render={i -> <text>{"Panel " + i}</text>}/>
 			<Slider tag="vol" value={vol} width={100} disabled={off}/>
 			<Progress tag="p" value={0.25} width={100}/>
+			<Progress tag="p2" value={0.5}/>
 			<Separator tag="sep"/>
 			<Separator tag="vsep" orientation="vertical" decorative={false}/>
 			<Skeleton tag="sk" width={40} height={10}/>
@@ -1274,8 +1465,11 @@ class MarkupTest implements Markup {
 		check("unstyled: a slider's track, range and thumb", v.slot == "slider" && track.slot == "slider-track" && track.children[0].slot == "slider-range"
 			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 50, '${track.children[0].width}');
 		var p = ui.root.find("p");
-		check("unstyled: a progress bar's indicator", p.slot == "progress" && p.children[0].slot == "progress-indicator" && p.children[0].width == 25
-			&& p.style.height.resolve(0) == 8);
+		var ind = p.children[0];
+		check("unstyled: a progress bar's indicator, the bar's width moved left by what is not done", p.slot == "progress" && ind.slot == "progress-indicator"
+			&& ind.width == 100 && ind.style.transform.toMatrix(ind.width, ind.height)[4] == -75 && p.style.height.resolve(0) == 8);
+		check("unstyled: a width not given (null) is no width of its own: the rules'", ui.root.find("p2").style.width.equals(DimValue.Percent(100)),
+			"" + ui.root.find("p2").style.width);
 		var sep = ui.root.find("sep"), vsep = ui.root.find("vsep");
 		check("unstyled: separators: a line across, data-orientation; decorative ones hidden", sep.slot == "separator" && sep.height == 1
 			&& sep.attr("data-orientation") == "horizontal" && vsep.style.width.resolve(0) == 1 && vsep.semantics.role == Separator
@@ -1529,7 +1723,7 @@ class MarkupTest implements Markup {
 
 	static function unstyledExtras() {
 		var ui = new Ui(new MonoText(), 400, 300);
-		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null);
+		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null), confirm = signal(false), outcome = [];
 		Render.render(<view align-items="start" row-gap={4} padding={10}>
 			<Button tag="before" label="Before"/>
 			<PopoverButton tag="pop" label="Settings" open={pop}><Input tag="pop-field" value={signal("")}/></PopoverButton>
@@ -1538,6 +1732,8 @@ class MarkupTest implements Markup {
 			<Kbd text="Ctrl K"/>
 			<Spinner tag="spin"/>
 			<Sheet open={sheet} title="Edit" description="Make changes" side="left"><Button tag="save" label="Save"/></Sheet>
+			<AlertDialog tag="sure" open={confirm} title="Delete it?" description="This cannot be undone." action="Delete" variant="destructive"
+				onAction={() -> outcome.push("deleted")} onCancel={() -> outcome.push("kept")}/>
 		</view>, ui.root);
 		ui.update();
 		var p = ui.root.find("pop");
@@ -1584,6 +1780,25 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("unstyled: Escape closes the sheet", !sheet.value);
+		confirm.value = true;
+		ui.update();
+		var cancel = ui.overlay.find("sure-cancel"), act = ui.overlay.find("sure-action");
+		check("alert dialog: an alertdialog, Cancel focused first, the action destructive", cancel != null && ui.focus == cancel
+			&& cancel.parent.parent.semantics.role == hxmc.ui.access.Role.AlertDialog && act.variant == "destructive"
+			&& cancel.parent.parent.parent.slot == "alert-dialog-overlay");
+		ui.pointerDown(395, 295, 1);
+		ui.pointerUp(395, 295, 1);
+		ui.update();
+		check("alert dialog: a click outside leaves it open", confirm.value && outcome.length == 0);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("alert dialog: Escape cancels", !confirm.value && outcome.join(",") == "kept", outcome.join(","));
+		confirm.value = true;
+		ui.update();
+		ui.setFocus(ui.overlay.find("sure-action"));
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("alert dialog: the action runs and closes it", !confirm.value && outcome.join(",") == "kept,deleted", outcome.join(","));
 	}
 
 	static function table() {

@@ -249,6 +249,10 @@ class Ui {
 			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
 			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius, cs);
 			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
+		} else if (s.background.a > 0 && s.borderColor.a < 255 && be.top + be.right + be.bottom + be.left > 0) {
+			// (the background under the border too, as CSS's background-clip: border-box, seen through a translucent one)
+			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0, cs);
+			if (bordered) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor, cs, sides);
 		} else if (s.background.a > 0 || bordered)
 			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor, cs, sides);
 		// (the shadows inside: in the padding box, over the background)
@@ -297,7 +301,13 @@ class Ui {
 		if (s.overflow == Scroll && !hidden) {
 			for (x in [false, true]) {
 				var t = thumb(n, x);
-				if (t != null) canvas.rect(t[0], t[1], t[2], t[3], SCROLLBAR / 2, drag == n && dragX == x ? scrollbarActiveColor : scrollbarColor, 0, 0);
+				if (t == null) continue;
+				var b = barSize(n), track = inheritedBar(n, true), own = inheritedBar(n, false);
+				if (track != null && track.a > 0) {
+					var tr = Ui.track(n, x);
+					if (x) canvas.rect(tr[0], tr[2], tr[1], b, b / 2, track, 0, 0) else canvas.rect(tr[2], tr[0], b, tr[1], b / 2, track, 0, 0);
+				}
+				canvas.rect(t[0], t[1], t[2], t[3], b / 2, own != null ? own : drag == n && dragX == x ? scrollbarActiveColor : scrollbarColor, 0, 0);
 			}
 		}
 		// (its outline over its content, the focus ring over that)
@@ -876,11 +886,11 @@ class Ui {
 			if (p == null) continue;
 			if (target != null && target != p && contains(p, target)) break;
 			if (p.modal) {
-				if (target == p && p.onDismiss != null) p.onDismiss();
+				if (target == p && p.onDismiss != null && p.dismissOnOutside) p.onDismiss();
 				break;
 			}
 			if (target != null && p.anchor != null && contains(p.anchor, target)) break;
-			if (p.onDismiss != null) p.onDismiss();
+			if (p.onDismiss != null && p.dismissOnOutside) p.onDismiss();
 		}
 	}
 
@@ -1011,7 +1021,9 @@ class Ui {
 	static function maxScroll(n:Node, x:Bool):Float {
 		var s = n.style, inset = x ? s.borderEdges.horizontal + s.padding.horizontal : s.borderEdges.vertical + s.padding.vertical;
 		var view = (x ? n.width : n.height) - inset;
-		return Math.max(0, (x ? n.contentWidth : n.contentHeight) - view);
+		// (less than half a pixel over: none, the box being rounded and the content not, as Chromium snaps scrollHeight)
+		var over = (x ? n.contentWidth : n.contentHeight) - view;
+		return over < 0.5 ? 0 : over;
 	}
 
 	// its least offset on the axis: 0, but right to left, sideways, its
@@ -1117,11 +1129,30 @@ class Ui {
 	// along the axis (absolute), its offset across it; right to left, the
 	// vertical one on the left, as Chromium has it
 	static function track(n:Node, x:Bool):Array<Float> {
-		var be = n.style.borderEdges, i = SCROLLBAR_INSET, rtl = n.rtl();
+		var be = n.style.borderEdges, i = SCROLLBAR_INSET, rtl = n.rtl(), b = barSize(n);
 		// (the other axis's bar, if any, takes the corner)
-		var corner = maxScroll(n, !x) > 0 ? SCROLLBAR + i : 0;
-		return x ? [n.absX + be.left + i + (rtl ? corner : 0), n.width - be.horizontal - 2 * i - corner, n.absY + n.height - be.bottom - i - SCROLLBAR] : [
-			n.absY + be.top + i, n.height - be.vertical - 2 * i - corner, rtl ? n.absX + be.left + i : n.absX + n.width - be.right - i - SCROLLBAR];
+		var corner = maxScroll(n, !x) > 0 ? b + i : 0;
+		return x ? [n.absX + be.left + i + (rtl ? corner : 0), n.width - be.horizontal - 2 * i - corner, n.absY + n.height - be.bottom - i - b] : [
+			n.absY + be.top + i, n.height - be.vertical - 2 * i - corner, rtl ? n.absX + be.left + i : n.absX + n.width - be.right - i - b];
+	}
+
+	// (a scroller's scrollbar thickness: its style's, 0 for none)
+	static function barSize(n:Node):Float
+		return switch n.style.scrollbarWidth {
+			case None: 0;
+			case Thin: SCROLLBAR * 2 / 3;
+			case _: SCROLLBAR;
+		}
+
+	// (the scrollbar colours n inherits: its track's or its thumb's; null: none given)
+	static function inheritedBar(n:Node, track:Bool):Null<Color> {
+		var p = n;
+		while (p != null) {
+			var c = track ? p.style.scrollbarTrackColor : p.style.scrollbarColor;
+			if (c != null) return c;
+			p = p.parent;
+		}
+		return null;
 	}
 
 	static function thumbLength(trackLength:Float, view:Float, content:Float):Float
@@ -1133,11 +1164,13 @@ class Ui {
 		if ((x ? n.style.overflowX : n.style.overflowY) != Scroll) return null;
 		var max = maxScroll(n, x);
 		if (max <= 0) return null;
+		if (barSize(n) <= 0) return null;
 		var t = track(n, x);
 		if (t[1] <= 0) return null;
 		var len = thumbLength(t[1], viewSize(n, x), x ? n.contentWidth : n.contentHeight);
 		var at = t[0] + (t[1] - len) * ((x ? n.scrollX : n.scrollY) - scrollStart(n, x)) / max;
-		return x ? [at, t[2], len, SCROLLBAR] : [t[2], at, SCROLLBAR, len];
+		var b = barSize(n);
+		return x ? [at, t[2], len, b] : [t[2], at, b, len];
 	}
 
 	// a node's offset from window to its own (unscrolled) coordinates: its
@@ -1163,7 +1196,7 @@ class Ui {
 					var tr = track(n, x);
 					var lx = px + scrolled(n, true), ly = py + scrolled(n, false);
 					var along = x ? lx : ly, across = x ? ly : lx;
-					if (across < tr[2] - SCROLLBAR_INSET || across > tr[2] + SCROLLBAR + SCROLLBAR_INSET || along < tr[0] || along > tr[0] + tr[1]) continue;
+					if (across < tr[2] - SCROLLBAR_INSET || across > tr[2] + barSize(n) + SCROLLBAR_INSET || along < tr[0] || along > tr[0] + tr[1]) continue;
 					var start = x ? t[0] : t[1], len = x ? t[2] : t[3];
 					if (along >= start && along <= start + len) {
 						drag = n;
