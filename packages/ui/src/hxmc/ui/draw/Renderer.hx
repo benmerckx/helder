@@ -7,8 +7,9 @@ import hxmc.ui.*;
 import hxmc.ui.draw.DrawText;
 
 // hxmc.ui's Canvas on hxmc.gfx: a frame's rectangles, shadows, glyphs and
-// images become quads of one vertex buffer (UiShader: six vertices each),
-// drawn in one call per run of quads with the same image (texture slot 1:
+// images become quads of one vertex buffer (UiShader: four vertices each,
+// two triangles by a shared index buffer), drawn in one call per run of
+// quads with the same image (texture slot 1:
 // an image's texture, else a white texel). Every vertex carries the clip (a rectangle in target pixels and
 // its corners' radii) that UiShader clips its fragments by, so clips need no
 // scissor and rounded ones clip to their corners. The UI's pixels are scaled
@@ -40,7 +41,10 @@ class Renderer implements Canvas {
 	var capacity:Int;
 	var bytes:Bytes;
 	var used = 0; // bytes of vertices this frame
-	// the runs of quads by image texture: first vertex, count, image id (0: none)
+	// (two triangles a quad: 0 1 2, 2 1 3 from each quad's first vertex; for so many quads)
+	var indices:Null<Buffer> = null;
+	var indexQuads = 0;
+	// the runs of quads by image texture: first quad, count, key (the image id, twice, plus whether glyphs are filtered)
 	final batches:Array<Int> = [];
 	// (frame: the last one that drew it; one not drawn for EVICT frames is freed)
 	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int}>();
@@ -101,7 +105,7 @@ class Renderer implements Canvas {
 		linear = device.createSampler({filter: Linear, wrap: Clamp});
 		atlasSlot = UiShader.textures[0].binding;
 		imageSlot = UiShader.textures[1].binding;
-		capacity = 6 * STRIDE * 1024;
+		capacity = 4 * STRIDE * 1024;
 		buffer = device.createBuffer({size: capacity, usage: Vertex});
 		bytes = Bytes.alloc(capacity);
 	}
@@ -155,8 +159,28 @@ class Renderer implements Canvas {
 			buffer = device.createBuffer({size: capacity, usage: Vertex});
 		}
 		device.writeBuffer(buffer, 0, bytes, 0, used);
+		var quads = Std.int(used / (4 * STRIDE));
+		if (quads > indexQuads) {
+			var n = indexQuads == 0 ? 4096 : indexQuads;
+			while (n < quads)
+				n *= 2;
+			var ib = Bytes.alloc(n * 6 * 4);
+			for (q in 0...n) {
+				var v = q * 4, o = q * 24;
+				ib.setInt32(o, v);
+				ib.setInt32(o + 4, v + 1);
+				ib.setInt32(o + 8, v + 2);
+				ib.setInt32(o + 12, v + 2);
+				ib.setInt32(o + 16, v + 1);
+				ib.setInt32(o + 20, v + 3);
+			}
+			if (indices != null) device.destroyBuffer(indices);
+			indices = device.createBuffer({size: ib.length, usage: Index, data: ib});
+			indexQuads = n;
+		}
 		enc.setPipeline(pipeline);
 		enc.setVertexBuffer(0, buffer);
+		enc.setIndexBuffer(indices, UInt32);
 		var i = 0;
 		while (i < batches.length) {
 			// (a run's key: its image id, twice, plus whether glyphs are read filtered)
@@ -164,7 +188,7 @@ class Renderer implements Canvas {
 			var e = image == 0 ? null : textures.get(image);
 			enc.setTexture(atlasSlot, atlasTexture, key & 1 == 1 ? linear : nearest);
 			enc.setTexture(imageSlot, e == null ? blank : e.texture, linear);
-			enc.draw(batches[i + 1], 1, batches[i]);
+			enc.drawIndexed(batches[i + 1] * 6, 1, batches[i] * 6, 0);
 			i += 3;
 		}
 	}
@@ -569,13 +593,13 @@ class Renderer implements Canvas {
 		var key = image * 2 + (mode == 1 && !aligned ? 1 : 0);
 		var nb = batches.length;
 		if (nb == 0 || batches[nb - 1] != key) {
-			batches.push(Std.int(used / STRIDE));
+			batches.push(Std.int(used / (4 * STRIDE)));
 			batches.push(0);
 			batches.push(key);
 			nb += 3;
 		}
-		batches[nb - 2] += 6;
-		if (used + 6 * STRIDE > bytes.length) {
+		batches[nb - 2]++;
+		if (used + 4 * STRIDE > bytes.length) {
 			var b = Bytes.alloc(bytes.length * 2);
 			b.blit(0, bytes, 0, used);
 			bytes = b;
@@ -634,8 +658,6 @@ class Renderer implements Canvas {
 		vertex(ax, ay, u0 - mu, v0 - mv);
 		vertex(ax, by, u0 - mu, v1 + mv);
 		vertex(bx, ay, u1 + mu, v0 - mv);
-		vertex(bx, ay, u1 + mu, v0 - mv);
-		vertex(ax, by, u0 - mu, v1 + mv);
 		vertex(bx, by, u1 + mu, v1 + mv);
 	}
 }

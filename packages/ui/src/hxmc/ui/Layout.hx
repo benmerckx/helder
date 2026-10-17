@@ -26,6 +26,13 @@ class Layout {
 	// the last size() result
 	var rw = 0.0;
 	var rh = 0.0;
+	// flex items and lines, kept from layout to layout: a container's are
+	// taken from the top and given back when it is done (its children's
+	// taken above them meanwhile)
+	static final items:Array<Item> = [];
+	static var itemTop = 0;
+	static final lines:Array<Line> = [];
+	static var lineTop = 0;
 
 	static inline var CACHE = 4; // measured results kept per node
 	static inline var ENTRY = 6; // knownW, knownH, availW, availH, width, height
@@ -34,12 +41,20 @@ class Layout {
 		this.text = text;
 
 	// lays out the tree in a viewport of width x height
-	public static function run(root:Node, width:Float, height:Float, text:TextEngine) {
+	// whether anything was laid out again (a clean tree of the same size: nothing done);
+	// the scrollers rounded again (their extents may have changed) are added to scrollers
+	public static function run(root:Node, width:Float, height:Float, text:TextEngine, ?scrollers:Array<Node>):Bool {
+		if (!root.dirty && root.lw == width && root.lh == height && !root.relaid) return false;
 		var l = new Layout(text);
-		if (root.dirty || root.lw != width || root.lh != height) l.size(root, width, height, width, height, width, height, true);
+		itemTop = lineTop = 0;
+		l.size(root, width, height, width, height, width, height, true);
+		// (the nodes let go)
+		for (it in items)
+			it.node = null;
 		root.lx = 0;
 		root.ly = 0;
-		round(root, 0, 0, 0, 0);
+		round(root, 0, 0, 0, 0, scrollers);
+		return true;
 	}
 
 	// --- one node ---
@@ -88,6 +103,7 @@ class Layout {
 				n.lw = rw;
 				n.lh = rh;
 				n.dirty = false;
+				n.relaid = true;
 			}
 		} else if (s.display == Grid) grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
 		else flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
@@ -113,7 +129,7 @@ class Layout {
 		var multi = s.wrap;
 
 		// the items and their hypothetical main sizes
-		var items:Array<Item> = [], absolute:Array<Node> = [];
+		var first = itemTop, absolute:Null<Array<Node>> = null;
 		for (c in n.children) {
 			var cs = c.style;
 			if (cs.display == None) {
@@ -121,10 +137,11 @@ class Layout {
 				continue;
 			}
 			if (cs.position == Absolute) {
+				if (absolute == null) absolute = [];
 				absolute.push(c);
 				continue;
 			}
-			var it = new Item(c);
+			var it = takeItem(c);
 			var m = cs.margin;
 			it.mMainStart = row ? m.left : m.top;
 			it.mMainEnd = row ? m.right : m.bottom;
@@ -166,33 +183,32 @@ class Layout {
 				it.minMain = Math.min(content, it.maxMain);
 			}
 			it.hypo = clamp(b, it.minMain, it.maxMain);
-			items.push(it);
 		}
 
-		// lines
-		var lines:Array<Line> = [];
-		var line = new Line(), sum = 0.0;
-		for (it in items) {
+		// lines: runs of the items
+		var firstLine = lineTop;
+		var line = takeLine(first), sum = 0.0;
+		for (i in first...itemTop) {
+			var it = items[i];
 			var outer = it.hypo + it.mMainStart + it.mMainEnd;
-			if (multi && known(availMain) && line.items.length > 0 && sum + gapMain + outer > availMain + 1e-6) {
-				lines.push(line);
-				line = new Line();
+			if (multi && known(availMain) && line.end > line.start && sum + gapMain + outer > availMain + 1e-6) {
+				line = takeLine(i);
 				sum = 0;
 			}
-			sum += (line.items.length > 0 ? gapMain : 0) + outer;
-			line.items.push(it);
+			sum += (line.end > line.start ? gapMain : 0) + outer;
+			line.end = i + 1;
 		}
-		if (line.items.length > 0 || lines.length == 0) lines.push(line);
+		var lastLine = lineTop, count = lastLine - firstLine;
 
 		// the container's main size
 		var mainSize = innerMain;
 		if (!known(mainSize)) {
 			var content = 0.0;
-			for (l in lines) {
-				var t = 0.0;
-				for (i in 0...l.items.length) {
-					var it = l.items[i];
-					t += it.hypo + it.mMainStart + it.mMainEnd + (i > 0 ? gapMain : 0);
+			for (k in firstLine...lastLine) {
+				var l = lines[k], t = 0.0;
+				for (i in l.start...l.end) {
+					var it = items[i];
+					t += it.hypo + it.mMainStart + it.mMainEnd + (i > l.start ? gapMain : 0);
 				}
 				if (t > content) content = t;
 			}
@@ -201,10 +217,12 @@ class Layout {
 		}
 
 		// flexible lengths, then the items' cross sizes
-		for (l in lines) {
+		for (k in firstLine...lastLine) {
+			var l = lines[k];
 			resolveFlexible(l, mainSize, gapMain);
 			var lc = 0.0;
-			for (it in l.items) {
+			for (i in l.start...l.end) {
+				var it = items[i];
 				if (known(it.styleCross)) it.cross = it.styleCross else {
 					var ac = known(innerCross) ? Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd) : known(availCross) ? Math.max(0,
 						availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
@@ -219,19 +237,21 @@ class Layout {
 			}
 			l.cross = lc;
 		}
-		if (!multi && known(innerCross)) lines[0].cross = innerCross;
+		if (!multi && known(innerCross)) lines[firstLine].cross = innerCross;
 
 		// the container's cross size
 		var crossSize = innerCross;
 		if (!known(crossSize)) {
 			crossSize = 0;
-			for (i in 0...lines.length)
-				crossSize += lines[i].cross + (i > 0 ? gapCross : 0);
+			for (k in firstLine...lastLine)
+				crossSize += lines[k].cross + (k > firstLine ? gapCross : 0);
 			crossSize = clamp(crossSize, Math.max(0, minCross), maxCross);
-			if (!multi) lines[0].cross = crossSize;
+			if (!multi) lines[firstLine].cross = crossSize;
 		}
 		var bw = row ? mainSize + padH : crossSize + padH, bh = row ? crossSize + padV : mainSize + padV;
 		if (!perform) {
+			itemTop = first;
+			lineTop = firstLine;
 			rw = bw;
 			rh = bh;
 			return;
@@ -239,34 +259,36 @@ class Layout {
 
 		// the lines across: align-content
 		var used = 0.0;
-		for (i in 0...lines.length)
-			used += lines[i].cross + (i > 0 ? gapCross : 0);
+		for (k in firstLine...lastLine)
+			used += lines[k].cross + (k > firstLine ? gapCross : 0);
 		var free = crossSize - used, start = 0.0, between = 0.0;
 		if (multi) switch s.alignContent {
 			case Start | Normal:
 			case End: start = free;
 			case Center: start = free / 2;
 			case Stretch if (free > 0):
-				for (l in lines)
-					l.cross += free / lines.length;
+				for (k in firstLine...lastLine)
+					lines[k].cross += free / count;
 			case Stretch:
-			case SpaceBetween if (free > 0 && lines.length > 1): between = free / (lines.length - 1);
+			case SpaceBetween if (free > 0 && count > 1): between = free / (count - 1);
 			case SpaceBetween:
 			case SpaceAround if (free > 0):
-				between = free / lines.length;
+				between = free / count;
 				start = between / 2;
 			case SpaceAround: start = free / 2;
 			case SpaceEvenly if (free > 0):
-				between = free / (lines.length + 1);
+				between = free / (count + 1);
 				start = between;
 			case SpaceEvenly: start = free / 2;
 		}
 		var lineStart = start;
 		var cw = 0.0, ch = 0.0;
-		for (l in lines) {
+		for (k in firstLine...lastLine) {
+			var l = lines[k];
 			// stretch, then place along the main axis (justify) and across the line (align)
-			var n = l.items.length, taken = 0.0;
-			for (it in l.items) {
+			var n = l.end - l.start, taken = 0.0;
+			for (i in l.start...l.end) {
+				var it = items[i];
 				if (it.align == Stretch && !known(it.styleCross))
 					it.cross = clamp(l.cross - it.mCrossStart - it.mCrossEnd, it.minCross, it.maxCross);
 				taken += it.main + it.mMainStart + it.mMainEnd;
@@ -288,7 +310,8 @@ class Layout {
 					pos = free / (n + 1);
 				case SpaceEvenly: pos = free / 2;
 			}
-			for (it in l.items) {
+			for (i in l.start...l.end) {
+				var it = items[i];
 				var mainPos = pos + it.mMainStart;
 				var crossPos = lineStart + switch it.align {
 					case End: l.cross - it.cross - it.mCrossEnd;
@@ -319,12 +342,15 @@ class Layout {
 			lineStart += l.cross + gapCross + between;
 		}
 
-		absolutes(n, absolute, bw, bh, padL, padT);
+		itemTop = first;
+		lineTop = firstLine;
+		if (absolute != null) absolutes(n, absolute, bw, bh, padL, padT);
 		n.lw = bw;
 		n.lh = bh;
 		@:privateAccess n.contentWidth = cw;
 		@:privateAccess n.contentHeight = ch;
 		n.dirty = false;
+		n.relaid = true;
 		rw = bw;
 		rh = bh;
 	}
@@ -466,6 +492,7 @@ class Layout {
 		@:privateAccess n.contentWidth = Math.max(cw, gridW);
 		@:privateAccess n.contentHeight = Math.max(ch, gridH);
 		n.dirty = false;
+		n.relaid = true;
 		rw = bw;
 		rh = bh;
 	}
@@ -897,40 +924,44 @@ class Layout {
 
 	// CSS 9.7: the items' main sizes in a line of the container's main size
 	static function resolveFlexible(l:Line, mainSize:Float, gap:Float) {
-		var items = l.items;
-		var gaps = gap * (items.length - 1);
+		var start = l.start, end = l.end;
+		var gaps = gap * (end - start - 1);
 		var hypo = gaps;
-		for (it in items)
+		for (i in start...end) {
+			var it = items[i];
 			hypo += it.hypo + it.mMainStart + it.mMainEnd;
+		}
 		var growing = hypo < mainSize;
-		for (it in items) {
+		var open = false;
+		for (i in start...end) {
+			var it = items[i];
 			var factor = growing ? it.node.style.grow : it.node.style.shrink;
 			it.frozen = factor == 0 || (growing && it.basis > it.hypo) || (!growing && it.basis < it.hypo);
 			it.main = it.frozen ? it.hypo : it.basis;
+			if (!it.frozen) open = true;
 		}
-		function free():Float {
-			var t = gaps;
-			for (it in items)
-				t += (it.frozen ? it.main : it.basis) + it.mMainStart + it.mMainEnd;
-			return mainSize - t;
+		// (the free space: the frozen items' sizes, the others' bases)
+		var initial = mainSize - gaps;
+		for (i in start...end) {
+			var it = items[i];
+			initial -= (it.frozen ? it.main : it.basis) + it.mMainStart + it.mMainEnd;
 		}
-		var initial = free();
-		var guard = items.length + 1;
-		while (guard-- > 0) {
-			var open = false;
-			for (it in items)
-				if (!it.frozen) open = true;
-			if (!open) break;
-			var remaining = free();
+		var guard = end - start + 1;
+		while (open && guard-- > 0) {
+			var remaining = mainSize - gaps;
 			var factors = 0.0, scaled = 0.0;
-			for (it in items)
+			for (i in start...end) {
+				var it = items[i];
+				remaining -= (it.frozen ? it.main : it.basis) + it.mMainStart + it.mMainEnd;
 				if (!it.frozen) {
 					factors += growing ? it.node.style.grow : it.node.style.shrink;
 					scaled += it.node.style.shrink * it.basis;
 				}
+			}
 			if (factors < 1 && Math.abs(initial * factors) < Math.abs(remaining)) remaining = initial * factors;
 			var violation = 0.0;
-			for (it in items)
+			for (i in start...end) {
+				var it = items[i];
 				if (!it.frozen) {
 					var target = it.basis;
 					if (growing) target += remaining * it.node.style.grow / factors;
@@ -941,10 +972,32 @@ class Layout {
 					violation += it.violation;
 					it.main = c;
 				}
-			for (it in items)
+			}
+			open = false;
+			for (i in start...end) {
+				var it = items[i];
 				if (!it.frozen && (violation == 0 || (violation > 0 && it.violation > 0) || (violation < 0 && it.violation < 0)))
 					it.frozen = true;
+				if (!it.frozen) open = true;
+			}
 		}
+	}
+
+	// an item for c from the pool
+	static function takeItem(c:Node):Item {
+		if (itemTop == items.length) items.push(new Item());
+		var it = items[itemTop++];
+		it.reset(c);
+		return it;
+	}
+
+	// a line from the pool, its items from first on
+	static function takeLine(first:Int):Line {
+		if (lineTop == lines.length) lines.push(new Line());
+		var l = lines[lineTop++];
+		l.start = l.end = first;
+		l.cross = 0;
+		return l;
 	}
 
 	// --- helpers ---
@@ -952,22 +1005,33 @@ class Layout {
 	static function hide(n:Node) {
 		n.lx = n.ly = n.lw = n.lh = 0;
 		n.dirty = false;
+		n.relaid = true;
 		for (c in n.children)
 			hide(c);
 	}
 
-	// rounds each box's edges in window coordinates
-	static function round(n:Node, parentAbsX:Float, parentAbsY:Float, parentRoundX:Float, parentRoundY:Float) {
+	// rounds each box's edges in window coordinates (a subtree neither laid
+	// out again nor moved is as it was), then its ink's bounds
+	static function round(n:Node, parentAbsX:Float, parentAbsY:Float, parentRoundX:Float, parentRoundY:Float, scrollers:Null<Array<Node>>) {
 		var ax = parentAbsX + n.lx, ay = parentAbsY + n.ly;
+		if (!n.relaid && ax == n.rawX && ay == n.rawY && n.lw == n.rawW && n.lh == n.rawH) return;
+		n.relaid = false;
+		n.rawX = ax;
+		n.rawY = ay;
+		n.rawW = n.lw;
+		n.rawH = n.lh;
 		var x0 = Math.fround(ax), y0 = Math.fround(ay), x1 = Math.fround(ax + n.lw), y1 = Math.fround(ay + n.lh);
 		@:privateAccess n.setLayout(x0 - parentRoundX, y0 - parentRoundY, x1 - x0, y1 - y0, x0, y0, n.contentWidth, n.contentHeight);
+		if (scrollers != null && n.style.overflow == Scroll) scrollers.push(n);
 		// (scrolled children: the scroll offset moves them when drawn and hit, not here)
 		for (c in n.children)
-			round(c, ax, ay, x0, y0);
+			round(c, ax, ay, x0, y0, scrollers);
+		n.measureInk();
 	}
 
 	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float):Bool {
 		var c = n.cache;
+		if (c == null) return false;
 		var i = 0;
 		while (i < c.length) {
 			if (same(c[i], w) && same(c[i + 1], h) && same(c[i + 2], aw) && same(c[i + 3], ah)) {
@@ -982,6 +1046,7 @@ class Layout {
 
 	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, rw:Float, rh:Float) {
 		var c = n.cache;
+		if (c == null) c = n.cache = [];
 		if (c.length >= CACHE * ENTRY) c.splice(0, ENTRY);
 		c.push(w);
 		c.push(h);
@@ -1015,7 +1080,7 @@ class Layout {
 }
 
 private class Item {
-	public final node:Node;
+	public var node:Null<Node> = null;
 	public var mMainStart = 0.0;
 	public var mMainEnd = 0.0;
 	public var mCrossStart = 0.0;
@@ -1033,8 +1098,16 @@ private class Item {
 	public var frozen = false;
 	public var violation = 0.0;
 
-	public function new(node:Node)
+	public function new() {}
+
+	public function reset(node:Node) {
 		this.node = node;
+		mMainStart = mMainEnd = mCrossStart = mCrossEnd = 0;
+		minMain = maxMain = minCross = maxCross = 0;
+		align = Stretch;
+		styleCross = basis = hypo = main = cross = violation = 0;
+		frozen = false;
+	}
 }
 
 private class GridItem {
@@ -1051,8 +1124,10 @@ private class GridItem {
 		this.node = node;
 }
 
+// items[start...end] (Layout.items)
 private class Line {
-	public final items:Array<Item> = [];
+	public var start = 0;
+	public var end = 0;
 	public var cross = 0.0;
 
 	public function new() {}

@@ -60,12 +60,21 @@ abstract Color(Int) from Int to Int {
 		return c;
 	}
 
+	// (hex digits only; lower case)
+	static function isHex(s:String):Bool {
+		for (i in 0...s.length) {
+			var c = StringTools.fastCodeAt(s, i);
+			if (!(c >= "0".code && c <= "9".code || c >= "a".code && c <= "f".code)) return false;
+		}
+		return true;
+	}
+
 	// as parse, null when it is not one
 	public static function tryParse(s:String):Null<Color> {
 		var v = StringTools.trim(s).toLowerCase();
 		if (v == "transparent") return TRANSPARENT;
 		var hex = v.charAt(0) == "#" ? v.substr(1) : v;
-		if (~/^[0-9a-f]+$/.match(hex) && (hex.length == 3 || hex.length == 4 || hex.length == 6 || hex.length == 8)) {
+		if ((hex.length == 3 || hex.length == 4 || hex.length == 6 || hex.length == 8) && isHex(hex)) {
 			if (hex.length <= 4) {
 				var b = new StringBuf();
 				for (k in 0...hex.length) {

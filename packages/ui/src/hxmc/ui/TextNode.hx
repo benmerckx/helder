@@ -179,6 +179,9 @@ class TextNode extends Node {
 	public function laidOut():Null<Paragraph>
 		return paragraph;
 
+	override public function contentInk():Null<Size>
+		return paragraph == null ? null : {width: paragraph.width, height: paragraph.height};
+
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
 		var text = shownText();
 		if (ui == null || text.length == 0) return;

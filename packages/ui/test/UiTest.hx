@@ -45,6 +45,7 @@ class UiTest {
 		decorations();
 		transforms();
 		sticky();
+		culling();
 		selection();
 		fields();
 		popups();
@@ -327,6 +328,41 @@ class UiTest {
 		ui2.paint(rec2);
 		var order2 = [for (c in rec2.calls) if (c.indexOf("ff00ff00") > 0) "green" else if (c.indexOf("ffff0000") > 0) "red"].filter(x -> x != null);
 		check("absolute: drawn and hit over its in-flow siblings", order2.join(",") == "green,red" && ui2.root.hitTest(10, 10) == abs, order2.join(","));
+	}
+
+	// what a frame leaves out: rows out of a scroller's view not drawn (those
+	// in it all drawn), a clean tree not laid out again, the accessibility
+	// tree kept until something it reads changes
+	static function culling() {
+		var ui = new Ui(new MonoText(), 200, 200);
+		var list = new Node("list");
+		list.style.set({height: 100, overflow: Scroll});
+		for (i in 0...100) {
+			var row = new Node("row" + i);
+			row.style.set({height: 20, shrink: 0, background: Color.rgb(0x010000 * (i + 1))});
+			row.focusable = true;
+			list.append(row);
+		}
+		ui.root.append(list);
+		ui.update();
+		ui.scrollTo(list, 0, 500);
+		var rec = new Recording();
+		ui.paint(rec);
+		var rows = [for (c in rec.calls) if (StringTools.startsWith(c, "rect")) c];
+		var visible = [for (i in 25...30) "ff" + StringTools.hex(i + 1, 2).toLowerCase() + "0000"];
+		check("culling: the rows in view drawn, not the others", rows.length >= 5 && rows.length <= 14 && visible.filter(v -> rows.join("|").indexOf(v) < 0).length == 0,
+			rows.length + " " + rows.join("|"));
+		check("culling: hit in the scrolled view", ui.root.hitTest(10, 30) == list.children[26], "" + ui.root.hitTest(10, 30));
+		var a = ui.accessTree(), b = ui.accessTree();
+		list.children[3].semantics = {label: "third"};
+		var c = ui.accessTree();
+		ui.scrollTo(list, 0, 520);
+		var d = ui.accessTree();
+		check("culling: the accessibility tree kept, built again after a change", a == b && c != b && d != c);
+		var laid = @:privateAccess Layout.run(ui.root, 200, 200, ui.text);
+		list.children[2].style.height = 30;
+		var again = @:privateAccess Layout.run(ui.root, 200, 200, ui.text);
+		check("culling: a clean tree not laid out, a changed one laid out", !laid && again && list.children[3].y == 70, list.children[3].y + "");
 	}
 
 	// an ancestor's decorations over a text: the underline before it, the
