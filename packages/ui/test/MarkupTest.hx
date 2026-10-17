@@ -21,6 +21,7 @@ import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
+import hxmc.ui.widgets.Widgets.Command;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
@@ -89,6 +90,7 @@ class MarkupTest implements Markup {
 		access();
 		popovers();
 		combobox();
+		command();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -219,6 +221,66 @@ class MarkupTest implements Markup {
 		check("combobox: no match, no list", ui.overlay.children.length == 0 && field.semantics.expanded == false);
 		ui.keyDown(Key.ENTER, 0);
 		check("combobox: Enter with none highlighted submits the text", chosen[chosen.length - 1] == "Brusselsx", chosen.join(","));
+	}
+
+	static function command() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var ran = [];
+		Render.render(<view padding={10} align-items="start">
+			<Command tag="cmd" placeholder="Type a command" groups={[
+				{heading: "Suggestions", items: [{label: "Calendar", onSelect: () -> ran.push("calendar")}, {label: "Search Emoji", disabled: true},
+					{label: "Calculator", onSelect: () -> ran.push("calculator")}]},
+				{heading: "Settings", items: [{label: "Profile", shortcut: "Mod+P", onSelect: () -> ran.push("profile")}, {label: "Billing"}]}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		var list = ui.root.find("cmd-list");
+		function items():Array<Node> {
+			var out = [];
+			function walk(n:Node) {
+				if (n.slot == "command-item") out.push(n);
+				for (c in n.children)
+					walk(c);
+			}
+			walk(list);
+			return out;
+		}
+		function shown()
+			return [for (o in items()) (cast o.children[0] : TextNode).text].join(",");
+		function selected()
+			return [for (o in items()) if (o.attr("data-selected") == "true") (cast o.children[0] : TextNode).text].join(",");
+		var separators = 0;
+		function count(n:Node) {
+			if (n.slot == "command-separator") separators++;
+			for (c in n.children)
+				count(c);
+		}
+		count(list);
+		check("command: every item, the first selected, a separator between groups", shown() == "Calendar,Search Emoji,Calculator,Profile,Billing"
+			&& selected() == "Calendar" && separators == 1 && items()[1].attr("data-disabled") == "true", shown() + " / " + selected());
+		var field = ui.root.find("cmd-input");
+		ui.setFocus(field);
+		ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("command: Down skips a disabled item", selected() == "Calculator" && ui.focus == field, selected());
+		for (_ in 0...4)
+			ui.keyDown(Key.DOWN, 0);
+		ui.update();
+		check("command: Down stops at the last", selected() == "Billing", selected());
+		ui.textInput("CAL");
+		ui.update();
+		separators = 0;
+		count(list);
+		check("command: the query filters (either case), hides an empty group and the separators, selects the first", shown() == "Calendar,Calculator"
+			&& selected() == "Calendar" && ui.root.find("cmd-group-1") == null && separators == 0, shown() + " / " + selected());
+		ui.keyDown(Key.DOWN, 0);
+		ui.keyDown(Key.ENTER, 0);
+		check("command: Enter chooses the selected item", ran.join(",") == "calculator", ran.join(","));
+		ui.textInput("zz");
+		ui.update();
+		check("command: nothing matches, the empty text", shown() == "" && ui.root.find("cmd-empty") != null);
+		var t = ui.accessTree(), an = t.nodes.get(t.focus);
+		check("command: a combobox over a listbox to assistive technology", an.role == ComboBox && an.expanded == true);
 	}
 
 	static function toasts() {

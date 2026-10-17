@@ -1011,7 +1011,9 @@ class Ui {
 	static function maxScroll(n:Node, x:Bool):Float {
 		var s = n.style, inset = x ? s.borderEdges.horizontal + s.padding.horizontal : s.borderEdges.vertical + s.padding.vertical;
 		var view = (x ? n.width : n.height) - inset;
-		return Math.max(0, (x ? n.contentWidth : n.contentHeight) - view);
+		// (less than half a pixel over: none, the box being rounded and the content not, as Chromium snaps scrollHeight)
+		var over = (x ? n.contentWidth : n.contentHeight) - view;
+		return over < 0.5 ? 0 : over;
 	}
 
 	// its least offset on the axis: 0, but right to left, sideways, its

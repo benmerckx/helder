@@ -250,7 +250,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
   through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `Sheet` (a dialog along an edge), `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
-  field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
+  field), `Command` (cmdk's: a search field over groups of items, the
+  matches shown, one selected by Up and Down, run by Enter), `Toaster` (`Toasts.show`: messages in a corner for a while, with
   an action); `examples/Gallery.hx` shows them all, unstyled. A
   `UiWindow`'s `Ui.dark` follows the system's appearance
   (`hxmc.os.App.prefersDark`: the browser's colour scheme, macOS's,

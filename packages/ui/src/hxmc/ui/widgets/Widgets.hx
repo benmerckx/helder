@@ -36,6 +36,7 @@ class Widgets implements Markup {
 	static final CHEVRON = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
 	static final X = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>');
 	static final LOADER = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>');
+	static final SEARCH = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>');
 	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
@@ -1842,6 +1843,115 @@ class Widgets implements Markup {
 						onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
 				</scroll>
 			</Popover>
+		</view>;
+	}
+
+	// a command menu (shadcn's, cmdk's): a search field over groups of items,
+	// each a label, what choosing it does and a shortcut (shown); only the
+	// items whose label holds the query (in any case) shown, a group with
+	// none hidden, separators only while the query is empty, empty's text
+	// (default "No results found.") when nothing matches. One item is
+	// selected: the first that can be chosen as the query changes, the one
+	// under the pointer; Up and Down move it (stopping at the ends; Home and
+	// End stay the field's); Enter or a click chooses it. Slots
+	// "command", "command-input-wrapper", "command-input-icon",
+	// "command-input", "command-list", "command-empty", "command-group",
+	// "command-group-heading", "command-item" (data-selected and
+	// data-disabled "true"), "command-shortcut", "command-separator"
+	public static function Command(props:{groups:Array<{?heading:String, items:Array<MenuItem>}>, ?placeholder:String, ?empty:String,
+			?query:Signal<String>, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "command", query = props.query ?? signal("");
+		// (every item, group by group, by its place in all of them)
+		var all:Array<MenuItem> = [], groupOf:Array<Int> = [];
+		for (g => group in props.groups)
+			for (it in group.items) {
+				all.push(it);
+				groupOf.push(g);
+			}
+		var shown = memo(() -> {
+			var q = query.value.toLowerCase();
+			[for (it in all) it.separator == true ? q == "" : it.label.toLowerCase().indexOf(q) >= 0];
+		});
+		var choosable = memo(() -> {
+			var s = shown.value;
+			[for (k in 0...all.length) if (s[k] && all[k].separator != true && all[k].disabled != true) k];
+		});
+		var selected = signal(-1), rows:Array<Node> = [];
+		effect(() -> {
+			var c = choosable.value;
+			selected.value = c.length > 0 ? c[0] : -1;
+		});
+		function select(k:Int) {
+			selected.value = k;
+			if (k >= 0 && rows[k] != null && rows[k].ui != null) rows[k].ui.scrollIntoView(rows[k]);
+		}
+		function choose(k:Int) {
+			if (k < 0 || all[k].disabled == true) return;
+			if (all[k].onSelect != null) all[k].onSelect();
+		}
+		var f = new TextField(query.peek());
+		f.tag = tag + "-input";
+		f.slot = "command-input";
+		f.placeholder = props.placeholder ?? "";
+		f.semantics.role = hxmc.ui.access.Role.ComboBox;
+		f.semantics.label = props.label ?? props.placeholder;
+		f.semantics.expanded = true;
+		effect(() -> f.setText(query.value));
+		f.onChange = s -> query.value = s;
+		f.onSubmit = _ -> choose(selected.peek());
+		var anyShown = () -> {
+			var s = shown.value;
+			for (k in 0...all.length)
+				if (s[k] && all[k].separator != true) return true;
+			return false;
+		};
+		return <view tag={tag} slot="command" onKeyDown={e -> {
+			var c = choosable.peek(), at = c.indexOf(selected.peek());
+			switch e.key {
+				case Key.DOWN if (c.length > 0):
+					e.stop();
+					select(c[at < 0 ? 0 : Std.int(Math.min(at + 1, c.length - 1))]);
+				case Key.UP if (c.length > 0):
+					e.stop();
+					select(c[at <= 0 ? 0 : at - 1]);
+				case _:
+			}
+		}}>
+			<view tag={tag + "-input-wrapper"} slot="command-input-wrapper" direction="row" align-items="center">
+				<image slot="command-input-icon" src={SEARCH} hidden/>
+				{f}
+			</view>
+			<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label}>
+				<Show when={() -> !anyShown()}><view tag={tag + "-empty"} slot="command-empty">{props.empty ?? "No results found."}</view></Show>
+				{[
+					for (g => group in props.groups) {
+						var mine = [for (k in 0...all.length) if (groupOf[k] == g) k];
+						var visible = () -> Lambda.exists(mine, k -> shown.value[k] && all[k].separator != true);
+						[
+							g == 0 ? null : <Show when={() -> query.value == "" && visible()}><view slot="command-separator" hidden/></Show>,
+							<Show when={visible}>
+								<view tag={tag + "-group-" + g} slot="command-group" role="group" label={group.heading}>
+									{group.heading == null ? null : <text slot="command-group-heading" hidden>{group.heading}</text>}
+									{[
+										for (k in mine) {
+											var it = all[k];
+											it.separator == true ? <Show when={() -> shown.value[k]}><view slot="command-separator" hidden/></Show> : <Show when={() -> shown.value[k]}>
+												<view tag={tag + "-item-" + k} slot="command-item" role="option" direction="row" align-items="center"
+													selected={() -> selected.value == k} data-selected={() -> selected.value == k ? "true" : null}
+													data-disabled={it.disabled == true ? "true" : null} disabled={it.disabled == true} ref={n -> rows[k] = n}
+													onPointerEnter={_ -> if (it.disabled != true) selected.value = k} onClick={_ -> choose(k)}>
+													<text grow={1}>{it.label}</text>
+													{it.shortcut == null ? null : <text slot="command-shortcut">{Shortcut.parse(it.shortcut).label()}</text>}
+												</view>
+											</Show>;
+										}
+									]}
+								</view>
+							</Show>
+						];
+					}
+				]}
+			</scroll>
 		</view>;
 	}
 
