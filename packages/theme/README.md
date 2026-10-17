@@ -102,9 +102,9 @@ states (`hover`, `focus-visible`, `data-state=checked`, `aria-invalid=true`,
 
 shadcn's: Button, Input, Checkbox, Switch, Label, Card, Badge, Textarea,
 RadioGroup, Slider, Tabs, Select, DropdownMenu, ContextMenu, Menubar,
-Dialog, Sheet, Popover, HoverCard, Tooltip, Table, Progress, Accordion,
+Dialog, AlertDialog, Sheet, Popover, HoverCard, Tooltip, Table, Progress, Accordion,
 Toggle, ToggleGroup, Separator, Alert, Skeleton, Breadcrumb, Pagination,
-Calendar (react-day-picker's parts as `calendar-<part>`), Command,
+Calendar (react-day-picker's parts as `calendar-<part>`), Command (cmdk's parts),
 Resizable, Avatar, Kbd, Spinner, and sonner's toast (sonner's own
 stylesheet's values written as classes: `toast`, `toast-title`,
 `toast-icon`, and in `ours` `toaster`, `toast-action`, `toast-close`).
@@ -134,9 +134,12 @@ otherwise:
   caption between its buttons, in flow), `calendar` (its month's column)
   and `calendar-day` (react-day-picker's day and day button in one, its
   modifiers as `data-today`, `data-outside`, `data-selected`,
-  `data-focused`); `command-list` (the combobox's popup: shadcn's
-  popover-content and command around it); `pagination-link` (shadcn's
-  `isActive` outline variant as `data-active`); `select-value` (the
+  `data-focused`); `pagination-link` (shadcn's
+  `isActive` outline variant as `data-active`); `command-group-heading`
+  (the group's `[&_[cmdk-group-heading]]:` classes); the rows of a
+  checkbox, a switch and a radio option with their labels
+  (`checkbox-field`, `switch-field`, `radio-group-option`: shadcn's
+  examples' `flex items-center gap-3`, `gap-2`); `select-value` (the
   trigger's `*:data-[slot=select-value]:` classes);
   `dropdown-menu-trigger-icon`; sonner's `toaster`, `toast-action`,
   `toast-close`.
