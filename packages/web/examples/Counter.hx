@@ -1,3 +1,7 @@
+// title: Counter island
+// summary: The smallest JavaScript island: a button counting its clicks, rendered into the page at build time, hydrated by its own 42 KB bundle
+// tags: web, view, island, javascript
+// demo: island
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
 import hxmc.web.*;

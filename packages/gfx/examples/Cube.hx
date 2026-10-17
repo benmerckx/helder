@@ -1,3 +1,7 @@
+// title: Cube
+// summary: A textured cube casting a soft shadow, depth-tested, its matrices a uniform block; drag it to turn it
+// tags: gfx, shaders, 3d, input
+// demo: canvas 512x384
 import CubeShader;
 import haxe.io.Bytes;
 import hxmc.gfx.*;

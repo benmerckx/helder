@@ -1,3 +1,7 @@
+// title: Counter
+// summary: The smallest ui program: a signal, markup bound to it, a button that changes it
+// tags: ui, view, signals
+// demo: canvas 320x200
 import hxmc.view.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.Reactive.*;

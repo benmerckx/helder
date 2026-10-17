@@ -1,3 +1,7 @@
+// title: Todo
+// summary: A todo list in markup: signals, a keyed list, a text field, checkboxes and filters
+// tags: ui, view, widgets, text input
+// demo: canvas 480x560
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;

@@ -90,9 +90,14 @@ class Demo implements Markup {
 
 On the page it is an `<hxmc-island>` carrying its name, props
 (`data-props`), bundle (`data-src`) and when to load it (`data-load`:
-`Visible`, once it scrolls into view; `Idle`; `Eager`, at once). The loader,
-`loader.js` (2.3 KB, 1.2 KB gzipped), loads each bundle once and hydrates
-the island. One bundle may hold several islands; a small island alone (a
+`Visible`, once it scrolls into view; `Idle`; `Eager`, at once; `Click`, on
+the first click or key press inside it). The loader, `loader.js` (3.3 KB,
+1.5 KB gzipped), loads each bundle once and hydrates the island; an island
+that has started gets `data-hydrated` (and an `hxmc:hydrated` event), one
+that failed `data-error` with the message (and `hxmc:error`).
+`Island.url` gives the address written for each file an island loads, from
+its name: a site with pages in folders, or its build in the addresses
+(cache-busting), sets it per page. One bundle may hold several islands; a small island alone (a
 button and a signal, `examples/Counter.hx`) is 42 KB of JavaScript, 9 KB
 gzipped, nearly all of it `@hxmc/view`'s runtime, which a shared bundle
 holds once (the demo's three islands: 61 KB, 13 KB gzipped).
@@ -106,6 +111,13 @@ canvas inside a page):
 	<p>A caption, shown with the canvas.</p>
 </Island.Wasm>
 ```
+
+`fonts` lists font files for `@hxmc/text` (a browser gives a module none);
+`canvas={false}` runs it without a canvas (a sound, with `load={Click}`:
+browsers start audio only after one). Once it runs, its element's
+`data-gfx` names the graphics API it draws with. `hxmcWasmOptions[id]`, set
+by a page or a test before the island loads, adds to the runner's options
+(`args`, `gfx`). The project's site (`site/`) is built this way.
 
 ## JavaScript calling WebAssembly
 

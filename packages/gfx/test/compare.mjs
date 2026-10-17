@@ -1,5 +1,5 @@
 // GfxTest's comparison (GfxTest.hx: compare) in JavaScript, for the WebGPU
-// and WebGL2 tests in a browser (web.mjs, hxmc/web/tools/browser-test.mjs):
+// and WebGL2 tests in a browser (web.mjs, site/tools/browser-test.mjs):
 // a pixel matches when no channel differs by more than TOLERANCE, and at
 // most MAX_OFF of the pixels may differ by more (the edges); the centre
 // must not be the clear colour, a corner must be (probe [x, y, 'contrast']:

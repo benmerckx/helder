@@ -1,3 +1,7 @@
+// title: Triangle
+// summary: A coloured triangle: a vertex buffer, a pipeline and shaders written in Haxe, compiled to WGSL, GLSL, MSL and HLSL
+// tags: gfx, shaders
+// demo: canvas 512x384
 import hxmc.gfx.*;
 import hxmc.gfx.shader.ShaderMath.*;
 import hxmc.os.*;
@@ -9,7 +13,7 @@ import hxmc.os.*;
 //
 // (macOS and Windows: without -D hxmc.libc=glibc; the browser: -D
 // hxmc.target=wasm32-wasi, run by packages/os/browser.mjs with the packages'
-// imports.mjs, as on hxmc/web.) The shaders are Haxe (TriangleShader.hx),
+// imports.mjs, as on the site's examples page.) The shaders are Haxe (TriangleShader.hx),
 // compiled by the shader macro into the target's shader languages. The
 // tests (packages/gfx/test) draw the same frames headless and in a window
 // (Xvfb on Linux, a canvas in headless Chromium).
