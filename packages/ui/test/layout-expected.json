@@ -567,6 +567,33 @@
 		[0, 0, 200, 20],
 		[200, 0, 100, 20]
 	],
+	"padding and border floor a small box": [
+		[0, 0, 200, 100],
+		[0, 0, 14, 14],
+		[0, 14, 6, 4]
+	],
+	"absolute box by its bottom: its content height": [
+		[0, 0, 200, 100],
+		[0, 0, 200, 20],
+		[5, 6, 30, 10],
+		[5, 6, 30, 10]
+	],
+	"flex base size before min-height": [
+		[0, 0, 300, 150],
+		[0, 0, 10, 77]
+	],
+	"column item across: fit-content": [
+		[0, 0, 200, 100],
+		[0, 0, 40, 40],
+		[-10, 3, 60, 10],
+		[-10, 3, 60, 10]
+	],
+	"row intrinsic width without flex-basis": [
+		[0, 0, 300, 100],
+		[0, 0, 130, 30],
+		[0, 0, 80, 30],
+		[87, 3, 40, 24]
+	],
 	"grid clipped wide item in fr": [
 		[0, 0, 300, 100],
 		[0, 0, 50, 20],

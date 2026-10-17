@@ -106,6 +106,14 @@ export const cases = [
 	{ name: 'grid min content in a row', width: 300, height: 100, tree: { style: { direction: 'Row' }, children: [{ style: { display: 'Grid', gridTemplateColumns: 'auto auto', columnGap: 10 }, children: [box(80, 20), box(60, 20)] }, box(250, 20)] } },
 	{ name: 'grid auto rows minmax', width: 300, height: 300, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', gridAutoRows: 'minmax(40px, auto)', alignContent: 'Start' }, children: [h(20), h(60), h(10)] } },
 	{ name: 'grid wide item in fr', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '1fr 1fr', alignContent: 'Start' }, children: [{ children: [box(200, 20)] }, h(20)] } },
+	// found by random trees against Chromium: a border box no smaller than its padding and border; an absolute box's auto height is
+	// its content's; the flex base size not clamped by min-height; a column's item across fit-content; a row's intrinsic width from
+	// its items' max-content contributions, flex-basis left out
+	{ name: 'padding and border floor a small box', width: 200, height: 100, tree: { style: { alignItems: 'Start' }, children: [box(10, 10, { padding: 4, borderWidth: 3 }), box(4, 4, { padding: [1, 2, 3, 4] })] } },
+	{ name: 'absolute box by its bottom: its content height', width: 200, height: 100, tree: { children: [{ style: { height: 20 }, children: [{ style: { position: 'Absolute', bottom: 4, left: 5 }, children: [box(30, 10, { grow: 1 })] }] }] } },
+	{ name: 'flex base size before min-height', width: 300, height: 150, tree: { children: [{ style: { grow: 0.5, width: 10, minHeight: 20, padding: [1, 2, 3, 4] } }] } },
+	{ name: 'column item across: fit-content', width: 200, height: 100, tree: { children: [{ style: { alignItems: 'Center', width: 40, height: 40 }, children: [{ style: { direction: 'Row', margin: 3 }, children: [box(60, 10)] }] }] } },
+	{ name: 'row intrinsic width without flex-basis', width: 300, height: 100, tree: { style: { alignItems: 'Start' }, children: [{ style: { direction: 'Row', columnGap: 4 }, children: [box(100, 30), { style: { basis: 50, minWidth: 20, margin: 3 } }] }] } },
 	// a scroll container's automatic minimum is 0 (its padding and border): a wide one does not widen its fr or auto track
 	{ name: 'grid clipped wide item in fr', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '50px 1fr 40px', alignContent: 'Start' }, children: [h(20), { style: { overflow: 'Hidden', padding: [0, 6] }, children: [box(400, 20)] }, h(20)] } },
 	{ name: 'grid clipped item in an auto track', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: 'auto 1fr', alignContent: 'Start' }, children: [{ style: { overflow: 'Hidden' }, children: [box(400, 20)] }, h(20)] } },

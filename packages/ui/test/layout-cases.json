@@ -2782,6 +2782,157 @@
 		}
 	},
 	{
+		"name": "padding and border floor a small box",
+		"width": 200,
+		"height": 100,
+		"tree": {
+			"style": {
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"width": 10,
+						"height": 10,
+						"padding": 4,
+						"borderWidth": 3
+					}
+				},
+				{
+					"style": {
+						"width": 4,
+						"height": 4,
+						"padding": [
+							1,
+							2,
+							3,
+							4
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "absolute box by its bottom: its content height",
+		"width": 200,
+		"height": 100,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"height": 20
+					},
+					"children": [
+						{
+							"style": {
+								"position": "Absolute",
+								"bottom": 4,
+								"left": 5
+							},
+							"children": [
+								{
+									"style": {
+										"width": 30,
+										"height": 10,
+										"grow": 1
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "flex base size before min-height",
+		"width": 300,
+		"height": 150,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"grow": 0.5,
+						"width": 10,
+						"minHeight": 20,
+						"padding": [
+							1,
+							2,
+							3,
+							4
+						]
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "column item across: fit-content",
+		"width": 200,
+		"height": 100,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"alignItems": "Center",
+						"width": 40,
+						"height": 40
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "Row",
+								"margin": 3
+							},
+							"children": [
+								{
+									"style": {
+										"width": 60,
+										"height": 10
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "row intrinsic width without flex-basis",
+		"width": 300,
+		"height": 100,
+		"tree": {
+			"style": {
+				"alignItems": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"columnGap": 4
+					},
+					"children": [
+						{
+							"style": {
+								"width": 100,
+								"height": 30
+							}
+						},
+						{
+							"style": {
+								"basis": 50,
+								"minWidth": 20,
+								"margin": 3
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "grid clipped wide item in fr",
 		"width": 300,
 		"height": 100,

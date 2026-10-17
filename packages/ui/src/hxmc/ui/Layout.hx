@@ -26,8 +26,10 @@ class Layout {
 	// the last size() result
 	var rw = 0.0;
 	var rh = 0.0;
-	// (false: the next size() measures its node's content, its own height and min-height left out)
-	var ownHeight = true;
+	// (true: the next size() measures its node's content on that axis, its own
+	// size, min and max left out: CSS's flex base size and content size suggestion)
+	var bareW = false;
+	var bareH = false;
 	// flex items and lines, kept from layout to layout: a container's are
 	// taken from the top and given back when it is done (its children's
 	// taken above them meanwhile)
@@ -69,17 +71,20 @@ class Layout {
 			return;
 		}
 		// the style's own size, clamped
-		var own = ownHeight;
-		ownHeight = true;
-		var minW = min(s.minWidth, parentW), maxW = max(s.maxWidth, parentW);
-		var minH = own ? min(s.minHeight, parentH) : 0.0, maxH = max(s.maxHeight, parentH);
-		var w = known(knownW) ? knownW : clamp(s.width.resolve(parentW), minW, maxW);
-		var h = known(knownH) ? knownH : own ? clamp(s.height.resolve(parentH), minH, maxH) : Math.NaN;
+		var bw = bareW, bh = bareH, own = !bw && !bh;
+		bareW = bareH = false;
+		var minW = Math.max(bw ? 0.0 : min(s.minWidth, parentW), edgesH(s)), maxW = bw ? Math.POSITIVE_INFINITY : max(s.maxWidth, parentW);
+		var minH = Math.max(bh ? 0.0 : min(s.minHeight, parentH), edgesV(s)), maxH = bh ? Math.POSITIVE_INFINITY : max(s.maxHeight, parentH);
+		var w = known(knownW) ? knownW : bw ? Math.NaN : clamp(s.width.resolve(parentW), minW, maxW);
+		var h = known(knownH) ? knownH : bh ? Math.NaN : clamp(s.height.resolve(parentH), minH, maxH);
 		var ar = s.aspectRatio;
 		if (ar > 0) {
 			if (!known(w) && known(h)) w = clamp(h * ar, minW, maxW);
 			else if (known(w) && !known(h)) h = clamp(w / ar, minH, maxH);
 		}
+		// (a border box is never smaller than its padding and border, the size given it included)
+		if (w < minW) w = minW;
+		if (h < minH) h = minH;
 		if (!perform && known(w) && known(h)) {
 			rw = w;
 			rh = h;
@@ -111,7 +116,7 @@ class Layout {
 			}
 		} else if (s.display == Grid) grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
 		else flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
-		if (!perform) store(n, w, h, availW, availH, rw, rh);
+		if (!perform && own) store(n, w, h, availW, availH, rw, rh);
 	}
 
 	// --- a flex container ---
@@ -156,9 +161,9 @@ class Layout {
 			it.mMainEnd = row ? (flipMain ? m.left : m.right) : (flipMain ? m.top : m.bottom);
 			it.mCrossStart = row ? m.top : (flipCross ? m.right : m.left);
 			it.mCrossEnd = row ? m.bottom : (flipCross ? m.left : m.right);
-			it.minMain = min(row ? cs.minWidth : cs.minHeight, innerMain);
+			it.minMain = Math.max(min(row ? cs.minWidth : cs.minHeight, innerMain), row ? edgesH(cs) : edgesV(cs));
 			it.maxMain = max(row ? cs.maxWidth : cs.maxHeight, innerMain);
-			it.minCross = min(row ? cs.minHeight : cs.minWidth, innerCross);
+			it.minCross = Math.max(min(row ? cs.minHeight : cs.minWidth, innerCross), row ? edgesV(cs) : edgesH(cs));
 			it.maxCross = max(row ? cs.maxHeight : cs.maxWidth, innerCross);
 			it.align = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (it.align == Auto) it.align = Stretch;
@@ -173,6 +178,8 @@ class Layout {
 				if (!known(kc) && it.align == Stretch && !multi && known(innerCross)) kc = Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd);
 				var am = known(availMain) ? Math.max(0, availMain - it.mMainStart - it.mMainEnd) : Math.NaN;
 				var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
+				// (the base size: not clamped by its own min or max, which the hypothetical size is)
+				if (row) bareW = true else bareH = true;
 				if (row) size(c, Math.NaN, kc, innerW, innerH, am, ac, false) else size(c, kc, Math.NaN, innerW, innerH, ac, am, false);
 				b = row ? rw : rh;
 			}
@@ -185,13 +192,13 @@ class Layout {
 					if (!known(kc) && it.align == Stretch && !multi && known(innerCross)) kc = Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd);
 					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 					// (its content's height: not its own, CSS's content size suggestion)
-					ownHeight = false;
+					bareH = true;
 					size(c, kc, Math.NaN, innerW, innerH, ac, Math.NaN, false);
 					content = rh;
 				}
 				var spec = (row ? cs.width : cs.height).resolve(innerMain);
 				if (known(spec) && spec < content) content = spec;
-				it.minMain = Math.min(content, it.maxMain);
+				it.minMain = Math.max(Math.min(content, it.maxMain), row ? edgesH(cs) : edgesV(cs));
 			}
 			it.hypo = clamp(b, it.minMain, it.maxMain);
 		}
@@ -219,7 +226,7 @@ class Layout {
 				var l = lines[k], t = 0.0;
 				for (i in l.start...l.end) {
 					var it = items[i];
-					t += it.hypo + it.mMainStart + it.mMainEnd + (i > l.start ? gapMain : 0);
+					t += contribution(it, row, innerW, innerH) + it.mMainStart + it.mMainEnd + (i > l.start ? gapMain : 0);
 				}
 				if (t > content) content = t;
 			}
@@ -240,7 +247,8 @@ class Layout {
 					if (it.align == Stretch && !multi && known(innerCross)) it.cross = clamp(ac, it.minCross, it.maxCross) else {
 						if (row) size(it.node, it.main, Math.NaN, innerW, innerH, it.main, ac, false) else size(it.node, Math.NaN, it.main, innerW, innerH, ac,
 							it.main, false);
-						it.cross = clamp(row ? rh : rw, it.minCross, it.maxCross);
+						// (a column's item across: fit-content, its min-content when the room is less)
+						it.cross = clamp(row ? rh : Math.max(rw, minContentWidth(it.node, innerW, false)), it.minCross, it.maxCross);
 					}
 				}
 				var oc = it.cross + it.mCrossStart + it.mCrossEnd;
@@ -462,7 +470,8 @@ class Layout {
 			if (jx == Auto) jx = Stretch;
 			var jy = cs.alignSelf == Auto ? s.alignItems : cs.alignSelf;
 			if (jy == Auto) jy = Stretch;
-			var minCW = min(cs.minWidth, width), maxCW = max(cs.maxWidth, width), minCH = min(cs.minHeight, height), maxCH = max(cs.maxHeight, height);
+			var minCW = Math.max(min(cs.minWidth, width), edgesH(cs)), maxCW = max(cs.maxWidth, width);
+			var minCH = Math.max(min(cs.minHeight, height), edgesV(cs)), maxCH = max(cs.maxHeight, height);
 			var iw = clamp(cs.width.resolve(width), minCW, maxCW), ih = clamp(cs.height.resolve(height), minCH, maxCH);
 			var roomW = Math.max(0, aw - m.left - m.right), roomH = Math.max(0, ah - m.top - m.bottom);
 			if (!known(iw)) {
@@ -910,10 +919,11 @@ class Layout {
 			var aw = cs.width.resolve(pbW), ah = cs.height.resolve(pbH);
 			if (!known(aw) && known(l) && known(r)) aw = Math.max(0, pbW - l - r - m.left - m.right);
 			if (!known(ah) && known(t) && known(b)) ah = Math.max(0, pbH - t - b - m.top - m.bottom);
-			aw = clamp(aw, min(cs.minWidth, pbW), max(cs.maxWidth, pbW));
-			ah = clamp(ah, min(cs.minHeight, pbH), max(cs.maxHeight, pbH));
+			aw = clamp(aw, Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
+			ah = clamp(ah, Math.max(min(cs.minHeight, pbH), edgesV(cs)), max(cs.maxHeight, pbH));
 			if (!known(aw) || !known(ah)) {
-				size(c, aw, ah, pbW, pbH, known(aw) ? aw : pbW, known(ah) ? ah : pbH, false);
+				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit the containing block)
+				size(c, aw, ah, pbW, pbH, known(aw) ? aw : pbW, known(ah) ? ah : Math.NaN, false);
 				aw = rw;
 				ah = rh;
 			}
@@ -961,6 +971,21 @@ class Layout {
 	}
 
 	// CSS 9.7: the items' main sizes in a line of the container's main size
+	// an item's size along a container's indefinite main axis: its
+	// hypothetical size, except that a row's items give their max-content
+	// contribution (their width or their content, within their min and max:
+	// a flex-basis set is not part of it, as Chromium sizes rows)
+	function contribution(it:Item, row:Bool, innerW:Float, innerH:Float):Float {
+		var cs = it.node.style;
+		if (!row || !known(cs.basis.resolve(innerW))) return it.hypo;
+		var w = cs.width.resolve(innerW);
+		if (!known(w)) {
+			size(it.node, Math.NaN, known(it.styleCross) ? it.styleCross : Math.NaN, innerW, innerH, Math.NaN, Math.NaN, false);
+			w = rw;
+		}
+		return clamp(w, it.minMain, it.maxMain);
+	}
+
 	static function resolveFlexible(l:Line, mainSize:Float, gap:Float) {
 		var start = l.start, end = l.end;
 		var gaps = gap * (end - start - 1);
@@ -1122,6 +1147,13 @@ class Layout {
 	// NaN stays NaN
 	static inline function clamp(v:Float, lo:Float, hi:Float):Float
 		return Math.isNaN(v) ? v : v > hi ? (hi < lo ? lo : hi) : v < lo ? lo : v;
+
+	// a box's padding and border across and down: the least its border box can be
+	static inline function edgesH(s:Style):Float
+		return s.padding.left + s.padding.right + s.borderEdges.left + s.borderEdges.right;
+
+	static inline function edgesV(s:Style):Float
+		return s.padding.top + s.padding.bottom + s.borderEdges.top + s.borderEdges.bottom;
 
 	// a min length: 0 when auto or unknown
 	static inline function min(d:Dim, base:Float):Float {
