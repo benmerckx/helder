@@ -14,7 +14,7 @@ import hxmc.ui.reactive.*;
 //   GalleryTest <golden.png> <out.png> [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 840;
+	static inline var H = 960;
 	static var failed = 0;
 	static var checks = 0;
 
@@ -97,7 +97,19 @@ class GalleryTest {
 		}
 		ui.update();
 		check("the field", app.name.value == "Ada" && shown("greeting") == "Hello, Ada!", shown("greeting"));
-		// Tab from the field: no further focusable node, back to the first (the
+		click("notes");
+		for (c in new haxe.iterators.StringIteratorUnicode("One")) {
+			ui.keyDown(c, 0);
+			ui.textInput(String.fromCharCode(c));
+		}
+		key(Key.ENTER);
+		for (c in new haxe.iterators.StringIteratorUnicode("Two, on a line long enough to wrap in the area")) {
+			ui.keyDown(c, 0);
+			ui.textInput(String.fromCharCode(c));
+		}
+		ui.update();
+		check("the area", StringTools.startsWith(app.notes.value, "One\nTwo") && shown("lines") == "2 lines", shown("lines"));
+		// Tab from the area: no further focusable node, back to the first (the
 		// Plain button), its focus ring shown
 		key(Key.TAB);
 		check("Tab wraps to the first button", ui.focus == find("plain") && ui.focusVisible);

@@ -135,6 +135,18 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a text area bound to a signal (two ways), rows lines high (3)
+	public static function Area(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?tag:String}):Node {
+		var f = new TextArea(props.value.peek());
+		if (props.tag != null) f.tag = props.tag;
+		f.rows = props.rows ?? 3;
+		f.placeholder = props.placeholder ?? "";
+		f.style.set({padding: [6, 8], borderWidth: 1, borderColor: Color.rgb(0xA1A1AA), radius: 6, background: Color.WHITE});
+		f.onChange = s -> props.value.value = s;
+		effect(() -> f.setText(props.value.value));
+		return f;
+	}
+
 	// a text field bound to a signal (two ways)
 	public static function Field(props:{value:Signal<String>, ?placeholder:String, ?onSubmit:String->Void, ?tag:String}):Node {
 		var f = new TextField(props.value.peek());

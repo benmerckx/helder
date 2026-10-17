@@ -1,6 +1,7 @@
 import hxmc.ui.*;
 import hxmc.ui.DimValue;
 import hxmc.ui.widgets.TextField;
+import hxmc.ui.widgets.TextArea;
 
 // hxmc.ui's tests, on Eval (make ui-check):
 //
@@ -13,7 +14,8 @@ import hxmc.ui.widgets.TextField;
 //   the wheel scrolling an Overflow Scroll node, relayout after changes
 // - paint: what Ui draws on a Canvas, in order (shadows under backgrounds,
 //   rounded clips inside borders), and Shadow.parse
-// - fields: TextField's editing and the clipboard (copy, cut, paste)
+// - fields: TextField's editing and the clipboard (copy, cut, paste);
+//   TextArea's lines (wrapping, Enter, Up and Down, Home and End, scrolling)
 // - images: png/*.png decoded (every colour type and depth, tRNS, the
 //   filters, Adam7; png-cases.mjs writes them and the pixels expected)
 class UiTest {
@@ -93,6 +95,46 @@ class UiTest {
 		check("fields: a paste waits for the text", f.text == "two lines " && later.length == 1);
 		later[0]("later");
 		check("fields: then types it", f.text == "two lines later", f.text);
+		// a text area: 100 wide, 20 characters a line (MonoText at 10: 5 each, lines of 12.5)
+		var ui = new Ui(new MonoText(), 300, 200);
+		ui.root.style.fontSize = 10;
+		ui.root.style.alignItems = Start;
+		var a = new TextArea("");
+		a.style.width = 100;
+		a.rows = 2;
+		ui.root.append(a);
+		ui.update();
+		check("area: rows high", a.height == 25 && a.width == 100, '${a.width}x${a.height}');
+		ui.setFocus(a);
+		function typeIn(t:String)
+			for (c in new haxe.iterators.StringIteratorUnicode(t)) {
+				ui.keyDown(c, 0);
+				ui.textInput(String.fromCharCode(c));
+			}
+		typeIn("first line");
+		ui.keyDown(Key.ENTER, 0);
+		typeIn("second");
+		check("area: Enter types a line", a.text == "first line\nsecond" && a.caret == 17, a.text);
+		ui.keyDown(Key.UP, 0);
+		check("area: Up keeps the column", a.caret == 6, '${a.caret}');
+		ui.keyDown(Key.END, 0);
+		check("area: End of the line", a.caret == 10, '${a.caret}');
+		ui.keyDown(Key.DOWN, 0);
+		check("area: Down to a shorter line: its end", a.caret == 17, '${a.caret}');
+		ui.keyDown(Key.HOME, 0);
+		check("area: Home of the line", a.caret == 11, '${a.caret}');
+		ui.keyDown(Key.UP, Key.MOD_SHIFT);
+		check("area: Shift+Up selects", a.selectionStart == 0 && a.selectionEnd == 11, '${a.selectionStart}-${a.selectionEnd}');
+		ui.keyDown(Key.END, Key.MOD_CONTROL);
+		typeIn(" and a third line that wraps");
+		ui.update();
+		var c = new Recording();
+		ui.paint(c);
+		check("area: wrapped and scrolled to the caret (three lines in two)", c.calls.filter(s -> StringTools.startsWith(s, "text")).join("") == "text 0 -12.5 100", c.calls.join("|"));
+		var clip:ClipboardHost.MemoryClipboard = cast ui.clipboard;
+		clip.text = "x\ny";
+		ui.keyDown("v".code, Key.MOD_CONTROL);
+		check("area: a paste keeps its lines", StringTools.endsWith(a.text, "wrapsx\ny"), a.text);
 	}
 
 	// --- images ---

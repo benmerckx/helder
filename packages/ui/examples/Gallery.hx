@@ -8,7 +8,8 @@ import hxmc.ui.widgets.Widgets.*;
 
 // hxmc.ui's widgets side by side, bound to signals that other widgets show:
 // buttons, a checkbox and a switch, radio buttons, a slider driving a
-// progress bar, tabs, a text field, images fitted three ways. In a window:
+// progress bar, tabs, images fitted three ways, a text field and a text
+// area. In a window:
 //
 //   haxe -lib hxmc.ui -cp packages/ui/examples -main Gallery --custom-target hxmc=gallery -D hxmc.libc=glibc
 //
@@ -27,6 +28,7 @@ class Gallery implements Markup {
 	public final volume = signal(0.4);
 	public final tab = signal(0);
 	public final name = signal("");
+	public final notes = signal("");
 	final picture = landscape(120, 60);
 
 	public function new() {}
@@ -110,9 +112,11 @@ class Gallery implements Markup {
 				<image tag="cover" src={picture} fit="cover" width={110} height={70} radius={8}/>
 				<image tag="natural" src={picture} radius={30}/>
 			</view>)}
-			{section("FIELD", <view row-gap={6}>
+			{section("FIELD AND AREA", <view row-gap={6}>
 				<Field tag="name" value={name} placeholder="Your name"/>
 				<text tag="greeting" color="#52525b">{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
+				<Area tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
+				<text tag="lines" color="#52525b">{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
 		</scroll>;
 }

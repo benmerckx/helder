@@ -77,8 +77,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   drawing while anything moves; `Clock.finish()` ends every animation, for
   tests); the widgets' colours and the switch's knob use them.
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing),
-  and the components `Button`, `Checkbox`, `Switch`, `Radio`, `Slider`,
-  `Progress`, `Tabs`, `Field`; `examples/Gallery.hx` shows them all.
+  `TextArea` (lines: wrapping, Up and Down, scrolling; both on
+  `EditableText`), and the components `Button`, `Checkbox`, `Switch`, `Radio`, `Slider`,
+  `Progress`, `Tabs`, `Field`, `Area`; `examples/Gallery.hx` shows them all.
 
 ## Markup
 
