@@ -26,6 +26,8 @@ enum abstract Role(Int) to Int {
 	var Heading;
 	var Link;
 	var Dialog;
+	// a dialog asking to confirm or cancel (ARIA's alertdialog)
+	var AlertDialog;
 	var Menu;
 	var MenuItem;
 	var ListBox;
@@ -74,6 +76,7 @@ enum abstract Role(Int) to Int {
 			case Heading: "heading";
 			case Link: "link";
 			case Dialog: "dialog";
+			case AlertDialog: "alertdialog";
 			case Menu: "menu";
 			case MenuItem: "menuitem";
 			case ListBox: "listbox";

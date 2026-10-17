@@ -876,11 +876,11 @@ class Ui {
 			if (p == null) continue;
 			if (target != null && target != p && contains(p, target)) break;
 			if (p.modal) {
-				if (target == p && p.onDismiss != null) p.onDismiss();
+				if (target == p && p.onDismiss != null && p.dismissOnOutside) p.onDismiss();
 				break;
 			}
 			if (target != null && p.anchor != null && contains(p.anchor, target)) break;
-			if (p.onDismiss != null) p.onDismiss();
+			if (p.onDismiss != null && p.dismissOnOutside) p.onDismiss();
 		}
 	}
 

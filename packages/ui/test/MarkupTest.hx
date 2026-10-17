@@ -22,6 +22,7 @@ import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.Select;
 import hxmc.ui.widgets.Widgets.Combobox;
 import hxmc.ui.widgets.Widgets.Command;
+import hxmc.ui.widgets.Widgets.AlertDialog;
 import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
@@ -1591,7 +1592,7 @@ class MarkupTest implements Markup {
 
 	static function unstyledExtras() {
 		var ui = new Ui(new MonoText(), 400, 300);
-		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null);
+		var sheet = signal(false), pop = signal(false), pic:Signal<Null<Image>> = signal(null), confirm = signal(false), outcome = [];
 		Render.render(<view align-items="start" row-gap={4} padding={10}>
 			<Button tag="before" label="Before"/>
 			<PopoverButton tag="pop" label="Settings" open={pop}><Input tag="pop-field" value={signal("")}/></PopoverButton>
@@ -1600,6 +1601,8 @@ class MarkupTest implements Markup {
 			<Kbd text="Ctrl K"/>
 			<Spinner tag="spin"/>
 			<Sheet open={sheet} title="Edit" description="Make changes" side="left"><Button tag="save" label="Save"/></Sheet>
+			<AlertDialog tag="sure" open={confirm} title="Delete it?" description="This cannot be undone." action="Delete" variant="destructive"
+				onAction={() -> outcome.push("deleted")} onCancel={() -> outcome.push("kept")}/>
 		</view>, ui.root);
 		ui.update();
 		var p = ui.root.find("pop");
@@ -1646,6 +1649,25 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("unstyled: Escape closes the sheet", !sheet.value);
+		confirm.value = true;
+		ui.update();
+		var cancel = ui.overlay.find("sure-cancel"), act = ui.overlay.find("sure-action");
+		check("alert dialog: an alertdialog, Cancel focused first, the action destructive", cancel != null && ui.focus == cancel
+			&& cancel.parent.parent.semantics.role == hxmc.ui.access.Role.AlertDialog && act.variant == "destructive"
+			&& cancel.parent.parent.parent.slot == "alert-dialog-overlay");
+		ui.pointerDown(395, 295, 1);
+		ui.pointerUp(395, 295, 1);
+		ui.update();
+		check("alert dialog: a click outside leaves it open", confirm.value && outcome.length == 0);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("alert dialog: Escape cancels", !confirm.value && outcome.join(",") == "kept", outcome.join(","));
+		confirm.value = true;
+		ui.update();
+		ui.setFocus(ui.overlay.find("sure-action"));
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("alert dialog: the action runs and closes it", !confirm.value && outcome.join(",") == "kept,deleted", outcome.join(","));
 	}
 
 	static function table() {

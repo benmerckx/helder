@@ -1646,6 +1646,47 @@ class Widgets implements Markup {
 	public static function DialogFooter(props:{?children:View, ?tag:String}):View
 		return <view tag={props.tag ?? "dialog-footer"} slot="dialog-footer">{props.children}</view>;
 
+	// an alert dialog (shadcn's): a modal asking to confirm while open is
+	// true: its title and description, the children, then the cancel and
+	// action buttons (labels cancel, default "Cancel", and action, default
+	// "Continue"; the action's variant default "default", "destructive" for
+	// a deletion), the cancel button focused first. Cancel or Escape closes
+	// it (onCancel), the action closes it and runs onAction; a click outside
+	// does nothing. Slots "alert-dialog-overlay", "alert-dialog-content",
+	// "alert-dialog-header", "alert-dialog-title", "alert-dialog-description",
+	// "alert-dialog-footer"; the buttons "button"s
+	public static function AlertDialog(props:{open:Signal<Bool>, title:String, ?description:String, ?cancel:String, ?action:String,
+			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):Any {
+		var tag = props.tag ?? "alert-dialog";
+		function cancel() {
+			props.open.value = false;
+			if (props.onCancel != null) props.onCancel();
+		}
+		function act() {
+			props.open.value = false;
+			if (props.onAction != null) props.onAction();
+		}
+		return Popover({
+			open: props.open,
+			modal: true,
+			slot: "alert-dialog-overlay",
+			onDismiss: cancel,
+			dismissOnOutside: false,
+			tag: tag,
+			children: <view slot="alert-dialog-content" data-state="open" role="alertdialog" label={props.title} width={props.width ?? 360}>
+				<view slot="alert-dialog-header">
+					<text slot="alert-dialog-title" role="heading">{props.title}</text>
+					{props.description == null ? null : <text slot="alert-dialog-description">{props.description}</text>}
+				</view>
+				{props.children}
+				<view slot="alert-dialog-footer" direction="row">
+					<Button tag={tag + "-cancel"} label={props.cancel ?? "Cancel"} variant="outline" onClick={cancel}/>
+					<Button tag={tag + "-action"} label={props.action ?? "Continue"} variant={props.variant ?? "default"} onClick={act}/>
+				</view>
+			</view>
+		});
+	}
+
 	// a sheet (shadcn's): a dialog along an edge of the window (side
 	// "right", the default, "left", "top" or "bottom"), its title,
 	// description and the children, a close button (close: false, none);
