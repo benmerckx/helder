@@ -86,6 +86,9 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     size, checked against Chromium's pixels on 30 cases. An `ImageNode`'s
     `svg` (markup: `src={svg}`) is drawn at the window's pixel size in the
     node's colour. Not drawn: text, images, patterns, masks, filters, markers.
+  - A `TextNode` that is `selectable` takes a selection from the pointer (a
+    drag, a double click: a word, a triple: all), painted under its text
+    (`Ui.textSelection`, `Ui.selectionColor`) and copied by Mod+C.
   - `Ui` dispatches pointer, wheel, key and text events to nodes (bubbling
     to ancestors), tracks hover and press, moves the focus (click, Tab,
     Shift+Tab; a ring shows when the keyboard moved it) and scrolls

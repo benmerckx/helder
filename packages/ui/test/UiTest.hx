@@ -43,6 +43,7 @@ class UiTest {
 		svgApi();
 		css(here);
 		decorations();
+		selection();
 		fields();
 		popups();
 		shortcuts();
@@ -215,6 +216,59 @@ class UiTest {
 		ui.update();
 		check("decorations: an ancestor's, around the text, aligned, in its colour",
 			calls.join("|") == "rect 40 11.25 20 1 0|text 0 0 100|rect 40 6.25 20 1 0" && rec.calls.filter(c -> c.indexOf("ffaa0000") >= 0).length == 2, calls.join("|"));
+	}
+
+	// selectable text: a drag, a double click, a triple, copied, dropped
+	static function selection() {
+		var ui = new Ui(new MonoText(), 300, 100);
+		ui.root.style.fontSize = 10;
+		ui.root.style.alignItems = Start;
+		var t = new TextNode("hello world foo");
+		t.selectable = true;
+		ui.root.append(t);
+		var other = new Node("other");
+		other.style.set({width: 50, height: 20});
+		ui.root.append(other);
+		ui.update();
+		var time = 0.0;
+		Ui.now = () -> time;
+		// (MonoText at 10: 5 pixels a character, the line 12.5 high)
+		ui.pointerDown(t.absX + 1, t.absY + 5, 1);
+		ui.pointerMove(t.absX + 26, t.absY + 5);
+		ui.pointerUp(t.absX + 26, t.absY + 5, 1);
+		check("selection: a drag selects", ui.selectedText() == "hello" && t.style.cursor == Text, ui.selectedText());
+		var rec = new Recording();
+		ui.paint(rec);
+		var calls = [for (c in rec.calls) if (StringTools.startsWith(c, "rect") || StringTools.startsWith(c, "text")) c.split(" ").slice(0, 5).join(" ")];
+		check("selection: painted under the text", calls.join("|") == "rect 0 0 25 12.5|text 0 0 75", calls.join("|"));
+		ui.keyDown("c".code, Key.MOD_CONTROL);
+		var copied:Null<String> = null;
+		ui.clipboard.read(s -> copied = s);
+		check("selection: Control+C copies it", copied == "hello", copied);
+		time = 10;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		time = 10.2;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		check("selection: a double click, the word", ui.selectedText() == "world", ui.selectedText());
+		time = 10.4;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		check("selection: a triple click, all of it", ui.selectedText() == "hello world foo", ui.selectedText());
+		time = 20;
+		ui.pointerDown(other.absX + 5, other.absY + 5, 1);
+		check("selection: a press elsewhere drops it", ui.textSelection == null);
+		// (centred in 300: the line of 75 starts at 112.5)
+		t.style.width = 300;
+		t.style.textAlign = Center;
+		ui.update();
+		time = 30;
+		ui.pointerDown(t.absX + 113, t.absY + 5, 1);
+		ui.pointerMove(t.absX + 113 + 25, t.absY + 5);
+		ui.pointerUp(t.absX + 113 + 25, t.absY + 5, 1);
+		check("selection: on a centred line", ui.selectedText() == "hello", ui.selectedText());
+		Ui.now = haxe.Timer.stamp;
 	}
 
 	// --- shortcuts ---

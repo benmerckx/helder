@@ -119,6 +119,9 @@ class MonoParagraph implements Paragraph {
 			}
 		];
 
+	public function lineWidth(y:Float):Float
+		return lines[Std.int(Math.max(0, Math.min(lines.length - 1, Math.floor(y / line))))].length * char;
+
 	public function hit(x:Float, y:Float):Int {
 		var k = Std.int(Math.max(0, Math.min(lines.length - 1, Math.floor(y / line))));
 		var l = lines[k];

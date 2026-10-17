@@ -100,12 +100,38 @@ class TextNode extends Node {
 	override public function contentOwnsChildren():Bool
 		return true;
 
+	// whether its text can be selected: a drag, a double click (a word), a
+	// triple click (all of it); Ui.textSelection holds it, Mod+C copies it
+	public var selectable(default, set) = false;
+
+	function set_selectable(v:Bool):Bool {
+		selectable = v;
+		if (v && style.cursor == Auto) style.cursor = Text;
+		return v;
+	}
+
+	// the character index nearest to a point in the window (its lines' alignment taken off)
+	public function textIndexAt(px:Float, py:Float):Int {
+		if (paragraph == null) return 0;
+		var s = style, x = localX(px) - s.borderWidth - s.padding.left, y = localY(py) - s.borderWidth - s.padding.top;
+		return paragraph.hit(x - alignOffset(paragraph, y, contentBoxWidth()), y);
+	}
+
+	inline function contentBoxWidth():Float
+		return Math.max(0, width - 2 * style.borderWidth - style.padding.left - style.padding.right);
+
+	// where the line at y starts in a box width wide, as the text is drawn aligned
+	function alignOffset(p:Paragraph, y:Float, width:Float):Float {
+		var a = textAlign();
+		return a == Center ? (width - p.lineWidth(y)) / 2 : a == Right ? width - p.lineWidth(y) : 0.0;
+	}
+
 	// a point over a span's text: that span (its handlers, its cursor)
 	override public function hitTest(px:Float, py:Float):Null<Node> {
 		var own = super.hitTest(px, py);
 		if (own != this || children.length == 0 || paragraph == null) return own;
 		var s = style, x = localX(px) - s.borderWidth - s.padding.left, y = localY(py) - s.borderWidth - s.padding.top;
-		var i = paragraph.hit(x, y);
+		var i = paragraph.hit(x - alignOffset(paragraph, y, contentBoxWidth()), y);
 		var c = paragraph.caret(i);
 		// (the hit's character: before the caret it gave when that is right of the point)
 		var at = c.x > x && i > 0 ? i - 1 : i;
@@ -175,6 +201,17 @@ class TextNode extends Node {
 						var lx = align == Center ? (width - r.lineWidth) / 2 : align == Right ? width - r.lineWidth : 0.0;
 						canvas.rect(x + lx + r.x, y + r.y, r.width, r.height, 0, d.color, 0, 0);
 					}
+		// (the selection under it all: each line's run, as high as its line)
+		var sel = ui.textSelection;
+		if (sel != null && sel.node == this && sel.anchor != sel.caret) {
+			var rs = p.selection(Std.int(Math.min(sel.anchor, sel.caret)), Std.int(Math.max(sel.anchor, sel.caret)));
+			for (k in 0...rs.length) {
+				var r = rs[k], bottom = p.height;
+				for (q in rs)
+					if (q.y > r.y && q.y < bottom) bottom = q.y;
+				canvas.rect(x + alignOffset(p, r.y, width) + r.x, y + r.y, r.width, bottom - r.y, 0, ui.selectionColor, 0, 0);
+			}
+		}
 		draw(false);
 		canvas.text(p, x, y, width, align, textColor(), rich != null ? rich.colors : null);
 		draw(true);

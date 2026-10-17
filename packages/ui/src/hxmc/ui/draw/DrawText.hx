@@ -96,6 +96,13 @@ class DrawParagraph implements Paragraph {
 	public function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}>
 		return layout.selection(start, end);
 
+	public function lineWidth(y:Float):Float {
+		var ls = layout.lines, k = 0;
+		while (k < ls.length - 1 && y >= ls[k].top + ls[k].height)
+			k++;
+		return ls.length == 0 ? 0 : ls[k].width;
+	}
+
 	public function decoration(start:Int, end:Int, kind:hxmc.ui.TextDecoration, scale:Float):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}>
 		return layout.decoration(start, end, kind == LineThrough ? 1 : kind == Overline ? 2 : 0, scale);
 }

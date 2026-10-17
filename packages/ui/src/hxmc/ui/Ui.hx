@@ -152,6 +152,13 @@ class Ui {
 	public function pointerMove(x:Float, y:Float) {
 		pointerX = x;
 		pointerY = y;
+		if (selecting && textSelection != null) {
+			var c = textSelection.node.textIndexAt(x, y);
+			if (c != textSelection.caret) {
+				textSelection.caret = c;
+				requestFrame();
+			}
+		}
 		if (drag != null) {
 			var n = drag, t = track(n, dragX), view = viewSize(n, dragX), content = dragX ? n.contentWidth : n.contentHeight;
 			var len = thumbLength(t[1], view, content), max = maxScroll(n, dragX);
@@ -244,6 +251,7 @@ class Ui {
 		pointerY = y;
 		var target = hit(x, y);
 		dismissOutside(target);
+		selectAt(target, x, y, button);
 		setHover(target);
 		if (focusVisible) {
 			focusVisible = false;
@@ -276,6 +284,7 @@ class Ui {
 	public function pointerUp(x:Float, y:Float, button:Int) {
 		pointerX = x;
 		pointerY = y;
+		selecting = false;
 		if (drag != null) {
 			drag = null;
 			requestFrame();
@@ -330,6 +339,66 @@ class Ui {
 	}
 
 	// --- keyboard ---
+
+	// the text selected in a selectable TextNode (null: none), anchor to
+	// caret (UTF-16 indices of its whole text); a press elsewhere drops it
+	public var textSelection(default, null):Null<{node:TextNode, anchor:Int, caret:Int}> = null;
+	// what a selection is painted with
+	public var selectionColor:Color = Color.rgba(0x3b82f6, 0.3);
+	// (a drag selecting; the clicks in a row and the last one's time and place)
+	var selecting = false;
+	var selClicks = 0;
+	var selAt = -1e9;
+	var selX = 0.0;
+	var selY = 0.0;
+	// the time (seconds; tests replace it)
+	public static var now:Void->Float = haxe.Timer.stamp;
+
+	// the selected text (empty: none)
+	public function selectedText():String {
+		var s = textSelection;
+		if (s == null || s.anchor == s.caret) return "";
+		return s.node.allText().substring(Std.int(Math.min(s.anchor, s.caret)), Std.int(Math.max(s.anchor, s.caret)));
+	}
+
+	// a press on a selectable text (or a span of one): the selection starts,
+	// a word on a double click, all of it on a triple; elsewhere it is dropped
+	function selectAt(target:Null<Node>, x:Float, y:Float, button:Int) {
+		var t:Null<TextNode> = null, n = target;
+		while (n != null) {
+			if (Std.isOfType(n, TextNode) && (cast n : TextNode).selectable) t = cast n;
+			n = n.parent;
+		}
+		if (t == null || button != 1) {
+			if (textSelection != null) {
+				textSelection = null;
+				requestFrame();
+			}
+			return;
+		}
+		var i = t.textIndexAt(x, y), time = now();
+		selClicks = time - selAt < 0.45 && Math.abs(x - selX) < 5 && Math.abs(y - selY) < 5 ? selClicks + 1 : 1;
+		selAt = time;
+		selX = x;
+		selY = y;
+		var text = t.allText();
+		if (selClicks == 2) {
+			// (a word: letters, digits and marks around the index; else the one character)
+			inline function word(c:Int):Bool
+				return c == "_".code || (c >= "0".code && c <= "9".code) || (c >= "a".code && c <= "z".code) || (c >= "A".code && c <= "Z".code) || c > 0x7F
+					&& c != 0xA0 && c != 0x3000;
+			var a = i, b = i;
+			while (a > 0 && word(StringTools.fastCodeAt(text, a - 1)))
+				a--;
+			while (b < text.length && word(StringTools.fastCodeAt(text, b)))
+				b++;
+			if (a == b && b < text.length) b++;
+			textSelection = {node: t, anchor: a, caret: b};
+		} else if (selClicks >= 3) textSelection = {node: t, anchor: 0, caret: text.length};
+		else textSelection = {node: t, anchor: i, caret: i};
+		selecting = selClicks == 1;
+		requestFrame();
+	}
 
 	// the shortcuts, the latest first to match
 	final shortcuts:Array<{keys:Shortcut, action:Void->Void, scope:Null<Node>}> = [];
@@ -386,6 +455,11 @@ class Ui {
 			}
 		}
 		if (!e.defaultPrevented && !e.stopped && runShortcut(key, mods)) return;
+		// (Control or Command and C: the selected text copied, when the focus took no such key)
+		if (!e.defaultPrevented && !e.stopped && (key == "c".code || key == "C".code) && mods & (Key.MOD_CONTROL | Key.MOD_META) != 0 && selectedText() != "") {
+			clipboard.write(selectedText());
+			return;
+		}
 		if (!e.defaultPrevented && key == Key.TAB) {
 			moveFocus(mods & Key.MOD_SHIFT != 0 ? -1 : 1);
 			focusVisible = focus != null;

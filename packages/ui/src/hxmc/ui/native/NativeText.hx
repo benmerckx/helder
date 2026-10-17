@@ -69,6 +69,9 @@ class NativeParagraph implements Paragraph {
 	public function selection(start:Int, end:Int):Array<{x:Float, y:Float, width:Float}>
 		return [];
 
+	public function lineWidth(y:Float):Float
+		return w;
+
 	// (none: the platform's labels draw their own text)
 	public function decoration(start:Int, end:Int, kind:TextDecoration, scale:Float):Array<{x:Float, y:Float, width:Float, height:Float, lineWidth:Float}>
 		return [];

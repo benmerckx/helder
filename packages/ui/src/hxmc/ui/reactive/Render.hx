@@ -269,6 +269,8 @@ class Render {
 		switch name {
 			case "focusable":
 				n.focusable = v == true || v == "true";
+			case "selectable" if (Std.isOfType(n, TextNode)):
+				(cast n : TextNode).selectable = v == true || v == "true";
 			case "dragData" | "drag-data":
 				n.dragData = v;
 			case "style":

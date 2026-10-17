@@ -249,7 +249,9 @@ The spans wrap as one paragraph. A larger span makes its line taller, as
 in CSS, and a click on a span's text goes to that span. `text-decoration`
 (`underline`, `line-through`, `overline`) draws its lines where Chromium
 draws them, in the colour of the element that asks for them, under the text
-inside it.
+inside it. A `selectable` text can be selected with the pointer (a
+drag, a double click for a word, a triple click for all of it) and copied
+with Control+C or Command+C; `Ui.selectedText()` reads it.
 
 ## Context
 
