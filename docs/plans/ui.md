@@ -354,7 +354,8 @@ Since the design above (October 2026), in this order:
   a mixed checkbox, an indeterminate progress bar; tabs and radio groups
   one stop for Tab, moved through by the arrows.
 - Images: animated PNGs (APNG) as Chromium composes them, and PNG
-  decoding about three times faster than the standard library's inflater.
+  decoding about three times faster (hxmc's haxe.zip.InflateImpl inflating a
+  BytesInput whole).
 - `@hxmc/view` ([view.md](view.md)) replaced `@hxmc/esx` and
   `hxmc.ui.reactive`: markup compiled to direct calls on a renderer,
   `hxmc.ui.view.NodeRenderer` for both backends; the markup's style
