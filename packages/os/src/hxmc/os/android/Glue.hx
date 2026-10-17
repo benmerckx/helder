@@ -45,9 +45,29 @@ class Glue {
 	}
 
 	// the activity's content: a view (only with org.hxmc.Activity, which a
-	// program calling this gets)
-	public static function setContentView(view:Ptr)
-		Jni.call(Jni.activity, Jni.method(Jni.cls("android.app.Activity"), "setContentView", "(Landroid/view/View;)V"), view.toI64());
+	// program calling this gets); kept, for an activity made again in the
+	// running process (a relaunch: Activity) gets it too
+	public static function setContentView(view:Ptr) {
+		if (!content.isNull()) Jni.deleteGlobal(content);
+		content = Jni.global(view);
+		AndroidWindow.recreated = () -> MainThread.post(moveContent);
+		show();
+	}
+
+	static var content = Ptr.nil();
+
+	static function show()
+		Jni.call(Jni.activity, Jni.method(Jni.cls("android.app.Activity"), "setContentView", "(Landroid/view/View;)V"), content.toI64());
+
+	// (the main thread, the new activity made) the content out of the old activity's window, into the new one's
+	static function moveContent() {
+		if (content.isNull() || Activity.activity.isNull()) return;
+		var parent = Jni.obj(content, Jni.method(Jni.cls("android.view.View"), "getParent", "()Landroid/view/ViewParent;"));
+		if (!parent.isNull())
+			Jni.call(parent, Jni.method(Jni.cls("android.view.ViewGroup"), "removeView", "(Landroid/view/View;)V"), content.toI64());
+		show();
+		Sys.println("hxmc.os: the content moved to the new activity");
+	}
 
 	// the listener's handler goes (Java may still hold the listener: its calls do nothing)
 	public static function release(id:Int)
