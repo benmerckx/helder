@@ -154,7 +154,7 @@ class Gallery implements Markup {
 				<text tag="toggles" color={() -> Theme.current.value.secondary}>{() -> (checked.value ? "checked" : "unchecked") + ", " + (on.value ? "on" : "off")}</text>
 			</view>)}
 			{section("RADIO AND LISTBOX", <view direction="row" column-gap={24} align-items="start">
-				<Radio tag="size" value={size} options={["Small", "Medium", "Large"]}/>
+				<RadioGroup tag="size" value={size} options={["Small", "Medium", "Large"]}/>
 				<Listbox tag="days" selected={days} options={["Mon", "Tue", "Wed", "Thu", "Fri"]} multiple label="Days" width={110} height={104}/>
 				<text tag="size-shown" color={() -> Theme.current.value.secondary}>{() -> "size: " + size.value + ", " + days.value.join(" ")}</text>
 			</view>)}
@@ -195,7 +195,7 @@ class Gallery implements Markup {
 				<Input tag="name" value={name} placeholder="Your name"/>
 				<text tag="greeting" color={() -> Theme.current.value.secondary}>{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
 				<TagInput tag="labels" tags={labels} label="Labels" placeholder="Add a label"/>
-				<Area tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
+				<Textarea tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
 				<text tag="lines" color={() -> Theme.current.value.secondary}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}
 			{section("COMBOBOX, NUMBER, DISCLOSURE, TOASTS", <view row-gap={10} align-items="start">

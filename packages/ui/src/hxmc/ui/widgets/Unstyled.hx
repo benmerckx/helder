@@ -48,7 +48,30 @@ class Unstyled {
 			{slot: "card-description", style: {opacity: 0.7}},
 			{slot: "card-content", style: {direction: Column}},
 			{slot: "card-footer", style: {direction: Row, alignItems: Center, columnGap: 8}},
-			{slot: "badge", style: {direction: Row, alignItems: Center, columnGap: 4, padding: [0, 6], borderWidth: 1, borderColor: line}}
+			{slot: "badge", style: {direction: Row, alignItems: Center, columnGap: 4, padding: [0, 6], borderWidth: 1, borderColor: line}},
+			{slot: "textarea", when: ["disabled"], style: {opacity: 0.5}},
+			{slot: "radio-group", style: {rowGap: 6}},
+			{slot: "radio-group-item", style: {width: 16, height: 16, radius: 8, borderWidth: 1, borderColor: line, alignItems: Center, justify: Center}},
+			{slot: "radio-group-item", when: ["disabled"], style: {opacity: 0.5}},
+			{slot: "tabs", style: {rowGap: 8}},
+			{slot: "tabs-list", style: {direction: Row, columnGap: 4, borders: [0, 0, 1, 0], borderColor: faint}},
+			{slot: "tabs-trigger", style: {padding: [4, 10], borders: [0, 0, 2, 0], cursor: Pointer, opacity: 0.7}},
+			{slot: "tabs-trigger", when: ["data-state=active"], style: {borderColor: line, opacity: 1}},
+			{slot: "slider", style: {cursor: Pointer}},
+			{slot: "slider", when: ["disabled"], style: {opacity: 0.5, cursor: Default}},
+			{slot: "slider-track", style: {height: 4, radius: 2, background: faint}},
+			{slot: "slider-range", style: {background: line}},
+			{slot: "slider-thumb", style: {radius: 8, background: line}},
+			{slot: "progress", style: {height: 8, radius: 4, background: faint}},
+			{slot: "progress-indicator", style: {background: line}},
+			{slot: "separator", style: {background: faint, alignSelf: Stretch, shrink: 0}},
+			{slot: "separator", when: ["data-orientation=horizontal"], style: {height: 1}},
+			{slot: "separator", when: ["data-orientation=vertical"], style: {width: 1}},
+			{slot: "skeleton", style: {radius: 4, background: Color.parse("currentColor/10")}},
+			{slot: "alert", style: {direction: Column, rowGap: 2, padding: [8, 12], borderWidth: 1, borderColor: faint}},
+			{slot: "alert", variant: "destructive", style: {borderColor: line}},
+			{slot: "alert-title", style: {fontWeight: 500}},
+			{slot: "alert-description", style: {opacity: 0.8}}
 		];
 	}
 }

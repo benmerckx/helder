@@ -195,15 +195,15 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   control flow components `For`, `Index`, `Show`, `Switch`,
   `ErrorBoundary` are `@hxmc/view`'s ([its README](../view/README.md)).
 - **`hxmc.ui.widgets`**: `TextField` (caret, selection, keyboard editing,
-  `cut`, `copy`, `paste`, `selectAll`; `Input` and `Area` add an edit menu
+  `cut`, `copy`, `paste`, `selectAll`; `Input` and `Textarea` add an edit menu
   on a right click or the menu key),
   `TextArea` (lines: wrapping, Up and Down, scrolling; both on
   `EditableText`, with an input method's composition shown at the caret), and the components; unstyled with slots for a theme (Themes) so far:
   `Button` (variants, sizes, disabled), `Toggle` (a pressed button), `Checkbox`, `Switch`, `Input` (or a password,
-  invalid), `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
-  `CardFooter`); still drawn with `Theme.current`: `Radio`, `Slider`, `RangeSlider` (two knobs, a
-  slider each for the keyboard),
-  `Progress` (or indeterminate), `Tabs`, `Area`, `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
+  invalid), `Textarea`, `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
+  `CardFooter`), `RadioGroup`, `Slider`, `RangeSlider` (two knobs, a
+  slider each for the keyboard), `Progress` (or indeterminate), `Tabs`, `Separator`, `Skeleton`, `Alert`
+  (`AlertTitle`, `AlertDescription`); still drawn with `Theme.current`: `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`

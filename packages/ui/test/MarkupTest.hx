@@ -40,8 +40,14 @@ import hxmc.ui.widgets.Widgets.ColorPicker;
 import hxmc.ui.widgets.Widgets.Sortable;
 import hxmc.ui.widgets.Widgets.RangeSlider;
 import hxmc.ui.widgets.Widgets.Tabs;
-import hxmc.ui.widgets.Widgets.Radio;
+import hxmc.ui.widgets.Widgets.RadioGroup;
 import hxmc.ui.widgets.Widgets.Progress;
+import hxmc.ui.widgets.Widgets.Textarea;
+import hxmc.ui.widgets.Widgets.Separator;
+import hxmc.ui.widgets.Widgets.Skeleton;
+import hxmc.ui.widgets.Widgets.Alert;
+import hxmc.ui.widgets.Widgets.AlertTitle;
+import hxmc.ui.widgets.Widgets.AlertDescription;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Split;
@@ -92,6 +98,7 @@ class MarkupTest implements Markup {
 		navigation();
 		tagInput();
 		unstyled();
+		unstyledMore();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -858,7 +865,7 @@ class MarkupTest implements Markup {
 		check("tabs: right to left, Left to the next", selected.value == 2, "" + selected.value);
 		// a radio group: one stop, the arrows check the next
 		var ui2 = new Ui(new MonoText(), 400, 300), size = signal("");
-		Render.render(<view padding={10}><Button tag="b" label="B"/><Radio tag="r" value={size} options={["S", "M", "L"]}/><Button tag="c" label="C"/></view>, ui2.root);
+		Render.render(<view padding={10}><Button tag="b" label="B"/><RadioGroup tag="r" value={size} options={["S", "M", "L"]}/><Button tag="c" label="C"/></view>, ui2.root);
 		ui2.update();
 		ui2.setFocus(ui2.root.find("b"));
 		ui2.keyDown(Key.TAB, 0);
@@ -1183,6 +1190,64 @@ class MarkupTest implements Markup {
 		off.value = true;
 		click(b);
 		check("unstyled: disabled", clicks == 1 && b.attr("data-disabled") == "" && !b.focusable && b.style.opacity == 0.5);
+	}
+
+	static function unstyledMore() {
+		var ui = new Ui(new MonoText(), 400, 400);
+		var size = signal("M"), tab = signal(0), vol = signal(0.5), notes = signal(""), off = signal(false);
+		Render.render(<view align-items="start" row-gap={4}>
+			<RadioGroup tag="r" value={size} options={["S", "M"]} labels={["Small", "Medium"]} disabled={off}/>
+			<Tabs tag="tabs" labels={["One", "Two"]} selected={tab} render={i -> <text>{"Panel " + i}</text>}/>
+			<Slider tag="vol" value={vol} width={100} disabled={off}/>
+			<Progress tag="p" value={0.25} width={100}/>
+			<Separator tag="sep"/>
+			<Separator tag="vsep" orientation="vertical" decorative={false}/>
+			<Skeleton tag="sk" width={40} height={10}/>
+			<Alert tag="al" variant="destructive"><AlertTitle text="Heads up"/><AlertDescription text="Something happened"/></Alert>
+			<Textarea tag="ta" value={notes} disabled={off}/>
+		</view>, ui.root);
+		ui.update();
+		function click(n:Node) {
+			ui.update();
+			var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
+			ui.pointerDown(x, y, 1);
+			ui.pointerUp(x, y, 1);
+			ui.update();
+		}
+		var s = ui.root.find("r-S"), m = ui.root.find("r-M"), t0 = ui.root.find("tabs-0"), t1 = ui.root.find("tabs-1"), v = ui.root.find("vol");
+		check("unstyled: a radio group's slots, data-state, its indicator shown when checked", ui.root.find("r").slot == "radio-group"
+			&& s.slot == "radio-group-item" && s.children[0].slot == "radio-group-indicator" && s.attr("data-state") == "unchecked"
+			&& m.attr("data-state") == "checked" && s.children[0].style.display == None && m.children[0].style.display != None
+			&& s.semantics.label == "Small" && s.style.radius == 8);
+		click(s.parent.children[1]);
+		check("unstyled: the radio's label checks it", size.value == "S" && s.attr("data-state") == "checked", size.value);
+		check("unstyled: tabs' slots, the active trigger's data-state", ui.root.find("tabs").slot == "tabs" && t0.parent.slot == "tabs-list"
+			&& t0.slot == "tabs-trigger" && t0.attr("data-state") == "active" && t1.attr("data-state") == "inactive"
+			&& ui.root.find("tabs").children[1].slot == "tabs-content" && t0.style.borders != null);
+		click(t1);
+		check("unstyled: a click on a trigger activates it", tab.value == 1 && t1.attr("data-state") == "active" && t0.attr("data-state") == "inactive");
+		var track = v.children[0];
+		check("unstyled: a slider's track, range and thumb", v.slot == "slider" && track.slot == "slider-track" && track.children[0].slot == "slider-range"
+			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 42, '${track.children[0].width}');
+		var p = ui.root.find("p");
+		check("unstyled: a progress bar's indicator", p.slot == "progress" && p.children[0].slot == "progress-indicator" && p.children[0].width == 25
+			&& p.style.height.resolve(0) == 8);
+		var sep = ui.root.find("sep"), vsep = ui.root.find("vsep");
+		check("unstyled: separators: a line across, data-orientation; decorative ones hidden", sep.slot == "separator" && sep.height == 1
+			&& sep.attr("data-orientation") == "horizontal" && vsep.style.width.resolve(0) == 1 && vsep.semantics.role == Separator
+			&& sep.semantics.hidden == true, '${sep.height}');
+		var al = ui.root.find("al");
+		check("unstyled: skeleton and alert", ui.root.find("sk").slot == "skeleton" && ui.root.find("sk").width == 40 && al.slot == "alert"
+			&& al.variant == "destructive" && ui.root.find("alert-title").slot == "alert-title" && al.style.borderColor == Color.BLACK);
+		var ta = ui.root.find("ta");
+		check("unstyled: a textarea", ta.slot == "textarea" && ta.style.borderWidth == 1 && ta.focusable);
+		off.value = true;
+		ui.update();
+		click(m.parent.children[1]);
+		var before = vol.value;
+		click(v);
+		check("unstyled: disabled radio group, slider and textarea", size.value == "S" && !m.focusable && m.attr("data-disabled") == ""
+			&& vol.value == before && !v.focusable && v.style.opacity == 0.5 && !ta.focusable && ta.attr("disabled") == "" && ta.style.opacity == 0.5);
 	}
 
 	static function table() {
