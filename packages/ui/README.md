@@ -194,7 +194,10 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   (typed or stepped, within bounds; a spin button), `Listbox` (one option
   selected or several: Shift and Control with the arrows and clicks,
   Control+A; ARIA's multiselectable), `Toolbar` (its focusable children
-  one Tab stop, Left and Right between them), `Sortable` (a list
+  one Tab stop, Left and Right between them), `SegmentedControl` (one of
+  options among joined buttons: a radio group), `Breadcrumbs` and
+  `Pagination` (navigation landmarks, the current step or page marked
+  current: ARIA's aria-current), `Sortable` (a list
   reordered by dragging, a line where the item will go, or by Alt+Up and
   Alt+Down), `ColorPicker` (a
   saturation and brightness square, a hue strip and the hex: sliders for
@@ -275,8 +278,12 @@ comctl32 5's classic look until a visual styles manifest) and AppKit run
 model: roles, names, states, actions) from the nodes: each node's
 `semantics` (in markup: `role`, `label`, `description`, `checked`,
 `selected`, `expanded`, `disabled`, `value-now`, `value-min`,
-`value-max`, `value-text`, `multiselectable`, `live`), text as labels,
-focusable nodes as groups; the widgets declare theirs. A live region
+`value-max`, `value-text`, `multiselectable`, `live`, `current`), text as labels,
+focusable nodes as groups; the widgets declare theirs. A `navigation`
+role is a landmark (ARIA's navigation, AT-SPI's landmark, UI Automation's
+navigation landmark type, macOS's AXLandmarkNavigation); `current` marks
+the current one of a set (aria-current="page"; AT-SPI's current
+attribute, UI Automation's AriaProperties; macOS has no property for it). A live region
 (`live="polite"` or `"assertive"`) has its changes announced
 (`AccessTree.announcements`: its new text): ARIA's aria-live, AT-SPI's
 Announcement, UI Automation's LiveRegionChanged, macOS's announcement

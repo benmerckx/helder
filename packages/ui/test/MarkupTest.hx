@@ -18,6 +18,9 @@ import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.Menu;
+import hxmc.ui.widgets.Widgets.SegmentedControl;
+import hxmc.ui.widgets.Widgets.Breadcrumbs;
+import hxmc.ui.widgets.Widgets.Pagination;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.ui.widgets.Widgets.Listbox;
@@ -75,6 +78,7 @@ class MarkupTest implements Markup {
 		password();
 		listbox();
 		toolbar();
+		navigation();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -491,6 +495,56 @@ class MarkupTest implements Markup {
 		ui.pointerUp(under.absX + 2, under.absY + 2, 1);
 		ui.update();
 		check("toolbar: a click focuses and presses it", ui.focus == under && pressed.join(",") == "under", pressed.join(","));
+	}
+
+	// a segmented control, breadcrumbs and pagination: roles, keys, clicks, the current one
+	static function navigation() {
+		var ui = new Ui(new MonoText(), 500, 300);
+		var view = signal("Day"), page = signal(1), chosen = [];
+		Render.render(<view padding={10} row-gap={10}>
+			<SegmentedControl tag="seg" label="View" value={view} options={["Day", "Week", "Month"]}/>
+			<Breadcrumbs tag="crumbs" items={["Home", "Docs", "Layout"]} onSelect={i -> chosen.push(i)}/>
+			<Pagination tag="pages" page={page} count={10}/>
+		</view>, ui.root);
+		ui.update();
+		function key(k:Int) {
+			ui.keyDown(k, 0);
+			ui.update();
+		}
+		function click(n:Node) {
+			ui.pointerDown(n.absX + 2, n.absY + 2, 1);
+			ui.pointerUp(n.absX + 2, n.absY + 2, 1);
+			ui.update();
+		}
+		var seg0 = ui.root.find("seg-0"), seg2 = ui.root.find("seg-2");
+		check("segments: a radio group, one Tab stop", ui.root.find("seg").semantics.role == RadioGroup && seg0.focusable && !seg2.focusable);
+		ui.setFocus(seg0);
+		key(Key.LEFT);
+		check("segments: Left wraps to the last, chosen", view.value == "Month" && ui.focus == seg2 && seg2.focusable && !seg0.focusable);
+		click(ui.root.find("seg-1"));
+		check("segments: a click chooses", view.value == "Week");
+		var t = ui.accessTree(), navs = [for (id in t.order) if (t.nodes.get(id).role == Navigation) t.nodes.get(id)];
+		var current = [for (id in t.order) if (t.nodes.get(id).current) t.nodes.get(id).name];
+		check("navigation: two landmarks, the last crumb and page 1 current", navs.length == 2 && navs[0].name == "Breadcrumb" && navs[0].toJson().role == "navigation"
+			&& current.join(",") == "Layout,1", current.join(","));
+		click(ui.root.find("crumbs-1"));
+		ui.setFocus(ui.root.find("crumbs-0"));
+		key(Key.ENTER);
+		check("breadcrumbs: a click and Enter choose a step", chosen.join(",") == "1,0", chosen.join(","));
+		var prev = ui.root.find("pages-prev"), next = ui.root.find("pages-next");
+		function labels():String
+			return [for (n in tagged(ui.root.find("pages"), "pages-page")) (cast n.children[0] : TextNode).text].join(" ");
+		check("pagination: Previous disabled at the first, the pages shown", !prev.focusable && labels() == "1 2 10", labels());
+		click(next);
+		click(next);
+		click(next);
+		check("pagination: Next to page 4, a gap filled by its page", page.value == 4 && labels() == "1 2 3 4 5 10" && prev.focusable, labels());
+		page.value = 7;
+		ui.update();
+		check("pagination: page 7, a gap before, a lone page after shown", labels() == "1 6 7 8 9 10" && tagged(ui.root.find("pages"), "pages-page").length == 6, labels());
+		page.value = 10;
+		ui.update();
+		check("pagination: Next disabled at the last", !next.focusable && labels() == "1 9 10", labels());
 	}
 
 	static function colorPicker() {

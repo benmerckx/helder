@@ -16,6 +16,8 @@ package hxmc.ui.access;
 	public var mixed:Bool = false;
 	public var selected:Null<Bool> = null;
 	public var multiselectable:Bool = false;
+	// the current one of a set (Semantics.current)
+	public var current:Bool = false;
 	public var expanded:Null<Bool> = null;
 	public var level:Null<Int> = null;
 	public var disabled:Bool = false;
@@ -37,7 +39,7 @@ package hxmc.ui.access;
 	// the same as another (an incremental update leaves it out)
 	public function equals(o:AccessNode):Bool {
 		if (o.role != role || o.name != name || o.description != description || o.value != value || o.secret != secret || o.checked != checked || o.mixed != mixed || o.selected != selected
-			|| o.multiselectable != multiselectable || o.live != live || o.liveText != liveText
+			|| o.multiselectable != multiselectable || o.current != current || o.live != live || o.liveText != liveText
 			|| o.expanded != expanded || o.level != level || o.disabled != disabled || o.focusable != focusable || o.valueNow != valueNow || o.valueMin != valueMin
 			|| o.valueMax != valueMax || o.valueText != valueText || o.x != x || o.y != y || o.width != width || o.height != height
 			|| o.children.length != children.length)
@@ -60,6 +62,7 @@ package hxmc.ui.access;
 		if (checked != null) o.checked = mixed ? "mixed" : checked;
 		if (selected != null) o.selected = selected;
 		if (multiselectable) o.multiselectable = true;
+		if (current) o.current = true;
 		if (expanded != null) o.expanded = expanded;
 		if (level != null) o.level = level;
 		if (disabled) o.disabled = true;

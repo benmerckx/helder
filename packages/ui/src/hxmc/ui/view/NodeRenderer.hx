@@ -139,6 +139,8 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 				semantics(n).live = v == null || v == "off" ? Off : v == "assertive" ? Assertive : v == "polite" ? Polite : v;
 			case "multiselectable":
 				semantics(n).multiselectable = v == true || v == "true";
+			case "current":
+				semantics(n).current = v == true || v == "true" || v == "page";
 			case "expanded":
 				semantics(n).expanded = v == null ? null : v == true || v == "true";
 			case "level":

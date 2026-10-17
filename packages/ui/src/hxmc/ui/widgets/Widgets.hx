@@ -1260,6 +1260,105 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a segmented control: one of options, chosen among buttons joined in a
+	// row (a radio group: one Tab stop, the chosen one; Left and Right, the
+	// way they point, wrapping, and Home and End choose another)
+	public static function SegmentedControl(props:{value:Signal<String>, options:Array<String>, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "segments", options = props.options, nodes:Array<Node> = [], n = options.length;
+		function stop(i:Int):Bool {
+			var k = options.indexOf(props.value.value);
+			return i == (k < 0 ? 0 : k);
+		}
+		function key(e:Event, i:Int) {
+			var j = switch mirrored(e) {
+				case Key.SPACE | Key.ENTER: i;
+				case Key.RIGHT | Key.DOWN: (i + 1) % n;
+				case Key.LEFT | Key.UP: (i + n - 1) % n;
+				case Key.HOME: 0;
+				case Key.END: n - 1;
+				case _: return;
+			}
+			e.preventDefault();
+			props.value.value = options[j];
+			focusIn(nodes, j);
+		}
+		return <view tag={tag} role="radiogroup" label={props.label} direction="row" padding={2} column-gap={2} radius={8} background={() -> t().track}
+			align-self="start">{[
+			for (i in 0...n) {
+				var o = options[i], on = () -> props.value.value == o;
+				<view tag={tag + "-" + i} role="radio" ref={n -> nodes[i] = n} checked={on} focusable={() -> stop(i)} cursor="pointer" padding="4 12" radius={6}
+					background={Motion.color(() -> on() ? t().control : Theme.clear(t().control))} color={() -> on() ? t().text : t().secondary}
+					shadow={() -> on() ? "0 1px 2px rgba(0,0,0,0.15)" : null} onClick={_ -> props.value.value = o} onKeyDown={e -> key(e, i)}>{o}</view>;
+			}
+		]}</view>;
+	}
+
+	// breadcrumbs: the path to where one is, each step but the last a link
+	// (chosen by a click or Enter: onSelect with its index), the last the
+	// current one, in a navigation landmark; the separators decoration
+	public static function Breadcrumbs(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "crumbs", items = props.items;
+		return <view tag={tag} role="navigation" label={props.label ?? "Breadcrumb"} direction="row" align-items="center" column-gap={6}>{[
+			for (i in 0...items.length) {
+				var last = i == items.length - 1;
+				[
+					last ? <text tag={tag + "-" + i} current color={() -> t().text}>{items[i]}</text> : {
+						var hover = signal(false);
+						<view tag={tag + "-" + i} role="link" focusable cursor="pointer" color={() -> t().accentText}
+							text-decoration={() -> hover.value ? (TextDecoration.Underline : Int) : 0} onPointerEnter={_ -> hover.value = true}
+							onPointerLeave={_ -> hover.value = false} onClick={_ -> props.onSelect(i)} onKeyDown={e -> if (e.key == Key.ENTER) {
+								e.preventDefault();
+								props.onSelect(i);
+							}}>{items[i]}</view>;
+					},
+					last ? null : <text hidden color={() -> t().muted}>/</text>
+				];
+			}
+		]}</view>;
+	}
+
+	// pagination: Previous, the pages (the first, the last, the current one
+	// and its neighbours, "…" for the rest, a page instead where it hides only
+	// one), Next, in a navigation landmark; pages count from 1, the current
+	// page's button marked current
+	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "pages", count = props.count;
+		function go(p:Int)
+			if (p >= 1 && p <= count) props.page.value = p;
+		// (the buttons in order, 0 for a gap)
+		function shown():Array<Int> {
+			var p = props.page.value, out:Array<Int> = [];
+			for (i in 1...count + 1)
+				if (i == 1 || i == count || Math.abs(i - p) <= 1 || (i == 2 && p == 4) || (i == count - 1 && p == count - 3)) {
+					if (out.length > 0 && i - out[out.length - 1] > 1) out.push(0);
+					out.push(i);
+				}
+			return out;
+		}
+		function button(label:Void->String, tagged:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool):View {
+			var hover = signal(false);
+			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
+			return <view tag={tagged} role="button" focusable={() -> !off()} disabled={off} current={cur} cursor={() -> off() ? "default" : "pointer"}
+				padding="4 10" radius={6} min-width={32} align-items="center" border-width={1}
+				border-color={() -> cur() ? t().accent : hover.value && !off() ? t().border : Theme.clear(t().border)}
+				background={() -> cur() ? t().accent : t().background} color={() -> cur() ? t().onAccent : off() ? t().muted : t().text}
+				onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false} onClick={_ -> if (!off()) onClick()}
+				onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && !off()) {
+					e.preventDefault();
+					onClick();
+				}}>{label}</view>;
+		}
+		return <view tag={tag} role="navigation" label={props.label ?? "Pages"} direction="row" align-items="center" column-gap={4}>
+			{button(() -> "Previous", tag + "-prev", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1)}
+			<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
+				<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", () -> go(p.peek()), () -> props.page.value == p.value)}>
+					<text hidden padding="4 6" color={() -> t().muted}>…</text>
+				</Show>
+			</view>}/>
+			{button(() -> "Next", tag + "-next", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count)}
+		</view>;
+	}
+
 	// the items' shortcuts (local: while the focus is in the parent)
 	static function hotkeys(list:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>, local:Bool):Array<Any>
 		return [for (it in list) if (it.shortcut != null) UiFlow.Hotkey({keys: it.shortcut, action: it.onSelect, local: local})];

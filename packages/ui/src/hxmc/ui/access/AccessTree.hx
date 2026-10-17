@@ -87,6 +87,7 @@ class AccessTree {
 				a.mixed = sem.mixed;
 				a.selected = sem.selected;
 				a.multiselectable = sem.multiselectable;
+				a.current = sem.current;
 				if (sem.live != Off) {
 					a.live = sem.live;
 					a.liveText = textOf(n);
