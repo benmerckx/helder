@@ -1,7 +1,7 @@
 package hxmc.ui;
 
-// CSS's named colours (148, as Chromium has them), for Svg
-class SvgColors {
+// CSS's named colours (148, as Chromium has them), for Color.parse
+class CssColors {
 	static var table:Null<Map<String, Int>>;
 
 	// (made when first asked: an svg parsed by a static initializer runs before this class's)

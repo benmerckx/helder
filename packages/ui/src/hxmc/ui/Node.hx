@@ -262,6 +262,22 @@ class Node {
 	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
 		return null;
 
+	// its background gradient drawn at its size in the window's pixels (kept until either changes)
+	var gradientImage:Null<Image> = null;
+	var gradientKey = "";
+	var gradientOf:Null<Gradient> = null;
+
+	public function backgroundImage(scale:Float):Image {
+		var g = style.backgroundImage, w = Std.int(Math.max(1, Math.round(width * scale))), h = Std.int(Math.max(1, Math.round(height * scale)));
+		var key = w + "x" + h + "@" + scale;
+		if (gradientImage == null || gradientOf != g || gradientKey != key) {
+			gradientImage = g.render(w, h, scale);
+			gradientOf = g;
+			gradientKey = key;
+		}
+		return gradientImage;
+	}
+
 	// whether it takes typed text while focused (a text field): keys that type are its, not shortcuts
 	public function takesText():Bool
 		return false;

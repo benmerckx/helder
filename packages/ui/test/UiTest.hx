@@ -41,6 +41,7 @@ class UiTest {
 		images(here);
 		svgs(here);
 		svgApi();
+		css(here);
 		fields();
 		popups();
 		shortcuts();
@@ -124,6 +125,57 @@ class UiTest {
 		ui.paint(rec);
 		drawn = [for (c in rec.calls) if (StringTools.startsWith(c, "image")) c];
 		check("svg: drawn again at a new size and colour", n.height == 40 && StringTools.startsWith(drawn[0], "image 80x80") && n.image.pixels.get(2) == 255, drawn.join("|"));
+	}
+
+	// --- css ---
+
+	// css/: colours against Chromium's computed ones (within 1 a channel),
+	// gradients against its backgrounds (within 2 levels)
+	static function css(here:String) {
+		var dir = here + "/css";
+		var colors:Array<{css:String, rgba:Array<Int>}> = haxe.Json.parse(sys.io.File.getContent(dir + "/colors.json"));
+		var bad = [];
+		for (c in colors) {
+			var v = Color.tryParse(c.css);
+			if (v == null || Math.abs(v.r - c.rgba[0]) > 1 || Math.abs(v.g - c.rgba[1]) > 1 || Math.abs(v.b - c.rgba[2]) > 1 || Math.abs(v.a - c.rgba[3]) > 1)
+				bad.push(c.css + " " + (v == null ? "null" : v.toHex()) + " vs " + c.rgba.join(","));
+		}
+		check("css: colours as Chromium computes them (" + colors.length + ")", bad.length == 0, bad.join("; "));
+		check("css: not a colour", Color.tryParse("bluish") == null && Color.tryParse("rgb(1, 2)") == null && Color.tryParse("#12345") == null);
+		var stats = Sys.getEnv("CSS_STATS") != null;
+		var cases:Array<{name:String, css:String, width:Int, height:Int}> = haxe.Json.parse(sys.io.File.getContent(dir + "/gradients.json"));
+		for (c in cases) {
+			var img = Gradient.parse(c.css).render(c.width, c.height);
+			var ref = PngDecoder.decode(sys.io.File.getBytes(dir + "/" + c.name + ".png"));
+			var total = 0.0, worst = 0, a = img.pixels, b = ref.rgba;
+			for (i in 0...c.width * c.height) {
+				var o = i * 4, aa = a.get(o + 3), ba = b.get(o + 3), d = Std.int(Math.abs(aa - ba));
+				for (k in 0...3) {
+					var e = Std.int(Math.abs(a.get(o + k) * aa / 255 - b.get(o + k) * ba / 255));
+					if (e > d) d = e;
+				}
+				total += d;
+				if (d > worst) worst = d;
+			}
+			var mean = total / (c.width * c.height);
+			if (stats) Sys.println('css ${c.name}: mean ${Math.round(mean * 100) / 100} worst $worst');
+			check("css: " + c.name + " as Chromium draws it", mean < 1 && worst <= 2, 'mean $mean, worst $worst');
+		}
+		// a node's gradient: over its colour, under its border, at the window's pixels
+		var ui = new Ui(new MonoText(), 200, 100);
+		ui.root.style.alignItems = Start;
+		var n = new Node("card");
+		n.style.set({width: 40, height: 20, radius: 4, background: Color.rgb(0xFFFFFF), borderWidth: 1, borderColor: Color.rgb(0x000000),
+			backgroundImage: Gradient.parse("linear-gradient(to right, red, blue)")});
+		ui.root.append(n);
+		ui.scale = 2;
+		ui.update();
+		var rec = new Recording();
+		ui.paint(rec);
+		var calls = [for (c in rec.calls) if (StringTools.startsWith(c, "rect") || StringTools.startsWith(c, "image")) c.split(" ").slice(0, 2).join(" ")];
+		check("css: a node's gradient between its colour and its border", calls.join(",") == "rect 0,image 80x40,rect 0", calls.join(","));
+		var img = n.backgroundImage(2);
+		check("css: kept while the node's size stays", n.backgroundImage(2) == img && img.pixels.get(0) > 200 && img.pixels.get((79) * 4 + 2) > 200);
 	}
 
 	// --- shortcuts ---

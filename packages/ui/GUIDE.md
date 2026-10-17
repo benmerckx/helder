@@ -167,6 +167,14 @@ property is an attribute, in kebab-case or camelCase, with CSS's values:
 	width="50%" min-height={0} background="#3b82f6" radius={6} border-width={1} border-color="#1d4ed8"/>
 ```
 
+Colours are CSS's: hex, `rgb()`, `hsl()` and the named ones. A background
+can be a CSS gradient, linear or radial, repeating or not, drawn under the
+border:
+
+```haxe
+<view tag="banner" height={48} radius={8} background="linear-gradient(to right, #6366f1, rgb(236 72 153))"/>
+```
+
 For two-dimensional layouts, `display="grid"` places children on CSS
 grid tracks: fixed sizes, percentages, `fr` shares, `auto`,
 `min-content`, `max-content`, `minmax()` and `repeat()`, with items

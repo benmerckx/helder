@@ -938,43 +938,10 @@ class SvgParse {
 		return m;
 	}
 
-	// a CSS colour: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba(), a name, transparent
+	// a CSS colour (Color.parse's), currentColor: current
 	public static function color(v:String, current:Null<Color>):Null<Color> {
-		v = StringTools.trim(v).toLowerCase();
-		if (v == "transparent") return 0;
-		if (v == "currentcolor") return current;
-		if (StringTools.startsWith(v, "#")) {
-			var h = v.substr(1);
-			if (h.length == 3 || h.length == 4) {
-				var b = new StringBuf();
-				for (k in 0...h.length) {
-					b.add(h.charAt(k));
-					b.add(h.charAt(k));
-				}
-				h = b.toString();
-			}
-			var n = Std.parseInt("0x" + h);
-			if (n == null) return null;
-			if (h.length == 6) return 0xFF000000 | n;
-			if (h.length == 8) return ((n & 0xFF) << 24) | (n >>> 8);
-			return null;
-		}
-		if (StringTools.startsWith(v, "rgb")) {
-			var open = v.indexOf("("), close = v.indexOf(")");
-			if (open < 0 || close < open) return null;
-			var parts = ~/[\s,\/]+/g.split(StringTools.trim(v.substring(open + 1, close))).filter(x -> x != "");
-			if (parts.length < 3) return null;
-			function channel(s:String):Int {
-				var f = StringTools.endsWith(s, "%") ? Std.parseFloat(s) * 2.55 : Std.parseFloat(s);
-				return Std.int(Math.max(0, Math.min(255, Math.round(f))));
-			}
-			var alpha = 1.0;
-			if (parts.length > 3) alpha = StringTools.endsWith(parts[3], "%") ? Std.parseFloat(parts[3]) / 100 : Std.parseFloat(parts[3]);
-			var a = Std.int(Math.round(Math.max(0, Math.min(1, alpha)) * 255));
-			return (a << 24) | (channel(parts[0]) << 16) | (channel(parts[1]) << 8) | channel(parts[2]);
-		}
-		var n = SvgColors.names().get(v);
-		return n == null ? null : 0xFF000000 | n;
+		var t = StringTools.trim(v).toLowerCase();
+		return t == "currentcolor" ? current : Color.tryParse(t);
 	}
 }
 

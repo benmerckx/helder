@@ -114,7 +114,12 @@ class Ui {
 		if (sh != null)
 			canvas.shadow(n.absX + sh.x - sh.spread, n.absY + sh.y - sh.spread, n.width + 2 * sh.spread, n.height + 2 * sh.spread,
 				s.radius > 0 ? s.radius + sh.spread : 0, sh.color, sh.blur);
-		if (s.background.a > 0 || (s.borderWidth > 0 && s.borderColor.a > 0))
+		if (s.backgroundImage != null && n.width > 0 && n.height > 0) {
+			// (the colour, the gradient over it, then the border over both)
+			if (s.background.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, 0, 0);
+			canvas.image(n.backgroundImage(scale), n.absX, n.absY, n.width, n.height, 0, 0, 1, 1, s.radius);
+			if (s.borderWidth > 0 && s.borderColor.a > 0) canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, Color.TRANSPARENT, s.borderWidth, s.borderColor);
+		} else if (s.background.a > 0 || (s.borderWidth > 0 && s.borderColor.a > 0))
 			canvas.rect(n.absX, n.absY, n.width, n.height, s.radius, s.background, s.borderWidth, s.borderColor);
 		var bw = s.borderWidth, pad = s.padding;
 		if (n.hasContent())

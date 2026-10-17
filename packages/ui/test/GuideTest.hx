@@ -223,11 +223,14 @@ class GuideTest implements Markup {
 			<text tag="c">{count.value}</text>
 			<view tag="d" background={() -> on.value ? "#22c55e" : "#e4e4e7"}/>
 			<view tag="e" height={height} overflow="hidden"><text>Hello</text></view>
+			<view tag="banner" height={48} radius={8} background="linear-gradient(to right, #6366f1, rgb(236 72 153))"/>
 			<view tag="f" role="button" label="Close" focusable onClick={_ -> close()}
 				onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) close()}><text>×</text></view>
 		</view>, ui.root);
 		count.value = 5;
 		ui.update();
+		var banner = ui.root.find("banner");
+		check("snippets: a gradient background", banner.style.backgroundImage != null && banner.style.background == Color.TRANSPARENT);
 		check("snippets: bound and read-once holes", text(ui, "a") == "5" && text(ui, "b") == "10" && text(ui, "c") == "1", text(ui, "a") + text(ui, "b") + text(ui, "c"));
 		open.value = true;
 		Clock.finish();

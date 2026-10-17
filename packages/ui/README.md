@@ -63,7 +63,11 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     text to so many lines, the last ending in an ellipsis where Chromium's
     line-clamp puts it.
   - Paint: `background`, `borderColor`, `radius`, `opacity`, `shadow`
-    (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`.
+    (`"0 2 8 #00000040"`: x, y, blur, spread, colour), `cursor`. Colours are
+    CSS's (`Color.parse`: hex, `rgb()`, `hsl()`, the 148 names, as Chromium
+    computes them); `backgroundImage` (markup: `background="linear-gradient(...)"`)
+    is a CSS gradient, linear or radial, repeating or not (`Gradient`: within
+    two levels of Chromium's pixels on 19 cases), under the border.
   - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
     colour type, depth and interlacing, JPEG files, baseline or
     progressive, decoded as browsers do, the EXIF orientation applied, and

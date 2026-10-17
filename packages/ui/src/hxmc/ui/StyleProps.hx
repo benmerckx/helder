@@ -32,6 +32,7 @@ typedef StyleProps = {
 	?bottom:Dim,
 	?overflow:Overflow,
 	?background:Color,
+	?backgroundImage:Gradient,
 	?borderColor:Color,
 	?radius:Float,
 	?opacity:Float,

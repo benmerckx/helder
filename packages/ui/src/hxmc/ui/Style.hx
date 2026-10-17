@@ -128,6 +128,9 @@ class Style {
 
 	public var cursor(default, set):Cursor = Cursor.Auto;
 
+	// over the background colour, under the border: a CSS gradient (Gradient.parse; null: none)
+	public var backgroundImage(default, set):Null<Gradient> = null;
+
 	// under the background (null: none)
 	public var shadow(default, set):Null<Shadow> = null;
 
@@ -438,6 +441,13 @@ class Style {
 		return v;
 	}
 
+	function set_backgroundImage(v:Null<Gradient>):Null<Gradient> {
+		if (v == backgroundImage) return v;
+		backgroundImage = v;
+		node.styleChanged(false);
+		return v;
+	}
+
 	function set_borderColor(v:Color):Color {
 		if (v == borderColor) return v;
 		borderColor = v;
@@ -553,6 +563,7 @@ class Style {
 		if (p.bottom != null) bottom = p.bottom;
 		if (p.overflow != null) overflow = p.overflow;
 		if (p.background != null) background = p.background;
+		if (p.backgroundImage != null) backgroundImage = p.backgroundImage;
 		if (p.borderColor != null) borderColor = p.borderColor;
 		if (p.radius != null) radius = p.radius;
 		if (p.opacity != null) opacity = p.opacity;
