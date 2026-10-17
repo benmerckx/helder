@@ -71,7 +71,7 @@ class Plain {
 			{slot: "slider-range", style: {background: line}},
 			{slot: "slider-thumb", style: {width: 16, height: 16, radius: 8, background: line}},
 			{slot: "progress", style: {width: Dim.parse("100%"), height: 8, radius: 4, background: faint}},
-			{slot: "progress-indicator", style: {background: line}},
+			{slot: "progress-indicator", style: {grow: 1, background: line}},
 			{slot: "separator", style: {background: faint, alignSelf: Stretch, shrink: 0}},
 			{slot: "separator", when: ["data-orientation=horizontal"], style: {height: 1}},
 			{slot: "separator", when: ["data-orientation=vertical"], style: {width: 1}},

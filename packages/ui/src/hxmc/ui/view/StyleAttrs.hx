@@ -198,8 +198,9 @@ class StyleAttrs {
 	static function float(v:Dynamic):Float
 		return Std.isOfType(v, String) ? Std.parseFloat(v) : (v : Float);
 
+	// (null: auto, as a prop not given)
 	static function dim(v:Dynamic):Dim
-		return Std.isOfType(v, String) ? Dim.parse(v) : Std.isOfType(v, DimValue) ? (v : DimValue) : DimValue.Px((v : Float));
+		return v == null ? DimValue.Auto : Std.isOfType(v, String) ? Dim.parse(v) : Std.isOfType(v, DimValue) ? (v : DimValue) : DimValue.Px((v : Float));
 
 	// an Int without alpha (0xRRGGBB) is opaque; a string as CSS writes it
 	static function colorOf(v:Dynamic):Null<Color> {

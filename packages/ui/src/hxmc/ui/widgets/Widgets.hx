@@ -956,7 +956,9 @@ class Widgets implements Markup {
 	// number); null: not known (indeterminate: a bar sliding across, every
 	// 1.5 seconds, on the Clock; no value for assistive technology). Slots
 	// "progress" and "progress-indicator" (data-state "indeterminate" when
-	// sliding); width: the bar's, else its rules'
+	// sliding; known, moved left by what is not done, translateX(-40%) at
+	// 0.6, as shadcn's: as wide as the bar by its rules); width: the
+	// bar's, else its rules'
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
 		var known = () -> Render.read(props.value) != null;
 		var frac = () -> {
@@ -977,7 +979,7 @@ class Widgets implements Markup {
 		onCleanup(() -> stopped = true);
 		return <view tag={props.tag ?? "progress"} ref={n -> States.apply(n, props.style)} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
 			slot="progress" width={props.width} overflow="hidden" direction="row">
-			<view slot="progress-indicator" width={() -> (frac() * 100) + "%"}/>
+			<view slot="progress-indicator" transform={() -> "translateX(" + (-(1 - frac()) * 100) + "%)"}/>
 			{() -> known() ? null : <view tag="progress-slide" slot="progress-indicator" data-state="indeterminate" position="absolute" top={0} bottom={0}
 				width="40%" left={() -> ((phase.value * 1.4 - 0.4) * 100) + "%"}/>}
 		</view>;

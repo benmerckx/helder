@@ -1307,6 +1307,7 @@ class MarkupTest implements Markup {
 			<Tabs tag="tabs" labels={["One", "Two"]} selected={tab} render={i -> <text>{"Panel " + i}</text>}/>
 			<Slider tag="vol" value={vol} width={100} disabled={off}/>
 			<Progress tag="p" value={0.25} width={100}/>
+			<Progress tag="p2" value={0.5}/>
 			<Separator tag="sep"/>
 			<Separator tag="vsep" orientation="vertical" decorative={false}/>
 			<Skeleton tag="sk" width={40} height={10}/>
@@ -1337,8 +1338,11 @@ class MarkupTest implements Markup {
 		check("unstyled: a slider's track, range and thumb", v.slot == "slider" && track.slot == "slider-track" && track.children[0].slot == "slider-range"
 			&& v.children[1].children[1].slot == "slider-thumb" && track.style.height.resolve(0) == 4 && track.children[0].width == 50, '${track.children[0].width}');
 		var p = ui.root.find("p");
-		check("unstyled: a progress bar's indicator", p.slot == "progress" && p.children[0].slot == "progress-indicator" && p.children[0].width == 25
-			&& p.style.height.resolve(0) == 8);
+		var ind = p.children[0];
+		check("unstyled: a progress bar's indicator, the bar's width moved left by what is not done", p.slot == "progress" && ind.slot == "progress-indicator"
+			&& ind.width == 100 && ind.style.transform.toMatrix(ind.width, ind.height)[4] == -75 && p.style.height.resolve(0) == 8);
+		check("unstyled: a width not given (null) is no width of its own: the rules'", ui.root.find("p2").style.width.equals(DimValue.Percent(100)),
+			"" + ui.root.find("p2").style.width);
 		var sep = ui.root.find("sep"), vsep = ui.root.find("vsep");
 		check("unstyled: separators: a line across, data-orientation; decorative ones hidden", sep.slot == "separator" && sep.height == 1
 			&& sep.attr("data-orientation") == "horizontal" && vsep.style.width.resolve(0) == 1 && vsep.semantics.role == Separator
