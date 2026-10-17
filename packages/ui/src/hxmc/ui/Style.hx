@@ -207,6 +207,11 @@ class Style {
 	// first in upper case; a text field's own text is shown as typed
 	public var textTransform(get, set):Null<TextTransform>;
 
+	// a line too wide for its box (CSS's text-overflow; not inherited):
+	// Ellipsis ends it in one within the box (with NoWrap, or a word too
+	// long to break); its intrinsic widths are the whole text's
+	public var textOverflow(get, set):TextOverflow;
+
 	// a text's lines at most (0: any), the last ending in an ellipsis when cut (CSS's line-clamp; not inherited)
 	public var maxLines(get, set):Int;
 
@@ -301,6 +306,9 @@ class Style {
 
 	inline function get_textTransform():Null<TextTransform>
 		return rare == null ? null : rare.textTransform;
+
+	inline function get_textOverflow():TextOverflow
+		return rare == null ? Clip : rare.textOverflow;
 
 	inline function get_order():Int
 		return rare == null ? 0 : rare.order;
@@ -416,6 +424,13 @@ class Style {
 		if (v == textWrap) return v;
 		more().textWrap = v;
 		// (inherited: the text under it laid out again)
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_textOverflow(v:TextOverflow):TextOverflow {
+		if (v == textOverflow) return v;
+		more().textOverflow = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -883,6 +898,7 @@ class Style {
 		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
 		if (p.textTransform != null) textTransform = p.textTransform;
+		if (p.textOverflow != null) textOverflow = p.textOverflow;
 		if (p.order != null) order = p.order;
 		if (p.zIndex != null) zIndex = p.zIndex;
 		if (p.textDecoration != null) textDecoration = p.textDecoration;
@@ -930,6 +946,7 @@ private class StyleRare {
 	public var pointerEvents:Null<PointerEvents> = null;
 	public var textWrap:Null<TextWrap> = null;
 	public var textTransform:Null<TextTransform> = null;
+	public var textOverflow:TextOverflow = Clip;
 	public var order:Int = 0;
 	public var zIndex:Int = 0;
 	public var textDecoration:Int = 0;

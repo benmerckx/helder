@@ -8,9 +8,9 @@ class MonoText implements TextEngine {
 	public function new() {}
 
 	// (justify: ignored, the characters keep their places)
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1):Paragraph
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1):Paragraph
 {
-		var p = new MonoParagraph(text, font, maxWidth, maxLines);
+		var p = new MonoParagraph(text, font, maxWidth, maxLines, cut);
 		p.justified = justify;
 		return p;
 	}
@@ -33,7 +33,7 @@ class MonoParagraph implements Paragraph {
 	// (asked to justify: recorded only)
 	public var justified = false;
 
-	public function new(text:String, font:Font, maxWidth:Float, maxLines = 0) {
+	public function new(text:String, font:Font, maxWidth:Float, maxLines = 0, cut = -1.0) {
 		this.text = text;
 		// (letter spacing after each character)
 		char = font.size / 2 + font.letterSpacing;
@@ -61,6 +61,13 @@ class MonoParagraph implements Paragraph {
 			}
 			start += hard.length + 1;
 		}
+		// (cut: a line wider than it kept to what fits with the ellipsis, counted as one character)
+		if (cut >= 0)
+			for (k in 0...lines.length)
+				if (lines[k].length * char > cut + 1e-9) {
+					ellipsis = true;
+					lines[k] = {start: lines[k].start, length: Std.int(Math.max(0, Math.floor(cut / char + 1e-9) - 1)) + 1};
+				}
 		if (maxLines > 0 && lines.length > maxLines) {
 			lines.resize(maxLines);
 			ellipsis = true;

@@ -40,7 +40,8 @@ class TextLayout {
 	// A line is as high as CSS makes its line box: the paragraph's own font
 	// and each run on it, each centred in its line height (half the leading
 	// above, half below) on the common baseline
-	// whether maxLines cut lines off (the last one then ends in an ellipsis)
+	// whether lines were cut (by maxLines: the last one; by cut: each too
+	// wide), ending in an ellipsis
 	public var truncated(default, null) = false;
 
 	// maxLines: at most so many lines (0: any), the last ending in an
@@ -48,9 +49,11 @@ class TextLayout {
 	// letterSpacing and wordSpacing: pixels after each character and on each
 	// space, as CSS adds them (outside the runs, which have their own);
 	// base: each paragraph's direction (0 left to right, 1 right to left, as
-	// CSS's direction sets it; -1: from its first strong character)
+	// CSS's direction sets it; -1: from its first strong character); cut:
+	// each line wider than it given up at its end until an ellipsis after it
+	// fits (CSS's text-overflow: ellipsis; NaN: none)
 	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>, maxLines = 0, letterSpacing = 0.0,
-			wordSpacing = 0.0, base = -1) {
+			wordSpacing = 0.0, base = -1, cut = Math.NaN) {
 		this.text = text;
 		this.fonts = fonts;
 		this.runs = runs == null ? [] : runs;
@@ -62,15 +65,20 @@ class TextLayout {
 		bidi(glyphs, base);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
-		if (maxLines > 0 && lines.length > maxLines) clamp(maxLines, maxWidth);
+		if (maxLines > 0 && lines.length > maxLines) {
+			lines.resize(maxLines);
+			ellipsize(lines[maxLines - 1], maxWidth);
+		}
+		if (!Math.isNaN(cut))
+			for (l in lines)
+				if (l.width > cut + 1e-6) ellipsize(l, cut);
 	}
 
-	// the lines after the n-th dropped; the n-th's end given up (its trailing
-	// spaces, then characters) until an ellipsis after it fits the width
-	function clamp(n:Int, maxWidth:Float) {
-		lines.resize(n);
+	// a line's end given up (its trailing spaces, then characters) until an
+	// ellipsis after it fits the width
+	function ellipsize(l:TextLine, maxWidth:Float) {
 		truncated = true;
-		var l = lines[n - 1], gs = l.glyphs;
+		var gs = l.glyphs;
 		var rtl = l.bidi && l.base & 1 == 1;
 		// (the logical end: the right in a left-to-right line, the left in a right-to-left one)
 		inline function endGlyph():Null<Glyph>
@@ -87,18 +95,18 @@ class TextLayout {
 		e.advance = f.advance(e.id) * set.scale(f);
 		e.run = last == null ? -1 : last.run;
 		e.level = rtl ? 1 : 0;
-		function used():Float {
-			var w = 0.0;
-			for (g in gs)
-				w += g.advance;
-			return w;
-		}
 		while (gs.length > 0 && isSpace(endGlyph().cp))
 			dropEnd();
 		// (characters given up one by one: a space they leave at the end stays, as Chromium leaves it)
-		if (!Math.isNaN(maxWidth))
-			while (gs.length > 0 && used() + e.advance > maxWidth + 1e-6)
+		if (!Math.isNaN(maxWidth)) {
+			var used = 0.0;
+			for (g in gs)
+				used += g.advance;
+			while (gs.length > 0 && used + e.advance > maxWidth + 1e-6) {
+				used -= endGlyph().advance;
 				dropEnd();
+			}
+		}
 		var endAt = l.start;
 		for (g in gs)
 			if (g.cluster + g.length > endAt) endAt = g.cluster + g.length;

@@ -57,6 +57,7 @@ typedef StyleProps = {
 	?pointerEvents:PointerEvents,
 	?textWrap:TextWrap,
 	?textTransform:TextTransform,
+	?textOverflow:TextOverflow,
 	?order:Int,
 	?zIndex:Int,
 	?maxLines:Int,

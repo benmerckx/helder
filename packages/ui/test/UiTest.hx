@@ -447,6 +447,16 @@ class UiTest {
 		box.style.width = 40;
 		ui.update();
 		check("no wrap: Wrap again inside", t.laidOut().lineCount > 1, "" + t.laidOut().lineCount);
+		// text-overflow: ellipsis: the line cut within its box, its intrinsic width the whole text's
+		t.style.textWrap = NoWrap;
+		t.style.textOverflow = Ellipsis;
+		ui.update();
+		var m:MonoText.MonoParagraph = cast t.laidOut();
+		check("text overflow: one line cut to its box with an ellipsis", m.lineCount == 1 && m.ellipsis && m.width <= 40 && t.minContentWidth(ui.text) > 40,
+			m.lineCount + " " + m.width);
+		box.style.width = 400;
+		ui.update();
+		check("text overflow: none where it fits", !(cast t.laidOut() : MonoText.MonoParagraph).ellipsis);
 	}
 
 	// textTransform (inherited): the letters shown, the indices kept; a span its own
