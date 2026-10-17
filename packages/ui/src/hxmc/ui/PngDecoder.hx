@@ -52,7 +52,6 @@ class PngDecoder {
 		}
 		if (type < 0) throw "PngDecoder: no IHDR chunk";
 		if (type == 3 && palette == null) throw "PngDecoder: a palette image without PLTE";
-		var raw = haxe.zip.InflateImpl.run(new haxe.io.BytesInput(idat.getBytes()));
 		var channels = switch type {
 			case 0: 1;
 			case 2: 3;
@@ -61,6 +60,15 @@ class PngDecoder {
 			case _: 4;
 		}
 		var bits = channels * depth;
+		// (the image data's size: each pass's rows, a filter byte each)
+		var expected = 0;
+		var passes = interlace == 1 ? [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]] : [[0, 0, 1, 1]];
+		for (a in passes) {
+			var w = Std.int((width - a[0] + a[2] - 1) / a[2]), h = Std.int((height - a[1] + a[3] - 1) / a[3]);
+			if (w > 0 && h > 0) expected += h * (1 + ((w * bits + 7) >> 3));
+		}
+		var data = idat.getBytes();
+		var raw = Inflate.zlib(data, 0, data.length, expected);
 		// the bytes a filter looks back (at least one)
 		var bpp = bits < 8 ? 1 : bits >> 3;
 		var out = Bytes.alloc(width * height * 4);
@@ -74,35 +82,53 @@ class PngDecoder {
 			var prev = Bytes.alloc(stride), cur = Bytes.alloc(stride);
 			for (j in 0...h) {
 				if (pos + 1 + stride > raw.length) throw "PngDecoder: the image data ends early";
-				var f = raw.get(pos);
-				for (x in 0...stride) {
-					var v = raw.get(pos + 1 + x);
-					var a = x >= bpp ? cur.get(x - bpp) : 0, b = prev.get(x), c = x >= bpp ? prev.get(x - bpp) : 0;
-					v += switch f {
-						case 0: 0;
-						case 1: a;
-						case 2: b;
-						case 3: (a + b) >> 1;
-						case 4:
+				var f = raw.get(pos), r = pos + 1;
+				// (each filter its own loop: the first bpp bytes have nothing to their left)
+				switch f {
+					case 0:
+						cur.blit(0, raw, r, stride);
+					case 1:
+						for (x in 0...stride)
+							cur.set(x, (raw.get(r + x) + (x >= bpp ? cur.get(x - bpp) : 0)) & 0xFF);
+					case 2:
+						for (x in 0...stride)
+							cur.set(x, (raw.get(r + x) + prev.get(x)) & 0xFF);
+					case 3:
+						for (x in 0...stride)
+							cur.set(x, (raw.get(r + x) + (((x >= bpp ? cur.get(x - bpp) : 0) + prev.get(x)) >> 1)) & 0xFF);
+					case 4:
+						for (x in 0...stride) {
+							var a = x >= bpp ? cur.get(x - bpp) : 0, b = prev.get(x), c = x >= bpp ? prev.get(x - bpp) : 0;
 							var pp = a + b - c, pa = abs(pp - a), pb = abs(pp - b), pc = abs(pp - c);
-							pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
-						case _: throw "PngDecoder: filter " + f;
-					}
-					cur.set(x, v & 0xFF);
+							cur.set(x, (raw.get(r + x) + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c)) & 0xFF);
+						}
+					case _:
+						throw "PngDecoder: filter " + f;
 				}
 				pos += 1 + stride;
 				var y = y0 + j * dy;
-				for (i in 0...w)
-					pixel(cur, i, out, 4 * (y * width + x0 + i * dx), type, depth, palette, trns);
+				// (8-bit RGBA and RGB without a colour key, the common cases: copied)
+				if (depth == 8 && type == 6 && dx == 1) out.blit(4 * y * width, cur, 0, 4 * w) else if (depth == 8 && type == 2 && dx == 1
+					&& trns == null) {
+					var o = 4 * y * width;
+					for (i in 0...w) {
+						out.set(o, cur.get(3 * i));
+						out.set(o + 1, cur.get(3 * i + 1));
+						out.set(o + 2, cur.get(3 * i + 2));
+						out.set(o + 3, 255);
+						o += 4;
+					}
+				} else
+					for (i in 0...w)
+						pixel(cur, i, out, 4 * (y * width + x0 + i * dx), type, depth, palette, trns);
 				var t = prev;
 				prev = cur;
 				cur = t;
 			}
 		}
-		if (interlace == 1) {
-			for (a in [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]])
-				pass(a[0], a[1], a[2], a[3]);
-		} else if (interlace == 0) pass(0, 0, 1, 1) else throw "PngDecoder: interlace method " + interlace;
+		if (interlace > 1) throw "PngDecoder: interlace method " + interlace;
+		for (a in passes)
+			pass(a[0], a[1], a[2], a[3]);
 		return {width: width, height: height, rgba: out};
 	}
 
