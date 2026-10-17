@@ -31,6 +31,11 @@ enum abstract EventKind(Int) {
 	// the window's scale changed (Window.scale: another display's DPI);
 	// a Resize follows if its size in pixels changed too
 	var ScaleChange;
+	// Android: the system took the window (the app went to the background):
+	// its Surface is lost (Surface.lost) and nothing is drawn until Resume
+	var Suspend;
+	// Android: a new window for the Surface (Surface.reattach), drawn to again
+	var Resume;
 }
 
 // Event.mods bits

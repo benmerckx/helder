@@ -190,8 +190,12 @@ class GfxTest {
 		return rgba;
 	}
 
-	static function compare(what:String, pixels:Bytes, golden:String):Bool {
-		var g = Png.decode(sys.io.File.getBytes(golden));
+	static function compare(what:String, pixels:Bytes, golden:String):Bool
+		return compareBytes(what, pixels, sys.io.File.getBytes(golden));
+
+	// (AndroidTest: the golden image built in)
+	public static function compareBytes(what:String, pixels:Bytes, png:Bytes):Bool {
+		var g = Png.decode(png);
 		if (g.width != WIDTH || g.height != HEIGHT) {
 			Sys.println('GfxTest: $what: FAIL: the golden image is ${g.width}x${g.height}');
 			return false;
