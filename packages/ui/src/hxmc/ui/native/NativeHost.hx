@@ -60,10 +60,11 @@ class NativeHost {
 		return null;
 	}
 
-	// the platform resized the window
+	// the platform resized the window (also while it opens: Win32's WM_SIZE,
+	// before the Ui is made)
 	@:allow(hxmc.ui.native) function windowResized() {
 		resized = true;
-		ui.requestFrame();
+		if (ui != null) ui.requestFrame();
 	}
 
 	@:allow(hxmc.ui.native) function windowClosed() {
