@@ -37,31 +37,32 @@ class Node {
 	public var scrollX(default, set) = 0.0;
 	public var scrollY(default, set) = 0.0;
 
-	// events (Ui dispatches them; Event.stop() ends bubbling to the ancestors)
-	public var onPointerDown:Null<Event->Void>;
-	public var onPointerUp:Null<Event->Void>;
-	public var onPointerMove:Null<Event->Void>;
-	public var onPointerEnter:Null<Event->Void>;
-	public var onPointerLeave:Null<Event->Void>;
-	public var onClick:Null<Event->Void>;
-	public var onWheel:Null<Event->Void>;
-	public var onKeyDown:Null<Event->Void>;
-	public var onKeyUp:Null<Event->Void>;
-	public var onTextInput:Null<Event->Void>;
+	// events (Ui dispatches them; Event.stop() ends bubbling to the ancestors;
+	// kept in a Handlers made when the first is set: most nodes have none)
+	public var onPointerDown(get, set):Null<Event->Void>;
+	public var onPointerUp(get, set):Null<Event->Void>;
+	public var onPointerMove(get, set):Null<Event->Void>;
+	public var onPointerEnter(get, set):Null<Event->Void>;
+	public var onPointerLeave(get, set):Null<Event->Void>;
+	public var onClick(get, set):Null<Event->Void>;
+	public var onWheel(get, set):Null<Event->Void>;
+	public var onKeyDown(get, set):Null<Event->Void>;
+	public var onKeyUp(get, set):Null<Event->Void>;
+	public var onTextInput(get, set):Null<Event->Void>;
 	// Overflow Scroll: its scrollX or scrollY changed (the wheel, a thumb, clamping)
-	public var onScroll:Null<Void->Void>;
-	public var onComposition:Null<Event->Void>;
-	public var onFocus:Null<Event->Void>;
-	public var onBlur:Null<Event->Void>;
+	public var onScroll(get, set):Null<Void->Void>;
+	public var onComposition(get, set):Null<Event->Void>;
+	public var onFocus(get, set):Null<Event->Void>;
+	public var onBlur(get, set):Null<Event->Void>;
 	// drag and drop: dragData makes it draggable (what its drag carries);
 	// the handlers of a source (start, end) and of a target (over: call
 	// preventDefault to accept; leave; drop)
-	public var dragData:Dynamic = null;
-	public var onDragStart:Null<Event->Void>;
-	public var onDragOver:Null<Event->Void>;
-	public var onDragLeave:Null<Event->Void>;
-	public var onDrop:Null<Event->Void>;
-	public var onDragEnd:Null<Event->Void>;
+	public var dragData(get, set):Dynamic;
+	public var onDragStart(get, set):Null<Event->Void>;
+	public var onDragOver(get, set):Null<Event->Void>;
+	public var onDragLeave(get, set):Null<Event->Void>;
+	public var onDrop(get, set):Null<Event->Void>;
+	public var onDragEnd(get, set):Null<Event->Void>;
 	// takes the keyboard focus when clicked or tabbed to
 	public var focusable(default, set) = false;
 	// what it is to assistive technology (hxmc.ui.access.AccessTree)
@@ -203,6 +204,230 @@ class Node {
 	function set_semantics(v:Null<hxmc.ui.access.Semantics>):Null<hxmc.ui.access.Semantics> {
 		if (v != semantics) Ui.accessEpoch++;
 		return semantics = v;
+	}
+
+	// --- the handlers ---
+
+	var handlers:Null<Handlers> = null;
+
+	inline function get_onPointerDown():Null<Event->Void>
+		return handlers == null ? null : handlers.onPointerDown;
+
+	function set_onPointerDown(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onPointerDown = v;
+	}
+
+	inline function get_onPointerUp():Null<Event->Void>
+		return handlers == null ? null : handlers.onPointerUp;
+
+	function set_onPointerUp(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onPointerUp = v;
+	}
+
+	inline function get_onPointerMove():Null<Event->Void>
+		return handlers == null ? null : handlers.onPointerMove;
+
+	function set_onPointerMove(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onPointerMove = v;
+	}
+
+	inline function get_onPointerEnter():Null<Event->Void>
+		return handlers == null ? null : handlers.onPointerEnter;
+
+	function set_onPointerEnter(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onPointerEnter = v;
+	}
+
+	inline function get_onPointerLeave():Null<Event->Void>
+		return handlers == null ? null : handlers.onPointerLeave;
+
+	function set_onPointerLeave(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onPointerLeave = v;
+	}
+
+	inline function get_onClick():Null<Event->Void>
+		return handlers == null ? null : handlers.onClick;
+
+	function set_onClick(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onClick = v;
+	}
+
+	inline function get_onWheel():Null<Event->Void>
+		return handlers == null ? null : handlers.onWheel;
+
+	function set_onWheel(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onWheel = v;
+	}
+
+	inline function get_onKeyDown():Null<Event->Void>
+		return handlers == null ? null : handlers.onKeyDown;
+
+	function set_onKeyDown(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onKeyDown = v;
+	}
+
+	inline function get_onKeyUp():Null<Event->Void>
+		return handlers == null ? null : handlers.onKeyUp;
+
+	function set_onKeyUp(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onKeyUp = v;
+	}
+
+	inline function get_onTextInput():Null<Event->Void>
+		return handlers == null ? null : handlers.onTextInput;
+
+	function set_onTextInput(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onTextInput = v;
+	}
+
+	inline function get_onScroll():Null<Void->Void>
+		return handlers == null ? null : handlers.onScroll;
+
+	function set_onScroll(v:Null<Void->Void>):Null<Void->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onScroll = v;
+	}
+
+	inline function get_onComposition():Null<Event->Void>
+		return handlers == null ? null : handlers.onComposition;
+
+	function set_onComposition(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onComposition = v;
+	}
+
+	inline function get_onFocus():Null<Event->Void>
+		return handlers == null ? null : handlers.onFocus;
+
+	function set_onFocus(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onFocus = v;
+	}
+
+	inline function get_onBlur():Null<Event->Void>
+		return handlers == null ? null : handlers.onBlur;
+
+	function set_onBlur(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onBlur = v;
+	}
+
+	inline function get_dragData():Dynamic
+		return handlers == null ? null : handlers.dragData;
+
+	function set_dragData(v:Dynamic):Dynamic {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.dragData = v;
+	}
+
+	inline function get_onDragStart():Null<Event->Void>
+		return handlers == null ? null : handlers.onDragStart;
+
+	function set_onDragStart(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onDragStart = v;
+	}
+
+	inline function get_onDragOver():Null<Event->Void>
+		return handlers == null ? null : handlers.onDragOver;
+
+	function set_onDragOver(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onDragOver = v;
+	}
+
+	inline function get_onDragLeave():Null<Event->Void>
+		return handlers == null ? null : handlers.onDragLeave;
+
+	function set_onDragLeave(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onDragLeave = v;
+	}
+
+	inline function get_onDrop():Null<Event->Void>
+		return handlers == null ? null : handlers.onDrop;
+
+	function set_onDrop(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onDrop = v;
+	}
+
+	inline function get_onDragEnd():Null<Event->Void>
+		return handlers == null ? null : handlers.onDragEnd;
+
+	function set_onDragEnd(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onDragEnd = v;
 	}
 
 	// the layout of this node (and so of its ancestors) must be redone
@@ -558,4 +783,30 @@ class Node {
 		this.focused = focused;
 		if (changed && ui != null) ui.requestFrame();
 	}
+}
+
+// a node's event handlers (Node.onClick...)
+private class Handlers {
+	public var onPointerDown:Null<Event->Void> = null;
+	public var onPointerUp:Null<Event->Void> = null;
+	public var onPointerMove:Null<Event->Void> = null;
+	public var onPointerEnter:Null<Event->Void> = null;
+	public var onPointerLeave:Null<Event->Void> = null;
+	public var onClick:Null<Event->Void> = null;
+	public var onWheel:Null<Event->Void> = null;
+	public var onKeyDown:Null<Event->Void> = null;
+	public var onKeyUp:Null<Event->Void> = null;
+	public var onTextInput:Null<Event->Void> = null;
+	public var onScroll:Null<Void->Void> = null;
+	public var onComposition:Null<Event->Void> = null;
+	public var onFocus:Null<Event->Void> = null;
+	public var onBlur:Null<Event->Void> = null;
+	public var dragData:Dynamic = null;
+	public var onDragStart:Null<Event->Void> = null;
+	public var onDragOver:Null<Event->Void> = null;
+	public var onDragLeave:Null<Event->Void> = null;
+	public var onDrop:Null<Event->Void> = null;
+	public var onDragEnd:Null<Event->Void> = null;
+
+	public function new() {}
 }

@@ -14,6 +14,8 @@ class Style {
 	public static inline var DEFAULT_LINE_HEIGHT = 1.25;
 	public static inline var DEFAULT_COLOR:Color = 0xFF000000;
 
+	static final NO_TRACKS:Array<Grid.Track> = [];
+
 	final node:Node;
 
 	@:allow(hxmc.ui.Node) function new(node:Node)
@@ -40,9 +42,9 @@ class Style {
 
 	public var alignContent(default, set):AlignContent = Normal;
 
-	// the explicit grid's columns and rows (Grid.tracks: "1fr 200px auto")
-	public var gridTemplateColumns(default, set):Array<Grid.Track> = [];
-	public var gridTemplateRows(default, set):Array<Grid.Track> = [];
+	// the explicit grid's columns and rows (Grid.tracks: "1fr 200px auto"; none: one empty array shared)
+	public var gridTemplateColumns(default, set):Array<Grid.Track> = NO_TRACKS;
+	public var gridTemplateRows(default, set):Array<Grid.Track> = NO_TRACKS;
 
 	// the explicit grid's named areas (Grid.GridAreas.parse: "'head head' 'side main'"),
 	// which make it at least as many columns and rows (beyond the templates' sized as auto tracks)
