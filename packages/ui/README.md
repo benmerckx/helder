@@ -253,6 +253,29 @@ transparent textarea at the caret, which input methods compose in
 own windows are placed at the caret; X11's input method draws its
 composition itself.
 
+## Performance
+
+A frame does the work of what changed and what is seen. `Ui.update` lays
+out nothing on a clean tree; after a change it lays out again the dirty
+path (a node's measures are cached per constraints) and rounds only the
+subtrees that moved. Paint and hit tests skip subtrees whose bounds
+(their ink: the box, overflowing text, children unless clipped, widened
+by shadows and the focus ring) miss the window or their scrollers. The
+accessibility tree is built again only when something it reads changed.
+The renderer draws a quad as four vertices and six indices, batched by
+texture.
+
+Memory per node is kept small: leaves share one empty children array; event
+handlers and the rarely set style properties (grid, transforms, shadows,
+offsets...) are allocated when first set; paragraphs share their font sets.
+
+`StressTest [rows]` (`make ui-draw-check` runs it) prints the times of the
+first layout, of the frames after a change, a scroll and an append, and of
+a steady frame; `RT_STATS=1` adds the collector's figures and the RSS, and
+a build with `-D hxmc.census` run with `RT_CENSUS=1` lists the live heap by
+type. At 5000 rows (40000 nodes) a steady frame paints in about 1.5 ms and a
+change to one row is laid out in about 3.
+
 ## Tests
 
 `make ui-check` (Eval: layout against Chromium, events, signals, markup),
