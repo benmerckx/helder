@@ -36,12 +36,12 @@ class AndroidWindow {
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		if (current != null) throw "hxmc.os: Android has one window, the activity's";
 		this.owner = owner;
-		current = this;
-		// (the activity's window: the program waits for it)
+		// (the activity's window: the program waits for it; current once there is a surface)
 		while (window.isNull() && Activity.destroyed == 0)
 			pump(-1, null);
 		surface = new Surface(Android, Ptr.nil(), window, window.isNull() ? 0 : Android.ANativeWindow_getWidth(window),
 			window.isNull() ? 0 : Android.ANativeWindow_getHeight(window));
+		current = this;
 	}
 
 	// pixels per point: the screen's density over 160 dpi (the system's dp)
