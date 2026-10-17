@@ -46,6 +46,7 @@ class FidelityTest implements Markup {
 		"breadcrumb-" => "the separator a ▸ glyph at 0.6 opacity, not lucide's chevron-right (size-3.5): the items after it shifted",
 		"pagination-" => "Previous and Next without lucide's chevrons, the ellipsis a … glyph, not MoreHorizontal",
 		"sheet-" => "the sheet's content placed in its popup's box (at the window's left), not against the window's right edge; popups do not inherit the body's text-base (the title's 16px)",
+		"combobox-" => "Combobox's popup is a bare command-list (the slot Command's list has too): shadcn's combobox is a Popover holding a Command, its border, background and shadow theirs",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
 	];
 	static inline var SELECT = "Select's own width (160) wins over w-fit; the trigger has no size (data-[size=default]:h-9)";
@@ -146,7 +147,7 @@ class FidelityTest implements Markup {
 					{label: "Share", onSelect: () -> {}},
 					{label: "Print", shortcut: "Mod+P", onSelect: () -> {}}
 				]}]}/>;
-			case "command": <Combobox value={new Signal("")} options={["Next.js", "SvelteKit", "Nuxt.js", "Remix", "Astro"]} width={200}/>;
+			case "combobox": <Combobox value={new Signal("")} options={["Next.js", "SvelteKit", "Nuxt.js", "Remix", "Astro"]} width={200}/>;
 			case "avatar": <Avatar fallback="CN"/>;
 			case "kbd": <Kbd text="Ctrl"/>;
 			case "spinner": <Spinner/>;
@@ -178,7 +179,7 @@ class FidelityTest implements Markup {
 			case "tooltip" | "hover-card":
 				var n = find(ui.root, "button");
 				ui.pointerMove(n.absX + n.width / 2, n.absY + n.height / 2);
-			case "command":
+			case "combobox":
 				var f = find(ui.root, "input");
 				ui.setFocus(f);
 				ui.keyDown(Key.DOWN, 0);

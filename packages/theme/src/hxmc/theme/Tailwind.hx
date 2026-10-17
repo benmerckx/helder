@@ -429,9 +429,10 @@ class Tailwind {
 			case "place-content-center":
 				en("alignContent", "AlignContent", "Center");
 				en("justify", "Justify", "Center");
-			case "place-items-center":
-				en("alignItems", "Align", "Center");
-				en("justifyItems", "Align", "Center");
+			case "place-items-center" | "place-items-start" | "place-items-end" | "place-items-stretch":
+				var a = ALIGN[u.substr(12)];
+				en("alignItems", "Align", a);
+				en("justifyItems", "Align", a);
 			case "relative": en("position", "Position", "Relative");
 			case "absolute" | "fixed": en("position", "Position", "Absolute");
 			case "sticky": en("position", "Position", "Sticky");

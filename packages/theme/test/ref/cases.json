@@ -749,12 +749,26 @@
 	{
 		"name": "command-default",
 		"component": "command",
+		"w": 482,
+		"h": 300,
+		"dark": false
+	},
+	{
+		"name": "combobox-open",
+		"component": "combobox",
 		"w": 216,
 		"h": 186,
 		"dark": false,
 		"crop": "command-list",
 		"fw": 320,
 		"fh": 300
+	},
+	{
+		"name": "alert-dialog-open",
+		"component": "alert-dialog",
+		"w": 800,
+		"h": 600,
+		"dark": false
 	},
 	{
 		"name": "context-menu-open",
@@ -1591,12 +1605,26 @@
 	{
 		"name": "command-default-dark",
 		"component": "command",
+		"w": 482,
+		"h": 300,
+		"dark": true
+	},
+	{
+		"name": "combobox-open-dark",
+		"component": "combobox",
 		"w": 216,
 		"h": 186,
 		"dark": true,
 		"crop": "command-list",
 		"fw": 320,
 		"fh": 300
+	},
+	{
+		"name": "alert-dialog-open-dark",
+		"component": "alert-dialog",
+		"w": 800,
+		"h": 600,
+		"dark": true
 	},
 	{
 		"name": "context-menu-open-dark",
