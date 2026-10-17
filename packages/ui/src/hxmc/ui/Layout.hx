@@ -172,7 +172,8 @@ class Layout {
 			if (it.align == Auto) it.align = Stretch;
 			it.styleCross = clamp((row ? cs.height : cs.width).resolve(innerCross), it.minCross, it.maxCross);
 			var b = cs.basis.resolve(innerMain);
-			if (!known(b)) b = (row ? cs.width : cs.height).resolve(innerMain);
+			// (a percentage basis of an indefinite size: content, the width or height left out)
+			if (!known(b) && cs.basis == DimValue.Auto) b = (row ? cs.width : cs.height).resolve(innerMain);
 			var contentBasis = !known(b);
 			if (!known(b) && cs.aspectRatio > 0 && known(it.styleCross)) b = row ? it.styleCross * cs.aspectRatio : it.styleCross / cs.aspectRatio;
 			if (!known(b)) {
@@ -1014,7 +1015,7 @@ class Layout {
 	// a flex-basis set is not part of it, as Chromium sizes rows)
 	function contribution(it:Item, row:Bool, innerW:Float, innerH:Float):Float {
 		var cs = it.node.style;
-		if (!row || !known(cs.basis.resolve(innerW))) return it.hypo;
+		if (!row || cs.basis == DimValue.Auto) return it.hypo;
 		var w = cs.width.resolve(innerW);
 		if (!known(w)) {
 			size(it.node, Math.NaN, known(it.styleCross) ? it.styleCross : Math.NaN, innerW, innerH, Math.NaN, Math.NaN, false);

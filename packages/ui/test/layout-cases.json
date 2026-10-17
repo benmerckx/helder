@@ -3005,6 +3005,40 @@
 		}
 	},
 	{
+		"name": "percentage basis of an indefinite column: content",
+		"width": 200,
+		"height": 150,
+		"tree": {
+			"style": {
+				"wrap": true
+			},
+			"children": [
+				{
+					"style": {
+						"padding": 4,
+						"width": 40
+					},
+					"children": [
+						{
+							"style": {
+								"width": 30,
+								"height": 30,
+								"basis": "30%",
+								"grow": 1,
+								"shrink": 0
+							}
+						},
+						{
+							"style": {
+								"height": 10
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "row intrinsic width without flex-basis",
 		"width": 300,
 		"height": 100,
