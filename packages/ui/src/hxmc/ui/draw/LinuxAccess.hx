@@ -26,6 +26,8 @@ class LinuxAccess {
 	// empty (they ask each object instead)
 	static inline var CACHE = "/org/a11y/atspi/cache";
 	static var state = 0; // 0: not tried, 1: connected, -1: none
+	// (no tree is built until a client asks for something: most sessions run with none)
+	static var asked = false;
 	static var conn = Ptr.nil();
 	static var unique = "";
 	static final all:Array<LinuxAccess> = [];
@@ -126,7 +128,7 @@ class LinuxAccess {
 
 	// the tree after a frame (a focus change emitted)
 	public function update() {
-		if (state != 1) return;
+		if (state != 1 || !asked) return;
 		var t = ui.accessTree();
 		var c = t.changes(tree);
 		if (c.nodes.length > 0 || c.removed.length > 0) {
@@ -345,6 +347,11 @@ class LinuxAccess {
 
 	@:hxmc.callback static function message(c:Ptr, m:Ptr, data:Ptr):Int {
 		if (DBus.dbus_message_get_type(m) != 1) return 1; // (method calls only; else not handled)
+		if (!asked) {
+			asked = true;
+			for (w in all)
+				w.update();
+		}
 		inline function cs(p:Ptr):String
 			return p.isNull() ? "" : (cast p : CString).toString();
 		var path = cs(DBus.dbus_message_get_path(m)), iface = cs(DBus.dbus_message_get_interface(m)), member = cs(DBus.dbus_message_get_member(m));

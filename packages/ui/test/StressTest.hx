@@ -145,6 +145,16 @@ class StressTest implements Markup {
 		inline function ms(v:Float)
 			return Math.round(v / 20 * 10000) / 10;
 		times.push('steady frame: update ${ms(tu)}, paint ${ms(tp)}, gpu ${ms(tg)}');
+		// the accessibility tree a window builds each frame for assistive technology, and its changes
+		var ta = 0.0, prev = ui.accessTree();
+		for (i in 0...20) {
+			var a = haxe.Timer.stamp();
+			var t = ui.accessTree();
+			t.changes(prev);
+			prev = t;
+			ta += haxe.Timer.stamp() - a;
+		}
+		times.push('access tree ${ms(ta)}');
 		Sys.println('StressTest: $n rows, $nodes nodes; ms: ' + times.join(", "));
 		device.dispose();
 		Sys.println("StressTest: " + (failed == 0 ? "ok" : '$failed FAILED'));

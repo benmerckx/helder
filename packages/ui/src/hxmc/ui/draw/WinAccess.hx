@@ -88,8 +88,20 @@ class WinAccess {
 	static function getObject(hwnd:Ptr, wParam:Int64, lParam:Int64):Int64 {
 		if (lParam.toInt() != -25) return 0;
 		for (a in all)
-			if (a.hwnd == hwnd && a.tree != null) return Uia.UiaReturnRawElementProvider(hwnd, wParam, lParam, a.block(a.tree.root));
+			if (a.hwnd == hwnd) {
+				a.activate();
+				if (a.tree != null) return Uia.UiaReturnRawElementProvider(hwnd, wParam, lParam, a.block(a.tree.root));
+			}
 		return 0;
+	}
+
+	// (no tree is built until a client asks for the root: most programs run with none)
+	var active = false;
+
+	function activate() {
+		if (active) return;
+		active = true;
+		update();
 	}
 
 	public function dispose() {
@@ -101,6 +113,7 @@ class WinAccess {
 
 	// the tree after a frame: blocks for the nodes new, released for the gone
 	public function update() {
+		if (!active) return;
 		var t = ui.accessTree();
 		var c = t.changes(tree);
 		var focusChanged = tree != null && tree.focus != t.focus;
@@ -117,8 +130,10 @@ class WinAccess {
 	}
 
 	// the root's provider (IRawElementProviderSimple; tests)
-	public function rootProvider():Ptr
+	public function rootProvider():Ptr {
+		activate();
 		return tree == null ? Ptr.nil() : block(tree.root);
+	}
 
 	// a node's block (its IRawElementProviderSimple), made when it has none
 	function block(id:Int):Ptr {

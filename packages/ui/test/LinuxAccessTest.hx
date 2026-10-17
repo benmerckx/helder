@@ -12,7 +12,8 @@ import hxmc.ui.widgets.Widgets.Field;
 // Xvfb and a D-Bus session with AT-SPI's bus): a window of widgets whose
 // tree AtspiProbe, another process, reads through libatspi (what Orca
 // uses), then presses its Save button, which closes the window. Its exit
-// status: whether the press came within 20 seconds.
+// status: whether the press came within 20 seconds, and no tree was built
+// before a client asked (after the first frame, before any message).
 //   LinuxAccessTest   (with AtspiProbe running)
 class LinuxAccessTest implements Markup {
 	static function main() {
@@ -29,12 +30,20 @@ class LinuxAccessTest implements Markup {
 			<Field tag="name" value={name} placeholder="Name"/>
 		</view>, w.root);
 		var start = haxe.Timer.stamp();
-		w.onFrame = () -> if (haxe.Timer.stamp() - start > 20) w.close();
+		var frames = 0, lazy = false;
+		w.onFrame = () -> {
+			if (frames++ == 0) {
+				var la:Null<hxmc.ui.draw.LinuxAccess> = cast @:privateAccess w.linuxAccess;
+				lazy = la != null && @:privateAccess la.tree == null;
+			}
+			if (haxe.Timer.stamp() - start > 20) w.close();
+		};
 		// (frames go on: the probe's calls are answered each loop turn anyway)
 		UiWindow.idleWait = 0.02;
 		Clock.add(_ -> !pressed && haxe.Timer.stamp() - start <= 20);
 		UiWindow.run();
+		if (!lazy) Sys.println("LinuxAccessTest: a tree built before any client asked, FAILED");
 		Sys.println("LinuxAccessTest: " + (pressed ? "pressed through AT-SPI, ok" : "not pressed within 20 s, FAILED"));
-		Sys.exit(pressed ? 0 : 1);
+		Sys.exit(pressed && lazy ? 0 : 1);
 	}
 }
