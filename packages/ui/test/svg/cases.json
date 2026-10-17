@@ -105,6 +105,41 @@
 		"height": 32
 	},
 	{
+		"name": "linear-gradient",
+		"width": 64,
+		"height": 64
+	},
+	{
+		"name": "gradient-units",
+		"width": 64,
+		"height": 64
+	},
+	{
+		"name": "radial-gradient",
+		"width": 64,
+		"height": 64
+	},
+	{
+		"name": "dashes",
+		"width": 64,
+		"height": 64
+	},
+	{
+		"name": "use-symbol",
+		"width": 64,
+		"height": 64
+	},
+	{
+		"name": "clip-path",
+		"width": 64,
+		"height": 64
+	},
+	{
+		"name": "nested-svg",
+		"width": 48,
+		"height": 48
+	},
+	{
 		"name": "no-viewbox",
 		"width": 40,
 		"height": 40

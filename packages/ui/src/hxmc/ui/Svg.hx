@@ -10,12 +10,15 @@ import hxmc.text.Rasterizer;
 // icon sets use: svg, g, path (all of its data, arcs as cubic curves), rect
 // (rounded), circle, ellipse, line, polyline, polygon; fill and stroke (a
 // colour: hex, rgb(), rgba(), CSS's names, currentColor: render's color;
-// none), their opacities, opacity (a group's composited as one), fill-rule,
-// stroke-width, stroke-linecap, stroke-linejoin, stroke-miterlimit,
-// transform; presentation attributes, style="" and the inherited ones
-// passed down. Not drawn: text, images, gradients and patterns (a url()
-// paint draws nothing), clipping, masks, filters, markers, dashes, use;
-// defs, title and the like are skipped.
+// none; linear and radial gradients: their units, transform, spread and
+// stops, href'd ones), their opacities, opacity (a group's composited as
+// one), fill-rule, stroke-width, stroke-linecap, stroke-linejoin,
+// stroke-miterlimit, stroke-dasharray, stroke-dashoffset, transform; use
+// (of an element or a symbol, its viewBox fitted, clipped to its
+// viewport, as a nested svg is); clip-path (a clipPath's shapes, in user
+// units); presentation attributes, style="" and the inherited ones passed
+// down. Not drawn: text, images, patterns (a pattern paint draws
+// nothing), masks, filters, markers; defs, title and the like are skipped.
 class Svg {
 	// the intrinsic size: width and height, else the viewBox's, else 300 by 150
 	public final width:Float;
@@ -71,7 +74,7 @@ class Svg {
 				slice = p.length > 1 && p[1] == "slice";
 			}
 		}
-		var root = SvgParse.root(el);
+		var root = new SvgParse(el, vb != null ? vb.w : w, vb != null ? vb.h : h).root(el);
 		return new Svg(w, h, vb, ax, ay, slice, root);
 	}
 
@@ -94,7 +97,7 @@ class Svg {
 		var w:Int = width != null ? width : Std.int(Math.ceil(this.width)), h:Int = height != null ? height : Std.int(Math.ceil(this.height));
 		var canvas = new SvgCanvas(w, h, color);
 		// the viewport: the viewBox fitted (or the user units at the intrinsic size)
-		var m = Matrix.IDENTITY;
+		var m = Matrix.identity();
 		if (viewBox != null) {
 			var sx = w / viewBox.w, sy = h / viewBox.h;
 			if (alignX == null) m = new Matrix(sx, 0, 0, sy, -viewBox.x * sx, -viewBox.y * sy) else {
@@ -111,7 +114,9 @@ class Svg {
 
 // an affine transform: x' = a x + c y + e, y' = b x + d y + f
 class Matrix {
-	public static final IDENTITY = new Matrix(1, 0, 0, 1, 0, 0);
+	// (made each time: an svg parsed by a static initializer runs before this class's)
+	public static function identity():Matrix
+		return new Matrix(1, 0, 0, 1, 0, 0);
 
 	public final a:Float;
 	public final b:Float;
@@ -139,6 +144,13 @@ class Matrix {
 	public inline function y(px:Float, py:Float):Float
 		return b * px + d * py + f;
 
+	// the transform undoing this one (null: it has no area)
+	public function inverse():Null<Matrix> {
+		var det = a * d - b * c;
+		if (Math.abs(det) < 1e-12) return null;
+		return new Matrix(d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det);
+	}
+
 	// how much it scales lengths (the square root of its area's)
 	public function scale():Float
 		return Math.sqrt(Math.abs(a * d - b * c));
@@ -148,6 +160,53 @@ enum SvgPaint {
 	None;
 	Rgba(c:Color);
 	Current;
+	Gradient(g:SvgGradient);
+}
+
+// a linear (x1, y1 to x2, y2) or radial gradient (the circle cx, cy, r, its
+// focus fx, fy) in the shape's bounding box (0 to 1) or user units, then
+// its transform; spread: 0 pad, 1 reflect, 2 repeat; stops at offsets 0 to 1
+class SvgGradient {
+	public var linear = true;
+	public var x1 = 0.0;
+	public var y1 = 0.0;
+	public var x2 = 1.0;
+	public var y2 = 0.0;
+	public var cx = 0.5;
+	public var cy = 0.5;
+	public var r = 0.5;
+	public var fx = 0.5;
+	public var fy = 0.5;
+	public var boundingBox = true;
+	public var matrix = Matrix.identity();
+	public var spread = 0;
+	public final offsets:Array<Float> = [];
+	public final colors:Array<Color> = [];
+
+	public function new() {}
+
+	// the colour at t (spread applied), straight alpha
+	public function at(t:Float):Color {
+		if (Math.isNaN(t)) t = 0;
+		switch spread {
+			case 1:
+				t = t % 2;
+				if (t < 0) t += 2;
+				if (t > 1) t = 2 - t;
+			case 2:
+				t = t % 1;
+				if (t < 0) t += 1;
+			case _:
+		}
+		var n = offsets.length;
+		if (t <= offsets[0]) return colors[0];
+		if (t >= offsets[n - 1]) return colors[n - 1];
+		var k = 1;
+		while (k < n - 1 && offsets[k] < t)
+			k++;
+		var a = offsets[k - 1], b = offsets[k];
+		return b <= a ? colors[k] : Color.mix(colors[k - 1], colors[k], (t - a) / (b - a));
+	}
 }
 
 // the painting properties, as inherited
@@ -163,6 +222,9 @@ class SvgStyle {
 	public var join = 0;
 	public var miterLimit = 4.0;
 	public var evenOdd = false;
+	// the dashes' and gaps' lengths (null: a solid line), from offset along the path
+	public var dashes:Null<Array<Float>> = null;
+	public var dashOffset = 0.0;
 	// what currentColor is when the color property sets it (else render's)
 	public var color:Null<Color> = null;
 
@@ -182,6 +244,8 @@ class SvgStyle {
 		s.join = join;
 		s.miterLimit = miterLimit;
 		s.evenOdd = evenOdd;
+		s.dashes = dashes;
+		s.dashOffset = dashOffset;
 		s.color = color;
 		return s;
 	}
@@ -191,11 +255,18 @@ class SvgGroup {
 	public final matrix:Matrix;
 	public final opacity:Float;
 	public final children:Array<Any> = [];
+	// what it is clipped to (in its units, after its matrix): shapes' paths
+	// and transforms, filled by the first one's rule; null: not clipped
+	public var clip:Null<Array<{path:Array<Float>, matrix:Matrix, evenOdd:Bool}>> = null;
 
 	public function new(matrix, opacity) {
 		this.matrix = matrix;
 		this.opacity = opacity;
 	}
+
+	// a rectangle as a clip
+	public static function box(x:Float, y:Float, w:Float, h:Float):Array<{path:Array<Float>, matrix:Matrix, evenOdd:Bool}>
+		return [{path: [0, x, y, 1, x + w, y, 1, x + w, y + h, 1, x, y + h, 3], matrix: Matrix.identity(), evenOdd: false}];
 }
 
 class SvgShape {
@@ -215,44 +286,146 @@ class SvgShape {
 
 // the parsing: elements into groups and shapes, path data, transforms, colours
 class SvgParse {
-	static final SKIP = ["defs" => true, "title" => true, "desc" => true, "metadata" => true, "clipPath" => true, "mask" => true, "linearGradient" => true,
-		"radialGradient" => true, "pattern" => true, "symbol" => true, "marker" => true, "filter" => true, "style" => true, "script" => true];
+	// the elements not drawn where they are (a switch: no static to be initialized first)
+	static function skipped(name:String):Bool
+		return switch name {
+			case "defs" | "title" | "desc" | "metadata" | "clipPath" | "mask" | "linearGradient" | "radialGradient" | "pattern" | "symbol" | "marker" | "filter"
+				| "style" | "script": true;
+			case _: false;
+		}
+
+	// the elements by id (use, gradients), the viewport's size in user units
+	final ids = new Map<String, Xml>();
+	final viewW:Float;
+	final viewH:Float;
+	// how deep uses are (a use of its own ancestor would never end)
+	var depth = 0;
+
+	public function new(doc:Xml, viewW:Float, viewH:Float) {
+		this.viewW = viewW;
+		this.viewH = viewH;
+		index(doc);
+	}
+
+	function index(el:Xml) {
+		for (c in el.elements()) {
+			var id = c.get("id");
+			if (id != null && !ids.exists(id)) ids.set(id, c);
+			index(c);
+		}
+	}
 
 	// the outermost svg element's group: its own properties for its children
-	public static function root(el:Xml):SvgGroup {
+	public function root(el:Xml):SvgGroup {
 		var props = properties(el), style = SvgStyle.initial();
 		apply(style, props);
-		var g = new SvgGroup(Matrix.IDENTITY, props.exists("opacity") ? clamp01(Std.parseFloat(props.get("opacity"))) : 1.0);
+		var g = new SvgGroup(Matrix.identity(), props.exists("opacity") ? clamp01(Std.parseFloat(props.get("opacity"))) : 1.0);
 		children(el, g, style);
 		return g;
 	}
 
-	public static function children(el:Xml, into:SvgGroup, inherited:SvgStyle) {
-		for (c in el.elements()) {
-			var name = c.nodeName;
-			var i = name.indexOf(":");
-			if (i >= 0) name = name.substr(i + 1);
-			if (SKIP.exists(name) || c.get("display") == "none") continue;
-			var props = properties(c);
-			if (props.get("display") == "none") continue;
-			var style = inherited.copy();
-			apply(style, props);
-			var m = c.get("transform") == null ? Matrix.IDENTITY : transform(c.get("transform"));
-			var opacity = props.exists("opacity") ? clamp01(Std.parseFloat(props.get("opacity"))) : 1.0;
-			switch name {
-				case "g" | "svg" | "a":
-					if (name == "svg") {
-						var x = num(c.get("x")), y = num(c.get("y"));
-						if (x != 0 || y != 0) m = new Matrix(1, 0, 0, 1, x, y).times(m);
-					}
-					var g = new SvgGroup(m, opacity);
-					children(c, g, style);
-					into.children.push(g);
-				case _:
-					var path = shape(name, c);
-					if (path != null && path.length > 0) into.children.push(new SvgShape(path, m, style, opacity));
-			}
+	public function children(el:Xml, into:SvgGroup, inherited:SvgStyle) {
+		for (c in el.elements())
+			element(c, into, inherited, false);
+	}
+
+	// an element into a group; used: drawn by a use (a symbol then drawn)
+	function element(c:Xml, into:SvgGroup, inherited:SvgStyle, used:Bool) {
+		var name = c.nodeName;
+		var i = name.indexOf(":");
+		if (i >= 0) name = name.substr(i + 1);
+		if ((skipped(name) && !(used && name == "symbol")) || c.get("display") == "none") return;
+		var props = properties(c);
+		if (props.get("display") == "none") return;
+		var style = inherited.copy();
+		apply(style, props);
+		var m = c.get("transform") == null ? Matrix.identity() : transform(c.get("transform"));
+		var opacity = props.exists("opacity") ? clamp01(Std.parseFloat(props.get("opacity"))) : 1.0;
+		// (clipped: drawn into a group of its transform with the clip, itself untransformed)
+		var clip = props.exists("clip-path") ? clipPath(props.get("clip-path")) : null;
+		if (clip != null) {
+			var g = new SvgGroup(m, 1);
+			g.clip = clip;
+			into.children.push(g);
+			into = g;
+			m = Matrix.identity();
 		}
+		switch name {
+			case "g" | "svg" | "a" | "symbol":
+				var g = new SvgGroup(m, opacity);
+				if (name == "svg") {
+					// (a nested viewport: at x, y, clipped to its size, its viewBox fitted)
+					var x = num(c.get("x")), y = num(c.get("y"));
+					var w = c.get("width") == null ? viewW : num(c.get("width")), h = c.get("height") == null ? viewH : num(c.get("height"));
+					g = new SvgGroup(m.times(new Matrix(1, 0, 0, 1, x, y)), opacity);
+					g.clip = SvgGroup.box(0, 0, w, h);
+					var vb = c.get("viewBox") == null ? [] : numbers(c.get("viewBox"));
+					if (vb.length == 4 && vb[2] > 0 && vb[3] > 0) {
+						var inner = new SvgGroup(fit(vb, w, h), 1);
+						g.children.push(inner);
+						into.children.push(g);
+						children(c, inner, style);
+						return;
+					}
+				}
+				children(c, g, style);
+				into.children.push(g);
+			case "use":
+				var href = c.get("href") ?? c.get("xlink:href");
+				var target = href != null && StringTools.startsWith(href, "#") ? ids.get(href.substr(1)) : null;
+				if (target == null || depth > 16) return;
+				var x = num(c.get("x")), y = num(c.get("y"));
+				m = m.times(new Matrix(1, 0, 0, 1, x, y));
+				var g = new SvgGroup(m, opacity), inner = g;
+				var tname = target.nodeName.substr(target.nodeName.indexOf(":") + 1);
+				if (tname == "symbol") {
+					// (a symbol: a viewport of the use's size (the outer one's by default), clipped, its viewBox fitted)
+					var w = c.get("width") == null ? viewW : num(c.get("width")), h = c.get("height") == null ? viewH : num(c.get("height"));
+					g.clip = SvgGroup.box(0, 0, w, h);
+					var vb = target.get("viewBox") == null ? [] : numbers(target.get("viewBox"));
+					if (vb.length == 4 && vb[2] > 0 && vb[3] > 0) {
+						inner = new SvgGroup(fit(vb, w, h), 1);
+						g.children.push(inner);
+					}
+				}
+				depth++;
+				element(target, inner, style, true);
+				depth--;
+				into.children.push(g);
+			case _:
+				var path = shape(name, c);
+				if (path != null && path.length > 0) into.children.push(new SvgShape(path, m, style, opacity));
+		}
+	}
+
+	// a viewBox fitted to w by h (xMidYMid meet)
+	static function fit(vb:Array<Float>, w:Float, h:Float):Matrix {
+		var k = Math.min(w / vb[2], h / vb[3]);
+		return new Matrix(k, 0, 0, k, (w - vb[2] * k) / 2 - vb[0] * k, (h - vb[3] * k) / 2 - vb[1] * k);
+	}
+
+	// a clip-path's clip: url(#id) of a clipPath, its shapes (null: none)
+	function clipPath(v:String):Null<Array<{path:Array<Float>, matrix:Matrix, evenOdd:Bool}>> {
+		v = StringTools.trim(v);
+		if (!StringTools.startsWith(v, "url(")) return null;
+		var ref = StringTools.trim(v.substring(4, v.indexOf(")") < 0 ? v.length : v.indexOf(")")));
+		if (StringTools.startsWith(ref, "'") || StringTools.startsWith(ref, '"')) ref = ref.substr(1, ref.length - 2);
+		var el = StringTools.startsWith(ref, "#") ? ids.get(ref.substr(1)) : null;
+		if (el == null || el.nodeName.substr(el.nodeName.indexOf(":") + 1) != "clipPath") return null;
+		var base = el.get("transform") == null ? Matrix.identity() : transform(el.get("transform"));
+		var out = [];
+		for (c in el.elements()) {
+			var name = c.nodeName.substr(c.nodeName.indexOf(":") + 1);
+			var p = properties(c);
+			if (p.get("display") == "none") continue;
+			var path = shape(name, c);
+			if (path == null || path.length == 0) continue;
+			var m = c.get("transform") == null ? base : base.times(transform(c.get("transform")));
+			out.push({path: path, matrix: m, evenOdd: (p.get("clip-rule") ?? el.get("clip-rule")) == "evenodd"});
+		}
+		// (a clipPath with nothing in it clips everything away)
+		if (out.length == 0) out.push({path: [0, 0, 0, 3], matrix: base, evenOdd: false});
+		return out;
 	}
 
 	// presentation attributes, then style="" over them
@@ -270,7 +443,7 @@ class SvgParse {
 		return p;
 	}
 
-	static function apply(s:SvgStyle, p:Map<String, String>) {
+	function apply(s:SvgStyle, p:Map<String, String>) {
 		// (color first: currentColor in this element's fill is its)
 		if (p.exists("color")) {
 			var c = color(p.get("color"), s.color);
@@ -301,16 +474,115 @@ class SvgParse {
 			if (l >= 1) s.miterLimit = l;
 		}
 		if (p.exists("fill-rule")) s.evenOdd = p.get("fill-rule") == "evenodd";
+		if (p.exists("stroke-dasharray")) {
+			var v = StringTools.trim(p.get("stroke-dasharray"));
+			var d = v == "none" ? [] : numbers(v);
+			// (none, a negative length or all zero: solid; an odd count repeated)
+			var sum = 0.0, bad = false;
+			for (x in d) {
+				if (x < 0) bad = true;
+				sum += x;
+			}
+			s.dashes = d.length == 0 || bad || sum <= 0 ? null : d.length % 2 == 1 ? d.concat(d) : d;
+		}
+		if (p.exists("stroke-dashoffset")) {
+			var o = Std.parseFloat(p.get("stroke-dashoffset"));
+			if (!Math.isNaN(o)) s.dashOffset = o;
+		}
 	}
 
-	static function paint(v:String, s:SvgStyle):SvgPaint {
+	function paint(v:String, s:SvgStyle):SvgPaint {
 		v = StringTools.trim(v);
 		if (v == "none") return None;
 		if (v == "currentColor" || v == "currentcolor") return s.color != null ? Rgba(s.color) : Current;
-		// (a gradient or pattern: not drawn)
-		if (StringTools.startsWith(v, "url(")) return None;
+		if (StringTools.startsWith(v, "url(")) {
+			// (a gradient; else the fallback colour after it, or nothing: a pattern is not drawn)
+			var close = v.indexOf(")");
+			var ref = StringTools.trim(v.substring(4, close < 0 ? v.length : close));
+			if (StringTools.startsWith(ref, "'") || StringTools.startsWith(ref, '"')) ref = ref.substr(1, ref.length - 2);
+			var g = StringTools.startsWith(ref, "#") ? gradient(ref.substr(1), s) : null;
+			if (g != null) return g;
+			var rest = close < 0 ? "" : StringTools.trim(v.substr(close + 1));
+			return rest == "" ? None : paint(rest, s);
+		}
 		var c = color(v, s.color);
 		return c == null ? None : Rgba(c);
+	}
+
+	// a gradient by id: its attributes and stops, from the gradients it
+	// href's where it has none; one stop: that colour; none: no paint
+	function gradient(id:String, s:SvgStyle):Null<SvgPaint> {
+		var el = ids.get(id);
+		if (el == null) return null;
+		var name = el.nodeName.substr(el.nodeName.indexOf(":") + 1);
+		if (name != "linearGradient" && name != "radialGradient") return null;
+		var chain = [el];
+		while (chain.length < 16) {
+			var href = chain[chain.length - 1].get("href") ?? chain[chain.length - 1].get("xlink:href");
+			var next = href != null && StringTools.startsWith(href, "#") ? ids.get(href.substr(1)) : null;
+			if (next == null || chain.contains(next)) break;
+			chain.push(next);
+		}
+		function attr(a:String):Null<String> {
+			for (e in chain)
+				if (e.get(a) != null) return e.get(a);
+			return null;
+		}
+		var g = new SvgGradient();
+		g.linear = name == "linearGradient";
+		g.boundingBox = attr("gradientUnits") != "userSpaceOnUse";
+		if (attr("gradientTransform") != null) g.matrix = transform(attr("gradientTransform"));
+		g.spread = switch attr("spreadMethod") {
+			case "reflect": 1;
+			case "repeat": 2;
+			case _: 0;
+		}
+		// (a coordinate: a fraction of the box, or of the viewport in user units)
+		var diag = Math.sqrt((viewW * viewW + viewH * viewH) / 2);
+		function coord(a:String, def:Float, size:Float):Float {
+			var v = attr(a);
+			if (v == null) return def;
+			v = StringTools.trim(v);
+			var pct = StringTools.endsWith(v, "%"), f = Std.parseFloat(v);
+			if (Math.isNaN(f)) return def;
+			return pct ? f / 100 * (g.boundingBox ? 1 : size) : f;
+		}
+		if (g.linear) {
+			g.x1 = coord("x1", 0, viewW);
+			g.y1 = coord("y1", 0, viewH);
+			g.x2 = coord("x2", g.boundingBox ? 1 : viewW, viewW);
+			g.y2 = coord("y2", 0, viewH);
+		} else {
+			g.cx = coord("cx", g.boundingBox ? 0.5 : viewW / 2, viewW);
+			g.cy = coord("cy", g.boundingBox ? 0.5 : viewH / 2, viewH);
+			g.r = coord("r", g.boundingBox ? 0.5 : diag / 2, diag);
+			g.fx = coord("fx", g.cx, viewW);
+			g.fy = coord("fy", g.cy, viewH);
+		}
+		var stops:Array<Xml> = [];
+		for (e in chain) {
+			for (c in e.elements())
+				if (c.nodeName.substr(c.nodeName.indexOf(":") + 1) == "stop") stops.push(c);
+			if (stops.length > 0) break;
+		}
+		var last = 0.0;
+		for (st in stops) {
+			var p = properties(st);
+			var o = p.get("offset") ?? "0", off = StringTools.endsWith(StringTools.trim(o), "%") ? Std.parseFloat(o) / 100 : Std.parseFloat(o);
+			if (Math.isNaN(off)) off = 0;
+			// (offsets clamped, never going back)
+			off = Math.max(last, Math.min(1, Math.max(0, off)));
+			last = off;
+			var c:Null<Color> = p.exists("stop-color") ? color(p.get("stop-color"), s.color != null ? s.color : null) : 0xFF000000;
+			if (p.get("stop-color") == "currentColor" && s.color == null) c = null;
+			if (c == null) c = 0xFF000000;
+			var a = p.exists("stop-opacity") ? clamp01(Std.parseFloat(p.get("stop-opacity"))) : 1.0;
+			g.offsets.push(off);
+			g.colors.push((Std.int(Math.round((c : Color).a * a)) << 24) | ((c : Int) & 0xFFFFFF));
+		}
+		if (g.offsets.length == 0) return None;
+		if (g.offsets.length == 1) return Rgba(g.colors[0]);
+		return Gradient(g);
 	}
 
 	static inline function clamp01(f:Float):Float
@@ -642,7 +914,7 @@ class SvgParse {
 
 	// a transform list: matrix, translate, scale, rotate, skewX, skewY
 	public static function transform(s:String):Matrix {
-		var m = Matrix.IDENTITY;
+		var m = Matrix.identity();
 		var re = ~/([a-zA-Z]+)\s*\(([^)]*)\)/;
 		var rest = s;
 		while (re.match(rest)) {
@@ -658,7 +930,7 @@ class SvgParse {
 					new Matrix(1, 0, 0, 1, x, y).times(new Matrix(c, sn, -sn, c, 0, 0)).times(new Matrix(1, 0, 0, 1, -x, -y));
 				case "skewX": new Matrix(1, 0, Math.tan(arg(0, 0) * Math.PI / 180), 1, 0, 0);
 				case "skewY": new Matrix(1, Math.tan(arg(0, 0) * Math.PI / 180), 0, 1, 0, 0);
-				case _: Matrix.IDENTITY;
+				case _: Matrix.identity();
 			}
 			m = m.times(t);
 			rest = re.matchedRight();
@@ -701,7 +973,7 @@ class SvgParse {
 			var a = Std.int(Math.round(Math.max(0, Math.min(1, alpha)) * 255));
 			return (a << 24) | (channel(parts[0]) << 16) | (channel(parts[1]) << 8) | channel(parts[2]);
 		}
-		var n = SvgColors.NAMES.get(v);
+		var n = SvgColors.names().get(v);
 		return n == null ? null : 0xFF000000 | n;
 	}
 }
@@ -731,9 +1003,24 @@ class SvgCanvas {
 		return v;
 	}
 
+	// the clip in force: each pixel's coverage by it (null: none)
+	var mask:Null<Bytes> = null;
+
 	public function group(g:SvgGroup, m:Matrix) {
 		var mm = m.times(g.matrix);
 		if (g.opacity <= 0) return;
+		var savedMask = mask;
+		if (g.clip != null) {
+			raster.clear();
+			for (c in g.clip)
+				fillPath(c.path, mm.times(c.matrix));
+			var own = Bytes.alloc(width * height);
+			raster.writeTo(own, 0, width, g.clip[0].evenOdd);
+			if (mask != null)
+				for (i in 0...width * height)
+					own.set(i, Std.int((own.get(i) * mask.get(i) + 127) / 255));
+			mask = own;
+		}
 		var saved = layer;
 		if (g.opacity < 1) layer = blank();
 		for (c in g.children) {
@@ -744,6 +1031,14 @@ class SvgCanvas {
 			layer = saved;
 			composite(own, g.opacity);
 		}
+		mask = savedMask;
+	}
+
+	// the coverage cut by the clip in force
+	function clipped() {
+		if (mask != null)
+			for (i in 0...width * height)
+				coverage.set(i, Std.int((coverage.get(i) * mask.get(i) + 127) / 255));
 	}
 
 	// over the layer: another, its alpha times opacity
@@ -765,23 +1060,25 @@ class SvgCanvas {
 	function shape(s:SvgShape, m:Matrix) {
 		var mm = m.times(s.matrix), st = s.style;
 		if (s.opacity <= 0) return;
-		var fill = colorOf(st.fill), stroke = st.strokeWidth > 0 ? colorOf(st.stroke) : null;
-		if (fill == null && stroke == null) return;
+		var fill = st.fill, stroke = st.strokeWidth > 0 ? st.stroke : None;
+		if (fill == None && stroke == None) return;
 		// (both, at an opacity: composited as one)
-		var own = s.opacity < 1 && fill != null && stroke != null;
+		var own = s.opacity < 1 && fill != None && stroke != None;
 		var saved = layer, alpha = own ? 1.0 : s.opacity;
 		if (own) layer = blank();
-		if (fill != null) {
+		if (fill != None) {
 			raster.clear();
 			fillPath(s.path, mm);
 			raster.writeTo(coverage, 0, width, st.evenOdd);
-			paint(fill, st.fillOpacity * alpha);
+			clipped();
+			paintWith(fill, st.fillOpacity * alpha, s.path, mm);
 		}
-		if (stroke != null) {
+		if (stroke != None) {
 			raster.clear();
-			new SvgStroker(raster, mm, st.strokeWidth / 2, st.cap, st.join, st.miterLimit).path(s.path);
+			new SvgStroker(raster, mm, st.strokeWidth / 2, st.cap, st.join, st.miterLimit, st.dashes, st.dashOffset).path(s.path);
 			raster.writeTo(coverage, 0, width);
-			paint(stroke, st.strokeOpacity * alpha);
+			clipped();
+			paintWith(stroke, st.strokeOpacity * alpha, s.path, mm);
 		}
 		if (own) {
 			var mine = layer;
@@ -790,12 +1087,108 @@ class SvgCanvas {
 		}
 	}
 
-	function colorOf(p:SvgPaint):Null<Color>
-		return switch p {
-			case None: null;
-			case Rgba(c): c;
-			case Current: current;
+	// the coverage painted with a paint
+	function paintWith(p:SvgPaint, opacity:Float, path:Array<Float>, m:Matrix)
+		switch p {
+			case None:
+			case Rgba(c): paint(c, opacity);
+			case Current: paint(current, opacity);
+			case Gradient(g):
+				// (the gradient's space: the user units' (or the box's), then its transform)
+				var gm = m;
+				if (g.boundingBox) {
+					var b = bounds(path);
+					if (b[2] <= b[0] || b[3] <= b[1]) return;
+					gm = gm.times(new Matrix(b[2] - b[0], 0, 0, b[3] - b[1], b[0], b[1]));
+				}
+				var inv = gm.times(g.matrix).inverse();
+				if (inv != null) paintGradient(g, opacity, inv);
 		}
+
+	// a path's bounds in its units: x0, y0, x1, y1 (curves sampled)
+	static function bounds(p:Array<Float>):Array<Float> {
+		var x0 = Math.POSITIVE_INFINITY, y0 = Math.POSITIVE_INFINITY, x1 = Math.NEGATIVE_INFINITY, y1 = Math.NEGATIVE_INFINITY;
+		var lx = 0.0, ly = 0.0, i = 0;
+		inline function add(x:Float, y:Float) {
+			if (x < x0) x0 = x;
+			if (y < y0) y0 = y;
+			if (x > x1) x1 = x;
+			if (y > y1) y1 = y;
+		}
+		while (i < p.length) {
+			switch Std.int(p[i]) {
+				case 0 | 1:
+					lx = p[i + 1];
+					ly = p[i + 2];
+					add(lx, ly);
+					i += 3;
+				case 2:
+					for (k in 1...33) {
+						var t = k / 32, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+						add(a * lx + b * p[i + 1] + c * p[i + 3] + d * p[i + 5], a * ly + b * p[i + 2] + c * p[i + 4] + d * p[i + 6]);
+					}
+					lx = p[i + 5];
+					ly = p[i + 6];
+					i += 7;
+				case _:
+					i++;
+			}
+		}
+		return [x0, y0, x1, y1];
+	}
+
+	// the coverage painted with a gradient: each pixel's centre taken back
+	// into its space (inv), its colour there
+	function paintGradient(g:SvgGradient, opacity:Float, inv:Matrix) {
+		var dx = g.x2 - g.x1, dy = g.y2 - g.y1, len2 = dx * dx + dy * dy;
+		// (a focus outside the circle: moved onto it, just inside)
+		var fx = g.fx, fy = g.fy, ex = fx - g.cx, ey = fy - g.cy, el = Math.sqrt(ex * ex + ey * ey);
+		if (el > g.r * 0.999) {
+			fx = g.cx + ex / el * g.r * 0.999;
+			fy = g.cy + ey / el * g.r * 0.999;
+		}
+		for (y in 0...height)
+			for (x in 0...width) {
+				var i = y * width + x, cov = coverage.get(i);
+				if (cov == 0) continue;
+				var u = inv.x(x + 0.5, y + 0.5), v = inv.y(x + 0.5, y + 0.5), t;
+				if (g.linear) t = len2 <= 0 ? 1 : ((u - g.x1) * dx + (v - g.y1) * dy) / len2 else {
+					// (where on the ray from the focus through the point the circle is: t = 1 there)
+					var px = u - fx, py = v - fy, qx = fx - g.cx, qy = fy - g.cy;
+					var a = px * px + py * py, b = 2 * (px * qx + py * qy), c = qx * qx + qy * qy - g.r * g.r;
+					if (a <= 1e-18) t = 0 else {
+						var s = (-b + Math.sqrt(Math.max(0, b * b - 4 * a * c))) / (2 * a);
+						t = s <= 0 ? 1 : 1 / s;
+					}
+				}
+				var col = g.at(t);
+				var sa = col.a / 255 * opacity * cov / 255;
+				if (sa <= 0) continue;
+				var k = 1 - sa, o = i * 4;
+				layer[o] = col.r / 255 * sa + layer[o] * k;
+				layer[o + 1] = col.g / 255 * sa + layer[o + 1] * k;
+				layer[o + 2] = col.b / 255 * sa + layer[o + 2] * k;
+				layer[o + 3] = sa + layer[o + 3] * k;
+			}
+	}
+
+	// a cubic curve from the pen, in pixels, as lines within a twentieth
+	// of a pixel (finer than the rasterizer's own, for glyphs)
+	var penX = 0.0;
+	var penY = 0.0;
+
+	function cubic(x1:Float, y1:Float, x2:Float, y2:Float, x3:Float, y3:Float) {
+		var ax = penX - 2 * x1 + x2, ay = penY - 2 * y1 + y2, bx = x1 - 2 * x2 + x3, by = y1 - 2 * y2 + y3;
+		var dev = Math.sqrt(Math.max(ax * ax + ay * ay, bx * bx + by * by));
+		var n = 1 + Math.floor(Math.sqrt(dev * 0.75 / 0.05));
+		for (k in 1...n + 1) {
+			var t = k / n, u = 1 - t;
+			var a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+			raster.lineTo(a * penX + b * x1 + c * x2 + d * x3, a * penY + b * y1 + c * y2 + d * y3);
+		}
+		penX = x3;
+		penY = y3;
+	}
 
 	// the path's subpaths into the rasterizer, each closed (a fill closes them)
 	function fillPath(p:Array<Float>, m:Matrix) {
@@ -804,14 +1197,14 @@ class SvgCanvas {
 			switch Std.int(p[i]) {
 				case 0:
 					if (open) raster.close();
-					raster.moveTo(m.x(p[i + 1], p[i + 2]), m.y(p[i + 1], p[i + 2]));
+					raster.moveTo(penX = m.x(p[i + 1], p[i + 2]), penY = m.y(p[i + 1], p[i + 2]));
 					open = true;
 					i += 3;
 				case 1:
-					raster.lineTo(m.x(p[i + 1], p[i + 2]), m.y(p[i + 1], p[i + 2]));
+					raster.lineTo(penX = m.x(p[i + 1], p[i + 2]), penY = m.y(p[i + 1], p[i + 2]));
 					i += 3;
 				case 2:
-					raster.cubicTo(m.x(p[i + 1], p[i + 2]), m.y(p[i + 1], p[i + 2]), m.x(p[i + 3], p[i + 4]), m.y(p[i + 3], p[i + 4]), m.x(p[i + 5], p[i + 6]),
+					cubic(m.x(p[i + 1], p[i + 2]), m.y(p[i + 1], p[i + 2]), m.x(p[i + 3], p[i + 4]), m.y(p[i + 3], p[i + 4]), m.x(p[i + 5], p[i + 6]),
 						m.y(p[i + 5], p[i + 6]));
 					i += 7;
 				case _:
@@ -870,19 +1263,23 @@ class SvgStroker {
 	final miterLimit:Float;
 	// the flattening tolerance in user units
 	final tolerance:Float;
+	final dashes:Null<Array<Float>>;
+	final dashOffset:Float;
 	// the outline being made
 	var ox:Array<Float> = [];
 	var oy:Array<Float> = [];
 
-	public function new(raster, m, hw, cap, join, miterLimit) {
+	public function new(raster, m, hw, cap, join, miterLimit, ?dashes:Array<Float>, dashOffset = 0.0) {
 		this.raster = raster;
 		this.m = m;
 		this.hw = hw;
 		this.cap = cap;
 		this.join = join;
 		this.miterLimit = miterLimit;
+		this.dashes = dashes;
+		this.dashOffset = dashOffset;
 		var s = m.scale();
-		tolerance = 0.1 / (s > 0 ? s : 1);
+		tolerance = 0.05 / (s > 0 ? s : 1);
 	}
 
 	public function path(p:Array<Float>) {
@@ -937,7 +1334,59 @@ class SvgStroker {
 		if (xs.length > 1 || closed) flush();
 	}
 
-	function subpath(xs0:Array<Float>, ys0:Array<Float>, closed:Bool) {
+	function subpath(xs:Array<Float>, ys:Array<Float>, closed:Bool) {
+		if (dashes == null) outline(xs, ys, closed) else dashed(xs, ys, closed);
+	}
+
+	// the dashes along a subpath (from its start, at the offset into the
+	// pattern), each stroked as an open subpath
+	function dashed(xs:Array<Float>, ys:Array<Float>, closed:Bool) {
+		var px = xs.copy(), py = ys.copy();
+		if (closed) {
+			px.push(xs[0]);
+			py.push(ys[0]);
+		}
+		var total = 0.0;
+		for (d in dashes)
+			total += d;
+		var pos = dashOffset % total;
+		if (pos < 0) pos += total;
+		var k = 0;
+		// (a dash ending where the offset puts the start is past; a zero length one there is not)
+		while (pos > dashes[k] || (pos == dashes[k] && dashes[k] > 0)) {
+			pos -= dashes[k];
+			k = (k + 1) % dashes.length;
+		}
+		var remain = dashes[k] - pos, on = k % 2 == 0;
+		var cx:Array<Float> = [], cy:Array<Float> = [];
+		if (on) {
+			cx.push(px[0]);
+			cy.push(py[0]);
+		}
+		for (i in 0...px.length - 1) {
+			var ax = px[i], ay = py[i], sx = px[i + 1] - ax, sy = py[i + 1] - ay, len = Math.sqrt(sx * sx + sy * sy), done = 0.0;
+			while (len - done > remain) {
+				done += remain;
+				var x = ax + sx * done / len, y = ay + sy * done / len;
+				cx.push(x);
+				cy.push(y);
+				if (on) outline(cx, cy, false);
+				cx = on ? [] : [x];
+				cy = on ? [] : [y];
+				on = !on;
+				k = (k + 1) % dashes.length;
+				remain = dashes[k];
+			}
+			remain -= len - done;
+			if (on) {
+				cx.push(px[i + 1]);
+				cy.push(py[i + 1]);
+			}
+		}
+		if (on && cx.length > 0) outline(cx, cy, false);
+	}
+
+	function outline(xs0:Array<Float>, ys0:Array<Float>, closed:Bool) {
 		// (points that repeat dropped)
 		var xs = [xs0[0]], ys = [ys0[0]];
 		for (k in 1...xs0.length)
@@ -1085,9 +1534,11 @@ class SvgStroker {
 	function arcPoints(x:Float, y:Float, from:Float, turn:Float) {
 		var step = hw > tolerance ? 2 * Math.acos(1 - tolerance / hw) : Math.PI / 2;
 		var steps = Std.int(Math.ceil(Math.abs(turn) / step));
+		// (the points a little outside the circle: the chords as much outside it as in)
+		var r = steps > 0 ? hw * (1 + 1 / Math.cos(Math.abs(turn) / steps / 2)) / 2 : hw;
 		for (k in 1...steps) {
 			var t = from + turn * k / steps;
-			point(x + Math.cos(t) * hw, y + Math.sin(t) * hw);
+			point(x + Math.cos(t) * r, y + Math.sin(t) * r);
 		}
 	}
 
