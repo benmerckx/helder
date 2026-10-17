@@ -142,6 +142,19 @@ async function visit(page, p, { gfxErrors = false } = {}) {
 		await page.evaluate((y) => scrollTo(0, y), y);
 		await page.waitForTimeout(60);
 	}
+	// (an island scrolled past between two frames is never seen: each one not
+	// started yet brought into view, in turn)
+	for (let k = 0; k < 40; k++) {
+		const next = await page.evaluate(() => {
+			const el = [...document.querySelectorAll('hxmc-island[data-load="visible"]')].find((el) => !el.hasAttribute('data-hydrated') && !el.hasAttribute('data-error') && !el.testSeen);
+			if (!el) return false;
+			el.testSeen = true;
+			el.scrollIntoView({ block: 'center' });
+			return true;
+		});
+		if (!next) break;
+		await page.waitForTimeout(150);
+	}
 	await page.evaluate(() => scrollTo(0, 0));
 	// (every island but those a click starts: hydrated, or failed)
 	await page.waitForFunction(() => [...document.querySelectorAll('hxmc-island')].every((el) => el.dataset.load === 'click' || el.hasAttribute('data-hydrated') || el.hasAttribute('data-error')), null, { timeout: 90000 }).catch(() => {});
