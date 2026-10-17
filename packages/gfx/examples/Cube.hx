@@ -5,8 +5,8 @@ import hxmc.gfx.shader.*;
 import hxmc.gfx.shader.ShaderMath.*;
 import hxmc.os.*;
 
-// A rotating cube in a window, textured, lit and depth-tested, with a
-// translucent panel blended over it (drag to turn it, Escape closes):
+// A rotating cube in a window, textured, lit and depth-tested, over a
+// blended backdrop and a soft shadow (drag to turn it, Escape closes):
 //
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/examples -main Cube
 //     --custom-target hxmc=cube -D hxmc.libc=glibc
@@ -14,25 +14,32 @@ import hxmc.os.*;
 // (as Triangle.hx for macOS, Windows and the browser; `--angle a` draws it
 // still, turned by a radians: the tests' frames). It uses what a program
 // needs from hxmc.gfx: an index buffer of each size (the cube's UInt16,
-// the panel's UInt32), a uniform block written each frame (the camera's
-// matrices: CubeShader.writeCamera, Encoder.setUniforms), a texture made
-// here (no image decoder) and its sampler, the depth buffer, and alpha
-// blending; the shaders are CubeShader.hx.
+// the backdrop's and the shadow's UInt32), uniform blocks written each
+// frame (the camera's matrices: CubeShader.writeCubeCamera,
+// Encoder.setUniforms), a texture made here (no image decoder) and its
+// sampler, the depth buffer, alpha blending and the fragment's position;
+// the shaders are CubeShader.hx.
 class Cube {
 	static inline var TEXTURE = 64;
+	// the ground's height under the cube's centre, the shadow's half size
+	static inline var FLOOR = -1.75;
+	static inline var SHADOW = 2.4;
 
 	final device:Device;
 	final vertices:Buffer;
 	final indices:Buffer;
-	final panelVertices:Buffer;
-	final panelIndices:Buffer;
+	final quad:Buffer;
+	final backdropVertices:Buffer;
+	final shadowVertices:Buffer;
 	final pipeline:Pipeline;
-	final panelPipeline:Pipeline;
+	final backdropPipeline:Pipeline;
+	final shadowPipeline:Pipeline;
 	final texture:Texture;
 	final sampler:Sampler;
 	final pass:PassDesc = {colors: [{load: Clear, clear: new Color(0.1, 0.1, 0.12)}], depth: {load: Clear}};
 	// the uniform blocks' bytes, written each frame
 	final camera = Bytes.alloc(128);
+	final ground = Bytes.alloc(64);
 	final target = Bytes.alloc(16);
 
 	public function new(device:Device) {
@@ -56,22 +63,20 @@ class Cube {
 		var bytes = CubeShader.vertexBytes(vs);
 		vertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
 		indices = device.createBuffer({size: is.length, usage: Index, data: is});
-		// the panel: a light translucent rectangle and an orange bar at its foot, in pixels
-		var c = vec4(0.85, 0.9, 1, 0.3), o = vec4(1, 0.55, 0.1, 0.9);
-		var pv:Array<PanelVertex> = [];
-		function rect(x0:Float, y0:Float, x1:Float, y1:Float, color:Vec4)
-			for (p in [vec2(x0, y1), vec2(x1, y1), vec2(x1, y0), vec2(x0, y0)])
-				pv.push({pos: p, color: color});
-		rect(8, 8, 104, 44, c);
-		rect(8, 40, 104, 44, o);
-		bytes = PanelShader.vertexBytes(pv);
-		panelVertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
-		var pi = Bytes.alloc(12 * 4);
-		for (k in 0...12)
-			pi.setInt32(4 * k, 4 * Std.int(k / 6) + [0, 1, 2, 0, 2, 3][k % 6]);
-		panelIndices = device.createBuffer({size: pi.length, usage: Index, data: pi});
+		// the backdrop (the whole target) and the shadow (a square on the
+		// ground under the cube) share a quad's UInt32 indices
+		var qi = Bytes.alloc(6 * 4);
+		for (k in 0...6)
+			qi.setInt32(4 * k, [0, 1, 2, 0, 2, 3][k]);
+		quad = device.createBuffer({size: qi.length, usage: Index, data: qi});
+		var corners = [vec2(-1, -1), vec2(1, -1), vec2(1, 1), vec2(-1, 1)];
+		bytes = BackdropShader.vertexBytes([for (c in corners) {pos: c}]);
+		backdropVertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
+		bytes = ShadowShader.vertexBytes([for (c in corners) {pos: vec3(c.x * SHADOW, FLOOR, -c.y * SHADOW), at: c}]);
+		shadowVertices = device.createBuffer({size: bytes.length, usage: Vertex, data: bytes});
 		pipeline = device.createPipeline(CubeShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
-		panelPipeline = device.createPipeline(PanelShader.pipeline({blend: Alpha}));
+		backdropPipeline = device.createPipeline(BackdropShader.pipeline({blend: Alpha}));
+		shadowPipeline = device.createPipeline(ShadowShader.pipeline({blend: Alpha}));
 		texture = device.createTexture({width: TEXTURE, height: TEXTURE, data: texels()});
 		sampler = device.createSampler({filter: Linear, wrap: Clamp});
 	}
@@ -96,29 +101,34 @@ class Cube {
 		return b;
 	}
 
-	// pixels per point (Window.scale), for the panel
-	public var scale = 1.0;
-
 	// records the frame's pass, the cube turned by angle radians; the caller ends the frame
 	public function draw(enc:Encoder, angle:Float) {
 		var w = device.width, h = device.height;
 		var model = Mat4.rotationX(0.45) * Mat4.rotationY(angle);
-		var mvp = Mat4.perspective(Math.PI / 3, w / h, 0.1, 100) * Mat4.translation(0, 0, -4) * model;
-		CubeShader.writeCubeCamera({mvp: mvp, model: model}, camera);
-		// (the panel is laid out in points: scale pixels each)
-		PanelShader.writeTarget({size: vec2(w / scale, h / scale), top: 8 * scale, height: 36 * scale}, target);
+		// (the camera a little back and below the cube's centre, room for its
+		// shadow; nothing is sized in pixels: the backdrop follows the target,
+		// the shadow the scene, alike on high-density screens)
+		var view = Mat4.perspective(Math.PI / 3, w / h, 0.1, 100) * Mat4.translation(0, 0.3, -4.6);
+		CubeShader.writeCubeCamera({mvp: view * model, model: model}, camera);
+		ShadowShader.writeGround({mvp: view}, ground);
+		BackdropShader.writeTarget({size: vec2(w, h)}, target);
 		enc.beginPass(pass);
+		// (the backdrop and the shadow: no depth test, under the cube)
+		enc.setIndexBuffer(quad, UInt32);
+		enc.setPipeline(backdropPipeline);
+		enc.setUniforms(0, target);
+		enc.setVertexBuffer(0, backdropVertices);
+		enc.drawIndexed(6);
+		enc.setPipeline(shadowPipeline);
+		enc.setUniforms(0, ground);
+		enc.setVertexBuffer(0, shadowVertices);
+		enc.drawIndexed(6);
 		enc.setPipeline(pipeline);
 		enc.setUniforms(0, camera);
 		enc.setTexture(1, texture, sampler);
 		enc.setVertexBuffer(0, vertices);
 		enc.setIndexBuffer(indices, UInt16);
 		enc.drawIndexed(36);
-		enc.setPipeline(panelPipeline);
-		enc.setUniforms(0, target);
-		enc.setVertexBuffer(0, panelVertices);
-		enc.setIndexBuffer(panelIndices, UInt32);
-		enc.drawIndexed(12);
 		enc.endPass();
 	}
 
@@ -135,10 +145,7 @@ class Cube {
 		var cube = new Cube(Device.create(window.surface));
 		// (turning with time, plus what the mouse dragged)
 		var start = Sys.time(), drag = 0.0, from = -1;
-		App.run(() -> {
-			cube.scale = window.scale;
-			cube.frame(still >= 0 ? Std.parseFloat(args[still + 1]) : Sys.time() - start + drag);
-		}, e -> switch e.kind {
+		App.run(() -> cube.frame(still >= 0 ? Std.parseFloat(args[still + 1]) : Sys.time() - start + drag), e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
 			case MouseDown if (e.button == 1): from = e.x;
