@@ -399,6 +399,27 @@ Accessible, Component, Action, Value, Text), which Orca reads. On macOS, Windows
 and Linux the tree is built only once a client first asks for it, so a
 program nobody reads pays nothing for it.
 
+## Hosts, canvases and documents
+
+A `Ui` is a tree's host: its size and scale (the display's pixels per UI
+pixel), its text engine and fonts, the events it is given, the clock,
+the focus, the accessibility tree (`ui.accessTree()`: roles, names, states,
+a link's `href`, each node's box). A `UiWindow` feeds it a window's
+events; without one (`new Ui(engine, width, height)`, `update`, `paint`) it
+is a host of a fixed size and no events, first-class: headless tests,
+thumbnails, documents ([docs/plans/document.md](../../docs/plans/document.md)).
+`ui.paint(canvas)` draws through a `Canvas`: the GPU renderer's, or a
+writer's. What a writer gets: rectangles with their borders and corners,
+shadows and inset shadows (calls of their own, not pixels), opacity groups,
+clips, transforms, images (`Image.source`: the file decoded, to embed as it
+is; `Image.drawing`: the SVG an icon was rendered from, to draw as vectors),
+vector paths (`canvas.path(path, fill, ?stroke)`: `Path`'s moves, lines,
+curves, arcs, even-odd; a `Paint`, a colour or a CSS gradient; a `Stroke`'s
+width, caps, joins, miter and dashes), and text as paragraphs whose
+`runs(width, align)` give the glyphs as placed: the face's file, the size,
+the glyph ids and each glyph's source text. `breakBefore`, `breakAfter`,
+`breakInside` and `page` are kept for a paged layout; a window has none.
+
 ## Text input
 
 Keys come as `KeyDown` and characters as `TextInput` (Shift, the
