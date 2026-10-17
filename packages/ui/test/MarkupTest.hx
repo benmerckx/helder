@@ -62,6 +62,7 @@ class MarkupTest implements Markup {
 		toasts();
 		numbers();
 		rightToLeft();
+		wordBreaks();
 		editMenus();
 		menubar();
 		tabs();
@@ -271,6 +272,24 @@ class MarkupTest implements Markup {
 		dir.value = "ltr";
 		ui.update();
 		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);
+	}
+
+	// overflow-wrap and word-break: inherited into the text's font (what the engine breaks lines by)
+	static function wordBreaks() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		var wb = signal("break-all");
+		Render.render(<view overflow-wrap="anywhere" word-break={wb}>
+			<text tag="t">abc</text>
+			<view overflow-wrap="normal"><text tag="u">def</text></view>
+		</view>, ui.root);
+		ui.update();
+		var t = ui.root.find("t").font(), u = ui.root.find("u").font();
+		check("breaks: overflow-wrap and word-break inherited into the font", t.overflowWrap == Anywhere && t.wordBreak == BreakAll && u.overflowWrap == Normal
+			&& u.wordBreak == BreakAll);
+		check("breaks: break-word and normal at the root", new Ui(new MonoText(), 10, 10).root.font().overflowWrap == BreakWord);
+		wb.value = "keep-all";
+		ui.update();
+		check("breaks: changed, the font follows", ui.root.find("u").font().wordBreak == KeepAll);
 	}
 
 	static function numbers() {

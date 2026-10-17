@@ -957,10 +957,23 @@ class Layout {
 			aw = clamp(aw, Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
 			ah = clamp(ah, Math.max(min(cs.minHeight, pbH), edgesV(cs)), max(cs.maxHeight, pbH));
 			if (!known(aw) || !known(ah)) {
-				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit the containing block)
-				size(c, aw, ah, pbW, pbH, known(aw) ? aw : pbW, known(ah) ? ah : Math.NaN, false);
+				// (an auto height: its content's, the block axis indefinite; an auto width shrinks to fit
+				// the room its offsets and margins leave, not below its min-content width)
+				var room = Math.max(0, pbW - (known(l) ? l : 0) - (known(r) ? r : 0) - m.left - m.right);
+				var fit = !known(aw), fixedH = known(ah);
+				size(c, aw, ah, pbW, pbH, known(aw) ? aw : room, known(ah) ? ah : Math.NaN, false);
 				aw = rw;
 				ah = rh;
+				if (fit && aw >= room - 1e-6) {
+					var mc = clamp(minContentWidth(c, pbW, false), Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
+					if (mc > aw) {
+						aw = mc;
+						if (!fixedH) {
+							size(c, aw, Math.NaN, pbW, pbH, aw, Math.NaN, false);
+							ah = rh;
+						}
+					}
+				}
 			}
 			// (neither offset: its static position, as if it were the container's only
 			// item: justify along the main axis, its alignment across, in the content box)
@@ -969,12 +982,30 @@ class Layout {
 			var ax = known(l) ? l + m.left : known(r) ? pbW - r - aw - m.right : cx + m.left
 				+ staticOffset(n, c, true, cw - aw - m.left - m.right);
 			var ay = known(t) ? t + m.top : known(b) ? pbH - b - ah - m.bottom : cy + m.top + staticOffset(n, c, false, ch - ah - m.top - m.bottom);
+			// (both offsets and a size that leaves room: placed in the rectangle they leave by its
+			// justifySelf and alignSelf, start by default (the right right to left), as Chromium; one
+			// that overflows it moved back into the containing block as far as it fits)
+			if (known(l) && known(r)) ax = selfAligned(cs.justifySelf, l + m.left, pbW - r - m.right, aw, pbW, rtl);
+			if (known(t) && known(b)) ay = selfAligned(cs.alignSelf, t + m.top, pbH - b - m.bottom, ah, pbH, false);
 			c.lx = be.left + ax;
 			c.ly = be.top + ay;
 			size(c, aw, ah, pbW, pbH, aw, ah, true);
 			c.lw = aw;
 			c.lh = ah;
 		}
+	}
+
+	// a box size wide placed between from and to by its self-alignment (flip: start at the far end),
+	// within 0...room if it overflows them and is not at the start
+	static function selfAligned(a:Align, from:Float, to:Float, size:Float, room:Float, flip:Bool):Float {
+		var free = to - from - size;
+		var at = switch a {
+			case End: flip ? from : from + free;
+			case Center: from + free / 2;
+			case _: flip ? from + free : from;
+		}
+		if (free < 0 && at != from) at = Math.max(0, Math.min(at, room - size));
+		return at;
 	}
 
 	// an absolute child's static position on an axis (across: horizontal):
@@ -1015,7 +1046,7 @@ class Layout {
 		if (s.display == None) return 0;
 		var minW = min(s.minWidth, parentW), maxW = max(s.maxWidth, parentW);
 		var w = s.width.resolve(parentW);
-		if (contribution && known(w)) return clamp(w, minW, maxW);
+		if (contribution && known(w)) return Math.max(clamp(w, minW, maxW), edgesH(s));
 		var cached = n.minContent;
 		if (known(cached)) return cached;
 		var padH = s.padding.left + s.padding.right + s.borderEdges.left + s.borderEdges.right;

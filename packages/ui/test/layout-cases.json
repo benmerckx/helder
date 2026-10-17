@@ -3448,6 +3448,267 @@
 		}
 	},
 	{
+		"name": "absolute shrink-to-fit",
+		"width": 200,
+		"height": 200,
+		"tree": {
+			"style": {
+				"width": 120
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"position": "Absolute",
+						"left": 5,
+						"top": 0
+					},
+					"children": [
+						{
+							"style": {
+								"width": 60,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 70,
+								"height": 20
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"position": "Absolute",
+						"left": 30,
+						"top": 40
+					},
+					"children": [
+						{
+							"style": {
+								"width": 40,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 50,
+								"height": 20,
+								"minWidth": 0
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row",
+						"position": "Absolute",
+						"right": 0,
+						"top": 80,
+						"columnGap": 10
+					},
+					"children": [
+						{
+							"style": {
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"minWidth": 0,
+								"height": 20
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 20,
+								"shrink": 0
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "absolute self-alignment",
+		"width": 200,
+		"height": 300,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"height": 100
+					},
+					"children": [
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 30,
+								"top": 10,
+								"bottom": 20,
+								"left": 10,
+								"right": 20
+							}
+						},
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 30,
+								"top": 10,
+								"bottom": 20,
+								"left": 10,
+								"right": 20,
+								"alignSelf": "End",
+								"justifySelf": "Center"
+							}
+						},
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 30,
+								"top": 10,
+								"bottom": 20,
+								"left": 10,
+								"right": 20,
+								"alignSelf": "Center",
+								"justifySelf": "End",
+								"margin": [
+									5,
+									6,
+									7,
+									8
+								]
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 100,
+						"dir": "Rtl"
+					},
+					"children": [
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 30,
+								"top": 10,
+								"bottom": 20,
+								"left": 10,
+								"right": 20
+							}
+						},
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 30,
+								"top": 10,
+								"bottom": 20,
+								"left": 10,
+								"right": 20,
+								"justifySelf": "End"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 100
+					},
+					"children": [
+						{
+							"style": {
+								"position": "Absolute",
+								"width": 40,
+								"height": 300,
+								"top": 10,
+								"bottom": 20,
+								"left": 10,
+								"alignSelf": "End"
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "width under its padding, min-content",
+		"width": 200,
+		"height": 150,
+		"tree": {
+			"style": {
+				"wrap": true,
+				"padding": [
+					2,
+					6
+				]
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "RowReverse",
+						"shrink": 0,
+						"maxHeight": 80
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "Row",
+								"margin": [
+									0,
+									5
+								],
+								"position": "Absolute",
+								"top": 7,
+								"bottom": 4
+							},
+							"children": [
+								{
+									"style": {
+										"basis": 50,
+										"width": 60,
+										"height": 30
+									}
+								},
+								{
+									"style": {
+										"wrap": true,
+										"grow": 2,
+										"shrink": 0,
+										"width": 10,
+										"padding": [
+											2,
+											6
+										]
+									}
+								},
+								{
+									"style": {
+										"width": 10,
+										"height": 30,
+										"grow": 0.5,
+										"margin": 3
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "shrink by the content-box base size",
 		"width": 200,
 		"height": 60,

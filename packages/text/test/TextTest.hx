@@ -42,6 +42,7 @@ class TextTest {
 			ligatures(sans, fonts);
 			justified(sans);
 			tabs(sans);
+			breaks(sans, fonts);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
 		// CFF outlines: Inter (fonts-inter), an OpenType font with cubic curves
@@ -167,6 +168,37 @@ class TextTest {
 			if (!ok) bad.push(c.text + ": " + xs.join(" "));
 		}
 		check("tabs: to their stops, as Chromium puts them", bad.length == 0, bad.join("; "));
+	}
+
+	// where lines break with CSS's overflow-wrap and word-break, and at soft
+	// hyphens: each line's start and the min-content width as Chromium's
+	// (DejaVu Sans at 16; a line's trailing spaces on it; CJK's widths: its fallback face's, not compared)
+	static function breaks(sans:FontFile, fonts:SystemFonts) {
+		var long = "abcdefghijkl mnop", shy = "super\u00ADcali\u00ADfragilistic";
+		var cases:Array<{text:String, max:Float, breaking:Int, starts:String, min:Float}> = [
+			{text: long, max: 40, breaking: 0, starts: "0 13", min: 97.297},
+			{text: long, max: 40, breaking: TextLayout.BREAK_WORD, starts: "0 4 8 13 16", min: 97.297},
+			{text: long, max: 40, breaking: TextLayout.ANYWHERE, starts: "0 4 8 13 16", min: 15.594},
+			{text: long, max: 40, breaking: TextLayout.BREAK_ALL, starts: "0 4 8 13 16", min: 15.594},
+			{text: "hello wonderful world", max: 60, breaking: TextLayout.BREAK_ALL, starts: "0 7 13 20", min: 13.094},
+			{text: "x-ray, (a.b) \"quoted\" end.", max: 40, breaking: TextLayout.BREAK_ALL, starts: "0 4 7 13 17 22", min: 21.141},
+			{text: "日本語のテキスト", max: 40, breaking: TextLayout.KEEP_ALL, starts: "0", min: Math.NaN},
+			{text: "日本語 のテキスト", max: 40, breaking: TextLayout.KEEP_ALL, starts: "0 4", min: Math.NaN},
+			{text: shy, max: 60, breaking: 0, starts: "0 6 11", min: 73.359},
+			{text: shy, max: 90, breaking: 0, starts: "0 11", min: 73.359},
+			{text: "ab\u00ADcd ef", max: 1000, breaking: 0, starts: "0", min: 25.75}
+		];
+		var bad = [];
+		for (c in cases) {
+			var l = new TextLayout(c.text, new FontSet(sans, fonts.fallbacks(), 16), 1.25, c.max, null, 0, 0, 0, -1, Math.NaN, c.breaking);
+			var starts = [for (line in l.lines) line.start].join(" ");
+			if (starts != c.starts || (!Math.isNaN(c.min) && Math.abs(l.minWidth - c.min) > 0.02)) bad.push(c.text + " (" + c.breaking + "): " + starts + ", " + l.minWidth);
+		}
+		check("breaks: overflow-wrap, word-break and soft hyphens as Chromium breaks", bad.length == 0, bad.join("; "));
+		// (a soft hyphen broken at: a hyphen drawn at the line's end, as wide as Chromium's line)
+		var l = new TextLayout(shy, new FontSet(sans, [], 16), 1.25, 60, null, 0, 0, 0, -1, Math.NaN, 0);
+		var last = l.lines[0].glyphs[l.lines[0].glyphs.length - 1];
+		check("breaks: a soft hyphen shown where the line breaks", !last.hidden && last.cp == 0xAD && last.advance > 4, '${last.hidden} ${last.advance}');
 	}
 
 	// grapheme clusters: their boundaries as Intl.Segmenter finds them (node), forward and back

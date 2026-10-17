@@ -501,6 +501,7 @@ class Node {
 		if (fontCache != null) return fontCache;
 		// (unset: NaN, -1; no boxes)
 		var family:Null<String> = null, size = Math.NaN, weight = -1, italic = -1, lh = Math.NaN, ls = Math.NaN, ws = Math.NaN;
+		var ow:Null<OverflowWrap> = null, wb:Null<WordBreak> = null;
 		var n = this;
 		while (n != null) {
 			var s = n.style;
@@ -511,11 +512,13 @@ class Node {
 			if (Math.isNaN(lh) && s.lineHeight != null) lh = s.lineHeight;
 			if (Math.isNaN(ls) && s.letterSpacing != null) ls = s.letterSpacing;
 			if (Math.isNaN(ws) && s.wordSpacing != null) ws = s.wordSpacing;
+			if (ow == null) ow = s.overflowWrap;
+			if (wb == null) wb = s.wordBreak;
 			n = n.parent;
 		}
 		return fontCache = new Font(family == null ? Style.DEFAULT_FAMILY : family, Math.isNaN(size) ? Style.DEFAULT_SIZE : size,
 			weight < 0 ? Style.DEFAULT_WEIGHT : weight, italic == 1, Math.isNaN(lh) ? Style.DEFAULT_LINE_HEIGHT : lh, Math.isNaN(ls) ? 0 : ls,
-			Math.isNaN(ws) ? 0 : ws);
+			Math.isNaN(ws) ? 0 : ws, ow == null ? BreakWord : ow, wb == null ? WordBreak.Normal : wb);
 	}
 
 	// (the font, until it or an ancestor changes a text property: markDirty clears it)

@@ -30,8 +30,11 @@ text with, usable on its own.
   character first needs one.
 - `TextLayout`: text shaped (each character's glyph from the first face
   that has it, kerning between glyphs of the same face) and broken into
-  lines (after spaces and hyphens, around CJK; a word wider than a line is
-  cut; tabs to stops every `TAB_SIZE`, 8, spaces, as CSS's `tab-size`), with
+  lines (after spaces and hyphens, around CJK, after a soft hyphen, shown
+  as a hyphen where a line breaks; a word wider than a line is cut, or by
+  `breaking` as CSS's `overflow-wrap` and `word-break`: overflowing,
+  cut anywhere, between any letters or not around CJK, as Chromium breaks;
+  tabs to stops every `TAB_SIZE`, 8, spaces, as CSS's `tab-size`), with
   `caret` and `hit` queries. Right-to-left text too: each
   paragraph ordered by the bidi algorithm (`Bidi`: UAX #9's explicit
   levels left out, mirrored brackets), Arabic joined (`Arabic`: each

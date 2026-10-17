@@ -4,9 +4,11 @@ package hxmc.text;
 // face of the FontSet that has it, advances from hmtx, kerning (GPOS, kern)
 // between glyphs of the same face) and broken greedily at break
 // opportunities (after spaces and hyphens, around CJK ideographs, kana and
-// hangul) to fit maxWidth (NaN: only at "\n"); a word wider than a line is
-// cut between characters, except at a maxWidth of 0: the min-content
-// layout, every opportunity taken and no word cut. Text written right to
+// hangul, after a soft hyphen, shown as a hyphen where the line breaks)
+// to fit maxWidth (NaN: only at "\n"); a word wider than a line is cut
+// between characters (breaking: as CSS's overflow-wrap and word-break),
+// except at a maxWidth of 0: the min-content layout, every opportunity
+// taken and no word cut. Text written right to
 // left is ordered by the bidirectional algorithm (Bidi: each paragraph's
 // levels; each line's glyphs placed in visual order, mirrored brackets on
 // right-to-left levels; a base's marks drawn after it), its caret and hits
@@ -38,6 +40,17 @@ class TextLayout {
 	public static inline var TAB_SIZE = 8;
 	// (each tab's glyph index: the distance between its stops)
 	var tabs:Null<Map<Int, Float>> = null;
+	// where lines may break besides the opportunities, as CSS's
+	// overflow-wrap and word-break (breaking: these added up)
+	// BREAK_WORD: a word wider than its line cut where it must (else it overflows the line)
+	public static inline var BREAK_WORD = 1;
+	// ANYWHERE: that, the min-content width as cut (each character's)
+	public static inline var ANYWHERE = 2;
+	// BREAK_ALL: between any two letters (not before closing punctuation, after opening)
+	public static inline var BREAK_ALL = 4;
+	// KEEP_ALL: not between CJK characters
+	public static inline var KEEP_ALL = 8;
+	final breaking:Int;
 
 	// lineHeight: a multiple of the size; runs: parts of the text in other
 	// fonts and line heights (in order, not overlapping), the rest in fonts.
@@ -55,10 +68,12 @@ class TextLayout {
 	// base: each paragraph's direction (0 left to right, 1 right to left, as
 	// CSS's direction sets it; -1: from its first strong character); cut:
 	// each line wider than it given up at its end until an ellipsis after it
-	// fits (CSS's text-overflow: ellipsis; NaN: none)
+	// fits (CSS's text-overflow: ellipsis; NaN: none); breaking: BREAK_WORD
+	// and the others above added up (0: CSS's overflow-wrap: normal)
 	public function new(text:String, fonts:FontSet, lineHeight:Float, maxWidth:Float, ?runs:Array<TextRun>, maxLines = 0, letterSpacing = 0.0,
-			wordSpacing = 0.0, base = -1, cut = Math.NaN) {
+			wordSpacing = 0.0, base = -1, cut = Math.NaN, breaking = BREAK_WORD) {
 		this.text = text;
+		this.breaking = breaking;
 		this.fonts = fonts;
 		this.runs = runs == null ? [] : runs;
 		this.lineHeight = fonts.size * lineHeight;
@@ -505,20 +520,44 @@ class TextLayout {
 			|| (c >= 0x20000 && c <= 0x3FFFF);
 
 	// may a line break before glyph i?
-	static function breakBefore(gs:Array<Glyph>, i:Int):Bool {
+	function breakBefore(gs:Array<Glyph>, i:Int):Bool {
 		if (i == 0) return false;
 		var p = gs[i - 1].cp, c = gs[i].cp;
 		if (isSpace(c)) return false; // (spaces stay at the end of the line)
+		if (p == 0xAD) return true;
 		// (most text: letters before letters, the tests below all false)
-		if (p < 0x2010 && c < 0x2E80) return p == 32 || p == 9 || p == 0x2D || p == 0x2F;
-		return isSpace(p) || p == 0x2D || p == 0x2010 || p == 0x2013 || p == 0x2014 || p == 0x2F || isCJK(p) || isCJK(c);
+		if (p < 0x2010 && c < 0x2E80 && breaking & BREAK_ALL == 0) return p == 32 || p == 9 || p == 0x2D || p == 0x2F;
+		if (isSpace(p) || p == 0x2D || p == 0x2010 || p == 0x2013 || p == 0x2014 || p == 0x2F) return true;
+		if (breaking & BREAK_ALL != 0) return within(gs, i) && !closes(c) && !opens(p);
+		return breaking & KEEP_ALL == 0 && (isCJK(p) || isCJK(c));
 	}
 
-	static function minContent(gs:Array<Glyph>):Float {
+	// may a word be cut before glyph i (not before a mark or what is not shown)?
+	static inline function within(gs:Array<Glyph>, i:Int):Bool
+		return !gs[i].hidden && !isMark(gs[i]) && gs[i].cp != 10;
+
+	// (UAX 14's closing punctuation, infix separators, exclamations and quotes: no break before; opening and quotes: none after)
+	static function closes(c:Int):Bool
+		return switch c {
+			case ")".code | "]".code | "}".code | ",".code | ".".code | ":".code | ";".code | "!".code | "?".code | '"'.code | "'".code | 0x2019 | 0x201D
+				| 0x3001 | 0x3002 | 0xFF09 | 0xFF0C | 0xFF0E: true;
+			case _: false;
+		}
+
+	static function opens(c:Int):Bool
+		return switch c {
+			case "(".code | "[".code | "{".code | '"'.code | "'".code | 0x2018 | 0x201C | 0xFF08: true;
+			case _: false;
+		}
+
+	function minContent(gs:Array<Glyph>):Float {
 		var widest = 0.0, x = 0.0, visible = 0.0;
+		var anywhere = breaking & ANYWHERE != 0;
 		for (i in 0...gs.length) {
 			var g = gs[i];
-			if (g.cp == 10 || breakBefore(gs, i)) {
+			if (g.cp == 10 || breakBefore(gs, i) || (anywhere && i > 0 && !isSpace(g.cp) && within(gs, i))) {
+				// (a soft hyphen broken at: the hyphen shown)
+				if (i > 0 && gs[i - 1].cp == 0xAD) visible = x + hyphen(gs[i - 1]).advance;
 				if (visible > widest) widest = visible;
 				x = visible = 0;
 				if (g.cp == 10) continue;
@@ -527,6 +566,14 @@ class TextLayout {
 			if (!isSpace(g.cp)) visible = x;
 		}
 		return visible > widest ? visible : widest;
+	}
+
+	// the hyphen a soft hyphen shows at a line's end: its face's (U+2010, else "-"), its advance
+	function hyphen(g:Glyph):{id:Int, advance:Float} {
+		var f = g.font, set = g.run < 0 ? fonts : runs[g.run].fonts;
+		var id = f.glyph(0x2010);
+		if (id == 0) id = f.glyph(0x2D);
+		return {id: id, advance: f.advance(id) * set.scale(f)};
 	}
 
 	function breakLines(gs:Array<Glyph>, maxWidth:Float) {
@@ -559,7 +606,8 @@ class TextLayout {
 			var w = 0.0, lastBreak = -1, i = lineStart;
 			while (i < end) {
 				var g = gs[i];
-				if (i > lineStart && breakBefore(gs, i)) lastBreak = i;
+				// (after a soft hyphen: only where the hyphen fits too)
+				if (i > lineStart && breakBefore(gs, i) && (gs[i - 1].cp != 0xAD || w + hyphen(gs[i - 1]).advance <= max + 1e-3)) lastBreak = i;
 				// (a tab: to its next stop from the line's start, the next but one if that is
 				// closer than half a space, as CSS has it)
 				if (g.cp == 9 && tabs != null) {
@@ -572,12 +620,23 @@ class TextLayout {
 				w += g.advance;
 				i++;
 			}
-			// (at a width of 0, a word stays whole: up to the next opportunity)
-			if (max <= 0 && lastBreak <= lineStart && i < end) {
+			// (at a width of 0, or not to be cut, a word stays whole: up to the next opportunity)
+			if ((max <= 0 || breaking & (BREAK_WORD | ANYWHERE) == 0) && lastBreak <= lineStart && i < end) {
 				while (i < end && !breakBefore(gs, i))
 					i++;
 			}
 			var cut = i >= end ? end : lastBreak > lineStart ? lastBreak : i;
+			// (a word cut: not before a mark or what is not shown)
+			if (cut < end && cut > lineStart && !breakBefore(gs, cut))
+				while (cut > lineStart + 1 && !within(gs, cut))
+					cut--;
+			// (broken after a soft hyphen: a hyphen shown there)
+			if (cut < end && cut > lineStart && gs[cut - 1].cp == 0xAD) {
+				var g = gs[cut - 1], h = hyphen(g);
+				g.id = h.id;
+				g.advance = h.advance;
+				g.hidden = false;
+			}
 			addLine(gs, lineStart, cut);
 			lineStart = cut;
 		}

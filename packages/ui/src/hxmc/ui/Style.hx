@@ -202,6 +202,16 @@ class Style {
 	// whole, its min-content width that wide (line breaks still break)
 	public var textWrap(get, set):Null<TextWrap>;
 
+	// where a word too wide for its line may be cut, inherited (null: the
+	// parent's; BreakWord at the root, where CSS's is Normal: text stays in
+	// its box; CSS's overflow-wrap)
+	public var overflowWrap(get, set):Null<OverflowWrap>;
+
+	// where lines may break inside words, inherited (null: the parent's;
+	// Normal at the root; CSS's word-break): BreakAll between letters too,
+	// KeepAll not between CJK characters
+	public var wordBreak(get, set):Null<WordBreak>;
+
 	// its text's letters as shown, inherited (null: the parent's; None at
 	// the root; CSS's text-transform): upper or lower case, or each word's
 	// first in upper case; a text field's own text is shown as typed
@@ -303,6 +313,12 @@ class Style {
 
 	inline function get_textWrap():Null<TextWrap>
 		return rare == null ? null : rare.textWrap;
+
+	inline function get_overflowWrap():Null<OverflowWrap>
+		return rare == null ? null : rare.overflowWrap;
+
+	inline function get_wordBreak():Null<WordBreak>
+		return rare == null ? null : rare.wordBreak;
 
 	inline function get_textTransform():Null<TextTransform>
 		return rare == null ? null : rare.textTransform;
@@ -424,6 +440,20 @@ class Style {
 		if (v == textWrap) return v;
 		more().textWrap = v;
 		// (inherited: the text under it laid out again)
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_overflowWrap(v:Null<OverflowWrap>):Null<OverflowWrap> {
+		if (v == overflowWrap) return v;
+		more().overflowWrap = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_wordBreak(v:Null<WordBreak>):Null<WordBreak> {
+		if (v == wordBreak) return v;
+		more().wordBreak = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -897,6 +927,8 @@ class Style {
 		if (p.visibility != null) visibility = p.visibility;
 		if (p.pointerEvents != null) pointerEvents = p.pointerEvents;
 		if (p.textWrap != null) textWrap = p.textWrap;
+		if (p.overflowWrap != null) overflowWrap = p.overflowWrap;
+		if (p.wordBreak != null) wordBreak = p.wordBreak;
 		if (p.textTransform != null) textTransform = p.textTransform;
 		if (p.textOverflow != null) textOverflow = p.textOverflow;
 		if (p.order != null) order = p.order;
@@ -945,6 +977,8 @@ private class StyleRare {
 	public var visibility:Null<Visibility> = null;
 	public var pointerEvents:Null<PointerEvents> = null;
 	public var textWrap:Null<TextWrap> = null;
+	public var overflowWrap:Null<OverflowWrap> = null;
+	public var wordBreak:Null<WordBreak> = null;
 	public var textTransform:Null<TextTransform> = null;
 	public var textOverflow:TextOverflow = Clip;
 	public var order:Int = 0;
