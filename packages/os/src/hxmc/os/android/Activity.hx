@@ -213,7 +213,7 @@ class Activity {
 		Threads.pthread_cond_broadcast(cond);
 		Threads.pthread_mutex_unlock(lock);
 		if (destroyed == 0) Android.ANativeActivity_finish(activity);
-		Threads.exit(0);
+		Posix._exit(0); // (not exit: the system's libraries' destructors, with their threads still running)
 		return Ptr.nil();
 	}
 
