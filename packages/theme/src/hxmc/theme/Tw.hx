@@ -197,6 +197,10 @@ private class Encoder {
 					case MinContent: int(3);
 					case MaxContent: int(4);
 					case FitContent: int(5);
+					case Calc(p, px):
+						int(6);
+						num(p);
+						num(px);
 					case Px(_):
 				}
 			case ["E", VEdges(t, r, b, l)] | ["C", VCorners(t, r, b, l)]: for (n in [t, r, b, l]) num(n);
