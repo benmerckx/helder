@@ -322,7 +322,7 @@ Since the design above (October 2026), in this order:
   a GIF decoder (every frame composed as Chromium's ImageDecoder does,
   played by AnimatedImage); a WebP decoder (lossless VP8L, lossy VP8 with
   its ALPH alpha: pixel-exact with libwebp's; animations composed as
-  libwebp composes them).
+  libwebp composes them); APNG's frames.
 - Popups (a layer over the tree: anchored, modal), the widgets on them
   (Select, Menu, Tooltip, Dialog), and VirtualList.
 - Accessibility on every platform: NSAccessibility (macOS), UI Automation
@@ -345,9 +345,16 @@ Since the design above (October 2026), in this order:
 - Right-to-left layout (`dir`): rows, columns' cross axis, grids'
   columns and absolute boxes mirrored as Chromium mirrors them, text
   aligned to its start, fields aligned and scrollers overflowing to the
-  left (scrolled by negative offsets, as Chromium's scrollLeft); `order`,
-  `zIndex`, `visibility`, `textWrap` and `textTransform`; variable fonts
-  (fvar, avar, gvar: SystemFonts' weights as instances).
+  left (scrolled by negative offsets, as Chromium's scrollLeft), arrow
+  keys and popups mirrored; `order`, `zIndex`, `visibility`,
+  `pointerEvents`, `textWrap`, `textTransform` and `textOverflow`;
+  variable fonts (fvar, avar, gvar: SystemFonts' weights as instances).
+- More widgets and their keyboards: Menubar (ARIA's menubar), Combobox,
+  NumberField, Disclosure and Accordion, Toaster, resizable table columns,
+  a mixed checkbox, an indeterminate progress bar; tabs and radio groups
+  one stop for Tab, moved through by the arrows.
+- Images: animated PNGs (APNG) as Chromium composes them, and PNG
+  decoding about three times faster than the standard library's inflater.
 - `@hxmc/view` ([view.md](view.md)) replaced `@hxmc/esx` and
   `hxmc.ui.reactive`: markup compiled to direct calls on a renderer,
   `hxmc.ui.view.NodeRenderer` for both backends; the markup's style
