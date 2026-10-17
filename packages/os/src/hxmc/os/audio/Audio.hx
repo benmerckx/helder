@@ -37,7 +37,7 @@ typedef AudioFill = (buffer:Ptr<Float32>, frames:Int) -> Void;
 // stop or close the output itself (both wait for the audio thread to end).
 // The system's own audio threads, where it has them (CoreAudio's render
 // callback), never run Haxe code that may collect: they only copy what the
-// audio thread filled, in @:hxmc.noGc code (hxmc/LOWLEVEL.md, "Callbacks").
+// audio thread filled, in @:hxmc.noGc code (docs/plans/lowlevel.md, "Callbacks").
 // In the browser fill runs on the main thread (no threads there), when the
 // audio worklet has played a chunk, ahead of the output by `latency`; there
 // it may close the output.
