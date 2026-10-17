@@ -100,9 +100,6 @@ class Tw {
 				out = tw.slot(name, [global].concat(lists));
 			rules = rules.concat(out);
 		}
-		// (-D hxmc.theme.dump: each rule as Tailwind.describe writes it)
-		if (Context.defined("hxmc.theme.dump")) for (r in rules)
-			Sys.println(Tailwind.describe(r));
 		var e = new Encoder();
 		e.int(rules.length);
 		for (r in rules)
@@ -115,6 +112,12 @@ class Tw {
 				e.str(k);
 				e.str(tokens[k]);
 			}
+		}
+		// (-D hxmc.theme.dump: each rule as Tailwind.describe writes it, and the data's size)
+		if (Context.defined("hxmc.theme.dump")) {
+			for (r in rules)
+				Sys.println(Tailwind.describe(r));
+			Sys.println('Tw.sheet: ${rules.length} rules, ${e.data.length} bytes of rules, ${e.strings.join("\n").length} of strings');
 		}
 		return macro hxmc.theme.RuleData.sheet($v{e.data.toString()}, $v{e.strings.join("\n")});
 	}

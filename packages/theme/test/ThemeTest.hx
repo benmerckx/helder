@@ -210,6 +210,9 @@ class ThemeTest {
 		var s = Shadcn.sheet;
 		check("sheet: rules", s.rules.length > 50, '${s.rules.length}');
 		check("sheet: tokens", s.light["primary"] != null && s.dark["primary"] != null && s.light.get("primary") != s.dark.get("primary"));
+		var t = Shadcn.withTokens(["primary" => "#ff0000"]);
+		check("withTokens", t.rules == s.rules && t.light["primary"] == hxmc.ui.Color.parse("#ff0000") && t.dark["primary"] == s.dark["primary"]
+			&& s.light["primary"] != t.light["primary"]);
 		Sys.println('ThemeTest: Shadcn.sheet: ${s.rules.length} rules');
 	}
 
