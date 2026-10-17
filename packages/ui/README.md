@@ -197,7 +197,8 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   one Tab stop, Left and Right between them), `SegmentedControl` (one of
   options among joined buttons: a radio group), `Breadcrumbs` and
   `Pagination` (navigation landmarks, the current step or page marked
-  current: ARIA's aria-current), `Sortable` (a list
+  current: ARIA's aria-current), `TagInput` (chips before a text field:
+  Enter or a comma adds, Backspace or a chip's × removes), `Sortable` (a list
   reordered by dragging, a line where the item will go, or by Alt+Up and
   Alt+Down), `ColorPicker` (a
   saturation and brightness square, a hue strip and the hex: sliders for

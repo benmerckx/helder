@@ -1762,6 +1762,61 @@ class Widgets implements Markup {
 		effect(() -> f.setText(props.value.value));
 		return editMenu(f, props.tag ?? "field");
 	}
+
+	// a tag input: tags as chips before a text field in one box; Enter or a
+	// comma adds what is typed (trimmed, once), Backspace in an empty field
+	// takes the last one off, a chip's × takes it off; a click in the box
+	// focuses the field. The chips a list, each × a button named for its tag
+	public static function TagInput(props:{tags:Signal<Array<String>>, ?placeholder:String, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "tags";
+		var f = new TextField("");
+		f.tag = tag + "-field";
+		f.placeholder = props.placeholder ?? "";
+		f.semantics.label = props.label ?? props.placeholder;
+		f.style.set({padding: [2, 2]});
+		effect(() -> {
+			var th = t();
+			f.placeholderColor = Color.parse(th.placeholder);
+			f.selectionColor = Color.parse(th.selection);
+			f.caretColor = Color.parse(th.caret);
+			f.markDirty();
+		});
+		function add(text:String) {
+			var v = StringTools.trim(text);
+			f.setText("");
+			if (v == "" || props.tags.peek().indexOf(v) >= 0) return;
+			props.tags.value = props.tags.peek().concat([v]);
+		}
+		function remove(v:String)
+			props.tags.value = props.tags.peek().filter(x -> x != v);
+		f.onSubmit = add;
+		f.onChange = text -> if (StringTools.endsWith(text, ",")) add(text.substr(0, text.length - 1));
+		// (Backspace in an empty field: the last tag, before the field's own keys)
+		var keys = f.onKeyDown;
+		f.onKeyDown = (e:Event) -> {
+			var list = props.tags.peek();
+			if (e.key == Key.BACKSPACE && f.text == "" && list.length > 0) {
+				remove(list[list.length - 1]);
+				e.stop();
+			} else if (keys != null) keys(e);
+		};
+		return <view tag={tag} direction="row" wrap align-items="center" gap={4} padding="3 4" radius={6} border-width={1}
+			border-color={() -> t().border} background={() -> t().control} cursor="text"
+			onPointerDown={(e:Event) -> if (e.target != f && f.ui != null) {
+				f.ui.setFocus(f);
+				e.preventDefault();
+			}}>
+			<view role="list" label={props.label} direction="row" wrap gap={4}>
+				<For each={props.tags} render={(v:String) -> <view tag={tag + "-" + v} role="listitem" label={v} direction="row" align-items="center" gap={2}
+					padding="1 2 1 8" radius={4} background={() -> t().itemSelected} color={() -> t().text}>
+					{v}
+					<view tag={tag + "-" + v + "-remove"} role="button" label={"Remove " + v} cursor="pointer" padding="0 4" radius={3}
+						color={() -> t().secondary} onClick={_ -> remove(v)}>×</view>
+				</view>}/>
+			</view>
+			<view grow={1} min-width={60}>{editMenu(f, tag)}</view>
+		</view>;
+	}
 }
 
 // a disclosure's arrow: closed (▸), it points to the line's end, right to

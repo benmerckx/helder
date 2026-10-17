@@ -21,6 +21,7 @@ import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.SegmentedControl;
 import hxmc.ui.widgets.Widgets.Breadcrumbs;
 import hxmc.ui.widgets.Widgets.Pagination;
+import hxmc.ui.widgets.Widgets.TagInput;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.ui.widgets.Widgets.Listbox;
@@ -79,6 +80,7 @@ class MarkupTest implements Markup {
 		listbox();
 		toolbar();
 		navigation();
+		tagInput();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -545,6 +547,40 @@ class MarkupTest implements Markup {
 		page.value = 10;
 		ui.update();
 		check("pagination: Next disabled at the last", !next.focusable && labels() == "1 9 10", labels());
+	}
+
+	// a tag input: Enter and a comma add, duplicates and blanks not, Backspace and × remove
+	static function tagInput() {
+		var ui = new Ui(new MonoText(), 400, 200);
+		var tags = signal(["red"]);
+		Render.render(<view padding={10}><TagInput tag="tags" tags={tags} label="Colours" placeholder="Add a colour"/></view>, ui.root);
+		ui.update();
+		var field = ui.root.find("tags-field");
+		ui.setFocus(field);
+		ui.textInput("green");
+		ui.keyDown(Key.ENTER, 0);
+		ui.textInput("blue,");
+		ui.textInput("red,");
+		ui.textInput("  ,");
+		ui.update();
+		check("tags: Enter and a comma add, a duplicate and a blank not", tags.value.join(",") == "red,green,blue" && ui.root.find("tags-blue") != null,
+			tags.value.join(","));
+		ui.keyDown(Key.BACKSPACE, 0);
+		ui.update();
+		check("tags: Backspace in an empty field takes the last off", tags.value.join(",") == "red,green" && ui.focus == field, tags.value.join(","));
+		var x = ui.root.find("tags-red-remove");
+		ui.pointerDown(x.absX + 2, x.absY + 2, 1);
+		ui.pointerUp(x.absX + 2, x.absY + 2, 1);
+		ui.update();
+		var t = ui.accessTree(), items = [for (id in t.order) if (t.nodes.get(id).role == ListItem) t.nodes.get(id).name];
+		var buttons = [for (id in t.order) if (t.nodes.get(id).role == Button) t.nodes.get(id).name];
+		check("tags: a chip's × takes it off; chips a list, × buttons named", tags.value.join(",") == "green" && items.length == 1
+			&& buttons.indexOf("Remove green") >= 0, items.join(",") + " / " + buttons.join(","));
+		var box = ui.root.find("tags");
+		ui.setFocus(null);
+		ui.pointerDown(box.absX + box.width - 3, box.absY + 3, 1);
+		ui.pointerUp(box.absX + box.width - 3, box.absY + 3, 1);
+		check("tags: a click in the box focuses the field", ui.focus == field);
 	}
 
 	static function colorPicker() {

@@ -53,6 +53,7 @@ class Gallery implements Markup {
 	public final count = signal(3.0);
 	public final period = signal("Week");
 	public final page = signal(4);
+	public final labels = signal(["design", "review"]);
 	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
 		{name: "examples", children: [{name: "Gallery.hx", size: 6}, {name: "Todo.hx", size: 3}]},
@@ -190,9 +191,10 @@ class Gallery implements Markup {
 				<image tag="cover" src={picture} fit="cover" width={110} height={70} radius={8}/>
 				<image tag="natural" src={picture} radius={30}/>
 			</view>)}
-			{section("FIELD AND AREA", <view row-gap={6}>
+			{section("FIELD, TAGS AND AREA", <view row-gap={6}>
 				<Field tag="name" value={name} placeholder="Your name"/>
 				<text tag="greeting" color={() -> Theme.current.value.secondary}>{() -> name.value == "" ? "Type a name." : "Hello, " + name.value + "!"}</text>
+				<TagInput tag="labels" tags={labels} label="Labels" placeholder="Add a label"/>
 				<Area tag="notes" value={notes} rows={3} placeholder="Notes, on several lines"/>
 				<text tag="lines" color={() -> Theme.current.value.secondary}>{() -> notes.value.split("\n").length + " lines"}</text>
 			</view>)}

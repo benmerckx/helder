@@ -18,7 +18,7 @@ import hxmc.view.*;
 //   GalleryTest <golden.png> <out.png> [--dark] [--rtl] [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 1610;
+	static inline var H = 1646;
 	static var failed = 0;
 	static var checks = 0;
 
