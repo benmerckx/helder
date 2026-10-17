@@ -106,6 +106,18 @@ Text is shaped and rasterized by `@hxmc/text` with the system's fonts
 (`sans-serif` by default). In a browser, give the page's fonts to `run`
 (`fonts: [...]` with `packages/text/imports.mjs`).
 
+## Native controls
+
+`hxmc.ui.native` puts the platform's own controls in the same node tree:
+a `NativeHost` window whose `Control` nodes (button, checkbox, text field,
+slider, progress bar) are native widgets and whose `TextNode`s are native
+labels, measured by the platform, laid out by hxmc.ui's flexbox and placed
+absolutely; the markup and signals are the same (`import
+hxmc.ui.native.Controls.*`: `Button`, `Checkbox`, `Field`, `Slider`,
+`Progress`). The backend is GTK 3 on Linux (glibc mode) for now
+(`examples/NativeForm.hx`, tested under Xvfb by `NativeTest`); plain nodes
+only lay out there (no backgrounds), and nothing scrolls yet.
+
 ## Accessibility
 
 `hxmc.ui.access` builds the tree assistive technology sees (AccessKit's
