@@ -229,6 +229,13 @@ class UiTest {
 			false;
 		} catch (e:Dynamic) true;
 		check("transform: an unknown function is an error", bad);
+		var built = new Transform(["translate", "rotate", "scale"], [[10, 50], [90], [2]], [[false, true], [false], [false]]).toMatrix(100, 40);
+		var counted = try {
+			new Transform(["translateX"], [[1, 2]]);
+			false;
+		} catch (e:Dynamic) true;
+		check("transform: built without the text, as parse reads it; a wrong count an error", near(built, m)
+			&& new Transform(["translateX"], [[5]]).toMatrix(1, 1)[4] == 5 && counted, "" + built);
 		var inv = Transform.invert(m);
 		check("transform: inverted", inv != null && near(Transform.multiply(m, inv), [1, 0, 0, 1, 0, 0]));
 		var o = Transform.origin("left top");
@@ -650,6 +657,31 @@ class UiTest {
 		time = 20;
 		ui.pointerDown(other.absX + 5, other.absY + 5, 1);
 		check("selection: a press elsewhere drops it", ui.textSelection == null);
+		// (user-select: none on it, not selected; all, all of it at a click; text on an ancestor, a text of its own flag unset)
+		t.style.userSelect = None;
+		time = 30;
+		ui.pointerDown(t.absX + 3, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 3, t.absY + 5, 1);
+		var none = ui.textSelection == null;
+		t.style.userSelect = All;
+		time = 40;
+		ui.pointerDown(t.absX + 3, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 3, t.absY + 5, 1);
+		var all = ui.selectedText();
+		t.style.userSelect = null;
+		t.selectable = false;
+		ui.root.style.userSelect = Text;
+		time = 50;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		time = 50.2;
+		ui.pointerDown(t.absX + 33, t.absY + 5, 1);
+		ui.pointerUp(t.absX + 33, t.absY + 5, 1);
+		check("selection: user-select none, all, text inherited", none && all == "hello world foo" && ui.selectedText() == "world", all + " " + ui.selectedText());
+		ui.root.style.userSelect = null;
+		t.selectable = true;
+		time = 60;
+		ui.pointerDown(other.absX + 5, other.absY + 5, 1);
 		// (centred in 300: the line of 75 starts at 112.5)
 		t.style.width = 300;
 		t.style.textAlign = Center;
@@ -1331,6 +1363,100 @@ static function transitions() {
 		ui.update();
 		check("themes: again when it comes back", pop.style.opacity == 0, "" + pop.style.opacity);
 		Clock.finish();
+		// (one side of padding from one rule over the four from another; an auto margin from a rule)
+		ui.theme = {rules: [
+			{slot: "p", style: {padding: [8, 16]}},
+			{slot: "p", when: ["data-dense"], style: {paddingTop: 2}},
+			{slot: "row", style: {direction: Row, width: 100}},
+			{slot: "end", style: {width: 10, height: 10, marginLeft: Edges.AUTO}}
+		]};
+		var pn = new Node("p"), row = new Node("row"), end = new Node("end");
+		pn.slot = "p";
+		row.slot = "row";
+		end.slot = "end";
+		row.append(end);
+		ui.root.append(pn);
+		ui.root.append(row);
+		pn.setAttr("data-dense", "");
+		ui.update();
+		ui.update();
+		check("themes: padding-top over padding, an auto margin (ml-auto)", pn.style.padding.top == 2 && pn.style.padding.left == 16
+			&& pn.style.padding.bottom == 8 && end.x == 90, pn.style.padding.top + " " + end.x);
+		pn.setAttr("data-dense", null);
+		ui.update();
+		check("themes: the side back with the rule gone", pn.style.padding.top == 8 && pn.style.padding.left == 16, "" + pn.style.padding.top);
+		ui.root.remove(pn);
+		ui.root.remove(row);
+		// (a radius from the sheet's lengths, calc(var(--radius) - 4px); another sheet, another radius)
+		var rad = new Node("rad");
+		rad.slot = "rad";
+		ui.root.append(rad);
+		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4), color: Color.rgb(0x112233), borderColor: Color.token("currentcolor")}}], lengths: ["radius" => 10.0]};
+		ui.update();
+		var first = rad.style.radius;
+		check("themes: currentColor beside a resolved length", rad.style.borderColor == Color.rgb(0x112233), "" + rad.style.borderColor);
+		ui.theme = {rules: [{slot: "rad", style: {radius: Length.token("radius", -4)}}], lengths: ["radius" => 2.0]};
+		ui.update();
+		check("themes: a radius from the sheet's lengths (clamped at 0)", first == 6 && rad.style.radius == 0 && Length.tokenOffset(Length.token("x", -2.5)) == -2.5,
+			first + " " + rad.style.radius);
+		ui.root.remove(rad);
+		// (other nodes' states: a group's hover, a named peer's attribute, a descendant's, first and last, not)
+		ui.theme = {
+			rules: [
+				{slot: "gi", style: {opacity: 0.5}},
+				{slot: "gi", when: ["group:hover"], style: {opacity: 1}},
+				{slot: "pi", when: ["peer/box:data-state=checked"], style: {opacity: 0.25}},
+				{slot: "hb", when: ["has:data-state=open"], style: {opacity: 0.75}},
+				{slot: "hb", when: ["has:>data-slot=pi"], style: {zIndex: 2}},
+				{slot: "li", when: ["first"], style: {opacity: 0.1}},
+				{slot: "li", when: ["last"], style: {opacity: 0.9}},
+				{slot: "li", when: ["not:first", "not:last"], style: {opacity: 0.5}}
+			]
+		};
+		var group = new Node("g"), inner = new Node("gi"), box = new Node("box"), peerOf = new Node("pi"), deep = new Node("deep");
+		group.setAttr("group", "");
+		inner.slot = "gi";
+		box.setAttr("peer", "box");
+		peerOf.slot = "pi";
+		group.slot = "hb";
+		var mid = new Node();
+		mid.append(inner);
+		mid.append(deep);
+		group.append(mid);
+		group.append(box);
+		group.append(peerOf);
+		ui.root.append(group);
+		ui.update();
+		var before = inner.style.opacity;
+		@:privateAccess group.setState(true, false, false);
+		ui.update();
+		check("themes: group:hover from a hovered ancestor marked group", before == 0.5 && inner.style.opacity == 1, before + " " + inner.style.opacity);
+		box.setAttr("data-state", "checked");
+		deep.setAttr("data-state", "open");
+		ui.update();
+		check("themes: a named peer's attribute; has: a descendant's, a child's slot", peerOf.style.opacity == 0.25 && group.style.opacity == 0.75
+			&& group.style.zIndex == 2, peerOf.style.opacity + " " + group.style.opacity + " " + group.style.zIndex);
+		deep.setAttr("data-state", null);
+		@:privateAccess group.setState(false, false, false);
+		ui.update();
+		check("themes: back as the others change", inner.style.opacity == 0.5 && group.style.opacity == 1, inner.style.opacity + " " + group.style.opacity);
+		ui.root.remove(group);
+		var list = new Node(), items = [for (i in 0...3) new Node("li" + i)];
+		for (it in items) {
+			it.slot = "li";
+			list.append(it);
+		}
+		ui.root.append(list);
+		ui.update();
+		var placed = [for (it in items) it.style.opacity].join(" ");
+		var extra = new Node("li3");
+		extra.slot = "li";
+		list.append(extra);
+		list.remove(items[0]);
+		ui.update();
+		check("themes: first, last and not:, again as children come and go", placed == "0.1 0.5 0.9" && items[1].style.opacity == 0.1
+			&& items[2].style.opacity == 0.5 && extra.style.opacity == 0.9, placed + " / " + items[1].style.opacity + " " + items[2].style.opacity + " " + extra.style.opacity);
+		ui.root.remove(list);
 		// (rules for a breakpoint: the window at least so wide; again across it)
 		ui.theme = {rules: [{slot: "w", style: {opacity: 0.5}}, {slot: "w", when: ["md"], style: {opacity: 0.75}}]};
 		var wide = new Node("w");
@@ -1794,6 +1920,19 @@ static function transitions() {
 		var p = a.laidOut();
 		check("text: paragraph", p != null && p.lineCount == 1 && p.caret(3).x == 12);
 		check("text: font resolves", b.font().size == 16 && b.font().lineHeight == 1.5 && a.font().size == 8);
+		// (a line height in pixels, inherited as pixels: 20 at 8 and at 16; em letter spacing, the pixels at its node)
+		row.style.lineHeightPx = 20;
+		row.style.letterSpacingEm = 0.25;
+		ui.update();
+		check("text: line height in pixels, letter spacing in em", a.height == 20 && b.height == 20 && a.font().lineHeight == 2.5
+			&& b.font().lineHeight == 1.25 && a.font().letterSpacing == 4 && b.font().letterSpacing == 4, a.height + " " + b.height + " " + a.font().letterSpacing);
+		row.style.lineHeight = 3;
+		ui.update();
+		check("text: pixels over a multiple on one node", b.height == 20, "" + b.height);
+		row.style.lineHeightPx = null;
+		row.style.letterSpacingEm = null;
+		row.style.lineHeight = null;
+		ui.update();
 		// a long word in a narrow column: cut
 		var narrow = new TextNode("abcdefghij");
 		narrow.style.width = 40;
@@ -1894,6 +2033,17 @@ static function transitions() {
 		check("scroll: clamped", list.scrollY == 200);
 		ui.wheel(50, 50, 0, -5000);
 		check("scroll: back to the top", list.scrollY == 0);
+		// (overflow-y hidden: still clipped, not scrolled by the wheel, no scrollbar; scrollTo still moves it)
+		list.style.overflowY = Hidden;
+		ui.wheel(50, 50, 0, 50);
+		var r = new Recording();
+		ui.paint(r);
+		var thumbs = r.calls.filter(c -> StringTools.startsWith(c, "rect 92")).length;
+		ui.scrollTo(list, 0, 30);
+		check("scroll: overflow-y hidden: clipped, not scrolled by the wheel, scrolled by scrollTo", list.style.overflow == Scroll && thumbs == 0
+			&& list.scrollY == 30, list.scrollY + " " + thumbs);
+		list.style.overflowY = Scroll;
+		ui.scrollTo(list, 0, 0);
 		// the keys, when the focus takes none of them: arrows by 40, pages by seven eighths, the ends; eased on the clock
 		var item1 = list.children[1];
 		item1.focusable = true;

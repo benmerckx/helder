@@ -102,6 +102,16 @@ class Style {
 	public var padding(default, set):EdgesValue = Edges.ZERO;
 
 	public var margin(default, set):EdgesValue = Edges.ZERO;
+	// one side of each (CSS's padding-top...: Tailwind's pt-2 and px-4 from
+	// separate rules; a margin's side may be Edges.AUTO, ml-auto)
+	public var paddingTop(get, set):Float;
+	public var paddingRight(get, set):Float;
+	public var paddingBottom(get, set):Float;
+	public var paddingLeft(get, set):Float;
+	public var marginTop(get, set):Float;
+	public var marginRight(get, set):Float;
+	public var marginBottom(get, set):Float;
+	public var marginLeft(get, set):Float;
 
 	// on all four sides, inside the border box
 	public var borderWidth(default, set):Float = 0;
@@ -133,7 +143,13 @@ class Style {
 	// the four offsets at once (CSS's inset shorthand; markup "10 20": as margins write them)
 	public var inset(never, set):Dim;
 
+	// what overflows it, on both axes (CSS's shorthand); read, the two
+	// together: Scroll if either scrolls, else Hidden if either clips. As
+	// CSS's, both axes clip when either does; an axis scrolls by the wheel,
+	// the keys and a scrollbar only where it is Scroll (Hidden: by scrollTo)
 	public var overflow(default, set):Overflow = Visible;
+	public var overflowX(default, set):Overflow = Visible;
+	public var overflowY(default, set):Overflow = Visible;
 
 	public var background(default, set):Color = Color.TRANSPARENT;
 
@@ -166,6 +182,9 @@ class Style {
 	public var outlineColor(get, set):Null<Color>;
 	// a solid outline this wide in the text colour (CSS's shorthand; markup also "2px solid red", "none")
 	public var outline(never, set):Float;
+	// whether its text can be selected by the pointer (UserSelect; null: the parent's)
+	public var userSelect(get, set):Null<UserSelect>;
+
 	// whether the window's focus ring or the outline is drawn (OutlineStyle; null: Auto)
 	public var outlineStyle(get, set):Null<OutlineStyle>;
 
@@ -198,10 +217,18 @@ class Style {
 
 	public var italic(default, set):Null<Bool> = null;
 
-	// a multiple of the font size
+	// a multiple of the font size (inherited as the multiple), or pixels
+	// (lineHeightPx, CSS's line-height: 24px, inherited as the pixels;
+	// over lineHeight where a node has both, as Tailwind's leading-6 is over
+	// text-sm's)
 	public var lineHeight(default, set):Null<Float> = null;
-	// pixels after each character, and on each space (CSS's letter-spacing, word-spacing)
+	public var lineHeightPx(get, set):Null<Float>;
+	// pixels after each character, and on each space (CSS's letter-spacing,
+	// word-spacing); letterSpacingEm: a multiple of the node's font size
+	// (tracking-tight's -0.025em), inherited as the pixels it comes to, over
+	// letterSpacing where a node has both
 	public var letterSpacing(get, set):Null<Float>;
+	public var letterSpacingEm(get, set):Null<Float>;
 	public var wordSpacing(get, set):Null<Float>;
 
 	public var textAlign(default, set):Null<TextAlign> = null;
@@ -376,11 +403,26 @@ class Style {
 	inline function get_wordSpacing():Null<Float>
 		return rare == null ? null : rare.wordSpacing;
 
+	inline function get_lineHeightPx():Null<Float>
+		return rare == null ? null : rare.lineHeightPx;
+
+	inline function get_letterSpacingEm():Null<Float>
+		return rare == null ? null : rare.letterSpacingEm;
+
 	inline function get_maxLines():Int
 		return rare == null ? 0 : rare.maxLines;
 
 	inline function get_dir():Null<Dir>
 		return rare == null ? null : rare.dir;
+
+	inline function get_userSelect():Null<UserSelect>
+		return rare == null ? null : rare.userSelect;
+
+	function set_userSelect(v:Null<UserSelect>):Null<UserSelect> {
+		if (v == userSelect) return v;
+		more().userSelect = v;
+		return v;
+	}
 
 	inline function get_outlineStyle():Null<OutlineStyle>
 		return rare == null ? null : rare.outlineStyle;
@@ -952,6 +994,82 @@ class Style {
 		return v;
 	}
 
+	inline function get_paddingTop():Float
+		return padding.top;
+
+	inline function get_paddingRight():Float
+		return padding.right;
+
+	inline function get_paddingBottom():Float
+		return padding.bottom;
+
+	inline function get_paddingLeft():Float
+		return padding.left;
+
+	inline function get_marginTop():Float
+		return margin.top;
+
+	inline function get_marginRight():Float
+		return margin.right;
+
+	inline function get_marginBottom():Float
+		return margin.bottom;
+
+	inline function get_marginLeft():Float
+		return margin.left;
+
+	// (a side the same: NaN, auto, as auto)
+	static inline function sameSide(a:Float, b:Float):Bool
+		return a == b || Math.isNaN(a) && Math.isNaN(b);
+
+	function set_paddingTop(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.top)) padding = new Edges(v, p.right, p.bottom, p.left);
+		return v;
+	}
+
+	function set_paddingRight(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.right)) padding = new Edges(p.top, v, p.bottom, p.left);
+		return v;
+	}
+
+	function set_paddingBottom(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.bottom)) padding = new Edges(p.top, p.right, v, p.left);
+		return v;
+	}
+
+	function set_paddingLeft(v:Float):Float {
+		var p = padding;
+		if (!sameSide(v, p.left)) padding = new Edges(p.top, p.right, p.bottom, v);
+		return v;
+	}
+
+	function set_marginTop(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.top)) margin = new Edges(v, m.right, m.bottom, m.left);
+		return v;
+	}
+
+	function set_marginRight(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.right)) margin = new Edges(m.top, v, m.bottom, m.left);
+		return v;
+	}
+
+	function set_marginBottom(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.bottom)) margin = new Edges(m.top, m.right, v, m.left);
+		return v;
+	}
+
+	function set_marginLeft(v:Float):Float {
+		var m = margin;
+		if (!sameSide(v, m.left)) margin = new Edges(m.top, m.right, m.bottom, v);
+		return v;
+	}
+
 	function set_margin(v:EdgesValue):EdgesValue {
 		if (false) return v;
 		margin = v;
@@ -1034,10 +1152,30 @@ class Style {
 	}
 
 	function set_overflow(v:Overflow):Overflow {
-		if (v == overflow) return v;
-		overflow = v;
+		if (v == overflow && v == overflowX && v == overflowY) return v;
+		overflow = overflowX = overflowY = v;
 		node.styleChanged(true);
 		return v;
+	}
+
+	function set_overflowX(v:Overflow):Overflow {
+		if (v == overflowX) return v;
+		overflowX = v;
+		bothAxes();
+		return v;
+	}
+
+	function set_overflowY(v:Overflow):Overflow {
+		if (v == overflowY) return v;
+		overflowY = v;
+		bothAxes();
+		return v;
+	}
+
+	// (the two axes together, as overflow reads)
+	function bothAxes() {
+		@:bypassAccessor overflow = overflowX == Scroll || overflowY == Scroll ? Scroll : overflowX == Hidden || overflowY == Hidden ? Hidden : Visible;
+		node.styleChanged(true);
 	}
 
 	function set_background(v:Color):Color {
@@ -1202,6 +1340,20 @@ class Style {
 		return v;
 	}
 
+	function set_lineHeightPx(v:Null<Float>):Null<Float> {
+		if (v == lineHeightPx) return v;
+		more().lineHeightPx = v;
+		node.styleChanged(true);
+		return v;
+	}
+
+	function set_letterSpacingEm(v:Null<Float>):Null<Float> {
+		if (v == letterSpacingEm) return v;
+		more().letterSpacingEm = v;
+		node.styleChanged(true);
+		return v;
+	}
+
 	function set_lineHeight(v:Null<Float>):Null<Float> {
 		if (v == lineHeight) return v;
 		lineHeight = v;
@@ -1282,6 +1434,14 @@ class Style {
 		if (p.aspectRatio != null) aspectRatio = p.aspectRatio;
 		if (p.padding != null) padding = p.padding;
 		if (p.margin != null) margin = p.margin;
+		if (p.paddingTop != null) paddingTop = p.paddingTop;
+		if (p.paddingRight != null) paddingRight = p.paddingRight;
+		if (p.paddingBottom != null) paddingBottom = p.paddingBottom;
+		if (p.paddingLeft != null) paddingLeft = p.paddingLeft;
+		if (p.marginTop != null) marginTop = p.marginTop;
+		if (p.marginRight != null) marginRight = p.marginRight;
+		if (p.marginBottom != null) marginBottom = p.marginBottom;
+		if (p.marginLeft != null) marginLeft = p.marginLeft;
 		if (p.borderWidth != null) borderWidth = p.borderWidth;
 		if (p.borders != null) borders = p.borders;
 		if (p.rowGap != null) rowGap = p.rowGap;
@@ -1291,6 +1451,8 @@ class Style {
 		if (p.right != null) right = p.right;
 		if (p.bottom != null) bottom = p.bottom;
 		if (p.overflow != null) overflow = p.overflow;
+		if (p.overflowX != null) overflowX = p.overflowX;
+		if (p.overflowY != null) overflowY = p.overflowY;
 		if (p.background != null) background = p.background;
 		if (p.backgroundImage != null) backgroundImage = p.backgroundImage;
 		if (p.borderColor != null) borderColor = p.borderColor;
@@ -1312,10 +1474,13 @@ class Style {
 		if (p.lineHeight != null) lineHeight = p.lineHeight;
 		if (p.letterSpacing != null) letterSpacing = p.letterSpacing;
 		if (p.wordSpacing != null) wordSpacing = p.wordSpacing;
+		if (p.lineHeightPx != null) lineHeightPx = p.lineHeightPx;
+		if (p.letterSpacingEm != null) letterSpacingEm = p.letterSpacingEm;
 		if (p.textAlign != null) textAlign = p.textAlign;
 		if (p.dir != null) dir = p.dir;
 		if (p.visibility != null) visibility = p.visibility;
 		if (p.outlineStyle != null) outlineStyle = p.outlineStyle;
+		if (p.userSelect != null) userSelect = p.userSelect;
 		if (p.ringWidth != null) ringWidth = p.ringWidth;
 		if (p.ringColor != null) ringColor = p.ringColor;
 		if (p.ringOffsetWidth != null) ringOffsetWidth = p.ringOffsetWidth;
@@ -1381,10 +1546,13 @@ private class StyleRare {
 	public var transformOrigin:Null<Array<Dim>> = null;
 	public var letterSpacing:Null<Float> = null;
 	public var wordSpacing:Null<Float> = null;
+	public var lineHeightPx:Null<Float> = null;
+	public var letterSpacingEm:Null<Float> = null;
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
 	public var outlineStyle:Null<OutlineStyle> = null;
+	public var userSelect:Null<UserSelect> = null;
 	public var ringWidth:Float = 0;
 	public var ringColor:Null<Color> = null;
 	public var ringOffsetWidth:Float = 0;
