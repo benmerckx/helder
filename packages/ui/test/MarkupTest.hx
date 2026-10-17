@@ -19,6 +19,7 @@ import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.Menu;
 import hxmc.ui.widgets.Widgets.ContextMenu;
+import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.ui.widgets.Widgets.Table;
 import hxmc.ui.widgets.Widgets.Tree;
 import hxmc.ui.widgets.Widgets.Split;
@@ -54,6 +55,7 @@ class MarkupTest implements Markup {
 		numbers();
 		rightToLeft();
 		editMenus();
+		menubar();
 		focusTips();
 		virtual();
 		table();
@@ -313,6 +315,56 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.UP, 0);
 		ui.update();
 		check("number field: stepped from there", qty.value == 3.5 && field.text == "3.5", field.text);
+	}
+
+	static function menubar() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var chosen = [];
+		Render.render(<view padding={10} align-items="start"><Menubar tag="bar" label="Main" menus={[
+			{label: "File", items: [{label: "New", onSelect: () -> chosen.push("new")}, {label: "Open", onSelect: () -> chosen.push("open")}]},
+			{label: "Edit", items: [{label: "Undo", onSelect: () -> chosen.push("undo"), shortcut: "Mod+Z"}]},
+			{label: "Help", items: [{label: "About", onSelect: () -> chosen.push("about")}]}
+		]}/></view>, ui.root);
+		ui.update();
+		var file = ui.root.find("bar-0"), edit = ui.root.find("bar-1");
+		function key(k:Int) {
+			ui.keyDown(k, 0);
+			ui.update();
+		}
+		function click(n:Node) {
+			ui.pointerDown(n.absX + 4, n.absY + 4, 1);
+			ui.pointerUp(n.absX + 4, n.absY + 4, 1);
+			ui.update();
+		}
+		check("menubar: titles in a row, a menubar role", edit.absX > file.absX && ui.root.find("bar").semantics.role == MenuBar);
+		click(file);
+		check("menubar: a click opens its menu, the first item focused", ui.overlay.find("bar-0-items") != null && ui.focus == ui.overlay.find("bar-0-0"));
+		ui.pointerMove(edit.absX + 4, edit.absY + 4);
+		ui.update();
+		check("menubar: the pointer over another title opens that one instead",
+			ui.overlay.find("bar-0-items") == null && ui.overlay.find("bar-1-items") != null && ui.focus == ui.overlay.find("bar-1-0"));
+		key(Key.RIGHT);
+		check("menubar: Right from a menu opens the next", ui.overlay.find("bar-2-items") != null && ui.overlay.children.length == 1);
+		key(Key.RIGHT);
+		check("menubar: wrapping to the first", ui.overlay.find("bar-0-items") != null && ui.focus == ui.overlay.find("bar-0-0"));
+		key(Key.DOWN);
+		key(Key.ENTER);
+		check("menubar: an item chosen, the menu closed, the focus back on its title", chosen.join(",") == "open" && ui.overlay.children.length == 0
+			&& ui.focus == file, chosen.join(",") + " " + ui.focus);
+		key(Key.RIGHT);
+		check("menubar: Right on a title moves to the next, closed", ui.focus == edit && ui.overlay.children.length == 0);
+		key(Key.DOWN);
+		key(Key.ESCAPE);
+		check("menubar: Escape closes it, the focus on its title", ui.overlay.children.length == 0 && ui.focus == edit);
+		ui.setFocus(null);
+		ui.keyDown("Z".code, Key.MOD_CONTROL);
+		check("menubar: an item's shortcut from anywhere", chosen.join(",") == "open,undo", chosen.join(","));
+		// right to left: Right to the title on the right, the one before
+		ui.root.style.dir = Rtl;
+		ui.update();
+		ui.setFocus(edit);
+		key(Key.RIGHT);
+		check("menubar: right to left, Right to the title on its right", ui.focus == file && file.absX > edit.absX);
 	}
 
 	static function editMenus() {

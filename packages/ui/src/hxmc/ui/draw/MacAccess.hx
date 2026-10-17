@@ -227,6 +227,7 @@ class MacAccess {
 			case TreeItem: "AXRow";
 			case Separator: "AXSplitter";
 			case SpinButton: "AXIncrementor";
+			case MenuBar: "AXMenuBar";
 		}
 
 	// --- the classes' methods ---

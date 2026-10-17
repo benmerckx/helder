@@ -257,6 +257,7 @@ class LinuxAccess {
 			case TreeItem: 91;
 			case Separator: 50;
 			case SpinButton: 52;
+			case MenuBar: 34;
 			case Group | TabPanel: 39;
 		}
 

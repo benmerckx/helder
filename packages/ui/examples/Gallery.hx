@@ -106,7 +106,14 @@ class Gallery implements Markup {
 		return <scroll grow={1} padding={20} row-gap={18} background={() -> Theme.current.value.background} font-family="DejaVu Sans" font-size={14} color={() -> Theme.current.value.text}
 			dir={() -> rtl.value ? "rtl" : "ltr"}>
 			<view direction="row" align-items="center" justify="space-between">
-				<text font-size={22} font-weight={700}>Widgets</text>
+				<view direction="row" align-items="center" column-gap={14}>
+					<text font-size={22} font-weight={700}>Widgets</text>
+					<Menubar tag="app" label="Gallery" menus={[
+						{label: "File", items: [{label: "New", onSelect: () -> Toasts.show("New")}, {label: "Open…", onSelect: () -> Toasts.show("Open")}]},
+						{label: "Edit", items: [{label: "Undo", onSelect: () -> Toasts.show("Undone")}, {label: "Redo", onSelect: () -> Toasts.show("Redone")}]},
+						{label: "View", items: [{label: "Right to left", onSelect: () -> rtl.value = !rtl.value}]}
+					]}/>
+				</view>
 				<Toggle tag="rtl" on={rtl} label="Right to left"/>
 			</view>
 			{section("BUTTONS", <view direction="row" column-gap={8} align-items="center">

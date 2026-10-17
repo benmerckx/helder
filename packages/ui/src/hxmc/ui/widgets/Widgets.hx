@@ -655,6 +655,69 @@ class Widgets implements Markup {
 		</view>;
 	}
 
+	// a menu bar: a row of menus' titles, each opening its items (as Menu's)
+	// under it on a click, Down, Enter or Space; while one is open, the
+	// pointer over another title opens that one instead; Left and Right move
+	// between the titles the way they point (from an open menu: the next one
+	// opened, wrapping);
+	// Escape closes it, the focus back on its title. One stop for Tab: the
+	// title last moved to. The items' shortcuts work from anywhere in the window.
+	public static function Menubar(props:{menus:Array<{label:String, items:Array<{label:String, onSelect:Void->Void, ?shortcut:String}>}>, ?label:String,
+			?tag:String}):View {
+		var tag = props.tag ?? "menubar", count = props.menus.length;
+		var opens = [for (m in props.menus) signal(false)], titles:Array<Node> = [], current = signal(0);
+		// (menu i open, the others closed; -1: none)
+		function show(i:Int)
+			batch(() -> for (j in 0...count) opens[j].value = j == i);
+		function anyOpen():Bool {
+			for (o in opens)
+				if (o.peek()) return true;
+			return false;
+		}
+		// (to the title on the right or left, its menu opened if one was: the focus there first, out of the closing menu)
+		function step(i:Int, right:Bool, open:Bool) {
+			var d = right != (titles[i] != null && titles[i].rtl()) ? 1 : -1;
+			var j = (i + d + count) % count;
+			current.value = j;
+			focusIn(titles, j);
+			if (open) show(j);
+		}
+		return <view tag={tag} role="menubar" label={props.label} direction="row" column-gap={2}>{[
+			for (i in 0...count) {
+				var m = props.menus[i], items:Array<Node> = [], hover = signal(false);
+				<view tag={tag + "-" + i} role="menuitem" ref={n -> titles[i] = n} expanded={() -> opens[i].value} focusable={() -> current.value == i}
+					cursor="pointer" onFocus={_ -> current.value = i} padding="4 10" radius={4}
+					background={() -> opens[i].value ? t().itemSelected : hover.value ? t().itemHover : Theme.clear(t().control)}
+					onPointerEnter={_ -> {
+						hover.value = true;
+						if (anyOpen() && !opens[i].peek()) {
+							current.value = i;
+							focusIn(titles, i);
+							show(i);
+						}
+					}} onPointerLeave={_ -> hover.value = false} onClick={_ -> show(opens[i].peek() ? -1 : i)}
+					onKeyDown={e -> switch e.key {
+						case Key.LEFT | Key.RIGHT:
+							step(i, e.key == Key.RIGHT, false);
+							e.stop();
+						case Key.DOWN | Key.ENTER | Key.SPACE:
+							show(i);
+							e.stop();
+						case _:
+					}}>
+					{m.label}
+					{hotkeys(m.items, false)}
+					<Popover open={opens[i]} placement="below" onDismiss={() -> if (opens[i].peek()) show(-1)} onOpen={_ -> focusIn(items, 0)}>
+						<view onKeyDown={e -> if (e.key == Key.LEFT || e.key == Key.RIGHT) {
+							step(i, e.key == Key.RIGHT, true);
+							e.stop();
+						}}>{menuItems(tag + "-" + i, m.label, m.items, opens[i], items)}</view>
+					</Popover>
+				</view>;
+			}
+		]}</view>;
+	}
+
 	// a context menu: the children, with items (as Menu's) opened by a right
 	// click on them where it was pressed, or by the menu key or Shift+F10
 	// when the focus is in them (at their top left, the first item focused);

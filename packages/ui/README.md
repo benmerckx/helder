@@ -166,7 +166,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
   calendar in a popover; `Days`: dates as day numbers, no time zones),
   `Disclosure` and `Accordion` (sections shown and hidden), `NumberField`
   (typed or stepped, within bounds; a spin button), and the popups `Select`, `Menu`,
-  `ContextMenu` (at the pointer), `Tooltip`, `Dialog`, `Combobox` (a text
+  `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
+  through by Left and Right, one open at a time), `Tooltip`, `Dialog`, `Combobox` (a text
   field whose typing filters options under it; the focus stays in the
   field), `Toaster` (`Toasts.show`: messages in a corner for a while, with
   an action); `examples/Gallery.hx` shows them all. They draw

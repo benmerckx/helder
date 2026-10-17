@@ -176,9 +176,12 @@ class GalleryTest {
 		key(Key.TAB);
 		check("Tab to the last button", ui.focus == find("notify"));
 		// Tab from there: no further focusable node, back to the first (the
-		// direction switch), its focus ring shown; then the Plain button
+		// menu bar's first title), its focus ring shown; then the direction
+		// switch, the Plain button
 		key(Key.TAB);
-		check("Tab wraps to the first control", ui.focus == find("rtl") && ui.focusVisible);
+		check("Tab wraps to the first control", ui.focus == find("app-0") && ui.focusVisible);
+		key(Key.TAB);
+		check("the menu bar one stop", ui.focus == find("rtl"));
 		key(Key.TAB);
 		check("then the first button", ui.focus == find("plain"));
 		var natural = find("natural");
