@@ -10,11 +10,12 @@ import hxmc.unsafe.*;
 // for the activity's main thread (MainThread), whose JNIEnv NativeActivity
 // gives: classes found by the app's class loader (also those of
 // classes.dex: hxmc.android.Glue's), a Java exception thrown after a call
-// described in logcat, cleared and thrown again as a Haxe one (a JNI call
-// with one pending aborts the app), strings copied as UTF-16.
+// described in logcat, cleared and thrown again as a Haxe one with its text
+// (a JNI call with one pending aborts the app), strings copied as UTF-16.
 @:build(hxmc.os.VTable.build())
 class JniEnv {
 	@:slot(6) static function FindClass(env:Ptr, name:Ptr):Ptr;
+	@:slot(15) static function ExceptionOccurred(env:Ptr):Ptr;
 	@:slot(16) static function ExceptionDescribe(env:Ptr):Void;
 	@:slot(17) static function ExceptionClear(env:Ptr):Void;
 	@:slot(19) static function PushLocalFrame(env:Ptr, capacity:Int):Int;
@@ -111,13 +112,18 @@ class Jni {
 		return f;
 	}
 
-	// a pending Java exception: described in logcat, cleared, thrown as a Haxe one
+	static var toString = Ptr.nil();
+
+	// a pending Java exception: described in logcat, cleared, thrown as a
+	// Haxe one (its toString)
 	public static function check() {
 		var e = env;
 		if (JniEnv.ExceptionCheck(e) & 0xff == 0) return;
+		var t = JniEnv.ExceptionOccurred(e);
 		JniEnv.ExceptionDescribe(e);
 		JniEnv.ExceptionClear(e);
-		throw "hxmc.os: a Java exception (logcat has it)";
+		if (toString.isNull()) toString = method(cls("java.lang.Throwable"), "toString", "()Ljava/lang/String;");
+		throw "hxmc.os: Java threw " + fromString(JniEnv.CallObjectMethodA(e, t, toString, args));
 	}
 
 	// the arguments of a call: a..d (an object's .toI64(), an Int, a bool's 0

@@ -103,6 +103,6 @@ adb logcat -d > "$out/native-logcat-all.txt" 2>/dev/null
 cat "$log"
 if [ $failed != 0 ]; then
 	echo "android-native.sh: the system's log around the app:"
-	grep -E "AndroidRuntime|DEBUG|JNI|hxmc|nativetest|VerifyError|Rejecting|linker" "$out/native-logcat-all.txt" | tail -150
+	grep -E "AndroidRuntime|DEBUG|JNI|hxmc|nativetest|System.err|VerifyError|Rejecting|linker" "$out/native-logcat-all.txt" | tail -150
 fi
 exit $failed
