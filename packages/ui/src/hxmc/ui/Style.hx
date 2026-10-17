@@ -5,7 +5,8 @@ package hxmc.ui;
 // paint), so that only that is redone. The text properties from color on
 // are inherited: null takes the parent's (resolved by Node's font() and
 // textColor()). Generated once: a property is a field with a setter
-// calling the node's styleChanged.
+// calling the node's styleChanged; those rarely set are kept in a
+// StyleRare made when the first of them is (most nodes set none).
 class Style {
 	// the root's text properties
 	public static inline var DEFAULT_FAMILY = "sans-serif";
@@ -40,32 +41,32 @@ class Style {
 	// this node's alignment in its parent (Auto: the parent's alignItems)
 	public var alignSelf(default, set):Align = Align.Auto;
 
-	public var alignContent(default, set):AlignContent = Normal;
+	public var alignContent(get, set):AlignContent;
 
 	// the explicit grid's columns and rows (Grid.tracks: "1fr 200px auto"; none: one empty array shared)
-	public var gridTemplateColumns(default, set):Array<Grid.Track> = NO_TRACKS;
-	public var gridTemplateRows(default, set):Array<Grid.Track> = NO_TRACKS;
+	public var gridTemplateColumns(get, set):Array<Grid.Track>;
+	public var gridTemplateRows(get, set):Array<Grid.Track>;
 
 	// the explicit grid's named areas (Grid.GridAreas.parse: "'head head' 'side main'"),
 	// which make it at least as many columns and rows (beyond the templates' sized as auto tracks)
-	public var gridTemplateAreas(default, set):Null<Grid.GridAreas> = null;
+	public var gridTemplateAreas(get, set):Null<Grid.GridAreas>;
 
 	// the size of the tracks auto-placement adds beyond them
-	public var gridAutoColumns(default, set):Grid.Track = Grid.Track.AUTO;
-	public var gridAutoRows(default, set):Grid.Track = Grid.Track.AUTO;
+	public var gridAutoColumns(get, set):Grid.Track;
+	public var gridAutoRows(get, set):Grid.Track;
 
 	// what auto-placement fills first: rows (each across, then the next) or columns
-	public var gridAutoFlow(default, set):Grid.GridFlow = Grid.GridFlow.Row;
+	public var gridAutoFlow(get, set):Grid.GridFlow;
 
 	// the lines this node spans in a grid (Grid.GridPlacement.parse: "1 / 3", "span 2")
-	public var gridColumn(default, set):Grid.GridPlacement = Grid.GridPlacement.AUTO;
-	public var gridRow(default, set):Grid.GridPlacement = Grid.GridPlacement.AUTO;
+	public var gridColumn(get, set):Grid.GridPlacement;
+	public var gridRow(get, set):Grid.GridPlacement;
 	// both (Grid.area: "header", "1 / 2 / 3 / 4")
 	public var gridArea(never, set):String;
 
 	// in a grid: the children's default alignment in their areas along a row, and this node's (Auto: its parent's justifyItems)
-	public var justifyItems(default, set):Align = Align.Stretch;
-	public var justifySelf(default, set):Align = Align.Auto;
+	public var justifyItems(get, set):Align;
+	public var justifySelf(get, set):Align;
 
 	// flex-grow
 	public var grow(default, set):Float = 0;
@@ -92,7 +93,7 @@ class Style {
 	public var maxHeight(default, set):Dim = DimValue.Auto;
 
 	// width / height when one of them is auto (0: none)
-	public var aspectRatio(default, set):Float = 0;
+	public var aspectRatio(get, set):Float;
 
 	public var padding(default, set):EdgesValue = Edges.ZERO;
 
@@ -102,7 +103,7 @@ class Style {
 	public var borderWidth(default, set):Float = 0;
 
 	// each side's (CSS's border-top-width...; null: borderWidth on all four)
-	public var borders(default, set):Null<EdgesValue> = null;
+	public var borders(get, set):Null<EdgesValue>;
 
 	// the border's widths as laid out and drawn: borders, else borderWidth on each side
 	public var borderEdges(default, null):Edges = Edges.ZERO;
@@ -114,13 +115,13 @@ class Style {
 	public var columnGap(default, set):Float = 0;
 
 	// Absolute: the offsets from the parent's padding box; Relative: shifts
-	public var left(default, set):Dim = DimValue.Auto;
+	public var left(get, set):Dim;
 
-	public var top(default, set):Dim = DimValue.Auto;
+	public var top(get, set):Dim;
 
-	public var right(default, set):Dim = DimValue.Auto;
+	public var right(get, set):Dim;
 
-	public var bottom(default, set):Dim = DimValue.Auto;
+	public var bottom(get, set):Dim;
 
 	public var overflow(default, set):Overflow = Visible;
 
@@ -132,7 +133,7 @@ class Style {
 	public var radius(default, set):Float = 0;
 
 	// each corner's (CSS's border-radius with several values; null: radius on all four)
-	public var corners(default, set):Null<CornersValue> = null;
+	public var corners(get, set):Null<CornersValue>;
 
 	// of the node and its subtree
 	public var opacity(default, set):Float = 1;
@@ -140,16 +141,16 @@ class Style {
 	public var cursor(default, set):Cursor = Cursor.Auto;
 
 	// over the background colour, under the border: a CSS gradient (Gradient.parse; null: none)
-	public var backgroundImage(default, set):Null<Gradient> = null;
+	public var backgroundImage(get, set):Null<Gradient>;
 
 	// under the background (null: none)
-	public var shadow(default, set):Null<Shadow> = null;
+	public var shadow(get, set):Null<Shadow>;
 
 	// how the node and its subtree are drawn and hit, not laid out (Transform.parse; null: none)
-	public var transform(default, set):Null<Transform> = null;
+	public var transform(get, set):Null<Transform>;
 
 	// the point the transform is about: x and y in the border box (Transform.origin; null: its centre)
-	public var transformOrigin(default, set):Null<Array<Dim>> = null;
+	public var transformOrigin(get, set):Null<Array<Dim>>;
 
 	// inherited from here on: null takes the parent's (the root's defaults: Style.ROOT)
 	public var color(default, set):Null<Color> = null;
@@ -166,18 +167,105 @@ class Style {
 	// a multiple of the font size
 	public var lineHeight(default, set):Null<Float> = null;
 	// pixels after each character, and on each space (CSS's letter-spacing, word-spacing)
-	public var letterSpacing(default, set):Null<Float> = null;
-	public var wordSpacing(default, set):Null<Float> = null;
+	public var letterSpacing(get, set):Null<Float>;
+	public var wordSpacing(get, set):Null<Float>;
 
 	public var textAlign(default, set):Null<TextAlign> = null;
 
 	// a text's lines at most (0: any), the last ending in an ellipsis when cut (CSS's line-clamp; not inherited)
-	public var maxLines(default, set):Int = 0;
+	public var maxLines(get, set):Int;
 
 	// the lines drawn with the text in this node and its descendants, in
 	// this node's colour (TextDecoration's flags; 0: none; not inherited,
 	// as in CSS: it reaches the text inside)
-	public var textDecoration(default, set):Int = 0;
+	public var textDecoration(get, set):Int;
+
+	// --- the properties rarely set: in a StyleRare made when one is ---
+
+	var rare:Null<StyleRare> = null;
+
+	function more():StyleRare {
+		if (rare == null) rare = new StyleRare();
+		return rare;
+	}
+
+	inline function get_gridTemplateColumns():Array<Grid.Track>
+		return rare == null ? NO_TRACKS : rare.gridTemplateColumns;
+
+	inline function get_gridTemplateRows():Array<Grid.Track>
+		return rare == null ? NO_TRACKS : rare.gridTemplateRows;
+
+	inline function get_gridTemplateAreas():Null<Grid.GridAreas>
+		return rare == null ? null : rare.gridTemplateAreas;
+
+	inline function get_gridAutoColumns():Grid.Track
+		return rare == null ? Grid.Track.AUTO : rare.gridAutoColumns;
+
+	inline function get_gridAutoRows():Grid.Track
+		return rare == null ? Grid.Track.AUTO : rare.gridAutoRows;
+
+	inline function get_gridAutoFlow():Grid.GridFlow
+		return rare == null ? Grid.GridFlow.Row : rare.gridAutoFlow;
+
+	inline function get_gridColumn():Grid.GridPlacement
+		return rare == null ? Grid.GridPlacement.AUTO : rare.gridColumn;
+
+	inline function get_gridRow():Grid.GridPlacement
+		return rare == null ? Grid.GridPlacement.AUTO : rare.gridRow;
+
+	inline function get_justifyItems():Align
+		return rare == null ? Align.Stretch : rare.justifyItems;
+
+	inline function get_justifySelf():Align
+		return rare == null ? Align.Auto : rare.justifySelf;
+
+	inline function get_alignContent():AlignContent
+		return rare == null ? Normal : rare.alignContent;
+
+	inline function get_aspectRatio():Float
+		return rare == null ? 0 : rare.aspectRatio;
+
+	inline function get_borders():Null<EdgesValue>
+		return rare == null ? null : rare.borders;
+
+	inline function get_corners():Null<CornersValue>
+		return rare == null ? null : rare.corners;
+
+	inline function get_backgroundImage():Null<Gradient>
+		return rare == null ? null : rare.backgroundImage;
+
+	inline function get_shadow():Null<Shadow>
+		return rare == null ? null : rare.shadow;
+
+	inline function get_transform():Null<Transform>
+		return rare == null ? null : rare.transform;
+
+	inline function get_transformOrigin():Null<Array<Dim>>
+		return rare == null ? null : rare.transformOrigin;
+
+	inline function get_letterSpacing():Null<Float>
+		return rare == null ? null : rare.letterSpacing;
+
+	inline function get_wordSpacing():Null<Float>
+		return rare == null ? null : rare.wordSpacing;
+
+	inline function get_maxLines():Int
+		return rare == null ? 0 : rare.maxLines;
+
+	inline function get_textDecoration():Int
+		return rare == null ? 0 : rare.textDecoration;
+
+	inline function get_left():Dim
+		return rare == null ? DimValue.Auto : rare.left;
+
+	inline function get_top():Dim
+		return rare == null ? DimValue.Auto : rare.top;
+
+	inline function get_right():Dim
+		return rare == null ? DimValue.Auto : rare.right;
+
+	inline function get_bottom():Dim
+		return rare == null ? DimValue.Auto : rare.bottom;
 
 	function set_display(v:Display):Display {
 		if (v == display) return v;
@@ -230,63 +318,63 @@ class Style {
 
 	function set_maxLines(v:Int):Int {
 		if (v == maxLines) return v;
-		maxLines = v;
+		more().maxLines = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_alignContent(v:AlignContent):AlignContent {
 		if (v == alignContent) return v;
-		alignContent = v;
+		more().alignContent = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_gridTemplateColumns(v:Array<Grid.Track>):Array<Grid.Track> {
 		if (v == gridTemplateColumns) return v;
-		gridTemplateColumns = v;
+		more().gridTemplateColumns = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_gridTemplateRows(v:Array<Grid.Track>):Array<Grid.Track> {
 		if (v == gridTemplateRows) return v;
-		gridTemplateRows = v;
+		more().gridTemplateRows = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_gridAutoColumns(v:Grid.Track):Grid.Track {
 		if (v == gridAutoColumns) return v;
-		gridAutoColumns = v;
+		more().gridAutoColumns = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_gridAutoRows(v:Grid.Track):Grid.Track {
 		if (v == gridAutoRows) return v;
-		gridAutoRows = v;
+		more().gridAutoRows = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_gridAutoFlow(v:Grid.GridFlow):Grid.GridFlow {
 		if (v == gridAutoFlow) return v;
-		gridAutoFlow = v;
+		more().gridAutoFlow = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_gridColumn(v:Grid.GridPlacement):Grid.GridPlacement {
 		if (v == gridColumn) return v;
-		gridColumn = v;
+		more().gridColumn = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_gridTemplateAreas(v:Null<Grid.GridAreas>):Null<Grid.GridAreas> {
 		if (v == gridTemplateAreas) return v;
-		gridTemplateAreas = v;
+		more().gridTemplateAreas = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -300,21 +388,21 @@ class Style {
 
 	function set_gridRow(v:Grid.GridPlacement):Grid.GridPlacement {
 		if (v == gridRow) return v;
-		gridRow = v;
+		more().gridRow = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_justifyItems(v:Align):Align {
 		if (v == justifyItems) return v;
-		justifyItems = v;
+		more().justifyItems = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_justifySelf(v:Align):Align {
 		if (v == justifySelf) return v;
-		justifySelf = v;
+		more().justifySelf = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -384,7 +472,7 @@ class Style {
 
 	function set_aspectRatio(v:Float):Float {
 		if (v == aspectRatio) return v;
-		aspectRatio = v;
+		more().aspectRatio = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -413,7 +501,7 @@ class Style {
 
 	function set_borders(v:Null<EdgesValue>):Null<EdgesValue> {
 		if (v == borders) return v;
-		borders = v;
+		more().borders = v;
 		borderEdges = v == null ? new Edges(borderWidth, borderWidth, borderWidth, borderWidth) : v;
 		node.styleChanged(true);
 		return v;
@@ -421,7 +509,7 @@ class Style {
 
 	function set_corners(v:Null<CornersValue>):Null<CornersValue> {
 		if (v == corners) return v;
-		corners = v;
+		more().corners = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -451,28 +539,28 @@ class Style {
 
 	function set_left(v:Dim):Dim {
 		if (v == left) return v;
-		left = v;
+		more().left = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_top(v:Dim):Dim {
 		if (v == top) return v;
-		top = v;
+		more().top = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_right(v:Dim):Dim {
 		if (v == right) return v;
-		right = v;
+		more().right = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_bottom(v:Dim):Dim {
 		if (v == bottom) return v;
-		bottom = v;
+		more().bottom = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -493,7 +581,7 @@ class Style {
 
 	function set_backgroundImage(v:Null<Gradient>):Null<Gradient> {
 		if (v == backgroundImage) return v;
-		backgroundImage = v;
+		more().backgroundImage = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -501,7 +589,7 @@ class Style {
 	function set_transform(v:Null<Transform>):Null<Transform> {
 		if (v == transform) return v;
 		var was = transform != null;
-		transform = v;
+		more().transform = v;
 		Ui.accessEpoch++;
 		node.styleChanged(false);
 		if (was != (v != null)) @:privateAccess node.inkChanged();
@@ -510,7 +598,7 @@ class Style {
 
 	function set_transformOrigin(v:Null<Array<Dim>>):Null<Array<Dim>> {
 		if (v == transformOrigin) return v;
-		transformOrigin = v;
+		more().transformOrigin = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -546,7 +634,7 @@ class Style {
 
 	function set_shadow(v:Null<Shadow>):Null<Shadow> {
 		if (v == shadow) return v;
-		shadow = v;
+		more().shadow = v;
 		// (how far outside its box a shadow draws: the paint's culling widens bounds by the most seen)
 		var sh = v;
 		while (sh != null) {
@@ -594,14 +682,14 @@ class Style {
 
 	function set_letterSpacing(v:Null<Float>):Null<Float> {
 		if (v == letterSpacing) return v;
-		letterSpacing = v;
+		more().letterSpacing = v;
 		node.styleChanged(true);
 		return v;
 	}
 
 	function set_wordSpacing(v:Null<Float>):Null<Float> {
 		if (v == wordSpacing) return v;
-		wordSpacing = v;
+		more().wordSpacing = v;
 		node.styleChanged(true);
 		return v;
 	}
@@ -615,7 +703,7 @@ class Style {
 
 	function set_textDecoration(v:Int):Int {
 		if (v == textDecoration) return v;
-		textDecoration = v;
+		more().textDecoration = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -694,4 +782,36 @@ class Style {
 		if (p.justifySelf != null) justifySelf = p.justifySelf;
 		return this;
 	}
+}
+
+// what a Style keeps of the properties rarely set (their defaults at first)
+private class StyleRare {
+	public var gridTemplateColumns:Array<Grid.Track> = @:privateAccess Style.NO_TRACKS;
+	public var gridTemplateRows:Array<Grid.Track> = @:privateAccess Style.NO_TRACKS;
+	public var gridTemplateAreas:Null<Grid.GridAreas> = null;
+	public var gridAutoColumns:Grid.Track = Grid.Track.AUTO;
+	public var gridAutoRows:Grid.Track = Grid.Track.AUTO;
+	public var gridAutoFlow:Grid.GridFlow = Grid.GridFlow.Row;
+	public var gridColumn:Grid.GridPlacement = Grid.GridPlacement.AUTO;
+	public var gridRow:Grid.GridPlacement = Grid.GridPlacement.AUTO;
+	public var justifyItems:Align = Align.Stretch;
+	public var justifySelf:Align = Align.Auto;
+	public var alignContent:AlignContent = Normal;
+	public var aspectRatio:Float = 0;
+	public var borders:Null<EdgesValue> = null;
+	public var corners:Null<CornersValue> = null;
+	public var backgroundImage:Null<Gradient> = null;
+	public var shadow:Null<Shadow> = null;
+	public var transform:Null<Transform> = null;
+	public var transformOrigin:Null<Array<Dim>> = null;
+	public var letterSpacing:Null<Float> = null;
+	public var wordSpacing:Null<Float> = null;
+	public var maxLines:Int = 0;
+	public var textDecoration:Int = 0;
+	public var left:Dim = DimValue.Auto;
+	public var top:Dim = DimValue.Auto;
+	public var right:Dim = DimValue.Auto;
+	public var bottom:Dim = DimValue.Auto;
+
+	public function new() {}
 }
