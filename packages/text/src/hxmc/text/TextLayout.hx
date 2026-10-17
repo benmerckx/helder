@@ -642,12 +642,17 @@ class TextLayout {
 		}
 	}
 
+	var levelsOf:Array<Glyph> = null;
+	var bidiCps:Array<Int> = null;
+	var bidiLevels:Array<Int> = null;
+
 	function addLine(gs:Array<Glyph>, start:Int, end:Int, ?emptyAt:Int) {
 		var l = new TextLine();
 		// (its line box: the paragraph's strut and each run on it, on one baseline)
 		var above = baseline, below = lineHeight - baseline;
-		var seen = new Map<Int, Bool>();
-		for (i in start...end) {
+		// (each run once; none to look for without runs)
+		var seen:Map<Int, Bool> = runs.length == 0 ? null : new Map();
+		if (seen != null) for (i in start...end) {
 			var r = gs[i].run;
 			if (r < 0 || seen.exists(r)) continue;
 			seen.set(r, true);
@@ -666,8 +671,13 @@ class TextLayout {
 			for (p in paragraphLevels)
 				if (start >= p.start && start <= p.end) base = p.base;
 			l.base = base;
-			var cps = [for (g in gs) g.cp], lv = [for (g in gs) g.level];
-			var order = Bidi.reorder(cps, lv, base, start, end);
+			// (the code points and levels taken once per glyph array, not per line)
+			if (levelsOf != gs) {
+				levelsOf = gs;
+				bidiCps = [for (g in gs) g.cp];
+				bidiLevels = [for (g in gs) g.level];
+			}
+			var order = Bidi.reorder(bidiCps, bidiLevels, base, start, end);
 			// (a right-to-left base's marks before it, as HarfBuzz leaves them: at its origin, unattached)
 			var k = 0;
 			for (i in order) {
