@@ -134,6 +134,26 @@ class CocoaWindow {
 		LibC.free(size);
 	}
 
+	function setTitle(t:String) {
+		var s = ObjC.str(t);
+		Msg.vPtr(window, ObjC.sel("setTitle:"), s);
+		ObjC.release(s);
+	}
+
+	function resize(w:Int, h:Int) {
+		size.value.width = w;
+		size.value.height = h;
+		Msg.vSize(window, ObjC.sel("setContentSize:"), size.value);
+		measure();
+	}
+
+	function setMinSize(w:Int, h:Int) {
+		size.value.width = w;
+		size.value.height = h;
+		Msg.vSize(window, ObjC.sel("setContentMinSize:"), size.value);
+		measure();
+	}
+
 	function setCursor(c:Cursor) {
 		cursor = c;
 		applyCursor();

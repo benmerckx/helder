@@ -51,6 +51,15 @@ class CanvasWindow {
 	function setCursor(c:Cursor)
 		Dom.set_cursor(canvas, c);
 
+	function setTitle(t:String)
+		Arena.scoped(a -> Dom.set_title(a.cstring(t)));
+
+	function resize(w:Int, h:Int)
+		Dom.set_size(canvas, w, h, 0);
+
+	function setMinSize(w:Int, h:Int)
+		Dom.set_size(canvas, w, h, 1);
+
 	function textInput(on:Bool, x:Int, y:Int, width:Int, height:Int)
 		Dom.text_input(canvas, on ? 1 : 0, x, y, width, height);
 

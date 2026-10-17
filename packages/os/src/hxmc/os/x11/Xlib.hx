@@ -16,6 +16,8 @@ import hxmc.unsafe.*;
 		background:Int64):Int64;
 	static function XDestroyWindow(d:Ptr, w:Int64):Int;
 	static function XStoreName(d:Ptr, w:Int64, name:Ptr):Int;
+	static function XResizeWindow(d:Ptr, w:Int64, width:Int, height:Int):Int;
+	static function XSetWMNormalHints(d:Ptr, w:Int64, hints:Ptr):Void;
 	static function XSelectInput(d:Ptr, w:Int64, mask:Int64):Int;
 	static function XMapWindow(d:Ptr, w:Int64):Int;
 	static function XInternAtom(d:Ptr, name:Ptr, onlyIfExists:Int):Int64;

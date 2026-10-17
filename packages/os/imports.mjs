@@ -302,6 +302,19 @@ export default function (host) {
 				if (a === c || c.contains(a)) ta.focus({ preventScroll: true });
 			} else if (a === ta) c.focus({ preventScroll: true });
 		},
+		set_title(p) {
+			document.title = host.string(p);
+		},
+		set_size(h, w, ht, min) {
+			const st = host.handles.get(h).style;
+			if (min) {
+				st.minWidth = w + 'px';
+				st.minHeight = ht + 'px';
+			} else {
+				st.width = w + 'px';
+				st.height = ht + 'px';
+			}
+		},
 		set_cursor(h, c) {
 			host.handles.get(h).style.cursor = ['default', 'pointer', 'text', 'crosshair', 'move', 'not-allowed', 'ew-resize', 'ns-resize'][c] ?? 'default';
 		},

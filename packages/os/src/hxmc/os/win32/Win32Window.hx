@@ -98,6 +98,34 @@ class Win32Window {
 		User32.DestroyWindow(hwnd);
 	}
 
+	function setTitle(t:String)
+		Arena.scoped(a -> User32.SetWindowTextW(hwnd, a.wstring(t)));
+
+	// (the outer size of a client area of w x h points)
+	function outer(w:Int, h:Int):{w:Int, h:Int}
+		return Arena.scopedValue(a -> {
+			var r = a.make(RECT);
+			r.value.right = Math.round(w * scale);
+			r.value.bottom = Math.round(h * scale);
+			User32.AdjustWindowRectEx(r, STYLE, 0, 0);
+			{w: r.value.right - r.value.left, h: r.value.bottom - r.value.top};
+		});
+
+	// (SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE)
+	function resize(w:Int, h:Int) {
+		var o = outer(w, h);
+		User32.SetWindowPos(hwnd, Ptr.nil(), 0, 0, o.w, o.h, 0x2 | 0x4 | 0x10);
+	}
+
+	// (answered at WM_GETMINMAXINFO)
+	var minW = 0;
+	var minH = 0;
+
+	function setMinSize(w:Int, h:Int) {
+		minW = w;
+		minH = h;
+	}
+
 	// (IDC_ARROW, IDC_HAND, IDC_IBEAM, IDC_CROSS, IDC_SIZEALL, IDC_NO, IDC_SIZEWE, IDC_SIZENS)
 	function setCursor(c:Cursor) {
 		cursor = User32.LoadCursorW(Ptr.nil(), Ptr.ofI64([32512, 32649, 32513, 32515, 32646, 32648, 32644, 32645][(c : Int)]));
@@ -209,6 +237,12 @@ class Win32Window {
 				var r = getObject(hwnd, wParam, lParam);
 				var none:Int64 = 0;
 				if (r != none) return r;
+			case WM.GETMINMAXINFO if (w.minW > 0 || w.minH > 0):
+				// (MINMAXINFO's ptMinTrackSize, at 24: the outer size)
+				var o = w.outer(w.minW, w.minH), p:Ptr = Ptr.ofI64(lParam);
+				(p.add(24) : Ptr<Int32>).value = o.w;
+				(p.add(28) : Ptr<Int32>).value = o.h;
+				return 0;
 			case WM.SETCURSOR if (lParam.toInt() & 0xFFFF == WM.HTCLIENT && !w.cursor.isNull()):
 				User32.SetCursor(w.cursor);
 				return 1;

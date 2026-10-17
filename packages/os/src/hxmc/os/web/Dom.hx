@@ -35,6 +35,9 @@ import hxmc.unsafe.*;
 	static function text_input(canvas:Int, on:Int, x:Int, y:Int, width:Int, height:Int):Void;
 	// the canvas's CSS cursor, by Cursor
 	static function set_cursor(canvas:Int, cursor:Int):Void;
+	// the page's title; the canvas's CSS size (min: its minimum)
+	static function set_title(title:Ptr):Void;
+	static function set_size(canvas:Int, width:Int, height:Int, min:Int):Void;
 	// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
 	static function start(frame:Ptr):Void;
 }

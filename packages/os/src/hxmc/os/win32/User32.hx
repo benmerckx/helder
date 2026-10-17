@@ -18,6 +18,7 @@ import hxmc.unsafe.*;
 	static function TranslateMessage(msg:Ptr<MSG>):Int;
 	static function DispatchMessageW(msg:Ptr<MSG>):Int64;
 	static function PostMessageW(hwnd:Ptr, msg:Int, wParam:Int64, lParam:Int64):Int;
+	static function SendMessageW(hwnd:Ptr, msg:Int, wParam:Int64, lParam:Int64):Int64;
 	static function PostQuitMessage(code:Int):Void;
 	static function GetClientRect(hwnd:Ptr, r:Ptr<RECT>):Int;
 	static function AdjustWindowRectEx(r:Ptr<RECT>, style:Int, menu:Int, exStyle:Int):Int;
@@ -34,6 +35,8 @@ import hxmc.unsafe.*;
 	static function GetClipboardData(format:Int):Ptr;
 	static function MsgWaitForMultipleObjects(count:Int, handles:Ptr, waitAll:Int, ms:Int, wakeMask:Int):Int;
 	static function SetWindowTextW(hwnd:Ptr, text:Ptr):Int;
+	static function GetWindowTextW(hwnd:Ptr, text:Ptr, max:Int):Int;
+	static function SetWindowPos(hwnd:Ptr, after:Ptr, x:Int, y:Int, cx:Int, cy:Int, flags:Int):Int;
 	// Windows 10 1607 and later (pixels, not points)
 	static function SetProcessDpiAwarenessContext(context:Ptr):Int;
 	static function GetDpiForWindow(hwnd:Ptr):Int;
@@ -78,6 +81,7 @@ class WM {
 	public static inline var DESTROY = 0x0002;
 	public static inline var SIZE = 0x0005;
 	public static inline var CLOSE = 0x0010;
+	public static inline var GETMINMAXINFO = 0x0024;
 	public static inline var KEYDOWN = 0x0100;
 	public static inline var KEYUP = 0x0101;
 	public static inline var SYSKEYDOWN = 0x0104;

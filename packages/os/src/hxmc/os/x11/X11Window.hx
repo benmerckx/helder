@@ -114,6 +114,35 @@ class X11Window {
 		}
 	}
 
+	// the title: WM_NAME (Latin-1 for old window managers) and _NET_WM_NAME (UTF-8)
+	function setTitle(t:String)
+		Arena.scoped(a -> {
+			Xlib.XStoreName(display, id, a.cstring(t));
+			var utf8 = haxe.io.Bytes.ofString(t), p = a.alloc(utf8.length + 1);
+			for (i in 0...utf8.length)
+				(p : Ptr<UInt8>)[i] = utf8.get(i);
+			Xlib.XChangeProperty(display, id, Xlib.XInternAtom(display, a.cstring("_NET_WM_NAME"), 0), UTF8_STRING, 8, 0, p, utf8.length);
+			Xlib.XFlush(display);
+		});
+
+	function resize(w:Int, h:Int) {
+		Xlib.XResizeWindow(display, id, w, h);
+		Xlib.XFlush(display);
+	}
+
+	// WM_NORMAL_HINTS: XSizeHints with PMinSize (flags at 0, min_width and min_height at 24 and 28)
+	function setMinSize(w:Int, h:Int)
+		Arena.scoped(a -> {
+			var hints = a.alloc(80);
+			for (i in 0...80)
+				(hints : Ptr<UInt8>)[i] = 0;
+			(hints : Ptr<Int64>).value = 1 << 4;
+			(hints.add(24) : Ptr<Int32>).value = w;
+			(hints.add(28) : Ptr<Int32>).value = h;
+			Xlib.XSetWMNormalHints(display, id, hints);
+			Xlib.XFlush(display);
+		});
+
 	// (cursorfont.h: XC_left_ptr, XC_hand2, XC_xterm, XC_crosshair, XC_fleur,
 	// XC_X_cursor, XC_sb_h_double_arrow, XC_sb_v_double_arrow)
 	function setCursor(c:Cursor) {

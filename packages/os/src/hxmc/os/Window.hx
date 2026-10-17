@@ -14,7 +14,8 @@ import hxmc.unsafe.Mem;
 // (hxmc.os.x11.X11Window); Wayland comes in behind the same class.
 class Window {
 	public final surface:Surface;
-	public var title(default, null):String;
+	// its title bar's text (the browser: the page's title)
+	public var title(default, set):String;
 	public var closed(default, null) = false;
 
 	// the native window, the target's (Mem.os() is known when compiling: the
@@ -75,6 +76,30 @@ class Window {
 		if (closed) return;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.os() == 1)
 			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0);
+	}
+
+	function set_title(v:String):String {
+		if (v == title) return v;
+		title = v;
+		if (native == null || closed) return v;
+		if (Mem.os() == 1) (cast native : CocoaWindow).setTitle(v) else if (Mem.os() == 2) (cast native : Win32Window).setTitle(v) else if (Mem.os() == 3)
+			(cast native : CanvasWindow).setTitle(v) else (cast native : X11Window).setTitle(v);
+		return v;
+	}
+
+	// its content made width x height points (pixels on X11; the browser: the
+	// canvas's CSS size); a Resize event follows
+	public function resize(width:Int, height:Int) {
+		if (closed) return;
+		if (Mem.os() == 1) (cast native : CocoaWindow).resize(width, height) else if (Mem.os() == 2) (cast native : Win32Window).resize(width,
+			height) else if (Mem.os() == 3) (cast native : CanvasWindow).resize(width, height) else (cast native : X11Window).resize(width, height);
+	}
+
+	// the smallest content the user may resize it to, in points (the browser: the canvas's CSS minimum)
+	public function setMinSize(width:Int, height:Int) {
+		if (closed) return;
+		if (Mem.os() == 1) (cast native : CocoaWindow).setMinSize(width, height) else if (Mem.os() == 2) (cast native : Win32Window).setMinSize(width,
+			height) else if (Mem.os() == 3) (cast native : CanvasWindow).setMinSize(width, height) else (cast native : X11Window).setMinSize(width, height);
 	}
 
 	public function close() {
