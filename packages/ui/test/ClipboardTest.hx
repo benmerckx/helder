@@ -4,7 +4,8 @@ import hxmc.os.*;
 // ui-draw-check, X11 under Xvfb): the text one writes, the other reads
 // through the selection's protocol (SelectionRequest answered,
 // SelectionNotify read); the writer reads its own at once; ownership moves
-// with the next write (SelectionClear).
+// with the next write (SelectionClear); a text over 256 KB goes in parts
+// (INCR, on X11).
 //   ClipboardTest
 class ClipboardTest {
 	static var failed = 0;
@@ -44,6 +45,15 @@ class ClipboardTest {
 				next();
 			});
 		});
+		// a text of a megabyte or so: sent in parts (INCR) between the windows
+		var big = [for (i in 0...40000) "line " + i + " héllo ✓\n"].join("");
+		steps.push(() -> {
+			Clipboard.write(a, big);
+			Clipboard.read(b, t -> {
+				check("a large text in parts (INCR)", t == big, t == null ? "null" : t.length + " of " + big.length);
+				next();
+			});
+		});
 		var start = haxe.Timer.stamp();
 		App.run(() -> {
 			if (!waiting) {
@@ -63,6 +73,6 @@ class ClipboardTest {
 			App.wait(0.01);
 		}, e -> {});
 		Sys.println('ClipboardTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks == 3 ? 0 : 1);
+		Sys.exit(failed == 0 && checks == 4 ? 0 : 1);
 	}
 }

@@ -19,6 +19,13 @@ class X11Window {
 	// does not), the reads waiting for SelectionNotify
 	static var CLIPBOARD:Int64 = 0;
 	static var UTF8_STRING:Int64 = 0;
+	static var INCR:Int64 = 0;
+	// the selections this process sends in parts (INCR): to a requestor's
+	// property, the next part when it deletes the last
+	static final sending:Array<{requestor:Int64, property:Int64, target:Int64, data:haxe.io.Bytes, at:Int}> = [];
+	// (parts of 64 KB, for a text over 256 KB)
+	static inline var PART = 65536;
+	static inline var INCR_OVER = 262144;
 	static var TARGETS:Int64 = 0;
 	static var HXMC_CLIPBOARD:Int64 = 0;
 	static var clipboardText:Null<String> = null;
@@ -47,7 +54,7 @@ class X11Window {
 			Xlib.XSetWMProtocols(display, id, atoms, 1);
 		});
 		Xlib.XSelectInput(display, id, (X.KeyPressMask | X.KeyReleaseMask | X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask
-			| X.StructureNotifyMask | X.ExposureMask : Int64));
+			| X.StructureNotifyMask | X.ExposureMask | X.PropertyChangeMask : Int64));
 		Xlib.XMapWindow(display, id);
 		if (!im.isNull()) {
 			// (XIMPreeditNothing | XIMStatusNothing: the input method draws its own)
@@ -67,6 +74,7 @@ class X11Window {
 		UTF8_STRING = Xlib.XInternAtom(display, Mem.cstr("UTF8_STRING"), 0);
 		TARGETS = Xlib.XInternAtom(display, Mem.cstr("TARGETS"), 0);
 		HXMC_CLIPBOARD = Xlib.XInternAtom(display, Mem.cstr("HXMC_CLIPBOARD"), 0);
+		INCR = Xlib.XInternAtom(display, Mem.cstr("INCR"), 0);
 		xev = LibC.malloc((X.EVENT_SIZE : Int64));
 		openInputMethod();
 	}
@@ -156,7 +164,15 @@ class X11Window {
 				Xlib.XChangeProperty(display, r.value.requestor, property, X.XA_ATOM, 32, X.PropModeReplace, atoms, 3);
 			} else if (r.value.target == UTF8_STRING || r.value.target == X.XA_STRING) {
 				var b = r.value.target == UTF8_STRING ? haxe.io.Bytes.ofString(clipboardText) : latin1(clipboardText);
-				Xlib.XChangeProperty(display, r.value.requestor, property, r.value.target, 8, X.PropModeReplace, a.copyBytes(b), b.length);
+				if (b.length > INCR_OVER) {
+					// in parts: INCR (with the size), then each part as the requestor deletes the last
+					var size:Ptr<Int64> = a.alloc(8);
+					size.value = b.length;
+					if (find(r.value.requestor) == null) Xlib.XSelectInput(display, r.value.requestor, (X.PropertyChangeMask : Int64));
+					Xlib.XChangeProperty(display, r.value.requestor, property, INCR, 32, X.PropModeReplace, size, 1);
+					sending.push({requestor: r.value.requestor, property: property, target: r.value.target, data: b, at: 0});
+				} else
+					Xlib.XChangeProperty(display, r.value.requestor, property, r.value.target, 8, X.PropModeReplace, a.copyBytes(b), b.length);
 			} else ok = false;
 			var raw = a.alloc(X.EVENT_SIZE);
 			var n:Ptr<XSelectionEvent> = raw;
@@ -192,25 +208,81 @@ class X11Window {
 		return b;
 	}
 
-	// the converted selection arrived (or was refused): the first read of
-	// this window gets it. (A selection sent in parts, INCR, over 256 KB or
-	// so, is not read: the callback gets null.)
-	function selectionArrived(e:Ptr<XSelectionEvent>) {
-		var text:Null<String> = null;
-		if (e.value.property != (0 : Int64)) Arena.scoped(a -> {
+	// the parts of a selection coming in (INCR), and their type
+	var incoming:Null<haxe.io.BytesBuffer> = null;
+	var incomingType:Int64 = 0;
+
+	// the property's contents, deleted (null: none)
+	function takeProperty(property:Int64):Null<{type:Int64, format:Int, bytes:haxe.io.Bytes}>
+		return Arena.scopedValue(a -> {
 			var type:Ptr<Int64> = a.alloc(8), format:Ptr<Int32> = a.alloc(4), count:Ptr<Int64> = a.alloc(8), after:Ptr<Int64> = a.alloc(8);
 			var data:Ptr<Ptr> = a.alloc(8);
-			if (Xlib.XGetWindowProperty(display, id, e.value.property, 0, 1 << 24, 1, X.AnyPropertyType, type, format, count, after, data) == 0
-				&& !data.value.isNull()) {
-				if (format.value == 8 && (type.value == UTF8_STRING || type.value == X.XA_STRING)) {
-					var n = count.value.toInt();
-					var b = haxe.io.Bytes.alloc(n);
-					LibC.memcpy(Mem.addr(b).add(8), data.value, (n : Int64));
-					text = type.value == UTF8_STRING ? b.toString() : [for (i in 0...n) String.fromCharCode(b.get(i))].join("");
+			if (Xlib.XGetWindowProperty(display, id, property, 0, 1 << 24, 1, X.AnyPropertyType, type, format, count, after, data) != 0) null else {
+				// (32-bit items come as longs)
+				var n = count.value.toInt() * (format.value == 32 ? 8 : format.value == 16 ? 2 : 1);
+				var b = haxe.io.Bytes.alloc(n);
+				if (!data.value.isNull()) {
+					if (n > 0) LibC.memcpy(Mem.addr(b).add(8), data.value, (n : Int64));
+					Xlib.XFree(data.value);
 				}
-				Xlib.XFree(data.value);
+				{type: type.value, format: format.value, bytes: b};
 			}
 		});
+
+	static function decode(type:Int64, b:haxe.io.Bytes):Null<String>
+		return type == UTF8_STRING ? b.toString() : type == X.XA_STRING ? [for (i in 0...b.length) String.fromCharCode(b.get(i))].join("") : null;
+
+	// the converted selection arrived (or was refused): the first read of
+	// this window gets it; one sent in parts (INCR) when its last part comes
+	function selectionArrived(e:Ptr<XSelectionEvent>) {
+		var text:Null<String> = null;
+		if (e.value.property != (0 : Int64)) {
+			var p = takeProperty(e.value.property);
+			if (p != null && p.type == INCR) {
+				// (its deletion, done, asks for the first part)
+				incoming = new haxe.io.BytesBuffer();
+				Xlib.XFlush(display);
+				return;
+			}
+			if (p != null && p.format == 8) text = decode(p.type, p.bytes);
+		}
+		deliver(text);
+	}
+
+	// a part of an incoming selection (a property with a new value): the last, empty, ends it
+	function partArrived(property:Int64) {
+		var p = takeProperty(property);
+		Xlib.XFlush(display);
+		if (p == null) return;
+		if (p.bytes.length > 0) {
+			incoming.add(p.bytes);
+			incomingType = p.type;
+			return;
+		}
+		var all = incoming.getBytes();
+		incoming = null;
+		deliver(decode(incomingType, all));
+	}
+
+	// the next part of a selection sent in parts, after the requestor deleted the last
+	static function nextPart(requestor:Int64, property:Int64) {
+		for (s in sending)
+			if (s.requestor == requestor && s.property == property) {
+				var n = s.data.length - s.at;
+				if (n > PART) n = PART;
+				Arena.scoped(a -> {
+					var p:Ptr = n > 0 ? a.copyBytes(s.data.sub(s.at, n)) : a.alloc(1);
+					Xlib.XChangeProperty(display, requestor, property, s.target, 8, X.PropModeReplace, p, n);
+				});
+				s.at += n;
+				// (the empty part sent: done)
+				if (n == 0) sending.remove(s);
+				Xlib.XFlush(display);
+				return;
+			}
+	}
+
+	function deliver(text:Null<String>) {
 		for (r in clipboardReads)
 			if (r.window == this) {
 				clipboardReads.remove(r);
@@ -235,6 +307,14 @@ class X11Window {
 			// (the keyboard mapping changed: another layout; it has no window)
 			if (any.value.type == X.MappingNotify) {
 				Xlib.XRefreshKeyboardMapping(xev);
+				continue;
+			}
+			// (a requestor deleted a part this process sent: the next)
+			if (any.value.type == X.PropertyNotify) {
+				var pe:Ptr<XPropertyEvent> = xev;
+				if (pe.value.state == X.PropertyDelete) nextPart(pe.value.window, pe.value.atom);
+				var pw = find(pe.value.window);
+				if (pe.value.state == X.PropertyNewValue && pw != null && pw.incoming != null && pe.value.atom == HXMC_CLIPBOARD) pw.partArrived(pe.value.atom);
 				continue;
 			}
 			var w = find(any.value.window);

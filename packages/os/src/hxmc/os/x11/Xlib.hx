@@ -87,6 +87,9 @@ class X {
 	public static inline var SelectionClear = 29;
 	public static inline var SelectionRequest = 30;
 	public static inline var SelectionNotify = 31;
+	public static inline var PropertyNotify = 28;
+	public static inline var PropertyNewValue = 0;
+	public static inline var PropertyDelete = 1;
 	public static inline var PropModeReplace = 0;
 	public static inline var AnyPropertyType = 0;
 	public static inline var XA_ATOM = 4;
@@ -102,6 +105,7 @@ class X {
 	public static inline var PointerMotionMask = 1 << 6;
 	public static inline var ExposureMask = 1 << 15;
 	public static inline var StructureNotifyMask = 1 << 17;
+	public static inline var PropertyChangeMask = 1 << 22;
 	public static inline var ZPixmap = 2;
 }
 
@@ -161,6 +165,18 @@ class X {
 }
 
 // SelectionNotify: the selection converted (property 0: refused)
+// PropertyNotify: a property of a window changed (state: NewValue) or was deleted
+@:hxmc.struct @:publicFields class XPropertyEvent {
+	var type:Int32;
+	var serial:Int64;
+	var send_event:Int32;
+	var display:Ptr;
+	var window:Int64;
+	var atom:Int64;
+	var time:Int64;
+	var state:Int32;
+}
+
 @:hxmc.struct @:publicFields class XSelectionEvent {
 	var type:Int32;
 	var serial:Int64;
