@@ -7,8 +7,13 @@ import hxmc.ui.*;
 class MonoText implements TextEngine {
 	public function new() {}
 
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0):Paragraph
-		return new MonoParagraph(text, font, maxWidth, maxLines);
+	// (justify: ignored, the characters keep their places)
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false):Paragraph
+{
+		var p = new MonoParagraph(text, font, maxWidth, maxLines);
+		p.justified = justify;
+		return p;
+	}
 }
 
 class MonoParagraph implements Paragraph {
@@ -25,6 +30,8 @@ class MonoParagraph implements Paragraph {
 
 	// (maxLines: the last line kept cut to leave room for an ellipsis, one character, counted in its width)
 	public var ellipsis(default, null) = false;
+	// (asked to justify: recorded only)
+	public var justified = false;
 
 	public function new(text:String, font:Font, maxWidth:Float, maxLines = 0) {
 		this.text = text;

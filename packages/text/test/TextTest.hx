@@ -37,6 +37,7 @@ class TextTest {
 			layout(sans, fonts);
 			decorations(sans, fonts);
 			spacing(sans);
+			justified(sans);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
 		// CFF outlines: Inter (fonts-inter), an OpenType font with cubic curves
@@ -87,6 +88,33 @@ class TextTest {
 		// (a run's own: only its characters)
 		var run = new TextRun(0, 3, set, 1.2, 4, 0);
 		check("spacing: a run's", Math.abs(new TextLayout("Hamburg", set, 1.2, Math.NaN, [run]).width - (92.71875 + 12)) < 0.02);
+	}
+
+	// text-align: justify: each word where Chromium puts it (DejaVu Sans at
+	// 16 in 200 pixels, white-space: pre-wrap; the line before a hard break
+	// and the last not justified)
+	static function justified(sans:FontFile) {
+		var text = "The quick brown fox jumps over the lazy dog and keeps running far away.\nShort line.";
+		var l = new TextLayout(text, new FontSet(sans, [], 16), 1.25, 200);
+		l.justify(200);
+		var chromium = [0, 47.625, 108.313, 175.594, 0, 55.453, 97.922, 130.969, 169.891, 0, 43.188, 103.141, 177.969, 0, 0, 48.016];
+		var got = [];
+		var re = ~/\S+/;
+		var rest = text, offset = 0;
+		while (re.match(rest)) {
+			var at = offset + re.matchedPos().pos;
+			var x = Math.NaN;
+			for (line in l.lines)
+				for (g in line.glyphs)
+					if (g.cluster == at) x = g.x;
+			got.push(Math.round(x * 1000) / 1000);
+			offset = at + re.matched(0).length;
+			rest = text.substr(offset);
+		}
+		var ok = got.length == chromium.length;
+		for (k in 0...got.length)
+			if (ok && Math.abs(got[k] - chromium[k]) > 0.02) ok = false;
+		check("justify: the words where Chromium puts them", ok, got.join(" "));
 	}
 
 	// grapheme clusters: their boundaries as Intl.Segmenter finds them (node), forward and back

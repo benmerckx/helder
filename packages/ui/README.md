@@ -60,7 +60,8 @@ and in a browser (wasm32-wasi on WebGPU or WebGL2).
     grids.
   - Text properties inherit: `color`, `fontFamily`, `fontSize`,
     `fontWeight`, `italic`, `lineHeight`, `letterSpacing`, `wordSpacing`,
-    `textAlign` (spacing added as Chromium adds it). `textDecoration`
+    `textAlign` (left, center, right, justify: the room shared among the
+    spaces as Chromium shares it; spacing added as Chromium adds it). `textDecoration`
     (underline, line-through, overline) draws its lines with the text inside
     the node, in its colour, where Chromium draws them. `maxLines` cuts a
     text to so many lines, the last ending in an ellipsis where Chromium's

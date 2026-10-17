@@ -11,7 +11,8 @@ class NativeText implements TextEngine {
 	public function new(backend:NativeBackend)
 		this.backend = backend;
 
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0):Paragraph {
+	// (justify: not done, the platform's labels align their own text)
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false):Paragraph {
 		var s = backend.measureText(text, font, maxWidth);
 		var one = backend.measureText(text, font, Math.NaN);
 		var widest = 0.0;

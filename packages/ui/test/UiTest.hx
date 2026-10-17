@@ -201,6 +201,17 @@ class UiTest {
 		ui.update();
 		check("letter spacing: in the text's font", spaced.laidOut() != null && spaced.laidOut().width == 24 && spaced.font().letterSpacing == 1, spaced.laidOut() == null ? "none" : "" + spaced.laidOut().width);
 		ui.root.remove(spaced);
+		var just = new TextNode("one two three four five six");
+		just.style.set({width: 60, textAlign: Justify});
+		ui.root.append(just);
+		ui.update();
+		var jp:MonoText.MonoParagraph = cast just.laidOut();
+		var asked = jp != null && jp.justified;
+		just.style.textAlign = Left;
+		ui.update();
+		jp = cast just.laidOut();
+		check("justify: asked of the engine, laid out again when it changes", asked && jp != null && !jp.justified);
+		ui.root.remove(just);
 		ui.update();
 		check("decorations: an ancestor's, around the text, aligned, in its colour",
 			calls.join("|") == "rect 40 11.25 20 1 0|text 0 0 100|rect 40 6.25 20 1 0" && rec.calls.filter(c -> c.indexOf("ffaa0000") >= 0).length == 2, calls.join("|"));

@@ -119,6 +119,43 @@ class TextLayout {
 
 	// --- shaping ---
 
+	// justified to width (text-align: justify): each line but the last and
+	// those a hard break ends gets the room it has left shared among its
+	// spaces (not its trailing ones), as Chromium shares it; a line with no
+	// space stays as it is. Its glyphs move, so that carets, hits and
+	// selections follow.
+	public function justify(width:Float) {
+		if (Math.isNaN(width)) return;
+		for (k in 0...lines.length) {
+			var l = lines[k];
+			if (k == lines.length - 1 || l.width >= width) continue;
+			// (the logical order: a hard break at its end, its last character that is not a space)
+			var last = -1, hard = false;
+			for (g in l.glyphs) {
+				if (g.cp == 10 || g.cp == 13) hard = true else if (!isSpace(g.cp) && g.cluster > last) last = g.cluster;
+			}
+			if (hard || last < 0) continue;
+			var spaces = 0;
+			for (g in l.glyphs)
+				if (isSpace(g.cp) && g.cp != 10 && g.cluster < last) spaces++;
+			if (spaces == 0) continue;
+			var extra = (width - l.width) / spaces, shift = 0.0;
+			// (in visual order: what follows a widened space moves right)
+			for (g in l.glyphs) {
+				g.x += shift;
+				if (isSpace(g.cp) && g.cp != 10 && g.cluster < last) {
+					g.advance += extra;
+					shift += extra;
+				}
+			}
+			l.width = width;
+			l.advance += shift;
+		}
+		this.width = 0;
+		for (l in lines)
+			if (l.width > this.width) this.width = l.width;
+	}
+
 	// letter and word spacing: after each character (a mark, a hidden or
 	// zero-width glyph takes none) and on each space, the run's or the paragraph's
 	function space(gs:Array<Glyph>, letter:Float, word:Float) {

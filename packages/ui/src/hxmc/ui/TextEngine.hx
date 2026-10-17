@@ -7,5 +7,6 @@ interface TextEngine {
 	// the text in lines no wider than maxWidth (NaN: one line per hard break);
 	// spans: parts of it in other fonts (in order, not overlapping); maxLines:
 	// at most so many (0: any), the last ending in an ellipsis when cut
-	function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0):Paragraph;
+	// (justify: the lines justified to maxWidth, as TextAlign.Justify)
+	function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false):Paragraph;
 }

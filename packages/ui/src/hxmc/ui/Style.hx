@@ -556,8 +556,10 @@ class Style {
 
 	function set_textAlign(v:Null<TextAlign>):Null<TextAlign> {
 		if (v == textAlign) return v;
+		// (justified: laid out again, its glyphs move)
+		var layout = v == Justify || textAlign == Justify;
 		textAlign = v;
-		node.styleChanged(false);
+		node.styleChanged(layout);
 		return v;
 	}
 

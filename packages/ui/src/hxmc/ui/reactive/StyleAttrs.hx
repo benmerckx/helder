@@ -268,6 +268,7 @@ class StyleAttrs {
 			case "left": TextAlign.Left;
 			case "center": TextAlign.Center;
 			case "right": TextAlign.Right;
+			case "justify": TextAlign.Justify;
 			case _: throw "hxmc.ui: " + v + " is not a TextAlign";
 		}
 	}
