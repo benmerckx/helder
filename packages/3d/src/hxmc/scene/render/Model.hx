@@ -15,8 +15,8 @@ import hxmc.scene.gltf.GltfScene;
 
 // A glTF model referenced where it is used: Model.of("models/hero.glb") is
 // a macro that checks the file exists, reads its structure when compiling
-// and types the result from it: model.nodes, model.meshes and
-// model.materials have a field per name in the file (its value the name,
+// and types the result from it: model.nodes, model.meshes,
+// model.materials and model.animations have a field per name in the file (its value the name,
 // for World.find; a name that is no identifier made one: "Left Hand" is
 // Left_Hand), so a typo is a compile error. The file is registered with the
 // build (today: built into the program; the asset packing and the
@@ -29,30 +29,39 @@ import hxmc.scene.gltf.GltfScene;
 //
 // Its GPU meshes are made by the first instantiate with a device and
 // shared by every instance.
-class Model<N, M, A> {
+class Model<N, M, A, C> {
 	#if !macro
 	public final doc:GltfDoc;
 	public final nodes:N;
 	public final meshes:M;
 	public final materials:A;
+	public final animations:C;
 
 	var scene:Null<GltfScene>;
 	var device:Null<Device>;
 
-	@:noCompletion public function new(bytes:Bytes, nodes:N, meshes:M, materials:A) {
+	@:noCompletion public function new(bytes:Bytes, nodes:N, meshes:M, materials:A, animations:C) {
 		doc = Gltf.parse(bytes);
 		this.nodes = nodes;
 		this.meshes = meshes;
 		this.materials = materials;
+		this.animations = animations;
 	}
 
 	// the model's scene as nodes of world (under parent, by default the root)
-	public function instantiate(world:World, device:Device, ?parent:Node):Node {
+	public function instantiate(world:World, device:Device, ?parent:Node, ?made:Array<Node>):Node {
 		if (scene == null || this.device != device) {
 			scene = new GltfScene(doc, device);
 			this.device = device;
 		}
-		return scene.instantiate(world, parent);
+		return scene.instantiate(world, parent, null, made);
+	}
+
+	// an animation of the model by name (model.animations.Run), for an Animator
+	public function clip(name:String):hxmc.scene.anim.AnimationClip {
+		for (k in 0...doc.animations.length)
+			if (doc.animations[k].name == name) return hxmc.scene.anim.AnimationClip.fromGltf(doc, k);
+		throw 'Model: no animation $name';
 	}
 
 	// the model's GPU meshes released
@@ -95,8 +104,9 @@ class Model<N, M, A> {
 			}
 			return {expr: EObjectDecl(fields), pos: pos};
 		}
-		var n = names([for (x in list("nodes")) nameOf(x)]), m = names([for (x in list("meshes")) nameOf(x)]), a = names([for (x in list("materials")) nameOf(x)]);
+		var n = names([for (x in list("nodes")) nameOf(x)]), m = names([for (x in list("meshes")) nameOf(x)]), a = names([for (x in list("materials")) nameOf(x)]),
+			c = names([for (x in list("animations")) nameOf(x)]);
 		var data = haxe.crypto.Base64.encode(bytes);
-		return macro new hxmc.scene.render.Model(haxe.crypto.Base64.decode($v{data}), $n, $m, $a);
+		return macro new hxmc.scene.render.Model(haxe.crypto.Base64.decode($v{data}), $n, $m, $a, $c);
 	}
 }

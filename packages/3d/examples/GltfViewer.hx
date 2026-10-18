@@ -1,11 +1,12 @@
 // title: glTF scene
-// summary: A glTF 2.0 scene (a .glb referenced with Model.of) drawn by @hxmc/3d's renderer: metallic-roughness materials, a sun with a shadow map and a sky, a scene graph and its camera; drag to turn around it
+// summary: A glTF 2.0 scene (a .glb referenced with Model.of, typed from the file) drawn by @hxmc/3d's renderer: metallic-roughness materials, a sun with a shadow map, a keyframe animation from the file; drag or use the arrows to turn around it
 // tags: 3d, gltf, pbr, input
 // demo: canvas 512x384
 import hxmc.gfx.*;
 import hxmc.gfx.shader.Vec3;
 import hxmc.os.*;
 import hxmc.scene.*;
+import hxmc.scene.anim.*;
 import hxmc.scene.gltf.*;
 import hxmc.scene.input.*;
 import hxmc.scene.math.*;
@@ -28,7 +29,11 @@ class GltfViewer {
 		var world = new World();
 		// (sample.glb read when compiling: its nodes are typed fields, model.nodes.camera)
 		var model = Model.of("sample.glb");
-		var root = model.instantiate(world, device);
+		var made = [];
+		var root = model.instantiate(world, device, null, made);
+		// (the file's animation of the pedestal, typed: model.animations.spin)
+		var animator = new Animator(made);
+		animator.play(model.clip(model.animations.spin));
 		// (the file's camera gives the distance and height; a rig node turns it)
 		var fileCamera = root.find(model.nodes.camera);
 		var rig = world.node("rig");
@@ -51,6 +56,7 @@ class GltfViewer {
 			var now = Sys.time();
 			clock.advance(Math.min(now - last, 0.25), dt -> {
 				actions.step();
+				animator.update(dt * 0.25);
 				var keys = actions.axis("turn");
 				if (!drag) turn += (keys != 0 ? -1.5 * keys : speed) * dt;
 				orbit.rotation = Quat.axisAngle(new Vec3(0, 1, 0), clock.time * 0.8) * new Quat(ox, oy, oz, ow);

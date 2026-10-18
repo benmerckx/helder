@@ -68,6 +68,20 @@ materials: `model.nodes`, `model.meshes`, `model.materials`) and builds the
 file into the program; self-contained files only for now (one embedded
 buffer, no images).
 
+## Animation
+
+```haxe
+var made = [];
+var root = hero.instantiate(world, device, null, made);   // made: the glTF nodes by index
+var animator = new Animator(made);
+animator.play(hero.clip(hero.animations.Run), {loop: true, fade: 0.2});
+// each simulation step:
+animator.update(dt);
+```
+
+Clips are glTF's keyframes (translation, rotation, scale; step, linear,
+cubic spline); skins come next.
+
 ## Input
 
 ```haxe

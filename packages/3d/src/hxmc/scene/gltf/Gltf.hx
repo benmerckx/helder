@@ -258,6 +258,29 @@ class Gltf {
 			}
 		}
 		i = 0;
+		for (an in list(root, "animations")) {
+			var what = 'animation $i';
+			var samplers = list(an, "samplers");
+			var channels:Array<GltfChannel> = [];
+			for (c in list(an, "channels")) {
+				var sm = samplers[index(c, "sampler", samplers.length, what, false)];
+				var target = obj(c, "target");
+				var path = str(target, "path", "");
+				if (path != "translation" && path != "rotation" && path != "scale" && path != "weights") throw 'glTF: $what: path $path';
+				var node = index(target, "node", doc.nodes.length, what, true);
+				var input = index(sm, "input", doc.accessors.length, what, false), output = index(sm, "output", doc.accessors.length, what, false);
+				var interpolation = str(sm, "interpolation", "LINEAR");
+				if (interpolation != "LINEAR" && interpolation != "STEP" && interpolation != "CUBICSPLINE") throw 'glTF: $what: interpolation $interpolation';
+				// (the values: one per time, three for a cubic spline: in-tangent, value, out-tangent)
+				var per = path == "rotation" ? 4 : path == "weights" ? 0 : 3;
+				var n = doc.accessors[input].count * (interpolation == "CUBICSPLINE" ? 3 : 1);
+				if (per > 0 && (doc.accessors[output].count != n || doc.accessors[output].components != per)) throw 'glTF: $what: output of $path does not match its input';
+				if (node >= 0) channels.push({node: node, path: path, input: input, output: output, interpolation: interpolation});
+			}
+			doc.animations.push({name: str(an, "name", ""), channels: channels});
+			i++;
+		}
+		i = 0;
 		for (s in list(root, "scenes")) {
 			var ns = [for (n in list(s, "nodes")) checked(n, doc.nodes.length, 'scene $i')];
 			for (n in ns)

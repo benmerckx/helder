@@ -43,13 +43,14 @@ class GltfScene {
 	}
 
 	// the document's scene (by default its own) as nodes of world, under parent
-	public function instantiate(world:World, ?parent:Node, ?scene:Int):Node
+// (made: each glTF node's Node at its index, for an Animator)
+	public function instantiate(world:World, ?parent:Node, ?scene:Int, ?made:Array<Node>):Node
 		return GltfNodes.build(doc, world, parent, scene, (n, k) -> MeshRenderer.attach(n, meshes[k]), (n, k) -> {
 			var l = doc.lights[k];
 			// (glTF's units: lux for the sun, candela for the others; spot lights as point lights for now)
 			Light.attach(n, l.type == "directional" ? Light.directional(l.color, l.intensity) : Light.pointLight(l.color, l.intensity,
 				l.range > 0 ? l.range : 1000));
-		});
+		}, made);
 
 	// the GPU buffers released (the instances draw nothing after)
 	public function dispose(device:Device)

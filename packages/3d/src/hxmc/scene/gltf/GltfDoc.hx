@@ -24,6 +24,7 @@ class GltfDoc {
 	public var scenes:Array<GltfSceneDef> = [];
 	// KHR_lights_punctual's lights
 	public var lights:Array<GltfLight> = [];
+	public var animations:Array<GltfAnimation> = [];
 	// the default scene (-1: none named; the first, if any)
 	public var scene = -1;
 	public var generator = "";
@@ -230,6 +231,19 @@ class GltfDoc {
 	public var color:Vec3;
 	public var intensity:Float;
 	public var range:Float; // 0: infinite
+}
+
+@:structInit class GltfAnimation {
+	public var name:String;
+	public var channels:Array<GltfChannel>;
+}
+
+@:structInit class GltfChannel {
+	public var node:Int;
+	public var path:String; // translation, rotation, scale, weights
+	public var input:Int; // the times' accessor (seconds)
+	public var output:Int; // the values' accessor
+	public var interpolation:String; // LINEAR, STEP, CUBICSPLINE
 }
 
 @:structInit class GltfSceneDef {

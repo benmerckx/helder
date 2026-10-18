@@ -1,6 +1,7 @@
 import haxe.io.Bytes;
 import hxmc.gfx.shader.Vec3;
 import hxmc.scene.*;
+import hxmc.scene.anim.*;
 import hxmc.scene.gltf.*;
 import hxmc.scene.math.*;
 
@@ -43,6 +44,7 @@ class GltfTest {
 			sample(d);
 		check("both forms: the same buffer", doc.buffers[0].compare(text.buffers[0]) == 0);
 		nodes(doc);
+		animations(doc);
 		rejects(glb);
 		Sys.println('GltfTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
@@ -50,7 +52,8 @@ class GltfTest {
 
 	static function sample(doc:GltfDoc) {
 		check("generator", doc.generator == "hxmc packages/3d/test/SampleModel.hx");
-		check("counts", doc.meshes.length == 5 && doc.materials.length == 4 && doc.nodes.length == 7 && doc.scenes.length == 1 && doc.cameras.length == 1);
+		check("counts", doc.meshes.length == 5 && doc.materials.length == 4 && doc.nodes.length == 7 && doc.scenes.length == 1 && doc.cameras.length == 1
+			&& doc.animations.length == 3);
 		check("names", [for (n in doc.nodes) n.name].join(",") == "ground,pedestal,ball,orbit,moon,satellite,camera");
 		check("roots", doc.roots().join(",") == "0,1,3,5,6");
 		check("children", doc.nodes[1].children.join(",") == "2" && doc.nodes[3].children.join(",") == "4");
@@ -107,6 +110,45 @@ class GltfTest {
 		check("instantiated twice", again != top && again.find("ball") != ball && world.count == 1 + 2 * 8);
 		world.dispose();
 	}
+
+	static function animations(doc:GltfDoc) {
+		check("animations", [for (a in doc.animations) a.name].join(",") == "spin,bounce,pulse" && doc.animations[1].channels[0].interpolation == "STEP");
+		var world = new World(), made = [];
+		GltfNodes.build(doc, world, null, null, null, null, made);
+		check("made: by glTF index", made.length == 7 && made[2].name == "ball" && made[4].name == "moon");
+		var spin = AnimationClip.fromGltf(doc, 0), bounce = AnimationClip.fromGltf(doc, 1), pulse = AnimationClip.fromGltf(doc, 2);
+		check("durations", spin.duration == 4 && bounce.duration == 4 && pulse.duration == 4);
+		spin.apply(made, 0.5);
+		check("linear rotation: slerped", nearQ(made[1].rotation, Quat.axisAngle(new Vec3(0, 1, 0), 0.5 + Math.PI / 4), 1e-5));
+		bounce.apply(made, 0.5);
+		check("step translation", nearV(made[2].position, new Vec3(0, 1.1, 0)));
+		bounce.apply(made, 1.0);
+		check("step translation at a key", nearV(made[2].position, new Vec3(0, 1.6, 0)));
+		pulse.apply(made, 0.5);
+		check("cubic spline scale (Hermite, flat tangents)", nearV(made[4].scale, new Vec3(0.525, 0.525, 0.525), 1e-6));
+		pulse.apply(made, 9);
+		check("clamped after the end", nearV(made[4].scale, new Vec3(0.45, 0.45, 0.45), 1e-6));
+		var animator = new Animator(made);
+		animator.play(bounce);
+		animator.update(1.25);
+		check("animator: time", near(animator.time, 1.25) && nearV(made[2].position, new Vec3(0, 1.6, 0)));
+		animator.update(3.0);
+		check("animator: loops", near(animator.time, 0.25));
+		// (bounce leaves the pedestal alone: during the fade it blends from where it is)
+		made[1].rotation = Quat.identity();
+		animator.play(spin, {fade: 1.0, loop: false});
+		animator.update(0.5);
+		var half = made[1].rotation;
+		animator.update(0.6);
+		check("cross-fade, then the new clip alone", nearQ(half, Quat.slerp(Quat.identity(), Quat.axisAngle(new Vec3(0, 1, 0), 0.5 + Math.PI / 4), 0.5), 1e-5)
+			&& nearQ(made[1].rotation, Quat.axisAngle(new Vec3(0, 1, 0), 0.5 + 1.1 * Math.PI / 2), 1e-5));
+		animator.update(10);
+		check("not looping: held at the end", near(animator.time, 4));
+		world.dispose();
+	}
+
+	static function nearQ(a:Quat, b:Quat, eps = 1e-9):Bool
+		return Math.abs(Math.abs(a.dot(b)) - 1) <= eps;
 
 	static function rejects(glb:Bytes) {
 		function fails(what:String, f:Void->Void) {

@@ -12,15 +12,17 @@ import hxmc.scene.World;
 // from the document's; what a node's mesh becomes is the caller's
 // (mesh(node, index): attach the renderer's own mesh, made once per glTF
 // mesh; light(node, index) the same for KHR_lights_punctual's lights), so
-// the hierarchy needs no renderer. Each call instantiates the
+// the hierarchy needs no renderer. made, when given, gets each glTF
+// node's Node at its index (for animations). Each call instantiates the
 // document again (a prefab).
 class GltfNodes {
-	public static function build(doc:GltfDoc, world:World, ?parent:Node, ?scene:Int, ?mesh:(Node, Int) -> Void, ?light:(Node, Int) -> Void):Node {
+	public static function build(doc:GltfDoc, world:World, ?parent:Node, ?scene:Int, ?mesh:(Node, Int) -> Void, ?light:(Node, Int) -> Void, ?made:Array<Node>):Node {
 		var s = scene != null ? scene : doc.scene;
 		var top = world.node(s >= 0 && s < doc.scenes.length ? doc.scenes[s].name : "gltf", parent);
 		function make(k:Int, under:Node) {
 			var g = doc.nodes[k];
 			var n = world.node(g.name, under);
+			if (made != null) made[k] = n;
 			if (g.matrix != null) {
 				var m = g.matrix;
 				n.setMatrix(new Mat4(new Vec4(m[0], m[1], m[2], m[3]), new Vec4(m[4], m[5], m[6], m[7]), new Vec4(m[8], m[9], m[10], m[11]),

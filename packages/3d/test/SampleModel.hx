@@ -10,7 +10,8 @@ import hxmc.scene.math.Quat;
 // and a camera, four materials of the metallic-roughness model. Its data
 // covers what the reader must handle: indices of 8, 16 and 32 bits,
 // interleaved positions and normals (a byteStride), normalized 16-bit
-// texture coordinates, a node matrix, a child hierarchy, min and max.
+// texture coordinates, a node matrix, a child hierarchy, min and max,
+// animations of each interpolation (linear, step, cubic spline).
 //
 //   bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src \
 //     -cp packages/3d/test --run SampleModel packages/3d/examples/sample.glb
@@ -71,7 +72,7 @@ class SampleModel {
 		}
 		function view(start:Int, stride:Int, target:Int):Int {
 			views.push('{"buffer":0,"byteOffset":$start,"byteLength":${bin.length - start}' + (stride > 0 ? ',"byteStride":$stride' : "")
-				+ ',"target":$target}');
+				+ (target > 0 ? ',"target":$target' : "") + "}");
 			return views.length - 1;
 		}
 		function accessor(view:Int, offset:Int, type:Int, count:Int, kind:String, ?normalized:Bool, ?minmax:Array<Float>):Int {
@@ -173,6 +174,27 @@ class SampleModel {
 			bin.addInt32(i);
 		var sIdx = accessor(view(start, 0, 34963), 0, 5125, sphereIndices.length, "SCALAR");
 
+		// animations: "spin" turns the pedestal (linear rotations), "bounce"
+		// moves the ball (step translations), "pulse" scales the moon (a cubic spline)
+		start = bin.length;
+		floats([0, 1, 2, 3, 4]);
+		var times = accessor(view(start, 0, 0), 0, 5126, 5, "SCALAR");
+		start = bin.length;
+		for (k in 0...5) {
+			var q = Quat.axisAngle(new Vec3(0, 1, 0), 0.5 + k * Math.PI / 2);
+			floats([round6(q.x), round6(q.y), round6(q.z), round6(q.w)]);
+		}
+		var spin = accessor(view(start, 0, 0), 0, 5126, 5, "VEC4");
+		start = bin.length;
+		floats([0, 1.1, 0, 0, 1.6, 0, 0, 1.1, 0, 0, 1.6, 0, 0, 1.1, 0]);
+		var bounce = accessor(view(start, 0, 0), 0, 5126, 5, "VEC3");
+		start = bin.length;
+		for (k in 0...5) {
+			var v = k % 2 == 0 ? 0.45 : 0.6;
+			// (in-tangent, value, out-tangent)
+			floats([0, 0, 0, v, v, v, 0, 0, 0]);
+		}
+		var pulse = accessor(view(start, 0, 0), 0, 5126, 15, "VEC3");
 		var data = bin.getBytes();
 		var mesh = (name:String, pos:Int, nor:Int, uv:Int, idx:Int, mat:Int) -> '{"name":"$name","primitives":[{"attributes":{"POSITION":$pos,"NORMAL":$nor'
 			+ (uv >= 0 ? ',"TEXCOORD_0":$uv' : "") + '},"indices":$idx,"material":$mat}]}';
@@ -201,6 +223,9 @@ class SampleModel {
 			+ '"materials":[${material("ground", [0.42, 0.45, 0.5, 1], 0, 0.85)},${material("clay", [0.95, 0.42, 0.14, 1], 0, 0.5)},'
 			+ '${material("gold", [1, 0.77, 0.34, 1], 1, 0.3)},${material("blue", [0.15, 0.35, 0.9, 1], 0, 0.25)}],'
 			+ '"accessors":[${accessors.join(",")}],"bufferViews":[${views.join(",")}],'
+			+ '"animations":[{"name":"spin","samplers":[{"input":$times,"output":$spin}],"channels":[{"sampler":0,"target":{"node":1,"path":"rotation"}}]},'
+			+ '{"name":"bounce","samplers":[{"input":$times,"output":$bounce,"interpolation":"STEP"}],"channels":[{"sampler":0,"target":{"node":2,"path":"translation"}}]},'
+			+ '{"name":"pulse","samplers":[{"input":$times,"output":$pulse,"interpolation":"CUBICSPLINE"}],"channels":[{"sampler":0,"target":{"node":4,"path":"scale"}}]}],'
 			+ '"buffers":[{"byteLength":${data.length}' + (uri != null ? ',"uri":"$uri"' : "") + '}]}';
 		return {json: json, bin: data};
 	}
