@@ -14,7 +14,8 @@ import hxmc.scene.render.*;
 // child placed at the orbit's radius (and turning on its own axis), a
 // moon on the planet's own orbit node, so one rotation each and the
 // scene graph's world matrices do the rest. The simulation runs at 60
-// steps a second (FixedStep) whatever the display's rate. Escape closes.
+// steps a second (FixedStep) whatever the display's rate; under `hxmc dev`
+// the clock survives a rebuild (hxmc.dev.Hot.keep). Escape closes.
 //
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src -cp packages/3d/examples
 //     -main Orbits --custom-target hxmc=orbits -D hxmc.libc=glibc
@@ -84,7 +85,8 @@ class Orbits {
 		var window = new Window("Orbits", 640, 480);
 		var device = Device.create(window.surface);
 		var orbits = new Orbits(device);
-		var clock = new FixedStep(1 / 60), last = Sys.time();
+		// (under `hxmc dev` the clock is carried across a reload: the planets stay where they were)
+		var clock = hxmc.dev.Hot.keep("orbits.clock", () -> new FixedStep(1 / 60)), last = Sys.time();
 		App.run(() -> {
 			var now = Sys.time();
 			clock.advance(Math.min(now - last, 0.25), _ -> orbits.at(clock.time));

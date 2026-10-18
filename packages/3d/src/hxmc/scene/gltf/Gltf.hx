@@ -14,36 +14,15 @@ import hxmc.scene.math.Quat;
 // after parse sees Dynamic or reads out of bounds. Errors throw a String
 // starting with "glTF: ".
 class Gltf {
-	static inline var GLB_MAGIC = 0x46546C67; // "glTF"
-	static inline var CHUNK_JSON = 0x4E4F534A;
-	static inline var CHUNK_BIN = 0x004E4942;
-
 	// whether bytes are a .glb file
-	public static function isGlb(b:Bytes):Bool
-		return b.length >= 12 && b.getInt32(0) == GLB_MAGIC;
+	public static inline function isGlb(b:Bytes):Bool
+		return GltfFile.isGlb(b);
 
 	// a .gltf or .glb file; resolve(uri) gives the bytes of a file it names
 	// (a buffer, an image: relative to the file), null when there is none
 	public static function parse(bytes:Bytes, ?resolve:String->Null<Bytes>):GltfDoc {
-		var json:String, bin:Null<Bytes> = null;
-		if (isGlb(bytes)) {
-			if (bytes.getInt32(4) != 2) throw "glTF: .glb version " + bytes.getInt32(4);
-			var length = bytes.getInt32(8);
-			if (length > bytes.length) throw "glTF: .glb truncated";
-			var p = 12;
-			json = null;
-			while (p + 8 <= length) {
-				var size = bytes.getInt32(p), type = bytes.getInt32(p + 4);
-				if (size < 0 || p + 8 + size > length) throw "glTF: .glb chunk out of the file";
-				if (type == CHUNK_JSON && json == null) json = bytes.getString(p + 8, size);
-				else if (type == CHUNK_BIN && bin == null) bin = bytes.sub(p + 8, size);
-				// (chunks are 4-byte aligned)
-				p += 8 + ((size + 3) & ~3);
-			}
-			if (json == null) throw "glTF: .glb without a JSON chunk";
-		} else
-			json = bytes.toString();
-		return read(haxe.Json.parse(json), bin, resolve);
+		var parts = GltfFile.split(bytes);
+		return read(haxe.Json.parse(parts.json), parts.bin, resolve);
 	}
 
 	static function read(root:Dynamic, bin:Null<Bytes>, resolve:Null<String->Null<Bytes>>):GltfDoc {

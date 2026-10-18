@@ -38,6 +38,7 @@ class SceneTest {
 		nodes();
 		cameras();
 		clock();
+		hot();
 		Sys.println('SceneTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
 	}
@@ -198,6 +199,35 @@ class SceneTest {
 		Camera.attach(other, cam);
 		check("a camera moves to its new node", Camera.of(eye) == null && cam.node == other);
 		world.dispose();
+	}
+
+	static function hot() {
+		// (a reload: the world made again as main makes it, the old transforms put back by path)
+		function build():World {
+			var w = new World();
+			var a = w.node("a"), b = w.node("b", a);
+			w.node("b", a);
+			w.node("gone");
+			return w;
+		}
+		var old = build();
+		var a = old.root.find("a"), b2 = [for (c in a.children()) c][1];
+		a.position = new Vec3(1, 2, 3);
+		b2.rotation = Quat.axisAngle(new Vec3(0, 1, 0), 0.4);
+		var saved = HotWorld.save(old);
+		check("paths", saved.paths.join(",") == ",/a,/a/b,/a/b#1,/gone" && saved.trs.length == 50);
+		var fresh = new World();
+		var fa = fresh.node("a");
+		fresh.node("b", fa);
+		var fb2 = fresh.node("b", fa);
+		var added = fresh.node("added");
+		added.position = new Vec3(9, 9, 9);
+		check("restored by path", HotWorld.restore(fresh, saved) == 4);
+		check("restored values", nearV(fa.position, new Vec3(1, 2, 3)) && nearQ(fb2.rotation, Quat.axisAngle(new Vec3(0, 1, 0), 0.4), 1e-12)
+			&& nearV(added.position, new Vec3(9, 9, 9)));
+		HotWorld.keep(fresh, "test.world");
+		old.dispose();
+		fresh.dispose();
 	}
 
 	static function clock() {

@@ -55,6 +55,25 @@ hierarchy (TRS or matrices, cameras); `GltfScene` makes the GPU meshes and
 materials once and `instantiate(world)` copies the hierarchy into a world.
 `Asset.embed(path)` builds a file into the program.
 
+## Models
+
+```haxe
+var hero = Model.of("models/hero.glb");      // checked and typed when compiling
+var root = hero.instantiate(world, device);  // GPU meshes made once, shared
+var hand = root.find(hero.nodes.LeftHand);   // hero.nodes.LeftHnad: a compile error
+```
+
+`Model.of` reads the file's names when compiling (nodes, meshes,
+materials: `model.nodes`, `model.meshes`, `model.materials`) and builds the
+file into the program; self-contained files only for now (one embedded
+buffer, no images).
+
+## Fast refresh
+
+`HotWorld.keep(world, key)`, after the world is made: under `hxmc dev` the
+old build's transforms are put back by node path; nothing without
+`-D hxmc.dev`.
+
 ## Rendering
 
 ```haxe

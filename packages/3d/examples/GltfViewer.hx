@@ -11,8 +11,8 @@ import hxmc.scene.math.*;
 import hxmc.scene.render.*;
 
 // The sample scene (sample.glb, made by packages/3d/test/SampleModel.hx)
-// in a window: read with Gltf.parse, made into nodes and meshes by
-// GltfScene into a World, drawn by Renderer. The camera circles the scene on a node of
+// in a window: referenced with Model.of (checked and typed when compiling,
+// built into the program), instantiated into a World, drawn by Renderer. The camera circles the scene on a node of
 // its own (drag sideways to turn it; Escape closes); the simulation (the
 // moon's orbit, the turn) runs at a fixed 60 steps a second (FixedStep).
 //
@@ -24,20 +24,25 @@ class GltfViewer {
 		var device = Device.create(window.surface);
 		var renderer = new Renderer(device);
 		var world = new World();
-		var model = new GltfScene(Gltf.parse(Asset.embed("sample.glb")), device).instantiate(world);
+		// (sample.glb read when compiling: its nodes are typed fields, model.nodes.camera)
+		var model = Model.of("sample.glb");
+		var root = model.instantiate(world, device);
 		// (the file's camera gives the distance and height; a rig node turns it)
-		var fileCamera = model.find("camera");
+		var fileCamera = root.find(model.nodes.camera);
 		var rig = world.node("rig");
 		var eye = world.node("eye", rig);
 		eye.position = fileCamera.position;
 		eye.rotation = fileCamera.rotation;
 		var camera = Camera.attach(eye, Camera.perspective(0.7, 0.1, 100));
 		// (its components: a closure cannot capture a struct value, Quat, itself)
-		var orbit = model.find("orbit"), r = orbit.rotation, ox = r.x, oy = r.y, oz = r.z, ow = r.w;
+		var orbit = root.find(model.nodes.orbit), r = orbit.rotation, ox = r.x, oy = r.y, oz = r.z, ow = r.w;
 		var clock = new FixedStep(1 / 60);
 		var turn = 0.0, speed = 0.25, drag = false, from = 0, last = Sys.time();
 		window.cursor = Grab;
 		window.scrollsAt = (x, y, dx, dy) -> Math.abs(dx) > Math.abs(dy);
+		// (under `hxmc dev`: the camera rig's and the scene's transforms carried across a rebuild)
+		HotWorld.keep(world, "viewer.world");
+		turn = 2 * Math.atan2(rig.rotation.y, rig.rotation.w);
 		App.run(() -> {
 			var now = Sys.time();
 			clock.advance(Math.min(now - last, 0.25), dt -> {

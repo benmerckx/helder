@@ -19,7 +19,10 @@ class Scenes {
 			case "gltf":
 				var renderer = new Renderer(device);
 				var world = new World();
-				new GltfScene(Gltf.parse(Asset.embed("sample.glb")), device).instantiate(world);
+				var model = Model.of("sample.glb");
+				model.instantiate(world, device);
+				// (typed from the file when compiling)
+				if (world.root.find(model.nodes.camera).isNone) throw "Scenes: no camera node";
 				var camera = Camera.first(world);
 				enc -> renderer.draw(enc, world, camera);
 			case "orbits":
