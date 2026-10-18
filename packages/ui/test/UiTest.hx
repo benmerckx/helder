@@ -1918,12 +1918,14 @@ static function transitions() {
 			ui.update();
 			var want:Array<Array<Int>> = Reflect.field(expected, c.name);
 			var got = [];
-			function walk(n:Node) {
-				got.push([Std.int(n.absX), Std.int(n.absY), Std.int(n.width), Std.int(n.height)]);
+			// (a node not displayed, and what it holds: no box, as Chromium reads them)
+			function walk(n:Node, hidden:Bool) {
+				hidden = hidden || n.style.display == None;
+				got.push(hidden ? [0, 0, 0, 0] : [Std.int(n.absX), Std.int(n.absY), Std.int(n.width), Std.int(n.height)]);
 				for (ch in n.children)
-					walk(ch);
+					walk(ch, hidden);
 			}
-			walk(ui.root);
+			walk(ui.root, false);
 			var same = want.length == got.length;
 			var detail = [];
 			for (i in 0...Std.int(Math.min(want.length, got.length)))

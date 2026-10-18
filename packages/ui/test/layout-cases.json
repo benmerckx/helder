@@ -6559,5 +6559,193 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "grid absolute static position aligned",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid",
+						"alignItems": "End",
+						"justifyItems": "Center"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 10,
+								"position": "Absolute"
+							}
+						},
+						{
+							"style": {
+								"padding": 2
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "grid item percentage width of its area",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid",
+						"gridTemplateColumns": "repeat(3, 1fr)"
+					},
+					"children": [
+						{
+							"style": {
+								"width": "100%",
+								"height": 10
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "grid auto minimum of an item with a width",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid",
+						"maxWidth": 75,
+						"gridTemplateColumns": "repeat(3, 1fr)"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 33,
+								"height": 10,
+								"overflow": "Hidden"
+							}
+						},
+						{
+							"style": {
+								"height": 10
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "aspect ratio contribution not from a flexed height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"alignSelf": "Start"
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 96,
+								"aspectRatio": 1
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"basis": 96,
+						"aspectRatio": 1,
+						"alignSelf": "Start"
+					}
+				}
+			]
+		}
+	},
+	{
+		"name": "aspect ratio height from a fit-content width",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"alignSelf": "Start",
+						"aspectRatio": 0.5
+					},
+					"children": [
+						{
+							"style": {
+								"width": 69,
+								"height": 0
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "aspect ratio automatic minimum its height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"alignSelf": "Start"
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 96,
+								"height": 111,
+								"aspectRatio": 1
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "absolute box height at its shrunk width",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"position": "Absolute"
+					},
+					"children": [
+						{
+							"style": {
+								"aspectRatio": 0.5
+							}
+						},
+						{
+							"children": [
+								{
+									"style": {
+										"padding": 8
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]

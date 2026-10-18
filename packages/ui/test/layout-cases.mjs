@@ -251,4 +251,15 @@ export const cases = [
 	{ name: 'wrapping row basis, its min-content', width: 300, height: 200, tree: { style: { direction: 'RowReverse' }, children: [{ style: { direction: 'RowReverse', wrap: true, grow: 0.5 }, children: [{ style: { basis: 39, minWidth: '50%' }, children: [{ style: { minWidth: 75, height: 10 } }] }] }] } },
 	// (a wrapping column's automatic minimum: its lines broken at its height within its max-height)
 	{ name: 'wrapping column minimum within its max-height', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 52, maxHeight: 24, rowGap: 3 }, children: [box(16, 16), box(8, 8)] }, { style: { height: 193, shrink: 0 } }] } },
+	// (found by layout-fuzz.mjs's more trees) a grid's absolute child at its static position by its alignment; a grid item's percentage width
+	// auto while the tracks are sized; a track's auto minimum an item's min-content when it has a width, though it clips; aspect ratios: a
+	// stretched item's contribution not from its flexed height, a fit-content width giving a column item's height, its automatic minimum
+	// its own height; an absolute box's height at the width it shrank to
+	{ name: 'grid absolute static position aligned', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', alignItems: 'End', justifyItems: 'Center' }, children: [box(20, 10, { position: 'Absolute' }), { style: { padding: 2 } }] }] } },
+	{ name: 'grid item percentage width of its area', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)' }, children: [box('100%', 10)] }] } },
+	{ name: 'grid auto minimum of an item with a width', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', maxWidth: 75, gridTemplateColumns: 'repeat(3, 1fr)' }, children: [box(33, 10, { overflow: 'Hidden' }), h(10)] }] } },
+	{ name: 'aspect ratio contribution not from a flexed height', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 96, aspectRatio: 1 } }] }, { style: { basis: 96, aspectRatio: 1, alignSelf: 'Start' } }] } },
+	{ name: 'aspect ratio height from a fit-content width', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start', aspectRatio: 0.5 }, children: [box(69, 0)] }] } },
+	{ name: 'aspect ratio automatic minimum its height', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 96, height: 111, aspectRatio: 1 } }] }] } },
+	{ name: 'absolute box height at its shrunk width', width: 300, height: 200, tree: { children: [{ style: { position: 'Absolute' }, children: [{ style: { aspectRatio: 0.5 } }, { children: [{ style: { padding: 8 } }] }] }] } },
 ];

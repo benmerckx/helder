@@ -4,13 +4,17 @@
 // as layout-ref.mjs reads them, into OUT's layout-cases.json and
 // layout-expected.json, which LayoutFuzz lays out and compares (make
 // ui-layout-fuzz SEED=1 COUNT=200). A difference found: reduce it
-// (layout-reduce.mjs) to a case in layout-cases.mjs.
-//   node packages/ui/test/layout-fuzz.mjs <seed> <count> <out>
+// (layout-reduce.mjs) to a case in layout-cases.mjs. With 'more' (FEATURES=more):
+// grids and their placement, absolute positions, auto margins, order,
+// aspect ratios, hidden overflow and display none too (the plain trees of a
+// seed the same without it).
+//   node packages/ui/test/layout-fuzz.mjs <seed> <count> <out> [more]
 import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { boxes } from './layout-ref.mjs';
 
 const [seed0, count, out] = [Number(process.argv[2] ?? 1), Number(process.argv[3] ?? 200), process.argv[4] ?? 'bin/ui/fuzz'];
+const more = process.argv[5] === 'more';
 // (mulberry32)
 let seed = seed0;
 const rnd = () => {
@@ -45,9 +49,35 @@ function node(depth) {
 	if (maybe(0.15)) s.borderWidth = Math.round(rnd() * 4);
 	if (maybe(0.15)) s.rowGap = Math.round(rnd() * 8);
 	if (maybe(0.15)) s.columnGap = Math.round(rnd() * 8);
+	if (more) extra(s);
 	const n = { style: s };
 	if (depth < 3 && maybe(0.7)) n.children = Array.from({ length: 1 + Math.floor(rnd() * 4) }, () => node(depth + 1));
 	return n;
+}
+
+// ('more': the rest of what Layout lays out)
+function extra(s) {
+	if (maybe(0.15)) {
+		s.display = 'Grid';
+		s.gridTemplateColumns = pick(['1fr 1fr', '50px 1fr', 'repeat(3, 1fr)', 'auto 1fr', 'minmax(20px, 1fr) 2fr', '30% auto']);
+		if (maybe(0.5)) s.gridAutoRows = pick(['20px', 'auto', '1fr', 'minmax(10px, auto)']);
+		if (maybe(0.3)) s.gridTemplateRows = pick(['30px 1fr', 'auto auto', '50% 20px']);
+		if (maybe(0.2)) s.gridAutoFlow = pick(['Row', 'Column', 'RowDense']);
+		if (maybe(0.2)) s.justifyItems = pick(['Start', 'End', 'Center', 'Stretch']);
+	}
+	if (maybe(0.1)) s.gridColumn = pick(['span 2', '1 / 3', '2', '-1']);
+	if (maybe(0.08)) s.gridRow = pick(['span 2', '1', '2 / 4']);
+	if (maybe(0.08)) s.justifySelf = pick(['Start', 'End', 'Center', 'Stretch']);
+	if (maybe(0.1)) s.margin = [0, 1, 2, 3].map(() => (maybe(0.4) ? 'auto' : Math.round(rnd() * 8)));
+	if (maybe(0.1)) s.order = pick([-1, 1, 2]);
+	if (maybe(0.08)) {
+		s.position = 'Absolute';
+		if (maybe(0.6)) s[pick(['left', 'right'])] = Math.round(rnd() * 40);
+		if (maybe(0.6)) s[pick(['top', 'bottom'])] = Math.round(rnd() * 40);
+	}
+	if (maybe(0.08)) s.aspectRatio = pick([1, 2, 0.5]);
+	if (maybe(0.08)) s.overflow = 'Hidden';
+	if (maybe(0.04)) s.display = 'None';
 }
 
 // (the root is the window: only what lays out its children)

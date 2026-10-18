@@ -224,10 +224,16 @@ class Layout {
 					kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
 				var am = known(availMain) && !(row && cs.wrap && (cs.direction == Column || cs.direction == ColumnReverse)) ? Math.max(0, availMain - it.mMainStart - it.mMainEnd) : Math.NaN;
 				var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
-				// (the base size: not clamped by its own min or max, which the hypothetical size is)
-				if (row) bareW = true else bareH = true;
-				if (row) size(c, Math.NaN, kc, innerW, pctH, am, ac, false) else size(c, kc, Math.NaN, innerW, pctH, ac, am, false);
-				b = row ? rw : rh;
+				if (!row && cs.aspectRatio > 0 && !known(kc)) {
+					// (a column's item with an aspect ratio and a fit-content width: its height that width's)
+					size(c, Math.NaN, Math.NaN, innerW, pctH, ac, Math.NaN, false);
+					b = rw / cs.aspectRatio;
+				} else {
+					// (the base size: not clamped by its own min or max, which the hypothetical size is)
+					if (row) bareW = true else bareH = true;
+					if (row) size(c, Math.NaN, kc, innerW, pctH, am, ac, false) else size(c, kc, Math.NaN, innerW, pctH, ac, am, false);
+					b = row ? rw : rh;
+				}
 			}
 			it.edges = row ? edgesH(cs) : edgesV(cs);
 			// (a border box no smaller than its padding and border: CSS's content box floored at 0)
@@ -245,6 +251,11 @@ class Layout {
 					bareH = true;
 					size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
 					content = rh;
+					// (with an aspect ratio: the size its width gives, that width its own height's when not known)
+					if (cs.aspectRatio > 0) {
+						var given = cs.height.resolve(pctMain);
+						if (known(kc)) content = kc / cs.aspectRatio else if (known(given)) content = given;
+					}
 				}
 				var spec = (row ? cs.width : cs.height).resolve(pctMain);
 				if (known(spec) && spec < content) content = spec;
@@ -333,7 +344,10 @@ class Layout {
 							var ics = it.node.style;
 							var oneLine = ics.wrap && (ics.direction == Column || ics.direction == ColumnReverse) && !ics.height.match(DimValue.Px(_))
 								&& (!known(innerCross) || looseColumns(it.node));
-							size(it.node, Math.NaN, oneLine ? Math.NaN : it.main, innerW, pctH, ac, oneLine ? Math.NaN : it.main, false);
+							// (a stretched item's width as a contribution to the column's own: its aspect ratio not from its
+							// flexed height, only its own height, as Chromium has it)
+							var given = oneLine || ics.aspectRatio > 0 && it.align == Stretch && !known(ics.height.resolve(pctH)) ? Math.NaN : it.main;
+							size(it.node, Math.NaN, given, innerW, pctH, ac, oneLine ? Math.NaN : it.main, false);
 						}
 						// (a column's item across: fit-content, its min-content when the room is less)
 						it.cross = clamp(row ? rh : Math.max(rw, minContentWidth(it.node, innerW, false)), it.minCross, it.maxCross);
@@ -923,14 +937,15 @@ class Layout {
 		var mins = [], maxes = [], autoMins = [];
 		for (it in items) {
 			var c = it.node, cs = c.style, m = cs.margin;
-			var given = (columns ? cs.minWidth : cs.minHeight).resolve(columns ? gridW : gridH);
+			var given = (columns ? cs.minWidth : cs.minHeight).resolve(columns ? Math.NaN : gridH);
 			var edges = columns ? mz(m.left) + mz(m.right) : mz(m.top) + mz(m.bottom);
 			var clipped = cs.overflow != Visible ? edges
 				+ (columns ? cs.padding.left + cs.padding.right + cs.borderEdges.left + cs.borderEdges.right : cs.padding.top + cs.padding.bottom
 					+ cs.borderEdges.top + cs.borderEdges.bottom) : Math.NaN;
 			if (columns) {
-				mins.push(minContentWidth(c, gridW, true) + mz(m.left) + mz(m.right));
-				size(c, Math.NaN, Math.NaN, gridW, gridH, Math.NaN, Math.NaN, false);
+				// (its percentages of its area, not known yet: auto meanwhile)
+				mins.push(minContentWidth(c, Math.NaN, true) + mz(m.left) + mz(m.right));
+				size(c, Math.NaN, Math.NaN, Math.NaN, gridH, Math.NaN, Math.NaN, false);
 				maxes.push(rw + mz(m.left) + mz(m.right));
 			} else {
 				// (its percentages of its area: its width's known, its height's the rows' to come, auto meanwhile)
@@ -943,7 +958,9 @@ class Layout {
 				mins.push(v);
 				maxes.push(v);
 			}
-			autoMins.push(known(given) ? given + edges : known(clipped) ? clipped : mins[mins.length - 1]);
+			// (its minimum contribution: its min-content one when it has a size of its own, as CSS's)
+			var own = (columns ? cs.width.resolve(Math.NaN) : cs.height.resolve(Math.NaN));
+			autoMins.push(known(own) ? mins[mins.length - 1] : known(given) ? given + edges : known(clipped) ? clipped : mins[mins.length - 1]);
 		}
 		inline function startOf(it:GridItem):Int
 			return columns ? it.col : it.row;
@@ -1104,6 +1121,11 @@ class Layout {
 				size(c, aw, ah, pbW, pbH, known(aw) ? aw : room, known(ah) ? ah : Math.NaN, false);
 				aw = rw;
 				ah = rh;
+				// (its height at the width it shrank to)
+				if (fit && !fixedH) {
+					size(c, aw, Math.NaN, pbW, pbH, aw, Math.NaN, false);
+					ah = rh;
+				}
 				if (fit && aw >= room - 1e-6) {
 					var mc = clamp(minContentWidth(c, pbW, false), Math.max(min(cs.minWidth, pbW), edgesH(cs)), max(cs.maxWidth, pbW));
 					if (mc > aw) {
@@ -1167,7 +1189,17 @@ class Layout {
 	// right right to left)
 	static function staticOffset(n:Node, c:Node, across:Bool, free:Float):Float {
 		var s = n.style, rtl = n.rtl();
-		if (s.display == Grid) return across && rtl ? free : 0;
+		// (a grid's: its self-alignment, else the grid's for its items, across and along; stretched at the start)
+		if (s.display == Grid) {
+			var cs = c.style;
+			var a = across ? (cs.justifySelf == Auto ? s.justifyItems : cs.justifySelf) : (cs.alignSelf == Auto ? s.alignItems : cs.alignSelf);
+			var k = switch a {
+				case End: 1.0;
+				case Center: 0.5;
+				case _: 0.0;
+			}
+			return free * (across && rtl ? 1 - k : k);
+		}
 		var row = s.direction == Row || s.direction == RowReverse, reverse = s.direction == RowReverse || s.direction == ColumnReverse;
 		var main = across == row, k:Float;
 		if (main) {
