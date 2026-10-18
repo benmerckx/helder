@@ -81,7 +81,7 @@ class FidelityTest implements Markup {
 					<CardFooter><Button label={c.footer}/></CardFooter>
 				</Card>;
 			case "slider": <Slider value={new Signal((c.value : Float) / 100)}/>;
-			case "tabs" if (c.variant == null): <Tabs labels={["Account", "Password"]} selected={new Signal(0)} render={_ -> "Make changes to your account here."}/>;
+			case "tabs": <Tabs labels={["Account", "Password"]} selected={new Signal(0)} variant={c.variant} render={_ -> "Make changes to your account here."}/>;
 			case "separator":
 				<view>
 					<text font-size={14} line-height={1} font-weight={500}>Radix Primitives</text>
