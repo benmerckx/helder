@@ -132,7 +132,7 @@ class ViewRuntime {
 		}
 		var ps:Array<Dynamic> = [];
 		for (p in parts) {
-			var t = textPart(p);
+			var t = p == null ? "" : textPart(p);
 			// (a reactive hole that is not text now: bound anyway)
 			if (t == null) {
 				if (hxmc.view.Render.isReactive(p)) t = p else throw 'hxmc.view: <$tag> holds text only, not ' + describe(p);
@@ -188,7 +188,6 @@ class ViewRuntime {
 
 	// the value as a text part (a String, or a reactive one whose value is text now), or null when it is not text
 	static function textPart(v:Dynamic):Null<Dynamic> {
-		if (v == null) return "";
 		if (isText(v)) return Std.string(v);
 		if (hxmc.view.Render.isReactive(v) && isText(hxmc.view.Reactive.untrack(() -> hxmc.view.Render.read(v)))) return v;
 		return null;
