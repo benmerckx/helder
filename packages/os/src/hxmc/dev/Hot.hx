@@ -349,7 +349,7 @@ class Hot {
 				if (haxe.Timer.stamp() - settledAt > 1) {
 					var k = next.indexOf(";");
 					var lib = k < 0 ? next : next.substr(0, k);
-					hxmc.unsafe.Arena.scoped(a -> hxmc.unsafe.Posix.setenv(a.cstring("HXMC_DEV_NEXT"), a.cstring(k < 0 ? "" : next.substr(k + 1)), 1));
+					Sys.putEnv("HXMC_DEV_NEXT", k < 0 ? "" : next.substr(k + 1));
 					var file = Sys.getEnv("HXMC_DEV_SNAPSHOT");
 					if (file != null && file != "") sys.io.File.saveContent(file, snapshot());
 					handOverTo(lib);
@@ -389,7 +389,7 @@ class Hot {
 					fetch(Std.string(m.fetch), lib);
 					m.snapshot = files + "/hxmc-dev.snapshot";
 					m.library = lib;
-					hxmc.unsafe.Arena.scoped(a -> hxmc.unsafe.Posix.setenv(a.cstring("HXMC_DEV_SNAPSHOT"), a.cstring(m.snapshot), 1));
+					Sys.putEnv("HXMC_DEV_SNAPSHOT", m.snapshot);
 				}
 				#end
 				sys.io.File.saveContent(m.snapshot, data);

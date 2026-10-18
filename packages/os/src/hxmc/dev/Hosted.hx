@@ -37,6 +37,10 @@ class Hosted {
 	public static inline var UI_VIEW = 12;
 	public static inline var MAC_LAYER = 13;
 	public static inline var MAC_DELEGATE = 14;
+	// (Windows) the HWND is UI_WINDOW's; the D3D11 device, its immediate context, the window's swap chain
+	public static inline var D3D_DEVICE = 20;
+	public static inline var D3D_CONTEXT = 21;
+	public static inline var D3D_SWAP_CHAIN = 22;
 	// the statics kept for the activity's glue (HostedMacro.shared: its arguments, Activity's and AndroidWindow's, are these)
 	public static inline var ACTIVITY = 16;
 	public static inline var ACTIVITY_SLOTS = 24;
@@ -59,6 +63,10 @@ class Hosted {
 
 	public static function hosted():Bool
 		return !state.isNull();
+
+	// this process's id
+	public static function pid():Int
+		return Mem.os() == 2 ? HostK32.GetCurrentProcessId() : HostThreads.getpid();
 
 	// the state block; made (zeroed) by the first build when no host gave one
 	// (Android: the APK's own library is the host, its activity glue the
@@ -87,7 +95,8 @@ class Hosted {
 	@:keep @:hxmc.export("hxmc_dev_run") @:hxmc.noGc static function run(arg:Int):Int {
 		// (Android: on the calling thread, the program's, whose looper the
 		// activity's glue watches; iOS: the main thread, UIKit's)
-		if (Mem.target() >= 9 || Mem.os() == 1) {
+		// (Windows: the thread that made the window, whose messages it gets)
+		if (Mem.target() >= 9 || Mem.os() == 1 || Mem.os() == 2) {
 			thread(Ptr.nil());
 			return 0;
 		}
@@ -110,6 +119,10 @@ class Hosted {
 		if (Mem.target() < 9 && Mem.platform() == 0) hxmc.rt.Gc.releaseHeap();
 		return Ptr.nil();
 	}
+}
+
+@:hxmc.c @:hxmc.fast @:hxmc.lib("kernel32") extern class HostK32 {
+	static function GetCurrentProcessId():Int;
 }
 
 @:hxmc.c @:hxmc.fast extern class HostThreads {

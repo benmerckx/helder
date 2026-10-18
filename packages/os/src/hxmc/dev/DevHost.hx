@@ -28,14 +28,14 @@ class DevHost {
 		LibC.memset(state, 0, (BYTES : Int64));
 		var old = Ptr.nil();
 		while (path != null && path != "") {
-			var lib = Arena.scopedValue(a -> Posix.dlopen(a.cstring(path), 2)); // (RTLD_NOW)
+			var lib = open(path);
 			if (lib.isNull()) {
-				Sys.stderr().writeString("hxmc dev host: " + ((cast Posix.dlerror() : CString).toString()) + "\n");
+				Sys.stderr().writeString("hxmc dev host: cannot load " + path + ": " + error() + "\n");
 				Sys.exit(1);
 			}
-			if (!old.isNull()) Posix.dlclose(old);
+			if (!old.isNull()) close(old);
 			old = lib;
-			var slot = Posix.dlsym(lib, Mem.cstr("hxmc_dev_state")), run = Posix.dlsym(lib, Mem.cstr("hxmc_dev_run"));
+			var slot = sym(lib, "hxmc_dev_state"), run = sym(lib, "hxmc_dev_run");
 			if (slot.isNull() || run.isNull()) {
 				Sys.stderr().writeString("hxmc dev host: " + path + " is not a program for a dev host (hxmc_dev_state, hxmc_dev_run)\n");
 				Sys.exit(1);
@@ -46,6 +46,26 @@ class DevHost {
 			path = (cast state.add(NEXT) : CString).toString();
 		}
 	}
+
+	static function open(path:String):Ptr
+		return Arena.scopedValue(a -> Mem.os() == 2 ? DevK32.LoadLibraryA(a.cstring(path)) : Posix.dlopen(a.cstring(path), 2)); // (RTLD_NOW)
+
+	static function close(lib:Ptr)
+		if (Mem.os() == 2) DevK32.FreeLibrary(lib) else Posix.dlclose(lib);
+
+	static function sym(lib:Ptr, name:String):Ptr
+		return Arena.scopedValue(a -> Mem.os() == 2 ? DevK32.GetProcAddress(lib, a.cstring(name)) : Posix.dlsym(lib, a.cstring(name)));
+
+	static function error():String
+		return Mem.os() == 2 ? "error " + DevK32.GetLastError() : (cast Posix.dlerror() : CString).toString();
+}
+
+// (Windows: kernel32's loader)
+@:hxmc.c @:hxmc.fast @:hxmc.lib("kernel32") extern class DevK32 {
+	static function LoadLibraryA(path:Ptr):Ptr;
+	static function GetProcAddress(lib:Ptr, name:Ptr):Ptr;
+	static function FreeLibrary(lib:Ptr):Int;
+	static function GetLastError():Int;
 }
 
 @:hxmc.c extern class HostCall {

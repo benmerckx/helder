@@ -1,10 +1,12 @@
 import hxmc.dev.Hot;
 import hxmc.gfx.*;
 import hxmc.os.*;
+import hxmc.unsafe.Mem;
 
 // hxmc dev's host without a dev server (docs/dev.md, "No reloads"; CI:
-// packages/gfx/test/ios-dev.sh on an iPhone simulator, mac-dev.sh on macOS,
-// where the builds are all dylibs run by hxmc.dev.DevHost): built as the app
+// packages/gfx/test/ios-dev.sh on an iPhone simulator, host-dev.sh on macOS
+// and Windows, where the builds are all dylibs or DLLs run by
+// hxmc.dev.DevHost): built as the app
 // (-D devhost_version=1, -D hxmc.dev-host) and as dylibs of later versions
 // (-D hxmc.shared, 2, 3), which the running build hands over to in turn
 // (HXMC_DEV_NEXT, a second after its first frame: Hot). Each build draws the
@@ -27,8 +29,9 @@ class DevHostTest {
 			device.endFrame();
 			frames++;
 			if (frames == 10) {
-				var view = hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_VIEW);
-				Sys.println('DevHostTest: v$version n=${state.n} pid=${hxmc.dev.Hosted.HostThreads.getpid()} view=${haxe.Int64.toStr(view.toI64())} ${device.width}x${device.height}');
+				// (the window's view: iOS, macOS; the HWND: Windows)
+				var view = hxmc.dev.Hosted.get(Mem.os() == 2 ? hxmc.dev.Hosted.UI_WINDOW : hxmc.dev.Hosted.UI_VIEW);
+				Sys.println('DevHostTest: v$version n=${state.n} pid=${hxmc.dev.Hosted.pid()} view=${haxe.Int64.toStr(view.toI64())} ${device.width}x${device.height}');
 			}
 		}, e -> {});
 	}

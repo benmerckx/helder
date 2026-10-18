@@ -62,14 +62,14 @@ class X11Window {
 				width = w;
 				height = h;
 			}
-			Sys.stderr().writeString("hxmc.dev: the host's window 0x" + StringTools.hex(haxe.Int64.toInt(id)) + " (process " + hxmc.dev.Hosted.HostThreads.getpid() + ")\n");
+			Sys.stderr().writeString("hxmc.dev: the host's window 0x" + StringTools.hex(haxe.Int64.toInt(id)) + " (process " + hxmc.dev.Hosted.pid() + ")\n");
 		} else {
 			id = Xlib.XCreateSimpleWindow(display, Xlib.XRootWindow(display, screen), 0, 0, width, height, 0, black, black);
 			if (hxmc.dev.Hosted.hosted() && open.length == 0) {
 				hxmc.dev.Hosted.set(hxmc.dev.Hosted.X11_WINDOW, Ptr.ofI64(id));
 				hxmc.dev.Hosted.set(hxmc.dev.Hosted.WIDTH, Ptr.ofI64(width));
 				hxmc.dev.Hosted.set(hxmc.dev.Hosted.HEIGHT, Ptr.ofI64(height));
-				Sys.stderr().writeString("hxmc.dev: the host's window 0x" + StringTools.hex(haxe.Int64.toInt(id)) + " (process " + hxmc.dev.Hosted.HostThreads.getpid() + ")\n");
+				Sys.stderr().writeString("hxmc.dev: the host's window 0x" + StringTools.hex(haxe.Int64.toInt(id)) + " (process " + hxmc.dev.Hosted.pid() + ")\n");
 			}
 		}
 		#else
