@@ -20,6 +20,11 @@ class Material {
 	public var roughness:Float;
 	public var emissive:Vec3;
 	public var baseColorTexture:Null<Texture>;
+	// glTF's other maps: roughness (green) and metallic (blue), times the
+	// factors; emitted colour (sRGB), times emissive; ambient occlusion (red)
+	public var metallicRoughnessTexture:Null<Texture>;
+	public var emissiveTexture:Null<Texture>;
+	public var occlusionTexture:Null<Texture>;
 	public var doubleSided:Bool;
 
 	public function new(?name:String, ?baseColor:Vec4, metallic = 0.0, roughness = 0.5, ?emissive:Vec3, doubleSided = false) {

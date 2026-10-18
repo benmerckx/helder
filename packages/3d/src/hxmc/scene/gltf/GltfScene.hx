@@ -13,8 +13,8 @@ import hxmc.scene.render.MeshRenderer;
 // made once (load), then instantiated into worlds as often as wanted
 // (instantiate: GltfNodes' hierarchy, each node with a mesh drawing the
 // shared Mesh). Triangle primitives (positions, normals, uvs; normals
-// computed where the file has none); materials' factors and base colour
-// textures (decoded by decodeImage, which the program gives); KHR_lights_punctual's lights as Light components; skins as
+// computed where the file has none); materials' factors and textures
+// (base colour, metallic-roughness, emissive, occlusion; normal maps later) (decoded by decodeImage, which the program gives); KHR_lights_punctual's lights as Light components; skins as
 // Skin components on the nodes they deform (joints, inverse bind
 // matrices; JOINTS_0 and WEIGHTS_0 in the meshes' vertices).
 class GltfScene {
@@ -56,6 +56,9 @@ class GltfScene {
 			for (m in doc.materials) {
 				var mat = new Material(m.name, m.baseColor, m.metallic, m.roughness, m.emissive, m.doubleSided);
 				mat.baseColorTexture = textureOf(m.baseColorTexture);
+				mat.metallicRoughnessTexture = textureOf(m.metallicRoughnessTexture);
+				mat.emissiveTexture = textureOf(m.emissiveTexture);
+				mat.occlusionTexture = textureOf(m.occlusionTexture);
 				mat;
 			}
 		];

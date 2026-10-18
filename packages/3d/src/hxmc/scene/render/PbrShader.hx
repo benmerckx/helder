@@ -71,16 +71,20 @@ class PbrShader implements Shaders {
 		};
 	}
 
-	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, shadowMap:Texture2D):Vec4
-		return shade(i, frame, material, baseColorTexture, shadowMap);
+	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
+			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4
+		return shade(i, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture, shadowMap);
 
 	// the fragment's colour (also PbrInstancedShader's)
-	public static function shade(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, shadowMap:Texture2D):Vec4 {
+	public static function shade(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
+			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4 {
 		var texel = sample(baseColorTexture, i.uv);
 		// (the texture's sRGB decoded)
 		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2));
-		var metallic = clamp(material.params.x, 0, 1);
-		var rough = clamp(material.params.y, 0.04, 1);
+		// (glTF's: roughness in green, metallic in blue, linear)
+		var mr = sample(metallicRoughnessTexture, i.uv);
+		var metallic = clamp(material.params.x * mr.z, 0, 1);
+		var rough = clamp(material.params.y * mr.y, 0.04, 1);
 		var n = normalize(i.normal);
 		var v = normalize(frame.eye.xyz - i.world);
 		var l = frame.lightDir.xyz;
@@ -105,8 +109,11 @@ class PbrShader implements Shaders {
 		var a004 = min(rr.x * rr.x, pow(2, -9.28 * nv)) * rr.x + rr.y;
 		var ab = vec2(-1.04, 1.04) * a004 + rr.zw;
 		var specularAmbient = env * (f0 * ab.x + ab.y);
-		var ambient = irradiance * base * (1 - metallic) + specularAmbient;
-		var color = (direct + ambient + material.emissive.xyz) * frame.exposure.x;
+		// (occlusion, in red, darkens the ambient only)
+		var occlusion = sample(occlusionTexture, i.uv).x;
+		var ambient = (irradiance * base * (1 - metallic) + specularAmbient) * occlusion;
+		var emitted = material.emissive.xyz * pow(sample(emissiveTexture, i.uv).xyz, vec3(2.2));
+		var color = (direct + ambient + emitted) * frame.exposure.x;
 		return vec4(encode(aces(color)), material.baseColor.w * texel.w);
 	}
 

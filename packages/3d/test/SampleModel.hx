@@ -175,7 +175,8 @@ class SampleModel {
 	}
 
 	// the textured sample (examples/textured.glb): a cube whose base colour
-	// is a 64x64 PNG inside the file (a soft checker, lighter towards one corner)
+	// is a 64x64 PNG inside the file (a soft checker, lighter towards one
+// corner), also its metallic-roughness, emissive and occlusion maps
 	public static function texturedGlb():Bytes {
 		var bin = new BytesBuffer();
 		var px = Bytes.alloc(64 * 64 * 4);
@@ -242,7 +243,8 @@ class SampleModel {
 		var json = '{"asset":{"version":"2.0","generator":"hxmc packages/3d/test/SampleModel.hx"},"scene":0,'
 			+ '"scenes":[{"name":"textured","nodes":[0]}],"nodes":[{"name":"crate","mesh":0}],'
 			+ '"meshes":[{"name":"crate","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}],'
-			+ '"materials":[{"name":"crate","pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicFactor":0,"roughnessFactor":0.6}}],'
+			+ '"materials":[{"name":"crate","pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicRoughnessTexture":{"index":0},"metallicFactor":0.3,"roughnessFactor":0.9},'
+			+ '"emissiveTexture":{"index":0},"emissiveFactor":[0.25,0.12,0.02],"occlusionTexture":{"index":0}}],'
 			+ '"textures":[{"sampler":0,"source":0}],"samplers":[{"magFilter":9729,"minFilter":9987}],'
 			+ '"images":[{"name":"checker","bufferView":$vimg,"mimeType":"image/png"}],'
 			+ '"accessors":[{"bufferView":$vp,"componentType":5126,"count":24,"type":"VEC3","min":[-0.6,-0.6,-0.6],"max":[0.6,0.6,0.6]},'

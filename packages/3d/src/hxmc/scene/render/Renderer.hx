@@ -265,6 +265,9 @@ class Renderer {
 				}, materialBytes);
 				enc.setUniforms(slots[2], materialBytes);
 				enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, sampler);
+				enc.setTexture(slots[7], m.metallicRoughnessTexture != null ? m.metallicRoughnessTexture : white, sampler);
+				enc.setTexture(slots[8], m.emissiveTexture != null ? m.emissiveTexture : white, sampler);
+				enc.setTexture(slots[9], m.occlusionTexture != null ? m.occlusionTexture : white, sampler);
 				enc.setTexture(slots[4], shadowSource != null ? shadowSource.shadowFrame().map : noShadow, nearest);
 				material = m;
 			}
@@ -338,7 +341,8 @@ class Renderer {
 	}
 
 	// a shader's slots for its blocks and textures, in the renderer's order:
-	// frame, object (-1: none), material, base colour, shadow map
+	// frame, object (-1: none), material, base colour, shadow map, skin,
+	// joints, metallic-roughness, emissive, occlusion
 	public static function slotsOf(uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock>, textures:Array<hxmc.gfx.shader.Shaders.TextureBinding>):Array<Int> {
 		function u(name:String):Int {
 			for (b in uniforms)
@@ -350,7 +354,8 @@ class Renderer {
 				if (b.name == name) return b.binding;
 			return -1;
 		}
-		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap"), u("PbrSkinInfo"), t("jointMatrices")];
+		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap"), u("PbrSkinInfo"), t("jointMatrices"),
+			t("metallicRoughnessTexture"), t("emissiveTexture"), t("occlusionTexture")];
 	}
 
 	// whether a mesh's bounds, through mvp, reach the view: not all eight
