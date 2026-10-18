@@ -6,7 +6,9 @@ import hxmc.gfx.shader.Vec3;
 // body's frame; b null: a fixed point of the world, its anchor in world
 // space): Ball, the two points kept at one place (a ball and socket: chains,
 // pendulums, ragdolls' shoulders), or Distance, kept the length apart
-// (rigid rods, ropes pulled tight). Solved with the contacts, impulses
+// (rigid rods, ropes pulled tight), or Hinge, a ball joint whose bodies
+// also keep an axis each lined up (axisA in a's frame, axisB in b's or the
+// world's: doors, wheels, levers). Solved with the contacts, impulses
 // on the three axes at once (Ball) or along the line between the points
 // (Distance), the drift pulled back a share a step.
 //   physics.join(Joint.ball(lamp, new Vec3(0, 0.5, 0), null, new Vec3(0, 3, 0)));
@@ -18,10 +20,15 @@ class Joint {
 	// Distance's length (Ball: 0)
 	public final length:Float;
 	public final distance:Bool;
+	// Hinge's axes (null: not a hinge)
+	public final axisA:Null<Vec3>;
+	public final axisB:Null<Vec3>;
 	// the share of the drift pulled back a step (0 to 1)
 	public var stiffness = 0.2;
 
-	function new(a:Body, anchorA:Vec3, b:Null<Body>, anchorB:Vec3, distance:Bool, length:Float) {
+	function new(a:Body, anchorA:Vec3, b:Null<Body>, anchorB:Vec3, distance:Bool, length:Float, ?axisA:Vec3, ?axisB:Vec3) {
+		this.axisA = axisA;
+		this.axisB = axisB;
 		this.a = a;
 		this.b = b;
 		this.anchorA = anchorA;
@@ -33,9 +40,19 @@ class Joint {
 	public static function ball(a:Body, anchorA:Vec3, b:Null<Body>, anchorB:Vec3):Joint
 		return new Joint(a, anchorA, b, anchorB, false, 0);
 
+	// a hinge about axisA (in a's frame), lined up with axisB (in b's, or
+	// the world's when b is null)
+	public static function hinge(a:Body, anchorA:Vec3, axisA:Vec3, b:Null<Body>, anchorB:Vec3, axisB:Vec3):Joint
+		return new Joint(a, anchorA, b, anchorB, false, 0, unit(axisA), unit(axisB));
+
+	static function unit(v:Vec3):Vec3 {
+		var l = Math.sqrt(dot(v, v));
+		return v / l;
+	}
+
 	// (length: by default the points' distance now)
 	public static function distanceOf(a:Body, anchorA:Vec3, b:Null<Body>, anchorB:Vec3, ?length:Float):Joint {
-		var j = new Joint(a, anchorA, b, anchorB, true, 0);
+		var j = new Joint(a, anchorA, b, anchorB, true, 0, null, null);
 		if (length == null) {
 			var d = j.pointB() - j.pointA();
 			length = Math.sqrt(dot(d, d));
@@ -64,8 +81,29 @@ class Joint {
 			if (l < 1e-9) return;
 			var n = err / l;
 			push(pa, pb, n, (l - length) * stiffness / dt);
-		} else
+		} else {
 			ballPush(pa, pb, err * (stiffness / dt));
+			if (axisA != null) align(dt);
+		}
+	}
+
+	// Hinge's axes kept lined up: no turning of one against the other but
+	// about the axis, the misalignment pulled back
+	function align(dt:Float) {
+		var wa = a.orientation.rotate(axisA), wb = b == null ? axisB : b.orientation.rotate(axisB);
+		var err = cross(wa, wb);
+		// (two directions across the axis)
+		var t1 = Math.abs(wa.x) < 0.9 ? unit(cross(wa, new Vec3(1, 0, 0))) : unit(cross(wa, new Vec3(0, 1, 0)));
+		var t2 = cross(wa, t1);
+		for (t in [t1, t2]) {
+			var k = dot(t, a.applyInvInertia(t)) + (b == null ? 0 : dot(t, b.applyInvInertia(t)));
+			if (k < 1e-12) continue;
+			var rel = (b == null ? 0 : dot(b.angular, t)) - dot(a.angular, t);
+			var lambda = -(rel + dot(err, t) * stiffness / dt) / k;
+			var j = t * lambda;
+			if (!a.isStatic() && !a.sleeping) a.angular = a.angular - a.applyInvInertia(j);
+			if (b != null && !b.isStatic() && !b.sleeping) b.angular = b.angular + b.applyInvInertia(j);
+		}
 	}
 
 	// Ball's impulse: the points' relative velocity made -bias on all three

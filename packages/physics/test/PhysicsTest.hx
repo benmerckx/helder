@@ -214,6 +214,20 @@ class PhysicsTest {
 		var period = crossings.length >= 2 ? crossings[crossings.length - 1] - crossings[crossings.length - 2] : 0;
 		check('a pendulum keeps its length (off by ${Math.round(worst * 1000)} mm)', worst < 0.01);
 		check('and swings at 2 pi sqrt(l / g) (${Math.round(period * 1000) / 1000} s)', near(period, 2 * Math.PI * Math.sqrt(1 / 9.81), 0.05));
+		// a door on a hinge: pushed at its free edge, it swings about its
+		// hinge, which stays put, its axis upright
+		var hw = new PhysicsWorld();
+		hw.gravity = new Vec3(0, 0, 0);
+		var door = hw.add(new Body(Box(new Vec3(0.5, 1, 0.05)), new Vec3(0.5, 1, 0)));
+		hw.join(Joint.hinge(door, new Vec3(-0.5, 0, 0), new Vec3(0, 1, 0), null, new Vec3(0, 1, 0), new Vec3(0, 1, 0)));
+		door.applyImpulse(new Vec3(0, 0.3, -1.5), new Vec3(1, 1.6, 0));
+		// (about 4.5 radians a second about the hinge: a sixth of a second)
+		for (_ in 0...10)
+			hw.step(dt);
+		var hinge = door.position + door.orientation.rotate(new Vec3(-0.5, 0, 0)), up = door.orientation.rotate(new Vec3(0, 1, 0));
+		var swung = door.orientation.rotate(new Vec3(1, 0, 0));
+		check('a door swings on its hinge (x axis z ${Math.round(swung.z * 1000) / 1000}, hinge off ${Math.round(Math.sqrt((hinge.x * hinge.x) + (hinge.y - 1) * (hinge.y - 1) + hinge.z * hinge.z) * 1000)} mm, up ${Math.round(up.y * 1000) / 1000})',
+			near(hinge.x, 0, 0.01) && near(hinge.y, 1, 0.01) && near(hinge.z, 0, 0.01) && up.y > 0.999 && swung.z < -0.3);
 		// a chain of five links on distance joints hangs from a point, links apart
 		var cw2 = new PhysicsWorld();
 		var links = [for (k in 0...5) cw2.add(new Body(Sphere(0.08), new Vec3(0.3 * (k + 1), 4, 0)))];
