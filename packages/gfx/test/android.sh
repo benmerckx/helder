@@ -109,7 +109,7 @@ adb shell input motionevent MOVE $((x0 + W / 4)) $y0
 wait_count "event Scroll .* mods 16" 2 20
 check "a drag: scrolls with Mods.TOUCH" $?
 grep "event Scroll .* mods 16" "$log" | grep -o "Scroll [0-9]*,[0-9]* by -[0-9.]*,0 " | sed "s/ by .*//" | sort -u > "$out/drag-at.txt"
-[ "$(wc -l < "$out/drag-at.txt")" = 1 ]
+[ "$(wc -l < "$out/drag-at.txt")" -eq 1 ]
 check "the drag's scrolls at where it started, the content following the finger" $?
 sleep 2
 held1=$(angle held)

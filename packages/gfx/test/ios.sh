@@ -99,7 +99,7 @@ if [ -n "$tap" ]; then
 	check "a fling: scrolls, then its release" $?
 	sleep 3
 	grep "event Scroll .* mods 16" "$stdout" | grep -o "Scroll [0-9]*,[0-9]* by [0-9.e-]*,[0-9.e-]* " | sed "s/ by .*//" | sort -u > "$out/drag-at.txt"
-	[ "$(wc -l < "$out/drag-at.txt")" = 1 ]
+	[ "$(wc -l < "$out/drag-at.txt")" -eq 1 ]
 	check "the fling's scrolls with Mods.TOUCH, at where it started" $?
 	glides=$(grep "event Scroll" "$stdout" | awk '/by 0,0 mods 0/ {r = 1; next} r && / mods 0[[:space:]]*$/ {g++} END {print g + 0}')
 	echo "ios.sh: the fling's glide: $glides scrolls"
