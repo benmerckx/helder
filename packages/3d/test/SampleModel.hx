@@ -352,7 +352,8 @@ class SampleModel {
 	}
 
 	// a cube of 1.2 with uvs from 0 to 1 on each face, one material (json)
-	// and one PNG image
+	// and one PNG image, read without mip levels (GPUs pick and blend
+	// levels differently: ARM64's llvmpipe drew the frames apart)
 	static function cubeGlb(png:Bytes, scene:String, node:String, image:String, material:String):Bytes {
 		var bin = new BytesBuffer();
 		var faces = [
@@ -406,7 +407,7 @@ class SampleModel {
 			+ '"scenes":[{"name":"$scene","nodes":[0]}],"nodes":[{"name":"$node","mesh":0}],'
 			+ '"meshes":[{"name":"$node","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}],'
 			+ '"materials":[$material],'
-			+ '"textures":[{"sampler":0,"source":0}],"samplers":[{"magFilter":9729,"minFilter":9987}],'
+			+ '"textures":[{"sampler":0,"source":0}],"samplers":[{"magFilter":9729,"minFilter":9729}],'
 			+ '"images":[{"name":"$image","bufferView":$vimg,"mimeType":"image/png"}],'
 			+ '"accessors":[{"bufferView":$vp,"componentType":5126,"count":24,"type":"VEC3","min":[-0.6,-0.6,-0.6],"max":[0.6,0.6,0.6]},'
 			+ '{"bufferView":$vn,"componentType":5126,"count":24,"type":"VEC3"},{"bufferView":$vu,"componentType":5126,"count":24,"type":"VEC2"},'

@@ -184,7 +184,7 @@ class GltfTest {
 		var png = doc.imageBytes(0);
 		check("an image in a buffer view", doc.images.length == 1 && doc.images[0].mimeType == "image/png" && png != null && png.get(1) == 0x50
 			&& png.get(2) == 0x4E && png.get(3) == 0x47);
-		check("texture, sampler, material", doc.textures.length == 1 && doc.textures[0].source == 0 && doc.samplers[0].minFilter == 9987
+		check("texture, sampler, material", doc.textures.length == 1 && doc.textures[0].source == 0 && doc.samplers[0].minFilter == 9729
 			&& doc.materials[0].baseColorTexture == 0 && doc.materials[0].metallicRoughnessTexture == 0 && doc.materials[0].emissiveTexture == 0
 			&& doc.materials[0].occlusionTexture == 0);
 		var image = Png.decode(png);
