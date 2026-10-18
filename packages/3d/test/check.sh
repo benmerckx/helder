@@ -19,6 +19,10 @@ if [ -f "$bin/RenderTest.exe" ]; then
 	esac
 else
 	run() { env -u DISPLAY "$bin/RenderTest" "$@"; }
+	# (ARM64's llvmpipe: up to 3 levels from x86-64's, gfx's own frames too)
+	case "$(uname -s)-$(uname -m)" in
+	Linux-aarch64 | Linux-arm64) export HXMC_3D_TOLERANCE=3 ;;
+	esac
 fi
 for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy particles normals blend walker packedskin packednormals cascades environment morph; do
 	g=$s

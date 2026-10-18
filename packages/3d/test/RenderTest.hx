@@ -48,6 +48,19 @@ class RenderTest {
 			Sys.println('RenderTest: blessed $golden');
 			return;
 		}
-		Sys.exit(GfxTest.compareBytes('$name, headless', pixels, sys.io.File.getBytes(golden)) && drawsOk ? 0 : 1);
+		var png = sys.io.File.getBytes(golden);
+		// (HXMC_3D_TOLERANCE=n: channels within n levels of the golden's taken
+		// as equal, then GfxTest's rule; check.sh sets 3 on ARM64's llvmpipe,
+		// whose filtering and arithmetic land up to 3 levels apart, gfx's own
+		// frames there too)
+		var tolerance = Std.parseInt(Sys.getEnv("HXMC_3D_TOLERANCE") ?? "");
+		if (tolerance != null && tolerance > 0) {
+			var g = Png.decode(png);
+			if (g.width == WIDTH && g.height == HEIGHT)
+				for (k in 0...WIDTH * HEIGHT * 4)
+					if (Math.abs(pixels.get(k) - g.rgba.get(k)) <= tolerance) pixels.set(k, g.rgba.get(k));
+			Sys.println('RenderTest: $name: within $tolerance levels taken as equal');
+		}
+		Sys.exit(GfxTest.compareBytes('$name, headless', pixels, png) && drawsOk ? 0 : 1);
 	}
 }
