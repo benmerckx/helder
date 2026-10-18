@@ -117,8 +117,8 @@ class Tailwind {
 		// file inputs' buttons
 		"file",
 		// arbitrary selectors: icons inside ([&_svg], [&>svg]), the
-		// element type ([a&]), class names ([.border-b]); has-[>svg]: a
-		// button's padding beside an icon
+		// element type ([a&]), class names ([.border-b]), has-[...] but
+		// has-[>svg] (an icon a child: has:>svg)
 		"[*", "has-[*", "group-has-[*",
 		// container queries (a field's @md/field-group:): no container's width of its own
 		"@*",
@@ -336,7 +336,7 @@ class Tailwind {
 		// (picked: the size or variant a variant selects, data-[size=sm]: an attribute selector's specificity)
 		var when = [], order = [], picked = 0;
 		for (v in parts) {
-			if (matches(IGNORED_VARIANTS, v)) return;
+			if (v != "has-[>svg]" && matches(IGNORED_VARIANTS, v)) return;
 			var r = readVariant(v);
 			if (r == null) {
 				error('unknown variant $v: in $c', at, c.length);
@@ -383,6 +383,7 @@ class Tailwind {
 		inline function ord(name:String)
 			return ORDER.indexOf(name);
 		if (STATES.contains(v)) return {order: ord(v), state: v};
+		if (v == "has-[>svg]") return {order: ord("has"), state: "has:>svg"};
 		for (prefix in ["group", "peer", "has", "not"])
 			if (v.startsWith(prefix + "-")) {
 				var inner = v.substr(prefix.length + 1);
@@ -1041,7 +1042,7 @@ class Tailwind {
 				var end = s.indexOf(")", i);
 				var name = s.substring(i + 4, end);
 				i = end + 1;
-				return vars.exists(name) ? length(vars[name]) : null;
+				return vars.exists(name) ? length(vars[name]) : name == "--spacing" ? 0.25 * REM : null;
 			}
 			if (s.substr(i, 10) == "--spacing(") {
 				var end = s.indexOf(")", i);
@@ -1145,8 +1146,8 @@ class Tailwind {
 			case _: [for (i => w in css.split("-")) i == 0 ? w : w.charAt(0).toUpperCase() + w.substr(1)].join("");
 		}
 
-	// grid-cols-[1fr_auto], grid-rows-[auto_auto]
-	static function tracks(v:String):Null<Array<{min:TrackSize, max:TrackSize}>> {
+	// grid-cols-[1fr_auto], grid-rows-[auto_auto], grid-cols-[calc(var(--spacing)*4)_1fr]
+	function tracks(v:String):Null<Array<{min:TrackSize, max:TrackSize}>> {
 		var out = [];
 		for (t in v.substring(1, v.length - 1).split("_")) {
 			var s:TrackSize = if (t == "auto") Auto else if (t == "min-content") MinContent else if (t == "max-content") MaxContent else if (t.endsWith("fr")) {
@@ -1158,7 +1159,7 @@ class Tailwind {
 				if (n == null) return null;
 				Percent(n);
 			} else {
-				var n = length(t);
+				var n = t.startsWith("calc(") ? pxCalc(t.substring(5, t.length - 1)) : length(t);
 				if (n == null) return null;
 				Px(n);
 			}
