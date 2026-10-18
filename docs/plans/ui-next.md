@@ -1,0 +1,135 @@
+# @hxmc/ui: where it stands, what is next
+
+A handoff for whoever picks up `@hxmc/ui`, `@hxmc/theme`'s drawn side and
+the single-source widgets (as of Oct 18). The designs behind them:
+[ui.md](ui.md), [theme.md](theme.md),
+[native-or-drawn.md](native-or-drawn.md), [view.md](view.md).
+
+## Next, by priority
+
+1. **Touch drags** (with `@hxmc/os`). A touch drag reaches the app as
+   Scroll events (`Mods.TOUCH`) on both the browser and native, so a
+   slider's thumb, a sortable item or a text selection cannot be dragged
+   by touch. The proposal: at a gesture's start, os asks the app, as it
+   asks `scrollsAt`, whether the node under the finger takes a pointer
+   drag (`Ui.dragsAt(x, y)`). If it does, os delivers pointer events
+   (with `TOUCH`); otherwise the touch scrolls. My view: this fits ui
+   better than each widget interpreting `TOUCH` scrolls, because the
+   decision is made in one place, before the gesture commits, as a
+   browser's is. ui should answer from the style, the way CSS does:
+   `touch-action: none` (shadcn's `touch-none`, already on its slider's
+   classes) as a `Style.touchAction` the rules set. `dragsAt` is true
+   when the hit node or an ancestor has it, or when the node is an
+   editable text field (its selection). Sortable's items and Split's
+   handle get `touch-none` in extras.json. Pages need nothing, since
+   their CSS already says `touch-action`.
+2. **Single-source widgets, the rest** (native-or-drawn.md, "Where it
+   stands"). 82 widgets and parts are one definition for both renderers
+   (`@:neutral` in ui's Widgets). These still have a DOM
+   copy in `packages/web/src/hxmc/web/widgets/Widgets.hx`:
+   - overlays, which wait on the DOM's Layer, focus and scroll (main's):
+     DropdownMenu, Menubar, ContextMenu, Select, PopoverButton, Tooltip,
+     HoverCard, Dialog(+Footer), AlertDialog, Sheet(+Footer),
+     Drawer(+Footer), Combobox, Command, DatePicker, Toaster,
+     NavigationMenu;
+   - InputGroup(+Addon, Text) (main's: click-to-focus);
+   - structurally different in the two renderers: Table and Tree (ui's
+     are virtualised by VirtualList, the DOM's are not), Sortable (ui's
+     pointer drag against HTML drag and drop), Split, Carousel, the
+     charts (drawn against SVG), NativeSelect (a native `<select>`),
+     SidebarProvider and Sidebar;
+   - ColorPicker: nearly the same in both, and the next easy one. An
+     attempt (not committed) made it `@:neutral`: `background` (a colour
+     or a gradient string) and `dir` added to NeutralMacro, the press
+     through `partRect` and `capture` as Slider's. It built (gallery.js
+     +1.5 KB), but in the page a press in the square changed nothing in
+     widgets.mjs. Look at how the area's pointerdown reaches `area(e)`
+     (the ref, the rect) before converting it again.
+3. **Opaque Part calls** (debt). In a page, a neutral widget calls Part's
+   methods (`focus`, `rtl`, `rect`, `focusables`, `tabStop`,
+   `holdsFocus`, `editable`, `select`) and reads an event's `current`
+   through `js.Syntax.code`: Widgets' `mirroredKey`, `focusPart`,
+   `partRect` and the like. The reason is that the JS generator's DCE
+   (upstream's) keeps every implementation of an interface method called
+   through the interface, and would link Node (~30 KB) into every page.
+   ElementPart's methods are kept by `@:ifFeature`, Node's opaque ones by
+   `@:ifFeature("hxmc.ui.Node.markDirty")`. A design needing no such call
+   (the renderer reading a part's direction, say) or a DCE that drops
+   unreachable implementations would retire both.
+4. **Fast refresh** ([dev-loop.md](dev-loop.md)): `For`'s rows keyed by a
+   `key` (so a swap keeps each row's state), and the engine's own state
+   (focus, scroll positions, text selection) carried across a swap.
+5. **Canvas made document-ready** (task 91, [document.md](document.md)):
+   the host apart from the Canvas, before more code builds on today's.
+6. **The static-init segfault with `Tw.rules`**: on main's list of open
+   items; I have no notes on it beyond the name. Start from a minimal
+   native program that builds `Tw.rules` in a static initialiser.
+7. **Layout against Chromium** (`make ui-layout-fuzz FEATURES=more`,
+   seeds 1, 2, 5, 17, 23): 92 of 1000 trees differ (150 at the start of
+   Oct 18, every step checked to break none). `make ui-layout-reduce
+   CASE='fuzz N-M'` reduces one to a few boxes. Probe a rule in Chromium
+   before porting it: most of the fixes were rules Chromium applies that
+   the spec reads differently. What is left:
+   - explicit `align-items: stretch` against CSS's `normal` on aspect-ratio
+     grid items (they differ; ui's default Stretch is CSS's `normal`, and
+     ui has no separate Normal);
+   - percentage rows resolved after an auto grid height;
+   - an absolutely positioned box with both sizes and an aspect ratio
+     widened to its content;
+   - an aspect-ratio box that is not stretched and has no definite size,
+     whose width Chromium derives from its content's height.
+   The default features (seeds 5, 17, 23, 41, 99) all match.
+8. **Drawn fidelity against shadcn** (`make theme-fidelity-check`, 252
+   cases, all within the bar): 627203 pixels differ in all, 17749 of them
+   strongly. The worst cases (strong pixels): alert-dialog-open 598,
+   alert-dialog-open-dark 585, alert-destructive 425, input-group-addons
+   416 (dark 410, rtl 383), empty-default 344 (dark 341), input-value 331,
+   command-default 308. Known causes:
+   - **Text baselines, 1px**: dialog and empty titles at 18 and 28 px,
+     toasts. Blink rounds ascent and descent, halves the leading in 64ths,
+     and on Linux borrows a pixel of ascent when the descent rounds down.
+     No combination tried fits every reference (Inter 12/16 and 14/19.25
+     resist). The best saves 776 strong pixels but breaks BoxTest's text
+     shadow.
+   - **alert-destructive** (425): its `*:data-[slot=alert-description]:`
+     children rule. ThemeTest (line 150) asserts children rules are
+     dropped, so it is the user's call; the user asked that ThemeTest not
+     be edited.
+   - **tabs-line's underline**: an `after:` pseudo-element. It could be a
+     child rule on a `view:after` node in ui, but the same ThemeTest
+     assertion says `after:absolute` yields nothing.
+9. **Perf**: a stress update (1000 rows, `StressTest`) is 213M
+   instructions, a fifth of it the collector's minor collections
+   (`Gc_drainMinor`: the new tree's survivors, which is runtime work). An
+   incremental layout is 5.1M (in-place relayout). Small ones left in ui:
+   dynamic equality in `Layout.flex` (`Dyn_dynEq`, 0.4%), and int boxing
+   in `FontFile.kerning` and `StyleFields.getAt` (0.5%). Relayout
+   boundaries and a measure cache keyed without allocation are the bigger
+   ones. Vector.blit is fast now (main's blit-land): Layout's measure
+   cache can go back to it from its loop.
+10. **DOM mode for the site's examples**: the theme's CSS can now be
+    scoped (`Css.sheet(path, null, ".hxmc")`; the preflight, the tokens and
+    the page's colours kept to the scope, popups and modals included;
+    web-widgets checks it). What is left is building the ui examples that
+    are all neutral widgets to JavaScript on the site, with the scoped
+    sheet, beside or instead of their canvases.
+
+## Also open
+
+- Android native editors: ui renders into NativeActivity's surface, and
+  needs a SurfaceView and a view hierarchy in `@hxmc/os`.
+- Linux native views (there is no toolkit to host).
+- The module cache: twice a warm `~/.cache/hxmc` failed a lane after a
+  merge (main fixed the causes found); `rm -rf ~/.cache/hxmc` and `rm
+  bin/hxmc/std/.stamp` are the first things to try on a strange build
+  error.
+
+## How to check a change
+
+`make ui-check` (UiTest with the layout cases against Chromium, the
+incremental layout, restyle and editing fuzzes; MarkupTest, GuideTest,
+WidgetExamplesTest), `theme-check`, `theme-fidelity-check`,
+`ui-draw-check` (goldens), `ui-web-check`, `web-check`, `web-widgets`
+(the gallery driven in Chromium, the scoped CSS, sizes), `theme-dom-check`,
+`site`. New layout cases go in `packages/ui/test/layout-cases.mjs`, then
+`node packages/ui/test/layout-ref.mjs`.

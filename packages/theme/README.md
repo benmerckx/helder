@@ -295,6 +295,13 @@ arbitrary selectors (`[&_svg]`), children's (`*:`), `after:`, `sr-only`,
 keyframe animations (`animate-spin`, `animate-pulse`). shadcn's sheet is
 188 KB, 18 KB gzipped (the sheet's vars, `--sidebar-width`, in `:root`).
 
+Scoped, for widgets in a page of its own styles (a site's): `Css.sheet(path,
+null, ".hxmc")` (`--run hxmc.theme.Css shadcn.json app.css .hxmc`) keeps the
+preflight, the tokens and the page's colours to the elements the selector
+selects and what is inside them, and to the widgets' popups and modals (in
+the page's body), the rest of the page as it was; 4 KB more. `make
+web-widgets` puts the counter in such a page and checks it.
+
 `Css.classes(selector, "rounded-lg border shadow-md")`: classes of one's
 own as CSS, at run time too (an instance's, as cn's className).
 

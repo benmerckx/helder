@@ -37,6 +37,9 @@ class Layout {
 	var looseH = false;
 	// (a column measured bare: the height its lines break at, its own; flex takes it)
 	var breakH = Math.NaN;
+	// (known: the next size() measures its node's content's height, its aspect ratio left out, a wrapping
+	// column's lines broken at this height, the ratio's)
+	var noRatio = Math.NaN;
 	// flex items and lines, kept from layout to layout: a container's are
 	// taken from the top and given back when it is done (its children's
 	// taken above them meanwhile)
@@ -97,8 +100,10 @@ class Layout {
 		// (bare on an axis where the node has no size, min or max of its own: as measured normally, cached alike)
 		var bw = bareW && (s.width != DimValue.Auto || s.minWidth != DimValue.Auto || s.maxWidth != DimValue.Auto);
 		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
-		var bare = (bw ? 1 : 0) | (bh ? 2 : 0);
+		var bare = (bw ? 1 : 0) | (bh ? 2 : 0), baseW = bareW, base = bareH;
 		bareW = bareH = false;
+		var nrBreak = noRatio, nr = known(nrBreak);
+		noRatio = Math.NaN;
 		// (measured bare, a column still breaks its lines at its own height within its max-height, in pixels)
 		var bareBreak = bh && s.height.match(DimValue.Px(_)) ? s.height.resolve(parentH) : Math.NaN;
 		if (bh && s.maxHeight.match(DimValue.Px(_))) {
@@ -106,7 +111,7 @@ class Layout {
 			if (!known(bareBreak) || most < bareBreak) bareBreak = most;
 		}
 		// (cached by how bare it was measured; not when that height, of its parent's, breaks it)
-		var cached = !known(bareBreak);
+		var cached = !known(bareBreak) && !nr;
 		// (its height definite for its children: given so, or its own)
 		var defH = !looseH || known(s.height.resolve(parentH));
 		looseH = false;
@@ -114,10 +119,24 @@ class Layout {
 		var minH = Math.max(bh ? 0.0 : min(s.minHeight, parentH), edgesV(s)), maxH = bh ? Math.POSITIVE_INFINITY : max(s.maxHeight, parentH);
 		var w = known(knownW) ? knownW : bw ? Math.NaN : clamp(s.width.intrinsic() ? intrinsicWidth(n, s.width, parentW, availW) : s.width.resolve(parentW), minW, maxW);
 		var h = known(knownH) ? knownH : bh ? Math.NaN : clamp(s.height.resolve(parentH), minH, maxH);
-		var ar = s.aspectRatio;
+		var ar = nr ? 0 : s.aspectRatio;
 		if (ar > 0) {
-			if (!known(w) && known(h)) w = clamp(h * ar, minW, maxW);
-			else if (known(w) && !known(h)) h = clamp(w / ar, minH, maxH);
+			if (!known(w) && known(h)) {
+				w = clamp(h * ar, minW, maxW);
+				// (no narrower than its content's min-content width)
+				if (!baseW && s.width == DimValue.Auto && s.minWidth == DimValue.Auto && s.overflow == Visible)
+					w = Math.max(w, Math.min(minContentWidth(n, parentW, false), maxW));
+			} else if (known(w) && !known(h)) {
+				h = clamp(w / ar, minH, maxH);
+				// (no less than its content's height, within its max-height, its height and min-height auto (not a percentage
+				// behaving as auto) and its overflow visible: CSS's automatic minimum size of a box with an aspect ratio; a
+				// flex base size not, flex's own minimum then)
+				if (!base && s.height == DimValue.Auto && s.minHeight == DimValue.Auto && s.overflow == Visible && (n.children.length > 0 || n.hasContent())) {
+					noRatio = h;
+					size(n, w, Math.NaN, parentW, parentH, availW, availH, false);
+					if (rh > h) h = Math.min(rh, maxH);
+				}
+			}
 		}
 		// (a border box is never smaller than its padding and border, the size given it included)
 		if (w < minW) w = minW;
@@ -157,7 +176,7 @@ class Layout {
 			grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, least, defH);
 		}
 		else {
-			breakH = bareBreak;
+			breakH = nr ? nrBreak : bareBreak;
 			flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
 		}
 		if (!perform && cached) store(n, w, defH ? h : -1 - h, availW, availH, bare, rw, rh, parentW, parentH);
@@ -336,18 +355,28 @@ class Layout {
 			// the automatic minimum
 			if ((row ? cs.minWidth : cs.minHeight) == DimValue.Auto && cs.overflow == Visible) {
 				var content:Float;
-				if (row) content = minContentWidth(c, innerW, false) else if (contentBasis) content = b else {
+				// (a row's: its min-content width, no less than its definite height's through its aspect ratio)
+				if (row) content = cs.aspectRatio > 0 && known(it.styleCross) ? Math.max(minContentWidth(c, innerW, false), it.styleCross * cs.aspectRatio)
+					: minContentWidth(c, innerW, false) else if (contentBasis && !(cs.aspectRatio > 0)) content = b else {
 					var kc = it.styleCross;
 					if (!known(kc) && it.align == Stretch && !multi && known(innerCross))
 						kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
 					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
-					// (its content's height: not its own, CSS's content size suggestion; a wrapping
-					// column's lines broken at its own definite height, its tallest line's, as Chromium's)
-					bareH = true;
-					size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
-					content = rh;
-					// (with an aspect ratio and a definite width: the height that width gives)
-					if (cs.aspectRatio > 0 && known(kc)) content = kc / cs.aspectRatio;
+					if (contentBasis && !known(kc)) content = b else {
+						// (its content's height: not its own, CSS's content size suggestion; a wrapping
+						// column's lines broken at its own definite height, its tallest line's, as Chromium's)
+						bareH = true;
+						size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
+						content = rh;
+						// (with an aspect ratio and a definite width: the height that width gives, its content's when
+						// more, within its max across through the ratio; its height auto, not a percentage behaving as auto)
+						if (cs.aspectRatio > 0 && known(kc) && cs.height == DimValue.Auto) {
+							noRatio = rh;
+							bareH = true;
+							size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
+							content = Math.max(content, Math.min(rh, it.maxCross / cs.aspectRatio));
+						}
+					}
 				}
 				// (with an aspect ratio: no less than its min across through the ratio, CSS's content size
 				// suggestion; its max across not, its content wider, as Chromium has it)
@@ -440,8 +469,8 @@ class Layout {
 							var oneLine = ics.wrap && (ics.direction == Column || ics.direction == ColumnReverse) && !ics.height.match(DimValue.Px(_))
 								&& (!known(innerCross) || looseColumns(it.node));
 							// (a stretched item's width as a contribution to the column's own: its aspect ratio not from its
-							// flexed height, only its own height, as Chromium has it)
-							var given = oneLine || ics.aspectRatio > 0 && it.align == Stretch ? Math.NaN : it.main;
+							// flexed height, only its own height, as Chromium has it; in lines of a known width, its flexed height's)
+							var given = oneLine || ics.aspectRatio > 0 && it.align == Stretch && !known(innerCross) ? Math.NaN : it.main;
 							size(it.node, Math.NaN, given, innerW, pctH, ac, oneLine ? Math.NaN : it.main, false);
 						}
 						// (a column's item across: fit-content, its min-content when the room is less)
@@ -702,33 +731,50 @@ class Layout {
 		var colGap = s.columnGap, rowGap = s.rowGap;
 
 		// the columns: at the content box's width, else at their max-content sizes (then the available width, when that is less)
-		var stretchCols = s.justify == Normal;
-		// (its percentages auto while its width is its content's, as Chromium sizes it)
-		var cols = tracks(colTracks, items, true, innerW, innerW, colGap, stretchCols, innerW, innerH, null);
-		var gridW = sum(cols, colGap);
-		if (!known(innerW) && known(availInW) && gridW > availInW + 1e-6) {
-			cols = tracks(colTracks, items, true, availInW, innerW, colGap, false, innerW, innerH, null);
-			gridW = sum(cols, colGap);
-		}
-		var width = known(innerW) ? innerW : clamp(gridW, Math.max(0, minW - padH), maxW - padH);
-		if (!known(innerW) && width > gridW + 1e-6 && stretchCols) {
-			cols = tracks(colTracks, items, true, width, innerW, colGap, true, width, innerH, null);
-			gridW = sum(cols, colGap);
-		}
-		// the rows: the items at their columns' widths
+		var stretchCols = s.justify == Normal, stretchRows = s.alignContent == Normal || s.alignContent == Stretch;
+		// (an item with an aspect ratio and neither size its own: the columns sized again, its contribution its rows'
+		// height through the ratio, then the rows again, as CSS's grid sizing has it; its height its first rows', as
+		// Chromium's)
+		var again = false;
 		for (it in items) {
-			it.areaW = colGap * (it.colSpan - 1);
-			for (i in it.col...it.col + it.colSpan)
-				it.areaW += cols[i];
+			var cs = it.node.style;
+			if (cs.aspectRatio > 0 && !known(cs.width.resolve(Math.NaN)) && !known(cs.height.resolve(Math.NaN))) again = true;
 		}
-		var stretchRows = s.alignContent == Normal || s.alignContent == Stretch;
-		// (a height laid out, not definite (an auto one within its min- or max-height): the rows sized in an
-		// indefinite room, their percentages of it; stretched to it when it is more (a min-height's), not shrunk
-		// to it when less (a max-height's: the grid overflowing it), as Chromium has it)
-		var rows = tracks(rowTracks, items, false, defH ? innerH : Math.NaN, innerH, rowGap, stretchRows && defH, width, innerH, cols);
-		if (!defH && stretchRows && known(innerH) && innerH > sum(rows, rowGap) + 1e-6)
-			rows = tracks(rowTracks, items, false, innerH, innerH, rowGap, true, width, innerH, cols);
-		var gridH = sum(rows, rowGap);
+		var cols:Array<Float> = null, rows:Array<Float> = null, gridW = 0.0, width = 0.0, gridH = 0.0;
+		for (pass in 0...2) {
+			// (its percentages auto while its width is its content's, as Chromium sizes it)
+			cols = tracks(colTracks, items, true, innerW, innerW, colGap, stretchCols, innerW, innerH, null);
+			gridW = sum(cols, colGap);
+			if (!known(innerW) && known(availInW) && gridW > availInW + 1e-6) {
+				cols = tracks(colTracks, items, true, availInW, innerW, colGap, false, innerW, innerH, null);
+				gridW = sum(cols, colGap);
+			}
+			width = known(innerW) ? innerW : clamp(gridW, Math.max(0, minW - padH), maxW - padH);
+			if (!known(innerW) && width > gridW + 1e-6 && stretchCols) {
+				cols = tracks(colTracks, items, true, width, innerW, colGap, true, width, innerH, null);
+				gridW = sum(cols, colGap);
+			}
+			if (pass == 1 && !perform) break;
+			// the rows: the items at their columns' widths
+			for (it in items) {
+				it.areaW = colGap * (it.colSpan - 1);
+				for (i in it.col...it.col + it.colSpan)
+					it.areaW += cols[i];
+			}
+			// (a height laid out, not definite (an auto one within its min- or max-height): the rows sized in an
+			// indefinite room, their percentages of it; stretched to it when it is more (a min-height's), not shrunk
+			// to it when less (a max-height's: the grid overflowing it), as Chromium has it)
+			rows = tracks(rowTracks, items, false, defH ? innerH : Math.NaN, innerH, rowGap, stretchRows && defH, width, innerH, cols);
+			if (!defH && stretchRows && known(innerH) && innerH > sum(rows, rowGap) + 1e-6)
+				rows = tracks(rowTracks, items, false, innerH, innerH, rowGap, true, width, innerH, cols);
+			if (pass == 0) gridH = sum(rows, rowGap);
+			if (!again || pass == 1) break;
+			for (it in items) {
+				it.areaH = rowGap * (it.rowSpan - 1);
+				for (i in it.row...it.row + it.rowSpan)
+					it.areaH += rows[i];
+			}
+		}
 		var height = known(innerH) ? innerH : clamp(gridH, Math.max(0, (rows.length > 0 ? Math.max(minH, least) : minH) - padV), maxH - padV);
 		var bw = width + padH, bh = height + padV;
 		if (!perform) {
@@ -766,9 +812,12 @@ class Layout {
 			var minCH = Math.max(min(cs.minHeight, ah), edgesV(cs)), maxCH = max(cs.maxHeight, ah);
 			var iw = clamp(cs.width.intrinsic() ? intrinsicWidth(c, cs.width, aw, roomW) : cs.width.resolve(aw), minCW, maxCW);
 			var ih = clamp(cs.height.resolve(ah), minCH, maxCH);
+			// (an aspect ratio and one size its own: the other its through the ratio, not stretched)
+			var ar = cs.aspectRatio;
+			if (ar > 0 && known(iw) && !known(ih) && jy == Stretch) jy = Start;
+			if (ar > 0 && known(ih) && !known(iw) && jx == Stretch) jx = Start;
 			// (an aspect ratio and neither size its own: not stretched but at its start, as wide as the
 			// area within its widths and the heights it may have through the ratio, as Chromium has it)
-			var ar = cs.aspectRatio;
 			if (ar > 0 && !known(iw) && !known(ih) && jx == Stretch && jy == Stretch) {
 				iw = clamp(Math.min(roomW, maxCH * ar), Math.max(minCW, minCH * ar), maxCW);
 				ih = clamp(iw / ar, minCH, maxCH);
@@ -779,7 +828,8 @@ class Layout {
 					// (fit-content: its max-content width, no more than the area)
 					size(c, Math.NaN, ih, aw, ah, roomW, known(ih) ? ih : roomH, false);
 					iw = clamp(Math.min(rw, Math.max(roomW, minContentWidth(c, aw, false))), minCW, maxCW);
-					if (rw <= roomW) iw = clamp(rw, minCW, maxCW);
+					// (its height's through its aspect ratio however wide)
+					if (rw <= roomW || ar > 0 && known(ih)) iw = clamp(rw, minCW, maxCW);
 				}
 			}
 			if (!known(ih)) {
@@ -1073,7 +1123,13 @@ class Layout {
 			var clipped = cs.overflow != Visible ? edges
 				+ (columns ? cs.padding.left + cs.padding.right + cs.borderEdges.left + cs.borderEdges.right : cs.padding.top + cs.padding.bottom
 					+ cs.borderEdges.top + cs.borderEdges.bottom) : Math.NaN;
-			if (columns) {
+			if (columns && known(it.areaH) && cs.aspectRatio > 0 && !known(cs.width.resolve(Math.NaN)) && !known(cs.height.resolve(Math.NaN))) {
+				// (sized again, its rows known: its width through the ratio from their height, within its heights)
+				var ih = clamp(Math.max(0, it.areaH - mz(m.top) - mz(m.bottom)), Math.max(min(cs.minHeight, it.areaH), edgesV(cs)), max(cs.maxHeight, it.areaH));
+				size(c, Math.NaN, ih, Math.NaN, it.areaH, Math.NaN, ih, false);
+				mins.push(rw + mz(m.left) + mz(m.right));
+				maxes.push(mins[mins.length - 1]);
+			} else if (columns) {
 				// (its percentages of its area, not known yet: auto meanwhile)
 				mins.push(minContentWidth(c, Math.NaN, true) + mz(m.left) + mz(m.right));
 				size(c, Math.NaN, Math.NaN, Math.NaN, gridH, Math.NaN, Math.NaN, false);
@@ -1083,7 +1139,12 @@ class Layout {
 				var room2 = Math.max(0, it.areaW - mz(m.left) - mz(m.right));
 				var iw = cs.width.resolve(it.areaW);
 				var jx = cs.justifySelf == Auto ? it.node.parent.style.justifyItems : cs.justifySelf;
-				if (!known(iw) && (jx == Stretch || jx == Auto)) iw = room2;
+				var jy = cs.alignSelf == Auto ? it.node.parent.style.alignItems : cs.alignSelf;
+				var minCW = Math.max(minWidthOf(c, cs.minWidth, it.areaW, room2), edgesH(cs)), maxCW = maxWidthOf(c, cs.maxWidth, it.areaW, room2);
+				// (stretched within its widths; with an aspect ratio and no height its own, at its start, as placed)
+				if (!known(iw) && (jx == Stretch || jx == Auto)) iw = cs.aspectRatio > 0 && !known(cs.height.resolve(Math.NaN)) && (jy == Stretch || jy == Auto)
+					? clamp(Math.min(room2, max(cs.maxHeight, Math.NaN) * cs.aspectRatio), Math.max(minCW, min(cs.minHeight, Math.NaN) * cs.aspectRatio), maxCW)
+					: clamp(room2, minCW, maxCW);
 				size(c, iw, Math.NaN, it.areaW, Math.NaN, known(iw) ? iw : room2, Math.NaN, false);
 				var v = rh + mz(m.top) + mz(m.bottom);
 				mins.push(v);
@@ -1809,6 +1870,8 @@ private class GridItem {
 	public var rowSpan = 1;
 	// its area's width (the columns' sizes, the gaps between)
 	public var areaW = 0.0;
+	// its area's height, once the rows are sized (NaN before)
+	public var areaH = Math.NaN;
 
 	public function new(node:Node)
 		this.node = node;
