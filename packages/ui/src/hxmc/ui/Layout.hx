@@ -691,6 +691,8 @@ class Layout {
 			if (cs.position == Sticky) dx = dy = Math.NaN;
 			c.lx = padL + x + (known(dx) ? dx : 0);
 			c.ly = padT + y + (known(dy) ? dy : 0);
+			// (its height definite for its children when stretched or its own, not its content's)
+			looseH = !(jy == Stretch || known(cs.height.resolve(ah)));
 			size(c, iw, ih, aw, ah, iw, ih, true);
 			c.lw = iw;
 			c.lh = ih;
@@ -733,7 +735,12 @@ class Layout {
 	// each track's start: packed from the start, or placed as justify puts items
 	static function positions(sizes:Array<Float>, gap:Float, room:Float, j:Justify):Array<Float> {
 		var n = sizes.length, free = room - sum(sizes, gap), pos = 0.0, g = gap;
-		if (n > 0 && free > 0) switch j {
+		// (too little room: overflowing at the start too when centred or at the end, as Chromium; distributed: at the start)
+		if (n > 0 && free < 0) switch j {
+			case End: pos = free;
+			case Center: pos = free / 2;
+			case _:
+		} else if (n > 0 && free > 0) switch j {
 			case End: pos = free;
 			case Center: pos = free / 2;
 			case SpaceBetween if (n > 1): g += free / (n - 1);
@@ -1139,8 +1146,10 @@ class Layout {
 			}
 			// (neither offset: its static position, as if it were the container's only
 			// item: justify along the main axis, its alignment across, in the content box)
-			var cx = padL - be.left, cy = padT - be.top;
-			var cw = pbW - s.padding.left - s.padding.right, ch = pbH - s.padding.top - s.padding.bottom;
+			// (a grid's: in its padding box, as if the only item of an area that is all of it)
+			var grid = s.display == Grid;
+			var cx = grid ? 0 : padL - be.left, cy = grid ? 0 : padT - be.top;
+			var cw = grid ? pbW : pbW - s.padding.left - s.padding.right, ch = grid ? pbH : pbH - s.padding.top - s.padding.bottom;
 			var ax = known(l) ? l + mz(m.left) : known(r) ? pbW - r - aw - mz(m.right) : cx + mz(m.left)
 				+ staticOffset(n, c, true, cw - aw - mz(m.left) - mz(m.right));
 			var ay = known(t) ? t + mz(m.top) : known(b) ? pbH - b - ah - mz(m.bottom) : cy + mz(m.top) + staticOffset(n, c, false, ch - ah - mz(m.top) - mz(m.bottom));

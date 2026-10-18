@@ -6747,5 +6747,131 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "grid absolute static position in the padding box",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid",
+						"padding": 2
+					},
+					"children": [
+						{
+							"style": {
+								"width": 10,
+								"height": 10,
+								"position": "Absolute"
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "grid tracks overflowing, centred",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid",
+						"justify": "Center",
+						"width": 73,
+						"padding": 9,
+						"gridTemplateColumns": "repeat(3, 1fr)"
+					},
+					"children": [
+						{
+							"style": {
+								"padding": 7
+							}
+						},
+						{
+							"style": {
+								"width": 40,
+								"height": 8,
+								"margin": [
+									1,
+									5,
+									5,
+									"auto"
+								]
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "grid tracks overflowing, evenly",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid",
+						"justify": "SpaceEvenly",
+						"width": 39
+					},
+					"children": [
+						{
+							"style": {
+								"width": "auto",
+								"height": 10,
+								"minWidth": 50
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "grid item of its content height, percentages",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid"
+					},
+					"children": [
+						{
+							"style": {
+								"wrap": true,
+								"margin": [
+									4,
+									8,
+									"auto",
+									2
+								]
+							},
+							"children": [
+								{
+									"style": {
+										"padding": 10
+									}
+								},
+								{
+									"style": {
+										"width": 20,
+										"height": "50%"
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]
