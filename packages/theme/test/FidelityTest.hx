@@ -6,6 +6,7 @@ import hxmc.ui.*;
 import hxmc.ui.draw.*;
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.ui.widgets.Widgets.MenuItem;
+import hxmc.ui.widgets.Widgets.DayRange;
 import hxmc.ui.widgets.Toasts;
 import hxmc.view.*;
 
@@ -178,6 +179,9 @@ class FidelityTest implements Markup {
 			case "spinner": <Spinner/>;
 			case "resizable": <view height={160}><Split first={<view grow={1} align-items="center" justify="center" padding={24}><text font-weight={600}>One</text></view>}
 					second={<view grow={1} align-items="center" justify="center" padding={24}><text font-weight={600}>Two</text></view>} size={new Signal(150.0)}/></view>;
+			case "calendar" if (c.range != null):
+				var r:DayRange = {from: {year: 2026, month: 10, day: 12}, to: {year: 2026, month: 10, day: 16}};
+				<Calendar range={new Signal(r)} today={{year: 2026, month: 10, day: 17}} firstDay={0}/>;
 			case "calendar": <Calendar value={new Signal({year: 2026, month: 10, day: 12})} today={today} firstDay={0}/>;
 			case "toast": <Toaster placement="top-left"/>;
 			case "field":

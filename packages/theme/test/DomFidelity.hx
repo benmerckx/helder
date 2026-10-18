@@ -2,6 +2,7 @@ import hxmc.ui.widgets.Toasts;
 import hxmc.view.*;
 import hxmc.web.widgets.Widgets.*;
 import hxmc.web.widgets.Widgets.MenuItem;
+import hxmc.web.widgets.Widgets.DayRange;
 import js.Browser.document;
 
 // The bundle dom-fidelity.mjs drives (make theme-dom-check): renderCase(c,
@@ -121,6 +122,9 @@ class DomFidelity implements Markup {
 					]}
 				]}/></div>;
 			case "input-otp": <InputOTP value={new Signal("12")} length={6} groups={[3, 3]}/>;
+			case "calendar" if (c.range != null):
+				var r:DayRange = {from: {year: 2026, month: 10, day: 12}, to: {year: 2026, month: 10, day: 16}};
+				<Calendar range={new Signal(r)} today={{year: 2026, month: 10, day: 17}} firstDay={0}/>;
 			case "calendar": <Calendar value={new Signal({year: 2026, month: 10, day: 12})} today={{year: 2026, month: 10, day: 17}} firstDay={0}/>;
 			case "toast": <Toaster placement="top-left"/>;
 			case "table":

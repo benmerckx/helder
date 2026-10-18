@@ -172,7 +172,8 @@ class App implements Markup {
 - **shadcn's markup.** Each widget is the element shadcn and Radix render:
   a `<button>` for a button, a checkbox (`role="checkbox"`), a switch, a
   tab or a select's trigger; `<input>`, `<textarea>`, `<label for>`,
-  `<table>`, `<nav>`, `<kbd>`; a role where Radix uses a `<div>`
+  `<table>`, `<nav>`, `<kbd>`, `<fieldset>` and `<legend>` (Field), a
+  `<select>` (NativeSelect), `<main>` (SidebarInset); a role where Radix uses a `<div>`
   (`listbox`, `option`, `menu`, `menuitem`, `radiogroup`, `slider`,
   `tree`); `data-slot`, `data-variant`, `data-size`, Radix's `data-state`,
   `data-side`, `data-orientation`, `data-highlighted`, `data-disabled`,
@@ -184,7 +185,10 @@ class App implements Markup {
   the drawn widgets do it: a select opened and chosen, menus and submenus,
   the shortcuts of their items, a combobox, a command menu, dragging (a
   slider, a split, a drawer, a table's column, a sortable list), double
-  clicks, toasts on `Toasts`.
+  clicks, toasts on `Toasts`, a carousel's slides (Embla's look: the track
+  moved by a slide), a navigation menu's panels (Radix's: the pointer
+  moving between open triggers, Escape back to the trigger), a sidebar
+  (Mod+B), a chart's tooltip under the pointer.
 - **Popups in the top layer.** Menus, a select's options, a popover, a
   tooltip, a hover card, a combobox's list: a `popover` element in
   `document.body`, placed by its trigger (flipped where there is no room,
@@ -196,7 +200,7 @@ class App implements Markup {
 - **Unstyled**, as the drawn widgets: the theme's CSS
   (`hxmc.theme.Css`, packages/theme) gives them shadcn's look, the same
   markup and CSS as shadcn's own components, so they look the same in a
-  browser (`make theme-dom-check`: 203 cases against shadcn's references,
+  browser (`make theme-dom-check`: 252 cases against shadcn's references,
   most identical to the pixel). Dark: `class="dark"` on `<html>`, or the
   system's unless `class="light"`; right to left: `dir="rtl"`.
 
@@ -216,7 +220,7 @@ programs for wasm32-wasi beside them):
 | counter | 42 KB | 9 KB | 1.8 MB | 432 KB |
 | form (the sign-up card) | 60 KB | 12 KB | 1.9 MB | 459 KB |
 | gallery | 306 KB | 55 KB | 2.4 MB | 559 KB |
-| the theme's CSS | 132 KB | 13 KB | | |
+| the theme's CSS | 184 KB | 18 KB | | |
 
 A minifier (terser) takes them to 23, 32 and 157 KB (7, 9 and 40 KB
 gzipped). The canvas programs need fonts besides.

@@ -868,6 +868,17 @@
 		"dark": false
 	},
 	{
+		"range": [
+			12,
+			16
+		],
+		"name": "calendar-range",
+		"component": "calendar",
+		"w": 300,
+		"h": 340,
+		"dark": false
+	},
+	{
 		"name": "toast-default",
 		"component": "toast",
 		"w": 372,
@@ -1936,6 +1947,17 @@
 	},
 	{
 		"name": "calendar-default-dark",
+		"component": "calendar",
+		"w": 300,
+		"h": 340,
+		"dark": true
+	},
+	{
+		"range": [
+			12,
+			16
+		],
+		"name": "calendar-range-dark",
 		"component": "calendar",
 		"w": 300,
 		"h": 340,

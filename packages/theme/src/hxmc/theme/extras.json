@@ -13,6 +13,7 @@
 				"relative aspect-square size-(--cell-size) p-0 text-center leading-none font-normal select-none dark:hover:text-accent-foreground",
 				"data-[today=true]:bg-accent data-[today=true]:text-accent-foreground data-[outside=true]:text-muted-foreground",
 				"data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground",
+				"data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:rounded-md data-[range-start=true]:rounded-l-md data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:rounded-md data-[range-end=true]:rounded-r-md data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground",
 				"data-[focused=true]:z-10 data-[focused=true]:border-ring data-[focused=true]:ring-[3px] data-[focused=true]:ring-ring/50"
 			]
 		},

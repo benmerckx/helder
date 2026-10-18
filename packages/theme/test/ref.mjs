@@ -267,16 +267,20 @@ function menu(kind, c, items = [['Profile', 'Ctrl+P'], ['Billing', 'Ctrl+B'], nu
 }
 
 // react-day-picker's markup with shadcn's classNames (calendar-<part>):
-// October 2026 from Sunday, six weeks, the 12th selected, the 17th today
+// October 2026 from Sunday, six weeks, the 12th selected (range: the
+// 12th to the 16th, react-day-picker's range modifiers), the 17th today
 function calendar(c) {
 	const cls = (part, extra = '') => twMerge(lists(sheet.slots['calendar-' + part]).concat(extra));
 	const days = [];
 	for (let i = 0; i < 42; i++) {
 		const date = new Date(2026, 9, 1 - 4 + i), d = date.getDate(), outside = date.getMonth() !== 9;
-		const selected = !outside && d === 12, today = !outside && d === 17;
-		const td = cls('day', [outside ? lists(sheet.slots['calendar-outside']) : [], today ? lists(sheet.slots['calendar-today']) : []].flat().join(' '));
+		const [lo, hi] = c.range ?? [12, 12], selected = !outside && d >= lo && d <= hi, today = !outside && d === 17;
+		const part = !c.range || !selected ? null : d === lo ? 'start' : d === hi ? 'end' : 'middle';
+		const td = cls('day', [outside ? lists(sheet.slots['calendar-outside']) : [], today ? lists(sheet.slots['calendar-today']) : [],
+			part ? lists(sheet.slots['calendar-range-' + part]) : []].flat().join(' '));
 		days.push(`<td class="${td}" role="gridcell"${selected ? ' data-selected="true" aria-selected="true"' : ''}${today ? ' data-today="true"' : ''}${outside ? ' data-outside="true"' : ''}>`
-			+ `<button data-slot="button" class="${cls('day-button')}" type="button" data-day="${date.toLocaleDateString('en-US')}" data-selected-single="${selected}" tabindex="${selected ? 0 : -1}">${d}</button></td>`);
+			+ `<button data-slot="button" class="${cls('day-button')}" type="button" data-day="${date.toLocaleDateString('en-US')}" data-selected-single="${selected && !part}"`
+			+ ['start', 'middle', 'end'].map(p => ` data-range-${p}="${part === p}"`).join('') + ` tabindex="${selected && part !== 'middle' && part !== 'end' ? 0 : -1}">${d}</button></td>`);
 	}
 	const weeks = [0, 1, 2, 3, 4, 5].map(w => `<tr class="${cls('week')}">${days.slice(w * 7, w * 7 + 7).join('')}</tr>`).join('');
 	const button = (part, ic, label) => `<button class="${cls(part)}" aria-label="${label}" type="button">${icon(ic, 'size-4')}</button>`;
@@ -391,6 +395,7 @@ for (const dark of [false, true]) {
 	add('spinner', `default${d}`, { dark });
 	add('resizable', `horizontal${d}`, { dark });
 	add('calendar', `default${d}`, { dark });
+	add('calendar', `range${d}`, { dark, range: [12, 16] });
 	add('toast', `default${d}`, { dark, text: 'Event has been created', action: 'Undo' });
 	add('field', `default${d}`, { dark });
 	for (const variant of ['horizontal', 'vertical']) add('button-group', variant + d, { variant, dark, ...(variant === 'vertical' ? { h: 116 } : {}) });
@@ -500,6 +505,6 @@ for (const c of cases) {
 	} else await page.locator('#frame').screenshot({ path: path.join(out, c.name + '.png') });
 }
 await browser.close();
-const keys = ['name', 'component', 'w', 'h', 'block', 'variant', 'size', 'text', 'placeholder', 'checked', 'on', 'value', 'dark', 'states', 'attrs', 'peerDisabled', 'title', 'description', 'action', 'footer', 'rtl', 'crop', 'fw', 'fh'];
+const keys = ['range', 'name', 'component', 'w', 'h', 'block', 'variant', 'size', 'text', 'placeholder', 'checked', 'on', 'value', 'dark', 'states', 'attrs', 'peerDisabled', 'title', 'description', 'action', 'footer', 'rtl', 'crop', 'fw', 'fh'];
 fs.writeFileSync(path.join(out, 'cases.json'), JSON.stringify(cases.map(c => Object.fromEntries(keys.filter(k => c[k] !== undefined).map(k => [k, c[k]]))), null, '\t') + '\n');
 console.log(`ref: ${cases.length} cases in ${path.relative(process.cwd(), out)}`);
