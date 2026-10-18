@@ -728,7 +728,7 @@ class UiTest {
 		var words = ["a", "bb", "ccc dd", "eeee f gg", "hhhhhhh", "ii jj kk ll mm", "n"];
 		var dims:Array<Dim> = [DimValue.Auto, 30, 70, "50%", "100%"];
 		function restyle(n:Node):String {
-			var s = n.style, k = rnd(20);
+			var s = n.style, k = rnd(22);
 			switch k {
 				case 0: s.width = dims[rnd(dims.length)];
 				case 1: s.height = dims[rnd(dims.length)];
@@ -751,6 +751,8 @@ class UiTest {
 					s.display = Display.Grid;
 					s.gridTemplateColumns = Grid.tracks(["1fr auto", "40px 1fr", "repeat(3, 1fr)", "auto auto"][rnd(4)]);
 				case 18: s.aspectRatio = [0, 1, 2][rnd(3)];
+				case 19: s.shadow = rnd(2) == 0 ? null : Shadow.parse("0 4px 12px rgba(0,0,0,0.5)");
+				case 20: s.transform = rnd(2) == 0 ? null : Transform.parse(["translate(30px, 10px)", "scale(1.5)", "translateX(-40px)"][rnd(3)]);
 				case _:
 					s.position = rnd(4) == 0 ? Position.Absolute : Position.Relative;
 					s.left = rnd(3) * 5;
@@ -761,6 +763,8 @@ class UiTest {
 		var nodes:Array<Node> = [];
 		function make(depth:Int):Node {
 			var n = depth > 0 && rnd(3) == 0 || depth == 3 ? new TextNode(words[rnd(words.length)]) : new Node();
+			// (each drawn: what the window culls by its ink)
+			n.style.background = Color.rgb(0x101010 * (1 + nodes.length % 15));
 			nodes.push(n);
 			if (!Std.isOfType(n, TextNode))
 				for (i in 0...rnd(4))
@@ -784,6 +788,7 @@ class UiTest {
 			for (c in n.children)
 				all(c);
 		}
+		var drawn = 0, drawnFirst = "";
 		for (tree in 0...40) {
 			var ui = new Ui(new MonoText(), 240, 200);
 			ui.root.style.alignItems = Start;
@@ -807,12 +812,18 @@ class UiTest {
 						what = restyle(n);
 				}
 				ui.update();
-				var got = [];
+				var got = [], painted = new Recording();
 				boxes(ui.root, got);
+				ui.paint(painted);
 				all(ui.root);
 				ui.update();
-				var want = [];
+				var want = [], fresh = new Recording();
 				boxes(ui.root, want);
+				ui.paint(fresh);
+				if (painted.calls.join("|") != fresh.calls.join("|")) {
+					drawn++;
+					if (drawnFirst == "") drawnFirst = 'tree $tree step $step ($what on ${n.tag})';
+				}
 				steps++;
 				if (got.join(",") != want.join(",")) {
 					bad++;
@@ -889,6 +900,7 @@ class UiTest {
 		});
 		check("in place: a field typed into laid out alone", typed && after == before + 1, typed + " " + (after - before));
 		var placed = Layout.inPlaces - was;
+		check("in place: drawn as from the root, " + steps + " changes", drawn == 0, drawn + " differ, the first: " + drawnFirst);
 		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
 	}
 
