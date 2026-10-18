@@ -162,7 +162,8 @@ ambient, ACES tone mapping, sRGB output. Nodes drawing the same primitive are dr
 light, fitted to the casters, filtered 3x3). `Shapes.box`, `sphere` and
 `plane` make meshes in code. Skinned meshes need
 `renderer.use(new Skinning(device))`; `renderer.use(new Sky(device))` draws
-a sky behind the scene. Programs draw at injection points:
+a sky behind the scene; `renderer.use(new Particles(device))` draws the
+world's `Emitter`s (simulated by `Particles.update(world, dt)`). Programs draw at injection points:
 `renderer.inject(BeforeOpaque | AfterOpaque | AfterPass, (enc, frame) -> ...)`; features reach the renderer through
 `RenderFeature`, so unused ones are not linked.
 

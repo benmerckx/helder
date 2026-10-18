@@ -19,10 +19,11 @@ import hxmc.scene.render.*;
 //   spot   two spot lights and a point light, no sun
 //   sky    the shadows scene under a sky (Sky, drawn at an injection point)
 //   lazy   the skinned sample loaded in the background (Model.of(path, Lazy))
+//   particles two emitters (Particles, Emitter) after STEPS steps
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -197,6 +198,39 @@ class Scenes {
 					Assets.poll();
 					r.draw(enc, world, camera);
 				};
+			case "particles":
+				// two emitters (a fountain of sparks, a plume) over a floor, at STEPS fixed steps
+				var r = new Renderer(device).use(new Particles(device));
+				renderer = r;
+				var world = new World();
+				var floor = world.node("floor");
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.3, 0.3, 0.33, 1), 0, 0.8), 8));
+				var sparks = world.node("sparks");
+				sparks.position = new Vec3(0, 0.1, 0);
+				var e = Emitter.attach(sparks, new Emitter(7));
+				e.velocity = new Vec3(0, 3, 0);
+				e.rate = 20;
+				e.size = 0.12;
+				e.spread = 0.8;
+				e.gravity = new Vec3(0, -4, 0);
+				var plume = world.node("plume");
+				plume.position = new Vec3(1.4, 0.1, 0);
+				var f = Emitter.attach(plume, new Emitter(11));
+				f.velocity = new Vec3(0, 0.8, 0);
+				f.spread = 0.25;
+				f.gravity = new Vec3(0.1, 0.2, 0);
+				f.color = new hxmc.gfx.shader.Vec4(0.08, 0.16, 0.45, 1);
+				f.size = 0.12;
+				f.endSize = 0.3;
+				f.life = 2.5;
+				f.rate = 12;
+				for (_ in 0...STEPS)
+					Particles.update(world, 1 / 60);
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 1.6, 4.5);
+				eye.lookAt(new Vec3(0, 0.9, 0));
+				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}
 	}
