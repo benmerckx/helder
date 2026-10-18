@@ -81,22 +81,6 @@ class Widgets implements Markup {
 		return svg;
 	}
 
-	// a progress bar (shadcn's, Radix's): value from 0 to 1; null: not known (a bar sliding across)
-	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):View {
-		var known = () -> read(props.value) != null;
-		var frac = () -> {
-			var v:Null<Float> = read(props.value);
-			v == null ? 0.0 : v < 0 ? 0.0 : v > 1 ? 1.0 : v;
-		};
-		return <div id={props.tag} data-slot="progress" role="progressbar" aria-label={props.label} aria-valuemin="0" aria-valuemax="100"
-			aria-valuenow={() -> known() ? Math.round(frac() * 100) : null} data-state={() -> known() ? (frac() >= 1 ? "complete" : "loading") : "indeterminate"}
-			style={props.width == null ? null : 'width:${props.width}px'}>
-			{() -> known() ? <div data-slot="progress-indicator" style={() -> 'transform:translateX(-${100 - frac() * 100}%)'}/> : <div
-				data-slot="progress-indicator" data-state="indeterminate" style="position:absolute;width:40%"
-				ref={n -> (cast n).animate([{left: "-40%"}, {left: "100%"}], {duration: 1500, iterations: Math.POSITIVE_INFINITY})}/>}
-		</div>;
-	}
-
 	// an accordion (shadcn's, Radix's): sections, at most one open (open: its index, -1 none)
 	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
 		var open = props.open ?? signal(-1), base = props.tag ?? Dom.id();

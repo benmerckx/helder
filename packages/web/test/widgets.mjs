@@ -125,6 +125,11 @@ await page.locator('#files').focus();
 await press('ArrowDown');
 await press('ArrowRight');
 await check('tree: Right opens', (await page.locator('#files [role=treeitem]').count()) === 5);
+// progress: not known, a bar sliding across (animation frames)
+const slide = () => page.evaluate(() => document.querySelector('#loading [data-state=indeterminate]')?.style.left ?? '');
+const at = await slide();
+await page.waitForTimeout(200);
+await check('progress: not known, sliding', at !== '' && (await slide()) !== at && (await attr('#loading', 'aria-valuenow')) === null);
 // right to left
 await page.locator('#rtl').click();
 await check('right to left', (await page.evaluate(() => document.documentElement.dir)) === 'rtl');

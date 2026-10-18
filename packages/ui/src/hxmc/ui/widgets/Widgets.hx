@@ -1243,17 +1243,17 @@ class Widgets implements Markup {
 			label: "its name for assistive technology"
 		}
 	})
-	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
-		var known = () -> Render.read(props.value) != null;
+	@:neutral public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
+		var known = () -> read(props.value) != null;
 		var frac = () -> {
-			var v:Null<Float> = Render.read(props.value);
+			var v:Null<Float> = read(props.value);
 			v == null ? 0.0 : v < 0 ? 0.0 : v > 1 ? 1.0 : v;
 		};
 		var phase = signal(0.0), running = false, stopped = false;
 		effect(() -> if (!known() && !running) {
 			running = true;
 			var start = -1.0;
-			Clock.add(now -> {
+			frames(now -> {
 				if (stopped || untrack(known)) return running = false;
 				if (start < 0) start = now;
 				phase.value = ((now - start) % 1.5) / 1.5;
@@ -1261,8 +1261,9 @@ class Widgets implements Markup {
 			});
 		});
 		onCleanup(() -> stopped = true);
-		return <view tag={props.tag ?? "progress"} ref={n -> States.apply(n, props.style)} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
-			slot="progress" width={props.width} overflow="hidden" direction="row">
+		return <view tag={props.tag ?? "progress"} id={props.tag} states={props.style} slot="progress" role="progressbar" label={props.label}
+			value-now={() -> known() ? Math.round(frac() * 100) : null} value-min={0} value-max={100}
+			data-state={() -> known() ? (frac() >= 1 ? "complete" : "loading") : "indeterminate"} width={props.width} overflow="hidden" direction="row">
 			<view slot="progress-indicator" transform={() -> "translateX(" + (-(1 - frac()) * 100) + "%)"}/>
 			{() -> known() ? null : <view tag="progress-slide" slot="progress-indicator" data-state="indeterminate" position="absolute" top={0} bottom={0}
 				width="40%" left={() -> ((phase.value * 1.4 - 0.4) * 100) + "%"}/>}
@@ -2074,6 +2075,17 @@ class Widgets implements Markup {
 		return Behaviour.mirror(e.key, #if js js.Syntax.code("getComputedStyle({0}.current).direction == 'rtl'", e) #else e.current.rtl() #end);
 
 	// (a neutral widget's time, in seconds: Ui.now, a page's the clock's)
+	// (f each frame, given the time in seconds, until it returns false: ui's Clock, a page's animation frames)
+	static function frames(f:Float->Bool) {
+		#if js
+		function step(t:Float)
+			if (f(t / 1000)) js.Browser.window.requestAnimationFrame(step);
+		js.Browser.window.requestAnimationFrame(step);
+		#else
+		Clock.add(f);
+		#end
+	}
+
 	static inline function clock():Float
 		return #if js haxe.Timer.stamp() #else Ui.now() #end;
 

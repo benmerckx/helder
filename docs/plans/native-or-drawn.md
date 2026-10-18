@@ -151,10 +151,11 @@ Split: packages/ui and the drawn realiser here; the DOM realiser
 Where it stands: steps 1 and 2 done; of 3, Toggle, ToggleGroup,
 Checkbox, Switch, RadioGroup, Field and ButtonGroup (and their parts),
 with Alert, Slider and RangeSlider (a drag on the track: Part's
-capture); ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination,
+capture), Progress (its slide on ui's Clock or a page's animation
+frames); ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination,
 Collapsible, Calendar and the Sidebar's parts (Inset, Header, Content,
 Footer, Separator, Group, GroupLabel, GroupContent, Menu, MenuItem,
-MenuButton): 69 widgets and parts one definition. Left in 3: the text fields (`field`: Input, Textarea,
+MenuButton): 70 widgets and parts one definition. Left in 3: the text fields (`field`: Input, Textarea,
 NumberField, InputOTP, InputGroup's input).
 
 Debt: in a page a neutral widget calls a Part's methods (focus, rtl) and
