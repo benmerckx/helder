@@ -133,7 +133,11 @@ class Layout {
 				n.dirty = false;
 				n.relaid = true;
 			}
-		} else if (s.display == Grid) grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform);
+		} else if (s.display == Grid) {
+			// (a grid measured bare: its content's height still within its own min-height, as Chromium's)
+			var least = bh ? Math.max(min(s.minHeight, parentH), edgesV(s)) : minH;
+			grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, least);
+		}
 		else {
 			breakH = bareBreak;
 			flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
@@ -574,7 +578,7 @@ class Layout {
 	// alignSelf (or alignItems). Named areas (gridTemplateAreas, items
 	// placed by their names), no other named lines, no subgrid.
 	function grid(n:Node, w:Float, h:Float, availW:Float, availH:Float, minW:Float, maxW:Float, minH:Float, maxH:Float, padL:Float, padT:Float,
-			padH:Float, padV:Float, perform:Bool) {
+			padH:Float, padV:Float, perform:Bool, least:Float) {
 		var s = n.style, rtl = n.rtl();
 		var innerW = known(w) ? Math.max(0, w - padH) : Math.NaN, innerH = known(h) ? Math.max(0, h - padV) : Math.NaN;
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
@@ -605,15 +609,16 @@ class Layout {
 
 		// the columns: at the content box's width, else at their max-content sizes (then the available width, when that is less)
 		var stretchCols = s.justify == Normal;
-		var cols = tracks(colTracks, items, true, innerW, colGap, stretchCols, innerW, innerH, null);
+		// (its percentages auto while its width is its content's, as Chromium sizes it)
+		var cols = tracks(colTracks, items, true, innerW, innerW, colGap, stretchCols, innerW, innerH, null);
 		var gridW = sum(cols, colGap);
 		if (!known(innerW) && known(availInW) && gridW > availInW + 1e-6) {
-			cols = tracks(colTracks, items, true, availInW, colGap, false, innerW, innerH, null);
+			cols = tracks(colTracks, items, true, availInW, innerW, colGap, false, innerW, innerH, null);
 			gridW = sum(cols, colGap);
 		}
 		var width = known(innerW) ? innerW : clamp(gridW, Math.max(0, minW - padH), maxW - padH);
 		if (!known(innerW) && width > gridW + 1e-6 && stretchCols) {
-			cols = tracks(colTracks, items, true, width, colGap, true, width, innerH, null);
+			cols = tracks(colTracks, items, true, width, innerW, colGap, true, width, innerH, null);
 			gridW = sum(cols, colGap);
 		}
 		// the rows: the items at their columns' widths
@@ -623,9 +628,9 @@ class Layout {
 				it.areaW += cols[i];
 		}
 		var stretchRows = s.alignContent == Normal || s.alignContent == Stretch;
-		var rows = tracks(rowTracks, items, false, innerH, rowGap, stretchRows, width, innerH, cols);
+		var rows = tracks(rowTracks, items, false, innerH, innerH, rowGap, stretchRows, width, innerH, cols);
 		var gridH = sum(rows, rowGap);
-		var height = known(innerH) ? innerH : clamp(gridH, Math.max(0, minH - padV), maxH - padV);
+		var height = known(innerH) ? innerH : clamp(gridH, Math.max(0, (rows.length > 0 ? Math.max(minH, least) : minH) - padV), maxH - padV);
 		var bw = width + padH, bh = height + padV;
 		if (!perform) {
 			rw = bw;
@@ -733,7 +738,7 @@ class Layout {
 		for (it in items)
 			if (it.col + it.colSpan > nCols) nCols = it.col + it.colSpan;
 		var defs = [for (i in 0...nCols) i < s.gridTemplateColumns.length ? s.gridTemplateColumns[i] : s.gridAutoColumns];
-		return sum(tracks(defs, items, true, 0, s.columnGap, false, Math.NaN, Math.NaN, null), s.columnGap);
+		return sum(tracks(defs, items, true, 0, Math.NaN, s.columnGap, false, Math.NaN, Math.NaN, null), s.columnGap);
 	}
 
 	static function sum(sizes:Array<Float>, gap:Float):Float {
@@ -918,17 +923,17 @@ class Layout {
 	}
 
 	// the sizes of one axis's tracks (room: the content box's size on it,
-	// NaN when indefinite; stretch: auto tracks take what is left); the
+	// NaN when indefinite; pct: what percentage tracks are of, NaN: auto; stretch: auto tracks take what is left); the
 	// items' contributions measured with gridW and gridH as their
 	// percentages' base, rows at the columns' sizes (cols)
-	function tracks(defs:Array<Grid.Track>, items:Array<GridItem>, columns:Bool, room:Float, gap:Float, stretch:Bool, gridW:Float, gridH:Float,
+	function tracks(defs:Array<Grid.Track>, items:Array<GridItem>, columns:Bool, room:Float, pct:Float, gap:Float, stretch:Bool, gridW:Float, gridH:Float,
 			cols:Null<Array<Float>>):Array<Float> {
 		var n = defs.length;
 		var base = [for (_ in 0...n) 0.0], limit = [for (_ in 0...n) Math.POSITIVE_INFINITY], flex = [for (_ in 0...n) 0.0];
 		inline function fixed(t:Grid.TrackSize):Float
 			return switch t {
 				case Px(v): v;
-				case Percent(p): known(room) ? room * p / 100 : Math.NaN;
+				case Percent(p): known(pct) ? pct * p / 100 : Math.NaN;
 				case _: Math.NaN;
 			}
 		for (i in 0...n) {
@@ -945,7 +950,7 @@ class Layout {
 		inline function intrinsicMin(i:Int):Bool
 			return switch defs[i].min {
 				case Auto | MinContent | MaxContent: true;
-				case Percent(_): !known(room);
+				case Percent(_): !known(pct);
 				case _: false;
 			}
 		// the items' contributions on this axis (outer sizes); autoMins: their
@@ -955,7 +960,8 @@ class Layout {
 		var mins = [], maxes = [], autoMins = [];
 		for (it in items) {
 			var c = it.node, cs = c.style, m = cs.margin;
-			var given = (columns ? cs.minWidth : cs.minHeight).resolve(columns ? Math.NaN : gridH);
+			// (a percentage of its area, not known yet: auto meanwhile)
+			var given = (columns ? cs.minWidth : cs.minHeight).resolve(Math.NaN);
 			var edges = columns ? mz(m.left) + mz(m.right) : mz(m.top) + mz(m.bottom);
 			var clipped = cs.overflow != Visible ? edges
 				+ (columns ? cs.padding.left + cs.padding.right + cs.borderEdges.left + cs.borderEdges.right : cs.padding.top + cs.padding.bottom

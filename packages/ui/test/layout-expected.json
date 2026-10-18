@@ -1241,6 +1241,28 @@
 		[2, 4, 20, 20],
 		[2, 24, 20, 0]
 	],
+	"grid item percentage min-height while rows are sized": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 68],
+		[0, 0, 300, 68],
+		[0, 68, 300, 0]
+	],
+	"grid basis within its min-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 76],
+		[0, 0, 300, 10],
+		[0, 76, 300, 77],
+		[0, 153, 300, 47]
+	],
+	"grid percentage tracks auto while fit to content": [
+		[0, 0, 300, 200],
+		[0, 0, 49, 10],
+		[-26, 0, 101, 10],
+		[-26, 0, 101, 10],
+		[0, 10, 72, 28],
+		[9, 19, 70, 10],
+		[9, 19, 70, 10]
+	],
 	"grid absolute children in their areas": [
 		[0, 0, 300, 200],
 		[0, 0, 300, 80],
