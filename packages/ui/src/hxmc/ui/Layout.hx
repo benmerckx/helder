@@ -702,33 +702,50 @@ class Layout {
 		var colGap = s.columnGap, rowGap = s.rowGap;
 
 		// the columns: at the content box's width, else at their max-content sizes (then the available width, when that is less)
-		var stretchCols = s.justify == Normal;
-		// (its percentages auto while its width is its content's, as Chromium sizes it)
-		var cols = tracks(colTracks, items, true, innerW, innerW, colGap, stretchCols, innerW, innerH, null);
-		var gridW = sum(cols, colGap);
-		if (!known(innerW) && known(availInW) && gridW > availInW + 1e-6) {
-			cols = tracks(colTracks, items, true, availInW, innerW, colGap, false, innerW, innerH, null);
-			gridW = sum(cols, colGap);
-		}
-		var width = known(innerW) ? innerW : clamp(gridW, Math.max(0, minW - padH), maxW - padH);
-		if (!known(innerW) && width > gridW + 1e-6 && stretchCols) {
-			cols = tracks(colTracks, items, true, width, innerW, colGap, true, width, innerH, null);
-			gridW = sum(cols, colGap);
-		}
-		// the rows: the items at their columns' widths
+		var stretchCols = s.justify == Normal, stretchRows = s.alignContent == Normal || s.alignContent == Stretch;
+		// (an item with an aspect ratio and neither size its own: the columns sized again, its contribution its rows'
+		// height through the ratio, then the rows again, as CSS's grid sizing has it; its height its first rows', as
+		// Chromium's)
+		var again = false;
 		for (it in items) {
-			it.areaW = colGap * (it.colSpan - 1);
-			for (i in it.col...it.col + it.colSpan)
-				it.areaW += cols[i];
+			var cs = it.node.style;
+			if (cs.aspectRatio > 0 && !known(cs.width.resolve(Math.NaN)) && !known(cs.height.resolve(Math.NaN))) again = true;
 		}
-		var stretchRows = s.alignContent == Normal || s.alignContent == Stretch;
-		// (a height laid out, not definite (an auto one within its min- or max-height): the rows sized in an
-		// indefinite room, their percentages of it; stretched to it when it is more (a min-height's), not shrunk
-		// to it when less (a max-height's: the grid overflowing it), as Chromium has it)
-		var rows = tracks(rowTracks, items, false, defH ? innerH : Math.NaN, innerH, rowGap, stretchRows && defH, width, innerH, cols);
-		if (!defH && stretchRows && known(innerH) && innerH > sum(rows, rowGap) + 1e-6)
-			rows = tracks(rowTracks, items, false, innerH, innerH, rowGap, true, width, innerH, cols);
-		var gridH = sum(rows, rowGap);
+		var cols:Array<Float> = null, rows:Array<Float> = null, gridW = 0.0, width = 0.0, gridH = 0.0;
+		for (pass in 0...2) {
+			// (its percentages auto while its width is its content's, as Chromium sizes it)
+			cols = tracks(colTracks, items, true, innerW, innerW, colGap, stretchCols, innerW, innerH, null);
+			gridW = sum(cols, colGap);
+			if (!known(innerW) && known(availInW) && gridW > availInW + 1e-6) {
+				cols = tracks(colTracks, items, true, availInW, innerW, colGap, false, innerW, innerH, null);
+				gridW = sum(cols, colGap);
+			}
+			width = known(innerW) ? innerW : clamp(gridW, Math.max(0, minW - padH), maxW - padH);
+			if (!known(innerW) && width > gridW + 1e-6 && stretchCols) {
+				cols = tracks(colTracks, items, true, width, innerW, colGap, true, width, innerH, null);
+				gridW = sum(cols, colGap);
+			}
+			if (pass == 1 && !perform) break;
+			// the rows: the items at their columns' widths
+			for (it in items) {
+				it.areaW = colGap * (it.colSpan - 1);
+				for (i in it.col...it.col + it.colSpan)
+					it.areaW += cols[i];
+			}
+			// (a height laid out, not definite (an auto one within its min- or max-height): the rows sized in an
+			// indefinite room, their percentages of it; stretched to it when it is more (a min-height's), not shrunk
+			// to it when less (a max-height's: the grid overflowing it), as Chromium has it)
+			rows = tracks(rowTracks, items, false, defH ? innerH : Math.NaN, innerH, rowGap, stretchRows && defH, width, innerH, cols);
+			if (!defH && stretchRows && known(innerH) && innerH > sum(rows, rowGap) + 1e-6)
+				rows = tracks(rowTracks, items, false, innerH, innerH, rowGap, true, width, innerH, cols);
+			if (pass == 0) gridH = sum(rows, rowGap);
+			if (!again || pass == 1) break;
+			for (it in items) {
+				it.areaH = rowGap * (it.rowSpan - 1);
+				for (i in it.row...it.row + it.rowSpan)
+					it.areaH += rows[i];
+			}
+		}
 		var height = known(innerH) ? innerH : clamp(gridH, Math.max(0, (rows.length > 0 ? Math.max(minH, least) : minH) - padV), maxH - padV);
 		var bw = width + padH, bh = height + padV;
 		if (!perform) {
@@ -1073,7 +1090,13 @@ class Layout {
 			var clipped = cs.overflow != Visible ? edges
 				+ (columns ? cs.padding.left + cs.padding.right + cs.borderEdges.left + cs.borderEdges.right : cs.padding.top + cs.padding.bottom
 					+ cs.borderEdges.top + cs.borderEdges.bottom) : Math.NaN;
-			if (columns) {
+			if (columns && known(it.areaH) && cs.aspectRatio > 0 && !known(cs.width.resolve(Math.NaN)) && !known(cs.height.resolve(Math.NaN))) {
+				// (sized again, its rows known: its width through the ratio from their height, within its heights)
+				var ih = clamp(Math.max(0, it.areaH - mz(m.top) - mz(m.bottom)), Math.max(min(cs.minHeight, it.areaH), edgesV(cs)), max(cs.maxHeight, it.areaH));
+				size(c, Math.NaN, ih, Math.NaN, it.areaH, Math.NaN, ih, false);
+				mins.push(rw + mz(m.left) + mz(m.right));
+				maxes.push(mins[mins.length - 1]);
+			} else if (columns) {
 				// (its percentages of its area, not known yet: auto meanwhile)
 				mins.push(minContentWidth(c, Math.NaN, true) + mz(m.left) + mz(m.right));
 				size(c, Math.NaN, Math.NaN, Math.NaN, gridH, Math.NaN, Math.NaN, false);
@@ -1083,7 +1106,12 @@ class Layout {
 				var room2 = Math.max(0, it.areaW - mz(m.left) - mz(m.right));
 				var iw = cs.width.resolve(it.areaW);
 				var jx = cs.justifySelf == Auto ? it.node.parent.style.justifyItems : cs.justifySelf;
-				if (!known(iw) && (jx == Stretch || jx == Auto)) iw = room2;
+				var jy = cs.alignSelf == Auto ? it.node.parent.style.alignItems : cs.alignSelf;
+				var minCW = Math.max(minWidthOf(c, cs.minWidth, it.areaW, room2), edgesH(cs)), maxCW = maxWidthOf(c, cs.maxWidth, it.areaW, room2);
+				// (stretched within its widths; with an aspect ratio and no height its own, at its start, as placed)
+				if (!known(iw) && (jx == Stretch || jx == Auto)) iw = cs.aspectRatio > 0 && !known(cs.height.resolve(Math.NaN)) && (jy == Stretch || jy == Auto)
+					? clamp(Math.min(room2, max(cs.maxHeight, Math.NaN) * cs.aspectRatio), Math.max(minCW, min(cs.minHeight, Math.NaN) * cs.aspectRatio), maxCW)
+					: clamp(room2, minCW, maxCW);
 				size(c, iw, Math.NaN, it.areaW, Math.NaN, known(iw) ? iw : room2, Math.NaN, false);
 				var v = rh + mz(m.top) + mz(m.bottom);
 				mins.push(v);
@@ -1809,6 +1837,8 @@ private class GridItem {
 	public var rowSpan = 1;
 	// its area's width (the columns' sizes, the gaps between)
 	public var areaW = 0.0;
+	// its area's height, once the rows are sized (NaN before)
+	public var areaH = Math.NaN;
 
 	public function new(node:Node)
 		this.node = node;

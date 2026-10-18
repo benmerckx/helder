@@ -7337,5 +7337,85 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "grid columns sized again for an aspect ratio",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid",
+						"width": 2,
+						"gridTemplateColumns": "50px 1fr"
+					},
+					"children": [
+						{
+							"style": {
+								"order": 2,
+								"aspectRatio": 0.5
+							}
+						},
+						{
+							"style": {
+								"borderWidth": 3
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"display": "Grid",
+						"width": 100,
+						"gridTemplateColumns": "auto auto"
+					},
+					"children": [
+						{
+							"style": {
+								"aspectRatio": 0.5
+							}
+						},
+						{
+							"style": {
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"display": "Grid",
+						"width": 300,
+						"gridTemplateColumns": "min-content 1fr"
+					},
+					"children": [
+						{
+							"style": {
+								"aspectRatio": 0.5
+							}
+						},
+						{
+							"style": {
+								"height": 40
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"display": "Grid"
+					},
+					"children": [
+						{
+							"style": {
+								"maxWidth": 40,
+								"aspectRatio": 0.5
+							}
+						}
+					]
+				}
+			]
+		}
 	}
 ]

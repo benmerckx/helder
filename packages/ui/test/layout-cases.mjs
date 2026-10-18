@@ -292,4 +292,10 @@ export const cases = [
 	{ name: 'grid rows in a height laid out', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Center', display: 'Grid' }, children: [{ style: { maxHeight: '50%', display: 'Grid', gridAutoRows: 'minmax(10px, auto)' }, children: [h(60), {}] }] },
 		{ style: { display: 'Grid', gridTemplateRows: '50% 20px', position: 'Absolute' }, children: [{}] },
 		{ style: { aspectRatio: 1, width: 100 }, children: [{ style: { minHeight: '50%', display: 'Grid', position: 'Absolute' }, children: [{}] }] }] } },
+	// (an item with an aspect ratio and neither size its own: the columns sized again from its rows' height through the ratio, the grid's
+	// height its first rows'; its rows' contribution at the width it will have, within its max-width)
+	{ name: 'grid columns sized again for an aspect ratio', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', width: 2, gridTemplateColumns: '50px 1fr' }, children: [{ style: { order: 2, aspectRatio: 0.5 } }, { style: { borderWidth: 3 } }] },
+		{ style: { display: 'Grid', width: 100, gridTemplateColumns: 'auto auto' }, children: [{ style: { aspectRatio: 0.5 } }, h(10)] },
+		{ style: { display: 'Grid', width: 300, gridTemplateColumns: 'min-content 1fr' }, children: [{ style: { aspectRatio: 0.5 } }, h(40)] },
+		{ style: { display: 'Grid' }, children: [{ style: { maxWidth: 40, aspectRatio: 0.5 } }] }] } },
 ];
