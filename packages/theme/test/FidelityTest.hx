@@ -43,6 +43,12 @@ class FidelityTest implements Markup {
 		"combobox-" => "Combobox's popup is a bare command-list (the slot Command's list has too): shadcn's combobox is a Popover holding a Command, its border, background and shadow theirs",
 		"drawer-" => "drawer-content is not marked a group (group/drawer-content): its handle stays hidden, its header left-aligned; and popups do not inherit the body's text-base (the title's 16px)",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
+		"field-" => "a field set's legend is one of its flex items here (gap-6 after it); Chromium lays a fieldset's legend out apart from its content, no gap after it, and the description's [[data-variant=legend]+&]:-mt-1.5 is an arbitrary selector, dropped",
+		"button-group-horizontal" => "the joined buttons' inner corners and borders are arbitrary child selectors ([&>*:not(:first-child)]:rounded-l-none border-l-0, [&>*:not(:last-child)]:rounded-r-none), dropped",
+		"input-group-focus" => "the group's ring is has-[[data-slot=input-group-control]:focus-visible] (an arbitrary selector), dropped; and the caret drawn",
+		"sidebar-expanded" => "Sidebar has no sidebar-gap (shadcn's box holding its width in flow) and sidebar-container no variant: the container, fixed (absolute) in a sidebar of no width, is not seen, the inset in its place",
+		"chart-tooltip" => "the tooltip's swatch is chart-legend-swatch (8px, not the indicator's 10px), a series' name has no slot (shadcn's text-muted-foreground), its value's font-mono no font of the engine's",
+		"native-select-focus" => "NativeSelect holds Select's trigger (select-trigger, its own width, no data-size, the select's focus ring), not shadcn's native-select and native-select-icon",
 	];
 	static inline var SELECT = "Select's own width (160) wins over w-fit; the trigger has no size (data-[size=default]:h-9)";
 
@@ -174,6 +180,96 @@ class FidelityTest implements Markup {
 					second={<view grow={1} align-items="center" justify="center" padding={24}><text font-weight={600}>Two</text></view>} size={new Signal(150.0)}/></view>;
 			case "calendar": <Calendar value={new Signal({year: 2026, month: 10, day: 12})} today={today} firstDay={0}/>;
 			case "toast": <Toaster placement="top-left"/>;
+			case "field":
+				<FieldSet>
+					<FieldLegend text="Profile"/>
+					<FieldDescription text="How others see you."/>
+					<FieldGroup>
+						<Field><FieldLabel text="Name"/><Input value={new Signal("")} placeholder="Ada Lovelace"/><FieldDescription text="Shown on your posts."/></Field>
+						<Field invalid={true}><FieldLabel text="Email"/><Input value={new Signal("not an email")} invalid={true}/><FieldError text="Enter an email address."/></Field>
+						<FieldSeparator/>
+						<Field orientation="horizontal">
+							<FieldContent><FieldLabel text="Newsletter"/><FieldDescription text="A monthly email."/></FieldContent>
+							<Switch checked={new Signal(true)}/>
+						</Field>
+					</FieldGroup>
+				</FieldSet>;
+			case "button-group" if (c.text != null):
+				<ButtonGroup>
+					<Button variant="outline" label="−"/><ButtonGroupText text={text}/><ButtonGroupSeparator/><Button variant="outline" label="+"/>
+				</ButtonGroup>;
+			case "button-group" if (variant == "vertical"):
+				<ButtonGroup orientation="vertical"><Button variant="outline" size="sm" label="In"/><Button variant="outline" size="sm" label="Out"/></ButtonGroup>;
+			case "button-group":
+				<ButtonGroup><Button variant="outline" label="Archive"/><Button variant="outline" label="Report"/><Button variant="outline" label="Snooze"/></ButtonGroup>;
+			case "input-group" if (c.text != null):
+				<InputGroup>
+					<InputGroupAddon><InputGroupText text="https://"/></InputGroupAddon>
+					<InputGroupInput value={new Signal(text)}/>
+					<InputGroupAddon align="inline-end"><InputGroupText text=".com"/></InputGroupAddon>
+				</InputGroup>;
+			case "input-group":
+				<InputGroup>
+					<InputGroupInput value={new Signal("")} placeholder="Search"/>
+					<InputGroupAddon align="inline-end"><Button variant="ghost" size="sm" label="Clear"/></InputGroupAddon>
+				</InputGroup>;
+			case "empty":
+				<Empty>
+					<EmptyHeader>
+						<EmptyMedia variant="icon"><image src={icon(FOLDER)} width={24} height={24}/></EmptyMedia>
+						<EmptyTitle text="No projects yet"/>
+						<EmptyDescription text="You haven't made a project. Start with your first one."/>
+					</EmptyHeader>
+					<EmptyContent><Button label="Create a project"/></EmptyContent>
+				</Empty>;
+			case "item" if (variant == "muted"):
+				<Item variant="muted" size="sm" onClick={() -> {}}>
+					<ItemContent><ItemTitle text="Grace Hopper"/><ItemDescription text="Wrote the first compiler."/></ItemContent>
+				</Item>;
+			case "item":
+				<Item variant="outline">
+					<ItemMedia variant="icon"><text>A</text></ItemMedia>
+					<ItemContent><ItemTitle text="Ada Lovelace"/><ItemDescription text="Wrote the first program."/></ItemContent>
+					<ItemActions><Button variant="outline" size="sm" label="Invite"/></ItemActions>
+				</Item>;
+			case "carousel":
+				var slides:Array<Any> = [for (n in 1...4) <view slot="slide"><text>{Std.string(n)}</text></view>];
+				<Carousel slides={slides}/>;
+			case "navigation-menu":
+				function link(t:String, d:String):View
+					return <view slot="navigation-menu-link" role="link" focusable><text slot="nav-title">{t}</text><text slot="nav-description">{d}</text></view>;
+				function panel(links:Array<View>):View
+					return <view width={300} row-gap={8}>{links}</view>;
+				var items:Array<{label:String, ?render:Void->Any, ?onSelect:Void->Void}> = [
+					{label: "Getting started", render: () -> panel([link("Introduction", "What it is and why."), link("Installation", "How to add it.")])},
+					{label: "Components", render: () -> panel([link("Button", "Pressed to act.")])}
+				];
+				<NavigationMenu items={items}/>;
+			case "sidebar":
+				<SidebarProvider open={new Signal(variant != "icon")}>
+					<Sidebar collapsible="icon">
+						<SidebarHeader><text font-weight={600}>Mail</text></SidebarHeader>
+						<SidebarContent>
+							<SidebarGroup>
+								<SidebarGroupLabel text="Folders"/>
+								<SidebarGroupContent><SidebarMenu>{[
+									for (i in 0...3)
+										<SidebarMenuItem><SidebarMenuButton label={["Inbox", "Drafts", "Sent"][i]} active={i == 0}><image src={icon(CIRCLE)} width={16} height={16}/></SidebarMenuButton></SidebarMenuItem>
+								]}</SidebarMenu></SidebarGroupContent>
+							</SidebarGroup>
+						</SidebarContent>
+						<SidebarFooter><text>Signed in</text></SidebarFooter>
+					</Sidebar>
+					<SidebarInset><view direction="row" align-items="center" column-gap={8}><SidebarTrigger/><text>Inbox</text></view></SidebarInset>
+				</SidebarProvider>;
+			case "chart-tooltip" | "chart-legend":
+				<BarChart labels={["Jan", "Feb", "Mar", "Apr", "May", "Jun"]}
+					series={[{name: "Desktop", values: [186, 305, 237, 73, 209, 214]}, {name: "Mobile", values: [80, 200, 120, 190, 130, 140]}]}/>;
+			case "aspect-ratio":
+				<AspectRatio ratio={16 / 9}><view grow={1} align-items="center" justify="center"><text slot="ar-text">16 : 9</text></view></AspectRatio>;
+			case "scroll-area":
+				<ScrollArea width={200} height={200}><view slot="sa-list">{[for (i in 0...50) <text>{"v1.2.0-beta." + (50 - i)}</text>]}</view></ScrollArea>;
+			case "native-select": <NativeSelect value={new Signal("todo")} options={["todo", "doing", "done"]} labels={["To do", "In progress", "Done"]}/>;
 			case _: null;
 		}
 	}
@@ -205,6 +301,14 @@ class FidelityTest implements Markup {
 				ui.keyDown(Key.DOWN, 0);
 				ui.keyUp(Key.DOWN, 0);
 			case "toast": Toasts.show(c.text, {action: c.action, duration: 0});
+			case "navigation-menu" if (c.crop != null): click(find(ui.root, "navigation-menu-trigger"));
+			case "chart-legend":
+				// (the legend alone, as its reference: the axis above it out of its margin)
+				find(ui.root, "chart-x-axis").style.visibility = hxmc.ui.Visibility.Hidden;
+			case "chart-tooltip":
+				// (the pointer over February's bars)
+				var n = find(ui.root, "chart-plot");
+				ui.pointerMove(n.absX + n.width * 1.5 / 6, n.absY + n.height / 2);
 			case "skeleton":
 				var n = ui.root.find("round");
 				n.style.radius = 1e6;
@@ -219,7 +323,14 @@ class FidelityTest implements Markup {
 	static var EXTRA:Map<String, Array<Rule>>;
 
 	// (the node a case's states are on: the component's main slot)
-	static final TARGET = ["radio-group" => "radio-group-item", "slider" => "slider-thumb", "tabs" => "tabs-trigger", "select" => "select-trigger"];
+	static final TARGET = ["input-group" => "input-group-control", "radio-group" => "radio-group-item", "slider" => "slider-thumb", "tabs" => "tabs-trigger", "select" => "select-trigger"];
+
+	// lucide's icons (ISC) the cases draw, as their references
+	static inline var FOLDER = '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>';
+	static inline var CIRCLE = '<circle cx="12" cy="12" r="10"/>';
+
+	static function icon(paths:String):Svg
+		return Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">$paths</svg>');
 
 	static function find(n:Node, slot:String):Null<Node> {
 		if (n.slot == slot) return n;
@@ -243,7 +354,16 @@ class FidelityTest implements Markup {
 
 	static function main() {
 		var args = Sys.args();
-		EXTRA = ["command" => hxmc.theme.Tw.rules("command", "rounded-lg border border-border shadow-md md:min-w-[450px]")];
+		EXTRA = [
+			"command" => hxmc.theme.Tw.rules("command", "rounded-lg border border-border shadow-md md:min-w-[450px]"),
+			"carousel" => hxmc.theme.Tw.rules("carousel", "mx-12 w-[200px]")
+				.concat(hxmc.theme.Tw.rules("slide", "flex h-[120px] items-center justify-center rounded-lg border border-border text-3xl font-semibold")),
+			"navigation-menu" => hxmc.theme.Tw.rules("nav-title", "text-sm leading-none font-medium")
+				.concat(hxmc.theme.Tw.rules("nav-description", "line-clamp-2 text-sm leading-snug text-muted-foreground")),
+			"sidebar" => hxmc.theme.Tw.rules("sidebar-wrapper", "min-h-0 h-full").concat(hxmc.theme.Tw.rules("sidebar-container", "h-auto")),
+			"aspect-ratio" => hxmc.theme.Tw.rules("aspect-ratio", "rounded-lg bg-muted").concat(hxmc.theme.Tw.rules("ar-text", "text-sm text-muted-foreground")),
+			"scroll-area" => hxmc.theme.Tw.rules("scroll-area", "rounded-md border border-border").concat(hxmc.theme.Tw.rules("sa-list", "flex flex-col gap-2 p-3 text-sm"))
+		];
 		var cases:Array<Dynamic> = haxe.Json.parse(sys.io.File.getContent(args[0] + "/cases.json"));
 		var device = Device.create(Surface.headless(W, H));
 		var r = new Renderer(device);
