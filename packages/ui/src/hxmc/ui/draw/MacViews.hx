@@ -17,7 +17,9 @@ import hxmc.unsafe.*;
 // moveDown:); each queued and a frame asked for. In the node's font (by
 // family, else the system's), colour and alignment; a password's an
 // NSSecureTextField (the field made again when that changes); a text area
-// stays drawn.
+// stays drawn. Menus: an NSMenu popped up at the next poll (its own loop
+// until chosen or dismissed), each item's tag its id, its action the
+// delegate's hxmcMenuPick:.
 class MacViews implements PlatformViews {
 	static var delegateClass = Ptr.nil();
 	static var delegate = Ptr.nil();
@@ -26,6 +28,11 @@ class MacViews implements PlatformViews {
 	final view:Ptr;
 	final ui:Ui;
 	final queue:Array<{e:MacEditor, kind:Int, key:Int, mods:Int}> = [];
+	// (a menu asked for: shown at the next poll; the item chosen in it)
+	var pending:Null<{items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void}> = null;
+	static var picked = -1;
+	// (the menu up, while it is: what a test acts on)
+	static var shown = Ptr.nil();
 
 	public function new(view:Ptr, ui:Ui) {
 		this.view = view;
@@ -36,6 +43,7 @@ class MacViews implements PlatformViews {
 			Runtime.class_addMethod(d, ObjC.sel("controlTextDidBeginEditing:"), Callback.addr(began), Mem.cstr("v@:@"));
 			Runtime.class_addMethod(d, ObjC.sel("controlTextDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
 			Runtime.class_addMethod(d, ObjC.sel("control:textView:doCommandBySelector:"), Callback.addr(command), Mem.cstr("c@:@@:"));
+			Runtime.class_addMethod(d, ObjC.sel("hxmcMenuPick:"), Callback.addr(pick), Mem.cstr("v@:@"));
 			Runtime.objc_registerClassPair(d);
 			delegateClass = d;
 			delegate = Msg.id(Msg.id(d, ObjC.sel("alloc")), ObjC.sel("init"));
@@ -76,7 +84,62 @@ class MacViews implements PlatformViews {
 		ui.requestFrame();
 	}
 
+	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool {
+		if (pending != null) pending.chosen(-1);
+		pending = {items: items, x: x, y: y, chosen: chosen};
+		ui.requestFrame();
+		return true;
+	}
+
+	// (an NSMenu of the items: enabled as given, checked as NSControlStateValueOn)
+	static function nsMenu(items:Array<PlatformMenuItem>):Ptr {
+		var t = ObjC.str("");
+		var m = Msg.idPtr(Msg.id(ObjC.cls("NSMenu"), ObjC.sel("alloc")), ObjC.sel("initWithTitle:"), t);
+		Msg.vBool(m, ObjC.sel("setAutoenablesItems:"), false);
+		for (it in items) {
+			if (it.separator == true) {
+				Msg.vPtr(m, ObjC.sel("addItem:"), Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("separatorItem")));
+				continue;
+			}
+			var title = ObjC.str(it.label);
+			var item = Msg.idPtrPtrPtr(Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("alloc")), ObjC.sel("initWithTitle:action:keyEquivalent:"), title,
+				it.items == null ? ObjC.sel("hxmcMenuPick:") : Ptr.nil(), t);
+			ObjC.release(title);
+			Msg.vPtr(item, ObjC.sel("setTarget:"), delegate);
+			Msg.vInt(item, ObjC.sel("setTag:"), it.id);
+			Msg.vBool(item, ObjC.sel("setEnabled:"), it.disabled != true);
+			if (it.checked == true) Msg.vInt(item, ObjC.sel("setState:"), 1);
+			if (it.items != null) {
+				var sub = nsMenu(it.items);
+				Msg.vPtr(item, ObjC.sel("setSubmenu:"), sub);
+				ObjC.release(sub);
+			}
+			Msg.vPtr(m, ObjC.sel("addItem:"), item);
+			ObjC.release(item);
+		}
+		ObjC.release(t);
+		return m;
+	}
+
 	public function poll() {
+		if (pending != null) {
+			var p = pending;
+			pending = null;
+			var m = nsMenu(p.items);
+			picked = -1;
+			// (the view's points, y up)
+			var b = Msg.rect(view, ObjC.sel("bounds")), flipped = Msg.b(view, ObjC.sel("isFlipped"));
+			Arena.scoped(a -> {
+				var pt = a.make(hxmc.os.objc.CGPoint);
+				pt.value.x = p.x;
+				pt.value.y = flipped ? p.y : b.size.height - p.y;
+				shown = m;
+				AkMsg.bPtrPointPtr(m, ObjC.sel("popUpMenuPositioningItem:atLocation:inView:"), Ptr.nil(), pt.value, view);
+				shown = Ptr.nil();
+			});
+			ObjC.release(m);
+			p.chosen(picked);
+		}
 		while (queue.length > 0) {
 			var q = queue.shift(), e = q.e, l = e.listener;
 			if (l == null) continue;
@@ -101,6 +164,9 @@ class MacViews implements PlatformViews {
 			if (@:privateAccess e.field == field) return e;
 		return null;
 	}
+
+	@:hxmc.callback static function pick(self:Ptr, cmd:Ptr, item:Ptr)
+		picked = Msg.i(item, ObjC.sel("tag")).toInt();
 
 	@:hxmc.callback static function changed(self:Ptr, cmd:Ptr, note:Ptr) {
 		var e = of(Msg.id(note, ObjC.sel("object")));

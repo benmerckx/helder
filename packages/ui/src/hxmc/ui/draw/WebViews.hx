@@ -40,6 +40,10 @@ class WebViews implements PlatformViews {
 		return e;
 	}
 
+	// (a page has no menus of its own to show: the drawn one)
+	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool
+		return false;
+
 	@:allow(hxmc.ui.draw.WebEditor) function forget(h:Int)
 		editors.remove(h);
 

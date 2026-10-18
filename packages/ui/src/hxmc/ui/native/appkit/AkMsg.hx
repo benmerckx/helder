@@ -1,5 +1,6 @@
 package hxmc.ui.native.appkit;
 
+import hxmc.os.objc.CGPoint;
 import hxmc.os.objc.CGRect;
 import hxmc.os.objc.CGSize;
 import hxmc.unsafe.*;
@@ -32,6 +33,8 @@ class AkMsg {
 	static function vRectPtr(self:Ptr, sel:Ptr, r:CGRect, a:Ptr):Void;
 	static function bPtrBool(self:Ptr, sel:Ptr, a:Ptr, b:Bool):Bool;
 	static function bPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Bool;
+	static function bPtrPointPtr(self:Ptr, sel:Ptr, a:Ptr, p:CGPoint, b:Ptr):Bool;
+	static function vPtrPtrFloatPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Float, d:Ptr):Void;
 	static function i(self:Ptr, sel:Ptr):Int64;
 	static function f(self:Ptr, sel:Ptr):Float;
 	static function size(self:Ptr, sel:Ptr):CGSize;

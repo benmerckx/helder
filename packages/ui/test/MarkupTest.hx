@@ -116,6 +116,7 @@ class MarkupTest implements Markup {
 		listbox();
 		toolbar();
 		carousel();
+		nativeMenu();
 		navigation();
 		tagInput();
 		unstyled();
@@ -762,6 +763,46 @@ class MarkupTest implements Markup {
 		ui.pointerUp(under.absX + 2, under.absY + 2, 1);
 		ui.update();
 		check("toolbar: a click focuses and presses it", ui.focus == under && pressed.join(",") == "under", pressed.join(","));
+	}
+
+	// a context menu native where the platform has menus: its items as the
+	// platform's, one chosen as from the drawn menu; drawn by policy
+	static function nativeMenu() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var views = new UiTest.FakeViews();
+		ui.platform = views;
+		var copied = 0, wrap = signal(false);
+		Render.render(<view padding={10}>
+			<ContextMenu tag="cm" items={[
+				{label: "Edit", heading: true},
+				{label: "Copy", shortcut: "Mod+C", onSelect: () -> copied++},
+				{label: "", separator: true},
+				{label: "Wrap", checked: wrap},
+				{label: "More", items: [{label: "Deeper", onSelect: () -> copied += 10}]}
+			]}><view tag="area" width={100} height={40}/></ContextMenu>
+		</view>, ui.root);
+		ui.update();
+		var area = ui.root.find("area");
+		ui.pointerDown(area.absX + 5, area.absY + 6, 3);
+		ui.pointerUp(area.absX + 5, area.absY + 6, 3);
+		ui.update();
+		var m = views.menus[0];
+		check("native menu: asked of the platform where it was pressed", views.menus.length == 1 && m.x == area.absX + 5 && m.y == area.absY + 6);
+		var it = m == null ? [] : m.items;
+		check("native menu: its items (a heading disabled, the shortcut's label, a separator, checked, a submenu)",
+			it.length == 5 && it[0].disabled && it[1].label == "Copy" && it[1].shortcut == Shortcut.parse("Mod+C").label() && it[2].separator
+			&& it[3].checked == false && it[4].items.length == 1 && it[4].items[0].label == "Deeper");
+		m.chosen(it[1].id);
+		m.chosen(it[3].id);
+		m.chosen(it[4].items[0].id);
+		m.chosen(-1);
+		check("native menu: chosen as from the drawn menu", copied == 11 && wrap.value, copied + " " + wrap.value);
+		check("native menu: no drawn popup", ui.overlay.children.length == 0);
+		ui.policy["context-menu"] = Host.Drawn;
+		ui.pointerDown(area.absX + 5, area.absY + 6, 3);
+		ui.pointerUp(area.absX + 5, area.absY + 6, 3);
+		ui.update();
+		check("native menu: drawn by policy", views.menus.length == 1 && ui.overlay.children.length > 0);
 	}
 
 	// a carousel: Next, the keys, the ends disabled, a wheel's scroll settling on a slide

@@ -381,7 +381,7 @@ In a drawn window a widget can also be the platform's own control
 (docs/plans/native-or-drawn.md): `host` on a node (`Auto`, `Native`,
 `Drawn`; markup's `host="native"`) holds for its subtree, and where the
 tree leaves it `Auto` the window's `Ui.policy` decides per kind of widget
-(`"text-field"` and `"text-area"`: native, the plan's defaults). Native
+(`"text-field"`, `"text-area"` and `"context-menu"`: native, the plan's defaults). Native
 needs the window's `Ui.platform` (`PlatformViews`); without one, or for a
 kind it lacks, the widget is drawn. Text fields and areas first: the
 platform's editor sits over the field's content box, borderless and
@@ -394,9 +394,14 @@ browser the editors are the page's input and textarea over the canvas
 (`WebViews`; `web-field.mjs` drives them in Chromium); on Windows EDIT
 controls, children of the window, coloured through WM_CTLCOLOREDIT with the
 background behind them (`WinViews`; `WinAccessTest`); on macOS
-NSTextFields over the window's content view, in the system's font, a text
-area staying drawn (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
-and Android draw them still. InputOTP keeps its field drawn.
+NSTextFields over the window's content view (a password's an
+NSSecureTextField) in the field's font, colour and alignment, a text area
+staying drawn (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
+and Android draw them still. InputOTP keeps its field drawn. A context
+menu is the platform's menu where it has one (`PlatformViews.menu`: its
+items, separators, checked and disabled ones, submenus and shortcuts'
+labels; one chosen as from the drawn menu): Windows' popup menu, macOS's
+NSMenu; the browser and Linux keep the drawn one.
 
 ## Accessibility
 

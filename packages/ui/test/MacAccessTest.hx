@@ -3,10 +3,12 @@ import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
+import hxmc.view.Flow.*;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
+import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.unsafe.*;
 
 // hxmc.ui's accessibility on macOS (MacAccess; CI's macOS job): a window of
@@ -17,9 +19,23 @@ import hxmc.unsafe.*;
 // field native (MacViews: an NSTextField over the window): the program's
 // text in it, an edit (its delegate told, as AppKit tells it) in the
 // field's signal, Tab left to the window moving its focus on; made a
-// password, an NSSecureTextField with the same text.
+// password, an NSSecureTextField with the same text. A context menu native
+// (an NSMenu popped up: its first item performed and its tracking ended
+// from the run loop's tracking mode, as a user's choice), its item chosen.
 //   MacAccessTest
 class MacAccessTest implements Markup {
+	// (the menu seen up)
+	static var menuFound = false;
+
+	// (from the menu's tracking loop: its first item chosen, the tracking ended)
+	@:hxmc.callback static function menuPick(self:Ptr, cmd:Ptr, arg:Ptr) {
+		var m = @:privateAccess hxmc.ui.draw.MacViews.shown;
+		if (m.isNull()) return;
+		menuFound = true;
+		Msg.vInt(m, ObjC.sel("performActionForItemAtIndex:"), 0);
+		Msg.v(m, ObjC.sel("cancelTracking"));
+	}
+
 	static var failed = 0;
 	static var checks = 0;
 	// (a point passed by value)
@@ -42,13 +58,16 @@ class MacAccessTest implements Markup {
 
 	static function main() {
 		var w = new UiWindow("MacAccessTest", 320, 240);
-		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal("");
+		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "";
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
 			<Input tag="name" value={name} placeholder="Name"/>
+			<Show when={menuOn}><ContextMenu tag="cm" items={[{label: "Copy", onSelect: () -> menuChosen += "copy"}, {label: "Paste", onSelect: () -> menuChosen += "paste"}]}>
+				<view tag="cm-area" width={60} height={20}/>
+			</ContextMenu></Show>
 		</view>, w.root);
 		var view = w.window.surface.handle;
 		var frames = 0, step = 0;
@@ -126,7 +145,29 @@ class MacAccessTest implements Markup {
 						check("a password: an NSSecureTextField", str(field, "class") == "NSSecureTextField", str(field, "class"));
 						check("a password: the text kept", @:privateAccess eds[0].text() == "Adax", @:privateAccess eds[0].text());
 					}
+					menuOn.value = true;
 					step = 6;
+				case 6:
+					var area = w.root.find("cm-area");
+					if (area != null) {
+						// (the pick scheduled in the tracking mode: the menu's loop runs it)
+						var d = Runtime.objc_allocateClassPair(ObjC.cls("NSObject"), Mem.cstr("HxmcMenuTest"), 0);
+						Runtime.class_addMethod(d, ObjC.sel("pick:"), Callback.addr(menuPick), Mem.cstr("v@:@"));
+						Runtime.objc_registerClassPair(d);
+						var o = Msg.id(Msg.id(d, ObjC.sel("alloc")), ObjC.sel("init"));
+						var mode = ObjC.str("NSEventTrackingRunLoopMode");
+						var modes = Msg.idPtr(ObjC.cls("NSArray"), ObjC.sel("arrayWithObject:"), mode);
+						hxmc.ui.native.appkit.AkMsg.vPtrPtrFloatPtr(o, ObjC.sel("performSelector:withObject:afterDelay:inModes:"), ObjC.sel("pick:"), Ptr.nil(), 0.3, modes);
+						w.ui.pointerDown(area.absX + 4, area.absY + 4, 3);
+						w.ui.pointerUp(area.absX + 4, area.absY + 4, 3);
+					}
+					step = 7;
+				case 7:
+					step = 8;
+				case 8:
+					check("a native context menu: its NSMenu shown", menuFound);
+					check("a native context menu: its first item chosen", menuChosen == "copy", menuChosen);
+					step = 9;
 					w.close();
 				case _:
 			}
@@ -135,6 +176,6 @@ class MacAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('MacAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 16 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 18 ? 0 : 1);
 	}
 }

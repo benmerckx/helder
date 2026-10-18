@@ -14,7 +14,10 @@ import hxmc.unsafe.*;
 // frame asked of the window, whose next layout polls them. The window
 // answers WM_CTLCOLOREDIT with each one's text colour and the background
 // behind it (an EDIT cannot be transparent). Its alignment a style an EDIT
-// takes when made: one made again when the node's changes.
+// takes when made: one made again when the node's changes. Menus: a popup
+// menu (CreatePopupMenu, a submenu's MF_POPUP) tracked at the next poll
+// (TrackPopupMenuEx: its own loop until chosen or dismissed), its command
+// an item's id plus one.
 @:hxmc.c @:hxmc.lib("user32") extern class WinEdit {
 	static function SetWindowLongPtrW(hwnd:Ptr, index:Int, value:Ptr):Ptr;
 	static function GetWindowLongPtrW(hwnd:Ptr, index:Int):Int64;
@@ -22,6 +25,10 @@ import hxmc.unsafe.*;
 	static function SetFocus(hwnd:Ptr):Ptr;
 	static function GetFocus():Ptr;
 	static function InvalidateRect(hwnd:Ptr, rect:Ptr, erase:Int):Int;
+	static function CreatePopupMenu():Ptr;
+	static function AppendMenuW(menu:Ptr, flags:Int, id:Int64, item:Ptr):Int;
+	static function TrackPopupMenuEx(menu:Ptr, flags:Int, x:Int, y:Int, hwnd:Ptr, params:Ptr):Int;
+	static function DestroyMenu(menu:Ptr):Int;
 }
 
 @:hxmc.c @:hxmc.lib("gdi32") extern class WinEditGdi {
@@ -37,6 +44,8 @@ class WinViews implements PlatformViews {
 	// (the window's pixels per layout pixel)
 	final scale:Void->Float;
 	final queue:Array<{e:WinEditor, kind:Int, key:Int, mods:Int}> = [];
+	// (a menu asked for: shown at the next poll)
+	var pending:Null<{items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void}> = null;
 
 	public function new(hwnd:Ptr, ui:Ui, scale:Void->Float) {
 		this.hwnd = hwnd;
@@ -66,7 +75,51 @@ class WinViews implements PlatformViews {
 		ui.requestFrame();
 	}
 
+	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool {
+		if (pending != null) pending.chosen(-1);
+		pending = {items: items, x: x, y: y, chosen: chosen};
+		ui.requestFrame();
+		return true;
+	}
+
+	// (the menu's items appended: MF_STRING, MF_GRAYED 1, MF_CHECKED 8,
+	// MF_POPUP 0x10, MF_SEPARATOR 0x800; "&" doubled, not a mnemonic; the
+	// shortcut after a tab, at the right)
+	static function fill(m:Ptr, items:Array<PlatformMenuItem>) {
+		for (it in items) {
+			if (it.separator == true) {
+				WinEdit.AppendMenuW(m, 0x800, 0, Ptr.nil());
+				continue;
+			}
+			var text = StringTools.replace(it.label, "&", "&&") + (it.shortcut == null ? "" : "\t" + it.shortcut);
+			var flags = (it.disabled == true ? 1 : 0) | (it.checked == true ? 8 : 0);
+			if (it.items != null) {
+				var sub = WinEdit.CreatePopupMenu();
+				fill(sub, it.items);
+				Arena.scoped(a -> WinEdit.AppendMenuW(m, flags | 0x10, sub.toI64(), a.wstring(text)));
+			} else Arena.scoped(a -> WinEdit.AppendMenuW(m, flags, it.id + 1, a.wstring(text)));
+		}
+	}
+
 	public function poll() {
+		if (pending != null) {
+			var p = pending;
+			pending = null;
+			var m = WinEdit.CreatePopupMenu();
+			fill(m, p.items);
+			var k = scale();
+			var at = Arena.scopedValue(a -> {
+				var pt = a.make(hxmc.os.win32.User32.POINT);
+				pt.value.x = Math.round(p.x * k);
+				pt.value.y = Math.round(p.y * k);
+				User32.ClientToScreen(hwnd, pt);
+				[pt.value.x, pt.value.y];
+			});
+			// TPM_RETURNCMD | TPM_RIGHTBUTTON
+			var r = WinEdit.TrackPopupMenuEx(m, 0x100 | 0x2, at[0], at[1], hwnd, Ptr.nil());
+			WinEdit.DestroyMenu(m);
+			p.chosen(r > 0 ? r - 1 : -1);
+		}
 		while (queue.length > 0) {
 			var q = queue.shift(), e = q.e, l = e.listener;
 			if (l == null) continue;

@@ -1804,7 +1804,9 @@ class Widgets implements Markup {
 	// click on them where it was pressed, or by the menu key or Shift+F10
 	// when the focus is in them (at their top left, the first item focused);
 	// a press elsewhere, Escape or Tab closes it. The items' shortcuts work
-	// while the focus is in the children. Slots (shadcn's)
+	// while the focus is in the children. Native where the window's platform
+	// has menus (Ui.hostOf "context-menu": Windows' and macOS's), the same
+	// items chosen alike. Slots (shadcn's)
 	// "context-menu-content", "context-menu-item", "context-menu-shortcut"
 	@:widget({
 		popup: true,
@@ -1831,6 +1833,11 @@ class Widgets implements Markup {
 		var items:Array<Node> = [];
 		var self:Node = null, atX = 0.0, atY = 0.0;
 		function show(x:Float, y:Float) {
+			var ui = self.ui;
+			if (ui != null && ui.hostOf(self, "context-menu") == Native) {
+				var all:Array<MenuItem> = [];
+				if (ui.platform.menu(nativeMenu(props.items, all), x, y, id -> if (id >= 0 && id < all.length) chooseItem(all[id]))) return;
+			}
 			atX = x;
 			atY = y;
 			// (open again where it was asked: a second right click moves it)
@@ -1854,6 +1861,33 @@ class Widgets implements Markup {
 				{menuItems("context-menu", tag, props.label, props.items, open, items)}
 			</Popover>
 		</view>;
+	}
+
+	// (a menu's items as a native menu's, each chosen one's id its place in all)
+	static function nativeMenu(items:Array<MenuItem>, all:Array<MenuItem>):Array<PlatformMenuItem>
+		return [
+			for (it in items) {
+				var id = all.length;
+				all.push(it);
+				var checked = it.checked != null ? it.checked.peek() : it.radio != null ? it.radio.group.peek() == it.radio.value : null;
+				({
+					id: id,
+					label: it.label,
+					shortcut: it.shortcut == null ? null : Shortcut.parse(it.shortcut).label(),
+					disabled: it.disabled == true || it.heading == true,
+					checked: checked,
+					separator: it.separator,
+					items: it.items == null ? null : nativeMenu(it.items, all)
+				} : PlatformMenuItem);
+			}
+		];
+
+	// (an item chosen from a native menu: as from the drawn one)
+	static function chooseItem(it:MenuItem) {
+		if (it.disabled == true || it.items != null) return;
+		if (it.checked != null) it.checked.value = !it.checked.peek();
+		if (it.radio != null) it.radio.group.value = it.radio.value;
+		if (it.onSelect != null) it.onSelect();
 	}
 
 	// a toggle group (shadcn's): one of options (labels: what each shows),

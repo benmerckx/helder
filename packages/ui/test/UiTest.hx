@@ -2371,6 +2371,13 @@ class FakeViews implements PlatformViews {
 	}
 
 	public function poll() {}
+
+	public final menus:Array<{items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void}> = [];
+
+	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool {
+		menus.push({items: items, x: x, y: y, chosen: chosen});
+		return true;
+	}
 }
 
 class FakeEditor implements PlatformEditor {
