@@ -16,7 +16,8 @@ import hxmc.unsafe.*;
 // Back ends: the browser's Gamepad API (navigator.getGamepads, in that
 // layout already); Linux's joystick devices (/dev/input/js0 to js3, read
 // without waiting; the xpad driver's numbering, an Xbox pad's, mapped to
-// the standard one). Elsewhere (Windows, macOS, Android, iOS) none yet:
+// the standard one); XInput on Windows (xinput1_4.dll). Elsewhere (macOS,
+// Android, iOS) none yet:
 // count() is 0. set() feeds a pad from a program (an on-screen stick, a
 // test), which poll then leaves alone.
 class Gamepads {
@@ -74,7 +75,7 @@ class Gamepads {
 		#if (hxmc.target == "wasm32-wasi")
 		pollWeb();
 		#elseif !eval
-		if (Mem.os() == 0) pollLinux();
+		if (Mem.os() == 0) pollLinux() else if (Mem.os() == 2) pollWindows();
 		#end
 	}
 
@@ -138,6 +139,36 @@ class Gamepads {
 					k += 8;
 				}
 				if (n < events.length) break;
+			}
+		}
+	}
+
+	// (Windows: XInput's state of each pad)
+	static final xstate = Bytes.alloc(16);
+	// XInput's button bits in the standard order (the guide has none)
+	static final XBITS = [0x1000, 0x2000, 0x4000, 0x8000, 0x100, 0x200, -1, -1, 0x20, 0x10, 0x40, 0x80, 0x1, 0x2, 0x4, 0x8, -1];
+
+	static function pollWindows() {
+		for (i in 0...MAX) {
+			if (virtual[i]) continue;
+			var there = Arena.scopedValue(a -> {
+				var p = a.alloc(16, 8);
+				var r = hxmc.os.win32.XInput.XInputGetState(i, p);
+				if (r == 0) BytesPtr.copyIn(xstate, 0, p, 16);
+				r;
+			}) == 0;
+			live[i] = there;
+			var bits = there ? xstate.getUInt16(4) : 0;
+			for (b in 0...BUTTONS)
+				buttons[i][b] = XBITS[b] >= 0 && bits & XBITS[b] != 0;
+			// (the triggers, 0 to 255: pressed past 30, XInput's threshold)
+			buttons[i][6] = there && xstate.get(6) > 30;
+			buttons[i][7] = there && xstate.get(7) > 30;
+			for (a in 0...AXES) {
+				var v = there ? xstate.getUInt16(8 + 2 * a) : 0;
+				if (v >= 0x8000) v -= 0x10000;
+				// (XInput's y is up, the standard layout's down)
+				axes[i][a] = Math.max(-1, v / 32767) * (a % 2 == 1 ? -1 : 1);
 			}
 		}
 	}
