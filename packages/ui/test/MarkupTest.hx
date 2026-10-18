@@ -1090,7 +1090,7 @@ class MarkupTest implements Markup {
 		check("segments: a click chooses", view.value == "Week");
 		var t = ui.accessTree(), navs = [for (id in t.order) if (t.nodes.get(id).role == Navigation) t.nodes.get(id)];
 		var current = [for (id in t.order) if (t.nodes.get(id).current) t.nodes.get(id).name];
-		check("navigation: two landmarks, the last crumb and page 1 current", navs.length == 2 && navs[0].name == "Breadcrumb" && navs[0].toJson().role == "navigation"
+		check("navigation: two landmarks, the last crumb and page 1 current", navs.length == 2 && navs[0].name == "breadcrumb" && navs[0].toJson().role == "navigation"
 			&& current.join(",") == "Layout,1", current.join(","));
 		click(ui.root.find("crumbs-1"));
 		ui.setFocus(ui.root.find("crumbs-0"));

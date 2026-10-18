@@ -244,7 +244,10 @@ hydrated with every node kept, reactive afterwards, the mismatch rendered
 again with its warning, the JavaScript island calling `lab.wasm`, the cube
 fetched only once it scrolls into view, then drawing.
 
-`make web-widgets`: `examples/WidgetCounter.hx`, `WidgetForm.hx` and
+`make web-widgets`: first `test/WidgetParity.hx`, every ui widget a DOM one
+with the same props (names, types, optional, the defaults both state;
+its `KNOWN` differences listed, a stale one failing too), then
+`examples/WidgetCounter.hx`, `WidgetForm.hx` and
 `WidgetGallery.hx` (ui's gallery on the DOM's widgets) with the theme's
 CSS in `bin/web/widgets`, then `test/widgets.mjs` drives the gallery in
 headless Chromium by pointer and keys (tabs and radio buttons roving, a

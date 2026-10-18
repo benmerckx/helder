@@ -1941,7 +1941,7 @@ class Widgets implements Markup {
 	})
 	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "crumbs", items = props.items;
-		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "Breadcrumb"}>
+		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "breadcrumb"}>
 			<view slot="breadcrumb-list">{[
 				for (i in 0...items.length) {
 					var last = i == items.length - 1;
@@ -1990,7 +1990,7 @@ class Widgets implements Markup {
 					onClick();
 				}}>{label}</view></view>;
 		}
-		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "Pages"}>
+		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "pagination"}>
 			<view slot="pagination-content">
 				{button([icon(CHEVRON_LEFT, "pagination-icon"), "Previous"], tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1, "pagination-previous")}
 				<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
