@@ -11,7 +11,7 @@
 // - the reloads' times, from the change seen to the new build's first frame.
 //   node packages/os/test/dev/dev-web.mjs <compiler> [work dir] [--wasm-gc]
 // (--wasm-gc: the program built with -D hxmc.wasm-gc, the hybrid module)
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
@@ -157,6 +157,16 @@ try {
 } finally {
 	await browser.close();
 	dev.kill();
+}
+// the dev server's last build (its compilation server reusing typed modules,
+// lowered bodies and objects across the edits) is what a fresh build makes
+const devOut = path.join(work, 'out/counter.wasm');
+if (failures === 0 && fs.existsSync(devOut)) {
+	const kept = fs.readFileSync(devOut);
+	const std = path.join(path.dirname(compiler), 'std');
+	const r = spawnSync(compiler, ['-D', 'hxmc.dev', 'build.hxml', ...(fs.existsSync(std) ? ['-cp', std] : [])],
+		{ cwd: work, encoding: 'utf8', env: { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
+	check('the last build is a fresh build, byte for byte', r.status === 0 && Buffer.compare(kept, fs.readFileSync(devOut)) === 0, (r.stderr ?? '').slice(-800));
 }
 for (const t of times) console.log('  ' + t);
 const name = wasmGc ? 'dev-web (WasmGC)' : 'dev-web';
