@@ -70,6 +70,11 @@ class DrawText implements TextEngine {
 		return lastSet = set;
 	}
 
+	// (paragraphs unbounded and of one font, by their text: a label a list
+	// repeats shaped once; all let go when there are many)
+	final plain = new Map<String, Array<PlainParagraph>>();
+	var plainCount = 0;
+
 	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1):Paragraph {
 		if (fallbackFaces == null) {
 			fallbackFaces = fonts.fallbacks();
@@ -90,10 +95,49 @@ class DrawText implements TextEngine {
 			case BreakAll: TextLayout.BREAK_ALL;
 			case KeepAll: TextLayout.KEEP_ALL;
 		});
+		var shared = runs == null && maxLines == 0 && !justify && cut < 0 && Math.isNaN(maxWidth);
+		var same = shared ? plain.get(text) : null;
+		if (same != null)
+			for (p in same)
+				if (p.fonts == set && p.lineHeight == font.lineHeight && p.letterSpacing == font.letterSpacing && p.wordSpacing == font.wordSpacing
+					&& p.base == base && p.breaking == breaking)
+					return p.paragraph;
 		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut < 0 ? Math.NaN : cut,
 			breaking);
 		if (justify) l.justify(maxWidth);
-		return new DrawParagraph(l);
+		var p = new DrawParagraph(l);
+		if (shared) {
+			if (plainCount >= 4096) {
+				plain.clear();
+				plainCount = 0;
+				same = null;
+			}
+			if (same == null) plain.set(text, same = []);
+			same.push(new PlainParagraph(set, font.lineHeight, font.letterSpacing, font.wordSpacing, base, breaking, p));
+			plainCount++;
+		}
+		return p;
+	}
+}
+
+// (a shared paragraph and what it was laid out with: DrawText.plain)
+private class PlainParagraph {
+	public final fonts:FontSet;
+	public final lineHeight:Float;
+	public final letterSpacing:Float;
+	public final wordSpacing:Float;
+	public final base:Int;
+	public final breaking:Int;
+	public final paragraph:DrawParagraph;
+
+	public function new(fonts, lineHeight, letterSpacing, wordSpacing, base, breaking, paragraph) {
+		this.fonts = fonts;
+		this.lineHeight = lineHeight;
+		this.letterSpacing = letterSpacing;
+		this.wordSpacing = wordSpacing;
+		this.base = base;
+		this.breaking = breaking;
+		this.paragraph = paragraph;
 	}
 }
 
