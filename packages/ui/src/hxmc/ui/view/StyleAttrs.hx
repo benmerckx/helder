@@ -65,7 +65,7 @@ class StyleAttrs {
 		for (p in StringTools.trim(Std.string(v)).split(" ")) {
 			if (p == "" || p == "solid") continue;
 			var f = Std.parseFloat(StringTools.replace(p, "px", ""));
-			if (!Math.isNaN(f) && ~/^-?[0-9.]+(px)?$/.match(p)) {
+			if (!Math.isNaN(f) && Dim.isPixels(p)) {
 				width = f;
 				continue;
 			}

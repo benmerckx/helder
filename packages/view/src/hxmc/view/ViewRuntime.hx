@@ -235,6 +235,11 @@ class ViewRuntime {
 			Host.setProperty(n, name, v);
 	}
 
+	// (the same with the renderer's function for the name: Renders' setter)
+	public static function propWith(n:HostNode, name:String, v:Dynamic, set:(HostNode, String, Dynamic) -> Void) {
+		if (hxmc.view.Render.isReactive(v)) hxmc.view.Reactive.effect(() -> set(n, name, hxmc.view.Render.read(v))) else set(n, name, v);
+	}
+
 	public static function style(n:HostNode, v:Dynamic) {
 		if (hxmc.view.Render.isReactive(v)) hxmc.view.Reactive.effect(() -> Host.setStyle(n, hxmc.view.Render.read(v))) else Host.setStyle(n, v);
 	}
