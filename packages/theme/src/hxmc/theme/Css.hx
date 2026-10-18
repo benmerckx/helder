@@ -878,7 +878,7 @@ class Css {
 		// (the DOM's widgets: their popups' and modals' hosts in the top layer, laid out by their content; icons that point the way the line reads)
 		out.add("[data-popup]{position:fixed;inset:auto;margin:0;padding:0;border:0;background:none;color:inherit;overflow:visible}"
 			+ "dialog[data-modal]{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:none;color:inherit;overflow:visible}dialog[data-modal]::backdrop{background:none}"
-			+ "[data-slot=breadcrumb-separator]>svg:dir(rtl){transform:scaleX(-1)}\n");
+			+ "[data-mirrored]:dir(rtl){transform:scaleX(-1)}\n");
 		if (dark.length > 0) out.add("@media (prefers-color-scheme:dark){\n" + dark.join("\n") + "\n}\n");
 		for (k in sorted(used))
 			out.add(KEYFRAMES[k] + "\n");

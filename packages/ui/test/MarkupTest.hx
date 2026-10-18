@@ -465,7 +465,9 @@ class MarkupTest implements Markup {
 		var summary = ui.root.find("more-summary");
 		check("disclosure: closed at first", ui.root.find("more-text") == null && summary.semantics.expanded == false);
 		click(summary);
-		check("disclosure: a click opens it", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true);
+		var arrow:ImageNode = cast summary.children[0];
+		check("disclosure: a click opens it, its arrow down", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true
+			&& arrow.svg == hxmc.ui.widgets.Icons.svg("chevron-down") && arrow.mirrored);
 		ui.setFocus(summary);
 		ui.keyDown(Key.SPACE, 0);
 		ui.update();
@@ -1095,7 +1097,8 @@ class MarkupTest implements Markup {
 		click(ui.root.find("crumbs-1"));
 		ui.setFocus(ui.root.find("crumbs-0"));
 		key(Key.ENTER);
-		check("breadcrumbs: a click and Enter choose a step", chosen.join(",") == "1,0", chosen.join(","));
+		key(Key.SPACE);
+		check("breadcrumbs: a click and Enter choose a step, Space not (a link's)", chosen.join(",") == "1,0", chosen.join(","));
 		var prev = ui.root.find("pages-prev"), next = ui.root.find("pages-next");
 		function labels():String
 			return [for (n in tagged(ui.root.find("pages"), "pages-page")) (cast n.children[0] : TextNode).text].join(" ");

@@ -48,7 +48,7 @@ class Node implements Part {
 	public var onPointerLeave(get, set):Null<Event->Void>;
 	public var onClick(get, set):Null<Event->Void>;
 	// a press: a click, or Enter or Space while it has the focus (after onKeyDown, unless it
-	// prevented the default), as a DOM button's click
+	// prevented the default), as a DOM button's click (a link's: Enter, not Space, as a DOM link's)
 	public var onActivate(get, set):Null<Event->Void>;
 	public var onWheel(get, set):Null<Event->Void>;
 	public var onKeyDown(get, set):Null<Event->Void>;

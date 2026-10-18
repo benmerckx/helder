@@ -19,6 +19,8 @@ class ImageNode extends Node {
 	public var offsetX(default, set) = 0.0;
 	public var offsetY(default, set) = 0.0;
 	public var svg(default, set):Null<Svg>;
+	// drawn flipped where it is right to left (an icon pointing the way the line reads)
+	public var mirrored(default, set) = false;
 	// what the svg was last drawn as: its pixel size and colour
 	var drawn = "";
 
@@ -49,6 +51,11 @@ class ImageNode extends Node {
 
 	inline function intrinsicHeight():Float
 		return svg != null ? svg.height : image.height;
+
+	function set_mirrored(v:Bool):Bool {
+		if (v != mirrored && ui != null) ui.requestFrame();
+		return mirrored = v;
+	}
 
 	function set_positionX(v:Float):Float {
 		if (v != positionX && ui != null) ui.requestFrame();
@@ -184,6 +191,9 @@ class ImageNode extends Node {
 		var s = style, be = s.borderEdges;
 		var inset = Math.max(Math.max(be.left, be.right), Math.max(be.top, be.bottom))
 			+ Math.max(Math.max(s.padding.left, s.padding.right), Math.max(s.padding.top, s.padding.bottom));
+		var flip = mirrored && rtl();
+		if (flip) canvas.pushTransform(-1, 0, 0, 1, 2 * x + width, 0);
 		canvas.image(image, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], Math.max(0, s.radius - inset), s.corners == null ? null : s.cornerRadii().grow(-inset));
+		if (flip) canvas.popTransform();
 	}
 }

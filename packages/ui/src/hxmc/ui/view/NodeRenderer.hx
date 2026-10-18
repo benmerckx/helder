@@ -14,10 +14,11 @@ import hxmc.ui.*;
 // Node with Overflow Scroll), image (an ImageNode: src, an Image, an
 // AnimatedImage, played, or an Svg, drawn in the node's color; object-position
 // ("left top", CSS's), its place; fit, "fill",
-// "contain", "cover" or "none"), icon (an image, its Svg), field and
-// field:textarea (a text field, one line or several: hxmc.ui.widgets'
-// TextField and TextArea; value, placeholder, type, rows, readonly,
-// maxlength; onInput, its text changed by its user); view:button,
+// "contain", "cover" or "none"; mirrored, flipped right to left), icon (an
+// image, its Svg), field and field:textarea (a text field, one line or
+// several: hxmc.ui.widgets' TextField and TextArea; value, placeholder,
+// type, rows, readonly, maxlength; onInput, its text changed by its
+// user); view:button,
 // view:label... and text:p, text:h2... (a view, a text: the element of that
 // name where a page's renderer realises them, hxmc.web's); elements registers more. Their
 // attributes: Style properties (StyleAttrs: direction="row", padding={8},
@@ -290,6 +291,10 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 		if (!Std.isOfType(n, ImageNode)) noAttribute(n, attr);
 		(cast n : ImageNode).svg = v == null ? null : hxmc.ui.widgets.Icons.svg(v);
 	}
+
+	// (an icon's or an image's: flipped right to left, ImageNode.mirrored)
+	@:attribute static function mirrored(n:Node, name:String, v:Dynamic)
+		if (Std.isOfType(n, ImageNode)) (cast n : ImageNode).mirrored = v == true || v == "true" else noAttribute(n, name);
 
 	@:attribute static function objectPosition(n:Node, name:String, v:Dynamic)
 		if (Std.isOfType(n, ImageNode)) (cast n : ImageNode).position(v) else noAttribute(n, name);

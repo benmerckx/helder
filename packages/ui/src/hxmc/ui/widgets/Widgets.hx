@@ -53,7 +53,6 @@ class Widgets implements Markup {
 	static final ARROW_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>');
 	static final ARROW_UP = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>');
 	static final ARROW_DOWN = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>');
-	static final MORE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>');
 	static final PANEL_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
@@ -1958,29 +1957,29 @@ class Widgets implements Markup {
 		},
 		keys: {"Enter": "on a step, chooses it (onSelect)"}
 	})
-	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
+	@:neutral public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "crumbs", items = props.items;
-		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "breadcrumb"}>
-			<view slot="breadcrumb-list">{[
+		return <view:nav tag={tag} id={props.tag} slot="breadcrumb" role="navigation" label={props.label ?? "breadcrumb"}>
+			<view:ol slot="breadcrumb-list">{[
 				for (i in 0...items.length) {
 					var last = i == items.length - 1;
 					[
-						<view slot="breadcrumb-item">{last ? <text tag={tag + "-" + i} slot="breadcrumb-page" current>{items[i]}</text> : <text tag={tag + "-" + i}
-							slot="breadcrumb-link" role="link" focusable onClick={_ -> props.onSelect(i)} onKeyDown={e -> if (e.key == Key.ENTER) {
+						<view:li slot="breadcrumb-item">{last ? <text:span tag={tag + "-" + i} slot="breadcrumb-page" role="link" disabled current="page">{items[i]}</text:span> : <view:a
+							tag={tag + "-" + i} slot="breadcrumb-link" href="#" focusable onPress={e -> {
 								e.preventDefault();
 								props.onSelect(i);
-							}}>{items[i]}</text>}</view>,
-						last ? null : <view slot="breadcrumb-separator" hidden>{icon(CHEVRON_RIGHT, "breadcrumb-separator-icon", null, true)}</view>
+							}}>{items[i]}</view:a>}</view:li>,
+						last ? null : <view:li slot="breadcrumb-separator" hidden><icon slot="breadcrumb-separator-icon" name="chevron-right" mirrored width={14} height={14}/></view:li>
 					];
 				}
-			]}</view>
-		</view>;
+			]}</view:ol>
+		</view:nav>;
 	}
 
 	// pagination (shadcn's): Previous, the pages (the first, the last, the
 	// current one and its neighbours, "…" for the rest, a page instead where
-	// it hides only one), Next, in a navigation landmark; pages count from
-	// 1, the current page's button marked current. Slots "pagination",
+	// it hides only one), Next, in a navigation landmark, each a link;
+	// pages count from 1, the current page's link marked current. Slots "pagination",
 	// "pagination-content", "pagination-item", "pagination-link" (size "icon"
 	// for a page, "default" for Previous and Next; data-active on the
 	// current page's, data-disabled on Previous on the first, Next on the
@@ -1991,36 +1990,39 @@ class Widgets implements Markup {
 			count: "the number of pages",
 			label: "its landmark's name"
 		},
-		keys: {"Enter, Space": "on a button, go to its page (Previous and Next: the page before or after)"}
+		keys: {"Enter": "on a link, go to its page (Previous and Next: the page before or after)"}
 	})
-	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
+	@:neutral public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "pages", count = props.count;
 		function go(p:Int)
 			if (p >= 1 && p <= count) props.page.value = p;
-		// (the buttons in order, 0 for a gap)
-		function shown():Array<Int>
-			return Behaviour.pages(props.page.value, count);
-		function button(label:Any, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool, slot = "pagination-link"):View {
-			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
-			return <view slot="pagination-item"><view tag={tagged} slot={slot} size={size} role="button" focusable={() -> !off()} disabled={off}
-				data-disabled={off} current={cur} data-active={() -> cur() ? "true" : null} onClick={_ -> if (!off()) onClick()}
-				onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && !off()) {
+		// (Previous or Next: off at the first or the last page)
+		function edge(prev:Bool):View {
+			var off = () -> prev ? props.page.value <= 1 : props.page.value >= count;
+			function arrow():View
+				return <icon slot="pagination-icon" name={prev ? "chevron-left" : "chevron-right"} width={16} height={16} hidden/>;
+			return <view:li slot="pagination-item"><view:a tag={tag + (prev ? "-prev" : "-next")} slot={prev ? "pagination-previous" : "pagination-next"}
+				variant="ghost" size="default" href="#" label={prev ? "Go to previous page" : "Go to next page"} focusable={() -> !off()} disabled={off}
+				data-disabled={off} onPress={e -> {
 					e.preventDefault();
-					onClick();
-				}}>{label}</view></view>;
+					if (!off()) go(props.page.peek() + (prev ? -1 : 1));
+				}}>{prev ? arrow() : null}<text:span>{prev ? "Previous" : "Next"}</text:span>{prev ? null : arrow()}</view:a></view:li>;
 		}
-		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "pagination"}>
-			<view slot="pagination-content">
-				{button([icon(CHEVRON_LEFT, "pagination-icon"), "Previous"], tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1, "pagination-previous")}
-				<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
-					<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", "icon", () -> go(p.peek()),
-						() -> props.page.value == p.value)}>
-						<view slot="pagination-ellipsis" hidden>{icon(MORE, "pagination-ellipsis-icon")}</view>
+		return <view:nav tag={tag} id={props.tag} slot="pagination" role="navigation" label={props.label ?? "pagination"}>
+			<view:ul slot="pagination-content">
+				{edge(true)}
+				<Index each={() -> Behaviour.pages(props.page.value, count)} render={(p:Signal<Int>, _) -> <view:li slot="pagination-item">
+					<Show when={() -> p.value == 0} fallback={<view:a tag={tag + "-page"} slot="pagination-link" variant="ghost" size="icon" href="#" focusable
+						current={() -> props.page.value == p.value ? "page" : null} data-active={() -> props.page.value == p.value ? "true" : null} onPress={e -> {
+							e.preventDefault();
+							go(p.peek());
+						}}>{() -> Std.string(p.value)}</view:a>}>
+						<view:span slot="pagination-ellipsis" hidden><icon slot="pagination-ellipsis-icon" name="more" width={16} height={16}/></view:span>
 					</Show>
-				</view>}/>
-				{button(["Next", icon(CHEVRON_RIGHT, "pagination-icon")], tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count, "pagination-next")}
-			</view>
-		</view>;
+				</view:li>}/>
+				{edge(false)}
+			</view:ul>
+		</view:nav>;
 	}
 
 	// the items' shortcuts (local: while the focus is in the parent)
@@ -2936,9 +2938,10 @@ class Widgets implements Markup {
 	static function selectPart(p:Null<Part>, at:Int)
 		if (p != null) #if js js.Syntax.code("{0}.select({1}, {1})", p, at) #else p.select(at, at) #end;
 
-	// a collapsible (shadcn's): its label on a button (an arrow turning
-	// with it) that shows or hides the children under it, by a click, Enter
-	// or Space; open (a signal; closed at first) says which. Slots
+	// a collapsible (shadcn's): its label on a button (an arrow, the way the
+	// line reads, down while open) that shows or hides the children under
+	// it, by a click, Enter or Space; open (a signal; closed at first) says
+	// which. Slots
 	// "collapsible", "collapsible-trigger" and "collapsible-content", each
 	// with data-state "open" or "closed"
 	@:widget({
@@ -2949,13 +2952,16 @@ class Widgets implements Markup {
 		},
 		keys: {"Enter, Space": "opens or closes it"}
 	})
-	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
+	@:neutral public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
 		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
-		var state = () -> open.value ? "open" : "closed";
-		return <view tag={tag} slot="collapsible" data-state={state}>
-			{trigger(tag + "-summary", "collapsible-trigger", state, () -> open.value = !open.peek(),
-				[icon(CHEVRON_RIGHT, "collapsible-icon", () -> open.value ? "rotate(90deg)" : "none", true), props.label])}
-			<Show when={open}><view tag={tag + "-content"} slot="collapsible-content" data-state="open">{props.children}</view></Show>
+		var state = () -> open.value ? "open" : "closed", content = props.tag != null ? props.tag + "-content" : null;
+		// (the arrow another icon while open, not turned: a turn and the mirror compose the other way round in a page)
+		return <view tag={tag} id={props.tag} slot="collapsible" data-state={state}>
+			<view:button tag={tag + "-summary"} slot="collapsible-trigger" role="button" focusable expanded={() -> open.value} aria-controls={content}
+				data-state={state} onPress={_ -> open.value = !open.peek()}>
+				<icon slot="collapsible-icon" name={() -> open.value ? "chevron-down" : "chevron-right"} mirrored width={12} height={12} hidden/>{props.label}
+			</view:button>
+			<Show when={open}><view tag={tag + "-content"} id={content} slot="collapsible-content" data-state="open">{props.children}</view></Show>
 		</view>;
 	}
 
@@ -3223,12 +3229,13 @@ class Widgets implements Markup {
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["calendar-button-icon", "tree-toggle-icon", "breadcrumb-separator-icon", "collapsible-icon", "sidebar-trigger-icon",
-				"navigation-menu-trigger-icon", "carousel-icon", "pagination-icon", "pagination-ellipsis-icon"])
-				{slot: s, style: s == "breadcrumb-separator-icon" || s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
+			for (s in ["calendar-button-icon", "tree-toggle-icon", "sidebar-trigger-icon",
+				"navigation-menu-trigger-icon", "carousel-icon"])
+				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
-		var n = mirrored ? new Mirrored() : new ImageNode();
+		var n = new ImageNode();
 		n.svg = svg;
+		n.mirrored = mirrored;
 		n.slot = slot;
 		n.semantics = {hidden: true};
 		n.style.shrink = 0;
@@ -4421,12 +4428,3 @@ class Widgets implements Markup {
 // an icon that points to the line's end (a chevron: a disclosure's, a
 // breadcrumb's separator), right to left the other way (as Chromium's
 // disclosure-closed marker)
-private class Mirrored extends ImageNode {
-	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
-		if (!rtl()) return super.paintContent(canvas, x, y, width, height);
-		canvas.pushTransform(-1, 0, 0, 1, 2 * x + width, 0);
-		super.paintContent(canvas, x, y, width, height);
-		canvas.popTransform();
-	}
-}
-

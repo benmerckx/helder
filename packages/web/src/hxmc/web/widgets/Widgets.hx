@@ -97,16 +97,6 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// a collapsible (shadcn's): its label on a button (an arrow turning with it) showing or hiding the children
-	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
-		var open = props.open ?? signal(false), base = props.tag ?? Dom.id(), state = () -> open.value ? "open" : "closed";
-		return <div id={props.tag} data-slot="collapsible" data-state={state}>
-			<button type="button" data-slot="collapsible-trigger" aria-controls={base + "-c"} aria-expanded={() -> open.value ? "true" : "false"} data-state={state}
-				onClick={() -> open.value = !open.peek()}><span data-slot="collapsible-icon" aria-hidden="true">{() -> open.value ? "▾" : "▸"}</span>{props.label}</button>
-			<Show when={open}><div id={base + "-c"} data-slot="collapsible-content" data-state="open">{props.children}</div></Show>
-		</div>;
-	}
-
 	// an accordion (shadcn's, Radix's): sections, at most one open (open: its index, -1 none)
 	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
 		var open = props.open ?? signal(-1), base = props.tag ?? Dom.id();
@@ -125,49 +115,6 @@ class Widgets implements Markup {
 				</div>;
 			}
 		]}</div>;
-	}
-
-	// a breadcrumb (shadcn's): the path, each step but the last a link (onSelect with its index), the last the current page
-	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
-		var items = props.items;
-		return <nav id={props.tag} aria-label={props.label ?? "breadcrumb"} data-slot="breadcrumb"><ol data-slot="breadcrumb-list">{[
-			for (i in 0...items.length)
-				i == items.length - 1 ? View.view(<li data-slot="breadcrumb-item"><span data-slot="breadcrumb-page" role="link" aria-disabled="true"
-					aria-current="page">{items[i]}</span></li>) : View.view(<>
-					<li data-slot="breadcrumb-item"><a data-slot="breadcrumb-link" href="#" onClick={(e:Dynamic) -> {
-						e.preventDefault();
-						props.onSelect(i);
-					}}>{items[i]}</a></li>
-					<li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true">{icon("chevron-right")}</li>
-				</>)
-		]}</ol></nav>;
-	}
-
-	// pagination (shadcn's): Previous, the pages (the first, the last, the
-	// current one and its neighbours, an ellipsis for the rest), Next; pages from 1
-	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
-		function go(p:Int)
-			if (p >= 1 && p <= props.count) props.page.value = p;
-		function edge(prev:Bool):View
-			return <li data-slot="pagination-item"><a data-slot={prev ? "pagination-previous" : "pagination-next"} data-variant="ghost" data-size="default" href="#"
-				aria-label={prev ? "Go to previous page" : "Go to next page"}
-				aria-disabled={() -> (prev ? props.page.value <= 1 : props.page.value >= props.count) ? "true" : null}
-				onClick={(e:Dynamic) -> {
-					e.preventDefault();
-					go(props.page.peek() + (prev ? -1 : 1));
-				}}>{prev ? [icon("chevron-left"), View.view(<span>Previous</span>)] : [View.view(<span>Next</span>), icon("chevron-right")]}</a></li>;
-		return <nav id={props.tag} role="navigation" aria-label={props.label ?? "pagination"} data-slot="pagination"><ul data-slot="pagination-content">
-			{edge(true)}
-			<Index each={() -> Behaviour.pages(props.page.value, props.count)} render={(p:Signal<Int>, _) -> <li data-slot="pagination-item">
-				<Show when={() -> p.value == 0} fallback={<a data-slot="pagination-link" data-variant="ghost" data-size="icon" href="#"
-					aria-current={() -> props.page.value == p.value ? "page" : null} data-active={() -> props.page.value == p.value ? "true" : null}
-					onClick={(e:Dynamic) -> {
-						e.preventDefault();
-						go(p.peek());
-					}}>{p}</a>}><span data-slot="pagination-ellipsis" aria-hidden="true">{small(icon("more"))}</span></Show>
-			</li>}/>
-			{edge(false)}
-		</ul></nav>;
 	}
 
 	// (the shortcuts of items working from anywhere in the page while mounted (within: only while the focus is in it))
