@@ -233,4 +233,7 @@ export const cases = [
 	{ name: 'wrapping column basis in a column item', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 30), box(16, 30)] }] }] } },
 	{ name: 'wrapping column basis in a column item, percentage heights', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 2), box(16, '100%')] }] }] } },
 	{ name: 'wrapping column basis in a column item, its min-height', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', width: 72, height: 43 }, children: [{ style: { wrap: true, shrink: 0, minHeight: '50%' }, children: [box('50%', 88, { basis: 62, minWidth: 62 }), box(2, 29), box(89, 90, { margin: 8 })] }] }] } },
+	// (a wrapping column's basis in a column: its lines broken at its max-height in pixels, its tallest line's; a percentage one of its column's height not)
+	{ name: 'wrapping column basis at its max-height', width: 300, height: 200, tree: { children: [{ children: [{ style: { wrap: true, maxHeight: 105 }, children: [{ style: { basis: 45 } }, { style: { basis: 68 } }] }] }] } },
+	{ name: 'wrapping column basis, a percentage max-height', width: 300, height: 200, tree: { children: [{ children: [{ style: { minHeight: 34 } }, { style: { wrap: true, maxHeight: '50%' }, children: [{ style: { padding: 8, margin: 3 } }, { style: { padding: 1, margin: 2 } }, { style: { padding: 4 } }] }] }] } },
 ];

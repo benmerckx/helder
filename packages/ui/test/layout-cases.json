@@ -6162,5 +6162,79 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "wrapping column basis at its max-height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"children": [
+						{
+							"style": {
+								"wrap": true,
+								"maxHeight": 105
+							},
+							"children": [
+								{
+									"style": {
+										"basis": 45
+									}
+								},
+								{
+									"style": {
+										"basis": 68
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "wrapping column basis, a percentage max-height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"children": [
+						{
+							"style": {
+								"minHeight": 34
+							}
+						},
+						{
+							"style": {
+								"wrap": true,
+								"maxHeight": "50%"
+							},
+							"children": [
+								{
+									"style": {
+										"padding": 8,
+										"margin": 3
+									}
+								},
+								{
+									"style": {
+										"padding": 1,
+										"margin": 2
+									}
+								},
+								{
+									"style": {
+										"padding": 4
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]

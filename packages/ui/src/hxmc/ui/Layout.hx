@@ -83,8 +83,9 @@ class Layout {
 		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
 		var bare = (bw ? 1 : 0) | (bh ? 2 : 0);
 		bareW = bareH = false;
-		// (measured bare, a column still breaks its lines at its own height)
+		// (measured bare, a column still breaks its lines at its own height, else its max-height in pixels)
 		var bareBreak = bh ? s.height.resolve(parentH) : Math.NaN;
+		if (bh && !known(bareBreak) && s.maxHeight.match(DimValue.Px(_))) bareBreak = s.maxHeight.resolve(parentH);
 		if (breakMin && !known(bareBreak)) {
 			var least = s.minHeight.resolve(parentH);
 			if (least > 0) bareBreak = least;
