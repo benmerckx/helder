@@ -829,6 +829,23 @@ class MarkupTest implements Markup {
 		m.chosen(2);
 		ui.update();
 		check("native select: chosen", fruit.value == "plum");
+		// a menu bar native: its menus the system's, the drawn bar hidden, given back when it goes
+		var ui = new Ui(new MonoText(), 400, 300);
+		var views = new UiTest.FakeViews();
+		ui.platform = views;
+		var on = signal(true), saved = 0;
+		Render.render(<view padding={10}><Show when={on}>
+			<Menubar tag="bar" menus={[{label: "File", items: [{label: "Save", onSelect: () -> saved++}]}, {label: "Edit", items: [{label: "Undo"}]}]}/>
+		</Show></view>, ui.root);
+		ui.update();
+		var b = views.bar;
+		check("native menu bar: its menus the system's, the drawn bar hidden", b != null && b.menus.map(m -> m.label).join(",") == "File,Edit"
+			&& b.menus[0].items[0].label == "Save" && ui.root.find("bar").style.display == None);
+		b.chosen(b.menus[0].items[0].id);
+		check("native menu bar: an item chosen", saved == 1);
+		on.value = false;
+		ui.update();
+		check("native menu bar: given back when it goes", views.bar != null && views.bar.menus.length == 0);
 	}
 
 	// a carousel: Next, the keys, the ends disabled, a wheel's scroll settling on a slide

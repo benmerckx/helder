@@ -22,7 +22,8 @@ import hxmc.unsafe.*;
 // textDidChange:, its editing begun and ended, and Tab, Shift+Tab and
 // Escape (textView:doCommandBySelector:) left to the program. Menus: an NSMenu popped up at the next poll (its own loop
 // until chosen or dismissed), each item's tag its id, its action the
-// delegate's hxmcMenuPick:.
+// delegate's hxmcMenuPick:. The menu bar's menus: inserted after the
+// application's menu, their items' action hxmcBarPick:, queued.
 class MacViews implements PlatformViews {
 	static var delegateClass = Ptr.nil();
 	static var delegate = Ptr.nil();
@@ -34,6 +35,10 @@ class MacViews implements PlatformViews {
 	// (a menu asked for: shown at the next poll; the item chosen in it)
 	var pending:Null<{items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void}> = null;
 	static var picked = -1;
+	// (the menus put in the menu bar, and what a choice there calls)
+	var barItems:Array<Ptr> = [];
+	var barChosen:Null<Int->Void> = null;
+	static var current:Null<MacViews> = null;
 	// (the menu up, while it is: what a test acts on)
 	static var shown = Ptr.nil();
 
@@ -47,6 +52,7 @@ class MacViews implements PlatformViews {
 			Runtime.class_addMethod(d, ObjC.sel("controlTextDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
 			Runtime.class_addMethod(d, ObjC.sel("control:textView:doCommandBySelector:"), Callback.addr(command), Mem.cstr("c@:@@:"));
 			Runtime.class_addMethod(d, ObjC.sel("hxmcMenuPick:"), Callback.addr(pick), Mem.cstr("v@:@"));
+			Runtime.class_addMethod(d, ObjC.sel("hxmcBarPick:"), Callback.addr(barPick), Mem.cstr("v@:@"));
 			Runtime.class_addMethod(d, ObjC.sel("textDidChange:"), Callback.addr(changed), Mem.cstr("v@:@"));
 			Runtime.class_addMethod(d, ObjC.sel("textDidBeginEditing:"), Callback.addr(began), Mem.cstr("v@:@"));
 			Runtime.class_addMethod(d, ObjC.sel("textDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
@@ -139,9 +145,31 @@ class MacViews implements PlatformViews {
 		return true;
 	}
 
+	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool {
+		var main = Msg.id(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("mainMenu"));
+		if (main.isNull()) return false;
+		for (it in barItems) {
+			Msg.vPtr(main, ObjC.sel("removeItem:"), it);
+			ObjC.release(it);
+		}
+		barItems = [];
+		barChosen = chosen;
+		current = this;
+		for (k in 0...menus.length) {
+			var m = menus[k], sub = nsMenu(m.items ?? [], ObjC.sel("hxmcBarPick:"), m.label);
+			var item = Msg.id(Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("alloc")), ObjC.sel("init"));
+			Msg.vPtr(item, ObjC.sel("setSubmenu:"), sub);
+			ObjC.release(sub);
+			AkMsg.vPtrInt(main, ObjC.sel("insertItem:atIndex:"), item, 1 + k);
+			barItems.push(item);
+		}
+		return true;
+	}
+
 	// (an NSMenu of the items: enabled as given, checked as NSControlStateValueOn)
-	static function nsMenu(items:Array<PlatformMenuItem>):Ptr {
-		var t = ObjC.str("");
+	static function nsMenu(items:Array<PlatformMenuItem>, ?action:Ptr, title = ""):Ptr {
+		if (action == null) action = ObjC.sel("hxmcMenuPick:");
+		var t = ObjC.str(title);
 		var m = Msg.idPtr(Msg.id(ObjC.cls("NSMenu"), ObjC.sel("alloc")), ObjC.sel("initWithTitle:"), t);
 		Msg.vBool(m, ObjC.sel("setAutoenablesItems:"), false);
 		for (it in items) {
@@ -149,16 +177,17 @@ class MacViews implements PlatformViews {
 				Msg.vPtr(m, ObjC.sel("addItem:"), Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("separatorItem")));
 				continue;
 			}
-			var title = ObjC.str(it.label);
+			var title = ObjC.str(it.label), e = ObjC.str("");
 			var item = Msg.idPtrPtrPtr(Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("alloc")), ObjC.sel("initWithTitle:action:keyEquivalent:"), title,
-				it.items == null ? ObjC.sel("hxmcMenuPick:") : Ptr.nil(), t);
+				it.items == null ? action : Ptr.nil(), e);
 			ObjC.release(title);
+			ObjC.release(e);
 			Msg.vPtr(item, ObjC.sel("setTarget:"), delegate);
 			Msg.vInt(item, ObjC.sel("setTag:"), it.id);
 			Msg.vBool(item, ObjC.sel("setEnabled:"), it.disabled != true);
 			if (it.checked == true) Msg.vInt(item, ObjC.sel("setState:"), 1);
 			if (it.items != null) {
-				var sub = nsMenu(it.items);
+				var sub = nsMenu(it.items, action, it.label);
 				Msg.vPtr(item, ObjC.sel("setSubmenu:"), sub);
 				ObjC.release(sub);
 			}
@@ -170,6 +199,12 @@ class MacViews implements PlatformViews {
 	}
 
 	public function poll() {
+		var i = 0;
+		while (i < queue.length)
+			if (queue[i].kind == 5) {
+				var q = queue.splice(i, 1)[0];
+				if (barChosen != null) barChosen(q.key);
+			} else i++;
 		if (pending != null) {
 			var p = pending;
 			pending = null;
@@ -215,6 +250,10 @@ class MacViews implements PlatformViews {
 
 	@:hxmc.callback static function pick(self:Ptr, cmd:Ptr, item:Ptr)
 		picked = Msg.i(item, ObjC.sel("tag")).toInt();
+
+	// (a menu bar's item chosen: queued, a frame asked for)
+	@:hxmc.callback static function barPick(self:Ptr, cmd:Ptr, item:Ptr)
+		if (current != null) current.push(null, 5, Msg.i(item, ObjC.sel("tag")).toInt());
 
 	// (a text area's commands: Tab, Shift+Tab and Escape left to the program)
 	@:hxmc.callback static function areaCommand(self:Ptr, cmd:Ptr, textView:Ptr, sel:Ptr):Int {

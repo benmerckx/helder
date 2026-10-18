@@ -35,6 +35,7 @@ class AkMsg {
 	static function bPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Bool;
 	static function bPtrPointPtr(self:Ptr, sel:Ptr, a:Ptr, p:CGPoint, b:Ptr):Bool;
 	static function vPtrPtrFloatPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Float, d:Ptr):Void;
+	static function vPtrInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64):Void;
 	static function i(self:Ptr, sel:Ptr):Int64;
 	static function f(self:Ptr, sel:Ptr):Float;
 	static function size(self:Ptr, sel:Ptr):CGSize;

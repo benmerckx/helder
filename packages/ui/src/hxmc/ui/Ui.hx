@@ -90,7 +90,7 @@ class Ui {
 	// which kinds of widget are native where the tree leaves it Auto (Host):
 	// "text-field" and "text-area" (the plan's defaults: native everywhere)
 	public var platform:Null<PlatformViews> = null;
-	public var policy:Map<String, Host> = ["text-field" => Native, "text-area" => Native, "context-menu" => Native];
+	public var policy:Map<String, Host> = ["text-field" => Native, "text-area" => Native, "context-menu" => Native, "menubar" => Native];
 	public var clipboard:ClipboardHost = new ClipboardHost.MemoryClipboard();
 	public var focusRingColor:Color = 0xFF3B82F6;
 	public var focusRingWidth = 2.0;

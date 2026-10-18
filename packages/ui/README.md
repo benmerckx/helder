@@ -381,7 +381,7 @@ In a drawn window a widget can also be the platform's own control
 (docs/plans/native-or-drawn.md): `host` on a node (`Auto`, `Native`,
 `Drawn`; markup's `host="native"`) holds for its subtree, and where the
 tree leaves it `Auto` the window's `Ui.policy` decides per kind of widget
-(`"text-field"`, `"text-area"` and `"context-menu"`: native, the plan's defaults). Native
+(`"text-field"`, `"text-area"`, `"context-menu"` and `"menubar"`: native, the plan's defaults). Native
 needs the window's `Ui.platform` (`PlatformViews`); without one, or for a
 kind it lacks, the widget is drawn. Text fields and areas first: the
 platform's editor sits over the field's content box, borderless and
@@ -403,7 +403,10 @@ items, separators, checked and disabled ones, submenus and shortcuts'
 labels; one chosen as from the drawn menu): Windows' popup menu, macOS's
 NSMenu; the browser and Linux keep the drawn one. A select is drawn on
 desktop by default (the plan: native on touch); with `host="native"` its
-options are the same native menu, under it, the chosen one checked.
+options are the same native menu, under it, the chosen one checked. A
+menu bar is the system's on macOS (`PlatformViews.menuBar`: its menus after
+the application's, the drawn bar hidden, its shortcuts still working),
+drawn in the window elsewhere.
 
 ## Accessibility
 

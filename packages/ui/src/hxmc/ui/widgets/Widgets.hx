@@ -1650,7 +1650,8 @@ class Widgets implements Markup {
 	// opened, wrapping);
 	// Escape closes it, the focus back on its title. One stop for Tab: the
 	// title last moved to. The items' shortcuts work from anywhere in the
-	// window. Slots (shadcn's) "menubar", "menubar-trigger" (data-state
+	// window. The system's menu bar where native (Ui.hostOf "menubar": macOS's),
+	// the drawn bar hidden then. Slots (shadcn's) "menubar", "menubar-trigger" (data-state
 	// "open" or "closed"), "menubar-content", "menubar-item", "menubar-shortcut"
 	@:widget({
 		props: {
@@ -1674,6 +1675,19 @@ class Widgets implements Markup {
 			?tag:String}):View {
 		var tag = props.tag ?? "menubar", count = props.menus.length;
 		var opens = [for (m in props.menus) signal(false)], titles:Array<Node> = [], current = signal(0);
+		// (the system's menu bar where native: its menus given, the drawn bar
+		// hidden, its shortcuts still working; given back when it goes)
+		var self:Null<Node> = null, native = signal(false);
+		onMount(() -> {
+			var ui = self == null ? null : self.ui;
+			if (ui == null || ui.hostOf(self, "menubar") != Native) return;
+			var all:Array<MenuItem> = [];
+			var menus:Array<PlatformMenuItem> = [for (m in props.menus) {id: -1, label: m.label, items: nativeMenu(m.items, all)}];
+			if (!ui.platform.menuBar(menus, id -> if (id >= 0 && id < all.length) chooseItem(all[id]))) return;
+			native.value = true;
+			var platform = ui.platform;
+			onCleanup(() -> platform.menuBar([], _ -> {}));
+		});
 		// (menu i open, the others closed; -1: none)
 		function show(i:Int)
 			batch(() -> for (j in 0...count) opens[j].value = j == i);
@@ -1690,7 +1704,7 @@ class Widgets implements Markup {
 			focusIn(titles, j);
 			if (open) show(j);
 		}
-		return <view tag={tag} slot="menubar" role="menubar" label={props.label}>{[
+		return <view tag={tag} slot="menubar" role="menubar" label={props.label} ref={n -> self = n} display={() -> native.value ? "none" : "flex"}>{[
 			for (i in 0...count) {
 				var m = props.menus[i], items:Array<Node> = [];
 				<view tag={tag + "-" + i} slot="menubar-trigger" role="menuitem" ref={n -> titles[i] = n} expanded={() -> opens[i].value}

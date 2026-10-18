@@ -10,6 +10,7 @@ import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.ContextMenu;
 import hxmc.ui.widgets.Widgets.Textarea;
+import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.unsafe.*;
 
 // hxmc.ui's accessibility on macOS (MacAccess; CI's macOS job): a window of
@@ -24,7 +25,9 @@ import hxmc.unsafe.*;
 // (an NSMenu popped up: its first item performed and its tracking ended
 // from the run loop's tracking mode, as a user's choice), its item chosen.
 // A text area native: an NSTextView, the program's text in it, an edit
-// (textDidChange:, as AppKit tells it) in the area's signal.
+// (textDidChange:, as AppKit tells it) in the area's signal. A menu bar
+// native: its menus in the application's menu bar, an item performed there
+// chosen.
 //   MacAccessTest
 class MacAccessTest implements Markup {
 	// (the menu seen up)
@@ -61,7 +64,7 @@ class MacAccessTest implements Markup {
 
 	static function main() {
 		var w = new UiWindow("MacAccessTest", 320, 240);
-		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "", areaOn = signal(false), notes = signal("");
+		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "", areaOn = signal(false), notes = signal(""), barOn = signal(false), barChosen = "";
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
@@ -72,6 +75,7 @@ class MacAccessTest implements Markup {
 				<view tag="cm-area" width={60} height={20}/>
 			</ContextMenu></Show>
 			<Show when={areaOn}><Textarea tag="notes" value={notes}/></Show>
+			<Show when={barOn}><Menubar tag="bar" menus={[{label: "File", items: [{label: "Save", onSelect: () -> barChosen += "save"}]}]}/></Show>
 		</view>, w.root);
 		var view = w.window.surface.handle;
 		var frames = 0, step = 0;
@@ -189,7 +193,19 @@ class MacAccessTest implements Markup {
 					step = 10;
 				case 10:
 					check("an edit in the NSTextView, the area's signal follows", notes.value == "Line\nTwo", notes.value);
+					barOn.value = true;
 					step = 11;
+				case 11:
+					var main = Msg.id(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("mainMenu"));
+					var file = Msg.id(Msg.idInt(main, ObjC.sel("itemAtIndex:"), 1), ObjC.sel("submenu"));
+					check("a native menu bar: its menu after the application's", !file.isNull() && str(file, "title") == "File", file.isNull() ? "none" : str(file, "title"));
+					if (!file.isNull()) Msg.vInt(file, ObjC.sel("performActionForItemAtIndex:"), 0);
+					step = 12;
+				case 12:
+					step = 13;
+				case 13:
+					check("a native menu bar: an item performed there chosen", barChosen == "save", barChosen);
+					step = 14;
 					w.close();
 				case _:
 			}
@@ -198,6 +214,6 @@ class MacAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('MacAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 21 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 23 ? 0 : 1);
 	}
 }

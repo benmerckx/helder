@@ -2378,6 +2378,13 @@ class FakeViews implements PlatformViews {
 		menus.push({items: items, x: x, y: y, chosen: chosen});
 		return true;
 	}
+
+	public var bar:Null<{menus:Array<PlatformMenuItem>, chosen:Int->Void}> = null;
+
+	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool {
+		bar = {menus: menus, chosen: chosen};
+		return true;
+	}
 }
 
 class FakeEditor implements PlatformEditor {

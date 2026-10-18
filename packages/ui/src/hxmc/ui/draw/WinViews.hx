@@ -75,6 +75,10 @@ class WinViews implements PlatformViews {
 		ui.requestFrame();
 	}
 
+	// (a window's menu bar: the plan draws it on Windows)
+	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool
+		return false;
+
 	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool {
 		if (pending != null) pending.chosen(-1);
 		pending = {items: items, x: x, y: y, chosen: chosen};

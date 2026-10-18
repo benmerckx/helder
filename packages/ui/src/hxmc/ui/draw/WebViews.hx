@@ -44,6 +44,9 @@ class WebViews implements PlatformViews {
 	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool
 		return false;
 
+	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool
+		return false;
+
 	@:allow(hxmc.ui.draw.WebEditor) function forget(h:Int)
 		editors.remove(h);
 

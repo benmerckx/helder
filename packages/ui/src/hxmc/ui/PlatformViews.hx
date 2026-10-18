@@ -14,4 +14,8 @@ interface PlatformViews {
 	// poll), chosen then called with the chosen item's id, or -1 when it is
 	// dismissed; false where there is none
 	function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool;
+	// the system's menu bar given these menus (each an item with items;
+	// none: its own again), chosen called with an item's id whenever one is
+	// chosen; false where there is none
+	function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool;
 }
