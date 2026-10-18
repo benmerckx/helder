@@ -37,6 +37,9 @@ class Layout {
 	var looseH = false;
 	// (a column measured bare: the height its lines break at, its own; flex takes it)
 	var breakH = Math.NaN;
+	// (known: the next size() measures its node's content's height, its aspect ratio left out, a wrapping
+	// column's lines broken at this height, the ratio's)
+	var noRatio = Math.NaN;
 	// flex items and lines, kept from layout to layout: a container's are
 	// taken from the top and given back when it is done (its children's
 	// taken above them meanwhile)
@@ -97,8 +100,10 @@ class Layout {
 		// (bare on an axis where the node has no size, min or max of its own: as measured normally, cached alike)
 		var bw = bareW && (s.width != DimValue.Auto || s.minWidth != DimValue.Auto || s.maxWidth != DimValue.Auto);
 		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
-		var bare = (bw ? 1 : 0) | (bh ? 2 : 0);
+		var bare = (bw ? 1 : 0) | (bh ? 2 : 0), base = bareH;
 		bareW = bareH = false;
+		var nrBreak = noRatio, nr = known(nrBreak);
+		noRatio = Math.NaN;
 		// (measured bare, a column still breaks its lines at its own height within its max-height, in pixels)
 		var bareBreak = bh && s.height.match(DimValue.Px(_)) ? s.height.resolve(parentH) : Math.NaN;
 		if (bh && s.maxHeight.match(DimValue.Px(_))) {
@@ -106,7 +111,7 @@ class Layout {
 			if (!known(bareBreak) || most < bareBreak) bareBreak = most;
 		}
 		// (cached by how bare it was measured; not when that height, of its parent's, breaks it)
-		var cached = !known(bareBreak);
+		var cached = !known(bareBreak) && !nr;
 		// (its height definite for its children: given so, or its own)
 		var defH = !looseH || known(s.height.resolve(parentH));
 		looseH = false;
@@ -114,10 +119,20 @@ class Layout {
 		var minH = Math.max(bh ? 0.0 : min(s.minHeight, parentH), edgesV(s)), maxH = bh ? Math.POSITIVE_INFINITY : max(s.maxHeight, parentH);
 		var w = known(knownW) ? knownW : bw ? Math.NaN : clamp(s.width.intrinsic() ? intrinsicWidth(n, s.width, parentW, availW) : s.width.resolve(parentW), minW, maxW);
 		var h = known(knownH) ? knownH : bh ? Math.NaN : clamp(s.height.resolve(parentH), minH, maxH);
-		var ar = s.aspectRatio;
+		var ar = nr ? 0 : s.aspectRatio;
 		if (ar > 0) {
 			if (!known(w) && known(h)) w = clamp(h * ar, minW, maxW);
-			else if (known(w) && !known(h)) h = clamp(w / ar, minH, maxH);
+			else if (known(w) && !known(h)) {
+				h = clamp(w / ar, minH, maxH);
+				// (no less than its content's height, within its max-height, its height and min-height auto (not a percentage
+				// behaving as auto) and its overflow visible: CSS's automatic minimum size of a box with an aspect ratio; a
+				// flex base size not, flex's own minimum then)
+				if (!base && s.height == DimValue.Auto && s.minHeight == DimValue.Auto && s.overflow == Visible && (n.children.length > 0 || n.hasContent())) {
+					noRatio = h;
+					size(n, w, Math.NaN, parentW, parentH, availW, availH, false);
+					if (rh > h) h = Math.min(rh, maxH);
+				}
+			}
 		}
 		// (a border box is never smaller than its padding and border, the size given it included)
 		if (w < minW) w = minW;
@@ -157,7 +172,7 @@ class Layout {
 			grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, least, defH);
 		}
 		else {
-			breakH = bareBreak;
+			breakH = nr ? nrBreak : bareBreak;
 			flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
 		}
 		if (!perform && cached) store(n, w, defH ? h : -1 - h, availW, availH, bare, rw, rh, parentW, parentH);
@@ -336,18 +351,26 @@ class Layout {
 			// the automatic minimum
 			if ((row ? cs.minWidth : cs.minHeight) == DimValue.Auto && cs.overflow == Visible) {
 				var content:Float;
-				if (row) content = minContentWidth(c, innerW, false) else if (contentBasis) content = b else {
+				if (row) content = minContentWidth(c, innerW, false) else if (contentBasis && !(cs.aspectRatio > 0)) content = b else {
 					var kc = it.styleCross;
 					if (!known(kc) && it.align == Stretch && !multi && known(innerCross))
 						kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
 					var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
-					// (its content's height: not its own, CSS's content size suggestion; a wrapping
-					// column's lines broken at its own definite height, its tallest line's, as Chromium's)
-					bareH = true;
-					size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
-					content = rh;
-					// (with an aspect ratio and a definite width: the height that width gives)
-					if (cs.aspectRatio > 0 && known(kc)) content = kc / cs.aspectRatio;
+					if (contentBasis && !known(kc)) content = b else {
+						// (its content's height: not its own, CSS's content size suggestion; a wrapping
+						// column's lines broken at its own definite height, its tallest line's, as Chromium's)
+						bareH = true;
+						size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
+						content = rh;
+						// (with an aspect ratio and a definite width: the height that width gives, its content's when
+						// more, within its max across through the ratio; its height auto, not a percentage behaving as auto)
+						if (cs.aspectRatio > 0 && known(kc) && cs.height == DimValue.Auto) {
+							noRatio = rh;
+							bareH = true;
+							size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
+							content = Math.max(content, Math.min(rh, it.maxCross / cs.aspectRatio));
+						}
+					}
 				}
 				// (with an aspect ratio: no less than its min across through the ratio, CSS's content size
 				// suggestion; its max across not, its content wider, as Chromium has it)

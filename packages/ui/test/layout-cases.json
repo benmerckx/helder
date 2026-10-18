@@ -7417,5 +7417,147 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "aspect ratio and the content height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"width": 35,
+						"aspectRatio": 0.5
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 75
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"direction": "Row"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 35,
+								"aspectRatio": 0.5
+							},
+							"children": [
+								{
+									"style": {
+										"height": 75
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"width": 35,
+								"aspectRatio": 0.5,
+								"overflow": "Hidden"
+							},
+							"children": [
+								{
+									"style": {
+										"height": 75
+									}
+								}
+							]
+						},
+						{
+							"style": {
+								"width": 35,
+								"aspectRatio": 0.5,
+								"maxHeight": 72
+							},
+							"children": [
+								{
+									"style": {
+										"height": 75
+									}
+								}
+							]
+						}
+					]
+				},
+				{
+					"style": {
+						"wrap": true,
+						"width": 74,
+						"aspectRatio": 1
+					},
+					"children": [
+						{
+							"style": {
+								"minHeight": 62
+							}
+						},
+						{
+							"style": {
+								"height": 44
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"maxWidth": 39,
+						"aspectRatio": 2
+					},
+					"children": [
+						{
+							"style": {
+								"height": 25
+							}
+						}
+					]
+				},
+				{
+					"children": [
+						{
+							"style": {
+								"width": 66,
+								"height": "50%",
+								"aspectRatio": 1
+							},
+							"children": [
+								{
+									"style": {
+										"height": 52,
+										"margin": 8
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"name": "aspect ratio, a percentage height, shrunk",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"width": 70,
+						"height": "50%",
+						"aspectRatio": 2
+					}
+				},
+				{
+					"style": {
+						"basis": 105
+					}
+				}
+			]
+		}
 	}
 ]

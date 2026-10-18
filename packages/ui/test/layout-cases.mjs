@@ -298,4 +298,12 @@ export const cases = [
 		{ style: { display: 'Grid', width: 100, gridTemplateColumns: 'auto auto' }, children: [{ style: { aspectRatio: 0.5 } }, h(10)] },
 		{ style: { display: 'Grid', width: 300, gridTemplateColumns: 'min-content 1fr' }, children: [{ style: { aspectRatio: 0.5 } }, h(40)] },
 		{ style: { display: 'Grid' }, children: [{ style: { maxWidth: 40, aspectRatio: 0.5 } }] }] } },
+	// (a box with an aspect ratio, its height auto, its min-height auto, its overflow visible: its content's height when more than the ratio's,
+	// within its max-height, a wrapping column's lines broken at the ratio's; a flex base size the ratio's, its minimum its content's within
+	// its max-width through the ratio; a percentage height not)
+	{ name: 'aspect ratio and the content height', width: 300, height: 200, tree: { children: [{ style: { width: 35, aspectRatio: 0.5 }, children: [{ style: { basis: 75 } }] },
+		{ style: { direction: 'Row' }, children: [{ style: { width: 35, aspectRatio: 0.5 }, children: [h(75)] }, { style: { width: 35, aspectRatio: 0.5, overflow: 'Hidden' }, children: [h(75)] }, { style: { width: 35, aspectRatio: 0.5, maxHeight: 72 }, children: [h(75)] }] },
+		{ style: { wrap: true, width: 74, aspectRatio: 1 }, children: [{ style: { minHeight: 62 } }, h(44)] },
+		{ style: { maxWidth: 39, aspectRatio: 2 }, children: [h(25)] }, { children: [{ style: { width: 66, height: '50%', aspectRatio: 1 }, children: [{ style: { height: 52, margin: 8 } }] }] }] } },
+	{ name: 'aspect ratio, a percentage height, shrunk', width: 300, height: 200, tree: { children: [{ style: { width: 70, height: '50%', aspectRatio: 2 } }, { style: { basis: 105 } }] } },
 ];
