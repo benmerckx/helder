@@ -9,8 +9,10 @@
 //   hydrated (JavaScript islands) or running (WebAssembly ones); the menu
 //   (a phone's) and the theme switch work;
 // - the examples: each canvas example running with a graphics API once
-//   its Run button is clicked at a phone's width, those scrolled away
-//   stopped (data-stop); the
+//   its Run button is clicked, with no uncaught exception: at a phone's
+//   width (WebGPU), a desktop's (WebGL2) and on an emulated Android phone
+//   (touch, its user agent, WebGL2), those scrolled away stopped
+//   (data-stop); the
 //   triangle and the cube (still: ?angle through hxmcWasmOptions) read back
 //   at 256x192 against packages/gfx/test/triangle.png and cube.png
 //   (compare.mjs): WebGPU on SwiftShader and WebGL2 in Chromium, WebGL2 in
@@ -330,10 +332,18 @@ async function run(page, id) {
 }
 
 // every canvas example running, with a graphics API, when run in turn (a
-// phone's width: a tap starts each); those scrolled away stopped, their GPU
-// memory given back
-async function examplesTest(browser) {
-	const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+// phone's width: a tap starts each), no exception in the second after it
+// starts; those scrolled away stopped, their GPU memory given back. As
+// label: a phone's width; a desktop's, through WebGL2; an emulated Android
+// phone (touch, its user agent), through WebGL2
+const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36';
+async function examplesTest(browser, label = 'phone') {
+	const options = label === 'desktop' ? { viewport: { width: 1280, height: 900 } } : label === 'android'
+		? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2.625, userAgent: ANDROID } : { viewport: { width: 390, height: 844 } };
+	const page = await browser.newPage(options);
+	if (label !== 'phone') await page.addInitScript(() => {
+		window.hxmcWasmOptions = new Proxy({}, { get: () => ({ gfx: 'webgl2' }) });
+	});
 	const r = await visit(page, 'examples.html');
 	const ids = await page.evaluate(() => [...document.querySelectorAll('.example-demo hxmc-island[data-wasm]')].filter((el) => el.querySelector('canvas')).map((el) => el.id.slice(5)));
 	const facts = [];
@@ -341,12 +351,13 @@ async function examplesTest(browser) {
 		await page.evaluate((id) => document.getElementById('demo-' + id).scrollIntoView({ block: 'center' }), id);
 		await run(page, id);
 		await page.waitForFunction((id) => { const el = document.getElementById('demo-' + id); return el.hasAttribute('data-hydrated') || el.hasAttribute('data-error'); }, id, { timeout: 60000 }).catch(() => {});
+		await page.waitForTimeout(1000);
 		facts.push(await page.evaluate((id) => { const el = document.getElementById('demo-' + id); return { id: el.id, gfx: el.dataset.gfx ?? null, error: el.dataset.error ?? null }; }, id));
 	}
 	const stopped = await page.evaluate(() => document.querySelectorAll('hxmc-island[data-stopped]').length);
 	await page.close();
 	const bad = facts.filter((f) => !f.gfx || f.error);
-	check(facts.length > 0 && bad.length === 0 && r.errors.length === 0 && stopped >= facts.length - 3, `examples: ${facts.length} canvas examples running (${facts.map((f) => f.id + ' ' + f.gfx).join(', ')}), ${stopped} stopped once scrolled away${bad.length ? '; not: ' + JSON.stringify(bad) : ''}${r.errors.length ? '; errors: ' + r.errors.join('; ') : ''}`);
+	check(facts.length > 0 && bad.length === 0 && r.errors.length === 0 && stopped >= facts.length - 3, `examples (${label}): ${facts.length} canvas examples running (${facts.map((f) => f.id + ' ' + f.gfx).join(', ')}), ${stopped} stopped once scrolled away${bad.length ? '; not: ' + JSON.stringify(bad) : ''}${r.errors.length ? '; errors: ' + r.errors.join('; ') : ''}`);
 }
 
 // the cube on a phone (touch emulated, a 390x844 viewport): a horizontal
@@ -625,7 +636,7 @@ for (const { name, label, opts, noExnref } of launches) {
 		if (examples) {
 			await interactTest(browser, name);
 			if (name === 'chromium') {
-				await examplesTest(browser);
+				for (const label of ['phone', 'desktop', 'android']) await examplesTest(browser, label);
 				for (const [id, golden] of [['gfx-triangle', 'triangle.png'], ['gfx-cube', 'cube.png']]) {
 					await gfxTest(browser, name, id, golden, 'webgpu');
 					await gfxTest(browser, name, id, golden, 'webgl2', 'webgl2');
