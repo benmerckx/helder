@@ -349,6 +349,9 @@ class Layout {
 					// (with an aspect ratio and a definite width: the height that width gives)
 					if (cs.aspectRatio > 0 && known(kc)) content = kc / cs.aspectRatio;
 				}
+				// (with an aspect ratio: no less than its min across through the ratio, CSS's content size
+				// suggestion; its max across not, its content wider, as Chromium has it)
+				if (cs.aspectRatio > 0) content = Math.max(content, it.minCross * (row ? cs.aspectRatio : 1 / cs.aspectRatio));
 				var spec = (row ? cs.width : cs.height).resolve(pctMain);
 				if (known(spec) && spec < content) content = spec;
 				it.minMain = Math.max(Math.min(content, it.maxMain), row ? edgesH(cs) : edgesV(cs));
@@ -758,6 +761,14 @@ class Layout {
 			var minCH = Math.max(min(cs.minHeight, ah), edgesV(cs)), maxCH = max(cs.maxHeight, ah);
 			var iw = clamp(cs.width.intrinsic() ? intrinsicWidth(c, cs.width, aw, roomW) : cs.width.resolve(aw), minCW, maxCW);
 			var ih = clamp(cs.height.resolve(ah), minCH, maxCH);
+			// (an aspect ratio and neither size its own: not stretched but at its start, as wide as the
+			// area within its widths and the heights it may have through the ratio, as Chromium has it)
+			var ar = cs.aspectRatio;
+			if (ar > 0 && !known(iw) && !known(ih) && jx == Stretch && jy == Stretch) {
+				iw = clamp(Math.min(roomW, maxCH * ar), Math.max(minCW, minCH * ar), maxCW);
+				ih = clamp(iw / ar, minCH, maxCH);
+				jx = jy = Start;
+			}
 			if (!known(iw)) {
 				if (jx == Stretch) iw = clamp(roomW, minCW, maxCW) else {
 					// (fit-content: its max-content width, no more than the area)

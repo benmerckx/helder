@@ -282,4 +282,10 @@ export const cases = [
 		{ style: { position: 'Absolute', gridColumn: '1 / span 2', right: 0, height: 5 } }, box(8, 8, { position: 'Absolute', gridColumn: '7', gridRow: '1', bottom: 0 })] }] } },
 	{ name: 'rtl grid absolute children in their areas', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', dir: 'Rtl', gridTemplateColumns: '50px 1fr 60px', padding: [0, 5, 0, 9] }, children: [
 		{ style: { position: 'Absolute', gridColumn: '2 / 3', left: 0, right: 0, height: 5 } }, box(10, 10, { position: 'Absolute', gridColumn: '1' })] }] } },
+	// (an item with an aspect ratio, neither size its own: at its start, its width the area's within the heights it may have through the ratio)
+	{ name: 'grid item with an aspect ratio and a max height', width: 300, height: 200, tree: { children: [{ children: [{ style: { display: 'Grid' }, children: [{ style: { maxHeight: '50%', aspectRatio: 1 } }] }] }, { style: { display: 'Grid', gridTemplateColumns: '200px' }, children: [{ style: { aspectRatio: 2, minHeight: 20 } }] }] } },
+	// (an item with an aspect ratio: its least width its min height's through the ratio; stretched, its width the height's, its content's when wider)
+	{ name: 'row item with an aspect ratio, a min height, a stretched height', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row' }, children: [{ style: { basis: 27, minHeight: 84, aspectRatio: 1 } }] },
+		{ style: { direction: 'RowReverse' }, children: [{ style: { aspectRatio: 1 }, children: [{ style: { maxHeight: '25%' } }] }, { style: { padding: 2 } }] },
+		{ style: { direction: 'RowReverse' }, children: [{ style: { maxHeight: 23, aspectRatio: 1 }, children: [{ style: { maxHeight: '25%' } }, { style: { width: 59 } }] }] }] } },
 ];
