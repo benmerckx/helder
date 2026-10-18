@@ -44,7 +44,7 @@ class Layout {
 	static var lineTop = 0;
 
 	static inline var CACHE = 4; // measured results kept per node
-	static inline var ENTRY = 6; // knownW, knownH, availW, availH, width, height
+	static inline var ENTRY = 7; // knownW, knownH, availW, availH, bare (1: its width, 2: its height), width, height
 
 	public function new(text:TextEngine)
 		this.text = text;
@@ -79,10 +79,12 @@ class Layout {
 		// (bare on an axis where the node has no size, min or max of its own: as measured normally, cached alike)
 		var bw = bareW && (s.width != DimValue.Auto || s.minWidth != DimValue.Auto || s.maxWidth != DimValue.Auto);
 		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
-		var own = !bw && !bh;
+		var bare = (bw ? 1 : 0) | (bh ? 2 : 0);
 		bareW = bareH = false;
 		// (measured bare, a column still breaks its lines at its own height)
 		var bareBreak = bh ? s.height.resolve(parentH) : Math.NaN;
+		// (cached by how bare it was measured; not when that height, of its parent's, breaks it)
+		var cached = !known(bareBreak);
 		// (its height definite for its children: given so, or its own)
 		var defH = !looseH || known(s.height.resolve(parentH));
 		looseH = false;
@@ -110,7 +112,7 @@ class Layout {
 				rh = h;
 				return;
 			}
-		} else if (own && lookup(n, w, defH ? h : -1 - h, availW, availH)) return;
+		} else if (cached && lookup(n, w, defH ? h : -1 - h, availW, availH, bare)) return;
 		var pad = s.padding, be = s.borderEdges;
 		var padL = pad.left + be.left, padT = pad.top + be.top, padH = pad.left + pad.right + be.left + be.right, padV = pad.top + pad.bottom + be.top + be.bottom;
 		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) {
@@ -132,7 +134,7 @@ class Layout {
 			breakH = bareBreak;
 			flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
 		}
-		if (!perform && own) store(n, w, defH ? h : -1 - h, availW, availH, rw, rh);
+		if (!perform && cached) store(n, w, defH ? h : -1 - h, availW, availH, bare, rw, rh);
 	}
 
 	// --- a flex container ---
@@ -1311,14 +1313,14 @@ class Layout {
 		n.measureInk();
 	}
 
-	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float):Bool {
+	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float, bare:Int):Bool {
 		var c = n.cache;
 		if (c == null) return false;
 		var i = 1, end = 1 + Std.int(c[0]);
 		while (i < end) {
-			if (same(c[i], w) && same(c[i + 1], h) && fits(c[i + 2], c[i + 4], aw) && fits(c[i + 3], c[i + 5], ah)) {
-				rw = c[i + 4];
-				rh = c[i + 5];
+			if (same(c[i], w) && same(c[i + 1], h) && c[i + 4] == bare && fits(c[i + 2], c[i + 5], aw) && fits(c[i + 3], c[i + 6], ah)) {
+				rw = c[i + 5];
+				rh = c[i + 6];
 				return true;
 			}
 			i += ENTRY;
@@ -1329,7 +1331,7 @@ class Layout {
 	// (the cache: its length in slot 0, then up to CACHE entries; the oldest
 	// dropped. Room for one at first, twice as many when full: most nodes
 	// are measured once or twice)
-	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, rw:Float, rh:Float) {
+	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, bare:Int, rw:Float, rh:Float) {
 		var c = n.cache;
 		if (c == null) c = n.cache = new haxe.ds.Vector(1 + ENTRY, 0.0);
 		var at = 1 + Std.int(c[0]);
@@ -1347,8 +1349,9 @@ class Layout {
 		c[at + 1] = h;
 		c[at + 2] = aw;
 		c[at + 3] = ah;
-		c[at + 4] = rw;
-		c[at + 5] = rh;
+		c[at + 4] = bare;
+		c[at + 5] = rw;
+		c[at + 6] = rh;
 		c[0] = at + ENTRY - 1;
 	}
 
