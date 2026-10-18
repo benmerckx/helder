@@ -21,7 +21,7 @@ class Docs implements Markup {
 			if (FileSystem.exists(src)) out.push({src: src, page: page, group: group, title: Markdown.title(Site.read(src), src)});
 		}
 		add("README.md", "docs/overview.html", "Guides");
-		for (n in ["using", "development", "testing", "porting", "hxmc"])
+		for (n in ["using", "dev", "development", "testing", "porting", "hxmc"])
 			add('docs/$n.md', 'docs/$n.html', "Guides");
 		add("ROADMAP.md", "docs/roadmap.html", "Guides");
 		for (p in Pages.PACKAGES)

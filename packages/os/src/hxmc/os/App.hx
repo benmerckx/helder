@@ -40,6 +40,10 @@ class App {
 
 	// one turn of the loop: false once it has ended
 	@:allow(hxmc.os) static function turn(onFrame:Void->Void, onEvent:Event->Void):Bool {
+		#if hxmc.dev
+		// (hxmc dev: the dev server's messages; a build that handed over ends here)
+		if (!hxmc.dev.Hot.poll()) running = false;
+		#end
 		if (!running || windows.length == 0) {
 			running = false;
 			return false;
@@ -63,12 +67,19 @@ class App {
 			if (running && windows.length > 0) onFrame();
 		}
 		if (Mem.os() == 1) Runtime.objc_autoreleasePoolPop(pool);
+		#if hxmc.dev
+		hxmc.dev.Hot.framed();
+		#end
 		return true;
 	}
 
 	// blocks until an event is pending or seconds pass (the browser: returns
 	// at once, requestAnimationFrame paces the loop)
 	public static function wait(seconds:Float) {
+		#if hxmc.dev
+		// (hxmc dev: awake for the dev server's messages, which turn reads)
+		if (seconds < 0 || seconds > 0.05) seconds = 0.05;
+		#end
 		if (Mem.platform() >= 1) UIKitWindow.wait(seconds) else if (Mem.os() == 1) CocoaWindow.wait(seconds) else if (Mem.os() == 2) Win32Window.wait(seconds) else if (Mem.os() == 3) {} else if (Mem.target() >= 9)
 			AndroidWindow.wait(seconds) else X11Window.wait(seconds);
 	}

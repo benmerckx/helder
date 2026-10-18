@@ -283,7 +283,7 @@ class Literal {
 	function mountBody(root:PNode):Array<Expr> {
 		return switch root.kind {
 			case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
-				[macro @:pos(pos) __RT__.component(__p, __b, __o, ${factory(name, attrs, children, at)})];
+				[component(name, attrs, children, at, macro __p, macro __b, macro __o)];
 			case PElement(name, attrs, children, _): element(name, attrs, children, P, true);
 			case PFragment(children): this.children(children, P, B, O, macro false);
 			case _: [];
@@ -387,7 +387,7 @@ class Literal {
 					parts.push(part(c));
 				case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
 					flush();
-					s.push(macro @:pos(pos) __RT__.component($parent, $before, $out, ${factory(name, attrs, children, at)}));
+					s.push(component(name, attrs, children, at, parent, before, out));
 				case PElement(name, attrs, children, _):
 					flush();
 					s = s.concat(element(name, attrs, children, parent, top));
@@ -486,11 +486,30 @@ class Literal {
 		}
 	}
 
+	// a component mounted: Render.component with its factory; under -D
+	// hxmc.dev componentIn, in Hot.scope of its name (name[key] with a key
+	// attribute: fast refresh's keys, hxmc.view.Refresh)
+	function component(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int, parent:Expr, before:Expr, out:Expr):Expr {
+		if (!Context.defined("hxmc.dev")) return macro @:pos(pos) __RT__.component($parent, $before, $out, ${factory(name, attrs, children, at)});
+		var key:Null<Expr> = null;
+		for (a in attrs)
+			if (a.name == "key")
+				key = switch a.value {
+					case AStatic(s): macro $v{s};
+					case AExpr(code, at): hole(MarkupMacro.expr(code, file, base + at, true));
+					case _: null;
+				}
+		var scope = key == null ? macro $v{name} : macro $v{name + "["} + Std.string($key) + "]";
+		return macro @:pos(pos) __RT__.componentIn($scope, $parent, $before, $out, ${factory(name, attrs, children, at)});
+	}
+
 	// a component's factory: () -> Name({props}), its content the children
-	// prop (a literal of its own, evaluated when it is called)
+	// prop (a literal of its own, evaluated when it is called); its key
+	// attribute is no prop
 	function factory(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int):Expr {
 		var fields:Array<ObjectField> = [];
 		for (a in attrs) {
+			if (a.name == "key") continue;
 			var ap = MarkupMacro.position(file, base + a.at, a.name.length);
 			var v = switch a.value {
 				case AStatic(s): macro @:pos(ap) $v{s};
