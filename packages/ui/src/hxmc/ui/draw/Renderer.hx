@@ -542,10 +542,11 @@ class Renderer implements Canvas {
 	// (under a transform: scaled pixels, gy whole on the target's grid less
 	// the translation's fraction, which the glyph is moved back by)
 	inline function glyph(f:hxmc.text.FontFile, id:Int, size:Float, gx:Float, gy:Int, color:Color, oblique:Bool, sigma = 0.0) {
-		// (aligned: the subpixel offset on the target's grid, as the transform moves it)
+		// (aligned: the subpixel offset on the target's grid, as the transform moves it;
+		// the position rounded to the nearest of the atlas's steps, not down, as Skia's)
 		var ex = flat ? 0.0 : me - Std.int(me), ey = flat ? 0.0 : mf - Std.int(mf);
-		var ix = Math.floor(gx + ex);
-		var sub = Std.int((gx + ex - ix) * GlyphAtlas.SUBPIXELS);
+		var px = gx + ex + 0.5 / GlyphAtlas.SUBPIXELS, ix = Math.floor(px);
+		var sub = Std.int((px - ix) * GlyphAtlas.SUBPIXELS);
 		var a = atlas.get(f, id, size, sub, oblique, sigma);
 		if (a.w > 0) {
 			var qx = ix - ex + a.left, qy = gy + a.top - ey;
