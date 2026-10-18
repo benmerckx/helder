@@ -9,11 +9,13 @@ import hxmc.scene.render.*;
 //   gltf   the sample glTF scene (examples/sample.glb) from its camera,
 //          lit by the renderer's sun and sky
 //   shadows the same with a shadow map (Shadows, 512x512)
+//   physics @hxmc/physics' Falling example after STEPS steps
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics"];
 	public static inline var TIME = 2.0;
+	public static inline var STEPS = 150;
 
 	public static function make(name:String, device:Device):Encoder->Void {
 		return switch name {
@@ -31,6 +33,11 @@ class Scenes {
 				var orbits = new Orbits(device);
 				orbits.at(TIME);
 				enc -> orbits.draw(enc);
+			case "physics":
+				var falling = new Falling(device);
+				for (_ in 0...STEPS)
+					falling.physics.step(1 / 60);
+				enc -> falling.draw(enc);
 			case n: throw 'Scenes: no scene $n';
 		}
 	}
