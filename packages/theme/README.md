@@ -223,8 +223,12 @@ with Tailwind's default theme and shadcn's on top, 1rem = 16px:
   `uppercase`, `truncate`, `whitespace-nowrap`, `tabular-nums`,
   `text-center`...
 
-Variants become the rule's `when` states, in Tailwind's order (the rule
-of a later variant later, so that "later rules win" is CSS's cascade):
+Variants become the rule's `when` states, ordered as CSS's cascade
+orders Tailwind's rules, so that "later rules win" is it: by specificity
+(a pseudo-class, attribute, group, peer, `has-`, `not-` or shadcn's `dark`
+variant one each, `data-[size=sm]` selecting a size too; a breakpoint,
+`rtl`, `starting` none: `group-data-[...]:text-center` over `md:text-left`),
+then Tailwind's order (the rule of a later variant later):
 `hover`, `focus`, `focus-visible`, `active`, `disabled`, `placeholder`,
 `selection`, `first`, `last`, `sm`...`2xl` (the window's width), `rtl`,
 `ltr`, `starting`, `dark`, `data-[state=checked]`

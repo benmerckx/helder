@@ -21,6 +21,8 @@ class Ui {
 	public final root:Node;
 	// the layers above the tree (Popup nodes, the last on top)
 	public final overlay:Node;
+	// the page's body: the node of slot "body", whose text properties the layers inherit (as a page's popups its body's)
+	public var body(default, null):Null<Node> = null;
 	public var text:TextEngine;
 	public var width(default, null):Float;
 	public var height(default, null):Float;
@@ -1256,7 +1258,16 @@ class Ui {
 	}
 
 	// a node left the tree: it no longer hovers, captures or has the focus
+	@:allow(hxmc.ui.Node) function setBody(n:Node) {
+		body = n;
+		@:privateAccess overlay.inheritedChanged();
+	}
+
 	@:allow(hxmc.ui.Node) function detached(n:Node) {
+		if (n == body) {
+			body = null;
+			@:privateAccess overlay.inheritedChanged();
+		}
 		if (hover != null && contains(n, hover)) hover = null;
 		if (capture != null && contains(n, capture)) capture = null;
 		if (drag != null && contains(n, drag)) drag = null;

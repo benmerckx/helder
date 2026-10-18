@@ -261,16 +261,17 @@ class Tailwind {
 				if (a.holdsWith(b) || b.holdsWith(a) || a.variant != null && b.variant != null && a.variant != b.variant
 					|| a.size != null && b.size != null && a.size != b.size) continue;
 				var u = new Group(a.key + "+" + b.key, a.variant ?? b.variant, a.size ?? b.size, a.when.concat([for (w in b.when) if (!a.when.contains(w)) w]),
-					a.order.concat(b.order));
+					a.order.concat(b.order), a.picked > b.picked ? a.picked : b.picked);
 				u.order.sort((x, y) -> y - x);
 				for (k in a.keys.concat(b.keys))
 					if (isTransform(k) && !u.keys.contains(k)) u.keys.push(k);
 				groups.push(u);
 			}
-		// (stable: the same variants keep the classes' order)
+		// (as CSS orders them: by specificity, then Tailwind's order; stable: the same variants keep the classes' order)
 		var seq = [for (i in 0...groups.length) groups[i] => i];
 		groups.sort((a, b) -> {
-			var c = compareOrder(a.order, b.order);
+			var c = a.specificity() - b.specificity();
+			if (c == 0) c = compareOrder(a.order, b.order);
 			c != 0 ? c : seq[a] - seq[b];
 		});
 		var out = [];
@@ -332,7 +333,8 @@ class Tailwind {
 		var utility = parts.pop();
 		// (!important: the rule keeps its place; CSS would let it beat every other)
 		if (utility.endsWith("!")) utility = utility.substr(0, utility.length - 1) else if (utility.startsWith("!")) utility = utility.substr(1);
-		var when = [], order = [];
+		// (picked: the size or variant a variant selects, data-[size=sm]: an attribute selector's specificity)
+		var when = [], order = [], picked = 0;
 		for (v in parts) {
 			if (matches(IGNORED_VARIANTS, v)) return;
 			var r = readVariant(v);
@@ -341,6 +343,7 @@ class Tailwind {
 				return;
 			}
 			order.push(r.order);
+			if (r.size != null || r.variant != null) picked++;
 			if (r.size != null) size = r.size else if (r.variant != null) variant = r.variant else when.push(r.state);
 		}
 		if (matches(IGNORED, utility)) return;
@@ -359,12 +362,12 @@ class Tailwind {
 			}
 		}
 		order.sort((a, b) -> b - a);
-		var key = '$layer|$variant|$size|' + when.join("&");
+		var key = '$layer|$variant|$size|$picked|' + when.join("&");
 		var g = null;
 		for (x in groups)
 			if (x.key == key) g = x;
 		if (g == null) {
-			g = new Group(key, variant, size, when, order);
+			g = new Group(key, variant, size, when, order, picked);
 			groups.push(g);
 		}
 		for (p in props) {
@@ -1328,13 +1331,32 @@ private class Group {
 	public final order:Array<Int>;
 	public final parts = new Map<String, TwValue>();
 	public final keys:Array<String> = [];
+	// (the variants selecting its size or variant: data-[size=sm])
+	public final picked:Int;
 
-	public function new(key, variant, size, when, order) {
+	public function new(key, variant, size, when, order, picked) {
 		this.key = key;
 		this.variant = variant;
 		this.size = size;
 		this.when = when;
 		this.order = order;
+		this.picked = picked;
+	}
+
+	// its selector's specificity beyond its class's, as Tailwind writes
+	// it: a pseudo-class, an attribute, a group's or peer's (:is(:where(.group):hover *)),
+	// a has: or not: one each, shadcn's dark (&:is(.dark *)) too;
+	// media queries, the direction (:where), @starting-style and the
+	// pseudo-elements nothing a rule of the element competes with
+	public function specificity():Int {
+		var n = picked;
+		for (w in when)
+			switch w {
+				case "sm" | "md" | "lg" | "xl" | "2xl" | "rtl" | "ltr" | "starting" | "placeholder" | "selection" | "motion-safe" | "motion-reduce" | "print"
+					| "forced-colors" | "portrait" | "landscape" | "contrast-more" | "contrast-less":
+				case _: n++;
+			}
+		return n;
 	}
 
 	// whether this rule holds whenever g does

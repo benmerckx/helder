@@ -1320,7 +1320,7 @@ class Widgets implements Markup {
 			}
 			open.value = true;
 		}
-		return <view tag={tag} slot={native ? "native-select" : "select-trigger"} data-size={props.size ?? "default"}
+		return <view tag={tag} slot={native ? "native-select" : "select-trigger"} data-size={props.size ?? "default"} size={props.size ?? "default"}
 			data-placeholder={() -> props.placeholder != null && props.options.indexOf(props.value.value) < 0 ? "" : null} ref={n -> {
 			self = n;
 			States.apply(n, props.style);
@@ -2257,8 +2257,8 @@ class Widgets implements Markup {
 	// "Continue"; the action's variant default "default", "destructive" for
 	// a deletion), the cancel button focused first. Cancel or Escape closes
 	// it (onCancel), the action closes it and runs onAction; a click outside
-	// does nothing. Slots "alert-dialog-overlay", "alert-dialog-content",
-	// "alert-dialog-header", "alert-dialog-title", "alert-dialog-description",
+	// does nothing. Slots "alert-dialog-overlay", "alert-dialog-content"
+	// (data-size, a group: group/alert-dialog-content), "alert-dialog-header", "alert-dialog-title", "alert-dialog-description",
 	// "alert-dialog-footer"; the buttons "button"s
 	@:widget({
 		props: {
@@ -2271,6 +2271,7 @@ class Widgets implements Markup {
 			onAction: "called when the action button closes it",
 			onCancel: "called when the cancel button or Escape closes it",
 			width: "its panel's width in pixels (360)",
+			size: "\"default\" or \"sm\" (data-size: a small one's header centred, its buttons side by side)",
 			children: "more content, between the description and the buttons"
 		},
 		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
@@ -2281,8 +2282,8 @@ class Widgets implements Markup {
 		}
 	})
 	public static function AlertDialog(props:{open:Signal<Bool>, title:String, ?description:String, ?cancel:String, ?action:String,
-			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):Any {
-		var tag = props.tag ?? "alert-dialog";
+			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?size:String, ?tag:String, ?children:Any}):Any {
+		var tag = props.tag ?? "alert-dialog", size = props.size ?? "default";
 		function cancel() {
 			props.open.value = false;
 			if (props.onCancel != null) props.onCancel();
@@ -2303,13 +2304,15 @@ class Widgets implements Markup {
 				if (c != null && c.ui != null) c.ui.setFocus(c, false);
 			},
 			tag: tag,
-			children: <view slot="alert-dialog-content" data-state="open" role="alertdialog" label={props.title} width={props.width ?? 360}>
-				<view slot="alert-dialog-header">
-					<text slot="alert-dialog-title" role="heading">{props.title}</text>
+			// (its size the parts' too: their group-data-[size=...] rules)
+			children: <view slot="alert-dialog-content" data-state="open" data-size={size} size={size} group="alert-dialog-content" role="alertdialog" label={props.title}
+				width={props.width ?? 360}>
+				<view slot="alert-dialog-header" size={size}>
+					<text slot="alert-dialog-title" role="heading" size={size}>{props.title}</text>
 					{props.description == null ? null : <text slot="alert-dialog-description">{props.description}</text>}
 				</view>
 				{props.children}
-				<view slot="alert-dialog-footer" direction="row">
+				<view slot="alert-dialog-footer" direction="row" size={size}>
 					<Button tag={tag + "-cancel"} label={props.cancel ?? "Cancel"} variant="outline" onClick={cancel}/>
 					<Button tag={tag + "-action"} label={props.action ?? "Continue"} variant={props.variant ?? "default"} onClick={act}/>
 				</view>

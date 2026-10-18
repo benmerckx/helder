@@ -1649,6 +1649,18 @@ static function transitions() {
 		ui.root.remove(kept);
 		ui.root.remove(other);
 		ui.theme = null;
+		// (a layer's text inherits the page's body's, as a popup in a page's body: again when it changes)
+		var page = new Node("page"), layer = new Node("layer");
+		page.slot = "body";
+		page.style.fontSize = 20;
+		ui.root.append(page);
+		ui.overlay.append(layer);
+		var first = layer.font().size;
+		page.style.fontSize = 16;
+		var again = layer.font().size;
+		ui.root.remove(page);
+		check("popups inherit the body's text (Ui.body)", first == 20 && again == 16 && layer.font().size != 16, first + " " + again + " " + layer.font().size);
+		ui.overlay.remove(layer);
 	}
 
 	static function themes() {
