@@ -2998,12 +2998,12 @@ class Widgets implements Markup {
 			"Home, End": "to the first or last trigger"
 		}
 	})
-	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
+	@:neutral public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
 		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion", count = props.sections.length;
+		var triggers:Array<Part> = [];
 		// (Up and Down between the triggers, wrapping; Home and End to the first and last)
-		function key(e:Event) {
-			var ts = [for (i in 0...count) e.current.find(tag + "-" + i + "-summary")], i = ts.indexOf(e.target);
-			var j = i < 0 ? -1 : switch e.key {
+		function key(e:Event, i:Int) {
+			var j = switch e.key {
 				case Key.DOWN: (i + 1) % count;
 				case Key.UP: (i + count - 1) % count;
 				case Key.HOME: 0;
@@ -3012,29 +3012,29 @@ class Widgets implements Markup {
 			}
 			if (j < 0) return;
 			e.preventDefault();
-			focusIn(ts, j);
+			focusPart(triggers, j);
 		}
-		return <view tag={tag} slot="accordion" onKeyDown={key}>{[
-			for (i in 0...props.sections.length) {
+		// (its trigger and content naming each other where it has an id; the chevron turned by ui, a page's by its theme's rule)
+		inline function id(i:Int, part:String):Null<String>
+			return props.tag == null ? null : props.tag + "-" + part + i;
+		return <view tag={tag} id={props.tag} slot="accordion" data-orientation="vertical">{[
+			for (i in 0...count) {
 				var s = props.sections[i], state = () -> open.value == i ? "open" : "closed";
-				<view tag={tag + "-" + i} slot="accordion-item" data-state={state}>
-					{trigger(tag + "-" + i + "-summary", "accordion-trigger", state, () -> open.value = open.peek() == i ? -1 : i, [
-						<text grow={1}>{s.label}</text>,
-						<image slot="accordion-trigger-icon" src={CHEVRON} hidden transform={() -> open.value == i ? "rotate(180deg)" : "none"}/>
-					])}
-					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} slot="accordion-content" data-state="open">{s.render()}</view></Show>
+				<view tag={tag + "-" + i} slot="accordion-item" data-state={state} data-orientation="vertical">
+					<view:h3 role="heading" level={3} data-orientation="vertical" data-state={state} direction="row">
+						<view:button tag={tag + "-" + i + "-summary"} id={id(i, "t")} slot="accordion-trigger" role="button" focusable direction="row" expanded={() -> open.value == i}
+							aria-controls={id(i, "c")} data-state={state} data-orientation="vertical" ref={p -> triggers[i] = p}
+							onPress={_ -> open.value = open.peek() == i ? -1 : i} onKeyDown={e -> key(e, i)}>
+							<text grow={1}>{s.label}</text>
+							<icon slot="accordion-trigger-icon" name="chevron-down" hidden transform={#if js null #else () -> open.value == i ? "rotate(180deg)" : "none" #end}/>
+						</view:button>
+					</view:h3>
+					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} id={id(i, "c")} role={#if js "region" #else null #end}
+						aria-labelledby={id(i, "t")} slot="accordion-content" data-state="open" data-orientation="vertical">{s.render()}</view></Show>
 				</view>;
 			}
 		]}</view>;
 	}
-
-	// (a collapsible's or an accordion's button: expanded, data-state)
-	static function trigger(tag:String, slot:String, state:Void->String, flip:Void->Void, children:Array<Any>):View
-		return <view tag={tag} slot={slot} role="button" expanded={() -> state() == "open"} data-state={state} focusable onClick={_ -> flip()}
-			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
-				e.preventDefault();
-				flip();
-			}}>{children}</view>;
 
 	// where Toasts.show's toasts are shown: in a corner of the window
 	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),

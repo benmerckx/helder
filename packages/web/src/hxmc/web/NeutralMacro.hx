@@ -19,7 +19,7 @@ class NeutralMacro {
 	// (the neutral elements' DOM elements: view's and text's own, and the names their view: and text: forms take)
 	static final VIEWS = [
 		"div", "span", "button", "label", "a", "nav", "ul", "ol", "li", "section", "header", "footer", "aside", "main", "form", "fieldset", "legend",
-		"table", "thead", "tbody", "tr", "th", "td", "hr", "dialog"
+		"table", "thead", "tbody", "tr", "th", "td", "hr", "dialog", "h3"
 	];
 	static final TEXTS = ["span", "p", "h1", "h2", "h3", "h4", "h5", "h6", "label", "kbd", "strong", "em", "small", "code", "legend", "div"];
 

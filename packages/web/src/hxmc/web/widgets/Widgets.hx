@@ -72,26 +72,6 @@ class Widgets implements Markup {
 		return svg;
 	}
 
-	// an accordion (shadcn's, Radix's): sections, at most one open (open: its index, -1 none)
-	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
-		var open = props.open ?? signal(-1), base = props.tag ?? Dom.id();
-		return <div id={props.tag} data-slot="accordion" data-orientation="vertical">{[
-			for (i in 0...props.sections.length) {
-				var s = props.sections[i], state = () -> open.value == i ? "open" : "closed";
-				<div data-slot="accordion-item" data-state={state} data-orientation="vertical">
-					<h3 data-orientation="vertical" data-state={state} style="display:flex">
-						<button type="button" id={base + "-t" + i} aria-controls={base + "-c" + i} aria-expanded={() -> open.value == i ? "true" : "false"} data-state={state}
-							data-orientation="vertical" data-slot="accordion-trigger" onClick={() -> open.value = open.peek() == i ? -1 : i}>
-							{s.label}{icon("chevron-down", "accordion-trigger-icon")}
-						</button>
-					</h3>
-					<Show when={() -> open.value == i}><div id={base + "-c" + i} role="region" aria-labelledby={base + "-t" + i} data-slot="accordion-content"
-						data-state="open" data-orientation="vertical">{s.render()}</div></Show>
-				</div>;
-			}
-		]}</div>;
-	}
-
 	// (the shortcuts of items working from anywhere in the page while mounted (within: only while the focus is in it))
 	static function hotkeys(list:Array<MenuItem>, ?within:Void->Element) {
 		var all = [];
