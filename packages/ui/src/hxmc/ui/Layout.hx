@@ -469,8 +469,8 @@ class Layout {
 							var oneLine = ics.wrap && (ics.direction == Column || ics.direction == ColumnReverse) && !ics.height.match(DimValue.Px(_))
 								&& (!known(innerCross) || looseColumns(it.node));
 							// (a stretched item's width as a contribution to the column's own: its aspect ratio not from its
-							// flexed height, only its own height, as Chromium has it)
-							var given = oneLine || ics.aspectRatio > 0 && it.align == Stretch ? Math.NaN : it.main;
+							// flexed height, only its own height, as Chromium has it; in lines of a known width, its flexed height's)
+							var given = oneLine || ics.aspectRatio > 0 && it.align == Stretch && !known(innerCross) ? Math.NaN : it.main;
 							size(it.node, Math.NaN, given, innerW, pctH, ac, oneLine ? Math.NaN : it.main, false);
 						}
 						// (a column's item across: fit-content, its min-content when the room is less)

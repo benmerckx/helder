@@ -7674,5 +7674,34 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "aspect ratio in a wrapping column, flexed",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"wrap": true,
+						"height": 47
+					},
+					"children": [
+						{
+							"style": {
+								"height": 92,
+								"aspectRatio": 0.5
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 20
+							}
+						}
+					]
+				}
+			]
+		}
 	}
 ]

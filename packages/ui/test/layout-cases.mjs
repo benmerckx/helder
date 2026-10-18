@@ -315,4 +315,6 @@ export const cases = [
 		{ style: { direction: 'Row', width: 50 }, children: [{ style: { height: 30, aspectRatio: 1 }, children: [{ style: { width: 60 } }] }, { style: { basis: 40 } }] },
 		{ style: { height: 16, position: 'Absolute', aspectRatio: 0.5 }, children: [{ style: { width: 119 } }] },
 		{ style: { alignItems: 'End', height: 40 }, children: [{ style: { basis: 30, height: 108, aspectRatio: 0.5 } }] }] } },
+	// (a wrapping column's stretched item with an aspect ratio, in lines of a known width: its width its flexed height's)
+	{ name: 'aspect ratio in a wrapping column, flexed', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 47 }, children: [{ style: { height: 92, aspectRatio: 0.5 } }, box(30, 20)] }] } },
 ];
