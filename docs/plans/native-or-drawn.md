@@ -122,7 +122,7 @@ as NodeRenderer does its elements now: nothing per node at run time):
 - **Events**: ui's `Event` on both (`key` a `Key` code, `mods`, `x`,
   `y`, `stop`, `preventDefault`), the DOM renderer converting its events
   for these elements only (a page's own elements keep the DOM's).
-- **Refs**: a `Part` (`focus`, `rect`, `scrollIntoView`, `rtl`, `capture`,
+- **Refs**: a `Part` (`focus`, `rect`, `scrollIntoView`, `rtl`, `capture` (a press's moves),
   `contains`, `attr`), which Node implements and the DOM renderer wraps.
 - **Layers**: `Layer` (a component: anchored, placed, modal or not), ui's
   overlay or the DOM's top layer.
@@ -150,8 +150,8 @@ Split: packages/ui and the drawn realiser here; the DOM realiser
 
 Where it stands: steps 1 and 2 done; of 3, Toggle, ToggleGroup,
 Checkbox, Switch, RadioGroup, Field and ButtonGroup (and their parts),
-with Alert; 50 widgets and parts one definition. Left in 3: Slider and
-RangeSlider (a drag on the track: Part's capture), and the text fields
+with Alert, Slider and RangeSlider (a drag on the track: Part's
+capture); 52 widgets and parts one definition. Left in 3: the text fields
 (`field`: Input, Textarea, NumberField, InputOTP, InputGroup's input).
 
 Debt: in a page a neutral widget calls a Part's methods (focus, rtl) and

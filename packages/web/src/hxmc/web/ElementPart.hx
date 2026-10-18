@@ -35,6 +35,10 @@ class ElementPart implements hxmc.ui.Part {
 	@:ifFeature("hxmc.web.ElementPart.of") public function attr(name:String):Null<String>
 		return element.getAttribute(name);
 
+	// (the pointer last pressed in a neutral element's handler: Neutral.call's)
+	@:ifFeature("hxmc.web.ElementPart.of") public function capture()
+		if (Neutral.pointer != null) element.setPointerCapture(Neutral.pointer);
+
 	@:ifFeature("hxmc.web.ElementPart.of") public function rtl():Bool
 		return js.Browser.window.getComputedStyle(element).direction == "rtl";
 }

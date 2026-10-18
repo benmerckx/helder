@@ -90,7 +90,7 @@ await press('ArrowRight');
 await check('menubar: Right opens the next menu', (await attr('[data-slot=menubar-trigger] >> nth=1', 'aria-expanded')) === 'true');
 await press('Escape');
 // slider: Right a step
-await page.locator('#volume [role=slider]').focus();
+await page.locator('#volume[role=slider]').focus();
 await press('ArrowRight');
 await check('slider: Right a step', (await text('#volume-shown')) === '45%');
 await press('Home');

@@ -776,6 +776,10 @@ class Node implements Part {
 	public function scrollIntoView()
 		if (ui != null) ui.scrollIntoView(this);
 
+	// (a press's pointer: the pressed node's until released (Ui.capture), this one's now)
+	public function capture()
+		if (ui != null && ui.capture != null) @:privateAccess ui.capture = this;
+
 	public function contains(p:Part):Bool {
 		var n:Null<Node> = Std.downcast(p, Node);
 		while (n != null && n != this)

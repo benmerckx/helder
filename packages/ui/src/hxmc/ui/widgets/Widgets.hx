@@ -364,47 +364,63 @@ class Widgets implements Markup {
 			"Home, End": "sets it to min or max"
 		}
 	})
-	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
+	@:neutral public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0;
 		function set(v:Float)
 			props.value.value = Behaviour.snap(v, lo, hi, step);
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
-		// (right to left: the minimum at the right)
+		var root:Null<Part> = null, dragging = false;
 		function at(e:Event) {
-			if (disabled()) return;
-			var n = e.current, x = n.localX(e.x, e.y);
-			if (n.width <= 0) return;
-			if (n.rtl()) x = n.width - x;
-			set(lo + x / n.width * (hi - lo));
+			var f = along(root, e);
+			if (!disabled() && f != null) set(lo + f * (hi - lo));
 		}
-		return <view tag={props.tag ?? "slider"} slot="slider" data-orientation="horizontal" ref={n -> States.apply(n, props.style)} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
-			value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} justify="center"
-			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
+		return <view:span tag={props.tag ?? "slider"} id={props.tag} slot="slider" data-orientation="horizontal" states={props.style} role="slider" label={props.label}
+			value-now={() -> props.value.value} value-min={lo} value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled}
+			data-disabled={disabled} justify="center" ref={p -> root = p} onPointerDown={e -> {
+				dragging = true;
+				capture(root);
+				at(e);
+			}} onPointerMove={e -> if (dragging) at(e)} onPointerUp={_ -> dragging = false}
 			onKeyDown={e -> if (!disabled()) {
-				var v = Behaviour.slide(mirrored(e), props.value.peek(), lo, hi, step);
+				var v = Behaviour.slide(mirroredKey(e), props.value.peek(), lo, hi, step);
 				if (v != null) {
 					e.preventDefault();
 					props.value.value = v;
 				}
 			}}>
-			<view slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
-				<view slot="slider-range" data-orientation="horizontal" position="relative" width={() -> (frac() * 100) + "%"}/>
-			</view>
-			{along(frac, <view slot="slider-thumb" data-orientation="horizontal" shrink={0}/>)}
-		</view>;
+			<view:span slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
+				<view:span slot="slider-range" data-orientation="horizontal" position="relative" width={() -> (frac() * 100) + "%"}/>
+			</view:span>
+			{thumbAlong(frac, <view:span slot="slider-thumb" data-orientation="horizontal" shrink={0} pointer-events="auto"/>)}
+		</view:span>;
 	}
 
 	// (a thumb along a slider's track, a fraction f of the way: between two
-	// spacers sharing the room it leaves, f and 1 - f of it; mirrored right
-	// to left as the row is)
-	static function along(f:Void->Float, thumb:View):View
-		return <view position="absolute" top={0} bottom={0} left={0} right={0} direction="row" align-items="center" pointer-events="none">
-			<view grow={f} shrink={0} basis={0}/>
+	// spacers sharing the room it leaves, f and 1 - f of it, its left edge
+	// at f of the track's width less its own, as Radix's; mirrored right to
+	// left as the row is)
+	@:neutral static function thumbAlong(f:Void->Float, thumb:View):View
+		return <view:span position="absolute" top={0} bottom={0} left={0} right={0} direction="row" align-items="center" pointer-events="none">
+			<view:span grow={f} shrink={0} basis={0}/>
 			{thumb}
-			<view grow={() -> 1 - f()} shrink={0} basis={0}/>
-		</view>;
+			<view:span grow={() -> 1 - f()} shrink={0} basis={0}/>
+		</view:span>;
+
+	// (how far along a slider's part e's pointer is, 0 at its start, 1 at its
+	// end (its right; right to left its left); null: no part, or no width)
+	static function along(p:Null<Part>, e:Event):Null<Float> {
+		if (p == null) return null;
+		var r:{x:Float, y:Float, width:Float, height:Float} = #if js js.Syntax.code("{0}.rect()", p) #else p.rect() #end;
+		if (r.width <= 0) return null;
+		var f = (e.x - r.x) / r.width;
+		return #if js js.Syntax.code("{0}.rtl()", p) #else p.rtl() #end ? 1 - f : f;
+	}
+
+	// (the pressed pointer's moves and release to p, wherever it goes)
+	static function capture(p:Null<Part>)
+		if (p != null) #if js js.Syntax.code("{0}.capture()", p) #else p.capture() #end;
 
 	// a range slider: two knobs on one track, the range between them filled,
 	// low no more than high; a press moves the nearer knob (then drags it)
@@ -428,10 +444,10 @@ class Widgets implements Markup {
 			"Home, End": "the focused knob to min or max, as far as the other"
 		}
 	})
-	public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
+	@:neutral public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
 			?tag:String}):View {
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, tag = props.tag ?? "range";
-		var dragging = -1, name = props.label ?? "Range", knobs:Array<Node> = [];
+		var dragging = -1, name = props.label ?? "Range", knobs:Array<Part> = [], root:Null<Part> = null;
 		function snap(v:Float):Float
 			return Behaviour.snap(v, lo, hi, step);
 		// (k: 0 the low knob, 1 the high one, each kept on its side of the other)
@@ -440,47 +456,43 @@ class Widgets implements Markup {
 			if (k == 0) props.low.value = Math.min(v, props.high.peek()) else props.high.value = Math.max(v, props.low.peek());
 		}
 		var frac = (v:Float) -> hi > lo ? (v - lo) / (hi - lo) : 0.0;
-		// (right to left: the minimum at the right)
-		function valueAt(e:Event):Float {
-			var n = e.current, x = n.localX(e.x, e.y), w = Math.max(1, n.width);
-			if (n.rtl()) x = w - x;
-			return lo + x / w * (hi - lo);
-		}
+		function valueAt(e:Event):Float
+			return lo + (along(root, e) ?? 0.0) * (hi - lo);
 		function thumb(k:Int):View {
 			var value = k == 0 ? props.low : props.high;
-			return along(() -> frac(value.value), <view tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" data-orientation="horizontal" role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
-					value-now={() -> value.value} value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi}
-					shrink={0} focusable pointer-events="auto"
-					onKeyDown={e -> {
-						var v = Behaviour.slide(mirrored(e), value.peek(), lo, hi, step);
-						if (v != null) {
-							e.preventDefault();
-							set(k, v);
-						}
-					}}/>);
+			return thumbAlong(() -> frac(value.value), <view:span tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" data-orientation="horizontal" role="slider"
+				label={name + (k == 0 ? ": minimum" : ": maximum")} ref={p -> knobs[k] = p} value-now={() -> value.value}
+				value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi} shrink={0} focusable pointer-events="auto"
+				onKeyDown={e -> {
+					var v = Behaviour.slide(mirroredKey(e), value.peek(), lo, hi, step);
+					if (v != null) {
+						e.preventDefault();
+						set(k, v);
+					}
+				}}/>);
 		}
-		return <view tag={tag} slot="slider" data-orientation="horizontal" role="group" label={name} width={props.width} justify="center"
-			onPointerDown={e -> {
+		return <view:span tag={tag} id={props.tag} slot="slider" data-orientation="horizontal" role="group" label={name} width={props.width} justify="center"
+			ref={p -> root = p} onPointerDown={e -> {
 				var v = valueAt(e);
-				// (the nearer knob; where they meet, the one that can move that way)
+				// (the nearer knob; where they meet, the one that can move that way; focused as by the pointer)
 				var dl = Math.abs(v - props.low.peek()), dh = Math.abs(v - props.high.peek());
 				dragging = dl < dh || (dl == dh && v < props.low.peek()) ? 0 : 1;
 				set(dragging, v);
+				capture(root);
 				var n = knobs[dragging];
-				if (n != null && n.ui != null) {
-					n.ui.setFocus(n, false);
+				if (n != null) {
+					#if js js.Syntax.code("{0}.focus(false)", n) #else n.focus(false) #end;
 					e.preventDefault();
 				}
-			}}
-			onPointerMove={e -> if (e.current.pressed && dragging >= 0) set(dragging, valueAt(e))}
-			onPointerUp={_ -> dragging = -1}>
-			<view slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
-				<view width={() -> (frac(props.low.value) * 100) + "%"}/>
-				<view slot="slider-range" data-orientation="horizontal" position="relative" width={() -> ((frac(props.high.value) - frac(props.low.value)) * 100) + "%"}/>
-			</view>
+			}} onPointerMove={e -> if (dragging >= 0) set(dragging, valueAt(e))} onPointerUp={_ -> dragging = -1}>
+			<view:span slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
+				<view:span width={() -> (frac(props.low.value) * 100) + "%"}/>
+				<view:span slot="slider-range" data-orientation="horizontal" position="relative"
+					width={() -> ((frac(props.high.value) - frac(props.low.value)) * 100) + "%"}/>
+			</view:span>
 			{thumb(0)}
 			{thumb(1)}
-		</view>;
+		</view:span>;
 	}
 
 	// a colour picker: a square of saturation (to the right) and brightness

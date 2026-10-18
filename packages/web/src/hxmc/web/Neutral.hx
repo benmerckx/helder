@@ -20,8 +20,12 @@ class Neutral {
 		if (s == null) el.removeAttribute(name) else if (el.getAttribute(name) != s) el.setAttribute(name, s);
 	}
 
-	public static function plain(el:Dynamic, name:String, v:Dynamic)
-		attr(el, name, v);
+	// (a style property bound: a number in px, or as it is)
+	public static function cssPx(el:Dynamic, prop:String, v:Dynamic)
+		css(el, prop, v, true);
+
+	public static function cssValue(el:Dynamic, prop:String, v:Dynamic)
+		css(el, prop, v, false);
 
 	// a style property (a number in px where px; null: none)
 	public static function css(el:Dynamic, prop:String, v:Dynamic, px:Bool) {
@@ -92,8 +96,12 @@ class Neutral {
 		});
 	}
 
+	// the pointer of the last pointerdown a handler got (a part's capture())
+	public static var pointer:Null<Int> = null;
+
 	static function call(h:Dynamic, e:js.html.Event, type:EventType, key:Null<Int>, mods = 0) {
 		var x = 0.0, y = 0.0, d:Dynamic = e;
+		if (type == PointerDown) pointer = d.pointerId;
 		if (d.clientX != null) {
 			x = d.clientX;
 			y = d.clientY;

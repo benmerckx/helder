@@ -22,4 +22,8 @@ interface Part {
 
 	// whether it is laid out right to left (dir, its own or inherited)
 	function rtl():Bool;
+
+	// takes the pointer pressed on it or inside it: its moves and its release
+	// come to it wherever the pointer goes, until it is released
+	function capture():Void;
 }

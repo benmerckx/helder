@@ -41,7 +41,8 @@ class NeutralMacro {
 		"align-items" => {prop: "align-items", px: false}, "justify" => {prop: "justify-content", px: false}, "grow" => {prop: "flex-grow", px: false},
 		"shrink" => {prop: "flex-shrink", px: false}, "gap" => {prop: "gap", px: true}, "row-gap" => {prop: "row-gap", px: true},
 		"column-gap" => {prop: "column-gap", px: true}, "opacity" => {prop: "opacity", px: false}, "z-index" => {prop: "z-index", px: false},
-		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false}
+		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false},
+		"basis" => {prop: "flex-basis", px: true}, "pointer-events" => {prop: "pointer-events", px: false}
 	];
 	// (events: the DOM's, and ui's EventType)
 	static final EVENTS:Map<String, {dom:String, type:String}> = [
@@ -89,15 +90,27 @@ class NeutralMacro {
 	public static function property(el:Expr, tag:Expr, name:Expr, v:Expr):Expr {
 		// (a mapped name set once: Neutral's setter called with its DOM name)
 		var n = literal(name), t = literal(tag);
-		if (!(t == "icon" && n == "name") && n != "tag") {
-			var dom = DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : PLAIN.indexOf(n) >= 0 || StringTools.startsWith(n, "data-")
-				|| StringTools.startsWith(n, "aria-") ? n : null;
-			if (n == "role" && v.expr.match(EConst(CString("button" | "link", _))) && (t == "view:button" || t == "view:a")) dom = null;
-			if (dom != null) return macro @:pos(name.pos) hxmc.web.Neutral.attr($el, $v{dom}, $v);
-			if (CSS.exists(n)) return macro @:pos(name.pos) hxmc.web.Neutral.css($el, $v{CSS[n].prop}, $v, $v{CSS[n].px});
-		}
+		var dom = mapped(t, n);
+		if (n == "role" && v.expr.match(EConst(CString("button" | "link", _))) && (t == "view:button" || t == "view:a")) dom = null
+		else if (dom != null) return macro @:pos(name.pos) hxmc.web.Neutral.attr($el, $v{dom}, $v);
+		if (CSS.exists(n)) return macro @:pos(name.pos) hxmc.web.Neutral.css($el, $v{CSS[n].prop}, $v, $v{CSS[n].px});
 		var f = setterFor(t, n, name.pos, v);
 		return f == null ? macro {} : macro @:pos(name.pos) $f($el, $name, $v);
+	}
+
+	// the name a bound attribute's setter gets: a mapped one's DOM name or CSS
+	// property (its setter Neutral's one for all), else the neutral name
+	public static function name(tag:Expr, name:Expr):Expr {
+		var n = literal(name), t = literal(tag);
+		var dom = mapped(t, n);
+		return macro @:pos(name.pos) $v{dom ?? (CSS.exists(n) ? CSS[n].prop : n)};
+	}
+
+	// (an attribute's DOM name when it is one set as it is: data-*, aria-*, role, id...)
+	static function mapped(t:String, n:String):Null<String> {
+		if (t == "icon" && n == "name" || n == "tag" || n == "role" && StringTools.endsWith(t, ":legend")) return null;
+		return DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : PLAIN.indexOf(n) >= 0 || StringTools.startsWith(n, "data-")
+			|| StringTools.startsWith(n, "aria-") ? n : null;
 	}
 
 	// the function setting an attribute, (el, name, v): what markup binds a signal with
@@ -113,15 +126,9 @@ class NeutralMacro {
 		// (a button's or a link's own: its role, and focusable as it is; a legend's role)
 		if (name == "role" && (tag == "view:button" || tag == "view:a") && v != null && v.expr.match(EConst(CString("button" | "link", _)))) return null;
 		if (StringTools.endsWith(tag, ":legend") && name == "role") return null;
-		// (a mapped name: a function setting its DOM attribute or property, named here; each other kind one function, (el, name, v): Neutral)
-		var dom = DATA.exists(name) ? DATA[name] : ARIA.exists(name) ? ARIA[name] : null;
-		if (dom != null) return macro @:pos(pos) function(el:Dynamic, _:String, v:Dynamic) hxmc.web.Neutral.attr(el, $v{dom}, v);
-		if (CSS.exists(name)) {
-			var c = CSS[name];
-			return macro @:pos(pos) function(el:Dynamic, _:String, v:Dynamic) hxmc.web.Neutral.css(el, $v{c.prop}, v, $v{c.px});
-		}
-		if (PLAIN.indexOf(name) >= 0 || StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-"))
-			return macro @:pos(pos) hxmc.web.Neutral.plain;
+		// (each kind one function, (el, name, v), name the DOM's (NeutralMacro.name): Neutral)
+		if (mapped(tag, name) != null) return macro @:pos(pos) hxmc.web.Neutral.attr;
+		if (CSS.exists(name)) return CSS[name].px ? macro @:pos(pos) hxmc.web.Neutral.cssPx : macro @:pos(pos) hxmc.web.Neutral.cssValue;
 		if (name == "focusable") return macro @:pos(pos) hxmc.web.Neutral.focusable;
 		if (name == "states") return macro @:pos(pos) hxmc.web.Neutral.states;
 		if (name == "disabled") return macro @:pos(pos) hxmc.web.Neutral.disabled;
