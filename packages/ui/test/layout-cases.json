@@ -6346,5 +6346,41 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "wrapping column minimum, a percentage height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"height": 113
+					},
+					"children": [
+						{
+							"style": {
+								"wrap": true,
+								"basis": 4,
+								"height": "100%"
+							},
+							"children": [
+								{
+									"style": {
+										"height": 76
+									}
+								},
+								{
+									"style": {
+										"height": 30,
+										"margin": 4
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]
