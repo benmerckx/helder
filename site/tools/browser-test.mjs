@@ -152,14 +152,19 @@ async function visit(page, p, { gfxErrors = false } = {}) {
 	}
 	// (an island scrolled past between two frames is never seen: each one not
 	// started yet brought into view, in turn)
-	for (let k = 0; k < 40; k++) {
+	for (let k = 0; k < 80; k++) {
 		const next = await page.evaluate(() => {
-			const el = [...document.querySelectorAll('hxmc-island[data-load="visible"]')].find((el) => !el.hasAttribute('data-hydrated') && !el.hasAttribute('data-error') && !el.testSeen);
+			const started = (el) => ['data-hydrated', 'data-error', 'data-loading', 'data-stopped'].some((a) => el.hasAttribute(a));
+			const el = [...document.querySelectorAll('hxmc-island[data-load="visible"]')].find((el) => !started(el) && (el.testSeen || 0) < 3);
 			if (!el) return false;
-			el.testSeen = true;
+			el.testSeen = (el.testSeen || 0) + 1;
+			for (const o of document.querySelectorAll('[data-test-current]')) o.removeAttribute('data-test-current');
+			el.setAttribute('data-test-current', '');
 			el.scrollIntoView({ block: 'center' });
 			return true;
 		});
+		// (until the loader starts it: a busy page sees it late; else tried again)
+		if (next) await page.waitForFunction(() => { const el = document.querySelector('[data-test-current]'); return !el || ['data-hydrated', 'data-error', 'data-loading'].some((a) => el.hasAttribute(a)); }, null, { timeout: 3000 }).catch(() => {});
 		if (!next) break;
 		await page.waitForTimeout(150);
 	}
