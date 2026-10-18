@@ -1,6 +1,6 @@
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
-import hxmc.web.widgets.Widgets.*;
+import hxmc.ui.widgets.Widgets.*;
 
 // the theme's sign-up card (packages/theme/examples/Signup.hx on a canvas)
 // on the DOM's widgets: an input, a checkbox, a switch turning dark mode

@@ -3,7 +3,7 @@ import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Toasts;
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
-import hxmc.web.widgets.Widgets.*;
+import hxmc.ui.widgets.Widgets.*;
 
 typedef Entry = {name:String, ?children:Array<Entry>, ?size:Int};
 

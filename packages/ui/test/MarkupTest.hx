@@ -1716,6 +1716,28 @@ class MarkupTest implements Markup {
 		ui.update();
 		check("no look: still working, the states on their parts", clicks == 1 && ticked.value && c.attr("data-state") == "checked"
 			&& c.semantics.checked == true);
+		// (the neutral elements, as a page's renderer would realise them: view:button a view, text:p a text,
+		// onPress a click or Enter or Space unless onKeyDown took it; a ref a Part: the node)
+		var presses = 0, part:Null<Part> = null, keys = 0;
+		var host = new Node("host");
+		ui.root.append(host);
+		Render.render(<view:button tag="nb" slot="neutral" id="page-only" focusable onPress={_ -> presses++} ref={p -> part = p}
+			onKeyDown={e -> if (e.key == Key.SPACE) {
+				keys++;
+				e.preventDefault();
+			}}>
+			<text:p tag="np">Go</text:p>
+		</view:button>, host);
+		ui.update();
+		var nb = ui.root.find("nb"), np = ui.root.find("np");
+		ui.pointerDown(nb.absX + 2, nb.absY + 2, 1);
+		ui.pointerUp(nb.absX + 2, nb.absY + 2, 1);
+		part.focus();
+		ui.keyDown(Key.ENTER, 0);
+		ui.keyDown(Key.SPACE, 0);
+		check("neutral elements: view:button a view, text:p a text, onPress by a click and Enter, not a Space onKeyDown took",
+			nb != null && !Std.isOfType(nb, TextNode) && Std.isOfType(np, TextNode) && (cast np : TextNode).text == "Go" && nb.slot == "neutral" && presses == 2
+			&& keys == 1 && part == nb && ui.focus == nb, presses + " " + keys + " " + (part == nb));
 	}
 
 	static function unstyled() {

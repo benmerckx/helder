@@ -1,11 +1,14 @@
 package hxmc.web;
 
-#if js
+#if (js && !macro)
 import hxmc.view.Reactive;
 import hxmc.view.Render;
 import js.Browser.document;
 import js.html.Element;
 import js.html.Node;
+#end
+
+#if (js || macro)
 
 // hxmc.view's renderer for the DOM, in JavaScript (-D hxmc.view.renderer.dom=
 // hxmc.web.DomRenderer, which -lib hxmc.web sets on JavaScript): each
@@ -18,11 +21,29 @@ import js.html.Node;
 // else attributes), the style as a string or an object, listeners added to
 // the element (onClick: click; on:my-event: my-event). No delegation: each
 // listener is the element's own, which keeps stopPropagation and the
-// order of handlers the DOM's.
+// order of handlers the DOM's. The neutral elements (hxmc.ui's view, text,
+// scroll, view:button...) as the DOM's, at compile time: NeutralMacro.
 //
 // Hydration (hydrate) is a mode of this renderer: the nodes of a page the
 // static renderer wrote are claimed in document order instead of made.
-class DomRenderer implements hxmc.view.Renders<Node> {
+class DomRenderer #if !macro implements hxmc.view.Renders<Node> #end {
+	// the neutral elements, their attributes and events (NeutralMacro), and a part (ElementPart: made when a ref asks)
+	public static macro function neutralElement(tag:haxe.macro.Expr):haxe.macro.Expr
+		return hxmc.web.NeutralMacro.element(tag);
+
+	public static macro function neutralProperty(el:haxe.macro.Expr, tag:haxe.macro.Expr, name:haxe.macro.Expr, v:haxe.macro.Expr):haxe.macro.Expr
+		return hxmc.web.NeutralMacro.property(el, tag, name, v);
+
+	public static macro function neutralSetter(tag:haxe.macro.Expr, name:haxe.macro.Expr):haxe.macro.Expr
+		return hxmc.web.NeutralMacro.setter(tag, name);
+
+	public static macro function neutralListen(el:haxe.macro.Expr, tag:haxe.macro.Expr, name:haxe.macro.Expr, h:haxe.macro.Expr):haxe.macro.Expr
+		return hxmc.web.NeutralMacro.listen(el, tag, name, h);
+
+	public static macro function part(el:haxe.macro.Expr):haxe.macro.Expr
+		return macro hxmc.web.ElementPart.of($el);
+
+	#if !macro
 	// hydrating: what claims the page's nodes (null: making them)
 	static var hydration:Null<Hydration> = null;
 
@@ -138,7 +159,10 @@ class DomRenderer implements hxmc.view.Renders<Node> {
 	// (Hydration's end, or a mismatch: claiming stops)
 	@:allow(hxmc.web.Hydration) static function stop()
 		hydration = null;
+	#end
 }
+
+#if !macro
 
 // Claiming a page's nodes: a cursor over parent's content in document
 // order. Skipped on the way: the separators between texts (<!---->) and the
@@ -278,4 +302,5 @@ private class Mismatch {
 	public function new(message:String)
 		this.message = message;
 }
+#end
 #end

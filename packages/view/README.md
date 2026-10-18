@@ -112,6 +112,17 @@ that `<Button/>` with ui's widgets imported is the DOM's Button in a
 page's markup (`hxmc.view.Pick`, when the literal is typed); a component
 with none for a renderer is an error naming it and the renderer.
 
+A function of such a class marked `@:neutral` is for every renderer, one
+definition for all (a single-source widget): its elements are the neutral
+ones (`view`, `text`, `scroll`, `icon`, `field`, and `view:button`,
+`text:p`... naming a page's element), which a renderer with
+`neutralElement`, `neutralProperty`, `neutralSetter`, `neutralListen`
+and `part` (macros: hxmc.web's DomRenderer) realises its own way at
+compile time, and any other as its own elements (ui's, whose vocabulary
+they are). A neutral element's `ref` gets a part (`hxmc.ui.Part`: the
+Node, or the page's element wrapped when a ref is given), its `tag` and
+`id` are compiled into the passes that use them only.
+
 ## Tests
 
 `make view-check`: `test/ViewTest.hx` on two test renderers (boundaries

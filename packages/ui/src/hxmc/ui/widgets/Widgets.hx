@@ -211,9 +211,23 @@ class Widgets implements Markup {
 		},
 		variants: ["default", "secondary", "destructive", "outline", "ghost", "link"]
 	})
-	public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
-		return <view tag={props.tag ?? "badge"} slot="badge" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"}>{props.label}{props.children}</view>;
+	@:neutral public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
+		return <view:span tag={props.tag ?? "badge"} id={props.tag} slot="badge" ref={styled(props.style)} variant={props.variant ?? "default"}>{props.label}{props.children}</view:span>;
 	}
+
+	// (a single-source widget's style prop: its ref, drawn nodes' (States.apply); a page's look is its CSS,
+	// and a page alone links no Node)
+	static function styled(style:Null<States->StyleProps>):Null<Part->Void>
+		return style == null ? null : p -> {
+			#if hxmc.view.renderer.ui
+			var n = Std.downcast(p, Node);
+			if (n != null) {
+				States.apply(n, style);
+				return;
+			}
+			#end
+			throw "hxmc.ui: a widget's style prop is drawn widgets' (a page's look is its CSS)";
+		};
 
 	// a card (shadcn's) and its parts, each its children: slots "card",
 	// "card-header", "card-title", "card-description", "card-action",

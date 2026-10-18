@@ -103,10 +103,6 @@ class Widgets implements Markup {
 	public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?htmlFor:String, ?tag:String}):View
 		return <label id={props.tag} data-slot="label" htmlFor={props.htmlFor} data-disabled={() -> on(props.disabled) ? "true" : null}>{props.children ?? props.text}</label>;
 
-	// a badge (shadcn's): variant "default", "secondary", "destructive", "outline", "ghost", "link"
-	public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?tag:String}):View
-		return <span id={props.tag} data-slot="badge" data-variant={props.variant ?? "default"}>{props.label}{props.children}</span>;
-
 	// a card (shadcn's) and its parts
 	public static function Card(props:{?children:View, ?tag:String}):View
 		return <div id={props.tag} data-slot="card">{props.children}</div>;
