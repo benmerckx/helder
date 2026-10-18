@@ -98,7 +98,8 @@ class StressTest implements Markup {
 		frame(true);
 		lap("frame");
 		var nodes = count(ui.root);
-		check("one row of nodes per item", nodes > n * 8);
+		// (a row: its view, the checkbox (its indicator there when checked), two texts and theirs, the button and its text)
+		check("one row of nodes per item", nodes > n * 7);
 		var list = ui.root.find("list");
 		// a frame with nothing changed: nothing laid out
 		frame(true);
