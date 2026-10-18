@@ -12,7 +12,7 @@ import hxmc.scene.render.*;
 
 // The sample scene (sample.glb, made by packages/3d/test/SampleModel.hx)
 // in a window: read with Gltf.parse, made into nodes and meshes by
-// GltfScene, drawn by Renderer. The camera circles the scene on a node of
+// GltfScene into a World, drawn by Renderer. The camera circles the scene on a node of
 // its own (drag sideways to turn it; Escape closes); the simulation (the
 // moon's orbit, the turn) runs at a fixed 60 steps a second (FixedStep).
 //
@@ -23,15 +23,15 @@ class GltfViewer {
 		var window = new Window("glTF scene", 640, 480);
 		var device = Device.create(window.surface);
 		var renderer = new Renderer(device);
-		var scene = new Scene();
-		var model = scene.add(GltfScene.build(Gltf.parse(Asset.embed("sample.glb")), device));
+		var world = new World();
+		var model = new GltfScene(Gltf.parse(Asset.embed("sample.glb")), device).instantiate(world);
 		// (the file's camera gives the distance and height; a rig node turns it)
 		var fileCamera = model.find("camera");
-		var rig = scene.add(new Node("rig"));
-		var eye = rig.add(new Node("eye"));
+		var rig = world.node("rig");
+		var eye = world.node("eye", rig);
 		eye.position = fileCamera.position;
 		eye.rotation = fileCamera.rotation;
-		eye.camera = Camera.perspective(0.7, 0.1, 100);
+		var camera = Camera.attach(eye, Camera.perspective(0.7, 0.1, 100));
 		// (its components: a closure cannot capture a struct value, Quat, itself)
 		var orbit = model.find("orbit"), r = orbit.rotation, ox = r.x, oy = r.y, oz = r.z, ow = r.w;
 		var clock = new FixedStep(1 / 60);
@@ -48,7 +48,7 @@ class GltfViewer {
 			rig.rotation = Quat.axisAngle(new Vec3(0, 1, 0), turn);
 			var enc = device.beginFrame();
 			if (enc == null) return;
-			renderer.draw(enc, scene, eye.camera);
+			renderer.draw(enc, world, camera);
 			device.endFrame();
 		}, e -> switch e.kind {
 			case Close: window.close();

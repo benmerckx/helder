@@ -9,6 +9,11 @@ import hxmc.gfx.shader.Vec4;
 // roughness from 0 to 1, emitted light (linear); double-sided ones are
 // drawn without back-face culling.
 class Material {
+	static var count = 0;
+
+	// the material's index (draws sort by it; an index into a material buffer later)
+	public final id:Int = count++;
+
 	public var name:String;
 	public var baseColor:Vec4;
 	public var metallic:Float;

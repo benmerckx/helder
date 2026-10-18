@@ -15,10 +15,10 @@ class Scenes {
 		return switch name {
 			case "gltf":
 				var renderer = new Renderer(device);
-				var scene = new Scene();
-				scene.add(GltfScene.build(Gltf.parse(Asset.embed("sample.glb")), device));
-				var camera = scene.firstCamera();
-				enc -> renderer.draw(enc, scene, camera);
+				var world = new World();
+				new GltfScene(Gltf.parse(Asset.embed("sample.glb")), device).instantiate(world);
+				var camera = Camera.first(world);
+				enc -> renderer.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}
 	}

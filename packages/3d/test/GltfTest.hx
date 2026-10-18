@@ -86,24 +86,26 @@ class GltfTest {
 
 	static function nodes(doc:GltfDoc) {
 		var meshes = [];
-		var root = GltfNodes.build(doc, 0, k -> {
-			meshes.push(k);
-			"mesh " + k;
-		});
-		check("root", root.name == "sample" && root.children.length == 5);
-		var ball = root.find("ball"), pedestal = root.find("pedestal");
-		check("hierarchy", ball.parent == pedestal && root.find("moon").parent == root.find("orbit"));
-		check("meshes made once each", meshes.length == 5 && ball.mesh == "mesh 2" && root.find("satellite").mesh == "mesh 4");
+		var world = new World();
+		var top = GltfNodes.build(doc, world, null, 0, (n, k) -> meshes.push(n.name + ":" + k));
+		check("root", top.name == "sample" && top.parent == world.root && [for (c in top.children()) c].length == 5);
+		var ball = top.find("ball"), pedestal = top.find("pedestal");
+		check("hierarchy", ball.parent == pedestal && top.find("moon").parent == top.find("orbit"));
+		check("meshes", meshes.join(",") == "ground:0,pedestal:1,ball:2,moon:3,satellite:4");
 		check("ball's world", nearV(ball.worldPosition(), new Vec3(0, 1.6, 0), 1e-6));
-		check("ball's scale", near(ball.world().c0.x * ball.world().c0.x + ball.world().c0.z * ball.world().c0.z, 0.36, 1e-5));
+		var w = ball.worldMatrix();
+		check("ball's scale", near(w.c0.x * w.c0.x + w.c0.z * w.c0.z, 0.36, 1e-5));
 		// (the orbit's matrix: a turn of 0.9 about y and a lift of 0.2)
-		var moon = root.find("moon").worldPosition();
+		var moon = top.find("moon").worldPosition();
 		check("matrix node: decomposed", nearV(moon, new Vec3(2.3 * Math.cos(0.9), 0.65, -2.3 * Math.sin(0.9)), 1e-5));
-		var cam = root.find("camera").camera;
-		check("camera node", cam != null && near(cam.fovY, 0.7));
+		var cam = Camera.of(top.find("camera"));
+		check("camera node", cam != null && near(cam.fovY, 0.7) && Camera.first(world) == cam);
 		// (the camera looks at the pedestal's middle, as made)
 		var c = cam.viewProjection(4 / 3).transformPoint(new Vec3(0, 0.7, 0));
 		check("camera looks at the scene", near(c.x, 0, 1e-5) && near(c.y, 0, 1e-5));
+		var again = GltfNodes.build(doc, world);
+		check("instantiated twice", again != top && again.find("ball") != ball && world.count == 1 + 2 * 8);
+		world.dispose();
 	}
 
 	static function rejects(glb:Bytes) {

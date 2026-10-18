@@ -113,55 +113,77 @@ class SceneTest {
 	}
 
 	static function nodes() {
-		var root = new Scene();
-		var arm = root.add(new Node("arm")), hand = arm.add(new Node("hand"));
+		var world = new World("scene");
+		var root = world.root;
+		var arm = world.node("arm"), hand = arm.add(world.node("hand"));
+		check("handles", !arm.isNone && arm.valid && arm.parent == root && hand.parent == arm && world.count == 3);
 		arm.position = new Vec3(2, 0, 0);
 		arm.rotation = Quat.axisAngle(new Vec3(0, 0, 1), Math.PI / 2);
 		hand.position = new Vec3(1, 0, 0);
 		hand.scale = new Vec3(2, 2, 2);
-		check("world is the parent's world * local", hand.world().near(arm.world() * hand.local(), 1e-12));
+		check("TRS read back", nearV(hand.position, new Vec3(1, 0, 0)) && nearV(hand.scale, new Vec3(2, 2, 2)) && nearQ(arm.rotation, Quat.axisAngle(new Vec3(0, 0, 1), Math.PI / 2)));
+		check("world is the parent's world * local", hand.worldMatrix().near(arm.worldMatrix() * hand.localMatrix(), 1e-12));
 		check("a child's position turned with its parent", nearV(hand.worldPosition(), new Vec3(2, 1, 0), 1e-12));
-		var v = @:privateAccess hand.version;
-		hand.world();
-		check("a still node's world is cached", @:privateAccess hand.version == v);
+		var v = @:privateAccess world.versionOf(hand.slot);
+		hand.worldMatrix();
+		check("a still node's world is cached", @:privateAccess world.versionOf(hand.slot) == v);
 		arm.position = new Vec3(0, 0, 0);
 		check("moving the parent moves the child", nearV(hand.worldPosition(), new Vec3(0, 1, 0), 1e-12));
-		check("the child's world recomputed once", @:privateAccess hand.version == v + 1);
-		var other = root.add(new Node("other"));
+		check("the child's world recomputed once", @:privateAccess world.versionOf(hand.slot) == v + 1);
+		var other = world.node("other");
 		other.position = new Vec3(0, 0, -3);
 		other.add(hand);
-		check("reparented", hand.parent == other && arm.children.length == 0 && nearV(hand.worldPosition(), new Vec3(1, 0, -3), 1e-12));
-		check("find", root.find("hand") == hand && root.find("nothing") == null);
+		check("reparented", hand.parent == other && arm.children().hasNext() == false && nearV(hand.worldPosition(), new Vec3(1, 0, -3), 1e-12));
+		check("find", root.find("hand") == hand && root.find("nothing").isNone);
 		var order = [];
 		root.walk(n -> order.push(n.name));
 		check("walk: parents first", order.join(",") == "scene,arm,other,hand");
+		check("children in order", [for (c in root.children()) c.name].join(",") == "arm,other");
 		var threw = try {
 			hand.add(other);
 			false;
 		} catch (e:String) true;
 		check("no cycles", threw && other.parent == root);
 		hand.visible = false;
-		var seen = [];
-		root.walkVisible(n -> seen.push(n.name));
-		check("walkVisible skips hidden nodes", seen.join(",") == "scene,arm,other");
+		check("shown", !hand.shown() && other.shown());
 		var m = MathTools.compose(new Vec3(1, 2, 3), Quat.fromEuler(0.1, 0.2, 0.3), new Vec3(1, 2, 1));
-		var n = new Node();
+		var n = world.node();
 		n.setMatrix(m);
-		check("setMatrix", n.local().near(m, 1e-12));
-		var t = new Node();
+		check("setMatrix", n.localMatrix().near(m, 1e-12));
+		var t = world.node();
 		t.position = new Vec3(0, 0, 5);
 		t.lookAt(new Vec3(0, 0, 0));
-		check("lookAt turns -z to the target", nearV(t.world().transformDir(new Vec3(0, 0, -1)), new Vec3(0, 0, -1), 1e-12));
+		check("lookAt turns -z to the target", nearV(t.worldMatrix().transformDir(new Vec3(0, 0, -1)), new Vec3(0, 0, -1), 1e-12));
+		// disposal: the subtree's handles go stale, their slots are reused
+		var kind = new StoreKind<String>("tag");
+		world.store(kind).set(hand, "a hand");
+		var before = world.count;
+		other.dispose();
+		check("disposed: the subtree", !other.valid && !hand.valid && world.count == before - 2 && world.store(kind).length == 0);
+		var stale = try {
+			hand.position;
+			false;
+		} catch (e:String) true;
+		check("a stale handle throws", stale);
+		var reused = world.node("again");
+		check("a slot reused, a new generation", reused != hand && reused != other && reused.valid && !hand.valid);
+		check("detach", {
+			arm.detach();
+			arm.parent.isNone && !world.inTree(arm) && arm.valid;
+		});
+		var w2 = new World("second");
+		var x = w2.node("x");
+		check("two worlds", x.world == w2 && arm.world == world && w2.root.find("x") == x);
+		w2.dispose();
 	}
 
 	static function cameras() {
-		var scene = new Scene();
-		var eye = scene.add(new Node("eye"));
-		eye.camera = Camera.perspective(Math.PI / 3, 0.1, 100);
+		var world = new World();
+		var eye = world.node("eye");
+		var cam = Camera.attach(eye, Camera.perspective(Math.PI / 3, 0.1, 100));
 		eye.position = new Vec3(4, 3, 6);
 		eye.lookAt(new Vec3(0, 1, 0));
-		var cam = eye.camera;
-		check("the camera's node", cam.node == eye && scene.firstCamera() == cam);
+		check("the camera's node", cam.node == eye && Camera.of(eye) == cam && Camera.first(world) == cam);
 		check("view puts the eye at the origin", nearV(cam.view().transformPoint(eye.position), new Vec3(0, 0, 0), 1e-12));
 		var c = cam.viewProjection(1.5).transformPoint(new Vec3(0, 1, 0));
 		check("the target at the view's centre", near(c.x, 0, 1e-12) && near(c.y, 0, 1e-12) && c.z > 0 && c.z < 1);
@@ -172,9 +194,10 @@ class SceneTest {
 		var o = Camera.orthographic(4, 0.1, 10);
 		var top = o.projection(2).transformPoint(new Vec3(4, 2, -5));
 		check("orthographic: its height and aspect", near(top.x, 1, 1e-12) && near(top.y, 1, 1e-12));
-		var other = new Node();
-		other.camera = cam;
-		check("a camera moves to its new node", eye.camera == null && cam.node == other);
+		var other = world.node();
+		Camera.attach(other, cam);
+		check("a camera moves to its new node", Camera.of(eye) == null && cam.node == other);
+		world.dispose();
 	}
 
 	static function clock() {
