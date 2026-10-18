@@ -12,7 +12,8 @@ import hxmc.scene.render.*;
 //   physics @hxmc/physics' Falling example after STEPS steps
 //   instances 169 nodes on two meshes: instanced draws (RenderTest checks
 //          their count)
-//   skin   the skinned sample (examples/skinned.glb) bent by its animation
+//   skin   the skinned sample (examples/skinned.glb) bent by its animation,
+//          casting its shadow
 //   overlay the sample scene under the debug overlay (FrameStats, Overlay)
 //   textured the textured sample (a PNG in the file, decoded by @hxmc/ui)
 //   packed the sample scene from the asset step's packed file: gltf.png
@@ -97,7 +98,7 @@ class Scenes {
 				enc -> r.draw(enc, world, camera);
 			case "skin":
 				// the skinned sample bent by its animation at 1 s (the elbow at 1.2 radians)
-				var r = new Renderer(device).use(new Skinning(device));
+				var r = new Renderer(device).use(new Skinning(device)).use(new Shadows(device, 512));
 				renderer = r;
 				var world = new World();
 				var model = Model.of("skinned.glb");
@@ -173,7 +174,7 @@ class Scenes {
 			case "lazy":
 				// the skinned sample loaded in the background (Model.of(path, Lazy)),
 				// drawn bent once it is here: skin.png's frame (until then the clear colour)
-				var r = new Renderer(device).use(new Skinning(device));
+				var r = new Renderer(device).use(new Skinning(device)).use(new Shadows(device, 512));
 				renderer = r;
 				var world = new World();
 				var floor = world.node("floor");

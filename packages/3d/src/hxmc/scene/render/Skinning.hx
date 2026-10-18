@@ -40,6 +40,32 @@ class Skinning implements RenderFeature implements RenderFeature.SkinSource {
 	public function slots():Array<Int>
 		return slotList;
 
+	var shadow:Null<Pipeline>;
+	var shadowSlotList:Array<Int> = [];
+
+	public function shadowPipeline():Pipeline {
+		if (shadow == null) {
+			var d = ShadowSkinnedShader.pipeline({cull: None, depthCompare: Less, depthWrite: true});
+			d.colorFormat = R32F;
+			d.depthFormat = Depth32F;
+			shadow = device.createPipeline(d);
+			function u(name:String):Int {
+				for (b in ShadowSkinnedShader.uniforms)
+					if (b.name == name) return b.binding;
+				return -1;
+			}
+			var t = -1;
+			for (b in ShadowSkinnedShader.textures)
+				if (b.name == "jointMatrices") t = b.binding;
+			// (in bind's order: 5 the skin's block, 6 its joints; 0 the caster)
+			shadowSlotList = [u("ShadowCaster"), -1, -1, -1, -1, u("PbrSkinInfo"), t];
+		}
+		return shadow;
+	}
+
+	public function shadowSlots():Array<Int>
+		return shadowSlotList;
+
 	public function bind(enc:Encoder, slots:Array<Int>, node:Node) {
 		var skin = Skin.of(node);
 		info.setFloat(0, skin.joints.length);

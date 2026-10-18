@@ -41,7 +41,7 @@ class PbrSkinnedShader implements Shaders {
 		return PbrShader.shade(i, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture, shadowMap);
 
 	// joint k's matrix from its row of the texture (rows of them)
-	static function joint(t:Texture2D, k:Float, rows:Float):Mat4 {
+	public static function joint(t:Texture2D, k:Float, rows:Float):Mat4 {
 		var y = (k + 0.5) / rows;
 		return mat4(vec4(texel(t, 0, y), texel(t, 1, y), texel(t, 2, y), texel(t, 3, y)), vec4(texel(t, 4, y), texel(t, 5, y), texel(t, 6, y), texel(t, 7, y)),
 			vec4(texel(t, 8, y), texel(t, 9, y), texel(t, 10, y), texel(t, 11, y)),

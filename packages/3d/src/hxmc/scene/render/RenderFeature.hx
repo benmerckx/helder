@@ -11,7 +11,8 @@ interface RenderFeature {
 // what the renderer asks of a shadow map (Shadows)
 interface ShadowSource {
 	// the map's pass, before the frame's
-	function render(enc:hxmc.gfx.Encoder, world:hxmc.scene.World, toLight:hxmc.gfx.shader.Vec3):Void;
+	// (skins: the renderer's skinning, for skinned casters; null without it)
+	function render(enc:hxmc.gfx.Encoder, world:hxmc.scene.World, toLight:hxmc.gfx.shader.Vec3, skins:Null<SkinSource>):Void;
 	// the last pass's map and how to read it (an object: hxmc passes struct
 	// values through interface calls wrongly for now)
 	function shadowFrame():ShadowFrame;
@@ -35,4 +36,8 @@ interface SkinSource {
 	function slots():Array<Int>;
 	// the node's skin bound for a draw
 	function bind(enc:hxmc.gfx.Encoder, slots:Array<Int>, node:hxmc.scene.Node):Void;
+	// the shadow pass's skinned pipeline (made when first asked: only with
+	// Shadows) and its slots (caster, skin, joints)
+	function shadowPipeline():hxmc.gfx.Pipeline;
+	function shadowSlots():Array<Int>;
 }

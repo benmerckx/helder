@@ -58,7 +58,7 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 	}
 
 	// the map's pass: the world's shown meshes seen from a light shining along -toLight
-	public function render(enc:Encoder, world:World, toLight:Vec3) {
+	public function render(enc:Encoder, world:World, toLight:Vec3, skins:Null<RenderFeature.SkinSource>) {
 		var meshes = world.store(MeshRenderer.KIND);
 		var bounds = Aabb.empty();
 		for (k in 0...meshes.length) {
@@ -78,10 +78,24 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 			var n = meshes.nodeAt(k);
 			if (!n.shown() || !world.inTree(n)) continue;
 			ShadowShader.writeShadowCaster({mvp: viewProj * n.worldMatrix()}, casterBytes);
+			var prims = meshes.valueAt(k).primitives;
+			// (a skinned mesh: drawn by the skinning's shadow pipeline, its joints bound)
+			if (prims.length > 0 && prims[0].skinned) {
+				if (skins == null) continue;
+				enc.setPipeline(skins.shadowPipeline());
+				var slots = skins.shadowSlots();
+				enc.setUniforms(slots[0], casterBytes);
+				skins.bind(enc, slots, n);
+				for (p in prims) {
+					enc.setVertexBuffer(0, p.vertices);
+					enc.setIndexBuffer(p.indices, p.indexFormat);
+					enc.drawIndexed(p.count);
+				}
+				enc.setPipeline(pipeline);
+				continue;
+			}
 			enc.setUniforms(0, casterBytes);
-			for (p in meshes.valueAt(k).primitives) {
-				// (skinned meshes cast no shadow yet: their vertices are another layout)
-				if (p.skinned) continue;
+			for (p in prims) {
 				enc.setVertexBuffer(0, p.vertices);
 				enc.setIndexBuffer(p.indices, p.indexFormat);
 				enc.drawIndexed(p.count);

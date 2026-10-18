@@ -148,7 +148,7 @@ class Renderer {
 		frame.eye = camera.eye();
 		frame.toLight = toLight;
 		if (shadowSource != null) {
-			shadowSource.render(enc, world, toLight);
+			shadowSource.render(enc, world, toLight, skinSource);
 			writeFrame(world, camera, viewProj, true);
 		}
 		record(enc);
