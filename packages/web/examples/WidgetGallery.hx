@@ -128,6 +128,8 @@ class WidgetGallery implements Markup {
 					<div style={ROW}><RangeSlider tag="price" low={priceLow} high={priceHigh} min={0} max={100} step={5} width={200} label="Price"/><span id="price-shown" style="opacity:.7">{() -> priceLow.value + "–" + priceHigh.value}</span></div>
 				</div>
 				<ColorPicker tag="colour" value={colour} size={130} label="Accent"/>
+				<BarChart tag="visits" stacked={true} labels={["A", "B"]} series={[{name: "x", values: [50, 90]}, {name: "y", values: [10, 20]}]} width={200} height={100}
+					label="Visits"/>
 			</div>)}
 			{section("TABS", <Tabs tag="tab" labels={["Overview", "Details", "Notes"]} selected={tab} render={tabContent}/>)}
 			{section("SEGMENTS, BREADCRUMBS, PAGES", <div style="display:flex;flex-direction:column;align-items:flex-start;gap:10px">

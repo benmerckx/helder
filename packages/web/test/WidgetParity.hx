@@ -13,10 +13,7 @@ class WidgetParity {
 	static final KNOWN = [
 		"Select" => "size: ui's only (data-size)",
 		"AlertDialog" => "size: ui's only (data-size)",
-		"NativeSelect" => "size: ui's only (data-size); disabled: the DOM's only",
-		"BarChart" => "stacked: ui's only",
-		"LineChart" => "stacked: ui's only",
-		"AreaChart" => "stacked: ui's only"
+		"NativeSelect" => "size: ui's only (data-size); disabled: the DOM's only"
 	];
 
 	static final ASIDE = ["tag", "style"];

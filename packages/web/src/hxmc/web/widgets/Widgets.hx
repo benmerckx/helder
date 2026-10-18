@@ -1427,6 +1427,21 @@ class Widgets implements Markup {
 	// --- charts (shadcn's Chart's look, recharts' kinds) ---
 
 	// (a scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten)
+	// (a chart's scale's top: max, else the greatest value (stacked: the greatest sum) rounded up)
+	static function chartTop(series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, n:Int, max:Null<Float>, stacked:Bool):Float {
+		if (max != null) return max;
+		var most = 0.0;
+		for (i in 0...n) {
+			var sum = 0.0;
+			for (s in series) {
+				var v = Math.max(0, s.values[i]);
+				if (stacked) sum += v else most = Math.max(most, v);
+			}
+			most = Math.max(most, sum);
+		}
+		return niceMax(most);
+	}
+
 	static function niceMax(v:Float):Float {
 		if (!(v > 0)) return 1;
 		var p = Math.pow(10, Math.floor(Math.log(v) / Math.log(10)));
@@ -1490,19 +1505,19 @@ class Widgets implements Markup {
 	// a bar chart: categories along the x axis, a bar per series in each on
 	// a scale from 0 to a round top; the pointer over a category shows its values
 	public static function BarChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}):View {
 		var w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1), series = props.series;
-		var top = props.max ?? niceMax(Lambda.fold(series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var stacked = props.stacked == true, top = chartTop(series, n, props.max, stacked);
 		var format = props.format ?? Behaviour.plain, slot = n == 0 ? 0.0 : w / n;
-		var barW = series.length == 0 ? 0.0 : slot * 0.7 / series.length;
+		var barW = series.length == 0 ? 0.0 : stacked ? slot * 0.6 : slot * 0.7 / series.length;
+		var bar = (i:Int, k:Int) -> <div data-slot="chart-bar" data-series={Std.string(k % 5 + 1)} data-active={() -> hover.value == i ? "true" : null}
+			style={'width:${barW}px;height:${Math.max(0, Math.min(1, series[k].values[i] / top)) * h}px' + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>;
 		var plot = <div style={'position:absolute;left:0;top:0;width:${w}px;height:${h}px;display:flex'}>{[
 			for (i in 0...n)
 				<div role="group" aria-label={props.labels[i] + ": " + [for (s in series) s.name + " " + format(s.values[i])].join(", ")}
-					style={'width:${slot}px;height:${h}px;display:flex;justify-content:center;align-items:flex-end'}>{[
-					for (k in 0...series.length)
-						<div data-slot="chart-bar" data-series={Std.string(k % 5 + 1)} data-active={() -> hover.value == i ? "true" : null}
-							style={'width:${barW}px;height:${Math.max(0, Math.min(1, series[k].values[i] / top)) * h}px' + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>
-				]}</div>
+					style={'width:${slot}px;height:${h}px;display:flex;justify-content:center;align-items:flex-end'}>
+					{stacked ? <div style="display:flex;flex-direction:column-reverse">{[for (k in 0...series.length) bar(i, k)]}</div> : [for (k in 0...series.length) bar(i, k)]}
+				</div>
 		]}</div>;
 		return chartFrame(props.tag, props.labels, series, w, h, top, plot, hover, props.label, format);
 	}
@@ -1510,21 +1525,27 @@ class Widgets implements Markup {
 	// a line chart: a line per series through its values, on BarChart's
 	// scale and frame; a dot on each line at the category under the pointer
 	public static function LineChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}):View
 		return seriesChart(props, false);
 
 	// an area chart: LineChart's lines, each filled faintly down to the axis
 	public static function AreaChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}):View
 		return seriesChart(props, true);
 
 	// (LineChart's and AreaChart's: a line per series, filled under it for an area)
 	static function seriesChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}, area:Bool):View {
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}, area:Bool):View {
 		var w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1), series = props.series;
-		var top = props.max ?? niceMax(Lambda.fold(series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var stacked = props.stacked == true, top = chartTop(series, n, props.max, stacked);
 		var format = props.format ?? Behaviour.plain, slot = n == 0 ? 0.0 : w / n;
 		var px = (i:Int) -> (i + 0.5) * slot, py = (v:Float) -> h - Math.max(0, Math.min(1, v / top)) * h;
+		// (each series' line at its values, stacked: on the sums before it)
+		var base = [for (i in 0...n) 0.0], at = [];
+		for (k in 0...series.length) {
+			at.push([for (i in 0...n) (stacked ? base[i] : 0) + series[k].values[i]]);
+			if (stacked) base = at[k];
+		}
 		var plot = <div style={'position:absolute;left:0;top:0;width:${w}px;height:${h}px'}>{[
 			for (k in 0...series.length) {
 				var svg = document.createElementNS(hxmc.web.Html.SVG_NS, "svg");
@@ -1532,12 +1553,15 @@ class Widgets implements Markup {
 					["aria-hidden", "true"], ["style", "position:absolute;left:0;top:0" + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "color"))]])
 					svg.setAttribute(a[0], a[1]);
 				var path = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
-				var d = [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(series[k].values[i]) * 100) / 100].join(" ");
+				var d = [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(at[k][i]) * 100) / 100].join(" ");
 				path.setAttribute("d", d);
-				// (an area's: the line's points closed along the axis, filled faintly)
+				// (an area's: the line's points closed along the axis, or back along the line under it
+				// stacked, filled faintly)
 				if (area && n > 0) {
 					var under = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
-					under.setAttribute("d", 'M${Math.fround(px(0) * 100) / 100} $h ${d.substr(1)} L${Math.fround(px(n - 1) * 100) / 100} $h Z');
+					var back = stacked && k > 0 ? [for (j in 0...n) {var i = n - 1 - j; "L" + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(at[k - 1][i]) * 100) / 100;}].join(" ")
+						: 'L${Math.fround(px(n - 1) * 100) / 100} $h L${Math.fround(px(0) * 100) / 100} $h';
+					under.setAttribute("d", '$d $back Z');
 					under.setAttribute("fill", "currentColor");
 					under.setAttribute("fill-opacity", "0.4");
 					svg.appendChild(under);
@@ -1548,7 +1572,7 @@ class Widgets implements Markup {
 				[
 					(svg : Any),
 					<Show when={() -> hover.value >= 0}>{() -> <div data-slot="chart-dot" data-series={Std.string(k % 5 + 1)}
-						style={'position:absolute;width:8px;height:8px;border-radius:4px;left:${px(hover.value) - 4}px;top:${py(series[k].values[hover.value]) - 4}px'
+						style={'position:absolute;width:8px;height:8px;border-radius:4px;left:${px(hover.value) - 4}px;top:${py(at[k][hover.value]) - 4}px'
 							+ (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>}</Show>
 				];
 			}
