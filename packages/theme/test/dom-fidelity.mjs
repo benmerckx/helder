@@ -103,7 +103,7 @@ const cdp = await page.context().newCDPSession(page);
 await cdp.send('DOM.enable');
 await cdp.send('CSS.enable');
 // (the element a case's states and attributes are on: the component's main slot)
-const TARGET = { 'radio-group': 'radio-group-item', slider: 'slider-thumb', tabs: 'tabs-trigger', select: 'select-trigger', 'dropdown-menu': 'dropdown-menu-item' };
+const TARGET = { 'input-group': 'input-group-control', 'radio-group': 'radio-group-item', slider: 'slider-thumb', tabs: 'tabs-trigger', select: 'select-trigger', 'dropdown-menu': 'dropdown-menu-item' };
 // (a popup's box in ref.mjs's markup, where the slot differs)
 const CROP = { combobox: 'popover-content' };
 if (outDir) fs.mkdirSync(outDir, { recursive: true });
@@ -132,8 +132,16 @@ for (const c of cases) {
 		case 'combobox': await slot('input').focus(); await page.keyboard.press('ArrowDown'); break;
 		case 'input-otp': await page.locator('[data-slot=input-otp] input').focus(); break;
 		case 'toast': await page.evaluate(([t, a]) => window.toast(t, a), [c.text, c.action]); break;
+		case 'navigation-menu': if (c.crop) await slot('navigation-menu-trigger').click(); break;
+		case 'chart-legend': await page.evaluate(() => { document.querySelector('[data-slot=chart-x-axis]').style.visibility = 'hidden'; }); break;
+		case 'chart-tooltip': {
+			// (the pointer over February's bars)
+			const b = await slot('chart-plot').boundingBox();
+			await page.mouse.move(b.x + b.width * 1.5 / 6, b.y + b.height / 2);
+			break;
+		}
 	}
-	if (c.component !== 'tooltip' && c.component !== 'hover-card') await page.mouse.move(799, 599);
+	if (c.component !== 'tooltip' && c.component !== 'hover-card' && c.component !== 'chart-tooltip') await page.mouse.move(799, 599);
 	const { root } = await cdp.send('DOM.getDocument');
 	const force = async (selector, states) => {
 		const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector });
@@ -144,7 +152,7 @@ for (const c of cases) {
 	let shot;
 	if (c.crop) {
 		// (a popup alone, as ref.mjs draws it: what it opens from hidden, toasts aside, which are in the frame)
-		if (c.component !== 'toast') await page.evaluate(() => { for (const e of document.querySelectorAll('#frame > *')) e.style.visibility = 'hidden'; });
+		if (c.component !== 'toast' && !c.component.startsWith('chart-')) await page.evaluate(() => { for (const e of document.querySelectorAll('#frame > *')) e.style.visibility = 'hidden'; });
 		const b = await page.locator(`[data-slot=${CROP[c.component] ?? c.crop}]`).first().boundingBox({ timeout: 2000 }).catch(() => null);
 		shot = b ? await page.screenshot({ clip: { x: Math.round(b.x) - 8, y: Math.round(b.y) - 8, width: c.w, height: c.h } }) : null;
 	} else shot = await page.locator('#frame').screenshot();

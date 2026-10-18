@@ -305,7 +305,8 @@ class Tailwind {
 	// a variant's place in Tailwind's order (Css: its rules' order)
 	public static function variantRank(v:String):Int {
 		var dash = v.indexOf("-");
-		if (v.startsWith("[")) return ORDER.indexOf("*");
+		// (arbitrary variants after every named one, as Tailwind v4 sorts them)
+		if (v.startsWith("[")) return ORDER.length + 1;
 		if (ORDER.contains(v)) return ORDER.indexOf(v);
 		if (dash > 0 && ORDER.contains(v.substr(0, dash))) return ORDER.indexOf(v.substr(0, dash));
 		return ORDER.length;

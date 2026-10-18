@@ -1850,5 +1850,495 @@ class Widgets implements Markup {
 		return <textarea id={props.tag} data-slot="textarea" rows={props.rows} value={props.value} placeholder={props.placeholder}
 			aria-label={props.label} aria-invalid={() -> on(props.invalid) ? "true" : null} disabled={() -> on(props.disabled)}
 			onInput={(e:Dynamic) -> props.value.value = e.target.value}/>;
+
+	// --- the third batch: Field, ButtonGroup, InputGroup, Empty, Item, AspectRatio, ScrollArea, NativeSelect, Carousel, NavigationMenu, Sidebar, charts ---
+
+	// a field (shadcn's): a label, a control and its description or error, a
+	// group; orientation "vertical" (the default), "horizontal" or
+	// "responsive" (data-orientation, and data-variant for the theme's cva);
+	// invalid: data-invalid
+	public static function Field(props:{?orientation:String, ?invalid:Dynamic, ?label:String, ?children:Any, ?tag:String}):View {
+		var o = props.orientation ?? "vertical";
+		return <div id={props.tag} role="group" data-slot="field" data-orientation={o} data-variant={o} aria-label={props.label}
+			data-invalid={() -> on(props.invalid) ? "true" : null}>{props.children}</div>;
+	}
+
+	public static function FieldLabel(props:{?text:String, ?children:Any, ?htmlFor:String, ?tag:String}):View
+		return <label id={props.tag} data-slot="field-label" htmlFor={props.htmlFor}>{props.children ?? props.text}</label>;
+
+	public static function FieldContent(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="field-content">{props.children}</div>;
+
+	public static function FieldDescription(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <p id={props.tag} data-slot="field-description">{props.children ?? props.text}</p>;
+
+	// (shown while its text is neither null nor empty; announced at once)
+	public static function FieldError(props:{text:Dynamic, ?tag:String}):View
+		return <Show when={() -> {
+			var t:Null<String> = read(props.text);
+			t != null && t != "";
+		}}><div id={props.tag} role="alert" data-slot="field-error">{() -> (read(props.text) : String)}</div></Show>;
+
+	public static function FieldSet(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <fieldset id={props.tag} data-slot="field-set" aria-label={props.label}>{props.children}</fieldset>;
+
+	// variant "legend" (the default) or "label"
+	public static function FieldLegend(props:{text:String, ?variant:String, ?tag:String}):View
+		return <legend id={props.tag} data-slot="field-legend" data-variant={props.variant ?? "legend"}>{props.text}</legend>;
+
+	public static function FieldGroup(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="field-group">{props.children}</div>;
+
+	// a line between fields, a word in it (text) when given
+	public static function FieldSeparator(props:{?text:String, ?tag:String}):View
+		return <div id={props.tag} data-slot="field-separator" data-content={props.text != null ? "true" : "false"}>
+			<div data-slot="separator" data-orientation="horizontal" role="none" style="position:absolute;inset:0;top:50%"/>
+			{props.text == null ? null : <span data-slot="field-separator-content">{props.text}</span>}
+		</div>;
+
+	// a button group (shadcn's): buttons (and inputs, selects, text) joined
+	// in one shape, a group; orientation "horizontal" (the default) or "vertical"
+	public static function ButtonGroup(props:{?orientation:String, ?label:String, ?children:Any, ?tag:String}):View {
+		var o = props.orientation ?? "horizontal";
+		return <div id={props.tag} role="group" data-slot="button-group" data-orientation={o} data-variant={o} aria-label={props.label}>{props.children}</div>;
+	}
+
+	public static function ButtonGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="button-group-text">{props.children ?? props.text}</div>;
+
+	public static function ButtonGroupSeparator(props:{?orientation:String, ?tag:String}):View
+		return <div id={props.tag} data-slot="button-group-separator" data-orientation={props.orientation ?? "vertical"} role="none"/>;
+
+	// an input group (shadcn's): an InputGroupInput with addons in one box;
+	// a click on an addon (not on its button) focuses the input
+	public static function InputGroup(props:{?label:String, ?disabled:Dynamic, ?children:Any, ?tag:String}):View
+		return <div id={props.tag} role="group" data-slot="input-group" aria-label={props.label} data-disabled={() -> on(props.disabled) ? "true" : null}>
+			{props.children}
+		</div>;
+
+	// align: "inline-start" (the default), "inline-end", "block-start", "block-end"
+	public static function InputGroupAddon(props:{?align:String, ?children:Any, ?tag:String}):View {
+		var a = props.align ?? "inline-start";
+		return <div id={props.tag} role="group" data-slot="input-group-addon" data-align={a} data-variant={a} onClick={(e:Dynamic) -> {
+			var t:Element = e.target, self:Element = e.currentTarget;
+			if (t.closest("button") != null || self.parentElement == null) return;
+			var input = self.parentElement.querySelector("[data-slot=input-group-control]");
+			if (input != null) Dom.focus(cast input);
+		}}>{props.children}</div>;
+	}
+
+	public static function InputGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <span id={props.tag} data-slot="input-group-text">{props.children ?? props.text}</span>;
+
+	public static function InputGroupInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+			?invalid:Dynamic, ?disabled:Dynamic, ?tag:String}):View
+		return <input id={props.tag} data-slot="input-group-control" type={props.password == true ? "password" : "text"} value={props.value}
+			placeholder={props.placeholder} aria-label={props.label ?? props.placeholder} aria-invalid={() -> on(props.invalid) ? "true" : null}
+			disabled={() -> on(props.disabled)} onInput={(e:Dynamic) -> props.value.value = e.target.value}
+			onKeyDown={(e:KeyboardEvent) -> if (e.key == "Enter" && props.onSubmit != null) props.onSubmit(props.value.peek())}/>;
+
+	// an empty state (shadcn's) and its parts; EmptyMedia variant "default" or "icon"
+	public static function Empty(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="empty">{props.children}</div>;
+
+	public static function EmptyHeader(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="empty-header">{props.children}</div>;
+
+	public static function EmptyMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="empty-icon" data-variant={props.variant ?? "default"}>{props.children}</div>;
+
+	public static function EmptyTitle(props:{text:String, ?tag:String}):View
+		return <div id={props.tag} data-slot="empty-title" role="heading" aria-level="2">{props.text}</div>;
+
+	public static function EmptyDescription(props:{text:String, ?tag:String}):View
+		return <div id={props.tag} data-slot="empty-description">{props.text}</div>;
+
+	public static function EmptyContent(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="empty-content">{props.children}</div>;
+
+	// an item (shadcn's): variant "default", "outline" or "muted", size
+	// "default" or "sm"; with onClick a button (Enter, Space), else one of
+	// its ItemGroup's list
+	public static function Item(props:{?variant:String, ?size:String, ?onClick:Void->Void, ?children:Any, ?tag:String}):View {
+		var press = () -> if (props.onClick != null) props.onClick();
+		return <div id={props.tag} data-slot="item" data-variant={props.variant ?? "default"} data-size={props.size ?? "default"}
+			role={props.onClick != null ? "button" : "listitem"} tabindex={props.onClick != null ? "0" : null} onClick={press}
+			onKeyDown={(e:KeyboardEvent) -> if (props.onClick != null && (e.key == "Enter" || e.key == " ")) {
+				e.preventDefault();
+				press();
+			}}>{props.children}</div>;
+	}
+
+	public static function ItemGroup(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <div id={props.tag} role="list" data-slot="item-group" aria-label={props.label}>{props.children}</div>;
+
+	public static function ItemSeparator(props:{?tag:String}):View
+		return <div id={props.tag} data-slot="item-separator" data-orientation="horizontal" role="none"/>;
+
+	// variant "default", "icon" or "image"
+	public static function ItemMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="item-media" data-variant={props.variant ?? "default"}>{props.children}</div>;
+
+	public static function ItemContent(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="item-content">{props.children}</div>;
+
+	public static function ItemTitle(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="item-title">{props.children ?? props.text}</div>;
+
+	public static function ItemDescription(props:{text:String, ?tag:String}):View
+		return <p id={props.tag} data-slot="item-description">{props.text}</p>;
+
+	public static function ItemActions(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="item-actions">{props.children}</div>;
+
+	public static function ItemHeader(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="item-header">{props.children}</div>;
+
+	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="item-footer">{props.children}</div>;
+
+	// a box kept to a ratio of width to height (Radix's AspectRatio: a
+	// wrapper padded to it, the box filling it), as wide as its parent
+	public static function AspectRatio(props:{?ratio:Float, ?children:Any, ?tag:String}):View
+		return <div style={'position:relative;width:100%;padding-bottom:${100 / (props.ratio ?? 1.0)}%'}>
+			<div id={props.tag} data-slot="aspect-ratio" style="position:absolute;inset:0">{props.children}</div>
+		</div>;
+
+	// a scrolled area (shadcn's ScrollArea): its children in a viewport
+	// scrolled vertically (the default), horizontally or both; the theme's
+	// scrollbars (thin, on hover, as Radix's)
+	public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
+		var o = props.orientation ?? "vertical";
+		var overflow = o == "horizontal" ? "overflow-x:auto;overflow-y:hidden" : o == "both" ? "overflow:auto" : "overflow-x:hidden;overflow-y:auto";
+		return <div id={props.tag} data-slot="scroll-area" style={(props.width == null ? "" : 'width:${props.width}px;') + (props.height == null ? "" : 'height:${props.height}px')}>
+			<div data-slot="scroll-area-viewport" data-orientation={o} role={props.label == null ? null : "region"} aria-label={props.label} tabindex="0"
+				style={overflow}>{props.children}</div>
+		</div>;
+	}
+
+	// a select the platform's own (shadcn's NativeSelect: a <select>, its
+	// options the browser's menu), bound to a signal
+	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
+			?disabled:Dynamic, ?tag:String}):View {
+		var self:Null<js.html.SelectElement> = null;
+		effect(() -> {
+			var v = props.value.value;
+			if (self != null) self.value = v;
+		});
+		return <div data-slot="native-select-wrapper">
+			<select id={props.tag} data-slot="native-select" data-size="default" aria-label={props.label} disabled={() -> on(props.disabled)}
+				style={props.width == null ? null : 'width:${props.width}px'} ref={n -> {
+					self = cast n;
+					self.value = props.value.peek();
+				}} onChange={(e:Dynamic) -> props.value.value = e.target.value}>{[
+				for (i in 0...props.options.length)
+					<option data-slot="native-select-option" value={props.options[i]}>{props.labels != null ? props.labels[i] : props.options[i]}</option>
+			]}</select>
+			{icon("chevron-down", "native-select-icon")}
+		</div>;
+	}
+
+	// a carousel (shadcn's, Embla's look): slides in a row (vertical: a
+	// column) through a viewport, index the slide at its start; Previous and
+	// Next (disabled at the ends unless loop), Left and Right (vertical: Up
+	// and Down; right to left mirrored) move it
+	public static function Carousel(props:{slides:Array<Any>, ?index:Signal<Int>, ?orientation:String, ?loop:Bool, ?label:String, ?tag:String}):View {
+		var index = props.index ?? signal(0), count = props.slides.length, loop = props.loop == true;
+		var o = props.orientation == "vertical" ? "vertical" : "horizontal", vertical = o == "vertical";
+		var items:Array<Element> = [], track:Null<Element> = null;
+		function go(i:Int)
+			if (count > 0) index.value = loop ? (i % count + count) % count : i < 0 ? 0 : i >= count ? count - 1 : i;
+		// (the track moved by the slide's offset from the first's)
+		effect(() -> {
+			var i = index.value;
+			if (track == null || items[i] == null) return;
+			var d = vertical ? items[0].offsetTop - items[i].offsetTop : items[0].offsetLeft - items[i].offsetLeft;
+			track.style.transform = vertical ? 'translate3d(0,${d}px,0)' : 'translate3d(${d}px,0,0)';
+		});
+		var prevOff = () -> !loop && index.value <= 0, nextOff = () -> !loop && index.value >= count - 1;
+		function nav(slot:String, label:String, glyph:String, off:Void->Bool, d:Int):View
+			return <button type="button" data-slot={slot} data-orientation={o} aria-label={label} disabled={off} onClick={() -> go(index.peek() + d)}>
+				{icon(glyph)}
+			</button>;
+		return <div id={props.tag} data-slot="carousel" role="region" aria-roledescription="carousel" aria-label={props.label ?? "Carousel"} data-orientation={o}
+			onKeyDown={(e:KeyboardEvent) -> {
+				var k = vertical ? Dom.key(e) : keyOf(e);
+				var d = k == (vertical ? Key.UP : Key.LEFT) ? -1 : k == (vertical ? Key.DOWN : Key.RIGHT) ? 1 : 0;
+				if (d == 0) return;
+				e.preventDefault();
+				go(index.peek() + d);
+			}}>
+			<div data-slot="carousel-content">
+				<div data-slot="carousel-track" data-orientation={o} ref={n -> track = cast n} style="transition:transform .25s ease">{[
+					for (i in 0...count)
+						<div data-slot="carousel-item" role="group" aria-roledescription="slide" aria-label={'${i + 1} of $count'} data-orientation={o}
+							ref={n -> items[i] = cast n}>{props.slides[i]}</div>
+				]}</div>
+			</div>
+			{nav("carousel-previous", "Previous slide", "arrow-left", prevOff, -1)}
+			{nav("carousel-next", "Next slide", "arrow-right", nextOff, 1)}
+		</div>;
+	}
+
+	// a navigation menu (shadcn's, Radix's): a row of triggers whose panels
+	// (render) open in a viewport under the menu, and links (onSelect); a
+	// click, Enter, Space or Down opens a panel (its first focusable focused
+	// by the keys), the pointer onto another trigger while one is open
+	// switches; Left and Right (mirrored) move between the items, Home and
+	// End; Escape closes, the focus back on the trigger
+	public static function NavigationMenu(props:{items:Array<{label:String, ?render:Void->Any, ?onSelect:Void->Void}>, ?open:Signal<Int>, ?label:String,
+			?tag:String}):View {
+		var items = props.items, count = items.length, open = props.open ?? signal(-1), triggers:Array<Element> = [], root:Element = null, byKeys = false;
+		function show(i:Int, keys:Bool) {
+			byKeys = keys;
+			open.value = i;
+		}
+		function key(e:KeyboardEvent, i:Int) {
+			var it = items[i], k = keyOf(e);
+			switch k {
+				case Key.ENTER | Key.SPACE | Key.DOWN:
+					if (it.render == null && k == Key.DOWN) return;
+					e.preventDefault();
+					if (it.render != null) show(open.peek() == i && k != Key.DOWN ? -1 : i, true) else if (it.onSelect != null) it.onSelect();
+				case Key.ESCAPE if (open.peek() >= 0):
+					e.preventDefault();
+					open.value = -1;
+				case _:
+					var j = Behaviour.rove(k, i, count, false);
+					if (j < 0) return;
+					e.preventDefault();
+					focusIn(triggers, j);
+			}
+		}
+		Dom.popup(() -> open.value >= 0, () -> <div data-slot="navigation-menu-viewport" data-state="open" data-orientation="horizontal"
+			onKeyDown={(e:KeyboardEvent) -> if (e.key == "Escape") {
+				e.preventDefault();
+				var i = open.peek();
+				open.value = -1;
+				focusIn(triggers, i);
+			}}>{() -> {
+				var i = open.value;
+				i >= 0 && items[i].render != null ? <div data-slot="navigation-menu-content" data-state="open" data-orientation="horizontal">{items[i].render()}</div> : null;
+			}}</div>, {
+			anchor: () -> root,
+			offset: 0,
+			onDismiss: () -> open.value = -1,
+			onOpen: h -> if (byKeys) Dom.focus(Dom.firstFocusable(h))
+		});
+		return <nav id={props.tag} data-slot="navigation-menu" aria-label={props.label ?? "Main"} data-orientation="horizontal" data-viewport="true"
+			ref={n -> root = cast n}>
+			<div style="position:relative">
+				<ul data-slot="navigation-menu-list" data-orientation="horizontal">{[
+					for (i in 0...count) {
+						var it = items[i], state = () -> open.value == i ? "open" : "closed";
+						<li data-slot="navigation-menu-item">{
+							it.render != null ? <button type="button" data-slot="navigation-menu-trigger" data-state={state} aria-expanded={() -> open.value == i ? "true" : "false"}
+								ref={n -> triggers[i] = cast n} onClick={() -> show(open.peek() == i ? -1 : i, false)}
+								onPointerEnter={() -> if (open.peek() >= 0 && open.peek() != i) show(i, false)} onKeyDown={(e:KeyboardEvent) -> key(e, i)}>
+								{it.label}{" "}{icon("chevron-down", "navigation-menu-trigger-icon")}
+							</button> : <a data-slot="navigation-menu-link" href="#" ref={n -> triggers[i] = cast n} onClick={(e:Dynamic) -> {
+								e.preventDefault();
+								if (it.onSelect != null) it.onSelect();
+							}} onKeyDown={(e:KeyboardEvent) -> key(e, i)}>{it.label}</a>
+						}</li>;
+					}
+				]}</ul>
+			</div>
+		</nav>;
+	}
+
+	// --- shadcn's Sidebar ---
+
+	// (the open sidebar's signal: SidebarProvider's)
+	static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
+
+	// a sidebar's layout (shadcn's SidebarProvider): open shared with its
+	// Sidebar and SidebarTrigger; Mod+B toggles it from anywhere
+	public static function SidebarProvider(props:{?open:Signal<Bool>, ?children:Any, ?tag:String}):View {
+		var open = props.open ?? signal(true), mod = Shortcut.parse("Mod+B");
+		function down(e:KeyboardEvent)
+			if (!e.defaultPrevented && mod.matches(Dom.key(e), Dom.mods(e))) {
+				e.preventDefault();
+				open.value = !open.peek();
+			}
+		document.addEventListener("keydown", down);
+		onCleanup(() -> document.removeEventListener("keydown", down));
+		return <div id={props.tag} data-slot="sidebar-wrapper" data-state={() -> open.value ? "expanded" : "collapsed"}>
+			{Provider({context: SIDEBAR, value: open, children: props.children})}
+		</div>;
+	}
+
+	// a sidebar (shadcn's): side "left" or "right", variant "sidebar",
+	// "floating" or "inset", collapsible "offcanvas", "icon" or "none";
+	// shadcn's gap (its width in flow), container and inner box
+	public static function Sidebar(props:{?side:String, ?variant:String, ?collapsible:String, ?label:String, ?children:Any, ?tag:String}):View {
+		var open = use(SIDEBAR) ?? signal(true), collapsible = props.collapsible ?? "offcanvas";
+		var variant = props.variant ?? "sidebar", side = props.side ?? "left";
+		var expanded = () -> collapsible == "none" || open.value;
+		return <div id={props.tag} data-slot="sidebar" data-state={() -> expanded() ? "expanded" : "collapsed"} data-collapsible={() -> expanded() ? "" : collapsible}
+			data-variant={variant} data-side={side}>
+			<div data-slot="sidebar-gap" data-variant={variant}/>
+			<nav data-slot="sidebar-container" data-side={side} data-variant={variant} aria-label={props.label ?? "Sidebar"}>
+				<div data-slot="sidebar-inner" data-sidebar="sidebar">{props.children}</div>
+			</nav>
+		</div>;
+	}
+
+	// the button that toggles the sidebar (a ghost icon button)
+	public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
+		var open = use(SIDEBAR);
+		return <button type="button" id={props.tag} data-slot="sidebar-trigger" data-sidebar="trigger" aria-label={props.label ?? "Toggle Sidebar"}
+			aria-expanded={() -> open != null && open.value ? "true" : "false"} onClick={() -> if (open != null) open.value = !open.peek()}>{icon("panel-left")}</button>;
+	}
+
+	public static function SidebarInset(props:{?children:Any, ?tag:String}):View
+		return <main id={props.tag} data-slot="sidebar-inset">{props.children}</main>;
+
+	public static function SidebarHeader(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="sidebar-header" data-sidebar="header">{props.children}</div>;
+
+	public static function SidebarContent(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="sidebar-content" data-sidebar="content">{props.children}</div>;
+
+	public static function SidebarFooter(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="sidebar-footer" data-sidebar="footer">{props.children}</div>;
+
+	public static function SidebarSeparator(props:{?tag:String}):View
+		return <div id={props.tag} data-slot="sidebar-separator" data-sidebar="separator" data-orientation="horizontal" role="none"/>;
+
+	public static function SidebarGroup(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="sidebar-group" data-sidebar="group" role="group" aria-label={props.label}>{props.children}</div>;
+
+	public static function SidebarGroupLabel(props:{text:String, ?tag:String}):View
+		return <div id={props.tag} data-slot="sidebar-group-label" data-sidebar="group-label">{props.text}</div>;
+
+	public static function SidebarGroupContent(props:{?children:Any, ?tag:String}):View
+		return <div id={props.tag} data-slot="sidebar-group-content" data-sidebar="group-content">{props.children}</div>;
+
+	public static function SidebarMenu(props:{?children:Any, ?tag:String}):View
+		return <ul id={props.tag} data-slot="sidebar-menu" data-sidebar="menu">{props.children}</ul>;
+
+	public static function SidebarMenuItem(props:{?children:Any, ?tag:String}):View
+		return <li id={props.tag} data-slot="sidebar-menu-item" data-sidebar="menu-item">{props.children}</li>;
+
+	// a sidebar menu's button: its label after its children (an icon),
+	// active (the current page: data-active), size "default", "sm" or "lg"
+	public static function SidebarMenuButton(props:{?label:String, ?active:Dynamic, ?onClick:Void->Void, ?size:String, ?children:Any, ?tag:String}):View
+		return <button type="button" id={props.tag} data-slot="sidebar-menu-button" data-sidebar="menu-button" data-variant="default"
+			data-size={props.size ?? "default"} data-active={() -> on(props.active) ? "true" : null} aria-current={() -> on(props.active) ? "page" : null}
+			onClick={() -> if (props.onClick != null) props.onClick()}>{props.children}{props.label == null ? null : <span>{props.label}</span>}</button>;
+
+	// --- charts (shadcn's Chart's look, recharts' kinds) ---
+
+	// (a scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten)
+	static function niceMax(v:Float):Float {
+		if (!(v > 0)) return 1;
+		var p = Math.pow(10, Math.floor(Math.log(v) / Math.log(10)));
+		for (m in [1.0, 2.0, 2.5, 5.0, 10.0])
+			if (m * p >= v - 1e-9) return m * p;
+		return 10 * p;
+	}
+
+	// (a series' colour: its own, else the theme's --chart-N by data-series)
+	static function seriesStyle(c:Null<hxmc.ui.Color>, prop:String):Null<String>
+		return c == null ? null : prop + ":" + c.toHex().substr(0, 7);
+
+	// (a chart's frame: the y axis's ticks and the grid, the plot, the x
+	// axis's labels, the legend; the category under the pointer in shadcn's
+	// tooltip, each series' value)
+	static function chartFrame(tag:Null<String>, labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, w:Float, h:Float,
+			top:Float, plot:View, hover:Signal<Int>, label:Null<String>, format:Float->String):View {
+		var n = labels.length, axis = 40.0;
+		return <div id={tag} data-slot="chart" role="img" aria-label={label ?? "Chart"} style="align-items:flex-start">
+			<div style="display:flex">
+				<div data-slot="chart-y-axis" style={'position:relative;width:${axis}px;height:${h}px'}>{[
+					for (t in 0...5)
+						<span data-slot="chart-tick" style={'position:absolute;right:6px;top:${h - t / 4 * h - 7}px;line-height:14px'}>{format(top * t / 4)}</span>
+				]}</div>
+				<div data-slot="chart-plot" style={'position:relative;width:${w}px;height:${h}px'} onPointerMove={(e:Dynamic) -> {
+					var r = (e.currentTarget : Element).getBoundingClientRect(), i = n == 0 ? -1 : Std.int((e.clientX - r.left) / (w / n));
+					hover.value = i >= 0 && i < n ? i : -1;
+				}} onPointerLeave={() -> hover.value = -1}>
+					{[for (t in 0...5) <div data-slot="chart-grid" style={'position:absolute;left:0;width:${w}px;top:${h - t / 4 * h}px;height:1px'}/>]}
+					{plot}
+					<Show when={() -> hover.value >= 0}>{() -> {
+						var i = hover.value;
+						<div data-slot="chart-tooltip" style={'position:absolute;top:4px;left:${Math.min(w - 120, (i + 0.5) * w / n + 8)}px'}>
+							<div data-slot="chart-tooltip-label">{labels[i]}</div>
+							<div style="display:grid;gap:6px">{[
+								for (k in 0...series.length)
+									<div data-slot="chart-tooltip-item">
+										<div data-slot="chart-tooltip-indicator" data-series={Std.string(k % 5 + 1)} style={seriesStyle(series[k].color, "background-color")}/>
+										<div style="display:flex;flex:1;justify-content:space-between;align-items:center;line-height:1">
+											<span data-slot="chart-tooltip-name">{series[k].name}</span>
+											<span data-slot="chart-tooltip-value">{format(series[k].values[i])}</span>
+										</div>
+									</div>
+							]}</div>
+						</div>;
+					}}</Show>
+				</div>
+			</div>
+			<div data-slot="chart-x-axis" style={'display:flex;margin-left:${axis}px;width:${w}px'}>{[
+				for (l in labels) <span data-slot="chart-tick" style="flex:1 1 0;text-align:center">{l}</span>
+			]}</div>
+			<div data-slot="chart-legend" style={'margin-left:${axis}px;width:${w}px'}>{[
+				for (k in 0...series.length)
+					<div data-slot="chart-legend-item">
+						<div data-slot="chart-legend-swatch" data-series={Std.string(k % 5 + 1)} style={seriesStyle(series[k].color, "background-color")}/>{series[k].name}
+					</div>
+			]}</div>
+		</div>;
+	}
+
+	// a bar chart: categories along the x axis, a bar per series in each on
+	// a scale from 0 to a round top; the pointer over a category shows its values
+	public static function BarChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
+			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
+		var w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1), series = props.series;
+		var top = props.max ?? niceMax(Lambda.fold(series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var format = props.format ?? Behaviour.plain, slot = n == 0 ? 0.0 : w / n;
+		var barW = series.length == 0 ? 0.0 : slot * 0.7 / series.length;
+		var plot = <div style={'position:absolute;left:0;top:0;width:${w}px;height:${h}px;display:flex'}>{[
+			for (i in 0...n)
+				<div role="group" aria-label={props.labels[i] + ": " + [for (s in series) s.name + " " + format(s.values[i])].join(", ")}
+					style={'width:${slot}px;height:${h}px;display:flex;justify-content:center;align-items:flex-end'}>{[
+					for (k in 0...series.length)
+						<div data-slot="chart-bar" data-series={Std.string(k % 5 + 1)} data-active={() -> hover.value == i ? "true" : null}
+							style={'width:${barW}px;height:${Math.max(0, Math.min(1, series[k].values[i] / top)) * h}px' + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>
+				]}</div>
+		]}</div>;
+		return chartFrame(props.tag, props.labels, series, w, h, top, plot, hover, props.label, format);
+	}
+
+	// a line chart: a line per series through its values, on BarChart's
+	// scale and frame; a dot on each line at the category under the pointer
+	public static function LineChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
+			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
+		var w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1), series = props.series;
+		var top = props.max ?? niceMax(Lambda.fold(series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var format = props.format ?? Behaviour.plain, slot = n == 0 ? 0.0 : w / n;
+		var px = (i:Int) -> (i + 0.5) * slot, py = (v:Float) -> h - Math.max(0, Math.min(1, v / top)) * h;
+		var plot = <div style={'position:absolute;left:0;top:0;width:${w}px;height:${h}px'}>{[
+			for (k in 0...series.length) {
+				var svg = document.createElementNS(hxmc.web.Html.SVG_NS, "svg");
+				for (a in [["viewBox", '0 0 $w $h'], ["width", '$w'], ["height", '$h'], ["data-slot", "chart-line"], ["data-series", Std.string(k % 5 + 1)],
+					["aria-hidden", "true"], ["style", "position:absolute;left:0;top:0" + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "color"))]])
+					svg.setAttribute(a[0], a[1]);
+				var path = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
+				path.setAttribute("d", [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(series[k].values[i]) * 100) / 100].join(" "));
+				for (a in [["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "2"], ["stroke-linejoin", "round"], ["stroke-linecap", "round"]])
+					path.setAttribute(a[0], a[1]);
+				svg.appendChild(path);
+				[
+					(svg : Any),
+					<Show when={() -> hover.value >= 0}>{() -> <div data-slot="chart-bar" data-series={Std.string(k % 5 + 1)}
+						style={'position:absolute;width:8px;height:8px;border-radius:4px;left:${px(hover.value) - 4}px;top:${py(series[k].values[hover.value]) - 4}px'
+							+ (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>}</Show>
+				];
+			}
+		]}</div>;
+		return chartFrame(props.tag, props.labels, series, w, h, top, plot, hover, props.label, format);
+	}
 }
 #end

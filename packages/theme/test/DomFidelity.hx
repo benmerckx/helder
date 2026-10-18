@@ -132,6 +132,98 @@ class DomFidelity implements Markup {
 				<div class="resizable-example" style="display:contents"><Split first={pane("One")} second={pane("Two")} size={new Signal(150.0)}/></div>;
 			case "kbd": <Kbd text="Ctrl"/>;
 			case "spinner": <Spinner/>;
+			case "field":
+				<FieldSet>
+					<FieldLegend text="Profile"/>
+					<FieldDescription text="How others see you."/>
+					<FieldGroup>
+						<Field><FieldLabel text="Name"/><Input value={new Signal("")} placeholder="Ada Lovelace"/><FieldDescription text="Shown on your posts."/></Field>
+						<Field invalid={true}><FieldLabel text="Email"/><Input value={new Signal("not an email")} invalid={true}/><FieldError text="Enter an email address."/></Field>
+						<FieldSeparator/>
+						<Field orientation="horizontal">
+							<FieldContent><FieldLabel text="Newsletter"/><FieldDescription text="A monthly email."/></FieldContent>
+							<Switch checked={new Signal(true)}/>
+						</Field>
+					</FieldGroup>
+				</FieldSet>;
+			case "button-group" if (c.text != null):
+				<ButtonGroup>
+					<Button variant="outline" label="−"/><ButtonGroupText text={text}/><ButtonGroupSeparator/><Button variant="outline" label="+"/>
+				</ButtonGroup>;
+			case "button-group" if (variant == "vertical"):
+				<ButtonGroup orientation="vertical"><Button variant="outline" size="sm" label="In"/><Button variant="outline" size="sm" label="Out"/></ButtonGroup>;
+			case "button-group":
+				<ButtonGroup><Button variant="outline" label="Archive"/><Button variant="outline" label="Report"/><Button variant="outline" label="Snooze"/></ButtonGroup>;
+			case "input-group" if (c.text != null):
+				<InputGroup>
+					<InputGroupAddon><InputGroupText text="https://"/></InputGroupAddon>
+					<InputGroupInput value={new Signal(text)}/>
+					<InputGroupAddon align="inline-end"><InputGroupText text=".com"/></InputGroupAddon>
+				</InputGroup>;
+			case "input-group":
+				<InputGroup>
+					<InputGroupInput value={new Signal("")} placeholder="Search"/>
+					<InputGroupAddon align="inline-end"><Button variant="ghost" size="sm" label="Clear"/></InputGroupAddon>
+				</InputGroup>;
+			case "empty":
+				<Empty>
+					<EmptyHeader>
+						<EmptyMedia variant="icon">{hxmc.web.widgets.Dom.icon("folder")}</EmptyMedia>
+						<EmptyTitle text="No projects yet"/>
+						<EmptyDescription text="You haven't made a project. Start with your first one."/>
+					</EmptyHeader>
+					<EmptyContent><Button label="Create a project"/></EmptyContent>
+				</Empty>;
+			case "item" if (variant == "muted"):
+				<Item variant="muted" size="sm" onClick={() -> {}}>
+					<ItemContent><ItemTitle text="Grace Hopper"/><ItemDescription text="Wrote the first compiler."/></ItemContent>
+				</Item>;
+			case "item":
+				<Item variant="outline">
+					<ItemMedia variant="icon">A</ItemMedia>
+					<ItemContent><ItemTitle text="Ada Lovelace"/><ItemDescription text="Wrote the first program."/></ItemContent>
+					<ItemActions><Button variant="outline" size="sm" label="Invite"/></ItemActions>
+				</Item>;
+			case "carousel":
+				var slides:Array<Any> = [for (n in 1...4) <div data-slot="slide">{Std.string(n)}</div>];
+				<div class="carousel-example" style="display:contents"><Carousel slides={slides}/></div>;
+			case "navigation-menu":
+				function link(t:String, d:String):View
+					return <a data-slot="navigation-menu-link" href="#"><div data-slot="nav-title">{t}</div><p data-slot="nav-description">{d}</p></a>;
+				function panel(links:Array<View>):View
+					return <ul style="display:grid;width:300px;gap:8px">{[for (l in links) <li>{l}</li>]}</ul>;
+				var items:Array<{label:String, ?render:Void->Any, ?onSelect:Void->Void}> = [
+					{label: "Getting started", render: () -> panel([link("Introduction", "What it is and why."), link("Installation", "How to add it.")])},
+					{label: "Components", render: () -> panel([link("Button", "Pressed to act.")])}
+				];
+				<NavigationMenu items={items}/>;
+			case "sidebar":
+				<div class="sidebar-example" style="display:contents"><SidebarProvider open={new Signal(variant != "icon")}>
+					<Sidebar collapsible="icon">
+						<SidebarHeader><span style="font-weight:600">Mail</span></SidebarHeader>
+						<SidebarContent>
+							<SidebarGroup>
+								<SidebarGroupLabel text="Folders"/>
+								<SidebarGroupContent><SidebarMenu>{[
+									for (i in 0...3)
+										<SidebarMenuItem><SidebarMenuButton label={["Inbox", "Drafts", "Sent"][i]} active={i == 0}>{hxmc.web.widgets.Dom.icon("circle")}</SidebarMenuButton></SidebarMenuItem>
+								]}</SidebarMenu></SidebarGroupContent>
+							</SidebarGroup>
+						</SidebarContent>
+						<SidebarFooter><span>Signed in</span></SidebarFooter>
+					</Sidebar>
+					<SidebarInset><div style="display:flex;align-items:center;gap:8px"><SidebarTrigger/><span>Inbox</span></div></SidebarInset>
+				</SidebarProvider></div>;
+			case "chart-tooltip" | "chart-legend":
+				<BarChart labels={["Jan", "Feb", "Mar", "Apr", "May", "Jun"]}
+					series={[{name: "Desktop", values: [186, 305, 237, 73, 209, 214]}, {name: "Mobile", values: [80, 200, 120, 190, 130, 140]}]}/>;
+			case "aspect-ratio":
+				<div class="aspect-example" style="display:contents"><AspectRatio ratio={16 / 9}><div data-slot="ar-text">16 : 9</div></AspectRatio></div>;
+			case "scroll-area":
+				<div class="scroll-example" style="display:contents"><ScrollArea width={200} height={200}>
+					<div data-slot="sa-list">{[for (i in 0...50) <div>{"v1.2.0-beta." + (50 - i)}</div>]}</div>
+				</ScrollArea></div>;
+			case "native-select": <NativeSelect value={new Signal("todo")} options={["todo", "doing", "done"]} labels={["To do", "In progress", "Done"]}/>;
 			case _: null;
 		}
 	}
@@ -158,7 +250,17 @@ class DomFidelity implements Markup {
 		// (the classes shadcn's example adds to its command)
 		var style = document.createStyleElement();
 		style.textContent = hxmc.theme.Css.classes(".command-example > [data-slot=command]", "rounded-lg border shadow-md md:min-w-[450px]")
-			+ hxmc.theme.Css.classes(".resizable-example > [data-slot=resizable-panel-group]", "rounded-lg border");
+			+ hxmc.theme.Css.classes(".resizable-example > [data-slot=resizable-panel-group]", "rounded-lg border")
+			+ hxmc.theme.Css.classes(".carousel-example > [data-slot=carousel]", "mx-12 w-[200px]")
+			+ hxmc.theme.Css.classes("[data-slot=slide]", "flex h-[120px] items-center justify-center rounded-lg border text-3xl font-semibold")
+			+ hxmc.theme.Css.classes("[data-slot=nav-title]", "text-sm leading-none font-medium")
+			+ hxmc.theme.Css.classes("[data-slot=nav-description]", "line-clamp-2 text-sm leading-snug text-muted-foreground")
+			+ hxmc.theme.Css.classes(".sidebar-example [data-slot=sidebar-wrapper]", "min-h-0 h-full [contain:layout]")
+			+ hxmc.theme.Css.classes(".sidebar-example [data-slot=sidebar-container]", "h-auto")
+			+ hxmc.theme.Css.classes(".aspect-example [data-slot=aspect-ratio]", "rounded-lg bg-muted")
+			+ hxmc.theme.Css.classes("[data-slot=ar-text]", "flex h-full items-center justify-center text-sm text-muted-foreground")
+			+ hxmc.theme.Css.classes(".scroll-example > [data-slot=scroll-area]", "rounded-md border")
+			+ hxmc.theme.Css.classes("[data-slot=sa-list]", "flex flex-col gap-2 p-3 text-sm");
 		document.head.appendChild(style);
 		js.Syntax.code("window.renderCase = {0}", renderCase);
 		js.Syntax.code("window.toast = {0}", (text:String, action:String) -> Toasts.show(text, {action: action, duration: 0}));
