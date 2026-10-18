@@ -202,6 +202,7 @@ class GltfTest {
 		var file = sys.io.File.getBytes("packages/3d/examples/normals.glb");
 		#if eval
 		check("normals.glb is the generator's", SampleModel.normalsGlb().compare(file) == 0);
+		check("panorama.png is the generator's", SampleModel.environmentPng().compare(sys.io.File.getBytes("packages/3d/examples/panorama.png")) == 0);
 		#end
 		var doc = Gltf.parse(file);
 		var m = doc.materials[0];

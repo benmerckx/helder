@@ -37,9 +37,9 @@ class PbrSkinnedShader implements Shaders {
 	}
 
 	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
-			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D):Vec4
+			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4
 		return PbrShader.shadeAt(normalize(i.normal), i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture,
-			occlusionTexture, shadowMap, shadowMapFar);
+			occlusionTexture, shadowMap, shadowMapFar, environmentMap);
 
 	// joint k's matrix from its row of the texture (rows of them)
 	public static function joint(t:Texture2D, k:Float, rows:Float):Mat4 {

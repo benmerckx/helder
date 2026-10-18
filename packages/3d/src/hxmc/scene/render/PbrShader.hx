@@ -55,6 +55,9 @@ import hxmc.gfx.shader.ShaderMath.*;
 	// read where the first, near the camera, does not reach; else the first's)
 	var lightViewProjFar:Mat4;
 	var shadowFar:Vec4;
+	// the environment's light (Environment): x its intensity (0: none, the
+	// sky and the ground instead), y its map's mip levels below the first
+	var environment:Vec4;
 }
 
 // per draw: the node's matrices
@@ -82,14 +85,14 @@ class PbrShader implements Shaders {
 	}
 
 	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
-			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D):Vec4
+			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4
 		return shadeAt(normalize(i.normal), i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture,
-			occlusionTexture, shadowMap, shadowMapFar);
+			occlusionTexture, shadowMap, shadowMapFar, environmentMap);
 
 	// the fragment's colour at a point of the world with a unit normal n
 	// (also the instanced, skinned and normal-mapped shaders')
 	public static function shadeAt(n:Vec3, world:Vec3, uv:Vec2, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
-			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D):Vec4 {
+			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4 {
 		var texel = sample(baseColorTexture, uv);
 		// (the texture's sRGB decoded)
 		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2));
@@ -114,6 +117,13 @@ class PbrShader implements Shaders {
 		var irradiance = mix(frame.ground.xyz, frame.sky.xyz, up);
 		var r = reflect(-v, n);
 		var env = mix(frame.ground.xyz, frame.sky.xyz, smoothstep(-0.2, 0.2, r.y));
+		if (frame.environment.x > 0) {
+			// (an environment map: its small levels along the normal, its
+			// sharper ones along the reflection by roughness)
+			var top = frame.environment.y;
+			irradiance = pow(sampleLevel(environmentMap, EnvironmentShader.equirect(n), max(top - 2, 0)).xyz, vec3(2.2)) * frame.environment.x;
+			env = pow(sampleLevel(environmentMap, EnvironmentShader.equirect(r), rough * max(top - 1, 0)).xyz, vec3(2.2)) * frame.environment.x;
+		}
 		var c0 = vec4(-1, -0.0275, -0.572, 0.022);
 		var c1 = vec4(1, 0.0425, 1.04, -0.04);
 		var rr = c0 * rough + c1;

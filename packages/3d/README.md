@@ -169,7 +169,8 @@ metres). `Shapes.box`, `sphere` and
 `renderer.use(new Skinning(device))`; materials' normal maps need
 `renderer.use(new NormalMaps(device))`, made before the models load (they
 get tangents: the file's, else computed); `renderer.use(new Sky(device))` draws
-a sky behind the scene; `renderer.use(new Particles(device))` draws the
+a sky behind the scene; `renderer.use(Environment.fromImage(device, mime, bytes))`
+an equirectangular image behind it that also lights it (image-based ambient and reflections); `renderer.use(new Particles(device))` draws the
 world's `Emitter`s (simulated by `Particles.update(world, dt)`). Programs draw at injection points:
 `renderer.inject(BeforeOpaque | AfterOpaque | AfterPass, (enc, frame) -> ...)`; features reach the renderer through
 `RenderFeature`, so unused ones are not linked.

@@ -38,7 +38,7 @@ class PbrNormalShader implements Shaders {
 	}
 
 	@:fragment static function fs(i:PbrNormalVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
-			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, normalTexture:Texture2D):Vec4 {
+			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D, normalTexture:Texture2D):Vec4 {
 		var ng = normalize(i.normal);
 		// (the tangent made at right angles to the interpolated normal)
 		var t = normalize(i.tangent.xyz - ng * dot(ng, i.tangent.xyz));
@@ -47,6 +47,6 @@ class PbrNormalShader implements Shaders {
 		var scale = material.params.z;
 		var n = normalize(t * (m.x * scale) + b * (m.y * scale) + ng * m.z);
 		return PbrShader.shadeAt(n, i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
-			shadowMap, shadowMapFar);
+			shadowMap, shadowMapFar, environmentMap);
 	}
 }

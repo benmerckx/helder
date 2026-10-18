@@ -23,6 +23,8 @@ import hxmc.scene.render.*;
 //            tangents): skin.png's and normals.png's frames
 //   cascades two shadow cascades over a long street of pillars: sharp near
 //            the camera, the whole street's map beyond
+//   environment  spheres from mirror to rough, metal and not, lit by an
+//            environment map (Environment) drawn behind them
 //   walker   physics' Walker example: the character walked through the crates, jumping
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
@@ -32,7 +34,7 @@ import hxmc.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -251,6 +253,39 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.9, 0.1, 60));
 				eye.position = new Vec3(0.6, 1.5, 4.5);
 				eye.lookAt(new Vec3(0, 0.6, -6));
+				enc -> r.draw(enc, world, camera);
+			case "environment":
+				Images.decode = (mime, bytes) -> hxmc.ui.PngDecoder.decode(bytes);
+				var env = Environment.fromImage(device, "image/png", Asset.embed("panorama.png"));
+				var r = new Renderer(device).use(env);
+				renderer = r;
+				var world = new World();
+				for (k in 0...5) {
+					var rough = 0.05 + k * 0.235;
+					var metal = world.node("metal" + k), plastic = world.node("plastic" + k);
+					metal.position = new Vec3(-2.4 + k * 1.2, 0.65, 0);
+					plastic.position = new Vec3(-2.4 + k * 1.2, -0.65, 0);
+					MeshRenderer.attach(metal, Shapes.sphere(device, new Material("metal", new hxmc.gfx.shader.Vec4(0.95, 0.93, 0.88, 1), 1, rough), 0.5, 32, 16));
+					MeshRenderer.attach(plastic, Shapes.sphere(device, new Material("plastic", new hxmc.gfx.shader.Vec4(0.8, 0.2, 0.15, 1), 0, rough), 0.5, 32, 16));
+				}
+				var sun = world.node("sun");
+				Light.attach(sun, Light.directional(new Vec3(1, 0.95, 0.85), 2));
+				sun.lookAt(new Vec3(0.35, -0.45, 0.82));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 0.3, 5.5);
+				eye.lookAt(new Vec3(0, 0, 0));
+				// (a bright background: a black mark in the corner, where the
+				// tests' check that something was drawn looks for the clear colour)
+				var ui = new hxmc.ui.draw.Renderer(device);
+				var markPass:PassDesc = {colors: [{load: Load}]};
+				r.inject(AfterPass, (enc, frame) -> {
+					ui.begin(device.width, device.height);
+					ui.rect(0, 0, 4, 4, 0, 0xFF000000, 0, 0);
+					enc.beginPass(markPass);
+					ui.end(enc);
+					enc.endPass();
+				});
 				enc -> r.draw(enc, world, camera);
 			case "packed":
 				// the sample scene packed at build time (Pack: make 3d-check writes

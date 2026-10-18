@@ -16,7 +16,7 @@ import hxmc.scene.math.Quat;
 //   bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/test -cp packages/3d/src \
 //     -cp packages/3d/test --run SampleModel packages/3d/examples/sample.glb
 //
-// (also skinned.glb, textured.glb and normals.glb beside it)
+// (also skinned.glb, textured.glb, normals.glb and panorama.png beside it)
 //
 // Numbers in the JSON are written with 6 decimals, so the file is the same
 // wherever it is generated; GltfTest checks it against the checked-in one.
@@ -42,6 +42,9 @@ class SampleModel {
 		var textured = haxe.io.Path.join([haxe.io.Path.directory(out), "textured.glb"]);
 		sys.io.File.saveBytes(textured, texturedGlb());
 		Sys.println('SampleModel: wrote $textured');
+		var env = haxe.io.Path.join([haxe.io.Path.directory(out), "panorama.png"]);
+		sys.io.File.saveBytes(env, environmentPng());
+		Sys.println('SampleModel: wrote $env');
 		var normals = haxe.io.Path.join([haxe.io.Path.directory(out), "normals.glb"]);
 		sys.io.File.saveBytes(normals, normalsGlb());
 		Sys.println('SampleModel: wrote $normals');
@@ -221,6 +224,53 @@ class SampleModel {
 		return cubeGlb(Png.encode(px, 64, 64), "normals", "tiles", "bumps",
 			'{"name":"tiles","pbrMetallicRoughness":{"baseColorFactor":[0.8,0.55,0.35,1],"metallicFactor":0,"roughnessFactor":0.35},'
 			+ '"normalTexture":{"index":0,"scale":1.5}}');
+	}
+
+	// the sample environment (examples/panorama.png): an equirectangular
+	// 256x128 image (longitude across, -z at the centre; latitude down): a
+	// sky from the zenith's blue to a pale horizon, a sun, a ridge of hills,
+	// a warm ground; smooth, so alike through every GPU's filtering
+	public static function environmentPng():Bytes {
+		var w = 256, h = 128;
+		var px = Bytes.alloc(w * h * 4);
+		var sun = new Vec3(-0.35, 0.45, -0.82);
+		var sl = Math.sqrt(sun.x * sun.x + sun.y * sun.y + sun.z * sun.z);
+		for (y in 0...h)
+			for (x in 0...w) {
+				var lon = ((x + 0.5) / w - 0.5) * 2 * Math.PI, th = (y + 0.5) / h * Math.PI;
+				var dx = Math.sin(th) * Math.sin(lon), dy = Math.cos(th), dz = -Math.sin(th) * Math.cos(lon);
+				var r:Float, g:Float, b:Float;
+				var ridge = 0.06 + 0.05 * Math.sin(3 * lon) * Math.sin(5 * lon + 1);
+				if (dy > ridge) {
+					var t = Math.pow((dy - ridge) / (1 - ridge), 0.5);
+					r = 0.86 + (0.22 - 0.86) * t;
+					g = 0.89 + (0.42 - 0.89) * t;
+					b = 0.93 + (0.82 - 0.93) * t;
+				} else if (dy > 0) {
+					// (the hills, lighter towards their tops)
+					var t = dy / ridge;
+					r = 0.25 + 0.15 * t;
+					g = 0.32 + 0.14 * t;
+					b = 0.3 + 0.12 * t;
+				} else {
+					var t = Math.min(-dy * 3, 1);
+					r = 0.42 - 0.12 * t;
+					g = 0.36 - 0.1 * t;
+					b = 0.28 - 0.08 * t;
+				}
+				// (the sun's disc and glow)
+				var c = Math.max((dx * sun.x + dy * sun.y + dz * sun.z) / sl, 0);
+				var glow = Math.pow(c, 300) + 0.25 * Math.pow(c, 16);
+				r = Math.min(r + glow, 1);
+				g = Math.min(g + glow * 0.95, 1);
+				b = Math.min(b + glow * 0.8, 1);
+				var p = 4 * (y * w + x);
+				px.set(p, Math.round(r * 255));
+				px.set(p + 1, Math.round(g * 255));
+				px.set(p + 2, Math.round(b * 255));
+				px.set(p + 3, 255);
+			}
+		return Png.encode(px, w, h);
 	}
 
 	// a cube of 1.2 with uvs from 0 to 1 on each face, one material (json)

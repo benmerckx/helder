@@ -70,6 +70,7 @@ class Renderer {
 	final plainSlots:Array<Int>;
 	var skinSource:Null<RenderFeature.SkinSource>;
 	var normalSource:Null<RenderFeature.NormalSource>;
+	var environment:Null<Environment>;
 	final instancedSlots:Array<Int>;
 	// whether runs of one primitive are drawn instanced (on by default)
 	public var instancing = true;
@@ -133,7 +134,7 @@ class Renderer {
 	public function inject(point:InjectionPoint, f:(Encoder, FrameInfo) -> Void)
 		hooks[point].push(f);
 
-	// turns on an optional feature (Shadows, Skinning, NormalMaps, Sky); returns the renderer
+	// turns on an optional feature (Shadows, Skinning, NormalMaps, Sky, Environment); returns the renderer
 	public function use(feature:RenderFeature):Renderer {
 		feature.attach(this);
 		return this;
@@ -281,7 +282,8 @@ class Renderer {
 			spot2: spots[2],
 			spot3: spots[3],
 			lightViewProjFar: lightViewProjFar,
-			shadowFar: shadowFar
+			shadowFar: shadowFar,
+			environment: environment != null ? new Vec4(environment.intensity, environment.levels, 0, 0) : new Vec4(0, 0, 0, 0)
 		}, frameBytes);
 		return l;
 	}
@@ -341,6 +343,7 @@ class Renderer {
 				var sf = shadowSource != null ? shadowSource.shadowFrame() : null;
 				enc.setTexture(slots[4], sf != null ? sf.map : noShadow, nearest);
 				enc.setTexture(slots[11], sf != null ? sf.mapFar : noShadow, nearest);
+				if (environment != null) environment.bind(enc, slots[12]) else enc.setTexture(slots[12], white, sampler);
 				if (normals != null) enc.setTexture(slots[10], m.normalTexture, ms);
 				material = m;
 			}
@@ -433,7 +436,8 @@ class Renderer {
 
 	// a shader's slots for its blocks and textures, in the renderer's order:
 	// frame, object (-1: none), material, base colour, shadow map, skin,
-	// joints, metallic-roughness, emissive, occlusion, normal, the far shadow map
+	// joints, metallic-roughness, emissive, occlusion, normal, the far shadow
+	// map, the environment map
 	public static function slotsOf(uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock>, textures:Array<hxmc.gfx.shader.Shaders.TextureBinding>):Array<Int> {
 		function u(name:String):Int {
 			for (b in uniforms)
@@ -446,7 +450,7 @@ class Renderer {
 			return -1;
 		}
 		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap"), u("PbrSkinInfo"), t("jointMatrices"),
-			t("metallicRoughnessTexture"), t("emissiveTexture"), t("occlusionTexture"), t("normalTexture"), t("shadowMapFar")];
+			t("metallicRoughnessTexture"), t("emissiveTexture"), t("occlusionTexture"), t("normalTexture"), t("shadowMapFar"), t("environmentMap")];
 	}
 
 	// whether a mesh's bounds, through mvp, reach the view: not all eight
