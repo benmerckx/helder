@@ -1207,6 +1207,10 @@
 		[0, 0, 111, 111],
 		[0, 0, 111, 111]
 	],
+	"aspect ratio automatic minimum, its width not definite": [
+		[0, 0, 300, 200],
+		[287, 3, 9, 19]
+	],
 	"absolute box height at its shrunk width": [
 		[0, 0, 300, 200],
 		[0, 0, 16, 48],

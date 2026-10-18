@@ -261,6 +261,7 @@ export const cases = [
 	{ name: 'aspect ratio contribution not from a flexed height', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 96, aspectRatio: 1 } }] }, { style: { basis: 96, aspectRatio: 1, alignSelf: 'Start' } }] } },
 	{ name: 'aspect ratio height from a fit-content width', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start', aspectRatio: 0.5 }, children: [box(69, 0)] }] } },
 	{ name: 'aspect ratio automatic minimum its height', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 96, height: 111, aspectRatio: 1 } }] }] } },
+	{ name: 'aspect ratio automatic minimum, its width not definite', width: 300, height: 200, tree: { children: [{ style: { basis: 19, height: 96, margin: [3, 4, 5, 'auto'], aspectRatio: 0.5 } }] } },
 	{ name: 'absolute box height at its shrunk width', width: 300, height: 200, tree: { children: [{ style: { position: 'Absolute' }, children: [{ style: { aspectRatio: 0.5 } }, { children: [{ style: { padding: 8 } }] }] }] } },
 	// (a grid's absolute child in its padding box; its tracks overflowing a centred grid on both sides, a distributed one at the end;
 	// an item of its content's height not definite for its children's percentages)

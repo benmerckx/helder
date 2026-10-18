@@ -251,11 +251,8 @@ class Layout {
 					bareH = true;
 					size(c, kc, Math.NaN, innerW, pctH, ac, Math.NaN, false);
 					content = rh;
-					// (with an aspect ratio: the size its width gives, that width its own height's when not known)
-					if (cs.aspectRatio > 0) {
-						var given = cs.height.resolve(pctMain);
-						if (known(kc)) content = kc / cs.aspectRatio else if (known(given)) content = given;
-					}
+					// (with an aspect ratio and a definite width: the height that width gives)
+					if (cs.aspectRatio > 0 && known(kc)) content = kc / cs.aspectRatio;
 				}
 				var spec = (row ? cs.width : cs.height).resolve(pctMain);
 				if (known(spec) && spec < content) content = spec;
@@ -346,7 +343,7 @@ class Layout {
 								&& (!known(innerCross) || looseColumns(it.node));
 							// (a stretched item's width as a contribution to the column's own: its aspect ratio not from its
 							// flexed height, only its own height, as Chromium has it)
-							var given = oneLine || ics.aspectRatio > 0 && it.align == Stretch && !known(ics.height.resolve(pctH)) ? Math.NaN : it.main;
+							var given = oneLine || ics.aspectRatio > 0 && it.align == Stretch ? Math.NaN : it.main;
 							size(it.node, Math.NaN, given, innerW, pctH, ac, oneLine ? Math.NaN : it.main, false);
 						}
 						// (a column's item across: fit-content, its min-content when the room is less)
@@ -388,6 +385,15 @@ class Layout {
 			if (!row && multi && known(availCross)) crossSize = Math.min(crossSize, Math.max(widest, availCross));
 			crossSize = clamp(crossSize, Math.max(0, minCross), maxCross);
 			if (!multi) lines[firstLine].cross = crossSize;
+			// (a column whose items have aspect ratios: laid out again at the width found, its items
+			// stretched to it before their heights are, as Chromium finds a width before the heights)
+			if (!row && aspectItems(n)) {
+				itemTop = first;
+				lineTop = firstLine;
+				breakH = bareBreak;
+				flex(n, crossSize + padH, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
+				return;
+			}
 		}
 		var bw = row ? mainSize + padH : crossSize + padH, bh = row ? crossSize + padV : mainSize + padV;
 		if (!perform) {
@@ -1399,6 +1405,13 @@ class Layout {
 	}
 
 	// an item for c from the pool
+	// (whether a node's item has an aspect ratio)
+	static function aspectItems(n:Node):Bool {
+		for (c in n.children)
+			if (c.style.aspectRatio > 0 && c.style.display != None && c.style.position != Absolute) return true;
+		return false;
+	}
+
 	// (whether a node's item has a basis of its own)
 	static function basisItems(n:Node):Bool {
 		for (c in n.children)

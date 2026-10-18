@@ -6719,6 +6719,28 @@
 		}
 	},
 	{
+		"name": "aspect ratio automatic minimum, its width not definite",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"basis": 19,
+						"height": 96,
+						"margin": [
+							3,
+							4,
+							5,
+							"auto"
+						],
+						"aspectRatio": 0.5
+					}
+				}
+			]
+		}
+	},
+	{
 		"name": "absolute box height at its shrunk width",
 		"width": 300,
 		"height": 200,
