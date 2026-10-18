@@ -675,14 +675,18 @@ class Node implements Part {
 	}
 
 	// whether its text wraps: its textWrap, else its nearest ancestor's (Style.textWrap)
-	public function wraps():Bool {
+	public inline function wraps():Bool
+		return textWrap() != NoWrap;
+
+	// how its text wraps: its textWrap, else its nearest ancestor's
+	public function textWrap():TextWrap {
 		var n = this;
 		while (n != null) {
 			var w = n.style.textWrap;
-			if (w != null) return w == Wrap;
+			if (w != null) return w;
 			n = n.inheritsFrom();
 		}
-		return true;
+		return Wrap;
 	}
 
 	// how its text's letters are shown: its textTransform, else its nearest ancestor's

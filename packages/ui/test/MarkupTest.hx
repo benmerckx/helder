@@ -141,6 +141,7 @@ class MarkupTest implements Markup {
 		unstyledExtras();
 		statesStyle();
 		fieldsetLegend();
+		balancedText();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -2072,7 +2073,24 @@ class MarkupTest implements Markup {
 			&& ui.root.find("col-area").children[1].slot == "color-picker-thumb" && ui.root.find("col-area").children[1].style.borderWidth == 2);
 	}
 
-// a fieldset's legend (CSS's rendered legend): no gap after it, its
+// balanced text (CSS's text-wrap: balance): its lines as many as greedy
+	// wrapping makes, at the narrowest width keeping that many
+	static function balancedText() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var t = new TextNode("aa bb cc dd ee ff"), g = new TextNode("aa bb cc dd ee ff");
+		var w = 14 * ui.text.layout("a", g.font(), Math.NaN).width;
+		for (n in [t, g]) {
+			n.style.width = w;
+			ui.root.append(n);
+		}
+		t.style.textWrap = Balance;
+		ui.update();
+		var p = t.laidOut(), q = g.laidOut();
+		check("balanced text: two lines of three words, greedy five and one", p.lineCount == 2 && q.lineCount == 2 && p.width == 8 * w / 14
+			&& q.width == w, p.lineCount + " " + p.width + " " + q.width);
+	}
+
+	// a fieldset's legend (CSS's rendered legend): no gap after it, its
 	// margin kept; a rule of the sibling before ([[data-variant=legend]+&]:
 	// "prev:variant=legend"), the description right after it only, again as
 	// one is put before

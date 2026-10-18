@@ -102,8 +102,6 @@ class Tailwind {
 		// a table's own layout (caption side, collapsed borders, a cell's
 		// vertical alignment): ui's Table lays out its cells
 		"caption-bottom", "border-collapse", "align-middle",
-		// balanced lines: ui's text wraps greedily
-		"text-balance",
 		// visually hidden text for assistive technology: ui's semantics carry it
 		"sr-only",
 		// toggle-group's gap from its spacing prop (--gap), 0 unless set: the widget's
@@ -566,6 +564,7 @@ class Tailwind {
 			case "not-italic": set("italic", VBool(false));
 			case "whitespace-nowrap" | "text-nowrap": en("textWrap", "TextWrap", "NoWrap");
 			case "whitespace-normal" | "text-wrap": en("textWrap", "TextWrap", "Wrap");
+			case "text-balance": en("textWrap", "TextWrap", "Balance");
 			case "truncate":
 				en("overflow", "Overflow", "Hidden");
 				en("textOverflow", "TextOverflow", "Ellipsis");

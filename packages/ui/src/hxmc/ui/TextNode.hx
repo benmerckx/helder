@@ -194,6 +194,18 @@ class TextNode extends Node {
 			return a == b || (Math.isNaN(a) && Math.isNaN(b));
 		if (paragraph != null && laidText == text && f.equals(laidFont) && same(w, laidWidth) && same(cut, laidCut)) return paragraph;
 		paragraph = engine.layout(shown, f, w, spans, clamp, justify, base, Math.isNaN(cut) ? -1 : cut);
+		// (balanced: two to six lines at the narrowest width, to 1/64 pixel, that keeps their number, as Chromium's)
+		var n = paragraph.lineCount;
+		if (n > 1 && n <= 6 && clamp <= 0 && !Math.isNaN(w) && textWrap() == Balance) {
+			var lo = Math.ffloor(Math.max(paragraph.minWidth, mp.width / n) * 64), hi = Math.fceil(w * 64);
+			while (hi - lo > 1) {
+				var mid = Math.ffloor((lo + hi) / 2), p = engine.layout(shown, f, mid / 64, spans, clamp, justify, base, Math.isNaN(cut) ? -1 : cut);
+				if (p.lineCount <= n) {
+					hi = mid;
+					paragraph = p;
+				} else lo = mid;
+			}
+		}
 		laidFont = f;
 		laidWidth = w;
 		laidCut = cut;

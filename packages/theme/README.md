@@ -252,13 +252,14 @@ there: exit animations (ui removes a closed popup), keyframe animations
 `group` and `peer`, container queries (`@container`, `@md/name:`),
 viewport units (`h-svh`), native appearance and list markers, dashed
 borders and a side's border colour, `nth-*`, what Radix's popper measures,
-what has no property yet (`scroll-m*`, `touch-none`), a table's own layout, `text-balance`,
+what has no property yet (`scroll-m*`, `touch-none`), a table's own layout,
 `sr-only`; arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`; but
 `has-[>svg]:`, and a slot's children's `[&>*]:`, `[&>*:not(:first-child)]:`,
 `[&>*:not(:last-child)]:`: rules of any slot whose parent is the slot,
 Rules' `parent:`, a side they leave the child's own; and `has-[...]` of
 attributes and states, `has-[[data-slot=x]:focus-visible]`, not of an
-element's type), children's and descendants' (`*:`, `**:`, given to
+element's type; and the sibling before's, `[[data-variant=legend]+&]:`,
+Rules' `prev:`), children's and descendants' (`*:`, `**:`, given to
 the part's own slot where hxmc has one), pseudo-elements (`after:`) and
 `file:`.
 
