@@ -32,6 +32,13 @@
 // arguments and environment, stdout and stderr (lines to options.stdout and
 // options.stderr, else the console), the clocks, random bytes, proc_exit;
 // any other function fails with ENOSYS.
+//
+// A module built with -D hxmc.wasm-gc (its Haxe values in the engine's
+// collector, a small linear memory for what crosses to the host: the same
+// memory(), handles and call for the packages) imports the runtime's host
+// as "hxmc" instead (hxmc/bootstrap/wasmgc.mjs is node's): the output, the
+// clocks, Math, float formatting and parsing, the calendar, exit; no files.
+//
 // Memory: the module's own memory grows as it needs (the runtime reports
 // what memory.grow refused on stderr: "out of memory: ..."); a RangeError of
 // the browser's (the memory of a new instance, an ArrayBuffer) becomes
@@ -150,7 +157,62 @@ export async function run(wasm, options = {}) {
 			throw new Exit(code);
 		},
 	};
-	const imports = { wasi_snapshot_preview1: new Proxy(wasi, { get: (o, k) => o[k] ?? (() => 52) }) }; // ENOSYS
+	// (-D hxmc.wasm-gc: its strings are arrays of UTF-16 units, read and made through its exports)
+	const str = (s) => {
+		if (s === null) return null;
+		const n = exports.hxmc_str_len(s);
+		let out = '';
+		for (let i = 0; i < n; i += 4096) {
+			const units = [];
+			for (let k = i; k < Math.min(n, i + 4096); k++) units.push(exports.hxmc_str_get(s, k));
+			out += String.fromCharCode(...units);
+		}
+		return out;
+	};
+	const ofJs = (t) => {
+		const s = exports.hxmc_str_new(t.length);
+		for (let i = 0; i < t.length; i++) exports.hxmc_str_set(s, i, t.charCodeAt(i));
+		return s;
+	};
+	const math = [Math.sin, Math.cos, Math.tan, Math.asin, Math.acos, Math.atan, Math.atan2, Math.exp, Math.log, Math.pow];
+	const gc = {
+		write: (fd, s) => write(fd === 2 ? 2 : 1, enc.encode(str(s))),
+		now: () => performance.now() / 1000,
+		fmt: (v) => ofJs(String(v)),
+		parseFloat: (s) => parseFloat(str(s)),
+		math: (op, x, y) => math[op](x, y),
+		random: Math.random,
+		// (GcSys's op codes: the environment, the arguments; no files)
+		sysStr(op, a) {
+			switch (op) {
+				case 0: return options.env?.[str(a)] === undefined ? null : ofJs(options.env[str(a)]);
+				case 4: return ofJs(args.slice(1).join('\0'));
+				case 5: return ofJs(env.join('\0'));
+				case 6: return ofJs(args[0]);
+				case 8: return ofJs('Wasi');
+				default: return null;
+			}
+		},
+		sysNum(op, a, b, n) {
+			switch (op) {
+				case 7: throw new Exit(n);
+				case 8: return Date.now() / 1000;
+				case 9: return performance.now() / 1000;
+				default: return 0;
+			}
+		},
+		readFile: () => null,
+		writeFile: () => 0,
+		dateNum(op, t, y, m, d, h, mi, s) {
+			const date = new Date(t);
+			const f = [null, 'FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds'];
+			if (op === 0) return new Date(y, m, d, h, mi, s).getTime();
+			if (op <= 7) return date['get' + f[op]]();
+			if (op <= 14) return date['getUTC' + f[op - 7]]();
+			return op === 15 ? date.getTimezoneOffset() : Date.now();
+		},
+	};
+	const imports = { wasi_snapshot_preview1: new Proxy(wasi, { get: (o, k) => o[k] ?? (() => 52) }), hxmc: gc }; // ENOSYS
 	for (const m of options.imports ?? []) {
 		const f = typeof m === 'string' ? (await import(new URL(m, document.baseURI).href)).default : m;
 		Object.assign(imports, await f(host));

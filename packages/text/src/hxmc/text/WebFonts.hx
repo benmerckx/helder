@@ -17,9 +17,12 @@ class WebFonts {
 	public static function all():Array<haxe.io.Bytes> {
 		var out = [];
 		for (i in 0...WebFontsImports.font_count()) {
-			var b = haxe.io.Bytes.alloc(WebFontsImports.font_size(i));
+			var n = WebFontsImports.font_size(i);
+			var b = haxe.io.Bytes.alloc(n);
 			// (the Bytes cannot move during an import)
-			WebFontsImports.font_read(i, Mem.addr(b).add(8));
+			var p = BytesPtr.of(b, 0, n);
+			WebFontsImports.font_read(i, p);
+			BytesPtr.written(b, 0, p, n);
 			out.push(b);
 		}
 		return out;
