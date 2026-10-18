@@ -51,16 +51,6 @@ class Widgets implements Markup {
 	static function on(v:Dynamic):Bool
 		return read(v) == true;
 
-	// a spinner (shadcn's): a loading circle turning (the theme's animate-spin)
-	public static function Spinner(props:{?label:String, ?tag:String}):Any {
-		var svg = icon("loader", "spinner");
-		svg.setAttribute("role", "status");
-		svg.setAttribute("aria-label", props.label ?? "Loading");
-		svg.removeAttribute("aria-hidden");
-		if (props.tag != null) svg.id = props.tag;
-		return svg;
-	}
-
 	// an avatar (shadcn's): an image, else its fallback (initials)
 	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?size:String, ?tag:String}):View
 		return <span id={props.tag} data-slot="avatar" data-size={props.size ?? "default"} role="img" aria-label={props.label ?? props.fallback}>

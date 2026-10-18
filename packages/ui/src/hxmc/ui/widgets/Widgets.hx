@@ -45,7 +45,6 @@ class Widgets implements Markup {
 	static final CIRCLE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>');
 	static final CHEVRON = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
 	static final X = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>');
-	static final LOADER = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>');
 	static final SEARCH = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>');
 	static final CHEVRON_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>');
 	static final CHEVRON_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>');
@@ -2614,7 +2613,9 @@ class Widgets implements Markup {
 			label: "its name for assistive technology (Loading)"
 		}
 	})
-	public static function Spinner(props:{?label:String, ?tag:String}):View {
+	@:neutral public static function Spinner(props:{?label:String, ?tag:String}):View {
+		// (ui's turned on the Clock; a page's by its theme's animate-spin, a CSS animation)
+		#if !js
 		var turn = signal(0.0), stopped = false;
 		Clock.add(now -> {
 			if (stopped) return false;
@@ -2622,9 +2623,9 @@ class Widgets implements Markup {
 			return true;
 		});
 		onCleanup(() -> stopped = true);
-		return <view tag={props.tag ?? "spinner"} slot="spinner" role="progressbar" label={props.label ?? "Loading"}>
-			<image src={LOADER} width="100%" height="100%" transform={() -> "rotate(" + turn.value + "deg)"}/>
-		</view>;
+		#end
+		return <icon tag={props.tag ?? "spinner"} id={props.tag} slot="spinner" name="loader" role={#if js "status" #else "progressbar" #end}
+			label={props.label ?? "Loading"} transform={#if js null #else () -> "rotate(" + turn.value + "deg)" #end}/>;
 	}
 
 	// a combobox: a text field bound to value (two ways) whose typing
