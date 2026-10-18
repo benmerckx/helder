@@ -486,8 +486,8 @@ class Literal {
 	}
 
 	// a component mounted: Render.component with its factory; under -D
-	// hxmc.dev in Hot.scope of its name (name[key] with a key attribute:
-	// fast refresh's keys, hxmc.view.Refresh)
+	// hxmc.dev componentIn, in Hot.scope of its name (name[key] with a key
+	// attribute: fast refresh's keys, hxmc.view.Refresh)
 	function component(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int, parent:Expr, before:Expr, out:Expr):Expr {
 		if (!Context.defined("hxmc.dev")) return macro @:pos(pos) __RT__.component($parent, $before, $out, ${factory(name, attrs, children, at)});
 		var key:Null<Expr> = null;
@@ -499,8 +499,7 @@ class Literal {
 					case _: null;
 				}
 		var scope = key == null ? macro $v{name} : macro $v{name + "["} + Std.string($key) + "]";
-		var call = macro @:pos(pos) __RT__.component($parent, $before, $out, ${factory(name, attrs, children, at)});
-		return macro @:pos(pos) hxmc.dev.Hot.scope($scope, () -> $call);
+		return macro @:pos(pos) __RT__.componentIn($scope, $parent, $before, $out, ${factory(name, attrs, children, at)});
 	}
 
 	// a component's factory: () -> Name({props}), its content the children

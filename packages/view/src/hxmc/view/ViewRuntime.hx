@@ -121,6 +121,12 @@ class ViewRuntime {
 		hxmc.view.Reactive.owner = saved;
 	}
 
+	#if hxmc.dev
+	// (hxmc dev: a component in the scope of its name, fast refresh's keys: hxmc.view.Refresh)
+	public static function componentIn(scope:String, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, factory:Void->Any)
+		hxmc.dev.Hot.scope(scope, () -> component(parent, before, out, factory));
+	#end
+
 	// an element's children, all static text
 	public static function textOf(el:HostNode, text:String) {
 		if (Host.holdsText(el)) Host.setText(el, text) else Host.insert(el, Host.createText(text), null);

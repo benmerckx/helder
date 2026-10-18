@@ -9,7 +9,8 @@
 //   (the page not reloaded, the counter still counts); fixed: the new build,
 //   the count kept;
 // - the reloads' times, from the change seen to the new build's first frame.
-//   node packages/os/test/dev/dev-web.mjs <compiler> [work dir]
+//   node packages/os/test/dev/dev-web.mjs <compiler> [work dir] [--wasm-gc]
+// (--wasm-gc: the program built with -D hxmc.wasm-gc, the hybrid module)
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -23,8 +24,10 @@ let pw;
 try { pw = require('playwright'); } catch { pw = require(path.join(process.execPath, '../../lib/node_modules/playwright')); }
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../../..');
-const compiler = path.resolve(process.argv[2] ?? 'bin/hxmc/hxmc');
-const work = path.resolve(process.argv[3] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-web-')));
+const compiler = path.resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 'bin/hxmc/hxmc');
+const wasmGc = process.argv.includes('--wasm-gc');
+const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const work = path.resolve(positional[1] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-web-')));
 const CHROMIUM_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
 
 let failures = 0;
@@ -43,7 +46,7 @@ if (v1 === original) throw new Error('Counter.hx changed: its signal line is not
 fs.writeFileSync(counter, v1);
 const cp = ['os', 'gfx', 'text', 'view', 'ui', 'theme'].map((p) => `-cp ${path.join(repo, 'packages', p, 'src')}`);
 fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, '-D hxmc.view.renderer.ui=hxmc.ui.view.NodeRenderer', '-main Counter',
-	'-D hxmc.target=wasm32-wasi', '--custom-target hxmc=out/counter.wasm'].join('\n') + '\n');
+	'-D hxmc.target=wasm32-wasi', ...(wasmGc ? ['-D hxmc.wasm-gc'] : []), '--custom-target hxmc=out/counter.wasm'].join('\n') + '\n');
 const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
 
 const port = await new Promise((r) => {
@@ -76,10 +79,15 @@ for (const s of [dev.stdout, dev.stderr]) {
 	});
 }
 // the next line of the dev server's matching re (from now on)
-const line = (re, ms = 120000) => new Promise((resolve, reject) => {
-	const t = setTimeout(() => reject(new Error('timed out waiting for ' + re + '; the last lines:\n' + lines.slice(-30).join('\n'))), ms);
-	waiters.push({ re, resolve: (l) => { clearTimeout(t); resolve(l); } });
-});
+const line = (re, ms = 120000) => {
+	const pr = new Promise((resolve, reject) => {
+		const t = setTimeout(() => reject(new Error('timed out waiting for ' + re + '; the last lines:\n' + lines.slice(-30).join('\n'))), ms);
+		waiters.push({ re, resolve: (l) => { clearTimeout(t); resolve(l); } });
+	});
+	// (handled when awaited; one not awaited yet must not end the run)
+	pr.catch(() => {});
+	return pr;
+};
 
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 const times = [];
@@ -151,5 +159,6 @@ try {
 	dev.kill();
 }
 for (const t of times) console.log('  ' + t);
-console.log(failures === 0 ? 'dev-web: ok' : `dev-web: ${failures} failed`);
+const name = wasmGc ? 'dev-web (WasmGC)' : 'dev-web';
+console.log(failures === 0 ? `${name}: ok` : `${name}: ${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

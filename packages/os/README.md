@@ -65,6 +65,18 @@ program that holds still what the finger holds (the cube) knows when it is
 released, even after the finger rested. A mouse's press is captured by the
 canvas: a drag that leaves it still moves, and its release still comes.
 
+## Fast refresh: `hxmc.dev.Hot`
+
+Under `hxmc dev` (`-D hxmc.dev`; [docs/dev.md](../../docs/dev.md)) a
+reload is a fresh start of the new build with the old one's state carried
+over by key. `hxmc.dev.Hot` is the public layer state libraries use for it
+(hxmc.view's signals included): `onSnapshot` and `onDispose`, `save` and
+`load` by key with the type's hash (`typeOf((_ : T))`), `here()` and
+`scope(name, f)` for keys, `keep(key, init)`, `reloading`. The app loop
+reads the dev server's messages (`App.run`'s turns; an idle loop wakes
+every 50 ms) and reports the first frame. Without `-D hxmc.dev` every call
+compiles to nothing.
+
 ## Audio
 
 A pull model: the system asks for samples and a callback fills them.

@@ -128,15 +128,11 @@ class Hot {
 	}
 
 	public static function onSnapshot(f:Void->Void):Void->Void {
-		var id = nextId++;
-		snapshots.set(id, {f: f, frame: frame.capture()});
-		return () -> snapshots.remove(id);
+		return snapshots.add(f, frame.capture());
 	}
 
 	public static function onDispose(f:Void->Void):Void->Void {
-		var id = nextId++;
-		disposals.set(id, {f: f, frame: frame.capture()});
-		return () -> disposals.remove(id);
+		return disposals.add(f, frame.capture());
 	}
 
 	public static function save<T>(key:String, value:T, type:String, ?encode:T->String) {
@@ -211,25 +207,37 @@ class Hot {
 	static var restored:Null<Map<String, {type:String, data:String}>> = null;
 	static final saved = new Map<String, {type:String, data:String}>();
 	static final notKept:Array<String> = [];
-	static final snapshots = new haxe.ds.IntMap<{f:Void->Void, frame:Frame}>();
-	static final disposals = new haxe.ds.IntMap<{f:Void->Void, frame:Frame}>();
-	static var nextId = 0;
+	static final snapshots = new Hooks();
+	static final disposals = new Hooks();
 	static var frame = new Frame("");
 	static var started = false;
 	static var settled = false;
 	// (this build has handed over: its loop ends)
 	static var done = false;
-	// natively, the dev server's connection
-	static var socket:Null<sys.net.Socket> = null;
+	// natively, the dev server's connection (hxmc.NativeNet's descriptor; -1: none)
+	static var socket = -1;
 	static var input = "";
 
-	static function log(s:String)
+	static function log(s:String) {
+		// (-D hxmc.wasm-gc: no stderr yet)
+		#if hxmc.wasm_gc
+		Sys.println("hxmc.dev: " + s);
+		#else
 		Sys.stderr().writeString("hxmc.dev: " + s + "\n");
+		#end
+	}
 
 	static function init() {
 		if (started) return;
 		started = true;
 		var data:Null<String> = null;
+		#if (target.name != "hxmc")
+		// (another target: a snapshot file only, no dev server)
+		#if sys
+		var file = Sys.getEnv("HXMC_DEV_SNAPSHOT");
+		if (file != null && file != "" && sys.FileSystem.exists(file)) data = sys.io.File.getContent(file);
+		#end
+		#else
 		if (hxmc.unsafe.Mem.os() == 3) {
 			var n = DevWeb.restore_length();
 			if (n >= 0) {
@@ -247,16 +255,14 @@ class Hot {
 			if (file != null && file != "" && sys.FileSystem.exists(file)) data = sys.io.File.getContent(file);
 			var at = Sys.getEnv("HXMC_DEV");
 			if (at != null && at.indexOf(":") > 0) {
-				try {
-					var s = new sys.net.Socket();
-					s.connect(new sys.net.Host(at.substr(0, at.lastIndexOf(":"))), Std.parseInt(at.substr(at.lastIndexOf(":") + 1)));
-					s.setBlocking(false);
-					socket = s;
-				} catch (e:Dynamic) {
-					log("no dev server at " + at + " (" + Std.string(e) + ")");
-				}
+				var fd = hxmc.NativeNet.socket();
+				if (fd >= 0 && hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1))) >= 0) {
+					hxmc.NativeNet.setBlocking(fd, false);
+					socket = fd;
+				} else log("no dev server at " + at);
 			}
 		}
+		#end
 		if (data != null) restored = parse(data);
 	}
 
@@ -279,7 +285,7 @@ class Hot {
 	@:noCompletion public static function snapshot():String {
 		init();
 		notKept.resize(0);
-		for (s in snapshots) {
+		for (s in snapshots.list()) {
 			var savedFrame = frame;
 			frame = s.frame;
 			try s.f() catch (e:Dynamic) log("a snapshot function failed: " + Std.string(e));
@@ -299,7 +305,7 @@ class Hot {
 
 	// releases what this build owns (the onDispose functions, last given first)
 	@:noCompletion public static function dispose() {
-		var fs = [for (d in disposals) d];
+		var fs = disposals.list();
 		fs.reverse();
 		for (d in fs) {
 			var savedFrame = frame;
@@ -313,15 +319,20 @@ class Hot {
 	// hxmc.os.App, at each turn of its loop: the dev server's messages (natively)
 	@:noCompletion public static function poll():Bool {
 		init();
-		if (socket == null) return !done;
+		#if (target.name == "hxmc")
+		// (what the program printed, in the terminal as it prints it: its output is a pipe)
+		if (hxmc.unsafe.Mem.os() != 3) Sys.stdout().flush();
+		if (socket < 0) return !done;
 		var buf = haxe.io.Bytes.alloc(4096);
 		while (true) {
-			var n = try socket.input.readBytes(buf, 0, buf.length) catch (e:haxe.io.Eof) {
-				socket.close();
-				socket = null;
+			var n = hxmc.NativeNet.recv(socket, buf, 0, buf.length);
+			if (n == 0 || (n < 0 && !hxmc.NativeNet.blocked())) {
+				// (the dev server is gone)
+				hxmc.NativeNet.close(socket);
+				socket = -1;
 				return !done;
-			} catch (e:Dynamic) 0;
-			if (n <= 0) break;
+			}
+			if (n < 0) break;
 			input += buf.getString(0, n);
 		}
 		var nl;
@@ -337,6 +348,7 @@ class Hot {
 				Sys.exit(0);
 			}
 		}
+		#end
 		return !done;
 	}
 
@@ -355,17 +367,23 @@ class Hot {
 			}
 			restored = new Map();
 		}
+		#if (target.name == "hxmc")
 		if (hxmc.unsafe.Mem.os() == 3) DevWeb.frame() else send('{"type":"frame"}');
+		#end
 	}
 
+	#if (target.name == "hxmc")
 	static function send(line:String) {
-		if (socket == null) return;
-		try {
-			socket.setBlocking(true);
-			socket.output.writeString(line + "\n");
-			socket.output.flush();
-			socket.setBlocking(false);
-		} catch (e:Dynamic) {}
+		if (socket < 0) return;
+		var b = haxe.io.Bytes.ofString(line + "\n");
+		hxmc.NativeNet.setBlocking(socket, true);
+		var at = 0;
+		while (at < b.length) {
+			var n = hxmc.NativeNet.send(socket, b, at, b.length - at);
+			if (n <= 0) break;
+			at += n;
+		}
+		hxmc.NativeNet.setBlocking(socket, false);
 	}
 
 	// the page asks for the snapshot (it then loads the new build)
@@ -377,6 +395,7 @@ class Hot {
 
 	@:hxmc.noGc static function sendWeb(b:haxe.io.Bytes)
 		DevWeb.send(hxmc.unsafe.BytesPtr.of(b, 0, b.length), b.length);
+	#end
 	#end
 	#end
 }
@@ -427,6 +446,31 @@ private class Frame {
 	}
 }
 
+// functions given to onSnapshot or onDispose, in order, with their scopes
+private class Hooks {
+	var hooks:Array<{f:Void->Void, frame:Frame, on:Bool}> = [];
+	var off = 0;
+
+	public function new() {}
+
+	public function add(f:Void->Void, frame:Frame):Void->Void {
+		var h = {f: f, frame: frame, on: true};
+		hooks.push(h);
+		return () -> if (h.on) {
+			h.on = false;
+			// (the removed ones dropped once they are half)
+			if (++off > 32 && off * 2 > hooks.length) {
+				hooks = [for (x in hooks) if (x.on) x];
+				off = 0;
+			}
+		}
+	}
+
+	public function list():Array<{f:Void->Void, frame:Frame, on:Bool}>
+		return [for (h in hooks) if (h.on) h];
+}
+
+#if (target.name == "hxmc")
 // the page's side in the browser (the dev server's page gives these imports)
 @:hxmc.c @:hxmc.fast @:hxmc.lib("hxmc_dev") extern class DevWeb {
 	// the snapshot the page was given: its UTF-8 length (-1: none), its bytes into p
@@ -439,4 +483,5 @@ private class Frame {
 	// the first frame is drawn
 	static function frame():Void;
 }
+#end
 #end
