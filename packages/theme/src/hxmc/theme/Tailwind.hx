@@ -112,13 +112,18 @@ class Tailwind {
 		"[--cell-size:--spacing(8)]",
 	];
 
+	// arbitrary selectors of a slot's children (a button group's joined
+	// buttons): rules of any slot (*) whose parent is the slot (Rules'
+	// parent:), the variants after them the child's states, these first
+	static final CHILDREN = ["[&>*]" => [], "[&>*:not(:first-child)]" => ["not:first"], "[&>*:not(:last-child)]" => ["not:last"]];
+
 	// variants whose classes are dropped, and why: (a trailing * is a prefix)
 	public static final IGNORED_VARIANTS = [
 		// file inputs' buttons
 		"file",
 		// arbitrary selectors: icons inside ([&_svg], [&>svg]), the
 		// element type ([a&]), class names ([.border-b]), has-[...] but
-		// has-[>svg] (an icon a child: has:>svg)
+		// has-[>svg] (an icon a child: has:>svg); the children's CHILDREN read first
 		"[*", "has-[*", "group-has-[*",
 		// container queries (a field's @md/field-group:): no container's width of its own
 		"@*",
@@ -343,8 +348,15 @@ class Tailwind {
 		// (!important: the rule keeps its place; CSS would let it beat every other)
 		if (utility.endsWith("!")) utility = utility.substr(0, utility.length - 1) else if (utility.startsWith("!")) utility = utility.substr(1);
 		// (picked: the size or variant a variant selects, data-[size=sm]: an attribute selector's specificity)
-		var when = [], order = [], picked = 0;
+		var when = [], order = [], picked = 0, child:Null<Array<String>> = null;
 		for (v in parts) {
+			var kid = CHILDREN.get(v);
+			if (kid != null) {
+				if (child != null) return;
+				child = kid.copy();
+				order.push(ORDER.indexOf("*"));
+				continue;
+			}
 			if (v != "has-[>svg]" && matches(IGNORED_VARIANTS, v)) return;
 			var r = readVariant(v);
 			if (r == null) {
@@ -352,8 +364,9 @@ class Tailwind {
 				return;
 			}
 			order.push(r.order);
+			if (child != null && (r.size != null || r.variant != null)) return;
 			if (r.size != null || r.variant != null) picked++;
-			if (r.size != null) size = r.size else if (r.variant != null) variant = r.variant else when.push(r.state);
+			if (r.size != null) size = r.size else if (r.variant != null) variant = r.variant else if (child != null) child.push(r.state) else when.push(r.state);
 		}
 		if (matches(IGNORED, utility)) return;
 		var props = utilityProps(utility);
@@ -371,12 +384,13 @@ class Tailwind {
 			}
 		}
 		order.sort((a, b) -> b - a);
-		var key = '$layer|$variant|$size|$picked|' + when.join("&");
+		var key = '$layer|$variant|$size|$picked|' + when.join("&") + (child == null ? "" : ">" + child.join("&"));
 		var g = null;
 		for (x in groups)
 			if (x.key == key) g = x;
 		if (g == null) {
 			g = new Group(key, variant, size, when, order, picked);
+			g.child = child;
 			groups.push(g);
 		}
 		for (p in props) {
@@ -1197,6 +1211,15 @@ class Tailwind {
 		var r:TwRule = {slot: slot, when: g.when, fields: [], props: new Map()};
 		if (g.variant != null) r.variant = g.variant;
 		if (g.size != null) r.size = g.size;
+		// (a child's: any slot's, its parent this slot in the group's states, then its own)
+		if (g.child != null) {
+			var when = ['parent:data-slot=$slot'];
+			if (g.variant != null) when.push('parent:variant=${g.variant}');
+			if (g.size != null) when.push('parent:size=${g.size}');
+			r = {slot: "*", when: when.concat([for (w in g.when) 'parent:$w']).concat(g.child), fields: [], props: new Map()};
+		}
+		// (a child's corners or borders: the sides it leaves NaN, the child's own rules' kept, as CSS's longhands)
+		var unset = g.child != null ? Math.NaN : 0.0;
 		function field(k:String, v:TwValue) {
 			if (!r.props.exists(k)) r.fields.push(k);
 			r.props[k] = v;
@@ -1215,10 +1238,10 @@ class Tailwind {
 						for (s in 0...4)
 							if (g.parts.exists('$base.$s')) field(base + ["Top", "Right", "Bottom", "Left"][s], g.parts['$base.$s']);
 				case "border":
-					var e = [for (s in 0...4) num('border.$s', 0)];
+					var e = [for (s in 0...4) num('border.$s', unset)];
 					if (sides.exists("border")) field("borders", VEdges(e[0], e[1], e[2], e[3])) else field("borderWidth", VNum(e[0]));
 				case "corner":
-					var c = [for (s in 0...4) num('corner.$s', 0)];
+					var c = [for (s in 0...4) num('corner.$s', unset)];
 					if (sides.exists("corner")) field("corners", VCorners(c[0], c[1], c[2], c[3])) else field("radius", VNum(c[0]));
 				case "transition" | "enter":
 					// (transition-* with duration-*, ease-*, delay-* (Tailwind's
@@ -1341,6 +1364,8 @@ private class Group {
 	public final order:Array<Int>;
 	public final parts = new Map<String, TwValue>();
 	public final keys:Array<String> = [];
+	// (a child's states, when its rules are a child's of the slot: Tailwind.CHILDREN)
+	public var child:Null<Array<String>> = null;
 	// (the variants selecting its size or variant: data-[size=sm])
 	public final picked:Int;
 
@@ -1372,6 +1397,7 @@ private class Group {
 	// whether this rule holds whenever g does
 	public function holdsWith(g:Group):Bool {
 		if (variant != null && variant != g.variant || size != null && size != g.size) return false;
+		if ((child == null ? null : child.join("&")) != (g.child == null ? null : g.child.join("&"))) return false;
 		for (w in when)
 			if (!g.when.contains(w)) return false;
 		return true;

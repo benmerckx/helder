@@ -18,7 +18,10 @@ package hxmc.ui;
 // one whose group attribute names item among its words), "peer:checked"
 // while an earlier sibling marked "peer" holds it, "has:data-state=open"
 // while a descendant does ("has:>x": a child), "first" and "last" for the
-// first and last child, "not:x" while x does not; "data-slot=x" is the
+// first and last child, "not:x" while x does not, "parent:x" while the
+// parent holds x (a rule of slot "*": any slot's, after its own, as an
+// arbitrary selector of a slot's children); "variant=x" and "size=x" the
+// node's variant and size; "data-slot=x" is the
 // node's slot; "svg" holds for an icon (an image of an Svg: "has:>svg", a
 // button's icon, as CSS's :has(>svg)). They nest ("group:has:focus").
 class Rules {
@@ -28,6 +31,7 @@ class Rules {
 	static inline var PEER = 2;
 	static inline var HAS = 4;
 	static inline var PLACE = 8;
+	static inline var PARENT = 16;
 
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
@@ -68,7 +72,8 @@ class Rules {
 			return;
 		}
 		if (baseIndex == null) baseIndex = indexOf(base);
-		var rules = n.slot == null ? null : sheet != null ? index(sheet).get(n.slot) : baseIndex.get(n.slot);
+		var ix = sheet != null ? index(sheet) : baseIndex;
+		var rules = n.slot == null ? null : ix.get(n.slot) ?? ix.get("*");
 		// (the rules that hold, by their place: what the merge is kept by)
 		var key = new StringBuf();
 		key.add(sheet == null ? 0 : sheetId(sheet));
@@ -173,7 +178,17 @@ class Rules {
 				if (style.color != null) placeholder = style.color;
 			} else if (r.when != null && r.when.indexOf("selection") >= 0) {
 				if (style.background != null) selection = style.background;
-			} else scratch.set(style);
+			} else {
+				// (corners or borders some of whose sides a rule leaves (NaN): those before it kept, as CSS's longhands)
+				var c = style.corners, b = style.borders;
+				var cBefore = c != null && partial([c.topLeft, c.topRight, c.bottomRight, c.bottomLeft]) ? scratch.corners ?? new Corners(scratch.radius, scratch.radius, scratch.radius, scratch.radius) : null;
+				var bBefore = b != null && partial([b.top, b.right, b.bottom, b.left]) ? scratch.borders ?? new Edges(scratch.borderWidth, scratch.borderWidth, scratch.borderWidth, scratch.borderWidth) : null;
+				scratch.set(style);
+				if (cBefore != null)
+					scratch.corners = new Corners(or(c.topLeft, cBefore.topLeft), or(c.topRight, cBefore.topRight), or(c.bottomRight, cBefore.bottomRight), or(c.bottomLeft, cBefore.bottomLeft));
+				if (bBefore != null)
+					scratch.borders = new Edges(or(b.top, bBefore.top), or(b.right, bBefore.right), or(b.bottom, bBefore.bottom), or(b.left, bBefore.left));
+			}
 		}
 		resolveColors(scratch, tokens, CURRENT, dark);
 		// (lengths naming the sheet's: radii, one corner's)
@@ -203,6 +218,12 @@ class Rules {
 		merges.set(key, m);
 		return m;
 	}
+
+	static function partial(sides:Array<Float>):Bool
+		return Lambda.exists(sides, Math.isNaN);
+
+	static inline function or(v:Float, before:Float):Float
+		return Math.isNaN(v) ? before : v;
 
 	// (currentColor kept through a merge: its own token, resolved per node)
 	static final CURRENT = Color.token("currentcolor");
@@ -281,6 +302,7 @@ class Rules {
 					var slash = head.indexOf("/"), name = slash < 0 ? null : head.substr(slash + 1);
 					switch slash < 0 ? head : head.substr(0, slash) {
 						case "not": !holds(n, ui, inner);
+						case "parent": n.parent != null && holds(n.parent, ui, inner);
 						case "group":
 							var p = n.parent;
 							while (p != null && !(marked(p, "group", name) && holds(p, ui, inner)))
@@ -305,7 +327,12 @@ class Rules {
 					var eq = w.indexOf("=");
 					if (eq < 0) n.attr(w) != null else {
 						var key = w.substr(0, eq), value = w.substr(eq + 1);
-						key == "data-slot" ? n.slot == value : n.attr(key) == value;
+						switch key {
+							case "data-slot": n.slot == value;
+							case "variant": n.variant == value;
+							case "size": n.size == value;
+							case _: n.attr(key) == value;
+						}
 					}
 				}
 		}
@@ -333,6 +360,7 @@ class Rules {
 			if (StringTools.startsWith(head, "group")) r |= GROUP;
 			if (StringTools.startsWith(head, "peer")) r |= PEER;
 			if (head == "has") r |= HAS;
+			if (head == "parent") r |= PARENT;
 			r |= relations(w.substr(colon + 1));
 		}
 		return r;
@@ -344,6 +372,9 @@ class Rules {
 		if (relational & GROUP != 0 && n.attr("group") != null)
 			for (c in n.children)
 				restyleTree(c);
+		if (relational & PARENT != 0)
+			for (c in n.children)
+				@:privateAccess c.restyleLater();
 		if (relational & PEER != 0 && n.attr("peer") != null && n.parent != null) {
 			var after = false;
 			for (c in n.parent.children) {
@@ -479,6 +510,11 @@ class Rules {
 			if (l == null) m.set(r.slot, l = []);
 			l.push(new Indexed(r));
 		}
+		// (any slot's, "*": after each slot's own)
+		var any = m.get("*");
+		if (any != null)
+			for (k => l in m)
+				if (k != "*") for (r in any) l.push(r);
 		return m;
 	}
 }
