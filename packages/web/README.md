@@ -153,7 +153,11 @@ page.
 for pages that want real elements rather than a canvas (no WebAssembly,
 small, the browser's own text, selection, autofill and accessibility).
 The same components and props: import `hxmc.web.widgets.Widgets.*` in
-place of `hxmc.ui.widgets.Widgets.*`.
+place of `hxmc.ui.widgets.Widgets.*`, or keep ui's import: ui's widgets
+are its renderer's only (`@:renderer`, packages/view/README.md), and in
+the DOM's renderer's markup each is the DOM's of the same name, so one
+component serves a canvas and a page (`examples/WidgetCounter.hx`; ui's
+sources on the class path, `-cp`, not `-lib hxmc.ui`).
 
 ```haxe
 import hxmc.web.widgets.Widgets.*;

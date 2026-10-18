@@ -106,6 +106,7 @@ class ViewRuntime {
 		var o = new hxmc.view.Owner(hxmc.view.Reactive.owner);
 		var saved = hxmc.view.Reactive.owner;
 		hxmc.view.Reactive.owner = o;
+		hxmc.view.Render.pass = INDEX;
 		try {
 			var result = hxmc.view.Reactive.untrack(factory);
 			add(result, parent, before, out);

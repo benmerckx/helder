@@ -31,7 +31,10 @@ typedef MenuItem = Behaviour.MenuEntry;
 // hxmc.view, unstyled: behaviour, semantics and the geometry their
 // interaction needs, their nodes' slots, states, variants and sizes (as
 // shadcn's) for a theme's rules (Rules, StyleSheet): with none, no look
-// at all (as React Aria's); props and an instance's own style override it
+// at all (as React Aria's); props and an instance's own style override it.
+// ui's renderer's only: in a page's markup (the DOM's renderer) each is
+// hxmc.web.widgets.Widgets' of the same name (shadcn's markup), where it has one
+@:renderer(hxmc.ui.view.NodeRenderer, hxmc.web.DomRenderer => hxmc.web.widgets.Widgets)
 class Widgets implements Markup {
 	// (a prop that may be a value, a signal or a function of one: its value, read where a reactive value tracks it)
 	static function read(v:Dynamic):Dynamic

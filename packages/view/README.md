@@ -100,6 +100,18 @@ static function UiCanvas(props:{width:Int, height:Int, ?children:View}):Any {
 }
 ```
 
+A class's literals may be limited to some renderers, those whose
+widgets only make sense there: `@:renderer(hxmc.ui.view.NodeRenderer)`
+(renderers by their classes) compiles its markup for those only (another
+renderer's code a throw), and `Render.render` and `insert` into nodes of a
+renderer the program lacks a throw too. Its components, in another
+renderer's markup, are the functions of the same name of the class it
+names for that renderer: `@:renderer(hxmc.ui.view.NodeRenderer,
+hxmc.web.DomRenderer => hxmc.web.widgets.Widgets)` is ui's widgets, so
+that `<Button/>` with ui's widgets imported is the DOM's Button in a
+page's markup (`hxmc.view.Pick`, when the literal is typed); a component
+with none for a renderer throws when mounted there.
+
 ## Tests
 
 `make view-check`: `test/ViewTest.hx` on two test renderers (boundaries

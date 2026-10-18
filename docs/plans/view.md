@@ -62,9 +62,11 @@ What the web needs is in [web.md](web.md).
   made at run time is which code a `View` runs, once per literal mounted
   (Leptos and Sycamore get the same by monomorphizing over a renderer
   trait). With one renderer, nothing is copied and nothing chosen. The
-  cost of several: each literal's code once per renderer (a class's
-  literals limited to some renderers, by metadata, is a later
-  refinement, for widgets that only make sense in one).
+  cost of several: each literal's code once per renderer, but a class's
+  literals limited to some renderers by metadata (`@:renderer`, for
+  widgets that only make sense in one), its components another
+  renderer's markup calls resolved to the counterpart class it names for
+  that renderer (ui's widgets, the DOM's in a page).
 - **Boundaries are components.** A component that makes a node of one
   renderer and renders its children into it with another switches
   renderers there; content passes through unchanged and stays reactive
