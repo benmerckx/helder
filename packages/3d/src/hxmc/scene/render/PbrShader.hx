@@ -33,6 +33,8 @@ import hxmc.gfx.shader.ShaderMath.*;
 	var sky:Vec4; // the ambient from above, rgb
 	var ground:Vec4; // the ambient from below, rgb
 	var exposure:Vec4; // x: exposure
+	var lightViewProj:Mat4; // the shadow map's view-projection (Shadows)
+	var shadow:Vec4; // x: strength (0: no shadows), y: bias, z: a texel of the map
 }
 
 // per draw: the node's matrices
@@ -59,7 +61,7 @@ class PbrShader implements Shaders {
 		};
 	}
 
-	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D):Vec4 {
+	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, shadowMap:Texture2D):Vec4 {
 		var texel = sample(baseColorTexture, i.uv);
 		// (the texture's sRGB decoded)
 		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2));
@@ -81,7 +83,7 @@ class PbrShader implements Shaders {
 		var distribution = a2 / (3.14159265 * dd * dd);
 		var visibility = 0.5 / max(nl * sqrt(nv * nv * (1 - a2) + a2) + nv * sqrt(nl * nl * (1 - a2) + a2), 0.0001);
 		var diffuse = (1 - fresnel) * (1 - metallic) * base / 3.14159265;
-		var direct = (diffuse + fresnel * (distribution * visibility)) * frame.lightColor.xyz * nl;
+		var direct = (diffuse + fresnel * (distribution * visibility)) * frame.lightColor.xyz * nl * shadowed(frame, shadowMap, i.world, nl);
 		// the ambient: the sky and the ground blended by the normal (diffuse)
 		// and by the reflection (specular, Karis' fit of the split sum)
 		var up = n.y * 0.5 + 0.5;
@@ -98,6 +100,32 @@ class PbrShader implements Shaders {
 		var color = (direct + ambient + material.emissive.xyz) * frame.exposure.x;
 		return vec4(encode(aces(color)), material.baseColor.w * texel.w);
 	}
+
+	// the direct light's share at a point (1: lit) from the shadow map: a
+	// 3x3 percentage-closer filter; 1 outside the map or without shadows
+	static function shadowed(frame:PbrFrame, map:Texture2D, world:Vec3, nl:Float):Float {
+		var strength = frame.shadow.x;
+		var result = 1.0;
+		if (strength > 0) {
+			var ls = frame.lightViewProj * vec4(world, 1);
+			var p = ls.xyz / ls.w;
+			var uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
+			if (uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1 && p.z < 1) {
+				// (more bias where the light grazes the surface)
+				var depth = p.z - frame.shadow.y * (1 + 2 * (1 - nl));
+				var t = frame.shadow.z;
+				var lit = tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
+					+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
+					+ tap(map, uv, depth, t, t);
+				result = 1 - strength * (1 - lit / 9);
+			}
+		}
+		return result;
+	}
+
+	// 1 where the map's depth at uv + (dx, dy) is not nearer than depth
+	static function tap(map:Texture2D, uv:Vec2, depth:Float, dx:Float, dy:Float):Float
+		return step(depth, sampleLevel(map, uv + vec2(dx, dy), 0).x);
 
 	// ACES filmic tone mapping (Narkowicz's fit), to 0..1
 	static function aces(x:Vec3):Vec3

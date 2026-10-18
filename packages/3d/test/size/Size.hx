@@ -10,6 +10,7 @@ import hxmc.os.*;
 //   2  + the world (World, Node, Camera, FixedStep)
 //   3  + the glTF reader (Gltf.parse of the sample scene, GltfNodes)
 //   4  + the renderer (GltfScene, Renderer, PbrShader: the scene drawn)
+//   5  + shadows (Shadows: a shadow map pass)
 class Size {
 	static function main() {
 		var window = new Window("Size", 320, 240);
@@ -36,6 +37,9 @@ class Size {
 		#end
 		#if (size_level >= 4)
 		var renderer = new hxmc.scene.render.Renderer(device);
+		#if (size_level >= 5)
+		renderer.use(new hxmc.scene.render.Shadows(device));
+		#end
 		new hxmc.scene.gltf.GltfScene(doc, device).instantiate(world);
 		#end
 		App.run(() -> {

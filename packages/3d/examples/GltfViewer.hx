@@ -1,5 +1,5 @@
 // title: glTF scene
-// summary: A glTF 2.0 scene (a .glb built into the program) drawn by @hxmc/3d's renderer: metallic-roughness materials, a sun and a sky, a scene graph and its camera; drag to turn around it
+// summary: A glTF 2.0 scene (a .glb referenced with Model.of) drawn by @hxmc/3d's renderer: metallic-roughness materials, a sun with a shadow map and a sky, a scene graph and its camera; drag to turn around it
 // tags: 3d, gltf, pbr, input
 // demo: canvas 512x384
 import hxmc.gfx.*;
@@ -22,7 +22,7 @@ class GltfViewer {
 	static function main() {
 		var window = new Window("glTF scene", 640, 480);
 		var device = Device.create(window.surface);
-		var renderer = new Renderer(device);
+		var renderer = new Renderer(device).use(new Shadows(device));
 		var world = new World();
 		// (sample.glb read when compiling: its nodes are typed fields, model.nodes.camera)
 		var model = Model.of("sample.glb");

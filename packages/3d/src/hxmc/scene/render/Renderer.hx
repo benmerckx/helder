@@ -45,6 +45,10 @@ class Renderer {
 	final doubleSided:Pipeline;
 	final white:Texture;
 	final sampler:Sampler;
+	final nearest:Sampler;
+	// (no shadows: a 1x1 map, never read)
+	final noShadow:Texture;
+	var shadows:Null<Shadows>;
 	final frameBytes = Bytes.alloc(PbrShader.uniforms[0].size);
 	final objectBytes = Bytes.alloc(PbrShader.uniforms[1].size);
 	final materialBytes = Bytes.alloc(PbrShader.uniforms[2].size);
@@ -61,7 +65,17 @@ class Renderer {
 		w.fill(0, 4, 255);
 		white = device.createTexture({width: 1, height: 1, data: w});
 		sampler = device.createSampler({filter: Linear, wrap: Repeat});
+		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
+		var one = Bytes.alloc(4);
+		one.setFloat(0, 1);
+		noShadow = device.createTexture({width: 1, height: 1, format: R32F, data: one});
 		pass = {colors: [{load: Clear, clear: clearColor}], depth: {load: Clear}};
+	}
+
+	// turns on an optional feature (today: shadows); returns the renderer
+	public function use(shadows:Shadows):Renderer {
+		this.shadows = shadows;
+		return this;
 	}
 
 	// records the frame's pass: world seen by camera (aspect: the target's,
@@ -70,7 +84,11 @@ class Renderer {
 		if (aspect == null) aspect = device.width / device.height;
 		var viewProj = camera.viewProjection(aspect);
 		extract(world, viewProj);
-		writeFrame(world, camera, viewProj);
+		var toLight = writeFrame(world, camera, viewProj, false);
+		if (shadows != null) {
+			shadows.render(enc, world, toLight);
+			writeFrame(world, camera, viewProj, true);
+		}
 		record(enc);
 	}
 
@@ -107,7 +125,8 @@ class Renderer {
 		}
 	}
 
-	function writeFrame(world:World, camera:Camera, viewProj:Mat4) {
+	// (the frame's block; returns the direction towards the light)
+	function writeFrame(world:World, camera:Camera, viewProj:Mat4, shadowed:Bool):Vec3 {
 		var eye = camera.eye();
 		var l = sunDirection, c = sunColor;
 		var lights = world.store(Light.KIND);
@@ -127,8 +146,11 @@ class Renderer {
 			lightColor: new Vec4(c.x, c.y, c.z, 0),
 			sky: new Vec4(sky.x, sky.y, sky.z, 0),
 			ground: new Vec4(ground.x, ground.y, ground.z, 0),
-			exposure: new Vec4(exposure, 0, 0, 0)
+			exposure: new Vec4(exposure, 0, 0, 0),
+			lightViewProj: shadowed ? shadows.viewProj : Mat4.identity(),
+			shadow: shadowed ? new Vec4(shadows.strength, shadows.bias, 1 / shadows.size, 0) : new Vec4(0, 0, 0, 0)
 		}, frameBytes);
+		return l;
 	}
 
 	function record(enc:Encoder) {
@@ -160,6 +182,7 @@ class Renderer {
 				}, materialBytes);
 				enc.setUniforms(2, materialBytes);
 				enc.setTexture(3, m.baseColorTexture != null ? m.baseColorTexture : white, sampler);
+				enc.setTexture(4, shadows != null ? shadows.map : noShadow, nearest);
 				material = m;
 			}
 			enc.setVertexBuffer(0, p.vertices);
@@ -190,6 +213,7 @@ class Renderer {
 
 	public function dispose() {
 		device.destroyTexture(white);
+		device.destroyTexture(noShadow);
 	}
 }
 

@@ -8,16 +8,18 @@ import hxmc.scene.render.*;
 // browser), each a frame against packages/3d/test/<name>.png:
 //   gltf   the sample glTF scene (examples/sample.glb) from its camera,
 //          lit by the renderer's sun and sky
+//   shadows the same with a shadow map (Shadows, 512x512)
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits"];
+	public static final NAMES = ["gltf", "orbits", "shadows"];
 	public static inline var TIME = 2.0;
 
 	public static function make(name:String, device:Device):Encoder->Void {
 		return switch name {
-			case "gltf":
+			case "gltf" | "shadows":
 				var renderer = new Renderer(device);
+				if (name == "shadows") renderer.use(new Shadows(device, 512));
 				var world = new World();
 				var model = Model.of("sample.glb");
 				model.instantiate(world, device);
