@@ -57,6 +57,7 @@ class UiTest {
 		noWrap();
 		textTransform();
 		culling();
+		inPlace();
 		selection();
 		fields();
 		popups();
@@ -711,6 +712,163 @@ class UiTest {
 		list.children[2].style.height = 30;
 		var again = @:privateAccess Layout.run(ui.root, 200, 200, ui.text);
 		check("culling: a clean tree not laid out, a changed one laid out", !laid && again && list.children[3].y == 70, list.children[3].y + "");
+	}
+
+	// a node laid out again in place (Layout.inPlace: its parent's measures of
+	// it as they were) placed as a layout from the root places it: random
+	// trees changed at random (a text, a style, a child added or removed),
+	// each frame's boxes against the same tree's laid out from scratch
+	static function inPlace() {
+		var seed = 1, bad = 0, steps = 0, first = "", was = Layout.inPlaces;
+		function rnd(n:Int):Int {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			return (seed >> 8) % n;
+		}
+		var words = ["a", "bb", "ccc dd", "eeee f gg", "hhhhhhh", "ii jj kk ll mm", "n"];
+		var dims:Array<Dim> = [DimValue.Auto, 30, 70, "50%", "100%"];
+		function restyle(n:Node):String {
+			var s = n.style, k = rnd(18);
+			switch k {
+				case 0: s.width = dims[rnd(dims.length)];
+				case 1: s.height = dims[rnd(dims.length)];
+				case 2: s.direction = [Direction.Row, Direction.Column, Direction.RowReverse][rnd(3)];
+				case 3: s.wrap = rnd(2) == 0;
+				case 4: s.grow = rnd(3);
+				case 5: s.shrink = rnd(2);
+				case 6: s.padding = rnd(3) * 3;
+				case 7: s.margin = rnd(3) * 2;
+				case 8: s.alignItems = [Align.Stretch, Align.Start, Align.Center, Align.End, Align.Baseline][rnd(5)];
+				case 9: s.alignSelf = [Align.Auto, Align.Start, Align.Baseline, Align.Stretch][rnd(4)];
+				case 10: s.justify = [Justify.Start, Justify.Center, Justify.SpaceBetween][rnd(3)];
+				case 11: s.gap = rnd(3) * 4;
+				case 12: s.minWidth = ([DimValue.Auto, 0, 40] : Array<Dim>)[rnd(3)];
+				case 13: s.overflow = [Overflow.Visible, Overflow.Hidden, Overflow.Scroll][rnd(3)];
+				case 14: s.basis = ([DimValue.Auto, 0, 25] : Array<Dim>)[rnd(3)];
+				case 15: s.display = rnd(5) == 0 ? Display.None : Display.Flex;
+				case 16: s.fontSize = [8, 12, 20][rnd(3)];
+				case _:
+					s.position = rnd(4) == 0 ? Position.Absolute : Position.Relative;
+					s.left = rnd(3) * 5;
+					s.top = rnd(3) * 5;
+			}
+			return "style " + k;
+		}
+		var nodes:Array<Node> = [];
+		function make(depth:Int):Node {
+			var n = depth > 0 && rnd(3) == 0 || depth == 3 ? new TextNode(words[rnd(words.length)]) : new Node();
+			nodes.push(n);
+			if (!Std.isOfType(n, TextNode))
+				for (i in 0...rnd(4))
+					n.append(make(depth + 1));
+			for (i in 0...rnd(3))
+				restyle(n);
+			return n;
+		}
+		function boxes(n:Node, out:Array<Float>) {
+			out.push(n.x);
+			out.push(n.y);
+			out.push(n.width);
+			out.push(n.height);
+			out.push(n.contentWidth);
+			out.push(n.contentHeight);
+			for (c in n.children)
+				boxes(c, out);
+		}
+		function all(n:Node) {
+			n.markDirty();
+			for (c in n.children)
+				all(c);
+		}
+		for (tree in 0...40) {
+			var ui = new Ui(new MonoText(), 240, 200);
+			ui.root.style.alignItems = Start;
+			nodes.resize(0);
+			ui.root.append(make(0));
+			ui.update();
+			for (step in 0...60) {
+				var n = nodes[rnd(nodes.length)], what;
+				if (n.ui == null) continue;
+				switch rnd(4) {
+					case 0 if (Std.isOfType(n, TextNode)):
+						(cast n : TextNode).text = words[rnd(words.length)];
+						what = "text";
+					case 1 if (!Std.isOfType(n, TextNode)):
+						n.append(make(2));
+						what = "added";
+					case 2 if (n.parent != null && n.parent != ui.root):
+						n.parent.remove(n);
+						what = "removed";
+					case _:
+						what = restyle(n);
+				}
+				ui.update();
+				var got = [];
+				boxes(ui.root, got);
+				all(ui.root);
+				ui.update();
+				var want = [];
+				boxes(ui.root, want);
+				steps++;
+				if (got.join(",") != want.join(",")) {
+					bad++;
+					if (first == "") first = 'tree $tree step $step ($what on ${n.tag})';
+				}
+			}
+		}
+		// (what its parent reads besides its measures: its baseline, moved in a box of a fixed
+		// size by the children above it; its min-content, a shrinking item's least width, its
+		// text made shorter)
+		function agrees(build:Ui->(Void->Void)):Bool {
+			var ui = new Ui(new MonoText(), 240, 200);
+			ui.root.style.alignItems = Start;
+			var change = build(ui);
+			ui.update();
+			change();
+			ui.update();
+			var got = [];
+			boxes(ui.root, got);
+			all(ui.root);
+			ui.update();
+			var want = [];
+			boxes(ui.root, want);
+			return got.join(",") == want.join(",");
+		}
+		var baseline = agrees(ui -> {
+			var row = new Node(), box = new Node(), above = new Node(), below = new Node();
+			row.style.direction = Row;
+			row.style.alignItems = Baseline;
+			box.style.width = 50;
+			box.style.height = 80;
+			above.style.height = 10;
+			below.style.height = 30;
+			box.append(above);
+			box.append(new TextNode("b"));
+			box.append(below);
+			row.append(new TextNode("a"));
+			row.append(box);
+			ui.root.append(row);
+			() -> {
+				above.style.height = 30;
+				below.style.height = 10;
+			}
+		});
+		var least = agrees(ui -> {
+			var row = new Node(), item = new Node(), text = new TextNode("aaaa");
+			row.style.direction = Row;
+			row.style.width = 100;
+			item.style.width = 60;
+			item.append(text);
+			var other = new Node();
+			other.style.width = 80;
+			other.style.minWidth = 80;
+			row.append(item);
+			row.append(other);
+			ui.root.append(row);
+			() -> text.text = "a";
+		});
+		check("in place: not when its baseline moved, nor its min-content changed", baseline && least, baseline + " " + least);
+		var placed = Layout.inPlaces - was;
+		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
 	}
 
 	// an ancestor's decorations over a text: the underline before it, the

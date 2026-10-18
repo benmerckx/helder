@@ -174,6 +174,7 @@ class Ui {
 		for (n in rounded)
 			clampScroll(n);
 		rounded.resize(0);
+		changes.resize(0);
 		for (n in natives.copy())
 			n.syncNative();
 	}
@@ -704,6 +705,13 @@ class Ui {
 	final scrolls = new Map<Node, Array<Float>>();
 	// the scrollers rounded by the last layouts, clamped after them
 	final rounded:Array<Node> = [];
+
+	// the nodes changed since the last update, as far as layout goes (Node.markDirty;
+	// more than Layout.CHANGES: all laid out again from the root)
+	@:allow(hxmc.ui.Layout) final changes:Array<Node> = [];
+
+	@:allow(hxmc.ui.Node) function changed(n:Node)
+		if (changes.length <= @:privateAccess Layout.CHANGES) changes.push(n);
 
 	// keys that scroll, when the focus took none of them (as a browser's):
 	// the arrows by 40 pixels, Page Up and Down and Space (Shift: up) by

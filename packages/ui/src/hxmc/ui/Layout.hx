@@ -18,7 +18,9 @@ package hxmc.ui;
 // those results are cached per node (a node and its ancestors forget them
 // when it changes: Node.markDirty), so that measuring a child several times
 // in a pass costs once. A whole subtree is skipped when it is clean and
-// laid out with the same constraints as last time. At the end the boxes are
+// laid out with the same constraints as last time; a node changed whose
+// parent's measures of it come out as they were is laid out again in place,
+// its ancestors not (inPlace). At the end the boxes are
 // rounded to whole pixels in window coordinates (each edge rounded, so that
 // adjacent boxes stay adjacent).
 class Layout {
@@ -44,7 +46,13 @@ class Layout {
 	static var lineTop = 0;
 
 	static inline var CACHE = 4; // measured results kept per node
-	static inline var ENTRY = 7; // knownW, knownH, availW, availH, bare (1: its width, 2: its height), width, height
+	static inline var ENTRY = 9; // knownW, knownH, availW, availH, bare (1: its width, 2: its height), width, height, parentW, parentH
+	static inline var CHANGES = 64; // nodes changed at most for inPlace to try (else from the root)
+	// (inPlace's: a node's measures as they were; contain's: the nodes laid out in place)
+	static final was:Array<Float> = [];
+	static final tops:Array<Node> = [];
+	// (the nodes laid out in place so far: a test's)
+	@:noCompletion public static var inPlaces = 0;
 
 	public function new(text:TextEngine)
 		this.text = text;
@@ -56,7 +64,7 @@ class Layout {
 		if (!root.dirty && root.lw == width && root.lh == height && !root.relaid) return false;
 		var l = new Layout(text);
 		itemTop = lineTop = 0;
-		l.size(root, width, height, width, height, width, height, true);
+		if (!(root.lw == width && root.lh == height && l.contain(root))) l.size(root, width, height, width, height, width, height, true);
 		// (the nodes let go)
 		for (it in items)
 			it.node = null;
@@ -74,6 +82,16 @@ class Layout {
 			if (perform) hide(n);
 			rw = rh = 0;
 			return;
+		}
+		if (perform) {
+			n.performed = !bareW && !bareH;
+			n.pKW = knownW;
+			n.pKH = knownH;
+			n.pPW = parentW;
+			n.pPH = parentH;
+			n.pAW = availW;
+			n.pAH = availH;
+			n.pLoose = looseH;
 		}
 		// the style's own size, clamped
 		// (bare on an axis where the node has no size, min or max of its own: as measured normally, cached alike)
@@ -116,7 +134,7 @@ class Layout {
 				rh = h;
 				return;
 			}
-		} else if (cached && lookup(n, w, defH ? h : -1 - h, availW, availH, bare)) return;
+		} else if (!cached) n.lossy = true else if (lookup(n, w, defH ? h : -1 - h, availW, availH, bare, parentW, parentH)) return;
 		var pad = s.padding, be = s.borderEdges;
 		var padL = pad.left + be.left, padT = pad.top + be.top, padH = pad.left + pad.right + be.left + be.right, padV = pad.top + pad.bottom + be.top + be.bottom;
 		if (n.hasContent() && (n.children.length == 0 || n.contentOwnsChildren())) {
@@ -142,7 +160,75 @@ class Layout {
 			breakH = bareBreak;
 			flex(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
 		}
-		if (!perform && cached) store(n, w, defH ? h : -1 - h, availW, availH, bare, rw, rh);
+		if (!perform && cached) store(n, w, defH ? h : -1 - h, availW, availH, bare, rw, rh, parentW, parentH);
+	}
+
+	// --- laid out in place ---
+
+	// the changed nodes (Ui.changes) each laid out in place, it or the
+	// nearest ancestor that can be (inPlace), their ancestors as they were
+	// but rounded again; whether all could be (else the root is laid out)
+	function contain(root:Node):Bool {
+		var u = root.ui;
+		if (u == null || u.changes.length == 0 || u.changes.length > CHANGES) return false;
+		tops.resize(0);
+		for (c in u.changes) {
+			if (!c.dirty) continue;
+			var top = c;
+			while (top.parent != null)
+				top = top.parent;
+			if (top != root) continue;
+			var b = c;
+			while (b != root && !inPlace(b))
+				b = b.parent;
+			if (b == root) return false;
+			tops.push(b);
+			inPlaces++;
+		}
+		for (b in tops) {
+			var a = b.parent;
+			while (a != null && a.dirty) {
+				a.dirty = false;
+				a.relaid = true;
+				// (its measures kept, unless some were not)
+				if (a.cacheWas >= 0) {
+					if (a.cache != null) a.cache[0] = a.cacheWas;
+					a.minContent = a.minContentWas;
+				} else a.lossy = true;
+				a = a.parent;
+			}
+		}
+		return true;
+	}
+
+	// a changed node laid out again in place when its parent's layout of it
+	// stays as it was: each measure its parent made of it (its cache when it
+	// changed, all kept) and its min-content come out the same, it is not
+	// on its baseline (its parent reads that), and laid out with what it was
+	// given last time its size and overflow are its own as they were
+	function inPlace(n:Node):Bool {
+		var p = n.parent, s = n.style;
+		if (p == null || !n.performed || n.cacheWas < 0 || s.display == None) return false;
+		if ((s.alignSelf == Auto ? p.style.alignItems : s.alignSelf) == Baseline) return false;
+		was.resize(0);
+		for (i in 1...n.cacheWas + 1)
+			was.push(n.cache[i]);
+		var mc = n.minContentWas, i = 0;
+		while (i < was.length) {
+			// (as measured: bare, its height loose when kept negative)
+			var hk = was[i + 1], bare = Std.int(was[i + 4]);
+			bareW = bare & 1 != 0;
+			bareH = bare & 2 != 0;
+			looseH = hk < 0;
+			size(n, was[i], hk < 0 ? -1 - hk : hk, was[i + 7], was[i + 8], was[i + 2], was[i + 3], false);
+			if (!same(rw, was[i + 5]) || !same(rh, was[i + 6])) return false;
+			i += ENTRY;
+		}
+		if (known(mc) && !same(minContentWidth(n, Math.NaN, false), mc)) return false;
+		var lw = n.lw, lh = n.lh, cw = n.contentWidth, ch = n.contentHeight;
+		looseH = n.pLoose;
+		size(n, n.pKW, n.pKH, n.pPW, n.pPH, n.pAW, n.pAH, true);
+		return same(rw, lw) && same(rh, lh) && same(n.contentWidth, cw) && same(n.contentHeight, ch);
 	}
 
 	// --- a flex container ---
@@ -1507,6 +1593,7 @@ class Layout {
 	static function hide(n:Node) {
 		n.lx = n.ly = n.lw = n.lh = 0;
 		n.dirty = false;
+		n.performed = false;
 		n.relaid = true;
 		for (c in n.children)
 			hide(c);
@@ -1516,7 +1603,9 @@ class Layout {
 	// out again nor moved is as it was), then its ink's bounds
 	static function round(n:Node, parentAbsX:Float, parentAbsY:Float, parentRoundX:Float, parentRoundY:Float, scrollers:Null<Array<Node>>) {
 		var ax = parentAbsX + n.lx, ay = parentAbsY + n.ly;
-		if (!n.relaid && ax == n.rawX && ay == n.rawY && n.lw == n.rawW && n.lh == n.rawH) return;
+		// (where it is in its parent too: the parent moved and it not, it moved in its parent)
+		if (!n.relaid && ax == n.rawX && ay == n.rawY && n.lw == n.rawW && n.lh == n.rawH && n.x == Math.fround(ax) - parentRoundX
+			&& n.y == Math.fround(ay) - parentRoundY) return;
 		n.relaid = false;
 		n.rawX = ax;
 		n.rawY = ay;
@@ -1531,12 +1620,15 @@ class Layout {
 		n.measureInk();
 	}
 
-	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float, bare:Int):Bool {
+	// (pw, ph: its parent's box, compared when its own size is relative to it: relative())
+	function lookup(n:Node, w:Float, h:Float, aw:Float, ah:Float, bare:Int, pw:Float, ph:Float):Bool {
 		var c = n.cache;
 		if (c == null) return false;
+		var rel = relative(n.style);
 		var i = 1, end = 1 + Std.int(c[0]);
 		while (i < end) {
-			if (same(c[i], w) && same(c[i + 1], h) && c[i + 4] == bare && fits(c[i + 2], c[i + 5], aw) && fits(c[i + 3], c[i + 6], ah)) {
+			if (same(c[i], w) && same(c[i + 1], h) && c[i + 4] == bare && fits(c[i + 2], c[i + 5], aw) && fits(c[i + 3], c[i + 6], ah) && (!rel || same(c[i + 7], pw)
+				&& same(c[i + 8], ph))) {
 				rw = c[i + 5];
 				rh = c[i + 6];
 				return true;
@@ -1549,7 +1641,9 @@ class Layout {
 	// (the cache: its length in slot 0, then up to CACHE entries; the oldest
 	// dropped. Room for one at first, twice as many when full: most nodes
 	// are measured once or twice)
-	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, bare:Int, rw:Float, rh:Float) {
+	static function store(n:Node, w:Float, h:Float, aw:Float, ah:Float, bare:Int, rw:Float, rh:Float, pw:Float, ph:Float) {
+		// (measured again since it changed: its measures as they were gone)
+		if (n.dirty) n.cacheWas = -1;
 		var c = n.cache;
 		if (c == null) c = n.cache = new haxe.ds.Vector(1 + ENTRY, 0.0);
 		var at = 1 + Std.int(c[0]);
@@ -1562,6 +1656,7 @@ class Layout {
 			for (i in 1...at - ENTRY)
 				c[i] = c[i + ENTRY];
 			at -= ENTRY;
+			n.lossy = true;
 		}
 		c[at] = w;
 		c[at + 1] = h;
@@ -1570,7 +1665,16 @@ class Layout {
 		c[at + 4] = bare;
 		c[at + 5] = rw;
 		c[at + 6] = rh;
+		c[at + 7] = pw;
+		c[at + 8] = ph;
 		c[0] = at + ENTRY - 1;
+	}
+
+	// (whether a node's own size is relative to its parent's box: a percentage of it)
+	static function relative(s:Style):Bool {
+		inline function of(d:Dim):Bool
+			return d.match(DimValue.Percent(_) | DimValue.Calc(_, _));
+		return of(s.width) || of(s.height) || of(s.minWidth) || of(s.maxWidth) || of(s.minHeight) || of(s.maxHeight);
 	}
 
 	// (a share of free space as Chromium's LayoutUnit divides it: to a 64th of a pixel, toward zero)
@@ -1584,9 +1688,11 @@ class Layout {
 		return a == b || (Math.isNaN(a) && Math.isNaN(b));
 
 	// (a size measured in the room `was` is `got` in the room `now` too: the
-	// same room, or neither room bounded it, as Yoga reuses its measurements)
+	// same room, an unbounded one's size fitting, or a narrower room it still
+	// fits, as Yoga reuses its measurements; not a wider one: what wrapped
+	// in `was` may not in `now`)
 	static inline function fits(was:Float, got:Float, now:Float):Bool
-		return same(was, now) || ((Math.isNaN(was) || got < was) && (Math.isNaN(now) || got <= now));
+		return same(was, now) || got <= now && (Math.isNaN(was) || now < was);
 
 	// the width CSS's min-content, max-content or fit-content gives n (room: what
 	// fit-content fits in; NaN: none, its max-content), its own width, min and max left out
