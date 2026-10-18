@@ -1,5 +1,5 @@
 // title: Walker
-// summary: A capsule character of @hxmc/physics (Character: steered, grounded by a ray, jumping) walking among crates it pushes and onto a platform, the camera following; arrow keys or WASD walk, space or the lower right corner jumps
+// summary: A capsule character of @hxmc/physics (Character: steered, grounded by a ray, jumping) walking among crates it pushes and onto a platform, the camera following; arrow keys, WASD or a gamepad's stick walk, space, A or the lower right corner jumps
 // tags: 3d, physics
 // demo: canvas 512x384
 import hxmc.gfx.*;
@@ -88,6 +88,9 @@ class Walker {
 		actions.bind("x", KeyAxis(0xFF51, 0xFF53)).bind("x", KeyAxis(0x61, 0x64));
 		actions.bind("z", KeyAxis(0xFF52, 0xFF54)).bind("z", KeyAxis(0x77, 0x73));
 		actions.bind("jump", Key(0x20)).bind("jump", Region(0.75, 0.6, 1, 1));
+		// (a gamepad too: the left stick walks, A jumps)
+		Gamepads.enable();
+		actions.bind("x", PadAxis(0, 1)).bind("z", PadAxis(1, 1)).bind("jump", PadButton(0));
 		var stages = new Stages(new FixedStep(1 / 60)), last = Sys.time();
 		stages.on(FixedUpdate, dt -> {
 			actions.step();

@@ -90,11 +90,11 @@ bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src \
 PackedModel.read(Asset.embed("level.hxm3d"), device).instantiate(world);
 ```
 
-A packed model needs no glTF reader or JSON at run time (65 KB less
+A packed model needs no glTF reader or JSON at run time (73 KB less
 natively, `make 3d-sizes`): meshes (vertices in the renderer's layout,
 joints and weights, tangents computed at build time for normal maps),
 materials (factors, maps, sampler), images (decoded by `Images.decode`
-when loaded), cameras, lights, skins, animations (`model.clip(name)`,
+when loaded), cameras, lights, skins, morph targets, animations (`model.clip(name)`,
 playing on the nodes `instantiate` made) and the hierarchy.
 
 Big files or loading screens: `Model.of(path, Lazy)` is an `Asset` of the

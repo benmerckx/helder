@@ -59,16 +59,17 @@ class Gamepads {
 			axes[i][a] = sticks != null && a < sticks.length ? sticks[a] : 0;
 	}
 
-	// the devices read again, once App.run has started (a program without a
-	// window, a test under node's WASI, links no device code: the browser's
-	// imports are not there)
+	// the devices read again, once enabled (a program that never calls
+	// enable links no device code: a few tens of KB, and in the browser
+	// imports a test under node's WASI does not have)
 	public static function poll() {
 		if (devices != null) devices();
 	}
 
 	static var devices:Null<Void->Void>;
 
-	@:allow(hxmc.os.App) static function enable()
+	// the devices read from now on (a program reading gamepads calls it once)
+	public static function enable()
 		devices = pollDevices;
 
 	static function pollDevices() {

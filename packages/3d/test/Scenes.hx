@@ -37,7 +37,7 @@ import hxmc.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -307,19 +307,30 @@ class Scenes {
 					enc.endPass();
 				});
 				enc -> r.draw(enc, world, camera);
-			case "morph":
+			case "morph" | "packedmorph":
 				var r = new Renderer(device).use(new Shadows(device, 512));
 				renderer = r;
 				var world = new World();
-				var model = Model.of("morph.glb");
 				var made = [];
-				var left = model.instantiate(world, device, null, made);
+				var left:Node, right:Node;
+				if (name == "morph") {
+					var model = Model.of("morph.glb");
+					left = model.instantiate(world, device, null, made);
+					var animator = new hxmc.scene.anim.Animator(made);
+					animator.play(model.clip(model.animations.breathe));
+					animator.update(1.5);
+					// (a second instance at its mesh's default weights, its own vertices)
+					right = model.instantiate(world, device);
+				} else {
+					// (packed at build time: bin/3d/morph.hxm3d, morph.png's frame)
+					var model = PackedModel.read(Asset.embed("bin/3d/morph.hxm3d"), device);
+					left = model.instantiate(world, null, made);
+					var animator = new hxmc.scene.anim.Animator(made);
+					animator.play(model.clip("breathe"));
+					animator.update(1.5);
+					right = model.instantiate(world);
+				}
 				left.position = new Vec3(-1.15, 0, 0);
-				var animator = new hxmc.scene.anim.Animator(made);
-				animator.play(model.clip(model.animations.breathe));
-				animator.update(1.5);
-				// (a second instance at its mesh's default weights, its own vertices)
-				var right = model.instantiate(world, device);
 				right.position = new Vec3(1.15, 0, 0);
 				var floor = world.node("floor");
 				floor.position = new Vec3(0, -0.4, 0);

@@ -11,13 +11,14 @@ import hxmc.scene.render.VertexData;
 // renderer's layout (VertexData; joints and weights for skins, tangents
 // computed here where a normal map is drawn), node transforms decomposed,
 // materials (factors, maps, sampler), images as the file has them (PNG,
-// JPEG: decoded when loaded), cameras, lights, skins and animations; no
+// JPEG: decoded when loaded), cameras, lights, skins, morph targets and
+// animations; no
 // JSON, so a program loading only packed models links no JSON reader.
 //
 //   bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src \
 //     --run hxmc.scene.gltf.Pack <in.glb> <out.hxm3d>
 //
-// The format (little-endian): "HXM3", version 2, then counts and records:
+// The format (little-endian): "HXM3", version 3, then counts and records:
 //   images      mime, byte count, bytes
 //   materials   name, base colour 4 floats, metallic, roughness, emissive 3
 //               floats, flags (1: double-sided, 2: blended), normal scale,
@@ -27,21 +28,23 @@ import hxmc.scene.render.VertexData;
 //   vertex data flags (2: wide indices, 4: skinned, 8: tangents), index
 //               count, vertex bytes, index bytes, tangent bytes (flag 8),
 //               bounds 6 floats: once per set of accessors
-//   meshes      name, primitives: material, vertex data
+//   meshes      name, primitives: material, vertex data, morph targets
+//               (each: flags (1 positions, 2 normals), their displacements),
+//               the targets' default weights
 //   cameras     perspective byte, yfov or height, near, far
 //   lights      kind (0 directional, 1 point, 2 spot), colour 3 floats,
 //               intensity, range, inner and outer cone
 //   skins       joints (nodes), their inverse bind matrices (16 floats each)
 //   nodes       parents first: name, parent, mesh, camera, light, skin, TRS
-//               10 floats
+//               10 floats, morph weights (none: the mesh's)
 //   animations  name, tracks: node, path (0 translation, 1 rotation, 2
-//               scale), interpolation (0 step, 1 linear, 2 cubic spline),
+//               scale, 3 weights), interpolation (0 step, 1 linear, 2 cubic spline),
 //               times, values
 //   the roots' scene name
 // (nodes are referred to by their place in the nodes' list)
 class Pack {
 	public static inline var MAGIC = 0x334D5848; // "HXM3"
-	public static inline var VERSION = 2;
+	public static inline var VERSION = 3;
 
 	static function main() {
 		var args = Sys.args();
@@ -129,7 +132,7 @@ class Pack {
 			}
 			return keys.get(key);
 		}
-		var meshPrims = [for (mesh in doc.meshes) [for (p in mesh.primitives) if (p.mode == 4 && p.position >= 0) {material: p.material, data: dataOf(p)}]];
+		var meshPrims = [for (mesh in doc.meshes) [for (p in mesh.primitives) if (p.mode == 4 && p.position >= 0) {material: p.material, data: dataOf(p), prim: p}]];
 		o.writeInt32(datas.length);
 		for (d in datas) {
 			o.writeByte((d.wide ? 2 : 0) | (d.skinned ? 4 : 0) | (d.tangents != null ? 8 : 0));
@@ -152,7 +155,14 @@ class Pack {
 			for (p in meshPrims[k]) {
 				o.writeInt32(p.material);
 				o.writeInt32(p.data);
+				o.writeInt32(p.prim.targets.length);
+				for (t in p.prim.targets) {
+					o.writeByte((t.position >= 0 ? 1 : 0) | (t.normal >= 0 ? 2 : 0));
+					if (t.position >= 0) floats(doc.floats(t.position));
+					if (t.normal >= 0) floats(doc.floats(t.normal));
+				}
 			}
+			floats(doc.meshes[k].weights);
 		}
 		o.writeInt32(doc.cameras.length);
 		for (c in doc.cameras) {
@@ -214,17 +224,19 @@ class Pack {
 			}
 			for (x in [t.x, t.y, t.z, r.x, r.y, r.z, r.w, s.x, s.y, s.z])
 				o.writeFloat(x);
+			floats(g.weights != null ? g.weights : []);
 		}
 		o.writeInt32(doc.animations.length);
 		for (a in doc.animations) {
 			str(a.name);
-			var channels = [for (c in a.channels) if (c.path != "weights" && placeOf[c.node] >= 0) c];
+			var channels = [for (c in a.channels) if (placeOf[c.node] >= 0) c];
 			o.writeInt32(channels.length);
 			for (c in channels) {
 				o.writeInt32(placeOf[c.node]);
 				o.writeByte(switch c.path {
 					case "translation": 0;
 					case "rotation": 1;
+					case "weights": 3;
 					case _: 2;
 				});
 				o.writeByte(switch c.interpolation {

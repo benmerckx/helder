@@ -24,13 +24,14 @@ else
 	Linux-aarch64 | Linux-arm64) export HXMC_3D_TOLERANCE=3 ;;
 	esac
 fi
-for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy particles normals blend walker packedskin packednormals cascades environment morph chains; do
+for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy particles normals blend walker packedskin packednormals cascades environment morph chains packedmorph; do
 	g=$s
 	# (the packed sample draws the glTF one's frame, the lazy skin the skin's)
 	[ $s = packed ] && g=gltf
 	[ $s = lazy ] && g=skin
 	[ $s = packedskin ] && g=skin
 	[ $s = packednormals ] && g=normals
+	[ $s = packedmorph ] && g=morph
 	code=0
 	run $s "$here/$g.png" "$out/$s.png" || code=$?
 	# (macOS without a Metal device: GfxTest's 3, skipped)

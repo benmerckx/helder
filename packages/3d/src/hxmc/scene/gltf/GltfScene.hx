@@ -135,31 +135,11 @@ class GltfScene {
 		for (k in 0...doc.nodes.length) {
 			var m = doc.nodes[k].mesh;
 			if (m < 0 || morphs[m] == null || k >= made.length || made[k].isNone) continue;
-			var copy = new Mesh(), parts = [];
-			for (mp in morphs[m]) {
-				var p = mp.prim;
-				var buffer = device.createBuffer({size: mp.data.vertices.length, usage: Vertex, data: mp.data.vertices});
-				// (bounds wide enough for every target at full weight)
-				var reach = 0.0;
-				for (d in mp.positions)
-					if (d != null) {
-						var most = 0.0;
-						for (x in d)
-							most = Math.max(most, Math.abs(x));
-						reach += most;
-					}
-				var b = p.bounds;
-				var r = new hxmc.gfx.shader.Vec3(reach, reach, reach);
-				var prim = new hxmc.scene.render.Mesh.Primitive(buffer, p.indices, p.indexFormat, p.count, p.material,
-					new hxmc.scene.math.Aabb(b.min - r, b.max + r), p.skinned);
-				prim.tangents = p.tangents;
-				copy.addPrimitive(prim);
-				parts.push(new hxmc.scene.render.Morph.MorphPrimitive(buffer, mp.data.vertices, mp.data.skinned ? 64 : 32, mp.positions, mp.normals));
-			}
 			var g = doc.nodes[k];
-			MeshRenderer.attach(made[k], copy);
-			hxmc.scene.anim.MorphWeights.attach(made[k], new hxmc.scene.anim.MorphWeights(g.weights != null ? g.weights : doc.meshes[m].weights));
-			hxmc.scene.render.Morph.attach(made[k], new hxmc.scene.render.Morph(device, doc.meshes[m].weights.length, parts));
+			hxmc.scene.render.Morph.bend(device, made[k], [
+				for (mp in morphs[m])
+					{prim: mp.prim, vertices: mp.data.vertices, stride: mp.data.skinned ? 64 : 32, positions: mp.positions, normals: mp.normals}
+			], g.weights != null ? g.weights : doc.meshes[m].weights);
 		}
 		// (skins: their joints are this instance's nodes)
 		for (k in 0...doc.nodes.length) {

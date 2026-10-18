@@ -35,7 +35,9 @@ class PackedModel {
 	final cameras:Array<{perspective:Bool, size:Float, near:Float, far:Float}> = [];
 	final lights:Array<{kind:Int, f:Array<Float>}> = [];
 	final skins:Array<{joints:Array<Int>, inverseBind:Array<Float>}> = [];
-	final nodes:Array<{name:String, parent:Int, mesh:Int, camera:Int, light:Int, skin:Int, trs:Array<Float>}> = [];
+	final nodes:Array<{name:String, parent:Int, mesh:Int, camera:Int, light:Int, skin:Int, trs:Array<Float>, weights:Array<Float>}> = [];
+	// per mesh with morph targets: its primitives' sources and its default weights (Morph.bend)
+	final morphs:Array<Null<{sources:Array<Morph.MorphSource>, weights:Array<Float>}>> = [];
 	var sceneName = "";
 
 	function new(device:Device)
@@ -50,7 +52,7 @@ class PackedModel {
 		function floats():Array<Float>
 			return [for (_ in 0...i.readInt32()) i.readFloat()];
 		if (i.readInt32() != 0x334D5848) throw "PackedModel: not a packed model";
-		if (i.readInt32() != 2) throw "PackedModel: another version (pack it again)";
+		if (i.readInt32() != 3) throw "PackedModel: another version (pack it again)";
 		for (_ in 0...i.readInt32()) {
 			var mime = str(), n = i.readInt32();
 			var b = n > 0 ? i.read(n) : null;
@@ -94,15 +96,27 @@ class PackedModel {
 		var fallback:Null<Material> = null;
 		for (_ in 0...i.readInt32()) {
 			str();
-			var mesh = new Mesh();
+			var mesh = new Mesh(), sources:Array<Morph.MorphSource> = [];
 			for (_ in 0...i.readInt32()) {
 				var material = i.readInt32(), data = i.readInt32();
 				var mat = if (material >= 0) m.materials[material] else {
 					if (fallback == null) fallback = new Material("default");
 					fallback;
 				}
-				mesh.addData(device, datas[data], mat);
+				var prim = mesh.addData(device, datas[data], mat);
+				var targets = i.readInt32();
+				if (targets > 0) {
+					var positions:Array<Null<Array<Float>>> = [], normals:Array<Null<Array<Float>>> = [];
+					for (_ in 0...targets) {
+						var flags = i.readByte();
+						positions.push(flags & 1 != 0 ? floats() : null);
+						normals.push(flags & 2 != 0 ? floats() : null);
+					}
+					sources.push({prim: prim, vertices: datas[data].vertices, stride: datas[data].skinned ? 64 : 32, positions: positions, normals: normals});
+				}
 			}
+			var weights = floats();
+			m.morphs.push(sources.length > 0 ? {sources: sources, weights: weights} : null);
 			m.meshes.push(mesh);
 		}
 		for (_ in 0...i.readInt32()) {
@@ -126,7 +140,8 @@ class PackedModel {
 				camera: camera,
 				light: light,
 				skin: skin,
-				trs: [for (_ in 0...10) i.readFloat()]
+				trs: [for (_ in 0...10) i.readFloat()],
+				weights: floats()
 			});
 		}
 		for (_ in 0...i.readInt32()) {
@@ -149,7 +164,7 @@ class PackedModel {
 		if (k < 0) return null;
 		return new AnimationClip(name, [
 			for (t in tracks[k])
-				new hxmc.scene.anim.AnimationClip.Track(t.node, t.path == 0 ? Translation : t.path == 1 ? Rotation : Scale, t.times, t.values,
+				new hxmc.scene.anim.AnimationClip.Track(t.node, t.path == 0 ? Translation : t.path == 1 ? Rotation : t.path == 3 ? Weights : Scale, t.times, t.values,
 					t.interpolation == 0 ? Step : t.interpolation == 2 ? CubicSpline : Linear)
 		]);
 	}
@@ -180,6 +195,13 @@ class PackedModel {
 				});
 			}
 			made.push(n);
+		}
+		// (morph targets: each node its own copy of the vertices)
+		for (k in 0...nodes.length) {
+			var g = nodes[k];
+			if (g.mesh < 0 || morphs[g.mesh] == null) continue;
+			var mo = morphs[g.mesh];
+			Morph.bend(device, made[first + k], mo.sources, g.weights.length > 0 ? g.weights : mo.weights);
 		}
 		// (skins: their joints are this instance's nodes)
 		for (k in 0...nodes.length)

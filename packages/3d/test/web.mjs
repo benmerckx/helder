@@ -21,7 +21,7 @@ if (!wasm) {
 	process.exit(2);
 }
 const CHROMIUM_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
-const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin', 'overlay', 'textured', 'packed', 'spot', 'sky', 'lazy', 'particles', 'normals', 'blend', 'walker', 'packedskin', 'packednormals', 'cascades', 'environment', 'morph', 'chains'];
+const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin', 'overlay', 'textured', 'packed', 'spot', 'sky', 'lazy', 'particles', 'normals', 'blend', 'walker', 'packedskin', 'packednormals', 'cascades', 'environment', 'morph', 'chains', 'packedmorph'];
 const files = {
 	'/test.wasm': wasm,
 	'/os/browser.mjs': path.join(here, '../../os/browser.mjs'),
@@ -30,7 +30,7 @@ const files = {
 	'/compare.mjs': path.join(here, '../../gfx/test/compare.mjs'),
 };
 // (the packed samples draw the glTF ones' frames)
-for (const s of scenes) files[`/${s}.png`] = path.join(here, `${s === 'packed' ? 'gltf' : s === 'lazy' || s === 'packedskin' ? 'skin' : s === 'packednormals' ? 'normals' : s}.png`);
+for (const s of scenes) files[`/${s}.png`] = path.join(here, `${s === 'packed' ? 'gltf' : s === 'lazy' || s === 'packedskin' ? 'skin' : s === 'packednormals' ? 'normals' : s === 'packedmorph' ? 'morph' : s}.png`);
 // (the files the build put beside the module, Model.of's: fetched by browser.mjs before main)
 const manifest = wasm + '.assets.json';
 let assets = false;

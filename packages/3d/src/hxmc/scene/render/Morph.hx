@@ -31,6 +31,35 @@ class Morph {
 		if (updateWorld == null) updateWorld = updateAll;
 	}
 
+	// node bent by morph targets: its own copy of the primitives' vertices
+	// (sources: each primitive, its rest vertices, their stride and the
+	// targets' displacements) drawn instead of the shared mesh, its weights
+	// (MorphWeights) to start from; GltfScene's and PackedModel's
+	public static function bend(device:Device, node:Node, sources:Array<MorphSource>, weights:Array<Float>) {
+		var copy = new Mesh(), parts = [];
+		for (src in sources) {
+			var p = src.prim;
+			var buffer = device.createBuffer({size: src.vertices.length, usage: Vertex, data: src.vertices});
+			// (bounds wide enough for every target at full weight)
+			var reach = 0.0;
+			for (d in src.positions)
+				if (d != null) {
+					var most = 0.0;
+					for (x in d)
+						most = Math.max(most, Math.abs(x));
+					reach += most;
+				}
+			var b = p.bounds, r = new hxmc.gfx.shader.Vec3(reach, reach, reach);
+			var prim = new Mesh.Primitive(buffer, p.indices, p.indexFormat, p.count, p.material, new hxmc.scene.math.Aabb(b.min - r, b.max + r), p.skinned);
+			prim.tangents = p.tangents;
+			copy.addPrimitive(prim);
+			parts.push(new MorphPrimitive(buffer, src.vertices, src.stride, src.positions, src.normals));
+		}
+		MeshRenderer.attach(node, copy);
+		hxmc.scene.anim.MorphWeights.attach(node, new hxmc.scene.anim.MorphWeights(weights));
+		attach(node, new Morph(device, weights.length, parts));
+	}
+
 	public static inline function attach(node:Node, morph:Morph):Morph
 		return node.world.store(KIND).set(node, morph);
 
@@ -71,6 +100,14 @@ class Morph {
 			device.writeBuffer(p.buffer, 0, out, 0, out.length);
 		}
 	}
+}
+
+typedef MorphSource = {
+	prim:Mesh.Primitive,
+	vertices:Bytes,
+	stride:Int,
+	positions:Array<Null<Array<Float>>>,
+	normals:Array<Null<Array<Float>>>
 }
 
 // a primitive's part of a morph: its own vertex buffer, the vertices at
