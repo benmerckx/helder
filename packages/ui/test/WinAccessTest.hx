@@ -18,7 +18,8 @@ import hxmc.unsafe.*;
 // element asked of UI Automation itself (UiaNodeFromHandle: the provider
 // WM_GETOBJECT gives). Its field native (WinViews: an EDIT over the window):
 // the value set through UI Automation in it, a character typed into it in
-// the field's signal, Tab from it moving the window's focus on.
+// the field's signal, Tab from it moving the window's focus on; centred,
+// an EDIT made again ES_CENTER with the same text.
 //   WinAccessTest
 class WinAccessTest implements Markup {
 	static var failed = 0;
@@ -159,7 +160,16 @@ class WinAccessTest implements Markup {
 					step = 3;
 				case 3:
 					check("Tab from the EDIT: the window's focus on", w.ui.focus != null && w.ui.focus.tag == "save", w.ui.focus == null ? "none" : w.ui.focus.tag);
+					w.root.find("name").style.textAlign = Center;
 					step = 4;
+				case 4:
+					var eds:Array<WinEditor> = @:privateAccess WinViews.editors;
+					if (eds.length == 1) {
+						var style = WinEdit.GetWindowLongPtrW(@:privateAccess eds[0].hwnd, -16).toInt(); // GWL_STYLE
+						check("centred: the EDIT made again ES_CENTER", style & 3 == 1, "" + (style & 3));
+						check("centred: its text kept", @:privateAccess eds[0].text() == "Adax", @:privateAccess eds[0].text());
+					}
+					step = 5;
 					w.close();
 				case _:
 			}
@@ -167,7 +177,7 @@ class WinAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('WinAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 16 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 18 ? 0 : 1);
 	}
 }
 

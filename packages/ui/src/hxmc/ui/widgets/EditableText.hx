@@ -527,7 +527,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 			editor.setText(text, selectionStart, selectionEnd);
 			editorText = text;
 		}
-		var f = font(), c = textColor(), a = style.textAlign, bg = behind();
+		var f = font(), c = textColor(), a = style.textAlign ?? (rtl() ? Right : Left), bg = behind();
 		var key = f.family + "|" + f.size + "|" + f.weight + "|" + f.italic + "|" + (c : Int) + "|" + (bg : Int) + "|" + placeholder + "|" + (placeholderColor : Int) + "|" + a + "|" + secret;
 		if (key != editorStyle) {
 			editor.setStyle(f, c, bg, placeholder, placeholderColor, a, secret);
