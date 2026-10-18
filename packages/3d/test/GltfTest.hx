@@ -129,6 +129,13 @@ class GltfTest {
 		fails("an accessor out of its view", () -> Gltf.parse(edited('"count":36', '"count":3600')));
 		fails("a material out of range", () -> Gltf.parse(edited('"material":3}', '"material":30}')));
 		fails("a missing buffer file", () -> Gltf.parse(edited('"uri":"data:', '"uri":"x.bin","x":"')));
+		var lit = Gltf.parse(Bytes.ofString(edited('"scene":0,', '"scene":0,"extensions":{"KHR_lights_punctual":{"lights":[{"type":"point","color":[1,0.5,0],"intensity":20,"range":9},{"type":"directional"}]}},').toString()
+			.split('{"name":"ball","mesh":2').join('{"name":"ball","extensions":{"KHR_lights_punctual":{"light":0}},"mesh":2')));
+		var lights = [];
+		GltfNodes.build(lit, new World(), null, null, null, (n, k) -> lights.push(n.name + ":" + k));
+		check("KHR_lights_punctual", lit.lights.length == 2 && lit.lights[0].type == "point" && lit.lights[0].intensity == 20 && lit.lights[0].range == 9
+			&& near(lit.lights[0].color.y, 0.5) && lit.lights[1].intensity == 1 && lit.nodes[2].light == 0 && lights.join(",") == "ball:0");
+		fails("a light out of range", () -> Gltf.parse(Bytes.ofString(StringTools.replace(json, '{"name":"ball","mesh":2', '{"name":"ball","extensions":{"KHR_lights_punctual":{"light":3}},"mesh":2'))));
 		var resolved = false;
 		var doc = Gltf.parse(edited('"uri":"data:application/octet-stream;base64,', '"uri":"sample.bin","x":"'), uri -> {
 			resolved = uri == "sample.bin";

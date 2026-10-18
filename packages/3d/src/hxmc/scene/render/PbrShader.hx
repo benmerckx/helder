@@ -4,7 +4,8 @@ import hxmc.gfx.shader.*;
 import hxmc.gfx.shader.ShaderMath.*;
 
 // The renderer's shader (Renderer): glTF's metallic-roughness model lit by
-// a directional light and a sky-and-ground ambient, in linear light,
+// a directional light, up to four point lights and a sky-and-ground
+// ambient, in linear light,
 // tone mapped (ACES, Narkowicz's fit) and encoded to sRGB for an 8-bit
 // target. The specular term is Cook-Torrance: GGX's distribution, the
 // height-correlated Smith visibility and Schlick's Fresnel; the ambient's
@@ -35,6 +36,15 @@ import hxmc.gfx.shader.ShaderMath.*;
 	var exposure:Vec4; // x: exposure
 	var lightViewProj:Mat4; // the shadow map's view-projection (Shadows)
 	var shadow:Vec4; // x: strength (0: no shadows), y: bias, z: a texel of the map
+	// up to four point lights: position (w: range, 0 for none), colour times intensity
+	var point0:Vec4;
+	var point1:Vec4;
+	var point2:Vec4;
+	var point3:Vec4;
+	var pointColor0:Vec4;
+	var pointColor1:Vec4;
+	var pointColor2:Vec4;
+	var pointColor3:Vec4;
 }
 
 // per draw: the node's matrices
@@ -70,20 +80,15 @@ class PbrShader implements Shaders {
 		var n = normalize(i.normal);
 		var v = normalize(frame.eye.xyz - i.world);
 		var l = frame.lightDir.xyz;
-		var h = normalize(l + v);
-		var nl = max(dot(n, l), 0);
 		var nv = max(dot(n, v), 0.0001);
-		var nh = max(dot(n, h), 0);
-		var vh = max(dot(v, h), 0);
 		var a = rough * rough;
 		var a2 = a * a;
 		var f0 = mix(vec3(0.04), base, metallic);
-		var fresnel = f0 + (1 - f0) * pow(1 - vh, 5);
-		var dd = nh * nh * (a2 - 1) + 1;
-		var distribution = a2 / (3.14159265 * dd * dd);
-		var visibility = 0.5 / max(nl * sqrt(nv * nv * (1 - a2) + a2) + nv * sqrt(nl * nl * (1 - a2) + a2), 0.0001);
-		var diffuse = (1 - fresnel) * (1 - metallic) * base / 3.14159265;
-		var direct = (diffuse + fresnel * (distribution * visibility)) * frame.lightColor.xyz * nl * shadowed(frame, shadowMap, i.world, nl);
+		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * shadowed(frame, shadowMap, i.world, max(dot(n, l), 0));
+		direct += point(n, v, i.world, base, metallic, a2, f0, frame.point0, frame.pointColor0)
+			+ point(n, v, i.world, base, metallic, a2, f0, frame.point1, frame.pointColor1)
+			+ point(n, v, i.world, base, metallic, a2, f0, frame.point2, frame.pointColor2)
+			+ point(n, v, i.world, base, metallic, a2, f0, frame.point3, frame.pointColor3);
 		// the ambient: the sky and the ground blended by the normal (diffuse)
 		// and by the reflection (specular, Karis' fit of the split sum)
 		var up = n.y * 0.5 + 0.5;
@@ -99,6 +104,39 @@ class PbrShader implements Shaders {
 		var ambient = irradiance * base * (1 - metallic) + specularAmbient;
 		var color = (direct + ambient + material.emissive.xyz) * frame.exposure.x;
 		return vec4(encode(aces(color)), material.baseColor.w * texel.w);
+	}
+
+	// the light reflected towards v from a unit light along l, times n.l:
+	// Lambert's diffuse and Cook-Torrance's specular (GGX, height-correlated
+	// Smith, Schlick)
+	static function brdf(n:Vec3, v:Vec3, l:Vec3, base:Vec3, metallic:Float, a2:Float, f0:Vec3):Vec3 {
+		var h = normalize(l + v);
+		var nl = max(dot(n, l), 0);
+		var nv = max(dot(n, v), 0.0001);
+		var nh = max(dot(n, h), 0);
+		var vh = max(dot(v, h), 0);
+		var fresnel = f0 + (1 - f0) * pow(1 - vh, 5);
+		var dd = nh * nh * (a2 - 1) + 1;
+		var distribution = a2 / (3.14159265 * dd * dd);
+		var visibility = 0.5 / max(nl * sqrt(nv * nv * (1 - a2) + a2) + nv * sqrt(nl * nl * (1 - a2) + a2), 0.0001);
+		var diffuse = (1 - fresnel) * (1 - metallic) * base / 3.14159265;
+		return (diffuse + fresnel * (distribution * visibility)) * nl;
+	}
+
+	// a point light at pos.xyz (pos.w: its range, 0 for no light): the
+	// inverse square falloff windowed to reach 0 at the range (glTF's
+	// KHR_lights_punctual)
+	static function point(n:Vec3, v:Vec3, world:Vec3, base:Vec3, metallic:Float, a2:Float, f0:Vec3, pos:Vec4, color:Vec4):Vec3 {
+		var result = vec3(0);
+		if (pos.w > 0) {
+			var d = pos.xyz - world;
+			var dist2 = max(dot(d, d), 0.0001);
+			var dist = sqrt(dist2);
+			var q = dist / pos.w;
+			var window = clamp(1 - q * q * q * q, 0, 1);
+			result = brdf(n, v, d / dist, base, metallic, a2, f0) * color.xyz * (window * window / dist2);
+		}
+		return result;
 	}
 
 	// the direct light's share at a point (1: lit) from the shadow map: a

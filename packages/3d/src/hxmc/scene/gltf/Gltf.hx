@@ -207,6 +207,22 @@ class Gltf {
 			});
 			i++;
 		}
+		// (KHR_lights_punctual: lights at the root, a node's light by index)
+		var punctual = obj(obj(root, "extensions"), "KHR_lights_punctual");
+		i = 0;
+		for (l in list(punctual, "lights")) {
+			var type = str(l, "type", "");
+			if (type != "directional" && type != "point" && type != "spot") throw 'glTF: light $i: type $type';
+			var c = floats(l, "color");
+			doc.lights.push({
+				name: str(l, "name", ""),
+				type: type,
+				color: c != null && c.length == 3 ? new Vec3(c[0], c[1], c[2]) : new Vec3(1, 1, 1),
+				intensity: num(l, "intensity", 1),
+				range: num(l, "range", 0)
+			});
+			i++;
+		}
 		var nodes = list(root, "nodes");
 		i = 0;
 		for (n in nodes) {
@@ -219,6 +235,7 @@ class Gltf {
 				children: children,
 				mesh: index(n, "mesh", doc.meshes.length, what, true),
 				camera: index(n, "camera", doc.cameras.length, what, true),
+				light: index(obj(obj(n, "extensions"), "KHR_lights_punctual"), "light", doc.lights.length, what, true),
 				translation: t != null && t.length == 3 ? new Vec3(t[0], t[1], t[2]) : new Vec3(0, 0, 0),
 				rotation: r != null && r.length == 4 ? new Quat(r[0], r[1], r[2], r[3]) : Quat.identity(),
 				scale: s != null && s.length == 3 ? new Vec3(s[0], s[1], s[2]) : new Vec3(1, 1, 1),

@@ -86,7 +86,9 @@ renderer.draw(enc, world, camera);   // one pass into the frame
 The renderer extracts the world's meshes (`MeshRenderer`) into a draw
 list (shown nodes inside the view, sorted by pipeline and material), then
 records it with `PbrShader`: glTF's metallic-roughness model, the world's
-first directional `Light` (else `renderer.sun*`), a sky-and-ground
+first directional `Light` and up to four point lights
+(`Light.pointLight(color, intensity, range)`; a world without lights:
+`renderer.sun*`), a sky-and-ground
 ambient, ACES tone mapping, sRGB output. Shadows are opted in:
 `renderer.use(new Shadows(device))` (one shadow map for the directional
 light, fitted to the casters, filtered 3x3). `Shapes.box`, `sphere` and

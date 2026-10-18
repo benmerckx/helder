@@ -3,6 +3,7 @@ package hxmc.scene.gltf;
 import hxmc.gfx.Device;
 import hxmc.scene.Node;
 import hxmc.scene.World;
+import hxmc.scene.render.Light;
 import hxmc.scene.render.Material;
 import hxmc.scene.render.Mesh;
 import hxmc.scene.render.MeshRenderer;
@@ -12,7 +13,7 @@ import hxmc.scene.render.MeshRenderer;
 // (instantiate: GltfNodes' hierarchy, each node with a mesh drawing the
 // shared Mesh). Triangle primitives (positions, normals, uvs; normals
 // computed where the file has none); materials' factors (textures in a
-// later step).
+// later step); KHR_lights_punctual's lights as Light components.
 class GltfScene {
 	public final doc:GltfDoc;
 	public final meshes:Array<Mesh> = [];
@@ -43,7 +44,12 @@ class GltfScene {
 
 	// the document's scene (by default its own) as nodes of world, under parent
 	public function instantiate(world:World, ?parent:Node, ?scene:Int):Node
-		return GltfNodes.build(doc, world, parent, scene, (n, k) -> MeshRenderer.attach(n, meshes[k]));
+		return GltfNodes.build(doc, world, parent, scene, (n, k) -> MeshRenderer.attach(n, meshes[k]), (n, k) -> {
+			var l = doc.lights[k];
+			// (glTF's units: lux for the sun, candela for the others; spot lights as point lights for now)
+			Light.attach(n, l.type == "directional" ? Light.directional(l.color, l.intensity) : Light.pointLight(l.color, l.intensity,
+				l.range > 0 ? l.range : 1000));
+		});
 
 	// the GPU buffers released (the instances draw nothing after)
 	public function dispose(device:Device)

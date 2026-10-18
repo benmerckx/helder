@@ -22,6 +22,8 @@ class GltfDoc {
 	public var cameras:Array<GltfCamera> = [];
 	public var nodes:Array<GltfNode> = [];
 	public var scenes:Array<GltfSceneDef> = [];
+	// KHR_lights_punctual's lights
+	public var lights:Array<GltfLight> = [];
 	// the default scene (-1: none named; the first, if any)
 	public var scene = -1;
 	public var generator = "";
@@ -215,10 +217,19 @@ class GltfDoc {
 	public var children:Array<Int>;
 	public var mesh:Int;
 	public var camera:Int;
+	public var light:Int; // KHR_lights_punctual, -1: none
 	public var translation:Vec3;
 	public var rotation:Quat;
 	public var scale:Vec3;
 	public var matrix:Null<Array<Float>>; // 16 values, column by column: instead of translation, rotation and scale
+}
+
+@:structInit class GltfLight {
+	public var name:String;
+	public var type:String; // directional, point, spot
+	public var color:Vec3;
+	public var intensity:Float;
+	public var range:Float; // 0: infinite
 }
 
 @:structInit class GltfSceneDef {

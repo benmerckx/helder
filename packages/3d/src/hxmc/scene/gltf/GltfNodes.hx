@@ -11,10 +11,11 @@ import hxmc.scene.World;
 // one new node (under parent, by default the world's root); cameras made
 // from the document's; what a node's mesh becomes is the caller's
 // (mesh(node, index): attach the renderer's own mesh, made once per glTF
-// mesh), so the hierarchy needs no renderer. Each call instantiates the
+// mesh; light(node, index) the same for KHR_lights_punctual's lights), so
+// the hierarchy needs no renderer. Each call instantiates the
 // document again (a prefab).
 class GltfNodes {
-	public static function build(doc:GltfDoc, world:World, ?parent:Node, ?scene:Int, ?mesh:(Node, Int) -> Void):Node {
+	public static function build(doc:GltfDoc, world:World, ?parent:Node, ?scene:Int, ?mesh:(Node, Int) -> Void, ?light:(Node, Int) -> Void):Node {
 		var s = scene != null ? scene : doc.scene;
 		var top = world.node(s >= 0 && s < doc.scenes.length ? doc.scenes[s].name : "gltf", parent);
 		function make(k:Int, under:Node) {
@@ -30,6 +31,7 @@ class GltfNodes {
 				n.scale = g.scale;
 			}
 			if (g.mesh >= 0 && mesh != null) mesh(n, g.mesh);
+			if (g.light >= 0 && light != null) light(n, g.light);
 			if (g.camera >= 0) {
 				var c = doc.cameras[g.camera];
 				Camera.attach(n, c.perspective ? Camera.perspective(c.yfov, c.znear, c.zfar > 0 ? c.zfar : 1000) : Camera.orthographic(2 * c.ymag,

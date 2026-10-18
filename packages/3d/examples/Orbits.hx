@@ -1,5 +1,5 @@
 // title: Orbits
-// summary: A small solar system as a scene graph: planets on turning nodes, a moon on a planet's, a fixed-step clock, a sun as a directional light; shapes made in code
+// summary: A small solar system as a scene graph: planets on turning nodes, a moon on a planet's, a fixed-step clock, the star a point light; shapes made in code
 // tags: 3d, scene graph, pbr
 // demo: canvas 512x384
 import hxmc.gfx.*;
@@ -33,10 +33,8 @@ class Orbits {
 		renderer.ground = new Vec3(0.03, 0.03, 0.04);
 		var star = world.node("star");
 		MeshRenderer.attach(star, Shapes.sphere(device, new Material("star", new Vec4(1, 0.8, 0.4, 1), 0, 1, new Vec3(1.1, 0.6, 0.15)), 0.8));
-		// (the light: from the upper left, standing in for the star's)
-		var sun = world.node("sun");
-		Light.attach(sun, Light.directional(new Vec3(1, 0.95, 0.85), 2.4));
-		sun.rotation = Quat.fromEuler(-0.6, -0.7, 0);
+		// (the star's light: a point light at its centre)
+		Light.attach(star, Light.pointLight(new Vec3(1, 0.9, 0.75), 11, 30));
 		var planets = [
 			{r: 1.8, size: 0.26, speed: 1.1, color: new Vec4(0.6, 0.6, 0.62, 1), metal: 0.0, rough: 0.8},
 			{r: 2.9, size: 0.42, speed: 0.7, color: new Vec4(0.15, 0.4, 0.95, 1), metal: 0.0, rough: 0.35},

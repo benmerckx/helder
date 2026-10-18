@@ -12,8 +12,9 @@ import hxmc.scene.math.MathTools;
 import hxmc.scene.render.PbrShader;
 
 // Draws a world's meshes (MeshRenderer) as seen by a camera, lit by its
-// first directional Light (else the renderer's sun) and an ambient from
-// the sky and the ground, with PbrShader. Two stages:
+// first directional Light and up to four point Lights (a world without
+// lights: the renderer's sun) and an ambient from the sky and the ground,
+// with PbrShader. Two stages:
 //
 //   extract   the world's meshes into a flat draw list: the nodes shown,
 //             their bounds inside the camera's view, a draw per primitive
@@ -55,6 +56,9 @@ class Renderer {
 	final pass:PassDesc;
 	// the draw list: entries kept between frames, count of them in use
 	final list:Array<DrawItem> = [];
+	// (the frame's point lights: position and range, colour)
+	final pointLights:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, 0)];
+	final pointColors:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, 0)];
 	var count = 0;
 
 	public function new(device:Device) {
@@ -130,14 +134,26 @@ class Renderer {
 		var eye = camera.eye();
 		var l = sunDirection, c = sunColor;
 		var lights = world.store(Light.KIND);
-		for (k in 0...lights.length)
-			if (lights.nodeAt(k).shown()) {
-				var light = lights.valueAt(k);
+		var sun = false, points = 0;
+		for (k in 0...4)
+			pointLights[k] = pointColors[k] = new Vec4(0, 0, 0, 0);
+		for (k in 0...lights.length) {
+			var node = lights.nodeAt(k), light = lights.valueAt(k);
+			if (!node.shown() || !world.inTree(node)) continue;
+			if (light.point) {
+				if (points == 4) continue;
+				var p = node.worldPosition(), q = light.color * light.intensity;
+				pointLights[points] = new Vec4(p.x, p.y, p.z, light.range);
+				pointColors[points++] = new Vec4(q.x, q.y, q.z, 0);
+			} else if (!sun) {
 				// (it shines down its node's -z: the light is towards +z)
-				l = MathTools.transformDir(lights.nodeAt(k).worldMatrix(), new Vec3(0, 0, 1));
+				l = MathTools.transformDir(node.worldMatrix(), new Vec3(0, 0, 1));
 				c = light.color * light.intensity;
-				break;
+				sun = true;
 			}
+		}
+		// (lights in the world but no directional one: no sun)
+		if (!sun && lights.length > 0) c = new Vec3(0, 0, 0);
 		l = l / Math.sqrt(l.x * l.x + l.y * l.y + l.z * l.z);
 		PbrShader.writePbrFrame({
 			viewProj: viewProj,
@@ -148,7 +164,15 @@ class Renderer {
 			ground: new Vec4(ground.x, ground.y, ground.z, 0),
 			exposure: new Vec4(exposure, 0, 0, 0),
 			lightViewProj: shadowed ? shadows.viewProj : Mat4.identity(),
-			shadow: shadowed ? new Vec4(shadows.strength, shadows.bias, 1 / shadows.size, 0) : new Vec4(0, 0, 0, 0)
+			shadow: shadowed ? new Vec4(shadows.strength, shadows.bias, 1 / shadows.size, 0) : new Vec4(0, 0, 0, 0),
+			point0: pointLights[0],
+			point1: pointLights[1],
+			point2: pointLights[2],
+			point3: pointLights[3],
+			pointColor0: pointColors[0],
+			pointColor1: pointColors[1],
+			pointColor2: pointColors[2],
+			pointColor3: pointColors[3]
 		}, frameBytes);
 		return l;
 	}
