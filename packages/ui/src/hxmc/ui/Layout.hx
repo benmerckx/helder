@@ -256,7 +256,9 @@ class Layout {
 		// (where lines break: the main size, else a row's room within its min and max, else the max:
 		// a column of auto height breaks only at its max-height)
 		var finiteMax = maxMain < Math.POSITIVE_INFINITY ? maxMain : Math.NaN;
-		var breakAt = known(innerMain) ? innerMain : row && known(availMain) ? clamp(availMain, Math.max(0, minMain), maxMain) : !row
+		// (a wrapping row's room: no narrower than its min-content, its widest item, as fit-content has it)
+		var room = row && multi && !known(innerMain) && known(availMain) ? Math.max(availMain, minContentWidth(n, Math.NaN, false) - padH) : availMain;
+		var breakAt = known(innerMain) ? innerMain : row && known(room) ? clamp(room, Math.max(0, minMain), maxMain) : !row
 			&& known(bareBreak) ? Math.max(0, bareBreak - padV) : finiteMax;
 		for (i in first...itemTop) {
 			var it = items[i];
@@ -290,7 +292,7 @@ class Layout {
 				content = t;
 			}
 			// (a row shrinks to fit the room; a column's auto height is its content's, the room or not)
-			mainSize = known(availMain) && row ? Math.min(content, availMain) : content;
+			mainSize = known(room) && row ? Math.min(content, room) : content;
 			mainSize = clamp(mainSize, Math.max(0, minMain), maxMain);
 			// (a row whose items' widths are percentages of its own: laid out again at the width
 			// found, which they resolve against then, their lines broken there, as Chromium does)

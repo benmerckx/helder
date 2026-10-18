@@ -6382,5 +6382,45 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "wrapping row narrower than its widest item",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"alignItems": "Start",
+						"maxWidth": 10
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "RowReverse",
+								"wrap": true
+							},
+							"children": [
+								{
+									"style": {
+										"padding": 8
+									}
+								},
+								{
+									"style": {
+										"margin": 6
+									}
+								},
+								{
+									"style": {
+										"borderWidth": 1
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]

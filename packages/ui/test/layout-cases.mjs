@@ -242,4 +242,6 @@ export const cases = [
 	{ name: 'wrapping column basis, a percentage max-height', width: 300, height: 200, tree: { children: [{ children: [{ style: { minHeight: 34 } }, { style: { wrap: true, maxHeight: '50%' }, children: [{ style: { padding: 8, margin: 3 } }, { style: { padding: 1, margin: 2 } }, { style: { padding: 4 } }] }] }] } },
 	// (a wrapping column's automatic minimum: its lines unbroken at its own height when that is a percentage)
 	{ name: 'wrapping column minimum, a percentage height', width: 300, height: 200, tree: { children: [{ style: { height: 113 }, children: [{ style: { wrap: true, basis: 4, height: '100%' }, children: [{ style: { height: 76 } }, { style: { height: 30, margin: 4 } }] }] }] } },
+	// (a wrapping row with less room than its widest item: its lines broken at its fit-content width, that item's)
+	{ name: 'wrapping row narrower than its widest item', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Start', maxWidth: 10 }, children: [{ style: { direction: 'RowReverse', wrap: true }, children: [{ style: { padding: 8 } }, { style: { margin: 6 } }, { style: { borderWidth: 1 } }] }] }] } },
 ];
