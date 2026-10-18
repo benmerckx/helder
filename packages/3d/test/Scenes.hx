@@ -8,8 +8,11 @@ import hxmc.scene.render.*;
 // browser), each a frame against packages/3d/test/<name>.png:
 //   gltf   the sample glTF scene (examples/sample.glb) from its camera,
 //          lit by the renderer's sun and sky
+//   orbits the Orbits example (shapes made in code on a scene graph, a
+//          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf"];
+	public static final NAMES = ["gltf", "orbits"];
+	public static inline var TIME = 2.0;
 
 	public static function make(name:String, device:Device):Encoder->Void {
 		return switch name {
@@ -19,6 +22,10 @@ class Scenes {
 				new GltfScene(Gltf.parse(Asset.embed("sample.glb")), device).instantiate(world);
 				var camera = Camera.first(world);
 				enc -> renderer.draw(enc, world, camera);
+			case "orbits":
+				var orbits = new Orbits(device);
+				orbits.at(TIME);
+				enc -> orbits.draw(enc);
 			case n: throw 'Scenes: no scene $n';
 		}
 	}

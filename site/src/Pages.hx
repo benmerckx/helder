@@ -426,7 +426,7 @@ class Pages implements Markup {
 	// --- Examples ---
 
 	static function ExamplesPage(props:{examples:Array<Example>}):View {
-		var order = ["gfx", "ui", "text", "os", "view", "web"];
+		var order = ["gfx", "3d", "ui", "text", "os", "view", "web"];
 		var sorted = props.examples.copy();
 		sorted.sort((a, b) -> order.indexOf(a.pkg) - order.indexOf(b.pkg));
 		var groups = [for (p in order) if (Lambda.exists(sorted, e -> e.pkg == p)) p];
