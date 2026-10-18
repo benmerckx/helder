@@ -78,7 +78,7 @@ class App {
 	public static function wait(seconds:Float) {
 		#if hxmc.dev
 		// (hxmc dev: awake for the dev server's messages, which turn reads)
-		if (seconds < 0 || seconds > 0.05) seconds = 0.05;
+		if (seconds < 0 || seconds > 0.01) seconds = 0.01;
 		#end
 		if (Mem.platform() >= 1) UIKitWindow.wait(seconds) else if (Mem.os() == 1) CocoaWindow.wait(seconds) else if (Mem.os() == 2) Win32Window.wait(seconds) else if (Mem.os() == 3) {} else if (Mem.target() >= 9)
 			AndroidWindow.wait(seconds) else X11Window.wait(seconds);
