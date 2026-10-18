@@ -11,6 +11,8 @@ import hxmc.os.*;
 //   3  + the glTF reader (Gltf.parse of the sample scene, GltfNodes)
 //   4  + the renderer (GltfScene, Renderer, PbrShader: the scene drawn)
 //   5  + shadows (Shadows: a shadow map pass)
+//   6  + input actions (Actions)
+//   7  + keyframe animation (AnimationClip, Animator)
 class Size {
 	static function main() {
 		var window = new Window("Size", 320, 240);
@@ -42,9 +44,27 @@ class Size {
 		#end
 		new hxmc.scene.gltf.GltfScene(doc, device).instantiate(world);
 		#end
+		#if (size_level >= 6)
+		var actions = new hxmc.scene.input.Actions().bind("turn", KeyAxis(0xFF51, 0xFF53));
+		#end
+		#if (size_level >= 7)
+		var made = [];
+		hxmc.scene.gltf.GltfNodes.build(doc, world, null, null, null, null, made);
+		var animator = new hxmc.scene.anim.Animator(made);
+		animator.play(hxmc.scene.anim.AnimationClip.fromGltf(doc, 0));
+		#end
 		App.run(() -> {
 			#if (size_level >= 2)
-			clock.advance(1 / 60, dt -> eye.position = eye.position + new Vec3(0, 0, dt * 0.01));
+			clock.advance(1 / 60, dt -> {
+				eye.position = eye.position + new Vec3(0, 0, dt * 0.01);
+				#if (size_level >= 6)
+				actions.step();
+				eye.position = eye.position + new Vec3(actions.axis("turn") * dt, 0, 0);
+				#end
+				#if (size_level >= 7)
+				animator.update(dt);
+				#end
+			});
 			#end
 			var enc = device.beginFrame();
 			if (enc == null) return;
@@ -55,6 +75,11 @@ class Size {
 			enc.endPass();
 			#end
 			device.endFrame();
-		}, e -> if (e.kind == Close) window.close());
+		}, e -> {
+			#if (size_level >= 6)
+			actions.event(e);
+			#end
+			if (e.kind == Close) window.close();
+		});
 	}
 }
