@@ -1809,11 +1809,11 @@ class Widgets implements Markup {
 					e.preventDefault();
 					store();
 				}}>
-				<div data-slot="color-picker-thumb" style={() -> 'position:absolute;left:${sat.value * size}px;top:${(1 - val.value) * size}px;transform:translate(-50%,-50%)'}/>
+				<div data-slot="color-picker-thumb" style={() -> 'position:absolute;width:14px;height:14px;left:${sat.value * size}px;top:${(1 - val.value) * size}px;transform:translate(-50%,-50%)'}/>
 			</div>
 			<div data-slot="color-picker-hue" role="slider" tabindex="0" ref={n -> strip = cast n} aria-label={name + ": hue"} aria-valuenow={() -> Math.round(hue.value)}
 				aria-valuemin="0" aria-valuemax="359" aria-valuetext={() -> Math.round(hue.value) + "°"}
-				style={'width:${size}px;background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)'} onPointerDown={hu.d} onPointerMove={hu.m}
+				style={'width:${size}px;height:12px;background:linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)'} onPointerDown={hu.d} onPointerMove={hu.m}
 				onPointerUp={hu.u} onKeyDown={(e:KeyboardEvent) -> {
 					var d = e.shiftKey ? 10 : 1;
 					switch Dom.key(e) {
@@ -1826,10 +1826,10 @@ class Widgets implements Markup {
 					e.preventDefault();
 					store();
 				}}>
-				<div data-slot="color-picker-thumb" data-hue="" style={() -> 'position:absolute;left:${hue.value / 360 * size}px;top:50%;transform:translate(-50%,-50%);background:${Behaviour.hsv(hue.value, 1, 1).toHex().substr(0, 7)}'}/>
+				<div data-slot="color-picker-thumb" data-hue="" style={() -> 'position:absolute;width:14px;height:14px;left:${hue.value / 360 * size}px;top:50%;transform:translate(-50%,-50%);background:${Behaviour.hsv(hue.value, 1, 1).toHex().substr(0, 7)}'}/>
 			</div>
 			<div data-slot="color-picker-row">
-				<div data-slot="color-picker-swatch" style={() -> 'flex-shrink:0;background:${props.value.value.toHex().substr(0, 7)}'}/>
+				<div data-slot="color-picker-swatch" style={() -> 'flex-shrink:0;width:36px;height:36px;background:${props.value.value.toHex().substr(0, 7)}'}/>
 				<div style="flex:1" dir="ltr"><Input value={hex} label={name + ": hex"}/></div>
 			</div>
 		</div>;
