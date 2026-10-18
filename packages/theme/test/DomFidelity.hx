@@ -1,6 +1,6 @@
 import hxmc.ui.widgets.Toasts;
 import hxmc.view.*;
-import hxmc.web.widgets.Widgets.*;
+import hxmc.ui.widgets.Widgets.*;
 import hxmc.web.widgets.Widgets.MenuItem;
 import hxmc.web.widgets.Widgets.DayRange;
 import js.Browser.document;

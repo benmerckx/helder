@@ -157,7 +157,14 @@ place of `hxmc.ui.widgets.Widgets.*`, or keep ui's import: ui's widgets
 are its renderer's only (`@:renderer`, packages/view/README.md), and in
 the DOM's renderer's markup each is the DOM's of the same name, so one
 component serves a canvas and a page (`examples/WidgetCounter.hx`; ui's
-sources on the class path, `-cp`, not `-lib hxmc.ui`).
+sources on the class path, `-cp`, not `-lib hxmc.ui`). A ui widget of one
+definition for both (`@:neutral`: Badge so far) is no DOM copy at all:
+DomRenderer realises its neutral elements at compile time (NeutralMacro:
+`view` a `div`, `text` a `span`, `view:button` a `button`...; `slot`,
+`variant`, `size` as `data-*`, `label`, `checked`, `expanded`... as
+`aria-*`, `focusable` as `tabindex`, `id` as it is, ui's `tag` none,
+StyleProps as inline style; events as ui's Event, `onPress` a click; a
+name it has not an error), a ref getting an `ElementPart`.
 
 ```haxe
 import hxmc.web.widgets.Widgets.*;

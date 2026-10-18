@@ -8,7 +8,8 @@
 // documented and shown with it; popup: its parts show only when the user
 // opens it), and its example
 // (examples/widgets/<Name>Example.hx) when there is one; host: "drawn"
-// (hxmc.ui's own) unless the metadata says otherwise.
+// (hxmc.ui's own) unless the metadata says otherwise; neutral: one
+// definition for both renderers (@:neutral: its elements the neutral ones).
 //   WidgetDocs <Widgets.hx> <examples dir> [out.json]
 class WidgetDocs {
 	// (the props most widgets take, documented once)
@@ -39,9 +40,9 @@ class WidgetDocs {
 				i++;
 				continue;
 			}
-			var fn = ~/^\tpublic static function ([A-Z][A-Za-z]*)(<[^>]*>)?\(/;
+			var fn = ~/^\t(@:neutral )?public static function ([A-Z][A-Za-z]*)(<[^>]*>)?\(/;
 			if (fn.match(l)) {
-				var name = fn.matched(1);
+				var name = fn.matched(2), neutral = fn.matched(1) != null;
 				// (the signature to its return type, the body to the next member)
 				var sig = l, j = i;
 				while (sig.indexOf("):") < 0 && j + 1 < lines.length)
@@ -50,7 +51,9 @@ class WidgetDocs {
 				j++;
 				while (j < lines.length && !~/^\t(\/\/|public|static|@:)/.match(lines[j]) && lines[j] != "}")
 					body.push(lines[j++]);
-				out.push(widget(name, comment.join(" "), sig, body.join("\n"), meta, examples));
+				var w = widget(name, comment.join(" "), sig, body.join("\n"), meta, examples);
+				if (neutral) w.neutral = true;
+				out.push(w);
 				comment = [];
 				meta = null;
 				i = j;

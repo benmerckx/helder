@@ -14,10 +14,12 @@ import hxmc.ui.*;
 // Node with Overflow Scroll), image (an ImageNode: src, an Image, an
 // AnimatedImage, played, or an Svg, drawn in the node's color; object-position
 // ("left top", CSS's), its place; fit, "fill",
-// "contain", "cover" or "none"); elements registers more. Their
+// "contain", "cover" or "none"), icon (an image, its Svg); view:button,
+// view:label... and text:p, text:h2... (a view, a text: the element of that
+// name where a page's renderer realises them, hxmc.web's); elements registers more. Their
 // attributes: Style properties (StyleAttrs: direction="row", padding={8},
 // background="#3b82f6"; style={StyleProps} for several), the events
-// (onClick, onPointerDown, onPointerUp, onPointerMove, onPointerEnter,
+// (onClick, onPress (a click, or Enter or Space: Node.onActivate), onPointerDown, onPointerUp, onPointerMove, onPointerEnter,
 // onPointerLeave, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
@@ -73,6 +75,10 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 				n.style.overflow = Scroll;
 				n;
 			case "image": new ImageNode();
+			case "icon": new ImageNode(null, "icon");
+			// (the neutral elements' DOM names: a view or text here, their element in a page)
+			case t if (StringTools.startsWith(t, "view:")): new Node(t.substr(5));
+			case t if (StringTools.startsWith(t, "text:")): new TextNode("", t.substr(5));
 			case _: registered(tag);
 		}
 
@@ -160,8 +166,22 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 	@:attribute static function text(n:Node, name:String, v:Dynamic)
 		if (Std.isOfType(n, TextNode)) (cast n : TextNode).text = v == null ? "" : Std.string(v) else noAttribute(n, name);
 
+	// (the neutral elements are its own: MarkupMacro compiles them as they are)
+	public static inline var neutralNative = true;
+
+	// (a part's own style, a function of its states: States.apply)
+	@:attribute static function states(n:Node, name:String, v:Dynamic)
+		if (v != null) States.apply(n, v);
+
+	// (null: its tag as it is)
 	@:attribute static function tag(n:Node, name:String, v:Dynamic)
-		n.tag = v;
+		if (v != null) n.tag = v;
+
+	// (a page's element's id, where a page's renderer realises a neutral element: none here, Node.find takes tag;
+	// a label's for, html-for, none either)
+	@:attribute static function id(n:Node, name:String, v:Dynamic) {}
+
+	@:attribute static function htmlFor(n:Node, name:String, v:Dynamic) {}
 
 	// (what a theme styles it as: Rule)
 	@:attribute static function slot(n:Node, name:String, v:Dynamic)
@@ -299,6 +319,7 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 		var h:Null<Event->Void> = v;
 		switch name {
 			case "onClick": n.onClick = h;
+			case "onPress": n.onActivate = h;
 			case "onPointerDown": n.onPointerDown = h;
 			case "onPointerUp": n.onPointerUp = h;
 			case "onPointerMove": n.onPointerMove = h;

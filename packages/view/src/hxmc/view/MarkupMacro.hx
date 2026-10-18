@@ -30,22 +30,31 @@ using haxe.macro.ExprTools;
 // the others' code a throw; its components, in another renderer's
 // markup, the function of the same name of the class it names for that
 // renderer (@:renderer(..., hxmc.web.DomRenderer => hxmc.web.widgets.Widgets):
-// Pick), else an error naming it and the renderer.
+// Pick), else an error naming it and the renderer. A function of such a
+// class marked @:neutral is for every renderer: its literals compiled for
+// each, itself in each's markup (a single-source widget: its elements the
+// neutral ones, view, text, view:button..., each renderer realising them).
 class MarkupMacro {
 	@:allow(hxmc.view.Literal) static var count = 0;
 
 	// the Markup interface's build macro: every field's literals
 	public static function build():Array<Field> {
 		var fields = Context.getBuildFields();
-		for (f in fields)
+		for (f in fields) {
+			neutralField = Lambda.exists(f.meta, m -> m.name == ":neutral");
 			switch f.kind {
 				case FFun(fn) if (fn.expr != null): fn.expr = transform(fn.expr);
 				case FVar(t, e) if (e != null): f.kind = FVar(t, transform(e));
 				case FProp(g, s, t, e) if (e != null): f.kind = FProp(g, s, t, transform(e));
 				case _:
 			}
+		}
+		neutralField = false;
 		return fields;
 	}
+
+	// (the field being built is @:neutral: its literals for every renderer, its class's @:renderer aside)
+	@:allow(hxmc.view.Literal) static var neutralField = false;
 
 	// e with its markup literals compiled
 	public static function transform(e:Expr):Expr
@@ -77,6 +86,7 @@ class MarkupMacro {
 	static function limited(callee:Expr):Null<{field:String, cls:String, only:Array<String>, other:Map<String, Expr>}> {
 		var t = try Context.typeExpr(callee) catch (_:Dynamic) return null;
 		return switch t.expr {
+			case TField(_, FStatic(c, cf)) if (cf.get().meta.has(":neutral")): null;
 			case TField(_, FStatic(c, cf)):
 				var l = limits(c.get().meta);
 				l == null ? null : {field: cf.get().name, cls: c.get().name, only: l.only, other: l.other};
@@ -102,7 +112,9 @@ class MarkupMacro {
 	public static function pickCall(callee:Expr, props:Expr):Expr {
 		if (limited(callee) == null) return macro @:pos(callee.pos) $callee($props);
 		// (a renderer the literal's class is not for: never mounted there)
-		var cls = Context.getLocalClass(), own = cls == null ? null : limits(cls.get().meta), rs = HostMacro.renderers();
+		var cls = Context.getLocalClass(), method = Context.getLocalMethod(), rs = HostMacro.renderers();
+		var neutral = cls != null && method != null && Lambda.exists(cls.get().statics.get().concat(cls.get().fields.get()), f -> f.name == method && f.meta.has(":neutral"));
+		var own = cls == null || neutral ? null : limits(cls.get().meta);
 		var cases:Array<Case> = [
 			for (i in 0...rs.length) {
 				values: [macro $v{i}],
@@ -186,13 +198,16 @@ class Literal {
 		var rs = HostMacro.renderers();
 		var cases:Array<Case> = [];
 		var only:Null<Expr> = null;
-		var cls = Context.getLocalClass(), limits = cls == null ? null : MarkupMacro.limits(cls.get().meta);
+		var cls = Context.getLocalClass(), own = cls == null ? null : MarkupMacro.limits(cls.get().meta);
+		var limits = MarkupMacro.neutralField ? null : own;
 		for (i in 0...rs.length) {
 			pass = i;
 			cursor = 0;
-			var body = forRenderer(mountBody(root), i);
+			// (a renderer the class is not for realising no neutral elements: a throw, a neutral function's too)
+			var unrealised = own != null && own.only.indexOf(rs[i].path) < 0 && !HostMacro.hasNeutral(i) && !HostMacro.isNeutralNative(i);
+			var body = forRenderer(mountBody(root), i, unrealised);
 			// (a renderer the class's literals are not for: its holes found again, its code a throw)
-			if (limits != null && limits.only.indexOf(rs[i].path) < 0)
+			if (limits != null && limits.only.indexOf(rs[i].path) < 0 || unrealised)
 				body = [macro @:pos(pos) throw $v{"hxmc.view: " + cls.get().name + " markup is not for " + rs[i].path + " (@:renderer)"}];
 			var n = rs[i].node;
 			var typed = macro {
@@ -224,10 +239,32 @@ class Literal {
 	// the code made for a renderer: __HOST__ its class, __RT__ its runtime (a
 	// reactive attribute with a literal name bound with the renderer's setter
 	// for that name, when it has setter: Renders)
-	static function forRenderer(body:Array<Expr>, i:Int):Array<Expr> {
-		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i), setter = HostMacro.hasSetter(i);
+	static function forRenderer(body:Array<Expr>, i:Int, unrealised = false):Array<Expr> {
+		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i), setter = HostMacro.hasSetter(i), neutral = HostMacro.hasNeutral(i),
+			native = HostMacro.isNeutralNative(i);
 		function sub(e:Expr):Expr
 			return switch e.expr {
+				// (a neutral element: the renderer's neutral functions, else its own)
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, _)}, _) if (unrealised):
+					macro null;
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, f)}, args) if (!neutral && !native):
+					Context.error("markup: " + HostMacro.renderers()[i].path + " realises no neutral elements (view, text, view:button...: neutralElement and the rest, or neutralNative)", e.pos);
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, f)}, args):
+					var a = [for (x in args) sub(x)];
+					switch [f, neutral] {
+						case ["element", true]: macro @:pos(e.pos) $p{host}.neutralElement(${a[0]});
+						case ["element", false]: macro @:pos(e.pos) $p{host}.createElement(${a[0]});
+						case ["property", true]: macro @:pos(e.pos) $p{host}.neutralProperty(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});
+						case ["property", false]: macro @:pos(e.pos) $p{host}.setProperty(${a[0]}, ${a[2]}, ${a[3]});
+						case ["prop", true]: macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, ${a[2]}, ${a[3]}, $p{host}.neutralSetter(${a[1]}, ${a[2]}));
+						case ["prop", false] if (setter): macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, ${a[2]}, ${a[3]}, $p{host}.setter(${a[2]}));
+						case ["prop", false]: macro @:pos(e.pos) $p{rt}.prop(${a[0]}, ${a[2]}, ${a[3]});
+						case ["listen", true]: macro @:pos(e.pos) $p{host}.neutralListen(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});
+						case ["listen", false]: macro @:pos(e.pos) $p{host}.listen(${a[0]}, ${a[2]}, ${a[3]});
+						case ["part", true]: macro @:pos(e.pos) $p{host}.part(${a[0]});
+						case ["part", false]: a[0];
+						case _: throw "markup: " + f;
+					}
 				case EConst(CIdent("__HOST__")): macro @:pos(e.pos) $p{host};
 				case EConst(CIdent("__RT__")): macro @:pos(e.pos) $p{rt};
 				case ECall({expr: EField({expr: EConst(CIdent("__RT__"))}, "prop")}, [el, name = {expr: EConst(CString(s, _))}, v]) if (setter):
@@ -298,15 +335,20 @@ class Literal {
 
 	// an element: made, put in parent (top: before __b, pushed to __o), its
 	// attributes, its children
+	// (the neutral elements: ui's own, a page's renderer realising them as its elements)
+	static function isNeutral(name:String):Bool
+		return ["view", "text", "scroll", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
+
 	function element(name:String, attrs:Array<PAttr>, children:Array<PNode>, parent:Expr, top:Bool):Array<Expr> {
 		var v = fresh("e");
 		var e = macro $i{v};
+		var neutral = isNeutral(name);
 		var out = [
-			macro @:pos(pos) var $v = __HOST__.createElement($v{name}),
+			neutral ? macro @:pos(pos) var $v = __NEUTRAL__.element($v{name}) : macro @:pos(pos) var $v = __HOST__.createElement($v{name}),
 			top ? macro @:pos(pos) __RT__.put($parent, $e, __b, __o) : macro @:pos(pos) __HOST__.insert($parent, $e, null)
 		];
 		for (a in attrs) {
-			var s = attr(e, a);
+			var s = attr(e, a, neutral ? name : null);
 			if (s != null) out.push(s);
 		}
 		var kids = clean(children);
@@ -374,10 +416,11 @@ class Literal {
 		}].join("")};
 
 	// an attribute's statement (null: none, as key)
-	function attr(e:Expr, a:PAttr):Null<Expr> {
+	function attr(e:Expr, a:PAttr, ?tag:String):Null<Expr> {
 		var name = a.name;
 		var event = StringTools.startsWith(name, "on") && name.length > 2;
 		var ap = MarkupMacro.position(file, base + a.at, name.length);
+		if (tag != null) return neutralAttr(e, a, tag, event, ap);
 		return switch a.value {
 			case AStatic(_) | AFlag:
 				var v = switch a.value {
@@ -407,6 +450,38 @@ class Literal {
 			case ASpread(code, at):
 				var h = hole(MarkupMacro.expr(code, file, base + at, true));
 				macro @:pos(ap) __RT__.spread($e, $h);
+		}
+	}
+
+	// a neutral element's attribute: through the renderer's neutral functions where it has them
+	function neutralAttr(e:Expr, a:PAttr, tag:String, event:Bool, ap:Position):Null<Expr> {
+		var name = a.name;
+		if (name == "key") return null;
+		return switch a.value {
+			case AStatic(_) | AFlag:
+				var v = switch a.value {
+					case AStatic(s): macro $v{s};
+					case _: macro true;
+				}
+				event ? macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $v) : macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $v);
+			case AExpr(code, at):
+				var x = MarkupMacro.expr(code, file, base + at, true);
+				// (a literal, or tag and id, one renderer's only (ui's Node.find, a page's id): in each pass,
+				// dropped where its renderer has no use for it)
+				if (!event && name != "ref" && (name == "tag" || name == "id" || x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes)))))
+					return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $x);
+				// (states: a function of a part's states, its own style: set once, not bound)
+				if (name == "states") return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, ${hole(x)});
+				var h = hole(x);
+				if (event) macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $h);
+				// (a part made only for a ref given)
+				else if (name == "ref") macro @:pos(ap) {
+					var r:Dynamic = $h;
+					if (r != null) (r : Dynamic -> Void)(__NEUTRAL__.part($e));
+				};
+				else macro @:pos(ap) __NEUTRAL__.prop($e, $v{tag}, $v{name}, $h);
+			case ASpread(_, at):
+				Context.error("markup: a neutral element's attributes are named (no spread: each one realised when compiled)", MarkupMacro.position(file, base + at, 3));
 		}
 	}
 

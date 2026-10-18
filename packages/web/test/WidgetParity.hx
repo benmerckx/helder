@@ -3,16 +3,15 @@
 // ui widget a DOM one of the same name, with the same props: names, types,
 // whether optional, and the defaults both state (tag, the DOM's element id,
 // and style, a function of a drawn node's states, aside). A difference not
-// in KNOWN fails, as one in KNOWN that is gone (its entry then removed):
+// in KNOWN fails, as one in KNOWN that is gone (its entry then removed); a
+// widget of one definition for both (@:neutral) has no DOM copy:
 // the two sets drift apart only knowingly, until each widget is one
 // definition for both (docs/plans/native-or-drawn.md).
 //   WidgetParity <ui Widgets.hx> <web Widgets.hx>
 class WidgetParity {
 	// the differences known, by widget, and why
 	static final KNOWN = [
-		"Button" => "label: the DOM's any content (Dynamic), ui's a String",
 		"Checkbox" => "invalid: the DOM's only (aria-invalid)",
-		"Label" => "htmlFor: the DOM's only (a <label>'s for)",
 		"FieldLabel" => "htmlFor: the DOM's only (a <label>'s for)",
 		"Input" => "type: the DOM's only (an <input>'s type)",
 		"Select" => "size: ui's only (data-size)",
@@ -38,6 +37,12 @@ class WidgetParity {
 		}
 		for (u in ui) {
 			var name:String = u.name, d = byName.get(name);
+			// (one definition for both: no DOM copy to differ, none to keep)
+			if (u.neutral == true) {
+				if (d != null) fail('$name: one definition for both (@:neutral), its DOM copy still there');
+				if (KNOWN.exists(name)) fail('$name: one definition for both (@:neutral); KNOWN\'s entry is stale');
+				continue;
+			}
 			if (d == null) {
 				fail('$name: no DOM version');
 				continue;

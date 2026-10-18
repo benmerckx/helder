@@ -18,7 +18,8 @@
 //                  touchAction: the canvas's CSS touch-action, by default
 //                  'none' (every touch drag the program's; 'pan-y': the
 //                  page scrolls on vertical swipes over the canvas), for os; gfx:
-//                  'webgl2' for gfx, WebGL2 even where WebGPU is)
+//                  'webgl2' for gfx, WebGL2 even where WebGPU is, and
+//                  antialias: true, the canvas's frames multisampled)
 //   memory()       the module's memory; bytes(p, n), string(p) read it (a
 //                  view made anew each time: the memory may have grown)
 //   handles        the JavaScript objects the module refers to by integer

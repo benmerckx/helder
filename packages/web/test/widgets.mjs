@@ -7,7 +7,9 @@
 // Escape closing it; a menu bar's Right; a slider's keys; a combobox
 // filtering and choosing; a tooltip after its delay; a context menu; a
 // list box's Shift; a tree opened by the keys; a toast; right to left.
-// Then the sizes of the counter, the form and the gallery, raw and gzipped.
+// Then the sizes of the counter, the form and the gallery, raw and gzipped,
+// and the share of the neutral elements' realiser (hxmc.web's Neutral,
+// NeutralEvent, ElementPart: what single-source widgets cost a page).
 //   node packages/web/test/widgets.mjs <dir: gallery.html, *.js, shadcn.css>
 import { createServer } from 'node:http';
 import fs from 'node:fs';
@@ -131,8 +133,21 @@ server.close();
 for (const e of errors) failed.push('page error: ' + e);
 for (const f of failed) console.log('widgets: FAILED ' + f);
 console.log(`widgets: ${checks} checks` + (failed.length ? `, ${failed.length} FAILED` : ', ok'));
+// (the bytes of a bundle's classes of these names: each class to its closing brace)
+function share(src, names) {
+	let n = 0;
+	for (const m of src.matchAll(/class (hxmc_web_\w+|hxmc_web__\$\w+)[^{]*\{/g)) {
+		if (!names.some((x) => m[1].includes(x))) continue;
+		let d = 0, k = m.index + m[0].length - 1;
+		for (; k < src.length; k++) if (src[k] === '{') d++; else if (src[k] === '}' && --d === 0) break;
+		n += k + 1 - m.index;
+	}
+	return n;
+}
 for (const f of ['counter.js', 'form.js', 'gallery.js', 'shadcn.css']) {
 	const b = fs.readFileSync(path.join(dir, f));
-	console.log(`widgets: ${f} ${(b.length / 1024).toFixed(1)} KB, ${(gzipSync(b, { level: 9 }).length / 1024).toFixed(1)} KB gzipped`);
+	const realiser = f.endsWith('.js') ? share(b.toString(), ['Neutral', 'ElementPart']) : 0;
+	console.log(`widgets: ${f} ${(b.length / 1024).toFixed(1)} KB, ${(gzipSync(b, { level: 9 }).length / 1024).toFixed(1)} KB gzipped`
+		+ (f.endsWith('.js') ? `, the neutral realiser ${(realiser / 1024).toFixed(1)} KB` : ''));
 }
 process.exit(failed.length ? 1 : 0);

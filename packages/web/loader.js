@@ -11,7 +11,8 @@
 // and data-args (and data-fonts, for hxmc.text); the promise of run's result
 // is hxmcWasm[id] (by the element's id), for JavaScript islands that call
 // the module; hxmcWasmOptions[id], when a page or a test sets it before,
-// adds to run's options (args, gfx). Once it runs, the element gets
+// adds to run's options (args, gfx, antialias: by default true, a
+// canvas multisampled). Once it runs, the element gets
 // data-gfx, the graphics API it draws with, if any. While an island starts,
 // its element has data-loading; once it has started, data-hydrated and an
 // hxmc:hydrated event; if it fails (main exits with an error code, or later:
@@ -55,7 +56,7 @@
 			const oom = (e) => e instanceof RangeError && /memory|alloc/i.test(e.message) && !/call stack/i.test(e.message);
 			const failed = (e) => new Error(e && e.outOfMemory ? e.message : oom(e) ? 'out of memory: ' + e.message : last || (e && e.message) || String(e));
 			const started = import(new URL(d.runner, base).href).then((m) => m.run(new URL(d.wasm, base).href, {
-				imports: json(d.imports, []), args: json(d.args, []), fonts: json(d.fonts, []), canvas, touchAction: 'pan-y',
+				imports: json(d.imports, []), args: json(d.args, []), fonts: json(d.fonts, []), canvas, touchAction: 'pan-y', antialias: true,
 				stderr: (l) => console.error((last = l)), onError: (e) => run === el.hxmcRun && fail(el, failed(e)), ...extra,
 			}));
 			if (el.id) wasm[el.id] = started;

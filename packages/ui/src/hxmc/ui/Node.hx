@@ -11,7 +11,7 @@ import hxmc.ui.Event;
 // and its ancestors for layout; a paint property asks only for a frame.
 // Subclasses with content (TextNode) measure it (measureContent) and draw it
 // (paintContent).
-class Node {
+class Node implements Part {
 	public final style:Style;
 	public var parent(default, null):Null<Node>;
 	// (a leaf's: one empty array shared by all, replaced by its own when a child comes)
@@ -47,6 +47,9 @@ class Node {
 	public var onPointerEnter(get, set):Null<Event->Void>;
 	public var onPointerLeave(get, set):Null<Event->Void>;
 	public var onClick(get, set):Null<Event->Void>;
+	// a press: a click, or Enter or Space while it has the focus (after onKeyDown, unless it
+	// prevented the default), as a DOM button's click
+	public var onActivate(get, set):Null<Event->Void>;
 	public var onWheel(get, set):Null<Event->Void>;
 	public var onKeyDown(get, set):Null<Event->Void>;
 	public var onKeyUp(get, set):Null<Event->Void>;
@@ -320,6 +323,17 @@ class Node {
 			handlers = new Handlers();
 		}
 		return handlers.onClick = v;
+	}
+
+	inline function get_onActivate():Null<Event->Void>
+		return handlers == null ? null : handlers.onActivate;
+
+	function set_onActivate(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onActivate = v;
 	}
 
 	inline function get_onWheel():Null<Event->Void>
@@ -748,6 +762,27 @@ class Node {
 		return x ? px - absX : py - absY;
 	}
 
+	// --- a part (Part: what a neutral element's ref gets) ---
+
+	public function focus(visible:Bool = true) {
+		if (ui == null) return;
+		if (visible) ui.focusVisible = true;
+		ui.setFocus(this);
+	}
+
+	public function rect():{x:Float, y:Float, width:Float, height:Float}
+		return windowBounds();
+
+	public function scrollIntoView()
+		if (ui != null) ui.scrollIntoView(this);
+
+	public function contains(p:Part):Bool {
+		var n:Null<Node> = Std.downcast(p, Node);
+		while (n != null && n != this)
+			n = n.parent;
+		return n != null;
+	}
+
 	// the border box where it is drawn, in window pixels: its ancestors'
 	// scrolling taken off, through the transforms (its own too; the bounds
 	// of the box they turn)
@@ -1148,6 +1183,7 @@ private class Handlers {
 	public var onPointerEnter:Null<Event->Void> = null;
 	public var onPointerLeave:Null<Event->Void> = null;
 	public var onClick:Null<Event->Void> = null;
+	public var onActivate:Null<Event->Void> = null;
 	public var onWheel:Null<Event->Void> = null;
 	public var onKeyDown:Null<Event->Void> = null;
 	public var onKeyUp:Null<Event->Void> = null;

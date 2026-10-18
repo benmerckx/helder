@@ -286,7 +286,17 @@ Attributes:
 - events: `onClick`, `onPointerDown`, `onPointerUp`, `onPointerMove`,
   `onPointerEnter`, `onPointerLeave`, `onWheel`, `onKeyDown`, `onKeyUp`,
   `onTextInput`, `onFocus`, `onBlur`, `onFocusIn`, `onFocusOut` (bubbling) (an `Event -> Void`);
-- `focusable`, `ref={n -> ...}` (the node), `tag="name"` (for `Node.find`).
+  `onPress` (`Node.onActivate`: a click, or Enter or Space unless `onKeyDown`
+  took it, as a DOM button's click);
+- `focusable`, `ref={n -> ...}` (the node), `tag="name"` (for `Node.find`);
+  `id` none here (a page's element's, where a page's renderer realises
+  the element).
+
+The elements are also the neutral ones of single-source widgets
+(`@:neutral`, packages/view/README.md): `view:button`, `view:label`... and
+`text:p`, `text:h2`... are a view and a text here, the element of that name
+in a page; a ref of theirs gets an `hxmc.ui.Part` (Node is one: `focus`,
+`rect`, `scrollIntoView`, `contains`, `attr`).
 - drag and drop: `drag-data={value}` makes a node draggable; `onDragStart`,
   `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`
   accepts), `onDragLeave` and `onDrop` (`e.data`) on targets; Escape cancels.

@@ -21,11 +21,14 @@
 //   islands must fail and say so); the source tabs; web's Counter island
 //   counting; the Lab island calling lab.wasm; the tone started by a click;
 //   the cube on an emulated phone: a horizontal touch drag turns it, a
-//   vertical swipe over it scrolls the page;
+//   vertical swipe over it scrolls the page; the home page's spinning cube
+//   held still while a finger or the mouse holds it (the mouse dragged off
+//   the canvas), spinning again once let go;
 // - the playground's compiler: its worker (site/client/Worker.hx) runs a
 //   program with --interp, compiles it to HXB, answers diagnostics and a
 //   completion, with each module (hih.wasm: exnref; hih-legacy.wasm: the
-//   legacy instructions); the playground page (Monaco blocked: its plain
+//   legacy instructions), and in Chromium runs a request again after a
+//   fault of the engine (fault-worker.js); the playground page (Monaco blocked: its plain
 //   editor) picks its module (?eh=legacy, and a Chromium without exnref)
 //   and runs its first example;
 // - with a benchmark history in the site (bench/): the compiler page's
@@ -49,11 +52,12 @@ const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'a
 	'.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ttf': 'font/ttf' };
 const modules = ['hih.wasm', 'hih-legacy.wasm'].filter((m) => existsSync(path.join(dir, m)));
 // (/gfx-test/: packages/gfx/test, the golden images and their comparison)
-const gfxDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../packages/gfx/test');
+const toolsDir = path.dirname(fileURLToPath(import.meta.url));
+const gfxDir = path.join(toolsDir, '../../packages/gfx/test');
 const server = createServer(async (req, res) => {
 	let u = decodeURIComponent(new URL(req.url, 'http://x').pathname);
 	if (u.endsWith('/') && u !== '/') u += 'index.html';
-	const p = u.startsWith('/gfx-test/') ? path.join(gfxDir, u.slice(10)) : path.join(dir, u);
+	const p = u.startsWith('/gfx-test/') ? path.join(gfxDir, u.slice(10)) : u === '/fault-worker.js' ? path.join(toolsDir, 'fault-worker.js') : path.join(dir, u);
 	try {
 		const b = u === '/' ? Buffer.from('<!doctype html><title>test</title>') : await readFile(p);
 		res.writeHead(200, { 'content-type': u === '/' ? 'text/html' : types[path.extname(p)] || 'application/octet-stream' });
@@ -292,7 +296,8 @@ async function gfxTest(browser, label, id, golden, expect, gfx) {
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	await page.route(/^https:\/\/cdn\.jsdelivr\.net\//, (r) => r.abort());
 	await page.addInitScript(([id, gfx]) => {
-		window.hxmcWasmOptions = { ['demo-' + id]: { args: id === 'gfx-cube' ? ['--angle', '0.6'] : [], ...(gfx ? { gfx } : {}) } };
+		// (single-sampled, as natively: the golden images)
+		window.hxmcWasmOptions = { ['demo-' + id]: { args: id === 'gfx-cube' ? ['--angle', '0.6'] : [], antialias: false, ...(gfx ? { gfx } : {}) } };
 	}, [id, gfx]);
 	await page.goto(url('examples.html'));
 	await page.evaluate((id) => document.getElementById(id).scrollIntoView(), id);
@@ -418,6 +423,69 @@ async function touchTest(browser) {
 	check(ok, `the cube on a phone: ${JSON.stringify(r)}${errors.length ? '; errors: ' + errors.join('; ') : ''}`);
 }
 
+// the home page's cube, spinning on its own, held: once a drag has turned
+// it, it stays still while the finger (an emulated phone's touch, as
+// touchTest) or the mouse's button is down, and the mouse's drag may leave
+// the canvas (captured: the release outside it still lets go); once let go
+// it spins again. Frames read back: the same while held, not after.
+async function holdTest(browser) {
+	const results = {};
+	for (const kind of ['touch', 'mouse']) {
+		const context = await browser.newContext(kind === 'touch' ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 900 } });
+		const page = await context.newPage();
+		const errors = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		const r = (results[kind] = {});
+		try {
+			await page.goto(url('index.html'));
+			await page.evaluate(() => document.querySelector('#demo-gfx-cube canvas').scrollIntoView({ block: 'center' }));
+			await page.waitForSelector('#demo-gfx-cube[data-hydrated]', { timeout: 60000 });
+			const frames = (n) => page.evaluate((n) => new Promise((ok) => { const f = () => (n-- > 0 ? requestAnimationFrame(f) : ok()); f(); }), n);
+			const pixels = () => page.evaluate(async () => Array.from((await (await hxmcWasm['demo-gfx-cube']).host.gfx.readPixels()).data));
+			const differ = (a, b) => { let n = 0; for (let p = 0; p < a.length; p += 4) if (Math.max(Math.abs(a[p] - b[p]), Math.abs(a[p + 1] - b[p + 1]), Math.abs(a[p + 2] - b[p + 2])) > 8) n++; return n; };
+			const wait = async (ms) => { await page.waitForTimeout(ms); await frames(2); };
+			const b = await page.evaluate(() => { const r = document.querySelector('#demo-gfx-cube canvas').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; });
+			const [x, y, w, h] = b, cy = y + h / 2;
+			const spinning = await pixels();
+			await wait(400);
+			r.spins = differ(spinning, await pixels());
+			let up;
+			if (kind === 'touch') {
+				const cdp = await context.newCDPSession(page);
+				const at = (px) => [{ x: px, y: cy }];
+				await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(x + w * 0.3) });
+				for (let i = 1; i <= 8; i++) {
+					await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(x + w * (0.3 + 0.04 * i)) });
+					await page.waitForTimeout(16);
+				}
+				up = () => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+			} else {
+				await page.mouse.move(x + w * 0.5, cy);
+				await page.mouse.down();
+				await page.mouse.move(x + w * 0.7, cy, { steps: 6 });
+				// (off the canvas, to its left: the drag goes on)
+				await page.mouse.move(x - 40, cy + h * 0.3, { steps: 6 });
+				up = () => page.mouse.up();
+			}
+			// (resting: no glide, no spin)
+			await wait(300);
+			const held = await pixels();
+			await wait(600);
+			r.held = differ(held, await pixels());
+			await up();
+			await wait(1200);
+			r.released = differ(held, await pixels());
+			const area = w * h * 0.002;
+			r.ok = r.spins > area && r.held === 0 && r.released > area && errors.length === 0;
+		} catch (e) {
+			r.error = e.message.split('\n')[0];
+		}
+		if (errors.length) r.errors = errors;
+		await context.close();
+	}
+	check(results.touch.ok && results.mouse.ok, `the home page's cube held still while dragged (touch, mouse off the canvas), spinning again once let go: ${JSON.stringify(results)}`);
+}
+
 // --- the playground ---
 
 const code = 'class Main {\n\tstatic function main() {\n\t\tvar a = [for (i in 0...5) i * i];\n\t\ttrace("Hello " + a);\n\t\ttry throw "oops" catch (e:String) Sys.println("caught " + e);\n\t\tSys.println(haxe.Json.stringify({ok: true}));\n\t}\n}\n';
@@ -464,6 +532,30 @@ async function inPage([code, wasm]) {
 	log.push(`display ${disp.status} ${(disp.output ?? disp.message).slice(0, 120)}`);
 	w.terminate();
 	return log;
+}
+
+// the worker after a fault of the engine (WebKit 26.0 at times faults in
+// correct code; fault-worker.js fakes one): the request runs again in a
+// fresh instance, and its reply is the second run's
+async function faultTest(browser, wasm) {
+	const page = await browser.newPage();
+	await page.goto(url(''));
+	const r = await page.evaluate(async ([code, wasm]) => {
+		const w = new Worker('fault-worker.js');
+		const replies = [];
+		let wake = null;
+		w.onmessage = (e) => { replies.push(e.data); if (wake) wake(); };
+		const until = async (pred) => { for (;;) { const i = replies.findIndex(pred); if (i >= 0) return replies.splice(i, 1)[0]; await new Promise((r) => (wake = r)); } };
+		w.postMessage({ type: 'module', module: await WebAssembly.compileStreaming(fetch(wasm)) });
+		w.postMessage({ type: 'warmup' });
+		await until((r) => r.type === 'ready' || r.type === 'failed');
+		w.postMessage({ type: 'compile', id: 1, mode: 'run', main: 'Main', file: 'Main.hx', code });
+		const done = await until((r) => r.type === 'done' || r.type === 'failed');
+		w.terminate();
+		return { type: done.type, status: done.status, message: done.message, out: replies.filter((r) => r.type === 'out').map((r) => r.text) };
+	}, [code, wasm]).catch((e) => ({ message: e.message.split('\n')[0] }));
+	await page.close();
+	check(r.type === 'done' && r.status === 0 && r.out?.[0]?.startsWith('Main.hx:4: Hello'), `the worker after a fault of the engine (${wasm}): ${JSON.stringify(r).slice(0, 300)}`);
 }
 
 // the playground page: the module it fetches, then a Run of the example it loads
@@ -627,6 +719,7 @@ for (const { name, label, opts, noExnref } of launches) {
 			for (const l of log) console.log('    ' + l);
 			check(log.some((l) => l.startsWith('run 0')) && log.some((l) => l.startsWith('hxb 0')), `the worker with ${wasm}`);
 		}
+		if (name === 'chromium' && modules.length) await faultTest(browser, modules[0]);
 		// (headless Firefox has no WebGL; with a display, a headed one has, on llvmpipe)
 		const headed = name === 'firefox' && process.env.DISPLAY ? await pw.firefox.launch({ headless: false }) : null;
 		const gfxBrowser = headed ?? browser;
@@ -642,6 +735,7 @@ for (const { name, label, opts, noExnref } of launches) {
 					await gfxTest(browser, name, id, golden, 'webgl2', 'webgl2');
 				}
 				await touchTest(browser);
+				await holdTest(browser);
 			} else {
 				for (const [id, golden] of [['gfx-triangle', 'triangle.png'], ['gfx-cube', 'cube.png']])
 					await gfxTest(gfxBrowser, headed ? 'firefox-headed' : name, id, golden, hasGfx ? 'webgl2' : null);
