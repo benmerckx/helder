@@ -210,7 +210,7 @@ class GalleryTest {
 			check("Tab to the toast's button", ui.focus == find("notify"));
 			// then the last sections': the card's buttons, the toggle, the date
 			// picker, the accordion's triggers; the field, each of the button
-			// group's buttons, the input group's input, the item's button; from
+			// group's buttons, the input group's input, the item's button, the charts' plots; from
 			// there no further focusable node, back to the first (the menu bar's
 			// first title), its focus ring shown; then the direction switch, the toolbar
 			var visited = [];
@@ -219,7 +219,7 @@ class GalleryTest {
 				if (ui.focus == find("app-0")) break;
 				visited.push(ui.focus.tag);
 			}
-			check("then the last section's controls", visited.join(",") == "read,later,bold,due,faq-0-summary,faq-1-summary,email-input,archive,report,snooze,site-input,invite", visited.join(","));
+			check("then the last section's controls", visited.join(",") == "read,later,bold,due,faq-0-summary,faq-1-summary,email-input,archive,report,snooze,site-input,invite,visits-plot,browsers-plot", visited.join(","));
 			check("Tab wraps to the first control", ui.focus == find("app-0") && ui.focusVisible);
 			key(Key.TAB);
 			check("the menu bar one stop", ui.focus == find("rtl"));

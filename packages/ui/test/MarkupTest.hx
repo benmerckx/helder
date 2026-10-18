@@ -913,6 +913,18 @@ class MarkupTest implements Markup {
 		ui.pointerMove(plot.absX - 50, plot.absY + 10);
 		ui.update();
 		check("chart: gone when the pointer leaves", ui.root.find("c-tooltip") == null);
+		// the keys, the plot focused: the first category, the next, Escape none
+		ui.setFocus(plot);
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		var label = () -> (cast ui.root.find("c-tooltip").children[0] : TextNode).text;
+		check("chart: Right shows the first category", ui.root.find("c-tooltip") != null && label() == "A");
+		ui.keyDown(Key.RIGHT, 0);
+		ui.update();
+		check("chart: Right again the next", label() == "B");
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("chart: Escape hides it", ui.root.find("c-tooltip") == null);
 		// a pie chart: a slice per value, clockwise from the top; the one under the pointer by its angle, none in a donut's hole
 		var ui = new Ui(new MonoText(), 500, 400);
 		Render.render(<view padding={10}>

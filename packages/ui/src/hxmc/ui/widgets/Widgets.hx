@@ -3722,6 +3722,23 @@ class Widgets implements Markup {
 			}
 		]));
 
+	// (a chart's keys, as recharts' accessibility layer: the arrows from one category or slice
+	// to the next (none shown: the first, or the last going back), Home and End, Escape none)
+	static function chartKeys(e:Event, hover:Signal<Int>, n:Int) {
+		var i = hover.peek();
+		var next = switch Behaviour.mirror(e.key, e.current.rtl()) {
+			case Key.RIGHT | Key.DOWN: i < 0 ? 0 : Std.int(Math.min(n - 1, i + 1));
+			case Key.LEFT | Key.UP: i < 0 ? n - 1 : Std.int(Math.max(0, i - 1));
+			case Key.HOME: 0;
+			case Key.END: n - 1;
+			case Key.ESCAPE: -1;
+			case _: -2;
+		}
+		if (next == -2 || n == 0) return;
+		e.preventDefault();
+		hover.value = next;
+	}
+
 	// (a chart's frame: the y axis's ticks and the plot's grid lines, the
 	// plot, the x axis's labels, the legend; the category under the pointer
 	// (hover) shown in a tooltip, its values each series')
@@ -3739,7 +3756,8 @@ class Widgets implements Markup {
 					for (t in 0...5)
 						<text slot="chart-tick" position="absolute" right={6} top={h - t / 4 * h - 7}>{format(top * t / 4)}</text>
 				]}</view>
-				<view tag={tag + "-plot"} slot="chart-plot" width={w} height={h} position="relative" onPointerMove={at} onPointerLeave={_ -> hover.value = -1}>
+				<view tag={tag + "-plot"} slot="chart-plot" width={w} height={h} position="relative" onPointerMove={at} onPointerLeave={_ -> hover.value = -1}
+					focusable={true} onKeyDown={e -> chartKeys(e, hover, n)} onBlur={_ -> hover.value = -1}>
 					{[for (t in 0...5) <view slot="chart-grid" position="absolute" left={0} width={w} top={h - t / 4 * h} height={1}/>]}
 					{plot}
 					<Show when={() -> hover.value >= 0}>{() -> {
@@ -3790,6 +3808,11 @@ class Widgets implements Markup {
 			max: "the scale's top (else the greatest value rounded up)",
 			format: "a value as the axis and the tooltip show it (else as it is)",
 			label: "its name for assistive technology"
+		},
+		keys: {
+			"Left, Right, Up, Down": "shows the next or previous category's values (the plot focused)",
+			"Home, End": "the first or last category's",
+			"Escape": "hides them"
 		}
 	})
 	public static function BarChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
@@ -3824,6 +3847,11 @@ class Widgets implements Markup {
 			max: "the scale's top (else the greatest value rounded up)",
 			format: "a value as the axis and the tooltip show it (else as it is)",
 			label: "its name for assistive technology"
+		},
+		keys: {
+			"Left, Right, Up, Down": "shows the next or previous category's values (the plot focused)",
+			"Home, End": "the first or last category's",
+			"Escape": "hides them"
 		}
 	})
 	public static function LineChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
@@ -3842,6 +3870,11 @@ class Widgets implements Markup {
 			max: "the scale's top (else the greatest value rounded up)",
 			format: "a value as the axis and the tooltip show it (else as it is)",
 			label: "its name for assistive technology"
+		},
+		keys: {
+			"Left, Right, Up, Down": "shows the next or previous category's values (the plot focused)",
+			"Home, End": "the first or last category's",
+			"Escape": "hides them"
 		}
 	})
 	public static function AreaChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
@@ -3888,6 +3921,11 @@ class Widgets implements Markup {
 			inner: "a donut's hole, its radius a fraction of the circle's (0 when not given: a pie)",
 			format: "a value as the tooltip shows it (else as it is)",
 			label: "its name for assistive technology"
+		},
+		keys: {
+			"Left, Right, Up, Down": "shows the next or previous slice's values (the plot focused)",
+			"Home, End": "the first or last slice's",
+			"Escape": "hides them"
 		}
 	})
 	public static function PieChart(props:{slices:Array<{name:String, value:Float, ?color:Color}>, ?size:Float, ?inner:Float, ?format:Float->String,
@@ -3926,7 +3964,7 @@ class Widgets implements Markup {
 		}
 		return <view tag={tag} slot="chart" role="img" label={props.label ?? "Chart"} align-items="center">
 			<view tag={tag + "-plot"} slot="chart-plot" width={size} height={size} position="relative" onPointerMove={under}
-				onPointerLeave={_ -> hover.value = -1}>
+				onPointerLeave={_ -> hover.value = -1} focusable={true} onKeyDown={e -> chartKeys(e, hover, slices.length)} onBlur={_ -> hover.value = -1}>
 				{[
 					for (k in 0...slices.length)
 						if (ends[k].to > ends[k].from) {
