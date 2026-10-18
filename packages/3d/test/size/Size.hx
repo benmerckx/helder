@@ -14,6 +14,7 @@ import hxmc.os.*;
 //   6  + input actions (Actions)
 //   7  + keyframe animation (AnimationClip, Animator)
 //   8  + skinning (Skinning: the skinned shader)
+//   9  + normal maps (NormalMaps: the normal-mapped shader)
 // and, with -D size_packed at level 4, the renderer drawing the sample
 // packed at build time (PackedModel: no glTF reader, no JSON)
 class Size {
@@ -50,6 +51,9 @@ class Size {
 		#end
 		#if (size_level >= 8)
 		renderer.use(new hxmc.scene.render.Skinning(device));
+		#end
+		#if (size_level >= 9)
+		renderer.use(new hxmc.scene.render.NormalMaps(device));
 		#end
 		new hxmc.scene.gltf.GltfScene(doc, device).instantiate(world);
 		#end

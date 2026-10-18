@@ -177,6 +177,7 @@ class GltfDoc {
 	public var baseColorTexture:Int; // textures' indices, -1: none
 	public var metallicRoughnessTexture:Int;
 	public var normalTexture:Int;
+	public var normalScale:Float; // the normal map's x and y scale
 	public var occlusionTexture:Int;
 	public var emissiveTexture:Int;
 	public var alphaMode:String; // OPAQUE, MASK, BLEND

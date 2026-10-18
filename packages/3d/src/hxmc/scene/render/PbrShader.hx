@@ -79,30 +79,31 @@ class PbrShader implements Shaders {
 
 	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
 			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4
-		return shade(i, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture, shadowMap);
+		return shadeAt(normalize(i.normal), i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture,
+			occlusionTexture, shadowMap);
 
-	// the fragment's colour (also PbrInstancedShader's)
-	public static function shade(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
-			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4 {
-		var texel = sample(baseColorTexture, i.uv);
+	// the fragment's colour at a point of the world with a unit normal n
+	// (also the instanced, skinned and normal-mapped shaders')
+	public static function shadeAt(n:Vec3, world:Vec3, uv:Vec2, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
+			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4 {
+		var texel = sample(baseColorTexture, uv);
 		// (the texture's sRGB decoded)
 		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2));
 		// (glTF's: roughness in green, metallic in blue, linear)
-		var mr = sample(metallicRoughnessTexture, i.uv);
+		var mr = sample(metallicRoughnessTexture, uv);
 		var metallic = clamp(material.params.x * mr.z, 0, 1);
 		var rough = clamp(material.params.y * mr.y, 0.04, 1);
-		var n = normalize(i.normal);
-		var v = normalize(frame.eye.xyz - i.world);
+		var v = normalize(frame.eye.xyz - world);
 		var l = frame.lightDir.xyz;
 		var nv = max(dot(n, v), 0.0001);
 		var a = rough * rough;
 		var a2 = a * a;
 		var f0 = mix(vec3(0.04), base, metallic);
-		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * shadowed(frame, shadowMap, i.world, max(dot(n, l), 0));
-		direct += point(n, v, i.world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
-			+ point(n, v, i.world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1)
-			+ point(n, v, i.world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2)
-			+ point(n, v, i.world, base, metallic, a2, f0, frame.point3, frame.pointColor3, frame.spot3);
+		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * shadowed(frame, shadowMap, world, max(dot(n, l), 0));
+		direct += point(n, v, world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
+			+ point(n, v, world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1)
+			+ point(n, v, world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2)
+			+ point(n, v, world, base, metallic, a2, f0, frame.point3, frame.pointColor3, frame.spot3);
 		// the ambient: the sky and the ground blended by the normal (diffuse)
 		// and by the reflection (specular, Karis' fit of the split sum)
 		var up = n.y * 0.5 + 0.5;
@@ -116,9 +117,9 @@ class PbrShader implements Shaders {
 		var ab = vec2(-1.04, 1.04) * a004 + rr.zw;
 		var specularAmbient = env * (f0 * ab.x + ab.y);
 		// (occlusion, in red, darkens the ambient only)
-		var occlusion = sample(occlusionTexture, i.uv).x;
+		var occlusion = sample(occlusionTexture, uv).x;
 		var ambient = (irradiance * base * (1 - metallic) + specularAmbient) * occlusion;
-		var emitted = material.emissive.xyz * pow(sample(emissiveTexture, i.uv).xyz, vec3(2.2));
+		var emitted = material.emissive.xyz * pow(sample(emissiveTexture, uv).xyz, vec3(2.2));
 		var color = (direct + ambient + emitted) * frame.exposure.x;
 		return vec4(encode(aces(color)), material.baseColor.w * texel.w);
 	}

@@ -25,6 +25,10 @@ class Material {
 	public var metallicRoughnessTexture:Null<Texture>;
 	public var emissiveTexture:Null<Texture>;
 	public var occlusionTexture:Null<Texture>;
+	// a tangent-space normal map (drawn with NormalMaps, on primitives with
+	// tangents), its x and y scaled by normalScale
+	public var normalTexture:Null<Texture>;
+	public var normalScale = 1.0;
 	public var doubleSided:Bool;
 
 	public function new(?name:String, ?baseColor:Vec4, metallic = 0.0, roughness = 0.5, ?emissive:Vec3, doubleSided = false) {

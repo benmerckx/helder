@@ -47,6 +47,7 @@ class GltfTest {
 		animations(doc);
 		skins();
 		textured();
+		normals();
 		rejects(glb);
 		Sys.println('GltfTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
@@ -187,6 +188,36 @@ class GltfTest {
 			&& doc.materials[0].occlusionTexture == 0);
 		var image = Png.decode(png);
 		check("the image decodes", image.width == 64 && image.height == 64);
+	}
+
+	static function normals() {
+		var file = sys.io.File.getBytes("packages/3d/examples/normals.glb");
+		#if eval
+		check("normals.glb is the generator's", SampleModel.normalsGlb().compare(file) == 0);
+		#end
+		var doc = Gltf.parse(file);
+		var m = doc.materials[0];
+		check("a normal map and its scale", m.normalTexture == 0 && m.normalScale == 1.5 && m.baseColorTexture == -1);
+		var p = doc.meshes[0].primitives[0];
+		check("no tangents in the file", p.tangent == -1);
+		// computed: each face's tangent along its uvs' u (the face's right),
+		// the bitangent n x t (times w) up the image (the face's up, uvs' v down)
+		var pos = doc.floats(p.position), nor = doc.floats(p.normal), uv = doc.floats(p.texcoord), idx = doc.indices(p.indices);
+		var t = hxmc.scene.render.VertexData.computeTangents(pos, nor, uv, idx);
+		var ok = t.length == 4 * 24;
+		var rights = [[1, 0, 0], [-1, 0, 0], [0, 0, -1], [0, 0, 1], [1, 0, 0], [1, 0, 0]];
+		var ups = [[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 0, -1], [0, 0, 1]];
+		for (v in 0...24) {
+			var f = Std.int(v / 4), r = rights[f], u = ups[f];
+			var n = [nor[3 * v], nor[3 * v + 1], nor[3 * v + 2]], w = t[4 * v + 3];
+			var b = [(n[1] * t[4 * v + 2] - n[2] * t[4 * v + 1]) * w, (n[2] * t[4 * v] - n[0] * t[4 * v + 2]) * w, (n[0] * t[4 * v + 1] - n[1] * t[4 * v]) * w];
+			for (k in 0...3)
+				if (Math.abs(t[4 * v + k] - r[k]) > 1e-6 || Math.abs(b[k] - u[k]) > 1e-6) ok = false;
+		}
+		check("tangents from the uvs: right and up on every face", ok);
+		// a mirrored face (its u reversed): the sign flips
+		var flipped = hxmc.scene.render.VertexData.computeTangents([0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 0, 1, 0, 0, 1, 0, 0, 1], [1, 1, 0, 1, 1, 0], [0, 1, 2]);
+		check("a mirrored face's tangent and sign", Math.abs(flipped[0] + 1) < 1e-6 && flipped[3] == -1);
 	}
 
 	static function rejects(glb:Bytes) {

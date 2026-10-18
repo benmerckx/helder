@@ -9,7 +9,7 @@ import hxmc.scene.render.PbrShader;
 // PbrShader's, then each instance's world matrix by columns from a second
 // buffer that steps per instance (layout); normals turned by the matrix's
 // upper 3x3 (exact for rotations and uniform scales; a non-uniform scale
-// is drawn without instancing). The fragment is PbrShader.shade.
+// is drawn without instancing). The fragment is PbrShader.shadeAt's.
 @:structInit @:publicFields class PbrInstanceVertex {
 	var pos:Vec3;
 	var normal:Vec3;
@@ -35,6 +35,7 @@ class PbrInstancedShader implements Shaders {
 
 	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
 			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4
-		return PbrShader.shade(i, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture, shadowMap);
+		return PbrShader.shadeAt(normalize(i.normal), i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture,
+			occlusionTexture, shadowMap);
 
 }

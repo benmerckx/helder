@@ -19,14 +19,15 @@ class Mesh {
 	// vertex; normals null: computed from the triangles, smooth where
 	// vertices are shared) and triangles' indices (null: 0, 1, 2, ...)
 	public function add(device:Device, positions:Array<Float>, normals:Null<Array<Float>>, uvs:Null<Array<Float>>, indices:Null<Array<Int>>,
-			material:Material, ?joints:Array<Float>, ?weights:Array<Float>):Primitive {
-		return addData(device, VertexData.make(positions, normals, uvs, indices, joints, weights), material);
+			material:Material, ?joints:Array<Float>, ?weights:Array<Float>, ?tangents:Array<Float>):Primitive {
+		return addData(device, VertexData.make(positions, normals, uvs, indices, joints, weights, tangents), material);
 	}
 
 	// a primitive from data in the renderer's layout (VertexData: made here, or packed at build time)
 	public function addData(device:Device, d:VertexData, material:Material):Primitive {
 		var prim = new Primitive(device.createBuffer({size: d.vertices.length, usage: Vertex, data: d.vertices}),
 			device.createBuffer({size: d.indices.length, usage: Index, data: d.indices}), d.wide ? UInt32 : UInt16, d.count, material, d.bounds, d.skinned);
+		if (d.tangents != null) prim.tangents = device.createBuffer({size: d.tangents.length, usage: Vertex, data: d.tangents});
 		primitives.push(prim);
 		bounds = bounds.union(prim.bounds);
 		return prim;
@@ -36,6 +37,7 @@ class Mesh {
 		for (p in primitives) {
 			device.destroyBuffer(p.vertices);
 			device.destroyBuffer(p.indices);
+			if (p.tangents != null) device.destroyBuffer(p.tangents);
 		}
 		primitives = [];
 	}
@@ -58,6 +60,8 @@ class Primitive {
 	public final bounds:Aabb;
 	// its vertices carry joints and weights (drawn with a Skin)
 	public final skinned:Bool;
+	// its vertices' tangents (VertexData.tangents), for normal maps; null: none
+	public var tangents:Null<Buffer>;
 
 	public function new(vertices:Buffer, indices:Buffer, indexFormat:IndexFormat, count:Int, material:Material, bounds:Aabb, skinned = false) {
 		this.skinned = skinned;

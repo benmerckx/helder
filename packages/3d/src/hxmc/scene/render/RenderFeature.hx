@@ -2,7 +2,7 @@ package hxmc.scene.render;
 
 // An optional part of the renderer, turned on by the program
 // (renderer.use(new Shadows(device))): the renderer core reaches it only
-// through the interfaces it fills (ShadowSource, SkinSource), so a program
+// through the interfaces it fills (ShadowSource, SkinSource, NormalSource), so a program
 // that never makes one links none of its code or shaders.
 interface RenderFeature {
 	function attach(renderer:Renderer):Void;
@@ -40,4 +40,11 @@ interface SkinSource {
 	// Shadows) and its slots (caster, skin, joints)
 	function shadowPipeline():hxmc.gfx.Pipeline;
 	function shadowSlots():Array<Int>;
+}
+
+// what the renderer asks of normal mapping (NormalMaps)
+interface NormalSource {
+	function pipeline(doubleSided:Bool):hxmc.gfx.Pipeline;
+	// the normal-mapped shader's slots, in Renderer.slotsOf's order
+	function slots():Array<Int>;
 }

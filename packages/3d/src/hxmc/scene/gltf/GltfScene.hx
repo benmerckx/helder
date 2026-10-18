@@ -14,7 +14,7 @@ import hxmc.scene.render.MeshRenderer;
 // (instantiate: GltfNodes' hierarchy, each node with a mesh drawing the
 // shared Mesh). Triangle primitives (positions, normals, uvs; normals
 // computed where the file has none); materials' factors and textures
-// (base colour, metallic-roughness, emissive, occlusion; normal maps later) (decoded by decodeImage, which the program gives); KHR_lights_punctual's lights as Light components; skins as
+// (base colour, metallic-roughness, emissive, occlusion, normal: tangents from the file, else computed) (decoded by decodeImage, which the program gives); KHR_lights_punctual's lights as Light components; skins as
 // Skin components on the nodes they deform (joints, inverse bind
 // matrices; JOINTS_0 and WEIGHTS_0 in the meshes' vertices).
 class GltfScene {
@@ -59,6 +59,8 @@ class GltfScene {
 				mat.metallicRoughnessTexture = textureOf(m.metallicRoughnessTexture);
 				mat.emissiveTexture = textureOf(m.emissiveTexture);
 				mat.occlusionTexture = textureOf(m.occlusionTexture);
+				mat.normalTexture = textureOf(m.normalTexture);
+				mat.normalScale = m.normalScale;
 				mat;
 			}
 		];
@@ -72,9 +74,20 @@ class GltfScene {
 					if (fallback == null) fallback = new Material("default");
 					fallback;
 				}
-				mesh.add(device, doc.floats(p.position), p.normal >= 0 ? doc.floats(p.normal) : null, p.texcoord >= 0 ? doc.floats(p.texcoord) : null,
-					p.indices >= 0 ? doc.indices(p.indices) : null, material, p.joints >= 0 ? doc.floats(p.joints) : null,
-					p.weights >= 0 ? doc.floats(p.weights) : null);
+				var positions = doc.floats(p.position), normals = p.normal >= 0 ? doc.floats(p.normal) : null;
+				var uvs = p.texcoord >= 0 ? doc.floats(p.texcoord) : null, indices = p.indices >= 0 ? doc.indices(p.indices) : null;
+				// (tangents where a normal map is drawn, with NormalMaps made: the
+				// file's, else from the uvs)
+				var tangents:Null<Array<Float>> = null, make = hxmc.scene.render.VertexData.tangentsFrom;
+				if (make != null && material.normalTexture != null && uvs != null && p.joints < 0) {
+					if (p.tangent >= 0) tangents = doc.floats(p.tangent) else {
+						if (indices == null) indices = [for (i in 0...Std.int(positions.length / 3)) i];
+						if (normals == null) normals = Mesh.smoothNormals(positions, indices);
+						tangents = make(positions, normals, uvs, indices);
+					}
+				}
+				mesh.add(device, positions, normals, uvs, indices, material, p.joints >= 0 ? doc.floats(p.joints) : null,
+					p.weights >= 0 ? doc.floats(p.weights) : null, tangents);
 			}
 			meshes.push(mesh);
 		}

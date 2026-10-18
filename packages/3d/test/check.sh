@@ -20,7 +20,7 @@ if [ -f "$bin/RenderTest.exe" ]; then
 else
 	run() { env -u DISPLAY "$bin/RenderTest" "$@"; }
 fi
-for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy particles; do
+for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy particles normals; do
 	g=$s
 	# (the packed sample draws the glTF one's frame, the lazy skin the skin's)
 	[ $s = packed ] && g=gltf

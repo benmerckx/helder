@@ -8,7 +8,7 @@ tool=$1
 out=$2
 shift 2
 mkdir -p "$out"
-names="gfx-alone math world gltf renderer shadows input animation skinning"
+names="gfx-alone math world gltf renderer shadows input animation skinning normalmaps"
 printf '%-12s %10s %8s %10s %8s\n' level native +native wasm +wasm
 pn=0 pw=0 l=0
 for n in $names; do

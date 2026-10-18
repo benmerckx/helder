@@ -151,6 +151,7 @@ class Gltf {
 				baseColorTexture: tex(pbr, "baseColorTexture"),
 				metallicRoughnessTexture: tex(pbr, "metallicRoughnessTexture"),
 				normalTexture: tex(m, "normalTexture"),
+				normalScale: num(obj(m, "normalTexture"), "scale", 1),
 				occlusionTexture: tex(m, "occlusionTexture"),
 				emissiveTexture: tex(m, "emissiveTexture"),
 				alphaMode: str(m, "alphaMode", "OPAQUE"),

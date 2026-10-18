@@ -16,7 +16,7 @@ import hxmc.scene.math.Quat;
 //   bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/test -cp packages/3d/src \
 //     -cp packages/3d/test --run SampleModel packages/3d/examples/sample.glb
 //
-// (also skinned.glb and textured.glb beside it)
+// (also skinned.glb, textured.glb and normals.glb beside it)
 //
 // Numbers in the JSON are written with 6 decimals, so the file is the same
 // wherever it is generated; GltfTest checks it against the checked-in one.
@@ -42,6 +42,9 @@ class SampleModel {
 		var textured = haxe.io.Path.join([haxe.io.Path.directory(out), "textured.glb"]);
 		sys.io.File.saveBytes(textured, texturedGlb());
 		Sys.println('SampleModel: wrote $textured');
+		var normals = haxe.io.Path.join([haxe.io.Path.directory(out), "normals.glb"]);
+		sys.io.File.saveBytes(normals, normalsGlb());
+		Sys.println('SampleModel: wrote $normals');
 	}
 
 	// the .glb file
@@ -178,7 +181,6 @@ class SampleModel {
 	// is a 64x64 PNG inside the file (a soft checker, lighter towards one
 // corner), also its metallic-roughness, emissive and occlusion maps
 	public static function texturedGlb():Bytes {
-		var bin = new BytesBuffer();
 		var px = Bytes.alloc(64 * 64 * 4);
 		for (y in 0...64)
 			for (x in 0...64) {
@@ -192,7 +194,39 @@ class SampleModel {
 				px.set(p + 2, Math.round(c * (190 - 60 * t) + (1 - c) * 40));
 				px.set(p + 3, 255);
 			}
-		var png = Png.encode(px, 64, 64);
+		return cubeGlb(Png.encode(px, 64, 64), "textured", "crate", "checker",
+			'{"name":"crate","pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicRoughnessTexture":{"index":0},"metallicFactor":0.3,"roughnessFactor":0.9},'
+			+ '"emissiveTexture":{"index":0},"emissiveFactor":[0.25,0.12,0.02],"occlusionTexture":{"index":0}}');
+	}
+
+	// the normal-mapped sample (examples/normals.glb): the textured
+	// sample's cube, plain, with a tangent-space normal map of 64x64 (an egg
+	// crate of 2x2 bumps and dents, smooth: alike through every GPU's filtering) and
+	// no tangents (computed when loaded)
+	public static function normalsGlb():Bytes {
+		var px = Bytes.alloc(64 * 64 * 4);
+		for (y in 0...64)
+			for (x in 0...64) {
+				var u = (x + 0.5) / 64 * Math.PI * 4, v = (y + 0.5) / 64 * Math.PI * 4;
+				// (the height sin u sin v; the normal against its slope, green up the image)
+				var a = 0.6, dx = Math.cos(u) * Math.sin(v), dy = Math.sin(u) * Math.cos(v);
+				var nx = -a * dx, ny = a * dy, nz = 1.0;
+				var l = Math.sqrt(nx * nx + ny * ny + nz * nz);
+				var p = 4 * (y * 64 + x);
+				px.set(p, Math.round((nx / l * 0.5 + 0.5) * 255));
+				px.set(p + 1, Math.round((ny / l * 0.5 + 0.5) * 255));
+				px.set(p + 2, Math.round((nz / l * 0.5 + 0.5) * 255));
+				px.set(p + 3, 255);
+			}
+		return cubeGlb(Png.encode(px, 64, 64), "normals", "tiles", "bumps",
+			'{"name":"tiles","pbrMetallicRoughness":{"baseColorFactor":[0.8,0.55,0.35,1],"metallicFactor":0,"roughnessFactor":0.35},'
+			+ '"normalTexture":{"index":0,"scale":1.5}}');
+	}
+
+	// a cube of 1.2 with uvs from 0 to 1 on each face, one material (json)
+	// and one PNG image
+	static function cubeGlb(png:Bytes, scene:String, node:String, image:String, material:String):Bytes {
+		var bin = new BytesBuffer();
 		var faces = [
 			[[0, 0, 1], [1, 0, 0], [0, 1, 0]], [[0, 0, -1], [-1, 0, 0], [0, 1, 0]], [[1, 0, 0], [0, 0, -1], [0, 1, 0]],
 			[[-1, 0, 0], [0, 0, 1], [0, 1, 0]], [[0, 1, 0], [1, 0, 0], [0, 0, -1]], [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
@@ -241,12 +275,11 @@ class SampleModel {
 		var vimg = view(start, 0);
 		var data = bin.getBytes();
 		var json = '{"asset":{"version":"2.0","generator":"hxmc packages/3d/test/SampleModel.hx"},"scene":0,'
-			+ '"scenes":[{"name":"textured","nodes":[0]}],"nodes":[{"name":"crate","mesh":0}],'
-			+ '"meshes":[{"name":"crate","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}],'
-			+ '"materials":[{"name":"crate","pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicRoughnessTexture":{"index":0},"metallicFactor":0.3,"roughnessFactor":0.9},'
-			+ '"emissiveTexture":{"index":0},"emissiveFactor":[0.25,0.12,0.02],"occlusionTexture":{"index":0}}],'
+			+ '"scenes":[{"name":"$scene","nodes":[0]}],"nodes":[{"name":"$node","mesh":0}],'
+			+ '"meshes":[{"name":"$node","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}],'
+			+ '"materials":[$material],'
 			+ '"textures":[{"sampler":0,"source":0}],"samplers":[{"magFilter":9729,"minFilter":9987}],'
-			+ '"images":[{"name":"checker","bufferView":$vimg,"mimeType":"image/png"}],'
+			+ '"images":[{"name":"$image","bufferView":$vimg,"mimeType":"image/png"}],'
 			+ '"accessors":[{"bufferView":$vp,"componentType":5126,"count":24,"type":"VEC3","min":[-0.6,-0.6,-0.6],"max":[0.6,0.6,0.6]},'
 			+ '{"bufferView":$vn,"componentType":5126,"count":24,"type":"VEC3"},{"bufferView":$vu,"componentType":5126,"count":24,"type":"VEC2"},'
 			+ '{"bufferView":$vi,"componentType":5123,"count":36,"type":"SCALAR"}],'

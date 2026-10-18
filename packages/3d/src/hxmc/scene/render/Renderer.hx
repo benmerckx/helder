@@ -65,6 +65,7 @@ class Renderer {
 	var instancedDoubleSided:Pipeline;
 	final plainSlots:Array<Int>;
 	var skinSource:Null<RenderFeature.SkinSource>;
+	var normalSource:Null<RenderFeature.NormalSource>;
 	final instancedSlots:Array<Int>;
 	// whether runs of one primitive are drawn instanced (on by default)
 	public var instancing = true;
@@ -128,7 +129,7 @@ class Renderer {
 	public function inject(point:InjectionPoint, f:(Encoder, FrameInfo) -> Void)
 		hooks[point].push(f);
 
-	// turns on an optional feature (Shadows, Skinning, Sky); returns the renderer
+	// turns on an optional feature (Shadows, Skinning, NormalMaps, Sky); returns the renderer
 	public function use(feature:RenderFeature):Renderer {
 		feature.attach(this);
 		return this;
@@ -178,7 +179,7 @@ class Renderer {
 				d.node = node;
 				d.primitive = p;
 				// (the pipeline, then the material)
-				d.key = (p.material.doubleSided ? 1 << 24 : 0) | (p.material.id & 0xFFFFFF);
+				d.key = (mapped(p) ? 1 << 25 : 0) | (p.material.doubleSided ? 1 << 24 : 0) | (p.material.id & 0xFFFFFF);
 			}
 		}
 		// (insertion sort: a scene's order changes little from frame to frame)
@@ -274,10 +275,11 @@ class Renderer {
 			var d = list[start], p = d.primitive, m = p.material;
 			var many = n > 1;
 			var skin = p.skinned ? skinSource : null;
-			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : (m.doubleSided ? doubleSided : pipeline);
+			var normals = !many && skin == null && mapped(p) ? normalSource : null;
+			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
-				slots = many ? instancedSlots : skin != null ? skin.slots() : plainSlots;
+				slots = many ? instancedSlots : skin != null ? skin.slots() : normals != null ? normals.slots() : plainSlots;
 				enc.setUniforms(slots[0], frameBytes);
 				current = want;
 				material = null;
@@ -293,7 +295,7 @@ class Renderer {
 			if (m != material) {
 				PbrShader.writePbrMaterial({
 					baseColor: m.baseColor,
-					params: new Vec4(m.metallic, m.roughness, 0, 0),
+					params: new Vec4(m.metallic, m.roughness, m.normalScale, 0),
 					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, 0)
 				}, materialBytes);
 				enc.setUniforms(slots[2], materialBytes);
@@ -302,10 +304,12 @@ class Renderer {
 				enc.setTexture(slots[8], m.emissiveTexture != null ? m.emissiveTexture : white, sampler);
 				enc.setTexture(slots[9], m.occlusionTexture != null ? m.occlusionTexture : white, sampler);
 				enc.setTexture(slots[4], shadowSource != null ? shadowSource.shadowFrame().map : noShadow, nearest);
+				if (normals != null) enc.setTexture(slots[10], m.normalTexture, sampler);
 				material = m;
 			}
 			enc.setVertexBuffer(0, p.vertices);
 			if (many) enc.setVertexBuffer(1, instanceBuffer, batchOffset[b]);
+			if (normals != null) enc.setVertexBuffer(1, p.tangents);
 			enc.setIndexBuffer(p.indices, p.indexFormat);
 			enc.drawIndexed(p.count, n);
 			draws++;
@@ -324,7 +328,7 @@ class Renderer {
 		var bytes = 0, i = 0;
 		while (i < count) {
 			var j = i + 1;
-			if (instancing && !list[i].primitive.skinned && uniformScale(list[i].node))
+			if (instancing && !list[i].primitive.skinned && !mapped(list[i].primitive) && uniformScale(list[i].node))
 				while (j < count && list[j].primitive == list[i].primitive && uniformScale(list[j].node))
 					j++;
 			if (batchCount == batchStart.length) {
@@ -366,6 +370,11 @@ class Renderer {
 		}
 	}
 
+	// whether a primitive is drawn with its normal map (NormalMaps on, its
+	// tangents and its material's map there)
+	inline function mapped(p:Mesh.Primitive):Bool
+		return normalSource != null && p.tangents != null && p.material.normalTexture != null && !p.skinned;
+
 	// whether a node's world matrix scales alike on every axis (instanced
 	// normals are turned by its upper 3x3)
 	static function uniformScale(n:Node):Bool {
@@ -377,7 +386,7 @@ class Renderer {
 
 	// a shader's slots for its blocks and textures, in the renderer's order:
 	// frame, object (-1: none), material, base colour, shadow map, skin,
-	// joints, metallic-roughness, emissive, occlusion
+	// joints, metallic-roughness, emissive, occlusion, normal
 	public static function slotsOf(uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock>, textures:Array<hxmc.gfx.shader.Shaders.TextureBinding>):Array<Int> {
 		function u(name:String):Int {
 			for (b in uniforms)
@@ -390,7 +399,7 @@ class Renderer {
 			return -1;
 		}
 		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap"), u("PbrSkinInfo"), t("jointMatrices"),
-			t("metallicRoughnessTexture"), t("emissiveTexture"), t("occlusionTexture")];
+			t("metallicRoughnessTexture"), t("emissiveTexture"), t("occlusionTexture"), t("normalTexture")];
 	}
 
 	// whether a mesh's bounds, through mvp, reach the view: not all eight
