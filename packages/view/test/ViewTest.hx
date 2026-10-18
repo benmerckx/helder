@@ -212,7 +212,9 @@ class ViewTest implements Markup {
 			html(<p>{[1, 2]}</p>);
 			"";
 		} catch (e:Dynamic) Std.string(e);
-		check("a text holder holds text only", thrown == "hxmc.view: <p> holds text only", thrown);
+		check("a text holder holds text only, the error naming what it got", thrown == "hxmc.view: <p> holds text only, not Array", thrown);
+		var none:Null<String> = null;
+		check("a text holder's null hole: no text, as a run's", html(<p>a{none}b</p>) == "<p>ab</p>", html(<p>a{none}b</p>));
 		// nesting through expressions
 		var items = ["a", "b", "c"];
 		check("markup inside an expression", html(<ul>{[for (i in items) item(i)]}</ul>) == '<ul><li class="item">a</li><li class="item">b</li><li class="item">c</li></ul>');

@@ -123,7 +123,8 @@ class ViewRuntime {
 	}
 
 	// an element's children, text and holes only: its own text when it holds
-	// text (a hole whose value is not text, nor reactive, is an error), else a run
+	// text (a hole of null none, as a run's; one whose value is not text, nor
+	// reactive, an error naming what it is), else a run
 	public static function flat(el:HostNode, tag:String, parts:Array<Any>) {
 		if (!Host.holdsText(el)) {
 			run(el, null, null, parts, false);
@@ -131,10 +132,10 @@ class ViewRuntime {
 		}
 		var ps:Array<Dynamic> = [];
 		for (p in parts) {
-			var t = textPart(p);
+			var t = p == null ? "" : textPart(p);
 			// (a reactive hole that is not text now: bound anyway)
 			if (t == null) {
-				if (hxmc.view.Render.isReactive(p)) t = p else throw 'hxmc.view: <$tag> holds text only';
+				if (hxmc.view.Render.isReactive(p)) t = p else throw 'hxmc.view: <$tag> holds text only, not ' + describe(p);
 			}
 			ps.push(t);
 		}
@@ -190,6 +191,12 @@ class ViewRuntime {
 		if (isText(v)) return Std.string(v);
 		if (hxmc.view.Render.isReactive(v) && isText(hxmc.view.Reactive.untrack(() -> hxmc.view.Render.read(v)))) return v;
 		return null;
+	}
+
+	// (what a value is, for an error: its class, else its kind)
+	static function describe(v:Dynamic):String {
+		var c = Type.getClass(v);
+		return c != null ? Type.getClassName(c) : Std.string(Type.typeof(v));
 	}
 
 	static inline function isText(v:Dynamic):Bool
