@@ -316,8 +316,8 @@ class Widgets implements Markup {
 		},
 		variants: ["default", "destructive"]
 	})
-	public static function Alert(props:{?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
-		return <view tag={props.tag ?? "alert"} slot="alert" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"}>{props.children}</view>;
+	@:neutral public static function Alert(props:{?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
+		return <view tag={props.tag ?? "alert"} id={props.tag} slot="alert" states={props.style} variant={props.variant ?? "default"} live="assertive">{props.children}</view>;
 	}
 
 	@:widget({
@@ -327,8 +327,8 @@ class Widgets implements Markup {
 		},
 		part: "Alert"
 	})
-	public static function AlertTitle(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "alert-title"} slot="alert-title">{props.children ?? props.text}</text>;
+	@:neutral public static function AlertTitle(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:div tag={props.tag ?? "alert-title"} id={props.tag} slot="alert-title">{props.children ?? props.text}</text:div>;
 
 	@:widget({
 		props: {
@@ -337,8 +337,8 @@ class Widgets implements Markup {
 		},
 		part: "Alert"
 	})
-	public static function AlertDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "alert-description"} slot="alert-description">{props.children ?? props.text}</text>;
+	@:neutral public static function AlertDescription(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:div tag={props.tag ?? "alert-description"} id={props.tag} slot="alert-description">{props.children ?? props.text}</text:div>;
 
 	// a slider (shadcn's) bound to a signal: from min to max (0 to 1), in
 	// steps (0: any value); dragged, clicked (the value where the pointer is

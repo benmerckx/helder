@@ -49,16 +49,6 @@ class Widgets implements Markup {
 	static function on(v:Dynamic):Bool
 		return read(v) == true;
 
-	// an alert (shadcn's): variant "default" or "destructive"; its title and description
-	public static function Alert(props:{?variant:String, ?children:View, ?tag:String}):View
-		return <div id={props.tag} data-slot="alert" role="alert" data-variant={props.variant ?? "default"}>{props.children}</div>;
-
-	public static function AlertTitle(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="alert-title">{props.children ?? props.text}</div>;
-
-	public static function AlertDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="alert-description">{props.children ?? props.text}</div>;
-
 	// a spinner (shadcn's): a loading circle turning (the theme's animate-spin)
 	public static function Spinner(props:{?label:String, ?tag:String}):Any {
 		var svg = icon("loader", "spinner");
