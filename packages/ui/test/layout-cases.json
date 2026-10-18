@@ -7015,6 +7015,61 @@
 		}
 	},
 	{
+		"name": "grid span up to growth limits",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"display": "Grid"
+					},
+					"children": [
+						{
+							"style": {
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 96,
+								"height": 10,
+								"gridColumn": "1 / 3"
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"display": "Grid",
+						"gridTemplateColumns": "auto auto"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 20,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 30,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 96,
+								"height": 10,
+								"gridColumn": "1 / 3"
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	{
 		"name": "grid absolute children in their areas",
 		"width": 300,
 		"height": 200,

@@ -1014,9 +1014,23 @@ class Layout {
 					case MinContent: mins[k];
 					case _: autoMins[k];
 				}
-				if (wantMin > have && targets.length > 0)
-					for (i in targets)
-						base[i] += (wantMin - have) / targets.length;
+				// (shared up to the tracks' growth limits first, then beyond them equally, as CSS's)
+				if (wantMin > have && targets.length > 0) {
+					var extra = wantMin - have, open = [for (i in targets) if (base[i] < limit[i]) i];
+					while (extra > 1e-9 && open.length > 0) {
+						var share = extra / open.length, next = [];
+						for (i in open) {
+							var d = Math.min(share, limit[i] - base[i]);
+							base[i] += d;
+							extra -= d;
+							if (limit[i] - base[i] > 1e-9) next.push(i);
+						}
+						open = next;
+					}
+					if (extra > 1e-9)
+						for (i in targets)
+							base[i] += extra / targets.length;
+				}
 				// the limits: an intrinsic maximum grows to the max-content contribution
 				var haveL = g, ltargets = [];
 				for (i in a...a + span) {
