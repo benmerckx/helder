@@ -15,22 +15,6 @@ import haxe.macro.Expr;
 // Event (only for the events a widget listens to). A name the table has
 // not is an error, so that the two renderers' vocabularies stay one.
 class NeutralMacro {
-	// the tables as switches over a neutral name, for Neutral's run time: its DOM name, its CSS property and px
-	public static macro function attrName(name:Expr):Expr {
-		var cases:Array<Case> = [for (k => v in DATA) {values: [macro $v{k}], expr: macro $v{v}}].concat([for (k => v in ARIA) {values: [macro $v{k}], expr: macro $v{v}}]);
-		return {expr: ESwitch(name, cases, macro $name), pos: name.pos};
-	}
-
-	public static macro function cssName(name:Expr):Expr {
-		var cases:Array<Case> = [for (k => c in CSS) {values: [macro $v{k}], expr: macro $v{c.prop}}];
-		return {expr: ESwitch(name, cases, macro $name), pos: name.pos};
-	}
-
-	public static macro function cssPx(name:Expr):Expr {
-		var px = [for (k => c in CSS) if (c.px) macro $v{k}];
-		return {expr: ESwitch(name, [{values: px, expr: macro true}], macro false), pos: name.pos};
-	}
-
 	#if macro
 	// (the neutral elements' DOM elements: view's and text's own, and the names their view: and text: forms take)
 	static final VIEWS = [
@@ -70,7 +54,10 @@ class NeutralMacro {
 
 	// the DOM element of a neutral one
 	public static function element(tag:Expr):Expr {
-		var t = literal(tag), dom = domName(t, tag.pos);
+		var t = literal(tag);
+		// (an icon: an <svg>, its paths its name's)
+		if (t == "icon") return macro @:pos(tag.pos) hxmc.web.Neutral.icon();
+		var dom = domName(t, tag.pos);
 		if (t == "scroll") return macro @:pos(tag.pos) {
 			var el = hxmc.web.DomRenderer.createElement("div");
 			(cast el : js.html.Element).style.overflow = "auto";
@@ -100,7 +87,14 @@ class NeutralMacro {
 
 	// an attribute set (a value or a signal's at the time)
 	public static function property(el:Expr, tag:Expr, name:Expr, v:Expr):Expr {
-		var f = setterFor(literal(tag), literal(name), name.pos);
+		// (a mapped name set once: Neutral's setter called with its DOM name)
+		var n = literal(name), t = literal(tag);
+		if (!(t == "icon" && n == "name") && n != "tag") {
+			var dom = DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : null;
+			if (dom != null) return macro @:pos(name.pos) hxmc.web.Neutral.attr($el, $v{dom}, $v);
+			if (CSS.exists(n)) return macro @:pos(name.pos) hxmc.web.Neutral.css($el, $v{CSS[n].prop}, $v, $v{CSS[n].px});
+		}
+		var f = setterFor(t, n, name.pos, v);
 		return f == null ? macro {} : macro @:pos(name.pos) $f($el, $name, $v);
 	}
 
@@ -110,20 +104,26 @@ class NeutralMacro {
 		return f == null ? macro @:pos(name.pos) function(el:Dynamic, name:String, v:Dynamic) {} : f;
 	}
 
-	static function setterFor(tag:String, name:String, pos:Position):Null<Expr> {
+	static function setterFor(tag:String, name:String, pos:Position, ?v:Expr):Null<Expr> {
+		if (tag == "icon" && name == "name") return macro @:pos(pos) hxmc.web.Neutral.iconName;
 		// (ui's own: Node.find's tag, a group's and a peer's markers, the CSS's slots)
 		if (name == "tag" || name == "group" || name == "peer") return null;
 		// (a button's or a link's own: its role, and focusable as it is; a legend's role)
-		if ((tag == "view:button" || tag == "view:a") && (name == "role" || name == "focusable")) return null;
+		if ((tag == "view:button" || tag == "view:a") && name == "focusable") return null;
+		if (name == "role" && v != null && v.expr.match(EConst(CString("button" | "link", _)))) return null;
 		if (StringTools.endsWith(tag, ":legend") && name == "role") return null;
-		// (each kind one function, (el, name, v), naming the DOM's attribute or property itself: Neutral)
-		if (DATA.exists(name) || ARIA.exists(name)) return macro @:pos(pos) hxmc.web.Neutral.mapped;
+		// (a mapped name: a function setting its DOM attribute or property, named here; each other kind one function, (el, name, v): Neutral)
+		var dom = DATA.exists(name) ? DATA[name] : ARIA.exists(name) ? ARIA[name] : null;
+		if (dom != null) return macro @:pos(pos) function(el:Dynamic, _:String, v:Dynamic) hxmc.web.Neutral.attr(el, $v{dom}, v);
+		if (CSS.exists(name)) {
+			var c = CSS[name];
+			return macro @:pos(pos) function(el:Dynamic, _:String, v:Dynamic) hxmc.web.Neutral.css(el, $v{c.prop}, v, $v{c.px});
+		}
 		if (PLAIN.indexOf(name) >= 0 || StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-"))
 			return macro @:pos(pos) hxmc.web.Neutral.plain;
 		if (name == "focusable") return macro @:pos(pos) hxmc.web.Neutral.focusable;
 		if (name == "states") return macro @:pos(pos) hxmc.web.Neutral.states;
 		if (name == "disabled") return macro @:pos(pos) hxmc.web.Neutral.disabled;
-		if (CSS.exists(name)) return macro @:pos(pos) hxmc.web.Neutral.style;
 		return Context.error('hxmc.web: <$tag>\'s attribute $name has no DOM form (NeutralMacro)', pos);
 	}
 

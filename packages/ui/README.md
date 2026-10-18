@@ -295,7 +295,8 @@ Attributes:
 The elements are also the neutral ones of single-source widgets
 (`@:neutral`, packages/view/README.md): `view:button`, `view:label`... and
 `text:p`, `text:h2`... are a view and a text here, the element of that name
-in a page; a ref of theirs gets an `hxmc.ui.Part` (Node is one: `focus`,
+in a page; `<icon name="check"/>` draws lucide's icon of that name
+(`hxmc.ui.widgets.Icons`, an inline SVG in a page); a ref of theirs gets an `hxmc.ui.Part` (Node is one: `focus`,
 `rect`, `scrollIntoView`, `contains`, `attr`).
 - drag and drop: `drag-data={value}` makes a node draggable; `onDragStart`,
   `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`

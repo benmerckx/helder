@@ -110,13 +110,14 @@ as NodeRenderer does its elements now: nothing per node at run time):
   `view:a`, `view:nav`, `view:ul`, `view:li` (a view, the DOM's element of
   that name: its semantics and default behaviour), `text` and `text:p`,
   `text:h2`... (a text, the DOM's `span` or that element), `scroll`, `icon`
-  (an Svg; inline SVG), `field` and `field:textarea` (a text field; the
+  (`name`: lucide's, `hxmc.ui.widgets.Icons`; an Svg, inline SVG), `field` and `field:textarea` (a text field; the
   DOM's `input`, `textarea`).
 - **Attributes**: ui's names, mapped by the DOM renderer: `slot`,
   `variant`, `size` as `data-slot`, `data-variant`, `data-size`; `data-*`
   as they are; `role`; `label`, `checked`, `selected`, `expanded`,
-  `disabled`, `hidden`, `value-now`... as `aria-*`; `focusable` as
-  `tabindex`; `tag` as `id`; StyleProps (`direction`, `width`...) as
+  `disabled`, `hidden`, `value-now`, `pressed`, `live`... as `aria-*`;
+  `focusable` as `tabindex` (a button's and a link's own); `tag`, `group`
+  and `peer` ui's only, `id` the DOM's; StyleProps (`direction`, `width`...) as
   inline style.
 - **Events**: ui's `Event` on both (`key` a `Key` code, `mods`, `x`,
   `y`, `stop`, `preventDefault`), the DOM renderer converting its events

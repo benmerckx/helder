@@ -1761,23 +1761,29 @@ class MarkupTest implements Markup {
 			ui.update();
 		}
 		var b = ui.root.find("b"), t = ui.root.find("t"), c = ui.root.find("c"), s = ui.root.find("s"), card = ui.root.find("card");
-		var thumb = s.children[0], indicator = c.children[0];
+		// (the indicator there while checked or mixed, as Radix's)
+		var thumb = s.children[0];
+		function indicator():Null<Node> {
+			for (k in c.children)
+				if (k.slot == "checkbox-indicator") return k;
+			return null;
+		}
 		check("unstyled: slots, variants and sizes for a theme", b.slot == "button" && b.variant == "destructive" && b.size == "sm" && t.slot == "toggle"
-			&& c.slot == "checkbox" && indicator.slot == "checkbox-indicator" && s.slot == "switch" && thumb.slot == "switch-thumb" && card.slot == "card"
+			&& c.slot == "checkbox" && s.slot == "switch" && thumb.slot == "switch-thumb" && card.slot == "card"
 			&& ui.root.find("card-header").slot == "card-header" && ui.root.find("card-title").slot == "card-title" && ui.root.find("badge").variant == "secondary"
 			&& ui.root.find("label").slot == "label");
 		check("unstyled: legible without a theme: outlines in the text's colour", b.style.borderWidth == 1 && b.style.borderColor == Color.BLACK
 			&& c.style.width.resolve(0) == 16 && c.style.borderWidth == 1 && s.style.borderWidth == 1);
 		// (states: data-state, the indicator shown when checked, the thumb moved)
-		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), s.style.justify == End ? "moved" : "start"];
+		var before = [c.attr("data-state"), indicator() == null ? "hidden" : "shown", s.attr("data-state"), s.style.justify == End ? "moved" : "start"];
 		click(c);
 		click(s);
 		click(t);
 		check("unstyled: data-state as Radix's, the checked state visible", before.join(",") == "unchecked,hidden,unchecked,start" && ticked.peek() && c.attr("data-state") == "checked"
-			&& indicator.style.display != None && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
+			&& indicator() != null && indicator().slot == "checkbox-indicator" && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
 			&& s.style.justify == End && pressed.peek() && t.attr("data-state") == "on", before.join(","));
 		mixed.value = true;
-		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator.attr("data-state") == "indeterminate");
+		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator().attr("data-state") == "indeterminate");
 		// (disabled: data-disabled, no clicks, not focusable)
 		click(b);
 		off.value = true;

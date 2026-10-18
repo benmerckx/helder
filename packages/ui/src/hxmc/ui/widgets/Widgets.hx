@@ -121,11 +121,13 @@ class Widgets implements Markup {
 			checked: "a signal of whether it is checked, flipped when it or its label is clicked, or with Space",
 			mixed: "a signal: while true, neither checked nor not (a dash); checked and cleared when it is clicked",
 			label: "its text beside it, and its name for assistive technology",
-			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored",
+			invalid: "a Bool, a signal or a function of one: aria-invalid, for the theme"
 		},
 		keys: {"Space": "checks or unchecks it (checks it when mixed)"}
 	})
-	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
+	@:neutral public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?invalid:Dynamic,
+			?style:States->StyleProps, ?tag:String}):View {
 		var mixed = () -> props.mixed != null && props.mixed.value;
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> mixed() ? "indeterminate" : props.checked.value ? "checked" : "unchecked";
@@ -135,19 +137,20 @@ class Widgets implements Markup {
 			if (was) props.mixed.value = false;
 			props.checked.value = was || !props.checked.peek();
 		});
-		// (its indicator centred, as a <button>'s content)
-		var box = <view tag={props.tag ?? "checkbox"} slot="checkbox" ref={n -> States.apply(n, props.style)} role="checkbox" label={props.label} align-items="center" justify="center"
-			checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
-			data-disabled={disabled} onKeyDown={e -> if (e.key == Key.SPACE) {
-				e.preventDefault();
-				toggle();
-			}}>
-			<view slot="checkbox-indicator" data-state={state} display={() -> state() == "unchecked" ? "none" : "flex"}>
-				<image slot="checkbox-icon" src={() -> mixed() ? MINUS : CHECK} hidden/>
-			</view>
-		</view>;
-		return <view slot="checkbox-field" direction="row" align-items="center" onClick={_ -> toggle()}>
-			{box}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
+		// (its indicator centred, as a <button>'s content; Enter not a press, as Radix's)
+		var box = <view:button tag={props.tag ?? "checkbox"} id={props.tag} slot="checkbox" states={props.style} role="checkbox" label={props.label}
+			align-items="center" justify="center" checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state}
+			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} aria-invalid={() -> read(props.invalid) == true ? "true" : null}
+			onKeyDown={e -> if (e.key == Key.ENTER) e.preventDefault()} onPress={_ -> toggle()}>
+			<Show when={() -> state() != "unchecked"}>
+				<view:span slot="checkbox-indicator" data-state={state}>
+					<icon slot="checkbox-icon" name={() -> mixed() ? "minus" : "check"} hidden/>
+				</view:span>
+			</Show>
+		</view:button>;
+		// (its label pressed: it pressed, the label not the box's: the box named by its label prop)
+		return props.label == null ? box : <view slot="checkbox-field" direction="row" align-items="center">
+			{box}<text:label slot="label" data-disabled={disabled} hidden onClick={_ -> toggle()}>{props.label}</text:label>
 		</view>;
 	}
 
@@ -165,21 +168,17 @@ class Widgets implements Markup {
 		sizes: ["default", "sm"],
 		keys: {"Space, Enter": "turns it on or off"}
 	})
-	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
+	@:neutral public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
 		var toggle = () -> if (!disabled()) props.checked.value = !props.checked.peek();
-		var track = <view tag={props.tag ?? "switch"} slot="switch" ref={n -> States.apply(n, props.style)} size={props.size ?? "default"} data-size={props.size ?? "default"} role="switch"
-			label={props.label} checked={() -> props.checked.value}
-			data-state={state} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled}
-			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
-				e.preventDefault();
-				toggle();
-			}}>
-			<view slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
-		</view>;
-		return <view slot="switch-field" direction="row" align-items="center" onClick={_ -> toggle()}>
-			{track}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
+		var track = <view:button tag={props.tag ?? "switch"} id={props.tag} slot="switch" states={props.style} size={props.size ?? "default"} role="switch"
+			label={props.label} checked={() -> props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
+			data-disabled={disabled} onPress={_ -> toggle()}>
+			<view:span slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
+		</view:button>;
+		return props.label == null ? track : <view slot="switch-field" direction="row" align-items="center">
+			{track}<text:label slot="label" data-disabled={disabled} hidden onClick={_ -> toggle()}>{props.label}</text:label>
 		</view>;
 	}
 

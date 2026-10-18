@@ -49,41 +49,6 @@ class Widgets implements Markup {
 	static function on(v:Dynamic):Bool
 		return read(v) == true;
 
-	// a checkbox (shadcn's, Radix's) bound to a signal, with its label;
-	// mixed: neither checked nor not (indeterminate), checked when clicked
-	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?invalid:Dynamic,
-			?tag:String}):View {
-		var id = props.tag ?? Dom.id();
-		var mixed = () -> props.mixed != null && props.mixed.value;
-		var state = () -> mixed() ? "indeterminate" : props.checked.value ? "checked" : "unchecked";
-		function toggle()
-			batch(() -> {
-				var was = props.mixed != null && props.mixed.peek();
-				if (was) props.mixed.value = false;
-				props.checked.value = was || !props.checked.peek();
-			});
-		var box = <button type="button" role="checkbox" id={id} data-slot="checkbox" aria-checked={() -> mixed() ? "mixed" : props.checked.value ? "true" : "false"}
-			data-state={state} disabled={() -> on(props.disabled)} data-disabled={() -> on(props.disabled) ? "" : null}
-			aria-invalid={() -> on(props.invalid) ? "true" : null} onClick={toggle}>
-			<Show when={() -> state() != "unchecked"}>
-				<span data-slot="checkbox-indicator" data-state={state} style="pointer-events:none">{() -> icon(mixed() ? "minus" : "check", "checkbox-icon")}</span>
-			</Show>
-		</button>;
-		return props.label == null ? box : <div data-slot="checkbox-field">{box}<label data-slot="label" htmlFor={id}>{props.label}</label></div>;
-	}
-
-	// a switch (shadcn's, Radix's) bound to a signal, with its label; size "default" or "sm"
-	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?tag:String}):View {
-		var id = props.tag ?? Dom.id();
-		var state = () -> props.checked.value ? "checked" : "unchecked";
-		var track = <button type="button" role="switch" id={id} data-slot="switch" data-size={props.size ?? "default"}
-			aria-checked={() -> props.checked.value ? "true" : "false"} data-state={state} disabled={() -> on(props.disabled)}
-			data-disabled={() -> on(props.disabled) ? "" : null} onClick={() -> props.checked.value = !props.checked.peek()}>
-			<span data-slot="switch-thumb" data-state={state}/>
-		</button>;
-		return props.label == null ? track : <div data-slot="switch-field">{track}<label data-slot="label" htmlFor={id}>{props.label}</label></div>;
-	}
-
 	// an alert (shadcn's): variant "default" or "destructive"; its title and description
 	public static function Alert(props:{?variant:String, ?children:View, ?tag:String}):View
 		return <div id={props.tag} data-slot="alert" role="alert" data-variant={props.variant ?? "default"}>{props.children}</div>;

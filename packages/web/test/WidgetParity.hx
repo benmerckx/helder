@@ -11,7 +11,6 @@
 class WidgetParity {
 	// the differences known, by widget, and why
 	static final KNOWN = [
-		"Checkbox" => "invalid: the DOM's only (aria-invalid)",
 		"Input" => "type: the DOM's only (an <input>'s type)",
 		"Select" => "size: ui's only (data-size)",
 		"AlertDialog" => "size: ui's only (data-size)",

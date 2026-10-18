@@ -277,6 +277,12 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 		} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
 	}
 
+	// (an icon's: lucide's of that name, hxmc.ui.widgets.Icons)
+	@:attribute static function name(n:Node, attr:String, v:Dynamic) {
+		if (!Std.isOfType(n, ImageNode)) noAttribute(n, attr);
+		(cast n : ImageNode).svg = v == null ? null : hxmc.ui.widgets.Icons.svg(v);
+	}
+
 	@:attribute static function objectPosition(n:Node, name:String, v:Dynamic)
 		if (Std.isOfType(n, ImageNode)) (cast n : ImageNode).position(v) else noAttribute(n, name);
 

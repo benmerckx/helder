@@ -11,26 +11,18 @@ import js.html.Element;
 class Neutral {
 	// an attribute by its DOM name, as ui's setData has them: data-* absent for null and false, empty for true;
 	// aria-* "true" and "false"; else Html's rules
-	public static function attr(el:Element, name:String, v:Dynamic) {
+	public static function attr(el:Dynamic, name:String, v:Dynamic) {
 		var s = if (StringTools.startsWith(name, "data-")) v == null || v == false ? null : v == true ? "" : Std.string(v)
 			else if (StringTools.startsWith(name, "aria-")) v == null ? null : Std.string(v)
 			else Html.attributeValue(name, v);
 		if (s == null) el.removeAttribute(name) else if (el.getAttribute(name) != s) el.setAttribute(name, s);
 	}
 
-	// (a neutral attribute by its neutral name, NeutralMacro's tables: data-slot, aria-label...)
-	public static function mapped(el:Dynamic, name:String, v:Dynamic)
-		attr(el, hxmc.web.NeutralMacro.attrName(name), v);
-
 	public static function plain(el:Dynamic, name:String, v:Dynamic)
 		attr(el, name, v);
 
-	// (a StyleProps attribute by its neutral name)
-	public static function style(el:Dynamic, name:String, v:Dynamic)
-		css(el, hxmc.web.NeutralMacro.cssName(name), v, hxmc.web.NeutralMacro.cssPx(name));
-
 	// a style property (a number in px where px; null: none)
-	public static function css(el:Element, prop:String, v:Dynamic, px:Bool) {
+	public static function css(el:Dynamic, prop:String, v:Dynamic, px:Bool) {
 		if (v == null) {
 			el.style.removeProperty(prop);
 			return;
@@ -46,6 +38,21 @@ class Neutral {
 	// (a widget's style prop, a function of drawn states: a page's look is its CSS)
 	public static function states(el:Dynamic, name:String, v:Dynamic)
 		if (v != null) js.Syntax.code("throw new Error({0})", "hxmc.web: a widget's style prop is drawn widgets' (a page's look is its CSS)");
+
+	// an icon: an <svg> of 24 by 24, stroked (hxmc.ui.widgets.Icons)
+	public static function icon():Dynamic {
+		var svg = js.Browser.document.createElementNS(Html.SVG_NS, "svg");
+		for (a in [
+			["xmlns", Html.SVG_NS], ["width", "24"], ["height", "24"], ["viewBox", "0 0 24 24"], ["fill", "none"], ["stroke", "currentColor"],
+			["stroke-width", "2"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"]
+		])
+			svg.setAttribute(a[0], a[1]);
+		return svg;
+	}
+
+	// (its name: lucide's icon of that name, its paths)
+	public static function iconName(el:Dynamic, name:String, v:Dynamic)
+		el.innerHTML = v == null ? "" : hxmc.ui.widgets.Icons.markup(v);
 
 	// focusable: in the tab order (true), out of it (false), the element's own (null)
 	public static function focusable(el:Dynamic, name:String, v:Dynamic)
