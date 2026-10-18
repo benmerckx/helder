@@ -41,21 +41,30 @@ class DrawText implements TextEngine {
 		return face;
 	}
 
-	// the faces a font is laid out with (shared: a FontSet does not change)
-	final sets = new Map<String, FontSet>();
+	// the faces a font is laid out with (shared: a FontSet does not change), each
+	// one's features beside it: found by comparing, no key built
+	final sets:Array<FontSet> = [];
+	final setFeatures:Array<String> = [];
 	var lastSet:Null<FontSet>;
 	var lastFeatures = "";
 
 	function fontSet(font:Font):FontSet {
 		var f = face(font), oblique = font.italic && !f.italic;
 		if (lastSet != null && lastSet.primary == f && lastSet.size == font.size && lastSet.oblique == oblique && lastFeatures == font.features) return lastSet;
-		var key = f.id + "|" + font.size + "|" + oblique + "|" + font.features;
-		var set = sets.get(key);
+		var set:Null<FontSet> = null;
+		for (i in 0...sets.length) {
+			var s = sets[i];
+			if (s.primary == f && s.size == font.size && s.oblique == oblique && setFeatures[i] == font.features) {
+				set = s;
+				break;
+			}
+		}
 		if (set == null) {
 			set = new FontSet(f, fallbackFaces, font.size, more, emoji);
 			set.oblique = oblique;
 			if (font.features != "") set.features = hxmc.text.FontFeature.parse(font.features);
-			sets.set(key, set);
+			sets.push(set);
+			setFeatures.push(font.features);
 		}
 		lastFeatures = font.features;
 		return lastSet = set;
