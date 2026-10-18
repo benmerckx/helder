@@ -1,0 +1,138 @@
+// The DOM's widgets (hxmc.web.widgets) in headless Chromium (make
+// web-widgets): the gallery (examples/WidgetGallery.hx, its page linking
+// the theme's CSS) driven as a user would, by the pointer and the keys,
+// each widget's behaviour checked through what it shows and its ARIA
+// state: tabs and radio buttons roving, a select opened, moved through,
+// chosen, the focus back on it; a menu's item opening a modal dialog,
+// Escape closing it; a menu bar's Right; a slider's keys; a combobox
+// filtering and choosing; a tooltip after its delay; a context menu; a
+// list box's Shift; a tree opened by the keys; a toast; right to left.
+// Then the sizes of the counter, the form and the gallery, raw and gzipped.
+//   node packages/web/test/widgets.mjs <dir: gallery.html, *.js, shadcn.css>
+import { createServer } from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+let pw;
+try { pw = require('playwright'); } catch { pw = require(path.join(process.execPath, '../../lib/node_modules/playwright')); }
+const [dir] = process.argv.slice(2);
+if (!dir) {
+	console.error('usage: node widgets.mjs <dir>');
+	process.exit(2);
+}
+const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html' };
+const server = createServer((req, res) => {
+	const p = new URL(req.url, 'http://x').pathname;
+	try {
+		const b = fs.readFileSync(path.join(dir, path.basename(p)));
+		res.writeHead(200, { 'content-type': types[path.extname(p)] ?? 'text/html' });
+		res.end(b);
+	} catch {
+		res.writeHead(404);
+		res.end();
+	}
+});
+await new Promise(r => server.listen(0, r));
+const browser = await pw.chromium.launch();
+const page = await browser.newPage({ viewport: { width: 900, height: 800 } });
+const errors = [];
+page.on('pageerror', e => errors.push(e.message));
+await page.goto(`http://localhost:${server.address().port}/gallery.html`);
+let checks = 0;
+const failed = [];
+async function check(what, ok) {
+	checks++;
+	if (!(await ok)) failed.push(what);
+}
+const text = sel => page.locator(sel).first().textContent();
+const attr = (sel, a) => page.locator(sel).first().getAttribute(a);
+const focused = () => page.evaluate(() => document.activeElement?.textContent ?? '');
+const press = k => page.keyboard.press(k);
+
+// tabs: Right selects and focuses the next
+await page.locator('[role=tab]').first().focus();
+await press('ArrowRight');
+await check('tabs: Right selects the next', (await attr('[role=tab] >> nth=1', 'aria-selected')) === 'true' && (await focused()) === 'Details');
+await check('tabs: one Tab stop', (await attr('[role=tab] >> nth=0', 'tabindex')) === '-1');
+// radio: a click checks, Down moves and wraps
+await page.locator('label', { hasText: 'Large' }).click();
+await check('radio: a click on the label', (await text('#size-shown')).includes('Large'));
+await page.locator('[role=radio][aria-checked=true]').first().focus();
+await press('ArrowDown');
+await check('radio: Down wraps', (await text('#size-shown')).includes('Small'));
+// select: opened, moved through, chosen, the focus back on it
+await page.locator('[data-slot=select-trigger]').click();
+await check('select: open in the top layer', page.evaluate(() => !!document.querySelector('[data-popup]:popover-open [role=listbox]')));
+await check('select: the chosen option focused', (await focused()) === 'Apple');
+await press('ArrowDown');
+await press('Enter');
+await check('select: Enter chooses', (await text('[data-slot=select-value]')) === 'Pear');
+await check('select: closed, the focus back', (await page.locator('[role=listbox][data-slot=select-content]').count()) === 0
+	&& (await page.evaluate(() => document.activeElement.getAttribute('data-slot'))) === 'select-trigger');
+// a menu's item opening a modal dialog; Escape closes it
+await page.locator('#file').click();
+await check('menu: the first item focused', (await focused()) === 'New');
+await press('ArrowDown');
+await press('ArrowDown');
+await press('Enter');
+await check('menu: Rename opens the dialog', page.evaluate(() => !!document.querySelector('dialog[data-modal][open] [role=dialog]')));
+await check('dialog: the focus in it', page.evaluate(() => document.activeElement.closest('dialog') != null));
+await press('Escape');
+await check('dialog: Escape closes it', (await page.locator('dialog[data-modal]').count()) === 0);
+// menu bar: Right from an open menu opens the next
+await page.locator('[data-slot=menubar-trigger]').first().click();
+await press('ArrowRight');
+await check('menubar: Right opens the next menu', (await attr('[data-slot=menubar-trigger] >> nth=1', 'aria-expanded')) === 'true');
+await press('Escape');
+// slider: Right a step
+await page.locator('#volume [role=slider]').focus();
+await press('ArrowRight');
+await check('slider: Right a step', (await text('#volume-shown')) === '45%');
+await press('Home');
+await check('slider: Home', (await text('#volume-shown')) === '0%');
+// checkbox
+await page.locator('#check').click();
+await check('checkbox: a click', (await text('#toggles')).startsWith('unchecked'));
+// combobox: typing filters, Down and Enter choose, a toast says so
+await page.locator('#city').fill('Ber');
+await check('combobox: filtered', (await page.locator('[data-popup] [data-slot=command-item]').count()) === 2);
+await page.locator('#city').press('ArrowDown');
+await page.locator('#city').press('Enter');
+await check('combobox: chosen', (await page.locator('#city').inputValue()) === 'Berlin');
+await check('toast: shown', page.locator('[data-slot=toast]', { hasText: 'Chose Berlin' }).isVisible());
+// tooltip after its delay
+await page.locator('[data-slot=tooltip-trigger] button').hover();
+await page.waitForTimeout(700);
+await check('tooltip: shown', page.locator('[role=tooltip]').isVisible());
+await page.mouse.move(0, 0);
+await check('tooltip: hidden', (await page.locator('[role=tooltip]').count()) === 0);
+// context menu at the pointer; Escape
+await page.locator('#area').click({ button: 'right' });
+await check('context menu: open', page.locator('[data-slot=context-menu-content]').isVisible());
+await press('Escape');
+await check('context menu: Escape', (await page.locator('[data-slot=context-menu-content]').count()) === 0);
+// list box: Shift+Down extends
+await page.locator('#days [role=option][tabindex="0"]').focus();
+await press('Shift+ArrowDown');
+await check('listbox: Shift extends', (await text('#size-shown')).endsWith('Tue Wed'));
+// tree: Down selects, Right opens
+await page.locator('#files').focus();
+await press('ArrowDown');
+await press('ArrowRight');
+await check('tree: Right opens', (await page.locator('#files [role=treeitem]').count()) === 5);
+// right to left
+await page.locator('#rtl').click();
+await check('right to left', (await page.evaluate(() => document.documentElement.dir)) === 'rtl');
+await browser.close();
+server.close();
+for (const e of errors) failed.push('page error: ' + e);
+for (const f of failed) console.log('widgets: FAILED ' + f);
+console.log(`widgets: ${checks} checks` + (failed.length ? `, ${failed.length} FAILED` : ', ok'));
+for (const f of ['counter.js', 'form.js', 'gallery.js', 'shadcn.css']) {
+	const b = fs.readFileSync(path.join(dir, f));
+	console.log(`widgets: ${f} ${(b.length / 1024).toFixed(1)} KB, ${(gzipSync(b, { level: 9 }).length / 1024).toFixed(1)} KB gzipped`);
+}
+process.exit(failed.length ? 1 : 0);

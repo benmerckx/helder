@@ -290,8 +290,17 @@ class Tailwind {
 		return false;
 	}
 
+	// a variant's place in Tailwind's order (Css: its rules' order)
+	public static function variantRank(v:String):Int {
+		var dash = v.indexOf("-");
+		if (v.startsWith("[")) return ORDER.indexOf("*");
+		if (ORDER.contains(v)) return ORDER.indexOf(v);
+		if (dash > 0 && ORDER.contains(v.substr(0, dash))) return ORDER.indexOf(v.substr(0, dash));
+		return ORDER.length;
+	}
+
 	// (the class's parts between colons outside brackets and parentheses)
-	static function splitVariants(c:String):Array<String> {
+	public static function splitVariants(c:String):Array<String> {
 		var parts = [], depth = 0, start = 0;
 		for (i in 0...c.length) {
 			var ch = c.charCodeAt(i);
