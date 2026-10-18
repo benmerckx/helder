@@ -420,19 +420,19 @@ class Layout {
 			switch s.justify {
 				case Start | Normal:
 				case End: pos = free;
-				case Center: pos = free / 2;
-				case SpaceBetween if (free > 0 && n > 1): gap += free / (n - 1);
+				case Center: pos = lu(free / 2);
+				case SpaceBetween if (free > 0 && n > 1): gap += lu(free / (n - 1));
 				case SpaceBetween:
 				case SpaceAround if (free > 0):
-					gap += free / n;
-					pos = free / n / 2;
+					gap += lu(free / n);
+					pos = lu(free / (2 * n));
 				// (overflowing: at the start, safely, as Chromium falls back: the writing mode's, not
 				// the flex start, so a reversed direction's far end)
 				case SpaceAround if (reverse): pos = free;
 				case SpaceAround:
 				case SpaceEvenly if (free > 0):
-					gap += free / (n + 1);
-					pos = free / (n + 1);
+					gap += lu(free / (n + 1));
+					pos = lu(free / (n + 1));
 				case SpaceEvenly if (reverse): pos = free;
 				case SpaceEvenly:
 			}
@@ -1361,6 +1361,10 @@ class Layout {
 		c[at + 6] = rh;
 		c[0] = at + ENTRY - 1;
 	}
+
+	// (a share of free space as Chromium's LayoutUnit divides it: to a 64th of a pixel, toward zero)
+	static inline function lu(v:Float):Float
+		return v >= 0 ? Math.ffloor(v * 64) / 64 : Math.fceil(v * 64) / 64;
 
 	static inline function known(v:Float):Bool
 		return !Math.isNaN(v);
