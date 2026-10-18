@@ -151,8 +151,11 @@ Split: packages/ui and the drawn realiser here; the DOM realiser
 Where it stands: steps 1 and 2 done; of 3, Toggle, ToggleGroup,
 Checkbox, Switch, RadioGroup, Field and ButtonGroup (and their parts),
 with Alert, Slider and RangeSlider (a drag on the track: Part's
-capture); 52 widgets and parts one definition. Left in 3: the text fields
-(`field`: Input, Textarea, NumberField, InputOTP, InputGroup's input).
+capture); ahead of 4 and 5, Tabs, Listbox and the Sidebar's parts
+(Inset, Header, Content, Footer, Separator, Group, GroupLabel,
+GroupContent, Menu, MenuItem, MenuButton): 65 widgets and parts one
+definition. Left in 3: the text fields (`field`: Input, Textarea,
+NumberField, InputOTP, InputGroup's input).
 
 Debt: in a page a neutral widget calls a Part's methods (focus, rtl) and
 reads an event's `current` opaquely (`js.Syntax.code`: Widgets'
