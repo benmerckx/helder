@@ -6,6 +6,10 @@
 //   const { host, exitCode } = await run('triangle.wasm', {
 //     imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'demo' });
 //
+// The module: its URL, a Response, a WebAssembly.Module or its bytes, or a
+// promise of one (WebAssembly.compileStreaming(fetch(url)) started before
+// run: compiled while the imports load).
+//
 // The import convention: a package whose externs are imports of a module
 // (`@:hxmc.lib("hxmc_gfx")`) ships `imports.mjs`, whose default export is a
 // function (host) => ({module: {name: function}}), or a promise of that (it
@@ -218,7 +222,9 @@ export async function run(wasm, options = {}) {
 		const f = typeof m === 'string' ? (await import(new URL(m, document.baseURI).href)).default : m;
 		Object.assign(imports, await f(host));
 	}
-	// (wasm: a URL, a Response, a compiled WebAssembly.Module or the bytes)
+	// (wasm: a URL, a Response, a compiled WebAssembly.Module or the bytes, or a
+	// promise of one: a module compiling while the imports above were loading)
+	if (wasm && typeof wasm.then === 'function') wasm = await wasm;
 	let instance;
 	try {
 		instance = wasm instanceof WebAssembly.Module ? await WebAssembly.instantiate(wasm, imports)
