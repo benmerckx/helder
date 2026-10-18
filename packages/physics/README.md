@@ -21,7 +21,7 @@ and box, by separating axes among their faces and the corners where the faces ov
 sequential impulses at the contact points, accumulated and clamped, with
 restitution and friction; resting bodies sleep and wake on contact or
 impulse; the same steps give the same numbers on every target (Eval,
-native, wasm32-wasi: tested). Joints: `physics.join(Joint.ball(a, anchorA, b, anchorB))` (a ball and socket; `b` null: a point of the world) and `Joint.distanceOf(...)` (a rigid rod). `Character` walks an upright capsule: steered towards a wanted velocity, grounded by a ray, jumping. Next: convex hulls (GJK and EPA), box edge-against-edge axes, slopes and steps for characters; a binding to an
+native, wasm32-wasi: tested). Joints: `physics.join(Joint.ball(a, anchorA, b, anchorB))` (a ball and socket; `b` null: a point of the world) and `Joint.distanceOf(...)` (a rigid rod). `Character` walks an upright capsule: steered towards a wanted velocity, grounded by a ray, jumping, climbing steps. Next: convex hulls (GJK and EPA), box edge-against-edge axes, slopes for characters; a binding to an
 established engine behind the same API later.
 
 Examples: `Falling` (balls and boxes) and `Walker` (a `Character` among crates; `Shapes.capsule` draws it).

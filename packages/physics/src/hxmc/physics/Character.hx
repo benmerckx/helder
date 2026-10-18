@@ -9,6 +9,8 @@ import hxmc.scene.Node;
 // share of it, airControl), which jumps from the ground, and which pushes
 // and is pushed as any body. Grounded: a ray down from its centre finds
 // something within reach of its feet (on an edge the centre may miss it).
+// Steps up to stepHeight are climbed: walking into something its feet
+// meet but a ray at that height does not, it is lifted onto its top.
 //   var hero = new Character(physics, new Vec3(0, 1, 0), heroNode);
 //   // each fixed step, before physics.step(dt):
 //   hero.update(dt, new Vec3(right, 0, -forward), actions.pressed("jump"));
@@ -26,6 +28,8 @@ class Character {
 	public var airControl = 0.3;
 	// how far under its feet ground still counts
 	public var groundReach = 0.08;
+	// the highest step it walks up (metres)
+	public var stepHeight = 0.35;
 	// whether it stood on something at the last update
 	public var grounded(default, null) = false;
 	// the ground's body and distance below the feet (when grounded)
@@ -42,6 +46,26 @@ class Character {
 		world.add(body, node);
 	}
 
+	// a step in the way (along x, z) climbed: low ahead, clear at the step's
+	// height, its top found from above
+	function climb(x:Float, z:Float) {
+		var l = Math.sqrt(x * x + z * z);
+		if (l < 1e-9) return;
+		var dir = new Vec3(x / l, 0, z / l), p = body.position;
+		var feet = p.y - half - radius, reach = radius + 0.12;
+		var low = world.raycast(new Vec3(p.x, feet + 0.04, p.z), dir, reach, body);
+		if (low == null) return;
+		var top = feet + stepHeight;
+		if (world.raycast(new Vec3(p.x, top, p.z), dir, reach + 0.05, body) != null) return;
+		var ahead = low.distance + 0.06;
+		var down = world.raycast(new Vec3(p.x + dir.x * ahead, top, p.z + dir.z * ahead), new Vec3(0, -1, 0), stepHeight, body);
+		if (down == null) return;
+		var rise = top - down.distance - feet;
+		if (rise <= 0.01) return;
+		body.position = new Vec3(p.x, p.y + rise + 0.01, p.z);
+		body.wake();
+	}
+
 	// steers towards move (x and z: a direction of length up to 1, times
 	// speed; y ignored), jumping when asked and grounded
 	public function update(dt:Float, move:Vec3, jump:Bool) {
@@ -54,6 +78,7 @@ class Character {
 			mx /= l;
 			mz /= l;
 		}
+		if (grounded && l > 0) climb(mx / Math.max(l, 1), mz / Math.max(l, 1));
 		var v = body.velocity;
 		var dx = mx * speed - v.x, dz = mz * speed - v.z;
 		var dl = Math.sqrt(dx * dx + dz * dz), most = acceleration * (grounded ? 1 : airControl) * dt;

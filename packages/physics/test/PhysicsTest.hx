@@ -186,6 +186,18 @@ class PhysicsTest {
 		}
 		var expected = hero.jumpSpeed * hero.jumpSpeed / (2 * 9.81);
 		check('jumps about v^2 / 2g high (${Math.round(peak * 100) / 100} m)', near(peak, expected, 0.1) && hero.grounded);
+		// a character climbs a step onto a platform, not a wall
+		var stw = new PhysicsWorld();
+		stw.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
+		stw.add(new Body(Box(new Vec3(1.5, 0.125, 2)), new Vec3(3.5, 0.125, 0), 0));
+		stw.add(new Body(Box(new Vec3(0.5, 1, 2)), new Vec3(5.5, 1, 0), 0));
+		var climber = new Character(stw, new Vec3(0, 0.95, 0));
+		for (_ in 0...180) {
+			climber.update(dt, new Vec3(1, 0, 0), false);
+			stw.step(dt);
+		}
+		check('a character climbs a step (y ${Math.round(climber.body.position.y * 1000) / 1000}, x ${Math.round(climber.body.position.x * 1000) / 1000})',
+			near(climber.body.position.y, 0.25 + 0.9, 0.02) && near(climber.body.position.x, 5 - 0.3, 0.05));
 		// joints: a pendulum on a ball joint swings at its period and keeps its length
 		var jw = new PhysicsWorld();
 		var bob = jw.add(new Body(Sphere(0.1), new Vec3(Math.sin(0.2), 3 - Math.cos(0.2), 0)));
