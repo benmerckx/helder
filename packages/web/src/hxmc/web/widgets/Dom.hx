@@ -63,35 +63,15 @@ class Dom {
 		return f;
 	}
 
-	// lucide's icons (ISC): their paths (c: a circle, "cx cy r")
-	static final ICONS = [
-		"check" => ["M20 6 9 17l-5-5"], "circle" => ["c12 12 10"], "chevron-down" => ["m6 9 6 6 6-6"], "chevron-right" => ["m9 18 6-6-6-6"],
-		"chevron-left" => ["m15 18-6-6 6-6"], "x" => ["M18 6 6 18", "m6 6 12 12"], "minus" => ["M5 12h14"], "search" => ["m21 21-4.34-4.34", "c11 11 8"],
-		"loader" => ["M21 12a9 9 0 1 1-6.219-8.56"], "more" => ["c12 12 1", "c19 12 1", "c5 12 1"],
-		"arrow-left" => ["m12 19-7-7 7-7", "M19 12H5"], "arrow-right" => ["M5 12h14", "m12 5 7 7-7 7"], "panel-left" => ["M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M9 3v18"],
-		"folder" => ["M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"]
-	];
-
 	// an icon (decoration: hidden from assistive technology), slot its
-	// data-slot (a theme's size and colour), filled (a circle's dot)
+	// data-slot (a theme's size and colour), filled (a circle's dot):
+	// lucide's of that name (hxmc.ui.widgets.Icons), as the neutral icon
 	public static function icon(name:String, ?slot:String, ?fill:Bool):Element {
-		var svg = document.createElementNS(hxmc.web.Html.SVG_NS, "svg");
-		for (a in [
-			["xmlns", hxmc.web.Html.SVG_NS], ["width", "24"], ["height", "24"], ["viewBox", "0 0 24 24"], ["fill", fill == true ? "currentColor" : "none"],
-			["stroke", "currentColor"], ["stroke-width", "2"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"], ["aria-hidden", "true"]
-		])
-			svg.setAttribute(a[0], a[1]);
+		var svg:Element = hxmc.web.Neutral.icon();
+		hxmc.web.Neutral.iconName(svg, null, name);
+		if (fill == true) svg.setAttribute("fill", "currentColor");
+		svg.setAttribute("aria-hidden", "true");
 		if (slot != null) svg.setAttribute("data-slot", slot);
-		for (p in ICONS[name]) {
-			var e = document.createElementNS(hxmc.web.Html.SVG_NS, p.charAt(0) == "c" ? "circle" : "path");
-			if (p.charAt(0) == "c") {
-				var n = p.substr(1).split(" ");
-				e.setAttribute("cx", n[0]);
-				e.setAttribute("cy", n[1]);
-				e.setAttribute("r", n[2]);
-			} else e.setAttribute("d", p);
-			svg.appendChild(e);
-		}
 		return svg;
 	}
 

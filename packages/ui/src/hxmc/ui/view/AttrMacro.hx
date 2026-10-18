@@ -106,10 +106,12 @@ class AttrMacro {
 	public static function renderer():Array<Field> {
 		var fields = Context.getBuildFields();
 		var cases:Array<Case> = [];
+		// (each by its class: an attribute may be named as setAttribute's arguments, name)
+		var cls = Context.getLocalClass().get(), path = cls.pack.concat([cls.name]);
 		for (f in fields)
 			if (Lambda.exists(f.meta, m -> m.name == ":attribute")) {
 				var name = f.name, k = kebab(f.name);
-				cases.push({values: k == name ? [macro $v{name}] : [macro $v{name}, macro $v{k}], expr: macro $i{name}(n, name, v)});
+				cases.push({values: k == name ? [macro $v{name}] : [macro $v{name}, macro $v{k}], expr: macro $p{path.concat([name])}(n, name, v)});
 			}
 		var sw = {expr: ESwitch(macro name, cases, macro if (!StyleAttrs.apply(n.style, name, v)) noAttribute(n, name)), pos: Context.currentPos()};
 		fields.push({

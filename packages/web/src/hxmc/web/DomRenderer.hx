@@ -37,6 +37,9 @@ class DomRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 	public static macro function neutralSetter(tag:haxe.macro.Expr, name:haxe.macro.Expr):haxe.macro.Expr
 		return hxmc.web.NeutralMacro.setter(tag, name);
 
+	public static macro function neutralName(tag:haxe.macro.Expr, name:haxe.macro.Expr):haxe.macro.Expr
+		return hxmc.web.NeutralMacro.name(tag, name);
+
 	public static macro function neutralListen(el:haxe.macro.Expr, tag:haxe.macro.Expr, name:haxe.macro.Expr, h:haxe.macro.Expr):haxe.macro.Expr
 		return hxmc.web.NeutralMacro.listen(el, tag, name, h);
 

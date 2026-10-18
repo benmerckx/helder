@@ -465,7 +465,9 @@ class MarkupTest implements Markup {
 		var summary = ui.root.find("more-summary");
 		check("disclosure: closed at first", ui.root.find("more-text") == null && summary.semantics.expanded == false);
 		click(summary);
-		check("disclosure: a click opens it", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true);
+		var arrow:ImageNode = cast summary.children[0];
+		check("disclosure: a click opens it, its arrow down", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true
+			&& arrow.svg == hxmc.ui.widgets.Icons.svg("chevron-down") && arrow.mirrored);
 		ui.setFocus(summary);
 		ui.keyDown(Key.SPACE, 0);
 		ui.update();
@@ -1095,7 +1097,8 @@ class MarkupTest implements Markup {
 		click(ui.root.find("crumbs-1"));
 		ui.setFocus(ui.root.find("crumbs-0"));
 		key(Key.ENTER);
-		check("breadcrumbs: a click and Enter choose a step", chosen.join(",") == "1,0", chosen.join(","));
+		key(Key.SPACE);
+		check("breadcrumbs: a click and Enter choose a step, Space not (a link's)", chosen.join(",") == "1,0", chosen.join(","));
 		var prev = ui.root.find("pages-prev"), next = ui.root.find("pages-next");
 		function labels():String
 			return [for (n in tagged(ui.root.find("pages"), "pages-page")) (cast n.children[0] : TextNode).text].join(" ");
@@ -1761,23 +1764,29 @@ class MarkupTest implements Markup {
 			ui.update();
 		}
 		var b = ui.root.find("b"), t = ui.root.find("t"), c = ui.root.find("c"), s = ui.root.find("s"), card = ui.root.find("card");
-		var thumb = s.children[0], indicator = c.children[0];
+		// (the indicator there while checked or mixed, as Radix's)
+		var thumb = s.children[0];
+		function indicator():Null<Node> {
+			for (k in c.children)
+				if (k.slot == "checkbox-indicator") return k;
+			return null;
+		}
 		check("unstyled: slots, variants and sizes for a theme", b.slot == "button" && b.variant == "destructive" && b.size == "sm" && t.slot == "toggle"
-			&& c.slot == "checkbox" && indicator.slot == "checkbox-indicator" && s.slot == "switch" && thumb.slot == "switch-thumb" && card.slot == "card"
+			&& c.slot == "checkbox" && s.slot == "switch" && thumb.slot == "switch-thumb" && card.slot == "card"
 			&& ui.root.find("card-header").slot == "card-header" && ui.root.find("card-title").slot == "card-title" && ui.root.find("badge").variant == "secondary"
 			&& ui.root.find("label").slot == "label");
 		check("unstyled: legible without a theme: outlines in the text's colour", b.style.borderWidth == 1 && b.style.borderColor == Color.BLACK
 			&& c.style.width.resolve(0) == 16 && c.style.borderWidth == 1 && s.style.borderWidth == 1);
 		// (states: data-state, the indicator shown when checked, the thumb moved)
-		var before = [c.attr("data-state"), indicator.style.display == None ? "hidden" : "shown", s.attr("data-state"), s.style.justify == End ? "moved" : "start"];
+		var before = [c.attr("data-state"), indicator() == null ? "hidden" : "shown", s.attr("data-state"), s.style.justify == End ? "moved" : "start"];
 		click(c);
 		click(s);
 		click(t);
 		check("unstyled: data-state as Radix's, the checked state visible", before.join(",") == "unchecked,hidden,unchecked,start" && ticked.peek() && c.attr("data-state") == "checked"
-			&& indicator.style.display != None && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
+			&& indicator() != null && indicator().slot == "checkbox-indicator" && on.peek() && s.attr("data-state") == "checked" && thumb.attr("data-state") == "checked"
 			&& s.style.justify == End && pressed.peek() && t.attr("data-state") == "on", before.join(","));
 		mixed.value = true;
-		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator.attr("data-state") == "indeterminate");
+		check("unstyled: indeterminate", c.attr("data-state") == "indeterminate" && indicator().attr("data-state") == "indeterminate");
 		// (disabled: data-disabled, no clicks, not focusable)
 		click(b);
 		off.value = true;
@@ -1809,9 +1818,15 @@ class MarkupTest implements Markup {
 			ui.update();
 		}
 		var s = ui.root.find("r-S"), m = ui.root.find("r-M"), t0 = ui.root.find("tabs-0"), t1 = ui.root.find("tabs-1"), v = ui.root.find("vol");
+		// (an item's indicator there while it is checked, as Radix's)
+		function indicator(n:Node):Null<Node> {
+			for (k in n.children)
+				if (k.slot == "radio-group-indicator") return k;
+			return null;
+		}
 		check("unstyled: a radio group's slots, data-state, its indicator shown when checked", ui.root.find("r").slot == "radio-group"
-			&& s.slot == "radio-group-item" && s.children[0].slot == "radio-group-indicator" && s.attr("data-state") == "unchecked"
-			&& m.attr("data-state") == "checked" && s.children[0].style.display == None && m.children[0].style.display != None
+			&& s.slot == "radio-group-item" && s.attr("data-state") == "unchecked" && m.attr("data-state") == "checked" && indicator(s) == null
+			&& indicator(m) != null
 			&& s.semantics.label == "Small" && s.style.radius == 8);
 		click(s.parent.children[1]);
 		check("unstyled: the radio's label checks it", size.value == "S" && s.attr("data-state") == "checked", size.value);
@@ -2014,7 +2029,13 @@ class MarkupTest implements Markup {
 		check("unstyled: a calendar's slots, its days' data-selected, data-today, data-outside", ui.root.find("cal").slot == "calendar"
 			&& ui.root.find("cal-previous").slot == "calendar-button-previous" && ui.root.find("cal-previous").variant == "ghost" && ui.root.find("cal-month").slot == "calendar-caption-label"
 			&& days.length == 42 && days[0].slot == "calendar-day" && chosen.length == 1 && (cast chosen[0].children[0] : TextNode).text == "17"
-			&& today.length == 1 && outside.length > 0 && chosen[0].attr("data-focused") == "true" && chosen[0].style.background != Color.TRANSPARENT);
+			&& today.length == 1 && outside.length > 0 && chosen[0].attr("data-focused") == null && chosen[0].style.background != Color.TRANSPARENT);
+		// (the cursor's day marked focused while the grid has the focus, as react-day-picker's)
+		ui.setFocus(ui.root.find("cal-grid"));
+		ui.update();
+		check("unstyled: a calendar's cursor day data-focused while its grid has the focus", chosen[0].attr("data-focused") == "true");
+		ui.setFocus(null);
+		ui.update();
 		var date = ui.root.find("date");
 		check("unstyled: a date picker an outline button, empty", date.slot == "button" && date.variant == "outline" && date.attr("data-empty") == "true");
 		date.ui.setFocus(date);

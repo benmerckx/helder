@@ -49,10 +49,10 @@ class Tw {
 		var rules = [];
 		for (slot in sheet.slots) {
 			at = slot.file.path;
-			var out = tw.slot(slot.name, slot.lists);
+			var out = tw.slot(slot.name, slot.lists, true);
 			if (global.classes != "" && Lambda.exists(out, r -> r.props.exists("borderWidth") || r.props.exists("borders"))) {
 				at = sheet.path;
-				out = tw.slot(slot.name, [global].concat(slot.lists));
+				out = tw.slot(slot.name, [global].concat(slot.lists), true);
 			}
 			rules = rules.concat(out);
 		}

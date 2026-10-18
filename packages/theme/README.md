@@ -188,7 +188,8 @@ The subset of Tailwind v4 shadcn's components use (`Tailwind.hx`), read
 with Tailwind's default theme and shadcn's on top, 1rem = 16px:
 
 - layout: `flex`, `inline-flex` (a row: CSS's default direction, not
-  ui's column), `grid`, `hidden`, `block`; `flex-col`, `flex-wrap`,
+  ui's column), `grid`, `hidden`, `block` (a sheet's slot without a
+  display one too: CSS's block box, its children at their own heights); `flex-col`, `flex-wrap`,
   `flex-1`, `shrink-0`, `grow`, `items-*`, `justify-*`, `self-*`,
   `justify-self-*`, `place-content-center`, `place-items-center`,
   `grid-cols-*`, `grid-rows-[...]`, `auto-rows-*`, `col-*`, `row-*`;
@@ -252,8 +253,12 @@ there: exit animations (ui removes a closed popup), keyframe animations
 viewport units (`h-svh`), native appearance and list markers, dashed
 borders and a side's border colour, `nth-*`, what Radix's popper measures,
 what has no property yet (`scroll-m*`, `touch-none`), a table's own layout, `text-balance`,
-`sr-only`; arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`,
-`has-[>svg]:px-3`), children's and descendants' (`*:`, `**:`, given to
+`sr-only`; arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`; but
+`has-[>svg]:`, and a slot's children's `[&>*]:`, `[&>*:not(:first-child)]:`,
+`[&>*:not(:last-child)]:`: rules of any slot whose parent is the slot,
+Rules' `parent:`, a side they leave the child's own; and `has-[...]` of
+attributes and states, `has-[[data-slot=x]:focus-visible]`, not of an
+element's type), children's and descendants' (`*:`, `**:`, given to
 the part's own slot where hxmc has one), pseudo-elements (`after:`) and
 `file:`.
 

@@ -152,8 +152,11 @@ class Layout {
 		var s = n.style;
 		var bareBreak = breakH;
 		breakH = Math.NaN;
-		var row = s.direction == Row || s.direction == RowReverse;
-		var reverse = s.direction == RowReverse || s.direction == ColumnReverse;
+		// (a block: a column, its items at their own sizes; a row its own
+		// direction made, a widget's, a flex row's)
+		var block = s.display == Block && s.direction == Column;
+		var row = !block && (s.direction == Row || s.direction == RowReverse);
+		var reverse = !block && (s.direction == RowReverse || s.direction == ColumnReverse);
 		// (placed from the far side: a reversed direction, and right to left the
 		// inline axis, a row's main and a column's cross; each item's margins
 		// on its own sides)
@@ -171,7 +174,7 @@ class Layout {
 		var gapMain = row ? s.columnGap : s.rowGap, gapCross = row ? s.rowGap : s.columnGap;
 		var minMain = (row ? minW : minH) - (row ? padH : padV), maxMain = (row ? maxW : maxH) - (row ? padH : padV);
 		var minCross = (row ? minH : minW) - (row ? padV : padH), maxCross = (row ? maxH : maxW) - (row ? padV : padH);
-		var multi = s.wrap;
+		var multi = !block && s.wrap;
 
 		// the items and their hypothetical main sizes
 		var first = itemTop, absolute:Null<Array<Node>> = null;
@@ -326,7 +329,7 @@ class Layout {
 		// flexible lengths, then the items' cross sizes
 		for (k in firstLine...lastLine) {
 			var l = lines[k];
-			resolveFlexible(l, mainSize, gapMain);
+			if (block) for (i in l.start...l.end) items[i].main = items[i].hypo else resolveFlexible(l, mainSize, gapMain);
 			// (items on their baselines: laid out to find them, the line as deep as the deepest above
 			// them and below them)
 			var lc = 0.0, above = 0.0, below = 0.0;

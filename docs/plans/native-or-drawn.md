@@ -87,7 +87,7 @@ part vocabulary that replaces it:
 | `<Popover>` (menus, dialogs, tooltips, selects) | 12 | `<Layer anchor={part} placement modal>` | the top layer (`popover`, `<dialog>`), `Dom.popup` |
 | pointer moves and drags | 56 | neutral pointer events with capture (`onPointer*`, `part.capture(id)`) | `setPointerCapture` |
 | `onKeyDown` with `Key` codes | 57 | the same `Event` (key, mods, `stop`, `preventDefault`), converted once by the realiser | `Dom.key`, `Dom.mods` |
-| text fields (Input, Textarea, TagInput, NumberField, InputOTP, Combobox) | 6 | a `<field>` part: value, selection, IME | `<input>`, `<textarea>` |
+| text fields (Input, Textarea, TagInput, NumberField, InputOTP, Combobox) | 6 | a `<field>` part: value, onInput, `Part.select`, IME | `<input>`, `<textarea>` |
 | icons (`<image svg>`) | 16 | an `<icon>` part | inline SVG |
 | `<scroll>`, virtual lists | 14 | `<scroll>`; `VirtualList` over `part.rect()` | `overflow: auto`, rows by scroll offset |
 | inline layout (`direction`, `width`, `position`...) | many | slot rules (`Rules.addBase` for the unstyled look), the rest StyleProps on parts | the same rules as CSS (`Css`), the rest inline style (the renderer's `setter`) |
@@ -110,19 +110,20 @@ as NodeRenderer does its elements now: nothing per node at run time):
   `view:a`, `view:nav`, `view:ul`, `view:li` (a view, the DOM's element of
   that name: its semantics and default behaviour), `text` and `text:p`,
   `text:h2`... (a text, the DOM's `span` or that element), `scroll`, `icon`
-  (an Svg; inline SVG), `field` and `field:textarea` (a text field; the
+  (`name`: lucide's, `hxmc.ui.widgets.Icons`; an Svg, inline SVG), `field` and `field:textarea` (a text field; the
   DOM's `input`, `textarea`).
 - **Attributes**: ui's names, mapped by the DOM renderer: `slot`,
   `variant`, `size` as `data-slot`, `data-variant`, `data-size`; `data-*`
   as they are; `role`; `label`, `checked`, `selected`, `expanded`,
-  `disabled`, `hidden`, `value-now`... as `aria-*`; `focusable` as
-  `tabindex`; `tag` as `id`; StyleProps (`direction`, `width`...) as
+  `disabled`, `hidden`, `value-now`, `pressed`, `live`... as `aria-*`;
+  `focusable` as `tabindex` (a button's and a link's own); `tag`, `group`
+  and `peer` ui's only, `id` the DOM's; StyleProps (`direction`, `width`...) as
   inline style.
 - **Events**: ui's `Event` on both (`key` a `Key` code, `mods`, `x`,
   `y`, `stop`, `preventDefault`), the DOM renderer converting its events
   for these elements only (a page's own elements keep the DOM's).
-- **Refs**: a `Part` (`focus`, `rect`, `scrollIntoView`, `capture`,
-  `contains`, `attr`), which Node implements and the DOM renderer wraps.
+- **Refs**: a `Part` (`focus`, `rect`, `scrollIntoView`, `rtl`, `capture` (a press's moves),
+  `contains`, `attr`, `select` (a field's selection)), which Node implements and the DOM renderer wraps.
 - **Layers**: `Layer` (a component: anchored, placed, modal or not), ui's
   overlay or the DOM's top layer.
 
@@ -146,6 +147,32 @@ definition:
 
 Split: packages/ui and the drawn realiser here; the DOM realiser
 (packages/web) in parallel once the vocabulary is fixed.
+
+Where it stands: steps 1 and 2 done, and 3: Toggle, ToggleGroup,
+Checkbox, Switch, RadioGroup, Field and ButtonGroup (and their parts),
+with Alert, Slider and RangeSlider (a drag on the track: Part's
+capture), and the text fields (Input, Textarea, NumberField, InputOTP,
+InputGroupInput: `field` and `field:textarea`, ui's TextField and
+TextArea, native where `Ui.policy` says, the DOM's `<input>` and
+`<textarea>`; `value` bound, `onInput` its text changed by its user
+(Event.text), a node's own handlers (a field's editing) after the
+markup's unless it prevented the default; `placeholder`, `type`, `rows`,
+`readonly`, `maxlength`, `inputmode`, `autocomplete`; Part's `select`
+for InputOTP's caret kept at the end; what a page's input has itself, ui's
+in Widgets' fieldOwn: out of the tab order while disabled, the edit
+menu); ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination,
+Collapsible and the Sidebar's parts (Inset, Header, Content, Footer,
+Separator, Group, GroupLabel, GroupContent, Menu, MenuItem, MenuButton):
+73 widgets and parts one definition.
+
+Debt: in a page a neutral widget calls a Part's methods (focus, rtl,
+select) and reads an event's `current` opaquely (`js.Syntax.code`:
+Widgets' mirroredKey, focusPart, selectPart and unseen), since the JS generator's DCE, upstream's,
+keeps every implementation of an interface method called through it (a
+Node's, and its nodes with it) and every field of a name read untyped;
+ElementPart's methods are kept by `@:ifFeature` where a ref makes one.
+A design that needs no such call (a part's direction read by the
+renderer, say) would retire both.
 
 ## Built
 

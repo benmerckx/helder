@@ -256,7 +256,8 @@ class Literal {
 						case ["element", false]: macro @:pos(e.pos) $p{host}.createElement(${a[0]});
 						case ["property", true]: macro @:pos(e.pos) $p{host}.neutralProperty(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});
 						case ["property", false]: macro @:pos(e.pos) $p{host}.setProperty(${a[0]}, ${a[2]}, ${a[3]});
-						case ["prop", true]: macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, ${a[2]}, ${a[3]}, $p{host}.neutralSetter(${a[1]}, ${a[2]}));
+						// (bound: the setter given the name the realiser chooses, its DOM name for one setter of all)
+						case ["prop", true]: macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, $p{host}.neutralName(${a[1]}, ${a[2]}), ${a[3]}, $p{host}.neutralSetter(${a[1]}, ${a[2]}));
 						case ["prop", false] if (setter): macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, ${a[2]}, ${a[3]}, $p{host}.setter(${a[2]}));
 						case ["prop", false]: macro @:pos(e.pos) $p{rt}.prop(${a[0]}, ${a[2]}, ${a[3]});
 						case ["listen", true]: macro @:pos(e.pos) $p{host}.neutralListen(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});

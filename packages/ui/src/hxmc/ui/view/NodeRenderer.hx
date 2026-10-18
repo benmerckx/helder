@@ -14,14 +14,20 @@ import hxmc.ui.*;
 // Node with Overflow Scroll), image (an ImageNode: src, an Image, an
 // AnimatedImage, played, or an Svg, drawn in the node's color; object-position
 // ("left top", CSS's), its place; fit, "fill",
-// "contain", "cover" or "none"), icon (an image, its Svg); view:button,
+// "contain", "cover" or "none"; mirrored, flipped right to left), icon (an
+// image, its Svg), field and field:textarea (a text field, one line or
+// several: hxmc.ui.widgets' TextField and TextArea; value, placeholder,
+// type, rows, readonly, maxlength; onInput, its text changed by its
+// user); view:button,
 // view:label... and text:p, text:h2... (a view, a text: the element of that
 // name where a page's renderer realises them, hxmc.web's); elements registers more. Their
 // attributes: Style properties (StyleAttrs: direction="row", padding={8},
 // background="#3b82f6"; style={StyleProps} for several), the events
 // (onClick, onPress (a click, or Enter or Space: Node.onActivate), onPointerDown, onPointerUp, onPointerMove, onPointerEnter,
 // onPointerLeave, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
-// onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void), focusable, selectable,
+// onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void;
+// a node's own handler, a field's editing, after the markup's unless it
+// prevented the default), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
 // role, label, description, href, checked, selected, expanded, level, disabled,
 // value-now, value-min, value-max, value-text, hidden), and what a theme
@@ -76,6 +82,9 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 				n;
 			case "image": new ImageNode();
 			case "icon": new ImageNode(null, "icon");
+			// (a text field, one line or several: native where the window's policy says, EditableText)
+			case "field": new hxmc.ui.widgets.TextField();
+			case "field:textarea": new hxmc.ui.widgets.TextArea();
 			// (the neutral elements' DOM names: a view or text here, their element in a page)
 			case t if (StringTools.startsWith(t, "view:")): new Node(t.substr(5));
 			case t if (StringTools.startsWith(t, "text:")): new TextNode("", t.substr(5));
@@ -227,6 +236,10 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 		semantics(n).mixed = v == "mixed";
 	}
 
+	// (a toggle button's: checked, as ARIA's pressed)
+	@:attribute static function pressed(n:Node, name:String, v:Dynamic)
+		checked(n, name, v);
+
 	@:attribute static function selected(n:Node, name:String, v:Dynamic)
 		semantics(n).selected = v == null ? null : v == true || v == "true";
 
@@ -273,6 +286,16 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 		} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
 	}
 
+	// (an icon's: lucide's of that name, hxmc.ui.widgets.Icons)
+	@:attribute static function name(n:Node, attr:String, v:Dynamic) {
+		if (!Std.isOfType(n, ImageNode)) noAttribute(n, attr);
+		(cast n : ImageNode).svg = v == null ? null : hxmc.ui.widgets.Icons.svg(v);
+	}
+
+	// (an icon's or an image's: flipped right to left, ImageNode.mirrored)
+	@:attribute static function mirrored(n:Node, name:String, v:Dynamic)
+		if (Std.isOfType(n, ImageNode)) (cast n : ImageNode).mirrored = v == true || v == "true" else noAttribute(n, name);
+
 	@:attribute static function objectPosition(n:Node, name:String, v:Dynamic)
 		if (Std.isOfType(n, ImageNode)) (cast n : ImageNode).position(v) else noAttribute(n, name);
 
@@ -285,6 +308,48 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 			case "none": ImageFit.None;
 			case _: throw 'hxmc.ui: fit="$v" is not fill, contain, cover or none';
 		} : v;
+	}
+
+	// (a field's, <field> and <field:textarea>: its text (set from outside, as
+	// an input's value: the caret at its end when it changes), placeholder,
+	// type (password: shown as dots), rows, readonly, maxlength; inputmode and
+	// autocomplete a page's keyboard's and autofill's, none here)
+	@:attribute static function value(n:Node, name:String, v:Dynamic) {
+		var f = field(n, name), s = v == null ? "" : Std.string(v);
+		if (f.text == s) return;
+		f.setText(s);
+		f.select(s.length, s.length);
+	}
+
+	@:attribute static function placeholder(n:Node, name:String, v:Dynamic) {
+		field(n, name).placeholder = v == null ? "" : Std.string(v);
+		n.markDirty();
+	}
+
+	@:attribute static function type(n:Node, name:String, v:Dynamic)
+		field(n, name).secret = v == "password";
+
+	@:attribute static function rows(n:Node, name:String, v:Dynamic) {
+		if (!Std.isOfType(n, hxmc.ui.widgets.TextArea)) noAttribute(n, name);
+		if (v != null) (cast n : hxmc.ui.widgets.TextArea).rows = Std.int(number(v));
+		n.markDirty();
+	}
+
+	@:attribute static function readonly(n:Node, name:String, v:Dynamic)
+		field(n, name).readOnly = v == true || v == "true";
+
+	@:attribute static function maxlength(n:Node, name:String, v:Dynamic)
+		field(n, name).maxLength = v == null ? -1 : Std.int(number(v));
+
+	@:attribute static function inputmode(n:Node, name:String, v:Dynamic)
+		field(n, name);
+
+	@:attribute static function autocomplete(n:Node, name:String, v:Dynamic)
+		field(n, name);
+
+	static function field(n:Node, name:String):hxmc.ui.widgets.EditableText {
+		if (!Std.isOfType(n, hxmc.ui.widgets.EditableText)) noAttribute(n, name);
+		return cast n;
 	}
 
 	static function noAttribute(n:Node, name:String):Dynamic
@@ -315,23 +380,26 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 	// (every role, in order: the first with an ARIA name is its)
 	static final ROLES:Array<hxmc.ui.access.Role> = Enums.values(hxmc.ui.access.Role);
 
+	// (after the markup's handler, the node's own, unless it prevented the
+	// default: a field's editing, as an input's default action)
 	public static function listen(n:Node, name:String, v:Dynamic) {
 		var h:Null<Event->Void> = v;
 		switch name {
-			case "onClick": n.onClick = h;
+			case "onClick": n.onClick = own(h, n.onClick);
 			case "onPress": n.onActivate = h;
-			case "onPointerDown": n.onPointerDown = h;
-			case "onPointerUp": n.onPointerUp = h;
-			case "onPointerMove": n.onPointerMove = h;
+			case "onPointerDown": n.onPointerDown = own(h, n.onPointerDown);
+			case "onPointerUp": n.onPointerUp = own(h, n.onPointerUp);
+			case "onPointerMove": n.onPointerMove = own(h, n.onPointerMove);
 			case "onPointerEnter": n.onPointerEnter = h;
 			case "onPointerLeave": n.onPointerLeave = h;
-			case "onWheel": n.onWheel = h;
-			case "onKeyDown": n.onKeyDown = h;
-			case "onKeyUp": n.onKeyUp = h;
-			case "onComposition": n.onComposition = h;
-			case "onTextInput": n.onTextInput = h;
-			case "onFocus": n.onFocus = h;
-			case "onBlur": n.onBlur = h;
+			case "onWheel": n.onWheel = own(h, n.onWheel);
+			case "onKeyDown": n.onKeyDown = own(h, n.onKeyDown);
+			case "onKeyUp": n.onKeyUp = own(h, n.onKeyUp);
+			case "onComposition": n.onComposition = own(h, n.onComposition);
+			case "onTextInput": n.onTextInput = own(h, n.onTextInput);
+			case "onInput": n.onInput = h;
+			case "onFocus": n.onFocus = own(h, n.onFocus);
+			case "onBlur": n.onBlur = own(h, n.onBlur);
 			case "onFocusIn": n.onFocusIn = h;
 			case "onFocusOut": n.onFocusOut = h;
 			case "onDragStart": n.onDragStart = h;
@@ -342,5 +410,11 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 			case _: throw 'hxmc.ui: no event $name';
 		}
 	}
+
+	static function own(h:Null<Event->Void>, mine:Null<Event->Void>):Null<Event->Void>
+		return h == null || mine == null ? h ?? mine : e -> {
+			h(e);
+			if (!e.defaultPrevented) mine(e);
+		};
 	#end
 }

@@ -34,12 +34,9 @@ class FidelityTest implements Markup {
 	static final KNOWN = [
 		"input-value-" => "the field's line a pixel above where Chromium centres an <input>'s text",
 		"table-" => "Table's rows a fixed rowHeight for its virtual list, the head's too (shadcn's head h-10, its rows by their padding), its columns 1fr each (shadcn's: a table's auto layout)",
-		"pagination-" => "Previous and Next padded px-2.5 on both sides: the side by the chevron's has-[>svg]:px-3 is an arbitrary selector, dropped",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
 		"field-" => "a field set's legend is one of its flex items here (gap-6 after it); Chromium lays a fieldset's legend out apart from its content, no gap after it, and the description's [[data-variant=legend]+&]:-mt-1.5 is an arbitrary selector, dropped",
-		"button-group-horizontal" => "the joined buttons' inner corners and borders are arbitrary child selectors ([&>*:not(:first-child)]:rounded-l-none border-l-0, [&>*:not(:last-child)]:rounded-r-none), dropped",
-		"input-group-focus" => "the group's ring is has-[[data-slot=input-group-control]:focus-visible] (an arbitrary selector), dropped; and the caret drawn",
-		"sidebar-expanded" => "Sidebar has no sidebar-gap (shadcn's box holding its width in flow) and sidebar-container no variant: the container, fixed (absolute) in a sidebar of no width, is not seen, the inset in its place",
+		"input-group-focus" => "the field in a ContextMenu's wrapper (its edit menu), so its flex-1 grows nothing in the group's row; and the caret drawn",
 	];
 
 	static function known(name:String):Null<String> {
@@ -387,8 +384,9 @@ class FidelityTest implements Markup {
 			var extra = EXTRA[c.component];
 			ui.theme = extra == null ? Shadcn.sheet : {rules: Shadcn.sheet.rules.concat(extra), light: Shadcn.sheet.light, dark: Shadcn.sheet.dark, lengths: Shadcn.sheet.lengths};
 			ui.dark = c.dark == true;
+			// (a word too wide for its line overflowing it, CSS's initial overflow-wrap, ui's root's BreakWord aside)
 			for (n in [ui.root, ui.overlay])
-				n.style.set({fontFamily: "Inter", dir: c.rtl == true ? Rtl : Ltr});
+				n.style.set({fontFamily: "Inter", dir: c.rtl == true ? Rtl : Ltr, overflowWrap: Normal});
 			var frame = new Node("frame");
 			frame.slot = "body";
 			frame.style.set({width: fw, height: fh, padding: 16, fontFamily: "Inter", direction: c.block ? Column : Row, alignItems: c.block ? Stretch : Start});

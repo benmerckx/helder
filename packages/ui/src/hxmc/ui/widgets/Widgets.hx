@@ -53,9 +53,7 @@ class Widgets implements Markup {
 	static final ARROW_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>');
 	static final ARROW_UP = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>');
 	static final ARROW_DOWN = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>');
-	static final MORE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>');
 	static final PANEL_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>');
-	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
 	// main action), "destructive", "outline", "secondary", "ghost" or
@@ -100,18 +98,15 @@ class Widgets implements Markup {
 		sizes: ["default", "sm", "lg"],
 		keys: {"Enter, Space": "presses or releases it"}
 	})
-	public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
+	@:neutral public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var flip = () -> if (!disabled()) props.pressed.value = !props.pressed.peek();
-		return <view tag={props.tag ?? "toggle"} slot="toggle" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
-			checked={() -> props.pressed.value} data-state={() -> props.pressed.value ? "on" : "off"} focusable={() -> !disabled()} disabled={disabled}
-			data-disabled={disabled} onClick={_ -> flip()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
-				e.preventDefault();
-				flip();
-			}}>
+		return <view:button tag={props.tag ?? "toggle"} id={props.tag} slot="toggle" states={props.style} variant={props.variant ?? "default"}
+			size={props.size ?? "default"} role="button" pressed={() -> props.pressed.value} data-state={() -> props.pressed.value ? "on" : "off"}
+			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} onPress={_ -> flip()}>
 			{props.label}{props.children}
-		</view>;
+		</view:button>;
 	}
 
 	// a checkbox (shadcn's) bound to a signal, with its label; while mixed
@@ -124,11 +119,13 @@ class Widgets implements Markup {
 			checked: "a signal of whether it is checked, flipped when it or its label is clicked, or with Space",
 			mixed: "a signal: while true, neither checked nor not (a dash); checked and cleared when it is clicked",
 			label: "its text beside it, and its name for assistive technology",
-			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored",
+			invalid: "a Bool, a signal or a function of one: aria-invalid, for the theme"
 		},
 		keys: {"Space": "checks or unchecks it (checks it when mixed)"}
 	})
-	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
+	@:neutral public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?invalid:Dynamic,
+			?style:States->StyleProps, ?tag:String}):View {
 		var mixed = () -> props.mixed != null && props.mixed.value;
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> mixed() ? "indeterminate" : props.checked.value ? "checked" : "unchecked";
@@ -138,19 +135,20 @@ class Widgets implements Markup {
 			if (was) props.mixed.value = false;
 			props.checked.value = was || !props.checked.peek();
 		});
-		// (its indicator centred, as a <button>'s content)
-		var box = <view tag={props.tag ?? "checkbox"} slot="checkbox" ref={n -> States.apply(n, props.style)} role="checkbox" label={props.label} align-items="center" justify="center"
-			checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
-			data-disabled={disabled} onKeyDown={e -> if (e.key == Key.SPACE) {
-				e.preventDefault();
-				toggle();
-			}}>
-			<view slot="checkbox-indicator" data-state={state} display={() -> state() == "unchecked" ? "none" : "flex"}>
-				<image slot="checkbox-icon" src={() -> mixed() ? MINUS : CHECK} hidden/>
-			</view>
-		</view>;
-		return <view slot="checkbox-field" direction="row" align-items="center" onClick={_ -> toggle()}>
-			{box}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
+		// (its indicator centred, as a <button>'s content; Enter not a press, as Radix's)
+		var box = <view:button tag={props.tag ?? "checkbox"} id={props.tag} slot="checkbox" states={props.style} role="checkbox" label={props.label}
+			align-items="center" justify="center" checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state}
+			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} aria-invalid={() -> read(props.invalid) == true ? "true" : null}
+			onKeyDown={e -> if (e.key == Key.ENTER) e.preventDefault()} onPress={_ -> toggle()}>
+			<Show when={() -> state() != "unchecked"}>
+				<view:span slot="checkbox-indicator" data-state={state}>
+					<icon slot="checkbox-icon" name={() -> mixed() ? "minus" : "check"} hidden/>
+				</view:span>
+			</Show>
+		</view:button>;
+		// (its label pressed: it pressed, the label not the box's: the box named by its label prop)
+		return props.label == null ? box : <view slot="checkbox-field" direction="row" align-items="center">
+			{box}<text:label slot="label" data-disabled={disabled} hidden onClick={_ -> toggle()}>{props.label}</text:label>
 		</view>;
 	}
 
@@ -168,21 +166,17 @@ class Widgets implements Markup {
 		sizes: ["default", "sm"],
 		keys: {"Space, Enter": "turns it on or off"}
 	})
-	public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
+	@:neutral public static function Switch(props:{checked:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?size:String, ?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
 		var toggle = () -> if (!disabled()) props.checked.value = !props.checked.peek();
-		var track = <view tag={props.tag ?? "switch"} slot="switch" ref={n -> States.apply(n, props.style)} size={props.size ?? "default"} data-size={props.size ?? "default"} role="switch"
-			label={props.label} checked={() -> props.checked.value}
-			data-state={state} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled}
-			onKeyDown={e -> if (e.key == Key.SPACE || e.key == Key.ENTER) {
-				e.preventDefault();
-				toggle();
-			}}>
-			<view slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
-		</view>;
-		return <view slot="switch-field" direction="row" align-items="center" onClick={_ -> toggle()}>
-			{track}{props.label == null ? null : <text slot="label" data-disabled={disabled} hidden>{props.label}</text>}
+		var track = <view:button tag={props.tag ?? "switch"} id={props.tag} slot="switch" states={props.style} size={props.size ?? "default"} role="switch"
+			label={props.label} checked={() -> props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
+			data-disabled={disabled} onPress={_ -> toggle()}>
+			<view:span slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
+		</view:button>;
+		return props.label == null ? track : <view slot="switch-field" direction="row" align-items="center">
+			{track}<text:label slot="label" data-disabled={disabled} hidden onClick={_ -> toggle()}>{props.label}</text:label>
 		</view>;
 	}
 
@@ -320,8 +314,8 @@ class Widgets implements Markup {
 		},
 		variants: ["default", "destructive"]
 	})
-	public static function Alert(props:{?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
-		return <view tag={props.tag ?? "alert"} slot="alert" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"}>{props.children}</view>;
+	@:neutral public static function Alert(props:{?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
+		return <view tag={props.tag ?? "alert"} id={props.tag} slot="alert" states={props.style} variant={props.variant ?? "default"} live="assertive">{props.children}</view>;
 	}
 
 	@:widget({
@@ -331,8 +325,8 @@ class Widgets implements Markup {
 		},
 		part: "Alert"
 	})
-	public static function AlertTitle(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "alert-title"} slot="alert-title">{props.children ?? props.text}</text>;
+	@:neutral public static function AlertTitle(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:div tag={props.tag ?? "alert-title"} id={props.tag} slot="alert-title">{props.children ?? props.text}</text:div>;
 
 	@:widget({
 		props: {
@@ -341,8 +335,8 @@ class Widgets implements Markup {
 		},
 		part: "Alert"
 	})
-	public static function AlertDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "alert-description"} slot="alert-description">{props.children ?? props.text}</text>;
+	@:neutral public static function AlertDescription(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:div tag={props.tag ?? "alert-description"} id={props.tag} slot="alert-description">{props.children ?? props.text}</text:div>;
 
 	// a slider (shadcn's) bound to a signal: from min to max (0 to 1), in
 	// steps (0: any value); dragged, clicked (the value where the pointer is
@@ -368,47 +362,63 @@ class Widgets implements Markup {
 			"Home, End": "sets it to min or max"
 		}
 	})
-	public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
+	@:neutral public static function Slider(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0;
 		function set(v:Float)
 			props.value.value = Behaviour.snap(v, lo, hi, step);
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
-		// (right to left: the minimum at the right)
+		var root:Null<Part> = null, dragging = false;
 		function at(e:Event) {
-			if (disabled()) return;
-			var n = e.current, x = n.localX(e.x, e.y);
-			if (n.width <= 0) return;
-			if (n.rtl()) x = n.width - x;
-			set(lo + x / n.width * (hi - lo));
+			var f = along(root, e);
+			if (!disabled() && f != null) set(lo + f * (hi - lo));
 		}
-		return <view tag={props.tag ?? "slider"} slot="slider" data-orientation="horizontal" ref={n -> States.apply(n, props.style)} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
-			value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} justify="center"
-			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
+		return <view:span tag={props.tag ?? "slider"} id={props.tag} slot="slider" data-orientation="horizontal" states={props.style} role="slider" label={props.label}
+			value-now={() -> props.value.value} value-min={lo} value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled}
+			data-disabled={disabled} justify="center" ref={p -> root = p} onPointerDown={e -> {
+				dragging = true;
+				capture(root);
+				at(e);
+			}} onPointerMove={e -> if (dragging) at(e)} onPointerUp={_ -> dragging = false}
 			onKeyDown={e -> if (!disabled()) {
-				var v = Behaviour.slide(mirrored(e), props.value.peek(), lo, hi, step);
+				var v = Behaviour.slide(mirroredKey(e), props.value.peek(), lo, hi, step);
 				if (v != null) {
 					e.preventDefault();
 					props.value.value = v;
 				}
 			}}>
-			<view slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
-				<view slot="slider-range" data-orientation="horizontal" position="relative" width={() -> (frac() * 100) + "%"}/>
-			</view>
-			{along(frac, <view slot="slider-thumb" data-orientation="horizontal" shrink={0}/>)}
-		</view>;
+			<view:span slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
+				<view:span slot="slider-range" data-orientation="horizontal" position="relative" width={() -> (frac() * 100) + "%"}/>
+			</view:span>
+			{thumbAlong(frac, <view:span slot="slider-thumb" data-orientation="horizontal" shrink={0} pointer-events="auto"/>)}
+		</view:span>;
 	}
 
 	// (a thumb along a slider's track, a fraction f of the way: between two
-	// spacers sharing the room it leaves, f and 1 - f of it; mirrored right
-	// to left as the row is)
-	static function along(f:Void->Float, thumb:View):View
-		return <view position="absolute" top={0} bottom={0} left={0} right={0} direction="row" align-items="center" pointer-events="none">
-			<view grow={f} shrink={0} basis={0}/>
+	// spacers sharing the room it leaves, f and 1 - f of it, its left edge
+	// at f of the track's width less its own, as Radix's; mirrored right to
+	// left as the row is)
+	@:neutral static function thumbAlong(f:Void->Float, thumb:View):View
+		return <view:span position="absolute" top={0} bottom={0} left={0} right={0} direction="row" align-items="center" pointer-events="none">
+			<view:span grow={f} shrink={0} basis={0}/>
 			{thumb}
-			<view grow={() -> 1 - f()} shrink={0} basis={0}/>
-		</view>;
+			<view:span grow={() -> 1 - f()} shrink={0} basis={0}/>
+		</view:span>;
+
+	// (how far along a slider's part e's pointer is, 0 at its start, 1 at its
+	// end (its right; right to left its left); null: no part, or no width)
+	static function along(p:Null<Part>, e:Event):Null<Float> {
+		if (p == null) return null;
+		var r:{x:Float, y:Float, width:Float, height:Float} = #if js js.Syntax.code("{0}.rect()", p) #else p.rect() #end;
+		if (r.width <= 0) return null;
+		var f = (e.x - r.x) / r.width;
+		return #if js js.Syntax.code("{0}.rtl()", p) #else p.rtl() #end ? 1 - f : f;
+	}
+
+	// (the pressed pointer's moves and release to p, wherever it goes)
+	static function capture(p:Null<Part>)
+		if (p != null) #if js js.Syntax.code("{0}.capture()", p) #else p.capture() #end;
 
 	// a range slider: two knobs on one track, the range between them filled,
 	// low no more than high; a press moves the nearer knob (then drags it)
@@ -432,10 +442,10 @@ class Widgets implements Markup {
 			"Home, End": "the focused knob to min or max, as far as the other"
 		}
 	})
-	public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
+	@:neutral public static function RangeSlider(props:{low:Signal<Float>, high:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?label:String,
 			?tag:String}):View {
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, tag = props.tag ?? "range";
-		var dragging = -1, name = props.label ?? "Range", knobs:Array<Node> = [];
+		var dragging = -1, name = props.label ?? "Range", knobs:Array<Part> = [], root:Null<Part> = null;
 		function snap(v:Float):Float
 			return Behaviour.snap(v, lo, hi, step);
 		// (k: 0 the low knob, 1 the high one, each kept on its side of the other)
@@ -444,47 +454,43 @@ class Widgets implements Markup {
 			if (k == 0) props.low.value = Math.min(v, props.high.peek()) else props.high.value = Math.max(v, props.low.peek());
 		}
 		var frac = (v:Float) -> hi > lo ? (v - lo) / (hi - lo) : 0.0;
-		// (right to left: the minimum at the right)
-		function valueAt(e:Event):Float {
-			var n = e.current, x = n.localX(e.x, e.y), w = Math.max(1, n.width);
-			if (n.rtl()) x = w - x;
-			return lo + x / w * (hi - lo);
-		}
+		function valueAt(e:Event):Float
+			return lo + (along(root, e) ?? 0.0) * (hi - lo);
 		function thumb(k:Int):View {
 			var value = k == 0 ? props.low : props.high;
-			return along(() -> frac(value.value), <view tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" data-orientation="horizontal" role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
-					value-now={() -> value.value} value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi}
-					shrink={0} focusable pointer-events="auto"
-					onKeyDown={e -> {
-						var v = Behaviour.slide(mirrored(e), value.peek(), lo, hi, step);
-						if (v != null) {
-							e.preventDefault();
-							set(k, v);
-						}
-					}}/>);
+			return thumbAlong(() -> frac(value.value), <view:span tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" data-orientation="horizontal" role="slider"
+				label={name + (k == 0 ? ": minimum" : ": maximum")} ref={p -> knobs[k] = p} value-now={() -> value.value}
+				value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi} shrink={0} focusable pointer-events="auto"
+				onKeyDown={e -> {
+					var v = Behaviour.slide(mirroredKey(e), value.peek(), lo, hi, step);
+					if (v != null) {
+						e.preventDefault();
+						set(k, v);
+					}
+				}}/>);
 		}
-		return <view tag={tag} slot="slider" data-orientation="horizontal" role="group" label={name} width={props.width} justify="center"
-			onPointerDown={e -> {
+		return <view:span tag={tag} id={props.tag} slot="slider" data-orientation="horizontal" role="group" label={name} width={props.width} justify="center"
+			ref={p -> root = p} onPointerDown={e -> {
 				var v = valueAt(e);
-				// (the nearer knob; where they meet, the one that can move that way)
+				// (the nearer knob; where they meet, the one that can move that way; focused as by the pointer)
 				var dl = Math.abs(v - props.low.peek()), dh = Math.abs(v - props.high.peek());
 				dragging = dl < dh || (dl == dh && v < props.low.peek()) ? 0 : 1;
 				set(dragging, v);
+				capture(root);
 				var n = knobs[dragging];
-				if (n != null && n.ui != null) {
-					n.ui.setFocus(n, false);
+				if (n != null) {
+					#if js js.Syntax.code("{0}.focus(false)", n) #else n.focus(false) #end;
 					e.preventDefault();
 				}
-			}}
-			onPointerMove={e -> if (e.current.pressed && dragging >= 0) set(dragging, valueAt(e))}
-			onPointerUp={_ -> dragging = -1}>
-			<view slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
-				<view width={() -> (frac(props.low.value) * 100) + "%"}/>
-				<view slot="slider-range" data-orientation="horizontal" position="relative" width={() -> ((frac(props.high.value) - frac(props.low.value)) * 100) + "%"}/>
-			</view>
+			}} onPointerMove={e -> if (dragging >= 0) set(dragging, valueAt(e))} onPointerUp={_ -> dragging = -1}>
+			<view:span slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
+				<view:span width={() -> (frac(props.low.value) * 100) + "%"}/>
+				<view:span slot="slider-range" data-orientation="horizontal" position="relative"
+					width={() -> ((frac(props.high.value) - frac(props.low.value)) * 100) + "%"}/>
+			</view:span>
 			{thumb(0)}
 			{thumb(1)}
-		</view>;
+		</view:span>;
 	}
 
 	// a colour picker: a square of saturation (to the right) and brightness
@@ -624,36 +630,42 @@ class Widgets implements Markup {
 			"Space": "checks the focused option"
 		}
 	})
-	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
+	@:neutral public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
-		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
+		var tag = props.tag ?? "radio", options = props.options, items:Array<Part> = [];
 		var disabled = () -> read(props.disabled) == true;
 		// (the Tab stop: the checked option, else the first)
 		function stop(i:Int):Bool {
 			var k = options.indexOf(props.value.value);
 			return i == (k < 0 ? 0 : k);
 		}
+		// (Enter not a press, as Radix's)
 		function key(e:Event, i:Int) {
 			var n = options.length;
+			if (e.key == Key.ENTER) e.preventDefault();
 			if (disabled()) return;
-			var k = mirrored(e), j = k == Key.SPACE ? i : Behaviour.rove(k, i, n);
+			var k = mirroredKey(e), j = k == Key.SPACE ? i : Behaviour.rove(k, i, n);
 			if (j < 0) return;
 			e.preventDefault();
 			props.value.value = options[j];
-			focusIn(nodes, j);
+			focusPart(items, j);
 		}
-		return <view tag={tag} slot="radio-group" ref={n -> States.apply(n, props.style)} role="radiogroup" label={props.label} data-disabled={disabled}>{[
+		return <view tag={tag} id={props.tag} slot="radio-group" states={props.style} role="radiogroup" label={props.label} data-disabled={disabled}>{[
 			for (i in 0...options.length) {
 				var o = options[i], text = props.labels != null && props.labels[i] != null ? props.labels[i] : o;
 				var state = () -> props.value.value == o ? "checked" : "unchecked";
-				<view slot="radio-group-option" direction="row" align-items="center" onClick={_ -> if (!disabled()) props.value.value = o}>
-					<view tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={n -> nodes[i] = n} checked={() -> props.value.value == o}
-						data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled} onKeyDown={e -> key(e, i)}>
-						<view slot="radio-group-indicator" data-state={state} display={() -> state() == "checked" ? "flex" : "none"}>
-							<image slot="radio-group-icon" src={CIRCLE} hidden/>
-						</view>
-					</view>
-					<text slot="label" data-disabled={disabled} hidden>{text}</text>
+				var check = () -> if (!disabled()) props.value.value = o;
+				<view slot="radio-group-option" direction="row" align-items="center">
+					<view:button tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={p -> items[i] = p}
+						checked={() -> props.value.value == o} data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled}
+						onKeyDown={e -> key(e, i)} onPress={_ -> check()}>
+						<Show when={() -> state() == "checked"}>
+							<view:span slot="radio-group-indicator" data-state={state}>
+								<icon slot="radio-group-icon" name="circle-filled" hidden/>
+							</view:span>
+						</Show>
+					</view:button>
+					<text:label slot="label" data-disabled={disabled} hidden onClick={_ -> check()}>{text}</text:label>
 				</view>;
 			}
 		]}</view>;
@@ -681,27 +693,29 @@ class Widgets implements Markup {
 			"Enter, Space": "selects the focused tab"
 		}
 	})
-	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?variant:String, ?style:States->StyleProps,
+	@:neutral public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?variant:String, ?style:States->StyleProps,
 			?tag:String}):View {
 		var variant = props.variant ?? "default";
-		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
+		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Part> = [];
 		function key(e:Event, i:Int) {
-			var k = mirrored(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, count, false);
+			var k = mirroredKey(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, count, false);
 			if (j < 0) return;
 			e.preventDefault();
 			props.selected.value = j;
-			focusIn(tabs, j);
+			focusPart(tabs, j);
 		}
-		return <view tag={tag} slot="tabs" group="tabs" data-orientation="horizontal" ref={n -> States.apply(n, props.style)}>
-			<view slot="tabs-list" variant={variant} data-variant={variant} data-orientation="horizontal" role="tablist">{[
+		return <view tag={tag} id={props.tag} slot="tabs" group="tabs" data-orientation="horizontal" states={props.style}>
+			<view slot="tabs-list" variant={variant} data-orientation="horizontal" role="tablist">{[
 				for (i in 0...count)
-					<view tag={tag + "-" + i} slot="tabs-trigger" variant={variant} data-orientation="horizontal" role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
-						data-state={() -> props.selected.value == i ? "active" : "inactive"} focusable={() -> props.selected.value == i}
-						onClick={_ -> props.selected.value = i} onKeyDown={e -> key(e, i)}>
+					<view:button tag={tag + "-" + i} slot="tabs-trigger" variant={variant} data-orientation="horizontal" role="tab" ref={p -> tabs[i] = p}
+						selected={() -> props.selected.value == i} data-state={() -> props.selected.value == i ? "active" : "inactive"}
+						focusable={() -> props.selected.value == i} onPress={_ -> props.selected.value = i} onKeyDown={e -> key(e, i)}>
 						{props.labels[i]}
-					</view>
+					</view:button>
 			]}</view>
-			<view slot="tabs-content" data-orientation="horizontal" role="tabpanel" label={() -> props.labels[props.selected.value]}>{() -> props.render(props.selected.value)}</view>
+			<view slot="tabs-content" data-orientation="horizontal" role="tabpanel" label={() -> props.labels[props.selected.value]} data-state="active">
+				{() -> props.render(props.selected.value)}
+			</view>
 		</view>;
 	}
 
@@ -1083,6 +1097,8 @@ class Widgets implements Markup {
 		var value = props.value ?? signal(null), range = props.range;
 		var start = value.peek() ?? (range == null ? null : range.peek().from) ?? today;
 		var cursor = signal(Days.of(start));
+		// (the cursor's day marked focused while the grid has the focus, as react-day-picker's)
+		var focused = signal(false);
 		var shown = memo(() -> {
 			var d = Days.day(cursor.value);
 			return {year: d.year, month: d.month};
@@ -1137,10 +1153,11 @@ class Widgets implements Markup {
 				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable onClick={_ -> month(1)}
 					onKeyDown={e -> pressKeys(e, () -> month(1))}>{icon(CHEVRON_RIGHT, "calendar-button-icon")}</view>
 			</view>
-			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}>
+			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}
+				onFocus={_ -> focused.value = true} onBlur={_ -> focused.value = false}>
 				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
 					for (n in names)
-						<view slot="calendar-weekday" role="columnheader">{n}</view>
+						<view slot="calendar-weekday" role="columnheader" text-align="center">{n}</view>
 				]}</view>
 				{[
 					for (w in 0...6)
@@ -1153,7 +1170,7 @@ class Widgets implements Markup {
 									d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
 								}} slot="calendar-day" selected={() -> chosen(at())} data-selected={() -> chosen(at()) ? "true" : null}
 									data-today={() -> Days.of(today) == at() ? "true" : null} data-outside={() -> inMonth() ? null : "true"}
-									data-focused={() -> cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
+									data-focused={() -> focused.value && cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
 									data-range-end={() -> edge(at(), false)} data-range-middle={() -> middle(at())} onClick={_ -> choose(at())}>
 									{() -> "" + Days.day(at()).day}
 								</view>;
@@ -1421,9 +1438,9 @@ class Widgets implements Markup {
 			"Enter": "activates the focused option (onActivate)"
 		}
 	})
-	public static function Listbox(props:{selected:Signal<Array<String>>, options:Array<String>, ?labels:Array<String>, ?multiple:Bool, ?height:Float,
+	@:neutral public static function Listbox(props:{selected:Signal<Array<String>>, options:Array<String>, ?labels:Array<String>, ?multiple:Bool, ?height:Float,
 			?width:Float, ?onActivate:String->Void, ?label:String, ?tag:String}):View {
-		var tag = props.tag ?? "listbox", options = props.options, multiple = props.multiple == true, nodes:Array<Node> = [];
+		var tag = props.tag ?? "listbox", options = props.options, multiple = props.multiple == true, parts:Array<Part> = [];
 		var shown = [for (i in 0...options.length) props.labels != null ? props.labels[i] : options[i]];
 		var first = options.indexOf(props.selected.peek()[0]);
 		var active = signal(first < 0 ? 0 : first), anchor = first < 0 ? 0 : first, typed = new TypeAhead();
@@ -1443,11 +1460,11 @@ class Widgets implements Markup {
 			if (i < 0 || i >= options.length) return;
 			if (multiple && mods & Key.MOD_SHIFT != 0) range(anchor, i) else if (!multiple || mods & (Key.MOD_CONTROL | Key.MOD_META) == 0) select(i);
 			active.value = i;
-			focusIn(nodes, i);
+			focusPart(parts, i);
 		}
 		var lastAt = -1e9, last = -1;
 		function click(e:Event, i:Int) {
-			var now = Ui.now();
+			var now = clock();
 			if (multiple && e.mods & Key.MOD_SHIFT != 0) range(anchor, i) else if (multiple && e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) toggle(i) else select(i);
 			active.value = i;
 			if (last == i && now - lastAt < 0.45 && props.onActivate != null) props.onActivate(options[i]);
@@ -1467,17 +1484,19 @@ class Widgets implements Markup {
 				case Key.ENTER: if (props.onActivate != null) props.onActivate(options[i]);
 				case "a".code | "A".code if (multiple && e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0): props.selected.value = options.copy();
 				case _:
-					var j = typed.find(e.key, e.mods, Ui.now(), shown, i);
+					var j = typed.find(e.key, e.mods, clock(), shown, i);
 					if (j < 0) return;
 					move(j, 0);
 			}
+			// (taken: not a scroller's too)
+			e.preventDefault();
 			e.stop();
 		}
-		return <view tag={tag} slot="listbox" role="listbox" label={props.label} multiselectable={multiple} width={props.width} height={props.height}
-			overflow={props.height == null ? "visible" : "scroll"}>{[
+		return <view tag={tag} id={props.tag} slot="listbox" role="listbox" label={props.label} multiselectable={multiple} width={props.width}
+			height={props.height} overflow={props.height == null ? "visible" : "scroll"}>{[
 			for (i in 0...options.length) {
 				var o = options[i];
-				<view tag={tag + "-" + o} slot="listbox-option" role="option" ref={n -> nodes[i] = n} selected={() -> props.selected.value.contains(o)}
+				<view tag={tag + "-" + o} slot="listbox-option" role="option" ref={p -> parts[i] = p} selected={() -> props.selected.value.contains(o)}
 					aria-selected={() -> props.selected.value.contains(o) ? "true" : "false"} focusable={() -> active.value == i} shrink={0}
 					onPointerDown={_ -> active.value = i} onClick={e -> click(e, i)} onKeyDown={e -> key(e, i)}>
 					{shown[i]}
@@ -1899,27 +1918,27 @@ class Widgets implements Markup {
 			"Enter, Space": "choose the focused option"
 		}
 	})
-	public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
+	@:neutral public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
 			?label:String, ?tag:String}):View {
 		var variant = props.variant ?? "default", size = props.size ?? "default";
-		var tag = props.tag ?? "segments", options = props.options, nodes:Array<Node> = [], n = options.length;
+		var tag = props.tag ?? "segments", options = props.options, items:Array<Part> = [], n = options.length;
 		function stop(i:Int):Bool {
 			var k = options.indexOf(props.value.value);
 			return i == (k < 0 ? 0 : k);
 		}
 		function key(e:Event, i:Int) {
-			var k = mirrored(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, n);
+			var k = mirroredKey(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, n);
 			if (j < 0) return;
 			e.preventDefault();
 			props.value.value = options[j];
-			focusIn(nodes, j);
+			focusPart(items, j);
 		}
-		return <view tag={tag} slot="toggle-group" variant={variant} size={size} data-spacing="0" role="radiogroup" label={props.label}>{[
+		return <view tag={tag} id={props.tag} slot="toggle-group" variant={variant} size={size} data-spacing="0" role="radiogroup" label={props.label}>{[
 			for (i in 0...n) {
 				var o = options[i], on = () -> props.value.value == o;
-				<view tag={tag + "-" + i} slot="toggle-group-item" variant={variant} size={size} data-spacing="0" role="radio" ref={n -> nodes[i] = n} checked={on}
-					data-state={() -> on() ? "on" : "off"} focusable={() -> stop(i)} onClick={_ -> props.value.value = o}
-					onKeyDown={e -> key(e, i)}>{props.labels != null && props.labels[i] != null ? props.labels[i] : o}</view>;
+				<view:button tag={tag + "-" + i} slot="toggle-group-item" variant={variant} size={size} data-spacing="0" role="radio" ref={p -> items[i] = p}
+					checked={on} data-state={() -> on() ? "on" : "off"} focusable={() -> stop(i)} onPress={_ -> props.value.value = o}
+					onKeyDown={e -> key(e, i)}>{props.labels != null && props.labels[i] != null ? props.labels[i] : o}</view:button>;
 			}
 		]}</view>;
 	}
@@ -1938,29 +1957,29 @@ class Widgets implements Markup {
 		},
 		keys: {"Enter": "on a step, chooses it (onSelect)"}
 	})
-	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
+	@:neutral public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "crumbs", items = props.items;
-		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "breadcrumb"}>
-			<view slot="breadcrumb-list">{[
+		return <view:nav tag={tag} id={props.tag} slot="breadcrumb" role="navigation" label={props.label ?? "breadcrumb"}>
+			<view:ol slot="breadcrumb-list">{[
 				for (i in 0...items.length) {
 					var last = i == items.length - 1;
 					[
-						<view slot="breadcrumb-item">{last ? <text tag={tag + "-" + i} slot="breadcrumb-page" current>{items[i]}</text> : <text tag={tag + "-" + i}
-							slot="breadcrumb-link" role="link" focusable onClick={_ -> props.onSelect(i)} onKeyDown={e -> if (e.key == Key.ENTER) {
+						<view:li slot="breadcrumb-item">{last ? <text:span tag={tag + "-" + i} slot="breadcrumb-page" role="link" disabled current="page">{items[i]}</text:span> : <view:a
+							tag={tag + "-" + i} slot="breadcrumb-link" href="#" focusable onPress={e -> {
 								e.preventDefault();
 								props.onSelect(i);
-							}}>{items[i]}</text>}</view>,
-						last ? null : <view slot="breadcrumb-separator" hidden>{icon(CHEVRON_RIGHT, "breadcrumb-separator-icon", null, true)}</view>
+							}}>{items[i]}</view:a>}</view:li>,
+						last ? null : <view:li slot="breadcrumb-separator" hidden><icon slot="breadcrumb-separator-icon" name="chevron-right" mirrored width={14} height={14}/></view:li>
 					];
 				}
-			]}</view>
-		</view>;
+			]}</view:ol>
+		</view:nav>;
 	}
 
 	// pagination (shadcn's): Previous, the pages (the first, the last, the
 	// current one and its neighbours, "…" for the rest, a page instead where
-	// it hides only one), Next, in a navigation landmark; pages count from
-	// 1, the current page's button marked current. Slots "pagination",
+	// it hides only one), Next, in a navigation landmark, each a link;
+	// pages count from 1, the current page's link marked current. Slots "pagination",
 	// "pagination-content", "pagination-item", "pagination-link" (size "icon"
 	// for a page, "default" for Previous and Next; data-active on the
 	// current page's, data-disabled on Previous on the first, Next on the
@@ -1971,36 +1990,39 @@ class Widgets implements Markup {
 			count: "the number of pages",
 			label: "its landmark's name"
 		},
-		keys: {"Enter, Space": "on a button, go to its page (Previous and Next: the page before or after)"}
+		keys: {"Enter": "on a link, go to its page (Previous and Next: the page before or after)"}
 	})
-	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
+	@:neutral public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "pages", count = props.count;
 		function go(p:Int)
 			if (p >= 1 && p <= count) props.page.value = p;
-		// (the buttons in order, 0 for a gap)
-		function shown():Array<Int>
-			return Behaviour.pages(props.page.value, count);
-		function button(label:Any, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool, slot = "pagination-link"):View {
-			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
-			return <view slot="pagination-item"><view tag={tagged} slot={slot} size={size} role="button" focusable={() -> !off()} disabled={off}
-				data-disabled={off} current={cur} data-active={() -> cur() ? "true" : null} onClick={_ -> if (!off()) onClick()}
-				onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && !off()) {
+		// (Previous or Next: off at the first or the last page)
+		function edge(prev:Bool):View {
+			var off = () -> prev ? props.page.value <= 1 : props.page.value >= count;
+			function arrow():View
+				return <icon slot="pagination-icon" name={prev ? "chevron-left" : "chevron-right"} width={16} height={16} hidden/>;
+			return <view:li slot="pagination-item"><view:a tag={tag + (prev ? "-prev" : "-next")} slot={prev ? "pagination-previous" : "pagination-next"}
+				variant="ghost" size="default" href="#" label={prev ? "Go to previous page" : "Go to next page"} focusable={() -> !off()} disabled={off}
+				data-disabled={off} onPress={e -> {
 					e.preventDefault();
-					onClick();
-				}}>{label}</view></view>;
+					if (!off()) go(props.page.peek() + (prev ? -1 : 1));
+				}}>{prev ? arrow() : null}<text:span>{prev ? "Previous" : "Next"}</text:span>{prev ? null : arrow()}</view:a></view:li>;
 		}
-		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "pagination"}>
-			<view slot="pagination-content">
-				{button([icon(CHEVRON_LEFT, "pagination-icon"), "Previous"], tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1, "pagination-previous")}
-				<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
-					<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", "icon", () -> go(p.peek()),
-						() -> props.page.value == p.value)}>
-						<view slot="pagination-ellipsis" hidden>{icon(MORE, "pagination-ellipsis-icon")}</view>
+		return <view:nav tag={tag} id={props.tag} slot="pagination" role="navigation" label={props.label ?? "pagination"}>
+			<view:ul slot="pagination-content">
+				{edge(true)}
+				<Index each={() -> Behaviour.pages(props.page.value, count)} render={(p:Signal<Int>, _) -> <view:li slot="pagination-item">
+					<Show when={() -> p.value == 0} fallback={<view:a tag={tag + "-page"} slot="pagination-link" variant="ghost" size="icon" href="#" focusable
+						current={() -> props.page.value == p.value ? "page" : null} data-active={() -> props.page.value == p.value ? "true" : null} onPress={e -> {
+							e.preventDefault();
+							go(p.peek());
+						}}>{() -> Std.string(p.value)}</view:a>}>
+						<view:span slot="pagination-ellipsis" hidden><icon slot="pagination-ellipsis-icon" name="more" width={16} height={16}/></view:span>
 					</Show>
-				</view>}/>
-				{button(["Next", icon(CHEVRON_RIGHT, "pagination-icon")], tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count, "pagination-next")}
-			</view>
-		</view>;
+				</view:li>}/>
+				{edge(false)}
+			</view:ul>
+		</view:nav>;
 	}
 
 	// the items' shortcuts (local: while the focus is in the parent)
@@ -2042,6 +2064,23 @@ class Widgets implements Markup {
 	// focuses nodes[i] if it is shown
 	static function focusIn(nodes:Array<Node>, i:Int)
 		if (i >= 0 && i < nodes.length && nodes[i].ui != null) nodes[i].ui.setFocus(nodes[i]);
+
+	// (a neutral widget's: the key mirrored right to left by the node
+	// listening; in a page by its element, the event's current there, read
+	// opaquely (through Event's field or Node's method the JS
+	// generator's DCE, upstream's, would keep a Node and its nodes in a page))
+	static function mirroredKey(e:Event):Int
+		return Behaviour.mirror(e.key, #if js js.Syntax.code("getComputedStyle({0}.current).direction == 'rtl'", e) #else e.current.rtl() #end);
+
+	// (a neutral widget's time, in seconds: Ui.now, a page's the clock's)
+	static inline function clock():Float
+		return #if js haxe.Timer.stamp() #else Ui.now() #end;
+
+	// (a neutral widget's: parts[i], after a key; in a page its ElementPart's
+	// focus called opaquely, as mirroredKey reads: through the interface DCE
+	// keeps each Part's, a Node's)
+	static function focusPart(parts:Array<Part>, i:Int)
+		if (i >= 0 && i < parts.length && parts[i] != null) #if js js.Syntax.code("{0}.focus(true)", parts[i]) #else parts[i].focus() #end;
 
 	// a menu's panel of items (their nodes into nodes): Up and Down move
 	// through them (wrapping), Home and End to the first and last, letters
@@ -2830,60 +2869,28 @@ class Widgets implements Markup {
 			"Left, Right, Home, End": "nothing: the caret stays at the end"
 		}
 	})
-	public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
+	@:neutral public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
 			?disabled:Dynamic, ?tag:String}):View {
-		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false;
-		var groups = props.groups ?? [n];
+		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false, groups = props.groups ?? [n];
+		var disabled = () -> read(props.disabled) == true;
 		function allowed(s:String):String
 			return Behaviour.code(s, n, digits);
-		var f = new TextField(allowed(props.value.peek()));
-		f.tag = tag + "-input";
-		f.semantics.label = props.label ?? "One-time code";
-		// (drawn, never the platform's editor: the slots show its text)
-		f.host = Drawn;
-		// (drawing nothing: its text in the slots, its focus the active slot's; to assistive technology the field)
-		f.style.width = "100%";
-		f.style.height = "100%";
-		f.style.color = Color.TRANSPARENT;
-		f.style.outlineStyle = None;
-		f.caretColor = Color.TRANSPARENT;
-		f.selectionColor = Color.TRANSPARENT;
-		var focused = States.of(f).focused;
-		effect(() -> {
-			var v = allowed(props.value.value);
-			untrack(() -> {
-				f.setText(v);
-				f.select(v.length, v.length);
-			});
-		});
-		f.onChange = s -> {
-			var v = allowed(s), was = props.value.peek();
+		// (the field's text: as typed, then what is allowed; the slots show the value)
+		var shown = signal(allowed(props.value.peek())), focused = signal(false), field:Null<Part> = null;
+		effect(() -> shown.value = allowed(props.value.value));
+		function typed(e:Event) {
+			var v = allowed(e.text), was = props.value.peek();
+			shown.value = e.text;
+			shown.value = v;
 			props.value.value = v;
-			// (what was dropped: gone from the field too, the caret at the end)
-			f.setText(v);
-			f.select(v.length, v.length);
 			if (v.length == n && was.length < n && props.onComplete != null) props.onComplete(v);
-		};
-		// (the caret kept at the end: the keys that would move it taken, a click undone)
-		var keys = f.onKeyDown;
-		f.onKeyDown = e -> switch e.key {
-			case Key.LEFT | Key.RIGHT | Key.UP | Key.DOWN | Key.HOME | Key.END:
-				e.preventDefault();
-			case _:
-				keys(e);
-		};
-		var down = f.onPointerDown;
-		f.onPointerDown = e -> {
-			down(e);
-			f.select(f.text.length, f.text.length);
-		};
-		invalidAndDisabled(f, null, props.disabled);
+		}
 		var chars = () -> [for (c in new haxe.iterators.StringIteratorUnicode(props.value.value)) String.fromCharCode(c)];
 		var active = () -> focused.value ? Std.int(Math.min(chars().length, n - 1)) : -1;
-		var slots = [], k = 0;
+		var slots:Array<View> = [], k = 0;
 		for (g => size in groups) {
-			if (g > 0) slots.push(<view slot="input-otp-separator" role="separator"><image slot="input-otp-separator-icon" src={MINUS} hidden/></view>);
-			var cells = [];
+			if (g > 0) slots.push(<view slot="input-otp-separator" role="separator"><icon slot="input-otp-separator-icon" name="minus" hidden/></view>);
+			var cells:Array<View> = [];
 			for (_ in 0...size) {
 				var i = k++;
 				cells.push(<view tag={tag + "-slot-" + i} slot="input-otp-slot" data-active={() -> active() == i ? "true" : null} hidden>
@@ -2891,17 +2898,50 @@ class Widgets implements Markup {
 					<Show when={() -> active() == i && i >= chars().length}><view slot="input-otp-caret"/></Show>
 				</view>);
 			}
-			slots.push(<view slot="input-otp-group" direction="row" align-items="center">{cells}</view>);
+			slots.push(<view slot="input-otp-group">{cells}</view>);
 		}
-		return <view tag={tag} slot="input-otp" direction="row" align-items="center" data-disabled={() -> read(props.disabled) == true}>
+		// (unstyled: its slots in a row; a page's, its CSS)
+		#if !js
+		Rules.addBase("input-otp", [
+			for (s in ["input-otp", "input-otp-group"])
+				{slot: s, style: {direction: Row, alignItems: Center}}
+		]);
+		#end
+		// (the field over the slots, drawing nothing (drawn, never the platform's editor); its caret kept at the end)
+		return <view tag={tag} id={props.tag} slot="input-otp" position="relative" data-disabled={disabled}>
 			{slots}
-			<view position="absolute" left={0} top={0} right={0} bottom={0}>{f}</view>
+			<field tag={tag + "-input"} host="drawn" position="absolute" left={0} top={0} width="100%" height="100%" value={shown}
+				label={props.label ?? "One-time code"} autocomplete="one-time-code" inputmode={digits ? "numeric" : "text"} disabled={disabled}
+				ref={p -> unseen(field = p, disabled)} onInput={typed} onFocus={_ -> focused.value = true}
+				onBlur={_ -> focused.value = false} onClick={_ -> selectPart(field, shown.peek().length)} onKeyDown={e -> switch e.key {
+					case Key.LEFT | Key.RIGHT | Key.UP | Key.DOWN | Key.HOME | Key.END: e.preventDefault();
+					case _:
+				}}/>
 		</view>;
 	}
 
-	// a collapsible (shadcn's): its label on a button (an arrow turning
-	// with it) that shows or hides the children under it, by a click, Enter
-	// or Space; open (a signal; closed at first) says which. Slots
+	// (a field that draws nothing: its text, caret, selection and ring
+	// transparent; a page's, opacity 0 (ui's would take it from assistive
+	// technology); ui's out of the tab order and :disabled while disabled, as
+	// a page's <input>)
+	static function unseen(p:Part, disabled:Void->Bool)
+		#if js js.Syntax.code("{0}.element.style.opacity = '0'", p); #else {
+			var f:EditableText = cast p;
+			f.style.color = Color.TRANSPARENT;
+			f.style.outlineStyle = None;
+			f.caretColor = Color.TRANSPARENT;
+			f.selectionColor = Color.TRANSPARENT;
+			disables(f, disabled);
+		} #end
+
+	// (a field's caret at at, opaquely in a page as focusPart)
+	static function selectPart(p:Null<Part>, at:Int)
+		if (p != null) #if js js.Syntax.code("{0}.select({1}, {1})", p, at) #else p.select(at, at) #end;
+
+	// a collapsible (shadcn's): its label on a button (an arrow, the way the
+	// line reads, down while open) that shows or hides the children under
+	// it, by a click, Enter or Space; open (a signal; closed at first) says
+	// which. Slots
 	// "collapsible", "collapsible-trigger" and "collapsible-content", each
 	// with data-state "open" or "closed"
 	@:widget({
@@ -2912,13 +2952,16 @@ class Widgets implements Markup {
 		},
 		keys: {"Enter, Space": "opens or closes it"}
 	})
-	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
+	@:neutral public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
 		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
-		var state = () -> open.value ? "open" : "closed";
-		return <view tag={tag} slot="collapsible" data-state={state}>
-			{trigger(tag + "-summary", "collapsible-trigger", state, () -> open.value = !open.peek(),
-				[icon(CHEVRON_RIGHT, "collapsible-icon", () -> open.value ? "rotate(90deg)" : "none", true), props.label])}
-			<Show when={open}><view tag={tag + "-content"} slot="collapsible-content" data-state="open">{props.children}</view></Show>
+		var state = () -> open.value ? "open" : "closed", content = props.tag != null ? props.tag + "-content" : null;
+		// (the arrow another icon while open, not turned: a turn and the mirror compose the other way round in a page)
+		return <view tag={tag} id={props.tag} slot="collapsible" data-state={state}>
+			<view:button tag={tag + "-summary"} slot="collapsible-trigger" role="button" focusable expanded={() -> open.value} aria-controls={content}
+				data-state={state} onPress={_ -> open.value = !open.peek()}>
+				<icon slot="collapsible-icon" name={() -> open.value ? "chevron-down" : "chevron-right"} mirrored width={12} height={12} hidden/>{props.label}
+			</view:button>
+			<Show when={open}><view tag={tag + "-content"} id={content} slot="collapsible-content" data-state="open">{props.children}</view></Show>
 		</view>;
 	}
 
@@ -3047,77 +3090,68 @@ class Widgets implements Markup {
 			"Left, Right, Home, End, Backspace, Mod+A, Mod+C, Mod+X, Mod+V, Mod+Z": "edit the text, as an input's"
 		}
 	})
-	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
+	@:neutral public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
 		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
 		var format = props.format ?? Behaviour.plain;
-		var editing = false;
-		var f = new TextField(format(props.value.peek()));
-		f.tag = tag;
-		f.semantics.role = hxmc.ui.access.Role.SpinButton;
-		f.semantics.label = props.label;
-		if (Math.isFinite(min)) f.semantics.valueMin = min;
-		if (Math.isFinite(max)) f.semantics.valueMax = max;
-		f.slot = "input";
-		f.style.set({grow: 1, minWidth: 0});
+		// (the field's text: as typed while editing, else the value formatted)
+		var editing = false, text = signal(format(props.value.peek()));
 		inline function clamp(v:Float):Float
 			return v < min ? min : v > max ? max : v;
 		effect(() -> {
 			var v = props.value.value;
-			f.semantics.valueNow = v;
-			f.semantics.valueText = format(v);
-			if (!editing) f.setText(format(v));
+			if (!editing) text.value = format(v);
 		});
 		function commit() {
 			editing = false;
 			var v = clamp(props.value.peek());
 			if (v != props.value.peek()) props.value.value = v;
-			f.setText(format(v));
+			text.value = format(v);
 		}
 		function stepBy(n:Float) {
 			editing = false;
 			var v = clamp(props.value.peek() + n * step);
-			if (v != props.value.peek()) props.value.value = v else f.setText(format(v));
+			if (v != props.value.peek()) props.value.value = v else text.value = format(v);
 		}
-		f.onChange = s -> {
-			var v = Std.parseFloat(StringTools.trim(s));
-			editing = true;
-			if (!Math.isNaN(v)) props.value.value = v;
-		};
-		f.onSubmit = _ -> commit();
-		// (after the field's own: its caret and composition)
-		var blur = f.onBlur;
-		f.onBlur = e -> {
-			if (blur != null) blur(e);
-			commit();
-		};
-		function arrow(label:String, glyph:String, n:Float):View
-			return <view tag={tag + (n > 0 ? "-up" : "-down")} slot={n > 0 ? "number-field-increment" : "number-field-decrement"} role="button" label={label}
-				grow={1} onClick={_ -> stepBy(n)}>{glyph}</view>;
-		return <view tag={tag + "-box"} slot="number-field" direction="row" align-items="stretch" width={w} onKeyDown={e -> switch e.key {
-				case Key.UP:
-					e.stop();
-					stepBy(1);
-				case Key.DOWN:
-					e.stop();
-					stepBy(-1);
-				case Key.PAGE_UP:
-					e.stop();
-					stepBy(10);
-				case Key.PAGE_DOWN:
-					e.stop();
-					stepBy(-10);
-				case _:
-			}}>
-			{f}
-			<view slot="number-field-steppers">
-				{arrow("Increase", "▲", 1)}
-				{arrow("Decrease", "▼", -1)}
-			</view>
+		function stepper(n:Float):View
+			return <view:button tag={tag + (n > 0 ? "-up" : "-down")} slot={n > 0 ? "number-field-increment" : "number-field-decrement"} role="button"
+				label={n > 0 ? "Increase" : "Decrease"} focusable={false} onClick={_ -> stepBy(n)}>{n > 0 ? "▲" : "▼"}</view:button>;
+		// (unstyled: in a row, the buttons sharing its height; a page's, its CSS)
+		#if !js
+		Rules.addBase("number-field", [
+			{slot: "number-field", style: {direction: Row, alignItems: Stretch}},
+			{slot: "number-field-increment", style: {grow: 1}},
+			{slot: "number-field-decrement", style: {grow: 1}}
+		]);
+		#end
+		return <view tag={tag + "-box"} id={props.tag == null ? null : props.tag + "-box"} slot="number-field" width={w}>
+			<field tag={tag} id={props.tag} slot="input" role="spinbutton" inputmode="decimal" value={text} label={props.label}
+				value-now={() -> props.value.value} value-text={() -> format(props.value.value)} value-min={Math.isFinite(min) ? min : null}
+				value-max={Math.isFinite(max) ? max : null} grow={1} min-width={0} onInput={e -> {
+					text.value = e.text;
+					editing = true;
+					var v = Std.parseFloat(StringTools.trim(e.text));
+					if (!Math.isNaN(v)) props.value.value = v;
+				}} onBlur={_ -> commit()} onKeyDown={e -> {
+					var by = switch e.key {
+						case Key.UP: 1;
+						case Key.DOWN: -1;
+						case Key.PAGE_UP: 10;
+						case Key.PAGE_DOWN: -10;
+						case _: 0;
+					}
+					if (e.key == Key.ENTER) commit();
+					if (by != 0) {
+						// (taken: not the caret's, nor a scroller's)
+						e.preventDefault();
+						e.stop();
+						stepBy(by);
+					}
+				}}/>
+			<view slot="number-field-steppers">{stepper(1)}{stepper(-1)}</view>
 		</view>;
 	}
-
 
 	// a textarea (shadcn's): a text area bound to a signal (two ways), rows
 	// lines high (3); a right click (or the menu key) opens its edit menu;
@@ -3144,52 +3178,64 @@ class Widgets implements Markup {
 			"Menu, Shift+F10": "opens its edit menu"
 		}
 	})
-	public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
+	@:neutral public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
 			?style:States->StyleProps, ?tag:String}):View {
-		var f = new TextArea(props.value.peek());
-		if (props.tag != null) f.tag = props.tag;
-		f.slot = "textarea";
-		States.apply(f, props.style);
-		f.rows = props.rows ?? 3;
-		f.placeholder = props.placeholder ?? "";
-		f.semantics.label = props.label ?? props.placeholder;
-		f.onChange = s -> props.value.value = s;
-		effect(() -> f.setText(props.value.value));
-		invalidAndDisabled(f, props.invalid, props.disabled);
-		return editMenu(f, props.tag ?? "textarea");
+		var disabled = () -> read(props.disabled) == true;
+		return fieldOwn(<field:textarea tag={props.tag} id={props.tag} slot="textarea" states={props.style} rows={props.rows} value={props.value}
+			placeholder={props.placeholder} label={props.label ?? props.placeholder} aria-invalid={() -> read(props.invalid) == true ? "true" : null}
+			disabled={disabled} onInput={e -> props.value.value = e.text}/>, disabled, props.tag ?? "textarea");
 	}
 
-	// (an input's or a textarea's aria-invalid and disabled, following their props)
-	static function invalidAndDisabled(f:EditableText, invalid:Dynamic, disabled:Dynamic) {
-		effect(() -> f.setAttr("aria-invalid", read(invalid) == true ? "true" : null));
+	// (what a field has in ui that a page's <input> has itself: out of the tab
+	// order and the theme's disabled while disabled; an edit menu (menu: its
+	// tag's start): a context menu of cut, copy, paste and select all; f a
+	// literal of one field, or the field)
+	static function fieldOwn(f:Any, ?disabled:Void->Bool, ?menu:String):Any {
+		#if js
+		return f;
+		#else
+		var node:Null<EditableText> = Std.isOfType(f, EditableText) ? f : null;
+		var own:Any = node != null ? f : new View((r, parent, before, out) -> {
+			var top:Array<Dynamic> = [];
+			(f : View).mount(r, parent, before, top);
+			node = cast top[0];
+			if (disabled != null) disables(node, disabled);
+			if (out != null) for (t in top) out.push(t);
+		}, null, (f : View).source);
+		if (menu == null) return own;
+		function edit(e:EditableText->Void)
+			return () -> if (node != null) e(node);
+		return <ContextMenu tag={menu + "-menu"} label="Edit" items={[
+			{label: "Cut", onSelect: edit(n -> n.cut()), shortcut: "Mod+X"},
+			{label: "Copy", onSelect: edit(n -> n.copy()), shortcut: "Mod+C"},
+			{label: "Paste", onSelect: edit(n -> n.paste()), shortcut: "Mod+V"},
+			{label: "Select All", onSelect: edit(n -> n.selectAll()), shortcut: "Mod+A"}
+		]}>{own}</ContextMenu>;
+		#end
+	}
+
+	#if !js
+	// (a field out of the tab order and the theme's disabled while disabled)
+	static function disables(f:EditableText, disabled:Void->Bool)
 		effect(() -> {
-			var off = read(disabled) == true;
-			f.setAttr("disabled", off ? "" : null);
+			var off = disabled();
 			f.focusable = !off;
-			f.semantics.disabled = off;
+			f.setAttr("disabled", off ? "" : null);
 		});
-	}
-
-	// (a text field in a context menu of its edits: cut, copy, paste, select all)
-	static function editMenu(f:EditableText, tag:String):View
-		return <ContextMenu tag={tag + "-menu"} label="Edit" items={[
-			{label: "Cut", onSelect: () -> f.cut(), shortcut: "Mod+X"},
-			{label: "Copy", onSelect: () -> f.copy(), shortcut: "Mod+C"},
-			{label: "Paste", onSelect: () -> f.paste(), shortcut: "Mod+V"},
-			{label: "Select All", onSelect: () -> f.selectAll(), shortcut: "Mod+A"}
-		]}>{f}</ContextMenu>;
+	#end
 
 	// (an icon, lucide's, in a slot of its own (a theme's to size and colour;
 	// unstyled, 16 pixels), hidden from assistive technology; turned by
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["calendar-button-icon", "tree-toggle-icon", "breadcrumb-separator-icon", "collapsible-icon", "sidebar-trigger-icon",
-				"navigation-menu-trigger-icon", "carousel-icon", "pagination-icon", "pagination-ellipsis-icon"])
-				{slot: s, style: s == "breadcrumb-separator-icon" || s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
+			for (s in ["calendar-button-icon", "tree-toggle-icon", "sidebar-trigger-icon",
+				"navigation-menu-trigger-icon", "carousel-icon"])
+				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
-		var n = mirrored ? new Mirrored() : new ImageNode();
+		var n = new ImageNode();
 		n.svg = svg;
+		n.mirrored = mirrored;
 		n.slot = slot;
 		n.semantics = {hidden: true};
 		n.style.shrink = 0;
@@ -3209,6 +3255,7 @@ class Widgets implements Markup {
 			label: "its name for assistive technology (the placeholder)",
 			onSubmit: "called with its text on Enter",
 			password: "true: its text shown as dots, not copied or cut",
+			type: "its kind, as an <input>'s: text (the default), email, search, url, tel... (password: as password does); a page's keyboard and autofill, the text the same",
 			invalid: "a Bool, a signal or a function of one: aria-invalid, for the theme",
 			disabled: "a Bool, a signal or a function of one: not focusable or edited"
 		},
@@ -3224,25 +3271,18 @@ class Widgets implements Markup {
 			"Menu, Shift+F10": "opens its edit menu"
 		}
 	})
-	public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
-		return textInput(props, "input");
+	@:neutral public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+			?type:String, ?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
+		return textInput(props, "input", props.type);
 
 	// (an Input's field, its slot "input", or "input-group-control" in an InputGroup)
-	static function textInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}, slot:String):View {
-		var f = new TextField(props.value.peek());
-		if (props.tag != null) f.tag = props.tag;
-		f.slot = slot;
-		States.apply(f, props.style);
-		if (props.password == true) f.secret = true;
-		f.placeholder = props.placeholder ?? "";
-		f.semantics.label = props.label ?? props.placeholder;
-		f.onChange = s -> props.value.value = s;
-		f.onSubmit = props.onSubmit;
-		effect(() -> f.setText(props.value.value));
-		invalidAndDisabled(f, props.invalid, props.disabled);
-		return editMenu(f, props.tag ?? "input");
+	@:neutral static function textInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}, slot:String, ?type:String):View {
+		var disabled = () -> read(props.disabled) == true, submit = props.onSubmit;
+		return fieldOwn(<field tag={props.tag} id={props.tag} slot={slot} states={props.style} type={props.password == true ? "password" : type}
+			value={props.value} placeholder={props.placeholder} label={props.label ?? props.placeholder}
+			aria-invalid={() -> read(props.invalid) == true ? "true" : null} disabled={disabled} onInput={e -> props.value.value = e.text}
+			onKeyDown={submit == null ? null : (e:Event) -> if (e.key == Key.ENTER) submit(props.value.peek())}/>, disabled, props.tag ?? "input");
 	}
 
 	// a tag input: tags as chips before a text field in one box; Enter or a
@@ -3298,7 +3338,7 @@ class Widgets implements Markup {
 					<view tag={tag + "-" + v + "-remove"} slot="tag-input-remove" role="button" label={"Remove " + v} onClick={_ -> remove(v)}>×</view>
 				</view>}/>
 			</view>
-			<view slot="tag-input-entry" grow={1}>{editMenu(f, tag)}</view>
+			<view slot="tag-input-entry" grow={1}>{fieldOwn(f, null, tag)}</view>
 		</view>;
 	}
 
@@ -3320,19 +3360,20 @@ class Widgets implements Markup {
 		},
 		variants: ["vertical", "horizontal", "responsive"]
 	})
-	public static function Field(props:{?orientation:String, ?invalid:Dynamic, ?label:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field"} slot="field" role="group" label={props.label} data-orientation={props.orientation ?? "vertical"}
+	@:neutral public static function Field(props:{?orientation:String, ?invalid:Dynamic, ?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field"} id={props.tag} slot="field" role="group" label={props.label} data-orientation={props.orientation ?? "vertical"}
 			variant={props.orientation ?? "vertical"} data-invalid={() -> read(props.invalid) == true ? "true" : null}>{props.children}</view>;
 
 	@:widget({
 		props: {
 			text: "its text, when it has no children",
-			children: "its content, in place of text: a control and its text, for a checkbox's or a switch's label"
+			children: "its content, in place of text: a control and its text, for a checkbox's or a switch's label",
+			htmlFor: "the id of the control it names, in a page (a <label>'s for)"
 		},
 		part: "Field"
 	})
-	public static function FieldLabel(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-label"} slot="field-label">{props.children ?? props.text}</view>;
+	@:neutral public static function FieldLabel(props:{?text:String, ?children:Any, ?htmlFor:String, ?tag:String}):View
+		return <view:label tag={props.tag ?? "field-label"} id={props.tag} slot="field-label" html-for={props.htmlFor}>{props.children ?? props.text}</view:label>;
 
 	@:widget({
 		props: {
@@ -3340,8 +3381,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldContent(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-content"} slot="field-content">{props.children}</view>;
+	@:neutral public static function FieldContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-content"} id={props.tag} slot="field-content">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3350,8 +3391,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "field-description"} slot="field-description">{props.children ?? props.text}</text>;
+	@:neutral public static function FieldDescription(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:p tag={props.tag ?? "field-description"} id={props.tag} slot="field-description">{props.children ?? props.text}</text:p>;
 
 	@:widget({
 		props: {
@@ -3360,11 +3401,11 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldError(props:{text:Dynamic, ?tag:String}):View
+	@:neutral public static function FieldError(props:{text:Dynamic, ?tag:String}):View
 		return <Show when={() -> {
 			var t:Null<String> = read(props.text);
 			t != null && t != "";
-		}}><text tag={props.tag ?? "field-error"} slot="field-error" live="assertive">{() -> (read(props.text) : String)}</text></Show>;
+		}}><text:div tag={props.tag ?? "field-error"} id={props.tag} slot="field-error" live="assertive">{() -> (read(props.text) : String)}</text:div></Show>;
 
 	@:widget({
 		props: {
@@ -3373,8 +3414,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldSet(props:{?label:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-set"} slot="field-set" role="group" label={props.label}>{props.children}</view>;
+	@:neutral public static function FieldSet(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view:fieldset tag={props.tag ?? "field-set"} id={props.tag} slot="field-set" role="group" label={props.label}>{props.children}</view:fieldset>;
 
 	@:widget({
 		props: {
@@ -3384,9 +3425,8 @@ class Widgets implements Markup {
 		variants: ["legend", "label"],
 		part: "Field"
 	})
-	public static function FieldLegend(props:{text:String, ?variant:String, ?tag:String}):View
-		return <text tag={props.tag ?? "field-legend"} slot="field-legend" role="heading" variant={props.variant ?? "legend"}
-			data-variant={props.variant ?? "legend"}>{props.text}</text>;
+	@:neutral public static function FieldLegend(props:{text:String, ?variant:String, ?tag:String}):View
+		return <text:legend tag={props.tag ?? "field-legend"} id={props.tag} slot="field-legend" role="heading" variant={props.variant ?? "legend"}>{props.text}</text:legend>;
 
 	@:widget({
 		props: {
@@ -3394,8 +3434,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldGroup(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-group"} slot="field-group" group="field-group">{props.children}</view>;
+	@:neutral public static function FieldGroup(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-group"} id={props.tag} slot="field-group" group="field-group">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3403,8 +3443,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldSeparator(props:{?text:String, ?tag:String}):View
-		return <view tag={props.tag ?? "field-separator"} slot="field-separator" data-content={props.text != null ? "true" : null}>
+	@:neutral public static function FieldSeparator(props:{?text:String, ?tag:String}):View
+		return <view tag={props.tag ?? "field-separator"} id={props.tag} slot="field-separator" data-content={props.text != null ? "true" : null}>
 			<view slot="separator" role="separator" data-orientation="horizontal" position="absolute" left={0} right={0} top="50%"/>
 			{props.text == null ? null : <text slot="field-separator-content">{props.text}</text>}
 		</view>;
@@ -3421,9 +3461,9 @@ class Widgets implements Markup {
 		},
 		variants: ["horizontal", "vertical"]
 	})
-	public static function ButtonGroup(props:{?orientation:String, ?label:String, ?children:Any, ?tag:String}):View {
+	@:neutral public static function ButtonGroup(props:{?orientation:String, ?label:String, ?children:Any, ?tag:String}):View {
 		var o = props.orientation ?? "horizontal";
-		return <view tag={props.tag ?? "button-group"} slot="button-group" role="group" label={props.label} variant={o} data-orientation={o}
+		return <view tag={props.tag ?? "button-group"} id={props.tag} slot="button-group" role="group" label={props.label} variant={o} data-orientation={o}
 			direction={o == "vertical" ? "column" : "row"}>{props.children}</view>;
 	}
 
@@ -3434,8 +3474,8 @@ class Widgets implements Markup {
 		},
 		part: "ButtonGroup"
 	})
-	public static function ButtonGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "button-group-text"} slot="button-group-text">{props.children ?? props.text}</view>;
+	@:neutral public static function ButtonGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "button-group-text"} id={props.tag} slot="button-group-text">{props.children ?? props.text}</view>;
 
 	@:widget({
 		props: {
@@ -3443,8 +3483,8 @@ class Widgets implements Markup {
 		},
 		part: "ButtonGroup"
 	})
-	public static function ButtonGroupSeparator(props:{?orientation:String, ?tag:String}):View
-		return <view tag={props.tag ?? "button-group-separator"} slot="button-group-separator" data-orientation={props.orientation ?? "vertical"} hidden/>;
+	@:neutral public static function ButtonGroupSeparator(props:{?orientation:String, ?tag:String}):View
+		return <view tag={props.tag ?? "button-group-separator"} id={props.tag} slot="button-group-separator" data-orientation={props.orientation ?? "vertical"} hidden/>;
 
 	// an input group (shadcn's): an InputGroupInput (or a text area) with
 	// addons beside, above or under it (icons, text, buttons) in one box; a
@@ -3508,7 +3548,7 @@ class Widgets implements Markup {
 		},
 		part: "InputGroup"
 	})
-	public static function InputGroupInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+	@:neutral public static function InputGroupInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
 			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
 		return textInput(props, "input-group-control");
 
@@ -4093,7 +4133,8 @@ class Widgets implements Markup {
 	// ("offcanvas", the default: out of view; "icon": to its icons; "none");
 	// a group to a theme (its parts' rules ask for its data-collapsible).
 	// Slot "sidebar" (data-state, data-collapsible while collapsed,
-	// data-variant, data-side), "sidebar-container", "sidebar-inner"
+	// data-variant, data-side), "sidebar-gap" (holding its width in the
+	// flow), "sidebar-container" (fixed beside it), "sidebar-inner"
 	@:widget({
 		props: {
 			side: "left (the default) or right",
@@ -4113,7 +4154,8 @@ class Widgets implements Markup {
 		return <view tag={props.tag ?? "sidebar"} slot="sidebar" group="sidebar" role="navigation" label={props.label ?? "Sidebar"}
 			data-state={() -> expanded() ? "expanded" : "collapsed"} data-collapsible={() -> expanded() ? null : collapsible}
 			variant={props.variant ?? "sidebar"} data-variant={props.variant ?? "sidebar"} data-side={props.side ?? "left"}>
-			<view slot="sidebar-container" data-side={props.side ?? "left"}>
+			<view slot="sidebar-gap" variant={props.variant ?? "sidebar"}/>
+			<view slot="sidebar-container" variant={props.variant ?? "sidebar"} data-side={props.side ?? "left"}>
 				<view slot="sidebar-inner">{props.children}</view>
 			</view>
 		</view>;
@@ -4138,44 +4180,44 @@ class Widgets implements Markup {
 	}
 
 	@:widget({props: {children: "the page beside the sidebar"}, part: "SidebarProvider"})
-	public static function SidebarInset(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-inset"} slot="sidebar-inset" grow={1}>{props.children}</view>;
+	@:neutral public static function SidebarInset(props:{?children:Any, ?tag:String}):View
+		return <view:main tag={props.tag ?? "sidebar-inset"} id={props.tag} slot="sidebar-inset" grow={1}>{props.children}</view:main>;
 
 	@:widget({props: {children: "what heads the sidebar"}, part: "Sidebar"})
-	public static function SidebarHeader(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-header"} slot="sidebar-header">{props.children}</view>;
+	@:neutral public static function SidebarHeader(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-header"} id={props.tag} slot="sidebar-header" data-sidebar="header">{props.children}</view>;
 
 	@:widget({props: {children: "its groups, scrolled when they are taller than it"}, part: "Sidebar"})
-	public static function SidebarContent(props:{?children:Any, ?tag:String}):View
-		return <scroll tag={props.tag ?? "sidebar-content"} slot="sidebar-content" grow={1} min-height={0}>{props.children}</scroll>;
+	@:neutral public static function SidebarContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-content"} id={props.tag} slot="sidebar-content" data-sidebar="content" grow={1} min-height={0}>{props.children}</view>;
 
 	@:widget({props: {children: "what ends the sidebar"}, part: "Sidebar"})
-	public static function SidebarFooter(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-footer"} slot="sidebar-footer">{props.children}</view>;
+	@:neutral public static function SidebarFooter(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-footer"} id={props.tag} slot="sidebar-footer" data-sidebar="footer">{props.children}</view>;
 
 	@:widget({props: {}, part: "Sidebar"})
-	public static function SidebarSeparator(props:{?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-separator"} slot="sidebar-separator" role="separator"/>;
+	@:neutral public static function SidebarSeparator(props:{?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-separator"} id={props.tag} slot="sidebar-separator" data-sidebar="separator" data-orientation="horizontal" role="separator"/>;
 
 	@:widget({props: {label: "its name for assistive technology", children: "its SidebarGroupLabel and SidebarGroupContent"}, part: "Sidebar"})
-	public static function SidebarGroup(props:{?label:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-group"} slot="sidebar-group" role="group" label={props.label}>{props.children}</view>;
+	@:neutral public static function SidebarGroup(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-group"} id={props.tag} slot="sidebar-group" data-sidebar="group" role="group" label={props.label}>{props.children}</view>;
 
 	@:widget({props: {text: "the group's title"}, part: "Sidebar"})
-	public static function SidebarGroupLabel(props:{text:String, ?tag:String}):View
-		return <text tag={props.tag ?? "sidebar-group-label"} slot="sidebar-group-label">{props.text}</text>;
+	@:neutral public static function SidebarGroupLabel(props:{text:String, ?tag:String}):View
+		return <text:div tag={props.tag ?? "sidebar-group-label"} id={props.tag} slot="sidebar-group-label" data-sidebar="group-label">{props.text}</text:div>;
 
 	@:widget({props: {children: "the group's SidebarMenu or anything"}, part: "Sidebar"})
-	public static function SidebarGroupContent(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-group-content"} slot="sidebar-group-content">{props.children}</view>;
+	@:neutral public static function SidebarGroupContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-group-content"} id={props.tag} slot="sidebar-group-content" data-sidebar="group-content">{props.children}</view>;
 
 	@:widget({props: {children: "its SidebarMenuItems"}, part: "Sidebar"})
-	public static function SidebarMenu(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-menu"} slot="sidebar-menu" role="list">{props.children}</view>;
+	@:neutral public static function SidebarMenu(props:{?children:Any, ?tag:String}):View
+		return <view:ul tag={props.tag ?? "sidebar-menu"} id={props.tag} slot="sidebar-menu" data-sidebar="menu" role="list">{props.children}</view:ul>;
 
 	@:widget({props: {children: "its SidebarMenuButton"}, part: "Sidebar"})
-	public static function SidebarMenuItem(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-menu-item"} slot="sidebar-menu-item" role="listitem">{props.children}</view>;
+	@:neutral public static function SidebarMenuItem(props:{?children:Any, ?tag:String}):View
+		return <view:li tag={props.tag ?? "sidebar-menu-item"} id={props.tag} slot="sidebar-menu-item" data-sidebar="menu-item" role="listitem">{props.children}</view:li>;
 
 	// a sidebar menu's button: its label (and children: an icon first),
 	// active (a Bool, a signal or a function of one: the current page,
@@ -4193,14 +4235,14 @@ class Widgets implements Markup {
 		},
 		part: "Sidebar"
 	})
-	public static function SidebarMenuButton(props:{?label:String, ?active:Dynamic, ?onClick:Void->Void, ?size:String, ?children:Any, ?tag:String}):View {
+	@:neutral public static function SidebarMenuButton(props:{?label:String, ?active:Dynamic, ?onClick:Void->Void, ?size:String, ?children:Any, ?tag:String}):View {
 		var press = () -> if (props.onClick != null) props.onClick();
 		var active = () -> read(props.active) == true;
-		return <view tag={props.tag ?? "sidebar-menu-button"} slot="sidebar-menu-button" role="button" label={props.label} size={props.size ?? "default"}
-			data-size={props.size ?? "default"} current={active} data-active={() -> active() ? "true" : null} focusable direction="row" align-items="center"
-			onClick={_ -> press()} onKeyDown={e -> pressKeys(e, press)}>
+		return <view:button tag={props.tag ?? "sidebar-menu-button"} id={props.tag} slot="sidebar-menu-button" data-sidebar="menu-button" role="button"
+			label={props.label} variant="default" size={props.size ?? "default"} current={() -> active() ? "page" : null} data-active={() -> active() ? "true" : null}
+			focusable direction="row" align-items="center" onPress={_ -> press()}>
 			{props.children}{props.label == null ? null : <text>{props.label}</text>}
-		</view>;
+		</view:button>;
 	}
 
 	// a navigation menu (shadcn's, after Radix's): a row of items in a
@@ -4386,12 +4428,3 @@ class Widgets implements Markup {
 // an icon that points to the line's end (a chevron: a disclosure's, a
 // breadcrumb's separator), right to left the other way (as Chromium's
 // disclosure-closed marker)
-private class Mirrored extends ImageNode {
-	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
-		if (!rtl()) return super.paintContent(canvas, x, y, width, height);
-		canvas.pushTransform(-1, 0, 0, 1, 2 * x + width, 0);
-		super.paintContent(canvas, x, y, width, height);
-		canvas.popTransform();
-	}
-}
-

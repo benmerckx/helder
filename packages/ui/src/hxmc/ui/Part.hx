@@ -19,4 +19,15 @@ interface Part {
 
 	// an attribute (data-*, aria-*), null where it has none
 	function attr(name:String):Null<String>;
+
+	// whether it is laid out right to left (dir, its own or inherited)
+	function rtl():Bool;
+
+	// takes the pointer pressed on it or inside it: its moves and its release
+	// come to it wherever the pointer goes, until it is released
+	function capture():Void;
+
+	// a text field's selection, start to end (UTF-16 indices; equal: the
+	// caret there); nothing on another part
+	function select(start:Int, end:Int):Void;
 }

@@ -15,22 +15,6 @@ import haxe.macro.Expr;
 // Event (only for the events a widget listens to). A name the table has
 // not is an error, so that the two renderers' vocabularies stay one.
 class NeutralMacro {
-	// the tables as switches over a neutral name, for Neutral's run time: its DOM name, its CSS property and px
-	public static macro function attrName(name:Expr):Expr {
-		var cases:Array<Case> = [for (k => v in DATA) {values: [macro $v{k}], expr: macro $v{v}}].concat([for (k => v in ARIA) {values: [macro $v{k}], expr: macro $v{v}}]);
-		return {expr: ESwitch(name, cases, macro $name), pos: name.pos};
-	}
-
-	public static macro function cssName(name:Expr):Expr {
-		var cases:Array<Case> = [for (k => c in CSS) {values: [macro $v{k}], expr: macro $v{c.prop}}];
-		return {expr: ESwitch(name, cases, macro $name), pos: name.pos};
-	}
-
-	public static macro function cssPx(name:Expr):Expr {
-		var px = [for (k => c in CSS) if (c.px) macro $v{k}];
-		return {expr: ESwitch(name, [{values: px, expr: macro true}], macro false), pos: name.pos};
-	}
-
 	#if macro
 	// (the neutral elements' DOM elements: view's and text's own, and the names their view: and text: forms take)
 	static final VIEWS = [
@@ -44,9 +28,16 @@ class NeutralMacro {
 	public static final ARIA = [
 		"label" => "aria-label", "description" => "aria-description", "checked" => "aria-checked", "selected" => "aria-selected",
 		"expanded" => "aria-expanded", "pressed" => "aria-pressed", "hidden" => "aria-hidden", "level" => "aria-level",
-		"value-now" => "aria-valuenow", "value-min" => "aria-valuemin", "value-max" => "aria-valuemax", "value-text" => "aria-valuetext"
+		"value-now" => "aria-valuenow", "value-min" => "aria-valuemin", "value-max" => "aria-valuemax", "value-text" => "aria-valuetext", "live" => "aria-live",
+		"multiselectable" => "aria-multiselectable", "current" => "aria-current"
 	];
 	static final PLAIN = ["role", "id", "href", "title"];
+	// (a field's (<field>: an <input>, <field:textarea>: a <textarea>) own attributes, as they are; its value
+	// Neutral.value, the property; host and focusable ui's only: a page's field is the DOM's own)
+	static final FIELD = ["placeholder", "type", "inputmode", "autocomplete", "maxlength", "rows", "readonly"];
+
+	static inline function isField(t:String):Bool
+		return t == "field" || t == "field:textarea";
 	// (StyleProps: the CSS property, and whether a number is in px)
 	public static final CSS:Map<String, {prop:String, px:Bool}> = [
 		"width" => {prop: "width", px: true}, "height" => {prop: "height", px: true}, "min-width" => {prop: "min-width", px: true},
@@ -57,7 +48,8 @@ class NeutralMacro {
 		"align-items" => {prop: "align-items", px: false}, "justify" => {prop: "justify-content", px: false}, "grow" => {prop: "flex-grow", px: false},
 		"shrink" => {prop: "flex-shrink", px: false}, "gap" => {prop: "gap", px: true}, "row-gap" => {prop: "row-gap", px: true},
 		"column-gap" => {prop: "column-gap", px: true}, "opacity" => {prop: "opacity", px: false}, "z-index" => {prop: "z-index", px: false},
-		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false}
+		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false},
+		"basis" => {prop: "flex-basis", px: true}, "pointer-events" => {prop: "pointer-events", px: false}
 	];
 	// (events: the DOM's, and ui's EventType)
 	static final EVENTS:Map<String, {dom:String, type:String}> = [
@@ -70,7 +62,10 @@ class NeutralMacro {
 
 	// the DOM element of a neutral one
 	public static function element(tag:Expr):Expr {
-		var t = literal(tag), dom = domName(t, tag.pos);
+		var t = literal(tag);
+		// (an icon: an <svg>, its paths its name's)
+		if (t == "icon") return macro @:pos(tag.pos) hxmc.web.Neutral.icon();
+		var dom = domName(t, tag.pos);
 		if (t == "scroll") return macro @:pos(tag.pos) {
 			var el = hxmc.web.DomRenderer.createElement("div");
 			(cast el : js.html.Element).style.overflow = "auto";
@@ -90,6 +85,8 @@ class NeutralMacro {
 		switch t {
 			case "view" | "scroll": return "div";
 			case "text": return "span";
+			case "field": return "input";
+			case "field:textarea": return "textarea";
 			case _:
 		}
 		var colon = t.indexOf(":"), kind = t.substr(0, colon), name = t.substr(colon + 1);
@@ -100,8 +97,31 @@ class NeutralMacro {
 
 	// an attribute set (a value or a signal's at the time)
 	public static function property(el:Expr, tag:Expr, name:Expr, v:Expr):Expr {
-		var f = setterFor(literal(tag), literal(name), name.pos);
+		// (a mapped name set once: Neutral's setter called with its DOM name)
+		var n = literal(name), t = literal(tag);
+		var dom = mapped(t, n);
+		if (n == "role" && v.expr.match(EConst(CString("button" | "link", _))) && (t == "view:button" || t == "view:a")) dom = null
+		else if (dom != null) return macro @:pos(name.pos) hxmc.web.Neutral.attr($el, $v{dom}, $v);
+		if (CSS.exists(n)) return macro @:pos(name.pos) hxmc.web.Neutral.css($el, $v{CSS[n].prop}, $v, $v{CSS[n].px});
+		var f = setterFor(t, n, name.pos, v);
 		return f == null ? macro {} : macro @:pos(name.pos) $f($el, $name, $v);
+	}
+
+	// the name a bound attribute's setter gets: a mapped one's DOM name or CSS
+	// property (its setter Neutral's one for all), else the neutral name
+	public static function name(tag:Expr, name:Expr):Expr {
+		var n = literal(name), t = literal(tag);
+		var dom = mapped(t, n);
+		return macro @:pos(name.pos) $v{dom ?? (CSS.exists(n) ? CSS[n].prop : n)};
+	}
+
+	// (an attribute's DOM name when it is one set as it is: data-*, aria-*, role, id...)
+	static function mapped(t:String, n:String):Null<String> {
+		if (t == "icon" && n == "mirrored") return "data-mirrored";
+		if (t == "icon" && n == "name" || n == "tag" || n == "role" && StringTools.endsWith(t, ":legend")) return null;
+		if (isField(t) && FIELD.indexOf(n) >= 0) return n;
+		return DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : PLAIN.indexOf(n) >= 0 || StringTools.startsWith(n, "data-")
+			|| StringTools.startsWith(n, "aria-") ? n : null;
 	}
 
 	// the function setting an attribute, (el, name, v): what markup binds a signal with
@@ -110,18 +130,21 @@ class NeutralMacro {
 		return f == null ? macro @:pos(name.pos) function(el:Dynamic, name:String, v:Dynamic) {} : f;
 	}
 
-	static function setterFor(tag:String, name:String, pos:Position):Null<Expr> {
-		if (name == "tag") return null;
-		// (a button's or a link's own: its role, and focusable as it is)
-		if ((tag == "view:button" || tag == "view:a") && (name == "role" || name == "focusable")) return null;
-		// (each kind one function, (el, name, v), naming the DOM's attribute or property itself: Neutral)
-		if (DATA.exists(name) || ARIA.exists(name)) return macro @:pos(pos) hxmc.web.Neutral.mapped;
-		if (PLAIN.indexOf(name) >= 0 || StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-"))
-			return macro @:pos(pos) hxmc.web.Neutral.plain;
+	static function setterFor(tag:String, name:String, pos:Position, ?v:Expr):Null<Expr> {
+		if (tag == "icon" && name == "name") return macro @:pos(pos) hxmc.web.Neutral.iconName;
+		// (ui's own: Node.find's tag, a group's and a peer's markers, the CSS's slots)
+		if (name == "tag" || name == "group" || name == "peer") return null;
+		// (a button's or a link's own: its role, and focusable as it is; a legend's role)
+		if (name == "role" && (tag == "view:button" || tag == "view:a") && v != null && v.expr.match(EConst(CString("button" | "link", _)))) return null;
+		if (StringTools.endsWith(tag, ":legend") && name == "role") return null;
+		if (isField(tag) && name == "value") return macro @:pos(pos) hxmc.web.Neutral.value;
+		if (isField(tag) && (name == "host" || name == "focusable")) return null;
+		// (each kind one function, (el, name, v), name the DOM's (NeutralMacro.name): Neutral)
+		if (mapped(tag, name) != null) return macro @:pos(pos) hxmc.web.Neutral.attr;
+		if (CSS.exists(name)) return CSS[name].px ? macro @:pos(pos) hxmc.web.Neutral.cssPx : macro @:pos(pos) hxmc.web.Neutral.cssValue;
 		if (name == "focusable") return macro @:pos(pos) hxmc.web.Neutral.focusable;
 		if (name == "states") return macro @:pos(pos) hxmc.web.Neutral.states;
 		if (name == "disabled") return macro @:pos(pos) hxmc.web.Neutral.disabled;
-		if (CSS.exists(name)) return macro @:pos(pos) hxmc.web.Neutral.style;
 		return Context.error('hxmc.web: <$tag>\'s attribute $name has no DOM form (NeutralMacro)', pos);
 	}
 
@@ -133,6 +156,8 @@ class NeutralMacro {
 			var native = ["view:button", "view:a"].indexOf(t) >= 0;
 			return macro @:pos(name.pos) hxmc.web.Neutral.press($el, $h, $v{native});
 		}
+		// (a field's text changed: the DOM's input, its text the value)
+		if (n == "onInput" && isField(t)) return macro @:pos(name.pos) hxmc.web.Neutral.input($el, $h);
 		if (!EVENTS.exists(n)) return Context.error('hxmc.web: <$t>\'s event $n has no DOM form (NeutralMacro)', name.pos);
 		var e = EVENTS[n], type = e.type;
 		if (e.dom == "keydown" || e.dom == "keyup") return macro @:pos(name.pos) hxmc.web.Neutral.onKey($el, $v{e.dom}, $h, hxmc.ui.Event.EventType.$type);

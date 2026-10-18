@@ -237,9 +237,14 @@ export default function (host) {
 		// follows the finger, then glides when let go moving), a tap clicks
 		// (no mouse events of the browser's own for either). The option
 		// touchAction (the canvas's CSS touch-action, by default 'none')
-		// leaves the browser the drags along the axes it pans: with 'pan-y', a
-		// drag that starts vertical scrolls the page (the browser cancels the
-		// pointer when it takes it over) and only the others reach the program.
+		// lets the browser pan the page along its axes: with 'pan-y', a drag
+		// that starts vertical asks the program first (scrolls_at: the query
+		// of Window.scrollsAt, once a gesture, at its first move) whether
+		// something under where it started scrolls that way. Yes: the drag is
+		// the program's, the browser held off it (its touchmoves cancelled,
+		// the listener not passive); no, or no answer: the browser pans the
+		// page (it cancels the pointer when it takes it over), as at a
+		// scroller's end (the page scrolls on, as a browser chains scrolls).
 		// A drag's scrolls have Mods.TOUCH (16: a finger on the canvas), and
 		// it ends with a scroll of nothing without it (its glide's are
 		// without it too): a program that follows the finger knows when it
@@ -250,22 +255,45 @@ export default function (host) {
 		const panX = pans('pan-x', 'pan-left', 'pan-right'), panY = pans('pan-y', 'pan-up', 'pan-down');
 		let touch = null, glide = 0;
 		const TOUCH = 16;
+		// (whether the gesture is the program's: decided at its first move
+		// away from where it started; then its touchmoves cancelled)
+		const decide = (t, x, y) => {
+			if (t.taken === undefined) {
+				const dx = t.x - x, dy = t.y - y, vertical = Math.abs(dy) > Math.abs(dx);
+				const a = vertical ? panY : panX;
+				// (asked along the gesture's axis: a vertical one does not move a carousel)
+				t.taken = !a || (query !== 0 && host.call(query, h, t.x, t.y, vertical ? 0 : Math.round(dx), vertical ? Math.round(dy) : 0) === 1);
+			}
+			return t.taken;
+		};
+		on('touchmove', (e) => {
+			const t = touch;
+			if (!t || !e.cancelable) return;
+			if (t.taken === undefined) {
+				const p = e.changedTouches[0], r = c.getBoundingClientRect();
+				const x = Math.round((p.clientX - r.left - c.clientLeft) * c.width / Math.max(1, c.clientWidth));
+				const y = Math.round((p.clientY - r.top - c.clientTop) * c.height / Math.max(1, c.clientHeight));
+				// (within a few pixels: no direction yet, nor a pan of the browser's)
+				if (Math.hypot(x - t.x, y - t.y) < 4 * devicePixelRatio) return;
+				decide(t, x, y);
+			}
+			if (t.taken) e.preventDefault();
+		}, { passive: false });
 		const scrollBy = (x, y, dx, dy, m = 0) => push([h, SCROLL, Math.round(dx * 256), x, y, Math.round(dy * 256), m]);
 		on('pointerdown', (e) => {
 			if (e.pointerType !== 'touch' || touch) return;
 			e.preventDefault();
 			cancelAnimationFrame(glide);
 			const [x, y] = pos(e);
-			touch = { id: e.pointerId, x, y, lx: x, ly: y, t: performance.now(), vx: 0, vy: 0, drag: false };
+			touch = { id: e.pointerId, x, y, lx: x, ly: y, t: performance.now(), vx: 0, vy: 0, drag: false, taken: undefined };
 			c.setPointerCapture?.(e.pointerId);
 		});
 		on('pointermove', (e) => {
 			if (!touch || e.pointerId !== touch.id) return;
 			const [x, y] = pos(e), now = performance.now();
 			if (!touch.drag && Math.hypot(x - touch.x, y - touch.y) > 8 * devicePixelRatio) {
-				// (along an axis the browser pans: its gesture, neither a drag nor a tap)
-				const vertical = Math.abs(y - touch.y) > Math.abs(x - touch.x);
-				if (vertical ? panY : panX) {
+				// (the browser's gesture: neither a drag nor a tap)
+				if (!decide(touch, x, y)) {
 					touch = null;
 					return;
 				}
@@ -336,6 +364,8 @@ export default function (host) {
 	};
 	const outputs = new Set();
 	let resumes = false;
+	// Window.scrollsAt's query (a callback; 0: none)
+	let query = 0;
 
 	const hxmc_os = {
 		audio_open(rate, channels, frames, buffer, fill) {
@@ -503,6 +533,9 @@ export default function (host) {
 			if (!ev) return 0;
 			new Int32Array(host.memory().buffer, p, 7).set([...ev, 0, 0].slice(0, 7));
 			return 1;
+		},
+		scrolls_at(f) {
+			query = f;
 		},
 		start(frame) {
 			const tick = () => {

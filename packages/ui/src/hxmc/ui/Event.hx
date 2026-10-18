@@ -25,6 +25,8 @@ enum abstract EventType(Int) {
 	// Blur, but bubbling (the DOM's focusin, focusout)
 	var FocusIn;
 	var FocusOut;
+	// a text field's text changed by its user (text: its text now), as the DOM's input
+	var Input;
 }
 
 // An event as Ui dispatches it: to the target, then (unless stopped) to
@@ -43,7 +45,7 @@ class Event {
 	// KeyDown, KeyUp: the key (Key) and the modifiers (Key.MOD_*)
 	public var key = 0;
 	public var mods = 0;
-	// TextInput: the characters typed (an IME's composed text, too);
+	// TextInput: the characters typed (an IME's composed text, too); Input: the field's text;
 	// Composition: an input method's text not committed yet (empty: none)
 	public var text = "";
 	// Composition: the caret in text (UTF-16)
@@ -58,13 +60,18 @@ class Event {
 	// the default action (Tab moving the focus, the wheel scrolling) is not taken
 	public var defaultPrevented(default, null) = false;
 
-	public function new(type:EventType, target:Node, x:Float, y:Float) {
+	// (made by of: a page's code using an event's fields keeps its class,
+	// its constructor with it, and so none of a Node's methods)
+	function new(type:EventType, target:Node, x:Float, y:Float) {
 		this.type = type;
 		this.target = target;
 		this.x = x;
 		this.y = y;
-		at(target);
 	}
+
+	// an event of type at target, the pointer at x, y in the window's coordinates
+	public static function of(type:EventType, target:Node, x:Float, y:Float):Event
+		return new Event(type, target, x, y).at(target);
 
 	// the pointer relative to current's border box (Node.localX: through
 	// scrolling and transforms; fields, so that a handler's untyped event

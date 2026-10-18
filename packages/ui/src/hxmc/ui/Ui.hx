@@ -379,7 +379,7 @@ class Ui {
 		if (dragging == null && dragSource != null && capture != null && Math.abs(x - dragFromX) + Math.abs(y - dragFromY) > 4) {
 			var s = dragSource;
 			dragSource = null;
-			var e = new Event(DragStart, s, x, y);
+			var e = Event.of(DragStart, s, x, y);
 			e.data = s.dragData;
 			bubble(e);
 			if (!e.defaultPrevented) {
@@ -398,7 +398,7 @@ class Ui {
 			return;
 		}
 		var to = capture != null ? capture : target;
-		if (to != null) bubble(new Event(PointerMove, to, x, y));
+		if (to != null) bubble(Event.of(PointerMove, to, x, y));
 	}
 
 	// the drag over target: from it up, the first that accepts (DragOver
@@ -413,7 +413,7 @@ class Ui {
 		var n = target;
 		while (n != null && accepted == null) {
 			if (n.onDragOver != null) {
-				var e = new Event(DragOver, target, x, y);
+				var e = Event.of(DragOver, target, x, y);
 				e.data = dragging.data;
 				n.onDragOver(e.at(n));
 				if (e.defaultPrevented) accepted = n;
@@ -427,7 +427,7 @@ class Ui {
 	function leaveDrop(x:Float, y:Float) {
 		var t = dropTarget;
 		if (t == null || t.onDragLeave == null) return;
-		var e = new Event(DragLeave, t, x, y);
+		var e = Event.of(DragLeave, t, x, y);
 		e.data = dragging.data;
 		t.onDragLeave(e.at(t));
 	}
@@ -438,17 +438,17 @@ class Ui {
 		dragging = null;
 		dropTarget = null;
 		if (t != null && !drop && t.onDragLeave != null) {
-			var e = new Event(DragLeave, t, x, y);
+			var e = Event.of(DragLeave, t, x, y);
 			e.data = d.data;
 			t.onDragLeave(e.at(t));
 		}
 		var dropped = drop && t != null;
 		if (dropped && t.onDrop != null) {
-			var e = new Event(Drop, t, x, y);
+			var e = Event.of(Drop, t, x, y);
 			e.data = d.data;
 			t.onDrop(e.at(t));
 		}
-		var e = new Event(DragEnd, d.source, x, y);
+		var e = Event.of(DragEnd, d.source, x, y);
 		e.data = d.data;
 		e.dropped = dropped;
 		bubble(e);
@@ -479,7 +479,7 @@ class Ui {
 		dragFromX = x;
 		dragFromY = y;
 		setPressed(target, true);
-		var e = new Event(PointerDown, target, x, y);
+		var e = Event.of(PointerDown, target, x, y);
 		e.button = button;
 		e.mods = mods;
 		bubble(e);
@@ -513,13 +513,13 @@ class Ui {
 		var to = pressed != null ? pressed : target;
 		if (to == null) return;
 		if (pressed != null) setPressed(pressed, false);
-		var e = new Event(PointerUp, to, x, y);
+		var e = Event.of(PointerUp, to, x, y);
 		e.button = button;
 		e.mods = mods;
 		bubble(e);
 		// a click: released over the node it went down on (or inside it)
 		if (pressed != null && target != null && contains(pressed, target)) {
-			var c = new Event(Click, pressed, x, y);
+			var c = Event.of(Click, pressed, x, y);
 			c.button = button;
 			c.mods = mods;
 			bubble(c);
@@ -530,7 +530,7 @@ class Ui {
 	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float) {
 		var target = hit(x, y);
 		if (target == null) return;
-		var e = new Event(Wheel, target, x, y);
+		var e = Event.of(Wheel, target, x, y);
 		e.deltaX = deltaX;
 		e.deltaY = deltaY;
 		bubble(e);
@@ -548,6 +548,18 @@ class Ui {
 			}
 			n = n.parent;
 		}
+	}
+
+	// whether a wheel at x, y by deltaX, deltaY would scroll something: a
+	// scroller under the point (the innermost first) not at its end that
+	// way (a touch drag's question, hxmc.os's Window.scrollsAt: UiWindow)
+	public function scrollsAt(x:Float, y:Float, deltaX:Float, deltaY:Float):Bool {
+		var n = hit(x, y);
+		while (n != null) {
+			if (n.style.overflow == Scroll && (canScroll(n, deltaX, true) || canScroll(n, deltaY, false))) return true;
+			n = n.parent;
+		}
+		return false;
 	}
 
 	// --- keyboard ---
@@ -655,7 +667,7 @@ class Ui {
 			endDrag(false, pointerX, pointerY);
 			return;
 		}
-		var e = new Event(KeyDown, focus != null ? focus : root, pointerX, pointerY);
+		var e = Event.of(KeyDown, focus != null ? focus : root, pointerX, pointerY);
 		e.key = key;
 		e.mods = mods;
 		bubble(e);
@@ -751,7 +763,7 @@ class Ui {
 
 	public function keyUp(key:Int, mods:Int) {
 		this.mods = mods & ~modOf(key);
-		var e = new Event(KeyUp, focus != null ? focus : root, pointerX, pointerY);
+		var e = Event.of(KeyUp, focus != null ? focus : root, pointerX, pointerY);
 		e.key = key;
 		e.mods = mods;
 		bubble(e);
@@ -759,14 +771,14 @@ class Ui {
 
 	public function textInput(text:String) {
 		if (text.length == 0) return;
-		var e = new Event(TextInput, focus != null ? focus : root, pointerX, pointerY);
+		var e = Event.of(TextInput, focus != null ? focus : root, pointerX, pointerY);
 		e.text = text;
 		bubble(e);
 	}
 
 	// an input method's composition (empty: it ended), caret in it: to the focus
 	public function composition(text:String, caret:Int) {
-		var e = new Event(Composition, focus != null ? focus : root, pointerX, pointerY);
+		var e = Event.of(Composition, focus != null ? focus : root, pointerX, pointerY);
 		e.text = text;
 		e.caret = caret;
 		bubble(e);
@@ -799,13 +811,13 @@ class Ui {
 		focus = n;
 		if (old != null) {
 			@:privateAccess old.setState(old.hovered, old.pressed, false);
-			if (old.onBlur != null) old.onBlur(new Event(Blur, old, pointerX, pointerY));
-			bubble(new Event(FocusOut, old, pointerX, pointerY));
+			if (old.onBlur != null) old.onBlur(Event.of(Blur, old, pointerX, pointerY));
+			bubble(Event.of(FocusOut, old, pointerX, pointerY));
 		}
 		if (n != null) {
 			@:privateAccess n.setState(n.hovered, n.pressed, true);
-			if (n.onFocus != null) n.onFocus(new Event(Focus, n, pointerX, pointerY));
-			bubble(new Event(FocusIn, n, pointerX, pointerY));
+			if (n.onFocus != null) n.onFocus(Event.of(Focus, n, pointerX, pointerY));
+			bubble(Event.of(FocusIn, n, pointerX, pointerY));
 		}
 	}
 
@@ -988,10 +1000,10 @@ class Ui {
 				case _: null;
 			}
 			if (h != null) h(e.at(n));
-			// (a press: after the click, or Enter or Space the key handlers left)
+			// (a press: after the click, or Enter or Space the key handlers left; a link's Enter only, as a browser's)
 			var press = n.onActivate;
-			if (press != null && !e.stopped
-				&& (e.type == Click || e.type == KeyDown && (e.key == Key.ENTER || e.key == Key.SPACE) && !e.defaultPrevented)) {
+			if (press != null && !e.stopped && (e.type == Click || e.type == KeyDown && !e.defaultPrevented
+				&& (e.key == Key.ENTER || e.key == Key.SPACE && (n.semantics == null || n.semantics.role != hxmc.ui.access.Role.Link)))) {
 				if (e.type == KeyDown) e.preventDefault();
 				press(e.at(n));
 			}
@@ -1017,14 +1029,14 @@ class Ui {
 		for (o in old)
 			if (!now.contains(o)) {
 				@:privateAccess o.setState(false, o.pressed, o.focused);
-				if (o.onPointerLeave != null) o.onPointerLeave(new Event(PointerLeave, o, pointerX, pointerY));
+				if (o.onPointerLeave != null) o.onPointerLeave(Event.of(PointerLeave, o, pointerX, pointerY));
 			}
 		var i = now.length;
 		while (--i >= 0) {
 			var o = now[i];
 			if (!old.contains(o)) {
 				@:privateAccess o.setState(true, o.pressed, o.focused);
-				if (o.onPointerEnter != null) o.onPointerEnter(new Event(PointerEnter, o, pointerX, pointerY));
+				if (o.onPointerEnter != null) o.onPointerEnter(Event.of(PointerEnter, o, pointerX, pointerY));
 			}
 		}
 	}
@@ -1118,7 +1130,7 @@ class Ui {
 		switch action {
 			case Click:
 				var x = n.absX + n.width / 2, y = n.absY + n.height / 2;
-				bubble(new Event(Click, n, x, y));
+				bubble(Event.of(Click, n, x, y));
 			case Focus:
 				if (!n.focusable) return false;
 				focusVisible = true;
