@@ -244,4 +244,6 @@ export const cases = [
 	{ name: 'wrapping column minimum, a percentage height', width: 300, height: 200, tree: { children: [{ style: { height: 113 }, children: [{ style: { wrap: true, basis: 4, height: '100%' }, children: [{ style: { height: 76 } }, { style: { height: 30, margin: 4 } }] }] }] } },
 	// (a wrapping row with less room than its widest item: its lines broken at its fit-content width, that item's)
 	{ name: 'wrapping row narrower than its widest item', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Start', maxWidth: 10 }, children: [{ style: { direction: 'RowReverse', wrap: true }, children: [{ style: { padding: 8 } }, { style: { margin: 6 } }, { style: { borderWidth: 1 } }] }] }] } },
+	// (a column's item with a basis in pixels: its height definite for its children's percentages, though the column's is not)
+	{ name: 'basis in pixels definite in a column of auto height', width: 300, height: 200, tree: { style: { direction: 'Row' }, children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 115 }, children: [{ style: { height: '25%', width: 20 } }] }] }] } },
 ];

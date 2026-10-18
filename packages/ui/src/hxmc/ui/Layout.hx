@@ -318,9 +318,9 @@ class Layout {
 					var ac = known(innerCross) ? Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd) : known(availCross) ? Math.max(0,
 						availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 					if (it.align == Stretch && !multi && known(innerCross)) it.cross = clamp(ac, it.minCross, it.maxCross) else {
-						// (a column's item's flexed height: definite when the column's is)
+						// (a column's item's flexed height: definite when the column's is, or its basis in pixels)
 						if (row) size(it.node, it.main, Math.NaN, innerW, pctH, it.main, ac, false) else {
-							looseH = !known(pctH);
+							looseH = !known(pctH) && !it.node.style.basis.match(DimValue.Px(_));
 							// (a wrapping column in a column of unknown width, or loose (looseColumns): as wide as on one line, unless
 							// its own height is fixed (pixels: a percentage is not, sizing it), as Chromium sizes
 							// it; its flexed height then wraps it)
@@ -498,8 +498,9 @@ class Layout {
 				if (cs.position == Sticky) dx = dy = Math.NaN;
 				c.lx = cx + (known(dx) ? dx : 0);
 				c.ly = cy + (known(dy) ? dy : 0);
-				// (its height definite: stretched, a column's item when the column's is, or its own)
-				looseH = row ? !(it.align == Stretch && !known(it.styleCross)) : !known(pctH);
+				// (its height definite: stretched, a column's item when the column's is or its basis is
+				// in pixels, as Chromium has it, or its own)
+				looseH = row ? !(it.align == Stretch && !known(it.styleCross)) : !known(pctH) && !cs.basis.match(DimValue.Px(_));
 				size(c, cwid, chei, innerW, pctH, cwid, chei, true);
 				c.lw = cwid;
 				c.lh = chei;

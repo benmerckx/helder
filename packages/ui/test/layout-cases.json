@@ -6422,5 +6422,37 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "basis in pixels definite in a column of auto height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"direction": "Row"
+			},
+			"children": [
+				{
+					"style": {
+						"alignSelf": "Start"
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 115
+							},
+							"children": [
+								{
+									"style": {
+										"height": "25%",
+										"width": 20
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]
