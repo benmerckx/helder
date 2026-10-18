@@ -405,8 +405,9 @@ NSMenu; the browser and Linux keep the drawn one. A select is drawn on
 desktop by default (the plan: native on touch); with `host="native"` its
 options are the same native menu, under it, the chosen one checked. A
 menu bar is the system's on macOS (`PlatformViews.menuBar`: its menus after
-the application's, the drawn bar hidden, its shortcuts still working),
-drawn in the window elsewhere.
+the application's, the drawn bar hidden, its shortcuts still working) and
+the window's own on Windows (SetMenu: its items' commands the window's
+WM_COMMAND), drawn in the window elsewhere.
 
 ## Accessibility
 

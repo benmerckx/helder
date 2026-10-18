@@ -11,6 +11,7 @@ import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.ContextMenu;
+import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.unsafe.*;
 
 // hxmc.ui's accessibility on Windows (WinAccess; CI's Windows jobs): a
@@ -24,12 +25,16 @@ import hxmc.unsafe.*;
 // an EDIT made again ES_CENTER with the same text. A context menu native
 // (a popup menu tracked: Down and Enter posted to it from a timer, as a
 // user's keys; EndMenu later in case they are not taken), its item chosen.
+// A menu bar native (the window's menu: its menus, the drawn bar hidden;
+// an item's command posted to the window, the item chosen).
 //   WinAccessTest
 @:hxmc.c @:hxmc.lib("user32") extern class WinMenuTest {
 	static function FindWindowW(cls:Ptr, name:Ptr):Ptr;
 	static function SetTimer(hwnd:Ptr, id:Int64, ms:Int, proc:Ptr):Int64;
 	static function KillTimer(hwnd:Ptr, id:Int64):Int;
 	static function EndMenu():Int;
+	static function GetMenu(hwnd:Ptr):Ptr;
+	static function GetMenuItemCount(menu:Ptr):Int;
 }
 
 class WinAccessTest implements Markup {
@@ -76,7 +81,7 @@ class WinAccessTest implements Markup {
 
 	static function main() {
 		var w = new UiWindow("WinAccessTest", 320, 240);
-		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "";
+		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "", barOn = signal(false), barChosen = "";
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
@@ -87,6 +92,10 @@ class WinAccessTest implements Markup {
 			<Show when={menuOn}><ContextMenu tag="cm" items={[{label: "Copy", onSelect: () -> menuChosen += "copy"}, {label: "Paste", onSelect: () -> menuChosen += "paste"}]}>
 				<view tag="cm-area" width={60} height={20}/>
 			</ContextMenu></Show>
+			<Show when={barOn}><Menubar tag="bar" label="App" menus={[
+				{label: "File", items: [{label: "New", onSelect: () -> barChosen += "new"}, {label: "Open", onSelect: () -> barChosen += "open"}]},
+				{label: "Edit", items: [{label: "Undo", shortcut: "Mod+Z", onSelect: () -> barChosen += "undo"}]}
+			]}/></Show>
 		</view>, w.root);
 		var step = 0;
 		var out:Ptr<Ptr> = LibC.malloc(8), v:Ptr = LibC.malloc(24), d:Ptr<Float> = LibC.malloc(32), i32:Ptr<Int32> = LibC.malloc(4);
@@ -218,7 +227,23 @@ class WinAccessTest implements Markup {
 				case 7:
 					check("a native context menu: its popup menu shown", menuFound);
 					check("a native context menu: its first item chosen by the keys", menuChosen == "copy", menuChosen);
+					barOn.value = true;
 					step = 8;
+				case 8:
+					// (the window's menu bar: its two menus; Undo's command, its id plus one, posted)
+					var hwnd = @:privateAccess (cast w.ui.platform : WinViews).hwnd;
+					var bar = WinMenuTest.GetMenu(hwnd);
+					check("a native menu bar: the window's menu", !bar.isNull());
+					check("a native menu bar: its two menus", !bar.isNull() && WinMenuTest.GetMenuItemCount(bar) == 2);
+					var drawn = w.root.find("bar");
+					check("a native menu bar: the drawn one hidden", drawn != null && drawn.style.display == None);
+					hxmc.os.win32.User32.User32.PostMessageW(hwnd, 0x111, 3, 0);
+					step = 9;
+				case 9:
+					step = 10;
+				case 10:
+					check("a native menu bar: an item chosen by its command", barChosen == "undo", barChosen);
+					step = 11;
 					w.close();
 				case _:
 			}
@@ -226,7 +251,7 @@ class WinAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('WinAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 20 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 24 ? 0 : 1);
 	}
 }
 

@@ -35,6 +35,9 @@ class Win32Window {
 	// text editors over the window: their colours), given its DC and its
 	// window: a brush; 0: DefWindowProc's
 	public static var editColors:Null<(dc:Ptr, child:Ptr) -> Int64> = null;
+	// WM_COMMAND of a menu (hxmc.ui's native menu bar), given the window and
+	// the command: true when handled
+	public static var command:Null<(hwnd:Ptr, id:Int) -> Bool> = null;
 	static var onFrame:Null<Void->Void>;
 	static inline var SIZING_TIMER = 1;
 
@@ -265,6 +268,8 @@ class Win32Window {
 				var r = getObject(hwnd, wParam, lParam);
 				var none:Int64 = 0;
 				if (r != none) return r;
+			case 0x0111 if (command != null && lParam.toInt() == 0 && (wParam.toInt() >>> 16) == 0): // WM_COMMAND, a menu's
+				if (command(hwnd, wParam.toInt() & 0xFFFF)) return 0;
 			case 0x0133 if (editColors != null): // WM_CTLCOLOREDIT
 				var r = editColors(Ptr.ofI64(wParam), Ptr.ofI64(lParam));
 				var none:Int64 = 0;

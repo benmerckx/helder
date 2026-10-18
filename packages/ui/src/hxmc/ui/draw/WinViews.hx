@@ -17,7 +17,9 @@ import hxmc.unsafe.*;
 // takes when made: one made again when the node's changes. Menus: a popup
 // menu (CreatePopupMenu, a submenu's MF_POPUP) tracked at the next poll
 // (TrackPopupMenuEx: its own loop until chosen or dismissed), its command
-// an item's id plus one.
+// an item's id plus one. The menu bar: the window's (CreateMenu, SetMenu),
+// its commands the window's WM_COMMAND, an item's id plus one again; the
+// client area the bar leaves, the window's resize.
 @:hxmc.c @:hxmc.lib("user32") extern class WinEdit {
 	static function SetWindowLongPtrW(hwnd:Ptr, index:Int, value:Ptr):Ptr;
 	static function GetWindowLongPtrW(hwnd:Ptr, index:Int):Int64;
@@ -29,6 +31,9 @@ import hxmc.unsafe.*;
 	static function AppendMenuW(menu:Ptr, flags:Int, id:Int64, item:Ptr):Int;
 	static function TrackPopupMenuEx(menu:Ptr, flags:Int, x:Int, y:Int, hwnd:Ptr, params:Ptr):Int;
 	static function DestroyMenu(menu:Ptr):Int;
+	static function CreateMenu():Ptr;
+	static function SetMenu(hwnd:Ptr, menu:Ptr):Int;
+	static function DrawMenuBar(hwnd:Ptr):Int;
 }
 
 @:hxmc.c @:hxmc.lib("gdi32") extern class WinEditGdi {
@@ -75,9 +80,38 @@ class WinViews implements PlatformViews {
 		ui.requestFrame();
 	}
 
-	// (a window's menu bar: the plan draws it on Windows)
-	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool
-		return false;
+	// (the menu bar set, its chooser: the window's commands)
+	var bar = Ptr.nil();
+	var barChosen:Null<Int->Void> = null;
+
+	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool {
+		var old = bar;
+		bar = Ptr.nil();
+		barChosen = null;
+		if (menus.length > 0) {
+			bar = WinEdit.CreateMenu();
+			for (m in menus) {
+				var sub = WinEdit.CreatePopupMenu();
+				fill(sub, m.items == null ? [] : m.items);
+				Arena.scoped(a -> WinEdit.AppendMenuW(bar, 0x10, sub.toI64(), a.wstring(StringTools.replace(m.label, "&", "&&"))));
+			}
+			barChosen = chosen;
+			hxmc.os.win32.Win32Window.command = command;
+		}
+		WinEdit.SetMenu(hwnd, bar);
+		WinEdit.DrawMenuBar(hwnd);
+		if (!old.isNull()) WinEdit.DestroyMenu(old);
+		return true;
+	}
+
+	// (WM_COMMAND from the menu bar: its item chosen, in the program's turn)
+	function command(window:Ptr, id:Int):Bool {
+		if (window != hwnd || barChosen == null || id <= 0) return false;
+		var chosen = barChosen;
+		ui.requestFrame();
+		chosen(id - 1);
+		return true;
+	}
 
 	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool {
 		if (pending != null) pending.chosen(-1);

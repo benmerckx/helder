@@ -15,7 +15,7 @@ consistency matter more.
 | Select | native on touch platforms (Android, iOS, mobile browsers), drawn on desktop | the system picker on phones; desktop natives look dated next to the theme |
 | DatePicker, time | native on touch platforms, drawn on desktop | the system pickers on phones |
 | ContextMenu | native on desktop | menus that behave like the system's: keyboard, accessibility, leaving the window |
-| Menubar | native on macOS (the global menu), drawn in the window elsewhere | macOS apps are expected to use the system menu bar |
+| Menubar | native on macOS (the global menu) and Windows (the window's menu), drawn in the window elsewhere | macOS and Windows apps are expected to use the system menu bar |
 | Scrolling | native in the DOM; drawn elsewhere with the platform's physics | momentum, overscroll and scroll chaining as the platform does them |
 | Static text in a browser | DOM | selection, find in page, translation, indexing |
 | Video, web content, maps | native (platform views) | not something to draw ourselves |
