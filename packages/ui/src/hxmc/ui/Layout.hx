@@ -100,7 +100,7 @@ class Layout {
 		// (bare on an axis where the node has no size, min or max of its own: as measured normally, cached alike)
 		var bw = bareW && (s.width != DimValue.Auto || s.minWidth != DimValue.Auto || s.maxWidth != DimValue.Auto);
 		var bh = bareH && (s.height != DimValue.Auto || s.minHeight != DimValue.Auto || s.maxHeight != DimValue.Auto);
-		var bare = (bw ? 1 : 0) | (bh ? 2 : 0), base = bareH;
+		var bare = (bw ? 1 : 0) | (bh ? 2 : 0), baseW = bareW, base = bareH;
 		bareW = bareH = false;
 		var nrBreak = noRatio, nr = known(nrBreak);
 		noRatio = Math.NaN;
@@ -121,8 +121,12 @@ class Layout {
 		var h = known(knownH) ? knownH : bh ? Math.NaN : clamp(s.height.resolve(parentH), minH, maxH);
 		var ar = nr ? 0 : s.aspectRatio;
 		if (ar > 0) {
-			if (!known(w) && known(h)) w = clamp(h * ar, minW, maxW);
-			else if (known(w) && !known(h)) {
+			if (!known(w) && known(h)) {
+				w = clamp(h * ar, minW, maxW);
+				// (no narrower than its content's min-content width)
+				if (!baseW && s.width == DimValue.Auto && s.minWidth == DimValue.Auto && s.overflow == Visible)
+					w = Math.max(w, Math.min(minContentWidth(n, parentW, false), maxW));
+			} else if (known(w) && !known(h)) {
 				h = clamp(w / ar, minH, maxH);
 				// (no less than its content's height, within its max-height, its height and min-height auto (not a percentage
 				// behaving as auto) and its overflow visible: CSS's automatic minimum size of a box with an aspect ratio; a
@@ -351,7 +355,9 @@ class Layout {
 			// the automatic minimum
 			if ((row ? cs.minWidth : cs.minHeight) == DimValue.Auto && cs.overflow == Visible) {
 				var content:Float;
-				if (row) content = minContentWidth(c, innerW, false) else if (contentBasis && !(cs.aspectRatio > 0)) content = b else {
+				// (a row's: its min-content width, no less than its definite height's through its aspect ratio)
+				if (row) content = cs.aspectRatio > 0 && known(it.styleCross) ? Math.max(minContentWidth(c, innerW, false), it.styleCross * cs.aspectRatio)
+					: minContentWidth(c, innerW, false) else if (contentBasis && !(cs.aspectRatio > 0)) content = b else {
 					var kc = it.styleCross;
 					if (!known(kc) && it.align == Stretch && !multi && known(innerCross))
 						kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
@@ -806,9 +812,12 @@ class Layout {
 			var minCH = Math.max(min(cs.minHeight, ah), edgesV(cs)), maxCH = max(cs.maxHeight, ah);
 			var iw = clamp(cs.width.intrinsic() ? intrinsicWidth(c, cs.width, aw, roomW) : cs.width.resolve(aw), minCW, maxCW);
 			var ih = clamp(cs.height.resolve(ah), minCH, maxCH);
+			// (an aspect ratio and one size its own: the other its through the ratio, not stretched)
+			var ar = cs.aspectRatio;
+			if (ar > 0 && known(iw) && !known(ih) && jy == Stretch) jy = Start;
+			if (ar > 0 && known(ih) && !known(iw) && jx == Stretch) jx = Start;
 			// (an aspect ratio and neither size its own: not stretched but at its start, as wide as the
 			// area within its widths and the heights it may have through the ratio, as Chromium has it)
-			var ar = cs.aspectRatio;
 			if (ar > 0 && !known(iw) && !known(ih) && jx == Stretch && jy == Stretch) {
 				iw = clamp(Math.min(roomW, maxCH * ar), Math.max(minCW, minCH * ar), maxCW);
 				ih = clamp(iw / ar, minCH, maxCH);
@@ -819,7 +828,8 @@ class Layout {
 					// (fit-content: its max-content width, no more than the area)
 					size(c, Math.NaN, ih, aw, ah, roomW, known(ih) ? ih : roomH, false);
 					iw = clamp(Math.min(rw, Math.max(roomW, minContentWidth(c, aw, false))), minCW, maxCW);
-					if (rw <= roomW) iw = clamp(rw, minCW, maxCW);
+					// (its height's through its aspect ratio however wide)
+					if (rw <= roomW || ar > 0 && known(ih)) iw = clamp(rw, minCW, maxCW);
 				}
 			}
 			if (!known(ih)) {

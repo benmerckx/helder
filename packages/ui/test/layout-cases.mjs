@@ -306,4 +306,13 @@ export const cases = [
 		{ style: { wrap: true, width: 74, aspectRatio: 1 }, children: [{ style: { minHeight: 62 } }, h(44)] },
 		{ style: { maxWidth: 39, aspectRatio: 2 }, children: [h(25)] }, { children: [{ style: { width: 66, height: '50%', aspectRatio: 1 }, children: [{ style: { height: 52, margin: 8 } }] }] }] } },
 	{ name: 'aspect ratio, a percentage height, shrunk', width: 300, height: 200, tree: { children: [{ style: { width: 70, height: '50%', aspectRatio: 2 } }, { style: { basis: 105 } }] } },
+	// (a box with an aspect ratio and one size its own: in a grid, the other its through the ratio, not stretched, however wide; no narrower
+	// than its content's min-content width; a row's item's automatic minimum no less than its height's through the ratio; a column's item's
+	// width its flexed height's)
+	{ name: 'aspect ratio and one size its own', width: 300, height: 200, tree: { children: [{ style: { height: 76, display: 'Grid' }, children: [{ style: { width: 41, minHeight: 8, aspectRatio: 0.5 } }] },
+		{ style: { height: 50, display: 'Grid', gridTemplateColumns: '100px' }, children: [{ style: { height: 20, aspectRatio: 2 } }, { style: { height: 20, aspectRatio: 10 } }] },
+		{ style: { direction: 'RowReverse', width: 95, padding: 9 }, children: [{ style: { height: 81, aspectRatio: 1 } }] },
+		{ style: { direction: 'Row', width: 50 }, children: [{ style: { height: 30, aspectRatio: 1 }, children: [{ style: { width: 60 } }] }, { style: { basis: 40 } }] },
+		{ style: { height: 16, position: 'Absolute', aspectRatio: 0.5 }, children: [{ style: { width: 119 } }] },
+		{ style: { alignItems: 'End', height: 40 }, children: [{ style: { basis: 30, height: 108, aspectRatio: 0.5 } }] }] } },
 ];
