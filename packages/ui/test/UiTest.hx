@@ -831,12 +831,13 @@ class UiTest {
 				boxes(ui.root, got);
 				ui.paint(painted);
 				var tree = told(ui.accessTree());
+				var points = [for (i in 0...12) [rnd(240), rnd(200)]], hit = [for (q in points) ui.root.hitTest(q[0], q[1])];
 				all(ui.root);
 				ui.update();
 				var want = [], fresh = new Recording();
 				boxes(ui.root, want);
 				ui.paint(fresh);
-				if (painted.calls.join("|") != fresh.calls.join("|") || tree != told(ui.accessTree())) {
+				if (painted.calls.join("|") != fresh.calls.join("|") || tree != told(ui.accessTree()) || [for (i in 0...points.length) ui.root.hitTest(points[i][0], points[i][1]) == hit[i]].indexOf(false) >= 0) {
 					drawn++;
 					if (drawnFirst == "") drawnFirst = 'tree $tree step $step ($what on ${n.tag})';
 				}
@@ -916,7 +917,7 @@ class UiTest {
 		});
 		check("in place: a field typed into laid out alone", typed && after == before + 1, typed + " " + (after - before));
 		var placed = Layout.inPlaces - was;
-		check("in place: drawn and told assistive technology as from the root, " + steps + " changes", drawn == 0, drawn + " differ, the first: " + drawnFirst);
+		check("in place: drawn, hit and told assistive technology as from the root, " + steps + " changes", drawn == 0, drawn + " differ, the first: " + drawnFirst);
 		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
 	}
 
