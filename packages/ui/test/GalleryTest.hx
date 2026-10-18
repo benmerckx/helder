@@ -20,7 +20,7 @@ import hxmc.view.*;
 //   GalleryTest <golden.png> <out.png> [--dark] [--rtl] [--unstyled] [--bless]
 class GalleryTest {
 	static inline var W = 560;
-	static inline var H = 2520;
+	static inline var H = 2960;
 	static var failed = 0;
 	static var checks = 0;
 
@@ -208,17 +208,18 @@ class GalleryTest {
 			check("the disclosure opened with the keyboard", ui.focus == find("more-summary") && find("more-content") != null);
 			key(Key.TAB);
 			check("Tab to the toast's button", ui.focus == find("notify"));
-			// then the last section's: the card's buttons, the toggle, the date
-			// picker, the accordion's triggers; from there no further focusable
-			// node, back to the first (the menu bar's first title), its focus ring
-			// shown; then the direction switch, the toolbar
+			// then the last sections': the card's buttons, the toggle, the date
+			// picker, the accordion's triggers; the field, each of the button
+			// group's buttons, the input group's input, the item's button; from
+			// there no further focusable node, back to the first (the menu bar's
+			// first title), its focus ring shown; then the direction switch, the toolbar
 			var visited = [];
-			for (i in 0...10) {
+			for (i in 0...20) {
 				key(Key.TAB);
 				if (ui.focus == find("app-0")) break;
 				visited.push(ui.focus.tag);
 			}
-			check("then the last section's controls", visited.join(",") == "read,later,bold,due,faq-0-summary,faq-1-summary", visited.join(","));
+			check("then the last section's controls", visited.join(",") == "read,later,bold,due,faq-0-summary,faq-1-summary,email-input,archive,report,snooze,site-input,invite", visited.join(","));
 			check("Tab wraps to the first control", ui.focus == find("app-0") && ui.focusVisible);
 			key(Key.TAB);
 			check("the menu bar one stop", ui.focus == find("rtl"));

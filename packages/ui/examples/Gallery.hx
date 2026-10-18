@@ -59,6 +59,8 @@ class Gallery implements Markup {
 	public final bold = signal(true);
 	public final due:Signal<Null<Day>> = signal(null);
 	public final faq = signal(0);
+	public final email = signal("ada@example.com");
+	public final site = signal("hxmc");
 	static final TODAY:Day = {year: 2026, month: 10, day: 17};
 	static final CITIES = ["Amsterdam", "Antwerp", "Berlin", "Bern", "Brussels", "Lisbon", "London", "Madrid", "Paris", "Prague", "Rome", "Vienna"];
 	static final FILES:Array<Entry> = [
@@ -237,6 +239,28 @@ class Gallery implements Markup {
 				<view direction="row" column-gap={10} align-items="center">
 					<Skeleton width={40} height={40}/>
 					<view row-gap={6}><Skeleton width={180} height={12}/><Skeleton width={120} height={12}/></view>
+				</view>
+			</view>)}
+			{section("FIELD, GROUPS, AN ITEM AND CHARTS", <view row-gap={12} align-items="stretch">
+				<Field tag="email"><FieldLabel text="Email"/><Input tag="email-input" value={email} label="Email"/><FieldDescription text="Never shared."/></Field>
+				<view direction="row" column-gap={12} align-items="center">
+					<ButtonGroup tag="mail" label="Mail"><Button tag="archive" label="Archive" variant="outline"/><Button tag="report" label="Report" variant="outline"/><Button tag="snooze" label="Snooze" variant="outline"/></ButtonGroup>
+					<view grow={1}><InputGroup tag="site">
+						<InputGroupAddon><InputGroupText text="https://"/></InputGroupAddon>
+						<InputGroupInput tag="site-input" value={site} label="Site"/>
+						<InputGroupAddon align="inline-end"><InputGroupText text=".com"/></InputGroupAddon>
+					</InputGroup></view>
+				</view>
+				<Item tag="ada" variant="outline">
+					<ItemMedia variant="icon"><text>A</text></ItemMedia>
+					<ItemContent><ItemTitle text="Ada Lovelace"/><ItemDescription text="Wrote the first program."/></ItemContent>
+					<ItemActions><Button tag="invite" label="Invite" variant="outline" size="sm"/></ItemActions>
+				</Item>
+				<view direction="row" column-gap={12} align-items="start">
+					<BarChart tag="visits" label="Visitors" labels={["Jan", "Feb", "Mar", "Apr"]} width={200} height={110}
+						series={[{name: "Desktop", values: [186, 305, 237, 73]}, {name: "Mobile", values: [80, 200, 120, 190]}]}/>
+					<PieChart tag="browsers" label="Browsers" size={110} inner={0.6}
+						slices={[{name: "Chrome", value: 275}, {name: "Safari", value: 200}, {name: "Firefox", value: 187}, {name: "Other", value: 90}]}/>
 				</view>
 			</view>)}
 			<Toaster/>
