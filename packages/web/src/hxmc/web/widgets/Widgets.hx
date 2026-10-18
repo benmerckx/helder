@@ -126,22 +126,6 @@ class Widgets implements Markup {
 		]}</div>;
 	}
 
-	// a breadcrumb (shadcn's): the path, each step but the last a link (onSelect with its index), the last the current page
-	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
-		var items = props.items;
-		return <nav id={props.tag} aria-label={props.label ?? "breadcrumb"} data-slot="breadcrumb"><ol data-slot="breadcrumb-list">{[
-			for (i in 0...items.length)
-				i == items.length - 1 ? View.view(<li data-slot="breadcrumb-item"><span data-slot="breadcrumb-page" role="link" aria-disabled="true"
-					aria-current="page">{items[i]}</span></li>) : View.view(<>
-					<li data-slot="breadcrumb-item"><a data-slot="breadcrumb-link" href="#" onClick={(e:Dynamic) -> {
-						e.preventDefault();
-						props.onSelect(i);
-					}}>{items[i]}</a></li>
-					<li data-slot="breadcrumb-separator" role="presentation" aria-hidden="true">{icon("chevron-right")}</li>
-				</>)
-		]}</ol></nav>;
-	}
-
 	// pagination (shadcn's): Previous, the pages (the first, the last, the
 	// current one and its neighbours, an ellipsis for the rest), Next; pages from 1
 	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {

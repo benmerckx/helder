@@ -1959,23 +1959,23 @@ class Widgets implements Markup {
 		},
 		keys: {"Enter": "on a step, chooses it (onSelect)"}
 	})
-	public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
+	@:neutral public static function Breadcrumb(props:{items:Array<String>, onSelect:Int->Void, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "crumbs", items = props.items;
-		return <view tag={tag} slot="breadcrumb" role="navigation" label={props.label ?? "breadcrumb"}>
-			<view slot="breadcrumb-list">{[
+		return <view:nav tag={tag} id={props.tag} slot="breadcrumb" role="navigation" label={props.label ?? "breadcrumb"}>
+			<view:ol slot="breadcrumb-list">{[
 				for (i in 0...items.length) {
 					var last = i == items.length - 1;
 					[
-						<view slot="breadcrumb-item">{last ? <text tag={tag + "-" + i} slot="breadcrumb-page" current>{items[i]}</text> : <text tag={tag + "-" + i}
-							slot="breadcrumb-link" role="link" focusable onClick={_ -> props.onSelect(i)} onKeyDown={e -> if (e.key == Key.ENTER) {
+						<view:li slot="breadcrumb-item">{last ? <text:span tag={tag + "-" + i} slot="breadcrumb-page" role="link" disabled current="page">{items[i]}</text:span> : <view:a
+							tag={tag + "-" + i} slot="breadcrumb-link" href="#" focusable onPress={e -> {
 								e.preventDefault();
 								props.onSelect(i);
-							}}>{items[i]}</text>}</view>,
-						last ? null : <view slot="breadcrumb-separator" hidden>{icon(CHEVRON_RIGHT, "breadcrumb-separator-icon", null, true)}</view>
+							}}>{items[i]}</view:a>}</view:li>,
+						last ? null : <view:li slot="breadcrumb-separator" hidden><icon slot="breadcrumb-separator-icon" name="chevron-right" mirrored width={14} height={14}/></view:li>
 					];
 				}
-			]}</view>
-		</view>;
+			]}</view:ol>
+		</view:nav>;
 	}
 
 	// pagination (shadcn's): Previous, the pages (the first, the last, the
@@ -3222,12 +3222,13 @@ class Widgets implements Markup {
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["calendar-button-icon", "tree-toggle-icon", "breadcrumb-separator-icon", "collapsible-icon", "sidebar-trigger-icon",
+			for (s in ["calendar-button-icon", "tree-toggle-icon", "collapsible-icon", "sidebar-trigger-icon",
 				"navigation-menu-trigger-icon", "carousel-icon", "pagination-icon", "pagination-ellipsis-icon"])
-				{slot: s, style: s == "breadcrumb-separator-icon" || s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
+				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
-		var n = mirrored ? new Mirrored() : new ImageNode();
+		var n = new ImageNode();
 		n.svg = svg;
+		n.mirrored = mirrored;
 		n.slot = slot;
 		n.semantics = {hidden: true};
 		n.style.shrink = 0;
@@ -4426,12 +4427,3 @@ class Widgets implements Markup {
 // an icon that points to the line's end (a chevron: a disclosure's, a
 // breadcrumb's separator), right to left the other way (as Chromium's
 // disclosure-closed marker)
-private class Mirrored extends ImageNode {
-	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
-		if (!rtl()) return super.paintContent(canvas, x, y, width, height);
-		canvas.pushTransform(-1, 0, 0, 1, 2 * x + width, 0);
-		super.paintContent(canvas, x, y, width, height);
-		canvas.popTransform();
-	}
-}
-

@@ -1095,7 +1095,8 @@ class MarkupTest implements Markup {
 		click(ui.root.find("crumbs-1"));
 		ui.setFocus(ui.root.find("crumbs-0"));
 		key(Key.ENTER);
-		check("breadcrumbs: a click and Enter choose a step", chosen.join(",") == "1,0", chosen.join(","));
+		key(Key.SPACE);
+		check("breadcrumbs: a click and Enter choose a step, Space not (a link's)", chosen.join(",") == "1,0", chosen.join(","));
 		var prev = ui.root.find("pages-prev"), next = ui.root.find("pages-next");
 		function labels():String
 			return [for (n in tagged(ui.root.find("pages"), "pages-page")) (cast n.children[0] : TextNode).text].join(" ");

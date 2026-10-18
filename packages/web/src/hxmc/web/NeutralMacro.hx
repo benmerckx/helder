@@ -109,6 +109,7 @@ class NeutralMacro {
 
 	// (an attribute's DOM name when it is one set as it is: data-*, aria-*, role, id...)
 	static function mapped(t:String, n:String):Null<String> {
+		if (t == "icon" && n == "mirrored") return "data-mirrored";
 		if (t == "icon" && n == "name" || n == "tag" || n == "role" && StringTools.endsWith(t, ":legend")) return null;
 		return DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : PLAIN.indexOf(n) >= 0 || StringTools.startsWith(n, "data-")
 			|| StringTools.startsWith(n, "aria-") ? n : null;
