@@ -14,12 +14,14 @@ physics.step(dt);
 var hit = physics.raycast(origin, direction);
 ```
 
-Moving bodies are spheres for now; boxes and planes are static. Contacts
-(sphere against sphere, box and plane) are resolved by sequential impulses
-with restitution and friction; resting bodies sleep and wake on contact or
+Spheres and boxes move and turn (inertia from the shape); planes are
+static. Contacts (sphere against sphere, box and plane; box against plane
+and box, by corners: edge crossings are missed) are resolved by
+sequential impulses at the contact points, accumulated and clamped, with
+restitution and friction; resting bodies sleep and wake on contact or
 impulse; the same steps give the same numbers on every target (Eval,
-native, wasm32-wasi: tested). Next: dynamic boxes and capsules (GJK and
-EPA), rotation, a broad phase, a character controller; a binding to an
+native, wasm32-wasi: tested). Next: capsules and convex hulls (GJK and EPA), box edge contacts, a
+broad phase, a character controller; a binding to an
 established engine behind the same API later.
 
 Tests: `test/PhysicsTest.hx` and the Falling example's frame

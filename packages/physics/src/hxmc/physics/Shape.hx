@@ -2,10 +2,9 @@ package hxmc.physics;
 
 import hxmc.gfx.shader.Vec3;
 
-// A body's shape, in the body's frame (centred on its position): a sphere
-// of a radius, an axis-aligned box of half extents (static bodies only for
-// now: dynamic boxes, capsules and convex hulls need a general contact
-// test, GJK, next), or a plane through the origin facing normal (static).
+// A body's shape, in the body's frame (centred on its position, turned by
+// its orientation): a sphere of a radius, a box of half extents, or a
+// plane (static only) of points p with normal . p = offset, in the world.
 enum Shape {
 	Sphere(radius:Float);
 	Box(half:Vec3);

@@ -1,5 +1,5 @@
 // title: Falling
-// summary: Balls dropped into a walled box by @hxmc/physics (contacts, restitution, friction, sleeping at a fixed step), drawn by @hxmc/3d with shadows; click to drop more
+// summary: Balls and tumbling boxes dropped into a walled box by @hxmc/physics (contacts with angular impulses, restitution, friction, sleeping at a fixed step), drawn by @hxmc/3d with shadows; click to drop more
 // tags: 3d, physics
 // demo: canvas 512x384
 import hxmc.gfx.*;
@@ -25,6 +25,7 @@ class Falling {
 	public final camera:Camera;
 	final device:Device;
 	final ballMesh:Array<Mesh> = [];
+	final boxMesh:Array<Mesh> = [];
 	var dropped = 0;
 
 	public function new(device:Device) {
@@ -44,7 +45,11 @@ class Falling {
 			physics.add(new Body(Box(half), n.position, 0));
 		}
 		for (c in [new Vec4(0.95, 0.4, 0.15, 1), new Vec4(0.95, 0.8, 0.3, 1), new Vec4(0.2, 0.6, 0.95, 1), new Vec4(0.85, 0.85, 0.9, 1)])
-			ballMesh.push(Shapes.sphere(device, new Material("ball", c, c.x > 0.8 && c.y > 0.8 ? 1 : 0, 0.35), 0.3, 24, 12));
+{
+			var m = new Material("ball", c, c.x > 0.8 && c.y > 0.8 ? 1 : 0, 0.35);
+			ballMesh.push(Shapes.sphere(device, m, 0.3, 24, 12));
+			boxMesh.push(Shapes.box(device, m, 0.5, 0.4, 0.6));
+		}
 		var sun = world.node("sun");
 		Light.attach(sun, Light.directional(new Vec3(1, 0.96, 0.9), 2.6));
 		sun.rotation = Quat.fromEuler(-1.0, -0.6, 0);
@@ -59,11 +64,15 @@ class Falling {
 	// another ball, above the box (its place from how many fell before: the same every run)
 	public function drop() {
 		var k = dropped++;
-		var n = world.node("ball" + k);
-		MeshRenderer.attach(n, ballMesh[k % ballMesh.length]);
+		var n = world.node("body" + k);
 		var x = ((k * 7) % 9) / 9 * 3 - 1.5, z = ((k * 5) % 7) / 7 * 3 - 1.5;
-		var b = physics.add(new Body(Sphere(0.3), new Vec3(x, 2 + k * 0.45, z)), n);
+		// (every third a box, tilted: it lands on a corner and tumbles)
+		var box = k % 3 == 2;
+		MeshRenderer.attach(n, box ? boxMesh[k % boxMesh.length] : ballMesh[k % ballMesh.length]);
+		var b = new Body(box ? Box(new Vec3(0.25, 0.2, 0.3)) : Sphere(0.3), new Vec3(x, 2 + k * 0.45, z));
+		if (box) b.orientation = Quat.axisAngle(new Vec3(1, 0.3, 0.6), 0.4 + k * 0.2);
 		b.restitution = 0.5;
+		physics.add(b, n);
 	}
 
 	public function draw(enc:Encoder)

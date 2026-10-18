@@ -8,6 +8,8 @@ import hxmc.scene.*;
 // its node; the same steps give the same numbers everywhere (a checksum
 // of a pile of balls after 300 steps).
 class PhysicsTest {
+	// the pile's checksum after 300 steps (Eval, native and wasm32-wasi alike)
+	static inline var CHECKSUM = 44358533;
 	static var checks = 0;
 	static var failed = 0;
 
@@ -83,6 +85,30 @@ class PhysicsTest {
 		var nb = w5.add(new Body(Sphere(0.5), new Vec3(1, 4, 2)), node);
 		w5.step(dt);
 		check("the node follows its body", node.position.y == nb.position.y && node.position.x == 1);
+		// boxes: tilted, one falls flat on the plane; a second stacks on it
+		var w6 = new PhysicsWorld();
+		w6.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
+		var box = w6.add(new Body(Box(new Vec3(0.5, 0.25, 0.5)), new Vec3(0, 1.5, 0)));
+		box.orientation = hxmc.scene.math.Quat.axisAngle(new Vec3(1, 0, 1), 0.5);
+		var turned = false;
+		var top:Null<Body> = null;
+		for (k in 0...600) {
+			// (the second box dropped once the first lies still)
+			if (k == 300) top = w6.add(new Body(Box(new Vec3(0.3, 0.3, 0.3)), box.position + new Vec3(0.05, 1.5, 0)));
+			w6.step(dt);
+			var a = box.angular;
+			if (a.x * a.x + a.y * a.y + a.z * a.z > 0.01) turned = true;
+		}
+		var up = box.orientation.rotate(new Vec3(0, 1, 0));
+		check('a tilted box tumbles flat (up ${Math.round(up.y * 1000) / 1000}, y ${Math.round(box.position.y * 1000) / 1000})',
+			turned && Math.abs(up.y) > 0.99 && near(box.position.y, 0.25, 0.03));
+		check('a box stacks on it (y ${Math.round(top.position.y * 1000) / 1000})', near(top.position.y, 0.5 + 0.3, 0.05));
+		// a turned box's raycast: from above at a corner's reach
+		var rb = new PhysicsWorld();
+		var turnedBox = rb.add(new Body(Box(new Vec3(1, 1, 1)), new Vec3(0, 0, 0), 0));
+		turnedBox.orientation = hxmc.scene.math.Quat.axisAngle(new Vec3(0, 0, 1), Math.PI / 4);
+		var rh = rb.raycast(new Vec3(0, 5, 0), new Vec3(0, -1, 0));
+		check("raycast on a turned box", rh != null && near(rh.distance, 5 - Math.sqrt(2), 1e-9));
 		// determinism: a pile of balls in a box of planes
 		var pile = new PhysicsWorld();
 		pile.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
@@ -90,18 +116,21 @@ class PhysicsTest {
 			pile.add(new Body(Plane(n, -2), new Vec3(0, 0, 0), 0));
 		for (k in 0...12)
 			pile.add(new Body(Sphere(0.3), new Vec3((k % 3) * 0.7 - 0.7 + k * 0.01, 1 + k * 0.5, (k % 2) * 0.4 - 0.2)));
+		// (and boxes, landing on the balls and tumbling: rotation in the checksum)
+		for (k in 0...3)
+			pile.add(new Body(Box(new Vec3(0.25, 0.2, 0.3)), new Vec3(k * 0.6 - 0.6, 8 + k, 0.1 * k)));
 		for (_ in 0...300)
 			pile.step(dt);
 		var sum = 0.0;
 		for (bd in pile.bodies)
-			sum += bd.position.x * 3 + bd.position.y * 5 + bd.position.z * 7;
+			sum += bd.position.x * 3 + bd.position.y * 5 + bd.position.z * 7 + bd.orientation.x * 11 + bd.orientation.y * 13;
 		var inside = true;
 		for (bd in pile.bodies)
-			if (!bd.isStatic() && (Math.abs(bd.position.x) > 1.75 || Math.abs(bd.position.z) > 1.75 || bd.position.y < 0.29)) inside = false;
+			if (!bd.isStatic() && (Math.abs(bd.position.x) > 1.75 || Math.abs(bd.position.z) > 1.75 || bd.position.y < 0.19)) inside = false;
 		check("the pile stays in its box", inside);
 		Sys.println('PhysicsTest: pile checksum ${Math.round(sum * 1e6)}');
 		// (the value on Eval, natively and as wasm32-wasi alike)
-		check("the pile's checksum, the same on every target", Math.round(sum * 1e6) == 37063937);
+		check("the pile's checksum, the same on every target", Math.round(sum * 1e6) == CHECKSUM);
 		Sys.println('PhysicsTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
 	}
