@@ -2,6 +2,7 @@ package hxmc.ui.widgets;
 
 import hxmc.ui.*;
 import hxmc.view.*;
+import hxmc.ui.widgets.Behaviour.TypeAhead;
 import hxmc.ui.view.*;
 import hxmc.view.Reactive.*;
 import hxmc.view.Signal;
@@ -13,16 +14,15 @@ import hxmc.ui.widgets.Toasts;
 import hxmc.ui.access.AccessTree;
 
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
-typedef TreeRow<T> = {item:T, level:Int, parent:Int, leaf:Bool, open:Bool};
+typedef TreeRow<T> = Behaviour.TreeLine<T>;
 
 // a menu's item: its label, what choosing it does, a shortcut (shown, and
 // choosing it from the window); variant "destructive" (shadcn's: for a
 // theme), disabled (not chosen, skipped by the keys), or a separator
 // (a menu's item: what choosing it does, a shortcut; a separator, a heading;
 // checked: a checkbox item toggling it, radio: one of a group setting it;
-// items: a submenu)
-typedef MenuItem = {label:String, ?onSelect:Void->Void, ?shortcut:String, ?variant:String, ?disabled:Bool, ?separator:Bool, ?heading:Bool,
-	?checked:Signal<Bool>, ?radio:{group:Signal<String>, value:String}, ?items:Array<MenuItem>};
+// items: a submenu; Behaviour's MenuEntry, shared with the DOM's widgets)
+typedef MenuItem = Behaviour.MenuEntry;
 
 // Components for markup (import hxmc.ui.widgets.Widgets.*): built with
 // hxmc.view, unstyled: behaviour, semantics and the geometry their
@@ -531,13 +531,13 @@ class Widgets implements Markup {
 			});
 		}
 		function store() {
-			var c = hsv(hue.peek(), sat.peek(), val.peek());
+			var c = Behaviour.hsv(hue.peek(), sat.peek(), val.peek());
 			if (c != props.value.peek()) props.value.value = c;
 		}
 		effect(() -> {
 			var c = props.value.value;
 			untrack(() -> {
-				if (hsv(hue.peek(), sat.peek(), val.peek()) != c) load(c);
+				if (Behaviour.hsv(hue.peek(), sat.peek(), val.peek()) != c) load(c);
 				// (not while what is typed there already says it: "#0f0" stays)
 				var typed = Color.tryParse(StringTools.trim(hex.peek()).toLowerCase());
 				if (typed == null || Color.rgb(typed) != c) hex.value = c.toHex().substr(0, 7);
@@ -567,7 +567,7 @@ class Widgets implements Markup {
 		return <view tag={tag} slot="color-picker" role="group" label={name} width={size}>
 			<view tag={tag + "-area"} role="slider" label={name + ": saturation and brightness"} value-now={() -> pct(sat.value)} value-min={0} value-max={100}
 				value-text={() -> "saturation " + pct(sat.value) + "%, brightness " + pct(val.value) + "%"} slot="color-picker-area" width={size} height={size} focusable
-				background-image={() -> "linear-gradient(to right, #FFFFFF, " + hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
+				background-image={() -> "linear-gradient(to right, #FFFFFF, " + Behaviour.hsv(hue.value, 1, 1).toHex().substr(0, 7) + ")"}
 				onPointerDown={e -> area(e)} onPointerMove={e -> if (e.current.pressed) area(e)}
 				onKeyDown={e -> {
 					var d = e.mods & Key.MOD_SHIFT != 0 ? 0.1 : 0.01;
@@ -602,7 +602,7 @@ class Widgets implements Markup {
 					store();
 				}}>
 				<view slot="color-picker-thumb" data-hue="" position="absolute" left={() -> hue.value / 360 * size} top="50%"
-					transform="translate(-50%, -50%)" background={() -> hsv(hue.value, 1, 1)}/>
+					transform="translate(-50%, -50%)" background={() -> Behaviour.hsv(hue.value, 1, 1)}/>
 			</view>
 			<view slot="color-picker-row" direction="row" align-items="center">
 				<view tag={tag + "-swatch"} slot="color-picker-swatch" shrink={0} background={() -> props.value.value}/>
@@ -611,31 +611,6 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// (an opaque colour from a hue in degrees, saturation and value from 0 to 1)
-	static function hsv(h:Float, s:Float, v:Float):Color {
-		var c = v * s, p = (h / 60) % 6, x = c * (1 - Math.abs(p % 2 - 1)), m = v - c;
-		var r = 0.0, g = 0.0, b = 0.0;
-		if (p < 1) {
-			r = c;
-			g = x;
-		} else if (p < 2) {
-			r = x;
-			g = c;
-		} else if (p < 3) {
-			g = c;
-			b = x;
-		} else if (p < 4) {
-			g = x;
-			b = c;
-		} else if (p < 5) {
-			r = x;
-			b = c;
-		} else {
-			r = c;
-			b = x;
-		}
-		return Color.fromFloats(r + m, g + m, b + m);
-	}
 
 	// a radio group (shadcn's) bound to a signal: a radio button per option
 	// (tag: the group's tag, "-", the option), labelled with it (labels, else
@@ -998,7 +973,7 @@ class Widgets implements Markup {
 				case Key.ENTER:
 					if (i >= 0) activate(rs[i]);
 				case _:
-					j = props.text == null ? -1 : typed.find(e, [for (r in rs) props.text(r.item)], i);
+					j = props.text == null ? -1 : typed.find(e.key, e.mods, Ui.now(), [for (r in rs) props.text(r.item)], i);
 					if (j < 0) return;
 			}
 			e.stop();
@@ -1374,7 +1349,7 @@ class Widgets implements Markup {
 					step(-1);
 				case _:
 					// (typed: the option it starts, chosen)
-					var j = typed.find(e, shown, props.options.indexOf(props.value.peek()));
+					var j = typed.find(e.key, e.mods, Ui.now(), shown, props.options.indexOf(props.value.peek()));
 					if (j >= 0) {
 						props.value.value = props.options[j];
 						e.stop();
@@ -1406,7 +1381,7 @@ class Widgets implements Markup {
 									e.stop();
 								case Key.TAB: open.value = false;
 								case _:
-									var j = typed.find(e, shown, i);
+									var j = typed.find(e.key, e.mods, Ui.now(), shown, i);
 									if (j >= 0) {
 										focusItem(j);
 										e.stop();
@@ -1501,7 +1476,7 @@ class Widgets implements Markup {
 				case Key.ENTER: if (props.onActivate != null) props.onActivate(options[i]);
 				case "a".code | "A".code if (multiple && e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0): props.selected.value = options.copy();
 				case _:
-					var j = typed.find(e, shown, i);
+					var j = typed.find(e.key, e.mods, Ui.now(), shown, i);
 					if (j < 0) return;
 					move(j, 0);
 			}
@@ -1899,12 +1874,8 @@ class Widgets implements Markup {
 		];
 
 	// (an item chosen from a native menu: as from the drawn one)
-	static function chooseItem(it:MenuItem) {
-		if (it.disabled == true || it.items != null) return;
-		if (it.checked != null) it.checked.value = !it.checked.peek();
-		if (it.radio != null) it.radio.group.value = it.radio.value;
-		if (it.onSelect != null) it.onSelect();
-	}
+	static function chooseItem(it:MenuItem)
+		if (it.disabled != true && it.items == null) Behaviour.choose(it);
 
 	// a toggle group (shadcn's): one of options (labels: what each shows),
 	// chosen among toggles joined in a row (a radio group: one Tab stop, the
@@ -2106,7 +2077,7 @@ class Widgets implements Markup {
 	// (data-state "open" or "closed"), "-shortcut", "-separator"
 	static function menuItems(kind:String, tag:String, label:Null<String>, list:Array<MenuItem>,
 			open:Signal<Bool>, nodes:Array<Node>, ?root:Signal<Bool>, ?content:String):View {
-		var typed = new TypeAhead(), labels = [for (it in list) skipped(it) ? "" : it.label];
+		var typed = new TypeAhead(), labels = [for (it in list) Behaviour.skipped(it) ? "" : it.label];
 		var close = root ?? open;
 		// (a submenu closed with its menu)
 		if (root != null) effect(() -> if (!root.value) untrack(() -> open.value = false));
@@ -2115,7 +2086,7 @@ class Widgets implements Markup {
 			var n = list.length, j = from;
 			for (_ in 0...n) {
 				j = (j + d + n) % n;
-				if (!skipped(list[j])) {
+				if (!Behaviour.skipped(list[j])) {
 					focusIn(nodes, j);
 					return;
 				}
@@ -2172,7 +2143,7 @@ class Widgets implements Markup {
 								e.stop();
 							case Key.TAB: close.value = false;
 							case _:
-								var j = typed.find(e, labels, i);
+								var j = typed.find(e.key, e.mods, Ui.now(), labels, i);
 								if (j >= 0) {
 									focusIn(nodes, j);
 									e.stop();
@@ -2200,9 +2171,6 @@ class Widgets implements Markup {
 		]}</view>;
 	}
 
-	// (an item not chosen or moved to: a separator, a heading, a disabled one)
-	static function skipped(it:MenuItem):Bool
-		return it.separator == true || it.heading == true || it.disabled == true;
 
 	// a tooltip: text shown by the children (above them) once the pointer
 	// has rested on them for delay seconds (0.5), hidden when it leaves or
@@ -3104,7 +3072,7 @@ class Widgets implements Markup {
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
 		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
-		var format = props.format ?? plain;
+		var format = props.format ?? Behaviour.plain;
 		var editing = false;
 		var f = new TextField(format(props.value.peek()));
 		f.tag = tag;
@@ -3171,11 +3139,6 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// (a number as it is, to ten decimals: 0.1 + 0.2 shown as 0.3)
-	static function plain(v:Float):String {
-		var s = Std.string(Math.fround(v * 1e10) / 1e10);
-		return StringTools.endsWith(s, ".0") ? s.substr(0, s.length - 2) : s;
-	}
 
 	// a textarea (shadcn's): a text area bound to a signal (two ways), rows
 	// lines high (3); a right click (or the menu key) opens its edit menu;
@@ -3835,29 +3798,3 @@ private class Arrow extends TextNode {
 		return text == "▸" && rtl() ? "◂" : text;
 }
 
-// type-ahead in a list (a select's, a menu's): letters and digits typed
-// within a second of each other make a prefix, the item it starts found
-// from the one after (the same letter again: the next with it), case aside
-private class TypeAhead {
-	var prefix = "";
-	var at = -1e9;
-
-	public function new() {}
-
-	// the item's index for a key typed at item from, else -1
-	public function find(e:Event, labels:Array<String>, from:Int):Int {
-		if (e.mods & (Key.MOD_CONTROL | Key.MOD_META | Key.MOD_ALT) != 0) return -1;
-		var k = e.key;
-		if (k >= "A".code && k <= "Z".code) k += 32;
-		if (!(k >= "a".code && k <= "z".code || k >= "0".code && k <= "9".code)) return -1;
-		var now = Ui.now(), c = String.fromCharCode(k);
-		prefix = now - at < 1 && prefix != c ? prefix + c : c;
-		at = now;
-		var n = labels.length, start = prefix.length > 1 ? from : from + 1;
-		for (j in 0...n) {
-			var i = ((start + j) % n + n) % n;
-			if (StringTools.startsWith(labels[i].toLowerCase(), prefix)) return i;
-		}
-		return -1;
-	}
-}
