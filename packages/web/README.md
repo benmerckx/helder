@@ -159,8 +159,8 @@ the DOM's renderer's markup each is the DOM's of the same name, so one
 component serves a canvas and a page (`examples/WidgetCounter.hx`; ui's
 sources on the class path, `-cp`, not `-lib hxmc.ui`). A ui widget of one
 definition for both (`@:neutral`: the static widgets, Field, ButtonGroup,
-Toggle, ToggleGroup, Checkbox, Switch, RadioGroup, Slider, RangeSlider and
-Alert so far) is no DOM copy at all:
+Toggle, ToggleGroup, Checkbox, Switch, RadioGroup, Slider, RangeSlider,
+Tabs and Alert so far) is no DOM copy at all:
 DomRenderer realises its neutral elements at compile time (NeutralMacro:
 `view` a `div`, `text` a `span`, `view:button` a `button`, `icon` an
 `svg`...; `slot`,

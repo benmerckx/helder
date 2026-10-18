@@ -80,32 +80,6 @@ class Widgets implements Markup {
 		return svg;
 	}
 
-	// tabs (shadcn's, Radix's): a row of labels and what render gives for
-	// the selected one; one Tab stop, Left and Right (the way they point,
-	// wrapping), Home and End select another and move the focus there;
-	// variant "default" or "line"
-	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?variant:String, ?tag:String}):View {
-		var count = props.labels.length, tabs:Array<Element> = [], base = props.tag ?? Dom.id();
-		function key(e:KeyboardEvent, i:Int) {
-			var k = keyOf(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, count, false);
-			if (j < 0) return;
-			e.preventDefault();
-			props.selected.value = j;
-			focusIn(tabs, j);
-		}
-		return <div id={props.tag} data-slot="tabs" data-orientation="horizontal">
-			<div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" data-variant={props.variant ?? "default"} data-orientation="horizontal">{[
-				for (i in 0...count)
-					<button type="button" role="tab" id={base + "-t" + i} aria-controls={base + "-p"} ref={n -> tabs[i] = cast n} data-slot="tabs-trigger"
-						aria-selected={() -> props.selected.value == i ? "true" : "false"} data-state={() -> props.selected.value == i ? "active" : "inactive"}
-						data-orientation="horizontal" tabindex={() -> props.selected.value == i ? 0 : -1} onClick={() -> props.selected.value = i}
-						onKeyDown={(e:KeyboardEvent) -> key(e, i)}>{props.labels[i]}</button>
-			]}</div>
-			<div role="tabpanel" id={base + "-p"} aria-labelledby={() -> base + "-t" + props.selected.value} data-slot="tabs-content" data-state="active"
-				data-orientation="horizontal" tabindex="0">{() -> props.render(props.selected.value)}</div>
-		</div>;
-	}
-
 	// a progress bar (shadcn's, Radix's): value from 0 to 1; null: not known (a bar sliding across)
 	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?tag:String}):View {
 		var known = () -> read(props.value) != null;

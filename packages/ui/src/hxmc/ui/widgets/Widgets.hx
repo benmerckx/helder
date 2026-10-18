@@ -695,27 +695,29 @@ class Widgets implements Markup {
 			"Enter, Space": "selects the focused tab"
 		}
 	})
-	public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?variant:String, ?style:States->StyleProps,
+	@:neutral public static function Tabs(props:{labels:Array<String>, selected:Signal<Int>, render:Int->Any, ?variant:String, ?style:States->StyleProps,
 			?tag:String}):View {
 		var variant = props.variant ?? "default";
-		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
+		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Part> = [];
 		function key(e:Event, i:Int) {
-			var k = mirrored(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, count, false);
+			var k = mirroredKey(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, count, false);
 			if (j < 0) return;
 			e.preventDefault();
 			props.selected.value = j;
-			focusIn(tabs, j);
+			focusPart(tabs, j);
 		}
-		return <view tag={tag} slot="tabs" group="tabs" data-orientation="horizontal" ref={n -> States.apply(n, props.style)}>
-			<view slot="tabs-list" variant={variant} data-variant={variant} data-orientation="horizontal" role="tablist">{[
+		return <view tag={tag} id={props.tag} slot="tabs" group="tabs" data-orientation="horizontal" states={props.style}>
+			<view slot="tabs-list" variant={variant} data-orientation="horizontal" role="tablist">{[
 				for (i in 0...count)
-					<view tag={tag + "-" + i} slot="tabs-trigger" variant={variant} data-orientation="horizontal" role="tab" ref={n -> tabs[i] = n} selected={() -> props.selected.value == i}
-						data-state={() -> props.selected.value == i ? "active" : "inactive"} focusable={() -> props.selected.value == i}
-						onClick={_ -> props.selected.value = i} onKeyDown={e -> key(e, i)}>
+					<view:button tag={tag + "-" + i} slot="tabs-trigger" variant={variant} data-orientation="horizontal" role="tab" ref={p -> tabs[i] = p}
+						selected={() -> props.selected.value == i} data-state={() -> props.selected.value == i ? "active" : "inactive"}
+						focusable={() -> props.selected.value == i} onPress={_ -> props.selected.value = i} onKeyDown={e -> key(e, i)}>
 						{props.labels[i]}
-					</view>
+					</view:button>
 			]}</view>
-			<view slot="tabs-content" data-orientation="horizontal" role="tabpanel" label={() -> props.labels[props.selected.value]}>{() -> props.render(props.selected.value)}</view>
+			<view slot="tabs-content" data-orientation="horizontal" role="tabpanel" label={() -> props.labels[props.selected.value]} data-state="active">
+				{() -> props.render(props.selected.value)}
+			</view>
 		</view>;
 	}
 
