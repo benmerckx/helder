@@ -47,20 +47,20 @@ class WebGPUBackend {
 		var data = d.data, size = d.size;
 		if (data != null && data.length < size) throw "hxmc.gfx: createBuffer: data has fewer than size bytes";
 		// (the Bytes cannot move during the call: no collection in an import)
-		var b = WebGPU.buffer(size, cast d.usage, data == null ? Ptr.nil() : Mem.addr(data).add(8), data == null ? 0 : size);
+		var b = WebGPU.buffer(size, cast d.usage, data == null ? Ptr.nil() : BytesPtr.of(data, 0, size), data == null ? 0 : size);
 		handles.push(b);
 		return b;
 	}
 
 	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
 		if (offset & 3 != 0 || size & 3 != 0) throw "hxmc.gfx: writeBuffer: WebGPU writes multiples of 4 bytes at multiples of 4";
-		WebGPU.write_buffer(id, offset, Mem.addr(data).add(8 + dataOffset), size);
+		WebGPU.write_buffer(id, offset, BytesPtr.of(data, dataOffset, size), size);
 	}
 
 	public function createTexture(d:TextureDesc):Int {
 		var info = TextureInfo.of(d);
 		// (the Bytes cannot move during the call: no collection in an import)
-		var t = WebGPU.texture(info.width, info.height, cast info.format, info.levels, info.target ? 1 : 0, d.data == null ? Ptr.nil() : Mem.addr(d.data).add(8));
+		var t = WebGPU.texture(info.width, info.height, cast info.format, info.levels, info.target ? 1 : 0, d.data == null ? Ptr.nil() : BytesPtr.of(d.data, 0, d.data.length));
 		infos.set(t, info);
 		handles.push(t);
 		return t;
@@ -69,7 +69,7 @@ class WebGPUBackend {
 	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
 		var info = infos.get(id);
 		info.checkWrite(data, x, y, w, h, dataOffset, level);
-		WebGPU.write_texture(id, x, y, info.w, info.h, level, Mem.addr(data).add(8 + dataOffset));
+		WebGPU.write_texture(id, x, y, info.w, info.h, level, BytesPtr.of(data, dataOffset, data.length - dataOffset));
 	}
 
 	public function generateMips(id:Int) {
@@ -152,7 +152,7 @@ class WebGPUBackend {
 		if (offset < 0 || size < 0 || offset + size > data.length) throw "hxmc.gfx: setUniforms: outside the data";
 		var n = (size + 255) & ~255;
 		if (cursor + n > Encoder.UNIFORM_RING) throw "hxmc.gfx: setUniforms: more than " + Encoder.UNIFORM_RING + " bytes of uniforms in a frame";
-		WebGPU.set_uniforms(slot, cursor, Mem.addr(data).add(8 + offset), size);
+		WebGPU.set_uniforms(slot, cursor, BytesPtr.of(data, offset, size), size);
 		cursor += n;
 	}
 

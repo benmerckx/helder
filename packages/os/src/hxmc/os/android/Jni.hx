@@ -232,7 +232,7 @@ class Jni {
 			var buf = a.alloc(2 * n + 2, 2);
 			JniEnv.GetStringRegion(e, js, 0, n, buf);
 			var s = hxmc.rt.Str.make(n);
-			LibC.memcpy(hxmc.rt.Str.chars(s), buf, (2 * n : Int64));
+			LibC.memcpy(hxmc.rt.Str.unitsAddr(s), buf, (2 * n : Int64));
 			s;
 		});
 	}

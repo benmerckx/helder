@@ -136,7 +136,9 @@ class GLBackend {
 		// (Android: libGLESv3.so's own functions; eglGetProcAddress may know only extensions there)
 		var gles = Mem.target() >= 9 ? Posix.dlopen(Mem.cstr("libGLESv3.so"), 2) : Ptr.nil();
 		var missing = GL.load(name -> {
-			var f = gles.isNull() ? Ptr.nil() : Posix.dlsym(gles, name);
+			var f = Ptr.nil();
+			// (Android only: no dlsym where the browser is GL's)
+			if (Mem.target() >= 9) if (!gles.isNull()) f = Posix.dlsym(gles, name);
 			f.isNull() ? Egl.eglGetProcAddress(name) : f;
 		});
 		if (Mem.target() >= 9) {
@@ -186,7 +188,7 @@ class GLBackend {
 		var data = d.data, size = d.size;
 		if (data != null && data.length < size) throw "hxmc.gfx: createBuffer: data has fewer than size bytes";
 		// (a fast call: the Bytes cannot move during it)
-		if (data == null) GL.glBufferData(target, size, Ptr.nil(), GL.DYNAMIC_DRAW) else GL.glBufferData(target, size, Mem.addr(data).add(8), GL.STATIC_DRAW);
+		if (data == null) GL.glBufferData(target, size, Ptr.nil(), GL.DYNAMIC_DRAW) else GL.glBufferData(target, size, BytesPtr.of(data, 0, size), GL.STATIC_DRAW);
 		// (the vertex array's index buffer was this one: it is bound anew at the next drawIndexed)
 		if (target == GL.ELEMENT_ARRAY_BUFFER) ibuf = -1;
 		buffers.push(b);
@@ -201,7 +203,7 @@ class GLBackend {
 		GL.glBindBuffer(target, buffers[id - 1]);
 		if (target == GL.ELEMENT_ARRAY_BUFFER) ibuf = -1;
 		// (a fast call: the Bytes cannot move during it)
-		GL.glBufferSubData(target, offset, size, Mem.addr(data).add(8 + dataOffset));
+		GL.glBufferSubData(target, offset, size, BytesPtr.of(data, dataOffset, size));
 	}
 
 	public function createTexture(d:TextureDesc):Int {
@@ -237,7 +239,7 @@ class GLBackend {
 		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 1);
 		// (a fast call: the Bytes cannot move during it)
 		GL.glTexSubImage2D(GL.TEXTURE_2D, level, x, y, info.w, info.h, f == R8 ? GL.RED : f == RG8 ? GL.RG : f == R32F ? GL.RED : GL.RGBA,
-			f == RGBA16F ? GL.HALF_FLOAT : f == R32F ? GL.FLOAT : GL.UNSIGNED_BYTE, Mem.addr(data).add(8 + dataOffset));
+			f == RGBA16F ? GL.HALF_FLOAT : f == R32F ? GL.FLOAT : GL.UNSIGNED_BYTE, BytesPtr.of(data, dataOffset, data.length - dataOffset));
 		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
 	}
 
@@ -366,9 +368,9 @@ class GLBackend {
 	}
 
 	public function beginFrame():Bool {
-		// (Android: a new window after a Resume, none while suspended; one
-		// comparison of the target, folded elsewhere)
-		if (Mem.target() >= 9 && surface.kind != Headless) {
+		// (Android: a new window after a Resume, none while suspended; the
+		// target's comparison alone, folded elsewhere)
+		if (Mem.target() >= 9) if (surface.kind != Headless) {
 			if (surface.handle != window) {
 				release();
 				if (surface.handle.isNull()) return false;
@@ -475,7 +477,7 @@ class GLBackend {
 			GL.glBufferData(GL.UNIFORM_BUFFER, Encoder.UNIFORM_RING, Ptr.nil(), GL.STREAM_DRAW);
 		} else GL.glBindBuffer(GL.UNIFORM_BUFFER, rings[ring]);
 		// (a fast call: the Bytes cannot move during it; the range: whole 16-byte rows)
-		GL.glBufferSubData(GL.UNIFORM_BUFFER, cursor, size, Mem.addr(data).add(8 + offset));
+		GL.glBufferSubData(GL.UNIFORM_BUFFER, cursor, size, BytesPtr.of(data, offset, size));
 		GL.glBindBufferRange(GL.UNIFORM_BUFFER, slot, rings[ring], cursor, (size + 15) & ~15);
 		cursor += n;
 	}
@@ -547,7 +549,7 @@ class GLBackend {
 		GL.glReadPixels(0, 0, width, height, GL.RGBA, GL.UNSIGNED_BYTE, pixels);
 		// GL's rows go bottom to top
 		for (y in 0...height)
-			LibC.memcpy(Mem.addr(dst).add(8 + y * row), pixels.add((height - 1 - y) * row), (row : Int64));
+			BytesPtr.copyIn(dst, y * row, pixels.add((height - 1 - y) * row), row);
 	}
 
 	public function dispose() {
