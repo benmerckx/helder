@@ -1199,6 +1199,7 @@ class Node implements Part {
 		slot = v;
 		if (ui != null && v == "body") ui.setBody(this);
 		restyleLater();
+		Rules.reslotted(this);
 		return v;
 	}
 
@@ -1206,6 +1207,7 @@ class Node implements Part {
 		if (v == variant) return v;
 		variant = v;
 		restyleLater();
+		Rules.related(this);
 		return v;
 	}
 
@@ -1213,6 +1215,7 @@ class Node implements Part {
 		if (v == size) return v;
 		size = v;
 		restyleLater();
+		Rules.related(this);
 		return v;
 	}
 

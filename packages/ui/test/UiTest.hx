@@ -58,6 +58,7 @@ class UiTest {
 		textTransform();
 		culling();
 		inPlace();
+		restyled();
 		selection();
 		fields();
 		popups();
@@ -889,6 +890,99 @@ class UiTest {
 		check("in place: a field typed into laid out alone", typed && after == before + 1, typed + " " + (after - before));
 		var placed = Layout.inPlaces - was;
 		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
+	}
+
+	// the theme's rules restyling what a change reaches (Rules: other nodes'
+	// states, group, peer, has, prev, parent, first and last) as styling the
+	// same tree from scratch does: random sheets and trees, attributes,
+	// markers and children changed at random
+	static function restyled() {
+		var seed = 3, bad = 0, steps = 0, first = "";
+		function rnd(n:Int):Int {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			return (seed >> 8) % n;
+		}
+		var conds = ["data-x", "data-y=1", "first", "last", "not:data-x", "group:data-x", "group/g:data-y=1", "peer:data-x", "peer/p:data-y=1", "has:data-x",
+			"has:>data-slot=b", "has:data-x&data-y=1", "prev:data-x", "parent:data-y=1", "group:has:data-x", "not:has:data-y=1", "prev:data-slot=a"];
+		var slots:Array<Null<String>> = ["a", "b", "c", null];
+		var attrs = ["data-x", "data-y", "group", "peer"];
+		function make(depth:Int, nodes:Array<Node>):Node {
+			var n = new Node();
+			n.slot = slots[rnd(slots.length)];
+			for (a in attrs)
+				if (rnd(4) == 0) n.setAttr(a, a == "data-y" ? "1" : a == "group" ? ["", "g"][rnd(2)] : a == "peer" ? ["", "p"][rnd(2)] : "");
+			nodes.push(n);
+			if (depth < 3)
+				for (i in 0...rnd(4))
+					n.append(make(depth + 1, nodes));
+			return n;
+		}
+		function clone(n:Node):Node {
+			var c = new Node();
+			c.slot = n.slot;
+			for (a in attrs)
+				if (n.attr(a) != null) c.setAttr(a, n.attr(a));
+			for (k in n.children)
+				c.append(clone(k));
+			return c;
+		}
+		function styles(n:Node, out:Array<Float>) {
+			out.push(n.style.opacity);
+			out.push(n.style.zIndex);
+			for (c in n.children)
+				styles(c, out);
+		}
+		for (round in 0...30) {
+			var rules:Array<Rule> = [];
+			for (i in 0...10) {
+				var when = [conds[rnd(conds.length)]];
+				if (rnd(3) == 0) when.push(conds[rnd(conds.length)]);
+				var slot = ["a", "b", "c", "*"][rnd(4)];
+				rules.push(rnd(2) == 0 ? {slot: slot, when: when, style: {opacity: (i + 1) / 20}} : {slot: slot, when: when, style: {zIndex: i + 1}});
+			}
+			var sheet:StyleSheet = {rules: rules};
+			var ui = new Ui(new MonoText(), 200, 200);
+			ui.theme = sheet;
+			var nodes = [];
+			var top = make(0, nodes);
+			ui.root.append(top);
+			ui.update();
+			for (step in 0...40) {
+				var n = nodes[rnd(nodes.length)], what;
+				if (n.ui == null) continue;
+				switch rnd(4) {
+					case 0:
+						var a = attrs[rnd(attrs.length)];
+						n.setAttr(a, n.attr(a) != null ? null : a == "data-y" ? "1" : a == "group" ? "g" : a == "peer" ? "p" : "");
+						what = "attr " + a;
+					case 1:
+						n.insert(make(2, nodes), rnd(n.children.length + 1));
+						what = "inserted";
+					case 2 if (n != top):
+						n.parent.remove(n);
+						what = "removed";
+					case _:
+						n.slot = slots[rnd(slots.length)];
+						what = "slot";
+				}
+				ui.update();
+				var got = [];
+				styles(top, got);
+				var fresh = new Ui(new MonoText(), 200, 200);
+				fresh.theme = sheet;
+				var copy = clone(top);
+				fresh.root.append(copy);
+				fresh.update();
+				var want = [];
+				styles(copy, want);
+				steps++;
+				if (got.join(",") != want.join(",")) {
+					bad++;
+					if (first == "") first = 'round $round step $step ($what)';
+				}
+			}
+		}
+		check("restyled: as styled from scratch, " + steps + " changes", bad == 0, bad + " differ, the first: " + first);
 	}
 
 	// an ancestor's decorations over a text: the underline before it, the

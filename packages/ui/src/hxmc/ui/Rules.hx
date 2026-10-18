@@ -34,6 +34,8 @@ class Rules {
 	static inline var PLACE = 8;
 	static inline var PARENT = 16;
 	static inline var PREV = 32;
+	// (a relation within one: "group:has:x", a group's descendant's state)
+	static inline var NESTED = 64;
 
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
@@ -338,7 +340,7 @@ class Rules {
 	static function after(parent:Node, i:Int) {
 		while (i >= 0 && i < parent.children.length && marker(parent.children[i]))
 			i++;
-		if (i >= 0 && i < parent.children.length) @:privateAccess parent.children[i].restyleLater();
+		if (i >= 0 && i < parent.children.length) touched(parent.children[i]);
 	}
 
 	// (whether n is marked as a group or peer: the attribute, else its slot's
@@ -396,7 +398,9 @@ class Rules {
 			if (head == "has") r |= HAS;
 			if (head == "parent") r |= PARENT;
 			if (head == "prev") r |= PREV;
-			r |= relations(w.substr(colon + 1));
+			var inner = relations(w.substr(colon + 1));
+			if (r & (GROUP | PEER | HAS | PARENT | PREV) != 0 && inner & (GROUP | PEER | HAS | PARENT | PREV) != 0) r |= NESTED;
+			r |= inner;
 		}
 		return r;
 	}
@@ -409,7 +413,7 @@ class Rules {
 				restyleTree(c);
 		if (relational & PARENT != 0)
 			for (c in n.children)
-				@:privateAccess c.restyleLater();
+				touched(c);
 		if (relational & PREV != 0 && n.parent != null) after(n.parent, n.parent.indexOf(n) + 1);
 		if (relational & PEER != 0 && marked(n, "peer", null) && n.parent != null) {
 			var after = false;
@@ -421,10 +425,45 @@ class Rules {
 		if (relational & HAS != 0) {
 			var p = n.parent;
 			while (p != null) {
-				@:privateAccess p.restyleLater();
+				touched(p);
 				p = p.parent;
 			}
 		}
+	}
+
+	// (n's slot changed: what other nodes' rules read of it ("has:>data-slot=x"),
+	// and what a marker its slot had or has now (StyleSheet.markers) styled)
+	@:allow(hxmc.ui.Node) static function reslotted(n:Node) {
+		related(n);
+		if (relational & (GROUP | PEER) != 0 && n.ui != null && n.parent != null) restyleTree(n.parent);
+	}
+
+	// (m's state as other nodes' rules read it may have changed: m restyled,
+	// and with a relation within one ("group:has:x") the nodes reading it
+	// through theirs: as a group its descendants, as a peer its later
+	// siblings', the sibling after it and its children)
+	static function touched(m:Node) {
+		@:privateAccess m.restyleLater();
+		if (relational & NESTED == 0) return;
+		if (marked(m, "group", null))
+			for (c in m.children)
+				restyleTree(c);
+		var p = m.parent;
+		if (p != null) {
+			if (marked(m, "peer", null)) {
+				var later = false;
+				for (c in p.children) {
+					if (later) restyleTree(c);
+					if (c == m) later = true;
+				}
+			}
+			var i = p.indexOf(m) + 1;
+			while (i < p.children.length && marker(p.children[i]))
+				i++;
+			if (i < p.children.length) @:privateAccess p.children[i].restyleLater();
+		}
+		for (c in m.children)
+			@:privateAccess c.restyleLater();
 	}
 
 	// (parent's children changed, child put in or taken out, first and last
@@ -451,7 +490,7 @@ class Rules {
 		if (relational & HAS != 0) {
 			var p = parent;
 			while (p != null) {
-				@:privateAccess p.restyleLater();
+				touched(p);
 				p = p.parent;
 			}
 		}
