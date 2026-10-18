@@ -34,6 +34,8 @@ class Stages {
 	public function frame(seconds:Float) {
 		// (loads in flight advanced first: Asset)
 		Assets.poll();
+		// (gamepads read once a frame, before the Input stage: Actions see them)
+		hxmc.os.Gamepads.poll();
 		run(Input, seconds);
 		var fixed = lists[FixedUpdate];
 		clock.advance(seconds, dt -> for (f in fixed.copy()) f(dt));

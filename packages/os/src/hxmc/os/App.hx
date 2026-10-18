@@ -31,6 +31,8 @@ class App {
 
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
+		// (gamepads read from now on, when a program polls them: Gamepads)
+		Gamepads.enable();
 		if (Mem.os() == 3) {
 			CanvasWindow.start(onFrame, onEvent);
 			return;

@@ -2,6 +2,7 @@ package hxmc.scene.input;
 
 import hxmc.gfx.shader.Vec2;
 import hxmc.os.Event;
+import hxmc.os.Gamepads;
 
 // Named actions bound to input (Binding: keys, mouse buttons, screen
 // regions, pairs of keys as axes), read once per simulation step so that
@@ -18,9 +19,9 @@ import hxmc.os.Event;
 //     player.x += actions.axis("moveX") * speed * step;
 //   });
 //
-// Bindings are data (rebind at run time with unbind and bind). Gamepads
-// (buttons, sticks) and virtual sticks come with @hxmc/os's gamepads
-// (docs/plans/3d.md, step 4).
+// Bindings are data (rebind at run time with unbind and bind). Gamepads:
+// PadButton and PadAxis, read at each step from hxmc.os.Gamepads (which
+// Stages.frame polls; Gamepads.set feeds an on-screen stick).
 class Actions {
 	final names:Array<String> = [];
 	final bindings:Array<Array<Binding>> = [];
@@ -43,6 +44,9 @@ class Actions {
 	var width = 1.0;
 	var height = 1.0;
 	final regionHeld = new Map<Int, Bool>();
+	final padHeld = new Map<Int, Bool>();
+	// a stick's travel taken as rest (its axes' first 0.15)
+	public var deadZone = 0.15;
 
 	public function new() {}
 
@@ -161,6 +165,27 @@ class Actions {
 				}
 	}
 
+	// the gamepads' buttons (Gamepads, as last polled: Stages.frame polls)
+	function pads() {
+		for (k in 0...names.length)
+			for (i in 0...bindings[k].length)
+				switch bindings[k][i] {
+					case PadButton(b):
+						var now = false;
+						for (p in 0...Gamepads.MAX)
+							if (Gamepads.button(p, b)) now = true;
+						var id = k * 1024 + i, was = padHeld.exists(id);
+						if (now && !was) {
+							padHeld.set(id, true);
+							if (down[k]++ == 0) pressEvents[k]++;
+						} else if (!now && was) {
+							padHeld.remove(id);
+							if (down[k] > 0 && --down[k] == 0) releaseEvents[k]++;
+						}
+					case _:
+				}
+	}
+
 	function axes() {
 		for (k in 0...names.length) {
 			var v = 0.0;
@@ -169,6 +194,15 @@ class Actions {
 					case KeyAxis(neg, pos):
 						if (keys.exists(neg)) v -= 1;
 						if (keys.exists(pos)) v += 1;
+					case PadAxis(a, scale):
+						// (the pad pushed furthest, past the dead zone, rescaled to 0..1)
+						var best = 0.0;
+						for (p in 0...Gamepads.MAX) {
+							var x = Gamepads.axis(p, a);
+							if (Math.abs(x) > Math.abs(best)) best = x;
+						}
+						var m = Math.abs(best);
+						if (m > deadZone) v += (best < 0 ? -1 : 1) * (m - deadZone) / (1 - deadZone) * scale;
 					case _:
 				}
 			axisValue[k] = Math.max(-1, Math.min(1, v));
@@ -178,6 +212,8 @@ class Actions {
 	// a simulation step begins: what happened since the last one becomes
 	// what pressed, released and held answer
 	public function step() {
+		pads();
+		axes();
 		for (k in 0...names.length) {
 			pressedNow[k] = pressEvents[k] > 0;
 			releasedNow[k] = releaseEvents[k] > 0;
@@ -203,7 +239,7 @@ class Actions {
 		return k >= 0 && heldNow[k];
 	}
 
-	// a KeyAxis action's value, -1 to 1, now
+	// an axis action's value (KeyAxis, PadAxis), -1 to 1, now
 	public function axis(action:String):Float {
 		var k = names.indexOf(action);
 		return k >= 0 ? axisValue[k] : 0;

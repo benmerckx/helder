@@ -487,6 +487,15 @@ export default function (host) {
 			} else if (navigator.clipboard?.readText) navigator.clipboard.readText().then(deliver, () => deliver(null));
 			else deliver(null);
 		},
+		// gamepad i (Gamepads.hx): its buttons' values then its axes into p
+		gamepad_state(i, p) {
+			const pad = navigator.getGamepads ? navigator.getGamepads()[i] : null;
+			if (!pad || !pad.connected) return 0;
+			const f = new Float32Array(host.memory().buffer, p, 21);
+			for (let b = 0; b < 17; b++) f[b] = pad.buttons[b] ? pad.buttons[b].value || (pad.buttons[b].pressed ? 1 : 0) : 0;
+			for (let a = 0; a < 4; a++) f[17 + a] = pad.axes[a] ?? 0;
+			return 1;
+		},
 		// a fetch (Fetch.hx): started, polled, its body taken
 		fetch_start(p) {
 			const f = { state: 0, body: null };

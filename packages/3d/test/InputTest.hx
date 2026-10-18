@@ -72,6 +72,19 @@ class InputTest {
 		a.event(send(KeyDown, 0x77));
 		a.step();
 		check("rebound", a.pressed("jump"));
+		// a gamepad (fed through Gamepads.set: no device): A jumps, the left stick moves
+		var g = new Actions();
+		g.bind("jump", PadButton(0)).bind("moveX", PadAxis(0, 1)).bind("moveY", PadAxis(1, -1));
+		var pressed = [for (b in 0...17) b == 0];
+		hxmc.os.Gamepads.set(1, pressed, [0.5, -1, 0, 0]);
+		g.step();
+		check("a pad's button presses", g.pressed("jump") && g.held("jump") && hxmc.os.Gamepads.connected(1));
+		check('a stick past its dead zone (${g.axis("moveX")}, ${g.axis("moveY")})', Math.abs(g.axis("moveX") - (0.5 - 0.15) / 0.85) < 1e-9 && g.axis("moveY") == 1);
+		hxmc.os.Gamepads.set(1, null, [0.1, 0, 0, 0]);
+		g.step();
+		check("released, the stick at rest within the dead zone", g.released("jump") && !g.held("jump") && g.axis("moveX") == 0);
+		hxmc.os.Gamepads.set(1);
+		check("the pad given back", !hxmc.os.Gamepads.connected(1));
 		Sys.println('InputTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
 	}
