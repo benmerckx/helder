@@ -20,11 +20,13 @@ if [ -f "$bin/RenderTest.exe" ]; then
 else
 	run() { env -u DISPLAY "$bin/RenderTest" "$@"; }
 fi
-for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy particles normals blend walker; do
+for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy particles normals blend walker packedskin packednormals; do
 	g=$s
 	# (the packed sample draws the glTF one's frame, the lazy skin the skin's)
 	[ $s = packed ] && g=gltf
 	[ $s = lazy ] && g=skin
+	[ $s = packedskin ] && g=skin
+	[ $s = packednormals ] && g=normals
 	code=0
 	run $s "$here/$g.png" "$out/$s.png" || code=$?
 	# (macOS without a Metal device: GfxTest's 3, skipped)

@@ -3,6 +3,7 @@ package hxmc.scene.gltf;
 import hxmc.gfx.Device;
 import hxmc.scene.Node;
 import hxmc.scene.World;
+import hxmc.scene.render.Images;
 import hxmc.scene.render.Light;
 import hxmc.scene.render.Skin;
 import hxmc.scene.render.Material;
@@ -14,39 +15,12 @@ import hxmc.scene.render.MeshRenderer;
 // (instantiate: GltfNodes' hierarchy, each node with a mesh drawing the
 // shared Mesh). Triangle primitives (positions, normals, uvs; normals
 // computed where the file has none); materials' factors and textures
-// (base colour, metallic-roughness, emissive, occlusion, normal: tangents from the file, else computed) (decoded by decodeImage, which the program gives); KHR_lights_punctual's lights as Light components; skins as
+// (base colour, metallic-roughness, emissive, occlusion, normal: tangents from the file, else computed) (decoded by Images.decode, which the program gives); KHR_lights_punctual's lights as Light components; skins as
 // Skin components on the nodes they deform (joints, inverse bind
 // matrices; JOINTS_0 and WEIGHTS_0 in the meshes' vertices).
 class GltfScene {
-	// the image decoder, given by the program (no decoder is linked unless
-	// named): mime type and bytes to RGBA8 pixels, rows top to bottom, or
-	// null for a format it does not read. @hxmc/ui's:
-	//   GltfScene.decodeImage = (mime, b) -> mime == "image/jpeg" ? hxmc.ui.JpegDecoder.decode(b) : hxmc.ui.PngDecoder.decode(b);
-	// Without one, textures are left out (materials keep their factors).
-	public static var decodeImage:Null<(String, haxe.io.Bytes) -> Null<{width:Int, height:Int, rgba:haxe.io.Bytes}>>;
-
-	// glTF's sampler (filters and wraps: WebGL's constants) as gfx's, or null
-	// where it reads as the renderer's own (linear, trilinear between mip
-	// levels, repeating); wrapS and wrapT differing: wrapS's (gfx wraps both
-	// directions alike)
-	public static function samplerDesc(magFilter:Int, minFilter:Int, wrapS:Int, wrapT:Int):Null<hxmc.gfx.SamplerDesc> {
-		var filter:hxmc.gfx.Filter = magFilter == 9728 ? Nearest : Linear;
-		var mip:Null<hxmc.gfx.Filter> = switch minFilter {
-			case 9728 | 9729: null; // (no mip levels)
-			case 9984 | 9985: Nearest;
-			default: Linear;
-		}
-		var wrap:hxmc.gfx.Wrap = switch wrapS {
-			case 33071: Clamp;
-			case 33648: Mirror;
-			default: Repeat;
-		}
-		if (filter == Linear && mip == Linear && wrap == Repeat) return null;
-		return mip == null ? {filter: filter, wrap: wrap} : {filter: filter, mipFilter: mip, wrap: wrap};
-	}
-
 	public final doc:GltfDoc;
-	// the samplers made for the materials (samplerDesc)
+	// the samplers made for the materials (GltfSamplers.desc)
 	public final samplers:Array<hxmc.gfx.Sampler> = [];
 	public final meshes:Array<Mesh> = [];
 	public final materials:Array<Material>;
@@ -57,18 +31,8 @@ class GltfScene {
 	public function new(doc:GltfDoc, device:Device) {
 		this.doc = doc;
 		this.device = device;
-		for (k in 0...doc.images.length) {
-			var bytes = decodeImage != null ? doc.imageBytes(k) : null;
-			var image = bytes != null ? decodeImage(doc.images[k].mimeType, bytes) : null;
-			if (image == null) {
-				textures.push(null);
-				continue;
-			}
-			// (sRGB colours: decoded by the shader; mip levels for minified textures)
-			var t = device.createTexture({width: image.width, height: image.height, data: image.rgba, mipLevels: 0});
-			device.generateMips(t);
-			textures.push(t);
-		}
+		for (k in 0...doc.images.length)
+			textures.push(Images.texture(device, doc.images[k].mimeType, Images.decode != null ? doc.imageBytes(k) : null));
 		function textureOf(index:Int):Null<hxmc.gfx.Texture> {
 			if (index < 0) return null;
 			var source = doc.textures[index].source;
@@ -81,7 +45,7 @@ class GltfScene {
 			if (index < 0 || doc.textures[index].sampler < 0) return null;
 			var k = doc.textures[index].sampler;
 			var s = doc.samplers[k];
-			var desc = samplerDesc(s.magFilter, s.minFilter, s.wrapS, s.wrapT);
+			var desc = GltfSamplers.desc(s.magFilter, s.minFilter, s.wrapS, s.wrapT);
 			if (desc == null) return null;
 			if (!samplers.exists(k)) {
 				var made = device.createSampler(desc);

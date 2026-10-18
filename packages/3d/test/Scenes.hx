@@ -18,6 +18,9 @@ import hxmc.scene.render.*;
 //   textured the textured sample (a PNG in the file, decoded by @hxmc/ui)
 //   normals  the normal-mapped sample (NormalMaps, tangents computed)
 //   blend    see-through materials over opaque ones, farthest first
+//   packedskin, packednormals  the skinned and the normal-mapped samples
+//            packed at build time (Pack: skins, animations, images,
+//            tangents): skin.png's and normals.png's frames
 //   walker   physics' Walker example: the character walked through the crates, jumping
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
@@ -27,7 +30,7 @@ import hxmc.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -124,7 +127,7 @@ class Scenes {
 				enc -> r.draw(enc, world, camera);
 			case "textured":
 				// the textured sample, its PNG decoded by @hxmc/ui's decoder, mip-mapped
-				GltfScene.decodeImage = (mime, bytes) -> hxmc.ui.PngDecoder.decode(bytes);
+				Images.decode = (mime, bytes) -> hxmc.ui.PngDecoder.decode(bytes);
 				var r = new Renderer(device);
 				renderer = r;
 				var world = new World();
@@ -141,7 +144,7 @@ class Scenes {
 				enc -> r.draw(enc, world, camera);
 			case "normals":
 				// the normal-mapped sample (NormalMaps; tangents computed when loaded)
-				GltfScene.decodeImage = (mime, bytes) -> hxmc.ui.PngDecoder.decode(bytes);
+				Images.decode = (mime, bytes) -> hxmc.ui.PngDecoder.decode(bytes);
 				var r = new Renderer(device).use(new NormalMaps(device));
 				renderer = r;
 				var world = new World();
@@ -180,6 +183,41 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0.3, 1.6, 4);
 				eye.lookAt(new Vec3(0, 0.6, -0.3));
+				enc -> r.draw(enc, world, camera);
+			case "packedskin":
+				// the skinned sample packed (make 3d-programs writes bin/3d/skinned.hxm3d):
+				// its skin and clip from the packed file, skin.png's frame
+				var r = new Renderer(device).use(new Skinning(device)).use(new Shadows(device, 512));
+				renderer = r;
+				var world = new World();
+				var model = PackedModel.read(Asset.embed("bin/3d/skinned.hxm3d"), device);
+				var made = [];
+				model.instantiate(world, null, made);
+				var animator = new hxmc.scene.anim.Animator(made);
+				animator.play(model.clip("bend"));
+				animator.update(1.0);
+				var floor = world.node("floor");
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.5, 0.5, 0.55, 1), 0, 0.9), 6));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0.4, 1.4, 4.2);
+				eye.lookAt(new Vec3(-0.3, 1.1, 0));
+				enc -> r.draw(enc, world, camera);
+			case "packednormals":
+				// the normal-mapped sample packed (its PNG, its tangents): normals.png's frame
+				Images.decode = (mime, bytes) -> hxmc.ui.PngDecoder.decode(bytes);
+				var r = new Renderer(device).use(new NormalMaps(device));
+				renderer = r;
+				var world = new World();
+				var tiles = PackedModel.read(Asset.embed("bin/3d/normals.hxm3d"), device).instantiate(world).find("tiles");
+				tiles.rotation = hxmc.scene.math.Quat.fromEuler(0.5, 0.7, 0);
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, -1.1, 0);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.45, 0.47, 0.5, 1), 0, 0.9), 8));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 0.8, 3.2);
+				eye.lookAt(new Vec3(0, -0.1, 0));
 				enc -> r.draw(enc, world, camera);
 			case "packed":
 				// the sample scene packed at build time (Pack: make 3d-check writes

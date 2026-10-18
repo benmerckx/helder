@@ -72,11 +72,11 @@ the executable natively and fetched before main in the browser
 (`browser.mjs`'s `assets` option: `run(wasm, {assets: 'app.wasm.assets.json'})`);
 the repository tool's `hxmc <output> ...` form needs `-D hxmc.scene.out=<output>`.
 For now self-contained files only for now (one embedded
-buffer, images inside it). Base colour textures need a decoder, named by
+buffer, images inside it). Textures need a decoder, named by
 the program so that none is linked otherwise:
 
 ```haxe
-GltfScene.decodeImage = (mime, bytes) -> mime == "image/jpeg" ? hxmc.ui.JpegDecoder.decode(bytes) : hxmc.ui.PngDecoder.decode(bytes);
+Images.decode = (mime, bytes) -> mime == "image/jpeg" ? hxmc.ui.JpegDecoder.decode(bytes) : hxmc.ui.PngDecoder.decode(bytes);
 ```
 
 ## The asset step
@@ -90,9 +90,12 @@ bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src \
 PackedModel.read(Asset.embed("level.hxm3d"), device).instantiate(world);
 ```
 
-A packed model needs no glTF reader or JSON at run time (95 KB less
-natively, `make 3d-sizes`); meshes, materials' factors, cameras and the
-hierarchy are packed, not yet skins, animations, lights or textures.
+A packed model needs no glTF reader or JSON at run time (69 KB less
+natively, `make 3d-sizes`): meshes (vertices in the renderer's layout,
+joints and weights, tangents computed at build time for normal maps),
+materials (factors, maps, sampler), images (decoded by `Images.decode`
+when loaded), cameras, lights, skins, animations (`model.clip(name)`,
+playing on the nodes `instantiate` made) and the hierarchy.
 
 Big files or loading screens: `Model.of(path, Lazy)` is an `Asset` of the
 same typed model, loaded in the background (`asset.then(m -> ...)`,

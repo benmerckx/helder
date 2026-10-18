@@ -188,16 +188,14 @@ class GltfTest {
 			&& doc.materials[0].occlusionTexture == 0);
 		var image = Png.decode(png);
 		check("the image decodes", image.width == 64 && image.height == 64);
-		#if !eval
 		// (glTF's samplers as gfx's: null where the renderer's own)
-		check("the sample's sampler is the renderer's", hxmc.scene.gltf.GltfScene.samplerDesc(9729, 9987, 10497, 10497) == null
-			&& hxmc.scene.gltf.GltfScene.samplerDesc(0, 0, 10497, 10497) == null);
-		var pixelated = hxmc.scene.gltf.GltfScene.samplerDesc(9728, 9728, 33071, 33071);
+		check("the sample's sampler is the renderer's", hxmc.scene.gltf.GltfSamplers.desc(9729, 9987, 10497, 10497) == null
+			&& hxmc.scene.gltf.GltfSamplers.desc(0, 0, 10497, 10497) == null);
+		var pixelated = hxmc.scene.gltf.GltfSamplers.desc(9728, 9728, 33071, 33071);
 		check("a nearest, clamped sampler without mip levels", pixelated != null && pixelated.filter == Nearest && pixelated.mipFilter == null
 			&& pixelated.wrap == Clamp);
-		var mirrored = hxmc.scene.gltf.GltfScene.samplerDesc(9729, 9985, 33648, 10497);
+		var mirrored = hxmc.scene.gltf.GltfSamplers.desc(9729, 9985, 33648, 10497);
 		check("a mirrored one, nearest between mip levels", mirrored != null && mirrored.mipFilter == Nearest && mirrored.wrap == Mirror);
-		#end
 	}
 
 	static function normals() {
