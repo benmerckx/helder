@@ -11,7 +11,6 @@
 class WidgetParity {
 	// the differences known, by widget, and why
 	static final KNOWN = [
-		"Input" => "type: the DOM's only (an <input>'s type)",
 		"Select" => "size: ui's only (data-size)",
 		"AlertDialog" => "size: ui's only (data-size)",
 		"NativeSelect" => "size: ui's only (data-size); disabled: the DOM's only",

@@ -13,6 +13,7 @@ import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.Toasts.Toast;
 // (the widgets of one definition for both: ui's, realised by the DOM's renderer)
 import hxmc.ui.widgets.Widgets.Button;
+import hxmc.ui.widgets.Widgets.Input;
 import hxmc.view.*;
 import hxmc.view.Flow.*;
 import hxmc.view.Reactive.*;
@@ -941,41 +942,6 @@ class Widgets implements Markup {
 			}}><span data-slot="date-picker-value" data-placeholder={() -> props.value.value == null ? "" : null}>{() -> props.value.value == null ? (props.placeholder ?? "Choose a date") : format(props.value.value)}</span></button>;
 	}
 
-	// a one-time code field (shadcn's InputOTP): length slots of one
-	// character each (digits only unless digits is false), in groups (a
-	// separator between), over which a transparent field takes the typing;
-	// onComplete once every slot is filled
-	public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
-			?disabled:Dynamic, ?tag:String}):View {
-		var n = props.length, digits = props.digits != false, groups = props.groups ?? [n], focused = signal(false);
-		var chars = () -> [for (c in new haxe.iterators.StringIteratorUnicode(props.value.value)) String.fromCharCode(c)];
-		var active = () -> focused.value ? Std.int(Math.min(chars().length, n - 1)) : -1;
-		var slots:Array<View> = [], k = 0;
-		for (g => size in groups) {
-			if (g > 0) slots.push(View.view(<div data-slot="input-otp-separator" role="separator">{icon("minus", "input-otp-separator-icon")}</div>));
-			var cells = [];
-			for (_ in 0...size) {
-				var i = k++;
-				cells.push(View.view(<div data-slot="input-otp-slot" data-active={() -> active() == i ? "true" : "false"}>
-					{() -> i < chars().length ? chars()[i] : ""}
-					<Show when={() -> active() == i && i >= chars().length}><div style="pointer-events:none;position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div data-slot="input-otp-caret"/></div></Show>
-				</div>));
-			}
-			slots.push(View.view(<div data-slot="input-otp-group">{cells}</div>));
-		}
-		return <div id={props.tag} data-slot="input-otp" data-disabled={() -> on(props.disabled) ? "" : null} style="position:relative">
-			{slots}
-			<input autocomplete="one-time-code" inputmode={digits ? "numeric" : "text"} maxlength={n} aria-label={props.label ?? "One-time code"} value={props.value}
-				disabled={() -> on(props.disabled)} style="position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;font-size:1px;color:transparent;background:transparent;outline:none"
-				onFocus={() -> focused.value = true} onBlur={() -> focused.value = false} onInput={(e:Dynamic) -> {
-					var v = Behaviour.code(e.target.value, n, digits), was = props.value.peek();
-					props.value.value = v;
-					e.target.value = v;
-					if (v.length == n && was.length < n && props.onComplete != null) props.onComplete(v);
-				}}/>
-		</div>;
-	}
-
 	// where Toasts.show's toasts are shown: in a corner of the page
 	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),
 	// over everything, each with its mark, text, action and a close button;
@@ -1324,64 +1290,6 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// a number field bound to a signal: its value as text (format; else as
-	// it is); typed in, the value follows what parses; Enter or leaving puts
-	// it within min and max and shows it formatted; Up and Down or the
-	// buttons step it (Page Up, Page Down: ten steps); a spin button
-	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
-			?label:String, ?tag:String}):View {
-		var step = props.step ?? 1.0, min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
-		var format = props.format ?? Behaviour.plain, field:js.html.InputElement = null, editing = false;
-		inline function clamp(v:Float):Float
-			return v < min ? min : v > max ? max : v;
-		effect(() -> {
-			var v = props.value.value;
-			if (field != null && !editing) field.value = format(v);
-		});
-		function commit() {
-			editing = false;
-			var v = clamp(props.value.peek());
-			if (v != props.value.peek()) props.value.value = v;
-			field.value = format(v);
-		}
-		function stepBy(n:Float) {
-			editing = false;
-			var v = clamp(props.value.peek() + n * step);
-			if (v != props.value.peek()) props.value.value = v else field.value = format(v);
-		}
-		function stepper(n:Float):View
-			return <button type="button" tabindex="-1" data-slot={n > 0 ? "number-field-increment" : "number-field-decrement"} aria-label={n > 0 ? "Increase" : "Decrease"}
-				onClick={() -> stepBy(n)}>{n > 0 ? "▲" : "▼"}</button>;
-		return <div id={props.tag == null ? null : props.tag + "-box"} data-slot="number-field" style={'width:${props.width ?? 120}px'}>
-			<input id={props.tag} data-slot="input" role="spinbutton" inputmode="decimal" ref={n -> {
-				field = cast n;
-				field.value = format(props.value.peek());
-			}} aria-label={props.label} aria-valuenow={props.value} aria-valuetext={() -> format(props.value.value)}
-				aria-valuemin={Math.isFinite(min) ? min : null} aria-valuemax={Math.isFinite(max) ? max : null} style="flex:1;min-width:0"
-				onInput={(e:Dynamic) -> {
-					editing = true;
-					var v = Std.parseFloat(StringTools.trim(e.target.value));
-					if (!Math.isNaN(v)) props.value.value = v;
-				}} onBlur={commit} onKeyDown={(e:KeyboardEvent) -> {
-					var n = switch Dom.key(e) {
-						case Key.UP: 1;
-						case Key.DOWN: -1;
-						case Key.PAGE_UP: 10;
-						case Key.PAGE_DOWN: -10;
-						case Key.ENTER:
-							commit();
-							0;
-						case _: 0;
-					}
-					if (n != 0) {
-						e.preventDefault();
-						stepBy(n);
-					}
-				}}/>
-			<div data-slot="number-field-steppers">{stepper(1)}{stepper(-1)}</div>
-		</div>;
-	}
-
 	// a tag input: tags as chips before a text field in one box; Enter or a
 	// comma adds what is typed (trimmed, once), Backspace in an empty field
 	// takes the last one off, a chip's × takes it off; a click in the box focuses the field
@@ -1516,22 +1424,6 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// an input (shadcn's): a text field bound to a signal (two ways);
-	// password: its text as dots; invalid: aria-invalid; disabled
-	public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?type:String, ?tag:String}):View
-		return <input id={props.tag} data-slot="input" type={props.password == true ? "password" : props.type ?? "text"} value={props.value}
-			placeholder={props.placeholder} aria-label={props.label} aria-invalid={() -> on(props.invalid) ? "true" : null}
-			disabled={() -> on(props.disabled)} onInput={(e:Dynamic) -> props.value.value = e.target.value}
-			onKeyDown={(e:KeyboardEvent) -> if (e.key == "Enter" && props.onSubmit != null) props.onSubmit(props.value.peek())}/>;
-
-	// a textarea (shadcn's) bound to a signal (two ways), rows lines high
-	public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
-			?tag:String}):View
-		return <textarea id={props.tag} data-slot="textarea" rows={props.rows} value={props.value} placeholder={props.placeholder}
-			aria-label={props.label} aria-invalid={() -> on(props.invalid) ? "true" : null} disabled={() -> on(props.disabled)}
-			onInput={(e:Dynamic) -> props.value.value = e.target.value}/>;
-
 	// --- the third batch: Field, ButtonGroup, InputGroup, Empty, Item, AspectRatio, ScrollArea, NativeSelect, Carousel, NavigationMenu, Sidebar, charts ---
 
 	// an input group (shadcn's): an InputGroupInput with addons in one box;
@@ -1554,13 +1446,6 @@ class Widgets implements Markup {
 
 	public static function InputGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <span id={props.tag} data-slot="input-group-text">{props.children ?? props.text}</span>;
-
-	public static function InputGroupInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?tag:String}):View
-		return <input id={props.tag} data-slot="input-group-control" type={props.password == true ? "password" : "text"} value={props.value}
-			placeholder={props.placeholder} aria-label={props.label ?? props.placeholder} aria-invalid={() -> on(props.invalid) ? "true" : null}
-			disabled={() -> on(props.disabled)} onInput={(e:Dynamic) -> props.value.value = e.target.value}
-			onKeyDown={(e:KeyboardEvent) -> if (e.key == "Enter" && props.onSubmit != null) props.onSubmit(props.value.peek())}/>;
 
 	// a scrolled area (shadcn's ScrollArea): its children in a viewport
 	// scrolled vertically (the default), horizontally or both; the theme's

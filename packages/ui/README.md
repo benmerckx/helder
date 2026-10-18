@@ -298,9 +298,15 @@ The elements are also the neutral ones of single-source widgets
 (`@:neutral`, packages/view/README.md): `view:button`, `view:label`... and
 `text:p`, `text:h2`... are a view and a text here, the element of that name
 in a page; `<icon name="check"/>` draws lucide's icon of that name
-(`hxmc.ui.widgets.Icons`, an inline SVG in a page); a ref of theirs gets an `hxmc.ui.Part` (Node is one: `focus`,
+(`hxmc.ui.widgets.Icons`, an inline SVG in a page); `<field/>` and
+`<field:textarea/>` are a text field (`TextField`, `TextArea`: native
+where `Ui.policy` says; a page's `<input>`, `<textarea>`): `value`,
+`placeholder`, `type` (`password`: dots), `rows`, `readonly`,
+`maxlength`, `inputmode` and `autocomplete` (a page's), `onInput` (its
+text changed by its user: `e.text`), its own editing after the markup's
+`onKeyDown`... unless that prevented the default; a ref of theirs gets an `hxmc.ui.Part` (Node is one: `focus`,
 `rect`, `scrollIntoView`, `contains`, `attr`, `rtl`, `capture`: a press's
-moves and release to it).
+moves and release to it; `select`: a field's selection).
 - drag and drop: `drag-data={value}` makes a node draggable; `onDragStart`,
   `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`
   accepts), `onDragLeave` and `onDrop` (`e.data`) on targets; Escape cancels.

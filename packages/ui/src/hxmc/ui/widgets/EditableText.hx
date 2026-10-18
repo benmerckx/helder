@@ -63,6 +63,10 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		if (ui != null) ui.requestFrame();
 	}
 	public var onChange:Null<String->Void>;
+	// read only: selected and copied, not edited (as an input's readonly)
+	public var readOnly = false;
+	// the most UTF-16 units it takes by typing or pasting (-1: any; as an input's maxlength)
+	public var maxLength = -1;
 	// the caret (and the selection's other end), UTF-16 indices
 	public var caret(default, null) = 0;
 	public var anchor(default, null) = 0;
@@ -140,6 +144,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 	}
 
 	override public function accessSetValue(value:String):Bool {
+		if (readOnly) return false;
 		select(0, text.length);
 		replace(value);
 		return true;
@@ -154,7 +159,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 
 	// the composition now (empty: none), the caret in it: shown, not typed
 	public function compose(s:String, at:Int) {
-		if (s == composition && at == compositionCaret) return;
+		if (s == composition && at == compositionCaret || readOnly && s != "") return;
 		if (s != "" && composition == "" && selectionStart != selectionEnd) replace("");
 		composition = s;
 		compositionCaret = at < 0 ? 0 : at > s.length ? s.length : at;
@@ -232,7 +237,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		if (anchor > text.length) anchor = text.length;
 	}
 
-	public function select(start:Int, end:Int) {
+	override public function select(start:Int, end:Int) {
 		anchor = clampIndex(start);
 		caret = clampIndex(end);
 		changed();
@@ -289,7 +294,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 
 	// the selection to the clipboard, and out of the text
 	public function cut() {
-		if (selectionStart == selectionEnd || ui == null || secret) return;
+		if (selectionStart == selectionEnd || ui == null || secret || readOnly) return;
 		ui.clipboard.write(text.substring(selectionStart, selectionEnd));
 		replace("");
 	}
@@ -330,19 +335,35 @@ class EditableText extends TextNode implements PlatformEditorListener {
 
 	// s over the selection (an edit: undone as one); typed: a run of typing joins into one edit
 	function edit(s:String, typed:Bool) {
+		if (readOnly) return;
+		var a = selectionStart, b = selectionEnd;
+		// (what fits within maxLength)
+		if (maxLength >= 0 && text.length - (b - a) + s.length > maxLength) {
+			s = s.substr(0, Std.int(Math.max(0, maxLength - text.length + (b - a))));
+			if (s == "" && a == b) return;
+		}
 		if (!(typed && typing)) {
 			undos.push({text: text, caret: caret, anchor: anchor});
 			if (undos.length > 200) undos.shift();
 		}
 		redos.resize(0);
-		var a = selectionStart, b = selectionEnd;
 		var t = text.substr(0, a) + s + text.substr(b);
 		text = t;
 		caret = anchor = a + s.length;
 		// (a space or a line ends a run of typing)
 		typing = typed && s != " " && s != "\n";
 		changed();
+		edited(t);
+	}
+
+	// (each change by its user: onChange, onInput)
+	function edited(t:String) {
 		if (onChange != null) onChange(t);
+		var h = onInput;
+		if (h == null) return;
+		var e = Event.of(Input, this, 0, 0);
+		e.text = t;
+		h(e);
 	}
 
 	function replace(s:String)
@@ -356,7 +377,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		step(redos, undos);
 
 	function step(from:Array<{text:String, caret:Int, anchor:Int}>, to:Array<{text:String, caret:Int, anchor:Int}>) {
-		if (from.length == 0) return;
+		if (from.length == 0 || readOnly) return;
 		to.push({text: text, caret: caret, anchor: anchor});
 		var s = from.pop();
 		text = s.text;
@@ -364,7 +385,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		anchor = clampIndex(s.anchor);
 		typing = false;
 		changed();
-		if (onChange != null) onChange(text);
+		edited(text);
 	}
 
 	// (by grapheme clusters: a letter and its marks, an emoji sequence, a flag)
@@ -605,6 +626,12 @@ class EditableText extends TextNode implements PlatformEditorListener {
 
 	public function editorEdited(t:String, start:Int, end:Int) {
 		editorText = t;
+		// (read only: its text given back to the editor)
+		if (readOnly && t != text) {
+			editorText = null;
+			t = text;
+		}
+		var was = text;
 		if (t != text) {
 			undos.push({text: text, caret: caret, anchor: anchor});
 			if (undos.length > 200) undos.shift();
@@ -614,7 +641,7 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		anchor = clampIndex(start);
 		caret = clampIndex(end);
 		changed();
-		if (onChange != null) onChange(t);
+		if (t != was) edited(t) else if (onChange != null) onChange(t);
 	}
 
 	public function editorFocused(on:Bool) {

@@ -54,6 +54,8 @@ class Node implements Part {
 	public var onKeyDown(get, set):Null<Event->Void>;
 	public var onKeyUp(get, set):Null<Event->Void>;
 	public var onTextInput(get, set):Null<Event->Void>;
+	// a text field's text changed by its user (Event.text: its text; the DOM's input)
+	public var onInput(get, set):Null<Event->Void>;
 	// Overflow Scroll: its scrollX or scrollY changed (the wheel, a thumb, clamping)
 	public var onScroll(get, set):Null<Void->Void>;
 	public var onComposition(get, set):Null<Event->Void>;
@@ -378,6 +380,17 @@ class Node implements Part {
 			handlers = new Handlers();
 		}
 		return handlers.onTextInput = v;
+	}
+
+	inline function get_onInput():Null<Event->Void>
+		return handlers == null ? null : handlers.onInput;
+
+	function set_onInput(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onInput = v;
 	}
 
 	inline function get_onScroll():Null<Void->Void>
@@ -779,6 +792,9 @@ class Node implements Part {
 	// (a press's pointer: the pressed node's until released (Ui.capture), this one's now)
 	public function capture()
 		if (ui != null && ui.capture != null) @:privateAccess ui.capture = this;
+
+	// (a text field's: EditableText's)
+	public function select(start:Int, end:Int) {}
 
 	public function contains(p:Part):Bool {
 		var n:Null<Node> = Std.downcast(p, Node);
@@ -1192,6 +1208,7 @@ private class Handlers {
 	public var onKeyDown:Null<Event->Void> = null;
 	public var onKeyUp:Null<Event->Void> = null;
 	public var onTextInput:Null<Event->Void> = null;
+	public var onInput:Null<Event->Void> = null;
 	public var onScroll:Null<Void->Void> = null;
 	public var onComposition:Null<Event->Void> = null;
 	public var onFocus:Null<Event->Void> = null;

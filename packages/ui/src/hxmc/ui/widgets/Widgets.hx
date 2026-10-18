@@ -55,7 +55,6 @@ class Widgets implements Markup {
 	static final ARROW_DOWN = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>');
 	static final MORE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>');
 	static final PANEL_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>');
-	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
 	// main action), "destructive", "outline", "secondary", "ghost" or
@@ -2868,60 +2867,28 @@ class Widgets implements Markup {
 			"Left, Right, Home, End": "nothing: the caret stays at the end"
 		}
 	})
-	public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
+	@:neutral public static function InputOTP(props:{value:Signal<String>, length:Int, ?groups:Array<Int>, ?digits:Bool, ?onComplete:String->Void, ?label:String,
 			?disabled:Dynamic, ?tag:String}):View {
-		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false;
-		var groups = props.groups ?? [n];
+		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false, groups = props.groups ?? [n];
+		var disabled = () -> read(props.disabled) == true;
 		function allowed(s:String):String
 			return Behaviour.code(s, n, digits);
-		var f = new TextField(allowed(props.value.peek()));
-		f.tag = tag + "-input";
-		f.semantics.label = props.label ?? "One-time code";
-		// (drawn, never the platform's editor: the slots show its text)
-		f.host = Drawn;
-		// (drawing nothing: its text in the slots, its focus the active slot's; to assistive technology the field)
-		f.style.width = "100%";
-		f.style.height = "100%";
-		f.style.color = Color.TRANSPARENT;
-		f.style.outlineStyle = None;
-		f.caretColor = Color.TRANSPARENT;
-		f.selectionColor = Color.TRANSPARENT;
-		var focused = States.of(f).focused;
-		effect(() -> {
-			var v = allowed(props.value.value);
-			untrack(() -> {
-				f.setText(v);
-				f.select(v.length, v.length);
-			});
-		});
-		f.onChange = s -> {
-			var v = allowed(s), was = props.value.peek();
+		// (the field's text: as typed, then what is allowed; the slots show the value)
+		var shown = signal(allowed(props.value.peek())), focused = signal(false), field:Null<Part> = null;
+		effect(() -> shown.value = allowed(props.value.value));
+		function typed(e:Event) {
+			var v = allowed(e.text), was = props.value.peek();
+			shown.value = e.text;
+			shown.value = v;
 			props.value.value = v;
-			// (what was dropped: gone from the field too, the caret at the end)
-			f.setText(v);
-			f.select(v.length, v.length);
 			if (v.length == n && was.length < n && props.onComplete != null) props.onComplete(v);
-		};
-		// (the caret kept at the end: the keys that would move it taken, a click undone)
-		var keys = f.onKeyDown;
-		f.onKeyDown = e -> switch e.key {
-			case Key.LEFT | Key.RIGHT | Key.UP | Key.DOWN | Key.HOME | Key.END:
-				e.preventDefault();
-			case _:
-				keys(e);
-		};
-		var down = f.onPointerDown;
-		f.onPointerDown = e -> {
-			down(e);
-			f.select(f.text.length, f.text.length);
-		};
-		invalidAndDisabled(f, null, props.disabled);
+		}
 		var chars = () -> [for (c in new haxe.iterators.StringIteratorUnicode(props.value.value)) String.fromCharCode(c)];
 		var active = () -> focused.value ? Std.int(Math.min(chars().length, n - 1)) : -1;
-		var slots = [], k = 0;
+		var slots:Array<View> = [], k = 0;
 		for (g => size in groups) {
-			if (g > 0) slots.push(<view slot="input-otp-separator" role="separator"><image slot="input-otp-separator-icon" src={MINUS} hidden/></view>);
-			var cells = [];
+			if (g > 0) slots.push(<view slot="input-otp-separator" role="separator"><icon slot="input-otp-separator-icon" name="minus" hidden/></view>);
+			var cells:Array<View> = [];
 			for (_ in 0...size) {
 				var i = k++;
 				cells.push(<view tag={tag + "-slot-" + i} slot="input-otp-slot" data-active={() -> active() == i ? "true" : null} hidden>
@@ -2929,13 +2896,45 @@ class Widgets implements Markup {
 					<Show when={() -> active() == i && i >= chars().length}><view slot="input-otp-caret"/></Show>
 				</view>);
 			}
-			slots.push(<view slot="input-otp-group" direction="row" align-items="center">{cells}</view>);
+			slots.push(<view slot="input-otp-group">{cells}</view>);
 		}
-		return <view tag={tag} slot="input-otp" direction="row" align-items="center" data-disabled={() -> read(props.disabled) == true}>
+		// (unstyled: its slots in a row; a page's, its CSS)
+		#if !js
+		Rules.addBase("input-otp", [
+			for (s in ["input-otp", "input-otp-group"])
+				{slot: s, style: {direction: Row, alignItems: Center}}
+		]);
+		#end
+		// (the field over the slots, drawing nothing (drawn, never the platform's editor); its caret kept at the end)
+		return <view tag={tag} id={props.tag} slot="input-otp" position="relative" data-disabled={disabled}>
 			{slots}
-			<view position="absolute" left={0} top={0} right={0} bottom={0}>{f}</view>
+			<field tag={tag + "-input"} host="drawn" position="absolute" left={0} top={0} width="100%" height="100%" value={shown}
+				label={props.label ?? "One-time code"} autocomplete="one-time-code" inputmode={digits ? "numeric" : "text"} disabled={disabled}
+				ref={p -> unseen(field = p, disabled)} onInput={typed} onFocus={_ -> focused.value = true}
+				onBlur={_ -> focused.value = false} onClick={_ -> selectPart(field, shown.peek().length)} onKeyDown={e -> switch e.key {
+					case Key.LEFT | Key.RIGHT | Key.UP | Key.DOWN | Key.HOME | Key.END: e.preventDefault();
+					case _:
+				}}/>
 		</view>;
 	}
+
+	// (a field that draws nothing: its text, caret, selection and ring
+	// transparent; a page's, opacity 0 (ui's would take it from assistive
+	// technology); ui's out of the tab order and :disabled while disabled, as
+	// a page's <input>)
+	static function unseen(p:Part, disabled:Void->Bool)
+		#if js js.Syntax.code("{0}.element.style.opacity = '0'", p); #else {
+			var f:EditableText = cast p;
+			f.style.color = Color.TRANSPARENT;
+			f.style.outlineStyle = None;
+			f.caretColor = Color.TRANSPARENT;
+			f.selectionColor = Color.TRANSPARENT;
+			disables(f, disabled);
+		} #end
+
+	// (a field's caret at at, opaquely in a page as focusPart)
+	static function selectPart(p:Null<Part>, at:Int)
+		if (p != null) #if js js.Syntax.code("{0}.select({1}, {1})", p, at) #else p.select(at, at) #end;
 
 	// a collapsible (shadcn's): its label on a button (an arrow turning
 	// with it) that shows or hides the children under it, by a click, Enter
@@ -3085,77 +3084,68 @@ class Widgets implements Markup {
 			"Left, Right, Home, End, Backspace, Mod+A, Mod+C, Mod+X, Mod+V, Mod+Z": "edit the text, as an input's"
 		}
 	})
-	public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
+	@:neutral public static function NumberField(props:{value:Signal<Float>, ?min:Float, ?max:Float, ?step:Float, ?width:Float, ?format:Float->String,
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "number", step = props.step ?? 1.0, w = props.width ?? 120.0;
 		var min = props.min ?? Math.NEGATIVE_INFINITY, max = props.max ?? Math.POSITIVE_INFINITY;
 		var format = props.format ?? Behaviour.plain;
-		var editing = false;
-		var f = new TextField(format(props.value.peek()));
-		f.tag = tag;
-		f.semantics.role = hxmc.ui.access.Role.SpinButton;
-		f.semantics.label = props.label;
-		if (Math.isFinite(min)) f.semantics.valueMin = min;
-		if (Math.isFinite(max)) f.semantics.valueMax = max;
-		f.slot = "input";
-		f.style.set({grow: 1, minWidth: 0});
+		// (the field's text: as typed while editing, else the value formatted)
+		var editing = false, text = signal(format(props.value.peek()));
 		inline function clamp(v:Float):Float
 			return v < min ? min : v > max ? max : v;
 		effect(() -> {
 			var v = props.value.value;
-			f.semantics.valueNow = v;
-			f.semantics.valueText = format(v);
-			if (!editing) f.setText(format(v));
+			if (!editing) text.value = format(v);
 		});
 		function commit() {
 			editing = false;
 			var v = clamp(props.value.peek());
 			if (v != props.value.peek()) props.value.value = v;
-			f.setText(format(v));
+			text.value = format(v);
 		}
 		function stepBy(n:Float) {
 			editing = false;
 			var v = clamp(props.value.peek() + n * step);
-			if (v != props.value.peek()) props.value.value = v else f.setText(format(v));
+			if (v != props.value.peek()) props.value.value = v else text.value = format(v);
 		}
-		f.onChange = s -> {
-			var v = Std.parseFloat(StringTools.trim(s));
-			editing = true;
-			if (!Math.isNaN(v)) props.value.value = v;
-		};
-		f.onSubmit = _ -> commit();
-		// (after the field's own: its caret and composition)
-		var blur = f.onBlur;
-		f.onBlur = e -> {
-			if (blur != null) blur(e);
-			commit();
-		};
-		function arrow(label:String, glyph:String, n:Float):View
-			return <view tag={tag + (n > 0 ? "-up" : "-down")} slot={n > 0 ? "number-field-increment" : "number-field-decrement"} role="button" label={label}
-				grow={1} onClick={_ -> stepBy(n)}>{glyph}</view>;
-		return <view tag={tag + "-box"} slot="number-field" direction="row" align-items="stretch" width={w} onKeyDown={e -> switch e.key {
-				case Key.UP:
-					e.stop();
-					stepBy(1);
-				case Key.DOWN:
-					e.stop();
-					stepBy(-1);
-				case Key.PAGE_UP:
-					e.stop();
-					stepBy(10);
-				case Key.PAGE_DOWN:
-					e.stop();
-					stepBy(-10);
-				case _:
-			}}>
-			{f}
-			<view slot="number-field-steppers">
-				{arrow("Increase", "▲", 1)}
-				{arrow("Decrease", "▼", -1)}
-			</view>
+		function stepper(n:Float):View
+			return <view:button tag={tag + (n > 0 ? "-up" : "-down")} slot={n > 0 ? "number-field-increment" : "number-field-decrement"} role="button"
+				label={n > 0 ? "Increase" : "Decrease"} focusable={false} onClick={_ -> stepBy(n)}>{n > 0 ? "▲" : "▼"}</view:button>;
+		// (unstyled: in a row, the buttons sharing its height; a page's, its CSS)
+		#if !js
+		Rules.addBase("number-field", [
+			{slot: "number-field", style: {direction: Row, alignItems: Stretch}},
+			{slot: "number-field-increment", style: {grow: 1}},
+			{slot: "number-field-decrement", style: {grow: 1}}
+		]);
+		#end
+		return <view tag={tag + "-box"} id={props.tag == null ? null : props.tag + "-box"} slot="number-field" width={w}>
+			<field tag={tag} id={props.tag} slot="input" role="spinbutton" inputmode="decimal" value={text} label={props.label}
+				value-now={() -> props.value.value} value-text={() -> format(props.value.value)} value-min={Math.isFinite(min) ? min : null}
+				value-max={Math.isFinite(max) ? max : null} grow={1} min-width={0} onInput={e -> {
+					text.value = e.text;
+					editing = true;
+					var v = Std.parseFloat(StringTools.trim(e.text));
+					if (!Math.isNaN(v)) props.value.value = v;
+				}} onBlur={_ -> commit()} onKeyDown={e -> {
+					var by = switch e.key {
+						case Key.UP: 1;
+						case Key.DOWN: -1;
+						case Key.PAGE_UP: 10;
+						case Key.PAGE_DOWN: -10;
+						case _: 0;
+					}
+					if (e.key == Key.ENTER) commit();
+					if (by != 0) {
+						// (taken: not the caret's, nor a scroller's)
+						e.preventDefault();
+						e.stop();
+						stepBy(by);
+					}
+				}}/>
+			<view slot="number-field-steppers">{stepper(1)}{stepper(-1)}</view>
 		</view>;
 	}
-
 
 	// a textarea (shadcn's): a text area bound to a signal (two ways), rows
 	// lines high (3); a right click (or the menu key) opens its edit menu;
@@ -3182,40 +3172,51 @@ class Widgets implements Markup {
 			"Menu, Shift+F10": "opens its edit menu"
 		}
 	})
-	public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
+	@:neutral public static function Textarea(props:{value:Signal<String>, ?rows:Int, ?placeholder:String, ?label:String, ?invalid:Dynamic, ?disabled:Dynamic,
 			?style:States->StyleProps, ?tag:String}):View {
-		var f = new TextArea(props.value.peek());
-		if (props.tag != null) f.tag = props.tag;
-		f.slot = "textarea";
-		States.apply(f, props.style);
-		f.rows = props.rows ?? 3;
-		f.placeholder = props.placeholder ?? "";
-		f.semantics.label = props.label ?? props.placeholder;
-		f.onChange = s -> props.value.value = s;
-		effect(() -> f.setText(props.value.value));
-		invalidAndDisabled(f, props.invalid, props.disabled);
-		return editMenu(f, props.tag ?? "textarea");
+		var disabled = () -> read(props.disabled) == true;
+		return fieldOwn(<field:textarea tag={props.tag} id={props.tag} slot="textarea" states={props.style} rows={props.rows} value={props.value}
+			placeholder={props.placeholder} label={props.label ?? props.placeholder} aria-invalid={() -> read(props.invalid) == true ? "true" : null}
+			disabled={disabled} onInput={e -> props.value.value = e.text}/>, disabled, props.tag ?? "textarea");
 	}
 
-	// (an input's or a textarea's aria-invalid and disabled, following their props)
-	static function invalidAndDisabled(f:EditableText, invalid:Dynamic, disabled:Dynamic) {
-		effect(() -> f.setAttr("aria-invalid", read(invalid) == true ? "true" : null));
+	// (what a field has in ui that a page's <input> has itself: out of the tab
+	// order and the theme's disabled while disabled; an edit menu (menu: its
+	// tag's start): a context menu of cut, copy, paste and select all; f a
+	// literal of one field, or the field)
+	static function fieldOwn(f:Any, ?disabled:Void->Bool, ?menu:String):Any {
+		#if js
+		return f;
+		#else
+		var node:Null<EditableText> = Std.isOfType(f, EditableText) ? f : null;
+		var own:Any = node != null ? f : new View((r, parent, before, out) -> {
+			var top:Array<Dynamic> = [];
+			(f : View).mount(r, parent, before, top);
+			node = cast top[0];
+			if (disabled != null) disables(node, disabled);
+			if (out != null) for (t in top) out.push(t);
+		}, null, (f : View).source);
+		if (menu == null) return own;
+		function edit(e:EditableText->Void)
+			return () -> if (node != null) e(node);
+		return <ContextMenu tag={menu + "-menu"} label="Edit" items={[
+			{label: "Cut", onSelect: edit(n -> n.cut()), shortcut: "Mod+X"},
+			{label: "Copy", onSelect: edit(n -> n.copy()), shortcut: "Mod+C"},
+			{label: "Paste", onSelect: edit(n -> n.paste()), shortcut: "Mod+V"},
+			{label: "Select All", onSelect: edit(n -> n.selectAll()), shortcut: "Mod+A"}
+		]}>{own}</ContextMenu>;
+		#end
+	}
+
+	#if !js
+	// (a field out of the tab order and the theme's disabled while disabled)
+	static function disables(f:EditableText, disabled:Void->Bool)
 		effect(() -> {
-			var off = read(disabled) == true;
-			f.setAttr("disabled", off ? "" : null);
+			var off = disabled();
 			f.focusable = !off;
-			f.semantics.disabled = off;
+			f.setAttr("disabled", off ? "" : null);
 		});
-	}
-
-	// (a text field in a context menu of its edits: cut, copy, paste, select all)
-	static function editMenu(f:EditableText, tag:String):View
-		return <ContextMenu tag={tag + "-menu"} label="Edit" items={[
-			{label: "Cut", onSelect: () -> f.cut(), shortcut: "Mod+X"},
-			{label: "Copy", onSelect: () -> f.copy(), shortcut: "Mod+C"},
-			{label: "Paste", onSelect: () -> f.paste(), shortcut: "Mod+V"},
-			{label: "Select All", onSelect: () -> f.selectAll(), shortcut: "Mod+A"}
-		]}>{f}</ContextMenu>;
+	#end
 
 	// (an icon, lucide's, in a slot of its own (a theme's to size and colour;
 	// unstyled, 16 pixels), hidden from assistive technology; turned by
@@ -3247,6 +3248,7 @@ class Widgets implements Markup {
 			label: "its name for assistive technology (the placeholder)",
 			onSubmit: "called with its text on Enter",
 			password: "true: its text shown as dots, not copied or cut",
+			type: "its kind, as an <input>'s: text (the default), email, search, url, tel... (password: as password does); a page's keyboard and autofill, the text the same",
 			invalid: "a Bool, a signal or a function of one: aria-invalid, for the theme",
 			disabled: "a Bool, a signal or a function of one: not focusable or edited"
 		},
@@ -3262,25 +3264,18 @@ class Widgets implements Markup {
 			"Menu, Shift+F10": "opens its edit menu"
 		}
 	})
-	public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
-		return textInput(props, "input");
+	@:neutral public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+			?type:String, ?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
+		return textInput(props, "input", props.type);
 
 	// (an Input's field, its slot "input", or "input-group-control" in an InputGroup)
-	static function textInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}, slot:String):View {
-		var f = new TextField(props.value.peek());
-		if (props.tag != null) f.tag = props.tag;
-		f.slot = slot;
-		States.apply(f, props.style);
-		if (props.password == true) f.secret = true;
-		f.placeholder = props.placeholder ?? "";
-		f.semantics.label = props.label ?? props.placeholder;
-		f.onChange = s -> props.value.value = s;
-		f.onSubmit = props.onSubmit;
-		effect(() -> f.setText(props.value.value));
-		invalidAndDisabled(f, props.invalid, props.disabled);
-		return editMenu(f, props.tag ?? "input");
+	@:neutral static function textInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}, slot:String, ?type:String):View {
+		var disabled = () -> read(props.disabled) == true, submit = props.onSubmit;
+		return fieldOwn(<field tag={props.tag} id={props.tag} slot={slot} states={props.style} type={props.password == true ? "password" : type}
+			value={props.value} placeholder={props.placeholder} label={props.label ?? props.placeholder}
+			aria-invalid={() -> read(props.invalid) == true ? "true" : null} disabled={disabled} onInput={e -> props.value.value = e.text}
+			onKeyDown={submit == null ? null : (e:Event) -> if (e.key == Key.ENTER) submit(props.value.peek())}/>, disabled, props.tag ?? "input");
 	}
 
 	// a tag input: tags as chips before a text field in one box; Enter or a
@@ -3336,7 +3331,7 @@ class Widgets implements Markup {
 					<view tag={tag + "-" + v + "-remove"} slot="tag-input-remove" role="button" label={"Remove " + v} onClick={_ -> remove(v)}>×</view>
 				</view>}/>
 			</view>
-			<view slot="tag-input-entry" grow={1}>{editMenu(f, tag)}</view>
+			<view slot="tag-input-entry" grow={1}>{fieldOwn(f, null, tag)}</view>
 		</view>;
 	}
 
@@ -3546,7 +3541,7 @@ class Widgets implements Markup {
 		},
 		part: "InputGroup"
 	})
-	public static function InputGroupInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+	@:neutral public static function InputGroupInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
 			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
 		return textInput(props, "input-group-control");
 

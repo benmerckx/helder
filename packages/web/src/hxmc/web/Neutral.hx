@@ -74,6 +74,22 @@ class Neutral {
 		else attr(el, "aria-disabled", on ? "true" : null);
 	}
 
+	// a field's value, the property (the caret kept while it is the same: as typed)
+	public static function value(el:Dynamic, name:String, v:Dynamic) {
+		var s = v == null ? "" : Std.string(v);
+		if (el.value != s) el.value = s;
+	}
+
+	// a field's text changed (the DOM's input, an input method's too): ui's Event, its text the field's
+	public static function input(el:Dynamic, h:Dynamic) {
+		if (h == null) return;
+		el.addEventListener("input", (e:js.html.Event) -> {
+			var ev = new NeutralEvent(Input, 0, 0, el);
+			ev.text = el.value;
+			(h : Dynamic->Void)(ev);
+		});
+	}
+
 	// a handler of ui's Event for a DOM event
 	public static function on(el:Dynamic, dom:String, h:Dynamic, type:EventType) {
 		if (h == null) return;
