@@ -45,7 +45,6 @@ class Widgets implements Markup {
 	static final CIRCLE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>');
 	static final CHEVRON = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>');
 	static final X = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>');
-	static final LOADER = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>');
 	static final SEARCH = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>');
 	static final CHEVRON_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>');
 	static final CHEVRON_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>');
@@ -53,7 +52,6 @@ class Widgets implements Markup {
 	static final ARROW_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>');
 	static final ARROW_UP = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>');
 	static final ARROW_DOWN = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>');
-	static final PANEL_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
 	// main action), "destructive", "outline", "secondary", "ghost" or
@@ -1291,7 +1289,8 @@ class Widgets implements Markup {
 			width: "the button's width, and the list's least (else its content's)",
 			placeholder: "what the button shows while the value is none of the options",
 			size: "\"default\" or \"sm\" (data-size)",
-			label: "its name for assistive technology"
+			label: "its name for assistive technology",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
 		},
 		keys: {
 			"Enter, Space": "on the button, open the options, the chosen one focused; on an option, choose it and close them",
@@ -1302,16 +1301,16 @@ class Widgets implements Markup {
 		}
 	})
 	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
-			?label:String, ?style:States->StyleProps, ?tag:String}):View
+			?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
 		return select(props, false);
 
 	// (Select's and NativeSelect's: native, the trigger shadcn's native-select, its icon native-select-icon;
 	// unstyled, 160 wide)
 	static function select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
-			?label:String, ?style:States->StyleProps, ?tag:String}, native:Bool):View {
+			?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}, native:Bool):View {
 		Rules.addBase("select", [{slot: "select-trigger", style: {width: 160}}, {slot: "native-select", style: {width: 160}}]);
 		var tag = props.tag ?? "select", w = props.width;
-		var open = signal(false);
+		var open = signal(false), disabled = () -> read(props.disabled) == true;
 		var items:Array<Node> = [];
 		var labelOf = (v:String) -> {
 			var i = props.options.indexOf(v);
@@ -1344,8 +1343,9 @@ class Widgets implements Markup {
 			self = n;
 			States.apply(n, props.style);
 		}} role="combobox" label={props.label} expanded={() -> open.value}
-			data-state={() -> open.value ? "open" : "closed"} focusable width={w} onClick={_ -> if (open.peek()) open.value = false else show()}
-			onKeyDown={e -> switch e.key {
+			data-state={() -> open.value ? "open" : "closed"} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} width={w}
+			onClick={_ -> if (open.peek()) open.value = false else if (!disabled()) show()}
+			onKeyDown={e -> if (!disabled()) switch e.key {
 				case Key.ENTER | Key.SPACE:
 					show();
 					e.stop();
@@ -2583,16 +2583,18 @@ class Widgets implements Markup {
 	// there is none. Slots "avatar", "avatar-image" and "avatar-fallback"
 	@:widget({
 		props: {
-			src: "its image (an Image or an Svg), a signal or a function of one; null: the fallback",
+			src: "its image (an Image or an Svg; a page's: its URL), a signal or a function of one; null: the fallback",
 			fallback: "the text shown while there is no image: initials",
-			label: "its name for assistive technology (the fallback)"
+			label: "its name for assistive technology (the fallback)",
+			size: "\"default\", \"sm\" or \"lg\" (data-size)"
 		}
 	})
-	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?tag:String}):View {
-		return <view tag={props.tag ?? "avatar"} slot="avatar" role="img" label={props.label ?? props.fallback} overflow="hidden">
-			{() -> read(props.src) == null ? <view slot="avatar-fallback" hidden><text>{props.fallback}</text></view> : <image slot="avatar-image"
+	@:neutral public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?size:String, ?tag:String}):View {
+		return <view:span tag={props.tag ?? "avatar"} id={props.tag} slot="avatar" size={props.size ?? "default"} role="img" label={props.label ?? props.fallback}
+			overflow="hidden">
+			{() -> read(props.src) == null ? <view:span slot="avatar-fallback" hidden><text>{props.fallback}</text></view:span> : <image slot="avatar-image"
 				src={props.src} fit="cover" width="100%" height="100%" hidden/>}
-		</view>;
+		</view:span>;
 	}
 
 	// a key or keys as typed (shadcn's Kbd: slot "kbd"), e.g. "⌘K" or a Shortcut's label
@@ -2614,7 +2616,9 @@ class Widgets implements Markup {
 			label: "its name for assistive technology (Loading)"
 		}
 	})
-	public static function Spinner(props:{?label:String, ?tag:String}):View {
+	@:neutral public static function Spinner(props:{?label:String, ?tag:String}):View {
+		// (ui's turned on the Clock; a page's by its theme's animate-spin, a CSS animation)
+		#if !js
 		var turn = signal(0.0), stopped = false;
 		Clock.add(now -> {
 			if (stopped) return false;
@@ -2622,9 +2626,9 @@ class Widgets implements Markup {
 			return true;
 		});
 		onCleanup(() -> stopped = true);
-		return <view tag={props.tag ?? "spinner"} slot="spinner" role="progressbar" label={props.label ?? "Loading"}>
-			<image src={LOADER} width="100%" height="100%" transform={() -> "rotate(" + turn.value + "deg)"}/>
-		</view>;
+		#end
+		return <icon tag={props.tag ?? "spinner"} id={props.tag} slot="spinner" name="loader" role={#if js "status" #else "progressbar" #end}
+			label={props.label ?? "Loading"} transform={#if js null #else () -> "rotate(" + turn.value + "deg)" #end}/>;
 	}
 
 	// a combobox: a text field bound to value (two ways) whose typing
@@ -2997,12 +3001,12 @@ class Widgets implements Markup {
 			"Home, End": "to the first or last trigger"
 		}
 	})
-	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
+	@:neutral public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
 		var open = props.open ?? signal(-1), tag = props.tag ?? "accordion", count = props.sections.length;
+		var triggers:Array<Part> = [];
 		// (Up and Down between the triggers, wrapping; Home and End to the first and last)
-		function key(e:Event) {
-			var ts = [for (i in 0...count) e.current.find(tag + "-" + i + "-summary")], i = ts.indexOf(e.target);
-			var j = i < 0 ? -1 : switch e.key {
+		function key(e:Event, i:Int) {
+			var j = switch e.key {
 				case Key.DOWN: (i + 1) % count;
 				case Key.UP: (i + count - 1) % count;
 				case Key.HOME: 0;
@@ -3011,29 +3015,29 @@ class Widgets implements Markup {
 			}
 			if (j < 0) return;
 			e.preventDefault();
-			focusIn(ts, j);
+			focusPart(triggers, j);
 		}
-		return <view tag={tag} slot="accordion" onKeyDown={key}>{[
-			for (i in 0...props.sections.length) {
+		// (its trigger and content naming each other where it has an id; the chevron turned by ui, a page's by its theme's rule)
+		inline function id(i:Int, part:String):Null<String>
+			return props.tag == null ? null : props.tag + "-" + part + i;
+		return <view tag={tag} id={props.tag} slot="accordion" data-orientation="vertical">{[
+			for (i in 0...count) {
 				var s = props.sections[i], state = () -> open.value == i ? "open" : "closed";
-				<view tag={tag + "-" + i} slot="accordion-item" data-state={state}>
-					{trigger(tag + "-" + i + "-summary", "accordion-trigger", state, () -> open.value = open.peek() == i ? -1 : i, [
-						<text grow={1}>{s.label}</text>,
-						<image slot="accordion-trigger-icon" src={CHEVRON} hidden transform={() -> open.value == i ? "rotate(180deg)" : "none"}/>
-					])}
-					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} slot="accordion-content" data-state="open">{s.render()}</view></Show>
+				<view tag={tag + "-" + i} slot="accordion-item" data-state={state} data-orientation="vertical">
+					<view:h3 role="heading" level={3} data-orientation="vertical" data-state={state} direction="row">
+						<view:button tag={tag + "-" + i + "-summary"} id={id(i, "t")} slot="accordion-trigger" role="button" focusable direction="row" expanded={() -> open.value == i}
+							aria-controls={id(i, "c")} data-state={state} data-orientation="vertical" ref={p -> triggers[i] = p}
+							onPress={_ -> open.value = open.peek() == i ? -1 : i} onKeyDown={e -> key(e, i)}>
+							<text grow={1}>{s.label}</text>
+							<icon slot="accordion-trigger-icon" name="chevron-down" hidden transform={#if js null #else () -> open.value == i ? "rotate(180deg)" : "none" #end}/>
+						</view:button>
+					</view:h3>
+					<Show when={() -> open.value == i}><view tag={tag + "-" + i + "-content"} id={id(i, "c")} role={#if js "region" #else null #end}
+						aria-labelledby={id(i, "t")} slot="accordion-content" data-state="open" data-orientation="vertical">{s.render()}</view></Show>
 				</view>;
 			}
 		]}</view>;
 	}
-
-	// (a collapsible's or an accordion's button: expanded, data-state)
-	static function trigger(tag:String, slot:String, state:Void->String, flip:Void->Void, children:Array<Any>):View
-		return <view tag={tag} slot={slot} role="button" expanded={() -> state() == "open"} data-state={state} focusable onClick={_ -> flip()}
-			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
-				e.preventDefault();
-				flip();
-			}}>{children}</view>;
 
 	// where Toasts.show's toasts are shown: in a corner of the window
 	// (placement: "bottom-right", "bottom-left", "top-right", "top-left"),
@@ -3243,7 +3247,7 @@ class Widgets implements Markup {
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["tree-toggle-icon", "sidebar-trigger-icon",
+			for (s in ["tree-toggle-icon",
 				"navigation-menu-trigger-icon", "carousel-icon"])
 				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
@@ -3759,11 +3763,14 @@ class Widgets implements Markup {
 			children: "what scrolls"
 		}
 	})
-	public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
+	@:neutral public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
 		var o = props.orientation ?? "vertical";
-		return <view tag={props.tag ?? "scroll-area"} slot="scroll-area" height={props.height} width={props.width} position="relative">
-			<scroll tag={(props.tag ?? "scroll-area") + "-viewport"} slot="scroll-area-viewport" data-orientation={o} label={props.label} grow={1}
-				min-height={0} direction={o == "horizontal" ? "row" : "column"}>{props.children}</scroll>
+		// (a page's viewport a Tab stop, a region when named, as the DOM's; ui's scrolled by the keys where the focus or the pointer is, a scroll view)
+		var stop = #if js true #else false #end, region = #if js props.label == null ? null : "region" #else null #end;
+		return <view tag={props.tag ?? "scroll-area"} id={props.tag} slot="scroll-area" height={props.height} width={props.width} position="relative">
+			<scroll tag={(props.tag ?? "scroll-area") + "-viewport"} slot="scroll-area-viewport" data-orientation={o} role={region} label={props.label}
+				focusable={stop} overflow-x={o == "vertical" ? "hidden" : "scroll"} overflow-y={o == "horizontal" ? "hidden" : "scroll"} grow={1} min-height={0}
+				direction={o == "horizontal" ? "row" : "column"}>{props.children}</scroll>
 		</view>;
 	}
 
@@ -3779,7 +3786,8 @@ class Widgets implements Markup {
 			labels: "what each option shows (else the option itself)",
 			width: "the button's width (else its content's)",
 			size: "\"default\" or \"sm\" (data-size)",
-			label: "its name for assistive technology"
+			label: "its name for assistive technology",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
 		},
 		keys: {
 			"Enter, Space": "opens the options (the platform's menu, else the drawn list)",
@@ -3787,10 +3795,10 @@ class Widgets implements Markup {
 		}
 	})
 	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String,
-			?label:String, ?tag:String}):View
+			?label:String, ?disabled:Dynamic, ?tag:String}):View
 		return <view host="native" slot="native-select-wrapper" position="relative">{
 			select({tag: props.tag ?? "native-select", value: props.value, options: props.options, labels: props.labels, width: props.width, size: props.size,
-				label: props.label}, true)
+				label: props.label, disabled: props.disabled}, true)
 		}</view>;
 
 	// --- charts (shadcn's Chart: its look, recharts' kinds) ---
@@ -4118,8 +4126,8 @@ class Widgets implements Markup {
 
 	// --- shadcn's Sidebar ---
 
-	// (the open sidebar's signal, for its trigger and parts: SidebarProvider's)
-	static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
+	// (the open sidebar's signal, for its trigger and parts: SidebarProvider's, ui's and a page's)
+	public static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
 
 	// a sidebar's layout (shadcn's SidebarProvider): open, a signal (its own
 	// when not given), shared with the Sidebar, SidebarTrigger and the parts
@@ -4186,11 +4194,11 @@ class Widgets implements Markup {
 		},
 		part: "SidebarProvider"
 	})
-	public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
+	@:neutral public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
 		var open = use(SIDEBAR);
-		var toggle = () -> if (open != null) open.value = !open.peek();
-		return <view tag={props.tag ?? "sidebar-trigger"} slot="sidebar-trigger" variant="ghost" size="icon" role="button" label={props.label ?? "Toggle Sidebar"}
-			focusable expanded={() -> open != null && open.value} onClick={_ -> toggle()} onKeyDown={e -> pressKeys(e, toggle)}>{icon(PANEL_LEFT, "sidebar-trigger-icon")}</view>;
+		return <view:button tag={props.tag ?? "sidebar-trigger"} id={props.tag} slot="sidebar-trigger" data-sidebar="trigger" variant="ghost" size="icon"
+			role="button" label={props.label ?? "Toggle Sidebar"} focusable expanded={() -> open != null && open.value}
+			onPress={_ -> if (open != null) open.value = !open.peek()}><icon slot="sidebar-trigger-icon" name="panel-left" width={16} height={16} hidden/></view:button>;
 	}
 
 	@:widget({props: {children: "the page beside the sidebar"}, part: "SidebarProvider"})

@@ -15,6 +15,7 @@ import hxmc.ui.widgets.Toasts.Toast;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Calendar;
 import hxmc.ui.widgets.Widgets.Input;
+import hxmc.ui.widgets.Widgets.SIDEBAR;
 import hxmc.view.*;
 import hxmc.view.Flow.*;
 import hxmc.view.Reactive.*;
@@ -51,22 +52,6 @@ class Widgets implements Markup {
 	static function on(v:Dynamic):Bool
 		return read(v) == true;
 
-	// a spinner (shadcn's): a loading circle turning (the theme's animate-spin)
-	public static function Spinner(props:{?label:String, ?tag:String}):Any {
-		var svg = icon("loader", "spinner");
-		svg.setAttribute("role", "status");
-		svg.setAttribute("aria-label", props.label ?? "Loading");
-		svg.removeAttribute("aria-hidden");
-		if (props.tag != null) svg.id = props.tag;
-		return svg;
-	}
-
-	// an avatar (shadcn's): an image, else its fallback (initials)
-	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?size:String, ?tag:String}):View
-		return <span id={props.tag} data-slot="avatar" data-size={props.size ?? "default"} role="img" aria-label={props.label ?? props.fallback}>
-			{() -> read(props.src) == null ? <span data-slot="avatar-fallback">{props.fallback}</span> : <img data-slot="avatar-image" src={read(props.src)} alt=""/>}
-		</span>;
-
 	// (a key event's key, mirrored where its element is right to left)
 	static function keyOf(e:KeyboardEvent):Int
 		return Behaviour.mirror(Dom.key(e), Dom.rtl(cast e.currentTarget));
@@ -80,26 +65,6 @@ class Widgets implements Markup {
 		svg.setAttribute("width", "16");
 		svg.setAttribute("height", "16");
 		return svg;
-	}
-
-	// an accordion (shadcn's, Radix's): sections, at most one open (open: its index, -1 none)
-	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
-		var open = props.open ?? signal(-1), base = props.tag ?? Dom.id();
-		return <div id={props.tag} data-slot="accordion" data-orientation="vertical">{[
-			for (i in 0...props.sections.length) {
-				var s = props.sections[i], state = () -> open.value == i ? "open" : "closed";
-				<div data-slot="accordion-item" data-state={state} data-orientation="vertical">
-					<h3 data-orientation="vertical" data-state={state} style="display:flex">
-						<button type="button" id={base + "-t" + i} aria-controls={base + "-c" + i} aria-expanded={() -> open.value == i ? "true" : "false"} data-state={state}
-							data-orientation="vertical" data-slot="accordion-trigger" onClick={() -> open.value = open.peek() == i ? -1 : i}>
-							{s.label}{icon("chevron-down", "accordion-trigger-icon")}
-						</button>
-					</h3>
-					<Show when={() -> open.value == i}><div id={base + "-c" + i} role="region" aria-labelledby={base + "-t" + i} data-slot="accordion-content"
-						data-state="open" data-orientation="vertical">{s.render()}</div></Show>
-				</div>;
-			}
-		]}</div>;
 	}
 
 	// (the shortcuts of items working from anywhere in the page while mounted (within: only while the focus is in it))
@@ -337,8 +302,8 @@ class Widgets implements Markup {
 	// Enter or Space chooses, Escape, Tab or a click outside closes; on the
 	// closed button Up and Down choose the previous or next option, letters
 	// typed the option they start
-	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
-			?placeholder:String, ?tag:String}):View {
+	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?label:String,
+			?placeholder:String, ?disabled:Dynamic, ?tag:String}):View {
 		var open = signal(false), trigger:Element = null, items:Array<Element> = [], typed = new TypeAhead();
 		var shown = [for (i in 0...props.options.length) props.labels != null ? props.labels[i] : props.options[i]];
 		var labelOf = (v:String) -> {
@@ -387,7 +352,7 @@ class Widgets implements Markup {
 				focusIn(items, i < 0 ? 0 : i);
 			}
 		});
-		return <button type="button" id={props.tag} role="combobox" data-slot="select-trigger" data-size="default" ref={n -> trigger = cast n}
+		return <button type="button" id={props.tag} role="combobox" data-slot="select-trigger" data-size={props.size ?? "default"} disabled={() -> on(props.disabled)} ref={n -> trigger = cast n}
 			aria-label={props.label} aria-expanded={() -> open.value ? "true" : "false"} aria-autocomplete="none" data-state={() -> open.value ? "open" : "closed"}
 			data-placeholder={() -> props.options.indexOf(props.value.value) < 0 ? "" : null} style={props.width == null ? null : 'width:${props.width}px'}
 			onClick={() -> open.value = !open.peek()} onKeyDown={(e:KeyboardEvent) -> {
@@ -523,7 +488,7 @@ class Widgets implements Markup {
 	// action buttons (the cancel focused first); Cancel or Escape closes it
 	// (onCancel), the action closes it and runs onAction; a click outside does nothing
 	public static function AlertDialog(props:{open:Signal<Bool>, title:String, ?description:String, ?cancel:String, ?action:String,
-			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):View {
+			?variant:String, ?size:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):View {
 		var base = props.tag ?? Dom.id();
 		function cancel() {
 			props.open.value = false;
@@ -535,7 +500,7 @@ class Widgets implements Markup {
 		}
 		Dom.modal(() -> props.open.value, () -> View.view(<>
 			<div data-slot="alert-dialog-overlay" data-state="open"/>
-			<div role="alertdialog" id={base} data-slot="alert-dialog-content" data-state="open" data-size="default" aria-labelledby={base + "-t"}
+			<div role="alertdialog" id={base} data-slot="alert-dialog-content" data-state="open" data-size={props.size ?? "default"} aria-labelledby={base + "-t"}
 				aria-describedby={props.description == null ? null : base + "-d"} tabindex="-1" style={props.width == null ? null : 'max-width:${props.width}px'}>
 				<div data-slot="alert-dialog-header">
 					<h2 id={base + "-t"} data-slot="alert-dialog-title">{props.title}</h2>
@@ -1294,21 +1259,9 @@ class Widgets implements Markup {
 	public static function InputGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <span id={props.tag} data-slot="input-group-text">{props.children ?? props.text}</span>;
 
-	// a scrolled area (shadcn's ScrollArea): its children in a viewport
-	// scrolled vertically (the default), horizontally or both; the theme's
-	// scrollbars (thin, on hover, as Radix's)
-	public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
-		var o = props.orientation ?? "vertical";
-		var overflow = o == "horizontal" ? "overflow-x:auto;overflow-y:hidden" : o == "both" ? "overflow:auto" : "overflow-x:hidden;overflow-y:auto";
-		return <div id={props.tag} data-slot="scroll-area" style={(props.width == null ? "" : 'width:${props.width}px;') + (props.height == null ? "" : 'height:${props.height}px')}>
-			<div data-slot="scroll-area-viewport" data-orientation={o} role={props.label == null ? null : "region"} aria-label={props.label} tabindex="0"
-				style={overflow}>{props.children}</div>
-		</div>;
-	}
-
 	// a select the platform's own (shadcn's NativeSelect: a <select>, its
 	// options the browser's menu), bound to a signal
-	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
+	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?label:String,
 			?disabled:Dynamic, ?tag:String}):View {
 		var self:Null<js.html.SelectElement> = null;
 		effect(() -> {
@@ -1316,7 +1269,7 @@ class Widgets implements Markup {
 			if (self != null) self.value = v;
 		});
 		return <div data-slot="native-select-wrapper">
-			<select id={props.tag} data-slot="native-select" data-size="default" aria-label={props.label} disabled={() -> on(props.disabled)}
+			<select id={props.tag} data-slot="native-select" data-size={props.size ?? "default"} aria-label={props.label} disabled={() -> on(props.disabled)}
 				style={props.width == null ? null : 'width:${props.width}px'} ref={n -> {
 					self = cast n;
 					self.value = props.value.peek();
@@ -1439,9 +1392,6 @@ class Widgets implements Markup {
 
 	// --- shadcn's Sidebar ---
 
-	// (the open sidebar's signal: SidebarProvider's)
-	static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
-
 	// a sidebar's layout (shadcn's SidebarProvider): open shared with its
 	// Sidebar and SidebarTrigger; Mod+B toggles it from anywhere
 	public static function SidebarProvider(props:{?open:Signal<Bool>, ?children:Any, ?tag:String}):View {
@@ -1474,16 +1424,24 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// the button that toggles the sidebar (a ghost icon button)
-	public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
-		var open = use(SIDEBAR);
-		return <button type="button" id={props.tag} data-slot="sidebar-trigger" data-sidebar="trigger" aria-label={props.label ?? "Toggle Sidebar"}
-			aria-expanded={() -> open != null && open.value ? "true" : "false"} onClick={() -> if (open != null) open.value = !open.peek()}>{icon("panel-left")}</button>;
-	}
-
 	// --- charts (shadcn's Chart's look, recharts' kinds) ---
 
 	// (a scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten)
+	// (a chart's scale's top: max, else the greatest value (stacked: the greatest sum) rounded up)
+	static function chartTop(series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, n:Int, max:Null<Float>, stacked:Bool):Float {
+		if (max != null) return max;
+		var most = 0.0;
+		for (i in 0...n) {
+			var sum = 0.0;
+			for (s in series) {
+				var v = Math.max(0, s.values[i]);
+				if (stacked) sum += v else most = Math.max(most, v);
+			}
+			most = Math.max(most, sum);
+		}
+		return niceMax(most);
+	}
+
 	static function niceMax(v:Float):Float {
 		if (!(v > 0)) return 1;
 		var p = Math.pow(10, Math.floor(Math.log(v) / Math.log(10)));
@@ -1547,19 +1505,19 @@ class Widgets implements Markup {
 	// a bar chart: categories along the x axis, a bar per series in each on
 	// a scale from 0 to a round top; the pointer over a category shows its values
 	public static function BarChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}):View {
 		var w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1), series = props.series;
-		var top = props.max ?? niceMax(Lambda.fold(series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var stacked = props.stacked == true, top = chartTop(series, n, props.max, stacked);
 		var format = props.format ?? Behaviour.plain, slot = n == 0 ? 0.0 : w / n;
-		var barW = series.length == 0 ? 0.0 : slot * 0.7 / series.length;
+		var barW = series.length == 0 ? 0.0 : stacked ? slot * 0.6 : slot * 0.7 / series.length;
+		var bar = (i:Int, k:Int) -> <div data-slot="chart-bar" data-series={Std.string(k % 5 + 1)} data-active={() -> hover.value == i ? "true" : null}
+			style={'width:${barW}px;height:${Math.max(0, Math.min(1, series[k].values[i] / top)) * h}px' + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>;
 		var plot = <div style={'position:absolute;left:0;top:0;width:${w}px;height:${h}px;display:flex'}>{[
 			for (i in 0...n)
 				<div role="group" aria-label={props.labels[i] + ": " + [for (s in series) s.name + " " + format(s.values[i])].join(", ")}
-					style={'width:${slot}px;height:${h}px;display:flex;justify-content:center;align-items:flex-end'}>{[
-					for (k in 0...series.length)
-						<div data-slot="chart-bar" data-series={Std.string(k % 5 + 1)} data-active={() -> hover.value == i ? "true" : null}
-							style={'width:${barW}px;height:${Math.max(0, Math.min(1, series[k].values[i] / top)) * h}px' + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>
-				]}</div>
+					style={'width:${slot}px;height:${h}px;display:flex;justify-content:center;align-items:flex-end'}>
+					{stacked ? <div style="display:flex;flex-direction:column-reverse">{[for (k in 0...series.length) bar(i, k)]}</div> : [for (k in 0...series.length) bar(i, k)]}
+				</div>
 		]}</div>;
 		return chartFrame(props.tag, props.labels, series, w, h, top, plot, hover, props.label, format);
 	}
@@ -1567,21 +1525,27 @@ class Widgets implements Markup {
 	// a line chart: a line per series through its values, on BarChart's
 	// scale and frame; a dot on each line at the category under the pointer
 	public static function LineChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}):View
 		return seriesChart(props, false);
 
 	// an area chart: LineChart's lines, each filled faintly down to the axis
 	public static function AreaChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}):View
 		return seriesChart(props, true);
 
 	// (LineChart's and AreaChart's: a line per series, filled under it for an area)
 	static function seriesChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}, area:Bool):View {
+			?height:Float, ?max:Float, ?stacked:Bool, ?format:Float->String, ?label:String, ?tag:String}, area:Bool):View {
 		var w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1), series = props.series;
-		var top = props.max ?? niceMax(Lambda.fold(series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var stacked = props.stacked == true, top = chartTop(series, n, props.max, stacked);
 		var format = props.format ?? Behaviour.plain, slot = n == 0 ? 0.0 : w / n;
 		var px = (i:Int) -> (i + 0.5) * slot, py = (v:Float) -> h - Math.max(0, Math.min(1, v / top)) * h;
+		// (each series' line at its values, stacked: on the sums before it)
+		var base = [for (i in 0...n) 0.0], at = [];
+		for (k in 0...series.length) {
+			at.push([for (i in 0...n) (stacked ? base[i] : 0) + series[k].values[i]]);
+			if (stacked) base = at[k];
+		}
 		var plot = <div style={'position:absolute;left:0;top:0;width:${w}px;height:${h}px'}>{[
 			for (k in 0...series.length) {
 				var svg = document.createElementNS(hxmc.web.Html.SVG_NS, "svg");
@@ -1589,12 +1553,15 @@ class Widgets implements Markup {
 					["aria-hidden", "true"], ["style", "position:absolute;left:0;top:0" + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "color"))]])
 					svg.setAttribute(a[0], a[1]);
 				var path = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
-				var d = [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(series[k].values[i]) * 100) / 100].join(" ");
+				var d = [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(at[k][i]) * 100) / 100].join(" ");
 				path.setAttribute("d", d);
-				// (an area's: the line's points closed along the axis, filled faintly)
+				// (an area's: the line's points closed along the axis, or back along the line under it
+				// stacked, filled faintly)
 				if (area && n > 0) {
 					var under = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
-					under.setAttribute("d", 'M${Math.fround(px(0) * 100) / 100} $h ${d.substr(1)} L${Math.fround(px(n - 1) * 100) / 100} $h Z');
+					var back = stacked && k > 0 ? [for (j in 0...n) {var i = n - 1 - j; "L" + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(at[k - 1][i]) * 100) / 100;}].join(" ")
+						: 'L${Math.fround(px(n - 1) * 100) / 100} $h L${Math.fround(px(0) * 100) / 100} $h';
+					under.setAttribute("d", '$d $back Z');
 					under.setAttribute("fill", "currentColor");
 					under.setAttribute("fill-opacity", "0.4");
 					svg.appendChild(under);
@@ -1605,7 +1572,7 @@ class Widgets implements Markup {
 				[
 					(svg : Any),
 					<Show when={() -> hover.value >= 0}>{() -> <div data-slot="chart-dot" data-series={Std.string(k % 5 + 1)}
-						style={'position:absolute;width:8px;height:8px;border-radius:4px;left:${px(hover.value) - 4}px;top:${py(series[k].values[hover.value]) - 4}px'
+						style={'position:absolute;width:8px;height:8px;border-radius:4px;left:${px(hover.value) - 4}px;top:${py(at[k][hover.value]) - 4}px'
 							+ (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>}</Show>
 				];
 			}

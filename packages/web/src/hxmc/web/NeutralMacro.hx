@@ -5,7 +5,7 @@ import haxe.macro.Context;
 #end
 import haxe.macro.Expr;
 
-// The neutral elements (hxmc.ui's view, text, scroll; view:button,
+// The neutral elements (hxmc.ui's view, text, scroll, image; view:button,
 // text:p...: docs/plans/native-or-drawn.md, single-source widgets) as the
 // DOM's, for DomRenderer, all at compile time: each element its DOM
 // element, each attribute what it is in a page (slot, variant and size as
@@ -19,7 +19,7 @@ class NeutralMacro {
 	// (the neutral elements' DOM elements: view's and text's own, and the names their view: and text: forms take)
 	static final VIEWS = [
 		"div", "span", "button", "label", "a", "nav", "ul", "ol", "li", "section", "header", "footer", "aside", "main", "form", "fieldset", "legend",
-		"table", "thead", "tbody", "tr", "th", "td", "hr", "dialog"
+		"table", "thead", "tbody", "tr", "th", "td", "hr", "dialog", "h3"
 	];
 	static final TEXTS = ["span", "p", "h1", "h2", "h3", "h4", "h5", "h6", "label", "kbd", "strong", "em", "small", "code", "legend", "div"];
 
@@ -44,13 +44,14 @@ class NeutralMacro {
 		"max-width" => {prop: "max-width", px: true}, "min-height" => {prop: "min-height", px: true}, "max-height" => {prop: "max-height", px: true},
 		"position" => {prop: "position", px: false}, "top" => {prop: "top", px: true}, "left" => {prop: "left", px: true},
 		"right" => {prop: "right", px: true}, "bottom" => {prop: "bottom", px: true}, "overflow" => {prop: "overflow", px: false},
+		"overflow-x" => {prop: "overflow-x", px: false}, "overflow-y" => {prop: "overflow-y", px: false},
 		"aspect-ratio" => {prop: "aspect-ratio", px: false}, "direction" => {prop: "flex-direction", px: false},
 		"align-items" => {prop: "align-items", px: false}, "justify" => {prop: "justify-content", px: false}, "grow" => {prop: "flex-grow", px: false},
 		"shrink" => {prop: "flex-shrink", px: false}, "gap" => {prop: "gap", px: true}, "row-gap" => {prop: "row-gap", px: true},
 		"column-gap" => {prop: "column-gap", px: true}, "opacity" => {prop: "opacity", px: false}, "z-index" => {prop: "z-index", px: false},
 		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false},
 		"basis" => {prop: "flex-basis", px: true}, "pointer-events" => {prop: "pointer-events", px: false}, "display" => {prop: "display", px: false}, "transform" => {prop: "transform", px: false},
-		"grid-template-columns" => {prop: "grid-template-columns", px: false}
+		"grid-template-columns" => {prop: "grid-template-columns", px: false}, "fit" => {prop: "object-fit", px: false}
 	];
 	// (events: the DOM's, and ui's EventType)
 	static final EVENTS:Map<String, {dom:String, type:String}> = [
@@ -67,6 +68,12 @@ class NeutralMacro {
 		// (an icon: an <svg>, its paths its name's)
 		if (t == "icon") return macro @:pos(tag.pos) hxmc.web.Neutral.icon();
 		var dom = domName(t, tag.pos);
+		// (an image: an <img>, its alternative text none: its own a label's on the element naming it)
+		if (t == "image") return macro @:pos(tag.pos) {
+			var el = hxmc.web.DomRenderer.createElement("img");
+			(cast el : js.html.Element).setAttribute("alt", "");
+			el;
+		};
 		if (t == "scroll") return macro @:pos(tag.pos) {
 			var el = hxmc.web.DomRenderer.createElement("div");
 			(cast el : js.html.Element).style.overflow = "auto";
@@ -86,13 +93,14 @@ class NeutralMacro {
 		switch t {
 			case "view" | "scroll": return "div";
 			case "text": return "span";
+			case "image": return "img";
 			case "field": return "input";
 			case "field:textarea": return "textarea";
 			case _:
 		}
 		var colon = t.indexOf(":"), kind = t.substr(0, colon), name = t.substr(colon + 1);
 		var ok = colon > 0 && (kind == "view" && VIEWS.indexOf(name) >= 0 || kind == "text" && TEXTS.indexOf(name) >= 0);
-		if (!ok) Context.error('hxmc.web: no DOM element for the neutral <$t> (NeutralMacro: view, text, scroll, view:${VIEWS.join("|")}, text:${TEXTS.join("|")})', pos);
+		if (!ok) Context.error('hxmc.web: no DOM element for the neutral <$t> (NeutralMacro: view, text, scroll, image, view:${VIEWS.join("|")}, text:${TEXTS.join("|")})', pos);
 		return name;
 	}
 
@@ -120,7 +128,7 @@ class NeutralMacro {
 	static function mapped(t:String, n:String):Null<String> {
 		if (t == "icon" && n == "mirrored") return "data-mirrored";
 		if (t == "icon" && n == "name" || n == "tag" || n == "role" && StringTools.endsWith(t, ":legend")) return null;
-		if (isField(t) && FIELD.indexOf(n) >= 0) return n;
+		if (isField(t) && FIELD.indexOf(n) >= 0 || t == "image" && n == "src") return n;
 		return DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : PLAIN.indexOf(n) >= 0 || StringTools.startsWith(n, "data-")
 			|| StringTools.startsWith(n, "aria-") ? n : null;
 	}

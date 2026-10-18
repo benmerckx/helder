@@ -35,7 +35,7 @@ class Neutral {
 		}
 		var s = px && (Std.isOfType(v, Float) || Std.isOfType(v, Int)) ? v + "px" : Std.string(v);
 		// (ui's scroll overflow, and a flex direction on an element laid out as flex)
-		if (prop == "overflow" && s == "scroll") s = "auto";
+		if (StringTools.startsWith(prop, "overflow") && s == "scroll") s = "auto";
 		if (prop == "flex-wrap") s = v == true || s == "wrap" ? "wrap" : "nowrap";
 		if (prop == "flex-direction" && el.style.display == "") el.style.display = "flex";
 		el.style.setProperty(prop, s);

@@ -6,7 +6,7 @@
 // chosen, the focus back on it; a menu's item opening a modal dialog,
 // Escape closing it; a menu bar's Right; a slider's keys; a combobox
 // filtering and choosing; a tooltip after its delay; a context menu; a
-// list box's Shift; a tree opened by the keys; a toast; text fields
+// list box's Shift; a tree opened by the keys; a stacked chart; a toast; text fields
 // typed, a number field's keys and buttons; right to left.
 // Then the sizes of the counter, the form and the gallery, raw and gzipped,
 // and the share of the neutral elements' realiser (hxmc.web's Neutral,
@@ -131,6 +131,9 @@ const slide = () => page.evaluate(() => document.querySelector('#loading [data-s
 const at = await slide();
 await page.waitForTimeout(200);
 await check('progress: not known, sliding', at !== '' && (await slide()) !== at && (await attr('#loading', 'aria-valuenow')) === null);
+// a stacked bar chart: a category's bars one on another, on a scale to their greatest sum (200)
+const bars = await page.evaluate(() => [...document.querySelectorAll('#visits [data-slot=chart-bar]')].map(b => { const r = b.getBoundingClientRect(); return [r.top, r.bottom, r.height]; }));
+await check('chart: stacked bars', bars.length === 4 && bars[2][2] === 45 && bars[3][2] === 10 && Math.abs(bars[3][1] - bars[2][0]) < 0.5);
 // text fields (<field>): typed, the signal follows; a number field's keys and buttons
 await page.locator('#name').fill('');
 await page.locator('#name').pressSequentially('Ada');

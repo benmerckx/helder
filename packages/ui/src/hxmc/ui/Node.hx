@@ -135,6 +135,21 @@ class Node implements Part {
 	@:allow(hxmc.ui) var inkAll = false;
 	@:allow(hxmc.ui) var inkStale = false;
 	@:allow(hxmc.ui.Layout) var minContent = Math.NaN;
+	// (what its last layout was given, to be laid out again in place: Layout.inPlace)
+	@:allow(hxmc.ui.Layout) var performed = false;
+	@:allow(hxmc.ui.Layout) var pKW = 0.0;
+	@:allow(hxmc.ui.Layout) var pKH = 0.0;
+	@:allow(hxmc.ui.Layout) var pPW = 0.0;
+	@:allow(hxmc.ui.Layout) var pPH = 0.0;
+	@:allow(hxmc.ui.Layout) var pAW = 0.0;
+	@:allow(hxmc.ui.Layout) var pAH = 0.0;
+	@:allow(hxmc.ui.Layout) var pLoose = false;
+	// (its measures as they were when it changed: the cache's length then, -1
+	// not all of them (some dropped or never kept, or measured again since);
+	// its min-content; lossy: some measure since not in the cache)
+	@:allow(hxmc.ui.Layout) var cacheWas = -1;
+	@:allow(hxmc.ui.Layout) var minContentWas = Math.NaN;
+	@:allow(hxmc.ui.Layout) var lossy = false;
 	// (a row's items' baseline, those aligned on it, below its top; NaN: none)
 	@:allow(hxmc.ui.Layout) var lb = Math.NaN;
 
@@ -541,17 +556,27 @@ class Node implements Part {
 		textBits = -1;
 		var n = this;
 		while (n != null && !(n.dirty && (n.cache == null || n.cache[0] == 0) && Math.isNaN(n.minContent))) {
+			if (!n.dirty) {
+				n.cacheWas = n.lossy ? -1 : n.cache == null ? 0 : Std.int(n.cache[0]);
+				n.minContentWas = n.minContent;
+				n.lossy = false;
+			}
 			n.dirty = true;
 			if (n.cache != null) n.cache[0] = 0;
 			n.minContent = Math.NaN;
 			n = n.parent;
 		}
-		if (ui != null) ui.requestFrame();
+		if (ui != null) {
+			ui.changed(this);
+			ui.requestFrame();
+		}
 	}
 
 	@:allow(hxmc.ui.Style) function styleChanged(layout:Bool) {
 		if (layout) {
 			markDirty();
+			// (its parent's layout reads its style: margins, flex, position...)
+			if (parent != null && ui != null) ui.changed(parent);
 			// (an inherited text property: the descendants' text changes too, the body's: the layers' too)
 			for (c in children)
 				c.inheritedChanged();

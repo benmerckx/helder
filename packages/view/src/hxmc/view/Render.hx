@@ -17,6 +17,10 @@ class Render {
 	// (the renderer mounting a component, by its index: ViewRuntime.component; Pick.call)
 	@:noCompletion public static var pass = 0;
 
+	// an attribute set once when its value is of a type never reactive (MarkupMacro.plain), else bound: a macro so the value is typed where the literal is, not while the class holding it is built
+	@:noCompletion public static macro function plainOr(value:Expr, set:Expr, bind:Expr):Expr
+		return MarkupMacro.plain(value) ? set : bind;
+
 	// renders content into parent (its root: dispose removes it and stops its effects)
 	public static macro function render(content:Expr, parent:Expr):Expr {
 		var r = runtimeFor(parent);

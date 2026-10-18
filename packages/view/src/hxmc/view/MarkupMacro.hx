@@ -130,6 +130,37 @@ class MarkupMacro {
 			case _: true;
 		}
 
+	// whether an attribute's value may be of a type never reactive, to be
+	// told where its function is typed (Render.plainOr): an expression of
+	// constants, fields, operators and conditions (one with a call, a
+	// function or markup in it is left to the runtime to bind or set)
+	@:allow(hxmc.view.Literal) static function simple(e:Expr):Bool
+		return switch e.expr {
+			case EConst(_): true;
+			case EField(o, _) | EParenthesis(o) | EUnop(_, _, o) | ECheckType(o, _) | ECast(o, null): simple(o);
+			case EBinop(_, a, b) | EArray(a, b): simple(a) && simple(b);
+			case ETernary(c, a, b) | EIf(c, a, b) if (b != null): simple(c) && simple(a) && simple(b);
+			case _: false;
+		}
+
+	// whether a value is of a type never reactive (a String, Int, Float or
+	// Bool, an enum abstract of one, null of one): set once, as a literal is,
+	// not bound (a function, a Signal, Dynamic or a type it cannot tell still
+	// bound by the runtime); typed as its function is, not while a class is
+	// built (Render.plainOr)
+	public static function plain(x:Expr):Bool {
+		var t = try Context.typeof(x) catch (_:Dynamic) return false;
+		function of(t:haxe.macro.Type):Bool
+			return switch Context.follow(t) {
+				case TInst(_.get() => {pack: [], name: "String"}, _): true;
+				case TAbstract(_.get() => {pack: [], name: "Int" | "Float" | "Bool"}, _): true;
+				case TAbstract(_.get() => {pack: [], name: "Null"}, [p]): of(p);
+				case TAbstract(_.get() => a, _) if (a.meta.has(":enum")): of(a.type);
+				case _: false;
+			}
+		return of(t);
+	}
+
 	@:allow(hxmc.view.Literal) static function isComponent(name:String):Bool {
 		var last = name.split(".").pop();
 		return name.indexOf(".") >= 0 || (last.length > 0 && last.charAt(0) == last.charAt(0).toUpperCase() && last.charAt(0) != last.charAt(0).toLowerCase());
@@ -338,7 +369,7 @@ class Literal {
 	// attributes, its children
 	// (the neutral elements: ui's own, a page's renderer realising them as its elements)
 	static function isNeutral(name:String):Bool
-		return ["view", "text", "scroll", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
+		return ["view", "text", "scroll", "image", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
 
 	function element(name:String, attrs:Array<PAttr>, children:Array<PNode>, parent:Expr, top:Bool):Array<Expr> {
 		var v = fresh("e");
@@ -446,6 +477,9 @@ class Literal {
 					case "key": null;
 					case "ref": macro @:pos(ap) __RT__.ref($e, $h);
 					case "style": macro @:pos(ap) __RT__.style($e, $h);
+					// (a value never reactive: its hole set as a literal is)
+					case _ if (MarkupMacro.simple(x)):
+						macro @:pos(ap) hxmc.view.Render.plainOr($x, __HOST__.setProperty($e, $v{name}, $h), __RT__.prop($e, $v{name}, $h));
 					case _: macro @:pos(ap) __RT__.prop($e, $v{name}, $h);
 				}
 			case ASpread(code, at):
@@ -480,6 +514,9 @@ class Literal {
 					var r:Dynamic = $h;
 					if (r != null) (r : Dynamic -> Void)(__NEUTRAL__.part($e));
 				};
+				// (a value never reactive: its hole set as a literal is)
+				else if (MarkupMacro.simple(x))
+					macro @:pos(ap) hxmc.view.Render.plainOr($x, __NEUTRAL__.property($e, $v{tag}, $v{name}, $h), __NEUTRAL__.prop($e, $v{tag}, $v{name}, $h));
 				else macro @:pos(ap) __NEUTRAL__.prop($e, $v{tag}, $v{name}, $h);
 			case ASpread(_, at):
 				Context.error("markup: a neutral element's attributes are named (no spread: each one realised when compiled)", MarkupMacro.position(file, base + at, 3));
