@@ -1097,6 +1097,27 @@
 		[85, 0, 2, 29],
 		[95, 8, 89, 27]
 	],
+	"wrapping column basis in a column item, a min-height in pixels": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 43],
+		[0, 0, 58, 43],
+		[0, 0, 58, 43],
+		[58, 0, 6, 6]
+	],
+	"wrapping column fit-content, its min-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 26],
+		[121, 0, 58, 31],
+		[121, 0, 58, 31],
+		[179, 0, 6, 6]
+	],
+	"wrapping column fit-content, its max-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 31],
+		[118, 0, 64, 31],
+		[118, 0, 58, 31],
+		[176, 0, 6, 6]
+	],
 	"wrapping column basis at its max-height": [
 		[0, 0, 300, 200],
 		[0, 0, 300, 68],

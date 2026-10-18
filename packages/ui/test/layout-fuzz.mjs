@@ -3,8 +3,8 @@
 // or percentages, padding, margins, borders, gaps), their boxes read back
 // as layout-ref.mjs reads them, into OUT's layout-cases.json and
 // layout-expected.json, which LayoutFuzz lays out and compares (make
-// ui-layout-fuzz SEED=1 COUNT=200). A difference found: reduce it by hand to
-// a case in layout-cases.mjs.
+// ui-layout-fuzz SEED=1 COUNT=200). A difference found: reduce it
+// (layout-reduce.mjs) to a case in layout-cases.mjs.
 //   node packages/ui/test/layout-fuzz.mjs <seed> <count> <out>
 import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
