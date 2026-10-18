@@ -29,6 +29,7 @@ import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
 import hxmc.ui.widgets.Widgets.Accordion;
+import hxmc.ui.widgets.Widgets.Carousel;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.DropdownMenu;
@@ -114,6 +115,7 @@ class MarkupTest implements Markup {
 		password();
 		listbox();
 		toolbar();
+		carousel();
 		navigation();
 		tagInput();
 		unstyled();
@@ -760,6 +762,39 @@ class MarkupTest implements Markup {
 		ui.pointerUp(under.absX + 2, under.absY + 2, 1);
 		ui.update();
 		check("toolbar: a click focuses and presses it", ui.focus == under && pressed.join(",") == "under", pressed.join(","));
+	}
+
+	// a carousel: Next, the keys, the ends disabled, a wheel's scroll settling on a slide
+	static function carousel() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var index = signal(0);
+		Render.render(<view padding={10} width={220}>
+			<Carousel tag="c" index={index} slides={[for (i in 0...3) <view height={40}><text>{"Slide " + i}</text></view>]}/>
+		</view>, ui.root);
+		ui.update();
+		var viewport = ui.root.find("c-content"), prev = ui.root.find("c-previous"), next = ui.root.find("c-next");
+		function settle() {
+			ui.update();
+			Clock.finish();
+			ui.update();
+		}
+		check("carousel: a slide as wide as the viewport, Previous disabled at the start",
+			ui.root.find("c-1").width == viewport.width && viewport.width > 0 && !prev.focusable && next.focusable, "" + ui.root.find("c-1").width + " " + viewport.width);
+		ui.pointerDown(next.absX + 2, next.absY + 2, 1);
+		ui.pointerUp(next.absX + 2, next.absY + 2, 1);
+		settle();
+		check("carousel: Next, the second slide, the viewport eased to it", index.value == 1 && viewport.scrollX == ui.root.find("c-1").x, index.value + " " + viewport.scrollX);
+		ui.setFocus(next);
+		ui.keyDown(Key.RIGHT, 0);
+		settle();
+		check("carousel: Right, the last, Next disabled", index.value == 2 && viewport.scrollX == ui.root.find("c-2").x && !next.focusable, index.value + " " + viewport.scrollX);
+		ui.keyDown(Key.RIGHT, 0);
+		settle();
+		check("carousel: at the end, it stays", index.value == 2);
+		ui.wheel(viewport.absX + 5, viewport.absY + 5, -viewport.width * 2, 0);
+		settle();
+		check("carousel: scrolled back by a wheel, the slide it rests at the index", index.value == 0 && viewport.scrollX == 0, index.value + " " + viewport.scrollX);
+		check("carousel: a group, its slides named", ui.root.find("c").semantics.role == Group && ui.root.find("c-1").semantics.label == "Slide 2 of 3");
 	}
 
 	// a segmented control, breadcrumbs and pagination: roles, keys, clicks, the current one

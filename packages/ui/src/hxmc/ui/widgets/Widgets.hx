@@ -3676,6 +3676,106 @@ class Widgets implements Markup {
 	})
 	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
 		return <view tag={props.tag ?? "item-footer"} slot="item-footer">{props.children}</view>;
+
+	// a carousel (shadcn's, after Embla): slides in a row (vertical: a
+	// column) shown through a viewport, index the slide at its start (a
+	// signal); Previous and Next (disabled at the ends unless loop), Left
+	// and Right (vertical: Up and Down) from within it, move it, the
+	// viewport easing there; scrolled by a wheel or a trackpad, the slide
+	// it comes to rest nearest becomes the index. A slide is the
+	// viewport's width (the theme's basis may show several). Slots
+	// "carousel" (data-orientation), "carousel-content" (the viewport),
+	// "carousel-track", "carousel-item", "carousel-previous" and
+	// "carousel-next" (each holding its button: slot "button", variant
+	// "outline", size "icon")
+	@:widget({
+		props: {
+			slides: "its slides: views or texts, in order",
+			index: "a signal of the slide shown at its start (its own when not given)",
+			orientation: "horizontal (the default) or vertical",
+			loop: "Next on the last goes to the first, Previous on the first to the last",
+			label: "its name for assistive technology (\"Carousel\" when not given)"
+		},
+		keys: {
+			"Left, Right": "within it: the slide before or after (vertical: Up, Down)"
+		},
+		variants: ["horizontal", "vertical"]
+	})
+	public static function Carousel(props:{slides:Array<Any>, ?index:Signal<Int>, ?orientation:String, ?loop:Bool, ?label:String, ?tag:String}):View {
+		// (unstyled, a slide the viewport's size)
+		Rules.addBase("carousel", [{slot: "carousel-item", style: {basis: DimValue.Percent(100), minWidth: 0, minHeight: 0}}]);
+		var index = props.index ?? signal(0), tag = props.tag ?? "carousel", count = props.slides.length;
+		var vertical = props.orientation == "vertical", loop = props.loop == true;
+		var viewport:Null<Node> = null, settling = false;
+		function go(i:Int) {
+			if (count == 0) return;
+			index.value = loop ? (i % count + count) % count : i < 0 ? 0 : i >= count ? count - 1 : i;
+		}
+		// (a slide's offset in the track: where the viewport scrolls to show it at its start)
+		function offset(i:Int):Float {
+			var track = viewport.children[0], item = track.children[i];
+			if (vertical) return item.y;
+			return viewport.rtl() ? item.x + item.width - track.width : item.x;
+		}
+		// (the index moved: the viewport eased to its slide; not when a scroll moved it there)
+		effect(() -> {
+			var i = index.value;
+			if (settling || viewport == null || viewport.ui == null || i >= viewport.children[0].children.length) return;
+			var d = offset(i) - (vertical ? viewport.scrollY : viewport.scrollX);
+			if (d != 0) viewport.ui.scrollBy(viewport, vertical ? 0 : d, vertical ? d : 0);
+		});
+		// (scrolled, not easing: the nearest slide the index)
+		function scrolled() {
+			var n = viewport;
+			if (n == null || n.ui == null || @:privateAccess n.ui.scrolls.exists(n)) return;
+			var at = vertical ? n.scrollY : n.scrollX, best = -1, dist = Math.POSITIVE_INFINITY;
+			for (i in 0...n.children[0].children.length) {
+				var d = Math.abs(offset(i) - at);
+				if (d < dist) {
+					dist = d;
+					best = i;
+				}
+			}
+			if (best >= 0 && best != index.peek()) {
+				settling = true;
+				index.value = best;
+				settling = false;
+			}
+		}
+		// (Previous and Next: icon buttons, each in its slot for the theme to place)
+		function nav(t:String, slot:String, label:String, glyph:String, disabled:Void->Bool, action:Void->Void):View
+			return <view slot={slot} data-orientation={vertical ? "vertical" : "horizontal"}>
+				<view tag={t} slot="button" variant="outline" size="icon" role="button" label={label} focusable={() -> !disabled()} disabled={disabled}
+					data-disabled={disabled} onClick={_ -> if (!disabled()) action()} onKeyDown={e -> pressKeys(e, () -> if (!disabled()) action())}>{glyph}</view>
+			</view>;
+		var prev = vertical ? Key.UP : Key.LEFT, next = vertical ? Key.DOWN : Key.RIGHT;
+		var orientation = vertical ? "vertical" : "horizontal";
+		return <view tag={tag} slot="carousel" role="group" label={props.label ?? "Carousel"} data-orientation={orientation} variant={orientation}
+			onKeyDown={e -> {
+				// (right to left, Left is the next slide)
+				var flip = !vertical && e.target != null && e.target.rtl();
+				if (e.key == prev) {
+					e.preventDefault();
+					go(index.peek() + (flip ? 1 : -1));
+				} else if (e.key == next) {
+					e.preventDefault();
+					go(index.peek() + (flip ? -1 : 1));
+				}
+			}}>
+			<scroll tag={tag + "-content"} slot="carousel-content" scrollbar-width="none" ref={n -> {
+				viewport = n;
+				n.onScroll = scrolled;
+			}}>
+				<view slot="carousel-track" direction={vertical ? "column" : "row"} data-orientation={orientation}>{[
+					for (i in 0...count)
+						<view tag={tag + "-" + i} slot="carousel-item" role="group" label={"Slide " + (i + 1) + " of " + count} shrink={0}
+							data-orientation={orientation}>{props.slides[i]}</view>
+				]}</view>
+			</scroll>
+			{nav(tag + "-previous", "carousel-previous", "Previous slide", vertical ? "↑" : "←", () -> !loop && index.value <= 0, () -> go(index.peek() - 1))}
+			{nav(tag + "-next", "carousel-next", "Next slide", vertical ? "↓" : "→", () -> !loop && index.value >= count - 1, () -> go(index.peek() + 1))}
+		</view>;
+	}
 }
 
 // a disclosure's arrow: closed (▸), it points to the line's end, right to

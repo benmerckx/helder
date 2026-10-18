@@ -468,7 +468,14 @@ class Layout {
 				c.lw = cwid;
 				c.lh = chei;
 				pos += it.main + startMargin + endMargin + gap;
-				var ex = cx - padL + cwid + (row ? it.mMainEnd : it.mCrossEnd), ey = cy - padT + chei + (row ? it.mCrossEnd : it.mMainEnd);
+				// (what it overflows, unclipped, is its parent's to scroll too, as CSS's scrollable overflow)
+				var ow = cwid, oh = chei;
+				if (cs.overflow == Visible && !rtl) {
+					var cp = cs.padding, cb = cs.borderEdges;
+					ow = Math.max(ow, c.contentWidth + cp.left + cb.left);
+					oh = Math.max(oh, c.contentHeight + cp.top + cb.top);
+				}
+				var ex = cx - padL + ow + (row ? it.mMainEnd : it.mCrossEnd), ey = cy - padT + oh + (row ? it.mCrossEnd : it.mMainEnd);
 				if (ex > cw) cw = ex;
 				if (ey > ch) ch = ey;
 				if (cx - padL < left) left = cx - padL;
