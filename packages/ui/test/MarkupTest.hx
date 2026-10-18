@@ -465,7 +465,9 @@ class MarkupTest implements Markup {
 		var summary = ui.root.find("more-summary");
 		check("disclosure: closed at first", ui.root.find("more-text") == null && summary.semantics.expanded == false);
 		click(summary);
-		check("disclosure: a click opens it", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true);
+		var arrow:ImageNode = cast summary.children[0];
+		check("disclosure: a click opens it, its arrow down", more.value && ui.root.find("more-text") != null && summary.semantics.expanded == true
+			&& arrow.svg == hxmc.ui.widgets.Icons.svg("chevron-down") && arrow.mirrored);
 		ui.setFocus(summary);
 		ui.keyDown(Key.SPACE, 0);
 		ui.update();

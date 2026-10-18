@@ -96,16 +96,6 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// a collapsible (shadcn's): its label on a button (an arrow turning with it) showing or hiding the children
-	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
-		var open = props.open ?? signal(false), base = props.tag ?? Dom.id(), state = () -> open.value ? "open" : "closed";
-		return <div id={props.tag} data-slot="collapsible" data-state={state}>
-			<button type="button" data-slot="collapsible-trigger" aria-controls={base + "-c"} aria-expanded={() -> open.value ? "true" : "false"} data-state={state}
-				onClick={() -> open.value = !open.peek()}><span data-slot="collapsible-icon" aria-hidden="true">{() -> open.value ? "▾" : "▸"}</span>{props.label}</button>
-			<Show when={open}><div id={base + "-c"} data-slot="collapsible-content" data-state="open">{props.children}</div></Show>
-		</div>;
-	}
-
 	// an accordion (shadcn's, Radix's): sections, at most one open (open: its index, -1 none)
 	public static function Accordion(props:{sections:Array<{label:String, render:Void->Any}>, ?open:Signal<Int>, ?tag:String}):View {
 		var open = props.open ?? signal(-1), base = props.tag ?? Dom.id();

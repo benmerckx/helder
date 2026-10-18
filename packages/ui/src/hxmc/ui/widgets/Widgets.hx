@@ -2937,9 +2937,10 @@ class Widgets implements Markup {
 		</view>;
 	}
 
-	// a collapsible (shadcn's): its label on a button (an arrow turning
-	// with it) that shows or hides the children under it, by a click, Enter
-	// or Space; open (a signal; closed at first) says which. Slots
+	// a collapsible (shadcn's): its label on a button (an arrow, the way the
+	// line reads, down while open) that shows or hides the children under
+	// it, by a click, Enter or Space; open (a signal; closed at first) says
+	// which. Slots
 	// "collapsible", "collapsible-trigger" and "collapsible-content", each
 	// with data-state "open" or "closed"
 	@:widget({
@@ -2950,13 +2951,16 @@ class Widgets implements Markup {
 		},
 		keys: {"Enter, Space": "opens or closes it"}
 	})
-	public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
+	@:neutral public static function Collapsible(props:{label:String, ?open:Signal<Bool>, ?tag:String, ?children:Any}):View {
 		var open = props.open ?? signal(false), tag = props.tag ?? "disclosure";
-		var state = () -> open.value ? "open" : "closed";
-		return <view tag={tag} slot="collapsible" data-state={state}>
-			{trigger(tag + "-summary", "collapsible-trigger", state, () -> open.value = !open.peek(),
-				[icon(CHEVRON_RIGHT, "collapsible-icon", () -> open.value ? "rotate(90deg)" : "none", true), props.label])}
-			<Show when={open}><view tag={tag + "-content"} slot="collapsible-content" data-state="open">{props.children}</view></Show>
+		var state = () -> open.value ? "open" : "closed", content = props.tag != null ? props.tag + "-content" : null;
+		// (the arrow another icon while open, not turned: a turn and the mirror compose the other way round in a page)
+		return <view tag={tag} id={props.tag} slot="collapsible" data-state={state}>
+			<view:button tag={tag + "-summary"} slot="collapsible-trigger" role="button" focusable expanded={() -> open.value} aria-controls={content}
+				data-state={state} onPress={_ -> open.value = !open.peek()}>
+				<icon slot="collapsible-icon" name={() -> open.value ? "chevron-down" : "chevron-right"} mirrored width={12} height={12} hidden/>{props.label}
+			</view:button>
+			<Show when={open}><view tag={tag + "-content"} id={content} slot="collapsible-content" data-state="open">{props.children}</view></Show>
 		</view>;
 	}
 
@@ -3222,7 +3226,7 @@ class Widgets implements Markup {
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["calendar-button-icon", "tree-toggle-icon", "collapsible-icon", "sidebar-trigger-icon",
+			for (s in ["calendar-button-icon", "tree-toggle-icon", "sidebar-trigger-icon",
 				"navigation-menu-trigger-icon", "carousel-icon", "pagination-icon", "pagination-ellipsis-icon"])
 				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
