@@ -1289,7 +1289,8 @@ class Widgets implements Markup {
 			width: "the button's width, and the list's least (else its content's)",
 			placeholder: "what the button shows while the value is none of the options",
 			size: "\"default\" or \"sm\" (data-size)",
-			label: "its name for assistive technology"
+			label: "its name for assistive technology",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
 		},
 		keys: {
 			"Enter, Space": "on the button, open the options, the chosen one focused; on an option, choose it and close them",
@@ -1300,16 +1301,16 @@ class Widgets implements Markup {
 		}
 	})
 	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
-			?label:String, ?style:States->StyleProps, ?tag:String}):View
+			?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
 		return select(props, false);
 
 	// (Select's and NativeSelect's: native, the trigger shadcn's native-select, its icon native-select-icon;
 	// unstyled, 160 wide)
 	static function select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
-			?label:String, ?style:States->StyleProps, ?tag:String}, native:Bool):View {
+			?label:String, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}, native:Bool):View {
 		Rules.addBase("select", [{slot: "select-trigger", style: {width: 160}}, {slot: "native-select", style: {width: 160}}]);
 		var tag = props.tag ?? "select", w = props.width;
-		var open = signal(false);
+		var open = signal(false), disabled = () -> read(props.disabled) == true;
 		var items:Array<Node> = [];
 		var labelOf = (v:String) -> {
 			var i = props.options.indexOf(v);
@@ -1342,8 +1343,9 @@ class Widgets implements Markup {
 			self = n;
 			States.apply(n, props.style);
 		}} role="combobox" label={props.label} expanded={() -> open.value}
-			data-state={() -> open.value ? "open" : "closed"} focusable width={w} onClick={_ -> if (open.peek()) open.value = false else show()}
-			onKeyDown={e -> switch e.key {
+			data-state={() -> open.value ? "open" : "closed"} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} width={w}
+			onClick={_ -> if (open.peek()) open.value = false else if (!disabled()) show()}
+			onKeyDown={e -> if (!disabled()) switch e.key {
 				case Key.ENTER | Key.SPACE:
 					show();
 					e.stop();
@@ -3784,7 +3786,8 @@ class Widgets implements Markup {
 			labels: "what each option shows (else the option itself)",
 			width: "the button's width (else its content's)",
 			size: "\"default\" or \"sm\" (data-size)",
-			label: "its name for assistive technology"
+			label: "its name for assistive technology",
+			disabled: "a Bool, a signal or a function of one: not focusable, its clicks and keys ignored"
 		},
 		keys: {
 			"Enter, Space": "opens the options (the platform's menu, else the drawn list)",
@@ -3792,10 +3795,10 @@ class Widgets implements Markup {
 		}
 	})
 	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String,
-			?label:String, ?tag:String}):View
+			?label:String, ?disabled:Dynamic, ?tag:String}):View
 		return <view host="native" slot="native-select-wrapper" position="relative">{
 			select({tag: props.tag ?? "native-select", value: props.value, options: props.options, labels: props.labels, width: props.width, size: props.size,
-				label: props.label}, true)
+				label: props.label, disabled: props.disabled}, true)
 		}</view>;
 
 	// --- charts (shadcn's Chart: its look, recharts' kinds) ---

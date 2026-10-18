@@ -847,6 +847,20 @@ class MarkupTest implements Markup {
 		m.chosen(2);
 		ui.update();
 		check("native select: chosen", fruit.value == "plum");
+		// a select disabled: out of the tab order, its clicks and keys ignored, until it is not
+		var ui = new Ui(new MonoText(), 400, 300), off = signal(true), fruit = signal("pear");
+		Render.render(<view padding={10}><Select tag="off" value={fruit} options={["apple", "pear"]} disabled={off}/></view>, ui.root);
+		ui.update();
+		var sel = ui.root.find("off");
+		ui.pointerDown(sel.absX + 3, sel.absY + 3, 1);
+		ui.pointerUp(sel.absX + 3, sel.absY + 3, 1);
+		ui.update();
+		check("disabled select: not focusable, a click not opening it", !sel.focusable && sel.attr("data-disabled") != null && ui.overlay.children.length == 0);
+		off.value = false;
+		ui.update();
+		ui.setFocus(sel);
+		ui.keyDown(Key.UP, 0);
+		check("disabled select: enabled again, its keys choose", sel.focusable && sel.attr("data-disabled") == null && fruit.value == "apple");
 		// a menu bar native: its menus the system's, the drawn bar hidden, given back when it goes
 		var ui = new Ui(new MonoText(), 400, 300);
 		var views = new UiTest.FakeViews();

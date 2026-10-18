@@ -10,11 +10,7 @@
 //   WidgetParity <ui Widgets.hx> <web Widgets.hx>
 class WidgetParity {
 	// the differences known, by widget, and why
-	static final KNOWN = [
-		"Select" => "size: ui's only (data-size)",
-		"AlertDialog" => "size: ui's only (data-size)",
-		"NativeSelect" => "size: ui's only (data-size); disabled: the DOM's only"
-	];
+	static final KNOWN:Map<String, String> = [];
 
 	static final ASIDE = ["tag", "style"];
 

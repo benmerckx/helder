@@ -302,8 +302,8 @@ class Widgets implements Markup {
 	// Enter or Space chooses, Escape, Tab or a click outside closes; on the
 	// closed button Up and Down choose the previous or next option, letters
 	// typed the option they start
-	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
-			?placeholder:String, ?tag:String}):View {
+	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?label:String,
+			?placeholder:String, ?disabled:Dynamic, ?tag:String}):View {
 		var open = signal(false), trigger:Element = null, items:Array<Element> = [], typed = new TypeAhead();
 		var shown = [for (i in 0...props.options.length) props.labels != null ? props.labels[i] : props.options[i]];
 		var labelOf = (v:String) -> {
@@ -352,7 +352,7 @@ class Widgets implements Markup {
 				focusIn(items, i < 0 ? 0 : i);
 			}
 		});
-		return <button type="button" id={props.tag} role="combobox" data-slot="select-trigger" data-size="default" ref={n -> trigger = cast n}
+		return <button type="button" id={props.tag} role="combobox" data-slot="select-trigger" data-size={props.size ?? "default"} disabled={() -> on(props.disabled)} ref={n -> trigger = cast n}
 			aria-label={props.label} aria-expanded={() -> open.value ? "true" : "false"} aria-autocomplete="none" data-state={() -> open.value ? "open" : "closed"}
 			data-placeholder={() -> props.options.indexOf(props.value.value) < 0 ? "" : null} style={props.width == null ? null : 'width:${props.width}px'}
 			onClick={() -> open.value = !open.peek()} onKeyDown={(e:KeyboardEvent) -> {
@@ -488,7 +488,7 @@ class Widgets implements Markup {
 	// action buttons (the cancel focused first); Cancel or Escape closes it
 	// (onCancel), the action closes it and runs onAction; a click outside does nothing
 	public static function AlertDialog(props:{open:Signal<Bool>, title:String, ?description:String, ?cancel:String, ?action:String,
-			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):View {
+			?variant:String, ?size:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):View {
 		var base = props.tag ?? Dom.id();
 		function cancel() {
 			props.open.value = false;
@@ -500,7 +500,7 @@ class Widgets implements Markup {
 		}
 		Dom.modal(() -> props.open.value, () -> View.view(<>
 			<div data-slot="alert-dialog-overlay" data-state="open"/>
-			<div role="alertdialog" id={base} data-slot="alert-dialog-content" data-state="open" data-size="default" aria-labelledby={base + "-t"}
+			<div role="alertdialog" id={base} data-slot="alert-dialog-content" data-state="open" data-size={props.size ?? "default"} aria-labelledby={base + "-t"}
 				aria-describedby={props.description == null ? null : base + "-d"} tabindex="-1" style={props.width == null ? null : 'max-width:${props.width}px'}>
 				<div data-slot="alert-dialog-header">
 					<h2 id={base + "-t"} data-slot="alert-dialog-title">{props.title}</h2>
@@ -1261,7 +1261,7 @@ class Widgets implements Markup {
 
 	// a select the platform's own (shadcn's NativeSelect: a <select>, its
 	// options the browser's menu), bound to a signal
-	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
+	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?label:String,
 			?disabled:Dynamic, ?tag:String}):View {
 		var self:Null<js.html.SelectElement> = null;
 		effect(() -> {
@@ -1269,7 +1269,7 @@ class Widgets implements Markup {
 			if (self != null) self.value = v;
 		});
 		return <div data-slot="native-select-wrapper">
-			<select id={props.tag} data-slot="native-select" data-size="default" aria-label={props.label} disabled={() -> on(props.disabled)}
+			<select id={props.tag} data-slot="native-select" data-size={props.size ?? "default"} aria-label={props.label} disabled={() -> on(props.disabled)}
 				style={props.width == null ? null : 'width:${props.width}px'} ref={n -> {
 					self = cast n;
 					self.value = props.value.peek();
