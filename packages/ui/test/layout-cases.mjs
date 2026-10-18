@@ -80,6 +80,8 @@ export const cases = [
 	{ name: 'grid template rows', width: 200, height: 200, tree: { style: { display: 'Grid', gridTemplateRows: '40px 1fr 30px' }, children: [{}, {}, {}] } },
 	{ name: 'grid placement', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '40px' }, children: [{ style: { gridColumn: '2 / 4' } }, { style: { gridColumn: '1', gridRow: '2' } }, {}, {}] } },
 	{ name: 'grid spans', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)', gridAutoRows: '30px', columnGap: 4 }, children: [{ style: { gridColumn: 'span 2' } }, {}, {}, { style: { gridColumn: 'span 3' } }, { style: { gridRow: 'span 2' } }, {}] } },
+	// (an item's percentages of its grid area: the calendar's days, aspect-square w-full h-full)
+	{ name: 'grid percent items', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 40px)', alignContent: 'Start' }, children: [{ style: { width: '100%', height: '100%', aspectRatio: 1 } }, { style: { width: '50%' }, children: [box(10, 10)] }, h(20)] } },
 	{ name: 'grid negative lines', width: 300, height: 200, tree: { style: { display: 'Grid', gridTemplateColumns: '50px 1fr 50px', gridAutoRows: '30px' }, children: [{ style: { gridColumn: '1 / -1' } }, { style: { gridColumn: '-2' } }] } },
 	{ name: 'grid minmax', width: 300, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: 'minmax(100px, 1fr) minmax(50px, 80px) 1fr' }, children: [h(20), h(20), h(20)] } },
 	{ name: 'grid percent columns', width: 400, height: 100, tree: { style: { display: 'Grid', gridTemplateColumns: '25% 75%' }, children: [h(20), h(20)] } },
@@ -222,4 +224,62 @@ export const cases = [
 	{ name: 'flexed wrapping column, one line wide', width: 300, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { height: 30 }, children: [{ style: { wrap: true, grow: 1, basis: 85, minHeight: 0 }, children: [box(12, 20), box(106, 15)] }] }] } },
 	{ name: 'wrapping column fit-content within the room', width: 300, height: 200, tree: { style: { alignItems: 'Start' }, children: [{ style: { width: 67, alignItems: 'Start' }, children: [{ style: { wrap: true, height: 20 }, children: [box(50, 20), box(40, 20)] }] }] } },
 	{ name: 'wrapping column minimum at its own height', width: 300, height: 200, tree: { style: { justify: 'End' }, children: [{ style: { wrap: true, basis: 40, height: 107, borderWidth: 2 }, children: [box(10, 50), box(10, 40), box(10, 73)] }] } },
+	// (a wrapping row's max-content: an item's percentage basis of its indefinite width as auto's, its width)
+	{ name: 'fit-content wrapping row, percentage basis', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', wrap: true, alignSelf: 'Start' }, children: [box(26, 10), box(49, 10, { basis: '100%' })] }] } },
+	// (a wrapping column's basis in a row: its lines broken at the height it is stretched to, but on one line in a row that is
+	// a column's item, unless its items' heights or its min-height are percentages of its (a min-height in pixels not); its max-content, not the room's)
+	{ name: 'wrapping column basis in a row', width: 300, height: 43, tree: { style: { direction: 'Row' }, children: [{ style: { wrap: true }, children: [box(2, 30), box(16, 30)] }] } },
+	{ name: 'wrapping column basis in a row item', width: 300, height: 200, tree: { style: { direction: 'Row' }, children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 30), box(16, 30)] }] }] } },
+	{ name: 'wrapping column basis in a column item', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 30), box(16, 30)] }] }] } },
+	{ name: 'wrapping column basis in a column item, percentage heights', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 2), box(16, '100%')] }] }] } },
+	{ name: 'wrapping column basis in a column item, its min-height', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', width: 72, height: 43 }, children: [{ style: { wrap: true, shrink: 0, minHeight: '50%' }, children: [box('50%', 88, { basis: 62, minWidth: 62 }), box(2, 29), box(89, 90, { margin: 8 })] }] }] } },
+	{ name: 'wrapping column basis in a column item, a min-height in pixels', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true, minHeight: 31 }, children: [box(58, 112), box(6, 6)] }] }] } },
+	// (a wrapping column centred in a column: as wide as on one line, its flexed height (its min-height) not breaking it; its own height or max-height does)
+	{ name: 'wrapping column fit-content, its min-height', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Center', height: 26 }, children: [{ style: { wrap: true, minHeight: 31 }, children: [box(58, 112), box(6, 6)] }] }] } },
+	{ name: 'wrapping column fit-content, its max-height', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Center' }, children: [{ style: { wrap: true, maxHeight: 31 }, children: [box(58, 112), box(6, 6)] }] }] } },
+	// (a wrapping column's basis in a column: its lines broken at its max-height in pixels, its tallest line's; a percentage one of its column's height not)
+	{ name: 'wrapping column basis at its max-height', width: 300, height: 200, tree: { children: [{ children: [{ style: { wrap: true, maxHeight: 105 }, children: [{ style: { basis: 45 } }, { style: { basis: 68 } }] }] }] } },
+	{ name: 'wrapping column basis, a percentage max-height', width: 300, height: 200, tree: { children: [{ children: [{ style: { minHeight: 34 } }, { style: { wrap: true, maxHeight: '50%' }, children: [{ style: { padding: 8, margin: 3 } }, { style: { padding: 1, margin: 2 } }, { style: { padding: 4 } }] }] }] } },
+	// (a wrapping column's automatic minimum: its lines unbroken at its own height when that is a percentage)
+	{ name: 'wrapping column minimum, a percentage height', width: 300, height: 200, tree: { children: [{ style: { height: 113 }, children: [{ style: { wrap: true, basis: 4, height: '100%' }, children: [{ style: { height: 76 } }, { style: { height: 30, margin: 4 } }] }] }] } },
+	// (a wrapping row with less room than its widest item: its lines broken at its fit-content width, that item's)
+	{ name: 'wrapping row narrower than its widest item', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Start', maxWidth: 10 }, children: [{ style: { direction: 'RowReverse', wrap: true }, children: [{ style: { padding: 8 } }, { style: { margin: 6 } }, { style: { borderWidth: 1 } }] }] }] } },
+	// (a column's item with a basis in pixels: its height definite for its children's percentages, though the column's is not)
+	{ name: 'basis in pixels definite in a column of auto height', width: 300, height: 200, tree: { style: { direction: 'Row' }, children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 115 }, children: [{ style: { height: '25%', width: 20 } }] }] }] } },
+	{ name: 'basis in pixels, shrunk in a wrapping column: percentages of the size it shrank to', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 39 }, children: [{ style: { direction: 'Row', alignItems: 'End', basis: 66, minHeight: '100%' }, children: [{ style: { minHeight: '25%', width: 10 } }] }] }] } },
+	// (a wrapping row's max-content no less than its min-content: an item's basis under its content)
+	{ name: 'wrapping row basis, its min-content', width: 300, height: 200, tree: { style: { direction: 'RowReverse' }, children: [{ style: { direction: 'RowReverse', wrap: true, grow: 0.5 }, children: [{ style: { basis: 39, minWidth: '50%' }, children: [{ style: { minWidth: 75, height: 10 } }] }] }] } },
+	// (a wrapping column's automatic minimum: its lines broken at its height within its max-height)
+	{ name: 'wrapping column minimum within its max-height', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 52, maxHeight: 24, rowGap: 3 }, children: [box(16, 16), box(8, 8)] }, { style: { height: 193, shrink: 0 } }] } },
+	// (found by layout-fuzz.mjs's more trees) a grid's absolute child at its static position by its alignment; a grid item's percentage width
+	// auto while the tracks are sized; a track's auto minimum an item's min-content when it has a width, though it clips; aspect ratios: a
+	// stretched item's contribution not from its flexed height, a fit-content width giving a column item's height, its automatic minimum
+	// its own height; an absolute box's height at the width it shrank to
+	{ name: 'grid absolute static position aligned', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', alignItems: 'End', justifyItems: 'Center' }, children: [box(20, 10, { position: 'Absolute' }), { style: { padding: 2 } }] }] } },
+	{ name: 'grid item percentage width of its area', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', gridTemplateColumns: 'repeat(3, 1fr)' }, children: [box('100%', 10)] }] } },
+	{ name: 'grid auto minimum of an item with a width', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', maxWidth: 75, gridTemplateColumns: 'repeat(3, 1fr)' }, children: [box(33, 10, { overflow: 'Hidden' }), h(10)] }] } },
+	{ name: 'aspect ratio contribution not from a flexed height', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 96, aspectRatio: 1 } }] }, { style: { basis: 96, aspectRatio: 1, alignSelf: 'Start' } }] } },
+	{ name: 'aspect ratio height from a fit-content width', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start', aspectRatio: 0.5 }, children: [box(69, 0)] }] } },
+	{ name: 'aspect ratio automatic minimum its height', width: 300, height: 200, tree: { children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 96, height: 111, aspectRatio: 1 } }] }] } },
+	{ name: 'aspect ratio automatic minimum, its width not definite', width: 300, height: 200, tree: { children: [{ style: { basis: 19, height: 96, margin: [3, 4, 5, 'auto'], aspectRatio: 0.5 } }] } },
+	{ name: 'absolute box height at its shrunk width', width: 300, height: 200, tree: { children: [{ style: { position: 'Absolute' }, children: [{ style: { aspectRatio: 0.5 } }, { children: [{ style: { padding: 8 } }] }] }] } },
+	// (a grid's absolute child in its padding box; its tracks overflowing a centred grid on both sides, a distributed one at the end;
+	// an item of its content's height not definite for its children's percentages)
+	{ name: 'grid absolute static position in the padding box', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', padding: 2 }, children: [box(10, 10, { position: 'Absolute' })] }] } },
+	{ name: 'grid tracks overflowing, centred', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', justify: 'Center', width: 73, padding: 9, gridTemplateColumns: 'repeat(3, 1fr)' }, children: [{ style: { padding: 7 } }, box(40, 8, { margin: [1, 5, 5, 'auto'] })] }] } },
+	{ name: 'grid tracks overflowing, evenly', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', justify: 'SpaceEvenly', width: 39 }, children: [box('auto', 10, { minWidth: 50 })] }] } },
+	{ name: 'grid item of its content height, percentages', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid' }, children: [{ style: { wrap: true, margin: [4, 8, 'auto', 2] }, children: [{ style: { padding: 10 } }, box(20, '50%')] }] }] } },
+	// (a grid item's percentage min-height auto while the rows are sized; a grid's basis within its min-height when it has tracks;
+	// percentage tracks auto while a grid's width is its content's)
+	{ name: 'grid item percentage min-height while rows are sized', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid' }, children: [h(68), { style: { minHeight: '25%' } }] }] } },
+	{ name: 'grid basis within its min-height', width: 300, height: 200, tree: { children: [{ style: { grow: 0.5, minHeight: 29, display: 'Grid' }, children: [h(10)] }, { style: { grow: 0.5, minHeight: 29, display: 'Grid', gridTemplateRows: 'auto auto' } }, { style: { grow: 0.5, minHeight: 29, display: 'Grid' } }] } },
+	{ name: 'grid percentage tracks auto while fit to content', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Center', width: 49 }, children: [{ style: { display: 'Grid', gridTemplateColumns: '30% auto' }, children: [box(101, 10)] }] }, { style: { width: 72, display: 'Grid' }, children: [{ style: { margin: 9, display: 'Grid', gridTemplateColumns: '30% auto' }, children: [box(70, 10)] }] }] } },
+	// (a spanning item's minimum shared up to the tracks' growth limits first, then beyond them equally)
+	{ name: 'grid span up to growth limits', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid' }, children: [h(10), box(96, 10, { gridColumn: '1 / 3' })] }, { style: { display: 'Grid', gridTemplateColumns: 'auto auto' }, children: [box(20, 10), box(30, 10), box(96, 10, { gridColumn: '1 / 3' })] }] } },
+	// (a grid's absolute children in the areas their lines give: an auto line or one the grid has not its padding edge)
+	{ name: 'grid absolute children in their areas', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', gridTemplateColumns: '50px 1fr 60px', gridTemplateRows: '30px 40px', padding: 5 }, children: [
+		box(10, 10, { position: 'Absolute', gridColumn: '-1' }), { style: { position: 'Absolute', gridColumn: '2 / 4', gridRow: '2', left: 3, right: 4, top: 0, bottom: 0 } },
+		{ style: { position: 'Absolute', gridColumn: '1 / span 2', right: 0, height: 5 } }, box(8, 8, { position: 'Absolute', gridColumn: '7', gridRow: '1', bottom: 0 })] }] } },
+	{ name: 'rtl grid absolute children in their areas', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', dir: 'Rtl', gridTemplateColumns: '50px 1fr 60px', padding: [0, 5, 0, 9] }, children: [
+		{ style: { position: 'Absolute', gridColumn: '2 / 3', left: 0, right: 0, height: 5 } }, box(10, 10, { position: 'Absolute', gridColumn: '1' })] }] } },
 ];

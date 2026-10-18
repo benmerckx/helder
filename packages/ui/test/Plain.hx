@@ -1,7 +1,7 @@
 import hxmc.ui.*;
 
-// A plain look for the examples and tests (a StyleSheet: ui.theme =
-// Plain.sheet): outlines and states in the text's colour (currentColor),
+// A plain look for the tests that measure geometry (a StyleSheet: ui.theme =
+// Plain.sheet; the examples are under @hxmc/theme's Shadcn.sheet): outlines and states in the text's colour (currentColor),
 // popups on the system's colours (Canvas, CanvasText), a page's body on
 // them, light or dark. The widgets themselves ship with no look at all
 // (behaviour and semantics only, as React Aria's); @hxmc/theme is
@@ -195,7 +195,8 @@ class Plain {
 			{slot: "calendar-day", when: ["data-today"], style: {background: tint}},
 			{slot: "calendar-day", when: ["data-focused"], style: {borderColor: line}},
 			{slot: "calendar-day", when: ["data-selected"], style: {background: canvasText, color: canvas}},
-			{slot: "arrow-icon", style: {opacity: 0.6}},
+			{slot: "tree-toggle-icon", style: {opacity: 0.6}},
+			{slot: "collapsible-icon", style: {opacity: 0.6}},
 			{slot: "date-picker-value", when: ["data-placeholder"], style: {opacity: 0.6}},
 			{slot: "command-list", style: {maxHeight: 240, padding: 2, borderWidth: 1, borderColor: line, background: canvas, color: canvasText}},
 			{slot: "command-item", style: {padding: [4, 8], cursor: Pointer}},

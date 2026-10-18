@@ -868,6 +868,17 @@
 		"dark": false
 	},
 	{
+		"range": [
+			12,
+			16
+		],
+		"name": "calendar-range",
+		"component": "calendar",
+		"w": 300,
+		"h": 340,
+		"dark": false
+	},
+	{
 		"name": "toast-default",
 		"component": "toast",
 		"w": 372,
@@ -878,6 +889,200 @@
 		"crop": "toast",
 		"fw": 420,
 		"fh": 140
+	},
+	{
+		"name": "field-default",
+		"component": "field",
+		"w": 392,
+		"h": 440,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "button-group-horizontal",
+		"component": "button-group",
+		"w": 320,
+		"h": 68,
+		"variant": "horizontal",
+		"dark": false
+	},
+	{
+		"name": "button-group-vertical",
+		"component": "button-group",
+		"w": 320,
+		"h": 116,
+		"variant": "vertical",
+		"dark": false
+	},
+	{
+		"name": "button-group-text",
+		"component": "button-group",
+		"w": 320,
+		"h": 68,
+		"text": "0",
+		"dark": false
+	},
+	{
+		"name": "input-group-addons",
+		"component": "input-group",
+		"w": 352,
+		"h": 68,
+		"block": true,
+		"text": "example",
+		"dark": false
+	},
+	{
+		"name": "input-group-button",
+		"component": "input-group",
+		"w": 352,
+		"h": 68,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "input-group-focus",
+		"component": "input-group",
+		"w": 352,
+		"h": 68,
+		"block": true,
+		"text": "example",
+		"dark": false,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "empty-default",
+		"component": "empty",
+		"w": 392,
+		"h": 300,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "item-outline",
+		"component": "item",
+		"w": 412,
+		"h": 116,
+		"block": true,
+		"variant": "outline",
+		"dark": false
+	},
+	{
+		"name": "item-muted",
+		"component": "item",
+		"w": 412,
+		"h": 116,
+		"block": true,
+		"variant": "muted",
+		"size": "sm",
+		"dark": false
+	},
+	{
+		"name": "item-muted-focus",
+		"component": "item",
+		"w": 412,
+		"h": 116,
+		"block": true,
+		"variant": "muted",
+		"size": "sm",
+		"dark": false,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "carousel-default",
+		"component": "carousel",
+		"w": 328,
+		"h": 152,
+		"dark": false
+	},
+	{
+		"name": "navigation-menu-default",
+		"component": "navigation-menu",
+		"w": 420,
+		"h": 68,
+		"dark": false
+	},
+	{
+		"name": "navigation-menu-open",
+		"component": "navigation-menu",
+		"w": 334,
+		"h": 147,
+		"dark": false,
+		"crop": "navigation-menu-viewport",
+		"fw": 420,
+		"fh": 260
+	},
+	{
+		"name": "sidebar-expanded",
+		"component": "sidebar",
+		"w": 492,
+		"h": 252,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "sidebar-icon",
+		"component": "sidebar",
+		"w": 492,
+		"h": 252,
+		"block": true,
+		"variant": "icon",
+		"dark": false
+	},
+	{
+		"name": "chart-tooltip-open",
+		"component": "chart-tooltip",
+		"w": 144,
+		"h": 82,
+		"dark": false,
+		"crop": "chart-tooltip",
+		"fw": 420,
+		"fh": 300
+	},
+	{
+		"name": "chart-legend-default",
+		"component": "chart-legend",
+		"w": 316,
+		"h": 44,
+		"dark": false,
+		"crop": "chart-legend",
+		"fw": 420,
+		"fh": 300
+	},
+	{
+		"name": "aspect-ratio-default",
+		"component": "aspect-ratio",
+		"w": 352,
+		"h": 212,
+		"block": true,
+		"dark": false
+	},
+	{
+		"name": "scroll-area-default",
+		"component": "scroll-area",
+		"w": 232,
+		"h": 232,
+		"dark": false
+	},
+	{
+		"name": "native-select-default",
+		"component": "native-select",
+		"w": 220,
+		"h": 68,
+		"dark": false
+	},
+	{
+		"name": "native-select-focus",
+		"component": "native-select",
+		"w": 220,
+		"h": 68,
+		"dark": false,
+		"states": [
+			"focus-visible"
+		]
 	},
 	{
 		"name": "button-default-dark",
@@ -1748,6 +1953,17 @@
 		"dark": true
 	},
 	{
+		"range": [
+			12,
+			16
+		],
+		"name": "calendar-range-dark",
+		"component": "calendar",
+		"w": 300,
+		"h": 340,
+		"dark": true
+	},
+	{
 		"name": "toast-default-dark",
 		"component": "toast",
 		"w": 372,
@@ -1758,6 +1974,200 @@
 		"crop": "toast",
 		"fw": 420,
 		"fh": 140
+	},
+	{
+		"name": "field-default-dark",
+		"component": "field",
+		"w": 392,
+		"h": 440,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "button-group-horizontal-dark",
+		"component": "button-group",
+		"w": 320,
+		"h": 68,
+		"variant": "horizontal",
+		"dark": true
+	},
+	{
+		"name": "button-group-vertical-dark",
+		"component": "button-group",
+		"w": 320,
+		"h": 116,
+		"variant": "vertical",
+		"dark": true
+	},
+	{
+		"name": "button-group-text-dark",
+		"component": "button-group",
+		"w": 320,
+		"h": 68,
+		"text": "0",
+		"dark": true
+	},
+	{
+		"name": "input-group-addons-dark",
+		"component": "input-group",
+		"w": 352,
+		"h": 68,
+		"block": true,
+		"text": "example",
+		"dark": true
+	},
+	{
+		"name": "input-group-button-dark",
+		"component": "input-group",
+		"w": 352,
+		"h": 68,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "input-group-focus-dark",
+		"component": "input-group",
+		"w": 352,
+		"h": 68,
+		"block": true,
+		"text": "example",
+		"dark": true,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "empty-default-dark",
+		"component": "empty",
+		"w": 392,
+		"h": 300,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "item-outline-dark",
+		"component": "item",
+		"w": 412,
+		"h": 116,
+		"block": true,
+		"variant": "outline",
+		"dark": true
+	},
+	{
+		"name": "item-muted-dark",
+		"component": "item",
+		"w": 412,
+		"h": 116,
+		"block": true,
+		"variant": "muted",
+		"size": "sm",
+		"dark": true
+	},
+	{
+		"name": "item-muted-focus-dark",
+		"component": "item",
+		"w": 412,
+		"h": 116,
+		"block": true,
+		"variant": "muted",
+		"size": "sm",
+		"dark": true,
+		"states": [
+			"focus-visible"
+		]
+	},
+	{
+		"name": "carousel-default-dark",
+		"component": "carousel",
+		"w": 328,
+		"h": 152,
+		"dark": true
+	},
+	{
+		"name": "navigation-menu-default-dark",
+		"component": "navigation-menu",
+		"w": 420,
+		"h": 68,
+		"dark": true
+	},
+	{
+		"name": "navigation-menu-open-dark",
+		"component": "navigation-menu",
+		"w": 334,
+		"h": 147,
+		"dark": true,
+		"crop": "navigation-menu-viewport",
+		"fw": 420,
+		"fh": 260
+	},
+	{
+		"name": "sidebar-expanded-dark",
+		"component": "sidebar",
+		"w": 492,
+		"h": 252,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "sidebar-icon-dark",
+		"component": "sidebar",
+		"w": 492,
+		"h": 252,
+		"block": true,
+		"variant": "icon",
+		"dark": true
+	},
+	{
+		"name": "chart-tooltip-open-dark",
+		"component": "chart-tooltip",
+		"w": 144,
+		"h": 82,
+		"dark": true,
+		"crop": "chart-tooltip",
+		"fw": 420,
+		"fh": 300
+	},
+	{
+		"name": "chart-legend-default-dark",
+		"component": "chart-legend",
+		"w": 316,
+		"h": 44,
+		"dark": true,
+		"crop": "chart-legend",
+		"fw": 420,
+		"fh": 300
+	},
+	{
+		"name": "aspect-ratio-default-dark",
+		"component": "aspect-ratio",
+		"w": 352,
+		"h": 212,
+		"block": true,
+		"dark": true
+	},
+	{
+		"name": "scroll-area-default-dark",
+		"component": "scroll-area",
+		"w": 232,
+		"h": 232,
+		"dark": true
+	},
+	{
+		"name": "native-select-default-dark",
+		"component": "native-select",
+		"w": 220,
+		"h": 68,
+		"dark": true
+	},
+	{
+		"name": "native-select-focus-dark",
+		"component": "native-select",
+		"w": 220,
+		"h": 68,
+		"dark": true,
+		"states": [
+			"focus-visible"
+		]
 	},
 	{
 		"name": "card-full-rtl",
@@ -1822,6 +2232,32 @@
 		"component": "calendar",
 		"w": 300,
 		"h": 340,
+		"rtl": true
+	},
+	{
+		"name": "field-default-rtl",
+		"component": "field",
+		"w": 392,
+		"h": 440,
+		"block": true,
+		"rtl": true
+	},
+	{
+		"name": "input-group-addons-rtl",
+		"component": "input-group",
+		"w": 352,
+		"h": 68,
+		"block": true,
+		"text": "example",
+		"rtl": true
+	},
+	{
+		"name": "item-outline-rtl",
+		"component": "item",
+		"w": 412,
+		"h": 116,
+		"block": true,
+		"variant": "outline",
 		"rtl": true
 	},
 	{

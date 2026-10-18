@@ -114,13 +114,14 @@ checked by events, keys, focus order and the accessibility tree. The
 examples and tests that want something visible without shadcn use
 `packages/ui/examples/Plain.hx`, a few rules in the text's colour.
 
-Themed, `ui.theme = Shadcn.sheet` (or a subtree's `node.theme`): 769
+Themed, `ui.theme = Shadcn.sheet` (or a subtree's `node.theme`): 1036
 rules made at compile time from shadcn's class lists (`packages/theme`,
 README) style every slot by its variant, size and states, light and dark
 (`ui.dark`), with rings, outline-style, transitions and enter animations
 (`starting`) as Tailwind draws them; a widget shadcn lacks (Tree, Listbox,
-Sortable, NumberField, TagInput, ColorPicker, Toolbar) has rules in
+Sortable, NumberField, TagInput, ColorPicker, Toolbar, and the charts'
+series) has rules in
 shadcn's style, ours (`packages/theme/src/hxmc/theme/extras.json`). An instance's own style, or a function of
 its states, wins over every rule. Checked against shadcn's markup drawn by
-Chromium (`make theme-fidelity-check`, 203 cases), what still differs
+Chromium (`make theme-fidelity-check`, 252 cases), what still differs
 listed with its reason in `FidelityTest.KNOWN`.

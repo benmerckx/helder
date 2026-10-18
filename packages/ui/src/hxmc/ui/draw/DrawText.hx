@@ -41,25 +41,39 @@ class DrawText implements TextEngine {
 		return face;
 	}
 
-	// the faces a font is laid out with (shared: a FontSet does not change)
-	final sets = new Map<String, FontSet>();
+	// the faces a font is laid out with (shared: a FontSet does not change), each
+	// one's features beside it: found by comparing, no key built
+	final sets:Array<FontSet> = [];
+	final setFeatures:Array<String> = [];
 	var lastSet:Null<FontSet>;
 	var lastFeatures = "";
 
 	function fontSet(font:Font):FontSet {
 		var f = face(font), oblique = font.italic && !f.italic;
 		if (lastSet != null && lastSet.primary == f && lastSet.size == font.size && lastSet.oblique == oblique && lastFeatures == font.features) return lastSet;
-		var key = f.id + "|" + font.size + "|" + oblique + "|" + font.features;
-		var set = sets.get(key);
+		var set:Null<FontSet> = null;
+		for (i in 0...sets.length) {
+			var s = sets[i];
+			if (s.primary == f && s.size == font.size && s.oblique == oblique && setFeatures[i] == font.features) {
+				set = s;
+				break;
+			}
+		}
 		if (set == null) {
 			set = new FontSet(f, fallbackFaces, font.size, more, emoji);
 			set.oblique = oblique;
 			if (font.features != "") set.features = hxmc.text.FontFeature.parse(font.features);
-			sets.set(key, set);
+			sets.push(set);
+			setFeatures.push(font.features);
 		}
 		lastFeatures = font.features;
 		return lastSet = set;
 	}
+
+	// (paragraphs unbounded and of one font, by their text: a label a list
+	// repeats shaped once; all let go when there are many)
+	final plain = new Map<String, Array<PlainParagraph>>();
+	var plainCount = 0;
 
 	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1):Paragraph {
 		if (fallbackFaces == null) {
@@ -81,10 +95,49 @@ class DrawText implements TextEngine {
 			case BreakAll: TextLayout.BREAK_ALL;
 			case KeepAll: TextLayout.KEEP_ALL;
 		});
+		var shared = runs == null && maxLines == 0 && !justify && cut < 0 && Math.isNaN(maxWidth);
+		var same = shared ? plain.get(text) : null;
+		if (same != null)
+			for (p in same)
+				if (p.fonts == set && p.lineHeight == font.lineHeight && p.letterSpacing == font.letterSpacing && p.wordSpacing == font.wordSpacing
+					&& p.base == base && p.breaking == breaking)
+					return p.paragraph;
 		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut < 0 ? Math.NaN : cut,
 			breaking);
 		if (justify) l.justify(maxWidth);
-		return new DrawParagraph(l);
+		var p = new DrawParagraph(l);
+		if (shared) {
+			if (plainCount >= 4096) {
+				plain.clear();
+				plainCount = 0;
+				same = null;
+			}
+			if (same == null) plain.set(text, same = []);
+			same.push(new PlainParagraph(set, font.lineHeight, font.letterSpacing, font.wordSpacing, base, breaking, p));
+			plainCount++;
+		}
+		return p;
+	}
+}
+
+// (a shared paragraph and what it was laid out with: DrawText.plain)
+private class PlainParagraph {
+	public final fonts:FontSet;
+	public final lineHeight:Float;
+	public final letterSpacing:Float;
+	public final wordSpacing:Float;
+	public final base:Int;
+	public final breaking:Int;
+	public final paragraph:DrawParagraph;
+
+	public function new(fonts, lineHeight, letterSpacing, wordSpacing, base, breaking, paragraph) {
+		this.fonts = fonts;
+		this.lineHeight = lineHeight;
+		this.letterSpacing = letterSpacing;
+		this.wordSpacing = wordSpacing;
+		this.base = base;
+		this.breaking = breaking;
+		this.paragraph = paragraph;
 	}
 }
 
@@ -99,6 +152,40 @@ class DrawParagraph implements Paragraph {
 
 	public function new(layout:TextLayout)
 		this.layout = layout;
+
+	public function runs(width:Float, align:TextAlign):Array<GlyphRun> {
+		var t = layout, out:Array<GlyphRun> = [], cur:Null<GlyphRun> = null, last = -1;
+		for (l in t.lines) {
+			var lx = switch align {
+				case Center: (width - l.width) / 2;
+				case Right: width - l.width;
+				case _: 0.0;
+			}
+			for (g in l.glyphs) {
+				if (g.hidden || g.cp == 10) continue;
+				var set = g.run < 0 ? t.fonts : t.runs[g.run].fonts, f = g.font;
+				if (cur == null || cur.font.id != f.id || cur.size != set.size || cur.span != g.run) {
+					cur = {
+						font: {family: f.family, weight: f.weight, italic: f.italic, data: f.data, id: f.id},
+						size: set.size,
+						glyphs: [],
+						x: [],
+						y: [],
+						text: [],
+						span: g.run
+					};
+					out.push(cur);
+				}
+				cur.glyphs.push(g.id);
+				cur.x.push(lx + g.x + g.dx);
+				cur.y.push(l.top + l.baseline + g.dy);
+				// (a cluster's characters on its first glyph)
+				cur.text.push(g.cluster == last ? "" : t.text.substr(g.cluster, g.length));
+				last = g.cluster;
+			}
+		}
+		return out;
+	}
 
 	inline function get_baseline()
 		return layout.lines.length == 0 ? layout.baseline : layout.lines[0].top + layout.lines[0].baseline;

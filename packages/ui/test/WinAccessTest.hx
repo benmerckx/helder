@@ -1,12 +1,17 @@
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.ui.draw.WinAccess;
+import hxmc.ui.draw.WinViews;
+import hxmc.ui.native.win32.Win32;
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
+import hxmc.view.Flow.*;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
+import hxmc.ui.widgets.Widgets.ContextMenu;
+import hxmc.ui.widgets.Widgets.Menubar;
 import hxmc.unsafe.*;
 
 // hxmc.ui's accessibility on Windows (WinAccess; CI's Windows jobs): a
@@ -14,9 +19,42 @@ import hxmc.unsafe.*;
 // interfaces as UI Automation calls them (navigation, properties, bounds,
 // the patterns: invoke, toggle, range value, value), and the window's root
 // element asked of UI Automation itself (UiaNodeFromHandle: the provider
-// WM_GETOBJECT gives).
+// WM_GETOBJECT gives). Its field native (WinViews: an EDIT over the window):
+// the value set through UI Automation in it, a character typed into it in
+// the field's signal, Tab from it moving the window's focus on; centred,
+// an EDIT made again ES_CENTER with the same text. A context menu native
+// (a popup menu tracked: Down and Enter posted to it from a timer, as a
+// user's keys; EndMenu later in case they are not taken), its item chosen.
+// A menu bar native (the window's menu: its menus, the drawn bar hidden;
+// an item's command posted to the window, the item chosen).
 //   WinAccessTest
+@:hxmc.c @:hxmc.lib("user32") extern class WinMenuTest {
+	static function FindWindowW(cls:Ptr, name:Ptr):Ptr;
+	static function SetTimer(hwnd:Ptr, id:Int64, ms:Int, proc:Ptr):Int64;
+	static function KillTimer(hwnd:Ptr, id:Int64):Int;
+	static function EndMenu():Int;
+	static function GetMenu(hwnd:Ptr):Ptr;
+	static function GetMenuItemCount(menu:Ptr):Int;
+}
+
 class WinAccessTest implements Markup {
+	// (the menu's window, found by the timer)
+	static var menuFound = false;
+
+	// (the menu up: Down to its first item, Enter to choose it; the second timer ends it whatever happened)
+	@:hxmc.callback static function menuKeys(hwnd:Ptr, msg:Int, id:Int64, time:Int) {
+		WinMenuTest.KillTimer(hwnd, id);
+		if (id == 2) {
+			WinMenuTest.EndMenu();
+			return;
+		}
+		var m = Arena.scopedValue(a -> WinMenuTest.FindWindowW(a.wstring("#32768"), Ptr.nil()));
+		if (m.isNull()) return;
+		menuFound = true;
+		hxmc.os.win32.User32.User32.PostMessageW(m, 0x100, 0x28, 0);
+		hxmc.os.win32.User32.User32.PostMessageW(m, 0x100, 0x0D, 0);
+	}
+
 	static var failed = 0;
 	static var checks = 0;
 
@@ -43,7 +81,7 @@ class WinAccessTest implements Markup {
 
 	static function main() {
 		var w = new UiWindow("WinAccessTest", 320, 240);
-		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal("");
+		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "", barOn = signal(false), barChosen = "";
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
@@ -51,6 +89,13 @@ class WinAccessTest implements Markup {
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
 			<Input tag="name" value={name} placeholder="Name"/>
 			<view live="polite"><text>Ready</text></view>
+			<Show when={menuOn}><ContextMenu tag="cm" items={[{label: "Copy", onSelect: () -> menuChosen += "copy"}, {label: "Paste", onSelect: () -> menuChosen += "paste"}]}>
+				<view tag="cm-area" width={60} height={20}/>
+			</ContextMenu></Show>
+			<Show when={barOn}><Menubar tag="bar" label="App" menus={[
+				{label: "File", items: [{label: "New", onSelect: () -> barChosen += "new"}, {label: "Open", onSelect: () -> barChosen += "open"}]},
+				{label: "Edit", items: [{label: "Undo", shortcut: "Mod+Z", onSelect: () -> barChosen += "undo"}]}
+			]}/></Show>
 		</view>, w.root);
 		var step = 0;
 		var out:Ptr<Ptr> = LibC.malloc(8), v:Ptr = LibC.malloc(24), d:Ptr<Float> = LibC.malloc(32), i32:Ptr<Int32> = LibC.malloc(4);
@@ -138,7 +183,67 @@ class WinAccessTest implements Markup {
 						Simple.GetPatternProvider(t, 10015, out);
 						check("the toggle state after it", !out.value.isNull() && Toggle.get_ToggleState(out.value, i32) == 0 && i32.value == 1);
 					}
+					var eds:Array<WinEditor> = @:privateAccess WinViews.editors;
+					check("the field native: one EDIT", eds.length == 1, "" + eds.length);
+					if (eds.length == 1) {
+						var edit:Ptr = @:privateAccess eds[0].hwnd;
+						check("the value set in the EDIT", @:privateAccess eds[0].text() == "Ada", @:privateAccess eds[0].text());
+						W32.SendMessageW(edit, 0xB1, 3, 3);
+						W32.SendMessageW(edit, 0x102, "x".code, 0);
+						w.ui.setFocus(w.root.find("name"));
+					}
 					step = 2;
+				case 2:
+					check("typed into the EDIT, the field's signal follows", name.value == "Adax", name.value);
+					var eds:Array<WinEditor> = @:privateAccess WinViews.editors;
+					if (eds.length == 1) W32.SendMessageW(@:privateAccess eds[0].hwnd, 0x100, 9, 0);
+					step = 3;
+				case 3:
+					check("Tab from the EDIT: the window's focus on", w.ui.focus != null && w.ui.focus.tag == "save", w.ui.focus == null ? "none" : w.ui.focus.tag);
+					w.root.find("name").style.textAlign = Center;
+					step = 4;
+				case 4:
+					var eds:Array<WinEditor> = @:privateAccess WinViews.editors;
+					if (eds.length == 1) {
+						var style = WinEdit.GetWindowLongPtrW(@:privateAccess eds[0].hwnd, -16).toInt(); // GWL_STYLE
+						check("centred: the EDIT made again ES_CENTER", style & 3 == 1, "" + (style & 3));
+						check("centred: its text kept", @:privateAccess eds[0].text() == "Adax", @:privateAccess eds[0].text());
+					}
+					menuOn.value = true;
+					step = 5;
+				case 5:
+					var area = w.root.find("cm-area");
+					if (area != null) {
+						var hwnd = @:privateAccess (cast w.ui.platform : WinViews).hwnd;
+						WinMenuTest.SetTimer(hwnd, 1, 300, Callback.addr(menuKeys));
+						WinMenuTest.SetTimer(hwnd, 2, 3000, Callback.addr(menuKeys));
+						w.ui.pointerDown(area.absX + 4, area.absY + 4, 3);
+						w.ui.pointerUp(area.absX + 4, area.absY + 4, 3);
+					}
+					step = 6;
+				case 6:
+					// (the menu tracked in this frame's poll, chosen before this step)
+					step = 7;
+				case 7:
+					check("a native context menu: its popup menu shown", menuFound);
+					check("a native context menu: its first item chosen by the keys", menuChosen == "copy", menuChosen);
+					barOn.value = true;
+					step = 8;
+				case 8:
+					// (the window's menu bar: its two menus; Undo's command, its id plus one, posted)
+					var hwnd = @:privateAccess (cast w.ui.platform : WinViews).hwnd;
+					var bar = WinMenuTest.GetMenu(hwnd);
+					check("a native menu bar: the window's menu", !bar.isNull());
+					check("a native menu bar: its two menus", !bar.isNull() && WinMenuTest.GetMenuItemCount(bar) == 2);
+					var drawn = w.root.find("bar");
+					check("a native menu bar: the drawn one hidden", drawn != null && drawn.style.display == None);
+					hxmc.os.win32.User32.User32.PostMessageW(hwnd, 0x111, 3, 0);
+					step = 9;
+				case 9:
+					step = 10;
+				case 10:
+					check("a native menu bar: an item chosen by its command", barChosen == "undo", barChosen);
+					step = 11;
 					w.close();
 				case _:
 			}
@@ -146,7 +251,7 @@ class WinAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('WinAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 12 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 24 ? 0 : 1);
 	}
 }
 

@@ -5,7 +5,7 @@ import haxe.io.Bytes;
 import hxmc.text.Rasterizer;
 
 // An SVG document for icons and drawings: parsed once (Svg.parse), drawn
-// into an Image at any size (render: the viewBox fitted as
+// into an Image at any size (the Image's drawing: this, for a writer's vectors; render: the viewBox fitted as
 // preserveAspectRatio says, xMidYMid meet by default). The static subset
 // icon sets use: svg, g, path (all of its data, arcs as cubic curves), rect
 // (rounded), circle, ellipse, line, polyline, polygon; fill and stroke (a
@@ -19,7 +19,7 @@ import hxmc.text.Rasterizer;
 // units); presentation attributes, style="" and the inherited ones passed
 // down. Not drawn: text, images, patterns (a pattern paint draws
 // nothing), masks, filters, markers; defs, title and the like are skipped.
-class Svg {
+class Svg implements Drawing {
 	// the intrinsic size: width and height, else the viewBox's, else 300 by 150
 	public final width:Float;
 	public final height:Float;
@@ -108,7 +108,9 @@ class Svg {
 		} else
 			m = new Matrix(w / this.width, 0, 0, h / this.height, 0, 0);
 		canvas.group(root, m);
-		return canvas.image();
+		var img = canvas.image();
+		img.drawing = {svg: this, color: color};
+		return img;
 	}
 }
 
@@ -861,7 +863,7 @@ class SvgParse {
 	}
 
 	// an elliptical arc as cubic curves (SVG's endpoint parameters, F.6)
-	static function arc(p:Array<Float>, x1:Float, y1:Float, rx:Float, ry:Float, angle:Float, large:Bool, sweep:Bool, x2:Float, y2:Float) {
+	public static function arc(p:Array<Float>, x1:Float, y1:Float, rx:Float, ry:Float, angle:Float, large:Bool, sweep:Bool, x2:Float, y2:Float) {
 		if (x1 == x2 && y1 == y2) return;
 		rx = Math.abs(rx);
 		ry = Math.abs(ry);
@@ -915,13 +917,31 @@ class SvgParse {
 	// a transform list: matrix, translate, scale, rotate, skewX, skewY
 	public static function transform(s:String):Matrix {
 		var m = Matrix.identity();
-		var re = ~/([a-zA-Z]+)\s*\(([^)]*)\)/;
-		var rest = s;
-		while (re.match(rest)) {
-			var a = numbers(re.matched(2));
+		// (each name, spaces maybe, and its arguments in parentheses; anything else skipped)
+		var i = 0, n = s.length;
+		inline function letter(k:Int):Bool {
+			var c = k < n ? StringTools.fastCodeAt(s, k) | 32 : 0;
+			return c >= "a".code && c <= "z".code;
+		}
+		while (i < n) {
+			if (!letter(i)) {
+				i++;
+				continue;
+			}
+			var start = i;
+			while (letter(i))
+				i++;
+			var name = s.substring(start, i);
+			while (i < n && StringTools.isSpace(s, i))
+				i++;
+			if (i >= n || StringTools.fastCodeAt(s, i) != "(".code) continue;
+			var close = s.indexOf(")", i);
+			if (close < 0) break;
+			var a = numbers(s.substring(i + 1, close));
+			i = close + 1;
 			inline function arg(i:Int, def:Float):Float
 				return i < a.length ? a[i] : def;
-			var t = switch re.matched(1) {
+			var t = switch name {
 				case "matrix" if (a.length == 6): new Matrix(a[0], a[1], a[2], a[3], a[4], a[5]);
 				case "translate": new Matrix(1, 0, 0, 1, arg(0, 0), arg(1, 0));
 				case "scale": new Matrix(arg(0, 1), 0, 0, arg(1, arg(0, 1)), 0, 0);
@@ -933,7 +953,6 @@ class SvgParse {
 				case _: Matrix.identity();
 			}
 			m = m.times(t);
-			rest = re.matchedRight();
 		}
 		return m;
 	}

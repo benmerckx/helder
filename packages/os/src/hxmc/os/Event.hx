@@ -32,9 +32,11 @@ enum abstract EventKind(Int) {
 	// a Resize follows if its size in pixels changed too
 	var ScaleChange;
 	// Android: the system took the window (the app went to the background):
-	// its Surface is lost (Surface.lost) and nothing is drawn until Resume
+	// its Surface is lost (Surface.lost) and nothing is drawn until Resume;
+	// iOS: the app went to the background (the Surface stays), no frames
 	var Suspend;
-	// Android: a new window for the Surface (Surface.reattach), drawn to again
+	// Android: a new window for the Surface (Surface.reattach), drawn to
+	// again; iOS: back in the foreground
 	var Resume;
 }
 

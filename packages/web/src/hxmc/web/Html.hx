@@ -63,8 +63,10 @@ class Html {
 	// an attribute's value as written (null: absent)
 	public static function attributeValue(name:String, v:Dynamic):Null<String> {
 		if (v == null) return null;
-		if (BOOLEAN.exists(name)) return v == false || v == "false" ? null : "";
-		if (v == false && !StringTools.startsWith(name, "aria-") && !StringTools.startsWith(name, "data-")) return null;
+		// (false itself, not 0: tabindex={0})
+		var no = Std.isOfType(v, Bool) && v == false;
+		if (BOOLEAN.exists(name)) return no || v == "false" ? null : "";
+		if (no && !StringTools.startsWith(name, "aria-") && !StringTools.startsWith(name, "data-")) return null;
 		return Std.string(v);
 	}
 

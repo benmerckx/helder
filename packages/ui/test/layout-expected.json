@@ -403,6 +403,13 @@
 		[0, 90, 97, 60],
 		[101, 90, 98, 30]
 	],
+	"grid percent items": [
+		[0, 0, 300, 200],
+		[0, 0, 40, 40],
+		[40, 0, 20, 40],
+		[40, 0, 10, 10],
+		[80, 0, 40, 20]
+	],
 	"grid negative lines": [
 		[0, 0, 300, 200],
 		[0, 0, 300, 30],
@@ -1048,5 +1055,236 @@
 		[2, 108, 10, 50],
 		[2, 158, 10, 40],
 		[12, 108, 10, 73]
+	],
+	"fit-content wrapping row, percentage basis": [
+		[0, 0, 300, 200],
+		[0, 0, 75, 20],
+		[0, 0, 26, 10],
+		[0, 10, 75, 10]
+	],
+	"wrapping column basis in a row": [
+		[0, 0, 300, 43],
+		[0, 0, 18, 43],
+		[0, 0, 2, 30],
+		[2, 0, 16, 30]
+	],
+	"wrapping column basis in a row item": [
+		[0, 0, 300, 200],
+		[0, 0, 18, 43],
+		[0, 0, 18, 43],
+		[0, 0, 2, 30],
+		[2, 0, 16, 30]
+	],
+	"wrapping column basis in a column item": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 43],
+		[0, 0, 16, 43],
+		[0, 0, 2, 30],
+		[2, 0, 16, 30]
+	],
+	"wrapping column basis in a column item, percentage heights": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 43],
+		[0, 0, 18, 43],
+		[0, 0, 2, 2],
+		[2, 0, 16, 43]
+	],
+	"wrapping column basis in a column item, its min-height": [
+		[0, 0, 300, 200],
+		[0, 0, 72, 43],
+		[0, 0, 169, 43],
+		[0, 0, 85, 43],
+		[85, 0, 2, 29],
+		[95, 8, 89, 27]
+	],
+	"wrapping column basis in a column item, a min-height in pixels": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 43],
+		[0, 0, 58, 43],
+		[0, 0, 58, 43],
+		[58, 0, 6, 6]
+	],
+	"wrapping column fit-content, its min-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 26],
+		[121, 0, 58, 31],
+		[121, 0, 58, 31],
+		[179, 0, 6, 6]
+	],
+	"wrapping column fit-content, its max-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 31],
+		[118, 0, 64, 31],
+		[118, 0, 58, 31],
+		[176, 0, 6, 6]
+	],
+	"wrapping column basis at its max-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 68],
+		[0, 0, 300, 68],
+		[0, 0, 0, 45],
+		[0, 0, 0, 68]
+	],
+	"wrapping column basis, a percentage max-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 70],
+		[0, 0, 300, 34],
+		[0, 34, 300, 35],
+		[3, 37, 16, 16],
+		[2, 58, 18, 2],
+		[22, 34, 8, 8]
+	],
+	"wrapping column minimum, a percentage height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 113],
+		[0, 0, 300, 113],
+		[0, 0, 0, 76],
+		[4, 4, 0, 30]
+	],
+	"wrapping row narrower than its widest item": [
+		[0, 0, 300, 200],
+		[0, 0, 10, 28],
+		[0, 0, 16, 28],
+		[0, 0, 16, 16],
+		[10, 22, 0, 0],
+		[2, 16, 2, 12]
+	],
+	"basis in pixels definite in a column of auto height": [
+		[0, 0, 300, 200],
+		[0, 0, 20, 115],
+		[0, 0, 20, 115],
+		[0, 0, 20, 29]
+	],
+	"basis in pixels, shrunk in a wrapping column: percentages of the size it shrank to": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 39],
+		[0, 0, 10, 39],
+		[0, 29, 10, 10]
+	],
+	"wrapping row basis, its min-content": [
+		[0, 0, 300, 200],
+		[113, 0, 187, 200],
+		[206, 0, 94, 10],
+		[206, 0, 94, 10]
+	],
+	"wrapping column minimum within its max-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 16],
+		[0, 0, 16, 16],
+		[16, 0, 8, 8],
+		[0, 16, 300, 193]
+	],
+	"grid absolute static position aligned": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 4],
+		[140, -6, 20, 10],
+		[148, 0, 4, 4]
+	],
+	"grid item percentage width of its area": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 10],
+		[0, 0, 100, 10]
+	],
+	"grid auto minimum of an item with a width": [
+		[0, 0, 300, 200],
+		[0, 0, 75, 10],
+		[0, 0, 33, 10],
+		[33, 0, 21, 10]
+	],
+	"aspect ratio contribution not from a flexed height": [
+		[0, 0, 300, 200],
+		[0, 0, 0, 96],
+		[0, 0, 0, 96],
+		[0, 96, 96, 96]
+	],
+	"aspect ratio height from a fit-content width": [
+		[0, 0, 300, 200],
+		[0, 0, 69, 138],
+		[0, 0, 69, 0]
+	],
+	"aspect ratio automatic minimum its height": [
+		[0, 0, 300, 200],
+		[0, 0, 111, 111],
+		[0, 0, 111, 111]
+	],
+	"aspect ratio automatic minimum, its width not definite": [
+		[0, 0, 300, 200],
+		[287, 3, 9, 19]
+	],
+	"absolute box height at its shrunk width": [
+		[0, 0, 300, 200],
+		[0, 0, 16, 48],
+		[0, 0, 16, 32],
+		[0, 32, 16, 16],
+		[0, 32, 16, 16]
+	],
+	"grid absolute static position in the padding box": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 4],
+		[0, 0, 10, 10]
+	],
+	"grid tracks overflowing, centred": [
+		[0, 0, 300, 200],
+		[0, 0, 73, 32],
+		[7, 9, 14, 14],
+		[21, 10, 40, 8]
+	],
+	"grid tracks overflowing, evenly": [
+		[0, 0, 300, 200],
+		[0, 0, 39, 10],
+		[0, 0, 50, 10]
+	],
+	"grid item of its content height, percentages": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 24],
+		[2, 4, 290, 20],
+		[2, 4, 20, 20],
+		[2, 24, 20, 0]
+	],
+	"grid item percentage min-height while rows are sized": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 68],
+		[0, 0, 300, 68],
+		[0, 68, 300, 0]
+	],
+	"grid basis within its min-height": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 76],
+		[0, 0, 300, 10],
+		[0, 76, 300, 77],
+		[0, 153, 300, 47]
+	],
+	"grid percentage tracks auto while fit to content": [
+		[0, 0, 300, 200],
+		[0, 0, 49, 10],
+		[-26, 0, 101, 10],
+		[-26, 0, 101, 10],
+		[0, 10, 72, 28],
+		[9, 19, 70, 10],
+		[9, 19, 70, 10]
+	],
+	"grid span up to growth limits": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 20],
+		[0, 0, 102, 10],
+		[0, 10, 96, 10],
+		[0, 20, 300, 20],
+		[0, 20, 20, 10],
+		[145, 20, 30, 10],
+		[0, 30, 96, 10]
+	],
+	"grid absolute children in their areas": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 80],
+		[295, 0, 10, 10],
+		[58, 35, 233, 45],
+		[235, 0, 0, 5],
+		[0, 72, 8, 8]
+	],
+	"rtl grid absolute children in their areas": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 0],
+		[69, 0, 176, 5],
+		[285, 0, 10, 10]
 	]
 }

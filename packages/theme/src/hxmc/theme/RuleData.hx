@@ -9,8 +9,9 @@ using StringTools;
 // program first needs them (no class or CSS is parsed then: colours and
 // transforms excepted, by Color.parse and Transform.parse): a table of
 // strings (slots, states, colours, numbers written as Haxe writes them) and
-// a stream of small numbers, each one or two characters (under 64: 48 + n;
-// else 112 + n / 64, then 48 + n % 64). A rule is its slot, variant and
+// a stream of small numbers, each one, two or three characters (under 64:
+// 48 + n; under 960: 112 + n / 64, then 48 + n % 64; else "!", then 48 + n
+// / 64 and 48 + n % 64). A rule is its slot, variant and
 // size (strings, 0 for none, else 1 + index), its states (a count, then
 // each), its fields (a count, then each field's index in FIELDS and its
 // value, read as its kind says; a number "r" and px is --radius plus px,
@@ -29,7 +30,8 @@ class RuleData {
 		+ "textTransform:e textOverflow:e order:i zIndex:i maxLines:i gridTemplateColumns:T gridTemplateRows:T gridAutoColumns:k gridAutoRows:k "
 		+ "gridColumn:p gridRow:p justifyItems:e justifySelf:e transform:t outlineStyle:e ringWidth:f ringColor:c ringOffsetWidth:f ringOffsetColor:c "
 		+ "ringInset:b transition:r paddingTop:f paddingRight:f paddingBottom:f paddingLeft:f marginTop:f marginRight:f marginBottom:f marginLeft:f "
-		+ "overflowX:e overflowY:e letterSpacingEm:f userSelect:e lineHeightPx:f fieldSizing:e textUnderlineOffset:d";
+		+ "overflowX:e overflowY:e letterSpacingEm:f userSelect:e lineHeightPx:f fieldSizing:e textUnderlineOffset:d "
+		+ "scrollbarWidth:e scrollbarColor:c scrollbarTrackColor:c";
 
 	final data:String;
 	final table:Array<String>;
@@ -57,6 +59,10 @@ class RuleData {
 
 	inline function int():Int {
 		var c = data.fastCodeAt(at++);
+		if (c == "!".code) {
+			c = data.fastCodeAt(at++) - 48;
+			return (c << 6) | (data.fastCodeAt(at++) - 48);
+		}
 		return c < 112 ? c - 48 : ((c - 112) << 6) | (data.fastCodeAt(at++) - 48);
 	}
 

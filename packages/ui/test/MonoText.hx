@@ -35,6 +35,20 @@ class MonoParagraph implements Paragraph {
 	// (asked to justify: recorded only)
 	public var justified = false;
 
+	// (one run: each character a glyph, its code its id, in a face of no file)
+	public function runs(width:Float, align:TextAlign):Array<GlyphRun> {
+		var r:GlyphRun = {font: {family: "Mono", weight: 400, italic: false, data: haxe.io.Bytes.alloc(0), id: 0}, size: char * 2, glyphs: [], x: [], y: [], text: [], span: -1};
+		for (k => l in lines)
+			for (i in 0...l.length) {
+				var c = text.charCodeAt(l.start + i);
+				r.glyphs.push(c);
+				r.x.push(i * char);
+				r.y.push(k * line + line * 0.8);
+				r.text.push(String.fromCharCode(c));
+			}
+		return [r];
+	}
+
 	public function new(text:String, font:Font, maxWidth:Float, maxLines = 0, cut = -1.0) {
 		this.text = text;
 		// (letter spacing after each character)

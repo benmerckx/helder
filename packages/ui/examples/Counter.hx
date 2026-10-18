@@ -2,6 +2,7 @@
 // summary: The smallest ui program: a signal, markup bound to it, a button that changes it
 // tags: ui, view, signals
 // demo: canvas 320x200
+import hxmc.theme.Shadcn;
 import hxmc.view.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.Reactive.*;
@@ -12,7 +13,7 @@ class Counter implements Markup {
 	static function main() {
 		var count = signal(0);
 		var w = new UiWindow("Counter", 320, 200);
-		w.ui.theme = Plain.sheet;
+		w.ui.theme = Shadcn.sheet;
 		Render.render(<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
 			<text font-size={32}>{count}</text>
 			<Button label="+1" onClick={() -> count.value++}/>

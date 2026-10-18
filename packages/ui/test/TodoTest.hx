@@ -1,3 +1,4 @@
+import hxmc.theme.Shadcn;
 import haxe.io.Bytes;
 import hxmc.gfx.*;
 import hxmc.os.*;
@@ -28,7 +29,7 @@ class TodoTest {
 		var args = Sys.args();
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
-		ui.theme = Plain.sheet;
+		ui.theme = Shadcn.sheet;
 		var app = new Todo();
 		Render.render(app.view(), ui.root);
 		ui.update();

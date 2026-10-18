@@ -22,7 +22,45 @@
 // in a label, range), progress. Measured by the browser (their size with
 // no size set, text in a span); their events queued for the module, text
 // as string handles; frames from requestAnimationFrame.
+//
+// A window's native text editors (src/hxmc/ui/draw/WebViews.hx): an input
+// or a textarea of the page, in a layer over the canvas (its size, clipping
+// them), absolutely placed where the
+// field's content box is laid out, borderless and transparent (the drawn
+// box is the theme's), in the field's font and colour. Edits, focus and the
+// keys it leaves to the program (Tab, Escape; Enter, Up and Down on one
+// line) are queued for the module.
 export default function (host) {
+	const editors = new Map();
+	const editorEvents = [];
+	let nextEditor = 1;
+	// a canvas's layer of editors: over it in the page, its size, clipping
+	// them (one placed for an older layout never widens the page), kept on
+	// the canvas as it changes size
+	function layer(c) {
+		if (c.hxmcEditors) return c.hxmcEditors;
+		const l = document.createElement('div');
+		l.style.cssText = 'position:absolute;overflow:hidden;pointer-events:none;z-index:1;';
+		document.body.appendChild(l);
+		const fit = () => {
+			const r = c.getBoundingClientRect();
+			l.style.left = r.left + window.scrollX + 'px';
+			l.style.top = r.top + window.scrollY + 'px';
+			l.style.width = r.width + 'px';
+			l.style.height = r.height + 'px';
+		};
+		fit();
+		new ResizeObserver(fit).observe(c);
+		l.fit = fit;
+		c.hxmcEditors = l;
+		return l;
+	}
+	// (an editor's event: queued, and a frame asked for, which polls it)
+	const queue = (ev) => {
+		editorEvents.push(ev);
+		host.os?.redraw();
+	};
+	const EDITOR_KEYS = { Tab: 0xff09, Escape: 0xff1b, Enter: 0xff0d, ArrowUp: 0xff52, ArrowDown: 0xff54 };
 	const nativeQueue = [];
 	let nativeFirst = true;
 	const KINDS = ['button', 'label', 'field', 'checkbox', 'slider', 'progress'];
@@ -70,6 +108,7 @@ export default function (host) {
 			set('aria-multiline', n.multiline ? 'true' : null);
 		} else set('aria-label', n.name || null);
 		set('aria-description', n.description);
+		set('data-href', n.href);
 		set('aria-checked', n.checked);
 		set('aria-selected', n.selected);
 		set('aria-multiselectable', n.multiselectable ? 'true' : null);
@@ -277,6 +316,83 @@ export default function (host) {
 				else if (!f && document.activeElement !== c) c.focus({ preventScroll: true });
 				focusing = false;
 			}
+		},
+		// a native text editor over the canvas: its handle
+		editor_create(canvas, multiline) {
+			const c = host.handles.get(canvas);
+			const e = document.createElement(multiline ? 'textarea' : 'input');
+			const h = nextEditor++;
+			if (!multiline) e.type = 'text';
+			e.id = 'hxmc-editor-' + h;
+			e.setAttribute('data-hxmc-editor', '');
+			e.style.cssText = 'position:absolute;display:none;margin:0;border:0;padding:0;background:transparent;outline:none;box-sizing:border-box;resize:none;overflow:hidden;pointer-events:auto;';
+			const style = document.createElement('style');
+			document.head.appendChild(style);
+			layer(c).appendChild(e);
+			const ed = { e, c, style, multiline, focusing: false };
+			editors.set(h, ed);
+			const mods = (ev) => (ev.shiftKey ? 1 : 0) | (ev.ctrlKey ? 2 : 0) | (ev.altKey ? 4 : 0) | (ev.metaKey ? 8 : 0);
+			e.addEventListener('input', () => queue([h, 1, e.selectionStart ?? 0, e.selectionEnd ?? 0, host.handles.add(e.value)]));
+			e.addEventListener('focus', () => ed.focusing || queue([h, 2, 0, 0, 0]));
+			e.addEventListener('blur', () => ed.focusing || queue([h, 3, 0, 0, 0]));
+			e.addEventListener('keydown', (ev) => {
+				const k = EDITOR_KEYS[ev.key];
+				if (!k || ev.isComposing || (multiline && k !== 0xff09 && k !== 0xff1b)) return;
+				ev.preventDefault();
+				queue([h, 4, k, mods(ev), 0]);
+			});
+			return h;
+		},
+		editor_text(h, text, start, end) {
+			const ed = editors.get(h);
+			ed.e.value = host.string(text);
+			if (document.activeElement === ed.e) ed.e.setSelectionRange(start, end);
+		},
+		// its place: the window's pixels (the canvas's buffer over the device's
+		// pixel ratio), scaled as the canvas is shown (a page may show it
+		// smaller), in the canvas's layer
+		editor_place(h, x, y, w, hh, shown) {
+			const ed = editors.get(h), r = ed.c.getBoundingClientRect();
+			const k = r.width / Math.max(1, Math.round(ed.c.width / devicePixelRatio));
+			const s = ed.e.style;
+			layer(ed.c).fit();
+			s.display = shown ? '' : 'none';
+			s.left = x * k + 'px';
+			s.top = y * k + 'px';
+			s.width = w + 'px';
+			s.height = hh + 'px';
+			s.transformOrigin = '0 0';
+			s.transform = Math.abs(k - 1) < 1e-3 ? '' : 'scale(' + k + ')';
+		},
+		editor_style(h, css, placeholder, placeholderColor, secret) {
+			const ed = editors.get(h);
+			ed.e.style.cssText = ed.e.style.cssText.replace(/(font|line-height|color|text-align):[^;]*;/g, '') + host.string(css);
+			ed.e.placeholder = host.string(placeholder);
+			ed.style.textContent = '#' + ed.e.id + '::placeholder{color:' + host.string(placeholderColor) + ';opacity:1}';
+			if (!ed.multiline) ed.e.type = secret ? 'password' : 'text';
+		},
+		// the page's focus given, or taken back for the canvas
+		editor_focus(h, on) {
+			const ed = editors.get(h);
+			ed.focusing = true;
+			if (on) ed.e.focus({ preventScroll: true });
+			else if (document.activeElement === ed.e) ed.c.focus({ preventScroll: true });
+			ed.focusing = false;
+		},
+		editor_dispose(h) {
+			const ed = editors.get(h);
+			if (!ed) return;
+			if (document.activeElement === ed.e) ed.c.focus({ preventScroll: true });
+			ed.e.remove();
+			ed.style.remove();
+			editors.delete(h);
+		},
+		// the next event into p (five Int32: the handle, the kind, its values); 0: none
+		editor_event(p) {
+			const ev = editorEvents.shift();
+			if (!ev) return 0;
+			new Int32Array(host.memory().buffer, p, 5).set(ev);
+			return 1;
 		},
 		// the next action into p (two Int32: the node id, the AccessAction); 0: none
 		access_action(p) {

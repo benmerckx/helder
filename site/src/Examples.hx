@@ -57,7 +57,7 @@ class Examples {
 			case "text": ["-cp", "packages/os/src", "-cp", "packages/gfx/src", "-cp", "packages/text/src"];
 			case "ui": [
 					"-cp", "packages/os/src", "-cp", "packages/gfx/src", "-cp", "packages/text/src", "-cp", "packages/view/src",
-					"-D", "hxmc.view.renderer.ui=hxmc.ui.view.NodeRenderer", "-cp", "packages/ui/src"
+					"-D", "hxmc.view.renderer.ui=hxmc.ui.view.NodeRenderer", "-cp", "packages/ui/src", "-cp", "packages/theme/src"
 				];
 			case "web": ["-cp", "packages/web/src"];
 			case _: [];

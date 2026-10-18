@@ -235,6 +235,19 @@ class ViewTest implements Markup {
 		var one = 1, two = 2;
 		check("less-than and type parameters in an expression", html(<b>{one<two ? "lt" : "ge"}{(one < two) ? (new Array<Int>()).length : -1}{(cast items : Array<String>).length}</b>) == "<b>lt03</b>");
 		check("markup after a condition", html(<div>{if (one < two) <i>it's</i> else <b>{"no"}</b>}</div>) == "<div><i>it's</i></div>");
+		// lambdas in attributes: markup after ->, return, =>, ?, :, =; a less-than after a name or a number
+		check("markup returned by an attribute lambda", html(<div><Rows count={2} render={i -> <Card>{i}</Card>}/><Rows count={1} render={(i) -> <Card/>}/><Rows
+			count={1} render={function(i) return <Card>f{i}</Card>}/></div>) == "<div><ul><li>0</li><li>1</li></ul><ul><li></li></ul><ul><li>f0</li></ul></div>");
+		check("comparisons in an attribute lambda", html(<div><Rows count={3} render={(i) -> i < 1 ? <Card>lt</Card> : <Card>{i<2 ? "a" : "b"}</Card>}/><Rows
+			count={3} render={i -> <li title={i <= 1 ? "le" : "gt"} x={1 << i}>{new Array<Int>().length + i}</li>}/></div>)
+			== '<div><ul><li>lt</li><li>a</li><li>b</li></ul><ul><li title="le" x="1">0</li><li title="le" x="2">1</li><li title="gt" x="4">2</li></ul></div>');
+		check("markup after => and = in an attribute lambda", html(<div><Rows count={2} render={i -> [0 => <Card>zero</Card>, 1 => <Card>one</Card>][i]}/><Rows
+			count={1} render={i -> {
+				var v = <Card>{i}</Card>;
+				v;
+			}}/></div>) == "<div><ul><li>zero</li><li>one</li></ul><ul><li>0</li></ul></div>");
+		var count = 1;
+		check("a root closed by its closing tag", html(<Rows count={2} render={i -> i < count ? <Card>{i}</Card> : <Card/>}></Rows>) == "<ul><li>0</li><li></li></ul>");
 		// events and refs
 		var clicked = 0, got:Null<TestNode> = null;
 		var root2 = new TestNode(Element, "root");
@@ -246,6 +259,12 @@ class ViewTest implements Markup {
 
 	static function Button(props:{label:String, ?primary:Bool, ?onClick:Void->Void, ?children:View}):View
 		return <button class={props.primary == true ? "primary" : "plain"}>{props.label}{props.children}</button>;
+
+	static function Rows(props:{count:Int, render:Int->View}):View
+		return <ul>{[for (i in 0...props.count) props.render(i)]}</ul>;
+
+	static function Card(props:{?children:View}):View
+		return <li>{props.children}</li>;
 
 	static function Counter(props:{start:Int}):View {
 		var count = signal(props.start);

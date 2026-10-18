@@ -230,7 +230,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   invalid), `Textarea`, `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
   `CardFooter`), `RadioGroup`, `Slider`, `RangeSlider` (two knobs, a
   slider each for the keyboard), `Progress` (or indeterminate), `Tabs`, `Separator`, `Skeleton`, `Alert`
-  (`AlertTitle`, `AlertDescription`), `Avatar` (an image or initials), `Kbd`, `Spinner`, `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
+  (`AlertTitle`, `AlertDescription`), `Avatar` (an image or initials), `Kbd`, `Spinner`, `Field` (a label, control, description and error as one group; `FieldSet`, `FieldLegend`, `FieldGroup`, `FieldSeparator` around fields), `ButtonGroup` (joined buttons, a text, separators), `InputGroup` (an input with addons before and after it; a click on one focuses the input), `Empty` (an empty state: media, a title, a description, actions), `Item` (a row of media, a title, a description and actions; `ItemGroup`), `AspectRatio`, `ScrollArea`, `NativeSelect` (the platform's menu as its options where it has one), `BarChart`, `LineChart` and `AreaChart` (series on a round scale, stacked or side by side, an axis, grid, legend and a tooltip of the category under the pointer or the arrow keys; each series the theme's --chart-N), `PieChart` (slices clockwise from the top, a donut with a hole; the slice under the pointer by its angle, or the arrow keys'), `SidebarProvider` with `Sidebar` (collapsing offcanvas or to its icons, its trigger and Mod+B toggling it; its header, content, footer, groups and menu buttons) and `SidebarInset`, `NavigationMenu` (a navigation landmark of triggers whose panels open under it, by a click, the pointer or the keys, and links), `Carousel` (slides through a viewport: Previous, Next and the arrow keys ease it to a slide, a wheel or trackpad settles on one), `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
   rows, selection and keyboard), `Tree` (items opened and closed, by the
   pointer or the arrows, virtualised rows; ARIA's tree, with levels),
   `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
@@ -295,6 +295,12 @@ A value that is a signal, a memo or a function is reactive: the attribute,
 text or region follows it. In a `view`, text and text-valued holes next to
 each other become one `TextNode`.
 
+Tags and attribute names are resolved at compile time, so a program links
+only the nodes, attributes and value parsers its markup names (a gradient
+parser only with a gradient, image nodes only with `image`). A name none of
+them has, a spread (`{...props}`) or `NodeRenderer.setAttribute` looks the
+name up at run time and links them all.
+
 ## Themes
 
 The widgets ship unstyled (behaviour, semantics and the geometry their
@@ -326,9 +332,10 @@ state, attribute, variant, sheet or of dark applies them again, at the
 window's next update (several changes, one restyle). Without a sheet a
 widget has no look at all (React Aria's way: behaviour, semantics and
 its parts' states only), unless a program adds base rules
-(`Rules.addBase`: where no sheet applies); `examples/Plain.hx` is a plain
-sheet in the text's colour (`currentColor`) that the examples and tests
-use. A part's states are signals (`hxmc.ui.view.States.of(node)`:
+(`Rules.addBase`: where no sheet applies). The examples install
+@hxmc/theme's `Shadcn.sheet` (shadcn/ui's look; widgets shadcn has no
+component for, in its manner); `test/Plain.hx` is a plain sheet in the
+text's colour (`currentColor`) that tests measuring geometry use. A part's states are signals (`hxmc.ui.view.States.of(node)`:
 `hovered`, `pressed`, `focused`, `focusVisible`, `disabled`,
 `attr("data-state")`...), and a widget's `style` prop is a function of
 them, as React Aria's render props: `<Button style={s -> s.pressed.value ?
@@ -368,6 +375,40 @@ through the input method and the accessibility tree; a `GpuView`
 (`hxmc.ui.native.android`) is a GPU view among them, where gfx draws
 (`AndroidMixTest`).
 
+### Native or drawn, per widget
+
+In a drawn window a widget can also be the platform's own control
+(docs/plans/native-or-drawn.md): `host` on a node (`Auto`, `Native`,
+`Drawn`; markup's `host="native"`) holds for its subtree, and where the
+tree leaves it `Auto` the window's `Ui.policy` decides per kind of widget
+(`"text-field"`, `"text-area"`, `"context-menu"` and `"menubar"`: native, the plan's defaults). Native
+needs the window's `Ui.platform` (`PlatformViews`); without one, or for a
+kind it lacks, the widget is drawn. Text fields and areas first: the
+platform's editor sits over the field's content box, borderless and
+transparent in the field's font, colour and alignment, the theme drawing
+the box, ring and placeholder's colour; its text, selection and focus
+follow the node's both ways, the keys it leaves to the program (Tab,
+Escape; Enter, Up and Down on one line) go to the window, and the field is
+drawn again while a popup covers it or a scroller clips it. In the
+browser the editors are the page's input and textarea over the canvas
+(`WebViews`; `web-field.mjs` drives them in Chromium); on Windows EDIT
+controls, children of the window, coloured through WM_CTLCOLOREDIT with the
+background behind them (`WinViews`; `WinAccessTest`); on macOS
+NSTextFields over the window's content view (a password's an
+NSSecureTextField) in the field's font, colour and alignment, a text area an
+NSTextView in a borderless NSScrollView (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
+and Android draw them still. InputOTP keeps its field drawn. A context
+menu is the platform's menu where it has one (`PlatformViews.menu`: its
+items, separators, checked and disabled ones, submenus and shortcuts'
+labels; one chosen as from the drawn menu): Windows' popup menu, macOS's
+NSMenu; the browser and Linux keep the drawn one. A select is drawn on
+desktop by default (the plan: native on touch); with `host="native"` its
+options are the same native menu, under it, the chosen one checked. A
+menu bar is the system's on macOS (`PlatformViews.menuBar`: its menus after
+the application's, the drawn bar hidden, its shortcuts still working) and
+the window's own on Windows (SetMenu: its items' commands the window's
+WM_COMMAND), drawn in the window elsewhere.
+
 ## Accessibility
 
 `hxmc.ui.access` builds the tree assistive technology sees (AccessKit's
@@ -398,6 +439,27 @@ Linux to AT-SPI over D-Bus (`LinuxAccess`, libdbus loaded at run time:
 Accessible, Component, Action, Value, Text), which Orca reads. On macOS, Windows
 and Linux the tree is built only once a client first asks for it, so a
 program nobody reads pays nothing for it.
+
+## Hosts, canvases and documents
+
+A `Ui` is a tree's host: its size and scale (the display's pixels per UI
+pixel), its text engine and fonts, the events it is given, the clock,
+the focus, the accessibility tree (`ui.accessTree()`: roles, names, states,
+a link's `href`, each node's box). A `UiWindow` feeds it a window's
+events; without one (`new Ui(engine, width, height)`, `update`, `paint`) it
+is a host of a fixed size and no events, first-class: headless tests,
+thumbnails, documents ([docs/plans/document.md](../../docs/plans/document.md)).
+`ui.paint(canvas)` draws through a `Canvas`: the GPU renderer's, or a
+writer's. What a writer gets: rectangles with their borders and corners,
+shadows and inset shadows (calls of their own, not pixels), opacity groups,
+clips, transforms, images (`Image.source`: the file decoded, to embed as it
+is; `Image.drawing`: the SVG an icon was rendered from, to draw as vectors),
+vector paths (`canvas.path(path, fill, ?stroke)`: `Path`'s moves, lines,
+curves, arcs, even-odd; a `Paint`, a colour or a CSS gradient; a `Stroke`'s
+width, caps, joins, miter and dashes), and text as paragraphs whose
+`runs(width, align)` give the glyphs as placed: the face's file, the size,
+the glyph ids and each glyph's source text. `breakBefore`, `breakAfter`,
+`breakInside` and `page` are kept for a paged layout; a window has none.
 
 ## Text input
 
@@ -440,8 +502,22 @@ laying out text and nearly half of that the collector copying the
 paragraphs' glyphs, which all survive: a compact glyph store in
 `hxmc.text` (arrays, not an object per glyph) is what would cut it next.
 
+## The widgets' reference
+
+Each widget in `Widgets.hx` carries its doc comment and `@:widget` metadata:
+each prop's doc, its variants and sizes, the keys it takes and what they do
+(in order), `part` (a part of another widget, documented with it) and
+`popup` (its parts show only when the user opens it). `test/WidgetDocs.hx`
+reads them with each widget's props, slots, data- attributes and roles, and
+its example (`examples/widgets/<Name>Example.hx`: a `view()`; run one in a
+window with `-main WidgetExample -D widget=<Name>`), into JSON (`make
+ui-check` writes `bin/ui/widgets.json`), the site's component pages.
+`WidgetExamplesTest` renders every example with `Shadcn.sheet` and with no
+sheet, finds its widget's slots, and fails while a widget, a prop or an
+example is missing.
+
 ## Tests
 
-`make ui-check` (Eval: layout against Chromium, events, markup rendered into nodes, the guide),
+`make ui-check` (Eval: layout against Chromium, events, markup rendered into nodes, the guide, the widgets' examples and reference),
 `make ui-draw-check` (natively, golden images), `make ui-web-check`
 (Chromium, WebGPU and WebGL2, real input events). See `docs/testing.md`.

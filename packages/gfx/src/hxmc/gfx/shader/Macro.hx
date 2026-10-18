@@ -308,7 +308,7 @@ class Macro {
 			case "Windows": "windows";
 			case _: "linux";
 		}
-		return t == "wasm32-wasi" ? ["glsl", "wgsl"] : StringTools.startsWith(t, "macos") ? ["msl"] : StringTools.startsWith(t, "windows") ? ["hlsl"] : ["glsl"];
+		return t == "wasm32-wasi" ? ["glsl", "wgsl"] : StringTools.startsWith(t, "macos") || StringTools.startsWith(t, "ios") ? ["msl"] : StringTools.startsWith(t, "windows") ? ["hlsl"] : ["glsl"];
 	}
 
 	static function path(c:ClassType):String
