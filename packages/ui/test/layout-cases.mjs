@@ -224,4 +224,6 @@ export const cases = [
 	{ name: 'flexed wrapping column, one line wide', width: 300, height: 200, tree: { style: { direction: 'Row', alignItems: 'Start' }, children: [{ style: { height: 30 }, children: [{ style: { wrap: true, grow: 1, basis: 85, minHeight: 0 }, children: [box(12, 20), box(106, 15)] }] }] } },
 	{ name: 'wrapping column fit-content within the room', width: 300, height: 200, tree: { style: { alignItems: 'Start' }, children: [{ style: { width: 67, alignItems: 'Start' }, children: [{ style: { wrap: true, height: 20 }, children: [box(50, 20), box(40, 20)] }] }] } },
 	{ name: 'wrapping column minimum at its own height', width: 300, height: 200, tree: { style: { justify: 'End' }, children: [{ style: { wrap: true, basis: 40, height: 107, borderWidth: 2 }, children: [box(10, 50), box(10, 40), box(10, 73)] }] } },
+	// (a wrapping row's max-content: an item's percentage basis of its indefinite width as auto's, its width)
+	{ name: 'fit-content wrapping row, percentage basis', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', wrap: true, alignSelf: 'Start' }, children: [box(26, 10), box(49, 10, { basis: '100%' })] }] } },
 ];
