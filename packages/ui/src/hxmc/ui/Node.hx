@@ -525,6 +525,7 @@ class Node implements Part {
 	public function markDirty() {
 		Ui.accessEpoch++;
 		fontCache = null;
+		textBits = -1;
 		var n = this;
 		while (n != null && !(n.dirty && (n.cache == null || n.cache[0] == 0) && Math.isNaN(n.minContent))) {
 			n.dirty = true;
@@ -556,6 +557,7 @@ class Node implements Part {
 
 	function inheritedChanged() {
 		fontCache = null;
+		textBits = -1;
 		if (hasContent()) markDirty();
 		for (c in children)
 			c.inheritedChanged();
@@ -679,25 +681,29 @@ class Node implements Part {
 		return textWrap() != NoWrap;
 
 	// how its text wraps: its textWrap, else its nearest ancestor's
-	public function textWrap():TextWrap {
-		var n = this;
-		while (n != null) {
-			var w = n.style.textWrap;
-			if (w != null) return w;
-			n = n.inheritsFrom();
-		}
-		return Wrap;
-	}
+	public function textWrap():TextWrap
+		return cast (textInherited() >> 4) & 3;
 
 	// how its text's letters are shown: its textTransform, else its nearest ancestor's
-	public function textTransform():TextTransform {
-		var n = this;
-		while (n != null) {
-			var t = n.style.textTransform;
-			if (t != null) return t;
+	public function textTransform():TextTransform
+		return cast (textInherited() >> 2) & 3;
+
+	// (its direction (0 none set, else Dir + 1), text transform and wrapping,
+	// inherited, found in one walk up and kept as bits: -1 not yet; cleared
+	// with fontCache, as their setters lay the subtree out again)
+	var textBits = -1;
+
+	function textInherited():Int {
+		if (textBits >= 0) return textBits;
+		var d = -1, t = -1, w = -1, n = this;
+		while (n != null && (d < 0 || t < 0 || w < 0)) {
+			var s = n.style;
+			if (d < 0 && s.dir != null) d = (cast s.dir : Int) + 1;
+			if (t < 0 && s.textTransform != null) t = (cast s.textTransform : Int);
+			if (w < 0 && s.textWrap != null) w = (cast s.textWrap : Int);
 			n = n.inheritsFrom();
 		}
-		return None;
+		return textBits = (d < 0 ? 0 : d) | (t < 0 ? 0 : t) << 2 | (w < 0 ? 0 : w) << 4;
 	}
 
 	public function textAlign():TextAlign {
@@ -726,13 +732,8 @@ class Node implements Part {
 
 	// its direction as set on it or an ancestor (null: none set)
 	public function dir():Null<Dir> {
-		var n = this;
-		while (n != null) {
-			var d = n.style.dir;
-			if (d != null) return d;
-			n = n.inheritsFrom();
-		}
-		return null;
+		var d = textInherited() & 3;
+		return d == 0 ? null : cast d - 1;
 	}
 
 	// a window position in this node's coordinates (from its border box's
