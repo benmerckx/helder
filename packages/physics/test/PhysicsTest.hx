@@ -109,6 +109,41 @@ class PhysicsTest {
 		turnedBox.orientation = hxmc.scene.math.Quat.axisAngle(new Vec3(0, 0, 1), Math.PI / 4);
 		var rh = rb.raycast(new Vec3(0, 5, 0), new Vec3(0, -1, 0));
 		check("raycast on a turned box", rh != null && near(rh.distance, 5 - Math.sqrt(2), 1e-9));
+		// capsules: one kept upright stands on the plane and on a box, one tilted falls flat
+		var cw = new PhysicsWorld();
+		cw.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
+		cw.add(new Body(Box(new Vec3(1, 0.5, 1)), new Vec3(4, 0.5, 0), 0));
+		var standing = cw.add(new Body(Capsule(0.3, 0.6), new Vec3(0, 2, 0)));
+		standing.rotates = false;
+		var onStep = cw.add(new Body(Capsule(0.3, 0.6), new Vec3(4.2, 3, 0)));
+		onStep.rotates = false;
+		var lying = cw.add(new Body(Capsule(0.25, 0.5), new Vec3(-3, 2, 0)));
+		lying.orientation = hxmc.scene.math.Quat.axisAngle(new Vec3(0, 0, 1), 0.4);
+		for (_ in 0...400)
+			cw.step(dt);
+		check('an upright capsule stands on the plane (y ${Math.round(standing.position.y * 1000) / 1000})',
+			near(standing.position.y, 0.9, 0.01) && standing.orientation.rotate(new Vec3(0, 1, 0)).y > 0.9999);
+		check('and on a box (y ${Math.round(onStep.position.y * 1000) / 1000})', near(onStep.position.y, 1.9, 0.01));
+		var axis = lying.orientation.rotate(new Vec3(0, 1, 0));
+		check('a tilted capsule falls flat (axis y ${Math.round(axis.y * 1000) / 1000}, y ${Math.round(lying.position.y * 1000) / 1000})',
+			Math.abs(axis.y) < 0.02 && near(lying.position.y, 0.25, 0.01));
+		// capsules' contacts and raycasts
+		var cap = new Body(Capsule(0.5, 1), new Vec3(0, 0, 0), 0);
+		var contacts = [];
+		Collide.test(cap, new Body(Sphere(0.5), new Vec3(0.9, 0.5, 0)), contacts);
+		check("capsule and sphere: along the side", contacts.length == 1 && near(contacts[0].depth, 0.1, 1e-9) && near(contacts[0].normal.x, 1, 1e-9));
+		var across = new Body(Capsule(0.5, 1), new Vec3(0, 0, 0), 0);
+		across.orientation = hxmc.scene.math.Quat.axisAngle(new Vec3(0, 0, 1), Math.PI / 2);
+		var other = new Body(Capsule(0.5, 1), new Vec3(0, 0.9, 0), 0);
+		other.orientation = hxmc.scene.math.Quat.axisAngle(new Vec3(1, 0, 0), Math.PI / 2);
+		contacts = [];
+		Collide.test(across, other, contacts);
+		check("crossed capsules", contacts.length == 1 && near(contacts[0].depth, 0.1, 1e-9) && near(contacts[0].normal.y, 1, 1e-9));
+		var cr = new PhysicsWorld();
+		cr.add(new Body(Capsule(0.5, 1), new Vec3(0, 0, 0), 0));
+		var endHit = cr.raycast(new Vec3(0, 5, 0), new Vec3(0, -1, 0)), side = cr.raycast(new Vec3(-5, 0.7, 0), new Vec3(1, 0, 0));
+		check("a capsule's raycasts: its end, its side", endHit != null && near(endHit.distance, 3.5, 1e-9) && side != null && near(side.distance, 4.5, 1e-9)
+			&& cr.raycast(new Vec3(-5, 1.6, 0), new Vec3(1, 0, 0)) == null);
 		// determinism: a pile of balls in a box of planes
 		var pile = new PhysicsWorld();
 		pile.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));

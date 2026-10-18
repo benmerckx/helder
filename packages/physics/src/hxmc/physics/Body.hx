@@ -21,6 +21,9 @@ class Body {
 	public final invInertia:Vec3;
 	public var restitution = 0.3;
 	public var friction = 0.4;
+	// whether contacts turn it (false: it keeps its orientation, as a
+	// character's capsule standing up)
+	public var rotates = true;
 	public var node:Node = Node.NONE;
 	// resting: not moved until something touches it
 	public var sleeping(default, null) = false;
@@ -50,6 +53,10 @@ class Body {
 			case Box(h):
 				var x = 2 * h.x, y = 2 * h.y, z = 2 * h.z;
 				new Vec3(12 / (mass * (y * y + z * z)), 12 / (mass * (x * x + z * z)), 12 / (mass * (x * x + y * y)));
+			case Capsule(r, h):
+				// (as a solid cylinder of its whole length: close enough to tumble)
+				var l = 2 * (h + r), across = mass * (3 * r * r + l * l) / 12, along = mass * r * r / 2;
+				new Vec3(1 / across, 1 / along, 1 / across);
 			case _: new Vec3(0, 0, 0);
 		}
 	}
@@ -65,6 +72,11 @@ class Body {
 				ex = Math.abs(m.c0.x) * h.x + Math.abs(m.c1.x) * h.y + Math.abs(m.c2.x) * h.z;
 				ey = Math.abs(m.c0.y) * h.x + Math.abs(m.c1.y) * h.y + Math.abs(m.c2.y) * h.z;
 				ez = Math.abs(m.c0.z) * h.x + Math.abs(m.c1.z) * h.y + Math.abs(m.c2.z) * h.z;
+			case Capsule(r, h):
+				var a = orientation.rotate(new Vec3(0, h, 0));
+				ex = Math.abs(a.x) + r;
+				ey = Math.abs(a.y) + r;
+				ez = Math.abs(a.z) + r;
 			case Plane(_, _):
 				ex = ey = ez = 1e30;
 		}
@@ -94,7 +106,7 @@ class Body {
 
 	// the inverse inertia (world space) times v
 	public function applyInvInertia(v:Vec3):Vec3 {
-		if (isStatic()) return new Vec3(0, 0, 0);
+		if (isStatic() || !rotates) return new Vec3(0, 0, 0);
 		var local = orientation.conjugate().rotate(v);
 		return orientation.rotate(new Vec3(local.x * invInertia.x, local.y * invInertia.y, local.z * invInertia.z));
 	}

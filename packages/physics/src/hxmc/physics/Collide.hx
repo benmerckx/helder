@@ -6,19 +6,32 @@ import hxmc.scene.math.Aabb;
 // The contact tests, each adding its contacts to out: sphere against
 // sphere, plane and box; box against plane (its corners under it) and box
 // (the corners of each inside the other: a small core's approximation,
-// edge-on-edge crossings are missed); and the ray tests of each shape.
+// edge-on-edge crossings are missed); capsules as spheres at the nearest
+// points of their segments (against a plane or a box: its two ends and
+// the segment's point nearest the box); and the ray tests of each shape.
 class Collide {
 	public static function test(a:Body, b:Body, out:Array<Contact>) {
 		var from = out.length;
 		switch [a.shape, b.shape] {
-			case [Sphere(ra), Sphere(rb)]: spheres(a, ra, b, rb, out);
-			case [Plane(n, o), Sphere(r)]: planeSphere(a, n, o, b, r, out);
+			case [Sphere(ra), Sphere(rb)]: spheres(a, a.position, ra, b, b.position, rb, out);
+			case [Plane(n, o), Sphere(r)]: planeSphere(a, n, o, b, b.position, r, out);
 			case [Sphere(r), Plane(n, o)]:
-				planeSphere(b, n, o, a, r, out);
+				planeSphere(b, n, o, a, a.position, r, out);
 				flip(out, from);
-			case [Box(h), Sphere(r)]: boxSphere(a, h, b, r, out);
+			case [Box(h), Sphere(r)]: boxSphere(a, h, b, b.position, r, out);
 			case [Sphere(r), Box(h)]:
-				boxSphere(b, h, a, r, out);
+				boxSphere(b, h, a, a.position, r, out);
+				flip(out, from);
+			case [Capsule(ra, ha), Sphere(rb)]: spheres(a, nearestOn(a, ha, b.position), ra, b, b.position, rb, out);
+			case [Sphere(ra), Capsule(rb, hb)]: spheres(a, a.position, ra, b, nearestOn(b, hb, a.position), rb, out);
+			case [Capsule(ra, ha), Capsule(rb, hb)]: capsules(a, ra, ha, b, rb, hb, out);
+			case [Plane(n, o), Capsule(r, h)]: planeCapsule(a, n, o, b, r, h, out);
+			case [Capsule(r, h), Plane(n, o)]:
+				planeCapsule(b, n, o, a, r, h, out);
+				flip(out, from);
+			case [Box(bh), Capsule(r, h)]: boxCapsule(a, bh, b, r, h, out);
+			case [Capsule(r, h), Box(bh)]:
+				boxCapsule(b, bh, a, r, h, out);
 				flip(out, from);
 			case [Plane(n, o), Box(h)]: planeBox(a, n, o, b, h, out);
 			case [Box(h), Plane(n, o)]:
@@ -41,23 +54,87 @@ class Collide {
 		}
 	}
 
-	static function spheres(a:Body, ra:Float, b:Body, rb:Float, out:Array<Contact>) {
-		var d = b.position - a.position;
+	// (spheres of a and b centred at ca and cb: a sphere's at its position, a capsule's on its segment)
+	static function spheres(a:Body, ca:Vec3, ra:Float, b:Body, cb:Vec3, rb:Float, out:Array<Contact>) {
+		var d = cb - ca;
 		var d2 = dot(d, d), r = ra + rb;
 		if (d2 >= r * r) return;
 		var l = Math.sqrt(d2);
 		var n = l > 1e-12 ? d / l : new Vec3(0, 1, 0);
-		out.push(new Contact(a, b, n, a.position + n * (ra - (r - l) / 2), r - l));
+		out.push(new Contact(a, b, n, ca + n * (ra - (r - l) / 2), r - l));
 	}
 
-	static function planeSphere(plane:Body, n:Vec3, offset:Float, s:Body, r:Float, out:Array<Contact>) {
-		var dist = dot(n, s.position) - offset;
-		if (dist < r) out.push(new Contact(plane, s, n, s.position - n * dist, r - dist));
+	static function planeSphere(plane:Body, n:Vec3, offset:Float, s:Body, c:Vec3, r:Float, out:Array<Contact>) {
+		var dist = dot(n, c) - offset;
+		if (dist < r) out.push(new Contact(plane, s, n, c - n * dist, r - dist));
 	}
 
-	static function boxSphere(box:Body, h:Vec3, s:Body, r:Float, out:Array<Contact>) {
+	// a capsule's segment's ends in the world
+	static inline function endA(b:Body, h:Float):Vec3
+		return b.position + b.orientation.rotate(new Vec3(0, -h, 0));
+
+	static inline function endB(b:Body, h:Float):Vec3
+		return b.position + b.orientation.rotate(new Vec3(0, h, 0));
+
+	// the point of a capsule's segment nearest p
+	static function nearestOn(b:Body, h:Float, p:Vec3):Vec3 {
+		var a = endA(b, h), ab = endB(b, h) - a;
+		var len2 = dot(ab, ab);
+		var t = len2 > 1e-18 ? clamp(dot(p - a, ab) / len2, 0, 1) : 0;
+		return a + ab * t;
+	}
+
+	// two capsules: their segments' nearest points (Ericson's closest points of two segments)
+	static function capsules(a:Body, ra:Float, ha:Float, b:Body, rb:Float, hb:Float, out:Array<Contact>) {
+		var p1 = endA(a, ha), q1 = endB(a, ha), p2 = endA(b, hb), q2 = endB(b, hb);
+		var d1 = q1 - p1, d2 = q2 - p2, r = p1 - p2;
+		var aa = dot(d1, d1), ee = dot(d2, d2), f = dot(d2, r);
+		var s = 0.0, t = 0.0;
+		if (aa <= 1e-18 && ee <= 1e-18) {} else if (aa <= 1e-18) t = clamp(f / ee, 0, 1) else {
+			var c = dot(d1, r);
+			if (ee <= 1e-18) s = clamp(-c / aa, 0, 1) else {
+				var bb = dot(d1, d2), den = aa * ee - bb * bb;
+				s = den > 1e-18 ? clamp((bb * f - c * ee) / den, 0, 1) : 0;
+				t = (bb * s + f) / ee;
+				if (t < 0) {
+					t = 0;
+					s = clamp(-c / aa, 0, 1);
+				} else if (t > 1) {
+					t = 1;
+					s = clamp((bb - c) / aa, 0, 1);
+				}
+			}
+		}
+		spheres(a, p1 + d1 * s, ra, b, p2 + d2 * t, rb, out);
+	}
+
+	// a capsule on a plane: its ends' spheres (lying down: two contacts)
+	static function planeCapsule(plane:Body, n:Vec3, offset:Float, c:Body, r:Float, h:Float, out:Array<Contact>) {
+		planeSphere(plane, n, offset, c, endA(c, h), r, out);
+		planeSphere(plane, n, offset, c, endB(c, h), r, out);
+	}
+
+	// a capsule against a box: its ends' spheres, and the sphere at the
+	// segment's point nearest the box (found by projecting back and forth)
+	// where it is not an end
+	static function boxCapsule(box:Body, bh:Vec3, c:Body, r:Float, h:Float, out:Array<Contact>) {
+		boxSphere(box, bh, c, endA(c, h), r, out);
+		boxSphere(box, bh, c, endB(c, h), r, out);
 		var inv = box.orientation.conjugate();
-		var p = inv.rotate(s.position - box.position);
+		var p = c.position;
+		for (_ in 0...4) {
+			var l = inv.rotate(p - box.position);
+			var q = box.position + box.orientation.rotate(new Vec3(clamp(l.x, -bh.x, bh.x), clamp(l.y, -bh.y, bh.y), clamp(l.z, -bh.z, bh.z)));
+			p = nearestOn(c, h, q);
+		}
+		var a = endA(c, h), b = endB(c, h);
+		var da = p - a, db = p - b, m = 0.05 * h;
+		if (dot(da, da) > m * m && dot(db, db) > m * m) boxSphere(box, bh, c, p, r, out);
+	}
+
+	static function boxSphere(box:Body, h:Vec3, s:Body, c:Vec3, r:Float, out:Array<Contact>) {
+		var inv = box.orientation.conjugate();
+		var p = inv.rotate(c - box.position);
 		var q = new Vec3(clamp(p.x, -h.x, h.x), clamp(p.y, -h.y, h.y), clamp(p.z, -h.z, h.z));
 		var d = p - q;
 		var d2 = dot(d, d);
@@ -70,7 +147,7 @@ class Collide {
 		// (the centre inside the box: out through the nearest face)
 		var dx = h.x - Math.abs(p.x), dy = h.y - Math.abs(p.y), dz = h.z - Math.abs(p.z);
 		var n = dx <= dy && dx <= dz ? new Vec3(p.x < 0 ? -1 : 1, 0, 0) : dy <= dz ? new Vec3(0, p.y < 0 ? -1 : 1, 0) : new Vec3(0, 0, p.z < 0 ? -1 : 1);
-		out.push(new Contact(box, s, box.orientation.rotate(n), s.position, Math.min(dx, Math.min(dy, dz)) + r));
+		out.push(new Contact(box, s, box.orientation.rotate(n), c, Math.min(dx, Math.min(dy, dz)) + r));
 	}
 
 	static function corners(b:Body, h:Vec3):Array<Vec3>
@@ -125,6 +202,30 @@ class Collide {
 				// (in the box's frame)
 				var inv = b.orientation.conjugate();
 				new Aabb(h * -1, h).ray(inv.rotate(o - b.position), inv.rotate(d));
+			case Capsule(r, h):
+				// (in the capsule's frame: its side, a cylinder along y, then its ends' spheres)
+				var inv = b.orientation.conjugate();
+				var lo = inv.rotate(o - b.position), ld = inv.rotate(d);
+				var best = -1.0;
+				var qa = ld.x * ld.x + ld.z * ld.z, qb = lo.x * ld.x + lo.z * ld.z, qc = lo.x * lo.x + lo.z * lo.z - r * r;
+				if (qc <= 0 && Math.abs(lo.y) <= h) best = 0 else if (qa > 1e-18) {
+					var disc = qb * qb - qa * qc;
+					if (disc >= 0) {
+						var t = (-qb - Math.sqrt(disc)) / qa;
+						if (t >= 0 && Math.abs(lo.y + ld.y * t) <= h) best = t;
+					}
+				}
+				if (best < 0)
+					for (end in [new Vec3(0, -h, 0), new Vec3(0, h, 0)]) {
+						var m = lo - end;
+						var bq = dot(m, ld), cq = dot(m, m) - r * r;
+						if (cq > 0 && bq > 0) continue;
+						var disc = bq * bq - cq;
+						if (disc < 0) continue;
+						var t = Math.max(-bq - Math.sqrt(disc), 0);
+						if (best < 0 || t < best) best = t;
+					}
+				best;
 		}
 	}
 }
