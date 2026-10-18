@@ -3,6 +3,7 @@ package hxmc.os;
 import hxmc.os.android.AndroidWindow;
 import hxmc.os.cocoa.CocoaWindow;
 import hxmc.os.objc.Runtime;
+import hxmc.os.uikit.UIKitWindow;
 import hxmc.os.web.CanvasWindow;
 import hxmc.os.win32.Win32Window;
 import hxmc.os.x11.X11Window;
@@ -20,7 +21,10 @@ import hxmc.unsafe.*;
 // On Android the loop runs on the program's own thread (hxmc.os.android:
 // NativeActivity's callbacks reach it through the thread's looper), and a
 // frame is drawn only while the activity has its window and is not paused
-// (otherwise the loop sleeps in the looper).
+// (otherwise the loop sleeps in the looper). On iOS the program runs inside
+// UIKit's loop (hxmc.os.uikit.UIKitApp): each turn runs the main run loop
+// without waiting, and draws only while the app is not in the background
+// (otherwise it sleeps in the run loop).
 class App {
 	public static var windows(default, null):Array<Window> = [];
 	static var running = false;
@@ -48,6 +52,11 @@ class App {
 			if (running && windows.length > 0) {
 				if (AndroidWindow.drawable()) onFrame() else AndroidWindow.wait(-1);
 			}
+		} else if (Mem.platform() >= 1) {
+			UIKitWindow.poll(onEvent);
+			if (running && windows.length > 0) {
+				if (UIKitWindow.drawable()) onFrame() else UIKitWindow.wait(-1);
+			}
 		} else {
 			if (Mem.os() == 1) CocoaWindow.poll(onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
 				X11Window.poll(onEvent);
@@ -60,7 +69,7 @@ class App {
 	// blocks until an event is pending or seconds pass (the browser: returns
 	// at once, requestAnimationFrame paces the loop)
 	public static function wait(seconds:Float) {
-		if (Mem.os() == 1) CocoaWindow.wait(seconds) else if (Mem.os() == 2) Win32Window.wait(seconds) else if (Mem.os() == 3) {} else if (Mem.target() >= 9)
+		if (Mem.platform() >= 1) UIKitWindow.wait(seconds) else if (Mem.os() == 1) CocoaWindow.wait(seconds) else if (Mem.os() == 2) Win32Window.wait(seconds) else if (Mem.os() == 3) {} else if (Mem.target() >= 9)
 			AndroidWindow.wait(seconds) else X11Window.wait(seconds);
 	}
 
@@ -68,12 +77,13 @@ class App {
 		running = false;
 
 	// whether the system's appearance is dark: the browser's
-	// prefers-color-scheme, macOS's AppleInterfaceStyle, Windows'
+	// prefers-color-scheme, macOS's AppleInterfaceStyle, iOS's trait collection, Windows'
 	// AppsUseLightTheme (0), GTK's settings on Linux (GTK_THEME ending in
 	// :dark, gtk-application-prefer-dark-theme or a dark theme's name in
 	// settings.ini); cheap enough to ask now and then
 	public static function prefersDark():Bool {
 		if (Mem.os() == 3) return hxmc.os.web.Dom.prefers_dark() == 1;
+		if (Mem.platform() >= 1) return UIKitWindow.dark();
 		if (Mem.os() == 1) {
 			var key = hxmc.os.objc.ObjC.str("AppleInterfaceStyle");
 			var v = hxmc.os.objc.Msg.idPtr(hxmc.os.objc.Msg.id(hxmc.os.objc.ObjC.cls("NSUserDefaults"), hxmc.os.objc.ObjC.sel("standardUserDefaults")),

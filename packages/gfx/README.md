@@ -2,7 +2,7 @@
 
 A portable GPU layer for hxmc in pure Haxe (`hxmc.gfx`): integer handles,
 immutable pipelines, back ends over GL through EGL (Linux, Android: GLES 3.0
-on the activity's window), Metal (macOS),
+on the activity's window), Metal (macOS, iOS),
 Direct3D 11 (Windows), WebGPU and WebGL2 (the browser). See
 `examples/Triangle.hx` (the least a program needs), `examples/Cube.hx`
 (textures, depth, uniforms, blending, indices), `examples/Instances.hx`

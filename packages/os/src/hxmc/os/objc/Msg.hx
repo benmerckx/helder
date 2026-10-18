@@ -2,7 +2,7 @@ package hxmc.os.objc;
 
 import hxmc.unsafe.*;
 
-// objc_msgSend, one typed C call per shape (Sender): a message is
+// objc_msgSend, one typed C call per shape (Sender; AppKit's and UIKit's): a message is
 // `Msg.idPtr(receiver, ObjC.sel("initWithUTF8String:"), cstring)`. Names: the
 // result (id, v: void, i: an NSInteger or NSUInteger, b: BOOL, f: a double,
 // or a struct), then the arguments. Structs go by value (arm64: hxmc's
@@ -52,4 +52,6 @@ class Msg {
 	static function rect(self:Ptr, sel:Ptr):CGRect;
 	static function point(self:Ptr, sel:Ptr):CGPoint;
 	static function pointPointPtr(self:Ptr, sel:Ptr, p:CGPoint, view:Ptr):CGPoint;
+	static function pointPtr(self:Ptr, sel:Ptr, a:Ptr):CGPoint;
+	static function insets(self:Ptr, sel:Ptr):UIEdgeInsets;
 }
