@@ -25,6 +25,10 @@ class ViewRuntime {
 	// renders content into parent (its root: dispose removes it and stops its effects)
 	public static function render(content:Any, parent:HostNode):Void->Void {
 		return hxmc.view.Reactive.root(dispose -> {
+			#if hxmc.dev
+			// (hxmc dev: its effects' cleanups run before the next build starts)
+			hxmc.view.Reactive.onCleanup(hxmc.dev.Hot.onDispose(dispose));
+			#end
 			var nodes = insert(content, parent, null);
 			hxmc.view.Reactive.onCleanup(() -> for (n in nodes)
 				detach(parent, n));
@@ -293,7 +297,12 @@ class ViewRuntime {
 						var o = new hxmc.view.Owner(home);
 						var saved = hxmc.view.Reactive.owner;
 						hxmc.view.Reactive.owner = o;
+						#if hxmc.dev
+						// (hxmc dev: a row's keys under its position)
+						var nodes = try hxmc.dev.Hot.scope(Std.string(next.length), () -> insert(list.render(item), parent, anchor)) catch (e:Dynamic) {
+						#else
 						var nodes = try insert(list.render(item), parent, anchor) catch (e:Dynamic) {
+						#end
 							hxmc.view.Reactive.owner = saved;
 							throw e;
 						}
@@ -342,7 +351,11 @@ class ViewRuntime {
 					var saved = hxmc.view.Reactive.owner;
 					hxmc.view.Reactive.owner = o;
 					var item = new hxmc.view.Signal<Dynamic>(items[i]);
+					#if hxmc.dev
+					var nodes = try hxmc.dev.Hot.scope(Std.string(i), () -> insert(list.render(item, i), parent, anchor)) catch (e:Dynamic) {
+					#else
 					var nodes = try insert(list.render(item, i), parent, anchor) catch (e:Dynamic) {
+					#end
 						hxmc.view.Reactive.owner = saved;
 						throw e;
 					}

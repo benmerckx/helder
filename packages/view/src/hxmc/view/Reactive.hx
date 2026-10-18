@@ -27,8 +27,14 @@ class Reactive {
 	static final queue:Array<Computation> = [];
 	static var flushing = false;
 
+	#if hxmc.dev
+	// (hxmc dev: kept across a reload by its key, hxmc.view.Refresh)
+	public static macro function signal(value:haxe.macro.Expr):haxe.macro.Expr
+		return hxmc.view.Refresh.signal(value);
+	#else
 	public static inline function signal<T>(value:T):Signal<T>
 		return new Signal(value);
+	#end
 
 	public static inline function memo<T>(fn:Void->T):Memo<T>
 		return new Memo(fn);
