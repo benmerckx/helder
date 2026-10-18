@@ -10,10 +10,11 @@ import hxmc.unsafe.*;
 // native window when the Window is made (one with a size), then App.run
 // polls the looper: the commands of the activity's callbacks (Activity)
 // and the input queue.
-// A touch is the left button (MouseDown, MouseMove, MouseUp at the
-// finger), and its drag scrolls too (Scroll by the finger's motion, as a
-// touch screen scrolls); keys come as X11 KeySyms like the other systems'
-// (Back is Escape: the system still finishes the activity), with
+// A touch is as in the browser (TouchDrag): a tap clicks (the left button
+// where it came down, once it lifts), a drag scrolls what is under where it
+// started (Scrolls with Mods.TOUCH, ending with one of nothing without it,
+// then a glide's when let go moving); keys come as X11 KeySyms like the
+// other systems' (Back is Escape: the system still finishes the activity), with
 // TextInput for the printable ones; with text input on and enabled
 // (TextInput.enable: hxmc.ui's UiWindow does), the soft keyboard and the
 // input method's commits and compositions. When the system takes the window (the
@@ -32,9 +33,10 @@ class AndroidWindow {
 	static var window = Ptr.nil();
 	static var paused = false;
 	static final event = new Event();
-	// the finger's last position (a drag's Scroll), -1: none down
-	static var lastX = -1.0;
-	static var lastY = -1.0;
+	// the first finger's gesture (TouchDrag), its events' times from this one's (ns)
+	static final drag = new TouchDrag();
+	static var since:Int64 = 0;
+	static var timed = false;
 	// text input (TextInput, in the programs that enable it): on or off, its
 	// events waiting for this thread
 	@:allow(hxmc.os.android) static var textInputHook:Null<(on:Bool, x:Int, y:Int, width:Int, height:Int) -> Void> = null;
@@ -103,9 +105,12 @@ class AndroidWindow {
 	static function poll(onEvent:Event->Void)
 		pump(0, onEvent);
 
-	// waits until the looper has something, at most seconds (< 0: no limit)
-	static function wait(seconds:Float)
+	// waits until the looper has something, at most seconds (< 0: no limit;
+	// a frame while a drag glides)
+	static function wait(seconds:Float) {
+		seconds = drag.wait(seconds);
 		Looper.ALooper_pollOnce(seconds < 0 ? -1 : Std.int(seconds * 1000), Ptr.nil(), Ptr.nil(), Ptr.nil());
+	}
 
 	// handles what the looper has: once it waited timeout ms (-1: until
 	// something comes), then whatever else is ready (a window's destroy
@@ -122,6 +127,12 @@ class AndroidWindow {
 			else if (id < 0 && id != -1) break; // (ALOOPER_POLL_TIMEOUT, _ERROR; -1: woken)
 		}
 		if (textEvents != null) textEvents((kind, text, caret) -> dispatch(onEvent, kind, caret, 0, text));
+		// (a drag let go moving: its glide's scroll since the last)
+		if (drag.gliding && onEvent != null && current != null && drag.glide(haxe.Timer.stamp() * 1000)) {
+			drag.scroll(event, 0);
+			event.window = current.owner;
+			onEvent(event);
+		}
 		// (a new window with a size: Resume; a size the system changed: Resize)
 		var w = current;
 		if (w == null || !ready()) return;
@@ -171,6 +182,7 @@ class AndroidWindow {
 				// the Surface keeps no handle to it)
 				log("window destroyed", window);
 				var suspend = w != null && !w.suspended;
+				drag.stop();
 				if (suspend) {
 					w.suspended = true;
 					var lost = w.surface.lost;
@@ -248,37 +260,39 @@ class AndroidWindow {
 	static function motion(ev:Ptr, onEvent:Null<Event->Void>):Int {
 		var action = Android.AMotionEvent_getAction(ev) & 0xff;
 		var x:Float = Android.AMotionEvent_getX(ev, 0), y:Float = Android.AMotionEvent_getY(ev, 0);
-		var e = event;
-		function send(kind:EventKind, button:Int) {
-			if (onEvent == null || current == null) return;
-			e.kind = kind;
-			e.window = current.owner;
-			e.x = Std.int(x);
-			e.y = Std.int(y);
-			e.button = button;
-			e.mods = 0;
-			e.text = "";
-			onEvent(e);
+		// (the event's time in ms: the drag's speed, even when a frame read several)
+		var ns = Android.AMotionEvent_getEventTime(ev);
+		if (!timed) {
+			since = ns;
+			timed = true;
 		}
+		var d = ns - since;
+		var time = ((d >> 20).toInt() * 1048576.0 + (d & 0xFFFFF).toInt()) / 1e6;
+		var w = current, e = event;
 		switch action {
 			case 0: // AMOTION_EVENT_ACTION_DOWN
-				lastX = x;
-				lastY = y;
-				send(MouseMove, 0);
-				send(MouseDown, 1);
+				drag.press(x, y, time, w == null ? 1 : w.scale);
 			case 2: // AMOTION_EVENT_ACTION_MOVE
-				send(MouseMove, 0);
-				if (lastX >= 0 && onEvent != null && current != null) {
-					e.kind = Scroll;
-					e.deltaX = lastX - x;
-					e.deltaY = lastY - y;
+				if (drag.move(x, y, time) && onEvent != null && w != null) {
+					drag.scroll(e, Mods.TOUCH);
+					e.window = w.owner;
 					onEvent(e);
 				}
-				lastX = x;
-				lastY = y;
 			case 1 | 3: // AMOTION_EVENT_ACTION_UP, _CANCEL
-				lastX = lastY = -1;
-				send(MouseUp, 1);
+				var end = drag.lift(time, action == 3);
+				if (onEvent == null || w == null) return 1;
+				e.window = w.owner;
+				if (end == TouchDrag.END) {
+					drag.scroll(e, 0);
+					onEvent(e);
+				} else if (end == TouchDrag.TAP) {
+					drag.click(e, MouseMove);
+					onEvent(e);
+					drag.click(e, MouseDown);
+					onEvent(e);
+					drag.click(e, MouseUp);
+					onEvent(e);
+				}
 			case _:
 		}
 		return 1;

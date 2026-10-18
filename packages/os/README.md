@@ -31,8 +31,8 @@ pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`.
 On Android (`-D hxmc.target=android-arm64` with an output ending in `.apk`)
 the window is the activity's (full screen, one per app; `new Window` waits
 for it): the program runs on a thread of its own, `App.run` draws while the
-activity has its window, a touch is the left button and its drag also
-`Scroll`, `Suspend` and `Resume` come when the system takes the window and
+activity has its window, a touch is as in the browser (below: a tap a
+click, a drag `Scroll`s that glide), `Suspend` and `Resume` come when the system takes the window and
 gives one back (`Surface.lost`: the GPU back end lets go of it), and what
 the program prints goes to logcat (`adb logcat -s hxmc`). Text input
 (`startTextInput`, once `hxmc.os.android.TextInput.enable()` was called:
@@ -48,8 +48,8 @@ On iOS (`-D hxmc.target=ios-arm64` or `ios-sim-arm64` with an output ending
 in `.app`) the window is a `UIWindow` on the whole screen (one per app),
 backed by a `CAMetalLayer`: the program's main runs inside UIKit's loop
 (`UIApplicationMain` comes first: `hxmc.os.uikit.UIKitApp`), `App.run`
-draws while the app is in the foreground, a touch is the left button and
-its drag also `Scroll`, `Window.safeTop` (`safeLeft`, `safeBottom`,
+draws while the app is in the foreground, a touch is as in the browser
+and on Android, `Window.safeTop` (`safeLeft`, `safeBottom`,
 `safeRight`) is the safe area in pixels, `Suspend` and `Resume` come when
 the app goes to the background and back. No keys or text input there yet.
 
@@ -69,6 +69,12 @@ gesture over) a `Scroll` of nothing without it comes, then the glide's: a
 program that holds still what the finger holds (the cube) knows when it is
 released, even after the finger rested. A mouse's press is captured by the
 canvas: a drag that leaves it still moves, and its release still comes.
+On Android and iOS the window sees the touches itself and they mean the
+same (`hxmc.os.TouchDrag`, the gesture both share: no page to pan, every
+drag the program's): a tap clicks where it came down once it lifts, a drag
+past 8 points scrolls what is under where it started, `Mods.TOUCH` while
+the finger is down, then a `Scroll` of nothing without it and the glide's
+(the loop wakes each frame while it glides).
 
 ## Fast refresh: `hxmc.dev.Hot`
 

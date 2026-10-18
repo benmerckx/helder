@@ -9,6 +9,9 @@
 #     its frame is lit;
 #   - 120 frames drawn in the window;
 #   - a tap and a key come back as events (MouseDown, KeyDown of a);
+#   - a drag held on the cube: scrolls at where it started with Mods.TOUCH,
+#     the cube still while the finger rests, a scroll of nothing once let
+#     go and the cube turning again; a fling glides on after the lift;
 #   - Home takes the window (Suspend), starting the activity again gives it
 #     back (Resume) and frames go on;
 #   - a relaunch (the font scale changed: a configuration change the
@@ -86,6 +89,55 @@ wait_for "event KeyDown .* key 97" 20
 check "a tap and a key as events" $?
 grep -q "event MouseDown" "$log"
 check "the tap: MouseDown" $?
+# a drag on the cube, held (input motionevent: down, moved, resting, up):
+# its scrolls at where it started with Mods.TOUCH, the cube held still while
+# the finger rests, a scroll of nothing without it once let go, the cube
+# turning again; then a fling (a quick swipe): the drag glides on after the
+# finger lifted (scrolls without Mods.TOUCH)
+angle() {
+	adb logcat -d -s hxmc:I hxmc.os:D > "$log" 2>/dev/null
+	grep -o "AndroidTest: spin $1 angle -*[0-9]*" "$log" | tail -1 | grep -o -- "-*[0-9]*$"
+}
+size=$(grep -o "AndroidTest: window [0-9]*x[0-9]*" "$log" | head -1 | grep -o "[0-9]*x[0-9]*$")
+W=${size%x*}
+H=${size#*x}
+x0=$((W / 4))
+y0=$((H / 2))
+adb shell input motionevent DOWN $x0 $y0
+adb shell input motionevent MOVE $((x0 + W / 8)) $y0
+adb shell input motionevent MOVE $((x0 + W / 4)) $y0
+wait_count "event Scroll .* mods 16" 2 20
+check "a drag: scrolls with Mods.TOUCH" $?
+grep "event Scroll .* mods 16" "$log" | grep -o "Scroll [0-9]*,[0-9]* by -[0-9.]*,0 " | sed "s/ by .*//" | sort -u > "$out/drag-at.txt"
+[ "$(wc -l < "$out/drag-at.txt")" = 1 ]
+check "the drag's scrolls at where it started, the content following the finger" $?
+sleep 2
+held1=$(angle held)
+sleep 2
+held2=$(angle held)
+echo "android.sh: held: angle $held1, then $held2"
+[ -n "$held1" ] && [ "$held1" = "$held2" ]
+check "the cube held still under the resting finger" $?
+adb shell input motionevent UP $((x0 + W / 4)) $y0
+wait_for "event Scroll .* by 0,0 mods 0" 20
+check "let go: a scroll of nothing without Mods.TOUCH" $?
+sleep 1
+free1=$(angle free)
+sleep 2
+free2=$(angle free)
+echo "android.sh: let go: angle $free1, then $free2"
+[ -n "$free1" ] && [ "$free1" != "$free2" ]
+check "the cube turning again once let go" $?
+released=$(grep -c "event Scroll .* by 0,0 mods 0" "$log")
+adb shell input swipe $x0 $y0 $((x0 + W / 2)) $y0 60
+wait_count "event Scroll .* by 0,0 mods 0" $((released + 1)) 20
+check "a fling: its release" $?
+sleep 3
+adb logcat -d -s hxmc:I hxmc.os:D > "$log" 2>/dev/null
+glides=$(grep "event Scroll" "$log" | awk -v n=$((released + 1)) '/by 0,0 mods 0/ {r++; next} r >= n && / mods 0[[:space:]]*$/ {g++} END {print g + 0}')
+echo "android.sh: the fling's glide: $glides scrolls"
+[ "$glides" -ge 3 ]
+check "the fling glides on after the finger lifted" $?
 adb exec-out screencap -p > "$out/cube-android.png"
 check "screenshot" $?
 adb shell input keyevent KEYCODE_HOME

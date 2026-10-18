@@ -12,7 +12,7 @@ import hxmc.os.Event.Mods;
 
 // A rotating cube in a window, textured, lit and depth-tested, over a
 // blended backdrop and a soft shadow (drag to turn it, or scroll sideways:
-// a touch drag in a browser, a trackpad's swipe, a sideways wheel; it
+// a touch drag on a phone, a trackpad's swipe, a sideways wheel; it
 // stops spinning while held, and carries on at the drag's speed when let
 // go; Escape closes):
 //
@@ -154,13 +154,8 @@ class Cube {
 		var args = Sys.args(), still = args.indexOf("--angle");
 		var window = new Window("Cube", 640, 480);
 		var cube = new Cube(Device.create(window.surface));
-		// (turning with time, unless held; what the mouse drags and what
-		// scrolls sideways turn it too: the content follows the finger or the
-		// trackpad, a scroll to the right turns it left; not while the mouse
-		// drags, the same gesture. A browser's touch drag comes as scrolls,
-		// Mods.TOUCH while the finger is down)
 		var spin = new Spin(still >= 0 ? 0 : Spin.SPEED), angle = still >= 0 ? Std.parseFloat(args[still + 1]) : 0.0;
-		var last = Sys.time(), from = 0, dragging = false, touching = false;
+		var last = Sys.time();
 		window.cursor = Grab;
 		// (a drag sideways turns it; one up or down is the page's, in a browser)
 		window.scrollsAt = (x, y, dx, dy) -> Math.abs(dx) > Math.abs(dy);
@@ -172,32 +167,7 @@ class Cube {
 		}, e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
-			case MouseDown if (e.button == 1):
-				from = e.x;
-				dragging = true;
-				spin.grab();
-				window.cursor = Grabbing;
-			case MouseUp if (e.button == 1 && dragging):
-				dragging = false;
-				spin.release(true);
-				window.cursor = Grab;
-			// (also off the window: a browser's canvas captures the press)
-			case MouseMove if (dragging):
-				spin.drag((e.x - from) / window.width * Math.PI);
-				from = e.x;
-			case Scroll if (!dragging):
-				var by = -e.deltaX / window.width * Math.PI;
-				if ((e.mods & Mods.TOUCH) != 0) {
-					if (!touching) spin.grab();
-					touching = true;
-					spin.drag(by);
-				} else {
-					// (the finger let go: its glide carries on, as scrolls)
-					if (touching) spin.release(false);
-					touching = false;
-					if (by != 0) spin.nudge(by);
-				}
-			case _:
+			case _: spin.input(e, window);
 		});
 	}
 }
@@ -219,6 +189,10 @@ class Spin {
 	// while held: the drag's turn since the last advance, its speed
 	var dragged = 0.0;
 	var dragSpeed = 0.0;
+	// (input: the mouse dragging from x, a finger's scrolls)
+	var from = 0;
+	var dragging = false;
+	var touching = false;
 
 	public function new(own:Float) {
 		this.own = own;
@@ -258,5 +232,41 @@ class Spin {
 	public function nudge(by:Float) {
 		angle += by;
 		speed = 0;
+	}
+
+	// a window's event: what the mouse drags and what scrolls sideways turn
+	// it, the content following the finger or the trackpad (a scroll to the
+	// right turns it left); not while the mouse drags, the same gesture. A
+	// touch drag comes as scrolls (a browser's, Android's, iOS's), with
+	// Mods.TOUCH while the finger is down
+	public function input(e:Event, window:Window) {
+		switch e.kind {
+			case MouseDown if (e.button == 1):
+				from = e.x;
+				dragging = true;
+				grab();
+				window.cursor = Grabbing;
+			case MouseUp if (e.button == 1 && dragging):
+				dragging = false;
+				release(true);
+				window.cursor = Grab;
+			// (also off the window: a browser's canvas captures the press)
+			case MouseMove if (dragging):
+				drag((e.x - from) / window.width * Math.PI);
+				from = e.x;
+			case Scroll if (!dragging):
+				var by = -e.deltaX / window.width * Math.PI;
+				if ((e.mods & Mods.TOUCH) != 0) {
+					if (!touching) grab();
+					touching = true;
+					drag(by);
+				} else {
+					// (the finger let go: its glide carries on, as scrolls)
+					if (touching) release(false);
+					touching = false;
+					if (by != 0) nudge(by);
+				}
+			case _:
+		}
 	}
 }

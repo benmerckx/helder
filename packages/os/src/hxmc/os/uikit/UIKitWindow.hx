@@ -13,10 +13,12 @@ import hxmc.unsafe.*;
 // The program runs inside UIKit's loop (UIKitApp): App.run turns the main
 // run loop without waiting (poll: CFRunLoopRunInMode until nothing is
 // left), and the frame's pace comes from the layer's drawables (vsync).
-// A touch is the left button (MouseDown, MouseMove, MouseUp at the
-// finger: the first finger down, until it lifts), and its drag scrolls too
-// (Scroll by its motion), as on Android; positions in pixels from the top
-// left. The view's size and safe area (the status bar, the notch, the home
+// A touch (the first finger down, until it lifts) is as in the browser
+// and on Android (TouchDrag): a tap clicks (the left button where it came
+// down, once it lifts), a drag scrolls what is under where it started
+// (Scrolls with Mods.TOUCH, ending with one of nothing without it, then a
+// glide's when let go moving); positions in pixels from the top left. The
+// view's size and safe area (the status bar, the notch, the home
 // indicator: Window.safeTop, ...) are measured in layoutSubviews and
 // safeAreaInsetsDidChange: a Resize event when either changed, ScaleChange
 // when the scale did (another screen). The app going to the background is
@@ -46,10 +48,11 @@ class UIKitWindow {
 	var safeLeft = 0;
 	var safeBottom = 0;
 	var safeRight = 0;
-	// the finger followed (a UITouch*), and its last position in pixels
+	// the finger followed (a UITouch*), its last position in pixels; its gesture
 	var touch = Ptr.nil();
 	var lastX = 0.0;
 	var lastY = 0.0;
+	static final drag = new TouchDrag();
 	final size:Ptr<CGSize>;
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
@@ -82,7 +85,7 @@ class UIKitWindow {
 		Runtime.class_addMethod(cls, ObjC.sel("touchesBegan:withEvent:"), Callback.addr(touchesBegan), Mem.cstr("v@:@@"));
 		Runtime.class_addMethod(cls, ObjC.sel("touchesMoved:withEvent:"), Callback.addr(touchesMoved), Mem.cstr("v@:@@"));
 		Runtime.class_addMethod(cls, ObjC.sel("touchesEnded:withEvent:"), Callback.addr(touchesEnded), Mem.cstr("v@:@@"));
-		Runtime.class_addMethod(cls, ObjC.sel("touchesCancelled:withEvent:"), Callback.addr(touchesEnded), Mem.cstr("v@:@@"));
+		Runtime.class_addMethod(cls, ObjC.sel("touchesCancelled:withEvent:"), Callback.addr(touchesCancelled), Mem.cstr("v@:@@"));
 		Runtime.objc_registerClassPair(cls);
 		viewClass = cls;
 		UIKitApp.running = true;
@@ -144,30 +147,37 @@ class UIKitWindow {
 		if (t.isNull()) return;
 		w.touch = t;
 		w.locate(t);
-		w.send(MouseMove, 0);
-		w.send(MouseDown, 1);
+		drag.press(w.lastX, w.lastY, time(t), w.scale);
 	}
 
 	@:hxmc.callback static function touchesMoved(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void {
 		var w = current;
 		if (w == null || w.touch.isNull() || !Msg.bPtr(touches, ObjC.sel("containsObject:"), w.touch)) return;
-		var x = w.lastX, y = w.lastY;
 		w.locate(w.touch);
-		w.send(MouseMove, 0);
-		var e = event;
-		e.kind = Scroll;
-		e.deltaX = x - w.lastX;
-		e.deltaY = y - w.lastY;
-		dispatch(e);
+		if (drag.move(w.lastX, w.lastY, time(w.touch))) w.scroll(Mods.TOUCH);
 	}
 
-	@:hxmc.callback static function touchesEnded(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void {
+	@:hxmc.callback static function touchesEnded(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void
+		lift(touches, false);
+
+	@:hxmc.callback static function touchesCancelled(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void
+		lift(touches, true);
+
+	static function lift(touches:Ptr, cancelled:Bool) {
 		var w = current;
 		if (w == null || w.touch.isNull() || !Msg.bPtr(touches, ObjC.sel("containsObject:"), w.touch)) return;
-		w.locate(w.touch);
+		var end = drag.lift(time(w.touch), cancelled);
 		w.touch = Ptr.nil();
-		w.send(MouseUp, 1);
+		if (end == TouchDrag.END) w.scroll(0) else if (end == TouchDrag.TAP) {
+			w.click(MouseMove);
+			w.click(MouseDown);
+			w.click(MouseUp);
+		}
 	}
+
+	// a touch's time (ms: UITouch.timestamp, seconds since the boot)
+	static function time(t:Ptr):Float
+		return Msg.f(t, ObjC.sel("timestamp")) * 1000;
 
 	function locate(t:Ptr) {
 		var p = Msg.pointPtr(t, ObjC.sel("locationInView:"), view);
@@ -175,15 +185,17 @@ class UIKitWindow {
 		lastY = p.y * scale;
 	}
 
-	function send(kind:EventKind, button:Int) {
+	function scroll(mods:Int) {
 		var e = event;
-		e.kind = kind;
+		drag.scroll(e, mods);
 		e.window = owner;
-		e.x = Math.floor(lastX);
-		e.y = Math.floor(lastY);
-		e.button = button;
-		e.mods = 0;
-		e.text = "";
+		dispatch(e);
+	}
+
+	function click(kind:EventKind) {
+		var e = event;
+		drag.click(e, kind);
+		e.window = owner;
 		dispatch(e);
 	}
 
@@ -192,6 +204,7 @@ class UIKitWindow {
 	static function suspend(on:Bool) {
 		if (on == suspended) return;
 		suspended = on;
+		drag.stop();
 		var w = current;
 		if (w == null) return;
 		var e = event;
@@ -215,11 +228,16 @@ class UIKitWindow {
 		UIKitWindow.onEvent = onEvent;
 		if (mode.isNull()) return;
 		while (CF.CFRunLoopRunInMode(mode, 0, true) == 4) {}
+		// (a drag let go moving: its glide's scroll since the last)
+		var w = current;
+		if (w != null && drag.gliding && drag.glide(haxe.Timer.stamp() * 1000)) w.scroll(0);
 	}
 
-	// waits for a source of the run loop, or seconds (< 0: no limit)
+	// waits for a source of the run loop, or seconds (< 0: no limit; a
+	// frame while a drag glides)
 	static function wait(seconds:Float) {
 		if (mode.isNull()) return;
+		seconds = drag.wait(seconds);
 		CF.CFRunLoopRunInMode(mode, seconds < 0 ? 1e9 : seconds, true);
 	}
 
