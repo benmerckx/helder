@@ -4,13 +4,15 @@ import hxmc.unsafe.*;
 // A tap on the iOS simulator's screen for ios.sh (macOS, a GUI session):
 // the largest on-screen window of the Simulator app (CGWindowList), a left
 // click (down, up) at a fraction of it posted as the HID system's events
-// (CGEventPost), which the simulator turns into a touch. Needs the
-// permission to post events (the runner's).
-//   SimTap [fx fy]   (default 0.5 0.55: the screen's middle, under the title bar)
+// (CGEventPost), which the simulator turns into a touch; with a second
+// point, a quick drag to it (a fling: down, dragged in 10 steps 10 ms
+// apart, up). Needs the permission to post events (the runner's).
+//   SimTap [fx fy [tx ty]]   (default 0.5 0.55: the screen's middle, under the title bar)
 class SimTap {
 	static function main() {
 		var args = Sys.args();
 		var fx = args.length > 1 ? Std.parseFloat(args[0]) : 0.5, fy = args.length > 1 ? Std.parseFloat(args[1]) : 0.55;
+		var tx = args.length > 3 ? Std.parseFloat(args[2]) : fx, ty = args.length > 3 ? Std.parseFloat(args[3]) : fy;
 		var list = CG.CGWindowListCopyWindowInfo(1, 0); // (kCGWindowListOptionOnScreenOnly)
 		var ownerKey = cf("kCGWindowOwnerName"), boundsKey = cf("kCGWindowBounds");
 		var rect:Ptr<Float> = LibC.malloc(32);
@@ -39,13 +41,26 @@ class SimTap {
 		p.value.x = bx + bw * fx;
 		p.value.y = by + bh * fy;
 		Sys.println('SimTap: the Simulator window at $bx,$by ${bw}x$bh: a click at ${p.value.x},${p.value.y}');
-		// (mouse moved, left down, left up)
-		for (type in [5, 1, 2]) {
-			var ev = CG.CGEventCreateMouseEvent(Ptr.nil(), type, p.value, 0);
-			CG.CGEventPost(0, ev); // (kCGHIDEventTap)
-			CF.CFRelease(ev);
-			Sys.sleep(0.1);
-		}
+		// (mouse moved, left down, (left dragged), left up)
+		post(p, 5);
+		Sys.sleep(0.1);
+		post(p, 1);
+		if (tx != fx || ty != fy) {
+			for (i in 1...11) {
+				Sys.sleep(0.01);
+				p.value.x = bx + bw * (fx + (tx - fx) * i / 10);
+				p.value.y = by + bh * (fy + (ty - fy) * i / 10);
+				post(p, 6);
+			}
+			Sys.println('SimTap: dragged to ${p.value.x},${p.value.y}');
+		} else Sys.sleep(0.1);
+		post(p, 2);
+	}
+
+	static function post(p:Ptr<CGPoint>, type:Int) {
+		var ev = CG.CGEventCreateMouseEvent(Ptr.nil(), type, p.value, 0);
+		CG.CGEventPost(0, ev); // (kCGHIDEventTap)
+		CF.CFRelease(ev);
 	}
 
 	static function cf(s:String):Ptr

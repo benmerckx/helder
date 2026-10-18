@@ -9,6 +9,8 @@
 #   - 120 frames drawn in the window;
 #   - a tap on the Simulator's window (SimTap: a click posted as an HID
 #     event, the simulator's touch) comes back as MouseDown and MouseUp;
+#     a fling (SimTap's quick drag) as scrolls at where it started with
+#     Mods.TOUCH, a scroll of nothing without it, then its glide's;
 #   - a screenshot (simctl io) to <out>/cube-ios.png;
 #   - another app (Settings) sends it to the background (Suspend), launching
 #     it again brings it back (Resume) and frames go on;
@@ -89,6 +91,20 @@ if [ -n "$tap" ]; then
 	check "a tap: MouseDown and MouseUp" $?
 	grep -q "event MouseDown" "$stdout"
 	check "the tap: MouseDown" $?
+	# a fling (a quick drag up): its scrolls at where it started with
+	# Mods.TOUCH, a scroll of nothing without it once let go, then the
+	# glide's scrolls
+	"$tap" 0.5 0.7 0.5 0.35
+	wait_for "event Scroll .* by 0,0 mods 0" 20
+	check "a fling: scrolls, then its release" $?
+	sleep 3
+	grep "event Scroll .* mods 16" "$stdout" | grep -o "Scroll [0-9]*,[0-9]* by [0-9.e-]*,[0-9.e-]* " | sed "s/ by .*//" | sort -u > "$out/drag-at.txt"
+	[ "$(wc -l < "$out/drag-at.txt")" -eq 1 ]
+	check "the fling's scrolls with Mods.TOUCH, at where it started" $?
+	glides=$(grep "event Scroll" "$stdout" | awk '/by 0,0 mods 0/ {r = 1; next} r && / mods 0[[:space:]]*$/ {g++} END {print g + 0}')
+	echo "ios.sh: the fling's glide: $glides scrolls"
+	[ "$glides" -ge 3 ]
+	check "the fling glides on after the finger lifted" $?
 fi
 xcrun simctl launch "$udid" com.apple.Preferences > /dev/null
 wait_for "event Suspend" 30

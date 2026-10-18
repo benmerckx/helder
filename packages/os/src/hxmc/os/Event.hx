@@ -46,8 +46,9 @@ class Mods {
 	public static inline var CONTROL = 2;
 	public static inline var ALT = 4;
 	public static inline var META = 8;
-	// Scroll, in the browser: a touch drag's, the finger on the canvas (the
-	// drag ends with a Scroll of nothing without it, then its glide's)
+	// Scroll, in the browser, on Android and iOS: a touch drag's, the finger
+	// down (the drag ends with a Scroll of nothing without it, then its
+	// glide's; at where it started: hxmc.os.TouchDrag)
 	public static inline var TOUCH = 16;
 }
 
