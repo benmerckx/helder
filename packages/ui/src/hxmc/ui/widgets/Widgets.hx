@@ -75,18 +75,14 @@ class Widgets implements Markup {
 		sizes: ["default", "xs", "sm", "lg", "icon", "icon-xs", "icon-sm", "icon-lg"],
 		keys: {"Enter, Space": "clicks it"}
 	})
-	public static function Button(props:{?label:String, ?onClick:Void->Void, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
+	@:neutral public static function Button(props:{?label:String, ?onClick:Void->Void, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var press = () -> if (!disabled() && props.onClick != null) props.onClick();
-		return <view tag={props.tag ?? "button"} slot="button" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
-			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} onClick={_ -> press()}
-			onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
-				e.preventDefault();
-				press();
-			}}>
+		return <view:button tag={props.tag ?? "button"} id={props.tag} slot="button" ref={styled(props.style)} variant={props.variant ?? "default"}
+			size={props.size ?? "default"} role="button" focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} onPress={_ -> press()}>
 			{props.label}{props.children}
-		</view>;
+		</view:button>;
 	}
 
 	// a toggle (shadcn's): a button pressed or not, bound to a signal;
@@ -195,11 +191,13 @@ class Widgets implements Markup {
 		props: {
 			text: "its text, when it has no children",
 			disabled: "a Bool, a signal or a function of one: dimmed by the theme (data-disabled)",
+			htmlFor: "the id of the control it names, in a page (a <label>'s for)",
 			children: "its content, in place of text"
 		}
 	})
-	public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?style:States->StyleProps, ?tag:String}):View {
-		return <text tag={props.tag ?? "label"} slot="label" ref={n -> States.apply(n, props.style)} data-disabled={() -> read(props.disabled) == true}>{props.children ?? props.text}</text>;
+	@:neutral public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?htmlFor:String, ?style:States->StyleProps, ?tag:String}):View {
+		return <text:label tag={props.tag ?? "label"} id={props.tag} slot="label" html-for={props.htmlFor} ref={styled(props.style)}
+			data-disabled={() -> read(props.disabled) == true ? "true" : null}>{props.children ?? props.text}</text:label>;
 	}
 
 	// a badge (shadcn's): its label or children; variant "default",
@@ -237,8 +235,8 @@ class Widgets implements Markup {
 			children: "its parts: a CardHeader, a CardContent, a CardFooter"
 		}
 	})
-	public static function Card(props:{?children:View, ?style:States->StyleProps, ?tag:String}):View {
-		return <view tag={props.tag ?? "card"} slot="card" ref={n -> States.apply(n, props.style)}>{props.children}</view>;
+	@:neutral public static function Card(props:{?children:View, ?style:States->StyleProps, ?tag:String}):View {
+		return <view tag={props.tag ?? "card"} id={props.tag} slot="card" ref={styled(props.style)}>{props.children}</view>;
 	}
 
 	@:widget({
@@ -247,8 +245,8 @@ class Widgets implements Markup {
 		},
 		part: "Card"
 	})
-	public static function CardHeader(props:{?children:View, ?tag:String}):View
-		return <view tag={props.tag ?? "card-header"} slot="card-header">{props.children}</view>;
+	@:neutral public static function CardHeader(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "card-header"} id={props.tag} slot="card-header">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -257,8 +255,8 @@ class Widgets implements Markup {
 		},
 		part: "Card"
 	})
-	public static function CardTitle(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "card-title"} slot="card-title" role="heading">{props.children ?? props.text}</text>;
+	@:neutral public static function CardTitle(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:div tag={props.tag ?? "card-title"} id={props.tag} slot="card-title" role="heading">{props.children ?? props.text}</text:div>;
 
 	@:widget({
 		props: {
@@ -267,8 +265,8 @@ class Widgets implements Markup {
 		},
 		part: "Card"
 	})
-	public static function CardDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "card-description"} slot="card-description">{props.children ?? props.text}</text>;
+	@:neutral public static function CardDescription(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:div tag={props.tag ?? "card-description"} id={props.tag} slot="card-description">{props.children ?? props.text}</text:div>;
 
 	@:widget({
 		props: {
@@ -276,8 +274,8 @@ class Widgets implements Markup {
 		},
 		part: "Card"
 	})
-	public static function CardAction(props:{?children:View, ?tag:String}):View
-		return <view tag={props.tag ?? "card-action"} slot="card-action">{props.children}</view>;
+	@:neutral public static function CardAction(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "card-action"} id={props.tag} slot="card-action">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -285,8 +283,8 @@ class Widgets implements Markup {
 		},
 		part: "Card"
 	})
-	public static function CardContent(props:{?children:View, ?tag:String}):View
-		return <view tag={props.tag ?? "card-content"} slot="card-content">{props.children}</view>;
+	@:neutral public static function CardContent(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "card-content"} id={props.tag} slot="card-content">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -294,8 +292,8 @@ class Widgets implements Markup {
 		},
 		part: "Card"
 	})
-	public static function CardFooter(props:{?children:View, ?tag:String}):View
-		return <view tag={props.tag ?? "card-footer"} slot="card-footer">{props.children}</view>;
+	@:neutral public static function CardFooter(props:{?children:View, ?tag:String}):View
+		return <view tag={props.tag ?? "card-footer"} id={props.tag} slot="card-footer">{props.children}</view>;
 
 	// a separator (shadcn's): a line across, orientation "horizontal" (the
 	// default) or "vertical" (slot "separator", data-orientation); not
@@ -306,10 +304,10 @@ class Widgets implements Markup {
 			decorative: "false: a separator for assistive technology; else (the default) hidden from it"
 		}
 	})
-	public static function Separator(props:{?orientation:String, ?decorative:Bool, ?tag:String}):View {
+	@:neutral public static function Separator(props:{?orientation:String, ?decorative:Bool, ?tag:String}):View {
 		var o = props.orientation ?? "horizontal";
-		return props.decorative == false ? <view tag={props.tag ?? "separator"} slot="separator" role="separator" data-orientation={o}/> : <view
-			tag={props.tag ?? "separator"} slot="separator" data-orientation={o} hidden/>;
+		return props.decorative == false ? <view tag={props.tag ?? "separator"} id={props.tag} slot="separator" role="separator" data-orientation={o}
+			aria-orientation={o == "vertical" ? "vertical" : null}/> : <view tag={props.tag ?? "separator"} id={props.tag} slot="separator" data-orientation={o} hidden/>;
 	}
 
 	// a skeleton (shadcn's): a placeholder where content is still coming,
@@ -321,8 +319,8 @@ class Widgets implements Markup {
 			children: "content giving it its size, hidden from assistive technology"
 		}
 	})
-	public static function Skeleton(props:{?width:Dynamic, ?height:Dynamic, ?children:View, ?tag:String}):View {
-		return <view tag={props.tag ?? "skeleton"} slot="skeleton" width={props.width} height={props.height} hidden>{props.children}</view>;
+	@:neutral public static function Skeleton(props:{?width:Dynamic, ?height:Dynamic, ?children:View, ?tag:String}):View {
+		return <view tag={props.tag ?? "skeleton"} id={props.tag} slot="skeleton" width={props.width} height={props.height} hidden>{props.children}</view>;
 	}
 
 	// an alert (shadcn's): a callout of its children, variant "default" or
@@ -2564,8 +2562,8 @@ class Widgets implements Markup {
 			children: "its content, instead of text"
 		}
 	})
-	public static function Kbd(props:{?text:String, ?children:Any, ?tag:String}):View {
-		return <text tag={props.tag ?? "kbd"} slot="kbd">{props.children ?? props.text}</text>;
+	@:neutral public static function Kbd(props:{?text:String, ?children:Any, ?tag:String}):View {
+		return <text:kbd tag={props.tag ?? "kbd"} id={props.tag} slot="kbd">{props.children ?? props.text}</text:kbd>;
 	}
 
 	// a spinner (shadcn's): a loading circle turning once a second while

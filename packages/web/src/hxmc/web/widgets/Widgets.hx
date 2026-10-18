@@ -11,6 +11,8 @@ import hxmc.ui.widgets.Days;
 import hxmc.ui.widgets.Days.Day;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.Toasts.Toast;
+// (the widgets of one definition for both: ui's, realised by the DOM's renderer)
+import hxmc.ui.widgets.Widgets.Button;
 import hxmc.view.*;
 import hxmc.view.Flow.*;
 import hxmc.view.Reactive.*;
@@ -46,15 +48,6 @@ class Widgets implements Markup {
 
 	static function on(v:Dynamic):Bool
 		return read(v) == true;
-
-	// a button (shadcn's): its label or children; variant "default",
-	// "destructive", "outline", "secondary", "ghost" or "link", size
-	// "default", "xs", "sm", "lg", "icon"...; disabled (a Bool, a signal or
-	// a function of one)
-	public static function Button(props:{?label:Dynamic, ?onClick:Void->Void, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
-			?tag:String}):View
-		return <button type="button" id={props.tag} data-slot="button" data-variant={props.variant ?? "default"} data-size={props.size ?? "default"}
-			disabled={() -> on(props.disabled)} onClick={() -> if (props.onClick != null) props.onClick()}>{props.label}{props.children}</button>;
 
 	// a toggle (shadcn's): a button pressed or not, bound to a signal
 	public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
@@ -99,43 +92,6 @@ class Widgets implements Markup {
 		return props.label == null ? track : <div data-slot="switch-field">{track}<label data-slot="label" htmlFor={id}>{props.label}</label></div>;
 	}
 
-	// a label (shadcn's): its text or children; htmlFor: the control's id
-	public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?htmlFor:String, ?tag:String}):View
-		return <label id={props.tag} data-slot="label" htmlFor={props.htmlFor} data-disabled={() -> on(props.disabled) ? "true" : null}>{props.children ?? props.text}</label>;
-
-	// a card (shadcn's) and its parts
-	public static function Card(props:{?children:View, ?tag:String}):View
-		return <div id={props.tag} data-slot="card">{props.children}</div>;
-
-	public static function CardHeader(props:{?children:View, ?tag:String}):View
-		return <div id={props.tag} data-slot="card-header">{props.children}</div>;
-
-	public static function CardTitle(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="card-title">{props.children ?? props.text}</div>;
-
-	public static function CardDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="card-description">{props.children ?? props.text}</div>;
-
-	public static function CardAction(props:{?children:View, ?tag:String}):View
-		return <div id={props.tag} data-slot="card-action">{props.children}</div>;
-
-	public static function CardContent(props:{?children:View, ?tag:String}):View
-		return <div id={props.tag} data-slot="card-content">{props.children}</div>;
-
-	public static function CardFooter(props:{?children:View, ?tag:String}):View
-		return <div id={props.tag} data-slot="card-footer">{props.children}</div>;
-
-	// a separator (shadcn's, Radix's): horizontal or vertical; decorative (the default) or not
-	public static function Separator(props:{?orientation:String, ?decorative:Bool, ?tag:String}):View {
-		var o = props.orientation ?? "horizontal";
-		return <div id={props.tag} data-slot="separator" data-orientation={o} role={props.decorative == false ? "separator" : "none"}
-			aria-orientation={props.decorative == false && o == "vertical" ? "vertical" : null}/>;
-	}
-
-	// a skeleton (shadcn's): a placeholder of a size (pixels or CSS), else its children's
-	public static function Skeleton(props:{?width:Dynamic, ?height:Dynamic, ?children:View, ?tag:String}):View
-		return <div id={props.tag} data-slot="skeleton" style={{width: props.width, height: props.height}}>{props.children}</div>;
-
 	// an alert (shadcn's): variant "default" or "destructive"; its title and description
 	public static function Alert(props:{?variant:String, ?children:View, ?tag:String}):View
 		return <div id={props.tag} data-slot="alert" role="alert" data-variant={props.variant ?? "default"}>{props.children}</div>;
@@ -145,10 +101,6 @@ class Widgets implements Markup {
 
 	public static function AlertDescription(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <div id={props.tag} data-slot="alert-description">{props.children ?? props.text}</div>;
-
-	// a key or keys (shadcn's Kbd)
-	public static function Kbd(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <kbd id={props.tag} data-slot="kbd">{props.children ?? props.text}</kbd>;
 
 	// a spinner (shadcn's): a loading circle turning (the theme's animate-spin)
 	public static function Spinner(props:{?label:String, ?tag:String}):Any {

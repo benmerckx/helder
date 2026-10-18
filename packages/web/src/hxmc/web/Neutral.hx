@@ -1,7 +1,7 @@
 package hxmc.web;
 
 #if js
-import hxmc.ui.Event;
+import hxmc.ui.Event.EventType;
 import hxmc.web.widgets.Dom;
 import js.html.Element;
 
@@ -9,27 +9,25 @@ import js.html.Element;
 // set, its events converted to ui's Event (the DOM's stopped and its default
 // prevented when the handler says so)
 class Neutral {
-	// an attribute by its DOM name (null or false: removed; aria-*'s true "true")
+	// an attribute by its DOM name, as ui's setData has them: data-* absent for null and false, empty for true;
+	// aria-* "true" and "false"; else Html's rules
 	public static function attr(el:Element, name:String, v:Dynamic) {
-		var s = Html.attributeValue(name, v);
+		var s = if (StringTools.startsWith(name, "data-")) v == null || v == false ? null : v == true ? "" : Std.string(v)
+			else if (StringTools.startsWith(name, "aria-")) v == null ? null : Std.string(v)
+			else Html.attributeValue(name, v);
 		if (s == null) el.removeAttribute(name) else if (el.getAttribute(name) != s) el.setAttribute(name, s);
 	}
 
 	// (a neutral attribute by its neutral name, NeutralMacro's tables: data-slot, aria-label...)
 	public static function mapped(el:Dynamic, name:String, v:Dynamic)
-		attr(el, NAMES[name], v);
+		attr(el, hxmc.web.NeutralMacro.attrName(name), v);
 
 	public static function plain(el:Dynamic, name:String, v:Dynamic)
 		attr(el, name, v);
 
 	// (a StyleProps attribute by its neutral name)
-	public static function style(el:Dynamic, name:String, v:Dynamic) {
-		var c = CSS[name];
-		css(el, c.prop, v, c.px);
-	}
-
-	static final NAMES:Map<String, String> = hxmc.web.NeutralMacro.names();
-	static final CSS:Map<String, {prop:String, px:Bool}> = hxmc.web.NeutralMacro.styles();
+	public static function style(el:Dynamic, name:String, v:Dynamic)
+		css(el, hxmc.web.NeutralMacro.cssName(name), v, hxmc.web.NeutralMacro.cssPx(name));
 
 	// a style property (a number in px where px; null: none)
 	public static function css(el:Element, prop:String, v:Dynamic, px:Bool) {
@@ -40,6 +38,7 @@ class Neutral {
 		var s = px && (Std.isOfType(v, Float) || Std.isOfType(v, Int)) ? v + "px" : Std.string(v);
 		// (ui's scroll overflow, and a flex direction on an element laid out as flex)
 		if (prop == "overflow" && s == "scroll") s = "auto";
+		if (prop == "flex-wrap") s = v == true || s == "wrap" ? "wrap" : "nowrap";
 		if (prop == "flex-direction" && el.style.display == "") el.style.display = "flex";
 		el.style.setProperty(prop, s);
 	}
@@ -57,34 +56,73 @@ class Neutral {
 	}
 
 	// a handler of ui's Event for a DOM event
-	public static function on(el:Element, dom:String, h:Dynamic, type:EventType) {
+	public static function on(el:Dynamic, dom:String, h:Dynamic, type:EventType) {
 		if (h == null) return;
-		el.addEventListener(dom, (e:js.html.Event) -> call(h, e, type));
+		el.addEventListener(dom, (e:js.html.Event) -> call(h, e, type, null));
+	}
+
+	// (a key event: its key and modifiers as ui's codes)
+	public static function onKey(el:Dynamic, dom:String, h:Dynamic, type:EventType) {
+		if (h == null) return;
+		el.addEventListener(dom, (e:js.html.KeyboardEvent) -> call(h, e, type, Dom.key(e), Dom.mods(e)));
 	}
 
 	// a press: a click (a button's or a link's, Enter and Space theirs), else a click, or Enter or Space
-	public static function press(el:Element, h:Dynamic, native:Bool) {
+	public static function press(el:Dynamic, h:Dynamic, native:Bool) {
 		if (h == null) return;
-		el.addEventListener("click", (e:js.html.Event) -> call(h, e, Click));
+		el.addEventListener("click", (e:js.html.Event) -> call(h, e, Click, null));
 		if (!native) el.addEventListener("keydown", (e:js.html.KeyboardEvent) -> if (!e.defaultPrevented && (e.key == "Enter" || e.key == " ")) {
 			e.preventDefault();
-			call(h, e, Click);
+			call(h, e, Click, null);
 		});
 	}
 
-	static function call(h:Dynamic, e:js.html.Event, type:EventType) {
+	static function call(h:Dynamic, e:js.html.Event, type:EventType, key:Null<Int>, mods = 0) {
 		var x = 0.0, y = 0.0, d:Dynamic = e;
 		if (d.clientX != null) {
 			x = d.clientX;
 			y = d.clientY;
 		}
-		var ev = new Event(type, null, x, y);
-		if (Std.isOfType(e, js.html.KeyboardEvent)) ev.key = Dom.key(cast e);
-		if (d.shiftKey != null) ev.mods = Dom.mods(e);
+		var ev = new NeutralEvent(type, x, y);
+		if (key != null) ev.key = key;
+		ev.mods = mods;
 		if (d.button != null) ev.button = d.button + 1;
-		(h : Event->Void)(ev);
+		(h : Dynamic->Void)(ev);
 		if (ev.stopped) e.stopPropagation();
 		if (ev.defaultPrevented) e.preventDefault();
 	}
+}
+
+// ui's Event as a page's handlers get it (its fields; target and current
+// none: a part is a ref's): ui's own would bring its nodes into a page
+@:keep private class NeutralEvent {
+	public final type:EventType;
+	public final target:Dynamic = null;
+	public final current:Dynamic = null;
+	public final x:Float;
+	public final y:Float;
+	public var button = 0;
+	public var key = 0;
+	public var mods = 0;
+	public var text = "";
+	public var caret = 0;
+	public var data:Dynamic = null;
+	public var dropped = false;
+	public var deltaX = 0.0;
+	public var deltaY = 0.0;
+	public var stopped = false;
+	public var defaultPrevented = false;
+
+	public function new(type, x, y) {
+		this.type = type;
+		this.x = x;
+		this.y = y;
+	}
+
+	public function stop()
+		stopped = true;
+
+	public function preventDefault()
+		defaultPrevented = true;
 }
 #end

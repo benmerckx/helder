@@ -170,8 +170,11 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 	@:attribute static function tag(n:Node, name:String, v:Dynamic)
 		if (v != null) n.tag = v;
 
-	// (a page's element's id, where a page's renderer realises a neutral element: none here, Node.find takes tag)
+	// (a page's element's id, where a page's renderer realises a neutral element: none here, Node.find takes tag;
+	// a label's for, html-for, none either)
 	@:attribute static function id(n:Node, name:String, v:Dynamic) {}
+
+	@:attribute static function htmlFor(n:Node, name:String, v:Dynamic) {}
 
 	// (what a theme styles it as: Rule)
 	@:attribute static function slot(n:Node, name:String, v:Dynamic)

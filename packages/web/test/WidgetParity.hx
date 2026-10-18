@@ -11,9 +11,7 @@
 class WidgetParity {
 	// the differences known, by widget, and why
 	static final KNOWN = [
-		"Button" => "label: the DOM's any content (Dynamic), ui's a String",
 		"Checkbox" => "invalid: the DOM's only (aria-invalid)",
-		"Label" => "htmlFor: the DOM's only (a <label>'s for)",
 		"FieldLabel" => "htmlFor: the DOM's only (a <label>'s for)",
 		"Input" => "type: the DOM's only (an <input>'s type)",
 		"Select" => "size: ui's only (data-size)",
@@ -42,6 +40,7 @@ class WidgetParity {
 			// (one definition for both: no DOM copy to differ, none to keep)
 			if (u.neutral == true) {
 				if (d != null) fail('$name: one definition for both (@:neutral), its DOM copy still there');
+				if (KNOWN.exists(name)) fail('$name: one definition for both (@:neutral); KNOWN\'s entry is stale');
 				continue;
 			}
 			if (d == null) {

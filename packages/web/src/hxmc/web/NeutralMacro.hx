@@ -15,15 +15,20 @@ import haxe.macro.Expr;
 // Event (only for the events a widget listens to). A name the table has
 // not is an error, so that the two renderers' vocabularies stay one.
 class NeutralMacro {
-	// the tables as values, for Neutral's run time
-	public static macro function names():Expr {
-		var all = [for (k => v in DATA) macro $v{k} => $v{v}].concat([for (k => v in ARIA) macro $v{k} => $v{v}]);
-		return macro $a{all};
+	// the tables as switches over a neutral name, for Neutral's run time: its DOM name, its CSS property and px
+	public static macro function attrName(name:Expr):Expr {
+		var cases:Array<Case> = [for (k => v in DATA) {values: [macro $v{k}], expr: macro $v{v}}].concat([for (k => v in ARIA) {values: [macro $v{k}], expr: macro $v{v}}]);
+		return {expr: ESwitch(name, cases, macro $name), pos: name.pos};
 	}
 
-	public static macro function styles():Expr {
-		var all = [for (k => c in CSS) macro $v{k} => {prop: $v{c.prop}, px: $v{c.px}}];
-		return macro $a{all};
+	public static macro function cssName(name:Expr):Expr {
+		var cases:Array<Case> = [for (k => c in CSS) {values: [macro $v{k}], expr: macro $v{c.prop}}];
+		return {expr: ESwitch(name, cases, macro $name), pos: name.pos};
+	}
+
+	public static macro function cssPx(name:Expr):Expr {
+		var px = [for (k => c in CSS) if (c.px) macro $v{k}];
+		return {expr: ESwitch(name, [{values: px, expr: macro true}], macro false), pos: name.pos};
 	}
 
 	#if macro
@@ -35,7 +40,7 @@ class NeutralMacro {
 	static final TEXTS = ["span", "p", "h1", "h2", "h3", "h4", "h5", "h6", "label", "kbd", "strong", "em", "small", "code", "legend", "div"];
 
 	// (attributes: their DOM names)
-	public static final DATA = ["slot" => "data-slot", "variant" => "data-variant", "size" => "data-size"];
+	public static final DATA = ["slot" => "data-slot", "variant" => "data-variant", "size" => "data-size", "html-for" => "for"];
 	public static final ARIA = [
 		"label" => "aria-label", "description" => "aria-description", "checked" => "aria-checked", "selected" => "aria-selected",
 		"expanded" => "aria-expanded", "pressed" => "aria-pressed", "hidden" => "aria-hidden", "level" => "aria-level",
@@ -52,7 +57,7 @@ class NeutralMacro {
 		"align-items" => {prop: "align-items", px: false}, "justify" => {prop: "justify-content", px: false}, "grow" => {prop: "flex-grow", px: false},
 		"shrink" => {prop: "flex-shrink", px: false}, "gap" => {prop: "gap", px: true}, "row-gap" => {prop: "row-gap", px: true},
 		"column-gap" => {prop: "column-gap", px: true}, "opacity" => {prop: "opacity", px: false}, "z-index" => {prop: "z-index", px: false},
-		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}
+		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false}
 	];
 	// (events: the DOM's, and ui's EventType)
 	static final EVENTS:Map<String, {dom:String, type:String}> = [
@@ -69,6 +74,12 @@ class NeutralMacro {
 		if (t == "scroll") return macro @:pos(tag.pos) {
 			var el = hxmc.web.DomRenderer.createElement("div");
 			(cast el : js.html.Element).style.overflow = "auto";
+			el;
+		};
+		// (a button not a form's submit)
+		if (dom == "button") return macro @:pos(tag.pos) {
+			var el = hxmc.web.DomRenderer.createElement("button");
+			(cast el : js.html.Element).setAttribute("type", "button");
 			el;
 		};
 		return macro @:pos(tag.pos) hxmc.web.DomRenderer.createElement($v{dom});
@@ -101,6 +112,8 @@ class NeutralMacro {
 
 	static function setterFor(tag:String, name:String, pos:Position):Null<Expr> {
 		if (name == "tag") return null;
+		// (a button's or a link's own: its role, and focusable as it is)
+		if ((tag == "view:button" || tag == "view:a") && (name == "role" || name == "focusable")) return null;
 		// (each kind one function, (el, name, v), naming the DOM's attribute or property itself: Neutral)
 		if (DATA.exists(name) || ARIA.exists(name)) return macro @:pos(pos) hxmc.web.Neutral.mapped;
 		if (PLAIN.indexOf(name) >= 0 || StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-"))
@@ -121,6 +134,7 @@ class NeutralMacro {
 		}
 		if (!EVENTS.exists(n)) return Context.error('hxmc.web: <$t>\'s event $n has no DOM form (NeutralMacro)', name.pos);
 		var e = EVENTS[n], type = e.type;
+		if (e.dom == "keydown" || e.dom == "keyup") return macro @:pos(name.pos) hxmc.web.Neutral.onKey($el, $v{e.dom}, $h, hxmc.ui.Event.EventType.$type);
 		return macro @:pos(name.pos) hxmc.web.Neutral.on($el, $v{e.dom}, $h, hxmc.ui.Event.EventType.$type);
 	}
 
