@@ -395,8 +395,8 @@ browser the editors are the page's input and textarea over the canvas
 controls, children of the window, coloured through WM_CTLCOLOREDIT with the
 background behind them (`WinViews`; `WinAccessTest`); on macOS
 NSTextFields over the window's content view (a password's an
-NSSecureTextField) in the field's font, colour and alignment, a text area
-staying drawn (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
+NSSecureTextField) in the field's font, colour and alignment, a text area an
+NSTextView in a borderless NSScrollView (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
 and Android draw them still. InputOTP keeps its field drawn. A context
 menu is the platform's menu where it has one (`PlatformViews.menu`: its
 items, separators, checked and disabled ones, submenus and shortcuts'

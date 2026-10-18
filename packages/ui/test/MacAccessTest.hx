@@ -9,6 +9,7 @@ import hxmc.ui.widgets.Widgets.Checkbox;
 import hxmc.ui.widgets.Widgets.Slider;
 import hxmc.ui.widgets.Widgets.Input;
 import hxmc.ui.widgets.Widgets.ContextMenu;
+import hxmc.ui.widgets.Widgets.Textarea;
 import hxmc.unsafe.*;
 
 // hxmc.ui's accessibility on macOS (MacAccess; CI's macOS job): a window of
@@ -22,6 +23,8 @@ import hxmc.unsafe.*;
 // password, an NSSecureTextField with the same text. A context menu native
 // (an NSMenu popped up: its first item performed and its tracking ended
 // from the run loop's tracking mode, as a user's choice), its item chosen.
+// A text area native: an NSTextView, the program's text in it, an edit
+// (textDidChange:, as AppKit tells it) in the area's signal.
 //   MacAccessTest
 class MacAccessTest implements Markup {
 	// (the menu seen up)
@@ -58,7 +61,7 @@ class MacAccessTest implements Markup {
 
 	static function main() {
 		var w = new UiWindow("MacAccessTest", 320, 240);
-		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "";
+		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "", areaOn = signal(false), notes = signal("");
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
@@ -68,6 +71,7 @@ class MacAccessTest implements Markup {
 			<Show when={menuOn}><ContextMenu tag="cm" items={[{label: "Copy", onSelect: () -> menuChosen += "copy"}, {label: "Paste", onSelect: () -> menuChosen += "paste"}]}>
 				<view tag="cm-area" width={60} height={20}/>
 			</ContextMenu></Show>
+			<Show when={areaOn}><Textarea tag="notes" value={notes}/></Show>
 		</view>, w.root);
 		var view = w.window.surface.handle;
 		var frames = 0, step = 0;
@@ -167,7 +171,25 @@ class MacAccessTest implements Markup {
 				case 8:
 					check("a native context menu: its NSMenu shown", menuFound);
 					check("a native context menu: its first item chosen", menuChosen == "copy", menuChosen);
+					areaOn.value = true;
+					notes.value = "Line";
 					step = 9;
+				case 9:
+					var areas = [for (e in (@:privateAccess hxmc.ui.draw.MacViews.editors : Array<hxmc.ui.draw.MacViews.MacEditor>)) if (Std.isOfType(e, hxmc.ui.draw.MacViews.MacAreaEditor)) e];
+					check("the text area native: an NSTextView", areas.length == 1 && str(@:privateAccess areas[0].field, "class") == "NSTextView",
+						"" + areas.length);
+					if (areas.length == 1) {
+						var tv = @:privateAccess areas[0].field;
+						check("the program's text in the NSTextView", @:privateAccess areas[0].text() == "Line", @:privateAccess areas[0].text());
+						var t = ObjC.str("Line\nTwo");
+						Msg.vPtr(tv, ObjC.sel("setString:"), t);
+						var note = Msg.idPtrPtr(ObjC.cls("NSNotification"), ObjC.sel("notificationWithName:object:"), t, tv);
+						Msg.vPtr(@:privateAccess hxmc.ui.draw.MacViews.delegate, ObjC.sel("textDidChange:"), note);
+					}
+					step = 10;
+				case 10:
+					check("an edit in the NSTextView, the area's signal follows", notes.value == "Line\nTwo", notes.value);
+					step = 11;
 					w.close();
 				case _:
 			}
@@ -176,6 +198,6 @@ class MacAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('MacAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 18 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 21 ? 0 : 1);
 	}
 }

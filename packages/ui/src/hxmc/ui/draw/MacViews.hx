@@ -16,8 +16,11 @@ import hxmc.unsafe.*;
 // insertTab:, insertBacktab:, cancelOperation:, insertNewline:, moveUp:,
 // moveDown:); each queued and a frame asked for. In the node's font (by
 // family, else the system's), colour and alignment; a password's an
-// NSSecureTextField (the field made again when that changes); a text area
-// stays drawn. Menus: an NSMenu popped up at the next poll (its own loop
+// NSSecureTextField (the field made again when that changes). A text area:
+// an NSTextView (plain text, no inset or line padding, the drawn area's
+// geometry) in a borderless NSScrollView, the same delegate hearing its
+// textDidChange:, its editing begun and ended, and Tab, Shift+Tab and
+// Escape (textView:doCommandBySelector:) left to the program. Menus: an NSMenu popped up at the next poll (its own loop
 // until chosen or dismissed), each item's tag its id, its action the
 // delegate's hxmcMenuPick:.
 class MacViews implements PlatformViews {
@@ -44,6 +47,10 @@ class MacViews implements PlatformViews {
 			Runtime.class_addMethod(d, ObjC.sel("controlTextDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
 			Runtime.class_addMethod(d, ObjC.sel("control:textView:doCommandBySelector:"), Callback.addr(command), Mem.cstr("c@:@@:"));
 			Runtime.class_addMethod(d, ObjC.sel("hxmcMenuPick:"), Callback.addr(pick), Mem.cstr("v@:@"));
+			Runtime.class_addMethod(d, ObjC.sel("textDidChange:"), Callback.addr(changed), Mem.cstr("v@:@"));
+			Runtime.class_addMethod(d, ObjC.sel("textDidBeginEditing:"), Callback.addr(began), Mem.cstr("v@:@"));
+			Runtime.class_addMethod(d, ObjC.sel("textDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
+			Runtime.class_addMethod(d, ObjC.sel("textView:doCommandBySelector:"), Callback.addr(areaCommand), Mem.cstr("c@:@:"));
 			Runtime.objc_registerClassPair(d);
 			delegateClass = d;
 			delegate = Msg.id(Msg.id(d, ObjC.sel("alloc")), ObjC.sel("init"));
@@ -55,10 +62,51 @@ class MacViews implements PlatformViews {
 		return Msg.id(Msg.id(view, ObjC.sel("window")), ObjC.sel("contentView"));
 
 	public function editor(multiline:Bool):Null<PlatformEditor> {
-		if (multiline) return null;
+		if (multiline) {
+			var e = area();
+			editors.push(e);
+			return e;
+		}
 		var e = new MacEditor(this, field(false));
 		editors.push(e);
 		return e;
+	}
+
+	// (a text area: an NSTextView in an NSScrollView, hidden, in the content view)
+	function area():MacAreaEditor {
+		var make = (cls:Ptr) -> Arena.scopedValue(a -> {
+			var r = a.make(CGRect);
+			r.value.size.width = 10;
+			r.value.size.height = 10;
+			Msg.idRect(Msg.id(cls, ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), r.value);
+		});
+		var sv = make(ObjC.cls("NSScrollView")), tv = make(ObjC.cls("NSTextView"));
+		Msg.vInt(sv, ObjC.sel("setBorderType:"), 0); // NSNoBorder
+		Msg.vBool(sv, ObjC.sel("setDrawsBackground:"), false);
+		Msg.vBool(sv, ObjC.sel("setHasVerticalScroller:"), true);
+		Msg.vBool(sv, ObjC.sel("setAutohidesScrollers:"), true);
+		Msg.vBool(sv, ObjC.sel("setHidden:"), true);
+		Msg.vBool(tv, ObjC.sel("setRichText:"), false);
+		Msg.vBool(tv, ObjC.sel("setDrawsBackground:"), false);
+		Msg.vInt(tv, ObjC.sel("setFocusRingType:"), 1);
+		Msg.vBool(tv, ObjC.sel("setVerticallyResizable:"), true);
+		Msg.vBool(tv, ObjC.sel("setHorizontallyResizable:"), false);
+		Msg.vInt(tv, ObjC.sel("setAutoresizingMask:"), 2); // NSViewWidthSizable
+		Arena.scoped(a -> {
+			var z = a.make(CGSize);
+			Msg.vSize(tv, ObjC.sel("setTextContainerInset:"), z.value);
+			z.value.width = 1e7;
+			z.value.height = 1e7;
+			Msg.vSize(tv, ObjC.sel("setMaxSize:"), z.value);
+		});
+		var tc = Msg.id(tv, ObjC.sel("textContainer"));
+		Msg.vFloat(tc, ObjC.sel("setLineFragmentPadding:"), 0);
+		Msg.vBool(tc, ObjC.sel("setWidthTracksTextView:"), true);
+		Msg.vPtr(tv, ObjC.sel("setDelegate:"), delegate);
+		Msg.vPtr(sv, ObjC.sel("setDocumentView:"), tv);
+		ObjC.release(tv);
+		Msg.vPtr(content(), ObjC.sel("addSubview:"), sv);
+		return new MacAreaEditor(this, sv, tv);
 	}
 
 	// (a field, hidden, in the content view: a password's NSSecureTextField)
@@ -167,6 +215,20 @@ class MacViews implements PlatformViews {
 
 	@:hxmc.callback static function pick(self:Ptr, cmd:Ptr, item:Ptr)
 		picked = Msg.i(item, ObjC.sel("tag")).toInt();
+
+	// (a text area's commands: Tab, Shift+Tab and Escape left to the program)
+	@:hxmc.callback static function areaCommand(self:Ptr, cmd:Ptr, textView:Ptr, sel:Ptr):Int {
+		var e = of(textView);
+		if (e == null) return 0;
+		var key = 0, mods = 0;
+		if (sel == ObjC.sel("insertTab:")) key = Key.TAB else if (sel == ObjC.sel("insertBacktab:")) {
+			key = Key.TAB;
+			mods = Key.MOD_SHIFT;
+		} else if (sel == ObjC.sel("cancelOperation:")) key = Key.ESCAPE;
+		if (key == 0) return 0;
+		@:privateAccess e.views.push(e, 4, key, mods);
+		return 1;
+	}
 
 	@:hxmc.callback static function changed(self:Ptr, cmd:Ptr, note:Ptr) {
 		var e = of(Msg.id(note, ObjC.sel("object")));
@@ -289,6 +351,57 @@ class MacEditor implements PlatformEditor {
 		Msg.vPtr(field, ObjC.sel("setDelegate:"), Ptr.nil());
 		Msg.v(field, ObjC.sel("removeFromSuperview"));
 		ObjC.release(field);
+		listener = null;
+	}
+}
+
+// (a text area's editor: its NSTextView the field, placed by its scroll view)
+class MacAreaEditor extends MacEditor {
+	final scroll:Ptr;
+
+	public function new(views:MacViews, scroll:Ptr, textView:Ptr) {
+		super(views, textView);
+		this.scroll = scroll;
+	}
+
+	override function text():String {
+		var s = ObjC.string(Msg.id(field, ObjC.sel("string")));
+		return s == null ? "" : s;
+	}
+
+	override public function setText(text:String, start:Int, end:Int) {
+		var s = ObjC.str(text);
+		Msg.vPtr(field, ObjC.sel("setString:"), s);
+		ObjC.release(s);
+	}
+
+	override public function place(x:Float, y:Float, width:Float, height:Float, shown:Bool) {
+		var c = @:privateAccess views.content(), b = Msg.rect(c, ObjC.sel("bounds"));
+		Arena.scoped(a -> {
+			var r = a.make(CGRect);
+			r.value.origin.x = x;
+			r.value.origin.y = b.size.height - y - height;
+			r.value.size.width = width;
+			r.value.size.height = height;
+			Msg.vRect(scroll, ObjC.sel("setFrame:"), r.value);
+		});
+		Msg.vBool(scroll, ObjC.sel("setHidden:"), !shown);
+	}
+
+	// (no placeholder of its own: the drawn one shows while it is empty)
+	override public function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool) {
+		Msg.vPtr(field, ObjC.sel("setFont:"), @:privateAccess AppKitBackend.font(font));
+		Msg.vPtr(field, ObjC.sel("setTextColor:"), AkMsg.idFloat4(ObjC.cls("NSColor"), ObjC.sel("colorWithSRGBRed:green:blue:alpha:"), color.r / 255,
+			color.g / 255, color.b / 255, color.a / 255));
+		Msg.vInt(field, ObjC.sel("setAlignment:"), align == Center ? 2 : align == Right ? 1 : align == Justify ? 3 : 0);
+	}
+
+	override public function dispose() {
+		@:privateAccess MacViews.editors.remove(this);
+		if (editing()) Msg.bPtr(Msg.id(scroll, ObjC.sel("window")), ObjC.sel("makeFirstResponder:"), Ptr.nil());
+		Msg.vPtr(field, ObjC.sel("setDelegate:"), Ptr.nil());
+		Msg.v(scroll, ObjC.sel("removeFromSuperview"));
+		ObjC.release(scroll);
 		listener = null;
 	}
 }
