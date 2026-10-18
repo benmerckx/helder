@@ -23,6 +23,7 @@ import hxmc.unsafe.*;
 	static function AMotionEvent_getX(event:Ptr, index:Int64):Float32;
 	static function AMotionEvent_getY(event:Ptr, index:Int64):Float32;
 	static function AMotionEvent_getAxisValue(event:Ptr, axis:Int, index:Int64):Float32;
+	static function AMotionEvent_getEventTime(event:Ptr):Int64;
 	static function AKeyEvent_getAction(event:Ptr):Int;
 	static function AKeyEvent_getKeyCode(event:Ptr):Int;
 	static function AKeyEvent_getMetaState(event:Ptr):Int;

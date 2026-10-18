@@ -1,0 +1,98 @@
+// The dev loop's builds are fresh builds (make dev-check; docs/dev.md): a
+// compilation server built as `hxmc dev` asks it (-D hxmc.dev, its typed
+// modules kept in memory: -D disable-hxb-cache) through edits of a copy of
+// one of @hxmc/ui's examples: its main's string, then a module it uses
+// whose API changes (a static's type, a function added, a structure's
+// field added, then back); after each, the output must be the bytes a
+// one-shot build of the same sources makes.
+//   node packages/os/test/dev/dev-verify.mjs <compiler> [Counter|Gallery|...] [native|web|web-gc]
+import { spawn, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import net from 'node:net';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const repo = path.resolve(here, '../../../..');
+const [compilerArg, example = 'Counter', mode = 'native'] = process.argv.slice(2);
+const compiler = path.resolve(compilerArg ?? 'bin/hxmc/hxmc');
+const web = mode.startsWith('web');
+const work = fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-verify-'));
+fs.mkdirSync(path.join(work, 'app'));
+const main = path.join(work, 'app', example + '.hx');
+const helper = path.join(work, 'app', 'DevHelper.hx');
+const original = fs.readFileSync(path.join(repo, 'packages/ui/examples', example + '.hx'), 'utf8');
+const marked = original.replace('static function main() {', 'static function main() {\n\t\tvar edit = "edit 0";\n\t\ttrace(edit + DevHelper.describe());');
+if (marked === original) throw new Error(example + ': no main');
+fs.writeFileSync(main, marked);
+const helpers = [
+	'class DevHelper {\n\tpublic static var count = 1;\n\n\tpublic static function describe():String\n\t\treturn "h" + count;\n}\n',
+	'class DevHelper {\n\tpublic static var count = 2.5;\n\n\tpublic static function describe():String\n\t\treturn "h" + count + extra();\n\n\tstatic function extra()\n\t\treturn "!";\n}\n',
+	'typedef T = {a:Int, b:String};\n\nclass DevHelper {\n\tpublic static var t:T = {a: 1, b: "x"};\n\n\tpublic static function describe():String\n\t\treturn t.b + t.a;\n}\n',
+	'typedef T = {a:Int, b:String, c:Bool};\n\nclass DevHelper {\n\tpublic static var t:T = {a: 1, b: "x", c: true};\n\n\tpublic static function describe():String\n\t\treturn t.b + t.a + t.c;\n}\n',
+];
+fs.writeFileSync(helper, helpers[0]);
+const out = web ? 'out/app.wasm' : process.platform === 'win32' ? 'out/app.exe' : 'out/app';
+const ref = 'ref/' + path.basename(out);
+const args = (o) => [...['os', 'gfx', 'text', 'view', 'ui', 'theme'].flatMap((p) => ['-cp', path.join(repo, 'packages', p, 'src')]),
+	'-cp', path.join(repo, 'packages/ui/examples'), '-cp', 'app', '-D', 'hxmc.view.renderer.ui=hxmc.ui.view.NodeRenderer', '-main', example,
+	...(web ? ['-D', 'hxmc.target=wasm32-wasi', ...(mode === 'web-gc' ? ['-D', 'hxmc.wasm-gc'] : [])] : process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []),
+	'--custom-target', 'hxmc=' + o, '-D', 'hxmc.dev', ...(fs.existsSync(path.join(path.dirname(compiler), 'std')) ? ['-cp', path.join(path.dirname(compiler), 'std')] : [])];
+const env = { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') };
+
+const port = await new Promise((r) => {
+	const s = net.createServer().listen(0, '127.0.0.1', () => {
+		const p = s.address().port;
+		s.close(() => r(p));
+	});
+});
+const server = spawn(compiler, ['--wait', String(port)], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+let serverOutput = '';
+server.stdout.on('data', (d) => (serverOutput += d));
+server.stderr.on('data', (d) => (serverOutput += d));
+const request = (words) => new Promise((resolve) => {
+	const go = (n) => {
+		const s = net.connect(port, '127.0.0.1');
+		const chunks = [];
+		s.on('error', () => (n > 0 ? setTimeout(() => go(n - 1), 50) : resolve('\x02 no compilation server')));
+		s.on('connect', () => s.write(['--cwd', work, ...words].map((a) => a + '\n').join('') + '\0'));
+		s.on('data', (d) => chunks.push(d));
+		s.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+	};
+	go(100);
+});
+
+let failures = 0;
+async function step(what) {
+	for (const file of [main, helper])
+		await request(['--display', JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'server/invalidate', params: { file } })]);
+	const answer = await request([...args(out), '-D', 'disable-hxb-cache']);
+	const fresh = spawnSync(compiler, args(ref), { cwd: work, env, encoding: 'utf8' });
+	const same = !answer.includes('\x02') && fresh.status === 0 && Buffer.compare(fs.readFileSync(path.join(work, out)), fs.readFileSync(path.join(work, ref))) === 0;
+	console.log((same ? 'ok   ' : 'FAIL ') + `${example} ${mode}: ${what}`);
+	if (!same) {
+		failures++;
+		console.log(answer.includes('\x02') ? answer + serverOutput.slice(-2000) : fresh.status !== 0 ? fresh.stdout + fresh.stderr : 'the outputs differ');
+	}
+}
+try {
+	await step('the first build');
+	await step('no change');
+	for (let i = 1; i <= 2; i++) {
+		fs.writeFileSync(main, fs.readFileSync(main, 'utf8').replace(`"edit ${i - 1}"`, `"edit ${i}"`));
+		await step(`main edited (${i})`);
+	}
+	const changes = ['a static\'s type changed, a function added', 'a structure', 'a field added to the structure'];
+	for (let h = 1; h < helpers.length; h++) {
+		fs.writeFileSync(helper, helpers[h]);
+		await step('the module it uses: ' + changes[h - 1]);
+	}
+	fs.writeFileSync(helper, helpers[0]);
+	await step('the module it uses: as at first');
+} finally {
+	server.kill();
+}
+fs.rmSync(work, { recursive: true, force: true });
+console.log(failures === 0 ? 'dev-verify: ok' : `dev-verify: ${failures} failed`);
+process.exit(failures === 0 ? 0 : 1);
