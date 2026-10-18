@@ -3712,6 +3712,7 @@ class Widgets implements Markup {
 				var c:Color = [0xFF2563EB, 0xFF16A34A, 0xFFF59E0B, 0xFFDC2626, 0xFF7C3AED][k];
 				var rules:Array<Rule> = [
 					{slot: "chart-bar", when: ['data-series=${k + 1}'], style: {background: c}},
+					{slot: "chart-dot", when: ['data-series=${k + 1}'], style: {background: c}},
 					{slot: "chart-line", when: ['data-series=${k + 1}'], style: {color: c}},
 					{slot: "chart-area", when: ['data-series=${k + 1}'], style: {color: c}},
 					{slot: "chart-slice", when: ['data-series=${k + 1}'], style: {color: c}},
@@ -3813,7 +3814,7 @@ class Widgets implements Markup {
 	// through its values at each category, on the same scale and frame as
 	// BarChart's; a dot on each line at the category under the pointer.
 	// Slots as BarChart's, "chart-line" (its colour: data-series 1 to 5) and
-	// "chart-dot" for the bars
+	// "chart-dot" for its dots (their colour: data-series 1 to 5)
 	@:widget({
 		props: {
 			labels: "the categories, along the x axis",
@@ -3863,7 +3864,7 @@ class Widgets implements Markup {
 				[
 					<image tag={tag + "-line-" + k} slot={area ? "chart-area" : "chart-line"} data-series={Std.string(k % 5 + 1)} src={svg} position="absolute" left={0} top={0} width={w}
 						height={h} color={series[k].color}/>,
-					<Show when={() -> hover.value >= 0}>{() -> <view slot="chart-bar" data-series={Std.string(k % 5 + 1)} position="absolute" width={8} height={8}
+					<Show when={() -> hover.value >= 0}>{() -> <view slot="chart-dot" data-series={Std.string(k % 5 + 1)} position="absolute" width={8} height={8}
 						radius={4} left={px(hover.value) - 4} top={py(series[k].values[hover.value]) - 4} background={series[k].color}/>}</Show>
 				];
 			}
