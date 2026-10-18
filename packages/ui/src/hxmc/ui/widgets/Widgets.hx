@@ -3609,6 +3609,156 @@ class Widgets implements Markup {
 	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
 		return <view tag={props.tag ?? "item-footer"} slot="item-footer">{props.children}</view>;
 
+	// --- charts (shadcn's Chart: its look, recharts' kinds) ---
+
+	// (a scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten)
+	static function niceMax(v:Float):Float {
+		if (!(v > 0)) return 1;
+		var p = Math.pow(10, Math.floor(Math.log(v) / Math.log(10)));
+		for (m in [1.0, 2.0, 2.5, 5.0, 10.0])
+			if (m * p >= v - 1e-9) return m * p;
+		return 10 * p;
+	}
+
+	// (unstyled, each series a colour of its own: a theme's are its tokens, --chart-1 to --chart-5)
+	static function chartBase()
+		Rules.addBase("chart", Lambda.flatten([
+			for (k in 0...5) {
+				var c:Color = [0xFF2563EB, 0xFF16A34A, 0xFFF59E0B, 0xFFDC2626, 0xFF7C3AED][k];
+				var rules:Array<Rule> = [
+					{slot: "chart-bar", when: ['data-series=${k + 1}'], style: {background: c}},
+					{slot: "chart-line", when: ['data-series=${k + 1}'], style: {color: c}},
+					{slot: "chart-legend-swatch", when: ['data-series=${k + 1}'], style: {background: c}}
+				];
+				rules;
+			}
+		]));
+
+	// (a chart's frame: the y axis's ticks and the plot's grid lines, the
+	// plot, the x axis's labels, the legend; the category under the pointer
+	// (hover) shown in a tooltip, its values each series')
+	static function chartFrame(tag:String, labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, w:Float, h:Float, top:Float,
+			plot:View, hover:Signal<Int>, label:Null<String>, format:Float->String):View {
+		chartBase();
+		var n = labels.length, axis = 40.0;
+		function at(e:Event) {
+			var x = e.current.localX(e.x, e.y), i = n == 0 ? -1 : Std.int(x / (w / n));
+			hover.value = i >= 0 && i < n ? i : -1;
+		}
+		return <view tag={tag} slot="chart" role="img" label={label ?? "Chart"} align-items="start">
+			<view direction="row">
+				<view slot="chart-y-axis" width={axis} height={h} position="relative">{[
+					for (t in 0...5)
+						<text slot="chart-tick" position="absolute" right={6} top={h - t / 4 * h - 7}>{format(top * t / 4)}</text>
+				]}</view>
+				<view tag={tag + "-plot"} slot="chart-plot" width={w} height={h} position="relative" onPointerMove={at} onPointerLeave={_ -> hover.value = -1}>
+					{[for (t in 0...5) <view slot="chart-grid" position="absolute" left={0} width={w} top={h - t / 4 * h} height={1}/>]}
+					{plot}
+					<Show when={() -> hover.value >= 0}>{() -> {
+						var i = hover.value;
+						<view tag={tag + "-tooltip"} slot="chart-tooltip" position="absolute" top={4} left={Math.min(w - 120, (i + 0.5) * w / n + 8)}>
+							<text slot="chart-tooltip-label">{labels[i]}</text>
+							{[
+								for (k in 0...series.length)
+									<view slot="chart-tooltip-item" direction="row" align-items="center" column-gap={6}>
+										<view slot="chart-legend-swatch" data-series={Std.string(k % 5 + 1)} width={8} height={8}
+											background={series[k].color}/>
+										<text grow={1}>{series[k].name}</text>
+										<text slot="chart-tooltip-value">{format(series[k].values[i])}</text>
+									</view>
+							]}
+						</view>;
+					}}</Show>
+				</view>
+			</view>
+			<view slot="chart-x-axis" direction="row" margin-left={axis} width={w}>{[
+				for (l in labels) <text slot="chart-tick" grow={1} basis={0} text-align="center">{l}</text>
+			]}</view>
+			<view slot="chart-legend" direction="row" margin-left={axis} width={w} justify="center" column-gap={16}>{[
+				for (k in 0...series.length)
+					<view slot="chart-legend-item" direction="row" align-items="center" column-gap={6}>
+						<view slot="chart-legend-swatch" data-series={Std.string(k % 5 + 1)} width={8} height={8} background={series[k].color}/>
+						<text>{series[k].name}</text>
+					</view>
+			]}</view>
+		</view>;
+	}
+
+	// a bar chart (shadcn's Chart with recharts' BarChart): categories
+	// (labels) along the x axis, a bar per series in each, its height its
+	// value on a scale from 0 to a round top (max, else the greatest value's);
+	// each series a colour (color, else the theme's --chart-N by its place);
+	// the pointer over a category shows its values. Slots "chart", "chart-plot",
+	// "chart-grid", "chart-y-axis", "chart-x-axis", "chart-tick",
+	// "chart-bar" (data-series: 1 to 5), "chart-legend", "chart-legend-item",
+	// "chart-legend-swatch", "chart-tooltip", "chart-tooltip-label",
+	// "chart-tooltip-item", "chart-tooltip-value"
+	@:widget({
+		props: {
+			labels: "the categories, along the x axis",
+			series: "each series: its name, a value per category, and its colour (else the theme's by its place)",
+			width: "the plot's width (300 when not given)",
+			height: "the plot's height (160 when not given)",
+			max: "the scale's top (else the greatest value rounded up)",
+			format: "a value as the axis and the tooltip show it (else as it is)",
+			label: "its name for assistive technology"
+		}
+	})
+	public static function BarChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
+			?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "bar-chart", w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1);
+		var top = props.max ?? niceMax(Lambda.fold(props.series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var format = props.format ?? Behaviour.plain, series = props.series, slot = n == 0 ? 0.0 : w / n;
+		var barW = series.length == 0 ? 0.0 : slot * 0.7 / series.length;
+		var plot = <view position="absolute" left={0} top={0} width={w} height={h} direction="row">{[
+			for (i in 0...n)
+				<view tag={tag + "-" + i} width={slot} height={h} direction="row" justify="center" align-items="end" role="group"
+					label={props.labels[i] + ": " + [for (s in series) s.name + " " + format(s.values[i])].join(", ")}>{[
+					for (k in 0...series.length)
+						<view slot="chart-bar" data-series={Std.string(k % 5 + 1)} width={barW} height={Math.max(0, Math.min(1, series[k].values[i] / top)) * h}
+							background={series[k].color} data-active={() -> hover.value == i ? "true" : null}/>
+				]}</view>
+		]}</view>;
+		return chartFrame(tag, props.labels, series, w, h, top, plot, hover, props.label, format);
+	}
+
+	// a line chart (recharts' LineChart in shadcn's look): a line per series
+	// through its values at each category, on the same scale and frame as
+	// BarChart's; a dot on each line at the category under the pointer.
+	// Slots as BarChart's, "chart-line" (its colour: data-series 1 to 5) and
+	// "chart-dot" for the bars
+	@:widget({
+		props: {
+			labels: "the categories, along the x axis",
+			series: "each series: its name, a value per category, and its colour (else the theme's by its place)",
+			width: "the plot's width (300 when not given)",
+			height: "the plot's height (160 when not given)",
+			max: "the scale's top (else the greatest value rounded up)",
+			format: "a value as the axis and the tooltip show it (else as it is)",
+			label: "its name for assistive technology"
+		}
+	})
+	public static function LineChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
+			?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "line-chart", w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1);
+		var top = props.max ?? niceMax(Lambda.fold(props.series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
+		var format = props.format ?? Behaviour.plain, series = props.series, slot = n == 0 ? 0.0 : w / n;
+		var px = (i:Int) -> (i + 0.5) * slot, py = (v:Float) -> h - Math.max(0, Math.min(1, v / top)) * h;
+		var plot = <view position="absolute" left={0} top={0} width={w} height={h}>{[
+			for (k in 0...series.length) {
+				var d = [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(series[k].values[i]) * 100) / 100].join(" ");
+				var svg = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $w $h" width="$w" height="$h"><path d="$d" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>');
+				[
+					<image tag={tag + "-line-" + k} slot="chart-line" data-series={Std.string(k % 5 + 1)} src={svg} position="absolute" left={0} top={0} width={w}
+						height={h} color={series[k].color}/>,
+					<Show when={() -> hover.value >= 0}>{() -> <view slot="chart-bar" data-series={Std.string(k % 5 + 1)} position="absolute" width={8} height={8}
+						radius={4} left={px(hover.value) - 4} top={py(series[k].values[hover.value]) - 4} background={series[k].color}/>}</Show>
+				];
+			}
+		]}</view>;
+		return chartFrame(tag, props.labels, series, w, h, top, plot, hover, props.label, format);
+	}
+
 	// --- shadcn's Sidebar ---
 
 	// (the open sidebar's signal, for its trigger and parts: SidebarProvider's)

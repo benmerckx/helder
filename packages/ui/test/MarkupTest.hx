@@ -31,6 +31,7 @@ import hxmc.ui.widgets.Widgets.Collapsible;
 import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Widgets.Carousel;
 import hxmc.ui.widgets.Widgets.NavigationMenu;
+import hxmc.ui.widgets.Widgets.BarChart;
 import hxmc.ui.widgets.Widgets.SidebarProvider;
 import hxmc.ui.widgets.Widgets.Sidebar;
 import hxmc.ui.widgets.Widgets.SidebarTrigger;
@@ -124,6 +125,7 @@ class MarkupTest implements Markup {
 		carousel();
 		navigationMenu();
 		sidebar();
+		chart();
 		nativeMenu();
 		navigation();
 		tagInput();
@@ -854,6 +856,26 @@ class MarkupTest implements Markup {
 		on.value = false;
 		ui.update();
 		check("native menu bar: given back when it goes", views.bar != null && views.bar.menus.length == 0);
+	}
+
+	// a bar chart: bars to a round scale, a category's values named and shown under the pointer
+	static function chart() {
+		var ui = new Ui(new MonoText(), 500, 400);
+		Render.render(<view padding={10}>
+			<BarChart tag="c" labels={["A", "B"]} series={[{name: "x", values: [50, 90]}, {name: "y", values: [10, 20]}]} width={200} height={100}/>
+		</view>, ui.root);
+		ui.update();
+		var g0 = ui.root.find("c-0"), g1 = ui.root.find("c-1"), plot = ui.root.find("c-plot");
+		var bars = (g:Node) -> [for (b in g.children) b.height];
+		check("chart: bars on a scale to 100", bars(g0).join(",") == "50,10" && bars(g1).join(",") == "90,20", bars(g0).join(",") + " " + bars(g1).join(","));
+		check("chart: a category's values its name", g1.semantics.label == "B: x 90, y 20", g1.semantics.label);
+		ui.pointerMove(plot.absX + 150, plot.absY + 10);
+		ui.update();
+		var tip = ui.root.find("c-tooltip");
+		check("chart: the pointer over a category shows its values", tip != null && tip.children.length == 3);
+		ui.pointerMove(plot.absX - 50, plot.absY + 10);
+		ui.update();
+		check("chart: gone when the pointer leaves", ui.root.find("c-tooltip") == null);
 	}
 
 	// a sidebar: its trigger and Mod+B collapsing it (offcanvas: out of view unstyled), its button active
