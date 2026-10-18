@@ -499,15 +499,12 @@ class Widgets implements Markup {
 		var hue = signal(0.0), sat = signal(0.0), val = signal(0.0), hex = signal("");
 		// (from the value: the hue kept where a grey has none)
 		function load(c:Color) {
-			var r = c.r / 255, g = c.g / 255, b = c.b / 255;
-			var max = Math.max(r, Math.max(g, b)), d = max - Math.min(r, Math.min(g, b));
+			var o = Behaviour.hsvOf(c);
 			batch(() -> {
-				if (d > 0) {
-					var h = max == r ? (g - b) / d : max == g ? (b - r) / d + 2 : (r - g) / d + 4;
-					hue.value = (h * 60 + 360) % 360;
-				}
-				sat.value = max == 0 ? 0 : d / max;
-				val.value = max;
+				// (grey: the hue kept)
+				if (o.h != null) hue.value = o.h;
+				sat.value = o.s;
+				val.value = o.v;
 			});
 		}
 		function store() {
@@ -2030,9 +2027,7 @@ class Widgets implements Markup {
 								return;
 							}
 							close.value = false;
-							if (it.checked != null) it.checked.value = !it.checked.peek();
-							if (it.radio != null) it.radio.group.value = it.radio.value;
-							if (it.onSelect != null) it.onSelect();
+							Behaviour.choose(it);
 						}
 					var slot = sub != null ? "-sub-trigger" : it.checked != null ? "-checkbox-item" : it.radio != null ? "-radio-item" : "-item";
 					<view tag={tag + "-" + i} slot={kind + slot} variant={it.variant ?? "default"}
@@ -2769,17 +2764,8 @@ class Widgets implements Markup {
 			?disabled:Dynamic, ?tag:String}):View {
 		var tag = props.tag ?? "otp", n = props.length, digits = props.digits != false;
 		var groups = props.groups ?? [n];
-		function allowed(s:String):String {
-			var out = new StringBuf(), count = 0;
-			for (c in new haxe.iterators.StringIteratorUnicode(s)) {
-				if (count >= n) break;
-				if (digits ? c >= "0".code && c <= "9".code : c > 32) {
-					out.addChar(c);
-					count++;
-				}
-			}
-			return out.toString();
-		}
+		function allowed(s:String):String
+			return Behaviour.code(s, n, digits);
 		var f = new TextField(allowed(props.value.peek()));
 		f.tag = tag + "-input";
 		f.semantics.label = props.label ?? "One-time code";
