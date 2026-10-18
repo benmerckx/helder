@@ -8,7 +8,11 @@ import hxmc.unsafe.*;
 // with the first window; WM_DELETE_WINDOW turns the close button into a
 // Close event. A key's text comes from XLookupString (Latin-1, or a Unicode
 // KeySym; no input method yet: compose sequences and IMEs), the wheel
-// from buttons 4 to 7. The scale stays 1.
+// from buttons 4 to 7. The scale stays 1. Run by hxmc dev's host
+// (-D hxmc.dev-host: hxmc.dev.Hosted), the connection and the first window
+// are the host's: made by the first build, left by each build that hands
+// over (its input method and contexts closed) and taken by the next, at the
+// size the window has.
 @:allow(hxmc.os)
 class X11Window {
 	static var display = Ptr.nil();
@@ -48,7 +52,29 @@ class X11Window {
 		if (display.isNull()) connect();
 		var screen = Xlib.XDefaultScreen(display);
 		var black = Xlib.XBlackPixel(display, screen);
+		#if hxmc.dev_host
+		// (the host's window, as the last build left it)
+		var kept = hxmc.dev.Hosted.hosted() && open.length == 0 ? hxmc.dev.Hosted.get(hxmc.dev.Hosted.X11_WINDOW) : Ptr.nil();
+		if (!kept.isNull()) {
+			id = kept.toI64();
+			var w = haxe.Int64.toInt(hxmc.dev.Hosted.get(hxmc.dev.Hosted.WIDTH).toI64()), h = haxe.Int64.toInt(hxmc.dev.Hosted.get(hxmc.dev.Hosted.HEIGHT).toI64());
+			if (w > 0 && h > 0) {
+				width = w;
+				height = h;
+			}
+			Sys.stderr().writeString("hxmc.dev: the host's window 0x" + StringTools.hex(haxe.Int64.toInt(id)) + " (process " + hxmc.dev.Hosted.HostThreads.getpid() + ")\n");
+		} else {
+			id = Xlib.XCreateSimpleWindow(display, Xlib.XRootWindow(display, screen), 0, 0, width, height, 0, black, black);
+			if (hxmc.dev.Hosted.hosted() && open.length == 0) {
+				hxmc.dev.Hosted.set(hxmc.dev.Hosted.X11_WINDOW, Ptr.ofI64(id));
+				hxmc.dev.Hosted.set(hxmc.dev.Hosted.WIDTH, Ptr.ofI64(width));
+				hxmc.dev.Hosted.set(hxmc.dev.Hosted.HEIGHT, Ptr.ofI64(height));
+				Sys.stderr().writeString("hxmc.dev: the host's window 0x" + StringTools.hex(haxe.Int64.toInt(id)) + " (process " + hxmc.dev.Hosted.HostThreads.getpid() + ")\n");
+			}
+		}
+		#else
 		id = Xlib.XCreateSimpleWindow(display, Xlib.XRootWindow(display, screen), 0, 0, width, height, 0, black, black);
+		#end
 		Arena.scoped(a -> {
 			Xlib.XStoreName(display, id, a.cstring(title));
 			var atoms:Ptr<Int64> = a.alloc(8);
@@ -66,10 +92,42 @@ class X11Window {
 		Xlib.XFlush(display);
 		surface = new Surface(X11, display, Ptr.ofI64(id), width, height);
 		open.push(this);
+		#if hxmc.dev_host
+		// (handing over: the input context closed, the window left to the next build; another window closed)
+		if (hxmc.dev.Hosted.hosted()) hxmc.dev.Hot.onDispose(() -> if (open.indexOf(this) >= 0) {
+			if (hxmc.dev.Hosted.get(hxmc.dev.Hosted.X11_WINDOW).toI64() == id) {
+				open.remove(this);
+				if (!ic.isNull()) Xlib.XDestroyIC(ic);
+				ic = Ptr.nil();
+				if (open.length == 0) handOver();
+			} else destroy();
+		});
+		#end
 	}
 
+	#if hxmc.dev_host
+	// (the last window left to the host: the input method closed, the connection kept)
+	static function handOver() {
+		cursors.resize(0);
+		clipboardText = null;
+		if (!im.isNull()) Xlib.XCloseIM(im);
+		im = Ptr.nil();
+		Xlib.XFlush(display);
+		LibC.free(xev);
+		display = Ptr.nil();
+	}
+	#end
+
 	static function connect() {
+		#if hxmc.dev_host
+		display = hxmc.dev.Hosted.hosted() ? hxmc.dev.Hosted.get(hxmc.dev.Hosted.X11_DISPLAY) : Ptr.nil();
+		if (display.isNull()) {
+			display = Xlib.XOpenDisplay(Ptr.nil());
+			if (hxmc.dev.Hosted.hosted()) hxmc.dev.Hosted.set(hxmc.dev.Hosted.X11_DISPLAY, display);
+		}
+		#else
 		display = Xlib.XOpenDisplay(Ptr.nil());
+		#end
 		if (display.isNull()) throw "hxmc.os: cannot open the X display (DISPLAY=" + Sys.getEnv("DISPLAY") + ")";
 		wmDelete = Xlib.XInternAtom(display, Mem.cstr("WM_DELETE_WINDOW"), 0);
 		CLIPBOARD = Xlib.XInternAtom(display, Mem.cstr("CLIPBOARD"), 0);
@@ -96,6 +154,20 @@ class X11Window {
 	}
 
 	function destroy() {
+		#if hxmc.dev_host
+		// (the host's window: left to the next build when handing over, else gone with the host's state)
+		if (hxmc.dev.Hosted.hosted() && hxmc.dev.Hosted.get(hxmc.dev.Hosted.X11_WINDOW).toI64() == id) {
+			if (hxmc.dev.Hosted.handingOver) {
+				open.remove(this);
+				if (!ic.isNull()) Xlib.XDestroyIC(ic);
+				ic = Ptr.nil();
+				if (open.length == 0) handOver();
+				return;
+			}
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.X11_WINDOW, Ptr.nil());
+			if (open.length == 1) hxmc.dev.Hosted.set(hxmc.dev.Hosted.X11_DISPLAY, Ptr.nil());
+		}
+		#end
 		open.remove(this);
 		if (!ic.isNull()) Xlib.XDestroyIC(ic);
 		ic = Ptr.nil();
@@ -371,6 +443,12 @@ class X11Window {
 					var c:Ptr<XConfigureEvent> = xev;
 					if (c.value.width != w.surface.width || c.value.height != w.surface.height) {
 						w.surface.resized(c.value.width, c.value.height);
+						#if hxmc.dev_host
+						if (hxmc.dev.Hosted.hosted() && hxmc.dev.Hosted.get(hxmc.dev.Hosted.X11_WINDOW).toI64() == w.id) {
+							hxmc.dev.Hosted.set(hxmc.dev.Hosted.WIDTH, Ptr.ofI64(c.value.width));
+							hxmc.dev.Hosted.set(hxmc.dev.Hosted.HEIGHT, Ptr.ofI64(c.value.height));
+						}
+						#end
 						e.kind = Resize;
 						e.x = c.value.width;
 						e.y = c.value.height;

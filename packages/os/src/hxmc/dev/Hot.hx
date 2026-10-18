@@ -343,6 +343,18 @@ class Hot {
 			if (m != null && m.type == "reload") {
 				var data = snapshot();
 				sys.io.File.saveContent(m.snapshot, data);
+				#if hxmc.dev_host
+				// (a dev host's program: the next build named, what the host keeps left to it, main returns)
+				if (hxmc.dev.Hosted.hosted() && m.library != null) {
+					hxmc.dev.Hosted.handOver(m.library);
+					dispose();
+					send('{"type":"saved"}');
+					hxmc.NativeNet.close(socket);
+					socket = -1;
+					Sys.stdout().flush();
+					return false;
+				}
+				#end
 				dispose();
 				send('{"type":"saved"}');
 				Sys.exit(0);
