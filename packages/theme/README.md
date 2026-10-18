@@ -256,7 +256,9 @@ what has no property yet (`scroll-m*`, `touch-none`), a table's own layout, `tex
 `sr-only`; arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`; but
 `has-[>svg]:`, and a slot's children's `[&>*]:`, `[&>*:not(:first-child)]:`,
 `[&>*:not(:last-child)]:`: rules of any slot whose parent is the slot,
-Rules' `parent:`, a side they leave the child's own), children's and descendants' (`*:`, `**:`, given to
+Rules' `parent:`, a side they leave the child's own; and `has-[...]` of
+attributes and states, `has-[[data-slot=x]:focus-visible]`, not of an
+element's type), children's and descendants' (`*:`, `**:`, given to
 the part's own slot where hxmc has one), pseudo-elements (`after:`) and
 `file:`.
 

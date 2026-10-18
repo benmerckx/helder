@@ -17,7 +17,7 @@ package hxmc.ui;
 // an ancestor marked with a "group" attribute is hovered ("group/item:..."
 // one whose group attribute names item among its words), "peer:checked"
 // while an earlier sibling marked "peer" holds it, "has:data-state=open"
-// while a descendant does ("has:>x": a child), "first" and "last" for the
+// while a descendant does ("has:>x": a child; "has:x&y" one holding both), "first" and "last" for the
 // first and last child, "not:x" while x does not, "parent:x" while the
 // parent holds x (a rule of slot "*": any slot's, after its own, as an
 // arbitrary selector of a slot's children); "variant=x" and "size=x" the
@@ -320,12 +320,12 @@ class Rules {
 								}
 							found;
 						case "has":
-							StringTools.startsWith(inner, ">") ? Lambda.exists(n.children, c -> holds(c, ui, inner.substr(1))) : below(n, ui, inner);
+							StringTools.startsWith(inner, ">") ? Lambda.exists(n.children, c -> all(c, ui, inner.substr(1))) : below(n, ui, inner);
 						case _: false;
 					}
 				} else {
 					var eq = w.indexOf("=");
-					if (eq < 0) n.attr(w) != null else {
+					if (eq < 0) w == "data-slot" ? n.slot != null : n.attr(w) != null else {
 						var key = w.substr(0, eq), value = w.substr(eq + 1);
 						switch key {
 							case "data-slot": n.slot == value;
@@ -347,8 +347,16 @@ class Rules {
 	// (whether a descendant of n holds w)
 	static function below(n:Node, ui:Ui, w:String):Bool {
 		for (c in n.children)
-			if (holds(c, ui, w) || below(c, ui, w)) return true;
+			if (all(c, ui, w) || below(c, ui, w)) return true;
 		return false;
+	}
+
+	// (whether n holds each of has:'s states, "&" between them)
+	static function all(n:Node, ui:Ui, w:String):Bool {
+		if (w.indexOf("&") < 0) return holds(n, ui, w);
+		for (s in w.split("&"))
+			if (!holds(n, ui, s)) return false;
+		return true;
 	}
 
 	// (what rules over other nodes' states w asks for)

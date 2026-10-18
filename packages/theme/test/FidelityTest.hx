@@ -36,7 +36,7 @@ class FidelityTest implements Markup {
 		"table-" => "Table's rows a fixed rowHeight for its virtual list, the head's too (shadcn's head h-10, its rows by their padding), its columns 1fr each (shadcn's: a table's auto layout)",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
 		"field-" => "a field set's legend is one of its flex items here (gap-6 after it); Chromium lays a fieldset's legend out apart from its content, no gap after it, and the description's [[data-variant=legend]+&]:-mt-1.5 is an arbitrary selector, dropped",
-		"input-group-focus" => "the group's ring is has-[[data-slot=input-group-control]:focus-visible] (an arbitrary selector), dropped; and the caret drawn",
+		"input-group-focus" => "the field in a ContextMenu's wrapper (its edit menu), so its flex-1 grows nothing in the group's row; and the caret drawn",
 	];
 
 	static function known(name:String):Null<String> {

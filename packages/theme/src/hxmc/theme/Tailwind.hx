@@ -357,7 +357,7 @@ class Tailwind {
 				order.push(ORDER.indexOf("*"));
 				continue;
 			}
-			if (v != "has-[>svg]" && matches(IGNORED_VARIANTS, v)) return;
+			if (v != "has-[>svg]" && !(~/^(group-)?has-\[/.match(v) && readVariant(v) != null) && matches(IGNORED_VARIANTS, v)) return;
 			var r = readVariant(v);
 			if (r == null) {
 				error('unknown variant $v: in $c', at, c.length);
@@ -407,6 +407,11 @@ class Tailwind {
 			return ORDER.indexOf(name);
 		if (STATES.contains(v)) return {order: ord(v), state: v};
 		if (v == "has-[>svg]") return {order: ord("has"), state: "has:>svg"};
+		// (has-[...] of a simple selector: a child's (>) or a descendant's attributes and states, "has:>data-slot=x&focus-visible")
+		if (v.startsWith("has-[") && v.endsWith("]")) {
+			var s = hasSelector(v.substring(5, v.length - 1));
+			return s == null ? null : {order: ord("has"), state: "has:" + s};
+		}
 		for (prefix in ["group", "peer", "has", "not"])
 			if (v.startsWith(prefix + "-")) {
 				var inner = v.substr(prefix.length + 1);
@@ -438,6 +443,28 @@ class Tailwind {
 	}
 
 	// ([state=checked], [disabled], [state="open"]: name=value, quotes left out)
+	// (a has-[...]'s selector as Rules' states, "&" between them: [attr], [attr=value] and :state, after > for a child's; null: one it has not, an element's type)
+	static function hasSelector(sel:String):Null<String> {
+		var child = sel.startsWith(">"), i = child ? 1 : 0, parts = [];
+		while (i < sel.length) {
+			if (sel.charAt(i) == "[") {
+				var j = sel.indexOf("]", i);
+				if (j < 0) return null;
+				parts.push(attribute(sel.substring(i, j + 1)));
+				i = j + 1;
+			} else if (sel.charAt(i) == ":") {
+				var j = i + 1;
+				while (j < sel.length && ~/[a-z-]/.match(sel.charAt(j)))
+					j++;
+				var state = sel.substring(i + 1, j);
+				if (!STATES.contains(state)) return null;
+				parts.push(state);
+				i = j;
+			} else return null;
+		}
+		return parts.length == 0 ? null : (child ? ">" : "") + parts.join("&");
+	}
+
 	static function attribute(a:String):String
 		return a.substring(1, a.length - 1).replace('"', "").replace("'", "");
 
