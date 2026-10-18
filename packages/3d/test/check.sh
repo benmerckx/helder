@@ -8,7 +8,7 @@ bin=$1
 out=${2:-$1}
 here=$(dirname "$0")
 export LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1
-for s in gltf orbits shadows physics instances skin overlay textured packed spot; do
+for s in gltf orbits shadows physics instances skin overlay textured packed spot sky; do
 	g=$s
 	# (the packed sample draws the glTF one's frame)
 	[ $s = packed ] && g=gltf

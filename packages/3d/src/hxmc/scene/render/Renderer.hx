@@ -118,7 +118,17 @@ class Renderer {
 		pass = {colors: [{load: Clear, clear: clearColor}], depth: {load: Clear}};
 	}
 
-	// turns on an optional feature (Shadows, Skinning); returns the renderer
+	// what the frame's hooks get: the camera's view, the light (FrameInfo)
+	public final frame = new FrameInfo();
+	final hooks:Array<Array<(Encoder, FrameInfo) -> Void>> = [[], [], []];
+
+	// f runs at a point of each frame: BeforeOpaque and AfterOpaque inside
+	// the frame's pass (draw with your own pipelines, depth-tested against
+	// the scene), AfterPass after it (passes of your own: an overlay)
+	public function inject(point:InjectionPoint, f:(Encoder, FrameInfo) -> Void)
+		hooks[point].push(f);
+
+	// turns on an optional feature (Shadows, Skinning, Sky); returns the renderer
 	public function use(feature:RenderFeature):Renderer {
 		feature.attach(this);
 		return this;
@@ -131,11 +141,19 @@ class Renderer {
 		var viewProj = camera.viewProjection(aspect);
 		extract(world, viewProj);
 		var toLight = writeFrame(world, camera, viewProj, false);
+		frame.world = world;
+		frame.camera = camera;
+		frame.aspect = aspect;
+		frame.viewProj = viewProj;
+		frame.eye = camera.eye();
+		frame.toLight = toLight;
 		if (shadowSource != null) {
 			shadowSource.render(enc, world, toLight);
 			writeFrame(world, camera, viewProj, true);
 		}
 		record(enc);
+		for (f in hooks[AfterPass])
+			f(enc, frame);
 	}
 
 	// the draw list: each shown mesh inside the view, a draw per primitive, sorted
@@ -245,6 +263,8 @@ class Renderer {
 	function record(enc:Encoder) {
 		pass.colors[0].clear = clearColor;
 		enc.beginPass(pass);
+		for (f in hooks[BeforeOpaque])
+			f(enc, frame);
 		var current:Null<Pipeline> = null, material:Null<Material> = null, node = Node.NONE;
 		var slots = plainSlots;
 		draws = 0;
@@ -291,6 +311,8 @@ class Renderer {
 			draws++;
 			if (many) instanced += n;
 		}
+		for (f in hooks[AfterOpaque])
+			f(enc, frame);
 		enc.endPass();
 	}
 
@@ -394,6 +416,26 @@ class Renderer {
 		device.destroyTexture(noShadow);
 		if (instanceCapacity > 0) device.destroyBuffer(instanceBuffer);
 	}
+}
+
+// the points of a frame where programs and features draw (Renderer.inject)
+enum abstract InjectionPoint(Int) to Int {
+	var BeforeOpaque;
+	var AfterOpaque;
+	var AfterPass;
+}
+
+// the frame being drawn, for the hooks
+class FrameInfo {
+	public var world:Null<World>;
+	public var camera:Null<Camera>;
+	public var aspect = 1.0;
+	public var viewProj:Mat4 = Mat4.identity();
+	public var eye:Vec3 = new Vec3(0, 0, 0);
+	// towards the light (the world's sun or the renderer's)
+	public var toLight:Vec3 = new Vec3(0, 1, 0);
+
+	public function new() {}
 }
 
 // an entry of the draw list

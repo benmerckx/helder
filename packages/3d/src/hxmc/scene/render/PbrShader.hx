@@ -186,10 +186,10 @@ class PbrShader implements Shaders {
 		return step(depth, sampleLevel(map, uv + vec2(dx, dy), 0).x);
 
 	// ACES filmic tone mapping (Narkowicz's fit), to 0..1
-	static function aces(x:Vec3):Vec3
+	public static function aces(x:Vec3):Vec3
 		return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0, 1);
 
 	// linear to sRGB (the 2.2 power: the frame's format is not an sRGB one)
-	static function encode(c:Vec3):Vec3
+	public static function encode(c:Vec3):Vec3
 		return pow(c, vec3(1 / 2.2));
 }

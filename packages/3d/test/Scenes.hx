@@ -17,10 +17,11 @@ import hxmc.scene.render.*;
 //   textured the textured sample (a PNG in the file, decoded by @hxmc/ui)
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
+//   sky    the shadows scene under a sky (Sky, drawn at an injection point)
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky"];
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
 	public static inline var TIME = 2.0;
@@ -41,10 +42,19 @@ class Scenes {
 					stats.from(r);
 					overlay.draw(enc, stats);
 				};
-			case "gltf" | "shadows":
+			case "gltf" | "shadows" | "sky":
 				var renderer = new Renderer(device);
 				Scenes.renderer = renderer;
-				if (name == "shadows") renderer.use(new Shadows(device, 512));
+				if (name != "gltf") renderer.use(new Shadows(device, 512));
+				// (the sky at the BeforeOpaque injection point)
+				// (a night sky: the tests want a dark corner, compare.mjs and GfxTest alike)
+				if (name == "sky") {
+					var sky = new Sky(device);
+					sky.zenith = new Vec3(0.004, 0.008, 0.03);
+					sky.horizon = new Vec3(0.02, 0.025, 0.05);
+					sky.ground = new Vec3(0.01, 0.01, 0.01);
+					renderer.use(sky);
+				}
 				var world = new World();
 				var model = Model.of("sample.glb");
 				model.instantiate(world, device);
