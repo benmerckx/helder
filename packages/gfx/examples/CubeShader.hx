@@ -5,17 +5,21 @@ import hxmc.gfx.shader.ShaderMath.*;
 // the top and darker towards the foot and the corners, from the fragment's
 // position (in pixels from the top left, the same on every back end:
 // Shaders, the conventions), a soft shadow on the ground under the cube,
-// then the textured, lit cube.
+// then the textured cube, its edges rounded by its shading alone: a
+// rounded box's normal (flat faces bending over their last tenth) lit by a
+// key light from the top left, a soft sky and ground light and a
+// highlight, in linear light (the texture's sRGB colours decoded, the
+// result encoded again: the frame's format is not an sRGB one).
 @:structInit @:publicFields class CubeVertex {
 	var pos:Vec3;
-	var normal:Vec3;
 	var uv:Vec2;
 }
 
 @:structInit @:publicFields class CubeVaryings {
 	@:position var pos:Vec4;
 	var uv:Vec2;
-	var light:Float;
+	var local:Vec3; // the point on the cube, -1 to 1
+	var world:Vec3;
 }
 
 @:structInit @:publicFields class CubeCamera {
@@ -24,13 +28,28 @@ import hxmc.gfx.shader.ShaderMath.*;
 }
 
 class CubeShader implements Shaders {
-	@:vertex static function vs(v:CubeVertex, cam:CubeCamera):CubeVaryings {
-		var n = (cam.model * vec4(v.normal, 0)).xyz;
-		return {pos: cam.mvp * vec4(v.pos, 1), uv: v.uv, light: 0.45 + 0.55 * max(dot(n, normalize(vec3(0.3, 0.6, 0.75))), 0)};
+	@:vertex static function vs(v:CubeVertex, cam:CubeCamera):CubeVaryings
+		return {pos: cam.mvp * vec4(v.pos, 1), uv: v.uv, local: v.pos, world: (cam.model * vec4(v.pos, 1)).xyz};
+
+	@:fragment static function fs(i:CubeVaryings, cam:CubeCamera, tex:Texture2D):Vec4 {
+		// (from the nearest point of the box shrunk by 0.12: the face's
+		// normal, turned up to 45 degrees at an edge)
+		var p = i.local, e = 0.88;
+		var n = normalize((cam.model * vec4(p - vec3(clamp(p.x, -e, e), clamp(p.y, -e, e), clamp(p.z, -e, e)), 0)).xyz);
+		var l = normalize(vec3(-0.45, 0.8, 0.55));
+		var v = normalize(vec3(0, -0.3, 4.6) - i.world);
+		var albedo = gamma(sample(tex, i.uv).xyz, 2.2);
+		// (a sky and a ground, a key light, a warm fill from the right, a highlight)
+		var light = mix(vec3(0.07, 0.04, 0.03), vec3(0.2, 0.2, 0.23), n.y * 0.5 + 0.5) + vec3(1, 0.95, 0.88) * max(dot(n, l), 0)
+			+ vec3(0.3, 0.22, 0.17) * max(dot(n, normalize(vec3(0.9, 0.1, 0.45))), 0);
+		var spec = pow(max(dot(n, normalize(l + v)), 0), 32) * 0.3;
+		// (not over 1 written as 1: the target is 8 bits a channel)
+		return vec4(gamma(albedo * light + spec, 1 / 2.2), 1);
 	}
 
-	@:fragment static function fs(i:CubeVaryings, tex:Texture2D):Vec4
-		return vec4(sample(tex, i.uv).xyz * i.light, 1);
+	// each channel to the power k: sRGB decoded (2.2), encoded (1 / 2.2)
+	static function gamma(c:Vec3, k:Float):Vec3
+		return vec3(pow(c.x, k), pow(c.y, k), pow(c.z, k));
 }
 
 @:structInit @:publicFields class BackdropVertex {

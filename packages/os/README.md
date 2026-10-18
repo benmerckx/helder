@@ -58,7 +58,12 @@ the finger, gliding when let go) and a tap a click. `browser.mjs`'s option
 `touchAction` is the canvas's CSS `touch-action`: `'none'` by default (every
 drag the program's); with `'pan-y'` a drag that starts vertical scrolls the
 page instead, and only the others reach the program (a canvas as wide as a
-phone's screen that the page must scroll past).
+phone's screen that the page must scroll past). While the finger drags, its
+`Scroll`s have `Mods.TOUCH`; when it is let go (or the browser takes the
+gesture over) a `Scroll` of nothing without it comes, then the glide's: a
+program that holds still what the finger holds (the cube) knows when it is
+released, even after the finger rested. A mouse's press is captured by the
+canvas: a drag that leaves it still moves, and its release still comes.
 
 ## Audio
 
