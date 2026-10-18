@@ -1440,9 +1440,9 @@ class Widgets implements Markup {
 			"Enter": "activates the focused option (onActivate)"
 		}
 	})
-	public static function Listbox(props:{selected:Signal<Array<String>>, options:Array<String>, ?labels:Array<String>, ?multiple:Bool, ?height:Float,
+	@:neutral public static function Listbox(props:{selected:Signal<Array<String>>, options:Array<String>, ?labels:Array<String>, ?multiple:Bool, ?height:Float,
 			?width:Float, ?onActivate:String->Void, ?label:String, ?tag:String}):View {
-		var tag = props.tag ?? "listbox", options = props.options, multiple = props.multiple == true, nodes:Array<Node> = [];
+		var tag = props.tag ?? "listbox", options = props.options, multiple = props.multiple == true, parts:Array<Part> = [];
 		var shown = [for (i in 0...options.length) props.labels != null ? props.labels[i] : options[i]];
 		var first = options.indexOf(props.selected.peek()[0]);
 		var active = signal(first < 0 ? 0 : first), anchor = first < 0 ? 0 : first, typed = new TypeAhead();
@@ -1462,11 +1462,11 @@ class Widgets implements Markup {
 			if (i < 0 || i >= options.length) return;
 			if (multiple && mods & Key.MOD_SHIFT != 0) range(anchor, i) else if (!multiple || mods & (Key.MOD_CONTROL | Key.MOD_META) == 0) select(i);
 			active.value = i;
-			focusIn(nodes, i);
+			focusPart(parts, i);
 		}
 		var lastAt = -1e9, last = -1;
 		function click(e:Event, i:Int) {
-			var now = Ui.now();
+			var now = clock();
 			if (multiple && e.mods & Key.MOD_SHIFT != 0) range(anchor, i) else if (multiple && e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) toggle(i) else select(i);
 			active.value = i;
 			if (last == i && now - lastAt < 0.45 && props.onActivate != null) props.onActivate(options[i]);
@@ -1486,17 +1486,19 @@ class Widgets implements Markup {
 				case Key.ENTER: if (props.onActivate != null) props.onActivate(options[i]);
 				case "a".code | "A".code if (multiple && e.mods & (Key.MOD_CONTROL | Key.MOD_META) != 0): props.selected.value = options.copy();
 				case _:
-					var j = typed.find(e.key, e.mods, Ui.now(), shown, i);
+					var j = typed.find(e.key, e.mods, clock(), shown, i);
 					if (j < 0) return;
 					move(j, 0);
 			}
+			// (taken: not a scroller's too)
+			e.preventDefault();
 			e.stop();
 		}
-		return <view tag={tag} slot="listbox" role="listbox" label={props.label} multiselectable={multiple} width={props.width} height={props.height}
-			overflow={props.height == null ? "visible" : "scroll"}>{[
+		return <view tag={tag} id={props.tag} slot="listbox" role="listbox" label={props.label} multiselectable={multiple} width={props.width}
+			height={props.height} overflow={props.height == null ? "visible" : "scroll"}>{[
 			for (i in 0...options.length) {
 				var o = options[i];
-				<view tag={tag + "-" + o} slot="listbox-option" role="option" ref={n -> nodes[i] = n} selected={() -> props.selected.value.contains(o)}
+				<view tag={tag + "-" + o} slot="listbox-option" role="option" ref={p -> parts[i] = p} selected={() -> props.selected.value.contains(o)}
 					aria-selected={() -> props.selected.value.contains(o) ? "true" : "false"} focusable={() -> active.value == i} shrink={0}
 					onPointerDown={_ -> active.value = i} onClick={e -> click(e, i)} onKeyDown={e -> key(e, i)}>
 					{shown[i]}
@@ -2068,6 +2070,10 @@ class Widgets implements Markup {
 	// generator's DCE, upstream's, would keep a Node and its nodes in a page))
 	static function mirroredKey(e:Event):Int
 		return Behaviour.mirror(e.key, #if js js.Syntax.code("getComputedStyle({0}.current).direction == 'rtl'", e) #else e.current.rtl() #end);
+
+	// (a neutral widget's time, in seconds: Ui.now, a page's the clock's)
+	static inline function clock():Float
+		return #if js haxe.Timer.stamp() #else Ui.now() #end;
 
 	// (a neutral widget's: parts[i], after a key; in a page its ElementPart's
 	// focus called opaquely, as mirroredKey reads: through the interface DCE

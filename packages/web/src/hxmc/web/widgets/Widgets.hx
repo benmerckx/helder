@@ -1192,69 +1192,6 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// a list box: the options in a column (labels: what each shows), the
-	// selection in selected (multiple: any number, else at most one); one
-	// Tab stop, the active option; Up, Down, Page Up, Page Down, Home, End
-	// and letters typed move it, selecting it (with multiple: Shift extends,
-	// Control moves without selecting, Space adds or takes away one,
-	// Control+A selects all); a double click or Enter: onActivate
-	public static function Listbox(props:{selected:Signal<Array<String>>, options:Array<String>, ?labels:Array<String>, ?multiple:Bool, ?height:Float,
-			?width:Float, ?onActivate:String->Void, ?label:String, ?tag:String}):View {
-		var options = props.options, multiple = props.multiple == true, els:Array<Element> = [], typed = new TypeAhead(), again = doubled();
-		var shown = [for (i in 0...options.length) props.labels != null ? props.labels[i] : options[i]];
-		var first = options.indexOf(props.selected.peek()[0]);
-		var active = signal(first < 0 ? 0 : first), anchor = first < 0 ? 0 : first;
-		function range(a:Int, b:Int)
-			props.selected.value = [for (i in Behaviour.range(a, b)) options[i]];
-		function toggle(i:Int) {
-			var now = props.selected.peek();
-			props.selected.value = [for (o in options) if ((o == options[i]) != now.contains(o)) o];
-			anchor = i;
-		}
-		function select(i:Int) {
-			range(i, i);
-			anchor = i;
-		}
-		function move(i:Int, mods:Int) {
-			if (i < 0 || i >= options.length) return;
-			if (multiple && mods & Key.MOD_SHIFT != 0) range(anchor, i) else if (!multiple || mods & (Key.MOD_CONTROL | Key.MOD_META) == 0) select(i);
-			active.value = i;
-			focusIn(els, i);
-		}
-		function key(e:KeyboardEvent, i:Int) {
-			var m = Dom.mods(e), page = props.height == null ? options.length : Std.int(Math.max(1, Math.floor(props.height / 32) - 1));
-			switch Dom.key(e) {
-				case Key.DOWN: move(i + 1, m);
-				case Key.UP: move(i - 1, m);
-				case Key.PAGE_DOWN: move(Std.int(Math.min(i + page, options.length - 1)), m);
-				case Key.PAGE_UP: move(Std.int(Math.max(i - page, 0)), m);
-				case Key.HOME: move(0, m);
-				case Key.END: move(options.length - 1, m);
-				case Key.SPACE: multiple ? toggle(i) : select(i);
-				case Key.ENTER: if (props.onActivate != null) props.onActivate(options[i]);
-				case "a".code if (multiple && m & (Key.MOD_CONTROL | Key.MOD_META) != 0): props.selected.value = options.copy();
-				case k:
-					var j = typed.find(k, m, Dom.now(), shown, i);
-					if (j < 0) return;
-					move(j, 0);
-			}
-			e.preventDefault();
-		}
-		return <div id={props.tag} role="listbox" data-slot="listbox" aria-label={props.label} aria-multiselectable={multiple ? "true" : null}
-			style={(props.width == null ? "" : 'width:${props.width}px;') + (props.height == null ? "" : 'height:${props.height}px;overflow-y:auto')}>{[
-			for (i in 0...options.length) {
-				var o = options[i];
-				<div role="option" data-slot="listbox-option" ref={n -> els[i] = cast n} aria-selected={() -> props.selected.value.contains(o) ? "true" : "false"}
-					tabindex={() -> active.value == i ? 0 : -1} onKeyDown={(e:KeyboardEvent) -> key(e, i)} onClick={(e:Dynamic) -> {
-						var m = Dom.mods(e);
-						if (multiple && m & Key.MOD_SHIFT != 0) range(anchor, i) else if (multiple && m & (Key.MOD_CONTROL | Key.MOD_META) != 0) toggle(i) else select(i);
-						active.value = i;
-						if (again(i) && props.onActivate != null) props.onActivate(o);
-					}}>{shown[i]}</div>;
-			}
-		]}</div>;
-	}
-
 	// a list its user reorders: an item dragged goes where a line shows it
 	// will (before or after the item under the pointer); one Tab stop, the
 	// active item (Up, Down, Home, End), Alt+Up and Alt+Down move it;

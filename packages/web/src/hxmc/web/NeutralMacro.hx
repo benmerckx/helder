@@ -28,7 +28,8 @@ class NeutralMacro {
 	public static final ARIA = [
 		"label" => "aria-label", "description" => "aria-description", "checked" => "aria-checked", "selected" => "aria-selected",
 		"expanded" => "aria-expanded", "pressed" => "aria-pressed", "hidden" => "aria-hidden", "level" => "aria-level",
-		"value-now" => "aria-valuenow", "value-min" => "aria-valuemin", "value-max" => "aria-valuemax", "value-text" => "aria-valuetext", "live" => "aria-live"
+		"value-now" => "aria-valuenow", "value-min" => "aria-valuemin", "value-max" => "aria-valuemax", "value-text" => "aria-valuetext", "live" => "aria-live",
+		"multiselectable" => "aria-multiselectable"
 	];
 	static final PLAIN = ["role", "id", "href", "title"];
 	// (StyleProps: the CSS property, and whether a number is in px)

@@ -108,7 +108,8 @@ class Neutral {
 		}
 		var ev = new NeutralEvent(type, x, y, e.currentTarget);
 		if (key != null) ev.key = key;
-		ev.mods = mods;
+		// (a pointer's modifiers too: a shift-click's)
+		ev.mods = d.shiftKey != null ? Dom.mods(d) : mods;
 		if (d.button != null) ev.button = d.button + 1;
 		(h : Dynamic->Void)(ev);
 		if (ev.stopped) e.stopPropagation();
