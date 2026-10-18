@@ -40,6 +40,7 @@ class SceneTest {
 		clock();
 		hot();
 		stages();
+		assets();
 		Sys.println('SceneTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
 	}
@@ -249,6 +250,31 @@ class SceneTest {
 		log = [];
 		s.frame(0.15);
 		check("removed; a fixed step from what was left", log.join(",") == "fixed 0.25,update 0.15,late,pre");
+	}
+
+	static function assets() {
+		var a = new Asset<Int>(), got = [];
+		a.then(v -> got.push("then " + v));
+		check("loading", a.state.match(Loading) && !a.ready);
+		var polls = 0;
+		Assets.track(() -> {
+			polls++;
+			if (polls < 3) return false;
+			a.resolve(7);
+			return true;
+		});
+		check("still loading", Assets.poll() == 1 && !a.ready);
+		check("loaded on a later poll", Assets.poll() == 0 && a.ready && a.value == 7 && got.join(",") == "then 7");
+		a.onChange(v -> got.push("changed " + v));
+		a.then(v -> got.push("late " + v));
+		a.resolve(8);
+		check("then at once when ready; onChange on a swap", got.join(",") == "then 7,late 7,changed 8" && a.value == 8);
+		var b = new Asset<String>();
+		b.fail("gone");
+		check("failed", switch b.state {
+			case Failed(e): e == "gone";
+			case _: false;
+		});
 	}
 
 	static function clock() {

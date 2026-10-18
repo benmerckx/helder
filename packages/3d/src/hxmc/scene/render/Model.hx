@@ -29,6 +29,11 @@ import hxmc.scene.gltf.GltfScene;
 //   var root = hero.instantiate(world, device);
 //   var hand = root.find(hero.nodes.LeftHand);
 //
+// Model.of(path, Lazy) is an Asset of the model instead, loaded in the
+// background (big games, loading screens: asset.then, asset.ready), its
+// names typed the same; Model.load(path) loads a path known only at run
+// time (an Asset, names unknown).
+//
 // Its GPU meshes are made by the first instantiate with a device and
 // shared by every instance.
 class Model<N, M, A, C> {
@@ -77,6 +82,41 @@ class Model<N, M, A, C> {
 	static var assets:Array<String> = [];
 	static var registered = false;
 	#else
+	// a model whose path is known only at run time: loaded in the background
+	// (in the browser fetched, relative to the page; natively read at once),
+	// its names unknown when compiling (find nodes by name: model.doc)
+	public static function load(path:String):hxmc.scene.Asset<Model<{}, {}, {}, {}>>
+		return loadNamed(path, {}, {}, {}, {});
+
+	@:noCompletion public static function loadNamed<N, M, A, C>(path:String, nodes:N, meshes:M, materials:A, animations:C):hxmc.scene.Asset<Model<N, M, A, C>> {
+		var asset = new hxmc.scene.Asset<Model<N, M, A, C>>();
+		var f = hxmc.os.Fetch.start(path);
+		hxmc.scene.Assets.track(() -> {
+			if (f.poll()) {
+				try
+					asset.resolve(new Model(f.bytes, nodes, meshes, materials, animations))
+				catch (e:String)
+					asset.fail(e);
+				return true;
+			}
+			if (f.failed) {
+				asset.fail('Model: $path not found');
+				return true;
+			}
+			return false;
+		});
+		return asset;
+	}
+
+	// (Lazy: beside the executable natively, relative to the page in the browser)
+	@:noCompletion public static function lazyPath(rel:String):String {
+		#if (hxmc.target == "wasm32-wasi")
+		return rel;
+		#else
+		return haxe.io.Path.join([haxe.io.Path.directory(Sys.programPath()), rel]);
+		#end
+	}
+
 	// a file the build put beside the program (assets/...): natively next to
 	// the executable, in the browser fetched before main (os's browser.mjs)
 	public static function file(rel:String):Bytes {
@@ -88,7 +128,12 @@ class Model<N, M, A, C> {
 	}
 	#end
 
-	public static macro function of(path:String):Expr {
+	public static macro function of(path:String, ?mode:Expr):Expr {
+		var lazy = switch mode {
+			case null | {expr: EConst(CIdent("null"))}: false;
+			case {expr: EConst(CIdent("Lazy"))}: true;
+			case _: Context.error("Model.of: the mode is Lazy", mode.pos);
+		}
 		var pos = Context.currentPos();
 		var file = try Context.resolvePath(path) catch (_:Dynamic) path;
 		if (!sys.FileSystem.exists(file)) Context.error('Model.of: $path not found', pos);
@@ -132,20 +177,28 @@ class Model<N, M, A, C> {
 		var output = haxe.macro.Compiler.getOutput();
 		// (the repository tool's `hxmc <output> <args>` hides it: -D hxmc.scene.out=<output>)
 		if ((output == null || output == "") && Context.defined("hxmc.scene.out")) output = Context.definedValue("hxmc.scene.out");
-		if (bytes.length <= limit || StringTools.startsWith(target, "android") || StringTools.startsWith(target, "ios") || output == null || output == "") {
+		if (!lazy && bytes.length <= limit || StringTools.startsWith(target, "android") || StringTools.startsWith(target, "ios") || output == null || output == "") {
 			var data = haxe.crypto.Base64.encode(bytes);
-			return macro new hxmc.scene.render.Model(haxe.crypto.Base64.decode($v{data}), $n, $m, $a, $c);
+			var made = macro new hxmc.scene.render.Model(haxe.crypto.Base64.decode($v{data}), $n, $m, $a, $c);
+			// (Lazy where the file is built in: an asset ready at once)
+			return lazy ? macro {
+				var asset = new hxmc.scene.Asset();
+				asset.resolve($made);
+				asset;
+			} : made;
 		}
 		var rel = "assets/" + haxe.io.Path.withoutDirectory(file);
 		var dir = haxe.io.Path.directory(output);
 		var dest = haxe.io.Path.join([dir == "" ? "." : dir, rel]);
 		sys.FileSystem.createDirectory(haxe.io.Path.directory(dest));
 		sys.io.File.saveBytes(dest, bytes);
-		if (!assets.contains(rel)) assets.push(rel);
+		// (Lazy files are not fetched before main: the program loads them)
+		if (!lazy && !assets.contains(rel)) assets.push(rel);
 		if (!registered) {
 			registered = true;
 			Context.onAfterGenerate(() -> sys.io.File.saveContent(output + ".assets.json", haxe.Json.stringify(assets)));
 		}
+		if (lazy) return macro hxmc.scene.render.Model.loadNamed(hxmc.scene.render.Model.lazyPath($v{rel}), $n, $m, $a, $c);
 		return macro new hxmc.scene.render.Model(hxmc.scene.render.Model.file($v{rel}), $n, $m, $a, $c);
 	}
 }

@@ -18,16 +18,20 @@ import hxmc.scene.render.*;
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
 //   sky    the shadows scene under a sky (Sky, drawn at an injection point)
+//   lazy   the skinned sample loaded in the background (Model.of(path, Lazy))
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy"];
+	// whether the last scene has what it draws (a lazy one: once its files loaded)
+	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
 	public static inline var TIME = 2.0;
 	public static inline var STEPS = 150;
 
 	public static function make(name:String, device:Device):Encoder->Void {
+		ready = () -> true;
 		return switch name {
 			case "overlay":
 				// the sample scene under the debug overlay (@hxmc/ui), its frame times made up
@@ -165,6 +169,34 @@ class Scenes {
 				eye.position = new Vec3(0, 3, 5.5);
 				eye.lookAt(new Vec3(0, 0.3, 0));
 				enc -> r.draw(enc, world, camera);
+			case "lazy":
+				// the skinned sample loaded in the background (Model.of(path, Lazy)),
+				// drawn bent once it is here: skin.png's frame (until then the clear colour)
+				var r = new Renderer(device).use(new Skinning(device));
+				renderer = r;
+				var world = new World();
+				var floor = world.node("floor");
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.5, 0.5, 0.55, 1), 0, 0.9), 6));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0.4, 1.4, 4.2);
+				eye.lookAt(new Vec3(-0.3, 1.1, 0));
+				var asset = Model.of("skinned.glb", Lazy);
+				asset.then(model -> {
+					var made = [];
+					model.instantiate(world, device, null, made);
+					var animator = new hxmc.scene.anim.Animator(made);
+					animator.play(model.clip(model.animations.bend));
+					animator.update(1.0);
+				});
+				ready = () -> {
+					Assets.poll();
+					asset.ready;
+				};
+				enc -> {
+					Assets.poll();
+					r.draw(enc, world, camera);
+				};
 			case n: throw 'Scenes: no scene $n';
 		}
 	}

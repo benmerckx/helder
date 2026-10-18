@@ -32,6 +32,8 @@ class Stages {
 
 	// one frame of seconds
 	public function frame(seconds:Float) {
+		// (loads in flight advanced first: Asset)
+		Assets.poll();
 		run(Input, seconds);
 		var fixed = lists[FixedUpdate];
 		clock.advance(seconds, dt -> for (f in fixed.copy()) f(dt));

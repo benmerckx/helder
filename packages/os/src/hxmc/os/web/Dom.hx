@@ -44,4 +44,12 @@ import hxmc.unsafe.*;
 	static function scrolls_at(query:Ptr):Void;
 	// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
 	static function start(frame:Ptr):Void;
+	// a fetch of url (relative to the page) started: its handle; its state (0
+	// loading, 1 done, -1 failed), its body's length, the body into p (the
+	// handle freed; also fetch_free without taking it)
+	static function fetch_start(url:CString):Int;
+	static function fetch_state(h:Int):Int;
+	static function fetch_length(h:Int):Int;
+	static function fetch_take(h:Int, p:Ptr):Void;
+	static function fetch_free(h:Int):Void;
 }

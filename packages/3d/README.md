@@ -94,6 +94,11 @@ A packed model needs no glTF reader or JSON at run time (95 KB less
 natively, `make 3d-sizes`); meshes, materials' factors, cameras and the
 hierarchy are packed, not yet skins, animations, lights or textures.
 
+Big files or loading screens: `Model.of(path, Lazy)` is an `Asset` of the
+same typed model, loaded in the background (`asset.then(m -> ...)`,
+`asset.ready`); `Model.load(path)` loads a path known only at run time.
+Loads advance in `Assets.poll()`, which `Stages.frame` calls.
+
 ## Animation
 
 ```haxe

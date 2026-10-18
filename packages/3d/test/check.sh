@@ -8,10 +8,11 @@ bin=$1
 out=${2:-$1}
 here=$(dirname "$0")
 export LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1
-for s in gltf orbits shadows physics instances skin overlay textured packed spot sky; do
+for s in gltf orbits shadows physics instances skin overlay textured packed spot sky lazy; do
 	g=$s
-	# (the packed sample draws the glTF one's frame)
+	# (the packed sample draws the glTF one's frame, the lazy skin the skin's)
 	[ $s = packed ] && g=gltf
+	[ $s = lazy ] && g=skin
 	if [ -f "$bin/RenderTest.exe" ]; then
 		"$bin/RenderTest.exe" $s "$here/$g.png" "$out/$s.png"
 	else

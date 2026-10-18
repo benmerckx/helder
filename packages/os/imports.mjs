@@ -487,6 +487,21 @@ export default function (host) {
 			} else if (navigator.clipboard?.readText) navigator.clipboard.readText().then(deliver, () => deliver(null));
 			else deliver(null);
 		},
+		// a fetch (Fetch.hx): started, polled, its body taken
+		fetch_start(p) {
+			const f = { state: 0, body: null };
+			fetch(new URL(host.string(p), document.baseURI)).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then(
+				(b) => { f.body = new Uint8Array(b); f.state = 1; }, () => { f.state = -1; });
+			return host.handles.add(f);
+		},
+		fetch_state: (h) => host.handles.get(h).state,
+		fetch_length: (h) => host.handles.get(h).body?.length ?? 0,
+		fetch_take(h, p) {
+			const f = host.handles.get(h);
+			if (f.body) new Uint8Array(host.memory().buffer, p, f.body.length).set(f.body);
+			host.handles.remove(h);
+		},
+		fetch_free: (h) => host.handles.remove(h),
 		// a string handle's UTF-8 length, then its bytes into p (the handle freed)
 		text_length: (h) => new TextEncoder().encode(host.handles.get(h)).length,
 		text_take(h, p) {

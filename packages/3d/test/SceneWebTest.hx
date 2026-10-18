@@ -29,7 +29,8 @@ class SceneWebTest {
 				draw(enc);
 				device.endFrame();
 			}
-			if (++frames == 3) Sys.println('SceneWebTest: window: 3 frames (${name(device.backend)})');
+			// (3 frames once the scene has what it draws: a lazy one loads first)
+			if (Scenes.ready() && ++frames == 3) Sys.println('SceneWebTest: window: 3 frames (${name(device.backend)})');
 		}, e -> {});
 	}
 

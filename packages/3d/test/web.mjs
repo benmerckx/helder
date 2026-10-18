@@ -6,7 +6,7 @@
 // SwiftShader, as in packages/gfx/test/web.mjs.
 //   node packages/3d/test/web.mjs <SceneWebTest.wasm> [out dir]
 import { createServer } from 'node:http';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ if (!wasm) {
 	process.exit(2);
 }
 const CHROMIUM_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
-const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin', 'overlay', 'textured', 'packed', 'spot', 'sky'];
+const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin', 'overlay', 'textured', 'packed', 'spot', 'sky', 'lazy'];
 const files = {
 	'/test.wasm': wasm,
 	'/os/browser.mjs': path.join(here, '../../os/browser.mjs'),
@@ -30,7 +30,7 @@ const files = {
 	'/compare.mjs': path.join(here, '../../gfx/test/compare.mjs'),
 };
 // (the packed sample draws the glTF one's frame)
-for (const s of scenes) files[`/${s}.png`] = path.join(here, `${s === 'packed' ? 'gltf' : s}.png`);
+for (const s of scenes) files[`/${s}.png`] = path.join(here, `${s === 'packed' ? 'gltf' : s === 'lazy' ? 'skin' : s}.png`);
 // (the files the build put beside the module, Model.of's: fetched by browser.mjs before main)
 const manifest = wasm + '.assets.json';
 let assets = false;
@@ -38,6 +38,8 @@ try {
 	const list = JSON.parse(await readFile(manifest, 'utf8'));
 	files['/test.wasm.assets.json'] = manifest;
 	for (const p of list) files['/' + p] = path.join(path.dirname(wasm), p);
+	// (and the files a program loads itself: Model.of(path, Lazy), fetched at run time)
+	for (const n of await readdir(path.join(path.dirname(wasm), 'assets')).catch(() => [])) files['/assets/' + n] = path.join(path.dirname(wasm), 'assets', n);
 	assets = true;
 	console.log(`web.mjs: ${list.length} files fetched before main: ${list.join(', ')}`);
 } catch {}
@@ -78,7 +80,8 @@ const url = `http://localhost:${server.address().port}/`;
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
-for (const [scene, gfx, mode] of scenes.flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']])) {
+// (a lazy scene in a window only: headless, main draws once, before its files load)
+for (const [scene, gfx, mode] of scenes.flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']]).filter(([s, , m]) => s !== 'lazy' || m === 'window')) {
 	const p = await browser.newPage({ viewport: { width: 400, height: 300 } });
 	const errors = [];
 	p.on('pageerror', (e) => errors.push(e.message));

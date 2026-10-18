@@ -21,6 +21,8 @@ class RenderTest {
 		var name = args[0], golden = args[1], out = args[2];
 		var device = Device.create(Surface.headless(WIDTH, HEIGHT));
 		var draw = Scenes.make(name, device);
+		// (natively a lazy scene's files are read at once)
+		if (!Scenes.ready()) throw 'RenderTest: $name not ready';
 		var pixels = Bytes.alloc(WIDTH * HEIGHT * 4);
 		var enc = device.beginFrame();
 		draw(enc);
