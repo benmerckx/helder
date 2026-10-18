@@ -56,9 +56,14 @@ the app goes to the background and back. No keys or text input there yet.
 In the browser a touch drag on the canvas is `Scroll` (the content following
 the finger, gliding when let go) and a tap a click. `browser.mjs`'s option
 `touchAction` is the canvas's CSS `touch-action`: `'none'` by default (every
-drag the program's); with `'pan-y'` a drag that starts vertical scrolls the
-page instead, and only the others reach the program (a canvas as wide as a
-phone's screen that the page must scroll past). While the finger drags, its
+drag the program's); with `'pan-y'` a drag that starts vertical asks the
+program first, once, at its first move: `Window.scrollsAt(x, y, dx, dy)`,
+whether something where it started scrolls that way (hxmc.ui answers from
+its scrollers, innermost first; the cube takes only sideways drags). Yes:
+the drag is the program's, the page held still (its touchmoves cancelled);
+no, or no answer: the page scrolls instead, as at a scroller's end (a
+canvas as wide as a phone's screen that the page must scroll past). The
+other drags reach the program. While the finger drags, its
 `Scroll`s have `Mods.TOUCH`; when it is let go (or the browser takes the
 gesture over) a `Scroll` of nothing without it comes, then the glide's: a
 program that holds still what the finger holds (the cube) knows when it is

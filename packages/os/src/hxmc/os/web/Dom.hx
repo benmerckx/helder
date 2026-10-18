@@ -38,6 +38,10 @@ import hxmc.unsafe.*;
 	// the page's title; the canvas's CSS size (min: its minimum)
 	static function set_title(title:Ptr):Void;
 	static function set_size(canvas:Int, width:Int, height:Int, min:Int):Void;
+	// a touch drag's question (Window.scrollsAt): the page calls query (a
+	// @:hxmc.callback (canvas, x, y, dx, dy):Int, buffer pixels; 1 yes, 0
+	// no, -1 not asked) when it would pan the page otherwise
+	static function scrolls_at(query:Ptr):Void;
 	// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
 	static function start(frame:Ptr):Void;
 }
