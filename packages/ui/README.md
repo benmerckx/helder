@@ -71,7 +71,9 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     overflows, as in CSS; `shrink: 0` keeps it; a scroll container's is 0,
     in grid tracks too). A column's auto height is its content's, however tall: a
     flex item holding a scroller wants `minHeight: 0`, as in CSS, else it
-    grows to all of the scroller's content. `display: Grid` lays children out
+    grows to all of the scroller's content. `display: Block` is CSS's block
+    layout: a column whose children neither grow nor shrink (a row
+    direction given makes it a flex row). `display: Grid` lays children out
     on CSS grid tracks instead: `gridTemplateColumns` and
     `gridTemplateRows` (px, %, fr, auto, min-content, max-content,
     minmax(), repeat()), `gridAutoRows`, `gridAutoColumns`,

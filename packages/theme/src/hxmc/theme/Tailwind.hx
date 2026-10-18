@@ -224,8 +224,9 @@ class Tailwind {
 	}
 
 	// a slot's rules from several class lists (cva's base, then each
-	// variant's and size's), offsets for errors
-	public function slot(name:String, lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String, ?prefix:String}>):Array<TwRule> {
+	// variant's and size's), offsets for errors; block: a sheet's slot, a
+	// block box (display Block) where no class gives it a display, as CSS's
+	public function slot(name:String, lists:Array<{classes:String, offset:Int, ?variant:String, ?size:String, ?prefix:String}>, block = false):Array<TwRule> {
 		var groups:Array<Group> = [];
 		sides = new Map();
 		// (a class list after a variant's or size's, as cn's className after
@@ -249,6 +250,14 @@ class Tailwind {
 					parse((l.prefix == null ? "" : l.prefix + ":") + s.substring(i, j), l.variant, l.size, groups);
 				}
 				i = j;
+			}
+		}
+		// (a slot without display: a block box, its children at their own sizes; the base's, where it has one)
+		if (block && !Lambda.exists(groups, g -> g.keys.contains("display"))) {
+			var base = Lambda.find(groups, g -> g.when.length == 0 && g.variant == null && g.size == null);
+			if (base != null) {
+				base.keys.push("display");
+				base.parts["display"] = VEnum("Display", "Block");
 			}
 		}
 		// (two enter animations' starts that hold together, a popup side's
@@ -438,7 +447,7 @@ class Tailwind {
 				en("direction.default", "Direction", "Row");
 			case "grid" | "inline-grid": en("display", "Display", "Grid");
 			case "hidden": en("display", "Display", "None");
-			case "block" | "inline-block" | "inline": en("display", "Display", "Flex");
+			case "block" | "inline-block" | "inline": en("display", "Display", "Block");
 			case "flex-col": en("direction", "Direction", "Column");
 			case "flex-row": en("direction", "Direction", "Row");
 			case "flex-col-reverse": en("direction", "Direction", "ColumnReverse");
