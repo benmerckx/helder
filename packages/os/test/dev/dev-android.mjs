@@ -91,8 +91,9 @@ for (const s of [dev.stdout, dev.stderr]) {
 		}
 	});
 }
-const line = (re, ms = 300000) => {
-	const l = lines.find((x) => re.test(x));
+// (the next line matching re from now on; with past, one already printed too)
+const line = (re, ms = 300000, past = false) => {
+	const l = past ? lines.find((x) => re.test(x)) : null;
 	if (l) return Promise.resolve(l);
 	const pr = new Promise((resolve, reject) => {
 		const t = setTimeout(() => reject(new Error('timed out waiting for ' + re + '; the last lines:\n' + lines.slice(-30).join('\n'))), ms);
@@ -121,13 +122,13 @@ const pidOf = () => (adb('shell', 'pidof', PKG).stdout ?? '').trim();
 
 const times = [];
 try {
-	await line(/^hxmc dev: .* installed and started/, 600000);
+	await line(/^hxmc dev: .* installed and started/, 600000, true);
 	const first = await printed(/v1 count=3 build=/, 'the first build');
 	check('the APK installed, the first build runs, its state changed', !!first);
 	await sleep(2000);
 	const pid = pidOf();
 	check('the app has a process', pid !== '', pid);
-	await line(/^hxmc dev: the program connected/, 30000).catch(() => check('the app connected to the dev server', false));
+	await line(/^hxmc dev: the program connected/, 30000, true).catch(() => check('the app connected to the dev server', false));
 
 	const swapped = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	edit((s) => s.replace('frames * 0.02', 'frames * 0.03').replace('"v1 count="', '"v2 count="'));
