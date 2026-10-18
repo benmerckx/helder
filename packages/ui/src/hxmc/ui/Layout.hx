@@ -1649,7 +1649,8 @@ class Layout {
 		var at = 1 + Std.int(c[0]);
 		if (at >= c.length && c.length < 1 + CACHE * ENTRY) {
 			var g = new haxe.ds.Vector(Std.int(Math.min(2 * c.length - 1, 1 + CACHE * ENTRY)), 0.0);
-			haxe.ds.Vector.blit(c, 0, g, 0, c.length);
+			for (i in 0...c.length)
+				g[i] = c[i];
 			c = n.cache = g;
 		}
 		if (at >= 1 + CACHE * ENTRY) {
