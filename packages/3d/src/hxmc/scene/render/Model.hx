@@ -18,10 +18,12 @@ import hxmc.scene.gltf.GltfScene;
 // and types the result from it: model.nodes, model.meshes,
 // model.materials and model.animations have a field per name in the file (its value the name,
 // for World.find; a name that is no identifier made one: "Left Hand" is
-// Left_Hand), so a typo is a compile error. The file is registered with the
-// build (today: built into the program; the asset packing and the
-// browser's prefetch before main are docs/plans/3d.md's next steps), so
-// the model is ready at once:
+// Left_Hand), so a typo is a compile error. The file goes with the build:
+// up to 64 KB (-D hxmc.scene.embed=<bytes>) built into the program, else
+// copied beside it (assets/) and listed in <output>.assets.json, which
+// os's browser.mjs fetches before main (options.assets) while the module
+// loads; natively read from beside the executable (Android and iOS: built
+// in for now). Either way the model is ready at once:
 //
 //   var hero = Model.of("models/hero.glb");
 //   var root = hero.instantiate(world, device);
@@ -71,6 +73,21 @@ class Model<N, M, A, C> {
 	}
 	#end
 
+	#if macro
+	static var assets:Array<String> = [];
+	static var registered = false;
+	#else
+	// a file the build put beside the program (assets/...): natively next to
+	// the executable, in the browser fetched before main (os's browser.mjs)
+	public static function file(rel:String):Bytes {
+		#if (hxmc.target == "wasm32-wasi")
+		return sys.io.File.getBytes(rel);
+		#else
+		return sys.io.File.getBytes(haxe.io.Path.join([haxe.io.Path.directory(Sys.programPath()), rel]));
+		#end
+	}
+	#end
+
 	public static macro function of(path:String):Expr {
 		var pos = Context.currentPos();
 		var file = try Context.resolvePath(path) catch (_:Dynamic) path;
@@ -107,7 +124,28 @@ class Model<N, M, A, C> {
 		}
 		var n = names([for (x in list("nodes")) nameOf(x)]), m = names([for (x in list("meshes")) nameOf(x)]), a = names([for (x in list("materials")) nameOf(x)]),
 			c = names([for (x in list("animations")) nameOf(x)]);
-		var data = haxe.crypto.Base64.encode(bytes);
-		return macro new hxmc.scene.render.Model(haxe.crypto.Base64.decode($v{data}), $n, $m, $a, $c);
+		// (small files, and every file on Android and iOS for now, built into
+		// the program; others copied beside it, assets/, and listed in
+		// <output>.assets.json for the browser to fetch before main)
+		var limit = Context.defined("hxmc.scene.embed") ? Std.parseInt(Context.definedValue("hxmc.scene.embed")) : 65536;
+		var target = Context.defined("hxmc.target") ? Context.definedValue("hxmc.target") : "";
+		var output = haxe.macro.Compiler.getOutput();
+		// (the repository tool's `hxmc <output> <args>` hides it: -D hxmc.scene.out=<output>)
+		if ((output == null || output == "") && Context.defined("hxmc.scene.out")) output = Context.definedValue("hxmc.scene.out");
+		if (bytes.length <= limit || StringTools.startsWith(target, "android") || StringTools.startsWith(target, "ios") || output == null || output == "") {
+			var data = haxe.crypto.Base64.encode(bytes);
+			return macro new hxmc.scene.render.Model(haxe.crypto.Base64.decode($v{data}), $n, $m, $a, $c);
+		}
+		var rel = "assets/" + haxe.io.Path.withoutDirectory(file);
+		var dir = haxe.io.Path.directory(output);
+		var dest = haxe.io.Path.join([dir == "" ? "." : dir, rel]);
+		sys.FileSystem.createDirectory(haxe.io.Path.directory(dest));
+		sys.io.File.saveBytes(dest, bytes);
+		if (!assets.contains(rel)) assets.push(rel);
+		if (!registered) {
+			registered = true;
+			Context.onAfterGenerate(() -> sys.io.File.saveContent(output + ".assets.json", haxe.Json.stringify(assets)));
+		}
+		return macro new hxmc.scene.render.Model(hxmc.scene.render.Model.file($v{rel}), $n, $m, $a, $c);
 	}
 }

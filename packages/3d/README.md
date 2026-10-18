@@ -65,8 +65,13 @@ var hand = root.find(hero.nodes.LeftHand);   // hero.nodes.LeftHnad: a compile e
 ```
 
 `Model.of` reads the file's names when compiling (nodes, meshes,
-materials: `model.nodes`, `model.meshes`, `model.materials`) and builds the
-file into the program; self-contained files only for now (one embedded
+materials, animations: `model.nodes`, ...). A file up to 64 KB is built
+into the program (`-D hxmc.scene.embed=<bytes>`); a larger one is copied
+beside it (`assets/`, listed in `<output>.assets.json`), read from beside
+the executable natively and fetched before main in the browser
+(`browser.mjs`'s `assets` option: `run(wasm, {assets: 'app.wasm.assets.json'})`);
+the repository tool's `hxmc <output> ...` form needs `-D hxmc.scene.out=<output>`.
+For now self-contained files only for now (one embedded
 buffer, images inside it). Base colour textures need a decoder, named by
 the program so that none is linked otherwise:
 

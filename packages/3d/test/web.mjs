@@ -31,7 +31,17 @@ const files = {
 };
 // (the packed sample draws the glTF one's frame)
 for (const s of scenes) files[`/${s}.png`] = path.join(here, `${s === 'packed' ? 'gltf' : s}.png`);
-const types = { '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png' };
+// (the files the build put beside the module, Model.of's: fetched by browser.mjs before main)
+const manifest = wasm + '.assets.json';
+let assets = false;
+try {
+	const list = JSON.parse(await readFile(manifest, 'utf8'));
+	files['/test.wasm.assets.json'] = manifest;
+	for (const p of list) files['/' + p] = path.join(path.dirname(wasm), p);
+	assets = true;
+	console.log(`web.mjs: ${list.length} files fetched before main: ${list.join(', ')}`);
+} catch {}
+const types = { '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png', '.json': 'application/json', '.glb': 'model/gltf-binary' };
 const page = `<!doctype html><title>SceneWebTest</title>
 <canvas id="c" style="width: 256px; height: 192px; display: block"></canvas>
 <script type="module">
@@ -41,7 +51,7 @@ const log = [];
 window.log = log;
 window.start = async (gfx, mode, scene) => {
 	const golden = await decode(scene + '.png');
-	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'c', gfx, args: [mode, scene], stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
+	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'c', gfx, args: [mode, scene], ${assets ? "assets: 'test.wasm.assets.json'," : ''} stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
 	log.push('exit ' + r.exitCode);
 	if (r.host.gfx.backend !== gfx) return { ok: false, text: gfx + ' ' + mode + ': on ' + r.host.gfx.backend };
 	if (mode === 'window') {
