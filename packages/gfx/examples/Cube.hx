@@ -162,6 +162,8 @@ class Cube {
 		var spin = new Spin(still >= 0 ? 0 : Spin.SPEED), angle = still >= 0 ? Std.parseFloat(args[still + 1]) : 0.0;
 		var last = Sys.time(), from = 0, dragging = false, touching = false;
 		window.cursor = Grab;
+		// (a drag sideways turns it; one up or down is the page's, in a browser)
+		window.scrollsAt = (x, y, dx, dy) -> Math.abs(dx) > Math.abs(dy);
 		App.run(() -> {
 			var now = Sys.time();
 			spin.advance(Math.min(now - last, 0.1));
