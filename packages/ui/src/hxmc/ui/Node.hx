@@ -81,6 +81,9 @@ class Node implements Part {
 	public var hovered(default, null) = false;
 	public var pressed(default, null) = false;
 	public var focused(default, null) = false;
+	// a legend (a page's legend element): its parent's first, as a fieldset's
+	// rendered legend, no flex item (Layout: no gap after it in a column)
+	public var legend = false;
 	// what a theme styles it as (Rule, StyleSheet): the part of a widget
 	// (shadcn's data-slot names: "button", "switch-thumb"), its variant and
 	// size ("destructive", "sm"); its attributes, the states rules match
@@ -166,7 +169,7 @@ class Node implements Part {
 		// (under another parent: what it inherits may differ, and the states of nodes around it)
 		if (moved) child.inheritedChanged();
 		if (moved && ui != null && @:privateAccess Rules.relational != 0) Rules.restyleTree(child);
-		Rules.placed(this, child, first, last);
+		Rules.placed(this, child, first, last, index + 1 < children.length ? children[index + 1] : null);
 		markDirty();
 		return child;
 	}
@@ -202,11 +205,11 @@ class Node implements Part {
 
 	public function remove(child:Node) {
 		if (child.parent != this) return;
-		var first = children[0], last = children[children.length - 1];
-		children.remove(child);
+		var first = children[0], last = children[children.length - 1], i = indexOf(child);
+		children.splice(i, 1);
 		child.parent = null;
 		child.attach(null);
-		Rules.placed(this, child, first == child ? null : first, last == child ? null : last);
+		Rules.placed(this, child, first == child ? null : first, last == child ? null : last, i < children.length ? children[i] : null);
 		markDirty();
 	}
 

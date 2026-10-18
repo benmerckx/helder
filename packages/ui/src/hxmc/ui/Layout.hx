@@ -198,6 +198,8 @@ class Layout {
 			it.autoCross = (Math.isNaN(cs0) ? 1 : 0) | (Math.isNaN(ce) ? 2 : 0);
 			it.mMainStart = mz(ms);
 			it.mMainEnd = mz(me);
+			// (a legend first: a fieldset's rendered legend, outside the flex container in CSS, so no gap after it)
+			if (c.legend && !row && itemTop == first + 1) it.mMainEnd -= gapMain;
 			it.mCrossStart = mz(cs0);
 			it.mCrossEnd = mz(ce);
 			// (the room across and along it, what fit-content fits in)

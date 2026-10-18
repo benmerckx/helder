@@ -18,7 +18,8 @@ package hxmc.ui;
 // one whose group attribute names item among its words), "peer:checked"
 // while an earlier sibling marked "peer" holds it, "has:data-state=open"
 // while a descendant does ("has:>x": a child; "has:x&y" one holding both), "first" and "last" for the
-// first and last child, "not:x" while x does not, "parent:x" while the
+// first and last child, "not:x" while x does not, "prev:x" while the
+// sibling before holds x (CSS's [x]+&), "parent:x" while the
 // parent holds x (a rule of slot "*": any slot's, after its own, as an
 // arbitrary selector of a slot's children); "variant=x" and "size=x" the
 // node's variant and size; "data-slot=x" is the
@@ -32,6 +33,7 @@ class Rules {
 	static inline var HAS = 4;
 	static inline var PLACE = 8;
 	static inline var PARENT = 16;
+	static inline var PREV = 32;
 
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
@@ -303,6 +305,10 @@ class Rules {
 					switch slash < 0 ? head : head.substr(0, slash) {
 						case "not": !holds(n, ui, inner);
 						case "parent": n.parent != null && holds(n.parent, ui, inner);
+						case "prev":
+							var i = n.parent == null ? -1 : n.parent.indexOf(n);
+							while (--i >= 0 && marker(n.parent.children[i])) {}
+							i >= 0 && all(n.parent.children[i], ui, inner);
 						case "group":
 							var p = n.parent;
 							while (p != null && !(marked(p, "group", name) && holds(p, ui, inner)))
@@ -338,6 +344,17 @@ class Rules {
 		}
 	}
 
+	// (a view's marker, where content goes: hidden, of no slot or children; no sibling for prev:)
+	static inline function marker(n:Node):Bool
+		return n.style.display == None && n.slot == null && n.children.length == 0;
+
+	// (the sibling from i on that is no marker, restyled: its prev: rules may follow)
+	static function after(parent:Node, i:Int) {
+		while (i >= 0 && i < parent.children.length && marker(parent.children[i]))
+			i++;
+		if (i >= 0 && i < parent.children.length) @:privateAccess parent.children[i].restyleLater();
+	}
+
 	// (whether n is marked as a group or peer: the attribute, naming name among its words when given)
 	static function marked(n:Node, attr:String, name:Null<String>):Bool {
 		var v = n.attr(attr);
@@ -369,6 +386,7 @@ class Rules {
 			if (StringTools.startsWith(head, "peer")) r |= PEER;
 			if (head == "has") r |= HAS;
 			if (head == "parent") r |= PARENT;
+			if (head == "prev") r |= PREV;
 			r |= relations(w.substr(colon + 1));
 		}
 		return r;
@@ -383,6 +401,7 @@ class Rules {
 		if (relational & PARENT != 0)
 			for (c in n.children)
 				@:privateAccess c.restyleLater();
+		if (relational & PREV != 0 && n.parent != null) after(n.parent, n.parent.indexOf(n) + 1);
 		if (relational & PEER != 0 && n.attr("peer") != null && n.parent != null) {
 			var after = false;
 			for (c in n.parent.children) {
@@ -400,9 +419,14 @@ class Rules {
 	}
 
 	// (parent's children changed, child put in or taken out, first and last
-	// maybe others: theirs, the peers' siblings', and the ancestors' has rules, restyled)
-	@:allow(hxmc.ui.Node) static function placed(parent:Node, child:Null<Node>, first:Null<Node>, last:Null<Node>) {
+	// maybe others, next the child after where it was or is: theirs, the
+	// peers' siblings', and the ancestors' has rules, restyled)
+	@:allow(hxmc.ui.Node) static function placed(parent:Node, child:Null<Node>, first:Null<Node>, last:Null<Node>, ?next:Node) {
 		if (relational == 0 || parent.ui == null) return;
+		if (relational & PREV != 0) {
+			if (next != null) after(parent, parent.indexOf(next));
+			if (child == null) for (c in parent.children) @:privateAccess c.restyleLater();
+		}
 		if (relational & PLACE != 0) {
 			if (first != null) @:privateAccess first.restyleLater();
 			if (last != null) @:privateAccess last.restyleLater();

@@ -140,6 +140,7 @@ class MarkupTest implements Markup {
 		unstyledRest();
 		unstyledExtras();
 		statesStyle();
+		fieldsetLegend();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -2071,7 +2072,35 @@ class MarkupTest implements Markup {
 			&& ui.root.find("col-area").children[1].slot == "color-picker-thumb" && ui.root.find("col-area").children[1].style.borderWidth == 2);
 	}
 
-// a part's states as signals (React Aria's render props): an instance's
+// a fieldset's legend (CSS's rendered legend): no gap after it, its
+	// margin kept; a rule of the sibling before ([[data-variant=legend]+&]:
+	// "prev:variant=legend"), the description right after it only, again as
+	// one is put before
+	static function fieldsetLegend() {
+		var ui = new Ui(new MonoText(), 400, 300), first = signal(true);
+		ui.theme = {
+			rules: [
+				{slot: "field-set", style: {rowGap: 24}}, {slot: "field-legend", style: {marginBottom: 12}},
+				{slot: "field-description", when: ["prev:variant=legend"], style: {marginTop: -6}}
+			]
+		};
+		Render.render(<view padding={10}>
+			<hxmc.ui.widgets.Widgets.FieldSet tag="set">
+				<hxmc.ui.widgets.Widgets.FieldLegend tag="legend" text="Profile"/>
+				<Show when={first}><hxmc.ui.widgets.Widgets.FieldDescription tag="d0" text="Before"/></Show>
+				<hxmc.ui.widgets.Widgets.FieldDescription tag="d1" text="About"/>
+			</hxmc.ui.widgets.Widgets.FieldSet>
+		</view>, ui.root);
+		ui.update();
+		var legend = ui.root.find("legend"), d0 = ui.root.find("d0"), d1 = ui.root.find("d1");
+		check("fieldset: the legend's margin, no gap; the description after it pulled up, the next a gap under",
+			d0.y == legend.y + legend.height + 12 - 6 && d1.y == d0.y + d0.height + 24, '${legend.y} ${legend.height} ${d0.y} ${d0.height} ${d1.y}');
+		first.value = false;
+		ui.update();
+		check("fieldset: the sibling before gone, the next description's rule follows", d1.y == legend.y + legend.height + 12 - 6, '${legend.y} ${legend.height} ${d1.y} ' + [for (c in d1.parent.children) c.tag].join(","));
+	}
+
+	// a part's states as signals (React Aria's render props): an instance's
 	// style a function of them, over the theme's rules, taken back when it
 	// no longer gives a property
 	static function statesStyle() {
