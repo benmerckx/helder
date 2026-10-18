@@ -60,6 +60,15 @@ class Behaviour {
 		}
 	}
 
+	// a chart's scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten
+	public static function niceMax(v:Float):Float {
+		if (!(v > 0)) return 1;
+		var p = Math.pow(10, Math.floor(Math.log(v) / Math.log(10)));
+		for (m in [1.0, 2.0, 2.5, 5.0, 10.0])
+			if (m * p >= v - 1e-9) return m * p;
+		return 10 * p;
+	}
+
 	// pagination's buttons in order (0 for a gap): the first, the last, the
 	// current one and its neighbours, a page instead of a gap that hides one
 	public static function pages(page:Int, count:Int):Array<Int> {

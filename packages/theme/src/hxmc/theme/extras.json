@@ -1,10 +1,12 @@
 {
 	"about": "Ours, not shadcn's: class lists in shadcn's style, from its own patterns and tokens, for hxmc's widgets shadcn lacks (Tree, Listbox, Sortable, NumberField, TagInput, ColorPicker, Toolbar, Collapsible), hxmc's Chart (not recharts': its series coloured by data-series, its parts in flow) and hxmc's parts that are not shadcn's (the calendar's day and nav, the field rows, icons, sonner's toast, its stylesheet's values as classes, a group heading, a scroll area's scrollbar as Radix shows it on hover, a navigation menu's content in flow, its viewport sized by it as Radix sizes it); shadcn.json includes it, its slots over shadcn's (packages/theme/README.md)",
 	"slots": {
+		"breadcrumb-separator-icon": "size-3.5",
 		"calendar": [
 			"group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
 			"flex w-fit flex-col gap-4"
 		],
+		"calendar-button-icon": "size-4",
 		"calendar-day": {
 			"extends": "button",
 			"variant": "ghost",
@@ -18,6 +20,7 @@
 			]
 		},
 		"calendar-nav": "flex h-(--cell-size) w-full items-center justify-between gap-1",
+		"carousel-icon": "size-4",
 		"chart": "flex flex-col text-xs",
 		"chart-area": "data-[series=1]:text-chart-1 data-[series=2]:text-chart-2 data-[series=3]:text-chart-3 data-[series=4]:text-chart-4 data-[series=5]:text-chart-5",
 		"chart-bar": [
@@ -71,6 +74,8 @@
 		"number-field-decrement": "flex flex-1 cursor-default items-center justify-center rounded-b-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
 		"number-field-increment": "flex flex-1 cursor-default items-center justify-center rounded-t-md border border-input bg-transparent px-2 text-[8px] text-muted-foreground shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:hover:bg-input/50",
 		"number-field-steppers": "flex flex-col gap-px",
+		"pagination-ellipsis-icon": "size-4",
+		"pagination-icon": "size-4",
 		"pagination-link": {
 			"extends": "button",
 			"variant": "ghost",
@@ -83,6 +88,7 @@
 			"[scrollbar-color:var(--border)_transparent] [scrollbar-width:none] hover:[scrollbar-width:thin]"
 		],
 		"select-value": "line-clamp-1 flex items-center gap-2",
+		"sidebar-trigger-icon": "size-4",
 		"sortable": "flex flex-col gap-2",
 		"sortable-handle": "cursor-grab text-muted-foreground select-none",
 		"sortable-indicator": "h-0.5 rounded-full bg-primary data-[side=top]:-top-[5px] data-[side=bottom]:-bottom-[5px]",
@@ -104,6 +110,7 @@
 		"toolbar": "flex h-9 items-center gap-1 rounded-md border bg-background p-1 shadow-xs",
 		"tree": "flex flex-col rounded-md border bg-background p-1 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
 		"tree-item": "flex cursor-default items-center gap-1 rounded-sm px-2 text-sm select-none hover:bg-accent/50 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground",
-		"tree-toggle": "flex shrink-0 items-center justify-center text-muted-foreground"
+		"tree-toggle": "flex shrink-0 items-center justify-center text-muted-foreground",
+		"tree-toggle-icon": "size-4 text-muted-foreground"
 	}
 }

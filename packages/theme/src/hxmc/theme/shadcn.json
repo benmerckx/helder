@@ -561,6 +561,10 @@
 			"flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
 			"items-center"
 		],
+		"chart-tooltip-row": [
+			"flex flex-1 justify-between leading-none",
+			"items-center"
+		],
 		"chart-tooltip-value": "font-mono font-medium text-foreground tabular-nums",
 		"chart-tooltip-name": "text-muted-foreground",
 		"chart-legend": [

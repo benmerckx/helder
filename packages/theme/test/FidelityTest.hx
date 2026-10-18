@@ -33,22 +33,17 @@ class FidelityTest implements Markup {
 	// hxmc.ui lacks yet): reported, not failed; one that agrees is reported too
 	static final KNOWN = [
 		"input-value-" => "the field's line a pixel above where Chromium centres an <input>'s text",
-		"slider-" => "Slider and its track carry no data-orientation: data-[orientation=horizontal]:h-1.5 w-full never apply, the track has no size",
-		"tabs-" => "Tabs carries no data-orientation (its flex-col, the list's h-9 by group-data-[orientation=horizontal]/tabs) and tabs-list no variant (bg-muted is its default variant's)",
-		"toggle-group-outline" => "ToggleGroup and its items carry no data-spacing (shadcn's default, 0): the joined items' rounded-none, first:rounded-l-md, border-l-0 never apply",
 		"select-value" => SELECT,
 		"select-focus" => SELECT,
 		"table-" => "Table's rows a fixed rowHeight for its virtual list, the head's too (shadcn's head h-10, its rows by their padding), its columns 1fr each (shadcn's: a table's auto layout)",
-		"breadcrumb-" => "the separator a ▸ glyph at 0.6 opacity, not lucide's chevron-right (size-3.5): the items after it shifted",
-		"pagination-" => "Previous and Next without lucide's chevrons, the ellipsis a … glyph, not MoreHorizontal",
+		"pagination-" => "Previous and Next padded px-2.5 on both sides: the side by the chevron's has-[>svg]:px-3 is an arbitrary selector, dropped",
 		"combobox-" => "Combobox's popup is a bare command-list (the slot Command's list has too): shadcn's combobox is a Popover holding a Command, its border, background and shadow theirs",
-		"drawer-" => "drawer-content is not marked a group (group/drawer-content): its handle stays hidden, its header left-aligned; and popups do not inherit the body's text-base (the title's 16px)",
+		"drawer-" => "popups do not inherit the body's text-base (the title's 16px)",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
 		"field-" => "a field set's legend is one of its flex items here (gap-6 after it); Chromium lays a fieldset's legend out apart from its content, no gap after it, and the description's [[data-variant=legend]+&]:-mt-1.5 is an arbitrary selector, dropped",
 		"button-group-horizontal" => "the joined buttons' inner corners and borders are arbitrary child selectors ([&>*:not(:first-child)]:rounded-l-none border-l-0, [&>*:not(:last-child)]:rounded-r-none), dropped",
 		"input-group-focus" => "the group's ring is has-[[data-slot=input-group-control]:focus-visible] (an arbitrary selector), dropped; and the caret drawn",
 		"sidebar-expanded" => "Sidebar has no sidebar-gap (shadcn's box holding its width in flow) and sidebar-container no variant: the container, fixed (absolute) in a sidebar of no width, is not seen, the inset in its place",
-		"chart-tooltip" => "the tooltip's swatch is chart-legend-swatch (8px, not the indicator's 10px), a series' name has no slot (shadcn's text-muted-foreground), its value's font-mono no font of the engine's",
 		"native-select-focus" => "NativeSelect holds Select's trigger (select-trigger, its own width, no data-size, the select's focus ring), not shadcn's native-select and native-select-icon",
 	];
 	static inline var SELECT = "Select's own width (160) wins over w-fit; the trigger has no size (data-[size=default]:h-9)";

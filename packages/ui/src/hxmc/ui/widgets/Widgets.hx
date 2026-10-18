@@ -45,6 +45,13 @@ class Widgets implements Markup {
 	static final LOADER = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>');
 	static final SEARCH = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>');
 	static final CHEVRON_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>');
+	static final CHEVRON_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>');
+	static final ARROW_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>');
+	static final ARROW_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>');
+	static final ARROW_UP = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>');
+	static final ARROW_DOWN = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>');
+	static final MORE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>');
+	static final PANEL_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>');
 	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
@@ -950,7 +957,7 @@ class Widgets implements Markup {
 						align-items="center" onClick={e -> if (row.value != null && !row.value.leaf) {
 						setOpen(row.value.item, !row.value.open);
 						e.stop();
-					}}>{arrow(() -> row.value == null || row.value.leaf ? "" : row.value.open ? "▾" : "▸")}</view>
+					}}><Show when={() -> row.value != null && !row.value.leaf}>{icon(CHEVRON_RIGHT, "tree-toggle-icon", () -> row.value != null && row.value.open ? "rotate(90deg)" : "none", true)}</Show></view>
 					{() -> row.value == null ? null : props.render(row.value.item)}
 				</view>;
 			}}/>
@@ -1123,10 +1130,10 @@ class Widgets implements Markup {
 		return <view tag={tag} slot="calendar">
 			<view slot="calendar-nav">
 				<view tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" focusable onClick={_ -> month(-1)}
-					onKeyDown={e -> pressKeys(e, () -> month(-1))}>{arrow(() -> "‹")}</view>
+					onKeyDown={e -> pressKeys(e, () -> month(-1))}>{icon(CHEVRON_LEFT, "calendar-button-icon")}</view>
 				<text tag={tag + "-month"} slot="calendar-caption-label">{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
 				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable onClick={_ -> month(1)}
-					onKeyDown={e -> pressKeys(e, () -> month(1))}>{arrow(() -> "›")}</view>
+					onKeyDown={e -> pressKeys(e, () -> month(1))}>{icon(CHEVRON_RIGHT, "calendar-button-icon")}</view>
 			</view>
 			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}>
 				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
@@ -1890,10 +1897,10 @@ class Widgets implements Markup {
 			props.value.value = options[j];
 			focusIn(nodes, j);
 		}
-		return <view tag={tag} slot="toggle-group" variant={variant} size={size} role="radiogroup" label={props.label}>{[
+		return <view tag={tag} slot="toggle-group" variant={variant} size={size} data-spacing="0" role="radiogroup" label={props.label}>{[
 			for (i in 0...n) {
 				var o = options[i], on = () -> props.value.value == o;
-				<view tag={tag + "-" + i} slot="toggle-group-item" variant={variant} size={size} role="radio" ref={n -> nodes[i] = n} checked={on}
+				<view tag={tag + "-" + i} slot="toggle-group-item" variant={variant} size={size} data-spacing="0" role="radio" ref={n -> nodes[i] = n} checked={on}
 					data-state={() -> on() ? "on" : "off"} focusable={() -> stop(i)} onClick={_ -> props.value.value = o}
 					onKeyDown={e -> key(e, i)}>{props.labels != null && props.labels[i] != null ? props.labels[i] : o}</view>;
 			}
@@ -1926,7 +1933,7 @@ class Widgets implements Markup {
 								e.preventDefault();
 								props.onSelect(i);
 							}}>{items[i]}</text>}</view>,
-						last ? null : <view slot="breadcrumb-separator">{arrow(() -> "▸")}</view>
+						last ? null : <view slot="breadcrumb-separator" hidden>{icon(CHEVRON_RIGHT, "breadcrumb-separator-icon", null, true)}</view>
 					];
 				}
 			]}</view>
@@ -1956,7 +1963,7 @@ class Widgets implements Markup {
 		// (the buttons in order, 0 for a gap)
 		function shown():Array<Int>
 			return Behaviour.pages(props.page.value, count);
-		function button(label:Void->String, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool, slot = "pagination-link"):View {
+		function button(label:Any, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool, slot = "pagination-link"):View {
 			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
 			return <view slot="pagination-item"><view tag={tagged} slot={slot} size={size} role="button" focusable={() -> !off()} disabled={off}
 				data-disabled={off} current={cur} data-active={() -> cur() ? "true" : null} onClick={_ -> if (!off()) onClick()}
@@ -1967,14 +1974,14 @@ class Widgets implements Markup {
 		}
 		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "Pages"}>
 			<view slot="pagination-content">
-				{button(() -> "Previous", tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1, "pagination-previous")}
+				{button([icon(CHEVRON_LEFT, "pagination-icon"), "Previous"], tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1, "pagination-previous")}
 				<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
 					<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", "icon", () -> go(p.peek()),
 						() -> props.page.value == p.value)}>
-						<view slot="pagination-ellipsis" hidden><text>…</text></view>
+						<view slot="pagination-ellipsis" hidden>{icon(MORE, "pagination-ellipsis-icon")}</view>
 					</Show>
 				</view>}/>
-				{button(() -> "Next", tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count, "pagination-next")}
+				{button(["Next", icon(CHEVRON_RIGHT, "pagination-icon")], tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count, "pagination-next")}
 			</view>
 		</view>;
 	}
@@ -2381,7 +2388,7 @@ class Widgets implements Markup {
 			slot: "drawer-overlay",
 			onDismiss: close,
 			tag: tag,
-			children: <view tag={tag + "-content"} slot="drawer-content" data-state="open" data-vaul-drawer-direction={dir} role="dialog" label={props.title}
+			children: <view tag={tag + "-content"} slot="drawer-content" group="drawer-content" data-state="open" data-vaul-drawer-direction={dir} role="dialog" label={props.title}
 				position="absolute" top={dir == "bottom" ? null : 0} bottom={dir == "top" ? null : 0} left={dir == "right" ? null : 0}
 				right={dir == "left" ? null : 0} width={across ? "75%" : null} max-width={across ? 384 : null}
 				transform={() -> pull.value == 0 ? "none" : (across ? "translateX(" : "translateY(") + (pull.value * sign) + "px)"}
@@ -2884,7 +2891,7 @@ class Widgets implements Markup {
 		var state = () -> open.value ? "open" : "closed";
 		return <view tag={tag} slot="collapsible" data-state={state}>
 			{trigger(tag + "-summary", "collapsible-trigger", state, () -> open.value = !open.peek(),
-				[<view slot="collapsible-icon">{arrow(() -> open.value ? "▾" : "▸")}</view>, props.label])}
+				[icon(CHEVRON_RIGHT, "collapsible-icon", () -> open.value ? "rotate(90deg)" : "none", true), props.label])}
 			<Show when={open}><view tag={tag + "-content"} slot="collapsible-content" data-state="open">{props.children}</view></Show>
 		</view>;
 	}
@@ -3146,13 +3153,21 @@ class Widgets implements Markup {
 			{label: "Select All", onSelect: () -> f.selectAll(), shortcut: "Mod+A"}
 		]}>{f}</ContextMenu>;
 
-	// (a disclosure's arrow, a tree's or a summary's: hidden from assistive
-	// technology, muted; closed, to the line's end)
-	static function arrow(shown:Void->String):Node {
-		var n = new Arrow("");
+	// (an icon, lucide's, in a slot of its own (a theme's to size and colour;
+	// unstyled, 16 pixels), hidden from assistive technology; turned by
+	// transform; mirrored: right to left the other way, as a disclosure's arrow)
+	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
+		Rules.addBase("icons", [
+			for (s in ["calendar-button-icon", "tree-toggle-icon", "breadcrumb-separator-icon", "collapsible-icon", "sidebar-trigger-icon",
+				"navigation-menu-trigger-icon", "carousel-icon", "pagination-icon", "pagination-ellipsis-icon"])
+				{slot: s, style: s == "breadcrumb-separator-icon" || s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
+		]);
+		var n = mirrored ? new Mirrored() : new ImageNode();
+		n.svg = svg;
+		n.slot = slot;
 		n.semantics = {hidden: true};
-		n.slot = "arrow-icon";
-		effect(() -> n.text = shown());
+		n.style.shrink = 0;
+		if (transform != null) effect(() -> n.style.transform = Transform.parse(transform()));
 		return n;
 	}
 
@@ -3696,14 +3711,6 @@ class Widgets implements Markup {
 
 	// --- charts (shadcn's Chart: its look, recharts' kinds) ---
 
-	// (a scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten)
-	static function niceMax(v:Float):Float {
-		if (!(v > 0)) return 1;
-		var p = Math.pow(10, Math.floor(Math.log(v) / Math.log(10)));
-		for (m in [1.0, 2.0, 2.5, 5.0, 10.0])
-			if (m * p >= v - 1e-9) return m * p;
-		return 10 * p;
-	}
 
 	// (a chart's scale's top: max, else the greatest value (stacked: the greatest sum) rounded up)
 	static function chartTop(series:Array<{name:String, values:Array<Float>, ?color:Color}>, n:Int, max:Null<Float>, stacked:Bool):Float {
@@ -3717,12 +3724,12 @@ class Widgets implements Markup {
 			}
 			most = Math.max(most, sum);
 		}
-		return niceMax(most);
+		return Behaviour.niceMax(most);
 	}
 
 	// (unstyled, each series a colour of its own: a theme's are its tokens, --chart-1 to --chart-5)
 	static function chartBase()
-		Rules.addBase("chart", Lambda.flatten([
+		Rules.addBase("chart", ([{slot: "chart-tooltip-item", style: {columnGap: 6}}, {slot: "chart-tooltip-row", style: {columnGap: 8}}]:Array<Rule>).concat(Lambda.flatten([
 			for (k in 0...5) {
 				var c:Color = [0xFF2563EB, 0xFF16A34A, 0xFFF59E0B, 0xFFDC2626, 0xFF7C3AED][k];
 				var rules:Array<Rule> = [
@@ -3731,11 +3738,12 @@ class Widgets implements Markup {
 					{slot: "chart-line", when: ['data-series=${k + 1}'], style: {color: c}},
 					{slot: "chart-area", when: ['data-series=${k + 1}'], style: {color: c}},
 					{slot: "chart-slice", when: ['data-series=${k + 1}'], style: {color: c}},
-					{slot: "chart-legend-swatch", when: ['data-series=${k + 1}'], style: {background: c}}
+					{slot: "chart-legend-swatch", when: ['data-series=${k + 1}'], style: {background: c}},
+					{slot: "chart-tooltip-indicator", when: ['data-series=${k + 1}'], style: {background: c, width: 8, height: 8}}
 				];
 				rules;
 			}
-		]));
+		])));
 
 	// (a chart's keys, as recharts' accessibility layer: the arrows from one category or slice
 	// to the next (none shown: the first, or the last going back), Home and End, Escape none)
@@ -3781,11 +3789,12 @@ class Widgets implements Markup {
 							<text slot="chart-tooltip-label">{labels[i]}</text>
 							{[
 								for (k in 0...series.length)
-									<view slot="chart-tooltip-item" direction="row" align-items="center" column-gap={6}>
-										<view slot="chart-legend-swatch" data-series={Std.string(k % 5 + 1)} width={8} height={8}
-											background={series[k].color}/>
-										<text grow={1}>{series[k].name}</text>
-										<text slot="chart-tooltip-value">{format(series[k].values[i])}</text>
+									<view slot="chart-tooltip-item" direction="row" align-items="center">
+										<view slot="chart-tooltip-indicator" data-series={Std.string(k % 5 + 1)} background={series[k].color}/>
+										<view slot="chart-tooltip-row" direction="row" align-items="center" justify="space-between" grow={1}>
+											<text slot="chart-tooltip-name">{series[k].name}</text>
+											<text slot="chart-tooltip-value">{format(series[k].values[i])}</text>
+										</view>
 									</view>
 							]}
 						</view>;
@@ -3813,7 +3822,8 @@ class Widgets implements Markup {
 	// "chart-grid", "chart-y-axis", "chart-x-axis", "chart-tick",
 	// "chart-bar" (data-series: 1 to 5), "chart-legend", "chart-legend-item",
 	// "chart-legend-swatch", "chart-tooltip", "chart-tooltip-label",
-	// "chart-tooltip-item", "chart-tooltip-value"
+	// "chart-tooltip-item", "chart-tooltip-indicator" (data-series),
+	// "chart-tooltip-row", "chart-tooltip-name", "chart-tooltip-value"
 	@:widget({
 		props: {
 			labels: "the categories, along the x axis",
@@ -4094,7 +4104,7 @@ class Widgets implements Markup {
 		var open = use(SIDEBAR);
 		var toggle = () -> if (open != null) open.value = !open.peek();
 		return <view tag={props.tag ?? "sidebar-trigger"} slot="sidebar-trigger" variant="ghost" size="icon" role="button" label={props.label ?? "Toggle Sidebar"}
-			focusable expanded={() -> open != null && open.value} onClick={_ -> toggle()} onKeyDown={e -> pressKeys(e, toggle)}>{arrow(() -> "☰")}</view>;
+			focusable expanded={() -> open != null && open.value} onClick={_ -> toggle()} onKeyDown={e -> pressKeys(e, toggle)}>{icon(PANEL_LEFT, "sidebar-trigger-icon")}</view>;
 	}
 
 	@:widget({props: {children: "the page beside the sidebar"}, part: "SidebarProvider"})
@@ -4217,10 +4227,10 @@ class Widgets implements Markup {
 				for (i in 0...count) {
 					var it = items[i], state = () -> open.value == i ? "open" : "closed";
 					<view slot="navigation-menu-item" role="listitem">{
-						it.render != null ? <view tag={tag + "-" + i} slot="navigation-menu-trigger" role="button" focusable expanded={() -> open.value == i}
+						it.render != null ? <view tag={tag + "-" + i} slot="navigation-menu-trigger" group="" role="button" focusable expanded={() -> open.value == i}
 							data-state={state} ref={n -> triggers[i] = n} onClick={_ -> show(open.peek() == i ? -1 : i, false)}
 							onPointerEnter={_ -> if (open.peek() >= 0 && open.peek() != i) show(i, false)} onKeyDown={e -> key(e, i)}>
-							{it.label}<view slot="navigation-menu-trigger-icon" data-state={state}>{arrow(() -> "▾")}</view>
+							{it.label}{icon(CHEVRON, "navigation-menu-trigger-icon")}
 						</view> : <view tag={tag + "-" + i} slot="navigation-menu-link" role="link" focusable ref={n -> triggers[i] = n}
 							onClick={_ -> if (it.onSelect != null) it.onSelect()} onKeyDown={e -> key(e, i)}>{it.label}</view>
 					}</view>;
@@ -4309,11 +4319,10 @@ class Widgets implements Markup {
 			}
 		}
 		// (Previous and Next: icon buttons, each in its slot for the theme to place)
-		function nav(t:String, slot:String, label:String, glyph:String, disabled:Void->Bool, action:Void->Void):View
-			return <view slot={slot} data-orientation={vertical ? "vertical" : "horizontal"}>
-				<view tag={t} slot="button" variant="outline" size="icon" role="button" label={label} focusable={() -> !disabled()} disabled={disabled}
-					data-disabled={disabled} onClick={_ -> if (!disabled()) action()} onKeyDown={e -> pressKeys(e, () -> if (!disabled()) action())}>{glyph}</view>
-			</view>;
+		function nav(t:String, slot:String, label:String, svg:Svg, disabled:Void->Bool, action:Void->Void):View
+			return <view tag={t} slot={slot} data-orientation={vertical ? "vertical" : "horizontal"} variant="outline" size="icon" role="button" label={label}
+				focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} onClick={_ -> if (!disabled()) action()}
+				onKeyDown={e -> pressKeys(e, () -> if (!disabled()) action())}>{icon(svg, "carousel-icon")}</view>;
 		var prev = vertical ? Key.UP : Key.LEFT, next = vertical ? Key.DOWN : Key.RIGHT;
 		var orientation = vertical ? "vertical" : "horizontal";
 		return <view tag={tag} slot="carousel" role="group" label={props.label ?? "Carousel"} data-orientation={orientation} variant={orientation}
@@ -4338,16 +4347,21 @@ class Widgets implements Markup {
 							data-orientation={orientation}>{props.slides[i]}</view>
 				]}</view>
 			</scroll>
-			{nav(tag + "-previous", "carousel-previous", "Previous slide", vertical ? "↑" : "←", () -> !loop && index.value <= 0, () -> go(index.peek() - 1))}
-			{nav(tag + "-next", "carousel-next", "Next slide", vertical ? "↓" : "→", () -> !loop && index.value >= count - 1, () -> go(index.peek() + 1))}
+			{nav(tag + "-previous", "carousel-previous", "Previous slide", vertical ? ARROW_UP : ARROW_LEFT, () -> !loop && index.value <= 0, () -> go(index.peek() - 1))}
+			{nav(tag + "-next", "carousel-next", "Next slide", vertical ? ARROW_DOWN : ARROW_RIGHT, () -> !loop && index.value >= count - 1, () -> go(index.peek() + 1))}
 		</view>;
 	}
 }
 
-// a disclosure's arrow: closed (▸), it points to the line's end, right to
-// left the other way (as Chromium's disclosure-closed marker)
-private class Arrow extends TextNode {
-	override function shownText():String
-		return text == "▸" && rtl() ? "◂" : text;
+// an icon that points to the line's end (a chevron: a disclosure's, a
+// breadcrumb's separator), right to left the other way (as Chromium's
+// disclosure-closed marker)
+private class Mirrored extends ImageNode {
+	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
+		if (!rtl()) return super.paintContent(canvas, x, y, width, height);
+		canvas.pushTransform(-1, 0, 0, 1, 2 * x + width, 0);
+		super.paintContent(canvas, x, y, width, height);
+		canvas.popTransform();
+	}
 }
 
