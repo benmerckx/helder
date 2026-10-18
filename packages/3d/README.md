@@ -74,6 +74,21 @@ the program so that none is linked otherwise:
 GltfScene.decodeImage = (mime, bytes) -> mime == "image/jpeg" ? hxmc.ui.JpegDecoder.decode(bytes) : hxmc.ui.PngDecoder.decode(bytes);
 ```
 
+## The asset step
+
+```sh
+bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src \
+  --run hxmc.scene.gltf.Pack level.glb level.hxm3d
+```
+
+```haxe
+PackedModel.read(Asset.embed("level.hxm3d"), device).instantiate(world);
+```
+
+A packed model needs no glTF reader or JSON at run time (95 KB less
+natively, `make 3d-sizes`); meshes, materials' factors, cameras and the
+hierarchy are packed, not yet skins, animations, lights or textures.
+
 ## Animation
 
 ```haxe

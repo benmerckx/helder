@@ -15,10 +15,11 @@ import hxmc.scene.render.*;
 //   skin   the skinned sample (examples/skinned.glb) bent by its animation
 //   overlay the sample scene under the debug overlay (FrameStats, Overlay)
 //   textured the textured sample (a PNG in the file, decoded by @hxmc/ui)
+//   packed the sample scene from the asset step's packed file: gltf.png
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed"];
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
 	public static inline var TIME = 2.0;
@@ -112,6 +113,15 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0, 0.8, 3.2);
 				eye.lookAt(new Vec3(0, -0.1, 0));
+				enc -> r.draw(enc, world, camera);
+			case "packed":
+				// the sample scene packed at build time (Pack: make 3d-check writes
+				// bin/3d/sample.hxm3d first), read without JSON: gltf.png's frame
+				var r = new Renderer(device);
+				renderer = r;
+				var world = new World();
+				PackedModel.read(Asset.embed("bin/3d/sample.hxm3d"), device).instantiate(world);
+				var camera = Camera.first(world);
 				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}

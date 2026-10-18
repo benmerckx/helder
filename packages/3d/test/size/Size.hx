@@ -14,6 +14,8 @@ import hxmc.os.*;
 //   6  + input actions (Actions)
 //   7  + keyframe animation (AnimationClip, Animator)
 //   8  + skinning (Skinning: the skinned shader)
+// and, with -D size_packed at level 4, the renderer drawing the sample
+// packed at build time (PackedModel: no glTF reader, no JSON)
 class Size {
 	static function main() {
 		var window = new Window("Size", 320, 240);
@@ -32,13 +34,16 @@ class Size {
 		eye.lookAt(new Vec3(0, 0, 0));
 		var clock = new hxmc.scene.FixedStep();
 		#end
-		#if (size_level >= 3)
+		#if (size_level >= 3 && !size_packed)
 		var doc = hxmc.scene.gltf.Gltf.parse(hxmc.scene.gltf.Asset.embed("sample.glb"));
 		#end
 		#if (size_level == 3)
 		hxmc.scene.gltf.GltfNodes.build(doc, world);
 		#end
-		#if (size_level >= 4)
+		#if size_packed
+		var renderer = new hxmc.scene.render.Renderer(device);
+		hxmc.scene.render.PackedModel.read(hxmc.scene.gltf.Asset.embed("bin/3d/sample.hxm3d"), device).instantiate(world);
+		#elseif (size_level >= 4)
 		var renderer = new hxmc.scene.render.Renderer(device);
 		#if (size_level >= 5)
 		renderer.use(new hxmc.scene.render.Shadows(device));

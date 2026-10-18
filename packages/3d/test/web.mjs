@@ -21,7 +21,7 @@ if (!wasm) {
 	process.exit(2);
 }
 const CHROMIUM_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
-const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin', 'overlay', 'textured'];
+const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin', 'overlay', 'textured', 'packed'];
 const files = {
 	'/test.wasm': wasm,
 	'/os/browser.mjs': path.join(here, '../../os/browser.mjs'),
@@ -29,7 +29,8 @@ const files = {
 	'/gfx/imports.mjs': path.join(here, '../../gfx/imports.mjs'),
 	'/compare.mjs': path.join(here, '../../gfx/test/compare.mjs'),
 };
-for (const s of scenes) files[`/${s}.png`] = path.join(here, `${s}.png`);
+// (the packed sample draws the glTF one's frame)
+for (const s of scenes) files[`/${s}.png`] = path.join(here, `${s === 'packed' ? 'gltf' : s}.png`);
 const types = { '.mjs': 'text/javascript', '.wasm': 'application/wasm', '.png': 'image/png' };
 const page = `<!doctype html><title>SceneWebTest</title>
 <canvas id="c" style="width: 256px; height: 192px; display: block"></canvas>

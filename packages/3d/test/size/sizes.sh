@@ -19,3 +19,8 @@ for n in $names; do
 	printf '%-12s %10d %8s %10d %8s\n' $n $sn $dn $sw $dw
 	pn=$sn pw=$sw l=$((l + 1))
 done
+# (the renderer on a model packed at build time, against the glTF level's renderer)
+"$tool" "$out/packed" "$@" -main Size -D size_level=4 -D size_packed -D hxmc.libc=glibc -D hxmc.target=linux-x86_64 > "$out/packed.log" 2>&1 || { cat "$out/packed.log"; exit 1; }
+"$tool" "$out/packed.wasm" "$@" -main Size -D size_level=4 -D size_packed -D hxmc.target=wasm32-wasi > "$out/packed.wasm.log" 2>&1 || { cat "$out/packed.wasm.log"; exit 1; }
+sn=$(wc -c < "$out/packed") sw=$(wc -c < "$out/packed.wasm") rn=$(wc -c < "$out/size4") rw=$(wc -c < "$out/size4.wasm")
+printf '%-12s %10d %8d %10d %8d  (against renderer)\n' packed $sn $((sn - rn)) $sw $((sw - rw))

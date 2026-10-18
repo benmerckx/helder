@@ -8,10 +8,13 @@ bin=$1
 out=${2:-$1}
 here=$(dirname "$0")
 export LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1
-for s in gltf orbits shadows physics instances skin overlay textured; do
+for s in gltf orbits shadows physics instances skin overlay textured packed; do
+	g=$s
+	# (the packed sample draws the glTF one's frame)
+	[ $s = packed ] && g=gltf
 	if [ -f "$bin/RenderTest.exe" ]; then
-		"$bin/RenderTest.exe" $s "$here/$s.png" "$out/$s.png"
+		"$bin/RenderTest.exe" $s "$here/$g.png" "$out/$s.png"
 	else
-		env -u DISPLAY "$bin/RenderTest" $s "$here/$s.png" "$out/$s.png"
+		env -u DISPLAY "$bin/RenderTest" $s "$here/$g.png" "$out/$s.png"
 	fi
 done
