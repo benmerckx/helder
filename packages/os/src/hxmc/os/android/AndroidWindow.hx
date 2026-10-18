@@ -34,14 +34,14 @@ import hxmc.unsafe.*;
 @:hxmc.android @:allow(hxmc.os)
 class AndroidWindow {
 	static var current:Null<AndroidWindow> = null;
-	static var queue = Ptr.nil();
-	static var window = Ptr.nil();
-	static var paused = false;
+	static var queue:Ptr = Ptr.nil();
+	static var window:Ptr = Ptr.nil();
+	static var paused:Bool = false;
 	static final event = new Event();
 	// the first finger's gesture (TouchDrag), its events' times from this one's (ns)
 	static final drag = new TouchDrag();
 	static var since:Int64 = 0;
-	static var timed = false;
+	static var timed:Bool = false;
 	// text input (TextInput, in the programs that enable it): on or off, its
 	// events waiting for this thread
 	@:allow(hxmc.os.android) static var textInputHook:Null<(on:Bool, x:Int, y:Int, width:Int, height:Int) -> Void> = null;

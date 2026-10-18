@@ -20,6 +20,18 @@ class HostedMacro {
 		var out:Array<Field> = [];
 		var slot = base;
 		for (f in fields) {
+			// (an untyped static of a plain initial value: its type)
+			switch f.kind {
+				case FVar(null, e) if (e != null && f.access.indexOf(AStatic) >= 0 && f.access.indexOf(AInline) < 0):
+					var t = switch e.expr {
+						case ECall({expr: EField(_, "nil")}, []): macro :hxmc.unsafe.Ptr;
+						case EConst(CIdent("false" | "true")): macro :Bool;
+						case EConst(CInt(_)): macro :Int;
+						case _: null;
+					}
+					if (t != null) f.kind = FVar(t, e);
+				case _:
+			}
 			var plain = switch f.kind {
 				case FVar(TPath({name: n, pack: _, params: []}), _) if (["Ptr", "Int", "Int64", "Bool"].indexOf(n) >= 0):
 					f.access.indexOf(AStatic) >= 0 && f.access.indexOf(AInline) < 0 && f.access.indexOf(AFinal) < 0;
