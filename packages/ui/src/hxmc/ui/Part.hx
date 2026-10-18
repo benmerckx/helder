@@ -30,4 +30,18 @@ interface Part {
 	// a text field's selection, start to end (UTF-16 indices; equal: the
 	// caret there); nothing on another part
 	function select(start:Int, end:Int):Void;
+
+	// the focusable parts inside it (not itself), the outermost, in order: a
+	// tab stop (tabStop) one whether in the tab order or out of it
+	function focusables():Array<Part>;
+
+	// in the tab order (on) or out of it, still focused by a click or a
+	// handler: a roving tab stop
+	function tabStop(on:Bool):Void;
+
+	// whether the focus is on it or inside it
+	function holdsFocus():Bool;
+
+	// whether it takes typed text (a text field: the arrows its caret's)
+	function editable():Bool;
 }

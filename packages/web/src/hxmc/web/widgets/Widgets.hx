@@ -1031,32 +1031,6 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// a toolbar: its children in a row, their focusable ones one Tab stop
-	// (the last focused, at first the first); Left and Right (wrapping),
-	// Home and End move the focus between them (not out of a text field)
-	public static function Toolbar(props:{?label:String, ?tag:String, ?children:Any}):View {
-		var bar:Element = null;
-		function items():Array<Element>
-			return [for (n in bar.querySelectorAll("button,input,select,textarea,a[href],[tabindex]")) (cast n : Element)].filter(e -> e.closest("[role=toolbar]") == bar);
-		function rove(k:Element)
-			for (e in items())
-				e.setAttribute("tabindex", e == k ? "0" : "-1");
-		onMount(() -> {
-			var all = items();
-			if (all.length > 0) rove(all[0]);
-		});
-		return <div id={props.tag} role="toolbar" data-slot="toolbar" aria-label={props.label} ref={n -> bar = cast n}
-			onFocusIn={(e:Dynamic) -> if (items().indexOf(e.target) >= 0) rove(e.target)} onKeyDown={(e:KeyboardEvent) -> {
-				var all = items(), i = all.indexOf(cast e.target), t:Element = cast e.target;
-				if (i < 0 || t.localName == "input" || t.localName == "textarea") return;
-				var k = keyOf(e), j = Behaviour.rove(k, i, all.length, false);
-				if (j < 0) return;
-				e.preventDefault();
-				rove(all[j]);
-				Dom.focus(all[j]);
-			}}>{props.children}</div>;
-	}
-
 	// two panes side by side (direction "row", the default) or one above the
 	// other ("column"), a handle between them dragged or moved by the arrow
 	// keys (10 pixels; Home and End: the bounds); size: the first pane's

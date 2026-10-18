@@ -6,7 +6,7 @@
 // chosen, the focus back on it; a menu's item opening a modal dialog,
 // Escape closing it; a menu bar's Right; a slider's keys; a combobox
 // filtering and choosing; a tooltip after its delay; a context menu; a
-// list box's Shift; a tree opened by the keys; a stacked chart; a tag input; a toast; text fields
+// list box's Shift; a tree opened by the keys; a stacked chart; a toolbar; a tag input; a toast; text fields
 // typed, a number field's keys and buttons; right to left.
 // Then the sizes of the counter, the form and the gallery, raw and gzipped,
 // and the share of the neutral elements' realiser (hxmc.web's Neutral,
@@ -131,6 +131,16 @@ const slide = () => page.evaluate(() => document.querySelector('#loading [data-s
 const at = await slide();
 await page.waitForTimeout(200);
 await check('progress: not known, sliding', at !== '' && (await slide()) !== at && (await attr('#loading', 'aria-valuenow')) === null);
+// a toolbar: one Tab stop, the first; Right moves the focus and the stop, End to the last, a click makes the clicked one the stop
+const stops = () => page.evaluate(() => [...document.querySelectorAll("#buttons button")].map(b => b.getAttribute("tabindex")).join(","));
+const firstStops = await stops();
+await page.locator("#buttons button").first().focus();
+await press("ArrowRight");
+const second = await page.evaluate(() => document.activeElement === document.querySelectorAll("#buttons button")[1]);
+const moved = await stops();
+await press("End");
+const last = await page.evaluate(() => { const b = document.querySelectorAll("#buttons button"); return document.activeElement === b[b.length - 1]; });
+await check("toolbar: one stop, Right and End move it", firstStops.startsWith("0,-1") && second && moved.startsWith("-1,0") && last);
 // a tag input: Enter and a comma add (once), Backspace in an empty field takes the last off, a chip's × too
 const chips = () => page.evaluate(() => [...document.querySelectorAll("#labels [role=listitem]")].map(li => li.firstChild.textContent).join(","));
 const start = await chips();

@@ -162,12 +162,12 @@ for InputOTP's caret kept at the end; what a page's input has itself, ui's
 in Widgets' fieldOwn: out of the tab order while disabled, the edit
 menu), Progress (its slide on ui's Clock or a page's animation frames);
 ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination, Collapsible,
-Accordion, Calendar, TagInput (its field a `field`, its chips focusable buttons), Avatar (`image` an `<img>`), ScrollArea (`overflow-x`, `overflow-y`), Spinner (turned on ui's Clock, a page's by its theme's
+Accordion, Calendar, Toolbar (its items a Part's `focusables`, roved by `tabStop`, the focused one by `holdsFocus`, a text field's keys its own by `editable`), TagInput (its field a `field`, its chips focusable buttons), Avatar (`image` an `<img>`), ScrollArea (`overflow-x`, `overflow-y`), Spinner (turned on ui's Clock, a page's by its theme's
 animate-spin) and the Sidebar's parts (Trigger, Inset, Header, Content, Footer,
 Separator, Group, GroupLabel, GroupContent, Menu, MenuItem, MenuButton):
-81 widgets and parts one definition.
+82 widgets and parts one definition.
 
-Debt: in a page a neutral widget calls a Part's methods (focus, rtl,
+Debt: in a page a neutral widget calls a Part's methods (focus, rtl, rect, focusables, tabStop, holdsFocus, editable,
 select) and reads an event's `current` opaquely (`js.Syntax.code`:
 Widgets' mirroredKey, focusPart, selectPart and unseen), since the JS generator's DCE, upstream's,
 keeps every implementation of an interface method called through it (a

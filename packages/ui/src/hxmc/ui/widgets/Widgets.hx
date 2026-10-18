@@ -1614,59 +1614,62 @@ class Widgets implements Markup {
 			"Home, End": "move the focus to the first or last item; not out of a text field"
 		}
 	})
-	public static function Toolbar(props:{?label:String, ?tag:String, ?children:Any}):View {
-		var bar:Null<Node> = null, items:Array<Node> = [];
+	@:neutral public static function Toolbar(props:{?label:String, ?tag:String, ?children:Any}):View {
+		var bar:Null<Part> = null, items:Array<Part> = [];
 		function rove(k:Int)
 			for (j in 0...items.length)
-				items[j].focusable = j == k;
-		function itemOf(n:Null<Node>):Int {
-			while (n != null && n != bar) {
-				var j = items.indexOf(n);
-				if (j >= 0) return j;
-				n = n.parent;
-			}
+				partTabStop(items[j], j == k);
+		// (its items: the focusable parts in it, outermost, a tab stop's whether in the tab order or
+		// not, found again before each use for those added since; the one focused, if any)
+		function collect():Int {
+			items = bar == null ? [] : partsIn(bar);
+			for (j in 0...items.length)
+				if (partFocused(items[j])) return j;
 			return -1;
 		}
-		// (its items: the focusable nodes in it, outermost, marked once found
-		// so that the ones roving made unfocusable stay items; again before
-		// each use, for those added since, the one focusable kept)
-		function collect() {
-			var was = [for (it in items) if (it.focusable) it][0];
-			items.resize(0);
-			function walk(n:Node)
-				for (c in n.children) {
-					if (c.focusable || c.attr("data-toolbar-item") != null) {
-						c.setAttr("data-toolbar-item", "");
-						items.push(c);
-					} else walk(c);
-				}
-			if (bar != null) walk(bar);
-			var k = was == null ? -1 : items.indexOf(was);
-			rove(k < 0 ? 0 : k);
-		}
-		onMount(collect);
-		return <view tag={props.tag ?? "toolbar"} slot="toolbar" role="toolbar" label={props.label} ref={n -> bar = n}
+		onMount(() -> {
+			collect();
+			rove(0);
+		});
+		// (pressed: the item under the pointer the tab stop, before a click focuses it)
+		return <view tag={props.tag ?? "toolbar"} id={props.tag} slot="toolbar" role="toolbar" label={props.label} ref={p -> bar = p}
 			onPointerDown={(e:Event) -> {
 				collect();
-				var j = itemOf(e.target);
-				if (j >= 0) rove(j);
+				for (j in 0...items.length) {
+					var r = partRect(items[j]);
+					if (e.x >= r.x && e.x < r.x + r.width && e.y >= r.y && e.y < r.y + r.height) rove(j);
+				}
 			}}
 			onFocusIn={(e:Event) -> {
-				collect();
-				var j = itemOf(e.target);
-				if (j >= 0) rove(j);
+				var i = collect();
+				if (i >= 0) rove(i);
 			}}
 			onKeyDown={(e:Event) -> {
-				collect();
-				var i = itemOf(e.target), n = items.length;
-				if (i < 0 || Std.isOfType(e.target, EditableText)) return;
-				var j = Behaviour.rove(mirrored(e), i, n, false);
+				var i = collect();
+				if (i < 0 || partEditable(items[i])) return;
+				var j = Behaviour.rove(mirroredKey(e), i, items.length, false);
 				if (j < 0) return;
 				e.preventDefault();
 				rove(j);
-				focusIn(items, j);
+				focusPart(items, j);
 			}}>{props.children}</view>;
 	}
+
+	// (a part's, opaquely in a page, as focusPart: the interface's would keep a Node's too)
+	static function partsIn(p:Part):Array<Part>
+		return #if js js.Syntax.code("{0}.focusables()", p) #else p.focusables() #end;
+
+	static function partRect(p:Part):{x:Float, y:Float, width:Float, height:Float}
+		return #if js js.Syntax.code("{0}.rect()", p) #else p.rect() #end;
+
+	static function partTabStop(p:Part, on:Bool)
+		#if js js.Syntax.code("{0}.tabStop({1})", p, on) #else p.tabStop(on) #end;
+
+	static function partFocused(p:Part):Bool
+		return #if js js.Syntax.code("{0}.holdsFocus()", p) #else p.holdsFocus() #end;
+
+	static function partEditable(p:Part):Bool
+		return #if js js.Syntax.code("{0}.editable()", p) #else p.editable() #end;
 
 	// a dropdown menu (shadcn's): a button, label; a click, Enter, Space or
 	// Down opens its items under it (the first focused), each a label and

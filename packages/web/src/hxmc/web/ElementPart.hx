@@ -45,5 +45,22 @@ class ElementPart implements hxmc.ui.Part {
 
 	@:ifFeature("hxmc.web.ElementPart.of") public function rtl():Bool
 		return js.Browser.window.getComputedStyle(element).direction == "rtl";
+
+	// (the outermost of the elements the keys reach, those with a tabindex too: a roving one out of the tab order)
+	@:ifFeature("hxmc.web.ElementPart.of") public function focusables():Array<hxmc.ui.Part> {
+		var all = [for (n in element.querySelectorAll("button,input,select,textarea,a[href],[tabindex]")) (cast n : Element)];
+		return [for (e in all) if (!Lambda.exists(all, o -> o != e && o.contains(e))) (new ElementPart(e) : hxmc.ui.Part)];
+	}
+
+	@:ifFeature("hxmc.web.ElementPart.of") public function tabStop(on:Bool)
+		element.setAttribute("tabindex", on ? "0" : "-1");
+
+	@:ifFeature("hxmc.web.ElementPart.of") public function holdsFocus():Bool {
+		var a = js.Browser.document.activeElement;
+		return a != null && element.contains(a);
+	}
+
+	@:ifFeature("hxmc.web.ElementPart.of") public function editable():Bool
+		return element.localName == "input" || element.localName == "textarea" || element.isContentEditable;
 }
 #end
