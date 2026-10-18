@@ -25,6 +25,13 @@ class Body {
 	// resting: not moved until something touches it
 	public var sleeping(default, null) = false;
 	@:allow(hxmc.physics) var still = 0;
+	// (the bounds in the world, made by bounds(): the broad phase's)
+	@:allow(hxmc.physics) var minX = 0.0;
+	@:allow(hxmc.physics) var maxX = 0.0;
+	@:allow(hxmc.physics) var minY = 0.0;
+	@:allow(hxmc.physics) var maxY = 0.0;
+	@:allow(hxmc.physics) var minZ = 0.0;
+	@:allow(hxmc.physics) var maxZ = 0.0;
 
 	public function new(shape:Shape, position:Vec3, mass = 1.0) {
 		this.shape = shape;
@@ -45,6 +52,30 @@ class Body {
 				new Vec3(12 / (mass * (y * y + z * z)), 12 / (mass * (x * x + z * z)), 12 / (mass * (x * x + y * y)));
 			case _: new Vec3(0, 0, 0);
 		}
+	}
+
+	// the world bounds of the shape (a sphere's, a turned box's extent)
+	@:allow(hxmc.physics) function bounds() {
+		var ex = 0.0, ey = 0.0, ez = 0.0;
+		switch shape {
+			case Sphere(r):
+				ex = ey = ez = r;
+			case Box(h):
+				var m = orientation.toMat4();
+				ex = Math.abs(m.c0.x) * h.x + Math.abs(m.c1.x) * h.y + Math.abs(m.c2.x) * h.z;
+				ey = Math.abs(m.c0.y) * h.x + Math.abs(m.c1.y) * h.y + Math.abs(m.c2.y) * h.z;
+				ez = Math.abs(m.c0.z) * h.x + Math.abs(m.c1.z) * h.y + Math.abs(m.c2.z) * h.z;
+			case Plane(_, _):
+				ex = ey = ez = 1e30;
+		}
+		// (a margin: contacts begin at touching)
+		var p = position, m = 0.01;
+		minX = p.x - ex - m;
+		maxX = p.x + ex + m;
+		minY = p.y - ey - m;
+		maxY = p.y + ey + m;
+		minZ = p.z - ez - m;
+		maxZ = p.z + ez + m;
 	}
 
 	public inline function isStatic():Bool

@@ -7,8 +7,7 @@ import hxmc.scene.math.Quat;
 // A small rigid-body world (docs/plans/3d.md, step 6): bodies under
 // gravity, stepped at a fixed rate (hxmc.scene.FixedStep's dt): velocities
 // integrated (semi-implicit Euler, orientations too), contacts found
-// (Collide: spheres, boxes, planes; all pairs, a broad phase when worlds
-// grow), resolved by sequential impulses at the contact points (linear
+// (a sweep-and-prune broad phase, then Collide: spheres, boxes, planes), resolved by sequential impulses at the contact points (linear
 // and angular: boxes tumble) with restitution and friction, the impulses
 // accumulated and clamped over the iterations, overlap pushed apart,
 // resting bodies put to sleep. A body added with a node moves and turns
@@ -46,12 +45,7 @@ class PhysicsWorld {
 		for (b in bodies)
 			if (!b.isStatic() && !b.sleeping) b.velocity = b.velocity + gravity * dt;
 		pending.resize(0);
-		for (i in 0...bodies.length)
-			for (j in i + 1...bodies.length) {
-				var a = bodies[i], b = bodies[j];
-				if ((a.isStatic() || a.sleeping) && (b.isStatic() || b.sleeping)) continue;
-				Collide.test(a, b, pending);
-			}
+		broadPhase();
 		contacts = pending.length;
 		for (c in pending) {
 			// (a moving body touching a sleeping one wakes it)
@@ -93,6 +87,54 @@ class PhysicsWorld {
 				b.node.position = b.position;
 				b.node.rotation = b.orientation;
 			}
+	}
+
+	// the pairs whose bounds overlap, by sweep and prune along x: the
+	// bodies sorted by their bounds' start (insertion sort: the order
+	// changes little between steps), each tested against those starting
+	// before its end; planes, unbounded, against every body. Pairs in the
+	// order of the bodies list, so the result does not depend on the sort.
+	final order:Array<Body> = [];
+	final pairs:Array<Int> = [];
+
+	function broadPhase() {
+		order.resize(0);
+		for (b in bodies)
+			if (!b.shape.match(Plane(_, _))) order.push(b);
+		for (b in order)
+			b.bounds();
+		for (i in 1...order.length) {
+			var b = order[i], j = i - 1;
+			while (j >= 0 && order[j].minX > b.minX) {
+				order[j + 1] = order[j];
+				j--;
+			}
+			order[j + 1] = b;
+		}
+		pairs.resize(0);
+		var index = new Map<Body, Int>();
+		for (k in 0...bodies.length)
+			index.set(bodies[k], k);
+		for (i in 0...order.length) {
+			var a = order[i];
+			for (j in i + 1...order.length) {
+				var b = order[j];
+				if (b.minX > a.maxX) break;
+				if (a.maxY < b.minY || b.maxY < a.minY || a.maxZ < b.minZ || b.maxZ < a.minZ) continue;
+				var ia = index.get(a), ib = index.get(b);
+				pairs.push(ia < ib ? ia * 65536 + ib : ib * 65536 + ia);
+			}
+		}
+		for (k in 0...bodies.length)
+			if (bodies[k].shape.match(Plane(_, _)))
+				for (j in 0...bodies.length)
+					if (j != k && !bodies[j].shape.match(Plane(_, _))) pairs.push(k < j ? k * 65536 + j : j * 65536 + k);
+		pairs.sort((x, y) -> x - y);
+		for (p in pairs) {
+			var a = bodies[p >> 16], b = bodies[p & 0xFFFF];
+			if ((a.isStatic() || a.sleeping) && (b.isStatic() || b.sleeping)) continue;
+			Collide.test(a, b, pending);
+		}
 	}
 
 	// one contact's impulses at its point: along the normal up to the
