@@ -58,6 +58,11 @@ it makes its nodes, each time it is mounted.
 - A hole or attribute whose value is a `Signal`, a `Memo` or a function is
   bound: the text, attribute or region follows it. Text follows JSX's
   whitespace rule; a run of text and text holes is one text node.
+- Haxe's lexer ends a literal at its root's `/>` only while it is in the
+  root's opening tag, which any `<` in an attribute leaves (`i < n`,
+  `render={i -> <Card/>}`): such a root is closed by its closing tag,
+  `<Rows render={i -> <Card/>}></Rows>`. Inside the root, markup and
+  comparisons nest freely.
 - Control flow (`hxmc.view.Flow`): `For` (keyed: rows kept and moved),
   `Index` (a row per index, its item a signal), `Show`, `Switch` and
   `Match`, `Provider`, `ErrorBoundary`.
