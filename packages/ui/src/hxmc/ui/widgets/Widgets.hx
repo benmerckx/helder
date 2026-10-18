@@ -3534,8 +3534,8 @@ class Widgets implements Markup {
 			children: "its EmptyHeader and EmptyContent"
 		}
 	})
-	public static function Empty(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "empty"} slot="empty">{props.children}</view>;
+	@:neutral public static function Empty(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty"} id={props.tag} slot="empty">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3543,8 +3543,8 @@ class Widgets implements Markup {
 		},
 		part: "Empty"
 	})
-	public static function EmptyHeader(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "empty-header"} slot="empty-header">{props.children}</view>;
+	@:neutral public static function EmptyHeader(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty-header"} id={props.tag} slot="empty-header">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3554,8 +3554,8 @@ class Widgets implements Markup {
 		variants: ["default", "icon"],
 		part: "Empty"
 	})
-	public static function EmptyMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "empty-media"} slot="empty-icon" variant={props.variant ?? "default"} data-variant={props.variant ?? "default"}>{props.children}</view>;
+	@:neutral public static function EmptyMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty-media"} id={props.tag} slot="empty-icon" variant={props.variant ?? "default"} data-variant={props.variant ?? "default"}>{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3563,8 +3563,8 @@ class Widgets implements Markup {
 		},
 		part: "Empty"
 	})
-	public static function EmptyTitle(props:{text:String, ?tag:String}):View
-		return <text tag={props.tag ?? "empty-title"} slot="empty-title" role="heading">{props.text}</text>;
+	@:neutral public static function EmptyTitle(props:{text:String, ?tag:String}):View
+		return <text:div tag={props.tag ?? "empty-title"} id={props.tag} slot="empty-title" role="heading" level={2}>{props.text}</text:div>;
 
 	@:widget({
 		props: {
@@ -3572,8 +3572,8 @@ class Widgets implements Markup {
 		},
 		part: "Empty"
 	})
-	public static function EmptyDescription(props:{text:String, ?tag:String}):View
-		return <text tag={props.tag ?? "empty-description"} slot="empty-description">{props.text}</text>;
+	@:neutral public static function EmptyDescription(props:{text:String, ?tag:String}):View
+		return <text:div tag={props.tag ?? "empty-description"} id={props.tag} slot="empty-description">{props.text}</text:div>;
 
 	@:widget({
 		props: {
@@ -3581,8 +3581,8 @@ class Widgets implements Markup {
 		},
 		part: "Empty"
 	})
-	public static function EmptyContent(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "empty-content"} slot="empty-content">{props.children}</view>;
+	@:neutral public static function EmptyContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty-content"} id={props.tag} slot="empty-content">{props.children}</view>;
 
 	// an item (shadcn's): a row of a media, a title and description, and
 	// actions, variant "default", "outline" or "muted", size "default" or
@@ -3601,11 +3601,12 @@ class Widgets implements Markup {
 		sizes: ["default", "sm"],
 		keys: {"Enter, Space": "with onClick: clicks it"}
 	})
-	public static function Item(props:{?variant:String, ?size:String, ?onClick:Void->Void, ?children:Any, ?tag:String}):View {
+	@:neutral public static function Item(props:{?variant:String, ?size:String, ?onClick:Void->Void, ?children:Any, ?tag:String}):View {
 		var v = props.variant ?? "default", z = props.size ?? "default";
 		var press = () -> if (props.onClick != null) props.onClick();
-		return <view tag={props.tag ?? "item"} slot="item" variant={v} size={z} data-variant={v} data-size={z} direction="row" wrap align-items="center"
-			role={props.onClick != null ? "button" : "listitem"} focusable={props.onClick != null} onClick={_ -> press()} onKeyDown={e -> pressKeys(e, press)}>
+		return <view tag={props.tag ?? "item"} id={props.tag} slot="item" variant={v} size={z} data-variant={v} data-size={z} direction="row" wrap
+			align-items="center" role={props.onClick != null ? "button" : "listitem"} focusable={props.onClick != null ? true : null}
+			onPress={props.onClick == null ? null : _ -> press()}>
 			{props.children}
 		</view>;
 	}
@@ -3617,12 +3618,12 @@ class Widgets implements Markup {
 		},
 		part: "Item"
 	})
-	public static function ItemGroup(props:{?label:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "item-group"} slot="item-group" role="list" label={props.label}>{props.children}</view>;
+	@:neutral public static function ItemGroup(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-group"} id={props.tag} slot="item-group" role="list" label={props.label}>{props.children}</view>;
 
 	@:widget({props: {}, part: "Item"})
-	public static function ItemSeparator(props:{?tag:String}):View
-		return <view tag={props.tag ?? "item-separator"} slot="item-separator" data-orientation="horizontal" hidden/>;
+	@:neutral public static function ItemSeparator(props:{?tag:String}):View
+		return <view tag={props.tag ?? "item-separator"} id={props.tag} slot="item-separator" data-orientation="horizontal" hidden/>;
 
 	@:widget({
 		props: {
@@ -3632,8 +3633,8 @@ class Widgets implements Markup {
 		variants: ["default", "icon", "image"],
 		part: "Item"
 	})
-	public static function ItemMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "item-media"} slot="item-media" variant={props.variant ?? "default"} data-variant={props.variant ?? "default"}>{props.children}</view>;
+	@:neutral public static function ItemMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-media"} id={props.tag} slot="item-media" variant={props.variant ?? "default"} data-variant={props.variant ?? "default"}>{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3641,8 +3642,8 @@ class Widgets implements Markup {
 		},
 		part: "Item"
 	})
-	public static function ItemContent(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "item-content"} slot="item-content">{props.children}</view>;
+	@:neutral public static function ItemContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-content"} id={props.tag} slot="item-content">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3651,8 +3652,8 @@ class Widgets implements Markup {
 		},
 		part: "Item"
 	})
-	public static function ItemTitle(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "item-title"} slot="item-title">{props.children ?? props.text}</view>;
+	@:neutral public static function ItemTitle(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-title"} id={props.tag} slot="item-title">{props.children ?? props.text}</view>;
 
 	@:widget({
 		props: {
@@ -3660,8 +3661,8 @@ class Widgets implements Markup {
 		},
 		part: "Item"
 	})
-	public static function ItemDescription(props:{text:String, ?tag:String}):View
-		return <text tag={props.tag ?? "item-description"} slot="item-description">{props.text}</text>;
+	@:neutral public static function ItemDescription(props:{text:String, ?tag:String}):View
+		return <text:p tag={props.tag ?? "item-description"} id={props.tag} slot="item-description">{props.text}</text:p>;
 
 	@:widget({
 		props: {
@@ -3669,8 +3670,8 @@ class Widgets implements Markup {
 		},
 		part: "Item"
 	})
-	public static function ItemActions(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "item-actions"} slot="item-actions" direction="row" align-items="center">{props.children}</view>;
+	@:neutral public static function ItemActions(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-actions"} id={props.tag} slot="item-actions" direction="row" align-items="center">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3678,8 +3679,8 @@ class Widgets implements Markup {
 		},
 		part: "Item"
 	})
-	public static function ItemHeader(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "item-header"} slot="item-header">{props.children}</view>;
+	@:neutral public static function ItemHeader(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-header"} id={props.tag} slot="item-header">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3687,8 +3688,8 @@ class Widgets implements Markup {
 		},
 		part: "Item"
 	})
-	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "item-footer"} slot="item-footer">{props.children}</view>;
+	@:neutral public static function ItemFooter(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-footer"} id={props.tag} slot="item-footer">{props.children}</view>;
 
 	// a box kept to a ratio of width to height (shadcn's AspectRatio): as
 	// wide as its parent gives it, as tall as the ratio says; its child
@@ -3699,8 +3700,8 @@ class Widgets implements Markup {
 			children: "what fills it: an image, a video"
 		}
 	})
-	public static function AspectRatio(props:{?ratio:Float, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "aspect-ratio"} slot="aspect-ratio" aspect-ratio={props.ratio ?? 1.0} position="relative" overflow="hidden">
+	@:neutral public static function AspectRatio(props:{?ratio:Float, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "aspect-ratio"} id={props.tag} slot="aspect-ratio" aspect-ratio={props.ratio ?? 1.0} position="relative" overflow="hidden">
 			{props.children}
 		</view>;
 
