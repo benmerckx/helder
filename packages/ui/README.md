@@ -505,7 +505,10 @@ composition itself.
 A frame does the work of what changed and what is seen. `Ui.update` lays
 out nothing on a clean tree; after a change it lays out again the dirty
 path (a node's measures are cached per constraints) and rounds only the
-subtrees that moved. Paint and hit tests skip subtrees whose bounds
+subtrees that moved. A changed node whose parent's measures of it come out
+as they were (a checkbox toggled, a field typed into: its size its own) is
+laid out again in place, its ancestors not (`Layout.inPlace`; UiTest checks
+it against layouts from scratch of random trees changed at random). Paint and hit tests skip subtrees whose bounds
 (their ink: the box, overflowing text, children unless clipped, widened
 by shadows and the focus ring) miss the window or their scrollers. The
 accessibility tree is built again only when something it reads changed.

@@ -871,6 +871,22 @@ class UiTest {
 			() -> text.text = "a";
 		});
 		check("in place: not when its baseline moved, nor its min-content changed", baseline && least, baseline + " " + least);
+		// (a field typed into, of a width of its own, in a column of rows: it alone)
+		var before = 0, after = 0;
+		var typed = agrees(ui -> {
+			var field = new TextField();
+			field.style.width = 120;
+			ui.root.append(field);
+			for (i in 0...20)
+				ui.root.append(new TextNode("row " + i));
+			() -> {
+				before = Layout.inPlaces;
+				field.setText("typed");
+				ui.update();
+				after = Layout.inPlaces;
+			}
+		});
+		check("in place: a field typed into laid out alone", typed && after == before + 1, typed + " " + (after - before));
 		var placed = Layout.inPlaces - was;
 		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
 	}
