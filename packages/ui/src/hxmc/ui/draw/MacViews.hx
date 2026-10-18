@@ -2,6 +2,8 @@ package hxmc.ui.draw;
 
 import hxmc.os.objc.*;
 import hxmc.ui.*;
+import hxmc.ui.native.appkit.AkMsg;
+import hxmc.ui.native.appkit.AppKitBackend;
 import hxmc.unsafe.*;
 
 // macOS's own views over a window (Ui.platform there): one-line text
@@ -12,8 +14,10 @@ import hxmc.unsafe.*;
 // (controlTextDidChange:), editing begun and ended (the focus), and the
 // commands they leave to the program (control:textView:doCommandBySelector:
 // insertTab:, insertBacktab:, cancelOperation:, insertNewline:, moveUp:,
-// moveDown:); each queued and a frame asked for. In the system's font at
-// the field's size and the system's text colour; a text area stays drawn.
+// moveDown:); each queued and a frame asked for. In the node's font (by
+// family, else the system's), colour and alignment; a password's an
+// NSSecureTextField (the field made again when that changes); a text area
+// stays drawn.
 class MacViews implements PlatformViews {
 	static var delegateClass = Ptr.nil();
 	static var delegate = Ptr.nil();
@@ -44,11 +48,18 @@ class MacViews implements PlatformViews {
 
 	public function editor(multiline:Bool):Null<PlatformEditor> {
 		if (multiline) return null;
+		var e = new MacEditor(this, field(false));
+		editors.push(e);
+		return e;
+	}
+
+	// (a field, hidden, in the content view: a password's NSSecureTextField)
+	@:allow(hxmc.ui.draw.MacEditor) function field(secure:Bool):Ptr {
 		var f = Arena.scopedValue(a -> {
 			var r = a.make(CGRect);
 			r.value.size.width = 10;
 			r.value.size.height = 10;
-			Msg.idRect(Msg.id(ObjC.cls("NSTextField"), ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), r.value);
+			Msg.idRect(Msg.id((secure ? ObjC.cls("NSSecureTextField") : ObjC.cls("NSTextField")), ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), r.value);
 		});
 		Msg.vBool(f, ObjC.sel("setBordered:"), false);
 		Msg.vBool(f, ObjC.sel("setBezeled:"), false);
@@ -57,9 +68,7 @@ class MacViews implements PlatformViews {
 		Msg.vBool(f, ObjC.sel("setHidden:"), true);
 		Msg.vPtr(f, ObjC.sel("setDelegate:"), delegate);
 		Msg.vPtr(content(), ObjC.sel("addSubview:"), f);
-		var e = new MacEditor(this, f);
-		editors.push(e);
-		return e;
+		return f;
 	}
 
 	@:allow(hxmc.ui.draw.MacEditor) function push(e:MacEditor, kind:Int, key = 0, mods = 0) {
@@ -125,7 +134,8 @@ class MacViews implements PlatformViews {
 
 class MacEditor implements PlatformEditor {
 	final views:MacViews;
-	final field:Ptr;
+	var field:Ptr;
+	var secure = false;
 	var focusing = false;
 
 	public var listener(default, null):Null<PlatformEditorListener> = null;
@@ -163,10 +173,34 @@ class MacEditor implements PlatformEditor {
 	}
 
 	public function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool) {
-		Msg.vPtr(field, ObjC.sel("setFont:"), Msg.idFloat(ObjC.cls("NSFont"), ObjC.sel("systemFontOfSize:"), font.size));
+		if (secret != secure) remake(secret);
+		Msg.vPtr(field, ObjC.sel("setFont:"), @:privateAccess AppKitBackend.font(font));
+		Msg.vPtr(field, ObjC.sel("setTextColor:"), AkMsg.idFloat4(ObjC.cls("NSColor"), ObjC.sel("colorWithSRGBRed:green:blue:alpha:"), color.r / 255,
+			color.g / 255, color.b / 255, color.a / 255));
+		// (NSTextAlignment: left 0, right 1, center 2, justified 3)
+		Msg.vInt(field, ObjC.sel("setAlignment:"), align == Center ? 2 : align == Right ? 1 : align == Justify ? 3 : 0);
 		var p = ObjC.str(placeholder);
 		Msg.vPtr(field, ObjC.sel("setPlaceholderString:"), p);
 		ObjC.release(p);
+	}
+
+	// (the field made again as a password's or not: its text, frame and
+	// visibility kept, and the focus if it had it)
+	function remake(secret:Bool) {
+		var old = field, had = editing(), w = Msg.id(old, ObjC.sel("window"));
+		var f = views.field(secret);
+		Msg.vPtr(f, ObjC.sel("setStringValue:"), Msg.id(old, ObjC.sel("stringValue")));
+		Msg.vRect(f, ObjC.sel("setFrame:"), Msg.rect(old, ObjC.sel("frame")));
+		Msg.vBool(f, ObjC.sel("setHidden:"), Msg.b(old, ObjC.sel("isHidden")));
+		focusing = true;
+		if (had) Msg.bPtr(w, ObjC.sel("makeFirstResponder:"), Ptr.nil());
+		Msg.vPtr(old, ObjC.sel("setDelegate:"), Ptr.nil());
+		Msg.v(old, ObjC.sel("removeFromSuperview"));
+		ObjC.release(old);
+		field = f;
+		secure = secret;
+		if (had) Msg.bPtr(w, ObjC.sel("makeFirstResponder:"), f);
+		focusing = false;
 	}
 
 	public function focus(on:Bool) {

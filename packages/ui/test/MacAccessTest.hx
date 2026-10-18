@@ -16,7 +16,8 @@ import hxmc.unsafe.*;
 // performed on its elements (press, increment) reaching the widgets. Its
 // field native (MacViews: an NSTextField over the window): the program's
 // text in it, an edit (its delegate told, as AppKit tells it) in the
-// field's signal, Tab left to the window moving its focus on.
+// field's signal, Tab left to the window moving its focus on; made a
+// password, an NSSecureTextField with the same text.
 //   MacAccessTest
 class MacAccessTest implements Markup {
 	static var failed = 0;
@@ -116,7 +117,16 @@ class MacAccessTest implements Markup {
 					step = 4;
 				case 4:
 					check("Tab left to the window: its focus on", w.ui.focus != null && w.ui.focus.tag == "save", w.ui.focus == null ? "none" : w.ui.focus.tag);
+					(cast w.root.find("name") : hxmc.ui.widgets.EditableText).secret = true;
 					step = 5;
+				case 5:
+					var eds:Array<hxmc.ui.draw.MacViews.MacEditor> = @:privateAccess hxmc.ui.draw.MacViews.editors;
+					if (eds.length == 1) {
+						var field = @:privateAccess eds[0].field;
+						check("a password: an NSSecureTextField", str(field, "class") == "NSSecureTextField", str(field, "class"));
+						check("a password: the text kept", @:privateAccess eds[0].text() == "Adax", @:privateAccess eds[0].text());
+					}
+					step = 6;
 					w.close();
 				case _:
 			}
@@ -125,6 +135,6 @@ class MacAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('MacAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 14 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 16 ? 0 : 1);
 	}
 }
