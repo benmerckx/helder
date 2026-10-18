@@ -148,6 +148,21 @@ definition:
 Split: packages/ui and the drawn realiser here; the DOM realiser
 (packages/web) in parallel once the vocabulary is fixed.
 
+Where it stands: steps 1 and 2 done; of 3, Toggle, ToggleGroup,
+Checkbox, Switch, RadioGroup, Field and ButtonGroup (and their parts),
+with Alert; 50 widgets and parts one definition. Left in 3: Slider and
+RangeSlider (a drag on the track: Part's capture), and the text fields
+(`field`: Input, Textarea, NumberField, InputOTP, InputGroup's input).
+
+Debt: in a page a neutral widget calls a Part's methods (focus, rtl) and
+reads an event's `current` opaquely (`js.Syntax.code`: Widgets'
+mirroredKey and focusPart), since the JS generator's DCE, upstream's,
+keeps every implementation of an interface method called through it (a
+Node's, and its nodes with it) and every field of a name read untyped;
+ElementPart's methods are kept by `@:ifFeature` where a ref makes one.
+A design that needs no such call (a part's direction read by the
+renderer, say) would retire both.
+
 ## Built
 
 ### The browser's DOM renderer for the widgets, and the theme as CSS
