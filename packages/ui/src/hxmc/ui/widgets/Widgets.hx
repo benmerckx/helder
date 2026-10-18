@@ -1250,14 +1250,15 @@ class Widgets implements Markup {
 	}
 
 	// a select bound to a signal: the chosen option's label (labels, else
-	// the option) on a button; a click, Enter or Space opens the options
+	// the option) on a button, placeholder while the value is none of the
+	// options (data-placeholder); a click, Enter or Space opens the options
 	// under it, the chosen one focused; Up and Down move through them, a
 	// click, Enter or Space chooses, Escape, Tab or a click outside closes.
 	// On the closed button Up and Down choose the previous or next option;
 	// the pointer over an option focuses it. Native where its host is (Ui.hostOf
 	// "select": by default drawn on desktop) and the window's platform has
 	// menus: the options a native menu under it, the chosen one checked. Slots (shadcn's)
-	// "select-trigger" (data-state "open" or "closed"), "select-value",
+	// "select-trigger" (data-state "open" or "closed", data-size), "select-value",
 	// "select-content", "select-item" (data-state "checked" or "unchecked")
 	// and "select-item-indicator" (shown when checked)
 	@:widget({
@@ -1265,7 +1266,9 @@ class Widgets implements Markup {
 			value: "a signal of the chosen option",
 			options: "the options' values",
 			labels: "what each option shows (else the option itself)",
-			width: "the button's width, and the list's least",
+			width: "the button's width, and the list's least (else its content's)",
+			placeholder: "what the button shows while the value is none of the options",
+			size: "\"default\" or \"sm\" (data-size)",
 			label: "its name for assistive technology"
 		},
 		keys: {
@@ -1276,13 +1279,21 @@ class Widgets implements Markup {
 			"Escape, Tab": "close the options"
 		}
 	})
-	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
-		var tag = props.tag ?? "select", w = props.width ?? 160.0;
+	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
+			?label:String, ?style:States->StyleProps, ?tag:String}):View
+		return select(props, false);
+
+	// (Select's and NativeSelect's: native, the trigger shadcn's native-select, its icon native-select-icon;
+	// unstyled, 160 wide)
+	static function select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
+			?label:String, ?style:States->StyleProps, ?tag:String}, native:Bool):View {
+		Rules.addBase("select", [{slot: "select-trigger", style: {width: 160}}, {slot: "native-select", style: {width: 160}}]);
+		var tag = props.tag ?? "select", w = props.width;
 		var open = signal(false);
 		var items:Array<Node> = [];
 		var labelOf = (v:String) -> {
 			var i = props.options.indexOf(v);
-			i >= 0 && props.labels != null ? props.labels[i] : v;
+			i < 0 && props.placeholder != null ? props.placeholder : i >= 0 && props.labels != null ? props.labels[i] : v;
 		};
 		function choose(v:String) {
 			props.value.value = v;
@@ -1306,7 +1317,8 @@ class Widgets implements Markup {
 			}
 			open.value = true;
 		}
-		return <view tag={tag} slot="select-trigger" ref={n -> {
+		return <view tag={tag} slot={native ? "native-select" : "select-trigger"} data-size={props.size ?? "default"}
+			data-placeholder={() -> props.placeholder != null && props.options.indexOf(props.value.value) < 0 ? "" : null} ref={n -> {
 			self = n;
 			States.apply(n, props.style);
 		}} role="combobox" label={props.label} expanded={() -> open.value}
@@ -1330,9 +1342,12 @@ class Widgets implements Markup {
 					}
 			}}>
 			<text slot="select-value">{() -> labelOf(props.value.value)}</text>
-			<image slot="select-trigger-icon" src={CHEVRON} hidden/>
+			{native ? icon(CHEVRON, "native-select-icon") : <image slot="select-trigger-icon" src={CHEVRON} hidden/>}
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusItem(props.options.indexOf(props.value.peek()))}>
-				<view tag={tag + "-list"} slot="select-content" data-state="open" role="listbox" label={props.label} min-width={w}><view slot="select-viewport">{[
+				<view tag={tag + "-list"} slot="select-content" data-state="open" role="listbox" label={props.label} min-width={() -> {
+					open.value;
+					w ?? (self == null ? 0.0 : self.width);
+				}}><view slot="select-viewport">{[
 					for (i in 0...props.options.length) {
 						var o = props.options[i], state = () -> props.value.value == o ? "checked" : "unchecked";
 						<view tag={tag + "-" + o} slot="select-item" data-state={state} role="option" selected={() -> props.value.value == o} ref={n -> items[i] = n}
@@ -3688,14 +3703,16 @@ class Widgets implements Markup {
 
 	// a select the platform's own where it has one (shadcn's NativeSelect:
 	// the system's picker): Select with host native, its options the
-	// platform's menu (macOS, Windows), else drawn. Its props and slots
-	// are Select's
+	// platform's menu (macOS, Windows), else drawn. Its props are Select's;
+	// slots "native-select-wrapper", "native-select" (Select's trigger:
+	// data-state, data-size), "native-select-icon", the list's Select's
 	@:widget({
 		props: {
 			value: "a signal of the chosen option",
 			options: "the options' values",
 			labels: "what each option shows (else the option itself)",
-			width: "the button's width",
+			width: "the button's width (else its content's)",
+			size: "\"default\" or \"sm\" (data-size)",
 			label: "its name for assistive technology"
 		},
 		keys: {
@@ -3703,11 +3720,12 @@ class Widgets implements Markup {
 			"Up, Down": "chooses the option before or after"
 		}
 	})
-	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
-			?tag:String}):View
-		return <view host="native" slot="native-select-wrapper">
-			<Select tag={props.tag ?? "native-select"} value={props.value} options={props.options} labels={props.labels} width={props.width} label={props.label}/>
-		</view>;
+	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String,
+			?label:String, ?tag:String}):View
+		return <view host="native" slot="native-select-wrapper" position="relative">{
+			select({tag: props.tag ?? "native-select", value: props.value, options: props.options, labels: props.labels, width: props.width, size: props.size,
+				label: props.label}, true)
+		}</view>;
 
 	// --- charts (shadcn's Chart: its look, recharts' kinds) ---
 

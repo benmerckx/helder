@@ -33,8 +33,6 @@ class FidelityTest implements Markup {
 	// hxmc.ui lacks yet): reported, not failed; one that agrees is reported too
 	static final KNOWN = [
 		"input-value-" => "the field's line a pixel above where Chromium centres an <input>'s text",
-		"select-value" => SELECT,
-		"select-focus" => SELECT,
 		"table-" => "Table's rows a fixed rowHeight for its virtual list, the head's too (shadcn's head h-10, its rows by their padding), its columns 1fr each (shadcn's: a table's auto layout)",
 		"pagination-" => "Previous and Next padded px-2.5 on both sides: the side by the chevron's has-[>svg]:px-3 is an arbitrary selector, dropped",
 		"combobox-" => "Combobox's popup is a bare command-list (the slot Command's list has too): shadcn's combobox is a Popover holding a Command, its border, background and shadow theirs",
@@ -44,9 +42,7 @@ class FidelityTest implements Markup {
 		"button-group-horizontal" => "the joined buttons' inner corners and borders are arbitrary child selectors ([&>*:not(:first-child)]:rounded-l-none border-l-0, [&>*:not(:last-child)]:rounded-r-none), dropped",
 		"input-group-focus" => "the group's ring is has-[[data-slot=input-group-control]:focus-visible] (an arbitrary selector), dropped; and the caret drawn",
 		"sidebar-expanded" => "Sidebar has no sidebar-gap (shadcn's box holding its width in flow) and sidebar-container no variant: the container, fixed (absolute) in a sidebar of no width, is not seen, the inset in its place",
-		"native-select-focus" => "NativeSelect holds Select's trigger (select-trigger, its own width, no data-size, the select's focus ring), not shadcn's native-select and native-select-icon",
 	];
-	static inline var SELECT = "Select's own width (160) wins over w-fit; the trigger has no size (data-[size=default]:h-9)";
 
 	static function known(name:String):Null<String> {
 		for (k => why in KNOWN)
@@ -105,6 +101,7 @@ class FidelityTest implements Markup {
 			case "toggle-group": <ToggleGroup value={new Signal("Italic")} options={["Bold", "Italic", "Underline"]} variant={variant}/>;
 			case "alert": <Alert variant={variant}><AlertTitle text={c.title}/><AlertDescription text={text}/></Alert>;
 			case "select" if (c.text != null): <Select value={new Signal(text)} options={[text, "Banana"]}/>;
+			case "select": <Select value={new Signal("")} options={["Apple", "Banana"]} placeholder={c.placeholder}/>;
 			case "select-content": <Select value={new Signal("Apple")} options={["Apple", "Banana", "Blueberry", "Grapes"]} width={128}/>;
 			case "table":
 				var rows = [["INV001", "Paid", "$250.00"], ["INV002", "Pending", "$150.00"], ["INV003", "Unpaid", "$350.00"]];
