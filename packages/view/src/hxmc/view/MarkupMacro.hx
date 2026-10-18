@@ -369,7 +369,7 @@ class Literal {
 	// attributes, its children
 	// (the neutral elements: ui's own, a page's renderer realising them as its elements)
 	static function isNeutral(name:String):Bool
-		return ["view", "text", "scroll", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
+		return ["view", "text", "scroll", "image", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
 
 	function element(name:String, attrs:Array<PAttr>, children:Array<PNode>, parent:Expr, top:Bool):Array<Expr> {
 		var v = fresh("e");

@@ -5,7 +5,7 @@ import haxe.macro.Context;
 #end
 import haxe.macro.Expr;
 
-// The neutral elements (hxmc.ui's view, text, scroll; view:button,
+// The neutral elements (hxmc.ui's view, text, scroll, image; view:button,
 // text:p...: docs/plans/native-or-drawn.md, single-source widgets) as the
 // DOM's, for DomRenderer, all at compile time: each element its DOM
 // element, each attribute what it is in a page (slot, variant and size as
@@ -51,7 +51,7 @@ class NeutralMacro {
 		"column-gap" => {prop: "column-gap", px: true}, "opacity" => {prop: "opacity", px: false}, "z-index" => {prop: "z-index", px: false},
 		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false},
 		"basis" => {prop: "flex-basis", px: true}, "pointer-events" => {prop: "pointer-events", px: false}, "display" => {prop: "display", px: false}, "transform" => {prop: "transform", px: false},
-		"grid-template-columns" => {prop: "grid-template-columns", px: false}
+		"grid-template-columns" => {prop: "grid-template-columns", px: false}, "fit" => {prop: "object-fit", px: false}
 	];
 	// (events: the DOM's, and ui's EventType)
 	static final EVENTS:Map<String, {dom:String, type:String}> = [
@@ -68,6 +68,12 @@ class NeutralMacro {
 		// (an icon: an <svg>, its paths its name's)
 		if (t == "icon") return macro @:pos(tag.pos) hxmc.web.Neutral.icon();
 		var dom = domName(t, tag.pos);
+		// (an image: an <img>, its alternative text none: its own a label's on the element naming it)
+		if (t == "image") return macro @:pos(tag.pos) {
+			var el = hxmc.web.DomRenderer.createElement("img");
+			(cast el : js.html.Element).setAttribute("alt", "");
+			el;
+		};
 		if (t == "scroll") return macro @:pos(tag.pos) {
 			var el = hxmc.web.DomRenderer.createElement("div");
 			(cast el : js.html.Element).style.overflow = "auto";
@@ -87,13 +93,14 @@ class NeutralMacro {
 		switch t {
 			case "view" | "scroll": return "div";
 			case "text": return "span";
+			case "image": return "img";
 			case "field": return "input";
 			case "field:textarea": return "textarea";
 			case _:
 		}
 		var colon = t.indexOf(":"), kind = t.substr(0, colon), name = t.substr(colon + 1);
 		var ok = colon > 0 && (kind == "view" && VIEWS.indexOf(name) >= 0 || kind == "text" && TEXTS.indexOf(name) >= 0);
-		if (!ok) Context.error('hxmc.web: no DOM element for the neutral <$t> (NeutralMacro: view, text, scroll, view:${VIEWS.join("|")}, text:${TEXTS.join("|")})', pos);
+		if (!ok) Context.error('hxmc.web: no DOM element for the neutral <$t> (NeutralMacro: view, text, scroll, image, view:${VIEWS.join("|")}, text:${TEXTS.join("|")})', pos);
 		return name;
 	}
 
@@ -121,7 +128,7 @@ class NeutralMacro {
 	static function mapped(t:String, n:String):Null<String> {
 		if (t == "icon" && n == "mirrored") return "data-mirrored";
 		if (t == "icon" && n == "name" || n == "tag" || n == "role" && StringTools.endsWith(t, ":legend")) return null;
-		if (isField(t) && FIELD.indexOf(n) >= 0) return n;
+		if (isField(t) && FIELD.indexOf(n) >= 0 || t == "image" && n == "src") return n;
 		return DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : PLAIN.indexOf(n) >= 0 || StringTools.startsWith(n, "data-")
 			|| StringTools.startsWith(n, "aria-") ? n : null;
 	}

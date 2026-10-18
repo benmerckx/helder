@@ -2581,16 +2581,18 @@ class Widgets implements Markup {
 	// there is none. Slots "avatar", "avatar-image" and "avatar-fallback"
 	@:widget({
 		props: {
-			src: "its image (an Image or an Svg), a signal or a function of one; null: the fallback",
+			src: "its image (an Image or an Svg; a page's: its URL), a signal or a function of one; null: the fallback",
 			fallback: "the text shown while there is no image: initials",
-			label: "its name for assistive technology (the fallback)"
+			label: "its name for assistive technology (the fallback)",
+			size: "\"default\", \"sm\" or \"lg\" (data-size)"
 		}
 	})
-	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?tag:String}):View {
-		return <view tag={props.tag ?? "avatar"} slot="avatar" role="img" label={props.label ?? props.fallback} overflow="hidden">
-			{() -> read(props.src) == null ? <view slot="avatar-fallback" hidden><text>{props.fallback}</text></view> : <image slot="avatar-image"
+	@:neutral public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?size:String, ?tag:String}):View {
+		return <view:span tag={props.tag ?? "avatar"} id={props.tag} slot="avatar" size={props.size ?? "default"} role="img" label={props.label ?? props.fallback}
+			overflow="hidden">
+			{() -> read(props.src) == null ? <view:span slot="avatar-fallback" hidden><text>{props.fallback}</text></view:span> : <image slot="avatar-image"
 				src={props.src} fit="cover" width="100%" height="100%" hidden/>}
-		</view>;
+		</view:span>;
 	}
 
 	// a key or keys as typed (shadcn's Kbd: slot "kbd"), e.g. "⌘K" or a Shortcut's label

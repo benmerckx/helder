@@ -52,12 +52,6 @@ class Widgets implements Markup {
 	static function on(v:Dynamic):Bool
 		return read(v) == true;
 
-	// an avatar (shadcn's): an image, else its fallback (initials)
-	public static function Avatar(props:{?src:Dynamic, fallback:String, ?label:String, ?size:String, ?tag:String}):View
-		return <span id={props.tag} data-slot="avatar" data-size={props.size ?? "default"} role="img" aria-label={props.label ?? props.fallback}>
-			{() -> read(props.src) == null ? <span data-slot="avatar-fallback">{props.fallback}</span> : <img data-slot="avatar-image" src={read(props.src)} alt=""/>}
-		</span>;
-
 	// (a key event's key, mirrored where its element is right to left)
 	static function keyOf(e:KeyboardEvent):Int
 		return Behaviour.mirror(Dom.key(e), Dom.rtl(cast e.currentTarget));

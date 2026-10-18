@@ -162,10 +162,10 @@ for InputOTP's caret kept at the end; what a page's input has itself, ui's
 in Widgets' fieldOwn: out of the tab order while disabled, the edit
 menu), Progress (its slide on ui's Clock or a page's animation frames);
 ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination, Collapsible,
-Accordion, Calendar, ScrollArea (`overflow-x`, `overflow-y`), Spinner (turned on ui's Clock, a page's by its theme's
+Accordion, Calendar, Avatar (`image` an `<img>`), ScrollArea (`overflow-x`, `overflow-y`), Spinner (turned on ui's Clock, a page's by its theme's
 animate-spin) and the Sidebar's parts (Trigger, Inset, Header, Content, Footer,
 Separator, Group, GroupLabel, GroupContent, Menu, MenuItem, MenuButton):
-79 widgets and parts one definition.
+80 widgets and parts one definition.
 
 Debt: in a page a neutral widget calls a Part's methods (focus, rtl,
 select) and reads an event's `current` opaquely (`js.Syntax.code`:
