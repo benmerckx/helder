@@ -1305,7 +1305,9 @@ class Widgets implements Markup {
 	// under it, the chosen one focused; Up and Down move through them, a
 	// click, Enter or Space chooses, Escape, Tab or a click outside closes.
 	// On the closed button Up and Down choose the previous or next option;
-	// the pointer over an option focuses it. Slots (shadcn's)
+	// the pointer over an option focuses it. Native where its host is (Ui.hostOf
+	// "select": by default drawn on desktop) and the window's platform has
+	// menus: the options a native menu under it, the chosen one checked. Slots (shadcn's)
 	// "select-trigger" (data-state "open" or "closed"), "select-value",
 	// "select-content", "select-item" (data-state "checked" or "unchecked")
 	// and "select-item-indicator" (shown when checked)
@@ -1344,11 +1346,25 @@ class Widgets implements Markup {
 			if (i >= 0 && i < props.options.length) props.value.value = props.options[i];
 		}
 		var typed = new TypeAhead(), shown = [for (i in 0...props.options.length) props.labels != null ? props.labels[i] : props.options[i]];
-		return <view tag={tag} slot="select-trigger" ref={n -> States.apply(n, props.style)} role="combobox" label={props.label} expanded={() -> open.value}
-			data-state={() -> open.value ? "open" : "closed"} focusable width={w} onClick={_ -> open.value = !open.value}
+		var self:Null<Node> = null;
+		// (opened: the platform's menu where native, else the drawn list)
+		function show() {
+			var ui = self == null ? null : self.ui;
+			if (ui != null && ui.hostOf(self, "select") == Native) {
+				var current = props.value.peek();
+				var menu:Array<PlatformMenuItem> = [for (i in 0...props.options.length) {id: i, label: shown[i], checked: props.options[i] == current}];
+				if (ui.platform.menu(menu, self.absX, self.absY + self.height, id -> if (id >= 0) props.value.value = props.options[id])) return;
+			}
+			open.value = true;
+		}
+		return <view tag={tag} slot="select-trigger" ref={n -> {
+			self = n;
+			States.apply(n, props.style);
+		}} role="combobox" label={props.label} expanded={() -> open.value}
+			data-state={() -> open.value ? "open" : "closed"} focusable width={w} onClick={_ -> if (open.peek()) open.value = false else show()}
 			onKeyDown={e -> switch e.key {
 				case Key.ENTER | Key.SPACE:
-					open.value = true;
+					show();
 					e.stop();
 				case Key.DOWN:
 					e.preventDefault();

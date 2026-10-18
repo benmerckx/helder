@@ -401,7 +401,9 @@ and Android draw them still. InputOTP keeps its field drawn. A context
 menu is the platform's menu where it has one (`PlatformViews.menu`: its
 items, separators, checked and disabled ones, submenus and shortcuts'
 labels; one chosen as from the drawn menu): Windows' popup menu, macOS's
-NSMenu; the browser and Linux keep the drawn one.
+NSMenu; the browser and Linux keep the drawn one. A select is drawn on
+desktop by default (the plan: native on touch); with `host="native"` its
+options are the same native menu, under it, the chosen one checked.
 
 ## Accessibility
 

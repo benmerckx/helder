@@ -803,6 +803,32 @@ class MarkupTest implements Markup {
 		ui.pointerUp(area.absX + 5, area.absY + 6, 3);
 		ui.update();
 		check("native menu: drawn by policy", views.menus.length == 1 && ui.overlay.children.length > 0);
+		// a select drawn on desktop by default; native when its host is: its options a menu under it, the chosen one checked
+		var ui = new Ui(new MonoText(), 400, 300);
+		var views = new UiTest.FakeViews();
+		ui.platform = views;
+		var fruit = signal("pear");
+		Render.render(<view padding={10} row-gap={10}>
+			<Select tag="plain" value={fruit} options={["apple", "pear"]}/>
+			<view host="native"><Select tag="native" value={fruit} options={["apple", "pear", "plum"]} labels={["Apple", "Pear", "Plum"]}/></view>
+		</view>, ui.root);
+		ui.update();
+		var plain = ui.root.find("plain"), native = ui.root.find("native");
+		ui.setFocus(plain);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("native select: drawn by default", views.menus.length == 0 && ui.overlay.children.length > 0);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		ui.pointerDown(native.absX + 3, native.absY + 3, 1);
+		ui.pointerUp(native.absX + 3, native.absY + 3, 1);
+		ui.update();
+		var m = views.menus[0];
+		check("native select: a menu under it, its labels, the chosen one checked", views.menus.length == 1 && m.y == native.absY + native.height
+			&& m.items.map(i -> i.label).join(",") == "Apple,Pear,Plum" && m.items[1].checked && !m.items[0].checked);
+		m.chosen(2);
+		ui.update();
+		check("native select: chosen", fruit.value == "plum");
 	}
 
 	// a carousel: Next, the keys, the ends disabled, a wheel's scroll settling on a slide
