@@ -27,6 +27,7 @@ class Docs implements Markup {
 		for (p in Pages.PACKAGES)
 			add('packages/${p[0]}/README.md', 'docs/packages/${p[0]}.html', "Packages");
 		add("packages/ui/GUIDE.md", "docs/packages/ui-guide.html", "Packages");
+		out.push({src: Components.SOURCE, page: Components.PAGE, group: "Packages", title: Components.TITLE});
 		add("docs/plans/README.md", "docs/plans/index.html", "Plans");
 		var plans = FileSystem.readDirectory("docs/plans").filter(n -> n.endsWith(".md") && n != "README.md");
 		plans.sort(Reflect.compare);
@@ -40,6 +41,11 @@ class Docs implements Markup {
 		Site.renderPage("docs/index.html", () -> Static.document(<Index/>));
 		for (d in docs) {
 			Site.renderPage(d.page, () -> {
+				// (ui's components: their reference, read from the sources, not Markdown)
+				if (d.page == Components.PAGE) {
+					var c = Components.render();
+					return Static.document(<DocPage doc={d} html={c.html} headings={c.headings}/>);
+				}
 				var md = new Markdown(href -> resolve(href, d.src));
 				var html = md.render(Site.read(d.src));
 				return Static.document(<DocPage doc={d} html={html} headings={md.headings}/>);
@@ -120,6 +126,7 @@ class Docs implements Markup {
 
 	// the first sentence of a doc, as text
 	static function summary(src:String):String {
+		if (src == Components.SOURCE) return Components.SUMMARY;
 		for (block in ~/\n\s*\n/g.split(Site.read(src))) {
 			var t = block.trim();
 			if (t == "" || t.startsWith("#") || t.startsWith("|") || t.startsWith("```") || t.startsWith("-") || t.startsWith(">")) continue;

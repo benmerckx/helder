@@ -1634,7 +1634,33 @@ static function transitions() {
 		ui.update();
 		check("themes: rtl rules, again when the direction changes", ltr == 0.5 && th.style.opacity == 0.25, ltr + " " + th.style.opacity);
 		ui.root.style.dir = null;
+		// (kept: the node's own padding over the rules', its default too, the sides as well; another node's the rules')
+		ui.theme = {rules: [{slot: "k", style: {padding: 16, opacity: 0.5}}, {slot: "k", when: ["data-wide"], style: {paddingLeft: 24}}]};
+		var kept = new Node("kept"), other = new Node("other");
+		kept.slot = other.slot = "k";
+		kept.setAttr("data-wide", "");
+		Rules.keep(kept, ["padding"]);
+		ui.root.append(kept);
+		ui.root.append(other);
+		ui.update();
+		check("themes: Rules.keep holds a node's own padding (its default) over the rules", kept.style.paddingTop == 0 && kept.style.paddingLeft == 0
+			&& kept.style.opacity == 0.5 && other.style.paddingTop == 16,
+			kept.style.paddingTop + " " + kept.style.paddingLeft + " " + kept.style.opacity + " " + other.style.paddingTop);
+		ui.root.remove(kept);
+		ui.root.remove(other);
 		ui.theme = null;
+		// (a layer's text inherits the page's body's, as a popup in a page's body: again when it changes)
+		var page = new Node("page"), layer = new Node("layer");
+		page.slot = "body";
+		page.style.fontSize = 20;
+		ui.root.append(page);
+		ui.overlay.append(layer);
+		var first = layer.font().size;
+		page.style.fontSize = 16;
+		var again = layer.font().size;
+		ui.root.remove(page);
+		check("popups inherit the body's text (Ui.body)", first == 20 && again == 16 && layer.font().size != 16, first + " " + again + " " + layer.font().size);
+		ui.overlay.remove(layer);
 	}
 
 	static function themes() {

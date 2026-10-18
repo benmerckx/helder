@@ -320,7 +320,9 @@ variants: `group:hover` (an ancestor with a `group` attribute hovered;
 (an earlier sibling with a `peer` attribute), `has:focus` (a descendant;
 `has:>x` a child), `first`, `last`, `not:x`, nested as
 `group:has:focus`. Later
-rules win, property by property; the node's own style wins over them.
+rules win, property by property; the node's own style wins over them
+(a value still its default counts as none: `Rules.keep(node, ["padding"])`
+holds its own at any value, as an instance's `p-0` over its slot's `p-4`).
 Lengths may be token references too: `Length.token("radius", -4)` is
 `calc(var(--radius) - 4px)`, resolved with the sheet's `lengths` (radii).
 Colours may be token references, `Color.parse("var(--primary)")`,
@@ -342,7 +344,9 @@ them, as React Aria's render props: `<Button style={s -> s.pressed.value ?
 {opacity: 0.8} : {}}/>` (over the theme's rules; what it stops giving,
 the theme's again). The system colours `Canvas` and `CanvasText` are a sheet's colours of those
 names, else Chromium's, light or dark; a page's slot `"body"` takes them
-(shadcn's `bg-background text-foreground` on the body). Menus' and a
+(shadcn's `bg-background text-foreground` on the body), and the layers
+(popups, dialogs: `ui.overlay`) inherit its text, as a page's popups in
+its body do (`ui.body`). Menus' and a
 select's items take the focus under the pointer (`focus` rules, as
 Radix's `focus:`).
 
@@ -507,11 +511,11 @@ paragraphs' glyphs, which all survive: a compact glyph store in
 Each widget in `Widgets.hx` carries its doc comment and `@:widget` metadata:
 each prop's doc, its variants and sizes, the keys it takes and what they do
 (in order), `part` (a part of another widget, documented with it) and
-`popup` (its parts show only when the user opens it). `test/WidgetDocs.hx`
+`popup` (its parts show only when the user opens it). `tools/WidgetDocs.hx`
 reads them with each widget's props, slots, data- attributes and roles, and
 its example (`examples/widgets/<Name>Example.hx`: a `view()`; run one in a
 window with `-main WidgetExample -D widget=<Name>`), into JSON (`make
-ui-check` writes `bin/ui/widgets.json`), the site's component pages.
+ui-check` writes `bin/ui/widgets.json`), the site's UI components page (site/src/Components.hx).
 `WidgetExamplesTest` renders every example with `Shadcn.sheet` and with no
 sheet, finds its widget's slots, and fails while a widget, a prop or an
 example is missing.

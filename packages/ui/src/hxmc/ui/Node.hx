@@ -93,6 +93,8 @@ class Node {
 	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
 	var themedIds:Null<Array<Int>> = null;
 	var themedValues:Null<Array<Dynamic>> = null;
+	// (the properties whose own values it holds over the rules at any value, its defaults too: Rules.keep)
+	var keptIds:Null<Array<Int>> = null;
 	var restylePending = false;
 
 	// (asks for its rules to be applied again, at the next update: several changes, one restyle)
@@ -219,6 +221,7 @@ class Node {
 		if (ui == u) return;
 		if (ui != null) ui.detached(this);
 		ui = u;
+		if (u != null && slot == "body") u.setBody(this);
 		// (out of a window: drawn anew when back, its starting rules again)
 		if (u == null) @:privateAccess style.drawn = false;
 		restyleLater();
@@ -518,9 +521,10 @@ class Node {
 	@:allow(hxmc.ui.Style) function styleChanged(layout:Bool) {
 		if (layout) {
 			markDirty();
-			// (an inherited text property: the descendants' text changes too)
+			// (an inherited text property: the descendants' text changes too, the body's: the layers' too)
 			for (c in children)
 				c.inheritedChanged();
+			if (ui != null && this == ui.body) ui.overlay.inheritedChanged();
 		} else if (ui != null) ui.requestFrame();
 	}
 
@@ -530,6 +534,7 @@ class Node {
 			c.markDirty();
 			c.dirChanged();
 		}
+		if (ui != null && this == ui.body) ui.overlay.dirChanged();
 	}
 
 	function inheritedChanged() {
@@ -537,9 +542,15 @@ class Node {
 		if (hasContent()) markDirty();
 		for (c in children)
 			c.inheritedChanged();
+		if (ui != null && this == ui.body) ui.overlay.inheritedChanged();
 	}
 
 	// --- inherited text properties ---
+
+	// (what it inherits from: its parent; the overlay's, the page's body (Ui.body), as a popup in a page's
+	// body inherits the body's text, not its trigger's)
+	inline function inheritsFrom():Null<Node>
+		return ui != null && this == ui.overlay && ui.body != null ? ui.body : parent;
 
 	public function font():Font {
 		if (fontCache != null) return fontCache;
@@ -566,7 +577,7 @@ class Node {
 			if (wb == null) wb = s.wordBreak;
 			if (ff == null) ff = s.fontFeatureSettings;
 			if (fvn == null) fvn = s.fontVariantNumeric;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		if (Math.isNaN(size)) size = Style.DEFAULT_SIZE;
 		if (!Math.isNaN(lhPx)) lh = size > 0 ? lhPx / size : Style.DEFAULT_LINE_HEIGHT;
@@ -580,7 +591,7 @@ class Node {
 		var n = this;
 		while (n != null) {
 			if (n.style.fontSize != null) return n.style.fontSize;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return Style.DEFAULT_SIZE;
 	}
@@ -600,7 +611,7 @@ class Node {
 		while (n != null) {
 			var sh = n.style.textShadow;
 			if (sh != null) return sh == Shadow.NONE ? null : sh;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return null;
 	}
@@ -618,7 +629,7 @@ class Node {
 		var n = this;
 		while (n != null) {
 			if (n.style.color != null) return n.style.color;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return Style.DEFAULT_COLOR;
 	}
@@ -652,7 +663,7 @@ class Node {
 		while (n != null) {
 			var w = n.style.textWrap;
 			if (w != null) return w == Wrap;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return true;
 	}
@@ -663,7 +674,7 @@ class Node {
 		while (n != null) {
 			var t = n.style.textTransform;
 			if (t != null) return t;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return None;
 	}
@@ -672,7 +683,7 @@ class Node {
 		var n = this;
 		while (n != null) {
 			if (n.style.textAlign != null) return n.style.textAlign;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return rtl() ? Right : Left;
 	}
@@ -684,7 +695,7 @@ class Node {
 		while (n != null) {
 			var u = n.style.userSelect;
 			if (u != null && u != Auto) return u;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return Auto;
 	}
@@ -698,7 +709,7 @@ class Node {
 		while (n != null) {
 			var d = n.style.dir;
 			if (d != null) return d;
-			n = n.parent;
+			n = n.inheritsFrom();
 		}
 		return null;
 	}
@@ -1098,6 +1109,7 @@ class Node {
 	function set_slot(v:Null<String>):Null<String> {
 		if (v == slot) return v;
 		slot = v;
+		if (ui != null && v == "body") ui.setBody(this);
 		restyleLater();
 		return v;
 	}

@@ -14,27 +14,36 @@ import hxmc.view.Signal;
 // another is a boundary (a ui canvas in a page, a page's element over a
 // canvas); content passes through it unchanged.
 class Render {
+	// (the renderer mounting a component, by its index: ViewRuntime.component; Pick.call)
+	@:noCompletion public static var pass = 0;
+
 	// renders content into parent (its root: dispose removes it and stops its effects)
 	public static macro function render(content:Expr, parent:Expr):Expr {
 		var r = runtimeFor(parent);
-		return macro $p{r}.render($content, $parent);
+		return r == null ? absent(parent) : macro $p{r}.render($content, $parent);
 	}
 
 	// inserts content into parent before a node (null: at the end); the nodes made
 	public static macro function insert(content:Expr, parent:Expr, before:Expr):Expr {
 		var r = runtimeFor(parent);
-		return macro $p{r}.insert($content, $parent, $before);
+		return r == null ? absent(parent) : macro $p{r}.insert($content, $parent, $before);
 	}
 
 	#if macro
-	static function runtimeFor(parent:Expr):Array<String> {
+	// (null: no renderer's nodes, in a class limited to renderers (@:renderer) the program has none of)
+	static function runtimeFor(parent:Expr):Null<Array<String>> {
 		var t = Context.typeof(parent);
 		var i = HostMacro.rendererOf(t);
+		var cls = Context.getLocalClass();
+		if (i < 0 && cls != null && MarkupMacro.limits(cls.get().meta) != null) return null;
 		if (i < 0)
 			Context.error("hxmc.view: " + haxe.macro.TypeTools.toString(t) + " is no renderer's node (renderers: "
 				+ [for (r in HostMacro.renderers()) r.path].join(", ") + ")", parent.pos);
 		return HostMacro.runtime(i);
 	}
+
+	static function absent(parent:Expr):Expr
+		return macro @:pos(parent.pos) throw $v{"hxmc.view: " + haxe.macro.TypeTools.toString(Context.typeof(parent)) + " is no renderer's node (@:renderer)"};
 	#end
 
 	public static function isReactive(v:Dynamic):Bool

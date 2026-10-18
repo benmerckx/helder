@@ -31,7 +31,10 @@ typedef MenuItem = Behaviour.MenuEntry;
 // hxmc.view, unstyled: behaviour, semantics and the geometry their
 // interaction needs, their nodes' slots, states, variants and sizes (as
 // shadcn's) for a theme's rules (Rules, StyleSheet): with none, no look
-// at all (as React Aria's); props and an instance's own style override it
+// at all (as React Aria's); props and an instance's own style override it.
+// ui's renderer's only: in a page's markup (the DOM's renderer) each is
+// hxmc.web.widgets.Widgets' of the same name (shadcn's markup), where it has one
+@:renderer(hxmc.ui.view.NodeRenderer, hxmc.web.DomRenderer => hxmc.web.widgets.Widgets)
 class Widgets implements Markup {
 	// (a prop that may be a value, a signal or a function of one: its value, read where a reactive value tracks it)
 	static function read(v:Dynamic):Dynamic
@@ -1200,7 +1203,7 @@ class Widgets implements Markup {
 					var g = p.find(tag + "-calendar-grid");
 					if (g != null && g.ui != null) g.ui.setFocus(g);
 				}}>
-				<view slot="popover-content" data-state="open" padding={0}><Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
+				<view slot="popover-content" data-state="open" padding={0} ref={n -> Rules.keep(n, ["padding"])}><Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
 					onChoose={_ -> {
 						open.value = false;
 						if (self != null && self.ui != null) self.ui.setFocus(self);
@@ -1250,14 +1253,15 @@ class Widgets implements Markup {
 	}
 
 	// a select bound to a signal: the chosen option's label (labels, else
-	// the option) on a button; a click, Enter or Space opens the options
+	// the option) on a button, placeholder while the value is none of the
+	// options (data-placeholder); a click, Enter or Space opens the options
 	// under it, the chosen one focused; Up and Down move through them, a
 	// click, Enter or Space chooses, Escape, Tab or a click outside closes.
 	// On the closed button Up and Down choose the previous or next option;
 	// the pointer over an option focuses it. Native where its host is (Ui.hostOf
 	// "select": by default drawn on desktop) and the window's platform has
 	// menus: the options a native menu under it, the chosen one checked. Slots (shadcn's)
-	// "select-trigger" (data-state "open" or "closed"), "select-value",
+	// "select-trigger" (data-state "open" or "closed", data-size), "select-value",
 	// "select-content", "select-item" (data-state "checked" or "unchecked")
 	// and "select-item-indicator" (shown when checked)
 	@:widget({
@@ -1265,7 +1269,9 @@ class Widgets implements Markup {
 			value: "a signal of the chosen option",
 			options: "the options' values",
 			labels: "what each option shows (else the option itself)",
-			width: "the button's width, and the list's least",
+			width: "the button's width, and the list's least (else its content's)",
+			placeholder: "what the button shows while the value is none of the options",
+			size: "\"default\" or \"sm\" (data-size)",
 			label: "its name for assistive technology"
 		},
 		keys: {
@@ -1276,13 +1282,21 @@ class Widgets implements Markup {
 			"Escape, Tab": "close the options"
 		}
 	})
-	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
-		var tag = props.tag ?? "select", w = props.width ?? 160.0;
+	public static function Select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
+			?label:String, ?style:States->StyleProps, ?tag:String}):View
+		return select(props, false);
+
+	// (Select's and NativeSelect's: native, the trigger shadcn's native-select, its icon native-select-icon;
+	// unstyled, 160 wide)
+	static function select(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String, ?placeholder:String,
+			?label:String, ?style:States->StyleProps, ?tag:String}, native:Bool):View {
+		Rules.addBase("select", [{slot: "select-trigger", style: {width: 160}}, {slot: "native-select", style: {width: 160}}]);
+		var tag = props.tag ?? "select", w = props.width;
 		var open = signal(false);
 		var items:Array<Node> = [];
 		var labelOf = (v:String) -> {
 			var i = props.options.indexOf(v);
-			i >= 0 && props.labels != null ? props.labels[i] : v;
+			i < 0 && props.placeholder != null ? props.placeholder : i >= 0 && props.labels != null ? props.labels[i] : v;
 		};
 		function choose(v:String) {
 			props.value.value = v;
@@ -1306,7 +1320,8 @@ class Widgets implements Markup {
 			}
 			open.value = true;
 		}
-		return <view tag={tag} slot="select-trigger" ref={n -> {
+		return <view tag={tag} slot={native ? "native-select" : "select-trigger"} data-size={props.size ?? "default"} size={props.size ?? "default"}
+			data-placeholder={() -> props.placeholder != null && props.options.indexOf(props.value.value) < 0 ? "" : null} ref={n -> {
 			self = n;
 			States.apply(n, props.style);
 		}} role="combobox" label={props.label} expanded={() -> open.value}
@@ -1330,9 +1345,12 @@ class Widgets implements Markup {
 					}
 			}}>
 			<text slot="select-value">{() -> labelOf(props.value.value)}</text>
-			<image slot="select-trigger-icon" src={CHEVRON} hidden/>
+			{native ? icon(CHEVRON, "native-select-icon") : <image slot="select-trigger-icon" src={CHEVRON} hidden/>}
 			<Popover open={open} placement="below" onDismiss={() -> open.value = false} onOpen={_ -> focusItem(props.options.indexOf(props.value.peek()))}>
-				<view tag={tag + "-list"} slot="select-content" data-state="open" role="listbox" label={props.label} min-width={w}><view slot="select-viewport">{[
+				<view tag={tag + "-list"} slot="select-content" data-state="open" role="listbox" label={props.label} min-width={() -> {
+					open.value;
+					w ?? (self == null ? 0.0 : self.width);
+				}}><view slot="select-viewport">{[
 					for (i in 0...props.options.length) {
 						var o = props.options[i], state = () -> props.value.value == o ? "checked" : "unchecked";
 						<view tag={tag + "-" + o} slot="select-item" data-state={state} role="option" selected={() -> props.value.value == o} ref={n -> items[i] = n}
@@ -2239,8 +2257,8 @@ class Widgets implements Markup {
 	// "Continue"; the action's variant default "default", "destructive" for
 	// a deletion), the cancel button focused first. Cancel or Escape closes
 	// it (onCancel), the action closes it and runs onAction; a click outside
-	// does nothing. Slots "alert-dialog-overlay", "alert-dialog-content",
-	// "alert-dialog-header", "alert-dialog-title", "alert-dialog-description",
+	// does nothing. Slots "alert-dialog-overlay", "alert-dialog-content"
+	// (data-size, a group: group/alert-dialog-content), "alert-dialog-header", "alert-dialog-title", "alert-dialog-description",
 	// "alert-dialog-footer"; the buttons "button"s
 	@:widget({
 		props: {
@@ -2253,6 +2271,7 @@ class Widgets implements Markup {
 			onAction: "called when the action button closes it",
 			onCancel: "called when the cancel button or Escape closes it",
 			width: "its panel's width in pixels (360)",
+			size: "\"default\" or \"sm\" (data-size: a small one's header centred, its buttons side by side)",
 			children: "more content, between the description and the buttons"
 		},
 		variants: ["default", "destructive", "outline", "secondary", "ghost", "link"],
@@ -2263,8 +2282,8 @@ class Widgets implements Markup {
 		}
 	})
 	public static function AlertDialog(props:{open:Signal<Bool>, title:String, ?description:String, ?cancel:String, ?action:String,
-			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?tag:String, ?children:Any}):Any {
-		var tag = props.tag ?? "alert-dialog";
+			?variant:String, ?onAction:Void->Void, ?onCancel:Void->Void, ?width:Float, ?size:String, ?tag:String, ?children:Any}):Any {
+		var tag = props.tag ?? "alert-dialog", size = props.size ?? "default";
 		function cancel() {
 			props.open.value = false;
 			if (props.onCancel != null) props.onCancel();
@@ -2285,13 +2304,15 @@ class Widgets implements Markup {
 				if (c != null && c.ui != null) c.ui.setFocus(c, false);
 			},
 			tag: tag,
-			children: <view slot="alert-dialog-content" data-state="open" role="alertdialog" label={props.title} width={props.width ?? 360}>
-				<view slot="alert-dialog-header">
-					<text slot="alert-dialog-title" role="heading">{props.title}</text>
+			// (its size the parts' too: their group-data-[size=...] rules)
+			children: <view slot="alert-dialog-content" data-state="open" data-size={size} size={size} group="alert-dialog-content" role="alertdialog" label={props.title}
+				width={props.width ?? 360}>
+				<view slot="alert-dialog-header" size={size}>
+					<text slot="alert-dialog-title" role="heading" size={size}>{props.title}</text>
 					{props.description == null ? null : <text slot="alert-dialog-description">{props.description}</text>}
 				</view>
 				{props.children}
-				<view slot="alert-dialog-footer" direction="row">
+				<view slot="alert-dialog-footer" direction="row" size={size}>
 					<Button tag={tag + "-cancel"} label={props.cancel ?? "Cancel"} variant="outline" onClick={cancel}/>
 					<Button tag={tag + "-action"} label={props.action ?? "Continue"} variant={props.variant ?? "default"} onClick={act}/>
 				</view>
@@ -2561,6 +2582,9 @@ class Widgets implements Markup {
 	// Enter or a click chooses the highlighted one (the field takes its
 	// text; onChoose gets it), Enter with none highlighted submits the text
 	// as it is (onChoose), Escape or a click outside closes the list.
+	// Slots (shadcn's: a Popover holding a Command) "popover-content"
+	// (data-side), "command", "command-list", "command-group" and
+	// "command-item" (data-selected "true"), the field Input's
 	@:widget({
 		props: {
 			value: "a signal of the field's text, set as it is typed or an option is chosen",
@@ -2643,11 +2667,14 @@ class Widgets implements Markup {
 			}}>
 			{f}
 			<Popover open={() -> open.value && matches.value.length > 0} placement="below" onDismiss={() -> open.value = false}>
-				<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label} width={w}>
-					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} slot="command-item" role="option"
-						selected={() -> active.value == i} data-selected={() -> active.value == i ? "true" : null} ref={n -> options[i] = n}
-						onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
-				</scroll>
+				<view tag={tag + "-content"} slot="popover-content" data-state="open" data-side="bottom" width={w} padding={0}
+					ref={n -> Rules.keep(n, ["padding"])}><view slot="command">
+					<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label}><view slot="command-group">
+						<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} slot="command-item" role="option"
+							selected={() -> active.value == i} data-selected={() -> active.value == i ? "true" : null} ref={n -> options[i] = n}
+							onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
+					</view></scroll>
+				</view></view>
 			</Popover>
 		</view>;
 	}
@@ -3688,14 +3715,16 @@ class Widgets implements Markup {
 
 	// a select the platform's own where it has one (shadcn's NativeSelect:
 	// the system's picker): Select with host native, its options the
-	// platform's menu (macOS, Windows), else drawn. Its props and slots
-	// are Select's
+	// platform's menu (macOS, Windows), else drawn. Its props are Select's;
+	// slots "native-select-wrapper", "native-select" (Select's trigger:
+	// data-state, data-size), "native-select-icon", the list's Select's
 	@:widget({
 		props: {
 			value: "a signal of the chosen option",
 			options: "the options' values",
 			labels: "what each option shows (else the option itself)",
-			width: "the button's width",
+			width: "the button's width (else its content's)",
+			size: "\"default\" or \"sm\" (data-size)",
 			label: "its name for assistive technology"
 		},
 		keys: {
@@ -3703,11 +3732,12 @@ class Widgets implements Markup {
 			"Up, Down": "chooses the option before or after"
 		}
 	})
-	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
-			?tag:String}):View
-		return <view host="native" slot="native-select-wrapper">
-			<Select tag={props.tag ?? "native-select"} value={props.value} options={props.options} labels={props.labels} width={props.width} label={props.label}/>
-		</view>;
+	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?size:String,
+			?label:String, ?tag:String}):View
+		return <view host="native" slot="native-select-wrapper" position="relative">{
+			select({tag: props.tag ?? "native-select", value: props.value, options: props.options, labels: props.labels, width: props.width, size: props.size,
+				label: props.label}, true)
+		}</view>;
 
 	// --- charts (shadcn's Chart: its look, recharts' kinds) ---
 

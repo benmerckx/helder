@@ -3,6 +3,8 @@ package hxmc.view;
 #if macro
 import haxe.macro.Context;
 import haxe.macro.Expr;
+import haxe.macro.Type.FieldAccess;
+import haxe.macro.Type.TypedExprDef;
 
 using haxe.macro.ExprTools;
 
@@ -23,7 +25,12 @@ using haxe.macro.ExprTools;
 // literal of their own. The expressions inside a literal are parsed at
 // their positions in the file (errors point into the markup) and
 // transformed in turn, so markup nests through them
-// ({[for (i in items) <text>{i}</text>]}).
+// ({[for (i in items) <text>{i}</text>]}). A class's literals limited to
+// some renderers, by their classes (@:renderer(hxmc.ui.view.NodeRenderer)):
+// the others' code a throw; its components, in another renderer's
+// markup, the function of the same name of the class it names for that
+// renderer (@:renderer(..., hxmc.web.DomRenderer => hxmc.web.widgets.Widgets):
+// Pick), else an error naming it and the renderer.
 class MarkupMacro {
 	@:allow(hxmc.view.Literal) static var count = 0;
 
@@ -51,6 +58,58 @@ class MarkupMacro {
 		var info = Context.getPosInfos(pos);
 		var root = new Parser(src, info.file, info.min).document();
 		return new Literal(info.file, info.min, pos).compile(root);
+	}
+
+	// (a class's @:renderer: the renderers its literals are for, by class path; the class each other one's markup calls instead)
+	public static function limits(meta:haxe.macro.Type.MetaAccess):Null<{only:Array<String>, other:Map<String, Expr>}> {
+		var m = meta.extract(":renderer");
+		if (m.length == 0) return null;
+		var only = [], other = new Map<String, Expr>();
+		for (e in (m[0].params == null ? [] : m[0].params))
+			switch e.expr {
+				case EBinop(OpArrow, r, c): other.set(ExprTools.toString(r), c);
+				case _: only.push(ExprTools.toString(e));
+			}
+		return {only: only, other: other};
+	}
+
+	// (a component's class's limits, when it has them: its name)
+	static function limited(callee:Expr):Null<{field:String, cls:String, only:Array<String>, other:Map<String, Expr>}> {
+		var t = try Context.typeExpr(callee) catch (_:Dynamic) return null;
+		return switch t.expr {
+			case TField(_, FStatic(c, cf)):
+				var l = limits(c.get().meta);
+				l == null ? null : {field: cf.get().name, cls: c.get().name, only: l.only, other: l.other};
+			case _: null;
+		}
+	}
+
+	// the function renderer pass's markup calls for callee (Pick.callee)
+	public static function pick(pass:Int, callee:Expr):Expr {
+		var l = limited(callee);
+		if (l == null) return callee;
+		var r = HostMacro.renderers()[pass].path, field = l.field;
+		if (l.only.indexOf(r) >= 0) return callee;
+		var c = l.other.get(r);
+		if (c != null && switch Context.getType(ExprTools.toString(c)) {
+			case TInst(k, _): Lambda.exists(k.get().statics.get(), f -> f.name == field);
+			case _: false;
+		}) return macro @:pos(callee.pos) $c.$field;
+		return Context.error("hxmc.view: " + l.cls + "." + field + " has no version for " + r + " (@:renderer names none)", callee.pos);
+	}
+
+	// the call of callee for the renderer mounting it (Pick.call)
+	public static function pickCall(callee:Expr, props:Expr):Expr {
+		if (limited(callee) == null) return macro @:pos(callee.pos) $callee($props);
+		// (a renderer the literal's class is not for: never mounted there)
+		var cls = Context.getLocalClass(), own = cls == null ? null : limits(cls.get().meta), rs = HostMacro.renderers();
+		var cases:Array<Case> = [
+			for (i in 0...rs.length) {
+				values: [macro $v{i}],
+				expr: own != null && own.only.indexOf(rs[i].path) < 0 ? macro @:pos(callee.pos) (throw "hxmc.view: not for this renderer" : Any) : macro @:pos(callee.pos) (${pick(i, callee)}($props) : Any)
+			}
+		];
+		return {expr: ESwitch(macro hxmc.view.Render.pass, cases, macro @:pos(callee.pos) (null : Any)), pos: callee.pos};
 	}
 
 	@:allow(hxmc.view.Literal) static function exprNotEmpty(c:PNode):Bool
@@ -127,10 +186,14 @@ class Literal {
 		var rs = HostMacro.renderers();
 		var cases:Array<Case> = [];
 		var only:Null<Expr> = null;
+		var cls = Context.getLocalClass(), limits = cls == null ? null : MarkupMacro.limits(cls.get().meta);
 		for (i in 0...rs.length) {
 			pass = i;
 			cursor = 0;
 			var body = forRenderer(mountBody(root), i);
+			// (a renderer the class's literals are not for: its holes found again, its code a throw)
+			if (limits != null && limits.only.indexOf(rs[i].path) < 0)
+				body = [macro @:pos(pos) throw $v{"hxmc.view: " + cls.get().name + " markup is not for " + rs[i].path + " (@:renderer)"}];
 			var n = rs[i].node;
 			var typed = macro {
 				var __p:$n = cast __p0;
@@ -368,7 +431,8 @@ class Literal {
 		var p = MarkupMacro.position(file, base + at, name.length + 1);
 		var callee = macro @:pos(p) $p{name.split(".")};
 		var props = {expr: EObjectDecl(fields), pos: p};
-		var call = {expr: ECall(callee, [props]), pos: p};
+		// (the function for this renderer, Pick; shared by every renderer: chosen when mounted)
+		var call = shared ? macro @:pos(p) hxmc.view.Pick.call($callee, $props) : {expr: ECall(macro @:pos(p) hxmc.view.Pick.callee($v{pass}, $callee), [props]), pos: p};
 		var f = {expr: EFunction(FAnonymous, {args: [], ret: macro :Any, expr: {expr: EReturn(call), pos: p}}), pos: p};
 		if (!shared) return f;
 		var h = hole(f, macro :Void->Any);

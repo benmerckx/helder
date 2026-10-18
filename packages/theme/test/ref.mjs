@@ -301,7 +301,7 @@ const frames = {
 	accordion: { w: 400, h: 200, block: true }, breadcrumb: { w: 360, h: 52 }, pagination: { w: 420, h: 68, block: true }, dialog: { w: 800, h: 600 },
 	popover: { w: 320, h: 120 }, tooltip: { w: 160, h: 60 }, 'dropdown-menu': { w: 240, h: 240 }, menubar: { w: 240, h: 68 },
 	// (a popup: drawn in a larger frame, compared in its box, 8px around it for its shadow; refCrop: the element, where it is not the slot hxmc crops)
-	command: { w: 482, h: 300 }, combobox: { w: 320, h: 300, crop: 'command-list', refCrop: 'popover-content' }, 'alert-dialog': { w: 800, h: 600 }, drawer: { w: 800, h: 600 }, 'input-otp': { w: 320, h: 68 },
+	command: { w: 482, h: 300 }, combobox: { w: 320, h: 300, crop: 'popover-content' }, 'alert-dialog': { w: 800, h: 600 }, drawer: { w: 800, h: 600 }, 'input-otp': { w: 320, h: 68 },
 	'dropdown-menu-items': { w: 320, h: 300, crop: 'dropdown-menu-content' }, 'context-menu': { w: 320, h: 300, crop: 'context-menu-content' },
 	'menubar-content': { w: 320, h: 300, crop: 'menubar-content' }, 'hover-card': { w: 320, h: 200, crop: 'hover-card-content' },
 	sheet: { w: 800, h: 600 }, avatar: { w: 64, h: 64 }, kbd: { w: 80, h: 52 }, spinner: { w: 48, h: 48 }, resizable: { w: 400, h: 192, block: true },
