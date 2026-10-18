@@ -101,7 +101,14 @@ class MarkupMacro {
 	// the call of callee for the renderer mounting it (Pick.call)
 	public static function pickCall(callee:Expr, props:Expr):Expr {
 		if (limited(callee) == null) return macro @:pos(callee.pos) $callee($props);
-		var cases:Array<Case> = [for (i in 0...HostMacro.renderers().length) {values: [macro $v{i}], expr: macro @:pos(callee.pos) (${pick(i, callee)}($props) : Any)}];
+		// (a renderer the literal's class is not for: never mounted there)
+		var cls = Context.getLocalClass(), own = cls == null ? null : limits(cls.get().meta), rs = HostMacro.renderers();
+		var cases:Array<Case> = [
+			for (i in 0...rs.length) {
+				values: [macro $v{i}],
+				expr: own != null && own.only.indexOf(rs[i].path) < 0 ? macro @:pos(callee.pos) (throw "hxmc.view: not for this renderer" : Any) : macro @:pos(callee.pos) (${pick(i, callee)}($props) : Any)
+			}
+		];
 		return {expr: ESwitch(macro hxmc.view.Render.pass, cases, macro @:pos(callee.pos) (null : Any)), pos: callee.pos};
 	}
 

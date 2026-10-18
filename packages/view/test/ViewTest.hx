@@ -463,6 +463,9 @@ class ViewTest implements Markup {
 			Render.render(OtherWidgets.Badge({label: "x"}), new TestNode(Element, "root"));
 			"mounted";
 		} catch (e:Dynamic) Std.string(e);
+		var pair = new OtherNode("root");
+		Render.render(OtherWidgets.Pair({}), pair);
+		check("renderers: a shared literal of a class for some renderers", pair.toString() == "[root[mark]]", pair.toString());
 		check("renderers: a class's markup not for a renderer, an error when mounted", own == "hxmc.view: OtherWidgets markup is not for TestRenderer (@:renderer)",
 			own);
 	}
@@ -496,6 +499,17 @@ class ViewTest implements Markup {
 class OtherWidgets implements Markup {
 	public static function Badge(props:{label:String}):View
 		return <badge>{props.label}</badge>;
+
+	// (a literal of a component alone, shared by every renderer: one with none for TestRenderer compiles, the class not being for it)
+	public static function Pair(props:{}):View
+		return <OtherOnly.Mark/>;
+}
+
+// (OtherRenderer's only, with no counterparts)
+@:renderer(OtherRenderer)
+class OtherOnly implements Markup {
+	public static function Mark(props:{}):View
+		return <mark/>;
 }
 
 class TestWidgets implements Markup {

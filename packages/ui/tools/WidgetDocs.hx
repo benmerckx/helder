@@ -1,5 +1,5 @@
-// The widgets' reference, read from their sources (the component pages of
-// the site): for each public widget of Widgets.hx, its doc comment, its
+// The widgets' reference, read from their sources (the site's UI
+// components page): for each public widget of Widgets.hx, its doc comment, its
 // props (name, type, whether optional, a default where the code gives one:
 // props.x ?? value), the slots and data- attributes a theme targets, the
 // roles it declares, and what its @:widget metadata says (props: each
