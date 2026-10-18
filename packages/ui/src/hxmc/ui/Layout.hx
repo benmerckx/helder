@@ -1254,9 +1254,10 @@ class Layout {
 			for (i in start...end) {
 				var it = items[i];
 				if (!it.frozen) {
+					// (its share as Chromium adds it: rounded to a 64th of a pixel, its LayoutUnit)
 					var target = it.basis;
-					if (growing) target += remaining * it.node.style.grow / factors;
-					else if (scaled > 0) target += remaining * (it.node.style.shrink * inner(it)) / scaled;
+					if (growing) target += Math.fround(remaining * it.node.style.grow / factors * 64) / 64;
+					else if (scaled > 0) target += Math.fround(remaining * (it.node.style.shrink * inner(it)) / scaled * 64) / 64;
 					var c = clamp(target, it.minMain, it.maxMain);
 					if (c < 0) c = 0;
 					it.violation = c - target;
