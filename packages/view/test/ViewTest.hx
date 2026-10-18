@@ -363,6 +363,61 @@ class ViewTest implements Markup {
 		names.value = ["x", "b", "y"];
 		var shown = [for (c in root2.children[0].children) if (c.kind == Element) c.children[0].text].join(",");
 		check("Index: items set in place, rows added", shown == "0:x,1:b,2:y" && rows == 3, shown);
+		// For and Index against random lists (keys once each): the rows as the
+		// list has them, between the content around them, and For's row of a
+		// key the same node while the key stays
+		var seed = 5, bad = 0, lost = 0, first = "";
+		function rnd(n:Int):Int {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			return (seed >> 8) % n;
+		}
+		var keys = signal([0, 1, 2]), next = 3;
+		var root3 = new TestNode(Element, "root");
+		Render.render(<ul><b>head</b><For each={keys} render={(k:Int) -> <li>{"" + k}</li>}/><i>mid</i><Index each={keys} render={(n:Signal<Int>, i:Int) -> <p>{() -> i + ":" + n.value}</p>}/><b>tail</b></ul>,
+			root3);
+		var list3 = root3.children[0];
+		function rows():Map<Int, TestNode>
+			return [for (c in list3.children) if (c.tag == "li") Std.parseInt(c.children[0].text) => c];
+		for (step in 0...300) {
+			var was = rows(), k = keys.peek().copy(), what;
+			switch rnd(6) {
+				case 0:
+					k.insert(rnd(k.length + 1), next++);
+					what = "insert";
+				case 1 if (k.length > 0):
+					k.splice(rnd(k.length), 1);
+					what = "remove";
+				case 2:
+					for (i in 0...k.length) {
+						var j = rnd(k.length), t = k[i];
+						k[i] = k[j];
+						k[j] = t;
+					}
+					what = "shuffle";
+				case 3:
+					k.reverse();
+					what = "reverse";
+				case 4:
+					k = [for (x in k) if (rnd(2) == 0) x];
+					for (i in 0...rnd(3))
+						k.insert(rnd(k.length + 1), next++);
+					what = "some kept, some new";
+				case _:
+					k = rnd(4) == 0 ? [] : [for (i in 0...rnd(6)) next++];
+					what = "replaced";
+			}
+			keys.value = k;
+			var want = "<b>head</b>" + [for (x in k) '<li>$x</li>'].join("") + "<i>mid</i>" + [for (i in 0...k.length) '<p>$i:${k[i]}</p>'].join("") + "<b>tail</b>";
+			var got = [for (c in list3.children) if (c.kind != Marker) c.toHtml()].join("");
+			if (got != want) {
+				bad++;
+				if (first == "") first = 'step $step ($what): $got';
+			}
+			var now = rows();
+			for (x => n in now)
+				if (was.exists(x) && was.get(x) != n) lost++;
+		}
+		check("For and Index: random lists, 300 changes", bad == 0 && lost == 0, bad + " differ, " + lost + " rows made again; the first: " + first);
 		// Show: the branch kept while it stays chosen
 		var count = signal(1), refs = 0;
 		check("Show", html(<div><Show when={() -> count.value > 0} fallback="none"><i ref={_ -> refs++}/></Show></div>) == "<div><i></i><!--anchor--></div>");
