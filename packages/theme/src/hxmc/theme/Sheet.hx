@@ -64,8 +64,9 @@ class Sheet {
 				if (parent != null) {
 					var base:Dynamic = all[parent];
 					if (base == null) throw '$name extends $parent, which is not a slot';
-					// (one fixed: the other cva's default)
-					if (v.variant != null || v.size != null) cva(base, v.variant ?? "default", v.size ?? "default") else cva(base, variant, size);
+					// (a plain list's classes; one fixed: the other cva's default)
+					if (Std.isOfType(base, String) || Std.isOfType(base, Array)) some(base, s -> add(s)) else if (v.variant != null
+						|| v.size != null) cva(base, v.variant ?? "default", v.size ?? "default") else cva(base, variant, size);
 				} else {
 					some(v.base, s -> add(s));
 					for (kind in ["variant", "size"]) {

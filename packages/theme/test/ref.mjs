@@ -46,13 +46,17 @@ const classes = (slot, variant, size) => twMerge(...lists(sheet.slots[slot], var
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const attrs = a => Object.entries(a ?? {}).map(([k, v]) => v === true ? ` ${k}` : ` ${k}="${esc(String(v))}"`).join('');
 // an element of a slot: <tag data-slot class attrs>inner</tag>
-const el = (tag, slot, inner = '', a = {}, variant, size) => `<${tag} data-slot="${slot}" class="${classes(slot, variant, size)}"${attrs(a)}>${inner}</${tag}>`;
+// (extra: an instance's classes, cn's className after the slot's)
+const el = (tag, slot, inner = '', a = {}, variant, size, extra) => `<${tag} data-slot="${slot}" class="${extra ? twMerge(...lists(sheet.slots[slot], variant, size), extra) : classes(slot, variant, size)}"${attrs(a)}>${inner}</${tag}>`;
 // lucide's icons, as the components draw them
 const ICONS = {
 	check: '<path d="M20 6 9 17l-5-5"/>', circle: '<circle cx="12" cy="12" r="10"/>', 'chevron-down': '<path d="m6 9 6 6 6-6"/>',
 	'chevron-right': '<path d="m9 18 6-6-6-6"/>', 'chevron-left': '<path d="m15 18-6-6 6-6"/>',
 	x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', minus: '<path d="M5 12h14"/>', search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>', loader: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
 	more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+	'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>', 'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+	folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+	'panel-left': '<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>',
 };
 const icon = (name, cls = '') => `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${cls}">${ICONS[name]}</svg>`;
 const state = on => on ? 'checked' : 'unchecked';
@@ -179,6 +183,78 @@ const markup = {
 		+ `<li data-sonner-toast="" data-styled="true" data-mounted="true" data-visible="true" data-front="true" data-y-position="bottom" data-x-position="right" data-type="default">`
 		+ `<button aria-label="Close toast" data-close-button="true">${icon('x').replace('width="24" height="24"', 'width="12" height="12"').replace('stroke-width="2"', 'stroke-width="1.5"')}</button>`
 		+ `<div data-content=""><div data-title="">${esc(c.text)}</div></div><button data-button="true" data-action="true">${esc(c.action)}</button></li></ol></section>`,
+	// (the third batch: Field, ButtonGroup, InputGroup, Empty, Item, Carousel, NavigationMenu, Sidebar, Chart, AspectRatio, ScrollArea, NativeSelect)
+	field: c => el('fieldset', 'field-set', el('legend', 'field-legend', 'Profile', { 'data-variant': 'legend' }, 'legend')
+		+ el('p', 'field-description', 'How others see you.')
+		+ el('div', 'field-group',
+			el('div', 'field', el('label', 'field-label', 'Name', { for: 'f-name' }) + markup.input({ placeholder: 'Ada Lovelace', attrs: { id: 'f-name' } })
+				+ el('p', 'field-description', 'Shown on your posts.'), { role: 'group', 'data-orientation': 'vertical' }, 'vertical')
+			+ el('div', 'field', el('label', 'field-label', 'Email', { for: 'f-email' }) + markup.input({ text: 'not an email', attrs: { id: 'f-email', 'aria-invalid': 'true' } })
+				+ el('div', 'field-error', 'Enter an email address.', { role: 'alert' }), { role: 'group', 'data-orientation': 'vertical', 'data-invalid': 'true' }, 'vertical')
+			+ el('div', 'field-separator', `<div data-slot="separator" data-orientation="horizontal" role="none" class="${twMerge(lists(sheet.slots.separator).concat('absolute inset-0 top-1/2'))}"></div>`, { 'data-content': 'false' })
+			+ el('div', 'field', el('div', 'field-content', el('label', 'field-label', 'Newsletter', { for: 'f-news' }) + el('p', 'field-description', 'A monthly email.'))
+				+ markup.switch({ checked: true, attrs: { id: 'f-news' } }), { role: 'group', 'data-orientation': 'horizontal' }, 'horizontal'))),
+	'button-group': c => el('div', 'button-group', (c.text ? [markup.button({ variant: 'outline', text: '−' }), el('div', 'button-group-text', '0'),
+		el('div', 'button-group-separator', '', { 'data-orientation': 'vertical', role: 'none' }), markup.button({ variant: 'outline', text: '+' })]
+		: (c.variant === 'vertical' ? ['In', 'Out'] : ['Archive', 'Report', 'Snooze']).map(t => markup.button({ variant: 'outline', size: c.variant === 'vertical' ? 'sm' : 'default', text: t }))).join(''),
+		{ role: 'group', 'data-orientation': c.variant ?? 'horizontal' }, c.variant ?? 'horizontal'),
+	'input-group': c => el('div', 'input-group', c.text
+		? `<input data-slot="input-group-control" class="${twMerge(lists(sheet.slots['input-group-control']))}" value="${esc(c.text)}"${attrs(c.attrs)}>`
+			+ el('div', 'input-group-addon', el('span', 'input-group-text', 'https://'), { role: 'group', 'data-align': 'inline-start' }, 'inline-start')
+			+ el('div', 'input-group-addon', el('span', 'input-group-text', '.com'), { role: 'group', 'data-align': 'inline-end' }, 'inline-end')
+		: `<input data-slot="input-group-control" class="${twMerge(lists(sheet.slots['input-group-control']))}" placeholder="Search"${attrs(c.attrs)}>`
+			+ el('div', 'input-group-addon', markup.button({ variant: 'ghost', size: 'sm', text: 'Clear' }), { role: 'group', 'data-align': 'inline-end' }, 'inline-end'),
+		{ role: 'group' }),
+	empty: c => el('div', 'empty', el('div', 'empty-header', el('div', 'empty-icon', icon('folder'), { 'data-variant': 'icon' }, 'icon')
+		+ el('div', 'empty-title', 'No projects yet') + el('div', 'empty-description', 'You haven\'t made a project. Start with your first one.'))
+		+ el('div', 'empty-content', markup.button({ text: 'Create a project' }))),
+	item: c => c.variant === 'muted'
+		? el('div', 'item', el('div', 'item-content', el('div', 'item-title', 'Grace Hopper') + el('p', 'item-description', 'Wrote the first compiler.')),
+			{ 'data-variant': 'muted', 'data-size': 'sm', role: 'button', tabindex: 0 }, 'muted', 'sm')
+		: el('div', 'item', el('div', 'item-media', 'A', { 'data-variant': 'icon' }, 'icon')
+			+ el('div', 'item-content', el('div', 'item-title', 'Ada Lovelace') + el('p', 'item-description', 'Wrote the first program.'))
+			+ el('div', 'item-actions', markup.button({ variant: 'outline', size: 'sm', text: 'Invite' })), { 'data-variant': 'outline', 'data-size': 'default', role: 'listitem' }, 'outline'),
+	carousel: c => {
+		const o = 'horizontal', slides = [1, 2, 3].map(n => el('div', 'carousel-item', `<div data-slot="slide" class="flex h-[120px] items-center justify-center rounded-lg border text-3xl font-semibold">${n}</div>`,
+			{ role: 'group', 'aria-roledescription': 'slide', 'data-orientation': o })).join('');
+		const nav = (slot, ic, label, off) => el('button', slot, icon(ic) + `<span class="sr-only">${label}</span>`, { type: 'button', 'data-orientation': o, ...(off ? { disabled: true } : {}) });
+		return el('div', 'carousel', el('div', 'carousel-content', el('div', 'carousel-track', slides, { 'data-orientation': o }))
+			+ nav('carousel-previous', 'arrow-left', 'Previous slide', true) + nav('carousel-next', 'arrow-right', 'Next slide', false),
+			{ role: 'region', 'aria-roledescription': 'carousel', 'data-orientation': o }, null, null, 'mx-12 w-[200px]');
+	},
+	'navigation-menu': c => {
+		const open = c.crop != null, trigger = (t, on) => el('button', 'navigation-menu-trigger', `${t} ${icon('chevron-down', classes('navigation-menu-trigger-icon'))}`, { type: 'button', 'data-state': on ? 'open' : 'closed', 'aria-expanded': !!on });
+		const link = (t, d) => el('a', 'navigation-menu-link', `<div data-slot="nav-title" class="text-sm leading-none font-medium">${t}</div><p data-slot="nav-description" class="line-clamp-2 text-sm leading-snug text-muted-foreground">${d}</p>`, { href: '#' });
+		return el('nav', 'navigation-menu', `<div style="position: relative;">` + el('ul', 'navigation-menu-list', ['Getting started', 'Components'].map((t, i) => el('li', 'navigation-menu-item', trigger(t, open && i === 0))).join('')
+,
+			{ 'data-orientation': 'horizontal' }) + '</div>'
+			+ (open ? `<div class="absolute top-full left-0 isolate z-50 flex justify-center">` + el('div', 'navigation-menu-viewport', el('div', 'navigation-menu-content',
+				`<ul class="grid w-[300px] gap-2"><li>${link('Introduction', 'What it is and why.')}</li><li>${link('Installation', 'How to add it.')}</li></ul>`, { 'data-state': 'open', 'data-orientation': 'horizontal' }),
+				{ 'data-state': 'open', 'data-orientation': 'horizontal' }) + '</div>' : ''),
+			{ 'aria-label': 'Main', 'data-orientation': 'horizontal', 'data-viewport': 'true' });
+	},
+	sidebar: c => {
+		const collapsed = c.variant === 'icon';
+		const button = (t, i) => el('li', 'sidebar-menu-item', el('button', 'sidebar-menu-button', icon('circle') + `<span>${t}</span>`,
+			{ 'data-sidebar': 'menu-button', 'data-size': 'default', ...(i === 0 ? { 'data-active': 'true' } : {}) }, 'default', 'default'), { 'data-sidebar': 'menu-item' });
+		const side = el('div', 'sidebar', el('div', 'sidebar-gap', '', {}, 'sidebar')
+			+ el('div', 'sidebar-container', el('div', 'sidebar-inner',
+				el('div', 'sidebar-header', '<span class="font-semibold">Mail</span>')
+				+ el('div', 'sidebar-content', el('div', 'sidebar-group', el('div', 'sidebar-group-label', 'Folders') + el('div', 'sidebar-group-content', el('ul', 'sidebar-menu', ['Inbox', 'Drafts', 'Sent'].map(button).join('')))))
+				+ el('div', 'sidebar-footer', '<span>Signed in</span>'), { 'data-sidebar': 'sidebar' }), { 'data-side': 'left' }, 'sidebar', null, 'h-auto'),
+			{ 'data-state': collapsed ? 'collapsed' : 'expanded', 'data-collapsible': collapsed ? 'icon' : '', 'data-variant': 'sidebar', 'data-side': 'left' });
+		const inset = el('main', 'sidebar-inset', `<div class="flex items-center gap-2">${el('button', 'sidebar-trigger', icon('panel-left') + '<span class="sr-only">Toggle Sidebar</span>', { 'data-sidebar': 'trigger', type: 'button' })}<span>Inbox</span></div>`);
+		return el('div', 'sidebar-wrapper', side + inset, { style: '--sidebar-width: 16rem; --sidebar-width-icon: 3rem; contain: layout;' }, null, null, 'min-h-0 h-full');
+	},
+	'chart-tooltip': c => el('div', 'chart-tooltip', el('div', 'chart-tooltip-label', 'Feb') + `<div class="grid gap-1.5">` + [['Desktop', 305, 1], ['Mobile', 200, 2]].map(([n, v, k]) =>
+		el('div', 'chart-tooltip-item', `<div class="shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg) h-2.5 w-2.5" style="--color-bg: var(--chart-${k}); --color-border: var(--chart-${k});"></div>`
+			+ `<div class="flex flex-1 justify-between leading-none items-center"><div class="grid gap-1.5"><span class="text-muted-foreground">${n}</span></div>${el('span', 'chart-tooltip-value', v)}</div>`)).join('') + '</div>'),
+	'chart-legend': c => el('div', 'chart-legend', [['Desktop', 1], ['Mobile', 2]].map(([n, k]) => el('div', 'chart-legend-item', el('div', 'chart-legend-swatch', '', { style: `background-color: var(--chart-${k});` }) + n)).join(''), { style: 'width: 300px;' }),
+	'aspect-ratio': c => `<div style="position: relative; width: 100%; padding-bottom: 56.25%;" data-radix-aspect-ratio-wrapper="">${el('div', 'aspect-ratio', '<div class="flex h-full items-center justify-center text-sm text-muted-foreground">16 : 9</div>', { style: 'position: absolute; inset: 0px;' }, null, null, 'rounded-lg bg-muted')}</div>`,
+	'scroll-area': c => el('div', 'scroll-area', el('div', 'scroll-area-viewport', `<div style="min-width: 100%; display: table;"><div class="flex flex-col gap-2 p-3 text-sm">${Array.from({ length: 50 }, (_, i) => `<div>v1.2.0-beta.${50 - i}</div>`).join('')}</div></div>`,
+		{ 'data-radix-scroll-area-viewport': '', style: 'overflow: hidden scroll;' }), { dir: 'ltr', style: 'position: relative;' }, null, null, 'h-[200px] w-[200px] rounded-md border'),
+	'native-select': c => el('div', 'native-select-wrapper', el('select', 'native-select', ['To do', 'In progress', 'Done'].map(t => `<option data-slot="native-select-option" class="bg-[Canvas] text-[CanvasText]">${t}</option>`).join(''), { 'data-size': 'default', ...c.attrs })
+		+ icon('chevron-down', classes('native-select-icon')).replace('<svg ', '<svg data-slot="native-select-icon" ')),
 };
 
 // a menu's content, as hxmc's MenuItems make it: items with shortcuts, a separator, a destructive and a disabled one (the first focused)
@@ -225,6 +301,10 @@ const frames = {
 	'menubar-content': { w: 320, h: 300, crop: 'menubar-content' }, 'hover-card': { w: 320, h: 200, crop: 'hover-card-content' },
 	sheet: { w: 800, h: 600 }, avatar: { w: 64, h: 64 }, kbd: { w: 80, h: 52 }, spinner: { w: 48, h: 48 }, resizable: { w: 400, h: 192, block: true },
 	calendar: { w: 300, h: 340 }, toast: { w: 420, h: 140, crop: 'toast', refCrop: '[data-sonner-toast]' },
+	field: { w: 392, h: 440, block: true }, 'button-group': { w: 320, h: 68 }, 'input-group': { w: 352, h: 68, block: true }, empty: { w: 392, h: 300, block: true },
+	item: { w: 412, h: 116, block: true }, carousel: { w: 328, h: 152 }, 'navigation-menu': { w: 420, h: 68 }, sidebar: { w: 492, h: 252, block: true },
+	'chart-tooltip': { w: 420, h: 300, crop: 'chart-tooltip' }, 'chart-legend': { w: 420, h: 300, crop: 'chart-legend' }, 'aspect-ratio': { w: 352, h: 212, block: true },
+	'scroll-area': { w: 232, h: 232 }, 'native-select': { w: 220, h: 68 },
 };
 for (const k of ['select-content', 'dropdown-menu', 'popover', 'tooltip']) Object.assign(frames[k], { w: 360, h: 300, crop: k === 'dropdown-menu' ? 'dropdown-menu-content' : k === 'popover' ? 'popover-content' : k === 'tooltip' ? 'tooltip-content' : k });
 
@@ -311,6 +391,27 @@ for (const dark of [false, true]) {
 	add('resizable', `horizontal${d}`, { dark });
 	add('calendar', `default${d}`, { dark });
 	add('toast', `default${d}`, { dark, text: 'Event has been created', action: 'Undo' });
+	add('field', `default${d}`, { dark });
+	for (const variant of ['horizontal', 'vertical']) add('button-group', variant + d, { variant, dark, ...(variant === 'vertical' ? { h: 116 } : {}) });
+	add('button-group', `text${d}`, { text: '0', dark });
+	add('input-group', `addons${d}`, { text: 'example', dark });
+	add('input-group', `button${d}`, { dark });
+	add('input-group', `focus${d}`, { text: 'example', dark, states: ['focus-visible'] });
+	add('empty', `default${d}`, { dark });
+	add('item', `outline${d}`, { variant: 'outline', dark });
+	add('item', `muted${d}`, { variant: 'muted', size: 'sm', dark });
+	add('item', `muted-focus${d}`, { variant: 'muted', size: 'sm', dark, states: ['focus-visible'] });
+	add('carousel', `default${d}`, { dark });
+	add('navigation-menu', `default${d}`, { dark });
+	add('navigation-menu', `open${d}`, { dark, h: 260, crop: 'navigation-menu-viewport' });
+	add('sidebar', `expanded${d}`, { dark });
+	add('sidebar', `icon${d}`, { variant: 'icon', dark });
+	add('chart-tooltip', `open${d}`, { dark });
+	add('chart-legend', `default${d}`, { dark });
+	add('aspect-ratio', `default${d}`, { dark });
+	add('scroll-area', `default${d}`, { dark });
+	add('native-select', `default${d}`, { dark });
+	add('native-select', `focus${d}`, { dark, states: ['focus-visible'] });
 }
 // right to left (dir="rtl" on the page; hxmc: the frame's direction)
 add('card', 'full-rtl', { title: 'Card Title', description: 'Card Description', action: 'Card Action', text: 'Card Content', footer: 'Card Footer', rtl: true });
@@ -320,6 +421,9 @@ add('breadcrumb', 'default-rtl', { rtl: true });
 add('pagination', 'default-rtl', { rtl: true });
 add('dropdown-menu', 'open-rtl', { rtl: true });
 add('calendar', 'default-rtl', { rtl: true });
+add('field', 'default-rtl', { rtl: true });
+add('input-group', 'addons-rtl', { text: 'example', rtl: true });
+add('item', 'outline-rtl', { variant: 'outline', rtl: true });
 for (const size of Object.keys(sheet.slots.button.size)) add('button', `size-${size}`, { size, text: size.startsWith('icon') ? '+' : 'Button' });
 for (const size of ['sm', 'lg']) add('toggle', `size-${size}`, { size, text: 'Bold' });
 
@@ -361,12 +465,20 @@ const browser = await pw.chromium.launch();
 const page = await browser.newPage({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
 const cdp = await page.context().newCDPSession(page);
 // (the element a state is forced on: the component's main slot)
-const target = { label: 'label', 'radio-group': 'radio-group-item', slider: 'slider-thumb', tabs: 'tabs-trigger', toggle: 'toggle', select: 'select-trigger', 'dropdown-menu': 'dropdown-menu-item' };
+const target = { 'input-group': 'input-group-control', label: 'label', 'radio-group': 'radio-group-item', slider: 'slider-thumb', tabs: 'tabs-trigger', toggle: 'toggle', select: 'select-trigger', 'dropdown-menu': 'dropdown-menu-item' };
 for (const c of cases) {
 	const align = c.block ? '' : 'display: flex; align-items: flex-start;';
 	await page.setContent(`<!doctype html><html${c.dark ? ' class="dark"' : ''}${c.rtl ? ' dir="rtl"' : ''}><head><style>${css}${c.component === 'toast' ? sonner : ''}</style></head>`
 		+ `<body style="margin: 0"><div id="frame" class="bg-background" style="box-sizing: border-box; width: ${c.w}px; height: ${c.h}px; padding: 16px; ${align}">${markup[c.component](c)}</div></body></html>`);
 	await page.evaluate(() => document.fonts.ready);
+	// (Radix sizes a navigation menu's viewport to its content: --radix-navigation-menu-viewport-width and -height)
+	await page.evaluate(() => {
+		for (const v of document.querySelectorAll('[data-slot=navigation-menu-viewport]')) {
+			const c = v.querySelector('[data-slot=navigation-menu-content]');
+			v.style.setProperty('--radix-navigation-menu-viewport-width', c.offsetWidth + 'px');
+			v.style.setProperty('--radix-navigation-menu-viewport-height', c.offsetHeight + 'px');
+		}
+	});
 	await cdp.send('DOM.enable');
 	await cdp.send('CSS.enable');
 	const { root } = await cdp.send('DOM.getDocument');

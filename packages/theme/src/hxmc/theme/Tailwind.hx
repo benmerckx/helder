@@ -85,8 +85,16 @@ class Tailwind {
 		"@container", "@container/*",
 		// inherited already
 		"text-current",
-		// viewport units (a drawer's max-h-[80vh]): no length of the window's yet
-		"*vh]*",
+		// viewport units (a drawer's max-h-[80vh], a sidebar's h-svh): no length of the window's yet
+		"*vh]*", "h-svh", "min-h-svh",
+		// native controls' own look, list markers: ui draws neither
+		"appearance-none", "list-none",
+		// dashed borders, a side's border colour: the engine's borders are solid, of one colour
+		"border-dashed", "border-t-transparent", "border-r-transparent", "border-b-transparent", "border-l-transparent",
+		// a scroll area's viewport rounded as its root: ui's scroller clips by its own corners
+		"rounded-[inherit]",
+		// not a Tailwind class (navigation-menu-viewport's origin-top-center): no CSS for it
+		"origin-top-center",
 		// (no StyleProps for them yet: scroll margins, touch-action)
 		"scroll-my-*", "scroll-py-*", "touch-none",
 		// what Radix's popper measures (--radix-*): ui's popups place and size themselves
@@ -111,7 +119,11 @@ class Tailwind {
 		// arbitrary selectors: icons inside ([&_svg], [&>svg]), the
 		// element type ([a&]), class names ([.border-b]); has-[>svg]: a
 		// button's padding beside an icon
-		"[*", "has-[*",
+		"[*", "has-[*", "group-has-[*",
+		// container queries (a field's @md/field-group:): no container's width of its own
+		"@*",
+		// nth-child selectors other than first and last
+		"nth-*",
 		// children's (*:) and descendants' (**:) styles, each of which ui's
 		// widgets give their own slot
 		"*", "**",
@@ -467,6 +479,11 @@ class Tailwind {
 			case "border": for (i in 0...4) set('border.$i', VNum(1));
 			case "rounded": for (i in 0...4) set('corner.$i', VNum(4));
 			case "shadow-none": set("shadow", VShadow([]));
+			// (shadow: shadow-sm's, as Tailwind v4 keeps it)
+			case "shadow": set("shadow", VShadow([for (x in SHADOWS["sm"]) {x: x[0], y: x[1], blur: x[2], spread: x[3], color: 'rgba(0, 0, 0, ${x[4]})'}]));
+			// (first and last: before and after any order a node is given)
+			case "order-first": set("order", VInt(-9999));
+			case "order-last": set("order", VInt(9999));
 			case "ring": set("ringWidth", VNum(1));
 			case "ring-inset": set("ringInset", VBool(true));
 			// (outline-hidden: a transparent outline, shown only in forced colours; neither draws the window's focus ring)
@@ -510,6 +527,21 @@ class Tailwind {
 		}
 		if (out.length > 0) return out;
 		var v:Null<String>;
+		// arbitrary properties: a scroller's scrollbar ([scrollbar-width:thin], [scrollbar-color:var(--border)_transparent])
+		if ((v = after("[scrollbar-width:")) != null) {
+			var w = ["auto" => "Auto", "thin" => "Thin", "none" => "None"][v.substr(0, v.length - 1)];
+			if (w == null) return null;
+			en("scrollbarWidth", "ScrollbarWidth", w);
+			return out;
+		}
+		if ((v = after("[scrollbar-color:")) != null) {
+			var parts = v.substr(0, v.length - 1).split("_");
+			var thumb = parts.length == 2 ? cssColor(parts[0]) : null, track = parts.length == 2 ? cssColor(parts[1]) : null;
+			if (thumb == null || track == null) return null;
+			set("scrollbarColor", VColor(thumb));
+			set("scrollbarTrackColor", VColor(track));
+			return out;
+		}
 		// spacing: padding, margin, gap
 		for (p in ["p", "m"]) {
 			var field = p == "p" ? "padding" : "margin";
@@ -899,8 +931,11 @@ class Tailwind {
 			case _:
 		}
 		if (max && CONTAINERS.exists(v)) return Px(CONTAINERS[v] * REM);
-		// (calc(100%-2rem): a percentage plus pixels)
+		// (calc(100%-2rem): a percentage plus pixels; of lengths only, the
+		// sheet's vars and --spacing(n) among them: pixels)
 		if (v.startsWith("[calc(") && v.endsWith(")]")) {
+			var n = pxCalc(v.substring(6, v.length - 2).replace("_", ""));
+			if (n != null) return Px(n);
 			var c = calc(v.substring(6, v.length - 2).replace("_", ""));
 			return c == null ? null : Calc(c.p, c.px);
 		}
@@ -965,6 +1000,12 @@ class Tailwind {
 	public static function isRadius(n:Float):Bool
 		return Math.abs(n - RADIUS) < 1e5;
 
+	// (a CSS colour in an arbitrary value: var(--token), transparent)
+	static function cssColor(v:String):Null<String> {
+		if (v.startsWith("var(--") && v.endsWith(")")) return color(v.substring(6, v.length - 1));
+		return color(v);
+	}
+
 	// a colour: a token (with an alpha in percent), white, black, transparent
 	static function color(v:String):Null<String> {
 		var slash = v.lastIndexOf("/");
@@ -979,6 +1020,71 @@ class Tailwind {
 			case _: return null;
 		}
 		return alpha == null ? 'rgb($rgb)' : 'rgba($rgb, ${alpha / 100})';
+	}
+
+	// (calc()'s body of lengths in px: var(--sidebar-width) * -1,
+	// var(--sidebar-width-icon) + (--spacing(4)) + 2px; null where it
+	// holds anything else, a percentage)
+	function pxCalc(body:String):Null<Float> {
+		var s = body, i = 0;
+		function skip()
+			while (i < s.length && s.charAt(i) == " ")
+				i++;
+		var expr:Void->Null<Float> = null;
+		var factor = function():Null<Float> {
+			skip();
+			if (s.substr(i, 4) == "var(") {
+				var end = s.indexOf(")", i);
+				var name = s.substring(i + 4, end);
+				i = end + 1;
+				return vars.exists(name) ? length(vars[name]) : null;
+			}
+			if (s.substr(i, 10) == "--spacing(") {
+				var end = s.indexOf(")", i);
+				var n = number(s.substring(i + 10, end));
+				i = end + 1;
+				return n == null ? null : n * 0.25 * REM;
+			}
+			if (s.charAt(i) == "(") {
+				i++;
+				var a = expr();
+				skip();
+				if (s.charAt(i) != ")") return null;
+				i++;
+				return a;
+			}
+			var neg = s.charAt(i) == "-";
+			if (neg) i++;
+			var j = i;
+			while (j < s.length && ~/[0-9a-z.%]/.match(s.charAt(j)))
+				j++;
+			var n = length(s.substring(i, j));
+			if (n == null && j > i) n = number(s.substring(i, j));
+			i = j;
+			return n == null ? null : neg ? -n : n;
+		};
+		var term = function():Null<Float> {
+			var a = factor();
+			skip();
+			while (a != null && i < s.length && (s.charAt(i) == "*" || s.charAt(i) == "/")) {
+				var op = s.charAt(i++), b = factor();
+				a = b == null ? null : op == "*" ? a * b : a / b;
+				skip();
+			}
+			return a;
+		};
+		expr = function():Null<Float> {
+			var a = term();
+			skip();
+			while (a != null && i < s.length && (s.charAt(i) == "+" || s.charAt(i) == "-")) {
+				var op = s.charAt(i++), b = term();
+				a = b == null ? null : op == "+" ? a + b : a - b;
+				skip();
+			}
+			return a;
+		};
+		var n = expr();
+		return n != null && i == s.length ? n : null;
 	}
 
 	// (calc()'s body as a percentage plus pixels: 100%-2px, -50% - 2px, 100%+0.5rem)

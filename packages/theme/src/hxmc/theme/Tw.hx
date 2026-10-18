@@ -109,9 +109,13 @@ private class Encoder {
 	}
 
 	public function int(v:Int) {
-		if (v < 0 || v >= 15 * 64) Context.error('Tw: $v is beyond what RuleData reads', Context.currentPos());
-		if (v < 64) data.addChar(48 + v) else {
+		if (v < 0 || v >= 64 * 64) Context.error('Tw: $v is beyond what RuleData reads', Context.currentPos());
+		if (v < 64) data.addChar(48 + v) else if (v < 15 * 64) {
 			data.addChar(112 + (v >> 6));
+			data.addChar(48 + (v & 63));
+		} else {
+			data.addChar("!".code);
+			data.addChar(48 + (v >> 6));
 			data.addChar(48 + (v & 63));
 		}
 	}

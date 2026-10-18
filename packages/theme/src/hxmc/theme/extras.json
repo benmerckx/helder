@@ -1,5 +1,5 @@
 {
-	"about": "Ours, not shadcn's: class lists in shadcn's style, from its own patterns and tokens, for hxmc's widgets shadcn lacks (Tree, Listbox, Sortable, NumberField, TagInput, ColorPicker, Toolbar, Collapsible) and hxmc's parts that are not shadcn's (the calendar's day and nav, the field rows, icons, sonner's toast, its stylesheet's values as classes, a group heading); shadcn.json includes it, its slots over shadcn's (packages/theme/README.md)",
+	"about": "Ours, not shadcn's: class lists in shadcn's style, from its own patterns and tokens, for hxmc's widgets shadcn lacks (Tree, Listbox, Sortable, NumberField, TagInput, ColorPicker, Toolbar, Collapsible), hxmc's Chart (not recharts': its series coloured by data-series, its parts in flow) and hxmc's parts that are not shadcn's (the calendar's day and nav, the field rows, icons, sonner's toast, its stylesheet's values as classes, a group heading, a scroll area's scrollbar as Radix shows it on hover); shadcn.json includes it, its slots over shadcn's (packages/theme/README.md)",
 	"slots": {
 		"calendar": [
 			"group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
@@ -17,6 +17,18 @@
 			]
 		},
 		"calendar-nav": "flex h-(--cell-size) w-full items-center justify-between gap-1",
+		"chart": "flex flex-col text-xs",
+		"chart-bar": [
+			"rounded-[4px] data-[active=true]:opacity-80",
+			"data-[series=1]:bg-chart-1 data-[series=2]:bg-chart-2 data-[series=3]:bg-chart-3 data-[series=4]:bg-chart-4 data-[series=5]:bg-chart-5"
+		],
+		"chart-grid": "bg-border/50",
+		"chart-legend-swatch": [
+			"h-2 w-2 shrink-0 rounded-[2px]",
+			"data-[series=1]:bg-chart-1 data-[series=2]:bg-chart-2 data-[series=3]:bg-chart-3 data-[series=4]:bg-chart-4 data-[series=5]:bg-chart-5"
+		],
+		"chart-line": "data-[series=1]:text-chart-1 data-[series=2]:text-chart-2 data-[series=3]:text-chart-3 data-[series=4]:text-chart-4 data-[series=5]:text-chart-5",
+		"chart-tick": "text-muted-foreground",
 		"checkbox-field": "flex items-center gap-3",
 		"collapsible": "flex flex-col gap-2",
 		"collapsible-content": "text-sm",
@@ -51,6 +63,10 @@
 			"class": "data-[active=true]:border data-[active=true]:bg-background data-[active=true]:shadow-xs data-[active=true]:hover:bg-accent data-[active=true]:hover:text-accent-foreground dark:data-[active=true]:border-input dark:data-[active=true]:bg-input/30 dark:data-[active=true]:hover:bg-input/50"
 		},
 		"radio-group-option": "flex items-center gap-3",
+		"scroll-area-viewport": [
+			"size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1",
+			"[scrollbar-color:var(--border)_transparent] [scrollbar-width:none] hover:[scrollbar-width:thin]"
+		],
 		"select-value": "line-clamp-1 flex items-center gap-2",
 		"sortable": "flex flex-col gap-2",
 		"sortable-handle": "cursor-grab text-muted-foreground select-none",
