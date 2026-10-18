@@ -9,7 +9,7 @@ import hxmc.scene.*;
 // of a pile of balls after 300 steps).
 class PhysicsTest {
 	// the pile's checksum after 300 steps (Eval, native and wasm32-wasi alike)
-	static inline var CHECKSUM = 44358533;
+	static inline var CHECKSUM = 24618742;
 	static var checks = 0;
 	static var failed = 0;
 
@@ -103,6 +103,16 @@ class PhysicsTest {
 		check('a tilted box tumbles flat (up ${Math.round(up.y * 1000) / 1000}, y ${Math.round(box.position.y * 1000) / 1000})',
 			turned && Math.abs(up.y) > 0.99 && near(box.position.y, 0.25, 0.03));
 		check('a box stacks on it (y ${Math.round(top.position.y * 1000) / 1000})', near(top.position.y, 0.5 + 0.3, 0.05));
+		// crates of one size stacked three high (their corners on each other's edges) stay stacked
+		var sw = new PhysicsWorld();
+		sw.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
+		var crates = [for (k in 0...3) sw.add(new Body(Box(new Vec3(0.3, 0.3, 0.3)), new Vec3(0, 0.3 + 0.6 * k, 0)))];
+		for (_ in 0...300)
+			sw.step(dt);
+		var stacked = true;
+		for (k in 0...3)
+			if (!near(crates[k].position.y, 0.3 + 0.6 * k, 0.02) || !near(crates[k].position.x, 0, 0.05)) stacked = false;
+		check('crates of one size stack (top y ${Math.round(crates[2].position.y * 1000) / 1000})', stacked);
 		// a turned box's raycast: from above at a corner's reach
 		var rb = new PhysicsWorld();
 		var turnedBox = rb.add(new Body(Box(new Vec3(1, 1, 1)), new Vec3(0, 0, 0), 0));

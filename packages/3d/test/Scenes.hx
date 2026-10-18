@@ -18,6 +18,7 @@ import hxmc.scene.render.*;
 //   textured the textured sample (a PNG in the file, decoded by @hxmc/ui)
 //   normals  the normal-mapped sample (NormalMaps, tangents computed)
 //   blend    see-through materials over opaque ones, farthest first
+//   walker   physics' Walker example: the character walked through the crates, jumping
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
 //   sky    the shadows scene under a sky (Sky, drawn at an injection point)
@@ -26,7 +27,7 @@ import hxmc.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -79,6 +80,11 @@ class Scenes {
 				for (_ in 0...STEPS)
 					falling.physics.step(1 / 60);
 				enc -> falling.draw(enc);
+			case "walker":
+				var walker = new Walker(device);
+				for (k in 0...STEPS)
+					walker.step(1 / 60, k < 20 || k >= 100 ? new Vec3(0, 0, 0) : new Vec3(0.8, 0, -1), k == 60);
+				enc -> walker.draw(enc);
 			case "instances":
 				// a field of 13x13 cubes and spheres on two meshes: instanced draws
 				var r = new Renderer(device);

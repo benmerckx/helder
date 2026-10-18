@@ -60,6 +60,42 @@ class Shapes {
 		return m;
 	}
 
+	// a capsule along y: the points within radius of the segment from -half
+	// to half (physics' Capsule(radius, half)), segments around, rings in
+	// each end's hemisphere
+	public static function capsule(device:Device, material:Material, radius = 0.3, half = 0.6, segments = 24, rings = 8):Mesh {
+		var p:Array<Float> = [], n:Array<Float> = [], uv:Array<Float> = [], idx:Array<Int> = [];
+		// (rows from the top pole to the bottom one: the upper hemisphere's,
+		// then the lower's, the two equators' rows apart by the side)
+		var rows = 2 * rings + 2;
+		for (r in 0...rows) {
+			var upper = r <= rings;
+			var th = Math.PI / 2 * (upper ? r : r - 1) / rings;
+			var y = Math.cos(th), ring = Math.sin(th), shift = upper ? half : -half;
+			for (s in 0...segments + 1) {
+				var ph = 2 * Math.PI * s / segments;
+				var x = ring * Math.cos(ph), z = -ring * Math.sin(ph);
+				p.push(x * radius);
+				p.push(y * radius + shift);
+				p.push(z * radius);
+				n.push(x);
+				n.push(y);
+				n.push(z);
+				uv.push(s / segments);
+				uv.push(r / (rows - 1));
+			}
+		}
+		for (r in 0...rows - 1)
+			for (s in 0...segments) {
+				var a = r * (segments + 1) + s, b = a + segments + 1;
+				if (r > 0) for (k in [a, b, a + 1]) idx.push(k);
+				if (r < rows - 2) for (k in [a + 1, b, b + 1]) idx.push(k);
+			}
+		var m = new Mesh();
+		m.add(device, p, n, uv, idx, material);
+		return m;
+	}
+
 	// a square of size on y = 0, facing up
 	public static function plane(device:Device, material:Material, size = 1.0):Mesh {
 		var h = size / 2;

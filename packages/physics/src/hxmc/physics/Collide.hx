@@ -5,8 +5,9 @@ import hxmc.scene.math.Aabb;
 
 // The contact tests, each adding its contacts to out: sphere against
 // sphere, plane and box; box against plane (its corners under it) and box
-// (the corners of each inside the other: a small core's approximation,
-// edge-on-edge crossings are missed); capsules as spheres at the nearest
+// (separating axes among the faces' normals, the corners through the face
+// of least overlap: a small core's approximation, edges crossing get one
+// contact midway); capsules as spheres at the nearest
 // points of their segments (against a plane or a box: its two ends and
 // the segment's point nearest the box); and the ray tests of each shape.
 class Collide {
@@ -37,11 +38,7 @@ class Collide {
 			case [Box(h), Plane(n, o)]:
 				planeBox(b, n, o, a, h, out);
 				flip(out, from);
-			case [Box(ha), Box(hb)]:
-				cornersIn(a, ha, b, hb, out);
-				var mid = out.length;
-				cornersIn(b, hb, a, ha, out);
-				flip(out, mid);
+			case [Box(ha), Box(hb)]: boxes(a, ha, b, hb, out);
 			case _:
 		}
 	}
@@ -163,17 +160,77 @@ class Collide {
 		}
 	}
 
-	// the corners of box a inside box b: contacts pushing each out through b's nearest face
-	static function cornersIn(a:Body, ha:Vec3, b:Body, hb:Vec3, out:Array<Contact>) {
-		var inv = b.orientation.conjugate();
-		for (c in corners(a, ha)) {
-			var p = inv.rotate(c - b.position);
-			var dx = hb.x - Math.abs(p.x), dy = hb.y - Math.abs(p.y), dz = hb.z - Math.abs(p.z);
-			if (dx <= 0 || dy <= 0 || dz <= 0) continue;
-			// (the face it is nearest; the normal from b to a there, so from a to b its opposite)
-			var n = dx <= dy && dx <= dz ? new Vec3(p.x < 0 ? -1 : 1, 0, 0) : dy <= dz ? new Vec3(0, p.y < 0 ? -1 : 1, 0) : new Vec3(0, 0, p.z < 0 ? -1 : 1);
-			out.push(new Contact(a, b, b.orientation.rotate(n) * -1, c, Math.min(dx, Math.min(dy, dz))));
+	// two boxes: separating axes among their faces' normals (none: no
+	// contact; edge against edge axes are not tried), the one of least
+	// overlap the contact normal; the contacts are the other box's corners
+	// through that face (within the face, 2% of slack: boxes of one size
+	// stacked touch at their corners), or, where no corner is through it
+	// (edges crossing), one contact between the two
+	static function boxes(a:Body, ha:Vec3, b:Body, hb:Vec3, out:Array<Contact>) {
+		var ma = a.orientation.toMat4(), mb = b.orientation.toMat4();
+		var axesA = [new Vec3(ma.c0.x, ma.c0.y, ma.c0.z), new Vec3(ma.c1.x, ma.c1.y, ma.c1.z), new Vec3(ma.c2.x, ma.c2.y, ma.c2.z)];
+		var axesB = [new Vec3(mb.c0.x, mb.c0.y, mb.c0.z), new Vec3(mb.c1.x, mb.c1.y, mb.c1.z), new Vec3(mb.c2.x, mb.c2.y, mb.c2.z)];
+		var ea = [ha.x, ha.y, ha.z], eb = [hb.x, hb.y, hb.z];
+		var d = b.position - a.position;
+		var best = 1e30, bestAxis = -1;
+		for (k in 0...6) {
+			var l = k < 3 ? axesA[k] : axesB[k - 3];
+			var ra = 0.0, rb = 0.0;
+			for (i in 0...3) {
+				ra += ea[i] * Math.abs(dot(axesA[i], l));
+				rb += eb[i] * Math.abs(dot(axesB[i], l));
+			}
+			var overlap = ra + rb - Math.abs(dot(d, l));
+			if (overlap <= 0) return;
+			// (a's faces first on a tie, then by order: the same choice everywhere)
+			if (overlap < best - 1e-9) {
+				best = overlap;
+				bestAxis = k;
+			}
 		}
+		var axis = bestAxis < 3 ? axesA[bestAxis] : axesB[bestAxis - 3];
+		// (the normal from a to b)
+		var n = dot(d, axis) < 0 ? axis * -1 : axis;
+		// the faces across n (each box's axis nearest it) and how far each
+		// box reaches along n
+		var ka = 0, kb = 0, ra = 0.0, rb = 0.0;
+		for (i in 0...3) {
+			if (Math.abs(dot(axesA[i], n)) > Math.abs(dot(axesA[ka], n))) ka = i;
+			if (Math.abs(dot(axesB[i], n)) > Math.abs(dot(axesB[kb], n))) kb = i;
+			ra += ea[i] * Math.abs(dot(axesA[i], n));
+			rb += eb[i] * Math.abs(dot(axesB[i], n));
+		}
+		var planeA = dot(a.position, n) + ra, planeB = dot(b.position, n) - rb;
+		var tolA = 0.02 * Math.min(ea[0], Math.min(ea[1], ea[2])), tolB = 0.02 * Math.min(eb[0], Math.min(eb[1], eb[2]));
+		var count = out.length;
+		// a's corners past b's face, within it; b's past a's (the corners of
+		// where the two faces overlap, those of a box face to face once)
+		for (c in corners(a, ha)) {
+			var depth = dot(c, n) - planeB;
+			if (depth > 0 && inFace(c - b.position, axesB, eb, kb, tolB)) out.push(new Contact(a, b, n, c, depth));
+		}
+		var mine = out.length;
+		for (c in corners(b, hb)) {
+			var depth = planeA - dot(c, n);
+			if (depth <= 0 || !inFace(c - a.position, axesA, ea, ka, tolA)) continue;
+			var seen = false;
+			for (m in count...mine) {
+				var e = out[m].point - c;
+				if (dot(e, e) < 1e-8) seen = true;
+			}
+			if (!seen) out.push(new Contact(a, b, n, c, depth));
+		}
+		if (out.length == count) {
+			// (no corner through: edges crossing; a contact midway)
+			out.push(new Contact(a, b, n, a.position + d * 0.5, best));
+		}
+	}
+
+	// whether r (from a box's centre) lies within its face across axis k (slack tol)
+	static function inFace(r:Vec3, axes:Array<Vec3>, e:Array<Float>, k:Int, tol:Float):Bool {
+		for (i in 0...3)
+			if (i != k && Math.abs(dot(r, axes[i])) > e[i] + tol) return false;
+		return true;
 	}
 
 	static inline function clamp(x:Float, lo:Float, hi:Float):Float

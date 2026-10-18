@@ -17,12 +17,14 @@ var hit = physics.raycast(origin, direction);
 A sweep-and-prune broad phase picks the pairs. Spheres, boxes and capsules (`Capsule(radius, half)`,
 along the body's y) move and turn (inertia from the shape; `body.rotates = false` keeps a character's capsule
 upright); planes are static. Contacts (sphere against sphere, box and plane; box against plane
-and box, by corners: edge crossings are missed; capsules as spheres at their segments' nearest points) are resolved by
+and box, by separating axes among their faces and the corners where the faces overlap: crates of one size stack; edges crossing get one contact midway; capsules as spheres at their segments' nearest points) are resolved by
 sequential impulses at the contact points, accumulated and clamped, with
 restitution and friction; resting bodies sleep and wake on contact or
 impulse; the same steps give the same numbers on every target (Eval,
-native, wasm32-wasi: tested). `Character` walks an upright capsule: steered towards a wanted velocity, grounded by a ray, jumping. Next: convex hulls (GJK and EPA), box edge contacts, slopes and steps for characters; a binding to an
+native, wasm32-wasi: tested). `Character` walks an upright capsule: steered towards a wanted velocity, grounded by a ray, jumping. Next: convex hulls (GJK and EPA), box edge-against-edge axes, slopes and steps for characters; a binding to an
 established engine behind the same API later.
 
-Tests: `test/PhysicsTest.hx` and the Falling example's frame
+Examples: `Falling` (balls and boxes) and `Walker` (a `Character` among crates; `Shapes.capsule` draws it).
+
+Tests: `test/PhysicsTest.hx` and the Falling and Walker examples' frames
 (packages/3d/test, `make 3d-check`, `make 3d-web-check`).
