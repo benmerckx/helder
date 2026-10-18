@@ -1011,10 +1011,11 @@ class Widgets implements Markup {
 			?tag:String}):View {
 		var tag = props.tag ?? "split", row = props.direction != "column";
 		var size:Signal<Float> = props.size ?? signal(200.0);
-		var lo = props.min ?? 0.0, grip = 6.0;
+		// (the divider a pixel of the layout, as shadcn's handle; its grip wider, over the panes)
+		var lo = props.min ?? 0.0, grip = 5.0, edge = -(grip - 1) / 2;
 		var self:Null<Node> = null;
 		function hi():Float {
-			var room = self == null || self.width <= 0 ? 1e9 : (row ? self.width : self.height) - grip - lo;
+			var room = self == null || self.width <= 0 ? 1e9 : (row ? self.width : self.height) - 1 - lo;
 			return Math.max(lo, props.max == null ? room : Math.min(props.max, room));
 		}
 		function set(v:Float)
@@ -1029,15 +1030,16 @@ class Widgets implements Markup {
 				size.value;
 				hi();
 			}} focusable cursor={row ? "ew-resize" : "ns-resize"} width={row ? (grip : Dynamic) : "auto"} height={row ? "auto" : (grip : Dynamic)} shrink={0}
-				align-items="center" justify="center" onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
+				margin={row ? "0 " + edge + "px" : edge + "px 0"} z-index={1} direction={row ? "row" : "column"} align-items="center" justify="center"
+				onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
 				onPointerDown={e -> {
 					grab = row ? e.localX : e.localY;
 					active.value = true;
 				}} onPointerUp={_ -> active.value = false}
 				onPointerMove={e -> if (active.peek() && self != null) {
-					var at = (row ? self.localX(e.x, e.y) : self.localY(e.x, e.y)) - grab;
+					var at = (row ? self.localX(e.x, e.y) : self.localY(e.x, e.y)) - grab - edge;
 					// (right to left, the first pane on the right)
-					set(row && self.rtl() ? self.width - grip - at : at);
+					set(row && self.rtl() ? self.width - 1 - at : at);
 				}}
 				onKeyDown={e -> {
 					var v = switch row ? mirrored(e) : e.key {

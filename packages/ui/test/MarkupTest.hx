@@ -2403,8 +2403,8 @@ class MarkupTest implements Markup {
 		Render.render(<view height={200}><Split tag="sp" size={size} min={50} label="Sidebar" first={<view tag="side"/>} second={<view tag="main"/>}/></view>, ui.root);
 		ui.update();
 		var side = ui.root.find("side").parent, main = ui.root.find("main").parent, div = ui.root.find("sp-divider");
-		check("split: the first pane at its size, the divider, the rest", side.width == 120 && div.absX == 120 && div.width == 6 && main.absX == 126 && main.width == 274,
-			side.width + " " + div.absX + " " + main.width);
+		check("split: the first pane at its size, the divider a pixel (its grip over the panes), the rest", side.width == 120 && div.absX == 118 && div.width == 5
+			&& main.absX == 121 && main.width == 279, side.width + " " + div.absX + " " + main.width);
 		ui.pointerDown(122, 100, 1);
 		ui.pointerMove(202, 100);
 		ui.pointerUp(202, 100, 1);
@@ -2414,7 +2414,7 @@ class MarkupTest implements Markup {
 		ui.pointerMove(10, 100);
 		ui.pointerMove(1000, 100);
 		ui.pointerUp(1000, 100, 1);
-		check("split: within its bounds (the room less min)", size.value == 400 - 6 - 50, "" + size.value);
+		check("split: within its bounds (the room less min)", size.value == 400 - 1 - 50, "" + size.value);
 		ui.setFocus(div);
 		ui.keyDown(Key.HOME, 0);
 		var home = size.value;
@@ -2427,7 +2427,7 @@ class MarkupTest implements Markup {
 		ui.update();
 		ui.keyDown(Key.LEFT, 0);
 		ui.update();
-		check("split: right to left, the first pane on the right, Left widens it", size.value == 70 && side.absX == 400 - 70 && div.absX == 400 - 70 - 6,
+		check("split: right to left, the first pane on the right, Left widens it", size.value == 70 && side.absX == 400 - 70 && div.absX == 400 - 70 - 1 - 2,
 			size.value + " " + side.absX);
 		var x = div.absX + 3;
 		ui.pointerDown(x, 100, 1);
