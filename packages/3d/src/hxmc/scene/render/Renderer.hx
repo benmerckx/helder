@@ -329,12 +329,13 @@ class Renderer {
 					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, 0)
 				}, materialBytes);
 				enc.setUniforms(slots[2], materialBytes);
-				enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, sampler);
-				enc.setTexture(slots[7], m.metallicRoughnessTexture != null ? m.metallicRoughnessTexture : white, sampler);
-				enc.setTexture(slots[8], m.emissiveTexture != null ? m.emissiveTexture : white, sampler);
-				enc.setTexture(slots[9], m.occlusionTexture != null ? m.occlusionTexture : white, sampler);
+				var ms = m.sampler != null ? m.sampler : sampler;
+				enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, ms);
+				enc.setTexture(slots[7], m.metallicRoughnessTexture != null ? m.metallicRoughnessTexture : white, ms);
+				enc.setTexture(slots[8], m.emissiveTexture != null ? m.emissiveTexture : white, ms);
+				enc.setTexture(slots[9], m.occlusionTexture != null ? m.occlusionTexture : white, ms);
 				enc.setTexture(slots[4], shadowSource != null ? shadowSource.shadowFrame().map : noShadow, nearest);
-				if (normals != null) enc.setTexture(slots[10], m.normalTexture, sampler);
+				if (normals != null) enc.setTexture(slots[10], m.normalTexture, ms);
 				material = m;
 			}
 			enc.setVertexBuffer(0, p.vertices);

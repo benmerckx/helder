@@ -30,6 +30,9 @@ class Material {
 	public var normalTexture:Null<Texture>;
 	public var normalScale = 1.0;
 	public var doubleSided:Bool;
+	// how its textures are read (null: the renderer's: linear, mip-mapped,
+	// repeating; glTF's samplers otherwise)
+	public var sampler:Null<hxmc.gfx.Sampler>;
 	// see-through (glTF's alphaMode BLEND): blended over what is behind by
 	// the base colour's alpha, drawn after the opaque surfaces, farthest
 	// first, without writing depth

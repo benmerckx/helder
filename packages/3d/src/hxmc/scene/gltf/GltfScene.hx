@@ -25,7 +25,29 @@ class GltfScene {
 	// Without one, textures are left out (materials keep their factors).
 	public static var decodeImage:Null<(String, haxe.io.Bytes) -> Null<{width:Int, height:Int, rgba:haxe.io.Bytes}>>;
 
+	// glTF's sampler (filters and wraps: WebGL's constants) as gfx's, or null
+	// where it reads as the renderer's own (linear, trilinear between mip
+	// levels, repeating); wrapS and wrapT differing: wrapS's (gfx wraps both
+	// directions alike)
+	public static function samplerDesc(magFilter:Int, minFilter:Int, wrapS:Int, wrapT:Int):Null<hxmc.gfx.SamplerDesc> {
+		var filter:hxmc.gfx.Filter = magFilter == 9728 ? Nearest : Linear;
+		var mip:Null<hxmc.gfx.Filter> = switch minFilter {
+			case 9728 | 9729: null; // (no mip levels)
+			case 9984 | 9985: Nearest;
+			default: Linear;
+		}
+		var wrap:hxmc.gfx.Wrap = switch wrapS {
+			case 33071: Clamp;
+			case 33648: Mirror;
+			default: Repeat;
+		}
+		if (filter == Linear && mip == Linear && wrap == Repeat) return null;
+		return mip == null ? {filter: filter, wrap: wrap} : {filter: filter, mipFilter: mip, wrap: wrap};
+	}
+
 	public final doc:GltfDoc;
+	// the samplers made for the materials (samplerDesc)
+	public final samplers:Array<hxmc.gfx.Sampler> = [];
 	public final meshes:Array<Mesh> = [];
 	public final materials:Array<Material>;
 	// the images' textures (null: not decoded), made once
@@ -52,6 +74,22 @@ class GltfScene {
 			var source = doc.textures[index].source;
 			return source >= 0 ? textures[source] : null;
 		}
+		// (glTF's samplers as gfx's, made when a material reads with one
+		// that differs from the renderer's)
+		var samplers = new Map<Int, hxmc.gfx.Sampler>();
+		function samplerOf(index:Int):Null<hxmc.gfx.Sampler> {
+			if (index < 0 || doc.textures[index].sampler < 0) return null;
+			var k = doc.textures[index].sampler;
+			var s = doc.samplers[k];
+			var desc = samplerDesc(s.magFilter, s.minFilter, s.wrapS, s.wrapT);
+			if (desc == null) return null;
+			if (!samplers.exists(k)) {
+				var made = device.createSampler(desc);
+				samplers.set(k, made);
+				this.samplers.push(made);
+			}
+			return samplers.get(k);
+		}
 		materials = [
 			for (m in doc.materials) {
 				var mat = new Material(m.name, m.baseColor, m.metallic, m.roughness, m.emissive, m.doubleSided);
@@ -63,6 +101,12 @@ class GltfScene {
 				mat.normalScale = m.normalScale;
 				// (MASK is drawn opaque for now: gfx's shaders have no discard)
 				mat.blend = m.alphaMode == "BLEND";
+				// (one sampler a material: its base colour's, else its first map's)
+				for (t in [m.baseColorTexture, m.metallicRoughnessTexture, m.normalTexture, m.emissiveTexture, m.occlusionTexture])
+					if (t >= 0) {
+						mat.sampler = samplerOf(t);
+						break;
+					}
 				mat;
 			}
 		];
