@@ -7277,5 +7277,65 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "grid rows in a height laid out",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"alignItems": "Center",
+						"display": "Grid"
+					},
+					"children": [
+						{
+							"style": {
+								"maxHeight": "50%",
+								"display": "Grid",
+								"gridAutoRows": "minmax(10px, auto)"
+							},
+							"children": [
+								{
+									"style": {
+										"height": 60
+									}
+								},
+								{}
+							]
+						}
+					]
+				},
+				{
+					"style": {
+						"display": "Grid",
+						"gridTemplateRows": "50% 20px",
+						"position": "Absolute"
+					},
+					"children": [
+						{}
+					]
+				},
+				{
+					"style": {
+						"aspectRatio": 1,
+						"width": 100
+					},
+					"children": [
+						{
+							"style": {
+								"minHeight": "50%",
+								"display": "Grid",
+								"position": "Absolute"
+							},
+							"children": [
+								{}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]

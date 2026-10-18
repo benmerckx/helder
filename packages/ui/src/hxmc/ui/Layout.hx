@@ -154,7 +154,7 @@ class Layout {
 		} else if (s.display == Grid) {
 			// (a grid measured bare: its content's height still within its own min-height, as Chromium's)
 			var least = bh ? Math.max(min(s.minHeight, parentH), edgesV(s)) : minH;
-			grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, least);
+			grid(n, w, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, least, defH);
 		}
 		else {
 			breakH = bareBreak;
@@ -672,7 +672,7 @@ class Layout {
 	// alignSelf (or alignItems). Named areas (gridTemplateAreas, items
 	// placed by their names), no other named lines, no subgrid.
 	function grid(n:Node, w:Float, h:Float, availW:Float, availH:Float, minW:Float, maxW:Float, minH:Float, maxH:Float, padL:Float, padT:Float,
-			padH:Float, padV:Float, perform:Bool, least:Float) {
+			padH:Float, padV:Float, perform:Bool, least:Float, defH:Bool) {
 		var s = n.style, rtl = n.rtl();
 		var innerW = known(w) ? Math.max(0, w - padH) : Math.NaN, innerH = known(h) ? Math.max(0, h - padV) : Math.NaN;
 		var availInW = known(innerW) ? innerW : known(availW) ? Math.max(0, availW - padH) : Math.NaN;
@@ -722,7 +722,12 @@ class Layout {
 				it.areaW += cols[i];
 		}
 		var stretchRows = s.alignContent == Normal || s.alignContent == Stretch;
-		var rows = tracks(rowTracks, items, false, innerH, innerH, rowGap, stretchRows, width, innerH, cols);
+		// (a height laid out, not definite (an auto one within its min- or max-height): the rows sized in an
+		// indefinite room, their percentages of it; stretched to it when it is more (a min-height's), not shrunk
+		// to it when less (a max-height's: the grid overflowing it), as Chromium has it)
+		var rows = tracks(rowTracks, items, false, defH ? innerH : Math.NaN, innerH, rowGap, stretchRows && defH, width, innerH, cols);
+		if (!defH && stretchRows && known(innerH) && innerH > sum(rows, rowGap) + 1e-6)
+			rows = tracks(rowTracks, items, false, innerH, innerH, rowGap, true, width, innerH, cols);
 		var gridH = sum(rows, rowGap);
 		var height = known(innerH) ? innerH : clamp(gridH, Math.max(0, (rows.length > 0 ? Math.max(minH, least) : minH) - padV), maxH - padV);
 		var bw = width + padH, bh = height + padV;

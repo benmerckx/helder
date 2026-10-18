@@ -288,4 +288,8 @@ export const cases = [
 	{ name: 'row item with an aspect ratio, a min height, a stretched height', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row' }, children: [{ style: { basis: 27, minHeight: 84, aspectRatio: 1 } }] },
 		{ style: { direction: 'RowReverse' }, children: [{ style: { aspectRatio: 1 }, children: [{ style: { maxHeight: '25%' } }] }, { style: { padding: 2 } }] },
 		{ style: { direction: 'RowReverse' }, children: [{ style: { maxHeight: 23, aspectRatio: 1 }, children: [{ style: { maxHeight: '25%' } }, { style: { width: 59 } }] }] }] } },
+	// (a grid of a height laid out, not definite: its rows sized in an indefinite room (not shrunk to its max-height), stretched to its min-height, its percentage rows of its height)
+	{ name: 'grid rows in a height laid out', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Center', display: 'Grid' }, children: [{ style: { maxHeight: '50%', display: 'Grid', gridAutoRows: 'minmax(10px, auto)' }, children: [h(60), {}] }] },
+		{ style: { display: 'Grid', gridTemplateRows: '50% 20px', position: 'Absolute' }, children: [{}] },
+		{ style: { aspectRatio: 1, width: 100 }, children: [{ style: { minHeight: '50%', display: 'Grid', position: 'Absolute' }, children: [{}] }] }] } },
 ];
