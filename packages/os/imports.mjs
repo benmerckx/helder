@@ -225,6 +225,9 @@ export default function (host) {
 			push([h, MOUSE_DOWN, 0, ...pos(e), e.button + 1, mods(e)]);
 		});
 		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1, mods(e)]));
+		// (a mouse's press captured: a drag that leaves the canvas still
+		// moves, and its release still comes, at positions outside it)
+		on('pointerdown', (e) => e.pointerType === 'mouse' && c.setPointerCapture?.(e.pointerId));
 		// (the deltas in canvas pixels, in 1/256ths: in key and button; lines 40 pixels, pages the canvas)
 		on('wheel', (e) => {
 			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * devicePixelRatio * 256;
@@ -236,13 +239,18 @@ export default function (host) {
 		// touchAction (the canvas's CSS touch-action, by default 'none')
 		// leaves the browser the drags along the axes it pans: with 'pan-y', a
 		// drag that starts vertical scrolls the page (the browser cancels the
-		// pointer when it takes it over) and only the others reach the program
+		// pointer when it takes it over) and only the others reach the program.
+		// A drag's scrolls have Mods.TOUCH (16: a finger on the canvas), and
+		// it ends with a scroll of nothing without it (its glide's are
+		// without it too): a program that follows the finger knows when it
+		// is let go, even after it rested
 		const action = host.options.touchAction ?? 'none';
 		c.style.touchAction = action;
 		const words = action.split(/\s+/), pans = (...w) => words.some((a) => a === 'auto' || a === 'manipulation' || w.includes(a));
 		const panX = pans('pan-x', 'pan-left', 'pan-right'), panY = pans('pan-y', 'pan-up', 'pan-down');
 		let touch = null, glide = 0;
-		const scrollBy = (x, y, dx, dy) => push([h, SCROLL, Math.round(dx * 256), x, y, Math.round(dy * 256), 0]);
+		const TOUCH = 16;
+		const scrollBy = (x, y, dx, dy, m = 0) => push([h, SCROLL, Math.round(dx * 256), x, y, Math.round(dy * 256), m]);
 		on('pointerdown', (e) => {
 			if (e.pointerType !== 'touch' || touch) return;
 			e.preventDefault();
@@ -265,7 +273,7 @@ export default function (host) {
 			}
 			if (!touch.drag) return;
 			const dx = touch.lx - x, dy = touch.ly - y, dt = Math.max(1, now - touch.t);
-			scrollBy(touch.x, touch.y, dx, dy);
+			scrollBy(touch.x, touch.y, dx, dy, TOUCH);
 			// (pixels per millisecond, smoothed)
 			touch.vx = 0.8 * (dx / dt) + 0.2 * touch.vx;
 			touch.vy = 0.8 * (dy / dt) + 0.2 * touch.vy;
@@ -275,6 +283,8 @@ export default function (host) {
 			if (!touch || e.pointerId !== touch.id) return;
 			const t = touch;
 			touch = null;
+			// (the drag's end: the finger let go, or the browser took it over)
+			if (t.drag) scrollBy(t.x, t.y, 0, 0);
 			// (cancelled: the browser took the pointer over, to pan the page)
 			if (e.type === 'pointercancel') return;
 			if (!t.drag) {
