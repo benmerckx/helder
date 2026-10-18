@@ -103,8 +103,10 @@ try {
 	await line(/^hxmc dev: .* installed and started/, 600000);
 	const first = await printed(/v1 count=3 build=/, 'the first build');
 	check('the APK installed, the first build runs, its state changed', !!first);
+	await sleep(2000);
 	const pid = pidOf();
 	check('the app has a process', pid !== '', pid);
+	await line(/^hxmc dev: the program connected/, 30000).catch(() => check('the app connected to the dev server', false));
 
 	const swapped = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	edit((s) => s.replace('label="+1"', 'label="+2"').replace('"v1 count="', '"v2 count="'));
@@ -125,7 +127,15 @@ try {
 	failures++;
 } finally {
 	dev.kill();
-	if (process.env.DEV_ANDROID_LOG) fs.writeFileSync(process.env.DEV_ANDROID_LOG, adb('logcat', '-d').stdout ?? '');
+	const all = adb('logcat', '-d').stdout ?? '';
+	if (process.env.DEV_ANDROID_LOG) fs.writeFileSync(process.env.DEV_ANDROID_LOG, all);
+	// (what the app and the system said about it, in the job's log)
+	if (failures > 0) {
+		console.log('--- the dev server:\n' + lines.slice(-40).join('\n'));
+		console.log('--- logcat (the app, its crash, the activity manager):');
+		console.log(all.split('\n').filter((l) => /hxmc|devtest|Fatal|FATAL|DEBUG|AndroidRuntime|dlopen|LINK|backtrace|#\d\d pc|libc|linker|avc:/.test(l)).slice(-200).join('\n'));
+		console.log('--- ps: ' + (adb('shell', 'ps', '-A').stdout ?? '').split('\n').filter((l) => /devtest/.test(l)).join('\n'));
+	}
 }
 for (const t of times) console.log('  ' + t);
 console.log(failures === 0 ? 'dev-android: ok' : `dev-android: ${failures} failed`);
