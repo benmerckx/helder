@@ -16,7 +16,7 @@ import hxmc.scene.math.Quat;
 //   bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/test -cp packages/3d/src \
 //     -cp packages/3d/test --run SampleModel packages/3d/examples/sample.glb
 //
-// (also skinned.glb, textured.glb, normals.glb and panorama.png beside it)
+// (also skinned.glb, textured.glb, normals.glb, morph.glb and panorama.png beside it)
 //
 // Numbers in the JSON are written with 6 decimals, so the file is the same
 // wherever it is generated; GltfTest checks it against the checked-in one.
@@ -42,6 +42,9 @@ class SampleModel {
 		var textured = haxe.io.Path.join([haxe.io.Path.directory(out), "textured.glb"]);
 		sys.io.File.saveBytes(textured, texturedGlb());
 		Sys.println('SampleModel: wrote $textured');
+		var morph = haxe.io.Path.join([haxe.io.Path.directory(out), "morph.glb"]);
+		sys.io.File.saveBytes(morph, morphGlb());
+		Sys.println('SampleModel: wrote $morph');
 		var env = haxe.io.Path.join([haxe.io.Path.directory(out), "panorama.png"]);
 		sys.io.File.saveBytes(env, environmentPng());
 		Sys.println('SampleModel: wrote $env');
@@ -224,6 +227,81 @@ class SampleModel {
 		return cubeGlb(Png.encode(px, 64, 64), "normals", "tiles", "bumps",
 			'{"name":"tiles","pbrMetallicRoughness":{"baseColorFactor":[0.8,0.55,0.35,1],"metallicFactor":0,"roughnessFactor":0.35},'
 			+ '"normalTexture":{"index":0,"scale":1.5}}');
+	}
+
+	// the morph sample (examples/morph.glb): a 13x13 grid of 2 by 2 with two
+	// morph targets (a bump in the middle, a wave across; positions and
+	// normals), the mesh's default weights 1 and 0, and an animation of
+	// the weights ("breathe": the bump, then the wave)
+	public static function morphGlb():Bytes {
+		var n = 13;
+		var pos:Array<Float> = [], nor:Array<Float> = [], idx = [];
+		var t0p:Array<Float> = [], t0n:Array<Float> = [], t1p:Array<Float> = [], t1n:Array<Float> = [];
+		function normalDelta(dx:Float, dz:Float, out:Array<Float>) {
+			var l = Math.sqrt(dx * dx + 1 + dz * dz);
+			out.push(-dx / l);
+			out.push(1 / l - 1);
+			out.push(-dz / l);
+		}
+		for (j in 0...n)
+			for (i in 0...n) {
+				var x = i / (n - 1) * 2 - 1, z = j / (n - 1) * 2 - 1;
+				pos.push(x);
+				pos.push(0);
+				pos.push(z);
+				nor.push(0);
+				nor.push(1);
+				nor.push(0);
+				// (the bump: 0.6 exp(-3 r^2); the wave: 0.2 sin(3 x))
+				var e = 0.6 * Math.exp(-3 * (x * x + z * z));
+				t0p.push(0);
+				t0p.push(e);
+				t0p.push(0);
+				normalDelta(-6 * x * e, -6 * z * e, t0n);
+				t1p.push(0);
+				t1p.push(0.2 * Math.sin(3 * x));
+				t1p.push(0);
+				normalDelta(0.6 * Math.cos(3 * x), 0, t1n);
+			}
+		for (j in 0...n - 1)
+			for (i in 0...n - 1) {
+				var a = j * n + i, b = a + 1, c = a + n, d = c + 1;
+				for (k in [a, c, b, b, c, d])
+					idx.push(k);
+			}
+		var bin = new BytesBuffer(), views = [];
+		function view(values:Array<Float>):Int {
+			var start = bin.length;
+			for (x in values)
+				bin.addFloat(x);
+			views.push('{"buffer":0,"byteOffset":$start,"byteLength":${bin.length - start}}');
+			return views.length - 1;
+		}
+		var vp = view(pos), vn = view(nor), v0p = view(t0p), v0n = view(t0n), v1p = view(t1p), v1n = view(t1n);
+		var times = view([0, 1, 2]), weights = view([0, 0, 1, 0, 0, 1]);
+		var start = bin.length;
+		for (i in idx) {
+			bin.addByte(i & 255);
+			bin.addByte(i >> 8);
+		}
+		views.push('{"buffer":0,"byteOffset":$start,"byteLength":${bin.length - start}}');
+		var vi = views.length - 1;
+		var data = bin.getBytes();
+		var count = n * n;
+		function vec3(v:Int, ?minmax:String)
+			return '{"bufferView":$v,"componentType":5126,"count":$count,"type":"VEC3"' + (minmax != null ? minmax : "") + "}";
+		var json = '{"asset":{"version":"2.0","generator":"hxmc packages/3d/test/SampleModel.hx"},"scene":0,'
+			+ '"scenes":[{"name":"morph","nodes":[0]}],"nodes":[{"name":"blob","mesh":0}],'
+			+ '"meshes":[{"name":"blob","primitives":[{"attributes":{"POSITION":0,"NORMAL":1},"indices":8,"material":0,'
+			+ '"targets":[{"POSITION":2,"NORMAL":3},{"POSITION":4,"NORMAL":5}]}],"weights":[1,0]}],'
+			+ '"materials":[{"name":"blob","pbrMetallicRoughness":{"baseColorFactor":[0.35,0.7,0.85,1],"metallicFactor":0,"roughnessFactor":0.4},"doubleSided":true}],'
+			+ '"animations":[{"name":"breathe","samplers":[{"input":6,"output":7}],"channels":[{"sampler":0,"target":{"node":0,"path":"weights"}}]}],'
+			+ '"accessors":[' + vec3(vp, ',"min":[-1,0,-1],"max":[1,0,1]') + "," + vec3(vn) + "," + vec3(v0p) + "," + vec3(v0n) + "," + vec3(v1p) + ","
+			+ vec3(v1n) + ',{"bufferView":$times,"componentType":5126,"count":3,"type":"SCALAR","min":[0],"max":[2]},'
+			+ '{"bufferView":$weights,"componentType":5126,"count":6,"type":"SCALAR"},'
+			+ '{"bufferView":$vi,"componentType":5123,"count":${idx.length},"type":"SCALAR"}],'
+			+ '"bufferViews":[${views.join(",")}],"buffers":[{"byteLength":${data.length}}]}';
+		return pack({json: json, bin: data});
 	}
 
 	// the sample environment (examples/panorama.png): an equirectangular

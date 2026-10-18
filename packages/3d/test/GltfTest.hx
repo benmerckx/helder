@@ -48,6 +48,7 @@ class GltfTest {
 		skins();
 		textured();
 		normals();
+		morphs();
 		rejects(glb);
 		Sys.println('GltfTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
@@ -227,6 +228,21 @@ class GltfTest {
 		// a mirrored face (its u reversed): the sign flips
 		var flipped = hxmc.scene.render.VertexData.computeTangents([0, 0, 0, 1, 0, 0, 0, 1, 0], [0, 0, 1, 0, 0, 1, 0, 0, 1], [1, 1, 0, 1, 1, 0], [0, 1, 2]);
 		check("a mirrored face's tangent and sign", Math.abs(flipped[0] + 1) < 1e-6 && flipped[3] == -1);
+	}
+
+	static function morphs() {
+		var file = sys.io.File.getBytes("packages/3d/examples/morph.glb");
+		#if eval
+		check("morph.glb is the generator's", SampleModel.morphGlb().compare(file) == 0);
+		#end
+		var doc = Gltf.parse(file);
+		var p = doc.meshes[0].primitives[0];
+		check("two morph targets, positions and normals", p.targets.length == 2 && p.targets[1].position == 4 && p.targets[1].normal == 5);
+		check("the mesh's default weights", doc.meshes[0].weights.join(",") == "1,0" && doc.nodes[0].weights == null);
+		var clip = hxmc.scene.anim.AnimationClip.fromGltf(doc, 0);
+		var w = [0.0, 0.0];
+		clip.tracks[0].weightsAt(1.5, w);
+		check('weights played (${w.join(",")})', clip.tracks[0].path == Weights && Math.abs(w[0] - 0.5) < 1e-9 && Math.abs(w[1] - 0.5) < 1e-9);
 	}
 
 	static function rejects(glb:Bytes) {

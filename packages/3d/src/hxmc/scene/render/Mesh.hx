@@ -33,6 +33,13 @@ class Mesh {
 		return prim;
 	}
 
+	// a primitive made elsewhere (a morph's copy, sharing the original's indices)
+	public function addPrimitive(p:Primitive):Primitive {
+		primitives.push(p);
+		bounds = bounds.union(p.bounds);
+		return p;
+	}
+
 	public function dispose(device:Device) {
 		for (p in primitives) {
 			device.destroyBuffer(p.vertices);

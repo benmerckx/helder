@@ -25,6 +25,8 @@ import hxmc.scene.render.*;
 //            the camera, the whole street's map beyond
 //   environment  spheres from mirror to rough, metal and not, lit by an
 //            environment map (Environment) drawn behind them
+//   morph    the morph sample's targets played by its animation at 1.5 s
+//            (half the bump, half the wave), two instances, one bent apart
 //   walker   physics' Walker example: the character walked through the crates, jumping
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
@@ -34,7 +36,7 @@ import hxmc.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -285,6 +287,28 @@ class Scenes {
 					ui.end(enc);
 					enc.endPass();
 				});
+				enc -> r.draw(enc, world, camera);
+			case "morph":
+				var r = new Renderer(device).use(new Shadows(device, 512));
+				renderer = r;
+				var world = new World();
+				var model = Model.of("morph.glb");
+				var made = [];
+				var left = model.instantiate(world, device, null, made);
+				left.position = new Vec3(-1.15, 0, 0);
+				var animator = new hxmc.scene.anim.Animator(made);
+				animator.play(model.clip(model.animations.breathe));
+				animator.update(1.5);
+				// (a second instance at its mesh's default weights, its own vertices)
+				var right = model.instantiate(world, device);
+				right.position = new Vec3(1.15, 0, 0);
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, -0.4, 0);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.5, 0.5, 0.52, 1), 0, 0.9), 8));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 1.1, 3.3);
+				eye.lookAt(new Vec3(0, 0.05, 0));
 				enc -> r.draw(enc, world, camera);
 			case "packed":
 				// the sample scene packed at build time (Pack: make 3d-check writes

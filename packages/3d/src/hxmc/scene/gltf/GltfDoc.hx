@@ -152,6 +152,8 @@ class GltfDoc {
 @:structInit class GltfMesh {
 	public var name:String;
 	public var primitives:Array<GltfPrimitive>;
+	// the morph targets' default weights (none: no targets)
+	public var weights:Array<Float>;
 }
 
 @:structInit class GltfPrimitive {
@@ -166,6 +168,13 @@ class GltfDoc {
 	public var indices:Int; // -1: not indexed
 	public var material:Int; // -1: the default material
 	public var mode:Int; // 4: triangles
+	// morph targets: each one's position and normal displacements' accessors (-1: none)
+	public var targets:Array<GltfTarget>;
+}
+
+@:structInit class GltfTarget {
+	public var position:Int;
+	public var normal:Int;
 }
 
 @:structInit class GltfMaterial {
@@ -228,6 +237,7 @@ class GltfDoc {
 	public var rotation:Quat;
 	public var scale:Vec3;
 	public var matrix:Null<Array<Float>>; // 16 values, column by column: instead of translation, rotation and scale
+	public var weights:Null<Array<Float>>; // its mesh's morph weights, instead of the mesh's
 }
 
 @:structInit class GltfLight {

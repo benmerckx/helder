@@ -8,8 +8,8 @@ import hxmc.scene.math.Quat;
 // Keyframes of nodes' transforms (glTF's animations: translation,
 // rotation, scale; step, linear and cubic-spline interpolation), each
 // track a node index (the glTF node's) and its times and values, sampled
-// at a time into the nodes given (Animator; apply). Weights (morph
-// targets) are read but not played yet.
+// at a time into the nodes given (Animator; apply), and morph targets'
+// weights (a node's MorphWeights).
 class AnimationClip {
 	public final name:String;
 	public final tracks:Array<Track>;
@@ -34,6 +34,7 @@ class AnimationClip {
 				case "translation": Translation;
 				case "rotation": Rotation;
 				case "scale": Scale;
+				case "weights": Weights;
 				case _: continue;
 			}
 			tracks.push(new Track(c.node, path, doc.floats(c.input), doc.floats(c.output), switch c.interpolation {
@@ -61,6 +62,9 @@ class AnimationClip {
 				case Rotation:
 					var q = track.quat(t);
 					n.rotation = weight >= 1 ? q : Quat.slerp(n.rotation, q, weight);
+				case Weights:
+					var m = MorphWeights.of(n);
+					if (m != null) track.weightsAt(t, m.weights, weight);
 			}
 		}
 	}
@@ -73,6 +77,7 @@ enum TrackPath {
 	Translation;
 	Rotation;
 	Scale;
+	Weights;
 }
 
 enum Interpolation {
@@ -96,7 +101,8 @@ class Track {
 		this.times = times;
 		this.values = values;
 		this.interpolation = interpolation;
-		size = path == Rotation ? 4 : 3;
+		// (weights: as many as the values over the keys)
+		size = path == Rotation ? 4 : path == Weights ? Std.int(values.length / Math.max(times.length * (interpolation == CubicSpline ? 3 : 1), 1)) : 3;
 	}
 
 	// the keyframe before t (the last one at or before it) and how far t is to the next
@@ -130,6 +136,15 @@ class Track {
 					var f2 = f * f, f3 = f2 * f;
 					(2 * f3 - 3 * f2 + 1) * p0 + (f3 - 2 * f2 + f) * m0 + (-2 * f3 + 3 * f2) * p1 + (f3 - f2) * m1;
 				}
+		}
+	}
+
+	// morph weights at t into out, blended by weight (1: set)
+	public function weightsAt(t:Float, out:Array<Float>, weight = 1.0) {
+		var at = locate(t);
+		for (c in 0...Std.int(Math.min(size, out.length))) {
+			var v = component(at, c);
+			out[c] = weight >= 1 ? v : out[c] + (v - out[c]) * weight;
 		}
 	}
 

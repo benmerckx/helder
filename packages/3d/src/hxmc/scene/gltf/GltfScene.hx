@@ -20,6 +20,9 @@ import hxmc.scene.render.MeshRenderer;
 // matrices; JOINTS_0 and WEIGHTS_0 in the meshes' vertices).
 class GltfScene {
 	public final doc:GltfDoc;
+	// per mesh with morph targets: its primitives' rest vertices and displacements
+	final morphs:Array<Null<Array<{prim:hxmc.scene.render.Mesh.Primitive, data:hxmc.scene.render.VertexData, positions:Array<Null<Array<Float>>>,
+		normals:Array<Null<Array<Float>>>}>>> = [];
 	// the samplers made for the materials (GltfSamplers.desc)
 	public final samplers:Array<hxmc.gfx.Sampler> = [];
 	public final meshes:Array<Mesh> = [];
@@ -96,8 +99,19 @@ class GltfScene {
 						tangents = make(positions, normals, uvs, indices);
 					}
 				}
-				mesh.add(device, positions, normals, uvs, indices, material, p.joints >= 0 ? doc.floats(p.joints) : null,
+				var data = hxmc.scene.render.VertexData.make(positions, normals, uvs, indices, p.joints >= 0 ? doc.floats(p.joints) : null,
 					p.weights >= 0 ? doc.floats(p.weights) : null, tangents);
+				var prim = mesh.addData(device, data, material);
+				if (p.targets.length > 0) {
+					// (morph targets: the vertices at rest and the displacements, for each instance's own copy)
+					if (morphs[meshes.length] == null) morphs[meshes.length] = [];
+					morphs[meshes.length].push({
+						prim: prim,
+						data: data,
+						positions: [for (t in p.targets) t.position >= 0 ? doc.floats(t.position) : null],
+						normals: [for (t in p.targets) t.normal >= 0 ? doc.floats(t.normal) : null]
+					});
+				}
 			}
 			meshes.push(mesh);
 		}
@@ -117,6 +131,36 @@ class GltfScene {
 				case _: Light.pointLight(l.color, l.intensity, range);
 			});
 		}, made);
+		// (morph targets: each node its own copy of the mesh's vertices)
+		for (k in 0...doc.nodes.length) {
+			var m = doc.nodes[k].mesh;
+			if (m < 0 || morphs[m] == null || k >= made.length || made[k].isNone) continue;
+			var copy = new Mesh(), parts = [];
+			for (mp in morphs[m]) {
+				var p = mp.prim;
+				var buffer = device.createBuffer({size: mp.data.vertices.length, usage: Vertex, data: mp.data.vertices});
+				// (bounds wide enough for every target at full weight)
+				var reach = 0.0;
+				for (d in mp.positions)
+					if (d != null) {
+						var most = 0.0;
+						for (x in d)
+							most = Math.max(most, Math.abs(x));
+						reach += most;
+					}
+				var b = p.bounds;
+				var r = new hxmc.gfx.shader.Vec3(reach, reach, reach);
+				var prim = new hxmc.scene.render.Mesh.Primitive(buffer, p.indices, p.indexFormat, p.count, p.material,
+					new hxmc.scene.math.Aabb(b.min - r, b.max + r), p.skinned);
+				prim.tangents = p.tangents;
+				copy.addPrimitive(prim);
+				parts.push(new hxmc.scene.render.Morph.MorphPrimitive(buffer, mp.data.vertices, mp.data.skinned ? 64 : 32, mp.positions, mp.normals));
+			}
+			var g = doc.nodes[k];
+			MeshRenderer.attach(made[k], copy);
+			hxmc.scene.anim.MorphWeights.attach(made[k], new hxmc.scene.anim.MorphWeights(g.weights != null ? g.weights : doc.meshes[m].weights));
+			hxmc.scene.render.Morph.attach(made[k], new hxmc.scene.render.Morph(device, doc.meshes[m].weights.length, parts));
+		}
 		// (skins: their joints are this instance's nodes)
 		for (k in 0...doc.nodes.length) {
 			var sk = doc.nodes[k].skin;

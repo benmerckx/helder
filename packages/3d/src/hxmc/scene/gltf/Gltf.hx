@@ -178,8 +178,16 @@ class Gltf {
 					weights: index(at, "WEIGHTS_0", n, what, true),
 					indices: index(p, "indices", n, what, true),
 					material: index(p, "material", doc.materials.length, what, true),
-					mode: int(p, "mode", 4)
+					mode: int(p, "mode", 4),
+					targets: [
+						for (t in list(p, "targets"))
+							{position: index(t, "POSITION", n, what, true), normal: index(t, "NORMAL", n, what, true)}
+					]
 				};
+				for (t in prim.targets)
+					for (k in [t.position, t.normal])
+						if (k >= 0 && (prim.position < 0 || doc.accessors[k].count != doc.accessors[prim.position].count || doc.accessors[k].components != 3))
+							throw 'glTF: $what: a morph target not of VEC3s, one per vertex';
 				if (prim.position >= 0 && doc.accessors[prim.position].components != 3) throw 'glTF: $what: POSITION not VEC3';
 				if (prim.normal >= 0 && doc.accessors[prim.normal].count != doc.accessors[prim.position].count) throw 'glTF: $what: NORMAL count';
 				if ((prim.joints >= 0) != (prim.weights >= 0)) throw 'glTF: $what: JOINTS_0 without WEIGHTS_0, or the reverse';
@@ -193,7 +201,11 @@ class Gltf {
 				}
 				prims.push(prim);
 			}
-			doc.meshes.push({name: str(m, "name", ""), primitives: prims});
+			var targets = prims.length > 0 ? prims[0].targets.length : 0;
+			for (p in prims)
+				if (p.targets.length != targets) throw 'glTF: $what: primitives with different numbers of morph targets';
+			var w = floats(m, "weights");
+			doc.meshes.push({name: str(m, "name", ""), primitives: prims, weights: w != null && w.length == targets ? w : [for (_ in 0...targets) 0.0]});
 			i++;
 		}
 		i = 0;
@@ -249,7 +261,8 @@ class Gltf {
 				translation: t != null && t.length == 3 ? new Vec3(t[0], t[1], t[2]) : new Vec3(0, 0, 0),
 				rotation: r != null && r.length == 4 ? new Quat(r[0], r[1], r[2], r[3]) : Quat.identity(),
 				scale: s != null && s.length == 3 ? new Vec3(s[0], s[1], s[2]) : new Vec3(1, 1, 1),
-				matrix: m
+				matrix: m,
+				weights: floats(n, "weights")
 			});
 			i++;
 		}

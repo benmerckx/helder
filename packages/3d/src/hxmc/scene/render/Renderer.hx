@@ -145,6 +145,8 @@ class Renderer {
 	public function draw(enc:Encoder, world:World, camera:Camera, ?aspect:Float) {
 		if (aspect == null) aspect = device.width / device.height;
 		var viewProj = camera.viewProjection(aspect);
+		// (morph targets blended where their weights changed: Morph)
+		if (Morph.updateWorld != null) Morph.updateWorld(world);
 		extract(world, viewProj);
 		var toLight = writeFrame(world, camera, viewProj, false);
 		frame.world = world;
