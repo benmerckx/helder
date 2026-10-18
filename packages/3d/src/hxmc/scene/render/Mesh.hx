@@ -19,26 +19,33 @@ class Mesh {
 	// vertex; normals null: computed from the triangles, smooth where
 	// vertices are shared) and triangles' indices (null: 0, 1, 2, ...)
 	public function add(device:Device, positions:Array<Float>, normals:Null<Array<Float>>, uvs:Null<Array<Float>>, indices:Null<Array<Int>>,
-			material:Material):Primitive {
+			material:Material, ?joints:Array<Float>, ?weights:Array<Float>):Primitive {
 		var n = Std.int(positions.length / 3);
 		if (indices == null) indices = [for (i in 0...n) i];
 		if (normals == null) normals = smoothNormals(positions, indices);
-		var v = Bytes.alloc(n * 32);
+		// (skinned: the joints and weights after, 64 bytes a vertex: PbrSkinnedShader)
+		var skinned = joints != null && weights != null, stride = skinned ? 64 : 32;
+		var v = Bytes.alloc(n * stride);
 		for (i in 0...n) {
-			var p = 32 * i;
+			var p = stride * i;
 			for (k in 0...3) {
 				v.setFloat(p + 4 * k, positions[3 * i + k]);
 				v.setFloat(p + 12 + 4 * k, normals[3 * i + k]);
 			}
 			v.setFloat(p + 24, uvs != null ? uvs[2 * i] : 0);
 			v.setFloat(p + 28, uvs != null ? uvs[2 * i + 1] : 0);
+			if (skinned)
+				for (k in 0...4) {
+					v.setFloat(p + 32 + 4 * k, joints[4 * i + k]);
+					v.setFloat(p + 48 + 4 * k, weights[4 * i + k]);
+				}
 		}
 		var wide = n > 65535;
 		var ib = Bytes.alloc(indices.length * (wide ? 4 : 2));
 		for (k in 0...indices.length)
 			if (wide) ib.setInt32(4 * k, indices[k]) else ib.setUInt16(2 * k, indices[k]);
 		var prim = new Primitive(device.createBuffer({size: v.length, usage: Vertex, data: v}),
-			device.createBuffer({size: ib.length, usage: Index, data: ib}), wide ? UInt32 : UInt16, indices.length, material, Aabb.ofPoints(positions));
+			device.createBuffer({size: ib.length, usage: Index, data: ib}), wide ? UInt32 : UInt16, indices.length, material, Aabb.ofPoints(positions), skinned);
 		primitives.push(prim);
 		bounds = bounds.union(prim.bounds);
 		return prim;
@@ -95,8 +102,11 @@ class Primitive {
 	public final count:Int;
 	public var material:Material;
 	public final bounds:Aabb;
+	// its vertices carry joints and weights (drawn with a Skin)
+	public final skinned:Bool;
 
-	public function new(vertices:Buffer, indices:Buffer, indexFormat:IndexFormat, count:Int, material:Material, bounds:Aabb) {
+	public function new(vertices:Buffer, indices:Buffer, indexFormat:IndexFormat, count:Int, material:Material, bounds:Aabb, skinned = false) {
+		this.skinned = skinned;
 		this.vertices = vertices;
 		this.indices = indices;
 		this.indexFormat = indexFormat;

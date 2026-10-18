@@ -81,7 +81,9 @@ animator.update(dt);
 ```
 
 Clips are glTF's keyframes (translation, rotation, scale; step, linear,
-cubic spline); skins come next.
+cubic spline). Skinned glTF meshes deform with their joints (a `Skin` per
+instance, joint matrices in a texture); `examples/skinned.glb` is a
+generated two-joint sample.
 
 ## Input
 

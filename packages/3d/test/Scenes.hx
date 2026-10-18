@@ -12,10 +12,11 @@ import hxmc.scene.render.*;
 //   physics @hxmc/physics' Falling example after STEPS steps
 //   instances 169 nodes on two meshes: instanced draws (RenderTest checks
 //          their count)
+//   skin   the skinned sample (examples/skinned.glb) bent by its animation
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin"];
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
 	public static inline var TIME = 2.0;
@@ -61,6 +62,24 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0, 6, 8);
 				eye.lookAt(new Vec3(0, 0, 0));
+				enc -> r.draw(enc, world, camera);
+			case "skin":
+				// the skinned sample bent by its animation at 1 s (the elbow at 1.2 radians)
+				var r = new Renderer(device);
+				renderer = r;
+				var world = new World();
+				var model = Model.of("skinned.glb");
+				var made = [];
+				model.instantiate(world, device, null, made);
+				var animator = new hxmc.scene.anim.Animator(made);
+				animator.play(model.clip(model.animations.bend));
+				animator.update(1.0);
+				var floor = world.node("floor");
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.5, 0.5, 0.55, 1), 0, 0.9), 6));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0.4, 1.4, 4.2);
+				eye.lookAt(new Vec3(-0.3, 1.1, 0));
 				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}

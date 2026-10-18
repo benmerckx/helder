@@ -64,6 +64,10 @@ class Renderer {
 	var instancedPipeline:Pipeline;
 	var instancedDoubleSided:Pipeline;
 	final plainSlots:Array<Int>;
+	var skinnedPipeline:Pipeline;
+	var skinnedDoubleSided:Pipeline;
+	final skinnedSlots:Array<Int>;
+	final skinBytes = Bytes.alloc(16);
 	final instancedSlots:Array<Int>;
 	// whether runs of one primitive are drawn instanced (on by default)
 	public var instancing = true;
@@ -103,6 +107,9 @@ class Renderer {
 			d.layout = INSTANCED_LAYOUT;
 			if (cull == Back) instancedPipeline = device.createPipeline(d) else instancedDoubleSided = device.createPipeline(d);
 		}
+		skinnedPipeline = device.createPipeline(PbrSkinnedShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
+		skinnedDoubleSided = device.createPipeline(PbrSkinnedShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
+		skinnedSlots = slotsOf(PbrSkinnedShader.uniforms, PbrSkinnedShader.textures);
 		plainSlots = slotsOf(PbrShader.uniforms, PbrShader.textures);
 		instancedSlots = slotsOf(PbrInstancedShader.uniforms, PbrInstancedShader.textures);
 		var w = Bytes.alloc(4);
@@ -145,7 +152,9 @@ class Renderer {
 			var node = meshes.nodeAt(k), mesh = meshes.valueAt(k);
 			if (!node.shown() || !world.inTree(node)) continue;
 			var model = node.worldMatrix();
-			if (!visible(viewProj * model, mesh)) {
+			var skin = mesh.primitives.length > 0 && mesh.primitives[0].skinned ? Skin.of(node) : null;
+			// (a skinned mesh's bounds are its rest pose's: not culled)
+			if (skin != null) skin.update(node) else if (!visible(viewProj * model, mesh)) {
 				culled += mesh.primitives.length;
 				continue;
 			}
@@ -229,10 +238,11 @@ class Renderer {
 			var start = batchStart[b], n = batchSize[b];
 			var d = list[start], p = d.primitive, m = p.material;
 			var many = n > 1;
-			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : (m.doubleSided ? doubleSided : pipeline);
+			var skin = p.skinned ? Skin.of(d.node) : null;
+			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? (m.doubleSided ? skinnedDoubleSided : skinnedPipeline) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
-				slots = many ? instancedSlots : plainSlots;
+				slots = many ? instancedSlots : skin != null ? skinnedSlots : plainSlots;
 				enc.setUniforms(slots[0], frameBytes);
 				current = want;
 				material = null;
@@ -243,6 +253,11 @@ class Renderer {
 				PbrShader.writePbrObject({model: model, normalMatrix: MathTools.normalMatrix(model)}, objectBytes);
 				enc.setUniforms(slots[1], objectBytes);
 				node = d.node;
+			}
+			if (skin != null) {
+				skinBytes.setFloat(0, skin.joints.length);
+				enc.setUniforms(slots[5], skinBytes);
+				enc.setTexture(slots[6], skin.texture, nearest);
 			}
 			if (m != material) {
 				PbrShader.writePbrMaterial({
@@ -273,7 +288,7 @@ class Renderer {
 		var bytes = 0, i = 0;
 		while (i < count) {
 			var j = i + 1;
-			if (instancing && uniformScale(list[i].node))
+			if (instancing && !list[i].primitive.skinned && uniformScale(list[i].node))
 				while (j < count && list[j].primitive == list[i].primitive && uniformScale(list[j].node))
 					j++;
 			if (batchCount == batchStart.length) {
@@ -337,7 +352,7 @@ class Renderer {
 				if (b.name == name) return b.binding;
 			return -1;
 		}
-		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap")];
+		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap"), u("PbrSkinInfo"), t("jointMatrices")];
 	}
 
 	// whether a mesh's bounds, through mvp, reach the view: not all eight

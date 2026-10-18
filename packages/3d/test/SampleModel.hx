@@ -24,6 +24,7 @@ class SampleModel {
 	public static var cubePositions:Array<Float>;
 	public static var spherePositions:Array<Float>;
 	public static var sphereIndices:Array<Int>;
+	public static var skinPositions:Array<Float>;
 
 	static function main() {
 		var out = Sys.args()[0];
@@ -33,11 +34,16 @@ class SampleModel {
 		}
 		sys.io.File.saveBytes(out, glb());
 		Sys.println('SampleModel: wrote $out');
+		var skinned = haxe.io.Path.join([haxe.io.Path.directory(out), "skinned.glb"]);
+		sys.io.File.saveBytes(skinned, skinnedGlb());
+		Sys.println('SampleModel: wrote $skinned');
 	}
 
 	// the .glb file
-	public static function glb():Bytes {
-		var m = build(null);
+	public static function glb():Bytes
+		return pack(build(null));
+
+	public static function pack(m:{json:String, bin:Bytes}):Bytes {
 		var json = Bytes.ofString(m.json);
 		var jlen = (json.length + 3) & ~3, blen = (m.bin.length + 3) & ~3;
 		var o = new haxe.io.BytesOutput();
@@ -55,6 +61,112 @@ class SampleModel {
 		for (_ in m.bin.length...blen)
 			o.writeByte(0);
 		return o.getBytes();
+	}
+
+	// the skinned sample (examples/skinned.glb): an octagonal tube 2 high
+	// on two joints, "root" at its foot and "elbow" halfway up, its upper
+	// half following the elbow (weights blended over the middle), and
+	// "bend", the elbow turning about z and back
+	public static function skinnedGlb():Bytes
+		return pack(buildSkinned());
+
+	static function buildSkinned():{json:String, bin:Bytes} {
+		var bin = new BytesBuffer();
+		var views:Array<String> = [], accessors:Array<String> = [];
+		function view(start:Int, target:Int):Int {
+			views.push('{"buffer":0,"byteOffset":$start,"byteLength":${bin.length - start}' + (target > 0 ? ',"target":$target' : "") + "}");
+			return views.length - 1;
+		}
+		function accessor(view:Int, type:Int, count:Int, kind:String, ?minmax:Array<Float>):Int {
+			var s = '{"bufferView":$view,"componentType":$type,"count":$count,"type":"$kind"';
+			if (minmax != null) {
+				var b = hxmc.scene.math.Aabb.ofPoints(minmax);
+				s += ',"min":[${num(b.min.x)},${num(b.min.y)},${num(b.min.z)}],"max":[${num(b.max.x)},${num(b.max.y)},${num(b.max.z)}]';
+			}
+			accessors.push(s + "}");
+			return accessors.length - 1;
+		}
+		var rings = 12, sides = 8, radius = 0.22;
+		skinPositions = [];
+		var normals = [], joints = [], weights = [], idx = [];
+		for (r in 0...rings + 1) {
+			var y = 2 * r / rings;
+			var w1 = y <= 0.7 ? 0.0 : y >= 1.3 ? 1.0 : (y - 0.7) / 0.6;
+			for (s in 0...sides) {
+				var a = 2 * Math.PI * s / sides;
+				var x = round6(Math.cos(a)), z = round6(-Math.sin(a));
+				skinPositions.push(x * radius);
+				skinPositions.push(y);
+				skinPositions.push(z * radius);
+				normals.push(x);
+				normals.push(0.0);
+				normals.push(z);
+				joints.push(0);
+				joints.push(1);
+				joints.push(0);
+				joints.push(0);
+				for (w in [round6(1 - w1), round6(w1), 0, 0])
+					weights.push(w);
+			}
+		}
+		for (r in 0...rings)
+			for (s in 0...sides) {
+				var a = r * sides + s, b = r * sides + (s + 1) % sides, c = a + sides, d = b + sides;
+				for (k in [a, b, d, a, d, c])
+					idx.push(k);
+			}
+		var n = (rings + 1) * sides;
+		var start = bin.length;
+		for (x in skinPositions)
+			bin.addFloat(x);
+		var pos = accessor(view(start, 34962), 5126, n, "VEC3", skinPositions);
+		start = bin.length;
+		for (x in normals)
+			bin.addFloat(x);
+		var nor = accessor(view(start, 34962), 5126, n, "VEC3");
+		start = bin.length;
+		for (j in joints)
+			bin.addByte(j);
+		var jnt = accessor(view(start, 34962), 5121, n, "VEC4");
+		start = bin.length;
+		for (w in weights)
+			bin.addFloat(w);
+		var wgt = accessor(view(start, 34962), 5126, n, "VEC4");
+		start = bin.length;
+		for (i in idx) {
+			bin.addByte(i & 0xFF);
+			bin.addByte(i >> 8);
+		}
+		while (bin.length % 4 != 0)
+			bin.addByte(0);
+		var ind = accessor(view(start, 34963), 5123, idx.length, "SCALAR");
+		// the inverse bind matrices: the root at the origin, the elbow 1 up
+		start = bin.length;
+		for (m in [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, -1, 0, 1]])
+			for (x in m)
+				bin.addFloat(x);
+		var ibm = accessor(view(start, 0), 5126, 2, "MAT4");
+		start = bin.length;
+		for (t in [0, 1, 2])
+			bin.addFloat(t);
+		var times = accessor(view(start, 0), 5126, 3, "SCALAR");
+		start = bin.length;
+		for (angle in [0.0, 1.2, 0.0]) {
+			var q = Quat.axisAngle(new Vec3(0, 0, 1), angle);
+			for (x in [q.x, q.y, q.z, q.w])
+				bin.addFloat(round6(x));
+		}
+		var bend = accessor(view(start, 0), 5126, 3, "VEC4");
+		var data = bin.getBytes();
+		var json = '{"asset":{"version":"2.0","generator":"hxmc packages/3d/test/SampleModel.hx"},"scene":0,'
+			+ '"scenes":[{"name":"skinned","nodes":[0,1]}],'
+			+ '"nodes":[{"name":"arm","mesh":0,"skin":0},{"name":"root","children":[2]},{"name":"elbow","translation":[0,1,0]}],'
+			+ '"skins":[{"name":"arm","joints":[1,2],"inverseBindMatrices":$ibm,"skeleton":1}],'
+			+ '"meshes":[{"name":"arm","primitives":[{"attributes":{"POSITION":$pos,"NORMAL":$nor,"JOINTS_0":$jnt,"WEIGHTS_0":$wgt},"indices":$ind,"material":0}]}],'
+			+ '"materials":[{"name":"arm","pbrMetallicRoughness":{"baseColorFactor":[0.3,0.75,0.45,1],"metallicFactor":0,"roughnessFactor":0.45}}],'
+			+ '"animations":[{"name":"bend","samplers":[{"input":$times,"output":$bend}],"channels":[{"sampler":0,"target":{"node":2,"path":"rotation"}}]}],'
+			+ '"accessors":[${accessors.join(",")}],"bufferViews":[${views.join(",")}],"buffers":[{"byteLength":${data.length}}]}';
+		return {json: json, bin: data};
 	}
 
 	// the .gltf form: the same, its buffer a data: URI

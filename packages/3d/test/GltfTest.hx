@@ -45,6 +45,7 @@ class GltfTest {
 		check("both forms: the same buffer", doc.buffers[0].compare(text.buffers[0]) == 0);
 		nodes(doc);
 		animations(doc);
+		skins();
 		rejects(glb);
 		Sys.println('GltfTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
@@ -149,6 +150,27 @@ class GltfTest {
 
 	static function nearQ(a:Quat, b:Quat, eps = 1e-9):Bool
 		return Math.abs(Math.abs(a.dot(b)) - 1) <= eps;
+
+	static function skins() {
+		var file = sys.io.File.getBytes("packages/3d/examples/skinned.glb");
+		#if eval
+		check("skinned.glb is the generator's", SampleModel.skinnedGlb().compare(file) == 0);
+		#end
+		var doc = Gltf.parse(file);
+		var p = doc.meshes[0].primitives[0];
+		check("a skin", doc.skins.length == 1 && doc.skins[0].joints.join(",") == "1,2" && doc.nodes[0].skin == 0 && doc.skins[0].inverseBindMatrices >= 0);
+		var j = doc.floats(p.joints), w = doc.floats(p.weights);
+		check("JOINTS_0 and WEIGHTS_0", j.length == w.length && j[1] == 1 && w[0] == 1 && w[1] == 0 && w[w.length - 3] == 1);
+		var ibm = doc.floats(doc.skins[0].inverseBindMatrices);
+		check("inverse bind matrices", ibm.length == 32 && ibm[16 + 13] == -1);
+		var parts = GltfFile.split(file);
+		var bad = SampleModel.pack({json: StringTools.replace(parts.json, '"skin":0', '"skin":4'), bin: parts.bin});
+		var threw = try {
+			Gltf.parse(bad);
+			false;
+		} catch (e:String) StringTools.startsWith(e, "glTF: node 0: skin");
+		check("rejects a skin out of range", threw);
+	}
 
 	static function rejects(glb:Bytes) {
 		function fails(what:String, f:Void->Void) {

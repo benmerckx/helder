@@ -25,6 +25,7 @@ class GltfDoc {
 	// KHR_lights_punctual's lights
 	public var lights:Array<GltfLight> = [];
 	public var animations:Array<GltfAnimation> = [];
+	public var skins:Array<GltfSkin> = [];
 	// the default scene (-1: none named; the first, if any)
 	public var scene = -1;
 	public var generator = "";
@@ -160,6 +161,8 @@ class GltfDoc {
 	public var texcoord:Int;
 	public var tangent:Int;
 	public var color:Int;
+	public var joints:Int; // JOINTS_0, WEIGHTS_0: skinning (-1: none)
+	public var weights:Int;
 	public var indices:Int; // -1: not indexed
 	public var material:Int; // -1: the default material
 	public var mode:Int; // 4: triangles
@@ -219,6 +222,7 @@ class GltfDoc {
 	public var mesh:Int;
 	public var camera:Int;
 	public var light:Int; // KHR_lights_punctual, -1: none
+	public var skin:Int; // -1: none
 	public var translation:Vec3;
 	public var rotation:Quat;
 	public var scale:Vec3;
@@ -231,6 +235,12 @@ class GltfDoc {
 	public var color:Vec3;
 	public var intensity:Float;
 	public var range:Float; // 0: infinite
+}
+
+@:structInit class GltfSkin {
+	public var name:String;
+	public var joints:Array<Int>; // nodes
+	public var inverseBindMatrices:Int; // an accessor of MAT4s, -1: identities
 }
 
 @:structInit class GltfAnimation {

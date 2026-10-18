@@ -173,12 +173,18 @@ class Gltf {
 					texcoord: index(at, "TEXCOORD_0", n, what, true),
 					tangent: index(at, "TANGENT", n, what, true),
 					color: index(at, "COLOR_0", n, what, true),
+					joints: index(at, "JOINTS_0", n, what, true),
+					weights: index(at, "WEIGHTS_0", n, what, true),
 					indices: index(p, "indices", n, what, true),
 					material: index(p, "material", doc.materials.length, what, true),
 					mode: int(p, "mode", 4)
 				};
 				if (prim.position >= 0 && doc.accessors[prim.position].components != 3) throw 'glTF: $what: POSITION not VEC3';
 				if (prim.normal >= 0 && doc.accessors[prim.normal].count != doc.accessors[prim.position].count) throw 'glTF: $what: NORMAL count';
+				if ((prim.joints >= 0) != (prim.weights >= 0)) throw 'glTF: $what: JOINTS_0 without WEIGHTS_0, or the reverse';
+				if (prim.joints >= 0 && (doc.accessors[prim.joints].components != 4 || doc.accessors[prim.weights].components != 4
+					|| doc.accessors[prim.joints].count != doc.accessors[prim.position].count || doc.accessors[prim.weights].count != doc.accessors[prim.position].count))
+					throw 'glTF: $what: JOINTS_0 and WEIGHTS_0 must be VEC4s, one per vertex';
 				if (prim.indices >= 0) {
 					var count = prim.position >= 0 ? doc.accessors[prim.position].count : 0;
 					for (k in doc.indices(prim.indices))
@@ -236,12 +242,27 @@ class Gltf {
 				mesh: index(n, "mesh", doc.meshes.length, what, true),
 				camera: index(n, "camera", doc.cameras.length, what, true),
 				light: index(obj(obj(n, "extensions"), "KHR_lights_punctual"), "light", doc.lights.length, what, true),
+				skin: -1,
 				translation: t != null && t.length == 3 ? new Vec3(t[0], t[1], t[2]) : new Vec3(0, 0, 0),
 				rotation: r != null && r.length == 4 ? new Quat(r[0], r[1], r[2], r[3]) : Quat.identity(),
 				scale: s != null && s.length == 3 ? new Vec3(s[0], s[1], s[2]) : new Vec3(1, 1, 1),
 				matrix: m
 			});
 			i++;
+		}
+		i = 0;
+		for (sk in list(root, "skins")) {
+			var what = 'skin $i';
+			var joints = [for (j in list(sk, "joints")) checked(j, doc.nodes.length, what)];
+			if (joints.length == 0) throw 'glTF: $what: no joints';
+			var ibm = index(sk, "inverseBindMatrices", doc.accessors.length, what, true);
+			if (ibm >= 0 && (doc.accessors[ibm].components != 16 || doc.accessors[ibm].count < joints.length)) throw 'glTF: $what: inverseBindMatrices';
+			doc.skins.push({name: str(sk, "name", ""), joints: joints, inverseBindMatrices: ibm});
+			i++;
+		}
+		for (k in 0...nodes.length) {
+			doc.nodes[k].skin = index(nodes[k], "skin", doc.skins.length, 'node $k', true);
+			if (doc.nodes[k].skin >= 0 && doc.nodes[k].mesh < 0) throw 'glTF: node $k: a skin without a mesh';
 		}
 		// (a node has one parent at most, and no node is its own ancestor)
 		var parent = [for (_ in 0...doc.nodes.length) -1];

@@ -68,6 +68,8 @@ class Shadows {
 			ShadowShader.writeShadowCaster({mvp: viewProj * n.worldMatrix()}, casterBytes);
 			enc.setUniforms(0, casterBytes);
 			for (p in meshes.valueAt(k).primitives) {
+				// (skinned meshes cast no shadow yet: their vertices are another layout)
+				if (p.skinned) continue;
 				enc.setVertexBuffer(0, p.vertices);
 				enc.setIndexBuffer(p.indices, p.indexFormat);
 				enc.drawIndexed(p.count);
