@@ -25,6 +25,8 @@ enum abstract EventType(Int) {
 	// Blur, but bubbling (the DOM's focusin, focusout)
 	var FocusIn;
 	var FocusOut;
+	// a text field's text changed by its user (text: its text now), as the DOM's input
+	var Input;
 }
 
 // An event as Ui dispatches it: to the target, then (unless stopped) to
@@ -43,7 +45,7 @@ class Event {
 	// KeyDown, KeyUp: the key (Key) and the modifiers (Key.MOD_*)
 	public var key = 0;
 	public var mods = 0;
-	// TextInput: the characters typed (an IME's composed text, too);
+	// TextInput: the characters typed (an IME's composed text, too); Input: the field's text;
 	// Composition: an input method's text not committed yet (empty: none)
 	public var text = "";
 	// Composition: the caret in text (UTF-16)

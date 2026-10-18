@@ -6,7 +6,8 @@
 // chosen, the focus back on it; a menu's item opening a modal dialog,
 // Escape closing it; a menu bar's Right; a slider's keys; a combobox
 // filtering and choosing; a tooltip after its delay; a context menu; a
-// list box's Shift; a tree opened by the keys; a toast; right to left.
+// list box's Shift; a tree opened by the keys; a toast; text fields
+// typed, a number field's keys and buttons; right to left.
 // Then the sizes of the counter, the form and the gallery, raw and gzipped,
 // and the share of the neutral elements' realiser (hxmc.web's Neutral,
 // NeutralEvent, ElementPart: what single-source widgets cost a page).
@@ -130,6 +131,21 @@ const slide = () => page.evaluate(() => document.querySelector('#loading [data-s
 const at = await slide();
 await page.waitForTimeout(200);
 await check('progress: not known, sliding', at !== '' && (await slide()) !== at && (await attr('#loading', 'aria-valuenow')) === null);
+// text fields (<field>): typed, the signal follows; a number field's keys and buttons
+await page.locator('#name').fill('');
+await page.locator('#name').pressSequentially('Ada');
+await check('input: typed, the signal follows', (await text('#greeting')) === 'Hello, Ada!');
+await page.locator('#notes').pressSequentially('a');
+await press('Enter');
+await page.keyboard.type('b');
+await check('textarea: typed, two lines', (await text('#lines')) === '2 lines');
+const count = async () => Number(await page.locator('#count').inputValue());
+const before = await count();
+await page.locator('#count').focus();
+await press('ArrowUp');
+await press('ArrowUp');
+await page.locator('[data-slot=number-field-decrement]').click();
+await check('number field: Up and its button step it', (await count()) === before + 1 && (await attr('#count', 'aria-valuenow')) === String(before + 1));
 // right to left
 await page.locator('#rtl').click();
 await check('right to left', (await page.evaluate(() => document.documentElement.dir)) === 'rtl');

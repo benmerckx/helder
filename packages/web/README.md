@@ -160,10 +160,13 @@ component serves a canvas and a page (`examples/WidgetCounter.hx`; ui's
 sources on the class path, `-cp`, not `-lib hxmc.ui`). A ui widget of one
 definition for both (`@:neutral`: the static widgets, Field, ButtonGroup,
 Toggle, ToggleGroup, Checkbox, Switch, RadioGroup, Slider, RangeSlider,
-Tabs, Listbox, Breadcrumb, Pagination, Collapsible, Calendar, Progress, Alert and the Sidebar's parts so far) is no DOM copy at all:
+Tabs, Listbox, Breadcrumb, Pagination, Collapsible, Calendar, Progress, Alert, the text
+fields (Input, Textarea, NumberField, InputOTP, InputGroupInput) and the
+Sidebar's parts so far) is no DOM copy at all:
 DomRenderer realises its neutral elements at compile time (NeutralMacro:
 `view` a `div`, `text` a `span`, `view:button` a `button`, `icon` an
-`svg`...; `slot`,
+`svg`, `field` an `input`, `field:textarea` a `textarea` (`value` the
+property, `onInput` the DOM's input, its text `e.text`)...; `slot`,
 `variant`, `size` as `data-*`, `label`, `checked`, `expanded`... as
 `aria-*`, `focusable` as `tabindex`, `id` as it is, ui's `tag` none,
 StyleProps as inline style; events as ui's Event, `onPress` a click; a

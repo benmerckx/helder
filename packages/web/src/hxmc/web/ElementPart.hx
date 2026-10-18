@@ -39,6 +39,10 @@ class ElementPart implements hxmc.ui.Part {
 	@:ifFeature("hxmc.web.ElementPart.of") public function capture()
 		if (Neutral.pointer != null) element.setPointerCapture(Neutral.pointer);
 
+	// (a field's selection: an <input>'s or a <textarea>'s)
+	@:ifFeature("hxmc.web.ElementPart.of") public function select(start:Int, end:Int)
+		if ((cast element : Dynamic).setSelectionRange != null) (cast element : Dynamic).setSelectionRange(start, end);
+
 	@:ifFeature("hxmc.web.ElementPart.of") public function rtl():Bool
 		return js.Browser.window.getComputedStyle(element).direction == "rtl";
 }
