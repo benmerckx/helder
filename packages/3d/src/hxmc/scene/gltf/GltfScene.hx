@@ -86,9 +86,13 @@ class GltfScene {
 		if (made == null) made = [];
 		var top = GltfNodes.build(doc, world, parent, scene, (n, k) -> MeshRenderer.attach(n, meshes[k]), (n, k) -> {
 			var l = doc.lights[k];
-			// (glTF's units: lux for the sun, candela for the others; spot lights as point lights for now)
-			Light.attach(n, l.type == "directional" ? Light.directional(l.color, l.intensity) : Light.pointLight(l.color, l.intensity,
-				l.range > 0 ? l.range : 1000));
+			// (glTF's units: lux for the sun, candela for the others)
+			var range = l.range > 0 ? l.range : 1000;
+			Light.attach(n, switch l.type {
+				case "directional": Light.directional(l.color, l.intensity);
+				case "spot": Light.spot(l.color, l.intensity, range, l.innerCone, l.outerCone);
+				case _: Light.pointLight(l.color, l.intensity, range);
+			});
 		}, made);
 		// (skins: their joints are this instance's nodes)
 		for (k in 0...doc.nodes.length) {

@@ -93,6 +93,7 @@ class Renderer {
 	// (the frame's point lights: position and range, colour)
 	final pointLights:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, 0)];
 	final pointColors:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, 0)];
+	final spots:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, -2)];
 	var count = 0;
 
 	public function new(device:Device) {
@@ -180,8 +181,10 @@ class Renderer {
 		var l = sunDirection, c = sunColor;
 		var lights = world.store(Light.KIND);
 		var sun = false, points = 0;
-		for (k in 0...4)
+		for (k in 0...4) {
 			pointLights[k] = pointColors[k] = new Vec4(0, 0, 0, 0);
+			spots[k] = new Vec4(0, 0, 0, -2);
+		}
 		for (k in 0...lights.length) {
 			var node = lights.nodeAt(k), light = lights.valueAt(k);
 			if (!node.shown() || !world.inTree(node)) continue;
@@ -189,7 +192,13 @@ class Renderer {
 				if (points == 4) continue;
 				var p = node.worldPosition(), q = light.color * light.intensity;
 				pointLights[points] = new Vec4(p.x, p.y, p.z, light.range);
-				pointColors[points++] = new Vec4(q.x, q.y, q.z, 0);
+				if (light.outerCone > 0) {
+					var dir = MathTools.transformDir(node.worldMatrix(), new Vec3(0, 0, -1));
+					dir = dir / Math.sqrt(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+					spots[points] = new Vec4(dir.x, dir.y, dir.z, Math.cos(light.outerCone));
+					pointColors[points++] = new Vec4(q.x, q.y, q.z, Math.cos(light.innerCone));
+				} else
+					pointColors[points++] = new Vec4(q.x, q.y, q.z, 0);
 			} else if (!sun) {
 				// (it shines down its node's -z: the light is towards +z)
 				l = MathTools.transformDir(node.worldMatrix(), new Vec3(0, 0, 1));
@@ -224,7 +233,11 @@ class Renderer {
 			pointColor0: pointColors[0],
 			pointColor1: pointColors[1],
 			pointColor2: pointColors[2],
-			pointColor3: pointColors[3]
+			pointColor3: pointColors[3],
+			spot0: spots[0],
+			spot1: spots[1],
+			spot2: spots[2],
+			spot3: spots[3]
 		}, frameBytes);
 		return l;
 	}

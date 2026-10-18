@@ -144,7 +144,7 @@ The renderer extracts the world's meshes (`MeshRenderer`) into a draw
 list (shown nodes inside the view, sorted by pipeline and material), then
 records it with `PbrShader`: glTF's metallic-roughness model, the world's
 first directional `Light` and up to four point lights
-(`Light.pointLight(color, intensity, range)`; a world without lights:
+(`Light.pointLight(color, intensity, range)`, `Light.spot(...)`; a world without lights:
 `renderer.sun*`), a sky-and-ground
 ambient, ACES tone mapping, sRGB output. Nodes drawing the same primitive are drawn in one instanced call
 (`renderer.instancing`, on by default). Shadows are opted in:

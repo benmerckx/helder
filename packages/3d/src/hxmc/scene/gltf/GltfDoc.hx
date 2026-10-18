@@ -235,6 +235,8 @@ class GltfDoc {
 	public var color:Vec3;
 	public var intensity:Float;
 	public var range:Float; // 0: infinite
+	public var innerCone:Float; // spot: radians
+	public var outerCone:Float;
 }
 
 @:structInit class GltfSkin {

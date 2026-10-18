@@ -225,7 +225,9 @@ class Gltf {
 				type: type,
 				color: c != null && c.length == 3 ? new Vec3(c[0], c[1], c[2]) : new Vec3(1, 1, 1),
 				intensity: num(l, "intensity", 1),
-				range: num(l, "range", 0)
+				range: num(l, "range", 0),
+				innerCone: num(obj(l, "spot"), "innerConeAngle", 0),
+				outerCone: num(obj(l, "spot"), "outerConeAngle", Math.PI / 4)
 			});
 			i++;
 		}

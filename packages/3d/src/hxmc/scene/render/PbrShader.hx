@@ -45,6 +45,12 @@ import hxmc.gfx.shader.ShaderMath.*;
 	var pointColor1:Vec4;
 	var pointColor2:Vec4;
 	var pointColor3:Vec4;
+	// spot lights: the direction they shine (xyz) and the cosine of the outer
+	// cone (w; below -1 for a point light); pointColor's w the inner cone's
+	var spot0:Vec4;
+	var spot1:Vec4;
+	var spot2:Vec4;
+	var spot3:Vec4;
 }
 
 // per draw: the node's matrices
@@ -93,10 +99,10 @@ class PbrShader implements Shaders {
 		var a2 = a * a;
 		var f0 = mix(vec3(0.04), base, metallic);
 		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * shadowed(frame, shadowMap, i.world, max(dot(n, l), 0));
-		direct += point(n, v, i.world, base, metallic, a2, f0, frame.point0, frame.pointColor0)
-			+ point(n, v, i.world, base, metallic, a2, f0, frame.point1, frame.pointColor1)
-			+ point(n, v, i.world, base, metallic, a2, f0, frame.point2, frame.pointColor2)
-			+ point(n, v, i.world, base, metallic, a2, f0, frame.point3, frame.pointColor3);
+		direct += point(n, v, i.world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
+			+ point(n, v, i.world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1)
+			+ point(n, v, i.world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2)
+			+ point(n, v, i.world, base, metallic, a2, f0, frame.point3, frame.pointColor3, frame.spot3);
 		// the ambient: the sky and the ground blended by the normal (diffuse)
 		// and by the reflection (specular, Karis' fit of the split sum)
 		var up = n.y * 0.5 + 0.5;
@@ -134,10 +140,10 @@ class PbrShader implements Shaders {
 		return (diffuse + fresnel * (distribution * visibility)) * nl;
 	}
 
-	// a point light at pos.xyz (pos.w: its range, 0 for no light): the
+	// a point or spot light at pos.xyz (pos.w: its range, 0 for no light): the
 	// inverse square falloff windowed to reach 0 at the range (glTF's
 	// KHR_lights_punctual)
-	static function point(n:Vec3, v:Vec3, world:Vec3, base:Vec3, metallic:Float, a2:Float, f0:Vec3, pos:Vec4, color:Vec4):Vec3 {
+	static function point(n:Vec3, v:Vec3, world:Vec3, base:Vec3, metallic:Float, a2:Float, f0:Vec3, pos:Vec4, color:Vec4, spot:Vec4):Vec3 {
 		var result = vec3(0);
 		if (pos.w > 0) {
 			var d = pos.xyz - world;
@@ -145,7 +151,10 @@ class PbrShader implements Shaders {
 			var dist = sqrt(dist2);
 			var q = dist / pos.w;
 			var window = clamp(1 - q * q * q * q, 0, 1);
-			result = brdf(n, v, d / dist, base, metallic, a2, f0) * color.xyz * (window * window / dist2);
+			// (a spot light: full inside the inner cone, nothing outside the outer)
+			var cone = 1.0;
+			if (spot.w > -1.5) cone = smoothstep(spot.w, color.w, dot(-d / dist, spot.xyz));
+			result = brdf(n, v, d / dist, base, metallic, a2, f0) * color.xyz * (window * window / dist2 * cone);
 		}
 		return result;
 	}
