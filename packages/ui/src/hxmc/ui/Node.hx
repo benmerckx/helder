@@ -93,6 +93,8 @@ class Node {
 	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
 	var themedIds:Null<Array<Int>> = null;
 	var themedValues:Null<Array<Dynamic>> = null;
+	// (the properties whose own values it holds over the rules at any value, its defaults too: Rules.keep)
+	var keptIds:Null<Array<Int>> = null;
 	var restylePending = false;
 
 	// (asks for its rules to be applied again, at the next update: several changes, one restyle)

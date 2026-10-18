@@ -104,8 +104,6 @@ await cdp.send('DOM.enable');
 await cdp.send('CSS.enable');
 // (the element a case's states and attributes are on: the component's main slot)
 const TARGET = { 'input-group': 'input-group-control', 'radio-group': 'radio-group-item', slider: 'slider-thumb', tabs: 'tabs-trigger', select: 'select-trigger', 'dropdown-menu': 'dropdown-menu-item' };
-// (a popup's box in ref.mjs's markup, where the slot differs)
-const CROP = { combobox: 'popover-content' };
 if (outDir) fs.mkdirSync(outDir, { recursive: true });
 let failed = 0, skipped = 0;
 for (const c of cases) {
@@ -153,7 +151,7 @@ for (const c of cases) {
 	if (c.crop) {
 		// (a popup alone, as ref.mjs draws it: what it opens from hidden, toasts aside, which are in the frame)
 		if (c.component !== 'toast' && !c.component.startsWith('chart-')) await page.evaluate(() => { for (const e of document.querySelectorAll('#frame > *')) e.style.visibility = 'hidden'; });
-		const b = await page.locator(`[data-slot=${CROP[c.component] ?? c.crop}]`).first().boundingBox({ timeout: 2000 }).catch(() => null);
+		const b = await page.locator(`[data-slot=${c.crop}]`).first().boundingBox({ timeout: 2000 }).catch(() => null);
 		shot = b ? await page.screenshot({ clip: { x: Math.round(b.x) - 8, y: Math.round(b.y) - 8, width: c.w, height: c.h } }) : null;
 	} else shot = await page.locator('#frame').screenshot();
 	if (c.states) await force(sel, []);

@@ -320,7 +320,9 @@ variants: `group:hover` (an ancestor with a `group` attribute hovered;
 (an earlier sibling with a `peer` attribute), `has:focus` (a descendant;
 `has:>x` a child), `first`, `last`, `not:x`, nested as
 `group:has:focus`. Later
-rules win, property by property; the node's own style wins over them.
+rules win, property by property; the node's own style wins over them
+(a value still its default counts as none: `Rules.keep(node, ["padding"])`
+holds its own at any value, as an instance's `p-0` over its slot's `p-4`).
 Lengths may be token references too: `Length.token("radius", -4)` is
 `calc(var(--radius) - 4px)`, resolved with the sheet's `lengths` (radii).
 Colours may be token references, `Color.parse("var(--primary)")`,

@@ -759,7 +759,7 @@
 		"w": 216,
 		"h": 186,
 		"dark": false,
-		"crop": "command-list",
+		"crop": "popover-content",
 		"fw": 320,
 		"fh": 300
 	},
@@ -1844,7 +1844,7 @@
 		"w": 216,
 		"h": 186,
 		"dark": true,
-		"crop": "command-list",
+		"crop": "popover-content",
 		"fw": 320,
 		"fh": 300
 	},

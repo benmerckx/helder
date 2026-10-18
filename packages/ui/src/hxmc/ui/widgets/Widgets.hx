@@ -1200,7 +1200,7 @@ class Widgets implements Markup {
 					var g = p.find(tag + "-calendar-grid");
 					if (g != null && g.ui != null) g.ui.setFocus(g);
 				}}>
-				<view slot="popover-content" data-state="open" padding={0}><Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
+				<view slot="popover-content" data-state="open" padding={0} ref={n -> Rules.keep(n, ["padding"])}><Calendar tag={tag + "-calendar"} value={props.value} today={props.today} firstDay={props.firstDay}
 					onChoose={_ -> {
 						open.value = false;
 						if (self != null && self.ui != null) self.ui.setFocus(self);
@@ -2576,6 +2576,9 @@ class Widgets implements Markup {
 	// Enter or a click chooses the highlighted one (the field takes its
 	// text; onChoose gets it), Enter with none highlighted submits the text
 	// as it is (onChoose), Escape or a click outside closes the list.
+	// Slots (shadcn's: a Popover holding a Command) "popover-content"
+	// (data-side), "command", "command-list", "command-group" and
+	// "command-item" (data-selected "true"), the field Input's
 	@:widget({
 		props: {
 			value: "a signal of the field's text, set as it is typed or an option is chosen",
@@ -2658,11 +2661,14 @@ class Widgets implements Markup {
 			}}>
 			{f}
 			<Popover open={() -> open.value && matches.value.length > 0} placement="below" onDismiss={() -> open.value = false}>
-				<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label} width={w}>
-					<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} slot="command-item" role="option"
-						selected={() -> active.value == i} data-selected={() -> active.value == i ? "true" : null} ref={n -> options[i] = n}
-						onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
-				</scroll>
+				<view tag={tag + "-content"} slot="popover-content" data-state="open" data-side="bottom" width={w} padding={0}
+					ref={n -> Rules.keep(n, ["padding"])}><view slot="command">
+					<scroll tag={tag + "-list"} slot="command-list" role="listbox" label={props.label}><view slot="command-group">
+						<Index each={matches} render={(o:Signal<String>, i:Int) -> <view tag={tag + "-option"} slot="command-item" role="option"
+							selected={() -> active.value == i} data-selected={() -> active.value == i ? "true" : null} ref={n -> options[i] = n}
+							onPointerEnter={_ -> active.value = i} onClick={_ -> choose(o.peek())}>{() -> o.value}</view>}/>
+					</view></scroll>
+				</view></view>
 			</Popover>
 		</view>;
 	}

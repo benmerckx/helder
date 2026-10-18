@@ -35,7 +35,6 @@ class FidelityTest implements Markup {
 		"input-value-" => "the field's line a pixel above where Chromium centres an <input>'s text",
 		"table-" => "Table's rows a fixed rowHeight for its virtual list, the head's too (shadcn's head h-10, its rows by their padding), its columns 1fr each (shadcn's: a table's auto layout)",
 		"pagination-" => "Previous and Next padded px-2.5 on both sides: the side by the chevron's has-[>svg]:px-3 is an arbitrary selector, dropped",
-		"combobox-" => "Combobox's popup is a bare command-list (the slot Command's list has too): shadcn's combobox is a Popover holding a Command, its border, background and shadow theirs",
 		"drawer-" => "popups do not inherit the body's text-base (the title's 16px)",
 		"dropdown-menu-open-rtl" => "right to left, an overflow-y-auto box shows a horizontal scrollbar",
 		"field-" => "a field set's legend is one of its flex items here (gap-6 after it); Chromium lays a fieldset's legend out apart from its content, no gap after it, and the description's [[data-variant=legend]+&]:-mt-1.5 is an arbitrary selector, dropped",

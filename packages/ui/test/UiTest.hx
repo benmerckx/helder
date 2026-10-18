@@ -1634,6 +1634,20 @@ static function transitions() {
 		ui.update();
 		check("themes: rtl rules, again when the direction changes", ltr == 0.5 && th.style.opacity == 0.25, ltr + " " + th.style.opacity);
 		ui.root.style.dir = null;
+		// (kept: the node's own padding over the rules', its default too, the sides as well; another node's the rules')
+		ui.theme = {rules: [{slot: "k", style: {padding: 16, opacity: 0.5}}, {slot: "k", when: ["data-wide"], style: {paddingLeft: 24}}]};
+		var kept = new Node("kept"), other = new Node("other");
+		kept.slot = other.slot = "k";
+		kept.setAttr("data-wide", "");
+		Rules.keep(kept, ["padding"]);
+		ui.root.append(kept);
+		ui.root.append(other);
+		ui.update();
+		check("themes: Rules.keep holds a node's own padding (its default) over the rules", kept.style.paddingTop == 0 && kept.style.paddingLeft == 0
+			&& kept.style.opacity == 0.5 && other.style.paddingTop == 16,
+			kept.style.paddingTop + " " + kept.style.paddingLeft + " " + kept.style.opacity + " " + other.style.paddingTop);
+		ui.root.remove(kept);
+		ui.root.remove(other);
 		ui.theme = null;
 	}
 

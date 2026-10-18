@@ -42,11 +42,26 @@ class Rules {
 		baseIndex = null;
 	}
 
+	// holds n's own values of the named properties (StyleProps's fields;
+	// padding, margin, inset: their sides too) over the rules, its defaults
+	// too, as an instance's className over its slot's classes (a combobox's
+	// popover-content p-0)
+	public static function keep(n:Node, names:Array<String>) {
+		var ids = @:privateAccess n.keptIds ?? [];
+		for (name in names)
+			for (f in [name, name + "Top", name + "Right", name + "Bottom", name + "Left"]) {
+				var id = StyleFields.NAMES.indexOf(f);
+				if (id >= 0 && ids.indexOf(id) < 0) ids.push(id);
+			}
+		@:privateAccess n.keptIds = ids;
+		@:privateAccess n.restyleLater();
+	}
+
 	public static function restyle(n:Node) {
 		var ui = n.ui;
 		if (ui == null) return;
 		var sheet = n.sheet();
-		var applied = @:privateAccess n.themedIds, appliedValues = @:privateAccess n.themedValues;
+		var applied = @:privateAccess n.themedIds, appliedValues = @:privateAccess n.themedValues, kept = @:privateAccess n.keptIds;
 		if (n.slot == null && applied == null) {
 			@:privateAccess n.themePseudo(null, null);
 			return;
@@ -91,7 +106,7 @@ class Rules {
 			var cur = n.style.targetAt(id);
 			var k = applied == null ? -1 : applied.indexOf(id);
 			// (the node's own value: left as it is)
-			if (k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initialAt(id))) {
+			if ((k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initialAt(id))) || kept != null && kept.indexOf(id) >= 0) {
 				if (sharing) {
 					ids = m.ids.slice(0, i);
 					values = m.values.slice(0, i);
