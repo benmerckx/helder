@@ -222,6 +222,40 @@ what has no property yet (`scroll-m*`, `touch-none`), a table's own layout, `tex
 the part's own slot where hxmc has one), pseudo-elements (`after:`) and
 `file:`.
 
+## CSS
+
+The same sheet as CSS, for the DOM's widgets (packages/web,
+`hxmc.web.widgets`), or any markup with shadcn's `data-slot`s:
+
+```sh
+haxe -lib hxmc.theme --run hxmc.theme.Css shadcn.json app.css   # a sheet's path, or a bare name: this package's
+```
+
+`Css.sheet(path)` (natively or on Eval) reads the same JSON as `Tw.sheet`
+(`Sheet.hx`: one reader for both) and writes each class as the CSS
+Tailwind v4 writes for it (`test/tailwind.txt` holds Tailwind's own for
+every class of shadcn.json and extras.json, from `test/css-ref.mjs`;
+`CssTest` compares them rule by rule), with the slot's selector for the
+class's: `[data-slot=button]`, a cva variant or size as
+`:where([data-variant=outline])` (as specific as the class it stands
+for), a group or a peer as the slots whose class lists mark them
+(`group/tabs`: `[data-slot=tabs]`), an icon's `[class*='size-']` as an
+icon with a slot of its own. A slot's rules are grouped by selector, in
+Tailwind's order (by their variants; a variant's or size's after the
+base's, as tailwind-merge keeps the later); theme values written out
+(`calc(var(--spacing) * 4)` is `1rem`). Around them: Tailwind's preflight,
+the tokens (`:root`; `.dark`; and the system's dark unless `.light`, the
+`dark:` rules again under `prefers-color-scheme`), shadcn's globals
+(border and outline colours, the body's), breakpoints as media queries,
+`rtl:` as `[dir=rtl]`, transitions, tw-animate-css's enter animations as
+transitions from `@starting-style`. Unlike the rules, nothing is ignored:
+arbitrary selectors (`[&_svg]`), children's (`*:`), `after:`, `sr-only`,
+keyframe animations (`animate-spin`, `animate-pulse`). shadcn's sheet is
+132 KB, 13 KB gzipped.
+
+`Css.classes(selector, "rounded-lg border shadow-md")`: classes of one's
+own as CSS, at run time too (an instance's, as cn's className).
+
 ## Checks
 
 `make theme-check` (`test/ThemeTest.hx`, on Eval): class lists read as
@@ -233,4 +267,8 @@ hover, focus, disabled, invalid, checked, open, light, dark and right to
 left; `test/ref.mjs` writes them with Tailwind 4.3.3 and sonner 2.0.8),
 popups compared in their box; the cases known to differ, for what
 `hxmc.ui` lacks yet, reported, not failed (`FidelityTest.KNOWN`, each with
-its reason).
+its reason). `make theme-dom-check`: the DOM's widgets under the CSS in
+Chromium against the same references (`test/dom-fidelity.mjs`,
+`DomFidelity.hx`), the state forced and the popups opened as ref.mjs
+does: all 203 within a mean difference of 1 and 0.5% of the pixels apart
+by more than 64, most of them identical.

@@ -62,3 +62,38 @@ share sheets, printing, alerts on request, the clipboard, drag and drop.
 1. Native text fields by default (desktop, Android, browser).
 2. The DOM renderer and CSS theme for the browser.
 3. The rest of the defaults table.
+
+## Built
+
+### The browser's DOM renderer for the widgets, and the theme as CSS
+
+- **The DOM's widgets** (`packages/web`, `hxmc.web.widgets.Widgets`):
+  every widget of `hxmc.ui.widgets.Widgets`, with its props, as the DOM's
+  elements with shadcn's markup (the element types shadcn and Radix use,
+  `data-slot`, `data-state` and the rest, `aria-*`), its keys and focus
+  as the drawn widget's, popups in the top layer (`popover`; modals as
+  `<dialog>`). An app imports them in place of ui's; a page may still mix
+  them with ui canvases per mount point.
+- **Shared behaviour**: `hxmc.ui.widgets.Behaviour` (new, in
+  packages/ui, pure: Key, Color and Days only): roving, mirroring, a
+  slider's keys and steps, pagination's pages, a menu's entries, a tree's
+  rows, a calendar's keys and months, HSV, a code field's characters,
+  sortable moves, `TypeAhead`; `Shortcut`, `Days` and `Toasts` as they
+  were. The DOM's widgets use it; ui's widgets still have their own copies
+  (in Widgets.hx), to be switched to it by the UI session.
+- **The theme as CSS** (`hxmc.theme.Css`): the same shadcn.json and
+  extras.json, each class as Tailwind writes it (checked class by class
+  against Tailwind's own output), on `data-slot` selectors, light and dark
+  by class or the system's, `@starting-style` for enter animations.
+- **Fidelity**: `make theme-dom-check`, the DOM's widgets in Chromium
+  against shadcn's references: all 203 cases within the bar, most
+  identical. **Behaviour**: `make web-widgets` drives the gallery by
+  pointer and keys.
+- **Size**: a counter is 42 KB of JavaScript (9 KB gzipped), the form 60
+  KB (12 KB), the whole gallery 306 KB (55 KB), the CSS 132 KB (13 KB),
+  against 1.8, 1.9 and 2.4 MB of wasm32-wasi (432, 459, 559 KB gzipped)
+  for their canvas builds.
+
+Left: the site's examples in DOM mode (the CSS's preflight would reach
+the site's own page: a scoped variant first); ui's widgets on Behaviour;
+a component resolved per renderer (one import for both).

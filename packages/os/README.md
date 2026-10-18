@@ -1,8 +1,8 @@
 # @hxmc/os
 
 Windows, input, the app loop and audio output for hxmc in pure Haxe
-(`hxmc.os`): raw OS bindings (X11, the Objective-C runtime and AppKit,
-Win32, Android's NativeActivity, a canvas in the browser; ALSA, CoreAudio,
+(`hxmc.os`): raw OS bindings (X11, the Objective-C runtime, AppKit and
+UIKit, Win32, Android's NativeActivity, a canvas in the browser; ALSA, CoreAudio,
 WASAPI, WebAudio) and a
 portable layer over them. No C of its own: the system's C APIs through
 externs, COM vtables, `objc_msgSend` and `dlopen`. The design and what is
@@ -43,6 +43,15 @@ bound like COM's by `hxmc.os.VTable`), `MainThread` (Java's main
 thread, where views live: work handed to it, Choreographer's frames
 there) and `Glue` (Java's listeners calling Haxe: hxmc then writes a
 `classes.dex` into the APK).
+
+On iOS (`-D hxmc.target=ios-arm64` or `ios-sim-arm64` with an output ending
+in `.app`) the window is a `UIWindow` on the whole screen (one per app),
+backed by a `CAMetalLayer`: the program's main runs inside UIKit's loop
+(`UIApplicationMain` comes first: `hxmc.os.uikit.UIKitApp`), `App.run`
+draws while the app is in the foreground, a touch is the left button and
+its drag also `Scroll`, `Window.safeTop` (`safeLeft`, `safeBottom`,
+`safeRight`) is the safe area in pixels, `Suspend` and `Resume` come when
+the app goes to the background and back. No keys or text input there yet.
 
 In the browser a touch drag on the canvas is `Scroll` (the content following
 the finger, gliding when let go) and a tap a click. `browser.mjs`'s option
