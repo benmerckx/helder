@@ -1,6 +1,8 @@
 package hxmc.ui.view;
 
+#if !macro
 import hxmc.ui.*;
+#end
 
 // hxmc.view's renderer for hxmc.ui's nodes (-D hxmc.view.renderer.ui=
 // hxmc.ui.view.NodeRenderer, which -lib hxmc.ui sets): the tree that the
@@ -24,32 +26,57 @@ import hxmc.ui.*;
 // styles it as (Rule: slot, variant, size, data-* and aria-* attributes,
 // data-state="checked"). A text node holds
 // text: its text children are its text, its elements its spans.
-class NodeRenderer implements hxmc.view.Renders<Node> {
-	// intrinsic element names and the nodes they make
-	public static final elements:Map<String, Void->Node> = [
-		"view" => () -> new Node("view"),
-		"text" => () -> new TextNode("", "text"),
-		// (spans in a text: plain, bold, italic)
-		"span" => () -> new TextNode("", "span"),
-		"b" => () -> {
-			var t = new TextNode("", "b");
-			t.style.fontWeight = 700;
-			t;
-		},
-		"i" => () -> {
-			var t = new TextNode("", "i");
-			t.style.italic = true;
-			t;
-		},
-		"scroll" => () -> {
-			var n = new Node("scroll");
-			n.style.overflow = Scroll;
-			n;
-		},
-		"image" => () -> new ImageNode()
-	];
+//
+// Pay for what is used: markup's literal tags and attribute names are
+// resolved at compile time (createElement inline, setProperty and setter
+// macros, AttrMacro), so that a program links the nodes, attributes and
+// value parsers its markup names; a name known only at run time
+// (setAttribute: a spread, Dynamic) reaches them all.
+#if !macro
+@:build(hxmc.ui.view.AttrMacro.renderer())
+#end
+class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
+	// the property name of n (a literal name: its own function, AttrMacro.setter;
+	// else setAttribute)
+	public static macro function setProperty(n:haxe.macro.Expr, name:haxe.macro.Expr, v:haxe.macro.Expr):haxe.macro.Expr
+		return switch name.expr {
+			case EConst(CString(s, _)): macro ${hxmc.ui.view.AttrMacro.setter(s, name.pos)}($n, $name, $v);
+			case _: macro hxmc.ui.view.NodeRenderer.setAttribute($n, $name, $v);
+		}
 
-	public static function createElement(tag:String):Node {
+	// the function setting the property name (a literal), (n, name, v): markup
+	// binds a reactive value with it (hxmc.view.Renders)
+	public static macro function setter(name:String):haxe.macro.Expr
+		return hxmc.ui.view.AttrMacro.setter(name, haxe.macro.Context.currentPos());
+
+	#if !macro
+	// the elements registered besides the intrinsic ones, and the nodes they make
+	public static final elements:Map<String, Void->Node> = [];
+
+	// (inline: a literal tag makes its own node alone)
+	public static inline function createElement(tag:String):Node
+		return switch tag {
+			case "view": new Node("view");
+			case "text": new TextNode("", "text");
+			// (spans in a text: plain, bold, italic)
+			case "span": new TextNode("", "span");
+			case "b":
+				var t = new TextNode("", "b");
+				t.style.fontWeight = 700;
+				t;
+			case "i":
+				var t = new TextNode("", "i");
+				t.style.italic = true;
+				t;
+			case "scroll":
+				var n = new Node("scroll");
+				n.style.overflow = Scroll;
+				n;
+			case "image": new ImageNode();
+			case _: registered(tag);
+		}
+
+	static function registered(tag:String):Node {
 		var make = elements.get(tag);
 		if (make == null) throw 'hxmc.ui: no element <$tag> (NodeRenderer.elements)';
 		return make();
@@ -113,94 +140,135 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 	public static function setStyle(n:Node, v:Dynamic)
 		if (v != null) n.style.set(v);
 
-	public static function setProperty(n:Node, name:String, v:Dynamic) {
-		switch name {
-			case "focusable":
-				n.focusable = v == true || v == "true";
-			case "selectable" if (Std.isOfType(n, TextNode)):
-				(cast n : TextNode).selectable = v == true || v == "true";
-			case "dragData" | "drag-data":
-				n.dragData = v;
-			case "style":
-				if (v != null) n.style.set(v);
-			case "text" if (Std.isOfType(n, TextNode)):
-				(cast n : TextNode).text = v == null ? "" : Std.string(v);
-			case "tag":
-				n.tag = v;
-			// (what a theme styles it as: Rule)
-			case "slot":
-				n.slot = v == null ? null : Std.string(v);
-			case "variant":
-				n.variant = v == null ? null : Std.string(v);
-			case "size":
-				n.size = v == null ? null : Std.string(v);
-			// (a theme's states: data-state="checked", data-disabled={true}; false or null removes it;
-			// group="tabs" and peer mark a node whose states others' rules ask for)
-			// (what draws its widgets: Host's names, auto, native or drawn)
-			case "host":
-				n.host = Host.fromString(v == null ? null : Std.string(v));
-			case "group" | "peer":
-				n.setAttr(name, v == null || v == false ? null : v == true ? "" : Std.string(v));
-			case _ if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")):
-				n.setAttr(name, v == null || v == false ? null : v == true ? "" : Std.string(v));
-			case "role":
-				semantics(n).role = role(v);
-			case "label":
-				semantics(n).label = v == null ? null : Std.string(v);
-			case "description":
-				semantics(n).description = v == null ? null : Std.string(v);
-			case "href":
-				var sem = semantics(n);
-				sem.href = v == null ? null : Std.string(v);
-				if (sem.role == null && v != null) sem.role = Link;
-			case "checked":
-				semantics(n).checked = v == null ? null : v == true || v == "true";
-				semantics(n).mixed = v == "mixed";
-			case "selected":
-				semantics(n).selected = v == null ? null : v == true || v == "true";
-			case "live":
-				semantics(n).live = v == null || v == "off" ? Off : v == "assertive" ? Assertive : v == "polite" ? Polite : v;
-			case "multiselectable":
-				semantics(n).multiselectable = v == true || v == "true";
-			case "current":
-				semantics(n).current = v == true || v == "true" || v == "page";
-			case "expanded":
-				semantics(n).expanded = v == null ? null : v == true || v == "true";
-			case "level":
-				semantics(n).level = v == null ? null : Std.int(number(v));
-			case "disabled":
-				semantics(n).disabled = v == true || v == "true";
-			case "value-now" | "valueNow":
-				semantics(n).valueNow = number(v);
-			case "value-min" | "valueMin":
-				semantics(n).valueMin = number(v);
-			case "value-max" | "valueMax":
-				semantics(n).valueMax = number(v);
-			case "hidden":
-				semantics(n).hidden = v == true || v == "true";
-			case "value-text" | "valueText":
-				semantics(n).valueText = v == null ? null : Std.string(v);
-			case "src" if (Std.isOfType(n, ImageNode)):
-				// (an animation: its image, played)
-				if (Std.isOfType(v, AnimatedImage)) {
-					var anim:AnimatedImage = v;
-					(cast n : ImageNode).image = anim.image;
-					anim.play();
-				} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
-			case "object-position" | "objectPosition" if (Std.isOfType(n, ImageNode)):
-				(cast n : ImageNode).position(v);
-			case "fit" if (Std.isOfType(n, ImageNode)):
-				(cast n : ImageNode).fit = Std.isOfType(v, String) ? switch (v : String).toLowerCase() {
-					case "fill": Fill;
-					case "contain": Contain;
-					case "cover": Cover;
-					case "none": ImageFit.None;
-					case _: throw 'hxmc.ui: fit="$v" is not fill, contain, cover or none';
-				} : v;
-			case _:
-				if (!StyleAttrs.apply(n.style, name, v)) throw 'hxmc.ui: <${n.tag}> has no attribute $name';
-		}
+	// Its own attributes (AttrMacro: an @:attribute function, named as the
+	// attribute or in kebab-case), then Style's (StyleAttrs), data-* and aria-*
+	// (a theme's states: data-state="checked", data-disabled={true}; false or
+	// null removes it); setAttribute, the one taking any name, is made from them
+
+	@:attribute static function focusable(n:Node, name:String, v:Dynamic)
+		n.focusable = v == true || v == "true";
+
+	@:attribute static function selectable(n:Node, name:String, v:Dynamic)
+		if (Std.isOfType(n, TextNode)) (cast n : TextNode).selectable = v == true || v == "true" else noAttribute(n, name);
+
+	@:attribute static function dragData(n:Node, name:String, v:Dynamic)
+		n.dragData = v;
+
+	@:attribute static function style(n:Node, name:String, v:Dynamic)
+		if (v != null) n.style.set(v);
+
+	@:attribute static function text(n:Node, name:String, v:Dynamic)
+		if (Std.isOfType(n, TextNode)) (cast n : TextNode).text = v == null ? "" : Std.string(v) else noAttribute(n, name);
+
+	@:attribute static function tag(n:Node, name:String, v:Dynamic)
+		n.tag = v;
+
+	// (what a theme styles it as: Rule)
+	@:attribute static function slot(n:Node, name:String, v:Dynamic)
+		n.slot = v == null ? null : Std.string(v);
+
+	@:attribute static function variant(n:Node, name:String, v:Dynamic)
+		n.variant = v == null ? null : Std.string(v);
+
+	@:attribute static function size(n:Node, name:String, v:Dynamic)
+		n.size = v == null ? null : Std.string(v);
+
+	// (what draws its widgets: Host's names, auto, native or drawn)
+	@:attribute static function host(n:Node, name:String, v:Dynamic)
+		n.host = Host.fromString(v == null ? null : Std.string(v));
+
+	// (group="tabs" and peer mark a node whose states others' rules ask for)
+	@:attribute static function group(n:Node, name:String, v:Dynamic)
+		setData(n, name, v);
+
+	@:attribute static function peer(n:Node, name:String, v:Dynamic)
+		setData(n, name, v);
+
+	public static function setData(n:Node, name:String, v:Dynamic)
+		n.setAttr(name, v == null || v == false ? null : v == true ? "" : Std.string(v));
+
+	@:attribute static function role(n:Node, name:String, v:Dynamic)
+		semantics(n).role = roleOf(v);
+
+	@:attribute static function label(n:Node, name:String, v:Dynamic)
+		semantics(n).label = v == null ? null : Std.string(v);
+
+	@:attribute static function description(n:Node, name:String, v:Dynamic)
+		semantics(n).description = v == null ? null : Std.string(v);
+
+	@:attribute static function href(n:Node, name:String, v:Dynamic) {
+		var sem = semantics(n);
+		sem.href = v == null ? null : Std.string(v);
+		if (sem.role == null && v != null) sem.role = Link;
 	}
+
+	@:attribute static function checked(n:Node, name:String, v:Dynamic) {
+		semantics(n).checked = v == null ? null : v == true || v == "true";
+		semantics(n).mixed = v == "mixed";
+	}
+
+	@:attribute static function selected(n:Node, name:String, v:Dynamic)
+		semantics(n).selected = v == null ? null : v == true || v == "true";
+
+	@:attribute static function live(n:Node, name:String, v:Dynamic)
+		semantics(n).live = v == null || v == "off" ? Off : v == "assertive" ? Assertive : v == "polite" ? Polite : v;
+
+	@:attribute static function multiselectable(n:Node, name:String, v:Dynamic)
+		semantics(n).multiselectable = v == true || v == "true";
+
+	@:attribute static function current(n:Node, name:String, v:Dynamic)
+		semantics(n).current = v == true || v == "true" || v == "page";
+
+	@:attribute static function expanded(n:Node, name:String, v:Dynamic)
+		semantics(n).expanded = v == null ? null : v == true || v == "true";
+
+	@:attribute static function level(n:Node, name:String, v:Dynamic)
+		semantics(n).level = v == null ? null : Std.int(number(v));
+
+	@:attribute static function disabled(n:Node, name:String, v:Dynamic)
+		semantics(n).disabled = v == true || v == "true";
+
+	@:attribute static function valueNow(n:Node, name:String, v:Dynamic)
+		semantics(n).valueNow = number(v);
+
+	@:attribute static function valueMin(n:Node, name:String, v:Dynamic)
+		semantics(n).valueMin = number(v);
+
+	@:attribute static function valueMax(n:Node, name:String, v:Dynamic)
+		semantics(n).valueMax = number(v);
+
+	@:attribute static function hidden(n:Node, name:String, v:Dynamic)
+		semantics(n).hidden = v == true || v == "true";
+
+	@:attribute static function valueText(n:Node, name:String, v:Dynamic)
+		semantics(n).valueText = v == null ? null : Std.string(v);
+
+	@:attribute static function src(n:Node, name:String, v:Dynamic) {
+		if (!Std.isOfType(n, ImageNode)) noAttribute(n, name);
+		// (an animation: its image, played)
+		if (Std.isOfType(v, AnimatedImage)) {
+			var anim:AnimatedImage = v;
+			(cast n : ImageNode).image = anim.image;
+			anim.play();
+		} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
+	}
+
+	@:attribute static function objectPosition(n:Node, name:String, v:Dynamic)
+		if (Std.isOfType(n, ImageNode)) (cast n : ImageNode).position(v) else noAttribute(n, name);
+
+	@:attribute static function fit(n:Node, name:String, v:Dynamic) {
+		if (!Std.isOfType(n, ImageNode)) noAttribute(n, name);
+		(cast n : ImageNode).fit = Std.isOfType(v, String) ? switch (v : String).toLowerCase() {
+			case "fill": Fill;
+			case "contain": Contain;
+			case "cover": Cover;
+			case "none": ImageFit.None;
+			case _: throw 'hxmc.ui: fit="$v" is not fill, contain, cover or none';
+		} : v;
+	}
+
+	static function noAttribute(n:Node, name:String):Dynamic
+		throw 'hxmc.ui: <${n.tag}> has no attribute $name';
 
 	static function semantics(n:Node):hxmc.ui.access.Semantics {
 		if (n.semantics == null) n.semantics = {};
@@ -211,7 +279,7 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 		return v == null ? null : Std.isOfType(v, String) ? Std.parseFloat(v) : (v : Float);
 
 	// a role as ARIA writes it ("button", "checkbox", "progressbar"), or a Role
-	static function role(v:Dynamic):Null<hxmc.ui.access.Role> {
+	static function roleOf(v:Dynamic):Null<hxmc.ui.access.Role> {
 		if (v == null || !Std.isOfType(v, String)) return v;
 		for (r in ROLES)
 			if (r.aria() == v) return r;
@@ -253,5 +321,5 @@ class NodeRenderer implements hxmc.view.Renders<Node> {
 			case _: throw 'hxmc.ui: no event $name';
 		}
 	}
-
+	#end
 }

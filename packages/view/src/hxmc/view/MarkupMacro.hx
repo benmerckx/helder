@@ -158,13 +158,17 @@ class Literal {
 	var pass = 0;
 	var cursor = 0;
 
-	// the code made for a renderer: __HOST__ its class, __RT__ its runtime
+	// the code made for a renderer: __HOST__ its class, __RT__ its runtime (a
+	// reactive attribute with a literal name bound with the renderer's setter
+	// for that name, when it has setter: Renders)
 	static function forRenderer(body:Array<Expr>, i:Int):Array<Expr> {
-		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i);
+		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i), setter = HostMacro.hasSetter(i);
 		function sub(e:Expr):Expr
 			return switch e.expr {
 				case EConst(CIdent("__HOST__")): macro @:pos(e.pos) $p{host};
 				case EConst(CIdent("__RT__")): macro @:pos(e.pos) $p{rt};
+				case ECall({expr: EField({expr: EConst(CIdent("__RT__"))}, "prop")}, [el, name = {expr: EConst(CString(s, _))}, v]) if (setter):
+					macro @:pos(e.pos) $p{rt}.propWith(${sub(el)}, $name, ${sub(v)}, $p{host}.setter($v{s}));
 				case EObjectDecl(fields):
 					// (in place: map would lose the fields' name_pos)
 					for (f in fields)

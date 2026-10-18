@@ -129,6 +129,17 @@ abstract Color(Int) from Int to Int {
 		return c >= "0".code && c <= "9".code ? c - "0".code : l >= "a".code && l <= "f".code ? l - "a".code + 10 : -1;
 	}
 
+	// (a function's arguments: the parts between spaces, commas and slashes)
+	static function args(s:String):Array<String> {
+		var out = [], start = 0;
+		for (i in 0...s.length + 1)
+			if (i == s.length || StringTools.fastCodeAt(s, i) == ",".code || StringTools.fastCodeAt(s, i) == "/".code || StringTools.isSpace(s, i)) {
+				if (i > start) out.push(s.substring(start, i));
+				start = i + 1;
+			}
+		return out;
+	}
+
 	// (hex digits only; lower case)
 	static function isHex(s:String):Bool {
 		for (i in 0...s.length) {
@@ -187,7 +198,7 @@ abstract Color(Int) from Int to Int {
 		var open = v.indexOf("("), close = v.lastIndexOf(")");
 		if (open > 0 && close > open) {
 			var fn = StringTools.trim(v.substr(0, open));
-			var parts = ~/[\s,\/]+/g.split(StringTools.trim(v.substring(open + 1, close))).filter(x -> x != "");
+			var parts = args(v.substring(open + 1, close));
 			if (parts.length < 3) return null;
 			var alpha = 1.0;
 			if (parts.length > 3) alpha = StringTools.endsWith(parts[3], "%") ? Std.parseFloat(parts[3]) / 100 : Std.parseFloat(parts[3]);

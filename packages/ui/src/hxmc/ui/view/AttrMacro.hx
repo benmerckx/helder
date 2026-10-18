@@ -21,7 +21,11 @@ using haxe.macro.TypeTools;
 // - a type with a static parse(String) (Shadow, Gradient...): a string
 //   parsed, else the value as it is;
 // - else the value as it is.
-// So a property added to Style is an attribute with no more code.
+// So a property added to Style is an attribute with no more code. Each
+// property's conversion is a function of its own (the one above, or one made
+// here), and so is setting it on a node, set<Property>(node, name, v): a
+// literal attribute name in markup calls that alone (setter, NodeRenderer's
+// setProperty macro), so a program links the parsers its attributes use.
 class AttrMacro {
 	public static function build():Array<Field> {
 		var fields = Context.getBuildFields();
@@ -29,24 +33,31 @@ class AttrMacro {
 		var cases:Array<Case> = [];
 		var names:Array<Expr> = [];
 		var enums = new Map<String, Bool>();
-		var style = switch Context.getType("hxmc.ui.Style") {
-			case TInst(c, _): c.get();
-			case _: throw "hxmc.ui.Style";
-		}
-		for (f in style.fields.get()) {
-			if (!f.isPublic) continue;
-			switch f.kind {
-				case FVar(_, AccCall):
-				case _: continue;
-			}
+		var pos = Context.currentPos();
+		for (f in styleProperties()) {
 			var name = f.name;
-			var value = if (own.exists(name)) macro $i{name}(style, v) else {
+			if (!own.exists(name)) {
 				var conv = convert(f.type, fields, enums);
-				macro style.$name = $conv;
+				fields.push({
+					name: name,
+					access: [AStatic],
+					pos: pos,
+					kind: FFun({args: [{name: "style", type: macro :hxmc.ui.Style}, {name: "v", type: macro :Dynamic}], ret: macro :Void, expr: macro style.$name = $conv})
+				});
 			}
+			fields.push({
+				name: setterName(name),
+				access: [APublic, AStatic],
+				pos: pos,
+				kind: FFun({
+					args: [{name: "n", type: macro :hxmc.ui.Node}, {name: "name", type: macro :String}, {name: "v", type: macro :Dynamic}],
+					ret: macro :Void,
+					expr: macro $i{name}(n.style, v)
+				})
+			});
 			// (matched as written, either way: no conversion on the way)
-			var kebab = ~/([A-Z])/g.map(name, r -> "-" + r.matched(1).toLowerCase());
-			cases.push({values: kebab == name ? [macro $v{name}] : [macro $v{name}, macro $v{kebab}], expr: value});
+			var kebab = kebab(name);
+			cases.push({values: kebab == name ? [macro $v{name}] : [macro $v{name}, macro $v{kebab}], expr: macro $i{name}(style, v)});
 			names.push(macro $v{name} => true);
 		}
 		// (another spelling camel turns into a property's name)
@@ -74,17 +85,81 @@ class AttrMacro {
 		return fields;
 	}
 
+	// Style's properties that are attributes: the public ones with a setter
+	static function styleProperties():Array<ClassField> {
+		var style = switch Context.getType("hxmc.ui.Style") {
+			case TInst(c, _): c.get();
+			case _: throw "hxmc.ui.Style";
+		}
+		return [for (f in style.fields.get()) if (f.isPublic && f.kind.match(FVar(_, AccCall))) f];
+	}
+
+	static function kebab(name:String):String
+		return ~/([A-Z])/g.map(name, r -> "-" + r.matched(1).toLowerCase());
+
+	static function setterName(property:String):String
+		return "set" + property.charAt(0).toUpperCase() + property.substr(1);
+
+	// NodeRenderer's setAttribute, made from its own attributes (its
+	// @:attribute functions, each named as the attribute or in kebab-case),
+	// data-* and aria-*, then Style's (StyleAttrs.apply)
+	public static function renderer():Array<Field> {
+		var fields = Context.getBuildFields();
+		var cases:Array<Case> = [];
+		for (f in fields)
+			if (Lambda.exists(f.meta, m -> m.name == ":attribute")) {
+				var name = f.name, k = kebab(f.name);
+				cases.push({values: k == name ? [macro $v{name}] : [macro $v{name}, macro $v{k}], expr: macro $i{name}(n, name, v)});
+			}
+		var sw = {expr: ESwitch(macro name, cases, macro if (!StyleAttrs.apply(n.style, name, v)) noAttribute(n, name)), pos: Context.currentPos()};
+		fields.push({
+			name: "setAttribute",
+			access: [APublic, AStatic],
+			pos: Context.currentPos(),
+			kind: FFun({
+				args: [{name: "n", type: macro :hxmc.ui.Node}, {name: "name", type: macro :String}, {name: "v", type: macro :Dynamic}],
+				ret: macro :Void,
+				expr: macro if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")) setData(n, name, v) else $sw
+			})
+		});
+		return fields;
+	}
+
+	// the function setting attribute name on a node, (node, name, v): one of
+	// NodeRenderer's own, data-* and aria-*, then Style's, else setAttribute
+	public static function setter(name:String, pos:Position):Expr {
+		if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")) return macro @:pos(pos) hxmc.ui.view.NodeRenderer.setData;
+		switch Context.getType("hxmc.ui.view.NodeRenderer") {
+			case TInst(c, _):
+				for (f in c.get().statics.get())
+					if (f.meta.has(":attribute") && (f.name == name || kebab(f.name) == name)) {
+						var fn = f.name;
+						return macro @:pos(pos) @:privateAccess hxmc.ui.view.NodeRenderer.$fn;
+					}
+			case _:
+		}
+		for (f in styleProperties())
+			if (f.name == name || kebab(f.name) == name) {
+				var fn = setterName(f.name);
+				return macro @:pos(pos) hxmc.ui.view.StyleAttrs.$fn;
+			}
+		// (a name none of them has: looked up at run time, which throws when
+		// it is set; markup written for another renderer is compiled for each)
+		return macro @:pos(pos) hxmc.ui.view.NodeRenderer.setAttribute;
+	}
+
 	// v as the type t
 	static function convert(t:Type, fields:Array<Field>, enums:Map<String, Bool>):Expr {
 		var nullable = false;
-		switch t {
+		switch lazy(t) {
 			case TAbstract(_.get() => {name: "Null", pack: []}, [inner]):
-				t = inner;
+				t = lazy(inner);
 				nullable = true;
 			case TType(_.get() => {name: "Null", pack: []}, [inner]):
-				t = inner;
+				t = lazy(inner);
 				nullable = true;
-			case _:
+			case l:
+				t = l;
 		}
 		var e = switch t {
 			case TAbstract(_.get() => {name: "Float", pack: []}, _): macro float(v);
@@ -109,6 +184,15 @@ class AttrMacro {
 				} else return macro(v : $ct);
 		}
 		return nullable ? macro v == null ? null : $e : e;
+	}
+
+	// t, typed if it is not yet (a field's type read before its class is typed)
+	static function lazy(t:Type):Type {
+		while (true)
+			switch t {
+				case TLazy(f): t = f();
+				case _: return t;
+			}
 	}
 
 	static function hasParse(t:Type):Bool
