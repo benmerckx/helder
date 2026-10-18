@@ -25,6 +25,7 @@ class PhysicsWorld {
 	public var sleepSteps = 30;
 
 	final pending:Array<Contact> = [];
+	public final joints:Array<Joint> = [];
 
 	public function new() {}
 
@@ -41,6 +42,15 @@ class PhysicsWorld {
 	public function remove(body:Body)
 		bodies.remove(body);
 
+	// a joint between bodies (Joint.ball, Joint.distanceOf), solved with the contacts
+	public function join(joint:Joint):Joint {
+		joints.push(joint);
+		return joint;
+	}
+
+	public function unjoin(joint:Joint)
+		joints.remove(joint);
+
 	public function step(dt:Float) {
 		for (b in bodies)
 			if (!b.isStatic() && !b.sleeping) b.velocity = b.velocity + gravity * dt;
@@ -55,9 +65,14 @@ class PhysicsWorld {
 			var vn = dot(c.b.velocityAt(c.point) - c.a.velocityAt(c.point), c.normal);
 			c.bounce = vn < -0.5 ? -Math.min(c.a.restitution, c.b.restitution) * vn : 0;
 		}
-		for (_ in 0...iterations)
+		for (j in joints)
+			j.wake();
+		for (_ in 0...iterations) {
 			for (c in pending)
 				resolve(c);
+			for (j in joints)
+				j.solve(dt);
+		}
 		for (b in bodies)
 			if (!b.isStatic() && !b.sleeping) {
 				b.position = b.position + b.velocity * dt;

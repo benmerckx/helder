@@ -186,6 +186,36 @@ class PhysicsTest {
 		}
 		var expected = hero.jumpSpeed * hero.jumpSpeed / (2 * 9.81);
 		check('jumps about v^2 / 2g high (${Math.round(peak * 100) / 100} m)', near(peak, expected, 0.1) && hero.grounded);
+		// joints: a pendulum on a ball joint swings at its period and keeps its length
+		var jw = new PhysicsWorld();
+		var bob = jw.add(new Body(Sphere(0.1), new Vec3(Math.sin(0.2), 3 - Math.cos(0.2), 0)));
+		// (the bob's point at the pivot: a rod of 1 m, the bob's frame turning with it)
+		jw.join(Joint.ball(bob, new Vec3(-Math.sin(0.2), Math.cos(0.2), 0), null, new Vec3(0, 3, 0)));
+		var worst = 0.0, crossings = [], last = bob.position.x;
+		for (k in 0...400) {
+			jw.step(dt);
+			var d = bob.position - new Vec3(0, 3, 0);
+			worst = Math.max(worst, Math.abs(Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z) - 1));
+			if (last > 0 && bob.position.x <= 0) crossings.push(k * dt);
+			last = bob.position.x;
+		}
+		var period = crossings.length >= 2 ? crossings[crossings.length - 1] - crossings[crossings.length - 2] : 0;
+		check('a pendulum keeps its length (off by ${Math.round(worst * 1000)} mm)', worst < 0.01);
+		check('and swings at 2 pi sqrt(l / g) (${Math.round(period * 1000) / 1000} s)', near(period, 2 * Math.PI * Math.sqrt(1 / 9.81), 0.05));
+		// a chain of five links on distance joints hangs from a point, links apart
+		var cw2 = new PhysicsWorld();
+		var links = [for (k in 0...5) cw2.add(new Body(Sphere(0.08), new Vec3(0.3 * (k + 1), 4, 0)))];
+		cw2.join(Joint.distanceOf(links[0], new Vec3(0, 0, 0), null, new Vec3(0, 4, 0)));
+		for (k in 1...5)
+			cw2.join(Joint.distanceOf(links[k], new Vec3(0, 0, 0), links[k - 1], new Vec3(0, 0, 0)));
+		for (_ in 0...600)
+			cw2.step(dt);
+		var held = true;
+		for (k in 0...5) {
+			var prev = k == 0 ? new Vec3(0, 4, 0) : links[k - 1].position, d = links[k].position - prev;
+			if (Math.abs(Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z) - 0.3) > 0.02) held = false;
+		}
+		check('a chain hangs, its links apart (bottom y ${Math.round(links[4].position.y * 1000) / 1000})', held && links[4].position.y < 4 - 1.3);
 		// determinism: a pile of balls in a box of planes
 		var pile = new PhysicsWorld();
 		pile.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
