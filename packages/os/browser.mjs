@@ -31,6 +31,10 @@
 // arguments and environment, stdout and stderr (lines to options.stdout and
 // options.stderr, else the console), the clocks, random bytes, proc_exit;
 // any other function fails with ENOSYS.
+// Memory: the module's own memory grows as it needs (the runtime reports
+// what memory.grow refused on stderr: "out of memory: ..."); a RangeError of
+// the browser's (the memory of a new instance, an ArrayBuffer) becomes
+// an Error whose message says "out of memory" and how much was asked.
 
 class Exit {
 	constructor(code) {
@@ -151,16 +155,58 @@ export async function run(wasm, options = {}) {
 		Object.assign(imports, await f(host));
 	}
 	// (wasm: a URL, a Response, a compiled WebAssembly.Module or the bytes)
-	const instance = wasm instanceof WebAssembly.Module ? await WebAssembly.instantiate(wasm, imports)
-		: typeof wasm === 'string' || wasm instanceof Response ? (await WebAssembly.instantiateStreaming(typeof wasm === 'string' ? fetch(wasm) : wasm, imports)).instance
-		: (await WebAssembly.instantiate(wasm, imports)).instance;
+	let instance;
+	try {
+		instance = wasm instanceof WebAssembly.Module ? await WebAssembly.instantiate(wasm, imports)
+			: typeof wasm === 'string' || wasm instanceof Response ? (await WebAssembly.instantiateStreaming(typeof wasm === 'string' ? fetch(wasm) : wasm, imports)).instance
+			: (await WebAssembly.instantiate(wasm, imports)).instance;
+	} catch (e) {
+		throw outOfMemory(e, await initialMemory(wasm).catch(() => 0));
+	}
 	exports = instance.exports;
 	memory = exports.memory;
 	try {
 		exports._start();
 	} catch (e) {
-		if (!(e instanceof Exit)) throw e;
+		if (!(e instanceof Exit)) throw outOfMemory(e, 0, memory);
 		host.exitCode = e.code;
 	}
 	return { host, instance, exitCode: host.exitCode ?? 0 };
+}
+
+// a RangeError where the browser refused memory, as "out of memory: ..." with
+// the size asked (bytes, when known) and the memory in use; e itself otherwise
+// (a deep recursion's "Maximum call stack size exceeded" is no memory error)
+export function outOfMemory(e, bytes, memory = null) {
+	if (!(e instanceof RangeError) || !/memory|alloc/i.test(e.message) || /call stack/i.test(e.message)) return e;
+	const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
+	const r = new Error('out of memory: ' + (bytes ? 'the browser refused ' + mb(bytes) + ' of WebAssembly memory' : 'the browser refused memory')
+		+ (memory ? ' (the module has ' + mb(memory.buffer.byteLength) + ')' : '') + ': ' + e.message, { cause: e });
+	r.outOfMemory = true;
+	return r;
+}
+
+// the initial size of a module's memory (bytes): its memory section's limits
+async function initialMemory(wasm) {
+	const b = new Uint8Array(wasm instanceof WebAssembly.Module ? [] : typeof wasm === 'string' ? await (await fetch(wasm)).arrayBuffer()
+		: wasm instanceof Response ? [] : wasm.buffer ? new Uint8Array(wasm.buffer, wasm.byteOffset, wasm.byteLength) : wasm);
+	let p = 8;
+	const leb = () => {
+		let r = 0, k = 0, x;
+		do {
+			x = b[p++];
+			r += (x & 0x7f) * 2 ** k;
+			k += 7;
+		} while (x & 0x80);
+		return r;
+	};
+	while (p < b.length) {
+		const id = b[p++], size = leb(), end = p + size;
+		if (id === 5 && leb() > 0) {
+			p++; // (the limits' flags)
+			return leb() * 65536;
+		}
+		p = end;
+	}
+	return 0;
 }

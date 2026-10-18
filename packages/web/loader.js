@@ -16,7 +16,8 @@
 // its element has data-loading; once it has started, data-hydrated and an
 // hxmc:hydrated event; if it fails (main exits with an error code, or later:
 // a frame that throws or exits so, a GPU device lost: the message the last
-// line of its stderr), data-error (the message) and an hxmc:error event.
+// line of its stderr; the browser refusing memory, a RangeError: "out of
+// memory: ..."), data-error (the message) and an hxmc:error event.
 // data-stop="offscreen" on a WebAssembly island: once it has scrolled out
 // of view, its program is stopped (host.os.stop, host.gfx.release: its GPU
 // memory given back), its canvas replaced by a fresh one, and the element
@@ -47,9 +48,12 @@
 			const extra = (g.hxmcWasmOptions || {})[el.id], canvas = el.querySelector('canvas');
 			// (the canvas as the page wrote it: the one a stopped program's is replaced by)
 			if (canvas && !el.hxmcCanvas) el.hxmcCanvas = canvas.cloneNode(false);
-			// (the last line the program wrote to stderr: what a failure says)
+			// (the last line the program wrote to stderr: what a failure says,
+			// unless the browser refused memory: browser.mjs's outOfMemory, or a
+			// RangeError of its own, which a deep recursion's is not)
 			let last = '';
-			const failed = (e) => new Error(last || (e && e.message) || String(e));
+			const oom = (e) => e instanceof RangeError && /memory|alloc/i.test(e.message) && !/call stack/i.test(e.message);
+			const failed = (e) => new Error(e && e.outOfMemory ? e.message : oom(e) ? 'out of memory: ' + e.message : last || (e && e.message) || String(e));
 			const started = import(new URL(d.runner, base).href).then((m) => m.run(new URL(d.wasm, base).href, {
 				imports: json(d.imports, []), args: json(d.args, []), fonts: json(d.fonts, []), canvas, touchAction: 'pan-y',
 				stderr: (l) => console.error((last = l)), onError: (e) => run === el.hxmcRun && fail(el, failed(e)), ...extra,
