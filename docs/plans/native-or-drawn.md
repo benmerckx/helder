@@ -204,8 +204,8 @@ renderer, say) would retire both.
   Item, Carousel, NavigationMenu, Sidebar, BarChart and LineChart,
   AspectRatio, ScrollArea, NativeSelect, a calendar's range). **Behaviour**: `make web-widgets` drives the gallery by
   pointer and keys.
-- **Size**: a counter is 42 KB of JavaScript (9 KB gzipped), the form 60
-  KB (12 KB), the whole gallery 306 KB (55 KB), the CSS 184 KB (18 KB),
+- **Size**: a counter is 44 KB of JavaScript (9.5 KB gzipped), the form 67
+  KB (13 KB), the whole gallery 342 KB (62 KB), the CSS 186 KB (18 KB),
   against 1.8, 1.9 and 2.4 MB of wasm32-wasi (432, 459, 559 KB gzipped)
   for their canvas builds.
 
