@@ -783,6 +783,15 @@ class UiTest {
 			for (c in n.children)
 				boxes(c, out);
 		}
+		// (the accessibility tree as text: each node's role, name and bounds, by id)
+		function told(t:hxmc.ui.access.AccessTree):String {
+			var ids = [for (id in t.nodes.keys()) id];
+			ids.sort((a, b) -> a - b);
+			return t.root + ";" + [for (id in ids) {
+				var a = t.nodes.get(id);
+				id + " " + a.role + " " + a.name + " " + [a.x, a.y, a.width, a.height].join(",") + " " + a.children.join(",");
+			}].join("|");
+		}
 		function all(n:Node) {
 			n.markDirty();
 			for (c in n.children)
@@ -815,12 +824,13 @@ class UiTest {
 				var got = [], painted = new Recording();
 				boxes(ui.root, got);
 				ui.paint(painted);
+				var tree = told(ui.accessTree());
 				all(ui.root);
 				ui.update();
 				var want = [], fresh = new Recording();
 				boxes(ui.root, want);
 				ui.paint(fresh);
-				if (painted.calls.join("|") != fresh.calls.join("|")) {
+				if (painted.calls.join("|") != fresh.calls.join("|") || tree != told(ui.accessTree())) {
 					drawn++;
 					if (drawnFirst == "") drawnFirst = 'tree $tree step $step ($what on ${n.tag})';
 				}
@@ -900,7 +910,7 @@ class UiTest {
 		});
 		check("in place: a field typed into laid out alone", typed && after == before + 1, typed + " " + (after - before));
 		var placed = Layout.inPlaces - was;
-		check("in place: drawn as from the root, " + steps + " changes", drawn == 0, drawn + " differ, the first: " + drawnFirst);
+		check("in place: drawn and told assistive technology as from the root, " + steps + " changes", drawn == 0, drawn + " differ, the first: " + drawnFirst);
 		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
 	}
 
