@@ -92,7 +92,8 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, r));
 const url = `http://localhost:${server.address().port}/`;
 const cases = JSON.parse(fs.readFileSync(path.join(here, 'ref/cases.json'), 'utf8'));
-const browser = await pw.chromium.launch();
+// (text unhinted and greyscale, as the references were drawn, whatever the machine's fontconfig says)
+const browser = await pw.chromium.launch({ env: { ...process.env, FONTCONFIG_FILE: path.join(here, 'fonts.conf') } });
 const page = await browser.newPage({ viewport: { width: 800, height: 600 }, deviceScaleFactor: 1 });
 const errors = [];
 page.on('pageerror', e => errors.push(e.message));
