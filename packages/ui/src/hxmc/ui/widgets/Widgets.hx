@@ -3225,10 +3225,15 @@ class Widgets implements Markup {
 		}
 	})
 	public static function Input(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
-			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View {
+			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
+		return textInput(props, "input");
+
+	// (an Input's field, its slot "input", or "input-group-control" in an InputGroup)
+	static function textInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}, slot:String):View {
 		var f = new TextField(props.value.peek());
 		if (props.tag != null) f.tag = props.tag;
-		f.slot = "input";
+		f.slot = slot;
 		States.apply(f, props.style);
 		if (props.password == true) f.secret = true;
 		f.placeholder = props.placeholder ?? "";
@@ -3296,6 +3301,381 @@ class Widgets implements Markup {
 			<view slot="tag-input-entry" grow={1}>{editMenu(f, tag)}</view>
 		</view>;
 	}
+
+	// --- forms and layouts: shadcn's Field, ButtonGroup, InputGroup, Empty and Item ---
+
+	// a field (shadcn's): a label, a control and its description or error
+	// together, a group to assistive technology; orientation "vertical" (the
+	// default: the label above), "horizontal" (beside) or "responsive";
+	// invalid (a Bool, a signal or a function of one) sets data-invalid for
+	// the theme. Slot "field" (data-orientation, data-invalid). Its parts:
+	// FieldLabel, FieldContent, FieldDescription, FieldError; around fields,
+	// FieldSet (with a FieldLegend), FieldGroup and FieldSeparator
+	@:widget({
+		props: {
+			orientation: "where its label goes: vertical (above), horizontal (beside) or responsive",
+			invalid: "a Bool, a signal or a function of one: data-invalid for the theme (an error shown)",
+			label: "its name for assistive technology",
+			children: "its FieldLabel, control, FieldContent, FieldDescription or FieldError"
+		},
+		variants: ["vertical", "horizontal", "responsive"]
+	})
+	public static function Field(props:{?orientation:String, ?invalid:Dynamic, ?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field"} slot="field" role="group" label={props.label} data-orientation={props.orientation ?? "vertical"}
+			variant={props.orientation ?? "vertical"} data-invalid={() -> read(props.invalid) == true ? "true" : null}>{props.children}</view>;
+
+	@:widget({
+		props: {
+			text: "its text, when it has no children",
+			children: "its content, in place of text: a control and its text, for a checkbox's or a switch's label"
+		},
+		part: "Field"
+	})
+	public static function FieldLabel(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-label"} slot="field-label">{props.children ?? props.text}</view>;
+
+	@:widget({
+		props: {
+			children: "its FieldLabel and FieldDescription, beside a control in a horizontal field"
+		},
+		part: "Field"
+	})
+	public static function FieldContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-content"} slot="field-content">{props.children}</view>;
+
+	@:widget({
+		props: {
+			text: "its text, when it has no children",
+			children: "its content, in place of text"
+		},
+		part: "Field"
+	})
+	public static function FieldDescription(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text tag={props.tag ?? "field-description"} slot="field-description">{props.children ?? props.text}</text>;
+
+	@:widget({
+		props: {
+			text: "the error, shown while it is not null nor empty (a signal or a function of one); announced at once to assistive technology (live assertive)",
+			tag: "its node's tag (Node.find, tests)"
+		},
+		part: "Field"
+	})
+	public static function FieldError(props:{text:Dynamic, ?tag:String}):View
+		return <Show when={() -> {
+			var t:Null<String> = read(props.text);
+			t != null && t != "";
+		}}><text tag={props.tag ?? "field-error"} slot="field-error" live="assertive">{() -> (read(props.text) : String)}</text></Show>;
+
+	@:widget({
+		props: {
+			label: "its name for assistive technology (its legend's text)",
+			children: "its FieldLegend, FieldDescription and fields"
+		},
+		part: "Field"
+	})
+	public static function FieldSet(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-set"} slot="field-set" role="group" label={props.label}>{props.children}</view>;
+
+	@:widget({
+		props: {
+			text: "its text",
+			variant: "legend (the default, a set's heading) or label (as a field's label)"
+		},
+		variants: ["legend", "label"],
+		part: "Field"
+	})
+	public static function FieldLegend(props:{text:String, ?variant:String, ?tag:String}):View
+		return <text tag={props.tag ?? "field-legend"} slot="field-legend" role="heading" variant={props.variant ?? "legend"}
+			data-variant={props.variant ?? "legend"}>{props.text}</text>;
+
+	@:widget({
+		props: {
+			children: "its fields and sets, one under another"
+		},
+		part: "Field"
+	})
+	public static function FieldGroup(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-group"} slot="field-group" group="field-group">{props.children}</view>;
+
+	@:widget({
+		props: {
+			text: "a word in the line (\"or\"), none when not given"
+		},
+		part: "Field"
+	})
+	public static function FieldSeparator(props:{?text:String, ?tag:String}):View
+		return <view tag={props.tag ?? "field-separator"} slot="field-separator" data-content={props.text != null ? "true" : null}>
+			<view slot="separator" role="separator" data-orientation="horizontal" position="absolute" left={0} right={0} top="50%"/>
+			{props.text == null ? null : <text slot="field-separator-content">{props.text}</text>}
+		</view>;
+
+	// a button group (shadcn's): buttons (and selects, inputs, text) side by
+	// side in one shape, a group to assistive technology; orientation
+	// "horizontal" (the default) or "vertical". Slot "button-group"
+	// (data-orientation); its parts ButtonGroupText and ButtonGroupSeparator
+	@:widget({
+		props: {
+			orientation: "horizontal (side by side, the default) or vertical",
+			label: "its name for assistive technology",
+			children: "its buttons, selects, inputs, ButtonGroupText and ButtonGroupSeparator"
+		},
+		variants: ["horizontal", "vertical"]
+	})
+	public static function ButtonGroup(props:{?orientation:String, ?label:String, ?children:Any, ?tag:String}):View {
+		var o = props.orientation ?? "horizontal";
+		return <view tag={props.tag ?? "button-group"} slot="button-group" role="group" label={props.label} variant={o} data-orientation={o}
+			direction={o == "vertical" ? "column" : "row"}>{props.children}</view>;
+	}
+
+	@:widget({
+		props: {
+			text: "its text, when it has no children",
+			children: "its content, in place of text"
+		},
+		part: "ButtonGroup"
+	})
+	public static function ButtonGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "button-group-text"} slot="button-group-text">{props.children ?? props.text}</view>;
+
+	@:widget({
+		props: {
+			orientation: "the line's: vertical (the default, between buttons side by side) or horizontal"
+		},
+		part: "ButtonGroup"
+	})
+	public static function ButtonGroupSeparator(props:{?orientation:String, ?tag:String}):View
+		return <view tag={props.tag ?? "button-group-separator"} slot="button-group-separator" data-orientation={props.orientation ?? "vertical"} hidden/>;
+
+	// an input group (shadcn's): an InputGroupInput (or a text area) with
+	// addons beside, above or under it (icons, text, buttons) in one box; a
+	// click on an addon focuses the input. Slot "input-group" (data-disabled);
+	// its parts InputGroupAddon (data-align "inline-start", "inline-end",
+	// "block-start", "block-end"), InputGroupText, InputGroupInput (slot
+	// "input-group-control")
+	@:widget({
+		props: {
+			label: "its name for assistive technology",
+			disabled: "a Bool, a signal or a function of one: data-disabled for the theme",
+			children: "its InputGroupInput and InputGroupAddons"
+		}
+	})
+	public static function InputGroup(props:{?label:String, ?disabled:Dynamic, ?children:Any, ?tag:String}):View {
+		// (an addon's click: the input focused)
+		function focusInput(e:Event) {
+			var n:Node = e.current, input:Null<Node> = null;
+			function find(m:Node)
+				for (c in m.children) {
+					if (input == null && c.slot == "input-group-control") input = c;
+					find(c);
+				}
+			find(n);
+			if (input != null && input.ui != null && e.target.slot != "button") input.ui.setFocus(input);
+		}
+		return <view tag={props.tag ?? "input-group"} slot="input-group" role="group" label={props.label} direction="row" align-items="center"
+			data-disabled={() -> read(props.disabled) == true ? "true" : null} onClick={focusInput}>{props.children}</view>;
+	}
+
+	@:widget({
+		props: {
+			align: "where it goes: inline-start (before the input, the default), inline-end (after), block-start (above) or block-end (under)",
+			children: "its icons, InputGroupText or buttons"
+		},
+		part: "InputGroup"
+	})
+	public static function InputGroupAddon(props:{?align:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "input-group-addon"} slot="input-group-addon" data-align={props.align ?? "inline-start"}
+			variant={props.align ?? "inline-start"}>{props.children}</view>;
+
+	@:widget({
+		props: {
+			text: "its text, when it has no children",
+			children: "its content, in place of text"
+		},
+		part: "InputGroup"
+	})
+	public static function InputGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text tag={props.tag ?? "input-group-text"} slot="input-group-text">{props.children ?? props.text}</text>;
+
+	@:widget({
+		props: {
+			value: "a signal of its text",
+			placeholder: "shown while it is empty",
+			label: "its name for assistive technology (else the placeholder)",
+			onSubmit: "called with its text on Enter",
+			password: "true: its characters hidden",
+			invalid: "a Bool, a signal or a function of one: aria-invalid for the theme",
+			disabled: "a Bool, a signal or a function of one: not focusable or typed in"
+		},
+		part: "InputGroup"
+	})
+	public static function InputGroupInput(props:{value:Signal<String>, ?placeholder:String, ?label:String, ?onSubmit:String->Void, ?password:Bool,
+			?invalid:Dynamic, ?disabled:Dynamic, ?style:States->StyleProps, ?tag:String}):View
+		return textInput(props, "input-group-control");
+
+	// an empty state (shadcn's): a media (an icon), a title, a description
+	// and what to do (buttons), centred. Slot "empty"; its parts EmptyHeader,
+	// EmptyMedia (variant "default" or "icon"), EmptyTitle, EmptyDescription,
+	// EmptyContent
+	@:widget({
+		props: {
+			children: "its EmptyHeader and EmptyContent"
+		}
+	})
+	public static function Empty(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty"} slot="empty">{props.children}</view>;
+
+	@:widget({
+		props: {
+			children: "its EmptyMedia, EmptyTitle and EmptyDescription"
+		},
+		part: "Empty"
+	})
+	public static function EmptyHeader(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty-header"} slot="empty-header">{props.children}</view>;
+
+	@:widget({
+		props: {
+			variant: "default (as given) or icon (an icon in a tile)",
+			children: "its image or icon"
+		},
+		variants: ["default", "icon"],
+		part: "Empty"
+	})
+	public static function EmptyMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty-media"} slot="empty-icon" variant={props.variant ?? "default"} data-variant={props.variant ?? "default"}>{props.children}</view>;
+
+	@:widget({
+		props: {
+			text: "its text, a heading for assistive technology"
+		},
+		part: "Empty"
+	})
+	public static function EmptyTitle(props:{text:String, ?tag:String}):View
+		return <text tag={props.tag ?? "empty-title"} slot="empty-title" role="heading">{props.text}</text>;
+
+	@:widget({
+		props: {
+			text: "its text"
+		},
+		part: "Empty"
+	})
+	public static function EmptyDescription(props:{text:String, ?tag:String}):View
+		return <text tag={props.tag ?? "empty-description"} slot="empty-description">{props.text}</text>;
+
+	@:widget({
+		props: {
+			children: "what to do: its buttons, a link"
+		},
+		part: "Empty"
+	})
+	public static function EmptyContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "empty-content"} slot="empty-content">{props.children}</view>;
+
+	// an item (shadcn's): a row of a media, a title and description, and
+	// actions, variant "default", "outline" or "muted", size "default" or
+	// "sm"; items in an ItemGroup (a list to assistive technology, each item
+	// one of it), an ItemSeparator between. Slot "item" (data-variant,
+	// data-size); its parts ItemMedia (variant "default", "icon" or "image"),
+	// ItemContent, ItemTitle, ItemDescription, ItemActions, ItemHeader, ItemFooter
+	@:widget({
+		props: {
+			variant: "its look: default, outline (a border) or muted (a background)",
+			size: "default or sm",
+			onClick: "called when it is clicked, or pressed with Enter or Space (then focusable, a button to assistive technology)",
+			children: "its ItemMedia, ItemContent, ItemActions (and ItemHeader, ItemFooter)"
+		},
+		variants: ["default", "outline", "muted"],
+		sizes: ["default", "sm"],
+		keys: {"Enter, Space": "with onClick: clicks it"}
+	})
+	public static function Item(props:{?variant:String, ?size:String, ?onClick:Void->Void, ?children:Any, ?tag:String}):View {
+		var v = props.variant ?? "default", z = props.size ?? "default";
+		var press = () -> if (props.onClick != null) props.onClick();
+		return <view tag={props.tag ?? "item"} slot="item" variant={v} size={z} data-variant={v} data-size={z} direction="row" wrap align-items="center"
+			role={props.onClick != null ? "button" : "listitem"} focusable={props.onClick != null} onClick={_ -> press()} onKeyDown={e -> pressKeys(e, press)}>
+			{props.children}
+		</view>;
+	}
+
+	@:widget({
+		props: {
+			label: "its name for assistive technology",
+			children: "its Items and ItemSeparators"
+		},
+		part: "Item"
+	})
+	public static function ItemGroup(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-group"} slot="item-group" role="list" label={props.label}>{props.children}</view>;
+
+	@:widget({props: {}, part: "Item"})
+	public static function ItemSeparator(props:{?tag:String}):View
+		return <view tag={props.tag ?? "item-separator"} slot="item-separator" data-orientation="horizontal" hidden/>;
+
+	@:widget({
+		props: {
+			variant: "default (as given), icon (an icon in a tile) or image (cropped to a square)",
+			children: "its icon or image"
+		},
+		variants: ["default", "icon", "image"],
+		part: "Item"
+	})
+	public static function ItemMedia(props:{?variant:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-media"} slot="item-media" variant={props.variant ?? "default"} data-variant={props.variant ?? "default"}>{props.children}</view>;
+
+	@:widget({
+		props: {
+			children: "its ItemTitle and ItemDescription"
+		},
+		part: "Item"
+	})
+	public static function ItemContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-content"} slot="item-content">{props.children}</view>;
+
+	@:widget({
+		props: {
+			text: "its text, when it has no children",
+			children: "its content, in place of text (a badge beside it)"
+		},
+		part: "Item"
+	})
+	public static function ItemTitle(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-title"} slot="item-title">{props.children ?? props.text}</view>;
+
+	@:widget({
+		props: {
+			text: "its text"
+		},
+		part: "Item"
+	})
+	public static function ItemDescription(props:{text:String, ?tag:String}):View
+		return <text tag={props.tag ?? "item-description"} slot="item-description">{props.text}</text>;
+
+	@:widget({
+		props: {
+			children: "its buttons"
+		},
+		part: "Item"
+	})
+	public static function ItemActions(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-actions"} slot="item-actions" direction="row" align-items="center">{props.children}</view>;
+
+	@:widget({
+		props: {
+			children: "what goes above its content, the whole width (an image)"
+		},
+		part: "Item"
+	})
+	public static function ItemHeader(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-header"} slot="item-header">{props.children}</view>;
+
+	@:widget({
+		props: {
+			children: "what goes under its content, the whole width"
+		},
+		part: "Item"
+	})
+	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "item-footer"} slot="item-footer">{props.children}</view>;
 }
 
 // a disclosure's arrow: closed (▸), it points to the line's end, right to
