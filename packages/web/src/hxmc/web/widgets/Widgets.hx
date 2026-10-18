@@ -116,33 +116,6 @@ class Widgets implements Markup {
 		]}</div>;
 	}
 
-	// pagination (shadcn's): Previous, the pages (the first, the last, the
-	// current one and its neighbours, an ellipsis for the rest), Next; pages from 1
-	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
-		function go(p:Int)
-			if (p >= 1 && p <= props.count) props.page.value = p;
-		function edge(prev:Bool):View
-			return <li data-slot="pagination-item"><a data-slot={prev ? "pagination-previous" : "pagination-next"} data-variant="ghost" data-size="default" href="#"
-				aria-label={prev ? "Go to previous page" : "Go to next page"}
-				aria-disabled={() -> (prev ? props.page.value <= 1 : props.page.value >= props.count) ? "true" : null}
-				onClick={(e:Dynamic) -> {
-					e.preventDefault();
-					go(props.page.peek() + (prev ? -1 : 1));
-				}}>{prev ? [icon("chevron-left"), View.view(<span>Previous</span>)] : [View.view(<span>Next</span>), icon("chevron-right")]}</a></li>;
-		return <nav id={props.tag} role="navigation" aria-label={props.label ?? "pagination"} data-slot="pagination"><ul data-slot="pagination-content">
-			{edge(true)}
-			<Index each={() -> Behaviour.pages(props.page.value, props.count)} render={(p:Signal<Int>, _) -> <li data-slot="pagination-item">
-				<Show when={() -> p.value == 0} fallback={<a data-slot="pagination-link" data-variant="ghost" data-size="icon" href="#"
-					aria-current={() -> props.page.value == p.value ? "page" : null} data-active={() -> props.page.value == p.value ? "true" : null}
-					onClick={(e:Dynamic) -> {
-						e.preventDefault();
-						go(p.peek());
-					}}>{p}</a>}><span data-slot="pagination-ellipsis" aria-hidden="true">{small(icon("more"))}</span></Show>
-			</li>}/>
-			{edge(false)}
-		</ul></nav>;
-	}
-
 	// (the shortcuts of items working from anywhere in the page while mounted (within: only while the focus is in it))
 	static function hotkeys(list:Array<MenuItem>, ?within:Void->Element) {
 		var all = [];

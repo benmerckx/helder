@@ -53,7 +53,6 @@ class Widgets implements Markup {
 	static final ARROW_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>');
 	static final ARROW_UP = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>');
 	static final ARROW_DOWN = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>');
-	static final MORE = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>');
 	static final PANEL_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>');
 	static final MINUS = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>');
 
@@ -1980,8 +1979,8 @@ class Widgets implements Markup {
 
 	// pagination (shadcn's): Previous, the pages (the first, the last, the
 	// current one and its neighbours, "…" for the rest, a page instead where
-	// it hides only one), Next, in a navigation landmark; pages count from
-	// 1, the current page's button marked current. Slots "pagination",
+	// it hides only one), Next, in a navigation landmark, each a link;
+	// pages count from 1, the current page's link marked current. Slots "pagination",
 	// "pagination-content", "pagination-item", "pagination-link" (size "icon"
 	// for a page, "default" for Previous and Next; data-active on the
 	// current page's, data-disabled on Previous on the first, Next on the
@@ -1992,36 +1991,39 @@ class Widgets implements Markup {
 			count: "the number of pages",
 			label: "its landmark's name"
 		},
-		keys: {"Enter, Space": "on a button, go to its page (Previous and Next: the page before or after)"}
+		keys: {"Enter": "on a link, go to its page (Previous and Next: the page before or after)"}
 	})
-	public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
+	@:neutral public static function Pagination(props:{page:Signal<Int>, count:Int, ?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "pages", count = props.count;
 		function go(p:Int)
 			if (p >= 1 && p <= count) props.page.value = p;
-		// (the buttons in order, 0 for a gap)
-		function shown():Array<Int>
-			return Behaviour.pages(props.page.value, count);
-		function button(label:Any, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool, slot = "pagination-link"):View {
-			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
-			return <view slot="pagination-item"><view tag={tagged} slot={slot} size={size} role="button" focusable={() -> !off()} disabled={off}
-				data-disabled={off} current={cur} data-active={() -> cur() ? "true" : null} onClick={_ -> if (!off()) onClick()}
-				onKeyDown={e -> if ((e.key == Key.ENTER || e.key == Key.SPACE) && !off()) {
+		// (Previous or Next: off at the first or the last page)
+		function edge(prev:Bool):View {
+			var off = () -> prev ? props.page.value <= 1 : props.page.value >= count;
+			function arrow():View
+				return <icon slot="pagination-icon" name={prev ? "chevron-left" : "chevron-right"} width={16} height={16} hidden/>;
+			return <view:li slot="pagination-item"><view:a tag={tag + (prev ? "-prev" : "-next")} slot={prev ? "pagination-previous" : "pagination-next"}
+				variant="ghost" size="default" href="#" label={prev ? "Go to previous page" : "Go to next page"} focusable={() -> !off()} disabled={off}
+				data-disabled={off} onPress={e -> {
 					e.preventDefault();
-					onClick();
-				}}>{label}</view></view>;
+					if (!off()) go(props.page.peek() + (prev ? -1 : 1));
+				}}>{prev ? arrow() : null}<text:span>{prev ? "Previous" : "Next"}</text:span>{prev ? null : arrow()}</view:a></view:li>;
 		}
-		return <view tag={tag} slot="pagination" role="navigation" label={props.label ?? "pagination"}>
-			<view slot="pagination-content">
-				{button([icon(CHEVRON_LEFT, "pagination-icon"), "Previous"], tag + "-prev", "default", () -> go(props.page.peek() - 1), null, () -> props.page.value <= 1, "pagination-previous")}
-				<Index each={shown} render={(p:Signal<Int>, _) -> <view direction="row">
-					<Show when={() -> p.value == 0} fallback={button(() -> Std.string(p.value), tag + "-page", "icon", () -> go(p.peek()),
-						() -> props.page.value == p.value)}>
-						<view slot="pagination-ellipsis" hidden>{icon(MORE, "pagination-ellipsis-icon")}</view>
+		return <view:nav tag={tag} id={props.tag} slot="pagination" role="navigation" label={props.label ?? "pagination"}>
+			<view:ul slot="pagination-content">
+				{edge(true)}
+				<Index each={() -> Behaviour.pages(props.page.value, count)} render={(p:Signal<Int>, _) -> <view:li slot="pagination-item">
+					<Show when={() -> p.value == 0} fallback={<view:a tag={tag + "-page"} slot="pagination-link" variant="ghost" size="icon" href="#" focusable
+						current={() -> props.page.value == p.value ? "page" : null} data-active={() -> props.page.value == p.value ? "true" : null} onPress={e -> {
+							e.preventDefault();
+							go(p.peek());
+						}}>{() -> Std.string(p.value)}</view:a>}>
+						<view:span slot="pagination-ellipsis" hidden><icon slot="pagination-ellipsis-icon" name="more" width={16} height={16}/></view:span>
 					</Show>
-				</view>}/>
-				{button(["Next", icon(CHEVRON_RIGHT, "pagination-icon")], tag + "-next", "default", () -> go(props.page.peek() + 1), null, () -> props.page.value >= count, "pagination-next")}
-			</view>
-		</view>;
+				</view:li>}/>
+				{edge(false)}
+			</view:ul>
+		</view:nav>;
 	}
 
 	// the items' shortcuts (local: while the focus is in the parent)
@@ -3227,7 +3229,7 @@ class Widgets implements Markup {
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
 			for (s in ["calendar-button-icon", "tree-toggle-icon", "sidebar-trigger-icon",
-				"navigation-menu-trigger-icon", "carousel-icon", "pagination-icon", "pagination-ellipsis-icon"])
+				"navigation-menu-trigger-icon", "carousel-icon"])
 				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
 		var n = new ImageNode();
