@@ -89,9 +89,10 @@ class Model<N, M, A, C> {
 			return Std.isOfType(v, String) ? v : "";
 		}
 		var buffers = list("buffers");
-		if (buffers.length > 1 || list("images").length > 0 || buffers.length == 1 && Reflect.hasField(buffers[0], "uri")
+		var outside = [for (im in list("images")) if (Reflect.hasField(im, "uri") && !StringTools.startsWith(Reflect.field(im, "uri"), "data:")) im];
+		if (buffers.length > 1 || outside.length > 0 || buffers.length == 1 && Reflect.hasField(buffers[0], "uri")
 			&& !StringTools.startsWith(Reflect.field(buffers[0], "uri"), "data:"))
-			Context.error('Model.of: $path: only self-contained files (one embedded buffer, no images) yet', pos);
+			Context.error('Model.of: $path: only self-contained files (one embedded buffer, images inside it) yet', pos);
 		function names(list:Array<String>):Expr {
 			var seen = new Map<String, Bool>(), fields:Array<ObjectField> = [];
 			for (n in list) {

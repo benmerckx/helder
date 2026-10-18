@@ -14,10 +14,11 @@ import hxmc.scene.render.*;
 //          their count)
 //   skin   the skinned sample (examples/skinned.glb) bent by its animation
 //   overlay the sample scene under the debug overlay (FrameStats, Overlay)
+//   textured the textured sample (a PNG in the file, decoded by @hxmc/ui)
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured"];
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
 	public static inline var TIME = 2.0;
@@ -94,6 +95,23 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0.4, 1.4, 4.2);
 				eye.lookAt(new Vec3(-0.3, 1.1, 0));
+				enc -> r.draw(enc, world, camera);
+			case "textured":
+				// the textured sample, its PNG decoded by @hxmc/ui's decoder, mip-mapped
+				GltfScene.decodeImage = (mime, bytes) -> hxmc.ui.PngDecoder.decode(bytes);
+				var r = new Renderer(device);
+				renderer = r;
+				var world = new World();
+				var model = Model.of("textured.glb");
+				var crate = model.instantiate(world, device).find(model.nodes.crate);
+				crate.rotation = hxmc.scene.math.Quat.fromEuler(0.5, 0.7, 0);
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, -1.1, 0);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.45, 0.47, 0.5, 1), 0, 0.9), 8));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 0.8, 3.2);
+				eye.lookAt(new Vec3(0, -0.1, 0));
 				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}

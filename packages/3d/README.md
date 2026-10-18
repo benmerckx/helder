@@ -67,7 +67,12 @@ var hand = root.find(hero.nodes.LeftHand);   // hero.nodes.LeftHnad: a compile e
 `Model.of` reads the file's names when compiling (nodes, meshes,
 materials: `model.nodes`, `model.meshes`, `model.materials`) and builds the
 file into the program; self-contained files only for now (one embedded
-buffer, no images).
+buffer, images inside it). Base colour textures need a decoder, named by
+the program so that none is linked otherwise:
+
+```haxe
+GltfScene.decodeImage = (mime, bytes) -> mime == "image/jpeg" ? hxmc.ui.JpegDecoder.decode(bytes) : hxmc.ui.PngDecoder.decode(bytes);
+```
 
 ## Animation
 

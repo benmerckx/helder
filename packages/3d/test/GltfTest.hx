@@ -46,6 +46,7 @@ class GltfTest {
 		nodes(doc);
 		animations(doc);
 		skins();
+		textured();
 		rejects(glb);
 		Sys.println('GltfTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
@@ -170,6 +171,21 @@ class GltfTest {
 			false;
 		} catch (e:String) StringTools.startsWith(e, "glTF: node 0: skin");
 		check("rejects a skin out of range", threw);
+	}
+
+	static function textured() {
+		var file = sys.io.File.getBytes("packages/3d/examples/textured.glb");
+		#if eval
+		check("textured.glb is the generator's", SampleModel.texturedGlb().compare(file) == 0);
+		#end
+		var doc = Gltf.parse(file);
+		var png = doc.imageBytes(0);
+		check("an image in a buffer view", doc.images.length == 1 && doc.images[0].mimeType == "image/png" && png != null && png.get(1) == 0x50
+			&& png.get(2) == 0x4E && png.get(3) == 0x47);
+		check("texture, sampler, material", doc.textures.length == 1 && doc.textures[0].source == 0 && doc.samplers[0].minFilter == 9987
+			&& doc.materials[0].baseColorTexture == 0);
+		var image = Png.decode(png);
+		check("the image decodes", image.width == 64 && image.height == 64);
 	}
 
 	static function rejects(glb:Bytes) {

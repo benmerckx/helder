@@ -115,7 +115,7 @@ class Renderer {
 		var w = Bytes.alloc(4);
 		w.fill(0, 4, 255);
 		white = device.createTexture({width: 1, height: 1, data: w});
-		sampler = device.createSampler({filter: Linear, wrap: Repeat});
+		sampler = device.createSampler({filter: Linear, mipFilter: Linear, wrap: Repeat});
 		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
 		var one = Bytes.alloc(4);
 		one.setFloat(0, 1);

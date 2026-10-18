@@ -13,8 +13,10 @@ import hxmc.scene.math.Quat;
 // texture coordinates, a node matrix, a child hierarchy, min and max,
 // animations of each interpolation (linear, step, cubic spline).
 //
-//   bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src \
+//   bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/test -cp packages/3d/src \
 //     -cp packages/3d/test --run SampleModel packages/3d/examples/sample.glb
+//
+// (also skinned.glb and textured.glb beside it)
 //
 // Numbers in the JSON are written with 6 decimals, so the file is the same
 // wherever it is generated; GltfTest checks it against the checked-in one.
@@ -37,6 +39,9 @@ class SampleModel {
 		var skinned = haxe.io.Path.join([haxe.io.Path.directory(out), "skinned.glb"]);
 		sys.io.File.saveBytes(skinned, skinnedGlb());
 		Sys.println('SampleModel: wrote $skinned');
+		var textured = haxe.io.Path.join([haxe.io.Path.directory(out), "textured.glb"]);
+		sys.io.File.saveBytes(textured, texturedGlb());
+		Sys.println('SampleModel: wrote $textured');
 	}
 
 	// the .glb file
@@ -167,6 +172,84 @@ class SampleModel {
 			+ '"animations":[{"name":"bend","samplers":[{"input":$times,"output":$bend}],"channels":[{"sampler":0,"target":{"node":2,"path":"rotation"}}]}],'
 			+ '"accessors":[${accessors.join(",")}],"bufferViews":[${views.join(",")}],"buffers":[{"byteLength":${data.length}}]}';
 		return {json: json, bin: data};
+	}
+
+	// the textured sample (examples/textured.glb): a cube whose base colour
+	// is a 64x64 PNG inside the file (a soft checker, lighter towards one corner)
+	public static function texturedGlb():Bytes {
+		var bin = new BytesBuffer();
+		var px = Bytes.alloc(64 * 64 * 4);
+		for (y in 0...64)
+			for (x in 0...64) {
+				// (a 4x4 checker, its edges soft: alike through every GPU's filtering)
+				var cx = Math.sin((x + 0.5) / 64 * Math.PI * 4), cy = Math.sin((y + 0.5) / 64 * Math.PI * 4);
+				var c = 0.5 + 0.5 * Math.max(-1, Math.min(1, cx * cy * 3));
+				var t = (x + y) / 126;
+				var p = 4 * (y * 64 + x);
+				px.set(p, Math.round(c * (240 - 40 * t) + (1 - c) * (200 - 120 * t)));
+				px.set(p + 1, Math.round(c * (220 - 60 * t) + (1 - c) * (90 - 40 * t)));
+				px.set(p + 2, Math.round(c * (190 - 60 * t) + (1 - c) * 40));
+				px.set(p + 3, 255);
+			}
+		var png = Png.encode(px, 64, 64);
+		var faces = [
+			[[0, 0, 1], [1, 0, 0], [0, 1, 0]], [[0, 0, -1], [-1, 0, 0], [0, 1, 0]], [[1, 0, 0], [0, 0, -1], [0, 1, 0]],
+			[[-1, 0, 0], [0, 0, 1], [0, 1, 0]], [[0, 1, 0], [1, 0, 0], [0, 0, -1]], [[0, -1, 0], [1, 0, 0], [0, 0, 1]]
+		];
+		var pos:Array<Float> = [], nor:Array<Float> = [], uv:Array<Float> = [], idx = [];
+		for (f in 0...6) {
+			var n = faces[f][0], r = faces[f][1], u = faces[f][2];
+			for (c in [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+				for (k in 0...3) {
+					pos.push(0.6 * (n[k] + r[k] * c[0] + u[k] * c[1]));
+					nor.push(n[k]);
+				}
+				uv.push((c[0] + 1) / 2);
+				uv.push((1 - c[1]) / 2);
+			}
+			for (k in [0, 1, 2, 0, 2, 3])
+				idx.push(4 * f + k);
+		}
+		var views = [];
+		function view(start:Int, target:Int) {
+			views.push('{"buffer":0,"byteOffset":$start,"byteLength":${bin.length - start}' + (target > 0 ? ',"target":$target' : "") + "}");
+			while (bin.length % 4 != 0)
+				bin.addByte(0);
+			return views.length - 1;
+		}
+		var start = bin.length;
+		for (x in pos)
+			bin.addFloat(x);
+		var vp = view(start, 34962);
+		start = bin.length;
+		for (x in nor)
+			bin.addFloat(x);
+		var vn = view(start, 34962);
+		start = bin.length;
+		for (x in uv)
+			bin.addFloat(x);
+		var vu = view(start, 34962);
+		start = bin.length;
+		for (i in idx) {
+			bin.addByte(i);
+			bin.addByte(0);
+		}
+		var vi = view(start, 34963);
+		start = bin.length;
+		bin.add(png);
+		var vimg = view(start, 0);
+		var data = bin.getBytes();
+		var json = '{"asset":{"version":"2.0","generator":"hxmc packages/3d/test/SampleModel.hx"},"scene":0,'
+			+ '"scenes":[{"name":"textured","nodes":[0]}],"nodes":[{"name":"crate","mesh":0}],'
+			+ '"meshes":[{"name":"crate","primitives":[{"attributes":{"POSITION":0,"NORMAL":1,"TEXCOORD_0":2},"indices":3,"material":0}]}],'
+			+ '"materials":[{"name":"crate","pbrMetallicRoughness":{"baseColorTexture":{"index":0},"metallicFactor":0,"roughnessFactor":0.6}}],'
+			+ '"textures":[{"sampler":0,"source":0}],"samplers":[{"magFilter":9729,"minFilter":9987}],'
+			+ '"images":[{"name":"checker","bufferView":$vimg,"mimeType":"image/png"}],'
+			+ '"accessors":[{"bufferView":$vp,"componentType":5126,"count":24,"type":"VEC3","min":[-0.6,-0.6,-0.6],"max":[0.6,0.6,0.6]},'
+			+ '{"bufferView":$vn,"componentType":5126,"count":24,"type":"VEC3"},{"bufferView":$vu,"componentType":5126,"count":24,"type":"VEC2"},'
+			+ '{"bufferView":$vi,"componentType":5123,"count":36,"type":"SCALAR"}],'
+			+ '"bufferViews":[${views.join(",")}],"buffers":[{"byteLength":${data.length}}]}';
+		return pack({json: json, bin: data});
 	}
 
 	// the .gltf form: the same, its buffer a data: URI
