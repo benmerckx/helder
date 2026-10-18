@@ -19,7 +19,8 @@ package hxmc.ui;
 // while an earlier sibling marked "peer" holds it, "has:data-state=open"
 // while a descendant does ("has:>x": a child), "first" and "last" for the
 // first and last child, "not:x" while x does not; "data-slot=x" is the
-// node's slot. They nest ("group:has:focus").
+// node's slot; "svg" holds for an icon (an image of an Svg: "has:>svg", a
+// button's icon, as CSS's :has(>svg)). They nest ("group:has:focus").
 class Rules {
 	// (whether a rule anywhere asks for another node's states, so that its changes restyle: group, peer, has, first or last)
 	static var relational = 0;
@@ -272,6 +273,7 @@ class Rules {
 			case "ltr": !n.rtl();
 			case "first": n.parent != null && n.parent.children[0] == n;
 			case "last": n.parent != null && n.parent.children[n.parent.children.length - 1] == n;
+			case "svg": n is ImageNode && (cast n : ImageNode).svg != null;
 			case _:
 				var colon = w.indexOf(":");
 				if (colon > 0) {
