@@ -140,6 +140,8 @@ class MarkupTest implements Markup {
 		unstyledRest();
 		unstyledExtras();
 		statesStyle();
+		fieldsetLegend();
+		balancedText();
 		colorPicker();
 		sortable();
 		rangeSlider();
@@ -2071,7 +2073,52 @@ class MarkupTest implements Markup {
 			&& ui.root.find("col-area").children[1].slot == "color-picker-thumb" && ui.root.find("col-area").children[1].style.borderWidth == 2);
 	}
 
-// a part's states as signals (React Aria's render props): an instance's
+// balanced text (CSS's text-wrap: balance): its lines as many as greedy
+	// wrapping makes, at the narrowest width keeping that many
+	static function balancedText() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var t = new TextNode("aa bb cc dd ee ff"), g = new TextNode("aa bb cc dd ee ff");
+		var w = 14 * ui.text.layout("a", g.font(), Math.NaN).width;
+		for (n in [t, g]) {
+			n.style.width = w;
+			ui.root.append(n);
+		}
+		t.style.textWrap = Balance;
+		ui.update();
+		var p = t.laidOut(), q = g.laidOut();
+		check("balanced text: two lines of three words, greedy five and one", p.lineCount == 2 && q.lineCount == 2 && p.width == 8 * w / 14
+			&& q.width == w, p.lineCount + " " + p.width + " " + q.width);
+	}
+
+	// a fieldset's legend (CSS's rendered legend): no gap after it, its
+	// margin kept; a rule of the sibling before ([[data-variant=legend]+&]:
+	// "prev:variant=legend"), the description right after it only, again as
+	// one is put before
+	static function fieldsetLegend() {
+		var ui = new Ui(new MonoText(), 400, 300), first = signal(true);
+		ui.theme = {
+			rules: [
+				{slot: "field-set", style: {rowGap: 24}}, {slot: "field-legend", style: {marginBottom: 12}},
+				{slot: "field-description", when: ["prev:variant=legend"], style: {marginTop: -6}}
+			]
+		};
+		Render.render(<view padding={10}>
+			<hxmc.ui.widgets.Widgets.FieldSet tag="set">
+				<hxmc.ui.widgets.Widgets.FieldLegend tag="legend" text="Profile"/>
+				<Show when={first}><hxmc.ui.widgets.Widgets.FieldDescription tag="d0" text="Before"/></Show>
+				<hxmc.ui.widgets.Widgets.FieldDescription tag="d1" text="About"/>
+			</hxmc.ui.widgets.Widgets.FieldSet>
+		</view>, ui.root);
+		ui.update();
+		var legend = ui.root.find("legend"), d0 = ui.root.find("d0"), d1 = ui.root.find("d1");
+		check("fieldset: the legend's margin, no gap; the description after it pulled up, the next a gap under",
+			d0.y == legend.y + legend.height + 12 - 6 && d1.y == d0.y + d0.height + 24, '${legend.y} ${legend.height} ${d0.y} ${d0.height} ${d1.y}');
+		first.value = false;
+		ui.update();
+		check("fieldset: the sibling before gone, the next description's rule follows", d1.y == legend.y + legend.height + 12 - 6, '${legend.y} ${legend.height} ${d1.y} ' + [for (c in d1.parent.children) c.tag].join(","));
+	}
+
+	// a part's states as signals (React Aria's render props): an instance's
 	// style a function of them, over the theme's rules, taken back when it
 	// no longer gives a property
 	static function statesStyle() {
@@ -2356,8 +2403,8 @@ class MarkupTest implements Markup {
 		Render.render(<view height={200}><Split tag="sp" size={size} min={50} label="Sidebar" first={<view tag="side"/>} second={<view tag="main"/>}/></view>, ui.root);
 		ui.update();
 		var side = ui.root.find("side").parent, main = ui.root.find("main").parent, div = ui.root.find("sp-divider");
-		check("split: the first pane at its size, the divider, the rest", side.width == 120 && div.absX == 120 && div.width == 6 && main.absX == 126 && main.width == 274,
-			side.width + " " + div.absX + " " + main.width);
+		check("split: the first pane at its size, the divider a pixel (its grip over the panes), the rest", side.width == 120 && div.absX == 118 && div.width == 5
+			&& main.absX == 121 && main.width == 279, side.width + " " + div.absX + " " + main.width);
 		ui.pointerDown(122, 100, 1);
 		ui.pointerMove(202, 100);
 		ui.pointerUp(202, 100, 1);
@@ -2367,7 +2414,7 @@ class MarkupTest implements Markup {
 		ui.pointerMove(10, 100);
 		ui.pointerMove(1000, 100);
 		ui.pointerUp(1000, 100, 1);
-		check("split: within its bounds (the room less min)", size.value == 400 - 6 - 50, "" + size.value);
+		check("split: within its bounds (the room less min)", size.value == 400 - 1 - 50, "" + size.value);
 		ui.setFocus(div);
 		ui.keyDown(Key.HOME, 0);
 		var home = size.value;
@@ -2380,7 +2427,7 @@ class MarkupTest implements Markup {
 		ui.update();
 		ui.keyDown(Key.LEFT, 0);
 		ui.update();
-		check("split: right to left, the first pane on the right, Left widens it", size.value == 70 && side.absX == 400 - 70 && div.absX == 400 - 70 - 6,
+		check("split: right to left, the first pane on the right, Left widens it", size.value == 70 && side.absX == 400 - 70 && div.absX == 400 - 70 - 1 - 2,
 			size.value + " " + side.absX);
 		var x = div.absX + 3;
 		ui.pointerDown(x, 100, 1);

@@ -18,7 +18,8 @@ package hxmc.ui;
 // one whose group attribute names item among its words), "peer:checked"
 // while an earlier sibling marked "peer" holds it, "has:data-state=open"
 // while a descendant does ("has:>x": a child; "has:x&y" one holding both), "first" and "last" for the
-// first and last child, "not:x" while x does not, "parent:x" while the
+// first and last child, "not:x" while x does not, "prev:x" while the
+// sibling before holds x (CSS's [x]+&), "parent:x" while the
 // parent holds x (a rule of slot "*": any slot's, after its own, as an
 // arbitrary selector of a slot's children); "variant=x" and "size=x" the
 // node's variant and size; "data-slot=x" is the
@@ -32,6 +33,7 @@ class Rules {
 	static inline var HAS = 4;
 	static inline var PLACE = 8;
 	static inline var PARENT = 16;
+	static inline var PREV = 32;
 
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
@@ -84,9 +86,9 @@ class Rules {
 				var r = rules[k];
 				if (r.variant != null && r.variant != n.variant || r.size != null && r.size != n.size) continue;
 				var ok = true;
-				if (r.when != null)
-					for (w in r.when)
-						if (w != "placeholder" && w != "selection" && !holds(n, ui, w)) {
+				if (r.conds != null)
+					for (c in r.conds)
+						if (!holds(n, ui, c)) {
 							ok = false;
 							break;
 						}
@@ -174,9 +176,9 @@ class Rules {
 		var parts = key.split(",");
 		for (k in 1...parts.length) {
 			var r = rules[Std.parseInt(parts[k])], style = r.rule.style;
-			if (r.when != null && r.when.indexOf("placeholder") >= 0) {
+			if (r.rule.when != null && r.rule.when.indexOf("placeholder") >= 0) {
 				if (style.color != null) placeholder = style.color;
-			} else if (r.when != null && r.when.indexOf("selection") >= 0) {
+			} else if (r.rule.when != null && r.rule.when.indexOf("selection") >= 0) {
 				if (style.background != null) selection = style.background;
 			} else {
 				// (corners or borders some of whose sides a rule leaves (NaN): those before it kept, as CSS's longhands)
@@ -276,86 +278,110 @@ class Rules {
 			restyleTree(c);
 	}
 
-	// whether a state holds for n
-	static function holds(n:Node, ui:Ui, w:String):Bool {
-		return switch w {
-			case "hover": n.hovered;
-			case "active": n.pressed;
-			case "focus": n.focused;
-			case "focus-visible": n.focused && ui.focusVisible;
-			case "disabled": n.attr("disabled") != null || n.attr("data-disabled") != null;
-			case "dark": ui.dark;
-			case "rtl": n.rtl();
-			case "sm" | "md" | "lg" | "xl" | "2xl": ui.width >= Ui.BREAKPOINTS.get(w);
-			case "starting":
+	// whether a state holds for n (a rule's state, parsed once: Cond)
+	static function holds(n:Node, ui:Ui, c:Cond):Bool {
+		return switch c.kind {
+			case Cond.HOVER: n.hovered;
+			case Cond.ACTIVE: n.pressed;
+			case Cond.FOCUS: n.focused;
+			case Cond.FOCUS_VISIBLE: n.focused && ui.focusVisible;
+			case Cond.DISABLED: n.attr("disabled") != null || n.attr("data-disabled") != null;
+			case Cond.DARK: ui.dark;
+			case Cond.RTL: n.rtl();
+			case Cond.WIDE: ui.width >= c.width;
+			case Cond.STARTING:
 				// (CSS's @starting-style: until its first draw; then again, its transition easing from these)
 				@:privateAccess n.style.starting = true;
 				!@:privateAccess n.style.drawn;
-			case "ltr": !n.rtl();
-			case "first": n.parent != null && n.parent.children[0] == n;
-			case "last": n.parent != null && n.parent.children[n.parent.children.length - 1] == n;
-			case "svg": n is ImageNode && (cast n : ImageNode).svg != null;
-			case _:
-				var colon = w.indexOf(":");
-				if (colon > 0) {
-					var head = w.substr(0, colon), inner = w.substr(colon + 1);
-					var slash = head.indexOf("/"), name = slash < 0 ? null : head.substr(slash + 1);
-					switch slash < 0 ? head : head.substr(0, slash) {
-						case "not": !holds(n, ui, inner);
-						case "parent": n.parent != null && holds(n.parent, ui, inner);
-						case "group":
-							var p = n.parent;
-							while (p != null && !(marked(p, "group", name) && holds(p, ui, inner)))
-								p = p.parent;
-							p != null;
-						case "peer":
-							var found = false;
-							if (n.parent != null)
-								for (c in n.parent.children) {
-									if (c == n) break;
-									if (marked(c, "peer", name) && holds(c, ui, inner)) {
-										found = true;
-										break;
-									}
-								}
-							found;
-						case "has":
-							StringTools.startsWith(inner, ">") ? Lambda.exists(n.children, c -> all(c, ui, inner.substr(1))) : below(n, ui, inner);
-						case _: false;
-					}
-				} else {
-					var eq = w.indexOf("=");
-					if (eq < 0) w == "data-slot" ? n.slot != null : n.attr(w) != null else {
-						var key = w.substr(0, eq), value = w.substr(eq + 1);
-						switch key {
-							case "data-slot": n.slot == value;
-							case "variant": n.variant == value;
-							case "size": n.size == value;
-							case _: n.attr(key) == value;
+			case Cond.LTR: !n.rtl();
+			case Cond.FIRST: n.parent != null && n.parent.children[0] == n;
+			case Cond.LAST: n.parent != null && n.parent.children[n.parent.children.length - 1] == n;
+			case Cond.SVG: n is ImageNode && (cast n : ImageNode).svg != null;
+			case Cond.NOT: !holds(n, ui, c.inner);
+			case Cond.PARENT: n.parent != null && holds(n.parent, ui, c.inner);
+			case Cond.PREV:
+				var i = n.parent == null ? -1 : n.parent.indexOf(n);
+				while (--i >= 0 && marker(n.parent.children[i])) {}
+				i >= 0 && all(n.parent.children[i], ui, c.all);
+			case Cond.GROUP:
+				var p = n.parent;
+				while (p != null && !(marked(p, "group", c.name) && holds(p, ui, c.inner)))
+					p = p.parent;
+				p != null;
+			case Cond.PEER:
+				var found = false;
+				if (n.parent != null)
+					for (k in n.parent.children) {
+						if (k == n) break;
+						if (marked(k, "peer", c.name) && holds(k, ui, c.inner)) {
+							found = true;
+							break;
 						}
 					}
-				}
+				found;
+			case Cond.HAS_CHILD: Lambda.exists(n.children, k -> all(k, ui, c.all));
+			case Cond.HAS: below(n, ui, c.all);
+			case Cond.SLOTTED: n.slot != null;
+			case Cond.SLOT: n.slot == c.value;
+			case Cond.VARIANT: n.variant == c.value;
+			case Cond.SIZE: n.size == c.value;
+			case Cond.ATTR: c.value == null ? n.attr(c.name) != null : n.attr(c.name) == c.value;
+			case _: false;
 		}
 	}
 
-	// (whether n is marked as a group or peer: the attribute, naming name among its words when given)
-	static function marked(n:Node, attr:String, name:Null<String>):Bool {
-		var v = n.attr(attr);
-		return v != null && (name == null || v.split(" ").indexOf(name) >= 0);
+	// (a view's marker, where content goes: hidden, of no slot or children; no sibling for prev:)
+	static inline function marker(n:Node):Bool
+		return n.style.display == None && n.slot == null && n.children.length == 0;
+
+	// (the sibling from i on that is no marker, restyled: its prev: rules may follow)
+	static function after(parent:Node, i:Int) {
+		while (i >= 0 && i < parent.children.length && marker(parent.children[i]))
+			i++;
+		if (i >= 0 && i < parent.children.length) @:privateAccess parent.children[i].restyleLater();
 	}
 
-	// (whether a descendant of n holds w)
-	static function below(n:Node, ui:Ui, w:String):Bool {
-		for (c in n.children)
-			if (all(c, ui, w) || below(c, ui, w)) return true;
+	// (whether n is marked as a group or peer: the attribute, else its slot's
+	// marker in its sheet (StyleSheet.markers), naming name when given)
+	static function marked(n:Node, attr:String, name:Null<String>):Bool {
+		var v = n.attr(attr);
+		if (v != null) return name == null || v.split(" ").indexOf(name) >= 0;
+		if (n.slot == null) return false;
+		var sheet = n.sheet();
+		if (sheet == null || sheet.markers == null) return false;
+		var m = slotMarkers.get(sheet);
+		if (m == null) {
+			// (each slot's names per marker: "group" => ["", "item"], "" an unnamed one)
+			m = new Map();
+			for (slot => list in sheet.markers) {
+				var by = new Map<String, Array<String>>();
+				for (w in list.split(" ")) {
+					var slash = w.indexOf("/"), kind = slash < 0 ? w : w.substr(0, slash);
+					if (!by.exists(kind)) by.set(kind, []);
+					by.get(kind).push(slash < 0 ? "" : w.substr(slash + 1));
+				}
+				m.set(slot, by);
+			}
+			slotMarkers.set(sheet, m);
+		}
+		var by = m.get(n.slot), names = by == null ? null : by.get(attr);
+		return names != null && (name == null || names.indexOf(name) >= 0);
+	}
+
+	// (the sheets' slots' markers, read once: Rules.marked)
+	static final slotMarkers = new haxe.ds.ObjectMap<{}, Map<String, Map<String, Array<String>>>>();
+
+	// (whether a descendant of n holds each of cs)
+	static function below(n:Node, ui:Ui, cs:Array<Cond>):Bool {
+		for (k in n.children)
+			if (all(k, ui, cs) || below(k, ui, cs)) return true;
 		return false;
 	}
 
-	// (whether n holds each of has:'s states, "&" between them)
-	static function all(n:Node, ui:Ui, w:String):Bool {
-		if (w.indexOf("&") < 0) return holds(n, ui, w);
-		for (s in w.split("&"))
-			if (!holds(n, ui, s)) return false;
+	// (whether n holds each of cs: a has:'s or prev:'s states, "&" between them)
+	static function all(n:Node, ui:Ui, cs:Array<Cond>):Bool {
+		for (c in cs)
+			if (!holds(n, ui, c)) return false;
 		return true;
 	}
 
@@ -369,6 +395,7 @@ class Rules {
 			if (StringTools.startsWith(head, "peer")) r |= PEER;
 			if (head == "has") r |= HAS;
 			if (head == "parent") r |= PARENT;
+			if (head == "prev") r |= PREV;
 			r |= relations(w.substr(colon + 1));
 		}
 		return r;
@@ -377,13 +404,14 @@ class Rules {
 	// (n's states or attributes changed: the nodes whose rules over other nodes' states may follow, restyled)
 	@:allow(hxmc.ui.Node) @:allow(hxmc.ui.Ui) static function related(n:Node) {
 		if (relational == 0 || n.ui == null) return;
-		if (relational & GROUP != 0 && n.attr("group") != null)
+		if (relational & GROUP != 0 && marked(n, "group", null))
 			for (c in n.children)
 				restyleTree(c);
 		if (relational & PARENT != 0)
 			for (c in n.children)
 				@:privateAccess c.restyleLater();
-		if (relational & PEER != 0 && n.attr("peer") != null && n.parent != null) {
+		if (relational & PREV != 0 && n.parent != null) after(n.parent, n.parent.indexOf(n) + 1);
+		if (relational & PEER != 0 && marked(n, "peer", null) && n.parent != null) {
 			var after = false;
 			for (c in n.parent.children) {
 				if (after) restyleTree(c);
@@ -400,9 +428,14 @@ class Rules {
 	}
 
 	// (parent's children changed, child put in or taken out, first and last
-	// maybe others: theirs, the peers' siblings', and the ancestors' has rules, restyled)
-	@:allow(hxmc.ui.Node) static function placed(parent:Node, child:Null<Node>, first:Null<Node>, last:Null<Node>) {
+	// maybe others, next the child after where it was or is: theirs, the
+	// peers' siblings', and the ancestors' has rules, restyled)
+	@:allow(hxmc.ui.Node) static function placed(parent:Node, child:Null<Node>, first:Null<Node>, last:Null<Node>, ?next:Node) {
 		if (relational == 0 || parent.ui == null) return;
+		if (relational & PREV != 0) {
+			if (next != null) after(parent, parent.indexOf(next));
+			if (child == null) for (c in parent.children) @:privateAccess c.restyleLater();
+		}
 		if (relational & PLACE != 0) {
 			if (first != null) @:privateAccess first.restyleLater();
 			if (last != null) @:privateAccess last.restyleLater();
@@ -412,7 +445,7 @@ class Rules {
 				@:privateAccess c[c.length - 1].restyleLater();
 			}
 		}
-		if (relational & PEER != 0 && (child == null ? Lambda.exists(parent.children, c -> c.attr("peer") != null) : child.attr("peer") != null))
+		if (relational & PEER != 0 && (child == null ? Lambda.exists(parent.children, c -> marked(c, "peer", null)) : marked(child, "peer", null)))
 			for (c in parent.children)
 				restyleTree(c);
 		if (relational & HAS != 0) {
@@ -548,13 +581,128 @@ private class Merge {
 private class Indexed {
 	public final variant:Null<String>;
 	public final size:Null<String>;
-	public final when:Null<Array<String>>;
+	// (its states parsed, the pseudo-elements' left out: null, none)
+	public final conds:Null<Array<Cond>>;
 	public final rule:Rule;
 
 	public function new(r:Rule) {
 		variant = r.variant;
 		size = r.size;
-		when = r.when;
+		var cs = r.when == null ? [] : [for (w in r.when) if (w != "placeholder" && w != "selection") Cond.of(w)];
+		conds = cs.length == 0 ? null : cs;
 		rule = r;
+	}
+}
+
+// (a rule's state parsed once (Rules.holds): its kind, and an attribute's
+// name and value, a breakpoint's width, a relation's inner state or states)
+private class Cond {
+	public static inline var NEVER = 0;
+	public static inline var HOVER = 1;
+	public static inline var ACTIVE = 2;
+	public static inline var FOCUS = 3;
+	public static inline var FOCUS_VISIBLE = 4;
+	public static inline var DISABLED = 5;
+	public static inline var DARK = 6;
+	public static inline var RTL = 7;
+	public static inline var WIDE = 8;
+	public static inline var STARTING = 9;
+	public static inline var LTR = 10;
+	public static inline var FIRST = 11;
+	public static inline var LAST = 12;
+	public static inline var SVG = 13;
+	public static inline var NOT = 14;
+	public static inline var PARENT = 15;
+	public static inline var PREV = 16;
+	public static inline var GROUP = 17;
+	public static inline var PEER = 18;
+	public static inline var HAS_CHILD = 19;
+	public static inline var HAS = 20;
+	public static inline var SLOTTED = 21;
+	public static inline var SLOT = 22;
+	public static inline var VARIANT = 23;
+	public static inline var SIZE = 24;
+	public static inline var ATTR = 25;
+
+	public var kind = NEVER;
+	public var name:Null<String> = null;
+	public var value:Null<String> = null;
+	public var width = 0.0;
+	public var inner:Null<Cond> = null;
+	public var all:Null<Array<Cond>> = null;
+
+	function new() {}
+
+	static final parsed = new Map<String, Cond>();
+
+	// (a state as Rules writes it: "hover", "parent:data-slot=x", "has:>a&b"...)
+	public static function of(w:String):Cond {
+		var c = parsed.get(w);
+		if (c != null) return c;
+		c = new Cond();
+		parsed.set(w, c);
+		c.kind = switch w {
+			case "hover": HOVER;
+			case "active": ACTIVE;
+			case "focus": FOCUS;
+			case "focus-visible": FOCUS_VISIBLE;
+			case "disabled": DISABLED;
+			case "dark": DARK;
+			case "rtl": RTL;
+			case "starting": STARTING;
+			case "ltr": LTR;
+			case "first": FIRST;
+			case "last": LAST;
+			case "svg": SVG;
+			case "sm" | "md" | "lg" | "xl" | "2xl":
+				c.width = Ui.BREAKPOINTS.get(w);
+				WIDE;
+			case _: NEVER;
+		}
+		if (c.kind != NEVER) return c;
+		var colon = w.indexOf(":");
+		if (colon > 0) {
+			var head = w.substr(0, colon), inner = w.substr(colon + 1);
+			var slash = head.indexOf("/");
+			if (slash >= 0) {
+				c.name = head.substr(slash + 1);
+				head = head.substr(0, slash);
+			}
+			inline function list(s:String):Array<Cond>
+				return [for (p in s.split("&")) of(p)];
+			switch head {
+				case "not" | "parent" | "group" | "peer":
+					c.kind = head == "not" ? NOT : head == "parent" ? PARENT : head == "group" ? GROUP : PEER;
+					c.inner = of(inner);
+				case "prev":
+					c.kind = PREV;
+					c.all = list(inner);
+				case "has":
+					var child = StringTools.startsWith(inner, ">");
+					c.kind = child ? HAS_CHILD : HAS;
+					c.all = list(child ? inner.substr(1) : inner);
+				case _:
+			}
+			return c;
+		}
+		var eq = w.indexOf("=");
+		if (eq < 0) {
+			if (w == "data-slot") c.kind = SLOTTED else {
+				c.kind = ATTR;
+				c.name = w;
+			}
+			return c;
+		}
+		var key = w.substr(0, eq);
+		c.value = w.substr(eq + 1);
+		switch key {
+			case "data-slot": c.kind = SLOT;
+			case "variant": c.kind = VARIANT;
+			case "size": c.kind = SIZE;
+			case _:
+				c.kind = ATTR;
+				c.name = key;
+		}
+		return c;
 	}
 }

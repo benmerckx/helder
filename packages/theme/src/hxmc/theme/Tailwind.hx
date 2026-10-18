@@ -102,8 +102,6 @@ class Tailwind {
 		// a table's own layout (caption side, collapsed borders, a cell's
 		// vertical alignment): ui's Table lays out its cells
 		"caption-bottom", "border-collapse", "align-middle",
-		// balanced lines: ui's text wraps greedily
-		"text-balance",
 		// visually hidden text for assistive technology: ui's semantics carry it
 		"sr-only",
 		// toggle-group's gap from its spacing prop (--gap), 0 unless set: the widget's
@@ -123,7 +121,7 @@ class Tailwind {
 		"file",
 		// arbitrary selectors: icons inside ([&_svg], [&>svg]), the
 		// element type ([a&]), class names ([.border-b]), has-[...] but
-		// has-[>svg] (an icon a child: has:>svg); the children's CHILDREN read first
+		// has-[>svg] (an icon a child: has:>svg), a sibling before's [[x]+&]; the children's CHILDREN read first
 		"[*", "has-[*", "group-has-[*",
 		// container queries (a field's @md/field-group:): no container's width of its own
 		"@*",
@@ -357,7 +355,7 @@ class Tailwind {
 				order.push(ORDER.indexOf("*"));
 				continue;
 			}
-			if (v != "has-[>svg]" && !(~/^(group-)?has-\[/.match(v) && readVariant(v) != null) && matches(IGNORED_VARIANTS, v)) return;
+			if (v != "has-[>svg]" && !(~/^((group-)?has-\[|\[\[.*\]\+&\]$)/.match(v) && readVariant(v) != null) && matches(IGNORED_VARIANTS, v)) return;
 			var r = readVariant(v);
 			if (r == null) {
 				error('unknown variant $v: in $c', at, c.length);
@@ -407,6 +405,11 @@ class Tailwind {
 			return ORDER.indexOf(name);
 		if (STATES.contains(v)) return {order: ord(v), state: v};
 		if (v == "has-[>svg]") return {order: ord("has"), state: "has:>svg"};
+		// ([[data-variant=legend]+&]: the sibling before's attributes and states, "prev:variant=legend")
+		if (v.startsWith("[[") && v.endsWith("]+&]")) {
+			var s = hasSelector(v.substring(1, v.length - 3));
+			return s == null ? null : {order: ord("*"), state: "prev:" + s.replace("data-variant=", "variant=").replace("data-size=", "size=")};
+		}
 		// (has-[...] of a simple selector: a child's (>) or a descendant's attributes and states, "has:>data-slot=x&focus-visible")
 		if (v.startsWith("has-[") && v.endsWith("]")) {
 			var s = hasSelector(v.substring(5, v.length - 1));
@@ -561,6 +564,7 @@ class Tailwind {
 			case "not-italic": set("italic", VBool(false));
 			case "whitespace-nowrap" | "text-nowrap": en("textWrap", "TextWrap", "NoWrap");
 			case "whitespace-normal" | "text-wrap": en("textWrap", "TextWrap", "Wrap");
+			case "text-balance": en("textWrap", "TextWrap", "Balance");
 			case "truncate":
 				en("overflow", "Overflow", "Hidden");
 				en("textOverflow", "TextOverflow", "Ellipsis");

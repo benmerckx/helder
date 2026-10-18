@@ -86,8 +86,14 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 			case "field": new hxmc.ui.widgets.TextField();
 			case "field:textarea": new hxmc.ui.widgets.TextArea();
 			// (the neutral elements' DOM names: a view or text here, their element in a page)
-			case t if (StringTools.startsWith(t, "view:")): new Node(t.substr(5));
-			case t if (StringTools.startsWith(t, "text:")): new TextNode("", t.substr(5));
+			case t if (StringTools.startsWith(t, "view:")):
+				var n = new Node(t.substr(5));
+				n.legend = t == "view:legend";
+				n;
+			case t if (StringTools.startsWith(t, "text:")):
+				var n = new TextNode("", t.substr(5));
+				n.legend = t == "text:legend";
+				n;
 			case _: registered(tag);
 		}
 

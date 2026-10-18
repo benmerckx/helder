@@ -740,6 +740,10 @@ class TextLayout {
 				e--;
 			}
 			visible = x - trailing;
+			// (a right-to-left base's trailing spaces, visually first: hung before the line's start, the rest from 0, as Chromium's)
+			if (base & 1 == 1 && trailing > 0)
+				for (k in 0...end - start)
+					l.glyphs[k].x -= trailing;
 		} else
 			for (i in start...end) {
 				var g = gs[i];

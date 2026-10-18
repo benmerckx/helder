@@ -134,11 +134,29 @@ class TextNode extends Node {
 	public function textIndexAt(px:Float, py:Float):Int {
 		if (paragraph == null) return 0;
 		var s = style, x = localX(px, py) - s.borderEdges.left - s.padding.left, y = localY(px, py) - s.borderEdges.top - s.padding.top;
+		y -= topOffset(paragraph, contentBoxHeight());
 		return paragraph.hit(x - alignOffset(paragraph, y, contentBoxWidth()), y);
 	}
 
 	inline function contentBoxWidth():Float
 		return Math.max(0, width - style.borderEdges.horizontal - style.padding.left - style.padding.right);
+
+	inline function contentBoxHeight():Float
+		return Math.max(0, height - style.borderEdges.vertical - style.padding.top - style.padding.bottom);
+
+	// where its text starts down a box height high: as CSS's anonymous flex
+	// or grid item of a container's text, where align-items (a row's, a
+	// grid's) or justify-content (a column's) places it; else at the top
+	function topOffset(p:Paragraph, height:Float):Float {
+		var s = style, free = height - p.height;
+		if (free <= 0) return 0;
+		var row = s.direction == Row || s.direction == RowReverse;
+		return switch s.display {
+			case Grid | Flex if (row || s.display == Grid): s.alignItems == Center ? free / 2 : s.alignItems == End ? free : 0;
+			case Flex: s.justify == Center ? free / 2 : s.justify == End ? free : 0;
+			case _: 0;
+		}
+	}
 
 	// where the line at y starts in a box width wide, as the text is drawn aligned
 	function alignOffset(p:Paragraph, y:Float, width:Float):Float {
@@ -151,6 +169,7 @@ class TextNode extends Node {
 		var own = super.hitTest(px, py);
 		if (own != this || children.length == 0 || paragraph == null) return own;
 		var s = style, x = localX(px, py) - s.borderEdges.left - s.padding.left, y = localY(px, py) - s.borderEdges.top - s.padding.top;
+		y -= topOffset(paragraph, contentBoxHeight());
 		var i = paragraph.hit(x - alignOffset(paragraph, y, contentBoxWidth()), y);
 		var c = paragraph.caret(i);
 		// (the hit's character: before the caret it gave when that is right of the point)
@@ -194,6 +213,18 @@ class TextNode extends Node {
 			return a == b || (Math.isNaN(a) && Math.isNaN(b));
 		if (paragraph != null && laidText == text && f.equals(laidFont) && same(w, laidWidth) && same(cut, laidCut)) return paragraph;
 		paragraph = engine.layout(shown, f, w, spans, clamp, justify, base, Math.isNaN(cut) ? -1 : cut);
+		// (balanced: two to six lines at the narrowest width, to 1/64 pixel, that keeps their number, as Chromium's)
+		var n = paragraph.lineCount;
+		if (n > 1 && n <= 6 && clamp <= 0 && !Math.isNaN(w) && textWrap() == Balance) {
+			var lo = Math.ffloor(Math.max(paragraph.minWidth, mp.width / n) * 64), hi = Math.fceil(w * 64);
+			while (hi - lo > 1) {
+				var mid = Math.ffloor((lo + hi) / 2), p = engine.layout(shown, f, mid / 64, spans, clamp, justify, base, Math.isNaN(cut) ? -1 : cut);
+				if (p.lineCount <= n) {
+					hi = mid;
+					paragraph = p;
+				} else lo = mid;
+			}
+		}
 		laidFont = f;
 		laidWidth = w;
 		laidCut = cut;
@@ -233,6 +264,7 @@ class TextNode extends Node {
 		var fits = Math.isNaN(laidWidth) ? paragraph != null && (paragraph.width <= width + 1.5 || !wraps() && style.textOverflow != Ellipsis) : Math.abs(laidWidth - width) < 1.5;
 		if (!Math.isNaN(laidCut)) fits = Math.abs(laidCut - width) < 1.5;
 		var p = paragraph != null && laidText == text && font().equals(laidFont) && fits ? paragraph : layoutText(ui.text, width + 0.5);
+		y += topOffset(p, height);
 		// decorations: its ancestors' and its own over all of it, its spans' over theirs;
 		// underlines and overlines under the glyphs, line-throughs over them
 		var decos = decorations(rich != null ? rich.text.length : length);

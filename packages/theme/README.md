@@ -239,8 +239,9 @@ then Tailwind's order (the rule of a later variant later):
 `group/name:`), `peer-*`, `has-*` (`has-data-[slot=card-action]` is
 `has:data-slot=card-action`), `not-*`; `data-[size=…]` and
 `data-[variant=…]` (also a group's) select the rule's size and variant.
-A group or a peer is a node with a `group` or `peer` attribute: the theme
-cannot mark one, the widget does.
+A group or a peer is a node with a `group` or `peer` attribute, or of a
+slot whose class list carries the marker (`group/item`, `peer`: the
+sheet's `markers`, as a page's CSS reads them).
 
 A rule that sets part of a shorthand (`border-b`, `rounded-t-md`,
 `translate-x-1`, `duration-200` of a transition) takes the other parts
@@ -252,13 +253,14 @@ there: exit animations (ui removes a closed popup), keyframe animations
 `group` and `peer`, container queries (`@container`, `@md/name:`),
 viewport units (`h-svh`), native appearance and list markers, dashed
 borders and a side's border colour, `nth-*`, what Radix's popper measures,
-what has no property yet (`scroll-m*`, `touch-none`), a table's own layout, `text-balance`,
+what has no property yet (`scroll-m*`, `touch-none`), a table's own layout,
 `sr-only`; arbitrary selectors (`[&_svg]:size-4`, `[a&]:hover:`; but
 `has-[>svg]:`, and a slot's children's `[&>*]:`, `[&>*:not(:first-child)]:`,
 `[&>*:not(:last-child)]:`: rules of any slot whose parent is the slot,
 Rules' `parent:`, a side they leave the child's own; and `has-[...]` of
 attributes and states, `has-[[data-slot=x]:focus-visible]`, not of an
-element's type), children's and descendants' (`*:`, `**:`, given to
+element's type; and the sibling before's, `[[data-variant=legend]+&]:`,
+Rules' `prev:`), children's and descendants' (`*:`, `**:`, given to
 the part's own slot where hxmc has one), pseudo-elements (`after:`) and
 `file:`.
 

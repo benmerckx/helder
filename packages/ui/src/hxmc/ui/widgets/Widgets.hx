@@ -136,7 +136,7 @@ class Widgets implements Markup {
 			props.checked.value = was || !props.checked.peek();
 		});
 		// (its indicator centred, as a <button>'s content; Enter not a press, as Radix's)
-		var box = <view:button tag={props.tag ?? "checkbox"} id={props.tag} slot="checkbox" states={props.style} role="checkbox" label={props.label}
+		var box = <view:button tag={props.tag ?? "checkbox"} id={props.tag} slot="checkbox" peer states={props.style} role="checkbox" label={props.label}
 			align-items="center" justify="center" checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state}
 			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} aria-invalid={() -> read(props.invalid) == true ? "true" : null}
 			onKeyDown={e -> if (e.key == Key.ENTER) e.preventDefault()} onPress={_ -> toggle()}>
@@ -170,7 +170,7 @@ class Widgets implements Markup {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
 		var toggle = () -> if (!disabled()) props.checked.value = !props.checked.peek();
-		var track = <view:button tag={props.tag ?? "switch"} id={props.tag} slot="switch" states={props.style} size={props.size ?? "default"} role="switch"
+		var track = <view:button tag={props.tag ?? "switch"} id={props.tag} slot="switch" peer states={props.style} size={props.size ?? "default"} role="switch"
 			label={props.label} checked={() -> props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
 			data-disabled={disabled} onPress={_ -> toggle()}>
 			<view:span slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
@@ -1010,10 +1010,11 @@ class Widgets implements Markup {
 			?tag:String}):View {
 		var tag = props.tag ?? "split", row = props.direction != "column";
 		var size:Signal<Float> = props.size ?? signal(200.0);
-		var lo = props.min ?? 0.0, grip = 6.0;
+		// (the divider a pixel of the layout, as shadcn's handle; its grip wider, over the panes)
+		var lo = props.min ?? 0.0, grip = 5.0, edge = -(grip - 1) / 2;
 		var self:Null<Node> = null;
 		function hi():Float {
-			var room = self == null || self.width <= 0 ? 1e9 : (row ? self.width : self.height) - grip - lo;
+			var room = self == null || self.width <= 0 ? 1e9 : (row ? self.width : self.height) - 1 - lo;
 			return Math.max(lo, props.max == null ? room : Math.min(props.max, room));
 		}
 		function set(v:Float)
@@ -1028,15 +1029,16 @@ class Widgets implements Markup {
 				size.value;
 				hi();
 			}} focusable cursor={row ? "ew-resize" : "ns-resize"} width={row ? (grip : Dynamic) : "auto"} height={row ? "auto" : (grip : Dynamic)} shrink={0}
-				align-items="center" justify="center" onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
+				margin={row ? "0 " + edge + "px" : edge + "px 0"} z-index={1} direction={row ? "row" : "column"} align-items="center" justify="center"
+				onPointerEnter={_ -> hover.value = true} onPointerLeave={_ -> hover.value = false}
 				onPointerDown={e -> {
 					grab = row ? e.localX : e.localY;
 					active.value = true;
 				}} onPointerUp={_ -> active.value = false}
 				onPointerMove={e -> if (active.peek() && self != null) {
-					var at = (row ? self.localX(e.x, e.y) : self.localY(e.x, e.y)) - grab;
+					var at = (row ? self.localX(e.x, e.y) : self.localY(e.x, e.y)) - grab - edge;
 					// (right to left, the first pane on the right)
-					set(row && self.rtl() ? self.width - grip - at : at);
+					set(row && self.rtl() ? self.width - 1 - at : at);
 				}}
 				onKeyDown={e -> {
 					var v = switch row ? mirrored(e) : e.key {
@@ -1089,7 +1091,7 @@ class Widgets implements Markup {
 			"Enter, Space": "choose the marked day; on a month arrow, show the month before or after"
 		}
 	})
-	public static function Calendar(props:{?value:Signal<Null<Day>>, ?range:Signal<DayRange>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void,
+	@:neutral public static function Calendar(props:{?value:Signal<Null<Day>>, ?range:Signal<DayRange>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void,
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "calendar", first = props.firstDay ?? 1;
 		var now = Date.now();
@@ -1117,7 +1119,7 @@ class Widgets implements Markup {
 		function month(delta:Int)
 			cursor.value = Behaviour.addMonths(cursor.peek(), delta);
 		function key(e:Event) {
-			var c = cursor.peek(), k = mirrored(e), to = Behaviour.calendarKey(k, c, first);
+			var c = cursor.peek(), k = mirroredKey(e), to = Behaviour.calendarKey(k, c, first);
 			if (to != null) cursor.value = to else switch k {
 				case Key.PAGE_UP: month(-1);
 				case Key.PAGE_DOWN: month(1);
@@ -1145,16 +1147,16 @@ class Widgets implements Markup {
 			var r = range == null ? null : range.value;
 			return r != null && r.from != null && r.to != null && n > Days.of(r.from) && n < Days.of(r.to) ? "true" : null;
 		};
-		return <view tag={tag} slot="calendar">
+		var caption = () -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year;
+		return <view tag={tag} id={props.tag} slot="calendar">
 			<view slot="calendar-nav">
-				<view tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" focusable onClick={_ -> month(-1)}
-					onKeyDown={e -> pressKeys(e, () -> month(-1))}>{icon(CHEVRON_LEFT, "calendar-button-icon")}</view>
-				<text tag={tag + "-month"} slot="calendar-caption-label">{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
-				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable onClick={_ -> month(1)}
-					onKeyDown={e -> pressKeys(e, () -> month(1))}>{icon(CHEVRON_RIGHT, "calendar-button-icon")}</view>
+				<view:button tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" focusable
+					onPress={_ -> month(-1)}><icon slot="calendar-button-icon" name="chevron-left" width={16} height={16} hidden/></view:button>
+				<text tag={tag + "-month"} slot="calendar-caption-label" live="polite">{caption}</text>
+				<view:button tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable
+					onPress={_ -> month(1)}><icon slot="calendar-button-icon" name="chevron-right" width={16} height={16} hidden/></view:button>
 			</view>
-			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}
-				onFocus={_ -> focused.value = true} onBlur={_ -> focused.value = false}>
+			<view tag={tag + "-grid"} role="grid" label={caption} focusable onKeyDown={key} onFocus={_ -> focused.value = true} onBlur={_ -> focused.value = false}>
 				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
 					for (n in names)
 						<view slot="calendar-weekday" role="columnheader" text-align="center">{n}</view>
@@ -1165,7 +1167,7 @@ class Widgets implements Markup {
 							for (k in 0...7) {
 								var at = () -> gridStart() + w * 7 + k;
 								var inMonth = () -> Days.day(at()).month == shown.value.month;
-								<view tag={tag + "-day"} role="cell" label={() -> {
+								<view:button tag={tag + "-day"} role="gridcell" variant="ghost" size="icon" focusable={false} label={() -> {
 									var d = Days.day(at());
 									d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
 								}} slot="calendar-day" selected={() -> chosen(at())} data-selected={() -> chosen(at()) ? "true" : null}
@@ -1173,7 +1175,7 @@ class Widgets implements Markup {
 									data-focused={() -> focused.value && cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
 									data-range-end={() -> edge(at(), false)} data-range-middle={() -> middle(at())} onClick={_ -> choose(at())}>
 									{() -> "" + Days.day(at()).day}
-								</view>;
+								</view:button>;
 							}
 						]}</view>
 				]}
@@ -1242,17 +1244,17 @@ class Widgets implements Markup {
 			label: "its name for assistive technology"
 		}
 	})
-	public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
-		var known = () -> Render.read(props.value) != null;
+	@:neutral public static function Progress(props:{value:Dynamic, ?width:Float, ?label:String, ?style:States->StyleProps, ?tag:String}):View {
+		var known = () -> read(props.value) != null;
 		var frac = () -> {
-			var v:Null<Float> = Render.read(props.value);
+			var v:Null<Float> = read(props.value);
 			v == null ? 0.0 : v < 0 ? 0.0 : v > 1 ? 1.0 : v;
 		};
 		var phase = signal(0.0), running = false, stopped = false;
 		effect(() -> if (!known() && !running) {
 			running = true;
 			var start = -1.0;
-			Clock.add(now -> {
+			frames(now -> {
 				if (stopped || untrack(known)) return running = false;
 				if (start < 0) start = now;
 				phase.value = ((now - start) % 1.5) / 1.5;
@@ -1260,8 +1262,9 @@ class Widgets implements Markup {
 			});
 		});
 		onCleanup(() -> stopped = true);
-		return <view tag={props.tag ?? "progress"} ref={n -> States.apply(n, props.style)} role="progressbar" label={props.label} value-now={() -> known() ? frac() : null} value-min={0} value-max={1}
-			slot="progress" width={props.width} overflow="hidden" direction="row">
+		return <view tag={props.tag ?? "progress"} id={props.tag} states={props.style} slot="progress" role="progressbar" label={props.label}
+			value-now={() -> known() ? Math.round(frac() * 100) : null} value-min={0} value-max={100}
+			data-state={() -> known() ? (frac() >= 1 ? "complete" : "loading") : "indeterminate"} width={props.width} overflow="hidden" direction="row">
 			<view slot="progress-indicator" transform={() -> "translateX(" + (-(1 - frac()) * 100) + "%)"}/>
 			{() -> known() ? null : <view tag="progress-slide" slot="progress-indicator" data-state="indeterminate" position="absolute" top={0} bottom={0}
 				width="40%" left={() -> ((phase.value * 1.4 - 0.4) * 100) + "%"}/>}
@@ -2073,6 +2076,17 @@ class Widgets implements Markup {
 		return Behaviour.mirror(e.key, #if js js.Syntax.code("getComputedStyle({0}.current).direction == 'rtl'", e) #else e.current.rtl() #end);
 
 	// (a neutral widget's time, in seconds: Ui.now, a page's the clock's)
+	// (f each frame, given the time in seconds, until it returns false: ui's Clock, a page's animation frames)
+	static function frames(f:Float->Bool) {
+		#if js
+		function step(t:Float)
+			if (f(t / 1000)) js.Browser.window.requestAnimationFrame(step);
+		js.Browser.window.requestAnimationFrame(step);
+		#else
+		Clock.add(f);
+		#end
+	}
+
 	static inline function clock():Float
 		return #if js haxe.Timer.stamp() #else Ui.now() #end;
 
@@ -3229,7 +3243,7 @@ class Widgets implements Markup {
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["calendar-button-icon", "tree-toggle-icon", "sidebar-trigger-icon",
+			for (s in ["tree-toggle-icon", "sidebar-trigger-icon",
 				"navigation-menu-trigger-icon", "carousel-icon"])
 				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
@@ -4151,7 +4165,7 @@ class Widgets implements Markup {
 		Rules.addBase("sidebar", [{slot: "sidebar", when: ["data-collapsible=offcanvas"], style: {display: None}}]);
 		var open = use(SIDEBAR) ?? signal(true), collapsible = props.collapsible ?? "offcanvas";
 		var expanded = () -> collapsible == "none" || open.value;
-		return <view tag={props.tag ?? "sidebar"} slot="sidebar" group="sidebar" role="navigation" label={props.label ?? "Sidebar"}
+		return <view tag={props.tag ?? "sidebar"} slot="sidebar" group="sidebar" peer role="navigation" label={props.label ?? "Sidebar"}
 			data-state={() -> expanded() ? "expanded" : "collapsed"} data-collapsible={() -> expanded() ? null : collapsible}
 			variant={props.variant ?? "sidebar"} data-variant={props.variant ?? "sidebar"} data-side={props.side ?? "left"}>
 			<view slot="sidebar-gap" variant={props.variant ?? "sidebar"}/>

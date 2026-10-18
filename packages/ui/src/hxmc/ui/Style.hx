@@ -274,7 +274,8 @@ class Style {
 
 	// whether text wraps at its box's width, inherited (null: the parent's;
 	// Wrap at the root; CSS's text-wrap-mode): NoWrap lays each line out
-	// whole, its min-content width that wide (line breaks still break)
+	// whole, its min-content width that wide (line breaks still break);
+	// Balance wraps it into lines of about one width (TextWrap)
 	public var textWrap(get, set):Null<TextWrap>;
 
 	// where a word too wide for its line may be cut, inherited (null: the

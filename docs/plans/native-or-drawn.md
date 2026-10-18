@@ -160,10 +160,11 @@ markup's unless it prevented the default; `placeholder`, `type`, `rows`,
 `readonly`, `maxlength`, `inputmode`, `autocomplete`; Part's `select`
 for InputOTP's caret kept at the end; what a page's input has itself, ui's
 in Widgets' fieldOwn: out of the tab order while disabled, the edit
-menu); ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination,
-Collapsible and the Sidebar's parts (Inset, Header, Content, Footer,
+menu), Progress (its slide on ui's Clock or a page's animation frames);
+ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination, Collapsible,
+Calendar and the Sidebar's parts (Inset, Header, Content, Footer,
 Separator, Group, GroupLabel, GroupContent, Menu, MenuItem, MenuButton):
-73 widgets and parts one definition.
+75 widgets and parts one definition.
 
 Debt: in a page a neutral widget calls a Part's methods (focus, rtl,
 select) and reads an event's `current` opaquely (`js.Syntax.code`:

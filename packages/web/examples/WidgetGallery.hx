@@ -124,6 +124,7 @@ class WidgetGallery implements Markup {
 				<div style="display:flex;flex-direction:column;gap:14px">
 					<div style={ROW}><Slider tag="volume" value={volume} step={0.05} width={200} label="Volume"/><span id="volume-shown" style="opacity:.7">{() -> Math.round(volume.value * 100) + "%"}</span></div>
 					<Progress value={volume} width={200}/>
+					<Progress tag="loading" value={null} width={200} label="Loading"/>
 					<div style={ROW}><RangeSlider tag="price" low={priceLow} high={priceHigh} min={0} max={100} step={5} width={200} label="Price"/><span id="price-shown" style="opacity:.7">{() -> priceLow.value + "–" + priceHigh.value}</span></div>
 				</div>
 				<ColorPicker tag="colour" value={colour} size={130} label="Accent"/>
