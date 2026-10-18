@@ -144,6 +144,38 @@ class PhysicsTest {
 		var endHit = cr.raycast(new Vec3(0, 5, 0), new Vec3(0, -1, 0)), side = cr.raycast(new Vec3(-5, 0.7, 0), new Vec3(1, 0, 0));
 		check("a capsule's raycasts: its end, its side", endHit != null && near(endHit.distance, 3.5, 1e-9) && side != null && near(side.distance, 4.5, 1e-9)
 			&& cr.raycast(new Vec3(-5, 1.6, 0), new Vec3(1, 0, 0)) == null);
+		// a character walks, stops at a wall and jumps
+		var chw = new PhysicsWorld();
+		chw.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
+		chw.add(new Body(Box(new Vec3(0.5, 2, 3)), new Vec3(6, 2, 0), 0));
+		var hero = new Character(chw, new Vec3(0, 0.95, 0));
+		for (_ in 0...30) {
+			hero.update(dt, new Vec3(0, 0, 0), false);
+			chw.step(dt);
+		}
+		check("a character stands on the ground", hero.grounded && near(hero.body.position.y, 0.9, 0.01));
+		for (_ in 0...60) {
+			hero.update(dt, new Vec3(1, 0, 0), false);
+			chw.step(dt);
+		}
+		check('walks at its speed (${Math.round(hero.body.velocity.x * 100) / 100} m/s)', near(hero.body.velocity.x, hero.speed, 0.05) && hero.grounded);
+		for (_ in 0...120) {
+			hero.update(dt, new Vec3(1, 0, 0), false);
+			chw.step(dt);
+		}
+		check('stops at the wall (x ${Math.round(hero.body.position.x * 1000) / 1000})', near(hero.body.position.x, 5.5 - 0.3, 0.03)
+			&& hero.body.orientation.rotate(new Vec3(0, 1, 0)).y > 0.9999);
+		var peak = 0.0;
+		hero.update(dt, new Vec3(0, 0, 0), true);
+		chw.step(dt);
+		check("leaves the ground", !hero.grounded);
+		for (_ in 0...90) {
+			hero.update(dt, new Vec3(0, 0, 0), false);
+			chw.step(dt);
+			peak = Math.max(peak, hero.body.position.y - 0.9);
+		}
+		var expected = hero.jumpSpeed * hero.jumpSpeed / (2 * 9.81);
+		check('jumps about v^2 / 2g high (${Math.round(peak * 100) / 100} m)', near(peak, expected, 0.1) && hero.grounded);
 		// determinism: a pile of balls in a box of planes
 		var pile = new PhysicsWorld();
 		pile.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));

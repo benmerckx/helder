@@ -7,7 +7,7 @@ import hxmc.scene.math.Quat;
 // A small rigid-body world (docs/plans/3d.md, step 6): bodies under
 // gravity, stepped at a fixed rate (hxmc.scene.FixedStep's dt): velocities
 // integrated (semi-implicit Euler, orientations too), contacts found
-// (a sweep-and-prune broad phase, then Collide: spheres, boxes, planes), resolved by sequential impulses at the contact points (linear
+// (a sweep-and-prune broad phase, then Collide: spheres, boxes, capsules, planes), resolved by sequential impulses at the contact points (linear
 // and angular: boxes tumble) with restitution and friction, the impulses
 // accumulated and clamped over the iterations, overlap pushed apart,
 // resting bodies put to sleep. A body added with a node moves and turns
@@ -185,12 +185,14 @@ class PhysicsWorld {
 		}
 	}
 
-	// the first body a ray hits (dir of any length but zero), within maxDistance
-	public function raycast(origin:Vec3, dir:Vec3, maxDistance = 1e9):Null<{body:Body, distance:Float, point:Vec3}> {
+	// the first body a ray hits (dir of any length but zero), within
+	// maxDistance (ignore: a body left out, as a character's own)
+	public function raycast(origin:Vec3, dir:Vec3, maxDistance = 1e9, ?ignore:Body):Null<{body:Body, distance:Float, point:Vec3}> {
 		var l = Math.sqrt(dot(dir, dir));
 		var d = dir / l;
 		var best:Null<Body> = null, bestT = maxDistance;
 		for (b in bodies) {
+			if (b == ignore) continue;
 			var t = Collide.ray(b, origin, d);
 			if (t >= 0 && t < bestT) {
 				bestT = t;

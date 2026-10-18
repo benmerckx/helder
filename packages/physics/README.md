@@ -21,7 +21,7 @@ and box, by corners: edge crossings are missed; capsules as spheres at their seg
 sequential impulses at the contact points, accumulated and clamped, with
 restitution and friction; resting bodies sleep and wake on contact or
 impulse; the same steps give the same numbers on every target (Eval,
-native, wasm32-wasi: tested). Next: convex hulls (GJK and EPA), box edge contacts, a character controller; a binding to an
+native, wasm32-wasi: tested). `Character` walks an upright capsule: steered towards a wanted velocity, grounded by a ray, jumping. Next: convex hulls (GJK and EPA), box edge contacts, slopes and steps for characters; a binding to an
 established engine behind the same API later.
 
 Tests: `test/PhysicsTest.hx` and the Falling example's frame
