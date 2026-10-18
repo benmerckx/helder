@@ -59,6 +59,7 @@ class UiTest {
 		culling();
 		inPlace();
 		restyled();
+		editing();
 		selection();
 		fields();
 		popups();
@@ -912,6 +913,99 @@ class UiTest {
 		var placed = Layout.inPlaces - was;
 		check("in place: drawn and told assistive technology as from the root, " + steps + " changes", drawn == 0, drawn + " differ, the first: " + drawnFirst);
 		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
+	}
+
+	// a field edited at random (typing, an emoji of two UTF-16 units among
+	// the letters, the arrows, Home and End with Shift or not, Backspace,
+	// Delete, select all) against a string: its text, caret and anchor each
+	// step; then undone back to empty and redone to the end
+	static function editing() {
+		var seed = 11, bad = 0, first = "";
+		function rnd(n:Int):Int {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			return (seed >> 8) % n;
+		}
+		for (round in 0...20) {
+			var ui = new Ui(new MonoText(), 300, 100);
+			var f = new TextField("");
+			ui.root.append(f);
+			ui.update();
+			ui.setFocus(f);
+			var text = "", caret = 0, anchor = 0;
+			inline function low(i:Int):Bool
+				return i >= 0 && i < text.length && StringTools.fastCodeAt(text, i) >= 0xDC00 && StringTools.fastCodeAt(text, i) <= 0xDFFF;
+			function prev(i:Int):Int
+				return i <= 0 ? 0 : low(i - 1) ? i - 2 : i - 1;
+			function next(i:Int):Int
+				return i >= text.length ? text.length : low(i + 1) ? i + 2 : i + 1;
+			function over(s:String) {
+				var a = caret < anchor ? caret : anchor, b = caret < anchor ? anchor : caret;
+				text = text.substring(0, a) + s + text.substring(b);
+				caret = anchor = a + s.length;
+			}
+			for (step in 0...60) {
+				var what;
+				switch rnd(9) {
+					case 0 | 1 | 2:
+						var c = rnd(8) == 0 ? 0x1F600 : rnd(5) == 0 ? 32 : "a".code + rnd(26);
+						ui.keyDown(c, 0);
+						ui.textInput(String.fromCharCode(c));
+						over(String.fromCharCode(c));
+						what = "typed";
+					case 3:
+						var shift = rnd(2) == 0;
+						ui.keyDown(Key.LEFT, shift ? Key.MOD_SHIFT : 0);
+						caret = caret != anchor && !shift ? (caret < anchor ? caret : anchor) : prev(caret);
+						if (!shift) anchor = caret;
+						what = "left";
+					case 4:
+						var shift = rnd(2) == 0;
+						ui.keyDown(Key.RIGHT, shift ? Key.MOD_SHIFT : 0);
+						caret = caret != anchor && !shift ? (caret < anchor ? anchor : caret) : next(caret);
+						if (!shift) anchor = caret;
+						what = "right";
+					case 5:
+						var shift = rnd(2) == 0, end = rnd(2) == 0;
+						ui.keyDown(end ? Key.END : Key.HOME, shift ? Key.MOD_SHIFT : 0);
+						caret = end ? text.length : 0;
+						if (!shift) anchor = caret;
+						what = end ? "end" : "home";
+					case 6:
+						ui.keyDown(Key.BACKSPACE, 0);
+						if (caret == anchor) anchor = prev(caret);
+						over("");
+						what = "backspace";
+					case 7:
+						ui.keyDown(Key.DELETE, 0);
+						if (caret == anchor) anchor = next(caret);
+						over("");
+						what = "delete";
+					case _:
+						ui.keyDown("a".code, Key.MOD_CONTROL);
+						anchor = 0;
+						caret = text.length;
+						what = "select all";
+				}
+				ui.update();
+				if (f.text != text || f.caret != caret || f.anchor != anchor) {
+					bad++;
+					if (first == "") first = 'round $round step $step ($what): "${f.text}" ${f.caret}/${f.anchor}, not "$text" $caret/$anchor';
+					break;
+				}
+			}
+			// (undone to the start, redone to the end)
+			var end = f.text;
+			for (i in 0...200)
+				ui.keyDown("z".code, Key.MOD_CONTROL);
+			var undone = f.text;
+			for (i in 0...200)
+				ui.keyDown("z".code, Key.MOD_CONTROL | Key.MOD_SHIFT);
+			if (undone != "" || f.text != end) {
+				bad++;
+				if (first == "") first = 'round $round: undone to "$undone", redone to "${f.text}", not "$end"';
+			}
+		}
+		check("editing: a field edited at random as a string is", bad == 0, bad + " differ, the first: " + first);
 	}
 
 	// the theme's rules restyling what a change reaches (Rules: other nodes'
