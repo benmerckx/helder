@@ -163,9 +163,9 @@ in Widgets' fieldOwn: out of the tab order while disabled, the edit
 menu), Progress (its slide on ui's Clock or a page's animation frames);
 ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination, Collapsible,
 Accordion, Calendar, Spinner (turned on ui's Clock, a page's by its theme's
-animate-spin) and the Sidebar's parts (Inset, Header, Content, Footer,
+animate-spin) and the Sidebar's parts (Trigger, Inset, Header, Content, Footer,
 Separator, Group, GroupLabel, GroupContent, Menu, MenuItem, MenuButton):
-77 widgets and parts one definition.
+78 widgets and parts one definition.
 
 Debt: in a page a neutral widget calls a Part's methods (focus, rtl,
 select) and reads an event's `current` opaquely (`js.Syntax.code`:

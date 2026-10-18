@@ -52,7 +52,6 @@ class Widgets implements Markup {
 	static final ARROW_RIGHT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>');
 	static final ARROW_UP = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>');
 	static final ARROW_DOWN = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>');
-	static final PANEL_LEFT = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>');
 
 	// a button (shadcn's): its label or children; variant "default" (the
 	// main action), "destructive", "outline", "secondary", "ghost" or
@@ -3244,7 +3243,7 @@ class Widgets implements Markup {
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["tree-toggle-icon", "sidebar-trigger-icon",
+			for (s in ["tree-toggle-icon",
 				"navigation-menu-trigger-icon", "carousel-icon"])
 				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
@@ -4119,8 +4118,8 @@ class Widgets implements Markup {
 
 	// --- shadcn's Sidebar ---
 
-	// (the open sidebar's signal, for its trigger and parts: SidebarProvider's)
-	static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
+	// (the open sidebar's signal, for its trigger and parts: SidebarProvider's, ui's and a page's)
+	public static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
 
 	// a sidebar's layout (shadcn's SidebarProvider): open, a signal (its own
 	// when not given), shared with the Sidebar, SidebarTrigger and the parts
@@ -4187,11 +4186,11 @@ class Widgets implements Markup {
 		},
 		part: "SidebarProvider"
 	})
-	public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
+	@:neutral public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
 		var open = use(SIDEBAR);
-		var toggle = () -> if (open != null) open.value = !open.peek();
-		return <view tag={props.tag ?? "sidebar-trigger"} slot="sidebar-trigger" variant="ghost" size="icon" role="button" label={props.label ?? "Toggle Sidebar"}
-			focusable expanded={() -> open != null && open.value} onClick={_ -> toggle()} onKeyDown={e -> pressKeys(e, toggle)}>{icon(PANEL_LEFT, "sidebar-trigger-icon")}</view>;
+		return <view:button tag={props.tag ?? "sidebar-trigger"} id={props.tag} slot="sidebar-trigger" data-sidebar="trigger" variant="ghost" size="icon"
+			role="button" label={props.label ?? "Toggle Sidebar"} focusable expanded={() -> open != null && open.value}
+			onPress={_ -> if (open != null) open.value = !open.peek()}><icon slot="sidebar-trigger-icon" name="panel-left" width={16} height={16} hidden/></view:button>;
 	}
 
 	@:widget({props: {children: "the page beside the sidebar"}, part: "SidebarProvider"})

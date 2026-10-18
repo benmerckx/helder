@@ -15,6 +15,7 @@ import hxmc.ui.widgets.Toasts.Toast;
 import hxmc.ui.widgets.Widgets.Button;
 import hxmc.ui.widgets.Widgets.Calendar;
 import hxmc.ui.widgets.Widgets.Input;
+import hxmc.ui.widgets.Widgets.SIDEBAR;
 import hxmc.view.*;
 import hxmc.view.Flow.*;
 import hxmc.view.Reactive.*;
@@ -1409,9 +1410,6 @@ class Widgets implements Markup {
 
 	// --- shadcn's Sidebar ---
 
-	// (the open sidebar's signal: SidebarProvider's)
-	static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
-
 	// a sidebar's layout (shadcn's SidebarProvider): open shared with its
 	// Sidebar and SidebarTrigger; Mod+B toggles it from anywhere
 	public static function SidebarProvider(props:{?open:Signal<Bool>, ?children:Any, ?tag:String}):View {
@@ -1442,13 +1440,6 @@ class Widgets implements Markup {
 				<div data-slot="sidebar-inner" data-sidebar="sidebar">{props.children}</div>
 			</nav>
 		</div>;
-	}
-
-	// the button that toggles the sidebar (a ghost icon button)
-	public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
-		var open = use(SIDEBAR);
-		return <button type="button" id={props.tag} data-slot="sidebar-trigger" data-sidebar="trigger" aria-label={props.label ?? "Toggle Sidebar"}
-			aria-expanded={() -> open != null && open.value ? "true" : "false"} onClick={() -> if (open != null) open.value = !open.peek()}>{icon("panel-left")}</button>;
 	}
 
 	// --- charts (shadcn's Chart's look, recharts' kinds) ---
