@@ -3609,6 +3609,64 @@ class Widgets implements Markup {
 	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
 		return <view tag={props.tag ?? "item-footer"} slot="item-footer">{props.children}</view>;
 
+	// a box kept to a ratio of width to height (shadcn's AspectRatio): as
+	// wide as its parent gives it, as tall as the ratio says; its child
+	// fills it. Slot "aspect-ratio"
+	@:widget({
+		props: {
+			ratio: "width over height (16 / 9: 1.78; 1 when not given)",
+			children: "what fills it: an image, a video"
+		}
+	})
+	public static function AspectRatio(props:{?ratio:Float, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "aspect-ratio"} slot="aspect-ratio" aspect-ratio={props.ratio ?? 1.0} position="relative" overflow="hidden">
+			{props.children}
+		</view>;
+
+	// a scrolled area (shadcn's ScrollArea): its children in a viewport
+	// that scrolls, vertically (the default), horizontally or both, the
+	// theme's thin scrollbars. Slots "scroll-area" and
+	// "scroll-area-viewport" (data-orientation)
+	@:widget({
+		props: {
+			orientation: "vertical (the default), horizontal or both",
+			height: "its height",
+			width: "its width",
+			label: "its name for assistive technology",
+			children: "what scrolls"
+		}
+	})
+	public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
+		var o = props.orientation ?? "vertical";
+		return <view tag={props.tag ?? "scroll-area"} slot="scroll-area" height={props.height} width={props.width} position="relative">
+			<scroll tag={(props.tag ?? "scroll-area") + "-viewport"} slot="scroll-area-viewport" data-orientation={o} label={props.label} grow={1}
+				min-height={0} direction={o == "horizontal" ? "row" : "column"}>{props.children}</scroll>
+		</view>;
+	}
+
+	// a select the platform's own where it has one (shadcn's NativeSelect:
+	// the system's picker): Select with host native, its options the
+	// platform's menu (macOS, Windows), else drawn. Its props and slots
+	// are Select's
+	@:widget({
+		props: {
+			value: "a signal of the chosen option",
+			options: "the options' values",
+			labels: "what each option shows (else the option itself)",
+			width: "the button's width",
+			label: "its name for assistive technology"
+		},
+		keys: {
+			"Enter, Space": "opens the options (the platform's menu, else the drawn list)",
+			"Up, Down": "chooses the option before or after"
+		}
+	})
+	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
+			?tag:String}):View
+		return <view host="native" slot="native-select-wrapper">
+			<Select tag={props.tag ?? "native-select"} value={props.value} options={props.options} labels={props.labels} width={props.width} label={props.label}/>
+		</view>;
+
 	// --- charts (shadcn's Chart: its look, recharts' kinds) ---
 
 	// (a scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten)

@@ -32,6 +32,7 @@ import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Widgets.Carousel;
 import hxmc.ui.widgets.Widgets.NavigationMenu;
 import hxmc.ui.widgets.Widgets.BarChart;
+import hxmc.ui.widgets.Widgets.AspectRatio;
 import hxmc.ui.widgets.Widgets.SidebarProvider;
 import hxmc.ui.widgets.Widgets.Sidebar;
 import hxmc.ui.widgets.Widgets.SidebarTrigger;
@@ -876,6 +877,13 @@ class MarkupTest implements Markup {
 		ui.pointerMove(plot.absX - 50, plot.absY + 10);
 		ui.update();
 		check("chart: gone when the pointer leaves", ui.root.find("c-tooltip") == null);
+		// an aspect ratio: as tall as its width says, its child filling it
+		var ui = new Ui(new MonoText(), 500, 400);
+		Render.render(<view width={320}><AspectRatio tag="ar" ratio={16 / 9}><view tag="fill" grow={1}/></AspectRatio></view>, ui.root);
+		ui.update();
+		var ar = ui.root.find("ar");
+		check("aspect ratio: 320 by 180, its child filling it", ar.width == 320 && ar.height == 180 && ui.root.find("fill").height == 180,
+			ar.width + "x" + ar.height);
 	}
 
 	// a sidebar: its trigger and Mod+B collapsing it (offcanvas: out of view unstyled), its button active
