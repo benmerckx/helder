@@ -1961,11 +1961,7 @@ class Widgets implements Markup {
 			else if (it.shortcut != null && (it.onSelect != null || it.checked != null || it.radio != null))
 				out.push(UiFlow.Hotkey({
 					keys: it.shortcut,
-					action: () -> {
-						if (it.checked != null) it.checked.value = !it.checked.peek();
-						if (it.radio != null) it.radio.group.value = it.radio.value;
-						if (it.onSelect != null) it.onSelect();
-					},
+					action: () -> Behaviour.choose(it),
 					local: local
 				}));
 		}
@@ -3612,6 +3608,147 @@ class Widgets implements Markup {
 	})
 	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
 		return <view tag={props.tag ?? "item-footer"} slot="item-footer">{props.children}</view>;
+
+	// --- shadcn's Sidebar ---
+
+	// (the open sidebar's signal, for its trigger and parts: SidebarProvider's)
+	static final SIDEBAR = new Context<Null<Signal<Bool>>>(null);
+
+	// a sidebar's layout (shadcn's SidebarProvider): open, a signal (its own
+	// when not given), shared with the Sidebar, SidebarTrigger and the parts
+	// inside; Mod+B toggles it from anywhere in the window. Slot
+	// "sidebar-wrapper" (data-state "expanded" or "collapsed")
+	@:widget({
+		props: {
+			open: "a signal of whether the sidebar is expanded (its own when not given, true)",
+			children: "its Sidebar and SidebarInset"
+		},
+		keys: {
+			"Mod+B": "toggles the sidebar, from anywhere in the window"
+		}
+	})
+	public static function SidebarProvider(props:{?open:Signal<Bool>, ?children:Any, ?tag:String}):View {
+		var open = props.open ?? signal(true);
+		return <view tag={props.tag ?? "sidebar-wrapper"} slot="sidebar-wrapper" direction="row" data-state={() -> open.value ? "expanded" : "collapsed"}>
+			{UiFlow.Hotkey({keys: "Mod+B", action: () -> open.value = !open.peek()})}
+			{Flow.Provider({context: SIDEBAR, value: open, children: props.children})}
+		</view>;
+	}
+
+	// a sidebar (shadcn's): its side ("left", the default, or "right"),
+	// variant ("sidebar", "floating" or "inset") and how it collapses
+	// ("offcanvas", the default: out of view; "icon": to its icons; "none");
+	// a group to a theme (its parts' rules ask for its data-collapsible).
+	// Slot "sidebar" (data-state, data-collapsible while collapsed,
+	// data-variant, data-side), "sidebar-container", "sidebar-inner"
+	@:widget({
+		props: {
+			side: "left (the default) or right",
+			variant: "sidebar (the default), floating or inset",
+			collapsible: "offcanvas (the default: out of view collapsed), icon (to its icons) or none",
+			label: "its name for assistive technology",
+			children: "its SidebarHeader, SidebarContent and SidebarFooter"
+		},
+		variants: ["sidebar", "floating", "inset"],
+		part: "SidebarProvider"
+	})
+	public static function Sidebar(props:{?side:String, ?variant:String, ?collapsible:String, ?label:String, ?children:Any, ?tag:String}):View {
+		// (unstyled, an offcanvas one collapsed is out of view)
+		Rules.addBase("sidebar", [{slot: "sidebar", when: ["data-collapsible=offcanvas"], style: {display: None}}]);
+		var open = use(SIDEBAR) ?? signal(true), collapsible = props.collapsible ?? "offcanvas";
+		var expanded = () -> collapsible == "none" || open.value;
+		return <view tag={props.tag ?? "sidebar"} slot="sidebar" group="sidebar" role="navigation" label={props.label ?? "Sidebar"}
+			data-state={() -> expanded() ? "expanded" : "collapsed"} data-collapsible={() -> expanded() ? null : collapsible}
+			variant={props.variant ?? "sidebar"} data-variant={props.variant ?? "sidebar"} data-side={props.side ?? "left"}>
+			<view slot="sidebar-container" data-side={props.side ?? "left"}>
+				<view slot="sidebar-inner">{props.children}</view>
+			</view>
+		</view>;
+	}
+
+	// the button that toggles the sidebar (shadcn's SidebarTrigger: a ghost
+	// icon button). Slot "sidebar-trigger" (variant "ghost", size "icon")
+	@:widget({
+		props: {
+			label: "its name for assistive technology (\"Toggle Sidebar\" when not given)"
+		},
+		keys: {
+			"Enter, Space": "toggles the sidebar"
+		},
+		part: "SidebarProvider"
+	})
+	public static function SidebarTrigger(props:{?label:String, ?tag:String}):View {
+		var open = use(SIDEBAR);
+		var toggle = () -> if (open != null) open.value = !open.peek();
+		return <view tag={props.tag ?? "sidebar-trigger"} slot="sidebar-trigger" variant="ghost" size="icon" role="button" label={props.label ?? "Toggle Sidebar"}
+			focusable expanded={() -> open != null && open.value} onClick={_ -> toggle()} onKeyDown={e -> pressKeys(e, toggle)}>{arrow(() -> "☰")}</view>;
+	}
+
+	@:widget({props: {children: "the page beside the sidebar"}, part: "SidebarProvider"})
+	public static function SidebarInset(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-inset"} slot="sidebar-inset" grow={1}>{props.children}</view>;
+
+	@:widget({props: {children: "what heads the sidebar"}, part: "Sidebar"})
+	public static function SidebarHeader(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-header"} slot="sidebar-header">{props.children}</view>;
+
+	@:widget({props: {children: "its groups, scrolled when they are taller than it"}, part: "Sidebar"})
+	public static function SidebarContent(props:{?children:Any, ?tag:String}):View
+		return <scroll tag={props.tag ?? "sidebar-content"} slot="sidebar-content" grow={1} min-height={0}>{props.children}</scroll>;
+
+	@:widget({props: {children: "what ends the sidebar"}, part: "Sidebar"})
+	public static function SidebarFooter(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-footer"} slot="sidebar-footer">{props.children}</view>;
+
+	@:widget({props: {}, part: "Sidebar"})
+	public static function SidebarSeparator(props:{?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-separator"} slot="sidebar-separator" role="separator"/>;
+
+	@:widget({props: {label: "its name for assistive technology", children: "its SidebarGroupLabel and SidebarGroupContent"}, part: "Sidebar"})
+	public static function SidebarGroup(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-group"} slot="sidebar-group" role="group" label={props.label}>{props.children}</view>;
+
+	@:widget({props: {text: "the group's title"}, part: "Sidebar"})
+	public static function SidebarGroupLabel(props:{text:String, ?tag:String}):View
+		return <text tag={props.tag ?? "sidebar-group-label"} slot="sidebar-group-label">{props.text}</text>;
+
+	@:widget({props: {children: "the group's SidebarMenu or anything"}, part: "Sidebar"})
+	public static function SidebarGroupContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-group-content"} slot="sidebar-group-content">{props.children}</view>;
+
+	@:widget({props: {children: "its SidebarMenuItems"}, part: "Sidebar"})
+	public static function SidebarMenu(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-menu"} slot="sidebar-menu" role="list">{props.children}</view>;
+
+	@:widget({props: {children: "its SidebarMenuButton"}, part: "Sidebar"})
+	public static function SidebarMenuItem(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-menu-item"} slot="sidebar-menu-item" role="listitem">{props.children}</view>;
+
+	// a sidebar menu's button: its label (and children: an icon first),
+	// active (a Bool, a signal or a function of one: the current page,
+	// data-active), size "default", "sm" or "lg". Slot "sidebar-menu-button"
+	@:widget({
+		props: {
+			label: "what it says (hidden by the theme when the sidebar is collapsed to its icons)",
+			active: "a Bool, a signal or a function of one: the current page (data-active)",
+			onClick: "what pressing it does",
+			size: "default, sm or lg",
+			children: "what comes before its label: an icon"
+		},
+		keys: {
+			"Enter, Space": "presses it"
+		},
+		part: "Sidebar"
+	})
+	public static function SidebarMenuButton(props:{?label:String, ?active:Dynamic, ?onClick:Void->Void, ?size:String, ?children:Any, ?tag:String}):View {
+		var press = () -> if (props.onClick != null) props.onClick();
+		var active = () -> read(props.active) == true;
+		return <view tag={props.tag ?? "sidebar-menu-button"} slot="sidebar-menu-button" role="button" label={props.label} size={props.size ?? "default"}
+			data-size={props.size ?? "default"} current={active} data-active={() -> active() ? "true" : null} focusable direction="row" align-items="center"
+			onClick={_ -> press()} onKeyDown={e -> pressKeys(e, press)}>
+			{props.children}{props.label == null ? null : <text>{props.label}</text>}
+		</view>;
+	}
 
 	// a navigation menu (shadcn's, after Radix's): a row of items in a
 	// navigation landmark, each a trigger whose panel (render) opens under

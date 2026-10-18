@@ -31,6 +31,11 @@ import hxmc.ui.widgets.Widgets.Collapsible;
 import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Widgets.Carousel;
 import hxmc.ui.widgets.Widgets.NavigationMenu;
+import hxmc.ui.widgets.Widgets.SidebarProvider;
+import hxmc.ui.widgets.Widgets.Sidebar;
+import hxmc.ui.widgets.Widgets.SidebarTrigger;
+import hxmc.ui.widgets.Widgets.SidebarInset;
+import hxmc.ui.widgets.Widgets.SidebarMenuButton;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.DropdownMenu;
@@ -118,6 +123,7 @@ class MarkupTest implements Markup {
 		toolbar();
 		carousel();
 		navigationMenu();
+		sidebar();
 		nativeMenu();
 		navigation();
 		tagInput();
@@ -848,6 +854,28 @@ class MarkupTest implements Markup {
 		on.value = false;
 		ui.update();
 		check("native menu bar: given back when it goes", views.bar != null && views.bar.menus.length == 0);
+	}
+
+	// a sidebar: its trigger and Mod+B collapsing it (offcanvas: out of view unstyled), its button active
+	static function sidebar() {
+		var ui = new Ui(new MonoText(), 500, 300);
+		var open = signal(true), page = signal("a");
+		Render.render(<view width={400} height={200}><SidebarProvider open={open}>
+			<Sidebar tag="side"><SidebarMenuButton tag="a" label="A" active={() -> page.value == "a"} onClick={() -> page.value = "b"}/></Sidebar>
+			<SidebarInset><SidebarTrigger tag="trigger"/></SidebarInset>
+		</SidebarProvider></view>, ui.root);
+		ui.update();
+		var side = ui.root.find("side"), trigger = ui.root.find("trigger"), a = ui.root.find("a");
+		check("sidebar: expanded, shown, its button active", side.attr("data-state") == "expanded" && side.attr("data-collapsible") == null && side.width > 0
+			&& a.attr("data-active") == "true");
+		ui.pointerDown(trigger.absX + 2, trigger.absY + 2, 1);
+		ui.pointerUp(trigger.absX + 2, trigger.absY + 2, 1);
+		ui.update();
+		check("sidebar: the trigger collapses it, offcanvas out of view", !open.value && side.attr("data-state") == "collapsed"
+			&& side.attr("data-collapsible") == "offcanvas" && side.style.display == None);
+		ui.keyDown("b".code, Key.MOD_CONTROL);
+		ui.update();
+		check("sidebar: Mod+B expands it again", open.value && side.attr("data-state") == "expanded");
 	}
 
 	// a navigation menu: panels opened by a click, the pointer and the keys, a link followed
