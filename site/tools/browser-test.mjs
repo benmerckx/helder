@@ -19,7 +19,9 @@
 //   islands must fail and say so); the source tabs; web's Counter island
 //   counting; the Lab island calling lab.wasm; the tone started by a click;
 //   the cube on an emulated phone: a horizontal touch drag turns it, a
-//   vertical swipe over it scrolls the page;
+//   vertical swipe over it scrolls the page; the home page's spinning cube
+//   held still while a finger or the mouse holds it (the mouse dragged off
+//   the canvas), spinning again once let go;
 // - the playground's compiler: its worker (site/client/Worker.hx) runs a
 //   program with --interp, compiles it to HXB, answers diagnostics and a
 //   completion, with each module (hih.wasm: exnref; hih-legacy.wasm: the
@@ -290,7 +292,8 @@ async function gfxTest(browser, label, id, golden, expect, gfx) {
 	page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 	await page.route(/^https:\/\/cdn\.jsdelivr\.net\//, (r) => r.abort());
 	await page.addInitScript(([id, gfx]) => {
-		window.hxmcWasmOptions = { ['demo-' + id]: { args: id === 'gfx-cube' ? ['--angle', '0.6'] : [], ...(gfx ? { gfx } : {}) } };
+		// (single-sampled, as natively: the golden images)
+		window.hxmcWasmOptions = { ['demo-' + id]: { args: id === 'gfx-cube' ? ['--angle', '0.6'] : [], antialias: false, ...(gfx ? { gfx } : {}) } };
 	}, [id, gfx]);
 	await page.goto(url('examples.html'));
 	await page.evaluate((id) => document.getElementById(id).scrollIntoView(), id);
@@ -405,6 +408,69 @@ async function touchTest(browser) {
 	}
 	await context.close();
 	check(ok, `the cube on a phone: ${JSON.stringify(r)}${errors.length ? '; errors: ' + errors.join('; ') : ''}`);
+}
+
+// the home page's cube, spinning on its own, held: once a drag has turned
+// it, it stays still while the finger (an emulated phone's touch, as
+// touchTest) or the mouse's button is down, and the mouse's drag may leave
+// the canvas (captured: the release outside it still lets go); once let go
+// it spins again. Frames read back: the same while held, not after.
+async function holdTest(browser) {
+	const results = {};
+	for (const kind of ['touch', 'mouse']) {
+		const context = await browser.newContext(kind === 'touch' ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: 1280, height: 900 } });
+		const page = await context.newPage();
+		const errors = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		const r = (results[kind] = {});
+		try {
+			await page.goto(url('index.html'));
+			await page.evaluate(() => document.querySelector('#demo-gfx-cube canvas').scrollIntoView({ block: 'center' }));
+			await page.waitForSelector('#demo-gfx-cube[data-hydrated]', { timeout: 60000 });
+			const frames = (n) => page.evaluate((n) => new Promise((ok) => { const f = () => (n-- > 0 ? requestAnimationFrame(f) : ok()); f(); }), n);
+			const pixels = () => page.evaluate(async () => Array.from((await (await hxmcWasm['demo-gfx-cube']).host.gfx.readPixels()).data));
+			const differ = (a, b) => { let n = 0; for (let p = 0; p < a.length; p += 4) if (Math.max(Math.abs(a[p] - b[p]), Math.abs(a[p + 1] - b[p + 1]), Math.abs(a[p + 2] - b[p + 2])) > 8) n++; return n; };
+			const wait = async (ms) => { await page.waitForTimeout(ms); await frames(2); };
+			const b = await page.evaluate(() => { const r = document.querySelector('#demo-gfx-cube canvas').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; });
+			const [x, y, w, h] = b, cy = y + h / 2;
+			const spinning = await pixels();
+			await wait(400);
+			r.spins = differ(spinning, await pixels());
+			let up;
+			if (kind === 'touch') {
+				const cdp = await context.newCDPSession(page);
+				const at = (px) => [{ x: px, y: cy }];
+				await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(x + w * 0.3) });
+				for (let i = 1; i <= 8; i++) {
+					await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(x + w * (0.3 + 0.04 * i)) });
+					await page.waitForTimeout(16);
+				}
+				up = () => cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+			} else {
+				await page.mouse.move(x + w * 0.5, cy);
+				await page.mouse.down();
+				await page.mouse.move(x + w * 0.7, cy, { steps: 6 });
+				// (off the canvas, to its left: the drag goes on)
+				await page.mouse.move(x - 40, cy + h * 0.3, { steps: 6 });
+				up = () => page.mouse.up();
+			}
+			// (resting: no glide, no spin)
+			await wait(300);
+			const held = await pixels();
+			await wait(600);
+			r.held = differ(held, await pixels());
+			await up();
+			await wait(1200);
+			r.released = differ(held, await pixels());
+			const area = w * h * 0.002;
+			r.ok = r.spins > area && r.held === 0 && r.released > area && errors.length === 0;
+		} catch (e) {
+			r.error = e.message.split('\n')[0];
+		}
+		if (errors.length) r.errors = errors;
+		await context.close();
+	}
+	check(results.touch.ok && results.mouse.ok, `the home page's cube held still while dragged (touch, mouse off the canvas), spinning again once let go: ${JSON.stringify(results)}`);
 }
 
 // --- the playground ---
@@ -631,6 +697,7 @@ for (const { name, label, opts, noExnref } of launches) {
 					await gfxTest(browser, name, id, golden, 'webgl2', 'webgl2');
 				}
 				await touchTest(browser);
+				await holdTest(browser);
 			} else {
 				for (const [id, golden] of [['gfx-triangle', 'triangle.png'], ['gfx-cube', 'cube.png']])
 					await gfxTest(gfxBrowser, headed ? 'firefox-headed' : name, id, golden, hasGfx ? 'webgl2' : null);

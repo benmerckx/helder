@@ -20,6 +20,12 @@
 // it is now, or of a canvas's next frame (copied before it is presented);
 // on WebGL2 the same, read synchronously (Device.readPixels works there too).
 //
+// run's option antialias (true: 4 samples a pixel) multisamples a canvas's
+// frames: on WebGPU a multisampled colour and depth texture resolved into
+// the canvas's, the frame's pipelines made for them; on WebGL2 the
+// context's antialias. Render targets and headless targets stay single-
+// sampled, and readPixels reads what is shown (resolved).
+//
 // WebGPU's textures: their TextureFormat's GPU format; a pipeline is made
 // for its bind group layout reading every texture as filterable, and again
 // (once, at the first draw binding one) for R32F or depth textures at some
@@ -202,7 +208,7 @@ export default async function (host) {
 			const format = navigator.gpu.getPreferredCanvasFormat();
 			// (COPY_SRC: readPixels)
 			context.configure({ device, format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC, alphaMode: 'opaque' });
-			return handles.add({ context, format });
+			return handles.add({ context, format, samples: host.options.antialias ? 4 : 1 });
 		},
 		target_texture(width, height) {
 			host.gfx.backend = 'webgpu';
@@ -295,6 +301,8 @@ export default async function (host) {
 				depthStencil: depthFormat < 0 ? undefined : { format: TEXTURE_FORMATS[depthFormat], depthWriteEnabled: !!depthWrite, depthCompare: COMPARES[depthCompare] },
 				// (GL's front faces)
 				primitive: { topology: TOPOLOGIES[topology], cullMode: CULLS[cull], frontFace: 'ccw' },
+				// (the frame's: its samples)
+				multisample: { count: colorFormat < 0 ? handles.get(target).samples ?? 1 : 1 },
 			};
 			const pipeline = device.createRenderPipeline({ ...desc, layout: bgl ? device.createPipelineLayout({ bindGroupLayouts: [bgl] }) : 'auto' });
 			// (base: what its variants share, variant())
@@ -309,11 +317,16 @@ export default async function (host) {
 			if (texture.width === 0 || texture.height === 0) return 0;
 			frameTarget = t;
 			frameView = texture.createView();
-			// (the depth buffer, of the target's size)
+			// (the depth buffer, of the target's size and samples; multisampled,
+			// the colour texture resolved into the target's)
 			if (!t.depth || t.depth.width !== texture.width || t.depth.height !== texture.height) {
+				const size = [texture.width, texture.height], sampleCount = t.samples ?? 1, usage = GPUTextureUsage.RENDER_ATTACHMENT;
 				t.depth?.destroy();
-				t.depth = device.createTexture({ size: [texture.width, texture.height], format: 'depth32float', usage: GPUTextureUsage.RENDER_ATTACHMENT });
+				t.msaa?.destroy();
+				t.depth = device.createTexture({ size, format: 'depth32float', sampleCount, usage });
 				t.depthView = t.depth.createView();
+				t.msaa = sampleCount > 1 ? device.createTexture({ size, format: t.format, sampleCount, usage }) : null;
+				t.msaaView = t.msaa?.createView();
 			}
 			depthAttachment.view = t.depthView;
 			encoder = device.createCommandEncoder();
@@ -322,7 +335,8 @@ export default async function (host) {
 		pass_begin(color, load, r, g, b, a, depthTexture, depthLoad, depth) {
 			// (a render target: its first level, and its depth texture or none)
 			const t = color ? handles.get(color) : null, d = depthTexture ? handles.get(depthTexture) : null;
-			attachment.view = t ? t.target : frameView;
+			attachment.view = t ? t.target : frameTarget.msaaView ?? frameView;
+			attachment.resolveTarget = !t && frameTarget.msaa ? frameView : undefined;
 			attachment.loadOp = LOADS[load];
 			depthAttachment.view = t ? d?.target : frameTarget.depthView;
 			passDesc.depthStencilAttachment = depthAttachment.view ? depthAttachment : undefined;
@@ -378,7 +392,7 @@ export default async function (host) {
 			device.queue.submit([encoder.finish()]);
 			pixels?.().then((px) => waiting.forEach((w) => w.resolve(px)), (e) => waiting.forEach((w) => w.reject(e)));
 			encoder = null;
-			attachment.view = frameView = null;
+			attachment.view = attachment.resolveTarget = frameView = null;
 			depthAttachment.view = null;
 			texture = null;
 		},
@@ -387,6 +401,7 @@ export default async function (host) {
 			o?.destroy?.();
 			o?.texture?.destroy();
 			o?.depth?.destroy();
+			o?.msaa?.destroy();
 			o?.context?.unconfigure();
 			handles.remove(h);
 		},
@@ -440,7 +455,7 @@ export default async function (host) {
 			const c = offscreen ? (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height })) : handles.get(canvas);
 			// (a canvas: presented after each frame's task, read back at swap;
 			// offscreen: nothing presents it, read back at any time)
-			const g = c.getContext('webgl2', { antialias: false, alpha: false, depth: true, preserveDrawingBuffer: offscreen });
+			const g = c.getContext('webgl2', { antialias: !offscreen && !!host.options.antialias, alpha: false, depth: true, preserveDrawingBuffer: offscreen });
 			if (!g) return 0;
 			// (RGBA16F and R32F render targets)
 			g.getExtension('EXT_color_buffer_float');
