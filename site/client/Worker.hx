@@ -100,7 +100,11 @@ class Worker {
 			moduleReady(m.module);
 			return;
 		}
-		final failed = (e:Dynamic) -> post({type: "failed", id: m.id, message: "The compiler instance failed: " + Ui.error(e)});
+		final failed = (e:Dynamic) -> {
+			// (the stack on the console: a trap's WebAssembly frames, for a bug report)
+			js.Browser.console.error("The compiler instance failed:", e != null && e.stack != null ? e.stack : e);
+			post({type: "failed", id: m.id, message: "The compiler instance failed: " + Ui.error(e)});
+		}
 		try handle(m).catchError(failed) catch (e:Dynamic) failed(e);
 	}
 
