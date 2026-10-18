@@ -1102,42 +1102,6 @@ class Widgets implements Markup {
 		</div>;
 	}
 
-	// a tag input: tags as chips before a text field in one box; Enter or a
-	// comma adds what is typed (trimmed, once), Backspace in an empty field
-	// takes the last one off, a chip's × takes it off; a click in the box focuses the field
-	public static function TagInput(props:{tags:Signal<Array<String>>, ?placeholder:String, ?label:String, ?tag:String}):View {
-		var field:js.html.InputElement = null;
-		function add(text:String) {
-			var v = StringTools.trim(text);
-			field.value = "";
-			if (v == "" || props.tags.peek().indexOf(v) >= 0) return;
-			props.tags.value = props.tags.peek().concat([v]);
-		}
-		function remove(v:String)
-			props.tags.value = props.tags.peek().filter(x -> x != v);
-		return <div id={props.tag} data-slot="tag-input" onPointerDown={(e:Dynamic) -> if (e.target != field) {
-				e.preventDefault();
-				field.focus();
-			}}>
-			<ul data-slot="tag-input-list" role="list" aria-label={props.label}>
-				<For each={props.tags} render={(v:String) -> <li data-slot="badge" data-variant="secondary" role="listitem">{v}<button type="button" data-slot="tag-input-remove"
-					aria-label={"Remove " + v} onClick={() -> remove(v)}>×</button></li>}/>
-			</ul>
-			<span data-slot="tag-input-entry"><input data-slot="tag-input-field" ref={n -> field = cast n} placeholder={props.placeholder}
-				aria-label={props.label ?? props.placeholder} onInput={() -> if (StringTools.endsWith(field.value, ",")) add(field.value.substr(0, field.value.length - 1))}
-				onKeyDown={(e:KeyboardEvent) -> {
-					var list = props.tags.peek();
-					if (e.key == "Enter") {
-						e.preventDefault();
-						add(field.value);
-					} else if (e.key == "Backspace" && field.value == "" && list.length > 0) {
-						e.preventDefault();
-						remove(list[list.length - 1]);
-					}
-				}}/></span>
-		</div>;
-	}
-
 	// a colour picker: a square of saturation and brightness in the hue, a
 	// strip of hues, a swatch and the colour's hex in a field (what is typed
 	// there, once a CSS colour, sets it); value: an opaque colour; the square

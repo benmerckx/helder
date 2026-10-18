@@ -3320,43 +3320,43 @@ class Widgets implements Markup {
 			"Menu, Shift+F10": "opens its edit menu"
 		}
 	})
-	public static function TagInput(props:{tags:Signal<Array<String>>, ?placeholder:String, ?label:String, ?tag:String}):View {
-		var tag = props.tag ?? "tags";
-		var f = new TextField("");
-		f.tag = tag + "-field";
-		f.slot = "tag-input-field";
-		f.placeholder = props.placeholder ?? "";
-		f.semantics.label = props.label ?? props.placeholder;
-		function add(text:String) {
-			var v = StringTools.trim(text);
-			f.setText("");
+	@:neutral public static function TagInput(props:{tags:Signal<Array<String>>, ?placeholder:String, ?label:String, ?tag:String}):View {
+		var tag = props.tag ?? "tags", text = signal(""), field:Null<Part> = null;
+		function add(t:String) {
+			var v = StringTools.trim(t);
+			text.value = "";
 			if (v == "" || props.tags.peek().indexOf(v) >= 0) return;
 			props.tags.value = props.tags.peek().concat([v]);
 		}
 		function remove(v:String)
 			props.tags.value = props.tags.peek().filter(x -> x != v);
-		f.onSubmit = add;
-		f.onChange = text -> if (StringTools.endsWith(text, ",")) add(text.substr(0, text.length - 1));
-		// (Backspace in an empty field: the last tag, before the field's own keys)
-		var keys = f.onKeyDown;
-		f.onKeyDown = (e:Event) -> {
-			var list = props.tags.peek();
-			if (e.key == Key.BACKSPACE && f.text == "" && list.length > 0) {
-				remove(list[list.length - 1]);
-				e.stop();
-			} else if (keys != null) keys(e);
-		};
-		return <view tag={tag} slot="tag-input" direction="row" wrap align-items="center" onPointerDown={(e:Event) -> if (e.target != f && f.ui != null) {
-				f.ui.setFocus(f);
+		// (a click in the box, not in the field: the field focused; the field's own its caret's)
+		return <view tag={tag} id={props.tag} slot="tag-input" direction="row" wrap align-items="center" onPointerDown={(e:Event) -> if (field != null) {
+				focusPart([field], 0);
 				e.preventDefault();
 			}}>
-			<view slot="tag-input-list" role="list" label={props.label} direction="row" wrap>
-				<For each={props.tags} render={(v:String) -> <view tag={tag + "-" + v} slot="badge" variant="secondary" role="listitem" label={v}>
+			<view:ul slot="tag-input-list" role="list" label={props.label} direction="row" wrap>
+				<For each={props.tags} render={(v:String) -> <view:li tag={tag + "-" + v} slot="badge" variant="secondary" role="listitem" label={v}>
 					{v}
-					<view tag={tag + "-" + v + "-remove"} slot="tag-input-remove" role="button" label={"Remove " + v} onClick={_ -> remove(v)}>×</view>
-				</view>}/>
-			</view>
-			<view slot="tag-input-entry" grow={1}>{fieldOwn(f, null, tag)}</view>
+					<view:button tag={tag + "-" + v + "-remove"} slot="tag-input-remove" role="button" label={"Remove " + v} focusable onPress={_ -> remove(v)}>×</view:button>
+				</view:li>}/>
+			</view:ul>
+			<view:span slot="tag-input-entry" grow={1}>{fieldOwn(<field tag={tag + "-field"} slot="tag-input-field" value={text} placeholder={props.placeholder}
+				label={props.label ?? props.placeholder} ref={p -> field = p} onPointerDown={(e:Event) -> e.stop()} onInput={e -> {
+					text.value = e.text;
+					if (StringTools.endsWith(e.text, ",")) add(e.text.substr(0, e.text.length - 1));
+				}} onKeyDown={(e:Event) -> {
+					// (Enter adds; Backspace in an empty field takes the last off, before the field's own keys)
+					var list = props.tags.peek();
+					if (e.key == Key.ENTER) {
+						add(text.peek());
+						e.preventDefault();
+					} else if (e.key == Key.BACKSPACE && text.peek() == "" && list.length > 0) {
+						remove(list[list.length - 1]);
+						e.preventDefault();
+						e.stop();
+					}
+				}}/>, null, tag)}</view:span>
 		</view>;
 	}
 
