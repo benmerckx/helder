@@ -1812,6 +1812,7 @@ class Widgets implements Markup {
 					id: id,
 					label: it.label,
 					shortcut: it.shortcut == null ? null : Shortcut.parse(it.shortcut).label(),
+					keys: it.shortcut == null ? null : Shortcut.parse(it.shortcut),
 					disabled: it.disabled == true || it.heading == true,
 					checked: checked,
 					separator: it.separator,

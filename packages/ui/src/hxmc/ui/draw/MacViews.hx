@@ -22,8 +22,11 @@ import hxmc.unsafe.*;
 // textDidChange:, its editing begun and ended, and Tab, Shift+Tab and
 // Escape (textView:doCommandBySelector:) left to the program. Menus: an NSMenu popped up at the next poll (its own loop
 // until chosen or dismissed), each item's tag its id, its action the
-// delegate's hxmcMenuPick:. The menu bar's menus: inserted after the
-// application's menu, their items' action hxmcBarPick:, queued.
+// delegate's hxmcMenuPick:, its shortcut a key equivalent (a character's,
+// with its modifiers; Mod: Command). The menu bar's menus: inserted after
+// the application's menu, their items' action hxmcBarPick:, queued (their
+// key equivalents taken by the menu bar before the window, as the
+// system's).
 class MacViews implements PlatformViews {
 	static var delegateClass = Ptr.nil();
 	static var delegate = Ptr.nil();
@@ -177,7 +180,8 @@ class MacViews implements PlatformViews {
 				Msg.vPtr(m, ObjC.sel("addItem:"), Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("separatorItem")));
 				continue;
 			}
-			var title = ObjC.str(it.label), e = ObjC.str("");
+			var k = it.keys, equivalent = k != null && k.key > 32 && k.key < 127 ? String.fromCharCode(k.key).toLowerCase() : "";
+			var title = ObjC.str(it.label), e = ObjC.str(equivalent);
 			var item = Msg.idPtrPtrPtr(Msg.id(ObjC.cls("NSMenuItem"), ObjC.sel("alloc")), ObjC.sel("initWithTitle:action:keyEquivalent:"), title,
 				it.items == null ? action : Ptr.nil(), e);
 			ObjC.release(title);
@@ -185,6 +189,10 @@ class MacViews implements PlatformViews {
 			Msg.vPtr(item, ObjC.sel("setTarget:"), delegate);
 			Msg.vInt(item, ObjC.sel("setTag:"), it.id);
 			Msg.vBool(item, ObjC.sel("setEnabled:"), it.disabled != true);
+			// (NSEventModifierFlagShift 1 << 17, Control 1 << 18, Option 1 << 19, Command 1 << 20)
+			if (equivalent != "")
+				Msg.vInt(item, ObjC.sel("setKeyEquivalentModifierMask:"), (k.mod || k.mods & Key.MOD_META != 0 ? 1 << 20 : 0)
+					| (k.mods & Key.MOD_SHIFT != 0 ? 1 << 17 : 0) | (k.mods & Key.MOD_CONTROL != 0 ? 1 << 18 : 0) | (k.mods & Key.MOD_ALT != 0 ? 1 << 19 : 0));
 			if (it.checked == true) Msg.vInt(item, ObjC.sel("setState:"), 1);
 			if (it.items != null) {
 				var sub = nsMenu(it.items, action, it.label);

@@ -75,7 +75,7 @@ class MacAccessTest implements Markup {
 				<view tag="cm-area" width={60} height={20}/>
 			</ContextMenu></Show>
 			<Show when={areaOn}><Textarea tag="notes" value={notes}/></Show>
-			<Show when={barOn}><Menubar tag="bar" menus={[{label: "File", items: [{label: "Save", onSelect: () -> barChosen += "save"}]}]}/></Show>
+			<Show when={barOn}><Menubar tag="bar" menus={[{label: "File", items: [{label: "Save", shortcut: "Mod+S", onSelect: () -> barChosen += "save"}]}]}/></Show>
 		</view>, w.root);
 		var view = w.window.surface.handle;
 		var frames = 0, step = 0;
@@ -199,7 +199,12 @@ class MacAccessTest implements Markup {
 					var main = Msg.id(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("mainMenu"));
 					var file = Msg.id(Msg.idInt(main, ObjC.sel("itemAtIndex:"), 1), ObjC.sel("submenu"));
 					check("a native menu bar: its menu after the application's", !file.isNull() && str(file, "title") == "File", file.isNull() ? "none" : str(file, "title"));
-					if (!file.isNull()) Msg.vInt(file, ObjC.sel("performActionForItemAtIndex:"), 0);
+					if (!file.isNull()) {
+						var save = Msg.idInt(file, ObjC.sel("itemAtIndex:"), 0);
+						check("a native menu bar: Mod+S its item's key equivalent, Command", str(save, "keyEquivalent") == "s"
+							&& Msg.i(save, ObjC.sel("keyEquivalentModifierMask")).toInt() == 1 << 20, str(save, "keyEquivalent"));
+						Msg.vInt(file, ObjC.sel("performActionForItemAtIndex:"), 0);
+					}
 					step = 12;
 				case 12:
 					step = 13;
@@ -214,6 +219,6 @@ class MacAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('MacAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 23 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 24 ? 0 : 1);
 	}
 }
