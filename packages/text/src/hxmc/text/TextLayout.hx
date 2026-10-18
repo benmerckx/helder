@@ -79,14 +79,21 @@ class TextLayout {
 		this.lineHeight = fonts.size * lineHeight;
 		var a = fonts.ascent, d = fonts.descent;
 		baseline = (this.lineHeight - (a + d)) / 2 + a;
-		var glyphs = shape(text, fonts, this.runs, letterSpacing);
+		// (the text's highest UTF-16 unit: below U+0590 nothing right to left,
+		// below U+0600 no Arabic, below U+200D no emoji sequences)
+		var top = 0;
+		for (i in 0...text.length) {
+			var c = StringTools.fastCodeAt(text, i);
+			if (c > top) top = c;
+		}
+		var glyphs = shape(text, fonts, this.runs, letterSpacing, top);
 		space(glyphs, letterSpacing, wordSpacing);
 		for (i in 0...glyphs.length)
 			if (glyphs[i].cp == 9) {
 				if (tabs == null) tabs = new Map();
 				tabs.set(i, glyphs[i].advance);
 			}
-		bidi(glyphs, base);
+		if (base == 1 || top >= 0x590) bidi(glyphs, base);
 		minWidth = minContent(glyphs);
 		breakLines(glyphs, maxWidth);
 		if (maxLines > 0 && lines.length > maxLines) {
@@ -227,7 +234,7 @@ class TextLayout {
 		return c < 0x80 ? !(c >= "A".code && c <= "Z".code || c >= "a".code && c <= "z".code) : c <= 0xBF || c == 0xD7 || c == 0xF7
 			|| c >= 0x2000 && c <= 0x2BFF || c >= 0x3000 && c <= 0x303F;
 
-	static function shape(text:String, base:FontSet, runs:Array<TextRun>, letterSpacing:Float):Array<Glyph> {
+	static function shape(text:String, base:FontSet, runs:Array<TextRun>, letterSpacing:Float, top:Int):Array<Glyph> {
 		var out:Array<Glyph> = [];
 		var i = 0, n = text.length, count = 0;
 		// (the run of each unit: the current one, moved along)
@@ -236,7 +243,7 @@ class TextLayout {
 			return g.run < 0 ? base : runs[g.run].fonts;
 		// (at most a glyph per UTF-16 unit: allocated once, cut to the count after)
 		out.resize(n);
-		var emoji = emojiClusters(text);
+		var emoji = top >= 0x200D ? emojiClusters(text) : null;
 		var prev:Null<Glyph> = null;
 		while (i < n) {
 			var c = StringTools.fastCodeAt(text, i), len = 1;
@@ -283,7 +290,7 @@ class TextLayout {
 		}
 		out.resize(count);
 		// (Arabic's forms and ligatures: other glyphs; a colour font's sequences: one glyph)
-		out = Arabic.shape(out);
+		if (top >= 0x600) out = Arabic.shape(out);
 		out = gsub(out, base, runs, letterSpacing);
 		if (emoji != null) out = colorLigatures(out);
 		for (g in out)
