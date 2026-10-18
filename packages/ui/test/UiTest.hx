@@ -729,7 +729,7 @@ class UiTest {
 		var words = ["a", "bb", "ccc dd", "eeee f gg", "hhhhhhh", "ii jj kk ll mm", "n"];
 		var dims:Array<Dim> = [DimValue.Auto, 30, 70, "50%", "100%"];
 		function restyle(n:Node):String {
-			var s = n.style, k = rnd(22);
+			var s = n.style, k = rnd(26);
 			switch k {
 				case 0: s.width = dims[rnd(dims.length)];
 				case 1: s.height = dims[rnd(dims.length)];
@@ -754,6 +754,11 @@ class UiTest {
 				case 18: s.aspectRatio = [0, 1, 2][rnd(3)];
 				case 19: s.shadow = rnd(2) == 0 ? null : Shadow.parse("0 4px 12px rgba(0,0,0,0.5)");
 				case 20: s.transform = rnd(2) == 0 ? null : Transform.parse(["translate(30px, 10px)", "scale(1.5)", "translateX(-40px)"][rnd(3)]);
+				// (inherited: what the texts below keep of them, again)
+				case 21: s.dir = [null, Dir.Ltr, Dir.Rtl][rnd(3)];
+				case 22: s.textTransform = [null, TextTransform.Uppercase, TextTransform.None][rnd(3)];
+				case 23: s.textWrap = [null, TextWrap.Wrap, TextWrap.NoWrap, TextWrap.Balance][rnd(4)];
+				case 24: s.letterSpacing = [null, 0.0, 2.0][rnd(3)];
 				case _:
 					s.position = rnd(4) == 0 ? Position.Absolute : Position.Relative;
 					s.left = rnd(3) * 5;
