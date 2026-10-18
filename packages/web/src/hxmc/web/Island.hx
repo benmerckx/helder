@@ -15,6 +15,12 @@ enum abstract Load(String) to String {
 	var Click = "click";
 }
 
+// when a WebAssembly island stops its program (loader.js, data-stop)
+enum abstract Stop(String) to String {
+	// once it has scrolled out of view: its GPU memory and canvas given back
+	var Offscreen = "offscreen";
+}
+
 typedef IslandOptions = {
 	// the JavaScript bundle that hydrates it (Islands.start in its main)
 	?script:String,
@@ -95,7 +101,9 @@ class Island<P> implements hxmc.view.Markup {
 	// imports (each package's imports.mjs, as browser.mjs takes them) and
 	// args, and fonts (files hxmc.text may use: a browser gives a module
 	// none); its id names it (Wasm.island); children shown with the canvas
-	// (a caption, what shows before it runs); canvas false: none (a sound)
+	// (a caption, what shows before it runs); canvas false: none (a sound);
+	// stop Offscreen: stopped once out of view, its GPU memory given back,
+	// and run again as load says (loader.js)
 	public static function Wasm(props:{
 		src:String,
 		?imports:Array<String>,
@@ -107,13 +115,15 @@ class Island<P> implements hxmc.view.Markup {
 		?height:Int,
 		?fonts:Array<String>,
 		?canvas:Bool,
+		?stop:Stop,
 		?children:Any
 	}):View {
 		var load:String = props.load == null ? Visible : props.load;
 		return <hxmc-island id={props.id} data-wasm={url(props.src)} data-runner={url(props.runner == null ? runner : props.runner)}
 			data-imports={haxe.Json.stringify(props.imports == null ? [] : props.imports.map(url))}
 			data-fonts={props.fonts == null ? null : haxe.Json.stringify(props.fonts.map(url))}
-			data-args={props.args == null ? null : haxe.Json.stringify(props.args)} data-load={load}>
+			data-args={props.args == null ? null : haxe.Json.stringify(props.args)} data-load={load}
+			data-stop={props.stop}>
 			{props.canvas == false ? null : <canvas width={props.width} height={props.height}></canvas>}
 			{props.children}
 		</hxmc-island>;

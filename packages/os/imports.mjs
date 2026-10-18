@@ -22,6 +22,9 @@
 // input methods work: their compositions come as TextEditing events, their
 // commits (and text inserted without keys: an emoji picker, dictation) as
 // TextInput.
+// host.os.stop() ends the frames and lets go of the canvases; a frame that
+// throws ends them too, and goes to run's option onError when given (as an
+// exit with an error code in a frame does).
 //
 // Audio (hxmc.os.audio.WebAudioOutput): an AudioContext at the rate asked
 // for, and an AudioWorklet node (PROCESSOR, loaded from a blob) that plays
@@ -108,7 +111,23 @@ export default function (host) {
 	let first = true, ratio = devicePixelRatio;
 	// the last paste event's text, and when
 	let pasted = null;
-	host.os = { redraw: () => { for (const h of windows) push([h, REDRAW, 0, 0, 0, 0, 0]); } };
+	let stopped = false;
+	host.os = {
+		redraw: () => { for (const h of windows) push([h, REDRAW, 0, 0, 0, 0, 0]); },
+		// no more frames or events: the windows let go of their canvases (a
+		// page frees a program it no longer shows: loader.js, data-stop)
+		stop() {
+			stopped = true;
+			for (const h of windows) {
+				const c = host.handles.get(h);
+				c.hxmcOff.abort();
+				c.hxmcSeen.disconnect();
+				c.hxmcInput.remove();
+			}
+			windows.clear();
+			queue.length = 0;
+		},
+	};
 
 	function push(ev) {
 		// (moves between two frames, compositions: the last one)
@@ -477,13 +496,26 @@ export default function (host) {
 		},
 		start(frame) {
 			const tick = () => {
+				if (stopped) return;
 				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return requestAnimationFrame(tick);
 				if (devicePixelRatio !== ratio) {
 					ratio = devicePixelRatio;
 					for (const h of windows) push([h, SCALE_CHANGE, 0, 0, 0, 0, 0]);
 				}
 				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0, 0]);
-				if (host.call(frame)) requestAnimationFrame(tick);
+				// (a frame that throws: no more frames, and the page told when it
+				// asked, run's option onError)
+				let more;
+				try {
+					more = host.call(frame);
+				} catch (e) {
+					stopped = true;
+					if (!host.options.onError) throw e;
+					host.options.onError(e);
+					return;
+				}
+				if (host.exitCode && host.options.onError) host.options.onError(new Error('the program exited with code ' + host.exitCode));
+				if (more) requestAnimationFrame(tick);
 			};
 			requestAnimationFrame(tick);
 		},
