@@ -98,7 +98,7 @@ class Neutral {
 			x = d.clientX;
 			y = d.clientY;
 		}
-		var ev = new NeutralEvent(type, x, y, ElementPart.of(e.currentTarget));
+		var ev = new NeutralEvent(type, x, y, e.currentTarget);
 		if (key != null) ev.key = key;
 		ev.mods = mods;
 		if (d.button != null) ev.button = d.button + 1;
@@ -109,7 +109,8 @@ class Neutral {
 }
 
 // ui's Event as a page's handlers get it (its fields; current the element
-// listening as a Part, target none): ui's own would bring its nodes into a page
+// listening, itself, target none): ui's own would bring its nodes into a
+// page, and current as a Part its ElementPart into every page with a handler
 @:keep private class NeutralEvent {
 	public final type:EventType;
 	public final target:Dynamic = null;

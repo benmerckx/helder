@@ -90,7 +90,9 @@ class NeutralMacro {
 		// (a mapped name set once: Neutral's setter called with its DOM name)
 		var n = literal(name), t = literal(tag);
 		if (!(t == "icon" && n == "name") && n != "tag") {
-			var dom = DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : null;
+			var dom = DATA.exists(n) ? DATA[n] : ARIA.exists(n) ? ARIA[n] : PLAIN.indexOf(n) >= 0 || StringTools.startsWith(n, "data-")
+				|| StringTools.startsWith(n, "aria-") ? n : null;
+			if (n == "role" && v.expr.match(EConst(CString("button" | "link", _))) && (t == "view:button" || t == "view:a")) dom = null;
 			if (dom != null) return macro @:pos(name.pos) hxmc.web.Neutral.attr($el, $v{dom}, $v);
 			if (CSS.exists(n)) return macro @:pos(name.pos) hxmc.web.Neutral.css($el, $v{CSS[n].prop}, $v, $v{CSS[n].px});
 		}
@@ -109,7 +111,7 @@ class NeutralMacro {
 		// (ui's own: Node.find's tag, a group's and a peer's markers, the CSS's slots)
 		if (name == "tag" || name == "group" || name == "peer") return null;
 		// (a button's or a link's own: its role, and focusable as it is; a legend's role)
-		if (name == "role" && v != null && v.expr.match(EConst(CString("button" | "link", _)))) return null;
+		if (name == "role" && (tag == "view:button" || tag == "view:a") && v != null && v.expr.match(EConst(CString("button" | "link", _)))) return null;
 		if (StringTools.endsWith(tag, ":legend") && name == "role") return null;
 		// (a mapped name: a function setting its DOM attribute or property, named here; each other kind one function, (el, name, v): Neutral)
 		var dom = DATA.exists(name) ? DATA[name] : ARIA.exists(name) ? ARIA[name] : null;

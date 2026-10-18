@@ -2048,14 +2048,16 @@ class Widgets implements Markup {
 	static function focusIn(nodes:Array<Node>, i:Int)
 		if (i >= 0 && i < nodes.length && nodes[i].ui != null) nodes[i].ui.setFocus(nodes[i]);
 
-	// (a neutral widget's: the key mirrored right to left by the part
-	// listening. In a page the event's current and its Part's methods used
-	// opaquely: through Event's field, the interface or by name untyped, they
-	// would keep ui's Event, each Part's, a Node's and its nodes, in a page)
+	// (a neutral widget's: the key mirrored right to left by the node
+	// listening; in a page by its element, the event's current there, read
+	// opaquely (through Event's field or Node's method the JS
+	// generator's DCE, upstream's, would keep a Node and its nodes in a page))
 	static function mirroredKey(e:Event):Int
-		return Behaviour.mirror(e.key, #if js js.Syntax.code("{0}.current.rtl()", e) #else e.current.rtl() #end);
+		return Behaviour.mirror(e.key, #if js js.Syntax.code("getComputedStyle({0}.current).direction == 'rtl'", e) #else e.current.rtl() #end);
 
-	// (a neutral widget's: parts[i], after a key)
+	// (a neutral widget's: parts[i], after a key; in a page its ElementPart's
+	// focus called opaquely, as mirroredKey reads: through the interface DCE
+	// keeps each Part's, a Node's)
 	static function focusPart(parts:Array<Part>, i:Int)
 		if (i >= 0 && i < parts.length && parts[i] != null) #if js js.Syntax.code("{0}.focus(true)", parts[i]) #else parts[i].focus() #end;
 
