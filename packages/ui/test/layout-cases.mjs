@@ -249,4 +249,6 @@ export const cases = [
 	{ name: 'basis in pixels, shrunk in a wrapping column: percentages of the size it shrank to', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 39 }, children: [{ style: { direction: 'Row', alignItems: 'End', basis: 66, minHeight: '100%' }, children: [{ style: { minHeight: '25%', width: 10 } }] }] }] } },
 	// (a wrapping row's max-content no less than its min-content: an item's basis under its content)
 	{ name: 'wrapping row basis, its min-content', width: 300, height: 200, tree: { style: { direction: 'RowReverse' }, children: [{ style: { direction: 'RowReverse', wrap: true, grow: 0.5 }, children: [{ style: { basis: 39, minWidth: '50%' }, children: [{ style: { minWidth: 75, height: 10 } }] }] }] } },
+	// (a wrapping column's automatic minimum: its lines broken at its height within its max-height)
+	{ name: 'wrapping column minimum within its max-height', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 52, maxHeight: 24, rowGap: 3 }, children: [box(16, 16), box(8, 8)] }, { style: { height: 193, shrink: 0 } }] } },
 ];

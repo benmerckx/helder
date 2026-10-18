@@ -6522,5 +6522,42 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "wrapping column minimum within its max-height",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"wrap": true,
+						"height": 52,
+						"maxHeight": 24,
+						"rowGap": 3
+					},
+					"children": [
+						{
+							"style": {
+								"width": 16,
+								"height": 16
+							}
+						},
+						{
+							"style": {
+								"width": 8,
+								"height": 8
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 193,
+						"shrink": 0
+					}
+				}
+			]
+		}
 	}
 ]
