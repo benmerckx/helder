@@ -436,6 +436,26 @@ class Layout {
 				case SpaceEvenly if (reverse): pos = free;
 				case SpaceEvenly:
 			}
+			// (from the far side, fitting and without auto margins: placed from the
+			// near side, the last first, as Chromium places them, the free space
+			// before the last what is after the first)
+			var near = flipMain && free >= 0 && share == 0;
+			if (near) {
+				// (distributed: the same space before as after; else what was after)
+				var x = switch s.justify {
+					case Center: pos;
+					case SpaceBetween if (free > 0 && n > 1): pos;
+					case SpaceAround | SpaceEvenly if (free > 0): pos;
+					case _: free - pos;
+				};
+				var q = l.end;
+				while (q > l.start) {
+					var it = items[--q];
+					x += it.mMainEnd;
+					it.near = x;
+					x += it.main + it.mMainStart + gap;
+				}
+			}
 			for (i in l.start...l.end) {
 				var it = items[i];
 				var startMargin = it.mMainStart + (it.autoMain & 1 != 0 ? share : 0), endMargin = it.mMainEnd + (it.autoMain & 2 != 0 ? share : 0);
@@ -448,7 +468,7 @@ class Layout {
 					case Baseline: l.baseline - it.baseline + it.mCrossStart;
 					case _: it.mCrossStart;
 				}
-				if (flipMain) mainPos = mainSize - mainPos - it.main;
+				if (near) mainPos = it.near else if (flipMain) mainPos = mainSize - mainPos - it.main;
 				if (flipCross) crossPos = crossSize - crossPos - it.cross;
 				var c = it.node;
 				var cx = padL + (row ? mainPos : crossPos), cy = padT + (row ? crossPos : mainPos);
@@ -1429,6 +1449,8 @@ class Layout {
 
 private class Item {
 	public var node:Null<Node> = null;
+	// (its place from a reversed line's near side: Layout.flex's)
+	public var near = 0.0;
 	public var mMainStart = 0.0;
 	public var mMainEnd = 0.0;
 	public var mCrossStart = 0.0;
