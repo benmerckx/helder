@@ -1154,5 +1154,11 @@
 		[0, 0, 20, 115],
 		[0, 0, 20, 115],
 		[0, 0, 20, 29]
+	],
+	"basis in pixels, shrunk in a wrapping column: percentages of the size it shrank to": [
+		[0, 0, 300, 200],
+		[0, 0, 300, 39],
+		[0, 0, 10, 39],
+		[0, 29, 10, 10]
 	]
 }

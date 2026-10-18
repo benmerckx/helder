@@ -6454,5 +6454,38 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "basis in pixels, shrunk in a wrapping column: percentages of the size it shrank to",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"wrap": true,
+						"height": 39
+					},
+					"children": [
+						{
+							"style": {
+								"direction": "Row",
+								"alignItems": "End",
+								"basis": 66,
+								"minHeight": "100%"
+							},
+							"children": [
+								{
+									"style": {
+										"minHeight": "25%",
+										"width": 10
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]

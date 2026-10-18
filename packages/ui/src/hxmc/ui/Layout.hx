@@ -318,9 +318,9 @@ class Layout {
 					var ac = known(innerCross) ? Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd) : known(availCross) ? Math.max(0,
 						availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 					if (it.align == Stretch && !multi && known(innerCross)) it.cross = clamp(ac, it.minCross, it.maxCross) else {
-						// (a column's item's flexed height: definite when the column's is, or its basis in pixels)
+						// (a column's item's flexed height: definite when the column's is)
 						if (row) size(it.node, it.main, Math.NaN, innerW, pctH, it.main, ac, false) else {
-							looseH = !known(pctH) && !it.node.style.basis.match(DimValue.Px(_));
+							looseH = !known(pctH);
 							// (a wrapping column in a column of unknown width, or loose (looseColumns): as wide as on one line, unless
 							// its own height is fixed (pixels: a percentage is not, sizing it), as Chromium sizes
 							// it; its flexed height then wraps it)
