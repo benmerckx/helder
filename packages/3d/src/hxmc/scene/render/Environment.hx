@@ -30,7 +30,7 @@ class Environment implements RenderFeature {
 	final sampler:Sampler;
 	final bytes = Bytes.alloc(EnvironmentShader.uniforms[0].size);
 
-	// texture: mip-mapped (mipmapped's), width twice its height
+	// texture: mip-mapped (Images.mipmapped's), width twice its height
 	public function new(device:Device, texture:Texture, width:Int) {
 		this.device = device;
 		this.texture = texture;
@@ -52,33 +52,7 @@ class Environment implements RenderFeature {
 		if (Images.decode == null) return null;
 		var image = Images.decode(mime, bytes);
 		if (image == null) return null;
-		return new Environment(device, mipmapped(device, image.width, image.height, image.rgba), image.width);
-	}
-
-	// an RGBA8 image's texture with its mip levels made here (2x2 boxes,
-	// down to 1x1): the same texels on every GPU, whose own mip making
-	// differs, and this image's small levels are its light
-	public static function mipmapped(device:Device, width:Int, height:Int, rgba:Bytes):Texture {
-		var t = device.createTexture({width: width, height: height, data: rgba, mipLevels: 0});
-		var w = width, h = height, level = 0, src = rgba;
-		while (w > 1 || h > 1) {
-			var nw = w > 1 ? w >> 1 : 1, nh = h > 1 ? h >> 1 : 1;
-			var dst = Bytes.alloc(nw * nh * 4);
-			for (y in 0...nh)
-				for (x in 0...nw) {
-					var x0 = w > 1 ? 2 * x : 0, y0 = h > 1 ? 2 * y : 0, x1 = w > 1 ? x0 + 1 : x0, y1 = h > 1 ? y0 + 1 : y0;
-					for (c in 0...4) {
-						var sum = src.get(4 * (y0 * w + x0) + c) + src.get(4 * (y0 * w + x1) + c) + src.get(4 * (y1 * w + x0) + c) + src.get(4 * (y1 * w + x1) + c);
-						dst.set(4 * (y * nw + x) + c, (sum + 2) >> 2);
-					}
-				}
-			level++;
-			device.writeTexture(t, dst, 0, 0, nw, nh, 0, level);
-			w = nw;
-			h = nh;
-			src = dst;
-		}
-		return t;
+		return new Environment(device, Images.mipmapped(device, image.width, image.height, image.rgba), image.width);
 	}
 
 	public function attach(renderer:Renderer) {
