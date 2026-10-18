@@ -41,6 +41,14 @@ class RenderTest {
 			// (169 nodes of two meshes: two instanced draws, unless culled)
 			if (name == "instances" && (stats.draws > 2 || stats.instanced + stats.culled != 169)) drawsOk = false;
 		}
+		if (Scenes.probe != null) {
+			var wrong = Scenes.probe();
+			if (wrong != null) {
+				Sys.println('RenderTest: $name: FAIL: $wrong');
+				drawsOk = false;
+			} else
+				Sys.println('RenderTest: $name: its checks ok');
+		}
 		device.dispose();
 		sys.io.File.saveBytes(out, Png.encode(pixels, WIDTH, HEIGHT));
 		if (args[3] == "--bless") {

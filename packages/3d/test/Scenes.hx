@@ -41,11 +41,14 @@ class Scenes {
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
+	// the last scene's own checks beyond its frame (RenderTest; null: none)
+	public static var probe:Null<Void->String>;
 	public static inline var TIME = 2.0;
 	public static inline var STEPS = 150;
 
 	public static function make(name:String, device:Device):Encoder->Void {
 		ready = () -> true;
+		probe = null;
 		return switch name {
 			case "overlay":
 				// the sample scene under the debug overlay (@hxmc/ui), its frame times made up
@@ -112,6 +115,16 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0, 6, 8);
 				eye.lookAt(new Vec3(0, 0, 0));
+				// (picking: straight down onto the cube at the centre, its top at 0.25;
+				// through the camera's centre; beside the field, nothing)
+				probe = () -> {
+					var down = Pick.ray(world, new Vec3(0, 5, 0), new Vec3(0, -1, 0));
+					var r = camera.ray(0, 0, 4 / 3);
+					var centre = Pick.ray(world, r.origin, r.dir);
+					var miss = Pick.ray(world, new Vec3(20, 5, 0), new Vec3(0, -1, 0));
+					down != null && down.node.position.x == 0 && down.node.position.z == 0 && Math.abs(down.distance - 4.75) < 1e-6 && centre != null
+						&& centre.node.position.x == 0 && miss == null ? null : 'picking: ${down?.distance} ${centre?.node.position.x} ${miss != null}';
+				};
 				enc -> r.draw(enc, world, camera);
 			case "skin":
 				// the skinned sample bent by its animation at 1 s (the elbow at 1.2 radians)
