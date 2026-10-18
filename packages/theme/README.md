@@ -156,8 +156,9 @@ shadcn has not, or has otherwise:
   `date-picker-value`, `tag-input-entry`; sonner's toast;
 - hxmc's Chart, which is not recharts': its parts in flow (`chart`:
   `flex flex-col text-xs`), each series coloured by its `data-series`
-  (1 to 5: `chart-1`...`chart-5`) on `chart-bar`, `chart-line` (its
-  text colour), `chart-legend-swatch` and `chart-tooltip-indicator`, the
+  (1 to 5: `chart-1`...`chart-5`) on `chart-bar`, `chart-dot`, `chart-line`,
+  `chart-area` and `chart-slice` (their text colour), `chart-legend-swatch`
+  and `chart-tooltip-indicator`, the
   grid `bg-border/50`, ticks `text-muted-foreground` (recharts' `stroke-border/50`,
   `fill-muted-foreground` in shadcn's container);
 - a scroll area's scrollbar as Radix shows it: thin, in `border`, on
