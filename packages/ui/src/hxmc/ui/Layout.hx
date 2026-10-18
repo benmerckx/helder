@@ -35,6 +35,8 @@ class Layout {
 	var looseH = false;
 	// (a column measured bare: the height its lines break at, its own; flex takes it)
 	var breakH = Math.NaN;
+	// (a column's lines broken at its min-height when it has no height of its own: a row's wrapping column's basis)
+	var breakMin = false;
 	// flex items and lines, kept from layout to layout: a container's are
 	// taken from the top and given back when it is done (its children's
 	// taken above them meanwhile)
@@ -83,6 +85,11 @@ class Layout {
 		bareW = bareH = false;
 		// (measured bare, a column still breaks its lines at its own height)
 		var bareBreak = bh ? s.height.resolve(parentH) : Math.NaN;
+		if (breakMin && !known(bareBreak)) {
+			var least = s.minHeight.resolve(parentH);
+			if (least > 0) bareBreak = least;
+		}
+		breakMin = false;
 		// (cached by how bare it was measured; not when that height, of its parent's, breaks it)
 		var cached = !known(bareBreak);
 		// (its height definite for its children: given so, or its own)
@@ -210,14 +217,19 @@ class Layout {
 			var contentBasis = !known(b);
 			if (!known(b) && cs.aspectRatio > 0 && known(it.styleCross)) b = row ? it.styleCross * cs.aspectRatio : it.styleCross / cs.aspectRatio;
 			if (!known(b)) {
-				// the content's main size, its cross size known when stretched in a known line
+				// the content's main size, its cross size known when stretched in a known line (a
+				// wrapping column in a row that is a column's item not, unless its items' heights are
+				// percentages of its: its max-content, on one line but broken at its min-height, as
+				// Chromium sizes it)
 				var kc = it.styleCross;
-				if (!known(kc) && it.align == Stretch && !multi && known(innerCross))
+				var columns = row && cs.wrap && (cs.direction == Column || cs.direction == ColumnReverse) && columnItem(n) && !percentHeights(c);
+				if (!known(kc) && it.align == Stretch && !multi && known(innerCross) && !columns)
 					kc = clamp(Math.max(0, innerCross - it.mCrossStart - it.mCrossEnd), it.minCross, it.maxCross);
-				var am = known(availMain) ? Math.max(0, availMain - it.mMainStart - it.mMainEnd) : Math.NaN;
+				var am = known(availMain) && !columns ? Math.max(0, availMain - it.mMainStart - it.mMainEnd) : Math.NaN;
 				var ac = known(kc) ? kc : known(availCross) ? Math.max(0, availCross - it.mCrossStart - it.mCrossEnd) : Math.NaN;
 				// (the base size: not clamped by its own min or max, which the hypothetical size is)
 				if (row) bareW = true else bareH = true;
+				breakMin = columns;
 				if (row) size(c, Math.NaN, kc, innerW, pctH, am, ac, false) else size(c, kc, Math.NaN, innerW, pctH, ac, am, false);
 				b = row ? rw : rh;
 			}
@@ -1313,6 +1325,24 @@ class Layout {
 			var cs = c.style;
 			if (cs.display == None || cs.position == Absolute) continue;
 			if (percent(cs.basis) || percent(cs.width) || percent(cs.minWidth) || percent(cs.maxWidth)) return true;
+		}
+		return false;
+	}
+
+	// (whether a node is a flex column's item, its height that column's to share)
+	static function columnItem(n:Node):Bool {
+		var p = n.parent;
+		if (p == null || n.style.position == Absolute) return false;
+		var ps = p.style;
+		return ps.display != Grid && (ps.direction == Column || ps.direction == ColumnReverse);
+	}
+
+	// (whether a column's item has a height or basis that is a percentage of the column's)
+	static function percentHeights(n:Node):Bool {
+		for (c in n.children) {
+			var cs = c.style;
+			if (cs.display == None || cs.position == Absolute) continue;
+			if (percent(cs.basis) || percent(cs.height) || percent(cs.minHeight) || percent(cs.maxHeight)) return true;
 		}
 		return false;
 	}

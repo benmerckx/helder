@@ -226,4 +226,11 @@ export const cases = [
 	{ name: 'wrapping column minimum at its own height', width: 300, height: 200, tree: { style: { justify: 'End' }, children: [{ style: { wrap: true, basis: 40, height: 107, borderWidth: 2 }, children: [box(10, 50), box(10, 40), box(10, 73)] }] } },
 	// (a wrapping row's max-content: an item's percentage basis of its indefinite width as auto's, its width)
 	{ name: 'fit-content wrapping row, percentage basis', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', wrap: true, alignSelf: 'Start' }, children: [box(26, 10), box(49, 10, { basis: '100%' })] }] } },
+	// (a wrapping column's basis in a row: its lines broken at the height it is stretched to, but on one line in a row that is
+	// a column's item, unless its items' heights are percentages of its, or broken at its min-height; its max-content, not the room's)
+	{ name: 'wrapping column basis in a row', width: 300, height: 43, tree: { style: { direction: 'Row' }, children: [{ style: { wrap: true }, children: [box(2, 30), box(16, 30)] }] } },
+	{ name: 'wrapping column basis in a row item', width: 300, height: 200, tree: { style: { direction: 'Row' }, children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 30), box(16, 30)] }] }] } },
+	{ name: 'wrapping column basis in a column item', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 30), box(16, 30)] }] }] } },
+	{ name: 'wrapping column basis in a column item, percentage heights', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', height: 43 }, children: [{ style: { wrap: true }, children: [box(2, 2), box(16, '100%')] }] }] } },
+	{ name: 'wrapping column basis in a column item, its min-height', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row', width: 72, height: 43 }, children: [{ style: { wrap: true, shrink: 0, minHeight: '50%' }, children: [box('50%', 88, { basis: 62, minWidth: 62 }), box(2, 29), box(89, 90, { margin: 8 })] }] }] } },
 ];
