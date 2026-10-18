@@ -360,12 +360,8 @@ class Widgets implements Markup {
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0;
-		function set(v:Float) {
-			v = Math.max(lo, Math.min(hi, v));
-			// (to the step, without the binary fractions' noise: 0.6, not 0.6000000000000001)
-			if (step > 0) v = Math.max(lo, Math.min(hi, Math.fround((lo + Math.fround((v - lo) / step) * step) * 1e9) / 1e9));
-			props.value.value = v;
-		}
+		function set(v:Float)
+			props.value.value = Behaviour.snap(v, lo, hi, step);
 		var frac = () -> hi > lo ? (props.value.value - lo) / (hi - lo) : 0.0;
 		// (right to left: the minimum at the right)
 		function at(e:Event) {
@@ -375,22 +371,15 @@ class Widgets implements Markup {
 			if (n.rtl()) x = n.width - x;
 			set(lo + x / n.width * (hi - lo));
 		}
-		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		return <view tag={props.tag ?? "slider"} slot="slider" data-orientation="horizontal" ref={n -> States.apply(n, props.style)} role="slider" label={props.label} value-now={() -> props.value.value} value-min={lo}
 			value-max={hi} width={props.width} focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} justify="center"
 			onPointerDown={e -> at(e)} onPointerMove={e -> if (e.current.pressed) at(e)}
-			onKeyDown={e -> if (!disabled()) switch e.key {
-				case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
+			onKeyDown={e -> if (!disabled()) {
+				var v = Behaviour.slide(mirrored(e), props.value.peek(), lo, hi, step);
+				if (v != null) {
 					e.preventDefault();
-					var less = e.key == Key.DOWN || (e.key == Key.LEFT) != e.current.rtl();
-					set(props.value.value + (less ? -keyStep : keyStep));
-				case Key.HOME:
-					e.preventDefault();
-					set(lo);
-				case Key.END:
-					e.preventDefault();
-					set(hi);
-				case _:
+					props.value.value = v;
+				}
 			}}>
 			<view slot="slider-track" data-orientation="horizontal" overflow="hidden" direction="row">
 				<view slot="slider-range" data-orientation="horizontal" position="relative" width={() -> (frac() * 100) + "%"}/>
@@ -435,10 +424,8 @@ class Widgets implements Markup {
 			?tag:String}):View {
 		var lo = props.min ?? 0.0, hi = props.max ?? 1.0, step = props.step ?? 0.0, tag = props.tag ?? "range";
 		var dragging = -1, name = props.label ?? "Range", knobs:Array<Node> = [];
-		function snap(v:Float):Float {
-			v = Math.max(lo, Math.min(hi, v));
-			return step > 0 ? Math.max(lo, Math.min(hi, Math.fround((lo + Math.fround((v - lo) / step) * step) * 1e9) / 1e9)) : v;
-		}
+		function snap(v:Float):Float
+			return Behaviour.snap(v, lo, hi, step);
 		// (k: 0 the low knob, 1 the high one, each kept on its side of the other)
 		function set(k:Int, v:Float) {
 			v = snap(v);
@@ -451,24 +438,17 @@ class Widgets implements Markup {
 			if (n.rtl()) x = w - x;
 			return lo + x / w * (hi - lo);
 		}
-		var keyStep = step > 0 ? step : (hi - lo) / 20;
 		function thumb(k:Int):View {
 			var value = k == 0 ? props.low : props.high;
 			return along(() -> frac(value.value), <view tag={tag + (k == 0 ? "-low" : "-high")} slot="slider-thumb" data-orientation="horizontal" role="slider" label={name + (k == 0 ? ": minimum" : ": maximum")} ref={n -> knobs[k] = n}
 					value-now={() -> value.value} value-min={() -> k == 0 ? lo : props.low.value} value-max={() -> k == 0 ? props.high.value : hi}
 					shrink={0} focusable pointer-events="auto"
-					onKeyDown={e -> switch e.key {
-						case Key.LEFT | Key.DOWN | Key.RIGHT | Key.UP:
+					onKeyDown={e -> {
+						var v = Behaviour.slide(mirrored(e), value.peek(), lo, hi, step);
+						if (v != null) {
 							e.preventDefault();
-							var less = e.key == Key.DOWN || (e.key == Key.LEFT) != e.current.rtl();
-							set(k, value.peek() + (less ? -keyStep : keyStep));
-						case Key.HOME:
-							e.preventDefault();
-							set(k, lo);
-						case Key.END:
-							e.preventDefault();
-							set(k, hi);
-						case _:
+							set(k, v);
+						}
 					}}/>);
 		}
 		return <view tag={tag} slot="slider" data-orientation="horizontal" role="group" label={name} width={props.width} justify="center"
@@ -631,6 +611,7 @@ class Widgets implements Markup {
 		keys: {
 			"Down, Right (mirrored right to left)": "checks and focuses the next option, wrapping",
 			"Up, Left (mirrored right to left)": "checks and focuses the previous option, wrapping",
+			"Home, End": "checks and focuses the first or last option",
 			"Space": "checks the focused option"
 		}
 	})
@@ -646,12 +627,8 @@ class Widgets implements Markup {
 		function key(e:Event, i:Int) {
 			var n = options.length;
 			if (disabled()) return;
-			var j = switch mirrored(e) {
-				case Key.SPACE: i;
-				case Key.DOWN | Key.RIGHT: (i + 1) % n;
-				case Key.UP | Key.LEFT: (i + n - 1) % n;
-				case _: return;
-			}
+			var k = mirrored(e), j = k == Key.SPACE ? i : Behaviour.rove(k, i, n);
+			if (j < 0) return;
 			e.preventDefault();
 			props.value.value = options[j];
 			focusIn(nodes, j);
@@ -700,14 +677,8 @@ class Widgets implements Markup {
 		var variant = props.variant ?? "default";
 		var tag = props.tag ?? "tabs", count = props.labels.length, tabs:Array<Node> = [];
 		function key(e:Event, i:Int) {
-			var j = switch mirrored(e) {
-				case Key.LEFT: (i + count - 1) % count;
-				case Key.RIGHT: (i + 1) % count;
-				case Key.HOME: 0;
-				case Key.END: count - 1;
-				case Key.SPACE | Key.ENTER: i;
-				case _: return;
-			}
+			var k = mirrored(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, count, false);
+			if (j < 0) return;
 			e.preventDefault();
 			props.selected.value = j;
 			focusIn(tabs, j);
@@ -905,21 +876,7 @@ class Widgets implements Markup {
 		var tag = props.tag ?? "tree", rh = props.rowHeight ?? 26.0, h = props.height ?? 240.0;
 		var selected:Signal<Null<T>> = props.selected ?? signal(null);
 		var expanded:Signal<Array<T>> = props.expanded ?? signal([]);
-		var rows = memo(() -> {
-			var out:Array<TreeRow<T>> = [], open = expanded.value;
-			function add(items:Null<Array<T>>, level:Int, parent:Int) {
-				if (items == null) return;
-				for (it in items) {
-					var kids = props.children(it);
-					var leaf = kids == null || kids.length == 0;
-					var isOpen = !leaf && open.indexOf(it) >= 0;
-					out.push({item: it, level: level, parent: parent, leaf: leaf, open: isOpen});
-					if (isOpen) add(kids, level + 1, out.length - 1);
-				}
-			}
-			add(Render.read(props.roots), 1, -1);
-			return out;
-		});
+		var rows = memo(() -> Behaviour.treeLines(Render.read(props.roots), props.children, expanded.value));
 		function setOpen(it:T, open:Bool) {
 			var cur = expanded.peek(), i = cur.indexOf(it);
 			if (open == (i >= 0)) return;
@@ -1117,31 +1074,18 @@ class Widgets implements Markup {
 			return {year: d.year, month: d.month};
 		});
 		// (the grid's first day: the week day first before the month's first)
-		var gridStart = () -> {
-			var s = shown.value, f = Days.of({year: s.year, month: s.month, day: 1});
-			return f - ((Days.weekday(f) - first + 7) % 7);
-		};
+		var gridStart = () -> Behaviour.gridStart(shown.value.year, shown.value.month, first);
 		function choose(n:Int) {
 			cursor.value = n;
 			var d = Days.day(n);
 			props.value.value = d;
 			if (props.onChoose != null) props.onChoose(d);
 		}
-		function month(delta:Int) {
-			var d = Days.day(cursor.peek());
-			var m = d.month - 1 + delta, y = d.year + Math.floor(m / 12);
-			m = ((m % 12) + 12) % 12 + 1;
-			cursor.value = Days.of({year: y, month: m, day: Std.int(Math.min(d.day, Days.length(y, m)))});
-		}
+		function month(delta:Int)
+			cursor.value = Behaviour.addMonths(cursor.peek(), delta);
 		function key(e:Event) {
-			var c = cursor.peek(), wd = (Days.weekday(c) - first + 7) % 7;
-			switch mirrored(e) {
-				case Key.LEFT: cursor.value = c - 1;
-				case Key.RIGHT: cursor.value = c + 1;
-				case Key.UP: cursor.value = c - 7;
-				case Key.DOWN: cursor.value = c + 7;
-				case Key.HOME: cursor.value = c - wd;
-				case Key.END: cursor.value = c + 6 - wd;
+			var c = cursor.peek(), k = mirrored(e), to = Behaviour.calendarKey(k, c, first);
+			if (to != null) cursor.value = to else switch k {
 				case Key.PAGE_UP: month(-1);
 				case Key.PAGE_DOWN: month(1);
 				case Key.ENTER | Key.SPACE: choose(c);
@@ -1532,15 +1476,12 @@ class Widgets implements Markup {
 		}
 		// (to: the index it goes before, in the list as it is)
 		function move(item:T, to:Int) {
-			var list = props.items.peek().copy(), from = list.indexOf(item);
-			if (from < 0 || to < 0 || to > list.length) return;
-			list.splice(from, 1);
-			if (to > from) to--;
-			list.insert(to, item);
-			active.value = to;
-			if (to != from) {
-				props.items.value = list;
-				if (props.onMove != null) props.onMove(item, to);
+			var from = props.items.peek().indexOf(item), m = Behaviour.moved(props.items.peek(), item, to);
+			if (m == null) return;
+			active.value = m.at;
+			if (m.at != from) {
+				props.items.value = m.list;
+				if (props.onMove != null) props.onMove(item, m.at);
 			}
 			focus(item);
 		}
@@ -1650,13 +1591,8 @@ class Widgets implements Markup {
 				collect();
 				var i = itemOf(e.target), n = items.length;
 				if (i < 0 || Std.isOfType(e.target, EditableText)) return;
-				var j = switch mirrored(e) {
-					case Key.LEFT: (i + n - 1) % n;
-					case Key.RIGHT: (i + 1) % n;
-					case Key.HOME: 0;
-					case Key.END: n - 1;
-					case _: return;
-				}
+				var j = Behaviour.rove(mirrored(e), i, n, false);
+				if (j < 0) return;
 				e.preventDefault();
 				rove(j);
 				focusIn(items, j);
@@ -1910,14 +1846,8 @@ class Widgets implements Markup {
 			return i == (k < 0 ? 0 : k);
 		}
 		function key(e:Event, i:Int) {
-			var j = switch mirrored(e) {
-				case Key.SPACE | Key.ENTER: i;
-				case Key.RIGHT | Key.DOWN: (i + 1) % n;
-				case Key.LEFT | Key.UP: (i + n - 1) % n;
-				case Key.HOME: 0;
-				case Key.END: n - 1;
-				case _: return;
-			}
+			var k = mirrored(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, n);
+			if (j < 0) return;
 			e.preventDefault();
 			props.value.value = options[j];
 			focusIn(nodes, j);
@@ -1986,15 +1916,8 @@ class Widgets implements Markup {
 		function go(p:Int)
 			if (p >= 1 && p <= count) props.page.value = p;
 		// (the buttons in order, 0 for a gap)
-		function shown():Array<Int> {
-			var p = props.page.value, out:Array<Int> = [];
-			for (i in 1...count + 1)
-				if (i == 1 || i == count || Math.abs(i - p) <= 1 || (i == 2 && p == 4) || (i == count - 1 && p == count - 3)) {
-					if (out.length > 0 && i - out[out.length - 1] > 1) out.push(0);
-					out.push(i);
-				}
-			return out;
-		}
+		function shown():Array<Int>
+			return Behaviour.pages(props.page.value, count);
 		function button(label:Void->String, tagged:String, size:String, onClick:Void->Void, ?current:Void->Bool, ?disabled:Void->Bool, slot = "pagination-link"):View {
 			var cur = () -> current != null && current(), off = () -> disabled != null && disabled();
 			return <view slot="pagination-item"><view tag={tagged} slot={slot} size={size} role="button" focusable={() -> !off()} disabled={off}
@@ -2049,7 +1972,7 @@ class Widgets implements Markup {
 	// an event's key, Left and Right swapped where it is right to left (the
 	// way they point, in a mirrored row or grid)
 	static function mirrored(e:Event):Int
-		return e.key != Key.LEFT && e.key != Key.RIGHT || !e.current.rtl() ? e.key : e.key == Key.LEFT ? Key.RIGHT : Key.LEFT;
+		return Behaviour.mirror(e.key, e.current.rtl());
 
 	// (a button's keys: Enter and Space press it)
 	static function pressKeys(e:Event, press:Void->Void)
