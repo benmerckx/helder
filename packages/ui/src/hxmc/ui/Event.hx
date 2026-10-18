@@ -58,13 +58,18 @@ class Event {
 	// the default action (Tab moving the focus, the wheel scrolling) is not taken
 	public var defaultPrevented(default, null) = false;
 
-	public function new(type:EventType, target:Node, x:Float, y:Float) {
+	// (made by of: a page's code using an event's fields keeps its class,
+	// its constructor with it, and so none of a Node's methods)
+	function new(type:EventType, target:Node, x:Float, y:Float) {
 		this.type = type;
 		this.target = target;
 		this.x = x;
 		this.y = y;
-		at(target);
 	}
+
+	// an event of type at target, the pointer at x, y in the window's coordinates
+	public static function of(type:EventType, target:Node, x:Float, y:Float):Event
+		return new Event(type, target, x, y).at(target);
 
 	// the pointer relative to current's border box (Node.localX: through
 	// scrolling and transforms; fields, so that a handler's untyped event

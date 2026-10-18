@@ -12,7 +12,9 @@ class Neutral {
 	// an attribute by its DOM name, as ui's setData has them: data-* absent for null and false, empty for true;
 	// aria-* "true" and "false"; else Html's rules
 	public static function attr(el:Dynamic, name:String, v:Dynamic) {
-		var s = if (StringTools.startsWith(name, "data-")) v == null || v == false ? null : v == true ? "" : Std.string(v)
+		// (a Bool's: JavaScript's == has "0" false)
+		var bool = Std.isOfType(v, Bool);
+		var s = if (StringTools.startsWith(name, "data-")) v == null || bool && v == false ? null : bool && v == true ? "" : Std.string(v)
 			else if (StringTools.startsWith(name, "aria-")) v == null ? null : Std.string(v)
 			else Html.attributeValue(name, v);
 		if (s == null) el.removeAttribute(name) else if (el.getAttribute(name) != s) el.setAttribute(name, s);
@@ -54,9 +56,11 @@ class Neutral {
 	public static function iconName(el:Dynamic, name:String, v:Dynamic)
 		el.innerHTML = v == null ? "" : hxmc.ui.widgets.Icons.markup(v);
 
-	// focusable: in the tab order (true), out of it (false), the element's own (null)
+	// focusable: in the tab order (true; a button's or a link's own), out of it (false), the element's own (null)
 	public static function focusable(el:Dynamic, name:String, v:Dynamic)
-		if (v == true) el.setAttribute("tabindex", "0") else if (v == false) el.setAttribute("tabindex", "-1") else el.removeAttribute("tabindex");
+		if (v == true && el.localName != "button" && el.localName != "a") el.setAttribute("tabindex", "0")
+		else if (v == false) el.setAttribute("tabindex", "-1")
+		else el.removeAttribute("tabindex");
 
 	// disabled: a control's own property, else aria-disabled
 	public static function disabled(el:Dynamic, name:String, v:Dynamic) {
@@ -94,7 +98,7 @@ class Neutral {
 			x = d.clientX;
 			y = d.clientY;
 		}
-		var ev = new NeutralEvent(type, x, y);
+		var ev = new NeutralEvent(type, x, y, ElementPart.of(e.currentTarget));
 		if (key != null) ev.key = key;
 		ev.mods = mods;
 		if (d.button != null) ev.button = d.button + 1;
@@ -104,12 +108,12 @@ class Neutral {
 	}
 }
 
-// ui's Event as a page's handlers get it (its fields; target and current
-// none: a part is a ref's): ui's own would bring its nodes into a page
+// ui's Event as a page's handlers get it (its fields; current the element
+// listening as a Part, target none): ui's own would bring its nodes into a page
 @:keep private class NeutralEvent {
 	public final type:EventType;
 	public final target:Dynamic = null;
-	public final current:Dynamic = null;
+	public final current:Dynamic;
 	public final x:Float;
 	public final y:Float;
 	public var button = 0;
@@ -124,8 +128,9 @@ class Neutral {
 	public var stopped = false;
 	public var defaultPrevented = false;
 
-	public function new(type, x, y) {
+	public function new(type, x, y, current) {
 		this.type = type;
+		this.current = current;
 		this.x = x;
 		this.y = y;
 	}

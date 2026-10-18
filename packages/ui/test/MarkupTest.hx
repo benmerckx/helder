@@ -1815,9 +1815,15 @@ class MarkupTest implements Markup {
 			ui.update();
 		}
 		var s = ui.root.find("r-S"), m = ui.root.find("r-M"), t0 = ui.root.find("tabs-0"), t1 = ui.root.find("tabs-1"), v = ui.root.find("vol");
+		// (an item's indicator there while it is checked, as Radix's)
+		function indicator(n:Node):Null<Node> {
+			for (k in n.children)
+				if (k.slot == "radio-group-indicator") return k;
+			return null;
+		}
 		check("unstyled: a radio group's slots, data-state, its indicator shown when checked", ui.root.find("r").slot == "radio-group"
-			&& s.slot == "radio-group-item" && s.children[0].slot == "radio-group-indicator" && s.attr("data-state") == "unchecked"
-			&& m.attr("data-state") == "checked" && s.children[0].style.display == None && m.children[0].style.display != None
+			&& s.slot == "radio-group-item" && s.attr("data-state") == "unchecked" && m.attr("data-state") == "checked" && indicator(s) == null
+			&& indicator(m) != null
 			&& s.semantics.label == "Small" && s.style.radius == 8);
 		click(s.parent.children[1]);
 		check("unstyled: the radio's label checks it", size.value == "S" && s.attr("data-state") == "checked", size.value);

@@ -122,7 +122,7 @@ as NodeRenderer does its elements now: nothing per node at run time):
 - **Events**: ui's `Event` on both (`key` a `Key` code, `mods`, `x`,
   `y`, `stop`, `preventDefault`), the DOM renderer converting its events
   for these elements only (a page's own elements keep the DOM's).
-- **Refs**: a `Part` (`focus`, `rect`, `scrollIntoView`, `capture`,
+- **Refs**: a `Part` (`focus`, `rect`, `scrollIntoView`, `rtl`, `capture`,
   `contains`, `attr`), which Node implements and the DOM renderer wraps.
 - **Layers**: `Layer` (a component: anchored, placed, modal or not), ui's
   overlay or the DOM's top layer.

@@ -4,8 +4,10 @@ package hxmc.web;
 import js.html.Element;
 
 // A page's element as a widget's part (hxmc.ui.Part): what a neutral
-// element's ref gets in the DOM's renderer, made only then
-class ElementPart implements hxmc.ui.Part {
+// element's ref gets in the DOM's renderer, made only then, and an event's
+// current. Kept whole: neutral widgets call a Part's methods opaquely in a
+// page (through the interface they would keep a Node's too)
+@:keep class ElementPart implements hxmc.ui.Part {
 	public final element:Element;
 
 	function new(element:Element)
@@ -32,5 +34,8 @@ class ElementPart implements hxmc.ui.Part {
 
 	public function attr(name:String):Null<String>
 		return element.getAttribute(name);
+
+	public function rtl():Bool
+		return js.Browser.window.getComputedStyle(element).direction == "rtl";
 }
 #end

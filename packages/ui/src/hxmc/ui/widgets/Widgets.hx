@@ -620,36 +620,42 @@ class Widgets implements Markup {
 			"Space": "checks the focused option"
 		}
 	})
-	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
+	@:neutral public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
 			?style:States->StyleProps, ?tag:String}):View {
-		var tag = props.tag ?? "radio", options = props.options, nodes:Array<Node> = [];
+		var tag = props.tag ?? "radio", options = props.options, items:Array<Part> = [];
 		var disabled = () -> read(props.disabled) == true;
 		// (the Tab stop: the checked option, else the first)
 		function stop(i:Int):Bool {
 			var k = options.indexOf(props.value.value);
 			return i == (k < 0 ? 0 : k);
 		}
+		// (Enter not a press, as Radix's)
 		function key(e:Event, i:Int) {
 			var n = options.length;
+			if (e.key == Key.ENTER) e.preventDefault();
 			if (disabled()) return;
-			var k = mirrored(e), j = k == Key.SPACE ? i : Behaviour.rove(k, i, n);
+			var k = mirroredKey(e), j = k == Key.SPACE ? i : Behaviour.rove(k, i, n);
 			if (j < 0) return;
 			e.preventDefault();
 			props.value.value = options[j];
-			focusIn(nodes, j);
+			focusPart(items, j);
 		}
-		return <view tag={tag} slot="radio-group" ref={n -> States.apply(n, props.style)} role="radiogroup" label={props.label} data-disabled={disabled}>{[
+		return <view tag={tag} id={props.tag} slot="radio-group" states={props.style} role="radiogroup" label={props.label} data-disabled={disabled}>{[
 			for (i in 0...options.length) {
 				var o = options[i], text = props.labels != null && props.labels[i] != null ? props.labels[i] : o;
 				var state = () -> props.value.value == o ? "checked" : "unchecked";
-				<view slot="radio-group-option" direction="row" align-items="center" onClick={_ -> if (!disabled()) props.value.value = o}>
-					<view tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={n -> nodes[i] = n} checked={() -> props.value.value == o}
-						data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled} onKeyDown={e -> key(e, i)}>
-						<view slot="radio-group-indicator" data-state={state} display={() -> state() == "checked" ? "flex" : "none"}>
-							<image slot="radio-group-icon" src={CIRCLE} hidden/>
-						</view>
-					</view>
-					<text slot="label" data-disabled={disabled} hidden>{text}</text>
+				var check = () -> if (!disabled()) props.value.value = o;
+				<view slot="radio-group-option" direction="row" align-items="center">
+					<view:button tag={tag + "-" + o} slot="radio-group-item" role="radio" label={text} align-items="center" justify="center" ref={p -> items[i] = p}
+						checked={() -> props.value.value == o} data-state={state} focusable={() -> stop(i) && !disabled()} disabled={disabled} data-disabled={disabled}
+						onKeyDown={e -> key(e, i)} onPress={_ -> check()}>
+						<Show when={() -> state() == "checked"}>
+							<view:span slot="radio-group-indicator" data-state={state}>
+								<icon slot="radio-group-icon" name="circle-filled" hidden/>
+							</view:span>
+						</Show>
+					</view:button>
+					<text:label slot="label" data-disabled={disabled} hidden onClick={_ -> check()}>{text}</text:label>
 				</view>;
 			}
 		]}</view>;
@@ -1895,27 +1901,27 @@ class Widgets implements Markup {
 			"Enter, Space": "choose the focused option"
 		}
 	})
-	public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
+	@:neutral public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
 			?label:String, ?tag:String}):View {
 		var variant = props.variant ?? "default", size = props.size ?? "default";
-		var tag = props.tag ?? "segments", options = props.options, nodes:Array<Node> = [], n = options.length;
+		var tag = props.tag ?? "segments", options = props.options, items:Array<Part> = [], n = options.length;
 		function stop(i:Int):Bool {
 			var k = options.indexOf(props.value.value);
 			return i == (k < 0 ? 0 : k);
 		}
 		function key(e:Event, i:Int) {
-			var k = mirrored(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, n);
+			var k = mirroredKey(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, n);
 			if (j < 0) return;
 			e.preventDefault();
 			props.value.value = options[j];
-			focusIn(nodes, j);
+			focusPart(items, j);
 		}
-		return <view tag={tag} slot="toggle-group" variant={variant} size={size} data-spacing="0" role="radiogroup" label={props.label}>{[
+		return <view tag={tag} id={props.tag} slot="toggle-group" variant={variant} size={size} data-spacing="0" role="radiogroup" label={props.label}>{[
 			for (i in 0...n) {
 				var o = options[i], on = () -> props.value.value == o;
-				<view tag={tag + "-" + i} slot="toggle-group-item" variant={variant} size={size} data-spacing="0" role="radio" ref={n -> nodes[i] = n} checked={on}
-					data-state={() -> on() ? "on" : "off"} focusable={() -> stop(i)} onClick={_ -> props.value.value = o}
-					onKeyDown={e -> key(e, i)}>{props.labels != null && props.labels[i] != null ? props.labels[i] : o}</view>;
+				<view:button tag={tag + "-" + i} slot="toggle-group-item" variant={variant} size={size} data-spacing="0" role="radio" ref={p -> items[i] = p}
+					checked={on} data-state={() -> on() ? "on" : "off"} focusable={() -> stop(i)} onPress={_ -> props.value.value = o}
+					onKeyDown={e -> key(e, i)}>{props.labels != null && props.labels[i] != null ? props.labels[i] : o}</view:button>;
 			}
 		]}</view>;
 	}
@@ -2038,6 +2044,17 @@ class Widgets implements Markup {
 	// focuses nodes[i] if it is shown
 	static function focusIn(nodes:Array<Node>, i:Int)
 		if (i >= 0 && i < nodes.length && nodes[i].ui != null) nodes[i].ui.setFocus(nodes[i]);
+
+	// (a neutral widget's: the key mirrored right to left by the part
+	// listening. In a page the event's current and its Part's methods used
+	// opaquely: through Event's field, the interface or by name untyped, they
+	// would keep ui's Event, each Part's, a Node's and its nodes, in a page)
+	static function mirroredKey(e:Event):Int
+		return Behaviour.mirror(e.key, #if js js.Syntax.code("{0}.current.rtl()", e) #else e.current.rtl() #end);
+
+	// (a neutral widget's: parts[i], after a key)
+	static function focusPart(parts:Array<Part>, i:Int)
+		if (i >= 0 && i < parts.length && parts[i] != null) #if js js.Syntax.code("{0}.focus(true)", parts[i]) #else parts[i].focus() #end;
 
 	// a menu's panel of items (their nodes into nodes): Up and Down move
 	// through them (wrapping), Home and End to the first and last, letters

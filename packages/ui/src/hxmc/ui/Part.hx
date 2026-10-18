@@ -19,4 +19,7 @@ interface Part {
 
 	// an attribute (data-*, aria-*), null where it has none
 	function attr(name:String):Null<String>;
+
+	// whether it is laid out right to left (dir, its own or inherited)
+	function rtl():Bool;
 }

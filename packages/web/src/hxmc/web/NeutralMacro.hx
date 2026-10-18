@@ -109,7 +109,6 @@ class NeutralMacro {
 		// (ui's own: Node.find's tag, a group's and a peer's markers, the CSS's slots)
 		if (name == "tag" || name == "group" || name == "peer") return null;
 		// (a button's or a link's own: its role, and focusable as it is; a legend's role)
-		if ((tag == "view:button" || tag == "view:a") && name == "focusable") return null;
 		if (name == "role" && v != null && v.expr.match(EConst(CString("button" | "link", _)))) return null;
 		if (StringTools.endsWith(tag, ":legend") && name == "role") return null;
 		// (a mapped name: a function setting its DOM attribute or property, named here; each other kind one function, (el, name, v): Neutral)

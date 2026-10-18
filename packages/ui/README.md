@@ -297,7 +297,7 @@ The elements are also the neutral ones of single-source widgets
 `text:p`, `text:h2`... are a view and a text here, the element of that name
 in a page; `<icon name="check"/>` draws lucide's icon of that name
 (`hxmc.ui.widgets.Icons`, an inline SVG in a page); a ref of theirs gets an `hxmc.ui.Part` (Node is one: `focus`,
-`rect`, `scrollIntoView`, `contains`, `attr`).
+`rect`, `scrollIntoView`, `contains`, `attr`, `rtl`), as an event's `current` is in a page.
 - drag and drop: `drag-data={value}` makes a node draggable; `onDragStart`,
   `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`
   accepts), `onDragLeave` and `onDrop` (`e.data`) on targets; Escape cancels.

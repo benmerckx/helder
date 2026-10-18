@@ -90,41 +90,6 @@ class Widgets implements Markup {
 		return svg;
 	}
 
-	// a radio group (shadcn's, Radix's) bound to a signal: a radio button
-	// per option, labelled (labels, else the option); one Tab stop (the
-	// checked one, else the first), the arrows checking and focusing the
-	// next or previous (wrapping)
-	public static function RadioGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?disabled:Dynamic, ?label:String,
-			?tag:String}):View {
-		var options = props.options, items:Array<Element> = [], base = props.tag ?? Dom.id();
-		function stop(i:Int):Bool {
-			var k = options.indexOf(props.value.value);
-			return i == (k < 0 ? 0 : k);
-		}
-		function key(e:KeyboardEvent, i:Int) {
-			if (on(props.disabled)) return;
-			var k = keyOf(e), j = k == Key.SPACE ? i : Behaviour.rove(k, i, options.length);
-			if (j < 0 || k == Key.HOME || k == Key.END) return;
-			e.preventDefault();
-			props.value.value = options[j];
-			focusIn(items, j);
-		}
-		return <div id={props.tag} role="radiogroup" data-slot="radio-group" aria-label={props.label} data-disabled={() -> on(props.disabled) ? "" : null}>{[
-			for (i in 0...options.length) {
-				var o = options[i], id = base + "-" + i, text = props.labels != null && props.labels[i] != null ? props.labels[i] : o;
-				var state = () -> props.value.value == o ? "checked" : "unchecked";
-				<div data-slot="radio-group-option">
-					<button type="button" role="radio" id={id} data-slot="radio-group-item" ref={n -> items[i] = cast n} aria-checked={() -> state() == "checked" ? "true" : "false"}
-						data-state={state} tabindex={() -> stop(i) ? 0 : -1} disabled={() -> on(props.disabled)} data-disabled={() -> on(props.disabled) ? "" : null}
-						onClick={() -> props.value.value = o} onKeyDown={(e:KeyboardEvent) -> key(e, i)}>
-						<Show when={() -> state() == "checked"}><span data-slot="radio-group-indicator" data-state="checked">{() -> icon("circle", "radio-group-icon", true)}</span></Show>
-					</button>
-					<label data-slot="label" htmlFor={id}>{text}</label>
-				</div>;
-			}
-		]}</div>;
-	}
-
 	// a slider (shadcn's, Radix's) bound to a signal: from min to max (0 to
 	// 1), in steps (0: any value); dragged, clicked, or moved with the arrow
 	// keys, Home and End; width: the slider's (pixels), else its theme's
@@ -254,33 +219,6 @@ class Widgets implements Markup {
 				data-slot="progress-indicator" data-state="indeterminate" style="position:absolute;width:40%"
 				ref={n -> (cast n).animate([{left: "-40%"}, {left: "100%"}], {duration: 1500, iterations: Math.POSITIVE_INFINITY})}/>}
 		</div>;
-	}
-
-	// a toggle group (shadcn's, Radix's): one of options chosen among joined
-	// toggles (one Tab stop, the chosen one; the arrows, Home and End choose
-	// another); variant "default" or "outline", size "default", "sm" or "lg"
-	public static function ToggleGroup(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?variant:String, ?size:String,
-			?label:String, ?tag:String}):View {
-		var variant = props.variant ?? "default", size = props.size ?? "default", options = props.options, items:Array<Element> = [];
-		function stop(i:Int):Bool {
-			var k = options.indexOf(props.value.value);
-			return i == (k < 0 ? 0 : k);
-		}
-		return <div id={props.tag} role="group" data-slot="toggle-group" aria-label={props.label} data-variant={variant} data-size={size} data-spacing="0" style="--gap:0">{[
-			for (i in 0...options.length) {
-				var o = options[i], sel = () -> props.value.value == o;
-				<button type="button" role="radio" data-slot="toggle-group-item" ref={n -> items[i] = cast n} data-variant={variant} data-size={size} data-spacing="0"
-					aria-checked={() -> sel() ? "true" : "false"} data-state={() -> sel() ? "on" : "off"} tabindex={() -> stop(i) ? 0 : -1}
-					onClick={() -> props.value.value = o} onKeyDown={(e:KeyboardEvent) -> {
-						var k = keyOf(e), j = k == Key.SPACE || k == Key.ENTER ? i : Behaviour.rove(k, i, options.length);
-						if (j >= 0) {
-							e.preventDefault();
-							props.value.value = options[j];
-							focusIn(items, j);
-						}
-					}}>{props.labels != null && props.labels[i] != null ? props.labels[i] : o}</button>;
-			}
-		]}</div>;
 	}
 
 	// a collapsible (shadcn's): its label on a button (an arrow turning with it) showing or hiding the children
