@@ -282,4 +282,39 @@ export const cases = [
 		{ style: { position: 'Absolute', gridColumn: '1 / span 2', right: 0, height: 5 } }, box(8, 8, { position: 'Absolute', gridColumn: '7', gridRow: '1', bottom: 0 })] }] } },
 	{ name: 'rtl grid absolute children in their areas', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', dir: 'Rtl', gridTemplateColumns: '50px 1fr 60px', padding: [0, 5, 0, 9] }, children: [
 		{ style: { position: 'Absolute', gridColumn: '2 / 3', left: 0, right: 0, height: 5 } }, box(10, 10, { position: 'Absolute', gridColumn: '1' })] }] } },
+	// (an item with an aspect ratio, neither size its own: at its start, its width the area's within the heights it may have through the ratio)
+	{ name: 'grid item with an aspect ratio and a max height', width: 300, height: 200, tree: { children: [{ children: [{ style: { display: 'Grid' }, children: [{ style: { maxHeight: '50%', aspectRatio: 1 } }] }] }, { style: { display: 'Grid', gridTemplateColumns: '200px' }, children: [{ style: { aspectRatio: 2, minHeight: 20 } }] }] } },
+	// (an item with an aspect ratio: its least width its min height's through the ratio; stretched, its width the height's, its content's when wider)
+	{ name: 'row item with an aspect ratio, a min height, a stretched height', width: 300, height: 200, tree: { children: [{ style: { direction: 'Row' }, children: [{ style: { basis: 27, minHeight: 84, aspectRatio: 1 } }] },
+		{ style: { direction: 'RowReverse' }, children: [{ style: { aspectRatio: 1 }, children: [{ style: { maxHeight: '25%' } }] }, { style: { padding: 2 } }] },
+		{ style: { direction: 'RowReverse' }, children: [{ style: { maxHeight: 23, aspectRatio: 1 }, children: [{ style: { maxHeight: '25%' } }, { style: { width: 59 } }] }] }] } },
+	// (a grid of a height laid out, not definite: its rows sized in an indefinite room (not shrunk to its max-height), stretched to its min-height, its percentage rows of its height)
+	{ name: 'grid rows in a height laid out', width: 300, height: 200, tree: { children: [{ style: { alignItems: 'Center', display: 'Grid' }, children: [{ style: { maxHeight: '50%', display: 'Grid', gridAutoRows: 'minmax(10px, auto)' }, children: [h(60), {}] }] },
+		{ style: { display: 'Grid', gridTemplateRows: '50% 20px', position: 'Absolute' }, children: [{}] },
+		{ style: { aspectRatio: 1, width: 100 }, children: [{ style: { minHeight: '50%', display: 'Grid', position: 'Absolute' }, children: [{}] }] }] } },
+	// (an item with an aspect ratio and neither size its own: the columns sized again from its rows' height through the ratio, the grid's
+	// height its first rows'; its rows' contribution at the width it will have, within its max-width)
+	{ name: 'grid columns sized again for an aspect ratio', width: 300, height: 200, tree: { children: [{ style: { display: 'Grid', width: 2, gridTemplateColumns: '50px 1fr' }, children: [{ style: { order: 2, aspectRatio: 0.5 } }, { style: { borderWidth: 3 } }] },
+		{ style: { display: 'Grid', width: 100, gridTemplateColumns: 'auto auto' }, children: [{ style: { aspectRatio: 0.5 } }, h(10)] },
+		{ style: { display: 'Grid', width: 300, gridTemplateColumns: 'min-content 1fr' }, children: [{ style: { aspectRatio: 0.5 } }, h(40)] },
+		{ style: { display: 'Grid' }, children: [{ style: { maxWidth: 40, aspectRatio: 0.5 } }] }] } },
+	// (a box with an aspect ratio, its height auto, its min-height auto, its overflow visible: its content's height when more than the ratio's,
+	// within its max-height, a wrapping column's lines broken at the ratio's; a flex base size the ratio's, its minimum its content's within
+	// its max-width through the ratio; a percentage height not)
+	{ name: 'aspect ratio and the content height', width: 300, height: 200, tree: { children: [{ style: { width: 35, aspectRatio: 0.5 }, children: [{ style: { basis: 75 } }] },
+		{ style: { direction: 'Row' }, children: [{ style: { width: 35, aspectRatio: 0.5 }, children: [h(75)] }, { style: { width: 35, aspectRatio: 0.5, overflow: 'Hidden' }, children: [h(75)] }, { style: { width: 35, aspectRatio: 0.5, maxHeight: 72 }, children: [h(75)] }] },
+		{ style: { wrap: true, width: 74, aspectRatio: 1 }, children: [{ style: { minHeight: 62 } }, h(44)] },
+		{ style: { maxWidth: 39, aspectRatio: 2 }, children: [h(25)] }, { children: [{ style: { width: 66, height: '50%', aspectRatio: 1 }, children: [{ style: { height: 52, margin: 8 } }] }] }] } },
+	{ name: 'aspect ratio, a percentage height, shrunk', width: 300, height: 200, tree: { children: [{ style: { width: 70, height: '50%', aspectRatio: 2 } }, { style: { basis: 105 } }] } },
+	// (a box with an aspect ratio and one size its own: in a grid, the other its through the ratio, not stretched, however wide; no narrower
+	// than its content's min-content width; a row's item's automatic minimum no less than its height's through the ratio; a column's item's
+	// width its flexed height's)
+	{ name: 'aspect ratio and one size its own', width: 300, height: 200, tree: { children: [{ style: { height: 76, display: 'Grid' }, children: [{ style: { width: 41, minHeight: 8, aspectRatio: 0.5 } }] },
+		{ style: { height: 50, display: 'Grid', gridTemplateColumns: '100px' }, children: [{ style: { height: 20, aspectRatio: 2 } }, { style: { height: 20, aspectRatio: 10 } }] },
+		{ style: { direction: 'RowReverse', width: 95, padding: 9 }, children: [{ style: { height: 81, aspectRatio: 1 } }] },
+		{ style: { direction: 'Row', width: 50 }, children: [{ style: { height: 30, aspectRatio: 1 }, children: [{ style: { width: 60 } }] }, { style: { basis: 40 } }] },
+		{ style: { height: 16, position: 'Absolute', aspectRatio: 0.5 }, children: [{ style: { width: 119 } }] },
+		{ style: { alignItems: 'End', height: 40 }, children: [{ style: { basis: 30, height: 108, aspectRatio: 0.5 } }] }] } },
+	// (a wrapping column's stretched item with an aspect ratio, in lines of a known width: its width its flexed height's)
+	{ name: 'aspect ratio in a wrapping column, flexed', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 47 }, children: [{ style: { height: 92, aspectRatio: 0.5 } }, box(30, 20)] }] } },
 ];

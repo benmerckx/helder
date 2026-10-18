@@ -58,6 +58,8 @@ class UiTest {
 		textTransform();
 		culling();
 		inPlace();
+		restyled();
+		editing();
 		selection();
 		fields();
 		popups();
@@ -727,7 +729,7 @@ class UiTest {
 		var words = ["a", "bb", "ccc dd", "eeee f gg", "hhhhhhh", "ii jj kk ll mm", "n"];
 		var dims:Array<Dim> = [DimValue.Auto, 30, 70, "50%", "100%"];
 		function restyle(n:Node):String {
-			var s = n.style, k = rnd(18);
+			var s = n.style, k = rnd(26);
 			switch k {
 				case 0: s.width = dims[rnd(dims.length)];
 				case 1: s.height = dims[rnd(dims.length)];
@@ -746,6 +748,17 @@ class UiTest {
 				case 14: s.basis = ([DimValue.Auto, 0, 25] : Array<Dim>)[rnd(3)];
 				case 15: s.display = rnd(5) == 0 ? Display.None : Display.Flex;
 				case 16: s.fontSize = [8, 12, 20][rnd(3)];
+				case 17:
+					s.display = Display.Grid;
+					s.gridTemplateColumns = Grid.tracks(["1fr auto", "40px 1fr", "repeat(3, 1fr)", "auto auto"][rnd(4)]);
+				case 18: s.aspectRatio = [0, 1, 2][rnd(3)];
+				case 19: s.shadow = rnd(2) == 0 ? null : Shadow.parse("0 4px 12px rgba(0,0,0,0.5)");
+				case 20: s.transform = rnd(2) == 0 ? null : Transform.parse(["translate(30px, 10px)", "scale(1.5)", "translateX(-40px)"][rnd(3)]);
+				// (inherited: what the texts below keep of them, again)
+				case 21: s.dir = [null, Dir.Ltr, Dir.Rtl][rnd(3)];
+				case 22: s.textTransform = [null, TextTransform.Uppercase, TextTransform.None][rnd(3)];
+				case 23: s.textWrap = [null, TextWrap.Wrap, TextWrap.NoWrap, TextWrap.Balance][rnd(4)];
+				case 24: s.letterSpacing = [null, 0.0, 2.0][rnd(3)];
 				case _:
 					s.position = rnd(4) == 0 ? Position.Absolute : Position.Relative;
 					s.left = rnd(3) * 5;
@@ -756,6 +769,8 @@ class UiTest {
 		var nodes:Array<Node> = [];
 		function make(depth:Int):Node {
 			var n = depth > 0 && rnd(3) == 0 || depth == 3 ? new TextNode(words[rnd(words.length)]) : new Node();
+			// (each drawn: what the window culls by its ink)
+			n.style.background = Color.rgb(0x101010 * (1 + nodes.length % 15));
 			nodes.push(n);
 			if (!Std.isOfType(n, TextNode))
 				for (i in 0...rnd(4))
@@ -774,11 +789,21 @@ class UiTest {
 			for (c in n.children)
 				boxes(c, out);
 		}
+		// (the accessibility tree as text: each node's role, name and bounds, by id)
+		function told(t:hxmc.ui.access.AccessTree):String {
+			var ids = [for (id in t.nodes.keys()) id];
+			ids.sort((a, b) -> a - b);
+			return t.root + ";" + [for (id in ids) {
+				var a = t.nodes.get(id);
+				id + " " + a.role + " " + a.name + " " + [a.x, a.y, a.width, a.height].join(",") + " " + a.children.join(",");
+			}].join("|");
+		}
 		function all(n:Node) {
 			n.markDirty();
 			for (c in n.children)
 				all(c);
 		}
+		var drawn = 0, drawnFirst = "";
 		for (tree in 0...40) {
 			var ui = new Ui(new MonoText(), 240, 200);
 			ui.root.style.alignItems = Start;
@@ -802,12 +827,20 @@ class UiTest {
 						what = restyle(n);
 				}
 				ui.update();
-				var got = [];
+				var got = [], painted = new Recording();
 				boxes(ui.root, got);
+				ui.paint(painted);
+				var tree = told(ui.accessTree());
+				var points = [for (i in 0...12) [rnd(240), rnd(200)]], hit = [for (q in points) ui.root.hitTest(q[0], q[1])];
 				all(ui.root);
 				ui.update();
-				var want = [];
+				var want = [], fresh = new Recording();
 				boxes(ui.root, want);
+				ui.paint(fresh);
+				if (painted.calls.join("|") != fresh.calls.join("|") || tree != told(ui.accessTree()) || [for (i in 0...points.length) ui.root.hitTest(points[i][0], points[i][1]) == hit[i]].indexOf(false) >= 0) {
+					drawn++;
+					if (drawnFirst == "") drawnFirst = 'tree $tree step $step ($what on ${n.tag})';
+				}
 				steps++;
 				if (got.join(",") != want.join(",")) {
 					bad++;
@@ -867,8 +900,211 @@ class UiTest {
 			() -> text.text = "a";
 		});
 		check("in place: not when its baseline moved, nor its min-content changed", baseline && least, baseline + " " + least);
+		// (a field typed into, of a width of its own, in a column of rows: it alone)
+		var before = 0, after = 0;
+		var typed = agrees(ui -> {
+			var field = new TextField();
+			field.style.width = 120;
+			ui.root.append(field);
+			for (i in 0...20)
+				ui.root.append(new TextNode("row " + i));
+			() -> {
+				before = Layout.inPlaces;
+				field.setText("typed");
+				ui.update();
+				after = Layout.inPlaces;
+			}
+		});
+		check("in place: a field typed into laid out alone", typed && after == before + 1, typed + " " + (after - before));
 		var placed = Layout.inPlaces - was;
+		check("in place: drawn, hit and told assistive technology as from the root, " + steps + " changes", drawn == 0, drawn + " differ, the first: " + drawnFirst);
 		check("in place: as laid out from the root, " + steps + " changes (" + placed + " in place)", bad == 0 && placed > steps / 4, bad + " differ, the first: " + first + "; " + placed + " in place");
+	}
+
+	// a field edited at random (typing, an emoji of two UTF-16 units among
+	// the letters, the arrows, Home and End with Shift or not, Backspace,
+	// Delete, select all) against a string: its text, caret and anchor each
+	// step; then undone back to empty and redone to the end
+	static function editing() {
+		var seed = 11, bad = 0, first = "";
+		function rnd(n:Int):Int {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			return (seed >> 8) % n;
+		}
+		for (round in 0...20) {
+			var ui = new Ui(new MonoText(), 300, 100);
+			var f = new TextField("");
+			ui.root.append(f);
+			ui.update();
+			ui.setFocus(f);
+			var text = "", caret = 0, anchor = 0;
+			inline function low(i:Int):Bool
+				return i >= 0 && i < text.length && StringTools.fastCodeAt(text, i) >= 0xDC00 && StringTools.fastCodeAt(text, i) <= 0xDFFF;
+			function prev(i:Int):Int
+				return i <= 0 ? 0 : low(i - 1) ? i - 2 : i - 1;
+			function next(i:Int):Int
+				return i >= text.length ? text.length : low(i + 1) ? i + 2 : i + 1;
+			function over(s:String) {
+				var a = caret < anchor ? caret : anchor, b = caret < anchor ? anchor : caret;
+				text = text.substring(0, a) + s + text.substring(b);
+				caret = anchor = a + s.length;
+			}
+			for (step in 0...60) {
+				var what;
+				switch rnd(9) {
+					case 0 | 1 | 2:
+						var c = rnd(8) == 0 ? 0x1F600 : rnd(5) == 0 ? 32 : "a".code + rnd(26);
+						ui.keyDown(c, 0);
+						ui.textInput(String.fromCharCode(c));
+						over(String.fromCharCode(c));
+						what = "typed";
+					case 3:
+						var shift = rnd(2) == 0;
+						ui.keyDown(Key.LEFT, shift ? Key.MOD_SHIFT : 0);
+						caret = caret != anchor && !shift ? (caret < anchor ? caret : anchor) : prev(caret);
+						if (!shift) anchor = caret;
+						what = "left";
+					case 4:
+						var shift = rnd(2) == 0;
+						ui.keyDown(Key.RIGHT, shift ? Key.MOD_SHIFT : 0);
+						caret = caret != anchor && !shift ? (caret < anchor ? anchor : caret) : next(caret);
+						if (!shift) anchor = caret;
+						what = "right";
+					case 5:
+						var shift = rnd(2) == 0, end = rnd(2) == 0;
+						ui.keyDown(end ? Key.END : Key.HOME, shift ? Key.MOD_SHIFT : 0);
+						caret = end ? text.length : 0;
+						if (!shift) anchor = caret;
+						what = end ? "end" : "home";
+					case 6:
+						ui.keyDown(Key.BACKSPACE, 0);
+						if (caret == anchor) anchor = prev(caret);
+						over("");
+						what = "backspace";
+					case 7:
+						ui.keyDown(Key.DELETE, 0);
+						if (caret == anchor) anchor = next(caret);
+						over("");
+						what = "delete";
+					case _:
+						ui.keyDown("a".code, Key.MOD_CONTROL);
+						anchor = 0;
+						caret = text.length;
+						what = "select all";
+				}
+				ui.update();
+				if (f.text != text || f.caret != caret || f.anchor != anchor) {
+					bad++;
+					if (first == "") first = 'round $round step $step ($what): "${f.text}" ${f.caret}/${f.anchor}, not "$text" $caret/$anchor';
+					break;
+				}
+			}
+			// (undone to the start, redone to the end)
+			var end = f.text;
+			for (i in 0...200)
+				ui.keyDown("z".code, Key.MOD_CONTROL);
+			var undone = f.text;
+			for (i in 0...200)
+				ui.keyDown("z".code, Key.MOD_CONTROL | Key.MOD_SHIFT);
+			if (undone != "" || f.text != end) {
+				bad++;
+				if (first == "") first = 'round $round: undone to "$undone", redone to "${f.text}", not "$end"';
+			}
+		}
+		check("editing: a field edited at random as a string is", bad == 0, bad + " differ, the first: " + first);
+	}
+
+	// the theme's rules restyling what a change reaches (Rules: other nodes'
+	// states, group, peer, has, prev, parent, first and last) as styling the
+	// same tree from scratch does: random sheets and trees, attributes,
+	// markers and children changed at random
+	static function restyled() {
+		var seed = 3, bad = 0, steps = 0, first = "";
+		function rnd(n:Int):Int {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			return (seed >> 8) % n;
+		}
+		var conds = ["data-x", "data-y=1", "first", "last", "not:data-x", "group:data-x", "group/g:data-y=1", "peer:data-x", "peer/p:data-y=1", "has:data-x",
+			"has:>data-slot=b", "has:data-x&data-y=1", "prev:data-x", "parent:data-y=1", "group:has:data-x", "not:has:data-y=1", "prev:data-slot=a"];
+		var slots:Array<Null<String>> = ["a", "b", "c", null];
+		var attrs = ["data-x", "data-y", "group", "peer"];
+		function make(depth:Int, nodes:Array<Node>):Node {
+			var n = new Node();
+			n.slot = slots[rnd(slots.length)];
+			for (a in attrs)
+				if (rnd(4) == 0) n.setAttr(a, a == "data-y" ? "1" : a == "group" ? ["", "g"][rnd(2)] : a == "peer" ? ["", "p"][rnd(2)] : "");
+			nodes.push(n);
+			if (depth < 3)
+				for (i in 0...rnd(4))
+					n.append(make(depth + 1, nodes));
+			return n;
+		}
+		function clone(n:Node):Node {
+			var c = new Node();
+			c.slot = n.slot;
+			for (a in attrs)
+				if (n.attr(a) != null) c.setAttr(a, n.attr(a));
+			for (k in n.children)
+				c.append(clone(k));
+			return c;
+		}
+		function styles(n:Node, out:Array<Float>) {
+			out.push(n.style.opacity);
+			out.push(n.style.zIndex);
+			for (c in n.children)
+				styles(c, out);
+		}
+		for (round in 0...30) {
+			var rules:Array<Rule> = [];
+			for (i in 0...10) {
+				var when = [conds[rnd(conds.length)]];
+				if (rnd(3) == 0) when.push(conds[rnd(conds.length)]);
+				var slot = ["a", "b", "c", "*"][rnd(4)];
+				rules.push(rnd(2) == 0 ? {slot: slot, when: when, style: {opacity: (i + 1) / 20}} : {slot: slot, when: when, style: {zIndex: i + 1}});
+			}
+			var sheet:StyleSheet = {rules: rules};
+			var ui = new Ui(new MonoText(), 200, 200);
+			ui.theme = sheet;
+			var nodes = [];
+			var top = make(0, nodes);
+			ui.root.append(top);
+			ui.update();
+			for (step in 0...40) {
+				var n = nodes[rnd(nodes.length)], what;
+				if (n.ui == null) continue;
+				switch rnd(4) {
+					case 0:
+						var a = attrs[rnd(attrs.length)];
+						n.setAttr(a, n.attr(a) != null ? null : a == "data-y" ? "1" : a == "group" ? "g" : a == "peer" ? "p" : "");
+						what = "attr " + a;
+					case 1:
+						n.insert(make(2, nodes), rnd(n.children.length + 1));
+						what = "inserted";
+					case 2 if (n != top):
+						n.parent.remove(n);
+						what = "removed";
+					case _:
+						n.slot = slots[rnd(slots.length)];
+						what = "slot";
+				}
+				ui.update();
+				var got = [];
+				styles(top, got);
+				var fresh = new Ui(new MonoText(), 200, 200);
+				fresh.theme = sheet;
+				var copy = clone(top);
+				fresh.root.append(copy);
+				fresh.update();
+				var want = [];
+				styles(copy, want);
+				steps++;
+				if (got.join(",") != want.join(",")) {
+					bad++;
+					if (first == "") first = 'round $round step $step ($what)';
+				}
+			}
+		}
+		check("restyled: as styled from scratch, " + steps + " changes", bad == 0, bad + " differ, the first: " + first);
 	}
 
 	// an ancestor's decorations over a text: the underline before it, the

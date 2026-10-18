@@ -26,17 +26,22 @@ import hxmc.unsafe.*;
 // itself can be destroyed and made again then (a relaunch: Activity), its
 // window with it: only a finishing activity ends the wait.)
 // While paused or without a window App.run sleeps in the looper.
+// (hxmc dev's host: the window, the input queue and the pause are the
+// host's, kept for the next build: hxmc.dev.HostedMacro)
+#if hxmc.dev_host
+@:build(hxmc.dev.HostedMacro.shared(40, 8))
+#end
 @:hxmc.android @:allow(hxmc.os)
 class AndroidWindow {
 	static var current:Null<AndroidWindow> = null;
-	static var queue = Ptr.nil();
-	static var window = Ptr.nil();
-	static var paused = false;
+	static var queue:Ptr = Ptr.nil();
+	static var window:Ptr = Ptr.nil();
+	static var paused:Bool = false;
 	static final event = new Event();
 	// the first finger's gesture (TouchDrag), its events' times from this one's (ns)
 	static final drag = new TouchDrag();
 	static var since:Int64 = 0;
-	static var timed = false;
+	static var timed:Bool = false;
 	// text input (TextInput, in the programs that enable it): on or off, its
 	// events waiting for this thread
 	@:allow(hxmc.os.android) static var textInputHook:Null<(on:Bool, x:Int, y:Int, width:Int, height:Int) -> Void> = null;
@@ -89,6 +94,10 @@ class AndroidWindow {
 
 	function destroy() {
 		current = null;
+		#if hxmc.dev_host
+		// (handing over to the next build: the activity goes on)
+		if (hxmc.dev.Hosted.handingOver) return;
+		#end
 		if (Activity.destroyed == 0 && !Activity.activity.isNull()) Android.ANativeActivity_finish(Activity.activity);
 	}
 

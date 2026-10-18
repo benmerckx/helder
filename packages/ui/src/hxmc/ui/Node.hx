@@ -150,6 +150,8 @@ class Node implements Part {
 	@:allow(hxmc.ui.Layout) var cacheWas = -1;
 	@:allow(hxmc.ui.Layout) var minContentWas = Math.NaN;
 	@:allow(hxmc.ui.Layout) var lossy = false;
+	// (a roving tab stop, in the tab order or not: Part.tabStop)
+	var tabStopped = false;
 	// (a row's items' baseline, those aligned on it, below its top; NaN: none)
 	@:allow(hxmc.ui.Layout) var lb = Math.NaN;
 
@@ -829,6 +831,27 @@ class Node implements Part {
 	// (a text field's: EditableText's)
 	public function select(start:Int, end:Int) {}
 
+	// (kept wherever nodes are laid out: widgets call these opaquely in a page, Widgets' partsIn and the others)
+	@:ifFeature("hxmc.ui.Node.markDirty") public function focusables():Array<Part> {
+		var out:Array<Part> = [];
+		function walk(n:Node)
+			for (c in n.children)
+				if (c.style.display != None && (c.focusable || c.tabStopped)) out.push(c) else walk(c);
+		walk(this);
+		return out;
+	}
+
+	@:ifFeature("hxmc.ui.Node.markDirty") public function tabStop(on:Bool) {
+		focusable = on;
+		tabStopped = true;
+	}
+
+	@:ifFeature("hxmc.ui.Node.markDirty") public function holdsFocus():Bool
+		return ui != null && ui.focus != null && contains(ui.focus);
+
+	@:ifFeature("hxmc.ui.Node.markDirty") public function editable():Bool
+		return takesText();
+
 	public function contains(p:Part):Bool {
 		var n:Null<Node> = Std.downcast(p, Node);
 		while (n != null && n != this)
@@ -1199,6 +1222,7 @@ class Node implements Part {
 		slot = v;
 		if (ui != null && v == "body") ui.setBody(this);
 		restyleLater();
+		Rules.reslotted(this);
 		return v;
 	}
 
@@ -1206,6 +1230,7 @@ class Node implements Part {
 		if (v == variant) return v;
 		variant = v;
 		restyleLater();
+		Rules.related(this);
 		return v;
 	}
 
@@ -1213,6 +1238,7 @@ class Node implements Part {
 		if (v == size) return v;
 		size = v;
 		restyleLater();
+		Rules.related(this);
 		return v;
 	}
 

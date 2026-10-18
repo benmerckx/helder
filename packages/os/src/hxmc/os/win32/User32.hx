@@ -12,6 +12,11 @@ import hxmc.unsafe.*;
 	static function CreateWindowExW(exStyle:Int, cls:Ptr, title:Ptr, style:Int, x:Int, y:Int, width:Int, height:Int, parent:Ptr, menu:Ptr,
 		instance:Ptr, param:Ptr):Ptr;
 	static function DestroyWindow(hwnd:Ptr):Int;
+	#if hxmc.dev_host
+	// (hxmc dev: a window and its class an earlier build made, their procedure this build's)
+	static function SetWindowLongPtrW(hwnd:Ptr, index:Int, value:Ptr):Ptr;
+	static function SetClassLongPtrW(hwnd:Ptr, index:Int, value:Ptr):Ptr;
+	#end
 	static function ShowWindow(hwnd:Ptr, cmd:Int):Int;
 	static function DefWindowProcW(hwnd:Ptr, msg:Int, wParam:Int64, lParam:Int64):Int64;
 	static function PeekMessageW(msg:Ptr<MSG>, hwnd:Ptr, min:Int, max:Int, remove:Int):Int;

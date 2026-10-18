@@ -162,12 +162,12 @@ for InputOTP's caret kept at the end; what a page's input has itself, ui's
 in Widgets' fieldOwn: out of the tab order while disabled, the edit
 menu), Progress (its slide on ui's Clock or a page's animation frames);
 ahead of 4 and 5, Tabs, Listbox, Breadcrumb, Pagination, Collapsible,
-Accordion, Calendar, Avatar (`image` an `<img>`), ScrollArea (`overflow-x`, `overflow-y`), Spinner (turned on ui's Clock, a page's by its theme's
+Accordion, Calendar, Toolbar (its items a Part's `focusables`, roved by `tabStop`, the focused one by `holdsFocus`, a text field's keys its own by `editable`), TagInput (its field a `field`, its chips focusable buttons), Avatar (`image` an `<img>`), ScrollArea (`overflow-x`, `overflow-y`), Spinner (turned on ui's Clock, a page's by its theme's
 animate-spin) and the Sidebar's parts (Trigger, Inset, Header, Content, Footer,
 Separator, Group, GroupLabel, GroupContent, Menu, MenuItem, MenuButton):
-80 widgets and parts one definition.
+82 widgets and parts one definition.
 
-Debt: in a page a neutral widget calls a Part's methods (focus, rtl,
+Debt: in a page a neutral widget calls a Part's methods (focus, rtl, rect, focusables, tabStop, holdsFocus, editable,
 select) and reads an event's `current` opaquely (`js.Syntax.code`:
 Widgets' mirroredKey, focusPart, selectPart and unseen), since the JS generator's DCE, upstream's,
 keeps every implementation of an interface method called through it (a
@@ -204,10 +204,10 @@ renderer, say) would retire both.
   Item, Carousel, NavigationMenu, Sidebar, BarChart and LineChart,
   AspectRatio, ScrollArea, NativeSelect, a calendar's range). **Behaviour**: `make web-widgets` drives the gallery by
   pointer and keys.
-- **Size**: a counter is 42 KB of JavaScript (9 KB gzipped), the form 60
-  KB (12 KB), the whole gallery 306 KB (55 KB), the CSS 184 KB (18 KB),
+- **Size**: a counter is 44 KB of JavaScript (9.5 KB gzipped), the form 67
+  KB (13 KB), the whole gallery 342 KB (62 KB), the CSS 186 KB (18 KB),
   against 1.8, 1.9 and 2.4 MB of wasm32-wasi (432, 459, 559 KB gzipped)
   for their canvas builds.
 
-Left: the site's examples in DOM mode (the CSS's preflight would reach
-the site's own page: a scoped variant first); one definition per widget for both renderers (above).
+Left: the site's examples in DOM mode (the CSS scoped for it: `Css.sheet`'s
+scope, the preflight and tokens kept to the widgets' elements); one definition per widget for both renderers (above).

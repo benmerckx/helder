@@ -6,6 +6,10 @@
 //   const { host, exitCode } = await run('triangle.wasm', {
 //     imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'demo' });
 //
+// The module: its URL, a Response, a WebAssembly.Module or its bytes, or a
+// promise of one (WebAssembly.compileStreaming(fetch(url)) started before
+// run: compiled while the imports load).
+//
 // The import convention: a package whose externs are imports of a module
 // (`@:hxmc.lib("hxmc_gfx")`) ships `imports.mjs`, whose default export is a
 // function (host) => ({module: {name: function}}), or a promise of that (it
@@ -46,10 +50,103 @@
 // as "hxmc" instead (hxmc/bootstrap/wasmgc.mjs is node's): the output, the
 // clocks, Math, float formatting and parsing, the calendar, exit; no files.
 //
+// Swapping a module in the same page (hxmc dev; docs/dev.md, "No reloads"):
+// with the option track, what the instance registers with the page while
+// it is the page's (listeners on anything it did not create, animation
+// frames, timers, observers, audio contexts, the elements it created) is
+// recorded, and host.dispose() drops it all: the packages' own disposals
+// first (host.onDispose(f), last given first: os keeps its canvases, gfx
+// releases its GPU objects but keeps the device and the canvases'
+// contexts), then what is left. The elements marked kept (host.keep(e):
+// os's canvases) stay, without the instance's properties (hxmc*). After
+// dispose host.call does nothing. One instance is tracked at a time: the
+// page disposes the old one before it runs the new one. The option gpu
+// ({adapter, device}: host.gfx of an earlier instance) gives gfx the device
+// to use, so a new instance draws with the same GPUDevice.
+//
 // Memory: the module's own memory grows as it needs (the runtime reports
 // what memory.grow refused on stderr: "out of memory: ..."); a RangeError of
 // the browser's (the memory of a new instance, an ArrayBuffer) becomes
 // an Error whose message says "out of memory" and how much was asked.
+
+// (the instance whose registrations are recorded: one at a time)
+let tracking = null;
+let tracked = false;
+function installTracking() {
+	if (tracked) return;
+	tracked = true;
+	const g = globalThis, ET = EventTarget.prototype, add = ET.addEventListener;
+	ET.addEventListener = function (type, f, o) {
+		// (listeners on the instance's own elements go with them)
+		if (tracking && f && !tracking.created.has(this)) tracking.listeners.push([new WeakRef(this), type, f, o]);
+		return add.call(this, type, f, o);
+	};
+	const raf = g.requestAnimationFrame.bind(g);
+	g.requestAnimationFrame = (cb) => {
+		const r = tracking;
+		if (!r) return raf(cb);
+		const id = raf((t) => {
+			r.frames.delete(id);
+			cb(t);
+		});
+		r.frames.add(id);
+		return id;
+	};
+	const timeout = g.setTimeout.bind(g), interval = g.setInterval.bind(g);
+	g.setTimeout = (cb, ms, ...a) => {
+		const r = tracking;
+		if (!r || typeof cb !== 'function') return timeout(cb, ms, ...a);
+		const id = timeout(() => {
+			r.timers.delete(id);
+			cb(...a);
+		}, ms);
+		r.timers.add(id);
+		return id;
+	};
+	g.setInterval = (cb, ms, ...a) => {
+		const id = interval(cb, ms, ...a);
+		tracking?.intervals.add(id);
+		return id;
+	};
+	for (const name of ['ResizeObserver', 'IntersectionObserver', 'MutationObserver', 'PerformanceObserver']) {
+		const O = g[name];
+		if (O) g[name] = class extends O {
+			constructor(...a) {
+				super(...a);
+				tracking?.observers.push(this);
+			}
+		};
+	}
+	for (const name of ['AudioContext', 'OfflineAudioContext']) {
+		const A = g[name];
+		if (A) g[name] = class extends A {
+			constructor(...a) {
+				super(...a);
+				if (name === 'AudioContext') tracking?.audio.push(this);
+			}
+		};
+	}
+	const D = Document.prototype;
+	for (const k of ['createElement', 'createElementNS']) {
+		const f = D[k];
+		D[k] = function (...a) {
+			const e = f.apply(this, a);
+			if (tracking) {
+				tracking.created.add(e);
+				const list = tracking.elements;
+				list.push(new WeakRef(e));
+				// (the ones collected dropped now and then)
+				if (list.length >= tracking.compactAt) {
+					const live = list.filter((w) => w.deref() !== undefined);
+					list.length = 0;
+					list.push(...live);
+					tracking.compactAt = Math.max(4096, live.length * 2);
+				}
+			}
+			return e;
+		};
+	}
+}
 
 class Exit {
 	constructor(code) {
@@ -82,16 +179,60 @@ export async function run(wasm, options = {}) {
 			return h;
 		},
 		get: (h) => objects[h],
+		// (one past the highest handle given)
+		size: () => objects.length,
 		remove(h) {
 			objects[h] = null;
 			free.push(h);
 		},
 	};
+	// (option track: what the instance registers, dropped by dispose)
+	const registry = options.track ? { listeners: [], frames: new Set(), timers: new Set(), intervals: new Set(), observers: [], audio: [], created: new WeakSet(), elements: [], compactAt: 4096, kept: new Set() } : null;
+	const disposals = [];
+	if (registry) {
+		installTracking();
+		tracking = registry;
+	}
 	const host = {
-		options, handles, bytes, string, exitCode: null,
+		options, handles, bytes, string, exitCode: null, disposed: false,
+		// (true while the page swaps in a new build: the packages keep what the next instance takes over)
+		swapping: false,
 		memory: () => memory,
+		onDispose: (f) => disposals.push(f),
+		keep(e) {
+			registry?.kept.add(e);
+		},
+		// drops the instance: the packages' disposals, then what it registered
+		dispose() {
+			if (host.disposed) return;
+			host.swapping = true;
+			for (const f of disposals.reverse()) {
+				try {
+					f();
+				} catch (e) {
+					console.error('hxmc: a dispose function failed:', e);
+				}
+			}
+			host.disposed = true;
+			if (!registry) return;
+			if (tracking === registry) tracking = null;
+			for (const [t, type, f, o] of registry.listeners) t.deref()?.removeEventListener(type, f, o);
+			for (const id of registry.frames) cancelAnimationFrame(id);
+			for (const id of registry.timers) clearTimeout(id);
+			for (const id of registry.intervals) clearInterval(id);
+			for (const o of registry.observers) o.disconnect();
+			for (const a of registry.audio) if (a.state !== 'closed') a.close().catch(() => {});
+			for (const w of registry.elements) {
+				const e = w.deref();
+				if (!e) continue;
+				if (registry.kept.has(e)) {
+					for (const k of Object.keys(e)) if (k.startsWith('hxmc') && !k.startsWith('hxmcKeep')) delete e[k];
+				} else if (e.isConnected) e.remove();
+			}
+			registry.listeners.length = registry.observers.length = registry.audio.length = registry.elements.length = 0;
+		},
 		call(f, ...a) {
-			if (host.exitCode !== null) return undefined;
+			if (host.exitCode !== null || host.disposed) return undefined;
 			try {
 				return exports.__indirect_function_table.get(f)(...a);
 			} catch (e) {
@@ -315,7 +456,9 @@ export async function run(wasm, options = {}) {
 		const f = typeof m === 'string' ? (await import(new URL(m, document.baseURI).href)).default : m;
 		Object.assign(imports, await f(host));
 	}
-	// (wasm: a URL, a Response, a compiled WebAssembly.Module or the bytes)
+	// (wasm: a URL, a Response, a compiled WebAssembly.Module or the bytes, or a
+	// promise of one: a module compiling while the imports above were loading)
+	if (wasm && typeof wasm.then === 'function') wasm = await wasm;
 	let instance;
 	try {
 		instance = wasm instanceof WebAssembly.Module ? await WebAssembly.instantiate(wasm, imports)

@@ -22,6 +22,11 @@
 // input methods work: their compositions come as TextEditing events, their
 // commits (and text inserted without keys: an emoji picker, dictation) as
 // TextInput.
+// Swapped out (hxmc dev, host.dispose(): browser.mjs), the instance ends its
+// frames, its listeners and observers and its audio, and keeps its windows'
+// canvases (host.os.canvases: the next instance's option canvas, and
+// host.keep), their pixels as they are: a canvas run's option canvas gives a
+// new instance keeps its size and contents when they are the window's.
 // host.os.stop() ends the frames and lets go of the canvases; a frame that
 // throws ends them too, and goes to run's option onError when given (as an
 // exit with an error code in a frame does).
@@ -112,7 +117,17 @@ export default function (host) {
 	// the last paste event's text, and when
 	let pasted = null;
 	let stopped = false;
+	// (hxmc dev: swapped out, the canvases kept for the next instance)
+	host.onDispose?.(() => {
+		host.os.canvases = [...windows].map((h) => host.handles.get(h));
+		for (const c of host.os.canvases) host.keep(c);
+		host.os.stop();
+		for (const a of [...outputs]) hxmc_os.audio_close(a.handle);
+		if (resumes) for (const t of ['pointerdown', 'keydown']) document.removeEventListener(t, resume, { capture: true });
+		cancelAnimationFrame(frameId);
+	});
 	host.os = {
+		canvases: [],
 		redraw: () => { for (const h of windows) push([h, REDRAW, 0, 0, 0, 0, 0]); },
 		// no more frames or events: the windows let go of their canvases (a
 		// page frees a program it no longer shows: loader.js, data-stop)
@@ -366,6 +381,8 @@ export default function (host) {
 	let resumes = false;
 	// Window.scrollsAt's query (a callback; 0: none)
 	let query = 0;
+	// the next frame's requestAnimationFrame
+	let frameId = 0;
 
 	const hxmc_os = {
 		audio_open(rate, channels, frames, buffer, fill) {
@@ -376,6 +393,7 @@ export default function (host) {
 			const ahead = offline ? ctx.length : frames * Math.max(2, Math.ceil(ctx.sampleRate * 0.05 / frames));
 			const a = { ctx, channels, frames, buffer, fill, ahead, offline, node: null, queued: 0, running: false, pending: [] };
 			const h = host.handles.add(a);
+			a.handle = h;
 			processorUrl ??= URL.createObjectURL(new Blob([PROCESSOR], { type: 'text/javascript' }));
 			// (ready once the worklet has the chunks posted so far)
 			ctx.hxmcReady = ctx.audioWorklet.addModule(processorUrl).then(() => new Promise((ready) => {
@@ -438,15 +456,25 @@ export default function (host) {
 				document.body.appendChild(c);
 			}
 			// (a canvas the page does not size, whose displayed size is its
-			// buffer's: it would grow with the buffer)
-			const w0 = c.clientWidth;
-			c.width += 1;
-			if (made || c.clientWidth !== w0) {
+			// buffer's: it would grow with the buffer; one an earlier instance
+			// sized, kept by hxmc dev: as it is, its pixels too, when its size
+			// is the window's)
+			const kept = !made && c.hxmcKeepStyled === true;
+			if (!kept) {
+				const w0 = c.clientWidth;
+				c.width += 1;
+				if (made || c.clientWidth !== w0) {
+					c.style.width = width + 'px';
+					c.style.height = height + 'px';
+					c.hxmcKeepStyled = true;
+				}
+			} else if (c.style.width !== width + 'px' || c.style.height !== height + 'px') {
 				c.style.width = width + 'px';
 				c.style.height = height + 'px';
 			}
-			c.width = Math.round(width * devicePixelRatio);
-			c.height = Math.round(height * devicePixelRatio);
+			const bw = Math.round(width * devicePixelRatio), bh = Math.round(height * devicePixelRatio);
+			if (c.width !== bw) c.width = bw;
+			if (c.height !== bh) c.height = bh;
 			if (c.tabIndex < 0) c.tabIndex = 0;
 			const h = host.handles.add(c);
 			sync(h);
@@ -563,8 +591,9 @@ export default function (host) {
 		},
 		start(frame) {
 			const tick = () => {
+				frameId = 0;
 				if (stopped) return;
-				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return requestAnimationFrame(tick);
+				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return (frameId = requestAnimationFrame(tick));
 				if (devicePixelRatio !== ratio) {
 					ratio = devicePixelRatio;
 					for (const h of windows) push([h, SCALE_CHANGE, 0, 0, 0, 0, 0]);
@@ -582,9 +611,9 @@ export default function (host) {
 					return;
 				}
 				if (host.exitCode && host.options.onError) host.options.onError(new Error('the program exited with code ' + host.exitCode));
-				if (more) requestAnimationFrame(tick);
+				if (more) frameId = requestAnimationFrame(tick);
 			};
-			requestAnimationFrame(tick);
+			frameId = requestAnimationFrame(tick);
 		},
 	};
 	return { hxmc_os };

@@ -56,6 +56,20 @@ class Win32Window {
 		if (instance.isNull()) start();
 		scale = User32.GetDpiForSystem() / 96;
 		var w = Math.round(width * scale), h = Math.round(height * scale);
+		#if hxmc.dev_host
+		// (hxmc dev's host: the first window as the last build left it, its procedure and its class's this build's)
+		var kept = hxmc.dev.Hosted.hosted() && open.length == 0 ? hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_WINDOW) : Ptr.nil();
+		if (!kept.isNull()) {
+			hwnd = kept;
+			User32.SetWindowLongPtrW(hwnd, -4, Callback.addr(wndProc)); // GWLP_WNDPROC
+			User32.SetClassLongPtrW(hwnd, -24, Callback.addr(wndProc)); // GCLP_WNDPROC
+			Arena.scoped(a -> User32.SetWindowTextW(hwnd, a.wstring(title)));
+			surface = new Surface(Win32, instance, hwnd, w, h);
+			open.push(this);
+			measure();
+			return;
+		}
+		#end
 		hwnd = Arena.scopedValue(a -> {
 			// (the outer size of a client area of w x h)
 			var r = a.make(RECT);
@@ -68,6 +82,9 @@ class Win32Window {
 		if (hwnd.isNull()) throw "hxmc.os: CreateWindowExW failed (error " + Kernel32.GetLastError() + ")";
 		surface = new Surface(Win32, instance, hwnd, w, h);
 		open.push(this);
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted() && open.length == 1) hxmc.dev.Hosted.set(hxmc.dev.Hosted.UI_WINDOW, hwnd);
+		#end
 		User32.ShowWindow(hwnd, WM.SW_SHOW);
 		measure();
 	}
@@ -81,6 +98,10 @@ class Win32Window {
 			p[i] = name.charCodeAt(i);
 		p[name.length] = 0;
 		className = p;
+		#if hxmc.dev_host
+		// (the class an earlier build registered: kept, its procedure set when its window is taken)
+		if (hxmc.dev.Hosted.hosted() && !hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_WINDOW).isNull()) return;
+		#end
 		Arena.scoped(a -> {
 			var wc = a.make(WNDCLASSEXW);
 			wc.value.cbSize = 80;
@@ -111,6 +132,10 @@ class Win32Window {
 
 	function destroy() {
 		open.remove(this);
+		#if hxmc.dev_host
+		// (handing over: the window left to the next build)
+		if (hxmc.dev.Hosted.handingOver && hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_WINDOW) == hwnd) return;
+		#end
 		User32.DestroyWindow(hwnd);
 	}
 

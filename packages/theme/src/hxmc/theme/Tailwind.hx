@@ -110,10 +110,11 @@ class Tailwind {
 		"[--cell-size:--spacing(8)]",
 	];
 
-	// arbitrary selectors of a slot's children (a button group's joined
-	// buttons): rules of any slot (*) whose parent is the slot (Rules'
-	// parent:), the variants after them the child's states, these first
-	static final CHILDREN = ["[&>*]" => [], "[&>*:not(:first-child)]" => ["not:first"], "[&>*:not(:last-child)]" => ["not:last"]];
+	// a slot's children (*:, and arbitrary selectors of them: a button
+	// group's joined buttons): rules of any slot (*) whose parent is the slot
+	// (Rules' parent:), the variants after them the child's states (*:data-[slot=x]:
+	// a child of that slot), these first
+	static final CHILDREN = ["*" => [], "[&>*]" => [], "[&>*:not(:first-child)]" => ["not:first"], "[&>*:not(:last-child)]" => ["not:last"]];
 
 	// variants whose classes are dropped, and why: (a trailing * is a prefix)
 	public static final IGNORED_VARIANTS = [
@@ -127,9 +128,8 @@ class Tailwind {
 		"@*",
 		// nth-child selectors other than first and last
 		"nth-*",
-		// children's (*:) and descendants' (**:) styles, each of which ui's
-		// widgets give their own slot
-		"*", "**",
+		// descendants' styles (**:), each of which ui's widgets give their own slot
+		"**",
 		// pseudo-elements (tabs' line under the active trigger): no node for them
 		"after", "before",
 	];

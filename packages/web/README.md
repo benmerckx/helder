@@ -98,7 +98,7 @@ that failed `data-error` with the message (and `hxmc:error`).
 `Island.url` gives the address written for each file an island loads, from
 its name: a site with pages in folders, or its build in the addresses
 (cache-busting), sets it per page. One bundle may hold several islands; a small island alone (a
-button and a signal, `examples/Counter.hx`) is 42 KB of JavaScript, 9 KB
+button and a signal, `examples/Counter.hx`) is 44 KB of JavaScript, 9.5 KB
 gzipped, nearly all of it `@hxmc/view`'s runtime, which a shared bundle
 holds once (the demo's three islands: 61 KB, 13 KB gzipped).
 
@@ -160,7 +160,7 @@ component serves a canvas and a page (`examples/WidgetCounter.hx`; ui's
 sources on the class path, `-cp`, not `-lib hxmc.ui`). A ui widget of one
 definition for both (`@:neutral`: the static widgets, Field, ButtonGroup,
 Toggle, ToggleGroup, Checkbox, Switch, RadioGroup, Slider, RangeSlider,
-Tabs, Listbox, Breadcrumb, Pagination, Collapsible, Accordion, Calendar, Progress, Spinner, ScrollArea, Avatar, SidebarTrigger, Alert, the text
+Tabs, Listbox, Breadcrumb, Pagination, Collapsible, Accordion, Calendar, Progress, Spinner, ScrollArea, Avatar, TagInput, Toolbar, SidebarTrigger, Alert, the text
 fields (Input, Textarea, NumberField, InputOTP, InputGroupInput) and the
 Sidebar's parts so far) is no DOM copy at all:
 DomRenderer realises its neutral elements at compile time (NeutralMacro:
@@ -234,13 +234,13 @@ programs for wasm32-wasi beside them):
 
 | | DOM (JavaScript) | gzipped | canvas (wasm32-wasi) | gzipped |
 | --- | --- | --- | --- | --- |
-| counter | 42 KB | 9 KB | 1.8 MB | 432 KB |
-| form (the sign-up card) | 60 KB | 12 KB | 1.9 MB | 459 KB |
-| gallery | 306 KB | 55 KB | 2.4 MB | 559 KB |
-| the theme's CSS | 184 KB | 18 KB | | |
+| counter | 44 KB | 9.5 KB | 1.8 MB | 432 KB |
+| form (the sign-up card) | 67 KB | 13 KB | 1.9 MB | 459 KB |
+| gallery | 342 KB | 62 KB | 2.4 MB | 559 KB |
+| the theme's CSS | 186 KB | 18 KB | | |
 
-A minifier (terser) takes them to 23, 32 and 157 KB (7, 9 and 40 KB
-gzipped). The canvas programs need fonts besides.
+A minifier (terser) took them, at 42, 60 and 306 KB, to 23, 32 and 157 KB (7, 9
+and 40 KB gzipped). The canvas programs need fonts besides.
 
 ## Example and tests
 

@@ -147,7 +147,7 @@ class ThemeTest {
 		same("outline-none", "x outlineStyle=None");
 		same("outline-hidden", "x outlineStyle=None");
 		same("fill-primary shadow-[0_4px_12px_rgba(0,0,0,0.1)] leading-[1.4]", "x color=var(--primary) shadow=0 4 12 0 rgba(0,0,0,0.1) lineHeight=1.4");
-		same("*:data-[slot=select-value]:flex **:data-[slot=x]:h-12 after:absolute rtl:**:[.rdp-button]:rotate-180", "");
+		same("**:data-[slot=x]:h-12 after:absolute rtl:**:[.rdp-button]:rotate-180", "");
 		same("max-h-(--radix-select-content-available-height) origin-(--radix-popover-content-transform-origin)", "");
 		// (CSS variables from the sheet: calendar's --cell-size)
 		var tw = new Tailwind(10, (m, _, _) -> throw m, ["--cell-size" => "2rem"]);

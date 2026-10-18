@@ -144,6 +144,11 @@ class GL {
 	static function glCheckFramebufferStatus(target:Int):Int;
 	static function glTexSubImage2D(target:Int, level:Int, x:Int, y:Int, width:Int, height:Int, format:Int, type:Int, pixels:Ptr):Void;
 	static function glGenSamplers(n:Int, samplers:Ptr<Int32>):Void;
+	#if hxmc.dev
+	// (hxmc dev: a build swapped out deletes what it made, the context kept)
+	static function glDeleteSamplers(n:Int, samplers:Ptr<Int32>):Void;
+	static function glDeleteVertexArrays(n:Int, arrays:Ptr<Int32>):Void;
+	#end
 	static function glSamplerParameteri(sampler:Int, pname:Int, param:Int):Void;
 	static function glBindSampler(unit:Int, sampler:Int):Void;
 	static function glPixelStorei(pname:Int, param:Int):Void;
