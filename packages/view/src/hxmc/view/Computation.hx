@@ -11,6 +11,10 @@ class Computation extends Owner {
 	@:allow(hxmc.view) var state:State = Dirty;
 	@:allow(hxmc.view) var sources:Null<Array<Source>> = null;
 	var running = false;
+	#if hxmc.dev
+	// (hxmc dev: the scope of the keys made when it runs, its own: hxmc.view.Refresh)
+	var hotPath:Null<String> = null;
+	#end
 
 	public function new(fn:Null<Void->Void>, isEffect:Bool) {
 		super(Reactive.owner);
@@ -32,7 +36,14 @@ class Computation extends Owner {
 		Reactive.current = this;
 		running = true;
 		try {
+			#if hxmc.dev
+			if (hotPath == null) hxmc.dev.Hot.scope("$c", () -> {
+				hotPath = hxmc.dev.Hot.path();
+				run();
+			}) else hxmc.dev.Hot.at(hotPath, run);
+			#else
 			run();
+			#end
 		} catch (e:Dynamic) {
 			running = false;
 			Reactive.owner = savedOwner;
