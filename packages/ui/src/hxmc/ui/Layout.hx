@@ -370,20 +370,20 @@ class Layout {
 		if (multi) switch s.alignContent {
 			case Start | Normal:
 			case End: start = free;
-			case Center: start = free / 2;
+			case Center: start = lu(free / 2);
 			case Stretch if (free > 0):
 				for (k in firstLine...lastLine)
 					lines[k].cross += free / count;
 			case Stretch:
-			case SpaceBetween if (free > 0 && count > 1): between = free / (count - 1);
+			case SpaceBetween if (free > 0 && count > 1): between = lu(free / (count - 1));
 			case SpaceBetween:
 			case SpaceAround if (free > 0):
-				between = free / count;
-				start = between / 2;
+				between = lu(free / count);
+				start = lu(free / (2 * count));
 			// (overflowing: at the start, as Chromium falls back, safely)
 			case SpaceAround:
 			case SpaceEvenly if (free > 0):
-				between = free / (count + 1);
+				between = lu(free / (count + 1));
 				start = between;
 			case SpaceEvenly:
 		}
@@ -444,7 +444,7 @@ class Layout {
 				var roomC = l.cross - it.mCrossStart - it.mCrossEnd - it.cross;
 				var crossPos = lineStart + if (it.autoCross != 0) it.mCrossStart + (roomC <= 0 ? 0 : it.autoCross == 3 ? roomC / 2 : it.autoCross == 1 ? roomC : 0) else switch it.align {
 					case End: l.cross - it.cross - it.mCrossEnd;
-					case Center: it.mCrossStart + (l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2;
+					case Center: it.mCrossStart + lu((l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2);
 					case Baseline: l.baseline - it.baseline + it.mCrossStart;
 					case _: it.mCrossStart;
 				}
