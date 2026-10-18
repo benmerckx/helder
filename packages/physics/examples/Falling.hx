@@ -14,7 +14,7 @@ import hxmc.scene.render.*;
 // A physics world beside a scene: each ball a Body keyed on its Node (the
 // body moves the node after each step), the floor a static plane drawn as
 // a box, the walls static boxes; the simulation at 60 steps a second
-// (FixedStep). A click drops another ball; Escape closes.
+// (the frame's Stages: FixedUpdate). A click drops another ball; Escape closes.
 //
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src -cp packages/physics/src
 //     -cp packages/physics/examples -main Falling --custom-target hxmc=falling -D hxmc.libc=glibc
@@ -73,10 +73,12 @@ class Falling {
 		var window = new Window("Falling", 640, 480);
 		var device = Device.create(window.surface);
 		var scene = new Falling(device);
-		var clock = new FixedStep(1 / 60), last = Sys.time();
+		// (the frame's stages: physics at the fixed rate)
+		var stages = new Stages(new FixedStep(1 / 60)), last = Sys.time();
+		stages.on(FixedUpdate, dt -> scene.physics.step(dt));
 		App.run(() -> {
 			var now = Sys.time();
-			clock.advance(Math.min(now - last, 0.25), dt -> scene.physics.step(dt));
+			stages.frame(Math.min(now - last, 0.25));
 			last = now;
 			var enc = device.beginFrame();
 			if (enc == null) return;

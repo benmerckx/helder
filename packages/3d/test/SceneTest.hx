@@ -39,6 +39,7 @@ class SceneTest {
 		cameras();
 		clock();
 		hot();
+		stages();
 		Sys.println('SceneTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
 	}
@@ -228,6 +229,26 @@ class SceneTest {
 		HotWorld.keep(fresh, "test.world");
 		old.dispose();
 		fresh.dispose();
+	}
+
+	static function stages() {
+		var s = new Stages(new FixedStep(0.25));
+		var log = [];
+		var alpha = -1.0;
+		s.on(PreRender, a -> {
+			log.push("pre");
+			alpha = a;
+		});
+		s.on(Update, dt -> log.push("update " + dt));
+		s.on(FixedUpdate, dt -> log.push("fixed " + dt));
+		var off = s.on(Input, _ -> log.push("input"));
+		s.on(LateUpdate, _ -> log.push("late"));
+		s.frame(0.6);
+		check("stages in order, fixed steps as the frame holds", log.join(",") == "input,fixed 0.25,fixed 0.25,update 0.6,late,pre" && near(alpha, 0.4, 1e-9));
+		off();
+		log = [];
+		s.frame(0.15);
+		check("removed; a fixed step from what was left", log.join(",") == "fixed 0.25,update 0.15,late,pre");
 	}
 
 	static function clock() {

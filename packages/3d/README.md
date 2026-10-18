@@ -42,7 +42,8 @@ A node's `worldMatrix()` is cached until a transform above it changes.
 What nodes carry is in typed stores (`world.store(kind)`, a `StoreKind`
 per kind: `Camera.KIND`, `MeshRenderer.KIND`, `Light.KIND`), made when
 first used. `FixedStep` runs a simulation at a fixed rate from the app
-loop's frames and gives the fraction between the last two steps.
+loop's frames and gives the fraction between the last two steps; `Stages` runs a frame's work in
+ordered stages (`Input`, `FixedUpdate`, `Update`, `LateUpdate`, `PreRender`).
 
 ## glTF
 
