@@ -27,6 +27,9 @@ interface Canvas {
 	// from outside a rectangle moved by dx, dy and shrunk by spread, blurred
 	function insetShadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, dx:Float, dy:Float, spread:Float,
 		?corners:Corners):Void;
+	// a vector path (in the current coordinates) filled (null: not) and
+	// stroked (null: not), each with a colour or a gradient over its bounds
+	function path(p:Path, fill:Null<Paint>, ?stroke:Stroke):Void;
 	// the part u0, v0, u1, v1 (0...1) of an image stretched over a rectangle
 	// with rounded corners
 	function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners):Void;

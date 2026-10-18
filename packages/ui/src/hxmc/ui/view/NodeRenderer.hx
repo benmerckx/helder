@@ -21,7 +21,7 @@ import hxmc.ui.*;
 // onPointerLeave, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
-// role, label, description, checked, selected, expanded, level, disabled,
+// role, label, description, href, checked, selected, expanded, level, disabled,
 // value-now, value-min, value-max, value-text, hidden), and what a theme
 // styles it as (Rule: slot, variant, size, data-* and aria-* attributes,
 // data-state="checked"). A text node holds
@@ -173,6 +173,17 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 	@:attribute static function size(n:Node, name:String, v:Dynamic)
 		n.size = v == null ? null : Std.string(v);
 
+	// (what draws its widgets: Host's names, auto, native or drawn)
+	@:attribute static function host(n:Node, name:String, v:Dynamic)
+		n.host = Host.fromString(v == null ? null : Std.string(v));
+
+	// (group="tabs" and peer mark a node whose states others' rules ask for)
+	@:attribute static function group(n:Node, name:String, v:Dynamic)
+		setData(n, name, v);
+
+	@:attribute static function peer(n:Node, name:String, v:Dynamic)
+		setData(n, name, v);
+
 	public static function setData(n:Node, name:String, v:Dynamic)
 		n.setAttr(name, v == null || v == false ? null : v == true ? "" : Std.string(v));
 
@@ -184,6 +195,12 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 
 	@:attribute static function description(n:Node, name:String, v:Dynamic)
 		semantics(n).description = v == null ? null : Std.string(v);
+
+	@:attribute static function href(n:Node, name:String, v:Dynamic) {
+		var sem = semantics(n);
+		sem.href = v == null ? null : Std.string(v);
+		if (sem.role == null && v != null) sem.role = Link;
+	}
 
 	@:attribute static function checked(n:Node, name:String, v:Dynamic) {
 		semantics(n).checked = v == null ? null : v == true || v == "true";

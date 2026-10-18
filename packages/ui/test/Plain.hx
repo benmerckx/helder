@@ -1,7 +1,7 @@
 import hxmc.ui.*;
 
-// A plain look for the examples and tests (a StyleSheet: ui.theme =
-// Plain.sheet): outlines and states in the text's colour (currentColor),
+// A plain look for the tests that measure geometry (a StyleSheet: ui.theme =
+// Plain.sheet; the examples are under @hxmc/theme's Shadcn.sheet): outlines and states in the text's colour (currentColor),
 // popups on the system's colours (Canvas, CanvasText), a page's body on
 // them, light or dark. The widgets themselves ship with no look at all
 // (behaviour and semantics only, as React Aria's); @hxmc/theme is

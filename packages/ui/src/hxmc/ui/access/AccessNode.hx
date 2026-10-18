@@ -7,6 +7,7 @@ package hxmc.ui.access;
 	public var role:Role;
 	public var name:String = "";
 	public var description:Null<String> = null;
+	public var href:Null<String> = null;
 	// a text input's text (a password's: dots)
 	public var value:Null<String> = null;
 	// a password field (Semantics.secret)
@@ -38,7 +39,7 @@ package hxmc.ui.access;
 
 	// the same as another (an incremental update leaves it out)
 	public function equals(o:AccessNode):Bool {
-		if (o.role != role || o.name != name || o.description != description || o.value != value || o.secret != secret || o.checked != checked || o.mixed != mixed || o.selected != selected
+		if (o.role != role || o.name != name || o.description != description || o.href != href || o.value != value || o.secret != secret || o.checked != checked || o.mixed != mixed || o.selected != selected
 			|| o.multiselectable != multiselectable || o.current != current || o.live != live || o.liveText != liveText
 			|| o.expanded != expanded || o.level != level || o.disabled != disabled || o.focusable != focusable || o.valueNow != valueNow || o.valueMin != valueMin
 			|| o.valueMax != valueMax || o.valueText != valueText || o.x != x || o.y != y || o.width != width || o.height != height
@@ -57,6 +58,7 @@ package hxmc.ui.access;
 	public function toJson():Dynamic {
 		var o:Dynamic = {id: id, role: role.aria(), name: name, x: x, y: y, w: width, h: height, children: children};
 		if (description != null) o.description = description;
+		if (href != null) o.href = href;
 		if (value != null) o.value = value;
 		if (secret) o.secret = true;
 		if (checked != null) o.checked = mixed ? "mixed" : checked;

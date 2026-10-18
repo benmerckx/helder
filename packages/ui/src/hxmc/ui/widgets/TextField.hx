@@ -51,7 +51,7 @@ class TextField extends EditableText {
 	}
 
 	override public function paintContent(canvas:Canvas, x:Float, y:Float, width:Float, height:Float) {
-		if (ui == null) return;
+		if (ui == null || !drawsText()) return;
 		var p = layoutText(ui.text, Math.NaN);
 		var cx = p.caret(shownCaret()).x;
 		// (keep the caret in view)

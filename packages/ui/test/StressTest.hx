@@ -1,3 +1,4 @@
+import hxmc.theme.Shadcn;
 import haxe.io.Bytes;
 import hxmc.gfx.*;
 import hxmc.os.*;
@@ -62,7 +63,7 @@ class StressTest implements Markup {
 		var n = Sys.args().length > 0 ? Std.parseInt(Sys.args()[0]) : 1000;
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
-		ui.theme = Plain.sheet;
+		ui.theme = Shadcn.sheet;
 		var r = new Renderer(device);
 		var pass:PassDesc = {colors: [{load: Clear, clear: new hxmc.gfx.Color(1, 1, 1)}]};
 		var pixels = Bytes.alloc(W * H * 4);

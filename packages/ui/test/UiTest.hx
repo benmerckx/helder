@@ -47,6 +47,7 @@ class UiTest {
 		css(here);
 		decorations();
 		transforms();
+		paths();
 		calcs();
 		sticky();
 		stacking();
@@ -60,8 +61,82 @@ class UiTest {
 		fields();
 		popups();
 		shortcuts();
+		natives();
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// native text editors (a platform's views, faked): which host the
+	// policy and the tree give, the editor over the content box, the text
+	// and the focus kept in step both ways, the keys it leaves to the
+	// window, drawn again while covered or clipped, gone with its node
+	static function natives() {
+		var ui = new Ui(new MonoText(), 300, 200);
+		var f = new TextField("hi");
+		f.style.set({width: 120, padding: [4, 8], borderWidth: 1});
+		f.placeholder = "Name";
+		var submitted = "";
+		f.onSubmit = t -> submitted = t;
+		var changes = 0;
+		f.onChange = _ -> changes++;
+		ui.root.append(f);
+		ui.update();
+		check("natives: no platform, drawn", ui.hostOf(f, "text-field") == Drawn);
+		var views = new FakeViews();
+		ui.platform = views;
+		ui.update();
+		var e = views.made[0];
+		check("natives: the policy's text-field native", ui.hostOf(f, "text-field") == Native && views.made.length == 1 && !e.multiline);
+		check("natives: over the content box", e.x == 9 && e.y == 5 && e.w == 102 && e.shown, '${e.x},${e.y} ${e.w}x${e.h} ${e.shown}');
+		check("natives: its text and style", e.text == "hi" && e.placeholder == "Name");
+		var rec = new Recording();
+		ui.paint(rec);
+		check("natives: its text not drawn", !Lambda.exists(rec.calls, c -> StringTools.startsWith(c, "text ")), rec.calls.join("|"));
+		e.listener.editorEdited("hello", 5, 5);
+		check("natives: typed in the editor", f.text == "hello" && f.caret == 5 && changes == 1);
+		f.setText("set");
+		ui.update();
+		check("natives: set by the program", e.text == "set");
+		ui.setFocus(f);
+		ui.update();
+		check("natives: the focus given", e.focused);
+		e.listener.editorKey(Key.ENTER, 0);
+		check("natives: Enter left to the window submits", submitted == "set");
+		var b = new Node("b");
+		b.focusable = true;
+		b.style.set({width: 20, height: 20});
+		ui.root.append(b);
+		e.listener.editorKey(Key.TAB, 0);
+		ui.update();
+		check("natives: Tab moves the window's focus, the editor's taken back", ui.focus == b && !e.focused);
+		e.listener.editorFocused(true);
+		check("natives: a click in the editor focuses the field", ui.focus == f);
+		var p = new Popup("dialog");
+		p.style.set({width: 300, height: 200});
+		ui.open(p);
+		ui.update();
+		check("natives: covered by a popup, drawn", !e.shown);
+		ui.close(p);
+		ui.update();
+		check("natives: shown again", e.shown);
+		f.host = Drawn;
+		ui.update();
+		check("natives: host Drawn: the editor gone", e.disposed);
+		f.host = Auto;
+		ui.root.host = Drawn;
+		ui.update();
+		check("natives: drawn by an ancestor's host", views.made.length == 2 && views.made[1].disposed || views.made.length == 1);
+		ui.root.host = Auto;
+		ui.policy["text-field"] = Host.Drawn;
+		var a = new TextArea("x");
+		a.host = Native;
+		ui.root.append(a);
+		ui.update();
+		var last = views.made[views.made.length - 1];
+		check("natives: host Native over the policy, a text area multiline", last.multiline && !last.disposed && ui.hostOf(f, "text-field") == Drawn);
+		ui.root.remove(a);
+		ui.update();
+		check("natives: removed from the tree, its editor gone", last.disposed);
 	}
 
 	static function check(what:String, ok:Bool, ?detail:String) {
@@ -299,6 +374,33 @@ class UiTest {
 	// positions
 	// zIndex and order: painted and hit by them (zIndex, then positioned over
 	// in-flow, then order); Tab still in the tree's order
+	// vector paths (Canvas.path): filled, stroked, a gradient, even-odd, SVG's data
+	static function paths() {
+		inline function px(img:Image, x:Int, y:Int):Int
+			return img.pixels.getInt32((y * img.width + x) * 4);
+		var id = [1.0, 0, 0, 1, 0, 0];
+		var sq = new Path().rect(2, 2, 6, 6).render(10, 10, id, Color.rgb(0xFF0000));
+		check("paths: a filled rectangle", px(sq, 5, 5) == 0xFF0000FF && px(sq, 0, 0) == 0, StringTools.hex(px(sq, 5, 5)));
+		var line = new Path().moveTo(0, 5).lineTo(10, 5).render(10, 10, id, null, {width: 2, paint: Color.BLACK});
+		check("paths: a stroke, its width about the line", line.pixels.get((5 * 10 + 5) * 4 + 3) == 255 && line.pixels.get((1 * 10 + 5) * 4 + 3) == 0);
+		var grad = new Path().rect(0, 0, 20, 4).render(20, 4, id, Gradient.parse("linear-gradient(to right, #ff0000, #0000ff)"));
+		check("paths: a gradient over it", grad.pixels.get(4 * 1) > 200 && grad.pixels.get(4 * 18 + 2) > 200);
+		var ring = new Path().rect(0, 0, 10, 10).rect(3, 3, 4, 4);
+		ring.evenOdd = true;
+		var hole = ring.render(10, 10, id, Color.BLACK);
+		check("paths: even-odd leaves the inner one a hole", hole.pixels.get((5 * 10 + 5) * 4 + 3) == 0 && hole.pixels.get((1 * 10 + 1) * 4 + 3) == 255);
+		var tri = new Path("M0 0 L10 0 L10 10 Z"), b = tri.bounds();
+		var scaled = tri.render(20, 20, [2.0, 0, 0, 2, 0, 0], Color.BLACK);
+		check("paths: SVG's data, its bounds, drawn at a scale", b.width == 10 && b.height == 10 && scaled.pixels.get((2 * 20 + 17) * 4 + 3) == 255
+			&& scaled.pixels.get((17 * 20 + 2) * 4 + 3) == 0);
+		var curve = new Path().moveTo(0, 0).quadTo(5, 10, 10, 0).arcTo(5, 5, 0, false, true, 0, 0).close();
+		check("paths: curves made cubic", curve.commands.filter(c -> c == 2).length >= 2);
+		var icon = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 4h16v16H4z" fill="currentColor"/></svg>');
+		var drawn = icon.render(24, 24, Color.rgb(0x112233));
+		check("paths: an svg's image keeps the drawing, for a writer's vectors", drawn.drawing != null && drawn.drawing.svg == icon
+			&& drawn.drawing.color == Color.rgb(0x112233));
+	}
+
 	// calc(): a percentage plus pixels, against the containing box as a percentage is
 	static function calcs() {
 		var ui = new Ui(new MonoText(), 200, 100);
@@ -1187,6 +1289,11 @@ class UiTest {
 		var names = [for (f in sys.FileSystem.readDirectory(dir)) if (StringTools.endsWith(f, ".png")) f.substr(0, f.length - 4)];
 		names.sort(Reflect.compare);
 		check("images: the cases", names.length >= 20, '${names.length}');
+		// (the file kept as it was, for a writer to embed; gone once the pixels change)
+		var file = sys.io.File.getBytes(dir + "/" + names[0] + ".png"), kept = Image.decode(file);
+		var had = kept.source != null && kept.source.type == "png" && kept.source.bytes == file;
+		kept.changed();
+		check("images: the file it was decoded from, until its pixels change", had && kept.source == null && new Image(1, 1).source == null);
 		for (n in names) {
 			var want = sys.io.File.getBytes(dir + "/" + n + ".rgba");
 			var img = try Image.decode(sys.io.File.getBytes(dir + "/" + n + ".png")) catch (e:Dynamic) {
@@ -2234,6 +2341,9 @@ class Recording implements Canvas {
 
 	public function image(img:Image, x:Float, y:Float, w:Float, h:Float, u0:Float, v0:Float, u1:Float, v1:Float, radius:Float, ?corners:Corners)
 		calls.push('image ${img.width}x${img.height} $x $y $w $h $u0 $v0 $u1 $v1 $radius' + cs(corners));
+
+	public function path(p:Path, fill:Null<Paint>, ?stroke:Stroke)
+		calls.push('path ${p.commands.length}' + (fill == null ? "" : " fill") + (stroke == null ? "" : ' stroke ${stroke.width}'));
 }
 
 // a clipboard whose reads are answered by the test, later (UiTest's fields)
@@ -2246,4 +2356,73 @@ class LaterClipboard implements ClipboardHost {
 
 	public function read(callback:Null<String>->Void)
 		waiting.push(callback);
+}
+
+// a platform's views for UiTest.natives: editors that record what they are told
+class FakeViews implements PlatformViews {
+	public final made:Array<FakeEditor> = [];
+
+	public function new() {}
+
+	public function editor(multiline:Bool):Null<PlatformEditor> {
+		var e = new FakeEditor(multiline);
+		made.push(e);
+		return e;
+	}
+
+	public function poll() {}
+
+	public final menus:Array<{items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void}> = [];
+
+	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool {
+		menus.push({items: items, x: x, y: y, chosen: chosen});
+		return true;
+	}
+
+	public var bar:Null<{menus:Array<PlatformMenuItem>, chosen:Int->Void}> = null;
+
+	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool {
+		bar = {menus: menus, chosen: chosen};
+		return true;
+	}
+}
+
+class FakeEditor implements PlatformEditor {
+	public final multiline:Bool;
+	public var listener:Null<PlatformEditorListener> = null;
+	public var text = "";
+	public var placeholder = "";
+	public var x = 0.0;
+	public var y = 0.0;
+	public var w = 0.0;
+	public var h = 0.0;
+	public var shown = false;
+	public var focused = false;
+	public var disposed = false;
+
+	public function new(multiline:Bool)
+		this.multiline = multiline;
+
+	public function listen(l:PlatformEditorListener)
+		listener = l;
+
+	public function setText(text:String, start:Int, end:Int)
+		this.text = text;
+
+	public function place(x:Float, y:Float, width:Float, height:Float, shown:Bool) {
+		this.x = x;
+		this.y = y;
+		w = width;
+		h = height;
+		this.shown = shown;
+	}
+
+	public function setStyle(font:Font, color:Color, background:Color, placeholder:String, placeholderColor:Color, align:TextAlign, secret:Bool)
+		this.placeholder = placeholder;
+
+	public function focus(on:Bool)
+		focused = on;
+
+	public function dispose()
+		disposed = true;
 }

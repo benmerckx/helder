@@ -86,6 +86,11 @@ class Ui {
 	// where widgets copy and paste text (UiWindow: the system's)
 	// the window's pixels to the UI's (a Retina display's 2): what drawings are rasterized at
 	public var scale = 1.0;
+	// the platform's own views where a window has them (PlatformViews), and
+	// which kinds of widget are native where the tree leaves it Auto (Host):
+	// "text-field" and "text-area" (the plan's defaults: native everywhere)
+	public var platform:Null<PlatformViews> = null;
+	public var policy:Map<String, Host> = ["text-field" => Native, "text-area" => Native, "context-menu" => Native, "menubar" => Native];
 	public var clipboard:ClipboardHost = new ClipboardHost.MemoryClipboard();
 	public var focusRingColor:Color = 0xFF3B82F6;
 	public var focusRingWidth = 2.0;
@@ -150,8 +155,10 @@ class Ui {
 	public function requestFrame()
 		needsFrame = true;
 
-	// lays the tree out if it changed (a tree that did not: nothing done)
+	// lays the tree out if it changed (a tree that did not: nothing done);
+	// the platform's views' events first, their nodes kept in step after
 	public function update() {
+		if (platform != null) platform.poll();
 		flushRestyles();
 		Layout.run(root, width, height, text, rounded);
 		if (root.inkStale) refreshInk(root);
@@ -165,6 +172,24 @@ class Ui {
 		for (n in rounded)
 			clampScroll(n);
 		rounded.resize(0);
+		for (n in natives.copy())
+			n.syncNative();
+	}
+
+	// the nodes that may be native (EditableText: they join while in the tree)
+	var natives:Array<Node> = [];
+
+	// what draws n, a widget of that kind (Ui.policy's names): its own host,
+	// else its nearest ancestor's not Auto, else the policy's; Native only
+	// where the window has the platform's views
+	public function hostOf(n:Node, kind:String):Host {
+		var h:Host = Auto, p = n;
+		while (p != null && h == Auto) {
+			h = p.host;
+			p = p.parent;
+		}
+		if (h == Auto) h = policy.exists(kind) ? policy[kind] : Drawn;
+		return h == Native && platform != null ? Native : Drawn;
 	}
 
 	// the ink bounds that a transform's change left stale, measured again

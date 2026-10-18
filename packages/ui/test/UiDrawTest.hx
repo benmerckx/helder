@@ -77,7 +77,20 @@ class UiDrawTest {
 			Sys.println('UiDrawTest: smoke: the system\'s appearance ' + (App.prefersDark() ? "dark" : "light"));
 			Sys.exit(ok ? 0 : 1);
 		}
-		Sys.exit(compare(pixels, golden) ? 0 : 1);
+		Sys.exit(compare(pixels, golden) && runs(ui) ? 0 : 1);
+	}
+
+	// a paragraph's glyph runs, as a document writer takes them: the face's
+	// file, each glyph's source text (a ligature's two characters on it), placed as aligned
+	static function runs(ui:Ui):Bool {
+		var p = ui.text.layout("Hi, fine", ui.root.font(), Math.NaN);
+		var rs = p.runs(p.width + 40, Center);
+		var text = [for (r in rs) r.text.join("")].join(""), count = 0;
+		for (r in rs)
+			count += r.glyphs.length;
+		var ok = rs.length >= 1 && text == "Hi, fine" && rs[0].font.data.length > 0 && rs[0].x[0] >= 20 && rs[0].y[0] > 0 && rs[0].size == ui.root.font().size;
+		Sys.println('UiDrawTest: glyph runs ' + (ok ? "ok" : "FAIL") + ' (${rs.length} runs, $count glyphs for "$text", ${rs.length > 0 ? rs[0].font.family : ""})');
+		return ok;
 	}
 
 	static function window(golden:String, out:String) {

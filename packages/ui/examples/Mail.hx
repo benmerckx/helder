@@ -2,6 +2,7 @@
 // summary: A mail client's three panes: folders in a tree, messages in a sortable table, the one selected read beside them; a menu bar, a toolbar, search and undo
 // tags: ui, view, widgets
 // demo: canvas 860x560
+import hxmc.theme.Shadcn;
 import hxmc.ui.*;
 import hxmc.ui.draw.UiWindow;
 import hxmc.view.*;
@@ -20,11 +21,11 @@ import hxmc.ui.widgets.Toasts;
 // the search field) and switches dark mode (the window's Ui.dark, at
 // first the system's). In a window:
 //
-//   haxe -lib hxmc.ui -cp packages/ui/examples -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
+//   haxe -lib hxmc.ui -lib hxmc.theme -cp packages/ui/examples -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
 class Mail implements Markup {
 	static function main() {
 		var w = new UiWindow("Mail", 860, 560);
-		w.ui.theme = Plain.sheet;
+		w.ui.theme = Shadcn.sheet;
 		Render.render(new Mail().view(), w.root);
 		UiWindow.run();
 	}

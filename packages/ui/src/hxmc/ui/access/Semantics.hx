@@ -1,7 +1,7 @@
 package hxmc.ui.access;
 
 // What a node declares about itself for assistive technology (Node.semantics;
-// in markup, the attributes role, label, description, checked, selected,
+// in markup, the attributes role, label, description, href, checked, selected,
 // expanded, level, disabled, value-now, value-min, value-max, value-text,
 // multiselectable, live, current, hidden). Unset
 // fields say nothing: a TextNode is a Label of its text, an ImageNode an
@@ -11,6 +11,8 @@ package hxmc.ui.access;
 	// the name (else from the contents' text, for the roles named by content)
 	public var label(default, set):Null<String> = null;
 	public var description(default, set):Null<String> = null;
+	// where a link goes (markup: href, making the node a Link): a document's link annotation, the browser's
+	public var href(default, set):Null<String> = null;
 	public var checked(default, set):Null<Bool> = null;
 	// a checkbox neither checked nor not (ARIA's checked="mixed"; markup: checked="mixed")
 	public var mixed(default, set):Bool = false;
@@ -50,6 +52,11 @@ package hxmc.ui.access;
 	function set_description(v:Null<String>):Null<String> {
 		if (v != description) hxmc.ui.Ui.accessEpoch++;
 		return description = v;
+	}
+
+	function set_href(v:Null<String>):Null<String> {
+		if (v != href) hxmc.ui.Ui.accessEpoch++;
+		return href = v;
 	}
 
 	function set_checked(v:Null<Bool>):Null<Bool> {

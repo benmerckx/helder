@@ -5,7 +5,7 @@ import haxe.io.Bytes;
 import hxmc.text.Rasterizer;
 
 // An SVG document for icons and drawings: parsed once (Svg.parse), drawn
-// into an Image at any size (render: the viewBox fitted as
+// into an Image at any size (the Image's drawing: this, for a writer's vectors; render: the viewBox fitted as
 // preserveAspectRatio says, xMidYMid meet by default). The static subset
 // icon sets use: svg, g, path (all of its data, arcs as cubic curves), rect
 // (rounded), circle, ellipse, line, polyline, polygon; fill and stroke (a
@@ -19,7 +19,7 @@ import hxmc.text.Rasterizer;
 // units); presentation attributes, style="" and the inherited ones passed
 // down. Not drawn: text, images, patterns (a pattern paint draws
 // nothing), masks, filters, markers; defs, title and the like are skipped.
-class Svg {
+class Svg implements Drawing {
 	// the intrinsic size: width and height, else the viewBox's, else 300 by 150
 	public final width:Float;
 	public final height:Float;
@@ -108,7 +108,9 @@ class Svg {
 		} else
 			m = new Matrix(w / this.width, 0, 0, h / this.height, 0, 0);
 		canvas.group(root, m);
-		return canvas.image();
+		var img = canvas.image();
+		img.drawing = {svg: this, color: color};
+		return img;
 	}
 }
 
@@ -861,7 +863,7 @@ class SvgParse {
 	}
 
 	// an elliptical arc as cubic curves (SVG's endpoint parameters, F.6)
-	static function arc(p:Array<Float>, x1:Float, y1:Float, rx:Float, ry:Float, angle:Float, large:Bool, sweep:Bool, x2:Float, y2:Float) {
+	public static function arc(p:Array<Float>, x1:Float, y1:Float, rx:Float, ry:Float, angle:Float, large:Bool, sweep:Bool, x2:Float, y2:Float) {
 		if (x1 == x2 && y1 == y2) return;
 		rx = Math.abs(rx);
 		ry = Math.abs(ry);

@@ -31,7 +31,7 @@ class Rules {
 	// the base rules: the widgets' unstyled looks, where no sheet applies (added once each: addBase)
 	static final base:Array<Rule> = [];
 	static final bases = new Map<String, Bool>();
-	static var baseIndex:Null<Map<String, Array<Rule>>> = null;
+	static var baseIndex:Null<Map<String, Array<Indexed>>> = null;
 
 	// adds base rules under a name (again: nothing)
 	public static function addBase(name:String, rules:Array<Rule>) {
@@ -82,21 +82,42 @@ class Rules {
 			current = given >= 0 ? (m.values[given] : Color) : n.style.color != null && !(applied != null && applied.indexOf("color") >= 0) ? n.style.color : n.parent != null ? n.parent.textColor() : Color.BLACK;
 			if (current.isToken) current = Color.BLACK;
 		}
-		var names:Null<Array<String>> = null, values:Null<Array<Dynamic>> = null;
+		// (what it applied: the merge's own arrays while each property is
+		// applied as merged, none made; its own from the first that is not)
+		var names:Null<Array<String>> = null, values:Null<Array<Dynamic>> = null, sharing = true;
 		for (i in 0...m.names.length) {
 			var name = m.names[i], want:Dynamic = m.values[i];
 			if (m.current) want = withCurrent(name, want, current);
 			var cur = n.style.target(name);
 			var k = applied == null ? -1 : applied.indexOf(name);
 			// (the node's own value: left as it is)
-			if (k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initial(name))) continue;
-			if (!same(cur, want)) StyleFields.set(n.style, name, want);
-			if (names == null) {
-				names = [];
-				values = [];
+			if (k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initial(name))) {
+				if (sharing) {
+					names = m.names.slice(0, i);
+					values = m.values.slice(0, i);
+					sharing = false;
+				}
+				continue;
 			}
-			names.push(name);
-			values.push(n.style.target(name));
+			if (!same(cur, want)) StyleFields.set(n.style, name, want);
+			var v = n.style.target(name);
+			if (sharing && !same(v, m.values[i])) {
+				names = m.names.slice(0, i);
+				values = m.values.slice(0, i);
+				sharing = false;
+			}
+			if (!sharing) {
+				names.push(name);
+				values.push(v);
+			}
+		}
+		if (sharing) {
+			names = m.names;
+			values = m.values;
+		}
+		if (names.length == 0) {
+			names = null;
+			values = null;
 		}
 		// (what the rules wrote and no longer set, still as they wrote it: back to the default)
 		if (applied != null)
@@ -114,7 +135,7 @@ class Rules {
 	// (a merge: the properties it sets and their values, tokens resolved but
 	// currentColor, which a node resolves; its placeholder's colour, its
 	// selection's: the "placeholder" rules' color, the "selection" rules' background)
-	static final NONE:Merge = {names: [], values: [], placeholder: null, selection: null, current: false};
+	static final NONE = new Merge([], [], null, null, false);
 	static final merges = new Map<String, Merge>();
 	static final sheetIds = new haxe.ds.ObjectMap<{}, Int>();
 
@@ -124,19 +145,19 @@ class Rules {
 		return id;
 	}
 
-	static function merged(key:String, rules:Array<Rule>, sheet:Null<StyleSheet>, dark:Bool):Merge {
+	static function merged(key:String, rules:Array<Indexed>, sheet:Null<StyleSheet>, dark:Bool):Merge {
 		var m = merges.get(key);
 		if (m != null) return m;
 		var tokens = sheet == null ? null : dark && sheet.dark != null ? sheet.dark : sheet.light;
 		var scratch = new Node().style, placeholder:Null<Color> = null, selection:Null<Color> = null;
 		var parts = key.split(",");
 		for (k in 1...parts.length) {
-			var r = rules[Std.parseInt(parts[k])];
+			var r = rules[Std.parseInt(parts[k])], style = r.rule.style;
 			if (r.when != null && r.when.indexOf("placeholder") >= 0) {
-				if (r.style.color != null) placeholder = r.style.color;
+				if (style.color != null) placeholder = style.color;
 			} else if (r.when != null && r.when.indexOf("selection") >= 0) {
-				if (r.style.background != null) selection = r.style.background;
-			} else scratch.set(r.style);
+				if (style.background != null) selection = style.background;
+			} else scratch.set(style);
 		}
 		resolveColors(scratch, tokens, CURRENT, dark);
 		// (lengths naming the sheet's: radii, one corner's)
@@ -162,7 +183,7 @@ class Rules {
 			selection = resolve(selection, tokens, CURRENT, dark);
 			if (selection.isToken) current = true;
 		}
-		m = {names: names, values: values, placeholder: placeholder, selection: selection, current: current};
+		m = new Merge(names, values, placeholder, selection, current);
 		merges.set(key, m);
 		return m;
 	}
@@ -412,9 +433,9 @@ class Rules {
 	}
 
 	// (each sheet's rules by slot, in their order; made when a sheet is first used)
-	static final indexes = new haxe.ds.ObjectMap<{}, Map<String, Array<Rule>>>();
+	static final indexes = new haxe.ds.ObjectMap<{}, Map<String, Array<Indexed>>>();
 
-	static function index(sheet:StyleSheet):Map<String, Array<Rule>> {
+	static function index(sheet:StyleSheet):Map<String, Array<Indexed>> {
 		var m = indexes.get(sheet);
 		if (m != null) return m;
 		m = indexOf(sheet.rules);
@@ -422,19 +443,48 @@ class Rules {
 		return m;
 	}
 
-	static function indexOf(rules:Array<Rule>):Map<String, Array<Rule>> {
-		var m = new Map<String, Array<Rule>>();
+	static function indexOf(rules:Array<Rule>):Map<String, Array<Indexed>> {
+		var m = new Map<String, Array<Indexed>>();
 		for (r in rules) {
 			if (r.when != null)
 				for (w in r.when)
 					relational |= relations(w);
 			var l = m.get(r.slot);
 			if (l == null) m.set(r.slot, l = []);
-			l.push(r);
+			l.push(new Indexed(r));
 		}
 		return m;
 	}
 }
 
 // (a merge of rules: Rules.merged)
-private typedef Merge = {names:Array<String>, values:Array<Dynamic>, placeholder:Null<Color>, selection:Null<Color>, current:Bool};
+private class Merge {
+	public final names:Array<String>;
+	public final values:Array<Dynamic>;
+	public final placeholder:Null<Color>;
+	public final selection:Null<Color>;
+	public final current:Bool;
+
+	public function new(names, values, placeholder, selection, current) {
+		this.names = names;
+		this.values = values;
+		this.placeholder = placeholder;
+		this.selection = selection;
+		this.current = current;
+	}
+}
+
+// (a rule as indexed: its fields read at each restyle, a class's)
+private class Indexed {
+	public final variant:Null<String>;
+	public final size:Null<String>;
+	public final when:Null<Array<String>>;
+	public final rule:Rule;
+
+	public function new(r:Rule) {
+		variant = r.variant;
+		size = r.size;
+		when = r.when;
+		rule = r;
+	}
+}

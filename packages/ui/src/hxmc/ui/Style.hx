@@ -190,6 +190,12 @@ class Style {
 	// thumb's and track's colours (CSS's scrollbar-color, inherited; null:
 	// the parent's, else the window's, Ui.scrollbarColor, and no track)
 	public var scrollbarWidth(get, set):Null<ScrollbarWidth>;
+	// paged layout (a document host's; nothing in a window): where pages may
+	// break (PageBreak; null: Auto), the named page it is on (CSS's page)
+	public var breakBefore(get, set):Null<PageBreak>;
+	public var breakAfter(get, set):Null<PageBreak>;
+	public var breakInside(get, set):Null<PageBreak>;
+	public var page(get, set):Null<String>;
 	public var scrollbarColor(get, set):Null<Color>;
 	public var scrollbarTrackColor(get, set):Null<Color>;
 
@@ -342,6 +348,16 @@ class Style {
 		return rare;
 	}
 
+	// (what themes set of the rare properties, apart: shadows, outline, ring,
+	// transitions, transforms, pointer events, selection, z-index, text
+	// wrapping, corners and borders; a themed control needs none of the rest)
+	var themed:Null<StyleThemed> = null;
+
+	function theming():StyleThemed {
+		if (themed == null) themed = new StyleThemed();
+		return themed;
+	}
+
 	inline function get_gridTemplateColumns():Array<Grid.Track>
 		return rare == null ? NO_TRACKS : rare.gridTemplateColumns;
 
@@ -379,28 +395,28 @@ class Style {
 		return rare == null ? 0 : rare.aspectRatio;
 
 	inline function get_borders():Null<EdgesValue>
-		return rare == null ? null : rare.borders;
+		return themed == null ? null : themed.borders;
 
 	inline function get_corners():Null<CornersValue>
-		return rare == null ? null : rare.corners;
+		return themed == null ? null : themed.corners;
 
 	inline function get_backgroundImage():Null<Gradient>
 		return rare == null ? null : rare.backgroundImage;
 
 	inline function get_shadow():Null<Shadow>
-		return rare == null ? null : rare.shadow;
+		return themed == null ? null : themed.shadow;
 
 	inline function get_outlineWidth():Float
-		return rare == null ? 0 : rare.outlineWidth;
+		return themed == null ? 0 : themed.outlineWidth;
 
 	inline function get_outlineOffset():Float
-		return rare == null ? 0 : rare.outlineOffset;
+		return themed == null ? 0 : themed.outlineOffset;
 
 	inline function get_outlineColor():Null<Color>
-		return rare == null ? null : rare.outlineColor;
+		return themed == null ? null : themed.outlineColor;
 
 	inline function get_transform():Null<Transform>
-		return rare == null ? null : rare.transform;
+		return themed == null ? null : themed.transform;
 
 	inline function get_transformOrigin():Null<Array<Dim>>
 		return rare == null ? null : rare.transformOrigin;
@@ -424,16 +440,52 @@ class Style {
 		return rare == null ? null : rare.dir;
 
 	inline function get_userSelect():Null<UserSelect>
-		return rare == null ? null : rare.userSelect;
+		return themed == null ? null : themed.userSelect;
 
 	function set_userSelect(v:Null<UserSelect>):Null<UserSelect> {
 		if (v == userSelect) return v;
-		more().userSelect = v;
+		theming().userSelect = v;
 		return v;
 	}
 
 	inline function get_fieldSizing():Null<FieldSizing>
 		return rare == null ? null : rare.fieldSizing;
+
+	inline function get_breakBefore():Null<PageBreak>
+		return rare == null ? null : rare.breakBefore;
+
+	function set_breakBefore(v:Null<PageBreak>):Null<PageBreak> {
+		if (v == breakBefore) return v;
+		more().breakBefore = v;
+		return v;
+	}
+
+	inline function get_breakAfter():Null<PageBreak>
+		return rare == null ? null : rare.breakAfter;
+
+	function set_breakAfter(v:Null<PageBreak>):Null<PageBreak> {
+		if (v == breakAfter) return v;
+		more().breakAfter = v;
+		return v;
+	}
+
+	inline function get_breakInside():Null<PageBreak>
+		return rare == null ? null : rare.breakInside;
+
+	function set_breakInside(v:Null<PageBreak>):Null<PageBreak> {
+		if (v == breakInside) return v;
+		more().breakInside = v;
+		return v;
+	}
+
+	inline function get_page():Null<String>
+		return rare == null ? null : rare.page;
+
+	function set_page(v:Null<String>):Null<String> {
+		if (v == page) return v;
+		more().page = v;
+		return v;
+	}
 
 	inline function get_scrollbarWidth():Null<ScrollbarWidth>
 		return rare == null ? null : rare.scrollbarWidth;
@@ -473,56 +525,56 @@ class Style {
 	}
 
 	inline function get_outlineStyle():Null<OutlineStyle>
-		return rare == null ? null : rare.outlineStyle;
+		return themed == null ? null : themed.outlineStyle;
 
 	inline function get_ringWidth():Float
-		return rare == null ? 0 : rare.ringWidth;
+		return themed == null ? 0 : themed.ringWidth;
 
 	inline function get_ringColor():Null<Color>
-		return rare == null ? null : rare.ringColor;
+		return themed == null ? null : themed.ringColor;
 
 	inline function get_ringOffsetWidth():Float
-		return rare == null ? 0 : rare.ringOffsetWidth;
+		return themed == null ? 0 : themed.ringOffsetWidth;
 
 	inline function get_ringOffsetColor():Color
-		return rare == null ? Color.WHITE : rare.ringOffsetColor;
+		return themed == null ? Color.WHITE : themed.ringOffsetColor;
 
 	inline function get_ringInset():Bool
-		return rare == null ? false : rare.ringInset;
+		return themed == null ? false : themed.ringInset;
 
 	function set_ringWidth(v:Float):Float {
-		if (rare != null && rare.transition != null && eases("ringWidth", ringWidth, v)) return v;
+		if (themed != null && themed.transition != null && eases("ringWidth", ringWidth, v)) return v;
 		if (v == ringWidth) return v;
-		more().ringWidth = v;
+		theming().ringWidth = v;
 		ringed();
 		return v;
 	}
 
 	function set_ringColor(v:Null<Color>):Null<Color> {
-		if (rare != null && rare.transition != null && eases("ringColor", ringColor, v)) return v;
+		if (themed != null && themed.transition != null && eases("ringColor", ringColor, v)) return v;
 		if (v == ringColor) return v;
-		more().ringColor = v;
+		theming().ringColor = v;
 		node.styleChanged(false);
 		return v;
 	}
 
 	function set_ringOffsetWidth(v:Float):Float {
 		if (v == ringOffsetWidth) return v;
-		more().ringOffsetWidth = v;
+		theming().ringOffsetWidth = v;
 		ringed();
 		return v;
 	}
 
 	function set_ringOffsetColor(v:Color):Color {
 		if (v == ringOffsetColor) return v;
-		more().ringOffsetColor = v;
+		theming().ringOffsetColor = v;
 		node.styleChanged(false);
 		return v;
 	}
 
 	function set_ringInset(v:Bool):Bool {
 		if (v == ringInset) return v;
-		more().ringInset = v;
+		theming().ringInset = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -536,7 +588,7 @@ class Style {
 	// its shadows as drawn, the last (the lowest) first: its ring and the
 	// ring's offset over its shadow (null: none)
 	public function paintedShadows():Null<Array<Shadow>> {
-		var r = rare;
+		var r = themed;
 		if (r == null || r.ringWidth <= 0 && r.ringOffsetWidth <= 0) return r == null || r.shadow == null ? null : r.shadow.painted();
 		var all = r.shadow == null ? [] : r.shadow.painted();
 		if (r.ringWidth > 0)
@@ -547,7 +599,7 @@ class Style {
 
 	function set_outlineStyle(v:Null<OutlineStyle>):Null<OutlineStyle> {
 		if (v == outlineStyle) return v;
-		more().outlineStyle = v;
+		theming().outlineStyle = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -556,10 +608,10 @@ class Style {
 		return rare == null ? null : rare.visibility;
 
 	inline function get_pointerEvents():Null<PointerEvents>
-		return rare == null ? null : rare.pointerEvents;
+		return themed == null ? null : themed.pointerEvents;
 
 	inline function get_textWrap():Null<TextWrap>
-		return rare == null ? null : rare.textWrap;
+		return themed == null ? null : themed.textWrap;
 
 	inline function get_overflowWrap():Null<OverflowWrap>
 		return rare == null ? null : rare.overflowWrap;
@@ -604,7 +656,7 @@ class Style {
 		return rare == null ? 0 : rare.order;
 
 	inline function get_zIndex():Int
-		return rare == null ? 0 : rare.zIndex;
+		return themed == null ? 0 : themed.zIndex;
 
 	inline function get_textDecoration():Int
 		return rare == null ? 0 : rare.textDecoration;
@@ -622,13 +674,13 @@ class Style {
 		return rare == null ? null : rare.textShadow;
 
 	inline function get_transition():Null<Transition>
-		return rare == null ? null : rare.transition;
+		return themed == null ? null : themed.transition;
 
 	function set_transition(v:Null<Transition>):Null<Transition> {
 		if (v == transition) return v;
-		more().transition = v;
+		theming().transition = v;
 		// (none: what moves there at once)
-		if (v == null && rare.moving != null) step(1e300);
+		if (v == null && themed.moving != null) step(1e300);
 		return v;
 	}
 
@@ -639,8 +691,8 @@ class Style {
 
 	// a property's value (StyleFields' names), or the one it is moving to under a transition
 	public function target(name:String):Dynamic {
-		if (rare != null && rare.moving != null)
-			for (run in rare.moving)
+		if (themed != null && themed.moving != null)
+			for (run in themed.moving)
 				if (run.name == name) return run.to;
 		return StyleFields.get(this, name);
 	}
@@ -649,7 +701,7 @@ class Style {
 	// it: the property moving to it on the Clock from where it is, whether
 	// it does; the same value again: a run toward another one stopped)
 	function eases(name:String, from:Dynamic, to:Dynamic):Bool {
-		var r = rare;
+		var r = themed;
 		if (r.stepping) return false;
 		var m = r.moving, i = -1;
 		if (m != null)
@@ -677,7 +729,7 @@ class Style {
 
 	// (the Clock's tick: each run's value at now; the ones done at their ends)
 	function step(now:Float):Bool {
-		var r = rare, m = r.moving;
+		var r = themed, m = r.moving;
 		r.stepping = true;
 		var i = 0;
 		while (m != null && i < m.length) {
@@ -774,7 +826,7 @@ class Style {
 
 	function set_zIndex(v:Int):Int {
 		if (v == zIndex) return v;
-		more().zIndex = v;
+		theming().zIndex = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -800,13 +852,13 @@ class Style {
 
 	function set_pointerEvents(v:Null<PointerEvents>):Null<PointerEvents> {
 		if (v == pointerEvents) return v;
-		more().pointerEvents = v;
+		theming().pointerEvents = v;
 		return v;
 	}
 
 	function set_textWrap(v:Null<TextWrap>):Null<TextWrap> {
 		if (v == textWrap) return v;
-		more().textWrap = v;
+		theming().textWrap = v;
 		// (inherited: the text under it laid out again)
 		node.styleChanged(true);
 		return v;
@@ -1135,7 +1187,7 @@ class Style {
 
 	function set_borders(v:Null<EdgesValue>):Null<EdgesValue> {
 		if (v == borders) return v;
-		more().borders = v;
+		theming().borders = v;
 		borderEdges = v == null ? new Edges(borderWidth, borderWidth, borderWidth, borderWidth) : v;
 		node.styleChanged(true);
 		return v;
@@ -1143,7 +1195,7 @@ class Style {
 
 	function set_corners(v:Null<CornersValue>):Null<CornersValue> {
 		if (v == corners) return v;
-		more().corners = v;
+		theming().corners = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -1227,7 +1279,7 @@ class Style {
 	}
 
 	function set_background(v:Color):Color {
-		if (rare != null && rare.transition != null && eases("background", background, v)) return v;
+		if (themed != null && themed.transition != null && eases("background", background, v)) return v;
 		if (v == background) return v;
 		background = v;
 		node.styleChanged(false);
@@ -1242,10 +1294,10 @@ class Style {
 	}
 
 	function set_transform(v:Null<Transform>):Null<Transform> {
-		if (rare != null && rare.transition != null && eases("transform", transform, v)) return v;
+		if (themed != null && themed.transition != null && eases("transform", transform, v)) return v;
 		if (v == transform) return v;
 		var was = transform != null;
-		more().transform = v;
+		theming().transform = v;
 		Ui.accessEpoch++;
 		node.styleChanged(false);
 		if (was != (v != null)) @:privateAccess node.inkChanged();
@@ -1260,7 +1312,7 @@ class Style {
 	}
 
 	function set_borderColor(v:Color):Color {
-		if (rare != null && rare.transition != null && eases("borderColor", borderColor, v)) return v;
+		if (themed != null && themed.transition != null && eases("borderColor", borderColor, v)) return v;
 		if (v == borderColor) return v;
 		borderColor = v;
 		node.styleChanged(false);
@@ -1275,7 +1327,7 @@ class Style {
 	}
 
 	function set_opacity(v:Float):Float {
-		if (rare != null && rare.transition != null && eases("opacity", opacity, v)) return v;
+		if (themed != null && themed.transition != null && eases("opacity", opacity, v)) return v;
 		if (v == opacity) return v;
 		if ((v <= 0) != (opacity <= 0)) Ui.accessEpoch++;
 		opacity = v;
@@ -1298,22 +1350,22 @@ class Style {
 
 	function set_outlineWidth(v:Float):Float {
 		if (v == outlineWidth) return v;
-		more().outlineWidth = v;
+		theming().outlineWidth = v;
 		outlined();
 		return v;
 	}
 
 	function set_outlineOffset(v:Float):Float {
 		if (v == outlineOffset) return v;
-		more().outlineOffset = v;
+		theming().outlineOffset = v;
 		outlined();
 		return v;
 	}
 
 	function set_outlineColor(v:Null<Color>):Null<Color> {
-		if (rare != null && rare.transition != null && eases("outlineColor", outlineColor, v)) return v;
+		if (themed != null && themed.transition != null && eases("outlineColor", outlineColor, v)) return v;
 		if (v == outlineColor) return v;
-		more().outlineColor = v;
+		theming().outlineColor = v;
 		node.styleChanged(false);
 		return v;
 	}
@@ -1325,9 +1377,9 @@ class Style {
 	}
 
 	function set_shadow(v:Null<Shadow>):Null<Shadow> {
-		if (rare != null && rare.transition != null && eases("shadow", shadow, v)) return v;
+		if (themed != null && themed.transition != null && eases("shadow", shadow, v)) return v;
 		if (v == shadow) return v;
-		more().shadow = v;
+		theming().shadow = v;
 		// (how far outside its box a shadow draws: the paint's culling widens bounds by the most seen)
 		var sh = v;
 		while (sh != null) {
@@ -1339,7 +1391,7 @@ class Style {
 	}
 
 	function set_color(v:Null<Color>):Null<Color> {
-		if (rare != null && rare.transition != null && eases("color", color, v)) return v;
+		if (themed != null && themed.transition != null && eases("color", color, v)) return v;
 		if (v == color) return v;
 		color = v;
 		node.styleChanged(false);
@@ -1424,7 +1476,7 @@ class Style {
 	}
 
 	function set_textDecorationColor(v:Null<Color>):Null<Color> {
-		if (rare != null && rare.transition != null && eases("textDecorationColor", textDecorationColor, v)) return v;
+		if (themed != null && themed.transition != null && eases("textDecorationColor", textDecorationColor, v)) return v;
 		if (v == textDecorationColor) return v;
 		more().textDecorationColor = v;
 		node.styleChanged(false);
@@ -1531,6 +1583,10 @@ class Style {
 		if (p.userSelect != null) userSelect = p.userSelect;
 		if (p.fieldSizing != null) fieldSizing = p.fieldSizing;
 		if (p.scrollbarWidth != null) scrollbarWidth = p.scrollbarWidth;
+		if (p.breakBefore != null) breakBefore = p.breakBefore;
+		if (p.breakAfter != null) breakAfter = p.breakAfter;
+		if (p.breakInside != null) breakInside = p.breakInside;
+		if (p.page != null) page = p.page;
 		if (p.scrollbarColor != null) scrollbarColor = p.scrollbarColor;
 		if (p.scrollbarTrackColor != null) scrollbarTrackColor = p.scrollbarTrackColor;
 		if (p.ringWidth != null) ringWidth = p.ringWidth;
@@ -1587,14 +1643,7 @@ private class StyleRare {
 	public var justifySelf:Align = Align.Auto;
 	public var alignContent:AlignContent = Normal;
 	public var aspectRatio:Float = 0;
-	public var borders:Null<EdgesValue> = null;
-	public var corners:Null<CornersValue> = null;
 	public var backgroundImage:Null<Gradient> = null;
-	public var shadow:Null<Shadow> = null;
-	public var outlineWidth:Float = 0;
-	public var outlineOffset:Float = 0;
-	public var outlineColor:Null<Color> = null;
-	public var transform:Null<Transform> = null;
 	public var transformOrigin:Null<Array<Dim>> = null;
 	public var letterSpacing:Null<Float> = null;
 	public var wordSpacing:Null<Float> = null;
@@ -1603,19 +1652,14 @@ private class StyleRare {
 	public var maxLines:Int = 0;
 	public var dir:Null<Dir> = null;
 	public var visibility:Null<Visibility> = null;
-	public var outlineStyle:Null<OutlineStyle> = null;
-	public var userSelect:Null<UserSelect> = null;
 	public var fieldSizing:Null<FieldSizing> = null;
 	public var scrollbarWidth:Null<ScrollbarWidth> = null;
+	public var breakBefore:Null<PageBreak> = null;
+	public var breakAfter:Null<PageBreak> = null;
+	public var breakInside:Null<PageBreak> = null;
+	public var page:Null<String> = null;
 	public var scrollbarColor:Null<Color> = null;
 	public var scrollbarTrackColor:Null<Color> = null;
-	public var ringWidth:Float = 0;
-	public var ringColor:Null<Color> = null;
-	public var ringOffsetWidth:Float = 0;
-	public var ringOffsetColor:Color = Color.WHITE;
-	public var ringInset = false;
-	public var pointerEvents:Null<PointerEvents> = null;
-	public var textWrap:Null<TextWrap> = null;
 	public var overflowWrap:Null<OverflowWrap> = null;
 	public var wordBreak:Null<WordBreak> = null;
 	public var fontFeatureSettings:Null<String> = null;
@@ -1623,21 +1667,43 @@ private class StyleRare {
 	public var textTransform:Null<TextTransform> = null;
 	public var textOverflow:TextOverflow = Clip;
 	public var order:Int = 0;
-	public var zIndex:Int = 0;
 	public var textDecoration:Int = 0;
 	public var textShadow:Null<Shadow> = null;
 	public var textDecorationColor:Null<Color> = null;
-	public var transition:Null<Transition> = null;
 	// (the properties moving under it; whether the Clock steps them, whether a step is writing them)
-	public var moving:Null<Array<Moving>> = null;
-	public var ticking = false;
-	public var stepping = false;
 	public var textDecorationThickness:Dim = DimValue.Auto;
 	public var textUnderlineOffset:Dim = DimValue.Auto;
 	public var left:Dim = DimValue.Auto;
 	public var top:Dim = DimValue.Auto;
 	public var right:Dim = DimValue.Auto;
 	public var bottom:Dim = DimValue.Auto;
+
+	public function new() {}
+}
+
+// what a Style keeps of the rare properties themes set (Style.themed)
+private class StyleThemed {
+	public var borders:Null<EdgesValue> = null;
+	public var corners:Null<CornersValue> = null;
+	public var transform:Null<Transform> = null;
+	public var userSelect:Null<UserSelect> = null;
+	public var pointerEvents:Null<PointerEvents> = null;
+	public var textWrap:Null<TextWrap> = null;
+	public var zIndex:Int = 0;
+	public var shadow:Null<Shadow> = null;
+	public var outlineWidth:Float = 0;
+	public var outlineOffset:Float = 0;
+	public var outlineColor:Null<Color> = null;
+	public var outlineStyle:Null<OutlineStyle> = null;
+	public var ringWidth:Float = 0;
+	public var ringColor:Null<Color> = null;
+	public var ringOffsetWidth:Float = 0;
+	public var ringOffsetColor:Color = Color.WHITE;
+	public var ringInset = false;
+	public var transition:Null<Transition> = null;
+	public var moving:Null<Array<Moving>> = null;
+	public var ticking = false;
+	public var stepping = false;
 
 	public function new() {}
 }

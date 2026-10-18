@@ -83,6 +83,7 @@ class AccessTree {
 			};
 			if (sem != null) {
 				a.description = sem.description;
+				a.href = sem.href;
 				a.checked = sem.checked;
 				a.mixed = sem.mixed;
 				a.selected = sem.selected;

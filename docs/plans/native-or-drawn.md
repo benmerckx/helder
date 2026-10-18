@@ -79,8 +79,8 @@ share sheets, printing, alerts on request, the clipboard, drag and drop.
   slider's keys and steps, pagination's pages, a menu's entries, a tree's
   rows, a calendar's keys and months, HSV, a code field's characters,
   sortable moves, `TypeAhead`; `Shortcut`, `Days` and `Toasts` as they
-  were. The DOM's widgets use it; ui's widgets still have their own copies
-  (in Widgets.hx), to be switched to it by the UI session.
+  were. The DOM's widgets use it, and ui's widgets too (their menu items and
+  tree rows are its MenuEntry and TreeLine).
 - **The theme as CSS** (`hxmc.theme.Css`): the same shadcn.json and
   extras.json, each class as Tailwind writes it (checked class by class
   against Tailwind's own output), on `data-slot` selectors, light and dark
@@ -95,5 +95,4 @@ share sheets, printing, alerts on request, the clipboard, drag and drop.
   for their canvas builds.
 
 Left: the site's examples in DOM mode (the CSS's preflight would reach
-the site's own page: a scoped variant first); ui's widgets on Behaviour;
-a component resolved per renderer (one import for both).
+the site's own page: a scoped variant first); a component resolved per renderer (one import for both).

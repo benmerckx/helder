@@ -31,10 +31,15 @@ class Win32Window {
 	// Automation adapter), given the window and the message's parameters;
 	// 0: DefWindowProc's
 	public static var getObject:Null<(hwnd:Ptr, wParam:Int64, lParam:Int64) -> Int64> = null;
+	// WM_CTLCOLOREDIT's answer for a child edit control (hxmc.ui's native
+	// text editors over the window: their colours), given its DC and its
+	// window: a brush; 0: DefWindowProc's
+	public static var editColors:Null<(dc:Ptr, child:Ptr) -> Int64> = null;
 	static var onFrame:Null<Void->Void>;
 	static inline var SIZING_TIMER = 1;
 
-	static inline var STYLE = WM.WS_OVERLAPPEDWINDOW;
+	// (the child windows clipped out of its painting: native editors over it)
+	static inline var STYLE = WM.WS_OVERLAPPEDWINDOW | 0x02000000;
 
 	final owner:Window;
 	final hwnd:Ptr;
@@ -258,6 +263,10 @@ class Win32Window {
 		switch message {
 			case WM.GETOBJECT if (getObject != null):
 				var r = getObject(hwnd, wParam, lParam);
+				var none:Int64 = 0;
+				if (r != none) return r;
+			case 0x0133 if (editColors != null): // WM_CTLCOLOREDIT
+				var r = editColors(Ptr.ofI64(wParam), Ptr.ofI64(lParam));
 				var none:Int64 = 0;
 				if (r != none) return r;
 			case WM.GETMINMAXINFO if (w.minW > 0 || w.minH > 0):

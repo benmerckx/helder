@@ -139,7 +139,7 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	const { line } = await boxes();
 	const state = line.split(' | ').slice(1, 3).join(' | ');
 	const r = await p.evaluate(() => window.check());
-	// (over a button: Window.cursor set the canvas's CSS cursor)
+	// (over a button, its cursor a pointer by WebTodo's rule: Window.cursor set the canvas's CSS cursor)
 	const cursor = await p.evaluate(() => document.querySelector('canvas').style.cursor);
 	// the accessibility tree: roles, names, states (Chromium's own, through
 	// the DevTools protocol: a canvas's fallback content is in it)
@@ -159,6 +159,8 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	// the field); a composition drawn, cancelled (as before), committed
 	await click('draft');
 	const typing = await p.evaluate(() => document.activeElement.tagName + ' ' + document.activeElement.getAttribute('aria-label'));
+	// (the field focus ring transition, 150 ms under Shadcn, over first)
+	await p.waitForTimeout(400);
 	const before = await p.evaluate(() => window.snap());
 	await cdp.send('Input.imeSetComposition', { text: 'にほん', selectionStart: 3, selectionEnd: 3 });
 	await settle();

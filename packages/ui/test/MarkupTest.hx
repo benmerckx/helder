@@ -29,6 +29,15 @@ import hxmc.ui.widgets.Widgets.NumberField;
 import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
 import hxmc.ui.widgets.Widgets.Accordion;
+import hxmc.ui.widgets.Widgets.Carousel;
+import hxmc.ui.widgets.Widgets.NavigationMenu;
+import hxmc.ui.widgets.Widgets.BarChart;
+import hxmc.ui.widgets.Widgets.AspectRatio;
+import hxmc.ui.widgets.Widgets.SidebarProvider;
+import hxmc.ui.widgets.Widgets.Sidebar;
+import hxmc.ui.widgets.Widgets.SidebarTrigger;
+import hxmc.ui.widgets.Widgets.SidebarInset;
+import hxmc.ui.widgets.Widgets.SidebarMenuButton;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.DropdownMenu;
@@ -97,6 +106,7 @@ class MarkupTest implements Markup {
 		otp();
 		drawer();
 		menuKinds();
+		documentNames();
 		toasts();
 		numbers();
 		rightToLeft();
@@ -113,6 +123,11 @@ class MarkupTest implements Markup {
 		password();
 		listbox();
 		toolbar();
+		carousel();
+		navigationMenu();
+		sidebar();
+		chart();
+		nativeMenu();
 		navigation();
 		tagInput();
 		unstyled();
@@ -257,6 +272,15 @@ class MarkupTest implements Markup {
 		ui.update();
 		check("menu kinds: a checkbox item toggles and closes", !bar.value && ui.overlay.children.length == 0);
 		open();
+		ui.keyDown(Key.UP, 0);
+		check("menu kinds: Up from the first wraps to the last", ui.focus.tag == "vm-5", ui.focus.tag);
+		ui.keyDown(Key.HOME, 0);
+		check("menu kinds: Home to the first that can be chosen", ui.focus.tag == "vm-1", ui.focus.tag);
+		ui.keyDown(Key.END, 0);
+		check("menu kinds: End to the last", ui.focus.tag == "vm-5", ui.focus.tag);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		open();
 		ui.keyDown(Key.DOWN, 0);
 		ui.keyDown(Key.DOWN, 0);
 		check("menu kinds: Down past the separator to a radio item", ui.focus.tag == "vm-4" && ui.focus.slot == "dropdown-menu-radio-item", ui.focus.tag);
@@ -335,6 +359,13 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.BACKSPACE, 0);
 		ui.update();
 		check("otp: Backspace empties the last", code.value == "1" && slots() == "1|^||||", slots());
+		ui.keyDown(Key.HOME, 0);
+		ui.keyDown(Key.LEFT, 0);
+		ui.textInput("2");
+		ui.update();
+		check("otp: the caret stays at the end (Home, Left do nothing)", code.value == "12" && slots() == "1|2|^|||", slots());
+		ui.keyDown(Key.BACKSPACE, 0);
+		ui.update();
 		ui.textInput("23456789");
 		ui.update();
 		check("otp: a paste fills to the length, the rest dropped, complete once", code.value == "123456" && slots() == "1|2|3|4|5|6^"
@@ -442,6 +473,14 @@ class MarkupTest implements Markup {
 		check("accordion: opening one closes the other", section.value == 0 && ui.root.find("faq-0-content") != null && ui.root.find("faq-1-content") == null);
 		click(ui.root.find("faq-0-summary"));
 		check("accordion: a click on the open one closes it", section.value == -1 && ui.root.find("faq-0-content") == null);
+		ui.keyDown(Key.DOWN, 0);
+		check("accordion: Down to the next trigger", ui.focus == ui.root.find("faq-1-summary"));
+		ui.keyDown(Key.DOWN, 0);
+		check("accordion: Down from the last wraps", ui.focus == ui.root.find("faq-0-summary"));
+		ui.keyDown(Key.END, 0);
+		check("accordion: End to the last", ui.focus == ui.root.find("faq-1-summary"));
+		ui.keyDown(Key.HOME, 0);
+		check("accordion: Home to the first", ui.focus == ui.root.find("faq-0-summary"));
 
 		var focus = ui.root.find("focus-here");
 		ui.setFocus(focus);
@@ -477,6 +516,18 @@ class MarkupTest implements Markup {
 		check("toasts: duration 0 stays until closed", Toasts.shown.value.length == 1 && !Clock.active);
 		click(tagged(ui.overlay, "toast-close")[0]);
 		check("toasts: the close button", t.closed && ui.overlay.children.length == 0);
+		var t2 = Toasts.show("Keys", {duration: 0, action: "Redo", onAction: () -> undone++});
+		ui.update();
+		ui.setFocus(tagged(ui.overlay, "toast-action")[0]);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("toasts: Enter presses its action", undone == 2 && t2.closed);
+		var t3 = Toasts.show("Escape me", {duration: 0});
+		ui.update();
+		ui.setFocus(tagged(ui.overlay, "toast-close")[0]);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		check("toasts: Escape closes the one the focus is in", t3.closed);
 	}
 
 	static function rightToLeft() {
@@ -723,6 +774,215 @@ class MarkupTest implements Markup {
 		ui.pointerUp(under.absX + 2, under.absY + 2, 1);
 		ui.update();
 		check("toolbar: a click focuses and presses it", ui.focus == under && pressed.join(",") == "under", pressed.join(","));
+	}
+
+	// a context menu native where the platform has menus: its items as the
+	// platform's, one chosen as from the drawn menu; drawn by policy
+	static function nativeMenu() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var views = new UiTest.FakeViews();
+		ui.platform = views;
+		var copied = 0, wrap = signal(false);
+		Render.render(<view padding={10}>
+			<ContextMenu tag="cm" items={[
+				{label: "Edit", heading: true},
+				{label: "Copy", shortcut: "Mod+C", onSelect: () -> copied++},
+				{label: "", separator: true},
+				{label: "Wrap", checked: wrap},
+				{label: "More", items: [{label: "Deeper", onSelect: () -> copied += 10}]}
+			]}><view tag="area" width={100} height={40}/></ContextMenu>
+		</view>, ui.root);
+		ui.update();
+		var area = ui.root.find("area");
+		ui.pointerDown(area.absX + 5, area.absY + 6, 3);
+		ui.pointerUp(area.absX + 5, area.absY + 6, 3);
+		ui.update();
+		var m = views.menus[0];
+		check("native menu: asked of the platform where it was pressed", views.menus.length == 1 && m.x == area.absX + 5 && m.y == area.absY + 6);
+		var it = m == null ? [] : m.items;
+		check("native menu: its items (a heading disabled, the shortcut's label, a separator, checked, a submenu)",
+			it.length == 5 && it[0].disabled && it[1].label == "Copy" && it[1].shortcut == Shortcut.parse("Mod+C").label() && it[2].separator
+			&& it[3].checked == false && it[4].items.length == 1 && it[4].items[0].label == "Deeper");
+		m.chosen(it[1].id);
+		m.chosen(it[3].id);
+		m.chosen(it[4].items[0].id);
+		m.chosen(-1);
+		check("native menu: chosen as from the drawn menu", copied == 11 && wrap.value, copied + " " + wrap.value);
+		check("native menu: no drawn popup", ui.overlay.children.length == 0);
+		ui.policy["context-menu"] = Host.Drawn;
+		ui.pointerDown(area.absX + 5, area.absY + 6, 3);
+		ui.pointerUp(area.absX + 5, area.absY + 6, 3);
+		ui.update();
+		check("native menu: drawn by policy", views.menus.length == 1 && ui.overlay.children.length > 0);
+		// a select drawn on desktop by default; native when its host is: its options a menu under it, the chosen one checked
+		var ui = new Ui(new MonoText(), 400, 300);
+		var views = new UiTest.FakeViews();
+		ui.platform = views;
+		var fruit = signal("pear");
+		Render.render(<view padding={10} row-gap={10}>
+			<Select tag="plain" value={fruit} options={["apple", "pear"]}/>
+			<view host="native"><Select tag="native" value={fruit} options={["apple", "pear", "plum"]} labels={["Apple", "Pear", "Plum"]}/></view>
+		</view>, ui.root);
+		ui.update();
+		var plain = ui.root.find("plain"), native = ui.root.find("native");
+		ui.setFocus(plain);
+		ui.keyDown(Key.ENTER, 0);
+		ui.update();
+		check("native select: drawn by default", views.menus.length == 0 && ui.overlay.children.length > 0);
+		ui.keyDown(Key.ESCAPE, 0);
+		ui.update();
+		ui.pointerDown(native.absX + 3, native.absY + 3, 1);
+		ui.pointerUp(native.absX + 3, native.absY + 3, 1);
+		ui.update();
+		var m = views.menus[0];
+		check("native select: a menu under it, its labels, the chosen one checked", views.menus.length == 1 && m.y == native.absY + native.height
+			&& m.items.map(i -> i.label).join(",") == "Apple,Pear,Plum" && m.items[1].checked && !m.items[0].checked);
+		m.chosen(2);
+		ui.update();
+		check("native select: chosen", fruit.value == "plum");
+		// a menu bar native: its menus the system's, the drawn bar hidden, given back when it goes
+		var ui = new Ui(new MonoText(), 400, 300);
+		var views = new UiTest.FakeViews();
+		ui.platform = views;
+		var on = signal(true), saved = 0;
+		Render.render(<view padding={10}><Show when={on}>
+			<Menubar tag="bar" menus={[{label: "File", items: [{label: "Save", onSelect: () -> saved++}]}, {label: "Edit", items: [{label: "Undo"}]}]}/>
+		</Show></view>, ui.root);
+		ui.update();
+		var b = views.bar;
+		check("native menu bar: its menus the system's, the drawn bar hidden", b != null && b.menus.map(m -> m.label).join(",") == "File,Edit"
+			&& b.menus[0].items[0].label == "Save" && ui.root.find("bar").style.display == None);
+		b.chosen(b.menus[0].items[0].id);
+		check("native menu bar: an item chosen", saved == 1);
+		on.value = false;
+		ui.update();
+		check("native menu bar: given back when it goes", views.bar != null && views.bar.menus.length == 0);
+	}
+
+	// a bar chart: bars to a round scale, a category's values named and shown under the pointer
+	static function chart() {
+		var ui = new Ui(new MonoText(), 500, 400);
+		Render.render(<view padding={10}>
+			<BarChart tag="c" labels={["A", "B"]} series={[{name: "x", values: [50, 90]}, {name: "y", values: [10, 20]}]} width={200} height={100}/>
+		</view>, ui.root);
+		ui.update();
+		var g0 = ui.root.find("c-0"), g1 = ui.root.find("c-1"), plot = ui.root.find("c-plot");
+		var bars = (g:Node) -> [for (b in g.children) b.height];
+		check("chart: bars on a scale to 100", bars(g0).join(",") == "50,10" && bars(g1).join(",") == "90,20", bars(g0).join(",") + " " + bars(g1).join(","));
+		check("chart: a category's values its name", g1.semantics.label == "B: x 90, y 20", g1.semantics.label);
+		ui.pointerMove(plot.absX + 150, plot.absY + 10);
+		ui.update();
+		var tip = ui.root.find("c-tooltip");
+		check("chart: the pointer over a category shows its values", tip != null && tip.children.length == 3);
+		ui.pointerMove(plot.absX - 50, plot.absY + 10);
+		ui.update();
+		check("chart: gone when the pointer leaves", ui.root.find("c-tooltip") == null);
+		// an aspect ratio: as tall as its width says, its child filling it
+		var ui = new Ui(new MonoText(), 500, 400);
+		Render.render(<view width={320}><AspectRatio tag="ar" ratio={16 / 9}><view tag="fill" grow={1}/></AspectRatio></view>, ui.root);
+		ui.update();
+		var ar = ui.root.find("ar");
+		check("aspect ratio: 320 by 180, its child filling it", ar.width == 320 && ar.height == 180 && ui.root.find("fill").height == 180,
+			ar.width + "x" + ar.height);
+	}
+
+	// a sidebar: its trigger and Mod+B collapsing it (offcanvas: out of view unstyled), its button active
+	static function sidebar() {
+		var ui = new Ui(new MonoText(), 500, 300);
+		var open = signal(true), page = signal("a");
+		Render.render(<view width={400} height={200}><SidebarProvider open={open}>
+			<Sidebar tag="side"><SidebarMenuButton tag="a" label="A" active={() -> page.value == "a"} onClick={() -> page.value = "b"}/></Sidebar>
+			<SidebarInset><SidebarTrigger tag="trigger"/></SidebarInset>
+		</SidebarProvider></view>, ui.root);
+		ui.update();
+		var side = ui.root.find("side"), trigger = ui.root.find("trigger"), a = ui.root.find("a");
+		check("sidebar: expanded, shown, its button active", side.attr("data-state") == "expanded" && side.attr("data-collapsible") == null && side.width > 0
+			&& a.attr("data-active") == "true");
+		ui.pointerDown(trigger.absX + 2, trigger.absY + 2, 1);
+		ui.pointerUp(trigger.absX + 2, trigger.absY + 2, 1);
+		ui.update();
+		check("sidebar: the trigger collapses it, offcanvas out of view", !open.value && side.attr("data-state") == "collapsed"
+			&& side.attr("data-collapsible") == "offcanvas" && side.style.display == None);
+		ui.keyDown("b".code, Key.MOD_CONTROL);
+		ui.update();
+		check("sidebar: Mod+B expands it again", open.value && side.attr("data-state") == "expanded");
+	}
+
+	// a navigation menu: panels opened by a click, the pointer and the keys, a link followed
+	static function navigationMenu() {
+		var ui = new Ui(new MonoText(), 500, 300);
+		var open = signal(-1), went = [];
+		Render.render(<view padding={10}>
+			<NavigationMenu tag="nav" open={open} items={[
+				{label: "One", render: () -> <view tag="p1" role="link" focusable width={80} height={20}/>},
+				{label: "Two", render: () -> <view tag="p2" role="link" focusable width={80} height={20}/>},
+				{label: "Docs", onSelect: () -> went.push("docs")}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		var t0 = ui.root.find("nav-0"), t1 = ui.root.find("nav-1"), t2 = ui.root.find("nav-2");
+		function click(n:Node) {
+			ui.pointerDown(n.absX + 2, n.absY + 2, 1);
+			ui.pointerUp(n.absX + 2, n.absY + 2, 1);
+			ui.update();
+		}
+		function key(k:Int) {
+			ui.keyDown(k, 0);
+			ui.update();
+		}
+		click(t0);
+		var p1 = ui.overlay.find("p1");
+		check("navigation menu: a click opens its panel, under the menu", open.value == 0 && p1 != null && p1.absY >= t0.absY + t0.height
+			&& ui.root.find("nav").semantics.role == Navigation, open.value + "");
+		ui.pointerMove(t1.absX + 3, t1.absY + 3);
+		ui.update();
+		check("navigation menu: the pointer onto another trigger opens that one", open.value == 1 && ui.overlay.find("p2") != null);
+		click(t1);
+		check("navigation menu: a click on the open one closes it", open.value == -1);
+		ui.setFocus(t0);
+		key(Key.RIGHT);
+		key(Key.RIGHT);
+		check("navigation menu: Right through the items to the link", ui.focus == t2);
+		key(Key.ENTER);
+		check("navigation menu: Enter follows a link", went.join(",") == "docs");
+		key(Key.RIGHT);
+		key(Key.DOWN);
+		check("navigation menu: Down opens the panel, its first focusable focused", open.value == 0 && ui.focus != null && ui.focus.tag == "p1");
+		key(Key.ESCAPE);
+		check("navigation menu: Escape closes it, the focus back on its trigger", open.value == -1 && ui.focus == t0);
+	}
+
+	// a carousel: Next, the keys, the ends disabled, a wheel's scroll settling on a slide
+	static function carousel() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		var index = signal(0);
+		Render.render(<view padding={10} width={220}>
+			<Carousel tag="c" index={index} slides={[for (i in 0...3) <view height={40}><text>{"Slide " + i}</text></view>]}/>
+		</view>, ui.root);
+		ui.update();
+		var viewport = ui.root.find("c-content"), prev = ui.root.find("c-previous"), next = ui.root.find("c-next");
+		function settle() {
+			ui.update();
+			Clock.finish();
+			ui.update();
+		}
+		check("carousel: a slide as wide as the viewport, Previous disabled at the start",
+			ui.root.find("c-1").width == viewport.width && viewport.width > 0 && !prev.focusable && next.focusable, "" + ui.root.find("c-1").width + " " + viewport.width);
+		ui.pointerDown(next.absX + 2, next.absY + 2, 1);
+		ui.pointerUp(next.absX + 2, next.absY + 2, 1);
+		settle();
+		check("carousel: Next, the second slide, the viewport eased to it", index.value == 1 && viewport.scrollX == ui.root.find("c-1").x, index.value + " " + viewport.scrollX);
+		ui.setFocus(next);
+		ui.keyDown(Key.RIGHT, 0);
+		settle();
+		check("carousel: Right, the last, Next disabled", index.value == 2 && viewport.scrollX == ui.root.find("c-2").x && !next.focusable, index.value + " " + viewport.scrollX);
+		ui.keyDown(Key.RIGHT, 0);
+		settle();
+		check("carousel: at the end, it stays", index.value == 2);
+		ui.wheel(viewport.absX + 5, viewport.absY + 5, -viewport.width * 2, 0);
+		settle();
+		check("carousel: scrolled back by a wheel, the slide it rests at the index", index.value == 0 && viewport.scrollX == 0, index.value + " " + viewport.scrollX);
+		check("carousel: a group, its slides named", ui.root.find("c").semantics.role == Group && ui.root.find("c-1").semantics.label == "Slide 2 of 3");
 	}
 
 	// a segmented control, breadcrumbs and pagination: roles, keys, clicks, the current one
@@ -1719,6 +1979,23 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.TAB, 0);
 		ui.setFocus(b, true);
 		check("states: focused, focus-visible", States.of(b).focused.value);
+	}
+
+	// a link's href (a Link to assistive technology, a document's annotation); paged layout's names in a window: kept, nothing more
+	static function documentNames() {
+		var ui = new Ui(new MonoText(), 400, 300);
+		Render.render(<view padding={10}>
+			<text tag="docs" href="https://hxmc.dev/docs" focusable>Docs</text>
+			<view tag="chapter" break-before="page" break-inside="avoid" page="wide" height={20}/>
+		</view>, ui.root);
+		ui.update();
+		var link = ui.root.find("docs"), t = ui.accessTree();
+		var an = [for (id in t.order) t.nodes.get(id)].filter(a -> a.href != null)[0];
+		var ch = ui.root.find("chapter");
+		check("document: a link's href, a Link", link.semantics.role == hxmc.ui.access.Role.Link && an != null && an.href == "https://hxmc.dev/docs"
+			&& an.toJson().href == "https://hxmc.dev/docs");
+		check("document: break-before, break-inside and page kept in a window", ch.style.breakBefore == Page && ch.style.breakInside == Avoid
+			&& ch.style.page == "wide" && ch.height == 20);
 	}
 
 	static function unstyledExtras() {

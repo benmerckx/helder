@@ -2011,6 +2011,45 @@
 		}
 	},
 	{
+		"name": "grid percent items",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"display": "Grid",
+				"gridTemplateColumns": "repeat(3, 40px)",
+				"alignContent": "Start"
+			},
+			"children": [
+				{
+					"style": {
+						"width": "100%",
+						"height": "100%",
+						"aspectRatio": 1
+					}
+				},
+				{
+					"style": {
+						"width": "50%"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 10,
+								"height": 10
+							}
+						}
+					]
+				},
+				{
+					"style": {
+						"height": 20
+					}
+				}
+			]
+		}
+	},
+	{
 		"name": "grid negative lines",
 		"width": 300,
 		"height": 200,
