@@ -68,6 +68,19 @@ materials: `model.nodes`, `model.meshes`, `model.materials`) and builds the
 file into the program; self-contained files only for now (one embedded
 buffer, no images).
 
+## Input
+
+```haxe
+var actions = new Actions();
+actions.bind("jump", Key(0x20)).bind("jump", Region(0.75, 0.5, 1, 1));   // Space, or the screen's lower right
+actions.bind("moveX", KeyAxis(0xFF51, 0xFF53));                         // the arrows
+App.run(frame, e -> actions.event(e));
+// each simulation step:
+actions.step();
+if (actions.pressed("jump")) ...;
+var x = actions.axis("moveX");
+```
+
 ## Fast refresh
 
 `HotWorld.keep(world, key)`, after the world is made: under `hxmc dev` the

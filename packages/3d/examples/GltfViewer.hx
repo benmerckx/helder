@@ -7,13 +7,15 @@ import hxmc.gfx.shader.Vec3;
 import hxmc.os.*;
 import hxmc.scene.*;
 import hxmc.scene.gltf.*;
+import hxmc.scene.input.*;
 import hxmc.scene.math.*;
 import hxmc.scene.render.*;
 
 // The sample scene (sample.glb, made by packages/3d/test/SampleModel.hx)
 // in a window: referenced with Model.of (checked and typed when compiling,
 // built into the program), instantiated into a World, drawn by Renderer. The camera circles the scene on a node of
-// its own (drag sideways to turn it; Escape closes); the simulation (the
+// its own (drag sideways, or hold the arrows, to turn it: the arrows are an
+// input action, Actions; Escape closes); the simulation (the
 // moon's orbit, the turn) runs at a fixed 60 steps a second (FixedStep).
 //
 //   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src -cp packages/3d/examples
@@ -37,6 +39,8 @@ class GltfViewer {
 		// (its components: a closure cannot capture a struct value, Quat, itself)
 		var orbit = root.find(model.nodes.orbit), r = orbit.rotation, ox = r.x, oy = r.y, oz = r.z, ow = r.w;
 		var clock = new FixedStep(1 / 60);
+		// (the arrows, or A and D, turn it too: an action read each step)
+		var actions = new Actions().bind("turn", KeyAxis(0xFF51, 0xFF53)).bind("turn", KeyAxis(0x61, 0x64));
 		var turn = 0.0, speed = 0.25, drag = false, from = 0, last = Sys.time();
 		window.cursor = Grab;
 		window.scrollsAt = (x, y, dx, dy) -> Math.abs(dx) > Math.abs(dy);
@@ -46,7 +50,9 @@ class GltfViewer {
 		App.run(() -> {
 			var now = Sys.time();
 			clock.advance(Math.min(now - last, 0.25), dt -> {
-				if (!drag) turn += speed * dt;
+				actions.step();
+				var keys = actions.axis("turn");
+				if (!drag) turn += (keys != 0 ? -1.5 * keys : speed) * dt;
 				orbit.rotation = Quat.axisAngle(new Vec3(0, 1, 0), clock.time * 0.8) * new Quat(ox, oy, oz, ow);
 			});
 			last = now;
@@ -55,22 +61,25 @@ class GltfViewer {
 			if (enc == null) return;
 			renderer.draw(enc, world, camera);
 			device.endFrame();
-		}, e -> switch e.kind {
-			case Close: window.close();
-			case KeyDown if (e.key == 0xFF1B): window.close();
-			case MouseDown if (e.button == 1):
-				drag = true;
-				from = e.x;
-				window.cursor = Grabbing;
-			case MouseUp if (e.button == 1):
-				drag = false;
-				window.cursor = Grab;
-			case MouseMove if (drag):
-				turn -= (e.x - from) / window.width * Math.PI;
-				from = e.x;
-			case Scroll:
-				turn += e.deltaX / window.width * Math.PI;
-			case _:
+		}, e -> {
+			actions.event(e);
+			switch e.kind {
+				case Close: window.close();
+				case KeyDown if (e.key == 0xFF1B): window.close();
+				case MouseDown if (e.button == 1):
+					drag = true;
+					from = e.x;
+					window.cursor = Grabbing;
+				case MouseUp if (e.button == 1):
+					drag = false;
+					window.cursor = Grab;
+				case MouseMove if (drag):
+					turn -= (e.x - from) / window.width * Math.PI;
+					from = e.x;
+				case Scroll:
+					turn += e.deltaX / window.width * Math.PI;
+				case _:
+			}
 		});
 	}
 }
