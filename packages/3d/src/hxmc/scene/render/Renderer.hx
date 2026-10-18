@@ -22,7 +22,8 @@ import hxmc.scene.render.PbrShader;
 //             primitive become one instanced draw (PbrInstancedShader:
 //             the matrices in an instance buffer); the seam for threads
 //             and GPU culling later
-//   record    the list as one depth-tested pass into the caller's encoder,
+//   record    the list as one depth-tested pass into the caller's encoder
+//             (see-through materials last, farthest first, blended),
 //             each draw's matrices and material in uniform blocks through
 //             gfx's uniform ring (nothing allocated per frame: the list's
 //             entries are kept)
@@ -61,6 +62,9 @@ class Renderer {
 
 	final pipeline:Pipeline;
 	final doubleSided:Pipeline;
+	// (see-through materials: made when first drawn)
+	var blendPipeline:Null<Pipeline>;
+	var blendDoubleSided:Null<Pipeline>;
 	var instancedPipeline:Pipeline;
 	var instancedDoubleSided:Pipeline;
 	final plainSlots:Array<Int>;
@@ -179,13 +183,30 @@ class Renderer {
 				d.node = node;
 				d.primitive = p;
 				// (the pipeline, then the material)
-				d.key = (mapped(p) ? 1 << 25 : 0) | (p.material.doubleSided ? 1 << 24 : 0) | (p.material.id & 0xFFFFFF);
+				d.key = (p.material.blend ? 1 << 26 : 0) | (mapped(p) ? 1 << 25 : 0) | (p.material.doubleSided ? 1 << 24 : 0) | (p.material.id & 0xFFFFFF);
+				if (p.material.blend) {
+					// (how far: the bounds' centre's depth in clip space)
+					var b = p.bounds, c = viewProj * (model * new Vec4((b.min.x + b.max.x) / 2, (b.min.y + b.max.y) / 2, (b.min.z + b.max.z) / 2, 1));
+					d.depth = c.w != 0 ? c.z / c.w : c.z;
+				}
 			}
 		}
 		// (insertion sort: a scene's order changes little from frame to frame)
 		for (i in 1...count) {
 			var d = list[i], j = i - 1;
 			while (j >= 0 && (list[j].key > d.key || list[j].key == d.key && list[j].primitive.id > d.primitive.id)) {
+				list[j + 1] = list[j];
+				j--;
+			}
+			list[j + 1] = d;
+		}
+		// (the see-through draws, last in the list: farthest first)
+		var first = count;
+		while (first > 0 && list[first - 1].primitive.material.blend)
+			first--;
+		for (i in first + 1...count) {
+			var d = list[i], j = i - 1;
+			while (j >= first && list[j].depth < d.depth) {
 				list[j + 1] = list[j];
 				j--;
 			}
@@ -270,13 +291,22 @@ class Renderer {
 		var slots = plainSlots;
 		draws = 0;
 		instanced = 0;
+		var opaque = true;
 		for (b in 0...batchCount) {
 			var start = batchStart[b], n = batchSize[b];
 			var d = list[start], p = d.primitive, m = p.material;
+			if (opaque && m.blend) {
+				// (the hooks after the opaque surfaces, the sky's among them,
+				// before the see-through ones; their pipelines are theirs)
+				opaque = false;
+				for (f in hooks[AfterOpaque])
+					f(enc, frame);
+				current = null;
+			}
 			var many = n > 1;
 			var skin = p.skinned ? skinSource : null;
 			var normals = !many && skin == null && mapped(p) ? normalSource : null;
-			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : (m.doubleSided ? doubleSided : pipeline);
+			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : m.blend ? blended(m.doubleSided) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
 				slots = many ? instancedSlots : skin != null ? skin.slots() : normals != null ? normals.slots() : plainSlots;
@@ -315,8 +345,9 @@ class Renderer {
 			draws++;
 			if (many) instanced += n;
 		}
-		for (f in hooks[AfterOpaque])
-			f(enc, frame);
+		if (opaque)
+			for (f in hooks[AfterOpaque])
+				f(enc, frame);
 		enc.endPass();
 	}
 
@@ -328,7 +359,7 @@ class Renderer {
 		var bytes = 0, i = 0;
 		while (i < count) {
 			var j = i + 1;
-			if (instancing && !list[i].primitive.skinned && !mapped(list[i].primitive) && uniformScale(list[i].node))
+			if (instancing && !list[i].primitive.skinned && !list[i].primitive.material.blend && !mapped(list[i].primitive) && uniformScale(list[i].node))
 				while (j < count && list[j].primitive == list[i].primitive && uniformScale(list[j].node))
 					j++;
 			if (batchCount == batchStart.length) {
@@ -368,6 +399,15 @@ class Renderer {
 			}
 			device.writeBuffer(instanceBuffer, 0, instanceBytes, 0, bytes);
 		}
+	}
+
+	// the standard shader blended, depth tested but not written
+	function blended(doubleSided:Bool):Pipeline {
+		if (blendPipeline == null) {
+			blendPipeline = device.createPipeline(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: false, blend: Alpha}));
+			blendDoubleSided = device.createPipeline(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: false, blend: Alpha}));
+		}
+		return doubleSided ? blendDoubleSided : blendPipeline;
 	}
 
 	// whether a primitive is drawn with its normal map (NormalMaps on, its
@@ -452,6 +492,8 @@ class DrawItem {
 	public var node:Node = Node.NONE;
 	public var primitive:Null<Mesh.Primitive>;
 	public var key = 0;
+	// (see-through draws: the depth they sort by, farthest first)
+	public var depth = 0.0;
 
 	public function new() {}
 }

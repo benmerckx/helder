@@ -61,6 +61,8 @@ class GltfScene {
 				mat.occlusionTexture = textureOf(m.occlusionTexture);
 				mat.normalTexture = textureOf(m.normalTexture);
 				mat.normalScale = m.normalScale;
+				// (MASK is drawn opaque for now: gfx's shaders have no discard)
+				mat.blend = m.alphaMode == "BLEND";
 				mat;
 			}
 		];

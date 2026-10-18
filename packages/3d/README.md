@@ -157,7 +157,7 @@ first directional `Light` and up to four point lights
 (`Light.pointLight(color, intensity, range)`, `Light.spot(...)`; a world without lights:
 `renderer.sun*`), a sky-and-ground
 ambient, ACES tone mapping, sRGB output. Nodes drawing the same primitive are drawn in one instanced call
-(`renderer.instancing`, on by default). Shadows are opted in:
+(`renderer.instancing`, on by default). See-through materials (`material.blend`, glTF's alphaMode BLEND) are drawn after the opaque ones, farthest first. Shadows are opted in:
 `renderer.use(new Shadows(device))` (one shadow map for the directional
 light, fitted to the casters, filtered 3x3). `Shapes.box`, `sphere` and
 `plane` make meshes in code. Skinned meshes need

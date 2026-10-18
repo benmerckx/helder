@@ -30,6 +30,10 @@ class Material {
 	public var normalTexture:Null<Texture>;
 	public var normalScale = 1.0;
 	public var doubleSided:Bool;
+	// see-through (glTF's alphaMode BLEND): blended over what is behind by
+	// the base colour's alpha, drawn after the opaque surfaces, farthest
+	// first, without writing depth
+	public var blend = false;
 
 	public function new(?name:String, ?baseColor:Vec4, metallic = 0.0, roughness = 0.5, ?emissive:Vec3, doubleSided = false) {
 		this.name = name != null ? name : "";
