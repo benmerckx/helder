@@ -10,10 +10,14 @@ import hxmc.scene.render.*;
 //          lit by the renderer's sun and sky
 //   shadows the same with a shadow map (Shadows, 512x512)
 //   physics @hxmc/physics' Falling example after STEPS steps
+//   instances 169 nodes on two meshes: instanced draws (RenderTest checks
+//          their count)
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances"];
+	// the last scene's renderer (its statistics: RenderTest)
+	public static var renderer:Null<Renderer>;
 	public static inline var TIME = 2.0;
 	public static inline var STEPS = 150;
 
@@ -21,6 +25,7 @@ class Scenes {
 		return switch name {
 			case "gltf" | "shadows":
 				var renderer = new Renderer(device);
+				Scenes.renderer = renderer;
 				if (name == "shadows") renderer.use(new Shadows(device, 512));
 				var world = new World();
 				var model = Model.of("sample.glb");
@@ -38,6 +43,25 @@ class Scenes {
 				for (_ in 0...STEPS)
 					falling.physics.step(1 / 60);
 				enc -> falling.draw(enc);
+			case "instances":
+				// a field of 13x13 cubes and spheres on two meshes: instanced draws
+				var r = new Renderer(device);
+				renderer = r;
+				var world = new World();
+				var cube = Shapes.box(device, new Material("cube", new hxmc.gfx.shader.Vec4(0.9, 0.45, 0.2, 1), 0, 0.45), 0.5, 0.5, 0.5);
+				var ball = Shapes.sphere(device, new Material("ball", new hxmc.gfx.shader.Vec4(0.25, 0.5, 0.95, 1), 0, 0.3), 0.3, 16, 8);
+				for (x in 0...13)
+					for (z in 0...13) {
+						var n = world.node();
+						n.position = new Vec3((x - 6) * 0.8, 0, (z - 6) * 0.8);
+						n.rotation = hxmc.scene.math.Quat.axisAngle(new Vec3(0, 1, 0), (x * 13 + z) * 0.3);
+						MeshRenderer.attach(n, (x + z) % 2 == 0 ? cube : ball);
+					}
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 6, 8);
+				eye.lookAt(new Vec3(0, 0, 0));
+				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}
 	}

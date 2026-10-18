@@ -18,8 +18,10 @@ import hxmc.scene.render.PbrShader;
 //
 //   extract   the world's meshes into a flat draw list: the nodes shown,
 //             their bounds inside the camera's view, a draw per primitive
-//             sorted by pipeline and material (the seam for instancing,
-//             threads and GPU culling later)
+//             sorted by pipeline, material and primitive; runs of one
+//             primitive become one instanced draw (PbrInstancedShader:
+//             the matrices in an instance buffer); the seam for threads
+//             and GPU culling later
 //   record    the list as one depth-tested pass into the caller's encoder,
 //             each draw's matrices and material in uniform blocks through
 //             gfx's uniform ring (nothing allocated per frame: the list's
@@ -30,6 +32,21 @@ import hxmc.scene.render.PbrShader;
 // (split screens, XR's eyes) is a draw of its own.
 class Renderer {
 	public final device:Device;
+	// the instanced pipelines' two buffers: the mesh's vertices, the instances' matrices
+	static final INSTANCED_LAYOUT:Array<VertexBufferLayout> = [
+		{
+			stride: 32,
+			attributes: [{location: 0, format: Float3, offset: 0}, {location: 1, format: Float3, offset: 12}, {location: 2, format: Float2, offset: 24}]
+		},
+		{
+			stride: 64,
+			step: Instance,
+			attributes: [
+				{location: 3, format: Float4, offset: 0}, {location: 4, format: Float4, offset: 16}, {location: 5, format: Float4, offset: 32},
+				{location: 6, format: Float4, offset: 48}
+			]
+		}
+	];
 	// without a Light in the world: towards the light (normalized when
 	// drawn), and its colour times intensity
 	public var sunDirection = new Vec3(-0.4, 0.8, 0.45);
@@ -44,6 +61,22 @@ class Renderer {
 
 	final pipeline:Pipeline;
 	final doubleSided:Pipeline;
+	var instancedPipeline:Pipeline;
+	var instancedDoubleSided:Pipeline;
+	final plainSlots:Array<Int>;
+	final instancedSlots:Array<Int>;
+	// whether runs of one primitive are drawn instanced (on by default)
+	public var instancing = true;
+	// the last draw's instances drawn by instanced draws (statistics)
+	public var instanced(default, null) = 0;
+	// (the batches: a start in the list, a size, an offset in the instance buffer)
+	final batchStart:Array<Int> = [];
+	final batchSize:Array<Int> = [];
+	final batchOffset:Array<Int> = [];
+	var batchCount = 0;
+	var instanceBytes = Bytes.alloc(64 * 64);
+	var instanceBuffer:Buffer = Buffer.NONE;
+	var instanceCapacity = 0;
 	final white:Texture;
 	final sampler:Sampler;
 	final nearest:Sampler;
@@ -65,6 +98,13 @@ class Renderer {
 		this.device = device;
 		pipeline = device.createPipeline(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
 		doubleSided = device.createPipeline(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
+		for (cull in [hxmc.gfx.Cull.Back, hxmc.gfx.Cull.None]) {
+			var d = PbrInstancedShader.pipeline({cull: cull, depthCompare: Less, depthWrite: true});
+			d.layout = INSTANCED_LAYOUT;
+			if (cull == Back) instancedPipeline = device.createPipeline(d) else instancedDoubleSided = device.createPipeline(d);
+		}
+		plainSlots = slotsOf(PbrShader.uniforms, PbrShader.textures);
+		instancedSlots = slotsOf(PbrInstancedShader.uniforms, PbrInstancedShader.textures);
 		var w = Bytes.alloc(4);
 		w.fill(0, 4, 255);
 		white = device.createTexture({width: 1, height: 1, data: w});
@@ -121,12 +161,13 @@ class Renderer {
 		// (insertion sort: a scene's order changes little from frame to frame)
 		for (i in 1...count) {
 			var d = list[i], j = i - 1;
-			while (j >= 0 && list[j].key > d.key) {
+			while (j >= 0 && (list[j].key > d.key || list[j].key == d.key && list[j].primitive.id > d.primitive.id)) {
 				list[j + 1] = list[j];
 				j--;
 			}
 			list[j + 1] = d;
 		}
+		batch();
 	}
 
 	// (the frame's block; returns the direction towards the light)
@@ -181,21 +222,26 @@ class Renderer {
 		pass.colors[0].clear = clearColor;
 		enc.beginPass(pass);
 		var current:Null<Pipeline> = null, material:Null<Material> = null, node = Node.NONE;
+		var slots = plainSlots;
 		draws = 0;
-		for (i in 0...count) {
-			var d = list[i], p = d.primitive, m = p.material;
-			var want = m.doubleSided ? doubleSided : pipeline;
+		instanced = 0;
+		for (b in 0...batchCount) {
+			var start = batchStart[b], n = batchSize[b];
+			var d = list[start], p = d.primitive, m = p.material;
+			var many = n > 1;
+			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
-				enc.setUniforms(0, frameBytes);
+				slots = many ? instancedSlots : plainSlots;
+				enc.setUniforms(slots[0], frameBytes);
 				current = want;
 				material = null;
 				node = Node.NONE;
 			}
-			if (d.node != node) {
+			if (!many && d.node != node) {
 				var model = d.node.worldMatrix();
 				PbrShader.writePbrObject({model: model, normalMatrix: MathTools.normalMatrix(model)}, objectBytes);
-				enc.setUniforms(1, objectBytes);
+				enc.setUniforms(slots[1], objectBytes);
 				node = d.node;
 			}
 			if (m != material) {
@@ -204,17 +250,94 @@ class Renderer {
 					params: new Vec4(m.metallic, m.roughness, 0, 0),
 					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, 0)
 				}, materialBytes);
-				enc.setUniforms(2, materialBytes);
-				enc.setTexture(3, m.baseColorTexture != null ? m.baseColorTexture : white, sampler);
-				enc.setTexture(4, shadows != null ? shadows.map : noShadow, nearest);
+				enc.setUniforms(slots[2], materialBytes);
+				enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, sampler);
+				enc.setTexture(slots[4], shadows != null ? shadows.map : noShadow, nearest);
 				material = m;
 			}
 			enc.setVertexBuffer(0, p.vertices);
+			if (many) enc.setVertexBuffer(1, instanceBuffer, batchOffset[b]);
 			enc.setIndexBuffer(p.indices, p.indexFormat);
-			enc.drawIndexed(p.count);
+			enc.drawIndexed(p.count, n);
 			draws++;
+			if (many) instanced += n;
 		}
 		enc.endPass();
+	}
+
+	// the draw list cut into batches: a run of draws of one primitive (one
+	// mesh, one material) is one instanced draw, its matrices written to the
+	// instance buffer (before the pass: gfx writes buffers between passes)
+	function batch() {
+		batchCount = 0;
+		var bytes = 0, i = 0;
+		while (i < count) {
+			var j = i + 1;
+			if (instancing && uniformScale(list[i].node))
+				while (j < count && list[j].primitive == list[i].primitive && uniformScale(list[j].node))
+					j++;
+			if (batchCount == batchStart.length) {
+				batchStart.push(0);
+				batchSize.push(0);
+				batchOffset.push(0);
+			}
+			batchStart[batchCount] = i;
+			batchSize[batchCount] = j - i;
+			batchOffset[batchCount] = bytes;
+			if (j - i > 1) {
+				if (bytes + 64 * (j - i) > instanceBytes.length) {
+					var grown = Bytes.alloc(Std.int(Math.max(instanceBytes.length * 2, bytes + 64 * (j - i))));
+					grown.blit(0, instanceBytes, 0, bytes);
+					instanceBytes = grown;
+				}
+				for (k in i...j) {
+					var m = list[k].node.worldMatrix();
+					for (c in 0...4) {
+						var col = MathTools.col(m, c);
+						instanceBytes.setFloat(bytes, col.x);
+						instanceBytes.setFloat(bytes + 4, col.y);
+						instanceBytes.setFloat(bytes + 8, col.z);
+						instanceBytes.setFloat(bytes + 12, col.w);
+						bytes += 16;
+					}
+				}
+			}
+			batchCount++;
+			i = j;
+		}
+		if (bytes > 0) {
+			if (bytes > instanceCapacity) {
+				if (instanceCapacity > 0) device.destroyBuffer(instanceBuffer);
+				instanceCapacity = instanceBytes.length;
+				instanceBuffer = device.createBuffer({size: instanceCapacity, usage: Vertex});
+			}
+			device.writeBuffer(instanceBuffer, 0, instanceBytes, 0, bytes);
+		}
+	}
+
+	// whether a node's world matrix scales alike on every axis (instanced
+	// normals are turned by its upper 3x3)
+	static function uniformScale(n:Node):Bool {
+		var m = n.worldMatrix();
+		var x = m.c0.x * m.c0.x + m.c0.y * m.c0.y + m.c0.z * m.c0.z, y = m.c1.x * m.c1.x + m.c1.y * m.c1.y + m.c1.z * m.c1.z,
+			z = m.c2.x * m.c2.x + m.c2.y * m.c2.y + m.c2.z * m.c2.z;
+		return Math.abs(x - y) <= 1e-6 * x && Math.abs(x - z) <= 1e-6 * x;
+	}
+
+	// a shader's slots for its blocks and textures, in the renderer's order:
+	// frame, object (-1: none), material, base colour, shadow map
+	static function slotsOf(uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock>, textures:Array<hxmc.gfx.shader.Shaders.TextureBinding>):Array<Int> {
+		function u(name:String):Int {
+			for (b in uniforms)
+				if (b.name == name) return b.binding;
+			return -1;
+		}
+		function t(name:String):Int {
+			for (b in textures)
+				if (b.name == name) return b.binding;
+			return -1;
+		}
+		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap")];
 	}
 
 	// whether a mesh's bounds, through mvp, reach the view: not all eight
@@ -238,6 +361,7 @@ class Renderer {
 	public function dispose() {
 		device.destroyTexture(white);
 		device.destroyTexture(noShadow);
+		if (instanceCapacity > 0) device.destroyBuffer(instanceBuffer);
 	}
 }
 

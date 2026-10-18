@@ -71,7 +71,11 @@ class PbrShader implements Shaders {
 		};
 	}
 
-	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, shadowMap:Texture2D):Vec4 {
+	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, shadowMap:Texture2D):Vec4
+		return shade(i, frame, material, baseColorTexture, shadowMap);
+
+	// the fragment's colour (also PbrInstancedShader's)
+	public static function shade(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, shadowMap:Texture2D):Vec4 {
 		var texel = sample(baseColorTexture, i.uv);
 		// (the texture's sRGB decoded)
 		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2));

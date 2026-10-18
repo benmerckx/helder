@@ -84,6 +84,11 @@ class Mesh {
 }
 
 class Primitive {
+	static var made = 0;
+
+	// (draws of one primitive are batched by it)
+	public final id:Int = made++;
+
 	public final vertices:Buffer;
 	public final indices:Buffer;
 	public final indexFormat:IndexFormat;

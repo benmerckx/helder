@@ -26,6 +26,13 @@ class RenderTest {
 		draw(enc);
 		device.readPixels(pixels);
 		device.endFrame();
+		var stats = Scenes.renderer;
+		var drawsOk = true;
+		if (stats != null) {
+			Sys.println('RenderTest: $name: ${stats.draws} draws, ${stats.instanced} instances in instanced draws, ${stats.culled} culled');
+			// (169 nodes of two meshes: two instanced draws, unless culled)
+			if (name == "instances" && (stats.draws > 2 || stats.instanced + stats.culled != 169)) drawsOk = false;
+		}
 		device.dispose();
 		sys.io.File.saveBytes(out, Png.encode(pixels, WIDTH, HEIGHT));
 		if (args[3] == "--bless") {
@@ -33,6 +40,6 @@ class RenderTest {
 			Sys.println('RenderTest: blessed $golden');
 			return;
 		}
-		Sys.exit(GfxTest.compareBytes('$name, headless', pixels, sys.io.File.getBytes(golden)) ? 0 : 1);
+		Sys.exit(GfxTest.compareBytes('$name, headless', pixels, sys.io.File.getBytes(golden)) && drawsOk ? 0 : 1);
 	}
 }

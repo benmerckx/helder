@@ -116,7 +116,8 @@ records it with `PbrShader`: glTF's metallic-roughness model, the world's
 first directional `Light` and up to four point lights
 (`Light.pointLight(color, intensity, range)`; a world without lights:
 `renderer.sun*`), a sky-and-ground
-ambient, ACES tone mapping, sRGB output. Shadows are opted in:
+ambient, ACES tone mapping, sRGB output. Nodes drawing the same primitive are drawn in one instanced call
+(`renderer.instancing`, on by default). Shadows are opted in:
 `renderer.use(new Shadows(device))` (one shadow map for the directional
 light, fitted to the casters, filtered 3x3). `Shapes.box`, `sphere` and
 `plane` make meshes in code.
