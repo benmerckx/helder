@@ -2340,7 +2340,17 @@ class Widgets implements Markup {
 	// a line chart: a line per series through its values, on BarChart's
 	// scale and frame; a dot on each line at the category under the pointer
 	public static function LineChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
-			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
+			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+		return seriesChart(props, false);
+
+	// an area chart: LineChart's lines, each filled faintly down to the axis
+	public static function AreaChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
+			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+		return seriesChart(props, true);
+
+	// (LineChart's and AreaChart's: a line per series, filled under it for an area)
+	static function seriesChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:hxmc.ui.Color}>, ?width:Float,
+			?height:Float, ?max:Float, ?format:Float->String, ?label:String, ?tag:String}, area:Bool):View {
 		var w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1), series = props.series;
 		var top = props.max ?? niceMax(Lambda.fold(series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
 		var format = props.format ?? Behaviour.plain, slot = n == 0 ? 0.0 : w / n;
@@ -2348,23 +2358,98 @@ class Widgets implements Markup {
 		var plot = <div style={'position:absolute;left:0;top:0;width:${w}px;height:${h}px'}>{[
 			for (k in 0...series.length) {
 				var svg = document.createElementNS(hxmc.web.Html.SVG_NS, "svg");
-				for (a in [["viewBox", '0 0 $w $h'], ["width", '$w'], ["height", '$h'], ["data-slot", "chart-line"], ["data-series", Std.string(k % 5 + 1)],
+				for (a in [["viewBox", '0 0 $w $h'], ["width", '$w'], ["height", '$h'], ["data-slot", area ? "chart-area" : "chart-line"], ["data-series", Std.string(k % 5 + 1)],
 					["aria-hidden", "true"], ["style", "position:absolute;left:0;top:0" + (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "color"))]])
 					svg.setAttribute(a[0], a[1]);
 				var path = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
-				path.setAttribute("d", [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(series[k].values[i]) * 100) / 100].join(" "));
+				var d = [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(series[k].values[i]) * 100) / 100].join(" ");
+				path.setAttribute("d", d);
+				// (an area's: the line's points closed along the axis, filled faintly)
+				if (area && n > 0) {
+					var under = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
+					under.setAttribute("d", 'M${Math.fround(px(0) * 100) / 100} $h ${d.substr(1)} L${Math.fround(px(n - 1) * 100) / 100} $h Z');
+					under.setAttribute("fill", "currentColor");
+					under.setAttribute("fill-opacity", "0.4");
+					svg.appendChild(under);
+				}
 				for (a in [["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "2"], ["stroke-linejoin", "round"], ["stroke-linecap", "round"]])
 					path.setAttribute(a[0], a[1]);
 				svg.appendChild(path);
 				[
 					(svg : Any),
-					<Show when={() -> hover.value >= 0}>{() -> <div data-slot="chart-bar" data-series={Std.string(k % 5 + 1)}
+					<Show when={() -> hover.value >= 0}>{() -> <div data-slot="chart-dot" data-series={Std.string(k % 5 + 1)}
 						style={'position:absolute;width:8px;height:8px;border-radius:4px;left:${px(hover.value) - 4}px;top:${py(series[k].values[hover.value]) - 4}px'
 							+ (series[k].color == null ? "" : ";" + seriesStyle(series[k].color, "background-color"))}/>}</Show>
 				];
 			}
 		]}</div>;
 		return chartFrame(props.tag, props.labels, series, w, h, top, plot, hover, props.label, format);
+	}
+
+	// a pie chart: a slice per value clockwise from the top, its share of
+	// the circle its share of the total; a donut with inner (its hole's
+	// radius, a fraction); the pointer over a slice shows its name and value
+	public static function PieChart(props:{slices:Array<{name:String, value:Float, ?color:hxmc.ui.Color}>, ?size:Float, ?inner:Float, ?format:Float->String,
+			?label:String, ?tag:String}):View {
+		var size = props.size ?? 200.0, slices = props.slices, hover = signal(-1), format = props.format ?? Behaviour.plain;
+		var total = Lambda.fold(slices, (sl, t) -> t + Math.max(0, sl.value), 0.0);
+		var c = size / 2, r = size / 2 - 1, ri = Math.max(0, Math.min(1, props.inner ?? 0)) * r;
+		var ends = [], at = 0.0;
+		for (sl in slices) {
+			var from = at;
+			at += total > 0 ? Math.max(0, sl.value) / total : 0;
+			ends.push({from: from, to: at});
+		}
+		function num(v:Float):String
+			return Std.string(Math.fround(v * 100) / 100);
+		function point(t:Float, rad:Float):String
+			return num(c + rad * Math.sin(t * 2 * Math.PI)) + " " + num(c - rad * Math.cos(t * 2 * Math.PI));
+		function path(from:Float, to:Float):String {
+			if (to - from >= 1 - 1e-9)
+				return ri > 0 ? 'M${point(0, r)} A$r $r 0 1 1 ${point(0.5, r)} A$r $r 0 1 1 ${point(0, r)} M${point(0, ri)} A$ri $ri 0 1 0 ${point(0.5, ri)} A$ri $ri 0 1 0 ${point(0, ri)} Z' : 'M${point(0, r)} A$r $r 0 1 1 ${point(0.5, r)} A$r $r 0 1 1 ${point(0, r)} Z';
+			var large = to - from > 0.5 ? 1 : 0;
+			return ri > 0 ? 'M${point(from, r)} A$r $r 0 $large 1 ${point(to, r)} L${point(to, ri)} A$ri $ri 0 $large 0 ${point(from, ri)} Z' : 'M$c $c L${point(from, r)} A$r $r 0 $large 1 ${point(to, r)} Z';
+		}
+		var svg = document.createElementNS(hxmc.web.Html.SVG_NS, "svg");
+		for (a in [["viewBox", '0 0 $size $size'], ["width", '$size'], ["height", '$size'], ["style", "position:absolute;left:0;top:0"]])
+			svg.setAttribute(a[0], a[1]);
+		var paths:Array<Element> = [];
+		for (k in 0...slices.length)
+			if (ends[k].to > ends[k].from) {
+				var p = document.createElementNS(hxmc.web.Html.SVG_NS, "path");
+				for (a in [["d", path(ends[k].from, ends[k].to)], ["fill", "currentColor"], ["fill-rule", "evenodd"], ["data-slot", "chart-slice"],
+					["data-series", Std.string(k % 5 + 1)], ["role", "img"], ["aria-label", slices[k].name + ": " + format(slices[k].value)]])
+					p.setAttribute(a[0], a[1]);
+				if (slices[k].color != null) p.setAttribute("style", seriesStyle(slices[k].color, "color"));
+				p.addEventListener("pointerenter", () -> hover.value = k);
+				p.addEventListener("pointerleave", () -> if (hover.peek() == k) hover.value = -1);
+				paths[k] = p;
+				svg.appendChild(p);
+			}
+		effect(() -> {
+			var h = hover.value;
+			for (k in 0...paths.length)
+				if (paths[k] != null) if (h == k) paths[k].setAttribute("data-active", "true") else paths[k].removeAttribute("data-active");
+		});
+		return <div id={props.tag} data-slot="chart" role="img" aria-label={props.label ?? "Chart"} style="align-items:center">
+			<div data-slot="chart-plot" style={'position:relative;width:${size}px;height:${size}px'}>
+				{(svg : Any)}
+				<Show when={() -> hover.value >= 0}>{() -> {
+					var k = hover.value;
+					<div data-slot="chart-tooltip" style="position:absolute;top:4px;left:4px;display:flex;align-items:center;gap:6px">
+						<div data-slot="chart-tooltip-indicator" data-series={Std.string(k % 5 + 1)} style={seriesStyle(slices[k].color, "background-color")}/>
+						<span data-slot="chart-tooltip-label">{slices[k].name}</span>
+						<span data-slot="chart-tooltip-value">{format(slices[k].value)}</span>
+					</div>;
+				}}</Show>
+			</div>
+			<div data-slot="chart-legend" style={'flex-wrap:wrap;width:${Math.max(size, 240)}px'}>{[
+				for (k in 0...slices.length)
+					<div data-slot="chart-legend-item">
+						<div data-slot="chart-legend-swatch" data-series={Std.string(k % 5 + 1)} style={seriesStyle(slices[k].color, "background-color")}/>{slices[k].name}
+					</div>
+			]}</div>
+		</div>;
 	}
 }
 #end
