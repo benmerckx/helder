@@ -6487,5 +6487,40 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "wrapping row basis, its min-content",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"style": {
+				"direction": "RowReverse"
+			},
+			"children": [
+				{
+					"style": {
+						"direction": "RowReverse",
+						"wrap": true,
+						"grow": 0.5
+					},
+					"children": [
+						{
+							"style": {
+								"basis": 39,
+								"minWidth": "50%"
+							},
+							"children": [
+								{
+									"style": {
+										"minWidth": 75,
+										"height": 10
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
 	}
 ]

@@ -247,4 +247,6 @@ export const cases = [
 	// (a column's item with a basis in pixels: its height definite for its children's percentages, though the column's is not)
 	{ name: 'basis in pixels definite in a column of auto height', width: 300, height: 200, tree: { style: { direction: 'Row' }, children: [{ style: { alignSelf: 'Start' }, children: [{ style: { basis: 115 }, children: [{ style: { height: '25%', width: 20 } }] }] }] } },
 	{ name: 'basis in pixels, shrunk in a wrapping column: percentages of the size it shrank to', width: 300, height: 200, tree: { children: [{ style: { wrap: true, height: 39 }, children: [{ style: { direction: 'Row', alignItems: 'End', basis: 66, minHeight: '100%' }, children: [{ style: { minHeight: '25%', width: 10 } }] }] }] } },
+	// (a wrapping row's max-content no less than its min-content: an item's basis under its content)
+	{ name: 'wrapping row basis, its min-content', width: 300, height: 200, tree: { style: { direction: 'RowReverse' }, children: [{ style: { direction: 'RowReverse', wrap: true, grow: 0.5 }, children: [{ style: { basis: 39, minWidth: '50%' }, children: [{ style: { minWidth: 75, height: 10 } }] }] }] } },
 ];

@@ -291,6 +291,9 @@ class Layout {
 					t += contribution(items[i], row, innerW, pctH) + items[i].mMainStart + items[i].mMainEnd + (i > first ? gapMain : 0);
 				content = t;
 			}
+			// (a wrapping row's max-content no less than its min-content, its widest item's, which an item's basis can
+			// make it, as Chromium keeps it)
+			if (row && multi && basisItems(n)) content = Math.max(content, minContentWidth(n, Math.NaN, false) - padH);
 			// (a row shrinks to fit the room; a column's auto height is its content's, the room or not)
 			mainSize = known(room) && row ? Math.min(content, room) : content;
 			mainSize = clamp(mainSize, Math.max(0, minMain), maxMain);
@@ -1315,6 +1318,13 @@ class Layout {
 	}
 
 	// an item for c from the pool
+	// (whether a node's item has a basis of its own)
+	static function basisItems(n:Node):Bool {
+		for (c in n.children)
+			if (c.style.basis != DimValue.Auto && c.style.display != None && c.style.position != Absolute) return true;
+		return false;
+	}
+
 	// (whether a row's item has a width or basis that is a percentage of the row's)
 	static function percentItems(n:Node):Bool {
 		for (c in n.children) {
