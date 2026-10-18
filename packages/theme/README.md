@@ -239,8 +239,9 @@ then Tailwind's order (the rule of a later variant later):
 `group/name:`), `peer-*`, `has-*` (`has-data-[slot=card-action]` is
 `has:data-slot=card-action`), `not-*`; `data-[size=…]` and
 `data-[variant=…]` (also a group's) select the rule's size and variant.
-A group or a peer is a node with a `group` or `peer` attribute: the theme
-cannot mark one, the widget does.
+A group or a peer is a node with a `group` or `peer` attribute, or of a
+slot whose class list carries the marker (`group/item`, `peer`: the
+sheet's `markers`, as a page's CSS reads them).
 
 A rule that sets part of a shorthand (`border-b`, `rounded-t-md`,
 `translate-x-1`, `duration-200` of a transition) takes the other parts

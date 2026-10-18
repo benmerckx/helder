@@ -53,8 +53,11 @@ class RuleData {
 	public static function sheet(data:String, table:String):StyleSheet {
 		var r = new RuleData(data, table);
 		var rules = [for (_ in 0...r.int()) r.rule()];
-		var light = r.tokens(), dark = r.tokens();
-		return {rules: rules, light: light, dark: dark, lengths: ["radius" => r.num()]};
+		var light = r.tokens(), dark = r.tokens(), radius = r.num();
+		var markers = new Map<String, String>();
+		for (_ in 0...r.int())
+			markers.set(r.str(), r.str());
+		return {rules: rules, light: light, dark: dark, lengths: ["radius" => radius], markers: markers};
 	}
 
 	inline function int():Int {

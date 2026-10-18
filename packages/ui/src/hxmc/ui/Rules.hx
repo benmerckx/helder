@@ -341,11 +341,35 @@ class Rules {
 		if (i >= 0 && i < parent.children.length) @:privateAccess parent.children[i].restyleLater();
 	}
 
-	// (whether n is marked as a group or peer: the attribute, naming name among its words when given)
+	// (whether n is marked as a group or peer: the attribute, else its slot's
+	// marker in its sheet (StyleSheet.markers), naming name when given)
 	static function marked(n:Node, attr:String, name:Null<String>):Bool {
 		var v = n.attr(attr);
-		return v != null && (name == null || v.split(" ").indexOf(name) >= 0);
+		if (v != null) return name == null || v.split(" ").indexOf(name) >= 0;
+		if (n.slot == null) return false;
+		var sheet = n.sheet();
+		if (sheet == null || sheet.markers == null) return false;
+		var m = slotMarkers.get(sheet);
+		if (m == null) {
+			// (each slot's names per marker: "group" => ["", "item"], "" an unnamed one)
+			m = new Map();
+			for (slot => list in sheet.markers) {
+				var by = new Map<String, Array<String>>();
+				for (w in list.split(" ")) {
+					var slash = w.indexOf("/"), kind = slash < 0 ? w : w.substr(0, slash);
+					if (!by.exists(kind)) by.set(kind, []);
+					by.get(kind).push(slash < 0 ? "" : w.substr(slash + 1));
+				}
+				m.set(slot, by);
+			}
+			slotMarkers.set(sheet, m);
+		}
+		var by = m.get(n.slot), names = by == null ? null : by.get(attr);
+		return names != null && (name == null || names.indexOf(name) >= 0);
 	}
+
+	// (the sheets' slots' markers, read once: Rules.marked)
+	static final slotMarkers = new haxe.ds.ObjectMap<{}, Map<String, Map<String, Array<String>>>>();
 
 	// (whether a descendant of n holds each of cs)
 	static function below(n:Node, ui:Ui, cs:Array<Cond>):Bool {
@@ -380,14 +404,14 @@ class Rules {
 	// (n's states or attributes changed: the nodes whose rules over other nodes' states may follow, restyled)
 	@:allow(hxmc.ui.Node) @:allow(hxmc.ui.Ui) static function related(n:Node) {
 		if (relational == 0 || n.ui == null) return;
-		if (relational & GROUP != 0 && n.attr("group") != null)
+		if (relational & GROUP != 0 && marked(n, "group", null))
 			for (c in n.children)
 				restyleTree(c);
 		if (relational & PARENT != 0)
 			for (c in n.children)
 				@:privateAccess c.restyleLater();
 		if (relational & PREV != 0 && n.parent != null) after(n.parent, n.parent.indexOf(n) + 1);
-		if (relational & PEER != 0 && n.attr("peer") != null && n.parent != null) {
+		if (relational & PEER != 0 && marked(n, "peer", null) && n.parent != null) {
 			var after = false;
 			for (c in n.parent.children) {
 				if (after) restyleTree(c);
@@ -421,7 +445,7 @@ class Rules {
 				@:privateAccess c[c.length - 1].restyleLater();
 			}
 		}
-		if (relational & PEER != 0 && (child == null ? Lambda.exists(parent.children, c -> c.attr("peer") != null) : child.attr("peer") != null))
+		if (relational & PEER != 0 && (child == null ? Lambda.exists(parent.children, c -> marked(c, "peer", null)) : marked(child, "peer", null)))
 			for (c in parent.children)
 				restyleTree(c);
 		if (relational & HAS != 0) {
