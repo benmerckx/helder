@@ -19,7 +19,13 @@ class RenderTest {
 			Sys.exit(2);
 		}
 		var name = args[0], golden = args[1], out = args[2];
-		var device = Device.create(Surface.headless(WIDTH, HEIGHT));
+		var device = try Device.create(Surface.headless(WIDTH, HEIGHT)) catch (e:String) {
+			// (macOS virtual machines may have no GPU: check.sh skips, as gfx's)
+			if (e != "hxmc.gfx: no Metal device") throw e;
+			Sys.println("RenderTest: skipped: no Metal device");
+			Sys.exit(3);
+			null;
+		}
 		var draw = Scenes.make(name, device);
 		// (natively a lazy scene's files are read at once)
 		if (!Scenes.ready()) throw 'RenderTest: $name not ready';
