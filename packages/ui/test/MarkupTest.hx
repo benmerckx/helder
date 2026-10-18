@@ -30,6 +30,7 @@ import hxmc.ui.widgets.Widgets.Toaster;
 import hxmc.ui.widgets.Widgets.Collapsible;
 import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Widgets.Carousel;
+import hxmc.ui.widgets.Widgets.NavigationMenu;
 import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.TextField;
 import hxmc.ui.widgets.Widgets.DropdownMenu;
@@ -116,6 +117,7 @@ class MarkupTest implements Markup {
 		listbox();
 		toolbar();
 		carousel();
+		navigationMenu();
 		nativeMenu();
 		navigation();
 		tagInput();
@@ -846,6 +848,50 @@ class MarkupTest implements Markup {
 		on.value = false;
 		ui.update();
 		check("native menu bar: given back when it goes", views.bar != null && views.bar.menus.length == 0);
+	}
+
+	// a navigation menu: panels opened by a click, the pointer and the keys, a link followed
+	static function navigationMenu() {
+		var ui = new Ui(new MonoText(), 500, 300);
+		var open = signal(-1), went = [];
+		Render.render(<view padding={10}>
+			<NavigationMenu tag="nav" open={open} items={[
+				{label: "One", render: () -> <view tag="p1" role="link" focusable width={80} height={20}/>},
+				{label: "Two", render: () -> <view tag="p2" role="link" focusable width={80} height={20}/>},
+				{label: "Docs", onSelect: () -> went.push("docs")}
+			]}/>
+		</view>, ui.root);
+		ui.update();
+		var t0 = ui.root.find("nav-0"), t1 = ui.root.find("nav-1"), t2 = ui.root.find("nav-2");
+		function click(n:Node) {
+			ui.pointerDown(n.absX + 2, n.absY + 2, 1);
+			ui.pointerUp(n.absX + 2, n.absY + 2, 1);
+			ui.update();
+		}
+		function key(k:Int) {
+			ui.keyDown(k, 0);
+			ui.update();
+		}
+		click(t0);
+		var p1 = ui.overlay.find("p1");
+		check("navigation menu: a click opens its panel, under the menu", open.value == 0 && p1 != null && p1.absY >= t0.absY + t0.height
+			&& ui.root.find("nav").semantics.role == Navigation, open.value + "");
+		ui.pointerMove(t1.absX + 3, t1.absY + 3);
+		ui.update();
+		check("navigation menu: the pointer onto another trigger opens that one", open.value == 1 && ui.overlay.find("p2") != null);
+		click(t1);
+		check("navigation menu: a click on the open one closes it", open.value == -1);
+		ui.setFocus(t0);
+		key(Key.RIGHT);
+		key(Key.RIGHT);
+		check("navigation menu: Right through the items to the link", ui.focus == t2);
+		key(Key.ENTER);
+		check("navigation menu: Enter follows a link", went.join(",") == "docs");
+		key(Key.RIGHT);
+		key(Key.DOWN);
+		check("navigation menu: Down opens the panel, its first focusable focused", open.value == 0 && ui.focus != null && ui.focus.tag == "p1");
+		key(Key.ESCAPE);
+		check("navigation menu: Escape closes it, the focus back on its trigger", open.value == -1 && ui.focus == t0);
 	}
 
 	// a carousel: Next, the keys, the ends disabled, a wheel's scroll settling on a slide

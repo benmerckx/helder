@@ -3613,6 +3613,86 @@ class Widgets implements Markup {
 	public static function ItemFooter(props:{?children:Any, ?tag:String}):View
 		return <view tag={props.tag ?? "item-footer"} slot="item-footer">{props.children}</view>;
 
+	// a navigation menu (shadcn's, after Radix's): a row of items in a
+	// navigation landmark, each a trigger whose panel (render) opens under
+	// the menu, or a link (onSelect); a click, Enter, Space or Down on a
+	// trigger opens its panel (its first focusable focused when by the keys),
+	// the pointer moving onto another trigger while one is open opens that
+	// one; Left and Right move between the items (mirrored right to left,
+	// wrapping), Home and End to the ends; Escape closes the panel, the focus
+	// back on its trigger; a press outside closes it. Slots
+	// "navigation-menu", "navigation-menu-list", "navigation-menu-item",
+	// "navigation-menu-trigger" (data-state "open" or "closed"),
+	// "navigation-menu-trigger-icon", "navigation-menu-link",
+	// "navigation-menu-viewport" and "navigation-menu-content" (data-state)
+	@:widget({
+		props: {
+			items: "its items: a label, and render (a function giving its panel) or onSelect (a link)",
+			open: "a signal of the open panel's index, -1 for none (its own when not given)",
+			label: "its landmark's name for assistive technology (\"Main\" when not given)"
+		},
+		keys: {
+			"Enter, Space, Down": "on a trigger: opens its panel, its first focusable focused; on a link: follows it",
+			"Left, Right (mirrored right to left)": "to the item before or after, wrapping",
+			"Home, End": "to the first or last item",
+			"Escape": "closes the panel, the focus back on its trigger"
+		}
+	})
+	public static function NavigationMenu(props:{items:Array<{label:String, ?render:Void->Any, ?onSelect:Void->Void}>, ?open:Signal<Int>, ?label:String,
+			?tag:String}):View {
+		var tag = props.tag ?? "navigation-menu", items = props.items, count = items.length;
+		var open = props.open ?? signal(-1), triggers:Array<Node> = [], byKeys = false;
+		function show(i:Int, keys:Bool) {
+			byKeys = keys;
+			open.value = i;
+		}
+		function key(e:Event, i:Int) {
+			var it = items[i], k = mirrored(e);
+			switch k {
+				case Key.ENTER | Key.SPACE | Key.DOWN:
+					e.preventDefault();
+					if (it.render != null) show(i, true) else if (k != Key.DOWN && it.onSelect != null) it.onSelect();
+				case Key.ESCAPE if (open.peek() >= 0):
+					e.preventDefault();
+					open.value = -1;
+				case _:
+					var j = Behaviour.rove(k, i, count, false);
+					if (j < 0) return;
+					e.preventDefault();
+					focusIn(triggers, j);
+			}
+		}
+		return <view tag={tag} slot="navigation-menu" role="navigation" label={props.label ?? "Main"} data-orientation="horizontal">
+			<view slot="navigation-menu-list" role="list" direction="row" data-orientation="horizontal">{[
+				for (i in 0...count) {
+					var it = items[i], state = () -> open.value == i ? "open" : "closed";
+					<view slot="navigation-menu-item" role="listitem">{
+						it.render != null ? <view tag={tag + "-" + i} slot="navigation-menu-trigger" role="button" focusable expanded={() -> open.value == i}
+							data-state={state} ref={n -> triggers[i] = n} onClick={_ -> show(open.peek() == i ? -1 : i, false)}
+							onPointerEnter={_ -> if (open.peek() >= 0 && open.peek() != i) show(i, false)} onKeyDown={e -> key(e, i)}>
+							{it.label}<view slot="navigation-menu-trigger-icon" data-state={state}>{arrow(() -> "▾")}</view>
+						</view> : <view tag={tag + "-" + i} slot="navigation-menu-link" role="link" focusable ref={n -> triggers[i] = n}
+							onClick={_ -> if (it.onSelect != null) it.onSelect()} onKeyDown={e -> key(e, i)}>{it.label}</view>
+					}</view>;
+				}
+			]}</view>
+			<Popover open={() -> open.value >= 0} placement="below" onDismiss={() -> open.value = -1} onOpen={p -> if (byKeys) {
+				var f = @:privateAccess Ui.firstFocusable(p);
+				if (f != null) p.ui.setFocus(f);
+			}}>
+				<view tag={tag + "-viewport"} slot="navigation-menu-viewport" data-state="open" onKeyDown={e -> if (e.key == Key.ESCAPE) {
+					e.preventDefault();
+					var i = open.peek();
+					open.value = -1;
+					focusIn(triggers, i);
+				}}>{() -> {
+					var i = open.value;
+					i >= 0 && items[i].render != null ? <view tag={tag + "-content"} slot="navigation-menu-content" data-state="open">{items[i].render()}</view> : null;
+				}}</view>
+			</Popover>
+		</view>;
+	}
+
 	// a carousel (shadcn's, after Embla): slides in a row (vertical: a
 	// column) shown through a viewport, index the slide at its start (a
 	// signal); Previous and Next (disabled at the ends unless loop), Left
