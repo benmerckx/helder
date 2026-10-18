@@ -26,6 +26,11 @@ import hxmc.unsafe.*;
 // itself can be destroyed and made again then (a relaunch: Activity), its
 // window with it: only a finishing activity ends the wait.)
 // While paused or without a window App.run sleeps in the looper.
+// (hxmc dev's host: the window, the input queue and the pause are the
+// host's, kept for the next build: hxmc.dev.HostedMacro)
+#if hxmc.dev_host
+@:build(hxmc.dev.HostedMacro.shared(40, 8))
+#end
 @:hxmc.android @:allow(hxmc.os)
 class AndroidWindow {
 	static var current:Null<AndroidWindow> = null;
@@ -89,6 +94,10 @@ class AndroidWindow {
 
 	function destroy() {
 		current = null;
+		#if hxmc.dev_host
+		// (handing over to the next build: the activity goes on)
+		if (hxmc.dev.Hosted.handingOver) return;
+		#end
 		if (Activity.destroyed == 0 && !Activity.activity.isNull()) Android.ANativeActivity_finish(Activity.activity);
 	}
 

@@ -27,6 +27,13 @@ class Hosted {
 	// (the window's size when it was handed over)
 	public static inline var WIDTH = 7;
 	public static inline var HEIGHT = 8;
+	// (Android) the app's files directory (a C string: ANativeActivity.internalDataPath)
+	public static inline var FILES = 9;
+	// the statics kept for the activity's glue (HostedMacro.shared: its arguments, Activity's and AndroidWindow's, are these)
+	public static inline var ACTIVITY = 16;
+	public static inline var ACTIVITY_SLOTS = 24;
+	public static inline var ANDROID_WINDOW = 40;
+	public static inline var ANDROID_WINDOW_SLOTS = 8;
 	// the next build's library: a C string at DevHost.NEXT (empty: none, the host ends)
 	static inline var NEXT = DevHost.NEXT;
 	static inline var NEXT_BYTES = DevHost.NEXT_BYTES;
@@ -45,6 +52,18 @@ class Hosted {
 	public static function hosted():Bool
 		return !state.isNull();
 
+	// the state block; made (zeroed) by the first build when no host gave one
+	// (Android: the APK's own library is the host, its activity glue the
+	// first to run, before the runtime)
+	@:hxmc.noGc public static function block():Ptr {
+		if (state.isNull()) {
+			var b = LibC.malloc((DevHost.BYTES : Int64));
+			LibC.memset(b, 0, (DevHost.BYTES : Int64));
+			state = b;
+		}
+		return state;
+	}
+
 	// this build hands over to the library at path (Hot, at a reload)
 	public static function handOver(path:String) {
 		handingOver = true;
@@ -58,6 +77,11 @@ class Hosted {
 	// the host's call: main on a thread of its own (a large stack, as the
 	// runtime's main thread has), joined
 	@:keep @:hxmc.export("hxmc_dev_run") @:hxmc.noGc static function run(arg:Int):Int {
+		// (Android: on the calling thread, the program's, whose looper the activity's glue watches)
+		if (Mem.target() >= 9) {
+			thread(Ptr.nil());
+			return 0;
+		}
 		var attr = Mem.stack(128), t = Mem.stack(16);
 		HostThreads.pthread_attr_init(attr);
 		HostThreads.pthread_attr_setstacksize(attr, (256 : Int64) << 20);
@@ -71,8 +95,10 @@ class Hosted {
 		Mem.setPtr(argv, 0, Mem.cstr("app"));
 		Mem.setPtr(argv, 8, Ptr.nil());
 		HostThreads.main(1, argv);
-		// (the heap given back: the host closes the library next)
-		hxmc.rt.Gc.releaseHeap();
+		// (the heap given back: the host closes the library next; on Android
+		// the library stays loaded and its heap kept: callbacks it gave the
+		// system's UI thread, a looper's or a frame's, may still come once)
+		if (Mem.target() < 9) hxmc.rt.Gc.releaseHeap();
 		return Ptr.nil();
 	}
 }

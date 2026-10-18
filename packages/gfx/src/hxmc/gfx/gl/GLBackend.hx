@@ -420,6 +420,9 @@ class GLBackend {
 		Egl.eglDestroySurface(display, eglSurface);
 		eglSurface = Ptr.nil();
 		window = Ptr.nil();
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted() && hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONTEXT) == context) hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_SURFACE, Ptr.nil());
+		#end
 	}
 
 	// an EGL surface on the window the Surface has now
@@ -429,6 +432,9 @@ class GLBackend {
 		eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
 		if (eglSurface.isNull()) fail("cannot create the EGL surface");
 		window = surface.handle;
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted() && hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONTEXT) == context) hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_SURFACE, eglSurface);
+		#end
 	}
 
 	public function beginFrame():Bool {

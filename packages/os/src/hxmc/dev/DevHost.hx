@@ -18,7 +18,7 @@ import hxmc.unsafe.*;
 class DevHost {
 	// the state block: slots of 8 bytes (hxmc.dev.Hosted's), then the next
 	// build's library, a C string at NEXT
-	public static inline var NEXT = 128;
+	public static inline var NEXT = 512;
 	public static inline var NEXT_BYTES = 1024;
 	public static inline var BYTES = NEXT + NEXT_BYTES;
 

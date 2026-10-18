@@ -24,6 +24,16 @@ import hxmc.os.VTable;
 // window does and the new activity's comes. Each callback is logged at the
 // debug level under the tag hxmc.os (with the window's size, the content's
 // rect), so logcat shows the order things came in.
+// Under hxmc dev (-D hxmc.dev-host: docs/dev.md, "No reloads") the APK's
+// library is the dev host: its statics live in the host's state block
+// (hxmc.dev.HostedMacro), shared with each build loaded into the process
+// later, and once the program's main returns having handed over (the next
+// build's library named, in the app's files), the program's thread loads
+// that library and runs its program there, with the same looper, window,
+// input queue and activity.
+#if hxmc.dev_host
+@:build(hxmc.dev.HostedMacro.shared(16, 24))
+#end
 @:hxmc.android @:keep
 class Activity {
 	// the commands (one byte each through the pipe)
@@ -108,6 +118,11 @@ class Activity {
 		Mem.setPtr(cb, 112, Callback.addr(onConfigurationChanged));
 		Mem.setPtr(cb, 120, Callback.addr(onLowMemory));
 		activity = a;
+		#if hxmc.dev_host
+		// (the app's files directory: where the dev server's builds are written, and the snapshot)
+		var files = Mem.getPtr(a, 32);
+		if (!files.isNull()) hxmc.dev.Hosted.set(hxmc.dev.Hosted.FILES, files);
+		#end
 		if (lock.isNull()) {
 			// (once per process: the runtime starts once; the manifest keeps
 			// configuration changes from recreating the activity)
@@ -326,6 +341,24 @@ class Activity {
 		Mem.setPtr(argv, 0, Mem.cstr("app"));
 		Mem.setPtr(argv, 8, Ptr.nil());
 		Threads.main(1, argv);
+		#if hxmc.dev_host
+		// (hxmc dev: handed over: the next build's library, from the app's files, run on this thread)
+		while (Mem.getU8(hxmc.dev.Hosted.block(), hxmc.dev.DevHost.NEXT) != 0) {
+			var path = LibC.malloc(hxmc.dev.DevHost.NEXT_BYTES);
+			LibC.memcpy(path, hxmc.dev.Hosted.block().add(hxmc.dev.DevHost.NEXT), hxmc.dev.DevHost.NEXT_BYTES);
+			Mem.setI8(hxmc.dev.Hosted.block(), hxmc.dev.DevHost.NEXT, 0);
+			var lib = Posix.dlopen(path, 2); // (RTLD_NOW)
+			LibC.free(path);
+			if (lib.isNull()) {
+				Log.__android_log_write(6, Mem.cstr("hxmc"), Posix.dlerror());
+				break;
+			}
+			var slot = Posix.dlsym(lib, Mem.cstr("hxmc_dev_state")), run = Posix.dlsym(lib, Mem.cstr("hxmc_dev_run"));
+			if (slot.isNull() || run.isNull()) break;
+			Mem.setPtr(slot, 0, hxmc.dev.Hosted.block());
+			HostedRun.run(run, 1);
+		}
+		#end
 		// main returned: the waits end, the activity finishes, the process with it
 		Threads.pthread_mutex_lock(lock);
 		done = 1;
@@ -381,3 +414,10 @@ class Activity {
 		}
 	}
 }
+
+#if hxmc.dev_host
+// (fast: this runtime has ended, its main returned; the call runs the next build's)
+@:hxmc.c @:hxmc.fast extern class HostedRun {
+	@:hxmc.indirect static function run(f:Ptr, arg:Int):Int;
+}
+#end
