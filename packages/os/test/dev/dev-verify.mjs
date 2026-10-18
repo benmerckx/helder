@@ -3,9 +3,12 @@
 // modules kept in memory: -D disable-hxb-cache) through edits of a copy of
 // one of @hxmc/ui's examples: its main's string, then a module it uses
 // whose API changes (a static's type, a function added, a structure's
-// field added, then back), then a module of markup (an attribute changed, an
-// element added, then back); after each, the output must be the bytes a
-// one-shot build of the same sources makes.
+// field added, then back), then a module of markup it uses (an attribute
+// changed and an element added; a component of its own and a Show, code
+// the program did not use before; then back); after each, the output must
+// be the bytes a one-shot build of the same sources makes
+// (HXMC_DEV_HXB_CACHE=1: the server's modules read back from HXB, its
+// default; HXMC_DEV_VERIFY_KEEP=<dir>: the outputs that differ copied there).
 //   node packages/os/test/dev/dev-verify.mjs <compiler> [Counter|Gallery|...] [native|web|web-gc]
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -36,11 +39,13 @@ const helpers = [
 fs.writeFileSync(helper, helpers[0]);
 // a module of markup (the markup macro: components, attributes, bindings), edited
 const card = path.join(work, 'app', 'DevCard.hx');
-const cardHead = 'import hxmc.ui.widgets.Widgets.*;\nimport hxmc.view.*;\nimport hxmc.view.Reactive.*;\n\n';
+const cardHead = 'import hxmc.ui.widgets.Widgets.*;\nimport hxmc.view.*;\nimport hxmc.view.Flow.*;\nimport hxmc.view.Reactive.*;\n\n';
 const cards = [
 	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={8} row-gap={4}>\n\t\t\t<text font-size={14}>{title}</text>\n\t\t\t<Button label="add" onClick={() -> n.value++}/>\n\t\t</view>;\n\t}\n}\n',
 	// (an attribute changed, an element added)
 	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={12} row-gap={4}>\n\t\t\t<text font-size={16}>{title}</text>\n\t\t\t<text>{n}</text>\n\t\t\t<Button label="add" onClick={() -> n.value++}/>\n\t\t</view>;\n\t}\n}\n',
+	// (a component of its own, with a prop, used twice; a Show)
+	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={12} row-gap={4}>\n\t\t\t<Row label={title}/>\n\t\t\t<Row label="two"/>\n\t\t\t<Show when={() -> n.value > 0}><text>{n}</text></Show>\n\t\t\t<Button label="add" variant="outline" onClick={() -> n.value++}/>\n\t\t</view>;\n\t}\n\n\tstatic function Row(props:{label:String}):View\n\t\treturn <view direction="row" column-gap={4}><text>{props.label}</text><Badge label="new"/></view>;\n}\n',
 ];
 fs.writeFileSync(card, cards[0]);
 const out = web ? 'out/app.wasm' : process.platform === 'win32' ? 'out/app.exe' : 'out/app';
@@ -101,7 +106,7 @@ try {
 	}
 	fs.writeFileSync(helper, helpers[0]);
 	await step('the module it uses: as at first');
-	const cardChanges = ['an attribute changed, an element added'];
+	const cardChanges = ['an attribute changed, an element added', 'a component of its own with a prop, a Show'];
 	for (let c = 1; c < cards.length; c++) {
 		fs.writeFileSync(card, cards[c]);
 		await step('a module of markup: ' + cardChanges[c - 1]);
