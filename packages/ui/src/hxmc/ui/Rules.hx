@@ -46,7 +46,7 @@ class Rules {
 		var ui = n.ui;
 		if (ui == null) return;
 		var sheet = n.sheet();
-		var applied = @:privateAccess n.themedNames, appliedValues = @:privateAccess n.themedValues;
+		var applied = @:privateAccess n.themedIds, appliedValues = @:privateAccess n.themedValues;
 		if (n.slot == null && applied == null) {
 			@:privateAccess n.themePseudo(null, null);
 			return;
@@ -78,55 +78,55 @@ class Rules {
 		// (currentColor, when the merge uses it: the colour it gives the text, else the node's own, else its parent's)
 		var current = Color.BLACK;
 		if (m.current) {
-			var given = m.names.indexOf("color");
-			current = given >= 0 ? (m.values[given] : Color) : n.style.color != null && !(applied != null && applied.indexOf("color") >= 0) ? n.style.color : n.parent != null ? n.parent.textColor() : Color.BLACK;
+			var given = m.ids.indexOf(COLOR);
+			current = given >= 0 ? (m.values[given] : Color) : n.style.color != null && !(applied != null && applied.indexOf(COLOR) >= 0) ? n.style.color : n.parent != null ? n.parent.textColor() : Color.BLACK;
 			if (current.isToken) current = Color.BLACK;
 		}
 		// (what it applied: the merge's own arrays while each property is
 		// applied as merged, none made; its own from the first that is not)
-		var names:Null<Array<String>> = null, values:Null<Array<Dynamic>> = null, sharing = true;
-		for (i in 0...m.names.length) {
-			var name = m.names[i], want:Dynamic = m.values[i];
-			if (m.current) want = withCurrent(name, want, current);
-			var cur = n.style.target(name);
-			var k = applied == null ? -1 : applied.indexOf(name);
+		var ids:Null<Array<Int>> = null, values:Null<Array<Dynamic>> = null, sharing = true;
+		for (i in 0...m.ids.length) {
+			var id = m.ids[i], want:Dynamic = m.values[i];
+			if (m.current) want = withCurrentAt(id, want, current);
+			var cur = n.style.targetAt(id);
+			var k = applied == null ? -1 : applied.indexOf(id);
 			// (the node's own value: left as it is)
-			if (k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initial(name))) {
+			if (k >= 0 ? !same(cur, appliedValues[k]) : !same(cur, initialAt(id))) {
 				if (sharing) {
-					names = m.names.slice(0, i);
+					ids = m.ids.slice(0, i);
 					values = m.values.slice(0, i);
 					sharing = false;
 				}
 				continue;
 			}
-			if (!same(cur, want)) StyleFields.set(n.style, name, want);
-			var v = n.style.target(name);
+			if (!same(cur, want)) StyleFields.setAt(n.style, id, want);
+			var v = n.style.targetAt(id);
 			if (sharing && !same(v, m.values[i])) {
-				names = m.names.slice(0, i);
+				ids = m.ids.slice(0, i);
 				values = m.values.slice(0, i);
 				sharing = false;
 			}
 			if (!sharing) {
-				names.push(name);
+				ids.push(id);
 				values.push(v);
 			}
 		}
 		if (sharing) {
-			names = m.names;
+			ids = m.ids;
 			values = m.values;
 		}
-		if (names.length == 0) {
-			names = null;
+		if (ids.length == 0) {
+			ids = null;
 			values = null;
 		}
 		// (what the rules wrote and no longer set, still as they wrote it: back to the default)
 		if (applied != null)
 			for (k in 0...applied.length) {
-				var name = applied[k];
-				if ((names == null || names.indexOf(name) < 0) && same(n.style.target(name), appliedValues[k]))
-					StyleFields.set(n.style, name, initial(name));
+				var id = applied[k];
+				if ((ids == null || ids.indexOf(id) < 0) && same(n.style.targetAt(id), appliedValues[k]))
+					StyleFields.setAt(n.style, id, initialAt(id));
 			}
-		@:privateAccess n.themedNames = names;
+		@:privateAccess n.themedIds = ids;
 		@:privateAccess n.themedValues = values;
 		@:privateAccess n.themePseudo(m.placeholder == null ? null : colorWithCurrent(m.placeholder, current),
 			m.selection == null ? null : colorWithCurrent(m.selection, current));
@@ -167,11 +167,11 @@ class Rules {
 		if (cr != null && (Length.isToken(cr.topLeft) || Length.isToken(cr.topRight) || Length.isToken(cr.bottomRight) || Length.isToken(cr.bottomLeft)))
 			scratch.corners = new Corners(Length.resolve(cr.topLeft, lengths), Length.resolve(cr.topRight, lengths), Length.resolve(cr.bottomRight, lengths),
 				Length.resolve(cr.bottomLeft, lengths));
-		var names = [], values:Array<Dynamic> = [], current = false;
-		for (name in StyleFields.NAMES) {
-			var v = StyleFields.get(scratch, name);
-			if (same(v, initial(name))) continue;
-			names.push(name);
+		var ids = [], values:Array<Dynamic> = [], current = false;
+		for (id in 0...StyleFields.NAMES.length) {
+			var v = StyleFields.getAt(scratch, id);
+			if (same(v, initialAt(id))) continue;
+			ids.push(id);
 			values.push(v);
 		}
 		current = usesCurrent(scratch);
@@ -183,7 +183,7 @@ class Rules {
 			selection = resolve(selection, tokens, CURRENT, dark);
 			if (selection.isToken) current = true;
 		}
-		m = new Merge(names, values, placeholder, selection, current);
+		m = new Merge(ids, values, placeholder, selection, current);
 		merges.set(key, m);
 		return m;
 	}
@@ -212,12 +212,21 @@ class Rules {
 	static final COLORS = ["background", "borderColor", "color", "outlineColor", "ringColor", "ringOffsetColor", "textDecorationColor", "scrollbarColor",
 		"scrollbarTrackColor"];
 
+	// (by id: what each property is, a colour (1), a shadow (2), else 0; color's id)
+	static final KINDS = [
+		for (name in StyleFields.NAMES)
+			COLORS.indexOf(name) >= 0 ? 1 : name == "shadow" || name == "textShadow" ? 2 : 0
+	];
+	static final COLOR = StyleFields.NAMES.indexOf("color");
+
 	// (a value with currentColor, a token's alpha kept, as a node's colour)
-	static function withCurrent(name:String, v:Dynamic, current:Color):Dynamic {
+	static function withCurrentAt(id:Int, v:Dynamic, current:Color):Dynamic {
 		if (v == null) return v;
-		if (COLORS.indexOf(name) >= 0) return colorWithCurrent(v, current);
-		if ((name == "shadow" || name == "textShadow") && shadowUsesCurrent(v)) return resolveShadow(v, null, current);
-		return v;
+		return switch KINDS[id] {
+			case 1: colorWithCurrent(v, current);
+			case 2 if (shadowUsesCurrent(v)): resolveShadow(v, null, current);
+			case _: v;
+		}
 	}
 
 	static function colorWithCurrent(c:Color, current:Color):Color
@@ -427,9 +436,9 @@ class Rules {
 	// (a fresh style's values: where a property the rules no longer set goes back)
 	static var fresh:Null<Style> = null;
 
-	static inline function initial(name:String):Dynamic {
+	static inline function initialAt(id:Int):Dynamic {
 		if (fresh == null) fresh = new Node().style;
-		return StyleFields.get(fresh, name);
+		return StyleFields.getAt(fresh, id);
 	}
 
 	// (each sheet's rules by slot, in their order; made when a sheet is first used)
@@ -459,14 +468,14 @@ class Rules {
 
 // (a merge of rules: Rules.merged)
 private class Merge {
-	public final names:Array<String>;
+	public final ids:Array<Int>;
 	public final values:Array<Dynamic>;
 	public final placeholder:Null<Color>;
 	public final selection:Null<Color>;
 	public final current:Bool;
 
-	public function new(names, values, placeholder, selection, current) {
-		this.names = names;
+	public function new(ids, values, placeholder, selection, current) {
+		this.ids = ids;
 		this.values = values;
 		this.placeholder = placeholder;
 		this.selection = selection;

@@ -16,6 +16,9 @@ import hxmc.ui.access.AccessTree;
 // a tree's visible row: its item, depth (from 1), parent's row (-1: a root), whether it has no children, is open
 typedef TreeRow<T> = Behaviour.TreeLine<T>;
 
+// a range of days (Calendar's range): its first and last (null: not chosen yet)
+typedef DayRange = {from:Null<Day>, to:Null<Day>};
+
 // a menu's item: its label, what choosing it does, a shortcut (shown, and
 // choosing it from the window); variant "destructive" (shadcn's: for a
 // theme), disabled (not chosen, skipped by the keys), or a separator
@@ -1037,15 +1040,19 @@ class Widgets implements Markup {
 	// and after. The grid takes the focus: the arrows move its marked day (a
 	// day, a week), Page Up and Down a month, Home and End to the week's ends,
 	// the month shown following it; a click, Enter or Space chooses the day
-	// (value, onChoose). today is marked (by default the system's). Slots
+	// (value, onChoose); with range, a range is chosen instead: a first day,
+	// then its last (one before the first starts it again), the days between
+	// selected. today is marked (by default the system's). Slots
 	// (shadcn's calendar's parts) "calendar", "calendar-nav" (its arrows
 	// "calendar-button-previous" and "calendar-button-next"),
 	// "calendar-caption-label", "calendar-weekdays",
 	// "calendar-weekday", "calendar-week" and "calendar-day" (data-selected,
-	// data-today, data-outside, data-focused: "true")
+	// data-today, data-outside, data-focused, and in a range data-range-start,
+	// data-range-middle, data-range-end: "true")
 	@:widget({
 		props: {
 			value: "a signal of the chosen day (a Day: year, month from 1, day; null: none), the month shown at first",
+			range: "a signal of a chosen range (from and to, each a Day or null), chosen in place of value",
 			today: "the day marked as today (by default the system's)",
 			firstDay: "the weeks' first day: 1 Monday (the default), 0 Sunday, to 6 Saturday",
 			onChoose: "called with a day when it is chosen",
@@ -1059,12 +1066,13 @@ class Widgets implements Markup {
 			"Enter, Space": "choose the marked day; on a month arrow, show the month before or after"
 		}
 	})
-	public static function Calendar(props:{value:Signal<Null<Day>>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void, ?label:String,
-			?tag:String}):View {
+	public static function Calendar(props:{?value:Signal<Null<Day>>, ?range:Signal<DayRange>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void,
+			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "calendar", first = props.firstDay ?? 1;
 		var now = Date.now();
 		var today = props.today ?? {year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate()};
-		var start = props.value.peek() ?? today;
+		var value = props.value ?? signal(null), range = props.range;
+		var start = value.peek() ?? (range == null ? null : range.peek().from) ?? today;
 		var cursor = signal(Days.of(start));
 		var shown = memo(() -> {
 			var d = Days.day(cursor.value);
@@ -1075,7 +1083,10 @@ class Widgets implements Markup {
 		function choose(n:Int) {
 			cursor.value = n;
 			var d = Days.day(n);
-			props.value.value = d;
+			if (range != null) {
+				var r = range.peek();
+				range.value = r.from == null || r.to != null || n < Days.of(r.from) ? {from: d, to: null} : {from: r.from, to: d};
+			} else value.value = d;
 			if (props.onChoose != null) props.onChoose(d);
 		}
 		function month(delta:Int)
@@ -1092,8 +1103,22 @@ class Widgets implements Markup {
 		}
 		var names = [for (k in 0...7) Days.WEEKDAYS[(k + first) % 7]];
 		var chosen = (n:Int) -> {
-			var v = props.value.value;
+			if (range != null) {
+				var r = range.value;
+				return r.from != null && (r.to == null ? Days.of(r.from) == n : n >= Days.of(r.from) && n <= Days.of(r.to));
+			}
+			var v = value.value;
 			return v != null && Days.of(v) == n;
+		};
+		// (a range's ends and middle)
+		var edge = (n:Int, start:Bool) -> {
+			var r = range == null ? null : range.value;
+			var d = r == null ? null : start ? r.from : r.to;
+			return d != null && Days.of(d) == n ? "true" : null;
+		};
+		var middle = (n:Int) -> {
+			var r = range == null ? null : range.value;
+			return r != null && r.from != null && r.to != null && n > Days.of(r.from) && n < Days.of(r.to) ? "true" : null;
 		};
 		return <view tag={tag} slot="calendar">
 			<view slot="calendar-nav">
@@ -1119,7 +1144,8 @@ class Widgets implements Markup {
 									d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
 								}} slot="calendar-day" selected={() -> chosen(at())} data-selected={() -> chosen(at()) ? "true" : null}
 									data-today={() -> Days.of(today) == at() ? "true" : null} data-outside={() -> inMonth() ? null : "true"}
-									data-focused={() -> cursor.value == at() ? "true" : null} onClick={_ -> choose(at())}>
+									data-focused={() -> cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
+									data-range-end={() -> edge(at(), false)} data-range-middle={() -> middle(at())} onClick={_ -> choose(at())}>
 									{() -> "" + Days.day(at()).day}
 								</view>;
 							}

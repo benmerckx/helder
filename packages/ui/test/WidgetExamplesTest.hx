@@ -9,7 +9,9 @@ import hxmc.view.*;
 // a slot of its widget in the tree (or the overlay's; not for one whose
 // parts show only when the user opens it: popup); then WidgetDocs read
 // from Widgets.hx: every widget documented, each of its props, and every
-// widget not a part of another with an example.
+// widget not a part of another with an example. Prints the slots the
+// examples show that Shadcn.sheet has no rule for (none needed: a theme's
+// to add).
 //   WidgetExamplesTest
 class WidgetExamplesTest {
 	#if !macro
@@ -55,6 +57,7 @@ class WidgetExamplesTest {
 		var p = paths();
 		var docs = WidgetDocs.read(sys.io.File.getContent(p.widgets), p.examples);
 		var byName = [for (w in docs) (w.name : String) => w];
+		var styled = [for (r in Shadcn.sheet.rules) r.slot => true], unstyled = new Map<String, Bool>();
 		for (e in examples()) {
 			var w = byName[e.name];
 			check(e.name + "Example: a widget of that name", w != null);
@@ -67,6 +70,9 @@ class WidgetExamplesTest {
 					ui.update();
 					slots(ui.root, seen);
 					slots(ui.overlay, seen);
+					if (sheet != null)
+						for (s in seen.keys())
+							if (!styled.exists(s)) unstyled[s] = true;
 				} catch (x:Dynamic) {
 					check(e.name + "Example" + (sheet == null ? " (no sheet)" : "") + " renders", false, Std.string(x));
 					continue;
@@ -78,6 +84,9 @@ class WidgetExamplesTest {
 					(w.slots : Array<String>).join(" "));
 			}
 		}
+		var bare = [for (s in unstyled.keys()) s];
+		bare.sort(Reflect.compare);
+		if (bare.length > 0) Sys.println('WidgetExamplesTest: slots Shadcn.sheet has no rule for (${bare.length}): ' + bare.join(" "));
 		for (m in WidgetDocs.missing(docs))
 			check("the reference", false, m);
 		Sys.println('WidgetExamplesTest: ${docs.length} widgets, ${examples().length} examples, $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));

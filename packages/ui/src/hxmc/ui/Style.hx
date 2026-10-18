@@ -689,6 +689,16 @@ class Style {
 	// (rules for starting asked of it: restyled once it is drawn)
 	@:allow(hxmc.ui.Rules) var starting = false;
 
+	// a property's value by its id (its place in StyleFields.NAMES), or the one it is moving to under a transition
+	public function targetAt(id:Int):Dynamic {
+		if (themed != null && themed.moving != null) {
+			var name = StyleFields.NAMES[id];
+			for (run in themed.moving)
+				if (run.name == name) return run.to;
+		}
+		return StyleFields.getAt(this, id);
+	}
+
 	// a property's value (StyleFields' names), or the one it is moving to under a transition
 	public function target(name:String):Dynamic {
 		if (themed != null && themed.moving != null)

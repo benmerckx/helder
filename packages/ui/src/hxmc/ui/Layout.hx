@@ -370,20 +370,20 @@ class Layout {
 		if (multi) switch s.alignContent {
 			case Start | Normal:
 			case End: start = free;
-			case Center: start = free / 2;
+			case Center: start = lu(free / 2);
 			case Stretch if (free > 0):
 				for (k in firstLine...lastLine)
 					lines[k].cross += free / count;
 			case Stretch:
-			case SpaceBetween if (free > 0 && count > 1): between = free / (count - 1);
+			case SpaceBetween if (free > 0 && count > 1): between = lu(free / (count - 1));
 			case SpaceBetween:
 			case SpaceAround if (free > 0):
-				between = free / count;
-				start = between / 2;
+				between = lu(free / count);
+				start = lu(free / (2 * count));
 			// (overflowing: at the start, as Chromium falls back, safely)
 			case SpaceAround:
 			case SpaceEvenly if (free > 0):
-				between = free / (count + 1);
+				between = lu(free / (count + 1));
 				start = between;
 			case SpaceEvenly:
 		}
@@ -436,6 +436,26 @@ class Layout {
 				case SpaceEvenly if (reverse): pos = free;
 				case SpaceEvenly:
 			}
+			// (from the far side, fitting and without auto margins: placed from the
+			// near side, the last first, as Chromium places them, the free space
+			// before the last what is after the first)
+			var near = flipMain && free >= 0 && share == 0;
+			if (near) {
+				// (distributed: the same space before as after; else what was after)
+				var x = switch s.justify {
+					case Center: pos;
+					case SpaceBetween if (free > 0 && n > 1): pos;
+					case SpaceAround | SpaceEvenly if (free > 0): pos;
+					case _: free - pos;
+				};
+				var q = l.end;
+				while (q > l.start) {
+					var it = items[--q];
+					x += it.mMainEnd;
+					it.near = x;
+					x += it.main + it.mMainStart + gap;
+				}
+			}
 			for (i in l.start...l.end) {
 				var it = items[i];
 				var startMargin = it.mMainStart + (it.autoMain & 1 != 0 ? share : 0), endMargin = it.mMainEnd + (it.autoMain & 2 != 0 ? share : 0);
@@ -444,11 +464,11 @@ class Layout {
 				var roomC = l.cross - it.mCrossStart - it.mCrossEnd - it.cross;
 				var crossPos = lineStart + if (it.autoCross != 0) it.mCrossStart + (roomC <= 0 ? 0 : it.autoCross == 3 ? roomC / 2 : it.autoCross == 1 ? roomC : 0) else switch it.align {
 					case End: l.cross - it.cross - it.mCrossEnd;
-					case Center: it.mCrossStart + (l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2;
+					case Center: it.mCrossStart + lu((l.cross - it.mCrossStart - it.mCrossEnd - it.cross) / 2);
 					case Baseline: l.baseline - it.baseline + it.mCrossStart;
 					case _: it.mCrossStart;
 				}
-				if (flipMain) mainPos = mainSize - mainPos - it.main;
+				if (near) mainPos = it.near else if (flipMain) mainPos = mainSize - mainPos - it.main;
 				if (flipCross) crossPos = crossSize - crossPos - it.cross;
 				var c = it.node;
 				var cx = padL + (row ? mainPos : crossPos), cy = padT + (row ? crossPos : mainPos);
@@ -1254,9 +1274,10 @@ class Layout {
 			for (i in start...end) {
 				var it = items[i];
 				if (!it.frozen) {
+					// (its share as Chromium adds it: rounded to a 64th of a pixel, its LayoutUnit)
 					var target = it.basis;
-					if (growing) target += remaining * it.node.style.grow / factors;
-					else if (scaled > 0) target += remaining * (it.node.style.shrink * inner(it)) / scaled;
+					if (growing) target += Math.fround(remaining * it.node.style.grow / factors * 64) / 64;
+					else if (scaled > 0) target += Math.fround(remaining * (it.node.style.shrink * inner(it)) / scaled * 64) / 64;
 					var c = clamp(target, it.minMain, it.maxMain);
 					if (c < 0) c = 0;
 					it.violation = c - target;
@@ -1428,6 +1449,8 @@ class Layout {
 
 private class Item {
 	public var node:Null<Node> = null;
+	// (its place from a reversed line's near side: Layout.flex's)
+	public var near = 0.0;
 	public var mMainStart = 0.0;
 	public var mMainEnd = 0.0;
 	public var mCrossStart = 0.0;

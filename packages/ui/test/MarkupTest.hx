@@ -127,6 +127,7 @@ class MarkupTest implements Markup {
 		navigationMenu();
 		sidebar();
 		chart();
+		calendarRange();
 		nativeMenu();
 		navigation();
 		tagInput();
@@ -857,6 +858,39 @@ class MarkupTest implements Markup {
 		on.value = false;
 		ui.update();
 		check("native menu bar: given back when it goes", views.bar != null && views.bar.menus.length == 0);
+	}
+
+	// a calendar's range: a first day, then its last, the days between marked; one before the first starts again
+	static function calendarRange() {
+		var ui = new Ui(new MonoText(), 500, 400);
+		var range = signal(({from: null, to: null} : hxmc.ui.widgets.Widgets.DayRange));
+		Render.render(<view padding={10}><hxmc.ui.widgets.Widgets.Calendar tag="cal" range={range} today={{year: 2026, month: 10, day: 18}}/></view>, ui.root);
+		ui.update();
+		function day(d:Int):Node {
+			var found:Null<Node> = null;
+			function walk(n:Node) {
+				if (n.slot == "calendar-day" && n.semantics != null && n.semantics.label == d + " October 2026") found = n;
+				for (c in n.children) walk(c);
+			}
+			walk(ui.root);
+			return found;
+		}
+		function click(d:Int) {
+			var n = day(d);
+			ui.pointerDown(n.absX + 2, n.absY + 2, 1);
+			ui.pointerUp(n.absX + 2, n.absY + 2, 1);
+			ui.update();
+		}
+		click(10);
+		click(14);
+		var r = range.value;
+		check("calendar range: a first day, then its last", r.from != null && r.from.day == 10 && r.to != null && r.to.day == 14);
+		check("calendar range: its ends and middle marked", day(10).attr("data-range-start") == "true" && day(14).attr("data-range-end") == "true"
+			&& day(12).attr("data-range-middle") == "true" && day(12).attr("data-selected") == "true" && day(15).attr("data-selected") == null);
+		click(20);
+		click(5);
+		r = range.value;
+		check("calendar range: a day before the first starts it again", r.from.day == 5 && r.to == null);
 	}
 
 	// a bar chart: bars to a round scale, a category's values named and shown under the pointer

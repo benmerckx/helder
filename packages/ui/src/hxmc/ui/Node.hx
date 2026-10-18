@@ -91,13 +91,13 @@ class Node {
 	public var host:Host = Auto;
 	var attrs:Null<Map<String, String>> = null;
 	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
-	var themedNames:Null<Array<String>> = null;
+	var themedIds:Null<Array<Int>> = null;
 	var themedValues:Null<Array<Dynamic>> = null;
 	var restylePending = false;
 
 	// (asks for its rules to be applied again, at the next update: several changes, one restyle)
 	function restyleLater() {
-		if (ui == null || restylePending || slot == null && themedNames == null) return;
+		if (ui == null || restylePending || slot == null && themedIds == null) return;
 		restylePending = true;
 		@:privateAccess ui.restyles.push(this);
 		ui.requestFrame();

@@ -7,7 +7,8 @@ import haxe.macro.Type;
 
 // StyleFields's NAMES, get and set: for each field of StyleProps that is a
 // property of Style both readable and writable (shorthands such as flex,
-// gap and outline are written only, through their longhands)
+// gap and outline are written only, through their longhands); getAt and
+// setAt by a name's place in NAMES, its id (an integer's switch)
 class StyleFieldsMacro {
 	public static function build():Array<Field> {
 		var fields = Context.getBuildFields();
@@ -32,6 +33,8 @@ class StyleFieldsMacro {
 		}
 		var getCases:Array<Case> = [for (n in names) {values: [macro $v{n}], expr: macro s.$n}];
 		var setCases:Array<Case> = [for (n in names) {values: [macro $v{n}], expr: macro s.$n = v}];
+		var getAtCases:Array<Case> = [for (i in 0...names.length) {values: [macro $v{i}], expr: {var n = names[i]; macro s.$n;}}];
+		var setAtCases:Array<Case> = [for (i in 0...names.length) {values: [macro $v{i}], expr: {var n = names[i]; macro s.$n = v;}}];
 		var pos = Context.currentPos();
 		var nameExprs:Array<Expr> = [for (n in names) macro $v{n}];
 		fields.push({
@@ -62,6 +65,30 @@ class StyleFieldsMacro {
 				],
 				ret: macro :Void,
 				expr: {expr: ESwitch(macro name, setCases, macro {}), pos: pos}
+			})
+		});
+		fields.push({
+			name: "getAt",
+			access: [APublic, AStatic],
+			pos: pos,
+			kind: FFun({
+				args: [{name: "s", type: macro :hxmc.ui.Style}, {name: "id", type: macro :Int}],
+				ret: macro :Dynamic,
+				expr: macro return ${{expr: ESwitch(macro id, getAtCases, macro null), pos: pos}}
+			})
+		});
+		fields.push({
+			name: "setAt",
+			access: [APublic, AStatic],
+			pos: pos,
+			kind: FFun({
+				args: [
+					{name: "s", type: macro :hxmc.ui.Style},
+					{name: "id", type: macro :Int},
+					{name: "v", type: macro :Dynamic}
+				],
+				ret: macro :Void,
+				expr: {expr: ESwitch(macro id, setAtCases, macro {}), pos: pos}
 			})
 		});
 		return fields;
