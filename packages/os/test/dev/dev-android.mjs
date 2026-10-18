@@ -1,7 +1,7 @@
 // The dev loop on Android (CI's android job, on its emulator; docs/dev.md,
-// "No reloads"): `hxmc dev` on a copy of @hxmc/ui's Counter example built
-// as an APK for the device adb reaches (android-x86_64 by default), its
-// count printed (logcat, tag hxmc), set to 3 on a cold start:
+// "No reloads"): `hxmc dev` on a small program drawing @hxmc/gfx's cube,
+// built as an APK for the device adb reaches (android-x86_64 by default),
+// its count (Hot.keep) printed (logcat, tag hxmc), set to 3 on a cold start:
 // - the APK installed and started once (the dev host: its activity glue
 //   keeps the window, the EGL context and the input queue);
 // - two edits: each build's library fetched by the running build into the
@@ -34,14 +34,35 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 fs.rmSync(work, { recursive: true, force: true });
 fs.mkdirSync(path.join(work, 'app'), { recursive: true });
 const counter = path.join(work, 'app', 'Counter.hx');
-const original = fs.readFileSync(path.join(repo, 'packages/ui/examples/Counter.hx'), 'utf8');
-const v1 = original.replace('var count = signal(0);',
-	'var count = signal(0);\n\t\tif (!hxmc.dev.Hot.reloading) count.value = 3;\n\t\teffect(() -> trace("v1 count=" + count.value + " build=" + BUILD));')
-	.replace('static function main() {', 'static var BUILD = Std.int((Sys.time() * 1000) % 1000000000);\n\n\tstatic function main() {');
-if (v1 === original) throw new Error('Counter.hx changed: its signal line is not found');
+// (a drawn program without fonts: ui's need a font file on Android; the
+// cube of @hxmc/gfx's examples, the count in Hot.keep)
+const v1 = `import hxmc.dev.Hot;
+import hxmc.gfx.*;
+import hxmc.os.*;
+
+class Counter {
+	static var BUILD = Std.int((Sys.time() * 1000) % 1000000000);
+
+	static function main() {
+		var state = Hot.keep("state", () -> {count: 0});
+		if (!Hot.reloading) state.count = 3;
+		var w = new Window("Counter", 320, 480);
+		var device = Device.create(w.surface);
+		var cube = new Cube(device);
+		var frames = 0;
+		App.run(() -> {
+			var enc = device.beginFrame();
+			if (enc == null) return;
+			cube.draw(enc, frames * 0.02);
+			device.endFrame();
+			if (++frames == 5) trace("v1 count=" + state.count + " build=" + BUILD);
+		}, e -> {});
+	}
+}
+`;
 fs.writeFileSync(counter, v1);
-const cp = ['os', 'gfx', 'text', 'view', 'ui', 'theme'].map((p) => `-cp ${path.join(repo, 'packages', p, 'src')}`);
-fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, '-D hxmc.view.renderer.ui=hxmc.ui.view.NodeRenderer', '-main Counter',
+const cp = ['os', 'gfx'].map((p) => `-cp ${path.join(repo, 'packages', p, 'src')}`);
+fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, `-cp ${path.join(repo, 'packages/gfx/examples')}`, '-main Counter',
 	`-D hxmc.target=${target}`, `-D hxmc.android-package=${PKG}`, '--custom-target hxmc=out/devtest.apk'].join('\n') + '\n');
 const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
 
@@ -109,7 +130,7 @@ try {
 	await line(/^hxmc dev: the program connected/, 30000).catch(() => check('the app connected to the dev server', false));
 
 	const swapped = line(/^hxmc dev: (?:swapped|reloaded) in/);
-	edit((s) => s.replace('label="+1"', 'label="+2"').replace('"v1 count="', '"v2 count="'));
+	edit((s) => s.replace('frames * 0.02', 'frames * 0.03').replace('"v1 count="', '"v2 count="'));
 	times.push(await swapped);
 	const v2 = await printed(/v2 count=\S+ build=/, 'edited');
 	check('edited: the new build, the count kept', /v2 count=3 /.test(v2), v2);

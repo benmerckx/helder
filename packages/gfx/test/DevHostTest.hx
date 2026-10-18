@@ -28,7 +28,7 @@ class DevHostTest {
 			frames++;
 			if (frames == 10) {
 				var view = hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_VIEW);
-				Sys.println('DevHostTest: v$version n=${state.n} pid=${hxmc.dev.Hosted.HostThreads.getpid()} view=${StringTools.hex(haxe.Int64.toInt(view.toI64()))} ${device.width}x${device.height}');
+				Sys.println('DevHostTest: v$version n=${state.n} pid=${hxmc.dev.Hosted.HostThreads.getpid()} view=${haxe.Int64.toStr(view.toI64())} ${device.width}x${device.height}');
 			}
 		}, e -> {});
 	}
