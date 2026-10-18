@@ -79,7 +79,7 @@ class Widgets implements Markup {
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var press = () -> if (!disabled() && props.onClick != null) props.onClick();
-		return <view:button tag={props.tag ?? "button"} id={props.tag} slot="button" ref={styled(props.style)} variant={props.variant ?? "default"}
+		return <view:button tag={props.tag ?? "button"} id={props.tag} slot="button" states={props.style} variant={props.variant ?? "default"}
 			size={props.size ?? "default"} role="button" focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} onPress={_ -> press()}>
 			{props.label}{props.children}
 		</view:button>;
@@ -196,7 +196,7 @@ class Widgets implements Markup {
 		}
 	})
 	@:neutral public static function Label(props:{?text:String, ?disabled:Dynamic, ?children:Any, ?htmlFor:String, ?style:States->StyleProps, ?tag:String}):View {
-		return <text:label tag={props.tag ?? "label"} id={props.tag} slot="label" html-for={props.htmlFor} ref={styled(props.style)}
+		return <text:label tag={props.tag ?? "label"} id={props.tag} slot="label" html-for={props.htmlFor} states={props.style}
 			data-disabled={() -> read(props.disabled) == true ? "true" : null}>{props.children ?? props.text}</text:label>;
 	}
 
@@ -210,22 +210,9 @@ class Widgets implements Markup {
 		variants: ["default", "secondary", "destructive", "outline", "ghost", "link"]
 	})
 	@:neutral public static function Badge(props:{?label:String, ?variant:String, ?children:View, ?style:States->StyleProps, ?tag:String}):View {
-		return <view:span tag={props.tag ?? "badge"} id={props.tag} slot="badge" ref={styled(props.style)} variant={props.variant ?? "default"}>{props.label}{props.children}</view:span>;
+		return <view:span tag={props.tag ?? "badge"} id={props.tag} slot="badge" states={props.style} variant={props.variant ?? "default"}>{props.label}{props.children}</view:span>;
 	}
 
-	// (a single-source widget's style prop: its ref, drawn nodes' (States.apply); a page's look is its CSS,
-	// and a page alone links no Node)
-	static function styled(style:Null<States->StyleProps>):Null<Part->Void>
-		return style == null ? null : p -> {
-			#if hxmc.view.renderer.ui
-			var n = Std.downcast(p, Node);
-			if (n != null) {
-				States.apply(n, style);
-				return;
-			}
-			#end
-			throw "hxmc.ui: a widget's style prop is drawn widgets' (a page's look is its CSS)";
-		};
 
 	// a card (shadcn's) and its parts, each its children: slots "card",
 	// "card-header", "card-title", "card-description", "card-action",
@@ -236,7 +223,7 @@ class Widgets implements Markup {
 		}
 	})
 	@:neutral public static function Card(props:{?children:View, ?style:States->StyleProps, ?tag:String}):View {
-		return <view tag={props.tag ?? "card"} id={props.tag} slot="card" ref={styled(props.style)}>{props.children}</view>;
+		return <view tag={props.tag ?? "card"} id={props.tag} slot="card" states={props.style}>{props.children}</view>;
 	}
 
 	@:widget({

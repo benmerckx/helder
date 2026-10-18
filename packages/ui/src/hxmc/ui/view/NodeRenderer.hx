@@ -166,6 +166,13 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 	@:attribute static function text(n:Node, name:String, v:Dynamic)
 		if (Std.isOfType(n, TextNode)) (cast n : TextNode).text = v == null ? "" : Std.string(v) else noAttribute(n, name);
 
+	// (the neutral elements are its own: MarkupMacro compiles them as they are)
+	public static inline var neutralNative = true;
+
+	// (a part's own style, a function of its states: States.apply)
+	@:attribute static function states(n:Node, name:String, v:Dynamic)
+		if (v != null) States.apply(n, v);
+
 	// (null: its tag as it is)
 	@:attribute static function tag(n:Node, name:String, v:Dynamic)
 		if (v != null) n.tag = v;

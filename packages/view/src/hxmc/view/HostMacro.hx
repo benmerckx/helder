@@ -25,11 +25,11 @@ class HostMacro {
 		"arrange", "isNode"
 	];
 
-	static var list:Null<Array<{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool}>> = null;
+	static var list:Null<Array<{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool, native:Bool}>> = null;
 	static var template:Null<Array<Field>> = null;
 
 	// the renderers: their class paths and node types
-	public static function renderers():Array<{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool}> {
+	public static function renderers():Array<{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool, native:Bool}> {
 		if (list != null) return list;
 		var names = [];
 		for (k => v in Context.getDefines())
@@ -49,7 +49,7 @@ class HostMacro {
 	}
 
 	// a renderer's class checked against the contract, its node type
-	static function check(path:String):{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool} {
+	static function check(path:String):{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool, native:Bool} {
 		var c = switch Context.getType(path) {
 			case TInst(c, _): c.get();
 			case _: Context.fatalError('hxmc.view: the renderer $path is not a class', Context.currentPos());
@@ -59,7 +59,7 @@ class HostMacro {
 		if (missing.length > 0) Context.fatalError('hxmc.view: the renderer $path lacks ' + missing.join(", ") + " (hxmc.view.Renders)", c.pos);
 		for (i in c.interfaces)
 			if (i.t.toString() == "hxmc.view.Renders") return {path: path, node: Context.toComplexType(i.params[0]), type: i.params[0], setter: have.exists("setter"),
-					neutral: have.exists("neutralElement")};
+					neutral: have.exists("neutralElement"), native: have.exists("neutralNative")};
 		return Context.fatalError('hxmc.view: the renderer $path does not implement hxmc.view.Renders<Node>', c.pos);
 	}
 
@@ -104,6 +104,10 @@ class HostMacro {
 	// neutralSetter, neutralListen, part: a page's renderer), else as its own elements (ui's)
 	public static function hasNeutral(i:Int):Bool
 		return renderers()[i].neutral;
+
+	// whether renderer i's own elements are the neutral ones (neutralNative: ui's)
+	public static function isNeutralNative(i:Int):Bool
+		return renderers()[i].native;
 
 	public static function rendererPath(i:Int):Array<String>
 		return renderers()[i].path.split(".");

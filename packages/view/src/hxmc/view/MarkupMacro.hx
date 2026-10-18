@@ -198,13 +198,16 @@ class Literal {
 		var rs = HostMacro.renderers();
 		var cases:Array<Case> = [];
 		var only:Null<Expr> = null;
-		var cls = Context.getLocalClass(), limits = cls == null || MarkupMacro.neutralField ? null : MarkupMacro.limits(cls.get().meta);
+		var cls = Context.getLocalClass(), own = cls == null ? null : MarkupMacro.limits(cls.get().meta);
+		var limits = MarkupMacro.neutralField ? null : own;
 		for (i in 0...rs.length) {
 			pass = i;
 			cursor = 0;
-			var body = forRenderer(mountBody(root), i);
+			// (a renderer the class is not for realising no neutral elements: a throw, a neutral function's too)
+			var unrealised = own != null && own.only.indexOf(rs[i].path) < 0 && !HostMacro.hasNeutral(i) && !HostMacro.isNeutralNative(i);
+			var body = forRenderer(mountBody(root), i, unrealised);
 			// (a renderer the class's literals are not for: its holes found again, its code a throw)
-			if (limits != null && limits.only.indexOf(rs[i].path) < 0)
+			if (limits != null && limits.only.indexOf(rs[i].path) < 0 || unrealised)
 				body = [macro @:pos(pos) throw $v{"hxmc.view: " + cls.get().name + " markup is not for " + rs[i].path + " (@:renderer)"}];
 			var n = rs[i].node;
 			var typed = macro {
@@ -236,11 +239,16 @@ class Literal {
 	// the code made for a renderer: __HOST__ its class, __RT__ its runtime (a
 	// reactive attribute with a literal name bound with the renderer's setter
 	// for that name, when it has setter: Renders)
-	static function forRenderer(body:Array<Expr>, i:Int):Array<Expr> {
-		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i), setter = HostMacro.hasSetter(i), neutral = HostMacro.hasNeutral(i);
+	static function forRenderer(body:Array<Expr>, i:Int, unrealised = false):Array<Expr> {
+		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i), setter = HostMacro.hasSetter(i), neutral = HostMacro.hasNeutral(i),
+			native = HostMacro.isNeutralNative(i);
 		function sub(e:Expr):Expr
 			return switch e.expr {
 				// (a neutral element: the renderer's neutral functions, else its own)
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, _)}, _) if (unrealised):
+					macro null;
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, f)}, args) if (!neutral && !native):
+					Context.error("markup: " + HostMacro.renderers()[i].path + " realises no neutral elements (view, text, view:button...: neutralElement and the rest, or neutralNative)", e.pos);
 				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, f)}, args):
 					var a = [for (x in args) sub(x)];
 					switch [f, neutral] {
@@ -462,6 +470,8 @@ class Literal {
 				// dropped where its renderer has no use for it)
 				if (!event && name != "ref" && (name == "tag" || name == "id" || x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes)))))
 					return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $x);
+				// (states: a function of a part's states, its own style: set once, not bound)
+				if (name == "states") return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, ${hole(x)});
 				var h = hole(x);
 				if (event) macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $h);
 				// (a part made only for a ref given)

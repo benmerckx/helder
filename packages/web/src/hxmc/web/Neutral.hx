@@ -43,6 +43,10 @@ class Neutral {
 		el.style.setProperty(prop, s);
 	}
 
+	// (a widget's style prop, a function of drawn states: a page's look is its CSS)
+	public static function states(el:Dynamic, name:String, v:Dynamic)
+		if (v != null) js.Syntax.code("throw new Error({0})", "hxmc.web: a widget's style prop is drawn widgets' (a page's look is its CSS)");
+
 	// focusable: in the tab order (true), out of it (false), the element's own (null)
 	public static function focusable(el:Dynamic, name:String, v:Dynamic)
 		if (v == true) el.setAttribute("tabindex", "0") else if (v == false) el.setAttribute("tabindex", "-1") else el.removeAttribute("tabindex");

@@ -119,6 +119,7 @@ class NeutralMacro {
 		if (PLAIN.indexOf(name) >= 0 || StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-"))
 			return macro @:pos(pos) hxmc.web.Neutral.plain;
 		if (name == "focusable") return macro @:pos(pos) hxmc.web.Neutral.focusable;
+		if (name == "states") return macro @:pos(pos) hxmc.web.Neutral.states;
 		if (name == "disabled") return macro @:pos(pos) hxmc.web.Neutral.disabled;
 		if (CSS.exists(name)) return macro @:pos(pos) hxmc.web.Neutral.style;
 		return Context.error('hxmc.web: <$tag>\'s attribute $name has no DOM form (NeutralMacro)', pos);
