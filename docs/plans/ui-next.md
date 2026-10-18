@@ -80,9 +80,9 @@ the single-source widgets (as of Oct 18). The designs behind them:
      whose width Chromium derives from its content's height.
    The default features (seeds 5, 17, 23, 41, 99) all match.
 8. **Drawn fidelity against shadcn** (`make theme-fidelity-check`, 252
-   cases, all within the bar): 627203 pixels differ in all, 17749 of them
+   cases, all within the bar): 627095 pixels differ in all, 17323 of them
    strongly. The worst cases (strong pixels): alert-dialog-open 598,
-   alert-dialog-open-dark 585, alert-destructive 425, input-group-addons
+   alert-dialog-open-dark 585, input-group-addons
    416 (dark 410, rtl 383), empty-default 344 (dark 341), input-value 331,
    command-default 308. Known causes:
    - **Text baselines, 1px**: dialog and empty titles at 18 and 28 px,
@@ -91,13 +91,13 @@ the single-source widgets (as of Oct 18). The designs behind them:
      No combination tried fits every reference (Inter 12/16 and 14/19.25
      resist). The best saves 776 strong pixels but breaks BoxTest's text
      shadow.
-   - **alert-destructive** (425): its `*:data-[slot=alert-description]:`
-     children rule. ThemeTest (line 150) asserts children rules are
-     dropped, so it is the user's call; the user asked that ThemeTest not
-     be edited.
    - **tabs-line's underline**: an `after:` pseudo-element. It could be a
-     child rule on a `view:after` node in ui, but the same ThemeTest
-     assertion says `after:absolute` yields nothing.
+     child rule on a `view:after` node in ui, but ThemeTest (line 150)
+     asserts `after:absolute` yields nothing; the user's call.
+   - Children's rules (`*:`) are read now, as the children's rules
+     (`*:data-[slot=x]:` a child of that slot): alert-destructive 425 strong
+     pixels to 0. `*:[span]:` and `*:[svg]:` stay dropped with the other
+     element-type selectors.
 9. **Perf**: a stress update (1000 rows, `StressTest`) is 213M
    instructions, a fifth of it the collector's minor collections
    (`Gc_drainMinor`: the new tree's survivors, which is runtime work). An
