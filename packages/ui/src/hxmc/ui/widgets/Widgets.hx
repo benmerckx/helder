@@ -4106,7 +4106,8 @@ class Widgets implements Markup {
 	// ("offcanvas", the default: out of view; "icon": to its icons; "none");
 	// a group to a theme (its parts' rules ask for its data-collapsible).
 	// Slot "sidebar" (data-state, data-collapsible while collapsed,
-	// data-variant, data-side), "sidebar-container", "sidebar-inner"
+	// data-variant, data-side), "sidebar-gap" (holding its width in the
+	// flow), "sidebar-container" (fixed beside it), "sidebar-inner"
 	@:widget({
 		props: {
 			side: "left (the default) or right",
@@ -4126,7 +4127,8 @@ class Widgets implements Markup {
 		return <view tag={props.tag ?? "sidebar"} slot="sidebar" group="sidebar" role="navigation" label={props.label ?? "Sidebar"}
 			data-state={() -> expanded() ? "expanded" : "collapsed"} data-collapsible={() -> expanded() ? null : collapsible}
 			variant={props.variant ?? "sidebar"} data-variant={props.variant ?? "sidebar"} data-side={props.side ?? "left"}>
-			<view slot="sidebar-container" data-side={props.side ?? "left"}>
+			<view slot="sidebar-gap" variant={props.variant ?? "sidebar"}/>
+			<view slot="sidebar-container" variant={props.variant ?? "sidebar"} data-side={props.side ?? "left"}>
 				<view slot="sidebar-inner">{props.children}</view>
 			</view>
 		</view>;

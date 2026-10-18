@@ -39,7 +39,6 @@ class FidelityTest implements Markup {
 		"field-" => "a field set's legend is one of its flex items here (gap-6 after it); Chromium lays a fieldset's legend out apart from its content, no gap after it, and the description's [[data-variant=legend]+&]:-mt-1.5 is an arbitrary selector, dropped",
 		"button-group-horizontal" => "the joined buttons' inner corners and borders are arbitrary child selectors ([&>*:not(:first-child)]:rounded-l-none border-l-0, [&>*:not(:last-child)]:rounded-r-none), dropped",
 		"input-group-focus" => "the group's ring is has-[[data-slot=input-group-control]:focus-visible] (an arbitrary selector), dropped; and the caret drawn",
-		"sidebar-expanded" => "Sidebar has no sidebar-gap (shadcn's box holding its width in flow) and sidebar-container no variant: the container, fixed (absolute) in a sidebar of no width, is not seen, the inset in its place",
 	];
 
 	static function known(name:String):Null<String> {
@@ -387,8 +386,9 @@ class FidelityTest implements Markup {
 			var extra = EXTRA[c.component];
 			ui.theme = extra == null ? Shadcn.sheet : {rules: Shadcn.sheet.rules.concat(extra), light: Shadcn.sheet.light, dark: Shadcn.sheet.dark, lengths: Shadcn.sheet.lengths};
 			ui.dark = c.dark == true;
+			// (a word too wide for its line overflowing it, CSS's initial overflow-wrap, ui's root's BreakWord aside)
 			for (n in [ui.root, ui.overlay])
-				n.style.set({fontFamily: "Inter", dir: c.rtl == true ? Rtl : Ltr});
+				n.style.set({fontFamily: "Inter", dir: c.rtl == true ? Rtl : Ltr, overflowWrap: Normal});
 			var frame = new Node("frame");
 			frame.slot = "body";
 			frame.style.set({width: fw, height: fh, padding: 16, fontFamily: "Inter", direction: c.block ? Column : Row, alignItems: c.block ? Stretch : Start});
