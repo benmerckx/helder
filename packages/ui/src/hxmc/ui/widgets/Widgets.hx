@@ -137,7 +137,7 @@ class Widgets implements Markup {
 			props.checked.value = was || !props.checked.peek();
 		});
 		// (its indicator centred, as a <button>'s content; Enter not a press, as Radix's)
-		var box = <view:button tag={props.tag ?? "checkbox"} id={props.tag} slot="checkbox" states={props.style} role="checkbox" label={props.label}
+		var box = <view:button tag={props.tag ?? "checkbox"} id={props.tag} slot="checkbox" peer states={props.style} role="checkbox" label={props.label}
 			align-items="center" justify="center" checked={() -> mixed() ? ("mixed" : Dynamic) : props.checked.value} data-state={state}
 			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} aria-invalid={() -> read(props.invalid) == true ? "true" : null}
 			onKeyDown={e -> if (e.key == Key.ENTER) e.preventDefault()} onPress={_ -> toggle()}>
@@ -171,7 +171,7 @@ class Widgets implements Markup {
 		var disabled = () -> read(props.disabled) == true;
 		var state = () -> props.checked.value ? "checked" : "unchecked";
 		var toggle = () -> if (!disabled()) props.checked.value = !props.checked.peek();
-		var track = <view:button tag={props.tag ?? "switch"} id={props.tag} slot="switch" states={props.style} size={props.size ?? "default"} role="switch"
+		var track = <view:button tag={props.tag ?? "switch"} id={props.tag} slot="switch" peer states={props.style} size={props.size ?? "default"} role="switch"
 			label={props.label} checked={() -> props.checked.value} data-state={state} focusable={() -> !disabled()} disabled={disabled}
 			data-disabled={disabled} onPress={_ -> toggle()}>
 			<view:span slot="switch-thumb" size={props.size ?? "default"} data-state={state}/>
@@ -4168,7 +4168,7 @@ class Widgets implements Markup {
 		Rules.addBase("sidebar", [{slot: "sidebar", when: ["data-collapsible=offcanvas"], style: {display: None}}]);
 		var open = use(SIDEBAR) ?? signal(true), collapsible = props.collapsible ?? "offcanvas";
 		var expanded = () -> collapsible == "none" || open.value;
-		return <view tag={props.tag ?? "sidebar"} slot="sidebar" group="sidebar" role="navigation" label={props.label ?? "Sidebar"}
+		return <view tag={props.tag ?? "sidebar"} slot="sidebar" group="sidebar" peer role="navigation" label={props.label ?? "Sidebar"}
 			data-state={() -> expanded() ? "expanded" : "collapsed"} data-collapsible={() -> expanded() ? null : collapsible}
 			variant={props.variant ?? "sidebar"} data-variant={props.variant ?? "sidebar"} data-side={props.side ?? "left"}>
 			<view slot="sidebar-gap" variant={props.variant ?? "sidebar"}/>
