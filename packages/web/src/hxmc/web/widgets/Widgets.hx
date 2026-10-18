@@ -1749,43 +1749,6 @@ class Widgets implements Markup {
 			aria-expanded={() -> open != null && open.value ? "true" : "false"} onClick={() -> if (open != null) open.value = !open.peek()}>{icon("panel-left")}</button>;
 	}
 
-	public static function SidebarInset(props:{?children:Any, ?tag:String}):View
-		return <main id={props.tag} data-slot="sidebar-inset">{props.children}</main>;
-
-	public static function SidebarHeader(props:{?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="sidebar-header" data-sidebar="header">{props.children}</div>;
-
-	public static function SidebarContent(props:{?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="sidebar-content" data-sidebar="content">{props.children}</div>;
-
-	public static function SidebarFooter(props:{?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="sidebar-footer" data-sidebar="footer">{props.children}</div>;
-
-	public static function SidebarSeparator(props:{?tag:String}):View
-		return <div id={props.tag} data-slot="sidebar-separator" data-sidebar="separator" data-orientation="horizontal" role="none"/>;
-
-	public static function SidebarGroup(props:{?label:String, ?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="sidebar-group" data-sidebar="group" role="group" aria-label={props.label}>{props.children}</div>;
-
-	public static function SidebarGroupLabel(props:{text:String, ?tag:String}):View
-		return <div id={props.tag} data-slot="sidebar-group-label" data-sidebar="group-label">{props.text}</div>;
-
-	public static function SidebarGroupContent(props:{?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="sidebar-group-content" data-sidebar="group-content">{props.children}</div>;
-
-	public static function SidebarMenu(props:{?children:Any, ?tag:String}):View
-		return <ul id={props.tag} data-slot="sidebar-menu" data-sidebar="menu">{props.children}</ul>;
-
-	public static function SidebarMenuItem(props:{?children:Any, ?tag:String}):View
-		return <li id={props.tag} data-slot="sidebar-menu-item" data-sidebar="menu-item">{props.children}</li>;
-
-	// a sidebar menu's button: its label after its children (an icon),
-	// active (the current page: data-active), size "default", "sm" or "lg"
-	public static function SidebarMenuButton(props:{?label:String, ?active:Dynamic, ?onClick:Void->Void, ?size:String, ?children:Any, ?tag:String}):View
-		return <button type="button" id={props.tag} data-slot="sidebar-menu-button" data-sidebar="menu-button" data-variant="default"
-			data-size={props.size ?? "default"} data-active={() -> on(props.active) ? "true" : null} aria-current={() -> on(props.active) ? "page" : null}
-			onClick={() -> if (props.onClick != null) props.onClick()}>{props.children}{props.label == null ? null : <span>{props.label}</span>}</button>;
-
 	// --- charts (shadcn's Chart's look, recharts' kinds) ---
 
 	// (a scale's top: the value rounded up to 1, 2, 2.5 or 5 times a power of ten)

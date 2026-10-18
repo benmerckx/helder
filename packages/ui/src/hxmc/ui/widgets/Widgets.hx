@@ -4178,44 +4178,44 @@ class Widgets implements Markup {
 	}
 
 	@:widget({props: {children: "the page beside the sidebar"}, part: "SidebarProvider"})
-	public static function SidebarInset(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-inset"} slot="sidebar-inset" grow={1}>{props.children}</view>;
+	@:neutral public static function SidebarInset(props:{?children:Any, ?tag:String}):View
+		return <view:main tag={props.tag ?? "sidebar-inset"} id={props.tag} slot="sidebar-inset" grow={1}>{props.children}</view:main>;
 
 	@:widget({props: {children: "what heads the sidebar"}, part: "Sidebar"})
-	public static function SidebarHeader(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-header"} slot="sidebar-header">{props.children}</view>;
+	@:neutral public static function SidebarHeader(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-header"} id={props.tag} slot="sidebar-header" data-sidebar="header">{props.children}</view>;
 
 	@:widget({props: {children: "its groups, scrolled when they are taller than it"}, part: "Sidebar"})
-	public static function SidebarContent(props:{?children:Any, ?tag:String}):View
-		return <scroll tag={props.tag ?? "sidebar-content"} slot="sidebar-content" grow={1} min-height={0}>{props.children}</scroll>;
+	@:neutral public static function SidebarContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-content"} id={props.tag} slot="sidebar-content" data-sidebar="content" grow={1} min-height={0}>{props.children}</view>;
 
 	@:widget({props: {children: "what ends the sidebar"}, part: "Sidebar"})
-	public static function SidebarFooter(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-footer"} slot="sidebar-footer">{props.children}</view>;
+	@:neutral public static function SidebarFooter(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-footer"} id={props.tag} slot="sidebar-footer" data-sidebar="footer">{props.children}</view>;
 
 	@:widget({props: {}, part: "Sidebar"})
-	public static function SidebarSeparator(props:{?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-separator"} slot="sidebar-separator" role="separator"/>;
+	@:neutral public static function SidebarSeparator(props:{?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-separator"} id={props.tag} slot="sidebar-separator" data-sidebar="separator" data-orientation="horizontal" role="separator"/>;
 
 	@:widget({props: {label: "its name for assistive technology", children: "its SidebarGroupLabel and SidebarGroupContent"}, part: "Sidebar"})
-	public static function SidebarGroup(props:{?label:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-group"} slot="sidebar-group" role="group" label={props.label}>{props.children}</view>;
+	@:neutral public static function SidebarGroup(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-group"} id={props.tag} slot="sidebar-group" data-sidebar="group" role="group" label={props.label}>{props.children}</view>;
 
 	@:widget({props: {text: "the group's title"}, part: "Sidebar"})
-	public static function SidebarGroupLabel(props:{text:String, ?tag:String}):View
-		return <text tag={props.tag ?? "sidebar-group-label"} slot="sidebar-group-label">{props.text}</text>;
+	@:neutral public static function SidebarGroupLabel(props:{text:String, ?tag:String}):View
+		return <text:div tag={props.tag ?? "sidebar-group-label"} id={props.tag} slot="sidebar-group-label" data-sidebar="group-label">{props.text}</text:div>;
 
 	@:widget({props: {children: "the group's SidebarMenu or anything"}, part: "Sidebar"})
-	public static function SidebarGroupContent(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-group-content"} slot="sidebar-group-content">{props.children}</view>;
+	@:neutral public static function SidebarGroupContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "sidebar-group-content"} id={props.tag} slot="sidebar-group-content" data-sidebar="group-content">{props.children}</view>;
 
 	@:widget({props: {children: "its SidebarMenuItems"}, part: "Sidebar"})
-	public static function SidebarMenu(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-menu"} slot="sidebar-menu" role="list">{props.children}</view>;
+	@:neutral public static function SidebarMenu(props:{?children:Any, ?tag:String}):View
+		return <view:ul tag={props.tag ?? "sidebar-menu"} id={props.tag} slot="sidebar-menu" data-sidebar="menu" role="list">{props.children}</view:ul>;
 
 	@:widget({props: {children: "its SidebarMenuButton"}, part: "Sidebar"})
-	public static function SidebarMenuItem(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "sidebar-menu-item"} slot="sidebar-menu-item" role="listitem">{props.children}</view>;
+	@:neutral public static function SidebarMenuItem(props:{?children:Any, ?tag:String}):View
+		return <view:li tag={props.tag ?? "sidebar-menu-item"} id={props.tag} slot="sidebar-menu-item" data-sidebar="menu-item" role="listitem">{props.children}</view:li>;
 
 	// a sidebar menu's button: its label (and children: an icon first),
 	// active (a Bool, a signal or a function of one: the current page,
@@ -4233,14 +4233,14 @@ class Widgets implements Markup {
 		},
 		part: "Sidebar"
 	})
-	public static function SidebarMenuButton(props:{?label:String, ?active:Dynamic, ?onClick:Void->Void, ?size:String, ?children:Any, ?tag:String}):View {
+	@:neutral public static function SidebarMenuButton(props:{?label:String, ?active:Dynamic, ?onClick:Void->Void, ?size:String, ?children:Any, ?tag:String}):View {
 		var press = () -> if (props.onClick != null) props.onClick();
 		var active = () -> read(props.active) == true;
-		return <view tag={props.tag ?? "sidebar-menu-button"} slot="sidebar-menu-button" role="button" label={props.label} size={props.size ?? "default"}
-			data-size={props.size ?? "default"} current={active} data-active={() -> active() ? "true" : null} focusable direction="row" align-items="center"
-			onClick={_ -> press()} onKeyDown={e -> pressKeys(e, press)}>
+		return <view:button tag={props.tag ?? "sidebar-menu-button"} id={props.tag} slot="sidebar-menu-button" data-sidebar="menu-button" role="button"
+			label={props.label} variant="default" size={props.size ?? "default"} current={() -> active() ? "page" : null} data-active={() -> active() ? "true" : null}
+			focusable direction="row" align-items="center" onPress={_ -> press()}>
 			{props.children}{props.label == null ? null : <text>{props.label}</text>}
-		</view>;
+		</view:button>;
 	}
 
 	// a navigation menu (shadcn's, after Radix's): a row of items in a
