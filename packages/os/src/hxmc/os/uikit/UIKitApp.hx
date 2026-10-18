@@ -23,6 +23,9 @@ class UIKitApp {
 	public static var running:Bool;
 
 	@:hxmc.export("hxmc_ui_main") static function main():Void {
+		#if hxmc.dev_host
+		hxmc.dev.Hosted.block();
+		#end
 		var cls = Runtime.objc_allocateClassPair(ObjC.cls("UIResponder"), Mem.cstr("HxmcAppDelegate"), 0);
 		Runtime.class_addMethod(cls, ObjC.sel("application:didFinishLaunchingWithOptions:"), Callback.addr(didFinishLaunching), Mem.cstr("B@:@@"));
 		Runtime.class_addMethod(cls, ObjC.sel("applicationDidEnterBackground:"), Callback.addr(didEnterBackground), Mem.cstr("v@:@"));
@@ -41,8 +44,36 @@ class UIKitApp {
 
 	@:hxmc.callback static function start(timer:Ptr, info:Ptr):Void {
 		Mem.call0(Mem.sym("hx_main_body"));
+		#if hxmc.dev_host
+		// (hxmc dev: handed over: the next build's dylib loaded and run here, on the main thread, inside UIKit's loop)
+		while (Mem.getU8(hxmc.dev.Hosted.block(), hxmc.dev.DevHost.NEXT) != 0) {
+			var path = LibC.malloc(hxmc.dev.DevHost.NEXT_BYTES);
+			LibC.memcpy(path, hxmc.dev.Hosted.block().add(hxmc.dev.DevHost.NEXT), hxmc.dev.DevHost.NEXT_BYTES);
+			Mem.setI8(hxmc.dev.Hosted.block(), hxmc.dev.DevHost.NEXT, 0);
+			var lib = Posix.dlopen(path, 2); // (RTLD_NOW)
+			LibC.free(path);
+			if (lib.isNull()) {
+				Sys.stderr().writeString("hxmc.dev: " + (cast Posix.dlerror() : CString).toString() + "\n");
+				break;
+			}
+			var slot = Posix.dlsym(lib, Mem.cstr("hxmc_dev_state")), run = Posix.dlsym(lib, Mem.cstr("hxmc_dev_run"));
+			if (slot.isNull() || run.isNull()) break;
+			Mem.setPtr(slot, 0, hxmc.dev.Hosted.block());
+			HostedRun.run(run, 1);
+		}
+		#end
 		Sys.exit(0);
 	}
+
+	#if hxmc.dev_host
+	// (hxmc dev: a build loaded into the running app: the delegate's lifecycle methods this build's)
+	public static function adopt() {
+		var cls = Runtime.objc_getClass(Mem.cstr("HxmcAppDelegate"));
+		if (cls.isNull()) return;
+		Runtime.class_replaceMethod(cls, ObjC.sel("applicationDidEnterBackground:"), Callback.addr(didEnterBackground), Mem.cstr("v@:@"));
+		Runtime.class_replaceMethod(cls, ObjC.sel("applicationWillEnterForeground:"), Callback.addr(willEnterForeground), Mem.cstr("v@:@"));
+	}
+	#end
 
 	@:hxmc.callback static function didEnterBackground(self:Ptr, cmd:Ptr, app:Ptr):Void
 		if (running) UIKitWindow.suspend(true);
@@ -50,6 +81,12 @@ class UIKitApp {
 	@:hxmc.callback static function willEnterForeground(self:Ptr, cmd:Ptr, app:Ptr):Void
 		if (running) UIKitWindow.suspend(false);
 }
+
+#if hxmc.dev_host
+@:hxmc.c extern class HostedRun {
+	@:hxmc.indirect static function run(f:Ptr, arg:Int):Int;
+}
+#end
 
 // UIKit's C function (and the framework loaded: its classes are found by name)
 @:hxmc.c @:hxmc.lib("/System/Library/Frameworks/UIKit.framework/UIKit") extern class UIKit {

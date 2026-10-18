@@ -29,6 +29,10 @@ class Hosted {
 	public static inline var HEIGHT = 8;
 	// (Android) the app's files directory (a C string: ANativeActivity.internalDataPath)
 	public static inline var FILES = 9;
+	// (iOS) the UIWindow, its root view controller and its HxmcView (the CAMetalLayer's)
+	public static inline var UI_WINDOW = 10;
+	public static inline var UI_CONTROLLER = 11;
+	public static inline var UI_VIEW = 12;
 	// the statics kept for the activity's glue (HostedMacro.shared: its arguments, Activity's and AndroidWindow's, are these)
 	public static inline var ACTIVITY = 16;
 	public static inline var ACTIVITY_SLOTS = 24;
@@ -77,8 +81,9 @@ class Hosted {
 	// the host's call: main on a thread of its own (a large stack, as the
 	// runtime's main thread has), joined
 	@:keep @:hxmc.export("hxmc_dev_run") @:hxmc.noGc static function run(arg:Int):Int {
-		// (Android: on the calling thread, the program's, whose looper the activity's glue watches)
-		if (Mem.target() >= 9) {
+		// (Android: on the calling thread, the program's, whose looper the
+		// activity's glue watches; iOS: the main thread, UIKit's)
+		if (Mem.target() >= 9 || Mem.platform() >= 1) {
 			thread(Ptr.nil());
 			return 0;
 		}
@@ -98,7 +103,7 @@ class Hosted {
 		// (the heap given back: the host closes the library next; on Android
 		// the library stays loaded and its heap kept: callbacks it gave the
 		// system's UI thread, a looper's or a frame's, may still come once)
-		if (Mem.target() < 9) hxmc.rt.Gc.releaseHeap();
+		if (Mem.target() < 9 && Mem.platform() == 0) hxmc.rt.Gc.releaseHeap();
 		return Ptr.nil();
 	}
 }

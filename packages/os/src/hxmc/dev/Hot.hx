@@ -320,9 +320,44 @@ class Hot {
 		done = true;
 	}
 
+	#if (hxmc.dev_host && target.name == "hxmc")
+	static var settledAt = -1.0;
+
+	// this build hands over to the library at path (its snapshot written):
+	// what the host keeps left to it, the dev server told, main returns
+	static function handOverTo(path:String) {
+		hxmc.dev.Hosted.handOver(path);
+		dispose();
+		send('{"type":"saved"}');
+		if (socket >= 0) hxmc.NativeNet.close(socket);
+		socket = -1;
+		Sys.stdout().flush();
+	}
+	#end
+
 	// hxmc.os.App, at each turn of its loop: the dev server's messages (natively)
 	@:noCompletion public static function poll():Bool {
 		init();
+		#if (hxmc.dev_host && target.name == "hxmc")
+		// (tests, without a dev server: a build hands over to the next of the
+		// libraries HXMC_DEV_NEXT lists (separated by ';') a second after its
+		// first frame, its snapshot in HXMC_DEV_SNAPSHOT)
+		if (settled && !done && hxmc.dev.Hosted.hosted()) {
+			var next = Sys.getEnv("HXMC_DEV_NEXT");
+			if (next != null && next != "") {
+				if (settledAt < 0) settledAt = haxe.Timer.stamp();
+				if (haxe.Timer.stamp() - settledAt > 1) {
+					var k = next.indexOf(";");
+					var lib = k < 0 ? next : next.substr(0, k);
+					hxmc.unsafe.Arena.scoped(a -> hxmc.unsafe.Posix.setenv(a.cstring("HXMC_DEV_NEXT"), a.cstring(k < 0 ? "" : next.substr(k + 1)), 1));
+					var file = Sys.getEnv("HXMC_DEV_SNAPSHOT");
+					if (file != null && file != "") sys.io.File.saveContent(file, snapshot());
+					handOverTo(lib);
+					return false;
+				}
+			}
+		}
+		#end
 		#if (target.name == "hxmc")
 		// (what the program printed, in the terminal as it prints it: its output is a pipe)
 		if (hxmc.unsafe.Mem.os() != 3) Sys.stdout().flush();
@@ -361,12 +396,7 @@ class Hot {
 				#if hxmc.dev_host
 				// (a dev host's program: the next build named, what the host keeps left to it, main returns)
 				if (hxmc.dev.Hosted.hosted() && m.library != null) {
-					hxmc.dev.Hosted.handOver(m.library);
-					dispose();
-					send('{"type":"saved"}');
-					hxmc.NativeNet.close(socket);
-					socket = -1;
-					Sys.stdout().flush();
+					handOverTo(m.library);
 					return false;
 				}
 				#end

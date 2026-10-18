@@ -60,6 +60,16 @@ class UIKitWindow {
 		this.owner = owner;
 		if (viewClass.isNull()) start();
 		size = LibC.malloc(16);
+		#if hxmc.dev_host
+		// (hxmc dev's host: the window, its controller and view as the last build left them)
+		var kept = hxmc.dev.Hosted.hosted() ? hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_VIEW) : Ptr.nil();
+		if (!kept.isNull()) {
+			window = hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_WINDOW);
+			controller = hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_CONTROLLER);
+			view = kept;
+			layer = Msg.id(view, ObjC.sel("layer"));
+		} else {
+		#end
 		var screen = Msg.id(ObjC.cls("UIScreen"), ObjC.sel("mainScreen"));
 		var bounds = Msg.rect(screen, ObjC.sel("bounds"));
 		window = Msg.idRect(Msg.id(ObjC.cls("UIWindow"), ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), bounds);
@@ -69,6 +79,14 @@ class UIKitWindow {
 		controller = Msg.id(Msg.id(ObjC.cls("UIViewController"), ObjC.sel("alloc")), ObjC.sel("init"));
 		Msg.vPtr(controller, ObjC.sel("setView:"), view);
 		Msg.vPtr(window, ObjC.sel("setRootViewController:"), controller);
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted()) {
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.UI_WINDOW, window);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.UI_CONTROLLER, controller);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.UI_VIEW, view);
+		}
+		}
+		#end
 		surface = new Surface(Cocoa, layer, view, 1, 1);
 		current = this;
 		measure();
@@ -77,6 +95,23 @@ class UIKitWindow {
 
 	static function start() {
 		mode = ObjC.str("kCFRunLoopDefaultMode");
+		#if hxmc.dev_host
+		// (hxmc dev: the view's class and the app delegate's an earlier build made: their methods this build's)
+		var made = Runtime.objc_getClass(Mem.cstr("HxmcView"));
+		if (!made.isNull()) {
+			Runtime.class_replaceMethod(Runtime.object_getClass(made), ObjC.sel("layerClass"), Callback.addr(layerClass), Mem.cstr("#@:"));
+			Runtime.class_replaceMethod(made, ObjC.sel("layoutSubviews"), Callback.addr(layoutSubviews), Mem.cstr("v@:"));
+			Runtime.class_replaceMethod(made, ObjC.sel("safeAreaInsetsDidChange"), Callback.addr(layoutSubviews), Mem.cstr("v@:"));
+			Runtime.class_replaceMethod(made, ObjC.sel("touchesBegan:withEvent:"), Callback.addr(touchesBegan), Mem.cstr("v@:@@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("touchesMoved:withEvent:"), Callback.addr(touchesMoved), Mem.cstr("v@:@@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("touchesEnded:withEvent:"), Callback.addr(touchesEnded), Mem.cstr("v@:@@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("touchesCancelled:withEvent:"), Callback.addr(touchesCancelled), Mem.cstr("v@:@@"));
+			UIKitApp.adopt();
+			viewClass = made;
+			UIKitApp.running = true;
+			return;
+		}
+		#end
 		var cls = Runtime.objc_allocateClassPair(ObjC.cls("UIView"), Mem.cstr("HxmcView"), 0);
 		// (+layerClass: a class method, on the metaclass)
 		Runtime.class_addMethod(Runtime.object_getClass(cls), ObjC.sel("layerClass"), Callback.addr(layerClass), Mem.cstr("#@:"));
@@ -243,6 +278,13 @@ class UIKitWindow {
 
 	function destroy() {
 		current = null;
+		#if hxmc.dev_host
+		// (handing over: the window, its controller and view left to the next build)
+		if (hxmc.dev.Hosted.handingOver && hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_VIEW) == view) {
+			LibC.free(size);
+			return;
+		}
+		#end
 		Msg.vBool(window, ObjC.sel("setHidden:"), true);
 		Runtime.objc_release(controller);
 		Runtime.objc_release(view);
