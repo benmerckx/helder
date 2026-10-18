@@ -24,7 +24,8 @@
 // as string handles; frames from requestAnimationFrame.
 //
 // A window's native text editors (src/hxmc/ui/draw/WebViews.hx): an input
-// or a textarea of the page, absolutely placed over the canvas where the
+// or a textarea of the page, in a layer over the canvas (its size, clipping
+// them), absolutely placed where the
 // field's content box is laid out, borderless and transparent (the drawn
 // box is the theme's), in the field's font and colour. Edits, focus and the
 // keys it leaves to the program (Tab, Escape; Enter, Up and Down on one
@@ -33,6 +34,27 @@ export default function (host) {
 	const editors = new Map();
 	const editorEvents = [];
 	let nextEditor = 1;
+	// a canvas's layer of editors: over it in the page, its size, clipping
+	// them (one placed for an older layout never widens the page), kept on
+	// the canvas as it changes size
+	function layer(c) {
+		if (c.hxmcEditors) return c.hxmcEditors;
+		const l = document.createElement('div');
+		l.style.cssText = 'position:absolute;overflow:hidden;pointer-events:none;z-index:1;';
+		document.body.appendChild(l);
+		const fit = () => {
+			const r = c.getBoundingClientRect();
+			l.style.left = r.left + window.scrollX + 'px';
+			l.style.top = r.top + window.scrollY + 'px';
+			l.style.width = r.width + 'px';
+			l.style.height = r.height + 'px';
+		};
+		fit();
+		new ResizeObserver(fit).observe(c);
+		l.fit = fit;
+		c.hxmcEditors = l;
+		return l;
+	}
 	// (an editor's event: queued, and a frame asked for, which polls it)
 	const queue = (ev) => {
 		editorEvents.push(ev);
@@ -303,10 +325,10 @@ export default function (host) {
 			if (!multiline) e.type = 'text';
 			e.id = 'hxmc-editor-' + h;
 			e.setAttribute('data-hxmc-editor', '');
-			e.style.cssText = 'position:absolute;display:none;margin:0;border:0;padding:0;background:transparent;outline:none;box-sizing:border-box;resize:none;overflow:hidden;z-index:1;';
+			e.style.cssText = 'position:absolute;display:none;margin:0;border:0;padding:0;background:transparent;outline:none;box-sizing:border-box;resize:none;overflow:hidden;pointer-events:auto;';
 			const style = document.createElement('style');
 			document.head.appendChild(style);
-			document.body.appendChild(e);
+			layer(c).appendChild(e);
 			const ed = { e, c, style, multiline, focusing: false };
 			editors.set(h, ed);
 			const mods = (ev) => (ev.shiftKey ? 1 : 0) | (ev.ctrlKey ? 2 : 0) | (ev.altKey ? 4 : 0) | (ev.metaKey ? 8 : 0);
@@ -326,15 +348,21 @@ export default function (host) {
 			ed.e.value = host.string(text);
 			if (document.activeElement === ed.e) ed.e.setSelectionRange(start, end);
 		},
-		// its place: the canvas's CSS pixels, in the page's
+		// its place: the window's pixels (the canvas's buffer over the device's
+		// pixel ratio), scaled as the canvas is shown (a page may show it
+		// smaller), in the canvas's layer
 		editor_place(h, x, y, w, hh, shown) {
 			const ed = editors.get(h), r = ed.c.getBoundingClientRect();
+			const k = r.width / Math.max(1, Math.round(ed.c.width / devicePixelRatio));
 			const s = ed.e.style;
+			layer(ed.c).fit();
 			s.display = shown ? '' : 'none';
-			s.left = r.left + window.scrollX + x + 'px';
-			s.top = r.top + window.scrollY + y + 'px';
+			s.left = x * k + 'px';
+			s.top = y * k + 'px';
 			s.width = w + 'px';
 			s.height = hh + 'px';
+			s.transformOrigin = '0 0';
+			s.transform = Math.abs(k - 1) < 1e-3 ? '' : 'scale(' + k + ')';
 		},
 		editor_style(h, css, placeholder, placeholderColor, secret) {
 			const ed = editors.get(h);
