@@ -3712,7 +3712,10 @@ class Widgets implements Markup {
 				var c:Color = [0xFF2563EB, 0xFF16A34A, 0xFFF59E0B, 0xFFDC2626, 0xFF7C3AED][k];
 				var rules:Array<Rule> = [
 					{slot: "chart-bar", when: ['data-series=${k + 1}'], style: {background: c}},
+					{slot: "chart-dot", when: ['data-series=${k + 1}'], style: {background: c}},
 					{slot: "chart-line", when: ['data-series=${k + 1}'], style: {color: c}},
+					{slot: "chart-area", when: ['data-series=${k + 1}'], style: {color: c}},
+					{slot: "chart-slice", when: ['data-series=${k + 1}'], style: {color: c}},
 					{slot: "chart-legend-swatch", when: ['data-series=${k + 1}'], style: {background: c}}
 				];
 				rules;
@@ -3811,7 +3814,7 @@ class Widgets implements Markup {
 	// through its values at each category, on the same scale and frame as
 	// BarChart's; a dot on each line at the category under the pointer.
 	// Slots as BarChart's, "chart-line" (its colour: data-series 1 to 5) and
-	// "chart-dot" for the bars
+	// "chart-dot" for its dots (their colour: data-series 1 to 5)
 	@:widget({
 		props: {
 			labels: "the categories, along the x axis",
@@ -3824,24 +3827,133 @@ class Widgets implements Markup {
 		}
 	})
 	public static function LineChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
-			?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View {
-		var tag = props.tag ?? "line-chart", w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1);
+			?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+		return seriesChart(props, "line-chart", false);
+
+	// an area chart (recharts' AreaChart in shadcn's look): LineChart's
+	// lines, each filled faintly down to the axis. Slots as LineChart's,
+	// "chart-area" for its lines (its colour: data-series 1 to 5)
+	@:widget({
+		props: {
+			labels: "the categories, along the x axis",
+			series: "each series: its name, a value per category, and its colour (else the theme's by its place)",
+			width: "the plot's width (300 when not given)",
+			height: "the plot's height (160 when not given)",
+			max: "the scale's top (else the greatest value rounded up)",
+			format: "a value as the axis and the tooltip show it (else as it is)",
+			label: "its name for assistive technology"
+		}
+	})
+	public static function AreaChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
+			?max:Float, ?format:Float->String, ?label:String, ?tag:String}):View
+		return seriesChart(props, "area-chart", true);
+
+	// (LineChart's and AreaChart's: a line per series, filled under it for an area)
+	static function seriesChart(props:{labels:Array<String>, series:Array<{name:String, values:Array<Float>, ?color:Color}>, ?width:Float, ?height:Float,
+			?max:Float, ?format:Float->String, ?label:String, ?tag:String}, kind:String, area:Bool):View {
+		var tag = props.tag ?? kind, w = props.width ?? 300.0, h = props.height ?? 160.0, n = props.labels.length, hover = signal(-1);
 		var top = props.max ?? niceMax(Lambda.fold(props.series, (s, m) -> Math.max(m, Lambda.fold(s.values, Math.max, 0.0)), 0.0));
 		var format = props.format ?? Behaviour.plain, series = props.series, slot = n == 0 ? 0.0 : w / n;
 		var px = (i:Int) -> (i + 0.5) * slot, py = (v:Float) -> h - Math.max(0, Math.min(1, v / top)) * h;
 		var plot = <view position="absolute" left={0} top={0} width={w} height={h}>{[
 			for (k in 0...series.length) {
 				var d = [for (i in 0...n) (i == 0 ? "M" : "L") + Math.fround(px(i) * 100) / 100 + " " + Math.fround(py(series[k].values[i]) * 100) / 100].join(" ");
-				var svg = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $w $h" width="$w" height="$h"><path d="$d" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>');
+				// (an area's: the line's points closed along the axis, filled faintly under the line)
+				var fill = !area || n == 0 ? "" : '<path d="M${Math.fround(px(0) * 100) / 100} $h ${d.substr(1)} L${Math.fround(px(n - 1) * 100) / 100} $h Z" fill="currentColor" fill-opacity="0.4"/>';
+				var svg = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $w $h" width="$w" height="$h">$fill<path d="$d" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>');
 				[
-					<image tag={tag + "-line-" + k} slot="chart-line" data-series={Std.string(k % 5 + 1)} src={svg} position="absolute" left={0} top={0} width={w}
+					<image tag={tag + "-line-" + k} slot={area ? "chart-area" : "chart-line"} data-series={Std.string(k % 5 + 1)} src={svg} position="absolute" left={0} top={0} width={w}
 						height={h} color={series[k].color}/>,
-					<Show when={() -> hover.value >= 0}>{() -> <view slot="chart-bar" data-series={Std.string(k % 5 + 1)} position="absolute" width={8} height={8}
+					<Show when={() -> hover.value >= 0}>{() -> <view slot="chart-dot" data-series={Std.string(k % 5 + 1)} position="absolute" width={8} height={8}
 						radius={4} left={px(hover.value) - 4} top={py(series[k].values[hover.value]) - 4} background={series[k].color}/>}</Show>
 				];
 			}
 		]}</view>;
 		return chartFrame(tag, props.labels, series, w, h, top, plot, hover, props.label, format);
+	}
+
+	// a pie chart (recharts' PieChart in shadcn's look): a slice per value,
+	// clockwise from the top, its share of the circle its share of the total;
+	// a donut when inner (its hole's radius, a fraction of the radius) is
+	// given; each slice a colour (color, else the theme's --chart-N by its
+	// place); the pointer over a slice shows its name and value. Slots
+	// "chart", "chart-plot", "chart-slice" (data-series: 1 to 5;
+	// data-active under the pointer), "chart-legend", "chart-legend-item",
+	// "chart-legend-swatch", "chart-tooltip", "chart-tooltip-label",
+	// "chart-tooltip-value"
+	@:widget({
+		props: {
+			slices: "each slice: its name, its value, and its colour (else the theme's by its place)",
+			size: "the circle's diameter (200 when not given)",
+			inner: "a donut's hole, its radius a fraction of the circle's (0 when not given: a pie)",
+			format: "a value as the tooltip shows it (else as it is)",
+			label: "its name for assistive technology"
+		}
+	})
+	public static function PieChart(props:{slices:Array<{name:String, value:Float, ?color:Color}>, ?size:Float, ?inner:Float, ?format:Float->String,
+			?label:String, ?tag:String}):View {
+		chartBase();
+		var tag = props.tag ?? "pie-chart", size = props.size ?? 200.0, slices = props.slices, hover = signal(-1);
+		var format = props.format ?? Behaviour.plain;
+		var total = Lambda.fold(slices, (sl, t) -> t + Math.max(0, sl.value), 0.0);
+		var c = size / 2, r = size / 2 - 1, ri = Math.max(0, Math.min(1, props.inner ?? 0)) * r;
+		// (each slice's start and end, in turns clockwise from the top)
+		var ends = [], at = 0.0;
+		for (sl in slices) {
+			var from = at;
+			at += total > 0 ? Math.max(0, sl.value) / total : 0;
+			ends.push({from: from, to: at});
+		}
+		inline function num(v:Float):String
+			return Std.string(Math.fround(v * 100) / 100);
+		function point(t:Float, rad:Float):String
+			return num(c + rad * Math.sin(t * 2 * Math.PI)) + " " + num(c - rad * Math.cos(t * 2 * Math.PI));
+		function path(from:Float, to:Float):String {
+			// (a whole circle: two halves, an arc's ends being one point)
+			if (to - from >= 1 - 1e-9)
+				return ri > 0 ? 'M${point(0, r)} A$r $r 0 1 1 ${point(0.5, r)} A$r $r 0 1 1 ${point(0, r)} M${point(0, ri)} A$ri $ri 0 1 0 ${point(0.5, ri)} A$ri $ri 0 1 0 ${point(0, ri)} Z' : 'M${point(0, r)} A$r $r 0 1 1 ${point(0.5, r)} A$r $r 0 1 1 ${point(0, r)} Z';
+			var large = to - from > 0.5 ? 1 : 0;
+			return ri > 0 ? 'M${point(from, r)} A$r $r 0 $large 1 ${point(to, r)} L${point(to, ri)} A$ri $ri 0 $large 0 ${point(from, ri)} Z' : 'M$c $c L${point(from, r)} A$r $r 0 $large 1 ${point(to, r)} Z';
+		}
+		// (the slice under a point of the plot: by its angle, within the ring)
+		function under(e:Event) {
+			var x = e.current.localX(e.x, e.y) - c, y = e.current.localY(e.x, e.y) - c, d = Math.sqrt(x * x + y * y);
+			var t = (Math.atan2(x, -y) / (2 * Math.PI) + 1) % 1, found = -1;
+			if (d <= r && d >= ri)
+				for (k in 0...ends.length)
+					if (t >= ends[k].from && t < ends[k].to) found = k;
+			hover.value = found;
+		}
+		return <view tag={tag} slot="chart" role="img" label={props.label ?? "Chart"} align-items="center">
+			<view tag={tag + "-plot"} slot="chart-plot" width={size} height={size} position="relative" onPointerMove={under}
+				onPointerLeave={_ -> hover.value = -1}>
+				{[
+					for (k in 0...slices.length)
+						if (ends[k].to > ends[k].from) {
+							var svg = Svg.parse('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 $size $size" width="$size" height="$size"><path d="${path(ends[k].from, ends[k].to)}" fill="currentColor" fill-rule="evenodd"/></svg>');
+							<image tag={tag + "-" + k} slot="chart-slice" data-series={Std.string(k % 5 + 1)} src={svg} position="absolute" left={0} top={0}
+								width={size} height={size} color={slices[k].color} role="group" label={slices[k].name + ": " + format(slices[k].value)}
+								data-active={() -> hover.value == k ? "true" : null}/>;
+						} else null
+				]}
+				<Show when={() -> hover.value >= 0}>{() -> {
+					var k = hover.value;
+					<view tag={tag + "-tooltip"} slot="chart-tooltip" position="absolute" top={4} left={4} direction="row" align-items="center"
+						column-gap={6}>
+						<view slot="chart-legend-swatch" data-series={Std.string(k % 5 + 1)} width={8} height={8} background={slices[k].color}/>
+						<text slot="chart-tooltip-label">{slices[k].name}</text>
+						<text slot="chart-tooltip-value">{format(slices[k].value)}</text>
+					</view>;
+				}}</Show>
+			</view>
+			<view slot="chart-legend" direction="row" wrap={true} width={Math.max(size, 240)} justify="center" column-gap={16}>{[
+				for (k in 0...slices.length)
+					<view slot="chart-legend-item" direction="row" align-items="center" column-gap={6}>
+						<view slot="chart-legend-swatch" data-series={Std.string(k % 5 + 1)} width={8} height={8} background={slices[k].color}/>
+						<text>{slices[k].name}</text>
+					</view>
+			]}</view>
+		</view>;
 	}
 
 	// --- shadcn's Sidebar ---

@@ -32,6 +32,8 @@ import hxmc.ui.widgets.Widgets.Accordion;
 import hxmc.ui.widgets.Widgets.Carousel;
 import hxmc.ui.widgets.Widgets.NavigationMenu;
 import hxmc.ui.widgets.Widgets.BarChart;
+import hxmc.ui.widgets.Widgets.AreaChart;
+import hxmc.ui.widgets.Widgets.PieChart;
 import hxmc.ui.widgets.Widgets.AspectRatio;
 import hxmc.ui.widgets.Widgets.SidebarProvider;
 import hxmc.ui.widgets.Widgets.Sidebar;
@@ -911,6 +913,26 @@ class MarkupTest implements Markup {
 		ui.pointerMove(plot.absX - 50, plot.absY + 10);
 		ui.update();
 		check("chart: gone when the pointer leaves", ui.root.find("c-tooltip") == null);
+		// a pie chart: a slice per value, clockwise from the top; the one under the pointer by its angle, none in a donut's hole
+		var ui = new Ui(new MonoText(), 500, 400);
+		Render.render(<view padding={10}>
+			<PieChart tag="p" slices={[{name: "a", value: 3}, {name: "b", value: 1}, {name: "z", value: 0}]} size={100} inner={0.5}/>
+			<AreaChart tag="ac" labels={["A", "B"]} series={[{name: "x", values: [50, 90]}]}/>
+		</view>, ui.root);
+		ui.update();
+		var plot = ui.root.find("p-plot");
+		check("pie: a slice per value but an empty one", ui.root.find("p-0") != null && ui.root.find("p-1") != null && ui.root.find("p-2") == null);
+		check("pie: a slice named with its value", ui.root.find("p-1").semantics.label == "b: 1", ui.root.find("p-1").semantics.label);
+		function slice(x:Float, y:Float):Null<String> {
+			ui.pointerMove(plot.absX + x, plot.absY + y);
+			ui.update();
+			var tip = ui.root.find("p-tooltip");
+			return tip == null ? null : (cast tip.children[1] : TextNode).text;
+		}
+		var right = slice(95, 50), left = slice(5, 50), hole = slice(50, 50);
+		check("pie: three quarters from the top, a quarter after", right == "a" && left == "b" && hole == null, right + " " + left + " " + hole);
+		check("pie: the slice under the pointer active", slice(5, 50) == "b" && ui.root.find("p-1").attr("data-active") == "true");
+		check("area chart: its line filled to the axis", ui.root.find("ac-line-0") != null && ui.root.find("ac-line-0").slot == "chart-area");
 		// an aspect ratio: as tall as its width says, its child filling it
 		var ui = new Ui(new MonoText(), 500, 400);
 		Render.render(<view width={320}><AspectRatio tag="ar" ratio={16 / 9}><view tag="fill" grow={1}/></AspectRatio></view>, ui.root);

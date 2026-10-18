@@ -5941,5 +5941,36 @@
 				}
 			]
 		}
+	},
+	{
+		"name": "fit-content wrapping row, percentage basis",
+		"width": 300,
+		"height": 200,
+		"tree": {
+			"children": [
+				{
+					"style": {
+						"direction": "Row",
+						"wrap": true,
+						"alignSelf": "Start"
+					},
+					"children": [
+						{
+							"style": {
+								"width": 26,
+								"height": 10
+							}
+						},
+						{
+							"style": {
+								"width": 49,
+								"height": 10,
+								"basis": "100%"
+							}
+						}
+					]
+				}
+			]
+		}
 	}
 ]

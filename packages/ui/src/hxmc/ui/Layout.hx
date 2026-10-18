@@ -287,6 +287,15 @@ class Layout {
 			// (a row shrinks to fit the room; a column's auto height is its content's, the room or not)
 			mainSize = known(availMain) && row ? Math.min(content, availMain) : content;
 			mainSize = clamp(mainSize, Math.max(0, minMain), maxMain);
+			// (a row whose items' widths are percentages of its own: laid out again at the width
+			// found, which they resolve against then, their lines broken there, as Chromium does)
+			if (row && percentItems(n)) {
+				itemTop = first;
+				lineTop = firstLine;
+				breakH = bareBreak;
+				flex(n, mainSize + padH, h, availW, availH, minW, maxW, minH, maxH, padL, padT, padH, padV, perform, defH);
+				return;
+			}
 		}
 
 		// flexible lengths, then the items' cross sizes
@@ -1230,6 +1239,8 @@ class Layout {
 			w = rw;
 		}
 		var c = clamp(w, it.minMain, it.maxMain), b = it.basis;
+		// (a percentage basis of the container's indefinite width: its width's or content's, as auto's)
+		if (!known(cs.basis.resolve(innerW))) b = Math.max(w, it.edges);
 		var stays = c > b && cs.grow == 0 || c < b && cs.shrink == 0;
 		return clamp(stays ? b : c, it.minMain, it.maxMain);
 	}
@@ -1296,6 +1307,22 @@ class Layout {
 	}
 
 	// an item for c from the pool
+	// (whether a row's item has a width or basis that is a percentage of the row's)
+	static function percentItems(n:Node):Bool {
+		for (c in n.children) {
+			var cs = c.style;
+			if (cs.display == None || cs.position == Absolute) continue;
+			if (percent(cs.basis) || percent(cs.width) || percent(cs.minWidth) || percent(cs.maxWidth)) return true;
+		}
+		return false;
+	}
+
+	static function percent(d:Dim):Bool
+		return switch (d : DimValue) {
+			case Percent(_) | Calc(_, _): true;
+			case _: false;
+		}
+
 	static function takeItem(c:Node):Item {
 		if (itemTop == items.length) items.push(new Item());
 		var it = items[itemTop++];
