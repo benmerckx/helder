@@ -84,14 +84,14 @@ try {
 	const first = await line(/v1 count=3 pid=/, 240000, true);
 	check('the first build runs, its state changed', !!first);
 
-	const reloaded = line(/^hxmc dev: reloaded in/);
+	const reloaded = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	const v2 = line(/v2 count=\S+ pid=/);
 	edit((s) => s.replace('label="+1"', 'label="+2"').replace('"v1 count="', '"v2 count="'));
 	times.push(await reloaded);
 	const v2l = await v2;
 	check('edited: a new process, the count kept', /v2 count=3 /.test(v2l) && pidOf(v2l) !== pidOf(first), v2l);
 
-	const reloaded2 = line(/^hxmc dev: reloaded in/);
+	const reloaded2 = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	const v3 = line(/v3 count=\S+ pid=/);
 	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('count.value = 3;', 'count.value = 3.5;').replace('"v2 count="', '"v3 count="'));
@@ -107,7 +107,7 @@ try {
 	await new Promise((r) => setTimeout(r, 1000));
 	check('error: the program keeps running', !lines.some((l) => /the program ended/.test(l)));
 
-	const reloaded3 = line(/^hxmc dev: reloaded in/);
+	const reloaded3 = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	const v5 = line(/v5 count=\S+ pid=/);
 	edit((s) => s.replace('"v4 count=" +* broken', '"v5 count="'));
 	times.push(await reloaded3);

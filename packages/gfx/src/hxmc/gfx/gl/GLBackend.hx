@@ -87,6 +87,37 @@ class GLBackend {
 	var uniformAlign = 256;
 
 	static inline var MAX_SLOTS = 8;
+	#if hxmc.dev
+	var vao = 0;
+
+	// (hxmc dev) every object this back end made deleted: a build swapped out
+	// leaves a context the next one takes over (the browser's canvas, a dev host's window)
+	function deleteAll() {
+		GL.glBindVertexArray(0);
+		GL.glUseProgram(0);
+		GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+		for (i in 0...buffers.length)
+			destroyBuffer(i + 1);
+		for (i in 0...textures.length)
+			destroyTexture(i + 1);
+		for (s in samplers) {
+			scratch.value = s;
+			GL.glDeleteSamplers(1, scratch);
+		}
+		for (p in pipelines)
+			GL.glDeleteProgram(p.program);
+		for (s in shaders)
+			GL.glDeleteShader(s);
+		if (vao != 0) {
+			scratch.value = vao;
+			GL.glDeleteVertexArrays(1, scratch);
+		}
+		samplers.resize(0);
+		pipelines.resize(0);
+		shaders.resize(0);
+		vao = 0;
+	}
+	#end
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -101,6 +132,9 @@ class GLBackend {
 			WebGL.make_current(web);
 			GL.glGenVertexArrays(1, scratch);
 			GL.glBindVertexArray(scratch.value);
+			#if hxmc.dev
+			vao = scratch.value;
+			#end
 			start();
 			return;
 		}
@@ -147,6 +181,9 @@ class GLBackend {
 		if (missing != null) throw "hxmc.gfx: no GL function " + missing;
 		GL.glGenVertexArrays(1, scratch);
 		GL.glBindVertexArray(scratch.value);
+		#if hxmc.dev
+		vao = scratch.value;
+		#end
 		start();
 	}
 
@@ -553,6 +590,9 @@ class GLBackend {
 	}
 
 	public function dispose() {
+		#if hxmc.dev
+		deleteAll();
+		#end
 		if (fbo != 0) {
 			scratch.value = fbo;
 			GL.glDeleteFramebuffers(1, scratch);

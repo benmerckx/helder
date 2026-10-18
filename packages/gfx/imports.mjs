@@ -13,6 +13,15 @@
 // done with the program); a device or context lost otherwise goes to run's
 // option onError when given.
 //
+// Swapped out (hxmc dev, host.dispose(): packages/os/browser.mjs), the
+// instance's GPU objects are released (what the program left too, counted:
+// host.gfx.left), but the device and the canvases' contexts stay as they
+// are, configured, showing the last frame: run's option gpu ({adapter,
+// device}) gives the next instance the same device, and a canvas configured
+// alike is not configured again (which would clear it). A WebGL2 context
+// stays too (the same one for the next instance's getContext), its state
+// set back to WebGL's defaults.
+//
 // host.gfx.backend is the API a device was created on ('webgpu', 'webgl2';
 // null: none yet). Reading a frame back on WebGPU waits for the GPU, which a
 // browser does asynchronously only: host.gfx.readPixels() resolves to
@@ -63,18 +72,24 @@ struct V { @builtin(position) pos: vec4f, @location(0) uv: vec2f }
 }
 @fragment fn fs(v: V) -> @location(0) vec4f { return textureSampleLevel(src, smp, v.uv, 0.0); }`;
 
+// (a canvas's WebGPU configuration, kept across instances: hxmc dev)
+const configured = new WeakMap();
+
 export default async function (host) {
 	let adapter = null, device = null;
 	try {
-		adapter = host.options.gfx !== 'webgl2' && navigator.gpu && (await navigator.gpu.requestAdapter());
-		device = adapter ? await adapter.requestDevice() : null;
+		if (host.options.gpu) ({ adapter, device } = host.options.gpu);
+		else {
+			adapter = host.options.gfx !== 'webgl2' && navigator.gpu && (await navigator.gpu.requestAdapter());
+			device = adapter ? await adapter.requestDevice() : null;
+		}
 	} catch (e) {
 		console.error('hxmc.gfx: no WebGPU device:', e);
 	}
 	if (device) device.addEventListener('uncapturederror', (e) => console.error('hxmc.gfx: WebGPU:', e.error.message));
 	// (a device or context lost, but by release: run's option onError)
 	let released = false;
-	const lost = (what) => !released && host.options.onError && host.options.onError(new Error(what));
+	const lost = (what) => !released && !host.disposed && host.options.onError && host.options.onError(new Error(what));
 	if (device) device.lost.then((info) => lost('the WebGPU device was lost' + (info.message ? ': ' + info.message : '')));
 	const contexts = [];
 	const { handles } = host;
@@ -206,8 +221,12 @@ export default async function (host) {
 			host.gfx.backend = 'webgpu';
 			const context = handles.get(canvas).getContext('webgpu');
 			const format = navigator.gpu.getPreferredCanvasFormat();
-			// (COPY_SRC: readPixels)
-			context.configure({ device, format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC, alphaMode: 'opaque' });
+			// (COPY_SRC: readPixels; configured alike by an earlier instance: as it is, its last frame shown)
+			const c = configured.get(context);
+			if (!c || c.device !== device || c.format !== format) {
+				context.configure({ device, format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC, alphaMode: 'opaque' });
+				configured.set(context, { device, format });
+			}
 			return handles.add({ context, format, samples: host.options.antialias ? 4 : 1 });
 		},
 		target_texture(width, height) {
@@ -400,12 +419,83 @@ export default async function (host) {
 			const o = handles.get(h);
 			o?.destroy?.();
 			o?.texture?.destroy();
-			o?.depth?.destroy();
-			o?.msaa?.destroy();
-			o?.context?.unconfigure();
+			// (a target's depth and multisampled textures; a texture's depth is whether it is one)
+			o?.depth?.destroy?.();
+			o?.msaa?.destroy?.();
+			// (swapped out: the canvas stays configured, its last frame shown)
+			if (o?.context && !host.swapping) {
+				o.context.unconfigure();
+				configured.delete(o.context);
+			}
 			handles.remove(h);
 		},
 	};
+
+	// (hxmc dev: swapped out; what the program did not release, released and counted)
+	host.onDispose?.(() => {
+		let left = 0;
+		const glObject = typeof WebGLObject === 'function' ? WebGLObject : null;
+		for (const g of contexts) resetGL(g);
+		for (let h = 1; h < handles.size(); h++) {
+			const o = handles.get(h);
+			if (!o) continue;
+			if (typeof GPUBuffer === 'function' && (o instanceof GPUBuffer || o instanceof GPUTexture)) {
+				o.destroy();
+				left++;
+			} else if (o.texture instanceof Object && typeof o.texture.destroy === 'function') {
+				o.texture.destroy();
+				o.depth?.destroy?.();
+				o.msaa?.destroy?.();
+				left++;
+			} else if (o.context && typeof GPUCanvasContext === 'function' && o.context instanceof GPUCanvasContext) {
+				o.depth?.destroy?.();
+				o.msaa?.destroy?.();
+				left++;
+			} else if (glObject && o instanceof glObject && gl) {
+				const d = o instanceof WebGLBuffer ? 'deleteBuffer' : o instanceof WebGLTexture ? 'deleteTexture' : o instanceof WebGLProgram ? 'deleteProgram'
+					: o instanceof WebGLShader ? 'deleteShader' : o instanceof WebGLFramebuffer ? 'deleteFramebuffer' : o instanceof WebGLVertexArrayObject ? 'deleteVertexArray'
+					: o instanceof WebGLSampler ? 'deleteSampler' : o instanceof WebGLRenderbuffer ? 'deleteRenderbuffer' : null;
+				if (d) {
+					gl[d](o);
+					left++;
+				}
+			}
+		}
+		ring?.buffer.destroy();
+		host.gfx.left = left;
+		if (left > 0) console.warn(`hxmc.gfx: ${left} GPU objects left by the build swapped out, released`);
+	});
+
+	// a context's state as WebGL's defaults: what the next instance finds
+	function resetGL(g) {
+		if (g.isContextLost()) return;
+		g.bindFramebuffer(g.FRAMEBUFFER, null);
+		g.bindBuffer(g.ARRAY_BUFFER, null);
+		g.bindBuffer(g.ELEMENT_ARRAY_BUFFER, null);
+		g.bindBuffer(g.UNIFORM_BUFFER, null);
+		g.bindVertexArray(null);
+		g.useProgram(null);
+		const units = g.getParameter(g.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
+		for (let i = 0; i < Math.min(units, 32); i++) {
+			g.activeTexture(g.TEXTURE0 + i);
+			g.bindTexture(g.TEXTURE_2D, null);
+			g.bindSampler(i, null);
+		}
+		g.activeTexture(g.TEXTURE0);
+		for (const cap of [g.BLEND, g.CULL_FACE, g.DEPTH_TEST, g.SCISSOR_TEST, g.STENCIL_TEST, g.POLYGON_OFFSET_FILL]) g.disable(cap);
+		g.blendFunc(g.ONE, g.ZERO);
+		g.blendEquation(g.FUNC_ADD);
+		g.depthFunc(g.LESS);
+		g.depthMask(true);
+		g.colorMask(true, true, true, true);
+		g.clearColor(0, 0, 0, 0);
+		g.clearDepth(1);
+		g.cullFace(g.BACK);
+		g.frontFace(g.CCW);
+		g.pixelStorei(g.UNPACK_ALIGNMENT, 4);
+		g.pixelStorei(g.PACK_ALIGNMENT, 4);
+		g.viewport(0, 0, g.drawingBufferWidth, g.drawingBufferHeight);
+	}
 
 	// WebGL2: the current context ({gl, canvas, offscreen, captures}: the
 	// readPixels waiting for its next frame)
@@ -481,7 +571,9 @@ export default async function (host) {
 		},
 		release(h) {
 			const c = get(h);
-			c.gl.getExtension('WEBGL_lose_context')?.loseContext();
+			// (swapped out: a canvas's context stays, its last frame shown, for the next instance)
+			if (!(host.swapping && !c.offscreen)) c.gl.getExtension('WEBGL_lose_context')?.loseContext();
+			else contexts.splice(contexts.indexOf(c.gl), 1), resetGL(c.gl);
 			if (current === c) current = gl = null;
 			handles.remove(h);
 		},
@@ -576,6 +668,8 @@ export default async function (host) {
 		glFramebufferTexture2D: (target, attachment, textarget, t, level) => gl.framebufferTexture2D(target, attachment, textarget, get(t), level),
 		glCheckFramebufferStatus: (target) => gl.checkFramebufferStatus(target),
 		glGenSamplers: (n, p) => gen(n, p, () => gl.createSampler()),
+		glDeleteSamplers: (n, p) => del(n, p, (s) => gl.deleteSampler(s)),
+		glDeleteVertexArrays: (n, p) => del(n, p, (a) => gl.deleteVertexArray(a)),
 		glSamplerParameteri: (s, pname, param) => gl.samplerParameteri(get(s), pname, param),
 		glBindSampler: (unit, s) => gl.bindSampler(unit, get(s)),
 		glPixelStorei: (pname, param) => gl.pixelStorei(pname, param),
