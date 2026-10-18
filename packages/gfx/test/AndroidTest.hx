@@ -1,6 +1,7 @@
 import haxe.io.Bytes;
 import hxmc.gfx.*;
 import hxmc.os.*;
+import Cube.Spin;
 
 // The cube on Android (CI's android job: an x86-64 emulator; check.sh's
 // android step reads the results from logcat, where hxmc.os sends what the
@@ -12,7 +13,9 @@ import hxmc.os.*;
 //   and compared with cube.png (built into the app) by GfxTest's rule;
 // - in the activity's window: frames drawn (the cube turning), the window's
 //   pixels read back after a few (lit: the cube is there), a line per 60
-//   frames; touches and keys logged as their events. The app keeps running
+//   frames; touches and keys logged as their events, the cube turned as
+//   Cube.hx turns it (Spin: held while a finger drags it, on again once
+//   let go), its state logged every 20 frames. The app keeps running
 //   (the screenshot comes from adb) until Back (Escape) closes the window.
 class AndroidTest {
 	static inline var WIDTH = 256;
@@ -33,12 +36,16 @@ class AndroidTest {
 		Sys.println('AndroidTest: window ${w.width}x${w.height}, scale ${w.scale}');
 		var device = Device.create(w.surface);
 		var cube = new Cube(device);
-		var start = Sys.time(), frames = 0;
+		var spin = new Spin(Spin.SPEED), last = Sys.time(), frames = 0;
 		App.run(() -> {
+			var now = Sys.time();
+			spin.advance(Math.min(now - last, 0.1));
+			last = now;
 			var enc = device.beginFrame();
 			if (enc == null) return;
-			cube.draw(enc, Scene.ANGLE + (Sys.time() - start) * 0.5);
+			cube.draw(enc, Scene.ANGLE + spin.angle);
 			frames++;
+			if (frames % 20 == 0) Sys.println('AndroidTest: spin ' + (spin.held ? "held" : "free") + ' angle ${Math.round(spin.angle * 1000)}');
 			if (frames == 30) {
 				var px = Bytes.alloc(device.width * device.height * 4);
 				device.readPixels(px);
@@ -62,6 +69,10 @@ class AndroidTest {
 				case _: null;
 			}
 			if (name != null) Sys.println('AndroidTest: event $name ${e.x},${e.y} key ${e.key} "${e.text}"');
+			// (a drag's scrolls: at where it started, Mods.TOUCH while the finger is down)
+			if (e.kind == Scroll)
+				Sys.println('AndroidTest: event Scroll ${e.x},${e.y} by ${e.deltaX},${e.deltaY} mods ${e.mods}');
+			spin.input(e, w);
 			// (Back is Escape: closed as the examples do; Android 12+ keeps a launcher's activity on Back)
 			if (e.kind == Close || (e.kind == KeyDown && e.key == 0xFF1B)) w.close();
 		});

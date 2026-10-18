@@ -62,6 +62,8 @@ class IosTest {
 				case _: null;
 			}
 			if (name != null) Sys.println('IosTest: event $name ${e.x},${e.y} button ${e.button}');
+			// (a drag's scrolls: at where it started, Mods.TOUCH while the finger is down)
+			if (e.kind == Scroll) Sys.println('IosTest: event Scroll ${e.x},${e.y} by ${e.deltaX},${e.deltaY} mods ${e.mods}');
 			if (e.kind == Resize) Sys.println('IosTest: safe area ${w.safeTop},${w.safeLeft},${w.safeBottom},${w.safeRight}');
 		});
 		Sys.println("IosTest: done");

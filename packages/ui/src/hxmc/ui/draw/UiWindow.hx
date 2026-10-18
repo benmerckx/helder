@@ -160,8 +160,11 @@ class UiWindow {
 			if (winAccess == null) winAccess = new WinAccess(window, ui);
 			(cast winAccess : WinAccess).update();
 		} else if (Mem.os() == 0) {
-			if (linuxAccess == null) linuxAccess = new LinuxAccess(window, ui);
-			(cast linuxAccess : LinuxAccess).update();
+			// (not Android's: AT-SPI is the Linux desktop's)
+			if (Mem.target() < 9) {
+				if (linuxAccess == null) linuxAccess = new LinuxAccess(window, ui);
+				(cast linuxAccess : LinuxAccess).update();
+			}
 		}
 	}
 
@@ -170,7 +173,9 @@ class UiWindow {
 		if (Mem.os() == 3) {
 			if (access != null) WebMirror.poll(ui);
 		} else if (Mem.os() == 0) {
-			if (linuxAccess != null) LinuxAccess.dispatch();
+			if (Mem.target() < 9) {
+				if (linuxAccess != null) LinuxAccess.dispatch();
+			}
 		}
 	}
 
@@ -222,7 +227,9 @@ class UiWindow {
 			if (winAccess != null) (cast winAccess : WinAccess).dispose();
 		}
 		if (Mem.os() == 0) {
-			if (linuxAccess != null) (cast linuxAccess : LinuxAccess).dispose();
+			if (Mem.target() < 9) {
+				if (linuxAccess != null) (cast linuxAccess : LinuxAccess).dispose();
+			}
 		}
 		window.close();
 		open.remove(this);
