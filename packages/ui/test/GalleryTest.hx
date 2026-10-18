@@ -152,7 +152,8 @@ class GalleryTest {
 			ui.setFocus(find("sizes-body"));
 			key(Key.HOME);
 			check("the table sorted by size, the other way", app.row.value != null && app.row.value.name == "Ui.hx", app.row.value == null ? "none" : app.row.value.name);
-			check("the split's panes", find("panes-first").width == 200 && find("panes-divider").absX == find("panes").absX + 200);
+			check("the split's panes (the divider a pixel, its grip over them)", find("panes-first").width == 200 && find("panes-divider").absX == find("panes").absX + 200 - 2
+				&& find("panes-second").absX == find("panes").absX + 201);
 			click("name");
 			for (c in new haxe.iterators.StringIteratorUnicode("Ada")) {
 				ui.keyDown(c, 0);
