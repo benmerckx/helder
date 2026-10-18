@@ -2026,7 +2026,13 @@ class MarkupTest implements Markup {
 		check("unstyled: a calendar's slots, its days' data-selected, data-today, data-outside", ui.root.find("cal").slot == "calendar"
 			&& ui.root.find("cal-previous").slot == "calendar-button-previous" && ui.root.find("cal-previous").variant == "ghost" && ui.root.find("cal-month").slot == "calendar-caption-label"
 			&& days.length == 42 && days[0].slot == "calendar-day" && chosen.length == 1 && (cast chosen[0].children[0] : TextNode).text == "17"
-			&& today.length == 1 && outside.length > 0 && chosen[0].attr("data-focused") == "true" && chosen[0].style.background != Color.TRANSPARENT);
+			&& today.length == 1 && outside.length > 0 && chosen[0].attr("data-focused") == null && chosen[0].style.background != Color.TRANSPARENT);
+		// (the cursor's day marked focused while the grid has the focus, as react-day-picker's)
+		ui.setFocus(ui.root.find("cal-grid"));
+		ui.update();
+		check("unstyled: a calendar's cursor day data-focused while its grid has the focus", chosen[0].attr("data-focused") == "true");
+		ui.setFocus(null);
+		ui.update();
 		var date = ui.root.find("date");
 		check("unstyled: a date picker an outline button, empty", date.slot == "button" && date.variant == "outline" && date.attr("data-empty") == "true");
 		date.ui.setFocus(date);

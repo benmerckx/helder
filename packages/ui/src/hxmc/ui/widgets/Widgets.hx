@@ -1085,6 +1085,8 @@ class Widgets implements Markup {
 		var value = props.value ?? signal(null), range = props.range;
 		var start = value.peek() ?? (range == null ? null : range.peek().from) ?? today;
 		var cursor = signal(Days.of(start));
+		// (the cursor's day marked focused while the grid has the focus, as react-day-picker's)
+		var focused = signal(false);
 		var shown = memo(() -> {
 			var d = Days.day(cursor.value);
 			return {year: d.year, month: d.month};
@@ -1139,10 +1141,11 @@ class Widgets implements Markup {
 				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable onClick={_ -> month(1)}
 					onKeyDown={e -> pressKeys(e, () -> month(1))}>{icon(CHEVRON_RIGHT, "calendar-button-icon")}</view>
 			</view>
-			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}>
+			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}
+				onFocus={_ -> focused.value = true} onBlur={_ -> focused.value = false}>
 				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
 					for (n in names)
-						<view slot="calendar-weekday" role="columnheader">{n}</view>
+						<view slot="calendar-weekday" role="columnheader" text-align="center">{n}</view>
 				]}</view>
 				{[
 					for (w in 0...6)
@@ -1155,7 +1158,7 @@ class Widgets implements Markup {
 									d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
 								}} slot="calendar-day" selected={() -> chosen(at())} data-selected={() -> chosen(at()) ? "true" : null}
 									data-today={() -> Days.of(today) == at() ? "true" : null} data-outside={() -> inMonth() ? null : "true"}
-									data-focused={() -> cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
+									data-focused={() -> focused.value && cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
 									data-range-end={() -> edge(at(), false)} data-range-middle={() -> middle(at())} onClick={_ -> choose(at())}>
 									{() -> "" + Days.day(at()).day}
 								</view>;
