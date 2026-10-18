@@ -27,6 +27,7 @@ import hxmc.scene.render.*;
 //            environment map (Environment) drawn behind them
 //   morph    the morph sample's targets played by its animation at 1.5 s
 //            (half the bump, half the wave), two instances, one bent apart
+//   chains   physics' Chains example after 1.2 s: the ball through the chains
 //   walker   physics' Walker example: the character walked through the crates, jumping
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
@@ -36,7 +37,7 @@ import hxmc.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -92,6 +93,11 @@ class Scenes {
 				for (_ in 0...STEPS)
 					falling.physics.step(1 / 60);
 				enc -> falling.draw(enc);
+			case "chains":
+				var chains = new Chains(device);
+				for (_ in 0...72)
+					chains.physics.step(1 / 60);
+				enc -> chains.draw(enc);
 			case "walker":
 				var walker = new Walker(device);
 				for (k in 0...STEPS)
