@@ -139,7 +139,7 @@ class DomBackend implements NativeBackend {
 		Arena.scoped(a -> {
 			var p = a.alloc(n + 1, 1);
 			WebNative.native_string_take(h, p);
-			LibC.memcpy(Mem.addr(b).add(8), p, (n : Int64));
+			BytesPtr.copyIn(b, 0, p, n);
 		});
 		return b.toString();
 	}
