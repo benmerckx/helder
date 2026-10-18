@@ -100,18 +100,15 @@ class Widgets implements Markup {
 		sizes: ["default", "sm", "lg"],
 		keys: {"Enter, Space": "presses or releases it"}
 	})
-	public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
+	@:neutral public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
 			?style:States->StyleProps, ?tag:String}):View {
 		var disabled = () -> read(props.disabled) == true;
 		var flip = () -> if (!disabled()) props.pressed.value = !props.pressed.peek();
-		return <view tag={props.tag ?? "toggle"} slot="toggle" ref={n -> States.apply(n, props.style)} variant={props.variant ?? "default"} size={props.size ?? "default"} role="button"
-			checked={() -> props.pressed.value} data-state={() -> props.pressed.value ? "on" : "off"} focusable={() -> !disabled()} disabled={disabled}
-			data-disabled={disabled} onClick={_ -> flip()} onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) {
-				e.preventDefault();
-				flip();
-			}}>
+		return <view:button tag={props.tag ?? "toggle"} id={props.tag} slot="toggle" states={props.style} variant={props.variant ?? "default"}
+			size={props.size ?? "default"} role="button" pressed={() -> props.pressed.value} data-state={() -> props.pressed.value ? "on" : "off"}
+			focusable={() -> !disabled()} disabled={disabled} data-disabled={disabled} onPress={_ -> flip()}>
 			{props.label}{props.children}
-		</view>;
+		</view:button>;
 	}
 
 	// a checkbox (shadcn's) bound to a signal, with its label; while mixed
@@ -3320,19 +3317,20 @@ class Widgets implements Markup {
 		},
 		variants: ["vertical", "horizontal", "responsive"]
 	})
-	public static function Field(props:{?orientation:String, ?invalid:Dynamic, ?label:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field"} slot="field" role="group" label={props.label} data-orientation={props.orientation ?? "vertical"}
+	@:neutral public static function Field(props:{?orientation:String, ?invalid:Dynamic, ?label:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field"} id={props.tag} slot="field" role="group" label={props.label} data-orientation={props.orientation ?? "vertical"}
 			variant={props.orientation ?? "vertical"} data-invalid={() -> read(props.invalid) == true ? "true" : null}>{props.children}</view>;
 
 	@:widget({
 		props: {
 			text: "its text, when it has no children",
-			children: "its content, in place of text: a control and its text, for a checkbox's or a switch's label"
+			children: "its content, in place of text: a control and its text, for a checkbox's or a switch's label",
+			htmlFor: "the id of the control it names, in a page (a <label>'s for)"
 		},
 		part: "Field"
 	})
-	public static function FieldLabel(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-label"} slot="field-label">{props.children ?? props.text}</view>;
+	@:neutral public static function FieldLabel(props:{?text:String, ?children:Any, ?htmlFor:String, ?tag:String}):View
+		return <view:label tag={props.tag ?? "field-label"} id={props.tag} slot="field-label" html-for={props.htmlFor}>{props.children ?? props.text}</view:label>;
 
 	@:widget({
 		props: {
@@ -3340,8 +3338,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldContent(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-content"} slot="field-content">{props.children}</view>;
+	@:neutral public static function FieldContent(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-content"} id={props.tag} slot="field-content">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3350,8 +3348,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <text tag={props.tag ?? "field-description"} slot="field-description">{props.children ?? props.text}</text>;
+	@:neutral public static function FieldDescription(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <text:p tag={props.tag ?? "field-description"} id={props.tag} slot="field-description">{props.children ?? props.text}</text:p>;
 
 	@:widget({
 		props: {
@@ -3360,11 +3358,11 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldError(props:{text:Dynamic, ?tag:String}):View
+	@:neutral public static function FieldError(props:{text:Dynamic, ?tag:String}):View
 		return <Show when={() -> {
 			var t:Null<String> = read(props.text);
 			t != null && t != "";
-		}}><text tag={props.tag ?? "field-error"} slot="field-error" live="assertive">{() -> (read(props.text) : String)}</text></Show>;
+		}}><text:div tag={props.tag ?? "field-error"} id={props.tag} slot="field-error" live="assertive">{() -> (read(props.text) : String)}</text:div></Show>;
 
 	@:widget({
 		props: {
@@ -3373,8 +3371,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldSet(props:{?label:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-set"} slot="field-set" role="group" label={props.label}>{props.children}</view>;
+	@:neutral public static function FieldSet(props:{?label:String, ?children:Any, ?tag:String}):View
+		return <view:fieldset tag={props.tag ?? "field-set"} id={props.tag} slot="field-set" role="group" label={props.label}>{props.children}</view:fieldset>;
 
 	@:widget({
 		props: {
@@ -3384,9 +3382,8 @@ class Widgets implements Markup {
 		variants: ["legend", "label"],
 		part: "Field"
 	})
-	public static function FieldLegend(props:{text:String, ?variant:String, ?tag:String}):View
-		return <text tag={props.tag ?? "field-legend"} slot="field-legend" role="heading" variant={props.variant ?? "legend"}
-			data-variant={props.variant ?? "legend"}>{props.text}</text>;
+	@:neutral public static function FieldLegend(props:{text:String, ?variant:String, ?tag:String}):View
+		return <text:legend tag={props.tag ?? "field-legend"} id={props.tag} slot="field-legend" role="heading" variant={props.variant ?? "legend"}>{props.text}</text:legend>;
 
 	@:widget({
 		props: {
@@ -3394,8 +3391,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldGroup(props:{?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "field-group"} slot="field-group" group="field-group">{props.children}</view>;
+	@:neutral public static function FieldGroup(props:{?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "field-group"} id={props.tag} slot="field-group" group="field-group">{props.children}</view>;
 
 	@:widget({
 		props: {
@@ -3403,8 +3400,8 @@ class Widgets implements Markup {
 		},
 		part: "Field"
 	})
-	public static function FieldSeparator(props:{?text:String, ?tag:String}):View
-		return <view tag={props.tag ?? "field-separator"} slot="field-separator" data-content={props.text != null ? "true" : null}>
+	@:neutral public static function FieldSeparator(props:{?text:String, ?tag:String}):View
+		return <view tag={props.tag ?? "field-separator"} id={props.tag} slot="field-separator" data-content={props.text != null ? "true" : null}>
 			<view slot="separator" role="separator" data-orientation="horizontal" position="absolute" left={0} right={0} top="50%"/>
 			{props.text == null ? null : <text slot="field-separator-content">{props.text}</text>}
 		</view>;
@@ -3421,9 +3418,9 @@ class Widgets implements Markup {
 		},
 		variants: ["horizontal", "vertical"]
 	})
-	public static function ButtonGroup(props:{?orientation:String, ?label:String, ?children:Any, ?tag:String}):View {
+	@:neutral public static function ButtonGroup(props:{?orientation:String, ?label:String, ?children:Any, ?tag:String}):View {
 		var o = props.orientation ?? "horizontal";
-		return <view tag={props.tag ?? "button-group"} slot="button-group" role="group" label={props.label} variant={o} data-orientation={o}
+		return <view tag={props.tag ?? "button-group"} id={props.tag} slot="button-group" role="group" label={props.label} variant={o} data-orientation={o}
 			direction={o == "vertical" ? "column" : "row"}>{props.children}</view>;
 	}
 
@@ -3434,8 +3431,8 @@ class Widgets implements Markup {
 		},
 		part: "ButtonGroup"
 	})
-	public static function ButtonGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <view tag={props.tag ?? "button-group-text"} slot="button-group-text">{props.children ?? props.text}</view>;
+	@:neutral public static function ButtonGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
+		return <view tag={props.tag ?? "button-group-text"} id={props.tag} slot="button-group-text">{props.children ?? props.text}</view>;
 
 	@:widget({
 		props: {
@@ -3443,8 +3440,8 @@ class Widgets implements Markup {
 		},
 		part: "ButtonGroup"
 	})
-	public static function ButtonGroupSeparator(props:{?orientation:String, ?tag:String}):View
-		return <view tag={props.tag ?? "button-group-separator"} slot="button-group-separator" data-orientation={props.orientation ?? "vertical"} hidden/>;
+	@:neutral public static function ButtonGroupSeparator(props:{?orientation:String, ?tag:String}):View
+		return <view tag={props.tag ?? "button-group-separator"} id={props.tag} slot="button-group-separator" data-orientation={props.orientation ?? "vertical"} hidden/>;
 
 	// an input group (shadcn's): an InputGroupInput (or a text area) with
 	// addons beside, above or under it (icons, text, buttons) in one box; a

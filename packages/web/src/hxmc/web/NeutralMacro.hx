@@ -44,7 +44,7 @@ class NeutralMacro {
 	public static final ARIA = [
 		"label" => "aria-label", "description" => "aria-description", "checked" => "aria-checked", "selected" => "aria-selected",
 		"expanded" => "aria-expanded", "pressed" => "aria-pressed", "hidden" => "aria-hidden", "level" => "aria-level",
-		"value-now" => "aria-valuenow", "value-min" => "aria-valuemin", "value-max" => "aria-valuemax", "value-text" => "aria-valuetext"
+		"value-now" => "aria-valuenow", "value-min" => "aria-valuemin", "value-max" => "aria-valuemax", "value-text" => "aria-valuetext", "live" => "aria-live"
 	];
 	static final PLAIN = ["role", "id", "href", "title"];
 	// (StyleProps: the CSS property, and whether a number is in px)
@@ -111,9 +111,11 @@ class NeutralMacro {
 	}
 
 	static function setterFor(tag:String, name:String, pos:Position):Null<Expr> {
-		if (name == "tag") return null;
-		// (a button's or a link's own: its role, and focusable as it is)
+		// (ui's own: Node.find's tag, a group's and a peer's markers, the CSS's slots)
+		if (name == "tag" || name == "group" || name == "peer") return null;
+		// (a button's or a link's own: its role, and focusable as it is; a legend's role)
 		if ((tag == "view:button" || tag == "view:a") && (name == "role" || name == "focusable")) return null;
+		if (StringTools.endsWith(tag, ":legend") && name == "role") return null;
 		// (each kind one function, (el, name, v), naming the DOM's attribute or property itself: Neutral)
 		if (DATA.exists(name) || ARIA.exists(name)) return macro @:pos(pos) hxmc.web.Neutral.mapped;
 		if (PLAIN.indexOf(name) >= 0 || StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-"))

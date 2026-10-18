@@ -49,14 +49,6 @@ class Widgets implements Markup {
 	static function on(v:Dynamic):Bool
 		return read(v) == true;
 
-	// a toggle (shadcn's): a button pressed or not, bound to a signal
-	public static function Toggle(props:{pressed:Signal<Bool>, ?label:String, ?variant:String, ?size:String, ?disabled:Dynamic, ?children:View,
-			?tag:String}):View
-		return <button type="button" id={props.tag} data-slot="toggle" data-variant={props.variant ?? "default"} data-size={props.size ?? "default"}
-			aria-pressed={() -> props.pressed.value ? "true" : "false"} data-state={() -> props.pressed.value ? "on" : "off"}
-			disabled={() -> on(props.disabled)} data-disabled={() -> on(props.disabled) ? "" : null}
-			onClick={() -> props.pressed.value = !props.pressed.peek()}>{props.label}{props.children}</button>;
-
 	// a checkbox (shadcn's, Radix's) bound to a signal, with its label;
 	// mixed: neither checked nor not (indeterminate), checked when clicked
 	public static function Checkbox(props:{checked:Signal<Bool>, ?mixed:Signal<Bool>, ?label:String, ?disabled:Dynamic, ?invalid:Dynamic,
@@ -1826,62 +1818,6 @@ class Widgets implements Markup {
 			onInput={(e:Dynamic) -> props.value.value = e.target.value}/>;
 
 	// --- the third batch: Field, ButtonGroup, InputGroup, Empty, Item, AspectRatio, ScrollArea, NativeSelect, Carousel, NavigationMenu, Sidebar, charts ---
-
-	// a field (shadcn's): a label, a control and its description or error, a
-	// group; orientation "vertical" (the default), "horizontal" or
-	// "responsive" (data-orientation, and data-variant for the theme's cva);
-	// invalid: data-invalid
-	public static function Field(props:{?orientation:String, ?invalid:Dynamic, ?label:String, ?children:Any, ?tag:String}):View {
-		var o = props.orientation ?? "vertical";
-		return <div id={props.tag} role="group" data-slot="field" data-orientation={o} data-variant={o} aria-label={props.label}
-			data-invalid={() -> on(props.invalid) ? "true" : null}>{props.children}</div>;
-	}
-
-	public static function FieldLabel(props:{?text:String, ?children:Any, ?htmlFor:String, ?tag:String}):View
-		return <label id={props.tag} data-slot="field-label" htmlFor={props.htmlFor}>{props.children ?? props.text}</label>;
-
-	public static function FieldContent(props:{?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="field-content">{props.children}</div>;
-
-	public static function FieldDescription(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <p id={props.tag} data-slot="field-description">{props.children ?? props.text}</p>;
-
-	// (shown while its text is neither null nor empty; announced at once)
-	public static function FieldError(props:{text:Dynamic, ?tag:String}):View
-		return <Show when={() -> {
-			var t:Null<String> = read(props.text);
-			t != null && t != "";
-		}}><div id={props.tag} role="alert" data-slot="field-error">{() -> (read(props.text) : String)}</div></Show>;
-
-	public static function FieldSet(props:{?label:String, ?children:Any, ?tag:String}):View
-		return <fieldset id={props.tag} data-slot="field-set" aria-label={props.label}>{props.children}</fieldset>;
-
-	// variant "legend" (the default) or "label"
-	public static function FieldLegend(props:{text:String, ?variant:String, ?tag:String}):View
-		return <legend id={props.tag} data-slot="field-legend" data-variant={props.variant ?? "legend"}>{props.text}</legend>;
-
-	public static function FieldGroup(props:{?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="field-group">{props.children}</div>;
-
-	// a line between fields, a word in it (text) when given
-	public static function FieldSeparator(props:{?text:String, ?tag:String}):View
-		return <div id={props.tag} data-slot="field-separator" data-content={props.text != null ? "true" : "false"}>
-			<div data-slot="separator" data-orientation="horizontal" role="none" style="position:absolute;inset:0;top:50%"/>
-			{props.text == null ? null : <span data-slot="field-separator-content">{props.text}</span>}
-		</div>;
-
-	// a button group (shadcn's): buttons (and inputs, selects, text) joined
-	// in one shape, a group; orientation "horizontal" (the default) or "vertical"
-	public static function ButtonGroup(props:{?orientation:String, ?label:String, ?children:Any, ?tag:String}):View {
-		var o = props.orientation ?? "horizontal";
-		return <div id={props.tag} role="group" data-slot="button-group" data-orientation={o} data-variant={o} aria-label={props.label}>{props.children}</div>;
-	}
-
-	public static function ButtonGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
-		return <div id={props.tag} data-slot="button-group-text">{props.children ?? props.text}</div>;
-
-	public static function ButtonGroupSeparator(props:{?orientation:String, ?tag:String}):View
-		return <div id={props.tag} data-slot="button-group-separator" data-orientation={props.orientation ?? "vertical"} role="none"/>;
 
 	// an input group (shadcn's): an InputGroupInput with addons in one box;
 	// a click on an addon (not on its button) focuses the input

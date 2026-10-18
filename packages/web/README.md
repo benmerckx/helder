@@ -158,7 +158,8 @@ are its renderer's only (`@:renderer`, packages/view/README.md), and in
 the DOM's renderer's markup each is the DOM's of the same name, so one
 component serves a canvas and a page (`examples/WidgetCounter.hx`; ui's
 sources on the class path, `-cp`, not `-lib hxmc.ui`). A ui widget of one
-definition for both (`@:neutral`: Badge so far) is no DOM copy at all:
+definition for both (`@:neutral`: the static widgets, Field, ButtonGroup
+and Toggle so far) is no DOM copy at all:
 DomRenderer realises its neutral elements at compile time (NeutralMacro:
 `view` a `div`, `text` a `span`, `view:button` a `button`...; `slot`,
 `variant`, `size` as `data-*`, `label`, `checked`, `expanded`... as

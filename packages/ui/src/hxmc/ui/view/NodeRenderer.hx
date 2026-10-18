@@ -227,6 +227,10 @@ class NodeRenderer #if !macro implements hxmc.view.Renders<Node> #end {
 		semantics(n).mixed = v == "mixed";
 	}
 
+	// (a toggle button's: checked, as ARIA's pressed)
+	@:attribute static function pressed(n:Node, name:String, v:Dynamic)
+		checked(n, name, v);
+
 	@:attribute static function selected(n:Node, name:String, v:Dynamic)
 		semantics(n).selected = v == null ? null : v == true || v == "true";
 
