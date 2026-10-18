@@ -226,8 +226,7 @@ class Scenes {
 			case "cascades":
 				// (HXMC_CASCADES=1: the same with one, to compare)
 				var one = Sys.getEnv("HXMC_CASCADES") == "1";
-				var shadows = new Shadows(device, 512, one ? 1 : 2);
-				shadows.split = 7;
+				var shadows = one ? new Shadows(device, 512) : Shadows.cascaded(device, 512, 7);
 				var r = new Renderer(device).use(shadows);
 				renderer = r;
 				var world = new World();

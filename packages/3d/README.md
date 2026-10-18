@@ -90,7 +90,7 @@ bin/hxmc/hxmc -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src \
 PackedModel.read(Asset.embed("level.hxm3d"), device).instantiate(world);
 ```
 
-A packed model needs no glTF reader or JSON at run time (69 KB less
+A packed model needs no glTF reader or JSON at run time (65 KB less
 natively, `make 3d-sizes`): meshes (vertices in the renderer's layout,
 joints and weights, tangents computed at build time for normal maps),
 materials (factors, maps, sampler), images (decoded by `Images.decode`
@@ -162,8 +162,8 @@ first directional `Light` and up to four point lights
 ambient, ACES tone mapping, sRGB output. Nodes drawing the same primitive are drawn in one instanced call
 (`renderer.instancing`, on by default). See-through materials (`material.blend`, glTF's alphaMode BLEND) are drawn after the opaque ones, farthest first. Shadows are opted in:
 `renderer.use(new Shadows(device))` (one shadow map for the directional
-light, fitted to the casters, filtered 3x3; `new Shadows(device, size, 2)`:
-two cascades, the first sharp over the camera's view up to `shadows.split`
+light, fitted to the casters, filtered 3x3; `Shadows.cascaded(device, size, split)`:
+two cascades, the first sharp over the camera's view up to `split`
 metres). `Shapes.box`, `sphere` and
 `plane` make meshes in code. Skinned meshes need
 `renderer.use(new Skinning(device))`; materials' normal maps need

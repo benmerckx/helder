@@ -14,7 +14,8 @@ import hxmc.scene.render.ShadowShader;
 // Shadows(device))): before the frame's pass, every shown mesh drawn from
 // the light into size x size R32F targets, which the standard material
 // then reads with a 3x3 percentage-closer filter. One cascade: an
-// orthographic view fitted to the casters' bounds. Two (cascades = 2):
+// orthographic view fitted to the casters' bounds. Two (Shadows.cascaded,
+// whose fitting code a program without it does not link):
 // the first fitted to the camera's view up to split metres (its bounding
 // sphere, moved by whole texels: steady as the camera moves), sharp near
 // the camera, the second the whole scene's, read beyond the first. A
@@ -23,7 +24,8 @@ import hxmc.scene.render.ShadowShader;
 class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 	public final device:Device;
 	public final size:Int;
-	public final cascades:Int;
+	// 1, or 2 (Shadows.cascaded)
+	public var cascades(default, null) = 1;
 	// how far from the camera the first of two cascades reaches (metres)
 	public var split = 10.0;
 	// the depth offset against shadow acne (in the whole scene's map's 0..1
@@ -33,32 +35,45 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 	public var strength = 0.85;
 	// the first cascade's map (one cascade: the only one), the second's
 	public final map:Texture;
-	public final mapFar:Texture;
+	public var mapFar(default, null):Texture;
 
 	final depth:Texture;
 	final pipeline:Pipeline;
 	final casterBytes = Bytes.alloc(ShadowShader.uniforms[0].size);
 	final pass:PassDesc;
-	final passFar:PassDesc;
+	var passFar:PassDesc;
 	// the last frame's light view-projections (the first cascade's, the second's)
 	public var viewProj(default, null):Mat4 = Mat4.identity();
 	public var viewProjFar(default, null):Mat4 = Mat4.identity();
 	// (the first of two cascades' bias in its depth)
 	var nearBias = 0.004;
+	// (two cascades: the first's fitting, set by cascaded)
+	var fit:Null<(Renderer.FrameInfo, Vec3, Vec3, Vec3, Float) -> Mat4>;
 
-	public function new(device:Device, size = 1024, cascades = 1) {
+	// one cascade
+	public function new(device:Device, size = 1024) {
 		this.device = device;
 		this.size = size;
-		this.cascades = cascades < 2 ? 1 : 2;
 		map = device.createTexture({width: size, height: size, format: R32F, renderTarget: true});
-		mapFar = this.cascades == 2 ? device.createTexture({width: size, height: size, format: R32F, renderTarget: true}) : map;
+		mapFar = map;
 		depth = device.createTexture({width: size, height: size, format: Depth32F});
 		var d = ShadowShader.pipeline({cull: None, depthCompare: Less, depthWrite: true});
 		d.colorFormat = R32F;
 		d.depthFormat = Depth32F;
 		pipeline = device.createPipeline(d);
 		pass = {colors: [{load: Clear, clear: new Color(1, 1, 1, 1), texture: map}], depth: {load: Clear, texture: depth}};
-		passFar = {colors: [{load: Clear, clear: new Color(1, 1, 1, 1), texture: mapFar}], depth: {load: Clear, texture: depth}};
+		passFar = pass;
+	}
+
+	// two cascades, the first reaching split metres from the camera
+	public static function cascaded(device:Device, size = 1024, split = 10.0):Shadows {
+		var s = new Shadows(device, size);
+		s.cascades = 2;
+		s.split = split;
+		s.mapFar = device.createTexture({width: size, height: size, format: R32F, renderTarget: true});
+		s.passFar = {colors: [{load: Clear, clear: new Color(1, 1, 1, 1), texture: s.mapFar}], depth: {load: Clear, texture: s.depth}};
+		s.fit = s.fitNear;
+		return s;
 	}
 
 	public function attach(renderer:Renderer)
@@ -90,14 +105,21 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		// (up: any direction not along the light's)
 		var up = Math.abs(toLight.y) > 0.99 ? new Vec3(0, 0, 1) : new Vec3(0, 1, 0);
 		var whole = Mat4.orthographic(-r, r, -r, r, r * 0.5, r * 3.5) * MathTools.lookAt(c + toLight * (2 * r), c, up);
-		if (cascades == 1 || view.camera == null) {
+		if (fit == null || view.camera == null) {
 			viewProj = viewProjFar = whole;
 			draw(enc, pass, meshes, world, skins, viewProj);
 			return;
 		}
 		viewProjFar = whole;
-		// the first cascade: the bounding sphere of the camera's view from its
-		// near plane to split, as deep towards the light as the scene
+		viewProj = fit(view, toLight, up, c, r);
+		draw(enc, pass, meshes, world, skins, viewProj);
+		draw(enc, passFar, meshes, world, skins, viewProjFar);
+	}
+
+	// the first cascade: the bounding sphere of the camera's view from its
+	// near plane to split, as deep towards the light as the scene (its
+	// sphere: centre c, radius r)
+	function fitNear(view:Renderer.FrameInfo, toLight:Vec3, up:Vec3, c:Vec3, r:Float):Mat4 {
 		var cam = view.camera, inv = MathTools.inverse(view.viewProj);
 		var f = Math.min(Math.max((split - cam.near) / (cam.far - cam.near), 0), 1);
 		var corners = [];
@@ -124,11 +146,9 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		var snapped = MathTools.transformPoint(MathTools.inverse(lightView), lc);
 		// (back towards the light past every caster: the scene's sphere)
 		var toCentre = c - snapped, back = Math.sqrt(toCentre.x * toCentre.x + toCentre.y * toCentre.y + toCentre.z * toCentre.z) + r;
-		viewProj = Mat4.orthographic(-radius, radius, -radius, radius, 0.01, back + radius + r) * MathTools.lookAt(snapped + toLight * back, snapped, up);
 		// (the bias: as many of this map's texels as the whole map's, in its depth)
 		nearBias = bias * (3 * r / (back + radius + r)) * (radius / r);
-		draw(enc, pass, meshes, world, skins, viewProj);
-		draw(enc, passFar, meshes, world, skins, viewProjFar);
+		return Mat4.orthographic(-radius, radius, -radius, radius, 0.01, back + radius + r) * MathTools.lookAt(snapped + toLight * back, snapped, up);
 	}
 
 	function draw(enc:Encoder, pass:PassDesc, meshes:Store<Mesh>, world:World, skins:Null<RenderFeature.SkinSource>, viewProj:Mat4) {
