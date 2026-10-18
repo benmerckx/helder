@@ -727,7 +727,7 @@ class UiTest {
 		var words = ["a", "bb", "ccc dd", "eeee f gg", "hhhhhhh", "ii jj kk ll mm", "n"];
 		var dims:Array<Dim> = [DimValue.Auto, 30, 70, "50%", "100%"];
 		function restyle(n:Node):String {
-			var s = n.style, k = rnd(18);
+			var s = n.style, k = rnd(20);
 			switch k {
 				case 0: s.width = dims[rnd(dims.length)];
 				case 1: s.height = dims[rnd(dims.length)];
@@ -746,6 +746,10 @@ class UiTest {
 				case 14: s.basis = ([DimValue.Auto, 0, 25] : Array<Dim>)[rnd(3)];
 				case 15: s.display = rnd(5) == 0 ? Display.None : Display.Flex;
 				case 16: s.fontSize = [8, 12, 20][rnd(3)];
+				case 17:
+					s.display = Display.Grid;
+					s.gridTemplateColumns = Grid.tracks(["1fr auto", "40px 1fr", "repeat(3, 1fr)", "auto auto"][rnd(4)]);
+				case 18: s.aspectRatio = [0, 1, 2][rnd(3)];
 				case _:
 					s.position = rnd(4) == 0 ? Position.Absolute : Position.Relative;
 					s.left = rnd(3) * 5;
