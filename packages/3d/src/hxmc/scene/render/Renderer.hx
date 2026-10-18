@@ -64,10 +64,7 @@ class Renderer {
 	var instancedPipeline:Pipeline;
 	var instancedDoubleSided:Pipeline;
 	final plainSlots:Array<Int>;
-	var skinnedPipeline:Pipeline;
-	var skinnedDoubleSided:Pipeline;
-	final skinnedSlots:Array<Int>;
-	final skinBytes = Bytes.alloc(16);
+	var skinSource:Null<RenderFeature.SkinSource>;
 	final instancedSlots:Array<Int>;
 	// whether runs of one primitive are drawn instanced (on by default)
 	public var instancing = true;
@@ -86,7 +83,7 @@ class Renderer {
 	final nearest:Sampler;
 	// (no shadows: a 1x1 map, never read)
 	final noShadow:Texture;
-	var shadows:Null<Shadows>;
+	var shadowSource:Null<RenderFeature.ShadowSource>;
 	final frameBytes = Bytes.alloc(PbrShader.uniforms[0].size);
 	final objectBytes = Bytes.alloc(PbrShader.uniforms[1].size);
 	final materialBytes = Bytes.alloc(PbrShader.uniforms[2].size);
@@ -107,9 +104,6 @@ class Renderer {
 			d.layout = INSTANCED_LAYOUT;
 			if (cull == Back) instancedPipeline = device.createPipeline(d) else instancedDoubleSided = device.createPipeline(d);
 		}
-		skinnedPipeline = device.createPipeline(PbrSkinnedShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
-		skinnedDoubleSided = device.createPipeline(PbrSkinnedShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
-		skinnedSlots = slotsOf(PbrSkinnedShader.uniforms, PbrSkinnedShader.textures);
 		plainSlots = slotsOf(PbrShader.uniforms, PbrShader.textures);
 		instancedSlots = slotsOf(PbrInstancedShader.uniforms, PbrInstancedShader.textures);
 		var w = Bytes.alloc(4);
@@ -123,9 +117,9 @@ class Renderer {
 		pass = {colors: [{load: Clear, clear: clearColor}], depth: {load: Clear}};
 	}
 
-	// turns on an optional feature (today: shadows); returns the renderer
-	public function use(shadows:Shadows):Renderer {
-		this.shadows = shadows;
+	// turns on an optional feature (Shadows, Skinning); returns the renderer
+	public function use(feature:RenderFeature):Renderer {
+		feature.attach(this);
 		return this;
 	}
 
@@ -136,8 +130,8 @@ class Renderer {
 		var viewProj = camera.viewProjection(aspect);
 		extract(world, viewProj);
 		var toLight = writeFrame(world, camera, viewProj, false);
-		if (shadows != null) {
-			shadows.render(enc, world, toLight);
+		if (shadowSource != null) {
+			shadowSource.render(enc, world, toLight);
 			writeFrame(world, camera, viewProj, true);
 		}
 		record(enc);
@@ -152,9 +146,10 @@ class Renderer {
 			var node = meshes.nodeAt(k), mesh = meshes.valueAt(k);
 			if (!node.shown() || !world.inTree(node)) continue;
 			var model = node.worldMatrix();
-			var skin = mesh.primitives.length > 0 && mesh.primitives[0].skinned ? Skin.of(node) : null;
-			// (a skinned mesh's bounds are its rest pose's: not culled)
-			if (skin != null) skin.update(node) else if (!visible(viewProj * model, mesh)) {
+			var skinned = mesh.primitives.length > 0 && mesh.primitives[0].skinned;
+			// (skinned: drawn only with Skinning, its bounds its rest pose's: not culled)
+			if (skinned && (skinSource == null || !skinSource.prepare(node))) continue;
+			if (!skinned && !visible(viewProj * model, mesh)) {
 				culled += mesh.primitives.length;
 				continue;
 			}
@@ -205,6 +200,13 @@ class Renderer {
 		// (lights in the world but no directional one: no sun)
 		if (!sun && lights.length > 0) c = new Vec3(0, 0, 0);
 		l = l / Math.sqrt(l.x * l.x + l.y * l.y + l.z * l.z);
+		var lightViewProj:Mat4 = Mat4.identity();
+		var shadow:Vec4 = new Vec4(0, 0, 0, 0);
+		if (shadowed) {
+			var f = shadowSource.shadowFrame();
+			lightViewProj = f.viewProj;
+			shadow = f.params;
+		}
 		PbrShader.writePbrFrame({
 			viewProj: viewProj,
 			eye: new Vec4(eye.x, eye.y, eye.z, 1),
@@ -213,8 +215,8 @@ class Renderer {
 			sky: new Vec4(sky.x, sky.y, sky.z, 0),
 			ground: new Vec4(ground.x, ground.y, ground.z, 0),
 			exposure: new Vec4(exposure, 0, 0, 0),
-			lightViewProj: shadowed ? shadows.viewProj : Mat4.identity(),
-			shadow: shadowed ? new Vec4(shadows.strength, shadows.bias, 1 / shadows.size, 0) : new Vec4(0, 0, 0, 0),
+			lightViewProj: lightViewProj,
+			shadow: shadow,
 			point0: pointLights[0],
 			point1: pointLights[1],
 			point2: pointLights[2],
@@ -238,11 +240,11 @@ class Renderer {
 			var start = batchStart[b], n = batchSize[b];
 			var d = list[start], p = d.primitive, m = p.material;
 			var many = n > 1;
-			var skin = p.skinned ? Skin.of(d.node) : null;
-			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? (m.doubleSided ? skinnedDoubleSided : skinnedPipeline) : (m.doubleSided ? doubleSided : pipeline);
+			var skin = p.skinned ? skinSource : null;
+			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
-				slots = many ? instancedSlots : skin != null ? skinnedSlots : plainSlots;
+				slots = many ? instancedSlots : skin != null ? skin.slots() : plainSlots;
 				enc.setUniforms(slots[0], frameBytes);
 				current = want;
 				material = null;
@@ -254,11 +256,7 @@ class Renderer {
 				enc.setUniforms(slots[1], objectBytes);
 				node = d.node;
 			}
-			if (skin != null) {
-				skinBytes.setFloat(0, skin.joints.length);
-				enc.setUniforms(slots[5], skinBytes);
-				enc.setTexture(slots[6], skin.texture, nearest);
-			}
+			if (skin != null) skin.bind(enc, slots, d.node);
 			if (m != material) {
 				PbrShader.writePbrMaterial({
 					baseColor: m.baseColor,
@@ -267,7 +265,7 @@ class Renderer {
 				}, materialBytes);
 				enc.setUniforms(slots[2], materialBytes);
 				enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, sampler);
-				enc.setTexture(slots[4], shadows != null ? shadows.map : noShadow, nearest);
+				enc.setTexture(slots[4], shadowSource != null ? shadowSource.shadowFrame().map : noShadow, nearest);
 				material = m;
 			}
 			enc.setVertexBuffer(0, p.vertices);
@@ -341,7 +339,7 @@ class Renderer {
 
 	// a shader's slots for its blocks and textures, in the renderer's order:
 	// frame, object (-1: none), material, base colour, shadow map
-	static function slotsOf(uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock>, textures:Array<hxmc.gfx.shader.Shaders.TextureBinding>):Array<Int> {
+	public static function slotsOf(uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock>, textures:Array<hxmc.gfx.shader.Shaders.TextureBinding>):Array<Int> {
 		function u(name:String):Int {
 			for (b in uniforms)
 				if (b.name == name) return b.binding;

@@ -17,7 +17,7 @@ import hxmc.scene.render.ShadowShader;
 // 3x3 percentage-closer filter. One map (cascades later); a program that
 // never makes a Shadows links none of this but the material's lookup of a
 // 1x1 map that shadows nothing.
-class Shadows {
+class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 	public final device:Device;
 	public final size:Int;
 	// the depth offset against shadow acne (in the map's 0..1 depth)
@@ -45,8 +45,20 @@ class Shadows {
 		pass = {colors: [{load: Clear, clear: new Color(1, 1, 1, 1), texture: map}], depth: {load: Clear, texture: depth}};
 	}
 
+	public function attach(renderer:Renderer)
+		@:privateAccess renderer.shadowSource = this;
+
+	final frame = new RenderFeature.ShadowFrame();
+
+	public function shadowFrame():RenderFeature.ShadowFrame {
+		frame.map = map;
+		frame.viewProj = viewProj;
+		frame.params = new Vec4(strength, bias, 1 / size, 0);
+		return frame;
+	}
+
 	// the map's pass: the world's shown meshes seen from a light shining along -toLight
-	@:allow(hxmc.scene.render.Renderer) function render(enc:Encoder, world:World, toLight:Vec3) {
+	public function render(enc:Encoder, world:World, toLight:Vec3) {
 		var meshes = world.store(MeshRenderer.KIND);
 		var bounds = Aabb.empty();
 		for (k in 0...meshes.length) {

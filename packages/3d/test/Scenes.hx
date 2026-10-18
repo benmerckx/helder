@@ -80,7 +80,7 @@ class Scenes {
 				enc -> r.draw(enc, world, camera);
 			case "skin":
 				// the skinned sample bent by its animation at 1 s (the elbow at 1.2 radians)
-				var r = new Renderer(device);
+				var r = new Renderer(device).use(new Skinning(device));
 				renderer = r;
 				var world = new World();
 				var model = Model.of("skinned.glb");

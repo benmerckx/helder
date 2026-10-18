@@ -13,6 +13,7 @@ import hxmc.os.*;
 //   5  + shadows (Shadows: a shadow map pass)
 //   6  + input actions (Actions)
 //   7  + keyframe animation (AnimationClip, Animator)
+//   8  + skinning (Skinning: the skinned shader)
 class Size {
 	static function main() {
 		var window = new Window("Size", 320, 240);
@@ -41,6 +42,9 @@ class Size {
 		var renderer = new hxmc.scene.render.Renderer(device);
 		#if (size_level >= 5)
 		renderer.use(new hxmc.scene.render.Shadows(device));
+		#end
+		#if (size_level >= 8)
+		renderer.use(new hxmc.scene.render.Skinning(device));
 		#end
 		new hxmc.scene.gltf.GltfScene(doc, device).instantiate(world);
 		#end
