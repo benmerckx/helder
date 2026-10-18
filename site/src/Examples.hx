@@ -54,7 +54,7 @@ class Examples {
 		return switch pkg {
 			case "os": ["-cp", "packages/os/src"];
 			case "gfx": ["-cp", "packages/os/src", "-cp", "packages/gfx/src"];
-			case "3d": ["-cp", "packages/os/src", "-cp", "packages/gfx/src", "-cp", "packages/3d/src"];
+			case "3d": ["-cp", "packages/os/src", "-cp", "packages/gfx/src", "-cp", "packages/text/src", "-cp", "packages/ui/src", "-cp", "packages/3d/src"];
 			case "physics": ["-cp", "packages/os/src", "-cp", "packages/gfx/src", "-cp", "packages/3d/src", "-cp", "packages/physics/src"];
 			case "text": ["-cp", "packages/os/src", "-cp", "packages/gfx/src", "-cp", "packages/text/src"];
 			case "ui": [

@@ -13,10 +13,11 @@ import hxmc.scene.render.*;
 //   instances 169 nodes on two meshes: instanced draws (RenderTest checks
 //          their count)
 //   skin   the skinned sample (examples/skinned.glb) bent by its animation
+//   overlay the sample scene under the debug overlay (FrameStats, Overlay)
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay"];
 	// the last scene's renderer (its statistics: RenderTest)
 	public static var renderer:Null<Renderer>;
 	public static inline var TIME = 2.0;
@@ -24,6 +25,19 @@ class Scenes {
 
 	public static function make(name:String, device:Device):Encoder->Void {
 		return switch name {
+			case "overlay":
+				// the sample scene under the debug overlay (@hxmc/ui), its frame times made up
+				var under = make("gltf", device);
+				var r = renderer;
+				var overlay = new hxmc.scene.debug.Overlay(device);
+				var stats = new hxmc.scene.debug.FrameStats(100);
+				for (k in 0...100)
+					stats.add(k % 17 == 0 ? 0.04 : k % 5 == 0 ? 0.025 : 0.008 + (k % 7) * 0.001);
+				enc -> {
+					under(enc);
+					stats.from(r);
+					overlay.draw(enc, stats);
+				};
 			case "gltf" | "shadows":
 				var renderer = new Renderer(device);
 				Scenes.renderer = renderer;

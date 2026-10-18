@@ -1,5 +1,5 @@
 // title: Orbits
-// summary: A small solar system as a scene graph: planets on turning nodes, a moon on a planet's, a fixed-step clock, the star a point light; shapes made in code
+// summary: A small solar system as a scene graph: planets on turning nodes, a moon on a planet's, a fixed-step clock, the star a point light, a debug overlay of frame times (O)
 // tags: 3d, scene graph, pbr
 // demo: canvas 512x384
 import hxmc.gfx.*;
@@ -15,10 +15,12 @@ import hxmc.scene.render.*;
 // moon on the planet's own orbit node, so one rotation each and the
 // scene graph's world matrices do the rest. The simulation runs at 60
 // steps a second (FixedStep) whatever the display's rate; under `hxmc dev`
-// the clock survives a rebuild (hxmc.dev.Hot.keep). Escape closes.
+// the clock survives a rebuild (hxmc.dev.Hot.keep). A debug overlay
+// (hxmc.scene.debug, drawn with @hxmc/ui) shows the frame times and the
+// renderer's draws; O toggles it. Escape closes.
 //
-//   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/3d/src -cp packages/3d/examples
-//     -main Orbits --custom-target hxmc=orbits -D hxmc.libc=glibc
+//   haxe -cp packages/os/src -cp packages/gfx/src -cp packages/text/src -cp packages/ui/src
+//     -cp packages/3d/src -cp packages/3d/examples -main Orbits --custom-target hxmc=orbits -D hxmc.libc=glibc
 class Orbits {
 	final world = new World("orbits");
 	final orbits:Array<Node> = [];
@@ -83,19 +85,28 @@ class Orbits {
 		var window = new Window("Orbits", 640, 480);
 		var device = Device.create(window.surface);
 		var orbits = new Orbits(device);
+		// (the debug overlay, drawn with @hxmc/ui: frame times and draws; O toggles it)
+		var overlay = new hxmc.scene.debug.Overlay(device), stats = new hxmc.scene.debug.FrameStats(), showStats = true;
+		overlay.scale = window.scale;
 		// (under `hxmc dev` the clock is carried across a reload: the planets stay where they were)
 		var clock = hxmc.dev.Hot.keep("orbits.clock", () -> new FixedStep(1 / 60)), last = Sys.time();
 		App.run(() -> {
 			var now = Sys.time();
 			clock.advance(Math.min(now - last, 0.25), _ -> orbits.at(clock.time));
+			stats.add(now - last);
 			last = now;
 			var enc = device.beginFrame();
 			if (enc == null) return;
 			orbits.draw(enc);
+			if (showStats) {
+				stats.from(orbits.renderer);
+				overlay.draw(enc, stats);
+			}
 			device.endFrame();
 		}, e -> switch e.kind {
 			case Close: window.close();
 			case KeyDown if (e.key == 0xFF1B): window.close();
+			case KeyDown if (e.key == 0x6F): showStats = !showStats;
 			case _:
 		});
 	}

@@ -98,6 +98,13 @@ if (actions.pressed("jump")) ...;
 var x = actions.axis("moveX");
 ```
 
+## Debugging
+
+`FrameStats` keeps the last frames' times and the renderer's counts;
+`Overlay` draws them over the frame with `@hxmc/ui`'s drawn renderer (put
+`packages/ui/src` and `packages/text/src` on the class path where it is
+used).
+
 ## Fast refresh
 
 `HotWorld.keep(world, key)`, after the world is made: under `hxmc dev` the

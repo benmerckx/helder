@@ -21,7 +21,7 @@ if (!wasm) {
 	process.exit(2);
 }
 const CHROMIUM_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
-const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin'];
+const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['gltf', 'orbits', 'shadows', 'physics', 'instances', 'skin', 'overlay'];
 const files = {
 	'/test.wasm': wasm,
 	'/os/browser.mjs': path.join(here, '../../os/browser.mjs'),
