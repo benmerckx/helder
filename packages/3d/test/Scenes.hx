@@ -21,6 +21,8 @@ import hxmc.scene.render.*;
 //   packedskin, packednormals  the skinned and the normal-mapped samples
 //            packed at build time (Pack: skins, animations, images,
 //            tangents): skin.png's and normals.png's frames
+//   cascades two shadow cascades over a long street of pillars: sharp near
+//            the camera, the whole street's map beyond
 //   walker   physics' Walker example: the character walked through the crates, jumping
 //   packed the sample scene from the asset step's packed file: gltf.png
 //   spot   two spot lights and a point light, no sun
@@ -30,7 +32,7 @@ import hxmc.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -218,6 +220,37 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0, 0.8, 3.2);
 				eye.lookAt(new Vec3(0, -0.1, 0));
+				enc -> r.draw(enc, world, camera);
+			case "cascades":
+				// (HXMC_CASCADES=1: the same with one, to compare)
+				var one = Sys.getEnv("HXMC_CASCADES") == "1";
+				var shadows = new Shadows(device, 512, one ? 1 : 2);
+				shadows.split = 7;
+				var r = new Renderer(device).use(shadows);
+				renderer = r;
+				var world = new World();
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, 0, -18);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new hxmc.gfx.shader.Vec4(0.6, 0.6, 0.62, 1), 0, 0.9), 44));
+				var pillar = Shapes.box(device, new Material("pillar", new hxmc.gfx.shader.Vec4(0.8, 0.55, 0.35, 1), 0, 0.6), 0.4, 2.4, 0.4);
+				var ball = Shapes.sphere(device, new Material("ball", new hxmc.gfx.shader.Vec4(0.3, 0.55, 0.9, 1), 0, 0.3), 0.35, 16, 8);
+				for (k in 0...10) {
+					for (x in [-2.2, 2.2]) {
+						var n = world.node();
+						n.position = new Vec3(x, 1.2, 2 - k * 4);
+						MeshRenderer.attach(n, pillar);
+					}
+					var b = world.node();
+					b.position = new Vec3((k % 2) * 1.2 - 0.6, 0.35, 0.5 - k * 4);
+					MeshRenderer.attach(b, ball);
+				}
+				var sun = world.node("sun");
+				Light.attach(sun, Light.directional(new Vec3(1, 0.95, 0.88), 2.6));
+				sun.rotation = hxmc.scene.math.Quat.fromEuler(-0.7, 0.9, 0);
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.9, 0.1, 60));
+				eye.position = new Vec3(0.6, 1.5, 4.5);
+				eye.lookAt(new Vec3(0, 0.6, -6));
 				enc -> r.draw(enc, world, camera);
 			case "packed":
 				// the sample scene packed at build time (Pack: make 3d-check writes

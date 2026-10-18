@@ -12,7 +12,8 @@ interface RenderFeature {
 interface ShadowSource {
 	// the map's pass, before the frame's
 	// (skins: the renderer's skinning, for skinned casters; null without it)
-	function render(enc:hxmc.gfx.Encoder, world:hxmc.scene.World, toLight:hxmc.gfx.shader.Vec3, skins:Null<SkinSource>):Void;
+	// (frame: the camera's view, for cascades fitted to it)
+	function render(enc:hxmc.gfx.Encoder, world:hxmc.scene.World, toLight:hxmc.gfx.shader.Vec3, skins:Null<SkinSource>, frame:Renderer.FrameInfo):Void;
 	// the last pass's map and how to read it (an object: hxmc passes struct
 	// values through interface calls wrongly for now)
 	function shadowFrame():ShadowFrame;
@@ -23,6 +24,10 @@ class ShadowFrame {
 	public var viewProj:hxmc.gfx.shader.Mat4 = hxmc.gfx.shader.Mat4.identity();
 	// x: strength, y: bias, z: a texel of the map
 	public var params:hxmc.gfx.shader.Vec4 = new hxmc.gfx.shader.Vec4(0, 0, 0, 0);
+	// the second cascade's (one cascade: the first's)
+	public var mapFar:hxmc.gfx.Texture = cast 0;
+	public var viewProjFar:hxmc.gfx.shader.Mat4 = hxmc.gfx.shader.Mat4.identity();
+	public var paramsFar:hxmc.gfx.shader.Vec4 = new hxmc.gfx.shader.Vec4(0, 0, 0, 0);
 
 	public function new() {}
 }

@@ -153,7 +153,7 @@ class Renderer {
 		frame.eye = camera.eye();
 		frame.toLight = toLight;
 		if (shadowSource != null) {
-			shadowSource.render(enc, world, toLight, skinSource);
+			shadowSource.render(enc, world, toLight, skinSource, frame);
 			writeFrame(world, camera, viewProj, true);
 		}
 		record(enc);
@@ -249,12 +249,14 @@ class Renderer {
 		// (lights in the world but no directional one: no sun)
 		if (!sun && lights.length > 0) c = new Vec3(0, 0, 0);
 		l = l / Math.sqrt(l.x * l.x + l.y * l.y + l.z * l.z);
-		var lightViewProj:Mat4 = Mat4.identity();
-		var shadow:Vec4 = new Vec4(0, 0, 0, 0);
+		var lightViewProj:Mat4 = Mat4.identity(), lightViewProjFar:Mat4 = Mat4.identity();
+		var shadow:Vec4 = new Vec4(0, 0, 0, 0), shadowFar:Vec4 = new Vec4(0, 0, 0, 0);
 		if (shadowed) {
 			var f = shadowSource.shadowFrame();
 			lightViewProj = f.viewProj;
 			shadow = f.params;
+			lightViewProjFar = f.viewProjFar;
+			shadowFar = f.paramsFar;
 		}
 		PbrShader.writePbrFrame({
 			viewProj: viewProj,
@@ -277,7 +279,9 @@ class Renderer {
 			spot0: spots[0],
 			spot1: spots[1],
 			spot2: spots[2],
-			spot3: spots[3]
+			spot3: spots[3],
+			lightViewProjFar: lightViewProjFar,
+			shadowFar: shadowFar
 		}, frameBytes);
 		return l;
 	}
@@ -334,7 +338,9 @@ class Renderer {
 				enc.setTexture(slots[7], m.metallicRoughnessTexture != null ? m.metallicRoughnessTexture : white, ms);
 				enc.setTexture(slots[8], m.emissiveTexture != null ? m.emissiveTexture : white, ms);
 				enc.setTexture(slots[9], m.occlusionTexture != null ? m.occlusionTexture : white, ms);
-				enc.setTexture(slots[4], shadowSource != null ? shadowSource.shadowFrame().map : noShadow, nearest);
+				var sf = shadowSource != null ? shadowSource.shadowFrame() : null;
+				enc.setTexture(slots[4], sf != null ? sf.map : noShadow, nearest);
+				enc.setTexture(slots[11], sf != null ? sf.mapFar : noShadow, nearest);
 				if (normals != null) enc.setTexture(slots[10], m.normalTexture, ms);
 				material = m;
 			}
@@ -427,7 +433,7 @@ class Renderer {
 
 	// a shader's slots for its blocks and textures, in the renderer's order:
 	// frame, object (-1: none), material, base colour, shadow map, skin,
-	// joints, metallic-roughness, emissive, occlusion, normal
+	// joints, metallic-roughness, emissive, occlusion, normal, the far shadow map
 	public static function slotsOf(uniforms:Array<hxmc.gfx.shader.Shaders.UniformBlock>, textures:Array<hxmc.gfx.shader.Shaders.TextureBinding>):Array<Int> {
 		function u(name:String):Int {
 			for (b in uniforms)
@@ -440,7 +446,7 @@ class Renderer {
 			return -1;
 		}
 		return [u("PbrFrame"), u("PbrObject"), u("PbrMaterial"), t("baseColorTexture"), t("shadowMap"), u("PbrSkinInfo"), t("jointMatrices"),
-			t("metallicRoughnessTexture"), t("emissiveTexture"), t("occlusionTexture"), t("normalTexture")];
+			t("metallicRoughnessTexture"), t("emissiveTexture"), t("occlusionTexture"), t("normalTexture"), t("shadowMapFar")];
 	}
 
 	// whether a mesh's bounds, through mvp, reach the view: not all eight

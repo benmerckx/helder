@@ -51,6 +51,10 @@ import hxmc.gfx.shader.ShaderMath.*;
 	var spot1:Vec4;
 	var spot2:Vec4;
 	var spot3:Vec4;
+	// the second shadow cascade (Shadows with two: the whole scene's map,
+	// read where the first, near the camera, does not reach; else the first's)
+	var lightViewProjFar:Mat4;
+	var shadowFar:Vec4;
 }
 
 // per draw: the node's matrices
@@ -78,14 +82,14 @@ class PbrShader implements Shaders {
 	}
 
 	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
-			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4
+			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D):Vec4
 		return shadeAt(normalize(i.normal), i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture,
-			occlusionTexture, shadowMap);
+			occlusionTexture, shadowMap, shadowMapFar);
 
 	// the fragment's colour at a point of the world with a unit normal n
 	// (also the instanced, skinned and normal-mapped shaders')
 	public static function shadeAt(n:Vec3, world:Vec3, uv:Vec2, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
-			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D):Vec4 {
+			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D):Vec4 {
 		var texel = sample(baseColorTexture, uv);
 		// (the texture's sRGB decoded)
 		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2));
@@ -99,7 +103,7 @@ class PbrShader implements Shaders {
 		var a = rough * rough;
 		var a2 = a * a;
 		var f0 = mix(vec3(0.04), base, metallic);
-		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * shadowed(frame, shadowMap, world, max(dot(n, l), 0));
+		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0));
 		direct += point(n, v, world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
 			+ point(n, v, world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1)
 			+ point(n, v, world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2)
@@ -160,24 +164,34 @@ class PbrShader implements Shaders {
 		return result;
 	}
 
-	// the direct light's share at a point (1: lit) from the shadow map: a
-	// 3x3 percentage-closer filter; 1 outside the map or without shadows
-	static function shadowed(frame:PbrFrame, map:Texture2D, world:Vec3, nl:Float):Float {
+	// the direct light's share at a point (1: lit) from the shadow maps: the
+	// first cascade's where it reaches, else the second's; a 3x3
+	// percentage-closer filter; 1 outside them or without shadows
+	static function shadowed(frame:PbrFrame, map:Texture2D, far:Texture2D, world:Vec3, nl:Float):Float {
 		var strength = frame.shadow.x;
 		var result = 1.0;
 		if (strength > 0) {
-			var ls = frame.lightViewProj * vec4(world, 1);
-			var p = ls.xyz / ls.w;
-			var uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
-			if (uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1 && p.z < 1) {
-				// (more bias where the light grazes the surface)
-				var depth = p.z - frame.shadow.y * (1 + 2 * (1 - nl));
-				var t = frame.shadow.z;
-				var lit = tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
-					+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
-					+ tap(map, uv, depth, t, t);
-				result = 1 - strength * (1 - lit / 9);
-			}
+			var lit = cascade(map, frame.lightViewProj, frame.shadow, world, nl);
+			if (lit < 0) lit = cascade(far, frame.lightViewProjFar, frame.shadowFar, world, nl);
+			if (lit >= 0) result = 1 - strength * (1 - lit / 9);
+		}
+		return result;
+	}
+
+	// a cascade's lit taps (0 to 9) at a point, or -1 where its map does not
+	// reach (params: y the bias, z a texel of the map)
+	static function cascade(map:Texture2D, viewProj:Mat4, params:Vec4, world:Vec3, nl:Float):Float {
+		var result = -1.0;
+		var ls = viewProj * vec4(world, 1);
+		var p = ls.xyz / ls.w;
+		var uv = vec2(p.x * 0.5 + 0.5, 0.5 - p.y * 0.5);
+		if (uv.x > 0 && uv.x < 1 && uv.y > 0 && uv.y < 1 && p.z < 1) {
+			// (more bias where the light grazes the surface)
+			var depth = p.z - params.y * (1 + 2 * (1 - nl));
+			var t = params.z;
+			result = tap(map, uv, depth, -t, -t) + tap(map, uv, depth, 0, -t) + tap(map, uv, depth, t, -t) + tap(map, uv, depth, -t, 0)
+				+ tap(map, uv, depth, 0, 0) + tap(map, uv, depth, t, 0) + tap(map, uv, depth, -t, t) + tap(map, uv, depth, 0, t)
+				+ tap(map, uv, depth, t, t);
 		}
 		return result;
 	}
