@@ -94,6 +94,44 @@ class Worker {
 
 	static var lastHost:Null<WasiHost>;
 
+	/** The WebKit of Safari 26.0 (JavaScriptCore) at times runs this module
+		wrong: a fault of its own where the program cannot fault, "access to a
+		null reference" (its report of an access below any wasm memory, which no
+		wasm32 load makes: once in a load from a constant address in a function
+		of three instructions) or "Out of bounds memory access"; about once in
+		700 compiles, each time elsewhere, with either exception handling, and
+		never in Chromium, Firefox, node (also with a collection every 4 KB) or
+		the WebKit of Playwright 1.63 (26.6). Such a trap, before the compiler
+		printed anything, runs the request once more in a fresh instance (the
+		compiler is deterministic: a trap of ours traps again and is reported). */
+	static function engineFault(e:Dynamic):Bool {
+		return Std.isOfType(e, js.lib.webassembly.RuntimeError)
+			&& ~/^(access to a null reference|Out of bounds memory access)/.match(Ui.error(e));
+	}
+
+	/** `run` on an instance of `file` with `code`, once more after an engine fault (engineFault) */
+	static function runOnce(file:String, code:String, print:String->Void, printErr:String->Void, args:Array<String>):Promise<Int> {
+		var printed = false;
+		function attempt(retry:Bool):Promise<Int> {
+			return instance(file, code, (l) -> {
+				printed = true;
+				print(l);
+			}, (l) -> {
+				printed = true;
+				printErr(l);
+			}).then((c) -> {
+				try return Promise.resolve(c.run(args)) catch (e:Dynamic) {
+					if (retry && !printed && engineFault(e)) {
+						js.Browser.console.warn("The engine faulted, running again:", e != null && e.stack != null ? e.stack : e);
+						return attempt(false);
+					}
+					return Promise.reject(e);
+				}
+			});
+		}
+		return attempt(true);
+	}
+
 	static function onRequest(m:Request) {
 		if (m.type == "module") {
 			// the module compiled once by the page
@@ -119,19 +157,17 @@ class Worker {
 			case "display" | "check":
 				final lines = [];
 				final add = (line:String) -> lines.push(line);
-				return instance(m.file, m.code, add, add).then((c) -> {
-					var args = ["-cp", ".", "--main", m.main, "--no-output", "-D", "disable-parallelism", "-D", "message.reporting=classic"];
-					if (m.type == "display") args = args.concat(["--display", haxe.Json.stringify(m.request)]);
-					final t0 = scope.performance.now();
-					final status = c.run(args);
+				var args = ["-cp", ".", "--main", m.main, "--no-output", "-D", "disable-parallelism", "-D", "message.reporting=classic"];
+				if (m.type == "display") args = args.concat(["--display", haxe.Json.stringify(m.request)]);
+				final t0 = scope.performance.now();
+				return runOnce(m.file, m.code, add, add, args).then((status) -> {
 					post({type: m.type, id: m.id, status: status, output: lines.join("\n"), ms: scope.performance.now() - t0});
 				});
 			case _:
-				return instance(m.file, m.code, (text) -> post({type: "out", text: text}), (text) -> post({type: "err", text: text})).then((c) -> {
-					final args = ["-cp", ".", "--main", m.main, "-D", "disable-parallelism"]
-						.concat(m.mode == "run" ? ["--interp"] : ["--hxb", "/out.zip", "--no-output"]);
-					final t0 = scope.performance.now();
-					final status = c.run(args);
+				final args = ["-cp", ".", "--main", m.main, "-D", "disable-parallelism"]
+					.concat(m.mode == "run" ? ["--interp"] : ["--hxb", "/out.zip", "--no-output"]);
+				final t0 = scope.performance.now();
+				return runOnce(m.file, m.code, (text) -> post({type: "out", text: text}), (text) -> post({type: "err", text: text}), args).then((status) -> {
 					final ms = scope.performance.now() - t0;
 					final bytes = m.mode == "hxb" && status == 0 ? lastHost.readFile("/out.zip") : null;
 					final zip = bytes == null ? null : bytes.slice().buffer;
