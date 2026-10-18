@@ -3759,11 +3759,14 @@ class Widgets implements Markup {
 			children: "what scrolls"
 		}
 	})
-	public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
+	@:neutral public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
 		var o = props.orientation ?? "vertical";
-		return <view tag={props.tag ?? "scroll-area"} slot="scroll-area" height={props.height} width={props.width} position="relative">
-			<scroll tag={(props.tag ?? "scroll-area") + "-viewport"} slot="scroll-area-viewport" data-orientation={o} label={props.label} grow={1}
-				min-height={0} direction={o == "horizontal" ? "row" : "column"}>{props.children}</scroll>
+		// (a page's viewport a Tab stop, a region when named, as the DOM's; ui's scrolled by the keys where the focus or the pointer is, a scroll view)
+		var stop = #if js true #else false #end, region = #if js props.label == null ? null : "region" #else null #end;
+		return <view tag={props.tag ?? "scroll-area"} id={props.tag} slot="scroll-area" height={props.height} width={props.width} position="relative">
+			<scroll tag={(props.tag ?? "scroll-area") + "-viewport"} slot="scroll-area-viewport" data-orientation={o} role={region} label={props.label}
+				focusable={stop} overflow-x={o == "vertical" ? "hidden" : "scroll"} overflow-y={o == "horizontal" ? "hidden" : "scroll"} grow={1} min-height={0}
+				direction={o == "horizontal" ? "row" : "column"}>{props.children}</scroll>
 		</view>;
 	}
 

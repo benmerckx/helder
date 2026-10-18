@@ -44,6 +44,7 @@ class NeutralMacro {
 		"max-width" => {prop: "max-width", px: true}, "min-height" => {prop: "min-height", px: true}, "max-height" => {prop: "max-height", px: true},
 		"position" => {prop: "position", px: false}, "top" => {prop: "top", px: true}, "left" => {prop: "left", px: true},
 		"right" => {prop: "right", px: true}, "bottom" => {prop: "bottom", px: true}, "overflow" => {prop: "overflow", px: false},
+		"overflow-x" => {prop: "overflow-x", px: false}, "overflow-y" => {prop: "overflow-y", px: false},
 		"aspect-ratio" => {prop: "aspect-ratio", px: false}, "direction" => {prop: "flex-direction", px: false},
 		"align-items" => {prop: "align-items", px: false}, "justify" => {prop: "justify-content", px: false}, "grow" => {prop: "flex-grow", px: false},
 		"shrink" => {prop: "flex-shrink", px: false}, "gap" => {prop: "gap", px: true}, "row-gap" => {prop: "row-gap", px: true},

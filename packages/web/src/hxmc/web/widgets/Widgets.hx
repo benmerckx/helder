@@ -1265,18 +1265,6 @@ class Widgets implements Markup {
 	public static function InputGroupText(props:{?text:String, ?children:Any, ?tag:String}):View
 		return <span id={props.tag} data-slot="input-group-text">{props.children ?? props.text}</span>;
 
-	// a scrolled area (shadcn's ScrollArea): its children in a viewport
-	// scrolled vertically (the default), horizontally or both; the theme's
-	// scrollbars (thin, on hover, as Radix's)
-	public static function ScrollArea(props:{?orientation:String, ?height:Float, ?width:Float, ?label:String, ?children:Any, ?tag:String}):View {
-		var o = props.orientation ?? "vertical";
-		var overflow = o == "horizontal" ? "overflow-x:auto;overflow-y:hidden" : o == "both" ? "overflow:auto" : "overflow-x:hidden;overflow-y:auto";
-		return <div id={props.tag} data-slot="scroll-area" style={(props.width == null ? "" : 'width:${props.width}px;') + (props.height == null ? "" : 'height:${props.height}px')}>
-			<div data-slot="scroll-area-viewport" data-orientation={o} role={props.label == null ? null : "region"} aria-label={props.label} tabindex="0"
-				style={overflow}>{props.children}</div>
-		</div>;
-	}
-
 	// a select the platform's own (shadcn's NativeSelect: a <select>, its
 	// options the browser's menu), bound to a signal
 	public static function NativeSelect(props:{value:Signal<String>, options:Array<String>, ?labels:Array<String>, ?width:Float, ?label:String,
