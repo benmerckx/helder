@@ -29,10 +29,14 @@ class Hosted {
 	public static inline var HEIGHT = 8;
 	// (Android) the app's files directory (a C string: ANativeActivity.internalDataPath)
 	public static inline var FILES = 9;
-	// (iOS) the UIWindow, its root view controller and its HxmcView (the CAMetalLayer's)
+	// (iOS) the UIWindow, its root view controller and its HxmcView (the
+	// CAMetalLayer's); (macOS) the NSWindow, its text view, the layer's view,
+	// the CAMetalLayer and the window's delegate
 	public static inline var UI_WINDOW = 10;
 	public static inline var UI_CONTROLLER = 11;
 	public static inline var UI_VIEW = 12;
+	public static inline var MAC_LAYER = 13;
+	public static inline var MAC_DELEGATE = 14;
 	// the statics kept for the activity's glue (HostedMacro.shared: its arguments, Activity's and AndroidWindow's, are these)
 	public static inline var ACTIVITY = 16;
 	public static inline var ACTIVITY_SLOTS = 24;
@@ -83,7 +87,7 @@ class Hosted {
 	@:keep @:hxmc.export("hxmc_dev_run") @:hxmc.noGc static function run(arg:Int):Int {
 		// (Android: on the calling thread, the program's, whose looper the
 		// activity's glue watches; iOS: the main thread, UIKit's)
-		if (Mem.target() >= 9 || Mem.platform() >= 1) {
+		if (Mem.target() >= 9 || Mem.os() == 1) {
 			thread(Ptr.nil());
 			return 0;
 		}

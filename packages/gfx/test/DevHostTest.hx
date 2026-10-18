@@ -3,7 +3,8 @@ import hxmc.gfx.*;
 import hxmc.os.*;
 
 // hxmc dev's host without a dev server (docs/dev.md, "No reloads"; CI:
-// packages/gfx/test/ios-dev.sh on an iPhone simulator): built as the app
+// packages/gfx/test/ios-dev.sh on an iPhone simulator, mac-dev.sh on macOS,
+// where the builds are all dylibs run by hxmc.dev.DevHost): built as the app
 // (-D devhost_version=1, -D hxmc.dev-host) and as dylibs of later versions
 // (-D hxmc.shared, 2, 3), which the running build hands over to in turn
 // (HXMC_DEV_NEXT, a second after its first frame: Hot). Each build draws the
@@ -15,7 +16,7 @@ class DevHostTest {
 		var version = haxe.macro.Compiler.getDefine("devhost_version");
 		var state = Hot.keep("state", () -> {n: 0});
 		state.n++;
-		var w = new Window("DevHostTest", 0, 0);
+		var w = new Window("DevHostTest", 320, 240);
 		var device = Device.create(w.surface);
 		var cube = new Cube(device);
 		var start = Sys.time(), frames = 0;
