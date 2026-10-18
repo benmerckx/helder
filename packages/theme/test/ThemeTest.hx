@@ -186,11 +186,13 @@ class ThemeTest {
 		same("select-none ml-auto mx-auto overflow-x-auto overflow-y-hidden", "x userSelect=None marginRight=auto marginLeft=auto overflowX=Scroll overflowY=Hidden");
 		same("group-hover/item:opacity-100 peer-data-[state=checked]/box:hidden not-first:border-l", "x not:first: borders=0 0 0 1\nx group/item:hover: opacity=1\nx peer/box:data-state=checked: display=None");
 		same("selection:bg-primary rtl:pl-2 md:p-1", "x selection: background=var(--primary)\nx md: padding=4\nx rtl: paddingLeft=8");
+		same("has-[>svg]:px-3", "x has:>svg: paddingRight=12 paddingLeft=12");
+		same("grid-cols-[calc(var(--spacing)*4)_1fr]", "x gridTemplateColumns=Px(16) minmax(Auto, Fr(1))");
 	}
 
 	static function ignored() {
 		same("peer group/switch @container/card-header text-current animate-out fade-out-0 zoom-out-95 animate-pulse", "");
-		same("[&_svg]:size-4 [&_svg:not([class*='size-'])]:size-4 has-[>svg]:px-3 [a&]:hover:bg-accent [.border-b]:pb-6 file:h-7", "");
+		same("[&_svg]:size-4 [&_svg:not([class*='size-'])]:size-4 [a&]:hover:bg-accent [.border-b]:pb-6 file:h-7", "");
 		rejected("foo-bar", "unknown class foo-bar");
 		rejected("bg-blue-500", "unknown class bg-blue-500");
 		rejected("hover:p-wat", "unknown class hover:p-wat");
