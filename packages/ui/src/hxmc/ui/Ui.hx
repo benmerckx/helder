@@ -550,6 +550,18 @@ class Ui {
 		}
 	}
 
+	// whether a wheel at x, y by deltaX, deltaY would scroll something: a
+	// scroller under the point (the innermost first) not at its end that
+	// way (a touch drag's question, hxmc.os's Window.scrollsAt: UiWindow)
+	public function scrollsAt(x:Float, y:Float, deltaX:Float, deltaY:Float):Bool {
+		var n = hit(x, y);
+		while (n != null) {
+			if (n.style.overflow == Scroll && (canScroll(n, deltaX, true) || canScroll(n, deltaY, false))) return true;
+			n = n.parent;
+		}
+		return false;
+	}
+
 	// --- keyboard ---
 
 	// the text selected in a selectable TextNode (null: none), anchor to

@@ -17,7 +17,8 @@
 //                  an AudioContext or OfflineAudioContext, and
 //                  touchAction: the canvas's CSS touch-action, by default
 //                  'none' (every touch drag the program's; 'pan-y': the
-//                  page scrolls on vertical swipes over the canvas), for os; gfx:
+//                  page scrolls on vertical swipes over the canvas that
+//                  Window.scrollsAt does not take), for os; gfx:
 //                  'webgl2' for gfx, WebGL2 even where WebGPU is, and
 //                  antialias: true, the canvas's frames multisampled)
 //   memory()       the module's memory; bytes(p, n), string(p) read it (a

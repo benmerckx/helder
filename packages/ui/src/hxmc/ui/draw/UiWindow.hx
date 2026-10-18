@@ -68,6 +68,8 @@ class UiWindow {
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
 		ui.dark = dark.peek();
+		// (a touch drag the program's where it scrolls something: the page's otherwise)
+		window.scrollsAt = (x, y, dx, dy) -> ui.scrollsAt(x / renderer.scale, y / renderer.scale, dx / renderer.scale, dy / renderer.scale);
 		// (the browser's own views: native text editors over the canvas)
 		if (Mem.os() == 3) ui.platform = WebMirror.views(window.surface.handle.toI64().toInt());
 		// (Windows': EDIT controls over the window)

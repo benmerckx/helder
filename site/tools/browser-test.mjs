@@ -21,7 +21,9 @@
 //   islands must fail and say so); the source tabs; web's Counter island
 //   counting; the Lab island calling lab.wasm; the tone started by a click;
 //   the cube on an emulated phone: a horizontal touch drag turns it, a
-//   vertical swipe over it scrolls the page; the home page's spinning cube
+//   vertical swipe over it scrolls the page; the drawn scroll boxes there: a
+//   swipe over the gallery's scrolls it, at its top the page, on the todo's
+//   title the page; the home page's spinning cube
 //   held still while a finger or the mouse holds it (the mouse dragged off
 //   the canvas), spinning again once let go;
 // - the playground's compiler: its worker (site/client/Worker.hx) runs a
@@ -423,6 +425,76 @@ async function touchTest(browser) {
 	check(ok, `the cube on a phone: ${JSON.stringify(r)}${errors.length ? '; errors: ' + errors.join('; ') : ''}`);
 }
 
+// the drawn scroll boxes on a phone (touch emulated, as touchTest: the
+// browser's own touch input, its touch-action and pointercancel): a
+// vertical swipe over the gallery's body (a drawn Scroll, at its top)
+// that would scroll it up scrolls the page instead (at its end: the page's
+// turn, as a browser chains scrolls); one that scrolls it down scrolls it
+// and leaves the page where it was; back up, the box again; a swipe that
+// starts on the todo example's title (no scroll box under it) scrolls the
+// page. (No canvas example scrolls sideways; a sideways drag is the
+// program's at once, pan-y leaves the browser none.)
+async function scrollBoxTest(browser) {
+	const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+	const page = await context.newPage();
+	const errors = [];
+	page.on('pageerror', (e) => errors.push(e.message));
+	let r = {}, ok = false;
+	try {
+		await page.goto(url('examples.html'));
+		const cdp = await context.newCDPSession(page);
+		const box = (id) => page.evaluate((id) => { const b = document.querySelector(`#demo-${id} canvas`).getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; }, id);
+		const scrollY = () => page.evaluate(() => Math.round(window.scrollY));
+		const pixels = (id) => page.evaluate(async (id) => {
+			const { host } = await hxmcWasm['demo-' + id], p = host.gfx.readPixels();
+			host.os.redraw();
+			return Array.from((await p).data);
+		}, id);
+		const differ = (a, b) => { let n = 0; for (let p = 0; p < a.length; p += 4) if (Math.max(Math.abs(a[p] - b[p]), Math.abs(a[p + 1] - b[p + 1]), Math.abs(a[p + 2] - b[p + 2])) > 8) n++; return n; };
+		const start = async (id) => {
+			await page.evaluate((id) => document.querySelector(`#demo-${id} canvas`).scrollIntoView({ block: 'center' }), id);
+			await run(page, id);
+			await page.waitForSelector(`#demo-${id}[data-hydrated]`, { timeout: 60000 });
+			await page.waitForTimeout(500);
+		};
+		// (a finger from x, y moved by dy, slowly: no glide)
+		const swipe = async (x, y, dy) => {
+			await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+			for (let i = 1; i <= 12; i++) {
+				await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: y + dy * i / 12 }] });
+				await page.waitForTimeout(16);
+			}
+			await page.waitForTimeout(150);
+			await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+			await page.waitForTimeout(400);
+		};
+		// what the swipe did: the page's scroll, the canvas's pixels changed
+		const measure = async (id, x, y, dy) => {
+			const y0 = await scrollY(), p0 = await pixels(id);
+			await swipe(x, y, dy);
+			return { page: (await scrollY()) - y0, box: differ(p0, await pixels(id)) };
+		};
+		await start('ui-gallery');
+		let [x, y, w, h] = await box('ui-gallery');
+		const area = w * h * 4 * 0.02;
+		r.idle = differ(await pixels('ui-gallery'), await pixels('ui-gallery'));
+		r.atTop = await measure('ui-gallery', x + w * 0.3, y + h * 0.4, 150);
+		await page.evaluate(() => document.querySelector('#demo-ui-gallery canvas').scrollIntoView({ block: 'center' }));
+		[x, y, w, h] = await box('ui-gallery');
+		r.down = await measure('ui-gallery', x + w * 0.3, y + h * 0.7, -150);
+		r.up = await measure('ui-gallery', x + w * 0.3, y + h * 0.4, 100);
+		await start('ui-todo');
+		[x, y, w, h] = await box('ui-todo');
+		r.title = await measure('ui-todo', x + w * 0.15, y + h * 0.08, -150);
+		ok = r.idle === 0 && r.atTop.page < -100 && r.atTop.box === 0 && Math.abs(r.down.page) <= 1 && r.down.box > area && Math.abs(r.up.page) <= 1 && r.up.box > area
+			&& r.title.page > 100 && errors.length === 0;
+	} catch (e) {
+		r.error = e.message.split('\n')[0];
+	}
+	await context.close();
+	check(ok, `the drawn scroll boxes on a phone: ${JSON.stringify(r)}${errors.length ? '; errors: ' + errors.join('; ') : ''}`);
+}
+
 // the home page's cube, spinning on its own, held: once a drag has turned
 // it, it stays still while the finger (an emulated phone's touch, as
 // touchTest) or the mouse's button is down, and the mouse's drag may leave
@@ -735,6 +807,7 @@ for (const { name, label, opts, noExnref } of launches) {
 					await gfxTest(browser, name, id, golden, 'webgl2', 'webgl2');
 				}
 				await touchTest(browser);
+				await scrollBoxTest(browser);
 				await holdTest(browser);
 			} else {
 				for (const [id, golden] of [['gfx-triangle', 'triangle.png'], ['gfx-cube', 'cube.png']])

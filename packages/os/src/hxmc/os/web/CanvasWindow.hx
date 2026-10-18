@@ -33,7 +33,15 @@ class CanvasWindow {
 		canvas = Arena.scopedValue(a -> Dom.window_open(a.cstring(title), width, height));
 		if (canvas == 0) throw "hxmc.os: no canvas for the window (not in a browser?)";
 		surface = new Surface(Canvas, Ptr.nil(), Ptr.ofI64(canvas), Dom.width(canvas), Dom.height(canvas));
+		if (open.length == 0) Dom.scrolls_at(Callback.addr(scrollsAt));
 		open.push(this);
+	}
+
+	// a touch drag's question: Window.scrollsAt (-1: none set)
+	@:hxmc.callback static function scrollsAt(canvas:Int, x:Int, y:Int, dx:Int, dy:Int):Int {
+		var w = find(canvas);
+		var f = w == null ? null : w.owner.scrollsAt;
+		return f == null ? -1 : f(x, y, dx, dy) ? 1 : 0;
 	}
 
 	var scale(get, never):Float;
