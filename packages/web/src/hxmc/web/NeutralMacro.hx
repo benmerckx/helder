@@ -43,7 +43,8 @@ class NeutralMacro {
 		"shrink" => {prop: "flex-shrink", px: false}, "gap" => {prop: "gap", px: true}, "row-gap" => {prop: "row-gap", px: true},
 		"column-gap" => {prop: "column-gap", px: true}, "opacity" => {prop: "opacity", px: false}, "z-index" => {prop: "z-index", px: false},
 		"text-align" => {prop: "text-align", px: false}, "padding" => {prop: "padding", px: true}, "wrap" => {prop: "flex-wrap", px: false},
-		"basis" => {prop: "flex-basis", px: true}, "pointer-events" => {prop: "pointer-events", px: false}
+		"basis" => {prop: "flex-basis", px: true}, "pointer-events" => {prop: "pointer-events", px: false}, "display" => {prop: "display", px: false},
+		"grid-template-columns" => {prop: "grid-template-columns", px: false}
 	];
 	// (events: the DOM's, and ui's EventType)
 	static final EVENTS:Map<String, {dom:String, type:String}> = [

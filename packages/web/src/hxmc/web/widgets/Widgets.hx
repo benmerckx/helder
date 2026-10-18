@@ -13,6 +13,7 @@ import hxmc.ui.widgets.Toasts;
 import hxmc.ui.widgets.Toasts.Toast;
 // (the widgets of one definition for both: ui's, realised by the DOM's renderer)
 import hxmc.ui.widgets.Widgets.Button;
+import hxmc.ui.widgets.Widgets.Calendar;
 import hxmc.view.*;
 import hxmc.view.Flow.*;
 import hxmc.view.Reactive.*;
@@ -774,91 +775,6 @@ class Widgets implements Markup {
 							</div></Show>)
 						];
 					}
-				]}
-			</div>
-		</div>;
-	}
-
-	// a month's days in a grid of six weeks (Monday first; firstDay: 0 for
-	// Sunday), the month and year above between arrows to the months before
-	// and after. The grid takes the focus: the arrows move its marked day,
-	// Page Up and Down a month, Home and End to the week's ends; a click,
-	// Enter or Space chooses the day (value, onChoose), or with range a
-	// range's first day, then its last (one before the first starts it
-	// again: data-range-start, -middle and -end); today is marked
-	public static function Calendar(props:{?value:Signal<Null<Day>>, ?range:Signal<DayRange>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void,
-			?label:String, ?tag:String}):View {
-		var first = props.firstDay ?? 1, now = Date.now(), value = props.value ?? signal(null), range = props.range;
-		var today = props.today ?? {year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate()};
-		var cursor = signal(Days.of(value.peek() ?? (range == null ? null : range.peek().from) ?? today)), focused = signal(false);
-		var shown = memo(() -> {
-			var d = Days.day(cursor.value);
-			return {year: d.year, month: d.month};
-		});
-		var start = () -> Behaviour.gridStart(shown.value.year, shown.value.month, first);
-		var caption = () -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year;
-		function choose(n:Int) {
-			cursor.value = n;
-			var d = Days.day(n);
-			if (range != null) {
-				var r = range.peek();
-				range.value = r.from == null || r.to != null || n < Days.of(r.from) ? {from: d, to: null} : {from: r.from, to: d};
-			} else value.value = d;
-			if (props.onChoose != null) props.onChoose(d);
-		}
-		function key(e:KeyboardEvent) {
-			var k = keyOf(e), c = cursor.peek(), n = Behaviour.calendarKey(k, c, first);
-			if (n != null) cursor.value = n else switch k {
-				case Key.PAGE_UP | Key.PAGE_DOWN: cursor.value = Behaviour.addMonths(c, k == Key.PAGE_UP ? -1 : 1);
-				case Key.ENTER | Key.SPACE: choose(c);
-				case _: return;
-			}
-			e.preventDefault();
-		}
-		var names = [for (k in 0...7) Days.WEEKDAYS[(k + first) % 7]];
-		var chosen = (n:Int) -> {
-			if (range != null) {
-				var r = range.value;
-				return r.from != null && (r.to == null ? Days.of(r.from) == n : n >= Days.of(r.from) && n <= Days.of(r.to));
-			}
-			return value.value != null && Days.of(value.value) == n;
-		};
-		// (a range's ends and middle)
-		var edge = (n:Int, start:Bool) -> {
-			var r = range == null ? null : range.value;
-			var d = r == null ? null : start ? r.from : r.to;
-			return d != null && Days.of(d) == n ? "true" : null;
-		};
-		var middle = (n:Int) -> {
-			var r = range == null ? null : range.value;
-			return r != null && r.from != null && r.to != null && n > Days.of(r.from) && n < Days.of(r.to) ? "true" : null;
-		};
-		var cols = "display:grid;grid-template-columns:repeat(7,var(--cell-size))";
-		return <div id={props.tag} data-slot="calendar">
-			<div data-slot="calendar-nav">
-				<button type="button" data-slot="calendar-button-previous" data-variant="ghost" data-size="default" aria-label="Previous month"
-					onClick={() -> cursor.value = Behaviour.addMonths(cursor.peek(), -1)}>{icon("chevron-left")}</button>
-				<span data-slot="calendar-caption-label" role="status" aria-live="polite">{caption}</span>
-				<button type="button" data-slot="calendar-button-next" data-variant="ghost" data-size="default" aria-label="Next month"
-					onClick={() -> cursor.value = Behaviour.addMonths(cursor.peek(), 1)}>{icon("chevron-right")}</button>
-			</div>
-			<div role="grid" aria-label={caption} tabindex="0" onKeyDown={key} onFocus={() -> focused.value = true} onBlur={() -> focused.value = false}>
-				<div role="row" data-slot="calendar-weekdays" style={cols + ";text-align:center"}>{[for (n in names) <div role="columnheader" data-slot="calendar-weekday">{n}</div>]}</div>
-				{[
-					for (w in 0...6)
-						<div role="row" data-slot="calendar-week" style={cols}>{[
-							for (k in 0...7) {
-								var at = () -> start() + w * 7 + k;
-								<button type="button" role="gridcell" tabindex="-1" data-slot="calendar-day" data-variant="ghost" data-size="icon"
-									aria-label={() -> {
-										var d = Days.day(at());
-										d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
-									}} aria-selected={() -> chosen(at()) ? "true" : null} data-selected={() -> chosen(at()) ? "true" : null}
-									data-today={() -> Days.of(today) == at() ? "true" : null} data-outside={() -> Days.day(at()).month == shown.value.month ? null : "true"}
-									data-focused={() -> focused.value && cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
-									data-range-end={() -> edge(at(), false)} data-range-middle={() -> middle(at())} onClick={() -> choose(at())}>{() -> "" + Days.day(at()).day}</button>;
-							}
-						]}</div>
 				]}
 			</div>
 		</div>;

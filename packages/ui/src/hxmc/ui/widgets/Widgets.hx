@@ -1090,7 +1090,7 @@ class Widgets implements Markup {
 			"Enter, Space": "choose the marked day; on a month arrow, show the month before or after"
 		}
 	})
-	public static function Calendar(props:{?value:Signal<Null<Day>>, ?range:Signal<DayRange>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void,
+	@:neutral public static function Calendar(props:{?value:Signal<Null<Day>>, ?range:Signal<DayRange>, ?today:Day, ?firstDay:Int, ?onChoose:Day->Void,
 			?label:String, ?tag:String}):View {
 		var tag = props.tag ?? "calendar", first = props.firstDay ?? 1;
 		var now = Date.now();
@@ -1118,7 +1118,7 @@ class Widgets implements Markup {
 		function month(delta:Int)
 			cursor.value = Behaviour.addMonths(cursor.peek(), delta);
 		function key(e:Event) {
-			var c = cursor.peek(), k = mirrored(e), to = Behaviour.calendarKey(k, c, first);
+			var c = cursor.peek(), k = mirroredKey(e), to = Behaviour.calendarKey(k, c, first);
 			if (to != null) cursor.value = to else switch k {
 				case Key.PAGE_UP: month(-1);
 				case Key.PAGE_DOWN: month(1);
@@ -1146,16 +1146,16 @@ class Widgets implements Markup {
 			var r = range == null ? null : range.value;
 			return r != null && r.from != null && r.to != null && n > Days.of(r.from) && n < Days.of(r.to) ? "true" : null;
 		};
-		return <view tag={tag} slot="calendar">
+		var caption = () -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year;
+		return <view tag={tag} id={props.tag} slot="calendar">
 			<view slot="calendar-nav">
-				<view tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" focusable onClick={_ -> month(-1)}
-					onKeyDown={e -> pressKeys(e, () -> month(-1))}>{icon(CHEVRON_LEFT, "calendar-button-icon")}</view>
-				<text tag={tag + "-month"} slot="calendar-caption-label">{() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year}</text>
-				<view tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable onClick={_ -> month(1)}
-					onKeyDown={e -> pressKeys(e, () -> month(1))}>{icon(CHEVRON_RIGHT, "calendar-button-icon")}</view>
+				<view:button tag={tag + "-previous"} slot="calendar-button-previous" variant="ghost" size="icon" role="button" label="Previous month" focusable
+					onPress={_ -> month(-1)}><icon slot="calendar-button-icon" name="chevron-left" width={16} height={16} hidden/></view:button>
+				<text tag={tag + "-month"} slot="calendar-caption-label" live="polite">{caption}</text>
+				<view:button tag={tag + "-next"} slot="calendar-button-next" variant="ghost" size="icon" role="button" label="Next month" focusable
+					onPress={_ -> month(1)}><icon slot="calendar-button-icon" name="chevron-right" width={16} height={16} hidden/></view:button>
 			</view>
-			<view tag={tag + "-grid"} role="table" label={() -> Days.MONTHS[shown.value.month - 1] + " " + shown.value.year} focusable onKeyDown={key}
-				onFocus={_ -> focused.value = true} onBlur={_ -> focused.value = false}>
+			<view tag={tag + "-grid"} role="grid" label={caption} focusable onKeyDown={key} onFocus={_ -> focused.value = true} onBlur={_ -> focused.value = false}>
 				<view slot="calendar-weekdays" role="row" display="grid" grid-template-columns="repeat(7, 32px)">{[
 					for (n in names)
 						<view slot="calendar-weekday" role="columnheader" text-align="center">{n}</view>
@@ -1166,7 +1166,7 @@ class Widgets implements Markup {
 							for (k in 0...7) {
 								var at = () -> gridStart() + w * 7 + k;
 								var inMonth = () -> Days.day(at()).month == shown.value.month;
-								<view tag={tag + "-day"} role="cell" label={() -> {
+								<view:button tag={tag + "-day"} role="gridcell" variant="ghost" size="icon" focusable={false} label={() -> {
 									var d = Days.day(at());
 									d.day + " " + Days.MONTHS[d.month - 1] + " " + d.year;
 								}} slot="calendar-day" selected={() -> chosen(at())} data-selected={() -> chosen(at()) ? "true" : null}
@@ -1174,7 +1174,7 @@ class Widgets implements Markup {
 									data-focused={() -> focused.value && cursor.value == at() ? "true" : null} data-range-start={() -> edge(at(), true)}
 									data-range-end={() -> edge(at(), false)} data-range-middle={() -> middle(at())} onClick={_ -> choose(at())}>
 									{() -> "" + Days.day(at()).day}
-								</view>;
+								</view:button>;
 							}
 						]}</view>
 				]}
@@ -3228,7 +3228,7 @@ class Widgets implements Markup {
 	// transform; mirrored: right to left the other way, as a disclosure's arrow)
 	static function icon(svg:Svg, slot:String, ?transform:Void->String, mirrored = false):Node {
 		Rules.addBase("icons", [
-			for (s in ["calendar-button-icon", "tree-toggle-icon", "sidebar-trigger-icon",
+			for (s in ["tree-toggle-icon", "sidebar-trigger-icon",
 				"navigation-menu-trigger-icon", "carousel-icon"])
 				{slot: s, style: s == "navigation-menu-trigger-icon" ? {width: 12, height: 12} : {width: 16, height: 16}}
 		]);
