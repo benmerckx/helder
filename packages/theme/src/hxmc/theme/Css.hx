@@ -29,7 +29,8 @@ class Css {
 		"--spacing" => "0.25rem", "--text-xs" => "0.75rem", "--text-xs--line-height" => "calc(1 / 0.75)", "--text-sm" => "0.875rem",
 		"--text-sm--line-height" => "calc(1.25 / 0.875)", "--text-base" => "1rem", "--text-base--line-height" => "calc(1.5 / 1)",
 		"--text-lg" => "1.125rem", "--text-lg--line-height" => "calc(1.75 / 1.125)", "--text-xl" => "1.25rem",
-		"--text-xl--line-height" => "calc(1.75 / 1.25)", "--text-2xl" => "1.5rem", "--text-2xl--line-height" => "calc(2 / 1.5)",
+		"--text-xl--line-height" => "calc(1.75 / 1.25)", "--text-2xl" => "1.5rem", "--text-2xl--line-height" => "calc(2 / 1.5)", "--text-3xl" => "1.875rem",
+		"--text-3xl--line-height" => "calc(2.25 / 1.875)",
 		"--font-weight-normal" => "400", "--font-weight-medium" => "500", "--font-weight-semibold" => "600", "--font-weight-bold" => "700",
 		"--tracking-tight" => "-0.025em", "--tracking-widest" => "0.1em", "--leading-normal" => "1.5", "--leading-relaxed" => "1.625",
 		"--leading-tight" => "1.25", "--leading-snug" => "1.375", "--radius-xs" => "0.125rem", "--ease-in-out" => "cubic-bezier(0.4, 0, 0.2, 1)",
@@ -207,8 +208,13 @@ class Css {
 		}
 		// arbitrary: [&_svg] (_ a space), [a&], [svg] (as &:is(svg))
 		if (v.startsWith("[") && v.endsWith("]")) {
-			var s = combinators(attrs(v.substring(1, v.length - 1).replace("_", " "), attr));
-			if (s.startsWith("@")) r.at.push(s) else if (s.indexOf("&") >= 0) sel(x -> s.replace("&", x)) else pseudo(":is(" + s + ")");
+			var s = combinators(attrs(v.substring(1, v.length - 1).replace("_", " "), attr)).replace("> *:", "> :");
+			// (a list: [&>[role=checkbox],[role=radio]], a part without & under it)
+			var list = splitTop(s, ",");
+			if (s.startsWith("@")) r.at.push(s) else if (list.length > 1 && s.indexOf("&") >= 0) {
+				var parts = [for (p in list) p.indexOf("&") >= 0 ? p : "& " + p];
+				sel(x -> [for (p in parts) p.replace("&", x)].join(", "));
+			} else if (s.indexOf("&") >= 0) sel(x -> s.replace("&", x)) else pseudo(":is(" + s + ")");
 			return true;
 		}
 		for (prefix in ["group", "peer", "in"])
@@ -231,7 +237,9 @@ class Css {
 		if (v.startsWith("has-") || v.startsWith("not-")) {
 			var inner = v.substr(4);
 			if (v.startsWith("has-") && inner.startsWith("[")) {
-				pseudo(":has(" + combinators(attrs(inner.substring(1, inner.length - 1).replace("_", " "), attr)) + ")");
+				var s = combinators(attrs(inner.substring(1, inner.length - 1).replace("_", " "), attr));
+				pseudo(":has(" + (StringTools.startsWith(StringTools.ltrim(s), ">") || StringTools.startsWith(StringTools.ltrim(s), "+")
+					|| StringTools.startsWith(StringTools.ltrim(s), "~") ? s : ":is(" + s + ")") + ")");
 				return true;
 			}
 			var probe:CssRule = {at: [], sel: "&", decls: []};
@@ -249,6 +257,20 @@ class Css {
 		if (v.startsWith("data-")) {
 			var a = v.substr(5);
 			pseudo(a.startsWith("[") ? attribute("data-", a) : '[data-$a]');
+			return true;
+		}
+		if (v.startsWith("nth-last-") || v.startsWith("nth-")) {
+			var last = v.startsWith("nth-last-"), n = v.substr(last ? 9 : 4);
+			if (n.startsWith("[")) n = n.substring(1, n.length - 1).replace("_", " ");
+			pseudo(last ? ":nth-last-child(" + n + ")" : ":nth-child(" + n + ")");
+			return true;
+		}
+		// (container queries: @md/name, the named container's width)
+		if (v.startsWith("@")) {
+			var slash = v.indexOf("/"), size = slash < 0 ? v.substr(1) : v.substring(1, slash);
+			var width = THEME["--container-" + size];
+			if (width == null) return false;
+			r.at.push("@container " + (slash < 0 ? "" : v.substr(slash + 1) + " ") + "(width >= " + width + ")");
 			return true;
 		}
 		if (v.startsWith("supports-[")) {
@@ -318,6 +340,7 @@ class Css {
 		for (i in 0...v.length) {
 			var ch = v.charAt(i);
 			if ((ch == "+" || ch == "-" || ch == "*" || ch == "/") && i > 0 && v.charAt(i - 1) != " " && v.charAt(i - 1) != "(" && v.charAt(i - 1) != ","
+				&& !(ch == "-" && (v.charAt(i - 1) == "*" || v.charAt(i - 1) == "/"))
 				&& !(ch == "-" && isNameChar(v.charCodeAt(i - 1)) && i + 1 < v.length && isNameChar(v.charCodeAt(i + 1)) && !isDigit(v.charCodeAt(i + 1)))) {
 				// (inside var(--x-y) a dash is the name's)
 				if (inVar(v, i)) out.add(ch) else {
@@ -350,7 +373,7 @@ class Css {
 	static function spacing(v:String, neg:Bool, ?fractions = true, ?words:Map<String, String>):Null<String> {
 		var s:Null<String> = null;
 		if (words != null && words.exists(v)) s = words[v] else if (v == "px") s = "1px" else if (v == "full") s = "100%" else if (v.startsWith("[")
-			&& v.endsWith("]")) s = arbitrary(v.substring(1, v.length - 1)) else if (v.startsWith("(") && v.endsWith(")")) s = "var(" + v.substring(1,
+			&& v.endsWith("]")) s = arbitrary(theme(v.substring(1, v.length - 1))) else if (v.startsWith("(") && v.endsWith(")")) s = "var(" + v.substring(1,
 				v.length - 1) + ")" else if (fractions && v.indexOf("/") > 0) {
 			var p = v.split("/");
 			if (num(p[0]) == null || num(p[1]) == null) return null;
@@ -417,6 +440,11 @@ class Css {
 			case "aspect-square": return one("aspect-ratio", "1 / 1");
 			case "aspect-video": return one("aspect-ratio", "var(--aspect-video)");
 			case "touch-none": return one("touch-action", "none");
+			case "appearance-none": return one("appearance", "none");
+			case "list-none": return one("list-style-type", "none");
+			case "order-first": return one("order", "-9999");
+			case "order-last": return one("order", "9999");
+			case "object-cover" | "object-contain" | "object-fill" | "object-none": return one("object-fit", u.substr(7));
 			case "select-none" | "select-text" | "select-all" | "select-auto":
 				var s = u.substr(7);
 				return [["-webkit-user-select", s], ["user-select", s]];
@@ -513,7 +541,7 @@ class Css {
 			}
 		// sizes
 		var sizeWords = [
-			"auto" => "auto", "fit" => "fit-content", "min" => "min-content", "max" => "max-content", "screen" => "100vw", "dvh" => "100dvh"
+			"auto" => "auto", "fit" => "fit-content", "min" => "min-content", "max" => "max-content", "screen" => "100vw", "dvh" => "100dvh", "svh" => "100svh", "lvh" => "100lvh"
 		];
 		for (p in [["size-", "size"], ["min-w-", "min-width"], ["max-w-", "max-width"], ["min-h-", "min-height"], ["max-h-", "max-height"],
 			["w-", "width"], ["h-", "height"]])
@@ -580,9 +608,11 @@ class Css {
 				var p = side == "" ? "border" : "border" + SIDES[side];
 				return [['$p-style', "var(--tw-border-style)"], ['$p-width', w]];
 			}
-			if (side == "" && rest.startsWith("-")) {
+			if (rest.startsWith("-")) {
 				var c = color(rest.substr(1));
-				if (c != null) return one("border-color", c);
+				if (c != null) return one(side == "" ? "border-color" : "border" + SIDES[side] + "-color", c);
+			}
+			if (side == "" && rest.startsWith("-")) {
 				switch rest {
 					case "-solid" | "-dashed" | "-dotted" | "-none": return [["--tw-border-style", rest.substr(1)], ["border-style", rest.substr(1)]];
 					case _:
@@ -600,6 +630,12 @@ class Css {
 			}
 		// text sizes and the rest of text
 		if ((v = after("text-")) != null) {
+			var slash = v.indexOf("/");
+			if (slash > 0 && THEME.exists("--text-" + v.substr(0, slash))) {
+				var l = v.substr(slash + 1);
+				var lh = THEME.exists("--leading-" + l) ? "var(--leading-" + l + ")" : l.startsWith("[") ? arbitrary(l.substring(1, l.length - 1)) : spacing(l, false, false);
+				return lh == null ? null : [["font-size", "var(--text-" + v.substr(0, slash) + ")"], ["line-height", lh]];
+			}
 			if (THEME.exists('--text-$v'))
 				return [["font-size", 'var(--text-$v)'], ["line-height", 'var(--tw-leading, var(--text-$v--line-height))']];
 			if (v.startsWith("[")) return one("font-size", arbitrary(v.substring(1, v.length - 1)));
@@ -670,6 +706,7 @@ class Css {
 			part = part.trim();
 			var i = part.indexOf("rgb");
 			if (i < 0) i = part.indexOf("#");
+			if (i < 0) i = part.indexOf("var(");
 			out.push(i < 0 ? part : part.substr(0, i) + "var(--tw-shadow-color, " + part.substr(i) + ")");
 		}
 		return out.join(", ");
@@ -694,7 +731,7 @@ class Css {
 		var i = v.indexOf("--spacing(");
 		if (i < 0) return v;
 		var j = v.indexOf(")", i);
-		return v.substr(0, i) + "calc(var(--spacing) * " + v.substring(i + 10, j) + ")" + v.substr(j + 1);
+		return theme(v.substr(0, i) + "calc(var(--spacing) * " + v.substring(i + 10, j) + ")" + v.substr(j + 1));
 	}
 
 	// a value with the theme's variables written out and what that leaves
@@ -751,7 +788,9 @@ class Css {
 		out.add(PREFLIGHT);
 		function tokens(m:haxe.DynamicAccess<String>):String
 			return [for (k in sorted(m)) '--$k:${m[k]}'].join(";");
-		out.add(':root{--radius:${s.radius};--font-sans:${THEME["--font-sans"]};${tokens(s.light)}}\n');
+		// (the variables the sheet's classes name: --cell-size, --sidebar-width)
+		var vars = [for (k in sorted(s.vars)) k + ":" + s.vars[k] + ";"].join("");
+		out.add(':root{--radius:${s.radius};--font-sans:${THEME["--font-sans"]};$vars${tokens(s.light)}}\n');
 		out.add('.dark{${tokens(s.dark)}}\n');
 		out.add('@media (prefers-color-scheme:dark){:root:not(.light){${tokens(s.dark)}}}\n');
 		// (shadcn's globals.css: borders and outlines in its colours, the body's)

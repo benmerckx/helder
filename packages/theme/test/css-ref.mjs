@@ -95,7 +95,9 @@ for (let k = 0; k < rules.length; k++) {
 	// (a fallback followed by its color-mix: only the color-mix; the color-mix's own @supports left out)
 	if (rules[k + 1]?.at.includes(MIX) && rules[k + 1].sel === r.sel && !r.at.includes(MIX)) continue;
 	const at = r.at.filter(a => a !== MIX);
-	const sel = r.sel.slice(0, m.index) + '&' + r.sel.slice(m.index + m[0].length);
+	// (every place the class is: a selector list's parts each have it)
+	const esc = m[0].replace(/[.*+?^${}()|[\]\\]/g, c => '\\' + c);
+	const sel = r.sel.replace(new RegExp(esc + '(?![\\w-])', 'g'), '&');
 	lines.push([cls, at.join(' | '), sel, r.decls.map(([p, v]) => `${p}: ${v}`).join('; ')].join('\t'));
 }
 fs.writeFileSync(path.join(here, 'tailwind.txt'), lines.join('\n') + '\n');

@@ -67,7 +67,9 @@ class Dom {
 	static final ICONS = [
 		"check" => ["M20 6 9 17l-5-5"], "circle" => ["c12 12 10"], "chevron-down" => ["m6 9 6 6 6-6"], "chevron-right" => ["m9 18 6-6-6-6"],
 		"chevron-left" => ["m15 18-6-6 6-6"], "x" => ["M18 6 6 18", "m6 6 12 12"], "minus" => ["M5 12h14"], "search" => ["m21 21-4.34-4.34", "c11 11 8"],
-		"loader" => ["M21 12a9 9 0 1 1-6.219-8.56"], "more" => ["c12 12 1", "c19 12 1", "c5 12 1"]
+		"loader" => ["M21 12a9 9 0 1 1-6.219-8.56"], "more" => ["c12 12 1", "c19 12 1", "c5 12 1"],
+		"arrow-left" => ["m12 19-7-7 7-7", "M19 12H5"], "arrow-right" => ["M5 12h14", "m12 5 7 7-7 7"], "panel-left" => ["M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z", "M9 3v18"],
+		"folder" => ["M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"]
 	];
 
 	// an icon (decoration: hidden from assistive technology), slot its

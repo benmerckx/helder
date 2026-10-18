@@ -86,11 +86,13 @@ share sheets, printing, alerts on request, the clipboard, drag and drop.
   against Tailwind's own output), on `data-slot` selectors, light and dark
   by class or the system's, `@starting-style` for enter animations.
 - **Fidelity**: `make theme-dom-check`, the DOM's widgets in Chromium
-  against shadcn's references: all 203 cases within the bar, most
-  identical. **Behaviour**: `make web-widgets` drives the gallery by
+  against shadcn's references: all 252 cases within the bar, most
+  identical (the third batch too: Field, ButtonGroup, InputGroup, Empty,
+  Item, Carousel, NavigationMenu, Sidebar, BarChart and LineChart,
+  AspectRatio, ScrollArea, NativeSelect, a calendar's range). **Behaviour**: `make web-widgets` drives the gallery by
   pointer and keys.
 - **Size**: a counter is 42 KB of JavaScript (9 KB gzipped), the form 60
-  KB (12 KB), the whole gallery 306 KB (55 KB), the CSS 132 KB (13 KB),
+  KB (12 KB), the whole gallery 306 KB (55 KB), the CSS 184 KB (18 KB),
   against 1.8, 1.9 and 2.4 MB of wasm32-wasi (432, 459, 559 KB gzipped)
   for their canvas builds.
 
