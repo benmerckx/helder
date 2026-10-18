@@ -6,8 +6,8 @@ import haxe.macro.Expr;
 // class limited to some renderers (@:renderer, MarkupMacro) names the class
 // whose function of the same name another renderer's markup calls
 // (@:renderer(hxmc.ui.view.NodeRenderer, hxmc.web.DomRenderer =>
-// hxmc.web.widgets.Widgets): ui's widgets, the DOM's in a page), else
-// the component itself
+// hxmc.web.widgets.Widgets): ui's widgets, the DOM's in a page; none
+// for it an error), else the component itself
 class Pick {
 	// the function for renderer pass (its index)
 	public static macro function callee(pass:Int, callee:Expr):Expr

@@ -30,7 +30,7 @@ using haxe.macro.ExprTools;
 // the others' code a throw; its components, in another renderer's
 // markup, the function of the same name of the class it names for that
 // renderer (@:renderer(..., hxmc.web.DomRenderer => hxmc.web.widgets.Widgets):
-// Pick), else a throw when mounted.
+// Pick), else an error naming it and the renderer.
 class MarkupMacro {
 	@:allow(hxmc.view.Literal) static var count = 0;
 
@@ -95,7 +95,7 @@ class MarkupMacro {
 			case TInst(k, _): Lambda.exists(k.get().statics.get(), f -> f.name == field);
 			case _: false;
 		}) return macro @:pos(callee.pos) $c.$field;
-		return macro @:pos(callee.pos) (throw $v{"hxmc.view: " + l.cls + "." + field + " is not for " + r + " (@:renderer)"} : Dynamic);
+		return Context.error("hxmc.view: " + l.cls + "." + field + " has no version for " + r + " (@:renderer names none)", callee.pos);
 	}
 
 	// the call of callee for the renderer mounting it (Pick.call)

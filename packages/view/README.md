@@ -110,7 +110,7 @@ names for that renderer: `@:renderer(hxmc.ui.view.NodeRenderer,
 hxmc.web.DomRenderer => hxmc.web.widgets.Widgets)` is ui's widgets, so
 that `<Button/>` with ui's widgets imported is the DOM's Button in a
 page's markup (`hxmc.view.Pick`, when the literal is typed); a component
-with none for a renderer throws when mounted there.
+with none for a renderer is an error naming it and the renderer.
 
 ## Tests
 

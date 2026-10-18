@@ -458,17 +458,13 @@ class ViewTest implements Markup {
 		Render.render(shared, other);
 		check("renderers: a component per renderer in a literal both share", test.toHtml() == "<root><span class=\"badge\">both</span></root>"
 			&& other.toString() == "[root[badgeboth]]", test.toHtml() + " " + other.toString());
-		// (none for a renderer: an error when mounted; the class's own markup in another renderer too)
-		var lone = try {
-			Render.render(<div><OtherWidgets.Lone/></div>, new TestNode(Element, "root"));
-			"mounted";
-		} catch (e:Dynamic) Std.string(e);
+		// (the class's own markup in another renderer: an error when mounted; a component with none for a renderer: reject/MarkupRenderer.hx)
 		var own = try {
 			Render.render(OtherWidgets.Badge({label: "x"}), new TestNode(Element, "root"));
 			"mounted";
 		} catch (e:Dynamic) Std.string(e);
-		check("renderers: a component not for a renderer, an error when mounted", lone == "hxmc.view: OtherWidgets.Lone is not for TestRenderer (@:renderer)"
-			&& own == "hxmc.view: OtherWidgets markup is not for TestRenderer (@:renderer)", lone + " / " + own);
+		check("renderers: a class's markup not for a renderer, an error when mounted", own == "hxmc.view: OtherWidgets markup is not for TestRenderer (@:renderer)",
+			own);
 	}
 
 	#if sys
@@ -500,9 +496,6 @@ class ViewTest implements Markup {
 class OtherWidgets implements Markup {
 	public static function Badge(props:{label:String}):View
 		return <badge>{props.label}</badge>;
-
-	public static function Lone(props:{}):View
-		return <lone/>;
 }
 
 class TestWidgets implements Markup {
