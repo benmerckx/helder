@@ -130,6 +130,23 @@ class MarkupMacro {
 			case _: true;
 		}
 
+	// whether an attribute's value is of a type never reactive (a String,
+	// Int, Float or Bool, an enum abstract of one, null of one): its hole set
+	// once, as a literal is, not bound (a function, a Signal, Dynamic or a
+	// type it cannot tell still bound by the runtime)
+	@:allow(hxmc.view.Literal) static function plain(x:Expr):Bool {
+		var t = try Context.typeof(x) catch (_:Dynamic) return false;
+		function of(t:haxe.macro.Type):Bool
+			return switch Context.follow(t) {
+				case TInst(_.get() => {pack: [], name: "String"}, _): true;
+				case TAbstract(_.get() => {pack: [], name: "Int" | "Float" | "Bool"}, _): true;
+				case TAbstract(_.get() => {pack: [], name: "Null"}, [p]): of(p);
+				case TAbstract(_.get() => a, _) if (a.meta.has(":enum")): of(a.type);
+				case _: false;
+			}
+		return of(t);
+	}
+
 	@:allow(hxmc.view.Literal) static function isComponent(name:String):Bool {
 		var last = name.split(".").pop();
 		return name.indexOf(".") >= 0 || (last.length > 0 && last.charAt(0) == last.charAt(0).toUpperCase() && last.charAt(0) != last.charAt(0).toLowerCase());
@@ -446,6 +463,8 @@ class Literal {
 					case "key": null;
 					case "ref": macro @:pos(ap) __RT__.ref($e, $h);
 					case "style": macro @:pos(ap) __RT__.style($e, $h);
+					// (a value never reactive: its hole set as a literal is)
+					case _ if (MarkupMacro.plain(x)): macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $h);
 					case _: macro @:pos(ap) __RT__.prop($e, $v{name}, $h);
 				}
 			case ASpread(code, at):
@@ -480,6 +499,8 @@ class Literal {
 					var r:Dynamic = $h;
 					if (r != null) (r : Dynamic -> Void)(__NEUTRAL__.part($e));
 				};
+				// (a value never reactive: its hole set as a literal is)
+				else if (MarkupMacro.plain(x)) macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $h);
 				else macro @:pos(ap) __NEUTRAL__.prop($e, $v{tag}, $v{name}, $h);
 			case ASpread(_, at):
 				Context.error("markup: a neutral element's attributes are named (no spread: each one realised when compiled)", MarkupMacro.position(file, base + at, 3));

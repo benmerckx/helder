@@ -187,6 +187,15 @@ class ViewTest implements Markup {
 		var e = <p count={n++}>{n++}</p>;
 		check("holes evaluated when the literal runs", n == 2);
 		check("mounted twice", html(e) == '<p count="0">1</p>' && html(e) == '<p count="0">1</p>' && n == 2);
+		// values of a type never reactive (a String, a number, a Bool, null of one) set as literals are; a function, a Signal or a Dynamic holding one bound
+		var on = signal(true), k = 2, held:Dynamic = () -> on.value ? "yes" : "no";
+		var at = new TestNode(Element, "root");
+		Render.render(<b title={k > 1 ? "big" : "small"} data-k={k * 2} data-f={() -> on.value ? "on" : "off"} data-s={on} data-d={held}/>, at);
+		var first = at.toHtml();
+		on.value = false;
+		check("plain values set once, functions, signals and a Dynamic holding one bound",
+			first == '<root><b data-d="yes" data-f="on" data-k="4" data-s="true" title="big"></b></root>'
+			&& at.toHtml() == '<root><b data-d="no" data-f="off" data-k="4" data-s="false" title="big"></b></root>', first + " " + at.toHtml());
 		// whitespace and entities as JSX has them
 		check("JSX's whitespace", html(<p>
 			Hello,
