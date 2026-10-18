@@ -2,6 +2,7 @@
 // summary: A month's days, the chosen one shown beside them; another choosing a range, its first and last day
 import hxmc.ui.widgets.Widgets.*;
 import hxmc.ui.widgets.Days;
+import hxmc.ui.widgets.Widgets.DayRange;
 import hxmc.view.*;
 import hxmc.view.Reactive.*;
 
