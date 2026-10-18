@@ -74,10 +74,10 @@ try {
 	} else await line(/edit 0/);
 	await new Promise((r) => setTimeout(r, 1000));
 	for (let i = 1; i <= edits; i++) {
-		const done = line(/^hxmc dev: reloaded in/);
+		const done = line(/^hxmc dev: (?:swapped|reloaded) in/);
 		fs.writeFileSync(src, fs.readFileSync(src, 'utf8').replace(`"edit ${i - 1}"`, `"edit ${i}"`));
 		const l = await done;
-		const m = /reloaded in (\d+) ms \(build (\d+) ms\)/.exec(l);
+		const m = /(?:swapped|reloaded) in (\d+) ms \(build (\d+) ms\)/.exec(l);
 		results.push({ total: Number(m[1]), build: Number(m[2]) });
 		console.log(`${example} ${mode} edit ${i}: ${m[1]} ms (build ${m[2]} ms)`);
 		await new Promise((r) => setTimeout(r, 500));

@@ -13,7 +13,10 @@ import TestRenderer.TestNode;
 // two instances of one component apart, a list's rows by position, a
 // component by its key attribute, what a region shows later (Show) as when it
 // first showed; a signal of a type that is not data not kept; the effects'
-// cleanups run on disposal
+// cleanups run on disposal. Built again with -D refresh_changed (a signal's
+// initial value edited), restored from the same snapshot: that signal
+// starts at its new value, said so, the others are kept; a class marked
+// @:hot(reset) keeps none of its signals
 class RefreshTest implements Markup {
 	static var failures = 0;
 	// the components' signals, by their labels
@@ -38,6 +41,8 @@ class RefreshTest implements Markup {
 		var args = Sys.args();
 		var phase = args[0], file = args[1];
 		var count = signal(0);
+		var tuned = signal(#if refresh_changed 7 #else 1 #end);
+		var fresh = ResetState.make();
 		var names:Signal<Array<String>> = signal([]);
 		var later = signal(false);
 		var callback = signal(() -> 1);
@@ -53,6 +58,8 @@ class RefreshTest implements Markup {
 			case "save":
 				check("a cold start", !hxmc.dev.Hot.reloading && count.value == 0 && made.get("a").value == 0);
 				count.value = 5;
+				tuned.value = 2;
+				fresh.value = 9;
 				made.get("a").value = 1;
 				made.get("b").value = 2;
 				made.get("keyed").value = 4;
@@ -74,9 +81,22 @@ class RefreshTest implements Markup {
 				check("rows by position", made.get("row x").value == 10 && made.get("row y").value == 11);
 				check("a region shown later", later.value && made.get("later") != null && made.get("later").value == 7);
 				check("not data: not kept", callback.value() == 1);
+				#if refresh_changed
+				check("its initial value edited: the new one", tuned.value == 7);
+				#else
+				check("its initial value as it was: kept", tuned.value == 2);
+				#end
+				check("@:hot(reset): not kept", fresh.value == 0);
 				hxmc.dev.Hot.framed();
 		}
 		Sys.println(failures == 0 ? 'RefreshTest $phase: ok' : 'RefreshTest $phase: $failures failed');
 		Sys.exit(failures == 0 ? 0 : 1);
 	}
+}
+
+// (its signals start afresh in each build)
+@:hot(reset)
+class ResetState {
+	public static function make():Signal<Int>
+		return signal(0);
 }

@@ -20,6 +20,9 @@ import hxmc.unsafe.*;
 	static function XSetWMNormalHints(d:Ptr, w:Int64, hints:Ptr):Void;
 	static function XSelectInput(d:Ptr, w:Int64, mask:Int64):Int;
 	static function XMapWindow(d:Ptr, w:Int64):Int;
+	#if hxmc.dev_host
+	static function XCloseIM(im:Ptr):Int;
+	#end
 	static function XInternAtom(d:Ptr, name:Ptr, onlyIfExists:Int):Int64;
 	static function XSetWMProtocols(d:Ptr, w:Int64, protocols:Ptr<Int64>, count:Int):Int;
 	static function XPending(d:Ptr):Int;

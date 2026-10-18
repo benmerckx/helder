@@ -2,7 +2,10 @@
 // of @hxmc/ui's Counter example as a native program in a window (run under
 // Xvfb on Linux), its count printed, set to 3 on a cold start (as a click
 // would; a reload must bring it back, not set it again):
-// - an edit: the program restarts with the new build, the count still 3;
+// - an edit: the new build swapped in, the count still 3; on Linux (the dev
+//   host: each build a shared library loaded into the same process) the
+//   process and the window are the same (the window's id and the process
+//   the host's builds print), the build is new (its start stamp);
 // - the signal's type changed: reset, logged;
 // - a compile error: the program keeps running (the same process), the
 //   error in the terminal; fixed: the new build, the count kept;
@@ -78,20 +81,30 @@ const line = (re, ms = 120000, past = false) => {
 	return pr;
 };
 const pidOf = (l) => /pid=(\d+)/.exec(l)?.[1];
+// the dev host's window and process, as each build that takes it prints it (Linux)
+const hosted = process.platform === 'linux';
+const hostWindows = () => lines.filter((l) => /^hxmc\.dev: the host's window /.test(l));
+const sameHost = (what) => {
+	if (!hosted) return;
+	const w = hostWindows();
+	check(`${what}: the same process and window (${w.length} builds)`, w.length >= 2 && w.every((l) => l === w[0]), JSON.stringify(w));
+};
 
 const times = [];
 try {
 	const first = await line(/v1 count=3 pid=/, 240000, true);
 	check('the first build runs, its state changed', !!first);
 
-	const reloaded = line(/^hxmc dev: reloaded in/);
+	const reloaded = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	const v2 = line(/v2 count=\S+ pid=/);
 	edit((s) => s.replace('label="+1"', 'label="+2"').replace('"v1 count="', '"v2 count="'));
 	times.push(await reloaded);
 	const v2l = await v2;
-	check('edited: a new process, the count kept', /v2 count=3 /.test(v2l) && pidOf(v2l) !== pidOf(first), v2l);
+	check('edited: the new build, the count kept', /v2 count=3 /.test(v2l) && pidOf(v2l) !== pidOf(first), v2l);
+	await new Promise((r) => setTimeout(r, 200));
+	sameHost('edited');
 
-	const reloaded2 = line(/^hxmc dev: reloaded in/);
+	const reloaded2 = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	const v3 = line(/v3 count=\S+ pid=/);
 	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('count.value = 3;', 'count.value = 3.5;').replace('"v2 count="', '"v3 count="'));
@@ -107,12 +120,15 @@ try {
 	await new Promise((r) => setTimeout(r, 1000));
 	check('error: the program keeps running', !lines.some((l) => /the program ended/.test(l)));
 
-	const reloaded3 = line(/^hxmc dev: reloaded in/);
+	const reloaded3 = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	const v5 = line(/v5 count=\S+ pid=/);
 	edit((s) => s.replace('"v4 count=" +* broken', '"v5 count="'));
 	times.push(await reloaded3);
 	const v5l = await v5;
 	check('fixed: the new build, the count kept', /v5 count=0\.5 /.test(v5l) && pidOf(v5l) !== pidOf(v3l), v5l);
+	await new Promise((r) => setTimeout(r, 200));
+	sameHost('fixed');
+	if (hosted) check('no program ended or restarted', !lines.some((l) => /the program ended/.test(l)));
 } catch (e) {
 	console.log('FAIL ' + e.message);
 	failures++;
@@ -121,11 +137,15 @@ try {
 }
 // the dev server's last build (its compilation server reusing typed modules,
 // lowered bodies and objects across the edits) is what a fresh build makes
+// (the dev host's: the last library, against one built with its options)
 const devOut = path.join(work, 'out/counter');
-if (failures === 0 && fs.existsSync(devOut)) {
-	const kept = fs.readFileSync(devOut);
+const libs = fs.existsSync(devOut + '.dev') ? fs.readdirSync(devOut + '.dev').filter((f) => f.endsWith('.so')).sort((a, b) => parseInt(b) - parseInt(a)) : [];
+const last = hosted && libs.length ? path.join(devOut + '.dev', libs[0]) : devOut;
+if (failures === 0 && fs.existsSync(last)) {
+	const kept = fs.readFileSync(last);
 	const std = path.join(path.dirname(compiler), 'std');
-	const r = spawnSync(compiler, ['-D', 'hxmc.dev', 'build.hxml', ...(fs.existsSync(std) ? ['-cp', std] : [])],
+	const r = spawnSync(compiler, ['-D', 'hxmc.dev', ...(last !== devOut ? ['-D', 'hxmc.shared', '-D', 'hxmc.dev-host', '-D', 'hxmc.exports=hxmc_dev_run,hxmc_dev_state'] : []),
+		'build.hxml', ...(fs.existsSync(std) ? ['-cp', std] : [])],
 		{ cwd: work, encoding: 'utf8', env: { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
 	check('the last build is a fresh build, byte for byte', r.status === 0 && Buffer.compare(kept, fs.readFileSync(devOut)) === 0, (r.stderr ?? '').slice(-800));
 }

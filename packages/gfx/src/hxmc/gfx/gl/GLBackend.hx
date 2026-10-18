@@ -87,6 +87,43 @@ class GLBackend {
 	var uniformAlign = 256;
 
 	static inline var MAX_SLOTS = 8;
+	#if hxmc.dev
+	var vao = 0;
+	#end
+	#if hxmc.dev_host
+	// the context is the host's (hxmc.dev.Hosted): made by an earlier build
+	var hostKept = false;
+	#end
+	#if hxmc.dev
+
+	// (hxmc dev) every object this back end made deleted: a build swapped out
+	// leaves a context the next one takes over (the browser's canvas, a dev host's window)
+	function deleteAll() {
+		GL.glBindVertexArray(0);
+		GL.glUseProgram(0);
+		GL.glBindFramebuffer(GL.FRAMEBUFFER, 0);
+		for (i in 0...buffers.length)
+			destroyBuffer(i + 1);
+		for (i in 0...textures.length)
+			destroyTexture(i + 1);
+		for (s in samplers) {
+			scratch.value = s;
+			GL.glDeleteSamplers(1, scratch);
+		}
+		for (p in pipelines)
+			GL.glDeleteProgram(p.program);
+		for (s in shaders)
+			GL.glDeleteShader(s);
+		if (vao != 0) {
+			scratch.value = vao;
+			GL.glDeleteVertexArrays(1, scratch);
+		}
+		samplers.resize(0);
+		pipelines.resize(0);
+		shaders.resize(0);
+		vao = 0;
+	}
+	#end
 
 	public function new(surface:Surface) {
 		this.surface = surface;
@@ -101,10 +138,25 @@ class GLBackend {
 			WebGL.make_current(web);
 			GL.glGenVertexArrays(1, scratch);
 			GL.glBindVertexArray(scratch.value);
+			#if hxmc.dev
+			vao = scratch.value;
+			#end
 			start();
 			return;
 		}
 		var headless = surface.kind == Headless;
+		#if hxmc.dev_host
+		// (hxmc dev's host: the context and its surface on the host's window, as the last build left them)
+		if (!headless && hxmc.dev.Hosted.hosted() && !hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONTEXT).isNull()) {
+			display = hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_DISPLAY);
+			config = hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONFIG);
+			context = hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONTEXT);
+			eglSurface = hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_SURFACE);
+			window = surface.handle;
+			hostKept = true;
+		}
+		if (!hostKept) {
+		#end
 		if (Mem.target() >= 9)
 			display = Egl.eglGetDisplay(Ptr.nil()); // (EGL_DEFAULT_DISPLAY)
 		else if (headless)
@@ -132,6 +184,15 @@ class GLBackend {
 			context = Egl.eglCreateContext(display, config, Ptr.nil(), ints(a, [EGL.CONTEXT_MAJOR_VERSION, 3, EGL.CONTEXT_MINOR_VERSION, 0, EGL.NONE]));
 			if (context.isNull()) fail("cannot create a GLES 3.0 context");
 		});
+		#if hxmc.dev_host
+		if (!headless && hxmc.dev.Hosted.hosted()) {
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_DISPLAY, display);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_CONFIG, config);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_CONTEXT, context);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_SURFACE, eglSurface);
+		}
+		}
+		#end
 		if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
 		// (Android: libGLESv3.so's own functions; eglGetProcAddress may know only extensions there)
 		var gles = Mem.target() >= 9 ? Posix.dlopen(Mem.cstr("libGLESv3.so"), 2) : Ptr.nil();
@@ -147,6 +208,9 @@ class GLBackend {
 		if (missing != null) throw "hxmc.gfx: no GL function " + missing;
 		GL.glGenVertexArrays(1, scratch);
 		GL.glBindVertexArray(scratch.value);
+		#if hxmc.dev
+		vao = scratch.value;
+		#end
 		start();
 	}
 
@@ -356,6 +420,9 @@ class GLBackend {
 		Egl.eglDestroySurface(display, eglSurface);
 		eglSurface = Ptr.nil();
 		window = Ptr.nil();
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted() && hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONTEXT) == context) hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_SURFACE, Ptr.nil());
+		#end
 	}
 
 	// an EGL surface on the window the Surface has now
@@ -365,6 +432,9 @@ class GLBackend {
 		eglSurface = Egl.eglCreateWindowSurface(display, config, surface.handle, Ptr.nil());
 		if (eglSurface.isNull()) fail("cannot create the EGL surface");
 		window = surface.handle;
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted() && hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONTEXT) == context) hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_SURFACE, eglSurface);
+		#end
 	}
 
 	public function beginFrame():Bool {
@@ -553,6 +623,9 @@ class GLBackend {
 	}
 
 	public function dispose() {
+		#if hxmc.dev
+		deleteAll();
+		#end
 		if (fbo != 0) {
 			scratch.value = fbo;
 			GL.glDeleteFramebuffers(1, scratch);
@@ -562,6 +635,18 @@ class GLBackend {
 				scratch.value = r;
 				GL.glDeleteBuffers(1, scratch);
 			}
+		#if hxmc.dev_host
+		// (handing over: the context, its surface and the display left to the next build, not current on this thread)
+		if (Mem.os() != 3 && hxmc.dev.Hosted.hosted() && hxmc.dev.Hosted.get(hxmc.dev.Hosted.EGL_CONTEXT) == context && !context.isNull()) {
+			if (hxmc.dev.Hosted.handingOver) {
+				Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
+				LibC.free(pixels);
+				LibC.free(scratch);
+				return;
+			}
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.EGL_CONTEXT, Ptr.nil());
+		}
+		#end
 		if (Mem.os() == 3) WebGL.release(web) else {
 			Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 			Egl.eglDestroyContext(display, context);

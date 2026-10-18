@@ -2,13 +2,18 @@
 // copy of @hxmc/ui's Counter example (packages/ui/examples/Counter.hx, with
 // a line printing its count), in headless Chromium:
 // - the counter clicked three times (its button in the canvas's ARIA mirror);
-// - an edit (the button's label, what it prints): the page reloads with the
-//   new build, the count still 3;
+// - an edit (the button's label, what it prints): the new build swapped in,
+//   the count still 3;
 // - the signal's type changed (Int to Float): reset to its new value, logged;
 // - a compile error: the overlay shows it, the last good build keeps running
 //   (the page not reloaded, the counter still counts); fixed: the new build,
 //   the count kept;
-// - the reloads' times, from the change seen to the new build's first frame.
+// - no reload, ever: after each swap the page is the same (a marker set on
+//   window survives, no navigation: Playwright's and the Performance API's),
+//   the canvas and the GPU device (WebGPU's GPUDevice; on a second page with
+//   ?gfx=webgl2, the canvas's WebGL2 context) are the same objects, there is
+//   one canvas, and the old build left no GPU objects;
+// - the swaps' times, from the change seen to the new build's first frame.
 //   node packages/os/test/dev/dev-web.mjs <compiler> [work dir] [--wasm-gc]
 // (--wasm-gc: the program built with -D hxmc.wasm-gc, the hybrid module)
 import { spawn, spawnSync } from 'node:child_process';
@@ -94,8 +99,34 @@ const times = [];
 try {
 	await line(/^hxmc dev: built in/);
 	const page = await browser.newPage();
-	page.on('pageerror', (e) => console.log('page error: ' + e.message));
+	page.on('pageerror', (e) => console.log('page error: ' + e.message + (process.env.DEV_VERBOSE ? '\n' + e.stack : '')));
+	// (navigations of the main frame after the first: a reload)
+	const navigations = new Map();
+	const watchNavigation = (p) => p.on('framenavigated', (f) => f === p.mainFrame() && navigations.set(p, (navigations.get(p) ?? 0) + 1));
+	watchNavigation(page);
 	await page.goto(`http://localhost:${port}/`);
+	// a second page on WebGL2 (its own state)
+	const gl = await browser.newPage();
+	gl.on('pageerror', (e) => console.log('page error (webgl2): ' + e.message));
+	watchNavigation(gl);
+	await gl.goto(`http://localhost:${port}/?gfx=webgl2`);
+	// what must stay across swaps: set after the first build's first frame
+	const remember = (p) => p.evaluate(() => {
+		window.hxmcDevMarker = 'the same page';
+		window.hxmcDevFirst = { device: window.hxmcDev.gpu?.device ?? null, canvas: window.hxmcDev.canvas,
+			gl: window.hxmcDev.canvas?.getContext('webgl2') ?? null, navigation: performance.getEntriesByType('navigation').length, timeOrigin: performance.timeOrigin };
+	});
+	const same = async (p, what, swaps) => {
+		const r = await p.evaluate(() => {
+			const f = window.hxmcDevFirst, d = window.hxmcDev;
+			return { marker: window.hxmcDevMarker, swaps: d.swaps, canvas: d.canvas === f.canvas && document.querySelectorAll('canvas').length === 1,
+				device: d.gpu?.device ?? null, sameDevice: (d.gpu?.device ?? null) === f.device, gl: f.gl === null || d.canvas.getContext('webgl2') === f.gl,
+				navigation: performance.getEntriesByType('navigation').length === f.navigation && performance.timeOrigin === f.timeOrigin, left: d.left ?? 0 };
+		});
+		check(`${what}: no reload (the same page, ${r.swaps} swaps)`, r.marker === 'the same page' && r.navigation && (navigations.get(p) ?? 0) === 1 && r.swaps >= swaps, JSON.stringify(r));
+		check(`${what}: the same canvas and GPU device (or WebGL2 context)`, r.canvas && r.sameDevice && r.gl, JSON.stringify(r));
+		check(`${what}: the old build released its GPU objects`, r.left === 0, JSON.stringify(r));
+	};
 	// the page's printed lines (since it last loaded)
 	const printed = () => page.evaluate(() => window.hxmcDev?.log ?? []);
 	const until = async (re, what, ms = 60000) => {
@@ -113,18 +144,37 @@ try {
 
 	await count('v1', 0, 'the first build runs');
 	await page.waitForFunction(() => document.querySelector('canvas [role=button]'));
+	await gl.waitForFunction(() => document.querySelector('canvas [role=button]'));
+	await page.waitForFunction(() => window.hxmcDev.frames > 0);
+	await gl.waitForFunction(() => window.hxmcDev.frames > 0);
+	check('WebGPU on the first page', await page.evaluate(() => !!window.hxmcDev.gpu), 'no GPUDevice: WebGPU not tested');
+	await remember(page);
+	await remember(gl);
+	await gl.evaluate(() => document.querySelector('canvas [role=button]').click());
 	for (let i = 0; i < 3; i++) await click();
 	await count('v1', 3, 'clicked three times');
 
 	// an edit: the new code, the state kept
-	const reloaded = line(/^hxmc dev: reloaded in/);
+	const reloaded = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	edit((s) => s.replace('label="+1"', 'label="+2"').replace('"v1 count="', '"v2 count="'));
 	times.push(await reloaded);
 	await count('v2', 3, 'edited: the new build, the count kept');
 	check('the new label', await page.evaluate(() => !!document.querySelector('canvas [role=button][aria-label="+2"]') || [...document.querySelectorAll('canvas [role=button]')].some((b) => b.textContent.includes('+2'))));
+	await same(page, 'edited', 1);
+	// (the WebGL2 page: its own count, 1, kept)
+	const glCount = async (version, n, what) => {
+		const end = Date.now() + 30000;
+		while (Date.now() < end) {
+			if ((await gl.evaluate(() => window.hxmcDev.log)).some((l) => l.endsWith(`${version} count=${n}`))) return check(what, true);
+			await gl.waitForTimeout(50);
+		}
+		check(what, false, JSON.stringify((await gl.evaluate(() => window.hxmcDev.log)).slice(-5)));
+	};
+	await glCount('v2', 1, 'edited, WebGL2: the count kept');
+	await same(gl, 'edited, WebGL2', 1);
 
 	// the signal's type changed: reset to its new initial value, and said so
-	const reloaded2 = line(/^hxmc dev: reloaded in/);
+	const reloaded2 = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('"v2 count="', '"v3 count="'));
 	times.push(await reloaded2);
@@ -142,14 +192,18 @@ try {
 	const overlay = await page.evaluate(() => ({ shown: getComputedStyle(document.getElementById('hxmc-dev-overlay')).display !== 'none', text: document.getElementById('hxmc-dev-overlay').textContent }));
 	check('error: the overlay shows it', overlay.shown && /Counter\.hx/.test(overlay.text), overlay.text.slice(0, 300));
 	check('error: the page is the same', (await page.evaluate(() => window.hxmcDevMarker)) === 'still the same page');
+	await page.evaluate(() => (window.hxmcDevMarker = 'the same page'));
 	await click();
 	await count('v3', 2.5, 'error: the last good build keeps running');
 
 	// fixed: the new build, the state kept, the overlay gone
-	const reloaded3 = line(/^hxmc dev: reloaded in/);
+	const reloaded3 = line(/^hxmc dev: (?:swapped|reloaded) in/);
 	edit((s) => s.replace('"v4 count=" +* broken', '"v5 count="'));
 	times.push(await reloaded3);
 	await count('v5', 2.5, 'fixed: the new build, the count kept');
+	await same(page, 'fixed', 3);
+	await glCount('v5', 0.5, 'fixed, WebGL2: the count kept');
+	await same(gl, 'fixed, WebGL2', 3);
 	check('fixed: no overlay', await page.evaluate(() => getComputedStyle(document.getElementById('hxmc-dev-overlay')).display === 'none'));
 } catch (e) {
 	console.log('FAIL ' + e.message);

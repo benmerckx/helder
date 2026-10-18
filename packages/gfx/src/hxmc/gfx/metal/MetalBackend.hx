@@ -495,7 +495,12 @@ class MetalBackend {
 		ObjC.release(depth);
 		Runtime.objc_release(pass);
 		Runtime.objc_release(queue);
+		#if hxmc.dev_host
+		// (handing over: the layer keeps its device and its last frame for the next build)
+		if (!layer.isNull() && !hxmc.dev.Hosted.handingOver) Msg.vPtr(layer, ObjC.sel("setDevice:"), Ptr.nil());
+		#else
 		if (!layer.isNull()) Msg.vPtr(layer, ObjC.sel("setDevice:"), Ptr.nil());
+		#end
 		Runtime.objc_release(device);
 		LibC.free(scratch);
 		LibC.free(clear);

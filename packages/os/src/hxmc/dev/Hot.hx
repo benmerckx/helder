@@ -254,6 +254,10 @@ class Hot {
 			var file = Sys.getEnv("HXMC_DEV_SNAPSHOT");
 			if (file != null && file != "" && sys.FileSystem.exists(file)) data = sys.io.File.getContent(file);
 			var at = Sys.getEnv("HXMC_DEV");
+			#if hxmc.dev_host
+			// (Android: the dev server the APK was built for, through adb reverse)
+			if (at == null || at == "") at = haxe.macro.Compiler.getDefine("hxmc.dev-server");
+			#end
 			if (at != null && at.indexOf(":") > 0) {
 				var fd = hxmc.NativeNet.socket();
 				if (fd >= 0 && hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1))) >= 0) {
@@ -316,9 +320,44 @@ class Hot {
 		done = true;
 	}
 
+	#if (hxmc.dev_host && target.name == "hxmc")
+	static var settledAt = -1.0;
+
+	// this build hands over to the library at path (its snapshot written):
+	// what the host keeps left to it, the dev server told, main returns
+	static function handOverTo(path:String) {
+		hxmc.dev.Hosted.handOver(path);
+		dispose();
+		send('{"type":"saved"}');
+		if (socket >= 0) hxmc.NativeNet.close(socket);
+		socket = -1;
+		Sys.stdout().flush();
+	}
+	#end
+
 	// hxmc.os.App, at each turn of its loop: the dev server's messages (natively)
 	@:noCompletion public static function poll():Bool {
 		init();
+		#if (hxmc.dev_host && target.name == "hxmc")
+		// (tests, without a dev server: a build hands over to the next of the
+		// libraries HXMC_DEV_NEXT lists (separated by ';') a second after its
+		// first frame, its snapshot in HXMC_DEV_SNAPSHOT)
+		if (settled && !done && hxmc.dev.Hosted.hosted()) {
+			var next = Sys.getEnv("HXMC_DEV_NEXT");
+			if (next != null && next != "") {
+				if (settledAt < 0) settledAt = haxe.Timer.stamp();
+				if (haxe.Timer.stamp() - settledAt > 1) {
+					var k = next.indexOf(";");
+					var lib = k < 0 ? next : next.substr(0, k);
+					Sys.putEnv("HXMC_DEV_NEXT", k < 0 ? "" : next.substr(k + 1));
+					var file = Sys.getEnv("HXMC_DEV_SNAPSHOT");
+					if (file != null && file != "") sys.io.File.saveContent(file, snapshot());
+					handOverTo(lib);
+					return false;
+				}
+			}
+		}
+		#end
 		#if (target.name == "hxmc")
 		// (what the program printed, in the terminal as it prints it: its output is a pipe)
 		if (hxmc.unsafe.Mem.os() != 3) Sys.stdout().flush();
@@ -342,7 +381,25 @@ class Hot {
 			var m:Dynamic = try haxe.Json.parse(line) catch (_:Dynamic) null;
 			if (m != null && m.type == "reload") {
 				var data = snapshot();
+				#if hxmc.dev_host
+				// (Android: the library fetched from the dev server into the app's files, the snapshot there too)
+				if (hxmc.dev.Hosted.hosted() && m.fetch != null) {
+					var files = (cast hxmc.dev.Hosted.get(hxmc.dev.Hosted.FILES) : hxmc.unsafe.CString).toString();
+					var lib = files + "/hxmc-dev-" + m.fetch + ".so";
+					fetch(Std.string(m.fetch), lib);
+					m.snapshot = files + "/hxmc-dev.snapshot";
+					m.library = lib;
+					Sys.putEnv("HXMC_DEV_SNAPSHOT", m.snapshot);
+				}
+				#end
 				sys.io.File.saveContent(m.snapshot, data);
+				#if hxmc.dev_host
+				// (a dev host's program: the next build named, what the host keeps left to it, main returns)
+				if (hxmc.dev.Hosted.hosted() && m.library != null) {
+					handOverTo(m.library);
+					return false;
+				}
+				#end
 				dispose();
 				send('{"type":"saved"}');
 				Sys.exit(0);
@@ -373,6 +430,30 @@ class Hot {
 	}
 
 	#if (target.name == "hxmc")
+	#if hxmc.dev_host
+	// (Android) a build's library from the dev server, on a connection of its
+	// own ("lib <n>": the bytes, then the end), into the file at path
+	static function fetch(n:String, path:String) {
+		var at = Sys.getEnv("HXMC_DEV");
+		if (at == null || at == "") at = haxe.macro.Compiler.getDefine("hxmc.dev-server");
+		var fd = hxmc.NativeNet.socket();
+		if (fd < 0 || hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1))) < 0)
+			throw "hxmc.dev: no dev server at " + at + " for the library";
+		hxmc.NativeNet.setBlocking(fd, true);
+		var req = haxe.io.Bytes.ofString("lib " + n + "\n");
+		hxmc.NativeNet.send(fd, req, 0, req.length);
+		var out = sys.io.File.write(path, true);
+		var buf = haxe.io.Bytes.alloc(1 << 16);
+		while (true) {
+			var k = hxmc.NativeNet.recv(fd, buf, 0, buf.length);
+			if (k <= 0) break;
+			out.writeBytes(buf, 0, k);
+		}
+		out.close();
+		hxmc.NativeNet.close(fd);
+	}
+	#end
+
 	static function send(line:String) {
 		if (socket < 0) return;
 		var b = haxe.io.Bytes.ofString(line + "\n");

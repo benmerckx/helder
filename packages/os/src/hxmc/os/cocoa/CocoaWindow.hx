@@ -61,6 +61,23 @@ class CocoaWindow {
 		rect.value.origin.y = 0;
 		rect.value.size.width = width;
 		rect.value.size.height = height;
+		#if hxmc.dev_host
+		// (hxmc dev's host: the first window, its views and layer as the last build left them)
+		var kept = hxmc.dev.Hosted.hosted() && open.length == 0 ? hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_WINDOW) : Ptr.nil();
+		if (!kept.isNull()) {
+			window = kept;
+			textView = hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_CONTROLLER);
+			view = hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_VIEW);
+			layer = hxmc.dev.Hosted.get(hxmc.dev.Hosted.MAC_LAYER);
+			var t = ObjC.str(title);
+			Msg.vPtr(window, ObjC.sel("setTitle:"), t);
+			ObjC.release(t);
+			surface = new Surface(Cocoa, layer, view, width, height);
+			open.push(this);
+			measure();
+			return;
+		}
+		#end
 		// titled, closable, miniaturizable, resizable; buffered backing
 		window = Msg.idRectIntIntBool(Msg.id(ObjC.cls("NSWindow"), ObjC.sel("alloc")), ObjC.sel("initWithContentRect:styleMask:backing:defer:"), rect.value, 15,
 			2, false);
@@ -85,6 +102,14 @@ class CocoaWindow {
 		Msg.vBool(view, ObjC.sel("setWantsLayer:"), true);
 		surface = new Surface(Cocoa, layer, view, width, height);
 		open.push(this);
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted() && open.length == 1) {
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.UI_WINDOW, window);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.UI_CONTROLLER, textView);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.UI_VIEW, view);
+			hxmc.dev.Hosted.set(hxmc.dev.Hosted.MAC_LAYER, layer);
+		}
+		#end
 		measure();
 		Msg.v(window, ObjC.sel("center"));
 		Msg.vPtr(window, ObjC.sel("makeKeyAndOrderFront:"), Ptr.nil());
@@ -95,6 +120,24 @@ class CocoaWindow {
 		// (loads AppKit: its classes are found by name, so nothing else imports from it)
 		AppKit.NSApplicationLoad();
 		app = Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication"));
+		#if hxmc.dev_host
+		// (hxmc dev: the classes an earlier build made, their methods this build's; its delegate)
+		var made = Runtime.objc_getClass(Mem.cstr("HxmcWindowDelegate"));
+		if (!made.isNull() && hxmc.dev.Hosted.hosted()) {
+			mode = ObjC.str("kCFRunLoopDefaultMode");
+			Runtime.class_replaceMethod(made, ObjC.sel("windowShouldClose:"), Callback.addr(shouldClose), Mem.cstr("c@:@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("windowDidResize:"), Callback.addr(didResize), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didChangeScale), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("applicationShouldTerminate:"), Callback.addr(shouldTerminate), Mem.cstr("Q@:@"));
+			delegate = hxmc.dev.Hosted.get(hxmc.dev.Hosted.MAC_DELEGATE);
+			var t = Runtime.objc_getClass(Mem.cstr("HxmcTextView"));
+			Runtime.class_replaceMethod(t, ObjC.sel("insertText:replacementRange:"), Callback.addr(insertText), Mem.cstr("v@:@{_NSRange=QQ}"));
+			Runtime.class_replaceMethod(t, ObjC.sel("insertText:"), Callback.addr(insertText), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(t, ObjC.sel("doCommandBySelector:"), Callback.addr(doCommand), Mem.cstr("v@::"));
+			textViewClass = t;
+			return;
+		}
+		#end
 		Msg.iInt(app, ObjC.sel("setActivationPolicy:"), 0); // regular: a Dock icon, key windows
 		Msg.v(app, ObjC.sel("finishLaunching"));
 		mode = ObjC.str("kCFRunLoopDefaultMode");
@@ -107,6 +150,9 @@ class CocoaWindow {
 		Runtime.objc_registerClassPair(cls);
 		delegate = Msg.id(Msg.id(cls, ObjC.sel("alloc")), ObjC.sel("init"));
 		Msg.vPtr(app, ObjC.sel("setDelegate:"), delegate);
+		#if hxmc.dev_host
+		if (hxmc.dev.Hosted.hosted()) hxmc.dev.Hosted.set(hxmc.dev.Hosted.MAC_DELEGATE, delegate);
+		#end
 		menus();
 		// (an NSRange by value after the text: not read)
 		var t = Runtime.objc_allocateClassPair(ObjC.cls("NSTextView"), Mem.cstr("HxmcTextView"), 0);
@@ -182,6 +228,14 @@ class CocoaWindow {
 
 	function destroy() {
 		open.remove(this);
+		#if hxmc.dev_host
+		// (handing over: the window, its views and layer left to the next build)
+		if (hxmc.dev.Hosted.handingOver && hxmc.dev.Hosted.get(hxmc.dev.Hosted.UI_WINDOW) == window) {
+			LibC.free(rect);
+			LibC.free(size);
+			return;
+		}
+		#end
 		Msg.vPtr(window, ObjC.sel("setDelegate:"), Ptr.nil());
 		Msg.v(window, ObjC.sel("close"));
 		Runtime.objc_release(window);

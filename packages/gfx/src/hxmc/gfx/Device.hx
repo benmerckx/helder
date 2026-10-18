@@ -1,11 +1,15 @@
 package hxmc.gfx;
 
 import hxmc.os.Surface;
+#if hxmc.dev
+import hxmc.dev.Hot;
+#end
 
 // A GPU device rendering to one Surface (a window, or headless), with a
 // depth buffer of the colour target's size. Resources are created up front;
 // a frame is beginFrame, passes recorded through the Encoder, endFrame
-// (present). Main thread only.
+// (present). Main thread only. Under hxmc dev a device is disposed with the
+// build (hxmc.dev.Hot.onDispose) when the next one is swapped in.
 final class Device {
 	public final backend:Backend;
 	public final surface:Surface;
@@ -18,6 +22,11 @@ final class Device {
 		impl = new Impl(surface);
 		backend = impl.backend;
 		encoder = new Encoder(impl);
+		#if hxmc.dev
+		// (hxmc dev: a build swapped out releases its buffers, textures, samplers,
+		// shaders and pipelines; the surface and the GPU device stay the host's)
+		Hot.onDispose(dispose);
+		#end
 	}
 
 	public static function create(surface:Surface):Device

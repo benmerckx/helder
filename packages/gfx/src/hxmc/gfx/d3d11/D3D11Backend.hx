@@ -95,6 +95,21 @@ class D3D11Backend {
 		cfirst = LibC.malloc(4);
 		cnum = LibC.malloc(4);
 		var level:Ptr<Int32> = scratch.offset(2).raw();
+		#if hxmc.dev_host
+		// (hxmc dev's host: the device, its context and the window's swap chain as the last build left them)
+		var keptDevice = surface.kind == Win32 && hxmc.dev.Hosted.hosted() ? hxmc.dev.Hosted.get(hxmc.dev.Hosted.D3D_DEVICE) : Ptr.nil();
+		if (!keptDevice.isNull()) {
+			device = keptDevice;
+			context = hxmc.dev.Hosted.get(hxmc.dev.Hosted.D3D_CONTEXT);
+			swapChain = hxmc.dev.Hosted.get(hxmc.dev.Hosted.D3D_SWAP_CHAIN);
+			shaderModel = ID3D11Device.GetFeatureLevel(device) >= D3D.FEATURE_LEVEL_11_0 ? "_5_0" : "_4_0";
+			if (Sys.getEnv("HXMC_GFX_D3D11_NO_OFFSETS") != "1") offsetting();
+			width = surface.width;
+			height = surface.height;
+			backBuffer();
+			return;
+		}
+		#end
 		var hr = Sys.getEnv("HXMC_GFX_SOFTWARE") == "1" ? -1 : createDevice(D3D.DRIVER_TYPE_HARDWARE, level);
 		if (hr < 0) hr = createDevice(D3D.DRIVER_TYPE_WARP, level);
 		check(hr, "D3D11CreateDevice");
@@ -104,7 +119,16 @@ class D3D11Backend {
 		if (Sys.getEnv("HXMC_GFX_D3D11_NO_OFFSETS") != "1") offsetting();
 		width = surface.width;
 		height = surface.height;
-		if (surface.kind == Win32) createSwapChain() else {
+		if (surface.kind == Win32) {
+			createSwapChain();
+			#if hxmc.dev_host
+			if (hxmc.dev.Hosted.hosted()) {
+				hxmc.dev.Hosted.set(hxmc.dev.Hosted.D3D_DEVICE, device);
+				hxmc.dev.Hosted.set(hxmc.dev.Hosted.D3D_CONTEXT, context);
+				hxmc.dev.Hosted.set(hxmc.dev.Hosted.D3D_SWAP_CHAIN, swapChain);
+			}
+			#end
+		} else {
 			Arena.scoped(a -> {
 				var d = a.make(D3D11_TEXTURE2D_DESC);
 				d.value.Width = width;
@@ -714,9 +738,19 @@ class D3D11Backend {
 		Com.release(depth);
 		Com.release(view);
 		Com.release(target);
+		#if hxmc.dev_host
+		// (handing over: the swap chain, the context and the device left to the next build)
+		var keep = hxmc.dev.Hosted.handingOver && hxmc.dev.Hosted.get(hxmc.dev.Hosted.D3D_DEVICE) == device;
+		if (!keep) {
+			Com.release(swapChain);
+			Com.release(context);
+			Com.release(device);
+		}
+		#else
 		Com.release(swapChain);
 		Com.release(context);
 		Com.release(device);
+		#end
 		LibC.free(scratch);
 		LibC.free(clear);
 		LibC.free(viewport);

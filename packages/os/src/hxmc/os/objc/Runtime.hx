@@ -13,6 +13,10 @@ import hxmc.unsafe.*;
 	static function objc_registerClassPair(cls:Ptr):Void;
 	// types: the method's type encoding ("v@:@": void, self, _cmd, an id)
 	static function class_addMethod(cls:Ptr, sel:Ptr, imp:Ptr, types:Ptr):Bool;
+	#if hxmc.dev_host
+	// (hxmc dev: a class an earlier build made, its methods this build's)
+	static function class_replaceMethod(cls:Ptr, sel:Ptr, imp:Ptr, types:Ptr):Ptr;
+	#end
 	static function object_getClass(o:Ptr):Ptr;
 	static function object_setClass(o:Ptr, cls:Ptr):Ptr;
 	static function objc_retain(o:Ptr):Ptr;
