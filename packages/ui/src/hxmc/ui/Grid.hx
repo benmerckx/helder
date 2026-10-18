@@ -118,7 +118,12 @@ class GridAreas {
 			}
 			var close = s.indexOf(q, i);
 			if (close < 0) throw "hxmc.ui: an unclosed row in grid areas: " + s;
-			var cells = [for (c in ~/\s+/g.split(StringTools.trim(s.substring(i, close)))) if (c != "") c];
+			var cells = [], start = i;
+			for (k in i...close + 1)
+				if (k == close || StringTools.isSpace(s, k)) {
+					if (k > start) cells.push(s.substring(start, k));
+					start = k + 1;
+				}
 			if (cells.length == 0 || rows.length > 0 && cells.length != rows[0].length) throw "hxmc.ui: grid areas' rows of different lengths: " + s;
 			rows.push(cells);
 			i = close + 1;

@@ -915,13 +915,31 @@ class SvgParse {
 	// a transform list: matrix, translate, scale, rotate, skewX, skewY
 	public static function transform(s:String):Matrix {
 		var m = Matrix.identity();
-		var re = ~/([a-zA-Z]+)\s*\(([^)]*)\)/;
-		var rest = s;
-		while (re.match(rest)) {
-			var a = numbers(re.matched(2));
+		// (each name, spaces maybe, and its arguments in parentheses; anything else skipped)
+		var i = 0, n = s.length;
+		inline function letter(k:Int):Bool {
+			var c = k < n ? StringTools.fastCodeAt(s, k) | 32 : 0;
+			return c >= "a".code && c <= "z".code;
+		}
+		while (i < n) {
+			if (!letter(i)) {
+				i++;
+				continue;
+			}
+			var start = i;
+			while (letter(i))
+				i++;
+			var name = s.substring(start, i);
+			while (i < n && StringTools.isSpace(s, i))
+				i++;
+			if (i >= n || StringTools.fastCodeAt(s, i) != "(".code) continue;
+			var close = s.indexOf(")", i);
+			if (close < 0) break;
+			var a = numbers(s.substring(i + 1, close));
+			i = close + 1;
 			inline function arg(i:Int, def:Float):Float
 				return i < a.length ? a[i] : def;
-			var t = switch re.matched(1) {
+			var t = switch name {
 				case "matrix" if (a.length == 6): new Matrix(a[0], a[1], a[2], a[3], a[4], a[5]);
 				case "translate": new Matrix(1, 0, 0, 1, arg(0, 0), arg(1, 0));
 				case "scale": new Matrix(arg(0, 1), 0, 0, arg(1, arg(0, 1)), 0, 0);
@@ -933,7 +951,6 @@ class SvgParse {
 				case _: Matrix.identity();
 			}
 			m = m.times(t);
-			rest = re.matchedRight();
 		}
 		return m;
 	}
