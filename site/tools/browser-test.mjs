@@ -23,7 +23,8 @@
 // - the playground's compiler: its worker (site/client/Worker.hx) runs a
 //   program with --interp, compiles it to HXB, answers diagnostics and a
 //   completion, with each module (hih.wasm: exnref; hih-legacy.wasm: the
-//   legacy instructions); the playground page (Monaco blocked: its plain
+//   legacy instructions), and in Chromium runs a request again after a
+//   fault of the engine (fault-worker.js); the playground page (Monaco blocked: its plain
 //   editor) picks its module (?eh=legacy, and a Chromium without exnref)
 //   and runs its first example;
 // - with a benchmark history in the site (bench/): the compiler page's
@@ -47,11 +48,12 @@ const types = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.wasm': 'a
 	'.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ttf': 'font/ttf' };
 const modules = ['hih.wasm', 'hih-legacy.wasm'].filter((m) => existsSync(path.join(dir, m)));
 // (/gfx-test/: packages/gfx/test, the golden images and their comparison)
-const gfxDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../packages/gfx/test');
+const toolsDir = path.dirname(fileURLToPath(import.meta.url));
+const gfxDir = path.join(toolsDir, '../../packages/gfx/test');
 const server = createServer(async (req, res) => {
 	let u = decodeURIComponent(new URL(req.url, 'http://x').pathname);
 	if (u.endsWith('/') && u !== '/') u += 'index.html';
-	const p = u.startsWith('/gfx-test/') ? path.join(gfxDir, u.slice(10)) : path.join(dir, u);
+	const p = u.startsWith('/gfx-test/') ? path.join(gfxDir, u.slice(10)) : u === '/fault-worker.js' ? path.join(toolsDir, 'fault-worker.js') : path.join(dir, u);
 	try {
 		const b = u === '/' ? Buffer.from('<!doctype html><title>test</title>') : await readFile(p);
 		res.writeHead(200, { 'content-type': u === '/' ? 'text/html' : types[path.extname(p)] || 'application/octet-stream' });
@@ -455,6 +457,30 @@ async function inPage([code, wasm]) {
 	return log;
 }
 
+// the worker after a fault of the engine (WebKit 26.0 at times faults in
+// correct code; fault-worker.js fakes one): the request runs again in a
+// fresh instance, and its reply is the second run's
+async function faultTest(browser, wasm) {
+	const page = await browser.newPage();
+	await page.goto(url(''));
+	const r = await page.evaluate(async ([code, wasm]) => {
+		const w = new Worker('fault-worker.js');
+		const replies = [];
+		let wake = null;
+		w.onmessage = (e) => { replies.push(e.data); if (wake) wake(); };
+		const until = async (pred) => { for (;;) { const i = replies.findIndex(pred); if (i >= 0) return replies.splice(i, 1)[0]; await new Promise((r) => (wake = r)); } };
+		w.postMessage({ type: 'module', module: await WebAssembly.compileStreaming(fetch(wasm)) });
+		w.postMessage({ type: 'warmup' });
+		await until((r) => r.type === 'ready' || r.type === 'failed');
+		w.postMessage({ type: 'compile', id: 1, mode: 'run', main: 'Main', file: 'Main.hx', code });
+		const done = await until((r) => r.type === 'done' || r.type === 'failed');
+		w.terminate();
+		return { type: done.type, status: done.status, message: done.message, out: replies.filter((r) => r.type === 'out').map((r) => r.text) };
+	}, [code, wasm]).catch((e) => ({ message: e.message.split('\n')[0] }));
+	await page.close();
+	check(r.type === 'done' && r.status === 0 && r.out?.[0]?.startsWith('Main.hx:4: Hello'), `the worker after a fault of the engine (${wasm}): ${JSON.stringify(r).slice(0, 300)}`);
+}
+
 // the playground page: the module it fetches, then a Run of the example it loads
 async function pageTest(browser, query, expect) {
 	const page = await browser.newPage();
@@ -616,6 +642,7 @@ for (const { name, label, opts, noExnref } of launches) {
 			for (const l of log) console.log('    ' + l);
 			check(log.some((l) => l.startsWith('run 0')) && log.some((l) => l.startsWith('hxb 0')), `the worker with ${wasm}`);
 		}
+		if (name === 'chromium' && modules.length) await faultTest(browser, modules[0]);
 		// (headless Firefox has no WebGL; with a display, a headed one has, on llvmpipe)
 		const headed = name === 'firefox' && process.env.DISPLAY ? await pw.firefox.launch({ headless: false }) : null;
 		const gfxBrowser = headed ?? browser;
