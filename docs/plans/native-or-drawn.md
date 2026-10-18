@@ -209,5 +209,5 @@ renderer, say) would retire both.
   against 1.8, 1.9 and 2.4 MB of wasm32-wasi (432, 459, 559 KB gzipped)
   for their canvas builds.
 
-Left: the site's examples in DOM mode (the CSS's preflight would reach
-the site's own page: a scoped variant first); one definition per widget for both renderers (above).
+Left: the site's examples in DOM mode (the CSS scoped for it: 's
+scope, the preflight and tokens kept to the widgets' elements); one definition per widget for both renderers (above).

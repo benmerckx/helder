@@ -778,23 +778,30 @@ class Css {
 	#if (macro || sys || eval)
 	// the stylesheet of a sheet file (shadcn.json's format; its includes
 	// beside it): Tailwind's preflight, the tokens light and dark, then
-	// each slot's rules
-	public static function sheet(path:String, ?error:(message:String) -> Void):String {
+	// each slot's rules. scope: a selector (".hxmc") the preflight, the
+	// tokens and the page's colours are kept to, the elements it selects and
+	// what is inside them (and the widgets' popups and modals, which a page
+	// has in its body), the rest of the page left as it is
+	public static function sheet(path:String, ?error:(message:String) -> Void, ?scope:String):String {
 		error = error ?? (m -> throw m);
 		var s = Sheet.read(path);
 		var out = new StringBuf();
 		out.add("/* @hxmc/theme: shadcn/ui (MIT) as CSS, from " + haxe.io.Path.withoutDirectory(path)
 			+ " (Css.hx); Tailwind's preflight (MIT, tailwindcss.com) */\n");
-		out.add(PREFLIGHT);
+		// (the roots: the page's, else the scope's elements, the popups' and the modals' hosts)
+		var root = scope == null ? null : ':where($scope,[data-popup],dialog[data-modal])';
+		out.add(root == null ? PREFLIGHT : scoped(PREFLIGHT, root));
 		function tokens(m:haxe.DynamicAccess<String>):String
 			return [for (k in sorted(m)) '--$k:${m[k]}'].join(";");
 		// (the variables the sheet's classes name: --cell-size, --sidebar-width)
 		var vars = [for (k in sorted(s.vars)) k + ":" + s.vars[k] + ";"].join("");
-		out.add(':root{--radius:${s.radius};--font-sans:${THEME["--font-sans"]};$vars${tokens(s.light)}}\n');
-		out.add('.dark{${tokens(s.dark)}}\n');
-		out.add('@media (prefers-color-scheme:dark){:root:not(.light){${tokens(s.dark)}}}\n');
+		out.add('${root ?? ":root"}{--radius:${s.radius};--font-sans:${THEME["--font-sans"]};$vars${tokens(s.light)}}\n');
+		out.add('${root == null ? ".dark" : '.dark $root,$root.dark'}{${tokens(s.dark)}}\n');
+		out.add('@media (prefers-color-scheme:dark){:root:not(.light)${root == null ? "" : " " + root}{${tokens(s.dark)}}}\n');
 		// (shadcn's globals.css: borders and outlines in its colours, the body's)
-		out.add("*,::after,::before,::backdrop{border-color:var(--border);outline-color:color-mix(in oklab,var(--ring) 50%,transparent)}body{background-color:var(--background);color:var(--foreground)}\n");
+		var globals = "*,::after,::before,::backdrop{border-color:var(--border);outline-color:color-mix(in oklab,var(--ring) 50%,transparent)}";
+		var colours = "{background-color:var(--background);color:var(--foreground)}";
+		out.add((root == null ? globals + "body" + colours : scoped(globals, root) + root + colours) + "\n");
 		// (which slots carry a group's or a peer's marker)
 		var marked = new Map<String, Array<String>>();
 		for (slot in s.slots) {
@@ -885,13 +892,53 @@ class Css {
 		return out.toString();
 	}
 
-	// writes a sheet's stylesheet: Css <sheet.json> <out.css>, as a build
-	// step (haxe -lib hxmc.theme --run hxmc.theme.Css shadcn.json app.css;
-	// a bare name is a sheet of this package)
+	// writes a sheet's stylesheet: Css <sheet.json> <out.css> [scope], as a
+	// build step (haxe -lib hxmc.theme --run hxmc.theme.Css shadcn.json
+	// app.css; a bare name is a sheet of this package; scope: sheet's)
 	static function main() {
 		var args = Sys.args();
 		var path = sys.FileSystem.exists(args[0]) ? args[0] : haxe.io.Path.join([haxe.io.Path.directory(sys.FileSystem.fullPath(Sys.programPath() ?? "")), args[0]]);
-		sys.io.File.saveContent(args[1], sheet(path));
+		sys.io.File.saveContent(args[1], sheet(path, null, args[2]));
+	}
+
+	// (css's rules kept to root's elements and what is inside them: the page's root's (html, :host) theirs)
+	static function scoped(css:String, root:String):String {
+		var out = new StringBuf();
+		for (rule in css.split("}")) {
+			var brace = rule.indexOf("{");
+			if (brace < 0) {
+				out.add(rule);
+				continue;
+			}
+			// (the selectors: split at the commas outside parentheses)
+			var sels = [], depth = 0, from = 0, list = rule.substr(0, brace);
+			for (i in 0...list.length)
+				switch list.charAt(i) {
+					case "(": depth++;
+					case ")": depth--;
+					case "," if (depth == 0):
+						sels.push(list.substring(from, i));
+						from = i + 1;
+					case _:
+				}
+			sels.push(list.substr(from));
+			// (the elements inside as one :is(), as specific as the most of them; pseudo-elements each
+			// apart, the roots' own and their descendants')
+			var mapped = [], inside = [];
+			function add(x:String)
+				if (mapped.indexOf(x) < 0) mapped.push(x);
+			for (x in sels)
+				if (x == "html" || x == ":host") add(root) else if (x.startsWith("::")) {
+					add(root + x);
+					add(root + " " + x);
+				} else {
+					if (x == "*") add(root);
+					inside.push(x);
+				}
+			if (inside.length > 0) add(root + " " + (inside.length == 1 ? inside[0] : ":is(" + inside.join(",") + ")"));
+			out.add(mapped.join(",") + rule.substr(brace) + "}");
+		}
+		return out.toString();
 	}
 
 	static function sorted(m:Dynamic):Array<String> {
