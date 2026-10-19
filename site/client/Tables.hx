@@ -150,7 +150,7 @@ class Tables {
 	/** the last line of a failed run's log ("exit 1: <log tail, | for newlines>"), without the exit code */
 	static function lastLine(status:String):String {
 		final lines = [for (s in status.split(" | ")) if (StringTools.trim(s) != "") StringTools.trim(s)];
-		return ~/^exit \d+: /.replace(lines.length > 0 ? lines[lines.length - 1] : "", "");
+		return ~/^(exit \d+: )?[| ]*/.replace(lines.length > 0 ? lines[lines.length - 1] : "", "");
 	}
 
 	/** a cell with a bar for each ratio to the reference, on a log scale shared by the table */
@@ -377,7 +377,7 @@ class Tables {
 			final summary = n > 0 ? ' Over the $n targets: ${secs(port)} of $what for the port, ${secs(ref)} for the reference (${ratio(port / ref)}); $same of $n outputs identical${varies > 0 ? ', $varies varying' : ""}.' : "";
 			final outro = m == "seq"
 				? "Sequential: -D disable-parallelism, one core each (per-core efficiency). CPU: user + system, minimum of the runs. Peak RSS: port / reference. The dashed line marks the reference; green bars are faster than it."
-				: "Parallel: each compiler's default parallelism, what a plain build gets. Wall time, minimum of the runs. Peak RSS: port / reference. Varies (~): the reference's own parallel output differs from its sequential one (e.g. genjvm's member order and closures), so the port's is compared member by member but cannot match byte for byte.";
+				: "Parallel: each compiler's default parallelism, what a plain build gets. Wall time, minimum of the runs. Peak RSS: port / reference. Varies (~): the reference's own parallel output differs from its sequential one and from run to run (e.g. genjvm's closures, HXB's string pools), so the port's is compared member by member but cannot match byte for byte.";
 			paneBox.textContent = "";
 			paneBox.append(pane(p[1] + summary, targetsTable(rows, m), outro));
 		};
