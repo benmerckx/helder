@@ -103,7 +103,12 @@ expr       await    := "await" e:expr(prefix)
 - Desugared nodes keep their source positions: errors, hover,
   go-to-definition and the debugger point at what was written.
 
-### Components
+Two candidate surfaces share that mechanism: **A**, element blocks and
+CSS (below), and **B**, Haxe that reads like TypeScript with JSX
+([further down](#candidate-b-typescript-flavoured-haxe-with-jsx)). The
+prototype screen is written in both to decide.
+
+### Candidate A: components as element blocks
 
 ```haxe
 component Counter(label: String, step = 1) {
@@ -140,7 +145,7 @@ component Counter(label: String, step = 1) {
 - Prose: `P { "Hello "; B { name } ", you have $n items" }`, acceptable,
   not as good as markup.
 
-### Styles as CSS
+### Candidate A: styles as CSS
 
 Inside an element block, a name the engine knows as a CSS property takes a
 CSS value; any other name is a widget property and takes Haxe:
@@ -215,6 +220,131 @@ ignored; descendant and sibling selectors and `!important` are out. The
 cascade is CSS's for what is supported: specificity, then order, the
 instance's own last.
 
+### Candidate B: TypeScript-flavoured Haxe with JSX
+
+For familiarity: what a TypeScript, React or Solid developer expects to
+type works, while the language underneath stays Haxe. Haxe's semantics
+are kept where they are better than JavaScript's: everything is an
+expression, `switch` is Haxe's pattern matcher, the types are Haxe's.
+Full TypeScript (union narrowing, `number`, `any`, structural
+interfaces, npm imports) is out: a surface promising semantics Haxe does
+not have turns every gap into a confusing error.
+
+```tsx
+import { Row, Text, Button, Badge } from "hxmc/ui"
+import { fetchPlans } from "./api"
+
+type Props = { label: String, ?step: Int }
+
+export function Counter({ label, step = 1 }: Props) {
+	let count = $state(0)
+	const double = $derived(count * 2)
+	$effect(() => trace(count))
+
+	const tone = switch count {
+		case 0: "idle"
+		case n if (n > 10): "big"
+		case _: "counting"
+	}
+
+	return <Row gap={8} class="items-baseline">
+		<Text>{label}: {count} (x2 = {double}, {tone})</Text>
+		<Button onClick={() => count += step}>+{step}</Button>
+		{count > 10 && <Text class="text-destructive">big</Text>}
+		{items.map(item => <ItemRow key={item.id} {...item}/>)}
+		<>
+			<Badge variant="secondary">a fragment's child</Badge>
+			{/* a comment */}
+		</>
+	</Row>
+}
+
+export async function load(id: String) {
+	const plans = await fetchPlans(id)
+	return plans.filter(p => !p.soldOut)
+}
+```
+
+What JavaScript developers get:
+
+- **Automatic semicolon insertion.** A line ends a statement where the
+  next line cannot continue it, by JavaScript's rules where they apply.
+  Everything being an expression makes ASI harder than in JavaScript, and
+  the hazards need explicit rules:
+  - a line starting with `(`, `[`, `` ` ``, `+`, `-`, `/` or `<`
+    continues the previous one only if the previous line ends in an
+    operator or an open bracket; otherwise it is a new statement (so
+    `foo()` then `(a, b) => ...` on the next line is two statements,
+    where JavaScript would call `foo()`'s result: JavaScript's own trap,
+    resolved the other way, with a warning on the ambiguous shape);
+  - `return`, `throw`, `break`, `continue` end at the line's end
+    (`return` alone on a line returns nothing);
+  - a block-bodied `if`/`switch`/`try` used as a value ends where its
+    block ends;
+  - semicolons stay allowed everywhere; `hxmc fmt` writes none.
+- **Imports and exports as ES modules:**
+  - `import { A, B as C } from "pack/Mod"` imports fields or types from a
+    module; `import * as M from "pack/Mod"` names the module;
+    `import Mod from "pack/Mod"` imports its main type;
+  - paths are module paths (`"hxmc/ui"` is `hxmc.ui`), `"./x"` relative
+    to the file's package; no npm resolution;
+  - `export` marks what other modules see; anything not exported is
+    `private`, the inverse of Haxe's default.
+- **Declarations:** `const` is `final`, `let` is `var`; `function` at
+  module level is a module-level function; `type X = {...}` is a
+  typedef; `enum` stays Haxe's (algebraic, with arguments).
+- **Expressions:**
+  - arrow functions `(a, b) => expr` and `x => { ... }` beside Haxe's
+    `->`;
+  - template literals `` `Hello ${name}` `` (Haxe's interpolation, also in
+    double quotes);
+  - `===` and `!==` as `==` and `!=` (Haxe's equality has no coercion to
+    guard against), `?.`, `?.()`, `??`, `??=`, `**`;
+  - spreads in arrays, objects and calls (`[...a, x]`, `{...o, k: v}`,
+    `f(...args)`), object shorthand (`{ label, step }`), destructuring in
+    `const`/`let` and parameters, with defaults;
+  - `for (const x of xs)` beside `for (x in xs)`; `async`/`await` (Haxe
+    5's coroutines); `typeof`-free: Haxe's `is` and `switch` patterns.
+- **Kept from Haxe:** everything is an expression (`const x = if (a) 1
+  else 2`, blocks as values), `switch` with patterns, guards, extractors
+  and exhaustiveness, `enum` with arguments, abstracts, macros, `untyped`.
+- **Full JSX**, parsed as JSX, not captured as text the way Haxe's inline
+  markup is: closing tags, self-closing tags, fragments `<>…</>`,
+  `{...spread}`, `{/* comments */}`, markup nested anywhere, attributes in
+  JSX's forms. Generic type parameters and JSX are told apart as TSX does
+  (`<T,>(x: T) => x` for a generic arrow).
+- **State as Svelte 5's runes:** `$state`, `$derived`, `$effect`; reads and
+  writes are plain (`count += step`), no `.value`, no getter calls.
+- **React's idioms are reactive:** `{cond && <X/>}`, `{c ? <A/> : <B/>}`
+  and a `switch` in a hole become `Show`/`Switch`;
+  `{items.map(i => <Row key={...}/>)}` becomes a keyed `For` (only inside
+  JSX: `.map` elsewhere is an array's map).
+- **Styles:** `class="..."` (Tailwind compiled at build time, so shadcn's
+  and React code's classes paste in), `style={{backgroundColor: ...,
+  width: 300}}` (React's camelCase object, typed against the engine's
+  properties, bound when it reads state), and a component's own CSS in a
+  `.css` file beside it, scoped to it as CSS modules are (candidate A's
+  CSS rules apply to it).
+
+What needs tinkering:
+
+- ASI with everything-is-an-expression: the continuation rules above are
+  a starting point; they need a corpus of real code (the port's sources
+  run through `hxmc fmt` with semicolons removed, then parsed back to the
+  same AST) before they are trusted.
+- JSX against Haxe: `<` as comparison, generics, and markup; `{` as a
+  block, an object literal, or a JSX hole; arrow functions against
+  parenthesised expressions.
+- The run-once trap is sharper here, since the code looks like React:
+  `if (count > 10) return <A/>` at a component's top does not update.
+  The compiler rejects reads of state outside reactive positions, with a
+  message naming `&&`, a ternary or `Show`.
+- `export` against Haxe's public by default: inside `.hxv` files the
+  default flips; a `.hx` module importing from a `.hxv` one sees only
+  what it exports.
+- Two arrow syntaxes and two loop forms: accepted, with `hxmc fmt`
+  normalising to one per project.
+
 ### Tooling, from the same grammar files
 
 - The parser: one hook in `Grammar.hx` at the statement, call, modifier
@@ -240,8 +370,10 @@ instance's own last.
    arguments as props, `if`/`for` in holes), working with stock Haxe:
    needed whatever the surface, and they prove the semantics.
 2. The parser hook, grammar files, `.hxv` and `hxmc desugar`.
-3. The component and CSS syntax as `hxmc.ui`'s plugin; one screen
-   (a form, the Counter, a gallery widget) written both ways to compare.
+3. Both candidate surfaces as plugins, enough to write one screen (a
+   form, the Counter, a gallery widget, a list with async loading) in
+   each, and in today's markup, to compare; B's ASI and JSX rules checked
+   against a corpus of real code first. Pick one.
 4. Tooling: highlighting, our language server, `hxmc fmt`, completion.
 5. Themes as CSS; the widgets and examples moved over (mechanically, with
    a converter from markup); markup retired, one implementation.
@@ -249,9 +381,13 @@ instance's own last.
 
 ## Open questions
 
-- Element blocks or markup: blocks tool and format better and match the
-  run-once semantics; markup is better for prose and for copying from the
-  web. Decide on step 3's comparison.
+- Candidate A or B: A's element blocks tool and format better and match
+  the run-once semantics; B is familiar to most developers, takes React,
+  Solid and shadcn code nearly as is, and is better for prose. Decide on
+  step 3's comparison.
+- For B: how much of TypeScript to take (each item has to map onto a
+  Haxe meaning, not just parse), and whether ASI's rules hold on real
+  code.
 - Whether to keep Tailwind's `class:` beside CSS (one engine, two ways to
   say a thing) or CSS only.
 - The cost of owning a language server and a formatter next to the
