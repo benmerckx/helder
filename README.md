@@ -38,7 +38,8 @@ Each package has a README in `packages/<name>/`.
 - `docs/`: the packages' tests (docs/testing.md), the dev loop with the
   packages (docs/dev.md), the site (docs/site.md) and the design plans that
   are about the packages (`docs/plans/`: ui, view, web, theme, 3d, document,
-  native-or-drawn, syntax, ui-next, graphics). Links in them to hxmc's docs
+  native-or-drawn, syntax, ui-next, graphics; wasmgc-ui: the WasmGC
+  experiment measured on the packages). Links in them to hxmc's docs
   (`docs/hxmc.md`, `docs/plans/compiler.md`, ...) are to the hxmc
   repository.
 
@@ -77,8 +78,9 @@ Left to do:
   std (hxmc keeps `hxmc dev` and the compiler's side of it).
 - The site (`make site`) still reads hxmc's docs for its docs pages
   (site/src/Docs.hx) and expects hxmc's layout: it needs its own content.
-- `make headless` locally: see the CI run for the current result; the Mesa
-  and Chromium checks run in CI without being required.
+- CI: the first run (39422902930) passed all three jobs (headless, the
+  Mesa checks, the Chromium checks) against hxmc a994ea3; the Mesa and
+  Chromium jobs stay not required while the stack is unstable.
 - The lanes hxmc dropped at the split, which only made sense with the
   packages, live here and are not in CI yet:
   - Android on an emulator: `make android-device-check` (gfx's cube,
