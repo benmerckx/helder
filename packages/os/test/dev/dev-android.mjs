@@ -70,8 +70,8 @@ adb('wait-for-device');
 adb('logcat', '-c');
 const lines = [];
 const waiters = [];
-const dev = spawn(process.execPath, [path.join(repo, 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, 'build.hxml'],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
+const dev = spawn(process.execPath, [path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, 'build.hxml'],
+	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') } });
 const onLine = (l) => {
 	lines.push(l);
 	if (process.env.DEV_VERBOSE) console.log('  | ' + l);

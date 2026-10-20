@@ -54,7 +54,7 @@ const args = (o) => [...['os', 'gfx', 'text', 'view', 'ui', 'theme'].flatMap((p)
 	'-cp', path.join(repo, 'packages/ui/examples'), '-cp', 'app', '-D', 'hxmc.view.renderer.ui=hxmc.ui.view.NodeRenderer', '-main', example,
 	...(web ? ['-D', 'hxmc.target=wasm32-wasi', ...(mode === 'web-gc' ? ['-D', 'hxmc.wasm-gc'] : [])] : process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []),
 	'--custom-target', 'hxmc=' + o, '-D', 'hxmc.dev', ...(fs.existsSync(path.join(path.dirname(compiler), 'std')) ? ['-cp', path.join(path.dirname(compiler), 'std')] : [])];
-const env = { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') };
+const env = { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') };
 
 const port = await new Promise((r) => {
 	const s = net.createServer().listen(0, '127.0.0.1', () => {

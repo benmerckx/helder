@@ -47,7 +47,7 @@ const out = web ? 'out/app.wasm' : process.platform === 'win32' ? 'out/app.exe' 
 const ref = 'ref/' + path.basename(out);
 const args = (o) => ['-cp', 'src', '-main', 'Main', ...(web ? ['-D', 'hxmc.target=wasm32-wasi'] : process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []),
 	'--custom-target', 'hxmc=' + o, ...(fs.existsSync(path.join(path.dirname(compiler), 'std')) ? ['-cp', path.join(path.dirname(compiler), 'std')] : [])];
-const env = { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') };
+const env = { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') };
 
 // a compilation server per case (its modules by path: a case's Main is not another's)
 async function serve(run) {

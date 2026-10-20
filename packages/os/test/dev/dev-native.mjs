@@ -45,8 +45,8 @@ const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')
 
 const lines = [];
 const waiters = [];
-const dev = spawn(process.execPath, [path.join(repo, 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, 'build.hxml'],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
+const dev = spawn(process.execPath, [path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, 'build.hxml'],
+	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') } });
 const onLine = (l) => {
 	lines.push(l);
 	if (process.env.DEV_VERBOSE) console.log('  | ' + l);
@@ -146,7 +146,7 @@ if (failures === 0 && fs.existsSync(last)) {
 	const std = path.join(path.dirname(compiler), 'std');
 	const r = spawnSync(compiler, ['-D', 'hxmc.dev', ...(last !== devOut ? ['-D', 'hxmc.shared', '-D', 'hxmc.dev-host', '-D', 'hxmc.exports=hxmc_dev_run,hxmc_dev_state'] : []),
 		'build.hxml', ...(fs.existsSync(std) ? ['-cp', std] : [])],
-		{ cwd: work, encoding: 'utf8', env: { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
+		{ cwd: work, encoding: 'utf8', env: { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') } });
 	check('the last build is a fresh build, byte for byte', r.status === 0 && Buffer.compare(kept, fs.readFileSync(devOut)) === 0, (r.stderr ?? '').slice(-800));
 }
 for (const t of times) console.log('  ' + t);

@@ -1,0 +1,102 @@
+# universe's checks (Makefile). hxmc comes from source: the commit HXMC_REV
+# the Makefile pins, cloned into hxmc/ and built there (the stage0 module
+# under node builds the tool; the runtime objects are hxmc's published ones),
+# cached by that commit.
+# - headless: the checks that need no GPU, display or browser (make headless:
+#   view, text, ui, theme, gfx's shader macro, the examples built);
+# - gfx: the packages on Mesa's llvmpipe and Xvfb (gfx, 3d, audio's null
+#   devices, the touch gesture, the UI drawn, the dev loop);
+# - browser: WebGPU, WebGL2, WebAudio and the DOM in headless Chromium.
+# gfx and browser are not required (continue-on-error): README.md lists what
+# is known to fail.
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  headless:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: rev
+        run: echo "rev=$(sed -n 's/^HXMC_REV ?= //p' Makefile)" >> "$GITHUB_OUTPUT"
+      - name: Cache the hxmc checkout and its build
+        uses: actions/cache@v6
+        with:
+          path: hxmc
+          key: hxmc-${{ steps.rev.outputs.rev }}-v1
+      - name: hxmc (tool, std, port) from source
+        run: |
+          set -ex
+          make hxmc
+          make bin/port/haxe
+      - name: Headless checks
+        run: make -k headless
+
+  gfx:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: rev
+        run: echo "rev=$(sed -n 's/^HXMC_REV ?= //p' Makefile)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: hxmc
+          key: hxmc-${{ steps.rev.outputs.rev }}-v1
+      - name: System packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qqy --no-install-recommends libegl1 libegl-mesa0 libgl1-mesa-dri libgles2 xvfb xauth libasound2t64 fonts-dejavu-core fonts-inter libgtk-3-0t64 dbus at-spi2-core fonts-noto-color-emoji
+      - name: hxmc
+        run: make hxmc && make bin/port/haxe
+      - name: gfx, 3d, audio, touch (Mesa llvmpipe, Xvfb)
+        run: make -k gfx-check 3d-check audio-check touch-check GFX_TARGET=linux-x86_64 AUDIO_TARGET=linux-x86_64
+      - name: ui (Mesa llvmpipe, Xvfb)
+        if: ${{ !cancelled() }}
+        run: make -k ui-draw-check theme-fidelity-check GFX_TARGET=linux-x86_64
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: {name: images, path: "bin/gfx/**/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png", retention-days: 7, if-no-files-found: ignore}
+
+  browser:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: rev
+        run: echo "rev=$(sed -n 's/^HXMC_REV ?= //p' Makefile)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        with:
+          path: hxmc
+          key: hxmc-${{ steps.rev.outputs.rev }}-v1
+      - name: hxmc and Playwright
+        run: |
+          set -ex
+          sudo apt-get update -qq
+          sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core
+          make hxmc && make bin/port/haxe
+          npm install --no-save --silent playwright@1.56.1
+          npx playwright install --with-deps chromium > /dev/null
+      - name: gfx, 3d, audio, web and ui in Chromium
+        run: make -k gfx-web-check 3d-web-check audio-web-check web-check ui-web-check

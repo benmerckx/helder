@@ -41,8 +41,8 @@ const port = await new Promise((r) => {
 	});
 });
 const waiters = [];
-const dev = spawn(process.execPath, [path.join(repo, 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, '--port', String(port), 'build.hxml'],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
+const dev = spawn(process.execPath, [path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, '--port', String(port), 'build.hxml'],
+	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') } });
 for (const s of [dev.stdout, dev.stderr]) {
 	let buf = '';
 	s.on('data', (d) => {

@@ -62,8 +62,8 @@ const port = await new Promise((r) => {
 });
 const lines = [];
 const waiters = [];
-const dev = spawn(process.execPath, [path.join(repo, 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, '--port', String(port), 'build.hxml'],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
+const dev = spawn(process.execPath, [path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'packages/cli/hxmc/bootstrap/dev.mjs'), compiler, '--port', String(port), 'build.hxml'],
+	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') } });
 const onLine = (l) => {
 	lines.push(l);
 	if (process.env.DEV_VERBOSE) console.log('  | ' + l);
@@ -219,7 +219,7 @@ if (failures === 0 && fs.existsSync(devOut)) {
 	const kept = fs.readFileSync(devOut);
 	const std = path.join(path.dirname(compiler), 'std');
 	const r = spawnSync(compiler, ['-D', 'hxmc.dev', 'build.hxml', ...(fs.existsSync(std) ? ['-cp', std] : [])],
-		{ cwd: work, encoding: 'utf8', env: { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(repo, 'haxe/upstream/std') } });
+		{ cwd: work, encoding: 'utf8', env: { ...process.env, HXMC_MODULE_CACHE: '0', HAXE_STD_PATH: process.env.HAXE_STD_PATH ?? path.join(process.env.HXMC_DIR ?? path.join(repo, 'hxmc'), 'haxe/upstream/std') } });
 	check('the last build is a fresh build, byte for byte', r.status === 0 && Buffer.compare(kept, fs.readFileSync(devOut)) === 0, (r.stderr ?? '').slice(-800));
 }
 for (const t of times) console.log('  ' + t);
