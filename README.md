@@ -32,6 +32,9 @@ Each package has a README in `packages/<name>/`.
 
 - `packages/<name>/`: the packages, with their `examples/` and `test/`
   (golden images included);
+- `landing/`: the landing page on GitHub Pages: the examples compiled in
+  the browser by hxmc's WebAssembly compiler, run there or downloaded as
+  native programs for any OS and CPU (`make landing`; landing/README.md);
 - `site/`: the website hxmc had until the split, built with `@hxmc/web`
   (pages, the examples gallery, the API reference; docs/site.md);
 - `test/ExampleBuilds.hx`: every package example built, not run;

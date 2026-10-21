@@ -1,0 +1,43 @@
+# The landing page (landing/, make landing) on GitHub Pages, deployed from a
+# branch: bin/landing built on pushes to main, its examples built as the page
+# builds them (make landing-check), then committed alone to gh-pages
+# (replacing what was there: one commit, no history). Pages serves gh-pages,
+# its root. Nothing needs hxmc built: the page uses the nightly npm packages
+# of HXMC_REV's commit.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  landing:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Fonts (DejaVu Sans, for the ui and text examples)
+        run: sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+      - name: Build
+        run: make landing
+      - name: Check (every example built as the page builds it)
+        run: make landing-check
+      - name: Deploy to gh-pages
+        working-directory: bin/landing
+        run: |
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "landing: ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages

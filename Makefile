@@ -56,7 +56,7 @@ endef
 .PHONY: help hxmc headless gfx-programs devhost-programs gfx-check gfx-web-check gfx-cache-check gfx-shader-check 3d-programs 3d-check 3d-web-check 3d-sizes \
 	android-programs android-check android-device-check touch-check ios-programs ios-check ios-sim-check \
 	audio-programs audio-check audio-web-check ui-programs view-check web-check text-check ui-check ui-layout-fuzz ui-layout-reduce \
-	theme-check theme-fidelity-check theme-dom-check web-widgets ui-draw-check ui-web-check dev-check site site-check examples-check clean
+	theme-check theme-fidelity-check theme-dom-check web-widgets ui-draw-check ui-web-check dev-check site site-check landing landing-check examples-check clean
 
 help:
 	@sed -n '/^# --- Targets/,$$p' $(MAKEFILE_LIST) | sed -n 's/^## \{0,1\}//p'
@@ -168,6 +168,9 @@ wasm: $(TOOL)
 ## site        bin/site: the website (site/: pages rendered by site/src with @hxmc/web, the packages'
 ##             examples built for the browser, the API read by the compiler; LIX_DIR's lix binaries
 ##             under tools/, BENCH_DATA's benchmark history under bench/)
+## landing     bin/landing: the landing page (landing/): the examples compiled in the browser by
+##             @hxmc/wasm, run on a canvas or downloaded as native programs (for GitHub Pages)
+## landing-check  every example of bin/landing built as the page builds it, in node
 ## site-check  bin/site in headless browsers: every page rendered, islands hydrated, examples
 ##             drawing, the playground compiling, no console errors, no broken links
 ##             (site/tools/browser-test.mjs; Playwright; BROWSERS="chromium firefox webkit")
@@ -557,6 +560,15 @@ site: wasm $(TOOL) $(STD) $(HOST_RT) $(PORT_BIN)
 site-check:
 	$(NODE) site/tools/browser-test.mjs bin/site $(or $(BROWSERS),chromium firefox webkit)
 
+
+# the landing page (landing/): the nightly npm packages of HXMC_REV's commit,
+# the packages' sources and the page; nothing built ahead, the browser compiles
+landing:
+	$(NODE) landing/build.mjs bin/landing
+
+# every example built as the page builds it (landing/test.mjs: wasi.js under node)
+landing-check:
+	$(NODE) --stack-size=65500 landing/test.mjs bin/landing
 
 # (Examples.hx with the site's class paths; Harness from hxmc's haxe/test)
 examples-check: $(TOOL) $(STD) $(HOST_RT)
