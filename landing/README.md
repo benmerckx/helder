@@ -20,7 +20,7 @@ npx http-server bin/landing
 ```
 
 CI (`.github/workflows/pages.yml`) builds and checks it on pushes to main and
-force-pushes `bin/landing` to the `gh-pages` branch, which Pages serves.
+deploys `bin/landing` as the Pages artifact (Pages source: GitHub Actions).
 
 ## The compiler: resident
 

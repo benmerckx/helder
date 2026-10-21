@@ -1,9 +1,8 @@
-# The landing page (landing/, make landing) on GitHub Pages, deployed from a
-# branch: on pushes to main, bin/landing built (hxmc from source at
+# The landing page (landing/, make landing) on GitHub Pages: on pushes to main, bin/landing built (hxmc from source at
 # HXMC_REV, cached as ci.yml caches it: the tool runs the build and builds
 # the page's resident compiler), checked (make landing-check: the page's
-# builds in node), then committed alone to gh-pages (replacing what was
-# there: one commit, no history). Pages serves gh-pages, its root.
+# builds in node), then deployed as the Pages artifact (the repository's
+# Pages source: GitHub Actions).
 name: pages
 
 on:
@@ -12,7 +11,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
@@ -21,6 +22,9 @@ concurrency:
 jobs:
   landing:
     runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -41,13 +45,11 @@ jobs:
         run: make landing
       - name: Check (the page's builds, in node)
         run: make landing-check
-      - name: Deploy to gh-pages
-        working-directory: bin/landing
-        run: |
-          rm -f check.js
-          git init -q -b gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "landing: ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
+      - name: Without the check
+        run: rm -f bin/landing/check.js
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: bin/landing
+      - id: deploy
+        uses: actions/deploy-pages@v5
