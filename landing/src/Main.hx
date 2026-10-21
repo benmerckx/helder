@@ -64,7 +64,7 @@ class Main {
 	}
 
 	static function wake()
-		client.wake().catchError(e -> toast(Std.string(e)));
+		client.wake().catchError(e -> toast(Fail.describe(e)));
 
 	static function go(e:Example) {
 		window.history.pushState({id: e.id}, "", '#/${e.id}');

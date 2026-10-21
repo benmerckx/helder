@@ -42,6 +42,7 @@ class World {
 		runner = new Runner(byId("screen"));
 		runner.stdout = l -> log(l);
 		runner.stderr = l -> log(l, "err");
+		runner.notice = l -> log(l);
 		client.onProgress = (what, loaded, total) -> if (!byId("forge").hidden) forge.progress(what, loaded, total);
 		client.onFiles = f -> if (!byId("forge").hidden) forge.files(f) else sky.kick(0.004 * f.length);
 		wire();
@@ -169,7 +170,7 @@ class World {
 		}, err -> {
 			forge.hide();
 			byId("run").removeAttribute("disabled");
-			log(Std.string(err), "err");
+			log(Fail.describe(err), "err");
 		});
 	}
 
@@ -203,7 +204,7 @@ class World {
 			sky.kick(0.25);
 			flash();
 			runner.swap(e, r.bytes, r.assets).then(_ -> sky.calm = true);
-		}, err -> setStatus("error", Std.string(err)));
+		}, err -> setStatus("error", Fail.describe(err)));
 	}
 
 	function failed(r:Reply):Void {
@@ -295,7 +296,7 @@ class World {
 			}
 			if (current == e && !byId("source").hidden) show(active);
 			corner();
-		}, err -> log("the editor did not load: " + Std.string(err), "err"));
+		}, err -> log("the editor did not load: " + Fail.describe(err), "err"));
 	}
 
 	// editor.js (CodeMirror, the global CM), the first time the code opens
@@ -398,7 +399,7 @@ class World {
 		}, err -> {
 			btn.removeAttribute("disabled");
 			forge.hide();
-			log(Std.string(err), "err");
+			log(Fail.describe(err), "err");
 		});
 	}
 

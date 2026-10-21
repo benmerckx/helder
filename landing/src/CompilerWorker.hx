@@ -50,7 +50,7 @@ class CompilerWorker {
 	}
 
 	static function fail(id:Null<Int>, e:Dynamic)
-		post({type: Failed, id: id, message: Std.string(e?.message ?? e)});
+		post({type: Failed, id: id, message: Fail.describe(e)});
 
 	// a file of the site, its download reported as it goes (sizes from the
 	// manifest: a server's Content-Length is the compressed size)

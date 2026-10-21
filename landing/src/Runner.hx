@@ -18,9 +18,16 @@ private typedef Instance = {host:Dynamic, reloadFn:Int, snapshot:Null<String>};
 // records every element the page makes while a program runs (the editor's
 // too) and removes them with it; the packages' own disposals (os's frames,
 // listeners and audio, gfx's GPU objects) are what a swap needs.
+//
+// WebGPU where the browser has it, else WebGL2 (gfx's choice); a program that
+// fails as it starts on WebGPU (a phone's driver) runs again on WebGL2, and
+// so does every program after it on this page (?gfx=webgl2: from the start).
 class Runner {
+	static var webgl2 = new js.html.URLSearchParams(window.location.search).get("gfx") == "webgl2";
+
 	public var stdout:String->Void = _ -> {};
 	public var stderr:String->Void = _ -> {};
+	public var notice:String->Void = _ -> {};
 	public var running(get, never):Bool;
 
 	final screen:Element;
@@ -82,7 +89,7 @@ class Runner {
 			var kept:Array<Element> = old.host.os?.canvases;
 			if (kept != null && kept.length > 0) canvas = kept[0];
 		} catch (err:Dynamic) {
-			stderr("the running build could not hand over (" + Std.string(err) + "): a cold start");
+			stderr("the running build could not hand over (" + Fail.describe(err) + "): a cold start");
 			return start(e, bytes, assets);
 		}
 		current = null;
@@ -111,25 +118,39 @@ class Runner {
 		var files:haxe.DynamicAccess<String> = {};
 		for (a in assets) files[a[0]] = js.html.URL.createObjectURL(new js.html.Blob([a[1]]));
 		var fonts = e.fonts ? [for (f in ["fonts/DejaVuSans.ttf", "fonts/DejaVuSans-Bold.ttf"]) new js.html.URL(f, base).href] : [];
-		return module().then(m -> m.run(bytes, {
-			imports: imports, canvas: canvas, gpu: gpu, fonts: fonts, files: files, track: false, antialias: true, touchAction: "none",
+		var started = Date.now().getTime(), usedWebgpu = false;
+		// (a failure in its first seconds on WebGPU: again on WebGL2, once)
+		function failed(err:Dynamic):Bool {
+			if (gen != generation) return true;
+			if (usedWebgpu && !webgl2 && Date.now().getTime() - started < 4000) {
+				webgl2 = true;
+				notice('WebGPU failed here (${Fail.describe(err)}): running on WebGL2');
+				haxe.Timer.delay(() -> if (gen == generation) start(e, bytes, assets), 0);
+				return true;
+			}
+			stderr(Fail.describe(err));
+			return false;
+		}
+		var options:Dynamic = {
+			imports: imports, canvas: canvas, gpu: webgl2 ? null : gpu, fonts: fonts, files: files, track: false, antialias: true, touchAction: "none",
 			stdout: (l:String) -> if (gen == generation) stdout(l),
 			stderr: (l:String) -> if (gen == generation) stderr(l),
-			onError: (err:Dynamic) -> if (gen == generation) stderr(Std.string(err?.message ?? err)),
-		})).then((r:Dynamic) -> {
+			onError: (err:Dynamic) -> failed(err),
+		};
+		if (webgl2) options.gfx = "webgl2";
+		usedWebgpu = !webgl2 && (cast window.navigator).gpu != null;
+		return module().then(m -> m.run(bytes, options)).then((r:Dynamic) -> {
 			if (gen != generation) {
 				try r.host.dispose() catch (_:Dynamic) {}
 				return false;
 			}
 			current = state;
 			var g:Dynamic = r.host.gfx;
-			if (gpu == null && g != null && g.device != null) gpu = {adapter: g.adapter, device: g.device};
-			if (r.exitCode != 0) stderr('exited with code ${r.exitCode}');
+			usedWebgpu = usedWebgpu && g != null && g.device != null;
+			if (gpu == null && !webgl2 && g != null && g.device != null) gpu = {adapter: g.adapter, device: g.device};
+			if (r.exitCode != 0) return !failed('the program exited with code ${r.exitCode}');
 			return true;
-		}, (err:Dynamic) -> {
-			if (gen == generation) stderr(Std.string(err?.message ?? err));
-			return false;
-		});
+		}, (err:Dynamic) -> !failed(err));
 	}
 
 	public function focus()
