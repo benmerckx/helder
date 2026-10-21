@@ -41,7 +41,11 @@ changed:
 One compiler per program (the worker keeps the last two): a server's macros
 keep state across builds (gfx's shader registry), right for the builds of
 one program, wrong across programs. The tool builds it from hxmc's sources
-in about 20 s.
+in about 20 s, twice: `reactor.wasm` with exnref exception handling
+(Chrome and Edge 137+, Firefox 131+, Safari 18.4+) and
+`reactor-legacy.wasm` with the legacy instructions (Chrome and Edge 95+,
+Firefox 100+, Safari 15.2+); the page detects which one the browser runs
+and fetches only that (`?eh=legacy` forces it).
 
 ## The page
 
@@ -88,10 +92,6 @@ picked.
 - **Go to definition, find references.** The compiler answers
   `display/definition` and `display/references`; the editor could open the
   packages' files read-only.
-- **Browsers without exnref.** The compiler is built with exnref exception
-  handling (Chrome 137+, Firefox 131+, Safari 18.4+); a `-D
-  hxmc.wasm-eh=legacy` build, as hxmc's playground has, would reach older
-  Safari. The page says so instead, for now.
 - **Android and iOS downloads.** hxmc writes APKs and iOS apps; a phone
   visitor could get one for the phone in hand rather than a desktop's.
 - **Sharing.** Edits are this browser's; a world's edits could be a link.

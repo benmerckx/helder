@@ -79,6 +79,10 @@ class Check {
 			memfs.mount("/lib/rt", Pack.unpack(read(dir, 'rt/$t.pack')));
 			build(e, t, false, t);
 		}
+		// the compiler for browsers without exnref (node runs the legacy instructions natively)
+		var legacy = new js.lib.webassembly.Module(read(dir, "reactor-legacy.wasm"));
+		c = new Compiler(legacy, memfs);
+		build(e, "wasm32-wasi", true, "page, legacy compiler");
 		if (failed > 0) {
 			out('landing: $failed checks failed');
 			Syntax.code("process.exit(1)");

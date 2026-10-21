@@ -8,7 +8,7 @@ import Compiler;
 typedef Edits = haxe.DynamicAccess<String>;
 
 enum abstract ToWorker(String) {
-	// download the compiler, the std and the sources; start the compiler
+	// {module}: download the compiler (reactor.wasm or reactor-legacy.wasm), the std and the sources; start the compiler
 	var Init = "init";
 	// {id, example, target, dev, edits}
 	var Build = "build";
@@ -43,6 +43,7 @@ typedef Request = {
 	?file:String,
 	?offset:Int,
 	?extra:Dynamic,
+	?module:String,
 }
 
 typedef Reply = {

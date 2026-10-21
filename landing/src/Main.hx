@@ -42,7 +42,7 @@ class Main {
 			universe.onEnter = e -> go(e);
 			universe.onHover = () -> wake();
 			Download.detect();
-			if (!CompilerClient.supported()) byId("core-state").textContent = "needs a newer browser (WebAssembly exnref)";
+			if (!CompilerClient.supported()) byId("core-state").textContent = "needs a newer browser (WebAssembly exceptions)";
 			route();
 		});
 		byId("back").onclick = back;

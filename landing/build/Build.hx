@@ -112,7 +112,6 @@ class Build {
 			p.close();
 			c;
 		} catch (_:Dynamic) "unknown";
-		sizes["reactor.wasm"] = FileSystem.stat('$out/reactor.wasm').size;
 		var manifest = {
 			hxmc: {version: npm.version, rev: npm.rev},
 			commit: commit,
@@ -214,15 +213,23 @@ class Build {
 	// ---- the compiler ----
 
 	// compiler/Reactor.hx: hxmc's `haxe` as a resident server, built by the tool from hxmc's sources
+	// (twice: with exnref exception handling, and with the legacy instructions
+	// for browsers without exnref, reactor-legacy.wasm; the page fetches one)
 	static function reactor() {
-		var log = '$out/../landing-reactor.log';
+		reactorBuild("reactor.wasm", []);
+		reactorBuild("reactor-legacy.wasm", ["-D", "hxmc.wasm-eh=legacy"]);
+	}
+
+	static function reactorBuild(file:String, extra:Array<String>) {
+		var log = '$out/../landing-$file.log';
 		var args = [
-			'$out/reactor.wasm',
+			'$out/$file',
 			"-cp", '$hxmc/haxe/src', "-cp", '$hxmc/hxmc/src', "-cp", "packages/web/src", "-cp", "landing/compiler", "-main", "Reactor",
 			"-D", "disable-parallelism", "-D", "hxmc.gc-prefault", "-cp", "bin/hxmc/std", "--custom-target", "hxmc", "-D", "hxmc.target=wasm32-wasi",
-		];
+		].concat(extra);
 		var code = Sys.command("sh", ["-c", "ulimit -s unlimited 2>/dev/null; " + [tool].concat(args).map(quote).join(" ") + " > " + quote(log) + " 2>&1"]);
-		if (code != 0 || !FileSystem.exists('$out/reactor.wasm')) fail('the compiler did not build:\n${File.getContent(log)}');
+		if (code != 0 || !FileSystem.exists('$out/$file')) fail('the compiler ($file) did not build:\n${File.getContent(log)}');
+		sizes[file] = FileSystem.stat('$out/$file').size;
 	}
 
 	static function quote(s:String):String

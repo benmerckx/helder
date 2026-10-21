@@ -25,19 +25,34 @@ class CompilerClient {
 		onState(s, text);
 	}
 
-	// exception handling with exnref, which the compiler uses: a function with
-	// an exnref local and a try_table validates
-	public static function supported():Bool {
-		return try js.lib.WebAssembly.validate(new js.lib.Uint8Array([
-			0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 0x60, 0, 0, 3, 2, 1, 0, 10, 10, 1, 8, 1, 1, 0x69, 0x1f, 0x40, 0, 0x0b, 0x0b
-		]).buffer) catch (_:Dynamic) false;
-	}
+	// the compiler this browser runs: reactor.wasm uses exception handling
+	// with exnref (Chrome and Edge 137+, Firefox 131+, Safari 18.4+),
+	// reactor-legacy.wasm the legacy instructions (Chrome and Edge 95+,
+	// Firefox 100+, Safari 15.2+); each detected with a tiny module (a
+	// function with an exnref local and a try_table; one with try and
+	// catch_all), as site/client/Playground.hx does; ?eh=legacy or ?eh=exnref
+	// forces one (tests). null: neither.
+	public static final module:Null<String> = {
+		var exnref = validates([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 0x60, 0, 0, 3, 2, 1, 0, 10, 10, 1, 8, 1, 1, 0x69, 0x1f, 0x40, 0, 0x0b, 0x0b]);
+		var legacy = validates([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 0x60, 0, 0, 3, 2, 1, 0, 10, 8, 1, 6, 0, 0x06, 0x40, 0x19, 0x0b, 0x0b]);
+		switch new js.html.URLSearchParams(js.Browser.window.location.search).get("eh") {
+			case "legacy": legacy ? "reactor-legacy.wasm" : null;
+			case "exnref": exnref ? "reactor.wasm" : null;
+			case _: exnref ? "reactor.wasm" : legacy ? "reactor-legacy.wasm" : null;
+		}
+	};
+
+	static function validates(bytes:Array<Int>):Bool
+		return try js.lib.WebAssembly.validate(new js.lib.Uint8Array(bytes).buffer) catch (_:Dynamic) false;
+
+	public static function supported():Bool
+		return module != null;
 
 	public function wake():Promise<Bool> {
 		if (ready != null) return ready;
 		if (!supported()) {
 			set("asleep", "this browser cannot run the compiler");
-			return ready = Promise.reject("This browser lacks WebAssembly exception handling (exnref): Chrome 137+, Firefox 131+ or Safari 18.4+ run the compiler.");
+			return ready = Promise.reject("This browser lacks WebAssembly exception handling: Chrome 95+, Firefox 100+ or Safari 15.2+ run the compiler.");
 		}
 		set("loading", "waking up…");
 		worker = new Worker("worker.js");
@@ -76,7 +91,7 @@ class CompilerClient {
 			set("asleep", "the compiler failed to start");
 			throw e;
 		});
-		worker.postMessage({type: Init});
+		worker.postMessage({type: Init, module: module});
 		return ready;
 	}
 

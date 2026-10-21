@@ -16,6 +16,8 @@ import js.lib.Uint8Array;
 // others: Superseded), so typing never queues work nobody wants.
 class CompilerWorker {
 	static var manifest:Manifest;
+	// the compiler's module: the one this browser's exception handling runs (CompilerClient.module)
+	static var file = "reactor.wasm";
 	static var module:js.lib.webassembly.Module;
 	static var fs:MemFS;
 	static var compilers:Array<{id:String, compiler:Compiler}> = [];
@@ -32,7 +34,10 @@ class CompilerWorker {
 	static function main() {
 		Syntax.code("self.onmessage = {0}", (e:{data:Request}) -> {
 			var m = e.data;
-			if (m.type == Init) start().then(_ -> post({type: Ready}), fail.bind(null));
+			if (m.type == Init) {
+				if (m.module != null) file = m.module;
+				start().then(_ -> post({type: Ready}), fail.bind(null));
+			}
 			else {
 				queue.push(m);
 				if (!pumping) {
@@ -83,7 +88,7 @@ class CompilerWorker {
 		if (ready != null) return ready;
 		return ready = Syntax.code("fetch(new URL('manifest.json', self.location.href))").then(r -> r.json()).then(m -> {
 			manifest = m;
-			Promise.all([load("reactor.wasm", "compiler"), load("std.pack", "std"), load("src.pack", "sources")]);
+			Promise.all([load(file, "compiler"), load("std.pack", "std"), load("src.pack", "sources")]);
 		}).then((b:Array<Uint8Array>) -> {
 			fs = new MemFS();
 			fs.mount("/lib", Pack.unpack(b[1]));
