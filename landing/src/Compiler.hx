@@ -39,7 +39,9 @@ typedef Message = {file:String, line:Int, from:Int, to:Int, lines:Bool, text:Str
 
 // what a request answers: the program's output (stdout, --interp), the
 // compiler's messages, the display's JSON result, whether it failed
-typedef Answer = {ok:Bool, stdout:Array<String>, messages:Array<Message>, log:Array<String>, json:Null<Dynamic>, ms:Float};
+// (stopped: the compiler itself stopped, out of memory or failing: its
+// instance is no use any more, oom when it said it ran out of memory)
+typedef Answer = {ok:Bool, stdout:Array<String>, messages:Array<Message>, log:Array<String>, json:Null<Dynamic>, ms:Float, ?stopped:Bool, ?oom:Bool};
 
 // The compiler (reactor.wasm: compiler/Reactor.hx), resident: one instance
 // over a MemFS, each build or display request a call into it. Typed modules
@@ -79,18 +81,37 @@ class Compiler {
 	}
 
 	// the server's answer to the arguments
+	// true once the compiler stopped (Answer.stopped): a new one is needed
+	public var stopped(default, null) = false;
+
+	// the server's answer to the arguments
 	public function request(args:Array<String>):Answer {
-		var b = new TextEncoder().encode(args.join("\n"));
-		var p = call("__alloc", [b.length]);
-		new Uint8Array(wasi.memory.buffer).set(b, p);
+		// (what the compiler itself prints, outside the server's answer: why it stops)
+		var printed = [];
+		wasi.stdout = l -> printed.push(l);
+		wasi.stderr = l -> printed.push(l);
 		var t0 = js.Lib.global.performance.now();
-		var r = call("request", [p, b.length]);
-		var ms = js.Lib.global.performance.now() - t0;
-		call("__free", [p]);
-		var n = new DataView(wasi.memory.buffer).getInt32(r, true);
-		var text = new TextDecoder().decode(new Uint8Array(wasi.memory.buffer, r + 4, n));
-		call("__free", [r]);
-		return parse(text, ms);
+		try {
+			var b = new TextEncoder().encode(args.join("\n"));
+			var p = call("__alloc", [b.length]);
+			new Uint8Array(wasi.memory.buffer).set(b, p);
+			var r = call("request", [p, b.length]);
+			var ms = js.Lib.global.performance.now() - t0;
+			call("__free", [p]);
+			var n = new DataView(wasi.memory.buffer).getInt32(r, true);
+			var text = new TextDecoder().decode(new Uint8Array(wasi.memory.buffer, r + 4, n));
+			call("__free", [r]);
+			var a = parse(text, ms);
+			a.log = printed.concat(a.log);
+			return a;
+		} catch (e:Dynamic) {
+			// (proc_exit, a trap, the browser refusing memory: this instance is done)
+			stopped = true;
+			var why = e is Exit ? 'the compiler stopped (exit code ${(e : Exit).code})' : "the compiler stopped: " + Fail.describe(e);
+			var log = printed.concat([why]);
+			var oom = Lambda.exists(log, l -> ~/out of memory|memory access out of bounds|Cannot allocate|could not allocate|Out of memory/i.match(l));
+			return {ok: false, stdout: [], messages: [], log: log, json: null, ms: js.Lib.global.performance.now() - t0, stopped: true, oom: oom};
+		}
 	}
 
 	static final MESSAGE = ~/^(.+\.hx):(\d+): (characters|lines) (\d+)-(\d+) : (.*)$/;

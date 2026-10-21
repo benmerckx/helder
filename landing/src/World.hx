@@ -70,6 +70,7 @@ class World {
 		world.style.setProperty("--aspect", '${size[0] / size[1]}');
 		byId("console").innerHTML = "";
 		setStatus("idle", "");
+		hideTrouble();
 		code(false);
 		runner.stop();
 		editor?.reset();
@@ -140,6 +141,7 @@ class World {
 	// the first build: the forge over the stage, then a cold start
 	function first():Void {
 		var e = current, gen = generation;
+		hideTrouble();
 		byId("run").setAttribute("disabled", "");
 		sky.calm = false;
 		forge.show(client.state == "ready" ? "warming up" : "downloading the compiler", Store.progress.counts[e.id]);
@@ -150,6 +152,7 @@ class World {
 			if (!r.ok) {
 				forge.hide();
 				failed(r);
+				buildTrouble(r);
 				return null;
 			}
 			Store.progress.counts[e.id] = forge.reads;
@@ -170,7 +173,9 @@ class World {
 		}, err -> {
 			forge.hide();
 			byId("run").removeAttribute("disabled");
-			log(Fail.describe(err), "err");
+			var why = Fail.describe(err);
+			log(why, "err");
+			trouble("Something went wrong", "The page could not build this world.", why, null);
 		});
 	}
 
@@ -196,9 +201,11 @@ class World {
 			editor?.diagnostics(r.messages);
 			if (!r.ok) {
 				failed(r);
+				if (!runner.running || r.stopped) buildTrouble(r);
 				return;
 			}
 			lastGood = r;
+			hideTrouble();
 			setStatus("live", '${Math.round(r.ms / 10) / 100}s');
 			if (e.demo.sound != null && !runner.running) return;
 			sky.kick(0.25);
@@ -216,11 +223,62 @@ class World {
 		if (errors.length == 0) for (l in r.log.slice(0, 8)) log(l, "err");
 	}
 
+	// ---- trouble: what went wrong, over the stage, and the ways out ----
+
+	// a build that failed: its first error (where it is), or why the compiler stopped
+	function buildTrouble(r:Reply) {
+		var errors = r.messages.filter(m -> !m.warning);
+		if (r.oom == true)
+			trouble("Out of memory", "The compiler ran out of memory in this tab: a ui program takes it about 460 MB. Closing other tabs helps; Try again starts a fresh compiler.", r.log.slice(-4).join("\n"), null);
+		else if (r.stopped == true)
+			trouble("The compiler stopped", "Try again starts a fresh compiler.", r.log.slice(-6).join("\n"), null);
+		else if (errors.length > 0) {
+			var m = errors[0];
+			var where = m.file.substr(m.file.lastIndexOf("/") + 1) + ":" + m.line;
+			trouble("The build failed", errors.length == 1 ? 'One error, at $where.' : '${errors.length} errors; the first at $where.', [for (x in errors.slice(0, 4)) x.file.substr(x.file.lastIndexOf("/") + 1) + ":" + x.line + ": " + x.text].join("\n"), m);
+		} else
+			trouble("The build failed", "", r.log.slice(0, 8).join("\n"), null);
+	}
+
+	function trouble(title:String, why:String, detail:String, at:Null<Message>) {
+		byId("trouble-title").textContent = title;
+		byId("trouble-why").textContent = why;
+		byId("trouble-detail").textContent = detail;
+		var toCode = byId("trouble-code");
+		toCode.hidden = at == null || !files.contains(at.file.substr("/lib/src/".length));
+		toCode.onclick = () -> {
+			code(true);
+			show(at.file.substr("/lib/src/".length));
+			editor?.goto(at.line, at.lines ? 0 : at.from);
+		};
+		byId("trouble-reset").hidden = edits().keys().length == 0;
+		byId("trouble").hidden = false;
+		setStatus("error", title);
+	}
+
+	function hideTrouble()
+		byId("trouble").hidden = true;
+
+	// every file of the world as shipped, the edits forgotten, and a fresh build
+	function resetAll() {
+		for (p in files) if (texts[p] != originals[p]) {
+			texts[p] = originals[p];
+			Store.forget(p);
+		}
+		if (editor != null && texts.exists(active)) editor.open(active, texts[active]);
+		tabs();
+		Main.toast("↺ <b>Back as shipped</b> · your edits to this world are gone");
+		runner.stop();
+		lastGood = null;
+		first();
+	}
+
 	// a cold start of the last good build (state dropped)
 	function restart() {
 		var e = current;
 		if (e == null) return;
 		byId("play").hidden = true;
+		hideTrouble();
 		if (lastGood == null) {
 			first();
 			return;
@@ -424,6 +482,12 @@ class World {
 			el.onclick = () -> setCorner(el.dataset.corner);
 		}
 		window.addEventListener("resize", corner);
+		byId("trouble-retry").onclick = () -> {
+			hideTrouble();
+			lastGood == null || !runner.running ? first() : restart();
+		};
+		byId("trouble-reset").onclick = resetAll;
+		runner.onFail = why -> trouble("The program stopped", ~/out of memory/i.match(why) ? "It ran out of memory in this tab. Closing other tabs helps." : "It failed while running.", why, null);
 		byId("reset").onclick = () -> if (editor != null && originals.exists(active)) editor.replace(originals[active]);
 		byId("download").onclick = () -> download(Download.chosen.target);
 		byId("pick").onclick = () -> Download.picker(byId("targets").hidden, manifest.targets, download);

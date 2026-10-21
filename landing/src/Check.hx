@@ -34,7 +34,9 @@ class Check {
 		var examples = [for (e in manifest.examples) if (only.length == 0 || only.contains(e.id)) e];
 
 		function check(what:String, e:Example, a:Answer, ok:Bool, ?size:Int) {
-			out('${StringTools.rpad(e.id, " ", 20)} ${StringTools.rpad(what, " ", 22)} ${ok ? "ok" : "FAILED"} ${StringTools.lpad(Std.string(Math.round(a.ms)), " ", 6)} ms${size != null ? "  " + size + " B" : ""}');
+			// (the compiler's memory: what a phone's tab has to give it)
+			var mb = Math.round(c.wasi.memory.buffer.byteLength / 1048576);
+			out('${StringTools.rpad(e.id, " ", 20)} ${StringTools.rpad(what, " ", 22)} ${ok ? "ok" : "FAILED"} ${StringTools.lpad(Std.string(Math.round(a.ms)), " ", 6)} ms ${StringTools.lpad(Std.string(mb), " ", 5)} MB${size != null ? "  " + size + " B" : ""}');
 			if (!ok) {
 				failed++;
 				out(a.log.join("\n"));

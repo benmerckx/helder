@@ -74,6 +74,16 @@
 				</ol>
 				<div id="ticker" class="ticker" aria-live="polite"></div>
 			</div>
+			<div id="trouble" class="trouble" role="alert" hidden>
+				<h3 id="trouble-title"></h3>
+				<p id="trouble-why"></p>
+				<pre id="trouble-detail"></pre>
+				<div class="trouble-actions">
+					<button id="trouble-code" class="btn" type="button">Show in the code</button>
+					<button id="trouble-reset" class="btn" type="button">Reset my edits</button>
+					<button id="trouble-retry" class="btn primary" type="button">Try again</button>
+				</div>
+			</div>
 			<button id="play" class="play" type="button" hidden>
 				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
 				<span>Tap to play</span>

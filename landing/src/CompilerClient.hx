@@ -42,6 +42,13 @@ class CompilerClient {
 		}
 	};
 
+	// a phone, or a machine with 4 GB or less: one compiler at a time (a ui
+	// program's takes about 460 MB)
+	public static final lowMemory:Bool = {
+		var memory:Null<Float> = (cast js.Browser.navigator).deviceMemory;
+		(memory != null && memory <= 4) || js.Browser.window.matchMedia("(pointer: coarse)").matches;
+	};
+
 	static function validates(bytes:Array<Int>):Bool
 		return try js.lib.WebAssembly.validate(new js.lib.Uint8Array(bytes).buffer) catch (_:Dynamic) false;
 
@@ -91,7 +98,7 @@ class CompilerClient {
 			set("asleep", "the compiler failed to start");
 			throw e;
 		});
-		worker.postMessage({type: Init, module: module});
+		worker.postMessage({type: Init, module: module, keep: lowMemory ? 1 : 2});
 		return ready;
 	}
 

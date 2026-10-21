@@ -28,6 +28,8 @@ class Runner {
 	public var stdout:String->Void = _ -> {};
 	public var stderr:String->Void = _ -> {};
 	public var notice:String->Void = _ -> {};
+	// the program failed (to start, or later): why
+	public var onFail:String->Void = _ -> {};
 	public var running(get, never):Bool;
 
 	final screen:Element;
@@ -128,7 +130,9 @@ class Runner {
 				haxe.Timer.delay(() -> if (gen == generation) start(e, bytes, assets), 0);
 				return true;
 			}
-			stderr(Fail.describe(err));
+			var why = Fail.describe(err);
+			stderr(why);
+			onFail(why);
 			return false;
 		}
 		var options:Dynamic = {

@@ -206,6 +206,19 @@ svg { width: 1.25em; height: 1.25em; fill: none; stroke: currentColor; stroke-wi
 .play[hidden] { display: none; }
 .play svg { width: 72px; height: 72px; fill: var(--text); stroke: none; filter: drop-shadow(0 0 20px var(--c1)); }
 
+.trouble {
+	position: absolute; inset: 0; z-index: 6; display: grid; align-content: center; gap: 10px; padding: clamp(16px, 4vw, 32px);
+	background: radial-gradient(circle at center, #2a0b18f2, #04050df5); overflow: auto;
+}
+.trouble[hidden] { display: none; }
+.trouble h3 { margin: 0; font-size: clamp(18px, 3vw, 24px); color: #fecdd3; }
+.trouble p { margin: 0; color: var(--dim); font-size: 14px; }
+.trouble pre { margin: 0; max-height: 9em; overflow: auto; padding: 10px 12px; border-radius: 10px; background: #00000066; border: 1px solid #fb718544; font: 12px/1.5 var(--mono); color: #fda4af; white-space: pre-wrap; word-break: break-word; }
+.trouble pre:empty { display: none; }
+.trouble-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.trouble-actions .btn { min-height: 42px; }
+.trouble-actions .btn[hidden] { display: none; }
+
 /* the forge: the compiler at work */
 .forge {
 	position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; overflow: hidden;

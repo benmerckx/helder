@@ -41,7 +41,12 @@ changed:
 | gfx's Cube | 2-4 s | 0.3-0.7 s | 0.5 s |
 | ui's Counter, Todo | 9-11 s | 0.9-1.7 s | 0.5-1.8 s |
 
-One compiler per program (the worker keeps the last two): a server's macros
+One compiler per program (the worker keeps the last two; one on a phone or
+a machine with 4 GB or less: a ui program's compiler takes about 460 MB, a
+gfx program's 180-320 MB). A compiler that stops (out of memory, most
+likely) is dropped with the others and the build made again in a fresh
+one; what it printed is shown. A world that cannot run says why over the
+stage, with Show in the code, Reset my edits and Try again. a server's macros
 keep state across builds (gfx's shader registry), right for the builds of
 one program, wrong across programs. The tool builds it from hxmc's sources
 in about 20 s, twice: `reactor.wasm` with exnref exception handling

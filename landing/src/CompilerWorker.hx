@@ -18,6 +18,8 @@ class CompilerWorker {
 	static var manifest:Manifest;
 	// the compiler's module: the one this browser's exception handling runs (CompilerClient.module)
 	static var file = "reactor.wasm";
+	// the compilers kept (one per program): 2, 1 where memory is short (a phone's)
+	static var keep = 2;
 	static var module:js.lib.webassembly.Module;
 	static var fs:MemFS;
 	static var compilers:Array<{id:String, compiler:Compiler}> = [];
@@ -36,6 +38,7 @@ class CompilerWorker {
 			var m = e.data;
 			if (m.type == Init) {
 				if (m.module != null) file = m.module;
+				if (m.keep != null) keep = m.keep;
 				start().then(_ -> post({type: Ready}), fail.bind(null));
 			}
 			else {
@@ -106,10 +109,14 @@ class CompilerWorker {
 	static function compilerFor(e:Example):Compiler {
 		var i = Lambda.findIndex(compilers, c -> c.id == e.id);
 		if (i < 0) i = Lambda.findIndex(compilers, c -> c.id == "");
+		if (i < 0) {
+			// (room first: the old compilers' memory goes before the new one takes its own)
+			while (compilers.length >= keep) compilers.pop();
+		}
 		var c = i >= 0 ? compilers.splice(i, 1)[0] : {id: e.id, compiler: new Compiler(module, fs)};
 		c.id = e.id;
 		compilers.unshift(c);
-		if (compilers.length > 2) compilers.pop();
+		while (compilers.length > keep) compilers.pop();
 		return c.compiler;
 	}
 
@@ -141,21 +148,21 @@ class CompilerWorker {
 	static function pump() {
 		var waiting = queue;
 		queue = [];
-		var keep:Array<Request> = [];
+		var todo:Array<Request> = [];
 		for (i in 0...waiting.length) {
 			var m = waiting[i], later = false;
 			for (j in i + 1...waiting.length) {
 				var n = waiting[j];
 				if (n.type == m.type && (m.type == Display || (n.example.id == m.example.id && n.target == m.target && n.dev == m.dev))) later = true;
 			}
-			if (later) post({type: Superseded, id: m.id}) else keep.push(m);
+			if (later) post({type: Superseded, id: m.id}) else todo.push(m);
 		}
 		function next(i:Int) {
-			if (i >= keep.length) {
+			if (i >= todo.length) {
 				if (queue.length > 0) Syntax.code("setTimeout({0}, 0)", pump) else pumping = false;
 				return;
 			}
-			var m = keep[i];
+			var m = todo[i];
 			start().then(_ -> m.type == Build ? runtime(m.target) : Promise.resolve(true)).then(_ -> {
 				apply(m.edits);
 				if (m.type == Build) build(m) else display(m);
@@ -177,6 +184,16 @@ class CompilerWorker {
 			}
 		}
 		var a = compiler.request(Compiler.buildArgs(m.example, m.target, m.dev));
+		if (a.stopped) {
+			// the compiler stopped (out of memory, most likely): every compiler
+			// dropped, their memory freed, and the build again in a new one
+			compilers = [];
+			compiler = compilerFor(m.example);
+			var again = compiler.request(Compiler.buildArgs(m.example, m.target, m.dev));
+			if (again.stopped) compilers = [];
+			again.log = a.log.concat(["(a new compiler, with the others' memory freed:)"]).concat(again.log);
+			a = again;
+		}
 		compiler.wasi.onOpen = (_, _) -> {};
 		if (batch.length > 0) post({type: Files, files: batch});
 		var out = Compiler.output(m.example, m.target, m.dev);
@@ -197,12 +214,14 @@ class CompilerWorker {
 		if (copy != null) transfer.push(copy.buffer);
 		post({
 			type: Built, id: m.id, ok: a.ok && bytes != null, bytes: copy, file: file.substr(file.lastIndexOf("/") + 1), assets: assets,
-			messages: a.messages, log: a.log, stdout: a.stdout, ms: a.ms,
+			messages: a.messages, log: a.log, stdout: a.stdout, ms: a.ms, stopped: a.stopped, oom: a.oom,
 		}, transfer);
 	}
 
 	static function display(m:Request) {
-		var a = compilerFor(m.example).request(Compiler.displayArgs(m.example, m.method, m.file, m.offset, m.extra));
+		var c = compilerFor(m.example);
+		var a = c.request(Compiler.displayArgs(m.example, m.method, m.file, m.offset, m.extra));
+		if (a.stopped) compilers = compilers.filter(x -> x.compiler != c);
 		post({type: Displayed, id: m.id, json: a.json, messages: a.messages, ms: a.ms});
 	}
 }
