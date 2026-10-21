@@ -8,7 +8,10 @@ running in a corner): an editor with the compiler's completion, hover,
 signatures and errors, where every edit is kept (IndexedDB) and, once
 typing pauses, built and swapped into the running program with its state.
 The dock's *Download native* compiles the same source, edits included, for
-the visitor's OS and CPU (detected, or any of six from the dropdown).
+the visitor's OS and CPU (detected, or any of seven from the dropdown:
+Linux, macOS and Windows on x86-64 and ARM64, and an Android APK, the
+default on an Android phone). On a phone, a corner over the code shows the
+running program or a map of the code, a tab each.
 Nothing is compiled ahead: the site ships Haxe source, the compiler and the
 runtime objects; and the site itself is Haxe.
 
@@ -92,8 +95,8 @@ picked.
 - **Go to definition, find references.** The compiler answers
   `display/definition` and `display/references`; the editor could open the
   packages' files read-only.
-- **Android and iOS downloads.** hxmc writes APKs and iOS apps; a phone
-  visitor could get one for the phone in hand rather than a desktop's.
+- **iOS.** hxmc writes iOS apps too, but a phone installs none from a
+  download; TestFlight or a simulator build for Macs are the ways in.
 - **Sharing.** Edits are this browser's; a world's edits could be a link.
 - **Signing.** macOS downloads are signed ad hoc, so Gatekeeper quarantines
   them (the page says how to run them); Windows' SmartScreen warns.

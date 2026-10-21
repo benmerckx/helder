@@ -21,7 +21,7 @@ using StringTools;
 // pinned packages) bundled by esbuild.
 class Build {
 	// the targets a download can be for: [id, its runtime objects' directory]
-	// (Linux: the glibc mode, which loads the GPU's drivers)
+	// (Linux: the glibc mode, which loads the GPU's drivers; Android: an APK)
 	static final TARGETS = [
 		["linux-x86_64", "linux-x86_64-glibc"],
 		["linux-arm64", "linux-arm64-glibc"],
@@ -29,6 +29,7 @@ class Build {
 		["macos-x86_64", "macos-x86_64"],
 		["windows-x86_64", "windows-x86_64"],
 		["windows-arm64", "windows-arm64"],
+		["android-arm64", "android-arm64"],
 	];
 
 	// the examples' packages: their class paths (dependencies first),

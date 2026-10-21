@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>universe</title>
 <meta name="description" content="Haxe source, compiled in your browser by a WebAssembly compiler: run it here, or take it home as a native app for any OS and CPU.">
 <meta name="theme-color" content="#04050d">
@@ -98,6 +98,16 @@
 		</div>
 	</aside>
 	</div>
+
+	<div id="corner" class="corner" role="tablist" aria-label="Corner">
+		<button type="button" role="tab" data-corner="preview" aria-selected="true" aria-label="The program">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+		</button>
+		<button type="button" role="tab" data-corner="map" aria-selected="false" aria-label="The code's map">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M4 10h16M4 14h8M4 18h13" /></svg>
+		</button>
+	</div>
+	<canvas id="minimap" class="minimap" aria-label="The code's map: tap to go there"></canvas>
 
 	<nav class="dock" aria-label="Actions">
 		<button id="run" class="btn" type="button">

@@ -285,6 +285,8 @@ class World {
 			if (editor == null) {
 				editor = new Editor(byId("editor"), byId("info"));
 				editor.onChange = edited;
+				editor.minimap(cast byId("minimap"));
+				editor.onLayout = corner;
 				editor.lsp = {
 					complete: (offset, explicit) -> display("display/completion", offset, {wasAutoTriggered: !explicit}),
 					hover: offset -> display("display/hover", offset),
@@ -292,6 +294,7 @@ class World {
 				};
 			}
 			if (current == e && !byId("source").hidden) show(active);
+			corner();
 		}, err -> log("the editor did not load: " + Std.string(err), "err"));
 	}
 
@@ -309,6 +312,24 @@ class World {
 			}
 			document.head.append(s);
 		});
+	}
+
+	// the corner (a phone's): just above the info bar and the key bar
+	function corner() {
+		var world = byId("world"), info = byId("info");
+		if (!world.classList.contains("coding") || info.offsetParent == null) return;
+		var bottom = world.getBoundingClientRect().bottom - info.getBoundingClientRect().top + 10;
+		world.style.setProperty("--corner-bottom", '${bottom}px');
+		editor?.drawMap();
+	}
+
+	function setCorner(which:String) {
+		byId("world").classList.toggle("corner-map", which == "map");
+		for (b in byId("corner").querySelectorAll("button")) {
+			var el:Element = cast b;
+			el.setAttribute("aria-selected", Std.string(el.dataset.corner == which));
+		}
+		editor?.drawMap();
 	}
 
 	function display(method:String, offset:Int, ?extra:Dynamic):Promise<Null<Dynamic>> {
@@ -397,6 +418,11 @@ class World {
 		}
 		// (the stage in its corner while coding on a phone: back to playing)
 		byId("stage").addEventListener("click", () -> if (byId("world").classList.contains("coding") && window.innerWidth <= 760) code(false));
+		for (b in byId("corner").querySelectorAll("button")) {
+			var el:Element = cast b;
+			el.onclick = () -> setCorner(el.dataset.corner);
+		}
+		window.addEventListener("resize", corner);
 		byId("reset").onclick = () -> if (editor != null && originals.exists(active)) editor.replace(originals[active]);
 		byId("download").onclick = () -> download(Download.chosen.target);
 		byId("pick").onclick = () -> Download.picker(byId("targets").hidden, manifest.targets, download);

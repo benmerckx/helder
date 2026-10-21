@@ -132,6 +132,7 @@ class Editor {
 
 	function update(u:Dynamic) {
 		if (u.docChanged && !quiet) onChange(text());
+		if (u.docChanged || u.viewportChanged || u.geometryChanged) drawMap();
 		if (u.docChanged || u.selectionSet) {
 			window.clearTimeout(infoTimer);
 			infoTimer = window.setTimeout(infoAtCursor, 550);
@@ -226,10 +227,9 @@ class Editor {
 	static function esc(s:String):String
 		return StringTools.htmlEscape(s);
 
-	function setInfo(html:Null<String>) {
+	// (the bar keeps its height, empty or not: the editor above it never moves)
+	function setInfo(html:Null<String>)
 		info.innerHTML = html ?? "";
-		info.classList.toggle("on", html != null);
-	}
 
 	// the compiler's messages about the open file, as diagnostics
 	public function diagnostics(messages:Array<Message>) {
@@ -249,6 +249,8 @@ class Editor {
 			list.push({from: from, to: to, severity: m.warning ? "warning" : "error", message: m.text});
 		}
 		view.dispatch(CM.setDiagnostics(view.state, list));
+		errorLines = [for (m in messages) if (!m.warning && m.file == "/lib/src/" + path) m.line];
+		drawMap();
 	}
 
 	// the cursor at a line (1-based) and column, in view
@@ -284,12 +286,103 @@ class Editor {
 				}
 			});
 		}
+		// (the world's view follows the visual viewport while coding on a phone:
+		// the keyboard shrinks it rather than the page scrolling under the caret)
 		var vv:Dynamic = (cast window).visualViewport;
 		if (vv != null) {
-			function place()
-				document.documentElement.style.setProperty("--kb", '${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px');
+			function place() {
+				var root = document.documentElement.style;
+				root.setProperty("--vvh", '${vv.height}px');
+				root.setProperty("--vvtop", '${vv.offsetTop}px');
+				window.requestAnimationFrame(_ -> onLayout());
+			}
 			vv.addEventListener("resize", place);
 			vv.addEventListener("scroll", place);
+			place();
 		}
+	}
+
+	public var onLayout:Void->Void = () -> {};
+
+	// ---- the map: the code's lines in small, where the view is, where the errors are ----
+
+	var map:Null<js.html.CanvasElement>;
+	var errorLines:Array<Int> = [];
+	var mapQueued = false;
+
+	public function minimap(c:js.html.CanvasElement) {
+		map = c;
+		var held = false;
+		function seek(e:js.html.PointerEvent) {
+			var r = c.getBoundingClientRect();
+			var f = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+			var lines:Int = view.state.doc.lines, lineH = mapLine(r.height, lines);
+			var line = lines * lineH <= r.height ? Std.int((e.clientY - r.top) / lineH) + 1 : Math.ceil(f * lines);
+			var at:Int = view.state.doc.line(Std.int(Math.max(1, Math.min(lines, line)))).from;
+			view.dispatch({effects: CM.EditorView.scrollIntoView(at, {y: "center"})});
+		}
+		c.addEventListener("pointerdown", (e:js.html.PointerEvent) -> {
+			held = true;
+			c.setPointerCapture(e.pointerId);
+			seek(e);
+		});
+		c.addEventListener("pointermove", (e:js.html.PointerEvent) -> if (held) seek(e));
+		c.addEventListener("pointerup", () -> held = false);
+		c.addEventListener("pointercancel", () -> held = false);
+		(view.scrollDOM : Element).addEventListener("scroll", drawMap, {passive: true});
+		drawMap();
+	}
+
+	static function mapLine(h:Float, lines:Int):Float
+		return Math.max(0.6, Math.min(3, h / Math.max(1, lines)));
+
+	public function drawMap() {
+		if (map == null || mapQueued) return;
+		mapQueued = true;
+		window.requestAnimationFrame(_ -> {
+			mapQueued = false;
+			var c = map;
+			if (window.getComputedStyle(c).visibility != "visible") return;
+			var dpr = Math.min(window.devicePixelRatio, 2);
+			var w = c.clientWidth, h = c.clientHeight;
+			if (w == 0 || h == 0) return;
+			c.width = Math.round(w * dpr);
+			c.height = Math.round(h * dpr);
+			var g = c.getContext2d();
+			g.setTransform(dpr, 0, 0, dpr, 0, 0);
+			g.clearRect(0, 0, w, h);
+			var doc:Dynamic = view.state.doc;
+			var lines:Int = doc.lines;
+			var lineH = mapLine(h, lines);
+			// (more lines than fit: the map is the whole file, squeezed)
+			var squeeze = lines * lineH > h ? h / (lines * lineH) : 1.0;
+			var cw = (w - 8) / 90;
+			for (i in 1...lines + 1) {
+				var text:String = doc.line(i).text;
+				var trimmed = StringTools.trim(text);
+				if (trimmed == "") continue;
+				var indent = 0;
+				for (k in 0...text.length) {
+					var ch = text.charAt(k);
+					if (ch == "\t") indent += 4 else if (ch == " ") indent++ else break;
+				}
+				g.fillStyle = errorLines.contains(i) ? "#fb7185"
+					: StringTools.startsWith(trimmed, "//") || StringTools.startsWith(trimmed, "*") || StringTools.startsWith(trimmed, "/*") ? "#4b5078"
+					: ~/\b(class|function|typedef|enum|interface|abstract)\b/.match(trimmed) ? "#f9a8d4"
+					: StringTools.startsWith(trimmed, "import") ? "#67e8f9" : "#a9b0dd";
+				var y = (i - 1) * lineH * squeeze;
+				g.fillRect(4 + indent * cw, y, Math.max(cw, Math.min(trimmed.length, 90 - indent) * cw), Math.max(0.6, lineH * squeeze - (lineH > 1.5 ? 0.8 : 0)));
+			}
+			// the view: what of the file the editor shows
+			var sd:Element = view.scrollDOM;
+			var total = lines * lineH * squeeze;
+			var top = sd.scrollHeight > 0 ? sd.scrollTop / sd.scrollHeight * total : 0;
+			var size = sd.scrollHeight > 0 ? Math.max(6, sd.clientHeight / sd.scrollHeight * total) : total;
+			g.fillStyle = "rgba(34, 211, 238, 0.14)";
+			g.fillRect(0, top, w, size);
+			g.strokeStyle = "rgba(34, 211, 238, 0.6)";
+			g.lineWidth = 1;
+			g.strokeRect(0.5, top + 0.5, w - 1, size - 1);
+		});
 	}
 }

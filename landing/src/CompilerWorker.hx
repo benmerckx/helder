@@ -180,7 +180,7 @@ class CompilerWorker {
 		compiler.wasi.onOpen = (_, _) -> {};
 		if (batch.length > 0) post({type: Files, files: batch});
 		var out = Compiler.output(m.example, m.target, m.dev);
-		var file = StringTools.startsWith(m.target, "windows") ? out + ".exe" : out;
+		var file = Compiler.file(m.example, m.target, m.dev);
 		var bytes = a.ok ? fs.read(file) : null;
 		// the files the program loads from beside it (Model.of's): <out>.assets.json
 		var assets:Array<Array<Dynamic>> = [];

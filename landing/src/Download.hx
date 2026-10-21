@@ -6,10 +6,10 @@ import js.lib.Promise;
 import js.lib.Uint8Array;
 
 // The native download: the visitor's OS and CPU (the browser's client hints
-// where it has them, its user agent else; a phone: pick a desktop), the
-// picker of the six targets, the build packed (a zip keeping the
-// executable's mode and the files it loads; a bare .exe for Windows) and
-// how to run it.
+// where it has them, its user agent else; an Android phone: an APK; an
+// iPhone: pick a desktop), the picker of the targets, the build packed (a
+// zip keeping the executable's mode and the files it loads; a bare .exe
+// for Windows, the APK as it is) and how to run it.
 class Download {
 	public static final LABELS = [
 		"linux-x86_64" => ["Linux", "x86-64", "🐧"],
@@ -18,6 +18,7 @@ class Download {
 		"macos-x86_64" => ["macOS", "Intel", "⌘"],
 		"windows-x86_64" => ["Windows", "x86-64", "⊞"],
 		"windows-arm64" => ["Windows", "ARM64", "⊞"],
+		"android-arm64" => ["Android", "ARM64", "🤖"],
 	];
 
 	public static var detected(default, null):{target:String, guessed:Bool} = {target: "windows-x86_64", guessed: true};
@@ -25,7 +26,7 @@ class Download {
 
 	public static function detect():Promise<Bool> {
 		var ua = navigator.userAgent;
-		var os:Null<String> = ~/Windows/.match(ua) ? "windows" : ~/iPhone|iPad|iPod|Android/.match(ua) ? null : ~/Mac OS X|Macintosh/.match(ua) ? "macos" : ~/Linux|X11|CrOS/.match(ua) ? "linux" : null;
+		var os:Null<String> = ~/Windows/.match(ua) ? "windows" : ~/Android/.match(ua) ? "android" : ~/iPhone|iPad|iPod/.match(ua) ? null : ~/Mac OS X|Macintosh/.match(ua) ? "macos" : ~/Linux|X11|CrOS/.match(ua) ? "linux" : null;
 		// (an iPad asks for the desktop site: a Mac with a touch screen)
 		if (os == "macos" && navigator.maxTouchPoints > 1) os = null;
 		var arch:Null<String> = ~/aarch64|arm64/i.match(ua) ? "arm64" : null;
@@ -33,8 +34,8 @@ class Download {
 		var hints:Promise<Dynamic> = data != null ? data.getHighEntropyValues(["architecture", "bitness"]) : Promise.resolve(null);
 		return hints.catchError(_ -> null).then(h -> {
 			if (h != null && h.architecture == "arm") arch = "arm64" else if (h != null && h.architecture == "x86") arch = "x86_64";
-			// (Safari says Intel on Apple silicon too: most Macs now are arm64)
-			if (arch == null) arch = os == "macos" ? "arm64" : "x86_64";
+			// (Safari says Intel on Apple silicon too: most Macs now are arm64; phones are)
+			if (arch == null || os == "android") arch = os == "macos" || os == "android" ? "arm64" : "x86_64";
 			detected = {target: '${os ?? "windows"}-$arch', guessed: os == null};
 			chosen = detected;
 			label();
@@ -76,7 +77,10 @@ class Download {
 	// the build handed over as a file
 	public static function save(e:Example, target:String, file:String, bytes:Uint8Array, assets:Array<Array<Dynamic>>):String {
 		var blob, name;
-		if (StringTools.startsWith(target, "windows") && assets.length == 0) {
+		if (StringTools.startsWith(target, "android")) {
+			blob = new js.html.Blob([bytes], {type: "application/vnd.android.package-archive"});
+			name = e.main + ".apk";
+		} else if (StringTools.startsWith(target, "windows") && assets.length == 0) {
 			blob = new js.html.Blob([bytes], {type: "application/vnd.microsoft.portable-executable"});
 			name = e.main + ".exe";
 		} else {
@@ -100,6 +104,7 @@ class Download {
 		var exe = e.main;
 		var body = switch target.split("-")[0] {
 			case "macos": '<p>Unzip it, then in a terminal: <code>xattr -d com.apple.quarantine $exe && ./$exe</code></p><p>It is signed ad hoc, not notarized, so macOS quarantines a download until you say otherwise. Or right-click it and choose <em>Open</em>.</p>';
+			case "android": '<p>Open <code>$name</code> from your downloads and install it: Android asks first to allow installs from your browser (<em>Install unknown apps</em>). It is signed with a development key, not Google Play\'s.</p>';
 			case "linux": '<p>Unzip it and run <code>./$exe</code>. It loads your GPU\'s drivers through glibc (X11, GL or Vulkan via Mesa).</p>';
 			case _: '<p>Run <code>$name</code>. SmartScreen does not know this program yet: <em>More info</em>, then <em>Run anyway</em>.</p>';
 		}

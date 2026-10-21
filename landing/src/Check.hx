@@ -42,7 +42,7 @@ class Check {
 		}
 		function build(e:Example, target:String, dev:Bool, what:String) {
 			var a = c.request(Compiler.buildArgs(e, target, dev));
-			var bytes = memfs.read(Compiler.output(e, target, dev) + (StringTools.startsWith(target, "windows") ? ".exe" : ""));
+			var bytes = memfs.read(Compiler.file(e, target, dev));
 			check(what, e, a, a.ok && bytes != null, bytes?.length);
 		}
 

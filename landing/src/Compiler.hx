@@ -134,7 +134,11 @@ class Compiler {
 
 	// where a build of an example for a target goes (-D hxmc.dev: the page's live builds)
 	public static function output(e:Example, target:String, dev:Bool):String
-		return '/work/out/${e.id}/$target${dev ? "-dev" : ""}/${e.main}';
+		return '/work/out/${e.id}/$target${dev ? "-dev" : ""}/${e.main}${StringTools.startsWith(target, "android") ? ".apk" : ""}';
+
+	// the file a build writes: the output, Windows' with .exe
+	public static function file(e:Example, target:String, dev:Bool):String
+		return output(e, target, dev) + (StringTools.startsWith(target, "windows") ? ".exe" : "");
 
 	// the arguments of a build: the page's (wasm32-wasi, -D hxmc.dev: swapped
 	// in live, legacy exception handling as the site's), or a download's
@@ -147,6 +151,13 @@ class Compiler {
 		]);
 		if (target == "wasm32-wasi") a = a.concat(["-D", "hxmc.wasm-eh=legacy"]);
 		if (StringTools.startsWith(target, "linux")) a = a.concat(["-D", "hxmc.libc=glibc"]);
+		// (an APK: its package named after the example)
+		if (StringTools.startsWith(target, "android")) {
+			// (a Java package's names start with a letter: 3d-orbits is w3d_orbits)
+			var name = ~/[^a-z0-9]/g.replace(e.id.toLowerCase(), "_");
+			if (~/^[0-9]/.match(name)) name = "w" + name;
+			a = a.concat(["-D", "hxmc.android-package=org.hxmc.universe." + name]);
+		}
 		if (dev) a = a.concat(["-D", "hxmc.dev"]);
 		return a;
 	}
