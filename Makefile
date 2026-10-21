@@ -14,8 +14,8 @@
 
 HXMC ?= hxmc
 HXMC_URL ?= https://github.com/benmerckx/hxmc.git
-# the pinned hxmc commit (the split: hxmc's main at a994ea3)
-HXMC_REV ?= a994ea385dfe623a3b237077a4116bbc801b4844
+# the pinned hxmc commit (the nightly: hxmc's main at d0c1758)
+HXMC_REV ?= d0c1758032cc662959c805067bc8d446514b489e
 
 export HXMC_DIR := $(abspath $(HXMC))
 export HAXE_STD_PATH := $(abspath $(HXMC))/haxe/upstream/std

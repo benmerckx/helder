@@ -68,14 +68,14 @@ required).
 
 Imported from hxmc `a994ea3` unchanged, except: the dev loop's tests find
 `dev.mjs` and the upstream std in the hxmc checkout (`HXMC_DIR`), and the
-Makefile builds hxmc from source. hxmc pinned at `a994ea3`, the commit
-the packages were last checked with; the next pin is a commit of hxmc after
-the split (hxmc no longer has the packages, nothing else changes for them).
+Makefile builds hxmc from source. hxmc pinned at `d0c1758`, the nightly
+of 2026-10-21 (`@hxmc/cli@0.1.0-nightly.20261021.d0c1758`), past the
+split; `make headless` passes with it.
 
 Left to do:
 
-- Bump `HXMC_REV` past the split; then the dev host may move into hxmc's
-  std (hxmc keeps `hxmc dev` and the compiler's side of it).
+- The dev host may move into hxmc's std (hxmc keeps `hxmc dev` and the
+  compiler's side of it).
 - The site (`make site`) still reads hxmc's docs for its docs pages
   (site/src/Docs.hx) and expects hxmc's layout: it needs its own content.
 - CI: the first run (39422902930) passed all three jobs (headless, the
