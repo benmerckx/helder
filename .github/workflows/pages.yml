@@ -1,9 +1,9 @@
 # The landing page (landing/, make landing) on GitHub Pages, deployed from a
-# branch: bin/landing built on pushes to main, its examples built as the page
-# builds them (make landing-check), then committed alone to gh-pages
-# (replacing what was there: one commit, no history). Pages serves gh-pages,
-# its root. Nothing needs hxmc built: the page uses the nightly npm packages
-# of HXMC_REV's commit.
+# branch: on pushes to main, bin/landing built (hxmc from source at
+# HXMC_REV, cached as ci.yml caches it: the tool runs the build and builds
+# the page's resident compiler), checked (make landing-check: the page's
+# builds in node), then committed alone to gh-pages (replacing what was
+# there: one commit, no history). Pages serves gh-pages, its root.
 name: pages
 
 on:
@@ -28,13 +28,23 @@ jobs:
           node-version: 22
       - name: Fonts (DejaVu Sans, for the ui and text examples)
         run: sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+      - id: rev
+        run: echo "rev=$(sed -n 's/^HXMC_REV ?= //p' Makefile)" >> "$GITHUB_OUTPUT"
+      - name: Cache the hxmc checkout and its build
+        uses: actions/cache@v6
+        with:
+          path: hxmc
+          key: hxmc-${{ steps.rev.outputs.rev }}-v1
+      - name: hxmc (tool, std) from source
+        run: make hxmc
       - name: Build
         run: make landing
-      - name: Check (every example built as the page builds it)
+      - name: Check (the page's builds, in node)
         run: make landing-check
       - name: Deploy to gh-pages
         working-directory: bin/landing
         run: |
+          rm -f check.js
           git init -q -b gh-pages
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

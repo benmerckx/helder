@@ -12,8 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="style.css">
-<link rel="modulepreload" href="sky.js">
-<script type="module" src="app.js"></script>
+<script src="main.js" defer></script>
 </head>
 <body>
 <canvas id="sky" aria-hidden="true"></canvas>
@@ -47,9 +46,14 @@
 			<h2 id="world-title"></h2>
 			<p id="world-summary"></p>
 		</div>
+		<div class="mode" role="group" aria-label="View">
+			<button type="button" data-mode="play" aria-pressed="true">Play</button>
+			<button type="button" data-mode="code" aria-pressed="false">Code</button>
+		</div>
 		<span id="world-pkg" class="chip"></span>
 	</header>
 
+	<div class="world-body">
 	<div class="stage-wrap">
 		<div id="stage" class="stage">
 			<div id="screen" class="screen"></div>
@@ -81,22 +85,28 @@
 	<aside id="source" class="source" hidden aria-label="Source">
 		<div class="source-head">
 			<div id="tabs" class="tabs" role="tablist"></div>
-			<button id="source-close" class="icon-btn" type="button" aria-label="Close the source">
+			<span id="live" class="live" data-state="idle" aria-live="polite"><i></i><span></span></span>
+			<button id="reset" class="text-btn" type="button" hidden title="Put this file back as shipped">Reset</button>
+			<button id="source-close" class="icon-btn" type="button" aria-label="Close the code">
 				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
 			</button>
 		</div>
-		<textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Haxe source"></textarea>
-		<p class="source-foot">Edit, then <strong>Run</strong>: the compiler in this tab rebuilds it.</p>
+		<div id="editor" class="editor"></div>
+		<div id="info" class="info" aria-live="polite"></div>
+		<div id="keybar" class="keybar" aria-label="Keys">
+			<button type="button" data-key="tab">⇥</button><button type="button" data-key="ins">{</button><button type="button" data-key="ins">}</button><button type="button" data-key="ins">(</button><button type="button" data-key="ins">)</button><button type="button" data-key="ins">;</button><button type="button" data-key="ins">.</button><button type="button" data-key="ins">=</button><button type="button" data-key="ins">"</button><button type="button" data-key="ins">:</button><button type="button" data-key="complete" aria-label="Complete">⌁</button><button type="button" data-key="left" aria-label="Left">←</button><button type="button" data-key="right" aria-label="Right">→</button><button type="button" data-key="undo" aria-label="Undo">↶</button>
+		</div>
 	</aside>
+	</div>
 
 	<nav class="dock" aria-label="Actions">
 		<button id="run" class="btn" type="button">
 			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6M4 4v4h4" /></svg>
-			<span>Run</span>
+			<span>Restart</span>
 		</button>
 		<button id="show-source" class="btn" type="button" aria-expanded="false" aria-controls="source">
 			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5" /></svg>
-			<span>Source</span>
+			<span>Code</span>
 		</button>
 		<div class="split">
 			<button id="download" class="btn primary" type="button">

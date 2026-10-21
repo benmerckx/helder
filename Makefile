@@ -170,7 +170,8 @@ wasm: $(TOOL)
 ##             under tools/, BENCH_DATA's benchmark history under bench/)
 ## landing     bin/landing: the landing page (landing/): the examples compiled in the browser by
 ##             @hxmc/wasm, run on a canvas or downloaded as native programs (for GitHub Pages)
-## landing-check  every example of bin/landing built as the page builds it, in node
+## landing-check  bin/landing's builds as the page makes them, in node (each example, an edit,
+##             display requests, an error, the six native targets)
 ## site-check  bin/site in headless browsers: every page rendered, islands hydrated, examples
 ##             drawing, the playground compiling, no console errors, no broken links
 ##             (site/tools/browser-test.mjs; Playwright; BROWSERS="chromium firefox webkit")
@@ -561,14 +562,15 @@ site-check:
 	$(NODE) site/tools/browser-test.mjs bin/site $(or $(BROWSERS),chromium firefox webkit)
 
 
-# the landing page (landing/): the nightly npm packages of HXMC_REV's commit,
-# the packages' sources and the page; nothing built ahead, the browser compiles
-landing:
-	$(NODE) landing/build.mjs bin/landing
+# the landing page (landing/): the resident compiler, the nightly npm packages
+# of HXMC_REV's commit, the packages' sources and the page; the browser compiles
+# (landing/build/Build.hx, on the tool; the resident compiler, landing/compiler/Reactor.hx, built by the tool from hxmc's sources)
+landing: $(TOOL) $(STD) $(HOST_RT)
+	$(RUN) -cp landing/build --run Build --tool $(TOOL) --hxmc $(HXMC) --out bin/landing
 
-# every example built as the page builds it (landing/test.mjs: wasi.js under node)
+# the page's builds in node, through the page's own code (landing/src/Check.hx: bin/landing/check.js)
 landing-check:
-	$(NODE) --stack-size=65500 landing/test.mjs bin/landing
+	$(NODE) --stack-size=65500 bin/landing/check.js bin/landing
 
 # (Examples.hx with the site's class paths; Harness from hxmc's haxe/test)
 examples-check: $(TOOL) $(STD) $(HOST_RT)
