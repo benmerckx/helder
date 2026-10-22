@@ -32,7 +32,45 @@ class WidgetsMain {
 			}
 		}
 		byId("wp-retry").onclick = () -> window.location.reload();
+		fps();
 		show(window.location.hash == "#dom" ? "dom" : "gpu");
+	}
+
+	static var mode = "gpu";
+
+	// the counter over the page: the browser's frames a second (a slow frame of
+	// the program's, a scroll's, shows as fewer) and, for the GPU's, the frames
+	// the program drew (none while nothing changes)
+	static function fps() {
+		var drew = false, drawn = 0;
+		// (a frame drawn: WebGPU's texture for it taken, WebGL2's buffer cleared, on the program's canvas)
+		function count(proto:Dynamic, name:String) {
+			if (proto == null) return;
+			var f:Dynamic = Reflect.field(proto, name);
+			Reflect.setField(proto, name, js.Syntax.code("function () { if ({0}.contains(this.canvas)) ({1})(); return {2}.apply(this, arguments); }", byId("wp-screen"),
+				() -> drew = true, f));
+		}
+		count(js.Syntax.code("globalThis.GPUCanvasContext?.prototype"), "getCurrentTexture");
+		count(js.Syntax.code("globalThis.WebGL2RenderingContext?.prototype"), "clear");
+		var box = byId("wp-fps"), rate = byId("wp-fps-rate"), drawnAt = byId("wp-fps-drawn-at"), drawnN = byId("wp-fps-drawn");
+		var frames = 0, since = -1.0;
+		function tick(t:Float) {
+			if (since < 0) since = t;
+			frames++;
+			if (drew) drawn++;
+			drew = false;
+			if (t - since >= 500) {
+				var k = 1000 / (t - since), f = Math.round(frames * k);
+				rate.textContent = Std.string(f);
+				box.classList.toggle("slow", f < 50);
+				drawnAt.hidden = mode != "gpu";
+				drawnN.textContent = Std.string(Math.round(drawn * k));
+				frames = drawn = 0;
+				since = t;
+			}
+			window.requestAnimationFrame(tick);
+		}
+		window.requestAnimationFrame(tick);
 	}
 
 	static function fail(why:String) {
@@ -43,6 +81,7 @@ class WidgetsMain {
 
 	// one renderer shown, the other hidden (the drawn one's frames pause out of view); each loaded the first time
 	static function show(mode:String) {
+		WidgetsMain.mode = mode;
 		for (b in document.querySelectorAll(".mode button")) {
 			var el:Element = cast b;
 			el.setAttribute("aria-pressed", Std.string(el.dataset.mode == mode));

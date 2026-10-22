@@ -330,6 +330,9 @@ body.widgets-page { display: grid; grid-template-rows: auto minmax(0, 1fr); heig
 .widgets-screen, .widgets-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .widgets-screen canvas { touch-action: none; }
 .widgets-bar .mode.on { display: flex; flex: none; }
+.widgets-fps { position: absolute; top: 8px; right: 18px; z-index: 5; pointer-events: none; padding: 4px 8px; border-radius: 8px; background: rgba(4, 5, 13, .72); color: #cbd5e1; font: 11px var(--mono); font-variant-numeric: tabular-nums; }
+.widgets-fps b { color: #fff; font-weight: 600; }
+.widgets-fps.slow b:first-child { color: #fb923c; }
 @media (max-width: 560px) { .widgets-bar p { display: none; } .widgets-bar .mode.on { margin-left: auto; } }
 .widgets-dom { position: absolute; inset: 0; overflow: auto; padding: 24px; background: var(--background, #fff); color: var(--foreground, #09090b); font: 14px/1.5 'DejaVu Sans', system-ui, sans-serif; color-scheme: light; }
 .dark .widgets-dom { color-scheme: dark; }

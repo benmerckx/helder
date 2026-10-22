@@ -36,7 +36,9 @@ under the theme's CSS scoped to `.hxmc` (`shadcn.css`). A search, dark and
 right to left at a switch. Six examples style plain views in ways the DOM
 renderer has no form for; the DOM's page says so on their cards. The six
 that open their popup at start (the theme's reference images want them
-open) wait for a click.
+open) wait for a click. A counter at the top right: the browser's frames a
+second and, for the GPU's, the frames the program drew (none while nothing
+on screen changes).
 
 ## The compiler: resident
 
