@@ -348,12 +348,14 @@ export default function (host) {
 			ed.e.value = host.string(text);
 			if (document.activeElement === ed.e) ed.e.setSelectionRange(start, end);
 		},
-		// its place: the window's pixels (the canvas's buffer over the device's
-		// pixel ratio), scaled as the canvas is shown (a page may show it
-		// smaller), in the canvas's layer
+		// its place: the window's pixels (the canvas's buffer over its pixel
+		// ratio: the device's, at most run's option maxPixelRatio, as os's),
+		// scaled as the canvas is shown (a page may show it smaller), in the
+		// canvas's layer
 		editor_place(h, x, y, w, hh, shown) {
 			const ed = editors.get(h), r = ed.c.getBoundingClientRect();
-			const k = r.width / Math.max(1, Math.round(ed.c.width / devicePixelRatio));
+			const ratio = Math.min(devicePixelRatio, host.options.maxPixelRatio ?? Infinity);
+			const k = r.width / Math.max(1, Math.round(ed.c.width / ratio));
 			const s = ed.e.style;
 			layer(ed.c).fit();
 			s.display = shown ? '' : 'none';

@@ -1307,11 +1307,10 @@ class Style {
 	function set_transform(v:Null<Transform>):Null<Transform> {
 		if (themed != null && themed.transition != null && eases("transform", transform, v)) return v;
 		if (v == transform) return v;
-		var was = transform != null;
 		theming().transform = v;
 		Ui.accessEpoch++;
 		node.styleChanged(false);
-		if (was != (v != null)) @:privateAccess node.inkChanged();
+		@:privateAccess node.inkChanged();
 		return v;
 	}
 
@@ -1319,6 +1318,7 @@ class Style {
 		if (v == transformOrigin) return v;
 		more().transformOrigin = v;
 		node.styleChanged(false);
+		@:privateAccess node.inkChanged();
 		return v;
 	}
 

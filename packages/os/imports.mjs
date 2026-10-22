@@ -111,9 +111,13 @@ registerProcessor('hxmc-output', HxmcOutput);
 let processorUrl = null;
 
 export default function (host) {
+	// the canvases' device pixels per CSS pixel: the screen's, at most
+	// run's option maxPixelRatio (a phone's 3: fewer pixels to fill each
+	// frame, at 2 text stays sharp)
+	const pixelRatio = () => Math.min(devicePixelRatio, host.options.maxPixelRatio ?? Infinity);
 	const queue = [];
 	const windows = new Set();
-	let first = true, ratio = devicePixelRatio;
+	let first = true, ratio = pixelRatio();
 	// the last paste event's text, and when
 	let pasted = null;
 	let stopped = false;
@@ -160,7 +164,7 @@ export default function (host) {
 
 	function sync(h) {
 		const c = host.handles.get(h);
-		const w = Math.round(c.clientWidth * devicePixelRatio), hh = Math.round(c.clientHeight * devicePixelRatio);
+		const w = Math.round(c.clientWidth * pixelRatio()), hh = Math.round(c.clientHeight * pixelRatio());
 		if (w > 0 && hh > 0 && (w !== c.width || hh !== c.height)) {
 			c.width = w;
 			c.height = hh;
@@ -245,7 +249,7 @@ export default function (host) {
 		on('pointerdown', (e) => e.pointerType === 'mouse' && c.setPointerCapture?.(e.pointerId));
 		// (the deltas in canvas pixels, in 1/256ths: in key and button; lines 40 pixels, pages the canvas)
 		on('wheel', (e) => {
-			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * devicePixelRatio * 256;
+			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * pixelRatio() * 256;
 			push([h, SCROLL, Math.round(e.deltaX * k), ...pos(e), Math.round(e.deltaY * k), mods(e)]);
 		}, { passive: true });
 		// touch: a drag scrolls what is under where it started (the content
@@ -289,7 +293,7 @@ export default function (host) {
 				const x = Math.round((p.clientX - r.left - c.clientLeft) * c.width / Math.max(1, c.clientWidth));
 				const y = Math.round((p.clientY - r.top - c.clientTop) * c.height / Math.max(1, c.clientHeight));
 				// (within a few pixels: no direction yet, nor a pan of the browser's)
-				if (Math.hypot(x - t.x, y - t.y) < 4 * devicePixelRatio) return;
+				if (Math.hypot(x - t.x, y - t.y) < 4 * pixelRatio()) return;
 				decide(t, x, y);
 			}
 			if (t.taken) e.preventDefault();
@@ -306,7 +310,7 @@ export default function (host) {
 		on('pointermove', (e) => {
 			if (!touch || e.pointerId !== touch.id) return;
 			const [x, y] = pos(e), now = performance.now();
-			if (!touch.drag && Math.hypot(x - touch.x, y - touch.y) > 8 * devicePixelRatio) {
+			if (!touch.drag && Math.hypot(x - touch.x, y - touch.y) > 8 * pixelRatio()) {
 				// (the browser's gesture: neither a drag nor a tap)
 				if (!decide(touch, x, y)) {
 					touch = null;
@@ -472,7 +476,7 @@ export default function (host) {
 				c.style.width = width + 'px';
 				c.style.height = height + 'px';
 			}
-			const bw = Math.round(width * devicePixelRatio), bh = Math.round(height * devicePixelRatio);
+			const bw = Math.round(width * pixelRatio()), bh = Math.round(height * pixelRatio());
 			if (c.width !== bw) c.width = bw;
 			if (c.height !== bh) c.height = bh;
 			if (c.tabIndex < 0) c.tabIndex = 0;
@@ -500,7 +504,7 @@ export default function (host) {
 		},
 		width: (h) => host.handles.get(h).width,
 		height: (h) => host.handles.get(h).height,
-		scale: () => devicePixelRatio,
+		scale: () => pixelRatio(),
 		prefers_dark: () => (matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0),
 		clipboard_write(p) {
 			const s = host.string(p);
@@ -594,8 +598,8 @@ export default function (host) {
 				frameId = 0;
 				if (stopped) return;
 				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return (frameId = requestAnimationFrame(tick));
-				if (devicePixelRatio !== ratio) {
-					ratio = devicePixelRatio;
+				if (pixelRatio() !== ratio) {
+					ratio = pixelRatio();
 					for (const h of windows) push([h, SCALE_CHANGE, 0, 0, 0, 0, 0]);
 				}
 				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0, 0]);

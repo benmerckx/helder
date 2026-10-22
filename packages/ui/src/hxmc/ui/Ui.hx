@@ -207,12 +207,16 @@ class Ui {
 	// seen (the window, the scrollers' padding boxes) left out
 	public function paint(canvas:Canvas) {
 		needsFrame = false;
+		paintFrame++;
 		cullX0 = cullY0 = 0;
 		cullX1 = width;
 		cullY1 = height;
 		paintNode(root, canvas);
 		if (overlay.children.length > 0) paintNode(overlay, canvas);
 	}
+
+	// (the paints so far: a node drawn in the last one has its number, Node.drawnAt)
+	var paintFrame = 0;
 
 	// the farthest any shadow drawn reaches outside its box (Style.shadow)
 	public static var shadowReach = 0.0;
@@ -234,10 +238,11 @@ class Ui {
 		if (s.opacity <= 0) return;
 		var m = n.transformMatrix();
 		// (its ink, widened by what rings, shadows and glyphs' overhang add, out of sight: left out)
-		if (m == null && !n.inkAll) {
+		if (!n.inkAll) {
 			var e = focusRingOffset + focusRingWidth + shadowReach + 8;
 			if (n.inkX1 + e <= cullX0 || n.inkX0 - e >= cullX1 || n.inkY1 + e <= cullY0 || n.inkY0 - e >= cullY1) return;
 		}
+		@:privateAccess n.drawnAt = paintFrame;
 		var c0 = cullX0, c1 = cullY0, c2 = cullX1, c3 = cullY1;
 		if (m != null) {
 			canvas.pushTransform(m[0], m[1], m[2], m[3], m[4], m[5]);

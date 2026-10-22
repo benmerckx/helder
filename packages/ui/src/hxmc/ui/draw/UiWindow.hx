@@ -96,6 +96,12 @@ class UiWindow {
 		ui.resize(device.width / renderer.scale, device.height / renderer.scale);
 		ui.scale = renderer.scale;
 		ui.update();
+		// (the clock ticked, nothing changed: the last frame stands, as drawn;
+		// an animation off screen, a timer's wait)
+		if (!redraw && !ui.needsFrame && capture == null && device.width == drawnW && device.height == drawnH && s == drawnScale) {
+			updateTextInput();
+			return;
+		}
 		var enc = device.beginFrame();
 		if (enc == null) return;
 		redraw = false;

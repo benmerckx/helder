@@ -1248,6 +1248,8 @@ class Widgets implements Markup {
 			var v:Null<Float> = read(props.value);
 			v == null ? 0.0 : v < 0 ? 0.0 : v > 1 ? 1.0 : v;
 		};
+		// (the slide sweeps across by its transform, 40% of the track wide:
+		// a frame's paint, not a layout)
 		var phase = signal(0.0), running = false, stopped = false;
 		effect(() -> if (!known() && !running) {
 			running = true;
@@ -1265,7 +1267,7 @@ class Widgets implements Markup {
 			data-state={() -> known() ? (frac() >= 1 ? "complete" : "loading") : "indeterminate"} width={props.width} overflow="hidden" direction="row">
 			<view slot="progress-indicator" transform={() -> "translateX(" + (-(1 - frac()) * 100) + "%)"}/>
 			{() -> known() ? null : <view tag="progress-slide" slot="progress-indicator" data-state="indeterminate" position="absolute" top={0} bottom={0}
-				width="40%" left={() -> ((phase.value * 1.4 - 0.4) * 100) + "%"}/>}
+				width="40%" left={0} transform={() -> "translateX(" + ((phase.value * 1.4 - 0.4) * 250) + "%)"}/>}
 		</view>;
 	}
 

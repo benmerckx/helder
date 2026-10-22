@@ -16,7 +16,9 @@
 // may wait for what it needs before the module starts: WebGPU's device). The
 // objects are merged and the module instantiated, then _start runs main.
 // The host each package gets:
-//   options        run's options (canvas: an element or its id, and
+//   options        run's options (canvas: an element or its id;
+//                  maxPixelRatio: the canvases' device pixels per CSS pixel
+//                  at most, the screen's ratio else; and
 //                  audioContext: a function (sampleRate, channels) =>
 //                  an AudioContext or OfflineAudioContext, and
 //                  touchAction: the canvas's CSS touch-action, by default

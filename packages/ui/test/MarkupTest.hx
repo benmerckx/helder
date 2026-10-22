@@ -1376,8 +1376,8 @@ class MarkupTest implements Markup {
 		ui.update();
 		var slide = ui.root.find("progress-slide"), bar = ui.root.find("p");
 		var t = ui.accessTree(), node = [for (id in t.order) if (t.nodes.get(id).role == ProgressIndicator) t.nodes.get(id)][0];
-		check("progress: not known, a bar sliding across, no value", slide != null && slide.absX == bar.absX + 30 && slide.width == 40 && node.valueNow == null,
-			slide == null ? "none" : slide.absX + " " + slide.width);
+		check("progress: not known, a bar sliding across, no value", slide != null && Math.abs(slide.windowBounds().x - (bar.absX + 30)) < 1e-6 && slide.width == 40 && node.valueNow == null,
+			slide == null ? "none" : slide.windowBounds().x + " " + slide.width);
 		v.value = 0.5;
 		ui.update();
 		check("progress: known again, the bar its value, the clock left", ui.root.find("progress-slide") == null && !Clock.tick(101) && node != null);

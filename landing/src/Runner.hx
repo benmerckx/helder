@@ -142,6 +142,9 @@ class Runner {
 			onError: (err:Dynamic) -> failed(err),
 		};
 		if (webgl2) options.gfx = "webgl2";
+		// (a touch screen: at most 2 device pixels per CSS pixel, a phone's 3 fills
+		// more than twice the pixels each frame for text a little sharper)
+		if (window.matchMedia("(pointer: coarse)").matches) options.maxPixelRatio = 2;
 		usedWebgpu = !webgl2 && (cast window.navigator).gpu != null;
 		return module().then(m -> m.run(bytes, options)).then((r:Dynamic) -> {
 			if (gen != generation) {

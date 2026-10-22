@@ -558,7 +558,10 @@ class EditableText extends TextNode implements PlatformEditorListener {
 		var x = absX + be.left + pad.left, y = absY + be.top + pad.top;
 		var w = width - be.left - be.right - pad.left - pad.right, h = height - be.top - be.bottom - pad.top - pad.bottom;
 		var shown = visible() && w > 0 && h > 0 && !clippedOut(x, y, w, h) && !covered(x, y, w, h);
-		editor.place(x, y, w, h, shown);
+		// (where it is drawn: its scrolling ancestors' offsets taken off, as
+		// windowBounds does; x, y above are the layout's, as the clip's)
+		var b = windowBounds();
+		editor.place(x + b.x - absX, y + b.y - absY, w, h, shown);
 		if (shown != editorShown) {
 			editorShown = shown;
 			changed();

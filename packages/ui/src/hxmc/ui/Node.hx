@@ -583,7 +583,32 @@ class Node implements Part {
 			for (c in children)
 				c.inheritedChanged();
 			if (ui != null && this == ui.body) ui.overlay.inheritedChanged();
-		} else if (ui != null) ui.requestFrame();
+		} else paintChanged();
+	}
+
+	// (the paint it was drawn in last: Ui.paintFrame then)
+	var drawnAt = -1;
+
+	// what it paints changed (a colour, its opacity, its transform): a frame
+	// asked for when that shows, or showed in the last frame; one hidden
+	// (display none) or out of the window's view asks for none (an
+	// animation scrolled away), and is drawn as it is when it comes back
+	// into view (a scroll or a layout asks for that frame)
+	@:allow(hxmc.ui) function paintChanged() {
+		if (ui == null) return;
+		if (drawnAt == @:privateAccess ui.paintFrame || shows()) ui.requestFrame();
+	}
+
+	// whether it can be seen: it and its ancestors displayed, its box where
+	// it is drawn (windowBounds) over the window, give or take a shadow's reach
+	function shows():Bool {
+		var n = this;
+		while (n != null) {
+			if (n.style.display == None) return false;
+			n = n.parent;
+		}
+		var b = windowBounds(), e = Ui.shadowReach + 16;
+		return b.x + b.width + e > 0 && b.y + b.height + e > 0 && b.x - e < ui.width && b.y - e < ui.height;
 	}
 
 	// (the direction changed above: the descendants laid out again)
@@ -1076,13 +1101,14 @@ class Node implements Part {
 	}
 
 	// the bounds of what it and its subtree draw, from its layout (window
-	// pixels before scrolling; its children's too unless it clips them;
-	// unbounded when it or a child moves by a transform or sticks): paint and
-	// hit tests leave out subtrees whose bounds miss them (paint after widening
-	// them by what shadows and rings add: Ui.inkMargin)
+	// pixels before scrolling, in its parent's coordinates: through its
+	// transform; its children's too unless it clips them; unbounded when it
+	// or a child sticks): paint and hit tests leave out subtrees whose bounds
+	// miss them (paint after widening them by what shadows and rings add:
+	// Ui.inkMargin)
 	@:allow(hxmc.ui) function measureInk() {
 		var s = style;
-		inkAll = s.transform != null || s.position == Sticky;
+		inkAll = s.position == Sticky;
 		inkX0 = absX;
 		inkY0 = absY;
 		inkX1 = absX + width;
@@ -1107,6 +1133,20 @@ class Node implements Part {
 				if (k.inkX1 > inkX1) inkX1 = k.inkX1;
 				if (k.inkY1 > inkY1) inkY1 = k.inkY1;
 			}
+		// (transformed: the box around its bounds' corners where they are drawn)
+		var m = inkAll ? null : transformMatrix();
+		if (m != null) {
+			var xs = [inkX0, inkX1, inkX0, inkX1], ys = [inkY0, inkY0, inkY1, inkY1];
+			inkX0 = inkY0 = Math.POSITIVE_INFINITY;
+			inkX1 = inkY1 = Math.NEGATIVE_INFINITY;
+			for (k in 0...4) {
+				var x = m[0] * xs[k] + m[2] * ys[k] + m[4], y = m[1] * xs[k] + m[3] * ys[k] + m[5];
+				if (x < inkX0) inkX0 = x;
+				if (x > inkX1) inkX1 = x;
+				if (y < inkY0) inkY0 = y;
+				if (y > inkY1) inkY1 = y;
+			}
+		}
 		inkStale = false;
 	}
 
@@ -1117,7 +1157,7 @@ class Node implements Part {
 			n.inkStale = true;
 			n = n.parent;
 		}
-		if (ui != null) ui.requestFrame();
+		paintChanged();
 	}
 
 	// what its content draws, from its content box's top left, when it may reach past the box (a text's paragraph)
