@@ -95,6 +95,7 @@ class Build {
 		File.saveContent('$out/.nojekyll', "");
 
 		reactor();
+		widgets();
 		packs(npm.cli);
 		for (p in ["os", "gfx", "text", "ui"]) copy('packages/$p/imports.mjs', '$out/$p/imports.mjs');
 		copy("packages/os/browser.mjs", '$out/os/browser.mjs');
@@ -104,7 +105,7 @@ class Build {
 			copy('$d/$f', '$out/fonts/$f');
 		}
 		editor();
-		for (js in [["Main", "main.js"], ["CompilerWorker", "worker.js"], ["Check", "check.js"]]) haxeJs(npm, js[0], js[1]);
+		for (js in [["Main", "main.js"], ["CompilerWorker", "worker.js"], ["WidgetsMain", "widgets.js"], ["Check", "check.js"]]) haxeJs(npm, js[0], js[1]);
 
 		var list = examples();
 		var commit = try {
@@ -231,6 +232,38 @@ class Build {
 		var code = Sys.command("sh", ["-c", "ulimit -s unlimited 2>/dev/null; " + [tool].concat(args).map(quote).join(" ") + " > " + quote(log) + " 2>&1"]);
 		if (code != 0 || !FileSystem.exists('$out/$file')) fail('the compiler ($file) did not build:\n${File.getContent(log)}');
 		sizes[file] = FileSystem.stat('$out/$file').size;
+	}
+
+	// the widgets page's program (landing/widgets/WidgetsPage.hx: every example of
+	// packages/ui/examples/widgets), built here, ahead, and its page with its size
+	static function widgets() {
+		var log = '$out/../landing-widgets.wasm.log';
+		var args = [
+			'$out/widgets.wasm',
+			"-cp", "packages/os/src", "-cp", "packages/gfx/src", "-cp", "packages/text/src", "-cp", "packages/view/src",
+			"-D", "hxmc.view.renderer.ui=hxmc.ui.view.NodeRenderer", "-cp", "packages/ui/src", "-cp", "packages/theme/src",
+			"-cp", "packages/ui/examples/widgets", "-cp", "landing/widgets", "-main", "WidgetsPage",
+			"-cp", "bin/hxmc/std", "--custom-target", "hxmc", "-D", "hxmc.target=wasm32-wasi", "-D", "hxmc.wasm-eh=legacy",
+		];
+		var code = Sys.command("sh", ["-c", "ulimit -s unlimited 2>/dev/null; " + [tool].concat(args).map(quote).join(" ") + " > " + quote(log) + " 2>&1"]);
+		if (code != 0 || !FileSystem.exists('$out/widgets.wasm')) fail('the widgets page did not build:\n${File.getContent(log)}');
+		// the same page on the DOM (hxmc.web's renderer), and the theme's CSS scoped to .hxmc
+		var npm = npmPackages();
+		var domLog = '$out/../landing-widgets-dom.js.log';
+		var dom = ["node", "--stack-size=65500", '${npm.wasm}/wasi.mjs', '${npm.wasm}/haxe.wasm',
+			"-cp", "packages/view/src", "-cp", "packages/web/src", "-cp", "packages/text/src", "-cp", "packages/ui/src",
+			"-D", "hxmc.view.renderer.dom=hxmc.web.DomRenderer", "-cp", "packages/theme/src",
+			"-cp", "packages/ui/examples/widgets", "-cp", "landing/widgets", "-main", "WidgetsPage",
+			"-js", '$out/widgets-dom.js', "-D", "js-es=6", "-dce", "full"];
+		if (Sys.command("sh", ["-c", 'ulimit -s unlimited 2>/dev/null; HAXE_STD_PATH=${quote(npm.cli + "/haxe/upstream/std")} ' + dom.map(quote).join(" ") + " > " + quote(domLog) + " 2>&1"]) != 0)
+			fail('the widgets page did not compile for the DOM:\n${File.getContent(domLog)}');
+		sizes["widgets-dom.js"] = FileSystem.stat('$out/widgets-dom.js').size;
+		var cssLog = '$out/../landing-shadcn.css.log';
+		if (Sys.command("sh", ["-c", "ulimit -s unlimited 2>/dev/null; " + [tool, "-cp", "packages/ui/src", "-cp", "packages/theme/src", "--run", "hxmc.theme.Css", "shadcn.json", '$out/shadcn.css', ".hxmc"].map(quote).join(" ") + " > " + quote(cssLog) + " 2>&1"]) != 0)
+			fail('the theme\'s CSS did not build:\n${File.getContent(cssLog)}');
+		var size = FileSystem.stat('$out/widgets.wasm').size;
+		sizes["widgets.wasm"] = size;
+		File.saveContent('$out/widgets.html', File.getContent("landing/widgets.html").replace('data-size=""', 'data-size="$size"'));
 	}
 
 	static function quote(s:String):String

@@ -25,6 +25,19 @@ npx http-server bin/landing
 CI (`.github/workflows/pages.yml`) builds and checks it on pushes to main and
 deploys `bin/landing` as the Pages artifact (Pages source: GitHub Actions).
 
+## The widgets page
+
+`widgets.html`: every widget of `@hxmc/ui`, each the example beside it in
+`packages/ui/examples/widgets`, on one page, twice, a switch between them:
+**GPU**, drawn by a wasm program on the GPU (`widgets/WidgetsPage.hx`, built
+ahead by the tool: `widgets.wasm`), and **DOM** (`#dom`), the same page
+compiled to JavaScript with `hxmc.web`'s DOM renderer (`widgets-dom.js`)
+under the theme's CSS scoped to `.hxmc` (`shadcn.css`). A search, dark and
+right to left at a switch. Six examples style plain views in ways the DOM
+renderer has no form for; the DOM's page says so on their cards. The six
+that open their popup at start (the theme's reference images want them
+open) wait for a click.
+
 ## The compiler: resident
 
 `compiler/Reactor.hx` is hxmc's `haxe` (the same port and generators as

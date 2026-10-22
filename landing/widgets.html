@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Widgets · universe</title>
+<meta name="description" content="Every widget of @hxmc/ui on one page, drawn by a Haxe program compiled to WebAssembly, on the GPU.">
+<meta name="theme-color" content="#04050d">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<script src="widgets.js" defer></script>
+</head>
+<body class="widgets-page" data-size="">
+<header class="widgets-bar">
+	<a class="icon-btn" href="./" aria-label="Back to the universe">
+		<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+	</a>
+	<p><b>@hxmc/ui</b> · every widget, one Haxe source</p>
+	<div class="mode on" role="group" aria-label="Renderer">
+		<button type="button" data-mode="gpu" aria-pressed="true" title="Drawn by a WebAssembly program on the GPU">GPU</button>
+		<button type="button" data-mode="dom" aria-pressed="false" title="The DOM's elements, under the theme's CSS">DOM</button>
+	</div>
+	<a class="text-btn" href="https://github.com/benmerckx/universe/tree/main/packages/ui/examples/widgets">source</a>
+</header>
+<main class="widgets-main">
+	<div id="wp-screen" class="widgets-screen"></div>
+	<div id="wp-dom" class="hxmc widgets-dom" hidden></div>
+	<div id="wp-loading" class="widgets-loading">
+		<div class="widgets-progress"><i id="wp-bar"></i></div>
+		<span id="wp-loading-what">downloading the program</span>
+	</div>
+	<div id="wp-failed" class="trouble" role="alert" hidden>
+		<h3>The widgets could not start</h3>
+		<pre id="wp-failed-why"></pre>
+		<div class="trouble-actions"><button id="wp-retry" class="btn primary" type="button">Try again</button></div>
+	</div>
+</main>
+<noscript><p class="noscript">This page runs on JavaScript and WebAssembly.</p></noscript>
+</body>
+</html>
