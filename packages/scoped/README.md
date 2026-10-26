@@ -57,7 +57,14 @@ stored in place: `s[i].x = 1` writes into the slice, and `s[i] = p` copies
 - **`@:scoped` functions** (the `Scoped` build macro on their class; `@:scoped`
   on the class: all of them) mark a scope on entry and free it at every
   return. A function whose result is a scoped value keeps its memory for
-  the caller's scope instead. Each loop iteration is a scope of its own.
+  the caller's scope instead. Each loop iteration is a scope of its own:
+  what it allocated is freed when the next starts (a compare when it
+  allocated nothing).
+- **Loops over a slice**, `for (i in 0...s.length)` in a `@:scoped` function,
+  read `s[i]` through a view with the data and stride in locals and no
+  checks: i is in range by construction, as long as neither s nor i is
+  assigned, declared again or captured in the body, which the macro checks.
+  Iterating, `for (p in s)`, is as fast.
 - **`Scope.run(f)`** runs f in a scope of its own, freed when f returns or
   throws: the entry point from ordinary code.
 - An exception leaves the memory to the enclosing scope, so nothing is ever
@@ -87,13 +94,19 @@ stored in place: `s[i].x = 1` writes into the slice, and `s[i] = p` copies
 
 Sixteen buffers per program. Buffer 0 is bumped by everything that does
 not grow; each live `Grow` claims one of the others, so at most 15 Grows
-are live at once. A buffer grows by reallocation (addresses are offsets, so
-nothing breaks), up to 256 MB each.
+are live at once. Each buffer holds up to 128 MB.
 
 Per target (`Store.hx`):
-- **hxmc:** malloc'ed memory, read through its intrinsics.
+- **hxmc native:** one reservation for all 16, 2 GB of address space
+  committed as it is touched. An access is base plus address, with no table
+  and no check: every address lies inside the reservation. The reservation
+  is a `malloc`; an `mmap`/`VirtualAlloc` one would not count against the
+  commit limit, but `hxmc.unsafe` does not declare those yet.
+- **hxmc wasm32:** `malloc`ed buffers in a table, each access checked
+  (a reservation would grow the linear memory). A buffer grows by
+  reallocation: addresses are offsets, so nothing breaks.
 - **JavaScript:** typed-array views over an ArrayBuffer per buffer.
-- **HashLink:** the bytes' `hl.Bytes`.
+- **HashLink:** the bytes' `hl.Bytes`, each access checked.
 - **The other targets:** `haxe.io.Bytes`.
 
 It is single-threaded for now: one set of buffers per program.
@@ -102,31 +115,35 @@ It is single-threaded for now: one set of buffers per program.
 
 `make scoped-bench` (test/ScopedBench.hx). Particles: 100,000 updated in
 place over 200 frames, the dead ones respawned, a temporary list of the
-visible ones each frame. Trees: 40 binary trees of depth 16, built and
-walked. Milliseconds on a shared 4-core Xeon, 2026-10-26: best of three
-runs, scoped against GC objects; runs varied by up to 40%:
+visible ones each frame. "Flat" is the same work in one `Vector` per field,
+the best plain Haxe does on that target: the goal for the scoped version.
+Trees: 40 binary trees of depth 16, built and walked. Milliseconds on a
+shared 4-core Xeon, 2026-10-26, best of three runs (runs varied by up to
+40%):
 
-| | particles, scoped | particles, GC | trees, scoped | trees, GC |
-| --- | ---: | ---: | ---: | ---: |
-| hxmc native | 351 | 135 | 60 | 80 |
-| JavaScript (node 22) | 744 | 534 | 118 | 87 |
-| HashLink (JIT) | 1,034 | 477 | 100 | 333 |
-| JVM | 1,234 | 320 | 73 | 51 |
+| | particles: scoped | GC | flat | trees: scoped | GC |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| hxmc native | 115 | 163 | 52 | 39 | 87 |
+| JavaScript (node 22) | 661 | 622 | 102 | 113 | 124 |
+| HashLink (JIT) | 826 | 503 | 198 | 89 | 366 |
+| JVM | 785 | 689 | 65 | 73 | 45 |
 
-- **Trees**, which allocate and free a great deal, are 3.3× faster on
-  HashLink (whose collector is a non-generational mark-sweep) and 1.3× faster
-  natively. They are slower on JavaScript and the JVM, whose young
-  generations make short-lived objects cheap.
-- **Particles**, which only read and write fields of objects that stay
-  alive, are slower everywhere: 1.4× on JavaScript, 2.2× on HashLink, 2.6×
-  natively, 3.9× on the JVM. Every field access goes through a buffer
-  lookup and a check, where a GC object's field is one load.
+For comparison, natively: the same particles in C (gcc -O2) take 46 ms and
+in [Goose](https://github.com/aardappel/goose) 41 ms; Goose's trees take
+13 ms.
 
-The next steps for speed:
-- natively, one reserved address range for all 16 buffers, so an access is
-  a base plus an offset;
-- on the JVM, `ByteBuffer` views;
-- hoisting a Slice's header reads out of loops.
+- **Natively**, scoped particles are faster than GC objects and 2.2× from
+  flat. One reserved range, the loop views and cheap loop scopes took them
+  from 351 ms. The rest is hxmc's code generation: the base pointer is
+  reloaded before every access (a raw-memory store could change a static,
+  as far as it knows), and there are 32-bit sign extensions and spills.
+  Those are compiler work (hxmc's docs/plans/lean.md).
+- **Trees** are 2.2× faster than GC objects natively and 4× on HashLink,
+  whose collector is a non-generational mark-sweep.
+- **On JavaScript, HashLink and the JVM**, particles are 4-12× from flat:
+  the next steps there are a cached typed-array view per loop (JavaScript),
+  `ByteBuffer` views on the JVM (Haxe 5 has no `java.nio` externs yet), and
+  HL/C rather than the JIT.
 
 hxcpp is not in the table: on this machine's toolchain (Haxe 5 preview, the
 hxcpp checkout here), generic closures return 0 even without this package.

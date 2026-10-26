@@ -228,6 +228,7 @@ class ScopedTest {
 			throw new Memory.ScopedError("thrown");
 		}), "an exception through Scope.run");
 		eq(Scope.used(), before, "Scope.run frees after an exception");
+		eq(viewLoops(), 4950 + 99.0 + 3, "loops over a slice read through a view");
 		eq(earlyReturn(true), 1, "early return");
 		eq(Scope.used(), before, "an early return frees");
 	}
@@ -242,6 +243,30 @@ class ScopedTest {
 				peak = Scope.used();
 		}
 		eq(peak < Scope.used() + 8000, true, "a loop's iterations reuse their memory");
+	}
+
+	// (Scoped's loops over a slice: s[i] through a view; the last loop
+	// reassigns s, so it keeps the checked access)
+	@:scoped static function viewLoops():Float {
+		var s = Scope.slice(Int, 100);
+		for (i in 0...s.length)
+			s[i] = i;
+		var sum = 0;
+		for (i in 0...s.length)
+			sum += s[i];
+		var ps = Scope.slice(Particle, 100);
+		for (i in 0...ps.length)
+			ps[i].pos.x = i;
+		var last = 0.0;
+		for (i in 0...ps.length)
+			last = ps[i].pos.x;
+		var t = Scope.slice(Int, 3), u = Scope.slice(Int, 3), n = 0;
+		for (i in 0...t.length) {
+			t[i] = 1;
+			n += t[i];
+			t = u;
+		}
+		return sum + last + n;
 	}
 
 	@:scoped static function made(n:Int):Slice<Int> {

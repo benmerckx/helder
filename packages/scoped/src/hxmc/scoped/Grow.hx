@@ -43,14 +43,14 @@ abstract Grow<T>(Addr) to Addr {
 
 	// a new element at the end, zeroed: its address
 	@:noCompletion public inline function add():Addr {
-		var a = room();
+		var a = room(stride());
 		Memory.zero(a, stride());
 		return a;
 	}
 
 	// a new element at the end, not zeroed (for pushes, which write all of it)
-	@:noCompletion public inline function room():Addr {
-		var n = length, k = stride();
+	@:noCompletion public inline function room(k:Int):Addr {
+		var n = length;
 		var b = getI32(this);
 		var end = (n + 1) * k;
 		if (end > Memory.capacity(b))
@@ -128,7 +128,7 @@ abstract Grow<T>(Addr) to Addr {
 // (the elements' kinds: the last one listed in @:using is tried first)
 class GrowIntOps {
 	public static inline function push(g:Grow<Int>, v:Int):Int {
-		setI32(g.room(), v);
+		setI32(g.room(4), v);
 		return g.length;
 	}
 
@@ -138,7 +138,7 @@ class GrowIntOps {
 
 class GrowFloatOps {
 	public static inline function push(g:Grow<Float>, v:Float):Int {
-		setF64(g.room(), v);
+		setF64(g.room(8), v);
 		return g.length;
 	}
 
@@ -148,14 +148,14 @@ class GrowFloatOps {
 
 class GrowBoolOps {
 	public static inline function push(g:Grow<Bool>, v:Bool):Int {
-		setU8(g.room(), v ? 1 : 0);
+		setU8(g.room(1), v ? 1 : 0);
 		return g.length;
 	}
 }
 
 class GrowU8Ops {
 	public static inline function push(g:Grow<U8>, v:U8):Int {
-		setU8(g.room(), v);
+		setU8(g.room(1), v);
 		return g.length;
 	}
 
@@ -166,7 +166,7 @@ class GrowU8Ops {
 class GrowAnyOps {
 	// appends a copy of the struct v
 	public static inline function push<T>(g:Grow<T>, v:T):Int {
-		copy(g.room(), cast v, g.stride());
+		copy(g.room(g.stride()), cast v, g.stride());
 		return g.length;
 	}
 

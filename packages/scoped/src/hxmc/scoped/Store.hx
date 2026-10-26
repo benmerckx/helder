@@ -11,15 +11,100 @@ import haxe.io.Bytes;
 // aligned to its size (alloc's 8-byte alignment and the structs' natural
 // layout keep it).
 //
-// - hxmc (native, wasm32): malloc'ed memory, read and written by the code
-//   generator's intrinsics; growing reallocates (offsets do not change).
+// - hxmc native: one reserved range for all 16, read and written by the
+//   code generator's intrinsics at base + address, with no table and no
+//   check (every address lies inside it).
+// - hxmc wasm32: malloc'ed buffers in a table, each access checked; growing
+//   reallocates (offsets do not change).
 // - JavaScript: an ArrayBuffer per buffer, with Int32Array, Float64Array and
 //   Uint8Array views (V8 reads those far faster than a DataView). Not
 //   checked here: a typed array cannot reach outside itself (a read past
 //   its end is undefined), and the types check their indexes.
 // - HashLink: haxe.io.Bytes, read through its hl.Bytes with one check here.
 // - the other targets: haxe.io.Bytes.
-#if (target.name == "hxmc" && !hxmc.wasm_gc)
+#if (target.name == "hxmc" && !hxmc.wasm_gc && !(hxmc.target == "wasm32-wasi"))
+import hxmc.I64;
+import hxmc.unsafe.LibC;
+import hxmc.unsafe.Mem;
+import hxmc.unsafe.Ptr;
+
+class Store {
+	static inline var SHIFT = Memory.SHIFT;
+	static inline var MASK = Memory.MASK;
+
+	// Native: one reservation of 16 regions of 128 MB (malloc'ed: committed
+	// as touched), so an address is an offset from one base, with no table
+	// and no check: every Addr is below 2^31, inside it. (An mmap or
+	// VirtualAlloc reservation would not count against the commit limit:
+	// hxmc.unsafe does not declare them yet.)
+	static var base:Ptr;
+	static var lens:Vector<Int>;
+
+	public static function init(n:Int) {
+		base = LibC.malloc(((n : I64) << SHIFT));
+		if (base.isNull())
+			Memory.fail("out of memory");
+		lens = new Vector(n);
+		for (i in 0...n)
+			lens[i] = 0;
+	}
+
+	public static inline function exists(i:Int):Bool
+		return lens[i] > 0;
+
+	public static function make(i:Int, cap:Int) {
+		LibC.memset(base.add(i << SHIFT), 0, (cap : I64));
+		lens[i] = cap;
+	}
+
+	public static function grow(i:Int, cap:Int, keep:Int) {
+		LibC.memset(base.add((i << SHIFT) + lens[i]), 0, ((cap - lens[i]) : I64));
+		lens[i] = cap;
+	}
+
+	public static inline function capacity(i:Int):Int
+		return lens[i];
+
+	public static inline function getI32(a:Int):Int
+		return Mem.getI32(base, a);
+
+	public static inline function setI32(a:Int, v:Int)
+		Mem.setI32(base, a, v);
+
+	public static inline function getF64(a:Int):Float
+		return Mem.getF64(base, a);
+
+	public static inline function setF64(a:Int, v:Float)
+		Mem.setF64(base, a, v);
+
+	public static inline function getU8(a:Int):Int
+		return Mem.getU8(base, a);
+
+	public static inline function setU8(a:Int, v:Int)
+		Mem.setI8(base, a, v);
+
+	public static function fill(a:Int, n:Int, v:Int)
+		if (n > 0)
+			LibC.memset(base.add(a), v, (n : I64));
+
+	public static function copy(dst:Int, src:Int, n:Int)
+		if (n > 0)
+			LibC.memmove(base.add(dst), base.add(src), (n : I64));
+
+	public static function string(a:Int, n:Int):String {
+		var b = Bytes.alloc(n);
+		for (k in 0...n)
+			b.set(k, getU8(a + k));
+		return b.getString(0, n);
+	}
+
+	public static function write(a:Int, b:Bytes, pos:Int, n:Int)
+		for (k in 0...n)
+			setU8(a + k, b.get(pos + k));
+}
+#elseif (target.name == "hxmc" && !hxmc.wasm_gc)
+// (wasm32: a table of malloc'ed buffers, each access checked: a reservation
+// there would grow the linear memory)
 import hxmc.I64;
 import hxmc.unsafe.LibC;
 import hxmc.unsafe.Mem;

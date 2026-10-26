@@ -22,8 +22,8 @@ import haxe.io.Bytes;
 // thread is the next step for threaded targets).
 class Memory {
 	public static inline var BUFFERS = 16;
-	public static inline var SHIFT = 28;
-	public static inline var MASK = 0x0FFFFFFF;
+	public static inline var SHIFT = 27;
+	public static inline var MASK = 0x07FFFFFF;
 
 	// (initialized on first use: static initialization order across modules
 	// is not something to rely on)
@@ -33,6 +33,8 @@ class Memory {
 	static var markTop:Vector<Int>;
 	static var markClaimed:Vector<Int>;
 	static var depth = 0;
+	// the fixed stack's top (tops[0] in a variable of its own: read in every loop)
+	static var top0 = 0;
 
 	static function init() {
 		Store.init(BUFFERS);
@@ -56,12 +58,12 @@ class Memory {
 		ready();
 		if (n < 0)
 			fail("negative size");
-		var top = tops[0];
+		var top = top0;
 		var end = top + ((n + 7) & ~7);
 		if (end > Store.capacity(0))
 			grow(0, end);
 		Store.fill(top, end - top, 0);
-		tops[0] = end;
+		top0 = end;
 		return top;
 	}
 
@@ -110,7 +112,7 @@ class Memory {
 			markTop = t;
 			markClaimed = c;
 		}
-		markTop[depth] = tops[0];
+		markTop[depth] = top0;
 		markClaimed[depth] = claimed;
 		return depth++;
 	}
@@ -121,11 +123,34 @@ class Memory {
 		#if scoped_debug
 		// (freed memory overwritten: a value used after its scope reads
 		// garbage, which the headers' checks catch: Header.check)
-		if (tops[0] > top)
-			Store.fill(top, tops[0] - top, 0xA5);
+		if (top0 > top)
+			Store.fill(top, top0 - top, 0xA5);
 		#end
-		tops[0] = top;
+		top0 = top;
 		claimed = markClaimed[d];
+	}
+
+	// a loop iteration's scope: what the previous iteration left is freed
+	// when the fixed stack's top or the claimed Grows changed (a compare
+	// when it did not)
+	public static inline function top():Int
+		return top0;
+
+	public static inline function claims():Int
+		return claimed;
+
+	public static inline function restore(t:Int, c:Int) {
+		if (top0 != t || claimed != c)
+			restoreSlow(t, c);
+	}
+
+	static function restoreSlow(t:Int, c:Int) {
+		#if scoped_debug
+		if (top0 > t)
+			Store.fill(t, top0 - t, 0xA5);
+		#end
+		top0 = t;
+		claimed = c;
 	}
 
 	// leaves mark d (and every mark inside it)
@@ -140,7 +165,7 @@ class Memory {
 
 	public static function used():Int {
 		ready();
-		return tops[0];
+		return top0;
 	}
 
 	public static function grows():Int {

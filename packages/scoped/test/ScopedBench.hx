@@ -59,6 +59,7 @@ class ScopedBench {
 	static function main() {
 		run("particles scoped", particlesScoped);
 		run("particles gc", particlesGc);
+		run("particles flat", particlesFlat);
 		run("trees scoped", treesScoped);
 		run("trees gc", treesGc);
 	}
@@ -88,7 +89,7 @@ class ScopedBench {
 		var visible = 0;
 		for (frame in 0...FRAMES) {
 			var shown = Scope.grow(Int);
-			for (i in 0...PARTICLES) {
+			for (i in 0...ps.length) {
 				var p = ps[i];
 				p.x += p.vx;
 				p.y += p.vy;
@@ -132,6 +133,41 @@ class ScopedBench {
 		var sum = 0.0;
 		for (p in ps)
 			sum += p.x;
+		return Math.round(sum) + visible;
+	}
+
+	// the same work in flat arrays, a Vector per field: what each target does
+	// at best with plain Haxe (the scoped version's goal)
+	static function particlesFlat():Float {
+		var x = new haxe.ds.Vector<Float>(PARTICLES), y = new haxe.ds.Vector<Float>(PARTICLES);
+		var vx = new haxe.ds.Vector<Float>(PARTICLES), vy = new haxe.ds.Vector<Float>(PARTICLES);
+		var life = new haxe.ds.Vector<Int>(PARTICLES);
+		inline function respawn(i:Int, seed:Int) {
+			x[i] = 0;
+			y[i] = 0;
+			vx[i] = (seed % 17) * 0.1;
+			vy[i] = (seed % 13) * 0.1;
+			life[i] = 50 + seed % 100;
+		}
+		for (i in 0...PARTICLES)
+			respawn(i, i);
+		var visible = 0;
+		var shown = new haxe.ds.Vector<Int>(PARTICLES);
+		for (frame in 0...FRAMES) {
+			var n = 0;
+			for (i in 0...PARTICLES) {
+				x[i] += vx[i];
+				y[i] += vy[i];
+				if (--life[i] <= 0)
+					respawn(i, i + frame);
+				if (x[i] < 100)
+					shown[n++] = i;
+			}
+			visible += n;
+		}
+		var sum = 0.0;
+		for (i in 0...PARTICLES)
+			sum += x[i];
 		return Math.round(sum) + visible;
 	}
 

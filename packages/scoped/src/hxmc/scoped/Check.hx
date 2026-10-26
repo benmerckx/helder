@@ -85,6 +85,8 @@ class Check {
 			case TInst(_, params): params.exists(p -> isScoped(p) || holds(p));
 			case TEnum(_, params): params.exists(p -> isScoped(p) || holds(p));
 			case TAbstract(_, params) if (isScoped(t)): false;
+			// (the package's own views: locals of the Scoped macro's loops)
+			case TAbstract(_.get() => {pack: ["hxmc", "scoped"]}, _): false;
 			case TAbstract(_, params): params.exists(p -> isScoped(p) || holds(p));
 			case TAnonymous(_.get() => a): a.fields.exists(f -> isScoped(f.type) || holds(f.type));
 			case TFun(_, _) | TDynamic(_): false;

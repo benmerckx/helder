@@ -28,6 +28,10 @@ using Lambda;
 // - An exception leaves the memory to the enclosing scope (a mark is left
 //   with the marks around it), so nothing is freed early; `Scope.run` at the
 //   entry points from ordinary code frees it there.
+// - Loops over a slice: in `for (i in 0...s.length)`, where neither s nor i is
+//   assigned, declared again or captured in the body, `s[i]` reads the
+//   elements through a view (Loops.view: the data and stride in locals) with
+//   no checks, i being in range by construction.
 class Scoped {
 	#if macro
 	static var counter = 0;
@@ -76,26 +80,99 @@ class Scoped {
 					return __result;
 				};
 			case EWhile(cond, body, normal):
-				var l = "__loop" + counter++;
+				var l = "__loop" + counter++, c = "__claims" + counter++;
 				var b = rewrite(body, mark);
-				var loop = {expr: EWhile(rewrite(cond, mark), macro {hxmc.scoped.Scope.rewind($i{l}); $b;}, normal), pos: e.pos};
+				var loop = {expr: EWhile(rewrite(cond, mark), macro {hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}, normal), pos: e.pos};
 				macro @:pos(e.pos) {
-					var $l = hxmc.scoped.Scope.enter();
+					var $l = hxmc.scoped.Memory.top(), $c = hxmc.scoped.Memory.claims();
 					$loop;
-					hxmc.scoped.Scope.exit($i{l});
+					hxmc.scoped.Memory.restore($i{l}, $i{c});
 				};
 			case EFor(it, body):
-				var l = "__loop" + counter++;
+				var l = "__loop" + counter++, c = "__claims" + counter++;
+				var view = sliceLoop(it, body);
+				if (view != null)
+					body = view.body;
 				var b = rewrite(body, mark);
-				var loop = {expr: EFor(rewrite(it, mark), macro {hxmc.scoped.Scope.rewind($i{l}); $b;}), pos: e.pos};
-				macro @:pos(e.pos) {
-					var $l = hxmc.scoped.Scope.enter();
+				var loop = {expr: EFor(rewrite(it, mark), macro {hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}), pos: e.pos};
+				var out = macro @:pos(e.pos) {
+					var $l = hxmc.scoped.Memory.top(), $c = hxmc.scoped.Memory.claims();
 					$loop;
-					hxmc.scoped.Scope.exit($i{l});
+					hxmc.scoped.Memory.restore($i{l}, $i{c});
 				};
+				if (view == null)
+					out;
+				else {
+					var vn = view.name, vs = view.slice;
+					macro @:pos(e.pos) {
+						var $vn = hxmc.scoped.Loops.view($i{vs});
+						$out;
+					};
+				}
 			default:
 				e.map(x -> rewrite(x, mark));
 		}
+	}
+
+	// `for (i in 0...s.length)` whose body uses s[i] and neither assigns,
+	// declares nor captures s or i: the body with s[i] read through a view
+	static function sliceLoop(it:Expr, body:Expr):Null<{name:String, slice:String, body:Expr}> {
+		var i:String, s:String;
+		switch it.expr {
+			case EBinop(OpIn, {expr: EConst(CIdent(iv))}, {expr: EBinop(OpInterval, {expr: EConst(CInt("0", _))}, {expr: EField({expr: EConst(CIdent(sv))}, "length", _)})}):
+				i = iv;
+				s = sv;
+			default:
+				return null;
+		}
+		var safe = true, used = false;
+		function names(e:Expr):Bool
+			return switch e.expr {
+				case EConst(CIdent(n)): n == i || n == s;
+				default: false;
+			}
+		function mentions(e:Expr):Bool {
+			var found = false;
+			function find(x:Expr)
+				switch x.expr {
+					case EConst(CIdent(n)) if (n == i || n == s): found = true;
+					default: x.iter(find);
+				}
+			find(e);
+			return found;
+		}
+		function check(e:Expr) {
+			switch e.expr {
+				case EBinop(OpAssign | OpAssignOp(_), l, _) if (names(l)):
+					safe = false;
+				case EUnop(OpIncrement | OpDecrement, _, x) if (names(x)):
+					safe = false;
+				case EVars(vs):
+					for (v in vs)
+						if (v.name == i || v.name == s)
+							safe = false;
+				case EFunction(_, _):
+					if (mentions(e))
+						safe = false;
+					return;
+				case EArray({expr: EConst(CIdent(a))}, {expr: EConst(CIdent(b))}) if (a == s && b == i):
+					used = true;
+				default:
+			}
+			e.iter(check);
+		}
+		check(body);
+		if (!safe || !used)
+			return null;
+		var name = "__view" + counter++;
+		function replace(e:Expr):Expr
+			return switch e.expr {
+				case EArray({expr: EConst(CIdent(a))}, {expr: EConst(CIdent(b))}) if (a == s && b == i):
+					{expr: EArray(macro $i{name}, macro $i{i}), pos: e.pos};
+				case EFunction(_, _): e;
+				default: e.map(replace);
+			}
+		return {name: name, slice: s, body: replace(body)};
 	}
 
 	static function returnsScoped(fn:Function, pos:Position):Bool {

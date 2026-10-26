@@ -250,3 +250,68 @@ class SliceStructIterator<T> {
 		return cast v;
 	}
 }
+
+// A Slice's data and stride in locals: what the Scoped macro puts in place
+// of `s` in `for (i in 0...s.length)` loops (Loops.view), so that `s[i]`
+// reads no header and checks nothing. i is in range: the loop runs over the
+// slice's own length, which never changes, and neither s nor i is assigned
+// in the loop (the macro checks). Haxe's inline constructors keep it in
+// locals, out of the heap, on every target.
+@:noCompletion abstract SliceView<T>(SliceViewData) {
+	public inline function new(s:Slice<T>)
+		this = new SliceViewData(s.data(), s.stride());
+
+	inline function at(i:Int, k:Int):Int
+		return this.data + i * k;
+
+	// (U8 converts to Int: its accessors come first, as Slice's)
+	@:arrayAccess @:impl static inline function getByte(v:SliceView<U8>, i:Int):U8
+		return getU8(v.at(i, 1));
+
+	@:arrayAccess @:impl static inline function setByte(v:SliceView<U8>, i:Int, x:U8):U8 {
+		setU8(v.at(i, 1), x);
+		return x;
+	}
+
+	@:arrayAccess @:impl static inline function getInt(v:SliceView<Int>, i:Int):Int
+		return getI32(v.at(i, 4));
+
+	@:arrayAccess @:impl static inline function setInt(v:SliceView<Int>, i:Int, x:Int):Int {
+		setI32(v.at(i, 4), x);
+		return x;
+	}
+
+	@:arrayAccess @:impl static inline function getFloat(v:SliceView<Float>, i:Int):Float
+		return getF64(v.at(i, 8));
+
+	@:arrayAccess @:impl static inline function setFloat(v:SliceView<Float>, i:Int, x:Float):Float {
+		setF64(v.at(i, 8), x);
+		return x;
+	}
+
+	@:arrayAccess @:impl static inline function getBool(v:SliceView<Bool>, i:Int):Bool
+		return getU8(v.at(i, 1)) != 0;
+
+	@:arrayAccess @:impl static inline function setBool(v:SliceView<Bool>, i:Int, x:Bool):Bool {
+		setU8(v.at(i, 1), x ? 1 : 0);
+		return x;
+	}
+
+	@:arrayAccess inline function getStruct(i:Int):T
+		return cast at(i, this.stride);
+
+	@:arrayAccess inline function setStruct(i:Int, x:T):T {
+		copy(at(i, this.stride), cast x, this.stride);
+		return x;
+	}
+}
+
+@:noCompletion class SliceViewData {
+	public final data:Int;
+	public final stride:Int;
+
+	public inline function new(data:Int, stride:Int) {
+		this.data = data;
+		this.stride = stride;
+	}
+}
