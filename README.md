@@ -24,6 +24,7 @@ universe depends on hxmc.
 | `@hxmc/theme` | the look of ui's widgets, after shadcn/ui |
 | `@hxmc/3d` | a scene layer for 3D games on gfx: glTF, a PBR renderer, animation, input actions |
 | `@hxmc/physics` | a small rigid-body core for `@hxmc/3d` |
+| `@hxmc/scoped` | scoped memory on any Haxe target (the reference compiler too): slices, grow-only arrays, strings and structs freed with their scope, a checker that keeps them out of the GC heap |
 | `@hxmc/3d-ui` | `@hxmc/view`'s markup on `@hxmc/3d`'s scene graph (a prototype) |
 
 Each package has a README in `packages/<name>/`.
