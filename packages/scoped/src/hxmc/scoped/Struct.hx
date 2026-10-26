@@ -6,6 +6,7 @@ import haxe.macro.Expr;
 import haxe.macro.Type;
 
 using haxe.macro.Tools;
+using Lambda;
 #end
 
 // Struct types in scoped memory: an abstract over Addr with plain fields,
@@ -13,13 +14,14 @@ using haxe.macro.Tools;
 //
 //   @:build(hxmc.scoped.Struct.build())
 //   abstract Particle(hxmc.scoped.Addr) {
-//     var pos:Vec2;     // another struct: inline, in place
+//     var pos:Vec2;     // a value (Value.build) or another struct: in place
 //     var speed:Float;  // Int, Float, Bool, U8
 //     var alive:Bool;
 //   }
 //
 // Each field becomes a property reading and writing the struct's memory (a
-// struct field reads as the inner struct in place; writing one copies it).
+// value field reads as a value and writes each of its fields; a struct field
+// reads as the inner struct in place; writing one copies it).
 // `new Particle()` is a zeroed one in the current scope; `Particle.SIZE` and
 // `Particle.ALIGN` its layout (natural alignment, fields in their order);
 // `p.copyFrom(q)` copies q's bytes.
@@ -79,7 +81,8 @@ class Struct {
 		return out;
 	}
 
-	static function kindOf(t:ComplexType, pos:Position):{size:Int, align:Int, ?scalar:String, ?struct:ComplexType} {
+	// (values: a Value.build class's fields, which hold no Struct)
+	@:noCompletion public static function kindOf(t:ComplexType, pos:Position, values = false):{size:Int, align:Int, ?scalar:String, ?struct:ComplexType, ?value:Array<String>} {
 		var type = try Context.resolveType(t, pos) catch (e:Dynamic) Context.error("Struct.build: unknown type " + t.toString(), pos);
 		switch type.follow() {
 			case TAbstract(_.get() => {pack: [], name: "Int"}, _):
@@ -93,13 +96,20 @@ class Struct {
 		switch type {
 			case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "U8"}, _):
 				return {size: 1, align: 1, scalar: "U8"};
-			case TAbstract(_.get() => a, _) if (a.impl != null):
+			case TInst(_.get() => c, _) if (c.meta.has(":valueLayout")):
+				// (Value.build's layout, in metadata: its statics may not be typed yet)
+				var l = c.meta.extract(":valueLayout")[0].params.map(e -> switch e.expr {
+					case EConst(CInt(v)): Std.parseInt(v);
+					default: 0;
+				});
+				return {size: l[0], align: l[1], value: c.pack.concat([c.module.split(".").pop(), c.name])};
+			case TAbstract(_.get() => a, _) if (a.impl != null && !values):
 				var size = staticInt(a, "SIZE"), al = staticInt(a, "ALIGN");
 				if (size == null || al == null)
 					Context.error("Struct.build: " + t.toString() + " is not a struct (Int, Float, Bool, U8 or a Struct.build abstract)", pos);
 				return {size: size, align: al, struct: t};
 			default:
-				return Context.error("Struct.build: field type " + t.toString() + " (Int, Float, Bool, U8 or a Struct.build abstract)", pos);
+				return Context.error("field type " + t.toString() + (values ? " (Int, Float, Bool, U8 or a Value.build class)" : " (Int, Float, Bool, U8, a Struct.build abstract or a Value.build class)"), pos);
 		}
 	}
 
@@ -114,7 +124,7 @@ class Struct {
 		return null;
 	}
 
-	static function accessors(out:Array<Field>, f:Field, t:ComplexType, k:{size:Int, align:Int, ?scalar:String, ?struct:ComplexType}, off:Int) {
+	static function accessors(out:Array<Field>, f:Field, t:ComplexType, k:{size:Int, align:Int, ?scalar:String, ?struct:ComplexType, ?value:Array<String>}, off:Int) {
 		var at = macro((this : Int) + $v{off});
 		var get:Expr, set:Expr;
 		switch k.scalar {
@@ -130,6 +140,10 @@ class Struct {
 			case "U8":
 				get = macro hxmc.scoped.Memory.getU8($at);
 				set = macro hxmc.scoped.Memory.setU8($at, v);
+			case _ if (k.value != null):
+				var p = k.value;
+				get = macro $p{p}.load($at);
+				set = macro $p{p}.store($at, v);
 			default:
 				get = macro cast $at;
 				set = macro hxmc.scoped.Memory.copy($at, (cast v : Int), $v{k.size});

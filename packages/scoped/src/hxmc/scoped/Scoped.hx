@@ -24,7 +24,9 @@ using Lambda;
 //   scope. An unannotated return type counts as scoped when the function
 //   returns a value.
 // - Each loop's iteration is a scope: what an iteration allocated is freed
-//   when the next starts, and after the loop.
+//   when the next starts, and after the loop. An iteration that cannot
+//   allocate (Loops.iteration: nothing in it reaches an allocation) skips
+//   the check.
 // - An exception leaves the memory to the enclosing scope (whose locals
 //   hold the top to come back to), so nothing is freed early: the enclosing
 //   function's return, or its loop's next iteration, frees it. One that
@@ -45,6 +47,9 @@ class Scoped {
 		for (f in fields)
 			switch f.kind {
 				case FFun(fn) if (fn.expr != null && (all || f.meta.exists(m -> m.name == ":scoped"))):
+					// (a call to it frees what it allocated: Loops.iteration)
+					if (!returnsScoped(fn, f.pos))
+						f.meta.push({name: ":scopedFrees", pos: f.pos});
 					fn.expr = wrap(fn, f.pos);
 				default:
 			}
@@ -85,7 +90,7 @@ class Scoped {
 			case EWhile(cond, body, normal):
 				var l = "__loop" + counter++, c = "__claims" + counter++;
 				var b = rewrite(body, mark);
-				var loop = {expr: EWhile(rewrite(cond, mark), macro {var __iteration = hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}, normal), pos: e.pos};
+				var loop = {expr: EWhile(rewrite(cond, mark), macro hxmc.scoped.Loops.iteration($i{l}, $i{c}, $b), normal), pos: e.pos};
 				macro @:pos(e.pos) {
 					var $l = hxmc.scoped.Memory.top(), $c = hxmc.scoped.Memory.claims();
 					$loop;
@@ -97,7 +102,7 @@ class Scoped {
 				if (view != null)
 					body = view.body;
 				var b = rewrite(body, mark);
-				var loop = {expr: EFor(rewrite(it, mark), macro {var __iteration = hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}), pos: e.pos};
+				var loop = {expr: EFor(rewrite(it, mark), macro hxmc.scoped.Loops.iteration($i{l}, $i{c}, $b)), pos: e.pos};
 				var out = macro @:pos(e.pos) {
 					var $l = hxmc.scoped.Memory.top(), $c = hxmc.scoped.Memory.claims();
 					$loop;

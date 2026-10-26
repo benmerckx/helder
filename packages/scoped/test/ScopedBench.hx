@@ -10,6 +10,23 @@ abstract Particle(Addr) {
 	var life:Int;
 }
 
+// a value: computed with in locals, stored in place in Body's memory
+@:build(hxmc.scoped.Value.build())
+class Vec2 {
+	var x:Float;
+	var y:Float;
+
+	public inline function add(o:Vec2):Vec2
+		return new Vec2(x + o.x, y + o.y);
+}
+
+@:build(hxmc.scoped.Struct.build())
+abstract Body(Addr) {
+	var pos:Vec2;
+	var vel:Vec2;
+	var life:Int;
+}
+
 @:build(hxmc.scoped.Struct.build())
 abstract Node(Addr) {
 	var left:Int;
@@ -58,6 +75,7 @@ class ScopedBench {
 
 	static function main() {
 		run("particles scoped", particlesScoped);
+		run("particles values", particlesValues);
 		run("particles gc", particlesGc);
 		run("particles flat", particlesFlat);
 		run("trees scoped", treesScoped);
@@ -104,6 +122,37 @@ class ScopedBench {
 		for (p in ps)
 			sum += p.x;
 		return Math.round(sum) + visible;
+	}
+
+	// the same with Vec2 values: p.pos = p.pos.add(p.vel)
+	@:scoped static function particlesValues():Float {
+		var ps = Scope.slice(Body, PARTICLES);
+		for (i in 0...PARTICLES)
+			spawnBody(ps[i], i);
+		var visible = 0;
+		for (frame in 0...FRAMES) {
+			var shown = Scope.grow(Int);
+			for (i in 0...ps.length) {
+				var p = ps[i];
+				var pos = p.pos.add(p.vel);
+				p.pos = pos;
+				if (--p.life <= 0)
+					spawnBody(p, i + frame);
+				if (p.pos.x < 100)
+					shown.push(i);
+			}
+			visible += shown.length;
+		}
+		var sum = 0.0;
+		for (p in ps)
+			sum += p.pos.x;
+		return Math.round(sum) + visible;
+	}
+
+	static inline function spawnBody(p:Body, seed:Int) {
+		p.pos = new Vec2(0, 0);
+		p.vel = new Vec2((seed % 17) * 0.1, (seed % 13) * 0.1);
+		p.life = 50 + seed % 100;
 	}
 
 	static inline function spawn(p:Particle, seed:Int) {

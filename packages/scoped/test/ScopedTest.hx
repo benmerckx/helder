@@ -6,6 +6,33 @@ abstract Vec2(Addr) {
 	var y:Float;
 }
 
+@:build(hxmc.scoped.Value.build())
+class V3 {
+	var x:Float;
+	var y:Float;
+	var z:Float;
+
+	public inline function add(o:V3):V3
+		return new V3(x + o.x, y + o.y, z + o.z);
+
+	public inline function scale(k:Float):V3
+		return new V3(x * k, y * k, z * k);
+}
+
+@:build(hxmc.scoped.Value.build())
+class Tagged {
+	var at:V3;
+	var id:Int;
+	var on:Bool;
+}
+
+@:build(hxmc.scoped.Struct.build())
+abstract Body(Addr) {
+	var pos:V3;
+	var tag:Tagged;
+	var mass:Float;
+}
+
 @:build(hxmc.scoped.Struct.build())
 abstract Particle(Addr) {
 	var pos:Vec2;
@@ -69,6 +96,7 @@ class ScopedTest {
 		structs();
 		grows();
 		strings();
+		values();
 		scopes();
 		#if (target.threaded && (target.name == "hxmc" || scoped_threads))
 		threads();
@@ -212,6 +240,32 @@ class ScopedTest {
 		b.add(Str.of("!"));
 		eq(b.toString(), "n=42!", "StrBuf");
 		eq(b.toStr().length, 5, "StrBuf.toStr");
+	}
+
+	@:scoped static function values() {
+		eq(V3.SIZE, 24, "V3.SIZE");
+		eq(Tagged.SIZE, 32, "Tagged.SIZE (a value inside a value)");
+		eq(Body.SIZE, 64, "Body.SIZE");
+		var bs = Scope.slice(Body, 10);
+		for (i in 0...bs.length) {
+			var b = bs[i];
+			b.pos = new V3(i, i * 2, i * 3).scale(2);
+			b.tag = new Tagged(b.pos.add(new V3(1, 1, 1)), i, i % 2 == 1);
+			b.mass = i;
+		}
+		eq(bs[4].pos.y, 16.0, "a value field, stored and loaded");
+		eq(bs[4].tag.at.z, 25.0, "a value inside a value");
+		eq(bs[5].tag.on, true, "a value's Bool");
+		eq(bs[5].tag.id, 5, "a value's Int");
+		var sum = new V3(0, 0, 0);
+		for (b in bs)
+			sum = sum.add(b.pos);
+		eq(sum.x, 90.0, "values summed in a loop");
+		var before = Scope.used();
+		var v = bs[3].pos;
+		bs[3].pos = new V3(0, 0, 0);
+		eq(v.x, 6.0, "a loaded value is a copy");
+		eq(Scope.used(), before, "values take no scoped memory");
 	}
 
 	@:scoped static function scopes() {
