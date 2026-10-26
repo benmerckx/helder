@@ -259,7 +259,7 @@ class SliceStructIterator<T> {
 // locals, out of the heap, on every target.
 @:noCompletion abstract SliceView<T>(SliceViewData) {
 	public inline function new(s:Slice<T>)
-		this = new SliceViewData(s.data(), s.stride());
+		this = new SliceViewData(s.data(), s.stride(), 0);
 
 	inline function at(i:Int, k:Int):Int
 		return this.data + i * k;
@@ -306,12 +306,79 @@ class SliceStructIterator<T> {
 	}
 }
 
+// A Slice's data, length and stride in locals, with every index checked
+// against the length: what the Scoped macro reads a slice through in a
+// @:scoped function, from its declaration on, when the slice's variable is
+// never assigned or captured (Loops.checked). The header is read once, not
+// at each access. (A slice's header never changes.)
+@:noCompletion abstract SliceChecked<T>(SliceViewData) {
+	public inline function new(s:Slice<T>) {
+		// (a null slice: a view of nothing, which fails at its first use)
+		// (one constructor call: two in a conditional would not stay in locals)
+		var none = (cast s : Int) == 0;
+		this = new SliceViewData(none ? 0 : s.data(), none ? 0 : s.stride(), none ? 0 : s.length);
+	}
+
+	public var length(get, never):Int;
+
+	inline function get_length():Int
+		return this.len;
+
+	inline function at(i:Int, k:Int):Int {
+		if (i < 0 || i >= this.len)
+			outOfRange(i, this.len);
+		return this.data + i * k;
+	}
+
+	@:arrayAccess @:impl static inline function getByte(v:SliceChecked<U8>, i:Int):U8
+		return getU8(v.at(i, 1));
+
+	@:arrayAccess @:impl static inline function setByte(v:SliceChecked<U8>, i:Int, x:U8):U8 {
+		setU8(v.at(i, 1), x);
+		return x;
+	}
+
+	@:arrayAccess @:impl static inline function getInt(v:SliceChecked<Int>, i:Int):Int
+		return getI32(v.at(i, 4));
+
+	@:arrayAccess @:impl static inline function setInt(v:SliceChecked<Int>, i:Int, x:Int):Int {
+		setI32(v.at(i, 4), x);
+		return x;
+	}
+
+	@:arrayAccess @:impl static inline function getFloat(v:SliceChecked<Float>, i:Int):Float
+		return getF64(v.at(i, 8));
+
+	@:arrayAccess @:impl static inline function setFloat(v:SliceChecked<Float>, i:Int, x:Float):Float {
+		setF64(v.at(i, 8), x);
+		return x;
+	}
+
+	@:arrayAccess @:impl static inline function getBool(v:SliceChecked<Bool>, i:Int):Bool
+		return getU8(v.at(i, 1)) != 0;
+
+	@:arrayAccess @:impl static inline function setBool(v:SliceChecked<Bool>, i:Int, x:Bool):Bool {
+		setU8(v.at(i, 1), x ? 1 : 0);
+		return x;
+	}
+
+	@:arrayAccess inline function getStruct(i:Int):T
+		return cast at(i, this.stride);
+
+	@:arrayAccess inline function setStruct(i:Int, x:T):T {
+		copy(at(i, this.stride), cast x, this.stride);
+		return x;
+	}
+}
+
 @:noCompletion class SliceViewData {
 	public final data:Int;
 	public final stride:Int;
+	public final len:Int;
 
-	public inline function new(data:Int, stride:Int) {
+	public inline function new(data:Int, stride:Int, len:Int) {
 		this.data = data;
 		this.stride = stride;
+		this.len = len;
 	}
 }

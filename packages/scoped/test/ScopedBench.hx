@@ -124,14 +124,15 @@ class ScopedBench {
 		return Math.round(sum) + visible;
 	}
 
-	// the same with Vec2 values: p.pos = p.pos.add(p.vel)
+	// the same with Vec2 values, p.pos = p.pos.add(p.vel), and the visible
+	// list pushed through a writer
 	@:scoped static function particlesValues():Float {
 		var ps = Scope.slice(Body, PARTICLES);
 		for (i in 0...PARTICLES)
 			spawnBody(ps[i], i);
 		var visible = 0;
 		for (frame in 0...FRAMES) {
-			var shown = Scope.grow(Int);
+			var shown = Scope.grow(Int).writer();
 			for (i in 0...ps.length) {
 				var p = ps[i];
 				var pos = p.pos.add(p.vel);

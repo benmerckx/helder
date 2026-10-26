@@ -51,6 +51,7 @@ class Scoped {
 					if (!returnsScoped(fn, f.pos))
 						f.meta.push({name: ":scopedFrees", pos: f.pos});
 					fn.expr = wrap(fn, f.pos);
+					fn.expr = hoist(fn);
 				default:
 			}
 		return fields;
@@ -120,6 +121,115 @@ class Scoped {
 			default:
 				e.map(x -> rewrite(x, mark));
 		}
+	}
+
+	// the slices a function indexes, read through views: for each parameter
+	// or local that is declared once (directly in a block), never assigned,
+	// incremented or captured, and indexed (`s[e]`), `var __checkedN =
+	// Loops.checked(s)` right after its declaration (a parameter: at the
+	// start) and s[e] read as __checkedN[e]. Loops.checked is s itself for
+	// anything but a Slice.
+	static function hoist(fn:Function):Expr {
+		var declared = new Map<String, Int>(), bad = new Map<String, Bool>(), indexed = new Map<String, Bool>();
+		for (a in fn.args)
+			declared.set(a.name, 1);
+		function names(e:Expr):Null<String>
+			return switch e.expr {
+				case EConst(CIdent(n)): n;
+				case EParenthesis(x): names(x);
+				default: null;
+			}
+		function mentioned(e:Expr) {
+			switch e.expr {
+				case EConst(CIdent(n)): bad.set(n, true);
+				default:
+			}
+			e.iter(mentioned);
+		}
+		var scan:Expr->Void = null;
+		function inBlock(e:Expr) {
+			// (declarations directly in a block, which a view can follow)
+			switch e.expr {
+				case EBlock(el):
+					for (x in el)
+						switch x.expr {
+							case EVars(vs):
+								for (v in vs) {
+									declared.set(v.name, (declared.exists(v.name) ? declared.get(v.name) : 0) + 1);
+									if (v.expr != null)
+										scan(v.expr);
+								}
+							default:
+								scan(x);
+						}
+					return;
+				default:
+					scan(e);
+			}
+		}
+		scan = function(e:Expr) {
+			switch e.expr {
+				case EBlock(_):
+					inBlock(e);
+					return;
+				case EVars(vs):
+					// (not directly in a block: no view)
+					for (v in vs) {
+						bad.set(v.name, true);
+						if (v.expr != null)
+							scan(v.expr);
+					}
+					return;
+				case EBinop(OpAssign | OpAssignOp(_), l, _) if (names(l) != null):
+					bad.set(names(l), true);
+				case EUnop(OpIncrement | OpDecrement, _, x) if (names(x) != null):
+					bad.set(names(x), true);
+				case EFunction(_, _):
+					mentioned(e);
+					return;
+				case EArray(a, _) if (names(a) != null):
+					indexed.set(names(a), true);
+				default:
+			}
+			e.iter(scan);
+		};
+		inBlock(fn.expr);
+		var views = new Map<String, String>();
+		for (n in indexed.keys())
+			if (declared.get(n) == 1 && !bad.exists(n) && !StringTools.startsWith(n, "__"))
+				views.set(n, "__checked" + counter++);
+		if (!views.keys().hasNext())
+			return fn.expr;
+		function decl(n:String):Expr {
+			var v = views.get(n);
+			return macro var $v = hxmc.scoped.Loops.checked($i{n});
+		}
+		function replace(e:Expr):Expr {
+			return switch e.expr {
+				case EArray(a, i) if (names(a) != null && views.exists(names(a))):
+					{expr: EArray(macro $i{views.get(names(a))}, replace(i)), pos: e.pos};
+				case EField(a, "length", _) if (names(a) != null && views.exists(names(a))):
+					macro @:pos(e.pos) $i{views.get(names(a))}.length;
+				case EBlock(el):
+					var out = [];
+					for (x in el) {
+						out.push(replace(x));
+						switch x.expr {
+							case EVars(vs):
+								for (v in vs)
+									if (views.exists(v.name))
+										out.push(decl(v.name));
+							default:
+						}
+					}
+					{expr: EBlock(out), pos: e.pos};
+				case EFunction(_, _): e;
+				default: e.map(replace);
+			}
+		}
+		var body = replace(fn.expr);
+		var first = [for (a in fn.args) if (views.exists(a.name)) decl(a.name)];
+		return first.length == 0 ? body : {expr: EBlock(first.concat([body])), pos: body.pos};
 	}
 
 	// `for (i in 0...s.length)` whose body uses s[i] and neither assigns,
@@ -212,6 +322,8 @@ class Scoped {
 			case TMono(r): r.get() != null && isScoped(r.get());
 			case TLazy(f): isScoped(f());
 			case TType(_.get() => td, params): isScoped(td.type.applyTypeParameters(td.params, params));
+			// (the package's views and writers hold addresses too)
+			case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "GrowWriter" | "SliceView" | "SliceChecked"}, _): true;
 			case TAbstract(_.get() => a, _):
 				switch a.type {
 					case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "Addr"}, _): true;

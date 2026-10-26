@@ -217,6 +217,15 @@ class ScopedTest {
 		eq(vs[49].x, 49.0, "Grow of structs");
 		g.truncate(2);
 		eq(g.length, 2, "truncate");
+		var w = Scope.grow(Int).writer();
+		for (i in 0...5000)
+			w.push(i);
+		eq(w.length, 5000, "a writer's length");
+		eq(w.grow.length, 5000, "... is the Grow's");
+		eq(w.grow[4999], 4999, "a writer's pushes, across growth");
+		var ws = Scope.grow(Vec2).writer();
+		ws.next().x = 3;
+		eq(ws.grow[0].x, 3.0, "a writer's next()");
 		var two = Scope.grow(Float);
 		two.push(1.5);
 		eq(Scope.grows() >= 3, true, "Grows claimed");

@@ -13,11 +13,11 @@ import hxmc.scoped.Memory.*;
 @:using(hxmc.scoped.Grow.GrowAnyOps, hxmc.scoped.Grow.GrowBoolOps, hxmc.scoped.Grow.GrowFloatOps, hxmc.scoped.Grow.GrowIntOps, hxmc.scoped.Grow.GrowU8Ops)
 abstract Grow<T>(Addr) to Addr {
 	static inline var BUFFER = 0;
-	static inline var LEN = 4;
+	@:noCompletion public static inline var LEN = 4;
 	static inline var STRIDE = 8;
 	static inline var MAGIC = 12;
 	// (the buffer's capacity, kept here: a push reads only its own header)
-	static inline var CAP = 16;
+	@:noCompletion public static inline var CAP = 16;
 	static inline var HEADER = 24;
 
 	inline function new(h:Addr)
@@ -114,6 +114,13 @@ abstract Grow<T>(Addr) to Addr {
 		return v;
 	}
 
+	// a writer appending to this Grow with its length, capacity and buffer in
+	// locals: `var w = g.writer(); w.push(x);` reads nothing from memory per
+	// push (a compare, the element's store and the length's). Push through
+	// it alone while it is in use: it does not see another's pushes.
+	public inline function writer():GrowWriter<T>
+		return new GrowWriter(new Grow<T>(this));
+
 	// a reference to element i
 	public inline function ref(i:Int):Ref<T>
 		return cast at(i, stride());
@@ -182,4 +189,106 @@ class GrowAnyOps {
 
 	public static inline function iterator<T>(g:Grow<T>):Slice.SliceStructIterator<T>
 		return new Slice.SliceStructIterator(g.base(), g.length, g.stride());
+}
+
+// Grow.writer(): a Grow's length, capacity (in bytes) and buffer in locals
+// (Haxe's inline constructors keep the writer out of the heap).
+@:using(hxmc.scoped.Grow.GrowWriterAnyOps, hxmc.scoped.Grow.GrowWriterBoolOps, hxmc.scoped.Grow.GrowWriterFloatOps, hxmc.scoped.Grow.GrowWriterIntOps, hxmc.scoped.Grow.GrowWriterU8Ops)
+abstract GrowWriter<T>(GrowWriterData) {
+	public inline function new(g:Grow<T>) {
+		var h:Int = cast g;
+		var b = getI32(h);
+		this = new GrowWriterData(h, b << SHIFT, g.length, getI32(h + Grow.CAP), b);
+	}
+
+	// the Grow written to
+	public var grow(get, never):Grow<T>;
+
+	inline function get_grow():Grow<T>
+		return cast this.g;
+
+	public var length(get, never):Int;
+
+	inline function get_length():Int
+		return this.n;
+
+	// room for one more element of k bytes: its address
+	@:noCompletion public inline function room(k:Int):Addr {
+		var at = this.n * k;
+		if (at + k > this.cap)
+			this.cap = more(this.g, this.buffer, at + k);
+		this.n++;
+		setI32(this.g + Grow.LEN, this.n);
+		return this.base + at;
+	}
+
+	// (cold: the buffer made larger, the header's capacity updated; it
+	// allocates nothing in the scope: Loops.iteration)
+	@:noAlloc static function more(g:Int, b:Int, end:Int):Int {
+		Memory.reserve(b, end);
+		var cap = Memory.capacity(b);
+		setI32(g + Grow.CAP, cap);
+		return cap;
+	}
+}
+
+@:noCompletion class GrowWriterData {
+	public final g:Int;
+	public final base:Int;
+	public var n:Int;
+	public var cap:Int;
+	public final buffer:Int;
+
+	public inline function new(g:Int, base:Int, n:Int, cap:Int, buffer:Int) {
+		this.g = g;
+		this.base = base;
+		this.n = n;
+		this.cap = cap;
+		this.buffer = buffer;
+	}
+}
+
+class GrowWriterIntOps {
+	public static inline function push(w:GrowWriter<Int>, v:Int):Int {
+		setI32(w.room(4), v);
+		return w.length;
+	}
+}
+
+class GrowWriterFloatOps {
+	public static inline function push(w:GrowWriter<Float>, v:Float):Int {
+		setF64(w.room(8), v);
+		return w.length;
+	}
+}
+
+class GrowWriterBoolOps {
+	public static inline function push(w:GrowWriter<Bool>, v:Bool):Int {
+		setU8(w.room(1), v ? 1 : 0);
+		return w.length;
+	}
+}
+
+class GrowWriterU8Ops {
+	public static inline function push(w:GrowWriter<U8>, v:U8):Int {
+		setU8(w.room(1), v);
+		return w.length;
+	}
+}
+
+class GrowWriterAnyOps {
+	// appends a copy of the struct v
+	public static inline function push<T>(w:GrowWriter<T>, v:T):Int {
+		var k = w.grow.stride();
+		copy(w.room(k), cast v, k);
+		return w.length;
+	}
+
+	// appends a zeroed struct: the new element, in place
+	public static inline function next<T>(w:GrowWriter<T>):T {
+		var k = w.grow.stride();
+		var a = w.room(k);
+		Memory.zero(a, k);
+		return cast a;
+	}
 }

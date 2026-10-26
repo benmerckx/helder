@@ -22,6 +22,17 @@ class Loops {
 		}
 	}
 
+	// a SliceChecked of e when e is a Slice (its header read once, every
+	// index still checked); e itself otherwise
+	public static macro function checked(e:Expr):Expr {
+		return switch Context.follow(Context.typeof(e)) {
+			case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "Slice"}, _):
+				macro new hxmc.scoped.Slice.SliceChecked($e);
+			default:
+				e;
+		}
+	}
+
 	// a loop's body as an iteration scope: what the previous iteration
 	// allocated freed when the next starts (Memory.restore), unless nothing
 	// in the body can allocate. The body is typed here, its inline calls
@@ -80,6 +91,8 @@ class Loops {
 	}
 
 	static function callAllocates(c:ClassType, f:ClassField):Bool {
+		if (f.meta.has(":noAlloc"))
+			return false;
 		if (c.pack.length >= 2 && c.pack[0] == "hxmc" && c.pack[1] == "scoped")
 			return switch c.name {
 				case "Store" | "Header": false;
