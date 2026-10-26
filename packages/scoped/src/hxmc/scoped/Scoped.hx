@@ -324,6 +324,7 @@ class Scoped {
 			case TType(_.get() => td, params): isScoped(td.type.applyTypeParameters(td.params, params));
 			// (the package's views and writers hold addresses too)
 			case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "GrowWriter" | "SliceView" | "SliceChecked"}, _): true;
+			case TInst(_.get() => {pack: ["hxmc", "scoped"], name: "Span"}, _): true;
 			case TAbstract(_.get() => a, _):
 				switch a.type {
 					case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "Addr"}, _): true;

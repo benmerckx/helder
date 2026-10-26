@@ -44,6 +44,9 @@ class Value {
 			switch f.kind {
 				case FVar(t, null) if (t != null && !f.access.contains(AStatic)):
 					var k = Struct.kindOf(t, f.pos, true);
+					// (an F32 field holds a Float: stored rounded to f32)
+					if (k.scalar == "F32")
+						t = macro :Float;
 					offset = (offset + k.align - 1) & ~(k.align - 1);
 					if (k.align > align)
 						align = k.align;
@@ -72,6 +75,9 @@ class Value {
 						case "U8":
 							loads.push(macro hxmc.scoped.Memory.getU8($at));
 							stores.push(macro hxmc.scoped.Memory.setU8($at, v.$name));
+						case "F32":
+							loads.push(macro hxmc.scoped.Memory.getF32($at));
+							stores.push(macro hxmc.scoped.Memory.setF32($at, v.$name));
 						default:
 							var p = k.value;
 							loads.push(macro $p{p}.load($at));

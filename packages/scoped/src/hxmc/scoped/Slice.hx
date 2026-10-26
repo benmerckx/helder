@@ -12,7 +12,7 @@ import hxmc.scoped.Memory.*;
 // writes into the slice; `s[i] = p` copies p into it). Indexes are checked.
 //
 // Scope.slice(T, n) makes one (zeroed, in the current scope).
-@:using(hxmc.scoped.Slice.SliceAnyOps, hxmc.scoped.Slice.SliceBoolOps, hxmc.scoped.Slice.SliceFloatOps, hxmc.scoped.Slice.SliceIntOps, hxmc.scoped.Slice.SliceU8Ops)
+@:using(hxmc.scoped.Slice.SliceAnyOps, hxmc.scoped.Slice.SliceBoolOps, hxmc.scoped.Slice.SliceFloatOps, hxmc.scoped.Slice.SliceIntOps, hxmc.scoped.Slice.SliceU8Ops, hxmc.scoped.Slice.SliceF32Ops)
 abstract Slice<T>(Addr) to Addr {
 	static inline var DATA = 0;
 	static inline var LEN = 4;
@@ -52,11 +52,28 @@ abstract Slice<T>(Addr) to Addr {
 		return getI32(this + STRIDE);
 
 	// the address of element i (k: its size, a constant for scalars)
+	// the address of bytes i .. i + n - 1, checked against the length (for
+	// multi-byte reads of a byte array)
+	@:noCompletion public inline function atBytes(i:Int, n:Int):Int {
+		var len = length;
+		if (i < 0 || i > len - n)
+			outOfRange(i, len);
+		return getI32(this) + i;
+	}
+
 	@:noCompletion public inline function at(i:Int, k:Int):Int {
 		var n = length;
 		if (i < 0 || i >= n)
 			outOfRange(i, n);
 		return getI32(this) + i * k;
+	}
+
+	@:arrayAccess @:impl static inline function getF32(s:Slice<F32>, i:Int):Float
+		return Memory.getF32(s.at(i, 4));
+
+	@:arrayAccess @:impl static inline function setF32(s:Slice<F32>, i:Int, x:Float):Float {
+		Memory.setF32(s.at(i, 4), x);
+		return x;
 	}
 
 	// (U8 converts to Int: its accessors come first, the first one that fits is taken)
@@ -151,6 +168,27 @@ class SliceBoolOps {
 class SliceU8Ops {
 	public static inline function iterator(s:Slice<U8>):SliceU8Iterator
 		return new SliceU8Iterator(s.data(), s.length);
+
+	// a little-endian Int at byte offset i (checked: i + size <= length)
+	public static inline function getI32At(s:Slice<U8>, i:Int):Int
+		return Memory.getI32U(s.atBytes(i, 4));
+
+	public static inline function setI32At(s:Slice<U8>, i:Int, v:Int)
+		Memory.setI32U(s.atBytes(i, 4), v);
+
+	public static inline function getU16At(s:Slice<U8>, i:Int):Int
+		return Memory.getU16(s.atBytes(i, 2));
+
+	public static inline function getI16At(s:Slice<U8>, i:Int):Int
+		return Memory.getI16(s.atBytes(i, 2));
+
+	public static inline function setI16At(s:Slice<U8>, i:Int, v:Int)
+		Memory.setI16(s.atBytes(i, 2), v);
+}
+
+class SliceF32Ops {
+	public static inline function iterator(s:Slice<F32>):SliceF32Iterator
+		return new SliceF32Iterator(s.data(), s.length);
 }
 
 class SliceAnyOps {
@@ -214,6 +252,25 @@ class SliceBoolIterator {
 		return getU8(a++) != 0;
 }
 
+class SliceF32Iterator {
+	var a:Int;
+	final end:Int;
+
+	public inline function new(a:Int, n:Int) {
+		this.a = a;
+		end = a + n * 4;
+	}
+
+	public inline function hasNext():Bool
+		return a < end;
+
+	public inline function next():Float {
+		var v = Memory.getF32(a);
+		a += 4;
+		return v;
+	}
+}
+
 class SliceU8Iterator {
 	var a:Int;
 	var end:Int;
@@ -265,6 +322,14 @@ class SliceStructIterator<T> {
 		return this.data + i * k;
 
 	// (U8 converts to Int: its accessors come first, as Slice's)
+	@:arrayAccess @:impl static inline function getF32(v:SliceView<F32>, i:Int):Float
+		return Memory.getF32(v.at(i, 4));
+
+	@:arrayAccess @:impl static inline function setF32(v:SliceView<F32>, i:Int, x:Float):Float {
+		Memory.setF32(v.at(i, 4), x);
+		return x;
+	}
+
 	@:arrayAccess @:impl static inline function getByte(v:SliceView<U8>, i:Int):U8
 		return getU8(v.at(i, 1));
 
@@ -328,6 +393,14 @@ class SliceStructIterator<T> {
 		if (i < 0 || i >= this.len)
 			outOfRange(i, this.len);
 		return this.data + i * k;
+	}
+
+	@:arrayAccess @:impl static inline function getF32(v:SliceChecked<F32>, i:Int):Float
+		return Memory.getF32(v.at(i, 4));
+
+	@:arrayAccess @:impl static inline function setF32(v:SliceChecked<F32>, i:Int, x:Float):Float {
+		Memory.setF32(v.at(i, 4), x);
+		return x;
 	}
 
 	@:arrayAccess @:impl static inline function getByte(v:SliceChecked<U8>, i:Int):U8

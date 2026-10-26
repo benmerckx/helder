@@ -46,14 +46,15 @@ class Main {
 | --- | --- |
 | `Slice<T>` | a view of n elements: `s[i]`, `length`, `sub`, `ref(i)`, `blit`, iteration |
 | `Grow<T>` | a grow-only array: `push`, `next()` (a new zeroed struct, in place), `s[i]`, `ref(i)`, `slice()`, `writer()`; references to its elements survive its growth |
-| `GrowWriter<T>` | `g.writer()`: appends to g with its length, capacity and buffer in locals (`push`, `next()`, `length`, `grow`); push through it alone while it is in use |
+| `GrowWriter<T>` | `g.writer()`: appends to g with its length, capacity and buffer in locals (`push`, `next()`, `length`, `grow`); push through it alone while it is in use. A byte writer also has `addString` (a literal: a few stores), `addStr`, `addSlice`, `addBytes`, `pushI32`, `pushI16` |
+| `Span` | a run of bytes as a value (address and length, no header), storable in a struct: `Span.of(str)`, `get(i)`, `sub`, `equals`, `hash`, `toString` |
 | `Ref<T>` | one element: `get()`, `set(v)` |
 | `Str` | UTF-8 bytes: `Str.of(s)`, `toString()`, `==`, `+`, `compare`, `indexOf`, `sub`, `hash` |
 | `StrBuf` | builds a `Str`: `add`, `addString`, `addInt`, `toStr()` |
 | structs | `@:build(hxmc.scoped.Struct.build()) abstract X(Addr) { var f:T; ... }`: fields of Int, Float, Bool, `U8`, a value or another struct (inline); `new X()`, `X.SIZE`, `copyFrom` |
 | values | `@:build(hxmc.scoped.Value.build()) class V { var f:T; ... }`: final fields of Int, Float, Bool, `U8` or another value, `new V(f, ...)`; computed with in locals, stored in place in a struct's field |
 
-Element types are Int, Float, Bool, `U8` and structs. A struct element is
+Element types are Int, Float, `F32` (4 bytes, read as a Float), Bool, `U8` (arithmetic and comparisons work as on an Int) and structs. A byte array (`Slice<U8>`, `Grow<U8>`) also reads little-endian Ints at any offset: `getI32At`, `getU16At`, `getI16At`, `setI32At`, `setI16At`. A struct element is
 stored in place: `s[i].x = 1` writes into the slice, and `s[i] = p` copies
 `p` into it. Indexes are checked (a `ScopedError`).
 
@@ -74,7 +75,12 @@ would make of it, on every target:
   no header and checks i against the cached length. In
   `for (i in 0...s.length)` and `for (p in s)` nothing is checked.
 - **Append through a writer** in a loop: `var w = g.writer()`, then
-  `w.push(x)` is a compare and two stores.
+  `w.push(x)` is a compare and two stores; text goes in whole
+  (`w.addString("...")`, `w.addStr(s)`), not a byte at a time.
+- **A struct Grow's `next()` and `push(v)`** know the struct's size: a new
+  element is zeroed and a copy made with a few stores.
+- **Use `F32` for data a loop streams through** when f32 precision is
+  enough: half the memory of a Float.
 - **Keep allocation out of inner loops.** An iteration that cannot
   allocate has no scope check at all (the macro types the body and looks
   for an allocation, a call to a function without a scope of its own, or a
@@ -128,7 +134,9 @@ would make of it, on every target:
 
 ## Where the memory is
 
-32 buffers of up to 64 MB, shared by the program's threads. Buffer 0 is
+32 buffers of up to 64 MB, shared by the program's threads
+(`-D scoped_buffer_bits=27`, `28` or `29`: 16 of 128 MB, 8 of 256 MB or 4
+of 512 MB). Buffer 0 is
 never used, so no address is 0. A thread claims a buffer for its stack,
 which everything that does not grow is bumped on, when it enters its first
 scope, and gives it back when it leaves it. Each live `Grow` claims a
@@ -138,7 +146,10 @@ Per target (`Store.hx`):
 - **hxmc native:** one reservation for all 32 (2 GB of address space,
   `hxmc.rt.Os.reserve`: `mmap` with `MAP_NORESERVE`, or `VirtualAlloc`
   with pages committed as touched), so it does not count against the commit
-  limit. An access is base plus address, with no table and no check.
+  limit. An access is base plus address, with no table and no check. A
+  buffer has its whole region from the start: nothing is zeroed or copied
+  as it grows (memory is zeroed where it is allocated), and a page costs
+  only once it is written.
 - **hxmc wasm32:** `malloc`ed buffers in a table, each access checked
   (a reservation would grow the linear memory). A buffer grows by
   reallocation: addresses are offsets, so nothing breaks.

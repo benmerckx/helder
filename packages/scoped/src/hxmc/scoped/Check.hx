@@ -180,6 +180,16 @@ class Check {
 		}
 	}
 
+	// whether a function's body may allocate in the scope (no body: it may)
+	static function bodyAllocates(f:ClassField):Bool {
+		var e = f.expr();
+		return switch e {
+			case null: true;
+			case {expr: TFunction(fn)}: Loops.mayAllocate(fn.expr);
+			default: true;
+		}
+	}
+
 	// assignments, in the loop's body, of values made in an iteration to
 	// variables declared outside the loop
 	static function loopEscapes(body:TypedExpr) {
@@ -193,8 +203,23 @@ class Check {
 			e.iter(declared);
 		}
 		declared(body);
+		function readsOutside(e:TypedExpr):Bool {
+			var ok = true;
+			function walk(x:TypedExpr) {
+				switch x.expr {
+					case TLocal(v) if (inside.exists(v.id) && isScoped(v.t)):
+						ok = false;
+					default:
+				}
+				if (ok)
+					x.iter(walk);
+			}
+			walk(e);
+			return ok;
+		}
 		// (a value that lives outside the iteration: a variable from outside,
-		// or an element, field or reference of one)
+		// or an element, field or reference of one, or an element added to a
+		// Grow from outside: it lives as long as the Grow)
 		function outside(e:TypedExpr):Bool {
 			return switch e.expr {
 				case TLocal(v): !inside.exists(v.id);
@@ -202,8 +227,14 @@ class Check {
 				case TParenthesis(x) | TCast(x, _) | TMeta(_, x): outside(x);
 				case TField(x, _): outside(x);
 				case TArray(x, _): outside(x);
+				// (what allocates nothing in the scope can only give memory that
+				// exists already: a Grow's new element, an element of a slice; it
+				// is outside when every scoped value it reads is)
+				case TBlock(_): !Loops.mayAllocate(e) && readsOutside(e);
+				case TCall({expr: TField(_, FStatic(_, _.get() => f))}, args) if (!bodyAllocates(f)):
+					args.foreach(a -> !isScoped(a.t) || outside(a));
 				case TCall({expr: TField(_, FStatic(_.get() => {pack: ["hxmc", "scoped"]}, _.get() => m))}, args)
-					if (args.length > 0 && (m.name == "ref" || StringTools.startsWith(m.name, "get"))):
+					if (args.length > 0 && (m.name == "ref" || StringTools.startsWith(m.name, "get") || ["next", "nextAny", "add", "room", "reserve", "at"].contains(m.name))):
 					outside(args[0]);
 				default: false;
 			}
