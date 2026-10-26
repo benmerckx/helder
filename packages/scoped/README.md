@@ -31,8 +31,13 @@ class Physics {
   }
 }
 
-var ps = Scope.slice(Particle, 1000);       // zeroed, in the current scope
-Physics.step(ps, 1 / 60);
+@:build(hxmc.scoped.Scoped.build())
+class Main {
+  @:scoped static function main() {
+    var ps = Scope.slice(Particle, 1000);   // zeroed, in main's scope
+    Physics.step(ps, 1 / 60);
+  }
+}
 ```
 
 ## The types
@@ -65,10 +70,12 @@ stored in place: `s[i].x = 1` writes into the slice, and `s[i] = p` copies
   checks: i is in range by construction, as long as neither s nor i is
   assigned, declared again or captured in the body, which the macro checks.
   Iterating, `for (p in s)`, is as fast.
-- **`Scope.run(f)`** runs f in a scope of its own, freed when f returns or
-  throws: the entry point from ordinary code.
+- **Entry points** (`main`, a callback) are `@:scoped` functions too:
+  allocating outside any scope is an error.
 - An exception leaves the memory to the enclosing scope, so nothing is ever
-  freed early.
+  freed early: the return of the function that catches it frees it, or the
+  next iteration of its loop. One that leaves every `@:scoped` function
+  keeps that memory: an entry point catches its exceptions itself.
 
 ## Safety
 
@@ -79,12 +86,13 @@ stored in place: `s[i].x = 1` writes into the slice, and `s[i] = p` copies
   - an Array, Map, `Null<T>`, or a type parameter of a class;
   - an anonymous structure;
   - a closure's capture;
-  - `Dynamic` or `Any`.
-- **Within a function**, it does not yet track a value assigned to a
-  variable of an enclosing loop and used in a later iteration. Build with
-  `-D scoped_debug` to catch those at run time: freed memory is
-  overwritten, and Slices, Grows and Strs check a mark in their header on
-  every use.
+  - `Dynamic` or `Any`;
+  - in a loop of a `@:scoped` function, a value made in an iteration kept
+    in a variable from outside the loop (the next iteration frees it).
+- **Across functions**, it does not track lifetimes beyond these rules.
+  Build with `-D scoped_debug` to catch the rest at run time: freed memory
+  is overwritten, and Slices, Grows and Strs check a mark in their header
+  on every use.
 - **Memory is the library's own buffers**, never the host's pointers. An
   access outside them fails (hxmc, HashLink) or cannot happen (JavaScript's
   typed arrays). On JavaScript, the JVM and Eval it is memory-safe
@@ -107,6 +115,7 @@ Per target (`Store.hx`):
   reallocation: addresses are offsets, so nothing breaks.
 - **JavaScript:** typed-array views over an ArrayBuffer per buffer.
 - **HashLink:** the bytes' `hl.Bytes`, each access checked.
+- **The JVM:** a little-endian `java.nio.ByteBuffer` view per buffer.
 - **The other targets:** `haxe.io.Bytes`.
 
 It is single-threaded for now: one set of buffers per program.
@@ -141,9 +150,10 @@ in [Goose](https://github.com/aardappel/goose) 41 ms; Goose's trees take
 - **Trees** are 2.2× faster than GC objects natively and 4× on HashLink,
   whose collector is a non-generational mark-sweep.
 - **On JavaScript, HashLink and the JVM**, particles are 4-12× from flat:
-  the next steps there are a cached typed-array view per loop (JavaScript),
-  `ByteBuffer` views on the JVM (Haxe 5 has no `java.nio` externs yet), and
-  HL/C rather than the JIT.
+  the next steps there are a cached typed-array view per loop (JavaScript)
+  and HL/C rather than the JIT. On the JVM, `ByteBuffer` views (the
+  package's own externs: Haxe 5 has none for `java.nio`) took particles
+  from 785 ms to 638-729.
 
 hxcpp is not in the table: on this machine's toolchain (Haxe 5 preview, the
 hxcpp checkout here), generic closures return 0 even without this package.
@@ -153,7 +163,8 @@ limits.
 ## Tests
 
 `make scoped-check` runs:
-- `test/ScopedTest.hx` on Eval, natively and as JavaScript;
+- `test/ScopedTest.hx` on Eval, natively and as JavaScript (it also passes
+  as wasm32-wasi and with `-D scoped_debug`);
 - the programs the checker must reject, `test/reject` (RejectTest.hx).
 
 `make scoped-targets` runs both with the reference compiler on Eval,

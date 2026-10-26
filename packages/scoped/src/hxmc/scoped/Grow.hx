@@ -7,7 +7,7 @@ import hxmc.scoped.Memory.*;
 // reference to an element (`ref(i)`, `add()`) stays valid as long as the
 // Grow does. It is freed with the scope that made it, all at once.
 //
-// The value is the address of its header (buffer, length, stride), so a
+// The value is the address of its header (buffer, length, stride, capacity), so a
 // Grow is passed by reference. Element types as for Slice. Scope.grow(T)
 // makes one.
 @:using(hxmc.scoped.Grow.GrowAnyOps, hxmc.scoped.Grow.GrowBoolOps, hxmc.scoped.Grow.GrowFloatOps, hxmc.scoped.Grow.GrowIntOps, hxmc.scoped.Grow.GrowU8Ops)
@@ -16,7 +16,9 @@ abstract Grow<T>(Addr) to Addr {
 	static inline var LEN = 4;
 	static inline var STRIDE = 8;
 	static inline var MAGIC = 12;
-	static inline var HEADER = 16;
+	// (the buffer's capacity, kept here: a push reads only its own header)
+	static inline var CAP = 16;
+	static inline var HEADER = 24;
 
 	inline function new(h:Addr)
 		this = h;
@@ -24,8 +26,10 @@ abstract Grow<T>(Addr) to Addr {
 	// an empty Grow of elements of `stride` bytes, in the current scope
 	public static function make<T>(stride:Int):Grow<T> {
 		var h = Memory.alloc(HEADER);
-		setI32(h, Memory.claim());
+		var b = Memory.claim();
+		setI32(h, b);
 		setI32(h + STRIDE, stride);
+		setI32(h + CAP, Memory.capacity(b));
 		setI32(h + MAGIC, Header.MAGIC);
 		return new Grow(h);
 	}
@@ -53,8 +57,10 @@ abstract Grow<T>(Addr) to Addr {
 		var n = length;
 		var b = getI32(this);
 		var end = (n + 1) * k;
-		if (end > Memory.capacity(b))
+		if (end > getI32(this + CAP)) {
 			Memory.reserve(b, end);
+			setI32(this + CAP, Memory.capacity(b));
+		}
 		setI32(this + LEN, n + 1);
 		return (b << SHIFT) + n * k;
 	}

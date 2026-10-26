@@ -21,6 +21,7 @@ import haxe.io.Bytes;
 //   checked here: a typed array cannot reach outside itself (a read past
 //   its end is undefined), and the types check their indexes.
 // - HashLink: haxe.io.Bytes, read through its hl.Bytes with one check here.
+// - the JVM: haxe.io.Bytes, read through java.nio.ByteBuffer views.
 // - the other targets: haxe.io.Bytes.
 #if (target.name == "hxmc" && !hxmc.wasm_gc && !(hxmc.target == "wasm32-wasi"))
 import hxmc.I64;
@@ -196,11 +197,32 @@ class Store {
 			setU8(a + k, b.get(pos + k));
 }
 #else
+#if jvm
+// (the JVM: java.nio.ByteBuffer over each buffer's byte[], whose getDouble
+// and getInt are intrinsics, where haxe.io.Bytes assembles bytes; Haxe 5
+// has no java.nio externs, so the few used are declared here)
+@:native("java.nio.ByteBuffer") private extern class JByteBuffer {
+	static function wrap(a:haxe.io.BytesData):JByteBuffer;
+	function order(o:JByteOrder):JByteBuffer;
+	function getDouble(i:Int):Float;
+	function putDouble(i:Int, v:Float):JByteBuffer;
+	function getInt(i:Int):Int;
+	function putInt(i:Int, v:Int):JByteBuffer;
+}
+
+@:native("java.nio.ByteOrder") private extern class JByteOrder {
+	static var LITTLE_ENDIAN:JByteOrder;
+}
+#end
+
 class Store {
 	static inline var SHIFT = Memory.SHIFT;
 	static inline var MASK = Memory.MASK;
 
 	static var bufs:Vector<Bytes>;
+	#if jvm
+	static var bb:Vector<JByteBuffer>;
+	#end
 	#if js
 	static var i32:Vector<js.lib.Int32Array>;
 	static var f64:Vector<js.lib.Float64Array>;
@@ -221,6 +243,8 @@ class Store {
 		#elseif hl
 		raw = new hl.NativeArray(n);
 		lens = new hl.NativeArray(n);
+		#elseif jvm
+		bb = new Vector(n);
 		#end
 	}
 
@@ -246,6 +270,8 @@ class Store {
 		#elseif hl
 		raw[i] = @:privateAccess b.b;
 		lens[i] = b.length;
+		#elseif jvm
+		bb[i] = JByteBuffer.wrap(b.getData()).order(JByteOrder.LITTLE_ENDIAN);
 		#end
 	}
 
@@ -297,6 +323,24 @@ class Store {
 
 	public static inline function setU8(a:Int, v:Int)
 		raw[a >>> SHIFT].setUI8(at(a, 1), v);
+	#elseif jvm
+	public static inline function getI32(a:Int):Int
+		return bb[a >>> SHIFT].getInt(a & MASK);
+
+	public static inline function setI32(a:Int, v:Int)
+		bb[a >>> SHIFT].putInt(a & MASK, v);
+
+	public static inline function getF64(a:Int):Float
+		return bb[a >>> SHIFT].getDouble(a & MASK);
+
+	public static inline function setF64(a:Int, v:Float)
+		bb[a >>> SHIFT].putDouble(a & MASK, v);
+
+	public static inline function getU8(a:Int):Int
+		return bufs[a >>> SHIFT].get(a & MASK);
+
+	public static inline function setU8(a:Int, v:Int)
+		bufs[a >>> SHIFT].set(a & MASK, v & 0xFF);
 	#else
 	public static inline function getI32(a:Int):Int
 		return bufs[a >>> SHIFT].getInt32(a & MASK);

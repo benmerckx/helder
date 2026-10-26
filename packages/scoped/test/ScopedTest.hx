@@ -64,10 +64,11 @@ class ScopedTest {
 
 	static function main() {
 		layout();
-		Scope.run(scalars);
-		Scope.run(structs);
-		Scope.run(grows);
-		Scope.run(strings);
+		throws(() -> Scope.slice(Int, 1), "allocating outside any scope");
+		scalars();
+		structs();
+		grows();
+		strings();
 		scopes();
 		println(failures == 0 ? 'ok $checks' : '$failures of $checks failed');
 		if (failures != 0)
@@ -82,7 +83,7 @@ class ScopedTest {
 		eq(Scope.size(Int), 4, "size of Int");
 	}
 
-	static function scalars() {
+	@:scoped static function scalars() {
 		var a = Scope.slice(Int, 10);
 		eq(a.length, 10, "length");
 		eq(a[3], 0, "zeroed");
@@ -127,7 +128,7 @@ class ScopedTest {
 		} catch (e:Memory.ScopedError) {}
 	}
 
-	static function structs() {
+	@:scoped static function structs() {
 		var ps = Scope.slice(Particle, 100);
 		for (i in 0...ps.length) {
 			var p = ps[i];
@@ -162,7 +163,7 @@ class ScopedTest {
 		eq(c.x, 9.0, "copyFrom");
 	}
 
-	static function grows() {
+	@:scoped static function grows() {
 		var g = Scope.grow(Int);
 		g.push(1);
 		var first = g.ref(0);
@@ -190,7 +191,7 @@ class ScopedTest {
 		eq(Scope.grows() >= 3, true, "Grows claimed");
 	}
 
-	static function strings() {
+	@:scoped static function strings() {
 		var s = Str.of("héllo wörld");
 		eq(s.length, 13, "UTF-8 length in bytes");
 		eq(s.toString(), "héllo wörld", "round trip");
@@ -210,27 +211,55 @@ class ScopedTest {
 		eq(b.toStr().length, 5, "StrBuf.toStr");
 	}
 
-	static function scopes() {
+	@:scoped static function scopes() {
 		var before = Scope.used(), grows = Scope.grows();
-		Scope.run(() -> {
-			var big = Scope.slice(Float, 100000);
-			big[0] = 1;
-			Scope.grow(Int).push(1);
-		});
-		eq(Scope.used(), before, "Scope.run frees");
-		eq(Scope.grows(), grows, "Scope.run releases Grows");
-		loop(1000);
+		big();
 		eq(Scope.used(), before, "a @:scoped function frees");
-		var s = Scope.run(() -> made(10).length);
-		eq(s, 10, "a function returning a scoped value keeps it");
-		throws(() -> Scope.run(() -> {
-			Scope.slice(Int, 1000);
-			throw new Memory.ScopedError("thrown");
-		}), "an exception through Scope.run");
-		eq(Scope.used(), before, "Scope.run frees after an exception");
+		eq(Scope.grows(), grows, "a @:scoped function releases Grows");
+		loop(1000);
+		eq(Scope.used(), before, "a loop frees");
+		eq(made(10).length, 10, "a function returning a scoped value keeps it");
+		eq(Scope.used() > before, true, "... in the caller's scope");
+		var after = Scope.used();
+		eq(caught(), true, "an exception through a @:scoped function");
+		eq(Scope.used(), after, "freed by the function that caught it");
+		eq(caughtInLoop(), 3, "exceptions caught in a loop");
+		eq(Scope.used(), after, "freed by the loop's iterations");
 		eq(viewLoops(), 4950 + 99.0 + 3, "loops over a slice read through a view");
 		eq(earlyReturn(true), 1, "early return");
-		eq(Scope.used(), before, "an early return frees");
+		eq(Scope.used(), after, "an early return frees");
+	}
+
+	@:scoped static function big() {
+		var big = Scope.slice(Float, 100000);
+		big[0] = 1;
+		Scope.grow(Int).push(1);
+	}
+
+	@:scoped static function thrower() {
+		Scope.slice(Int, 1000);
+		throw new Memory.ScopedError("thrown");
+	}
+
+	@:scoped static function caught():Bool {
+		try {
+			thrower();
+			return false;
+		} catch (e:Memory.ScopedError) {
+			return true;
+		}
+	}
+
+	@:scoped static function caughtInLoop():Int {
+		var n = 0, used = Scope.used();
+		for (i in 0...3) {
+			try
+				thrower()
+			catch (e:Memory.ScopedError)
+				n++;
+		}
+		eq(Scope.used(), used, "the iterations reclaim what the exceptions kept");
+		return n;
 	}
 
 	// each iteration's memory freed when the next starts

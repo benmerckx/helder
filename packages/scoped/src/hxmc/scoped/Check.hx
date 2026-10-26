@@ -22,10 +22,14 @@ using Lambda;
 // - a scoped value given to Dynamic, Any or a type parameter (a call's
 //   argument, an assignment, a variable, a return).
 //
-// What it does not check yet (hxmc's checker did, on its IR): that a value
-// does not outlive its scope inside a function (assigned to a variable of an
-// enclosing loop or block, returned from a function that frees it).
-// `-D scoped_debug` catches those at run time for Slices, Grows and Strs.
+// - in a loop of a @:scoped function (its iterations are scopes), a value
+//   made in the iteration assigned to a variable declared outside the loop:
+//   its memory is freed when the next iteration starts (a variable from
+//   outside, or an element or field of one, may be assigned).
+//
+// What it does not check (hxmc's checker did, on its IR, through calls):
+// lifetimes across functions beyond these rules. `-D scoped_debug` catches
+// the rest at run time for Slices, Grows and Strs.
 class Check {
 	#if macro
 	public static function enable()
@@ -132,6 +136,8 @@ class Check {
 			case TLocal(v):
 				if (locals != null && !locals.exists(v.id) && isScoped(v.t))
 					report('${v.name}: a scoped value captured by a closure', e.pos);
+			case TBlock(_) if (scopedLoop(e)):
+				loopEscapes(e);
 			case TCall(f, args):
 				switch f.t.follow() {
 					case TFun(params, _):
@@ -158,6 +164,61 @@ class Check {
 			default:
 		}
 		e.iter(x -> walk(x, locals));
+	}
+
+	// an iteration of a loop the Scoped macro made a scope of: its body starts
+	// with `var __iteration = Memory.restore(...)` (a loop over a constant range is
+	// unrolled while typing: its iterations are such blocks one after another)
+	static function scopedLoop(body:TypedExpr):Bool {
+		return switch body.expr {
+			case TBlock(el) if (el.length > 0):
+				switch el[0].expr {
+					case TVar({name: "__iteration"}, _): true;
+					default: false;
+				}
+			default: false;
+		}
+	}
+
+	// assignments, in the loop's body, of values made in an iteration to
+	// variables declared outside the loop
+	static function loopEscapes(body:TypedExpr) {
+		var inside = new Map<Int, Bool>();
+		function declared(e:TypedExpr) {
+			switch e.expr {
+				case TVar(v, _): inside.set(v.id, true);
+				case TFunction(_): return;
+				default:
+			}
+			e.iter(declared);
+		}
+		declared(body);
+		// (a value that lives outside the iteration: a variable from outside,
+		// or an element, field or reference of one)
+		function outside(e:TypedExpr):Bool {
+			return switch e.expr {
+				case TLocal(v): !inside.exists(v.id);
+				case TConst(TNull): true;
+				case TParenthesis(x) | TCast(x, _) | TMeta(_, x): outside(x);
+				case TField(x, _): outside(x);
+				case TArray(x, _): outside(x);
+				case TCall({expr: TField(_, FStatic(_.get() => {pack: ["hxmc", "scoped"]}, _.get() => m))}, args)
+					if (args.length > 0 && (m.name == "ref" || StringTools.startsWith(m.name, "get"))):
+					outside(args[0]);
+				default: false;
+			}
+		}
+		function find(e:TypedExpr) {
+			switch e.expr {
+				case TBinop(OpAssign, {expr: TLocal(v)}, r) if (!inside.exists(v.id) && isScoped(v.t) && !outside(r)):
+					report('${v.name}: a value made in a loop iteration kept in a variable from outside the loop (its memory is freed when the next iteration starts)', e.pos);
+				case TFunction(_):
+					return;
+				default:
+			}
+			e.iter(find);
+		}
+		find(body);
 	}
 	#end
 }

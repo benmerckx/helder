@@ -26,8 +26,10 @@ using Lambda;
 // - Each loop's iteration is a scope: what an iteration allocated is freed
 //   when the next starts, and after the loop.
 // - An exception leaves the memory to the enclosing scope (a mark is left
-//   with the marks around it), so nothing is freed early; `Scope.run` at the
-//   entry points from ordinary code frees it there.
+//   with the marks around it), so nothing is freed early: the enclosing
+//   function's return, or its loop's next iteration, frees it. One that
+//   leaves every @:scoped function keeps that memory for good: entry points
+//   (callbacks) catch their exceptions themselves.
 // - Loops over a slice: in `for (i in 0...s.length)`, where neither s nor i is
 //   assigned, declared again or captured in the body, `s[i]` reads the
 //   elements through a view (Loops.view: the data and stride in locals) with
@@ -82,7 +84,7 @@ class Scoped {
 			case EWhile(cond, body, normal):
 				var l = "__loop" + counter++, c = "__claims" + counter++;
 				var b = rewrite(body, mark);
-				var loop = {expr: EWhile(rewrite(cond, mark), macro {hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}, normal), pos: e.pos};
+				var loop = {expr: EWhile(rewrite(cond, mark), macro {var __iteration = hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}, normal), pos: e.pos};
 				macro @:pos(e.pos) {
 					var $l = hxmc.scoped.Memory.top(), $c = hxmc.scoped.Memory.claims();
 					$loop;
@@ -94,7 +96,7 @@ class Scoped {
 				if (view != null)
 					body = view.body;
 				var b = rewrite(body, mark);
-				var loop = {expr: EFor(rewrite(it, mark), macro {hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}), pos: e.pos};
+				var loop = {expr: EFor(rewrite(it, mark), macro {var __iteration = hxmc.scoped.Memory.restore($i{l}, $i{c}); $b;}), pos: e.pos};
 				var out = macro @:pos(e.pos) {
 					var $l = hxmc.scoped.Memory.top(), $c = hxmc.scoped.Memory.claims();
 					$loop;

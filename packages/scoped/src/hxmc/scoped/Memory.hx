@@ -56,6 +56,8 @@ class Memory {
 	// n bytes of the current scope, zeroed, aligned to 8
 	public static function alloc(n:Int):Addr {
 		ready();
+		if (depth == 0)
+			fail("allocating outside any scope: mark the function @:scoped");
 		if (n < 0)
 			fail("negative size");
 		var top = top0;
@@ -70,6 +72,8 @@ class Memory {
 	// a buffer of its own (a Grow's), empty; its address is `index << SHIFT`
 	public static function claim():Int {
 		ready();
+		if (depth == 0)
+			fail("allocating outside any scope: mark the function @:scoped");
 		for (i in 1...BUFFERS) {
 			if (claimed & (1 << i) == 0) {
 				claimed |= 1 << i;
@@ -136,12 +140,19 @@ class Memory {
 	public static inline function top():Int
 		return top0;
 
+	// (the claimed Grows, and the depth above them: an exception caught in
+	// the loop leaves the marks of the scopes it left, dropped here too)
 	public static inline function claims():Int
-		return claimed;
+		return claimed | depth << 16;
 
-	public static inline function restore(t:Int, c:Int) {
-		if (top0 != t || claimed != c)
+	// (returns true: the Scoped macro keeps it in a variable, `__iteration`,
+	// which marks the iteration for the checker)
+	public static inline function restore(t:Int, c:Int):Bool {
+		// (the top alone: claiming a Grow allocates its header on the fixed
+		// stack, so the top moves whenever anything was allocated)
+		if (top0 != t)
 			restoreSlow(t, c);
+		return true;
 	}
 
 	static function restoreSlow(t:Int, c:Int) {
@@ -150,7 +161,9 @@ class Memory {
 			Store.fill(t, top0 - t, 0xA5);
 		#end
 		top0 = t;
-		claimed = c;
+		claimed = c & 0xFFFF;
+		if (depth > c >>> 16)
+			depth = c >>> 16;
 	}
 
 	// leaves mark d (and every mark inside it)
