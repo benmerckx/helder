@@ -1,7 +1,7 @@
 package hxmc.scoped;
 
 // The headers of Slices, Grows and Strs carry a magic word. Freed memory is
-// overwritten in debug builds (-D scoped_debug: Memory.rewind), so a value
+// overwritten in debug builds (-D scoped_debug: Memory.leaveSlow), so a value
 // used after its scope has ended fails here with a message instead of
 // reading what has been allocated since. Without the define, check is the
 // address unchanged.

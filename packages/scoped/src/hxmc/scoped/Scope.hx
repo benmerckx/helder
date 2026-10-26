@@ -12,17 +12,6 @@ using haxe.macro.Tools;
 // theirs from the Scoped build macro. Allocating outside any scope is an
 // error: an entry point (main, a callback) is a @:scoped function.
 class Scope {
-	// a mark: what is allocated after it is freed by exit(mark)
-	public static inline function enter():Int
-		return Memory.enter();
-
-	public static inline function exit(mark:Int)
-		Memory.exit(mark);
-
-	// frees what was allocated since mark, which stays (a loop's iteration)
-	public static inline function rewind(mark:Int)
-		Memory.rewind(mark);
-
 	// the bytes of scoped memory in use (not counting Grows' elements), and
 	// the Grows live
 	public static inline function used():Int

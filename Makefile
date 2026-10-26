@@ -91,7 +91,8 @@ wasm: $(TOOL)
 ##             theme-check, gfx-shader-check, scoped-check, examples-check
 ## scoped-check  packages/scoped: its test on Eval, natively and as JavaScript (the port), and the
 ##             programs its checker must reject (packages/scoped/test/RejectTest.hx)
-## scoped-targets  the same test with the reference compiler (HAXE, on the PATH) for js, hl and the JVM
+## scoped-targets  the same test with the reference compiler (HAXE, on the PATH) for js, hl and the JVM, and with
+##             -D scoped_threads (its threads test) on Eval, hl and the JVM
 ## scoped-bench  scoped memory against GC objects (packages/scoped/test/ScopedBench.hx) natively and,
 ##             with the reference compiler, as js, hl and the JVM
 ## gfx-programs  bin/gfx/GFX_TARGET/{GfxTest,Triangle,Cube,Instances,Targets,Mips,Formats}[.exe]: packages/gfx's test programs (Linux: glibc mode)
@@ -432,6 +433,9 @@ scoped-targets:
 	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest -js bin/scoped/ref.js && $(NODE) bin/scoped/ref.js
 	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest -hl bin/scoped/ref.hl && hl bin/scoped/ref.hl
 	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest --jvm bin/scoped/ref.jar && java -jar bin/scoped/ref.jar
+	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest -D scoped_threads --interp
+	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest -D scoped_threads -hl bin/scoped/ref-threads.hl && hl bin/scoped/ref-threads.hl
+	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest -D scoped_threads --jvm bin/scoped/ref-threads.jar && java -jar bin/scoped/ref-threads.jar
 	$(REF_HAXE) -cp packages/scoped/test --run RejectTest $(HAXE)
 
 scoped-bench: $(TOOL)

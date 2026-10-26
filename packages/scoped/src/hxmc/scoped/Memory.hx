@@ -3,87 +3,175 @@ package hxmc.scoped;
 import haxe.ds.Vector;
 import haxe.io.Bytes;
 
-// Scoped memory: 16 buffers (Store, one implementation per target), as
-// hxmc's data stacks are 16 reservations. Buffer 0 is the fixed stack:
-// everything that does not grow (a Slice's memory, the headers of Slices,
-// Grows and Strs) is bumped there. A Grow claims one of the others for its
+// Scoped memory: 32 buffers of up to 64 MB (Store, one implementation per
+// target), shared by the program's threads. Each thread bumps a buffer of
+// its own, its stack: everything that does not grow (a Slice's memory, the
+// headers of Slices, Grows and Strs). A Grow claims another for its
 // elements, so growing one never moves another's; a buffer that fills up is
-// reallocated larger, which is safe because addresses are offsets (Addr),
-// never host pointers.
+// made larger, which is safe because addresses are offsets (Addr), never
+// host pointers. Buffer 0 is never used: no address is 0.
 //
-// A scope is a mark (Scope.enter): the fixed stack's top and the claimed
-// buffers. Leaving it (Scope.exit) puts the top back and releases the
-// buffers claimed since: everything the scope allocated is freed by a few
-// stores, however much it holds. Marks nest; leaving an outer mark leaves
-// every inner one, so a mark skipped by an exception is left with its
-// enclosing scope.
+// A scope is the thread's stack top and the Grows it holds, kept in two
+// locals by the Scoped macro: leaving it (leave, or a loop's restore) puts
+// the top back and releases the Grows claimed since, so everything the scope
+// allocated is freed by a few stores, however much it holds. A scope an
+// exception skipped is left with the scope around it.
 //
-// Single-threaded: one set of buffers per program (a thread-local set per
-// thread is the next step for threaded targets).
+// A thread claims its stack when it enters its first scope and gives it
+// back when it leaves it: outside every scope it holds nothing, and
+// allocating there is an error.
+//
+// Per thread: the top and the Grows held. On hxmc they are thread-local
+// statics (a load like any other). On the other threaded targets they are
+// in a sys.thread.Tls with -D scoped_threads, which costs 1.4-2.5x on
+// HashLink and the JVM; without it they are statics, and scoped memory is
+// for one thread at a time. Claiming and releasing buffers takes a lock.
 class Memory {
-	public static inline var BUFFERS = 16;
-	public static inline var SHIFT = 27;
-	public static inline var MASK = 0x07FFFFFF;
+	public static inline var BUFFERS = 32;
+	public static inline var SHIFT = 26;
+	public static inline var MASK = 0x03FFFFFF;
 
-	// (initialized on first use: static initialization order across modules
-	// is not something to rely on)
-	static var tops:Vector<Int>;
-	// bit i: buffer i is in use (bit 0, the fixed stack, always)
+	// bit i: buffer i is claimed (bit 0 always: never used)
 	static var claimed = 1;
-	static var markTop:Vector<Int>;
-	static var markClaimed:Vector<Int>;
-	static var depth = 0;
-	// the fixed stack's top (tops[0] in a variable of its own: read in every loop)
-	static var top0 = 0;
+	static var ready_ = false;
+	#if target.threaded
+	static var lock = new sys.thread.Mutex();
+	#end
 
-	static function init() {
-		Store.init(BUFFERS);
-		tops = new Vector(BUFFERS);
-		for (i in 0...BUFFERS)
-			tops[i] = 0;
-		Store.make(0, 1 << 16);
-		markTop = new Vector(64);
-		markClaimed = new Vector(64);
+	// --- per thread: the stack's top (an Addr; 0 outside every scope) and
+	// the Grows held (bit i: buffer i)
+
+	#if (target.name == "hxmc")
+	@:hxmc.threadLocal("hxmc_scoped_top") static var top0:Int;
+	@:hxmc.threadLocal("hxmc_scoped_mine") static var mine:Int;
+
+	static inline function getTop():Int
+		return top0;
+
+	static inline function setTop(v:Int)
+		top0 = v;
+
+	static inline function getMine():Int
+		return mine;
+
+	static inline function setMine(v:Int)
+		mine = v;
+	#elseif (target.threaded && scoped_threads)
+	static var local = new sys.thread.Tls<State>();
+
+	static inline function state():State {
+		var s = local.value;
+		return s != null ? s : newState();
 	}
 
+	static function newState():State {
+		var s = new State();
+		local.value = s;
+		return s;
+	}
+
+	static inline function getTop():Int
+		return state().top;
+
+	static inline function setTop(v:Int)
+		state().top = v;
+
+	static inline function getMine():Int
+		return state().mine;
+
+	static inline function setMine(v:Int)
+		state().mine = v;
+	#else
+	static var top0 = 0;
+	static var mine = 0;
+
+	static inline function getTop():Int
+		return top0;
+
+	static inline function setTop(v:Int)
+		top0 = v;
+
+	static inline function getMine():Int
+		return mine;
+
+	static inline function setMine(v:Int)
+		mine = v;
+	#end
+
 	static inline function ready() {
-		if (tops == null)
+		if (!ready_)
 			init();
+	}
+
+	static function init() {
+		lockPool();
+		if (!ready_) {
+			Store.init(BUFFERS);
+			ready_ = true;
+		}
+		unlockPool();
+	}
+
+	static inline function lockPool() {
+		#if target.threaded
+		lock.acquire();
+		#end
+	}
+
+	static inline function unlockPool() {
+		#if target.threaded
+		lock.release();
+		#end
 	}
 
 	// --- allocation ---
 
 	// n bytes of the current scope, zeroed, aligned to 8
 	public static function alloc(n:Int):Addr {
-		ready();
-		if (depth == 0)
+		var top = getTop();
+		if (top == 0)
 			fail("allocating outside any scope: mark the function @:scoped");
 		if (n < 0)
 			fail("negative size");
-		var top = top0;
 		var end = top + ((n + 7) & ~7);
-		if (end > Store.capacity(0))
-			grow(0, end);
+		var b = top >>> SHIFT;
+		if (end - (b << SHIFT) > Store.capacity(b))
+			grow(b, end - (b << SHIFT));
 		Store.fill(top, end - top, 0);
-		top0 = end;
+		setTop(end);
 		return top;
 	}
 
 	// a buffer of its own (a Grow's), empty; its address is `index << SHIFT`
 	public static function claim():Int {
-		ready();
-		if (depth == 0)
+		if (getTop() == 0)
 			fail("allocating outside any scope: mark the function @:scoped");
-		for (i in 1...BUFFERS) {
+		var i = take();
+		setMine(getMine() | 1 << i);
+		return i;
+	}
+
+	// (a free buffer, claimed)
+	static function take():Int {
+		ready();
+		lockPool();
+		for (i in 1...Store.buffers()) {
 			if (claimed & (1 << i) == 0) {
 				claimed |= 1 << i;
 				if (!Store.exists(i))
 					Store.make(i, 1 << 12);
-				tops[i] = 0;
+				unlockPool();
 				return i;
 			}
 		}
-		return fail("more than " + (BUFFERS - 1) + " Grows live at once");
+		unlockPool();
+		return fail("more than " + (Store.buffers() - 1) + " stacks and Grows live at once");
+	}
+
+	static function free(bits:Int) {
+		lockPool();
+		claimed &= ~bits;
+		unlockPool();
 	}
 
 	// the bytes buffer i holds before it has to grow
@@ -98,7 +186,7 @@ class Memory {
 
 	static function grow(i:Int, end:Int) {
 		if (end > MASK + 1)
-			fail("scoped memory full (buffer " + i + ": 256 MB)");
+			fail("scoped memory full (a buffer holds 64 MB)");
 		var cap = Store.capacity(i);
 		while (cap < end)
 			cap = cap * 2 > MASK + 1 ? MASK + 1 : cap * 2;
@@ -107,84 +195,71 @@ class Memory {
 
 	// --- scopes ---
 
-	public static function enter():Int {
-		ready();
-		if (depth == markTop.length) {
-			var t = new Vector<Int>(depth * 2), c = new Vector<Int>(depth * 2);
-			Vector.blit(markTop, 0, t, 0, depth);
-			Vector.blit(markClaimed, 0, c, 0, depth);
-			markTop = t;
-			markClaimed = c;
-		}
-		markTop[depth] = top0;
-		markClaimed[depth] = claimed;
-		return depth++;
+	// a function's scope: the top to come back to (0: the thread's first
+	// scope, which claims its stack)
+	public static inline function enter():Int {
+		var t = getTop();
+		if (t == 0)
+			first();
+		return t;
 	}
 
-	// frees what was allocated since mark d, which stays (a loop's iterations)
-	public static function rewind(d:Int) {
-		var top = markTop[d];
+	static function first() {
+		var i = take();
+		// (8: no address is a buffer's start, so none is 0)
+		setTop((i << SHIFT) + 8);
+	}
+
+	// leaves a function's scope: everything allocated since enter freed
+	public static inline function leave(t:Int, c:Int) {
+		if (getTop() != t || getMine() != c)
+			leaveSlow(t, c);
+	}
+
+	static function leaveSlow(t:Int, c:Int) {
+		var top = getTop();
 		#if scoped_debug
-		// (freed memory overwritten: a value used after its scope reads
-		// garbage, which the headers' checks catch: Header.check)
-		if (top0 > top)
-			Store.fill(top, top0 - top, 0xA5);
+		if (top != 0 && t != 0 && top > t)
+			Store.fill(t, top - t, 0xA5);
 		#end
-		top0 = top;
-		claimed = markClaimed[d];
+		var gone = getMine() & ~c;
+		if (t == 0 && top != 0)
+			gone |= 1 << (top >>> SHIFT);
+		if (gone != 0)
+			free(gone);
+		setTop(t);
+		setMine(c);
 	}
 
 	// a loop iteration's scope: what the previous iteration left is freed
-	// when the fixed stack's top or the claimed Grows changed (a compare
-	// when it did not)
+	// when the stack's top changed (a compare when it did not)
 	public static inline function top():Int
-		return top0;
+		return getTop();
 
-	// (the claimed Grows, and the depth above them: an exception caught in
-	// the loop leaves the marks of the scopes it left, dropped here too)
 	public static inline function claims():Int
-		return claimed | depth << 16;
+		return getMine();
 
 	// (returns true: the Scoped macro keeps it in a variable, `__iteration`,
 	// which marks the iteration for the checker)
 	public static inline function restore(t:Int, c:Int):Bool {
-		// (the top alone: claiming a Grow allocates its header on the fixed
-		// stack, so the top moves whenever anything was allocated)
-		if (top0 != t)
-			restoreSlow(t, c);
+		// (the top alone: claiming a Grow allocates its header on the stack,
+		// so the top moves whenever anything was allocated)
+		if (getTop() != t)
+			leaveSlow(t, c);
 		return true;
-	}
-
-	static function restoreSlow(t:Int, c:Int) {
-		#if scoped_debug
-		if (top0 > t)
-			Store.fill(t, top0 - t, 0xA5);
-		#end
-		top0 = t;
-		claimed = c & 0xFFFF;
-		if (depth > c >>> 16)
-			depth = c >>> 16;
-	}
-
-	// leaves mark d (and every mark inside it)
-	public static function exit(d:Int) {
-		if (d >= depth)
-			return;
-		rewind(d);
-		depth = d;
 	}
 
 	// --- what is in use ---
 
-	public static function used():Int {
-		ready();
-		return top0;
-	}
+	// the bytes of the thread's stack in use
+	public static function used():Int
+		return getTop() & MASK;
 
+	// the Grows the thread holds
 	public static function grows():Int {
-		var n = 0;
+		var n = 0, m = getMine();
 		for (i in 1...BUFFERS)
-			if (claimed & (1 << i) != 0)
+			if (m & (1 << i) != 0)
 				n++;
 		return n;
 	}
@@ -236,3 +311,12 @@ class Memory {
 }
 
 class ScopedError extends haxe.Exception {}
+
+#if (target.threaded && scoped_threads && target.name != "hxmc")
+private class State {
+	public var top = 0;
+	public var mine = 0;
+
+	public function new() {}
+}
+#end

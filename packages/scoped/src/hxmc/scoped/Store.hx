@@ -3,24 +3,24 @@ package hxmc.scoped;
 import haxe.ds.Vector;
 import haxe.io.Bytes;
 
-// The 16 buffers of scoped memory and typed access to them, one
+// The buffers of scoped memory and typed access to them, one
 // implementation per target family (Memory keeps the scopes). An address is
-// the buffer in its top four bits and the offset in the other 28 (Addr);
-// every access is checked against the buffer's length, so a wrong address
-// fails instead of reading or writing outside it, and every access is
+// the buffer in its top bits and the offset in the low 26 (Addr); an access
+// cannot reach outside the buffers (checked, or by construction), and every
+// access is
 // aligned to its size (alloc's 8-byte alignment and the structs' natural
 // layout keep it).
 //
-// - hxmc native: one reserved range for all 16, read and written by the
+// - hxmc native: one reserved range for all of them, read and written by the
 //   code generator's intrinsics at base + address, with no table and no
 //   check (every address lies inside it).
 // - hxmc wasm32: malloc'ed buffers in a table, each access checked; growing
 //   reallocates (offsets do not change).
-// - JavaScript: an ArrayBuffer per buffer, with Int32Array, Float64Array and
-//   Uint8Array views (V8 reads those far faster than a DataView). Not
-//   checked here: a typed array cannot reach outside itself (a read past
-//   its end is undefined), and the types check their indexes.
-// - HashLink: haxe.io.Bytes, read through its hl.Bytes with one check here.
+// - JavaScript: one ArrayBuffer holding every buffer at its address, with
+//   Int32Array, Float64Array and Uint8Array views over it (V8 reads those far
+//   faster than a DataView): an access is a typed array's at the address.
+// - HashLink: one hl.Bytes holding every buffer at its address, as on
+//   JavaScript; an access checks its buffer.
 // - the JVM: haxe.io.Bytes, read through java.nio.ByteBuffer views.
 // - the other targets: haxe.io.Bytes.
 #if (target.name == "hxmc" && !hxmc.wasm_gc && !(hxmc.target == "wasm32-wasi"))
@@ -33,22 +33,29 @@ class Store {
 	static inline var SHIFT = Memory.SHIFT;
 	static inline var MASK = Memory.MASK;
 
-	// Native: one reservation of 16 regions of 128 MB (malloc'ed: committed
-	// as touched), so an address is an offset from one base, with no table
-	// and no check: every Addr is below 2^31, inside it. (An mmap or
-	// VirtualAlloc reservation would not count against the commit limit:
-	// hxmc.unsafe does not declare them yet.)
+	// Native: one reservation of 32 regions of 64 MB, so an address is an
+	// offset from one base, with no table and no check: every Addr is below
+	// 2^31, inside it. The runtime's reservation (hxmc.rt.Os: mmap with
+	// MAP_NORESERVE, VirtualAlloc with pages committed as touched) does not
+	// count against the commit limit; malloc if it fails.
 	static var base:Ptr;
 	static var lens:Vector<Int>;
 
 	public static function init(n:Int) {
-		base = LibC.malloc(((n : I64) << SHIFT));
+		var bytes = (n : I64) << SHIFT;
+		base = hxmc.rt.Os.reserve(bytes);
+		if (base.isNull())
+			base = LibC.malloc(bytes);
 		if (base.isNull())
 			Memory.fail("out of memory");
 		lens = new Vector(n);
 		for (i in 0...n)
 			lens[i] = 0;
 	}
+
+	// the buffers there are room for
+	public static inline function buffers():Int
+		return Memory.BUFFERS;
 
 	public static inline function exists(i:Int):Bool
 		return lens[i] > 0;
@@ -127,6 +134,10 @@ class Store {
 		}
 	}
 
+	// the buffers there are room for
+	public static inline function buffers():Int
+		return Memory.BUFFERS;
+
 	public static inline function exists(i:Int):Bool
 		return lens[i] > 0;
 
@@ -196,6 +207,185 @@ class Store {
 		for (k in 0...n)
 			setU8(a + k, b.get(pos + k));
 }
+#elseif js
+// (JavaScript: every buffer in one ArrayBuffer, at its address: its pages
+// are not committed until touched, so 2 GB costs nothing until used, and an
+// access is a typed array's at the address itself, with no table, no mask
+// and no check: it cannot reach outside the ArrayBuffer. A host that will
+// not make 2 GB gets half, and so on: fewer buffers. JavaScript's threads,
+// workers, have memories of their own.)
+class Store {
+	static inline var SHIFT = Memory.SHIFT;
+
+	static var i32:js.lib.Int32Array;
+	static var f64:js.lib.Float64Array;
+	static var u8:js.lib.Uint8Array;
+	static var lens:Vector<Int>;
+	static var count = 0;
+
+	public static function init(n:Int) {
+		var size = n;
+		var mem:js.lib.ArrayBuffer = null;
+		while (mem == null && size >= 2) {
+			try
+				mem = new js.lib.ArrayBuffer(js.Syntax.code("{0} * {1}", size, 1 << SHIFT))
+			catch (e:Dynamic)
+				size >>= 1;
+		}
+		if (mem == null)
+			Memory.fail("out of memory");
+		count = size;
+		i32 = new js.lib.Int32Array(mem);
+		f64 = new js.lib.Float64Array(mem);
+		u8 = new js.lib.Uint8Array(mem);
+		lens = new Vector(n);
+		for (i in 0...n)
+			lens[i] = 0;
+	}
+
+	// the buffers there are room for
+	public static inline function buffers():Int
+		return count;
+
+	public static inline function exists(i:Int):Bool
+		return lens[i] > 0;
+
+	public static function make(i:Int, cap:Int)
+		lens[i] = cap;
+
+	public static function grow(i:Int, cap:Int, keep:Int)
+		lens[i] = cap;
+
+	public static inline function capacity(i:Int):Int
+		return lens[i];
+
+	public static inline function getI32(a:Int):Int
+		return i32[a >> 2];
+
+	public static inline function setI32(a:Int, v:Int)
+		i32[a >> 2] = v;
+
+	public static inline function getF64(a:Int):Float
+		return f64[a >> 3];
+
+	public static inline function setF64(a:Int, v:Float)
+		f64[a >> 3] = v;
+
+	public static inline function getU8(a:Int):Int
+		return u8[a];
+
+	public static inline function setU8(a:Int, v:Int)
+		u8[a] = v;
+
+	public static function fill(a:Int, n:Int, v:Int) {
+		// (an allocation's zeroing, small and aligned: stores beat a call)
+		if (v == 0 && n <= 128 && (a | n) & 7 == 0) {
+			var k = a >> 3, end = (a + n) >> 3;
+			while (k < end)
+				f64[k++] = 0;
+		} else if (n > 0)
+			u8.fill(v, a, a + n);
+	}
+
+	public static function copy(dst:Int, src:Int, n:Int)
+		if (n > 0)
+			u8.copyWithin(dst, src, src + n);
+
+	public static function string(a:Int, n:Int):String
+		return haxe.io.Bytes.ofData(u8.slice(a, a + n).buffer).getString(0, n);
+
+	public static function write(a:Int, b:Bytes, pos:Int, n:Int)
+		u8.set(new js.lib.Uint8Array(b.getData(), pos, n), a);
+}
+#elseif hl
+// (HashLink: every buffer in one hl.Bytes, at its address, as on
+// JavaScript: a large block's pages are not committed until touched. 31
+// buffers, an Int's worth, and 8 bytes past the last, so an access checks
+// its buffer only: a shift and a compare.)
+class Store {
+	static inline var SHIFT = Memory.SHIFT;
+
+	static var mem:hl.Bytes;
+	static var lens:Vector<Int>;
+	static var count = 0;
+
+	public static function init(n:Int) {
+		var size = n - 1;
+		while (mem == null && size >= 2) {
+			mem = new hl.Bytes((size << SHIFT) + 8);
+			if (mem == null)
+				size >>= 1;
+		}
+		if (mem == null)
+			Memory.fail("out of memory");
+		count = size;
+		lens = new Vector(n);
+		for (i in 0...n)
+			lens[i] = 0;
+	}
+
+	// the buffers there are room for
+	public static inline function buffers():Int
+		return count;
+
+	public static inline function exists(i:Int):Bool
+		return lens[i] > 0;
+
+	public static function make(i:Int, cap:Int) {
+		mem.fill(i << SHIFT, cap, 0);
+		lens[i] = cap;
+	}
+
+	public static function grow(i:Int, cap:Int, keep:Int) {
+		mem.fill((i << SHIFT) + lens[i], cap - lens[i], 0);
+		lens[i] = cap;
+	}
+
+	public static inline function capacity(i:Int):Int
+		return lens[i];
+
+	static inline function at(a:Int):Int {
+		if (a >>> SHIFT >= count)
+			Memory.outside(a);
+		return a;
+	}
+
+	public static inline function getI32(a:Int):Int
+		return mem.getI32(at(a));
+
+	public static inline function setI32(a:Int, v:Int)
+		mem.setI32(at(a), v);
+
+	public static inline function getF64(a:Int):Float
+		return mem.getF64(at(a));
+
+	public static inline function setF64(a:Int, v:Float)
+		mem.setF64(at(a), v);
+
+	public static inline function getU8(a:Int):Int
+		return mem.getUI8(at(a));
+
+	public static inline function setU8(a:Int, v:Int)
+		mem.setUI8(at(a), v);
+
+	// (n: within the buffer, which its callers check)
+	public static function fill(a:Int, n:Int, v:Int)
+		if (n > 0)
+			mem.fill(at(a), n, v);
+
+	public static function copy(dst:Int, src:Int, n:Int)
+		if (n > 0)
+			mem.blit(at(dst), mem, at(src), n);
+
+	public static function string(a:Int, n:Int):String {
+		var b = Bytes.alloc(n);
+		@:privateAccess b.b.blit(0, mem, at(a), n);
+		return b.getString(0, n);
+	}
+
+	public static function write(a:Int, b:Bytes, pos:Int, n:Int)
+		mem.blit(at(a), @:privateAccess b.b, pos, n);
+}
 #else
 #if jvm
 // (the JVM: java.nio.ByteBuffer over each buffer's byte[], whose getDouble
@@ -223,30 +413,19 @@ class Store {
 	#if jvm
 	static var bb:Vector<JByteBuffer>;
 	#end
-	#if js
-	static var i32:Vector<js.lib.Int32Array>;
-	static var f64:Vector<js.lib.Float64Array>;
-	static var u8:Vector<js.lib.Uint8Array>;
-	#elseif hl
-	static var raw:hl.NativeArray<hl.Bytes>;
-	static var lens:hl.NativeArray<Int>;
-	#end
 
 	public static function init(n:Int) {
 		bufs = new Vector(n);
 		for (i in 0...n)
 			bufs[i] = null;
-		#if js
-		i32 = new Vector(n);
-		f64 = new Vector(n);
-		u8 = new Vector(n);
-		#elseif hl
-		raw = new hl.NativeArray(n);
-		lens = new hl.NativeArray(n);
-		#elseif jvm
+		#if jvm
 		bb = new Vector(n);
 		#end
 	}
+
+	// the buffers there are room for
+	public static inline function buffers():Int
+		return Memory.BUFFERS;
 
 	public static inline function exists(i:Int):Bool
 		return bufs[i] != null;
@@ -262,68 +441,15 @@ class Store {
 
 	static function set(i:Int, b:Bytes) {
 		bufs[i] = b;
-		#if js
-		var d = b.getData();
-		i32[i] = new js.lib.Int32Array(d);
-		f64[i] = new js.lib.Float64Array(d);
-		u8[i] = new js.lib.Uint8Array(d);
-		#elseif hl
-		raw[i] = @:privateAccess b.b;
-		lens[i] = b.length;
-		#elseif jvm
+		#if jvm
 		bb[i] = JByteBuffer.wrap(b.getData()).order(JByteOrder.LITTLE_ENDIAN);
 		#end
 	}
 
 	public static inline function capacity(i:Int):Int
-		return #if hl lens[i] #else bufs[i].length #end;
+		return bufs[i].length;
 
-	#if hl
-	static inline function at(a:Int, n:Int):Int {
-		var o = a & MASK;
-		if (o + n > capacity(a >>> SHIFT))
-			Memory.outside(a);
-		return o;
-	}
-	#end
-
-	#if js
-	public static inline function getI32(a:Int):Int
-		return i32[a >>> SHIFT][(a & MASK) >> 2];
-
-	public static inline function setI32(a:Int, v:Int)
-		i32[a >>> SHIFT][(a & MASK) >> 2] = v;
-
-	public static inline function getF64(a:Int):Float
-		return f64[a >>> SHIFT][(a & MASK) >> 3];
-
-	public static inline function setF64(a:Int, v:Float)
-		f64[a >>> SHIFT][(a & MASK) >> 3] = v;
-
-	public static inline function getU8(a:Int):Int
-		return u8[a >>> SHIFT][a & MASK];
-
-	public static inline function setU8(a:Int, v:Int)
-		u8[a >>> SHIFT][a & MASK] = v;
-	#elseif hl
-	public static inline function getI32(a:Int):Int
-		return raw[a >>> SHIFT].getI32(at(a, 4));
-
-	public static inline function setI32(a:Int, v:Int)
-		raw[a >>> SHIFT].setI32(at(a, 4), v);
-
-	public static inline function getF64(a:Int):Float
-		return raw[a >>> SHIFT].getF64(at(a, 8));
-
-	public static inline function setF64(a:Int, v:Float)
-		raw[a >>> SHIFT].setF64(at(a, 8), v);
-
-	public static inline function getU8(a:Int):Int
-		return raw[a >>> SHIFT].getUI8(at(a, 1));
-
-	public static inline function setU8(a:Int, v:Int)
-		raw[a >>> SHIFT].setUI8(at(a, 1), v);
-	#elseif jvm
+	#if jvm
 	public static inline function getI32(a:Int):Int
 		return bb[a >>> SHIFT].getInt(a & MASK);
 

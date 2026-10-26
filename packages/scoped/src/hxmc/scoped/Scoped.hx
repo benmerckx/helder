@@ -25,8 +25,8 @@ using Lambda;
 //   returns a value.
 // - Each loop's iteration is a scope: what an iteration allocated is freed
 //   when the next starts, and after the loop.
-// - An exception leaves the memory to the enclosing scope (a mark is left
-//   with the marks around it), so nothing is freed early: the enclosing
+// - An exception leaves the memory to the enclosing scope (whose locals
+//   hold the top to come back to), so nothing is freed early: the enclosing
 //   function's return, or its loop's next iteration, frees it. One that
 //   leaves every @:scoped function keeps that memory for good: entry points
 //   (callbacks) catch their exceptions themselves.
@@ -57,10 +57,11 @@ class Scoped {
 		var body = rewrite(fn.expr, keep ? null : mark);
 		if (keep)
 			return body;
+		var c = mark + "c";
 		return macro @:pos(pos) {
-			var $mark = hxmc.scoped.Scope.enter();
+			var $mark = hxmc.scoped.Memory.enter(), $c = hxmc.scoped.Memory.claims();
 			$body;
-			hxmc.scoped.Scope.exit($i{mark});
+			hxmc.scoped.Memory.leave($i{mark}, $i{c});
 		};
 	}
 
@@ -71,14 +72,14 @@ class Scoped {
 				e;
 			case EReturn(null) if (mark != null):
 				macro @:pos(e.pos) {
-					hxmc.scoped.Scope.exit($i{mark});
+					hxmc.scoped.Memory.leave($i{mark}, $i{mark + "c"});
 					return;
 				};
 			case EReturn(v) if (mark != null):
 				var r = rewrite(v, mark);
 				macro @:pos(e.pos) {
 					var __result = $r;
-					hxmc.scoped.Scope.exit($i{mark});
+					hxmc.scoped.Memory.leave($i{mark}, $i{mark + "c"});
 					return __result;
 				};
 			case EWhile(cond, body, normal):

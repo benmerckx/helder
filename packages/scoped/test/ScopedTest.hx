@@ -70,6 +70,9 @@ class ScopedTest {
 		grows();
 		strings();
 		scopes();
+		#if (target.threaded && (target.name == "hxmc" || scoped_threads))
+		threads();
+		#end
 		println(failures == 0 ? 'ok $checks' : '$failures of $checks failed');
 		if (failures != 0)
 			exit(1);
@@ -261,6 +264,36 @@ class ScopedTest {
 		eq(Scope.used(), used, "the iterations reclaim what the exceptions kept");
 		return n;
 	}
+
+	#if (target.threaded && (target.name == "hxmc" || scoped_threads))
+	// 40 threads, 4 at a time: each its own stack (31 buffers in all, so a
+	// stack not given back runs out)
+	static function threads() {
+		var results = new sys.thread.Deque<Int>();
+		var total = 0;
+		for (round in 0...10) {
+			for (k in 0...4)
+				sys.thread.Thread.create(() -> results.add(threadWork(round * 4 + k)));
+			for (k in 0...4)
+				total += results.pop(true);
+		}
+		// (each thread sums 0...1000 times n + 1, for n 0...40)
+		eq(total, 499500 * (40 * 41 >> 1), "40 threads, each its own stack");
+	}
+
+	@:scoped static function threadWork(n:Int):Int {
+		var s = Scope.slice(Int, 1000);
+		var g = Scope.grow(Int);
+		for (i in 0...s.length) {
+			s[i] = i * (n + 1);
+			g.push(s[i]);
+		}
+		var sum = 0;
+		for (v in g)
+			sum += v;
+		return sum;
+	}
+	#end
 
 	// each iteration's memory freed when the next starts
 	@:scoped static function loop(n:Int) {
