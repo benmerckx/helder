@@ -4,7 +4,8 @@ import haxe.ds.Vector;
 import haxe.io.Bytes;
 
 // Scoped memory: 32 buffers of up to 64 MB (Store, one implementation per
-// target), shared by the program's threads. Each thread bumps a buffer of
+// target; -D scoped_buffer_bits=27, 28 or 29 makes 16 of 128 MB, 8 of 256
+// MB or 4 of 512 MB), shared by the program's threads. Each thread bumps a buffer of
 // its own, its stack: everything that does not grow (a Slice's memory, the
 // headers of Slices, Grows and Strs). A Grow claims another for its
 // elements, so growing one never moves another's; a buffer that fills up is
@@ -27,9 +28,10 @@ import haxe.io.Bytes;
 // HashLink and the JVM; without it they are statics, and scoped memory is
 // for one thread at a time. Claiming and releasing buffers takes a lock.
 class Memory {
-	public static inline var BUFFERS = 32;
-	public static inline var SHIFT = 26;
-	public static inline var MASK = 0x03FFFFFF;
+	// (-D scoped_buffer_bits=27, 28 or 29: fewer, larger buffers; 2 GB in all)
+	public static inline var SHIFT = #if (scoped_buffer_bits == "27") 27 #elseif (scoped_buffer_bits == "28") 28 #elseif (scoped_buffer_bits == "29") 29 #else 26 #end;
+	public static inline var BUFFERS = 1 << (31 - SHIFT);
+	public static inline var MASK = (1 << SHIFT) - 1;
 
 	// bit i: buffer i is claimed (bit 0 always: never used)
 	static var claimed = 1;
@@ -186,7 +188,7 @@ class Memory {
 
 	static function grow(i:Int, end:Int) {
 		if (end > MASK + 1)
-			fail("scoped memory full (a buffer holds 64 MB)");
+			fail("scoped memory full (a buffer holds " + ((MASK + 1) >> 20) + " MB: -D scoped_buffer_bits makes them larger)");
 		var cap = Store.capacity(i);
 		while (cap < end)
 			cap = cap * 2 > MASK + 1 ? MASK + 1 : cap * 2;
@@ -281,11 +283,59 @@ class Memory {
 	public static inline function getU8(a:Int):Int
 		return Store.getU8(a);
 
+	// f32: stored in 4 bytes, read as a Float (rounded to f32 when stored)
+	public static inline function getF32(a:Int):Float
+		return Store.getF32(a);
+
+	public static inline function setF32(a:Int, v:Float)
+		Store.setF32(a, v);
+
+	// at any byte address (the others want one aligned to their size): a
+	// little-endian 32-bit Int, a 16-bit one unsigned or signed
+	public static inline function getI32U(a:Int):Int
+		return #if js getU8(a) | getU8(a + 1) << 8 | getU8(a + 2) << 16 | getU8(a + 3) << 24 #else Store.getI32(a) #end;
+
+	public static inline function setI32U(a:Int, v:Int) {
+		#if js
+		setU8(a, v);
+		setU8(a + 1, v >> 8);
+		setU8(a + 2, v >> 16);
+		setU8(a + 3, v >>> 24);
+		#else
+		Store.setI32(a, v);
+		#end
+	}
+
+	public static inline function getU16(a:Int):Int
+		return getU8(a) | getU8(a + 1) << 8;
+
+	public static inline function getI16(a:Int):Int
+		return (getU16(a) << 16) >> 16;
+
+	public static inline function setI16(a:Int, v:Int) {
+		setU8(a, v);
+		setU8(a + 1, v >> 8);
+	}
+
 	public static inline function setU8(a:Int, v:Int)
 		Store.setU8(a, v);
 
 	public static inline function zero(a:Int, n:Int)
 		Store.fill(a, n, 0);
+
+	// <0, 0 or >0 as the n bytes at a sort before, as or after those at b
+	public static function compare(a:Int, b:Int, n:Int):Int {
+		#if (target.name == "hxmc" && !hxmc.wasm_gc && !(hxmc.target == "wasm32-wasi"))
+		return Store.compare(a, b, n);
+		#else
+		for (k in 0...n) {
+			var d = getU8(a + k) - getU8(b + k);
+			if (d != 0)
+				return d;
+		}
+		return 0;
+		#end
+	}
 
 	// n bytes from src to dst (they may overlap)
 	public static inline function copy(dst:Int, src:Int, n:Int)

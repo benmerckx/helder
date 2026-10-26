@@ -60,15 +60,13 @@ class Store {
 	public static inline function exists(i:Int):Bool
 		return lens[i] > 0;
 
-	public static function make(i:Int, cap:Int) {
-		LibC.memset(base.add(i << SHIFT), 0, (cap : I64));
-		lens[i] = cap;
-	}
+	// (a buffer's whole region at once: its pages are committed when touched,
+	// and nothing reads memory it has not written, so nothing is zeroed here)
+	public static function make(i:Int, cap:Int)
+		lens[i] = MASK + 1;
 
-	public static function grow(i:Int, cap:Int, keep:Int) {
-		LibC.memset(base.add((i << SHIFT) + lens[i]), 0, ((cap - lens[i]) : I64));
-		lens[i] = cap;
-	}
+	public static function grow(i:Int, cap:Int, keep:Int)
+		lens[i] = MASK + 1;
 
 	public static inline function capacity(i:Int):Int
 		return lens[i];
@@ -85,6 +83,12 @@ class Store {
 	public static inline function setF64(a:Int, v:Float)
 		Mem.setF64(base, a, v);
 
+	public static inline function getF32(a:Int):Float
+		return Mem.getF32(base, a);
+
+	public static inline function setF32(a:Int, v:Float)
+		Mem.setF32(base, a, v);
+
 	public static inline function getU8(a:Int):Int
 		return Mem.getU8(base, a);
 
@@ -98,6 +102,9 @@ class Store {
 	public static function copy(dst:Int, src:Int, n:Int)
 		if (n > 0)
 			LibC.memmove(base.add(dst), base.add(src), (n : I64));
+
+	public static inline function compare(a:Int, b:Int, n:Int):Int
+		return n <= 0 ? 0 : LibC.memcmp(base.add(a), base.add(b), (n : I64));
 
 	public static function string(a:Int, n:Int):String {
 		var b = Bytes.alloc(n);
@@ -145,7 +152,6 @@ class Store {
 		var p = LibC.malloc((cap : I64));
 		if (p.isNull())
 			Memory.fail("out of memory");
-		LibC.memset(p, 0, (cap : I64));
 		ptrs[i] = p;
 		lens[i] = cap;
 	}
@@ -155,7 +161,6 @@ class Store {
 		var p = LibC.realloc(ptrs[i], (cap : I64));
 		if (p.isNull())
 			Memory.fail("out of memory");
-		LibC.memset(p.add(lens[i]), 0, ((cap - lens[i]) : I64));
 		ptrs[i] = p;
 		lens[i] = cap;
 	}
@@ -181,6 +186,12 @@ class Store {
 
 	public static inline function setF64(a:Int, v:Float)
 		Mem.setF64(ptrs[a >>> SHIFT], at(a, 8), v);
+
+	public static inline function getF32(a:Int):Float
+		return Mem.getF32(ptrs[a >>> SHIFT], at(a, 4));
+
+	public static inline function setF32(a:Int, v:Float)
+		Mem.setF32(ptrs[a >>> SHIFT], at(a, 4), v);
 
 	public static inline function getU8(a:Int):Int
 		return Mem.getU8(ptrs[a >>> SHIFT], at(a, 1));
@@ -219,6 +230,7 @@ class Store {
 
 	static var i32:js.lib.Int32Array;
 	static var f64:js.lib.Float64Array;
+	static var f32:js.lib.Float32Array;
 	static var u8:js.lib.Uint8Array;
 	static var lens:Vector<Int>;
 	static var count = 0;
@@ -237,6 +249,7 @@ class Store {
 		count = size;
 		i32 = new js.lib.Int32Array(mem);
 		f64 = new js.lib.Float64Array(mem);
+		f32 = new js.lib.Float32Array(mem);
 		u8 = new js.lib.Uint8Array(mem);
 		lens = new Vector(n);
 		for (i in 0...n)
@@ -250,11 +263,12 @@ class Store {
 	public static inline function exists(i:Int):Bool
 		return lens[i] > 0;
 
+	// (a buffer's whole region at once, as natively)
 	public static function make(i:Int, cap:Int)
-		lens[i] = cap;
+		lens[i] = 1 << SHIFT;
 
 	public static function grow(i:Int, cap:Int, keep:Int)
-		lens[i] = cap;
+		lens[i] = 1 << SHIFT;
 
 	public static inline function capacity(i:Int):Int
 		return lens[i];
@@ -270,6 +284,12 @@ class Store {
 
 	public static inline function setF64(a:Int, v:Float)
 		f64[a >> 3] = v;
+
+	public static inline function getF32(a:Int):Float
+		return f32[a >> 2];
+
+	public static inline function setF32(a:Int, v:Float)
+		f32[a >> 2] = v;
 
 	public static inline function getU8(a:Int):Int
 		return u8[a];
@@ -331,15 +351,12 @@ class Store {
 	public static inline function exists(i:Int):Bool
 		return lens[i] > 0;
 
-	public static function make(i:Int, cap:Int) {
-		mem.fill(i << SHIFT, cap, 0);
-		lens[i] = cap;
-	}
+	// (a buffer's whole region at once, as natively)
+	public static function make(i:Int, cap:Int)
+		lens[i] = 1 << SHIFT;
 
-	public static function grow(i:Int, cap:Int, keep:Int) {
-		mem.fill((i << SHIFT) + lens[i], cap - lens[i], 0);
-		lens[i] = cap;
-	}
+	public static function grow(i:Int, cap:Int, keep:Int)
+		lens[i] = 1 << SHIFT;
 
 	public static inline function capacity(i:Int):Int
 		return lens[i];
@@ -361,6 +378,12 @@ class Store {
 
 	public static inline function setF64(a:Int, v:Float)
 		mem.setF64(at(a), v);
+
+	public static inline function getF32(a:Int):Float
+		return mem.getF32(at(a));
+
+	public static inline function setF32(a:Int, v:Float)
+		mem.setF32(at(a), v);
 
 	public static inline function getU8(a:Int):Int
 		return mem.getUI8(at(a));
@@ -396,6 +419,8 @@ class Store {
 	function order(o:JByteOrder):JByteBuffer;
 	function getDouble(i:Int):Float;
 	function putDouble(i:Int, v:Float):JByteBuffer;
+	function getFloat(i:Int):Single;
+	function putFloat(i:Int, v:Single):JByteBuffer;
 	function getInt(i:Int):Int;
 	function putInt(i:Int, v:Int):JByteBuffer;
 }
@@ -462,6 +487,12 @@ class Store {
 	public static inline function setF64(a:Int, v:Float)
 		bb[a >>> SHIFT].putDouble(a & MASK, v);
 
+	public static inline function getF32(a:Int):Float
+		return bb[a >>> SHIFT].getFloat(a & MASK);
+
+	public static inline function setF32(a:Int, v:Float)
+		bb[a >>> SHIFT].putFloat(a & MASK, v);
+
 	public static inline function getU8(a:Int):Int
 		return bufs[a >>> SHIFT].get(a & MASK);
 
@@ -479,6 +510,12 @@ class Store {
 
 	public static inline function setF64(a:Int, v:Float)
 		bufs[a >>> SHIFT].setDouble(a & MASK, v);
+
+	public static inline function getF32(a:Int):Float
+		return bufs[a >>> SHIFT].getFloat(a & MASK);
+
+	public static inline function setF32(a:Int, v:Float)
+		bufs[a >>> SHIFT].setFloat(a & MASK, v);
 
 	public static inline function getU8(a:Int):Int
 		return bufs[a >>> SHIFT].get(a & MASK);

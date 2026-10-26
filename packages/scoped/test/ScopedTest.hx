@@ -97,6 +97,7 @@ class ScopedTest {
 		grows();
 		strings();
 		values();
+		bytes();
 		scopes();
 		#if (target.threaded && (target.name == "hxmc" || scoped_threads))
 		threads();
@@ -275,6 +276,59 @@ class ScopedTest {
 		bs[3].pos = new V3(0, 0, 0);
 		eq(v.x, 6.0, "a loaded value is a copy");
 		eq(Scope.used(), before, "values take no scoped memory");
+	}
+
+	@:scoped static function bytes() {
+		// F32: 4 bytes, read as a Float rounded to f32
+		var f = Scope.slice(F32, 3);
+		f[1] = 0.5;
+		f[2] = 0.1;
+		eq(f[1], 0.5, "F32 exact");
+		eq(Math.abs(f[2] - 0.1) < 1e-8 && f[2] != 0.1, true, "F32 rounded");
+		var ps = Scope.grow(Particle);
+		var q = ps.next();
+		q.life = 7;
+		q.pos.x = 2;
+		ps.push(q);
+		eq(ps.length, 2, "Grow of structs: next and push");
+		eq(ps[1].life, 7, "push copies the struct");
+		eq(ps[0].alive, false, "next zeroes");
+		// U8 arithmetic and comparisons as Ints
+		var u = Scope.slice(U8, 2);
+		u[0] = 200;
+		eq(u[0] * 2, 400, "U8 * Int");
+		eq(u[0] > 100, true, "U8 > Int");
+		eq('0'.code <= u[0], true, "Int <= U8");
+		// a byte writer: literal, Str, Ints; multi-byte reads
+		var w = Scope.grow(U8).writer();
+		w.addString("héllo, ");
+		w.addStr(Str.of("world"));
+		w.pushI32(-2);
+		w.pushI16(0x1234);
+		var g = w.grow;
+		eq(g.length, 8 + 5 + 4 + 2, "byte writer length");
+		eq(Str.of("héllo, world").toString(), Span.ofSlice(g.slice()).sub(0, 13).toString(), "addString, addStr");
+		eq(g.getI32At(13), -2, "pushI32, getI32At");
+		eq(g.getU16At(17), 0x1234, "pushI16, getU16At");
+		var bs = g.slice();
+		bs.setI32At(1, 0x01020304);
+		eq(bs.getI32At(1), 0x01020304, "unaligned I32");
+		eq(bs.getI16At(17), 0x1234, "getI16At");
+		checks++;
+		try {
+			bs.getI32At(bs.length - 3);
+			fail("multi-byte read past the end");
+		} catch (e:Memory.ScopedError) {}
+		// Span: a run of bytes as a value
+		var a = Span.of(Str.of("abcabc"));
+		eq(a.sub(0, 3).equals(a.sub(3, 3)), true, "Span.equals");
+		eq(a.sub(0, 3).hash() == Span.of(Str.of("abc")).hash(), true, "Span.hash");
+		eq(a.get(4), 'b'.code, "Span.get");
+		checks++;
+		try {
+			a.get(6);
+			fail("Span index past the end");
+		} catch (e:Memory.ScopedError) {}
 	}
 
 	@:scoped static function scopes() {

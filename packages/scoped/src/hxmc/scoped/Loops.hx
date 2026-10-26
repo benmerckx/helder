@@ -62,7 +62,7 @@ class Loops {
 		"claims"
 	];
 
-	static function mayAllocate(e:TypedExpr):Bool {
+	@:noCompletion public static function mayAllocate(e:TypedExpr):Bool {
 		var found = false;
 		function walk(e:TypedExpr) {
 			if (found)

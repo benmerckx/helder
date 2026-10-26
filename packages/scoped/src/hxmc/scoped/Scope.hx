@@ -52,6 +52,7 @@ class Scope {
 			case "Int": macro 4;
 			case "Float": macro 8;
 			case "Bool" | "U8" | "hxmc.scoped.U8": macro 1;
+			case "F32" | "hxmc.scoped.F32": macro 4;
 			default: macro $type.SIZE;
 		}
 	}

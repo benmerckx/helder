@@ -54,6 +54,9 @@ class Struct {
 		var size = (offset + align - 1) & ~(align - 1);
 		if (size == 0)
 			size = align;
+		// (the layout, for macros that need it before the statics are typed:
+		// Elems, Struct.kindOf)
+		abs.meta.add(":structLayout", [macro $v{size}, macro $v{align}], pos);
 		out.push({
 			name: "SIZE",
 			access: [APublic, AStatic, AInline],
@@ -96,6 +99,8 @@ class Struct {
 		switch type {
 			case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "U8"}, _):
 				return {size: 1, align: 1, scalar: "U8"};
+			case TAbstract(_.get() => {pack: ["hxmc", "scoped"], name: "F32"}, _):
+				return {size: 4, align: 4, scalar: "F32"};
 			case TInst(_.get() => c, _) if (c.meta.has(":valueLayout")):
 				// (Value.build's layout, in metadata: its statics may not be typed yet)
 				var l = c.meta.extract(":valueLayout")[0].params.map(e -> switch e.expr {
@@ -109,7 +114,7 @@ class Struct {
 					Context.error("Struct.build: " + t.toString() + " is not a struct (Int, Float, Bool, U8 or a Struct.build abstract)", pos);
 				return {size: size, align: al, struct: t};
 			default:
-				return Context.error("field type " + t.toString() + (values ? " (Int, Float, Bool, U8 or a Value.build class)" : " (Int, Float, Bool, U8, a Struct.build abstract or a Value.build class)"), pos);
+				return Context.error("field type " + t.toString() + (values ? " (Int, Float, F32, Bool, U8 or a Value.build class)" : " (Int, Float, F32, Bool, U8, a Struct.build abstract or a Value.build class)"), pos);
 		}
 	}
 
@@ -140,6 +145,11 @@ class Struct {
 			case "U8":
 				get = macro hxmc.scoped.Memory.getU8($at);
 				set = macro hxmc.scoped.Memory.setU8($at, v);
+			case "F32":
+				// (read and written as a Float)
+				t = macro :Float;
+				get = macro hxmc.scoped.Memory.getF32($at);
+				set = macro hxmc.scoped.Memory.setF32($at, v);
 			case _ if (k.value != null):
 				var p = k.value;
 				get = macro $p{p}.load($at);
