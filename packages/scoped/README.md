@@ -45,15 +45,43 @@ class Main {
 | | |
 | --- | --- |
 | `Slice<T>` | a view of n elements: `s[i]`, `length`, `sub`, `ref(i)`, `blit`, iteration |
-| `Grow<T>` | a grow-only array: `push`, `next()` (a new zeroed struct, in place), `s[i]`, `ref(i)`, `slice()`; references to its elements survive its growth |
+| `Grow<T>` | a grow-only array: `push`, `next()` (a new zeroed struct, in place), `s[i]`, `ref(i)`, `slice()`, `writer()`; references to its elements survive its growth |
+| `GrowWriter<T>` | `g.writer()`: appends to g with its length, capacity and buffer in locals (`push`, `next()`, `length`, `grow`); push through it alone while it is in use |
 | `Ref<T>` | one element: `get()`, `set(v)` |
 | `Str` | UTF-8 bytes: `Str.of(s)`, `toString()`, `==`, `+`, `compare`, `indexOf`, `sub`, `hash` |
 | `StrBuf` | builds a `Str`: `add`, `addString`, `addInt`, `toStr()` |
-| structs | `@:build(hxmc.scoped.Struct.build()) abstract X(Addr) { var f:T; ... }`: fields of Int, Float, Bool, `U8` or another struct (inline); `new X()`, `X.SIZE`, `copyFrom` |
+| structs | `@:build(hxmc.scoped.Struct.build()) abstract X(Addr) { var f:T; ... }`: fields of Int, Float, Bool, `U8`, a value or another struct (inline); `new X()`, `X.SIZE`, `copyFrom` |
+| values | `@:build(hxmc.scoped.Value.build()) class V { var f:T; ... }`: final fields of Int, Float, Bool, `U8` or another value, `new V(f, ...)`; computed with in locals, stored in place in a struct's field |
 
 Element types are Int, Float, Bool, `U8` and structs. A struct element is
 stored in place: `s[i].x = 1` writes into the slice, and `s[i] = p` copies
 `p` into it. Indexes are checked (a `ScopedError`).
+
+## Writing fast code
+
+The rules that keep code built on the package close to what Goose or C
+would make of it, on every target:
+
+- **Compute with values, store in structs.** A struct is memory: `p.x` is
+  a load or a store. A value (`Value.build`) is a set of locals: Haxe's
+  inline constructors turn `p.pos.add(p.vel).scale(dt)` into arithmetic on
+  locals, with nothing allocated, as long as the value does not escape (a
+  field, an Array, a closure, `Dynamic`). Reading a struct's value field
+  loads it, assigning one stores it.
+- **Index slices in `@:scoped` functions.** A slice parameter or local that
+  is never assigned or captured is read through a view from its
+  declaration on: its data, length and stride in locals, so `s[i]` reads
+  no header and checks i against the cached length. In
+  `for (i in 0...s.length)` and `for (p in s)` nothing is checked.
+- **Append through a writer** in a loop: `var w = g.writer()`, then
+  `w.push(x)` is a compare and two stores.
+- **Keep allocation out of inner loops.** An iteration that cannot
+  allocate has no scope check at all (the macro types the body and looks
+  for an allocation, a call to a function without a scope of its own, or a
+  closure). One that may pays a compare per iteration.
+- **Work on whole slices.** `step(ps:Slice<Particle>, dt)` rather than a
+  call per element; split hot data into one slice per field when a loop
+  reads few of them.
 
 ## Scopes
 
@@ -64,7 +92,7 @@ stored in place: `s[i].x = 1` writes into the slice, and `s[i] = p` copies
   return. A function whose result is a scoped value keeps its memory for
   the caller's scope instead. Each loop iteration is a scope of its own:
   what it allocated is freed when the next starts (a compare when it
-  allocated nothing).
+  allocated nothing, nothing when it cannot allocate).
 - **Loops over a slice**, `for (i in 0...s.length)` in a `@:scoped` function,
   read `s[i]` through a view with the data and stride in locals and no
   checks: i is in range by construction, as long as neither s nor i is
@@ -141,21 +169,26 @@ Trees: 40 binary trees of depth 16, built and walked. Milliseconds on a
 shared 4-core Xeon, 2026-10-26, best of three runs (runs varied by up to
 2×: other builds were running):
 
-| | particles: scoped | GC | flat | trees: scoped | GC |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| hxmc native | 113 | 196 | 45 | 41 | 86 |
-| JavaScript (node 22) | 222 | 645 | 125 | 63 | 122 |
-| HashLink (JIT) | 502 | 352 | 220 | 66 | 606 |
-| HashLink (HL/C, gcc -O2) | 119 | 321 | 93 | 50 | 643 |
-| JVM | 600 | 500 | 75 | 81 | 54 |
+| | particles: scoped | values | GC | flat | trees: scoped | GC |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| hxmc native | 105 | 80 | 196 | 45 | 41 | 86 |
+| JavaScript (node 22) | 222 | 191 | 645 | 104 | 54 | 122 |
+| HashLink (JIT) | 453 | 477 | 352 | 220 | 66 | 606 |
+| HashLink (HL/C, gcc -O2) | 119 | | 321 | 93 | 50 | 643 |
+| JVM | 594 | 363 | 500 | 75 | 56 | 54 |
+
+"Values" is the particles written the recommended way (Writing fast code):
+`Vec2` values for position and velocity, `p.pos = p.pos.add(p.vel)`, and
+the visible list pushed through a writer.
 
 For comparison, natively: the same particles in C (gcc -O2) take 46 ms and
 in [Goose](https://github.com/aardappel/goose) 41 ms; Goose's trees take
 13 ms.
 
-- **Natively**, scoped particles are faster than GC objects and 2.2× from
-  flat. One reserved range, the loop views and cheap loop scopes took them
-  from 351 ms. The rest is hxmc's code generation: the base pointer is
+- **Natively**, particles written with values take 80 ms: 2.4× faster
+  than GC objects, 1.7× from flat and from C. One reserved range, loop
+  views, loop scopes that cost nothing, values and writers took them from
+  351 ms. The rest is hxmc's code generation: the base pointer is
   reloaded before every access (a raw-memory store could change a static,
   as far as it knows), and there are 32-bit sign extensions and spills.
   Those are compiler work (hxmc's docs/plans/lean.md).
