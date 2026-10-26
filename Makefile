@@ -53,7 +53,7 @@ ulimit -s unlimited 2>/dev/null || true; $(TOOL) $(1) $(2) > $(1).log 2>&1 || { 
 endef
 
 .DEFAULT_GOAL := help
-.PHONY: help hxmc headless gfx-programs devhost-programs gfx-check gfx-web-check gfx-cache-check gfx-shader-check 3d-programs 3d-check 3d-web-check 3d-sizes \
+.PHONY: help hxmc headless scoped-check scoped-targets scoped-bench gfx-programs devhost-programs gfx-check gfx-web-check gfx-cache-check gfx-shader-check 3d-programs 3d-check 3d-web-check 3d-sizes \
 	android-programs android-check android-device-check touch-check ios-programs ios-check ios-sim-check \
 	audio-programs audio-check audio-web-check ui-programs view-check web-check text-check ui-check ui-layout-fuzz ui-layout-reduce \
 	theme-check theme-fidelity-check theme-dom-check web-widgets ui-draw-check ui-web-check dev-check site site-check landing landing-check examples-check clean
@@ -88,7 +88,12 @@ wasm: $(TOOL)
 ## hxmc        the hxmc checkout (HXMC, cloned at HXMC_REV when missing) and its tool, std and
 ##             runtime objects, linked as bin/hxmc
 ## headless    the checks that need no GPU, display or browser: view-check, text-check, ui-check,
-##             theme-check, gfx-shader-check, examples-check
+##             theme-check, gfx-shader-check, scoped-check, examples-check
+## scoped-check  packages/scoped: its test on Eval, natively and as JavaScript (the port), and the
+##             programs its checker must reject (packages/scoped/test/RejectTest.hx)
+## scoped-targets  the same test with the reference compiler (HAXE, on the PATH) for js, hl and the JVM
+## scoped-bench  scoped memory against GC objects (packages/scoped/test/ScopedBench.hx) natively and,
+##             with the reference compiler, as js, hl and the JVM
 ## gfx-programs  bin/gfx/GFX_TARGET/{GfxTest,Triangle,Cube,Instances,Targets,Mips,Formats}[.exe]: packages/gfx's test programs (Linux: glibc mode)
 ## android-programs  bin/android/ANDROID_TARGET/*.apk: APKs written by hxmc (android-x86_64, android-arm64)
 ## android-check  their structure (hxmc/test/ApkCheck.hx: zip, manifest, ELF, v2 signature, classes.dex)
@@ -182,7 +187,7 @@ wasm: $(TOOL)
 ##
 ## Variables: HXMC, HXMC_REV, JOBS, NODE, HOST, GFX_TARGET, AUDIO_TARGET, ANDROID_TARGET, IOS_TARGET, LIX_DIR, BENCH_DATA.
 
-headless: view-check text-check ui-check theme-check gfx-shader-check examples-check
+headless: view-check text-check ui-check theme-check gfx-shader-check scoped-check examples-check
 
 # the os and gfx packages' sources (`-lib hxmc.gfx` once the launcher resolves packages/)
 GFX_CP := -cp packages/os/src -cp packages/gfx/src -cp packages/gfx/examples -cp packages/gfx/test
@@ -407,6 +412,35 @@ web-widgets: $(TOOL) $(PORT_BIN)
 	done
 	$(NODE) packages/web/test/widgets.mjs bin/web/widgets
 
+# (packages/scoped: hxmc.scoped on any target; its checker runs after typing)
+HAXE ?= haxe
+# (the reference compiler with its own std, not hxmc's that HAXE_STD_PATH names)
+REF_HAXE = env -u HAXE_STD_PATH $(HAXE)
+SCOPED_CP := -cp packages/scoped/src -cp packages/scoped/test
+SCOPED_ARGS := $(SCOPED_CP) --macro 'hxmc.scoped.Check.enable()'
+scoped-check: $(TOOL) $(PORT_BIN)
+	ulimit -s unlimited 2>/dev/null || true; $(TOOL) $(SCOPED_ARGS) --run ScopedTest
+	$(call hxmc,bin/scoped/ScopedTest,$(SCOPED_ARGS) -main ScopedTest $(HXMC_ARGS))
+	bin/scoped/ScopedTest
+	ulimit -s unlimited 2>/dev/null || true; $(PORT_BIN) $(SCOPED_ARGS) -main ScopedTest -js bin/scoped/ScopedTest.js
+	$(NODE) bin/scoped/ScopedTest.js
+	ulimit -s unlimited 2>/dev/null || true; $(TOOL) -cp packages/scoped/test --run RejectTest $(PORT_BIN)
+
+scoped-targets:
+	@mkdir -p bin/scoped
+	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest --interp
+	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest -js bin/scoped/ref.js && $(NODE) bin/scoped/ref.js
+	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest -hl bin/scoped/ref.hl && hl bin/scoped/ref.hl
+	$(REF_HAXE) $(SCOPED_ARGS) -main ScopedTest --jvm bin/scoped/ref.jar && java -jar bin/scoped/ref.jar
+	$(REF_HAXE) -cp packages/scoped/test --run RejectTest $(HAXE)
+
+scoped-bench: $(TOOL)
+	$(call hxmc,bin/scoped/ScopedBench,$(SCOPED_CP) -main ScopedBench $(HXMC_ARGS))
+	bin/scoped/ScopedBench
+	$(REF_HAXE) $(SCOPED_CP) -main ScopedBench -js bin/scoped/bench.js && $(NODE) bin/scoped/bench.js
+	$(REF_HAXE) $(SCOPED_CP) -main ScopedBench -hl bin/scoped/bench.hl && hl bin/scoped/bench.hl
+	$(REF_HAXE) $(SCOPED_CP) -main ScopedBench --jvm bin/scoped/bench.jar && java -jar bin/scoped/bench.jar
+
 text-check: $(TOOL)
 	ulimit -s unlimited 2>/dev/null || true; $(TOOL) -cp packages/text/src -cp packages/text/test -cp packages/gfx/test --run TextTest $(if $(BLESS),--bless)
 
@@ -578,4 +612,4 @@ examples-check: $(TOOL) $(STD) $(HOST_RT)
 
 
 clean:
-	rm -rf bin/gfx bin/3d bin/audio bin/android bin/ios bin/ui bin/view bin/web bin/theme bin/dev bin/os bin/site bin/site-build bin/hxmc-t
+	rm -rf bin/scoped bin/gfx bin/3d bin/audio bin/android bin/ios bin/ui bin/view bin/web bin/theme bin/dev bin/os bin/site bin/site-build bin/hxmc-t
