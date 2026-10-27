@@ -15,6 +15,7 @@ helder build windows-x86_64                 # any hxmc target (its runtime objec
 helder build web examples/counter           # bin/web/Counter.wasm, .html and its modules
 helder run tests/cli/tally -- 3             # built, then run with arguments
 helder test                                 # the *.test.hx files (src/helder/test)
+helder inspect --tree                       # a running helder dev's ui tree (--log, --frames, --state)
 ```
 
 ## Conventions
@@ -86,6 +87,29 @@ program (`helder.dev.Hot`, `helder.os.App`'s client, the page):
 It prints `built`, `rebuilt in N ms`, `reloaded in N ms (build M ms)` (from
 the change seen to the new build's first frame) and `error`.
 
+## The devtools' relay
+
+`helder dev` speaks the devtools protocol (src/helder/devtools/README.md)
+with a program built with its agent: the program is started with
+`HXMC_DEV_PROTOCOL=1` and says `Runtime.hello`, a reload is a
+`Runtime.reload` request answered once the snapshot is saved
+(`Devtools.hx`; @hxmc/cli's `{"type"}` lines to a program that does not
+say hello). Tools connect to a WebSocket at `/__helder/devtools` on the
+dev server's HTTP port, which runs natively too (`--port`, 4321 or the
+next free one), named by `bin/dev/devtools.json`. Their requests go to the
+program, the responses back by id, the notifications to the tools that
+enabled their domain; the program's log is always on, its output and the
+builds' errors with it, the last 500 entries kept for a tool that comes
+late or after a crash.
+
+`helder inspect [--tree] [--state] [--log] [--frames] [--port <n>] [dir]`
+is a small client: it finds bin/dev/devtools.json from dir (or here) up,
+prints the ui tree (`Ui.getTree`: tag, id, box, direction, background,
+text) and the state `Hot` keeps once, and streams the log (the default:
+what was kept, then each entry) and the frames' stats (a line a second:
+mean and longest frame, work, GC bytes a frame, collections and pauses,
+the agent's bytes) until `helder dev` ends.
+
 ## Workarounds for hxmc (each in one place)
 
 - `processRun` takes no working directory or environment: `HXMC_DEV` and
@@ -103,11 +127,13 @@ the change seen to the new build's first frame) and `error`.
 
 Tests: the `cli` lane (`bun run test cli`: builds by file, directory and
 project, natively and for web; `tests/cli/dev.mjs`, the dev loop natively
-and for web without a browser), the `examples` lane (every example by
+and for web without a browser), the `devtools` lane (`tests/devtools`: the
+relay and `helder inspect` against a console and a ui program), the
+`examples` lane (every example by
 `helder build <file>`), and `tests/os/dev/dev-web.mjs` and `dev-native.mjs`
 with `--helder=bin/cli/helder` (Chromium; a window under Xvfb).
 
-Not yet: the devtools' message format, changed assets sent without a
+Not yet: the devtools' agent on the web (the page relaying it), changed assets sent without a
 recompile, the page held back while the module is generated (dev.mjs's
 `hxmc dev: generating`), native watchers, the CLI on npm as a binary,
 Android and iOS, `helder new`, `helder doctor`.

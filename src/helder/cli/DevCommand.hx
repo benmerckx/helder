@@ -43,7 +43,7 @@ class DevCommand {
 		"helder dev [host | web] [entry] [--port <n>] [--host <address>] [-- program arguments...]",
 		"",
 		"  entry: a project directory (the default: .), an example's directory or a .hx file",
-		"  --port: the page's (web; 4321, else the next free one)",
+		"  --port: the HTTP port, the page's and the devtools' (4321, else the next free one)",
 	].join("\n");
 
 	static var e:Entry;

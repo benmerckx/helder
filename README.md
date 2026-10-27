@@ -13,6 +13,7 @@ npm install helder
 npx helder dev            # this machine, with live reload
 npx helder dev web        # a page, with live reload
 npx helder build          # bin/<target>/<name>, its compile time and size
+npx helder inspect --tree # a running dev build's ui tree (--log, --frames)
 npx helder dev android    # (to come) boots an emulator, installs, live reloads
 npx helder build ios      # (to come)
 ```
@@ -69,8 +70,9 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `physics` | a small rigid-body core for `scene` |
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `dev` | the dev host and state kept across a reload |
+| `devtools` | the devtools protocol (JSON-RPC on the dev connection) and its agent in dev builds: log, frame stats, the ui tree |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
-| `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run` and `test`, for desktop and the web |
+| `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop and the web |
 
 `examples/` has a program per folder; `tests/Run.hx` has the checks, and
 the `*.test.hx` files are helder.test's, run by the CLI built from this
@@ -132,6 +134,23 @@ Done as a first slice:
   `.only()`, `.timeout()`), hooks, `async(coroutine)` bodies, `assert`,
   `equals` (deep, both values shown), `notEquals`, `approx`, `throws`,
   `require`, `fail`, `snapshot`.
+- **One message format on the dev connection**
+  (src/helder/devtools/README.md): JSON-RPC 2.0, versioned by a
+  `Runtime.hello` exchange, methods in domains enabled per tool:
+  - `Runtime` (hello, reload as a request answered once saved, ready,
+    state: the keys `Hot` keeps and dropped; the CLI's built, buildError,
+    reloaded, connected, exited), `Log` (traces with their positions, the
+    program's output and the builds' errors, the last 500 kept by the CLI
+    for a tool that comes late), `Frame` (time, work, GC bytes, collections
+    and pauses per frame, 10 batches a second, no garbage per frame:
+    50 ns enabled, 0.4 ns disabled), `Ui.getTree` (a hook helder.ui
+    registers);
+  - the agent in dev builds only (27 KB; a release build unchanged, byte
+    for byte), `helder dev` as the relay (a WebSocket at
+    `/__helder/devtools` on its HTTP port, natively too, named by
+    bin/dev/devtools.json), `helder inspect --tree --log --frames --state`;
+  - @hxmc/cli's `{"type"}` lines still spoken to a program its `dev.mjs`
+    runs; the `devtools` lane, headless.
 
 Still to come:
 
@@ -139,13 +158,12 @@ Still to come:
   by `build`; the dev host on macOS (dylibs) and Windows (DLLs), and both
   tested (they build); the page held back while the module is generated;
   macro-only modules in the watched set.
-- **One message format on the dev connection** for reloads, logs and the
-  devtools (phase 3): JSON-RPC as the Chrome DevTools Protocol and Dart's
-  VM service have it, methods in domains (`Ui`, `Scene`, `Signals`,
-  `Profiler`, `Assets`, `Log`, `Stories`) that cost nothing until a tool
-  enables them, libraries adding their own (as Godot's debugger), get,
+- **The dev connection's protocol, the rest**: the agent on the web (the
+  page relaying between the module and the WebSocket; only the log today),
+  the other domains (`Scene`, `Signals`, `Profiler`, `Assets`, `Stories`)
+  and libraries' own (as Godot's debugger; `Agent.method` is the hook), get,
   query and set on properties (as Bevy's BRP), profiler samples as a binary
-  stream, node ids kept across reloads, versioned.
+  stream, node ids kept across reloads, `Runtime.evaluate`.
 - **Packaging:** the CLI on npm as a binary, one optional dependency per OS
   and CPU (`@helder/<os>-<cpu>`, as `@hxmc/<os>-<cpu>`); name, version and
   app id from package.json into the builds; the examples laid out as
@@ -300,7 +318,9 @@ collection only when it allocates or blocks.
     every build's connection, and outlives a crash with its logs);
   - **an agent in dev builds only** (`-D hxmc.dev`, as `Hot`; a few tens of
     KB): counters and spans that do not allocate, GC bytes and pauses per
-    frame, tree snapshots on request, commands, pick and highlight;
+    frame, tree snapshots on request, commands, pick and highlight. Its
+    protocol is there (phase 2: src/helder/devtools/README.md, frame stats,
+    the log and the ui tree), and `helder inspect` a small client of it;
   - **the assets** with previews (images, fonts, glTF, audio) and their
     import settings, reloaded live;
   - **stories**, as Storybook's: `Foo.story.hx` files (linked as
