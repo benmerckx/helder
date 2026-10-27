@@ -11,9 +11,10 @@ import helder.scene.render.Material;
 import helder.scene.render.MeshRenderer;
 import helder.scene.render.Shapes;
 
-// helder.view's renderer for helder.scene (-D helder.view.renderer.scene=helder.scene.view.SceneRenderer):
-// markup makes nodes of a World, and a property bound to a signal sets the
-// node's value when the signal changes (no reconciliation, no re-render):
+// helder.view's renderer for helder.scene: markup makes nodes of a World,
+// and a property bound to a signal sets the node's value when the signal
+// changes (no reconciliation, no re-render). Its markup is a <Scene>'s
+// children (SceneTags: a box in ui's layout), or mounted into a world's root:
 //
 //   Render.render(<node name="spinner" position={pos} rotation={turn}>
 //     <mesh shape="box" color={new Vec4(1, 0.5, 0.1, 1)}/>
@@ -23,14 +24,37 @@ import helder.scene.render.Shapes;
 // visible), mesh (a node with a shape made in code: shape box | sphere |
 // plane, size, color, metallic, roughness; SceneRenderer.device must be
 // set), light (kind directional | point, color, intensity, range), camera
-// (fov, near, far). Texts and markers are hidden nodes. A prototype of the
+// (fov, near, far); listeners (onClick, onPointerDown, onPointerUp,
+// onPointerMove, onPointerEnter, onPointerLeave: a SceneEvent) on any, called
+// by a <Scene>'s picking, the nearest node hit and then its ancestors.
+// Other names are an error (@:elements). Texts and markers are hidden nodes.
+// <Ui> (SceneTags) goes back to ui inside a scene. A prototype of the
 // reactive layer for scenes (see the README's roadmap): properties go through
 // setProperty by name here; typed constructors per tag come next.
+@:elements("node", "mesh", "light", "camera")
 class SceneRenderer implements helder.view.Renders<SceneNode> {
-	// the device meshes are made on
-	public static var device:Null<helder.gfx.Device>;
-	// the world elements are made in (root sets it)
+	// the device meshes are made on (a <Scene> sets it when first drawn: the meshes made before it, then)
+	public static var device(default, set):Null<helder.gfx.Device>;
+	// the world elements are made in: a <Scene>'s (WORLD, provided to its children), else root's
 	public static var world:Null<World>;
+	public static final WORLD = new helder.view.Context<Null<World>>(null);
+	// (the markup's nodes by their scene nodes' ids: picking's; the meshes waiting for a device)
+	static final nodes = new Map<Int, SceneNode>();
+	static final pending:Array<SceneNode> = [];
+
+	static function set_device(d:Null<helder.gfx.Device>) {
+		device = d;
+		if (d != null) {
+			for (n in pending)
+				if (n.node.valid) n.remesh();
+			pending.resize(0);
+		}
+		return d;
+	}
+
+	// the markup's node of a scene node (null: none, or not made by markup)
+	public static function of(n:Node):Null<SceneNode>
+		return nodes.get(n.id());
 
 	// the node of world's root, to render into
 	public static function root(w:World):SceneNode {
@@ -39,9 +63,11 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 	}
 
 	public static function createElement(tag:String):SceneNode {
-		if (world == null) throw "SceneRenderer: no world (render into SceneRenderer.root(world))";
-		var n = new SceneNode(world.node(tag), tag);
+		var w = helder.view.Reactive.use(WORLD) ?? world;
+		if (w == null) throw "SceneRenderer: no world (a <Scene>'s children, or rendered into SceneRenderer.root(world))";
+		var n = new SceneNode(w.node(tag), tag);
 		n.node.detach();
+		nodes.set(n.node.id(), n);
 		return n;
 	}
 
@@ -61,6 +87,7 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 
 	public static function setProperty(el:SceneNode, name:String, value:Dynamic) {
 		var n = el.node;
+		changed();
 		switch name {
 			case "name": n.name = value;
 			case "position": n.position = (value : Vec3);
@@ -86,6 +113,8 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 
 	public static function insert(parent:SceneNode, node:SceneNode, before:Null<SceneNode>) {
 		parent.node.add(node.node);
+		nodes.set(node.node.id(), node);
+		changed();
 		if (before != null) {
 			// (the scene graph appends: move the ones from before on after it)
 			var after = false, move = [];
@@ -102,7 +131,12 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 	public static function remove(parent:SceneNode, node:SceneNode) {
 		node.node.detach();
 		node.parent = null;
+		nodes.remove(node.node.id());
+		changed();
 	}
+
+	// (a node's property or place changed: the <Scene>s drawn again)
+	public static var changed:Void->Void = () -> {};
 
 	public static function parentOf(node:SceneNode):Null<SceneNode>
 		return node.parent;
@@ -134,9 +168,12 @@ class SceneNode {
 	function get(name:String, def:Dynamic):Dynamic
 		return props.exists(name) ? props.get(name) : def;
 
-	@:allow(helder.scene.view.SceneRenderer) function remesh() {
+	@:allow(helder.scene.view) function remesh() {
 		var device = SceneRenderer.device;
-		if (device == null) return;
+		if (device == null) {
+			@:privateAccess if (SceneRenderer.pending.indexOf(this) < 0) SceneRenderer.pending.push(this);
+			return;
+		}
 		var c:Vec4 = get("color", new Vec4(0.8, 0.8, 0.8, 1));
 		var m = new Material(tag, c, get("metallic", 0.0), get("roughness", 0.5));
 		var size:Float = get("size", 1.0);

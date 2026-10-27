@@ -127,6 +127,18 @@ class GLBackend {
 
 	// antialias: a window multisampled (4 samples a pixel, resolved at the
 	// swap), when EGL has such a config; the browser: the page's run option
+	// (the device whose context is current: several windows, a context each, made current when used)
+	static var current:Null<GLBackend> = null;
+	static var alive = 0;
+
+	inline function use()
+		if (current != this) makeCurrent();
+
+	function makeCurrent() {
+		current = this;
+		if (Mem.os() == 3) WebGL.make_current(web) else if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+	}
+
 	public function new(surface:Surface, antialias:Bool) {
 		this.surface = surface;
 		scratch = LibC.malloc((64 : Int64));
@@ -138,6 +150,7 @@ class GLBackend {
 			}
 			if (web == 0) throw "helder.gfx: neither WebGPU nor WebGL2 is available";
 			WebGL.make_current(web);
+			current = this;
 			GL.glGenVertexArrays(1, scratch);
 			GL.glBindVertexArray(scratch.value);
 			#if hxmc.dev
@@ -200,6 +213,8 @@ class GLBackend {
 		}
 		#end
 		if (Egl.eglMakeCurrent(display, eglSurface, eglSurface, context) == 0) fail("eglMakeCurrent");
+		current = this;
+		alive++;
 		// (Android: libGLESv3.so's own functions; eglGetProcAddress may know only extensions there)
 		var gles = Mem.target() >= 9 ? Posix.dlopen(Mem.cstr("libGLESv3.so"), 2) : Ptr.nil();
 		var missing = GL.load(name -> {
@@ -251,6 +266,7 @@ class GLBackend {
 	}
 
 	public function createBuffer(d:BufferDesc):Int {
+		use();
 		var target = d.usage == Index ? GL.ELEMENT_ARRAY_BUFFER : d.usage == Uniform ? GL.UNIFORM_BUFFER : GL.ARRAY_BUFFER;
 		GL.glGenBuffers(1, scratch);
 		var b = scratch.value;
@@ -267,6 +283,7 @@ class GLBackend {
 	}
 
 	public function writeBuffer(id:Int, offset:Int, data:haxe.io.Bytes, dataOffset:Int, size:Int) {
+		use();
 		// (an index buffer through its own target, as WebGL wants; the vertex
 		// array's then is it, until the next drawIndexed binds the set one)
 		var target = indexBuffers[id - 1] ? GL.ELEMENT_ARRAY_BUFFER : GL.ARRAY_BUFFER;
@@ -277,6 +294,7 @@ class GLBackend {
 	}
 
 	public function createTexture(d:TextureDesc):Int {
+		use();
 		var info = TextureInfo.of(d);
 		GL.glGenTextures(1, scratch);
 		var t = scratch.value;
@@ -301,6 +319,7 @@ class GLBackend {
 	}
 
 	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
+		use();
 		var info = infos[id - 1];
 		info.checkWrite(data, x, y, w, h, dataOffset, level);
 		var f = info.format;
@@ -314,6 +333,7 @@ class GLBackend {
 	}
 
 	public function generateMips(id:Int) {
+		use();
 		infos[id - 1].checkMips();
 		GL.glActiveTexture(GL.TEXTURE0);
 		GL.glBindTexture(GL.TEXTURE_2D, textures[id - 1]);
@@ -322,6 +342,7 @@ class GLBackend {
 	}
 
 	public function destroyBuffer(id:Int) {
+		use();
 		if (buffers[id - 1] == 0) return;
 		scratch.value = buffers[id - 1];
 		GL.glDeleteBuffers(1, scratch);
@@ -329,6 +350,7 @@ class GLBackend {
 	}
 
 	public function destroyTexture(id:Int) {
+		use();
 		var t = textures[id - 1];
 		if (t == 0) return;
 		// (a name GL may give again: not the framebuffer's attachment any more)
@@ -340,6 +362,7 @@ class GLBackend {
 	}
 
 	public function createSampler(d:SamplerDesc):Int {
+		use();
 		GL.glGenSamplers(1, scratch);
 		var s = scratch.value;
 		var nearest = d.filter == Nearest, mip = d.mipFilter;
@@ -359,6 +382,7 @@ class GLBackend {
 	}
 
 	public function createShader(d:ShaderDesc):Int {
+		use();
 		if (d.code.glsl == null) throw "helder.gfx: createShader: no GLSL source for the GL back end";
 		var s = GL.glCreateShader(d.stage == Vertex ? GL.VERTEX_SHADER : GL.FRAGMENT_SHADER);
 		Arena.scoped(a -> {
@@ -389,6 +413,7 @@ class GLBackend {
 	}
 
 	public function createPipeline(d:PipelineDesc):Int {
+		use();
 		var p = GL.glCreateProgram();
 		GL.glAttachShader(p, shaders[d.vertex.id() - 1]);
 		GL.glAttachShader(p, shaders[d.fragment.id() - 1]);
@@ -444,6 +469,7 @@ class GLBackend {
 	}
 
 	public function beginFrame():Bool {
+		use();
 		// (Android: a new window after a Resume, none while suspended; the
 		// target's comparison alone, folded elsewhere)
 		if (Mem.target() >= 9) if (surface.kind != Headless) {
@@ -613,6 +639,7 @@ class GLBackend {
 	}
 
 	public function readPixels(dst:haxe.io.Bytes) {
+		use();
 		var row = width * 4, size = row * height;
 		if (dst.length < size) throw "helder.gfx: readPixels: " + size + " bytes needed";
 		if (pixelsSize < size) {
@@ -629,6 +656,7 @@ class GLBackend {
 	}
 
 	public function dispose() {
+		use();
 		#if hxmc.dev
 		deleteAll();
 		#end
@@ -653,12 +681,14 @@ class GLBackend {
 			helder.dev.Hosted.set(helder.dev.Hosted.EGL_CONTEXT, Ptr.nil());
 		}
 		#end
+		current = null;
 		if (Mem.os() == 3) WebGL.release(web) else {
 			Egl.eglMakeCurrent(display, Ptr.nil(), Ptr.nil(), Ptr.nil());
 			Egl.eglDestroyContext(display, context);
 			if (!eglSurface.isNull()) Egl.eglDestroySurface(display, eglSurface);
 			if (Mem.target() >= 9) surface.lost = null;
-			Egl.eglTerminate(display);
+			// (the display is the process's, every window's: terminated with the last device)
+			if (--alive == 0) Egl.eglTerminate(display);
 		}
 		LibC.free(pixels);
 		LibC.free(scratch);

@@ -273,6 +273,9 @@ class Run {
 		// (helder.scene.view: view's markup on the scene graph; natively: its meshes import gfx, which node lacks)
 		native('bin/3d/$t/SceneUiTest', cps(["src", "tests/3d-ui"]).concat(["-main", "SceneUiTest"]), t);
 		run(exePath('bin/3d/$t/SceneUiTest', t), []);
+		// (the boundary tags in windows: <Surface>s, a <Scene> box, picking through it, <Ui>; Xvfb)
+		native('bin/3d/$t/SurfaceTest', cps(["src", "tests/gfx", "tests/3d-ui"]).concat(["-main", "SurfaceTest"]), t);
+		shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 640x480x24" ' + exePath('bin/3d/$t/SurfaceTest', t));
 		run("sh", ["tests/3d/check.sh", 'bin/3d/$t']);
 		// (Model.of's files beside the executable, -D helder.scene.embed=0)
 		var files = exePath("bin/3d/files/RenderTest", t);

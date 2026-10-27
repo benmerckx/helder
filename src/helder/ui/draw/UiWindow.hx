@@ -119,10 +119,14 @@ class UiWindow {
 	}
 
 	#if hxmc.dev_host
+	// (handed over: the window the host's, not closed with its <Surface>'s owner after it)
+	var handedOver = false;
+
 	// the native views and the accessibility adapters released (the window
 	// and the GPU device stay, the host's): their callbacks are this build's
 	// code, which the host unloads; the next build makes its own
 	function handOver() {
+		handedOver = true;
 		if (Mem.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
 			if (ui.platform != null) (cast ui.platform : MacViews).dispose();
@@ -285,6 +289,9 @@ class UiWindow {
 	// (once: a <Surface>'s owner closes it too)
 	public function close() {
 		if (open.indexOf(this) < 0) return;
+		#if hxmc.dev_host
+		if (handedOver) return;
+		#end
 		// (nested: only a constant condition drops the branch)
 		if (Mem.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
@@ -346,11 +353,9 @@ class UiWindow {
 		});
 		if (props.dark != null) Reactive.effect(() -> w.ui.dark = Render.read(props.dark));
 		if (props.onClose != null) w.onClose = props.onClose;
-		var dispose = Render.render(props.children, w.root);
-		Reactive.onCleanup(() -> {
-			dispose();
-			w.close();
-		});
+		// (in this owner: what is above the root, contexts, seen inside)
+		Render.insert(props.children, w.root, null);
+		Reactive.onCleanup(w.close);
 		if (props.ref != null) props.ref(w);
 		return null;
 	}

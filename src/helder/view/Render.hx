@@ -68,6 +68,10 @@ class Render {
 	// turn (a component's View); its dispose
 	public static function open(content:RootView):Void->Void
 		return Reactive.root(dispose -> {
+			#if hxmc.dev
+			// (hxmc dev: its roots' cleanups, their windows' closing, run before the next build starts)
+			Reactive.onCleanup(helder.dev.Hot.onDispose(dispose));
+			#end
 			Reactive.untrack(() -> values(content));
 			dispose;
 		});
