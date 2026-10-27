@@ -140,7 +140,10 @@ bodies, TLS. A caught error is thrown again by the next coroutine call
 that returns without suspending (the coroutine transform's,
 tests/async/rep/CatchThenCall.hx); helder.async's own calls clear it.
 
-Tests: `tests/async/AsyncTest.hx` (`bun run test async`, on Eval and
-natively), `WebTest.hx` (the browser's loop: under node, and in Chromium
-with `bun run test async-web`), `examples/async-dev` end to end
-(`tests/async/dev.mjs`), `AsyncBench.hx`.
+Tests: `tests/async/Tasks.test.hx` (tasks, cancellation, errors, timers:
+helder.test's, `bun run helder test tests/async --target all`),
+`AsyncTest.hx` (the loop, TCP, processes, the watcher, HTTP and
+WebSocket: `bun run test async`, on Eval and natively), `WebTest.hx` (the
+browser's loop: under node, and in Chromium with `bun run test
+async-web`), `examples/async-dev` end to end (`tests/async/dev.mjs`),
+`AsyncBench.hx`.

@@ -61,13 +61,18 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `scoped` | scoped memory on any Haxe target, and a checker that keeps it out of the GC heap |
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `dev` | the dev host and state kept across a reload |
+| `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
+| `cli` | the `helder` command, a native program on `async`: `helder test` so far |
 
-`examples/` has a program per folder; `tests/Run.hx` has the checks:
+`examples/` has a program per folder; `tests/Run.hx` has the checks, and
+the `*.test.hx` files are helder.test's, run by the CLI built from this
+checkout (bin/cli/helder, rebuilt when its sources change):
 
 ```sh
 bun install
 bun run test              # the lanes that need no GPU, display or browser
 bun run test help         # every lane
+bun run helder test       # the *.test.hx files (--target all, --watch, -t <name>)
 ```
 
 ## Roadmap
@@ -125,20 +130,26 @@ In order: each phase leans on the one before it.
     holds the outputs; name, version and app id come from `package.json`,
     overrides from a `"helder"` key in it, and a `helder.hxml` beside it is
     the escape hatch.
-  - **`helder test [filter]`**, as `bun test`: the `*Test.hx` modules under
-    `src/` and `tests/` found, a runner generated that calls each one's
-    `tests()`, compiled once and run on the host (`--target web`, `all`),
-    with `-t <name pattern>`, `--watch` (the dev loop's compilation server
-    and watcher) and `-u` to update snapshots and golden images.
-  - **`helder.test`, without macros for now**: `describe`, `test` (and
-    `skip`, `only`), `beforeEach`, `afterEach`; assertions as functions,
-    located by `haxe.PosInfos`: `assert(cond, ?msg)`, `equals` (deep: arrays,
-    maps, structures; both values shown), `approx`, `throws` (returns the
-    error), `require` (stops the test, returns the value non-null), later
-    `snapshot`. A coroutine as the body makes an async test, run on
-    `helder.async`'s loop. It comes before the CLI, with a runner of its own,
-    and the repository's tests move to it. A macro can come later (`@:test`
-    collection, an `assert` showing its values).
+  - **`helder test [filter]`** and **`helder.test`**, done as a first slice
+    (src/helder/test/README.md): the CLI's first command, a native program
+    on `helder.async` (`bun run helder test` builds and runs it from the
+    checkout); the `*.test.hx` files under `src/`, `tests/` and the class
+    paths linked into bin/test/src (Haxe takes no dot in a module's name), a
+    main generated that calls each one's `tests()`, built once and run on
+    the host, Eval or wasm32-wasi (`--target all`), the paths written back as
+    the real files'; `-t`, `--watch` (a compilation server's builds) and `-u`
+    for text snapshots. The library has no macros: `describe`, `test`
+    (`.skip()`, `.only()`, `.timeout()`), the four hooks, `async(coroutine)`
+    bodies on `helder.async`'s loop, `assert`, `equals` (deep, both values
+    shown), `notEquals`, `approx`, `throws`, `require`, `fail`, `snapshot`.
+    AsyncTest's tasks, cancellation, errors and timers moved to it
+    (tests/async/Tasks.test.hx). Still to come:
+    - the rest of `tests/` moved to it, and golden images beside snapshots;
+    - editor support: the display server takes `Foo.test.hx` for the module
+      `Foo` (a test file has no diagnostics, hover or completion);
+    - `--target web` (Chromium), Windows' links tried (developer mode, else
+      copies), the CLI shipped as a binary on npm;
+    - a macro later (`@:test` collection, an `assert` showing its values).
   - **Every build reports its compile time and binary size.**
   - **The examples are the CLI's fixtures**, laid out as projects: each
     builds and reloads with no configuration of its own, in CI.
