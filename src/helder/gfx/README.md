@@ -54,8 +54,10 @@ screenshots; on WebGPU, `readPixels` in `imports.mjs`, asynchronously).
 Antialiasing: `Device.create(window.surface, {antialias: true})`
 multisamples a window's frames, 4 samples a pixel (Metal: a multisampled
 colour and depth texture resolved into the drawable at each pass's end;
-GL: an EGL config with 4 samples, when there is one; D3D11: not yet; in
-the browser the page's `antialias` run option decides). Render targets and
+GL: an EGL config with 4 samples, when there is one; D3D11: a
+multisampled colour and depth texture resolved into the back buffer before
+`Present`, when the device has 4 samples; in the browser the page's
+`antialias` run option decides). Render targets and
 headless surfaces stay single-sampled; `readPixels` reads the frame
 resolved.
 

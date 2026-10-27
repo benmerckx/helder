@@ -29,10 +29,9 @@ final class Device {
 		#end
 	}
 
-	// antialias: a window's frames multisampled, 4 samples a pixel (Metal, GL;
-	// not yet on D3D11; in the browser the page's run option decides); render
-	// targets and headless surfaces stay single-sampled, readPixels reads the
-	// frame resolved
+	// antialias: a window's frames multisampled, 4 samples a pixel (in the
+	// browser the page's run option decides); render targets and headless
+	// surfaces stay single-sampled, readPixels reads the frame resolved
 	public static function create(surface:Surface, ?options:{?antialias:Bool}):Device
 		return new Device(surface, options != null && options.antialias == true);
 

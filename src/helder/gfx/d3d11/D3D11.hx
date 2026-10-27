@@ -33,6 +33,7 @@ class ID3D11Device {
 	@:slot(21) static function CreateDepthStencilState(self:Ptr, desc:Ptr<D3D11_DEPTH_STENCIL_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(22) static function CreateRasterizerState(self:Ptr, desc:Ptr<D3D11_RASTERIZER_DESC>, out:Ptr<Ptr>):Int;
 	@:slot(23) static function CreateSamplerState(self:Ptr, desc:Ptr<D3D11_SAMPLER_DESC>, out:Ptr<Ptr>):Int;
+	@:slot(30) static function CheckMultisampleQualityLevels(self:Ptr, format:Int, samples:Int, levels:Ptr<Int32>):Int;
 	@:slot(33) static function CheckFeatureSupport(self:Ptr, feature:Int, data:Ptr, size:Int):Int;
 	@:slot(37) static function GetFeatureLevel(self:Ptr):Int;
 	@:slot(39) static function GetDeviceRemovedReason(self:Ptr):Int;
@@ -68,6 +69,7 @@ class ID3D11DeviceContext {
 	@:slot(50) static function ClearRenderTargetView(self:Ptr, view:Ptr, rgba:Ptr<Float32>):Void;
 	@:slot(53) static function ClearDepthStencilView(self:Ptr, view:Ptr, flags:Int, depth:Float32, stencil:Int):Void;
 	@:slot(54) static function GenerateMips(self:Ptr, view:Ptr):Void;
+	@:slot(57) static function ResolveSubresource(self:Ptr, dst:Ptr, dstSubresource:Int, src:Ptr, srcSubresource:Int, format:Int):Void;
 	@:slot(110) static function ClearState(self:Ptr):Void;
 	@:slot(111) static function Flush(self:Ptr):Void;
 }

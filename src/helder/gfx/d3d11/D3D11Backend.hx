@@ -21,7 +21,11 @@ import hxmc.unsafe.*;
 // texture a depth-stencil view, its texture typeless), bound by a pass into
 // it and unbound at its end; a texture of mip levels can GenerateMips.
 // readPixels copies the target into a staging texture
-// and maps it. Uniform blocks: with Direct3D 11.1's constant buffer offsets
+// and maps it. With antialias a window's frame is multisampled (4 samples
+// a pixel, when the device has them): its passes render into a
+// multisampled colour texture and depth buffer of the back buffer's size,
+// resolved into the back buffer before Present and readPixels; the frame's
+// pipelines (no colorFormat) rasterize with MultisampleEnable. Uniform blocks: with Direct3D 11.1's constant buffer offsets
 // (VSSetConstantBuffers1; WARP has them), a dynamic ring buffer written
 // without overwriting (discarded at the frame's first block), else a
 // dynamic constant buffer per slot, discarded at each setUniforms
@@ -40,6 +44,8 @@ class D3D11Backend {
 	var view = Ptr.nil(); // its ID3D11RenderTargetView
 	var depth = Ptr.nil(); // the depth buffer (ID3D11Texture2D) and its ID3D11DepthStencilView
 	var depthView = Ptr.nil();
+	var samples = 1; // the frame's samples a pixel
+	var msaa = Ptr.nil(); // multisampled: the frame's colour texture, view's
 	var upload = Ptr.nil(); // writeBuffer's copy of the data, of uploadSize bytes
 	var uploadSize = 0;
 	var staging = Ptr.nil(); // readPixels' texture, of stagingWidth x stagingHeight
@@ -80,7 +86,7 @@ class D3D11Backend {
 
 	static inline var MAX_SLOTS = 8;
 
-	public function new(surface:Surface) {
+	public function new(surface:Surface, antialias:Bool) {
 		this.surface = surface;
 		scratch = LibC.malloc(64);
 		clear = LibC.malloc(16);
@@ -106,6 +112,7 @@ class D3D11Backend {
 			if (Sys.getEnv("HXMC_GFX_D3D11_NO_OFFSETS") != "1") offsetting();
 			width = surface.width;
 			height = surface.height;
+			samples = sampling(antialias);
 			backBuffer();
 			return;
 		}
@@ -119,6 +126,7 @@ class D3D11Backend {
 		if (Sys.getEnv("HXMC_GFX_D3D11_NO_OFFSETS") != "1") offsetting();
 		width = surface.width;
 		height = surface.height;
+		samples = sampling(antialias);
 		if (surface.kind == Win32) {
 			createSwapChain();
 			#if hxmc.dev_host
@@ -145,6 +153,18 @@ class D3D11Backend {
 			createView();
 			createDepth();
 		}
+	}
+
+	// 4 with antialias in a window, when the device has them for the
+	// frame's colour and depth formats; else 1
+	function sampling(antialias:Bool):Int {
+		if (!antialias || surface.kind != Win32) return 1;
+		return Arena.scopedValue(a -> {
+			var color:Ptr<Int32> = a.alloc(4), depth:Ptr<Int32> = a.alloc(4);
+			var ok = ID3D11Device.CheckMultisampleQualityLevels(device, D3D.FORMAT_R8G8B8A8_UNORM, 4, color) >= 0
+				&& ID3D11Device.CheckMultisampleQualityLevels(device, D3D.FORMAT_D32_FLOAT, 4, depth) >= 0;
+			ok && color.value > 0 && depth.value > 0 ? 4 : 1;
+		});
 	}
 
 	// the context's 11.1 interface, if constant buffers take offsets there
@@ -200,14 +220,36 @@ class D3D11Backend {
 	function backBuffer() {
 		check(IDXGISwapChain1.GetBuffer(swapChain, 0, IID.ID3D11Texture2D, scratch), "IDXGISwapChain1::GetBuffer");
 		target = scratch.value;
+		if (samples > 1) createMsaa();
 		createView();
 		createDepth();
 	}
 
 	function createView() {
-		check(ID3D11Device.CreateRenderTargetView(device, target, Ptr.nil(), scratch), "CreateRenderTargetView");
+		check(ID3D11Device.CreateRenderTargetView(device, samples > 1 ? msaa : target, Ptr.nil(), scratch), "CreateRenderTargetView");
 		view = scratch.value;
 	}
+
+	// the frame's multisampled colour texture, of the back buffer's size
+	function createMsaa() {
+		Arena.scoped(a -> {
+			var d = a.make(D3D11_TEXTURE2D_DESC);
+			d.value.Width = width;
+			d.value.Height = height;
+			d.value.MipLevels = 1;
+			d.value.ArraySize = 1;
+			d.value.Format = D3D.FORMAT_R8G8B8A8_UNORM;
+			d.value.SampleCount = samples;
+			d.value.Usage = D3D.USAGE_DEFAULT;
+			d.value.BindFlags = D3D.BIND_RENDER_TARGET;
+			check(ID3D11Device.CreateTexture2D(device, d, Ptr.nil(), scratch), "CreateTexture2D (multisampled)");
+		});
+		msaa = scratch.value;
+	}
+
+	// (multisampled: the frame's samples into the back buffer, before it is shown or read)
+	function resolve()
+		if (samples > 1) ID3D11DeviceContext.ResolveSubresource(context, target, 0, msaa, 0, D3D.FORMAT_R8G8B8A8_UNORM);
 
 	// the depth buffer, of the target's size
 	function createDepth() {
@@ -220,7 +262,7 @@ class D3D11Backend {
 			d.value.MipLevels = 1;
 			d.value.ArraySize = 1;
 			d.value.Format = D3D.FORMAT_D32_FLOAT;
-			d.value.SampleCount = 1;
+			d.value.SampleCount = samples;
 			d.value.Usage = D3D.USAGE_DEFAULT;
 			d.value.BindFlags = D3D.BIND_DEPTH_STENCIL;
 			check(ID3D11Device.CreateTexture2D(device, d, Ptr.nil(), scratch), "CreateTexture2D (depth)");
@@ -469,6 +511,7 @@ class D3D11Backend {
 			// (GL's front faces)
 			r.value.FrontCounterClockwise = 1;
 			r.value.DepthClipEnable = 1;
+			r.value.MultisampleEnable = samples > 1 && d.colorFormat == null ? 1 : 0;
 			ID3D11Device.CreateRasterizerState(device, r, scratch);
 		});
 		if (hr < 0) Com.release(layout);
@@ -516,6 +559,7 @@ class D3D11Backend {
 		// the window was resized: the swap chain's buffers follow
 		ID3D11DeviceContext.OMSetRenderTargets(context, 0, Ptr.nil(), Ptr.nil());
 		Com.release(view);
+		Com.release(msaa);
 		Com.release(target);
 		var hr = IDXGISwapChain1.ResizeBuffers(swapChain, 0, surface.width, surface.height, D3D.FORMAT_UNKNOWN, 0);
 		check(hr, "IDXGISwapChain1::ResizeBuffers");
@@ -674,6 +718,7 @@ class D3D11Backend {
 			ID3D11DeviceContext.Flush(context);
 			return;
 		}
+		resolve();
 		// (vsync; a lost device is not recovered yet)
 		var hr = IDXGISwapChain1.Present(swapChain, 1, 0);
 		if (hr == D3D.DXGI_ERROR_DEVICE_REMOVED || hr == D3D.DXGI_ERROR_DEVICE_RESET)
@@ -701,6 +746,7 @@ class D3D11Backend {
 			stagingWidth = width;
 			stagingHeight = height;
 		}
+		resolve();
 		ID3D11DeviceContext.CopyResource(context, staging, target);
 		// (waits for the GPU)
 		check(ID3D11DeviceContext.Map(context, staging, 0, D3D.MAP_READ, 0, mapped), "Map");
@@ -737,6 +783,7 @@ class D3D11Backend {
 		Com.release(depthView);
 		Com.release(depth);
 		Com.release(view);
+		Com.release(msaa);
 		Com.release(target);
 		#if hxmc.dev_host
 		// (handing over: the swap chain, the context and the device left to the next build)
