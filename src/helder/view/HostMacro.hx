@@ -263,9 +263,15 @@ class HostMacro {
 			}
 			var rt = runtime(path);
 			var sw = {expr: ESwitch(macro __key, cases, macro throw "helder.view: no code for this markup"), pos: Context.currentPos()};
-			Context.defineType({
+			// (defined already in this compilation: hxmc's custom target can run the callbacks again)
+			var name = "Late_" + mangle(path);
+			if (Lambda.exists(types, t -> switch t {
+				case TClassDecl(c): c.get().pack.join(".") == "helder.view" && c.get().name == name;
+				case _: false;
+			})) continue;
+			try Context.defineType({
 				pack: ["helder", "view"],
-				name: "Late_" + mangle(path),
+				name: name,
 				pos: Context.currentPos(),
 				meta: [{name: ":keep", pos: Context.currentPos()}, {name: ":noCompletion", pos: Context.currentPos()}],
 				kind: TDClass(),
@@ -276,7 +282,7 @@ class HostMacro {
 					static function mount(__key:Int, __h:Array<Any>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void
 						$sw;
 				}).fields
-			});
+			}) catch (e:haxe.macro.Expr.Error) if (!StringTools.startsWith(e.message, "Cannot redefine module")) throw e;
 		}
 	}
 }

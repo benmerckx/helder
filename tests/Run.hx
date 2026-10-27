@@ -300,14 +300,14 @@ class Run {
 
 	static function web() {
 		var cp = cps(["src", "tests/web", "examples/web-demo"]);
-		interp(cp.concat(STATIC), "StaticTest");
-		exe("bin/web/StaticTest", cp.concat(STATIC).concat(["-main", "StaticTest"]));
+		interp(cp, "StaticTest");
+		exe("bin/web/StaticTest", cp.concat(["-main", "StaticTest"]));
 		run(exePath("bin/web/StaticTest", HOST), []);
 		rmrf("bin/web/demo");
-		interp(cp.concat(STATIC), "DemoPage", ["bin/web/demo"]);
-		js("bin/web/domtest.js", cp.concat(DOM).concat(STATIC).concat(["-main", "DomTest", "-debug"]));
-		js("bin/web/demo/islands.js", cp.concat(DOM).concat(["-main", "DemoBundle", "-dce", "full", "-debug"]));
-		js("bin/web/demo/counter.js", cp.concat(DOM).concat(["-main", "Counter", "-dce", "full", "-D", "js-es=6", "-D", "analyzer-optimize"]));
+		interp(cp, "DemoPage", ["bin/web/demo"]);
+		js("bin/web/domtest.js", cp.concat(["-main", "DomTest", "-debug"]));
+		js("bin/web/demo/islands.js", cp.concat(["-main", "DemoBundle", "-dce", "full", "-debug"]));
+		js("bin/web/demo/counter.js", cp.concat(["-main", "Counter", "-dce", "full", "-D", "js-es=6", "-D", "analyzer-optimize"]));
 		wasm("bin/web/demo/lab.wasm", cps(["src", "examples/web-demo"]).concat(["-main", "Lab"]));
 		wasm("bin/web/demo/cube.wasm", gfxCp().concat(["-main", "Cube"]));
 		for (f in FileSystem.readDirectory("bin/web/demo"))

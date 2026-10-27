@@ -25,7 +25,7 @@ class DomTest implements Markup {
 	static function mount(content:Any):{el:Element, dispose:Void->Void} {
 		var el = document.createDivElement();
 		document.body.appendChild(el);
-		var dispose = Render.render(content, el);
+		var dispose = DomRenderer.render(content, el);
 		return {el: el, dispose: dispose};
 	}
 

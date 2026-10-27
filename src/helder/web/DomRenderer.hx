@@ -14,7 +14,7 @@ import js.html.Node;
 // helder.web.DomRenderer, which -lib helder sets on JavaScript): each
 // function the DOM call, a node a DOM Node.
 //
-//   Render.render(<App/>, document.getElementById("app"));
+//   DomRenderer.render(<App/>, document.getElementById("app"));
 //
 // Elements by tag (SVG's in its namespace: Html.SVG, or svg:a), texts,
 // comments for markers; attributes by Html's rules (a few DOM properties,
@@ -45,6 +45,10 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 
 	public static macro function part(el:haxe.macro.Expr):haxe.macro.Expr
 		return macro helder.web.ElementPart.of($el);
+
+	// renders content into a page's element (Render.render's, for a DOM node: js.html.Node names no renderer)
+	public static macro function render(content:haxe.macro.Expr, parent:haxe.macro.Expr):haxe.macro.Expr
+		return macro helder.view.Render.renderAs(helder.web.DomRenderer, $content, $parent);
 
 	#if !macro
 	// hydrating: what claims the page's nodes (null: making them)
@@ -138,7 +142,7 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 		Reactive.root(d -> {
 			dispose = d;
 			try {
-				var nodes = Render.insert(([new HydrationEnd(h), content] : Array<Any>), parent, null);
+				var nodes = Render.insertAs(helder.web.DomRenderer, ([new HydrationEnd(h), content] : Array<Any>), parent, null);
 				Reactive.onCleanup(() -> for (n in nodes)
 					if (n.parentNode == parent) parent.removeChild(n));
 			} catch (e:Mismatch) {
@@ -156,7 +160,7 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 		#end
 		while (parent.firstChild != null)
 			parent.removeChild(parent.firstChild);
-		return Render.render(content, parent);
+		return Render.renderAs(helder.web.DomRenderer, content, parent);
 	}
 
 	// (Hydration's end, or a mismatch: claiming stops)

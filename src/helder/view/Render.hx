@@ -34,6 +34,18 @@ class Render {
 		return macro $p{rt}.insert(${MarkupMacro.place(content, r)}, $parent, $before);
 	}
 
+	// render and insert with a renderer named (its class): for node types its
+	// package cannot mark (@:rendered), as the DOM's (DomRenderer.render)
+	public static macro function renderAs(renderer:Expr, content:Expr, parent:Expr):Expr {
+		var r = HostMacro.resolve(renderer);
+		return macro $p{HostMacro.runtime(r)}.render(${MarkupMacro.place(content, r)}, $parent);
+	}
+
+	public static macro function insertAs(renderer:Expr, content:Expr, parent:Expr, before:Expr):Expr {
+		var r = HostMacro.resolve(renderer);
+		return macro $p{HostMacro.runtime(r)}.insert(${MarkupMacro.place(content, r)}, $parent, $before);
+	}
+
 	// a renderer's identity at run time (View.renderer, pass), by its class: a constant
 	public static macro function idOf(renderer:Expr):Expr
 		return macro $v{HostMacro.id(HostMacro.resolve(renderer))};

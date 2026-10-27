@@ -76,13 +76,9 @@ class Island<P> implements helder.view.Markup {
 		if (all.exists(name)) throw 'helder.web: two islands named $name';
 		var i = new Island(name, component, options);
 		all.set(name, cast i);
-		// (on the client, the component alone; a JavaScript program with the
-		// static renderer too, -D helder.view.renderer.html=..., renders pages)
-		#if (js && !helder.view.renderer.html)
-		return props -> i.content(props);
-		#else
-		return props -> i.render(props);
-		#end
+		// (in a page the static renderer writes, the island in its element; in
+		// the DOM, the component alone: chosen by the renderer mounting it)
+		return props -> helder.view.Render.pass == helder.view.Render.idOf(helder.web.StaticRenderer) ? i.render(props) : i.content(props);
 	}
 
 	// the island in its element
