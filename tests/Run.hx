@@ -769,12 +769,29 @@ class Run {
 	static function mkdirs(dir:String)
 		if (dir != "" && !FileSystem.exists(dir)) FileSystem.createDirectory(dir);
 
+	// (only under bin/; a link is removed, never followed: a link to the
+	// checkout once took the checkout with it)
 	static function rmrf(path:String) {
+		var bin = FileSystem.fullPath("bin");
+		var parent = FileSystem.fullPath(Path.directory(FileSystem.absolutePath(path)));
+		if (bin == null || parent == null || !(parent + "/").startsWith(bin + "/") && parent != bin)
+			throw new Failed('rmrf: $path is not under bin/');
+		removeTree(path);
+	}
+
+	static function removeTree(path:String) {
 		if (!FileSystem.exists(path)) return;
-		if (FileSystem.isDirectory(path)) {
-			for (f in FileSystem.readDirectory(path)) rmrf('$path/$f');
-			FileSystem.deleteDirectory(path);
-		} else FileSystem.deleteFile(path);
+		var abs = FileSystem.absolutePath(path);
+		var real = FileSystem.fullPath(abs);
+		var parent = FileSystem.fullPath(Path.directory(abs));
+		if (real != Path.join([parent, Path.withoutDirectory(abs)])) {
+			FileSystem.deleteFile(abs); // a link: the link alone
+			return;
+		}
+		if (FileSystem.isDirectory(abs)) {
+			for (f in FileSystem.readDirectory(abs)) removeTree('$abs/$f');
+			FileSystem.deleteDirectory(abs);
+		} else FileSystem.deleteFile(abs);
 	}
 }
 
