@@ -130,6 +130,8 @@ class Run {
 		run(exePath("bin/scoped/ScopedTest", HOST), []);
 		js("bin/scoped/ScopedTest.js", cp.concat(["-main", "ScopedTest"]));
 		run(NODE, ["bin/scoped/ScopedTest.js"]);
+		wasm("bin/scoped/ScopedTest.wasm", cp.concat(["-main", "ScopedTest"]));
+		wasi("bin/scoped/ScopedTest.wasm");
 		interp(cps(["tests/scoped"]), "RejectTest", [TOOL]);
 	}
 

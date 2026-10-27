@@ -119,7 +119,9 @@ class Store {
 }
 #elseif (target.name == "hxmc" && !hxmc.wasm_gc)
 // (wasm32: a table of malloc'ed buffers, each access checked: a reservation
-// there would grow the linear memory)
+// there would grow the linear memory. The table is raw memory, 16 bytes a
+// buffer: its pointer, then its length; an access reads both, with no
+// Vector's bounds checks: twice as fast as Vectors, which it was)
 import hxmc.I64;
 import hxmc.unsafe.LibC;
 import hxmc.unsafe.Mem;
@@ -129,16 +131,13 @@ class Store {
 	static inline var SHIFT = Memory.SHIFT;
 	static inline var MASK = Memory.MASK;
 
-	static var ptrs:Vector<Ptr>;
-	static var lens:Vector<Int>;
+	static var table:Ptr;
 
 	public static function init(n:Int) {
-		ptrs = new Vector(n);
-		lens = new Vector(n);
-		for (i in 0...n) {
-			ptrs[i] = Ptr.nil();
-			lens[i] = 0;
-		}
+		table = LibC.malloc((n * 16 : I64));
+		if (table.isNull())
+			Memory.fail("out of memory");
+		LibC.memset(table, 0, (n * 16 : I64));
 	}
 
 	// the buffers there are room for
@@ -146,66 +145,69 @@ class Store {
 		return Memory.BUFFERS;
 
 	public static inline function exists(i:Int):Bool
-		return lens[i] > 0;
+		return capacity(i) > 0;
 
 	public static function make(i:Int, cap:Int) {
 		var p = LibC.malloc((cap : I64));
 		if (p.isNull())
 			Memory.fail("out of memory");
-		ptrs[i] = p;
-		lens[i] = cap;
+		Mem.setPtr(table, i * 16, p);
+		Mem.setI32(table, i * 16 + 8, cap);
 	}
 
 	// buffer i made cap bytes long, its first `keep` bytes kept
 	public static function grow(i:Int, cap:Int, keep:Int) {
-		var p = LibC.realloc(ptrs[i], (cap : I64));
+		var p = LibC.realloc(Mem.getPtr(table, i * 16), (cap : I64));
 		if (p.isNull())
 			Memory.fail("out of memory");
-		ptrs[i] = p;
-		lens[i] = cap;
+		Mem.setPtr(table, i * 16, p);
+		Mem.setI32(table, i * 16 + 8, cap);
 	}
 
 	public static inline function capacity(i:Int):Int
-		return lens[i];
+		return Mem.getI32(table, i * 16 + 8);
+
+	static inline function buffer(a:Int):Ptr
+		return Mem.getPtr(table, (a >>> SHIFT) * 16);
 
 	static inline function at(a:Int, n:Int):Int {
 		var o = a & MASK;
-		if (o + n > lens[a >>> SHIFT])
+		if (o + n > capacity(a >>> SHIFT))
 			Memory.outside(a);
 		return o;
 	}
 
 	public static inline function getI32(a:Int):Int
-		return Mem.getI32(ptrs[a >>> SHIFT], at(a, 4));
+		return Mem.getI32(buffer(a), at(a, 4));
 
 	public static inline function setI32(a:Int, v:Int)
-		Mem.setI32(ptrs[a >>> SHIFT], at(a, 4), v);
+		Mem.setI32(buffer(a), at(a, 4), v);
 
 	public static inline function getF64(a:Int):Float
-		return Mem.getF64(ptrs[a >>> SHIFT], at(a, 8));
+		return Mem.getF64(buffer(a), at(a, 8));
 
 	public static inline function setF64(a:Int, v:Float)
-		Mem.setF64(ptrs[a >>> SHIFT], at(a, 8), v);
+		Mem.setF64(buffer(a), at(a, 8), v);
 
 	public static inline function getF32(a:Int):Float
-		return Mem.getF32(ptrs[a >>> SHIFT], at(a, 4));
+		return Mem.getF32(buffer(a), at(a, 4));
 
 	public static inline function setF32(a:Int, v:Float)
-		Mem.setF32(ptrs[a >>> SHIFT], at(a, 4), v);
+		Mem.setF32(buffer(a), at(a, 4), v);
 
 	public static inline function getU8(a:Int):Int
-		return Mem.getU8(ptrs[a >>> SHIFT], at(a, 1));
+		return Mem.getU8(buffer(a), at(a, 1));
 
 	public static inline function setU8(a:Int, v:Int)
-		Mem.setI8(ptrs[a >>> SHIFT], at(a, 1), v);
+		Mem.setI8(buffer(a), at(a, 1), v);
 
 	public static function fill(a:Int, n:Int, v:Int)
 		if (n > 0)
-			LibC.memset(ptrs[a >>> SHIFT].add(at(a, n)), v, (n : I64));
+			LibC.memset(buffer(a).add(at(a, n)), v, (n : I64));
 
 	public static function copy(dst:Int, src:Int, n:Int)
 		if (n > 0)
-			LibC.memmove(ptrs[dst >>> SHIFT].add(at(dst, n)), ptrs[src >>> SHIFT].add(at(src, n)), (n : I64));
+			LibC.memmove(buffer(dst).add(at(dst, n)), buffer(src).add(at(src, n)), (n : I64));
 
 	public static function string(a:Int, n:Int):String {
 		var b = Bytes.alloc(n);

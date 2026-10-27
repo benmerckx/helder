@@ -152,7 +152,11 @@ Per target (`Store.hx`):
   only once it is written.
 - **hxmc wasm32:** `malloc`ed buffers in a table, each access checked
   (a reservation would grow the linear memory). A buffer grows by
-  reallocation: addresses are offsets, so nothing breaks.
+  reallocation: addresses are offsets, so nothing breaks. The table is raw
+  memory (a buffer's pointer and length), not Vectors with their own bounds
+  checks: ScopedBench's particles went from 355 ms to 257 (values: 275 to
+  227), trees from 73 to 61. Still far from GC objects (153, 54) and flat
+  arrays (39): each access loads the buffer's pointer and length.
 - **JavaScript:** one ArrayBuffer holding every buffer at its address, with
   typed-array views over it: an access is `f64[a >> 3]`, with no table and
   no check. Its pages are not committed until touched; a host that will not
@@ -220,8 +224,8 @@ limits.
 ## Tests
 
 `bun run test scoped` runs:
-- `tests/scoped/ScopedTest.hx` on Eval, natively and as JavaScript (it also passes
-  as wasm32-wasi, as HL/C and with `-D scoped_debug`);
+- `tests/scoped/ScopedTest.hx` on Eval, natively, as JavaScript and as
+  wasm32-wasi (it also passes as HL/C and with `-D scoped_debug`);
 - the programs the checker must reject, `tests/scoped/reject` (RejectTest.hx).
 
 With the reference compiler (by hand, not a lane), both run on Eval,
