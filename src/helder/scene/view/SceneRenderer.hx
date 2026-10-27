@@ -117,6 +117,7 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 
 // a node of the scene as markup sees it: the World's node, its tag, the
 // properties that make its components
+@:rendered(helder.scene.view.SceneRenderer)
 class SceneNode {
 	public final node:Node;
 	public final tag:String;

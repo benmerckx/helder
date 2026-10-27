@@ -470,8 +470,9 @@ class ViewTest implements Markup {
 
 
 	// a boundary: a node of TestRenderer's tree whose content is rendered
-	// by OtherRenderer into a root of its own (a canvas in a page)
-	static function Island(props:{?children:View}):Any {
+	// by OtherRenderer into a root of its own (a canvas in a page): its
+	// children OtherRenderer's markup (ViewOf), itself TestRenderer's (its node)
+	static function Island(props:{?children:ViewOf<OtherRenderer>}):TestNode {
 		var host = TestRenderer.createElement("island");
 		var root = new OtherNode("root");
 		host.props.set("root", root);
@@ -480,7 +481,7 @@ class ViewTest implements Markup {
 	}
 
 	// the other way: TestRenderer's content in OtherRenderer's tree (a page's element over a canvas)
-	static function Overlay(props:{?children:View}):Any {
+	static function Overlay(props:{?children:ViewOf<TestRenderer>}):OtherNode {
 		var host = OtherRenderer.createElement("overlay");
 		var root = new TestNode(Element, "root");
 		host.attrs.push("dom=" + root.tag);
@@ -532,7 +533,7 @@ class ViewTest implements Markup {
 		var pair = new OtherNode("root");
 		Render.render(OtherWidgets.Pair({}), pair);
 		check("renderers: a shared literal of a class for some renderers", pair.toString() == "[root[mark]]", pair.toString());
-		check("renderers: a class's markup not for a renderer, an error when mounted", own == "helder.view: OtherWidgets markup is not for TestRenderer (@:renderer)",
+		check("renderers: a class's markup not for a renderer, an error when mounted", own == "helder.view: View(ViewTest.hx:568) is markup for another renderer than TestRenderer, whose node it is mounted into",
 			own);
 	}
 
@@ -547,7 +548,7 @@ class ViewTest implements Markup {
 					if (StringTools.startsWith(l, "// expect: ")) StringTools.trim(l.substr(11))
 			];
 			var args = ["-cp", "src", "-cp", dir, "-main", f.substr(0, f.length - 3), "--interp", "--no-output"];
-			if (content.indexOf("// no renderer") < 0) args = args.concat(["-cp", "tests/view", "-D", "helder.view.renderer=TestRenderer"]);
+			args = args.concat(["-cp", "tests/view"]);
 			var p = new sys.io.Process(tool, args);
 			var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();
 			var code = p.exitCode();

@@ -96,7 +96,7 @@ class Run {
 	static final STATIC = ["-D", "helder.view.renderer.html=helder.web.StaticRenderer"];
 
 	static function view() {
-		var cp = cps(["src", "tests/view"]).concat(["-D", "helder.view.renderer=TestRenderer", "-D", "helder.view.renderer.other=OtherRenderer"]);
+		var cp = cps(["src", "tests/view"]);
 		interp(cp, "ViewTest", [TOOL]);
 		exe("bin/view/ViewTest", cp.concat(["-main", "ViewTest"]));
 		run(exePath("bin/view/ViewTest", HOST), []);
@@ -360,7 +360,7 @@ class Run {
 	// (each program run twice, the second from the first's snapshot)
 	static function dev() {
 		var os = cps(["src", "tests/os"]).concat(["-D", "hxmc.dev"]);
-		var views = cps(["src", "tests/view"]).concat(["-D", "helder.view.renderer=TestRenderer", "-D", "hxmc.dev"]);
+		var views = cps(["src", "tests/view"]).concat(["-D", "hxmc.dev"]);
 		var snapshot = (file:String) -> ["HXMC_DEV_SNAPSHOT" => file];
 		exe("bin/dev/HotTest", os.concat(["-main", "HotTest"]));
 		exe("bin/dev/HotTestChanged", os.concat(["-main", "HotTest", "-D", "hot_changed"]));

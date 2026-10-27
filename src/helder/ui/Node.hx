@@ -12,6 +12,8 @@ import helder.image.Image;
 // and its ancestors for layout; a paint property asks only for a frame.
 // Subclasses with content (TextNode) measure it (measureContent) and draw it
 // (paintContent).
+// (helder.view's markup: its renderer, NodeRenderer)
+@:rendered(helder.ui.view.NodeRenderer)
 class Node implements Part {
 	public final style:Style;
 	public var parent(default, null):Null<Node>;

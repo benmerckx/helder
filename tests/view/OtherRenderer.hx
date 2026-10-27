@@ -50,6 +50,7 @@ class OtherRenderer implements helder.view.Renders<OtherNode> {
 		return Std.isOfType(v, OtherNode);
 }
 
+@:rendered(OtherRenderer)
 class OtherNode {
 	public final name:String;
 	public var text = "";

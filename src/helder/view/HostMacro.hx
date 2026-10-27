@@ -7,49 +7,52 @@ import haxe.macro.Type;
 
 using haxe.macro.ExprTools;
 
+typedef RendererInfo = {
+	path:String,
+	node:ComplexType,
+	type:Type,
+	setter:Bool,
+	neutral:Bool,
+	native:Bool,
+	// its elements when it lists them (@:elements), else null: any name
+	elements:Null<Array<String>>,
+	// its identity at run time (Render.idOf)
+	id:Int,
+	// its runtime's class name
+	runtime:String
+};
+
 // The program's renderers and the runtime made for each.
 //
-// Renderers are named by defines: -D helder.view.renderer=<class> and any
-// -D helder.view.renderer.<name>=<class> (each package its own: -lib
-// helder.ui sets helder.view.renderer.ui), ordered by define name; each is a
-// class implementing Renders<N>, its functions checked once. ViewRuntime is
-// written against Host and HostNode, placeholders: its build macro keeps
-// its fields and makes ViewRuntime itself the first renderer's runtime;
-// instance(i) defines ViewRuntime_<i> for the others, the same fields with
-// Host, HostNode, ViewRuntime and INDEX replaced. Markup compiles each literal
-// once per renderer, so that a subtree's calls go straight to the renderer
-// that owns it.
+// No defines: a renderer is a class implementing Renders<N>, its functions
+// checked when first named, and it is reached when markup is compiled for
+// it or content is mounted into its nodes (MarkupMacro, Render). Each
+// reached renderer gets a runtime, ViewRuntime_<path> (ViewRuntime's fields,
+// kept by its build macro, with Host, HostNode, ViewRuntime, INDEX and NAME
+// replaced). A literal whose renderer is not known where it is (agnostic)
+// leaves a template in its class's metadata (:helder.late, so that a cached
+// module keeps it); after typing, a class per reached renderer
+// (Late_<path>) holds every such literal's code for it, a switch on its key,
+// which its __init__ hands to the renderer's runtime (ViewRuntime's late).
+// helder.view names no renderer: node types name theirs (@:rendered(R) on a
+// class: it and its subclasses are R's nodes), views pinned to one are
+// ViewOf<R>.
 class HostMacro {
 	static final REQUIRED = [
 		"createElement", "createText", "createMarker", "setText", "holdsText", "setProperty", "setStyle", "listen", "insert", "remove", "parentOf",
 		"arrange", "isNode"
 	];
 
-	static var list:Null<Array<{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool, native:Bool}>> = null;
-	static var template:Null<Array<Field>> = null;
+	// (the renderers checked, by class path; those reached, in order)
+	static var infos = new Map<String, RendererInfo>();
+	static var reached:Array<String> = [];
+	// (ViewRuntime's fields: kept across a compilation server's builds, ViewRuntime's module may be cached)
+	@:persistent static var template:Null<Array<Field>> = null;
 
-	// the renderers: their class paths and node types
-	public static function renderers():Array<{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool, native:Bool}> {
-		if (list != null) return list;
-		var names = [];
-		for (k => v in Context.getDefines())
-			if (k == "helder.view.renderer" || StringTools.startsWith(k, "helder.view.renderer.")) names.push({key: k, path: v});
-		names.sort((a, b) -> a.key == "helder.view.renderer" ? -1 : b.key == "helder.view.renderer" ? 1 : Reflect.compare(a.key, b.key));
-		var seen = new Map<String, Bool>();
-		list = [];
-		for (n in names) {
-			if (seen.exists(n.path) || n.path == "" || n.path == "1") continue;
-			seen.set(n.path, true);
-			list.push(check(n.path));
-		}
-		if (list.length == 0)
-			Context.fatalError("helder.view: no renderer: name one with -D helder.view.renderer.<name>=<class> (-lib helder sets ui's)",
-				Context.currentPos());
-		return list;
-	}
-
-	// a renderer's class checked against the contract, its node type
-	static function check(path:String):{path:String, node:ComplexType, type:Type, setter:Bool, neutral:Bool, native:Bool} {
+	// a renderer's class checked against the contract (path: its class path)
+	public static function info(path:String):RendererInfo {
+		var i = infos.get(path);
+		if (i != null) return i;
 		var c = switch Context.getType(path) {
 			case TInst(c, _): c.get();
 			case _: Context.fatalError('helder.view: the renderer $path is not a class', Context.currentPos());
@@ -57,73 +60,225 @@ class HostMacro {
 		var have = [for (f in c.statics.get()) f.name => true];
 		var missing = [for (r in REQUIRED) if (!have.exists(r)) r];
 		if (missing.length > 0) Context.fatalError('helder.view: the renderer $path lacks ' + missing.join(", ") + " (helder.view.Renders)", c.pos);
-		for (i in c.interfaces)
-			if (i.t.toString() == "helder.view.Renders") return {path: path, node: Context.toComplexType(i.params[0]), type: i.params[0], setter: have.exists("setter"),
-					neutral: have.exists("neutralElement"), native: have.exists("neutralNative")};
+		var full = c.pack.concat([c.name]).join(".");
+		for (it in c.interfaces)
+			if (it.t.toString() == "helder.view.Renders") {
+				var els = c.meta.extract(":elements");
+				i = {
+					path: full,
+					node: Context.toComplexType(it.params[0]),
+					type: it.params[0],
+					setter: have.exists("setter"),
+					neutral: have.exists("neutralElement"),
+					native: have.exists("neutralNative"),
+					elements: els.length == 0 ? null : [for (e in els[0].params) switch e.expr {
+						case EConst(CString(s, _)): s;
+						case _: Context.fatalError("helder.view: @:elements lists strings", e.pos);
+					}],
+					id: id(full),
+					runtime: "ViewRuntime_" + mangle(full)
+				};
+				infos.set(path, i);
+				infos.set(full, i);
+				return i;
+			}
 		return Context.fatalError('helder.view: the renderer $path does not implement helder.view.Renders<Node>', c.pos);
 	}
 
-	// the index of the renderer whose nodes t is (a subclass of), else -1
-	public static function rendererOf(t:Type):Int {
-		var rs = renderers();
-		for (i in 0...rs.length)
-			if (Context.unify(t, rs[i].type)) return i;
-		return -1;
+	// a renderer's identity at run time: a hash of its class path (FNV-1a, 31 bits; never 0)
+	public static function id(path:String):Int {
+		var h = 0x811c9dc5;
+		for (k in 0...path.length)
+			h = (h ^ StringTools.fastCodeAt(path, k)) * 0x01000193;
+		h &= 0x7fffffff;
+		return h == 0 ? 1 : h;
 	}
 
-	// the runtime class of renderer i, as a path
-	public static function runtime(i:Int):Array<String> {
-		if (i == 0) return ["helder", "view", "ViewRuntime"];
-		var name = 'ViewRuntime_$i';
+	static function mangle(path:String):String
+		return path.split(".").join("_");
+
+	// renderer path reached: its runtime made, the late code made for it after typing
+	public static function reach(path:String):RendererInfo {
+		var i = info(path);
+		if (reached.indexOf(i.path) < 0) {
+			reached.push(i.path);
+			hook();
+		}
+		return i;
+	}
+
+	// the renderer whose nodes t is: its class's (or a superclass's) @:rendered, else a
+	// reached renderer's node type it unifies with; null when none
+	public static function rendererOf(t:Type):Null<String> {
+		var r = rendered(t);
+		if (r != null) return r;
+		for (p in reached)
+			if (Context.unify(t, infos.get(p).type)) return p;
+		return null;
+	}
+
+	// (@:rendered(R) on t's class or a superclass: R's path)
+	public static function rendered(t:Type):Null<String> {
+		var c = switch Context.follow(t) {
+			case TInst(c, _): c.get();
+			case TAbstract(_.get() => {name: "Null", pack: []}, [p]): return rendered(p);
+			case _: return null;
+		}
+		while (c != null) {
+			var m = c.meta.extract(":rendered");
+			if (m.length > 0 && m[0].params != null && m[0].params.length > 0) return resolve(m[0].params[0]);
+			c = c.superClass == null ? null : c.superClass.t.get();
+		}
+		return null;
+	}
+
+	// a class named in metadata, by its full path
+	public static function resolve(e:Expr):String {
+		var name = e.toString();
+		return try switch Context.getType(name) {
+			case TInst(c, _): c.get().pack.concat([c.get().name]).join(".");
+			case _: name;
+		} catch (_:Dynamic) name;
+	}
+
+	// ViewOf<R> (through Null and typedefs): R's path, else null
+	public static function viewOf(t:Null<Type>):Null<String> {
+		if (t == null) return null;
+		return switch t {
+			case TAbstract(_.get() => {pack: ["helder", "view"], name: "ViewOf"}, [r]): switch Context.follow(r) {
+					case TInst(c, _): c.get().pack.concat([c.get().name]).join(".");
+					case _: null;
+				}
+			case TAbstract(_.get() => {pack: [], name: "Null"}, [p]): viewOf(p);
+			case TType(_.get() => d, ps): viewOf(Context.follow(t, true));
+			case TMono(m) if (m.get() != null): viewOf(m.get());
+			case TLazy(f): viewOf(f());
+			case _: null;
+		}
+	}
+
+	// the renderer a function returning t is pinned to: ViewOf<R>, or a type whose class is @:rendered(R)
+	public static function pinOf(t:Null<Type>):Null<String> {
+		if (t == null) return null;
+		var v = viewOf(t);
+		return v != null ? v : switch Context.follow(t) {
+			case TMono(_) | TDynamic(_): null;
+			case _: rendered(t);
+		}
+	}
+
+	// the runtime class of renderer path (reached), as a path
+	public static function runtime(path:String):Array<String> {
+		var i = reach(path);
 		try {
-			Context.getType('helder.view.$name');
+			Context.getType('helder.view.${i.runtime}');
 		} catch (_:Dynamic) {
-			// (its build macro run: its fields asked for)
-			switch Context.getType("helder.view.ViewRuntime") {
-				case TInst(c, _): c.get().statics.get();
-				case _:
-			}
-			if (template == null) Context.fatalError("helder.view: the runtime's fields are not known (a cached build?)", Context.currentPos());
+			if (template == null)
+				// (its build macro run: its fields asked for)
+				switch Context.getType("helder.view.ViewRuntime") {
+					case TInst(c, _): c.get().statics.get();
+					case _:
+				}
+			if (template == null) Context.fatalError("helder.view: the runtime's fields are not known (a cached build: build again)", Context.currentPos());
 			Context.defineType({
 				pack: ["helder", "view"],
-				name: name,
+				name: i.runtime,
 				pos: Context.currentPos(),
 				meta: [{name: ":noCompletion", pos: Context.currentPos()}],
 				kind: TDClass(),
 				fields: [for (f in template) subst(f, i)]
 			});
 		}
-		return ["helder", "view", name];
+		return ["helder", "view", i.runtime];
 	}
 
-	// whether renderer i has the optional setter (Renders)
-	public static function hasSetter(i:Int):Bool
-		return renderers()[i].setter;
-
-	// whether renderer i realises the neutral elements its own way (neutralElement, neutralProperty,
-	// neutralSetter, neutralListen, part: a page's renderer), else as its own elements (ui's)
-	public static function hasNeutral(i:Int):Bool
-		return renderers()[i].neutral;
-
-	// whether renderer i's own elements are the neutral ones (neutralNative: ui's)
-	public static function isNeutralNative(i:Int):Bool
-		return renderers()[i].native;
-
-	public static function rendererPath(i:Int):Array<String>
-		return renderers()[i].path.split(".");
-
-	// ViewRuntime's build macro: its fields kept, made the first renderer's
+	// ViewRuntime's build macro: its fields kept as the template, none of its own
 	public static function build():Array<Field> {
 		template = Context.getBuildFields();
-		return [for (f in template) subst(f, 0)];
+		return [];
 	}
 
-	// a field with Host, HostNode, ViewRuntime and INDEX those of renderer i
-	static function subst(f:Field, i:Int):Field
-		return new Subst(renderers()[i].node, rendererPath(i), runtime0Name(i), i).field(f);
+	// a field with Host, HostNode, ViewRuntime, INDEX and NAME those of renderer i
+	static function subst(f:Field, i:RendererInfo):Field
+		return new Subst(i.node, i.path.split("."), i.runtime, i.id, i.path).field(f);
 
-	static function runtime0Name(i:Int):String
-		return i == 0 ? "ViewRuntime" : 'ViewRuntime_$i';
+	// --- after typing: the agnostic literals' code for each reached renderer
+
+	static var hooked = false;
+	static var generated = false;
+
+	static function hook() {
+		if (hooked) return;
+		hooked = true;
+		Context.onAfterTyping(late);
+	}
+
+	static function late(types:Array<ModuleType>) {
+		if (generated || reached.length == 0) return;
+		generated = true;
+		// (every class's templates, cached modules' too; a literal typed twice once)
+		var seen = new Map<Int, Bool>(), literals = [];
+		for (t in types)
+			switch t {
+				case TClassDecl(c):
+					for (m in c.get().meta.extract(":helder.late")) {
+						var key = switch m.params[0].expr {
+							case EConst(CInt(s)): Std.parseInt(s);
+							case _: continue;
+						}
+						if (seen.exists(key)) continue;
+						seen.set(key, true);
+						literals.push({key: key, holes: m.params[1], body: m.params[2], only: m.params[3], pos: m.pos});
+					}
+				case _:
+			}
+		for (path in reached.copy()) {
+			var i = infos.get(path), n = i.node;
+			var cases:Array<Case> = [];
+			for (l in literals) {
+				var only = switch l.only.expr {
+					case EArrayDecl(a): [for (x in a) switch x.expr {
+							case EConst(CString(s, _)): s;
+							case _: "";
+						}];
+					case _: [];
+				}
+				var body = switch l.body.expr {
+					case EBlock(es): es;
+					case _: [l.body];
+				}
+				var code = only.length > 0 && only.indexOf(path) < 0 ? [macro @:pos(l.pos) throw $v{"helder.view: this markup is not for " + path + " (@:renderer)"}] : MarkupMacro.forRenderer(body,
+					path, true);
+				var decls = switch l.holes.expr {
+					case EBlock(vs): [
+							for (k in 0...vs.length)
+								switch vs[k].expr {
+									case EVars([v]): {expr: EVars([{name: v.name, type: v.type, expr: macro cast __h[$v{k}], isFinal: false}]), pos: vs[k].pos};
+									case _: vs[k];
+								}
+						];
+					case _: [];
+				}
+				cases.push({values: [macro $v{l.key}], expr: macro @:pos(l.pos) $b{decls.concat(code)}});
+			}
+			var rt = runtime(path);
+			var sw = {expr: ESwitch(macro __key, cases, macro throw "helder.view: no code for this markup"), pos: Context.currentPos()};
+			Context.defineType({
+				pack: ["helder", "view"],
+				name: "Late_" + mangle(path),
+				pos: Context.currentPos(),
+				meta: [{name: ":keep", pos: Context.currentPos()}, {name: ":noCompletion", pos: Context.currentPos()}],
+				kind: TDClass(),
+				fields: (macro class {
+					static function __init__()
+						$p{rt}.late = mount;
+
+					static function mount(__key:Int, __h:Array<Any>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void
+						$sw;
+				}).fields
+			});
+		}
+	}
 }
 
 // (a field's copy for one renderer)
@@ -131,13 +286,15 @@ private class Subst {
 	final node:ComplexType;
 	final host:Array<String>;
 	final self:String;
-	final i:Int;
+	final id:Int;
+	final name:String;
 
-	public function new(node, host, self, i) {
+	public function new(node, host, self, id, name) {
 		this.node = node;
 		this.host = host;
 		this.self = self;
-		this.i = i;
+		this.id = id;
+		this.name = name;
 	}
 
 	function ct(t:Null<ComplexType>):Null<ComplexType>
@@ -169,7 +326,8 @@ private class Subst {
 		return switch e.expr {
 			case EConst(CIdent("Host")): macro @:pos(e.pos) $p{host};
 			case EConst(CIdent("ViewRuntime")): macro @:pos(e.pos) $i{self};
-			case EConst(CIdent("INDEX")): macro @:pos(e.pos) $v{i};
+			case EConst(CIdent("INDEX")): macro @:pos(e.pos) $v{id};
+			case EConst(CIdent("NAME")): macro @:pos(e.pos) $v{name};
 			case EVars(vs): {expr: EVars([for (v in vs) {name: v.name, type: ct(v.type), expr: v.expr == null ? null : ex(v.expr), isFinal: v.isFinal}]), pos: e.pos};
 			case ENew(t, args): {expr: ENew({pack: t.pack, name: t.name, sub: t.sub, params: t.params}, [for (a in args) ex(a)]), pos: e.pos};
 			case ECast(x, t): {expr: ECast(ex(x), ct(t)), pos: e.pos};

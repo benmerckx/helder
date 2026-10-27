@@ -10,8 +10,8 @@ class OnlyOther implements helder.view.Markup {
 
 class MarkupRenderer implements helder.view.Markup {
 	static function main() {
-		var e = <div>
+		helder.view.Render.render(<div>
 			<OnlyOther.Badge label="a"/>
-		</div>;
+		</div>, new TestRenderer.TestNode(Element, "root"));
 	}
 }

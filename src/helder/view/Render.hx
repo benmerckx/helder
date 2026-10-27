@@ -8,46 +8,69 @@ import helder.view.Memo;
 import helder.view.Signal;
 
 // Mounting content: render and insert go to the runtime (ViewRuntime) of the
-// renderer whose nodes parent is, chosen by its type when compiling; what
-// is mounted there is made by that renderer, components and all. A
-// component that makes a node of one renderer and renders into it with
-// another is a boundary (a ui canvas in a page, a page's element over a
-// canvas); content passes through it unchanged.
+// renderer whose nodes parent is, chosen by its type when compiling (its
+// class's @:rendered, HostMacro.rendererOf); what is mounted there is made
+// by that renderer, components and all, and a literal given here is
+// compiled for it. A component that makes a node of one renderer and
+// renders into it with another is a boundary (<Scene>: a ui node, scene
+// nodes in it); content passes through it unchanged. open mounts content
+// with no parent: a program's root, components making roots of their own
+// (<Surface>s).
 class Render {
-	// (the renderer mounting a component, by its index: ViewRuntime.component; Pick.call)
+	// (the renderer mounting a component, its id (idOf): ViewRuntime.component; Pick.call)
 	@:noCompletion public static var pass = 0;
-
-	// an attribute set once when its value is of a type never reactive (MarkupMacro.plain), else bound: a macro so the value is typed where the literal is, not while the class holding it is built
-	@:noCompletion public static macro function plainOr(value:Expr, set:Expr, bind:Expr):Expr
-		return MarkupMacro.plain(value) ? set : bind;
 
 	// renders content into parent (its root: dispose removes it and stops its effects)
 	public static macro function render(content:Expr, parent:Expr):Expr {
-		var r = runtimeFor(parent);
-		return r == null ? absent(parent) : macro $p{r}.render($content, $parent);
+		var r = rendererFor(parent);
+		var rt = HostMacro.runtime(r);
+		return macro $p{rt}.render(${MarkupMacro.place(content, r)}, $parent);
 	}
 
 	// inserts content into parent before a node (null: at the end); the nodes made
 	public static macro function insert(content:Expr, parent:Expr, before:Expr):Expr {
-		var r = runtimeFor(parent);
-		return r == null ? absent(parent) : macro $p{r}.insert($content, $parent, $before);
+		var r = rendererFor(parent);
+		var rt = HostMacro.runtime(r);
+		return macro $p{rt}.insert(${MarkupMacro.place(content, r)}, $parent, $before);
 	}
+
+	// a renderer's identity at run time (View.renderer, pass), by its class: a constant
+	public static macro function idOf(renderer:Expr):Expr
+		return macro $v{HostMacro.id(HostMacro.resolve(renderer))};
 
 	#if macro
-	// (null: no renderer's nodes, in a class limited to renderers (@:renderer) the program has none of)
-	static function runtimeFor(parent:Expr):Null<Array<String>> {
+	static function rendererFor(parent:Expr):String {
 		var t = Context.typeof(parent);
-		var i = HostMacro.rendererOf(t);
-		var cls = Context.getLocalClass();
-		if (i < 0 && cls != null && MarkupMacro.limits(cls.get().meta) != null) return null;
-		if (i < 0)
-			Context.error("helder.view: " + haxe.macro.TypeTools.toString(t) + " is no renderer's node (renderers: "
-				+ [for (r in HostMacro.renderers()) r.path].join(", ") + ")", parent.pos);
-		return HostMacro.runtime(i);
+		var r = HostMacro.rendererOf(t);
+		if (r == null)
+			Context.error("helder.view: " + haxe.macro.TypeTools.toString(t) + " is no renderer's node (its class names its renderer with @:rendered(...); the renderers reached: "
+				+ @:privateAccess HostMacro.reached.join(", ") + ")", parent.pos);
+		return r;
 	}
+	#end
 
-	static function absent(parent:Expr):Expr
-		return macro @:pos(parent.pos) throw $v{"helder.view: " + haxe.macro.TypeTools.toString(Context.typeof(parent)) + " is no renderer's node (@:renderer)"};
+	#if !macro
+	// mounts content that has no parent, a program's root: components that
+	// make roots of their own (<Surface>s, App.run), called in a root, what
+	// they return opened in turn (a component's View); its dispose
+	public static function open(content:Any):Void->Void
+		return Reactive.root(dispose -> {
+			Reactive.untrack(() -> values(content));
+			dispose;
+		});
+
+	static function values(v:Dynamic) {
+		if (v == null) return;
+		if (Std.isOfType(v, View)) {
+			var parts = (v : View).parts;
+			if (parts == null) throw "helder.view: " + Std.string(v) + " has elements or text, which need a parent (Render.render)";
+			for (x in parts())
+				values(x);
+		} else if (Std.isOfType(v, Array)) {
+			for (x in (v : Array<Dynamic>))
+				values(x);
+		} else if (!Reflect.isFunction(v)) throw "helder.view: content with no parent is components only, not " + Std.string(v);
+	}
 	#end
 
 	public static function isReactive(v:Dynamic):Bool

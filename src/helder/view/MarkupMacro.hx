@@ -3,125 +3,257 @@ package helder.view;
 #if macro
 import haxe.macro.Context;
 import haxe.macro.Expr;
-import haxe.macro.Type.FieldAccess;
-import haxe.macro.Type.TypedExprDef;
+import haxe.macro.Type;
 
 using haxe.macro.ExprTools;
 
-// The markup macro: a markup literal (Haxe's parser gives
-// @:markup "<...>", the source as written from its "<") becomes
+// The markup macro: a markup literal (Haxe's parser gives @:markup "<...>",
+// the source as written from its "<") is wrapped by the Markup build macro
+// (View.literal) and compiled when it is typed, for the renderer that owns
+// it (MarkupMacro.literal):
 //
-//   {var h0:Any = <hole>; ...; new helder.view.View(function(parent, before, out) {...}, parts, "File.hx:12")}
+//   {var h0:Any = <hole>; ...; new helder.view.View(<renderer>, function(parent, before, out) {...}, ...)}
 //
 // its holes ({expr} children and attribute values, spreads) evaluated in
 // source order where the literal is, and a mount function of direct calls
-// to the renderer (Host) and Render: each element made by tag, put in its
-// parent, its attributes set (static ones straight to the renderer, holes
-// through Render, which binds the reactive ones), its children after it:
-// static text joined at compile time, runs of text and holes through
-// Render (whether a hole is text is known when it runs); components called
-// by Render.component in an owner of their own, through a factory
-// (() -> Name({props})), so that Haxe checks the props, their children a
-// literal of their own. The expressions inside a literal are parsed at
-// their positions in the file (errors point into the markup) and
-// transformed in turn, so markup nests through them
-// ({[for (i in items) <text>{i}</text>]}). A class's literals limited to
-// some renderers, by their classes (@:renderer(helder.ui.view.NodeRenderer)):
-// the others' code a throw; its components, in another renderer's
-// markup, the function of the same name of the class it names for that
-// renderer (@:renderer(..., helder.web.DomRenderer => DomControls):
-// Pick), else an error naming it and the renderer. A function of such a
-// class marked @:neutral is for every renderer: its literals compiled for
-// each, itself in each's markup (a single-source component: its elements the
-// neutral ones, view, text, view:button..., each renderer realising them).
+// to the renderer (Host) and its runtime: each element made by tag, put in
+// its parent, its attributes set (static ones and values of a type never
+// reactive straight to the renderer, the others through the runtime, which
+// binds the reactive ones), its children after it: static text joined at
+// compile time, runs of text and holes through the runtime (whether a hole
+// is text is known when it runs); components called by the runtime in an
+// owner of their own, through a factory (() -> Name({props})), so that
+// Haxe checks the props, their children a literal of their own. The
+// expressions inside a literal are parsed at their positions in the file
+// (errors point into the markup) and wrapped in turn, so markup nests
+// through them ({[for (i in items) <text>{i}</text>]}).
+//
+// The renderer (README, "Renderers in markup"): the literal around it (its
+// holes' literals, a component's children unless the component's children
+// prop is ViewOf<S>), Render.render's parent, the type expected (ViewOf<R>),
+// the enclosing function's return type, its class's one @:renderer; else
+// none: the literal is agnostic, its mount code a template in its class's
+// metadata, made for each renderer the program reaches after typing
+// (HostMacro.late), its factories holes. A class's literals limited to some
+// renderers (@:renderer(helder.ui.view.NodeRenderer)): another's code a
+// throw; its components, in another renderer's markup, the function of the
+// same name of the class it names for that renderer (@:renderer(...,
+// helder.web.DomRenderer => DomControls): Pick), else an error naming it
+// and the renderer. A function of such a class marked @:neutral is for
+// every renderer (a single-source component: its elements the neutral ones,
+// view, text, view:button..., each renderer realising them).
 class MarkupMacro {
 	@:allow(helder.view.Literal) static var count = 0;
 
-	// the Markup interface's build macro: every field's literals
+	// the Markup interface's build macro: every field's literals wrapped
 	public static function build():Array<Field> {
 		var fields = Context.getBuildFields();
-		for (f in fields) {
-			neutralField = Lambda.exists(f.meta, m -> m.name == ":neutral");
+		for (f in fields)
 			switch f.kind {
 				case FFun(fn) if (fn.expr != null): fn.expr = transform(fn.expr);
 				case FVar(t, e) if (e != null): f.kind = FVar(t, transform(e));
 				case FProp(g, s, t, e) if (e != null): f.kind = FProp(g, s, t, transform(e));
 				case _:
 			}
-		}
-		neutralField = false;
 		return fields;
 	}
 
-	// (the field being built is @:neutral: its literals for every renderer, its class's @:renderer aside)
-	@:allow(helder.view.Literal) static var neutralField = false;
-
-	// e with its markup literals compiled
-	public static function transform(e:Expr):Expr
+	// e with its markup literals wrapped, to be compiled when typed: for renderer when given (the literal around them's)
+	public static function transform(e:Expr, ?renderer:String):Expr
 		return switch e.expr {
-			case EMeta({name: ":markup"}, {expr: EConst(CString(s))}): compile(s, e.pos);
-			case _: e.map(transform);
+			case EMeta({name: ":markup"}, {expr: EConst(CString(_))}):
+				renderer == null ? macro @:pos(e.pos) helder.view.View.literal($e) : macro @:pos(e.pos) helder.view.View.literalFor($v{renderer}, $e);
+			// (wrapped already)
+			case ECall({expr: EField(_, "literal" | "literalFor")}, args) if (args.length > 0 && args[args.length - 1].expr.match(EMeta({name: ":markup"}, _))): e;
+			case _: e.map(x -> transform(x, renderer));
 		}
 
-	static function compile(src:String, pos:Position):Expr {
-		var info = Context.getPosInfos(pos);
+	// content placed in renderer's nodes (Render.render): a literal compiled for it
+	public static function place(content:Expr, renderer:String):Expr
+		return switch content.expr {
+			case EMeta({name: ":markup"}, {expr: EConst(CString(_))}): macro @:pos(content.pos) helder.view.View.literalFor($v{renderer}, $content);
+			case ECall({expr: EField(_, "literal")}, [m = {expr: EMeta({name: ":markup"}, _)}]): macro @:pos(content.pos) helder.view.View.literalFor($v{renderer}, $m);
+			case EParenthesis(x): place(x, renderer);
+			case _: content;
+		}
+
+	// a literal being typed (View.literal), for renderer given, else the one where it is
+	public static function literal(e:Expr, given:Null<String>):Expr {
+		var src = switch e.expr {
+			case EMeta(_, {expr: EConst(CString(s))}): s;
+			case _: return Context.error("markup: a literal expected", e.pos);
+		}
+		var info = Context.getPosInfos(e.pos);
 		var root = new Parser(src, info.file, info.min).document();
-		return new Literal(info.file, info.min, pos).compile(root);
+		var r = given != null ? HostMacro.info(given).path : placed();
+		return new Literal(info.file, info.min, e.pos, r).compile(root);
+	}
+
+	// (the renderer a literal is for from where it is: the type expected, the enclosing
+	// function's return type, its class's one @:renderer; null: none, agnostic)
+	static function placed():Null<String> {
+		var r = HostMacro.viewOf(Context.getExpectedType());
+		if (r != null) return r;
+		if (neutralMethod()) return null;
+		var cls = Context.getLocalClass(), m = Context.getLocalMethod();
+		if (cls == null) return null;
+		if (m != null) {
+			var f = field(cls.get(), m);
+			if (f != null)
+				r = try switch f.type {
+					case TFun(_, ret): HostMacro.pinOf(ret);
+					case _: null;
+				} catch (_:Dynamic) null;
+			if (r != null) return r;
+		}
+		var l = limits(cls.get().meta);
+		return l != null && l.only.length == 1 ? l.only[0] : null;
+	}
+
+	static function field(c:ClassType, name:String):Null<ClassField> {
+		for (f in c.statics.get())
+			if (f.name == name) return f;
+		for (f in c.fields.get())
+			if (f.name == name) return f;
+		return null;
+	}
+
+	// (the function being typed is @:neutral: for every renderer, its class's @:renderer aside)
+	@:allow(helder.view.Literal) static function neutralMethod():Bool {
+		var cls = Context.getLocalClass(), m = Context.getLocalMethod();
+		if (cls == null || m == null) return false;
+		var f = field(cls.get(), m);
+		return f != null && f.meta.has(":neutral");
 	}
 
 	// (a class's @:renderer: the renderers its literals are for, by class path; the class each other one's markup calls instead)
-	public static function limits(meta:haxe.macro.Type.MetaAccess):Null<{only:Array<String>, other:Map<String, Expr>}> {
+	public static function limits(meta:MetaAccess):Null<{only:Array<String>, other:Map<String, Expr>}> {
 		var m = meta.extract(":renderer");
 		if (m.length == 0) return null;
 		var only = [], other = new Map<String, Expr>();
 		for (e in (m[0].params == null ? [] : m[0].params))
 			switch e.expr {
-				case EBinop(OpArrow, r, c): other.set(ExprTools.toString(r), c);
-				case _: only.push(ExprTools.toString(e));
+				case EBinop(OpArrow, r, c): other.set(HostMacro.resolve(r), c);
+				case _: only.push(HostMacro.resolve(e));
 			}
 		return {only: only, other: other};
 	}
 
-	// (a component's class's limits, when it has them: its name)
-	static function limited(callee:Expr):Null<{field:String, cls:String, only:Array<String>, other:Map<String, Expr>}> {
-		var t = try Context.typeExpr(callee) catch (_:Dynamic) return null;
-		return switch t.expr {
-			case TField(_, FStatic(c, cf)) if (cf.get().meta.has(":neutral")): null;
-			case TField(_, FStatic(c, cf)):
-				var l = limits(c.get().meta);
-				l == null ? null : {field: cf.get().name, cls: c.get().name, only: l.only, other: l.other};
-			case _: null;
-		}
+	// (the literal being typed's class's limits, unless its function is @:neutral)
+	@:allow(helder.view.Literal) static function ownLimits():Null<{only:Array<String>, other:Map<String, Expr>}> {
+		var cls = Context.getLocalClass();
+		return cls == null || neutralMethod() ? null : limits(cls.get().meta);
 	}
 
-	// the function renderer pass's markup calls for callee (Pick.callee)
-	public static function pick(pass:Int, callee:Expr):Expr {
-		var l = limited(callee);
-		if (l == null) return callee;
-		var r = HostMacro.renderers()[pass].path, field = l.field;
-		if (l.only.indexOf(r) >= 0) return callee;
-		var c = l.other.get(r);
-		if (c != null && switch Context.getType(ExprTools.toString(c)) {
+	// a component, its callee typed: its name, its class's limits (unless
+	// @:neutral), the renderer its return type pins it to, its children's (a
+	// children prop of ViewOf<R>); null when it does not type (the call's error then)
+	@:allow(helder.view.Literal) static function component(callee:Expr):Null<{name:String, field:String, limits:Null<{only:Array<String>, other:Map<String, Expr>}>,
+		pin:Null<String>, ret:String, children:Null<String>}> {
+		var t = try Context.typeExpr(callee) catch (_:Dynamic) return null;
+		var name = callee.toString(), fieldName = name.split(".").pop(), l = null;
+		switch t.expr {
+			case TField(_, FStatic(c, cf)):
+				name = c.get().name + "." + cf.get().name;
+				fieldName = cf.get().name;
+				if (!cf.get().meta.has(":neutral")) l = limits(c.get().meta);
+			case _:
+		}
+		var pin = null, ret = "", children = null;
+		switch Context.follow(t.t) {
+			case TFun(args, r):
+				pin = HostMacro.pinOf(r);
+				ret = haxe.macro.TypeTools.toString(r);
+				if (args.length > 0) switch Context.follow(args[0].t) {
+					case TAnonymous(a):
+						for (f in a.get().fields)
+							if (f.name == "children") children = HostMacro.viewOf(f.type);
+					case _:
+				}
+			case _:
+		}
+		return {name: name, field: fieldName, limits: l, pin: pin, ret: ret, children: children};
+	}
+
+	// the function renderer's markup calls for callee (Pick.callee): itself, or
+	// its class's counterpart for that renderer; none an error
+	public static function pick(renderer:String, callee:Expr):Expr {
+		var c = component(callee);
+		if (c == null || c.limits == null || c.limits.only.indexOf(renderer) >= 0) return callee;
+		var o = counterpart(c.limits.other.get(renderer), c.field, callee.pos);
+		if (o != null) return o;
+		return Context.error("helder.view: " + c.name + " has no version for " + renderer + " (@:renderer names none)", callee.pos);
+	}
+
+	static function counterpart(cls:Null<Expr>, field:String, pos:Position):Null<Expr> {
+		if (cls == null) return null;
+		var has = switch Context.getType(cls.toString()) {
 			case TInst(k, _): Lambda.exists(k.get().statics.get(), f -> f.name == field);
 			case _: false;
-		}) return macro @:pos(callee.pos) $c.$field;
-		return Context.error("helder.view: " + l.cls + "." + field + " has no version for " + r + " (@:renderer names none)", callee.pos);
+		}
+		return has ? macro @:pos(pos) $cls.$field : null;
 	}
 
-	// the call of callee for the renderer mounting it (Pick.call)
+	// the call of callee for the renderer mounting it (Pick.call): an agnostic
+	// literal's, chosen when it runs (Render.pass) among its class's renderers
 	public static function pickCall(callee:Expr, props:Expr):Expr {
-		if (limited(callee) == null) return macro @:pos(callee.pos) $callee($props);
-		// (a renderer the literal's class is not for: never mounted there)
-		var cls = Context.getLocalClass(), method = Context.getLocalMethod(), rs = HostMacro.renderers();
-		var neutral = cls != null && method != null && Lambda.exists(cls.get().statics.get().concat(cls.get().fields.get()), f -> f.name == method && f.meta.has(":neutral"));
-		var own = cls == null || neutral ? null : limits(cls.get().meta);
-		var cases:Array<Case> = [
-			for (i in 0...rs.length) {
-				values: [macro $v{i}],
-				expr: own != null && own.only.indexOf(rs[i].path) < 0 ? macro @:pos(callee.pos) (throw "helder.view: not for this renderer" : Any) : macro @:pos(callee.pos) (${pick(i, callee)}($props) : Any)
+		var c = component(callee);
+		if (c == null || c.limits == null) return macro @:pos(callee.pos) ($callee($props) : Any);
+		var cases:Array<Case> = [];
+		for (r in c.limits.only)
+			cases.push({values: [macro $v{HostMacro.id(r)}], expr: macro @:pos(callee.pos) ($callee($props) : Any)});
+		for (r => cls in c.limits.other) {
+			var o = counterpart(cls, c.field, callee.pos);
+			if (o != null) cases.push({values: [macro $v{HostMacro.id(r)}], expr: macro @:pos(callee.pos) ($o($props) : Any)});
+		}
+		return {
+			expr: ESwitch(macro helder.view.Render.pass, cases, macro @:pos(callee.pos) (throw $v{"helder.view: " + c.name + " has no version for this renderer"} : Any)),
+			pos: callee.pos
+		};
+	}
+
+	// the code made for renderer path: __HOST__ its class, __RT__ its runtime
+	// (a reactive attribute with a literal name bound with the renderer's
+	// setter for that name, when it has setter: Renders), the neutral
+	// elements its own way; late (an agnostic literal's, after typing): what
+	// it cannot do a throw, not an error
+	public static function forRenderer(body:Array<Expr>, path:String, late:Bool):Array<Expr> {
+		var i = HostMacro.info(path);
+		var host = path.split("."), rt = HostMacro.runtime(path), setter = i.setter, neutral = i.neutral, native = i.native;
+		function sub(e:Expr):Expr
+			return switch e.expr {
+				// (a neutral element: the renderer's neutral functions, else its own)
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, _)}, _) if (!neutral && !native && late):
+					macro @:pos(e.pos) (throw $v{"helder.view: " + path + " realises no neutral elements"} : Dynamic);
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, _)}, _) if (!neutral && !native):
+					Context.error("markup: " + path + " realises no neutral elements (view, text, view:button...: neutralElement and the rest, or neutralNative)", e.pos);
+				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, f)}, args):
+					var a = [for (x in args) sub(x)];
+					switch [f, neutral] {
+						case ["element", true]: macro @:pos(e.pos) $p{host}.neutralElement(${a[0]});
+						case ["element", false]: macro @:pos(e.pos) $p{host}.createElement(${a[0]});
+						case ["property", true]: macro @:pos(e.pos) $p{host}.neutralProperty(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});
+						case ["property", false]: macro @:pos(e.pos) $p{host}.setProperty(${a[0]}, ${a[2]}, ${a[3]});
+						// (bound: the setter given the name the realiser chooses, its DOM name for one setter of all)
+						case ["prop", true]: macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, $p{host}.neutralName(${a[1]}, ${a[2]}), ${a[3]}, $p{host}.neutralSetter(${a[1]}, ${a[2]}));
+						case ["prop", false] if (setter): macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, ${a[2]}, ${a[3]}, $p{host}.setter(${a[2]}));
+						case ["prop", false]: macro @:pos(e.pos) $p{rt}.prop(${a[0]}, ${a[2]}, ${a[3]});
+						case ["listen", true]: macro @:pos(e.pos) $p{host}.neutralListen(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});
+						case ["listen", false]: macro @:pos(e.pos) $p{host}.listen(${a[0]}, ${a[2]}, ${a[3]});
+						case ["part", true]: macro @:pos(e.pos) $p{host}.part(${a[0]});
+						case ["part", false]: a[0];
+						case _: throw "markup: " + f;
+					}
+				case EConst(CIdent("__HOST__")): macro @:pos(e.pos) $p{host};
+				case EConst(CIdent("__RT__")): macro @:pos(e.pos) $p{rt};
+				case ECall({expr: EField({expr: EConst(CIdent("__RT__"))}, "prop")}, [el, name = {expr: EConst(CString(s, _))}, v]) if (setter):
+					macro @:pos(e.pos) $p{rt}.propWith(${sub(el)}, $name, ${sub(v)}, $p{host}.setter($v{s}));
+				case EObjectDecl(fields):
+					// (copied: a template is made for several renderers; map would lose the fields' name_pos)
+					{expr: EObjectDecl([for (f in fields) {var c:Dynamic = Reflect.copy(f); c.expr = sub(f.expr); c;}]), pos: e.pos};
+				case _: e.map(sub);
 			}
-		];
-		return {expr: ESwitch(macro helder.view.Render.pass, cases, macro @:pos(callee.pos) (null : Any)), pos: callee.pos};
+		return [for (e in body) sub(e)];
 	}
 
 	@:allow(helder.view.Literal) static function exprNotEmpty(c:PNode):Bool
@@ -131,9 +263,9 @@ class MarkupMacro {
 		}
 
 	// whether an attribute's value may be of a type never reactive, to be
-	// told where its function is typed (Render.plainOr): an expression of
-	// constants, fields, operators and conditions (one with a call, a
-	// function or markup in it is left to the runtime to bind or set)
+	// told by typing it (plain): an expression of constants, fields,
+	// operators and conditions (one with a call, a function or markup in it
+	// is left to the runtime to bind or set)
 	@:allow(helder.view.Literal) static function simple(e:Expr):Bool
 		return switch e.expr {
 			case EConst(_): true;
@@ -146,8 +278,7 @@ class MarkupMacro {
 	// whether a value is of a type never reactive (a String, Int, Float or
 	// Bool, an enum abstract of one, null of one): set once, as a literal is,
 	// not bound (a function, a Signal, Dynamic or a type it cannot tell still
-	// bound by the runtime); typed as its function is, not while a class is
-	// built (Render.plainOr)
+	// bound by the runtime); typed where the literal is
 	public static function plain(x:Expr):Bool {
 		var t = try Context.typeof(x) catch (_:Dynamic) return false;
 		function of(t:haxe.macro.Type):Bool
@@ -166,15 +297,15 @@ class MarkupMacro {
 		return name.indexOf(".") >= 0 || (last.length > 0 && last.charAt(0) == last.charAt(0).toUpperCase() && last.charAt(0) != last.charAt(0).toLowerCase());
 	}
 
-	// an embedded expression, parsed at its place in the file and
-	// transformed (null: empty, or only comments)
-	@:allow(helder.view.Literal) static function expr(code:String, file:String, at:Int, required = false):Null<Expr> {
+	// an embedded expression, parsed at its place in the file and its
+	// literals wrapped, for renderer when given (null: empty, or only comments)
+	@:allow(helder.view.Literal) static function expr(code:String, file:String, at:Int, renderer:Null<String>, required = false):Null<Expr> {
 		if (StringTools.trim(stripComments(code)) == "") {
 			if (required) Context.error("markup: an empty expression", position(file, at - 1, code.length + 2));
 			return null;
 		}
 		var e = Context.parseInlineString(code, position(file, at, code.length));
-		return transform(e);
+		return transform(e, renderer);
 	}
 
 	static function stripComments(s:String):String
@@ -206,17 +337,25 @@ class Literal {
 	final file:String;
 	final base:Int;
 	final pos:Position;
+	// the renderer it is compiled for; null: agnostic, for every renderer the program reaches (after typing)
+	final renderer:Null<String>;
 	final id = MarkupMacro.count++;
 	final holes:Array<Expr> = [];
+	final holeTypes:Array<{name:String, type:ComplexType}> = [];
 	var vars = 0;
 	// (a literal of components and holes only: its components' factories are
 	// holes, shared by mount and parts)
 	var shared = false;
 
-	public function new(file:String, base:Int, pos:Position) {
+	// (where it starts in its root literal: a component's children's, the component's tag)
+	final at:Int;
+
+	public function new(file:String, base:Int, pos:Position, renderer:Null<String>, at = 0) {
 		this.file = file;
 		this.base = base;
 		this.pos = pos;
+		this.renderer = renderer;
+		this.at = at;
 	}
 
 	static final P = macro __p;
@@ -225,31 +364,7 @@ class Literal {
 
 	public function compile(root:PNode):Expr {
 		shared = valueOnly(root);
-		// (the mount code for each renderer: the holes made by the first pass, found again by the others)
-		var rs = HostMacro.renderers();
-		var cases:Array<Case> = [];
-		var only:Null<Expr> = null;
-		var cls = Context.getLocalClass(), own = cls == null ? null : MarkupMacro.limits(cls.get().meta);
-		var limits = MarkupMacro.neutralField ? null : own;
-		for (i in 0...rs.length) {
-			pass = i;
-			cursor = 0;
-			// (a renderer the class is not for realising no neutral elements: a throw, a neutral function's too)
-			var unrealised = own != null && own.only.indexOf(rs[i].path) < 0 && !HostMacro.hasNeutral(i) && !HostMacro.isNeutralNative(i);
-			var body = forRenderer(mountBody(root), i, unrealised);
-			// (a renderer the class's literals are not for: its holes found again, its code a throw)
-			if (limits != null && limits.only.indexOf(rs[i].path) < 0 || unrealised)
-				body = [macro @:pos(pos) throw $v{"helder.view: " + cls.get().name + " markup is not for " + rs[i].path + " (@:renderer)"}];
-			var n = rs[i].node;
-			var typed = macro {
-				var __p:$n = cast __p0;
-				var __b:Null<$n> = cast __b0;
-				var __o:Null<Array<$n>> = cast __o0;
-				$b{body};
-			};
-			if (rs.length == 1) only = typed else cases.push({values: [macro $v{i}], expr: typed});
-		}
-		var mountExpr = only != null ? only : {expr: ESwitch(macro __r, cases, macro {}), pos: pos};
+		var body = mountBody(root);
 		var parts = macro null;
 		if (shared) {
 			var items = [];
@@ -258,64 +373,36 @@ class Literal {
 		}
 		var line = MarkupMacro.lineOf(file, base);
 		var source = haxe.io.Path.withoutDirectory(file) + ":" + line;
-		var mount = macro function(__r:Int, __p0:Dynamic, __b0:Dynamic, __o0:Dynamic):Void $mountExpr;
-		var out = holes.concat([macro @:pos(pos) new helder.view.View($mount, $parts, $v{source})]);
-		return macro @:pos(pos) $b{out};
-	}
-
-	// (which renderer's code is being made; the next hole to find again)
-	var pass = 0;
-	var cursor = 0;
-
-	// the code made for a renderer: __HOST__ its class, __RT__ its runtime (a
-	// reactive attribute with a literal name bound with the renderer's setter
-	// for that name, when it has setter: Renders)
-	static function forRenderer(body:Array<Expr>, i:Int, unrealised = false):Array<Expr> {
-		var host = HostMacro.rendererPath(i), rt = HostMacro.runtime(i), setter = HostMacro.hasSetter(i), neutral = HostMacro.hasNeutral(i),
-			native = HostMacro.isNeutralNative(i);
-		function sub(e:Expr):Expr
-			return switch e.expr {
-				// (a neutral element: the renderer's neutral functions, else its own)
-				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, _)}, _) if (unrealised):
-					macro null;
-				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, f)}, args) if (!neutral && !native):
-					Context.error("markup: " + HostMacro.renderers()[i].path + " realises no neutral elements (view, text, view:button...: neutralElement and the rest, or neutralNative)", e.pos);
-				case ECall({expr: EField({expr: EConst(CIdent("__NEUTRAL__"))}, f)}, args):
-					var a = [for (x in args) sub(x)];
-					switch [f, neutral] {
-						case ["element", true]: macro @:pos(e.pos) $p{host}.neutralElement(${a[0]});
-						case ["element", false]: macro @:pos(e.pos) $p{host}.createElement(${a[0]});
-						case ["property", true]: macro @:pos(e.pos) $p{host}.neutralProperty(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});
-						case ["property", false]: macro @:pos(e.pos) $p{host}.setProperty(${a[0]}, ${a[2]}, ${a[3]});
-						// (bound: the setter given the name the realiser chooses, its DOM name for one setter of all)
-						case ["prop", true]: macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, $p{host}.neutralName(${a[1]}, ${a[2]}), ${a[3]}, $p{host}.neutralSetter(${a[1]}, ${a[2]}));
-						case ["prop", false] if (setter): macro @:pos(e.pos) $p{rt}.propWith(${a[0]}, ${a[2]}, ${a[3]}, $p{host}.setter(${a[2]}));
-						case ["prop", false]: macro @:pos(e.pos) $p{rt}.prop(${a[0]}, ${a[2]}, ${a[3]});
-						case ["listen", true]: macro @:pos(e.pos) $p{host}.neutralListen(${a[0]}, ${a[1]}, ${a[2]}, ${a[3]});
-						case ["listen", false]: macro @:pos(e.pos) $p{host}.listen(${a[0]}, ${a[2]}, ${a[3]});
-						case ["part", true]: macro @:pos(e.pos) $p{host}.part(${a[0]});
-						case ["part", false]: a[0];
-						case _: throw "markup: " + f;
-					}
-				case EConst(CIdent("__HOST__")): macro @:pos(e.pos) $p{host};
-				case EConst(CIdent("__RT__")): macro @:pos(e.pos) $p{rt};
-				case ECall({expr: EField({expr: EConst(CIdent("__RT__"))}, "prop")}, [el, name = {expr: EConst(CString(s, _))}, v]) if (setter):
-					macro @:pos(e.pos) $p{rt}.propWith(${sub(el)}, $name, ${sub(v)}, $p{host}.setter($v{s}));
-				case EObjectDecl(fields):
-					// (in place: map would lose the fields' name_pos)
-					for (f in fields)
-						f.expr = sub(f.expr);
-					e;
-				case _: e.map(sub);
-			}
-		return [for (e in body) sub(e)];
+		var own = MarkupMacro.ownLimits(), cls = Context.getLocalClass();
+		if (renderer == null) {
+			// (its template in its class, made for each renderer after typing: HostMacro.late)
+			var key = HostMacro.id(file + ":" + base + ":" + at);
+			var decls = [for (h in holeTypes) {expr: EVars([{name: h.name, type: h.type, expr: null}]), pos: pos}];
+			var only = own == null ? [] : [for (r in own.only) macro $v{r}];
+			if (cls == null) Context.error("markup: a literal outside a class", pos);
+			cls.get().meta.add(":helder.late", [macro $v{key}, macro $b{decls}, macro $b{body}, macro $a{only}], pos);
+			var hs = [for (h in holeTypes) macro $i{h.name}];
+			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View(0, null, $v{key}, ([$a{hs}] : Array<Any>), $parts, $v{source})])};
+		}
+		var info = HostMacro.reach(renderer);
+		var code = own != null && own.only.indexOf(renderer) < 0 ? [
+			macro @:pos(pos) throw $v{"helder.view: " + cls.get().name + " markup is not for " + renderer + " (@:renderer)"}
+		] : MarkupMacro.forRenderer(body, renderer, false);
+		var n = info.node;
+		var mount = macro function(__p0:Dynamic, __b0:Dynamic, __o0:Dynamic):Void {
+			var __p:$n = cast __p0;
+			var __b:Null<$n> = cast __b0;
+			var __o:Null<Array<$n>> = cast __o0;
+			$b{code};
+		};
+		return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View($v{info.id}, $mount, 0, null, $parts, $v{source})])};
 	}
 
 	function mountBody(root:PNode):Array<Expr> {
 		return switch root.kind {
 			case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
 				[component(name, attrs, children, at, macro __p, macro __b, macro __o)];
-			case PElement(name, attrs, children, _): element(name, attrs, children, P, true);
+			case PElement(name, attrs, children, at): element(name, attrs, children, at, P, true);
 			case PFragment(children): this.children(children, P, B, O, macro false);
 			case _: [];
 		}
@@ -323,12 +410,10 @@ class Literal {
 
 	// the literal's hole for e: a local, evaluated in source order
 	function hole(e:Expr, ?type:ComplexType):Expr {
-		if (pass > 0) {
-			var name = '__h${id}_${cursor++}';
-			return macro @:pos(e.pos) $i{name};
-		}
 		var name = '__h${id}_${holes.length}';
-		holes.push({expr: EVars([{name: name, type: type == null ? macro :Any : type, expr: e}]), pos: e.pos});
+		var t = type == null ? macro :Any : type;
+		holes.push({expr: EVars([{name: name, type: t, expr: e}]), pos: e.pos});
+		holeTypes.push({name: name, type: t});
 		return macro @:pos(e.pos) $i{name};
 	}
 
@@ -365,13 +450,18 @@ class Literal {
 	static function clean(cs:Array<PNode>):Array<PNode>
 		return [for (c in cs) if (MarkupMacro.exprNotEmpty(c)) c];
 
-	// an element: made, put in parent (top: before __b, pushed to __o), its
-	// attributes, its children
 	// (the neutral elements: ui's own, a page's renderer realising them as its elements)
 	static function isNeutral(name:String):Bool
 		return ["view", "text", "scroll", "image", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
 
-	function element(name:String, attrs:Array<PAttr>, children:Array<PNode>, parent:Expr, top:Bool):Array<Expr> {
+	// an element: made, put in parent (top: before __b, pushed to __o), its
+	// attributes, its children; one its renderer does not list (@:elements) an error
+	function element(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int, parent:Expr, top:Bool):Array<Expr> {
+		if (renderer != null) {
+			var els = HostMacro.info(renderer).elements;
+			if (els != null && els.indexOf(name) < 0)
+				Context.error("markup: <" + name + "> is no element of " + renderer + " (" + els.join(", ") + ")", MarkupMacro.position(file, base + at, name.length));
+		}
 		var v = fresh("e");
 		var e = macro $i{v};
 		var neutral = isNeutral(name);
@@ -419,9 +509,9 @@ class Literal {
 				case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
 					flush();
 					s.push(component(name, attrs, children, at, parent, before, out));
-				case PElement(name, attrs, children, _):
+				case PElement(name, attrs, children, at):
 					flush();
-					s = s.concat(element(name, attrs, children, parent, top));
+					s = s.concat(element(name, attrs, children, at, parent, top));
 				case PFragment(children):
 					flush();
 					s = s.concat(this.children(children, parent, before, out, macro false));
@@ -435,8 +525,8 @@ class Literal {
 		return switch c.kind {
 			case PText(t): macro $v{t};
 			case PExpr(code, at):
-				var h = hole(MarkupMacro.expr(code, file, base + at));
-				if (shared && pass == 0) valueHoles.push(h);
+				var h = hole(MarkupMacro.expr(code, file, base + at, renderer));
+				if (shared) valueHoles.push(h);
 				h;
 			case _: throw "unreachable";
 		}
@@ -446,6 +536,10 @@ class Literal {
 			case PText(t): t;
 			case _: "";
 		}].join("")};
+
+	// (a value of a type never reactive: set as a literal is, not bound)
+	function plainValue(x:Expr):Bool
+		return MarkupMacro.simple(x) && MarkupMacro.plain(x);
 
 	// an attribute's statement (null: none, as key)
 	function attr(e:Expr, a:PAttr, ?tag:String):Null<Expr> {
@@ -467,10 +561,11 @@ class Literal {
 					case _: macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $v);
 				}
 			case AExpr(code, at):
-				var x = MarkupMacro.expr(code, file, base + at, true);
+				var x = MarkupMacro.expr(code, file, base + at, renderer, true);
 				// (a literal number or string: set as a static value is, never bound)
 				if (!event && name != "ref" && name != "key" && name != "style" && x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes))))
 					return macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $x);
+				var plain = !event && name != "ref" && name != "key" && name != "style" && plainValue(x);
 				var h = hole(x);
 				if (event) macro @:pos(ap) __HOST__.listen($e, $v{name}, $h);
 				else switch name {
@@ -478,12 +573,11 @@ class Literal {
 					case "ref": macro @:pos(ap) __RT__.ref($e, $h);
 					case "style": macro @:pos(ap) __RT__.style($e, $h);
 					// (a value never reactive: its hole set as a literal is)
-					case _ if (MarkupMacro.simple(x)):
-						macro @:pos(ap) helder.view.Render.plainOr($x, __HOST__.setProperty($e, $v{name}, $h), __RT__.prop($e, $v{name}, $h));
+					case _ if (plain): macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $h);
 					case _: macro @:pos(ap) __RT__.prop($e, $v{name}, $h);
 				}
 			case ASpread(code, at):
-				var h = hole(MarkupMacro.expr(code, file, base + at, true));
+				var h = hole(MarkupMacro.expr(code, file, base + at, renderer, true));
 				macro @:pos(ap) __RT__.spread($e, $h);
 		}
 	}
@@ -500,13 +594,17 @@ class Literal {
 				}
 				event ? macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $v) : macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $v);
 			case AExpr(code, at):
-				var x = MarkupMacro.expr(code, file, base + at, true);
+				var x = MarkupMacro.expr(code, file, base + at, renderer, true);
 				// (a literal, or tag and id, one renderer's only (ui's Node.find, a page's id): in each pass,
 				// dropped where its renderer has no use for it)
-				if (!event && name != "ref" && (name == "tag" || name == "id" || x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes)))))
+				if (!event && name != "ref" && x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes))))
 					return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $x);
+				// (an agnostic literal's code has no scope: a hole)
+				if (!event && name != "ref" && (name == "tag" || name == "id"))
+					return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, ${renderer == null ? hole(x) : x});
 				// (states: a function of a part's states, its own style: set once, not bound)
 				if (name == "states") return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, ${hole(x)});
+				var plain = !event && name != "ref" && plainValue(x);
 				var h = hole(x);
 				if (event) macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $h);
 				// (a part made only for a ref given)
@@ -515,16 +613,15 @@ class Literal {
 					if (r != null) (r : Dynamic -> Void)(__NEUTRAL__.part($e));
 				};
 				// (a value never reactive: its hole set as a literal is)
-				else if (MarkupMacro.simple(x))
-					macro @:pos(ap) helder.view.Render.plainOr($x, __NEUTRAL__.property($e, $v{tag}, $v{name}, $h), __NEUTRAL__.prop($e, $v{tag}, $v{name}, $h));
+				else if (plain) macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $h);
 				else macro @:pos(ap) __NEUTRAL__.prop($e, $v{tag}, $v{name}, $h);
 			case ASpread(_, at):
 				Context.error("markup: a neutral element's attributes are named (no spread: each one realised when compiled)", MarkupMacro.position(file, base + at, 3));
 		}
 	}
 
-	// a component mounted: Render.component with its factory; under -D
-	// hxmc.dev componentIn, in Hot.scope of its name (name[key] with a key
+	// a component mounted: the runtime's component with its factory; under
+	// -D hxmc.dev componentIn, in Hot.scope of its name (name[key] with a key
 	// attribute: fast refresh's keys, helder.view.Refresh)
 	function component(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int, parent:Expr, before:Expr, out:Expr):Expr {
 		if (!Context.defined("hxmc.dev")) return macro @:pos(pos) __RT__.component($parent, $before, $out, ${factory(name, attrs, children, at)});
@@ -533,7 +630,7 @@ class Literal {
 			if (a.name == "key")
 				key = switch a.value {
 					case AStatic(s): macro $v{s};
-					case AExpr(code, at): hole(MarkupMacro.expr(code, file, base + at, true));
+					case AExpr(code, at): hole(MarkupMacro.expr(code, file, base + at, renderer, true));
 					case _: null;
 				}
 		var scope = key == null ? macro $v{name} : macro $v{name + "["} + Std.string($key) + "]";
@@ -541,9 +638,26 @@ class Literal {
 	}
 
 	// a component's factory: () -> Name({props}), its content the children
-	// prop (a literal of its own, evaluated when it is called); its key
-	// attribute is no prop
+	// prop (a literal of its own, evaluated when it is called: the
+	// component's children's renderer, else this one's); its key attribute is
+	// no prop. In a literal for one renderer the function for it (Pick), a
+	// component pinned to another an error; in an agnostic one chosen when
+	// mounted (Pick.call), the factory a hole
 	function factory(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int):Expr {
+		var p = MarkupMacro.position(file, base + at, name.length + 1);
+		var callee:Null<Expr> = null;
+		for (part in name.split("."))
+			callee = callee == null ? {expr: EConst(CIdent(part)), pos: p} : {expr: EField(callee, part), pos: p};
+		var c = MarkupMacro.component(callee);
+		if (renderer != null) {
+			var target = MarkupMacro.pick(renderer, callee);
+			if (target != callee) {
+				callee = target;
+				c = MarkupMacro.component(target);
+			}
+			if (c != null && c.pin != null && c.pin != renderer)
+				Context.error("helder.view: <" + name + "> is " + c.pin + "'s (it returns " + c.ret + "), not " + renderer + "'s markup", p);
+		}
 		var fields:Array<ObjectField> = [];
 		for (a in attrs) {
 			if (a.name == "key") continue;
@@ -551,7 +665,7 @@ class Literal {
 			var v = switch a.value {
 				case AStatic(s): macro @:pos(ap) $v{s};
 				case AFlag: macro @:pos(ap) true;
-				case AExpr(code, at): MarkupMacro.expr(code, file, base + at, true);
+				case AExpr(code, at): MarkupMacro.expr(code, file, base + at, renderer, true);
 				case ASpread(_, at): Context.error("markup: a component's props cannot be spread", MarkupMacro.position(file, base + at, 3));
 			}
 			// (name_pos: the field name's position, which the compiler reads though ObjectField does not declare it)
@@ -559,16 +673,16 @@ class Literal {
 			fields.push(field);
 		}
 		var kids = clean(children);
-		if (kids.length > 0) fields.push({field: "children", expr: new Literal(file, base, pos).compile({kind: PFragment(kids)})});
-		var p = MarkupMacro.position(file, base + at, name.length + 1);
-		var callee = macro @:pos(p) $p{name.split(".")};
+		if (kids.length > 0) {
+			var r = c != null && c.children != null ? c.children : renderer;
+			fields.push({field: "children", expr: new Literal(file, base, pos, r, at).compile({kind: PFragment(kids)})});
+		}
 		var props = {expr: EObjectDecl(fields), pos: p};
-		// (the function for this renderer, Pick; shared by every renderer: chosen when mounted)
-		var call = shared ? macro @:pos(p) helder.view.Pick.call($callee, $props) : {expr: ECall(macro @:pos(p) helder.view.Pick.callee($v{pass}, $callee), [props]), pos: p};
+		var call = renderer == null ? macro @:pos(p) helder.view.Pick.call($callee, $props) : {expr: ECall(callee, [props]), pos: p};
 		var f = {expr: EFunction(FAnonymous, {args: [], ret: macro :Any, expr: {expr: EReturn(call), pos: p}}), pos: p};
-		if (!shared) return f;
+		if (!shared && renderer != null) return f;
 		var h = hole(f, macro :Void->Any);
-		if (pass == 0) factories.push(h);
+		if (shared) factories.push(h);
 		return h;
 	}
 }

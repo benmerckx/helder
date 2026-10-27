@@ -18,6 +18,7 @@ enum abstract HtmlKind(Int) {
 // (the marker itself) after it; adjacent texts are separated by <!---->, so
 // that the parser keeps them apart; an empty text is <!--#-->, which the
 // parser would otherwise lose.
+@:rendered(helder.web.StaticRenderer)
 class HtmlNode {
 	public final kind:HtmlKind;
 	// an element's name (svg:a written a), a marker's name

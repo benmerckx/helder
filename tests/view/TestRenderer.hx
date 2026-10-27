@@ -71,6 +71,7 @@ enum TestKind {
 	Marker;
 }
 
+@:rendered(TestRenderer)
 class TestNode {
 	public final kind:TestKind;
 	public final tag:String;

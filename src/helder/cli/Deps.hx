@@ -6,11 +6,14 @@ import haxe.macro.Context;
 // What a build read, for `helder dev`'s watcher: `--macro
 // helder.cli.Deps.write("<file>")` writes, once the program is typed, the
 // full path of each module's file, one per line (the types' positions:
-// cached modules too, a compilation server's).
+// cached modules too, a compilation server's; called again with the types
+// a callback defined, helder.view's late code: all of them written).
 class Deps {
+	static var seen = new Map<String, Bool>();
+
 	public static function write(file:String) {
+		seen = new Map();
 		Context.onAfterTyping(types -> {
-			var seen = new Map<String, Bool>();
 			for (t in types) {
 				var pos = switch t {
 					case TClassDecl(c): c.get().pos;

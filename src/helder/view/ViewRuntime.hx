@@ -2,12 +2,13 @@ package helder.view;
 
 // Mounting content into one renderer's nodes, Solid's way: each part is
 // made once and bound to what it reads. Written against Host (the
-// renderer) and HostNode (its nodes), placeholders: ViewRuntime is the first
-// renderer's runtime, ViewRuntime_<i> the others' (HostMacro), so that every
-// call below is a direct call to its renderer. (Being copied, it names
-// other types by their full paths.)
+// renderer) and HostNode (its nodes), placeholders: ViewRuntime itself is
+// only the template of ViewRuntime_<renderer>, made for each renderer the
+// program reaches (HostMacro), so that every call below is a direct call to
+// its renderer. (Being copied, it names other types by their full paths.)
 //
-// Content is a View (a markup literal: its code for this renderer runs), a
+// Content is a View (a markup literal: its code for this renderer runs, an
+// agnostic literal's through late; another renderer's an error), a
 // node, text (String, numbers), an Array of content, null, For, Index or
 // ErrorBoundary content, a Mountable of this renderer's nodes, or
 // something reactive: a Signal, a Memo or a function () -> content, whose
@@ -49,7 +50,7 @@ class ViewRuntime {
 
 	static function add(v:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>) {
 		if (v == null || v == false || v == true) return;
-		if (Std.isOfType(v, helder.view.View)) (v : helder.view.View).mount(INDEX, parent, before, out);
+		if (Std.isOfType(v, helder.view.View)) view(v, parent, before, out);
 		else if (Host.isNode(v)) put(parent, v, before, out);
 		else if (Std.isOfType(v, helder.view.Flow.ForList)) mounted(forList(v, parent, before), out);
 		else if (Std.isOfType(v, helder.view.Flow.IndexList)) mounted(indexList(v, parent, before), out);
@@ -63,6 +64,17 @@ class ViewRuntime {
 		} else if (helder.view.Render.isReactive(v)) region(v, parent, before, out);
 		else put(parent, Host.createText(Std.string(v)), before, out);
 	}
+
+	// a View: its code for this renderer
+	static function view(v:helder.view.View, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>) {
+		if (v.renderer == INDEX) v.mount(parent, before, out);
+		else if (v.renderer == 0 && late != null) late(v.key, v.holes, parent, before, out);
+		else throw 'helder.view: $v is markup for another renderer than ' + NAME + ', whose node it is mounted into';
+	}
+
+	// the agnostic literals' code for this renderer (by key: their holes'
+	// values), made after typing (HostMacro.late), set by its __init__
+	public static var late:Null<(Int, Array<Any>, HostNode, Null<HostNode>, Null<Array<HostNode>>) -> Void>;
 
 	static inline function mounted(nodes:Array<HostNode>, out:Null<Array<HostNode>>)
 		if (out != null)
@@ -420,6 +432,7 @@ class ViewRuntime {
 		return [anchor];
 	}
 
-	// (this runtime's renderer's index in the program's)
+	// (this runtime's renderer: its id, Render.idOf, and class path)
 	static inline var INDEX = 0;
+	static inline var NAME = "";
 }
