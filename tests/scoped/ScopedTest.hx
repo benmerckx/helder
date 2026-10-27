@@ -44,6 +44,9 @@ abstract Particle(Addr) {
 // helder.scoped on any target: `haxe -cp src -cp tests/scoped
 // -main ScopedTest --macro helder.scoped.Check.enable() <target>`; prints "ok" and
 // the number of checks, exits 1 on a failure.
+// (a recursive typedef: the checker follows it twice, then stops)
+typedef Tree = {name:String, children:Array<Tree>};
+
 @:build(helder.scoped.Scoped.build())
 class ScopedTest {
 	static var checks = 0;
@@ -113,6 +116,8 @@ class ScopedTest {
 		// pos 0..15, life 16..19, alive 20, tag 21, padded to 24
 		eq(Particle.SIZE, 24, "Particle.SIZE");
 		eq(Scope.size(Int), 4, "size of Int");
+		var tree:Tree = {name: "root", children: [{name: "leaf", children: []}]};
+		eq(tree.children.length, 1, "a recursive typedef checked");
 	}
 
 	@:scoped static function scalars() {

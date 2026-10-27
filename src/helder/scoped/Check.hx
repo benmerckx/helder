@@ -47,10 +47,16 @@ class Check {
 	}
 
 	static function check(types:Array<ModuleType>) {
+		var std = stdRoots();
 		for (t in types)
 			switch t {
 				case TClassDecl(_.get() => c):
 					if (c.pack.length >= 2 && c.pack[0] == "helder" && c.pack[1] == "scoped")
+						continue;
+					// (the standard library's classes cannot name a scoped type: what
+					// they are given is checked where it is given; 40% of the time)
+					var file = haxe.io.Path.normalize(sys.FileSystem.absolutePath(Context.getPosInfos(c.pos).file));
+					if (std.exists(r -> StringTools.startsWith(file, r)))
 						continue;
 					var impl = c.kind.match(KAbstractImpl(_));
 					for (f in c.fields.get().concat(c.statics.get()))
@@ -60,6 +66,14 @@ class Check {
 				default:
 			}
 	}
+
+	// (the class paths holding a standard library: Std.hx at their root)
+	static function stdRoots():Array<String>
+		return [
+			for (cp in Context.getClassPath())
+				if (cp != "" && sys.FileSystem.exists(haxe.io.Path.join([cp, "Std.hx"])))
+					haxe.io.Path.addTrailingSlash(haxe.io.Path.normalize(sys.FileSystem.absolutePath(cp)))
+		];
 
 	static function checkField(f:ClassField, impl:Bool) {
 		switch f.kind {
@@ -78,21 +92,35 @@ class Check {
 			}
 	}
 
-	// a scoped value inside a GC type (not the type itself)
-	static function holds(t:Type):Bool {
+	// a scoped value inside a GC type (not the type itself); a typedef met
+	// twice inside itself (a recursive one: typedef Tree = {children:Array<Tree>})
+	// holds nothing more below that. (Types by their Refs' paths: get() makes
+	// the whole type again on every call.)
+	static function holds(t:Type, ?seen:Array<String>):Bool {
+		function inside(p:Type)
+			return isScoped(p) || holds(p, seen);
 		return switch t {
-			case TMono(r): r.get() != null && holds(r.get());
-			case TLazy(f): holds(f());
-			case TType(_.get() => td, params): holds(td.type.applyTypeParameters(td.params, params));
+			case TMono(r): r.get() != null && holds(r.get(), seen);
+			case TLazy(f): holds(f(), seen);
+			case TType(td, params):
+				var key = td.toString();
+				if (seen == null) seen = [];
+				if (seen.filter(k -> k == key).length >= 2) return false;
+				seen.push(key);
+				var d = td.get();
+				var r = holds(d.type.applyTypeParameters(d.params, params), seen);
+				seen.pop();
+				r;
+			case TInst(_, []) | TEnum(_, []) | TAbstract(_, []): false;
 			// (the package's own classes: inline iterators, which do not escape)
-			case TInst(_.get() => {pack: ["helder", "scoped"]}, _): false;
-			case TInst(_, params): params.exists(p -> isScoped(p) || holds(p));
-			case TEnum(_, params): params.exists(p -> isScoped(p) || holds(p));
+			case TInst(c, _) if (StringTools.startsWith(c.toString(), "helder.scoped.")): false;
+			case TInst(_, params): params.exists(inside);
+			case TEnum(_, params): params.exists(inside);
 			case TAbstract(_, params) if (isScoped(t)): false;
 			// (the package's own views: locals of the Scoped macro's loops)
-			case TAbstract(_.get() => {pack: ["helder", "scoped"]}, _): false;
-			case TAbstract(_, params): params.exists(p -> isScoped(p) || holds(p));
-			case TAnonymous(_.get() => a): a.fields.exists(f -> isScoped(f.type) || holds(f.type));
+			case TAbstract(a, _) if (StringTools.startsWith(a.toString(), "helder.scoped.")): false;
+			case TAbstract(_, params): params.exists(inside);
+			case TAnonymous(_.get() => a): a.fields.exists(f -> inside(f.type));
 			case TFun(_, _) | TDynamic(_): false;
 			default: false;
 		}

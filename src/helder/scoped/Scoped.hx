@@ -321,17 +321,36 @@ class Scoped {
 		return switch t {
 			case TMono(r): r.get() != null && isScoped(r.get());
 			case TLazy(f): isScoped(f());
+			case TType(td, []): cached("t:" + td.toString(), () -> isScoped(td.get().type));
 			case TType(_.get() => td, params): isScoped(td.type.applyTypeParameters(td.params, params));
 			// (the package's views and writers hold addresses too)
-			case TAbstract(_.get() => {pack: ["helder", "scoped"], name: "GrowWriter" | "SliceView" | "SliceChecked"}, _): true;
-			case TInst(_.get() => {pack: ["helder", "scoped"], name: "Span"}, _): true;
-			case TAbstract(_.get() => a, _):
-				switch a.type {
-					case TAbstract(_.get() => {pack: ["helder", "scoped"], name: "Addr"}, _): true;
-					default: false;
-				}
+			case TAbstract(a, _):
+				cached(a.toString(), () -> switch a.toString() {
+					case "helder.scoped.GrowWriter" | "helder.scoped.SliceView" | "helder.scoped.SliceChecked": true;
+					case _:
+						switch a.get().type {
+							case TAbstract(b, _): b.toString() == "helder.scoped.Addr";
+							default: false;
+						}
+				});
+			case TInst(c, _): c.toString() == "helder.scoped.Span";
 			default: false;
 		}
+	}
+
+	// (by path: a Ref's get() makes the whole type again, on every call;
+	// forgotten at the end of each compilation, for the compilation server)
+	static var known:Null<Map<String, Bool>> = null;
+
+	static function cached(key:String, f:() -> Bool):Bool {
+		if (known == null) {
+			known = new Map();
+			Context.onAfterGenerate(() -> known = null);
+		}
+		var v = known.get(key);
+		if (v == null)
+			known.set(key, v = f());
+		return v;
 	}
 	#end
 }
