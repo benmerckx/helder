@@ -5,6 +5,30 @@ import helder.os.App;
 import helder.os.Event as OsEvent;
 import helder.ui.*;
 import hxmc.unsafe.*;
+import helder.ui.view.UiView;
+import helder.view.Reactive;
+import helder.view.Render;
+import helder.view.RootView;
+
+// <Surface>'s props (UiWindow.Surface)
+typedef SurfaceProps = {
+	// the window's title, its size in points (on the web without a size: the
+	// page filled, or the canvas the page gives, at the size its styles make;
+	// natively 800 x 600), the ui's theme and background: values or reactive
+	// (a Signal, a Memo, a function), followed
+	?title:Dynamic,
+	?width:Dynamic,
+	?height:Dynamic,
+	?theme:Dynamic,
+	?background:Dynamic,
+	// dark or light (default: the system's appearance, UiWindow.dark)
+	?dark:Dynamic,
+	// the window closed by its user (default: closed)
+	?onClose:Void->Void,
+	// the UiWindow, once made
+	?ref:UiWindow->Void,
+	?children:UiView
+};
 
 // A window showing a UI tree drawn with the GPU: an helder.os Window, its
 // gfx Device, a Renderer and the Ui (root: the tree's root node, in the
@@ -17,6 +41,17 @@ import hxmc.unsafe.*;
 // load src/helder/ui/imports.mjs), on macOS to NSAccessibility (MacAccess),
 // on Windows to UI Automation (WinAccess), on Linux to AT-SPI (LinuxAccess),
 // and the actions asked for come back.
+//
+// In markup (helder.view) <Surface> is the root ui draws into: a UiWindow,
+// its children ui's markup rendered into its root; several make several
+// windows; run(content) opens them (Render.open) and runs the loop:
+//
+//   UiWindow.run(<Surface title="Todo" width={480} height={560} theme={sheet}>
+//     <Todo/>
+//   </Surface>);
+//
+// In a page's markup (helder.web's DOM or static renderer) a <Surface> is
+// helder.web's: a canvas running a wasm program whose root is this one.
 class UiWindow {
 	public final window:helder.os.Window;
 	public final device:Device;
@@ -135,9 +170,11 @@ class UiWindow {
 			c.g = background.g / 255;
 			c.b = background.b / 255;
 		}
-		enc.beginPass(pass);
+		// (painted first: the passes a texture drawn needs, a <Scene>'s, recorded before the frame's)
 		renderer.begin(device.width, device.height);
 		ui.paint(renderer);
+		renderer.prepare(enc);
+		enc.beginPass(pass);
 		renderer.end(enc);
 		enc.endPass();
 		if (capture != null) {
@@ -245,7 +282,9 @@ class UiWindow {
 		updateCursor();
 	}
 
+	// (once: a <Surface>'s owner closes it too)
 	public function close() {
+		if (open.indexOf(this) < 0) return;
 		// (nested: only a constant condition drops the branch)
 		if (Mem.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
@@ -264,7 +303,9 @@ class UiWindow {
 	}
 
 	// the app loop: every UiWindow's frames and events until the last closes
-	public static function run() {
+	// (on the web it returns, the frames going on); content, when given, opened first
+	public static function run(?content:RootView) {
+		if (content != null) Render.open(content);
 		App.run(() -> {
 			var now = haxe.Timer.stamp();
 			if (now - darkAsked > 1) {
@@ -286,6 +327,47 @@ class UiWindow {
 				}
 			if (!drew) App.wait(idleWait);
 		}, e -> for (w in open.copy()) if (w.window == e.window) w.handle(e));
+	}
+
+	// <Surface>: a window (a canvas on the web), its children rendered into its ui's root; closed with its owner
+	public static function Surface(props:SurfaceProps):RootView {
+		var web = Mem.os() == 3;
+		var width:Null<Int> = Render.read(props.width), height:Null<Int> = Render.read(props.height);
+		var title:Null<String> = Render.read(props.title);
+		var w = new UiWindow(title ?? "helder", width ?? (web ? 0 : 800), height ?? (web ? 0 : 600));
+		// (each reactive prop followed after its first value)
+		follow(props.title, (v:String) -> w.window.title = v);
+		follow(props.width, (_:Int) -> resize(w, props));
+		follow(props.height, (_:Int) -> resize(w, props));
+		if (props.theme != null) Reactive.effect(() -> w.ui.theme = Render.read(props.theme));
+		if (props.background != null) Reactive.effect(() -> {
+			w.background = Render.read(props.background);
+			w.ui.requestFrame();
+		});
+		if (props.dark != null) Reactive.effect(() -> w.ui.dark = Render.read(props.dark));
+		if (props.onClose != null) w.onClose = props.onClose;
+		var dispose = Render.render(props.children, w.root);
+		Reactive.onCleanup(() -> {
+			dispose();
+			w.close();
+		});
+		if (props.ref != null) props.ref(w);
+		return null;
+	}
+
+	static function follow<T>(v:Dynamic, set:T->Void) {
+		if (!Render.isReactive(v)) return;
+		var first = true;
+		Reactive.effect(() -> {
+			var x:T = Render.read(v);
+			if (!first) Reactive.untrack(() -> set(x));
+			first = false;
+		});
+	}
+
+	static function resize(w:UiWindow, props:SurfaceProps) {
+		var width:Null<Int> = Render.read(props.width), height:Null<Int> = Render.read(props.height);
+		if (width != null && height != null) w.window.resize(width, height);
 	}
 }
 

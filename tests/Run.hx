@@ -91,10 +91,6 @@ class Run {
 
 	// --- the lanes
 
-	static final UI_VIEW = ["-D", "helder.view.renderer.ui=helder.ui.view.NodeRenderer"];
-	static final DOM = ["-D", "helder.view.renderer.dom=helder.web.DomRenderer"];
-	static final STATIC = ["-D", "helder.view.renderer.html=helder.web.StaticRenderer"];
-
 	static function view() {
 		var cp = cps(["src", "tests/view"]);
 		interp(cp, "ViewTest", [TOOL]);
@@ -119,8 +115,8 @@ class Run {
 	static function ui() {
 		var cp = cps(["src", "tests/ui"]);
 		interp(cp, "UiTest");
-		interp(cp.concat(UI_VIEW), "MarkupTest");
-		interp(cp.concat(UI_VIEW), "GuideTest");
+		interp(cp, "MarkupTest");
+		interp(cp, "GuideTest");
 	}
 
 	static function gfxShader() {
@@ -275,7 +271,7 @@ class Run {
 		run(exePath('bin/3d/$t/InputTest', t), []);
 		wasi("bin/3d/InputTest.wasm");
 		// (helder.scene.view: view's markup on the scene graph; natively: its meshes import gfx, which node lacks)
-		native('bin/3d/$t/SceneUiTest', cps(["src", "tests/3d-ui"]).concat(["-D", "helder.view.renderer=helder.scene.view.SceneRenderer", "-main", "SceneUiTest"]), t);
+		native('bin/3d/$t/SceneUiTest', cps(["src", "tests/3d-ui"]).concat(["-main", "SceneUiTest"]), t);
 		run(exePath('bin/3d/$t/SceneUiTest', t), []);
 		run("sh", ["tests/3d/check.sh", 'bin/3d/$t']);
 		// (Model.of's files beside the executable, -D helder.scene.embed=0)
@@ -316,7 +312,7 @@ class Run {
 	}
 
 	static function uiCp()
-		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/todo", "examples/native-form"]).concat(UI_VIEW);
+		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/todo", "examples/native-form"]);
 
 	static function uiPrograms() {
 		var t = GFX_TARGET;
@@ -459,7 +455,7 @@ class Run {
 	// --- the benchmarks
 
 	// (the programs whose size and compile time are tracked: ui and text, scene and physics)
-	static final BENCH_BUILDS = [{dir: "examples/todo", main: "Todo", ui: true}, {dir: "examples/walker", main: "Walker", ui: false}];
+	static final BENCH_BUILDS = [{dir: "examples/todo", main: "Todo"}, {dir: "examples/walker", main: "Walker"}];
 
 	// tests/bench/Bench.hx natively and as wasm32-wasi (BENCH: the workloads,
 	// by name, separated by spaces; each in a process of its own), then the
@@ -510,7 +506,7 @@ class Run {
 			}
 		}
 		for (b in BENCH_BUILDS) {
-			var args = cps(["src", b.dir]).concat(b.ui ? UI_VIEW : []).concat(["-main", b.main]);
+			var args = cps(["src", b.dir]).concat(["-main", b.main]);
 			timed(b.main, HOST, 'bin/bench/${b.main}', args);
 			timed(b.main, "wasm32-wasi", 'bin/bench/${b.main}.wasm', args.concat(["-D", "hxmc.wasm-eh=legacy"]));
 		}

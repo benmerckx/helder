@@ -4,6 +4,7 @@
 // demo: canvas 480x560
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.Reactive.*;
@@ -20,10 +21,7 @@ import helder.view.Reactive.*;
 // (TodoTest drives it headless, WebTodo in a browser.)
 class Todo implements Markup {
 	static function main() {
-		var w = new UiWindow("Todo", 480, 560);
-		w.ui.theme = sheet;
-		Render.render(new Todo().view(), w.root);
-		UiWindow.run();
+		UiWindow.run(<Surface title="Todo" width={480} height={560} theme={sheet}>{new Todo().view()}</Surface>);
 	}
 
 	public static final sheet:StyleSheet = {

@@ -32,7 +32,7 @@ fs.writeFileSync(src, marked);
 const cp = [`-cp ${path.join(repo, 'src')}`];
 // (the examples' class path for the files they use; the copy last, which wins)
 fs.writeFileSync(path.join(work, 'build.hxml'), [...cp, `-cp ${path.join(repo, 'examples', exampleDir)}`, '-cp app',
-	'-D helder.view.renderer.ui=helder.ui.view.NodeRenderer', `-main ${example}`,
+	`-main ${example}`,
 	...(web ? ['-D hxmc.target=wasm32-wasi', `--custom-target hxmc=out/app.wasm`]
 		: [...(process.platform === 'linux' ? ['-D hxmc.libc=glibc'] : []), '--custom-target hxmc=out/app'])].join('\n') + '\n');
 

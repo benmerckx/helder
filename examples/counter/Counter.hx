@@ -4,6 +4,7 @@
 // demo: canvas 320x200
 import helder.view.*;
 import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
 import helder.view.Reactive.*;
 
 // The README's example: a signal, markup bound to it, a button that changes it
@@ -11,12 +12,12 @@ import helder.view.Reactive.*;
 class Counter implements Markup {
 	static function main() {
 		var count = signal(0);
-		var w = new UiWindow("Counter", 320, 200);
-		Render.render(<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
-			<text font-size={32}>{count}</text>
-			<view:button role="button" focusable padding="8 16" radius={6} background="#18181b" color="#fafafa" cursor="pointer"
-				onPress={_ -> count.value++}>+1</view:button>
-		</view>, w.root);
-		UiWindow.run();
+		UiWindow.run(<Surface title="Counter" width={320} height={200}>
+			<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
+				<text font-size={32}>{count}</text>
+				<view:button role="button" focusable padding="8 16" radius={6} background="#18181b" color="#fafafa" cursor="pointer"
+					onPress={_ -> count.value++}>+1</view:button>
+			</view>
+		</Surface>);
 	}
 }

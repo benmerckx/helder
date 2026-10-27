@@ -32,8 +32,9 @@ typedef RendererInfo = {
 // replaced). A literal whose renderer is not known where it is (agnostic)
 // leaves a template in its class's metadata (:helder.late, so that a cached
 // module keeps it); after typing, a class per reached renderer
-// (Late_<path>) holds every such literal's code for it, a switch on its key,
-// which its __init__ hands to the renderer's runtime (ViewRuntime's late).
+// (Late_<path>_<n>) holds every such literal's code for it, a switch on its
+// key, which its __init__ hands to the renderer's runtime (ViewRuntime's
+// late); a later callback's new literals another, falling back to it.
 // helder.view names no renderer: node types name theirs (@:rendered(R) on a
 // class: it and its subclasses are R's nodes), views pinned to one are
 // ViewOf<R>.
@@ -205,7 +206,11 @@ class HostMacro {
 	// --- after typing: the agnostic literals' code for each reached renderer
 
 	static var hooked = false;
-	static var generated = false;
+	// (the templates seen, each once; per renderer, those its code was made for; the classes made)
+	static final literals:Array<{key:Int, holes:Expr, body:Expr, only:Expr, pos:Position}> = [];
+	static final seen = new Map<Int, Bool>();
+	static final done = new Map<String, Map<Int, Bool>>();
+	static var batches = 0;
 
 	static function hook() {
 		if (hooked) return;
@@ -213,11 +218,11 @@ class HostMacro {
 		Context.onAfterTyping(late);
 	}
 
+	// (each callback: the templates of the types given, cached modules' too;
+	// a renderer's code for those it has none of yet in a class of their own,
+	// whose mount falls back to the one set before it: a literal typed while
+	// the code is made, or a renderer reached then, still gets code)
 	static function late(types:Array<ModuleType>) {
-		if (generated || reached.length == 0) return;
-		generated = true;
-		// (every class's templates, cached modules' too; a literal typed twice once)
-		var seen = new Map<Int, Bool>(), literals = [];
 		for (t in types)
 			switch t {
 				case TClassDecl(c):
@@ -233,9 +238,13 @@ class HostMacro {
 				case _:
 			}
 		for (path in reached.copy()) {
+			var mine = done.get(path);
+			if (mine == null) done.set(path, mine = new Map());
 			var i = infos.get(path), n = i.node;
 			var cases:Array<Case> = [];
 			for (l in literals) {
+				if (mine.exists(l.key)) continue;
+				mine.set(l.key, true);
 				var only = switch l.only.expr {
 					case EArrayDecl(a): [for (x in a) switch x.expr {
 							case EConst(CString(s, _)): s;
@@ -261,28 +270,30 @@ class HostMacro {
 				}
 				cases.push({values: [macro $v{l.key}], expr: macro @:pos(l.pos) $b{decls.concat(code)}});
 			}
+			if (cases.length == 0) continue;
 			var rt = runtime(path);
-			var sw = {expr: ESwitch(macro __key, cases, macro throw "helder.view: no code for this markup"), pos: Context.currentPos()};
-			// (defined already in this compilation: hxmc's custom target can run the callbacks again)
-			var name = "Late_" + mangle(path);
-			if (Lambda.exists(types, t -> switch t {
-				case TClassDecl(c): c.get().pack.join(".") == "helder.view" && c.get().name == name;
-				case _: false;
-			})) continue;
-			try Context.defineType({
+			var sw = {
+				expr: ESwitch(macro __key, cases, macro if (prev != null) prev(__key, __h, __p, __b, __o) else throw "helder.view: no code for this markup (" + __key + ")"),
+				pos: Context.currentPos()
+			};
+			Context.defineType({
 				pack: ["helder", "view"],
-				name: name,
+				name: "Late_" + mangle(path) + "_" + (batches++),
 				pos: Context.currentPos(),
 				meta: [{name: ":keep", pos: Context.currentPos()}, {name: ":noCompletion", pos: Context.currentPos()}],
 				kind: TDClass(),
 				fields: (macro class {
-					static function __init__()
+					static var prev:Null<(Int, Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void>;
+
+					static function __init__() {
+						prev = $p{rt}.late;
 						$p{rt}.late = mount;
+					}
 
 					static function mount(__key:Int, __h:Array<Any>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void
 						$sw;
 				}).fields
-			}) catch (e:haxe.macro.Expr.Error) if (!StringTools.startsWith(e.message, "Cannot redefine module")) throw e;
+			});
 		}
 	}
 }

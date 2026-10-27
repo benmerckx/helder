@@ -4,6 +4,7 @@
 // demo: canvas 420x360
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.Reactive.*;
@@ -16,11 +17,7 @@ import helder.view.Reactive.*;
 class Signup implements Markup {
 	static function main() {
 		var dark = signal(false);
-		var w = new UiWindow("Sign up", 420, 360);
-		w.ui.theme = sheet;
-		effect(() -> w.ui.dark = dark.value);
-		Render.render(view(dark), w.root);
-		UiWindow.run();
+		UiWindow.run(<Surface title="Sign up" width={420} height={360} theme={sheet} dark={dark}>{view(dark)}</Surface>);
 	}
 
 	public static function view(dark:Signal<Bool>):View {

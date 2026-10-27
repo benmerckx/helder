@@ -102,14 +102,20 @@ class Renderer {
 	final spots:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, -2)];
 	var count = 0;
 
-	public function new(device:Device) {
+	// offscreen: drawn into textures (drawInto: RGBA8 and Depth32F, as a
+	// <Scene>'s box in a ui), not the frame; its features' own pipelines
+	// (skins, normal maps, the sky, particles) are the frame's still
+	public final offscreen:Bool;
+
+	public function new(device:Device, offscreen = false) {
 		this.device = device;
-		pipeline = device.createPipeline(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
-		doubleSided = device.createPipeline(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
+		this.offscreen = offscreen;
+		pipeline = create(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
+		doubleSided = create(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
 		for (cull in [helder.gfx.Cull.Back, helder.gfx.Cull.None]) {
 			var d = PbrInstancedShader.pipeline({cull: cull, depthCompare: Less, depthWrite: true});
 			d.layout = INSTANCED_LAYOUT;
-			if (cull == Back) instancedPipeline = device.createPipeline(d) else instancedDoubleSided = device.createPipeline(d);
+			if (cull == Back) instancedPipeline = create(d) else instancedDoubleSided = create(d);
 		}
 		plainSlots = slotsOf(PbrShader.uniforms, PbrShader.textures);
 		instancedSlots = slotsOf(PbrInstancedShader.uniforms, PbrInstancedShader.textures);
@@ -122,6 +128,25 @@ class Renderer {
 		one.setFloat(0, 1);
 		noShadow = device.createTexture({width: 1, height: 1, format: R32F, data: one});
 		pass = {colors: [{load: Clear, clear: clearColor}], depth: {load: Clear}};
+	}
+
+	// (a pipeline for the frame, or for drawInto's targets)
+	function create(d:PipelineDesc):Pipeline {
+		if (offscreen) {
+			d.colorFormat = RGBA8;
+			d.depthFormat = Depth32F;
+		}
+		return device.createPipeline(d);
+	}
+
+	// draw into color (RGBA8, a render target) and depth (Depth32F, its size), an offscreen renderer's
+	public function drawInto(enc:Encoder, world:World, camera:Camera, color:Texture, depth:Texture, width:Int, height:Int) {
+		if (!offscreen) throw "helder.scene: drawInto needs an offscreen Renderer (new Renderer(device, true))";
+		pass.colors[0].texture = color;
+		pass.depth.texture = depth;
+		draw(enc, world, camera, width / Math.max(1, height));
+		pass.colors[0].texture = null;
+		pass.depth.texture = null;
 	}
 
 	// what the frame's hooks get: the camera's view, the light (FrameInfo)
@@ -416,8 +441,8 @@ class Renderer {
 	// the standard shader blended, depth tested but not written
 	function blended(doubleSided:Bool):Pipeline {
 		if (blendPipeline == null) {
-			blendPipeline = device.createPipeline(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: false, blend: Alpha}));
-			blendDoubleSided = device.createPipeline(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: false, blend: Alpha}));
+			blendPipeline = create(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: false, blend: Alpha}));
+			blendDoubleSided = create(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: false, blend: Alpha}));
 		}
 		return doubleSided ? blendDoubleSided : blendPipeline;
 	}

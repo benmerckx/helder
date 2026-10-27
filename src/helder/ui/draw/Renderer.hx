@@ -51,6 +51,9 @@ class Renderer implements Canvas {
 	// (frame: the last one that drew it; one not drawn for EVICT frames is freed)
 	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int}>();
 	var frames = 0;
+	// the GPU textures drawn this frame (texture: by their negative ids), the passes to record before the frame's (beforePass)
+	final gpu = new Map<Int, Texture>();
+	final before:Array<Encoder->Void> = [];
 
 	static inline var EVICT = 300;
 	var targetW = 1.0;
@@ -127,6 +130,8 @@ class Renderer implements Canvas {
 		}
 		targetW = width;
 		targetH = height;
+		gpu.clear();
+		before.resize(0);
 		used = 0;
 		batches.resize(0);
 		tx = ty = 0;
@@ -190,12 +195,24 @@ class Renderer implements Canvas {
 		while (i < batches.length) {
 			// (a run's key: its image id, twice, plus whether glyphs are read filtered)
 			var key = batches[i + 2], image = key >> 1;
-			var e = image == 0 ? null : textures.get(image);
+			var e = image <= 0 ? null : textures.get(image);
 			enc.setTexture(atlasSlot, atlasTexture, key & 1 == 1 ? linear : nearest);
-			enc.setTexture(imageSlot, e == null ? blank : e.texture, linear);
+			enc.setTexture(imageSlot, image < 0 ? gpu.get(image) : e == null ? blank : e.texture, linear);
 			enc.drawIndexed(batches[i + 1] * 6, 1, batches[i] * 6, 0);
 			i += 3;
 		}
+	}
+
+	// f records a pass of its own before the frame's (prepare): what a
+	// texture drawn this frame shows, rendered first (a <Scene>'s)
+	public function beforePass(f:Encoder->Void)
+		before.push(f);
+
+	// records the passes asked for since begin, outside the frame's pass (UiWindow: after painting, before it)
+	public function prepare(enc:Encoder) {
+		for (f in before)
+			f(enc);
+		before.resize(0);
 	}
 
 	// frees the texture of an image drawn before
@@ -474,6 +491,23 @@ class Renderer implements Canvas {
 		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
 		texture(img);
 		quad(x0, y0, x1, y1, u0, v0, u1, v1, Color.WHITE, 0, 2, 0, 1, img.id);
+	}
+
+	// a GPU texture (a render target, rows top to bottom: a <Scene>'s) at x, y, w x h; id names it, negative, one per texture
+	public function gpuTexture(t:Texture, id:Int, x:Float, y:Float, w:Float, h:Float, radius = 0.0, ?corners:Corners) {
+		if (w <= 0 || h <= 0 || id >= 0) return;
+		gpu.set(id, t);
+		var s = scale;
+		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		this.corners(corners, radius);
+		fit(x1 - x0, y1 - y0);
+		sides(null, 0);
+		if (!flat) {
+			shape(x0, y0, x1, y1, 0, 0, 1, 1, Color.WHITE, 0, 2, 0, 0, id);
+			return;
+		}
+		if (culled(x0 - 1, y0 - 1, x1 + 1, y1 + 1)) return;
+		quad(x0, y0, x1, y1, 0, 0, 1, 1, Color.WHITE, 0, 2, 0, 1, id);
 	}
 
 	public function text(p:Paragraph, x:Float, y:Float, width:Float, align:TextAlign, color:Color, ?colors:Array<Color>)

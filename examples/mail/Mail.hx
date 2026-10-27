@@ -4,6 +4,7 @@
 // demo: canvas 860x560
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
 import helder.ui.view.UiFlow.*;
 import helder.view.*;
 import helder.view.Flow.*;
@@ -24,10 +25,7 @@ import helder.view.Reactive.*;
 //   haxe -lib helder -cp examples/mail -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
 class Mail implements Markup {
 	static function main() {
-		var w = new UiWindow("Mail", 860, 560);
-		w.ui.theme = sheet;
-		Render.render(new Mail().view(), w.root);
-		UiWindow.run();
+		UiWindow.run(<Surface title="Mail" width={860} height={560} theme={sheet}>{new Mail().view()}</Surface>);
 	}
 
 	public final folders:Array<Folder> = [

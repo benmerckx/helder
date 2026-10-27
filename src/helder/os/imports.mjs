@@ -4,8 +4,9 @@
 // canvas of the first window, an element or its id).
 //
 // A canvas's drawing buffer follows its displayed size in device pixels,
-// checked before each frame (a Resize event when it changes); a canvas the
-// page does not size is given the window's size in CSS pixels. Events are
+// seen by a ResizeObserver and applied before the next frame (a Resize
+// event); a canvas the page does not size is given the window's size in CSS
+// pixels, or for a window of 0 x 0 fills the page (one made) or its box. Events are
 // queued as they come and polled at the start of the next frame, as the
 // native loops poll theirs: keys (as X11 KeySyms, Event.key) once the canvas
 // has the focus (a click gives it), the mouse over the canvas in buffer
@@ -162,8 +163,11 @@ export default function (host) {
 		} else queue.push(ev);
 	}
 
+	// (only once its ResizeObserver saw a change, or the pixel ratio changed: no layout read a frame)
 	function sync(h) {
 		const c = host.handles.get(h);
+		if (!c.hxmcResized) return false;
+		c.hxmcResized = false;
 		const w = Math.round(c.clientWidth * pixelRatio()), hh = Math.round(c.clientHeight * pixelRatio());
 		if (w > 0 && hh > 0 && (w !== c.width || hh !== c.height)) {
 			c.width = w;
@@ -464,7 +468,16 @@ export default function (host) {
 			// sized, kept by hxmc dev: as it is, its pixels too, when its size
 			// is the window's)
 			const kept = !made && c.hxmcKeepStyled === true;
-			if (!kept) {
+			// (0 x 0: the page filled, a canvas made; a canvas given, its box, unless the page sizes it)
+			const fill = width === 0 && height === 0;
+			if (fill) {
+				if (made) c.style.cssText = 'display:block;position:fixed;inset:0;width:100%;height:100%';
+				else {
+					const w0 = c.clientWidth;
+					c.width += 1;
+					if (c.clientWidth !== w0) c.style.cssText += ';display:block;width:100%;height:100%';
+				}
+			} else if (!kept) {
 				const w0 = c.clientWidth;
 				c.width += 1;
 				if (made || c.clientWidth !== w0) {
@@ -476,11 +489,15 @@ export default function (host) {
 				c.style.width = width + 'px';
 				c.style.height = height + 'px';
 			}
-			const bw = Math.round(width * pixelRatio()), bh = Math.round(height * pixelRatio());
+			const bw = Math.max(1, Math.round((fill ? c.clientWidth : width) * pixelRatio())), bh = Math.max(1, Math.round((fill ? c.clientHeight : height) * pixelRatio()));
 			if (c.width !== bw) c.width = bw;
 			if (c.height !== bh) c.height = bh;
 			if (c.tabIndex < 0) c.tabIndex = 0;
 			const h = host.handles.add(c);
+			// (its displayed size followed: the page's styles, a ResizeObserver telling the next frame)
+			c.hxmcResized = true;
+			c.hxmcSize = new ResizeObserver(() => (c.hxmcResized = true));
+			c.hxmcSize.observe(c);
 			sync(h);
 			c.hxmcOff = listen(c, h);
 			c.hxmcSeen = new IntersectionObserver(([e]) => (c.hxmcShown = e.isIntersecting));
@@ -493,6 +510,7 @@ export default function (host) {
 			const c = host.handles.get(h);
 			c.hxmcOff.abort();
 			c.hxmcSeen.disconnect();
+			c.hxmcSize.disconnect();
 			c.hxmcInput.remove();
 			if (c.hxmcMade) c.remove();
 			windows.delete(h);
@@ -600,7 +618,10 @@ export default function (host) {
 				if (windows.size > 0 && [...windows].every((h) => host.handles.get(h).hxmcShown === false)) return (frameId = requestAnimationFrame(tick));
 				if (pixelRatio() !== ratio) {
 					ratio = pixelRatio();
-					for (const h of windows) push([h, SCALE_CHANGE, 0, 0, 0, 0, 0]);
+					for (const h of windows) {
+						host.handles.get(h).hxmcResized = true;
+						push([h, SCALE_CHANGE, 0, 0, 0, 0, 0]);
+					}
 				}
 				for (const h of windows) if (sync(h)) push([h, RESIZE, 0, host.handles.get(h).width, host.handles.get(h).height, 0, 0]);
 				// (a frame that throws: no more frames, and the page told when it

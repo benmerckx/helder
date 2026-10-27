@@ -88,7 +88,7 @@ class Entry {
 		root = pj == null ? "." : Path.directory(pj);
 		if (root == "") root = ".";
 		if (pj != null) configure(pj, false);
-		finish([dir], false);
+		finish();
 	}
 
 	function project(dir:String) {
@@ -97,7 +97,7 @@ class Entry {
 		if (main == null) main = "Main";
 		var file = classPaths[0] + "/" + main.split(".").join("/") + ".hx";
 		if (!FileSystem.exists(file)) throw '$dir: no $file (a project\'s entry point, or package.json\'s "helder": {"main"})';
-		finish(classPaths.copy(), true);
+		finish();
 	}
 
 	// package.json's class paths, dependencies and overrides
@@ -138,7 +138,7 @@ class Entry {
 		}
 	}
 
-	function finish(own:Array<String>, deep:Bool) {
+	function finish() {
 		helder = Lambda.find(classPaths, c -> FileSystem.exists('$c/helder/dev/Hot.hx'));
 		if (helder == null) {
 			// (the CLI's own checkout: bin/cli/helder)
@@ -151,28 +151,6 @@ class Entry {
 		var isLib = helder.contains("node_modules");
 		sources = [for (c in classPaths) if (!(isLib && c == helder) && !c.contains("node_modules")) c];
 		if (root != null && FileSystem.exists('$root/assets')) sources.push('$root/assets');
-		defines = defines.concat(renderers([for (d in own) if (!d.contains("node_modules") && (d != helder || !deep)) d], deep));
-	}
-
-	// STOPGAP (until renderers are boundary tags in markup): helder.view's
-	// renderers from the imports, as tests/Run.hx's examples lane chose them:
-	// helder.ui's, helder.scene's markup. Remove with it.
-	static function renderers(dirs:Array<String>, deep:Bool):Array<String> {
-		var ui = false, scene = false;
-		function scan(dir:String)
-			for (n in (try FileSystem.readDirectory(dir) catch (_:Dynamic) [])) {
-				var p = '$dir/$n';
-				if (n.endsWith(".hx")) {
-					var s = File.getContent(p);
-					ui = ui || s.contains("import helder.ui.");
-					scene = scene || s.contains("import helder.scene.view.");
-				} else if (deep && n != "node_modules" && n != "bin" && !n.startsWith(".") && FileSystem.isDirectory(p)) scan(p);
-			}
-		for (d in dirs) scan(d);
-		var out = [];
-		if (ui) out = out.concat(["-D", "helder.view.renderer.ui=helder.ui.view.NodeRenderer"]);
-		if (scene) out = out.concat(["-D", "helder.view.renderer.scene=helder.scene.view.SceneRenderer"]);
-		return out;
 	}
 
 	function add(cp:String) {

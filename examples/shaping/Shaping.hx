@@ -3,6 +3,7 @@
 // tags: ui, text, bidi, shaping
 // demo: canvas 480x440
 import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
 import helder.view.Reactive.*;
 
@@ -15,9 +16,7 @@ import helder.view.Reactive.*;
 //   haxe -lib helder -cp examples/shaping -main Shaping --custom-target hxmc=shaping -D hxmc.libc=glibc
 class Shaping implements Markup {
 	static function main() {
-		var w = new UiWindow("Text shaping", 480, 440);
-		Render.render(new Shaping().view(), w.root);
-		UiWindow.run();
+		UiWindow.run(<Surface title="Text shaping" width={480} height={440}>{new Shaping().view()}</Surface>);
 	}
 
 	public final input = signal("Haxe كتب 2026 שלום, café");

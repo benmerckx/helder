@@ -43,7 +43,7 @@ if (v1 === original) throw new Error('Counter.hx changed: its signal line is not
 fs.writeFileSync(counter, v1);
 const cp = [`-cp ${path.join(repo, 'src')}`];
 const glibc = process.platform === 'linux' ? ['-D hxmc.libc=glibc'] : [];
-fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, '-D helder.view.renderer.ui=helder.ui.view.NodeRenderer', '-main Counter', ...glibc,
+fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, '-main Counter', ...glibc,
 	`--custom-target hxmc=out/counter${process.platform === 'win32' ? '.exe' : ''}`].join('\n') + '\n');
 const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
 

@@ -53,7 +53,7 @@ fs.writeFileSync(card, cards[0]);
 const out = web ? 'out/app.wasm' : process.platform === 'win32' ? 'out/app.exe' : 'out/app';
 const ref = 'ref/' + path.basename(out);
 const args = (o) => ['-cp', path.join(repo, 'src'),
-	'-cp', path.join(repo, 'examples', exampleDir), '-cp', 'app', '-D', 'helder.view.renderer.ui=helder.ui.view.NodeRenderer', '-main', example,
+	'-cp', path.join(repo, 'examples', exampleDir), '-cp', 'app', '-main', example,
 	...(web ? ['-D', 'hxmc.target=wasm32-wasi'] : process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []),
 	'--custom-target', 'hxmc=' + o, '-D', 'hxmc.dev', ...(fs.existsSync(path.join(path.dirname(compiler), 'std')) ? ['-cp', path.join(path.dirname(compiler), 'std')] : [])];
 const env = { ...process.env, HXMC_MODULE_CACHE: '0' };
