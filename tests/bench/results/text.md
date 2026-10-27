@@ -1,11 +1,11 @@
-# The text pilot on helder.scoped: before and after
+# The text pilot: before, on helder.scoped, on reused buffers
 
 The README's phase 3, "The core on helder.scoped": text's hot internals
 first (0054f37), measured against the baseline (baseline.md, before it) by
 tests/bench/Bench.hx. Text's tests pass unchanged: sample.png and
 sample-cff.png pixel for pixel, ui's golden images too (todo.png exact).
 
-## What changed
+## What the pilot changed
 
 - **On helder.scoped**: a glyph the atlas lacks is drawn by `Coverage`
   (Rasterizer's algorithm, its accumulation buffer a scoped slice) from
@@ -17,7 +17,57 @@ sample-cff.png pixel for pixel, ui's golden images too (todo.png exact).
   on every call), the atlas's faces found again without making their
   String key, its places and boxes without Arrays or objects.
 
-## Before and after
+## Before, scoped and on reused buffers
+
+Text moved off scoped memory (see below for why): a glyph is drawn by the
+atlas's Rasterizer, reset for each glyph (its accumulation buffer grown to
+the largest so far), straight from the font's outline as before the pilot,
+without recording it to replay; a synthetic oblique is the Rasterizer's
+`skew`. A blur's sharp coverage and its pass across are the atlas's
+buffers; `FontFile.outline` reads a TrueType glyph's points into Vectors
+the face keeps. Coverage, the second rasterizer, is gone; IntTable, the
+recent faces and the box without an Array stay. Text no longer uses
+helder.scoped. The same pixels: sample.png, sample-cff.png.
+
+Medians of five alternating runs of the three builds (before: 0054f37^;
+scoped: 0054f37; buffers), 2026-10-27, the same VM. Each cell is before /
+scoped / buffers, the change from before in brackets.
+
+| workload | target | median ms | p99 ms | KB/run | GCs (majors) |
+| --- | --- | ---: | ---: | ---: | ---: |
+| text.layout.latin | native | 0.081 / 0.078 / 0.078 (-4%) | 0.241 / 0.171 / 0.164 | 134.3 / 116.9 / 119.4 | 3 / 3 / 3 |
+| text.layout.mixed | native | 0.072 / 0.069 / 0.070 (-3%) | 0.150 / 0.132 / 0.147 | 125.5 / 115.5 / 116.9 | 4 / 3 / 3 |
+| text.atlas.cold | native | 5.543 / 5.894 / 5.230 (-6%) | 7.393 / 6.468 / 6.903 | 5743.8 / 1238.8 / 1250.3 | 22 / 5 / 5 |
+| text.atlas.warm | native | 0.058 / 0.031 / 0.031 (-47%) | 0.094 / 0.046 / 0.046 | 31.1 / 0 / 0 | 1 / 0 / 0 |
+| ui.layout.10k | native | 15.90 / 15.71 / 15.39 (-3%) | 38.48 / 36.36 / 36.30 | 12182.6 / 10751.6 / 11049.1 | 46 (2) / 40 (1) / 42 (1) |
+| ui.hit | native | 1.055 / 1.017 / 1.010 (-4%) | 1.221 / 1.196 / 1.336 | 56.5 / 56.5 / 56.5 | 1 / 1 / 1 |
+| text.layout.latin | wasm32 | 0.113 / 0.134 / 0.127 (+12%) | 0.460 / 0.419 / 0.419 | 154.7 / 137.4 / 139.9 | 3 / 3 / 3 |
+| text.layout.mixed | wasm32 | 0.107 / 0.105 / 0.104 (-3%) | 0.220 / 0.192 / 0.203 | 125.5 / 115.5 / 116.9 | 4 / 3 / 3 |
+| text.atlas.cold | wasm32 | 6.654 / 8.856 / 6.129 (-8%) | 9.860 / 10.866 / 7.707 | 6188.4 / 1666.3 / 1683.8 | 12 (1) / 4 (1) / 4 (1) |
+| text.atlas.warm | wasm32 | 0.079 / 0.050 / 0.049 (-38%) | 0.141 / 0.068 / 0.088 | 31.1 / 0 / 0 | 1 / 0 / 0 |
+| ui.layout.10k | wasm32 | 15.31 / 14.57 / 14.45 (-6%) | 32.17 / 31.92 / 32.75 | 12728.7 / 11024.6 / 11322.0 | 23 (1) / 20 (1) / 21 (1) |
+| ui.hit | wasm32 | 1.628 / 1.631 / 1.614 (-1%) | 1.860 / 1.997 / 2.620 | 56.5 / 56.5 / 56.5 | 1 (1) / 0 / 0 |
+
+- A cold atlas is 6% faster than before natively and 8% on wasm32 (scoped:
+  6% and 33% slower), with scoped's garbage: per glyph drawn, nothing; per
+  run, the new atlas (its 1 MB bitmap, its cache) and its Rasterizer's
+  buffer growing to the largest glyph (11 KB more than scoped's).
+- A warm atlas allocates nothing, as on scoped.
+- TextLayout's marks are an Array<Bool> again (2.5 KB a run of
+  text.layout.latin, 300 KB of ui.layout.10k): the flat output that
+  follows takes them, with the Glyph objects.
+- text.layout.latin on wasm32 is still slower than before (IntTable for
+  kerning, as below).
+
+Builds (KB; seconds from nothing, without the checker, best of three
+alternating builds):
+
+| program | target | size before / scoped / buffers | compile before / scoped / buffers |
+| --- | --- | ---: | ---: |
+| Todo | native | 1990 / 2040 / 2003 (+0.7%) | 1.55 / 1.65 / 1.60 |
+| Todo | wasm32 | 1478 / 1514 / 1490 (+0.8%) | 1.68 / 1.78 / 1.67 |
+
+## Before and after (the pilot)
 
 Medians of five alternating runs of the old and new builds (each run: the
 workload's median and p99 in ms over its runs), 2026-10-27, the same VM as

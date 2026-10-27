@@ -20,7 +20,7 @@ text with, usable on its own.
   version 0 layers with CPAL's palette (Segoe UI Emoji).
 - `Rasterizer`: anti-aliased coverage of outlines, after Raph Levien's
   font-rs (exact area per pixel, quadratic and cubic curves flattened
-  within a third of a pixel).
+  within a third of a pixel); `reset` for the next bitmap, its buffer kept.
 - `SystemFonts`: the fonts found in the system's directories (Linux,
   Windows, macOS; names read from each file's tables without loading it),
   and fonts added from bytes; `match(family, weight, italic)` picks a face
@@ -69,10 +69,9 @@ text with, usable on its own.
   (CSS's line-clamp, checked against Chromium's).
 - `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
   packed into an R8 bitmap for a GPU texture, its changed region tracked.
-  A glyph is drawn in `helder.scoped` memory (`Coverage`: Rasterizer's
-  algorithm, the outline's points read by `FontFile` into the same scope):
-  a miss allocates its cache entry and nothing else on the GC heap, a hit
-  nothing (tests/bench/results/text.md).
+  A glyph is drawn by a Rasterizer the atlas keeps, from points `FontFile`
+  reads into buffers it keeps: a miss allocates its cache entry and
+  nothing else, a hit nothing (tests/bench/results/text.md).
 
 ```haxe
 var fonts = helder.text.SystemFonts.get();

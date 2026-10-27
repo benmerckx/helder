@@ -1,7 +1,7 @@
 package helder.text;
 
 import haxe.io.Bytes;
-import helder.scoped.*;
+import haxe.ds.Vector;
 
 // An OpenType font (an sfnt; one face of a collection, .ttc): its metrics
 // in font units, the character map (formats 4 and 12), horizontal
@@ -11,9 +11,8 @@ import helder.scoped.*;
 // CFF's ('OTTO', .otf: Cff, cubic curves). A variable TrueType font's
 // axes (axes) give instances (instance: gvar's deltas applied to outlines
 // and advances; Variations). CFF2 (variable) outlines are not read:
-// FontFile.parse throws. A glyph's points are read into scoped memory
-// (outline: nothing on the GC heap but a variable instance's deltas).
-@:build(helder.scoped.Scoped.build())
+// FontFile.parse throws. A glyph's points are read into buffers kept for
+// the next (outline: nothing allocated but a variable instance's deltas).
 class FontFile {
 	public final data:Bytes;
 	// unique per parsed face (atlas keys)
@@ -963,15 +962,27 @@ class FontFile {
 		if (contours >= 0) simple(p, contours, out, a, b, c, d, e, f) else composite(p, out, a, b, c, d, e, f);
 	}
 
-	// (its points in the call's scope)
-	@:scoped function simple(p:Int, contours:Int, out:Outline, ta:Float, tb:Float, tc:Float, td:Float, te:Float, tf:Float) {
-		var ends = Scope.slice(Int, contours);
+	// (a glyph's points as read: contours' ends, flags, x and y, kept for the
+	// next glyph, grown when one needs more)
+	var ends = new Vector<Int>(16);
+	var flags = new Vector<Int>(128);
+	var xs = new Vector<Float>(128);
+	var ys = new Vector<Float>(128);
+
+	function simple(p:Int, contours:Int, out:Outline, ta:Float, tb:Float, tc:Float, td:Float, te:Float, tf:Float) {
+		if (ends.length < contours) ends = new Vector(contours * 2);
+		var ends = ends;
 		for (i in 0...contours)
 			ends[i] = u16(data, p + 10 + 2 * i);
 		var n = contours == 0 ? 0 : ends[contours - 1] + 1;
 		var q = p + 10 + 2 * contours;
 		q += 2 + u16(data, q); // (the instructions)
-		var flags = Scope.slice(U8, n);
+		if (flags.length < n) {
+			flags = new Vector(n * 2);
+			xs = new Vector(n * 2);
+			ys = new Vector(n * 2);
+		}
+		var flags = flags, xs = xs, ys = ys;
 		var i = 0;
 		while (i < n) {
 			var f = data.get(q++);
@@ -982,9 +993,8 @@ class FontFile {
 					flags[i++] = f;
 			}
 		}
-		var xs = Scope.slice(Float, n), ys = Scope.slice(Float, n);
 		var v = 0;
-		for (i in 0...xs.length) {
+		for (i in 0...n) {
 			var f = flags[i];
 			if (f & 2 != 0) {
 				var d = data.get(q++);
@@ -996,7 +1006,7 @@ class FontFile {
 			xs[i] = v;
 		}
 		v = 0;
-		for (i in 0...ys.length) {
+		for (i in 0...n) {
 			var f = flags[i];
 			if (f & 4 != 0) {
 				var d = data.get(q++);
@@ -1007,23 +1017,17 @@ class FontFile {
 			}
 			ys[i] = v;
 		}
-		// (an instance: the points moved by their deltas, the origin by the first
-		// phantom point's; Variations' arrays are the GC heap's)
+		// (an instance: the points moved by their deltas, the origin by the first phantom point's)
 		if (coords != null) {
-			var gx = new haxe.ds.Vector<Float>(n), gy = new haxe.ds.Vector<Float>(n);
-			for (i in 0...n) {
-				gx[i] = xs[i];
-				gy[i] = ys[i];
-			}
 			var dx = zeros(n + 4), dy = zeros(n + 4);
-			vars.deltas(glyphAt, coords, n + 4, gx, gy, [for (i in 0...contours) ends[i]], dx, dy);
+			vars.deltas(glyphAt, coords, n + 4, xs, ys, [for (i in 0...contours) ends[i]], dx, dy);
 			for (i in 0...n) {
-				xs[i] = gx[i] + (dx[i] - dx[n]);
-				ys[i] = gy[i] + dy[i];
+				xs[i] += dx[i] - dx[n];
+				ys[i] += dy[i];
 			}
 		}
 		// transformed points
-		for (i in 0...xs.length) {
+		for (i in 0...n) {
 			var x = xs[i], y = ys[i];
 			xs[i] = ta * x + tc * y + te;
 			ys[i] = tb * x + td * y + tf;
@@ -1039,7 +1043,7 @@ class FontFile {
 
 	// one contour of on- and off-curve points: implied on-curve points
 	// between two off-curve ones
-	@:scoped function contour(xs:Slice<Float>, ys:Slice<Float>, flags:Slice<U8>, s:Int, n:Int, out:Outline) {
+	function contour(xs:Vector<Float>, ys:Vector<Float>, flags:Vector<Int>, s:Int, n:Int, out:Outline) {
 		inline function on(i:Int)
 			return flags[s + (i % n)] & 1 != 0;
 		inline function x(i:Int)

@@ -8,18 +8,21 @@ import haxe.ds.Vector;
 // pixel's coverage (the nonzero rule, overlaps clamped). Quadratic and
 // cubic curves are flattened into lines within a third of a pixel. Coordinates are
 // pixels, y down; the transform maps outline units to them (scale, then
-// offset).
+// offset). One kept and reset for each bitmap (GlyphAtlas's) draws without
+// allocating: its buffer grows to the largest.
 class Rasterizer implements Outline {
-	public final width:Int;
-	public final height:Int;
-	final acc:Vector<Float>;
-	final stride:Int;
+	public var width(default, null):Int;
+	public var height(default, null):Int;
+	var acc:Vector<Float>;
+	var stride:Int;
 
-	// outline units to pixels: x * scaleX + offsetX, y * scaleY + offsetY
+	// outline units to pixels: x * scaleX + offsetX, y * scaleY + offsetY;
+	// skew: x moved by skew times y first (in outline units: a synthetic oblique)
 	public var scaleX = 1.0;
 	public var scaleY = 1.0;
 	public var offsetX = 0.0;
 	public var offsetY = 0.0;
+	public var skew = 0.0;
 
 	var px = 0.0;
 	var py = 0.0;
@@ -27,29 +30,40 @@ class Rasterizer implements Outline {
 	var sy = 0.0;
 
 	public function new(width:Int, height:Int) {
+		acc = new Vector(0);
+		reset(width, height);
+	}
+
+	// cleared for a bitmap of width x height (the buffer grown if it is larger)
+	public function reset(width:Int, height:Int) {
 		this.width = width;
 		this.height = height;
 		stride = width + 2;
-		acc = new Vector(stride * height + 2);
-		for (i in 0...acc.length)
+		var n = stride * height + 2;
+		if (n > acc.length) acc = new Vector(n > 2 * acc.length ? n : 2 * acc.length);
+		for (i in 0...n)
 			acc[i] = 0;
+		px = py = sx = sy = 0;
 	}
 
+	inline function tx(x:Float, y:Float):Float
+		return (skew == 0 ? x : x + skew * y) * scaleX + offsetX;
+
 	public function moveTo(x:Float, y:Float) {
-		px = sx = x * scaleX + offsetX;
+		px = sx = tx(x, y);
 		py = sy = y * scaleY + offsetY;
 	}
 
 	public function lineTo(x:Float, y:Float) {
-		var nx = x * scaleX + offsetX, ny = y * scaleY + offsetY;
+		var nx = tx(x, y), ny = y * scaleY + offsetY;
 		line(px, py, nx, ny);
 		px = nx;
 		py = ny;
 	}
 
 	public function quadTo(cx:Float, cy:Float, x:Float, y:Float) {
-		var x1 = cx * scaleX + offsetX, y1 = cy * scaleY + offsetY;
-		var x2 = x * scaleX + offsetX, y2 = y * scaleY + offsetY;
+		var x1 = tx(cx, cy), y1 = cy * scaleY + offsetY;
+		var x2 = tx(x, y), y2 = y * scaleY + offsetY;
 		var devx = px - 2 * x1 + x2, devy = py - 2 * y1 + y2;
 		var devsq = devx * devx + devy * devy;
 		if (devsq < 0.333) {
@@ -70,9 +84,9 @@ class Rasterizer implements Outline {
 	}
 
 	public function cubicTo(c1x:Float, c1y:Float, c2x:Float, c2y:Float, x:Float, y:Float) {
-		var x1 = c1x * scaleX + offsetX, y1 = c1y * scaleY + offsetY;
-		var x2 = c2x * scaleX + offsetX, y2 = c2y * scaleY + offsetY;
-		var x3 = x * scaleX + offsetX, y3 = y * scaleY + offsetY;
+		var x1 = tx(c1x, c1y), y1 = c1y * scaleY + offsetY;
+		var x2 = tx(c2x, c2y), y2 = c2y * scaleY + offsetY;
+		var x3 = tx(x, y), y3 = y * scaleY + offsetY;
 		// (the second differences bound the distance to the chords: 3/4 of
 		// the larger over n squared)
 		var ax = px - 2 * x1 + x2, ay = py - 2 * y1 + y2, bx = x1 - 2 * x2 + x3, by = y1 - 2 * y2 + y3;
@@ -189,7 +203,7 @@ class Rasterizer implements Outline {
 	}
 
 	public function clear() {
-		for (i in 0...acc.length)
+		for (i in 0...stride * height + 2)
 			acc[i] = 0;
 	}
 }
