@@ -1,0 +1,8 @@
+// helder.test snapshots: `helder test -u` rewrites them
+
+--- snapshot: a value (1 line)
+{name: "x", sizes: [1, 2]}
+
+--- snapshot: text (2 lines)
+two
+lines
