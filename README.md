@@ -195,15 +195,18 @@ collection only when it allocates or blocks.
   ([baseline](tests/bench/results/baseline.md)), with whatever storage
   measures best. The text pilot ([results](tests/bench/results/text.md))
   removed its garbage (a warm atlas allocates nothing), but scoped memory
-  made a cold atlas 6% slower natively and 35% on wasm32, where GC buffers
-  kept for the next call do as well with no slowdown: text moves to those.
-  Physics ([results](tests/bench/results/physics.md)) allocates nothing in
-  steady state (from 40-720 KB a step): contacts in reused GC arrays,
-  struct-of-arrays, no boxed vectors; scoped memory measured within 5%
-  either way, with a larger, slower build, so GC buffers. Next:
-  TextLayout's output as flat glyph data instead of `Glyph` objects (most
-  of ui's 12 MB a full layout), ui's renderer following; flexbox and scene
-  allocate next to nothing. The GC-facing API of each package stays.
+  made a cold atlas 6% slower natively and 35% on wasm32; on GC buffers
+  kept for the next call it is 6% and 8% faster than before, with the same
+  garbage. Physics ([results](tests/bench/results/physics.md)) allocates
+  nothing in steady state (from 40-720 KB a step): contacts in reused GC
+  arrays, struct-of-arrays, no boxed vectors; scoped memory measured within
+  5% either way, with a larger, slower build, so GC buffers. TextLayout's
+  output is flat glyph data, read by index, in buffers a layout keeps and
+  wraps again at another width ([results](tests/bench/results/ui-text.md)):
+  ui's full layout of 10k nodes from 11 MB of garbage to 94 bytes, 3.9x
+  faster natively, 3.1x on wasm32. Next: ui's pointer moves (578 bytes
+  each: the hover paths' Arrays, the events); flexbox and scene allocate
+  next to nothing. The GC-facing API of each package stays.
 - **`helder.scoped` where it fits**, the default once it costs less:
   cheaper access (natively the base in a register, on wasm32 no table),
   memory a GC object can own (caches), a way through interfaces

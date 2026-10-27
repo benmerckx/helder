@@ -57,6 +57,18 @@ text with, usable on its own.
   become the composed character when the face has it (`Compose`:
   Unicode's canonical pairs), as HarfBuzz does; Arabic, Hebrew and
   combining accents match Chromium's ink in the tests.
+- `TextLayout`'s glyphs are flat, as HarfBuzz's glyph infos and
+  positions: the lines' in one buffer of `glyphCount`, each line's in
+  visual order from `TextLine.glyphStart` to `glyphEnd`, read by index
+  (`glyphId`, `glyphFont`, `glyphFontSet`, `glyphX`: the pen from the
+  line's start; `glyphAdvance`, `glyphOffsetX` and `Y`: a mark's place;
+  `glyphCluster` and `glyphLength`: the characters it shows, UTF-16
+  units; `glyphChar`, `glyphParts`, `glyphLevel`, `glyphRun`,
+  `glyphHidden`). No object per glyph. A layout keeps its buffers:
+  `wrap(maxWidth)` lays the same shaped text out at another width (as
+  Skia's `SkParagraph::layout`, cosmic-text's `Buffer`), `reset` shapes
+  another text into them; neither allocates once they are large enough
+  (ui's TextNode lays its paragraph out again in place).
 - `Grapheme`: grapheme clusters (a letter and its marks, emoji sequences,
   flags, Hangul syllables from jamo), the steps a caret takes; checked
   against `Intl.Segmenter`.
@@ -78,9 +90,11 @@ var fonts = helder.text.SystemFonts.get();
 var face = fonts.match("sans-serif", 400);
 var layout = new TextLayout("Hello, world", new FontSet(face, fonts.fallbacks(), 16), 1.25, 200);
 for (line in layout.lines)
-	for (g in line.glyphs) {
-		var bitmap = atlas.get(g.font, g.id, 16, 0); // where its pixels are
+	for (i in line.glyphStart...line.glyphEnd) {
+		var bitmap = atlas.get(layout.glyphFont(i), layout.glyphId(i), 16, 0); // where its pixels are
+		var x = layout.glyphX(i) + layout.glyphOffsetX(i), y = line.top + line.baseline + layout.glyphOffsetY(i);
 	}
+layout.wrap(120); // the same glyphs in lines of 120 pixels, not shaped again
 ```
 
 In a browser (wasm32-wasi with `src/helder/os/browser.mjs`) there are no
