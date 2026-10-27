@@ -188,6 +188,33 @@ Still to come:
     renderer, pointer events across a boundary (picking through a scene),
     `<Page>` as the root for servers and static sites.
 
+- **TypeScript for apps (optional, after the boundary tags)**: end users
+  write their app in TS/TSX; helder itself stays Haxe, and the output is
+  hxmc's, native or wasm, with no JavaScript in it.
+  - **A `helder-ts` frontend** the CLI runs when a project's entry is
+    `src/main.ts(x)`, on TypeScript 7.1's API (`typescript/sync`, a client
+    of the Go compiler; node at build time only): the program checked by
+    TypeScript, each module emitted as Haxe into `bin/ts/`, hxmc compiling
+    it as any helder program; `helder dev` feeds its watcher's changes to
+    the API's snapshots (`snapshot.update`, `fileNotifications`) and
+    re-emits only what changed; errors and stack traces mapped back to the
+    `.ts` lines, as `.test.hx` paths are.
+  - **TSX as helder.view's markup**, typed against helder's elements and
+    compiled by its macros to direct calls on signals, no virtual DOM;
+    `<Scene>` in TSX once scenes take markup.
+  - **helder's API as `.d.ts` files** in the npm package, generated from the
+    Haxe API when helder is published (a `.hx` content mapper, TypeScript
+    7.1's plugin point, only if apps mix their own `.hx` files in).
+  - **A generous subset**, since app code is GC code: classes, functions,
+    interfaces as anonymous structures, unions as generated enums,
+    `async`/`await` on `helder.async`, `number` as `Float` (an `i32` alias
+    for `Int`); refused: `any` spread through code, mapped and conditional
+    types beyond what Haxe can express, prototypes changed at run time.
+    Shaders in TS (to Haxe shader classes) later, for games.
+  - A proof first: the `.d.ts` for view and ui, the emitter, the counter
+    and todo examples in TSX built and live-reloaded by `helder dev`; started
+    once TypeScript 7.1's API is out of beta.
+
 ### 3. Foundations
 
 Side by side, as they constrain each other. The async design comes from a
