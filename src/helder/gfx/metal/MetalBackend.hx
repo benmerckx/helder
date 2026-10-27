@@ -142,7 +142,7 @@ class MetalBackend {
 		var b = Msg.idIntInt(device, ObjC.sel("newBufferWithLength:options:"), size, MTL.ResourceStorageModeShared);
 		if (b.isNull()) throw "helder.gfx: cannot create a buffer of " + size + " bytes";
 		// (a fast call: the Bytes cannot move during it)
-		if (data != null) LibC.memcpy(Msg.id(b, ObjC.sel("contents")), Mem.addr(data).add(8), (size : Int64));
+		if (data != null) LibC.memcpy(Msg.id(b, ObjC.sel("contents")), BytesPtr.of(data, 0, size), (size : Int64));
 		buffers.push(b);
 		return buffers.length;
 	}
@@ -152,7 +152,7 @@ class MetalBackend {
 		var b = buffers[id - 1];
 		if (offset + size > Msg.i(b, ObjC.sel("length")).toInt()) throw "helder.gfx: writeBuffer: past the buffer's end";
 		var dst:Ptr<UInt8> = Msg.id(b, ObjC.sel("contents"));
-		LibC.memcpy(dst.add(offset), Mem.addr(data).add(8 + dataOffset), (size : Int64));
+		LibC.memcpy(dst.add(offset), BytesPtr.of(data, dataOffset, size), (size : Int64));
 	}
 
 	static function pixelFormat(f:TextureFormat):Int
@@ -407,7 +407,7 @@ class MetalBackend {
 		if (offset < 0 || size < 0 || offset + size > data.length) throw "helder.gfx: setUniforms: outside the data";
 		if (size > MAX_BYTES) throw "helder.gfx: setUniforms: a block of more than " + MAX_BYTES + " bytes";
 		// (a copy first: the Bytes may move during a message)
-		LibC.memcpy(uniforms, Mem.addr(data).add(8 + offset), (size : Int64));
+		LibC.memcpy(uniforms, BytesPtr.of(data, offset, size), (size : Int64));
 		MtlMsg.vPtrIntInt(enc, S.setVertexBytes, uniforms, size, slot);
 		MtlMsg.vPtrIntInt(enc, S.setFragmentBytes, uniforms, size, slot);
 	}

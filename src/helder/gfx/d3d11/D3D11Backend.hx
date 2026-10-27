@@ -262,7 +262,7 @@ class D3D11Backend {
 			upload = LibC.malloc((size : Int64));
 			uploadSize = size;
 		}
-		LibC.memcpy(upload, Mem.addr(data).add(8 + dataOffset), (size : Int64));
+		LibC.memcpy(upload, BytesPtr.of(data, dataOffset, size), (size : Int64));
 		box.value.left = offset;
 		box.value.right = offset + size;
 		box.value.top = 0;
@@ -587,7 +587,7 @@ class D3D11Backend {
 			if (cursor + n > Encoder.UNIFORM_RING) throw "helder.gfx: setUniforms: more than " + Encoder.UNIFORM_RING + " bytes of uniforms in a frame";
 			if (ring.isNull()) ring = dynamicBuffer(Encoder.UNIFORM_RING);
 			check(ID3D11DeviceContext.Map(context, ring, 0, cursor == 0 ? D3D.MAP_WRITE_DISCARD : D3D.MAP_WRITE_NO_OVERWRITE, 0, mapped), "Map");
-			LibC.memcpy((mapped.value.pData : Ptr<UInt8>).add(cursor), Mem.addr(data).add(8 + offset), (size : Int64));
+			LibC.memcpy((mapped.value.pData : Ptr<UInt8>).add(cursor), BytesPtr.of(data, offset, size), (size : Int64));
 			ID3D11DeviceContext.Unmap(context, ring, 0);
 			cbuf.value = ring;
 			cfirst.value = cursor >> 4;
@@ -608,7 +608,7 @@ class D3D11Backend {
 		}
 		var b = slotBuffers[slot];
 		check(ID3D11DeviceContext.Map(context, b, 0, D3D.MAP_WRITE_DISCARD, 0, mapped), "Map");
-		LibC.memcpy(mapped.value.pData, Mem.addr(data).add(8 + offset), (size : Int64));
+		LibC.memcpy(mapped.value.pData, BytesPtr.of(data, offset, size), (size : Int64));
 		ID3D11DeviceContext.Unmap(context, b, 0);
 		cbuf.value = b;
 		ID3D11DeviceContext.VSSetConstantBuffers(context, slot, 1, cbuf);
@@ -706,7 +706,7 @@ class D3D11Backend {
 		check(ID3D11DeviceContext.Map(context, staging, 0, D3D.MAP_READ, 0, mapped), "Map");
 		var src:Ptr<UInt8> = mapped.value.pData, pitch:Int = mapped.value.RowPitch;
 		for (y in 0...height)
-			LibC.memcpy(Mem.addr(dst).add(8 + y * row), src.add(y * pitch), (row : Int64));
+			BytesPtr.copyIn(dst, y * row, src.add(y * pitch), row);
 		ID3D11DeviceContext.Unmap(context, staging, 0);
 	}
 
