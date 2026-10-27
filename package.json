@@ -4,13 +4,11 @@
   "description": "An experimental app and GUI stack in Haxe",
   "license": "MIT",
   "files": [
-    "src/",
-    "extraParams.hxml"
+    "src/"
   ],
   "haxe": {
     "name": "helder",
-    "classPath": "src",
-    "hxml": "extraParams.hxml"
+    "classPath": "src"
   },
   "scripts": {
     "test": "haxe -cp tests --run Run",

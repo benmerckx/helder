@@ -12,7 +12,7 @@ using Lambda;
 
 // The checker: a scoped value never reaches the GC heap, where it could
 // outlive its scope. `--macro helder.scoped.Check.enable()` runs it after
-// typing (extraParams.hxml does when the package is a -lib). An error for:
+// typing (opt-in: a build that uses scoped adds it). An error for:
 //
 // - a field or static of a class, or of an anonymous structure, holding a
 //   scoped value (a struct's own fields are its memory, not the heap's);

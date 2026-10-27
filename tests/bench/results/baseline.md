@@ -84,3 +84,8 @@ to run, p99s and maxima more.
   with it the module cache saves nothing. (Before this baseline it overflowed
   the stack on Todo's recursive typedefs and took 5.7 s of Todo's 7.1 s:
   fixed in a902470.)
+  Since then the checker is opt-in (no longer in extraParams.hxml). Native
+  builds, medians of 3, cold (-D hxmc.no-module-cache) and warm: Todo 2.99
+  and 2.91 s with it, 1.60 and 0.47 s without; Walker 1.84 and 1.84 s with
+  it, 0.98 and 0.30 s without. Without the checker the module cache saves
+  70%.

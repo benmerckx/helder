@@ -113,9 +113,11 @@ would make of it, on every target:
 
 ## Safety
 
-- **The checker** (`--macro helder.scoped.Check.enable()`; `extraParams.hxml`
-  adds it when the package is a `-lib`) rejects a scoped value reaching the
-  GC heap, where it could outlive its scope:
+- **The checker** (`--macro helder.scoped.Check.enable()`) rejects a scoped
+  value reaching the GC heap, where it could outlive its scope. It is opt-in:
+  a project that uses scoped adds the flag to its build (`-lib helder` does
+  not): it walks every typed module, about 40% of a build's time, and with it
+  the module cache saves nothing. The rules:
   - a field or a static;
   - an Array, Map, `Null<T>`, or a type parameter of a class;
   - an anonymous structure;

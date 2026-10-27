@@ -436,9 +436,10 @@ class Run {
 		mkdirs("bin/bench");
 		File.saveBytes(font, File.getBytes(dejavu()));
 		var cp = cps(["src", "tests/bench"]).concat(["-main", "Bench"]);
-		// (each built four times: with the checker as -lib helder has it, from
-		// nothing (-D hxmc.no-module-cache), then with the module cache; the
-		// same without it. The last build is the one run)
+		// (each built four times: with scoped's checker, which a project opts
+		// into, from nothing (-D hxmc.no-module-cache), then with the module
+		// cache; the same without it, as -lib helder builds. The last build is
+		// the one run)
 		var check = ["--macro", "helder.scoped.Check.enable()"];
 		var builds = [];
 		function timed(what:String, target:String, out:String, args:Array<String>) {
@@ -485,7 +486,7 @@ class Run {
 		}
 		md = md.concat([
 			"", "## Builds", "",
-			"Seconds to compile, without a compilation server: with scoped's checker (as -lib helder has it), from nothing (-D hxmc.no-module-cache) and with the module cache on disk; the same without the checker.",
+			"Seconds to compile, without a compilation server: with scoped's checker (opt-in), from nothing (-D hxmc.no-module-cache) and with the module cache on disk; the same without the checker, as -lib helder builds.",
 			"", "| program | target | size (KB) | checker | cached | no checker | cached |", "| --- | --- | ---: | ---: | ---: | ---: | ---: |"
 		]);
 		for (b in builds)
