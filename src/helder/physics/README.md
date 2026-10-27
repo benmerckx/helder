@@ -23,6 +23,11 @@ impulse; the same steps give the same numbers on every target (Eval,
 native, wasm32-wasi: tested). Joints: `physics.join(Joint.ball(a, anchorA, b, anchorB))` (a ball and socket; `b` null: a point of the world) `Joint.distanceOf(...)` (a rigid rod) and `Joint.hinge(a, anchorA, axisA, b, anchorB, axisB)` (doors, wheels). `Character` walks an upright capsule: steered towards a wanted velocity, grounded by a ray, jumping, climbing steps. Next: convex hulls (GJK and EPA), box edge-against-edge axes, slopes for characters; a binding to an
 established engine behind the same API later.
 
+A step allocates nothing on the GC heap once its buffers have grown to the world's size: the contacts
+struct-of-arrays in `Contacts`, cleared each step, the vectors hxmc's struct values (never in an Array, which
+boxes them). Measured by `bun run test bench` (physics.stacks, chains, pile, joints, walkers):
+[tests/bench/results/physics.md](../../../tests/bench/results/physics.md).
+
 Examples: `Falling` (balls and boxes) and `Walker` (a `Character` among crates; `Shapes.capsule` draws it).
 
 Tests: `tests/physics/PhysicsTest.hx` and the Falling and Walker examples' frames

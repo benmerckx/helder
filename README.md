@@ -197,10 +197,13 @@ collection only when it allocates or blocks.
   removed its garbage (a warm atlas allocates nothing), but scoped memory
   made a cold atlas 6% slower natively and 35% on wasm32, where GC buffers
   kept for the next call do as well with no slowdown: text moves to those.
-  Next: physics (330 KB a step: contacts, boxed vectors) and TextLayout's
-  output as flat glyph data instead of `Glyph` objects (most of ui's 12 MB a
-  full layout), ui's renderer following; flexbox and scene allocate next to
-  nothing. The GC-facing API of each package stays.
+  Physics ([results](tests/bench/results/physics.md)) allocates nothing in
+  steady state (from 40-720 KB a step): contacts in reused GC arrays,
+  struct-of-arrays, no boxed vectors; scoped memory measured within 5%
+  either way, with a larger, slower build, so GC buffers. Next:
+  TextLayout's output as flat glyph data instead of `Glyph` objects (most
+  of ui's 12 MB a full layout), ui's renderer following; flexbox and scene
+  allocate next to nothing. The GC-facing API of each package stays.
 - **`helder.scoped` where it fits**, the default once it costs less:
   cheaper access (natively the base in a register, on wasm32 no table),
   memory a GC object can own (caches), a way through interfaces
