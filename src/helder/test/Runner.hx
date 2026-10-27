@@ -73,7 +73,7 @@ class Runner {
 				case a: Sys.println('helder.test: unknown argument $a');
 			}
 		}
-		t0 = Sys.time();
+		t0 = haxe.Timer.stamp();
 		var only = hasOnly(root);
 		for (g in root.items)
 			plan(cast g, only);
@@ -185,7 +185,7 @@ class Runner {
 		}
 		steps.push(next -> {
 			current = c;
-			c.start = Sys.time();
+			c.start = haxe.Timer.stamp();
 			next();
 		});
 		var seconds = c.seconds();
@@ -210,7 +210,7 @@ class Runner {
 			var c = new Case(null, what, h);
 			c.parent = g;
 			current = c;
-			c.start = Sys.time();
+			c.start = haxe.Timer.stamp();
 			exec(h, c.seconds(), () -> {
 				current = null;
 				if (c.failures.length > 0) {
@@ -284,7 +284,7 @@ class Runner {
 	// --- reporting
 
 	static function report(c:Case) {
-		var t = ms(Sys.time() - c.start);
+		var t = ms(haxe.Timer.stamp() - c.start);
 		if (c.failures.length == 0) {
 			counts.pass++;
 			Sys.println('(pass) ${c.fullName()} [$t]');
@@ -303,7 +303,7 @@ class Runner {
 		if (counts.skip > 0) Sys.println(' ${counts.skip} skip');
 		Sys.println(' ${counts.fail} fail');
 		Sys.println(' $checks check' + (checks == 1 ? "" : "s"));
-		Sys.println('Ran $total tests across ${counts.files} file${counts.files == 1 ? "" : "s"}. [${ms(Sys.time() - t0)}]');
+		Sys.println('Ran $total tests across ${counts.files} file${counts.files == 1 ? "" : "s"}. [${ms(haxe.Timer.stamp() - t0)}]');
 		Sys.exit(counts.fail > 0 ? 1 : 0);
 	}
 

@@ -128,15 +128,9 @@ class Agent {
 		trace0 = null;
 	}
 
-	// seconds on the monotonic clock (not haxe.Timer.stamp: haxe.Timer costs a
-	// dev build 118 KB, its EventLoop's, without -dce full)
-	public static inline function now():Float {
-		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
-		return hxmc.rt.Os.now();
-		#else
-		return Sys.time();
-		#end
-	}
+	// seconds, for durations
+	public static inline function now():Float
+		return haxe.Timer.stamp();
 
 	// around the agent's own work while Frame is on: its garbage counted apart
 	public static inline function begin():Float

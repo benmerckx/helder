@@ -121,8 +121,9 @@ fail, checks, the time); exit code 1 on a failure. `helder test`:
 | `--timeout <s>` | an async step's limit |
 
 Sizes and times (this repository's 42 tests, 3 files, Linux x86-64):
-a file with one plain test builds to 327 KB natively and 165 KB for
-wasm32-wasi (a hello world is 129 KB), 0.58 s from nothing and 0.21 s
+a file with one plain test builds to 262 KB natively and 137 KB for
+wasm32-wasi (a hello world is 122 KB and 55 KB; 297 KB natively before
+hxmc trimmed its std overrides by DCE, #89), 0.58 s from nothing and 0.21 s
 from the module cache, and runs in 2 ms. The repository's build: 0.55 s
 cold, 0.21 s cached (0.26 s for wasm), 0.25 to 0.45 s through the
 compilation server; Eval compiles and runs it in 0.42 s (0.06 s with

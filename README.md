@@ -148,7 +148,7 @@ Done as a first slice:
     program's output and the builds' errors, the last 500 kept by the CLI
     for a tool that comes late), `Frame` (time, work, GC bytes, collections
     and pauses per frame, 10 batches a second, no garbage per frame:
-    50 ns enabled, 0.4 ns disabled), `Ui.getTree` (a hook helder.ui
+    60 ns enabled, 0.4 ns disabled), `Ui.getTree` (a hook helder.ui
     registers);
   - the agent in dev builds only (27 KB; a release build unchanged, byte
     for byte), `helder dev` as the relay (a WebSocket at

@@ -179,9 +179,10 @@ code of its own), under `#if hxmc.dev`.
   Boxes (841 to 876 KB). Release builds unchanged, byte for byte (Tally,
   counter, todo).
 - **A frame** (`bun run test devtools`, FrameCost): disabled 0.4 ns (two
-  checks of a flag), enabled 50 ns and no garbage (two reads of the
-  monotonic clock, the GC counters, five columns), a batch of 6 frames
-  1.3 µs and 1.5 KB of the agent's garbage: 16 µs a second at 60 fps. The
+  checks of a flag), enabled 60 ns and no garbage (two reads of the
+  clock, `haxe.Timer.stamp`; the GC counters, five columns), a batch of 6
+  frames 1.3 µs and 1.5 KB of the agent's garbage: 17 µs a second at 60
+  fps. The
   console fixture's frames read 0 GC bytes while it allocates nothing, and
   4800 in every frame once it allocates 100 small arrays.
 
