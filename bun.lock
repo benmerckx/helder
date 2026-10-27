@@ -12,6 +12,9 @@
       },
     },
   },
+  "trustedDependencies": [
+    "@hxmc/cli",
+  ],
   "packages": {
     "@hxmc/cli": ["@hxmc/cli@0.1.0-nightly.20261027.8e54b1e", "", { "optionalDependencies": { "@hxmc/darwin-arm64": "0.1.0-nightly.20261027.8e54b1e", "@hxmc/darwin-x64": "0.1.0-nightly.20261027.8e54b1e", "@hxmc/linux-arm64": "0.1.0-nightly.20261027.8e54b1e", "@hxmc/linux-x64": "0.1.0-nightly.20261027.8e54b1e", "@hxmc/win32-arm64": "0.1.0-nightly.20261027.8e54b1e", "@hxmc/win32-x64": "0.1.0-nightly.20261027.8e54b1e" }, "os": [ "linux", "win32", "darwin", ], "hasInstallScript": true, "bin": { "haxe": "hxmc/bootstrap/haxe", "hxmc": "hxmc/bootstrap/haxe" } }, "sha512-8SRMIhPzFwVoIqRjT6CkwZKgvOthCVIUFKVJG8Yh8YemFMVAHebeCgf5JwBNx4SjftuSuj7r249irDznebTDZw=="],
 
