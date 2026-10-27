@@ -117,18 +117,24 @@ what was kept, then each entry) and the frames' stats (a line a second:
 mean and longest frame, work, GC bytes a frame, collections and pauses,
 the agent's bytes) until `helder dev` ends.
 
-## Workarounds for hxmc (each in one place)
+## Stopping
 
-- `processRun` takes no working directory or environment: `HXMC_DEV` and
-  `HXMC_DEV_SNAPSHOT` (and the server's `RT_OLD_MB`, `RT_MINOR_KB`) are set
-  with `Sys.putEnv` around the spawn and removed after (`DevCommand.start`,
-  `CompileServer.start`); programs run in the CLI's directory.
-- stat's mtime has a 1 s resolution: `SampledWatcher` compares the
-  content of a file whose mtime was within 2 s when it was watched, and
-  `PollWatcher` hashes files changed in the last 3 s.
-- `haxe --wait` finds the runtime objects only through `HXMC_RT_DIR`, and an
-  empty connection ends it (fixed in hxmc a85b139): `Compiler.find` sets
-  HXMC_RT_DIR, `Compiler.start` probes with a request.
+On SIGINT or SIGTERM (`helder.async.Signals`), `helder dev` stops the
+program and the compilation server, and `helder test --watch` its
+server: each asked to end (SIGTERM), ended (SIGKILL) if it has not within
+2 s; then the CLI exits with 128 + the signal. A program that does not
+answer a reload is stopped the same way, within 1 s. The program and the
+server are given their environment (`HXMC_DEV`, `HXMC_DEV_SNAPSHOT`; the
+server's `RT_OLD_MB`, `RT_MINOR_KB`) through `Process`'s `env`, the CLI's
+own left alone.
+
+## hxmc
+
+- The platform package's compiler, run alone, finds its runtime objects
+  neither in its package (it looks in `<its dir>/rt/<target>`) nor through
+  the launcher (which it looks for at `<its dir>/../hxmc/bootstrap`, not
+  @hxmc/cli's): `Compiler.find` gives `HXMC_RT_DIR` as the launcher's
+  `rtDirs()` does (hxmc 8841f02).
 - (Not a bug: `--server-connect`'s builds are given hxmc's std by the
   client, as dev.mjs does: `CompileServer.request`.)
 

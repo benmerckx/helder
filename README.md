@@ -104,7 +104,9 @@ Done as a first slice:
   Haxe 5's coroutines, tasks with structured concurrency and cancellation,
   timers, TCP, child processes, an HTTP and WebSocket server natively, the
   browser's loop on the web, I/O behind a completion-based backend
-  (select today); file watching as esbuild polls (`SampledWatcher`: what the
+  (poll(2) natively: sockets, pipes, Linux's pidfds; select on Eval);
+  processes with a working directory, an environment and signals, the
+  process's own SIGINT and SIGTERM on the loop; file watching as esbuild polls (`SampledWatcher`: what the
   last build read, the hot files every 100 ms, the rest sampled, 2.3 ms a
   tick for 10k files) and a whole-tree `PollWatcher`.
 - **The `helder` CLI** (src/helder/cli/README.md), a native program on it,
@@ -114,7 +116,8 @@ Done as a first slice:
     example's directory or a file (`helder dev examples/counter/Counter.hx`);
   - hxmc's native compiler called directly (no node), its std and runtime
     objects given by the CLI; a resident compilation server for dev, its own
-    process (the GPL compiler not linked into the MIT CLI);
+    process (the GPL compiler not linked into the MIT CLI), stopped with the
+    CLI (SIGTERM, then SIGKILL);
   - the dev loop ported from hxmc's `dev.mjs`: a failed build keeps the last
     good one running; natively each build a library (.so on Linux, a DLL on
     Windows, a dylib on macOS) swapped into the dev host's process (the
@@ -154,6 +157,16 @@ Done as a first slice:
   - @hxmc/cli's `{"type"}` lines still spoken to a program its `dev.mjs`
     runs; the `devtools` lane, headless.
 
+- **hxmc's fixes in a nightly** (@hxmc/cli 0.1.0-nightly.20261027.ec71785,
+  hxmc 8841f02), their workarounds removed: processes' cwd, env and signals
+  and nanosecond mtimes (#81), sockets' connect and `poll` (#79, the
+  native backend), allocation-free IntMap, resize and short sorts (#84,
+  where as fast), `GcStats` (#85), `Blocking` and `IoBuffer` (#86), a
+  `--wait` server kept by an empty connection; WasmGC's lanes removed
+  (hxmc drops it). Still to come in a nightly: `Timer.stamp`'s size (#89);
+  the platform package's compiler finding its runtime objects alone (the
+  CLI gives HXMC_RT_DIR).
+
 Still to come:
 
 - **The dev loop:** changed assets sent without a recompile, assets packed
@@ -178,15 +191,12 @@ Still to come:
   `.test.hx` files (the display server takes `Foo.test.hx` for the module
   `Foo`: no diagnostics, hover or completion); a macro later (`@:test`
   collection, an `assert` showing its values).
-- **`helder.async`'s backends:** io_uring on Linux (select where it is
+- **`helder.async`'s backends:** io_uring on Linux (poll where it is
   disabled: Android apps, some containers), kqueue on macOS, IOCP on
   Windows, on hxmc's `IoBuffer` and `@:hxmc.blocking`; a process's exit
-  without polling; Windows' pipes without threads; macOS and Windows run.
-- **hxmc's fixes in a nightly**, then the workarounds removed (each in one
-  place, its comment naming the fix): the compilation server's runtime
-  objects and empty connection (hxmc #83), `IoBuffer` and `Blocking`
-  (#82), processes with a working directory and an environment and
-  sub-second mtimes (#81), sockets' connect and `poll` (#79).
+  without polling on macOS (Linux: its pidfd, done); Windows' pipes
+  without threads; macOS and Windows run.
+
 
 - **Renderers as tags in markup**, react-three-fiber's `<Canvas>` model,
   replacing the `-D helder.view.renderer.<name>` defines (the CLI adds them
