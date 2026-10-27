@@ -49,6 +49,7 @@ class Run {
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
 		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium, then as WasmGC", run: uiWeb},
+		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
 	];
 
@@ -411,6 +412,106 @@ class Run {
 		});
 		Sys.println('examples: ${builds.length - failed.length}/${builds.length} built, ${Math.round(Sys.time() - t0)}s');
 		if (failed.length > 0) throw new Failed(failed.join(", "));
+	}
+
+	// --- the benchmarks
+
+	// (the programs whose size and compile time are tracked: ui and text, scene and physics)
+	static final BENCH_BUILDS = [{dir: "examples/todo", main: "Todo", ui: true}, {dir: "examples/walker", main: "Walker", ui: false}];
+
+	// tests/bench/Bench.hx natively and as wasm32-wasi (BENCH: the workloads,
+	// by name, separated by spaces; each in a process of its own), then the
+	// examples above built for both: a table
+	static function bench() {
+		var font = "bin/bench/DejaVuSans.ttf";
+		mkdirs("bin/bench");
+		File.saveBytes(font, File.getBytes(dejavu()));
+		var cp = cps(["src", "tests/bench"]).concat(["-main", "Bench"]);
+		// (each built four times: with the checker as -lib helder has it, from
+		// nothing (-D hxmc.no-module-cache), then with the module cache; the
+		// same without it. The last build is the one run)
+		var check = ["--macro", "helder.scoped.Check.enable()"];
+		var builds = [];
+		function timed(what:String, target:String, out:String, args:Array<String>) {
+			var times = [];
+			var nothing = ["-D", "hxmc.no-module-cache"];
+			for (extra in [check.concat(nothing), check, nothing, []]) {
+				var t0 = Sys.time();
+				if (target == HOST) native(out, args.concat(extra), HOST) else wasm(out, args.concat(extra));
+				times.push(Sys.time() - t0);
+			}
+			builds.push({what: what, target: target, out: target == HOST ? exePath(out, HOST) : out, times: times});
+		}
+		timed("Bench", HOST, "bin/bench/Bench", cp);
+		timed("Bench", "wasm32-wasi", "bin/bench/Bench.wasm", cp);
+		var names = (Sys.getEnv("BENCH") ?? "").split(" ").filter(n -> n != "");
+		if (names.length == 0) names = [for (l in output(exePath("bin/bench/Bench", HOST), [font, "list"]).split("\n")) if (l.trim() != "") l.trim()];
+		var md = ["# Benchmarks", "", 'tests/bench/Bench.hx (`bun run test bench`), ${Date.now().toString().substr(0, 10)}, ${cpuName()}.', ""];
+		md.push("Milliseconds per run (median, p99, max), GC heap bytes allocated per run, collections (all runs; majors), the longest time collecting in one run (natively; wasm32's collector does not time itself).");
+		for (target in [HOST, "wasm32-wasi"]) {
+			md = md.concat(["", '## $target', "", "| workload | runs | median | p99 | max | KB/run | GCs | majors | longest GC |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]);
+			for (n in names) {
+				var wasi = ["--stack-size=65500", "tests/bench/wasi.mjs", "bin/bench/Bench.wasm", font, n];
+				var out = target == HOST ? output(exePath("bin/bench/Bench", HOST), [font, n]) : output(NODE, wasi, true), mark = "";
+				// (wasm32's runtime crashes in a major collection with arrays of tens
+				// of MB, scene.world.100k's: again with an old space it fits in, and
+				// node's own stack size, where the overflow is an error, not a crash)
+				if (out == null) {
+					out = output("env", ["RT_OLD_MB=512", NODE].concat(wasi.slice(1)));
+					mark = " (RT_OLD_MB=512)";
+				}
+				for (l in out.split("\n")) {
+					var c = l.trim().split(" ");
+					if (c[0] != "bench") continue;
+					var kb = Math.round(Std.parseFloat(c[6]) / 1024 * 10) / 10;
+					md.push('| ${c[1]}$mark | ${c[2]} | ${c[3]} | ${c[4]} | ${c[5]} | $kb | ${c[7]} | ${c[8]} | ${c[9]} |');
+					Sys.println('$target ${c[1]}: ${c[3]} ms median, ${c[4]} p99, $kb KB/run, ${c[7]} GCs');
+				}
+			}
+		}
+		for (b in BENCH_BUILDS) {
+			var args = cps(["src", b.dir]).concat(b.ui ? UI_VIEW : []).concat(["-main", b.main]);
+			timed(b.main, HOST, 'bin/bench/${b.main}', args);
+			timed(b.main, "wasm32-wasi", 'bin/bench/${b.main}.wasm', args.concat(["-D", "hxmc.wasm-eh=legacy"]));
+		}
+		md = md.concat([
+			"", "## Builds", "",
+			"Seconds to compile, without a compilation server: with scoped's checker (as -lib helder has it), from nothing (-D hxmc.no-module-cache) and with the module cache on disk; the same without the checker.",
+			"", "| program | target | size (KB) | checker | cached | no checker | cached |", "| --- | --- | ---: | ---: | ---: | ---: | ---: |"
+		]);
+		for (b in builds)
+			md.push('| ${b.what} | ${b.target} | ${Math.round(FileSystem.stat(b.out).size / 1024)} | ' + [for (t in b.times) Math.round(t * 10) / 10].join(" | ") + " |");
+		File.saveContent("bin/bench/results.md", md.join("\n") + "\n");
+		Sys.println(md.join("\n"));
+	}
+
+	// (DejaVu Sans: fonts-dejavu-core's, else fontconfig's)
+	static function dejavu():String {
+		var known = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
+		if (FileSystem.exists(known)) return known;
+		var f = output("fc-match", ["-f", "%{file}", "DejaVu Sans"]).trim();
+		if (!f.endsWith("DejaVuSans.ttf")) throw new Failed("bench: no DejaVu Sans (fonts-dejavu-core)");
+		return f;
+	}
+
+	static function cpuName():String {
+		try {
+			for (l in File.getContent("/proc/cpuinfo").split("\n"))
+				if (l.startsWith("model name")) return l.substr(l.indexOf(":") + 1).trim() + ", " + cpus() + " cores";
+		} catch (_) {}
+		return HOST;
+	}
+
+	// a program's standard output (it must succeed; mayFail: null if it does not)
+	static function output(cmd:String, args:Array<String>, mayFail = false):Null<String> {
+		var p = new Process(cmd, args);
+		var out = p.stdout.readAll().toString();
+		p.stderr.readAll();
+		var code = p.exitCode();
+		p.close();
+		if (code != 0 && mayFail) return null;
+		if (code != 0) throw new Failed('${[cmd].concat(args).join(" ")}: exit code $code');
+		return out;
 	}
 
 	// --- building and running
