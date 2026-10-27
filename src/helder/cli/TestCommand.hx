@@ -133,7 +133,7 @@ class TestCommand {
 				Sys.println('\n[wasm] built in ${secs(built)} (${kb(exe)})');
 				var t1 = haxe.Timer.stamp();
 				var node = Sys.getEnv("NODE") ?? "node";
-				out = Output.of(node, ["--no-warnings", "--stack-size=65500", p.helder + "/helder/test/wasi.mjs", exe].concat(runner), map);
+				out = Output.of(node, ["--no-warnings", "--no-turbo-fast-api-calls", "--stack-size=65500", p.helder + "/helder/test/wasi.mjs", exe].concat(runner), map);
 				return {ok: out.code == 0, summary: out.summary() + ' (${secs(built)} build, ${secs(haxe.Timer.stamp() - t1)} run)'};
 			case _:
 				var exe = Sys.systemName() == "Windows" ? "bin/test/host.exe" : "bin/test/host";

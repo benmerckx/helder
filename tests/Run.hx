@@ -609,6 +609,7 @@ class Run {
 
 	// a program's standard output (it must succeed; mayFail: null if it does not)
 	static function output(cmd:String, args:Array<String>, mayFail = false):Null<String> {
+		args = nodeArgs(cmd, args);
 		var p = new Process(cmd, args);
 		var out = p.stdout.readAll().toString();
 		p.stderr.readAll();
@@ -677,7 +678,14 @@ class Run {
 	static function wasi(module:String)
 		run(NODE, ["--stack-size=65500", "tests/wasi.mjs", module]);
 
+	// node's fast API calls off: WASI's fd_write is one, and a V8 collection
+	// started inside it segfaults once a module's memory is large (node 22;
+	// tests/bench/results/jobs.md)
+	static function nodeArgs(cmd:String, args:Array<String>):Array<String>
+		return cmd == NODE && args.indexOf("--no-turbo-fast-api-calls") < 0 ? ["--no-turbo-fast-api-calls"].concat(args) : args;
+
 	static function run(cmd:String, args:Array<String>, ?env:Map<String, String>) {
+		args = nodeArgs(cmd, args);
 		var saved = new Map<String, Null<String>>();
 		if (env != null) for (k => v in env) {
 			saved.set(k, Sys.getEnv(k));
