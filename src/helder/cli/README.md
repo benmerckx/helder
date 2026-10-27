@@ -126,11 +126,14 @@ own left alone.
 
 ## hxmc
 
-- The platform package's compiler, run alone, finds its runtime objects
-  neither in its package (it looks in `<its dir>/rt/<target>`) nor through
-  the launcher (which it looks for at `<its dir>/../hxmc/bootstrap`, not
-  @hxmc/cli's): `Compiler.find` gives `HXMC_RT_DIR` as the launcher's
-  `rtDirs()` does (hxmc 8841f02).
+No workarounds left:
+
+- The platform package's compiler finds its runtime objects beside itself
+  (`<its dir>/<target>/rt.o`) and in the other platform packages of its
+  version (cross builds: `npm i -D --force @hxmc/win32-x64`), HXMC_RT_DIR
+  added to the search (hxmc #93, @hxmc/cli
+  0.1.0-nightly.20261027.a4195c7): `Compiler.find` no longer gives it
+  HXMC_RT_DIR.
 - (Not a bug: `--server-connect`'s builds are given hxmc's std by the
   client, as dev.mjs does: `CompileServer.request`.)
 

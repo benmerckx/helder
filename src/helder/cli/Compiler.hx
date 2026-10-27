@@ -4,7 +4,6 @@ import haxe.io.Bytes;
 import haxe.io.Path;
 import helder.async.*;
 import sys.FileSystem;
-import sys.io.File;
 
 using StringTools;
 
@@ -12,8 +11,8 @@ using StringTools;
 // @hxmc/cli (node_modules/@hxmc/<os>-<cpu>, found from the working
 // directory up, then from the CLI's own directory up), given what
 // @hxmc/cli's launcher (hxmc/bootstrap/launcher.mjs) gives it: upstream's
-// std (HAXE_STD_PATH), hxmc's (HXMC_STD) and the runtime objects'
-// directories (HXMC_RT_DIR), so that no node runs. HAXE names another one
+// std (HAXE_STD_PATH) and hxmc's (HXMC_STD), so that no node runs (the
+// runtime objects it finds itself). HAXE names another one
 // (run as it is); without a platform package, node_modules/.bin/haxe (the
 // launcher, under node), else `haxe` on the PATH.
 class Compiler {
@@ -35,19 +34,9 @@ class Compiler {
 			var plat = platformPackage(), exe = '$dir/$plat/' + (win ? "haxe.exe" : "haxe");
 			if (FileSystem.exists(exe)) {
 				if ((Sys.getEnv("HAXE_STD_PATH") ?? "") == "") Sys.putEnv("HAXE_STD_PATH", '$dir/cli/haxe/upstream/std');
-				// (this machine's runtime objects, then the other platform packages' (cross
-				// builds), HXMC_RT_DIR's, and the npm cache's, as rtDirs() has them. Not
-				// a workaround: the platform package's compiler run alone looks in
-				// <its dir>/rt/<target>, then asks node for the launcher's, at
-				// <its dir>/../hxmc/bootstrap, which @hxmc/cli is not; hxmc 8841f02)
-				var dirs = ['$dir/$plat'];
-				for (n in (try FileSystem.readDirectory(dir) catch (_:Dynamic) []))
-					if (n != plat && n != "cli" && FileSystem.isDirectory('$dir/$n')) dirs.push('$dir/$n');
-				var own = Sys.getEnv("HXMC_RT_DIR") ?? "";
-				if (own != "") dirs.push(own);
-				var version = try haxe.Json.parse(File.getContent(cli)).version catch (_:Dynamic) "";
-				dirs.push(cacheBase() + "/npm/" + version);
-				Sys.putEnv("HXMC_RT_DIR", dirs.join(win ? ";" : ":"));
+				// (the runtime objects: the compiler finds its own beside itself,
+				// <its dir>/<target>/rt.o, and the other platform packages of its
+				// version, cross builds', HXMC_RT_DIR's added: hxmc #93)
 				return exe;
 			}
 		}
@@ -83,20 +72,6 @@ class Compiler {
 	static function platformPackage():String {
 		var t = hostTarget().split("-");
 		return ["linux" => "linux", "macos" => "darwin", "windows" => "win32"][t[0]] + "-" + (t[1] == "arm64" ? "arm64" : "x64");
-	}
-
-	// the module cache's base (launcher.mjs's cacheBase)
-	static function cacheBase():String {
-		var own = Sys.getEnv("HXMC_CACHE");
-		if (own != null && own != "") return own;
-		var home = Sys.getEnv("HOME") ?? Sys.getEnv("USERPROFILE") ?? ".";
-		return switch Sys.systemName() {
-			case "Windows": (Sys.getEnv("LOCALAPPDATA") ?? '$home/AppData/Local') + "/hxmc/cache";
-			case "Mac": '$home/Library/Caches/hxmc';
-			case _:
-				var xdg = Sys.getEnv("XDG_CACHE_HOME");
-				(xdg != null && xdg.startsWith("/") ? xdg : '$home/.cache') + "/hxmc";
-		}
 	}
 
 	// hxmc's name of this machine (linux-x86_64)
@@ -156,7 +131,7 @@ class CompileServer {
 	@:coroutine public static function start(task:Node):Null<CompileServer> {
 		var link = Server.listen("127.0.0.1", 0);
 		// (a resident compiler keeps what it makes: a large nursery and old space spare it collections)
-		// (tool() first: it sets the compiler's variables, HXMC_RT_DIR's and the std's)
+		// (tool() first: it sets the compiler's variables, the std's)
 		var tool = Compiler.tool(), env = Process.environment();
 		for (k => v in ["RT_OLD_MB" => "4096", "RT_MINOR_KB" => "32768"])
 			if (!env.exists(k)) env.set(k, v);
