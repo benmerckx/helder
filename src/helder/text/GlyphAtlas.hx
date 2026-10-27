@@ -10,7 +10,9 @@ import haxe.io.Bytes;
 // cleared (generation counts the clears: the glyphs drawn before must be
 // asked for again). A glyph blurred (a text shadow's) is a glyph of its
 // own: its coverage spread by a Gaussian, the bitmap grown by three of its
-// standard deviations each side.
+// standard deviations each side. A glyph is drawn in scoped memory
+// (Coverage): a miss allocates its AtlasGlyph, nothing else.
+@:build(helder.scoped.Scoped.build())
 class GlyphAtlas {
 	// a synthetic oblique's slant: x moves by a quarter of y (Skia's)
 	static inline var SKEW = 0.25;
@@ -28,14 +30,13 @@ class GlyphAtlas {
 	public static inline var SUBPIXELS = 4;
 
 	// per face (font, size, oblique, blur): its glyphs by glyph * SUBPIXELS + sub
-	final faces = new Map<String, haxe.ds.IntMap<AtlasGlyph>>();
-	// (the face asked for last: a paragraph's glyphs share one)
-	var lastFont:Null<FontFile> = null;
-	var lastSize = 0.0;
-	var lastOblique = false;
-	var lastBlur = 0.0;
-	var lastFace:Null<haxe.ds.IntMap<AtlasGlyph>> = null;
+	final faces = new Map<String, IntTable<AtlasGlyph>>();
+	// (the faces asked for lately, the last first: a frame's text takes a few
+	// in turn, found again without making their key)
+	final recent:Array<Face> = [];
 	final shelves:Array<Shelf> = [];
+	// (the glyph being drawn, in pixels: Coverage's input, kept for the next)
+	final path = new GlyphPath();
 
 	public function new(width = 1024, height = 1024) {
 		this.width = width;
@@ -50,7 +51,7 @@ class GlyphAtlas {
 	// standard deviation of a Gaussian blurring it, in pixels (0: none)
 	public function get(font:FontFile, glyph:Int, size:Float, sub:Int, oblique = false, blur = 0.0):AtlasGlyph {
 		var glyphs = face(font, size, oblique, blur), key = glyph * SUBPIXELS + sub;
-		var g = glyphs.get(key);
+		var g = glyphs.get(key, null);
 		if (g != null) return g;
 		g = rasterize(font, glyph, size, sub, oblique, blur);
 		if (g == null) {
@@ -64,99 +65,70 @@ class GlyphAtlas {
 		return g;
 	}
 
-	function face(font:FontFile, size:Float, oblique:Bool, blur:Float):haxe.ds.IntMap<AtlasGlyph> {
-		if (lastFace != null && font == lastFont && size == lastSize && oblique == lastOblique && blur == lastBlur) return lastFace;
+	static inline var RECENT = 8;
+
+	function face(font:FontFile, size:Float, oblique:Bool, blur:Float):IntTable<AtlasGlyph> {
+		for (i in 0...recent.length) {
+			var f = recent[i];
+			if (f.font == font && f.size == size && f.oblique == oblique && f.blur == blur) {
+				// (moved to the front)
+				for (j in 0...i)
+					recent[i - j] = recent[i - j - 1];
+				recent[0] = f;
+				return f.glyphs;
+			}
+		}
 		var key = font.id + ":" + size + (oblique ? ":o" : "") + (blur > 0 ? ":b" + blur : "");
 		var m = faces.get(key);
-		if (m == null) faces.set(key, m = new haxe.ds.IntMap());
-		lastFont = font;
-		lastSize = size;
-		lastOblique = oblique;
-		lastBlur = blur;
-		return lastFace = m;
+		if (m == null) faces.set(key, m = new IntTable());
+		if (recent.length < RECENT) recent.push(null);
+		for (j in 0...recent.length - 1)
+			recent[recent.length - 1 - j] = recent[recent.length - 2 - j];
+		recent[0] = new Face(font, size, oblique, blur, m);
+		return m;
 	}
 
-	function rasterize(font:FontFile, glyph:Int, size:Float, sub:Int, oblique:Bool, blur:Float):Null<AtlasGlyph> {
+	// (one scope for the outline's points and the coverage)
+	@:scoped function rasterize(font:FontFile, glyph:Int, size:Float, sub:Int, oblique:Bool, blur:Float):Null<AtlasGlyph> {
 		var scale = size / font.unitsPerEm, dx = sub / SUBPIXELS;
-		var b = font.bounds(glyph);
-		if (b[2] <= b[0] || b[3] <= b[1]) return new AtlasGlyph(0, 0, 0, 0, 0, 0);
+		if (!font.box(glyph)) return new AtlasGlyph(0, 0, 0, 0, 0, 0);
+		var bx0 = font.boxX0, by0 = font.boxY0, bx1 = font.boxX1, by1 = font.boxY1;
 		var k = oblique ? SKEW : 0.0;
-		var x0 = Math.floor(Math.min(b[0] + k * b[1], b[0] + k * b[3]) * scale + dx), x1 = Math.ceil(Math.max(b[2] + k * b[1], b[2] + k * b[3]) * scale + dx);
-		var y0 = Math.floor(-b[3] * scale), y1 = Math.ceil(-b[1] * scale);
+		var x0 = Math.floor(Math.min(bx0 + k * by0, bx0 + k * by1) * scale + dx), x1 = Math.ceil(Math.max(bx1 + k * by0, bx1 + k * by1) * scale + dx);
+		var y0 = Math.floor(-by1 * scale), y1 = Math.ceil(-by0 * scale);
 		var w = x1 - x0 + 1, h = y1 - y0 + 1;
 		// (blurred: grown on each side by what the blur reaches)
 		var pad = blur > 0 ? Math.ceil(3 * blur) : 0;
 		var spot = place(w + 2 * pad, h + 2 * pad);
-		if (spot == null) return null;
-		var r = new Rasterizer(w, h);
-		r.scaleX = scale;
-		r.scaleY = -scale;
-		r.offsetX = dx - x0;
-		r.offsetY = -y0;
-		if (oblique) font.outline(glyph, new Skewed(r, k)) else font.outline(glyph, r);
+		if (spot < 0) return null;
+		var sx = spot & 0xFFFF, sy = spot >>> 16;
+		path.start(scale, -scale, dx - x0, -y0, oblique ? k : 0);
+		font.outline(glyph, path);
 		if (pad == 0) {
-			r.writeTo(pixels, spot.y * width + spot.x, width);
-			touch(spot.x, spot.y, w, h);
-			return new AtlasGlyph(spot.x, spot.y, w, h, x0, y0);
+			Coverage.fill(path.data, path.length, w, h, pixels, sy * width + sx, width);
+			touch(sx, sy, w, h);
+			return new AtlasGlyph(sx, sy, w, h, x0, y0);
 		}
-		var sharp = Bytes.alloc(w * h);
-		r.writeTo(sharp, 0, w);
-		blurInto(sharp, w, h, pad, blur, spot.y * width + spot.x);
-		touch(spot.x, spot.y, w + 2 * pad, h + 2 * pad);
-		return new AtlasGlyph(spot.x, spot.y, w + 2 * pad, h + 2 * pad, x0 - pad, y0 - pad);
+		Coverage.fillBlurred(path.data, path.length, w, h, pad, blur, pixels, sy * width + sx, width);
+		touch(sx, sy, w + 2 * pad, h + 2 * pad);
+		return new AtlasGlyph(sx, sy, w + 2 * pad, h + 2 * pad, x0 - pad, y0 - pad);
 	}
 
-	// a w x h coverage bitmap blurred into the atlas at offset, pad more on
-	// each side: a Gaussian of standard deviation sigma across, then down
-	// (its weights each pixel's share of the curve, summing to one)
-	function blurInto(src:Bytes, w:Int, h:Int, pad:Int, sigma:Float, offset:Int) {
-		var weights = new haxe.ds.Vector<Float>(2 * pad + 1), sum = 0.0;
-		for (i in 0...2 * pad + 1) {
-			var d = i - pad;
-			weights[i] = Math.exp(-d * d / (2 * sigma * sigma));
-			sum += weights[i];
-		}
-		for (i in 0...2 * pad + 1)
-			weights[i] /= sum;
-		var bw = w + 2 * pad, bh = h + 2 * pad;
-		// (across: each source row into the wider one)
-		var across = new haxe.ds.Vector<Float>(bw * h);
-		for (y in 0...h)
-			for (x in 0...bw) {
-				var v = 0.0;
-				for (i in 0...2 * pad + 1) {
-					var sx = x - pad + i - pad;
-					if (sx >= 0 && sx < w) v += weights[i] * src.get(y * w + sx);
-				}
-				across[y * bw + x] = v;
-			}
-		// (down: into the atlas, taller by pad each side)
-		for (y in 0...bh)
-			for (x in 0...bw) {
-				var v = 0.0;
-				for (i in 0...2 * pad + 1) {
-					var sy = y - pad + i - pad;
-					if (sy >= 0 && sy < h) v += weights[i] * across[sy * bw + x];
-				}
-				var c = Std.int(v + 0.5);
-				pixels.set(offset + y * width + x, c > 255 ? 255 : c);
-			}
-	}
-
-	function place(w:Int, h:Int):Null<{x:Int, y:Int}> {
-		if (w + 1 > width || h + 1 > height) return null;
+	// a place for w x h: x | y << 16 (-1: full)
+	function place(w:Int, h:Int):Int {
+		if (w + 1 > width || h + 1 > height) return -1;
 		for (s in shelves)
 			if (h <= s.height && s.x + w + 1 <= width) {
-				var p = {x: s.x, y: s.y};
+				var p = s.x | s.y << 16;
 				s.x += w + 1;
 				return p;
 			}
 		var y = shelves.length == 0 ? 0 : shelves[shelves.length - 1].y + shelves[shelves.length - 1].height + 1;
-		if (y + h > height) return null;
+		if (y + h > height) return -1;
 		var s = new Shelf(y, h);
 		shelves.push(s);
 		s.x = w + 1;
-		return {x: 0, y: y};
+		return y << 16;
 	}
 
 	function touch(x:Int, y:Int, w:Int, h:Int) {
@@ -180,7 +152,7 @@ class GlyphAtlas {
 
 	public function clear() {
 		faces.clear();
-		lastFace = null;
+		recent.resize(0);
 		shelves.resize(0);
 		pixels.fill(0, pixels.length, 0);
 		generation++;
@@ -222,28 +194,102 @@ private class Shelf {
 	}
 }
 
-// an outline slanted: each point's x moved by k times its y (font units, y up)
-private class Skewed implements Outline {
-	final to:Outline;
-	final k:Float;
+private class Face {
+	public final font:FontFile;
+	public final size:Float;
+	public final oblique:Bool;
+	public final blur:Float;
+	public final glyphs:IntTable<AtlasGlyph>;
 
-	public function new(to:Outline, k:Float) {
-		this.to = to;
+	public function new(font, size, oblique, blur, glyphs) {
+		this.font = font;
+		this.size = size;
+		this.oblique = oblique;
+		this.blur = blur;
+		this.glyphs = glyphs;
+	}
+}
+
+// an outline as Coverage's commands, in pixels: each point slanted (x moved
+// by k times its y, in font units, y up), then x * scaleX + offsetX, y *
+// scaleY + offsetY, as Rasterizer transforms them. Its buffer is kept for the
+// next glyph, grown when one needs more.
+private class GlyphPath implements Outline {
+	public var data(default, null) = new haxe.ds.Vector<Float>(256);
+	public var length(default, null) = 0;
+
+	var scaleX = 1.0;
+	var scaleY = 1.0;
+	var offsetX = 0.0;
+	var offsetY = 0.0;
+	var k = 0.0;
+
+	public function new() {}
+
+	public function start(scaleX:Float, scaleY:Float, offsetX:Float, offsetY:Float, k:Float) {
+		this.scaleX = scaleX;
+		this.scaleY = scaleY;
+		this.offsetX = offsetX;
+		this.offsetY = offsetY;
 		this.k = k;
+		length = 0;
 	}
 
-	public function moveTo(x:Float, y:Float)
-		to.moveTo(x + k * y, y);
+	inline function room(n:Int) {
+		if (length + n > data.length) {
+			var d = new haxe.ds.Vector<Float>(data.length * 2);
+			haxe.ds.Vector.blit(data, 0, d, 0, length);
+			data = d;
+		}
+	}
 
-	public function lineTo(x:Float, y:Float)
-		to.lineTo(x + k * y, y);
+	inline function x(x:Float, y:Float):Float
+		return (k == 0 ? x : x + k * y) * scaleX + offsetX;
 
-	public function quadTo(cx:Float, cy:Float, x:Float, y:Float)
-		to.quadTo(cx + k * cy, cy, x + k * y, y);
+	inline function y(y:Float):Float
+		return y * scaleY + offsetY;
 
-	public function cubicTo(c1x:Float, c1y:Float, c2x:Float, c2y:Float, x:Float, y:Float)
-		to.cubicTo(c1x + k * c1y, c1y, c2x + k * c2y, c2y, x + k * y, y);
+	public function moveTo(px:Float, py:Float) {
+		room(3);
+		data[length] = Coverage.MOVE;
+		data[length + 1] = x(px, py);
+		data[length + 2] = y(py);
+		length += 3;
+	}
 
-	public function close()
-		to.close();
+	public function lineTo(px:Float, py:Float) {
+		room(3);
+		data[length] = Coverage.LINE;
+		data[length + 1] = x(px, py);
+		data[length + 2] = y(py);
+		length += 3;
+	}
+
+	public function quadTo(cx:Float, cy:Float, px:Float, py:Float) {
+		room(5);
+		data[length] = Coverage.QUAD;
+		data[length + 1] = x(cx, cy);
+		data[length + 2] = y(cy);
+		data[length + 3] = x(px, py);
+		data[length + 4] = y(py);
+		length += 5;
+	}
+
+	public function cubicTo(c1x:Float, c1y:Float, c2x:Float, c2y:Float, px:Float, py:Float) {
+		room(7);
+		data[length] = Coverage.CUBIC;
+		data[length + 1] = x(c1x, c1y);
+		data[length + 2] = y(c1y);
+		data[length + 3] = x(c2x, c2y);
+		data[length + 4] = y(c2y);
+		data[length + 5] = x(px, py);
+		data[length + 6] = y(py);
+		length += 7;
+	}
+
+	public function close() {
+		room(1);
+		data[length] = Coverage.CLOSE;
+		length++;
+	}
 }

@@ -1,6 +1,7 @@
 package helder.text;
 
 import haxe.io.Bytes;
+import helder.scoped.*;
 
 // An OpenType font (an sfnt; one face of a collection, .ttc): its metrics
 // in font units, the character map (formats 4 and 12), horizontal
@@ -10,7 +11,9 @@ import haxe.io.Bytes;
 // CFF's ('OTTO', .otf: Cff, cubic curves). A variable TrueType font's
 // axes (axes) give instances (instance: gvar's deltas applied to outlines
 // and advances; Variations). CFF2 (variable) outlines are not read:
-// FontFile.parse throws.
+// FontFile.parse throws. A glyph's points are read into scoped memory
+// (outline: nothing on the GC heap but a variable instance's deltas).
+@:build(helder.scoped.Scoped.build())
 class FontFile {
 	public final data:Bytes;
 	// unique per parsed face (atlas keys)
@@ -24,7 +27,7 @@ class FontFile {
 	var vars:Null<Variations> = null;
 	var coords:Null<Array<Float>> = null;
 	// (an instance's advances, by glyph)
-	var variedAdvances:Null<Map<Int, Float>> = null;
+	var variedAdvances:Null<IntTable<Float>> = null;
 	final tables = new Map<String, Int>();
 	final lengths = new Map<String, Int>();
 
@@ -42,10 +45,10 @@ class FontFile {
 	var numHMetrics = 0;
 	var cmap = -1; // the chosen subtable's offset
 	var cmapFormat = 0;
-	var kernPairs:Null<Map<Int, Int>> = null;
+	var kernPairs:Null<IntTable<Int>> = null;
 	// GPOS's kern lookups' pair adjustment subtables (null: not read; empty: none)
 	var pairPos:Null<Array<Int>> = null;
-	final kernCache = new Map<Int, Int>();
+	final kernCache = new IntTable<Int>();
 	// the tables read per glyph
 	var hmtx = 0;
 	var glyf = 0;
@@ -158,7 +161,7 @@ class FontFile {
 		if (vars == null) return f;
 		f.vars = vars;
 		f.coords = vars.normalize(values);
-		f.variedAdvances = new Map();
+		f.variedAdvances = new IntTable();
 		if (values.exists("wght")) f.weight = Std.int(values.get("wght"));
 		return f;
 	}
@@ -168,8 +171,8 @@ class FontFile {
 	public function advance(g:Int):Float {
 		var a:Float = u16(data, hmtx + 4 * (g < numHMetrics ? g : numHMetrics - 1));
 		if (coords == null) return a;
-		var v = variedAdvances.get(g);
-		if (v != null) return v;
+		var v = variedAdvances.get(g, Math.NaN);
+		if (!Math.isNaN(v)) return v;
 		var d = phantom(g);
 		v = a + d[1] - d[0];
 		variedAdvances.set(g, v);
@@ -215,8 +218,8 @@ class FontFile {
 		if (pairPos == null) readGpos();
 		var key = (left << 16) | right;
 		if (pairPos.length > 0) {
-			var c = kernCache.get(key);
-			if (c == null) {
+			var c = kernCache.get(key, NONE);
+			if (c == NONE) {
 				c = 0;
 				// (each lookup: its first subtable that covers the pair)
 				var i = 0;
@@ -237,8 +240,7 @@ class FontFile {
 			return c;
 		}
 		if (kernPairs == null) readKern();
-		var k = kernPairs.get(key);
-		return k == null ? 0 : k;
+		return kernPairs.get(key, 0);
 	}
 
 	static inline var NONE = 0x7FFFFFFF;
@@ -331,15 +333,15 @@ class FontFile {
 	// a lookup's subtables in a table (GSUB, GPOS: its extension type)
 	function subtables(table:String, lookup:Int, extension:Int):{type:Int, flag:Int, subtables:Array<Int>} {
 		var cache = extension == 9 ? gposSubtables : gsubSubtableCache;
-		var c = cache.get(lookup);
+		var c = cache.get(lookup, null);
 		if (c != null) return c;
 		var r = readSubtables(table, lookup, extension);
 		cache.set(lookup, r);
 		return r;
 	}
 
-	final gposSubtables = new Map<Int, {type:Int, flag:Int, subtables:Array<Int>}>();
-	final gsubSubtableCache = new Map<Int, {type:Int, flag:Int, subtables:Array<Int>}>();
+	final gposSubtables = new IntTable<{type:Int, flag:Int, subtables:Array<Int>}>();
+	final gsubSubtableCache = new IntTable<{type:Int, flag:Int, subtables:Array<Int>}>();
 
 	function readSubtables(table:String, lookup:Int, extension:Int):{type:Int, flag:Int, subtables:Array<Int>} {
 		var g = tables.get(table), list = g + u16(data, g + 8);
@@ -465,7 +467,7 @@ class FontFile {
 	// the glyphs a GSUB lookup may begin at (its subtables' first
 	// coverages), a byte by glyph id (1: may); kept by lookup
 	public function lookupStarts(lookup:Int):haxe.io.Bytes {
-		var b = startsCache.get(lookup);
+		var b = startsCache.get(lookup, null);
 		if (b != null) return b;
 		b = haxe.io.Bytes.alloc(numGlyphs + 1);
 		var t = gsubSubtables(lookup);
@@ -491,7 +493,7 @@ class FontFile {
 		return b;
 	}
 
-	final startsCache = new Map<Int, haxe.io.Bytes>();
+	final startsCache = new IntTable<haxe.io.Bytes>();
 
 	// a (chained) context substitution lookup's match at ids[at] (types 5
 	// and 6, each format; what comes before and after from start to end):
@@ -910,10 +912,44 @@ class FontFile {
 		return [s16(data, p + 2), s16(data, p + 4), s16(data, p + 6), s16(data, p + 8)];
 	}
 
+	// the glyph's box in font units, without an Array (GlyphAtlas's): boxX0,
+	// boxY0, boxX1, boxY1; false when empty (all 0)
+	@:allow(helder.text) var boxX0 = 0;
+	@:allow(helder.text) var boxY0 = 0;
+	@:allow(helder.text) var boxX1 = 0;
+	@:allow(helder.text) var boxY1 = 0;
+
+	@:allow(helder.text) function box(g:Int):Bool {
+		boxX0 = boxY0 = boxX1 = boxY1 = 0;
+		if (g < 0 || g >= numGlyphs || bitmapsOnly) return false;
+		if (cff != null || coords != null) {
+			var b = bounds(g);
+			boxX0 = b[0];
+			boxY0 = b[1];
+			boxX1 = b[2];
+			boxY1 = b[3];
+		} else {
+			var start = loca(g), end = loca(g + 1);
+			if (end <= start) return false;
+			var p = glyf + start;
+			boxX0 = s16(data, p + 2);
+			boxY0 = s16(data, p + 4);
+			boxX1 = s16(data, p + 6);
+			boxY1 = s16(data, p + 8);
+		}
+		return boxX1 > boxX0 && boxY1 > boxY0;
+	}
+
 	// the glyph's outline in font units, y up: each contour a closed list of
 	// segments (a line, a quadratic curve through a control point, or CFF's
 	// cubic curves through two)
 	public function outline(g:Int, out:Outline, ?transform:Array<Float>) {
+		if (transform == null) outlineAt(g, out, 1, 0, 0, 1, 0, 0) else
+			outlineAt(g, out, transform[0], transform[1], transform[2], transform[3], transform[4], transform[5]);
+	}
+
+	// (transformed: x' = a x + c y + e, y' = b x + d y + f)
+	function outlineAt(g:Int, out:Outline, a:Float, b:Float, c:Float, d:Float, e:Float, f:Float) {
 		if (g < 0 || g >= numGlyphs || bitmapsOnly) return;
 		if (cff != null) {
 			cff.outline(g, out);
@@ -923,17 +959,19 @@ class FontFile {
 		if (end <= start) return; // (an empty glyph: a space)
 		var p = glyf + start;
 		var contours = s16(data, p);
-		var t = transform == null ? [1.0, 0, 0, 1, 0, 0] : transform;
 		glyphAt = g;
-		if (contours >= 0) simple(p, contours, out, t) else composite(p, out, t);
+		if (contours >= 0) simple(p, contours, out, a, b, c, d, e, f) else composite(p, out, a, b, c, d, e, f);
 	}
 
-	function simple(p:Int, contours:Int, out:Outline, t:Array<Float>) {
-		var ends = [for (i in 0...contours) u16(data, p + 10 + 2 * i)];
+	// (its points in the call's scope)
+	@:scoped function simple(p:Int, contours:Int, out:Outline, ta:Float, tb:Float, tc:Float, td:Float, te:Float, tf:Float) {
+		var ends = Scope.slice(Int, contours);
+		for (i in 0...contours)
+			ends[i] = u16(data, p + 10 + 2 * i);
 		var n = contours == 0 ? 0 : ends[contours - 1] + 1;
 		var q = p + 10 + 2 * contours;
 		q += 2 + u16(data, q); // (the instructions)
-		var flags = new haxe.ds.Vector<Int>(n);
+		var flags = Scope.slice(U8, n);
 		var i = 0;
 		while (i < n) {
 			var f = data.get(q++);
@@ -944,9 +982,9 @@ class FontFile {
 					flags[i++] = f;
 			}
 		}
-		var xs = new haxe.ds.Vector<Float>(n), ys = new haxe.ds.Vector<Float>(n);
+		var xs = Scope.slice(Float, n), ys = Scope.slice(Float, n);
 		var v = 0;
-		for (i in 0...n) {
+		for (i in 0...xs.length) {
 			var f = flags[i];
 			if (f & 2 != 0) {
 				var d = data.get(q++);
@@ -958,7 +996,7 @@ class FontFile {
 			xs[i] = v;
 		}
 		v = 0;
-		for (i in 0...n) {
+		for (i in 0...ys.length) {
 			var f = flags[i];
 			if (f & 4 != 0) {
 				var d = data.get(q++);
@@ -969,20 +1007,26 @@ class FontFile {
 			}
 			ys[i] = v;
 		}
-		// (an instance: the points moved by their deltas, the origin by the first phantom point's)
+		// (an instance: the points moved by their deltas, the origin by the first
+		// phantom point's; Variations' arrays are the GC heap's)
 		if (coords != null) {
-			var dx = zeros(n + 4), dy = zeros(n + 4);
-			vars.deltas(glyphAt, coords, n + 4, xs, ys, ends, dx, dy);
+			var gx = new haxe.ds.Vector<Float>(n), gy = new haxe.ds.Vector<Float>(n);
 			for (i in 0...n) {
-				xs[i] += dx[i] - dx[n];
-				ys[i] += dy[i];
+				gx[i] = xs[i];
+				gy[i] = ys[i];
+			}
+			var dx = zeros(n + 4), dy = zeros(n + 4);
+			vars.deltas(glyphAt, coords, n + 4, gx, gy, [for (i in 0...contours) ends[i]], dx, dy);
+			for (i in 0...n) {
+				xs[i] = gx[i] + (dx[i] - dx[n]);
+				ys[i] = gy[i] + dy[i];
 			}
 		}
 		// transformed points
-		for (i in 0...n) {
+		for (i in 0...xs.length) {
 			var x = xs[i], y = ys[i];
-			xs[i] = t[0] * x + t[2] * y + t[4];
-			ys[i] = t[1] * x + t[3] * y + t[5];
+			xs[i] = ta * x + tc * y + te;
+			ys[i] = tb * x + td * y + tf;
 		}
 		var s = 0;
 		for (c in 0...contours) {
@@ -995,7 +1039,7 @@ class FontFile {
 
 	// one contour of on- and off-curve points: implied on-curve points
 	// between two off-curve ones
-	function contour(xs:haxe.ds.Vector<Float>, ys:haxe.ds.Vector<Float>, flags:haxe.ds.Vector<Int>, s:Int, n:Int, out:Outline) {
+	@:scoped function contour(xs:Slice<Float>, ys:Slice<Float>, flags:Slice<U8>, s:Int, n:Int, out:Outline) {
 		inline function on(i:Int)
 			return flags[s + (i % n)] & 1 != 0;
 		inline function x(i:Int)
@@ -1043,7 +1087,7 @@ class FontFile {
 	// (the glyph being read: its deltas)
 	var glyphAt = 0;
 
-	function composite(p:Int, out:Outline, t:Array<Float>) {
+	function composite(p:Int, out:Outline, ta:Float, tb:Float, tc:Float, td:Float, te:Float, tf:Float) {
 		var q = p + 10;
 		// (an instance: the components' offsets moved by their deltas)
 		var dxs:Null<haxe.ds.Vector<Float>> = null, dys:Null<haxe.ds.Vector<Float>> = null, n = 0;
@@ -1094,11 +1138,7 @@ class FontFile {
 			}
 			k++;
 			// (ARGS_ARE_XY_VALUES assumed: point matching is rare)
-			var m = [
-				t[0] * a + t[2] * b, t[1] * a + t[3] * b, t[0] * c + t[2] * d, t[1] * c + t[3] * d, t[0] * dx + t[2] * dy + t[4],
-				t[1] * dx + t[3] * dy + t[5]
-			];
-			outline(g, out, m);
+			outlineAt(g, out, ta * a + tc * b, tb * a + td * b, ta * c + tc * d, tb * c + td * d, ta * dx + tc * dy + te, tb * dx + td * dy + tf);
 			if (flags & 0x20 == 0) break;
 		}
 	}
@@ -1175,7 +1215,7 @@ class FontFile {
 	}
 
 	function readKern() {
-		kernPairs = new Map();
+		kernPairs = new IntTable();
 		if (!tables.exists("kern")) return;
 		var k = tables.get("kern");
 		if (u16(data, k) != 0) return; // (Apple's version 1 table: not read)

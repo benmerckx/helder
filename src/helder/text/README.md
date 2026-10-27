@@ -69,6 +69,10 @@ text with, usable on its own.
   (CSS's line-clamp, checked against Chromium's).
 - `GlyphAtlas`: glyphs rasterized once per size and quarter-pixel offset,
   packed into an R8 bitmap for a GPU texture, its changed region tracked.
+  A glyph is drawn in `helder.scoped` memory (`Coverage`: Rasterizer's
+  algorithm, the outline's points read by `FontFile` into the same scope):
+  a miss allocates its cache entry and nothing else on the GC heap, a hit
+  nothing (tests/bench/results/text.md).
 
 ```haxe
 var fonts = helder.text.SystemFonts.get();

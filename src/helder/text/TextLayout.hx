@@ -17,7 +17,9 @@ package helder.text;
 // are spaced; GPOS gives kerning and marks' positions.
 // Positions are pixels; character indices are the text's UTF-16 units
 // (String indices). Arabic is shaped (Arabic: its letters' joining forms
-// and required ligatures, through the font's GSUB).
+// and required ligatures, through the font's GSUB). (Its glyphs are GC
+// objects, the API's; buffers of plain values are scoped: marks'.)
+@:build(helder.scoped.Scoped.build())
 class TextLayout {
 	public final text:String;
 	public final fonts:FontSet;
@@ -479,9 +481,13 @@ class TextLayout {
 	// the glyph before it that is not a mark (or that ligature's last
 	// component), or to the mark just before it, drawn at the anchors'
 	// offset; marks (GDEF's, else Unicode's nonspacing marks) take no advance
-	static function marks(gs:Array<Glyph>, own:FontSet, runs:Array<TextRun>) {
+	@:scoped static function marks(gs:Array<Glyph>, own:FontSet, runs:Array<TextRun>) {
 		// (which glyphs are marks: only they attach, the others are passed over)
-		var mark = [for (g in gs) g.font != null && g.cp != 10 && g.cp != 13 && isMark(g)];
+		var mark = helder.scoped.Scope.slice(Bool, gs.length);
+		for (i in 0...mark.length) {
+			var g = gs[i];
+			mark[i] = g.font != null && g.cp != 10 && g.cp != 13 && isMark(g);
+		}
 		for (i in 0...gs.length) {
 			if (!mark[i]) continue;
 			var g = gs[i], f = g.font;
