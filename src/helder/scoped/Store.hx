@@ -37,9 +37,11 @@ class Store {
 	// offset from one base, with no table and no check: every Addr is below
 	// 2^31, inside it. The runtime's reservation (hxmc.rt.Os: mmap with
 	// MAP_NORESERVE, VirtualAlloc with pages committed as touched) does not
-	// count against the commit limit; malloc if it fails.
+	// count against the commit limit; malloc if it fails. The buffers'
+	// lengths are raw memory too, so allocating touches no GC object (a job
+	// in a safe region allocates: tests/bench/results/jobs.md).
 	static var base:Ptr;
-	static var lens:Vector<Int>;
+	static var lens:Ptr;
 
 	public static function init(n:Int) {
 		var bytes = (n : I64) << SHIFT;
@@ -48,9 +50,10 @@ class Store {
 			base = LibC.malloc(bytes);
 		if (base.isNull())
 			Memory.fail("out of memory");
-		lens = new Vector(n);
-		for (i in 0...n)
-			lens[i] = 0;
+		lens = LibC.malloc((n * 4 : I64));
+		if (lens.isNull())
+			Memory.fail("out of memory");
+		LibC.memset(lens, 0, (n * 4 : I64));
 	}
 
 	// the buffers there are room for
@@ -58,18 +61,18 @@ class Store {
 		return Memory.BUFFERS;
 
 	public static inline function exists(i:Int):Bool
-		return lens[i] > 0;
+		return capacity(i) > 0;
 
 	// (a buffer's whole region at once: its pages are committed when touched,
 	// and nothing reads memory it has not written, so nothing is zeroed here)
 	public static function make(i:Int, cap:Int)
-		lens[i] = MASK + 1;
+		Mem.setI32(lens, i * 4, MASK + 1);
 
 	public static function grow(i:Int, cap:Int, keep:Int)
-		lens[i] = MASK + 1;
+		Mem.setI32(lens, i * 4, MASK + 1);
 
 	public static inline function capacity(i:Int):Int
-		return lens[i];
+		return Mem.getI32(lens, i * 4);
 
 	public static inline function getI32(a:Int):Int
 		return Mem.getI32(base, a);
