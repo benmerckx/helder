@@ -146,10 +146,13 @@ class Ui {
 	// Tailwind's breakpoints (sm, md, lg, xl, 2xl: the window at least so wide, in pixels)
 	public static final BREAKPOINTS = ["sm" => 640.0, "md" => 768.0, "lg" => 1024.0, "xl" => 1280.0, "2xl" => 1536.0];
 
+	// (their widths: iterated without the map's iterator)
+	static final WIDTHS = [for (b in BREAKPOINTS) b];
+
 	// (how many of them a width reaches)
 	static function breakpoint(w:Float):Int {
 		var k = 0;
-		for (b in BREAKPOINTS)
+		for (b in WIDTHS)
 			if (w >= b) k++;
 		return k;
 	}
