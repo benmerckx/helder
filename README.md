@@ -45,6 +45,11 @@ npx helder build ios
 - **Consistency.** The packages share naming, error handling, units,
   coordinate conventions and resource lifetimes, and read as one library.
 
+- **Tools in the box.** One devtools app, built with helder's own ui,
+  runs the program beside its assets, stories, inspectors and profiler, on
+  every platform, and shows what the allocation-free core promises: the
+  garbage of every frame.
+
 ## Packages
 
 All under `src/helder`, Haxe package `helder.<name>`:
@@ -153,6 +158,13 @@ In order: each phase leans on the one before it.
       copies), the CLI shipped as a binary on npm;
     - a macro later (`@:test` collection, an `assert` showing its values).
   - **Every build reports its compile time and binary size.**
+  - **One message format on the dev connection** for reloads, logs and
+    the devtools (phase 3): JSON-RPC as the Chrome DevTools Protocol and
+    Dart's VM service have it, methods in domains (`Ui`, `Scene`,
+    `Signals`, `Profiler`, `Assets`, `Log`, `Stories`) that cost nothing
+    until a tool enables them, libraries adding their own (as Godot's
+    debugger), get, query and set on properties (as Bevy's BRP), profiler
+    samples as a binary stream, node ids kept across reloads, versioned.
   - **The examples are the CLI's fixtures**, laid out as projects: each
     builds and reloads with no configuration of its own, in CI.
 
@@ -226,6 +238,40 @@ collection only when it allocates or blocks.
   under about 1 ms, GC jobs are allowed freely; if not, the engine uses only
   GC-free ones. (Upstream's hxcoro or a runtime of our own: our own,
   `helder.async`, which hxcoro's tasks run on.)
+- **The devtools app** (`helder devtools`; design from a study of Unity's,
+  Unreal's, Godot's, Defold's and Bevy's tools, Flutter DevTools, Tracy,
+  Storybook, Makepad Studio and Bezi), built with helder's ui, natively and
+  as a page `helder dev` serves; an editor's shell without scene authoring:
+  - **the program in a panel**: hosted by the dev host natively, its canvas
+    in the page on the web, a phone attached through the CLI (which holds
+    every build's connection, and outlives a crash with its logs);
+  - **an agent in dev builds only** (`-D hxmc.dev`, as `Hot`; a few tens of
+    KB): counters and spans that do not allocate, GC bytes and pauses per
+    frame, tree snapshots on request, commands, pick and highlight;
+  - **the assets** with previews (images, fonts, glTF, audio) and their
+    import settings, reloaded live;
+  - **stories**, as Storybook's: `Foo.story.hx` files (linked as
+    `.test.hx` files are) whose `stories()` registers
+    `story("Inventory/full", c -> ...)`, built into dev builds only; controls
+    are signals (`c.number`, `c.bool`, a choice, a colour), so an edit
+    updates only what is bound; the story and its controls kept across a
+    reload; a story is a test too, rendered headlessly by `helder test`
+    against a snapshot (an image, or the tree as text), with a scripted
+    interaction and assertions;
+  - **inspectors**: the ui tree (layout, styles, accessibility), signals and
+    view's graph, each node traced to its markup line; the state a reload
+    kept and dropped;
+  - **a profiler**: frame time, spans, GC bytes per frame split into the
+    engine's and the program's; logs and a console; pause and step;
+  - **literals edited without a recompile**, as Makepad's live design: in
+    dev builds markup literals (styles, numbers, colours, strings) read from
+    a table keyed by their source position, which the CLI patches when an
+    edit changes only literals; an inspector's or a control's edit written
+    back to the source the same way;
+  - **an MCP server in the CLI** over the same protocol (inspect, set,
+    stories, a screenshot), so an agent sees and checks a running program,
+    its edits ordinary diffs;
+  - Chrome-trace or Tracy files exported until the timeline is drawn in ui.
 
 ### 4. Mobile
 
@@ -242,6 +288,8 @@ collection only when it allocates or blocks.
 - **Assets in bundles**: in the APK and the iOS app bundle, read through one
   API on every platform, packed by `helder build`.
 - **CI on an Android emulator and the iOS simulator.**
+- **Devices in the devtools**: their logs, a screenshot or a recording, a
+  story picked on the phone.
 
 ### 5. Graphics, 3D and 2D
 
@@ -265,11 +313,21 @@ collection only when it allocates or blocks.
     nodes.
 - **`helder.2d`**: sprite batches and tilemaps on gfx and `helder.image`,
   in code and in markup alike.
+- **Games in the devtools**: stories for scenes (a world at a set point,
+  its seed, camera and fixed step: deterministic, paused, stepped, scripted
+  input), a scene inspector, debug drawing, GPU timings ("open in
+  RenderDoc" on desktop), input recorded and replayed; the program's panel
+  as a separate process sharing its frames as a GPU texture (as Makepad
+  Studio: IOSurface, a DXGI shared handle, dmabuf), so a crash leaves the
+  devtools running.
 
 ### 6. Editor
 
 - **A VS Code extension**: the language server, syntax highlighting, and
   support for view's markup.
+  The devtools in it as a webview (it is a page already), jumping to
+  source from spans and markup nodes; `.test.hx` and `.story.hx` files
+  mapped for the display server.
 
 ## License
 
