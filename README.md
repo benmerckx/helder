@@ -168,6 +168,28 @@ In order: each phase leans on the one before it.
   - **The examples are the CLI's fixtures**, laid out as projects: each
     builds and reloads with no configuration of its own, in CI.
 
+- **Renderers as tags in markup**, react-three-fiber's `<Canvas>` model,
+  replacing the `-D helder.view.renderer.<name>` defines (the CLI adds
+  them from imports until then):
+  - **`<Surface>`**, the root ui draws into: a window natively (the window,
+    its GPU surface, a ui root, the frame loop; reactive props, several for
+    several windows), the app's screen on a phone, a canvas filling the page
+    on the web. Nested in the DOM's or static HTML's markup it is a
+    `<canvas>` element sized by the page's styles (a ResizeObserver), the
+    static renderer's an island the wasm program hydrates; a page can hold
+    several. `App.run(<Surface ...>)`.
+  - **Boundary tags** switch renderer for their children: `<Scene>` a box in
+    ui's layout whose children are scene nodes, `<Ui>` back to ui inside a
+    scene (following a node, as drei's `<Html>`), `<Dom>`/`<Html>` for the
+    web's. Each subtree is compiled once, for the renderer that owns it
+    (today every literal is compiled once per renderer), and only renderers
+    a program reaches get a runtime: no defines, no guessing.
+  - Components compiled for each renderer that uses them, or pinned to one
+    by their return type; `Render.render(markup, node)` stays for mounting
+    into a node of your own. To settle: errors for a tag in the wrong
+    renderer, pointer events across a boundary (picking through a scene),
+    `<Page>` as the root for servers and static sites.
+
 ### 3. Foundations
 
 Side by side, as they constrain each other. The async design comes from a
