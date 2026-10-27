@@ -27,12 +27,12 @@ typedef RendererInfo = {
 // No defines: a renderer is a class implementing Renders<N>, its functions
 // checked when first named, and it is reached when markup is compiled for
 // it or content is mounted into its nodes (MarkupMacro, Render). Each
-// reached renderer gets a runtime, ViewRuntime_<path> (ViewRuntime's fields,
+// reached renderer gets a runtime, ViewRuntime_<name> (ViewRuntime's fields,
 // kept by its build macro, with Host, HostNode, ViewRuntime, INDEX and NAME
 // replaced). A literal whose renderer is not known where it is (agnostic)
 // leaves a template in its class's metadata (:helder.late, so that a cached
 // module keeps it); after typing, a class per reached renderer
-// (Late_<path>_<hash of its code>) holds every such literal's code for it, a switch on its
+// (Late_<hash of its code>) holds every such literal's code for it, a switch on its
 // key, which its __init__ hands to the renderer's runtime (ViewRuntime's
 // late); a later callback's new literals another, falling back to it.
 // helder.view names no renderer: node types name theirs (@:rendered(R) on a
@@ -77,7 +77,7 @@ class HostMacro {
 						case _: Context.fatalError("helder.view: @:elements lists strings", e.pos);
 					}],
 					id: id(full),
-					runtime: "ViewRuntime_" + mangle(full)
+					runtime: runtimeName(c.name, full)
 				};
 				infos.set(path, i);
 				infos.set(full, i);
@@ -95,8 +95,13 @@ class HostMacro {
 		return h == 0 ? 1 : h;
 	}
 
-	static function mangle(path:String):String
-		return path.split(".").join("_");
+	// (its runtime's class name: short, as JavaScript repeats it at each call:
+	// ViewRuntime_<its class's name>, its path's hash too when two renderers share one)
+	static function runtimeName(name:String, full:String):String {
+		for (i in infos)
+			if (i.path != full && i.runtime == "ViewRuntime_" + name) return "ViewRuntime_" + name + "_" + StringTools.hex(id(full));
+		return "ViewRuntime_" + name;
+	}
 
 	// renderer path reached: its runtime made, the late code made for it after typing
 	public static function reach(path:String):RendererInfo {
@@ -207,7 +212,7 @@ class HostMacro {
 
 	static var hooked = false;
 	// (the templates seen, each once; per renderer, those its code was made for; the classes made)
-	static final literals:Array<{key:Int, holes:Expr, body:Expr, only:Expr, pos:Position}> = [];
+	static final literals:Array<{key:Int, holes:Expr, body:Expr, only:Expr, feature:String, pos:Position}> = [];
 	static final seen = new Map<Int, Bool>();
 	static final done = new Map<String, Map<Int, Bool>>();
 
@@ -232,7 +237,11 @@ class HostMacro {
 						}
 						if (seen.exists(key)) continue;
 						seen.set(key, true);
-						literals.push({key: key, holes: m.params[1], body: m.params[2], only: m.params[3], pos: m.pos});
+						var feature = m.params.length > 4 ? switch m.params[4].expr {
+							case EConst(CString(f, _)): f;
+							case _: "";
+						} : "";
+						literals.push({key: key, holes: m.params[1], body: m.params[2], only: m.params[3], feature: feature, pos: m.pos});
 					}
 				case _:
 			}
@@ -241,6 +250,8 @@ class HostMacro {
 			if (mine == null) done.set(path, mine = new Map());
 			var i = infos.get(path), n = i.node;
 			var cases:Array<Case> = [], sig = new StringBuf();
+			// (JavaScript: a function a literal, registered by a static var, both kept only if the literal's field is: @:ifFeature)
+			var js = Context.defined("js"), own:Array<Field> = [];
 			for (l in literals) {
 				if (mine.exists(l.key)) continue;
 				mine.set(l.key, true);
@@ -268,6 +279,15 @@ class HostMacro {
 						];
 					case _: [];
 				}
+				if (js) {
+					var meta = l.feature == "" ? [] : [{name: ":ifFeature", params: [macro $v{l.feature}], pos: l.pos}];
+					var f = "m" + StringTools.hex(l.key);
+					own.push({name: f, access: [AStatic], meta: meta, pos: l.pos,
+						kind: FFun({args: [{name: "__h", type: macro :Array<Any>}, {name: "__p", type: n}, {name: "__b", type: macro :Null<$n>}, {name: "__o", type: macro :Null<Array<$n>>}],
+							ret: macro :Void, expr: macro @:pos(l.pos) $b{decls.concat(code)}})});
+					own.push({name: "r" + StringTools.hex(l.key), access: [AStatic], meta: meta, pos: l.pos,
+						kind: FVar(macro :Bool, macro add($v{l.key}, $i{f}))});
+				}
 				cases.push({values: [macro $v{l.key}], expr: macro @:pos(l.pos) $b{decls.concat(code)}});
 			}
 			if (cases.length == 0) continue;
@@ -279,7 +299,7 @@ class HostMacro {
 			// (named by its code: a module of that name, from hxmc's module cache
 			// or made already when hxmc's custom target runs the callbacks again
 			// with our statics anew, is this one)
-			var name = "Late_" + mangle(path) + "_" + StringTools.hex(id(sig.toString()));
+			var name = "Late_" + StringTools.hex(id(path + ";" + sig.toString()));
 			if (Lambda.exists(types, t -> switch t {
 				case TClassDecl(c): c.get().pack.join(".") == "helder.view" && c.get().name == name;
 				case _: false;
@@ -288,9 +308,29 @@ class HostMacro {
 				pack: ["helder", "view"],
 				name: name,
 				pos: Context.currentPos(),
-				meta: [{name: ":keep", pos: Context.currentPos()}, {name: ":noCompletion", pos: Context.currentPos()}],
+				// (kept whole but on JavaScript: there its fields are kept by their features, its __init__ always)
+				meta: js ? [{name: ":noCompletion", pos: Context.currentPos()}] : [{name: ":keep", pos: Context.currentPos()}, {name: ":noCompletion", pos: Context.currentPos()}],
 				kind: TDClass(),
-				fields: (macro class {
+				fields: js ? (macro class {
+					static var prev:Null<(Int, Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void>;
+					static var table:Null<Map<Int, (Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void>>;
+
+					static function __init__() {
+						prev = $p{rt}.late;
+						$p{rt}.late = mount;
+					}
+
+					static function add(k:Int, f:(Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void):Bool {
+						if (table == null) table = new Map();
+						table.set(k, f);
+						return true;
+					}
+
+					static function mount(__key:Int, __h:Array<Any>, __p:$n, __b:Null<$n>, __o:Null<Array<$n>>):Void {
+						var f = table == null ? null : table.get(__key);
+						if (f != null) f(__h, __p, __b, __o) else if (prev != null) prev(__key, __h, __p, __b, __o) else throw "helder.view: no code for this markup (" + __key + ")";
+					}
+				}).fields.concat(own) : (macro class {
 					static var prev:Null<(Int, Array<Any>, $n, Null<$n>, Null<Array<$n>>) -> Void>;
 
 					static function __init__() {

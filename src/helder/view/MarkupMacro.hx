@@ -390,7 +390,10 @@ class Literal {
 			var decls = [for (h in holeTypes) {expr: EVars([{name: h.name, type: h.type, expr: null}]), pos: pos}];
 			var only = own == null ? [] : [for (r in own.only) macro $v{r}];
 			if (cls == null) Context.error("markup: a literal outside a class", pos);
-			cls.get().meta.add(":helder.late", [macro $v{key}, macro $b{decls}, macro $b{body}, macro $a{only}], pos);
+			// (and the field it is in: its code kept only if that field is, where DCE can tell, JavaScript)
+			var m = Context.getLocalMethod(), c = cls.get();
+			var feature = m == null ? "" : c.pack.concat([c.name, m]).join(".");
+			c.meta.add(":helder.late", [macro $v{key}, macro $b{decls}, macro $b{body}, macro $a{only}, macro $v{feature}], pos);
 			var hs = [for (h in holeTypes) macro $i{h.name}];
 			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View(0, null, $v{key}, ([$a{hs}] : Array<Any>), $parts, $v{source})])};
 		}
