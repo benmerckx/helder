@@ -1,0 +1,31 @@
+{
+  "name": "helder",
+  "version": "0.1.0",
+  "description": "An experimental app and GUI stack in Haxe",
+  "license": "MIT",
+  "files": [
+    "src/",
+    "extraParams.hxml"
+  ],
+  "haxe": {
+    "name": "helder",
+    "classPath": "src",
+    "hxml": "extraParams.hxml"
+  },
+  "scripts": {
+    "test": "haxe -cp tests --run Run"
+  },
+  "peerDependencies": {
+    "@hxmc/cli": ">=0.1.0-0"
+  },
+  "devDependencies": {
+    "@hxmc/cli": "0.1.0-nightly.20261027.8e54b1e"
+  },
+  "trustedDependencies": [
+    "@hxmc/cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benmerckx/universe.git"
+  }
+}

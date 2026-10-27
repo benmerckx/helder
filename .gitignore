@@ -1,6 +1,4 @@
 /bin/
-/hxmc/
-/hxmc-local
 /node_modules/
 *.o
 *.tgz
