@@ -125,7 +125,9 @@ class GLBackend {
 	}
 	#end
 
-	public function new(surface:Surface) {
+	// antialias: a window multisampled (4 samples a pixel, resolved at the
+	// swap), when EGL has such a config; the browser: the page's run option
+	public function new(surface:Surface, antialias:Bool) {
 		this.surface = surface;
 		scratch = LibC.malloc((64 : Int64));
 		if (Mem.os() == 3) {
@@ -169,12 +171,16 @@ class GLBackend {
 		if (Egl.eglInitialize(display, scratch, scratch.offset(1)) == 0) fail("eglInitialize");
 		if (Egl.eglBindAPI(EGL.OPENGL_ES_API) == 0) fail("eglBindAPI");
 		Arena.scoped(a -> {
-			var attribs = ints(a, [
+			var attribs = [
 				EGL.SURFACE_TYPE, headless ? EGL.PBUFFER_BIT : EGL.WINDOW_BIT, EGL.RENDERABLE_TYPE, EGL.OPENGL_ES3_BIT, EGL.RED_SIZE, 8, EGL.GREEN_SIZE, 8,
 				EGL.BLUE_SIZE, 8, EGL.ALPHA_SIZE, 8, EGL.DEPTH_SIZE, 24, EGL.NONE
-			]);
+			];
 			var configs:Ptr<Ptr> = a.alloc(8);
-			if (Egl.eglChooseConfig(display, attribs, configs, 1, scratch) == 0 || scratch.value == 0) fail("no EGL config for GLES 3 with RGBA8 and a 24-bit depth buffer");
+			var multi = antialias && !headless;
+			if (multi && (Egl.eglChooseConfig(display, ints(a, [EGL.SAMPLE_BUFFERS, 1, EGL.SAMPLES, 4].concat(attribs)), configs, 1, scratch) == 0 || scratch.value == 0))
+				multi = false;
+			if (!multi && (Egl.eglChooseConfig(display, ints(a, attribs), configs, 1, scratch) == 0 || scratch.value == 0))
+				fail("no EGL config for GLES 3 with RGBA8 and a 24-bit depth buffer");
 			config = configs.value;
 			if (headless) {
 				eglSurface = Egl.eglCreatePbufferSurface(display, config, ints(a, [EGL.WIDTH, surface.width, EGL.HEIGHT, surface.height, EGL.NONE]));

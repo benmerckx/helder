@@ -52,11 +52,14 @@ class MTL {
 	public static inline var LoadActionClear = 2;
 	public static inline var StoreActionDontCare = 0;
 	public static inline var StoreActionStore = 1;
+	public static inline var StoreActionStoreAndMultisampleResolve = 3;
 	// MTLResourceOptions, MTLStorageMode, MTLTextureUsage
 	public static inline var ResourceStorageModeShared = 0;
 	public static inline var StorageModePrivate = 2;
 	public static inline var TextureUsageShaderRead = 1;
 	public static inline var TextureUsageRenderTarget = 4;
+	// MTLTextureType
+	public static inline var TextureType2DMultisample = 4;
 	// MTLSamplerMinMagFilter, MTLSamplerAddressMode
 	public static inline var SamplerMinMagFilterNearest = 0;
 	public static inline var SamplerMinMagFilterLinear = 1;

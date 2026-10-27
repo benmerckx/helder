@@ -51,6 +51,14 @@ The device has a depth buffer of the target's size; `PassDesc.depth`
 clears or keeps it. `Device.readPixels` reads the frame back (tests,
 screenshots; on WebGPU, `readPixels` in `imports.mjs`, asynchronously).
 
+Antialiasing: `Device.create(window.surface, {antialias: true})`
+multisamples a window's frames, 4 samples a pixel (Metal: a multisampled
+colour and depth texture resolved into the drawable at each pass's end;
+GL: an EGL config with 4 samples, when there is one; D3D11: not yet; in
+the browser the page's `antialias` run option decides). Render targets and
+headless surfaces stay single-sampled; `readPixels` reads the frame
+resolved.
+
 Instancing: a vertex buffer slot whose layout has `step: Instance` advances
 once per instance instead of once per vertex (GL's and WebGL2's attribute
 divisor 1, D3D11's per-instance input slots, Metal's per-instance step

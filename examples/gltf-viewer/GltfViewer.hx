@@ -24,7 +24,7 @@ import helder.scene.render.*;
 class GltfViewer {
 	static function main() {
 		var window = new Window("glTF scene", 640, 480);
-		var device = Device.create(window.surface);
+		var device = Device.create(window.surface, {antialias: true});
 		var renderer = new Renderer(device).use(new Shadows(device)).use(new Sky(device));
 		var world = new World();
 		// (sample.glb read when compiling: its nodes are typed fields, model.nodes.camera)

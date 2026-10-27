@@ -18,7 +18,12 @@ import hxmc.unsafe.*;
 // swaps it to RGBA. The depth buffer is a Depth32Float texture of the target's size,
 // remade when the drawable's size changes. A texture at slot n is [[texture(n)]] and its
 // sampler [[sampler(n)]], in both stages. A render target is a texture in
-// the GPU's memory (StorageModePrivate); generateMips is a blit.
+// the GPU's memory (StorageModePrivate); generateMips is a blit. With
+// antialias a window's frame is multisampled (4 samples a pixel): its
+// passes render into a multisampled colour texture beside the depth buffer,
+// resolved into the drawable at each pass's end (and kept, for a next
+// pass's Load), the frame's pipelines (no colorFormat) made for it; render
+// targets and headless targets stay single-sampled.
 class MetalBackend {
 	public final backend = Backend.Metal;
 	public var width(default, null) = 0;
@@ -35,6 +40,8 @@ class MetalBackend {
 	var depth = Ptr.nil(); // the depth texture, of depthWidth x depthHeight
 	var depthWidth = 0;
 	var depthHeight = 0;
+	final samples:Int; // the frame's samples a pixel
+	var msaa = Ptr.nil(); // multisampled: the frame's colour texture, of the depth's size
 	// native memory: an out-parameter, the structs passed by value
 	final scratch:Ptr<Ptr>;
 	final clear:Ptr<MTLClearColor>;
@@ -71,8 +78,9 @@ class MetalBackend {
 	static inline var MAX_SLOTS = 8;
 	static inline var MAX_BYTES = 4096;
 
-	public function new(surface:Surface) {
+	public function new(surface:Surface, antialias:Bool) {
 		this.surface = surface;
+		samples = antialias && surface.kind == Cocoa ? 4 : 1;
 		var pool = Runtime.objc_autoreleasePoolPush();
 		device = Metal.MTLCreateSystemDefaultDevice();
 		if (device.isNull()) throw "helder.gfx: no Metal device";
@@ -111,21 +119,34 @@ class MetalBackend {
 		Runtime.objc_autoreleasePoolPop(pool);
 	}
 
-	// the depth texture, when the target's size is not its own
+	// the depth texture (and the multisampled colour one), when the
+	// target's size is not theirs
 	function sizeDepth() {
 		if (depthWidth == width && depthHeight == height) return;
 		ObjC.release(depth);
+		ObjC.release(msaa);
+		depth = frameTexture(MTL.PixelFormatDepth32Float);
+		msaa = samples > 1 ? frameTexture(MTL.PixelFormatBGRA8Unorm) : Ptr.nil();
+		depthWidth = width;
+		depthHeight = height;
+	}
+
+	// a texture of the frame's size and samples, in the GPU's memory
+	function frameTexture(format:Int):Ptr {
 		var d = make("MTLTextureDescriptor");
-		Msg.vInt(d, ObjC.sel("setPixelFormat:"), MTL.PixelFormatDepth32Float);
+		Msg.vInt(d, ObjC.sel("setPixelFormat:"), format);
 		Msg.vInt(d, ObjC.sel("setWidth:"), width);
 		Msg.vInt(d, ObjC.sel("setHeight:"), height);
 		Msg.vInt(d, ObjC.sel("setUsage:"), MTL.TextureUsageRenderTarget);
 		Msg.vInt(d, ObjC.sel("setStorageMode:"), MTL.StorageModePrivate);
-		depth = Msg.idPtr(device, ObjC.sel("newTextureWithDescriptor:"), d);
+		if (samples > 1) {
+			Msg.vInt(d, ObjC.sel("setTextureType:"), MTL.TextureType2DMultisample);
+			Msg.vInt(d, ObjC.sel("setSampleCount:"), samples);
+		}
+		var t = Msg.idPtr(device, ObjC.sel("newTextureWithDescriptor:"), d);
 		Runtime.objc_release(d);
-		if (depth.isNull()) throw "helder.gfx: cannot create a " + width + "x" + height + " depth texture";
-		depthWidth = width;
-		depthHeight = height;
+		if (t.isNull()) throw "helder.gfx: cannot create a " + width + "x" + height + " frame texture";
+		return t;
 	}
 
 	// a new instance of a class ([[cls alloc] init]: owned, not autoreleased)
@@ -281,6 +302,7 @@ class MetalBackend {
 		Msg.vPtr(desc, ObjC.sel("setFragmentFunction:"), shaders[d.fragment.id() - 1]);
 		var color = Msg.idInt(Msg.id(desc, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
 		Msg.vInt(color, ObjC.sel("setPixelFormat:"), d.colorFormat == null ? MTL.PixelFormatBGRA8Unorm : pixelFormat(d.colorFormat));
+		if (d.colorFormat == null) Msg.vInt(desc, ObjC.sel("setRasterSampleCount:"), samples);
 		var blend:Blend = d.blend == null ? Opaque : d.blend;
 		if (blend != Opaque) {
 			Msg.vBool(color, ObjC.sel("setBlendingEnabled:"), true);
@@ -359,13 +381,15 @@ class MetalBackend {
 			h = info.height;
 			depthTexture = d == null ? Ptr.nil() : textures[d.texture.id() - 1];
 		}
-		Msg.vPtr(attachment, S.setTexture, c.texture == null ? texture : textures[c.texture.id() - 1]);
+		var resolve = c.texture == null && samples > 1;
+		Msg.vPtr(attachment, S.setTexture, c.texture != null ? textures[c.texture.id() - 1] : resolve ? msaa : texture);
+		Msg.vPtr(attachment, S.setResolveTexture, resolve ? texture : Ptr.nil());
 		Msg.vInt(attachment, S.setLoadAction, switch c.load {
 			case Clear: MTL.LoadActionClear;
 			case Load: MTL.LoadActionLoad;
 			case DontCare: MTL.LoadActionDontCare;
 		});
-		Msg.vInt(attachment, S.setStoreAction, MTL.StoreActionStore);
+		Msg.vInt(attachment, S.setStoreAction, resolve ? MTL.StoreActionStoreAndMultisampleResolve : MTL.StoreActionStore);
 		if (c.load == Clear) {
 			var k = c.clear;
 			clear.value.red = k == null ? 0 : k.r;
@@ -493,6 +517,7 @@ class MetalBackend {
 		ObjC.release(readback);
 		ObjC.release(target);
 		ObjC.release(depth);
+		ObjC.release(msaa);
 		Runtime.objc_release(pass);
 		Runtime.objc_release(queue);
 		#if hxmc.dev_host
@@ -544,6 +569,7 @@ private class S {
 	public static final height = ObjC.sel("height");
 	public static final commandBuffer = ObjC.sel("commandBuffer");
 	public static final setTexture = ObjC.sel("setTexture:");
+	public static final setResolveTexture = ObjC.sel("setResolveTexture:");
 	public static final setLoadAction = ObjC.sel("setLoadAction:");
 	public static final setStoreAction = ObjC.sel("setStoreAction:");
 	public static final setClearColor = ObjC.sel("setClearColor:");

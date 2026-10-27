@@ -35,6 +35,8 @@ class EGL {
 	public static inline var BLUE_SIZE = 0x3022;
 	public static inline var ALPHA_SIZE = 0x3021;
 	public static inline var DEPTH_SIZE = 0x3025;
+	public static inline var SAMPLES = 0x3031;
+	public static inline var SAMPLE_BUFFERS = 0x3032;
 	public static inline var SURFACE_TYPE = 0x3033;
 	public static inline var RENDERABLE_TYPE = 0x3040;
 	public static inline var PBUFFER_BIT = 0x0001;

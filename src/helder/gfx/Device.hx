@@ -17,9 +17,9 @@ final class Device {
 	final impl:Impl;
 	final encoder:Encoder;
 
-	function new(surface:Surface) {
+	function new(surface:Surface, antialias:Bool) {
 		this.surface = surface;
-		impl = new Impl(surface);
+		impl = new Impl(surface, antialias);
 		backend = impl.backend;
 		encoder = new Encoder(impl);
 		#if hxmc.dev
@@ -29,8 +29,12 @@ final class Device {
 		#end
 	}
 
-	public static function create(surface:Surface):Device
-		return new Device(surface);
+	// antialias: a window's frames multisampled, 4 samples a pixel (Metal, GL;
+	// not yet on D3D11; in the browser the page's run option decides); render
+	// targets and headless surfaces stay single-sampled, readPixels reads the
+	// frame resolved
+	public static function create(surface:Surface, ?options:{?antialias:Bool}):Device
+		return new Device(surface, options != null && options.antialias == true);
 
 	public function createBuffer(d:BufferDesc):Buffer
 		return new Buffer(impl.createBuffer(d));
