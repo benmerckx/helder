@@ -96,7 +96,7 @@ class TextLayout {
 		hasBidi = false;
 		bidiCps = null;
 		bidiLevels = null;
-		paragraphLevels.resize(0);
+		if (paragraphLevels != null) paragraphLevels.resize(0);
 		// (the text's highest UTF-16 unit: below U+0590 nothing right to left,
 		// below U+0600 no Arabic, below U+200D no emoji sequences)
 		var top = 0;
@@ -214,20 +214,20 @@ class TextLayout {
 	var count = 0;
 	var shaped = 0;
 	var capacity = 0;
-	var lFace = new Vector<Int>(0);
-	var lId = new Vector<Int>(0);
-	var lCp = new Vector<Int>(0);
-	var lCluster = new Vector<Int>(0);
-	var lLength = new Vector<Int>(0);
-	var lRun = new Vector<Int>(0);
+	var lFace = NO_INTS;
+	var lId = NO_INTS;
+	var lCp = NO_INTS;
+	var lCluster = NO_INTS;
+	var lLength = NO_INTS;
+	var lRun = NO_INTS;
 	// (its bidi level and these)
-	var lFlags = new Vector<Int>(0);
-	var lAdvance = new Vector<Float>(0);
-	// (where the last wrap placed it: its index among the glyphs laid out)
-	var lPos = new Vector<Int>(0);
+	var lFlags = NO_INTS;
+	var lAdvance = NO_FLOATS;
 	// (with marks: the glyph each is attached to (-1: none), its offset from
-	// that glyph's origin; the offsets of those laid out)
+	// that glyph's origin, where the last wrap placed it (its index among the
+	// glyphs laid out); the offsets of those laid out)
 	var hasMarks = false;
+	var lPos:Null<Vector<Int>> = null;
 	var lAttach:Null<Vector<Int>> = null;
 	var lAx:Null<Vector<Float>> = null;
 	var lAy:Null<Vector<Float>> = null;
@@ -239,9 +239,9 @@ class TextLayout {
 	var tabStop:Null<Vector<Float>> = null;
 	var tabPlaced:Null<Vector<Float>> = null;
 	var placedCapacity = 0;
-	var oGlyph = new Vector<Int>(0);
-	var oX = new Vector<Float>(0);
-	var oAdvance = new Vector<Float>(0);
+	var oGlyph = NO_INTS;
+	var oX = NO_FLOATS;
+	var oAdvance = NO_FLOATS;
 	static inline var LEVEL = 0xFF;
 	static inline var HIDDEN = 0x100;
 	// (a ligature: its parts its characters)
@@ -249,6 +249,9 @@ class TextLayout {
 	static inline var MARK = 0x400;
 	// (every TextLine made: lines[k] is pool[k])
 	final pool:Array<TextLine> = [];
+	// (the buffers before the first: none allocated with the layout)
+	static final NO_INTS = new Vector<Int>(0);
+	static final NO_FLOATS = new Vector<Float>(0);
 
 	function faceIndex(f:FontFile):Int {
 		if (f == lastFace) return lastFaceIndex;
@@ -291,8 +294,8 @@ class TextLayout {
 		lRun = moreInts(lRun, c, count);
 		lFlags = moreInts(lFlags, c, count);
 		lAdvance = moreFloats(lAdvance, c, count);
-		lPos = moreInts(lPos, c, count);
 		if (lAttach != null) {
+			lPos = moreInts(lPos, c, count);
 			lAttach = moreInts(lAttach, c, count);
 			lAx = moreFloats(lAx, c, count);
 			lAy = moreFloats(lAy, c, count);
@@ -308,6 +311,7 @@ class TextLayout {
 	function markRoom() {
 		hasMarks = true;
 		if (lAttach == null || lAttach.length < capacity) {
+			lPos = new Vector(capacity);
 			lAttach = new Vector(capacity);
 			lAx = new Vector(capacity);
 			lAy = new Vector(capacity);
@@ -667,7 +671,7 @@ class TextLayout {
 		return set.features == null || set.feature("kern") != 0;
 
 	// (a segment's ids, which FontFile's lookups read: from segment in the glyphs; a ligature shortens both)
-	final ids:Array<Int> = [];
+	var ids:Null<Array<Int>> = null;
 	var segment = 0;
 
 	inline function substitutable(g:Int):Bool {
@@ -699,6 +703,7 @@ class TextLayout {
 				i = j;
 				continue;
 			}
+			if (ids == null) ids = [];
 			ids.resize(0);
 			for (k in i...j)
 				ids.push(lId[k]);
@@ -888,6 +893,7 @@ class TextLayout {
 		var cps = [for (i in 0...n) lCp[i]];
 		if (base != 1 && !Bidi.hasRtl(cps)) return;
 		var start = 0, first = true;
+		if (paragraphLevels == null) paragraphLevels = [];
 		while (start <= n) {
 			var end = start;
 			while (end < n && lCp[end] != 10)
@@ -926,7 +932,7 @@ class TextLayout {
 	var hasBidi = false;
 	var bidiCps:Null<Array<Int>> = null;
 	var bidiLevels:Null<Array<Int>> = null;
-	final paragraphLevels:Array<{start:Int, end:Int, base:Int}> = [];
+	var paragraphLevels:Null<Array<{start:Int, end:Int, base:Int}>> = null;
 
 	// --- line breaking ---
 
@@ -1102,7 +1108,7 @@ class TextLayout {
 				oGlyph[o] = g;
 				oX[o] = x;
 				oAdvance[o] = a;
-				lPos[i] = o;
+				if (hasMarks) lPos[i] = o;
 				o++;
 				x += a;
 			}
@@ -1124,7 +1130,7 @@ class TextLayout {
 				oGlyph[o] = g;
 				oX[o] = x;
 				oAdvance[o] = a;
-				lPos[i] = o;
+				if (hasMarks) lPos[i] = o;
 				o++;
 				x += a;
 				if (!isSpace(lCp[g])) visible = x;
