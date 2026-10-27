@@ -16,8 +16,9 @@ import helder.ui.draw.DrawText;
 // text (shaping and layout, the atlas cold and warm), ui (a tree of 10k
 // nodes laid out, laid out again after a change, hit tests and pointer
 // moves), scene (world matrices of 10k and 100k nodes, a frame's culling
-// and draw list) and physics (stacks, chains). Each workload runs once to
-// warm up, then RUNS times, each run timed alone. One line per workload:
+// and draw list) and physics (stacks, chains, a pile, jointed links,
+// characters walking). Each workload runs once to warm up, then RUNS
+// times, each run timed alone. One line per workload:
 //
 //   bench <name> <runs> <median ms> <p99 ms> <max ms> <bytes/run> <GCs> <majors> <longest GC ms in a run|-> <check>
 //
@@ -48,6 +49,9 @@ class Bench {
 			// physics
 			{name: "physics.stacks", runs: 60, before: stacksSetup, run: () -> steps(30)},
 			{name: "physics.chains", runs: 60, before: chainsSetup, run: () -> steps(30)},
+			{name: "physics.pile", runs: 40, before: pileSetup, run: () -> steps(30)},
+			{name: "physics.joints", runs: 60, before: jointsSetup, run: () -> steps(30)},
+			{name: "physics.walkers", runs: 60, before: walkersSetup, run: () -> steps(30)},
 		];
 		if (args[0] == "list") {
 			for (w in all)
@@ -334,22 +338,33 @@ class Bench {
 	}
 
 	// --- physics: 10 stacks of 20 crates on a floor (201 bodies); 20
-	// chains of 15 balls on distance joints (301 bodies), 30 steps a run,
-	// from the start each run
+	// chains of 15 balls on distance joints (301 bodies); a pile of 294
+	// balls, crates and capsules in a pen of planes (settled 45 steps
+	// first); 16 chains of 12 links on ball joints, each hung from a hinge,
+	// swinging down onto the floor (192 bodies); 16 characters walking
+	// circles among 64 crates and 4 steps, jumping now and then. 30 steps a
+	// run, from the start each run
 
 	static var physics:PhysicsWorld;
+	static var walkers:Array<Character> = [];
+	static var tick = 0;
 
-	static function stacksSetup() {
+	static function physicsWorld() {
 		physics = new PhysicsWorld();
 		physics.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
+		walkers = [];
+		tick = 0;
+	}
+
+	static function stacksSetup() {
+		physicsWorld();
 		for (s in 0...10)
 			for (k in 0...20)
 				physics.add(new Body(Box(new Vec3(0.3, 0.3, 0.3)), new Vec3((s % 5) * 1.5 + 0.02 * k, 0.3 + 0.61 * k, Std.int(s / 5) * 1.5)));
 	}
 
 	static function chainsSetup() {
-		physics = new PhysicsWorld();
-		physics.add(new Body(Plane(new Vec3(0, 1, 0), 0), new Vec3(0, 0, 0), 0));
+		physicsWorld();
 		for (c in 0...20) {
 			var x = (c % 10) * 0.8 - 4, z = Std.int(c / 10) * 0.8, prev:Null<Body> = null;
 			for (k in 0...15) {
@@ -361,9 +376,63 @@ class Bench {
 		}
 	}
 
+	static function pileSetup() {
+		physicsWorld();
+		for (n in [new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1)])
+			physics.add(new Body(Plane(n, -1.8), new Vec3(0, 0, 0), 0));
+		for (l in 0...6)
+			for (k in 0...49) {
+				var p = new Vec3((k % 7) * 0.5 - 1.5 + 0.03 * l, 0.3 + 0.55 * l, Std.int(k / 7) * 0.5 - 1.5 - 0.02 * l);
+				var b = physics.add(new Body(switch (k + l) % 3 {
+					case 0: Sphere(0.2);
+					case 1: Box(new Vec3(0.2, 0.15, 0.18));
+					case _: Capsule(0.12, 0.12);
+				}, p));
+				b.orientation = Quat.axisAngle(new Vec3(1, 0.3 * l, 0.1 * k), 0.2 * k);
+			}
+		for (_ in 0...45)
+			physics.step(1 / 60);
+	}
+
+	static function jointsSetup() {
+		physicsWorld();
+		for (c in 0...16) {
+			var x0 = (c % 4) * 1.2 - 1.8, z = Std.int(c / 4) * 1.2 - 1.8, prev:Null<Body> = null;
+			for (k in 0...12) {
+				var b = physics.add(new Body(Box(new Vec3(0.1, 0.06, 0.08)), new Vec3(x0 + 0.13 + 0.26 * k, 2.2, z), 0.4));
+				physics.join(prev == null ? Joint.hinge(b, new Vec3(-0.13, 0, 0), new Vec3(0, 0, 1), null, new Vec3(x0, 2.2, z),
+					new Vec3(0, 0, 1)) : Joint.ball(b, new Vec3(-0.13, 0, 0), prev, new Vec3(0.13, 0, 0)));
+				prev = b;
+			}
+		}
+	}
+
+	static function walkersSetup() {
+		physicsWorld();
+		for (b in [[4, 0.5, -3, 2, 0.5, 1.5], [1.6, 0.15, -3, 0.4, 0.15, 1], [-4, 0.25, 3, 1, 0.25, 1], [0, 0.4, 5, 1.5, 0.4, 0.5]])
+			physics.add(new Body(Box(new Vec3(b[3], b[4], b[5])), new Vec3(b[0], b[1], b[2]), 0));
+		for (k in 0...64) {
+			var b = physics.add(new Body(Box(new Vec3(0.3, 0.3, 0.3)), new Vec3((k % 8) * 1.1 - 4, 0.3 + 0.6 * Std.int(k / 32), Std.int(k / 8 % 4) * 1.6 - 2.5), 8));
+			b.friction = 0.6;
+		}
+		for (k in 0...16)
+			walkers.push(new Character(physics, new Vec3((k % 4) * 2.2 - 3.3 + 0.5, 0.95, Std.int(k / 4) * 2.2 - 3.3 + 0.8)));
+		for (_ in 0...10)
+			step();
+	}
+
+	static function step() {
+		tick++;
+		for (k in 0...walkers.length) {
+			var a = tick * 0.02 + k;
+			walkers[k].update(1 / 60, new Vec3(Math.cos(a), 0, Math.sin(a)), (tick + k * 7) % 90 == 0);
+		}
+		physics.step(1 / 60);
+	}
+
 	static function steps(n:Int) {
 		for (_ in 0...n)
-			physics.step(1 / 60);
+			step();
 		check += physics.contacts;
 	}
 }
