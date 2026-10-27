@@ -4,8 +4,10 @@ import haxe.ds.Vector;
 
 // Int keys to values, for the caches read per glyph (GlyphAtlas's glyphs,
 // FontFile's kerning and lookups): open addressing with linear probing, no
-// removals, any key but 0x80000000 (an empty slot's). (hxmc's IntMap.get allocates on every call;
-// this reads two arrays, and is made for each type: Ints unboxed.)
+// removals, any key but 0x80000000 (an empty slot's). It reads two arrays
+// and is made for each type. (Since hxmc 8841f02 IntMap allocates nothing
+// either, but a warm atlas is 16% slower on it natively, 1.8x on wasm32:
+// tests/bench/results/text.md.)
 @:generic
 class IntTable<T> {
 	var keys:Vector<Int>;

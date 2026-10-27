@@ -193,3 +193,10 @@ Seconds to compile, without a compilation server: with scoped's checker (as -lib
 | Todo | linux-x86_64 | 2041 | 2.4 | 2.5 | 1.7 | 0.8 |
 | Todo | wasm32-wasi | 1515 | 2.9 | 2.7 | 1.8 | 1.1 |
 | Walker | linux-x86_64 | 705 | 1.7 | 1.7 | 0.9 | 0.3 |
+
+## After hxmc 8841f02
+
+IntMap no longer allocates on `get`. IntTable as a wrapper of `IntMap`
+(`bun run test bench`, text and ui.layout): no garbage either, but
+text.atlas.warm 0.036 ms against 0.031 natively and 0.094 against 0.051 on
+wasm32, text.atlas.cold 1274 KB a run against 1250: IntTable stays.

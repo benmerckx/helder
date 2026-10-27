@@ -344,3 +344,15 @@ bin/jobs/Jobs bin/jobs/DejaVuSans.ttf bin/jobs/photo.png alone d
 haxe -cp src -cp tests/bench -main JobsWasm -D hxmc.target=wasm32-wasi --custom-target hxmc=bin/jobs/JobsWasm.wasm
 node --no-turbo-fast-api-calls --stack-size=65500 tests/bench/jobs.mjs bin/jobs/JobsWasm.wasm bin/jobs/DejaVuSans.ttf bin/jobs/photo.png b
 ```
+
+## After hxmc 8841f02
+
+Jobs.hx on the nightly's API (@hxmc/cli 0.1.0-nightly.20261027.ec71785):
+`hxmc.unsafe.Blocking.enter`/`leave` for d's region (not
+`@:hxmc.blocking` on the decode: a blocking function's callees must all
+be, which would put d0's decode in a region too), the PNG, the IDAT data,
+the rows and the scratch memory in `IoBuffer`s (the pixels freed by the
+main thread), the counters from `hxmc.GcStats` (no `@:access`, no
+`Gc.stats`; the longest stop from its records). One run of each: the
+numbers hold. Probe: d's longest pause 0.61 ms (0.54-0.86), decode 168 ms;
+d0 154 ms; b 35 ms (32-47); the worker's allocation for b now exact (119 MB).

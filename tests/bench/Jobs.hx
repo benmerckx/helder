@@ -1,6 +1,7 @@
 import haxe.Timer;
 import haxe.io.Bytes;
 import hxmc.GcStats;
+import hxmc.unsafe.Blocking;
 import hxmc.unsafe.IoBuffer;
 import hxmc.unsafe.Mem;
 import sys.thread.Lock;
@@ -168,9 +169,12 @@ class Jobs {
 					if (failed == 0) {
 						var idat = IoBuffer.alloc(OffHeapPng.idatLength + 8), raw = IoBuffer.alloc(OffHeapPng.rawLength());
 						var scratch = IoBuffer.alloc(OffHeapPng.SCRATCH);
-						// (d: in a safe region, @:hxmc.blocking's)
-						failed = job == "d" ? OffHeapPng.decodeBlocking(pngBuf.ptr, pngBuf.length, idat.ptr, raw.ptr, scratch.ptr)
-							: OffHeapPng.decode(pngBuf.ptr, pngBuf.length, idat.ptr, raw.ptr, scratch.ptr);
+						var p = pngBuf.ptr, n = pngBuf.length, i = idat.ptr, r = raw.ptr, s = scratch.ptr, safe = job == "d";
+						// (d: in a safe region, the collector does not wait for it)
+						var region = safe ? Blocking.enter() : 0;
+						var e = OffHeapPng.decode(p, n, i, r, s);
+						if (safe) Blocking.leave(region);
+						failed = e;
 						idat.free();
 						scratch.free();
 						pixels = raw;

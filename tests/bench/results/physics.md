@@ -225,3 +225,13 @@ class Repro {
 ```
 
 `haxe -main Repro -D hxmc.target=linux-x86_64 --custom-target hxmc=Repro`
+
+## After hxmc 8841f02
+
+`Array.resize` grows geometrically and a `for` over a literal with a
+`continue` allocates nothing: the sort's buffer is grown by `resize(n)`
+and the hinge's tangents are `for (t in [t1, t2])` again. Steady state still
+0 B a step in every world, the times within the noise (physics.joints 34.4
+ms natively, 588 KB a run). `Array.sort` allocates nothing up to 128
+elements only (2000 Ints: 8 KB a call), so the pairs keep their counting
+passes.

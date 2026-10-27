@@ -153,9 +153,9 @@ class PhysicsWorld {
 				for (j in 0...bodies.length)
 					if (j != k && !bodies[j].shape.match(Plane(_, _))) pairs.push(k < j ? k * 65536 + j : j * 65536 + k);
 		// (by the second body, then the first: each pass keeps the order of
-		// the last; sorted only grows, by half)
+		// the last; Array.sort would allocate above 128 elements)
 		var n = pairs.length;
-		if (sorted.length < n) sorted.resize(n + (n >> 1));
+		if (sorted.length < n) sorted.resize(n);
 		countingSort(pairs, sorted, n, 0);
 		countingSort(sorted, pairs, n, 16);
 		for (p in pairs) {

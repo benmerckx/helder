@@ -13,7 +13,8 @@ import hxmc.unsafe.Ptr;
 // which are unfiltered in place: the pixels are the rows buffer's first
 // width * height * 4 bytes. Every function is @:hxmc.unsafe: the compiler
 // checks it never touches the GC heap, so it may run in a safe region
-// (decodeBlocking: decode in one, @:hxmc.blocking). Errors are results: < 0.
+// (hxmc.unsafe.Blocking: not @:hxmc.blocking, whose callees must all be
+// too, which would put d0's decode in one). Errors are results: < 0.
 class OffHeapPng {
 	public static inline var ERR_FORMAT = -1; // not a PNG, a bad chunk
 	public static inline var ERR_UNSUPPORTED = -2; // not RGBA8 non-interlaced
@@ -82,10 +83,6 @@ class OffHeapPng {
 		if (r != rawLen) return r < 0 ? r : ERR_DATA;
 		return unfilter(raw, width, height);
 	}
-
-	// decode in a safe region: the collector does not wait for it
-	@:hxmc.blocking @:hxmc.unsafe public static function decodeBlocking(png:Ptr, n:Int, idat:Ptr, raw:Ptr, scratch:Ptr):Int
-		return decode(png, n, idat, raw, scratch);
 
 	// the rows unfiltered in place: row j's bytes from j * (stride + 1) + 1 to
 	// j * stride (always before them), the row above already in place

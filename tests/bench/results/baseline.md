@@ -89,3 +89,11 @@ to run, p99s and maxima more.
   and 2.91 s with it, 1.60 and 0.47 s without; Walker 1.84 and 1.84 s with
   it, 0.98 and 0.30 s without. Without the checker the module cache saves
   70%.
+
+## After hxmc 8841f02
+
+The counters are `hxmc.GcStats`' (tests/bench/GcStats.hx): every byte the
+GC heap allocated, large objects included, and the pauses, the same on
+wasm32, which now has its longest GC timed and its KB a run exact instead
+of by whole nurseries (text.layout.latin 68.2 KB a run on both, 88.6 on
+wasm32 before). The times are within the noise of this table's.

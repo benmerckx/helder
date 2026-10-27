@@ -52,7 +52,7 @@ class Run {
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
 		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
-		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as a GC-free job on malloc'ed memory, natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
+		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
 		{name: "dev-host", about: "helder dev's host (helder.dev.DevHost): three builds of a program as shared libraries swapped in one process and window (tests/os/dev/dev-host.mjs); DEV_HOST_TARGETS (comma-separated) cross-compiles for others too (windows-x86_64: run under Wine; macos-*: built only)", run: devHost},
 	];
@@ -487,7 +487,7 @@ class Run {
 		var names = (Sys.getEnv("BENCH") ?? "").split(" ").filter(n -> n != "");
 		if (names.length == 0) names = [for (l in output(exePath("bin/bench/Bench", HOST), [font, "list"]).split("\n")) if (l.trim() != "") l.trim()];
 		var md = ["# Benchmarks", "", 'tests/bench/Bench.hx (`bun run test bench`), ${Date.now().toString().substr(0, 10)}, ${cpuName()}.', ""];
-		md.push("Milliseconds per run (median, p99, max), GC heap bytes allocated per run, collections (all runs; majors), the longest time collecting in one run (natively; wasm32's collector does not time itself).");
+		md.push("Milliseconds per run (median, p99, max), GC heap bytes allocated per run, collections (all runs; majors), the longest time collecting in one run (hxmc.GcStats' pauses, natively and on wasm32).");
 		for (target in [HOST, "wasm32-wasi"]) {
 			md = md.concat(["", '## $target', "", "| workload | runs | median | p99 | max | KB/run | GCs | majors | longest GC |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]);
 			for (n in names) {
