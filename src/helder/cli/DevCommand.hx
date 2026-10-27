@@ -13,8 +13,9 @@ using StringTools;
 
 // `helder dev [host | web] [entry]`: the dev loop, ported from @hxmc/cli's
 // dev.mjs. The compiler stays resident (CompileServer, --server-connect);
-// the entry's class paths and assets are watched (PollWatcher), and a
-// change builds again with -D hxmc.dev. A build with errors changes
+// what the last build read is watched (SampledWatcher: the module files
+// Deps writes, their directories, and assets/), and a change builds again
+// with -D hxmc.dev. A build with errors changes
 // nothing: the last good build keeps running, the errors show here (and in
 // the page's overlay). A build that compiles reloads the program, its state
 // carried over by key (helder.dev.Hot's snapshot):
@@ -103,6 +104,7 @@ class DevCommand {
 		TestCommand.mkdirs(dir);
 		snapshot = FileSystem.fullPath(dir) + '/${e.name}.snapshot';
 		try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
+		try FileSystem.deleteFile(depsFile()) catch (_:Dynamic) {};
 		server = CompileServer.start(task);
 		if (server == null) {
 			Sys.println("helder dev: the compilation server did not start (" + Compiler.tool() + ")");
@@ -130,22 +132,57 @@ class DevCommand {
 			}
 			log('${e.main} (watching ${e.sources.join(", ")})');
 		}
+		var w = new SampledWatcher();
 		rebuild(task, null);
-		var w = new PollWatcher(e.sources.concat(e.hxml == null ? [] : [e.hxml]), 0.05, 0.05, ignored);
+		watch(w);
 		while (true) {
 			var changed = w.next();
-			var seen = haxe.Timer.stamp() - 0.075;
+			// (seen within the tick: half of it on average, and the debounce)
+			var seen = haxe.Timer.stamp() - 0.07;
 			for (f in changed)
-				if (f.endsWith(".hx") && FileSystem.exists(f)) server.invalidate(FileSystem.fullPath(f), cwd);
+				if (f.endsWith(".hx") && FileSystem.exists(f)) server.invalidate(f, cwd);
 			rebuild(task, seen);
+			watch(w);
 		}
 		return 0;
 	}
 
-	static function ignored(path:String):Bool {
-		var n = Path.withoutDirectory(path);
-		return n == "bin" || n == "node_modules" || n.startsWith(".") || n.startsWith("#") || n.endsWith("~") || n.endsWith(".swp") || n.endsWith(".tmp");
+	// what the last build read: its module files under the sources (Deps;
+	// before any build typed, every .hx file there), their directories, the
+	// assets and the overrides
+	static function watch(w:SampledWatcher) {
+		var roots = [for (s in e.sources) if (FileSystem.exists(s)) FileSystem.fullPath(s)];
+		var under = (f:String) -> Lambda.exists(roots, r -> f.startsWith(r + "/") || f.startsWith(r + "\\"));
+		var files = [], dirs = [];
+		function walk(d:String, all:Bool)
+			for (n in (try FileSystem.readDirectory(d) catch (_:Dynamic) [])) {
+				var p = '$d/$n';
+				if (n.startsWith(".") || n == "bin" || n == "node_modules") continue;
+				if (FileSystem.isDirectory(p)) {
+					dirs.push(p);
+					walk(p, all);
+				} else if (all || n.endsWith(".hx")) files.push(p);
+			}
+		var deps = try File.getContent(depsFile()).split("\n") catch (_:Dynamic) null;
+		if (deps == null) for (r in roots) {
+			dirs.push(r);
+			walk(r, false);
+		} else for (f in deps) if (f != "" && under(f)) {
+			files.push(f);
+			var d = Path.directory(f);
+			if (!dirs.contains(d)) dirs.push(d);
+		}
+		if (FileSystem.exists('${e.root}/assets')) {
+			var a = FileSystem.fullPath('${e.root}/assets');
+			dirs.push(a);
+			walk(a, true);
+		}
+		for (f in [e.hxml, '${e.root}/package.json']) if (f != null && FileSystem.exists(f)) files.push(FileSystem.fullPath(f));
+		w.watch(files, dirs);
 	}
+
+	static function depsFile():String
+		return Path.withoutExtension(out) + ".deps";
 
 	static function log(s:String)
 		Sys.println("helder dev: " + s);
@@ -159,7 +196,8 @@ class DevCommand {
 			FileSystem.rename(out, aside);
 			true;
 		} catch (_:Dynamic) false);
-		var extra = hosted ? ["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"] : [];
+		var extra = ["--macro", 'helder.cli.Deps.write("${FileSystem.fullPath(Path.directory(out))}/${Path.withoutDirectory(depsFile())}")'];
+		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
 		var r = try BuildCommand.build(e, out, Dev, server, extra) catch (err:haxe.Exception) {
 			Sys.println("helder dev: " + err.message);
 			Sys.exit(1);

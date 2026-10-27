@@ -99,6 +99,7 @@ come behind the same interface.
 | `Process` | `new Process(cmd, args)`: `stdout` and `stderr` (`Source`s), `stdin` (a `Sink`), `wait()`, `kill`, `close` |
 | `Reader` | a `Source` through a buffer: `readLine` (null at the end), `readBytes(n)`, `readAll` |
 | `PollWatcher` | a `Watcher` by scanning (mtime and size, recursive, debounced): `next()` the paths of a batch; inotify, FSEvents and `ReadDirectoryChangesW` to come |
+| `SampledWatcher` | a `Watcher` of given files and directories (`watch(files, dirs)`, replaced after each build), polled as esbuild polls: the 16 recent paths and a shuffled slice of the rest each tick; stat keys, contents while an mtime is too recent, directories' listings (`helder dev`'s) |
 | `Fetch` | `Fetch.bytes(path)`: in the browser a fetch (aborted when cancelled), natively the file |
 
 ## HTTP and WebSocket
@@ -140,7 +141,8 @@ bodies, TLS. A caught error is thrown again by the next coroutine call
 that returns without suspending (the coroutine transform's,
 tests/async/rep/CatchThenCall.hx); helder.async's own calls clear it.
 
-Tests: `tests/async/Tasks.test.hx` (tasks, cancellation, errors, timers:
+Tests: `tests/async/Watcher.test.hx` (SampledWatcher; `WatchBench.hx` its
+cost a tick against PollWatcher's), `tests/async/Tasks.test.hx` (tasks, cancellation, errors, timers:
 helder.test's, `bun run helder test tests/async --target all`),
 `AsyncTest.hx` (the loop, TCP, processes, the watcher, HTTP and
 WebSocket: `bun run test async`, on Eval and natively), `WebTest.hx` (the

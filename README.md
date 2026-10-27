@@ -120,8 +120,8 @@ In order: each phase leans on the one before it.
   dev host on Linux, a restart with a snapshot elsewhere, the page swapped
   in place; the `cli` lane, the examples lane through it, and dev-web.mjs
   and dev-native.mjs passing on it). Still to come of it:
-  - the watcher on what the last build read (esbuild's sampled polling),
-    then native watchers; changed assets sent without a recompile, assets
+  - native watchers (the dev loop polls what the last build read, as
+    esbuild does: helder.async's SampledWatcher); changed assets sent without a recompile, assets
     packed by `build`; the page held back while the module is generated;
   - the dev host on macOS and Windows, and both tested (they build);
   - the CLI on npm as a binary (`@helder/<os>-<cpu>`);

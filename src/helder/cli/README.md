@@ -60,9 +60,14 @@ program (`helder.dev.Hot`, `helder.os.App`'s client, the page):
 - the compiler is a resident compilation server (`--server-connect`, a
   request at a time on one connection), each change's files invalidated
   first (`server/invalidate`), `-D disable-hxb-cache`;
-- the class paths (but helder's own when it is a package) and `assets/` are
-  watched (`PollWatcher`: every 50 ms, mtime and size, a hash for files
-  changed in the last 3 s);
+- what the last build read is watched (`helder.async.SampledWatcher`,
+  esbuild's polling): the module files a `--macro helder.cli.Deps.write`
+  lists (under the class paths, but helder's own when it is a package),
+  their directories' listings, `assets/`, package.json and helder.hxml; the
+  set replaced after each build. Each 100 ms tick checks the 16 paths that
+  changed last and a shuffled slice of the rest (all of them in about 2 s:
+  2.3 ms of CPU a tick for 10k files, where scanning them takes 56 ms); a
+  file's stat key, or its content while its mtime is within 2 s;
 - a build with errors changes nothing: the last good build keeps running,
   the errors show in the terminal (and the page's overlay);
 - natively the program runs with `HXMC_DEV` (our socket, JSON lines) and
@@ -87,8 +92,9 @@ the change seen to the new build's first frame) and `error`.
   `HXMC_DEV_SNAPSHOT` (and the server's `RT_OLD_MB`, `RT_MINOR_KB`) are set
   with `Sys.putEnv` around the spawn and removed after (`DevCommand.start`,
   `CompileServer.start`); programs run in the CLI's directory.
-- stat's mtime has a 1 s resolution: `PollWatcher` hashes files changed in
-  the last 3 s.
+- stat's mtime has a 1 s resolution: `SampledWatcher` compares the
+  content of a file whose mtime was within 2 s when it was watched, and
+  `PollWatcher` hashes files changed in the last 3 s.
 - `haxe --wait` finds the runtime objects only through `HXMC_RT_DIR`, and an
   empty connection ends it (fixed in hxmc a85b139): `Compiler.find` sets
   HXMC_RT_DIR, `Compiler.start` probes with a request.
