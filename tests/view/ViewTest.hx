@@ -7,8 +7,7 @@ import OtherRenderer.OtherNode;
 // helder.view's tests, on Eval and natively (npm test -- view), on
 // TestRenderer:
 //
-//   <tool> -cp src -cp tests/view -D helder.view.renderer=TestRenderer \
-//     -D helder.view.renderer.other=OtherRenderer --run ViewTest <tool>
+//   <tool> -cp src -cp tests/view --run ViewTest <tool>
 //
 // signals, memos and effects (tracking, batching, no glitches, ownership
 // and cleanup, contexts); markup (elements, attributes, JSX's whitespace
@@ -16,7 +15,7 @@ import OtherRenderer.OtherNode;
 // and their props, text runs, reactive text, attributes and regions); the
 // control flow components (For, Index, Show, Switch, ErrorBoundary,
 // Provider, onMount); two renderers (OtherRenderer: the same components
-// rendered by each, boundaries between them); and the programs the macro rejects (test/reject,
+// rendered by each, boundaries between them, roots: Render.open's windows); and the programs the macro rejects (test/reject,
 // "// expect:" lines; with the tool's path as the argument); on Eval,
 // natively and in JavaScript (node)
 class ViewTest implements Markup {
@@ -30,6 +29,7 @@ class ViewTest implements Markup {
 		reactive();
 		flow();
 		renderers();
+		roots();
 		#if sys
 		var tool = Sys.args()[0];
 		if (tool != null) rejects(tool, "tests/view/reject");
@@ -533,8 +533,55 @@ class ViewTest implements Markup {
 		var pair = new OtherNode("root");
 		Render.render(OtherWidgets.Pair({}), pair);
 		check("renderers: a shared literal of a class for some renderers", pair.toString() == "[root[mark]]", pair.toString());
-		check("renderers: a class's markup not for a renderer, an error when mounted", own == "helder.view: View(ViewTest.hx:568) is markup for another renderer than TestRenderer, whose node it is mounted into",
+		check("renderers: a class's markup not for a renderer, an error when mounted", ~/^helder.view: View\(ViewTest.hx:[0-9]+\) is markup for another renderer than TestRenderer, whose node it is mounted into$/.match(own),
 			own);
+	}
+
+	// a root (RootView): a window of TestRenderer's, its children that renderer's markup
+	static function Window(props:{name:String, ?children:ViewOf<TestRenderer>}):RootView {
+		var w = new TestNode(Element, props.name);
+		windows.push(w);
+		Reactive.onCleanup(() -> windows.remove(w));
+		Render.render(props.children, w);
+		return null;
+	}
+
+	// one on OtherRenderer: a root's children may be any renderer's
+	static function OtherWindow(props:{?children:ViewOf<OtherRenderer>}):RootView {
+		var w = new OtherNode("other");
+		otherWindows.push(w);
+		Render.render(props.children, w);
+		return null;
+	}
+
+	static final windows:Array<TestNode> = [];
+	static final otherWindows:Array<OtherNode> = [];
+
+	// roots (Render.open): components only, each its own root (several <Surface>s)
+	static function roots() {
+		var title = signal("a");
+		var shown = signal(true);
+		var dispose = Render.open(<>
+			<Window name="one"><p>{title}</p></Window>
+			<Show when={shown}><Window name="two"><Counter start={1}/></Window></Show>
+			<OtherWindow><Counter start={2}/></OtherWindow>
+		</>);
+		check("roots: a window each", windows.length == 2 && windows[0].toHtml() == "<one><p>a</p></one>" && windows[1].toHtml() == "<two><b>1</b></two>",
+			[for (w in windows) w.toHtml()].join(" "));
+		check("roots: a component under two renderers", otherWindows.length == 1 && otherWindows[0].toString() == "[other[b2]]", otherWindows.toString());
+		title.value = "b";
+		check("roots: reactive", windows[0].toHtml() == "<one><p>b</p></one>", windows[0].toHtml());
+		shown.value = false;
+		check("roots: a root's region (Show): its window closed", windows.length == 1, Std.string(windows.length));
+		dispose();
+		check("roots: disposed, closed", windows.length == 0, Std.string(windows.length));
+		// (a root mounted into a renderer's node: an error; reject/RootInMarkup.hx when compiled)
+		var e = try {
+			var root:RootView = <Window name="x"/>;
+			Render.render(root, new TestNode(Element, "root"));
+			"mounted";
+		} catch (e:Dynamic) Std.string(e);
+		check("roots: a root's content mounted into a node, an error", StringTools.startsWith(e, "helder.view: View(ViewTest.hx:") && e.indexOf("another renderer than TestRenderer") > 0, e);
 	}
 
 	#if sys

@@ -62,10 +62,11 @@ class Render {
 	#end
 
 	#if !macro
-	// mounts content that has no parent, a program's root: components that
-	// make roots of their own (<Surface>s, App.run), called in a root, what
-	// they return opened in turn (a component's View); its dispose
-	public static function open(content:Any):Void->Void
+	// mounts content that has no parent, a program's root (RootView: a
+	// literal of components only): components that make roots of their own
+	// (<Surface>s, App.run), called in a root, what they return opened in
+	// turn (a component's View); its dispose
+	public static function open(content:RootView):Void->Void
 		return Reactive.root(dispose -> {
 			Reactive.untrack(() -> values(content));
 			dispose;
@@ -81,7 +82,13 @@ class Render {
 		} else if (Std.isOfType(v, Array)) {
 			for (x in (v : Array<Dynamic>))
 				values(x);
-		} else if (!Reflect.isFunction(v)) throw "helder.view: content with no parent is components only, not " + Std.string(v);
+		} else if (isReactive(v)) {
+			// (a region, Show's: what it gives opened again when it changes, the roots it opened before disposed)
+			Reactive.effect(() -> {
+				var x = read(v);
+				Reactive.untrack(() -> values(x));
+			});
+		} else throw "helder.view: content with no parent is components only, not " + Std.string(v);
 	}
 	#end
 

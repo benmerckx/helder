@@ -44,6 +44,8 @@ using haxe.macro.ExprTools;
 // view, text, view:button..., each renderer realising them).
 class MarkupMacro {
 	@:allow(helder.view.Literal) static var count = 0;
+	// the root (helder.view.Root: RootView), as a literal's renderer: components only, no code to mount
+	public static inline final ROOT = "helder.view.Root";
 
 	// the Markup interface's build macro: every field's literals wrapped
 	public static function build():Array<Field> {
@@ -85,7 +87,7 @@ class MarkupMacro {
 		}
 		var info = Context.getPosInfos(e.pos);
 		var root = new Parser(src, info.file, info.min).document();
-		var r = given != null ? HostMacro.info(given).path : placed();
+		var r = given == null ? placed() : given == ROOT ? ROOT : HostMacro.info(given).path;
 		return new Literal(info.file, info.min, e.pos, r).compile(root);
 	}
 
@@ -364,6 +366,11 @@ class Literal {
 
 	public function compile(root:PNode):Expr {
 		shared = valueOnly(root);
+		if (renderer == MarkupMacro.ROOT && !shared) {
+			var n = firstNode(root);
+			Context.error("markup: " + (n == null ? "text" : "<" + n.name + ">") + " needs a renderer's parent: a root (RootView: App.run's, Render.open's) holds components only (<Surface>...)",
+				n == null ? pos : MarkupMacro.position(file, base + n.at, n.name.length));
+		}
 		var body = mountBody(root);
 		var parts = macro null;
 		if (shared) {
@@ -373,6 +380,9 @@ class Literal {
 		}
 		var line = MarkupMacro.lineOf(file, base);
 		var source = haxe.io.Path.withoutDirectory(file) + ":" + line;
+		// (a root's: its parts only, no code to mount)
+		if (renderer == MarkupMacro.ROOT)
+			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View($v{HostMacro.id(MarkupMacro.ROOT)}, null, 0, null, $parts, $v{source})])};
 		var own = MarkupMacro.ownLimits(), cls = Context.getLocalClass();
 		if (renderer == null) {
 			// (its template in its class, made for each renderer after typing: HostMacro.late)
@@ -419,6 +429,24 @@ class Literal {
 
 	function fresh(prefix:String):String
 		return '__$prefix${id}_${vars++}';
+
+	// (the first element or text of a literal not of components only: null, a text)
+	static function firstNode(n:PNode):Null<{name:String, at:Int}>
+		return switch n.kind {
+			case PElement(name, _, children, at): MarkupMacro.isComponent(name) ? null : {name: name, at: at};
+			case PFragment(children):
+				for (c in clean(children)) {
+					if (c.kind.match(PText(_))) return null;
+					var f = firstNode(c);
+					if (f != null || !valueOnly(c)) return f;
+				}
+				null;
+			case _: null;
+		}
+
+	// the renderer of the markup in its holes (a root's: none, agnostic)
+	inline function inner():Null<String>
+		return renderer == MarkupMacro.ROOT ? null : renderer;
 
 	// content of components, holes and fragments only (no element, no text)
 	static function valueOnly(n:PNode):Bool
@@ -525,7 +553,7 @@ class Literal {
 		return switch c.kind {
 			case PText(t): macro $v{t};
 			case PExpr(code, at):
-				var h = hole(MarkupMacro.expr(code, file, base + at, renderer));
+				var h = hole(MarkupMacro.expr(code, file, base + at, inner()));
 				if (shared) valueHoles.push(h);
 				h;
 			case _: throw "unreachable";
@@ -561,7 +589,7 @@ class Literal {
 					case _: macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $v);
 				}
 			case AExpr(code, at):
-				var x = MarkupMacro.expr(code, file, base + at, renderer, true);
+				var x = MarkupMacro.expr(code, file, base + at, inner(), true);
 				// (a literal number or string: set as a static value is, never bound)
 				if (!event && name != "ref" && name != "key" && name != "style" && x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes))))
 					return macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $x);
@@ -577,7 +605,7 @@ class Literal {
 					case _: macro @:pos(ap) __RT__.prop($e, $v{name}, $h);
 				}
 			case ASpread(code, at):
-				var h = hole(MarkupMacro.expr(code, file, base + at, renderer, true));
+				var h = hole(MarkupMacro.expr(code, file, base + at, inner(), true));
 				macro @:pos(ap) __RT__.spread($e, $h);
 		}
 	}
@@ -594,7 +622,7 @@ class Literal {
 				}
 				event ? macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $v) : macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $v);
 			case AExpr(code, at):
-				var x = MarkupMacro.expr(code, file, base + at, renderer, true);
+				var x = MarkupMacro.expr(code, file, base + at, inner(), true);
 				// (a literal, or tag and id, one renderer's only (ui's Node.find, a page's id): in each pass,
 				// dropped where its renderer has no use for it)
 				if (!event && name != "ref" && x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes))))
@@ -630,7 +658,7 @@ class Literal {
 			if (a.name == "key")
 				key = switch a.value {
 					case AStatic(s): macro $v{s};
-					case AExpr(code, at): hole(MarkupMacro.expr(code, file, base + at, renderer, true));
+					case AExpr(code, at): hole(MarkupMacro.expr(code, file, base + at, inner(), true));
 					case _: null;
 				}
 		var scope = key == null ? macro $v{name} : macro $v{name + "["} + Std.string($key) + "]";
@@ -649,14 +677,20 @@ class Literal {
 		for (part in name.split("."))
 			callee = callee == null ? {expr: EConst(CIdent(part)), pos: p} : {expr: EField(callee, part), pos: p};
 		var c = MarkupMacro.component(callee);
-		if (renderer != null) {
+		if (renderer == MarkupMacro.ROOT) {
+			if (c != null && c.pin != null && c.pin != renderer)
+				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret
+					+ "), not a root's: a root (App.run's, Render.open's) holds roots (<Surface>) and components of no renderer", p);
+		} else if (renderer != null) {
 			var target = MarkupMacro.pick(renderer, callee);
 			if (target != callee) {
 				callee = target;
 				c = MarkupMacro.component(target);
 			}
+			if (c != null && c.pin == MarkupMacro.ROOT)
+				Context.error("helder.view: <" + name + "> is a root (it returns " + c.ret + "): App.run's or Render.open's content, not " + renderer + "'s markup", p);
 			if (c != null && c.pin != null && c.pin != renderer)
-				Context.error("helder.view: <" + name + "> is " + c.pin + "'s (it returns " + c.ret + "), not " + renderer + "'s markup", p);
+				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret + "), not " + renderer + "'s", p);
 		}
 		var fields:Array<ObjectField> = [];
 		for (a in attrs) {
@@ -665,7 +699,7 @@ class Literal {
 			var v = switch a.value {
 				case AStatic(s): macro @:pos(ap) $v{s};
 				case AFlag: macro @:pos(ap) true;
-				case AExpr(code, at): MarkupMacro.expr(code, file, base + at, renderer, true);
+				case AExpr(code, at): MarkupMacro.expr(code, file, base + at, inner(), true);
 				case ASpread(_, at): Context.error("markup: a component's props cannot be spread", MarkupMacro.position(file, base + at, 3));
 			}
 			// (name_pos: the field name's position, which the compiler reads though ObjectField does not declare it)
