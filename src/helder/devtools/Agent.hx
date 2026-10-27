@@ -131,7 +131,7 @@ class Agent {
 	// seconds on the monotonic clock (not haxe.Timer.stamp: haxe.Timer costs a
 	// dev build 118 KB, its EventLoop's, without -dce full)
 	public static inline function now():Float {
-		#if (target.name == "hxmc" && !hxmc.wasm_gc && hxmc.target != "wasm32-wasi")
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 		return hxmc.rt.Os.now();
 		#else
 		return Sys.time();

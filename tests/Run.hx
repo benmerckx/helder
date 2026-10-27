@@ -42,15 +42,15 @@ class Run {
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "examples", about: "every example built by `helder build <file>` with no flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
-		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium, then as WasmGC", run: sceneWeb},
+		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium", run: sceneWeb},
 		{name: "gfx", about: "helder.gfx: the examples headless and in a window against golden images (tests/gfx/check.sh; Linux: Mesa, Xvfb)", run: gfx},
-		{name: "gfx-web", about: "helder.gfx on WebGPU and WebGL2 (wasm32-wasi) in headless Chromium, then as WasmGC", run: gfxWeb},
+		{name: "gfx-web", about: "helder.gfx on WebGPU and WebGL2 (wasm32-wasi) in headless Chromium", run: gfxWeb},
 		{name: "audio", about: "helder.os's audio through each back end without speakers (tests/os/audio.sh)", run: audio},
 		{name: "audio-web", about: "helder.os's audio on WebAudio in headless Chromium", run: audioWeb},
 		{name: "touch", about: "helder.os's touch gesture (TouchDrag), natively", run: touch},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
-		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium, then as WasmGC", run: uiWeb},
+		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as a GC-free job on malloc'ed memory, natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
@@ -220,8 +220,6 @@ class Run {
 	static function gfxWeb() {
 		wasm("bin/gfx/WebTest.wasm", gfxCp().concat(["-main", "WebTest"]));
 		run(NODE, ["tests/gfx/web.mjs", "bin/gfx/WebTest.wasm", "bin/gfx"]);
-		wasm("bin/gfx/gc/WebTest.wasm", gfxCp().concat(["-main", "WebTest", "-D", "hxmc.wasm-gc"]));
-		run(NODE, ["tests/gfx/web.mjs", "bin/gfx/gc/WebTest.wasm", "bin/gfx/gc"]);
 	}
 
 	static function osCp()
@@ -298,9 +296,6 @@ class Run {
 		rmrf("bin/3d/assets");
 		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.scene.embed=0", "-D", "helder.scene.out=bin/3d/SceneWebTest.wasm"]));
 		run(NODE, ["tests/3d/web.mjs", "bin/3d/SceneWebTest.wasm", "bin/3d"]);
-		// (and as WasmGC, the files built in)
-		wasm("bin/3d/gc/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "hxmc.wasm-gc"]));
-		run(NODE, ["tests/3d/web.mjs", "bin/3d/gc/SceneWebTest.wasm", "bin/3d/gc"]);
 	}
 
 	static function web() {
@@ -353,16 +348,13 @@ class Run {
 	}
 
 	static function uiWeb() {
-		for (gc in [false, true]) {
-			var b = gc ? "bin/ui/gc" : "bin/ui";
-			var extra = gc ? ["-D", "hxmc.wasm-gc"] : [];
-			wasm('$b/WebTodo.wasm', uiCp().concat(["-main", "WebTodo"]).concat(extra));
-			run(NODE, ["tests/ui/web.mjs", '$b/WebTodo.wasm', b]);
-			wasm('$b/NativeForm.wasm', uiCp().concat(["-main", "NativeForm"]).concat(extra));
-			run(NODE, ["tests/ui/native-web.mjs", '$b/NativeForm.wasm', b]);
-			wasm('$b/WebField.wasm', uiCp().concat(["-main", "WebField"]).concat(extra));
-			run(NODE, ["tests/ui/web-field.mjs", '$b/WebField.wasm']);
-		}
+		var b = "bin/ui";
+		wasm('$b/WebTodo.wasm', uiCp().concat(["-main", "WebTodo"]));
+		run(NODE, ["tests/ui/web.mjs", '$b/WebTodo.wasm', b]);
+		wasm('$b/NativeForm.wasm', uiCp().concat(["-main", "NativeForm"]));
+		run(NODE, ["tests/ui/native-web.mjs", '$b/NativeForm.wasm', b]);
+		wasm('$b/WebField.wasm', uiCp().concat(["-main", "WebField"]));
+		run(NODE, ["tests/ui/web-field.mjs", '$b/WebField.wasm']);
 	}
 
 	// (each program run twice, the second from the first's snapshot)
@@ -387,7 +379,6 @@ class Run {
 		// (the dev loop's server, @hxmc/cli's dev.mjs, run by node with the compiler)
 		var compiler = "node_modules/.bin/haxe";
 		run(NODE, ["tests/os/dev/dev-web.mjs", compiler, "bin/dev/web"]);
-		run(NODE, ["tests/os/dev/dev-web.mjs", compiler, "bin/dev/web-gc", "--wasm-gc"]);
 		if (HOST.startsWith("linux-")) shell('xvfb-run -a -s "-screen 0 640x480x24" $NODE tests/os/dev/dev-native.mjs $compiler bin/dev/native');
 		else run(NODE, ["tests/os/dev/dev-native.mjs", compiler, "bin/dev/native"]);
 		run(NODE, ["tests/os/dev/server-verify.mjs", compiler]);

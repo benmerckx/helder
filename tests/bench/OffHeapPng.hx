@@ -3,20 +3,21 @@ import hxmc.unsafe.LibC;
 import hxmc.unsafe.Mem;
 import hxmc.unsafe.Ptr;
 
-// A GC-free PNG decode over malloc'ed memory (tests/bench/Jobs.hx, variant
-// d): RGBA8, non-interlaced, as PngDecoder's path for it. The PNG's IDAT
-// chunks gathered, inflated as hxmc's std does it (haxe.zip.InflateImpl's
-// Fast: a 32-bit bit buffer, codes up to 10 bits by table, longer ones from
-// their canonical counts) into a buffer of the image's filtered rows, which
-// are unfiltered in place: the pixels are its first width * height * 4
-// bytes, freed by the caller (LibC.free). Every function is @:hxmc.unsafe:
-// the compiler checks it never touches the GC heap, so it may run in a safe
-// region. Errors are results: < 0.
+// A GC-free PNG decode over off-heap memory (tests/bench/Jobs.hx, variant
+// d): RGBA8, non-interlaced, as PngDecoder's path for it. The caller reads
+// the header (header), gives the buffers (hxmc.unsafe.IoBuffer's: the PNG,
+// room for its IDAT data, the image's filtered rows and the scratch
+// memory) and decodes: the IDAT chunks gathered, inflated as hxmc's std
+// does it (haxe.zip.InflateImpl's Fast: a 32-bit bit buffer, codes up to 10
+// bits by table, longer ones from their canonical counts) into the rows,
+// which are unfiltered in place: the pixels are the rows buffer's first
+// width * height * 4 bytes. Every function is @:hxmc.unsafe: the compiler
+// checks it never touches the GC heap, so it may run in a safe region
+// (decodeBlocking: decode in one, @:hxmc.blocking). Errors are results: < 0.
 class OffHeapPng {
 	public static inline var ERR_FORMAT = -1; // not a PNG, a bad chunk
 	public static inline var ERR_UNSUPPORTED = -2; // not RGBA8 non-interlaced
 	public static inline var ERR_DATA = -3; // the zlib stream does not decode
-	public static inline var ERR_MEMORY = -4;
 
 	// (the scratch memory's layout: the state, then each code's counts (16),
 	// symbols (288) and table (1024 entries), then the code lengths (320))
@@ -26,19 +27,22 @@ class OffHeapPng {
 	static inline var DIST = LIT + CODE;
 	static inline var CL = DIST + CODE;
 	static inline var LENS = CL + CODE;
-	static inline var SCRATCH = LENS + 4 * 320;
-	// (the fixed codes', built once)
+	public static inline var SCRATCH = LENS + 4 * 320;
+	// (the fixed codes', built once, in malloc'ed memory kept for good)
 	static var fixed:Ptr;
 
-	// the result of the last decode
+	// the header's: the image's size, the IDAT data's
 	public static var width = 0;
 	public static var height = 0;
-	public static var pixels:Ptr;
+	public static var idatLength = 0;
 
-	// png's n bytes decoded: 0, pixels and its size set; else an error
-	@:hxmc.unsafe public static function decode(png:Ptr, n:Int):Int {
+	// the rows buffer's size (header read)
+	public static inline function rawLength():Int
+		return height * (width * 4 + 1);
+
+	// png's n bytes: 0, width, height and idatLength set; else an error
+	@:hxmc.unsafe public static function header(png:Ptr, n:Int):Int {
 		if (n < 8 || Mem.getI32(png, 0) != 0x474E5089 || Mem.getI32(png, 4) != 0x0A1A0A0D) return ERR_FORMAT;
-		// the header, and the image data's size
 		var p = 8, idatLen = 0, w = 0, h = 0;
 		while (p + 8 <= n) {
 			var len = u32(png, p), name = Mem.getI32(png, p + 4);
@@ -54,13 +58,16 @@ class OffHeapPng {
 			p += 12 + len;
 		}
 		if (w <= 0 || h <= 0 || w > 16384 || h > 16384) return ERR_FORMAT;
-		var idat = LibC.malloc((idatLen : I64) + 8);
-		var stride = w * 4, rawLen = h * (stride + 1);
-		var raw = LibC.malloc((rawLen : I64));
-		var scratch = LibC.malloc(SCRATCH);
-		if (idat.isNull() || raw.isNull() || scratch.isNull()) return ERR_MEMORY;
-		p = 8;
-		var at = 0;
+		width = w;
+		height = h;
+		idatLength = idatLen;
+		return 0;
+	}
+
+	// png's n bytes decoded (header read) into raw (rawLength() bytes),
+	// through idat (idatLength + 8 bytes) and scratch (SCRATCH bytes): 0, else an error
+	@:hxmc.unsafe public static function decode(png:Ptr, n:Int, idat:Ptr, raw:Ptr, scratch:Ptr):Int {
+		var p = 8, at = 0;
 		while (p + 8 <= n) {
 			var len = u32(png, p), name = Mem.getI32(png, p + 4);
 			if (name == 0x54414449) {
@@ -70,23 +77,15 @@ class OffHeapPng {
 				break;
 			p += 12 + len;
 		}
-		var r = inflate(scratch, idat, idatLen, raw, rawLen);
-		LibC.free(idat);
-		LibC.free(scratch);
-		if (r != rawLen) {
-			LibC.free(raw);
-			return r < 0 ? r : ERR_DATA;
-		}
-		r = unfilter(raw, w, h);
-		if (r < 0) {
-			LibC.free(raw);
-			return r;
-		}
-		width = w;
-		height = h;
-		pixels = raw;
-		return 0;
+		var rawLen = rawLength();
+		var r = inflate(scratch, idat, idatLength, raw, rawLen);
+		if (r != rawLen) return r < 0 ? r : ERR_DATA;
+		return unfilter(raw, width, height);
 	}
+
+	// decode in a safe region: the collector does not wait for it
+	@:hxmc.blocking @:hxmc.unsafe public static function decodeBlocking(png:Ptr, n:Int, idat:Ptr, raw:Ptr, scratch:Ptr):Int
+		return decode(png, n, idat, raw, scratch);
 
 	// the rows unfiltered in place: row j's bytes from j * (stride + 1) + 1 to
 	// j * stride (always before them), the row above already in place

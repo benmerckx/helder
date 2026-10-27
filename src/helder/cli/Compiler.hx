@@ -36,7 +36,10 @@ class Compiler {
 			if (FileSystem.exists(exe)) {
 				if ((Sys.getEnv("HAXE_STD_PATH") ?? "") == "") Sys.putEnv("HAXE_STD_PATH", '$dir/cli/haxe/upstream/std');
 				// (this machine's runtime objects, then the other platform packages' (cross
-				// builds), HXMC_RT_DIR's, and the npm cache's, as rtDirs() has them)
+				// builds), HXMC_RT_DIR's, and the npm cache's, as rtDirs() has them. Not
+				// a workaround: the platform package's compiler run alone looks in
+				// <its dir>/rt/<target>, then asks node for the launcher's, at
+				// <its dir>/../hxmc/bootstrap, which @hxmc/cli is not; hxmc 8841f02)
 				var dirs = ['$dir/$plat'];
 				for (n in (try FileSystem.readDirectory(dir) catch (_:Dynamic) []))
 					if (n != plat && n != "cli" && FileSystem.isDirectory('$dir/$n')) dirs.push('$dir/$n');
@@ -106,28 +109,25 @@ class Compiler {
 		#end
 	}
 
-	// a compilation server for `--connect` (`haxe --wait <port>`): its port, null if none started
-	@:coroutine public static function start():Null<Int> {
+	// a compilation server for `--connect` (`haxe --wait <port>`): its port and
+	// process (`process.stop()` ends it), null if none started
+	@:coroutine public static function start():Null<{port:Int, process:Process}> {
 		// (a free port: one the system gives, closed again)
 		var s = Server.listen("127.0.0.1", 0);
 		var port = s.port;
 		s.close();
 		var p = try new Process(tool(), ["--wait", Std.string(port)]) catch (_:haxe.Exception) return null;
 		p.closeStdin();
-		// (ready once it answers a request: one without any ends hxmc's server,
-		// which hxmc a85b139 fixes; that one also finds the runtime objects
-		// without the HXMC_RT_DIR find() sets: both removable with its nightly)
+		// (ready once it accepts a connection: one without a request leaves it running)
 		for (_ in 0...50) {
 			try {
-				var c = Socket.connect("127.0.0.1", port);
-				c.writeString("--version\n\x00");
-				var answer = new Reader(c).readAll().toString();
-				c.close();
-				if (answer.length > 0) return port;
+				Socket.connect("127.0.0.1", port).close();
+				return {port: port, process: p};
 			} catch (_:haxe.Exception) {}
 			Async.delay(0.1);
 		}
-		p.kill();
+		p.stop();
+		p.close();
 		return null;
 	}
 }
@@ -155,22 +155,22 @@ class CompileServer {
 	// started, and connected (null: it did not connect)
 	@:coroutine public static function start(task:Node):Null<CompileServer> {
 		var link = Server.listen("127.0.0.1", 0);
-		// (a resident compiler keeps what it makes: a large nursery and old space spare it collections;
-		// set around the spawn, as hxmc's processRun takes no environment: removable once it does)
-		var env = ["RT_OLD_MB" => "4096", "RT_MINOR_KB" => "32768"];
-		var saved = [for (k => v in env) k => Sys.getEnv(k)];
-		for (k => v in env) if (saved[k] == null) Sys.putEnv(k, v);
-		var p = try new Process(Compiler.tool(), ["--server-connect", '127.0.0.1:${link.port}']) catch (e:haxe.Exception) {
+		// (a resident compiler keeps what it makes: a large nursery and old space spare it collections)
+		// (tool() first: it sets the compiler's variables, HXMC_RT_DIR's and the std's)
+		var tool = Compiler.tool(), env = Process.environment();
+		for (k => v in ["RT_OLD_MB" => "4096", "RT_MINOR_KB" => "32768"])
+			if (!env.exists(k)) env.set(k, v);
+		var p = try new Process(tool, ["--server-connect", '127.0.0.1:${link.port}'], {env: env}) catch (e:haxe.Exception) {
 			link.close();
-			Sys.println('helder: ${Compiler.tool()}: ${e.message}');
+			Sys.println('helder: $tool: ${e.message}');
 			return null;
 		}
-		for (k => v in saved) if (v == null) Sys.putEnv(k, null);
 		p.closeStdin();
 		var sock = try Async.timeout(30, _ -> link.accept()) catch (_:haxe.Exception) null;
 		link.close();
 		if (sock == null) {
-			p.kill();
+			p.stop();
+			p.close();
 			return null;
 		}
 		var s = new CompileServer(p, sock);
@@ -212,9 +212,11 @@ class CompileServer {
 	@:coroutine public function invalidate(file:String, cwd:String)
 		request(["--display", haxe.Json.stringify({jsonrpc: "2.0", id: 1, method: "server/invalidate", params: {file: file}})], cwd);
 
-	public function stop() {
+	// its connection closed, then the process asked to end (SIGTERM) and
+	// ended (SIGKILL) if it has not within 2 s
+	@:coroutine public function stop() {
 		socket.close();
-		process.kill();
+		process.stop();
 		process.close();
 	}
 }

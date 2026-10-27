@@ -59,7 +59,6 @@ class Bench {
 				Sys.println(w.name);
 			return;
 		}
-		GcStats.enable();
 		if (args[0] == "steady") {
 			for (w in all)
 				if (StringTools.startsWith(w.name, "physics.")) steady(w);
@@ -67,7 +66,6 @@ class Bench {
 		}
 		for (w in all)
 			if (args.length == 0 || args.contains(w.name)) measure(w);
-		GcStats.disable();
 	}
 
 	// --- the harness

@@ -24,7 +24,7 @@ class Cli {
 			case "dev":
 				Async.main(task -> Sys.exit(DevCommand.run(task, args)));
 			case "test":
-				Async.main(_ -> Sys.exit(TestCommand.run(args)));
+				Async.main(task -> Sys.exit(TestCommand.run(task, args)));
 			case "inspect":
 				Async.main(task -> Sys.exit(Inspect.run(task, args)));
 			case null | "help" | "-h" | "--help":

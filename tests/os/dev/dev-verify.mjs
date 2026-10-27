@@ -9,7 +9,7 @@
 // be the bytes a one-shot build of the same sources makes
 // (HXMC_DEV_HXB_CACHE=1: the server's modules read back from HXB, its
 // default; HXMC_DEV_VERIFY_KEEP=<dir>: the outputs that differ copied there).
-//   node tests/os/dev/dev-verify.mjs <compiler> [Counter|Todo|...] [native|web|web-gc]
+//   node tests/os/dev/dev-verify.mjs <compiler> [Counter|Todo|...] [native|web]
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -23,7 +23,7 @@ const [compilerArg, example = 'Counter', mode = 'native'] = process.argv.slice(2
 // (its directory: examples/native-form for NativeForm)
 const exampleDir = example.replace(/[A-Z]/g, (c, i) => (i ? '-' : '') + c.toLowerCase());
 const compiler = path.resolve(compilerArg ?? 'node_modules/.bin/haxe');
-const web = mode.startsWith('web');
+const web = mode === 'web';
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-verify-'));
 fs.mkdirSync(path.join(work, 'app'));
 const main = path.join(work, 'app', example + '.hx');
@@ -54,7 +54,7 @@ const out = web ? 'out/app.wasm' : process.platform === 'win32' ? 'out/app.exe' 
 const ref = 'ref/' + path.basename(out);
 const args = (o) => ['-cp', path.join(repo, 'src'),
 	'-cp', path.join(repo, 'examples', exampleDir), '-cp', 'app', '-D', 'helder.view.renderer.ui=helder.ui.view.NodeRenderer', '-main', example,
-	...(web ? ['-D', 'hxmc.target=wasm32-wasi', ...(mode === 'web-gc' ? ['-D', 'hxmc.wasm-gc'] : [])] : process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []),
+	...(web ? ['-D', 'hxmc.target=wasm32-wasi'] : process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []),
 	'--custom-target', 'hxmc=' + o, '-D', 'hxmc.dev', ...(fs.existsSync(path.join(path.dirname(compiler), 'std')) ? ['-cp', path.join(path.dirname(compiler), 'std')] : [])];
 const env = { ...process.env, HXMC_MODULE_CACHE: '0' };
 

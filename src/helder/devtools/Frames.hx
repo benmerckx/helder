@@ -41,7 +41,6 @@ class Frames {
 		}
 		interval = Math.max(ms, 10) / 1000;
 		if (!Agent.framing) {
-			GcCounters.enable(true);
 			n = 0;
 			last = -1;
 			turnAt = -1;
@@ -56,7 +55,6 @@ class Frames {
 		if (Agent.framing) {
 			flush(Agent.now());
 			Agent.setFraming(false);
-			GcCounters.enable(false);
 		}
 		return {};
 	}

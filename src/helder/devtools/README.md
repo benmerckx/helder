@@ -140,12 +140,12 @@ A batch is columns, one value per frame from frame number `first`: `dt`
 the frame's time (ms, from the last frame's end), `work` from the turn's
 start to its end (ms: `App`'s loop, `Hot.poll` to `Hot.framed`; the rest of
 `dt` is waiting for vsync or the next event), `gcBytes` the bytes allocated
-in the nursery, `gcCollections` and `gcPauseMs` the collections and their
-time. `agentBytes` is the agent's own garbage since the last batch (the
-batch itself, the messages read), taken out of `gcBytes`. A batch is sent
-per interval, or per 256 frames. On hxmc natively the pauses are timed with
-the runtime's stats on while `Frame` is (`RT_STATS`'s: its lines for a
-major collection go to stderr meanwhile); on wasm32 there is no time.
+on the GC heap (large objects included), `gcCollections` and `gcPauseMs` the
+collections and their pauses (stopping the world included). `agentBytes` is
+the agent's own garbage since the last batch (the batch itself, the messages
+read), taken out of `gcBytes`. A batch is sent per interval, or per 256
+frames. The counters are hxmc.GcStats', natively and on wasm32 alike, kept
+by the runtime without its stats on (nothing printed to stderr).
 
 ### Ui
 
@@ -165,7 +165,7 @@ last 8 kept; helder.devtools does not depend on ui.
 
 `Agent` (the dispatch, Runtime and Log), `Frames` (the Frame domain) and
 `GcCounters` (the collector's counters, the one place they are read:
-hxmc's coming `hxmc.GcStats` replaces it). `helder.dev.Hot` holds the
+`hxmc.GcStats`). `helder.dev.Hot` holds the
 connection: it hands the agent each message but `Runtime.reload`, calls
 `Agent.turn` and `Agent.frame` at each turn's start and end, and
 `Agent.dispose` before a reload. A library adds a method with

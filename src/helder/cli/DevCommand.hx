@@ -64,6 +64,8 @@ class DevCommand {
 	static var timing:Null<{seen:Float, build:Int}> = null;
 	// natively: the program, its connection, whether it said saved
 	static var child:Null<Child> = null;
+	// (a signal: helder dev ending)
+	static var stopping = false;
 	static var socket:Null<Socket> = null;
 	static var saved = false;
 	static var appPort = 0;
@@ -123,6 +125,16 @@ class DevCommand {
 			Sys.println("helder dev: the compilation server did not start (" + Compiler.tool() + ")");
 			return 1;
 		}
+		// (ctrl-c, SIGTERM: the program and the compilation server stopped too)
+		task.async(_ -> {
+			var sig = Signals.next([Signal.SIGINT, Signal.SIGTERM]);
+			stopping = true;
+			var c = child;
+			child = null;
+			if (c != null && !c.exited) c.p.stop();
+			server.stop();
+			Sys.exit(128 + sig);
+		});
 		var http = listen(address, port);
 		if (http == null) {
 			Sys.println('helder dev: no free port from $port');
@@ -203,8 +215,9 @@ class DevCommand {
 	static function depsFile():String
 		return Path.withoutExtension(out) + ".deps";
 
+	// (a terminal gone, its pipe closed: nothing printed, the rest goes on)
 	static function log(s:String)
-		Sys.println("helder dev: " + s);
+		try Sys.println("helder dev: " + s) catch (_:Dynamic) {};
 
 	// a build, then the program reloaded (or the errors shown)
 	@:coroutine static function rebuild(task:Node, seen:Null<Float>) {
@@ -292,17 +305,17 @@ class DevCommand {
 	}
 
 	@:coroutine static function start(task:Node, withSnapshot:Bool, ?lib:String) {
-		// (the program's environment set around the spawn, as hxmc's processRun takes none: removable once it does)
-		Sys.putEnv("HXMC_DEV", '127.0.0.1:$appPort');
-		Sys.putEnv("HXMC_DEV_PROTOCOL", Std.string(Devtools.PROTOCOL));
-		if (withSnapshot || hosted) Sys.putEnv("HXMC_DEV_SNAPSHOT", snapshot);
-		var p = try hosted ? new Process(hostExe, [lib].concat(programArgs)) : new Process(Path.isAbsolute(out) ? out : './$out', programArgs) catch (err:haxe.Exception) {
+		// (helder dev ending: no program started meanwhile, by a reload in flight)
+		if (stopping) return;
+		var env = Process.environment();
+		env.set("HXMC_DEV", '127.0.0.1:$appPort');
+		env.set("HXMC_DEV_PROTOCOL", Std.string(Devtools.PROTOCOL));
+		if (withSnapshot || hosted) env.set("HXMC_DEV_SNAPSHOT", snapshot) else env.remove("HXMC_DEV_SNAPSHOT");
+		var options = {env: env};
+		var p = try hosted ? new Process(hostExe, [lib].concat(programArgs), options) : new Process(Path.isAbsolute(out) ? out : './$out', programArgs, options) catch (err:haxe.Exception) {
 			log('the program did not start: ${err.message}');
 			null;
 		}
-		Sys.putEnv("HXMC_DEV", null);
-		Sys.putEnv("HXMC_DEV_PROTOCOL", null);
-		Sys.putEnv("HXMC_DEV_SNAPSHOT", null);
 		if (p == null) return;
 		p.closeStdin();
 		var c = new Child(p);
@@ -326,7 +339,7 @@ class DevCommand {
 	@:coroutine static function output(s:Stream.Source, err:Bool) {
 		var r = new Reader(s), line;
 		while ((line = r.readLine()) != null) {
-			if (err) Sys.stderr().writeString(line + "\n") else Sys.println(line);
+			try if (err) Sys.stderr().writeString(line + "\n") else Sys.println(line) catch (_:Dynamic) {};
 			Devtools.output(line, err);
 		}
 	}
@@ -341,9 +354,9 @@ class DevCommand {
 				saved = false;
 				askReload(snapshot);
 				// (a program that does not answer: stopped, a cold start)
-				if (!until(() -> saved || old.exited, 3)) old.p.kill();
+				if (!until(() -> saved || old.exited, 3)) old.p.stop(1);
 				withSnapshot = saved && FileSystem.exists(snapshot);
-			} else old.p.kill();
+			} else old.p.stop(1);
 			until(() -> old.exited, 3);
 		}
 		start(task, withSnapshot);
@@ -380,7 +393,7 @@ class DevCommand {
 		} else if (c != null) {
 			// (a program that has not connected: stopped, a cold start)
 			child = null;
-			c.p.kill();
+			c.p.stop(1);
 			until(() -> c.exited, 3);
 		}
 		start(task, FileSystem.exists(snapshot), native(FileSystem.fullPath(lib)));

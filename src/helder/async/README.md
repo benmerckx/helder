@@ -85,21 +85,25 @@ another thread (polled every 10 ms between `hold` and `release`).
 The I/O backend (`Io.Backend`) is completion-based, as io_uring and IOCP
 are: an `Op` (accept, connect, read into a buffer, write, a process's
 exit) is submitted, owns its buffer, and comes back completed through the
-loop. `SelectIo` emulates that with select(2): it waits for readiness,
-then makes the call. Natively on POSIX a child's pipes are non-blocking
-descriptors it polls and its exit a waitpid at each poll (at most 10 ms
-apart); on Windows and Eval a thread reads each pipe and another waits for
-the exit, posting to the loop. io_uring, kqueue and IOCP are backends to
-come behind the same interface.
+loop. `PollIo` emulates that natively with poll(2) (`hxmc.net.Poll.wait`:
+no allocation, any descriptor): it waits for readiness, then makes the
+call; a connect's outcome is `SocketTools.connectError`'s. On POSIX a
+child's pipes are non-blocking descriptors it polls, and its exit Linux's
+pidfd (`processExitFd`), elsewhere (macOS) a waitpid at each poll (at most
+10 ms apart). On Windows (WSAPoll takes sockets only) and Eval (`SelectIo`,
+select(2)) a thread reads each pipe and another waits for the exit,
+posting to the loop. io_uring, kqueue and IOCP are backends to come behind
+the same interface.
 
 | | |
 | --- | --- |
 | `Socket` | `Socket.connect(host, port)`, `read(b, pos, len)` (0 at the end), `write`, `writeString`, `shutdown`, `close` |
 | `Server` | `Server.listen(host, port)` (port 0: any free one, `port`), `accept()`, `close` |
-| `Process` | `new Process(cmd, args)`: `stdout` and `stderr` (`Source`s), `stdin` (a `Sink`), `wait()`, `kill`, `close` |
+| `Process` | `new Process(cmd, args, ?{cwd, env})` (`env` the whole environment, `Process.environment()` a copy): `stdout` and `stderr` (`Source`s), `stdin` (a `Sink`), `wait()`, `signal(SIGINT/SIGTERM/SIGKILL)`, `kill`, `stop(grace)` (SIGTERM, SIGKILL after `grace` s), `close` |
+| `Signals` | `Signals.next([SIGINT, SIGTERM])`: the next signal this process receives, which then no longer ends it (POSIX natively: a handler writing to a polled pipe) |
 | `Reader` | a `Source` through a buffer: `readLine` (null at the end), `readBytes(n)`, `readAll` |
-| `PollWatcher` | a `Watcher` by scanning (mtime and size, recursive, debounced): `next()` the paths of a batch; inotify, FSEvents and `ReadDirectoryChangesW` to come |
-| `SampledWatcher` | a `Watcher` of given files and directories (`watch(files, dirs)`, replaced after each build), polled as esbuild polls: the 16 recent paths and a shuffled slice of the rest each tick; stat keys, contents while an mtime is too recent, directories' listings (`helder dev`'s) |
+| `PollWatcher` | a `Watcher` by scanning (mtime to the nanosecond natively and size, recursive, debounced): `next()` the paths of a batch; inotify, FSEvents and `ReadDirectoryChangesW` to come |
+| `SampledWatcher` | a `Watcher` of given files and directories (`watch(files, dirs)`, replaced after each build), polled as esbuild polls: the 16 recent paths and a shuffled slice of the rest each tick; stamps (natively `statTimes`: mtime and ctime to the nanosecond, the size), contents while an mtime is too recent (10 ms natively, 2 s on Eval), directories' listings (`helder dev`'s) |
 | `Fetch` | `Fetch.bytes(path)`: in the browser a fetch (aborted when cancelled), natively the file |
 
 ## HTTP and WebSocket

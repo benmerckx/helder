@@ -33,7 +33,7 @@ class TestCommand {
 		"  --timeout <s>     seconds an async test may take (5)",
 	].join("\n");
 
-	@:coroutine public static function run(args:Array<String>):Int {
+	@:coroutine public static function run(task:Node, args:Array<String>):Int {
 		var filters = [], targets = ["host"], watch = false, runner = [];
 		var i = 0;
 		while (i < args.length) {
@@ -64,8 +64,15 @@ class TestCommand {
 		}
 		var p = new Project();
 		if (!watch) return once(p, filters, targets, runner, null);
-		var server = Compiler.start();
-		if (server == null) Sys.println("helder test: no compilation server (each build from the module cache)");
+		var compiler = Compiler.start();
+		var server = compiler?.port;
+		if (compiler == null) Sys.println("helder test: no compilation server (each build from the module cache)");
+		// (ctrl-c, SIGTERM: the compilation server stopped too)
+		task.async(_ -> {
+			var sig = Signals.next([Signal.SIGINT, Signal.SIGTERM]);
+			if (compiler != null) compiler.process.stop();
+			Sys.exit(128 + sig);
+		});
 		var w = new PollWatcher(p.watched(), 0.2, 0.1, path -> {
 			var n = Path.withoutDirectory(path);
 			return n == "bin" || n == "node_modules" || n.startsWith(".") || n.endsWith(".snap");

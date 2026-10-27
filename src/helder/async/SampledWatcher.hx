@@ -10,10 +10,12 @@ import haxe.io.Bytes;
 // file being edited is seen within a tick. A path found changed joins the
 // recent ones (the oldest drops out).
 //
-// A file's check is its stat key (inode, size, mtime, mode), taken when
-// it is watched; when its mtime is too recent to tell a later edit from it
-// (within 2 s: hxmc's and Eval's stat give seconds), its
-// content instead. A directory's check is its sorted entries: a file added
+// A file's check is its stamp, taken when it is watched: natively its mtime
+// and ctime to the nanosecond and its size (hxmc.NativeSys.statTimes, one
+// call), on Eval its inode, size, mtime and mode (stat: seconds). When the
+// mtime is too recent to tell a later edit from it (within 10 ms natively,
+// the file system's clock being coarser than the wall clock; 2 s on Eval),
+// its content too. A directory's check is its sorted entries: a file added
 // or removed there. A batch comes `debounce` seconds after the first
 // change, with what else changed among the recent paths by then.
 //
@@ -24,7 +26,6 @@ class SampledWatcher implements Watcher {
 	static inline var RECENT = 16;
 	static inline var MIN_PER_TICK = 64;
 	static inline var TICKS_PER_PASS = 20;
-	// (an mtime must be 2 s in the past for its stat key to be trusted: Entry.of)
 
 	final interval:Float;
 	final debounce:Float;
@@ -113,29 +114,44 @@ class SampledWatcher implements Watcher {
 }
 
 private class Entry {
-	public final dir:Bool;
-	// a file's stat key ("" missing), its content when the key cannot be trusted; a directory's entries
-	final key:String;
-	final content:Null<Bytes>;
+	// (how long ago an mtime must be for its stamp to be trusted alone)
+	static inline var TRUST = #if (target.name == "hxmc") 0.01 #else 2.0 #end;
 
-	function new(dir, key, content) {
+	public final dir:Bool;
+	// a file's stamp (null: missing), its content when the stamp cannot be trusted alone; a directory's entries
+	final stamp:Null<Array<Float>>;
+	final content:Null<Bytes>;
+	final entries:String;
+
+	function new(dir, stamp, content, entries = "") {
 		this.dir = dir;
-		this.key = key;
+		this.stamp = stamp;
 		this.content = content;
+		this.entries = entries;
 	}
 
 	public static function of(path:String, dir:Bool):Entry {
-		if (dir) return new Entry(true, listing(path), null);
-		var s = try sys.FileSystem.stat(path) catch (_:Dynamic) null;
-		if (s == null) return new Entry(false, "", null);
-		var k = statKey(s);
-		// (2 s: hxmc's stat has seconds)
-		var recent = Date.now().getTime() - s.mtime.getTime() < 2000;
-		return new Entry(false, k, recent ? (try sys.io.File.getBytes(path) catch (_:Dynamic) null) : null);
+		if (dir) return new Entry(true, null, null, listing(path));
+		var t = stampOf(path);
+		if (t == null) return new Entry(false, null, null);
+		var recent = Sys.time() - mtime(t) < TRUST;
+		return new Entry(false, t, recent ? (try sys.io.File.getBytes(path) catch (_:Dynamic) null) : null);
 	}
 
-	static function statKey(s:sys.FileStat):String
-		return s.ino + " " + s.size + " " + s.mtime.getTime() + " " + s.mode;
+	// natively: mtime s, ns, ctime s, ns, size; Eval: inode, size, mtime (ms), mode
+	static function stampOf(path:String):Null<Array<Float>> {
+		#if (target.name == "hxmc")
+		var t = hxmc.NativeSys.statTimes(path);
+		return t == null ? null : t.slice(2);
+		#else
+		var s = try sys.FileSystem.stat(path) catch (_:Dynamic) null;
+		return s == null ? null : [s.ino, s.size, s.mtime.getTime(), s.mode];
+		#end
+	}
+
+	// (seconds since the epoch)
+	static inline function mtime(t:Array<Float>):Float
+		return #if (target.name == "hxmc") t[0] + t[1] / 1e9 #else t[2] / 1000 #end;
 
 	static function listing(path:String):String {
 		var names = try sys.FileSystem.readDirectory(path) catch (_:Dynamic) return "-";
@@ -144,12 +160,13 @@ private class Entry {
 	}
 
 	public function changed(path:String):Bool {
-		if (dir) return listing(path) != key;
-		var s = try sys.FileSystem.stat(path) catch (_:Dynamic) null;
-		if (s == null) return key != "";
-		if (content == null) return statKey(s) != key;
-		// (the key too recent at the build: the content, when the size is the same)
-		if (s.size != content.length) return true;
+		if (dir) return listing(path) != entries;
+		var t = stampOf(path);
+		if (t == null || stamp == null) return t != stamp;
+		for (i in 0...t.length)
+			if (t[i] != stamp[i]) return true;
+		if (content == null) return false;
+		// (the same stamp, too recent at the build to be trusted alone: the content)
 		var now = try sys.io.File.getBytes(path) catch (_:Dynamic) return true;
 		return now.compare(content) != 0;
 	}

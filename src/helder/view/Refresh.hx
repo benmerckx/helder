@@ -75,12 +75,7 @@ class Refresh {
 		if (last != null && reset) last = null;
 		if (last != null && last.i != null && last.i != init) {
 			var line = "helder.dev: " + helder.dev.Hot.path() + (helder.dev.Hot.path() == "" ? "" : "/") + key + " reset: its initial value changed";
-			// (-D hxmc.wasm-gc: no stderr yet, as Hot's own lines)
-			#if hxmc.wasm_gc
-			Sys.println(line);
-			#else
 			Sys.stderr().writeString(line + "\n");
-			#end
 			last = null;
 		}
 		var s = new Signal<T>(last != null ? last.v : value);

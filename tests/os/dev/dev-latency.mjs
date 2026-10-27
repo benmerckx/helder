@@ -2,9 +2,9 @@
 // helder.ui's examples, a one-line edit of its main (a string) saved again
 // and again, each reload's time from the change seen to the new build's
 // first frame and its build's, then the medians. In headless Chromium
-// (web, web-gc: WasmGC) or natively (native: under Xvfb on Linux, from the
+// (web) or natively (native: under Xvfb on Linux, from the
 // caller, as `xvfb-run node ...`).
-//   node tests/os/dev/dev-latency.mjs <compiler> <Counter|Todo|...> [web|web-gc|native] [edits]
+//   node tests/os/dev/dev-latency.mjs <compiler> <Counter|Todo|...> [web|native] [edits]
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -21,7 +21,7 @@ const [compilerArg, example = 'Counter', mode = 'web', editsArg = '6'] = process
 const exampleDir = example.replace(/[A-Z]/g, (c, i) => (i ? '-' : '') + c.toLowerCase());
 const compiler = path.resolve(compilerArg ?? 'node_modules/.bin/haxe');
 const edits = Number(editsArg);
-const web = mode.startsWith('web');
+const web = mode === 'web';
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-latency-'));
 fs.mkdirSync(path.join(work, 'app'));
 const src = path.join(work, 'app', example + '.hx');
@@ -33,7 +33,7 @@ const cp = [`-cp ${path.join(repo, 'src')}`];
 // (the examples' class path for the files they use; the copy last, which wins)
 fs.writeFileSync(path.join(work, 'build.hxml'), [...cp, `-cp ${path.join(repo, 'examples', exampleDir)}`, '-cp app',
 	'-D helder.view.renderer.ui=helder.ui.view.NodeRenderer', `-main ${example}`,
-	...(web ? ['-D hxmc.target=wasm32-wasi', ...(mode === 'web-gc' ? ['-D hxmc.wasm-gc'] : []), `--custom-target hxmc=out/app.wasm`]
+	...(web ? ['-D hxmc.target=wasm32-wasi', `--custom-target hxmc=out/app.wasm`]
 		: [...(process.platform === 'linux' ? ['-D hxmc.libc=glibc'] : []), '--custom-target hxmc=out/app'])].join('\n') + '\n');
 
 const port = await new Promise((r) => {

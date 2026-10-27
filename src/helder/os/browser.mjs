@@ -46,12 +46,6 @@
 // module for the files its static references name, e.g. helder.scene's
 // Model.of; <module>.assets.json).
 //
-// A module built with -D hxmc.wasm-gc (its Haxe values in the engine's
-// collector, a small linear memory for what crosses to the host: the same
-// memory(), handles and call for the packages) imports the runtime's host
-// as "hxmc" instead (hxmc/bootstrap/wasmgc.mjs is node's): the output, the
-// clocks, Math, float formatting and parsing, the calendar, exit; no files.
-//
 // Swapping a module in the same page (helder dev, no reloads):
 // with the option track, what the instance registers with the page while
 // it is the page's (listeners on anything it did not create, animation
@@ -388,69 +382,6 @@ export async function run(wasm, options = {}) {
 			throw new Exit(code);
 		},
 	};
-	// (-D hxmc.wasm-gc: its strings are arrays of UTF-16 units, read and made through its exports)
-	const str = (s) => {
-		if (s === null) return null;
-		const n = exports.hxmc_str_len(s);
-		let out = '';
-		for (let i = 0; i < n; i += 4096) {
-			const units = [];
-			for (let k = i; k < Math.min(n, i + 4096); k++) units.push(exports.hxmc_str_get(s, k));
-			out += String.fromCharCode(...units);
-		}
-		return out;
-	};
-	const ofJs = (t) => {
-		const s = exports.hxmc_str_new(t.length);
-		for (let i = 0; i < t.length; i++) exports.hxmc_str_set(s, i, t.charCodeAt(i));
-		return s;
-	};
-	const math = [Math.sin, Math.cos, Math.tan, Math.asin, Math.acos, Math.atan, Math.atan2, Math.exp, Math.log, Math.pow];
-	const gc = {
-		write: (fd, s) => write(fd === 2 ? 2 : 1, enc.encode(str(s))),
-		now: () => performance.now() / 1000,
-		fmt: (v) => ofJs(String(v)),
-		parseFloat: (s) => parseFloat(str(s)),
-		math: (op, x, y) => math[op](x, y),
-		random: Math.random,
-		// (GcSys's op codes: the environment, the arguments; no files)
-		sysStr(op, a) {
-			switch (op) {
-				case 0: return options.env?.[str(a)] === undefined ? null : ofJs(options.env[str(a)]);
-				case 4: return ofJs(args.slice(1).join('\0'));
-				case 5: return ofJs(env.join('\0'));
-				case 6: return ofJs(args[0]);
-				case 8: return ofJs('Wasi');
-				default: return null;
-			}
-		},
-		sysNum(op, a, b, n) {
-			switch (op) {
-				case 7: throw new Exit(n);
-				case 8: return Date.now() / 1000;
-				case 9: return performance.now() / 1000;
-				default: return 0;
-			}
-		},
-		readFile: () => null,
-		writeFile: () => 0,
-		// (GcSys's descriptors: no files here, but writes to stdout and stderr)
-		fileIo(op, fd, x, a, b) {
-			if (op !== 2 || (fd !== 1 && fd !== 2)) return -1;
-			const buf = new Uint8Array(b);
-			for (let i = 0; i < b; i++) buf[i] = exports.hxmc_bytes_get(x, a + i);
-			write(fd, buf);
-			return b;
-		},
-		dateNum(op, t, y, m, d, h, mi, s) {
-			const date = new Date(t);
-			const f = [null, 'FullYear', 'Month', 'Date', 'Day', 'Hours', 'Minutes', 'Seconds'];
-			if (op === 0) return new Date(y, m, d, h, mi, s).getTime();
-			if (op <= 7) return date['get' + f[op]]();
-			if (op <= 14) return date['getUTC' + f[op - 7]]();
-			return op === 15 ? date.getTimezoneOffset() : Date.now();
-		},
-	};
 	// (a filestat: a regular file of size bytes)
 	function stat(out, size) {
 		const v = view();
@@ -461,7 +392,7 @@ export async function run(wasm, options = {}) {
 	}
 	const open = new Map();
 	let nextFd = 4;
-	const imports = { wasi_snapshot_preview1: new Proxy(wasi, { get: (o, k) => o[k] ?? (() => 52) }), hxmc: gc }; // ENOSYS
+	const imports = { wasi_snapshot_preview1: new Proxy(wasi, { get: (o, k) => o[k] ?? (() => 52) }) }; // ENOSYS
 	for (const m of options.imports ?? []) {
 		const f = typeof m === 'string' ? (await import(new URL(m, document.baseURI).href)).default : m;
 		Object.assign(imports, await f(host));

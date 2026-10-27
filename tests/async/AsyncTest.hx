@@ -171,6 +171,68 @@ class AsyncTest {
 			c;
 		});
 		ok(killed != 0, 'a killed process: $killed');
+		// (a working directory and an environment of its own, this process's left alone)
+		var own = Async.run(_ -> {
+			var env = Process.environment();
+			env.set("HELDER_ASYNC_TEST", "child's");
+			var p = new Process("sh", ["-c", "pwd; echo $HELDER_ASYNC_TEST"], {cwd: "bin/async", env: env});
+			var r = new Reader(p.stdout);
+			var lines = [r.readLine(), r.readLine()];
+			p.wait();
+			p.close();
+			lines;
+		});
+		ok(StringTools.endsWith(own[0], "/bin/async"), 'a process in its own directory: ${own[0]}');
+		eq(own[1], "child's", "a process with its own environment");
+		eq(Sys.getEnv("HELDER_ASYNC_TEST"), null, "this process's environment unchanged");
+		ok(StringTools.endsWith(Sys.getCwd(), "/") ? !StringTools.endsWith(Sys.getCwd(), "/bin/async/") : !StringTools.endsWith(Sys.getCwd(), "/bin/async"),
+			"this process's directory unchanged");
+		var missing = try {
+			new Process("sh", ["-c", "true"], {cwd: "bin/async/none"});
+			"started";
+		} catch (_:Dynamic) "refused";
+		eq(missing, "refused", "a working directory that does not exist: no process");
+		#if (target.name == "hxmc")
+		// (stop: SIGTERM, then SIGKILL for one that ignores it)
+		var stopped = Async.run(_ -> {
+			var p = new Process("sleep", ["10"]);
+			Async.delay(0.02);
+			var c = p.stop(2);
+			p.close();
+			c;
+		});
+		eq(stopped, 128 + 15, "stop: ended by SIGTERM");
+		var stubborn = Async.run(_ -> {
+			var p = new Process("sh", ["-c", "trap '' TERM; echo ready; exec sleep 10"]);
+			new Reader(p.stdout).readLine();
+			var t0 = haxe.Timer.stamp();
+			var c = p.stop(0.2);
+			var dt = haxe.Timer.stamp() - t0;
+			p.close();
+			{code: c, dt: dt};
+		});
+		eq(stubborn.code, 128 + 9, "stop: SIGTERM ignored, then SIGKILL");
+		ok(stubborn.dt >= 0.19 && stubborn.dt < 1.5, 'stop: SIGKILL after the grace time (${stubborn.dt} s)');
+		var sigint = Async.run(_ -> {
+			var p = new Process("sleep", ["10"]);
+			Async.delay(0.02);
+			p.signal(Signal.SIGINT);
+			var c = p.wait();
+			p.close();
+			c;
+		});
+		eq(sigint, 128 + 2, "signal(SIGINT)");
+		// (a signal this process receives, on the loop: a child sends it SIGTERM)
+		var received = Async.run(task -> {
+			var next = task.async(_ -> Signals.next([Signal.SIGINT, Signal.SIGTERM]));
+			Async.delay(0.01);
+			var p = new Process("sh", ["-c", "kill -TERM $PPID"]);
+			p.wait();
+			p.close();
+			Async.timeout(2, _ -> next.await());
+		});
+		eq(received, Signal.SIGTERM, "Signals.next: SIGTERM received, not the end");
+		#end
 		ok(!Loop.current().alive(), "processes: nothing left");
 	}
 

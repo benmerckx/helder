@@ -223,14 +223,8 @@ class Hot {
 	// a Runtime.reload's id (helder dev's protocol), its answer the saved one
 	static var reloadId:Dynamic = null;
 
-	static function log(s:String) {
-		// (-D hxmc.wasm-gc: no stderr yet)
-		#if hxmc.wasm_gc
-		Sys.println("helder.dev: " + s);
-		#else
+	static function log(s:String)
 		Sys.stderr().writeString("helder.dev: " + s + "\n");
-		#end
-	}
 
 	static function init() {
 		if (started) return;

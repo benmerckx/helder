@@ -14,9 +14,8 @@
 //   ?gfx=webgl2, the canvas's WebGL2 context) are the same objects, there is
 //   one canvas, and the old build left no GPU objects;
 // - the swaps' times, from the change seen to the new build's first frame.
-//   node tests/os/dev/dev-web.mjs <compiler> [work dir] [--wasm-gc] [--helder=<exe>]
-// (--wasm-gc: the program built with -D hxmc.wasm-gc, the hybrid module;
-// --helder: `helder dev web app/Counter.hx` instead of dev.mjs, its build
+//   node tests/os/dev/dev-web.mjs <compiler> [work dir] [--helder=<exe>]
+// (--helder: `helder dev web app/Counter.hx` instead of dev.mjs, its build
 // not compared with a fresh one)
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -32,7 +31,6 @@ try { pw = require('playwright'); } catch { pw = require(path.join(process.execP
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
 const compiler = path.resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 'node_modules/.bin/haxe');
-const wasmGc = process.argv.includes('--wasm-gc');
 const helder = process.argv.find((a) => a.startsWith('--helder='))?.slice(9);
 const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const work = path.resolve(positional[1] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-web-')));
@@ -54,7 +52,7 @@ if (v1 === original) throw new Error('Counter.hx changed: its signal line is not
 fs.writeFileSync(counter, v1);
 const cp = [`-cp ${path.join(repo, 'src')}`];
 fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, '-D helder.view.renderer.ui=helder.ui.view.NodeRenderer', '-main Counter',
-	'-D hxmc.target=wasm32-wasi', ...(wasmGc ? ['-D hxmc.wasm-gc'] : []), '--custom-target hxmc=out/counter.wasm'].join('\n') + '\n');
+	'-D hxmc.target=wasm32-wasi', '--custom-target hxmc=out/counter.wasm'].join('\n') + '\n');
 const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
 
 const port = await new Promise((r) => {
@@ -227,6 +225,6 @@ if (failures === 0 && !helder && fs.existsSync(devOut)) {
 	check('the last build is a fresh build, byte for byte', r.status === 0 && Buffer.compare(kept, fs.readFileSync(devOut)) === 0, (r.stderr ?? '').slice(-800));
 }
 for (const t of times) console.log('  ' + t);
-const name = wasmGc ? 'dev-web (WasmGC)' : 'dev-web';
+const name = 'dev-web';
 console.log(failures === 0 ? `${name}: ok` : `${name}: ${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);
