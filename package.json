@@ -13,7 +13,8 @@
     "hxml": "extraParams.hxml"
   },
   "scripts": {
-    "test": "haxe -cp tests --run Run"
+    "test": "haxe -cp tests --run Run",
+    "helder": "node src/helder/cli/run.mjs"
   },
   "peerDependencies": {
     "@hxmc/cli": ">=0.1.0-0"
