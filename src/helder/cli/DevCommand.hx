@@ -32,7 +32,12 @@ using StringTools;
 //   ({"type":"reload"}, {"type":"error","message"}, {"type":"ok"}): it swaps
 //   the new build in, in the same page.
 // The program answers {"type":"saved"} and {"type":"frame"} (its first
-// frame: the reload's time, from the change seen).
+// frame: the reload's time, from the change seen). Natively a program with
+// helder.devtools' agent (HXMC_DEV_PROTOCOL=1) speaks JSON-RPC instead
+// (src/helder/devtools/README.md): Runtime.hello, Runtime.reload answered
+// once saved, Runtime.ready; Devtools relays it to the tools connected at
+// /__helder/devtools on the HTTP port (natively too: bin/dev/devtools.json
+// names it).
 class DevCommand {
 	static final usage = [
 		"helder dev [host | web] [entry] [--port <n>] [--host <address>] [-- program arguments...]",
@@ -110,14 +115,20 @@ class DevCommand {
 			Sys.println("helder dev: the compilation server did not start (" + Compiler.tool() + ")");
 			return 1;
 		}
+		var http = listen(address, port);
+		if (http == null) {
+			Sys.println('helder dev: no free port from $port');
+			return 1;
+		}
+		task.async(_ -> Http.serve(http, serve));
+		Devtools.main = e.main;
+		Devtools.target = e.target;
+		var at = address == "0.0.0.0" ? "localhost" : address;
+		try File.saveContent('${e.root}/bin/dev/devtools.json',
+			haxe.Json.stringify({port: http.port, host: at, path: "/__helder/devtools", protocol: Devtools.PROTOCOL, entry: e.main, target: e.target}))
+		catch (_:Dynamic) {};
 		if (web) {
-			var http = listen(address, port);
-			if (http == null) {
-				Sys.println('helder dev: no free port from $port');
-				return 1;
-			}
-			task.async(_ -> Http.serve(http, serve));
-			log('http://${address == "0.0.0.0" ? "localhost" : address}:${http.port}/ (${e.main}; watching ${e.sources.join(", ")})');
+			log('http://$at:${http.port}/ (${e.main}; watching ${e.sources.join(", ")})');
 		} else {
 			var app = Server.listen("127.0.0.1", 0);
 			appPort = app.port;
@@ -130,7 +141,7 @@ class DevCommand {
 				for (f in FileSystem.readDirectory(libDir())) try FileSystem.deleteFile('${libDir()}/$f') catch (_:Dynamic) {};
 				task.async(_ -> buildHost());
 			}
-			log('${e.main} (watching ${e.sources.join(", ")})');
+			log('${e.main} (watching ${e.sources.join(", ")}; devtools at ws://$at:${http.port}/__helder/devtools)');
 		}
 		var w = new SampledWatcher();
 		rebuild(task, null);
@@ -199,7 +210,7 @@ class DevCommand {
 		// (a Haxe string in the macro call: forward slashes, a Windows path's
 		// backslashes would be escapes)
 		var deps = (FileSystem.fullPath(Path.directory(out)) + "/" + Path.withoutDirectory(depsFile())).split("\\").join("/");
-		var extra = ["--macro", 'helder.cli.Deps.write("$deps")'];
+		var extra = ["-D", 'helder.name=${e.name}', "--macro", 'helder.cli.Deps.write("$deps")'];
 		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
 		var r = try BuildCommand.build(e, out, Dev, server, extra) catch (err:haxe.Exception) {
 			Sys.println("helder dev: " + err.message);
@@ -212,6 +223,7 @@ class DevCommand {
 			log('error (build ${r.ms} ms); ' + (built ? "the last good build keeps running" : "waiting for a change"));
 			if (web) broadcast(haxe.Json.stringify({type: "error", message: lastError}));
 			building = false;
+			Devtools.buildError(r.ms, lastError);
 			return;
 		}
 		var wasError = lastError != null;
@@ -219,6 +231,7 @@ class DevCommand {
 		timing = seen == null ? null : {seen: seen, build: r.ms};
 		log((seen == null ? "built" : "rebuilt") + ' in ${r.ms} ms (${BuildCommand.size(out)})');
 		building = false;
+		Devtools.built(r.ms, BuildCommand.size(out));
 		var first = !built;
 		built = true;
 		if (web) {
@@ -230,45 +243,63 @@ class DevCommand {
 	}
 
 	// the first frame of a reloaded build
-	static function measured() {
+	@:coroutine public static function measured() {
 		if (timing == null) return;
-		log('reloaded in ${Math.round((haxe.Timer.stamp() - timing.seen) * 1000)} ms (build ${timing.build} ms)');
+		var ms = Math.round((haxe.Timer.stamp() - timing.seen) * 1000), build = timing.build;
+		log('reloaded in $ms ms (build $build ms)');
 		timing = null;
+		Devtools.reloaded(ms, build);
 	}
 
 	// --- natively
 
-	// the program's connection (JSON lines)
+	// the program's connection (JSON lines: @hxmc/cli's {"type"}, or the devtools' protocol)
 	@:coroutine static function connection(s:Socket) {
 		socket = s;
 		var r = new Reader(s), line;
 		try while ((line = r.readLine()) != null) {
 			var m:Dynamic = try haxe.Json.parse(line) catch (_:Dynamic) null;
 			if (m == null) continue;
+			if (m.jsonrpc != null) {
+				if (socket == s) Devtools.fromProgram(m, line);
+				continue;
+			}
 			if (m.type == "frame") measured();
 			if (m.type == "saved" && socket == s) saved = true;
 		} catch (_:haxe.Exception) {}
-		if (socket == s) socket = null;
+		if (socket == s) {
+			socket = null;
+			Devtools.programGone();
+		}
 		s.close();
+	}
+
+	// a reload asked of the program: Runtime.reload when it speaks the protocol
+	@:coroutine static function askReload(snapshot:String, ?library:String) {
+		var params:Dynamic = library == null ? {snapshot: snapshot} : {snapshot: snapshot, library: library};
+		if (!Devtools.request("Runtime.reload", params, r -> if (r.error == null) saved = true))
+			send(library == null ? {type: "reload", snapshot: snapshot} : {type: "reload", snapshot: snapshot, library: library});
 	}
 
 	@:coroutine static function start(task:Node, withSnapshot:Bool, ?lib:String) {
 		// (the program's environment set around the spawn, as hxmc's processRun takes none: removable once it does)
 		Sys.putEnv("HXMC_DEV", '127.0.0.1:$appPort');
+		Sys.putEnv("HXMC_DEV_PROTOCOL", Std.string(Devtools.PROTOCOL));
 		if (withSnapshot || hosted) Sys.putEnv("HXMC_DEV_SNAPSHOT", snapshot);
 		var p = try hosted ? new Process(hostExe, [lib].concat(programArgs)) : new Process(Path.isAbsolute(out) ? out : './$out', programArgs) catch (err:haxe.Exception) {
 			log('the program did not start: ${err.message}');
 			null;
 		}
 		Sys.putEnv("HXMC_DEV", null);
+		Sys.putEnv("HXMC_DEV_PROTOCOL", null);
 		Sys.putEnv("HXMC_DEV_SNAPSHOT", null);
 		if (p == null) return;
 		p.closeStdin();
 		var c = new Child(p);
 		child = c;
 		saved = false;
-		task.async(_ -> Lines.forward(p.stdout, false));
-		task.async(_ -> Lines.forward(p.stderr, true));
+		task.async(_ -> output(p.stdout, false));
+		task.async(_ -> output(p.stderr, true));
 		task.async(_ -> {
 			c.code = p.wait();
 			c.exited = true;
@@ -276,8 +307,18 @@ class DevCommand {
 			if (child == c) {
 				child = null;
 				log('the program ended (${c.code}); it starts again with the next build');
+				Devtools.exited(c.code);
 			}
 		});
+	}
+
+	// the program's output, printed, and kept as log entries (Devtools)
+	@:coroutine static function output(s:Stream.Source, err:Bool) {
+		var r = new Reader(s), line;
+		while ((line = r.readLine()) != null) {
+			if (err) Sys.stderr().writeString(line + "\n") else Sys.println(line);
+			Devtools.output(line, err);
+		}
 	}
 
 	// the program snapshots and exits; the new build starts with its state
@@ -288,7 +329,7 @@ class DevCommand {
 			if (socket != null) {
 				try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
 				saved = false;
-				send({type: "reload", snapshot: snapshot});
+				askReload(snapshot);
 				// (a program that does not answer: stopped, a cold start)
 				if (!until(() -> saved || old.exited, 3)) old.p.kill();
 				withSnapshot = saved && FileSystem.exists(snapshot);
@@ -310,7 +351,7 @@ class DevCommand {
 		if (c != null && socket != null) {
 			try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
 			saved = false;
-			send({type: "reload", snapshot: snapshot, library: FileSystem.fullPath(lib)});
+			askReload(snapshot, FileSystem.fullPath(lib));
 			until(() -> saved || c.exited, 10);
 			if (!c.exited) return;
 		} else if (c != null) {
@@ -357,9 +398,13 @@ class DevCommand {
 		hostReady = true;
 	}
 
-	@:coroutine static function send(m:Dynamic) {
+	@:coroutine static function send(m:Dynamic)
+		sendLine(haxe.Json.stringify(m));
+
+	// a line to the program
+	@:coroutine public static function sendLine(line:String) {
 		var s = socket;
-		if (s != null) try s.writeString(haxe.Json.stringify(m) + "\n") catch (_:haxe.Exception) {}
+		if (s != null) try s.writeString(line + "\n") catch (_:haxe.Exception) {}
 	}
 
 	// f() true within seconds (polled)
@@ -386,6 +431,11 @@ class DevCommand {
 
 	@:coroutine static function serve(req:Request):Null<Response> {
 		var p = req.path;
+		if (p == "/__helder/devtools" && WebSocket.wants(req)) {
+			Devtools.serve(WebSocket.upgrade(req));
+			return null;
+		}
+		if (!web) return Response.text("helder dev: the devtools' WebSocket is at /__helder/devtools\n", 404);
 		if (p == "/__hxmc/ws" && WebSocket.wants(req)) {
 			var ws = WebSocket.upgrade(req);
 			clients.push(ws);
@@ -394,7 +444,10 @@ class DevCommand {
 			while ((m = try ws.receive() catch (_:haxe.Exception) null) != null) {
 				var j:Dynamic = try haxe.Json.parse(m) catch (_:Dynamic) null;
 				if (j?.type == "frame") measured();
-				if (j?.type == "log") Sys.println(j.text);
+				if (j?.type == "log") {
+					Sys.println(j.text);
+					Devtools.output(j.text, false);
+				}
 			}
 			clients.remove(ws);
 			return null;

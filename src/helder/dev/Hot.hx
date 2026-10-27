@@ -217,6 +217,11 @@ class Hot {
 	// natively, the dev server's connection (hxmc.NativeNet's descriptor; -1: none)
 	static var socket = -1;
 	static var input = "";
+	static var inbuf:Null<haxe.io.Bytes> = null;
+	// the keys the last reload restored and nothing asked for (Runtime.state)
+	static var dropped:Array<String> = [];
+	// a Runtime.reload's id (helder dev's protocol), its answer the saved one
+	static var reloadId:Dynamic = null;
 
 	static function log(s:String) {
 		// (-D hxmc.wasm-gc: no stderr yet)
@@ -263,6 +268,7 @@ class Hot {
 				if (fd >= 0 && hxmc.NativeNet.connect(fd, new sys.net.Host(at.substr(0, at.lastIndexOf(":"))).ip, Std.parseInt(at.substr(at.lastIndexOf(":") + 1))) >= 0) {
 					hxmc.NativeNet.setBlocking(fd, false);
 					socket = fd;
+					helder.devtools.Agent.start();
 				} else log("no dev server at " + at);
 			}
 		}
@@ -317,6 +323,7 @@ class Hot {
 			try d.f() catch (e:Dynamic) log("a dispose function failed: " + Std.string(e));
 			frame = savedFrame;
 		}
+		helder.devtools.Agent.dispose();
 		done = true;
 	}
 
@@ -328,7 +335,7 @@ class Hot {
 	static function handOverTo(path:String) {
 		helder.dev.Hosted.handOver(path);
 		dispose();
-		send('{"type":"saved"}');
+		answerSaved();
 		if (socket >= 0) hxmc.NativeNet.close(socket);
 		socket = -1;
 		Sys.stdout().flush();
@@ -362,13 +369,16 @@ class Hot {
 		// (what the program printed, in the terminal as it prints it: its output is a pipe)
 		if (hxmc.unsafe.Mem.os() != 3) Sys.stdout().flush();
 		if (socket < 0) return !done;
-		var buf = haxe.io.Bytes.alloc(4096);
+		helder.devtools.Agent.turn();
+		if (inbuf == null) inbuf = haxe.io.Bytes.alloc(4096);
+		var buf = inbuf, own = helder.devtools.Agent.begin();
 		while (true) {
 			var n = hxmc.NativeNet.recv(socket, buf, 0, buf.length);
 			if (n == 0 || (n < 0 && !hxmc.NativeNet.blocked())) {
 				// (the dev server is gone)
 				hxmc.NativeNet.close(socket);
 				socket = -1;
+				helder.devtools.Agent.end(own);
 				return !done;
 			}
 			if (n < 0) break;
@@ -379,7 +389,16 @@ class Hot {
 			var line = input.substr(0, nl);
 			input = input.substr(nl + 1);
 			var m:Dynamic = try haxe.Json.parse(line) catch (_:Dynamic) null;
-			if (m != null && m.type == "reload") {
+			// (helder dev's protocol: a reload is Runtime.reload, the rest the agent's)
+			if (m != null && m.jsonrpc != null) {
+				if (m.method != "Runtime.reload") {
+					helder.devtools.Agent.receive(m);
+					continue;
+				}
+				reloadId = m.id;
+				m = m.params;
+			}
+			if (m != null && (m.type == "reload" || reloadId != null)) {
 				var data = snapshot();
 				#if hxmc.dev_host
 				// (Android: the library fetched from the dev server into the app's files, the snapshot there too)
@@ -401,18 +420,37 @@ class Hot {
 				}
 				#end
 				dispose();
-				send('{"type":"saved"}');
+				answerSaved();
 				Sys.exit(0);
 			}
 		}
+		helder.devtools.Agent.end(own);
 		#end
 		return !done;
+	}
+
+	#if (target.name == "hxmc")
+	// the snapshot written: the dev server told
+	static function answerSaved()
+		send(reloadId == null ? '{"type":"saved"}' : haxe.Json.stringify({jsonrpc: "2.0", id: reloadId, result: {saved: true}}));
+	#else
+	@:noCompletion public static function sendLine(line:String) {}
+	#end
+
+	// Runtime.state: the keys kept (each onSnapshot function run, as before a
+	// reload), those not kept (not data), those the last reload dropped
+	@:noCompletion public static function state():Dynamic {
+		snapshot();
+		var kept = [for (k => e in saved) {key: k, type: e.type, bytes: e.data.length}];
+		kept.sort((a, b) -> a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+		return {kept: kept, notKept: notKept.copy(), dropped: dropped, reloading: reloading};
 	}
 
 	// helder.os.App, after each frame: the first one tells the dev server
 	// (the reload's time, save to pixels) and ends the start: a value the
 	// last build saved and nothing asked for is dropped (logged)
 	@:noCompletion public static function framed() {
+		helder.devtools.Agent.frame();
 		if (settled) return;
 		init();
 		settled = true;
@@ -422,10 +460,11 @@ class Hot {
 				left.sort((a, b) -> a < b ? -1 : a > b ? 1 : 0);
 				log("not restored (nothing asked for it): " + left.join(", "));
 			}
+			dropped = left;
 			restored = new Map();
 		}
 		#if (target.name == "hxmc")
-		if (hxmc.unsafe.Mem.os() == 3) DevWeb.frame() else send('{"type":"frame"}');
+		if (hxmc.unsafe.Mem.os() == 3) DevWeb.frame() else if (helder.devtools.Agent.on) helder.devtools.Agent.notify("Runtime.ready", {}) else send('{"type":"frame"}');
 		#end
 	}
 
@@ -453,6 +492,10 @@ class Hot {
 		hxmc.NativeNet.close(fd);
 	}
 	#end
+
+	// a line to the dev server (helder.devtools.Agent's messages)
+	@:noCompletion public static function sendLine(line:String)
+		send(line);
 
 	static function send(line:String) {
 		if (socket < 0) return;

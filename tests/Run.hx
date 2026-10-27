@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "test", "cli", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "test", "cli", "devtools", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -39,6 +39,7 @@ class Run {
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively, on Eval and as wasm32-wasi (node)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run` and `dev` (src/helder/cli): an example by file and by directory, a project, natively and for web; the dev loop natively and for web without a window or a browser (tests/cli/dev.mjs)", run: cli},
+		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "examples", about: "every example built by `helder build <file>` with no flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium, then as WasmGC", run: sceneWeb},
@@ -183,6 +184,14 @@ class Run {
 		wasi("bin/cli/project/bin/wasm32-wasi/cli-fixture.wasm");
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-native", "native"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
+	}
+
+	static function devtools() {
+		var h = helderCli();
+		exe("bin/devtools/FrameCost", cps(["src", "tests/devtools"]).concat(["-main", "FrameCost", "-D", "hxmc.dev"]));
+		run(exePath("bin/devtools/FrameCost", HOST), []);
+		run(NODE, ["tests/devtools/devtools.mjs", h, "bin/devtools/console", "console"]);
+		run(NODE, ["tests/devtools/devtools.mjs", h, "bin/devtools/ui", "ui"]);
 	}
 
 	static function copy(from:String, to:String) {

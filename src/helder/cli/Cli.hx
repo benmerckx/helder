@@ -11,6 +11,7 @@ class Cli {
 		{name: "build", about: "a release build: bin/<target>/<name>, its time and size"},
 		{name: "run", about: "a release build for this machine, run"},
 		{name: "test", about: "build and run the *.test.hx files (helder.test)"},
+		{name: "inspect", about: "a running helder dev's program: its ui tree, log or frames (the devtools protocol)"},
 	];
 
 	static function main() {
@@ -24,6 +25,8 @@ class Cli {
 				Async.main(task -> Sys.exit(DevCommand.run(task, args)));
 			case "test":
 				Async.main(_ -> Sys.exit(TestCommand.run(args)));
+			case "inspect":
+				Async.main(task -> Sys.exit(Inspect.run(task, args)));
 			case null | "help" | "-h" | "--help":
 				Sys.println("helder <command> [args...]\nhelder [target] <entry>: dev's\n");
 				for (c in commands) Sys.println('  ${StringTools.rpad(c.name, " ", 8)} ${c.about}');

@@ -127,6 +127,9 @@ class Ui {
 		root.attach(this);
 		overlay = new Node("overlay");
 		overlay.attach(this);
+		#if hxmc.dev
+		DevTree.add(this);
+		#end
 	}
 
 	public function resize(width:Float, height:Float) {
