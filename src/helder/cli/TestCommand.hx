@@ -38,6 +38,10 @@ class TestCommand {
 		var i = 0;
 		while (i < args.length) {
 			var a = args[i++];
+			if (["-t", "--test-name-pattern", "--target", "--timeout"].contains(a) && i == args.length) {
+				Sys.println('helder test: $a takes a value\n\n$usage');
+				return 2;
+			}
 			switch a {
 				case "-t" | "--test-name-pattern": runner = runner.concat(["-t", args[i++]]);
 				case "--target": targets = args[i++].split(",");
@@ -111,7 +115,7 @@ class TestCommand {
 	@:coroutine static function target(t:String, p:Project, cp:Array<String>, runner:Array<String>, map:Mapper, server:Null<Int>):{ok:Bool, summary:String} {
 		var connect = server == null ? [] : ["--connect", Std.string(server)];
 		var t0 = haxe.Timer.stamp();
-		var build:Int, out:Output;
+		var out:Output;
 		switch t {
 			case "interp":
 				// (built and run by one process: Eval)
@@ -123,7 +127,7 @@ class TestCommand {
 				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "-D", "hxmc.target=wasm32-wasi", "--custom-target", 'hxmc=$exe']), map);
 				var built = haxe.Timer.stamp() - t0;
 				if (b.code != 0) {
-					Sys.println("\n[$t] the build failed");
+					Sys.println('\n[$t] the build failed');
 					return {ok: false, summary: "the build failed"};
 				}
 				Sys.println('\n[wasm] built in ${secs(built)} (${kb(exe)})');
@@ -136,7 +140,7 @@ class TestCommand {
 				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "--custom-target", 'hxmc=$exe']), map);
 				var built = haxe.Timer.stamp() - t0;
 				if (b.code != 0) {
-					Sys.println("\n[$t] the build failed");
+					Sys.println('\n[$t] the build failed');
 					return {ok: false, summary: "the build failed"};
 				}
 				Sys.println('\n[host] built in ${secs(built)} (${kb(exe)})');
