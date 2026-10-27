@@ -59,6 +59,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
 | `physics` | a small rigid-body core for `scene` |
 | `scoped` | scoped memory on any Haxe target, and a checker that keeps it out of the GC heap |
+| `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `dev` | the dev host and state kept across a reload |
 
 `examples/` has a program per folder; `tests/Run.hx` has the checks:
@@ -79,38 +80,54 @@ In order: each phase leans on the one before it.
   there still point to `docs/`, `packages/`, `make` and `npm test` (`src/`
   is done).
 
-### 2. The CLI (desktop and web)
+### 2. Async core, then the CLI on it (desktop and web)
 
-- **`helder dev [target]`, `helder run [target]` and `helder build
-  [target]`**, for the host and `web` first; Android and iOS follow in
-  phase 4. Project scaffolding (`helder new`) and a `helder doctor` wait.
-- **A native program**, written in Haxe and built by hxmc, shipped like
-  the compiler: one optional npm dependency per OS and CPU
-  (`@helder/<os>-<cpu>`, as `@hxmc/<os>-<cpu>`). No node at run time; it
-  also exercises the native target's sockets, processes and file watching,
-  which helder needs anyway.
-- **The compiler stays its own process**, a resident compilation server
-  (`--server-connect`) the CLI drives: a crash of the compiler does not end
-  the session, and hxmc's GPL-licensed compiler is not linked into the
-  MIT CLI. The CLI gives it its std and runtime objects itself, so users
-  never install or call hxmc.
-- **The dev loop ported from hxmc's `dev.mjs`** (node today): the link to
-  the compilation server, file watching (polling first, then inotify,
-  FSEvents and `ReadDirectoryChangesW`), the HTTP and WebSocket server for
-  `web`, the reload protocol (JSON lines), and changed assets sent without
-  a recompile.
-- **Live reload in the process on every desktop**: the dev host
-  (`helder.dev`, under the CLI now) loads each build as a shared library on
-  Linux; macOS (dylibs) and Windows (DLLs) restart with a snapshot today and
-  get the same host.
-- **Conventions instead of configuration**: `src/Main.hx` is the entry
-  point, `assets/` is packed by the build and reloaded live by dev, `bin/<target>`
-  holds the outputs; name, version and app id come from `package.json`,
-  overrides from a `"helder"` key in it, and a `helder.hxml` beside it is
-  the escape hatch.
-- **Every build reports its compile time and binary size.**
-- **The examples are the CLI's fixtures**, laid out as projects: each
-  builds and reloads with no configuration of its own, in CI.
+- **The async core first** (`helder.async`, done as a first slice): a loop
+  per thread for Haxe 5's coroutines, tasks with structured concurrency
+  and cancellation, timers, TCP, child processes, polled file watching and
+  an HTTP and WebSocket server natively, the same loop turned by the
+  browser's on the web; `examples/async-dev` serves, watches and streams a
+  child's output at once. What the CLI still needs of it:
+  - **backends behind its completion-based I/O**: io_uring on Linux (select
+    where it is disabled: Android apps, some containers), kqueue on macOS,
+    IOCP on Windows; I/O buffers outside the moving GC heap for them;
+  - **native watchers** (inotify, FSEvents, `ReadDirectoryChangesW`) behind
+    `Watcher`, and a process's exit without polling (pidfd, kqueue, a wait
+    handle);
+  - **processes with a working directory and an environment** (hxmc's
+    `processRun` takes neither), and Windows' pipes without threads;
+  - **tested on macOS and Windows** (both build; neither has run).
+- **Then the CLI on it:**
+  - **`helder dev [target]`, `helder run [target]` and `helder build
+    [target]`**, for the host and `web` first; Android and iOS follow in
+    phase 4. Project scaffolding (`helder new`) and a `helder doctor` wait.
+  - **A native program**, written in Haxe and built by hxmc, shipped like
+    the compiler: one optional npm dependency per OS and CPU
+    (`@helder/<os>-<cpu>`, as `@hxmc/<os>-<cpu>`). No node at run time; it
+    also exercises the native target's sockets, processes and file watching,
+    which helder needs anyway.
+  - **The compiler stays its own process**, a resident compilation server
+    (`--server-connect`) the CLI drives: a crash of the compiler does not end
+    the session, and hxmc's GPL-licensed compiler is not linked into the
+    MIT CLI. The CLI gives it its std and runtime objects itself, so users
+    never install or call hxmc.
+  - **The dev loop ported from hxmc's `dev.mjs`** (node today): the link to
+    the compilation server, file watching (polling first, then inotify,
+    FSEvents and `ReadDirectoryChangesW`), the HTTP and WebSocket server for
+    `web`, the reload protocol (JSON lines), and changed assets sent without
+    a recompile.
+  - **Live reload in the process on every desktop**: the dev host
+    (`helder.dev`, under the CLI now) loads each build as a shared library on
+    Linux; macOS (dylibs) and Windows (DLLs) restart with a snapshot today and
+    get the same host.
+  - **Conventions instead of configuration**: `src/Main.hx` is the entry
+    point, `assets/` is packed by the build and reloaded live by dev, `bin/<target>`
+    holds the outputs; name, version and app id come from `package.json`,
+    overrides from a `"helder"` key in it, and a `helder.hxml` beside it is
+    the escape hatch.
+  - **Every build reports its compile time and binary size.**
+  - **The examples are the CLI's fixtures**, laid out as projects: each
+    builds and reloads with no configuration of its own, in CI.
 
 ### 3. Foundations
 
@@ -120,17 +137,17 @@ jobs (Burst) and the Fiberus Haxe target, against hxmc's runtime: one GC heap
 shared by all threads, collected stop-the-world, where a thread joins a
 collection only when it allocates or blocks.
 
-- **Async on Haxe 5's coroutines (`haxe.coro`)**, with helder providing the
-  mechanism underneath:
-  - **a loop per thread that resumes coroutines**: the main one is driven by
-    `App.run`, runs ready continuations at a fixed point of the frame, and
-    keeps running without frames (a hidden browser tab pauses
-    `requestAnimationFrame`; natively, replies from workers wake `App.run`);
-  - **a coroutine never changes thread**, only data crosses: what completes
-    an await resumes it through its own thread's loop;
-  - **structured concurrency and cancellation**: haxe.coro's cancellation,
-    scopes owned by the app, children cancelled with their parent;
-  - first on it: `Fetch`, timers, the next frame, asset loading.
+- **Async on the app's loop**, on phase 2's `helder.async` (a loop per
+  thread, a coroutine never changing thread, structured concurrency and
+  haxe.coro's cancellation are there):
+  - **the main loop driven by `App.run`**: a turn of it at a fixed point of
+    the frame, the waits of X11, Cocoa and Win32 bounded by its timers and
+    woken by its sockets, and it keeps running without frames (a hidden
+    browser tab pauses `requestAnimationFrame`; natively, replies from
+    workers wake `App.run`);
+  - **scopes owned by the app**, children cancelled with their parent;
+  - first on it: `Fetch` (an awaitable one exists, `helder.os.Fetch` to
+    follow), the next frame, asset loading.
 - **Background work as jobs on workers**, the same API natively and on
   the web:
   - natively, threads over the shared heap with the semantics of isolates
@@ -158,14 +175,14 @@ collection only when it allocates or blocks.
   - Each worker has its own scoped stack; scoped's slow paths (the pool's
     lock, its errors) become GC-free, and its limit of 31 buffers is
     revisited for pools of workers.
-- **To prototype first, and what decides it**: the main loop with `Fetch`,
-  a delay and the next frame; then one worker on the web; then a 4K PNG
-  decoded on the main thread, as a GC job and as a GC-free job while the
+- **To prototype first, and what decides it**: the main loop with the
+  next frame (`Fetch` and a delay are there); then one worker on the web;
+  then a 4K PNG decoded on the main thread, as a GC job and as a GC-free job while the
   main thread renders, measuring the frames' p99 and longest time and the
   collector's pauses. If a GC job keeps the main thread's longest pause
   under about 1 ms, GC jobs are allowed freely; if not, the engine uses only
-  GC-free ones. Binary size decides between upstream's hxcoro library and a
-  small runtime of our own.
+  GC-free ones. (Upstream's hxcoro or a runtime of our own: our own,
+  `helder.async`, which hxcoro's tasks run on.)
 
 ### 4. Mobile
 
