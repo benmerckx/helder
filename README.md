@@ -24,10 +24,12 @@ npx helder build ios
   CLI. Configuration is for overriding defaults, not for getting started.
 - **Live reload on every platform.** Desktop, web, Android and iOS, with
   state kept across a reload, from the same `helder dev`.
-- **A GC-free core, GC user code.** The engine (layout, text, rendering,
-  scene, physics, audio) is written on `helder.scoped`: memory that lives in
-  a scope and is freed with it, no garbage collector involved. User code
-  sits on top as ordinary Haxe with the GC, and should not have to know.
+- **An allocation-free core, GC user code.** The engine's hot paths
+  (layout, text, rendering, scene, physics, audio) allocate nothing per
+  frame or per call, so the collector never pauses it: buffers kept and
+  reused between calls, or `helder.scoped`'s memory where it measures
+  better (temporaries within a call, data handed to a GC-free job). User
+  code sits on top as ordinary Haxe with the GC, and should not have to know.
 - **Performance, small binaries, fast compiles.** Measured, not assumed:
   each package has a benchmark, and binary size and compile time are
   tracked like test results.
@@ -189,18 +191,20 @@ collection only when it allocates or blocks.
     by a macro, as Swift's `Sendable`): flat values, scoped structs, Strings
     and Bytes (copied), and owned buffers (handed over without a copy
     natively, transferred on the web).
-- **The core on `helder.scoped`.** The pilot is done: text's atlas draws a
-  glyph in scoped memory, measured by `bun run test bench`
-  ([before](tests/bench/results/baseline.md),
-  [after](tests/bench/results/text.md)). Its garbage is gone (a warm atlas
-  allocates nothing), but a cold atlas is 6% slower natively and 35% on
-  wasm32, where GC buffers kept for the next call do as well with no
-  slowdown. The rest waits on scoped: cheaper access (natively the base in
-  a register, on wasm32 no table), memory a GC object owns (caches), a way
-  through interfaces (callbacks). The GC goes first to physics (330 KB a
-  step) and TextLayout's Glyph objects (most of ui's full layout); flexbox
-  and scene allocate next to nothing. The GC-facing API of each package
-  stays.
+- **An allocation-free core**, measured by `bun run test bench`
+  ([baseline](tests/bench/results/baseline.md)), with whatever storage
+  measures best. The text pilot ([results](tests/bench/results/text.md))
+  removed its garbage (a warm atlas allocates nothing), but scoped memory
+  made a cold atlas 6% slower natively and 35% on wasm32, where GC buffers
+  kept for the next call do as well with no slowdown: text moves to those.
+  Next: physics (330 KB a step: contacts, boxed vectors) and TextLayout's
+  output as flat glyph data instead of `Glyph` objects (most of ui's 12 MB a
+  full layout), ui's renderer following; flexbox and scene allocate next to
+  nothing. The GC-facing API of each package stays.
+- **`helder.scoped` where it fits**, the default once it costs less:
+  cheaper access (natively the base in a register, on wasm32 no table),
+  memory a GC object can own (caches), a way through interfaces
+  (callbacks).
   - **A scope never spans an await**: the checker rejects scoped values in a
     coroutine's body; coroutines call `@:scoped` functions, which return
     before the next await.
