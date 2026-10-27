@@ -75,8 +75,9 @@ In order: each phase leans on the one before it.
 
 ### 1. Cleanup
 
-- **Fix the references the restructure left behind**: comments and package
-  READMEs still point to `docs/` and `packages/`, which are gone.
+- **Fix the references the restructure left behind** in `tests/`: comments
+  there still point to `docs/`, `packages/`, `make` and `npm test` (`src/`
+  is done).
 
 ### 2. The CLI (desktop and web)
 
