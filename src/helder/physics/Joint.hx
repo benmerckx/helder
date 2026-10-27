@@ -95,7 +95,8 @@ class Joint {
 		// (two directions across the axis)
 		var t1 = Math.abs(wa.x) < 0.9 ? unit(cross(wa, new Vec3(1, 0, 0))) : unit(cross(wa, new Vec3(0, 1, 0)));
 		var t2 = cross(wa, t1);
-		for (t in [t1, t2]) {
+		for (axis in 0...2) {
+			var t = axis == 0 ? t1 : t2;
 			var k = dot(t, a.applyInvInertia(t)) + (b == null ? 0 : dot(t, b.applyInvInertia(t)));
 			if (k < 1e-12) continue;
 			var rel = (b == null ? 0 : dot(b.angular, t)) - dot(a.angular, t);

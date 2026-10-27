@@ -28,6 +28,8 @@ class Body {
 	// resting: not moved until something touches it
 	public var sleeping(default, null) = false;
 	@:allow(helder.physics) var still = 0;
+	// (its index in the world's bodies at the last step: the broad phase's)
+	@:allow(helder.physics) var index = 0;
 	// (the bounds in the world, made by bounds(): the broad phase's)
 	@:allow(helder.physics) var minX = 0.0;
 	@:allow(helder.physics) var maxX = 0.0;

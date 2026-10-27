@@ -12,7 +12,8 @@ import helder.scene.math.Quat;
 // accumulated and clamped over the iterations, overlap pushed apart,
 // resting bodies put to sleep. A body added with a node moves and turns
 // that node. Deterministic: the same steps give the same result on every
-// target.
+// target. A step allocates nothing once its buffers (contacts, pairs) have
+// grown to the world's size.
 class PhysicsWorld {
 	public var gravity = new Vec3(0, -9.81, 0);
 	public var iterations = 10;
@@ -24,7 +25,7 @@ class PhysicsWorld {
 	public var sleepSpeed = 0.05;
 	public var sleepSteps = 30;
 
-	final pending:Array<Contact> = [];
+	final pending = new Contacts();
 	public final joints:Array<Joint> = [];
 
 	public function new() {}
@@ -54,22 +55,25 @@ class PhysicsWorld {
 	public function step(dt:Float) {
 		for (b in bodies)
 			if (!b.isStatic() && !b.sleeping) b.velocity = b.velocity + gravity * dt;
-		pending.resize(0);
+		pending.clear();
 		broadPhase();
-		contacts = pending.length;
-		for (c in pending) {
+		var cs = pending;
+		contacts = cs.length;
+		for (i in 0...cs.length) {
+			var a = cs.a[i], b = cs.b[i];
 			// (a moving body touching a sleeping one wakes it)
-			if (c.a.sleeping && !c.b.isStatic() && !c.b.sleeping) c.a.wake();
-			if (c.b.sleeping && !c.a.isStatic() && !c.a.sleeping) c.b.wake();
+			if (a.sleeping && !b.isStatic() && !b.sleeping) a.wake();
+			if (b.sleeping && !a.isStatic() && !a.sleeping) b.wake();
 			// (the bounce: from the approach speed, none at resting speeds)
-			var vn = dot(c.b.velocityAt(c.point) - c.a.velocityAt(c.point), c.normal);
-			c.bounce = vn < -0.5 ? -Math.min(c.a.restitution, c.b.restitution) * vn : 0;
+			var p = cs.point(i);
+			var vn = dot(b.velocityAt(p) - a.velocityAt(p), cs.normal(i));
+			cs.set(i, Contacts.BOUNCE, vn < -0.5 ? -Math.min(a.restitution, b.restitution) * vn : 0);
 		}
 		for (j in joints)
 			j.wake();
 		for (_ in 0...iterations) {
-			for (c in pending)
-				resolve(c);
+			for (i in 0...cs.length)
+				resolve(cs, i);
 			for (j in joints)
 				j.solve(dt);
 		}
@@ -82,12 +86,13 @@ class PhysicsWorld {
 				b.orientation = new Quat(q.x + spin.x * dt / 2, q.y + spin.y * dt / 2, q.z + spin.z * dt / 2, q.w + spin.w * dt / 2).normalized();
 			}
 		// (what is still overlapping, pushed apart: 20% of it a step, past a slop)
-		for (c in pending) {
-			var total = c.a.invMass + c.b.invMass;
+		for (i in 0...cs.length) {
+			var a = cs.a[i], b = cs.b[i];
+			var total = a.invMass + b.invMass;
 			if (total == 0) continue;
-			var push = Math.max(c.depth - 0.005, 0) * 0.2 / total;
-			if (!c.a.sleeping) c.a.position = c.a.position - c.normal * (push * c.a.invMass);
-			if (!c.b.sleeping) c.b.position = c.b.position + c.normal * (push * c.b.invMass);
+			var push = Math.max(cs.get(i, Contacts.DEPTH) - 0.005, 0) * 0.2 / total;
+			if (!a.sleeping) a.position = a.position - cs.normal(i) * (push * a.invMass);
+			if (!b.sleeping) b.position = b.position + cs.normal(i) * (push * b.invMass);
 		}
 		for (b in bodies) {
 			if (b.isStatic() || b.sleeping) continue;
@@ -108,9 +113,13 @@ class PhysicsWorld {
 	// bodies sorted by their bounds' start (insertion sort: the order
 	// changes little between steps), each tested against those starting
 	// before its end; planes, unbounded, against every body. Pairs in the
-	// order of the bodies list, so the result does not depend on the sort.
+	// order of the bodies list, so the result does not depend on the sort
+	// (a pair is its bodies' indexes, the lower one's in the high 16 bits,
+	// sorted by two counting passes). The arrays are kept between steps.
 	final order:Array<Body> = [];
 	final pairs:Array<Int> = [];
+	final sorted:Array<Int> = [];
+	final counts:Array<Int> = [];
 
 	function broadPhase() {
 		order.resize(0);
@@ -127,16 +136,15 @@ class PhysicsWorld {
 			order[j + 1] = b;
 		}
 		pairs.resize(0);
-		var index = new Map<Body, Int>();
 		for (k in 0...bodies.length)
-			index.set(bodies[k], k);
+			bodies[k].index = k;
 		for (i in 0...order.length) {
 			var a = order[i];
 			for (j in i + 1...order.length) {
 				var b = order[j];
 				if (b.minX > a.maxX) break;
 				if (a.maxY < b.minY || b.maxY < a.minY || a.maxZ < b.minZ || b.maxZ < a.minZ) continue;
-				var ia = index.get(a), ib = index.get(b);
+				var ia = a.index, ib = b.index;
 				pairs.push(ia < ib ? ia * 65536 + ib : ib * 65536 + ia);
 			}
 		}
@@ -144,65 +152,95 @@ class PhysicsWorld {
 			if (bodies[k].shape.match(Plane(_, _)))
 				for (j in 0...bodies.length)
 					if (j != k && !bodies[j].shape.match(Plane(_, _))) pairs.push(k < j ? k * 65536 + j : j * 65536 + k);
-		pairs.sort((x, y) -> x - y);
+		// (by the second body, then the first: each pass keeps the order of
+		// the last; sorted only grows, by half)
+		var n = pairs.length;
+		if (sorted.length < n) sorted.resize(n + (n >> 1));
+		countingSort(pairs, sorted, n, 0);
+		countingSort(sorted, pairs, n, 16);
 		for (p in pairs) {
-			var a = bodies[p >> 16], b = bodies[p & 0xFFFF];
+			var a = bodies[p >>> 16], b = bodies[p & 0xFFFF];
 			if ((a.isStatic() || a.sleeping) && (b.isStatic() || b.sleeping)) continue;
-			Collide.test(a, b, pending);
+			Collide.collide(a, b, pending);
+		}
+	}
+
+	// from's first n pairs into to, by their body index at shift (stable)
+	function countingSort(from:Array<Int>, to:Array<Int>, n:Int, shift:Int) {
+		var m = bodies.length;
+		counts.resize(0);
+		for (_ in 0...m + 1)
+			counts.push(0);
+		for (i in 0...n)
+			counts[((from[i] >>> shift) & 0xFFFF) + 1]++;
+		for (k in 0...m)
+			counts[k + 1] += counts[k];
+		for (i in 0...n) {
+			var p = from[i], k = (p >>> shift) & 0xFFFF;
+			to[counts[k]++] = p;
 		}
 	}
 
 	// one contact's impulses at its point: along the normal up to the
 	// bounce (accumulated, never pulling), then along two tangents
 	// (friction, within the Coulomb cone of the normal impulse)
-	function resolve(c:Contact) {
-		var a = c.a, b = c.b;
+	function resolve(cs:Contacts, i:Int) {
+		var a = cs.a[i], b = cs.b[i];
 		if (a.invMass + b.invMass == 0) return;
-		var n = c.normal;
-		var vn = dot(b.velocityAt(c.point) - a.velocityAt(c.point), n);
-		var k = mass(c, n);
-		var jn = Math.max(c.normalImpulse + (c.bounce - vn) / k, 0);
-		var dj = jn - c.normalImpulse;
-		c.normalImpulse = jn;
-		apply(c, n * dj);
+		var n = cs.normal(i), p = cs.point(i);
+		var vn = dot(b.velocityAt(p) - a.velocityAt(p), n);
+		var k = mass(a, b, p, n);
+		var normalImpulse = cs.get(i, Contacts.NORMAL_IMPULSE);
+		var jn = Math.max(normalImpulse + (cs.get(i, Contacts.BOUNCE) - vn) / k, 0);
+		var dj = jn - normalImpulse;
+		cs.set(i, Contacts.NORMAL_IMPULSE, jn);
+		apply(a, b, p, n * dj);
 		// friction: two tangents of the normal
 		var t1 = Math.abs(n.x) > 0.7 ? normalize(cross(n, new Vec3(0, 1, 0))) : normalize(cross(n, new Vec3(1, 0, 0)));
 		var t2 = cross(n, t1);
-		var mu = Math.sqrt(a.friction * b.friction), limit = mu * c.normalImpulse;
+		var mu = Math.sqrt(a.friction * b.friction), limit = mu * jn;
 		for (axis in 0...2) {
-			var t = axis == 0 ? t1 : t2;
-			var vt = dot(b.velocityAt(c.point) - a.velocityAt(c.point), t);
-			var acc = axis == 0 ? c.tangentImpulse1 : c.tangentImpulse2;
-			var jt = Math.max(-limit, Math.min(limit, acc - vt / mass(c, t)));
+			var t = axis == 0 ? t1 : t2, field = axis == 0 ? Contacts.TANGENT_IMPULSE1 : Contacts.TANGENT_IMPULSE2;
+			var vt = dot(b.velocityAt(p) - a.velocityAt(p), t);
+			var acc = cs.get(i, field);
+			var jt = Math.max(-limit, Math.min(limit, acc - vt / mass(a, b, p, t)));
 			var d = jt - acc;
-			if (axis == 0) c.tangentImpulse1 = jt else c.tangentImpulse2 = jt;
-			apply(c, t * d);
+			cs.set(i, field, jt);
+			apply(a, b, p, t * d);
 		}
 	}
 
-	// the effective mass's inverse along dir at the contact
-	static function mass(c:Contact, dir:Vec3):Float {
-		var ra = c.point - c.a.position, rb = c.point - c.b.position;
-		var ka = cross(c.a.applyInvInertia(cross(ra, dir)), ra), kb = cross(c.b.applyInvInertia(cross(rb, dir)), rb);
-		return c.a.invMass + c.b.invMass + dot(dir, ka) + dot(dir, kb);
+	// the effective mass's inverse along dir at the point p of a and b
+	static function mass(a:Body, b:Body, p:Vec3, dir:Vec3):Float {
+		var ra = p - a.position, rb = p - b.position;
+		var ka = cross(a.applyInvInertia(cross(ra, dir)), ra), kb = cross(b.applyInvInertia(cross(rb, dir)), rb);
+		return a.invMass + b.invMass + dot(dir, ka) + dot(dir, kb);
 	}
 
-	// an impulse j at the contact: -j on a, j on b
-	static function apply(c:Contact, j:Vec3) {
-		var a = c.a, b = c.b;
+	// an impulse j at the point p: -j on a, j on b
+	static function apply(a:Body, b:Body, p:Vec3, j:Vec3) {
 		if (!a.isStatic() && !a.sleeping) {
 			a.velocity = a.velocity - j * a.invMass;
-			a.angular = a.angular - a.applyInvInertia(cross(c.point - a.position, j));
+			a.angular = a.angular - a.applyInvInertia(cross(p - a.position, j));
 		}
 		if (!b.isStatic() && !b.sleeping) {
 			b.velocity = b.velocity + j * b.invMass;
-			b.angular = b.angular + b.applyInvInertia(cross(c.point - b.position, j));
+			b.angular = b.angular + b.applyInvInertia(cross(p - b.position, j));
 		}
 	}
 
 	// the first body a ray hits (dir of any length but zero), within
 	// maxDistance (ignore: a body left out, as a character's own)
 	public function raycast(origin:Vec3, dir:Vec3, maxDistance = 1e9, ?ignore:Body):Null<{body:Body, distance:Float, point:Vec3}> {
+		var t = ray(origin, dir, maxDistance, ignore);
+		return hit == null ? null : {body: hit, distance: t, point: origin + dir / Math.sqrt(dot(dir, dir)) * t};
+	}
+
+	// raycast without its result object (Character's): the distance, the
+	// body hit in hit (null: none)
+	@:allow(helder.physics) var hit:Null<Body> = null;
+
+	@:allow(helder.physics) function ray(origin:Vec3, dir:Vec3, maxDistance:Float, ignore:Null<Body>):Float {
 		var l = Math.sqrt(dot(dir, dir));
 		var d = dir / l;
 		var best:Null<Body> = null, bestT = maxDistance;
@@ -214,7 +252,8 @@ class PhysicsWorld {
 				best = b;
 			}
 		}
-		return best == null ? null : {body: best, distance: bestT, point: origin + d * bestT};
+		hit = best;
+		return bestT;
 	}
 
 	static inline function dot(a:Vec3, b:Vec3):Float

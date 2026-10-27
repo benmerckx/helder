@@ -53,14 +53,16 @@ class Character {
 		if (l < 1e-9) return;
 		var dir = new Vec3(x / l, 0, z / l), p = body.position;
 		var feet = p.y - half - radius, reach = radius + 0.12;
-		var low = world.raycast(new Vec3(p.x, feet + 0.04, p.z), dir, reach, body);
-		if (low == null) return;
+		// (world.ray: raycast without its result object)
+		var low = world.ray(new Vec3(p.x, feet + 0.04, p.z), dir, reach, body);
+		if (world.hit == null) return;
 		var top = feet + stepHeight;
-		if (world.raycast(new Vec3(p.x, top, p.z), dir, reach + 0.05, body) != null) return;
-		var ahead = low.distance + 0.06;
-		var down = world.raycast(new Vec3(p.x + dir.x * ahead, top, p.z + dir.z * ahead), new Vec3(0, -1, 0), stepHeight, body);
-		if (down == null) return;
-		var rise = top - down.distance - feet;
+		world.ray(new Vec3(p.x, top, p.z), dir, reach + 0.05, body);
+		if (world.hit != null) return;
+		var ahead = low + 0.06;
+		var down = world.ray(new Vec3(p.x + dir.x * ahead, top, p.z + dir.z * ahead), new Vec3(0, -1, 0), stepHeight, body);
+		if (world.hit == null) return;
+		var rise = top - down - feet;
 		if (rise <= 0.01) return;
 		body.position = new Vec3(p.x, p.y + rise + 0.01, p.z);
 		body.wake();
@@ -69,9 +71,9 @@ class Character {
 	// steers towards move (x and z: a direction of length up to 1, times
 	// speed; y ignored), jumping when asked and grounded
 	public function update(dt:Float, move:Vec3, jump:Bool) {
-		var hit = world.raycast(body.position, new Vec3(0, -1, 0), half + radius + groundReach, body);
-		grounded = hit != null && body.velocity.y <= jumpSpeed * 0.5;
-		ground = hit != null ? hit.body : null;
+		world.ray(body.position, new Vec3(0, -1, 0), half + radius + groundReach, body);
+		ground = world.hit;
+		grounded = ground != null && body.velocity.y <= jumpSpeed * 0.5;
 		var l = Math.sqrt(move.x * move.x + move.z * move.z);
 		var mx = move.x, mz = move.z;
 		if (l > 1) {
