@@ -2,3 +2,4 @@
 /node_modules/
 *.o
 *.tgz
+/.claude/worktrees/
