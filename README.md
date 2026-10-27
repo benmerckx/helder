@@ -157,15 +157,19 @@ Done as a first slice:
   - @hxmc/cli's `{"type"}` lines still spoken to a program its `dev.mjs`
     runs; the `devtools` lane, headless.
 
-- **hxmc's fixes in a nightly** (@hxmc/cli 0.1.0-nightly.20261027.ec71785,
-  hxmc 8841f02), their workarounds removed: processes' cwd, env and signals
-  and nanosecond mtimes (#81), sockets' connect and `poll` (#79, the
-  native backend), allocation-free IntMap, resize and short sorts (#84,
-  where as fast), `GcStats` (#85), `Blocking` and `IoBuffer` (#86), a
-  `--wait` server kept by an empty connection; WasmGC's lanes removed
-  (hxmc drops it). Still to come in a nightly: `Timer.stamp`'s size (#89);
-  the platform package's compiler finding its runtime objects alone (the
-  CLI gives HXMC_RT_DIR).
+- **hxmc's fixes in a nightly** (@hxmc/cli 0.1.0-nightly.20261027.a4195c7),
+  their workarounds removed: processes' cwd, env and signals and
+  nanosecond mtimes (#81), sockets' connect and `poll` (#79, the native
+  backend), allocation-free IntMap, resize and short sorts (#84, where as
+  fast), `GcStats` (#85), `Blocking` and `IoBuffer` (#86), a `--wait`
+  server kept by an empty connection; WasmGC's lanes removed (hxmc drops
+  it, #90); `haxe.Timer.stamp` without the event loop, hxmc's std
+  overrides trimmed by DCE (#89: the devtools agent and helder.test on
+  `Timer.stamp` again; native builds 100 to 210 KB smaller: Todo 2042 to
+  1849 KB, Planets 2438 to 2234, Counter 1663 to 1499, Walker 708 to 607,
+  a one-test `helder test` 297 to 262; wasm32 4 KB smaller); the platform
+  package's compiler finding its runtime objects beside itself (#93: the
+  CLI no longer gives HXMC_RT_DIR).
 
 Still to come:
 
