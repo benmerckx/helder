@@ -352,7 +352,7 @@ helder.ui.native.Controls.*`: `Button`, `Checkbox`, `Field`, `Slider`,
 `NativeTest`) and the DOM in a browser (the page's own controls in a
 container, `nativeContainer` in run's options, with
 `src/helder/ui/imports.mjs`; tested in Chromium by `native-web.mjs`); the
-same `examples/NativeForm.hx` runs on both. Plain nodes only lay out (no
+same `examples/native-form/NativeForm.hx` runs on both. Plain nodes only lay out (no
 backgrounds), and nothing scrolls yet. Win32 (the standard controls,
 comctl32 5's classic look until a visual styles manifest) and AppKit run
 `NativeTest` in CI. On Android the controls are `android.widget`'s views
@@ -364,8 +364,8 @@ through the input method and the accessibility tree; a `GpuView`
 
 ### Native or drawn, per widget
 
-In a drawn window a widget can also be the platform's own control
-(docs/plans/native-or-drawn.md): `host` on a node (`Auto`, `Native`,
+In a drawn window a widget can also be the platform's own control:
+`host` on a node (`Auto`, `Native`,
 `Drawn`; markup's `host="native"`) holds for its subtree, and where the
 tree leaves it `Auto` the window's `Ui.policy` decides per kind of widget
 (`"text-field"`, `"text-area"`, `"context-menu"` and `"menubar"`: native, the plan's defaults). Native
@@ -431,7 +431,7 @@ the focus, the accessibility tree (`ui.accessTree()`: roles, names, states,
 a link's `href`, each node's box). A `UiWindow` feeds it a window's
 events; without one (`new Ui(engine, width, height)`, `update`, `paint`) it
 is a host of a fixed size and no events, first-class: headless tests,
-thumbnails, documents ([docs/plans/document.md](../../docs/plans/document.md)).
+thumbnails, documents.
 `ui.paint(canvas)` draws through a `Canvas`: the GPU renderer's, or a
 writer's. What a writer gets: rectangles with their borders and corners,
 shadows and inset shadows (calls of their own, not pixels), opacity groups,
@@ -477,7 +477,7 @@ Memory per node is kept small: leaves share one empty children array; event
 handlers and the rarely set style properties (grid, transforms, shadows,
 offsets...) are allocated when first set; paragraphs share their font sets.
 
-`StressTest [rows]` (`npm test -- ui-draw` runs it) prints the times of the
+`StressTest [rows]` (`bun run test ui-draw` runs it) prints the times of the
 first layout, of the frames after a change, a scroll and an append, and of
 a steady frame; `RT_STATS=1` adds the collector's figures and the RSS, and
 a build with `-D hxmc.census` run with `RT_CENSUS=1` lists the live heap by
@@ -490,6 +490,6 @@ paragraphs' glyphs, which all survive: a compact glyph store in
 
 ## Tests
 
-`npm test -- ui` (Eval: layout against Chromium, events, markup rendered into nodes, the guide),
-`npm test -- ui-draw` (natively, golden images), `npm test -- ui-web`
-(Chromium, WebGPU and WebGL2, real input events). See `docs/testing.md`.
+`bun run test ui` (Eval: layout against Chromium, events, markup rendered into nodes, the guide),
+`bun run test ui-draw` (natively, golden images), `bun run test ui-web`
+(Chromium, WebGPU and WebGL2, real input events), from tests/ui (`bun run test help`: every lane).

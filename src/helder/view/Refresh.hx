@@ -5,7 +5,7 @@ import haxe.macro.Context;
 import haxe.macro.Expr;
 #end
 
-// Fast refresh for helder.view under `hxmc dev` (-D hxmc.dev; docs/dev.md),
+// Fast refresh for helder.view under `helder dev` (-D hxmc.dev),
 // written on helder.dev.Hot's public calls only, as any state library would
 // be. A signal's key is the static place it is made (HotMacro.here: the
 // type, the function, the variable it is assigned to) inside the scope of

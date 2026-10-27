@@ -4,12 +4,12 @@ This guide walks through writing an application with `helder.ui`: markup,
 components, state, lists, popups, your own drawn nodes, running it on each
 platform and testing it. The [README](README.md) is the reference for every
 attribute. The examples here are compiled and run by
-`test/GuideTest.hx` (`npm test -- ui`), so they work as written.
+`tests/ui/GuideTest.hx` (`bun run test ui`), so they work as written.
 
 ## Setting up
 
 ```sh
-npm i -D @hxmc/cli helder.ui
+npm i -D helder @hxmc/cli
 ```
 
 ```hxml
@@ -515,8 +515,8 @@ it the fonts it may use, as files or URLs:
 ```html
 <canvas id="c" style="width: 480px; height: 360px"></canvas>
 <script type="module">
-import { run } from './node_modules/@helder/os/browser.mjs';
-const p = './node_modules/@hxmc/';
+import { run } from './node_modules/helder/src/helder/os/browser.mjs';
+const p = './node_modules/helder/src/helder/';
 run('app.wasm', {
 	imports: [p + 'os/imports.mjs', p + 'gfx/imports.mjs', p + 'text/imports.mjs', p + 'ui/imports.mjs'],
 	canvas: 'c',
@@ -530,7 +530,7 @@ run('app.wasm', {
 The core runs on any Haxe target, Eval included, so most of an app tests
 without a window or a GPU. Make a `Ui` with a text engine, mount the
 markup, and drive it with the events a window would send. `DrawText` lays
-text out with the system's fonts; `test/MonoText.hx` (every character half
+text out with the system's fonts; `tests/ui/MonoText.hx` (every character half
 the font size wide) gives sizes that do not depend on the machine:
 
 ```haxe
@@ -548,4 +548,4 @@ var total:TextNode = cast ui.root.find("total"); // "Total: € 90"
 `textInput`, `wheel` and `setFocus` do the rest, and `ui.paint(canvas)`
 with a recording `Canvas` shows what would be drawn. For pixels, the
 renderer draws headless into an image to compare with a golden one:
-`test/UiDrawTest.hx` and `test/TodoTest.hx` show how.
+`tests/ui/UiDrawTest.hx` and `tests/ui/TodoTest.hx` show how.

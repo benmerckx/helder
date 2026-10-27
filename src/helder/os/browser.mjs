@@ -52,7 +52,7 @@
 // as "hxmc" instead (hxmc/bootstrap/wasmgc.mjs is node's): the output, the
 // clocks, Math, float formatting and parsing, the calendar, exit; no files.
 //
-// Swapping a module in the same page (hxmc dev; docs/dev.md, "No reloads"):
+// Swapping a module in the same page (helder dev, no reloads):
 // with the option track, what the instance registers with the page while
 // it is the page's (listeners on anything it did not create, animation
 // frames, timers, observers, audio contexts, the elements it created) is

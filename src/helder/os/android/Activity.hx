@@ -24,7 +24,7 @@ import helder.os.VTable;
 // window does and the new activity's comes. Each callback is logged at the
 // debug level under the tag helder.os (with the window's size, the content's
 // rect), so logcat shows the order things came in.
-// Under hxmc dev (-D hxmc.dev-host: docs/dev.md, "No reloads") the APK's
+// Under helder dev (-D hxmc.dev-host, no reloads) the APK's
 // library is the dev host: its statics live in the host's state block
 // (helder.dev.HostedMacro), shared with each build loaded into the process
 // later, and once the program's main returns having handed over (the next

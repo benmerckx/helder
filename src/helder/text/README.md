@@ -12,7 +12,7 @@ text with, usable on its own.
   fonts such as Noto Sans CJK too). Variable TrueType fonts: `axes`
   (fvar) and `instance(["wght" => 700])`, avar's mappings and gvar's
   deltas applied to outlines and advances (`Variations`; checked against
-  Chromium on `test/var.ttf`); `SystemFonts.match` gives a variable
+  Chromium on `tests/text/var.ttf`); `SystemFonts.match` gives a variable
   face's instance at the weight asked for. CFF2 (variable) outlines are
   not read; HVAR, MVAR and GPOS's variations are not applied.
   Colour glyphs: CBDT/CBLC and sbix bitmaps (Noto Color Emoji, Apple
@@ -91,6 +91,6 @@ multiple or reverse chained substitutions, lookup flags (marks skipped),
 cursive attachment or Indic shaping, marks not reordered by combining
 class, no hinting, grayscale anti-aliasing. The same
 pixels on every machine, which makes golden-image tests portable; the
-platforms' shapers are the planned upgrade (`docs/plans/ui.md`).
+platforms' shapers are the planned upgrade.
 
-Tests: `npm test -- text` (`test/TextTest.hx`).
+Tests: `bun run test text` (`tests/text/TextTest.hx`).

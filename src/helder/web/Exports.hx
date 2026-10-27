@@ -11,7 +11,7 @@ package helder.web;
 //
 // - In the wasm32-wasi module (hxmc), each becomes callable from
 //   JavaScript: a @:hxmc.callback wrapper (the module's way in for
-//   JavaScript: docs/plans/lowlevel.md, "WebAssembly") taking its arguments
+//   JavaScript: hxmc's docs/plans/lowlevel.md, "WebAssembly") taking its arguments
 //   as numbers, and register(), which main calls, names the wrappers to
 //   src/helder/web/imports.mjs (host.web.exports).
 // - In JavaScript, the class keeps only these functions, each calling the

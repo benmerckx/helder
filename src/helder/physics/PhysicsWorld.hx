@@ -4,7 +4,7 @@ import helder.gfx.shader.Vec3;
 import helder.scene.Node;
 import helder.scene.math.Quat;
 
-// A small rigid-body world (docs/plans/3d.md, step 6): bodies under
+// A small rigid-body world: bodies under
 // gravity, stepped at a fixed rate (helder.scene.FixedStep's dt): velocities
 // integrated (semi-implicit Euler, orientations too), contacts found
 // (a sweep-and-prune broad phase, then Collide: spheres, boxes, capsules, planes), resolved by sequential impulses at the contact points (linear

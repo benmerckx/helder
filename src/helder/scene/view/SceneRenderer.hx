@@ -24,7 +24,7 @@ import helder.scene.render.Shapes;
 // plane, size, color, metallic, roughness; SceneRenderer.device must be
 // set), light (kind directional | point, color, intensity, range), camera
 // (fov, near, far). Texts and markers are hidden nodes. A prototype of the
-// plan's reactive layer (docs/plans/3d.md): properties go through
+// reactive layer for scenes (see the README's roadmap): properties go through
 // setProperty by name here; typed constructors per tag come next.
 class SceneRenderer implements helder.view.Renders<SceneNode> {
 	// the device meshes are made on

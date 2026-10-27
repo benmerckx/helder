@@ -5,8 +5,7 @@ Windows, input, the app loop and audio output for hxmc in pure Haxe
 UIKit, Win32, Android's NativeActivity, a canvas in the browser; ALSA, CoreAudio,
 WASAPI, WebAudio) and a
 portable layer over them. No C of its own: the system's C APIs through
-externs, COM vtables, `objc_msgSend` and `dlopen`. The design and what is
-left: docs/plans/graphics.md.
+externs, COM vtables, `objc_msgSend` and `dlopen`.
 
 ## Windows and the loop
 
@@ -78,7 +77,7 @@ the finger is down, then a `Scroll` of nothing without it and the glide's
 
 ## Fast refresh: `helder.dev.Hot`
 
-Under `hxmc dev` (`-D hxmc.dev`; [docs/dev.md](../../docs/dev.md)) a
+Under `helder dev` (`-D hxmc.dev`) a
 reload is a fresh start of the new build with the old one's state carried
 over by key. `helder.dev.Hot` is the public layer state libraries use for it
 (helder.view's signals included): `onSnapshot` and `onDispose`, `save` and
@@ -107,7 +106,7 @@ out.close();
 out.sampleRate; out.channels; out.frames; out.latency; // as the system gave them
 ```
 
-`examples/Tone.hx` plays a 440 Hz sine for two seconds. `frames` is a hint:
+`examples/tone/Tone.hx` plays a 440 Hz sine for two seconds. `frames` is a hint:
 `out.frames` is the most frames a callback is asked for (the system's
 period or buffer), `out.latency` the seconds from a callback's samples to
 the output, as the system reports them.
@@ -124,7 +123,7 @@ against a deadline: preallocate, do not allocate (that can start a
 collection, and any thread's collection pauses this one), lock, block or
 print there, and never stop or close the output from it (both wait for
 the audio thread). CoreAudio calls back on a thread the runtime does not
-know, where only `@:hxmc.noGc` code may run (docs/plans/lowlevel.md,
+know, where only `@:hxmc.noGc` code may run (hxmc's docs/plans/lowlevel.md,
 "Callbacks"): that is why it only copies from the ring. In the browser the
 module's memory is not shared with the worklet's thread, so each chunk is
 copied and posted, keeping about 50 ms queued; the callback may close the
@@ -143,11 +142,11 @@ any other name is ALSA's (`"null"`, `"hw:0"`). In the browser,
 `OfflineAudioContext` in tests). An output that has no device throws
 `helder.os.audio: no output device (...)`.
 
-Tests (`test/AudioTest.hx`): a known signal through each back end's real
+Tests (`tests/os/AudioTest.hx`): a known signal through each back end's real
 API, the samples that reach it compared with the signal, the callbacks'
-count and rate. `npm test -- audio` (`test/audio.sh`): ALSA's null and file
+count and rate. `bun run test audio` (`tests/os/audio.sh`): ALSA's null and file
 devices; CoreAudio's file device, then the default output where there is
 one; WASAPI on the default endpoint where there is one, or under Wine
 (`AUDIO_TARGET=windows-x86_64`) through winealsa to an ALSA file.
-`npm test -- audio-web` (`test/web.mjs`): headless Chromium, realtime (the
+`bun run test audio-web` (`tests/os/web.mjs`): headless Chromium, realtime (the
 rate) and an `OfflineAudioContext` (the rendered samples, exact).

@@ -5,8 +5,8 @@ import haxe.macro.Context;
 import haxe.macro.Expr;
 #end
 
-// Fast refresh's primitives (docs/dev.md; docs/plans/dev-loop.md): what a
-// state library calls so that its state survives a reload under `hxmc dev`.
+// Fast refresh's primitives (hxmc's docs/plans/dev-loop.md): what a
+// state library calls so that its state survives a reload under `helder dev`.
 // A reload is a fresh start: the new build runs its own main, and what it
 // gets from the old one is data, by key. hxmc's signals (helder.view) and any
 // other library use the same calls:
@@ -201,7 +201,7 @@ class Hot {
 		return value;
 	}
 
-	// --- the dev loop's side (the dev server, packages/cli/hxmc/bootstrap/dev.mjs) ---
+	// --- the dev loop's side (the dev server, @hxmc/cli's hxmc/bootstrap/dev.mjs) ---
 
 	// the values the last build saved, by key, until asked for (null: a cold start)
 	static var restored:Null<Map<String, {type:String, data:String}>> = null;

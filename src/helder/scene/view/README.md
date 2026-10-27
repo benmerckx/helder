@@ -1,7 +1,7 @@
 # helder.scene.view
 
 `helder.view`'s markup and signals on `helder.scene`'s scene graph (Haxe package
-`helder.scene.view`; the plan's reactive layer, docs/plans/3d.md). An
+`helder.scene.view`; a prototype, see the README's roadmap). An
 optional package: the 3D core knows nothing of it.
 
 ```haxe
@@ -28,4 +28,4 @@ constructors per tag, checked when compiling, come next. A struct value
 pass a closure returning one where a function of another type is
 expected).
 
-Tests: `test/SceneUiTest.hx` (`npm test -- 3d`).
+Tests: `tests/3d-ui/SceneUiTest.hx` (`bun run test 3d`).

@@ -2,7 +2,7 @@ package helder.os;
 
 import helder.os.Event;
 
-// A finger's gesture on a touch screen, as the browser's (packages/os/
+// A finger's gesture on a touch screen, as the browser's (helder.os's
 // imports.mjs), for the systems whose windows see the touches themselves
 // (AndroidWindow, UIKitWindow): a tap clicks (MouseMove, MouseDown, MouseUp
 // where it started, once it lifts); a drag (once the finger is SLOP points

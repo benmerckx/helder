@@ -2,8 +2,8 @@ package helder.scene;
 
 import helder.dev.Hot;
 
-// A world's transforms carried across a reload under `hxmc dev` (fast
-// refresh, docs/dev.md): the new build makes its world again in main as on
+// A world's transforms carried across a reload under `helder dev` (fast
+// refresh): the new build makes its world again in main as on
 // a cold start, then HotWorld.keep(world, key) puts back the position,
 // rotation and scale the old build's nodes had, by path (names from the
 // root, "a/b/c", a repeated name among siblings numbered "c#1"), so a node

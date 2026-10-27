@@ -172,7 +172,7 @@ capture one.
 
 ## Measured
 
-`make scoped-bench` (test/ScopedBench.hx). Particles: 100,000 updated in
+`tests/scoped/ScopedBench.hx` (built by hand natively, as JavaScript, HashLink and the JVM; not a lane). Particles: 100,000 updated in
 place over 200 frames, the dead ones respawned, a temporary list of the
 visible ones each frame. "Flat" is the same work in one `Vector` per field,
 the best plain Haxe does on that target: the goal for the scoped version.
@@ -219,12 +219,12 @@ limits.
 
 ## Tests
 
-`npm test -- scoped` runs:
-- `test/ScopedTest.hx` on Eval, natively and as JavaScript (it also passes
+`bun run test scoped` runs:
+- `tests/scoped/ScopedTest.hx` on Eval, natively and as JavaScript (it also passes
   as wasm32-wasi, as HL/C and with `-D scoped_debug`);
-- the programs the checker must reject, `test/reject` (RejectTest.hx).
+- the programs the checker must reject, `tests/scoped/reject` (RejectTest.hx).
 
-`make scoped-targets` runs both with the reference compiler on Eval,
+With the reference compiler (by hand, not a lane), both run on Eval,
 JavaScript, HashLink and the JVM, and the test again with
 `-D scoped_threads` on Eval, HashLink and the JVM. Natively and with
 `-D scoped_threads`, the test runs 40 threads, more than there are

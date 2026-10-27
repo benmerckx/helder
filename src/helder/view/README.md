@@ -3,7 +3,7 @@
 Signals and JSX-like markup for Haxe, on every target: fine-grained
 reactivity as Solid has it, and markup literals compiled to direct calls
 on a renderer, with no virtual DOM. `helder.ui` renders it into its nodes,
-drawn or native. Why it is built this way: [docs/plans/view.md](../../docs/plans/view.md).
+drawn or native.
 
 ```haxe
 import helder.view.*;
@@ -124,7 +124,7 @@ Node, or the page's element wrapped when a ref is given), its `tag` and
 
 ## Tests
 
-`npm test -- view`: `test/ViewTest.hx` on two test renderers (boundaries
+`bun run test view`: `tests/view/ViewTest.hx` on two test renderers (boundaries
 between them included), on Eval, natively and in JavaScript, and the
-programs the macro rejects (`test/reject`). The core uses no hxmc-only
+programs the macro rejects (`tests/view/reject`). The core uses no hxmc-only
 feature, so components compile to JavaScript unchanged.

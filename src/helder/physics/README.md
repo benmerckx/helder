@@ -1,7 +1,6 @@
 # helder.physics
 
-A small rigid-body core for `helder.scene` (Haxe package `helder.physics`; its
-place in the plan: docs/plans/3d.md, step 6). A separate package: the 3D
+A small rigid-body core for `helder.scene` (Haxe package `helder.physics`). A separate package: the 3D
 core never depends on it.
 
 ```haxe
@@ -26,5 +25,5 @@ established engine behind the same API later.
 
 Examples: `Falling` (balls and boxes) and `Walker` (a `Character` among crates; `Shapes.capsule` draws it).
 
-Tests: `test/PhysicsTest.hx` and the Falling and Walker examples' frames
-(tests/3d, `npm test -- 3d`, `npm test -- 3d-web`).
+Tests: `tests/physics/PhysicsTest.hx` and the Falling and Walker examples' frames
+(tests/3d, `bun run test 3d`, `bun run test 3d-web`).

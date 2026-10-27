@@ -3,8 +3,7 @@ package helder.dev;
 #if (hxmc.dev_host && !macro)
 import hxmc.unsafe.*;
 
-// A program run by a dev host (hxmc dev natively; docs/dev.md, "No
-// reloads"): built as a shared library (-D hxmc.shared -D hxmc.dev_host,
+// A program run by a dev host (helder dev natively, no reloads): built as a shared library (-D hxmc.shared -D hxmc.dev_host,
 // dev.mjs adds them), loaded by the host (helder.dev.DevHost) with a fresh
 // name per build, the old one closed once it has handed over. The host
 // writes its state block's address into the export hxmc_dev_state and calls

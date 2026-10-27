@@ -6,7 +6,7 @@ import haxe.macro.Context;
 import haxe.macro.Expr;
 
 // The neutral elements (helder.ui's view, text, scroll, image; view:button,
-// text:p...: docs/plans/native-or-drawn.md, single-source widgets) as the
+// text:p...: single-source components) as the
 // DOM's, for DomRenderer, all at compile time: each element its DOM
 // element, each attribute what it is in a page (slot, variant and size as
 // data-slot, data-variant and data-size; label, checked, expanded... as

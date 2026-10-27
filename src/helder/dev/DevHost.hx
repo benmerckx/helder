@@ -2,7 +2,7 @@ package helder.dev;
 
 import hxmc.unsafe.*;
 
-// The dev host (hxmc dev natively; docs/dev.md, "No reloads"): one process
+// The dev host (helder dev natively, no reloads): one process
 // for the whole session, which loads each build of the program as a shared
 // library and runs it (helder.dev.Hosted). It knows nothing of windows or
 // GPUs: it keeps a state block that the builds hand over to each other (the

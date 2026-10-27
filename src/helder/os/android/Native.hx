@@ -2,7 +2,7 @@ package helder.os.android;
 
 import hxmc.unsafe.*;
 
-// What packages/os uses of the NDK's libraries (Android's own, written as
+// What helder.os uses of the NDK's libraries (Android's own, written as
 // imports by hxmc: no NDK at build time): libandroid's looper, input queue,
 // native window and activity, liblog. ALooper_pollOnce blocks, so it is no
 // fast call (a collection may run while the thread waits in it).

@@ -13,7 +13,7 @@ import hxmc.unsafe.Mem;
 // it) and in the browser (the paste event of the key press that asked, or
 // navigator.clipboard.readText). The window is the one asking: on X11 it
 // owns the selection while its text is the clipboard's. Android: none yet
-// (the system's ClipboardManager is Java's: JNI, docs/plans/targets.md),
+// (the system's ClipboardManager is Java's: JNI, hxmc's docs/plans/targets.md),
 // write keeps nothing and read hands null.
 class Clipboard {
 	public static function write(window:Window, text:String) {

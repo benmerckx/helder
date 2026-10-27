@@ -4,11 +4,10 @@ A portable GPU layer for hxmc in pure Haxe (`helder.gfx`): integer handles,
 immutable pipelines, back ends over GL through EGL (Linux, Android: GLES 3.0
 on the activity's window), Metal (macOS, iOS),
 Direct3D 11 (Windows), WebGPU and WebGL2 (the browser). See
-`examples/Triangle.hx` (the least a program needs), `examples/Cube.hx`
-(textures, depth, uniforms, blending, indices), `examples/Instances.hx`
-(instanced draws), `examples/Targets.hx` (render targets),
-`examples/Mips.hx` (mip maps), `examples/Formats.hx` (texture formats)
-and the design notes and what is left in docs/plans/graphics.md.
+`examples/triangle/Triangle.hx` (the least a program needs), `examples/cube/Cube.hx`
+(textures, depth, uniforms, blending, indices), `examples/instances/Instances.hx`
+(instanced draws), `examples/cube/Targets.hx` (render targets),
+`examples/mips/Mips.hx` (mip maps) and `examples/formats/Formats.hx` (texture formats).
 
 ## API
 
@@ -155,6 +154,6 @@ var bytes = SpriteShader.vertexBytes([{pos: vec2(0, 0.6), uv: vec2(0.5, 0)}, ...
 ```
 
 `src/helder/gfx/shader/Shaders.hx` lists the generated members; the tests are
-`test/ShaderTest.hx` (`npm test -- gfx-shader`) and GfxTest and WebTest,
-the examples' frames against `test/<scene>.png` (triangle, cube,
-instances, targets, mips, formats) on each back end (`npm test -- gfx`, `npm test -- gfx-web`).
+`tests/gfx/ShaderTest.hx` (`bun run test gfx-shader`) and GfxTest and WebTest,
+the examples' frames against `tests/gfx/<scene>.png` (triangle, cube,
+instances, targets, mips, formats) on each back end (`bun run test gfx`, `bun run test gfx-web`).

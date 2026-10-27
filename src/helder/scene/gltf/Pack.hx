@@ -5,7 +5,7 @@ import haxe.io.BytesOutput;
 import helder.scene.math.MathTools;
 import helder.scene.render.VertexData;
 
-// The asset step (docs/plans/3d.md, step 2): a glTF file read at build time
+// The asset step: a glTF file read at build time
 // (Gltf.parse, the runtime's reader) and written compact for
 // PackedModel: each primitive's vertices and indices already in the
 // renderer's layout (VertexData; joints and weights for skins, tangents

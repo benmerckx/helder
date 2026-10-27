@@ -11,7 +11,7 @@ import helder.scene.render.SkyShader;
 // at the renderer's BeforeOpaque point, a gradient from the ground to the
 // horizon to the zenith with the sun's disc in the direction of the
 // world's light. The environment-map sky and its lighting come later
-// (docs/plans/3d.md, step 3).
+// (see the README's roadmap).
 class Sky implements RenderFeature {
 	public var zenith = new Vec3(0.18, 0.32, 0.65);
 	public var horizon = new Vec3(0.7, 0.75, 0.82);

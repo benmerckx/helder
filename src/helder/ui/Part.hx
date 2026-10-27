@@ -1,7 +1,7 @@
 package helder.ui;
 
-// A widget's part as either renderer has it (docs/plans/native-or-drawn.md:
-// single-source widgets): what a neutral element's ref gets, a Node here, a
+// A component's part as either renderer has it (single-source components,
+// @:neutral): what a neutral element's ref gets, a Node here, a
 // page's element wrapped by its renderer (helder.web); the little a widget
 // does to its parts beyond their attributes
 interface Part {

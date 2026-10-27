@@ -2,8 +2,7 @@
 
 `helder.view` on the web: the same components rendered to the DOM in
 JavaScript, or to HTML at build time, and static pages whose interactive
-parts, islands, hydrate in JavaScript or run as WebAssembly. Why it is
-built this way: [docs/plans/web.md](../../docs/plans/web.md).
+parts, islands, hydrate in JavaScript or run as WebAssembly.
 
 ```hxml
 -lib helder   # helder.view's renderer: the DOM's in JavaScript, static HTML's elsewhere
@@ -98,7 +97,7 @@ that failed `data-error` with the message (and `hxmc:error`).
 `Island.url` gives the address written for each file an island loads, from
 its name: a site with pages in folders, or its build in the addresses
 (cache-busting), sets it per page. One bundle may hold several islands; a small island alone (a
-button and a signal, `examples/Counter.hx`) is 44 KB of JavaScript, 9.5 KB
+button and a signal, `examples/web-demo/Counter.hx`) is 44 KB of JavaScript, 9.5 KB
 gzipped, nearly all of it `helder.view`'s runtime, which a shared bundle
 holds once (the demo's three islands: 61 KB, 13 KB gzipped).
 
@@ -117,7 +116,7 @@ canvas inside a page):
 browsers start audio only after one). Once it runs, its element's
 `data-gfx` names the graphics API it draws with. `hxmcWasmOptions[id]`, set
 by a page or a test before the island loads, adds to the runner's options
-(`args`, `gfx`). The project's site (`site/`) is built this way.
+(`args`, `gfx`).
 
 ## JavaScript calling WebAssembly
 
@@ -163,14 +162,14 @@ is its CSS.
 
 ## Example and tests
 
-`examples/`: `DemoPage.hx` (the page, static), `DemoIslands.hx` (its
+`examples/web-demo/`: `DemoPage.hx` (the page, static), `DemoIslands.hx` (its
 islands), `DemoBundle.hx` and `Counter.hx` (their bundles), `Lab.hx` and
 `LabExports.hx` (the wasm module JavaScript calls), gfx's `Cube.hx` as the
 WebAssembly island, shown with its source.
 
-`npm test -- web`: `test/StaticTest.hx` on Eval and natively (escaping,
-attributes, styles, markers, islands), then `test/web.mjs` in headless
-Chromium: `test/DomTest.hx` (the DOM renderer; hydration of what the static
+`bun run test web`: `tests/web/StaticTest.hx` on Eval and natively (escaping,
+attributes, styles, markers, islands), then `tests/web/web.mjs` in headless
+Chromium: `tests/web/DomTest.hx` (the DOM renderer; hydration of what the static
 renderer wrote, compiled with both renderers), and the demo page:
 hydrated with every node kept, reactive afterwards, the mismatch rendered
 again with its warning, the JavaScript island calling `lab.wasm`, the cube
