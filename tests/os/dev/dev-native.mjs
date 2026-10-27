@@ -10,7 +10,9 @@
 // - a compile error: the program keeps running (the same process), the
 //   error in the terminal; fixed: the new build, the count kept;
 // - the reloads' times, from the change seen to the new build's first frame.
-//   node tests/os/dev/dev-native.mjs <compiler> [work dir]
+//   node tests/os/dev/dev-native.mjs <compiler> [work dir] [--helder=<exe>]
+// (--helder: `helder dev app/Counter.hx` instead of dev.mjs, its build not
+// compared with a fresh one)
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -19,8 +21,10 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
-const compiler = path.resolve(process.argv[2] ?? 'node_modules/.bin/haxe');
-const work = path.resolve(process.argv[3] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-native-')));
+const helder = process.argv.find((a) => a.startsWith('--helder='))?.slice(9);
+const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const compiler = path.resolve(positional[0] ?? 'node_modules/.bin/haxe');
+const work = path.resolve(positional[1] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-native-')));
 
 let failures = 0;
 const check = (what, ok, detail = '') => {
@@ -45,8 +49,9 @@ const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')
 
 const lines = [];
 const waiters = [];
-const dev = spawn(process.execPath, [path.join(repo, 'node_modules/@hxmc/cli/hxmc/bootstrap/dev.mjs'), compiler, 'build.hxml'],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1' } });
+const dev = helder ? spawn(path.resolve(helder), ['dev', 'app/Counter.hx'], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1' } })
+	: spawn(process.execPath, [path.join(repo, 'node_modules/@hxmc/cli/hxmc/bootstrap/dev.mjs'), compiler, 'build.hxml'],
+		{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, LIBGL_ALWAYS_SOFTWARE: '1' } });
 const onLine = (l) => {
 	lines.push(l);
 	if (process.env.DEV_VERBOSE) console.log('  | ' + l);
@@ -95,16 +100,16 @@ try {
 	const first = await line(/v1 count=3 pid=/, 240000, true);
 	check('the first build runs, its state changed', !!first);
 
-	const reloaded = line(/^hxmc dev: (?:swapped|reloaded) in/);
+	const reloaded = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
 	const v2 = line(/v2 count=\S+ pid=/);
-	edit((s) => s.replace('label="+1"', 'label="+2"').replace('"v1 count="', '"v2 count="'));
+	edit((s) => s.replace('label="+1"', 'label="+2"').replace('>+1<', '>+2<').replace('"v1 count="', '"v2 count="'));
 	times.push(await reloaded);
 	const v2l = await v2;
 	check('edited: the new build, the count kept', /v2 count=3 /.test(v2l) && pidOf(v2l) !== pidOf(first), v2l);
 	await new Promise((r) => setTimeout(r, 200));
 	sameHost('edited');
 
-	const reloaded2 = line(/^hxmc dev: (?:swapped|reloaded) in/);
+	const reloaded2 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	const v3 = line(/v3 count=\S+ pid=/);
 	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('count.value = 3;', 'count.value = 3.5;').replace('"v2 count="', '"v3 count="'));
@@ -113,14 +118,14 @@ try {
 	const v3l = await v3;
 	check('type changed: reset', /v3 count=0\.5 /.test(v3l), v3l);
 
-	const failed = line(/^hxmc dev: error/);
+	const failed = line(/^(?:hxmc|helder) dev: error/);
 	edit((s) => s.replace('"v3 count="', '"v4 count=" +* broken'));
 	await failed;
 	check('error: in the terminal', lines.some((l) => /Counter\.hx:\d+: characters/.test(l)));
 	await new Promise((r) => setTimeout(r, 1000));
 	check('error: the program keeps running', !lines.some((l) => /the program ended/.test(l)));
 
-	const reloaded3 = line(/^hxmc dev: (?:swapped|reloaded) in/);
+	const reloaded3 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
 	const v5 = line(/v5 count=\S+ pid=/);
 	edit((s) => s.replace('"v4 count=" +* broken', '"v5 count="'));
 	times.push(await reloaded3);
@@ -141,7 +146,7 @@ try {
 const devOut = path.join(work, 'out/counter');
 const libs = fs.existsSync(devOut + '.dev') ? fs.readdirSync(devOut + '.dev').filter((f) => f.endsWith('.so')).sort((a, b) => parseInt(b) - parseInt(a)) : [];
 const last = hosted && libs.length ? path.join(devOut + '.dev', libs[0]) : devOut;
-if (failures === 0 && fs.existsSync(last)) {
+if (failures === 0 && !helder && fs.existsSync(last)) {
 	const kept = fs.readFileSync(last);
 	const std = path.join(path.dirname(compiler), 'std');
 	const r = spawnSync(compiler, ['-D', 'hxmc.dev', ...(last !== devOut ? ['-D', 'hxmc.shared', '-D', 'hxmc.dev-host', '-D', 'hxmc.exports=hxmc_dev_run,hxmc_dev_state'] : []),

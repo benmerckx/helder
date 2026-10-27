@@ -14,8 +14,10 @@
 //   ?gfx=webgl2, the canvas's WebGL2 context) are the same objects, there is
 //   one canvas, and the old build left no GPU objects;
 // - the swaps' times, from the change seen to the new build's first frame.
-//   node tests/os/dev/dev-web.mjs <compiler> [work dir] [--wasm-gc]
-// (--wasm-gc: the program built with -D hxmc.wasm-gc, the hybrid module)
+//   node tests/os/dev/dev-web.mjs <compiler> [work dir] [--wasm-gc] [--helder=<exe>]
+// (--wasm-gc: the program built with -D hxmc.wasm-gc, the hybrid module;
+// --helder: `helder dev web app/Counter.hx` instead of dev.mjs, its build
+// not compared with a fresh one)
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -31,6 +33,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
 const compiler = path.resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) ?? 'node_modules/.bin/haxe');
 const wasmGc = process.argv.includes('--wasm-gc');
+const helder = process.argv.find((a) => a.startsWith('--helder='))?.slice(9);
 const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const work = path.resolve(positional[1] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-web-')));
 const CHROMIUM_ARGS = ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-angle=swiftshader'];
@@ -62,8 +65,9 @@ const port = await new Promise((r) => {
 });
 const lines = [];
 const waiters = [];
-const dev = spawn(process.execPath, [path.join(repo, 'node_modules/@hxmc/cli/hxmc/bootstrap/dev.mjs'), compiler, '--port', String(port), 'build.hxml'],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env } });
+const dev = helder ? spawn(path.resolve(helder), ['dev', 'web', 'app/Counter.hx', '--port', String(port)], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'] })
+	: spawn(process.execPath, [path.join(repo, 'node_modules/@hxmc/cli/hxmc/bootstrap/dev.mjs'), compiler, '--port', String(port), 'build.hxml'],
+		{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env } });
 const onLine = (l) => {
 	lines.push(l);
 	if (process.env.DEV_VERBOSE) console.log('  | ' + l);
@@ -97,7 +101,7 @@ const line = (re, ms = 120000) => {
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 const times = [];
 try {
-	await line(/^hxmc dev: built in/);
+	if (!lines.some((l) => /^(?:hxmc|helder) dev: built in/.test(l))) await line(/^(?:hxmc|helder) dev: built in/);
 	const page = await browser.newPage();
 	page.on('pageerror', (e) => console.log('page error: ' + e.message + (process.env.DEV_VERBOSE ? '\n' + e.stack : '')));
 	// (navigations of the main frame after the first: a reload)
@@ -155,8 +159,8 @@ try {
 	await count('v1', 3, 'clicked three times');
 
 	// an edit: the new code, the state kept
-	const reloaded = line(/^hxmc dev: (?:swapped|reloaded) in/);
-	edit((s) => s.replace('label="+1"', 'label="+2"').replace('"v1 count="', '"v2 count="'));
+	const reloaded = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
+	edit((s) => s.replace('label="+1"', 'label="+2"').replace('>+1<', '>+2<').replace('"v1 count="', '"v2 count="'));
 	times.push(await reloaded);
 	await count('v2', 3, 'edited: the new build, the count kept');
 	check('the new label', await page.evaluate(() => !!document.querySelector('canvas [role=button][aria-label="+2"]') || [...document.querySelectorAll('canvas [role=button]')].some((b) => b.textContent.includes('+2'))));
@@ -174,7 +178,7 @@ try {
 	await same(gl, 'edited, WebGL2', 1);
 
 	// the signal's type changed: reset to its new initial value, and said so
-	const reloaded2 = line(/^hxmc dev: (?:swapped|reloaded) in/);
+	const reloaded2 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('"v2 count="', '"v3 count="'));
 	times.push(await reloaded2);
@@ -185,7 +189,7 @@ try {
 
 	// a compile error: the overlay, the last good build still running
 	await page.evaluate(() => (window.hxmcDevMarker = 'still the same page'));
-	const failed = line(/^hxmc dev: error/);
+	const failed = line(/^(?:hxmc|helder) dev: error/);
 	edit((s) => s.replace('"v3 count="', '"v4 count=" +* broken'));
 	await failed;
 	await page.waitForFunction(() => getComputedStyle(document.getElementById('hxmc-dev-overlay')).display !== 'none', null, { timeout: 30000 }).catch(() => {});
@@ -197,7 +201,7 @@ try {
 	await count('v3', 2.5, 'error: the last good build keeps running');
 
 	// fixed: the new build, the state kept, the overlay gone
-	const reloaded3 = line(/^hxmc dev: (?:swapped|reloaded) in/);
+	const reloaded3 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
 	edit((s) => s.replace('"v4 count=" +* broken', '"v5 count="'));
 	times.push(await reloaded3);
 	await count('v5', 2.5, 'fixed: the new build, the count kept');
@@ -215,7 +219,7 @@ try {
 // the dev server's last build (its compilation server reusing typed modules,
 // lowered bodies and objects across the edits) is what a fresh build makes
 const devOut = path.join(work, 'out/counter.wasm');
-if (failures === 0 && fs.existsSync(devOut)) {
+if (failures === 0 && !helder && fs.existsSync(devOut)) {
 	const kept = fs.readFileSync(devOut);
 	const std = path.join(path.dirname(compiler), 'std');
 	const r = spawnSync(compiler, ['-D', 'hxmc.dev', 'build.hxml', ...(fs.existsSync(std) ? ['-cp', std] : [])],

@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "scoped", "async", "test", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "scoped", "async", "test", "cli", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -39,7 +39,8 @@ class Run {
 		{name: "async", about: "helder.async on Eval and natively (the loop, TCP, processes, the watcher, HTTP and WebSocket; its tasks and timers are the test lane's), as wasm32-wasi in the browser's loop (node), the async-dev example end to end, a benchmark", run: async},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively, on Eval and as wasm32-wasi (node)", run: helderTest},
-		{name: "examples", about: "every example built, not run: for wasm32-wasi, and those on a canvas or playing a sound natively too", run: examples},
+		{name: "cli", about: "`helder build`, `run` and `dev` (src/helder/cli): an example by file and by directory, a project, natively and for web; the dev loop natively and for web without a window or a browser (tests/cli/dev.mjs)", run: cli},
+		{name: "examples", about: "every example built by `helder build <file>` with no flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium, then as WasmGC", run: sceneWeb},
 		{name: "gfx", about: "helder.gfx: the examples headless and in a window against golden images (tests/gfx/check.sh; Linux: Mesa, Xvfb)", run: gfx},
@@ -162,9 +163,43 @@ class Run {
 	}
 
 	// (the CLI's own build, as `bun run helder` makes it)
-	static function helderTest() {
+	static function helderCli():String {
 		exe("bin/cli/helder", cps(["src"]).concat(["-main", "helder.cli.Cli"]));
-		run(exePath("bin/cli/helder", HOST), ["test", "--target", "all"]);
+		return exePath("bin/cli/helder", HOST);
+	}
+
+	static function helderTest() {
+		run(helderCli(), ["test", "--target", "all"]);
+	}
+
+	// (the project: tests/cli/project copied, helder in its node_modules as a
+	// package.json naming this checkout's src/: no link, which rmrf would follow)
+	static function cli() {
+		var h = helderCli();
+		Sys.println('helder: ${Math.round(FileSystem.stat(h).size / 1024)} KB');
+		run(h, ["build", "examples/counter/Counter.hx"]);
+		run(h, ["build", "web", "examples/counter"]);
+		for (f in ["Counter.html", "Counter.wasm", "helder/os/browser.mjs", "helder/ui/imports.mjs"])
+			if (!FileSystem.exists('bin/web/$f')) throw new Failed('helder build web: no bin/web/$f');
+		expect(h, ["run", "tests/cli/tally", "--", "3"], new Map(), "v1 count=3");
+		rmrf("bin/cli/project");
+		copy("tests/cli/project", "bin/cli/project");
+		mkdirs("bin/cli/project/node_modules");
+		mkdirs("bin/cli/project/node_modules/helder");
+		var src = FileSystem.fullPath("src").split("\\").join("/");
+		File.saveContent("bin/cli/project/node_modules/helder/package.json", haxe.Json.stringify({name: "helder", haxe: {name: "helder", classPath: src}}));
+		expect(h, ["run", "bin/cli/project"], new Map(), "hello from the project");
+		expect(h, ["run", "bin/cli/project/src/app/Hello.hx"], new Map(), "hello from app.Hello, hello from the project");
+		run(h, ["build", "wasm32-wasi", "bin/cli/project"]);
+		wasi("bin/cli/project/bin/wasm32-wasi/cli-fixture.wasm");
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-native", "native"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
+	}
+
+	static function copy(from:String, to:String) {
+		mkdirs(to);
+		for (n in FileSystem.readDirectory(from))
+			if (FileSystem.isDirectory('$from/$n')) copy('$from/$n', '$to/$n') else File.copy('$from/$n', '$to/$n');
 	}
 
 	// (the examples' directories of gfx's, which its tests use)
@@ -375,8 +410,10 @@ class Run {
 	// started by a click; island, a JavaScript island of helder.web; module,
 	// a wasm module JavaScript calls), each built for wasm32-wasi but the
 	// islands, and those on a canvas or playing a sound for this machine
-	// too, in parallel, into bin/examples (each one's log beside it).
+	// too, in parallel, into bin/examples (each one's log beside it), each by
+	// the CLI with no flags but its output: `helder build [web] <file>`.
 	static function examples() {
+		var h = helderCli();
 		var builds:Array<{id:String, target:String, out:String, args:Array<String>}> = [];
 		var dirs = FileSystem.readDirectory("examples");
 		dirs.sort(Reflect.compare);
@@ -384,8 +421,6 @@ class Run {
 			var path = 'examples/$dir';
 			var files = [for (f in FileSystem.readDirectory(path)) if (f.endsWith(".hx")) f];
 			files.sort(Reflect.compare);
-			// (markup on ui: its renderer)
-			var ui = Lambda.exists(files, f -> File.getContent('$path/$f').contains("import helder.ui."));
 			for (f in files) {
 				var head = new Map<String, String>();
 				for (line in File.getContent('$path/$f').split("\n")) {
@@ -396,15 +431,13 @@ class Run {
 				var main = f.substr(0, f.length - 3);
 				var demo = head.get("demo") ?? "";
 				var id = dir + (files.length > 1 && main.toLowerCase() != dir.replace("-", "") ? "-" + main.toLowerCase() : "");
-				var args = cps(["src", path]).concat(ui ? UI_VIEW : []).concat(["-main", main]);
 				if (demo != "island") {
 					var out = 'bin/examples/wasm32-wasi/$id.wasm';
-					// (legacy exception handling: every browser with WebGPU has it, those with WebGL2 since 2021)
-					builds.push({id: id, target: "wasm32-wasi", out: out, args: args.concat(targetArgs("wasm32-wasi")).concat(["-D", "hxmc.wasm-eh=legacy"])});
+					builds.push({id: id, target: "wasm32-wasi", out: out, args: ["build", "web", '$path/$f', "-o", out]});
 				}
 				if (demo.startsWith("canvas") || demo == "sound") {
 					var out = exePath('bin/examples/$HOST/$id', HOST);
-					builds.push({id: id, target: HOST, out: out, args: args.concat(targetArgs(HOST))});
+					builds.push({id: id, target: HOST, out: out, args: ["build", '$path/$f', "-o", out]});
 				}
 			}
 		}
@@ -412,7 +445,7 @@ class Run {
 		var failed = [];
 		parallel(builds, b -> {
 			mkdirs(Path.directory(b.out));
-			var r = build(b.args.concat(["--custom-target", 'hxmc=${b.out}']), b.out + ".log");
+			var r = build(b.args, b.out + ".log", h);
 			var ok = r.code == 0 && FileSystem.exists(b.out);
 			Sys.println(b.id.rpad(" ", 22) + " " + b.target.rpad(" ", 15) + " " + (ok ? "ok  " : "FAIL") + " " + Std.string(Math.round(r.seconds * 10) / 10).lpad(" ", 6) + "s");
 			if (!ok) {
@@ -643,9 +676,9 @@ class Run {
 		Sys.println('$out (${Math.round(r.seconds * 10) / 10}s)');
 	}
 
-	static function build(args:Array<String>, log:String):{code:Int, log:String, seconds:Float} {
+	static function build(args:Array<String>, log:String, ?tool:String):{code:Int, log:String, seconds:Float} {
 		var t0 = Sys.time();
-		var p = new Process(TOOL, args);
+		var p = new Process(tool ?? TOOL, args);
 		// (the compiler's messages are on stderr: read first, its pipe would fill)
 		var err = p.stderr.readAll().toString();
 		var out = p.stdout.readAll().toString();

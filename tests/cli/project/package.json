@@ -1,0 +1,10 @@
+{
+  "name": "@helder/cli-fixture",
+  "private": true,
+  "dependencies": {
+    "helder": "*"
+  },
+  "helder": {
+    "defines": {"greeting": "hello"}
+  }
+}
