@@ -1,5 +1,4 @@
 import haxe.Exception;
-import haxe.exceptions.CancellationException;
 import haxe.io.Bytes;
 import helder.async.*;
 import helder.async.Async.TimeoutException;
@@ -8,8 +7,8 @@ import helder.async.http.WebSocket;
 
 // helder.async on Eval and natively: `haxe -cp src -cp tests/async -main
 // AsyncTest --interp`; prints "ok" and the number of checks, exits 1 on a
-// failure. The loop, tasks, cancellation, errors, timers, then TCP,
-// processes, the watcher, HTTP and WebSocket.
+// failure. The loop, then TCP, processes, the watcher, HTTP and WebSocket
+// (tasks, cancellation, errors and timers: Tasks.test.hx, helder.test's).
 class AsyncTest {
 	static var checks = 0;
 	static var failures = 0;
@@ -28,10 +27,6 @@ class AsyncTest {
 	static function main() {
 		if (!sys.FileSystem.exists("bin/async")) sys.FileSystem.createDirectory("bin/async");
 		loop();
-		tasks();
-		cancellation();
-		errors();
-		timers();
 		tcp();
 		process();
 		watch();
@@ -73,234 +68,6 @@ class AsyncTest {
 		l.runUntil(() -> got != 0);
 		eq(got, 42, "post from another thread");
 		#end
-	}
-
-	static function tasks() {
-		eq(Async.run(_ -> 7), 7, "run returns the body's result");
-		var log = [];
-		var r = Async.run(task -> {
-			var a = task.async(_ -> {
-				Async.delay(0.03);
-				log.push("a");
-				1;
-			});
-			var b = task.async(_ -> {
-				Async.delay(0.01);
-				log.push("b");
-				2;
-			});
-			log.push("main");
-			a.await() + b.await();
-		});
-		eq(r, 3, "await two children");
-		eq(log.join(","), "main,b,a", "children run concurrently");
-		var all = Async.run(task -> Async.all([for (i in 0...5) task.async(_ -> {
-			Async.delay(0.01 * (5 - i));
-			i * i;
-		})]));
-		eq(all.join(","), "0,1,4,9,16", "all, in order");
-		// (a parent is done once its children are)
-		var childDone = false;
-		Async.run(task -> {
-			task.async(_ -> {
-				Async.delay(0.02);
-				childDone = true;
-			});
-			0;
-		});
-		ok(childDone, "run waits for the children it did not await");
-		var n = Async.run(task -> {
-			var count = 0;
-			for (i in 0...3)
-				task.async(_ -> {
-					Async.delay(0.01);
-					count++;
-				});
-			task.awaitChildren();
-			count;
-		});
-		eq(n, 3, "awaitChildren");
-		var nested = Async.run(_ -> Async.scope(s -> {
-			var x = s.async(_ -> {
-				Async.yield();
-				5;
-			});
-			x.await() * 2;
-		}));
-		eq(nested, 10, "scope");
-		// (a launched task runs when the loop turns)
-		var t = Async.launch(_ -> {
-			Async.delay(0.01);
-			"launched";
-		});
-		ok(t.isActive(), "launch: active");
-		Loop.current().runUntil(() -> !t.isActive());
-		eq(t.get(), "launched", "launch: its result");
-		eq(Async.run(_ -> Async.context().get(Node.key) != null), true, "the context has the task");
-	}
-
-	static function cancellation() {
-		var log = [];
-		Async.run(task -> {
-			var a = task.async(_ -> {
-				try Async.delay(10) catch (e:CancellationException) {
-					log.push("a cancelled");
-					throw e;
-				}
-				log.push("a not cancelled");
-			});
-			Async.delay(0.01);
-			a.cancel();
-			try a.await() catch (e:CancellationException) log.push("await threw");
-		});
-		eq(log.join(","), "a cancelled,await threw", "a cancelled child");
-		// (parent to children, grandchildren)
-		var deep = 0;
-		var t0 = haxe.Timer.stamp();
-		var root = Async.launch(task -> {
-			task.async(c -> {
-				c.async(_ -> try Async.delay(10) catch (e:CancellationException) {
-					deep++;
-					throw e;
-				});
-				try Async.delay(10) catch (e:CancellationException) {
-					deep++;
-					throw e;
-				}
-			});
-			Async.delay(10);
-		});
-		var l = Loop.current();
-		l.turn(0);
-		root.cancel();
-		l.runUntil(() -> !root.isActive());
-		eq(deep, 2, "cancellation reaches children and grandchildren");
-		ok(root.getError() is CancellationException, "the root's error: a cancellation");
-		ok(haxe.Timer.stamp() - t0 < 1, "cancelled timers do not keep the loop");
-		ok(!l.alive(), "nothing left after a cancellation");
-		// (a child started by a cancelled parent never runs)
-		var ran = false;
-		var p = Async.launch(task -> {
-			task.cancel();
-			task.async(_ -> ran = true);
-			Async.delay(1);
-		});
-		l.runUntil(() -> !p.isActive());
-		ok(!ran, "no child starts in a cancelled task");
-		// (cancelling a child leaves the parent alone)
-		eq(Async.run(task -> {
-			var c = task.async(_ -> Async.delay(10));
-			Async.yield();
-			c.cancel();
-			Async.delay(0.01);
-			"parent fine";
-		}), "parent fine", "a child's cancellation does not cancel its parent");
-	}
-
-	static function errors() {
-		var e = try {
-			Async.run(_ -> {
-				Async.delay(0.01);
-				throw new Exception("boom");
-			});
-			null;
-		} catch (e:Exception) e.message;
-		eq(e, "boom", "run throws the body's error");
-		var siblingCancelled = false;
-		var e2 = try {
-			Async.run(task -> {
-				task.async(_ -> try Async.delay(10) catch (c:CancellationException) {
-					siblingCancelled = true;
-					throw c;
-				});
-				task.async(_ -> {
-					Async.delay(0.01);
-					throw new Exception("child failed");
-				});
-				Async.delay(10);
-				"not here";
-			});
-		} catch (e:Exception) e.message;
-		eq(e2, "child failed", "a child's error becomes the parent's");
-		ok(siblingCancelled, "and cancels its siblings");
-		// (scope: the error is the awaiter's, to catch)
-		var caught = Async.run(_ -> {
-			var r = try Async.scope(s -> {
-				s.async(_ -> throw new Exception("inner"));
-				Async.delay(10);
-				"no";
-			}) catch (e:Exception) "caught " + e.message;
-			r;
-		});
-		eq(caught, "caught inner", "a scope's error caught by its caller");
-		// (an awaited child's error still fails the parent: structured concurrency)
-		var inner = "";
-		var outer = try {
-			Async.run(task -> {
-				var t = task.async(_ -> {
-					throw new Exception("x");
-					0;
-				});
-				try t.await() catch (e:Exception) inner = e.message;
-				Async.delay(1);
-			});
-			"";
-		} catch (e:Exception) e.message;
-		eq(inner + outer, "xx", "await throws the child's error, and so does its parent");
-		// (tests/async/rep/CatchThenCall.hx: a caught error not thrown again by
-		// the next call of helder.async's that returns at once)
-		eq(Async.run(_ -> {
-			try Async.timeout(0.01, _ -> Async.delay(1)) catch (e:TimeoutException) {}
-			Async.context();
-			Async.suspend(c -> c.resume(1, null));
-			"not thrown again";
-		}), "not thrown again", "a caught error stays caught");
-	}
-
-	static function timers() {
-		var t0 = haxe.Timer.stamp();
-		Async.run(_ -> Async.delay(0.05));
-		var dt = haxe.Timer.stamp() - t0;
-		ok(dt >= 0.045 && dt < 0.5, 'delay(0.05): $dt');
-		var r = Async.run(_ -> try Async.timeout(0.02, _ -> {
-			Async.delay(10);
-			"slow";
-		}) catch (e:TimeoutException) "timed out");
-		eq(r, "timed out", "timeout");
-		eq(Async.run(_ -> Async.timeout(1, _ -> {
-			Async.delay(0.01);
-			"fast";
-		})), "fast", "within the timeout");
-		ok(!Loop.current().alive(), "the timeout's timer closed");
-		// (yield lets the others run)
-		var log = [];
-		Async.run(task -> {
-			task.async(_ -> for (i in 0...3) {
-				log.push("a" + i);
-				Async.yield();
-			});
-			task.async(_ -> for (i in 0...3) {
-				log.push("b" + i);
-				Async.yield();
-			});
-			0;
-		});
-		eq(log.join(","), "a0,b0,a1,b1,a2,b2", "yield interleaves");
-		// (a lock: in order of arrival)
-		var order = [];
-		Async.run(task -> {
-			var lock = new Lock();
-			for (i in 0...3)
-				task.async(_ -> {
-					lock.acquire();
-					order.push(i);
-					Async.delay(0.005);
-					order.push(i);
-					lock.release();
-				});
-			0;
-		});
-		eq(order.join(""), "001122", "lock");
 	}
 
 	static function tcp() {

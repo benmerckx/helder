@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "scoped", "async", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "scoped", "async", "test", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -36,8 +36,9 @@ class Run {
 		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's examples", run: ui},
 		{name: "gfx-shader", about: "helder.gfx's shader macro on Eval: shaders on the CPU, the emitted GLSL, WGSL, MSL and HLSL, the programs it rejects", run: gfxShader},
 		{name: "scoped", about: "helder.scoped on Eval, natively and as JavaScript, and the programs its checker rejects", run: scoped},
-		{name: "async", about: "helder.async on Eval and natively (the loop, tasks, timers, TCP, processes, the watcher, HTTP and WebSocket), as wasm32-wasi in the browser's loop (node), the async-dev example end to end, a benchmark", run: async},
+		{name: "async", about: "helder.async on Eval and natively (the loop, TCP, processes, the watcher, HTTP and WebSocket; its tasks and timers are the test lane's), as wasm32-wasi in the browser's loop (node), the async-dev example end to end, a benchmark", run: async},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
+		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively, on Eval and as wasm32-wasi (node)", run: helderTest},
 		{name: "examples", about: "every example built, not run: for wasm32-wasi, and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium, then as WasmGC", run: sceneWeb},
@@ -157,6 +158,12 @@ class Run {
 	static function asyncWeb() {
 		wasm("bin/async/WebTest.wasm", cps(["src", "tests/async"]).concat(["-main", "WebTest"]));
 		run(NODE, ["tests/async/browser.mjs", "bin/async/WebTest.wasm"]);
+	}
+
+	// (the CLI's own build, as `bun run helder` makes it)
+	static function helderTest() {
+		exe("bin/cli/helder", cps(["src"]).concat(["-main", "helder.cli.Cli"]));
+		run(exePath("bin/cli/helder", HOST), ["test", "--target", "all"]);
 	}
 
 	// (the examples' directories of gfx's, which its tests use)
