@@ -25,8 +25,12 @@ class Cli {
 			case "test":
 				Async.main(_ -> Sys.exit(TestCommand.run(args)));
 			case null | "help" | "-h" | "--help":
-				Sys.println("helder <command> [args...]\n");
+				Sys.println("helder <command> [args...]\nhelder [target] <entry>: dev's\n");
 				for (c in commands) Sys.println('  ${StringTools.rpad(c.name, " ", 8)} ${c.about}');
+			// (no command, an entry or a target: helder examples/todo/Todo.hx is dev's)
+			case c if (StringTools.endsWith(c, ".hx") || c == "web" || c == "host" || sys.FileSystem.exists(c)):
+				args.unshift(c);
+				Async.main(task -> Sys.exit(DevCommand.run(task, args)));
 			case c:
 				Sys.println('helder: no command $c (helder help)');
 				Sys.exit(2);

@@ -6,10 +6,14 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../..');
+// (fileURLToPath: a URL's pathname is /C:/... on Windows)
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const exe = path.join(root, 'bin/cli', process.platform === 'win32' ? 'helder.exe' : 'helder');
-const haxe = process.env.HAXE ?? path.join(root, 'node_modules/.bin', process.platform === 'win32' ? 'haxe.cmd' : 'haxe');
+// (the compiler through its launcher, run by this node: node will not spawn a
+// .cmd without a shell, node_modules/.bin's haxe.cmd on Windows)
+const haxe = process.env.HAXE ? [process.env.HAXE] : [process.execPath, path.join(root, 'node_modules/@hxmc/cli/hxmc/bootstrap/haxe.mjs')];
 
 // (the newest .hx under the CLI's packages)
 function newest(dir) {
@@ -27,7 +31,7 @@ if (!fs.existsSync(exe) || fs.statSync(exe).mtimeMs < sources) {
 	const t0 = Date.now();
 	// (built beside it, then renamed over it: a running one, `helder dev`'s, cannot be written over)
 	const tmp = exe.replace(/(\.exe)?$/, `.${process.pid}$1`);
-	const b = spawnSync(haxe, ['-cp', 'src', '-main', 'helder.cli.Cli', '--custom-target', `hxmc=${tmp}`], { cwd: root, encoding: 'utf8' });
+	const b = spawnSync(haxe[0], [...haxe.slice(1), '-cp', 'src', '-main', 'helder.cli.Cli', '--custom-target', `hxmc=${tmp}`], { cwd: root, encoding: 'utf8' });
 	if (b.status === 0) fs.renameSync(tmp, exe);
 	if (b.status !== 0) {
 		process.stderr.write((b.stdout ?? '') + (b.stderr ?? '') + (b.error ? String(b.error) + '\n' : ''));
