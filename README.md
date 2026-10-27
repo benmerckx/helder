@@ -295,6 +295,11 @@ collection only when it allocates or blocks.
     by a macro, as Swift's `Sendable`): flat values, hxmc structs, Strings
     and Bytes (copied), and owned buffers (handed over without a copy
     natively, transferred on the web).
+  - **first users: text's shaping and glyph rasterizing**, the spiky
+    part of text (a cold atlas about 5 ms; a relayout of 10k nodes is
+    0.008 ms): a new paragraph shaped and its glyphs drawn into the atlas
+    as GC-free jobs, the result a frame later or a fallback glyph meanwhile,
+    as browsers and games do for fonts.
 - **An allocation-free core**, measured by `bun run test bench`
   ([baseline](tests/bench/results/baseline.md)), with whatever storage
   measures best. The text pilot ([results](tests/bench/results/text.md))
@@ -378,6 +383,17 @@ collection only when it allocates or blocks.
 - **The frame loop from the display**: Choreographer on Android,
   CADisplayLink on iOS (Android polls its looper today, iOS paces from the
   layer's drawables).
+- **A compositor thread for scrolling and animations**, so a busy main
+  thread does not show (as Ladybird's compositor, Core Animation, Flutter's
+  raster thread): the main thread hands ui's renderer a retained layer tree
+  (layers, transforms, clips, scroll offsets) in flat, off-heap buffers; a
+  render thread, a GC-free job in a safe region, scrolls, runs transform
+  and opacity animations and presents at the display's rate; input routed
+  to compositor-scrolled layers. Layout itself stays on the main thread
+  (10k nodes laid out in 4.2 ms, allocating next to nothing): moved off it
+  only if a measurement shows layout holding frames back. On the web,
+  workers share no heap: the layer tree transferred, or a SharedArrayBuffer
+  behind cross-origin isolation.
 - **Audio on Android (AAudio) and iOS (RemoteIO)**, and a mixer above every
   back end.
 - **Multi-touch and gestures**: touches as events in `os` (one drag today,
