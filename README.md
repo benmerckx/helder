@@ -68,7 +68,6 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
 | `physics` | a small rigid-body core for `scene` |
-| `scoped` | scoped memory on any Haxe target, and a checker that keeps it out of the GC heap |
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `dev` | the dev host and state kept across a reload |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
@@ -268,13 +267,13 @@ collection only when it allocates or blocks.
   faster natively, 3.1x on wasm32. Next: ui's pointer moves (578 bytes
   each: the hover paths' Arrays, the events); flexbox and scene allocate
   next to nothing. The GC-facing API of each package stays.
-- **`helder.scoped`: not needed.** It lost or tied against GC buffers in
+- **`helder.scoped`: not needed, archived.** It lost or tied against GC buffers in
   text and physics, and as a GC-free job's memory it lost to off-heap
   memory: decoding a 4K PNG took 240 ms against 169, the variant added
   149 KB of code against 4, it needed the checker (1.8 s builds against
   1.0), its job's freedom from the GC went unchecked, and its pixels could
-  not cross threads ([results](tests/bench/results/jobs.md)). To archive;
-  its checker is opt-in already.
+  not cross threads ([results](tests/bench/results/jobs.md)). Archived:
+  removed from the tree, kept under the tag `archive/scoped`.
 - **Prototyped, and what it decided** ([results](tests/bench/results/jobs.md)):
   a 4K PNG decoded while the main thread renders 60 fps.
   - Between frames, the decode is one frame of 224 ms natively, 443 ms on

@@ -1,6 +1,5 @@
 import haxe.Timer;
 import haxe.io.Bytes;
-import helder.scoped.*;
 import hxmc.unsafe.BytesPtr;
 import hxmc.unsafe.LibC;
 import hxmc.unsafe.Mem;
@@ -15,9 +14,8 @@ import sys.thread.Thread;
 //
 //   a    on the main thread, between two frames
 //   b    a GC job: PngDecoder on a worker thread, its Bytes handed back
-//   c    a GC-free job: ScopedPng, helder.scoped's memory, in a safe region
 //   d    a GC-free job: OffHeapPng, malloc'ed memory, in a safe region
-//   c0   c without the safe region, d0 d without it
+//   d0   d without the safe region
 //   none the frames alone
 //
 // The worker thread exists in every variant (the runtime takes its locks
@@ -34,17 +32,17 @@ import sys.thread.Thread;
 // stop: the longest wait for every thread to stop, over the run; the GC
 // heap's growth in the window, all threads', by whole allocation buffers
 // (heapBytes), a frame's share. The pixels reach the main thread as Bytes
-// (b), as a scoped address its scope keeps until the main thread let it go
-// (c), as a pointer it frees (d).
+// (b), as a pointer it frees (d). (c, the same job on helder.scoped's memory,
+// was measured too: tests/bench/results/jobs.md; scoped is archived, tag
+// archive/scoped.)
 //
 //   Jobs <DejaVuSans.ttf> <photo.png> <variant> [probe]
-//   Jobs <DejaVuSans.ttf> <photo.png> alone <b|c|d>   (the job with an idle main thread: ms, GC heap bytes)
-//   Jobs <DejaVuSans.ttf> <photo.png> check            (b, c and d give PngDecoder's pixels)
+//   Jobs <DejaVuSans.ttf> <photo.png> alone <b|d>     (the job with an idle main thread: ms, GC heap bytes)
+//   Jobs <DejaVuSans.ttf> <photo.png> check            (b and d give PngDecoder's pixels)
 //
 // Built with -D jobs_only=<variant>: that variant alone; -D jobs_bare: no ui
 // (the sizes: what a variant adds, to this program and to one without the
 // ui).
-@:build(helder.scoped.Scoped.build())
 @:access(hxmc.rt.Gc) @:access(hxmc.rt.Threads)
 class Jobs {
 	static inline var WARM = 60;
@@ -60,7 +58,7 @@ class Jobs {
 		var args = Sys.args();
 		var font = sys.io.File.getBytes(args[0]);
 		png = sys.io.File.getBytes(args[1]);
-		// (c's and d's input: the file in malloc'ed memory, as an I/O buffer would hold it)
+		// (d's input: the file in malloc'ed memory, as an I/O buffer would hold it)
 		pngPtr = LibC.malloc((png.length : hxmc.I64));
 		LibC.memcpy(pngPtr, BytesPtr.of(png, 0, png.length), (png.length : hxmc.I64));
 		JobsFrame.garbageKb = Std.parseInt(Sys.getEnv("GARBAGE_KB") ?? "") ?? JobsFrame.garbageKb;
@@ -139,14 +137,11 @@ class Jobs {
 
 	static final request = new Lock();
 	static final done = new Lock();
-	// (c: the main thread has read the pixels, the job's scope may end)
-	static final release = new Lock();
 	static var job = "";
 	static var jobStart = 0.0;
 	static var jobEnd = 0.0;
 	static var gcPixels:Bytes;
 	static var pixelsAt:Ptr;
-	static var pixelsAddr = 0;
 	static var pixelsLen = 0;
 	static var failed = 0;
 	static var tlab0:Ptr;
@@ -162,10 +157,6 @@ class Jobs {
 				case "b":
 					gcPixels = helder.image.PngDecoder.decode(png).rgba;
 					finish();
-				#end
-				#if (!jobs_only || jobs_only == "c" || jobs_only == "c0")
-				case "c" | "c0":
-					scopedJob(job == "c");
 				#end
 				#if (!jobs_only || jobs_only == "d" || jobs_only == "d0")
 				case "d" | "d0":
@@ -190,21 +181,6 @@ class Jobs {
 		done.release();
 	}
 
-	#if (!jobs_only || jobs_only == "c" || jobs_only == "c0")
-	// (the pixels stay in this scope until the main thread let them go: a
-	// Slice cannot cross threads, its address can. The scope is entered, and
-	// the thread's stack claimed under a GC mutex, before the safe region)
-	@:scoped static function scopedJob(safe:Bool) {
-		if (safe) Safe.enter();
-		var px = ScopedPng.decode(pngPtr, png.length);
-		if (safe) Safe.leave();
-		failed = ScopedPng.error;
-		pixelsAddr = px.data();
-		pixelsLen = px.length;
-		finish();
-		release.wait();
-	}
-	#end
 
 	static function start(variant:String) {
 		switch variant {
@@ -228,12 +204,6 @@ class Jobs {
 			case "b":
 				JobsFrame.check += sample(i -> gcPixels.get(i), gcPixels.length);
 				gcPixels = null;
-			#end
-			#if (!jobs_only || jobs_only == "c" || jobs_only == "c0")
-			case "c" | "c0":
-				var a = pixelsAddr;
-				JobsFrame.check += sample(i -> Memory.getU8(a + i), pixelsLen);
-				release.release();
 			#end
 			#if (!jobs_only || jobs_only == "d" || jobs_only == "d0")
 			case "d" | "d0":
@@ -289,19 +259,19 @@ class Jobs {
 	}
 
 	#if !jobs_only
-	// --- b, c and d give PngDecoder's pixels
+	// --- b and d give PngDecoder's pixels
 	static function verify() {
 		var want = helder.image.PngDecoder.decode(png).rgba;
-		for (v in ["b", "c", "d"]) {
+		for (v in ["b", "d"]) {
 			job = v;
 			request.release();
 			done.wait();
 			if (failed != 0) throw '$v: error $failed';
-			var a = pixelsAddr, p = pixelsAt, got = v == "b" ? gcPixels : null;
+			var p = pixelsAt, got = v == "b" ? gcPixels : null;
 			var n = v == "b" ? got.length : pixelsLen;
 			if (n != want.length) throw '$v: $n bytes, not ${want.length}';
 			for (i in 0...n) {
-				var x = v == "b" ? got.get(i) : v == "c" ? Memory.getU8(a + i) : Mem.getU8(p, i);
+				var x = v == "b" ? got.get(i) : Mem.getU8(p, i);
 				if (x != want.get(i)) throw '$v: byte $i is $x, not ${want.get(i)}';
 			}
 			receive(v);

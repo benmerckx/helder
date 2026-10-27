@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "scoped", "async", "test", "cli", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "test", "cli", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -35,7 +35,6 @@ class Run {
 		{name: "image", about: "helder.image on Eval and natively: PNG, JPEG, GIF and WebP against Chromium's and libwebp's pixels, animations' frames", run: image},
 		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's examples", run: ui},
 		{name: "gfx-shader", about: "helder.gfx's shader macro on Eval: shaders on the CPU, the emitted GLSL, WGSL, MSL and HLSL, the programs it rejects", run: gfxShader},
-		{name: "scoped", about: "helder.scoped on Eval, natively and as JavaScript, and the programs its checker rejects", run: scoped},
 		{name: "async", about: "helder.async on Eval and natively (the loop, TCP, processes, the watcher, HTTP and WebSocket; its tasks and timers are the test lane's), as wasm32-wasi in the browser's loop (node), the async-dev example end to end, a benchmark", run: async},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively, on Eval and as wasm32-wasi (node)", run: helderTest},
@@ -52,7 +51,7 @@ class Run {
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
 		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium, then as WasmGC", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
-		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as GC-free jobs on scoped and on malloc'ed memory, natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
+		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as a GC-free job on malloc'ed memory, natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
 	];
 
@@ -126,17 +125,7 @@ class Run {
 		interp(cps(["src", "tests/gfx"]).concat(cps(GFX_EXAMPLES)), "ShaderTest", [TOOL].concat(BLESS ? ["--bless"] : []));
 	}
 
-	static function scoped() {
-		var cp = cps(["src", "tests/scoped"]).concat(["--macro", "helder.scoped.Check.enable()"]);
-		interp(cp, "ScopedTest");
-		exe("bin/scoped/ScopedTest", cp.concat(["-main", "ScopedTest"]));
-		run(exePath("bin/scoped/ScopedTest", HOST), []);
-		js("bin/scoped/ScopedTest.js", cp.concat(["-main", "ScopedTest"]));
-		run(NODE, ["bin/scoped/ScopedTest.js"]);
-		wasm("bin/scoped/ScopedTest.wasm", cp.concat(["-main", "ScopedTest"]));
-		wasi("bin/scoped/ScopedTest.wasm");
-		interp(cps(["tests/scoped"]), "RejectTest", [TOOL]);
-	}
+
 
 	// (ASYNC_TARGETS: the example also built for those, comma-separated, e.g.
 	// macos-arm64,windows-x86_64: their runtime objects installed)
@@ -470,16 +459,13 @@ class Run {
 		mkdirs("bin/bench");
 		File.saveBytes(font, File.getBytes(dejavu()));
 		var cp = cps(["src", "tests/bench"]).concat(["-main", "Bench"]);
-		// (each built four times: with scoped's checker, which a project opts
-		// into, from nothing (-D hxmc.no-module-cache), then with the module
-		// cache; the same without it, as -lib helder builds. The last build is
-		// the one run)
-		var check = ["--macro", "helder.scoped.Check.enable()"];
+		// (each built twice: from nothing (-D hxmc.no-module-cache), then with
+		// the module cache. The last build is the one run)
 		var builds = [];
 		function timed(what:String, target:String, out:String, args:Array<String>) {
 			var times = [];
 			var nothing = ["-D", "hxmc.no-module-cache"];
-			for (extra in [check.concat(nothing), check, nothing, []]) {
+			for (extra in [nothing, []]) {
 				var t0 = Sys.time();
 				if (target == HOST) native(out, args.concat(extra), HOST) else wasm(out, args.concat(extra));
 				times.push(Sys.time() - t0);
@@ -520,8 +506,8 @@ class Run {
 		}
 		md = md.concat([
 			"", "## Builds", "",
-			"Seconds to compile, without a compilation server: with scoped's checker (opt-in), from nothing (-D hxmc.no-module-cache) and with the module cache on disk; the same without the checker, as -lib helder builds.",
-			"", "| program | target | size (KB) | checker | cached | no checker | cached |", "| --- | --- | ---: | ---: | ---: | ---: | ---: |"
+			"Seconds to compile, without a compilation server: from nothing (-D hxmc.no-module-cache) and with the module cache on disk.",
+			"", "| program | target | size (KB) | build | cached |", "| --- | --- | ---: | ---: | ---: |"
 		]);
 		for (b in builds)
 			md.push('| ${b.what} | ${b.target} | ${Math.round(FileSystem.stat(b.out).size / 1024)} | ' + [for (t in b.times) Math.round(t * 10) / 10].join(" | ") + " |");
@@ -533,15 +519,15 @@ class Run {
 	// own, the medians and the spread of its columns; the job alone; what
 	// each variant adds to the program's size and build; JobsWasm.wasm with a
 	// worker instance (tests/bench/jobs.mjs). JOBS: the variants (all)
-	static final JOB_VARIANTS = ["none", "a", "b", "c", "d", "c0", "d0"];
+	static final JOB_VARIANTS = ["none", "a", "b", "d", "d0"];
 
 	static function jobs() {
 		var dir = "bin/jobs", font = '$dir/DejaVuSans.ttf', png = '$dir/photo.png';
 		mkdirs(dir);
 		File.saveBytes(font, File.getBytes(dejavu()));
 		if (!FileSystem.exists(png)) run(NODE, ["tests/bench/photo.mjs", png]);
-		var cp = cps(["src", "tests/bench"]), check = ["--macro", "helder.scoped.Check.enable()"];
-		exe('$dir/Jobs', cp.concat(check).concat(["-main", "Jobs"]));
+		var cp = cps(["src", "tests/bench"]);
+		exe('$dir/Jobs', cp.concat(["-main", "Jobs"]));
 		wasm('$dir/JobsWasm.wasm', cp.concat(["-main", "JobsWasm"]));
 		var bin = exePath('$dir/Jobs', HOST);
 		run(bin, [font, png, "check"]);
@@ -571,16 +557,15 @@ class Run {
 			}
 		}
 		md = md.concat(["", "## The job alone", "", "| job | ms | min | max | GC heap growth | worker's allocation |", "| --- | ---: | ---: | ---: | ---: | ---: |"]);
-		for (v in ["b", "c", "d"]) {
+		for (v in ["b", "d"]) {
 			var c = output(bin, [font, png, "alone", v]).split("\n").filter(l -> l.startsWith("alone "))[0].split(" ");
 			md.push('| $v | ${c[2]} | ${c[3]} | ${c[4]} | ${c[5]} | ${c[6]} |');
 		}
 		// (each variant alone in the program, with the ui and without it:
-		// sizes, and builds from nothing and with the module cache; c's with
-		// scoped's checker)
+		// sizes, and builds from nothing and with the module cache)
 		md = md.concat(["", "## Sizes and builds", "", "| variant | size (KB) | without the ui | build (s) | cached |", "| --- | ---: | ---: | ---: | ---: |"]);
-		for (v in ["none", "a", "b", "c", "d"]) {
-			var args = cp.concat(v == "c" ? check : []).concat(["-main", "Jobs", "-D", 'jobs_only=$v']), out = '$dir/only/Jobs-$v';
+		for (v in ["none", "a", "b", "d"]) {
+			var args = cp.concat(["-main", "Jobs", "-D", 'jobs_only=$v']), out = '$dir/only/Jobs-$v';
 			var times = [];
 			for (extra in [["-D", "hxmc.no-module-cache"], []]) {
 				var t0 = Sys.time();

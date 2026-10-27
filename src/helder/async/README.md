@@ -135,8 +135,8 @@ earliest) or when a fetch ends. No sockets or processes there.
 
 ## Not yet
 
-Workers and channels between threads, job tiers, scoped memory's rules
-across awaits (a scope never spans an await), supervisors, `chunked`
+Workers and channels between threads, job tiers (GC-free jobs on
+off-heap memory in a safe region), supervisors, `chunked`
 bodies, TLS. A caught error is thrown again by the next coroutine call
 that returns without suspending (the coroutine transform's,
 tests/async/rep/CatchThenCall.hx); helder.async's own calls clear it.
