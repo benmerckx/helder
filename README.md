@@ -36,6 +36,10 @@ npx helder build ios
   3D API resembles three.js (scenes, meshes, materials, cameras, loaders),
   informed by a look at Babylon.js, PlayCanvas, Godot and Bevy; UI resembles
   the DOM and CSS; 2D resembles the common sprite and tilemap libraries.
+- **Markup for scenes too.** Games and 3D scenes can be written in view's
+  markup, as react-three-fiber does for three.js, without giving up
+  performance: markup compiles to direct calls and signals update only the
+  property they are bound to, with no reconciliation.
 - **Consistency.** The packages share naming, error handling, units,
   coordinate conventions and resource lifetimes, and read as one library.
 
@@ -77,35 +81,99 @@ In order: each phase leans on the one before it.
 - **Fix the references the restructure left behind**: comments and package
   READMEs still point to `docs/` and `packages/`, which are gone.
 
-### 2. The CLI
+### 2. The CLI (desktop and web)
 
-- **`helder dev [target]` and `helder build [target]`**, with hxmc as a
-  dependency of helder rather than of the user's project. No configuration:
-  the project's layout decides the entry point, the host is the default
-  target, `android` and `ios` find the SDK and boot an emulator or
-  simulator. The dev host (`helder.dev`) moves under the CLI.
-- **Live reload on every target**, checked in CI: the dev loop already runs
-  natively, in the browser and on Android (`tests/os/dev`); iOS follows.
-- **The examples are the CLI's fixtures**: each builds and reloads with no
-  configuration of its own.
+- **`helder dev [target]`, `helder run [target]` and `helder build
+  [target]`**, for the host and `web` first; Android and iOS follow in
+  phase 4. Project scaffolding (`helder new`) and a `helder doctor` wait.
+- **A native program**, written in Haxe and built by hxmc, shipped like
+  the compiler: one optional npm dependency per OS and CPU
+  (`@helder/<os>-<cpu>`, as `@hxmc/<os>-<cpu>`). No node at run time; it
+  also exercises the native target's sockets, processes and file watching,
+  which helder needs anyway.
+- **The compiler stays its own process**, a resident compilation server
+  (`--server-connect`) the CLI drives: a crash of the compiler does not end
+  the session, and hxmc's GPL-licensed compiler is not linked into the
+  MIT CLI. The CLI gives it its std and runtime objects itself, so users
+  never install or call hxmc.
+- **The dev loop ported from hxmc's `dev.mjs`** (node today): the link to
+  the compilation server, file watching (polling first, then inotify,
+  FSEvents and `ReadDirectoryChangesW`), the HTTP and WebSocket server for
+  `web`, the reload protocol (JSON lines), and changed assets sent without
+  a recompile.
+- **Live reload in the process on every desktop**: the dev host
+  (`helder.dev`, under the CLI now) loads each build as a shared library on
+  Linux; macOS (dylibs) and Windows (DLLs) restart with a snapshot today and
+  get the same host.
+- **Conventions instead of configuration**: `src/Main.hx` is the entry
+  point, `assets/` is packed by the build and reloaded live by dev, `bin/<target>`
+  holds the outputs; name, version and app id come from `package.json`,
+  overrides from a `"helder"` key in it, and a `helder.hxml` beside it is
+  the escape hatch.
+- **Every build reports its compile time and binary size.**
+- **The examples are the CLI's fixtures**, laid out as projects: each
+  builds and reloads with no configuration of its own, in CI.
 
 ### 3. Foundations
 
-Two pieces of work side by side, as they constrain each other:
+Side by side, as they constrain each other. The async design comes from a
+study of Dart's isolates, Go's channels, Goose, Kotlin's dispatchers, Unity's
+jobs (Burst) and the Fiberus Haxe target, against hxmc's runtime: one GC heap
+shared by all threads, collected stop-the-world, where a thread joins a
+collection only when it allocates or blocks.
 
-- **Async: research first, then built in.** Simple `async`/`await`
-  coroutines, and fibers or isolates for background work (workers on
-  wasm), for asset loading, HTTP (`os/Fetch`) and decoding. To settle
-  first: scoped memory keeps a stack per thread, so a coroutine that
-  suspends inside a scope, or a fiber, needs a rule (scoped values never
-  live across an `await`, or a stack per fiber).
+- **Async on Haxe 5's coroutines (`haxe.coro`)**, with helder providing the
+  mechanism underneath:
+  - **a loop per thread that resumes coroutines**: the main one is driven by
+    `App.run`, runs ready continuations at a fixed point of the frame, and
+    keeps running without frames (a hidden browser tab pauses
+    `requestAnimationFrame`; natively, replies from workers wake `App.run`);
+  - **a coroutine never changes thread**, only data crosses: what completes
+    an await resumes it through its own thread's loop;
+  - **structured concurrency and cancellation**: haxe.coro's cancellation,
+    scopes owned by the app, children cancelled with their parent;
+  - first on it: `Fetch`, timers, the next frame, asset loading.
+- **Background work as jobs on workers**, the same API natively and on
+  the web:
+  - natively, threads over the shared heap with the semantics of isolates
+    (no shared mutable GC state);
+  - on the web, Web Workers instantiating the program's own compiled
+    module, a job named by its index in the function table (no cross-origin
+    isolation needed; SharedArrayBuffer only as a fast path), and an inline
+    fallback where workers are missing;
+  - **two tiers of jobs**: GC-free jobs on scoped data, checked by the
+    compiler, which the collector never waits for (the default for the
+    engine: decoding, physics, pathfinding); and ordinary GC jobs for user
+    code, allowed as freely as measurements say;
+  - **channels** between threads carrying values that can be sent (checked
+    by a macro, as Swift's `Sendable`): flat values, scoped structs, Strings
+    and Bytes (copied), and owned buffers (handed over without a copy
+    natively, transferred on the web).
 - **The core on `helder.scoped`.** Start with one package as a pilot (text's
   rasterizer and glyph atlas, or ui's layout), with a benchmark before and
   after, then the rest: ui, gfx's command recording, scene, physics, audio.
   The GC-facing API of each package stays.
+  - **A scope never spans an await**: the checker rejects scoped values in a
+    coroutine's body; coroutines call `@:scoped` functions, which return
+    before the next await.
+  - A slice or span never crosses threads: an owned buffer does.
+  - Each worker has its own scoped stack; scoped's slow paths (the pool's
+    lock, its errors) become GC-free, and its limit of 31 buffers is
+    revisited for pools of workers.
+- **To prototype first, and what decides it**: the main loop with `Fetch`,
+  a delay and the next frame; then one worker on the web; then a 4K PNG
+  decoded on the main thread, as a GC job and as a GC-free job while the
+  main thread renders, measuring the frames' p99 and longest time and the
+  collector's pauses. If a GC job keeps the main thread's longest pause
+  under about 1 ms, GC jobs are allowed freely; if not, the engine uses only
+  GC-free ones. Binary size decides between upstream's hxcoro library and a
+  small runtime of our own.
 
 ### 4. Mobile
 
+- **`helder dev android` and `helder dev ios`**: a connected device, a running
+  emulator or simulator, or one booted for it; the host installed once,
+  each build swapped into it.
 - **The frame loop from the display**: Choreographer on Android,
   CADisplayLink on iOS (Android polls its looper today, iOS paces from the
   layer's drawables).
@@ -117,13 +185,28 @@ Two pieces of work side by side, as they constrain each other:
   API on every platform, packed by `helder build`.
 - **CI on an Android emulator and the iOS simulator.**
 
-### 5. Graphics and 2D
+### 5. Graphics, 3D and 2D
 
 - **Compressed textures**: ETC2 and ASTC on mobile (and BC on desktop),
   chosen per target by the asset step.
 - **MSAA** render targets in gfx.
-- **The 3D API close to three.js** (see Aims), after the research.
-- **`helder.2d`**: sprite batches and tilemaps on gfx and `helder.image`.
+- **The 3D API close to three.js** (see Aims), after a study of three.js,
+  Babylon.js, PlayCanvas, Godot and Bevy.
+- **The scene in view's markup**, react-three-fiber's model on
+  `helder.scene.view` (a prototype today, tests/3d-ui):
+  - the tags generated from the 3D API's classes, their props its
+    properties, so markup and code stay one API;
+  - bindings that store into the scene's flat data; signals' changes
+    applied once per frame, before rendering;
+  - markup for structure, not for every value that moves: an `onFrame`
+    that writes the nodes it is given, and instancing elements with their
+    per-instance data in scoped arrays (particles, crowds, foliage);
+  - hxmc passing a closure returning a struct value (a `Vec3`) where a
+    binding expects one (the prototype goes through a signal);
+  - measured against the same scene written by hand, at thousands of
+    nodes.
+- **`helder.2d`**: sprite batches and tilemaps on gfx and `helder.image`,
+  in code and in markup alike.
 
 ### 6. Editor
 
