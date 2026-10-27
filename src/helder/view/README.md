@@ -72,6 +72,62 @@ put in their parents, their static attributes set as they are, holes
 through the runtime (which binds the reactive ones), static text joined at
 compile time. Nothing walks a template at run time.
 
+## Renderers in markup (design)
+
+No defines: a literal's renderer comes from where it is, react-three-fiber's
+`<Canvas>` model. helder.view knows no renderer by name; a renderer package
+declares its own with types and metadata the macro reads:
+
+- **Nodes**: a node class names its renderer, `@:rendered(helder.ui.view.NodeRenderer)`
+  on `helder.ui.Node` (subclasses inherit it). `Render.render(content,
+  parent)` and `insert` pick the renderer from the parent's type as now;
+  a type with no `@:rendered` is matched against the renderers reached so
+  far (`Renders<N>`), else an error naming it. A renderer may also give an
+  entry of its own (`DomRenderer.render`) for node types it cannot mark.
+- **Pinned views**: `helder.view.ViewOf<R>` (an abstract over `View`, `R` the
+  renderer's class) is a View of R's markup; packages name theirs
+  (`helder.ui.view.UiView`, `helder.scene.view.SceneView`).
+- **Boundary tags** are ordinary components: their `children` prop typed
+  `ViewOf<S>` makes their content S's markup, their return type (`ViewOf<R>`,
+  or R's node type) the renderer whose markup they go in. `<Scene>` is
+  `(props:{?camera:..., ?children:SceneView}):helder.ui.Node`: a ui node
+  whose children are scene nodes. `<Surface>` returns no node: the root of a
+  program (`App.run(<Surface>...</Surface>)`, which calls its components in a
+  root of their own, `Render.open`).
+- **Elements**: a renderer with a closed set lists it, `@:elements("node",
+  "mesh", ...)` on its class; another name in its markup is an error.
+
+The macro compiles each literal when it is typed (an expression macro; the
+`Markup` build macro only wraps the literals) and tracks the renderer down
+the tree: a literal's renderer is, in order, the one given by the literal
+around it (nested markup in its holes, a component's children unless the
+component's `children` prop names another), by `Render.render`'s parent,
+by the expected type (`ViewOf<R>`), by the enclosing function's return type
+(`ViewOf<R>` or R's node: a component pinned to R), by its class's
+`@:renderer` when it names one. A literal so placed is compiled once, for
+that renderer; a component's call in it is checked against the component's
+pin. A literal with none of these (a component returning plain `View`, a
+literal held in a variable) is compiled for each renderer the program
+reaches: its code for each is generated after typing (`Context.onAfterTyping`),
+from a template kept in its class's metadata (so a cached module keeps it),
+into one class per renderer whose `__init__` hands it to that renderer's
+runtime; its holes, component factories included, are evaluated where the
+literal is, as before. A renderer is reached when markup is compiled for it
+or content is mounted into its nodes; only those get a runtime
+(`ViewRuntime_<renderer>`). Renderer identity at run time is a hash of the
+class path (`Render.idOf`), stable across builds.
+
+Errors, at the tag or the literal:
+
+- `helder.view: <Scene> is helder.ui.view.NodeRenderer's (it returns
+  helder.ui.Node), not helder.web.DomRenderer's markup`;
+- `markup: <view> is no element of helder.scene.view.SceneRenderer
+  (node, mesh, light, camera; <Ui> goes back to ui)`;
+- `helder.view: String is no renderer's node (... @:rendered)`;
+- at run time, a View pinned to one renderer mounted into another's node:
+  `helder.view: View(File.hx:12) is SceneRenderer's markup, mounted into a
+  NodeRenderer node`.
+
 ## Renderers
 
 A renderer is a class of static functions over its node type that
