@@ -113,6 +113,20 @@ class WinViews implements PlatformViews {
 		return true;
 	}
 
+	// (hxmc dev's host, at a hand-over: the editors, subclassed by this
+	// build's code, and the menu bar gone with it; the next build makes its own)
+	public function dispose() {
+		for (e in editors.copy())
+			if (@:privateAccess e.views == this) e.dispose();
+		pending = null;
+		if (!bar.isNull()) {
+			WinEdit.SetMenu(hwnd, Ptr.nil());
+			WinEdit.DestroyMenu(bar);
+			bar = Ptr.nil();
+		}
+		barChosen = null;
+	}
+
 	public function menu(items:Array<PlatformMenuItem>, x:Float, y:Float, chosen:Int->Void):Bool {
 		if (pending != null) pending.chosen(-1);
 		pending = {items: items, x: x, y: y, chosen: chosen};

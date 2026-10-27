@@ -63,6 +63,10 @@ import hxmc.unsafe.*;
 
 @:hxmc.c @:hxmc.fast @:hxmc.lib("kernel32") extern class Kernel32 {
 	static function GetModuleHandleW(name:Ptr):Ptr;
+	#if hxmc.dev_host
+	// (hxmc dev: DefWindowProcW's address, the host's window's procedure between two builds)
+	static function GetProcAddress(module:Ptr, name:Ptr):Ptr;
+	#end
 	static function GetLastError():Int;
 	// movable global memory (the clipboard's)
 	static function GlobalAlloc(flags:Int, bytes:Int64):Ptr;

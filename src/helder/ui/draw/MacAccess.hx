@@ -49,17 +49,20 @@ class MacAccess {
 
 	static function classes() {
 		rect = LibC.malloc(32);
-		var e = Runtime.objc_allocateClassPair(ObjC.cls("NSAccessibilityElement"), Mem.cstr("HxmcAccessElement"), 0);
-		Runtime.class_addMethod(e, ObjC.sel("accessibilityPerformPress"), Callback.addr(press), Mem.cstr("c@:"));
-		Runtime.class_addMethod(e, ObjC.sel("accessibilityPerformIncrement"), Callback.addr(increment), Mem.cstr("c@:"));
-		Runtime.class_addMethod(e, ObjC.sel("accessibilityPerformDecrement"), Callback.addr(decrement), Mem.cstr("c@:"));
-		Runtime.objc_registerClassPair(e);
+		// (hxmc dev's host: the class an earlier build made, its methods this build's)
+		var e = ObjC.cls("HxmcAccessElement"), fresh = e.isNull();
+		if (fresh) e = Runtime.objc_allocateClassPair(ObjC.cls("NSAccessibilityElement"), Mem.cstr("HxmcAccessElement"), 0);
+		Runtime.class_replaceMethod(e, ObjC.sel("accessibilityPerformPress"), Callback.addr(press), Mem.cstr("c@:"));
+		Runtime.class_replaceMethod(e, ObjC.sel("accessibilityPerformIncrement"), Callback.addr(increment), Mem.cstr("c@:"));
+		Runtime.class_replaceMethod(e, ObjC.sel("accessibilityPerformDecrement"), Callback.addr(decrement), Mem.cstr("c@:"));
+		if (fresh) Runtime.objc_registerClassPair(e);
 		elementClass = e;
-		var v = Runtime.objc_allocateClassPair(ObjC.cls("NSView"), Mem.cstr("HxmcAccessView"), 0);
-		Runtime.class_addMethod(v, ObjC.sel("accessibilityChildren"), Callback.addr(children), Mem.cstr("@@:"));
-		Runtime.class_addMethod(v, ObjC.sel("accessibilityFocusedUIElement"), Callback.addr(focused), Mem.cstr("@@:"));
-		Runtime.class_addMethod(v, ObjC.sel("accessibilityHitTest:"), Callback.addr(hitTest), Mem.cstr("@@:{CGPoint=dd}"));
-		Runtime.objc_registerClassPair(v);
+		var v = ObjC.cls("HxmcAccessView"), freshView = v.isNull();
+		if (freshView) v = Runtime.objc_allocateClassPair(ObjC.cls("NSView"), Mem.cstr("HxmcAccessView"), 0);
+		Runtime.class_replaceMethod(v, ObjC.sel("accessibilityChildren"), Callback.addr(children), Mem.cstr("@@:"));
+		Runtime.class_replaceMethod(v, ObjC.sel("accessibilityFocusedUIElement"), Callback.addr(focused), Mem.cstr("@@:"));
+		Runtime.class_replaceMethod(v, ObjC.sel("accessibilityHitTest:"), Callback.addr(hitTest), Mem.cstr("@@:{CGPoint=dd}"));
+		if (freshView) Runtime.objc_registerClassPair(v);
 		viewClass = v;
 	}
 
@@ -70,6 +73,8 @@ class MacAccess {
 		ids.clear();
 		if (!rootChildren.isNull()) Runtime.objc_release(rootChildren);
 		rootChildren = Ptr.nil();
+		// (the view a plain NSView again: its methods are this build's code, gone after a dev host's hand-over)
+		Runtime.object_setClass(view, ObjC.cls("NSView"));
 		all.remove(this);
 	}
 

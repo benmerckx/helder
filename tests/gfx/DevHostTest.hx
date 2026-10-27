@@ -29,8 +29,8 @@ class DevHostTest {
 			device.endFrame();
 			frames++;
 			if (frames == 10) {
-				// (the window's view: iOS, macOS; the HWND: Windows)
-				var view = helder.dev.Hosted.get(Mem.os() == 2 ? helder.dev.Hosted.UI_WINDOW : helder.dev.Hosted.UI_VIEW);
+				// (the window's view: iOS, macOS; the HWND: Windows; the X11 window: Linux)
+				var view = helder.dev.Hosted.get(Mem.os() == 2 ? helder.dev.Hosted.UI_WINDOW : Mem.os() == 0 ? helder.dev.Hosted.X11_WINDOW : helder.dev.Hosted.UI_VIEW);
 				Sys.println('DevHostTest: v$version n=${state.n} pid=${helder.dev.Hosted.pid()} view=${haxe.Int64.toStr(view.toI64())} ${device.width}x${device.height}');
 			}
 		}, e -> {});

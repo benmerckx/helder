@@ -77,7 +77,28 @@ class UiWindow {
 		// (macOS': NSTextFields over the window)
 		else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
 		open.push(this);
+		#if hxmc.dev_host
+		// (helder dev's host, at a hand-over: what the system keeps of this build's code given back)
+		helder.dev.Hot.onDispose(handOver);
+		#end
 	}
+
+	#if hxmc.dev_host
+	// the native views and the accessibility adapters released (the window
+	// and the GPU device stay, the host's): their callbacks are this build's
+	// code, which the host unloads; the next build makes its own
+	function handOver() {
+		if (Mem.os() == 1) {
+			if (macAccess != null) (cast macAccess : MacAccess).dispose();
+			if (ui.platform != null) (cast ui.platform : MacViews).dispose();
+		}
+		if (Mem.os() == 2) {
+			if (winAccess != null) (cast winAccess : WinAccess).dispose();
+			if (ui.platform != null) (cast ui.platform : WinViews).dispose();
+		}
+		macAccess = winAccess = null;
+	}
+	#end
 
 	public var root(get, never):Node;
 

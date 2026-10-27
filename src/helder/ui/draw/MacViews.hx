@@ -49,18 +49,20 @@ class MacViews implements PlatformViews {
 		this.view = view;
 		this.ui = ui;
 		if (delegateClass.isNull()) {
-			var d = Runtime.objc_allocateClassPair(ObjC.cls("NSObject"), Mem.cstr("HxmcFieldDelegate"), 0);
-			Runtime.class_addMethod(d, ObjC.sel("controlTextDidChange:"), Callback.addr(changed), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("controlTextDidBeginEditing:"), Callback.addr(began), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("controlTextDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("control:textView:doCommandBySelector:"), Callback.addr(command), Mem.cstr("c@:@@:"));
-			Runtime.class_addMethod(d, ObjC.sel("hxmcMenuPick:"), Callback.addr(pick), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("hxmcBarPick:"), Callback.addr(barPick), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("textDidChange:"), Callback.addr(changed), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("textDidBeginEditing:"), Callback.addr(began), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("textDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
-			Runtime.class_addMethod(d, ObjC.sel("textView:doCommandBySelector:"), Callback.addr(areaCommand), Mem.cstr("c@:@:"));
-			Runtime.objc_registerClassPair(d);
+			// (hxmc dev's host: the class an earlier build made, its methods this build's)
+			var d = ObjC.cls("HxmcFieldDelegate"), fresh = d.isNull();
+			if (fresh) d = Runtime.objc_allocateClassPair(ObjC.cls("NSObject"), Mem.cstr("HxmcFieldDelegate"), 0);
+			Runtime.class_replaceMethod(d, ObjC.sel("controlTextDidChange:"), Callback.addr(changed), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("controlTextDidBeginEditing:"), Callback.addr(began), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("controlTextDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("control:textView:doCommandBySelector:"), Callback.addr(command), Mem.cstr("c@:@@:"));
+			Runtime.class_replaceMethod(d, ObjC.sel("hxmcMenuPick:"), Callback.addr(pick), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("hxmcBarPick:"), Callback.addr(barPick), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("textDidChange:"), Callback.addr(changed), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("textDidBeginEditing:"), Callback.addr(began), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("textDidEndEditing:"), Callback.addr(ended), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(d, ObjC.sel("textView:doCommandBySelector:"), Callback.addr(areaCommand), Mem.cstr("c@:@:"));
+			if (fresh) Runtime.objc_registerClassPair(d);
 			delegateClass = d;
 			delegate = Msg.id(Msg.id(d, ObjC.sel("alloc")), ObjC.sel("init"));
 		}
@@ -146,6 +148,17 @@ class MacViews implements PlatformViews {
 		pending = {items: items, x: x, y: y, chosen: chosen};
 		ui.requestFrame();
 		return true;
+	}
+
+	// (hxmc dev's host, at a hand-over: the editors and the menu bar's items
+	// gone with this build, whose code they call; the next build makes its own)
+	public function dispose() {
+		for (e in editors.copy())
+			if (@:privateAccess e.views == this) e.dispose();
+		pending = null;
+		menuBar([], _ -> {});
+		barChosen = null;
+		if (current == this) current = null;
 	}
 
 	public function menuBar(menus:Array<PlatformMenuItem>, chosen:Int->Void):Bool {

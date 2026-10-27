@@ -66,6 +66,7 @@ class Win32Window {
 			Arena.scoped(a -> User32.SetWindowTextW(hwnd, a.wstring(title)));
 			surface = new Surface(Win32, instance, hwnd, w, h);
 			open.push(this);
+			hostWindow();
 			measure();
 			return;
 		}
@@ -83,11 +84,33 @@ class Win32Window {
 		surface = new Surface(Win32, instance, hwnd, w, h);
 		open.push(this);
 		#if hxmc.dev_host
-		if (helder.dev.Hosted.hosted() && open.length == 1) helder.dev.Hosted.set(helder.dev.Hosted.UI_WINDOW, hwnd);
+		if (helder.dev.Hosted.hosted() && open.length == 1) {
+			helder.dev.Hosted.set(helder.dev.Hosted.UI_WINDOW, hwnd);
+			hostWindow();
+		} else if (helder.dev.Hosted.hosted()) helder.dev.Hot.onDispose(() -> if (open.indexOf(this) >= 0) destroy());
 		#end
 		User32.ShowWindow(hwnd, WM.SW_SHOW);
 		measure();
 	}
+
+	#if hxmc.dev_host
+	// (the host's window, this build's: told, as X11Window tells its; at the
+	// hand-over its procedure and its class's DefWindowProcW's, so that no
+	// message reaches this build's code once the host has unloaded it, until
+	// the next build takes the window; the program's other windows closed)
+	function hostWindow() {
+		Sys.stderr().writeString("helder.dev: the host's window 0x" + StringTools.hex(haxe.Int64.toInt(hwnd.toI64())) + " (process " + helder.dev.Hosted.pid() + ")\n");
+		helder.dev.Hot.onDispose(() -> if (open.indexOf(this) >= 0) {
+			open.remove(this);
+			User32.KillTimer(hwnd, SIZING_TIMER);
+			var def = Arena.scopedValue(a -> Kernel32.GetProcAddress(Kernel32.GetModuleHandleW(a.wstring("user32.dll")), a.cstring("DefWindowProcW")));
+			if (!def.isNull()) {
+				User32.SetWindowLongPtrW(hwnd, -4, def); // GWLP_WNDPROC
+				User32.SetClassLongPtrW(hwnd, -24, def); // GCLP_WNDPROC
+			}
+		});
+	}
+	#end
 
 	static function start() {
 		User32.SetProcessDpiAwarenessContext(Ptr.ofI64(WM.DPI_PER_MONITOR_AWARE_V2));

@@ -20,13 +20,16 @@ using StringTools;
 // the page's overlay). A build that compiles reloads the program, its state
 // carried over by key (helder.dev.Hot's snapshot):
 // - natively, the program started with HXMC_DEV=<host:port> (our socket for
-//   it, JSON lines) and HXMC_DEV_SNAPSHOT=<file>. On Linux (glibc) it runs
-//   in the dev host (helder.dev.DevHost, built once and cached): each build
-//   a shared library, a reload {"type":"reload","snapshot","library"}: the
+//   it, JSON lines) and HXMC_DEV_SNAPSHOT=<file>. On Linux (glibc), Windows
+//   and macOS it runs in the dev host (helder.dev.DevHost, built once and
+//   cached): each build a shared library (.so, .dll, .dylib) under a name of
+//   its own (<out>.dev/<n>.<ext>: a loaded library is not written over, and
+//   Windows locks it), a reload {"type":"reload","snapshot","library"}: the
 //   build writes its snapshot, disposes and returns, the host loads the new
-//   one in the same process (the window and GL context kept). Elsewhere
-//   (HELDER_DEV_HOST=0 too) {"type":"reload","snapshot"}: the program writes
-//   it and exits, the new build starts with it;
+//   one in the same process (the window and the GPU device or context kept).
+//   With HELDER_DEV_HOST=0, or when the host does not build,
+//   {"type":"reload","snapshot"}: the program writes it and exits, the new
+//   build starts with it;
 // - web: a page at http://127.0.0.1:<port>/ (page.html) running the module
 //   with its packages' browser modules, told over a WebSocket at /__hxmc/ws
 //   ({"type":"reload"}, {"type":"error","message"}, {"type":"ok"}): it swaps
@@ -68,6 +71,10 @@ class DevCommand {
 	static var hostExe:Null<String> = null;
 	static var hostReady = false;
 	static var libCount = 0;
+	// (the libraries handed over from, deleted once the host has closed them)
+	static final stale:Array<String> = [];
+	// the program's executable (out without the host)
+	static var exeOut = "";
 	// web: the pages connected
 	static final clients:Array<WebSocket> = [];
 
@@ -102,9 +109,10 @@ class DevCommand {
 		}
 		if (web) e.target = "web";
 		cwd = Sys.getCwd();
-		hosted = !web && e.target.startsWith("linux-") && Sys.getEnv("HELDER_DEV_HOST") != "0";
-		out = e.out("dev/" + (web ? "web" : e.target));
-		if (hosted) out = Path.withoutExtension(out) + ".so";
+		hosted = !web && Sys.getEnv("HELDER_DEV_HOST") != "0"
+			&& (e.target.startsWith("linux-") || e.target.startsWith("windows-") || e.target.startsWith("macos-"));
+		out = exeOut = e.out("dev/" + (web ? "web" : e.target));
+		if (hosted) out = Path.withoutExtension(out) + libExt();
 		var dir = Path.directory(out) == "" ? "." : Path.directory(out);
 		TestCommand.mkdirs(dir);
 		snapshot = FileSystem.fullPath(dir) + '/${e.name}.snapshot';
@@ -212,6 +220,8 @@ class DevCommand {
 		var deps = (FileSystem.fullPath(Path.directory(out)) + "/" + Path.withoutDirectory(depsFile())).split("\\").join("/");
 		var extra = ["-D", 'helder.name=${e.name}', "--macro", 'helder.cli.Deps.write("$deps")'];
 		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
+		// (Windows: a DLL at a base of its own, not the one the running build's DLL has, nor the build's before)
+		if (hosted && e.target.startsWith("windows-")) extra = extra.concat(["-D", "hxmc.dll-base=" + ["0x10000000", "0x30000000", "0x50000000"][(libCount + 1) % 3]]);
 		var r = try BuildCommand.build(e, out, Dev, server, extra) catch (err:haxe.Exception) {
 			Sys.println("helder dev: " + err.message);
 			Sys.exit(1);
@@ -342,16 +352,29 @@ class DevCommand {
 	// the dev host: the running build snapshots, disposes and hands over to the new library
 	@:coroutine static function swapHosted(task:Node) {
 		until(() -> hostReady, 600);
-		if (hostExe == null) return;
-		var lib = '${libDir()}/${++libCount}.so';
+		if (hostExe == null) {
+			// (no host: a program per build, this one built again as an executable)
+			hosted = false;
+			out = exeOut;
+			log("without the dev host: each build a new process, its state carried over");
+			rebuild(task, null);
+			return;
+		}
+		var lib = '${libDir()}/${++libCount}${libExt()}';
 		FileSystem.rename(out, lib);
-		// (two builds back: closed by the host)
-		try FileSystem.deleteFile('${libDir()}/${libCount - 2}.so') catch (_:Dynamic) {};
+		// (the builds before the last: closed by the host; a file still loaded,
+		// which Windows does not delete, tried again after the next build)
+		if (libCount > 2) stale.push('${libDir()}/${libCount - 2}${libExt()}');
+		for (f in stale.copy())
+			if (!FileSystem.exists(f) || (try {
+				FileSystem.deleteFile(f);
+				true;
+			} catch (_:Dynamic) false)) stale.remove(f);
 		var c = child;
 		if (c != null && socket != null) {
 			try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
 			saved = false;
-			askReload(snapshot, FileSystem.fullPath(lib));
+			askReload(snapshot, native(FileSystem.fullPath(lib)));
 			until(() -> saved || c.exited, 10);
 			if (!c.exited) return;
 		} else if (c != null) {
@@ -360,24 +383,33 @@ class DevCommand {
 			c.p.kill();
 			until(() -> c.exited, 3);
 		}
-		start(task, FileSystem.exists(snapshot), FileSystem.fullPath(lib));
+		start(task, FileSystem.exists(snapshot), native(FileSystem.fullPath(lib)));
 	}
 
 	static function libDir():String
 		return Path.withoutExtension(out) + ".dev";
+
+	// a build's shared library: Windows' DLL, macOS's dylib, else ELF's
+	static function libExt():String
+		return e.target.startsWith("windows-") ? ".dll" : e.target.startsWith("macos-") ? ".dylib" : ".so";
+
+	// a path as the system's loader takes it (Windows: backslashes)
+	static function native(p:String):String
+		return e.target.startsWith("windows-") ? p.split("/").join("\\") : p;
 
 	// the dev host's executable, built once (by its sources' hash and the compiler's)
 	@:coroutine static function buildHost() {
 		var src = e.helder + "/helder/dev";
 		var tool = Compiler.tool();
 		var key = File.getContent('$src/DevHost.hx') + (FileSystem.exists(tool) ? Std.string(FileSystem.stat(tool).mtime.getTime()) : tool);
-		var home = Sys.getEnv("XDG_CACHE_HOME") ?? (Sys.getEnv("HOME") ?? ".") + "/.cache";
-		var dir = '$home/helder/dev-host';
-		var exe = '$dir/host-' + haxe.crypto.Md5.encode(key).substr(0, 16);
+		var dir = cacheDir() + "/helder/dev-host";
+		var win = e.target.startsWith("windows-");
+		var exe = '$dir/host-' + haxe.crypto.Md5.encode(key).substr(0, 16) + (win ? ".exe" : "");
 		if (!FileSystem.exists(exe)) {
 			TestCommand.mkdirs(dir);
-			var tmp = exe + "." + Std.random(1 << 30);
-			var p = new Process(tool, ["-cp", e.helder, "-main", "helder.dev.DevHost", "-D", "hxmc.libc=glibc", "--custom-target", 'hxmc=$tmp']);
+			var tmp = Path.withoutExtension(exe) + "." + Std.random(1 << 30) + (win ? ".exe" : "");
+			var p = new Process(tool, ["-cp", e.helder, "-main", "helder.dev.DevHost"].concat(e.target.startsWith("linux-") ? ["-D", "hxmc.libc=glibc"] : [])
+				.concat(["--custom-target", 'hxmc=$tmp']));
 			p.closeStdin();
 			var lines = [];
 			Async.scope(t -> {
@@ -387,15 +419,26 @@ class DevCommand {
 			});
 			var code = p.wait();
 			p.close();
-			if (code != 0) {
+			if (code != 0 || !FileSystem.exists(tmp)) {
 				log("the dev host does not build:\n" + lines.join("\n"));
 				hostReady = true;
 				return;
 			}
-			FileSystem.rename(tmp, exe);
+			// (another session's, built at the same time: kept)
+			try FileSystem.rename(tmp, exe) catch (_:Dynamic) try FileSystem.deleteFile(tmp) catch (_:Dynamic) {};
 		}
 		hostExe = exe;
 		hostReady = true;
+	}
+
+	// the user's cache: Windows' local application data, macOS's Library/Caches, else XDG's
+	static function cacheDir():String {
+		var home = Sys.getEnv("HOME") ?? Sys.getEnv("USERPROFILE") ?? ".";
+		return switch Sys.systemName() {
+			case "Windows": (Sys.getEnv("LOCALAPPDATA") ?? '$home/AppData/Local').split("\\").join("/");
+			case "Mac": '$home/Library/Caches';
+			case _: Sys.getEnv("XDG_CACHE_HOME") ?? '$home/.cache';
+		}
 	}
 
 	@:coroutine static function send(m:Dynamic)

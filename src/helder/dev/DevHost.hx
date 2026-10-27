@@ -47,8 +47,9 @@ class DevHost {
 		}
 	}
 
+	// (Windows: the path as UTF-16, a user's directory not in the ANSI code page too)
 	static function open(path:String):Ptr
-		return Arena.scopedValue(a -> Mem.os() == 2 ? DevK32.LoadLibraryA(a.cstring(path)) : Posix.dlopen(a.cstring(path), 2)); // (RTLD_NOW)
+		return Arena.scopedValue(a -> Mem.os() == 2 ? DevK32.LoadLibraryW(a.wstring(path)) : Posix.dlopen(a.cstring(path), 2)); // (RTLD_NOW)
 
 	static function close(lib:Ptr)
 		if (Mem.os() == 2) DevK32.FreeLibrary(lib) else Posix.dlclose(lib);
@@ -62,7 +63,7 @@ class DevHost {
 
 // (Windows: kernel32's loader)
 @:hxmc.c @:hxmc.fast @:hxmc.lib("kernel32") extern class DevK32 {
-	static function LoadLibraryA(path:Ptr):Ptr;
+	static function LoadLibraryW(path:Ptr):Ptr;
 	static function GetProcAddress(lib:Ptr, name:Ptr):Ptr;
 	static function FreeLibrary(lib:Ptr):Int;
 	static function GetLastError():Int;
