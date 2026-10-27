@@ -1,4 +1,4 @@
-// A root (Render.open's, App.run's) holds components only: an element
+// A root (Render.open's, UiWindow.run's) holds components only: an element
 // needs a renderer's parent.
 // expect: RootElement.hx:7: characters
 // expect: markup: <div> needs a renderer's parent

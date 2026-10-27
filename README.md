@@ -63,7 +63,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `gfx` | a portable GPU API: GL/GLES, Metal, D3D11, WebGPU, WebGL2; shaders written in Haxe |
 | `text` | TrueType and CFF fonts in pure Haxe: rasterizing, shaping, bidi, layout, a glyph atlas |
 | `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames |
-| `view` | signals and JSX-like markup, compiled to direct calls on a renderer chosen at compile time |
+| `view` | signals and JSX-like markup, compiled to direct calls on the renderer each subtree's tag chooses |
 | `ui` | flexbox layout, events, focus and accessibility, drawn on gfx or as the platform's controls |
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
@@ -198,27 +198,37 @@ Still to come:
   without threads; macOS and Windows run.
 
 
-- **Renderers as tags in markup**, react-three-fiber's `<Canvas>` model,
-  replacing the `-D helder.view.renderer.<name>` defines (the CLI adds them
-  from the imports until then, a stopgap). Next up:
-  - **`<Surface>`**, the root ui draws into: a window natively (the window,
-    its GPU surface, a ui root, the frame loop; reactive props, several for
-    several windows), the app's screen on a phone, a canvas filling the page
-    on the web. Nested in the DOM's or static HTML's markup it is a
-    `<canvas>` element sized by the page's styles (a ResizeObserver), the
-    static renderer's an island the wasm program hydrates; a page can hold
-    several. `App.run(<Surface ...>)`.
-  - **Boundary tags** switch renderer for their children: `<Scene>` a box in
-    ui's layout whose children are scene nodes, `<Ui>` back to ui inside a
-    scene (following a node, as drei's `<Html>`), `<Dom>`/`<Html>` for the
-    web's. Each subtree is compiled once, for the renderer that owns it
-    (today every literal is compiled once per renderer), and only renderers
-    a program reaches get a runtime: no defines, no guessing.
-  - Components compiled for each renderer that uses them, or pinned to one
-    by their return type; `Render.render(markup, node)` stays for mounting
-    into a node of your own. To settle: errors for a tag in the wrong
-    renderer, pointer events across a boundary (picking through a scene),
-    `<Page>` as the root for servers and static sites.
+- **Renderers as tags in markup**, react-three-fiber's `<Canvas>` model
+  (src/helder/view/README.md): done as a first slice. No define names a
+  renderer: a literal is compiled when typed, for the renderer that owns
+  it (the tag around it, `Render.render`'s parent, a `ViewOf<R>` expected
+  or returned), or for each renderer the program reaches; only those get a
+  runtime. A component pinned to another renderer, a root in a renderer's
+  markup, an element a renderer does not list are compile errors at the tag.
+  - **`<Surface>`** (`UiWindow.run(<Surface ...>)`): a window natively, its
+    props reactive, several for several windows; on the web a canvas
+    filling the page, or the canvas a page gives it. In a page's markup
+    (DOM or static) helder.web's `<Surface>` is a `<canvas>` the page's
+    styles size (a ResizeObserver) running a wasm ui program, an island in
+    a static page.
+  - **`<Scene>`**: a box in ui's layout drawing scene nodes (its world into
+    a texture of its size, before ui's pass); ui's pointer events picked in
+    the scene (bounds) and given to the scene nodes' listeners. **`<Ui>`**:
+    back to ui over a scene node.
+  - Every example built by `helder build <file>`, natively and for web,
+    with no flags; the defines, the CLI's and the tests', are gone.
+
+  Still to come: warm builds of a program with markup 0.2 s slower (every
+  runtime and the late code made by macros each build, where the module
+  cache served them before: runtimes as modules of their packages, the late
+  code from the cache); late code kept whole by DCE natively (on JavaScript
+  per literal); `<Surface>` on phones; `<Ui>` laid out a frame late and
+  without its own events past ui's; picking against triangles; the scene's
+  feature pipelines (skins, normal maps, the sky) in a `<Scene>`'s target;
+  `<Dom>`/`<Html>` (not needed yet: a page's markup is the DOM's or static
+  HTML's by where it is mounted); `<Page>` (static sites keep
+  `Static.document(<html>...)`, a StaticRenderer literal: a tag adds nothing
+  until a server renders pages).
 
 - **TypeScript for apps (optional, after the boundary tags)**: end users
   write their app in TS/TSX; helder itself stays Haxe, and the output is
@@ -386,7 +396,8 @@ collection only when it allocates or blocks.
 - **The 3D API close to three.js** (see Aims), after a study of three.js,
   Babylon.js, PlayCanvas, Godot and Bevy.
 - **The scene in view's markup**, react-three-fiber's model on
-  `helder.scene.view` (a prototype today, tests/3d-ui):
+  `helder.scene.view` (a prototype: `<Scene>` in ui's layout, `<Ui>`, picking
+  by bounds; examples/planets, tests/3d-ui):
   - the tags generated from the 3D API's classes, their props its
     properties, so markup and code stay one API;
   - bindings that store into the scene's flat data; signals' changes

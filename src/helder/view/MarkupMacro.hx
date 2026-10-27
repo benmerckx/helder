@@ -368,7 +368,7 @@ class Literal {
 		shared = valueOnly(root);
 		if (renderer == MarkupMacro.ROOT && !shared) {
 			var n = firstNode(root);
-			Context.error("markup: " + (n == null ? "text" : "<" + n.name + ">") + " needs a renderer's parent: a root (RootView: App.run's, Render.open's) holds components only (<Surface>...)",
+			Context.error("markup: " + (n == null ? "text" : "<" + n.name + ">") + " needs a renderer's parent: a root (RootView: UiWindow.run's, Render.open's) holds components only (<Surface>...)",
 				n == null ? pos : MarkupMacro.position(file, base + n.at, n.name.length));
 		}
 		var body = mountBody(root);
@@ -683,7 +683,7 @@ class Literal {
 		if (renderer == MarkupMacro.ROOT) {
 			if (c != null && c.pin != null && c.pin != renderer)
 				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret
-					+ "), not a root's: a root (App.run's, Render.open's) holds roots (<Surface>) and components of no renderer", p);
+					+ "), not a root's: a root (UiWindow.run's, Render.open's) holds roots (<Surface>) and components of no renderer", p);
 		} else if (renderer != null) {
 			var target = MarkupMacro.pick(renderer, callee);
 			if (target != callee) {
@@ -691,7 +691,7 @@ class Literal {
 				c = MarkupMacro.component(target);
 			}
 			if (c != null && c.pin == MarkupMacro.ROOT)
-				Context.error("helder.view: <" + name + "> is a root (it returns " + c.ret + "): App.run's or Render.open's content, not " + renderer + "'s markup", p);
+				Context.error("helder.view: <" + name + "> is a root (it returns " + c.ret + "): UiWindow.run's or Render.open's content, not " + renderer + "'s markup", p);
 			if (c != null && c.pin != null && c.pin != renderer)
 				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret + "), not " + renderer + "'s", p);
 		}

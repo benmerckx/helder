@@ -4,9 +4,10 @@
 JavaScript, or to HTML at build time, and static pages whose interactive
 parts, islands, hydrate in JavaScript or run as WebAssembly.
 
-```hxml
--lib helder   # helder.view's renderer: the DOM's in JavaScript, static HTML's elsewhere
-```
+No define chooses a renderer: content mounted into a DOM node
+(`DomRenderer.render`) is the DOM's markup, `Static.render` and
+`Static.document`'s static HTML's; a component used by both is compiled for
+each.
 
 ## The DOM renderer (JavaScript)
 
@@ -16,7 +17,7 @@ parts, islands, hydrate in JavaScript or run as WebAssembly.
 class App implements Markup {
 	static function main() {
 		var count = signal(0);
-		Render.render(<button onClick={() -> count.value++}>Clicked {count} times</button>,
+		DomRenderer.render(<button onClick={() -> count.value++}>Clicked {count} times</button>,
 			js.Browser.document.getElementById("app"));
 	}
 }
@@ -118,6 +119,31 @@ browsers start audio only after one). Once it runs, its element's
 by a page or a test before the island loads, adds to the runner's options
 (`args`, `gfx`).
 
+## A ui program on the page: `<Surface>`
+
+`helder.web.WebTags.Surface` (`import helder.web.WebTags.*`) puts a ui
+program on a page, in the DOM's markup or static HTML's: a `<canvas>` the
+page's styles size (100% of its element), running `src`, a wasm32-wasi
+module whose root is ui's `<Surface>` (`UiWindow.run(<Surface>...)`: it
+takes the canvas the page gives and follows its size, a ResizeObserver
+telling the next frame). A page can hold several.
+
+```haxe
+<main>
+	<Surface src="todo.wasm" fonts={["fonts/DejaVuSans.ttf"]} style="display:block;width:480px;height:560px">
+		<p>Shown with the canvas, before it runs.</p>
+	</Surface>
+</main>
+```
+
+The static renderer writes it as a WebAssembly island (`load`: `Eager` by
+default), which the loader starts; the DOM renderer starts it once mounted
+(`WasmModule.load`). `imports` defaults to os's, gfx's, text's and ui's
+`imports.mjs`; `fonts`, `args`, `runner`, `id` as `Island.Wasm`'s. In
+another renderer's markup it is an error (ui's own is `UiWindow.Surface`).
+`<Dom>`/`<Html>` tags are not needed: a page's markup is the DOM's or
+static HTML's by where it is mounted.
+
 ## JavaScript calling WebAssembly
 
 A class that implements `helder.web.Exports` declares a module's functions
@@ -165,12 +191,15 @@ is its CSS.
 `examples/web-demo/`: `DemoPage.hx` (the page, static), `DemoIslands.hx` (its
 islands), `DemoBundle.hx` and `Counter.hx` (their bundles), `Lab.hx` and
 `LabExports.hx` (the wasm module JavaScript calls), gfx's `Cube.hx` as the
-WebAssembly island, shown with its source.
+WebAssembly island, shown with its source, and ui's counter
+(`examples/counter`) as a `<Surface>`.
 
 `bun run test web`: `tests/web/StaticTest.hx` on Eval and natively (escaping,
-attributes, styles, markers, islands), then `tests/web/web.mjs` in headless
+attributes, styles, markers, islands, a `<Surface>`), then `tests/web/web.mjs` in headless
 Chromium: `tests/web/DomTest.hx` (the DOM renderer; hydration of what the static
-renderer wrote, compiled with both renderers), and the demo page:
+renderer wrote, both renderers in one program; a DOM `<Surface>` starting
+its module), and the demo page:
 hydrated with every node kept, reactive afterwards, the mismatch rendered
 again with its warning, the JavaScript island calling `lab.wasm`, the cube
-fetched only once it scrolls into view, then drawing.
+fetched only once it scrolls into view, then drawing, ui's counter as a
+`<Surface>` running and following the page's styles.

@@ -6,29 +6,30 @@ signals, Solid's way (`helder.view`, which renders into its nodes).
 
 ```haxe
 import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
 import helder.view.Reactive.*;
 
 class Counter implements Markup {
 	static function main() {
 		var count = signal(0);
-		var w = new UiWindow("Counter", 320, 200);
-		Render.render(<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
-			<text font-size={32}>{count}</text>
-			<view:button role="button" focusable padding="8 16" radius={6} background="#18181b" color="#fafafa" cursor="pointer"
-				onPress={_ -> count.value++}>+1</view:button>
-		</view>, w.root);
-		UiWindow.run();
+		UiWindow.run(<Surface title="Counter" width={320} height={200}>
+			<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
+				<text font-size={32}>{count}</text>
+				<view:button role="button" focusable padding="8 16" radius={6} background="#18181b" color="#fafafa" cursor="pointer"
+					onPress={_ -> count.value++}>+1</view:button>
+			</view>
+		</Surface>);
 	}
 }
 ```
 
-```hxml
--lib helder
--main Counter
---custom-target hxmc=counter
--D hxmc.libc=glibc   # Linux: the GPU drivers are glibc libraries
+```sh
+bun run helder dev examples/counter/Counter.hx   # or build, natively and for web: no flags
 ```
+
+`Render.render(content, node)` mounts markup into a node of your own (a
+`UiWindow`'s `root`, a test's `Ui`).
 
 [GUIDE.md](GUIDE.md) walks through building an app: components, state,
 lists, popups, your own nodes, each platform, tests.
@@ -204,11 +205,18 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   with borders, soft shadows and glyphs from an atlas, every fragment
   clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a
   `Ui` in an `helder.os` window, shows the hovered node's cursor and runs
-  the loop. On macOS the app has the usual menu bar (Hide, Quit, the Window
+  the loop. In markup the window is `<Surface>` (`UiWindow.Surface`, a
+  root): `UiWindow.run(<Surface title="Todo" width={480} height={560}
+  theme={sheet}>...</Surface>)` opens it and runs the loop; its props
+  (title, size, theme, background, dark) are values or reactive, several
+  make several windows; on the web it fills the page, or takes the canvas
+  the page gives (a helder.web `<Surface>`'s) at its styles' size. The GPU
+  renderer also draws a render target (`gpuTexture`) and records passes
+  before the frame's (`beforePass`): a `<Scene>`'s box. On macOS the app has the usual menu bar (Hide, Quit, the Window
   menu); Quit asks each window to close, as its close button does.
 - **`helder.ui.view`**: `helder.view`'s renderer for these nodes
-  (`NodeRenderer`; `-lib helder` names it with `-D
-  helder.view.renderer.ui`), the markup's attributes (`StyleAttrs`, generated
+  (`NodeRenderer`, named by `Node`'s `@:rendered`; `UiView`, its markup:
+  a `<Surface>`'s children, a component returning one pinned to ui), the markup's attributes (`StyleAttrs`, generated
   from `Style`'s properties: a property added to `Style` is an
   attribute), and what is ui's own: the control flow components
   `VirtualList` (only the rows in view made: a list of 100000 rows scrolls

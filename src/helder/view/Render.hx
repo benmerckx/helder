@@ -64,7 +64,7 @@ class Render {
 	#if !macro
 	// mounts content that has no parent, a program's root (RootView: a
 	// literal of components only): components that make roots of their own
-	// (<Surface>s, App.run), called in a root, what they return opened in
+	// (<Surface>s, UiWindow.run), called in a root, what they return opened in
 	// turn (a component's View); its dispose
 	public static function open(content:RootView):Void->Void
 		return Reactive.root(dispose -> {

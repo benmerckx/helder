@@ -30,6 +30,7 @@ cover the examples below:
 ```haxe
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
+import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;                 // Markup, View, Render, Signal...
 import helder.view.Reactive.*;        // signal, memo, effect, batch, context, use...
 import helder.ui.view.*;              // Motion, NodeRenderer
@@ -37,18 +38,22 @@ import helder.ui.view.UiFlow.*;       // Popover, Hotkey, VirtualList
 import helder.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
 ```
 
-A window holds a tree of nodes. `Render.render` mounts markup into its
-root, and `UiWindow.run` runs the loop until the last window closes:
+A window holds a tree of nodes. In markup it is `<Surface>`, its children
+the tree; `UiWindow.run` opens it and runs the loop until the last window
+closes (several `<Surface>`s, several windows; its props reactive):
 
 ```haxe
 class App implements Markup {
 	static function main() {
-		var w = new UiWindow("Tickets", 480, 360);
-		Render.render(<view grow={1} padding={24} background="#f4f4f5"><Order/></view>, w.root);
-		UiWindow.run();
+		UiWindow.run(<Surface title="Tickets" width={480} height={360}>
+			<view grow={1} padding={24} background="#f4f4f5"><Order/></view>
+		</Surface>);
 	}
 }
 ```
+
+`Render.render(markup, node)` mounts markup into a node of your own: a
+`new UiWindow(...)`'s `root`, a test's `Ui`.
 
 ## Components
 

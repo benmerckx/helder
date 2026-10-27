@@ -48,10 +48,6 @@ anything else the entry.
   package.json's, else the main module's; `-o` names another); dev builds
   under `bin/dev/`. `build` is a release build (`-dce full`), `dev` adds
   `-D hxmc.dev`.
-- **Renderers, a stopgap**: an entry whose sources import `helder.ui.`
-  gets `-D helder.view.renderer.ui=helder.ui.view.NodeRenderer`
-  (`helder.scene.view.` the scene's), as the examples need, until
-  renderers are boundary tags in markup (`Entry.renderers`).
 
 ## The dev loop
 
