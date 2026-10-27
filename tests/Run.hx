@@ -54,6 +54,7 @@ class Run {
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
 		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as a GC-free job on malloc'ed memory, natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
+		{name: "dev-host", about: "helder dev's host (helder.dev.DevHost): three builds of a program as shared libraries swapped in one process and window (tests/os/dev/dev-host.mjs); DEV_HOST_TARGETS (comma-separated) cross-compiles for others too (windows-x86_64: run under Wine; macos-*: built only)", run: devHost},
 	];
 
 	static function main() {
@@ -391,6 +392,15 @@ class Run {
 		else run(NODE, ["tests/os/dev/dev-native.mjs", compiler, "bin/dev/native"]);
 		run(NODE, ["tests/os/dev/server-verify.mjs", compiler]);
 		run(NODE, ["tests/os/dev/dev-verify.mjs", compiler, "Counter", "web"]);
+	}
+
+	// (Linux: under Xvfb, a Windows build's Wine too)
+	static function devHost() {
+		var targets = [HOST].concat([for (t in (Sys.getEnv("DEV_HOST_TARGETS") ?? "").split(",")) if (t != "" && t != HOST) t]);
+		for (t in targets) {
+			var args = 'tests/os/dev/dev-host.mjs node_modules/.bin/haxe bin/dev-host/$t $t';
+			if (HOST.startsWith("linux-")) shell('xvfb-run -a -s "-screen 0 640x480x24" $NODE $args') else run(NODE, args.split(" "));
+		}
 	}
 
 	// --- the examples

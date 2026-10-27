@@ -86,8 +86,9 @@ const line = (re, ms = 120000, past = false) => {
 	return pr;
 };
 const pidOf = (l) => /pid=(\d+)/.exec(l)?.[1];
-// the dev host's window and process, as each build that takes it prints it (Linux)
-const hosted = process.platform === 'linux';
+// the dev host's window and process, as each build that takes it prints it
+// (Linux, Windows; on macOS the builds run in the host too, but print nothing of it)
+const hosted = process.platform === 'linux' || process.platform === 'win32';
 const hostWindows = () => lines.filter((l) => /^helder\.dev: the host's window /.test(l));
 const sameHost = (what) => {
 	if (!hosted) return;

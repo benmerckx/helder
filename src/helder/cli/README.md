@@ -72,11 +72,18 @@ program (`helder.dev.Hot`, `helder.os.App`'s client, the page):
 - a build with errors changes nothing: the last good build keeps running,
   the errors show in the terminal (and the page's overlay);
 - natively the program runs with `HXMC_DEV` (our socket, JSON lines) and
-  `HXMC_DEV_SNAPSHOT`. On Linux it runs in the dev host
-  (`helder.dev.DevHost`, built once into ~/.cache/helder/dev-host): each
-  build a shared library, swapped in the same process (the window and the
-  GL context kept). Elsewhere, and with `HELDER_DEV_HOST=0`, the program
-  writes its snapshot and exits, and the new build starts from it;
+  `HXMC_DEV_SNAPSHOT`. On Linux, Windows and macOS it runs in the dev host
+  (`helder.dev.DevHost`, built once into the user's cache:
+  ~/.cache/helder/dev-host, %LOCALAPPDATA%\helder\dev-host,
+  ~/Library/Caches/helder/dev-host): each build a shared library (.so, .dll,
+  .dylib) under a name of its own, `<out>.dev/<n>.<ext>` (a library loaded
+  is not written over, and Windows locks it; a DLL's base one of three in
+  turn), swapped in the same process: the window and the GPU device or
+  context kept (X11 and EGL; the HWND, the D3D11 device, context and swap
+  chain; the NSWindow, its views and the CAMetalLayer). The libraries the
+  host has closed are deleted. With `HELDER_DEV_HOST=0`, or when the host
+  does not build, the program writes its snapshot and exits, and the new
+  build starts from it;
 - for `web` the page (`page.html`) runs the module with helder.os's
   `browser.mjs` and the browser modules of the packages it imports (an
   `imports.mjs` naming one of its import modules), DejaVu Sans for

@@ -406,7 +406,8 @@ class DevCommand {
 		var win = e.target.startsWith("windows-");
 		var exe = '$dir/host-' + haxe.crypto.Md5.encode(key).substr(0, 16) + (win ? ".exe" : "");
 		if (!FileSystem.exists(exe)) {
-			TestCommand.mkdirs(dir);
+			// (a cache not writable: the build fails, the program runs without the host)
+			try TestCommand.mkdirs(dir) catch (_:Dynamic) {};
 			var tmp = Path.withoutExtension(exe) + "." + Std.random(1 << 30) + (win ? ".exe" : "");
 			var p = new Process(tool, ["-cp", e.helder, "-main", "helder.dev.DevHost"].concat(e.target.startsWith("linux-") ? ["-D", "hxmc.libc=glibc"] : [])
 				.concat(["--custom-target", 'hxmc=$tmp']));

@@ -116,10 +116,12 @@ Done as a first slice:
     objects given by the CLI; a resident compilation server for dev, its own
     process (the GPL compiler not linked into the MIT CLI);
   - the dev loop ported from hxmc's `dev.mjs`: a failed build keeps the last
-    good one running; on Linux each build a library swapped into the dev
-    host's process (window and GL context kept), elsewhere a restart with a
-    snapshot; on the web the module swapped in the same page; save to
-    reload about 300 ms natively, 400-440 ms on the web;
+    good one running; natively each build a library (.so on Linux, a DLL on
+    Windows, a dylib on macOS) swapped into the dev host's process (the
+    window and the GPU device or context kept: no new window per edit), a
+    restart with a snapshot when the host does not build or with
+    `HELDER_DEV_HOST=0`; on the web the module swapped in the same page;
+    save to reload about 300 ms natively, 400-440 ms on the web;
   - every build's compile time and binary size reported; warm builds of the
     examples 185-575 ms;
   - conventions over configuration: package.json's `"helder"` key and a
@@ -155,8 +157,10 @@ Done as a first slice:
 Still to come:
 
 - **The dev loop:** changed assets sent without a recompile, assets packed
-  by `build`; the dev host on macOS (dylibs) and Windows (DLLs), and both
-  tested (they build); the page held back while the module is generated;
+  by `build`; the dev host on Windows and macOS run on the machines
+  themselves (tested on Linux: cross-compiled, Windows' under Wine with
+  D3D11 on WineD3D, macOS's built only); the page held back while the
+  module is generated;
   macro-only modules in the watched set.
 - **The dev connection's protocol, the rest**: the agent on the web (the
   page relaying between the module and the WebSocket; only the log today),

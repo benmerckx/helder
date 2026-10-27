@@ -12,8 +12,10 @@
 // target: this machine's (the default) or another, cross-compiled: a
 // windows-x86_64 one runs under Wine (WINE, by default /usr/lib/wine/wine64;
 // the caller gives the display, Xvfb), a macos-arm64 one on a Mac only (built
-// here otherwise, not run). HXMC_RT_DIR names the other targets' runtime
-// objects (the @hxmc/<platform> package's directory).
+// here otherwise, not run). The other targets' runtime objects: their
+// @hxmc/<platform> packages beside @hxmc/cli (npm i -D --force
+// @hxmc/win32-x64), or HXMC_RT_DIR listing the packages' directories, this
+// machine's too (it replaces the search).
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';

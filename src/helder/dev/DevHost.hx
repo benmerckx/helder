@@ -13,8 +13,13 @@ import hxmc.unsafe.*;
 // host opens it (before closing the old one, so that the system libraries
 // they share, X11's, EGL's, the GPU driver, stay loaded), closes the old one
 // and runs the new one. A build that ends by itself (its window closed)
-// names none: the host ends. Built once per session by dev.mjs (-D
-// hxmc.libc=glibc).
+// names none: the host ends. Libraries: dlopen (.so, .dylib), LoadLibraryW
+// on Windows (.dll). What a build gave the system that calls its code (a
+// window procedure, an Objective-C class's methods, UI Automation
+// providers, child windows) is taken back or handed on at its dispose
+// (helder.dev.Hot.onDispose: Win32Window, CocoaWindow, UiWindow), before
+// the host closes it. Built once and cached by `helder dev`
+// (helder.cli.DevCommand; -D hxmc.libc=glibc on Linux).
 class DevHost {
 	// the state block: slots of 8 bytes (helder.dev.Hosted's), then the next
 	// build's library, a C string at NEXT
