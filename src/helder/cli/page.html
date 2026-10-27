@@ -1,0 +1,105 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}}</title>
+<style>
+body { margin: 0; background: #fff; }
+@media (prefers-color-scheme: dark) { body { background: #0b0b0c; } }
+#hxmc-dev-overlay { position: fixed; inset: 0; z-index: 2147483647; display: none; overflow: auto; margin: 0; padding: 16px;
+	background: rgba(20, 0, 0, .9); color: #ffd7d7; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+#hxmc-dev-overlay b { color: #fff; }
+</style>
+{{preload}}
+<script>
+// (the module and the fonts, fetched and compiled from the start, while the scripts load)
+window.helderLoad = { wasm: WebAssembly.compileStreaming(fetch('{{wasm}}?' + Date.now())),
+	fonts: Promise.all({{fonts}}.map((u) => fetch(u).then((r) => r.arrayBuffer()))) };
+window.helderLoad.wasm.catch(() => {});
+window.helderLoad.fonts.catch(() => {});
+</script></head><body>
+<pre id="hxmc-dev-overlay" role="alert"></pre>
+<script type="module">
+// helder's page for a wasm32-wasi build (src/helder/cli/page.html): the
+// module run with the browser modules of the packages it imports. Under
+// `helder dev` a new build is swapped in, in this page: the running one
+// snapshots and disposes (host.dispose(): what it registered dropped, its
+// GPU objects released), and the new one runs from the snapshot against
+// the same canvas and GPU device; the page never loads again.
+import { run } from '{{browser}}';
+const DEV = {{dev}};
+const overlay = document.getElementById('hxmc-dev-overlay');
+const show = (text) => {
+	overlay.innerHTML = '';
+	const b = document.createElement('b');
+	b.textContent = 'helder dev: the build failed; the last good build keeps running\n\n';
+	overlay.append(b, text);
+	overlay.style.display = 'block';
+};
+let ws = null;
+const pending = [];
+const send = (m) => DEV && (ws && ws.readyState === 1 ? ws.send(JSON.stringify(m)) : pending.push(m));
+window.hxmcDev = { log: [], frames: 0, swaps: 0, gpu: null, canvas: null, instance: null };
+const out = (s) => { window.hxmcDev.log.push(s); console.log(s); send({ type: 'log', text: s }); };
+const IMPORTS = {{imports}};
+const fonts = await window.helderLoad.fonts.catch(() => []);
+// the running build: its host, its reload callback, the snapshot it sent
+let current = null, gpu = null, canvases = [];
+async function start(wasm, restoreBytes) {
+	const state = { host: null, reloadFn: 0, snapshot: null };
+	const dev = (h) => {
+		state.host = h;
+		return { hxmc_dev: {
+			restore_length: () => restoreBytes === null ? -1 : restoreBytes.length,
+			restore_take: (p) => h.bytes(p, restoreBytes.length).set(restoreBytes),
+			register: (f) => (state.reloadFn = f),
+			send: (p, n) => (state.snapshot = new TextDecoder().decode(h.bytes(p, n).slice())),
+			frame: () => { window.hxmcDev.frames++; send({ type: 'frame' }); },
+		} };
+	};
+	current = state;
+	window.hxmcDev.instance = state;
+	await run(wasm, { imports: [...IMPORTS, dev], fonts, stdout: out, stderr: (s) => out(s), track: DEV, canvas: canvases[0], gpu,
+		// (?gfx=webgl2: WebGL2, even where WebGPU is)
+		gfx: new URLSearchParams(location.search).get('gfx') ?? undefined });
+	const g = state.host.gfx;
+	if (!gpu && g && g.device) gpu = window.hxmcDev.gpu = { adapter: g.adapter, device: g.device };
+	window.hxmcDev.canvas = state.host.os?.canvases?.[0] ?? document.querySelector('canvas');
+}
+// a new build: compiled as it arrives (409: it failed, the running one stays), then swapped in
+async function swap() {
+	const r = await fetch('{{wasm}}?swap=' + Date.now());
+	if (!r.ok) return;
+	const module = await WebAssembly.compileStreaming(r);
+	const old = current;
+	let snapshot = null;
+	if (old && old.host) {
+		old.host.swapping = true;
+		if (old.reloadFn) old.host.call(old.reloadFn);
+		snapshot = old.snapshot;
+		old.host.dispose();
+		window.hxmcDev.left = old.host.gfx?.left ?? 0;
+		if (old.host.os?.canvases?.length) canvases = old.host.os.canvases;
+	}
+	await start(module, snapshot === null ? null : new TextEncoder().encode(snapshot));
+	window.hxmcDev.swaps++;
+}
+const failed = (e) => { show(String(e && e.stack || e)); send({ type: 'log', text: 'error: ' + (e && e.stack || e) }); };
+let swaps = Promise.resolve();
+const queueSwap = () => (swaps = swaps.then(swap).catch(failed));
+// (the dev server's socket; gone, it is asked for again, and a build it made meanwhile swapped in)
+function connect(again) {
+	ws = new WebSocket('ws://' + location.host + '/__hxmc/ws');
+	ws.onopen = () => {
+		for (const m of pending.splice(0)) ws.send(JSON.stringify(m));
+		if (again) queueSwap();
+	};
+	ws.onmessage = (e) => {
+		const m = JSON.parse(e.data);
+		if (m.type === 'error') show(m.message);
+		if (m.type === 'ok') overlay.style.display = 'none';
+		if (m.type === 'reload') queueSwap();
+	};
+	ws.onclose = () => setTimeout(() => connect(true), 1000);
+}
+if (DEV) connect(false);
+swaps = start(window.helderLoad.wasm, null).catch(failed);
+</script></body></html>

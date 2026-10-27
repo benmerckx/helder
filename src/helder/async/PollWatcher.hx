@@ -1,13 +1,17 @@
 package helder.async;
 
 // A Watcher by scanning: each directory's files, recursively, every
-// `interval` seconds, by modification time and size (a change that keeps
-// both within the same second is missed: hxmc's and Eval's stat give
-// seconds). A batch comes once nothing changed for `debounce` seconds.
+// `interval` seconds, by modification time and size, and the content's hash
+// for a small file changed in the last seconds (hxmc's and Eval's stat give
+// seconds: an edit that keeps the size within the same second; remove it
+// once hxmc's stat has sub-second times). A batch comes once nothing changed
+// for `debounce` seconds.
 //
 //   var w = new PollWatcher(["src", "assets"]);
 //   while (true) for (path in w.next()) trace(path);
 class PollWatcher implements Watcher {
+	static inline var RECENT_BYTES = 1 << 20;
+
 	final dirs:Array<String>;
 	final interval:Float;
 	final debounce:Float;
@@ -71,7 +75,14 @@ class PollWatcher implements Watcher {
 			var p = dir + "/" + n;
 			if (ignore != null && ignore(p)) continue;
 			var s = try sys.FileSystem.stat(p) catch (_:Dynamic) continue;
-			if (sys.FileSystem.isDirectory(p)) walk(p, out) else out.set(p, s.mtime.getTime() + " " + s.size);
+			if (sys.FileSystem.isDirectory(p)) walk(p, out) else {
+				var key = s.mtime.getTime() + " " + s.size;
+				var old = files?.get(p);
+				// (the hash kept once the file is no longer recent)
+				var hash = s.size < RECENT_BYTES && Date.now().getTime() - s.mtime.getTime() < 3000 ? " " + (try haxe.crypto.Crc32.make(sys.io.File.getBytes(p)) catch (_:Dynamic) 0)
+					: old != null && StringTools.startsWith(old, key + " ") ? old.substr(key.length) : "";
+				out.set(p, key + hash);
+			}
 		}
 	}
 }

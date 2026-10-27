@@ -17,7 +17,7 @@ function newest(dir) {
 	for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
 		const p = path.join(dir, e.name);
 		if (e.isDirectory()) t = Math.max(t, newest(p));
-		else if (e.name.endsWith('.hx')) t = Math.max(t, fs.statSync(p).mtimeMs);
+		else if (e.name.endsWith('.hx') || e.name.endsWith('.html')) t = Math.max(t, fs.statSync(p).mtimeMs);
 	}
 	return t;
 }
@@ -25,7 +25,10 @@ function newest(dir) {
 const sources = Math.max(newest(path.join(root, 'src/helder/cli')), newest(path.join(root, 'src/helder/async')));
 if (!fs.existsSync(exe) || fs.statSync(exe).mtimeMs < sources) {
 	const t0 = Date.now();
-	const b = spawnSync(haxe, ['-cp', 'src', '-main', 'helder.cli.Cli', '--custom-target', `hxmc=${exe}`], { cwd: root, encoding: 'utf8' });
+	// (built beside it, then renamed over it: a running one, `helder dev`'s, cannot be written over)
+	const tmp = exe.replace(/(\.exe)?$/, `.${process.pid}$1`);
+	const b = spawnSync(haxe, ['-cp', 'src', '-main', 'helder.cli.Cli', '--custom-target', `hxmc=${tmp}`], { cwd: root, encoding: 'utf8' });
+	if (b.status === 0) fs.renameSync(tmp, exe);
 	if (b.status !== 0) {
 		process.stderr.write((b.stdout ?? '') + (b.stderr ?? '') + (b.error ? String(b.error) + '\n' : ''));
 		console.error('helder: bin/cli/helder: the build failed');
