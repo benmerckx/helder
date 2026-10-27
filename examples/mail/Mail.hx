@@ -1,53 +1,56 @@
 // title: Mail
-// summary: A mail client's three panes: folders in a tree, messages in a sortable table, the one selected read beside them; a menu bar, a toolbar, search and undo
-// tags: ui, view, widgets
+// summary: A mail client's three panes: folders, messages sorted by a click on a column's title, the one selected read beside them; a toolbar, shortcuts, search and undo
+// tags: ui, view, styles
 // demo: canvas 860x560
-import helder.theme.Shadcn;
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
+import helder.ui.view.UiFlow.*;
 import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.Reactive.*;
-import helder.ui.widgets.Widgets.*;
-import helder.ui.widgets.Toasts;
 
 // A mail client's window on helder.ui (no network: the messages are made
-// here): the folders in a Tree (each with its unread count), the folder's
-// messages in a Table (sorted by a click on a column's title, unread ones
-// in bold, filtered by the search field), the selected message read in
-// the third pane (which marks it read). The toolbar archives, deletes (a
-// toast offers to undo) or marks it unread again; the menu bar opens the
-// same actions (their shortcuts: E, Delete, Mod+Shift+U, from anywhere but
-// the search field) and switches dark mode (the window's Ui.dark, at
+// here), of plain views: the folders (each with its unread count, the
+// subfolders indented), the folder's messages in columns (sorted by a click
+// on a column's title, unread ones in bold, filtered by the search field;
+// Up and Down move the selection), the selected message read in the third
+// pane (which marks it read). The toolbar archives, deletes (a line at the
+// bottom offers to undo) or marks it unread again, and switches dark mode;
+// the same actions have shortcuts (Hotkey: E, Delete, Mod+Shift+U), from
+// anywhere but the search field. Its look is Mail.sheet: rules by slot and
+// state, colours with a light and a dark value (the window's Ui.dark, at
 // first the system's). In a window:
 //
-//   haxe -lib helder -lib helder -cp examples -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
+//   haxe -lib helder -cp examples/mail -main Mail --custom-target hxmc=mail -D hxmc.libc=glibc
 class Mail implements Markup {
 	static function main() {
 		var w = new UiWindow("Mail", 860, 560);
-		w.ui.theme = Shadcn.sheet;
+		w.ui.theme = sheet;
 		Render.render(new Mail().view(), w.root);
 		UiWindow.run();
 	}
 
 	public final folders:Array<Folder> = [
-		{name: "Inbox", children: [{name: "Receipts"}, {name: "Travel"}]},
-		{name: "Sent"},
-		{name: "Archive"},
-		{name: "Trash"}
+		{name: "Inbox", level: 0},
+		{name: "Receipts", level: 1},
+		{name: "Travel", level: 1},
+		{name: "Sent", level: 0},
+		{name: "Archive", level: 0},
+		{name: "Trash", level: 0}
 	];
 	public final messages = signal(new Array<Message>());
-	public final folder:Signal<Null<Folder>>;
-	public final open:Signal<Array<Folder>>;
+	public final folder:Signal<Folder>;
 	public final selected:Signal<Null<Message>> = signal(null);
 	public final query = signal("");
-	public final pane = signal(190.0);
+	// the column sorted by ("from", "subject", "date") and whether descending
+	public final sort = signal({by: "date", down: true});
+	// the last move, while it can be undone
+	public final undo:Signal<Null<{text:String, run:Void->Void}>> = signal(null);
 	public final dark = signal(UiWindow.dark.peek());
 	var root:Null<Node> = null;
 
 	public function new() {
 		folder = signal(folders[0]);
-		open = signal([folders[0]]);
 		var list = [];
 		for (m in MESSAGES)
 			list.push(new Message(m[0], m[1], m[2], m[3], Std.parseInt(m[4]), m[5] == "unread"));
@@ -63,15 +66,23 @@ class Mail implements Markup {
 		});
 	}
 
-	// the folder's messages that the search matches
+	// the folder's messages that the search matches, in the sorted column's order
 	function shown():Array<Message> {
-		var f = folder.value, q = query.value.toLowerCase();
-		return [
+		var f = folder.value, q = query.value.toLowerCase(), s = sort.value;
+		var list = [
 			for (m in messages.value)
-				if (f != null && m.folder.value == f.name
-					&& (q == "" || m.subject.toLowerCase().indexOf(q) >= 0 || m.from.toLowerCase().indexOf(q) >= 0))
+				if (m.folder.value == f.name && (q == "" || m.subject.toLowerCase().indexOf(q) >= 0 || m.from.toLowerCase().indexOf(q) >= 0))
 					m
 		];
+		list.sort((a, b) -> {
+			var c = switch s.by {
+				case "from": Reflect.compare(a.from, b.from);
+				case "subject": Reflect.compare(a.subject, b.subject);
+				case _: a.day - b.day;
+			}
+			return s.down ? -c : c;
+		});
+		return list;
 	}
 
 	function unread(f:Folder):Int {
@@ -81,24 +92,24 @@ class Mail implements Markup {
 		return n;
 	}
 
-	// the selected message to another folder (the selection moving to the next one)
-	function moveTo(name:String, ?undo:Bool) {
+	// the selected message to another folder (the selection moving to the next one), undone from the line at the bottom
+	function moveTo(name:String) {
 		var m = selected.peek();
 		if (m == null) return;
-		var list = shown(), i = list.indexOf(m), from = m.folder.peek();
+		var list = untrack(shown), i = list.indexOf(m), from = m.folder.peek();
 		m.folder.value = name;
 		messages.value = messages.peek().copy();
-		var rest = shown();
+		var rest = untrack(shown);
 		selected.value = rest.length == 0 ? null : rest[i < rest.length ? i : rest.length - 1];
-		if (undo == true)
-			Toasts.show('Moved "${m.subject}" to $name', {
-				action: "Undo",
-				onAction: () -> {
-					m.folder.value = from;
-					messages.value = messages.peek().copy();
-					selected.value = m;
-				}
-			});
+		undo.value = {
+			text: 'Moved "${m.subject}" to $name',
+			run: () -> {
+				m.folder.value = from;
+				messages.value = messages.peek().copy();
+				selected.value = m;
+				undo.value = null;
+			}
+		};
 	}
 
 	function markUnread() {
@@ -109,67 +120,142 @@ class Mail implements Markup {
 		selected.value = null;
 	}
 
-	// a folder in the tree: its name, its unread count
-	function folderRow(f:Folder):View
-		return <view direction="row" grow={1} justify="space-between" padding="0 8 0 0">
-			{f.name}
-			<text opacity={0.7}>{() -> count(unread(f))}</text>
+	// Up and Down in the list: the selection to the message before or after
+	function step(d:Int) {
+		var list = untrack(shown);
+		if (list.length == 0) return;
+		var i = list.indexOf(selected.peek()) + d;
+		selected.value = list[i < 0 ? 0 : i >= list.length ? list.length - 1 : i];
+	}
+
+	function sortBy(by:String) {
+		var s = sort.peek();
+		sort.value = {by: by, down: s.by == by ? !s.down : by == "date"};
+	}
+
+	static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:String}):View
+		return <view:button tag={props.tag ?? "button"} slot="button" variant={props.variant} role="button" focusable
+			onPress={_ -> props.onClick()}>{props.label}</view:button>;
+
+	// a column's title: sorts by it, an arrow where it is sorted
+	function Column(props:{title:String, by:String, ?width:Float}):View
+		return <view:button tag={"sort-" + props.by} slot="column" role="button" focusable width={props.width} grow={props.width == null ? 1 : 0}
+			onPress={_ -> sortBy(props.by)}>
+			{() -> props.title + (sort.value.by == props.by ? (sort.value.down ? " ↓" : " ↑") : "")}
+		</view:button>;
+
+	// a message's cell: bold while it is unread, cut with an ellipsis
+	function cell(m:Message, text:String, ?width:Float):View
+		return <text width={width} grow={width == null ? 1 : 0} min-width={0} shrink={width == null ? 1 : 0} font-weight={() -> m.unread.value ? 700 : 400}
+			text-wrap="nowrap" text-overflow="ellipsis">{text}</text>;
+
+	public function view():View
+		return <view slot="body" ref={n -> root = n} grow={1} font-family="DejaVu Sans" font-size={13}>
+			<Hotkey keys="E" action={() -> moveTo("Archive")}/>
+			<Hotkey keys="Delete" action={() -> moveTo("Trash")}/>
+			<Hotkey keys="Mod+Shift+U" action={markUnread}/>
+			<view slot="bar" direction="row" align-items="center" column-gap={8} padding="8 12">
+				<text font-weight={700} font-size={15} padding="0 8 0 0">Mail</text>
+				<Button tag="archive" label="Archive" onClick={() -> moveTo("Archive")}/>
+				<Button tag="delete" label="Delete" onClick={() -> moveTo("Trash")}/>
+				<Button tag="unread" label="Mark unread" onClick={markUnread}/>
+				<view grow={1}/>
+				<Button tag="dark" label="Dark mode" variant="ghost" onClick={() -> dark.value = !dark.peek()}/>
+				<field tag="search" slot="input" width={200} value={query} placeholder="Search" label="Search messages" onInput={e -> query.value = e.text}/>
+			</view>
+			<view direction="row" grow={1} min-height={0} column-gap={12} padding={12}>
+				<view tag="folders" width={170} shrink={0} row-gap={2} role="list" label="Folders">
+					<For each={folders} render={(f:Folder) -> <view:button slot="folder" role="listitem" focusable selected={() -> folder.value == f}
+						data-state={() -> folder.value == f ? "selected" : null} padding={[5, 8, 5, 8 + 16 * f.level]} onPress={_ -> {
+							folder.value = f;
+							selected.value = null;
+						}}>
+						<text grow={1}>{f.name}</text>
+						<text slot="muted">{() -> count(unread(f))}</text>
+					</view:button>}/>
+				</view>
+				<view slot="panel" width={340} shrink={0} min-height={0}>
+					<view slot="head" direction="row" column-gap={8}>
+						<Column title="From" by="from" width={90}/>
+						<Column title="Subject" by="subject"/>
+						<Column title="Date" by="date" width={52}/>
+					</view>
+					<scroll tag="list" grow={1} min-height={0} focusable role="list" label="Messages" onKeyDown={e -> switch e.key {
+						case Key.DOWN:
+							step(1);
+							e.preventDefault();
+						case Key.UP:
+							step(-1);
+							e.preventDefault();
+						case _:
+					}}>
+						<For each={shown} render={(m:Message) -> <view slot="row" role="listitem" direction="row" column-gap={8}
+							selected={() -> selected.value == m} data-state={() -> selected.value == m ? "selected" : null} onClick={_ -> selected.value = m}>
+							{cell(m, m.from, 90)}{cell(m, m.subject)}{cell(m, "Oct " + m.day, 52)}
+						</view>}/>
+						<Show when={() -> shown().length == 0}><text slot="muted" padding={12}>No messages</text></Show>
+					</scroll>
+				</view>
+				<view tag="reader" slot="panel" grow={1} min-width={0} padding={16} row-gap={10}>
+					<Show when={() -> selected.value != null} fallback={<text slot="muted">No message selected</text>}>
+						<text tag="reader-subject" font-size={16} font-weight={600}>{() -> selected.value?.subject}</text>
+						<text slot="muted">{() -> selected.value == null ? "" : "From " + selected.value.from + ", October " + selected.value.day}</text>
+						<view slot="rule" height={1}/>
+						<text tag="reader-body" line-height={1.5}>{() -> selected.value?.body}</text>
+					</Show>
+				</view>
+			</view>
+			<Show when={() -> undo.value != null}>
+				<view slot="bar" direction="row" align-items="center" column-gap={12} padding="6 12" live="polite">
+					<text grow={1}>{() -> undo.value?.text}</text>
+					<Button tag="undo" label="Undo" variant="ghost" onClick={() -> undo.peek()?.run()}/>
+					<Button tag="dismiss" label="×" variant="ghost" onClick={() -> undo.value = null}/>
+				</view>
+			</Show>
 		</view>;
 
 	static function count(n:Int):String
 		return n == 0 ? "" : Std.string(n);
 
-	// a message's cell: bold while it is unread, cut with an ellipsis
-	function cell(m:Message, text:String):View
-		return <text font-weight={() -> m.unread.value ? 700 : 400} text-wrap="nowrap" text-overflow="ellipsis">{text}</text>;
+	static inline function token(name:String):Color
+		return Color.parse('var(--$name)');
 
-	public function view():View
-		return <view slot="body" ref={n -> root = n} grow={1} font-family="DejaVu Sans" font-size={13}>
-			<view direction="row" align-items="center" column-gap={12} padding="8 12">
-				<Menubar tag="menus" label="Mail" menus={[
-					{label: "Message", items: [
-						{label: "Archive", onSelect: () -> moveTo("Archive", true), shortcut: "E"},
-						{label: "Delete", onSelect: () -> moveTo("Trash", true), shortcut: "Delete"},
-						{label: "Mark unread", onSelect: markUnread, shortcut: "Mod+Shift+U"}
-					]},
-					{label: "View", items: [{label: "Dark mode", onSelect: () -> dark.value = !dark.peek()}]}
-				]}/>
-				<Toolbar tag="actions" label="Message">
-					<Button tag="archive" label="Archive" onClick={() -> moveTo("Archive", true)}/>
-					<Button tag="delete" label="Delete" onClick={() -> moveTo("Trash", true)}/>
-					<Button tag="unread" label="Mark unread" onClick={markUnread}/>
-				</Toolbar>
-				<view grow={1}/>
-				<view width={200}><Input tag="search" value={query} placeholder="Search" label="Search messages"/></view>
-			</view>
-			<Separator/>
-			<view grow={1} min-height={0} padding={12}>
-				<Split tag="panes" size={pane} min={140} max={320} label="Folders"
-					first={<Tree tag="folders" roots={folders} children={(f:Folder) -> f.children} expanded={open} selected={folder} label="Folders"
-						height={480} rowHeight={26} text={(f:Folder) -> f.name}
-						render={folderRow}/>}
-					second={<view direction="row" column-gap={12} grow={1} min-width={0}>
-						<view width={330} shrink={0}>
-							<Table tag="list" rows={shown} selected={selected} height={480} rowHeight={26} label="Messages" columns={[
-								{title: "From", width: "110px", cell: (m:Message) -> cell(m, m.from), compare: (a:Message, b:Message) -> Reflect.compare(a.from, b.from)},
-								{title: "Subject", cell: (m:Message) -> cell(m, m.subject), compare: (a:Message, b:Message) -> Reflect.compare(a.subject, b.subject)},
-								{title: "Date", width: "54px", cell: (m:Message) -> "Oct " + m.day, compare: (a:Message, b:Message) -> a.day - b.day}
-							]}/>
-						</view>
-						<view grow={1} min-width={0}><Card tag="reader">
-							<Show when={() -> selected.value != null} fallback={<text opacity={0.6}>No message selected</text>}>
-								<CardHeader>
-									<CardTitle tag="reader-subject">{() -> selected.value?.subject}</CardTitle>
-									<CardDescription>{() -> selected.value == null ? "" : "From " + selected.value.from + ", October " + selected.value.day}</CardDescription>
-								</CardHeader>
-								<Separator/>
-								<CardContent><text tag="reader-body" line-height={1.5}>{() -> selected.value?.body}</text></CardContent>
-							</Show>
-						</Card></view>
-					</view>}/>
-			</view>
-			<Toaster/>
-		</view>;
+	public static final sheet:StyleSheet = {
+		rules: [
+			{slot: "body", style: {background: token("background"), color: token("foreground")}},
+			{slot: "bar", style: {background: token("muted-background")}},
+			{slot: "muted", style: {color: token("muted")}},
+			{slot: "rule", style: {background: token("border")}},
+			{slot: "panel", style: {radius: 8, borderWidth: 1, borderColor: token("border"), background: token("card")}},
+			{slot: "head", style: {padding: [6, 10], borders: [0, 0, 1, 0], borderColor: token("border")}},
+			{slot: "column", style: {direction: Row, color: token("muted"), fontWeight: 600, cursor: Pointer}},
+			{slot: "column", when: ["hover"], style: {color: token("foreground")}},
+			{slot: "row", style: {padding: [5, 10], cursor: Pointer}},
+			{slot: "row", when: ["hover"], style: {background: token("hover")}},
+			{slot: "row", when: ["data-state=selected"], style: {background: token("accent"), color: token("accent-foreground")}},
+			{slot: "folder", style: {direction: Row, alignItems: Center, radius: 6, cursor: Pointer}},
+			{slot: "folder", when: ["hover"], style: {background: token("hover")}},
+			{slot: "folder", when: ["data-state=selected"], style: {background: token("accent"), color: token("accent-foreground"), fontWeight: 600}},
+			{slot: "button", style: {direction: Row, alignItems: Center, padding: [5, 10], radius: 6, borderWidth: 1, borderColor: token("border"),
+				background: token("card"), cursor: Pointer}},
+			{slot: "button", when: ["hover"], style: {background: token("hover")}},
+			{slot: "button", variant: "ghost", style: {borderColor: Color.TRANSPARENT, background: Color.TRANSPARENT}},
+			{slot: "button", variant: "ghost", when: ["hover"], style: {background: token("hover")}},
+			{slot: "input", style: {padding: [5, 10], radius: 6, borderWidth: 1, borderColor: token("border"), background: token("card")}},
+			{slot: "input", when: ["focus"], style: {borderColor: token("muted")}},
+			{slot: "input", when: ["placeholder"], style: {color: token("muted")}}
+		],
+		light: [
+			"background" => Color.rgb(0xFFFFFF), "foreground" => Color.rgb(0x18181B), "muted-background" => Color.rgb(0xF4F4F5), "muted" => Color.rgb(0x71717A),
+			"border" => Color.rgb(0xE4E4E7), "card" => Color.rgb(0xFFFFFF), "hover" => Color.rgb(0xF4F4F5), "accent" => Color.rgb(0xDBEAFE),
+			"accent-foreground" => Color.rgb(0x1E3A8A)
+		],
+		dark: [
+			"background" => Color.rgb(0x09090B), "foreground" => Color.rgb(0xFAFAFA), "muted-background" => Color.rgb(0x18181B), "muted" => Color.rgb(0xA1A1AA),
+			"border" => Color.rgb(0x27272A), "card" => Color.rgb(0x09090B), "hover" => Color.rgb(0x27272A), "accent" => Color.rgb(0x1E3A8A),
+			"accent-foreground" => Color.rgb(0xDBEAFE)
+		]
+	};
 
 	// from, subject, body, folder, day of October, read or unread
 	static final MESSAGES = [
@@ -188,7 +274,7 @@ class Mail implements Markup {
 	];
 }
 
-typedef Folder = {name:String, ?children:Array<Folder>};
+typedef Folder = {name:String, level:Int};
 
 class Message {
 	public final from:String;

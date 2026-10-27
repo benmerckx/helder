@@ -3,7 +3,7 @@
 This guide walks through writing an application with `helder.ui`: markup,
 components, state, lists, popups, your own drawn nodes, running it on each
 platform and testing it. The [README](README.md) is the reference for every
-attribute and widget. The examples here are compiled and run by
+attribute. The examples here are compiled and run by
 `test/GuideTest.hx` (`npm test -- ui`), so they work as written.
 
 ## Setting up
@@ -34,13 +34,8 @@ import helder.view.*;                 // Markup, View, Render, Signal...
 import helder.view.Reactive.*;        // signal, memo, effect, batch, context, use...
 import helder.ui.view.*;              // Motion, NodeRenderer
 import helder.ui.view.UiFlow.*;       // Popover, Hotkey, VirtualList
-import helder.ui.widgets.Widgets.*;   // Button, Checkbox, Input, Select, Dialog...
 import helder.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
 ```
-
-(The widgets' `Switch`, shadcn's toggle switch, and Flow's `Switch`, the
-control flow, share a name; the later import wins, so put the one a file
-writes as `<Switch>` last.)
 
 A window holds a tree of nodes. `Render.render` mounts markup into its
 root, and `UiWindow.run` runs the loop until the last window closes:
@@ -62,7 +57,16 @@ props at each use: a missing required prop, a wrong type or an unknown name
 is a compile error at the attribute. Optional props are `?name`. Nested
 content arrives as the `children` prop.
 
+A button is a `view:button` (a view here, a `<button>` in a page) with a
+role for assistive technology, in the Tab order, its `onPress` a click or
+Enter or Space. Its look comes from a theme (see "Themes and dark mode"),
+so it names a `slot` rather than colours:
+
 ```haxe
+static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:String}):View
+	return <view:button tag={props.tag} slot="button" variant={props.variant} role="button" focusable
+		onPress={_ -> props.onClick()}>{props.label}</view:button>;
+
 static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):View {
 	var step = props.step ?? 1;
 	return <view direction="row" align-items="center" column-gap={8}>
@@ -314,12 +318,12 @@ static function Accent(props:{label:String}):View {
 
 ## Themes and dark mode
 
-The widgets ship unstyled, as React Aria's: behaviour, semantics and
-their parts' states, no look at all; a theme gives them their looks. A page takes the slot `"body"` for its surface
-(`<view slot="body">`, as shadcn styles body). A theme is a `StyleSheet`: rules for the
-widgets' slots (shadcn's data-slot names), variants and states, and the
-colours their tokens name, light and dark. `helder.theme` is shadcn/ui's;
-a small one of your own:
+A node has no look but what its style gives it. A theme gives looks by
+part instead: a `StyleSheet` of rules for slots (a node's `slot`, as the
+`Button` above names `"button"`), variants and states (`hover`, `focus`,
+`data-state=checked`, `dark`...), and the colours their tokens name, light
+and dark. A page takes the slot `"body"` for its surface
+(`<view slot="body">`). A small one:
 
 ```haxe
 static final sheet:StyleSheet = {
@@ -333,84 +337,47 @@ static final sheet:StyleSheet = {
 };
 ```
 
-An instance's look can follow its states without a theme, as React
-Aria's render props: a widget's `style` is a function of its part's
-`States` (signals: `hovered`, `pressed`, `focusVisible`, `disabled`,
-`attr("data-state")`):
+A node's look can also follow its states without a theme, as React
+Aria's render props: its `states` is a function of its `States` (signals:
+`hovered`, `pressed`, `focusVisible`, `disabled`, `attr("data-state")`),
+typed, or markup takes it for a reactive value:
 
 ```haxe
-<Button label="Save" style={s -> s.hovered.value ? {background: Color.parse("#e4e4e7")} : {}}/>
+<view:button slot="button" states={(s:States) -> (s.hovered.value ? {background: Color.parse("#e4e4e7")} : {} : StyleProps)}>Save</view:button>
 ```
 
 `ui.theme = sheet` installs it (`node.theme` for a subtree), and
 `ui.dark` picks its dark colours; a `UiWindow`'s follows the system's
-appearance (`UiWindow.dark`). A widget's own style (an attribute in
+appearance (`UiWindow.dark`). A node's own style (an attribute in
 markup) wins over the theme's.
 
 ## Popups
 
 Popups are layers over the tree, so a parent's clipping does not cut them.
-`Select`, `DropdownMenu`, `ContextMenu`, `Tooltip` and `Dialog` are built on them, and `Popover`
-puts any content in one while `open` is true (its `at` places it at a point). A modal dialog keeps the
-focus inside, and Escape or a press outside asks it to close:
+`Popover` puts any content in one while `open` is true: under the node it
+is in (`placement`: `"below"`, `"above"`, `"right"`, `"left"`,
+`"center"`), or at a point (`at`). A modal one keeps the focus inside, and
+Escape or a press outside asks it to close (`onDismiss`):
 
 ```haxe
 static function Confirm(props:{onYes:Void->Void}):View {
 	var open = signal(false);
 	return <view>
 		<Button tag="delete" label="Delete" onClick={() -> open.value = true}/>
-		<Dialog open={open} title="Delete this file?">
-			<view direction="row" column-gap={8} justify="end">
-				<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
-				<Button tag="yes" label="Delete" onClick={() -> {
-					open.value = false;
-					props.onYes();
-				}}/>
+		<Popover open={open} modal placement="center" onDismiss={() -> open.value = false}>
+			<view role="dialog" label="Delete this file?" padding={16} row-gap={12} radius={8} background="#ffffff">
+				<text font-weight={700}>Delete this file?</text>
+				<view direction="row" column-gap={8} justify="end">
+					<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
+					<Button tag="yes" label="Delete" onClick={() -> {
+						open.value = false;
+						props.onYes();
+					}}/>
+				</view>
 			</view>
-		</Dialog>
+		</Popover>
 	</view>;
 }
-```
-
-A `ContextMenu` around some nodes opens its items where they are
-right-clicked, or at their corner on the menu key or Shift+F10:
-
-```haxe
-<ContextMenu items={[{label: "Copy", onSelect: copy}, {label: "Delete", onSelect: remove}]}>
-	<text>Right-click me</text>
-</ContextMenu>
-```
-
-## Tables
-
-A `Table` shows rows in columns: each column a title, a width (a grid
-track), what a row's cell shows and, to make it sortable, a comparison. Only
-the rows in view are made, so long tables stay cheap. A click selects a row,
-a double click or Enter activates it, the arrow keys move the selection:
-
-```haxe
-typedef Person = {name:String, age:Int};
-
-static function People(props:{people:Array<Person>, onOpen:Person->Void}):View
-	return <Table tag="people" rows={props.people} height={200} label="People" onActivate={props.onOpen} columns={[
-		{title: "Name", cell: p -> p.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
-		{title: "Age", width: "60px", cell: p -> "" + p.age, compare: (a, b) -> a.age - b.age}
-	]}/>;
-```
-
-## Trees
-
-A `Tree` shows items under their parents: give it the roots, how to find
-an item's children (none: a leaf) and what an item shows. Items open and
-close by a click on their triangle, a double click, or the Right and Left
-keys; Enter or a double click on a leaf activates it. `expanded` is a
-signal of the open items, for keeping or setting them:
-
-```haxe
-typedef Entry = {name:String, ?children:Array<Entry>};
-
-static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):View
-	return <Tree tag="files" roots={props.root} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} height={200} label="Files" onActivate={props.onOpen}/>;
 ```
 
 ## Keyboard shortcuts
@@ -420,16 +387,15 @@ window, for as long as it is mounted; with `local`, only while the
 focus is inside the node it is in. `Mod` is Control, or Command on a
 Mac. A key the focused node takes first (a text field's Control+C, a
 letter typed into it) is not a shortcut, and under a modal dialog only
-the dialog's own shortcuts work. Menu items take a `shortcut` too (and `disabled`, `variant: "destructive"`, or are a `separator`):
-it is shown in the menu, in the platform's notation, and works while
-the menu is mounted.
+the dialog's own shortcuts work. `Ui.shortcut(keys, action)` adds one
+from code.
 
 ```haxe
 static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 	return <view row-gap={8}>
 		<Hotkey keys="Mod+S" action={props.onSave}/>
-		<DropdownMenu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
-		<Textarea value={props.text}/>
+		<Hotkey keys="Mod+Shift+K" action={() -> props.text.value = ""}/>
+		<field:textarea value={props.text} onInput={e -> props.text.value = e.text}/>
 	</view>;
 ```
 
@@ -467,9 +433,6 @@ static function Sortable(props:{items:Signal<Array<String>>}):View {
 ```
 
 `ui.dragging` gives what is dragged and where, to draw it under the pointer.
-The `Sortable` widget is this list done fully: any items, a line where
-the drop goes (before or after the item under the pointer), and the
-keyboard (Alt+Up and Alt+Down move the focused item).
 
 ## Your own nodes
 
@@ -521,10 +484,10 @@ To use it as an element instead, register it:
 
 ## Accessibility
 
-The widgets describe themselves to screen readers. For your own
-components, give nodes a `role` and a `label` (and `checked`, `expanded`,
+Give nodes a `role` and a `label` (and `checked`, `expanded`,
 `value-now` and the rest where they apply), and make interactive ones
-`focusable` with keyboard handlers:
+`focusable` with keyboard handlers (`view:button`'s `onPress` takes Enter
+and Space already):
 
 ```haxe
 <view role="button" label="Close" focusable onClick={_ -> close()}

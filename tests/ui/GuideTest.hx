@@ -3,15 +3,11 @@ import helder.view.*;
 import helder.ui.view.*;
 import helder.ui.view.UiFlow.*;
 import helder.view.Reactive.*;
-import helder.ui.widgets.Widgets.*;
 import helder.view.Flow.*;
 import UiTest.Recording;
 
-// The examples of src/helder/ui/GUIDE.md, compiled and run on Eval (make
-// ui-check): what the guide shows works as it says. Keep the two in step.
-typedef Person = {name:String, age:Int};
-typedef Entry = {name:String, ?children:Array<Entry>};
-
+// The examples of src/helder/ui/GUIDE.md, compiled and run on Eval (bun run
+// test ui): what the guide shows works as it says. Keep the two in step.
 class GuideTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -25,8 +21,6 @@ class GuideTest implements Markup {
 	}
 
 	public static function main() {
-		// (the examples' plain look where a test sets no theme)
-		Rules.addBase("plain", Plain.sheet.rules);
 		components();
 		state();
 		lists();
@@ -39,8 +33,6 @@ class GuideTest implements Markup {
 		themes();
 		shortcuts();
 		icons();
-		tables();
-		trees();
 		dragAndDrop();
 		Sys.println('GuideTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
@@ -49,6 +41,10 @@ class GuideTest implements Markup {
 	// --- the guide's code ---
 
 	// "Components"
+	static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:String}):View
+		return <view:button tag={props.tag} slot="button" variant={props.variant} role="button" focusable
+			onPress={_ -> props.onClick()}>{props.label}</view:button>;
+
 	static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):View {
 		var step = props.step ?? 1;
 		return <view direction="row" align-items="center" column-gap={8}>
@@ -103,15 +99,18 @@ class GuideTest implements Markup {
 		var open = signal(false);
 		return <view>
 			<Button tag="delete" label="Delete" onClick={() -> open.value = true}/>
-			<Dialog open={open} title="Delete this file?">
-				<view direction="row" column-gap={8} justify="end">
-					<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
-					<Button tag="yes" label="Delete" onClick={() -> {
-						open.value = false;
-						props.onYes();
-					}}/>
+			<Popover open={open} modal placement="center" onDismiss={() -> open.value = false}>
+				<view role="dialog" label="Delete this file?" padding={16} row-gap={12} radius={8} background="#ffffff">
+					<text font-weight={700}>Delete this file?</text>
+					<view direction="row" column-gap={8} justify="end">
+						<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
+						<Button tag="yes" label="Delete" onClick={() -> {
+							open.value = false;
+							props.onYes();
+						}}/>
+					</view>
 				</view>
-			</Dialog>
+			</Popover>
 		</view>;
 	}
 
@@ -203,18 +202,6 @@ class GuideTest implements Markup {
 		check("popups: the dialog opens over the tree", ui.overlay.find("yes") != null);
 		click(ui, "yes");
 		check("popups: its button acts and closes it", deleted == 1 && ui.overlay.find("yes") == null);
-		var ui = window(), log = [];
-		var copy = () -> log.push("copy"), remove = () -> log.push("delete");
-		Render.render(<ContextMenu items={[{label: "Copy", onSelect: copy}, {label: "Delete", onSelect: remove}]}>
-			<text>Right-click me</text>
-		</ContextMenu>, ui.root);
-		ui.update();
-		ui.pointerDown(15, 10, 3);
-		ui.pointerUp(15, 10, 3);
-		ui.update();
-		ui.keyDown(Key.DOWN, 0);
-		ui.keyDown(Key.ENTER, 0);
-		check("popups: a context menu where it was right-clicked", log.join(",") == "delete" && ui.overlay.children.length == 0, log.join(","));
 	}
 
 	// "State", "Layout and style", "Accessibility": the short snippets
@@ -347,10 +334,10 @@ class GuideTest implements Markup {
 
 	static function themes() {
 		var ui = window();
-		Render.render(<view align-items="start"><Button tag="themed" label="Themed"/><Button tag="outlined" label="Outlined" variant="outline"/></view>, ui.root);
+		Render.render(<view align-items="start"><Button tag="themed" label="Themed" onClick={() -> {}}/><Button tag="outlined" label="Outlined" variant="outline" onClick={() -> {}}/></view>, ui.root);
 		ui.update();
 		var b = ui.root.find("themed"), o = ui.root.find("outlined");
-		var unstyled = b.style.background == Color.TRANSPARENT && b.style.borderWidth == 1;
+		var unstyled = b.style.background == Color.TRANSPARENT && b.style.borderWidth == 0;
 		ui.theme = sheet;
 		ui.update();
 		check("themes: unstyled, then the sheet's looks", unstyled && b.style.background == Color.rgb(0x171717) && b.style.radius == 6
@@ -390,45 +377,12 @@ class GuideTest implements Markup {
 		check("icons: the button", clicks == 1);
 	}
 
-	// "Tables"
-	static function People(props:{people:Array<Person>, onOpen:Person->Void}):View
-		return <Table tag="people" rows={props.people} height={200} label="People" onActivate={props.onOpen} columns={[
-			{title: "Name", cell: p -> p.name, compare: (a, b) -> Reflect.compare(a.name, b.name)},
-			{title: "Age", width: "60px", cell: p -> "" + p.age, compare: (a, b) -> a.age - b.age}
-		]}/>;
-
-	static function tables() {
-		var ui = window(), opened = [];
-		Render.render(<People people={[{name: "Bo", age: 41}, {name: "Ann", age: 33}]} onOpen={p -> opened.push(p.name)}/>, ui.root);
-		ui.update();
-		click(ui, "people-head-1");
-		var body = ui.root.find("people-body");
-		ui.setFocus(body);
-		ui.keyDown(Key.DOWN, 0);
-		ui.keyDown(Key.ENTER, 0);
-		check("tables: sorted by age, the first row opened", opened.join(",") == "Ann", opened.join(","));
-	}
-
-	// "Trees"
-	static function Files(props:{root:Array<Entry>, onOpen:Entry->Void}):View
-		return <Tree tag="files" roots={props.root} children={(e:Entry) -> e.children} render={(e:Entry) -> e.name} height={200} label="Files" onActivate={props.onOpen}/>;
-
-	static function trees() {
-		var ui = window(), opened = [];
-		Render.render(<Files root={[{name: "src", children: [{name: "Main.hx"}]}, {name: "README.md"}]} onOpen={e -> opened.push(e.name)}/>, ui.root);
-		ui.update();
-		ui.setFocus(ui.root.find("files"));
-		for (k in [Key.DOWN, Key.RIGHT, Key.RIGHT, Key.ENTER])
-			ui.keyDown(k, 0);
-		check("trees: a folder opened, its file opened", opened.join(",") == "Main.hx", opened.join(","));
-	}
-
 	// "Keyboard shortcuts"
 	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 		return <view row-gap={8}>
 			<Hotkey keys="Mod+S" action={props.onSave}/>
-			<DropdownMenu label="Edit" items={[{label: "Clear", shortcut: "Mod+Shift+K", onSelect: () -> props.text.value = ""}]}/>
-			<Textarea value={props.text}/>
+			<Hotkey keys="Mod+Shift+K" action={() -> props.text.value = ""}/>
+			<field:textarea value={props.text} onInput={e -> props.text.value = e.text}/>
 		</view>;
 
 	static function shortcuts() {
@@ -442,7 +396,7 @@ class GuideTest implements Markup {
 		ui.setFocus(area);
 		ui.keyDown("s".code, Key.MOD_CONTROL);
 		ui.keyDown("k".code, Key.MOD_META | Key.MOD_SHIFT);
-		check("shortcuts: a Hotkey and a menu item's, the focus in the text", saved == 1 && text.value == "", saved + " " + text.value);
+		check("shortcuts: two Hotkeys, the focus in the text", saved == 1 && text.value == "", saved + " " + text.value);
 	}
 
 	// "Drag and drop": a list sorted by dragging

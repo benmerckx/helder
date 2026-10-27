@@ -1,4 +1,3 @@
-import helder.theme.Shadcn;
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
 import helder.view.Render;
@@ -13,12 +12,10 @@ import helder.view.Render;
 class WebTodo {
 	static function main() {
 		var w = new UiWindow("Todo", 420, 480);
-		// (shadcn's, its buttons' cursor a pointer as many apps make it: what
-		// Window.cursor gives the canvas over one)
-		var sheet = Shadcn.sheet;
 		// (its fields drawn: web.mjs types into the canvas, input methods included; web-field.mjs has the native editors)
 		w.ui.policy["text-field"] = Host.Drawn;
-		w.ui.theme = {rules: sheet.rules.concat([{slot: "button", style: {cursor: Pointer}}]), light: sheet.light, dark: sheet.dark, lengths: sheet.lengths};
+		// (its buttons' cursor a pointer: what Window.cursor gives the canvas over one)
+		w.ui.theme = Todo.sheet;
 		var app = new Todo();
 		Render.render(app.view(), w.root);
 		var last = "", wheel = 0.0;

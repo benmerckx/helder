@@ -32,7 +32,7 @@ class Run {
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
 		{name: "view", about: "helder.view on Eval, natively and as JavaScript: signals, markup, control flow, the programs the macro rejects", run: view},
 		{name: "text", about: "helder.text on Eval: the rasterizer, DejaVu Sans, line layout, a sample through the atlas (tests/text/sample.png)", run: text},
-		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's and the widgets' examples (bin/ui/widgets.json)", run: ui},
+		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's examples", run: ui},
 		{name: "gfx-shader", about: "helder.gfx's shader macro on Eval: shaders on the CPU, the emitted GLSL, WGSL, MSL and HLSL, the programs it rejects", run: gfxShader},
 		{name: "scoped", about: "helder.scoped on Eval, natively and as JavaScript, and the programs its checker rejects", run: scoped},
 		{name: "examples", about: "every example built, not run: for wasm32-wasi, and those on a canvas or playing a sound natively too", run: examples},
@@ -106,9 +106,6 @@ class Run {
 		interp(cp, "UiTest");
 		interp(cp.concat(UI_VIEW), "MarkupTest");
 		interp(cp.concat(UI_VIEW), "GuideTest");
-		interp(cp.concat(UI_VIEW).concat(cps(["examples/widgets"])), "WidgetExamplesTest");
-		mkdirs("bin/ui");
-		interp(cps(["tests/ui"]), "WidgetDocs", ["src/helder/ui/widgets/Widgets.hx", "examples/widgets", "bin/ui/widgets.json"]);
 	}
 
 	static function gfxShader() {
@@ -245,11 +242,11 @@ class Run {
 	}
 
 	static function uiCp()
-		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/gallery", "examples/todo", "examples/native-form"]).concat(UI_VIEW);
+		return cps(["src", "tests/gfx", "tests/ui", "examples/counter", "examples/todo", "examples/native-form"]).concat(UI_VIEW);
 
 	static function uiPrograms() {
 		var t = GFX_TARGET;
-		var programs = ["UiDrawTest", "TodoTest", "GalleryTest", "StressTest", "ClipboardTest", "NativeTest", "EmojiTest", "BoxTest", "WindowTest"];
+		var programs = ["UiDrawTest", "TodoTest", "StressTest", "ClipboardTest", "NativeTest", "EmojiTest", "BoxTest", "WindowTest"];
 		if (t.startsWith("linux-")) programs = programs.concat(["TextInputTest", "LinuxAccessTest", "AtspiProbe"]);
 		if (t.startsWith("windows-")) programs.push("WinAccessTest");
 		for (m in programs)
@@ -265,8 +262,6 @@ class Run {
 		shell('$gpu $b/UiDrawTest tests/ui/draw.png $b/draw.png$bless');
 		shell('LIBGL_ALWAYS_SOFTWARE=1 $xvfb $b/UiDrawTest tests/ui/draw.png $b/window.png --window');
 		shell('$gpu $b/TodoTest tests/ui/todo.png $b/todo.png$bless');
-		for (v in [["gallery", ""], ["gallery-dark", " --dark"], ["gallery-rtl", " --rtl"], ["gallery-unstyled", " --unstyled"]])
-			shell('$gpu $b/GalleryTest tests/ui/${v[0]}.png $b/${v[0]}.png${v[1]}$bless');
 		shell('$gpu $b/StressTest');
 		shell('$gpu $b/EmojiTest tests/ui/emoji.png $b/emoji.png');
 		shell('$gpu $b/BoxTest tests/ui/boxes.png $b/boxes.png');
@@ -335,11 +330,10 @@ class Run {
 	// started by a click; island, a JavaScript island of helder.web; module,
 	// a wasm module JavaScript calls), each built for wasm32-wasi but the
 	// islands, and those on a canvas or playing a sound for this machine
-	// too, in parallel, into bin/examples (each one's log beside it). (Not
-	// widgets/: each widget's snippet, which the ui lane renders.)
+	// too, in parallel, into bin/examples (each one's log beside it).
 	static function examples() {
 		var builds:Array<{id:String, target:String, out:String, args:Array<String>}> = [];
-		var dirs = FileSystem.readDirectory("examples").filter(d -> d != "widgets");
+		var dirs = FileSystem.readDirectory("examples");
 		dirs.sort(Reflect.compare);
 		for (dir in dirs) {
 			var path = 'examples/$dir';

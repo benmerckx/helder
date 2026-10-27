@@ -2,7 +2,7 @@ package helder.web;
 
 #if js
 import helder.ui.Event.EventType;
-import helder.web.widgets.Dom;
+import helder.ui.Key;
 import js.html.Element;
 
 // What NeutralMacro's code calls in a page: a neutral element's attributes
@@ -41,9 +41,9 @@ class Neutral {
 		el.style.setProperty(prop, s);
 	}
 
-	// (a widget's style prop, a function of drawn states: a page's look is its CSS)
+	// (states, a style as a function of drawn nodes' states: a page's look is its CSS)
 	public static function states(el:Dynamic, name:String, v:Dynamic)
-		if (v != null) js.Syntax.code("throw new Error({0})", "helder.web: a widget's style prop is drawn widgets' (a page's look is its CSS)");
+		if (v != null) js.Syntax.code("throw new Error({0})", "helder.web: states is drawn nodes' (a page's look is its CSS)");
 
 	// an icon: an <svg> of 24 by 24, stroked (helder.ui.widgets.Icons)
 	public static function icon():Dynamic {
@@ -99,7 +99,7 @@ class Neutral {
 	// (a key event: its key and modifiers as ui's codes)
 	public static function onKey(el:Dynamic, dom:String, h:Dynamic, type:EventType) {
 		if (h == null) return;
-		el.addEventListener(dom, (e:js.html.KeyboardEvent) -> call(h, e, type, Dom.key(e), Dom.mods(e)));
+		el.addEventListener(dom, (e:js.html.KeyboardEvent) -> call(h, e, type, key(e), mods(e)));
 	}
 
 	// a press: a click (a button's or a link's, Enter and Space theirs), else a click, or Enter or Space
@@ -111,6 +111,34 @@ class Neutral {
 			call(h, e, Click, null);
 		});
 	}
+
+	// a key event's key as helder.ui's code (Key: X11 KeySyms; a character's
+	// unshifted code)
+	static function key(e:js.html.KeyboardEvent):Int
+		return switch e.key {
+			case "ArrowLeft": Key.LEFT;
+			case "ArrowRight": Key.RIGHT;
+			case "ArrowUp": Key.UP;
+			case "ArrowDown": Key.DOWN;
+			case "Home": Key.HOME;
+			case "End": Key.END;
+			case "PageUp": Key.PAGE_UP;
+			case "PageDown": Key.PAGE_DOWN;
+			case "Enter": Key.ENTER;
+			case "Escape": Key.ESCAPE;
+			case "Tab": Key.TAB;
+			case "Backspace": Key.BACKSPACE;
+			case "Delete": Key.DELETE;
+			case "ContextMenu": Key.MENU;
+			case " ": Key.SPACE;
+			case k if (k.length == 1): k.toLowerCase().charCodeAt(0);
+			case k if (k.length > 1 && k.charAt(0) == "F" && Std.parseInt(k.substr(1)) != null): Key.F1 + Std.parseInt(k.substr(1)) - 1;
+			case _: 0;
+		}
+
+	// (its modifiers as Key.MOD_* bits)
+	static function mods(e:Dynamic):Int
+		return (e.shiftKey ? Key.MOD_SHIFT : 0) | (e.ctrlKey ? Key.MOD_CONTROL : 0) | (e.altKey ? Key.MOD_ALT : 0) | (e.metaKey ? Key.MOD_META : 0);
 
 	// the pointer of the last pointerdown a handler got (a part's capture())
 	public static var pointer:Null<Int> = null;
@@ -125,7 +153,7 @@ class Neutral {
 		var ev = new NeutralEvent(type, x, y, e.currentTarget);
 		if (key != null) ev.key = key;
 		// (a pointer's modifiers too: a shift-click's)
-		ev.mods = d.shiftKey != null ? Dom.mods(d) : mods;
+		ev.mods = d.shiftKey != null ? Neutral.mods(d) : mods;
 		if (d.button != null) ev.button = d.button + 1;
 		(h : Dynamic->Void)(ev);
 		if (ev.stopped) e.stopPropagation();

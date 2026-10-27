@@ -106,14 +106,13 @@ widgets only make sense there: `@:renderer(helder.ui.view.NodeRenderer)`
 renderer's code a throw), and `Render.render` and `insert` into nodes of a
 renderer the program lacks a throw too. Its components, in another
 renderer's markup, are the functions of the same name of the class it
-names for that renderer: `@:renderer(helder.ui.view.NodeRenderer,
-helder.web.DomRenderer => helder.web.widgets.Widgets)` is ui's widgets, so
-that `<Button/>` with ui's widgets imported is the DOM's Button in a
-page's markup (`helder.view.Pick`, when the literal is typed); a component
+names for that renderer: with `@:renderer(helder.ui.view.NodeRenderer,
+helder.web.DomRenderer => DomControls)` on a class of drawn controls,
+`<Button/>` with them imported is `DomControls.Button` in a page's markup (`helder.view.Pick`, when the literal is typed); a component
 with none for a renderer is an error naming it and the renderer.
 
 A function of such a class marked `@:neutral` is for every renderer, one
-definition for all (a single-source widget): its elements are the neutral
+definition for all (a single-source component): its elements are the neutral
 ones (`view`, `text`, `scroll`, `icon`, `field`, and `view:button`,
 `text:p`... naming a page's element), which a renderer with
 `neutralElement`, `neutralProperty`, `neutralSetter`, `neutralListen`

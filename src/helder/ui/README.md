@@ -8,7 +8,6 @@ signals, Solid's way (`helder.view`, which renders into its nodes).
 import helder.ui.draw.UiWindow;
 import helder.view.*;
 import helder.view.Reactive.*;
-import helder.ui.widgets.Widgets.*;
 
 class Counter implements Markup {
 	static function main() {
@@ -16,7 +15,8 @@ class Counter implements Markup {
 		var w = new UiWindow("Counter", 320, 200);
 		Render.render(<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
 			<text font-size={32}>{count}</text>
-			<Button label="+1" primary onClick={() -> count.value++}/>
+			<view:button role="button" focusable padding="8 16" radius={6} background="#18181b" color="#fafafa" cursor="pointer"
+				onPress={_ -> count.value++}>+1</view:button>
 		</view>, w.root);
 		UiWindow.run();
 	}
@@ -33,9 +33,9 @@ class Counter implements Markup {
 [GUIDE.md](GUIDE.md) walks through building an app: components, state,
 lists, popups, your own nodes, each platform, tests.
 `examples/todo/Todo.hx` is a complete app (a text field, a keyed
-list, checkboxes, filters), `examples/Mail.hx` a larger one (a menu bar,
-a toolbar, folders in a tree, messages in a sortable table, search,
-undo). They run natively on Linux, macOS and Windows, and in a browser
+list, checkboxes, filters), `examples/mail/Mail.hx` a larger one (a
+toolbar, folders, messages sorted by column, search, shortcuts, undo, dark
+mode), both styled by a small `StyleSheet` of their own. They run natively on Linux, macOS and Windows, and in a browser
 (wasm32-wasi on WebGPU or WebGL2).
 
 ## The parts
@@ -201,7 +201,7 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
     thumbs; or the keys a browser scrolls with, when the focus took none of
     them: the arrows by 40 pixels, Page Up, Page Down and Space by seven
     eighths of the view, Home and End, eased over `Ui.scrollDuration`;
-    `Ui.scrollBy` eases the same way). A widget's key handler calls
+    `Ui.scrollBy` eases the same way). A node's key handler calls
     `preventDefault` (or `stop`) on the keys it takes.
 - **`helder.ui.draw`**: the GPU renderer. One shader draws rounded rectangles
   with borders, soft shadows and glyphs from an atlas, every fragment
@@ -218,45 +218,17 @@ undo). They run natively on Linux, macOS and Windows, and in a browser
   as one of 20), `Popover` and `Hotkey` (`UiFlow`), and `Motion`:
   `transition`, `spring` and `color` are signals moving toward a target
   as the `Clock` ticks (a window ticks it each frame and keeps drawing
-  while anything moves; `Clock.finish()` ends every animation, for tests);
-  the widgets' colours and the switch's knob use them. Signals (`signal`,
+  while anything moves; `Clock.finish()` ends every animation, for tests). Signals (`signal`,
   `memo`, `effect`, `batch`, `untrack`, contexts), `Render` and the
   control flow components `For`, `Index`, `Show`, `Switch`,
   `ErrorBoundary` are `helder.view`'s ([its README](../view/README.md)).
-- **`helder.ui.widgets`**: `TextField` (caret, selection, keyboard editing,
-  `cut`, `copy`, `paste`, `selectAll`; `Input` and `Textarea` add an edit menu
-  on a right click or the menu key),
-  `TextArea` (lines: wrapping, Up and Down, scrolling; both on
-  `EditableText`, with an input method's composition shown at the caret), and the components, unstyled with slots for a theme (Themes):
-  `Button` (variants, sizes, disabled), `Toggle` (a pressed button), `Checkbox`, `Switch`, `Input` (or a password,
-  invalid), `Textarea`, `Label`, `Badge`, `Card` (`CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`,
-  `CardFooter`), `RadioGroup`, `Slider`, `RangeSlider` (two knobs, a
-  slider each for the keyboard), `Progress` (or indeterminate), `Tabs`, `Separator`, `Skeleton`, `Alert`
-  (`AlertTitle`, `AlertDescription`), `Avatar` (an image or initials), `Kbd`, `Spinner`, `Field` (a label, control, description and error as one group; `FieldSet`, `FieldLegend`, `FieldGroup`, `FieldSeparator` around fields), `ButtonGroup` (joined buttons, a text, separators), `InputGroup` (an input with addons before and after it; a click on one focuses the input), `Empty` (an empty state: media, a title, a description, actions), `Item` (a row of media, a title, a description and actions; `ItemGroup`), `AspectRatio`, `ScrollArea`, `NativeSelect` (the platform's menu as its options where it has one), `BarChart`, `LineChart` and `AreaChart` (series on a round scale, stacked or side by side, an axis, grid, legend and a tooltip of the category under the pointer or the arrow keys; each series the theme's --chart-N), `PieChart` (slices clockwise from the top, a donut with a hole; the slice under the pointer by its angle, or the arrow keys'), `SidebarProvider` with `Sidebar` (collapsing offcanvas or to its icons, its trigger and Mod+B toggling it; its header, content, footer, groups and menu buttons) and `SidebarInset`, `NavigationMenu` (a navigation landmark of triggers whose panels open under it, by a click, the pointer or the keys, and links), `Carousel` (slides through a viewport: Previous, Next and the arrow keys ease it to a slide, a wheel or trackpad settles on one), `Table` (sortable, resizable columns, numeric ones at the end with tabular figures, virtualised
-  rows, selection and keyboard), `Tree` (items opened and closed, by the
-  pointer or the arrows, virtualised rows; ARIA's tree, with levels),
-  `Split` (two panes, a divider dragged or moved by the arrows), `Calendar`
-  (a month's grid of days, moved through by the keys) and `DatePicker` (a
-  calendar in a popover; `Days`: dates as day numbers, no time zones),
-  `Collapsible` and `Accordion` (sections shown and hidden), `NumberField`
-  (typed or stepped, within bounds; a spin button), `Listbox` (one option
-  selected or several: Shift and Control with the arrows and clicks,
-  Control+A; ARIA's multiselectable), `Toolbar` (its focusable children
-  one Tab stop, Left and Right between them), `ToggleGroup` (one of
-  options among joined buttons: a radio group), `Breadcrumb` and
-  `Pagination` (navigation landmarks, the current step or page marked
-  current: ARIA's aria-current), `TagInput` (chips before a text field:
-  Enter or a comma adds, Backspace or a chip's × removes), `Sortable` (a list
-  reordered by dragging, a line where the item will go, or by Alt+Up and
-  Alt+Down), `ColorPicker` (a
-  saturation and brightness square, a hue strip and the hex: sliders for
-  the keyboard), and the popups `Select`, `DropdownMenu`,
-  `ContextMenu` (at the pointer), `Menubar` (menus' titles in a row, moved
-  through by Left and Right, one open at a time), `Tooltip`, `HoverCard`, `PopoverButton` (shadcn's Popover), `Dialog`, `AlertDialog` (cancel or confirm; a click outside does nothing), `Sheet` (a dialog along an edge), `Drawer` (vaul's: a sheet with a handle, dragged towards its edge to close), `Combobox` (a text
-  field whose typing filters options under it; the focus stays in the
-  field), `InputOTP` (a one-time code's slots over a transparent field), `Command` (cmdk's: a search field over groups of items, the
-  matches shown, one selected by Up and Down, run by Enter), `Toaster` (`Toasts.show`: messages in a corner for a while, with
-  an action); `examples/Gallery.hx` shows them all, unstyled. A
+- **`helder.ui.widgets`**: text editing, `TextField` (caret, selection,
+  keyboard editing, `cut`, `copy`, `paste`, `selectAll`) and `TextArea`
+  (lines: wrapping, Up and Down, scrolling), both on `EditableText`, with
+  an input method's composition shown at the caret (markup's `<field/>`
+  and `<field:textarea/>`); `Icons`, lucide's icons by name (markup's
+  `<icon/>`). Other controls (buttons, checkboxes, menus) are views with a
+  role, `focusable` and `onPress`, as in the examples and `GUIDE.md`. A
   `UiWindow`'s `Ui.dark` follows the system's appearance
   (`helder.os.App.prefersDark`: the browser's colour scheme, macOS's,
   Windows', GTK's settings).
@@ -294,7 +266,7 @@ Attributes:
   `id` none here (a page's element's, where a page's renderer realises
   the element).
 
-The elements are also the neutral ones of single-source widgets
+The elements are also the neutral ones of single-source components
 (`@:neutral`, src/helder/view/README.md): `view:button`, `view:label`... and
 `text:p`, `text:h2`... are a view and a text here, the element of that name
 in a page; `<icon name="check"/>` draws lucide's icon of that name
@@ -324,13 +296,10 @@ name up at run time and links them all.
 
 ## Themes
 
-The widgets ship unstyled (behaviour, semantics and the geometry their
-interaction needs), their looks from a theme
-([docs/plans/theme.md](../../docs/plans/theme.md); `helder.theme` is
-shadcn/ui's). A theme is a `StyleSheet`: `rules`, each a `Rule`
-`{slot, ?variant, ?size, ?when, style}`, and the colours its token
-references name, `light` and `dark`. A node takes the rules of its
-`slot` (shadcn's data-slot names: `"button"`, `"switch-thumb"`),
+A node's look is its style, or a theme's: a `StyleSheet` of `rules`, each
+a `Rule` `{slot, ?variant, ?size, ?when, style}`, and the colours its
+token references name, `light` and `dark`. A node takes the rules of its
+`slot` (the name of the part it is: `"button"`, `"switch-thumb"`),
 `variant` and `size` whose states all hold: `hover`, `active`,
 `focus`, `focus-visible`, `disabled`, `dark`, `rtl` and `ltr` (its direction), `starting` (until it is first drawn, as CSS's `@starting-style`: its transition then eases from there), `sm`, `md`, `lg`, `xl`, `2xl` (the window at least Tailwind's breakpoint wide), `placeholder` (an
 input's placeholder colour), `selection` (its selection's background), attributes (`data-state=checked`, a bare
@@ -353,23 +322,19 @@ Colours may be token references, `Color.parse("var(--primary)")`,
 `ui.dark` picks the dark colours and the `dark` rules; every change of a
 state, attribute, variant, sheet or of dark applies them again, at the
 window's next update (several changes, one restyle). Without a sheet a
-widget has no look at all (React Aria's way: behaviour, semantics and
-its parts' states only), unless a program adds base rules
-(`Rules.addBase`: where no sheet applies). The examples install
-helder.theme's `Shadcn.sheet` (shadcn/ui's look; widgets shadcn has no
-component for, in its manner); `test/Plain.hx` is a plain sheet in the
-text's colour (`currentColor`) that tests measuring geometry use. A part's states are signals (`helder.ui.view.States.of(node)`:
+node has no look but its own style, unless a program adds base rules
+(`Rules.addBase`: where no sheet applies). The examples' sheets are their
+own (`Todo.sheet`, `Mail.sheet`). A part's states are signals (`helder.ui.view.States.of(node)`:
 `hovered`, `pressed`, `focused`, `focusVisible`, `disabled`,
-`attr("data-state")`...), and a widget's `style` prop is a function of
-them, as React Aria's render props: `<Button style={s -> s.pressed.value ?
-{opacity: 0.8} : {}}/>` (over the theme's rules; what it stops giving,
-the theme's again). The system colours `Canvas` and `CanvasText` are a sheet's colours of those
+`attr("data-state")`...), and a node's `states` attribute is a function of
+them, as React Aria's render props: `<view:button states={(s:States) ->
+(s.pressed.value ? {opacity: 0.8} : {} : StyleProps)}>` (typed: a function
+literal markup cannot type is a reactive value; over the theme's rules;
+what it stops giving, the theme's again). The system colours `Canvas` and `CanvasText` are a sheet's colours of those
 names, else Chromium's, light or dark; a page's slot `"body"` takes them
-(shadcn's `bg-background text-foreground` on the body), and the layers
+(a page's background and text colour), and the layers
 (popups, dialogs: `ui.overlay`) inherit its text, as a page's popups in
-its body do (`ui.body`). Menus' and a
-select's items take the focus under the pointer (`focus` rules, as
-Radix's `focus:`).
+its body do (`ui.body`).
 
 ## Fonts
 
@@ -422,17 +387,13 @@ background behind them (`WinViews`; `WinAccessTest`); on macOS
 NSTextFields over the window's content view (a password's an
 NSSecureTextField) in the field's font, colour and alignment, a text area an
 NSTextView in a borderless NSScrollView (`MacViews`; `MacAccessTest`). Linux (X11, no toolkit)
-and Android draw them still. InputOTP keeps its field drawn. A context
-menu is the platform's menu where it has one (`PlatformViews.menu`: its
-items, separators, checked and disabled ones, submenus and shortcuts'
-labels; one chosen as from the drawn menu): Windows' popup menu, macOS's
-NSMenu; the browser and Linux keep the drawn one. A select is drawn on
-desktop by default (the plan: native on touch); with `host="native"` its
-options are the same native menu, under it, the chosen one checked. A
-menu bar is the system's on macOS (`PlatformViews.menuBar`: its menus after
-the application's, the drawn bar hidden, its shortcuts still working) and
-the window's own on Windows (SetMenu: its items' commands the window's
-WM_COMMAND), drawn in the window elsewhere.
+and Android draw them still. The platform's menus are there for a
+program's own: `PlatformViews.menu` shows a context menu (its items,
+separators, checked and disabled ones, submenus and shortcuts' labels):
+Windows' popup menu, macOS's NSMenu; `PlatformViews.menuBar` a menu bar,
+the system's on macOS (its menus after the application's) and the
+window's own on Windows (SetMenu: its items' commands the window's
+WM_COMMAND).
 
 ## Accessibility
 
@@ -441,7 +402,7 @@ model: roles, names, states, actions) from the nodes: each node's
 `semantics` (in markup: `role`, `label`, `description`, `checked`,
 `selected`, `expanded`, `disabled`, `value-now`, `value-min`,
 `value-max`, `value-text`, `multiselectable`, `live`, `current`), text as labels,
-focusable nodes as groups; the widgets declare theirs. A `navigation`
+focusable nodes as groups; the text fields declare theirs. A `navigation`
 role is a landmark (ARIA's navigation, AT-SPI's landmark, UI Automation's
 navigation landmark type, macOS's AXLandmarkNavigation); `current` marks
 the current one of a set (aria-current="page"; AT-SPI's current
@@ -449,7 +410,7 @@ attribute, UI Automation's AriaProperties; macOS has no property for it). A live
 (`live="polite"` or `"assertive"`) has its changes announced
 (`AccessTree.announcements`: its new text): ARIA's aria-live, AT-SPI's
 Announcement, UI Automation's LiveRegionChanged, macOS's announcement
-request; the toaster says each toast through one. `Ui.accessTree()` gives it, `AccessTree.changes`
+request. `Ui.accessTree()` gives it, `AccessTree.changes`
 the incremental update, `Ui.accessAction` does what a screen reader asks
 (click, focus, increment, decrement, set a value). In a browser the window
 mirrors it as ARIA elements inside its canvas (the canvas's fallback
@@ -530,22 +491,8 @@ laying out text and nearly half of that the collector copying the
 paragraphs' glyphs, which all survive: a compact glyph store in
 `helder.text` (arrays, not an object per glyph) is what would cut it next.
 
-## The widgets' reference
-
-Each widget in `Widgets.hx` carries its doc comment and `@:widget` metadata:
-each prop's doc, its variants and sizes, the keys it takes and what they do
-(in order), `part` (a part of another widget, documented with it) and
-`popup` (its parts show only when the user opens it). `tools/WidgetDocs.hx`
-reads them with each widget's props, slots, data- attributes and roles, and
-its example (`examples/widgets/<Name>Example.hx`: a `view()`; run one in a
-window with `-main WidgetExample -D widget=<Name>`), into JSON (`make
-ui-check` writes `bin/ui/widgets.json`), the site's UI components page (site/src/Components.hx).
-`WidgetExamplesTest` renders every example with `Shadcn.sheet` and with no
-sheet, finds its widget's slots, and fails while a widget, a prop or an
-example is missing.
-
 ## Tests
 
-`npm test -- ui` (Eval: layout against Chromium, events, markup rendered into nodes, the guide, the widgets' examples and reference),
+`npm test -- ui` (Eval: layout against Chromium, events, markup rendered into nodes, the guide),
 `npm test -- ui-draw` (natively, golden images), `npm test -- ui-web`
 (Chromium, WebGPU and WebGL2, real input events). See `docs/testing.md`.

@@ -55,7 +55,7 @@ window.check = async () => {
 	const px = await pixels;
 	window.pixels = Array.from(px.data);
 	// (a light scene: the Add button's fill must differ from the corner)
-	return compare('todo', px, await decode('todo.png'), [360, 88, 'contrast']);
+	return compare('todo', px, await decode('todo.png'), [352, 88, 'contrast']);
 };
 // the next frame's pixels, as a hash
 window.snap = async () => {
@@ -159,7 +159,7 @@ for (const gfx of ['webgpu', 'webgl2']) {
 	// the field); a composition drawn, cancelled (as before), committed
 	await click('draft');
 	const typing = await p.evaluate(() => document.activeElement.tagName + ' ' + document.activeElement.getAttribute('aria-label'));
-	// (the field focus ring transition, 150 ms under Shadcn, over first)
+	// (any focus transition over first)
 	await p.waitForTimeout(400);
 	const before = await p.evaluate(() => window.snap());
 	await cdp.send('Input.imeSetComposition', { text: 'にほん', selectionStart: 3, selectionEnd: 3 });

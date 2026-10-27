@@ -29,10 +29,10 @@ using haxe.macro.ExprTools;
 // some renderers, by their classes (@:renderer(helder.ui.view.NodeRenderer)):
 // the others' code a throw; its components, in another renderer's
 // markup, the function of the same name of the class it names for that
-// renderer (@:renderer(..., helder.web.DomRenderer => helder.web.widgets.Widgets):
+// renderer (@:renderer(..., helder.web.DomRenderer => DomControls):
 // Pick), else an error naming it and the renderer. A function of such a
 // class marked @:neutral is for every renderer: its literals compiled for
-// each, itself in each's markup (a single-source widget: its elements the
+// each, itself in each's markup (a single-source component: its elements the
 // neutral ones, view, text, view:button..., each renderer realising them).
 class MarkupMacro {
 	@:allow(helder.view.Literal) static var count = 0;

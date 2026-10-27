@@ -4,44 +4,22 @@ import helder.ui.draw.UiWindow;
 import helder.view.*;
 import helder.view.Reactive.*;
 import helder.view.Flow.*;
-import helder.ui.widgets.Widgets.Button;
-import helder.ui.widgets.Widgets.Checkbox;
-import helder.ui.widgets.Widgets.Slider;
-import helder.ui.widgets.Widgets.Input;
-import helder.ui.widgets.Widgets.ContextMenu;
-import helder.ui.widgets.Widgets.Textarea;
-import helder.ui.widgets.Widgets.Menubar;
+import Plain.*;
 import hxmc.unsafe.*;
 
-// helder.ui's accessibility on macOS (MacAccess; CI's macOS job): a window of
-// widgets, its tree read back as assistive technology reads it, through
+// helder.ui's accessibility on macOS (MacAccess): a window of controls
+// (Plain's), its tree read back as assistive technology reads it, through
 // the NSAccessibility protocol (the view's children, their roles, labels,
 // values and frames; the focused element; a hit test), and the actions
-// performed on its elements (press, increment) reaching the widgets. Its
+// performed on its elements (press, increment) reaching the controls. Its
 // field native (MacViews: an NSTextField over the window): the program's
 // text in it, an edit (its delegate told, as AppKit tells it) in the
 // field's signal, Tab left to the window moving its focus on; made a
-// password, an NSSecureTextField with the same text. A context menu native
-// (an NSMenu popped up: its first item performed and its tracking ended
-// from the run loop's tracking mode, as a user's choice), its item chosen.
-// A text area native: an NSTextView, the program's text in it, an edit
-// (textDidChange:, as AppKit tells it) in the area's signal. A menu bar
-// native: its menus in the application's menu bar, an item performed there
-// chosen.
+// password, an NSSecureTextField with the same text. A text area native:
+// an NSTextView, the program's text in it, an edit (textDidChange:, as
+// AppKit tells it) in the area's signal.
 //   MacAccessTest
 class MacAccessTest implements Markup {
-	// (the menu seen up)
-	static var menuFound = false;
-
-	// (from the menu's tracking loop: its first item chosen, the tracking ended)
-	@:hxmc.callback static function menuPick(self:Ptr, cmd:Ptr, arg:Ptr) {
-		var m = @:privateAccess helder.ui.draw.MacViews.shown;
-		if (m.isNull()) return;
-		menuFound = true;
-		Msg.vInt(m, ObjC.sel("performActionForItemAtIndex:"), 0);
-		Msg.v(m, ObjC.sel("cancelTracking"));
-	}
-
 	static var failed = 0;
 	static var checks = 0;
 	// (a point passed by value)
@@ -64,18 +42,14 @@ class MacAccessTest implements Markup {
 
 	static function main() {
 		var w = new UiWindow("MacAccessTest", 320, 240);
-		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), menuOn = signal(false), menuChosen = "", areaOn = signal(false), notes = signal(""), barOn = signal(false), barChosen = "";
+		var saved = 0, checked = signal(false), volume = signal(0.5), name = signal(""), areaOn = signal(false), notes = signal("");
 		Render.render(<view padding={12} row-gap={8} align-items="start">
 			<text>Settings</text>
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<Input tag="name" value={name} placeholder="Name"/>
-			<Show when={menuOn}><ContextMenu tag="cm" items={[{label: "Copy", onSelect: () -> menuChosen += "copy"}, {label: "Paste", onSelect: () -> menuChosen += "paste"}]}>
-				<view tag="cm-area" width={60} height={20}/>
-			</ContextMenu></Show>
-			<Show when={areaOn}><Textarea tag="notes" value={notes}/></Show>
-			<Show when={barOn}><Menubar tag="bar" menus={[{label: "File", items: [{label: "Save", shortcut: "Mod+S", onSelect: () -> barChosen += "save"}]}]}/></Show>
+			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name.value = e.text}/>
+			<Show when={areaOn}><field:textarea tag="notes" value={notes} onInput={e -> notes.value = e.text}/></Show>
 		</view>, w.root);
 		var view = w.window.surface.handle;
 		var frames = 0, step = 0;
@@ -153,32 +127,10 @@ class MacAccessTest implements Markup {
 						check("a password: an NSSecureTextField", str(field, "class") == "NSSecureTextField", str(field, "class"));
 						check("a password: the text kept", @:privateAccess eds[0].text() == "Adax", @:privateAccess eds[0].text());
 					}
-					menuOn.value = true;
-					step = 6;
-				case 6:
-					var area = w.root.find("cm-area");
-					if (area != null) {
-						// (the pick scheduled in the tracking mode: the menu's loop runs it)
-						var d = Runtime.objc_allocateClassPair(ObjC.cls("NSObject"), Mem.cstr("HxmcMenuTest"), 0);
-						Runtime.class_addMethod(d, ObjC.sel("pick:"), Callback.addr(menuPick), Mem.cstr("v@:@"));
-						Runtime.objc_registerClassPair(d);
-						var o = Msg.id(Msg.id(d, ObjC.sel("alloc")), ObjC.sel("init"));
-						var mode = ObjC.str("NSEventTrackingRunLoopMode");
-						var modes = Msg.idPtr(ObjC.cls("NSArray"), ObjC.sel("arrayWithObject:"), mode);
-						helder.ui.native.appkit.AkMsg.vPtrPtrFloatPtr(o, ObjC.sel("performSelector:withObject:afterDelay:inModes:"), ObjC.sel("pick:"), Ptr.nil(), 0.3, modes);
-						w.ui.pointerDown(area.absX + 4, area.absY + 4, 3);
-						w.ui.pointerUp(area.absX + 4, area.absY + 4, 3);
-					}
-					step = 7;
-				case 7:
-					step = 8;
-				case 8:
-					check("a native context menu: its NSMenu shown", menuFound);
-					check("a native context menu: its first item chosen", menuChosen == "copy", menuChosen);
 					areaOn.value = true;
 					notes.value = "Line";
-					step = 9;
-				case 9:
+					step = 6;
+				case 6:
 					var areas = [for (e in (@:privateAccess helder.ui.draw.MacViews.editors : Array<helder.ui.draw.MacViews.MacEditor>)) if (Std.isOfType(e, helder.ui.draw.MacViews.MacAreaEditor)) e];
 					check("the text area native: an NSTextView", areas.length == 1 && str(@:privateAccess areas[0].field, "class") == "NSTextView",
 						"" + areas.length);
@@ -190,27 +142,10 @@ class MacAccessTest implements Markup {
 						var note = Msg.idPtrPtr(ObjC.cls("NSNotification"), ObjC.sel("notificationWithName:object:"), t, tv);
 						Msg.vPtr(@:privateAccess helder.ui.draw.MacViews.delegate, ObjC.sel("textDidChange:"), note);
 					}
-					step = 10;
-				case 10:
+					step = 7;
+				case 7:
 					check("an edit in the NSTextView, the area's signal follows", notes.value == "Line\nTwo", notes.value);
-					barOn.value = true;
-					step = 11;
-				case 11:
-					var main = Msg.id(Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication")), ObjC.sel("mainMenu"));
-					var file = Msg.id(Msg.idInt(main, ObjC.sel("itemAtIndex:"), 1), ObjC.sel("submenu"));
-					check("a native menu bar: its menu after the application's", !file.isNull() && str(file, "title") == "File", file.isNull() ? "none" : str(file, "title"));
-					if (!file.isNull()) {
-						var save = Msg.idInt(file, ObjC.sel("itemAtIndex:"), 0);
-						check("a native menu bar: Mod+S its item's key equivalent, Command", str(save, "keyEquivalent") == "s"
-							&& Msg.i(save, ObjC.sel("keyEquivalentModifierMask")).toInt() == 1 << 20, str(save, "keyEquivalent"));
-						Msg.vInt(file, ObjC.sel("performActionForItemAtIndex:"), 0);
-					}
-					step = 12;
-				case 12:
-					step = 13;
-				case 13:
-					check("a native menu bar: an item performed there chosen", barChosen == "save", barChosen);
-					step = 14;
+					step = 8;
 					w.close();
 				case _:
 			}
@@ -219,6 +154,6 @@ class MacAccessTest implements Markup {
 		};
 		UiWindow.run();
 		Sys.println('MacAccessTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		Sys.exit(failed == 0 && checks >= 24 ? 0 : 1);
+		Sys.exit(failed == 0 && checks >= 19 ? 0 : 1);
 	}
 }

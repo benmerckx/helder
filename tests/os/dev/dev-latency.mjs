@@ -4,7 +4,7 @@
 // first frame and its build's, then the medians. In headless Chromium
 // (web, web-gc: WasmGC) or natively (native: under Xvfb on Linux, from the
 // caller, as `xvfb-run node ...`).
-//   node tests/os/dev/dev-latency.mjs <compiler> <Counter|Gallery|...> [web|web-gc|native] [edits]
+//   node tests/os/dev/dev-latency.mjs <compiler> <Counter|Todo|...> [web|web-gc|native] [edits]
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';

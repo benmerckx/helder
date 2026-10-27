@@ -147,100 +147,19 @@ Int, Float, Bool, String (UTF-8) and `haxe.io.Bytes` cross, bytes in bulk
 `WasmModule.island(id)` gives the module of a WebAssembly island of the
 page.
 
-## Widgets in the DOM
+## Neutral elements in the DOM
 
-`helder.web.widgets.Widgets`: `helder.ui`'s widgets as the DOM's elements,
-for pages that want real elements rather than a canvas (no WebAssembly,
-small, the browser's own text, selection, autofill and accessibility).
-The same components and props: import `helder.web.widgets.Widgets.*` in
-place of `helder.ui.widgets.Widgets.*`, or keep ui's import: ui's widgets
-are its renderer's only (`@:renderer`, src/helder/view/README.md), and in
-the DOM's renderer's markup each is the DOM's of the same name, so one
-component serves a canvas and a page (`examples/WidgetCounter.hx`; ui's
-sources on the class path, `-cp`, not `-lib helder`). A ui widget of one
-definition for both (`@:neutral`: the static widgets, Field, ButtonGroup,
-Toggle, ToggleGroup, Checkbox, Switch, RadioGroup, Slider, RangeSlider,
-Tabs, Listbox, Breadcrumb, Pagination, Collapsible, Accordion, Calendar, Progress, Spinner, ScrollArea, Avatar, TagInput, Toolbar, SidebarTrigger, Alert, the text
-fields (Input, Textarea, NumberField, InputOTP, InputGroupInput) and the
-Sidebar's parts so far) is no DOM copy at all:
-DomRenderer realises its neutral elements at compile time (NeutralMacro:
-`view` a `div`, `text` a `span`, `view:button` a `button`, `icon` an
-`svg`, `image` an `img`, `field` an `input`, `field:textarea` a `textarea` (`value` the
+A component of one definition for a canvas and a page (`@:neutral`,
+src/helder/view/README.md) is written in the neutral elements, and
+DomRenderer realises them at compile time (NeutralMacro: `view` a `div`,
+`text` a `span`, `view:button` a `button`, `icon` an `svg`, `image` an
+`img`, `field` an `input`, `field:textarea` a `textarea` (`value` the
 property, `onInput` the DOM's input, its text `e.text`)...; `slot`,
 `variant`, `size` as `data-*`, `label`, `checked`, `expanded`... as
 `aria-*`, `focusable` as `tabindex`, `id` as it is, ui's `tag` none,
 StyleProps as inline style; events as ui's Event, `onPress` a click; a
-name it has not an error), a ref getting an `ElementPart`.
-
-```haxe
-import helder.web.widgets.Widgets.*;
-
-class App implements Markup {
-	static function main() {
-		var terms = signal(false);
-		Render.render(<Card>
-			<CardContent><Checkbox checked={terms} label="Accept terms"/></CardContent>
-			<CardFooter><Button label="Sign up" disabled={() -> !terms.value}/></CardFooter>
-		</Card>, js.Browser.document.body);
-	}
-}
-```
-
-- **shadcn's markup.** Each widget is the element shadcn and Radix render:
-  a `<button>` for a button, a checkbox (`role="checkbox"`), a switch, a
-  tab or a select's trigger; `<input>`, `<textarea>`, `<label for>`,
-  `<table>`, `<nav>`, `<kbd>`, `<fieldset>` and `<legend>` (Field), a
-  `<select>` (NativeSelect), `<main>` (SidebarInset); a role where Radix uses a `<div>`
-  (`listbox`, `option`, `menu`, `menuitem`, `radiogroup`, `slider`,
-  `tree`); `data-slot`, `data-variant`, `data-size`, Radix's `data-state`,
-  `data-side`, `data-orientation`, `data-highlighted`, `data-disabled`,
-  and `aria-*` throughout.
-- **helder.ui's behaviour.** The keys, roving focus (one Tab stop in tabs, a
-  radio group, a toggle group, a menu bar, a toolbar), type-ahead, a
-  slider's keys, a calendar's and a tree's are `helder.ui.widgets.Behaviour`'s,
-  which the drawn widgets' keys are written to (`Key` codes); the rest as
-  the drawn widgets do it: a select opened and chosen, menus and submenus,
-  the shortcuts of their items, a combobox, a command menu, dragging (a
-  slider, a split, a drawer, a table's column, a sortable list), double
-  clicks, toasts on `Toasts`, a carousel's slides (Embla's look: the track
-  moved by a slide), a navigation menu's panels (Radix's: the pointer
-  moving between open triggers, Escape back to the trigger), a sidebar
-  (Mod+B), a chart's tooltip under the pointer.
-- **Popups in the top layer.** Menus, a select's options, a popover, a
-  tooltip, a hover card, a combobox's list: a `popover` element in
-  `document.body`, placed by its trigger (flipped where there is no room,
-  right to left as the line reads), Radix's custom properties set
-  (`--radix-select-trigger-width`, `-content-transform-origin`,
-  `-available-height`), dismissed by Escape or a press outside, the focus
-  back on the trigger. Dialogs, alert dialogs, sheets and drawers: a modal
-  `<dialog>` (the page behind it inert, the focus kept in it).
-- **Unstyled**, as the drawn widgets: the theme's CSS
-  (`helder.theme.Css`, packages/theme) gives them shadcn's look, the same
-  markup and CSS as shadcn's own components, so they look the same in a
-  browser (`npm test -- theme-dom`: 252 cases against shadcn's references,
-  most identical to the pixel). Dark: `class="dark"` on `<html>`, or the
-  system's unless `class="light"`; right to left: `dir="rtl"`.
-
-```sh
-haxe -lib helder --run helder.theme.Css shadcn.json app.css   # the stylesheet
-haxe -cp src -main App -js app.js -dce full
-```
-
-(The widgets need `helder.ui`'s sources on the class path for their
-behaviour, not its renderer: `-cp`, not `-lib helder`, which would add
-ui's renderer to the build.) Sizes (`make web-widgets`, JavaScript as the
-port writes it, before any minifier; the canvas builds of the same
-programs for wasm32-wasi beside them):
-
-| | DOM (JavaScript) | gzipped | canvas (wasm32-wasi) | gzipped |
-| --- | --- | --- | --- | --- |
-| counter | 44 KB | 9.5 KB | 1.8 MB | 432 KB |
-| form (the sign-up card) | 67 KB | 13 KB | 1.9 MB | 459 KB |
-| gallery | 342 KB | 62 KB | 2.4 MB | 559 KB |
-| the theme's CSS | 186 KB | 18 KB | | |
-
-A minifier (terser) took them, at 42, 60 and 306 KB, to 23, 32 and 157 KB (7, 9
-and 40 KB gzipped). The canvas programs need fonts besides.
+name it has not an error), a ref getting an `ElementPart`. The page's look
+is its CSS.
 
 ## Example and tests
 
@@ -256,14 +175,3 @@ renderer wrote, compiled with both renderers), and the demo page:
 hydrated with every node kept, reactive afterwards, the mismatch rendered
 again with its warning, the JavaScript island calling `lab.wasm`, the cube
 fetched only once it scrolls into view, then drawing.
-
-`make web-widgets`: first `test/WidgetParity.hx`, every ui widget a DOM one
-with the same props (names, types, optional, the defaults both state;
-its `KNOWN` differences listed, a stale one failing too), then
-`examples/WidgetCounter.hx`, `WidgetForm.hx` and
-`WidgetGallery.hx` (ui's gallery on the DOM's widgets) with the theme's
-CSS in `bin/web/widgets`, then `test/widgets.mjs` drives the gallery in
-headless Chromium by pointer and keys (tabs and radio buttons roving, a
-select, a menu opening a dialog, Escape, a menu bar, a slider, a
-combobox, a tooltip, a context menu, a list box, a tree, a toast, right to
-left) and prints the sizes.

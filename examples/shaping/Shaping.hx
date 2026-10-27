@@ -2,11 +2,9 @@
 // summary: Fonts parsed, shaped and rasterized in Haxe: kerning, Arabic joining, right-to-left and mixed runs, combining marks; type to reshape
 // tags: ui, text, bidi, shaping
 // demo: canvas 480x440
-import helder.theme.Shadcn;
 import helder.ui.draw.UiWindow;
 import helder.view.*;
 import helder.view.Reactive.*;
-import helder.ui.widgets.Widgets.*;
 
 // What helder.text does for ui's text, with no system text engine: each
 // line is shaped (kerning pairs, Arabic letters joined by their position in
@@ -14,11 +12,10 @@ import helder.ui.widgets.Widgets.*;
 // left where it reads so, and drawn from glyphs our own rasterizer made.
 // The field below reshapes what is typed into it. In a window:
 //
-//   haxe -lib helder -lib helder -cp examples -main Shaping --custom-target hxmc=shaping -D hxmc.libc=glibc
+//   haxe -lib helder -cp examples/shaping -main Shaping --custom-target hxmc=shaping -D hxmc.libc=glibc
 class Shaping implements Markup {
 	static function main() {
 		var w = new UiWindow("Text shaping", 480, 440);
-		w.ui.theme = Shadcn.sheet;
 		Render.render(new Shaping().view(), w.root);
 		UiWindow.run();
 	}
@@ -44,7 +41,8 @@ class Shaping implements Markup {
 				<Sample label="Marks" text={"n\u0303 a\u0308 o\u0323\u0302 e\u0301"}/>
 				<Sample label="Scripts" text="Ελληνικά Кириллица"/>
 			</view>
-			<Input value={input} placeholder="Type in any script"/>
+			<field value={input} placeholder="Type in any script" label="Text to shape" onInput={e -> input.value = e.text} padding="8 12" radius={6}
+				border-width={1} border-color="#e4e4e7" background="#ffffff"/>
 			<text font-size={26}>{input}</text>
 		</view>;
 }

@@ -86,8 +86,8 @@ class Node implements Part {
 	// a legend (a page's legend element): its parent's first, as a fieldset's
 	// rendered legend, no flex item (Layout: no gap after it in a column)
 	public var legend = false;
-	// what a theme styles it as (Rule, StyleSheet): the part of a widget
-	// (shadcn's data-slot names: "button", "switch-thumb"), its variant and
+	// what a theme styles it as (Rule, StyleSheet): the part it is
+	// ("button", "switch-thumb"), its variant and
 	// size ("destructive", "sm"); its attributes, the states rules match
 	// ("data-state" "checked", "data-disabled" present: attr, setAttr); and
 	// a theme for this subtree (null: the parent's, else the window's)
@@ -95,7 +95,7 @@ class Node implements Part {
 	public var variant(default, set):Null<String> = null;
 	public var size(default, set):Null<String> = null;
 	public var theme(default, set):Null<StyleSheet> = null;
-	// what draws the widgets of this subtree (Host: Auto, the parent's; Ui.hostOf)
+	// what draws the controls of this subtree (Host: Auto, the parent's; Ui.hostOf)
 	public var host:Host = Auto;
 	var attrs:Null<Map<String, String>> = null;
 	// (what the rules wrote: the properties and their values, Rules; a restyle asked for, done by Ui.update)
@@ -856,7 +856,7 @@ class Node implements Part {
 	// (a text field's: EditableText's)
 	public function select(start:Int, end:Int) {}
 
-	// (kept wherever nodes are laid out: widgets call these opaquely in a page, Widgets' partsIn and the others)
+	// (kept wherever nodes are laid out: a Part's, which a component calls opaquely in a page too)
 	@:ifFeature("helder.ui.Node.markDirty") public function focusables():Array<Part> {
 		var out:Array<Part> = [];
 		function walk(n:Node)

@@ -9,7 +9,7 @@
 // be the bytes a one-shot build of the same sources makes
 // (HXMC_DEV_HXB_CACHE=1: the server's modules read back from HXB, its
 // default; HXMC_DEV_VERIFY_KEEP=<dir>: the outputs that differ copied there).
-//   node tests/os/dev/dev-verify.mjs <compiler> [Counter|Gallery|...] [native|web|web-gc]
+//   node tests/os/dev/dev-verify.mjs <compiler> [Counter|Todo|...] [native|web|web-gc]
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
@@ -41,13 +41,13 @@ const helpers = [
 fs.writeFileSync(helper, helpers[0]);
 // a module of markup (the markup macro: components, attributes, bindings), edited
 const card = path.join(work, 'app', 'DevCard.hx');
-const cardHead = 'import helder.ui.widgets.Widgets.*;\nimport helder.view.*;\nimport helder.view.Flow.*;\nimport helder.view.Reactive.*;\n\n';
+const cardHead = 'import helder.view.*;\nimport helder.view.Flow.*;\nimport helder.view.Reactive.*;\n\n';
 const cards = [
-	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={8} row-gap={4}>\n\t\t\t<text font-size={14}>{title}</text>\n\t\t\t<Button label="add" onClick={() -> n.value++}/>\n\t\t</view>;\n\t}\n}\n',
+	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={8} row-gap={4}>\n\t\t\t<text font-size={14}>{title}</text>\n\t\t\t<view:button role="button" focusable onPress={_ -> n.value++}>add</view:button>\n\t\t</view>;\n\t}\n}\n',
 	// (an attribute changed, an element added)
-	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={12} row-gap={4}>\n\t\t\t<text font-size={16}>{title}</text>\n\t\t\t<text>{n}</text>\n\t\t\t<Button label="add" onClick={() -> n.value++}/>\n\t\t</view>;\n\t}\n}\n',
+	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={12} row-gap={4}>\n\t\t\t<text font-size={16}>{title}</text>\n\t\t\t<text>{n}</text>\n\t\t\t<view:button role="button" focusable onPress={_ -> n.value++}>add</view:button>\n\t\t</view>;\n\t}\n}\n',
 	// (a component of its own, with a prop, used twice; a Show)
-	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={12} row-gap={4}>\n\t\t\t<Row label={title}/>\n\t\t\t<Row label="two"/>\n\t\t\t<Show when={() -> n.value > 0}><text>{n}</text></Show>\n\t\t\t<Button label="add" variant="outline" onClick={() -> n.value++}/>\n\t\t</view>;\n\t}\n\n\tstatic function Row(props:{label:String}):View\n\t\treturn <view direction="row" column-gap={4}><text>{props.label}</text><Badge label="new"/></view>;\n}\n',
+	cardHead + 'class DevCard implements Markup {\n\tpublic static function view(title:String):View {\n\t\tvar n = signal(0);\n\t\treturn <view padding={12} row-gap={4}>\n\t\t\t<Row label={title}/>\n\t\t\t<Row label="two"/>\n\t\t\t<Show when={() -> n.value > 0}><text>{n}</text></Show>\n\t\t\t<view:button role="button" focusable border-width={1} onPress={_ -> n.value++}>add</view:button>\n\t\t</view>;\n\t}\n\n\tstatic function Row(props:{label:String}):View\n\t\treturn <view direction="row" column-gap={4}><text>{props.label}</text><text padding="0 6" radius={6} background="#e4e4e7">new</text></view>;\n}\n',
 ];
 fs.writeFileSync(card, cards[0]);
 const out = web ? 'out/app.wasm' : process.platform === 'win32' ? 'out/app.exe' : 'out/app';

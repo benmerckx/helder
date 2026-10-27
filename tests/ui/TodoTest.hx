@@ -1,4 +1,3 @@
-import helder.theme.Shadcn;
 import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.os.*;
@@ -6,10 +5,10 @@ import helder.ui.*;
 import helder.ui.draw.*;
 import helder.view.*;
 
-// The todo example (examples/Todo.hx) driven headless through its Ui:
+// The todo example (examples/todo/Todo.hx) driven headless through its Ui:
 // typing into the field and Enter, the Add button, a checkbox, a filter,
 // Remove; its state checked, then its frame against todo.png (Linux:
-// llvmpipe, DejaVu Sans) (npm test -- ui-draw):
+// llvmpipe, DejaVu Sans) (bun run test ui-draw):
 //   TodoTest <golden.png> <out.png> [--bless]
 class TodoTest {
 	static inline var W = 420;
@@ -29,7 +28,7 @@ class TodoTest {
 		var args = Sys.args();
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
-		ui.theme = Shadcn.sheet;
+		ui.theme = Todo.sheet;
 		var app = new Todo();
 		Render.render(app.view(), ui.root);
 		ui.update();
@@ -77,7 +76,7 @@ class TodoTest {
 		check("a filter hides the done items", rows == 2, '$rows');
 		click("filter-all");
 		Sys.println('TodoTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
-		// the frame (the widgets' transitions finished)
+		// the frame (its transitions finished)
 		Clock.finish();
 		var r = new Renderer(device);
 		var pass:PassDesc = {colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1)}]};

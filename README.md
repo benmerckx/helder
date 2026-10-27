@@ -55,7 +55,6 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `physics` | a small rigid-body core for `scene` |
 | `scoped` | scoped memory on any Haxe target, and a checker that keeps it out of the GC heap |
 | `dev` | the dev host and state kept across a reload |
-| `theme` | shadcn/ui's look and Tailwind for ui's widgets (to be archived, see below) |
 
 `examples/` has a program per folder; `tests/Run.hx` has the checks:
 
@@ -71,12 +70,6 @@ In order: each phase leans on the one before it.
 
 ### 1. Cleanup
 
-- **Archive theme, the shadcn widgets and Tailwind.** Not useful in their
-  current form. Remove `helder.theme`, `ui/widgets/Widgets.hx`,
-  `web/widgets`, `examples/widgets`, `examples/dom-widgets` and their tests
-  from the tree (git history keeps them, under a tag). Text editing
-  (`TextField`, `TextArea`, `EditableText`) is core and stays in ui; the
-  examples that used the theme move to plain styles.
 - **Extract images into `helder.image`.** The PNG, JPEG, WebP and GIF
   decoders and animated images leave ui (SVG stays: it draws through ui), so that scene, 2D and the asset
   pipeline use them without depending on ui (scene now reaches them

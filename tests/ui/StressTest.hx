@@ -1,4 +1,3 @@
-import helder.theme.Shadcn;
 import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.os.*;
@@ -7,13 +6,13 @@ import helder.ui.draw.*;
 import helder.view.*;
 import helder.view.Flow.*;
 import helder.view.Reactive.*;
-import helder.ui.widgets.Widgets.*;
+import Plain.*;
 
 // A list of ROWS rows in markup (a checkbox, a label, a number and a button
-// each, in a scroll view), drawn headless: the time of each step of a UI's
+// each, Plain's, in a scroll view), drawn headless: the time of each step of a UI's
 // life (mounting, the first layout and frame, a change to one row, a scroll,
 // an added row, frames with nothing changed), and checks that a change lays
-// out again only what it touched (make ui-stress):
+// out again only what it touched (bun run test ui-draw):
 //   StressTest [rows]
 class StressTest implements Markup {
 	static inline var W = 800;
@@ -63,7 +62,6 @@ class StressTest implements Markup {
 		var n = Sys.args().length > 0 ? Std.parseInt(Sys.args()[0]) : 1000;
 		var device = Device.create(Surface.headless(W, H));
 		var ui = new Ui(new DrawText(), W, H);
-		ui.theme = Shadcn.sheet;
 		var r = new Renderer(device);
 		var pass:PassDesc = {colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1)}]};
 		var pixels = Bytes.alloc(W * H * 4);

@@ -2,13 +2,10 @@ import helder.ui.*;
 import helder.ui.draw.UiWindow;
 import helder.view.*;
 import helder.view.Reactive.*;
-import helder.ui.widgets.Widgets.Button;
-import helder.ui.widgets.Widgets.Checkbox;
-import helder.ui.widgets.Widgets.Slider;
-import helder.ui.widgets.Widgets.Input;
+import Plain.*;
 
-// helder.ui's accessibility on Linux (LinuxAccess; npm test -- ui-draw, under
-// Xvfb and a D-Bus session with AT-SPI's bus): a window of widgets whose
+// helder.ui's accessibility on Linux (LinuxAccess; bun run test ui-draw, under
+// Xvfb and a D-Bus session with AT-SPI's bus): a window of controls (Plain's) whose
 // tree AtspiProbe, another process, reads through libatspi (what Orca
 // uses), then presses its Save button, which closes the window. Its exit
 // status: whether the press came within 20 seconds, and no tree was built
@@ -26,7 +23,7 @@ class LinuxAccessTest implements Markup {
 			}}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<Input tag="name" value={name} placeholder="Name"/>
+			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name.value = e.text}/>
 			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var start = haxe.Timer.stamp();
