@@ -24,6 +24,7 @@ import helder.ui.draw.DrawText;
 //
 //   Bench <DejaVuSans.ttf> [workload ...]     (bun run test bench: natively and as wasm32-wasi)
 //   Bench <DejaVuSans.ttf> list               (their names)
+//   Bench <DejaVuSans.ttf> steady             (physics' worlds in steady state: GC bytes a step)
 class Bench {
 	static var font:FontFile;
 	static var fontBytes:Bytes;
@@ -59,6 +60,11 @@ class Bench {
 			return;
 		}
 		GcStats.enable();
+		if (args[0] == "steady") {
+			for (w in all)
+				if (StringTools.startsWith(w.name, "physics.")) steady(w);
+			return;
+		}
 		for (w in all)
 			if (args.length == 0 || args.contains(w.name)) measure(w);
 		GcStats.disable();
@@ -95,6 +101,18 @@ class Bench {
 		];
 		Sys.println(cols.join(" "));
 		check = 0;
+	}
+
+	// (a world's bytes a step once it has run 300 steps: each run above
+	// starts from a new one, whose buffers grow)
+	static function steady(w:Workload) {
+		w.before();
+		for (_ in 0...300)
+			step();
+		var b0 = GcStats.bytes(), c0 = GcStats.collections();
+		for (_ in 0...300)
+			step();
+		Sys.println('steady ${w.name} ${Math.round((GcStats.bytes() - b0) / 300)} B/step, ${GcStats.collections() - c0} GCs in 300 steps');
 	}
 
 	static function fixed(v:Float, digits:Int):String {
