@@ -124,8 +124,10 @@ three alternating builds):
 - wasm32-wasi: Bench running two or three of the ui workloads in one
   process (each building a new tree of 10k nodes, the last one garbage)
   segfaults in node, at every commit measured here, the one before the
-  pilot too, with or without RT_OLD_MB=512 and --stack-size; each alone
-  runs. The lane runs each workload in a process of its own; this file's
-  numbers too.
+  pilot too, with or without RT_OLD_MB=512; each alone runs, and all three
+  run with node's --stack-size=65500 under `ulimit -s unlimited`: the
+  known overflow of the runtime's major collection (baseline.md), out of
+  node's native stack. The lane runs each workload in a process of its
+  own; this file's numbers too.
 - A `Null<T>` of an `@:hxmc.struct` is boxed when returned (contentInk's
   24 bytes a call), as expected of a value type: the API takes a sentinel.
