@@ -5,13 +5,16 @@ mobile and the web, from one npm package. Built on
 [hxmc](https://github.com/benmerckx/hxmc), the Haxe compiler with a native
 and WebAssembly target. **Unstable**: APIs change without notice.
 
-The goal (the CLI does not exist yet, see the roadmap):
+The goal (desktop and web work from this checkout: `bun run helder ...`,
+src/helder/cli/README.md; the rest is on the roadmap):
 
 ```sh
 npm install helder
 npx helder dev            # this machine, with live reload
-npx helder dev android    # boots an emulator, installs, live reloads
-npx helder build ios
+npx helder dev web        # a page, with live reload
+npx helder build          # bin/<target>/<name>, its compile time and size
+npx helder dev android    # (to come) boots an emulator, installs, live reloads
+npx helder build ios      # (to come)
 ```
 
 ## Aims
@@ -69,7 +72,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `dev` | the dev host and state kept across a reload |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
-| `cli` | the `helder` command, a native program on `async`: `helder test` so far |
+| `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run` and `test`, for desktop and the web |
 
 `examples/` has a program per folder; `tests/Run.hx` has the checks, and
 the `*.test.hx` files are helder.test's, run by the CLI built from this
@@ -80,6 +83,7 @@ bun install
 bun run test              # the lanes that need no GPU, display or browser
 bun run test help         # every lane
 bun run helder test       # the *.test.hx files (--target all, --watch, -t <name>)
+bun run helder dev examples/counter/Counter.hx   # an example, live (dev web: a page)
 ```
 
 ## Roadmap
@@ -109,9 +113,27 @@ In order: each phase leans on the one before it.
   - **processes with a working directory and an environment** (hxmc's
     `processRun` takes neither), and Windows' pipes without threads;
   - **tested on macOS and Windows** (both build; neither has run).
-- **Then the CLI on it:**
+- **Then the CLI on it** (done as a first slice, src/helder/cli/README.md:
+  `helder dev`, `build` and `run` for the host and `web`, `build` for any
+  hxmc target; an entry is a project, an example's directory or a file;
+  hxmc's native compiler called directly, a compilation server for dev; the
+  dev host on Linux, a restart with a snapshot elsewhere, the page swapped
+  in place; the `cli` lane, the examples lane through it, and dev-web.mjs
+  and dev-native.mjs passing on it). Still to come of it:
+  - the watcher on what the last build read (esbuild's sampled polling),
+    then native watchers; changed assets sent without a recompile, assets
+    packed by `build`; the page held back while the module is generated;
+  - the dev host on macOS and Windows, and both tested (they build);
+  - the CLI on npm as a binary (`@helder/<os>-<cpu>`);
+  - name, version and app id from package.json into the builds;
+  - the renderer defines the CLI takes from the imports (a stopgap) gone
+    with the boundary tags below;
+  - hxmc's fixes, its workarounds then removed: processes with a working
+    directory and an environment, sub-second mtimes; `--wait`'s runtime
+    objects and empty connection (fixed upstream, not in the pinned
+    nightly).
   - **`helder dev [target]`, `helder run [target]` and `helder build
-    [target]`**, for the host and `web` first; Android and iOS follow in
+    [target]`**, for the host and `web` first (done); Android and iOS follow in
     phase 4. Project scaffolding (`helder new`) and a `helder doctor` wait.
   - **A native program**, written in Haxe and built by hxmc, shipped like
     the compiler: one optional npm dependency per OS and CPU
@@ -157,7 +179,8 @@ In order: each phase leans on the one before it.
     - `--target web` (Chromium), Windows' links tried (developer mode, else
       copies), the CLI shipped as a binary on npm;
     - a macro later (`@:test` collection, an `assert` showing its values).
-  - **Every build reports its compile time and binary size.**
+  - **Every build reports its compile time and binary size** (done for
+    `helder build` and dev's builds).
   - **One message format on the dev connection** for reloads, logs and
     the devtools (phase 3): JSON-RPC as the Chrome DevTools Protocol and
     Dart's VM service have it, methods in domains (`Ui`, `Scene`,
@@ -165,8 +188,9 @@ In order: each phase leans on the one before it.
     until a tool enables them, libraries adding their own (as Godot's
     debugger), get, query and set on properties (as Bevy's BRP), profiler
     samples as a binary stream, node ids kept across reloads, versioned.
-  - **The examples are the CLI's fixtures**, laid out as projects: each
-    builds and reloads with no configuration of its own, in CI.
+  - **The examples are the CLI's fixtures**: each builds by `helder build
+    <file>` with no flags (the examples lane); laid out as projects and
+    each reloaded in CI, to come.
 
 - **Renderers as tags in markup**, react-three-fiber's `<Canvas>` model,
   replacing the `-D helder.view.renderer.<name>` defines (the CLI adds
