@@ -5,8 +5,7 @@ import helder.web.*;
 
 // The static renderer (npm test -- web), on Eval and natively:
 //
-//   <tool> -cp src -cp tests/web \
-//     -D helder.view.renderer.html=helder.web.StaticRenderer --run StaticTest
+//   <tool> -cp src -cp tests/web --run StaticTest
 //
 // escaping (text, attributes, script and style), void elements, boolean
 // attributes, properties as the parser makes them, styles, SVG, the
@@ -117,5 +116,9 @@ class StaticTest implements Markup {
 		check("a WebAssembly island", Static.render(<Island.Wasm src="cube.wasm" id="cube" imports={["os/imports.mjs"]} width={256} height={192}>A cube</Island.Wasm>),
 			'<hxmc-island id="cube" data-wasm="cube.wasm" data-runner="os/browser.mjs" data-imports="[&quot;os/imports.mjs&quot;]" data-load="visible">'
 			+ '<canvas width="256" height="192"></canvas>A cube</hxmc-island>');
+		var surface = Static.render(<WebTags.Surface src="todo.wasm" fonts={["f.ttf"]} className="app">Todo</WebTags.Surface>);
+		check("a <Surface>: a ui program's island, its canvas the page's styles' size", surface, '<hxmc-island class="app" data-wasm="todo.wasm" data-runner="os/browser.mjs" '
+			+ 'data-imports="[&quot;os/imports.mjs&quot;,&quot;gfx/imports.mjs&quot;,&quot;text/imports.mjs&quot;,&quot;ui/imports.mjs&quot;]" '
+			+ 'data-fonts="[&quot;f.ttf&quot;]" data-load="load"><canvas style="display:block;width:100%;height:100%"></canvas>Todo</hxmc-island>');
 	}
 }

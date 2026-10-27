@@ -22,6 +22,16 @@ class DomTest implements Markup {
 		if (!ok) failed.push(what + (detail == null ? "" : ": " + detail));
 	}
 
+	// helder.web's <Surface> in the DOM: a canvas in an element, its module
+	// started on it once mounted (the runner a stub: web.mjs checks what it got)
+	static function surface() {
+		Island.runner = "data:text/javascript,export const run = (url, o) => { window.domSurface = {url, canvas: o.canvas === document.querySelector('.surface canvas'), fonts: o.fonts, imports: o.imports}; return Promise.resolve({host: {}, instance: null}); };";
+		var m = mount(<WebTags.Surface src="app.wasm" className="surface" fonts={["f.ttf"]}><p>caption</p></WebTags.Surface>);
+		var c = m.el.querySelector(".surface canvas");
+		check("<Surface>: a canvas the page's styles size, the children beside it", c != null && c.getAttribute("style") == "display:block;width:100%;height:100%"
+			&& m.el.querySelector(".surface p").textContent == "caption", m.el.innerHTML);
+	}
+
 	static function mount(content:Any):{el:Element, dispose:Void->Void} {
 		var el = document.createDivElement();
 		document.body.appendChild(el);
@@ -32,6 +42,7 @@ class DomTest implements Markup {
 	static function main() {
 		rendering();
 		hydration();
+		surface();
 		js.Syntax.code("window.domTest = {0}", {checks: checks, failed: failed});
 	}
 

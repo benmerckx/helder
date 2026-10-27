@@ -2,9 +2,8 @@ package helder.web;
 
 import helder.web.HtmlNode;
 
-// helder.view's renderer for static HTML (-D helder.view.renderer.html=
-// helder.web.StaticRenderer, which -lib helder sets on every target but
-// JavaScript): pages rendered at build time, natively or on Eval (or in
+// helder.view's renderer for static HTML (HtmlNode names it: @:rendered;
+// Static.render's and Static.document's content): pages rendered at build time, natively or on Eval (or in
 // node), written out once (Static.render). Listeners are dropped, effects
 // run once. Attributes follow Html's rules, as the DOM renderer's do, so
 // that a page hydrates into the same nodes: a region's marker is a pair of

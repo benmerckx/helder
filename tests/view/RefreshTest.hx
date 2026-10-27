@@ -7,8 +7,7 @@ import TestRenderer.TestNode;
 // reload, as HotTest does for helder.dev.Hot: the program runs twice (make
 // dev-check), once changing its state and writing the snapshot, then
 // started from it (HXMC_DEV_SNAPSHOT):
-//   <tool> -cp src -cp tests/view \
-//     -D helder.view.renderer=TestRenderer -D hxmc.dev --run RefreshTest save|restore <file>
+//   <tool> -cp src -cp tests/view -D hxmc.dev --run RefreshTest save|restore <file>
 // signals keyed by their variables, in each component instance's scope:
 // two instances of one component apart, a list's rows by position, a
 // component by its key attribute, what a region shows later (Show) as when it

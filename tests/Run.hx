@@ -309,6 +309,8 @@ class Run {
 		js("bin/web/demo/counter.js", cp.concat(["-main", "Counter", "-dce", "full", "-D", "js-es=6", "-D", "analyzer-optimize"]));
 		wasm("bin/web/demo/lab.wasm", cps(["src", "examples/web-demo"]).concat(["-main", "Lab"]));
 		wasm("bin/web/demo/cube.wasm", gfxCp().concat(["-main", "Cube"]));
+		// (ui's counter, its root a <Surface>: the page's <Surface>)
+		wasm("bin/web/demo/counter-ui.wasm", cps(["src", "examples/counter"]).concat(["-main", "Counter"]));
 		for (f in FileSystem.readDirectory("bin/web/demo"))
 			if (f.endsWith(".log")) FileSystem.deleteFile('bin/web/demo/$f');
 		run(NODE, ["tests/web/web.mjs", "bin/web"]);

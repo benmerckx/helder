@@ -6,8 +6,8 @@ import helder.image.Image;
 import helder.image.AnimatedImage;
 #end
 
-// helder.view's renderer for helder.ui's nodes (-D helder.view.renderer.ui=
-// helder.ui.view.NodeRenderer, which -lib helder sets): the tree that the
+// helder.view's renderer for helder.ui's nodes (helder.ui.Node names it:
+// @:rendered; a <Surface>'s children, UiView): the tree that the
 // drawn backend (helder.ui.draw) and the native one (helder.ui.native, whose
 // Controls are nodes in it) display.
 //

@@ -1,4 +1,5 @@
-// A renderer for helder.view's tests (-D helder.view.renderer=TestRenderer):
+// A renderer for helder.view's tests (its nodes @:rendered(TestRenderer): the
+// contract tested through an explicit mark, as a package's renderer has it):
 // elements, texts and markers in a plain tree, written out as HTML
 // (markers as comments); a "p" element holds text, as ui's text nodes do,
 // so that both content models are tested

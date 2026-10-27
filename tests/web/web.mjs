@@ -1,7 +1,7 @@
 // helder.web in headless Chromium (npm test -- web): the DOM renderer's checks
 // (DomTest.hx, domtest.js), then the demo page (examples:
 // DemoPage's index.html, DemoBundle's islands.js, Counter's counter.js,
-// lab.wasm, cube.wasm) served as a static site with src/helder/web/loader.js
+// lab.wasm, cube.wasm, counter-ui.wasm) served as a static site with src/helder/web/loader.js
 // and the packages' browser.mjs and imports.mjs:
 // - the islands hydrate without making a node again (every node of the
 //   page's islands, taken before the loader runs, still there, in order;
@@ -14,11 +14,14 @@
 //   strings, 64 KB of bytes each way);
 // - the WebAssembly island (gfx's cube) is not fetched before it scrolls
 //   into view, then draws (WebGPU or WebGL2 on SwiftShader);
+// - ui's counter as a page's <Surface> (counter-ui.wasm, its own root a
+//   <Surface>) runs on the canvas the page sizes, and follows its size;
 // then prints the sizes of counter.js (a small island alone) and loader.js.
 //   node tests/web/web.mjs <dir: domtest.js, demo/>
 // (Playwright from npm, with Chromium: npx playwright install chromium)
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -41,6 +44,9 @@ const files = {
 	'/os/browser.mjs': pkg('os/browser.mjs'),
 	'/os/imports.mjs': pkg('os/imports.mjs'),
 	'/gfx/imports.mjs': pkg('gfx/imports.mjs'),
+	'/text/imports.mjs': pkg('text/imports.mjs'),
+	'/ui/imports.mjs': pkg('ui/imports.mjs'),
+	'/fonts/DejaVuSans.ttf': ['/usr/share/fonts/truetype/dejavu', '/usr/share/fonts/TTF', '/usr/share/fonts/dejavu'].map((d) => path.join(d, 'DejaVuSans.ttf')).find((f) => existsSync(f)),
 	'/domtest.js': path.join(dir, 'domtest.js'),
 	'/domtest.html': null,
 };
@@ -77,6 +83,9 @@ function check(what, ok, detail) {
 	await p.goto(url + 'domtest.html');
 	const r = await p.evaluate(() => window.domTest);
 	check(`DomTest: ${r?.checks} checks`, r && r.failed.length === 0 && errors.length === 0, r ? r.failed.concat(errors) : errors);
+	const surface = await p.waitForFunction(() => window.domSurface, null, { timeout: 5000 }).then((h) => h.jsonValue()).catch(() => null);
+	check('DomTest: a DOM <Surface> starts its module on its canvas', surface && surface.url.endsWith('/app.wasm') && surface.canvas && surface.fonts[0].endsWith('f.ttf')
+		&& surface.imports.includes('ui/imports.mjs'), surface);
 	await p.close();
 }
 
@@ -148,6 +157,24 @@ function check(what, ok, detail) {
 		return { backend: r.host.gfx.backend, exit: r.host.exitCode };
 	}).catch((e) => ({ error: e.message }));
 	check('the cube runs once in view', requested.includes('/cube.wasm') && ['webgpu', 'webgl2'].includes(cube.backend) && cube.exit === null, cube);
+	// ui's <Surface> in the page: its program on the page's canvas, the canvas's size the page's styles, followed
+	await p.locator('#counter-ui').scrollIntoViewIfNeeded();
+	await p.waitForSelector('#counter-ui[data-hydrated]', { state: 'attached', timeout: 30000 }).catch(() => {});
+	const size = () => p.evaluate(() => {
+		const c = document.querySelector('#counter-ui canvas');
+		return { w: c.width, h: c.height, cw: Math.round(c.clientWidth * devicePixelRatio), ch: Math.round(c.clientHeight * devicePixelRatio) };
+	});
+	const surface = await p.evaluate(async () => {
+		const r = await window.hxmcWasm['counter-ui'];
+		return { backend: r.host.gfx.backend, exit: r.host.exitCode };
+	}).catch((e) => ({ error: e.message }));
+	await p.waitForTimeout(300);
+	const s0 = await size();
+	check('a ui <Surface> runs on the page', ['webgpu', 'webgl2'].includes(surface.backend) && surface.exit === null && s0.w === s0.cw && s0.h === s0.ch && s0.w > 0, { surface, s0 });
+	await p.evaluate(() => (document.querySelector('#counter-ui').style.width = '400px'));
+	await p.waitForTimeout(300);
+	const s1 = await size();
+	check('its canvas follows the page\'s styles', s1.w === Math.round(400 * (s1.cw / 400)) && s1.w === s1.cw && s1.w !== s0.w, { s0, s1 });
 	check('no errors', errors.length === 0, errors);
 	await p.close();
 }

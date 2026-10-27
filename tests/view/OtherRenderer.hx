@@ -1,4 +1,4 @@
-// A second renderer for ViewTest (-D helder.view.renderer.other=OtherRenderer),
+// A second renderer for ViewTest (its nodes @:rendered(OtherRenderer)),
 // its nodes unrelated to TestRenderer's: the same components rendered by
 // both, and boundaries between them (a tree of one inside the other's)
 class OtherRenderer implements helder.view.Renders<OtherNode> {

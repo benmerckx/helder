@@ -12,7 +12,9 @@ typedef WasmOptions = {
 	?imports:Array<String>,
 	?args:Array<String>,
 	// the canvas of its first window (an element or its id)
-	?canvas:Dynamic
+	?canvas:Dynamic,
+	// font files helder.text may use (a browser gives a module none)
+	?fonts:Array<String>
 }
 
 // A wasm32-wasi module running in the page, seen from JavaScript: its
@@ -38,7 +40,7 @@ class WasmModule {
 		var o:WasmOptions = options == null ? {} : options;
 		var runner = new js.html.URL(o.runner == null ? Island.runner : o.runner, js.Browser.document.baseURI).href;
 		var url = new js.html.URL(wasm, js.Browser.document.baseURI).href;
-		return (js.Syntax.code("import({0})", runner) : Promise<Dynamic>).then(m -> (m.run(url, {imports: o.imports, args: o.args, canvas: o.canvas}) : Promise<Dynamic>))
+		return (js.Syntax.code("import({0})", runner) : Promise<Dynamic>).then(m -> (m.run(url, {imports: o.imports, args: o.args, canvas: o.canvas, fonts: o.fonts}) : Promise<Dynamic>))
 			.then(r -> new WasmModule(r.host, r.instance));
 	}
 

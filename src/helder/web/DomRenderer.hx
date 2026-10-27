@@ -10,8 +10,8 @@ import js.html.Node;
 
 #if (js || macro)
 
-// helder.view's renderer for the DOM, in JavaScript (-D helder.view.renderer.dom=
-// helder.web.DomRenderer, which -lib helder sets on JavaScript): each
+// helder.view's renderer for the DOM, in JavaScript (DomRenderer.render's
+// content: a DOM Node, which no metadata of ours can name it on): each
 // function the DOM call, a node a DOM Node.
 //
 //   DomRenderer.render(<App/>, document.getElementById("app"));
