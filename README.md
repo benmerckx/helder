@@ -27,9 +27,9 @@ npx helder build ios
 - **An allocation-free core, GC user code.** The engine's hot paths
   (layout, text, rendering, scene, physics, audio) allocate nothing per
   frame or per call, so the collector never pauses it: buffers kept and
-  reused between calls, or `helder.scoped`'s memory where it measures
-  better (temporaries within a call, data handed to a GC-free job). User
-  code sits on top as ordinary Haxe with the GC, and should not have to know.
+  reused between calls, or off-heap buffers for data handed to a GC-free
+  job. User code sits on top as ordinary Haxe with the GC, and should not
+  have to know.
 - **Performance, small binaries, fast compiles.** Measured, not assumed:
   each package has a benchmark, and binary size and compile time are
   tracked like test results.
@@ -217,12 +217,15 @@ collection only when it allocates or blocks.
     module, a job named by its index in the function table (no cross-origin
     isolation needed; SharedArrayBuffer only as a fast path), and an inline
     fallback where workers are missing;
-  - **two tiers of jobs**: GC-free jobs on scoped data, checked by the
-    compiler, which the collector never waits for (the default for the
-    engine: decoding, physics, pathfinding); and ordinary GC jobs for user
-    code, allowed as freely as measurements say;
+  - **two tiers of jobs** ([measured](tests/bench/results/jobs.md)):
+    GC-free jobs, `@:hxmc.unsafe` functions over off-heap buffers (hxmc's
+    `IoBuffer`), run in a safe region (`hxmc.unsafe.Blocking`) the
+    collector never waits for: the default for the engine (decoding,
+    physics, pathfinding). And ordinary GC jobs for user code: on the web
+    isolates, natively only for short loops, since a collection waits for
+    a GC job's longest loop without allocation (35-55 ms for a 4K PNG);
   - **channels** between threads carrying values that can be sent (checked
-    by a macro, as Swift's `Sendable`): flat values, scoped structs, Strings
+    by a macro, as Swift's `Sendable`): flat values, hxmc structs, Strings
     and Bytes (copied), and owned buffers (handed over without a copy
     natively, transferred on the web).
 - **An allocation-free core**, measured by `bun run test bench`
@@ -241,25 +244,28 @@ collection only when it allocates or blocks.
   faster natively, 3.1x on wasm32. Next: ui's pointer moves (578 bytes
   each: the hover paths' Arrays, the events); flexbox and scene allocate
   next to nothing. The GC-facing API of each package stays.
-- **`helder.scoped` where it fits**, the default once it costs less:
-  cheaper access (natively the base in a register, on wasm32 no table),
-  memory a GC object can own (caches), a way through interfaces
-  (callbacks).
-  - **A scope never spans an await**: the checker rejects scoped values in a
-    coroutine's body; coroutines call `@:scoped` functions, which return
-    before the next await.
-  - A slice or span never crosses threads: an owned buffer does.
-  - Each worker has its own scoped stack; scoped's slow paths (the pool's
-    lock, its errors) become GC-free, and its limit of 31 buffers is
-    revisited for pools of workers.
-- **To prototype first, and what decides it**: the main loop with the
-  next frame (`Fetch` and a delay are there); then one worker on the web;
-  then a 4K PNG decoded on the main thread, as a GC job and as a GC-free job while the
-  main thread renders, measuring the frames' p99 and longest time and the
-  collector's pauses. If a GC job keeps the main thread's longest pause
-  under about 1 ms, GC jobs are allowed freely; if not, the engine uses only
-  GC-free ones. (Upstream's hxcoro or a runtime of our own: our own,
-  `helder.async`, which hxcoro's tasks run on.)
+- **`helder.scoped`: not needed.** It lost or tied against GC buffers in
+  text and physics, and as a GC-free job's memory it lost to off-heap
+  memory: decoding a 4K PNG took 240 ms against 169, the variant added
+  149 KB of code against 4, it needed the checker (1.8 s builds against
+  1.0), its job's freedom from the GC went unchecked, and its pixels could
+  not cross threads ([results](tests/bench/results/jobs.md)). To archive;
+  its checker is opt-in already.
+- **Prototyped, and what it decided** ([results](tests/bench/results/jobs.md)):
+  a 4K PNG decoded while the main thread renders 60 fps.
+  - Between frames, the decode is one frame of 224 ms natively, 443 ms on
+    wasm32.
+  - As a GC job, it made the main thread's collections wait 35 ms (up to
+    55): the 1 ms bar fails, so the engine uses GC-free jobs.
+  - As a GC-free job in a safe region, on scoped or off-heap memory, the
+    longest pause is 0.3-0.6 ms, as with no job; without the region, 176-235
+    ms.
+  - On wasm32, a worker instance leaves the frames alone; the pixels cost
+    the main thread one 15 ms copy into its memory, avoidable by uploading
+    from the transferred buffer.
+  - Still to do: the main loop with the next frame, then one worker on
+    the web. (Upstream's hxcoro or a runtime of our own: our own,
+    `helder.async`, which hxcoro's tasks run on.)
 - **The devtools app** (`helder devtools`; design from a study of Unity's,
   Unreal's, Godot's, Defold's and Bevy's tools, Flutter DevTools, Tracy,
   Storybook, Makepad Studio and Bezi), built with helder's ui, natively and
@@ -328,7 +334,7 @@ collection only when it allocates or blocks.
     applied once per frame, before rendering;
   - markup for structure, not for every value that moves: an `onFrame`
     that writes the nodes it is given, and instancing elements with their
-    per-instance data in scoped arrays (particles, crowds, foliage);
+    per-instance data in flat arrays (particles, crowds, foliage);
   - hxmc passing a closure returning a struct value (a `Vec3`) where a
     binding expects one (the prototype goes through a signal);
   - measured against the same scene written by hand, at thousands of
