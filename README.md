@@ -189,10 +189,18 @@ collection only when it allocates or blocks.
     by a macro, as Swift's `Sendable`): flat values, scoped structs, Strings
     and Bytes (copied), and owned buffers (handed over without a copy
     natively, transferred on the web).
-- **The core on `helder.scoped`.** Start with one package as a pilot (text's
-  rasterizer and glyph atlas, or ui's layout), with a benchmark before and
-  after, then the rest: ui, gfx's command recording, scene, physics, audio.
-  The GC-facing API of each package stays.
+- **The core on `helder.scoped`.** The pilot is done: text's atlas draws a
+  glyph in scoped memory, measured by `bun run test bench`
+  ([before](tests/bench/results/baseline.md),
+  [after](tests/bench/results/text.md)). Its garbage is gone (a warm atlas
+  allocates nothing), but a cold atlas is 6% slower natively and 35% on
+  wasm32, where GC buffers kept for the next call do as well with no
+  slowdown. The rest waits on scoped: cheaper access (natively the base in
+  a register, on wasm32 no table), memory a GC object owns (caches), a way
+  through interfaces (callbacks). The GC goes first to physics (330 KB a
+  step) and TextLayout's Glyph objects (most of ui's full layout); flexbox
+  and scene allocate next to nothing. The GC-facing API of each package
+  stays.
   - **A scope never spans an await**: the checker rejects scoped values in a
     coroutine's body; coroutines call `@:scoped` functions, which return
     before the next await.

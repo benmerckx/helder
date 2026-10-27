@@ -83,4 +83,4 @@ to run, p99s and maxima more.
 - **Compile times**: scoped's checker takes 0.8-1.3 s of these builds, and
   with it the module cache saves nothing. (Before this baseline it overflowed
   the stack on Todo's recursive typedefs and took 5.7 s of Todo's 7.1 s:
-  fixed in bc3c2dc.)
+  fixed in a902470.)
