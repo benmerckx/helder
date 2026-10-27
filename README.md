@@ -191,7 +191,7 @@ Still to come:
 - **TypeScript for apps (optional, after the boundary tags)**: end users
   write their app in TS/TSX; helder itself stays Haxe, and the output is
   hxmc's, native or wasm, with no JavaScript in it.
-  - **A `helder-ts` frontend** the CLI runs when a project's entry is
+  - **A `helder` ts frontend** the CLI runs when a project's entry is
     `src/main.ts(x)`, on TypeScript 7.1's API (`typescript/sync`, a client
     of the Go compiler; node at build time only): the program checked by
     TypeScript, each module emitted as Haxe into `bin/ts/`, hxmc compiling
