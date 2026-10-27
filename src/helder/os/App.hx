@@ -62,7 +62,7 @@ class App {
 				if (UIKitWindow.drawable()) onFrame() else UIKitWindow.wait(-1);
 			}
 		} else {
-			if (Mem.os() == 1) CocoaWindow.poll(onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
+			if (Mem.os() == 1) CocoaWindow.poll(onFrame, onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
 				X11Window.poll(onEvent);
 			if (running && windows.length > 0) onFrame();
 		}

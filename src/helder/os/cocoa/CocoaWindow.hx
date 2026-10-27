@@ -12,7 +12,10 @@ import hxmc.unsafe.*;
 // display link would call back on another thread, and the GPU layer is main
 // thread only. A delegate class made at run time turns the close button into
 // a Close event, resizes into Resize events and a new backing scale (another
-// display) into ScaleChange (from inside sendEvent:).
+// display) into ScaleChange (from inside sendEvent:). A drag of the window's
+// edge is AppKit's own loop until the mouse is up: each of its resizes draws
+// a frame (onFrame), and the layer shows a drawable of another size at its
+// top left, unscaled, until the next.
 // The content view holds the layer's view and, under it, a text view of a
 // class made at run time (HxmcTextView): while text input is on
 // (Window.startTextInput) it is the first responder, placed at the caret,
@@ -34,8 +37,9 @@ class CocoaWindow {
 	static var textViewClass = Ptr.nil();
 	static final event = new Event();
 	static final open:Array<CocoaWindow> = [];
-	// the App.run callback, for the delegate's events
+	// the App.run callbacks, for the delegate's events and a live resize's frames
 	static var onEvent:Null<Event->Void>;
+	static var onFrame:Null<Void->Void>;
 
 	final owner:Window;
 	final window:Ptr; // NSWindow*
@@ -48,6 +52,7 @@ class CocoaWindow {
 	final surface:Surface;
 	var scale = 1.0;
 	var cursor:Cursor = Default;
+	var over = false; // the pointer over the content, at the last move
 	// (an NSRect and a CGSize to pass by value)
 	final rect:Ptr<CGRect>;
 	final size:Ptr<CGSize>;
@@ -68,6 +73,7 @@ class CocoaWindow {
 			window = kept;
 			textView = helder.dev.Hosted.get(helder.dev.Hosted.UI_CONTROLLER);
 			view = helder.dev.Hosted.get(helder.dev.Hosted.UI_VIEW);
+			Msg.vBool(textView, ObjC.sel("setHidden:"), true);
 			layer = helder.dev.Hosted.get(helder.dev.Hosted.MAC_LAYER);
 			var t = ObjC.str(title);
 			Msg.vPtr(window, ObjC.sel("setTitle:"), t);
@@ -92,12 +98,20 @@ class CocoaWindow {
 		var content = Msg.id(window, ObjC.sel("contentView"));
 		textView = Msg.idRect(Msg.id(textViewClass, ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), rect.value);
 		Msg.vBool(textView, ObjC.sel("setRichText:"), false);
+		// (hidden while text input is off: shown, it takes the clicks over it,
+		// their drags and releases, and shows its I-beam)
+		Msg.vBool(textView, ObjC.sel("setHidden:"), true);
 		Msg.vPtr(content, ObjC.sel("addSubview:"), textView);
 		view = Msg.idRect(Msg.id(ObjC.cls("NSView"), ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), rect.value);
 		Msg.vInt(view, ObjC.sel("setAutoresizingMask:"), 18); // (width and height sizable)
 		Msg.vPtr(content, ObjC.sel("addSubview:"), view);
 		// a layer-hosting view: the layer first, then wantsLayer
 		layer = Runtime.objc_retain(Msg.id(ObjC.cls("CAMetalLayer"), ObjC.sel("layer")));
+		// (a drawable of another size than the view's, between a resize and its
+		// frame: shown as it is, not stretched)
+		var gravity = ObjC.str("topLeft");
+		Msg.vPtr(layer, ObjC.sel("setContentsGravity:"), gravity);
+		ObjC.release(gravity);
 		Msg.vPtr(view, ObjC.sel("setLayer:"), layer);
 		Msg.vBool(view, ObjC.sel("setWantsLayer:"), true);
 		surface = new Surface(Cocoa, layer, view, width, height);
@@ -128,6 +142,9 @@ class CocoaWindow {
 			Runtime.class_replaceMethod(made, ObjC.sel("windowShouldClose:"), Callback.addr(shouldClose), Mem.cstr("c@:@"));
 			Runtime.class_replaceMethod(made, ObjC.sel("windowDidResize:"), Callback.addr(didResize), Mem.cstr("v@:@"));
 			Runtime.class_replaceMethod(made, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didChangeScale), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("windowWillStartLiveResize:"), Callback.addr(startResize), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("windowDidEndLiveResize:"), Callback.addr(endResize), Mem.cstr("v@:@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("liveFrame:"), Callback.addr(liveFrame), Mem.cstr("v@:@"));
 			Runtime.class_replaceMethod(made, ObjC.sel("applicationShouldTerminate:"), Callback.addr(shouldTerminate), Mem.cstr("Q@:@"));
 			delegate = helder.dev.Hosted.get(helder.dev.Hosted.MAC_DELEGATE);
 			var t = Runtime.objc_getClass(Mem.cstr("HxmcTextView"));
@@ -145,6 +162,9 @@ class CocoaWindow {
 		Runtime.class_addMethod(cls, ObjC.sel("windowShouldClose:"), Callback.addr(shouldClose), Mem.cstr("c@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("windowDidResize:"), Callback.addr(didResize), Mem.cstr("v@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("windowDidChangeBackingProperties:"), Callback.addr(didChangeScale), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("windowWillStartLiveResize:"), Callback.addr(startResize), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("windowDidEndLiveResize:"), Callback.addr(endResize), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("liveFrame:"), Callback.addr(liveFrame), Mem.cstr("v@:@"));
 		// (the application's delegate too)
 		Runtime.class_addMethod(cls, ObjC.sel("applicationShouldTerminate:"), Callback.addr(shouldTerminate), Mem.cstr("Q@:@"));
 		Runtime.objc_registerClassPair(cls);
@@ -290,6 +310,15 @@ class CocoaWindow {
 		applyCursor();
 	}
 
+	// the cursor at a move: the app's over the content (and while a button is
+	// held), the arrow once as the pointer leaves it (AppKit's then: the
+	// edges' resize cursors, the other windows')
+	function hover(inside:Bool) {
+		if (inside && (cursor != Default || !over)) applyCursor() else if (!inside && over)
+			Msg.v(Msg.id(ObjC.cls("NSCursor"), ObjC.sel("arrowCursor")), ObjC.sel("set"));
+		over = inside;
+	}
+
 	// (AppKit puts the arrow back as the pointer enters the window: set again on each move)
 	function applyCursor() {
 		var cls = ObjC.cls("NSCursor");
@@ -318,6 +347,7 @@ class CocoaWindow {
 			marked = "";
 			clearText(textView);
 			Msg.bPtr(window, ObjC.sel("makeFirstResponder:"), Ptr.nil());
+			Msg.vBool(textView, ObjC.sel("setHidden:"), true);
 			return;
 		}
 		var b = Msg.rect(view, ObjC.sel("bounds"));
@@ -328,6 +358,7 @@ class CocoaWindow {
 		Msg.vRect(textView, ObjC.sel("setFrame:"), rect.value);
 		if (!typing) {
 			typing = true;
+			Msg.vBool(textView, ObjC.sel("setHidden:"), false);
 			Msg.bPtr(window, ObjC.sel("makeFirstResponder:"), textView);
 		}
 		Msg.v(Msg.id(textView, ObjC.sel("inputContext")), ObjC.sel("invalidateCharacterCoordinates"));
@@ -453,8 +484,37 @@ class CocoaWindow {
 
 	@:hxmc.callback static function didResize(self:Ptr, cmd:Ptr, note:Ptr):Void {
 		var w = find(Msg.id(note, ObjC.sel("object")));
-		if (w != null && w.measure()) w.resized();
+		if (w == null || !w.measure()) return;
+		w.resized();
+		// (a drag of the window's edge runs AppKit's own loop until the mouse is up, and
+		// App.run draws nothing: a frame at the new size from here, as Win32Window's timer)
+		if (onFrame != null && App.windows.length > 0 && Msg.b(w.window, ObjC.sel("inLiveResize"))) onFrame();
 	}
+
+	// while an edge is dragged, frames from a timer too: AppKit's loop runs
+	// it (the common modes: its tracking mode's too), and the content moves
+	// while the mouse holds still (as Win32Window's WM_TIMER)
+	static var timer = Ptr.nil();
+
+	@:hxmc.callback static function startResize(self:Ptr, cmd:Ptr, note:Ptr):Void {
+		if (!timer.isNull()) return;
+		var t = Msg.idFloatPtrPtrPtrBool(ObjC.cls("NSTimer"), ObjC.sel("timerWithTimeInterval:target:selector:userInfo:repeats:"), 1 / 120, delegate,
+			ObjC.sel("liveFrame:"), Ptr.nil(), true);
+		timer = Runtime.objc_retain(t);
+		var modes = ObjC.str("kCFRunLoopCommonModes");
+		Msg.vPtrPtr(Msg.id(ObjC.cls("NSRunLoop"), ObjC.sel("currentRunLoop")), ObjC.sel("addTimer:forMode:"), timer, modes);
+		ObjC.release(modes);
+	}
+
+	@:hxmc.callback static function endResize(self:Ptr, cmd:Ptr, note:Ptr):Void {
+		if (timer.isNull()) return;
+		Msg.v(timer, ObjC.sel("invalidate"));
+		Runtime.objc_release(timer);
+		timer = Ptr.nil();
+	}
+
+	@:hxmc.callback static function liveFrame(self:Ptr, cmd:Ptr, t:Ptr):Void
+		if (onFrame != null && App.windows.length > 0) onFrame();
 
 	// waits for an event (left in the queue for poll), or seconds
 	static function wait(seconds:Float) {
@@ -466,7 +526,8 @@ class CocoaWindow {
 	}
 
 	// dispatches the pending events
-	static function poll(onEvent:Event->Void) {
+	static function poll(onFrame:Void->Void, onEvent:Event->Void) {
+		CocoaWindow.onFrame = onFrame;
 		CocoaWindow.onEvent = onEvent;
 		for (w in open.copy())
 			if (w.pending) w.resized();
@@ -476,6 +537,12 @@ class CocoaWindow {
 			if (ev.isNull()) break;
 			var w = find(Msg.id(ev, ObjC.sel("window")));
 			var type = Msg.i(ev, ObjC.sel("type")).toInt();
+			// (a press on the title bar or an edge is AppKit's, a move or a resize:
+			// its loop takes the release too, which the app would never see)
+			if (w != null && (type == NS.LeftMouseDown || type == NS.RightMouseDown || type == NS.OtherMouseDown) && !w.inside(ev)) {
+				Msg.vPtr(app, ObjC.sel("sendEvent:"), ev);
+				continue;
+			}
 			var key = type == NS.KeyDown || type == NS.KeyUp;
 			// (the menus' shortcuts first: Command and a key one of them has)
 			if (type == NS.KeyDown && Msg.i(ev, ObjC.sel("modifierFlags")).toInt() & (1 << 20) != 0
@@ -488,6 +555,13 @@ class CocoaWindow {
 		// (a composition changed outside a key: the input method's own window, a message)
 		for (w in open.copy())
 			w.composition();
+	}
+
+	// whether a press is on the content, not the window's frame
+	function inside(ev:Ptr):Bool {
+		var content = Msg.id(window, ObjC.sel("contentView"));
+		var hit = Msg.idPoint(Msg.id(content, ObjC.sel("superview")), ObjC.sel("hitTest:"), Msg.point(ev, ObjC.sel("locationInWindow")));
+		return !hit.isNull() && Msg.bPtr(hit, ObjC.sel("isDescendantOf:"), content);
 	}
 
 	function translate(ev:Ptr, type:Int) {
@@ -533,7 +607,6 @@ class CocoaWindow {
 			case NS.MouseMoved | NS.LeftMouseDragged | NS.RightMouseDragged | NS.OtherMouseDragged:
 				e.kind = MouseMove;
 				e.button = 0;
-				if (cursor != Default) applyCursor();
 			case NS.ScrollWheel:
 				var dx = Msg.f(ev, ObjC.sel("scrollingDeltaX")), dy = Msg.f(ev, ObjC.sel("scrollingDeltaY"));
 				if (dx == 0 && dy == 0) return;
@@ -552,6 +625,7 @@ class CocoaWindow {
 			var b = Msg.rect(view, ObjC.sel("bounds"));
 			e.x = Math.floor(p.x * scale);
 			e.y = Math.floor((b.size.height - p.y) * scale);
+			if (e.kind == MouseMove) hover(type != NS.MouseMoved || p.x >= 0 && p.y >= 0 && p.x < b.size.width && p.y < b.size.height);
 		}
 		dispatch(e);
 	}

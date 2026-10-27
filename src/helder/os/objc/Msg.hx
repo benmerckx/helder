@@ -19,6 +19,7 @@ class Msg {
 	static function idPtrPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr, c:Ptr):Ptr;
 	static function idInt(self:Ptr, sel:Ptr, a:Int64):Ptr;
 	static function idFloat(self:Ptr, sel:Ptr, a:Float):Ptr;
+	static function idFloatPtrPtrPtrBool(self:Ptr, sel:Ptr, a:Float, b:Ptr, c:Ptr, d:Ptr, e:Bool):Ptr;
 	static function idIntInt(self:Ptr, sel:Ptr, a:Int64, b:Int64):Ptr;
 	static function idPtrIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64):Ptr;
 	static function idIntIntIntBool(self:Ptr, sel:Ptr, a:Int64, b:Int64, c:Int64, d:Bool):Ptr;
@@ -39,6 +40,7 @@ class Msg {
 	static function vSize(self:Ptr, sel:Ptr, a:CGSize):Void;
 	static function vRect(self:Ptr, sel:Ptr, a:CGRect):Void;
 	static function vPtrBool(self:Ptr, sel:Ptr, a:Ptr, b:Bool):Void;
+	static function vPtrPtr(self:Ptr, sel:Ptr, a:Ptr, b:Ptr):Void;
 	// (an NSRange by value: two NSUIntegers)
 	static function vPtrIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64):Void;
 	static function vPtrIntIntIntInt(self:Ptr, sel:Ptr, a:Ptr, b:Int64, c:Int64, d:Int64, e:Int64):Void;
