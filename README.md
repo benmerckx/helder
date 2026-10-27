@@ -125,6 +125,20 @@ In order: each phase leans on the one before it.
     holds the outputs; name, version and app id come from `package.json`,
     overrides from a `"helder"` key in it, and a `helder.hxml` beside it is
     the escape hatch.
+  - **`helder test [filter]`**, as `bun test`: the `*Test.hx` modules under
+    `src/` and `tests/` found, a runner generated that calls each one's
+    `tests()`, compiled once and run on the host (`--target web`, `all`),
+    with `-t <name pattern>`, `--watch` (the dev loop's compilation server
+    and watcher) and `-u` to update snapshots and golden images.
+  - **`helder.test`, without macros for now**: `describe`, `test` (and
+    `skip`, `only`), `beforeEach`, `afterEach`; assertions as functions,
+    located by `haxe.PosInfos`: `assert(cond, ?msg)`, `equals` (deep: arrays,
+    maps, structures; both values shown), `approx`, `throws` (returns the
+    error), `require` (stops the test, returns the value non-null), later
+    `snapshot`. A coroutine as the body makes an async test, run on
+    `helder.async`'s loop. It comes before the CLI, with a runner of its own,
+    and the repository's tests move to it. A macro can come later (`@:test`
+    collection, an `assert` showing its values).
   - **Every build reports its compile time and binary size.**
   - **The examples are the CLI's fixtures**, laid out as projects: each
     builds and reloads with no configuration of its own, in CI.
