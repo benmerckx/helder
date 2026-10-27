@@ -76,6 +76,9 @@ class Scoped {
 		return switch e.expr {
 			case EFunction(_, _):
 				e;
+			// (an array comprehension's loops make its elements: not scopes)
+			case EArrayDecl([x = {expr: EFor(_, _) | EWhile(_, _, _)}]):
+				{expr: EArrayDecl([comprehension(x, mark)]), pos: e.pos};
 			case EReturn(null) if (mark != null):
 				macro @:pos(e.pos) {
 					helder.scoped.Memory.leave($i{mark}, $i{mark + "c"});
@@ -120,6 +123,19 @@ class Scoped {
 				}
 			default:
 				e.map(x -> rewrite(x, mark));
+		}
+	}
+
+	// (a comprehension's loops and what gives their values, as they are)
+	static function comprehension(e:Expr, mark:Null<String>):Expr {
+		return switch e.expr {
+			case EFor(it, body): {expr: EFor(rewrite(it, mark), comprehension(body, mark)), pos: e.pos};
+			case EWhile(cond, body, normal): {expr: EWhile(rewrite(cond, mark), comprehension(body, mark), normal), pos: e.pos};
+			case EIf(cond, a, b): {expr: EIf(rewrite(cond, mark), comprehension(a, mark), b == null ? null : comprehension(b, mark)), pos: e.pos};
+			case EBlock(el) if (el.length > 0):
+				{expr: EBlock([for (i in 0...el.length) i == el.length - 1 ? comprehension(el[i], mark) : rewrite(el[i], mark)]), pos: e.pos};
+			case EParenthesis(x): {expr: EParenthesis(comprehension(x, mark)), pos: e.pos};
+			default: rewrite(e, mark);
 		}
 	}
 

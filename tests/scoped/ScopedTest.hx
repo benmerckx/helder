@@ -121,6 +121,9 @@ class ScopedTest {
 	}
 
 	@:scoped static function scalars() {
+		// (array comprehensions: their loops' values, not iteration scopes)
+		eq([for (i in 0...3) i * 2].join(","), "0,2,4", "a comprehension");
+		eq([for (i in 0...3) for (j in 0...2) if (j == 1) i * 10 + j].join(","), "1,11,21", "a nested comprehension");
 		var a = Scope.slice(Int, 10);
 		eq(a.length, 10, "length");
 		eq(a[3], 0, "zeroed");
