@@ -51,6 +51,7 @@ class Run {
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
 		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium, then as WasmGC", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
+		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as GC-free jobs on scoped and on malloc'ed memory, natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
 	];
 
@@ -492,6 +493,82 @@ class Run {
 		for (b in builds)
 			md.push('| ${b.what} | ${b.target} | ${Math.round(FileSystem.stat(b.out).size / 1024)} | ' + [for (t in b.times) Math.round(t * 10) / 10].join(" | ") + " |");
 		File.saveContent("bin/bench/results.md", md.join("\n") + "\n");
+		Sys.println(md.join("\n"));
+	}
+
+	// tests/bench/Jobs.hx: each variant RUNS times, each in a process of its
+	// own, the medians and the spread of its columns; the job alone; what
+	// each variant adds to the program's size and build; JobsWasm.wasm with a
+	// worker instance (tests/bench/jobs.mjs). JOBS: the variants (all)
+	static final JOB_VARIANTS = ["none", "a", "b", "c", "d", "c0", "d0"];
+
+	static function jobs() {
+		var dir = "bin/jobs", font = '$dir/DejaVuSans.ttf', png = '$dir/photo.png';
+		mkdirs(dir);
+		File.saveBytes(font, File.getBytes(dejavu()));
+		if (!FileSystem.exists(png)) run(NODE, ["tests/bench/photo.mjs", png]);
+		var cp = cps(["src", "tests/bench"]), check = ["--macro", "helder.scoped.Check.enable()"];
+		exe('$dir/Jobs', cp.concat(check).concat(["-main", "Jobs"]));
+		wasm('$dir/JobsWasm.wasm', cp.concat(["-main", "JobsWasm"]));
+		var bin = exePath('$dir/Jobs', HOST);
+		run(bin, [font, png, "check"]);
+		var runs = Std.parseInt(Sys.getEnv("RUNS") ?? "") ?? 5;
+		var variants = (Sys.getEnv("JOBS") ?? "").split(" ").filter(v -> v != "");
+		if (variants.length == 0) variants = JOB_VARIANTS;
+		// (a column's median, and its spread when it has one)
+		function cell(rows:Array<Array<String>>, c:Int):String {
+			var v = [for (r in rows) Std.parseFloat(r[c])];
+			v.sort(Reflect.compare);
+			var m = v[v.length >> 1], r = (x:Float) -> Std.string(Math.round(x * 100) / 100);
+			return v[0] == v[v.length - 1] ? r(m) : '${r(m)} (${r(v[0])}-${r(v[v.length - 1])})';
+		}
+		function lines(cmd:String, args:Array<String>):Array<Array<String>>
+			return [for (_ in 0...runs) for (l in output(cmd, args).split("\n")) if (l.startsWith("jobs ")) l.split(" ")];
+		var md = ["# Jobs", "", 'tests/bench/Jobs.hx (`bun run test jobs`), ${Date.now().toString().substr(0, 10)}, ${cpuName()}; $runs runs of each, medians (and their spread).', ""];
+		for (mode in ["probe", "natural"]) {
+			md = md.concat([
+				"", '## $HOST, ${mode == "probe" ? "a collection at every frame of the job" : "collections from the garbage alone"}', "",
+				"| variant | frame median | p99 | max | longest pause | pauses | GCs | majors | decode | longest stop | GC heap KB/frame |",
+				"| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+			]);
+			for (v in variants) {
+				var rows = lines(bin, [font, png, v].concat(mode == "probe" ? ["probe"] : []));
+				md.push('| $v | ' + [for (c in 3...13) cell(rows, c)].join(" | ") + " |");
+				Sys.println('$mode $v: longest pause ${cell(rows, 6)} ms, frame max ${cell(rows, 5)} ms');
+			}
+		}
+		md = md.concat(["", "## The job alone", "", "| job | ms | min | max | GC heap growth | worker's allocation |", "| --- | ---: | ---: | ---: | ---: | ---: |"]);
+		for (v in ["b", "c", "d"]) {
+			var c = output(bin, [font, png, "alone", v]).split("\n").filter(l -> l.startsWith("alone "))[0].split(" ");
+			md.push('| $v | ${c[2]} | ${c[3]} | ${c[4]} | ${c[5]} | ${c[6]} |');
+		}
+		// (each variant alone in the program, with the ui and without it:
+		// sizes, and builds from nothing and with the module cache; c's with
+		// scoped's checker)
+		md = md.concat(["", "## Sizes and builds", "", "| variant | size (KB) | without the ui | build (s) | cached |", "| --- | ---: | ---: | ---: | ---: |"]);
+		for (v in ["none", "a", "b", "c", "d"]) {
+			var args = cp.concat(v == "c" ? check : []).concat(["-main", "Jobs", "-D", 'jobs_only=$v']), out = '$dir/only/Jobs-$v';
+			var times = [];
+			for (extra in [["-D", "hxmc.no-module-cache"], []]) {
+				var t0 = Sys.time();
+				native(out, args.concat(extra), HOST);
+				times.push(Math.round((Sys.time() - t0) * 100) / 100);
+			}
+			native('$out-bare', args.concat(["-D", "jobs_bare"]), HOST);
+			var kb = (f:String) -> Math.round(FileSystem.stat(exePath(f, HOST)).size / 1024 * 10) / 10;
+			md.push('| $v | ${kb(out)} | ${kb('$out-bare')} | ${times[0]} | ${times[1]} |');
+		}
+		md = md.concat([
+			"", "## wasm32-wasi, a worker instance", "",
+			"| variant | frame median | p99 | max | GCs | decode | worker's copy out | main's copy in | longest task |", "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+		]);
+		// (node's WASI allocates in its fast API calls, which can collect
+		// meanwhile and crash V8 once linear memory is large: no fast calls)
+		for (v in ["none", "a", "b"]) {
+			var rows = lines(NODE, ["--no-turbo-fast-api-calls", "--stack-size=65500", "tests/bench/jobs.mjs", '$dir/JobsWasm.wasm', font, png, v]);
+			md.push('| $v | ' + [for (c in 3...11) cell(rows, c)].join(" | ") + " |");
+		}
+		File.saveContent('$dir/results.md', md.join("\n") + "\n");
 		Sys.println(md.join("\n"));
 	}
 
