@@ -166,7 +166,7 @@ class TestCommand {
 		}
 		var main = ["// `helder test`'s runner: the test files linked here, in order", "class HelderTestMain {", "\tstatic function main() {"];
 		for (f in files)
-			main.push('\t\thelder.test.Runner.add("${f.real}", "${f.linked}", ${f.module}.tests);');
+			main.push('\t\thelder.test.Runner.add("${lit(f.real)}", "${lit(f.linked)}", ${f.module}.tests);');
 		if (regex) main.push('\t\thelder.test.Runner.regex = p -> {\n\t\t\tvar r = new EReg(p, "");\n\t\t\ts -> r.match(s);\n\t\t};');
 		main = main.concat(["\t\thelder.test.Runner.run();", "\t}", "}", ""]);
 		var text = main.join("\n"), path = '$GEN/HelderTestMain.hx';
@@ -177,6 +177,10 @@ class TestCommand {
 		p = p.split("\\").join("/");
 		return p.startsWith("./") ? p.substr(2) : p;
 	}
+
+	// (a path in a Haxe string literal: a Windows path's backslashes escaped)
+	static function lit(s:String):String
+		return s.split("\\").join("\\\\").split('"').join('\\"');
 
 	static function secs(s:Float):String
 		return Math.round(s * 100) / 100 + "s";

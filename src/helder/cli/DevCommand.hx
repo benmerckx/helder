@@ -196,7 +196,10 @@ class DevCommand {
 			FileSystem.rename(out, aside);
 			true;
 		} catch (_:Dynamic) false);
-		var extra = ["--macro", 'helder.cli.Deps.write("${FileSystem.fullPath(Path.directory(out))}/${Path.withoutDirectory(depsFile())}")'];
+		// (a Haxe string in the macro call: forward slashes, a Windows path's
+		// backslashes would be escapes)
+		var deps = (FileSystem.fullPath(Path.directory(out)) + "/" + Path.withoutDirectory(depsFile())).split("\\").join("/");
+		var extra = ["--macro", 'helder.cli.Deps.write("$deps")'];
 		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
 		var r = try BuildCommand.build(e, out, Dev, server, extra) catch (err:haxe.Exception) {
 			Sys.println("helder dev: " + err.message);
