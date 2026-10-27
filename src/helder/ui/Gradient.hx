@@ -1,5 +1,7 @@
 package helder.ui;
 
+import helder.image.Image;
+
 // A CSS gradient for a node's background (Style.backgroundImage):
 // linear-gradient([angle | to side or corner,] stops) and
 // radial-gradient([circle | ellipse] [size] [at position], stops), and

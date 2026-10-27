@@ -1,4 +1,4 @@
-// Writes tests/ui/apng/: animated PNGs (APNG) and every frame as
+// Writes tests/image/apng/: animated PNGs (APNG) and every frame as
 // Chromium's ImageDecoder composes them (<case>.frames.rgba; RGBA8), with
 // their durations and repetitions (cases.json), which PngDecoder.frames
 // must give exactly; their default images as libpng decodes them
@@ -7,8 +7,8 @@
 // left, cleared or put back) and a default image apart from the animation;
 // one by ffmpeg's encoder (its own regions and ops). Alphas are 0 or 255,
 // where every compositor agrees, transparent pixels black.
-// UiTest decodes them (npm test -- ui).
-//   node tests/ui/apng-cases.mjs   (needs ffmpeg, ImageMagick and Playwright's Chromium)
+// ImageTest decodes them (bun run test image).
+//   node tests/image/apng-cases.mjs   (needs ffmpeg, ImageMagick and Playwright's Chromium)
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';

@@ -1,4 +1,4 @@
-package helder.ui;
+package helder.image;
 
 import haxe.io.Bytes;
 
@@ -125,7 +125,7 @@ class WebpDecoder {
 
 // a VP8L bitstream: its header, transforms and entropy-coded image (or,
 // for ALPH, the image alone at a given size)
-@:allow(helder.ui.Alpha)
+@:allow(helder.image.Alpha)
 private class Lossless {
 	static final ORDER = [17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 	// the distance codes' (dx, dy) for the first 120

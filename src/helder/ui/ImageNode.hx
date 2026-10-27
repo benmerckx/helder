@@ -1,5 +1,7 @@
 package helder.ui;
 
+import helder.image.Image;
+
 // A node showing an Image in its content box, as fit says (Fill by
 // default), placed as position says (centred by default; the part outside
 // the content box cut), its corners rounded with the node's (radius less

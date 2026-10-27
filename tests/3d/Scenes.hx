@@ -15,7 +15,7 @@ import helder.scene.render.*;
 //   skin   the skinned sample (examples/skinned.glb) bent by its animation,
 //          casting its shadow
 //   overlay the sample scene under the debug overlay (FrameStats, Overlay)
-//   textured the textured sample (a PNG in the file, decoded by helder.ui)
+//   textured the textured sample (a PNG in the file, decoded by helder.image)
 //   normals  the normal-mapped sample (NormalMaps, tangents computed)
 //   blend    see-through materials over opaque ones, farthest first
 //   packedskin, packednormals  the skinned and the normal-mapped samples
@@ -151,8 +151,8 @@ class Scenes {
 				eye.lookAt(new Vec3(-0.3, 1.1, 0));
 				enc -> r.draw(enc, world, camera);
 			case "textured":
-				// the textured sample, its PNG decoded by helder.ui's decoder, mip-mapped
-				Images.decode = (mime, bytes) -> helder.ui.PngDecoder.decode(bytes);
+				// the textured sample, its PNG decoded by helder.image's decoder, mip-mapped
+				Images.decode = Images.png;
 				var r = new Renderer(device);
 				renderer = r;
 				var world = new World();
@@ -169,7 +169,7 @@ class Scenes {
 				enc -> r.draw(enc, world, camera);
 			case "normals":
 				// the normal-mapped sample (NormalMaps; tangents computed when loaded)
-				Images.decode = (mime, bytes) -> helder.ui.PngDecoder.decode(bytes);
+				Images.decode = Images.png;
 				var r = new Renderer(device).use(new NormalMaps(device));
 				renderer = r;
 				var world = new World();
@@ -230,7 +230,7 @@ class Scenes {
 				enc -> r.draw(enc, world, camera);
 			case "packednormals":
 				// the normal-mapped sample packed (its PNG, its tangents): normals.png's frame
-				Images.decode = (mime, bytes) -> helder.ui.PngDecoder.decode(bytes);
+				Images.decode = Images.png;
 				var r = new Renderer(device).use(new NormalMaps(device));
 				renderer = r;
 				var world = new World();
@@ -275,7 +275,7 @@ class Scenes {
 				eye.lookAt(new Vec3(0, 0.6, -6));
 				enc -> r.draw(enc, world, camera);
 			case "environment":
-				Images.decode = (mime, bytes) -> helder.ui.PngDecoder.decode(bytes);
+				Images.decode = Images.png;
 				var env = Environment.fromImage(device, "image/png", Asset.embed("panorama.png"));
 				var r = new Renderer(device).use(env);
 				renderer = r;

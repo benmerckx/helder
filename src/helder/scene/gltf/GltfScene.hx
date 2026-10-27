@@ -15,7 +15,7 @@ import helder.scene.render.MeshRenderer;
 // (instantiate: GltfNodes' hierarchy, each node with a mesh drawing the
 // shared Mesh). Triangle primitives (positions, normals, uvs; normals
 // computed where the file has none); materials' factors and textures
-// (base colour, metallic-roughness, emissive, occlusion, normal: tangents from the file, else computed) (decoded by Images.decode, which the program gives); KHR_lights_punctual's lights as Light components; skins as
+// (base colour, metallic-roughness, emissive, occlusion, normal: tangents from the file, else computed) (decoded by Images.decode, which the program gives: Images.png, Images.common); KHR_lights_punctual's lights as Light components; skins as
 // Skin components on the nodes they deform (joints, inverse bind
 // matrices; JOINTS_0 and WEIGHTS_0 in the meshes' vertices).
 class GltfScene {

@@ -2,6 +2,7 @@ package helder.ui;
 
 import helder.ui.Svg;
 import helder.ui.Paint;
+import helder.image.Image;
 
 // A vector path (Canvas.path): moves, lines, quadratic and cubic curves,
 // elliptical arcs (SVG's: radii, rotation, the large and sweep flags),

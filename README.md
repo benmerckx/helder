@@ -52,6 +52,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `os` | windows, input, the app loop and audio: X11, Cocoa, Win32, Android, UIKit, the browser |
 | `gfx` | a portable GPU API: GL/GLES, Metal, D3D11, WebGPU, WebGL2; shaders written in Haxe |
 | `text` | TrueType and CFF fonts in pure Haxe: rasterizing, shaping, bidi, layout, a glyph atlas |
+| `image` | PNG, JPEG, GIF and WebP decoded in pure Haxe, and animations' frames |
 | `view` | signals and JSX-like markup, compiled to direct calls on a renderer chosen at compile time |
 | `ui` | flexbox layout, events, focus and accessibility, drawn on gfx or as the platform's controls |
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
@@ -74,10 +75,6 @@ In order: each phase leans on the one before it.
 
 ### 1. Cleanup
 
-- **Extract images into `helder.image`.** The PNG, JPEG, WebP and GIF
-  decoders and animated images leave ui (SVG stays: it draws through ui), so that scene, 2D and the asset
-  pipeline use them without depending on ui (scene now reaches them
-  through a hook, `Images.decode`).
 - **Fix the references the restructure left behind**: comments and package
   READMEs still point to `docs/` and `packages/`, which are gone.
 

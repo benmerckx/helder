@@ -2,6 +2,8 @@ package helder.ui.view;
 
 #if !macro
 import helder.ui.*;
+import helder.image.Image;
+import helder.image.AnimatedImage;
 #end
 
 // helder.view's renderer for helder.ui's nodes (-D helder.view.renderer.ui=
@@ -288,7 +290,7 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 		if (Std.isOfType(v, AnimatedImage)) {
 			var anim:AnimatedImage = v;
 			(cast n : ImageNode).image = anim.image;
-			anim.play();
+			anim.play(Clock.add);
 		} else if (Std.isOfType(v, Svg)) (cast n : ImageNode).svg = v else (cast n : ImageNode).image = v;
 	}
 

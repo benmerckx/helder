@@ -1,6 +1,7 @@
 package helder.ui;
 
 import helder.ui.Event;
+import helder.image.Image;
 
 // A node of the UI tree: a box laid out by its parent's flexbox (Layout),
 // drawn by a renderer (Canvas) and receiving events (Ui). Its children are

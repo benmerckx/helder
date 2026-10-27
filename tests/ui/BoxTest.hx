@@ -3,6 +3,7 @@ import helder.gfx.*;
 import helder.os.*;
 import helder.ui.*;
 import helder.ui.draw.*;
+import helder.image.*;
 
 // Boxes drawn by helder.ui.draw headless (npm test -- ui-draw): boxes.json's
 // (corners with their own radii, borders with their own sides' widths, a

@@ -1,11 +1,12 @@
-package helder.ui;
+package helder.image;
 
 import haxe.io.Bytes;
 
-// An image's pixels for the UI (an ImageNode, the markup's image element):
-// RGBA8, rows top to bottom, straight (not premultiplied) alpha. decode
-// reads a PNG file (PngDecoder), a JPEG (JpegDecoder), a GIF (GifDecoder) or a WebP (WebpDecoder); renderers
-// upload it once (id: their key) and again after changed().
+// An image's pixels: RGBA8, rows top to bottom, straight (not
+// premultiplied) alpha. decode reads a PNG file (PngDecoder), a JPEG
+// (JpegDecoder), a GIF (GifDecoder) or a WebP (WebpDecoder); renderers
+// (helder.ui's ImageNode, a texture) upload it once (id: their key) and
+// again after changed().
 class Image {
 	public final width:Int;
 	public final height:Int;
@@ -18,9 +19,10 @@ class Image {
 	// "webp"), kept for a writer to embed as it is (a PDF's JPEG); null once
 	// its pixels change, or when it was made from pixels
 	public var source(default, null):Null<{bytes:Bytes, type:String}> = null;
-	// the drawing it was rendered from (Svg.render: an icon) in its colour
-	// (currentColor's), for a writer to draw as vectors; null once its pixels change
-	@:allow(helder.ui.Svg) public var drawing(default, null):Null<{svg:Drawing, color:Color}> = null;
+	// what it was rendered from, for a writer to draw as vectors (helder.ui's
+	// Svg.render: {svg:Drawing, color:Color}, an icon in its colour); null
+	// once its pixels change
+	@:allow(helder.ui.Svg) public var drawing(default, null):Null<Any> = null;
 
 	static var nextId = 1;
 

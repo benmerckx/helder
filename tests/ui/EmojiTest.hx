@@ -3,6 +3,7 @@ import helder.gfx.*;
 import helder.os.*;
 import helder.ui.*;
 import helder.ui.draw.*;
+import helder.image.*;
 
 // Colour emoji drawn by helder.ui.draw headless (Noto Color Emoji's bitmaps:
 // a heart with VS16, a thumbs up with a skin tone, a flag; make

@@ -172,12 +172,9 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
     alphas premultiplied, transforms function by function, shadows shadow
     by shadow, as Chromium interpolates them; `style.target(name)` is
     where it goes. A theme's rules set it as any property.
-  - Images: `Image` (RGBA8 pixels; `Image.decode` reads PNG files of every
-    colour type, depth and interlacing, JPEG files, baseline or
-    progressive, decoded as browsers do, the EXIF orientation applied,
-    GIF files' first frame, and WebP files, lossless or lossy, with alpha
-    (pixel-exact with libwebp's decoding), an animation's first frame; `AnimatedImage` plays a GIF's,
-    WebP's or animated PNG's frames, each composed as Chromium composes it, on the clock), shown by an `ImageNode` at its own
+  - Images: `helder.image`'s (`Image`, RGBA8 pixels; `Image.decode`: PNG,
+    JPEG, GIF and WebP, [its README](../image/README.md); an
+    `AnimatedImage` played on the `Clock`), shown by an `ImageNode` at its own
     size or the style's (keeping its aspect ratio), fitted as `Fill`,
     `Contain`, `Cover` or `None`, placed by `position` (CSS's object-position:
     `"right 10px top"`, markup `object-position`; centred by default, the

@@ -3,15 +3,34 @@ package helder.scene.render;
 import haxe.io.Bytes;
 import helder.gfx.Device;
 import helder.gfx.Texture;
+import helder.image.JpegDecoder;
+import helder.image.PngDecoder;
+import helder.image.WebpDecoder;
 
-// Models' images made textures (GltfScene, PackedModel): decoded by the
-// decoder the program gives (no decoder is linked unless named): mime
-// type and bytes to RGBA8 pixels, rows top to bottom, or null for a format
-// it does not read. helder.ui's:
-//   Images.decode = (mime, b) -> mime == "image/jpeg" ? helder.ui.JpegDecoder.decode(b) : helder.ui.PngDecoder.decode(b);
-// Without one, textures are left out (materials keep their factors).
+// Models' images made textures (GltfScene, PackedModel, Environment):
+// decoded by the decoder the program gives, mime type and bytes to RGBA8
+// pixels, rows top to bottom, or null for a format it does not read;
+// helder.image's by name (png, common), or a program's own:
+//   Images.decode = Images.png;
+// Without one, textures are left out (materials keep their factors), and
+// no decoder is linked (a glTF viewer natively: 805 KB, 1.1 MB with
+// common's three).
 class Images {
 	public static var decode(default, set):Null<(String, Bytes) -> Null<{width:Int, height:Int, rgba:Bytes}>>;
+
+	// helder.image's PNG decoder, for PNG images only
+	public static function png(mime:String, bytes:Bytes):Null<{width:Int, height:Int, rgba:Bytes}>
+		return mime == "image/png" ? PngDecoder.decode(bytes) : null;
+
+	// helder.image's PNG, JPEG and WebP decoders (glTF's image/png and
+	// image/jpeg, EXT_texture_webp's image/webp)
+	public static function common(mime:String, bytes:Bytes):Null<{width:Int, height:Int, rgba:Bytes}>
+		return switch mime {
+			case "image/png": PngDecoder.decode(bytes);
+			case "image/jpeg": JpegDecoder.decode(bytes);
+			case "image/webp": WebpDecoder.decode(bytes);
+			case _: null;
+		}
 
 	// (made when a decoder is given: without one, no texture making, mip
 	// levels included, is linked)

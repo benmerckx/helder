@@ -1,4 +1,4 @@
-// Writes tests/ui/jpeg/: JPEG files of the kinds JpegDecoder reads
+// Writes tests/image/jpeg/: JPEG files of the kinds JpegDecoder reads
 // (sampling factors 4:4:4, 4:2:2, 4:2:0, 4:4:0, 4:1:1; greyscale; CMYK;
 // progressive; restart intervals; quality 100; an EXIF orientation; odd
 // sizes, a component two samples wide), each with the RGBA8 pixels
@@ -7,8 +7,8 @@
 // upsampling and colour conversion, as Chromium has them. ImageMagick
 // (convert) encodes most; this script the rest: restart intervals (a small
 // baseline encoder below) and the orientation (an APP1 segment added).
-// UiTest decodes them (npm test -- ui).
-//   node tests/ui/jpeg-cases.mjs   (needs ImageMagick and Playwright)
+// ImageTest decodes them (bun run test image).
+//   node tests/image/jpeg-cases.mjs   (needs ImageMagick and Playwright)
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';

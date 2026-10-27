@@ -1,9 +1,9 @@
-// Writes tests/ui/png/: small PNG files of every colour type and bit
+// Writes tests/image/png/: small PNG files of every colour type and bit
 // depth, tRNS transparency, each scanline filter (row y uses filter y % 5)
 // and Adam7 interlacing, each with the RGBA8 pixels PngDecoder must give
 // (<case>.rgba: straight alpha; samples under 8 bits scaled exactly, 16-bit
-// ones to their high byte). UiTest decodes them (npm test -- ui).
-//   node tests/ui/png-cases.mjs
+// ones to their high byte). ImageTest decodes them (bun run test image).
+//   node tests/image/png-cases.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';

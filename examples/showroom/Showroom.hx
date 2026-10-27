@@ -17,7 +17,7 @@ import helder.scene.render.*;
 // tests/3d/SampleModel.hx) behind the scene and lighting it,
 // NormalMaps for normals.glb's crate (its tangents computed when loaded),
 // Shadows.cascaded; morph.glb's surface plays its weights; a pane of glass
-// is a blended material. Images decode through helder.ui's PNG decoder,
+// is a blended material. Images decode through helder.image's PNG decoder,
 // named here. Drag sideways to turn; Escape closes.
 //
 //   haxe -cp src
@@ -26,7 +26,7 @@ class Showroom {
 	static function main() {
 		var window = new Window("Showroom", 640, 480);
 		var device = Device.create(window.surface);
-		Images.decode = (mime, bytes) -> helder.ui.PngDecoder.decode(bytes);
+		Images.decode = Images.png;
 		var renderer = new Renderer(device).use(new NormalMaps(device)).use(Shadows.cascaded(device, 1024, 6));
 		var env = Environment.fromImage(device, "image/png", Asset.embed("panorama.png"));
 		if (env != null) renderer.use(env);

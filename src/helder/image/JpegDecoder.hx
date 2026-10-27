@@ -1,4 +1,4 @@
-package helder.ui;
+package helder.image;
 
 import haxe.ds.Vector;
 import haxe.io.Bytes;

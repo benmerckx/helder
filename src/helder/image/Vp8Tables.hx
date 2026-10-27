@@ -1,4 +1,4 @@
-package helder.ui;
+package helder.image;
 
 // VP8's constant tables (RFC 6386: sections 13.4, 13.5, 14.1 and 11.5),
 // as the RFC gives them: the coefficients' update probabilities and

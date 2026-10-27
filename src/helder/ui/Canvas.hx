@@ -1,5 +1,7 @@
 package helder.ui;
 
+import helder.image.Image;
+
 // What draws a UI tree: the GPU renderer (helder.ui.draw.Renderer) or a test's.
 // Coordinates are window pixels moved by the current translation (translate
 // adds to it: a scrolled node's children) and through the transforms pushed

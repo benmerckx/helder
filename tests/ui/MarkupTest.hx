@@ -7,6 +7,7 @@ import helder.view.Reactive.*;
 import helder.ui.access.*;
 import helder.ui.widgets.TextField;
 import Plain.*;
+import helder.image.Image;
 
 // Markup rendered into helder.ui's nodes (helder.view on NodeRenderer), on Eval
 // (bun run test ui runs it after UiTest; helder.view's own tests are

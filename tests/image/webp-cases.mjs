@@ -1,12 +1,12 @@
-// Writes tests/ui/webp/: WebP files of the kinds WebpDecoder reads
+// Writes tests/image/webp/: WebP files of the kinds WebpDecoder reads
 // (lossless: photographic, few colours for colour indexing at 1, 2, 4 and 8
 // bits, with alpha, each encoder method; lossy: qualities, odd sizes, with
 // alpha raw or compressed and each alpha filter; an animation's first
 // frame; an animation's frames), each with the RGBA8 pixels libwebp decodes from it (<case>.rgba,
 // through ImageMagick's decoder: libwebp's defaults, as Chromium has them;
 // cases.json: names and sizes), which WebpDecoder must give exactly.
-// UiTest decodes them (npm test -- ui).
-//   node tests/ui/webp-cases.mjs   (needs ImageMagick with WebP)
+// ImageTest decodes them (bun run test image).
+//   node tests/image/webp-cases.mjs   (needs ImageMagick with WebP)
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';

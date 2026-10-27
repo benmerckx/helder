@@ -1,4 +1,4 @@
-// Writes tests/ui/gif/: GIF files of the kinds GifDecoder reads (a
+// Writes tests/image/gif/: GIF files of the kinds GifDecoder reads (a
 // dithered 256-colour palette, 4 colours, black and white, interlaced, a
 // transparent colour, a frame smaller than the screen at an offset, an
 // animation's first frame), each with the RGBA8 pixels Chromium decodes from
@@ -7,8 +7,8 @@
 // transparency, a delay of 0), each frame as Chromium's ImageDecoder
 // composes it (<case>.frames.rgba, one after the other; cases.json: their
 // durations and the repetition count). ImageMagick (convert) encodes them.
-// UiTest decodes them (npm test -- ui).
-//   node tests/ui/gif-cases.mjs   (needs ImageMagick and Playwright)
+// ImageTest decodes them (bun run test image).
+//   node tests/image/gif-cases.mjs   (needs ImageMagick and Playwright)
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';

@@ -14,7 +14,7 @@ import helder.scene.render.EnvironmentShader;
 // along the reflection from a level by roughness (mip levels standing in
 // for a filtered map: a cheap image-based light). A program without one
 // keeps the sky-and-ground ambient and links none of this.
-//   var env = Environment.fromImage(device, "image/png", Asset.embed("sky.png")); // with Images.decode set
+//   var env = Environment.fromImage(device, "image/png", Asset.embed("sky.png")); // with Images.decode set (Images.png)
 class Environment implements RenderFeature {
 	public final device:Device;
 	public final texture:Texture;

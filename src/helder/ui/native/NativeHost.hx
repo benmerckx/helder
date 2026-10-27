@@ -3,6 +3,7 @@ package helder.ui.native;
 import haxe.ds.ObjectMap;
 import helder.ui.*;
 import hxmc.unsafe.Mem;
+import helder.image.Image;
 
 // A window of platform controls: a Ui whose Controls are the platform's
 // widgets and whose TextNodes are its labels, measured by the platform,

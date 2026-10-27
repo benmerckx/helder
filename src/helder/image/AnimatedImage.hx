@@ -1,14 +1,15 @@
-package helder.ui;
+package helder.image;
 
 import haxe.io.Bytes;
 
 // An animation's frames (a GIF's, WebP's or animated PNG's:
-// GifDecoder.frames, WebpDecoder.frames, PngDecoder.frames) played on the Clock:
-// image is the frame shown, its pixels written over at each change of
-// frame (a renderer uploads them again). Played as browsers play it: each
-// frame for its delay, one of 10 ms or less as 100 ms, the whole the
+// GifDecoder.frames, WebpDecoder.frames, PngDecoder.frames) played on a
+// clock: image is the frame shown, its pixels written over at each change
+// of frame (a renderer uploads them again). Played as browsers play it:
+// each frame for its delay, one of 10 ms or less as 100 ms, the whole the
 // repetitions' times after the first (-1: forever), then the last frame
-// stays. In markup, an image element's src takes one and plays it.
+// stays. In helder.ui's markup, an image element's src takes one and plays
+// it on ui's Clock.
 class AnimatedImage {
 	public final image:Image;
 	public final frames:Array<{rgba:Bytes, delay:Float}>;
@@ -37,15 +38,17 @@ class AnimatedImage {
 	public static inline function duration(delay:Float):Float
 		return delay <= 0.01 ? 0.1 : delay;
 
-	// from the first frame, on the Clock's next tick
-	public function play() {
+	// from the first frame, on the clock's next tick: add takes a step,
+	// called with the time in seconds at each tick until it returns false
+	// (helder.ui's Clock.add)
+	public function play(add:(Float->Bool)->Void) {
 		stop();
 		show(0);
 		if (frames.length < 2) return;
 		playing = true;
 		started = Math.NaN;
 		var mine = ++run;
-		Clock.add(t -> mine == run && step(t));
+		add(t -> mine == run && step(t));
 	}
 
 	// the frame shown stays

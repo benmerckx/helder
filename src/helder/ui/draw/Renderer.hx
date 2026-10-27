@@ -5,6 +5,8 @@ import helder.gfx.*;
 import helder.text.GlyphAtlas;
 import helder.ui.*;
 import helder.ui.draw.DrawText;
+import helder.image.Image;
+import helder.image.PngDecoder;
 
 // helder.ui's Canvas on helder.gfx: a frame's rectangles, shadows, glyphs and
 // images become quads of one vertex buffer (UiShader: four vertices each,

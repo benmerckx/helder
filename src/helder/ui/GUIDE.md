@@ -261,7 +261,7 @@ bound to a signal) once the node has been drawn:
 
 ## Images and icons
 
-An `image` shows an `Image` (`Image.decode`: PNG, JPEG, GIF), an
+An `image` shows a `helder.image.Image` (`Image.decode`: PNG, JPEG, GIF, WebP), an
 `AnimatedImage`, or an `Svg`. An SVG is drawn at the size it is shown,
 sharp at any scale, in the node's text colour wherever it says
 `currentColor`, so icons follow the theme like text does:

@@ -3,6 +3,7 @@ package helder.ui;
 import haxe.ds.Vector;
 import haxe.io.Bytes;
 import helder.text.Rasterizer;
+import helder.image.Image;
 
 // An SVG document for icons and drawings: parsed once (Svg.parse), drawn
 // into an Image at any size (the Image's drawing: this, for a writer's vectors; render: the viewBox fitted as
@@ -109,7 +110,7 @@ class Svg implements Drawing {
 			m = new Matrix(w / this.width, 0, 0, h / this.height, 0, 0);
 		canvas.group(root, m);
 		var img = canvas.image();
-		img.drawing = {svg: this, color: color};
+		img.drawing = ({svg: this, color: color} : Drawing.ImageDrawing);
 		return img;
 	}
 }

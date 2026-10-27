@@ -73,10 +73,12 @@ the executable natively and fetched before main in the browser
 the repository tool's `hxmc <output> ...` form needs `-D helder.scene.out=<output>`.
 For now self-contained files only for now (one embedded
 buffer, images inside it). Textures need a decoder, named by
-the program so that none is linked otherwise:
+the program so that none is linked otherwise (`helder.image`'s; a glTF
+viewer natively: 805 KB without one, 1.1 MB with PNG, JPEG and WebP):
 
 ```haxe
-Images.decode = (mime, bytes) -> mime == "image/jpeg" ? helder.ui.JpegDecoder.decode(bytes) : helder.ui.PngDecoder.decode(bytes);
+Images.decode = Images.png;     // PNG only
+Images.decode = Images.common;  // PNG, JPEG and WebP
 ```
 
 ## The asset step
