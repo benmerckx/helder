@@ -158,13 +158,16 @@ class Bench {
 		if (glyphIds != null) return glyphIds;
 		var set = new FontSet(font, [], 16), seen = new Map<Int, Bool>();
 		glyphIds = [];
-		for (t in LATIN.concat(MIXED))
-			for (l in new TextLayout(t, set, 1.25, 480).lines)
-				for (g in l.glyphs)
-					if (!seen.exists(g.id)) {
-						seen.set(g.id, true);
-						glyphIds.push(g.id);
-					}
+		for (t in LATIN.concat(MIXED)) {
+			var l = new TextLayout(t, set, 1.25, 480);
+			for (i in 0...l.glyphCount) {
+				var id = l.glyphId(i);
+				if (!seen.exists(id)) {
+					seen.set(id, true);
+					glyphIds.push(id);
+				}
+			}
+		}
 		return glyphIds;
 	}
 

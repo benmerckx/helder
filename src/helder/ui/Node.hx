@@ -1116,7 +1116,7 @@ class Node implements Part {
 		inkY1 = absY + height;
 		// (content wider or higher than its box: past it on either side, as aligned)
 		var c = contentInk();
-		if (c != null) {
+		if (!Math.isNaN(c.width)) {
 			var be = s.borderEdges, p = s.padding;
 			var ex = c.width - (width - be.horizontal - p.horizontal), ey = c.height - (height - be.vertical - p.vertical);
 			if (ex > 0) {
@@ -1177,8 +1177,9 @@ class Node implements Part {
 		return Math.NaN;
 	}
 
-	public function contentInk():Null<Size>
-		return null;
+	// its content's size where it may draw past its content box (Size.NONE: none)
+	public function contentInk():Size
+		return Size.NONE;
 
 	// the first descendant (or this) with the tag, depth first
 	public function find(tag:String):Null<Node> {

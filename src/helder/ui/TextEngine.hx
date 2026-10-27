@@ -11,6 +11,8 @@ interface TextEngine {
 	// the direction its paragraphs are in (0 left to right, 1 right to left,
 	// from Style.dir; -1: each from its first strong character); cut: lines
 	// wider than it ending in an ellipsis within it (TextOverflow.Ellipsis;
-	// -1: none)
-	function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1):Paragraph;
+	// -1: none); into: a paragraph of this engine's the caller lets go, which
+	// it may lay the text out in and return (its buffers reused), else null
+	function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1,
+		?into:Paragraph):Paragraph;
 }

@@ -75,7 +75,8 @@ class DrawText implements TextEngine {
 	final plain = new Map<String, Array<PlainParagraph>>();
 	var plainCount = 0;
 
-	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1):Paragraph {
+	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1,
+			?into:Paragraph):Paragraph {
 		if (fallbackFaces == null) {
 			fallbackFaces = fonts.fallbacks();
 			more = fonts.fallbackFor;
@@ -102,10 +103,26 @@ class DrawText implements TextEngine {
 				if (p.fonts == set && p.lineHeight == font.lineHeight && p.letterSpacing == font.letterSpacing && p.wordSpacing == font.wordSpacing
 					&& p.base == base && p.breaking == breaking)
 					return p.paragraph;
-		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut < 0 ? Math.NaN : cut,
-			breaking);
+		// (a paragraph let go, not shared: its layout's buffers again, the
+		// same text and fonts wrapped again, else shaped)
+		var cut = cut < 0 ? Math.NaN : cut;
+		var again = shared || !Std.isOfType(into, DrawParagraph) ? null : (cast into : DrawParagraph);
+		if (again != null && !again.shared) {
+			var l = again.layout;
+			var rewrap = runs == null && l.runs.length == 0 && l.text == text && l.fonts == set && again.lineHeight == font.lineHeight
+				&& again.letterSpacing == font.letterSpacing && again.wordSpacing == font.wordSpacing && again.base == base && again.breaking == breaking;
+			if (rewrap) l.wrap(maxWidth, maxLines, cut) else {
+				l.reset(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut, breaking);
+				again.shaped(font.lineHeight, font.letterSpacing, font.wordSpacing, base, breaking);
+			}
+			if (justify) l.justify(maxWidth);
+			return again;
+		}
+		var l = new TextLayout(text, set, font.lineHeight, maxWidth, runs, maxLines, font.letterSpacing, font.wordSpacing, base, cut, breaking);
 		if (justify) l.justify(maxWidth);
 		var p = new DrawParagraph(l);
+		p.shaped(font.lineHeight, font.letterSpacing, font.wordSpacing, base, breaking);
+		p.shared = shared;
 		if (shared) {
 			if (plainCount >= 4096) {
 				plain.clear();
@@ -141,8 +158,17 @@ private class PlainParagraph {
 	}
 }
 
+@:allow(helder.ui.draw.DrawText)
 class DrawParagraph implements Paragraph {
 	public final layout:TextLayout;
+	// (what its text was shaped with besides its fonts: DrawText lays it out
+	// again in place, unless it is shared by the nodes with its text)
+	var shared = false;
+	var lineHeight = 0.0;
+	var letterSpacing = 0.0;
+	var wordSpacing = 0.0;
+	var base = -1;
+	var breaking = 0;
 
 	public var width(get, never):Float;
 	public var height(get, never):Float;
@@ -153,6 +179,14 @@ class DrawParagraph implements Paragraph {
 	public function new(layout:TextLayout)
 		this.layout = layout;
 
+	function shaped(lineHeight:Float, letterSpacing:Float, wordSpacing:Float, base:Int, breaking:Int) {
+		this.lineHeight = lineHeight;
+		this.letterSpacing = letterSpacing;
+		this.wordSpacing = wordSpacing;
+		this.base = base;
+		this.breaking = breaking;
+	}
+
 	public function runs(width:Float, align:TextAlign):Array<GlyphRun> {
 		var t = layout, out:Array<GlyphRun> = [], cur:Null<GlyphRun> = null, last = -1;
 		for (l in t.lines) {
@@ -161,10 +195,10 @@ class DrawParagraph implements Paragraph {
 				case Right: width - l.width;
 				case _: 0.0;
 			}
-			for (g in l.glyphs) {
-				if (g.hidden || g.cp == 10) continue;
-				var set = g.run < 0 ? t.fonts : t.runs[g.run].fonts, f = g.font;
-				if (cur == null || cur.font.id != f.id || cur.size != set.size || cur.span != g.run) {
+			for (i in l.glyphStart...l.glyphEnd) {
+				if (t.glyphHidden(i) || t.glyphChar(i) == 10) continue;
+				var set = t.glyphFontSet(i), f = t.glyphFont(i), run = t.glyphRun(i), cluster = t.glyphCluster(i);
+				if (cur == null || cur.font.id != f.id || cur.size != set.size || cur.span != run) {
 					cur = {
 						font: {family: f.family, weight: f.weight, italic: f.italic, data: f.data, id: f.id},
 						size: set.size,
@@ -172,16 +206,16 @@ class DrawParagraph implements Paragraph {
 						x: [],
 						y: [],
 						text: [],
-						span: g.run
+						span: run
 					};
 					out.push(cur);
 				}
-				cur.glyphs.push(g.id);
-				cur.x.push(lx + g.x + g.dx);
-				cur.y.push(l.top + l.baseline + g.dy);
+				cur.glyphs.push(t.glyphId(i));
+				cur.x.push(lx + t.glyphX(i) + t.glyphOffsetX(i));
+				cur.y.push(l.top + l.baseline + t.glyphOffsetY(i));
 				// (a cluster's characters on its first glyph)
-				cur.text.push(g.cluster == last ? "" : t.text.substr(g.cluster, g.length));
-				last = g.cluster;
+				cur.text.push(cluster == last ? "" : t.text.substr(cluster, t.glyphLength(i)));
+				last = cluster;
 			}
 		}
 		return out;

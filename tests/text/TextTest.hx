@@ -47,6 +47,7 @@ class TextTest {
 			justified(sans);
 			tabs(sans);
 			breaks(sans, fonts);
+			reuse(sans, fonts);
 			features(sans, null);
 			sample(sans, fonts, here + "/sample.png", bless);
 		}
@@ -141,9 +142,8 @@ class TextTest {
 			if (Math.abs(got[i] - chromium[i]) > 0.02) ok = false;
 		check("ligatures: widths as Chromium's (none with letter spacing)", ok, got.join(" "));
 		var l = new TextLayout("office", new FontSet(sans, [], 100), 1.2, Math.NaN);
-		var glyphs = l.lines[0].glyphs;
 		var o = l.caret(1).x, third = 96.6796875 / 3;
-		check("ligatures: one glyph for ffi, its carets by thirds", glyphs.length == 4 && Math.abs(l.caret(2).x - (o + third)) < 0.01
+		check("ligatures: one glyph for ffi, its carets by thirds", l.glyphCount == 4 && Math.abs(l.caret(2).x - (o + third)) < 0.01
 			&& Math.abs(l.caret(3).x - (o + 2 * third)) < 0.01 && Math.abs(l.caret(4).x - (o + 3 * third)) < 0.01, [for (k in 0...7) l.caret(k).x].join(" "));
 		check("ligatures: hit by thirds", l.hit(o + third * 0.4, 50) == 1 && l.hit(o + third * 0.6, 50) == 2 && l.hit(o + third * 1.6, 50) == 3,
 			l.hit(o + third * 0.4, 50) + " " + l.hit(o + third * 0.6, 50) + " " + l.hit(o + third * 1.6, 50));
@@ -164,8 +164,8 @@ class TextTest {
 			var at = offset + re.matchedPos().pos;
 			var x = Math.NaN;
 			for (line in l.lines)
-				for (g in line.glyphs)
-					if (g.cluster == at) x = g.x;
+				for (i in line.glyphStart...line.glyphEnd)
+					if (l.glyphCluster(i) == at) x = l.glyphX(i);
 			got.push(Math.round(x * 1000) / 1000);
 			offset = at + re.matched(0).length;
 			rest = text.substr(offset);
@@ -189,7 +189,7 @@ class TextTest {
 		var bad = [];
 		for (c in cases) {
 			var l = new TextLayout(c.text, new FontSet(sans, [], 16), 1.25, Math.NaN);
-			var xs = [for (g in l.lines[0].glyphs) g.x];
+			var xs = [for (i in 0...l.glyphCount) l.glyphX(i)];
 			var ok = xs.length == c.chromium.length;
 			for (k in 0...xs.length)
 				if (ok && Math.abs(xs[k] - c.chromium[k]) > 0.02) ok = false;
@@ -247,6 +247,43 @@ class TextTest {
 		}
 	}
 
+	// a layout wrapped again at other widths, or reset to another text, as a
+	// new one: its glyphs and lines the same
+	static function reuse(sans:FontFile, fonts:SystemFonts) {
+		var set = new FontSet(sans, fonts.fallbacks(), 16);
+		function same(a:TextLayout, b:TextLayout):Bool {
+			if (a.glyphCount != b.glyphCount || a.lines.length != b.lines.length || a.width != b.width || a.height != b.height
+				|| a.truncated != b.truncated) return false;
+			for (i in 0...a.glyphCount)
+				if (a.glyphId(i) != b.glyphId(i) || a.glyphFont(i) != b.glyphFont(i) || a.glyphX(i) != b.glyphX(i) || a.glyphAdvance(i) != b.glyphAdvance(i)
+					|| a.glyphOffsetX(i) != b.glyphOffsetX(i) || a.glyphOffsetY(i) != b.glyphOffsetY(i) || a.glyphCluster(i) != b.glyphCluster(i)
+					|| a.glyphLength(i) != b.glyphLength(i) || a.glyphLevel(i) != b.glyphLevel(i) || a.glyphHidden(i) != b.glyphHidden(i)) return false;
+			for (k in 0...a.lines.length) {
+				var p = a.lines[k], q = b.lines[k];
+				if (p.glyphStart != q.glyphStart || p.glyphEnd != q.glyphEnd || p.start != q.start || p.end != q.end || p.width != q.width || p.top != q.top)
+					return false;
+			}
+			return true;
+		}
+		var texts = [
+			"The quick brown fox jumps over the lazy dog, office affine: a\tb.",
+			"ab שלום cd עוד and مرحبا بالعالم then x\u0301y and e\u0301 again.",
+			"Super\u00ADcali\u00ADfragilistic\u00ADexpiali\u00ADdocious words to hyphenate here."
+		];
+		var bad = [];
+		var l = new TextLayout(texts[0], set, 1.25, 300);
+		for (t in texts)
+			for (maxLines in [0, 2]) {
+				l.reset(t, set, 1.25, 300, null, maxLines);
+				for (w in [300.0, 120, 61, 0, Math.NaN, 200]) {
+					l.wrap(w, maxLines, w == 61 ? 50 : Math.NaN);
+					var fresh = new TextLayout(t, set, 1.25, w, null, maxLines, 0, 0, -1, w == 61 ? 50 : Math.NaN);
+					if (!same(l, fresh)) bad.push(t.substr(0, 12) + " at " + w + (maxLines > 0 ? ", " + maxLines + " lines" : ""));
+				}
+			}
+		check("reuse: wrapped again and reset, as new", bad.length == 0, bad.join("; "));
+	}
+
 	static function breaks(sans:FontFile, fonts:SystemFonts) {
 		var long = "abcdefghijkl mnop", shy = "super\u00ADcali\u00ADfragilistic";
 		var cases:Array<{text:String, max:Float, breaking:Int, starts:String, min:Float}> = [
@@ -271,8 +308,9 @@ class TextTest {
 		check("breaks: overflow-wrap, word-break and soft hyphens as Chromium breaks", bad.length == 0, bad.join("; "));
 		// (a soft hyphen broken at: a hyphen drawn at the line's end, as wide as Chromium's line)
 		var l = new TextLayout(shy, new FontSet(sans, [], 16), 1.25, 60, null, 0, 0, 0, -1, Math.NaN, 0);
-		var last = l.lines[0].glyphs[l.lines[0].glyphs.length - 1];
-		check("breaks: a soft hyphen shown where the line breaks", !last.hidden && last.cp == 0xAD && last.advance > 4, '${last.hidden} ${last.advance}');
+		var last = l.lines[0].glyphEnd - 1;
+		check("breaks: a soft hyphen shown where the line breaks", !l.glyphHidden(last) && l.glyphChar(last) == 0xAD && l.glyphAdvance(last) > 4,
+			'${l.glyphHidden(last)} ${l.glyphAdvance(last)}');
 	}
 
 	// grapheme clusters: their boundaries as Intl.Segmenter finds them (node), forward and back
@@ -490,14 +528,14 @@ class TextTest {
 		check("bidi: its first character at the right", Math.abs(he.caret(0).x - hw) < 0.01 && he.caret(4).x == 0, '${he.caret(0).x} ${he.caret(4).x}');
 		check("bidi: hits by direction", he.hit(-5, 5) == 4 && he.hit(hw + 5, 5) == 0 && he.hit(hw - 1, 5) == 0, '${he.hit(-5, 5)} ${he.hit(hw + 5, 5)} ${he.hit(hw - 1, 5)}');
 		var mixed = new TextLayout("ab שלום cd", set, 1.25, Math.NaN);
-		var order = [for (g in mixed.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
+		var order = [for (i in 0...mixed.glyphCount) String.fromCharCode(mixed.glyphChar(i))].join("");
 		check("bidi: a mixed line in visual order", order == "ab םולש cd", order);
 		// a base direction given (CSS's direction): its neutrals placed by it
 		var rtl = new TextLayout("Hello!", set, 1.25, Math.NaN, null, 0, 0, 0, 1);
-		var shown = [for (g in rtl.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
+		var shown = [for (i in 0...rtl.glyphCount) String.fromCharCode(rtl.glyphChar(i))].join("");
 		check("bidi: a right-to-left base, a left-to-right word", rtl.direction == 1 && shown == "!Hello", shown);
 		var ltr = new TextLayout("שלום!", set, 1.25, Math.NaN, null, 0, 0, 0, 0);
-		check("bidi: a left-to-right base, a right-to-left word", ltr.direction == 0 && String.fromCharCode(ltr.lines[0].glyphs[ltr.lines[0].glyphs.length - 1].cp) == "!");
+		check("bidi: a left-to-right base, a right-to-left word", ltr.direction == 0 && String.fromCharCode(ltr.glyphChar(ltr.glyphCount - 1)) == "!");
 		// Arabic: joining forms and the lam-alef ligature from DejaVu Sans's GSUB; the widths at 100px are Chromium's
 		// (HarfBuzz: measureText with the font "100px DejaVu Sans")
 		var big = new FontSet(sans, fonts.fallbacks(), 100);
@@ -506,18 +544,17 @@ class TextTest {
 			var t = new TextLayout(s, big, 1.25, Math.NaN);
 			check("arabic: " + s + ", its width as Chromium's", Math.abs(t.width - w) < 0.01, '${t.width} $w');
 		}
-		var beh = new TextLayout("ببب", big, 1.25, Math.NaN).lines[0].glyphs, b1 = sans.glyph(0x628);
-		check("arabic: initial, medial and final forms", beh.length == 3 && beh[0].id != b1 && beh[1].id != b1 && beh[2].id != b1
-			&& beh[0].id != beh[1].id && beh[1].id != beh[2].id, [for (g in beh) g.id].join(","));
+		var bt = new TextLayout("ببب", big, 1.25, Math.NaN), beh = [for (i in 0...bt.glyphCount) bt.glyphId(i)], b1 = sans.glyph(0x628);
+		check("arabic: initial, medial and final forms", beh.length == 3 && beh[0] != b1 && beh[1] != b1 && beh[2] != b1 && beh[0] != beh[1]
+			&& beh[1] != beh[2], beh.join(","));
 		var la = new TextLayout("لا", big, 1.25, Math.NaN);
-		var lg = la.lines[0].glyphs;
-		check("arabic: lam and alef, one glyph for two characters", lg.length == 1 && lg[0].length == 2 && Math.abs(la.width - 57.03125) < 0.01,
-			'${lg.length} ${la.width}');
+		check("arabic: lam and alef, one glyph for two characters", la.glyphCount == 1 && la.glyphLength(0) == 2 && Math.abs(la.width - 57.03125) < 0.01,
+			'${la.glyphCount} ${la.width}');
 		check("arabic: the caret between lam and alef, at the ligature's middle", Math.abs(la.caret(1).x - la.width / 2) < 0.01 && la.hit(la.width * 0.5 + 1, 5) == 1
 			&& la.hit(la.width - 2, 5) == 0 && la.hit(2, 5) == 2, '${la.caret(1).x} ${la.hit(la.width * 0.5 + 1, 5)}');
 		// (the ligature glyph carries the lam)
 		var mixedAr = new TextLayout("ab سلام", set, 1.25, Math.NaN);
-		var arOrder = [for (g in mixedAr.lines[0].glyphs) String.fromCharCode(g.cp)].join("");
+		var arOrder = [for (i in 0...mixedAr.glyphCount) String.fromCharCode(mixedAr.glyphChar(i))].join("");
 		check("arabic: a mixed line in visual order", arOrder == "ab ملس", arOrder);
 		// marks: GPOS's anchors (mark, mkmk), compositions the face has; the ink's
 		// left, right, ascent and descent at 100px against Chromium's measureText
@@ -535,13 +572,13 @@ class TextTest {
 		]) {
 			var t = new TextLayout(c.s, big, 1.25, Math.NaN);
 			var x0 = 1e9, x1 = -1e9, top = -1e9, bottom = 1e9;
-			for (g in t.lines[0].glyphs) {
-				var b = g.font.bounds(g.id), k = big.scale(g.font);
+			for (i in 0...t.glyphCount) {
+				var f = t.glyphFont(i), b = f.bounds(t.glyphId(i)), k = big.scale(f), gx = t.glyphX(i) + t.glyphOffsetX(i), dy = t.glyphOffsetY(i);
 				if (b[2] <= b[0]) continue;
-				x0 = Math.min(x0, g.x + g.dx + b[0] * k);
-				x1 = Math.max(x1, g.x + g.dx + b[2] * k);
-				top = Math.max(top, b[3] * k - g.dy);
-				bottom = Math.min(bottom, b[1] * k - g.dy);
+				x0 = Math.min(x0, gx + b[0] * k);
+				x1 = Math.max(x1, gx + b[2] * k);
+				top = Math.max(top, b[3] * k - dy);
+				bottom = Math.min(bottom, b[1] * k - dy);
 			}
 			var ours = [-x0, x1, top, -bottom];
 			var ok = true;
@@ -549,11 +586,12 @@ class TextTest {
 				if (Math.abs(ours[i] - c.ink[i]) > 1.2) ok = false;
 			check("marks: " + c.s + ", its ink as Chromium's", ok, [for (v in ours) Math.round(v * 10) / 10].join(" ") + " / " + c.ink.join(" "));
 		}
-		var xm = new TextLayout("x\u0301y", big, 1.25, Math.NaN), xw = xm.lines[0].glyphs[0].advance;
+		var xm = new TextLayout("x\u0301y", big, 1.25, Math.NaN), xw = xm.glyphAdvance(0);
 		check("marks: a hit is not between a letter and its mark", xm.hit(xw * 0.4, 5) == 0 && xm.hit(xw * 0.6, 5) == 2 && xm.hit(xw * 1.1, 5) == 2,
 			'${xm.hit(xw * 0.6, 5)}');
-		var composed = new TextLayout("é", big, 1.25, Math.NaN).lines[0].glyphs;
-		check("marks: e and an acute as é", composed.length == 1 && composed[0].id == sans.glyph(0xE9) && composed[0].length == 2, '${composed.length}');
+		var composed = new TextLayout("é", big, 1.25, Math.NaN);
+		check("marks: e and an acute as é", composed.glyphCount == 1 && composed.glyphId(0) == sans.glyph(0xE9) && composed.glyphLength(0) == 2,
+			'${composed.glyphCount}');
 		// selections: one run on a line of one direction, two across a direction change
 		var plain = new TextLayout("Hello world", set, 1.25, Math.NaN);
 		var ps = plain.selection(2, 8);
@@ -561,8 +599,9 @@ class TextTest {
 			[for (r in ps) r.x + "+" + r.width].join(" "));
 		var mixedSel = new TextLayout("ab שלום cd", set, 1.25, Math.NaN);
 		var ms = mixedSel.selection(1, 5);
-		var hebrewAt = [for (g in mixedSel.lines[0].glyphs) if (g.cluster == 3) g][0];
-		check("selection: across a direction change, two runs", ms.length == 2 && ms[0].x < ms[1].x && Math.abs(ms[1].x + ms[1].width - (hebrewAt.x + hebrewAt.advance)) < 1e-6,
+		var hebrewAt = [for (i in 0...mixedSel.glyphCount) if (mixedSel.glyphCluster(i) == 3) i][0];
+		check("selection: across a direction change, two runs", ms.length == 2 && ms[0].x < ms[1].x
+			&& Math.abs(ms[1].x + ms[1].width - (mixedSel.glyphX(hebrewAt) + mixedSel.glyphAdvance(hebrewAt))) < 1e-6,
 			[for (r in ms) Math.round(r.x) + "+" + Math.round(r.width)].join(" "));
 		var lamAlef = new TextLayout("لا", big, 1.25, Math.NaN);
 		var half = lamAlef.selection(0, 1);
@@ -608,9 +647,10 @@ class TextTest {
 			{s: "aaaa bbbbbbbbbbbbbbbbbbb ccc", w: 80.0, n: 1, right: 54.0}
 		]) {
 			var t = new TextLayout(c.s, set, 1.25, c.w, null, c.n);
-			var l = t.lines[t.lines.length - 1], e = l.glyphs[l.glyphs.length - 1];
-			var r = e.x + e.font.bounds(e.id)[2] * set.scale(e.font);
-			check("maxLines: " + c.s.substr(0, 16) + ", " + c.n + " lines", t.truncated && t.lines.length == c.n && t.height == 20 * c.n && e.cp == 0x2026 && Math.abs(r - c.right) < 1,
+			var e = t.lines[t.lines.length - 1].glyphEnd - 1, ef = t.glyphFont(e);
+			var r = t.glyphX(e) + ef.bounds(t.glyphId(e))[2] * set.scale(ef);
+			check("maxLines: " + c.s.substr(0, 16) + ", " + c.n + " lines",
+				t.truncated && t.lines.length == c.n && t.height == 20 * c.n && t.glyphChar(e) == 0x2026 && Math.abs(r - c.right) < 1,
 				'${t.lines.length} ${t.height} $r');
 		}
 		check("maxLines: not cut when it fits", !new TextLayout("short", set, 1.25, 200, null, 1).truncated);
@@ -635,13 +675,13 @@ class TextTest {
 			var t = new TextLayout("The quick brown fox jumps over the lazy dog. AV Wa é ß 0123", set, 1.2, W - 8);
 			for (l in t.lines) {
 				var by = Math.round(y + l.top + l.baseline);
-				for (g in l.glyphs) {
-					if (g.hidden) continue;
-					var gx = 4 + g.x + g.dx, ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
-					var a = atlas.get(g.font, g.id, size, sub);
+				for (i in l.glyphStart...l.glyphEnd) {
+					if (t.glyphHidden(i)) continue;
+					var gx = 4 + t.glyphX(i) + t.glyphOffsetX(i), ix = Math.floor(gx), sub = Std.int((gx - ix) * GlyphAtlas.SUBPIXELS);
+					var a = atlas.get(t.glyphFont(i), t.glyphId(i), size, sub);
 					for (py in 0...a.h)
 						for (px in 0...a.w) {
-							var X = ix + a.left + px, Y = by + Math.round(g.dy) + a.top + py;
+							var X = ix + a.left + px, Y = by + Math.round(t.glyphOffsetY(i)) + a.top + py;
 							if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
 							var cov = atlas.pixels.get((a.y + py) * atlas.width + a.x + px);
 							var o = 4 * (Y * W + X);

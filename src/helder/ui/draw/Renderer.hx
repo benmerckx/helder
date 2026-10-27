@@ -507,23 +507,25 @@ class Renderer implements Canvas {
 			}
 			var by = Math.round((oy + l.top + l.baseline) * s + (flat ? 0 : mf - Std.int(mf)));
 			if (flat && (by - size * 1.5 - reach > clipY1 || by + size + reach < clipY0)) continue;
-			for (g in l.glyphs) {
-				if (g.hidden || g.cp == 32 || g.cp == 10 || g.cp == 9) continue;
-				var gx = (ox + lx + g.x + g.dx) * s, gy = by + Math.round(g.dy * s);
-				var f = g.font;
+			for (i in l.glyphStart...l.glyphEnd) {
+				var c = t.glyphChar(i);
+				if (c == 32 || c == 10 || c == 9 || t.glyphHidden(i)) continue;
+				var id = t.glyphId(i), run = t.glyphRun(i);
+				var gx = (ox + lx + t.glyphX(i) + t.glyphOffsetX(i)) * s, gy = by + Math.round(t.glyphOffsetY(i) * s);
+				var f = t.glyphFont(i);
 				// (a run's glyphs: its size and colour)
-				var set = g.run < 0 ? t.fonts : t.runs[g.run].fonts;
-				var size = g.run < 0 ? size : set.size * s, oblique = set.oblique;
-				var color = g.run >= 0 && colors != null && g.run < colors.length ? colors[g.run] : color;
+				var set = t.glyphFontSet(i);
+				var size = run < 0 ? size : set.size * s, oblique = set.oblique;
+				var color = run >= 0 && colors != null && run < colors.length ? colors[run] : color;
 				if (f.hasColor && blur < 0) {
 					// (colour layers: each its glyph in its colour; else a colour bitmap)
-					var layers = f.colorLayers(g.id);
+					var layers = f.colorLayers(id);
 					if (layers != null) {
 						for (layer in layers)
 							glyph(f, layer.glyph, size, gx, gy, layer.color == -1 ? color : (layer.color : Color), oblique);
 						continue;
 					}
-					var b = colorGlyph(f, g.id, size);
+					var b = colorGlyph(f, id, size);
 					if (b != null) {
 						var ex = flat ? 0.0 : me - Std.int(me), ey = flat ? 0.0 : mf - Std.int(mf);
 						var qx = Math.round(gx + b.left + ex) - ex, qy = gy - b.top - ey;
@@ -535,7 +537,7 @@ class Renderer implements Canvas {
 						continue;
 					}
 				}
-				glyph(f, g.id, size, gx, gy, color, oblique, sigma);
+				glyph(f, id, size, gx, gy, color, oblique, sigma);
 			}
 		}
 	}

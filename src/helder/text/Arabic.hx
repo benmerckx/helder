@@ -1,7 +1,5 @@
 package helder.text;
 
-import helder.text.TextLayout.Glyph;
-
 // Arabic shaping: each letter's form from its joining type and its
 // neighbours' (Unicode's ArabicShaping: right-joining, dual-joining, join
 // causing, transparent marks skipped), the font's GSUB substitutions for
@@ -37,59 +35,52 @@ class Arabic {
 		return U;
 	}
 
-	// the glyphs (logical order, ids set) with Arabic's forms and ligatures: a new array when a ligature merged glyphs
-	public static function shape(gs:Array<Glyph>):Array<Glyph> {
-		var any = false;
-		for (g in gs)
-			if (isArabic(g.cp)) any = true;
-		if (!any) return gs;
-		var n = gs.length;
-		var types = [for (g in gs) isArabic(g.cp) || g.cp == 0x200D ? joining(g.cp) : U];
+	// a layout's glyphs being shaped (logical order, ids set) in Arabic's
+	// forms, then its required ligatures (merged into their first glyph)
+	public static function shape(t:TextLayout) {
+		var n = t.count, any = false;
+		for (i in 0...n)
+			if (isArabic(t.lCp[i])) any = true;
+		if (!any) return;
+		var types = [for (i in 0...n) isArabic(t.lCp[i]) || t.lCp[i] == 0x200D ? joining(t.lCp[i]) : U];
 		for (i in 0...n) {
-			var t = types[i];
-			if (t != R && t != D) continue;
+			var ty = types[i];
+			if (ty != R && ty != D) continue;
 			var p = i - 1;
 			while (p >= 0 && types[p] == T)
 				p--;
 			var q = i + 1;
 			while (q < n && types[q] == T)
 				q++;
-			var joinsPrev = p >= 0 && (types[p] == D || types[p] == C) && gs[p].font == gs[i].font;
-			var joinsNext = t == D && q < n && (types[q] == R || types[q] == D || types[q] == C) && gs[q].font == gs[i].font;
-			var form = t == R ? (joinsPrev ? "fina" : "isol") : joinsPrev && joinsNext ? "medi" : joinsPrev ? "fina" : joinsNext ? "init" : "isol";
-			var f = gs[i].font;
+			var joinsPrev = p >= 0 && (types[p] == D || types[p] == C) && t.lFace[p] == t.lFace[i];
+			var joinsNext = ty == D && q < n && (types[q] == R || types[q] == D || types[q] == C) && t.lFace[q] == t.lFace[i];
+			var form = ty == R ? (joinsPrev ? "fina" : "isol") : joinsPrev && joinsNext ? "medi" : joinsPrev ? "fina" : joinsNext ? "init" : "isol";
+			var f = t.faces[t.lFace[i]];
 			for (l in f.gsubLookups("arab", form))
-				gs[i].id = f.substitute(l, gs[i].id);
+				t.lId[i] = f.substitute(l, t.lId[i]);
 		}
 		// the required ligatures, on runs of one face
-		var out:Array<Glyph> = [];
 		var i = 0;
-		while (i < n) {
-			var g = gs[i];
-			if (isArabic(g.cp)) {
-				var f = g.font, merged = false;
+		while (i < t.count) {
+			if (isArabic(t.lCp[i])) {
+				var face = t.lFace[i], f = t.faces[face];
 				var j = i;
-				while (j < n && gs[j].font == f && gs[j].cp != 10)
+				while (j < t.count && t.lFace[j] == face && t.lCp[j] != 10)
 					j++;
-				var ids = [for (k in i...j) gs[k].id];
+				var ids = [for (k in i...j) t.lId[k]];
 				for (l in f.gsubLookups("arab", "rlig")) {
 					var lig = f.ligature(l, ids, 0);
 					if (lig.count > 1) {
-						g.id = lig.glyph;
-						var last = gs[i + lig.count - 1];
-						g.length = last.cluster + last.length - g.cluster;
-						g.parts = g.length;
-						out.push(g);
-						i += lig.count;
-						merged = true;
+						var last = i + lig.count - 1;
+						t.lId[i] = lig.glyph;
+						t.lLength[i] = t.lCluster[last] + t.lLength[last] - t.lCluster[i];
+						t.lFlags[i] |= TextLayout.LIGATURE;
+						t.remove(i + 1, lig.count - 1);
 						break;
 					}
 				}
-				if (merged) continue;
 			}
-			out.push(g);
 			i++;
 		}
-		return out;
 	}
 }

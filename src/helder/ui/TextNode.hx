@@ -197,7 +197,7 @@ class TextNode extends Node {
 		// (the unbounded paragraph first: the layout asks for it anyway, and a
 		// width it fits in lays it out the same)
 		if (mp == null) {
-			mp = engine.layout(shown, f, Math.NaN, spans, clamp, false, base);
+			mp = engine.layout(shown, f, Math.NaN, spans, clamp, false, base, -1, maxParagraph != paragraph ? maxParagraph : null);
 			maxParagraph = mp;
 			maxFont = f;
 			maxText = text;
@@ -212,7 +212,8 @@ class TextNode extends Node {
 		inline function same(a:Float, b:Float):Bool
 			return a == b || (Math.isNaN(a) && Math.isNaN(b));
 		if (paragraph != null && laidText == text && f.equals(laidFont) && same(w, laidWidth) && same(cut, laidCut)) return paragraph;
-		paragraph = engine.layout(shown, f, w, spans, clamp, justify, base, Math.isNaN(cut) ? -1 : cut);
+		// (the last paragraph laid out again in place: the engine's buffers reused)
+		paragraph = engine.layout(shown, f, w, spans, clamp, justify, base, Math.isNaN(cut) ? -1 : cut, paragraph != mp ? paragraph : null);
 		// (balanced: two to six lines at the narrowest width, to 1/64 pixel, that keeps their number, as Chromium's)
 		var n = paragraph.lineCount;
 		if (n > 1 && n <= 6 && clamp <= 0 && !Math.isNaN(w) && textWrap() == Balance) {
@@ -240,8 +241,8 @@ class TextNode extends Node {
 	override public function firstBaseline():Float
 		return paragraph == null ? Math.NaN : style.borderEdges.top + style.padding.top + paragraph.baseline;
 
-	override public function contentInk():Null<Size>
-		return paragraph == null ? null : {width: paragraph.width, height: paragraph.height};
+	override public function contentInk():Size
+		return paragraph == null ? Size.NONE : new Size(paragraph.width, paragraph.height);
 
 	// (what the laid out paragraph depends on besides its font and width:
 	// the text, its spans' fonts, the lines' limit, justification, direction)
