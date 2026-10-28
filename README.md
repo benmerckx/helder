@@ -487,7 +487,10 @@ fix.
   the system's random source on Windows too, under helder's names:
   `HELDER_ANDROID_KEY`, helder's cache), `--target ios` (an .ipa) and
   `ios-sim` (an .app, ad hoc signed); `helder run` on a device, emulator
-  or simulator (`-d`, else the one there is). Tested on Linux without a
+  or simulator (`-d`, else the one there is). Android's runtime objects,
+  not on npm, fetched on first use from the hxmc release @hxmc/cli's
+  package.json names (`hxmc.rt`) into helder's cache, then given to the
+  compiler as `HXMC_RT_DIR`. Tested on Linux without a
   device (the `pack` lane: the outputs checked structurally, the v2
   signature recomputed and verified by openssl, the Mach-O's signature
   slots; `helder run` and `dev` against stand-in adb and simctl); on an

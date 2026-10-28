@@ -59,7 +59,10 @@ class BuildCommand {
 	@:coroutine static function buildMobile(o:Options, e:Entry, mobile:String):Int {
 		e.target = mobile == "android" ? Android.target(e.target, null) : Ios.target(e.target, "build");
 		Term.out(Style.header("build", [e.target, e.main]));
-		var r = try mobile == "android" ? Android.build(e, o.out ?? Android.out(e), Release) : Ios.build(e, o.out ?? Ios.out(e), Release) catch (err:Dynamic) {
+		var r = try {
+			if (mobile == "android") Runtime.ensure(e.target);
+			mobile == "android" ? Android.build(e, o.out ?? Android.out(e), Release) : Ios.build(e, o.out ?? Ios.out(e), Release);
+		} catch (err:Dynamic) {
 			Term.err(Style.status("error", Fail, Std.string(err)));
 			return 1;
 		}
@@ -73,6 +76,7 @@ class BuildCommand {
 				var d = Android.device(o.device);
 				e.target = Android.target(e.target, Android.abi(d.id));
 				Term.out(Style.header("run", [e.target, e.main, d.name]));
+				Runtime.ensure(e.target);
 				var apk = o.out ?? Android.out(e);
 				if (!Android.build(e, apk, Release).ok) return 1;
 				var id = App.android(e.name, e.config).id;

@@ -48,8 +48,6 @@ jobs:
         # (pack: the Android and iOS runtime objects fetched, their builds
         # skipped without them: the android job requires them; the SDK's
         # build tools on the PATH: zipalign, aapt, apksigner)
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           bun run test -k headless
@@ -116,7 +114,6 @@ jobs:
       - name: The CLI, Android's runtime objects, the APKs checked (pack)
         env:
           PACK_REQUIRE: 1
-          GITHUB_TOKEN: ${{ github.token }}
         run: |
           export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           bun run test pack

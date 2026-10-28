@@ -37,7 +37,8 @@ class Compiler {
 				if ((Sys.getEnv("HAXE_STD_PATH") ?? "") == "") Sys.putEnv("HAXE_STD_PATH", '$dir/cli/haxe/upstream/std');
 				// (the runtime objects: the compiler finds its own beside itself,
 				// <its dir>/<target>/rt.o, and the other platform packages of its
-				// version, cross builds', HXMC_RT_DIR's added: hxmc #93)
+				// version, cross builds', HXMC_RT_DIR's added: hxmc #93; Android's,
+				// not on npm, fetched by Runtime.ensure into HXMC_RT_DIR)
 				return exe;
 			}
 		}
@@ -55,7 +56,7 @@ class Compiler {
 	}
 
 	// the first rel under the working directory or one above it, else under the CLI's directory or one above
-	static function locate(rel:String):Null<String> {
+	public static function locate(rel:String):Null<String> {
 		for (start in [Sys.getCwd(), Path.directory(Sys.programPath())]) {
 			var d = FileSystem.fullPath(start);
 			while (d != null && d != "") {

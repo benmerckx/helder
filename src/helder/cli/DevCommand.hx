@@ -116,6 +116,8 @@ class DevCommand {
 			try {
 				device = mobile == "android" ? Android.device(o.device) : Ios.device(o.device);
 				e.target = mobile == "android" ? Android.target(e.target, Android.abi(device.id)) : Ios.target(e.target, "dev");
+				// (Android's runtime objects before the compile server starts: its HXMC_RT_DIR)
+				Runtime.ensure(e.target);
 				if (mobile == "ios") {
 					Term.spin("booting " + device.name);
 					Ios.boot(device);

@@ -241,7 +241,8 @@ class Run {
 	}
 
 	// (the runtime objects: Android's and iOS's are not npm's for this
-	// machine, tests/pack/runtime.mjs fetches them; the builds' HXMC_RT_DIR.
+	// machine, tests/pack/runtime.mjs fetches them (Android's from the
+	// release @hxmc/cli's package.json names); the builds' HXMC_RT_DIR.
 	// The debug key made in a cache of its own, on first use)
 	static function packLane() {
 		var h = helderCli();
@@ -284,6 +285,22 @@ class Run {
 			if (!File.getContent("bin/pack/cache/android/debug-key").startsWith("helder-android-debug-key 1\n"))
 				throw new Failed("bin/pack/cache/android/debug-key: not made on first use");
 			Sys.println("pack: the debug key made on first use, in the cache");
+			// (the CLI's own fetch of Android's objects, from a stand-in release
+			// of the same objects: no HXMC_RT_DIR, a cache of its own)
+			run(NODE, ["tests/pack/release.mjs", rt, "bin/pack/release"]);
+			rmrf("bin/pack/rt-cache");
+			mkdirs("bin/pack/rt-cache");
+			var release = FileSystem.fullPath("bin/pack/release").split("\\").join("/");
+			expect(h, ["build", "tests/pack/Hello.hx", "--target", "android-x86_64", "-o", "bin/pack/Fetched.apk"], [
+				"HXMC_RT_DIR" => "",
+				"HELDER_CACHE" => FileSystem.fullPath("bin/pack/rt-cache"),
+				"HELDER_RT_URL" => "file://" + (release.startsWith("/") ? "" : "/") + release
+			], "fetching");
+			var fetched = [for (d in FileSystem.readDirectory("bin/pack/rt-cache/rt")) d];
+			if (fetched.length != 1 || !FileSystem.exists('bin/pack/rt-cache/rt/${fetched[0]}/android-x86_64/rt.o'))
+				throw new Failed('bin/pack/rt-cache/rt: ${fetched.join(", ")}, not one release\'s android-x86_64 objects');
+			checks.push("bin/pack/Fetched.apk");
+			Sys.println('pack: Android\'s runtime objects fetched on first use (${fetched[0]})');
 		}
 		if (have("macos-arm64")) {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Hello.ipa"], env);
@@ -846,7 +863,7 @@ class Run {
 			Sys.putEnv(k, v);
 		}
 		var code = Sys.command(cmd, args);
-		// (null: unset again, not left empty: an empty HXMC_RT_DIR is not none to the launcher)
+		// (null: unset again, not left empty: the variables as they were before)
 		for (k => v in saved) Sys.putEnv(k, v);
 		if (code != 0) throw new Failed('${[cmd].concat(args).join(" ")}: exit code $code');
 	}
@@ -867,7 +884,7 @@ class Run {
 		var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();
 		var code = p.exitCode();
 		p.close();
-		// (null: unset again, not left empty: an empty HXMC_RT_DIR is not none to the launcher)
+		// (null: unset again, not left empty: the variables as they were before)
 		for (k => v in saved) Sys.putEnv(k, v);
 		Sys.print(out);
 		if (code != want || !out.contains(text)) throw new Failed('${[cmd].concat(args).join(" ")}: expected "$text" (exit code $code, not $want)');

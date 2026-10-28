@@ -123,6 +123,18 @@ build time.
   (ECDSA P-256 with SHA-256, RFC 6979's nonces: `P256`, `Der`; v2 only,
   which minSdk 29 allows). Debuggable; no release signing, icons,
   resources or `.aab` yet.
+- **Android's runtime objects** (`android-arm64`, `android-x86_64`'s
+  `rt.o`, `ssl.o`, `uv.o`) are not on npm: @hxmc/cli's package.json names
+  the GitHub release of benmerckx/hxmc built from the same sources
+  (`"hxmc": {"rt": "rt-<16 hex>"}`). On first use `build`, `run` and
+  `dev` fetch the target's `<target>-<object>.gz` assets from it (curl),
+  gunzip them into `<helder's cache>/rt/<tag>/<target>/`, say so in one
+  status line (`fetching android-arm64's runtime objects, once`) and add
+  that directory to the compiler's `HXMC_RT_DIR` (`Runtime.hx`); a new
+  hxmc's tag fetches again. A directory already in `HXMC_RT_DIR` holding
+  the target's objects is used instead, nothing fetched;
+  `HELDER_RT_URL` names another place for the releases
+  (`<it>/<tag>/<asset>`: a mirror, a `file://` directory).
 - **The debug key**: the user's own, made on first use and kept, so a
   reinstall keeps the signature: `HELDER_ANDROID_KEY` names its file, else
   `package.json`'s `"helder": {"android": {"key"}}`, else
@@ -315,7 +327,10 @@ No workarounds left:
   version (cross builds: `npm i -D --force @hxmc/win32-x64`), HXMC_RT_DIR
   added to the search (hxmc #93, @hxmc/cli
   0.1.0-nightly.20261027.a4195c7): `Compiler.find` no longer gives it
-  HXMC_RT_DIR.
+  HXMC_RT_DIR. An empty or set HXMC_RT_DIR adds to the launcher's search
+  too (0.1.0-nightly.20261028.23a0a79), and @hxmc/cli's package.json
+  names its release of Android's objects (`hxmc.rt`), which `Runtime`
+  fetches: no matching of rt.o's bytes against releases.
 - (Not a bug: `--server-connect`'s builds are given hxmc's std by the
   client, as dev.mjs does: `CompileServer.request`.)
 
@@ -367,9 +382,13 @@ Android and iOS, tested where:
   connection, a reload's library fetched by `lib <n>` and the same as the
   build's, the simulator's dylib, the app closed and started again by the
   next change). The runtime objects: tests/pack/runtime.mjs fetches
-  macos-arm64's from npm (@hxmc/darwin-arm64) and Android's from hxmc's
-  `rt-*` release of the same sources (not on npm); without them those
-  builds are skipped (PACK_REQUIRE=1: a failure).
+  macos-arm64's from npm (@hxmc/darwin-arm64) and Android's from the
+  release @hxmc/cli's package.json names (`hxmc.rt`; not on npm); without
+  them those builds are skipped (PACK_REQUIRE=1: a failure). The CLI's own
+  fetch: a build with no HXMC_RT_DIR and an empty cache, from a stand-in
+  release of those objects (tests/pack/release.mjs, `HELDER_RT_URL` a
+  `file://` directory): the status line, the objects in
+  `<cache>/rt/<tag>/`, the APK checked.
 - **Only in CI, untested until it runs** (`.github/workflows/ci.yml`; no
   emulator, simulator or Mac where it was written): the `android` job,
   an x86-64 emulator (API 34) running tests/pack/android.sh (`helder run
