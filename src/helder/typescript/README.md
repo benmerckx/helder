@@ -54,6 +54,15 @@ new build in. A reload starts the program over: its state is not kept yet.
 
 ## Checking (`check/`)
 
+`Config.hx`: the project's `tsconfig.json` (the nearest from the entry up to
+its package.json's directory, parsed by tsgo, `extends` too), else helder's
+defaults. Options that only add checks or name emit settings pass through;
+those that change what the program means or what it can use must be
+helder's or absent, else the build stops at their line: strict, ES modules
+(esnext, es2022, preserve) resolved as a bundler does, a target of ES2022 or
+later, defined class fields, no DOM library, no ambient `types`, `jsx`
+preserve, no legacy decorators.
+
 `Tsgo.hx` starts the `typescript` package's tsgo (`tsc --api`, found from the
 entry's directory up) and speaks its protocol over the pipes: msgpack
 `[type, method, payload]` tuples, JSON requests. `Project.hx` creates a

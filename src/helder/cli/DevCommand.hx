@@ -197,7 +197,7 @@ class DevCommand {
 			dirs.push(a);
 			walk(a, true);
 		}
-		for (f in [e.hxml, '${e.root}/package.json']) if (f != null && FileSystem.exists(f)) files.push(FileSystem.fullPath(f));
+		for (f in [e.hxml, '${e.root}/package.json', '${e.root}/tsconfig.json']) if (f != null && FileSystem.exists(f)) files.push(FileSystem.fullPath(f));
 		w.watch(files, dirs);
 	}
 

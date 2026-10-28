@@ -497,10 +497,12 @@ class Promises {
 				for (x in timers) if (x.due < next) next = x.due;
 				var wait = next - now();
 				// (under helder dev the dev server is heard while waiting)
-				#if hxmc.dev while (wait > 50 && devTurn()) {
+				#if hxmc.dev
+				while (wait > 50 && devTurn()) {
 					Sys.sleep(0.05);
 					wait = next - now();
-				} #end
+				}
+				#end
 				if (wait > 0) Sys.sleep(wait / 1000);
 			}
 		}

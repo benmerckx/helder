@@ -1,0 +1,11 @@
+{
+	// options that only add checks or name emit settings pass through
+	"compilerOptions": {
+		"target": "es2022",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"outDir": "dist"
+	}
+}

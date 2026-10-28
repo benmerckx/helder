@@ -107,11 +107,13 @@ class Sets {
 				case "union": add(out, value);
 				case "intersection": if (has) add(out, value);
 				case "symmetricDifference": if (has) Builtins.mapDelete(out, value); else if (!contains(out, value)) add(out, value);
-				case "isSupersetOf": if (!has) {
+				case "isSupersetOf":
+					if (!has) {
 						close(it);
 						return false;
 					}
-				case "isDisjointFrom": if (has) {
+				case "isDisjointFrom":
+					if (has) {
 						close(it);
 						return false;
 					}

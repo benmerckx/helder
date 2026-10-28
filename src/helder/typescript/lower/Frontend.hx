@@ -1250,23 +1250,32 @@ class Frontend {
 		if ((n.kind == KindPropertyAccessExpression || n.kind == KindElementAccessExpression) && n.expression().kind == KindSuperKeyword) {
 			var key = n.kind == KindPropertyAccessExpression ? EStr(n.name().text) : b.temp(any(expr(n.argumentExpression())));
 			var home = read(get("%home", n));
-			return {read: () -> b.runtime("libSuperGet", [home, thisValue(), key]), write: (e) -> {
-				b.runtime("libSuperSet", [home, thisValue(), key, any(e)]);
-			}};
+			return {
+				read: () -> b.runtime("libSuperGet", [home, thisValue(), key]),
+				write: (e) -> {
+					b.runtime("libSuperSet", [home, thisValue(), key, any(e)]);
+				}
+			};
 		}
 		if (n.kind == KindPropertyAccessExpression && n.name().kind == KindPrivateIdentifier) {
 			var obj = b.temp(any(expr(n.expression())));
 			var key = EStr(brand(n.name()));
-			return {read: () -> b.runtime("libPrivateGet", [obj, key]), write: (e) -> {
-				b.runtime("libPrivateSet", [obj, key, any(e)]);
-			}};
+			return {
+				read: () -> b.runtime("libPrivateGet", [obj, key]),
+				write: (e) -> {
+					b.runtime("libPrivateSet", [obj, key, any(e)]);
+				}
+			};
 		}
 		if (n.kind == KindPropertyAccessExpression || n.kind == KindElementAccessExpression) {
 			var obj = expr(n.expression());
 			var key = n.kind == KindPropertyAccessExpression ? EStr(n.name().text) : expr(n.argumentExpression());
-			return {read: () -> b.runtime("libGet", [any(obj), any(key)]), write: (e) -> {
-				b.runtime("libPut", [any(obj), any(key), any(e)]);
-			}};
+			return {
+				read: () -> b.runtime("libGet", [any(obj), any(key)]),
+				write: (e) -> {
+					b.runtime("libPut", [any(obj), any(key), any(e)]);
+				}
+			};
 		}
 		return fail(n, "unsupported assignment target");
 	}

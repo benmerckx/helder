@@ -68,7 +68,8 @@ class Verifier {
 				if (f.lambda != li || i < 0 || i >= li.captures.length) error("invalid capture");
 				expression(clos);
 			case ECallHost(_, _, _): error("frontend cannot introduce unverified runtime symbols");
-			case ENewArr(t, vs): for (v in vs) {
+			case ENewArr(t, vs):
+				for (v in vs) {
 					expression(v);
 					expect(v, t);
 				}

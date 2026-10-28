@@ -76,6 +76,20 @@ for(const file of fs.readdirSync(`${T}/reject`).filter(f=>f.endsWith('.ts')).sor
     assert.equal(fs.existsSync(out),false,`${file} must not emit an executable`);
     console.log(`PASS diagnostic ${file}`);
 }
+// Projects with a tsconfig.json: built and run, or refused at the option's line (expect)
+for(const name of fs.readdirSync(`${T}/configs`).sort()) {
+    const d=`${T}/configs/${name}`,out=`${dir}/config-${name}`;
+    const r=run(compiler,[`${d}/main.ts`,'-o',out]);
+    if(fs.existsSync(`${d}/expect`)) {
+        const expected=fs.readFileSync(`${d}/expect`,'utf8').trim();
+        assert.notEqual(r.status,0,`${name} should be refused`);
+        assert.ok(r.stderr.includes(expected),`${name} should report ${expected}, got ${r.stderr}`);
+    } else {
+        ok(r,`${name} compile`);
+        ok(run(out,[]),`${name} run`);
+    }
+    console.log(`PASS config ${name}`);
+}
 // The CLI end to end: TypeScript entries built and run by `helder run` (a file, a directory)
 for(const entry of ['examples/ts-hello/main.ts','examples/ts-hello']) {
     const r=run(process.execPath,['src/helder/cli/run.mjs','run',entry]);ok(r,`helder run ${entry}`);

@@ -58,18 +58,7 @@ class Project {
 		path = relative(absolute);
 		isJS = ~/\.[cm]?jsx?$/.match(absolute);
 		if (!sys.FileSystem.exists(absolute)) throw path + ": TSHX002: input file not found";
-		var options = {
-			target: 99,
-			module: 99,
-			moduleResolution: 100,
-			strict: true,
-			allowJs: true,
-			checkJs: false,
-			noEmit: true,
-			skipLibCheck: true,
-			types: [],
-			lib: ["lib.esnext.d.ts"]
-		};
+		var options = Config.options(tsgo, absolute, relative, f -> config = f);
 		var snapshot:Dynamic = tsgo.call("createSnapshot", {createPrograms: [{rootFiles: [absolute, globals], compilerOptions: options}]});
 		var at = {snapshot: snapshot.snapshot, project: snapshot.projects[0].id};
 		try load(tsgo, tables, at, absolute, globals) catch (e:Dynamic) {
@@ -79,10 +68,13 @@ class Project {
 		tsgo.call("release", {snapshot: at.snapshot});
 	}
 
+	var config:Null<String> = null;
+
 	function load(tsgo:Tsgo, tables:Tables, at:{snapshot:Dynamic, project:Dynamic}, absolute:String, globals:String) {
 		var names:Array<String> = tsgo.call("getSourceFileNames", at);
 		var sources = [for (n in names) if (!StringTools.endsWith(n, ".d.ts") && n != globals) n];
-		read = sources;
+		read = sources.copy();
+		if (config != null) read.push(config);
 		var errors:Array<String> = [];
 		function report(list:Array<Dynamic>)
 			if (list != null) for (d in list) {
