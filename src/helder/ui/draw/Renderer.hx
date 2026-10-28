@@ -49,7 +49,7 @@ class Renderer implements Canvas {
 	// the runs of quads by image texture: first quad, count, key (the image id, twice, plus whether glyphs are filtered)
 	final batches:Array<Int> = [];
 	// (frame: the last one that drew it; one not drawn for EVICT frames is freed)
-	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int}>();
+	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int, width:Int, height:Int}>();
 	var frames = 0;
 	// the GPU textures drawn this frame (texture: by their negative ids), the passes to record before the frame's (beforePass)
 	final gpu = new Map<Int, Texture>();
@@ -237,8 +237,19 @@ class Renderer implements Canvas {
 			pre.set(4 * k + 2, Std.int((px.get(4 * k + 2) * a + 127) / 255));
 			pre.set(4 * k + 3, a);
 		}
+		// (another size: Image.replace's)
+		if (e != null && (e.width != img.width || e.height != img.height)) {
+			device.destroyTexture(e.texture);
+			e = null;
+		}
 		if (e == null) {
-			e = {texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}), version: img.version, frame: frames};
+			e = {
+				texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}),
+				version: img.version,
+				frame: frames,
+				width: img.width,
+				height: img.height
+			};
 			textures.set(img.id, e);
 		} else {
 			device.writeTexture(e.texture, pre);

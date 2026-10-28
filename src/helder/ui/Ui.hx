@@ -219,6 +219,13 @@ class Ui {
 		// (a touch's scroll let go moving: its glide's since the last)
 		if (touchScroll.gliding) @:privateAccess touchScroll.glide(now() * 1000);
 		flushRestyles();
+		// (a font replaced: every text laid out again)
+		var g = text == null ? 0 : text.generation();
+		if (g != fontGeneration) {
+			fontGeneration = g;
+			dirtyAll(root);
+			dirtyAll(overlay);
+		}
 		Layout.run(root, width, height, text, rounded);
 		if (root.inkStale) refreshInk(root);
 		if (overlay.children.length > 0) {
@@ -234,6 +241,15 @@ class Ui {
 		changes.resize(0);
 		for (n in natives.copy())
 			n.syncNative();
+	}
+
+	var fontGeneration = 0;
+
+	static function dirtyAll(n:Node) {
+		if (n is TextNode) (cast n : TextNode).forgetLayout();
+		n.markDirty();
+		for (c in n.children)
+			dirtyAll(c);
 	}
 
 	// the nodes that may be native (EditableText: they join while in the tree)

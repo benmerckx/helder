@@ -54,13 +54,8 @@ class Ios {
 		var app = app(out), name = Path.withoutExtension(Path.withoutDirectory(app));
 		var o = App.ios(e.name, e.config);
 		var info = Bundle.infoPlist(name, o.id, o.label, o.version, o.versionName, o.minVersion, e.target == "ios-sim-arm64", o.orientation, o.fullscreen);
-		var resources = Bundle.codeResources(["Info.plist" => info]);
-		// (the bundle afresh: what an older build left in it is not signed)
-		if (FileSystem.exists(app)) TestCommand.rmrf(app);
-		TestCommand.mkdirs('$app/_CodeSignature');
-		File.saveBytes('$app/Info.plist', info);
-		File.saveBytes('$app/_CodeSignature/CodeResources', resources);
-		var full = FileSystem.fullPath(app);
+		TestCommand.mkdirs(Path.directory(app) == "" ? "." : Path.directory(app));
+		var full = FileSystem.fullPath(Path.directory(app) == "" ? "." : Path.directory(app)) + "/" + Path.withoutDirectory(app);
 		var words = ["-D", 'hxmc.ios-min-version=${o.minVersion}', "-D", 'hxmc.codesign-id=${o.id}', "-D", 'hxmc.codesign-info-plist=$full/Info.plist', "-D",
 			'hxmc.codesign-resources=$full/_CodeSignature/CodeResources'].concat(App.defines(e.config));
 		if (o.entitlements != null) {
@@ -69,10 +64,31 @@ class Ios {
 			words = words.concat(["-D", 'hxmc.codesign-entitlements=${FileSystem.fullPath(ent)}']);
 		}
 		var exe = executable(app);
+		// (before each link: the bundle afresh, what an older build left in it
+		// is not signed; its Info.plist, the program's assets (a release's: the
+		// last build's, AssetStep, as assets/<key>; a dev build reads them from
+		// this machine's disk) and CodeResources with their hashes, which the
+		// signature binds)
+		var resources = null, assets = [];
+		function prepare():Array<String> {
+			if (FileSystem.exists(app)) TestCommand.rmrf(app);
+			TestCommand.mkdirs('$app/_CodeSignature');
+			File.saveBytes('$app/Info.plist', info);
+			var put = mode == Release ? AssetStep.intoApp(exe, app, e.classPaths.concat([e.root])) : {keys: [], files: new Map()};
+			var files = ["Info.plist" => info];
+			assets = [];
+			for (k => b in put.files) {
+				files.set(k, b);
+				assets.push({path: k, data: b});
+			}
+			resources = Bundle.codeResources(files);
+			File.saveBytes('$app/_CodeSignature/CodeResources', resources);
+			return put.keys;
+		}
 		return BuildCommand.build(e, exe, mode, server, words.concat(extra ?? []), () -> {
-			if (out.endsWith(".ipa")) File.saveBytes(out, Bundle.ipa(name, File.getBytes(exe), info, resources));
+			if (out.endsWith(".ipa")) File.saveBytes(out, Bundle.ipa(name, File.getBytes(exe), info, resources, assets));
 			out;
-		});
+		}, prepare);
 	}
 
 	// --- a simulator's tools

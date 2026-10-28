@@ -45,6 +45,19 @@ grep "hxmc" "$out/logcat.txt" | tail -20
 grep -q "$line" "$out/logcat.txt"
 check "its line in logcat" $?
 
+# The assets (tests/asset/Checksum.hx: helder.asset's files in the APK's
+# assets/, read through AAssetManager): `helder run` prints each file's
+# size and CRC-32, an image's decoded pixels', the bundle's list: the lines
+# of tests/asset/checksum.txt, which every other build prints too.
+adb uninstall org.helder.checksum > /dev/null 2>&1
+"$helder" run tests/asset/Checksum.hx --target android > "$out/checksum.txt" 2>&1
+check "helder run tests/asset/Checksum.hx" $?
+cat "$out/checksum.txt"
+while IFS= read -r l; do
+	grep -qF "$l" "$out/checksum.txt"
+	check "assets: $l" $?
+done < tests/asset/checksum.txt
+
 # The screen (tests/pack/Screen.hx, for the emulator's ABI): started
 # upright, its window, safe area and the display's frames, the bars hidden;
 # then turned (user_rotation 1, the sensor off), sent to the background

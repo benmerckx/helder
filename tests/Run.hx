@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "pack", "devtools", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -42,6 +42,7 @@ class Run {
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
+		{name: "asset", about: "helder.asset: the paths Asset's macros reject (tests/asset/reject), then `helder build tests/asset/Checksum.hx` for this machine (its files in the executable: run alone in an empty directory, their sizes and CRC-32s) and for the web (exactly the referenced files beside the page, the module run under node reading them); Android's and iOS's bundles are the pack lane's", run: assetLane},
 		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "examples", about: "every example built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
@@ -238,9 +239,59 @@ class Run {
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-nohost", "native-nohost"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-exit", "exit"]);
+		// (assets: a change sent, nothing built, behind the same handle; the page told)
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset", "asset"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset-nohost", "asset-nohost"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset-web", "asset-web"]);
 	}
 
 	// (the runtime objects: Android's and iOS's are not npm's for this
+	// (Checksum's lines: its files' sizes and CRC-32s, the bundle's list; CI's
+	// emulator and simulator jobs check the same, tests/pack/android.sh, ios.sh)
+	static final CHECKSUM = [for (l in File.getContent("tests/asset/checksum.txt").split("\n")) if (l != "") l];
+
+	// (PackCheck's: the asset fixture's files, exactly)
+	static final ASSETS = "assets=tests/asset:files/kept.txt,files/pixels.png";
+
+	static function assetLane() {
+		var h = helderCli();
+		// (what Asset's macros reject, at the call)
+		for (r in [
+			{main: "Missing", error: 'Asset.bytes("files/nothere.txt"): no such file under the class paths or the project'},
+			{main: "Case", error: 'Asset.bytes("files/Kept.txt"): "Kept.txt" is "kept.txt" on disk (paths are case-sensitive on Android and the web)'},
+			{main: "Absolute", error: 'Asset.bytes("/etc/hostname"): an absolute path'},
+			{main: "Parent", error: 'Asset.image("files/../files/pixels.png"): a part ".."'}
+		]) {
+			var b = build(cps(["src", "tests/asset", "tests/asset/reject"]).concat(["-main", r.main, "--custom-target", 'hxmc=bin/asset/${r.main}']), 'bin/asset/${r.main}.log');
+			if (b.code == 0 || !b.log.contains(r.error)) throw new Failed('${r.main}: expected the error "${r.error}":\n' + b.log);
+			Sys.println('asset: ${r.main} rejected: ${r.error}');
+		}
+		// (this machine: the files in the executable, nothing beside it)
+		var exe = exePath("bin/asset/host/Checksum", HOST);
+		rmrf("bin/asset/host");
+		run(h, ["build", "tests/asset/Checksum.hx", "-o", exe]);
+		if (FileSystem.readDirectory("bin/asset/host").join(",") != Path.withoutDirectory(exe)) throw new Failed("bin/asset/host: more than the executable");
+		rmrf("bin/asset/empty");
+		mkdirs("bin/asset/empty");
+		var cwd = Sys.getCwd(), full = FileSystem.fullPath(exe);
+		Sys.setCwd("bin/asset/empty");
+		var out = output(full, []);
+		Sys.setCwd(cwd);
+		Sys.print(out);
+		for (l in CHECKSUM.concat(["asset: built in files/kept.txt,files/pixels.png"])) if (!out.contains(l + "\n")) throw new Failed('Checksum, alone: no line "$l"');
+		// (the web: the referenced files beside the page, no other)
+		rmrf("bin/asset/web");
+		run(h, ["build", "tests/asset/Checksum.hx", "--target", "web", "-o", "bin/asset/web/Checksum.wasm"]);
+		var files = [];
+		function walk(d:String) for (n in FileSystem.readDirectory('bin/asset/web/$d')) if (FileSystem.isDirectory('bin/asset/web/$d/$n')) walk('$d/$n') else files.push('$d/$n');
+		walk("assets");
+		files.sort(Reflect.compare);
+		if (files.join(",") != "assets/files/kept.txt,assets/files/pixels.png") throw new Failed('bin/asset/web/assets: ${files.join(", ")}');
+		var out = output(NODE, ["--no-warnings", "--stack-size=65500", "src/helder/test/wasi.mjs", "bin/asset/web/Checksum.wasm"]);
+		Sys.print(out);
+		for (l in CHECKSUM) if (!out.contains(l + "\n")) throw new Failed('Checksum, wasm32-wasi: no line "$l"');
+	}
+
 	// machine, tests/pack/runtime.mjs fetches them (Android's from the
 	// release @hxmc/cli's package.json names); the builds' HXMC_RT_DIR.
 	// The debug key made in a cache of its own, on first use)
@@ -270,13 +321,16 @@ class Run {
 			run(h, ["build", "bin/pack/project", "--target", "android-x86_64"], env);
 			// (the screen fixture: CI's emulator runs it, tests/pack/android.sh)
 			run(h, ["build", "tests/pack/Screen.hx", "--target", "android-x86_64", "-o", "bin/pack/Screen.apk"], env);
+			// (the asset fixture: its files in assets/, files/dropped.txt not; CI's emulator runs it)
+			run(h, ["build", "tests/asset/Checksum.hx", "--target", "android-x86_64", "-o", "bin/pack/Checksum.apk"], env);
 			// (Java's classes as the program needs them: a drawn ui's listeners,
 			// NativeActivity's surface; Android's views as the content, org.hxmc.Activity)
 			run(h, ["build", "examples/counter", "--target", "android-x86_64", "-o", "bin/pack/Counter.apk"], env);
 			run(h, ["build", "examples/native-form", "--target", "android-x86_64", "-o", "bin/pack/NativeForm.apk"], env);
 			checks = checks.concat([
 				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck@landscape@fullscreen",
-				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views", "bin/pack/Screen.apk@org.helder.screen@surface"
+				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views", "bin/pack/Screen.apk@org.helder.screen@surface",
+				'bin/pack/Checksum.apk@org.helder.checksum@$ASSETS'
 			]);
 			for (c in [{apk: "Counter", want: '{"dex":true,"views":false}'}, {apk: "NativeForm", want: '{"dex":true,"views":true}'}]) {
 				var got = File.getContent('bin/pack/${c.apk}.lib/classes.json');
@@ -307,7 +361,10 @@ class Run {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios-sim", "-o", "bin/pack/Hello.app"], env);
 			run(h, ["build", "bin/pack/project", "--target", "ios-sim"], env);
 			run(h, ["build", "tests/pack/Screen.hx", "--target", "ios-sim", "-o", "bin/pack/Screen.app"], env);
-			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen", "bin/pack/Screen.app@org.helder.Screen"]);
+			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios-sim", "-o", "bin/pack/Checksum.app"], env);
+			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios", "-o", "bin/pack/Checksum.ipa"], env);
+			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen", "bin/pack/Screen.app@org.helder.Screen",
+				'bin/pack/Checksum.app@org.helder.Checksum@$ASSETS', 'bin/pack/Checksum.ipa@org.helder.Checksum@$ASSETS']);
 		}
 		if (checks.length > 0) interp(cps(["src", "tests/pack"]), "PackCheck", checks);
 		// (a phone's tools stood in for: helder run, the dev loop's protocol)
@@ -420,12 +477,14 @@ class Run {
 		native('bin/3d/$t/SurfaceTest', cps(["src", "tests/gfx", "tests/3d-ui"]).concat(["-main", "SurfaceTest"]), t);
 		shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 640x480x24" ' + exePath('bin/3d/$t/SurfaceTest', t));
 		run("sh", ["tests/3d/check.sh", 'bin/3d/$t']);
-		// (Model.of's files beside the executable, -D helder.scene.embed=0)
-		var files = exePath("bin/3d/files/RenderTest", t);
-		native("bin/3d/files/RenderTest", cp.concat(["-main", "RenderTest", "-D", "helder.scene.embed=0", "-D", 'helder.scene.out=$files']), t);
-		if (!FileSystem.exists("bin/3d/files/assets/sample.glb") || !FileSystem.exists('$files.assets.json'))
-			throw new Failed("RenderTest with -D helder.scene.embed=0: no assets beside it");
-		shell('cd bin/3d && LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY files/${Path.withoutDirectory(files)} skin ../../tests/3d/skin.png files/skin.png');
+		// (Model.of's files in the executable's data, helder.asset's Bundle: it
+		// alone in a directory, run from it, nothing beside it)
+		var exe = Path.withoutDirectory(exePath("bin/3d/alone/RenderTest", t));
+		rmrf("bin/3d/alone");
+		mkdirs("bin/3d/alone");
+		shell('cp ${exePath('bin/3d/$t/RenderTest', t)} bin/3d/alone/$exe');
+		if (FileSystem.readDirectory("bin/3d/alone").join(",") != exe) throw new Failed("bin/3d/alone: not the executable alone");
+		shell('cd bin/3d/alone && LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY ./$exe skin ../../../tests/3d/skin.png ../skin-alone.png');
 		// (Model.of: a name the file does not have is a compile error)
 		var r = build(cp.concat(cps(["tests/3d/reject"])).concat(["-main", "ModelTypo", "--custom-target", "hxmc=bin/3d/ModelTypo"]), "bin/3d/ModelTypo.log");
 		if (r.code == 0 || !r.log.contains("has no field bal"))
@@ -434,9 +493,10 @@ class Run {
 
 	static function sceneWeb() {
 		pack();
-		// (Model.of's files beside the module, -D helder.scene.embed=0: fetched by browser.mjs before main)
+		// (Model.of's files beside the module, helder.asset's Bundle: fetched by
+		// browser.mjs before main; Lazy's at run time)
 		rmrf("bin/3d/assets");
-		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.scene.embed=0", "-D", "helder.scene.out=bin/3d/SceneWebTest.wasm"]));
+		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.asset.out=bin/3d/SceneWebTest.wasm"]));
 		run(NODE, ["tests/3d/web.mjs", "bin/3d/SceneWebTest.wasm", "bin/3d"]);
 	}
 
@@ -527,6 +587,8 @@ class Run {
 		else run(NODE, ["tests/os/dev/dev-native.mjs", compiler, "bin/dev/native"]);
 		run(NODE, ["tests/os/dev/server-verify.mjs", compiler]);
 		run(NODE, ["tests/os/dev/dev-verify.mjs", compiler, "Counter", "web"]);
+		// (helder dev's asset reload in the page: the same Image, no swap)
+		run(NODE, ["tests/os/dev/dev-asset.mjs", helderCli(), "bin/dev/asset"]);
 	}
 
 	// (Linux: under Xvfb, a Windows build's Wine too)

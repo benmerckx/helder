@@ -11,11 +11,18 @@
 // - exit: tests/cli/closer, a program that ends by itself (ExitPolicy):
 //   with exit code 3 a crash, helder dev stays up; an edit makes it 0, the
 //   program closed: helder dev ends, exit code 0.
+// - asset, asset-nohost: tests/cli/swatch, an image and a text loaded by
+//   path (helder.asset): a new PNG written over the image is sent, nothing
+//   built, the same Image object then has its size and pixels; a new text
+//   runs its reader again; an edit to the source still builds;
+// - asset-web: Swatch for web: a new PNG sent to the page ({"type":
+//   "asset"}), the dev server serving the new bytes at /__hxmc/assets/.
 // The times from a save to the reload (native: the program's first frame,
 // "reloaded in"; web: the reload message), each edit's, and their median.
 //   node tests/cli/dev.mjs <helder> <work dir> native|native-nohost|web|exit
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,10 +36,39 @@ const check = (what, ok, detail = '') => {
 
 fs.rmSync(work, { recursive: true, force: true });
 fs.mkdirSync(path.join(work, 'app'), { recursive: true });
-const web = mode === 'web', exit = mode === 'exit';
-const fixture = web ? 'examples/counter/Counter.hx' : exit ? 'tests/cli/closer/Closer.hx' : 'tests/cli/tally/Tally.hx';
+const assets = mode.startsWith('asset'), web = mode === 'web' || mode === 'asset-web', exit = mode === 'exit';
+const fixture = assets ? 'tests/cli/swatch/Swatch.hx' : web ? 'examples/counter/Counter.hx' : exit ? 'tests/cli/closer/Closer.hx' : 'tests/cli/tally/Tally.hx';
 const file = path.join(work, 'app', path.basename(fixture));
 fs.copyFileSync(path.join(repo, fixture), file);
+// (an RGBA8 PNG of w x h pixels, each rgba: what Swatch loads)
+const png = (w, h, rgba) => {
+	const chunk = (t, d) => {
+		const b = Buffer.alloc(12 + d.length);
+		b.writeUInt32BE(d.length, 0);
+		b.write(t, 4, 'latin1');
+		d.copy(b, 8);
+		b.writeUInt32BE(zlib.crc32(b.subarray(4, 8 + d.length)), 8 + d.length);
+		return b;
+	};
+	const ihdr = Buffer.alloc(13);
+	ihdr.writeUInt32BE(w, 0);
+	ihdr.writeUInt32BE(h, 4);
+	ihdr.set([8, 6, 0, 0, 0], 8);
+	const rows = Buffer.alloc(h * (1 + 4 * w));
+	for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) rows.writeUInt32BE(rgba, y * (1 + 4 * w) + 1 + 4 * x);
+	return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(rows)), chunk('IEND', Buffer.alloc(0))]);
+};
+// (written beside and renamed over, as editors save)
+const write = (name, data) => {
+	const f = path.join(work, 'app', name);
+	fs.writeFileSync(f + '.tmp', data);
+	fs.renameSync(f + '.tmp', f);
+	return performance.now();
+};
+if (assets) {
+	write('swatch.png', png(2, 2, 0xff0000ff));
+	write('note.txt', 'first note\n');
+}
 const edit = (f) => {
 	const s = fs.readFileSync(file, 'utf8'), t = f(s);
 	if (t === s) throw new Error('the edit changed nothing');
@@ -43,7 +79,7 @@ const edit = (f) => {
 const lines = [];
 const waiters = [];
 const dev = spawn(path.resolve(helder), ['dev', path.relative(work, file), ...(web ? ['--target', 'web', '--port', '0'] : [])],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...(mode === 'native-nohost' ? { HELDER_DEV_HOST: '0' } : {}) } });
+	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...(mode === 'native-nohost' || mode === 'asset-nohost' ? { HELDER_DEV_HOST: '0' } : {}) } });
 const ended = new Promise((r) => dev.on('exit', (code, signal) => r(code ?? signal)));
 const closed = (l) => /^\s*closed /.test(l);
 for (const s of [dev.stdout, dev.stderr]) {
@@ -111,6 +147,54 @@ async function native() {
 	check('the reloads are not a close: helder dev runs on', dev.exitCode === null && !lines.some(closed), lines.filter(closed).join(' '));
 }
 
+// an asset's file changed: sent, nothing built, behind the same handle
+async function asset() {
+	check('the first build: the image', !!(await line(/^swatch: 2x2 px ff0000ff version 0 same image$/, 240000, true)));
+	check('the first build: the text', !!(await line(/^note: first note$/, 10000, true)));
+	for (const [w, h, c] of [[3, 1, 0x00ff00ff], [1, 4, 0x0000ffff]]) {
+		await sleep(300);
+		const hex = c.toString(16).padStart(8, '0');
+		const sent = line(/^\s*asset swatch\.png/), swapped = line(new RegExp(`^swatch: ${w}x${h} px ${hex} version \\d+ (same|another) image$`));
+		const t0 = write('swatch.png', png(w, h, c));
+		await sent;
+		const l = await swapped;
+		times.push(performance.now() - t0);
+		check(`the image ${w}x${h}: swapped in the same Image`, l.endsWith('same image'), l);
+	}
+	const note = line(/^note: second note$/);
+	write('note.txt', 'second note\n');
+	check('the text: its reader ran again', !!(await note));
+	check('no build for an asset', !lines.some((l) => /^\s*rebuilt in/.test(l)), lines.filter((l) => /rebuilt/.test(l)).join(' '));
+	// (a source edit still builds; the image from the file as it is now)
+	const rebuilt = line(/^\s*rebuilt in/), again = line(/^swatch: 1x4 px 0000ffff version 0 same image$/);
+	edit((s) => s.replace('"note: "', '"note again: "'));
+	await rebuilt;
+	check('a source edit: built, the image loaded as it is now', !!(await again));
+	check('helder dev runs on', dev.exitCode === null && !lines.some(closed));
+}
+
+// the page told of an asset (asset-web): nothing built, the bytes served
+async function assetPage() {
+	const port = Number(/http:\/\/127\.0\.0\.1:(\d+)\//.exec(await line(/^\s*serving http:/, 30000, true))[1]);
+	await line(/^\s*built in/, 240000, true);
+	const base = `http://127.0.0.1:${port}`;
+	const served = async () => Buffer.from(await (await fetch(base + '/__hxmc/assets/swatch.png')).arrayBuffer());
+	check('the image served at /__hxmc/assets/', Buffer.compare(await served(), png(2, 2, 0xff0000ff)) === 0);
+	check('an asset not named: 404', (await fetch(base + '/__hxmc/assets/other.png')).status === 404);
+	const ws = new WebSocket(`ws://127.0.0.1:${port}/__hxmc/ws`);
+	const messages = [];
+	ws.onmessage = (e) => messages.push(JSON.parse(e.data));
+	await new Promise((r, j) => { ws.onopen = r; ws.onerror = () => j(new Error('the WebSocket failed')); });
+	const t0 = write('swatch.png', png(3, 1, 0x00ff00ff));
+	for (let end = Date.now() + 30000; !messages.some((m) => m.type === 'asset') && Date.now() < end;) await sleep(5);
+	times.push(performance.now() - t0);
+	const m = messages.find((x) => x.type === 'asset');
+	check('the page told: {"type":"asset","key":"swatch.png"}', m?.key === 'swatch.png', JSON.stringify(messages));
+	check('no reload, no build', !messages.some((x) => x.type === 'reload') && !lines.some((l) => /^\s*rebuilt in/.test(l)));
+	check('the new bytes served', Buffer.compare(await served(), png(3, 1, 0x00ff00ff)) === 0);
+	ws.close();
+}
+
 // the program ends by itself: a crash (helder dev stays), then closed (it ends, 0)
 async function exitPolicy() {
 	check('a crash: shown', !!(await line(/^\s*crashed the program exited with code 3/, 240000, true)));
@@ -176,7 +260,7 @@ async function page() {
 }
 
 try {
-	await (web ? page() : exit ? exitPolicy() : native());
+	await (mode === 'asset-web' ? assetPage() : assets ? asset() : web ? page() : exit ? exitPolicy() : native());
 } catch (e) {
 	console.log('FAIL ' + e.message);
 	failures++;

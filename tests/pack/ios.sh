@@ -50,6 +50,24 @@ check "helder run --target ios -d <simulator>" $code
 grep -q "$line" "$out/run.txt"
 check "its line, from simctl launch --console" $?
 
+# The assets (tests/asset/Checksum.hx: helder.asset's files in the app's
+# assets/, sealed by CodeResources): Apple's codesign verifies the bundle,
+# then `helder run` prints each file's size and CRC-32, an image's decoded
+# pixels', the bundle's list: the lines of tests/asset/checksum.txt.
+"$helder" build tests/asset/Checksum.hx --target ios-sim -o "$out/Checksum.app"
+check "helder build tests/asset/Checksum.hx --target ios-sim" $?
+codesign --verify --strict --verbose=2 "$out/Checksum.app"
+check "codesign --verify --strict: the assets sealed" $?
+"$helder" run tests/asset/Checksum.hx --target ios -d "$udid" > "$out/checksum.txt" 2>&1
+code=$?
+cat "$out/checksum.txt"
+if [ $code != 0 ] && grep -q "pixels crc" "$out/checksum.txt"; then code=0; fi
+check "helder run tests/asset/Checksum.hx --target ios" $code
+while IFS= read -r l; do
+	grep -qF "$l" "$out/checksum.txt"
+	check "assets: $l" $?
+done < tests/asset/checksum.txt
+
 # The screen (tests/pack/Screen.hx) on the same simulator: launched with
 # its output here (--console-pty, in the background: <out dir>/screen.txt),
 # its window, safe area and the display's frames, the bars hidden; then the

@@ -1,6 +1,7 @@
 package helder.cli;
 
 import helder.cli.Style.Tone;
+import haxe.io.Path;
 import helder.async.*;
 import sys.FileSystem;
 
@@ -139,28 +140,28 @@ class BuildCommand {
 	// one build by the compiler (a server's when given), its time and size
 	// printed; pack (after a build that compiled) makes what the build is
 	// for from its output (an APK, a bundle) and names it, a thrown message
-	// its failure
+	// its failure. The program's assets around it (AssetStep): prepare (iOS)
+	// puts the kept ones in the app before it is linked and names them; a
+	// build whose built-in files were not those it uses is made again
 	@:coroutine public static function build(e:Entry, exe:String, mode:Mode, ?server:Compiler.CompileServer, ?extra:Array<String>,
-			?pack:Void->String):{ok:Bool, ms:Int, messages:String} {
-		TestCommand.mkdirs(haxe.io.Path.directory(exe));
+			?pack:Void->String, ?prepare:Void->Array<String>):{ok:Bool, ms:Int, messages:String} {
+		TestCommand.mkdirs(Path.directory(exe));
 		var words = e.args().concat(switch mode {
-			case Release: ["-dce", "full"];
+			case Release: ["-dce", "full"].concat(AssetStep.define(exe));
 			case Dev: ["-D", "hxmc.dev", "-D", "disable-hxb-cache"];
-		}).concat(extra ?? []).concat(["--custom-target", 'hxmc=$exe']);
+		}).concat(extra ?? []);
+		words = words.concat(["--custom-target", 'hxmc=$exe']);
 		var t0 = haxe.Timer.stamp();
 		Term.spin("building " + e.name);
-		var r = if (server != null) server.request(words, Sys.getCwd()) else {
-			var p = new Process(Compiler.tool(), words);
-			p.closeStdin();
-			var lines = [];
-			Async.scope(task -> {
-				task.async(_ -> Lines.collect(p.stdout, lines));
-				task.async(_ -> Lines.collect(p.stderr, lines));
-				null;
-			});
-			var code = p.wait();
-			p.close();
-			{ok: code == 0, messages: lines.join("\n")};
+		var target = e.isWeb() ? "wasm32-wasi" : e.target, roots = e.classPaths.concat([e.root]);
+		var copied = prepare != null ? prepare() : null;
+		var r = compile(words, server);
+		// (the files built in were not those the program uses: a reference
+		// added, or one left in dead code only; built again with them)
+		if (r.ok && !AssetStep.after(exe, target, roots, mode == Dev, copied)) {
+			copied = prepare != null ? prepare() : null;
+			r = compile(words, server);
+			if (r.ok) AssetStep.after(exe, target, roots, mode == Dev, copied);
 		}
 		var shown = exe;
 		if (r.ok && pack != null) shown = try pack() catch (err:Dynamic) {
@@ -175,6 +176,21 @@ class BuildCommand {
 			else Term.err(Style.status("failed", Fail, Style.path(shown) + ' in ${Style.time(ms)}'));
 		}
 		return {ok: r.ok, ms: ms, messages: r.messages};
+	}
+
+	@:coroutine public static function compile(words:Array<String>, server:Null<Compiler.CompileServer>):{ok:Bool, messages:String} {
+		if (server != null) return server.request(words, Sys.getCwd());
+		var p = new Process(Compiler.tool(), words);
+		p.closeStdin();
+		var lines = [];
+		Async.scope(task -> {
+			task.async(_ -> Lines.collect(p.stdout, lines));
+			task.async(_ -> Lines.collect(p.stderr, lines));
+			null;
+		});
+		var code = p.wait();
+		p.close();
+		return {ok: code == 0, messages: lines.join("\n")};
 	}
 
 	// a file's size, or a directory's (an .app: its files')

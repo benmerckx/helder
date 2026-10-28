@@ -18,7 +18,7 @@ import helder.scene.math.Quat;
 // lights, skins; made: the nodes in the file's order, for an Animator of
 // its clips):
 //
-//   var level = PackedModel.read(Asset.embed("level.hxm3d"), device);
+//   var level = PackedModel.read(helder.asset.Asset.embed("level.hxm3d"), device);
 //   var made = [];
 //   level.instantiate(world, null, made);
 //   new Animator(made).play(level.clip("walk"));

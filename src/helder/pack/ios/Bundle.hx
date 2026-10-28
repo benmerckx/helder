@@ -24,18 +24,19 @@ class Bundle {
 	public static function validId(id:String):Bool
 		return ~/^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+$/.match(id);
 
-	// the bundle's files (paths in it): the executable, Info.plist, CodeResources
-	public static function files(name:String, exe:Bytes, info:Bytes, resources:Bytes):Array<{path:String, data:Bytes, exec:Bool}>
+	// the bundle's files (paths in it): the executable, Info.plist,
+	// CodeResources, and others (helder.asset's assets/<key>)
+	public static function files(name:String, exe:Bytes, info:Bytes, resources:Bytes, ?other:Array<{path:String, data:Bytes}>):Array<{path:String, data:Bytes, exec:Bool}>
 		return [
 			{path: name, data: exe, exec: true},
 			{path: "Info.plist", data: info, exec: false},
 			{path: "_CodeSignature/CodeResources", data: resources, exec: false}
-		];
+		].concat([for (o in other ?? []) {path: o.path, data: o.data, exec: false}]);
 
 	// the .ipa: Payload/<name>.app/ in a stored zip, the executable 0755
-	public static function ipa(name:String, exe:Bytes, info:Bytes, resources:Bytes):Bytes {
+	public static function ipa(name:String, exe:Bytes, info:Bytes, resources:Bytes, ?other:Array<{path:String, data:Bytes}>):Bytes {
 		var entries:Array<helder.pack.Zip.ZipEntry> = [];
-		for (f in files(name, exe, info, resources))
+		for (f in files(name, exe, info, resources, other))
 			entries.push({name: "Payload/" + name + ".app/" + f.path, data: f.data, align: 1, mode: f.exec ? 0x1ed : 0x1a4});
 		return helder.pack.Zip.stored(entries);
 	}

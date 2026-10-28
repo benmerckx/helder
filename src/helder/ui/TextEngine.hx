@@ -15,4 +15,8 @@ interface TextEngine {
 	// it may lay the text out in and return (its buffers reused), else null
 	function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1,
 		?into:Paragraph):Paragraph;
+
+	// bumped when a font it lays out with changed (a reload replaced it):
+	// what was laid out is laid out again (0: never)
+	function generation():Int;
 }

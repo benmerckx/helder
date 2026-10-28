@@ -16,7 +16,9 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
 
 - `Image`: RGBA8 pixels, rows top to bottom, straight alpha; `decode`
   by the signature, the file kept as `source` (a writer embeds it as it
-  is) until `changed()`; `id` and `version` for a renderer's uploads.
+  is) until `changed()`; `id` and `version` for a renderer's uploads;
+  `replace(other)` puts another image's pixels and size in it (helder.asset's
+  reload: what shows it shows the new one).
 - `PngDecoder`: every colour type, depth and interlacing, tRNS; `frames`
   an animated PNG's, composed as Chromium composes them. A wrapper of
   `PngCore`, helder's one PNG decoder: a kernel (`@:hxmc.kernel`, no

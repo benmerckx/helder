@@ -8,6 +8,10 @@
 // - two edits: each build's library fetched by the running build into the
 //   app's files and loaded into the same process (the same pid, as adb
 //   sees it), the count kept, the new code running; no crash;
+// - an asset (note.txt, helder.asset: not in the dev APK, the app asks
+//   helder dev for it, "asset note.txt"): its text printed; the file
+//   changed: sent to the app (Assets.changed), loaded again, the new text
+//   printed by the same process, nothing built;
 // - the swaps' times, from the change seen to the new build's first frame.
 //   node tests/os/dev/dev-android.mjs <helder> [work dir]
 import { spawn, spawnSync } from 'node:child_process';
@@ -36,7 +40,8 @@ fs.mkdirSync(path.join(work, 'app'), { recursive: true });
 const counter = path.join(work, 'app', 'Counter.hx');
 // (a drawn program without fonts: ui's need a font file on Android; the
 // cube of helder.gfx's examples, the count in Hot.keep)
-const v1 = `import helder.dev.Hot;
+const v1 = `import helder.asset.Asset;
+import helder.dev.Hot;
 import helder.gfx.*;
 import helder.os.*;
 
@@ -50,7 +55,13 @@ class Counter {
 		var device = Device.create(w.surface);
 		var cube = new Cube(device);
 		var frames = 0;
+		var note = Asset.bytes("note.txt"), shown:Null<haxe.io.Bytes> = null;
 		App.run(() -> {
+			var n = note.peek();
+			if (n != null && n != shown) {
+				shown = n;
+				trace("note=" + StringTools.trim(n.toString()));
+			}
 			var enc = device.beginFrame();
 			if (enc == null) return;
 			cube.draw(enc, frames * 0.02);
@@ -61,6 +72,12 @@ class Counter {
 }
 `;
 fs.writeFileSync(counter, v1);
+const note = path.join(work, 'app', 'note.txt');
+const writeNote = (s) => {
+	fs.writeFileSync(note + '.tmp', s);
+	fs.renameSync(note + '.tmp', note);
+};
+writeNote('first note\n');
 // (the cube's classes beside it: helder dev's entry is the file, its class path the directory)
 for (const f of ['Cube.hx', 'CubeShader.hx']) fs.copyFileSync(path.join(repo, 'examples/cube', f), path.join(work, 'app', f));
 const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
@@ -142,6 +159,14 @@ try {
 	const v3 = await printed(/v3 count=\S+ build=/, 'edited again');
 	check('edited again: the new build, the count kept', /v3 count=3 /.test(v3), v3);
 	check('edited again: the same process', pidOf() === pid, pidOf() + ' was ' + pid);
+
+	// (an asset: fetched from helder dev, then a change sent and loaded again)
+	check('the asset: fetched from helder dev', !!(await printed(/note=first note/, 'the asset')));
+	const sent = line(/^\s*asset note\.txt/);
+	writeNote('second note\n');
+	await sent;
+	check('the asset changed: the new text, nothing built', !!(await printed(/note=second note/, 'the asset changed')) && !lines.slice(-5).some((l) => /rebuilt/.test(l)));
+	check('the asset changed: the same process', pidOf() === pid, pidOf() + ' was ' + pid);
 	check('no crash', !crashed());
 } catch (e) {
 	console.log('FAIL ' + e.message);

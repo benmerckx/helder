@@ -14,6 +14,10 @@
 //   ({"type":"reload","snapshot","library"}: a Mach-O dylib on this
 //   machine's disk); the app ended (simctl's launch gone) is "closed", not
 //   the session's end.
+// Both: the program names an asset (note.txt, helder.asset): the dev build
+// has none in it (on Android the app asks for it on a connection of its
+// own, "asset note.txt": "ok" and its bytes); a change to the file builds
+// nothing and is sent to the app (Assets.changed {key}).
 //   node tests/pack/dev.mjs <helder> <work dir> android|ios
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -34,6 +38,10 @@ fs.rmSync(work, { recursive: true, force: true });
 fs.mkdirSync(path.join(work, 'app'), { recursive: true });
 const file = path.join(work, 'app', 'Hello.hx');
 fs.copyFileSync(path.join(repo, 'tests/pack/Hello.hx'), file);
+// (an asset named: its handle made, nothing loaded without a loop)
+fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('static function main() {', 'static function main() {\n\t\thelder.asset.Asset.bytes("note.txt");'));
+const note = path.join(work, 'app', 'note.txt');
+fs.writeFileSync(note, 'first note\n');
 const log = path.join(work, 'tools.log'), envFile = path.join(work, 'app.env'), launched = path.join(work, 'launch.pid');
 const tools = () => fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter((l) => l) : [];
 const edit = (from, to) => {
@@ -109,10 +117,10 @@ function connect(port) {
 		});
 	});
 }
-// (Android) the library asked for on a connection of its own: its bytes
-function fetchLib(port, n) {
+// (Android) the library (lib <n>) or an asset (asset <key>) asked for on a connection of its own: its bytes
+function fetchLib(port, n, what = 'lib') {
 	return new Promise((resolve, reject) => {
-		const s = net.connect(port, '127.0.0.1', () => s.write(`lib ${n}\n`));
+		const s = net.connect(port, '127.0.0.1', () => s.write(`${what} ${n}\n`));
 		const parts = [];
 		s.on('data', (d) => parts.push(d));
 		s.on('end', () => resolve(Buffer.concat(parts)));
@@ -151,6 +159,19 @@ try {
 	let app = await connect(port);
 	await line(/^\s*connected the app on /, 10000);
 	check('the app connected', true);
+	// (an asset: not in the dev build, fetched from helder dev; a change sent, nothing built)
+	if (mode === 'android') {
+		const apk = fs.readFileSync(path.join(repo, 'bin/dev/android/Hello.apk'));
+		check('the dev APK has no assets/ (helder dev serves them)', !apk.includes(Buffer.from('assets/note.txt')));
+		const got = await fetchLib(port, 'note.txt', 'asset');
+		check('"asset note.txt": ok and its bytes', got.toString() === 'ok\nfirst note\n', JSON.stringify(got.toString()));
+		const none = await fetchLib(port, 'other.txt', 'asset');
+		check('"asset other.txt": missing', none.toString() === 'missing\n', JSON.stringify(none.toString()));
+	} else check('the dev .app has no assets/ (read from this machine\'s disk)', !fs.existsSync(path.join(repo, 'bin/dev/ios-sim/Hello.app/assets')));
+	fs.writeFileSync(note + '.tmp', 'second note\n');
+	fs.renameSync(note + '.tmp', note);
+	const changed = await until(() => app.messages.find((m) => m.method === 'Assets.changed'), 30000, 'Assets.changed');
+	check('a change to it: Assets.changed {key: "note.txt"}, nothing built', changed.params?.key === 'note.txt' && !lines.some((l) => /^\s*rebuilt /.test(l)), JSON.stringify(changed));
 	edit('hello from helder on', 'hello again from helder on');
 	await line(/^\s*rebuilt /);
 	const reload = await until(() => app.messages.find((m) => m.type === 'reload'), 30000, 'a reload');

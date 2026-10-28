@@ -75,6 +75,10 @@ class DrawText implements TextEngine {
 	final plain = new Map<String, Array<PlainParagraph>>();
 	var plainCount = 0;
 
+	// (FontFile.replace's: a font asset reloaded)
+	public function generation():Int
+		return FontFile.generation;
+
 	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1,
 			?into:Paragraph):Paragraph {
 		if (fallbackFaces == null) {

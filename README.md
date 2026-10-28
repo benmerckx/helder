@@ -75,6 +75,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `ui` | flexbox layout, events, focus and accessibility, drawn on gfx or as the platform's controls |
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
+| `asset` | files by path: images, fonts, models, sounds, bytes; checked when compiling, bundled by use (the executable, the APK, the app, beside the page), loaded by a coroutine, reloaded in place under `helder dev` |
 | `physics` | a small rigid-body core for `scene` |
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `jobs` | background work awaited from a coroutine: GC-free jobs and GC jobs on a pool's threads or a browser's workers, channels, the sendable check |
@@ -200,13 +201,10 @@ Done as a first slice:
 
 Still to come:
 
-- **Assets anywhere, bundled by use:** no `assets/` folder; code names a
-  file by its path (`Asset.image("ui/icons/sword.png")`), a macro checks it
-  exists and records it, and `helder build` bundles only what is referenced
-  (dead-code elimination for assets), each in its target's format; settings
-  that differ from the defaults in a sidecar (`sword.png.meta`); dev builds
-  read them from disk and a change is sent without a recompile (the running
-  program's texture, font or model reloaded);
+- **Assets anywhere, bundled by use:** *landed* with phase 4's assets by
+  path (`helder.asset`: below, src/helder/asset/README.md). Still to come:
+  each in its target's format (compressed textures, phase 5), settings
+  that differ from the defaults in a sidecar (`sword.png.meta`);
 - **The dev loop:** the dev host on Windows and macOS run on the machines
   themselves (tested on Linux: cross-compiled, Windows' under Wine with
   D3D11 on WineD3D, macOS's built only); the page held back while the
@@ -496,8 +494,8 @@ fix.
   slots; `helder run` and `dev` against stand-in adb and simctl); on an
   emulator and a simulator only in CI, untested until it runs. Next:
   hxmc removes its copy. Later: iOS device signing (a certificate and a
-  profile, through `codesign` on a Mac), release signing, icons and
-  assets.
+  profile, through `codesign` on a Mac), release signing, icons (assets:
+  below).
 - *Landed*: **`helder dev --target android` and `--target ios`**: a
   connected device or a running emulator (`-d`, from `helder devices`),
   or a simulator, booted for it when it is not; the dev host's app
@@ -601,8 +599,37 @@ fix.
   long press, double tap and `waitFor`, rotate alone, `touch-action` on
   nodes, pen tilt and pressure in use, prediction, Windows' and X11's
   touch screens, macOS's trackpad gestures (magnify, rotate).
-- **Assets by path, bundled into the APK and the app** (phase 2's "assets
-  anywhere, bundled by use"), read through one API on every platform.
+- *Landed*: **assets by path, bundled into the APK and the app** (phase
+  2's "assets anywhere, bundled by use"; `helder.asset`,
+  src/helder/asset/README.md): `Asset.image`, `font`, `model`, `sound`,
+  `bytes` (and `embed`) by a path anywhere in the project, checked when
+  compiling (the file there, in that case; a path's rules: `AssetPath`),
+  a handle loaded on the main loop (`load()` a coroutine, `ready`,
+  `peek()`, `value` a signal); `Model.of(path, Lazy)` is `Asset.model`,
+  `Model.of` reads its file through the same one way. Bundled by use: each
+  call's marker is in the output only while its code is (hxmc emits the
+  literals of the code it keeps), so `helder build` takes exactly those:
+  desktop's executable has them as resources (read where they are mapped,
+  no file beside it; a build whose built-in files differ is made again),
+  the APK's `assets/` (stored, read through `AAssetManager`), the app's
+  `assets/` (sealed by CodeResources before the link), the page's
+  `assets/` (fetched; `Model.of`'s before main). `helder dev` reads them
+  from disk (an Android app from `helder dev`: `asset <key>`), watches them
+  and sends a change without a build (`Assets.changed`): an `Image`, a
+  `FontFile` or a `Model`'s meshes swapped in place, `value`'s readers run
+  again. Tested: `AssetPath.test.hx`, `tests/asset/Assets.test.hx`
+  (natively and as wasm32-wasi: the bundle without a file named only in
+  dead code), the asset lane (rejections; `tests/asset/Checksum.hx` alone
+  in an empty directory, its files' CRC-32s; the web's files exactly), the
+  pack lane (PackCheck: the APK's, the app's and the .ipa's `assets/`,
+  CodeResources' hashes), the cli lane (an image swapped in the same
+  `Image` with the dev host and without, a text's reader; the page told),
+  tests/os/dev/dev-asset.mjs (the page's reload in Chromium),
+  tests/pack/dev.mjs (the dev APK without assets, `asset <key>`); on CI's
+  emulator and simulator Checksum's lines (tests/pack/android.sh, ios.sh;
+  codesign --verify with assets) and an asset reloaded in the running app
+  (tests/os/dev/dev-android.mjs), untested until CI runs them. Later:
+  `.meta` sidecars, compressed textures, sounds decoded.
 - **The game**: a small mobile 3D game as an example (a camera the fingers
   drive, picking, a HUD and a menu in ui, a save), built and live-reloaded
   on an Android device and the iOS simulator. Save data (a small store on

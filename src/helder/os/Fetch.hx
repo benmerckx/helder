@@ -8,8 +8,8 @@ import hxmc.unsafe.*;
 // A file read without waiting: in the browser a fetch of its URL (relative
 // to the page) in the background, polled; natively the file, read at once
 // (it is done when start returns). For data whose path is known only at
-// run time; files a program names statically come with it (helder.scene's
-// Model.of).
+// run time; files a program names statically come with it (helder.asset's
+// Asset, Model.of).
 //
 //   var f = Fetch.start("levels/2.glb");
 //   // each frame:

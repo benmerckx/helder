@@ -31,10 +31,23 @@ class ImageNode extends Node {
 		this.image = image;
 	}
 
+	// (the size laid out with: the same image may change size, Image.replace)
+	var laidWidth = 0;
+	var laidHeight = 0;
+	var setVersion = 0;
+
 	function set_image(v:Null<Image>):Null<Image> {
-		if (v == image) return v;
-		var resized = v == null || image == null || v.width != image.width || v.height != image.height;
+		if (v == image && (v == null || v.width == laidWidth && v.height == laidHeight)) {
+			// (set again after a change: drawn again)
+			if (v != null && v.version != setVersion && ui != null) ui.requestFrame();
+			if (v != null) setVersion = v.version;
+			return v;
+		}
+		setVersion = v == null ? 0 : v.version;
+		var resized = v == null || image == null || v.width != laidWidth || v.height != laidHeight;
 		image = v;
+		laidWidth = v == null ? 0 : v.width;
+		laidHeight = v == null ? 0 : v.height;
 		if (resized) markDirty() else if (ui != null) ui.requestFrame();
 		return v;
 	}
