@@ -19,8 +19,8 @@
     "typescript": ">=7.1.0-0"
   },
   "devDependencies": {
-    "@hxmc/cli": "0.1.0-nightly.20261028.04d8e87",
-    "@hxmc/source": "0.1.0-nightly.20261028.04d8e87",
+    "@hxmc/cli": "0.1.0-nightly.20261028.2f1874d",
+    "@hxmc/source": "0.1.0-nightly.20261028.2f1874d",
     "typescript": "7.1.0-beta"
   },
   "trustedDependencies": [
