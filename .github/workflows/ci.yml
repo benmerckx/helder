@@ -37,8 +37,10 @@ jobs:
           node-version: 22
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: Fonts (DejaVu Sans, for text and ui)
-        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core
+      - name: Fonts (DejaVu Sans, for text and ui) and libEGL
+        # (helder test's host build links helder.gfx's libEGL.so.1 when a test
+        # reaches the scene; nothing opens a display)
+        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core libegl1
       - name: Headless checks
         # (pack: the Android and iOS runtime objects fetched, their builds
         # skipped without them: the android job requires them; the SDK's
