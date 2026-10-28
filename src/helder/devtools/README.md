@@ -6,7 +6,7 @@ JSON-RPC 2.0 as the Chrome DevTools Protocol and Dart's VM service have
 it: methods in domains (`Runtime`, `Log`, `Frame`, `Ui`; libraries add
 their own) that cost nothing until a tool enables them. A first slice:
 `helder dev` (src/helder/cli) is the relay, `helder inspect` the client
-that proves it; the devtools app comes later.
+that proves it; the VS Code extension (README, phase 3) comes later.
 
 ```
 program (agent) ──JSON lines──▶ helder dev ◀──WebSocket── tools (helder inspect, ...)
@@ -194,4 +194,4 @@ across reloads, get, query and set on properties (as Bevy's BRP),
 profiler samples as a binary stream, the other domains (`Scene`,
 `Signals`, `Profiler`, `Assets`, `Stories`), spans and counters, levels
 of the program's own (`Log` takes traces), `Runtime.evaluate`, pick and
-highlight, and the devtools app.
+highlight, and the VS Code extension.
