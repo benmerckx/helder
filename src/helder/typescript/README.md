@@ -98,7 +98,7 @@ functions and a text form (`--dump-ir`, the tests' round trip).
 ### Strict: types are what values look like
 
 The checker's types decide how values are represented (`Reps.hx`): a
-`number` is an F64; an instance of a class with a layout (`Classes.hx`: a
+`number` is an F64, a `boolean` a Bool, a `string` a String; an instance of a class with a layout (`Classes.hx`: a
 top-level class whose fields have plain names, extending nothing or another
 such class) is an object of its own hxmc class under the runtime's
 JsObject, its fields in typed slots; an array is the runtime's JsArray,
@@ -145,6 +145,9 @@ by helder-ts natively and as wasm32-wasi, the outputs compared; `standards/`
 check themselves where node still differs from the specification;
 `reject/` must fail with a diagnostic at the line it names; `diverge/` must
 compile and stop with TSHX100 at the line it names.
+
+`node tests/typescript/bench.mjs [names]` times the programs of `bench/`
+compiled by helder-ts against node (median of 5 runs each).
 
 These sources are formatted by haxe-formatter (its master, for Haxe 4.3's
 operators) with the repository's `hxformat.json`, which keeps helder's

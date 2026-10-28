@@ -261,6 +261,13 @@ class Seed {
 		return false;
 	}
 
+	// a value into a string slot
+	public static function expectString(v:Dynamic, where:String):String {
+		if (Std.isOfType(v, String)) return v;
+		diverge("a string", v, where);
+		return "";
+	}
+
 	// Math's functions called directly (the frontend: Math.f(...) where the program replaces neither)
 	public static function mathSqrt(a:Float):Float return Math.sqrt(a);
 
@@ -444,6 +451,7 @@ class Seed {
 		libArrayIterable(a);
 		expectNumber(0, "");
 		expectBoolean(true, "");
+		expectString("", "");
 		libLock(libAllocate(libLayoutOf(f)));
 		diverge("", null, "");
 		libDefineMethod(o, "x", f, 0, true);

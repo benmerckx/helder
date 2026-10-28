@@ -36,6 +36,7 @@ class Types {
 	final number:Int;
 	final numberLiteral:Int;
 	final boolean:Int;
+	final stringLike:Int;
 	final booleanLiteral:Int;
 	final union:Int;
 	final object:Int;
@@ -56,6 +57,7 @@ class Types {
 		number = tables.typeFlags.get("Number");
 		numberLiteral = tables.typeFlags.get("NumberLiteral");
 		boolean = tables.typeFlags.get("Boolean");
+		stringLike = tables.typeFlags.get("String") | tables.typeFlags.get("StringLiteral") | tables.typeFlags.get("TemplateLiteral") | tables.typeFlags.get("StringMapping");
 		booleanLiteral = tables.typeFlags.get("BooleanLiteral");
 		union = tables.typeFlags.get("Union");
 		object = tables.typeFlags.get("Object");
@@ -127,6 +129,13 @@ class Types {
 		if (t == null) return false;
 		if (t.members != null) return Lambda.foreach(t.members, isBoolean);
 		return t.flags & (boolean | booleanLiteral) != 0;
+	}
+
+	// whether every value of the type is a string
+	public function isString(t:Null<TsType>):Bool {
+		if (t == null) return false;
+		if (t.members != null) return Lambda.foreach(t.members, isString);
+		return t.flags & stringLike != 0 && t.flags & union == 0;
 	}
 
 	// the class whose instances (its subclasses' too) the type's values are, as its symbol

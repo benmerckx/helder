@@ -63,6 +63,7 @@ class Reps {
 	public function rep(t:Null<TsType>):Ty {
 		if (types.isNumber(t)) return TF64;
 		if (types.isBoolean(t)) return TBool;
+		if (types.isString(t)) return TRef(RStr);
 		if (types.isArray(t)) return TRef(RObj(arrayClass));
 		var c = t == null || t.isThis ? null : classes.of(types.instanceOf(t));
 		return c == null ? TRef(RAny) : TRef(RObj(c.info));
@@ -79,6 +80,7 @@ class Reps {
 			case [TI32, TF64]: EConv(I2F, e);
 			case [_, TF64]: b.runtime("expectNumber", [b.coerce(e, TRef(RAny)), EStr(where)]);
 			case [_, TBool]: b.runtime("expectBoolean", [b.coerce(e, TRef(RAny)), EStr(where)]);
+			case [_, TRef(RStr)]: b.runtime("expectString", [b.coerce(e, TRef(RAny)), EStr(where)]);
 			case [TRef(RObj(d)), TRef(RObj(c))] if (isA(d, c)): ECast(t, e);
 			case [_, TRef(RObj(c))]:
 				var v = b.temp(b.coerce(e, TRef(RAny)));

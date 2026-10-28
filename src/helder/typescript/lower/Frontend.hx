@@ -121,7 +121,7 @@ class Frontend {
 	}
 
 	// (a typed slot's value before its declaration runs)
-	function placeholder(t:Ty):Ex return t == TF64 ? EF64(0) : t == TBool ? bool(false) : t.match(TRef(RObj(_))) ? ENull(t) : b.runtime("getUndefined", []);
+	function placeholder(t:Ty):Ex return t == TF64 ? EF64(0) : t == TBool ? bool(false) : t.match(TRef(RStr)) ? EStr("") : t.match(TRef(RObj(_))) ? ENull(t) : b.runtime("getUndefined", []);
 
 	// (typed: a direct function's typed parameters and result; a closure's
 	// arrive and leave dynamic, its parameters checked on entry: see lambda)
@@ -1303,6 +1303,10 @@ class Frontend {
 				var a = expr(n.expression());
 				chainCheck(n, a);
 				b.runtime("libPrivateGet", [any(a), EStr(brand(n.name()))]);
+			case KindPropertyAccessExpression if (n.name().text == "length" && plainAccess(n) && types.isString(n.expression().tsType)):
+				typedOperations++;
+				var s = b.temp(expr(n.expression()));
+				Ir.typeOf(s).match(TRef(RStr)) ? b.runtime("stringLength", [s]) : b.coerce(b.runtime("libGet", [any(s), EStr("length")]), TF64);
 			case KindPropertyAccessExpression if (n.name().text == "length" && plainAccess(n) && types.isArray(n.expression().tsType)):
 				typedOperations++;
 				reps.arrayLength(b, b.temp(expr(n.expression())));
