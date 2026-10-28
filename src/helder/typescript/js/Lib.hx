@@ -417,7 +417,7 @@ class Lib {
 				var r = Reflect.callMethod(null, fn.impl, passed);
 				return isObject(r) ? r : obj;
 			case JsFunction.BASE:
-				var obj = new JsObject(protoFrom(newTarget, Builtins.ObjectProto));
+				var obj = allocate(newTarget, protoFrom(newTarget, Builtins.ObjectProto));
 				initFields(fn, obj);
 				passed.unshift(newTarget);
 				passed.unshift(obj);
@@ -430,6 +430,22 @@ class Lib {
 				if (!isObject(r)) return error("ReferenceError", "Must call super constructor in derived class before accessing 'this' or returning from derived constructor");
 				return r;
 		}
+	}
+
+	// a class's new instance: the typed class's nearest newTarget (itself or
+	// a superclass) lays it out, else it is a plain object
+	static function allocate(newTarget:Dynamic, proto:JsObject):JsObject {
+		var f:Dynamic = newTarget;
+		while (Std.isOfType(f, JsFunction)) {
+			var fn:JsFunction = f;
+			if (fn.alloc != null) {
+				var obj = fn.alloc(proto);
+				obj.layout = fn.instanceLayout;
+				return obj;
+			}
+			f = fn.parent;
+		}
+		return new JsObject(proto);
 	}
 
 	// super(...) in a derived class constructor: the parent builds `this`, then this class's fields are set.

@@ -128,6 +128,12 @@ class Verifier {
 					expression(o);
 					expression(v);
 					expect(v, c.fields[i].ty);
+				case SArrSet(t, a, i, v):
+					local(a);
+					expression(i);
+					expect(i, TI32);
+					expression(v);
+					expect(v, t);
 				case SAnonSet(_, t, o, v):
 					expression(o);
 					expression(v);

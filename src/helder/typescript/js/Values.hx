@@ -136,6 +136,10 @@ class JsFunction extends JsObject {
 	// classes: the instance field initializer (this) -> Void, and the superclass
 	public var fields:Dynamic;
 	public var parent:Dynamic;
+	// a typed class (helder.typescript.lower): its instances' layout, and
+	// what makes one (an instance of its own hxmc class) from a prototype
+	public var instanceLayout:Layout = null;
+	public var alloc:JsObject->JsObject = null;
 	public function new(proto:JsObject, kind:Int, name:String, arity:Int) {
 		super(proto);
 		this.kind = kind;

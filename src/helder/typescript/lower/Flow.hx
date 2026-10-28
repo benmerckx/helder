@@ -64,6 +64,7 @@ class Flow {
 	public static inline var NULLISH = -3;
 	public static inline var NUMBER = -2;
 	public static inline var TOP = -1;
+	public static inline var ARRAY = -5; // an array (or nullish)
 
 	final src:Project;
 	public final classes:Array<TypedClass> = [];
@@ -79,6 +80,8 @@ class Flow {
 	final groupParent:Map<String, String> = [];
 	final escaped:Map<String, Bool> = [];
 	final thisFacts:Map<Node, Int> = [];
+	// whether the program writes properties reflectively (Object.defineProperty, freeze, ...)
+	public var reflective(default, null) = false;
 
 	public function new(src:Project) {
 		this.src = src;
@@ -114,6 +117,19 @@ class Flow {
 	}
 
 	// whether a typed class's field always holds a number
+	// whether an expression's value is a number
+	public function isNumber(n:Node):Bool return fact(n) == NUMBER;
+
+	// whether an expression's value is an array (or nullish)
+	public function isArray(n:Node):Bool return fact(n) == ARRAY;
+
+	// whether no code writes a property of this name (but the runtime's own)
+	public function untouched(name:String):Bool {
+		if (reflective) return false;
+		for (w in writes) if (w.name == null || w.name == name) return false;
+		return true;
+	}
+
 	public function numberField(c:TypedClass, name:String):Bool {
 		var d = c.declares(name);
 		return d != null && place("f:" + d.index + ":" + name) == NUMBER;
@@ -124,7 +140,6 @@ class Flow {
 	function findClasses() {
 		// (a program that writes properties reflectively, deletes them by a
 		// computed name or changes prototypes keeps the object model)
-		var reflective = false;
 		var deleted = new Map<String, Bool>();
 		for (sf in src.files) for (i in 1...sf.count) switch sf.kindAt(i) {
 			case KindIdentifier:
@@ -199,6 +214,7 @@ class Flow {
 			var parent = id.parent;
 			var ok = parent.kind == KindNewExpression && parent.expression() == id
 				|| parent.kind == KindExpressionWithTypeArguments
+				|| parent.kind == KindTypeReference || parent.kind == KindTypeQuery
 				|| parent.kind == KindBinaryExpression && parent.operatorToken().kind == KindInstanceOfKeyword && parent.right() == id;
 			if (!ok) escapes = true;
 		}
@@ -360,6 +376,7 @@ class Flow {
 		inline function use() escaped.set(id.symbol, true);
 		switch p.kind {
 			case KindVariableDeclaration if (p.name() == id):
+			case KindParameter if (p.name() == id):
 			case KindVariableDeclaration if (p.initializer() == id && p.name().kind == KindIdentifier):
 				union(id.symbol, p.name().symbol);
 			case KindBinaryExpression:
@@ -463,7 +480,7 @@ class Flow {
 					var names = w.name == null ? c.own : c.own.contains(w.name) ? [w.name] : [];
 					if (names.length == 0) continue;
 					if (rc >= 0 && !(classes[rc].isA(c) || c.isA(classes[rc]))) continue;
-					if (rc == NULLISH || rc == NUMBER) continue;
+					if (rc == NULLISH || rc == NUMBER || rc == ARRAY) continue;
 					for (name in names) {
 						var key = "f:" + c.index + ":" + name;
 						fieldFacts.set(key, join(fieldFacts.get(key) ?? BOTTOM, value));
@@ -488,8 +505,8 @@ class Flow {
 		if (a == BOTTOM) return b;
 		if (b == BOTTOM || a == b) return a;
 		if (a == TOP || b == TOP) return TOP;
-		if (a == NULLISH && b >= 0) return b;
-		if (b == NULLISH && a >= 0) return a;
+		if (a == NULLISH && (b >= 0 || b == ARRAY)) return b;
+		if (b == NULLISH && (a >= 0 || a == ARRAY)) return a;
 		if (a >= 0 && b >= 0) {
 			var c = classes[a];
 			while (c != null && !classes[b].isA(c)) c = c.parent;
@@ -503,6 +520,7 @@ class Flow {
 		if (n == null) return TOP;
 		return switch n.kind {
 			case KindNumericLiteral: NUMBER;
+			case KindArrayLiteralExpression: ARRAY;
 			case KindNullKeyword | KindVoidExpression: NULLISH;
 			case KindIdentifier:
 				if (n.text == "NaN" || n.text == "Infinity") NUMBER;
@@ -540,7 +558,8 @@ class Flow {
 				if (rc >= 0) {
 					var d = classes[rc].declares(name);
 					d == null ? TOP : place("f:" + d.index + ":" + name);
-				} else rc == BOTTOM ? BOTTOM : TOP;
+				} else if (rc == ARRAY && name == "length") NUMBER;
+				else rc == BOTTOM ? BOTTOM : TOP;
 			case KindBinaryExpression:
 				switch n.operatorToken().kind {
 					case KindMinusToken | KindAsteriskToken | KindSlashToken | KindPercentToken | KindAmpersandToken | KindBarToken | KindCaretToken

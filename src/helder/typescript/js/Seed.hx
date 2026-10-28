@@ -242,6 +242,32 @@ class Seed {
 
 	public static function libClass(name:String, parent:Dynamic, impl:Dynamic, arity:Int, rest:Bool, fields:Dynamic):Dynamic return Lib.makeClass(name, parent, impl, arity, rest, fields);
 
+	// Math's functions called directly (the frontend: Math.f(...) where the program replaces neither)
+	public static function mathSqrt(a:Float):Float return Math.sqrt(a);
+
+	public static function mathAbs(a:Float):Float return Math.abs(a);
+
+	public static function mathFloor(a:Float):Float return Math.ffloor(a);
+
+	public static function mathCeil(a:Float):Float return Math.fceil(a);
+
+	public static function mathUnary(name:String, a:Float):Float return Numbers.math(name, a, 0);
+
+	public static function mathBinary(name:String, a:Float, b:Float):Float return Numbers.math(name, a, b);
+
+	public static function mathMin(a:Float, b:Float):Float return Math.isNaN(a) || Math.isNaN(b) ? Math.NaN : a < b || a == 0 && b == 0 && 1 / a < 0 ? a : b;
+
+	public static function mathMax(a:Float, b:Float):Float return Math.isNaN(a) || Math.isNaN(b) ? Math.NaN : a > b || a == 0 && b == 0 && 1 / a > 0 ? a : b;
+
+	// for-of over an array: the array iterator, unchanged, steps through it by index
+	public static function libArrayIterable(o:Dynamic):Bool return (o : JsArray).proto == Builtins.ArrayProto && !Builtins.arrayIterationChanged;
+
+	public static function libTypedClass(cls:Dynamic, names:Array<String>, get:(JsObject, Int) -> Dynamic, set:(JsObject, Int, Dynamic) -> Void, alloc:JsObject->JsObject):Void {
+		var f:JsFunction = cls;
+		f.instanceLayout = new Layout(names, get, set);
+		f.alloc = alloc;
+	}
+
 	public static function libDefineMethod(target:Dynamic, k:Dynamic, fn:Dynamic, kind:Int, enumerable:Bool):Void Lib.defineMethod(target, k, fn, kind, enumerable);
 
 	public static function libDefineField(target:Dynamic, k:Dynamic, v:Dynamic):Void Lib.defineField(target, k, v);
@@ -387,6 +413,9 @@ class Seed {
 		var f = libGlobal("Object");
 		libFunction(() -> null, 0, false, 0, "");
 		libClass("", libHole(), () -> null, 0, false, null);
+		libTypedClass(f, [], (o, i) -> null, (o, i, v) -> {}, p -> p);
+		mathSqrt(mathAbs(mathFloor(mathCeil(mathUnary("sin", mathBinary("atan2", mathMin(0, mathMax(0, 0)), 0))))));
+		libArrayIterable(a);
 		libDefineMethod(o, "x", f, 0, true);
 		libDefineField(o, "x", null);
 		libSetProto(o, null);
