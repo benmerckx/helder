@@ -33,6 +33,21 @@ function tests() {
 		equals(device.get("DTPlatformName"), PString("iphoneos"));
 		equals(device.get("CFBundleSupportedPlatforms"), PArray([PString("iPhoneOS")]));
 	});
+	test("Info.plist: the orientations and the status bar of the app's options", () -> {
+		final o = (names:Array<String>) -> PArray([for (n in names) PString("UIInterfaceOrientation" + n)]);
+		var any = dict(Plist.parse(info.toString()));
+		equals(any.get("UISupportedInterfaceOrientations"), o(["Portrait", "PortraitUpsideDown", "LandscapeLeft", "LandscapeRight"]));
+		equals(any.get("UISupportedInterfaceOrientations~ipad"), o(["Portrait", "PortraitUpsideDown", "LandscapeLeft", "LandscapeRight"]));
+		equals([any.get("UIRequiresFullScreen"), any.get("UIStatusBarHidden")], [null, null]);
+		var portrait = dict(Plist.parse(Bundle.infoPlist("Hello", "org.example.hello", "Hello", "1", "1.0", "15.0", true, "portrait", true).toString()));
+		equals(portrait.get("UISupportedInterfaceOrientations"), o(["Portrait"]));
+		equals(portrait.get("UISupportedInterfaceOrientations~ipad"), o(["Portrait", "PortraitUpsideDown"]));
+		equals([portrait.get("UIRequiresFullScreen"), portrait.get("UIStatusBarHidden")], [PBool(true), PBool(true)]);
+		var landscape = dict(Plist.parse(Bundle.infoPlist("Hello", "org.example.hello", "Hello", "1", "1.0", "15.0", true, "landscape").toString()));
+		equals(landscape.get("UISupportedInterfaceOrientations"), o(["LandscapeLeft", "LandscapeRight"]));
+		equals(landscape.get("UISupportedInterfaceOrientations~ipad"), o(["LandscapeLeft", "LandscapeRight"]));
+		equals([landscape.get("UIRequiresFullScreen"), landscape.get("UIStatusBarHidden")], [PBool(true), null]);
+	});
 	test("keys sorted, text escaped: the same values, the same bytes", () -> {
 		var s = info.toString();
 		assert(s.indexOf("<key>CFBundleDevelopmentRegion</key>") < s.indexOf("<key>CFBundleDisplayName</key>"));

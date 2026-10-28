@@ -15,7 +15,7 @@ import hxmc.unsafe.*;
 // quit() or the last window closes. The loop is hxmc's own, polling the
 // system's events without waiting (CocoaWindow on macOS, Win32Window on
 // Windows, X11Window elsewhere); a frame's pace comes from the GPU's
-// present (vsync). In the browser (WebAssembly) run returns at once, and
+// present (vsync), its time (App.frame) when it began. In the browser (WebAssembly) run returns at once, and
 // main after it: each turn of the loop is then a frame of
 // requestAnimationFrame (CanvasWindow). A frame with nothing to draw calls
 // wait, so that an idle app sleeps until the system has an event for it.
@@ -24,9 +24,16 @@ import hxmc.unsafe.*;
 // frame is drawn only while the activity has its window and is not paused
 // (otherwise the loop sleeps in the looper). On iOS the program runs inside
 // UIKit's loop (helder.os.uikit.UIKitApp): each turn runs the main run loop
-// without waiting, and draws only while the app is not in the background
-// (otherwise it sleeps in the run loop). Each turn begins a frame of
-// Pointers' (Pointers.step) before its events.
+// without waiting, and draws only while the app is active (not in the
+// background, nor inactive: otherwise it sleeps in the run loop). On both
+// the frames are the display's: a turn that may draw asks for the next
+// vsync (Android's Choreographer, helder.os.android.Vsync; iOS's
+// CADisplayLink) and sleeps until it comes (or an event does), then the
+// next turn draws the frame, App.frame its vsync's time. A frame that
+// waits (App.wait: nothing to draw) asks for none until it has slept, so
+// an idle app sleeps as elsewhere; the background, a window lost, pause
+// them (App.frame.pause: the next delta a period). Each turn begins a
+// frame of Pointers' (Pointers.step) before its events.
 //
 // helder.async's loop (the main thread's, once something made it: a task
 // launched, a job run) runs on the app's: a turn of it in each turn of the
@@ -39,6 +46,9 @@ import hxmc.unsafe.*;
 class App {
 	public static var windows(default, null):Array<Window> = [];
 	static var running = false;
+	// the frame onFrame draws: its time (the display's vsync on Android and
+	// iOS: App.frame.vsync), the time since the last, the display's period
+	public static final frame = new FrameClock();
 
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
@@ -59,6 +69,8 @@ class App {
 		#end
 		if (!running || windows.length == 0) {
 			running = false;
+			// (Android: the vsync asked for comes first, its callback this build's code)
+			if (Mem.target() >= 9) helder.os.android.Vsync.drain();
 			return false;
 		}
 		// (the pointers' motion and presses from this turn's events on)
@@ -70,19 +82,42 @@ class App {
 			AndroidWindow.poll(onEvent);
 			loopTurn();
 			if (running && windows.length > 0) {
-				if (AndroidWindow.drawable()) onFrame() else AndroidWindow.wait(bounded(-1));
+				// (a frame at the display's vsync; until it comes, a sleep in the looper, woken by it)
+				if (!AndroidWindow.drawable()) {
+					frame.pause();
+					AndroidWindow.wait(bounded(-1));
+				} else if (helder.os.android.Vsync.ready()) {
+					frame.tick(helder.os.android.Vsync.take(), true);
+					onFrame();
+				} else {
+					helder.os.android.Vsync.request();
+					AndroidWindow.wait(bounded(-1));
+				}
 			}
 		} else if (Mem.platform() >= 1) {
 			UIKitWindow.poll(onEvent);
 			loopTurn();
 			if (running && windows.length > 0) {
-				if (UIKitWindow.drawable()) onFrame() else UIKitWindow.wait(bounded(-1));
+				// (a frame at the display link's; until it comes, the run loop, which it stops)
+				if (!UIKitWindow.drawable()) {
+					frame.pause();
+					UIKitWindow.wait(bounded(-1));
+				} else if (UIKitWindow.vsynced()) {
+					frame.tick(UIKitWindow.takeVsync(), true);
+					onFrame();
+				} else {
+					UIKitWindow.requestVsync();
+					UIKitWindow.wait(bounded(-1));
+				}
 			}
 		} else {
 			if (Mem.os() == 1) CocoaWindow.poll(onFrame, onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
 				X11Window.poll(onEvent);
 			loopTurn();
-			if (running && windows.length > 0) onFrame();
+			if (running && windows.length > 0) {
+				frame.tick(haxe.Timer.stamp(), false);
+				onFrame();
+			}
 		}
 		if (Mem.os() == 1) Runtime.objc_autoreleasePoolPop(pool);
 		#if hxmc.dev
@@ -111,6 +146,8 @@ class App {
 		// (hxmc dev: awake for the dev server's messages, which turn reads)
 		if (seconds < 0 || seconds > 0.01) seconds = 0.01;
 		#end
+		// (iOS: the display link held while the app sleeps: no vsync wakes it; Android asks for none)
+		if (Mem.platform() >= 1) UIKitWindow.pauseVsync();
 		if (Mem.platform() >= 1) UIKitWindow.wait(bounded(seconds)) else if (Mem.os() == 1) CocoaWindow.wait(bounded(seconds)) else if (Mem.os() == 2)
 			Win32Window.wait(bounded(seconds)) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) AndroidWindow.wait(bounded(seconds)) else
 			X11Window.waitFor(seconds);

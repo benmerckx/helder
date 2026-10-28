@@ -55,24 +55,44 @@ class Window {
 		return Mem.platform() >= 1 ? (cast native : UIKitWindow).scale : Mem.os() == 1 ? (cast native : CocoaWindow).scale : Mem.os() == 2 ? (cast native : Win32Window).scale : Mem.os() == 3 ? (cast native : CanvasWindow).scale : Mem.target() >= 9 ? (cast native : AndroidWindow).scale : 1;
 
 	// the safe area: the insets from each edge, in pixels, that the system's
-	// bars, a notch or rounded corners leave clear (iOS; 0 elsewhere); a
-	// Resize event follows a change
+	// bars, a notch, a display cutout or rounded corners leave clear, as
+	// CSS's env(safe-area-inset-*) (iOS: the view's safeAreaInsets; Android:
+	// the window's insets, its bars and cutout; 0 elsewhere); a Resize event
+	// follows a change (a rotation, the bars hidden)
 	public var safeTop(get, never):Int;
 	public var safeLeft(get, never):Int;
 	public var safeBottom(get, never):Int;
 	public var safeRight(get, never):Int;
 
 	function get_safeTop():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeTop : 0;
+		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeTop : Mem.target() >= 9 ? (cast native : AndroidWindow).safeTop : 0;
 
 	function get_safeLeft():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeLeft : 0;
+		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeLeft : Mem.target() >= 9 ? (cast native : AndroidWindow).safeLeft : 0;
 
 	function get_safeBottom():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeBottom : 0;
+		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeBottom : Mem.target() >= 9 ? (cast native : AndroidWindow).safeBottom : 0;
 
 	function get_safeRight():Int
-		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeRight : 0;
+		return Mem.platform() >= 1 ? (cast native : UIKitWindow).safeRight : Mem.target() >= 9 ? (cast native : AndroidWindow).safeRight : 0;
+
+	// the system's bars hidden, the app on the whole screen (a game's): on
+	// Android immersive (the status and navigation bars hidden, a swipe
+	// shows them for a while; the window into a cutout's edges), on iOS the
+	// status bar and the home indicator hidden (the indicator dims, a swipe
+	// shows it); nothing elsewhere. The safe area follows (a Resize).
+	// package.json's "helder": {"fullscreen": true} sets it from the start
+	// (-D helder.fullscreen)
+	public var immersive(get, set):Bool;
+
+	function get_immersive():Bool
+		return Mem.platform() >= 1 ? (cast native : UIKitWindow).immersive : Mem.target() >= 9 ? (cast native : AndroidWindow).immersive : false;
+
+	function set_immersive(on:Bool):Bool {
+		if (closed || on == immersive) return on;
+		if (Mem.platform() >= 1) (cast native : UIKitWindow).setImmersive(on) else if (Mem.target() >= 9) (cast native : AndroidWindow).setImmersive(on);
+		return on;
+	}
 
 	// whether a Scroll at x, y (pixels) by dx, dy (as Scroll's deltas: a
 	// drag's start and its direction) moves something of the program's:

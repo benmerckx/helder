@@ -13,6 +13,8 @@ using StringTools;
 //     "label": "Game",                the launcher's and the home screen's (the name)
 //     "version": 3,                   versionCode, CFBundleVersion (1)
 //     "versionName": "1.2",           versionName, CFBundleShortVersionString (1.0)
+//     "orientation": "landscape",     portrait, landscape or any (any): screenOrientation, UISupportedInterfaceOrientations
+//     "fullscreen": true,             the system's bars hidden (false): Window.immersive from the start, UIStatusBarHidden
 //     "android": {"permissions": ["INTERNET"], "minSdk": 29, "targetSdk": 35, "key": "<file>"},
 //     "ios": {"minVersion": "15.0", "entitlements": "<file>"}
 //   }
@@ -20,7 +22,8 @@ using StringTools;
 // (permissions: android.permission.<name> unless it has a dot; minSdk 29 is
 // the floor, Bionic's ELF TLS; key: the debug key's file, DebugKey;
 // minVersion: 15.0 the floor, hxmc's; entitlements: an XML plist signed
-// with the executable.) Pure: an error is a thrown message.
+// with the executable; fullscreen: -D helder.fullscreen for the build too,
+// defines.) Pure: an error is a thrown message.
 class App {
 	// the Android manifest's options; dev: helder dev's host, which asks for
 	// INTERNET (its socket to the dev server, through adb reverse)
@@ -40,6 +43,7 @@ class App {
 			minSdk: minSdk,
 			targetSdk: targetSdk,
 			permissions: permissions,
+			orientation: orientation(config),
 		};
 	}
 
@@ -57,7 +61,26 @@ class App {
 			versionName: field(config, "versionName") ?? "1.0",
 			minVersion: min,
 			entitlements: i?.entitlements == null ? null : Std.string(i.entitlements),
+			orientation: orientation(config),
+			fullscreen: fullscreen(config),
 		};
+	}
+
+	// the build's defines of the app's options: helder.fullscreen
+	public static function defines(config:Dynamic):Array<String>
+		return fullscreen(config) ? ["-D", "helder.fullscreen"] : [];
+
+	// "portrait", "landscape" or "any"
+	static function orientation(config:Dynamic):String {
+		var o = field(config, "orientation") ?? "any";
+		if (o != "portrait" && o != "landscape" && o != "any") throw 'package.json\'s "helder": {"orientation": "$o"}: portrait, landscape or any';
+		return o;
+	}
+
+	static function fullscreen(config:Dynamic):Bool {
+		var f:Dynamic = config == null ? null : Reflect.field(config, "fullscreen");
+		if (f != null && f != true && f != false) throw 'package.json\'s "helder": {"fullscreen": $f}: true or false';
+		return f == true;
 	}
 
 	// the debug key's file: HELDER_ANDROID_KEY, else package.json's
@@ -95,4 +118,7 @@ typedef IosOptions = {
 	versionName:String,
 	minVersion:String,
 	entitlements:Null<String>,
+	// "portrait", "landscape" or "any"; the status bar hidden
+	orientation:String,
+	fullscreen:Bool,
 }

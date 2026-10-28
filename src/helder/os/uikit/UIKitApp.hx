@@ -16,7 +16,8 @@ import hxmc.unsafe.*;
 // returning ends the process. Until then nothing here may use a static
 // with an initializer (Msg's, ObjC.str's): only C calls.
 // The delegate's lifecycle callbacks become Suspend (the app went to the
-// background: no GPU work there) and Resume (UIKitWindow).
+// background: no GPU work there) and Resume (UIKitWindow); willResignActive
+// and didBecomeActive hold the frames and give them back.
 // (kept, with its export, for iOS only: @:hxmc.ios leaves a class out of
 // other targets only in hxmc's own packages)
 @:hxmc.ios #if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64") @:keep #end
@@ -33,6 +34,8 @@ class UIKitApp {
 		Runtime.class_addMethod(cls, ObjC.sel("application:didFinishLaunchingWithOptions:"), Callback.addr(didFinishLaunching), Mem.cstr("B@:@@"));
 		Runtime.class_addMethod(cls, ObjC.sel("applicationDidEnterBackground:"), Callback.addr(didEnterBackground), Mem.cstr("v@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("applicationWillEnterForeground:"), Callback.addr(willEnterForeground), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("applicationWillResignActive:"), Callback.addr(willResignActive), Mem.cstr("v@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("applicationDidBecomeActive:"), Callback.addr(didBecomeActive), Mem.cstr("v@:@"));
 		Runtime.objc_registerClassPair(cls);
 		UIKit.UIApplicationMain(Mem.getI32(Mem.sym("rt_argc"), 0), Mem.getPtr(Mem.sym("rt_argv"), 0), Ptr.nil(), Foundation.NSStringFromClass(cls));
 	}
@@ -75,6 +78,8 @@ class UIKitApp {
 		if (cls.isNull()) return;
 		Runtime.class_replaceMethod(cls, ObjC.sel("applicationDidEnterBackground:"), Callback.addr(didEnterBackground), Mem.cstr("v@:@"));
 		Runtime.class_replaceMethod(cls, ObjC.sel("applicationWillEnterForeground:"), Callback.addr(willEnterForeground), Mem.cstr("v@:@"));
+		Runtime.class_replaceMethod(cls, ObjC.sel("applicationWillResignActive:"), Callback.addr(willResignActive), Mem.cstr("v@:@"));
+		Runtime.class_replaceMethod(cls, ObjC.sel("applicationDidBecomeActive:"), Callback.addr(didBecomeActive), Mem.cstr("v@:@"));
 	}
 	#end
 
@@ -83,6 +88,12 @@ class UIKitApp {
 
 	@:hxmc.callback static function willEnterForeground(self:Ptr, cmd:Ptr, app:Ptr):Void
 		if (running) UIKitWindow.suspend(false);
+
+	@:hxmc.callback static function willResignActive(self:Ptr, cmd:Ptr, app:Ptr):Void
+		if (running) UIKitWindow.activate(false);
+
+	@:hxmc.callback static function didBecomeActive(self:Ptr, cmd:Ptr, app:Ptr):Void
+		if (running) UIKitWindow.activate(true);
 }
 
 #if hxmc.dev_host
@@ -109,4 +120,11 @@ class UIKitApp {
 	static function CFRunLoopAddTimer(loop:Ptr, timer:Ptr, mode:Ptr):Void;
 	// 1 finished, 2 stopped, 3 timed out, 4 a source handled
 	static function CFRunLoopRunInMode(mode:Ptr, seconds:Float, returnAfterSourceHandled:Bool):Int;
+	// (the run loop's innermost run returns: 2, stopped)
+	static function CFRunLoopStop(loop:Ptr):Void;
+}
+
+// Core Animation's clock (CADisplayLink's timestamps: seconds, mach_absolute_time's)
+@:hxmc.c @:hxmc.lib("/System/Library/Frameworks/QuartzCore.framework/QuartzCore") extern class QuartzCore {
+	static function CACurrentMediaTime():Float;
 }

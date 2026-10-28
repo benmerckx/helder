@@ -13,7 +13,8 @@ function tests() {
 			versionName: "1.0",
 			minSdk: 29,
 			targetSdk: 35,
-			permissions: []
+			permissions: [],
+			orientation: "any"
 		});
 		equals(App.android("my-game", null).id, "org.helder.my_game");
 		equals(App.android("3d", null).id, "org.helder.app_3d");
@@ -36,7 +37,8 @@ function tests() {
 			versionName: "2.1",
 			minSdk: 31,
 			targetSdk: 34,
-			permissions: ["VIBRATE", "com.example.X"]
+			permissions: ["VIBRATE", "com.example.X"],
+			orientation: "any"
 		});
 	});
 	test("Android: mistakes", () -> {
@@ -53,13 +55,26 @@ function tests() {
 			version: "1",
 			versionName: "1.0",
 			minVersion: "15.0",
-			entitlements: null
+			entitlements: null,
+			orientation: "any",
+			fullscreen: false
 		});
 		equals(App.ios("my_game", null).id, "org.helder.my-game");
 		var o = App.ios("Hello", {id: "org.example.game", version: 4, ios: {minVersion: "16.4", entitlements: "app.entitlements"}});
 		equals([o.id, o.version, o.minVersion, o.entitlements], ["org.example.game", "4", "16.4", "app.entitlements"]);
 		equals(Std.string(throws(() -> App.ios("x", {ios: {minVersion: "16"}}))), "package.json's \"helder\": {\"ios\": {\"minVersion\": \"16\"}}: a version, major.minor (15.0)");
 		equals(Std.string(throws(() -> App.ios("x", {id: "org.example.a_b"}))), "package.json's \"helder\": {\"id\": \"org.example.a_b\"} is not a bundle id (a.b.c: letters, digits, -)");
+	});
+	test("the orientation and fullscreen: both platforms', the build's define", () -> {
+		equals(App.android("x", {orientation: "portrait"}).orientation, "portrait");
+		var o = App.ios("x", {orientation: "landscape", fullscreen: true});
+		equals([o.orientation, Std.string(o.fullscreen)], ["landscape", "true"]);
+		equals(App.defines({fullscreen: true}), ["-D", "helder.fullscreen"]);
+		equals(App.defines({fullscreen: false}), []);
+		equals(App.defines(null), []);
+		equals(Std.string(throws(() -> App.android("x", {orientation: "sideways"}))),
+			"package.json's \"helder\": {\"orientation\": \"sideways\"}: portrait, landscape or any");
+		equals(Std.string(throws(() -> App.ios("x", {fullscreen: "yes"}))), "package.json's \"helder\": {\"fullscreen\": yes}: true or false");
 	});
 	test("the debug key's file: HELDER_ANDROID_KEY, package.json's, the cache", () -> {
 		equals(App.androidKey(null, "app", "/c/helder", null), "/c/helder/android/debug-key");

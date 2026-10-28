@@ -98,6 +98,16 @@ function tests() {
 			assert(xml.indexOf("android:theme(0x01010000)=@0x01030007") >= 0);
 			assert(xml.indexOf("android:hasCode(0x0101000c)=false") >= 0);
 		});
+		test("the orientation: screenOrientation portrait, sensorLandscape, none for any", () -> {
+			var o = (orientation:Null<String>) -> {
+				var a = Reflect.copy(app);
+				a.orientation = orientation;
+				var xml = Axml.dump(Zip.entry(Apk.write(so, "android-arm64", null, false, a, {d: d, cert: cert}), "AndroidManifest.xml"));
+				var r = ~/android:screenOrientation\(0x0101001e\)=(\d+)/;
+				r.match(xml) ? r.matched(1) : "none";
+			};
+			equals([o("portrait"), o("landscape"), o("any"), o(null)], ["1", "6", "none", "none"]);
+		});
 		test("the v2 signing block: its digest recomputed, its signature the key's", () -> {
 			var eocd = apk.length - 22;
 			equals(apk.getInt32(eocd), 0x06054b50);

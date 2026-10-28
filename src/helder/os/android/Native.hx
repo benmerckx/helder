@@ -70,6 +70,11 @@ import hxmc.unsafe.*;
 	@:hxmc.indirect static function callInt3(f:Ptr, env:Ptr, a:Ptr, b:Ptr, c:Ptr):Int;
 }
 
+// (Bionic's clock: CLOCK_MONOTONIC (1), Choreographer's; a timespec of two 64-bit fields)
+@:hxmc.c @:hxmc.fast extern class PosixClock {
+	static function clock_gettime(id:Int, ts:Ptr):Int;
+}
+
 @:hxmc.c @:hxmc.fast @:hxmc.lib("liblog.so") extern class Log {
 	// prio: 3 debug, 4 info, 5 warn, 6 error
 	static function __android_log_write(prio:Int, tag:Ptr, text:Ptr):Int;

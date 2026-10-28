@@ -267,13 +267,15 @@ class Run {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "android", "-o", "bin/pack/Hello-arm64.apk"], env);
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "android-x86_64", "-o", "bin/pack/Hello-x86_64.apk"], env);
 			run(h, ["build", "bin/pack/project", "--target", "android-x86_64"], env);
+			// (the screen fixture: CI's emulator runs it, tests/pack/android.sh)
+			run(h, ["build", "tests/pack/Screen.hx", "--target", "android-x86_64", "-o", "bin/pack/Screen.apk"], env);
 			// (Java's classes as the program needs them: a drawn ui's listeners,
 			// NativeActivity's surface; Android's views as the content, org.hxmc.Activity)
 			run(h, ["build", "examples/counter", "--target", "android-x86_64", "-o", "bin/pack/Counter.apk"], env);
 			run(h, ["build", "examples/native-form", "--target", "android-x86_64", "-o", "bin/pack/NativeForm.apk"], env);
 			checks = checks.concat([
-				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck",
-				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views"
+				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck@landscape@fullscreen",
+				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views", "bin/pack/Screen.apk@org.helder.screen@surface"
 			]);
 			for (c in [{apk: "Counter", want: '{"dex":true,"views":false}'}, {apk: "NativeForm", want: '{"dex":true,"views":true}'}]) {
 				var got = File.getContent('bin/pack/${c.apk}.lib/classes.json');
@@ -287,7 +289,8 @@ class Run {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Hello.ipa"], env);
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios-sim", "-o", "bin/pack/Hello.app"], env);
 			run(h, ["build", "bin/pack/project", "--target", "ios-sim"], env);
-			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements"]);
+			run(h, ["build", "tests/pack/Screen.hx", "--target", "ios-sim", "-o", "bin/pack/Screen.app"], env);
+			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen", "bin/pack/Screen.app@org.helder.Screen"]);
 		}
 		if (checks.length > 0) interp(cps(["src", "tests/pack"]), "PackCheck", checks);
 		// (a phone's tools stood in for: helder run, the dev loop's protocol)

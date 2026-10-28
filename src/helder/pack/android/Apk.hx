@@ -46,7 +46,7 @@ class Apk {
 	// activity), the manifest of the app's options, signed with the key
 	public static function write(so:Bytes, target:String, dex:Null<Bytes>, views:Bool, app:ApkOptions, key:{d:Bytes, cert:Bytes}):Bytes {
 		if (!validId(app.id)) throw 'the application id ${app.id} is not one (a.b.c: letters, digits, _)';
-		var m = manifest(app.id, app.label, app.versionCode, app.versionName, app.minSdk, app.targetSdk, dex != null, views, app.permissions);
+		var m = manifest(app.id, app.label, app.versionCode, app.versionName, app.minSdk, app.targetSdk, dex != null, views, app.permissions, app.orientation);
 		var entries:Array<helder.pack.Zip.ZipEntry> = [{name: "AndroidManifest.xml", data: m, align: 4}];
 		if (dex != null) entries.push({name: "classes.dex", data: dex, align: 4});
 		entries.push({name: "lib/" + abiDir(target) + "/" + LIBRARY, data: so, align: PAGE});
@@ -55,8 +55,11 @@ class Apk {
 
 	// ---- the manifest
 
+	// (orientation: "portrait" (screenOrientation portrait), "landscape"
+	// (sensorLandscape: either way up, as the phone is held), else any: none
+	// written, the sensor's and the user's rotation lock's)
 	public static function manifest(pkg:String, label:String, versionCode:Int, versionName:String, minSdk:Int, targetSdk:Int, code = false, views = false,
-			?permissions:Array<String>):Bytes {
+			?permissions:Array<String>, ?orientation:String):Bytes {
 		inline function s(n:String, v:String):Axml.Attr
 			return {android: true, name: n, type: Axml.STRING, string: v};
 		inline function i(n:String, v:Int, hex = false):Axml.Attr
@@ -71,6 +74,16 @@ class Apk {
 		if (permissions != null)
 			for (n in permissions)
 				uses.push(el("uses-permission", [s("name", n.indexOf(".") < 0 ? "android.permission." + n : n)]));
+		var activity:Array<Axml.Attr> = [
+			s("name", views ? Glue.ACTIVITY : "android.app.NativeActivity"),
+			s("label", label),
+			b("exported", true),
+			i("configChanges", configChanges, true),
+			// @android:style/Theme.NoTitleBar.Fullscreen; with views
+			// Theme.DeviceDefault.DayNight (API 29: the system's look, light or dark)
+			{android: true, name: "theme", type: Axml.REFERENCE, value: views ? 0x010302e3 : 0x01030007}
+		];
+		if (orientation == "portrait") activity.push(i("screenOrientation", 1)) else if (orientation == "landscape") activity.push(i("screenOrientation", 6));
 		var root = el("manifest", [
 			{android: false, name: "package", type: Axml.STRING, string: pkg},
 			i("versionCode", versionCode),
@@ -80,15 +93,7 @@ class Apk {
 		].concat(uses).concat([
 			el("uses-feature", [i("glEsVersion", 0x30000, true), b("required", true)]),
 			el("application", [s("label", label), b("hasCode", code), b("debuggable", true), b("extractNativeLibs", false)], [
-				el("activity", [
-					s("name", views ? Glue.ACTIVITY : "android.app.NativeActivity"),
-					s("label", label),
-					b("exported", true),
-					i("configChanges", configChanges, true),
-					// @android:style/Theme.NoTitleBar.Fullscreen; with views
-					// Theme.DeviceDefault.DayNight (API 29: the system's look, light or dark)
-					{android: true, name: "theme", type: Axml.REFERENCE, value: views ? 0x010302e3 : 0x01030007}
-				], [
+				el("activity", activity, [
 					el("meta-data", [s("name", "android.app.lib_name"), s("value", LIB)]),
 					el("intent-filter", [], [
 						el("action", [s("name", "android.intent.action.MAIN")]),
@@ -217,4 +222,6 @@ typedef ApkOptions = {
 	targetSdk:Int,
 	// uses-permission: android.permission.<name> unless it has a dot
 	permissions:Array<String>,
+	// "portrait", "landscape" or "any" (null: any)
+	?orientation:String,
 }

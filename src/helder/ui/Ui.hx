@@ -106,6 +106,11 @@ class Ui {
 	// where widgets copy and paste text (UiWindow: the system's)
 	// the window's pixels to the UI's (a Retina display's 2): what drawings are rasterized at
 	public var scale = 1.0;
+	// the safe area: the insets from each edge, in UI pixels, that a phone's
+	// bars, notch or cutout leave clear (UiWindow: the window's, each frame;
+	// 0 elsewhere). Markup's env(safe-area-inset-*) reads the main window's
+	// (SafeArea); a layout of its own reads this
+	public var safeArea:Edges = Edges.ZERO;
 	// the platform's own views where a window has them (PlatformViews), and
 	// which kinds of widget are native where the tree leaves it Auto (Host):
 	// "text-field" and "text-area" (the plan's defaults: native everywhere)

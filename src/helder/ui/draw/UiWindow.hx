@@ -150,13 +150,16 @@ class UiWindow {
 	public function needsFrame():Bool
 		return redraw || ui.needsFrame || Clock.active || capture != null || device.width != drawnW || device.height != drawnH || window.scale != drawnScale;
 
-	// draws a frame (the loop calls it when needsFrame): the clock ticked first
+	// draws a frame (the loop calls it when needsFrame): the clock ticked
+	// first (now: what the frame's events started, Ui.now's, is not after
+	// it, as the vsync's time App.frame.time may be)
 	public function frame() {
 		Clock.tick(haxe.Timer.stamp());
 		var s = window.scale;
 		renderer.scale = device.width / Math.max(1, Math.round(device.width / s));
 		ui.resize(device.width / renderer.scale, device.height / renderer.scale);
 		ui.scale = renderer.scale;
+		safeArea();
 		ui.update();
 		// (the clock ticked, nothing changed: the last frame stands, as drawn;
 		// an animation off screen, a timer's wait)
@@ -191,6 +194,18 @@ class UiWindow {
 		updateTextInput();
 		sendAccess();
 		if (onFrame != null) onFrame();
+	}
+
+	// the window's safe area in UI pixels: the Ui's, and markup's
+	// env(safe-area-inset-*) from the first window's (SafeArea), when it changed
+	function safeArea() {
+		var k = renderer.scale, s = ui.safeArea;
+		var t = window.safeTop / k, r = window.safeRight / k, b = window.safeBottom / k, l = window.safeLeft / k;
+		if (s.top != t || s.right != r || s.bottom != b || s.left != l) {
+			ui.safeArea = new helder.ui.Edges(t, r, b, l);
+			ui.requestFrame();
+		}
+		if (open[0] == this) helder.ui.SafeArea.set(t, r, b, l);
 	}
 
 	// the window's text input: on at the focus's caret while it takes text

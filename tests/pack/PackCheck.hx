@@ -17,6 +17,7 @@ using StringTools;
 //   (zipalign -c -P 16 too, when there);
 // - the manifest read back (Axml.dump; aapt dump badging when there):
 //   the activity, its library, hasCode, extractNativeLibs, the launcher;
+//   screenOrientation, the app's orientation's (none for any);
 // - classes.dex when there: Dex.check's structure, Glue's methods;
 // - the library (readelf, when there): a shared object of the ABI, 16 KB
 //   segments, its soname libmain.so, the export ANativeActivity_onCreate,
@@ -29,17 +30,27 @@ using StringTools;
 //   nothing else (an .ipa: under Payload/<name>.app/, stored, the
 //   executable 0755);
 // - Info.plist parsed: the executable, the id, UILaunchScreen, the platform
-//   and the minimum version; CodeResources: Info.plist's SHA-1;
+//   and the minimum version; UISupportedInterfaceOrientations (and
+//   ~ipad, UIRequiresFullScreen) the app's orientation's, UIStatusBarHidden
+//   when fullscreen; CodeResources: Info.plist's SHA-1;
 // - the executable: a 64-bit arm64 MH_EXECUTE, PIE, LC_MAIN, the build
 //   version's platform and minimum (the plist's), the signature ending the
 //   file: a CodeDirectory, ad hoc, identified by the bundle id, its page
 //   hashes recomputed, its special slots the hashes of Info.plist (1), the
 //   requirements (2), CodeResources (3) and the entitlements (5) when signed;
-// - on a Mac, codesign --verify and plutil -lint.
+// - on a Mac, codesign --verify and plutil -lint;
+// - fullscreen (both): the program built with -D helder.fullscreen (the
+//   project's line saying so in the library or the executable).
 // Exits non-zero on a failure; a missing tool is a line saying so.
 class PackCheck {
 	static var failures = 0;
-	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>} = {id: null, entitlements: false, views: null};
+	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool} = {
+		id: null,
+		entitlements: false,
+		views: null,
+		orientation: "any",
+		fullscreen: false
+	};
 	static final dir = "bin/pack/check";
 
 	static function check(what:String, ok:Bool, detail = "") {
@@ -66,12 +77,15 @@ class PackCheck {
 		for (a in Sys.args()) {
 			Sys.println("PackCheck: " + a);
 			// (<file>@<id>: the app's id checked too; @entitlements: signed
-			// with them; @views, @surface: org.hxmc.Activity or NativeActivity)
+			// with them; @views, @surface: org.hxmc.Activity or NativeActivity;
+			// @portrait, @landscape: the orientation (else any); @fullscreen)
 			var parts = a.split("@");
 			want = {
 				id: parts[1] == "" ? null : parts[1],
 				entitlements: parts.contains("entitlements"),
-				views: parts.contains("views") ? true : parts.contains("surface") ? false : null
+				views: parts.contains("views") ? true : parts.contains("surface") ? false : null,
+				orientation: parts.contains("portrait") ? "portrait" : parts.contains("landscape") ? "landscape" : "any",
+				fullscreen: parts.contains("fullscreen")
 			};
 			if (parts[0].endsWith(".apk")) apk(parts[0]) else bundle(parts[0]);
 		}
@@ -117,6 +131,13 @@ class PackCheck {
 			xml.indexOf("android:hasCode(0x0101000c)=" + code) >= 0 && xml.indexOf("android:extractNativeLibs(0x010104ea)=false") >= 0
 			&& xml.indexOf("android:debuggable(0x0101000f)=true") >= 0);
 		check("manifest: the launcher's intent filter", xml.indexOf('"android.intent.action.MAIN"') >= 0 && xml.indexOf('"android.intent.category.LAUNCHER"') >= 0);
+		var so = ~/android:screenOrientation\(0x0101001e\)=(\d+)/;
+		var orientation = so.match(xml) ? so.matched(1) : "none";
+		check('manifest: screenOrientation for ${want.orientation}', orientation == (switch want.orientation {
+			case "portrait": "1";
+			case "landscape": "6";
+			case _: "none";
+		}), orientation);
 		if (has("aapt")) {
 			var r = exec("aapt", ["dump", "badging", path]);
 			check("aapt dump badging", r.code == 0 && r.out.indexOf("launchable-activity: name='" + activity + "'") >= 0, r.out.split("\n")[0]);
@@ -129,6 +150,7 @@ class PackCheck {
 		}
 		var so = '$dir/libmain-$abi.so';
 		File.saveBytes(so, data(lib[0]));
+		if (want.fullscreen) built(data(lib[0]));
 		if (has("readelf")) elf(so, abi) else skip("readelf (not found)");
 		signature(path, b);
 	}
@@ -251,6 +273,21 @@ class PackCheck {
 			case _: false;
 		}
 		check("Info.plist: DTPlatformName the platform's", str("DTPlatformName") == (sim ? "iphonesimulator" : "iphoneos"));
+		var orientations = (k:String) -> switch d.get(k) {
+			case PArray(a): [for (v in a) switch v {
+					case PString(s): StringTools.replace(s, "UIInterfaceOrientation", "");
+					case _: "?";
+				}].join(",");
+			case _: "";
+		};
+		var all = "Portrait,PortraitUpsideDown,LandscapeLeft,LandscapeRight";
+		var phone = want.orientation == "portrait" ? "Portrait" : want.orientation == "landscape" ? "LandscapeLeft,LandscapeRight" : all;
+		var pad = want.orientation == "portrait" ? "Portrait,PortraitUpsideDown" : phone;
+		check('Info.plist: UISupportedInterfaceOrientations for ${want.orientation}', orientations("UISupportedInterfaceOrientations") == phone,
+			orientations("UISupportedInterfaceOrientations"));
+		check('Info.plist: UISupportedInterfaceOrientations~ipad for ${want.orientation}', orientations("UISupportedInterfaceOrientations~ipad") == pad);
+		check("Info.plist: UIRequiresFullScreen with an orientation", (d.get("UIRequiresFullScreen") != null) == (want.orientation != "any"));
+		check("Info.plist: UIStatusBarHidden " + want.fullscreen, (d.get("UIStatusBarHidden") != null) == want.fullscreen);
 		var names = [for (k in files.keys()) k];
 		names.sort(Reflect.compare);
 		var expected = ["Info.plist", exe, "_CodeSignature/CodeResources"];
@@ -270,6 +307,7 @@ class PackCheck {
 			case _: false;
 		}
 		check("CodeResources: Info.plist's SHA-1", hashed);
+		if (want.fullscreen) built(bin);
 		macho(bin, id, sim, min, info, res);
 		if (!ipa && Sys.systemName() == "Mac") {
 			var r = exec("codesign", ["--verify", "--strict", "--verbose=2", path]);
@@ -277,6 +315,23 @@ class PackCheck {
 			var r = exec("plutil", ["-lint", '$path/Info.plist']);
 			check("plutil -lint Info.plist", r.code == 0, r.out.trim());
 		} else if (!ipa) skip("codesign --verify, plutil -lint (macOS)");
+	}
+
+	// (fullscreen: the project's line of a build with -D helder.fullscreen)
+	static function built(b:Bytes) {
+		// (as bytes, or as UTF-16 units: how hxmc keeps a literal)
+		var text = "packed project (fullscreen)", wide = Bytes.alloc(2 * text.length);
+		for (k in 0...text.length)
+			wide.setUInt16(2 * k, text.charCodeAt(k));
+		var found = false;
+		for (s in [Bytes.ofString(text), wide]) {
+			var i = 0;
+			while (!found && i <= b.length - s.length) {
+				if (b.get(i) == s.get(0) && b.sub(i, s.length).compare(s) == 0) found = true;
+				i++;
+			}
+		}
+		check("the program built with -D helder.fullscreen", found);
 	}
 
 	static function walk(root:String, rel:String):Array<String> {
