@@ -35,6 +35,8 @@
 //                  module's function table), also after main returned; if
 //                  the program exits there (proc_exit), its result is
 //                  undefined and host.exitCode is set
+//   module         the compiled WebAssembly.Module, once instantiated
+//                  (helder.jobs' workers instantiate it again)
 // WASI preview 1 is what the runtime needs without a file system: the
 // arguments and environment, stdout and stderr (lines to options.stdout and
 // options.stderr, else the console), the clocks, random bytes, proc_exit;
@@ -402,9 +404,12 @@ export async function run(wasm, options = {}) {
 	if (wasm && typeof wasm.then === 'function') wasm = await wasm;
 	let instance;
 	try {
-		instance = wasm instanceof WebAssembly.Module ? await WebAssembly.instantiate(wasm, imports)
-			: typeof wasm === 'string' || wasm instanceof Response ? (await WebAssembly.instantiateStreaming(typeof wasm === 'string' ? fetch(wasm) : wasm, imports)).instance
-			: (await WebAssembly.instantiate(wasm, imports)).instance;
+		// (the compiled module kept: helder.jobs' workers instantiate it again)
+		const made = wasm instanceof WebAssembly.Module ? { module: wasm, instance: await WebAssembly.instantiate(wasm, imports) }
+			: typeof wasm === 'string' || wasm instanceof Response ? await WebAssembly.instantiateStreaming(typeof wasm === 'string' ? fetch(wasm) : wasm, imports)
+			: await WebAssembly.instantiate(wasm, imports);
+		instance = made.instance;
+		host.module = made.module;
 	} catch (e) {
 		throw outOfMemory(e, await initialMemory(wasm).catch(() => 0));
 	}

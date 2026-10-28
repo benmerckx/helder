@@ -52,7 +52,9 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	#end
 	var held = 0;
 	var stopped = false;
-	var turning = false;
+	// (the browser: in a turn the page runs, which asks for the next itself;
+	// in another (App.run's frames) a dispatch or a timer asks the page)
+	var paged = false;
 	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
 	// (POSIX: a pipe a post writes a byte to, the backend polling its read end,
 	// made when a source of posts is first held; elsewhere waits are at most
@@ -99,7 +101,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		ready[(head + count) % ready.length] = obj;
 		count++;
 		#if (hxmc.target == "wasm32-wasi")
-		if (!turning) Web.wake(0);
+		if (!paged) Web.wake(0);
 		#end
 	}
 
@@ -117,7 +119,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		up(timers.length - 1);
 		live++;
 		#if (hxmc.target == "wasm32-wasi")
-		if (!turning) Web.wake(Math.max(0, time - haxe.Timer.stamp()));
+		if (!paged) Web.wake(Math.max(0, time - haxe.Timer.stamp()));
 		#end
 		return t;
 	}
@@ -192,7 +194,6 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	// timer) of at most `seconds` (-1: as long as needed, 0: none) unless
 	// something is ready; whether anything is left
 	public function turn(seconds:Float):Bool {
-		turning = true;
 		drain();
 		var now = haxe.Timer.stamp();
 		fire(now);
@@ -210,7 +211,6 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		if (checks.length > 0 && (wait < 0 || wait > 0.01)) wait = 0.01;
 		#end
 		if (wait < 0 && !alive()) {
-			turning = false;
 			return false;
 		}
 		if (io.pending() > 0 || (held > 0 && wakes())) io.poll(wait, -1);
@@ -222,7 +222,6 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		}
 		fire(haxe.Timer.stamp());
 		drain();
-		turning = false;
 		return alive();
 	}
 
@@ -270,7 +269,9 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	// a turn the page runs: the seconds until the next one is wanted (-1: none)
 	@:hxmc.callback static function webTurn():Float {
 		var l = current();
+		l.paged = true;
 		var go = l.turn(0) && !l.stopped;
+		l.paged = false;
 		Sys.stdout().flush();
 		if (!go) return -1;
 		if (l.count > 0) return 0;

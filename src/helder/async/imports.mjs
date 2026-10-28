@@ -35,11 +35,11 @@ export default function (host) {
 	};
 	return {
 		helder_async: {
-			start(f) {
+			async_start(f) {
 				turn = f;
 				wake(0);
 			},
-			wake,
+			async_wake: wake,
 			fetch_start(p) {
 				const f = { state: 0, body: null, abort: new AbortController() };
 				const base = typeof document !== 'undefined' ? document.baseURI : host.options.base;

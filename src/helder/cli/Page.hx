@@ -116,7 +116,7 @@ class Page {
 		var files = ['$dir/$name.html'];
 		for (p in pkgs.concat(["os"])) {
 			TestCommand.mkdirs('$dir/helder/$p');
-			for (f in (p == "os" ? ["browser.mjs", "imports.mjs"] : ["imports.mjs"])) {
+			for (f in (p == "os" ? ["browser.mjs", "imports.mjs"] : p == "jobs" ? ["imports.mjs", "worker.mjs"] : ["imports.mjs"])) {
 				File.copy('$helder/helder/$p/$f', '$dir/helder/$p/$f');
 				files.push('$dir/helder/$p/$f');
 			}
