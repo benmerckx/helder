@@ -39,7 +39,7 @@ using StringTools;
 // Exits non-zero on a failure; a missing tool is a line saying so.
 class PackCheck {
 	static var failures = 0;
-	static var want:{id:Null<String>, entitlements:Bool} = {id: null, entitlements: false};
+	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>} = {id: null, entitlements: false, views: null};
 	static final dir = "bin/pack/check";
 
 	static function check(what:String, ok:Bool, detail = "") {
@@ -65,9 +65,14 @@ class PackCheck {
 		FileSystem.createDirectory(dir);
 		for (a in Sys.args()) {
 			Sys.println("PackCheck: " + a);
-			// (<file>@<id>: the app's id checked too; @entitlements: signed with them)
+			// (<file>@<id>: the app's id checked too; @entitlements: signed
+			// with them; @views, @surface: org.hxmc.Activity or NativeActivity)
 			var parts = a.split("@");
-			want = {id: parts[1], entitlements: parts.contains("entitlements")};
+			want = {
+				id: parts[1] == "" ? null : parts[1],
+				entitlements: parts.contains("entitlements"),
+				views: parts.contains("views") ? true : parts.contains("surface") ? false : null
+			};
 			if (parts[0].endsWith(".apk")) apk(parts[0]) else bundle(parts[0]);
 		}
 		if (failures > 0) {
@@ -103,6 +108,7 @@ class PackCheck {
 		var xml = Axml.dump(data("AndroidManifest.xml"));
 		File.saveContent('$dir/${haxe.io.Path.withoutDirectory(path)}.manifest.txt', xml);
 		var views = xml.indexOf('"' + Glue.ACTIVITY + '"') >= 0, activity = views ? Glue.ACTIVITY : "android.app.NativeActivity";
+		if (want.views != null) check("manifest: the activity the program needs: " + (want.views ? Glue.ACTIVITY : "NativeActivity"), views == want.views);
 		check("manifest: " + activity + (views && !code ? ", but no classes.dex" : ""),
 			xml.indexOf('android:name(0x01010003)="$activity"') >= 0 && (code || !views));
 		if (want.id != null) check('manifest: package ${want.id}', xml.indexOf('package="${want.id}"') >= 0);

@@ -115,9 +115,11 @@ build time.
   NativeActivity, or `org.hxmc.Activity` for a program showing Android's
   views), `classes.dex` when the program has Java's listeners (`Dex`,
   `Glue`; `helder.pack.android.Classes`, a macro of the build, tells from
-  the program after dead code elimination: `@:helder.android.dex` on
-  `helder.os.android.Glue`, `@:helder.android.views` on
-  `helder.ui.native.android.AndroidBackend`), and APK Signature Scheme v2
+  the program as generated: `@:helder.android.dex` on
+  `helder.os.android.Glue` in it; `@:helder.android.views` on
+  `helder.ui.native.NativeHost`, which the program makes: every ui
+  program has the class, a drawn window needs NativeActivity's surface;
+  tested on the counter and native-form examples), and APK Signature Scheme v2
   (ECDSA P-256 with SHA-256, RFC 6979's nonces: `P256`, `Der`; v2 only,
   which minSdk 29 allows). Debuggable; no release signing, icons,
   resources or `.aab` yet.

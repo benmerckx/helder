@@ -15,7 +15,10 @@ import helder.image.Image;
 // requestAnimationFrame runs the steps). The backends: GTK 3 on Linux
 // (glibc mode), Win32's controls on Windows, AppKit's on macOS, the DOM in
 // the browser, android.widget's views on Android (whose main thread runs
-// the steps: run waits for the window to close).
+// the steps: run waits for the window to close). (@:helder.android.views:
+// a program making one gets classes.dex and org.hxmc.Activity in its APK,
+// whose window draws views: helder.pack.android.Classes)
+@:helder.android.views
 class NativeHost {
 	public final backend:NativeBackend;
 	public final ui:Ui;

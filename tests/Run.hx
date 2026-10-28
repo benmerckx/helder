@@ -267,7 +267,18 @@ class Run {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "android", "-o", "bin/pack/Hello-arm64.apk"], env);
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "android-x86_64", "-o", "bin/pack/Hello-x86_64.apk"], env);
 			run(h, ["build", "bin/pack/project", "--target", "android-x86_64"], env);
-			checks = checks.concat(["bin/pack/Hello-arm64.apk@org.helder.hello", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck"]);
+			// (Java's classes as the program needs them: a drawn ui's listeners,
+			// NativeActivity's surface; Android's views as the content, org.hxmc.Activity)
+			run(h, ["build", "examples/counter", "--target", "android-x86_64", "-o", "bin/pack/Counter.apk"], env);
+			run(h, ["build", "examples/native-form", "--target", "android-x86_64", "-o", "bin/pack/NativeForm.apk"], env);
+			checks = checks.concat([
+				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck",
+				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views"
+			]);
+			for (c in [{apk: "Counter", want: '{"dex":true,"views":false}'}, {apk: "NativeForm", want: '{"dex":true,"views":true}'}]) {
+				var got = File.getContent('bin/pack/${c.apk}.lib/classes.json');
+				if (got != c.want) throw new Failed('bin/pack/${c.apk}.lib/classes.json: $got, not ${c.want}');
+			}
 			if (!File.getContent("bin/pack/cache/android/debug-key").startsWith("helder-android-debug-key 1\n"))
 				throw new Failed("bin/pack/cache/android/debug-key: not made on first use");
 			Sys.println("pack: the debug key made on first use, in the cache");
