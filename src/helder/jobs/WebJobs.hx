@@ -13,29 +13,29 @@ import hxmc.unsafe.Ptr;
 // input is copied out of this instance's memory into a transferred
 // ArrayBuffer and into the worker's, its output back the same way. A
 // worker's instance runs the static initializers up to WebJobs' __init__,
-// which serves jobs from then on instead of running main. (The imports'
-// names are prefixed: hxmc takes C functions by name, whichever module
-// imports them, and helder_async has a start too.)
+// which serves jobs from then on instead of running main. (The imports
+// are by their own names: hxmc keys a wasm import by its module and name,
+// so helder_async's start is another function.)
 @:hxmc.c @:hxmc.lib("helder_jobs") extern class JobsHost {
 	// 1 in a worker's instance
-	@:native("jobs_worker") static function worker():Int;
+	static function worker():Int;
 	// (a worker's) jobs from now on: execute(fn, inputLength) runs one
-	@:native("jobs_serve") static function serve(execute:Ptr):Void;
+	static function serve(execute:Ptr):Void;
 	// (the page's) arrived(kind, id, status, length) from now on, for what
 	// comes back (0 a job's result, 1 a channel's message, 2 its close); the
 	// workers it will use, wanted or the cores but one (-1), 0 for none
-	@:native("jobs_start") static function start(arrived:Ptr, wanted:Int):Int;
-	@:native("jobs_submit") static function submit(id:Int, fn:Int, input:Ptr, length:Int):Void;
+	static function start(arrived:Ptr, wanted:Int):Int;
+	static function submit(id:Int, fn:Int, input:Ptr, length:Int):Void;
 	// whether it was dropped (queued, or its worker ended: no result comes)
-	@:native("jobs_cancel") static function cancel(id:Int):Int;
+	static function cancel(id:Int):Int;
 	// what arrived (arrived's call), copied to p
-	@:native("jobs_take") static function take(p:Ptr):Void;
+	static function take(p:Ptr):Void;
 	// (a worker's) the job's input copied to p; its result (p nil: none)
-	@:native("jobs_input") static function input(p:Ptr):Void;
-	@:native("jobs_output") static function output(status:Int, p:Ptr, length:Int):Void;
+	static function input(p:Ptr):Void;
+	static function output(status:Int, p:Ptr, length:Int):Void;
 	// (a worker's) a channel's message, its close: to the page
-	@:native("jobs_send") static function send(channel:Int, p:Ptr, length:Int):Void;
-	@:native("jobs_close") static function close(channel:Int):Void;
+	static function send(channel:Int, p:Ptr, length:Int):Void;
+	static function close(channel:Int):Void;
 }
 
 @:allow(helder.jobs)

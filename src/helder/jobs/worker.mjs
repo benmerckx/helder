@@ -75,25 +75,25 @@ const wasi = {
 };
 
 const jobs = {
-	jobs_worker: () => 1,
-	jobs_serve(f) {
+	worker: () => 1,
+	serve(f) {
 		execute = f;
 	},
-	jobs_start: () => 0,
-	jobs_submit() {},
-	jobs_cancel: () => 0,
-	jobs_take() {},
-	jobs_input(p) {
+	start: () => 0,
+	submit() {},
+	cancel: () => 0,
+	take() {},
+	input(p) {
 		if (input) memory().set(input, p);
 	},
-	jobs_output(status, p, n) {
+	output(status, p, n) {
 		output = n >= 0 ? memory().slice(p, p + n) : null;
 	},
-	jobs_send(ch, p, n) {
+	send(ch, p, n) {
 		const bytes = memory().slice(p, p + n);
 		port.postMessage({ ch, bytes }, [bytes.buffer]);
 	},
-	jobs_close(ch) {
+	close(ch) {
 		port.postMessage({ close: ch });
 	},
 };

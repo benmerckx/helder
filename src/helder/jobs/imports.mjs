@@ -95,19 +95,19 @@ export default async function (host) {
 
 	return {
 		helder_jobs: {
-			jobs_worker: () => 0,
-			jobs_serve() {},
-			jobs_start(f, wanted) {
+			worker: () => 0,
+			serve() {},
+			start(f, wanted) {
 				arrived = f;
 				const can = node || typeof Worker !== 'undefined';
 				size = !can || !host.module ? 0 : wanted >= 0 ? wanted : Math.max(1, cores - 1);
 				return size;
 			},
-			jobs_submit(id, fn, p, n) {
+			submit(id, fn, p, n) {
 				queue.push({ id, fn, input: n >= 0 ? host.bytes(p, n).slice() : null });
 				pump();
 			},
-			jobs_cancel(id) {
+			cancel(id) {
 				const q = queue.findIndex((j) => j.id === id);
 				if (q >= 0) {
 					queue.splice(q, 1);
@@ -119,13 +119,13 @@ export default async function (host) {
 				pump();
 				return 1;
 			},
-			jobs_take(p) {
+			take(p) {
 				if (current) host.bytes(p, current.length).set(current);
 			},
-			jobs_input() {},
-			jobs_output() {},
-			jobs_send() {},
-			jobs_close() {},
+			input() {},
+			output() {},
+			send() {},
+			close() {},
 		},
 	};
 }
