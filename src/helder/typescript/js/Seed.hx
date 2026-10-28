@@ -268,6 +268,23 @@ class Seed {
 		return "";
 	}
 
+	// a string a loop only appends to, built in a buffer (the frontend: s += x)
+	public static function libBuffer(s:String):StringBuf {
+		var b = new StringBuf();
+		b.add(s);
+		return b;
+	}
+
+	public static function libBufferAdd(b:StringBuf, s:String):Void b.add(s);
+
+	public static function libBuffered(b:StringBuf):String return b.toString();
+
+	// String.prototype.charCodeAt on a string (read-only: Builtins)
+	public static function stringCharCodeAt(s:String, pos:Float):Float {
+		var i = Math.isNaN(pos) ? 0 : pos < 0 ? Math.fceil(pos) : Math.ffloor(pos);
+		return i < 0 || i >= s.length ? Math.NaN : StringTools.fastCodeAt(s, Std.int(i));
+	}
+
 	// Math's functions called directly (the frontend: Math.f(...) where the program replaces neither)
 	public static function mathSqrt(a:Float):Float return Math.sqrt(a);
 
@@ -452,6 +469,8 @@ class Seed {
 		expectNumber(0, "");
 		expectBoolean(true, "");
 		expectString("", "");
+		stringCharCodeAt("", 0);
+		libBufferAdd(libBuffer(""), libBuffered(libBuffer("")));
 		libLock(libAllocate(libLayoutOf(f)));
 		diverge("", null, "");
 		libDefineMethod(o, "x", f, 0, true);

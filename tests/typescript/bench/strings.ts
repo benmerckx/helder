@@ -4,7 +4,7 @@ function words(n: number): string {
 	for (let i = 0; i < n; i++) s += i % 7 === 0 ? "lorem " : "ipsum ";
 	return s;
 }
-const text = words(50000);
+const text = words(300000);
 let count = 0, letters = 0;
 for (const w of text.split(" ")) if (w.length > 0) { count++; letters += w.length; }
 const counts = new Map<string, number>();

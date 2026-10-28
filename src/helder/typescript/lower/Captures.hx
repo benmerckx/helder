@@ -41,7 +41,7 @@ class Captures {
 		return p == null ? n.file.root : p;
 	}
 
-	static function boundary(n:Node):Bool return switch n.kind {
+	public static function boundary(n:Node):Bool return switch n.kind {
 		case KindFunctionDeclaration | KindFunctionExpression | KindArrowFunction | KindMethodDeclaration | KindConstructor | KindGetAccessor
 			| KindSetAccessor | KindClassDeclaration | KindClassExpression: true;
 		case _: false;

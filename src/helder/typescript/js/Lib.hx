@@ -293,8 +293,11 @@ class Lib {
 			a.items[Std.int(i)] = v;
 		}
 		else if (i < n * 2 + 64 && i < 16777216) {
-			var name = Seed.numberText(i);
-			if (a.hasOwn(name)) a.removeOwn(name);
+			// (an element kept as a property before: only with properties beyond the elements)
+			if (a.props != null) {
+				var name = Seed.numberText(i);
+				if (a.hasOwn(name)) a.removeOwn(name);
+			}
 			while (a.items.length < i) a.items.push(hole);
 			a.items.push(v);
 		}

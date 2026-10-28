@@ -115,7 +115,10 @@ with layouts), the prototype keeping thin wrappers for dynamic calls. Its
 prototype is locked: replacing a method, or hiding one with an instance's
 own property, diverges (TSHX100). A binding no
 closure captures is a plain local (`Captures.hx`); a captured one is a
-shared box.
+shared box. A string local a loop only appends to (`s += x`, no other use
+of it in the loop) is built in a buffer while the loop runs, so the loop is
+linear; `s.charCodeAt(i)` on a string is String.prototype's own (made
+read-only, as Math is frozen).
 
 TypeScript's types can be wrong about values (`any`, `as`, a missing
 argument, `JSON.parse`). A value enters a typed slot only through a check:

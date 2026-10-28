@@ -1030,6 +1030,8 @@ class Builtins {
 			"toLowerCase", "toUpperCase", "toLocaleLowerCase", "toLocaleUpperCase", "trim", "trimStart", "trimEnd", "trimLeft", "trimRight", "repeat", "padStart", "padEnd",
 			"split", "replace", "replaceAll", "localeCompare", "normalize", "isWellFormed", "toWellFormed", "search", "match", "matchAll"];
 		for (name in names) method(p, name, stringArity(name), (t, a, _) -> stringMethod(thisString(t), name, a));
+		// (read-only: compiled code calls it itself on a string, Seed.stringCharCodeAt)
+		p.setOwn("charCodeAt", p.getOwn("charCodeAt"), Attr.HIDDEN | Attr.READONLY | Attr.LOCKED);
 		method(p, Symbols.iterator, 0, (t, _, _) -> new JsIterator(StringIteratorProto, thisString(t), "values"));
 	}
 

@@ -13,7 +13,7 @@ import helder.typescript.lower.Classes.ClassLayout;
 // A binding's storage: a global (module scope), a box (captured by a
 // closure), or a plain local; `outer`: an enclosing function's plain local,
 // which no closure can see (Captures)
-private typedef Binding = {ty:Ty, ?cell:Ex, ?global:Int, ?local:Local, ?outer:String};
+private typedef Binding = {ty:Ty, ?cell:Ex, ?global:Int, ?local:Local, ?outer:String, ?buffer:Local};
 
 // A source file's top-level scope: its bindings (globals), direct functions
 // and exports. Imports alias the exporting module's bindings, so they are live.
@@ -653,6 +653,7 @@ class Frontend {
 		if (labels == null) labels = [];
 		if (hasModifier(n, KindDeclareKeyword)) return;
 		here = n;
+		if (buffered(n, labels)) return;
 		switch (n.kind) {
 			case KindImportDeclaration | KindExportDeclaration: // (bindings: see linkModule)
 			case KindExportAssignment:
@@ -1468,6 +1469,10 @@ class Frontend {
 		var op = x.operatorToken().kind;
 		var left = x.left();
 		while (left.kind == KindParenthesizedExpression) left = left.expression();
+		if (op == KindPlusEqualsToken && left.kind == KindIdentifier && env.exists(left.text) && env.get(left.text).buffer != null) {
+			b.runtime("libBufferAdd", [ELocal(env.get(left.text).buffer), text(expr(x.right()))]);
+			return b.runtime("getUndefined", []);
+		}
 		if (op == KindEqualsToken && (left.kind == KindArrayLiteralExpression || left.kind == KindObjectLiteralExpression)) {
 			var e = b.temp(any(expr(x.right())));
 			assignPattern(left, e);
@@ -2320,6 +2325,63 @@ class Frontend {
 		return ELocal(l);
 	}
 
+	// ---- strings loops only append to
+	// A loop that only appends to string locals (`s += x` statements, no
+	// other use of s in it): each built in a buffer while it runs, then a
+	// string again. Not inside a try (a catch could read s), and leaving it
+	// only to its end (no break or continue to a label outside it).
+	function buffered(loop:Node, labels:Array<String>):Bool {
+		if (!(loop.kind == KindForStatement || loop.kind == KindForOfStatement || loop.kind == KindForInStatement || loop.kind == KindWhileStatement || loop.kind == KindDoStatement) || buffering.exists(loop)) return false;
+		var p = loop.parent;
+		while (p != null && !Captures.boundary(p)) {
+			if (p.kind == KindTryStatement) return false;
+			p = p.parent;
+		}
+		var uses = new Map<String, Bool>(), others = new Map<String, Bool>();
+		var jumpsOut = false;
+		function visit(n:Node) {
+			if (n == null) return;
+			switch n.kind {
+				case KindIdentifier:
+					var parent = n.parent;
+					var append = parent.kind == KindBinaryExpression && parent.left() == n && parent.operatorToken().kind == KindPlusEqualsToken && parent.parent.kind == KindExpressionStatement;
+					if (append) uses.set(n.text, true) else others.set(n.text, true);
+				case KindBreakStatement | KindContinueStatement if (n.label() != null && !labels.contains(n.label().text)):
+					// (a label inside the loop is fine; one outside it leaves early)
+					var inner = n.parent, found = false;
+					while (inner != loop) {
+						if (inner.kind == KindLabeledStatement && inner.label().text == n.label().text) found = true;
+						inner = inner.parent;
+					}
+					if (!found) jumpsOut = true;
+				case _:
+			}
+			for (c in n.children()) visit(c);
+		}
+		visit(loop);
+		if (jumpsOut) return false;
+		// (an enclosing loop's buffer serves this one too)
+		var names = [for (name in uses.keys()) if (!others.exists(name) && env.exists(name) && env.get(name).local != null && env.get(name).buffer == null && env.get(name).ty.match(TRef(RStr))) name];
+		if (names.length == 0) return false;
+		var saved = [for (name in names) name => env.get(name)];
+		for (name in names) {
+			var start = b.runtimeCall("libBuffer", [ELocal(saved[name].local)]);
+			var buffer = b.local("buffer", Ir.typeOf(start));
+			b.out.push(SSet(buffer, start));
+			env.set(name, {ty: saved[name].ty, local: saved[name].local, buffer: buffer});
+		}
+		buffering.set(loop, true);
+		statement(loop, false, labels);
+		buffering.remove(loop);
+		for (name in names) {
+			b.out.push(SSet(saved[name].local, b.runtimeCall("libBuffered", [ELocal(env.get(name).buffer)])));
+			env.set(name, saved[name]);
+		}
+		return true;
+	}
+
+	var buffering:Map<Node, Bool> = [];
+
 	// ---- typed values (Reps)
 	// (a property access that is neither optional nor through super)
 	static function plainAccess(n:Node):Bool return n.flags & NodeFlags.OptionalChain == 0 && n.expression().kind != KindSuperKeyword;
@@ -2470,6 +2532,17 @@ class Frontend {
 		}
 		var math = mathCall(n, callee, actual);
 		if (math != null) return math;
+		// (s.charCodeAt(i) on a string: String.prototype's, read-only)
+		if (callee.kind == KindPropertyAccessExpression && plainAccess(callee) && callee.name().text == "charCodeAt" && actual.length <= 1 && !hasSpread(actual)
+			&& types.isString(callee.expression().tsType)) {
+			var s = b.temp(expr(callee.expression()));
+			var i = actual.length == 0 ? EF64(0) : b.temp(number(expr(actual[0])));
+			if (Ir.typeOf(s).match(TRef(RStr))) {
+				typedOperations++;
+				return b.runtime("stringCharCodeAt", [s, i]);
+			}
+			return b.runtime("libCallMethod", [any(s), EStr("charCodeAt"), pack([i])]);
+		}
 		var inner = callee;
 		while (inner.kind == KindParenthesizedExpression) inner = inner.expression();
 		var method = layoutCall(n, inner, actual);
