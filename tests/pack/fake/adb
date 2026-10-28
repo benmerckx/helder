@@ -1,0 +1,24 @@
+#!/bin/sh
+# A stand-in for adb (the pack lane: tests/pack/dev.mjs), with one emulator
+# (emulator-5554, x86_64): each call appended to $FAKE_LOG; install, reverse,
+# am start succeed; pidof answers $FAKE_PID's content; logcat -v waits.
+echo "adb $*" >> "${FAKE_LOG:-/dev/null}"
+[ "$1" = "-s" ] && shift 2
+case "$1 $2" in
+"devices -l")
+	echo "List of devices attached"
+	echo "emulator-5554          device product:sdk_gphone64_x86_64 model:Pixel_7 device:emu64xa transport_id:1"
+	;;
+"shell getprop") echo x86_64 ;;
+"install -r")
+	echo "Performing Streamed Install"
+	echo "Success"
+	;;
+"shell am")
+	[ "$3" = "start" ] && echo "Starting: Intent { act=android.intent.action.MAIN }"
+	;;
+"shell pidof") [ -n "$FAKE_PID" ] && [ -f "$FAKE_PID" ] && cat "$FAKE_PID" ;;
+"logcat -v") exec sleep 3600 ;;
+*) ;;
+esac
+exit 0

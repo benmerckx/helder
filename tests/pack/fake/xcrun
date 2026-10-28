@@ -1,0 +1,23 @@
+#!/bin/sh
+# A stand-in for xcrun simctl (the pack lane: tests/pack/dev.mjs), with one
+# booted simulator: each call appended to $FAKE_LOG; install succeeds;
+# launch writes the app's environment (SIMCTL_CHILD_*) to $FAKE_ENV, prints
+# a line as the app would, its process id to $FAKE_LAUNCH, and waits as
+# simctl --console does until the app ends.
+echo "xcrun $*" >> "${FAKE_LOG:-/dev/null}"
+[ "$1" = "simctl" ] && shift
+case "$1" in
+list)
+	echo "== Devices =="
+	echo "-- iOS 18.0 --"
+	echo "    iPhone 16 (8A9C6B4E-6E2B-4A43-9C7B-2C7B1E9D5F11) (Booted) "
+	;;
+launch)
+	env | grep '^SIMCTL_CHILD_' > "${FAKE_ENV:-/dev/null}"
+	echo "org.helder.app: 4242"
+	[ -n "$FAKE_LAUNCH" ] && echo $$ > "$FAKE_LAUNCH"
+	exec sleep 3600
+	;;
+*) ;;
+esac
+exit 0

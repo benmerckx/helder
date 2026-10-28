@@ -1,0 +1,16 @@
+{
+  "name": "@helder/pack-fixture",
+  "private": true,
+  "dependencies": {
+    "helder": "*"
+  },
+  "helder": {
+    "name": "Packed",
+    "id": "org.helder.packcheck",
+    "label": "Pack check",
+    "version": 2,
+    "versionName": "0.2",
+    "android": {"permissions": ["VIBRATE"], "targetSdk": 34},
+    "ios": {"minVersion": "16.0", "entitlements": "app.entitlements"}
+  }
+}

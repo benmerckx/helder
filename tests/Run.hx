@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "devtools", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "pack", "devtools", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -42,6 +42,7 @@ class Run {
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
+		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx and of a project with an app's options, checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "examples", about: "every example built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
@@ -237,6 +238,56 @@ class Run {
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-nohost", "native-nohost"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-exit", "exit"]);
+	}
+
+	// (the runtime objects: Android's and iOS's are not npm's for this
+	// machine, tests/pack/runtime.mjs fetches them; the builds' HXMC_RT_DIR.
+	// The debug key made in a cache of its own, on first use)
+	static function packLane() {
+		var h = helderCli();
+		run(NODE, ["tests/pack/runtime.mjs", "bin/pack/rt"]);
+		var rt = FileSystem.fullPath("bin/pack/rt");
+		rmrf("bin/pack/cache");
+		mkdirs("bin/pack/cache");
+		var env = ["HXMC_RT_DIR" => rt, "HELDER_CACHE" => FileSystem.fullPath("bin/pack/cache")];
+		var required = Sys.getEnv("PACK_REQUIRE") == "1";
+		var have = (t:String) -> {
+			var ok = FileSystem.exists('$rt/$t/rt.o');
+			if (!ok && required) throw new Failed('no runtime objects for $t (tests/pack/runtime.mjs)');
+			if (!ok) Sys.println('pack: no runtime objects for $t (tests/pack/runtime.mjs): its builds skipped');
+			return ok;
+		};
+		rmrf("bin/pack/project");
+		copy("tests/pack/project", "bin/pack/project");
+		mkdirs("bin/pack/project/node_modules/helder");
+		var src = FileSystem.fullPath("src").split("\\").join("/");
+		File.saveContent("bin/pack/project/node_modules/helder/package.json", haxe.Json.stringify({name: "helder", haxe: {name: "helder", classPath: src}}));
+		var checks = [];
+		if (have("android-arm64") && have("android-x86_64")) {
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "android", "-o", "bin/pack/Hello-arm64.apk"], env);
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "android-x86_64", "-o", "bin/pack/Hello-x86_64.apk"], env);
+			run(h, ["build", "bin/pack/project", "--target", "android-x86_64"], env);
+			checks = checks.concat(["bin/pack/Hello-arm64.apk@org.helder.hello", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck"]);
+			if (!File.getContent("bin/pack/cache/android/debug-key").startsWith("helder-android-debug-key 1\n"))
+				throw new Failed("bin/pack/cache/android/debug-key: not made on first use");
+			Sys.println("pack: the debug key made on first use, in the cache");
+		}
+		if (have("macos-arm64")) {
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Hello.ipa"], env);
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios-sim", "-o", "bin/pack/Hello.app"], env);
+			run(h, ["build", "bin/pack/project", "--target", "ios-sim"], env);
+			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements"]);
+		}
+		if (checks.length > 0) interp(cps(["src", "tests/pack"]), "PackCheck", checks);
+		// (a phone's tools stood in for: helder run, the dev loop's protocol)
+		if (HOST.startsWith("windows-")) return;
+		var fake = ["ADB" => FileSystem.fullPath("tests/pack/fake/adb"), "XCRUN" => FileSystem.fullPath("tests/pack/fake/xcrun")];
+		for (k => v in env) fake.set(k, v);
+		if (FileSystem.exists('$rt/android-x86_64/rt.o')) {
+			expect(h, ["run", "tests/pack/Hello.hx", "--target", "android"], fake, "running org.helder.hello on Pixel 7");
+			run(NODE, ["tests/pack/dev.mjs", h, "bin/pack/dev-android", "android"], env);
+		}
+		if (FileSystem.exists('$rt/macos-arm64/rt.o')) run(NODE, ["tests/pack/dev.mjs", h, "bin/pack/dev-ios", "ios"], env);
 	}
 
 	static function devtools() {
