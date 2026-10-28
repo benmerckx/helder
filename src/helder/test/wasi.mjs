@@ -4,7 +4,8 @@
 // helder.async's imports (src/helder/async/imports.mjs: the loop turned by
 // node's, as in the browser) and helder.jobs' when it wants them
 // (src/helder/jobs/imports.mjs: workers on worker_threads), with the small
-// part of browser.mjs's host they use. The program exits through
+// part of browser.mjs's host they use; any other import answered with 0.
+// The program exits through
 // proc_exit, after main returned too.
 //   node --stack-size=65500 src/helder/test/wasi.mjs <module.wasm> [args...]
 import fs from 'node:fs';
@@ -50,6 +51,11 @@ const imports = { ...wasi.getImportObject(), ...asyncImports(host), ...(wanted.h
 // (an exit from a callback, after main returned: node's WASI only returns from start)
 imports.wasi_snapshot_preview1 = { ...imports.wasi_snapshot_preview1, proc_exit: (code) => process.exit(code) };
 for (const m of Object.keys(imports)) if (!wanted.has(m)) delete imports[m];
+// (other packages' imports, a browser's (helder.text's fonts): answered with 0)
+for (const i of WebAssembly.Module.imports(module)) {
+	if (!(i.module in imports)) imports[i.module] = {};
+	if (i.kind === 'function' && !(i.name in imports[i.module])) imports[i.module][i.name] = () => 0;
+}
 const instance = await WebAssembly.instantiate(module, imports);
 exports = instance.exports;
 const code = wasi.start(instance);

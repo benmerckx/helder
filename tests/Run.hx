@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "test", "cli", "devtools", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "devtools", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -36,6 +36,9 @@ class Run {
 		{name: "ui", about: "helder.ui on Eval: layout, events and focus, markup, the guide's examples", run: ui},
 		{name: "gfx-shader", about: "helder.gfx's shader macro on Eval: shaders on the CPU, the emitted GLSL, WGSL, MSL and HLSL, the programs it rejects", run: gfxShader},
 		{name: "async", about: "helder.async on Eval and natively (the loop, TCP, processes, the watcher, HTTP and WebSocket; its tasks and timers are the test lane's), as wasm32-wasi in the browser's loop (node), the async-dev example end to end, a benchmark", run: async},
+		{name: "jobs", about: "helder.jobs: the sendable check's rejections (tests/jobs/reject); the pool, cancellation, errors and channels are the test lane's (tests/jobs/Jobs.test.hx, natively and on wasm32-wasi with node's workers)", run: jobsLane},
+		{name: "jobs-web", about: "helder.jobs in headless Chromium: Web Workers instantiating the module, a cancelled one ended, the loop without frames (tests/jobs/JobsWeb.hx)", run: jobsWeb},
+		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively, on Eval and as wasm32-wasi (node)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run` and `dev` (src/helder/cli): an example by file and by directory, a project, natively and for web; the dev loop natively and for web without a window or a browser (tests/cli/dev.mjs)", run: cli},
@@ -52,7 +55,7 @@ class Run {
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
 		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
 		{name: "bench", about: "the engine's benchmarks (tests/bench) natively and as wasm32-wasi, and the examples' sizes and compile times: a table (bin/bench/results.md)", run: bench},
-		{name: "jobs", about: "background work against the main thread's frames (tests/bench/Jobs.hx): a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers: a table (bin/jobs/results.md)", run: jobs},
+		{name: "jobs-bench", about: "background work against the main thread's frames: a 4K PNG decoded between frames, as a GC job, as a GC-free job on off-heap memory (IoBuffer), natively and as wasm32-wasi workers, by hand (tests/bench/Jobs.hx) and through helder.jobs (JobsApi.hx), and a job's round trip: a table (bin/jobs/results.md)", run: jobs},
 		{name: "dev", about: "the dev loop: helder.dev.Hot and view's signals across a reload, then `haxe --dev` in Chromium and natively", run: dev},
 		{name: "dev-host", about: "helder dev's host (helder.dev.DevHost): three builds of a program as shared libraries swapped in one process and window (tests/os/dev/dev-host.mjs); DEV_HOST_TARGETS (comma-separated) cross-compiles for others too (windows-x86_64: run under Wine; macos-*: built only)", run: devHost},
 	];
@@ -142,6 +145,30 @@ class Run {
 			if (t != "") native('bin/async/$t/AsyncDev', dev, t);
 		exe("bin/async/AsyncBench", cp.concat(["-main", "AsyncBench"]));
 		run(exePath("bin/async/AsyncBench", HOST), []);
+	}
+
+	// (the sendable check: a program it rejects, with the message expected)
+	static function jobsLane() {
+		var cp = cps(["src", "tests/jobs/reject"]);
+		for (r in [
+			{main: "NotSendable", want: "helder.jobs: count's input cannot be sent: .items[]: Item is a class"},
+			{main: "NotSendableChannel", want: "helder.jobs: a Channel's value cannot be sent: Int -> Void is a function"}
+		]) {
+			var b = build(cp.concat(["-main", r.main, "--custom-target", 'hxmc=bin/jobs/reject/${r.main}']), 'bin/jobs/reject/${r.main}.log');
+			if (b.code == 0 || !b.log.contains(r.want)) throw new Failed('${r.main}: expected the error "${r.want}":\n' + b.log);
+			Sys.println('${r.main}: rejected');
+		}
+	}
+
+	static function jobsWeb() {
+		wasm("bin/jobs/JobsWeb.wasm", cps(["src", "tests/jobs"]).concat(["-main", "JobsWeb"]));
+		run(NODE, ["tests/jobs/browser.mjs", "bin/jobs/JobsWeb.wasm"]);
+	}
+
+	static function app() {
+		native('bin/os/$GFX_TARGET/AppLoopTest', cps(["src", "tests/os"]).concat(["-main", "AppLoopTest"]), GFX_TARGET);
+		var exe = exePath('bin/os/$GFX_TARGET/AppLoopTest', GFX_TARGET);
+		if (GFX_TARGET.startsWith("linux-")) shell('xvfb-run -a ' + exe) else run(exe, []);
 	}
 
 	static function asyncWeb() {
@@ -554,7 +581,7 @@ class Run {
 		}
 		function lines(cmd:String, args:Array<String>):Array<Array<String>>
 			return [for (_ in 0...runs) for (l in output(cmd, args).split("\n")) if (l.startsWith("jobs ")) l.split(" ")];
-		var md = ["# Jobs", "", 'tests/bench/Jobs.hx (`bun run test jobs`), ${Date.now().toString().substr(0, 10)}, ${cpuName()}; $runs runs of each, medians (and their spread).', ""];
+		var md = ["# Jobs", "", 'tests/bench/Jobs.hx (`bun run test jobs-bench`), ${Date.now().toString().substr(0, 10)}, ${cpuName()}; $runs runs of each, medians (and their spread).', ""];
 		for (mode in ["probe", "natural"]) {
 			md = md.concat([
 				"", '## $HOST, ${mode == "probe" ? "a collection at every frame of the job" : "collections from the garbage alone"}', "",
@@ -597,6 +624,22 @@ class Run {
 			var rows = lines(NODE, ["--no-turbo-fast-api-calls", "--stack-size=65500", "tests/bench/jobs.mjs", '$dir/JobsWasm.wasm', font, png, v]);
 			md.push('| $v | ' + [for (c in 3...11) cell(rows, c)].join(" | ") + " |");
 		}
+		// (the same through helder.jobs: frames on helder.async's loop, ImageJobs' job, a job's round trip)
+		exe('$dir/JobsApi', cp.concat(["-main", "JobsApi"]));
+		wasm('$dir/JobsApi.wasm', cp.concat(["-main", "JobsApi"]));
+		var api = exePath('$dir/JobsApi', HOST);
+		var wasi = ["--no-warnings", "--no-turbo-fast-api-calls", "--stack-size=65500", "src/helder/test/wasi.mjs", '$dir/JobsApi.wasm'];
+		md = md.concat(["", "## Through helder.jobs (JobsApi.hx)", "", "| target | variant | frame median | p99 | max | longest pause | decode |", "| --- | --- | ---: | ---: | ---: | ---: | ---: |"]);
+		for (mode in ["probe", "natural", "wasm"])
+			for (v in ["none", "inline", "job", "gc"]) {
+				var a = [font, png, v].concat(mode == "probe" ? ["probe"] : []);
+				var rows = [for (_ in 0...runs) for (l in (mode == "wasm" ? output(NODE, wasi.concat(a)) : output(api, a)).split("\n")) if (l.startsWith("api ")) l.split(" ")];
+				md.push('| ${mode == "wasm" ? "wasm32-wasi" : '$HOST, $mode'} | $v | ' + [for (c in 3...8) cell(rows, c)].join(" | ") + " |");
+			}
+		var o = (l:String) -> [for (x in l.split("\n")) if (x.startsWith("overhead ")) x.split(" ")][0];
+		var on = o(output(api, ["overhead"])), ow = o(output(NODE, wasi.concat(["overhead"])));
+		md = md.concat(["", "A job's round trip, from the awaiting task (µs):", "", "| target | GC-free | GC | on the loop |", "| --- | ---: | ---: | ---: |",
+			'| $HOST | ${on[1]} | ${on[2]} | ${on[3]} |', '| wasm32-wasi | ${ow[1]} | ${ow[2]} | ${ow[3]} |']);
 		File.saveContent('$dir/results.md', md.join("\n") + "\n");
 		Sys.println(md.join("\n"));
 	}
