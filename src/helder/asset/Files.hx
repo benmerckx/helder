@@ -77,6 +77,8 @@ class Files {
 		#if (hxmc.target == "ios-arm64" || hxmc.target == "ios-sim-arm64")
 		var dir = haxe.io.Path.directory(Sys.programPath());
 		return try sys.io.File.getBytes(dir + "/" + AssetPath.bundled(key)) catch (e:Dynamic) throw 'helder.asset: $key not in the app ($dir)';
+		#elseif (hxmc.target == "wasm32-wasi")
+		return sys.io.File.getBytes(AssetPath.bundled(key));
 		#else
 		var out:Null<Bytes> = null;
 		mapped(key, (p, n) -> {

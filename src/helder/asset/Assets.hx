@@ -67,7 +67,7 @@ class Assets {
 		var i = 0;
 		while (i < pending.length)
 			if (pending[i]()) pending.splice(i, 1) else i++;
-		var l:Null<helder.async.Loop> = cast helder.async.Driven.MainLoop.main;
+		var l = helder.async.Driven.MainLoop.main;
 		if (l != null && !l.turning) l.turn(0);
 		return pending.length;
 	}

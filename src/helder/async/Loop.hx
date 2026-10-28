@@ -201,7 +201,7 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	}
 
 	// (inside a turn: what runs there may not turn it again, helder.asset's Assets.poll)
-	public var turning(default, null) = false;
+	public var turning(default, null):Bool = false;
 
 	function turnOnce(seconds:Float):Bool {
 		drain();

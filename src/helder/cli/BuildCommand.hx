@@ -185,12 +185,11 @@ class BuildCommand {
 	}
 
 	// the assets' manifest of a build's output (helder.asset.Bundle's:
-	// {target, dev, assets: [{key, file, sync, bytes}]}), beside it in .assets/
-	// (an app bundle's executable: beside the bundle, whose files are sealed)
+	// {target, dev, assets: [{key, file, sync, bytes}]}: full paths of this
+	// machine), in helder's cache, not beside the output (what is shipped)
 	public static function manifest(exe:String):String {
-		var d = Path.directory(exe);
-		if (d.endsWith(".app")) d = Path.directory(d);
-		return (d == "" ? "." : d) + "/.assets/" + Path.withoutDirectory(exe) + ".json";
+		var full = FileSystem.fullPath(Path.directory(exe) == "" ? "." : Path.directory(exe)).split("\\").join("/") + "/" + Path.withoutDirectory(exe);
+		return DevCommand.cache() + "/assets/" + haxe.crypto.Md5.encode(full).substr(0, 16) + "-" + Path.withoutDirectory(exe) + ".json";
 	}
 
 	// the files of a build's manifest (none when it wrote none)

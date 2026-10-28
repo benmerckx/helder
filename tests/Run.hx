@@ -420,12 +420,14 @@ class Run {
 		native('bin/3d/$t/SurfaceTest', cps(["src", "tests/gfx", "tests/3d-ui"]).concat(["-main", "SurfaceTest"]), t);
 		shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 640x480x24" ' + exePath('bin/3d/$t/SurfaceTest', t));
 		run("sh", ["tests/3d/check.sh", 'bin/3d/$t']);
-		// (Model.of's files beside the executable, -D helder.scene.embed=0)
-		var files = exePath("bin/3d/files/RenderTest", t);
-		native("bin/3d/files/RenderTest", cp.concat(["-main", "RenderTest", "-D", "helder.scene.embed=0", "-D", 'helder.scene.out=$files']), t);
-		if (!FileSystem.exists("bin/3d/files/assets/sample.glb") || !FileSystem.exists('$files.assets.json'))
-			throw new Failed("RenderTest with -D helder.scene.embed=0: no assets beside it");
-		shell('cd bin/3d && LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY files/${Path.withoutDirectory(files)} skin ../../tests/3d/skin.png files/skin.png');
+		// (Model.of's files in the executable's data, helder.asset's Bundle: it
+		// alone in a directory, run from it, nothing beside it)
+		var exe = Path.withoutDirectory(exePath("bin/3d/alone/RenderTest", t));
+		rmrf("bin/3d/alone");
+		mkdirs("bin/3d/alone");
+		shell('cp ${exePath('bin/3d/$t/RenderTest', t)} bin/3d/alone/$exe');
+		if (FileSystem.readDirectory("bin/3d/alone").join(",") != exe) throw new Failed("bin/3d/alone: not the executable alone");
+		shell('cd bin/3d/alone && LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY ./$exe skin ../../../tests/3d/skin.png ../skin-alone.png');
 		// (Model.of: a name the file does not have is a compile error)
 		var r = build(cp.concat(cps(["tests/3d/reject"])).concat(["-main", "ModelTypo", "--custom-target", "hxmc=bin/3d/ModelTypo"]), "bin/3d/ModelTypo.log");
 		if (r.code == 0 || !r.log.contains("has no field bal"))
@@ -434,9 +436,10 @@ class Run {
 
 	static function sceneWeb() {
 		pack();
-		// (Model.of's files beside the module, -D helder.scene.embed=0: fetched by browser.mjs before main)
+		// (Model.of's files beside the module, helder.asset's Bundle: fetched by
+		// browser.mjs before main; Lazy's at run time)
 		rmrf("bin/3d/assets");
-		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.scene.embed=0", "-D", "helder.scene.out=bin/3d/SceneWebTest.wasm"]));
+		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.asset.out=bin/3d/SceneWebTest.wasm"]));
 		run(NODE, ["tests/3d/web.mjs", "bin/3d/SceneWebTest.wasm", "bin/3d"]);
 	}
 

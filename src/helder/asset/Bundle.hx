@@ -94,8 +94,7 @@ class Bundle {
 			entries.push({key: k, file: FileSystem.fullPath(f).split("\\").join("/"), sync: refs.get(k), bytes: FileSystem.stat(f).size});
 		}
 		if (manifest != null) {
-			var d = Path.directory(manifest);
-			if (d != "" && !FileSystem.exists(d)) FileSystem.createDirectory(d);
+			mkdirs(Path.directory(manifest));
 			File.saveContent(manifest, haxe.Json.stringify({target: target, dev: dev, assets: entries}, "\t"));
 		}
 		if (entries.length == 0 && manifest == null) return;
@@ -108,12 +107,16 @@ class Bundle {
 		if (target == "wasm32-wasi" && out != null) {
 			var dir = Path.directory(out);
 			if (dir == "") dir = ".";
-			if (!dev)
+			if (!dev) {
+				// (what an earlier build left there and this one does not name: gone)
+				var keep = [for (e in entries) AssetPath.bundled(e.key) => true];
+				prune(dir, "assets", keep);
 				for (e in entries) {
 					var dest = '$dir/${AssetPath.bundled(e.key)}';
 					mkdirs(Path.directory(dest));
 					File.copy(e.file, dest);
 				}
+			}
 			File.saveContent(out + ".assets.json", haxe.Json.stringify([for (e in entries) if (e.sync) AssetPath.bundled(e.key)]));
 		}
 		var app = Context.definedValue("helder.asset.app");
@@ -131,6 +134,19 @@ class Bundle {
 			files.set(rel, b);
 		}
 		File.saveBytes('$app/_CodeSignature/CodeResources', helder.pack.ios.Bundle.codeResources(files));
+	}
+
+	// the files under root/rel not kept (paths from root), and the directories left empty
+	static function prune(root:String, rel:String, keep:Map<String, Bool>) {
+		var d = '$root/$rel';
+		if (!FileSystem.exists(d) || !FileSystem.isDirectory(d)) return;
+		for (n in FileSystem.readDirectory(d)) {
+			var p = '$rel/$n';
+			if (FileSystem.isDirectory('$root/$p')) {
+				prune(root, p, keep);
+				if (FileSystem.readDirectory('$root/$p').length == 0) FileSystem.deleteDirectory('$root/$p');
+			} else if (!keep.exists(p)) FileSystem.deleteFile('$root/$p');
+		}
 	}
 
 	static function mkdirs(d:String)
