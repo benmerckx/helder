@@ -194,6 +194,9 @@ class Frontend {
 		var main = Builder.func(p, "main", TVoid);
 		b = new Builder(p, main);
 		b.runtime("libInit", []);
+		var features = Features.of(src);
+		for (f in features) b.runtime("libInstall" + f, []);
+		var eventLoop = features.contains("Promise") || features.contains("All") || features.contains("FromAsync");
 		modules = moduleOrder();
 		for (m in modules) {
 			validate(m.file.root);
@@ -230,7 +233,8 @@ class Frontend {
 				enter(m);
 				for (n in statementsOf(m.file)) statement(n, true);
 			}
-			b.runtime("libRunEventLoop", []);
+			// (timers and promises: only a program that has them runs the loop)
+			if (eventLoop) b.runtime("libRunEventLoop", []);
 		});
 		var caught = b.local("uncaught", TRef(RAny));
 		b.f.hasTry = true;

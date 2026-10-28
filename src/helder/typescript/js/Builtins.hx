@@ -91,22 +91,100 @@ class Builtins {
 		setupErrors();
 		setupIterators();
 		setupCollections();
-		Sets.setup();
 		setupGlobals();
 		Numbers.setup();
-		Json.setup();
 		Async.setup();
-		Promises.setup();
-		AsyncArray.setup();
-		Regex.setup();
-		Dates.setup();
-		Buffers.setup();
-		Iterators.setup();
-		RegexEscapes.setup();
-		var global:JsObject = globals.get("globalThis");
-		global.setOwn("Promise", globals.get("Promise"), Attr.HIDDEN);
-		global.setOwn("JSON", globals.get("JSON"), Attr.HIDDEN);
 	}
+
+	// The built-ins a program installs when it uses them (the frontend calls
+	// these, helder.typescript.lower.Features): what it does not install is
+	// code nothing reaches, which hxmc leaves out.
+	static var installed:Map<String, Bool> = [];
+
+	static function once(group:String):Bool {
+		if (installed.exists(group)) return false;
+		installed.set(group, true);
+		return true;
+	}
+
+	public static function installRegExp() if (once("RegExp")) {
+		Regex.setup();
+		RegexEscapes.setup();
+		createRegExp = Regex.create;
+		publish();
+	}
+
+	public static function installNormalize() if (once("normalize")) normalizeString = Normalization.normalize;
+
+	public static function installDate() if (once("Date")) {
+		Dates.setup();
+		publish();
+	}
+
+	public static function installBuffers() if (once("buffers")) {
+		Buffers.setup();
+		publish();
+	}
+
+	public static function installJson() if (once("JSON")) {
+		Json.setup();
+		publish();
+	}
+
+	public static function installIteratorHelpers() if (once("Iterator")) {
+		Iterators.setup();
+		publish();
+	}
+
+	public static function installPromise() if (once("Promise")) {
+		Promises.setup();
+		publish();
+	}
+
+	public static function installFromAsync() if (once("fromAsync")) {
+		installPromise();
+		AsyncArray.setup();
+	}
+
+	public static function installSetMethods() if (once("Set methods")) Sets.setup();
+
+	public static function installUri() if (once("URI")) {
+		globals.set("encodeURIComponent", native("encodeURIComponent", 1, (_, a, _) -> encodeUri(Seed.text(arg(a, 0)), "-_.!~*'()")));
+		globals.set("encodeURI", native("encodeURI", 1, (_, a, _) -> encodeUri(Seed.text(arg(a, 0)), "-_.!~*'();/?:@&=+$,#")));
+		globals.set("decodeURIComponent", native("decodeURIComponent", 1, (_, a, _) -> decodeUri(Seed.text(arg(a, 0)), "")));
+		globals.set("decodeURI", native("decodeURI", 1, (_, a, _) -> decodeUri(Seed.text(arg(a, 0)), ";/?:@&=+$,#")));
+		publish();
+	}
+
+	public static function installStructuredClone() if (once("structuredClone")) {
+		globals.set("structuredClone", native("structuredClone", 1, (_, a, _) -> clone(arg(a, 0), new haxe.ds.ObjectMap())));
+		publish();
+	}
+
+	// everything, for a program the frontend cannot see through (globalThis by a computed name)
+	public static function installAll() {
+		installRegExp();
+		installNormalize();
+		installDate();
+		installBuffers();
+		installJson();
+		installIteratorHelpers();
+		installPromise();
+		installFromAsync();
+		installSetMethods();
+		installUri();
+		installStructuredClone();
+	}
+
+	// an installer's new globals, also as globalThis's properties
+	static function publish() {
+		var g:JsObject = globals.get("globalThis");
+		for (name => v in globals) if (name != "globalThis" && !g.hasOwn(name)) g.setOwn(name, v, Attr.HIDDEN);
+	}
+
+	// (set by their installers: the string methods that need them reach them through these)
+	static var createRegExp:(String, String) -> Dynamic = null;
+	static var normalizeString:(String, String) -> String = null;
 
 	public static function global(name:String):Dynamic {
 		if (globals.exists(name)) return globals.get(name);
@@ -1038,7 +1116,7 @@ class Builtins {
 			case "normalize":
 				var form = first == undef() ? "NFC" : Seed.text(first);
 				if (["NFC", "NFD", "NFKC", "NFKD"].indexOf(form) < 0) return error("RangeError", "Invalid normalization form");
-				return Normalization.normalize(s, form);
+				return normalizeString(s, form);
 			case "isWellFormed" | "toWellFormed":
 				var b = new StringBuf();
 				var ok = true;
@@ -1120,7 +1198,7 @@ class Builtins {
 					var m = getKey(first, symbol, first);
 					if (m != undef() && m != null) return call(m, first, [s]);
 				}
-				var re = Regex.create(first == undef() ? "" : Seed.text(first), name == "matchAll" ? "g" : "");
+				var re = createRegExp(first == undef() ? "" : Seed.text(first), name == "matchAll" ? "g" : "");
 				return call(get(re, symbol), re, [s]);
 			case _: return error("TypeError", "String.prototype." + name + " is not implemented");
 		}
@@ -1613,11 +1691,6 @@ class Builtins {
 		globals.set("parseFloat", parseFloatFn);
 		number.setOwn("parseInt", parseIntFn, Attr.HIDDEN);
 		number.setOwn("parseFloat", parseFloatFn, Attr.HIDDEN);
-		globals.set("structuredClone", native("structuredClone", 1, (_, a, _) -> clone(arg(a, 0), new haxe.ds.ObjectMap())));
-		globals.set("encodeURIComponent", native("encodeURIComponent", 1, (_, a, _) -> encodeUri(Seed.text(arg(a, 0)), "-_.!~*'()")));
-		globals.set("encodeURI", native("encodeURI", 1, (_, a, _) -> encodeUri(Seed.text(arg(a, 0)), "-_.!~*'();/?:@&=+$,#")));
-		globals.set("decodeURIComponent", native("decodeURIComponent", 1, (_, a, _) -> decodeUri(Seed.text(arg(a, 0)), "")));
-		globals.set("decodeURI", native("decodeURI", 1, (_, a, _) -> decodeUri(Seed.text(arg(a, 0)), ";/?:@&=+$,#")));
 		globals.set("isNaN", native("isNaN", 1, (_, a, _) -> Math.isNaN(Seed.numeric(arg(a, 0)))));
 		globals.set("isFinite", native("isFinite", 1, (_, a, _) -> Math.isFinite(Seed.numeric(arg(a, 0)))));
 		var math = new JsObject(ObjectProto);

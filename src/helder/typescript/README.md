@@ -94,6 +94,14 @@ function results always hold numbers; those are F64 and compile to plain
 arithmetic. `ir/` has the IR builder, a verifier for the frontend's
 functions and a text form (`--dump-ir`, the tests' round trip).
 
+The runtime's optional built-ins (RegExp, normalize's Unicode tables,
+Date, ArrayBuffer/DataView, JSON, iterator helpers, Promise and the timers
+with the event loop, `Array.fromAsync`, Set's algebra, the URI functions,
+`structuredClone`) are installed by a program that uses them (`Features.hx`:
+the globals it names, the method names it calls, its syntax); hxmc leaves
+the rest out. A hello world is 538 KB instead of 904 KB. A program that
+names `globalThis` or calls a method by a computed name installs them all.
+
 Excluded, with a diagnostic: `eval`, `Function`, `Proxy`, `with`,
 `__proto__`/`setPrototypeOf`, dynamic `import()`. Not yet: BigInt, typed
 arrays, `process` and node's other globals, calling helder's Haxe API.

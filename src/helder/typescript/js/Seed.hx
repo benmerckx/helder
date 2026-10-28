@@ -207,6 +207,31 @@ class Seed {
 	// Entry points for compiled code (see Frontend).
 	public static function libInit():Void Builtins.init();
 
+	// (the built-ins a program uses: Builtins.install*, chosen by lower.Features)
+	public static function libInstallRegExp():Void Builtins.installRegExp();
+
+	public static function libInstallNormalize():Void Builtins.installNormalize();
+
+	public static function libInstallDate():Void Builtins.installDate();
+
+	public static function libInstallBuffers():Void Builtins.installBuffers();
+
+	public static function libInstallJson():Void Builtins.installJson();
+
+	public static function libInstallIteratorHelpers():Void Builtins.installIteratorHelpers();
+
+	public static function libInstallPromise():Void Builtins.installPromise();
+
+	public static function libInstallFromAsync():Void Builtins.installFromAsync();
+
+	public static function libInstallSetMethods():Void Builtins.installSetMethods();
+
+	public static function libInstallUri():Void Builtins.installUri();
+
+	public static function libInstallStructuredClone():Void Builtins.installStructuredClone();
+
+	public static function libInstallAll():Void Builtins.installAll();
+
 	public static function libTypeofGlobal(name:String):String return Builtins.globals.exists(name) ? typeOf(Builtins.globals.get(name)) : "undefined";
 
 	public static function libTypeofNamespace(ns:Dynamic, name:String):String return Lib.hasOwnKey(ns, name) ? typeOf(Lib.get(ns, name)) : libTypeofGlobal(name);
@@ -343,6 +368,18 @@ class Seed {
 		// Keep the semantics layer reachable during seed lowering. Reach prunes
 		// this entry and helpers unused by the actual TypeScript program afterwards.
 		libInit();
+		libInstallRegExp();
+		libInstallNormalize();
+		libInstallDate();
+		libInstallBuffers();
+		libInstallJson();
+		libInstallIteratorHelpers();
+		libInstallPromise();
+		libInstallFromAsync();
+		libInstallSetMethods();
+		libInstallUri();
+		libInstallStructuredClone();
+		libInstallAll();
 		libTypeofGlobal("Object");
 		libTypeofNamespace(libObject([], []), "x");
 		var o = libObject([], []);
