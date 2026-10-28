@@ -4,6 +4,7 @@ import hxmc.GcStats;
 import hxmc.unsafe.Blocking;
 import hxmc.unsafe.IoBuffer;
 import hxmc.unsafe.Mem;
+import helder.image.PngCore;
 import sys.thread.Lock;
 import sys.thread.Thread;
 
@@ -13,8 +14,9 @@ import sys.thread.Thread;
 // PNG (tests/bench/photo.mjs) is decoded:
 //
 //   a    on the main thread, between two frames
-//   b    a GC job: PngDecoder on a worker thread, its Bytes handed back
-//   d    a GC-free job: OffHeapPng, off-heap memory (IoBuffer), in a safe region
+//   b    a GC job: PngDecoder on a worker thread, its Bytes handed back (PngCore on the
+//        heap's Bytes since the decoders were made one: no GC point in the decode)
+//   d    a GC-free job: PngCore (PngDecoder's decoder) on off-heap memory (IoBuffer), in a safe region
 //   d0   d without the safe region
 //   none the frames alone
 //
@@ -165,21 +167,21 @@ class Jobs {
 				#end
 				#if (!jobs_only || jobs_only == "d" || jobs_only == "d0")
 				case "d" | "d0":
-					failed = OffHeapPng.header(pngBuf.ptr, pngBuf.length);
+					var info = IoBuffer.alloc(PngCore.INFO);
+					failed = PngCore.info(pngBuf.ptr, pngBuf.length, info.ptr);
 					if (failed == 0) {
-						var idat = IoBuffer.alloc(OffHeapPng.idatLength + 8), raw = IoBuffer.alloc(OffHeapPng.rawLength());
-						var scratch = IoBuffer.alloc(OffHeapPng.SCRATCH);
-						var p = pngBuf.ptr, n = pngBuf.length, i = idat.ptr, r = raw.ptr, s = scratch.ptr, safe = job == "d";
+						var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
+						var raw = IoBuffer.alloc(PngCore.bufferLength(info.ptr, w, h));
+						var p = pngBuf.ptr, n = pngBuf.length, i = info.ptr, r = raw.ptr, safe = job == "d";
 						// (d: in a safe region, the collector does not wait for it)
 						var region = safe ? Blocking.enter() : 0;
-						var e = OffHeapPng.decode(p, n, i, r, s);
+						var e = PngCore.decode(p, n, i, r);
 						if (safe) Blocking.leave(region);
 						failed = e;
-						idat.free();
-						scratch.free();
 						pixels = raw;
-						pixelsLen = OffHeapPng.width * OffHeapPng.height * 4;
+						pixelsLen = w * h * 4;
 					}
+					info.free();
 					finish();
 				#end
 				case _:
