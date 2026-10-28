@@ -77,10 +77,21 @@ task is the context's `CancellationToken`, so hxcoro's own `Coro.delay`,
 (a ring, drained each turn), then due timers (a binary heap), then a wait
 on I/O of at most the next timer's time. `run()` until nothing is left or
 `stop()`; `turn(seconds)` one turn, waiting at most that long (0: not at
-all), for a loop driven by another (App.run's frames: a turn of 0 each
-frame, and `App.wait` bounded by the next timer, are what it takes; the
-X11, Cocoa and Win32 waits do not see the sockets yet). `post(f)` from
-another thread (polled every 10 ms between `hold` and `release`).
+all), for a loop driven by another. `post(f)` from another thread:
+natively on POSIX a byte on the loop's wake pipe (made at the first
+`hold`), which its poll watches; elsewhere (Windows, Eval) polled every
+10 ms between `hold` and `release`.
+
+`App.run` (helder.os) drives the main thread's loop, once something made
+one (through `Driven`: App links nothing of the rest otherwise): a turn of
+it in each of the app's, after the events and before the frame;
+`App.wait` bounded by its next timer and woken by its I/O and posts (a
+job's reply): on X11 the loop's wait polls the connection with its own
+descriptors (`wait(seconds, fd)`); Cocoa, Win32, Android and UIKit wait at
+most 10 ms while I/O or a post may come (`bound`). While there are no
+frames (Android and iOS in the background) the loop still turns. In the
+browser the page turns the loop from its making on: between frames, and
+while there are none (a hidden tab, a canvas out of view).
 
 The I/O backend (`Io.Backend`) is completion-based, as io_uring and IOCP
 are: an `Op` (accept, connect, read into a buffer, write, a process's
@@ -139,8 +150,7 @@ earliest) or when a fetch ends. No sockets or processes there.
 
 ## Not yet
 
-Workers and channels between threads, job tiers (GC-free jobs on
-off-heap memory in a safe region), supervisors, `chunked`
+Supervisors, `chunked`
 bodies, TLS. A caught error is thrown again by the next coroutine call
 that returns without suspending (the coroutine transform's,
 tests/async/rep/CatchThenCall.hx); helder.async's own calls clear it.
@@ -152,4 +162,6 @@ helder.test's, `bun run helder test tests/async --target all`),
 WebSocket: `bun run test async`, on Eval and natively), `WebTest.hx` (the
 browser's loop: under node, and in Chromium with `bun run test
 async-web`), `examples/async-dev` end to end (`tests/async/dev.mjs`),
-`AsyncBench.hx`.
+`AsyncBench.hx`. Workers, jobs and channels between threads are
+helder.jobs' (src/helder/jobs/README.md); App.run's loop is the `app`
+lane's (tests/os/AppLoopTest.hx).

@@ -69,6 +69,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
 | `physics` | a small rigid-body core for `scene` |
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
+| `jobs` | background work awaited from a coroutine: GC-free jobs and GC jobs on a pool's threads or a browser's workers, channels, the sendable check |
 | `dev` | the dev host and state kept across a reload |
 | `devtools` | the devtools protocol (JSON-RPC on the dev connection) and its agent in dev builds: log, frame stats, the ui tree |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
@@ -272,16 +273,30 @@ collection only when it allocates or blocks.
 - **Async on the app's loop**, on phase 2's `helder.async` (a loop per
   thread, a coroutine never changing thread, structured concurrency and
   haxe.coro's cancellation are there):
-  - **the main loop driven by `App.run`**: a turn of it at a fixed point of
-    the frame, the waits of X11, Cocoa and Win32 bounded by its timers and
-    woken by its sockets, and it keeps running without frames (a hidden
-    browser tab pauses `requestAnimationFrame`; natively, replies from
-    workers wake `App.run`);
+  - **the main loop driven by `App.run`** (done, a first slice:
+    src/helder/async/README.md, "The loop"): a turn of it in each of the
+    app's, after the events and before the frame; X11's wait polls the
+    loop's descriptors and its wake pipe with the connection's, bounded by
+    its timers (a timer or a job's reply ends an idle `App.wait(1)` within
+    0.5 ms: the `app` lane); Cocoa, Win32, Android and UIKit wait at most 10
+    ms while I/O or a post may come; the page turns the loop between frames
+    and while there are none (a hidden canvas: the `jobs-web` lane). Left:
+    the OS loops watching the descriptors themselves (CFFileDescriptor,
+    MsgWaitForMultipleObjects with an event, ALooper_addFd) instead of the
+    10 ms bound;
   - **scopes owned by the app**, children cancelled with their parent;
   - first on it: `Fetch` (an awaitable one exists, `helder.os.Fetch` to
     follow), the next frame, asset loading.
 - **Background work as jobs on workers**, the same API natively and on
-  the web:
+  the web (done, a first slice: `helder.jobs`, src/helder/jobs/README.md;
+  `Jobs.run(f, input)` awaited from a coroutine, a GC-free job's output an
+  IoBuffer handed back without a copy natively and transferred on the web,
+  errors as `JobError`s, cancellation through the task; a 4K PNG through
+  it: frames' max 5.8-6.4 ms and longest pause 0.5-0.6 ms natively, 9.6
+  and 4.4 ms on wasm32's workers, as with no job; a round trip 28 µs
+  natively, 45-53 µs on wasm32. Left: channels toward a worker, enums as
+  sendable values, files in a browser's worker, SharedArrayBuffer as a fast
+  path):
   - natively, threads over the shared heap with the semantics of isolates
     (no shared mutable GC state);
   - on the web, Web Workers instantiating the program's own compiled
@@ -298,12 +313,30 @@ collection only when it allocates or blocks.
   - **channels** between threads carrying values that can be sent (checked
     by a macro, as Swift's `Sendable`): flat values, hxmc structs, Strings
     and Bytes (copied), and owned buffers (handed over without a copy
-    natively, transferred on the web).
-  - **first users: text's shaping and glyph rasterizing**, the spiky
-    part of text (a cold atlas about 5 ms; a relayout of 10k nodes is
-    0.008 ms): a new paragraph shaped and its glyphs drawn into the atlas
-    as GC-free jobs, the result a frame later or a fallback glyph meanwhile,
-    as browsers and games do for fonts.
+    natively, transferred on the web). Done for a first slice: `Channel<T>`
+    from any thread or job to the loop of the thread that made it;
+    anonymous structures and Arrays of these are sendable too (copied).
+  - **first user: image decoding** (done): helder.image's one PNG decoder,
+    `PngCore`, is `@:hxmc.unsafe` over native memory, the same code
+    `PngDecoder` runs on the calling thread and `ImageJobs` as a GC-free
+    job (every colour type, depth, Adam7, APNG's frames; the old decoder
+    removed: 1.4x faster, a quarter of the garbage, 83 KB smaller). Left:
+    JPEG, GIF and WebP still decode on the calling thread, and scene's
+    `Images` hook is synchronous (textures made as a model loads).
+  - **next: text's shaping and glyph rasterizing**, the spiky part of
+    text (a cold atlas about 5 ms; a relayout of 10k nodes is 0.008 ms): a
+    new paragraph shaped and its glyphs drawn into the atlas as GC-free
+    jobs, the result a frame later or a fallback glyph meanwhile, as
+    browsers and games do for fonts. The plan, as PNG's: `Rasterizer`'s
+    coverage and an outline's flattening over `Raw`-like memory, one
+    implementation for the atlas's warm path and the job; a font's bytes in
+    an IoBuffer the jobs share read-only (natively one copy, in a browser
+    one per worker); `GlyphAtlas.get` of a cold glyph queues it and answers
+    a fallback (the glyph at a size it has, scaled, or a blank of its
+    advance), a frame's queue one job (the outlines flattened on the main
+    thread, cheap), its bitmaps placed when it is back and the atlas's
+    version bumped, so that a renderer uploads them; TextLayout needs no
+    pixels (its metrics are the font's). Shaping as a job after it.
 - **An allocation-free core**, measured by `bun run test bench`
   ([baseline](tests/bench/results/baseline.md)), with whatever storage
   measures best. The text pilot ([results](tests/bench/results/text.md))
@@ -339,9 +372,9 @@ collection only when it allocates or blocks.
   - On wasm32, a worker instance leaves the frames alone; the pixels cost
     the main thread one 15 ms copy into its memory, avoidable by uploading
     from the transferred buffer.
-  - Still to do: the main loop with the next frame, then one worker on
-    the web. (Upstream's hxcoro or a runtime of our own: our own,
-    `helder.async`, which hxcoro's tasks run on.)
+  - Done since: the main loop with the frames, workers on the web,
+    `helder.jobs` (above). (Upstream's hxcoro or a runtime of our own: our
+    own, `helder.async`, which hxcoro's tasks run on.)
 - **The devtools app** (`helder devtools`; design from a study of Unity's,
   Unreal's, Godot's, Defold's and Bevy's tools, Flutter DevTools, Tracy,
   Storybook, Makepad Studio and Bezi), built with helder's ui, natively and

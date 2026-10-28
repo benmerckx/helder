@@ -2,7 +2,7 @@
 
 The README's phase 3, "To prototype first, and what decides it": is a
 GC-free job tier needed, and if so, on `helder.scoped`'s memory or on plain
-off-heap memory? Measured by tests/bench/Jobs.hx (`bun run test jobs`),
+off-heap memory? Measured by tests/bench/Jobs.hx (`bun run test jobs-bench`),
 2026-10-27, @hxmc/cli 0.1.0-nightly.20261027.8e54b1e, a shared 4-core Intel
 Xeon VM.
 
@@ -334,7 +334,7 @@ Without the checker, the module cache saves 70%; with it, nothing.
 ## Reproduce
 
 ```sh
-bun run test jobs                    # everything: bin/jobs/results.md (RUNS=5, JOBS="none a b c d c0 d0")
+bun run test jobs-bench              # everything: bin/jobs/results.md (RUNS=5, JOBS="none a b c d c0 d0")
 node tests/bench/photo.mjs bin/jobs/photo.png
 haxe -cp src -cp tests/bench -main Jobs --macro "helder.scoped.Check.enable()" \
   -D hxmc.target=linux-x86_64 -D hxmc.libc=glibc --custom-target hxmc=bin/jobs/Jobs
@@ -356,3 +356,78 @@ main thread), the counters from `hxmc.GcStats` (no `@:access`, no
 `Gc.stats`; the longest stop from its records). One run of each: the
 numbers hold. Probe: d's longest pause 0.61 ms (0.54-0.86), decode 168 ms;
 d0 154 ms; b 35 ms (32-47); the worker's allocation for b now exact (119 MB).
+
+## Through helder.jobs (2026-10-28)
+
+The same frames and photo through the real API (tests/bench/JobsApi.hx,
+in `bun run test jobs-bench`): the frames a task on helder.async's loop
+(its timers and waits, as App.run drives it), the decode
+`ImageJobs.pixels`: PngCore as a GC-free job on the pool natively, on a
+worker's instance on wasm32 (node 22, worker_threads, helder test's
+wasi.mjs). A frame's time is its work plus how late it started (what ran
+on the loop before it: the inline decode, the pixels' arrival, read as an
+upload would, then freed). @hxmc/cli 0.1.0-nightly.20261027.da5aa2b, the
+same VM; one to three runs each.
+
+| | variant | frame median | p99 = max | longest pause | decode |
+| --- | --- | ---: | ---: | ---: | ---: |
+| linux-x86_64, probe | none | 0.9-1.0 | 1.4-4.9 | 0.39-0.65 | |
+| | inline (`Jobs.workers = 0`) | 0.92 | 168.5 | 0.57 | 176.6 |
+| | job | 0.97-1.16 | 5.8-6.4 | 0.53-0.63 | 177-204 |
+| | gc (PngDecoder as a GC job) | 0.94 | 218.8 | **217.1** | 251.8 |
+| linux-x86_64, natural | none | 1.14 | 2.0 | 0.63 | |
+| | inline | 1.0 | 173.8 | 0.72 | 181.1 |
+| | job | 0.98 | 5.9 | 0.5 | 183.2 |
+| | gc | 1.02 | 202.3 | 200.3 | 235.7 |
+| wasm32-wasi | none | 1.68 | 9.9 | 8.1 | |
+| | inline | 1.70 | 284.9 | 4.6 | 289.8 |
+| | job | 1.82 | 9.6 | 4.4 | 377.0 |
+| | gc | 1.63 | 30.3 | 0 | 476.8 |
+
+- **The job leaves the frames alone**: its longest pause is the frames'
+  own, natively and on wasm32. The 5-6 ms natively is the pixels'
+  arrival: reading them and freeing 33 MB (munmap).
+- **A GC job is worse than before**: PngDecoder is PngCore's wrapper now
+  (below), which allocates nothing during its decode, so a collection
+  waits for all of it (200-217 ms; 35-55 with the old decoder's
+  allocations). GC jobs natively stay for short work.
+- **On wasm32** the gc variant's 30 ms is its result decoded into the
+  main instance's heap (33 MB of Bytes); the job's pixels arrive as an
+  IoBuffer.
+
+A job's round trip (an empty one, awaited one after the other, after 100
+to warm up):
+
+| | GC-free | GC | on the loop |
+| --- | ---: | ---: | ---: |
+| linux-x86_64 | 28.0 µs | 28.1 µs | 0.34 µs |
+| wasm32-wasi (node's workers) | 45.3 µs | 52.6 µs | 0.96 µs |
+
+Sizes (linux-x86_64 glibc / wasm32-wasi, bytes): a task awaiting a timer
+252,648 / 133,712; awaiting a GC-free job 292,232 / 148,334 (+40 KB / +15
+KB: the pool, the loop's wake, the job record); a GC job 296,728 /
+151,689 (its codec). A program without jobs links none of it: Tone
+198,552 / 80,353 before and after, Triangle +144 bytes (App.run's check
+for a loop), AsyncDev +4.4 KB (the loop's wake pipe).
+
+## One PNG decoder (2026-10-28)
+
+OffHeapPng became helder.image's `PngCore`, the only PNG decoder (Adam7
+and APNG frames' streams added, the errors PngDecoder's), over `Raw`
+(native memory on hxmc, Bytes on Eval); `PngDecoder` decodes a Bytes in
+place through it, `ImageJobs` an IoBuffer as a job. Against the
+decoder it replaced (d4857f3: PngDecoder on haxe.zip's InflateImpl),
+the synchronous decode, medians of 7 (the photo 7 natively, 5 on wasm32):
+
+| | old | new | old garbage | new garbage |
+| --- | ---: | ---: | ---: | ---: |
+| 13x11 palette4, linux-x86_64 | 0.002 ms | 0.006 ms | 1,800 B | 632 B |
+| 48x48 RGBA icon, linux-x86_64 | 0.027 ms | 0.022 ms | 41,160 B | 9,272 B |
+| 4K photo, linux-x86_64 | 258.7 ms | 184.0 ms | 119.0 MB | 33.2 MB |
+| 13x11 palette4, wasm32 | 0.002 ms | 0.005 ms | 1,832 B | 632 B |
+| 48x48 RGBA icon, wasm32 | 0.033 ms | 0.022 ms | 41,192 B | 9,272 B |
+| 4K photo, wasm32 | 276.4 ms | 198.4 ms | 119.0 MB | 33.2 MB |
+
+A program that only decodes a PNG: 198,040 bytes before, 115,000 after
+natively; 150,731 and 84,875 on wasm32. The 3-4 µs a tiny image costs
+more is the decoder's tables (28 KB malloc'ed and built per decode).
