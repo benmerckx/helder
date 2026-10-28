@@ -217,6 +217,25 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
     root's, the body's, nor a world drawn under the ui: `Node.ownsPointer`,
     a `<Scene>`'s box says no); `UiWindow` marks the pointer `owner = Ui`
     then, so that a game's touch controls leave it alone.
+  - Gestures (`helder.ui.gesture`): recognisers on nodes competing for
+    each pointer in an arena (Flutter's model): at a press the recognisers
+    from the node pressed up to the root join, the innermost first (the
+    first finger's scroll last); the first to accept (past its 8-point
+    slop, a second finger for a pinch) wins the pointer, the others lose
+    it; at the release a `Tap` still in it wins. A recogniser that wins
+    other than a `Tap` takes the click (`onClick` is a tap that won, as on
+    iOS: a button inside a pannable list). `Tap` (once, `Ended`, at the
+    release), `Pan` (`axis` `X` or `Y`: a drag along the other is left to a
+    scroller; `minPointers`), `Scale` (pan, pinch and turn at once: `scale`,
+    `dscale`, `angle`, `dangle`; `minPointers` 2 for a pinch); a finger put
+    down or lifted makes no jump. Their handler gets the recogniser itself,
+    reused: `state` (`Possible`, `Began`, `Changed`, `Ended`, `Cancelled`),
+    the focus `x`, `y` (node-local), `dx`, `dy` since the last call, `tx`,
+    `ty` since it began, `vx`, `vy` (points a second), `pointers`,
+    `pointerType`, `button`, `taps`; `cancel()` gives its pointers back.
+    The mouse's presses feed the arena too. `Node.addGesture`,
+    `removeGesture`, `gesture(Class)`; a recogniser of a node that leaves
+    the tree is cancelled.
 - **`helder.ui.draw`**: the GPU renderer. One shader draws rounded rectangles
   with borders, soft shadows and glyphs from an atlas, every fragment
   clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a
@@ -283,7 +302,9 @@ Attributes:
   `onLostPointerCapture`, `onWheel`, `onKeyDown`, `onKeyUp`,
   `onTextInput`, `onFocus`, `onBlur`, `onFocusIn`, `onFocusOut` (bubbling) (an `Event -> Void`);
   `onPress` (`Node.onActivate`: a click, or Enter or Space unless `onKeyDown`
-  took it, as a DOM button's click);
+  took it, as a DOM button's click); the gestures `onTap`, `onPan`
+  (`pan-axis="x"`, `pan-min-pointers`), `onPinch`, `onScale` (a
+  `helder.ui.gesture.Gesture -> Void`: a recogniser made on the node);
 - `focusable`, `ref={n -> ...}` (the node), `tag="name"` (for `Node.find`);
   `id` none here (a page's element's, where a page's renderer realises
   the element).

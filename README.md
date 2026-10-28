@@ -518,10 +518,22 @@ fix.
      presses left alone, cancels letting go; `<Stick>` drawn in ui), read
      once a step from `Pointers` with nothing allocated. Tested natively
      and as wasm32-wasi (`TouchActions.test.hx`), `<Stick>` under Xvfb.
-  4. Gestures in ui competing for a pointer (an arena: tap, pan, scale),
-     `<OrbitControls>` for scenes. Later: long press, double tap,
-     rotate alone, pen tilt and pressure in use, prediction, Windows' and
-     X11's touch screens, macOS's trackpad gestures.
+  4. *Landed*: gestures in ui competing for each pointer (an arena:
+     `Tap`, `Pan`, `Scale`; `onTap`, `onPan`, `onPinch`, `onScale` in
+     markup; a recogniser that wins takes the click), `onTap` on scene
+     nodes and `<OrbitControls>` for a `<Scene>`'s camera (one finger
+     turns it, two pinch about their centre, move and twist it; the mouse
+     and the wheel too; a glide). Tested on Eval, natively and as
+     wasm32-wasi (`Gestures.test.hx`, `OrbitControls.test.hx`), a tap and
+     an orbit over a GPU's `<Scene>` under Xvfb.
+
+  Tested where: the desktop (Linux, natively, and its GPU under Xvfb)
+  and the browser (wasm32-wasi in headless Chromium, touches and pens
+  through the DevTools protocol); Android's and iOS's back ends are
+  written and compile, not run until packaging lands in helder. Later:
+  long press, double tap and `waitFor`, rotate alone, `touch-action` on
+  nodes, pen tilt and pressure in use, prediction, Windows' and X11's
+  touch screens, macOS's trackpad gestures (magnify, rotate).
 - **Assets by path, bundled into the APK and the app** (phase 2's "assets
   anywhere, bundled by use"), read through one API on every platform.
 - **The game**: a small mobile 3D game as an example (a camera the fingers

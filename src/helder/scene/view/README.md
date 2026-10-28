@@ -46,6 +46,22 @@ pos.value = new Vec3(1, 1, 0);   // the node moves: no reconciliation, no re-ren
   leave). The `SceneEvent` is one per box, refilled; listeners are kept by
   kind when set. The box's pointers are the game's (`ownsPointer`: a
   touch on the scene is not marked the ui's).
+- **Taps and the camera**: `onTap` on scene elements (the box's own
+  `Tap`, for the node its press picked; `e.gesture`) competes in the
+  pointer's arena with `<OrbitControls>` (`SceneTags.OrbitControls`,
+  three.js's names: `target`, `minDistance`, `maxDistance`, `minPitch`,
+  `maxPitch`, `rotateSpeed`, `zoomSpeed`, `panSpeed`, `damping`,
+  `enableRotate`, `enableZoom`, `enablePan`, `enableTwist`, `ref`), which
+  reads the box's `Scale` gesture: one finger or the left button turns
+  the camera round the target, two fingers pinch it nearer about their
+  centre (the point under them stays), move the target and twist it, the
+  right button moves the target, the wheel zooms about the pointer; let
+  go moving it glides on, slowing by `damping` a frame. A tap on a mesh
+  selects, a drag from it orbits.
+- **`<Stick>`** (`SceneTags.Stick`): an on-screen stick
+  (`helder.scene.input.VirtualStick`, bound by `Actions`) drawn over the
+  ui, at rest at `left`, `bottom`, under the thumb once it holds it; the
+  pointer goes through it.
 - **`<Ui>`** (`SceneTags.Ui`): back to ui inside a scene, drei's `<Html>`:
   a scene node (`position`) whose children, ui's markup, are drawn over the
   box at its place, centred; placed from the frame drawn (a frame late) and
@@ -72,5 +88,8 @@ frame's still.
 
 Tests (`bun run test 3d`): `tests/3d-ui/SceneUiTest.hx` (markup on a
 world), `tests/3d-ui/SurfaceTest.hx` (under Xvfb: two `<Surface>`s, a
-`<Scene>`'s pixels in its box, a click picked in it, `<Ui>` placed).
+`<Scene>`'s pixels in its box, a click picked in it, fingers picked at
+their presses, a tap on the mesh, a drag from it orbiting the camera, a
+cancel, `<Ui>` placed, `<Stick>` drawn); `OrbitControls.test.hx` (the
+camera's motion without a GPU, natively and as wasm32-wasi).
 `examples/planets` puts them together.

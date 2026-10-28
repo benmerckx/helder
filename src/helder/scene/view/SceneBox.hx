@@ -48,6 +48,11 @@ class SceneBox extends helder.ui.Node {
 	final distances:Array<Float> = [for (_ in 0...helder.ui.Ui.POINTERS) 0.0];
 	// (the one event refilled for each dispatch)
 	final event = new SceneEvent();
+	// the controls moving its camera (OrbitControls), stepped before each frame it draws
+	@:allow(helder.scene.view) final controls:Array<OrbitControls> = [];
+	var steppedAt = -1.0;
+	// its scene nodes' taps (onTap): a recogniser of its own, in the arena with the controls'
+	final tap = new helder.ui.gesture.Tap();
 
 	public function new(world:World, ?camera:Camera) {
 		super("scene");
@@ -95,6 +100,10 @@ class SceneBox extends helder.ui.Node {
 			var id = pointerOf(e);
 			send(id, CLICK, e, lifted[id]);
 			lifted[id] = SceneGraphNode.NONE;
+		};
+		addGesture(tap).onGesture = g -> {
+			var id = g.pointerAt(0);
+			if (id >= 0 && id < helder.ui.Ui.POINTERS) send(id, TAP, null, lifted[id], g);
 		};
 		onPointerLeave = e -> {
 			if (!under.isNone && under.valid) dispatch(event.set(under, new Vec3(0, 0, 0), 0, e, null, 0), LEAVE);
@@ -189,6 +198,11 @@ class SceneBox extends helder.ui.Node {
 		var r = Std.downcast(canvas, helder.ui.draw.Renderer);
 		if (r == null) return;
 		if (animate && ui != null) ui.requestFrame();
+		// (its controls' glides, by the time since the last frame drawn)
+		var now = helder.ui.Ui.now(), dt = steppedAt < 0 ? 0 : Math.min(0.1, now - steppedAt);
+		steppedAt = now;
+		for (c in controls)
+			if (c.update(dt) && ui != null) ui.requestFrame();
 		var pw = Std.int(Math.max(1, Math.round(width * r.scale))), ph = Std.int(Math.max(1, Math.round(height * r.scale)));
 		if (renderer == null) {
 			device = r.device;

@@ -77,6 +77,10 @@ class Gesture {
 
 	public function new() {}
 
+	// the id of its i-th pointer (0 the mouse, else a finger's or a pen's slot)
+	public inline function pointerAt(i:Int):Int
+		return ids[i];
+
 	// whether it is under way (Began or Changed)
 	public var active(get, never):Bool;
 

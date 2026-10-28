@@ -32,6 +32,8 @@ import helder.view.Render;
 // over it go to the scene node under the pointer (Pick: bounds, not
 // triangles), then its ancestors. <Ui> goes back to ui inside a scene: its
 // children drawn by the <Scene>'s ui over the box, at its node's place.
+// <OrbitControls> moves its camera from the pointers over it; <Stick>
+// draws an on-screen stick (helder.scene.input.VirtualStick) over the ui.
 class SceneTags {
 	// (the box a scene's markup is drawn in, for <Ui>)
 	public static final BOX = new helder.view.Context<Null<SceneBox>>(null);
@@ -59,6 +61,56 @@ class SceneTags {
 
 	static function bind(n:helder.ui.Node, name:String, v:Dynamic)
 		Render.isReactive(v) ? Reactive.effect(() -> NodeRenderer.setProperty(n, name, Render.read(v))) : NodeRenderer.setProperty(n, name, v);
+
+	// the <Scene>'s camera orbiting target, driven by the pointers over its
+	// box (OrbitControls: one finger or the left button turns it, two
+	// pinch and move it, the right button moves it, the wheel zooms); its
+	// props are OrbitControls' (a target bound to a signal follows it)
+	public static function OrbitControls(props:{
+		?camera:Camera,
+		?target:Dynamic,
+		?minDistance:Float,
+		?maxDistance:Float,
+		?minPitch:Float,
+		?maxPitch:Float,
+		?rotateSpeed:Float,
+		?zoomSpeed:Float,
+		?panSpeed:Float,
+		?damping:Float,
+		?enableRotate:Bool,
+		?enableZoom:Bool,
+		?enablePan:Bool,
+		?enableTwist:Bool,
+		?ref:helder.scene.view.OrbitControls->Void
+	}):SceneNode {
+		var box = Reactive.use(BOX);
+		if (box == null) throw "helder.scene: <OrbitControls> is in a <Scene>'s markup";
+		var o = new helder.scene.view.OrbitControls(box, props.camera);
+		if (props.minDistance != null) o.minDistance = props.minDistance;
+		if (props.maxDistance != null) o.maxDistance = props.maxDistance;
+		if (props.minPitch != null) o.minPitch = props.minPitch;
+		if (props.maxPitch != null) o.maxPitch = props.maxPitch;
+		if (props.rotateSpeed != null) o.rotateSpeed = props.rotateSpeed;
+		if (props.zoomSpeed != null) o.zoomSpeed = props.zoomSpeed;
+		if (props.panSpeed != null) o.panSpeed = props.panSpeed;
+		if (props.damping != null) o.damping = props.damping;
+		if (props.enableRotate != null) o.enableRotate = props.enableRotate;
+		if (props.enableZoom != null) o.enableZoom = props.enableZoom;
+		if (props.enablePan != null) o.enablePan = props.enablePan;
+		if (props.enableTwist != null) o.enableTwist = props.enableTwist;
+		if (props.target != null) {
+			if (Render.isReactive(props.target)) Reactive.effect(() -> {
+				o.target = Render.read(props.target);
+				o.look();
+			}) else {
+				o.target = props.target;
+				o.look();
+			}
+		}
+		if (props.ref != null) props.ref(o);
+		Reactive.onCleanup(o.dispose);
+		return SceneRenderer.createMarker("orbit-controls");
+	}
 
 	// an on-screen stick drawn over the ui (helder.scene.input.VirtualStick,
 	// which Actions bind): at rest at left, bottom (points from the lower

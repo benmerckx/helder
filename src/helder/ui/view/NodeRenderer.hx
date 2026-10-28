@@ -28,6 +28,9 @@ import helder.image.AnimatedImage;
 // (onClick, onPress (a click, or Enter or Space: Node.onActivate), onPointerDown, onPointerUp, onPointerMove, onPointerEnter,
 // onPointerLeave, onPointerCancel, onLostPointerCapture, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void;
+// the gestures, onTap, onPan (pan-axis "x" or "y", pan-min-pointers),
+// onPinch, onScale: a recogniser on the node (helder.ui.gesture), its
+// handler a Gesture -> Void;
 // a node's own handler, a field's editing, after the markup's unless it
 // prevented the default), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
@@ -191,6 +194,27 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 		if (v != null) States.apply(n, v);
 
 	// (null: its tag as it is)
+	// a Pan's options (onPan's: made here when it is not yet): "x", "y" or
+	// "both"; the pointers down before it begins
+	@:attribute static function panAxis(n:Node, name:String, v:Dynamic)
+		pan(n).axis = v == "x" || v == helder.ui.gesture.Axis.X ? helder.ui.gesture.Axis.X : v == "y"
+			|| v == helder.ui.gesture.Axis.Y ? helder.ui.gesture.Axis.Y : helder.ui.gesture.Axis.Both;
+
+	@:attribute static function panMinPointers(n:Node, name:String, v:Dynamic)
+		pan(n).minPointers = Std.isOfType(v, String) ? Std.parseInt(v) : v;
+
+	static function pan(n:Node):helder.ui.gesture.Pan
+		return n.gesture(helder.ui.gesture.Pan) ?? n.addGesture(new helder.ui.gesture.Pan());
+
+	// (onPinch's Scale from two pointers, onScale's from one)
+	static function scale(n:Node, min:Int):helder.ui.gesture.Scale {
+		var gs = n.gestures;
+		if (gs != null)
+			for (g in gs)
+				if (Std.isOfType(g, helder.ui.gesture.Scale) && (cast g : helder.ui.gesture.Scale).minPointers == min) return cast g;
+		return n.addGesture(new helder.ui.gesture.Scale(min));
+	}
+
 	@:attribute static function tag(n:Node, name:String, v:Dynamic)
 		if (v != null) n.tag = v;
 
@@ -417,6 +441,11 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 			case "onDragLeave": n.onDragLeave = h;
 			case "onDrop": n.onDrop = h;
 			case "onDragEnd": n.onDragEnd = h;
+			// (the gestures: a recogniser on the node, its handler; helder.ui.gesture)
+			case "onTap": (n.gesture(helder.ui.gesture.Tap) ?? n.addGesture(new helder.ui.gesture.Tap())).onGesture = v;
+			case "onPan": pan(n).onGesture = v;
+			case "onPinch": scale(n, 2).onGesture = v;
+			case "onScale": scale(n, 1).onGesture = v;
 			case _: throw 'helder.ui: no event $name';
 		}
 	}

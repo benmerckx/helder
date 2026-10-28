@@ -15,8 +15,9 @@ import helder.view.Reactive.*;
 // <Surface>s, one with a reactive title, opened by Render.open; in the
 // first a <Scene> box in ui's layout drawing a mesh (its pixels the
 // scene's), a click over the mesh routed by ui's hit testing into the
-// scene (picked), fingers picked at their presses (each its own, a
-// cancel), <Ui> over the mesh, a <Stick> drawn at rest; the second window
+// scene (picked), fingers picked at their presses (each its own, a tap,
+// a cancel), a drag from the mesh orbiting the camera (<OrbitControls>),
+// <Ui> over the mesh, a <Stick> drawn at rest; the second window
 // closed by a Show, both by the root's dispose.
 class SurfaceTest implements Markup {
 	static var checks = 0;
@@ -35,6 +36,7 @@ class SurfaceTest implements Markup {
 		var second = signal(true);
 		var picked = signal("");
 		var touches:Array<String> = [];
+		var orbit:Null<helder.scene.view.OrbitControls> = null;
 		var stick = new helder.scene.input.VirtualStick({zone: helder.scene.input.Zone.rect(0, 0, 0.3, 1), radius: 20});
 		var windows:Array<UiWindow> = [];
 		var world = new World("test"), eye = world.node("eye");
@@ -48,7 +50,9 @@ class SurfaceTest implements Markup {
 					<Scene world={world} camera={camera} grow={1}>
 						<mesh shape="box" size={1.4} color={new Vec4(1, 0.2, 0.1, 1)} onClick={(e:SceneEvent) -> picked.value = "box"}
 							onPointerDown={(e:SceneEvent) -> touches.push('down ${e.pointerId}')} onPointerMove={(e:SceneEvent) -> touches.push('move ${e.pointerId}')}
-							onPointerUp={(e:SceneEvent) -> touches.push('up ${e.pointerId}')} onPointerCancel={(e:SceneEvent) -> touches.push('cancel ${e.pointerId}')}/>
+							onPointerUp={(e:SceneEvent) -> touches.push('up ${e.pointerId}')} onPointerCancel={(e:SceneEvent) -> touches.push('cancel ${e.pointerId}')}
+							onTap={(e:SceneEvent) -> touches.push('tap ${e.pointerId}')}/>
+						<OrbitControls damping={0.0} ref={o -> orbit = o}/>
 						<light kind="directional" intensity={2.0}/>
 						<Ui><text tag="over">over</text></Ui>
 					</Scene>
@@ -101,16 +105,28 @@ class SurfaceTest implements Markup {
 		picked.value = "";
 		touches.resize(0);
 		check("a finger on the scene (off the <Ui>'s label) is the game's", !w.ui.pointerDown(185, 70, 1, 1, Touch));
-		w.ui.pointerDown(130, 10, 1, 2, Touch);
+		// (a second finger beside the box, on the ui's panel)
+		w.ui.pointerDown(60, 10, 1, 2, Touch);
 		w.ui.pointerMove(188, 70, 1);
-		w.ui.pointerMove(300, 190, 2);
+		w.ui.pointerMove(110, 150, 2);
 		w.ui.pointerUp(188, 70, 1, 1);
-		w.ui.pointerUp(300, 190, 1, 2);
-		check("fingers picked at their presses", touches.join(", ") == "down 1, move 1, up 1" && picked.value == "box", touches.join(", ") + "; " + picked.value);
+		w.ui.pointerUp(110, 150, 1, 2);
+		check("fingers picked at their presses, a tap", touches.join(", ") == "down 1, move 1, up 1, tap 1" && picked.value == "box", touches.join(", ") + "; " + picked.value);
 		touches.resize(0);
 		w.ui.pointerDown(185, 70, 1, 3, Touch);
 		w.ui.pointerCancel(3);
 		check("a cancel", touches.join(", ") == "down 3, cancel 3", touches.join(", "));
+		// (a drag from the mesh orbits the camera: no tap)
+		touches.resize(0);
+		var eye = camera.eye();
+		w.ui.pointerDown(185, 70, 1, 4, Touch);
+		w.ui.pointerMove(200, 70, 4);
+		w.ui.pointerMove(240, 70, 4);
+		w.ui.pointerUp(240, 70, 1, 4);
+		var moved = camera.eye();
+		check("a drag from the mesh orbits the camera", orbit != null && moved.x < eye.x - 0.5 && touches.join(", ") == "down 4, move 4, move 4, up 4", '$eye to $moved; ' + touches.join(", "));
+		touches.resize(0);
+
 		w.ui.requestFrame();
 		w.frame();
 		var over = w.root.find("over");
