@@ -5,8 +5,12 @@ import haxe.io.Bytes;
 import helder.jobs.Job;
 import helder.jobs.JobError;
 import helder.jobs.Jobs;
+import hxmc.ReadOnlySpan;
+import hxmc.Span;
 import hxmc.unsafe.IoBuffer;
 import hxmc.unsafe.Mem;
+import hxmc.unsafe.Ptr;
+import hxmc.unsafe.UInt8;
 
 // Images decoded as GC-free jobs (helder.jobs: natively on a pool's thread
 // in a safe region, in a browser on a worker), so that a large one leaves
@@ -21,14 +25,13 @@ class ImageJobs {
 	// the PNG job: its input the file, its output the RGBA8 pixels (the
 	// size: the header's, PngCore.info)
 	@:hxmc.unsafe @:hxmc.callback public static function png(job:Job):Int {
-		var input = job.input;
-		var p:Raw = input.ptr, n = input.length, info:Raw = Mem.stack(PngCore.INFO);
-		var e = PngCore.info(p, n, info);
+		var input = job.input, info:Ptr<UInt8> = cast Mem.stack(PngCore.INFO);
+		var e = PngCore.info(ReadOnlySpan.unsafeOf(input.ptr, input.length), Span.unsafeOf(info, PngCore.INFO));
 		if (e != 0) return e;
-		var w = info.i32(PngCore.WIDTH), h = info.i32(PngCore.HEIGHT);
-		var out = job.output(PngCore.bufferLength(info, w, h));
+		var w = Mem.getI32(info, PngCore.WIDTH), h = Mem.getI32(info, PngCore.HEIGHT);
+		var len = PngCore.bufferLength(ReadOnlySpan.unsafeOf(info, PngCore.INFO), w, h), out = job.output(len);
 		if (out.isNull()) return PngCore.ERR_MEMORY;
-		e = PngCore.decode(p, n, info, out);
+		e = PngCore.decode(ReadOnlySpan.unsafeOf(input.ptr, input.length), Span.unsafeOf(info, PngCore.INFO), Span.unsafeOf(out, len));
 		if (e != 0) return e;
 		job.truncate(w * h * 4);
 		return 0;
@@ -51,21 +54,15 @@ class ImageJobs {
 	// errors thrown here (PngDecoder's), the data's as a JobError (PngCore's
 	// code, PngDecoder's message)
 	@:coroutine public static function pixels(file:IoBuffer):{width:Int, height:Int, rgba:IoBuffer} {
-		var info = Raw.malloc(PngCore.INFO);
-		var e = PngCore.info(file.ptr, file.length, info);
-		var w = info.i32(PngCore.WIDTH), h = info.i32(PngCore.HEIGHT);
-		var m = e != 0 ? PngCore.message(e, info) : null;
-		info.free();
-		if (m != null) {
+		var info = Bytes.alloc(PngCore.INFO);
+		var e = PngCore.info(ReadOnlySpan.ofIoBuffer(file), Span.ofBytes(info));
+		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
+		if (e != 0) {
 			file.free();
-			throw m;
+			throw PngCore.message(e, info);
 		}
 		var rgba = try Jobs.run(ImageJobs.png, file) catch (j:JobError) {
-			var i = Raw.malloc(PngCore.INFO);
-			i.fill(0, PngCore.INFO);
-			var m = PngCore.message(j.code, i);
-			i.free();
-			throw new JobError(j.code, m);
+			throw new JobError(j.code, PngCore.message(j.code, Bytes.alloc(PngCore.INFO)));
 		}
 		return {width: w, height: h, rgba: rgba};
 	}

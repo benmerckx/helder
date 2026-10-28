@@ -1,9 +1,11 @@
 import haxe.Timer;
 import haxe.io.Bytes;
 import hxmc.GcStats;
-import hxmc.unsafe.Blocking;
+import hxmc.ReadOnlySpan;
+import hxmc.Span;
 import hxmc.unsafe.IoBuffer;
 import hxmc.unsafe.Mem;
+import hxmc.unsafe.UInt8;
 import helder.image.PngCore;
 import sys.thread.Lock;
 import sys.thread.Thread;
@@ -168,15 +170,13 @@ class Jobs {
 				#if (!jobs_only || jobs_only == "d" || jobs_only == "d0")
 				case "d" | "d0":
 					var info = IoBuffer.alloc(PngCore.INFO);
-					failed = PngCore.info(pngBuf.ptr, pngBuf.length, info.ptr);
+					failed = PngCore.info(ReadOnlySpan.ofIoBuffer(pngBuf), Span.ofIoBuffer(info));
 					if (failed == 0) {
 						var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
-						var raw = IoBuffer.alloc(PngCore.bufferLength(info.ptr, w, h));
-						var p = pngBuf.ptr, n = pngBuf.length, i = info.ptr, r = raw.ptr, safe = job == "d";
+						var raw = IoBuffer.alloc(PngCore.bufferLength(ReadOnlySpan.ofIoBuffer(info), w, h));
 						// (d: in a safe region, the collector does not wait for it)
-						var region = safe ? Blocking.enter() : 0;
-						var e = PngCore.decode(p, n, i, r);
-						if (safe) Blocking.leave(region);
+						var e = job == "d" ? decodeBlocking(ReadOnlySpan.ofIoBuffer(pngBuf), Span.ofIoBuffer(info), Span.ofIoBuffer(raw))
+							: PngCore.decode(ReadOnlySpan.ofIoBuffer(pngBuf), Span.ofIoBuffer(info), Span.ofIoBuffer(raw));
 						failed = e;
 						pixels = raw;
 						pixelsLen = w * h * 4;
@@ -188,6 +188,10 @@ class Jobs {
 			}
 		}
 	}
+
+	// (PngCore in a safe region, which the call enters and leaves: d's)
+	@:hxmc.blocking static function decodeBlocking(png:ReadOnlySpan<UInt8>, info:Span<UInt8>, raw:Span<UInt8>):Int
+		return PngCore.decode(png, info, raw);
 
 	// (the job's end: its time, the GC heap bytes the worker allocated)
 	static function finish() {

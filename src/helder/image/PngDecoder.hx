@@ -1,6 +1,8 @@
 package helder.image;
 
 import haxe.io.Bytes;
+import hxmc.ReadOnlySpan;
+import hxmc.Span;
 
 // PNG files decoded to RGBA8 (Image.decode): every colour type (grey, RGB,
 // palette, grey with alpha, RGBA), bit depths 1 to 16 (16 kept to their
@@ -15,44 +17,49 @@ class PngDecoder {
 	// (an animated PNG's: its default image)
 	public static function decode(png:Bytes):{width:Int, height:Int, rgba:Bytes} {
 		var info = header(png);
-		var w = info.i32(PngCore.WIDTH), h = info.i32(PngCore.HEIGHT);
-		var px = w * h * 4, len = PngCore.bufferLength(info, w, h), out = Bytes.alloc(px);
+		var w = info.getInt32(PngCore.WIDTH), h = info.getInt32(PngCore.HEIGHT);
+		var px = w * h * 4, out = Bytes.alloc(px);
 		// (decoded in the result when it is the room needed, else beside it, the pixels copied in)
-		var e = if (len == px) PngCore.decode(Raw.of(png), png.length, info, Raw.of(out)) else {
-			var b = Raw.malloc(len);
-			var e = b.isNull() ? PngCore.ERR_MEMORY : PngCore.decode(Raw.of(png), png.length, info, b);
-			if (e == 0) b.copyTo(out, px);
-			if (!b.isNull()) b.free();
-			e;
-		}
-		check(e, info);
-		info.free();
+		if (PngCore.bufferLength(ReadOnlySpan.ofBytes(info), w, h) == px)
+			check(PngCore.decode(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), Span.ofBytes(out)), info);
+		else
+			beside(png, info, null, w, h, out);
 		return {width: w, height: h, rgba: out};
 	}
 
-	// (the header read: its info, the caller's to free; an error thrown)
-	static function header(png:Bytes):Raw {
-		var info = Raw.malloc(PngCore.INFO);
-		if (info.isNull()) throw "PngDecoder: out of memory";
-		check(PngCore.info(Raw.of(png), png.length, info), info);
+	// (the header read: its info; an error thrown)
+	static function header(png:Bytes):Bytes {
+		var info = Bytes.alloc(PngCore.INFO);
+		check(PngCore.info(ReadOnlySpan.ofBytes(png), Span.ofBytes(info)), info);
 		return info;
 	}
 
-	static function check(e:Int, info:Raw)
-		if (e != 0) {
-			var m = PngCore.message(e, info);
-			info.free();
-			throw m;
-		}
+	static function check(e:Int, info:Bytes)
+		if (e != 0) throw PngCore.message(e, info);
+
+	// (decoded into a buffer of its own, the pixels copied to out: the file's
+	// image data, or a frame's zlib stream; off the GC heap on hxmc)
+	static function beside(png:Bytes, info:Bytes, data:Null<Bytes>, w:Int, h:Int, out:Bytes) {
+		var len = PngCore.bufferLength(ReadOnlySpan.ofBytes(info), w, h);
+		#if (target.name == "hxmc")
+		var b = hxmc.unsafe.IoBuffer.alloc(len);
+		var e = data == null ? PngCore.decode(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), Span.ofIoBuffer(b))
+			: PngCore.decodeStream(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), ReadOnlySpan.ofBytes(data), w, h, Span.ofIoBuffer(b));
+		if (e == 0) b.blitToBytes(0, out, 0, out.length);
+		b.free();
+		#else
+		var b = Bytes.alloc(len);
+		var e = data == null ? PngCore.decode(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), Span.ofBytes(b))
+			: PngCore.decodeStream(ReadOnlySpan.ofBytes(png), Span.ofBytes(info), ReadOnlySpan.ofBytes(data), w, h, Span.ofBytes(b));
+		if (e == 0) out.blit(0, b, 0, out.length);
+		#end
+		check(e, info);
+	}
 
 	// a frame's region: its zlib stream, w x h pixels of the header's format
-	static function region(png:Bytes, info:Raw, data:Bytes, w:Int, h:Int):Bytes {
-		var px = w * h * 4, len = PngCore.bufferLength(info, w, h), out = Bytes.alloc(px);
-		var b = Raw.malloc(len);
-		var e = b.isNull() ? PngCore.ERR_MEMORY : PngCore.decodeStream(Raw.of(png), info, Raw.of(data), data.length, w, h, b);
-		if (e == 0) b.copyTo(out, px);
-		if (!b.isNull()) b.free();
-		check(e, info);
+	static function region(png:Bytes, info:Bytes, data:Bytes, w:Int, h:Int):Bytes {
+		var out = Bytes.alloc(w * h * 4);
+		beside(png, info, data, w, h, out);
 		return out;
 	}
 
@@ -64,19 +71,15 @@ class PngDecoder {
 	// the one frame. A frame drawn over another blends with straight alpha.
 	public static function frames(png:Bytes):{width:Int, height:Int, repetitions:Int, frames:Array<{rgba:Bytes, delay:Float}>} {
 		var info = header(png);
-		var w = info.i32(PngCore.WIDTH), height = info.i32(PngCore.HEIGHT);
+		var w = info.getInt32(PngCore.WIDTH), height = info.getInt32(PngCore.HEIGHT);
 		var f = animation(png);
-		if (f.frames.length == 0) {
-			info.free();
+		if (f.frames.length == 0)
 			return {width: w, height: height, repetitions: 0, frames: [{rgba: decode(png).rgba, delay: 0.0}]};
-		}
 		var canvas = Bytes.alloc(w * height * 4), out = [];
 		for (k in 0...f.frames.length) {
 			var a = f.frames[k];
-			if (a.x < 0 || a.y < 0 || a.width <= 0 || a.height <= 0 || a.x + a.width > w || a.y + a.height > height) {
-				info.free();
+			if (a.x < 0 || a.y < 0 || a.width <= 0 || a.height <= 0 || a.x + a.width > w || a.y + a.height > height)
 				throw "PngDecoder: a frame outside the image";
-			}
 			var sub = region(png, info, a.inIdat ? f.idat : a.parts.getBytes(), a.width, a.height);
 			// (put back after it: the canvas before it; the first frame's "previous" is a clear)
 			var before = a.dispose == 2 && k > 0 ? canvas.sub(0, canvas.length) : null;
@@ -92,7 +95,6 @@ class PngDecoder {
 					canvas.fill(4 * ((a.y + y) * w + a.x), 4 * a.width, 0);
 			else if (before != null) canvas = before;
 		}
-		info.free();
 		return {width: w, height: height, repetitions: f.plays == 0 ? -1 : f.plays - 1, frames: out};
 	}
 

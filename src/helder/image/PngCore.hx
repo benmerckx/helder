@@ -1,24 +1,35 @@
 package helder.image;
 
+import haxe.io.Bytes;
+import hxmc.ReadOnlySpan;
+import hxmc.Span;
+import hxmc.unsafe.UInt8;
+#if (target.name == "hxmc")
+import helder.image.SpanDce; // (a workaround: see there)
+#end
+
 // PNG decoding, helder's one implementation: every colour type and bit
 // depth, tRNS, Adam7 interlacing, to RGBA8 (rows top to bottom, straight
-// alpha; 16-bit samples their high byte), over memory as Raw gives it.
-// Every function is @:hxmc.unsafe: on hxmc it touches no GC object (the
-// compiler checks it), so the same code decodes a Bytes for PngDecoder on
-// the calling thread and an off-heap buffer for ImageJobs in a GC-free
-// job's safe region; elsewhere (Eval) it runs on Bytes.
+// alpha; 16-bit samples their high byte). A kernel (@:hxmc.kernel,
+// docs/interop.md in hxmc, "Kernels"): on hxmc it touches no GC object and
+// reads and writes memory only through checked spans (the compiler checks
+// both), so the same code decodes a Bytes for PngDecoder on the calling
+// thread (ReadOnlySpan.ofBytes, no copy) and an off-heap buffer for
+// ImageJobs in a GC-free job's safe region; elsewhere (Eval, JavaScript)
+// the spans are views of Bytes (hxmc's fallback), and the same code runs.
 //
-// The caller reads the header (info), gives a buffer of bufferLength
-// bytes and decodes into it (decode: the IDAT data; decodeStream: a zlib
-// stream of any size with the header's format, an APNG frame's): the data
-// inflated (as hxmc's std's InflateImpl: a 32-bit bit buffer, codes up to
-// 10 bits by table, longer ones from their canonical counts), the rows
-// unfiltered in place and packed, then widened to RGBA8 in place (from the
-// end when a pixel has 32 bits or fewer, from the start when more); an
-// interlaced image's passes are inflated after the pixels and put in
-// place. The pixels are the buffer's first width * height * 4 bytes. Its
-// state is in memory it allocates and frees: decodes on several threads
-// are independent. Errors are results < 0, PngDecoder's messages (message).
+// The caller reads the header (info, into INFO bytes), gives a buffer of
+// bufferLength bytes and decodes into it (decode: the file's IDAT chunks,
+// read where they are; decodeStream: a zlib stream of any size with the
+// header's format, an APNG frame's): the data inflated (as hxmc's std's
+// InflateImpl: a 32-bit bit buffer, codes up to 10 bits by table, longer
+// ones from their canonical counts), the rows unfiltered in place and
+// packed, then widened to RGBA8 in place (from the end when a pixel has 32
+// bits or fewer, from the start when more); an interlaced image's passes
+// are inflated after the pixels and put in place. The pixels are the
+// buffer's first width * height * 4 bytes. Its other memory (scratch: the
+// inflater's state and tables) is allocated and freed by each decode:
+// decodes on several threads are independent. Errors are results < 0, PngDecoder's messages (message).
 class PngCore {
 	public static inline var ERR_SIGNATURE = -1;
 	public static inline var ERR_TRUNCATED = -2; // (DETAIL: the chunk's name)
@@ -35,7 +46,7 @@ class PngCore {
 	public static inline var ERR_MEMORY = -13;
 	public static inline var ERR_LARGE = -14;
 
-	// the header's (info's 4-byte slots)
+	// the header's (info's 4-byte slots, by their byte offsets: Bytes.getInt32's)
 	public static inline var WIDTH = 0;
 	public static inline var HEIGHT = 4;
 	public static inline var DEPTH = 8;
@@ -49,15 +60,15 @@ class PngCore {
 	public static inline var DETAIL = 40;
 	public static inline var INFO = 44;
 
-	// what an error says (PngDecoder's)
-	public static function message(code:Int, info:Raw):String {
-		var d = info.i32(DETAIL);
+	// what an error says (PngDecoder's), info as info left it
+	public static function message(code:Int, info:Bytes):String {
+		var d = info.getInt32(DETAIL);
 		return "PngDecoder: " + switch code {
 			case ERR_SIGNATURE: "not a PNG file";
 			case ERR_TRUNCATED: "a truncated " + String.fromCharCode(d & 0xFF) + String.fromCharCode((d >> 8) & 0xFF) + String.fromCharCode((d >> 16) & 0xFF)
 				+ String.fromCharCode(d >>> 24) + " chunk";
 			case ERR_METHOD: "an unknown compression or filter method";
-			case ERR_FORMAT: 'colour type ${info.i32(TYPE)} at bit depth ${info.i32(DEPTH)}';
+			case ERR_FORMAT: 'colour type ${info.getInt32(TYPE)} at bit depth ${info.getInt32(DEPTH)}';
 			case ERR_EMPTY: "an empty image";
 			case ERR_NO_IHDR: "no IHDR chunk";
 			case ERR_NO_PLTE: "a palette image without PLTE";
@@ -71,75 +82,78 @@ class PngCore {
 		}
 	}
 
-	// png's n bytes' header into info (INFO bytes): 0, else an error
-	@:hxmc.unsafe public static function info(png:Raw, n:Int, info:Raw):Int {
-		info.fill(0, INFO);
-		info.set32(TYPE, -1);
-		if (n < 8 || png.i32(0) != 0x474E5089 || png.i32(4) != 0x0A1A0A0D) return ERR_SIGNATURE;
+	// the file's header into info (INFO bytes): 0, else an error
+	@:hxmc.kernel public static function info(png:ReadOnlySpan<UInt8>, info:Span<UInt8>):Int {
+		var f:Span<Int> = info.reinterpret();
+		f.fill(0, INFO >> 2, 0);
+		f[TYPE >> 2] = -1;
+		var n = png.length;
+		if (n < 8 || u32(png, 0) != 0x89504E47 || u32(png, 4) != 0x0D0A1A0A) return ERR_SIGNATURE;
 		var p = 8, idat = 0;
 		while (p + 8 <= n) {
-			var len = u32(png, p), name = png.i32(p + 4);
+			var len = u32(png, p), name = name(png, p + 4);
 			if (len < 0 || p + 12 + len > n) {
-				info.set32(DETAIL, name);
+				f[DETAIL >> 2] = name;
 				return ERR_TRUNCATED;
 			}
 			if (name == 0x52444849) { // IHDR
 				if (len < 13) return ERR_SHORT;
-				info.set32(WIDTH, u32(png, p + 8));
-				info.set32(HEIGHT, u32(png, p + 12));
-				info.set32(DEPTH, png.u8(p + 16));
-				info.set32(TYPE, png.u8(p + 17));
-				if (png.u8(p + 18) != 0 || png.u8(p + 19) != 0) return ERR_METHOD;
-				info.set32(INTERLACE, png.u8(p + 20));
-				var d = info.i32(DEPTH);
-				var ok = switch info.i32(TYPE) {
+				f[WIDTH >> 2] = u32(png, p + 8);
+				f[HEIGHT >> 2] = u32(png, p + 12);
+				var d:Int = png[p + 16], t:Int = png[p + 17];
+				f[DEPTH >> 2] = d;
+				f[TYPE >> 2] = t;
+				if (png[p + 18] != 0 || png[p + 19] != 0) return ERR_METHOD;
+				f[INTERLACE >> 2] = png[p + 20];
+				var ok = switch t {
 					case 0: d == 1 || d == 2 || d == 4 || d == 8 || d == 16;
 					case 3: d == 1 || d == 2 || d == 4 || d == 8;
 					case 2 | 4 | 6: d == 8 || d == 16;
 					case _: false;
 				}
 				if (!ok) return ERR_FORMAT;
-				if (info.i32(WIDTH) <= 0 || info.i32(HEIGHT) <= 0) return ERR_EMPTY;
+				if (f[WIDTH >> 2] <= 0 || f[HEIGHT >> 2] <= 0) return ERR_EMPTY;
 			} else if (name == 0x45544C50) { // PLTE
-				info.set32(PLTE_AT, p + 8);
-				info.set32(PLTE_LEN, len);
+				f[PLTE_AT >> 2] = p + 8;
+				f[PLTE_LEN >> 2] = len;
 			} else if (name == 0x534E5274) { // tRNS
-				info.set32(TRNS_AT, p + 8);
-				info.set32(TRNS_LEN, len);
+				f[TRNS_AT >> 2] = p + 8;
+				f[TRNS_LEN >> 2] = len;
 			} else if (name == 0x54414449) // IDAT
 				idat += len;
 			else if (name == 0x444E4549) // IEND
 				break;
 			p += 12 + len;
 		}
-		info.set32(IDAT, idat);
-		var w = info.i32(WIDTH), h = info.i32(HEIGHT), t = info.i32(TYPE);
+		f[IDAT >> 2] = idat;
+		var w = f[WIDTH >> 2], h = f[HEIGHT >> 2], t = f[TYPE >> 2];
 		if (t < 0) return ERR_NO_IHDR;
-		if (t == 3 && info.i32(PLTE_LEN) == 0) return ERR_NO_PLTE;
-		if (info.i32(INTERLACE) > 1) {
-			info.set32(DETAIL, info.i32(INTERLACE));
+		if (t == 3 && f[PLTE_LEN >> 2] == 0) return ERR_NO_PLTE;
+		if (f[INTERLACE >> 2] > 1) {
+			f[DETAIL >> 2] = f[INTERLACE >> 2];
 			return ERR_INTERLACE;
 		}
 		// (the rows and the pixels within an Int: 2 GB)
-		if (w > 1 << 24 || h > 1 << 24 || (h : Float) * (stride(info, w) + 2) * 2 + (w : Float) * h * 4 > 2147483000.0) return ERR_LARGE;
+		if (w > 1 << 24 || h > 1 << 24 || (h : Float) * (stride(f, w) + 2) * 2 + (w : Float) * h * 4 > 2147483000.0) return ERR_LARGE;
 		return 0;
 	}
 
 	// the buffer decode needs for w x h pixels of the header's format (the
 	// image, or an APNG frame): the rows with their filter bytes, or the
 	// pixels if more; interlaced: the pixels, then the passes' rows
-	@:hxmc.unsafe public static function bufferLength(info:Raw, w:Int, h:Int):Int {
-		var rows = rawLength(info, w, h), px = w * h * 4;
-		return info.i32(INTERLACE) == 1 ? px + rows : rows > px ? rows : px;
+	@:hxmc.kernel public static function bufferLength(info:ReadOnlySpan<UInt8>, w:Int, h:Int):Int {
+		var f:ReadOnlySpan<Int> = info.reinterpret();
+		var rows = rawLength(f, w, h), px = w * h * 4;
+		return f[INTERLACE >> 2] == 1 ? px + rows : rows > px ? rows : px;
 	}
 
 	// (the inflated data's length: each pass's rows, a filter byte each)
-	@:hxmc.unsafe static function rawLength(info:Raw, w:Int, h:Int):Int {
-		if (info.i32(INTERLACE) != 1) return h * (stride(info, w) + 1);
+	@:hxmc.kernel static function rawLength(f:ReadOnlySpan<Int>, w:Int, h:Int):Int {
+		if (f[INTERLACE >> 2] != 1) return h * (stride(f, w) + 1);
 		var n = 0;
 		for (k in 0...7) {
 			var pw = passWidth(k, w), ph = passHeight(k, h);
-			if (pw > 0 && ph > 0) n += ph * (stride(info, pw) + 1);
+			if (pw > 0 && ph > 0) n += ph * (stride(f, pw) + 1);
 		}
 		return n;
 	}
@@ -164,63 +178,61 @@ class PngCore {
 		return Std.int((h - passY(k) + passDy(k) - 1) / passDy(k));
 
 	// (a row's bytes, without its filter byte)
-	@:hxmc.unsafe static inline function stride(info:Raw, w:Int):Int
-		return (w * pixelBits(info) + 7) >> 3;
+	static inline function stride(f:ReadOnlySpan<Int>, w:Int):Int
+		return (w * pixelBits(f) + 7) >> 3;
 
 	// (a pixel's bits)
-	@:hxmc.unsafe static inline function pixelBits(info:Raw):Int {
-		var t = info.i32(TYPE);
-		return info.i32(DEPTH) * (t == 2 ? 3 : t == 4 ? 2 : t == 6 ? 4 : 1);
+	static inline function pixelBits(f:ReadOnlySpan<Int>):Int {
+		var t = f[TYPE >> 2];
+		return f[DEPTH >> 2] * (t == 2 ? 3 : t == 4 ? 2 : t == 6 ? 4 : 1);
 	}
 
-	// png's n bytes (info read) decoded into buf (bufferLength(info, width,
-	// height) bytes): 0, the RGBA8 pixels at its start; else an error
-	@:hxmc.unsafe public static function decode(png:Raw, n:Int, info:Raw, buf:Raw):Int {
-		var idatLen = info.i32(IDAT);
-		var idat = Raw.malloc(idatLen + 8);
-		if (idat.isNull()) return ERR_MEMORY;
-		var p = 8, at = 0;
+	// the file (info read) decoded into buf (bufferLength(info, width,
+	// height) bytes): 0, the RGBA8 pixels at its start; else an error. The
+	// IDAT chunks are inflated where they are, one after the other.
+	@:hxmc.kernel public static function decode(png:ReadOnlySpan<UInt8>, info:Span<UInt8>, buf:Span<UInt8>):Int {
+		var f:Span<Int> = info.reinterpret();
+		var p = 8, n = png.length;
 		while (p + 8 <= n) {
-			var len = u32(png, p), name = png.i32(p + 4);
-			if (name == 0x54414449) {
-				idat.add(at).move(png.add(p + 8), len);
-				at += len;
-			} else if (name == 0x444E4549)
-				break;
+			var len = u32(png, p), name = name(png, p + 4);
+			if (name == 0x54414449 && len > 0) return run(png, f, png, p + 8, p + 8 + len, true, f[WIDTH >> 2], f[HEIGHT >> 2], buf);
+			if (name == 0x444E4549 || len < 0) break;
 			p += 12 + len;
 		}
-		var e = decodeStream(png, info, idat, idatLen, info.i32(WIDTH), info.i32(HEIGHT), buf);
-		idat.free();
-		return e;
+		return ERR_DATA;
 	}
 
-	// a zlib stream of n bytes at src, w x h pixels of the header's format,
-	// decoded into buf (bufferLength(info, w, h) bytes): 0, else an error
-	@:hxmc.unsafe public static function decodeStream(png:Raw, info:Raw, src:Raw, n:Int, w:Int, h:Int, buf:Raw):Int {
-		var scratch = Raw.malloc(SCRATCH);
-		if (scratch.isNull()) return ERR_MEMORY;
-		var interlaced = info.i32(INTERLACE) == 1, rawLen = rawLength(info, w, h);
-		var raw = interlaced ? buf.add(w * h * 4) : buf;
-		var r = inflate(scratch, src, n, raw, rawLen);
-		scratch.free();
+	// a zlib stream (src), w x h pixels of the header's format, decoded into
+	// buf (bufferLength(info, w, h) bytes): 0, else an error
+	@:hxmc.kernel public static function decodeStream(png:ReadOnlySpan<UInt8>, info:Span<UInt8>, src:ReadOnlySpan<UInt8>, w:Int, h:Int, buf:Span<UInt8>):Int {
+		var f:Span<Int> = info.reinterpret();
+		return run(png, f, src, 0, src.length, false, w, h, buf);
+	}
+
+	// (the stream at src's [at, end), the IDAT chunks after it too when chunked)
+	@:hxmc.kernel static function run(png:ReadOnlySpan<UInt8>, f:Span<Int>, src:ReadOnlySpan<UInt8>, at:Int, end:Int, chunked:Bool, w:Int, h:Int, buf:Span<UInt8>):Int {
+		var interlaced = f[INTERLACE >> 2] == 1, rawLen = rawLength(f, w, h), px = w * h * 4;
+		if (buf.length < (interlaced ? px + rawLen : rawLen > px ? rawLen : px)) return ERR_MEMORY;
+		var raw = interlaced ? buf.sub(px, rawLen) : buf.sub(0, rawLen);
+		var r = PngScratch.inflate(src, at, end, chunked, raw);
 		if (r < 0) return r;
 		if (r < rawLen) return ERR_SHORT;
-		var b = pixelBits(info), bpp = b < 8 ? 1 : b >> 3;
+		var b = pixelBits(f), bpp = b < 8 ? 1 : b >> 3;
 		if (!interlaced) {
-			var e = unfilter(info, raw, stride(info, w), h, bpp);
+			var e = unfilter(f, raw, stride(f, w), h, bpp);
 			if (e != 0) return e;
-			return widen(png, info, buf, w, h);
+			return widen(png, f, buf, w, h);
 		}
-		var at = 0;
+		var depth = f[DEPTH >> 2], type = f[TYPE >> 2], at = 0;
 		for (k in 0...7) {
 			var pw = passWidth(k, w), ph = passHeight(k, h);
 			if (pw <= 0 || ph <= 0) continue;
-			var s = stride(info, pw), rows = raw.add(at);
-			var e = unfilter(info, rows, s, ph, bpp);
+			var s = stride(f, pw), rows = raw.sub(at, ph * (s + 1));
+			var e = unfilter(f, rows, s, ph, bpp);
 			if (e != 0) return e;
 			for (j in 0...ph)
 				for (i in 0...pw) {
-					var e = pixel(png, info, rows.add(j * s), i, buf, 4 * ((passY(k) + j * passDy(k)) * w + passX(k) + i * passDx(k)));
+					var e = pixel(png, f, depth, type, rows, j * s, i, buf, 4 * ((passY(k) + j * passDy(k)) * w + passX(k) + i * passDx(k)));
 					if (e != 0) return e;
 				}
 			at += ph * (s + 1);
@@ -229,45 +241,66 @@ class PngCore {
 	}
 
 	// the rows unfiltered in place and packed: row j's bytes from
-	// j * (stride + 1) + 1 to j * stride (always before them), the row above
-	// in place already; bpp the bytes a filter looks back
-	@:hxmc.unsafe static function unfilter(info:Raw, b:Raw, stride:Int, h:Int, bpp:Int):Int {
-		var lead = bpp < stride ? bpp : stride;
+	// j * (stride + 1) + 1 to j * stride (always before them: read before
+	// they are written over, front to back), the row above in place
+	// already; bpp the bytes a filter looks back. Each row's spans (the
+	// row, its filtered bytes, the row above, the bytes bpp back) of one
+	// tested length, so that the loops' element checks are dropped.
+	@:hxmc.kernel static function unfilter(f:Span<Int>, b:Span<UInt8>, stride:Int, h:Int, bpp:Int):Int {
+		var lead = bpp < stride ? bpp : stride, m = stride - lead;
 		for (j in 0...h) {
-			var f = b.u8(j * (stride + 1)), r = j * (stride + 1) + 1, d = j * stride, u = d - stride;
-			switch f {
+			var r = j * (stride + 1) + 1, d = j * stride;
+			var filter:Int = b[r - 1];
+			var cur = b.sub(d, stride), raw:ReadOnlySpan<UInt8> = b.sub(r, stride);
+			// (the bytes from lead on, and those bpp before them: the row's own, the row above's)
+			var cur2 = cur.sub(lead, m), raw2:ReadOnlySpan<UInt8> = raw.sub(lead, m), left:ReadOnlySpan<UInt8> = cur.sub(0, m);
+			if (raw.length != stride || cur.length != stride || cur2.length != m || raw2.length != m || left.length != m) return ERR_DATA;
+			if (j == 0) {
+				// (nothing above: Up is None, Average halves the left, Paeth is Sub)
+				switch filter {
+					case 0 | 2:
+						cur.blit(0, raw, 0, stride);
+					case 1 | 4:
+						cur.blit(0, raw, 0, lead);
+						for (x in 0...m)
+							cur2[x] = raw2[x] + left[x];
+					case 3:
+						cur.blit(0, raw, 0, lead);
+						for (x in 0...m)
+							cur2[x] = raw2[x] + (left[x] >> 1);
+					case _:
+						f[DETAIL >> 2] = filter;
+						return ERR_FILTER;
+				}
+				continue;
+			}
+			var up:ReadOnlySpan<UInt8> = b.sub(d - stride, stride), up2:ReadOnlySpan<UInt8> = up.sub(lead, m), upLeft:ReadOnlySpan<UInt8> = up.sub(0, m);
+			if (up.length != stride || up2.length != m || upLeft.length != m) return ERR_DATA;
+			switch filter {
 				case 0:
-					b.add(d).move(b.add(r), stride);
+					cur.blit(0, raw, 0, stride);
 				case 1:
-					b.add(d).move(b.add(r), lead);
-					for (x in lead...stride)
-						b.set8(d + x, b.u8(r + x) + b.u8(d + x - bpp));
+					cur.blit(0, raw, 0, lead);
+					for (x in 0...m)
+						cur2[x] = raw2[x] + left[x];
 				case 2:
-					if (j == 0) b.add(d).move(b.add(r), stride) else
-						for (x in 0...stride)
-							b.set8(d + x, b.u8(r + x) + b.u8(u + x));
+					for (x in 0...stride)
+						cur[x] = raw[x] + up[x];
 				case 3:
 					for (x in 0...lead)
-						b.set8(d + x, b.u8(r + x) + (j == 0 ? 0 : b.u8(u + x) >> 1));
-					for (x in lead...stride)
-						b.set8(d + x, b.u8(r + x) + ((b.u8(d + x - bpp) + (j == 0 ? 0 : b.u8(u + x))) >> 1));
+						cur[x] = raw[x] + (up[x] >> 1);
+					for (x in 0...m)
+						cur2[x] = raw2[x] + ((left[x] + (up2[x] : Int)) >> 1);
 				case 4:
-					if (j == 0) {
-						// (Paeth with nothing above: the byte to the left)
-						b.add(d).move(b.add(r), lead);
-						for (x in lead...stride)
-							b.set8(d + x, b.u8(r + x) + b.u8(d + x - bpp));
-					} else {
-						for (x in 0...lead)
-							b.set8(d + x, b.u8(r + x) + b.u8(u + x));
-						for (x in lead...stride) {
-							var a = b.u8(d + x - bpp), c = b.u8(u + x - bpp), bb = b.u8(u + x);
-							var pa = abs(bb - c), pb = abs(a - c), pc = abs(a + bb - c - c);
-							b.set8(d + x, b.u8(r + x) + (pa <= pb && pa <= pc ? a : pb <= pc ? bb : c));
-						}
+					for (x in 0...lead)
+						cur[x] = raw[x] + up[x];
+					for (x in 0...m) {
+						var a:Int = left[x], c:Int = upLeft[x], bb:Int = up2[x];
+						var pa = abs(bb - c), pb = abs(a - c), pc = abs(a + bb - c - c);
+						cur2[x] = raw2[x] + (pa <= pb && pa <= pc ? a : pb <= pc ? bb : c);
 					}
 				case _:
-					info.set32(DETAIL, f);
+					f[DETAIL >> 2] = filter;
 					return ERR_FILTER;
 			}
 		}
@@ -277,301 +310,455 @@ class PngCore {
 	// the packed rows of w x h pixels widened to RGBA8 in place: from the
 	// end when a pixel has 32 bits or fewer (each one's RGBA at or after its
 	// own bytes), from the start when more (at or before)
-	@:hxmc.unsafe static function widen(png:Raw, info:Raw, b:Raw, w:Int, h:Int):Int {
-		if (info.i32(TYPE) == 6 && info.i32(DEPTH) == 8) return 0;
-		var s = stride(info, w), back = pixelBits(info) <= 32;
+	@:hxmc.kernel static function widen(png:ReadOnlySpan<UInt8>, f:Span<Int>, b:Span<UInt8>, w:Int, h:Int):Int {
+		var depth = f[DEPTH >> 2], type = f[TYPE >> 2];
+		if (type == 6 && depth == 8) return 0;
+		var s = stride(f, w), back = pixelBits(f) <= 32;
 		for (qy in 0...h)
 			for (qx in 0...w) {
 				var y = back ? h - 1 - qy : qy, x = back ? w - 1 - qx : qx;
-				var e = pixel(png, info, b.add(y * s), x, b, 4 * (y * w + x));
+				var e = pixel(png, f, depth, type, b, y * s, x, b, 4 * (y * w + x));
 				if (e != 0) return e;
 			}
 		return 0;
 	}
 
-	// pixel x of a packed row as RGBA8 at out's o (its samples read before
-	// any is written: the same memory, widened in place): 0, else an error
-	@:hxmc.unsafe static inline function pixel(png:Raw, info:Raw, row:Raw, x:Int, out:Raw, o:Int):Int {
-		var depth = info.i32(DEPTH), type = info.i32(TYPE);
+	// pixel x of the packed row at rows' at as RGBA8 at out's o (its samples
+	// read before any is written: the same memory, widened in place): 0,
+	// else an error
+	static inline function pixel(png:ReadOnlySpan<UInt8>, f:Span<Int>, depth:Int, type:Int, rows:ReadOnlySpan<UInt8>, at:Int, x:Int, out:Span<UInt8>,
+			o:Int):Int {
 		var r = 0, g = 0, bl = 0, a = 255, e = 0;
 		switch type {
 			case 0:
-				var v = stored(row, x, 0, 1, depth);
+				var v = stored(rows, at, x, 0, 1, depth);
 				r = g = bl = scaled(v, depth);
-				if (info.i32(TRNS_LEN) >= 2 && v == u16(png, info.i32(TRNS_AT))) a = 0;
+				if (f[TRNS_LEN >> 2] >= 2 && v == u16(png, f[TRNS_AT >> 2])) a = 0;
 			case 2:
-				var sr = stored(row, x, 0, 3, depth), sg = stored(row, x, 1, 3, depth), sb = stored(row, x, 2, 3, depth);
+				var sr = stored(rows, at, x, 0, 3, depth), sg = stored(rows, at, x, 1, 3, depth), sb = stored(rows, at, x, 2, 3, depth);
 				r = scaled(sr, depth);
 				g = scaled(sg, depth);
 				bl = scaled(sb, depth);
-				var t = info.i32(TRNS_AT);
-				if (info.i32(TRNS_LEN) >= 6 && sr == u16(png, t) && sg == u16(png, t + 2) && sb == u16(png, t + 4)) a = 0;
+				var t = f[TRNS_AT >> 2];
+				if (f[TRNS_LEN >> 2] >= 6 && sr == u16(png, t) && sg == u16(png, t + 2) && sb == u16(png, t + 4)) a = 0;
 			case 3:
-				var k = stored(row, x, 0, 1, depth), pal = png.add(info.i32(PLTE_AT));
-				if (3 * k + 2 >= info.i32(PLTE_LEN)) {
+				var k = stored(rows, at, x, 0, 1, depth), pal = f[PLTE_AT >> 2];
+				if (3 * k + 2 >= f[PLTE_LEN >> 2]) {
 					e = ERR_PALETTE;
 					k = 0;
 				}
-				r = pal.u8(3 * k);
-				g = pal.u8(3 * k + 1);
-				bl = pal.u8(3 * k + 2);
-				if (k < info.i32(TRNS_LEN)) a = png.u8(info.i32(TRNS_AT) + k);
+				r = png[pal + 3 * k];
+				g = png[pal + 3 * k + 1];
+				bl = png[pal + 3 * k + 2];
+				if (k < f[TRNS_LEN >> 2]) a = png[f[TRNS_AT >> 2] + k];
 			case 4:
-				r = g = bl = scaled(stored(row, x, 0, 2, depth), depth);
-				a = scaled(stored(row, x, 1, 2, depth), depth);
+				r = g = bl = scaled(stored(rows, at, x, 0, 2, depth), depth);
+				a = scaled(stored(rows, at, x, 1, 2, depth), depth);
 			case _:
-				r = scaled(stored(row, x, 0, 4, depth), depth);
-				g = scaled(stored(row, x, 1, 4, depth), depth);
-				bl = scaled(stored(row, x, 2, 4, depth), depth);
-				a = scaled(stored(row, x, 3, 4, depth), depth);
+				r = scaled(stored(rows, at, x, 0, 4, depth), depth);
+				g = scaled(stored(rows, at, x, 1, 4, depth), depth);
+				bl = scaled(stored(rows, at, x, 2, 4, depth), depth);
+				a = scaled(stored(rows, at, x, 3, 4, depth), depth);
 		}
-		out.set8(o, r);
-		out.set8(o + 1, g);
-		out.set8(o + 2, bl);
-		out.set8(o + 3, a);
+		out[o] = r;
+		out[o + 1] = g;
+		out[o + 2] = bl;
+		out[o + 3] = a;
 		return e;
 	}
 
-	// (sample k of pixel x of a packed row, as stored)
-	@:hxmc.unsafe static inline function stored(row:Raw, x:Int, k:Int, channels:Int, depth:Int):Int {
-		return if (depth == 16) u16(row, 2 * (x * channels + k)) else if (depth == 8) row.u8(x * channels + k) else {
+	// (sample k of pixel x of the packed row at rows' at, as stored)
+	static inline function stored(rows:ReadOnlySpan<UInt8>, at:Int, x:Int, k:Int, channels:Int, depth:Int):Int {
+		return if (depth == 16) u16(rows, at + 2 * (x * channels + k)) else if (depth == 8) (rows[at + x * channels + k] : Int) else {
 			var bit = x * depth;
-			(row.u8(bit >> 3) >> (8 - depth - (bit & 7))) & ((1 << depth) - 1);
+			(rows[at + (bit >> 3)] >> (8 - depth - (bit & 7))) & ((1 << depth) - 1);
 		}
 	}
 
 	// (a sample scaled to 8 bits: a 16-bit one's high byte)
-	@:hxmc.unsafe static inline function scaled(v:Int, depth:Int):Int
+	static inline function scaled(v:Int, depth:Int):Int
 		return depth == 16 ? v >> 8 : depth == 8 ? v : Std.int(v * 255 / ((1 << depth) - 1));
 
-	// --- inflate: the state at s (the bit buffer, its count, the input's
-	// position and end, the output's position, whether the fixed codes are
-	// built), then each code's counts (16), symbols (288) and table (1024
-	// entries), the code lengths (320) and the fixed codes'
+	// --- inflate: the scratch (SCRATCH bytes, PngScratch's) holds the state
+	// (a Bits) in its first STATE bytes, then Ints: each code's table (1024
+	// entries), counts (16) and symbols (288), the code lengths (320), and
+	// the fixed codes, built when a block uses them (fixed)
 
 	static inline var FAST = 10;
-	static inline var CODE = 4 * (16 + 288 + 1024);
-	static inline var BUF = 0;
-	static inline var CNT = 4;
-	static inline var P = 8;
-	static inline var END = 12;
-	static inline var POS = 16;
-	static inline var BAD = 20; // (2: the input ran out; 1: a bad code)
-	static inline var FIXED_BUILT = 24;
-	static inline var LIT = 64;
+	static inline var TABLE = 1 << FAST;
+	static inline var COUNTS = TABLE;
+	static inline var SYMBOLS = COUNTS + 16;
+	static inline var CODE = SYMBOLS + 288;
+	static inline var STATE = 64;
+	static inline var LIT = STATE >> 2;
 	static inline var DIST = LIT + CODE;
 	static inline var CL = DIST + CODE;
 	static inline var LENS = CL + CODE;
-	static inline var FIXED_LIT = LENS + 4 * 320;
+	static inline var FIXED_LIT = LENS + 320;
 	static inline var FIXED_DIST = FIXED_LIT + CODE;
-	static inline var SCRATCH = FIXED_DIST + CODE;
+	public static inline var SCRATCH = 4 * (FIXED_DIST + CODE);
+
+	// (the fixed codes, into the scratch)
+	@:hxmc.kernel public static function fixed(scratch:Span<UInt8>) {
+		var words:Span<Int> = scratch.reinterpret();
+		var l = words.sub(LENS, 320);
+		for (i in 0...288)
+			l[i] = i < 144 ? 8 : i < 256 ? 9 : i < 280 ? 7 : 8;
+		build(words.sub(FIXED_LIT, CODE), l, 288);
+		for (i in 0...30)
+			l[i] = 5;
+		build(words.sub(FIXED_DIST, CODE), l, 30);
+	}
 
 	// (an inflate's failure: the data ended early, or does not decode)
-	@:hxmc.unsafe static function failed(s:Raw):Int
-		return s.i32(BAD) == 2 ? ERR_SHORT : ERR_DATA;
+	static inline function failed(st:Span<PngBits>):Int
+		return st[0].bad == 2 ? ERR_SHORT : ERR_DATA;
 
-	// a zlib stream inflated into out (its size known): the bytes produced, or an error
-	@:hxmc.unsafe static function inflate(s:Raw, src:Raw, n:Int, out:Raw, cap:Int):Int {
-		if (n < 2) return ERR_DATA;
-		var cmf = src.u8(0), flg = src.u8(1);
-		if (cmf & 15 != 8 || ((cmf << 8) + flg) % 31 != 0 || flg & 32 != 0) return ERR_DATA;
-		s.set32(BUF, 0);
-		s.set32(CNT, 0);
-		s.set32(P, 2);
-		s.set32(END, n);
-		s.set32(POS, 0);
-		s.set32(BAD, 0);
-		s.set32(FIXED_BUILT, 0);
-		var last = false;
+	// a zlib stream at src's [at, end) (chunked: continued by the IDAT
+	// chunks after it) inflated into out (its size known): the bytes
+	// produced, or an error
+	@:hxmc.kernel static function inflate(scratch:Span<UInt8>, src:ReadOnlySpan<UInt8>, at:Int, end:Int, chunked:Bool, out:Span<UInt8>):Int {
+		var words:Span<Int> = scratch.reinterpret();
+		var st:Span<PngBits> = scratch.sub(0, STATE).reinterpret();
+		var lit = words.sub(LIT, CODE), dist = words.sub(DIST, CODE), cl = words.sub(CL, CODE), l = words.sub(LENS, 320);
+		var flit = words.sub(FIXED_LIT, CODE), fdist = words.sub(FIXED_DIST, CODE);
+		st[0].buf = 0;
+		st[0].cnt = 0;
+		st[0].p = at;
+		st[0].end = end;
+		st[0].pos = 0;
+		st[0].bad = 0;
+		st[0].chunked = chunked ? 1 : 0;
+		var cmf = bits(st, src, 8), flg = bits(st, src, 8);
+		if (st[0].bad != 0 || st[0].p > st[0].end || cmf & 15 != 8 || ((cmf << 8) + flg) % 31 != 0 || flg & 32 != 0) return ERR_DATA;
+		var last = false, fixedBuilt = false;
 		while (!last) {
-			last = bits(s, src, 1) == 1;
-			var type = bits(s, src, 2);
+			last = bits(st, src, 1) == 1;
+			var type = bits(st, src, 2);
 			if (type == 0) {
-				// (stored: from the next byte)
-				giveBack(s);
-				var p = s.i32(P);
-				if (p + 4 > n) return ERR_DATA;
-				var len = src.u8(p) | src.u8(p + 1) << 8, nlen = src.u8(p + 2) | src.u8(p + 3) << 8;
-				p += 4;
-				var pos = s.i32(POS);
-				if (nlen != 0xFFFF - len || p + len > n || pos + len > cap) return ERR_DATA;
-				out.add(pos).move(src.add(p), len);
-				s.set32(POS, pos + len);
-				s.set32(P, p + len);
-			} else if (type == 1) {
-				if (s.i32(FIXED_BUILT) == 0) {
-					var l = s.add(LENS);
-					for (i in 0...288)
-						l.set32(4 * i, i < 144 ? 8 : i < 256 ? 9 : i < 280 ? 7 : 8);
-					build(s.add(FIXED_LIT), l, 288);
-					for (i in 0...30)
-						l.set32(4 * i, 5);
-					build(s.add(FIXED_DIST), l, 30);
-					s.set32(FIXED_BUILT, 1);
+				// (stored: from the next byte, the bit buffer's whole bytes first)
+				var skip = st[0].cnt & 7;
+				st[0].buf = st[0].buf >>> skip;
+				st[0].cnt -= skip;
+				var len = bits(st, src, 16), nlen = bits(st, src, 16), pos = st[0].pos;
+				if (st[0].bad != 0 || nlen != 0xFFFF - len || pos + len > out.length) return ERR_DATA;
+				while (len > 0 && st[0].cnt >= 8) {
+					out[pos++] = bits(st, src, 8);
+					len--;
 				}
-				if (!block(s, src, out, cap, s.add(FIXED_LIT), s.add(FIXED_DIST))) return failed(s);
+				while (len > 0) {
+					var p = st[0].p, e = st[0].end;
+					if (p >= e) {
+						if (st[0].chunked == 0) return ERR_DATA;
+						hop(st, src);
+						continue;
+					}
+					var k = e - p < len ? e - p : len;
+					out.blit(pos, src, p, k);
+					pos += k;
+					len -= k;
+					st[0].p = p + k;
+				}
+				st[0].pos = pos;
+			} else if (type == 1) {
+				if (!fixedBuilt) {
+					fixed(scratch);
+					fixedBuilt = true;
+				}
+				if (!block(st, src, out, flit, fdist)) return failed(st);
 			} else if (type == 2) {
-				var hlit = bits(s, src, 5) + 257, hdist = bits(s, src, 5) + 1, hclen = bits(s, src, 4) + 4;
-				var l = s.add(LENS);
-				for (i in 0...19)
-					l.set32(4 * i, 0);
+				var hlit = bits(st, src, 5) + 257, hdist = bits(st, src, 5) + 1, hclen = bits(st, src, 4) + 4;
+				l.fill(0, 19, 0);
 				for (i in 0...hclen)
-					l.set32(4 * order(i), bits(s, src, 3));
-				build(s.add(CL), l, 19);
+					l[order(i)] = bits(st, src, 3);
+				build(cl, l, 19);
 				var i = 0, total = hlit + hdist;
 				while (i < total) {
-					var sym = symbol(s, src, s.add(CL));
-					if (sym < 16) l.set32(4 * i++, sym) else {
+					var sym = symbol(st, src, cl);
+					if (sym < 16) l[i++] = sym else {
 						var v = 0, r = 0;
 						if (sym == 16) {
 							if (i == 0) return ERR_DATA;
-							v = l.i32(4 * (i - 1));
-							r = 3 + bits(s, src, 2);
-						} else r = sym == 17 ? 3 + bits(s, src, 3) : 11 + bits(s, src, 7);
+							v = l[i - 1];
+							r = 3 + bits(st, src, 2);
+						} else r = sym == 17 ? 3 + bits(st, src, 3) : 11 + bits(st, src, 7);
 						if (i + r > total) return ERR_DATA;
-						for (k in 0...r)
-							l.set32(4 * i++, v);
+						l.fill(i, r, v);
+						i += r;
 					}
-					if (s.i32(BAD) != 0) return failed(s);
+					if (st[0].bad != 0) return failed(st);
 				}
-				build(s.add(LIT), l, hlit);
-				build(s.add(DIST), l.add(4 * hlit), hdist);
-				if (!block(s, src, out, cap, s.add(LIT), s.add(DIST))) return failed(s);
+				build(lit, l, hlit);
+				build(dist, l.sub(hlit, hdist), hdist);
+				if (!block(st, src, out, lit, dist)) return failed(st);
 			} else
 				return ERR_DATA;
-			if (s.i32(BAD) != 0) return failed(s);
+			if (st[0].bad != 0) return failed(st);
 		}
-		giveBack(s);
-		var p = s.i32(P), pos = s.i32(POS);
-		// (zlib's Adler-32 of the output, big-endian, after the stream)
-		if (p + 4 > n) return ERR_DATA;
-		if (adler(out, pos) != (src.u8(p) << 24 | src.u8(p + 1) << 16 | src.u8(p + 2) << 8 | src.u8(p + 3))) return ERR_DATA;
+		// (zlib's Adler-32 of the output, big-endian, after the stream, from the next byte)
+		var skip = st[0].cnt & 7;
+		st[0].buf = st[0].buf >>> skip;
+		st[0].cnt -= skip;
+		var want = bits(st, src, 8) << 24;
+		want |= bits(st, src, 8) << 16;
+		want |= bits(st, src, 8) << 8;
+		want |= bits(st, src, 8);
+		// (no byte of it past the input's end)
+		if (st[0].bad != 0 || st[0].p - (st[0].cnt >> 3) > st[0].end) return ERR_DATA;
+		var pos = st[0].pos;
+		if (adler(out.sub(0, pos)) != want) return ERR_DATA;
 		return pos;
 	}
 
-	// one block's symbols with the codes lit and dist: false when it does not decode
-	@:hxmc.unsafe static function block(s:Raw, src:Raw, out:Raw, cap:Int, lit:Raw, dist:Raw):Bool {
-		var pos = s.i32(POS);
+	// one block's symbols with the codes lit and dist: false when it does
+	// not decode. The hot loop: the bit buffer in locals (st's on the way
+	// out, and around slow), refilled to 25 bits or more before a literal or
+	// length (15 bits at most, its extra bits 5) and before a distance (15,
+	// then 13); the tables' length tested, so that their masked lookups
+	// are unchecked.
+	@:hxmc.kernel static function block(st:Span<PngBits>, src:ReadOnlySpan<UInt8>, out:Span<UInt8>, lit:ReadOnlySpan<Int>, dist:ReadOnlySpan<Int>):Bool {
+		if (lit.length < TABLE || dist.length < TABLE) return false;
+		var pos = st[0].pos, cap = out.length;
+		var buf = st[0].buf, cnt = st[0].cnt, p = st[0].p, end = st[0].end, ok = false;
 		while (true) {
-			var sym = symbol(s, src, lit);
-			if (sym < 256) {
-				if (pos >= cap) return false;
-				out.set8(pos++, sym);
-			} else if (sym == 256) {
-				s.set32(POS, pos);
-				return s.i32(BAD) == 0;
+			while (cnt <= 24) {
+				if (p < end) {
+					buf |= src[p] << cnt;
+					p++;
+					cnt += 8;
+				} else if (st[0].chunked != 0) {
+					st[0].p = p;
+					hop(st, src);
+					p = st[0].p;
+					end = st[0].end;
+				} else {
+					// (past the input's end: zeros, a few)
+					if (p >= end + 4) break;
+					p++;
+					cnt += 8;
+				}
+			}
+			var e = lit[buf & (TABLE - 1)], sym = 0;
+			if (e != 0) {
+				var len = e >> 9;
+				buf >>>= len;
+				cnt -= len;
+				sym = e & 511;
 			} else {
-				var k = sym - 257;
-				if (k >= 29) return false;
-				var len = lengthBase(k) + bits(s, src, lengthExtra(k));
-				var d = symbol(s, src, dist);
-				if (d >= 30) return false;
-				var back = distBase(d) + bits(s, src, distExtra(d));
-				if (back > pos || pos + len > cap || s.i32(BAD) != 0) return false;
-				if (back >= len) out.add(pos).move(out.add(pos - back), len) else
-					for (i in 0...len)
-						out.set8(pos + i, out.u8(pos + i - back));
-				pos += len;
+				st[0].buf = buf;
+				st[0].cnt = cnt;
+				st[0].p = p;
+				sym = slow(st, src, lit);
+				buf = st[0].buf;
+				cnt = st[0].cnt;
+				p = st[0].p;
+				end = st[0].end;
+			}
+			if (sym < 256) {
+				if (pos >= cap) break;
+				out[pos++] = sym;
+				continue;
+			}
+			if (sym == 256) {
+				ok = true;
+				break;
+			}
+			var k = sym - 257;
+			if (k >= 29 || cnt < 5) break;
+			var x = lengthExtra(k), len = lengthBase(k) + (buf & ((1 << x) - 1));
+			buf >>>= x;
+			cnt -= x;
+			while (cnt <= 24) {
+				if (p < end) {
+					buf |= src[p] << cnt;
+					p++;
+					cnt += 8;
+				} else if (st[0].chunked != 0) {
+					st[0].p = p;
+					hop(st, src);
+					p = st[0].p;
+					end = st[0].end;
+				} else {
+					// (past the input's end: zeros, a few)
+					if (p >= end + 4) break;
+					p++;
+					cnt += 8;
+				}
+			}
+			var e = dist[buf & (TABLE - 1)], d = 0;
+			if (e != 0) {
+				var n = e >> 9;
+				buf >>>= n;
+				cnt -= n;
+				d = e & 511;
+			} else {
+				st[0].buf = buf;
+				st[0].cnt = cnt;
+				st[0].p = p;
+				d = slow(st, src, dist);
+				buf = st[0].buf;
+				cnt = st[0].cnt;
+				p = st[0].p;
+				end = st[0].end;
+			}
+			if (d >= 30) break;
+			var y = distExtra(d);
+			if (cnt < y) {
+				while (cnt <= 24) {
+					if (p < end) {
+						buf |= src[p] << cnt;
+						p++;
+						cnt += 8;
+					} else if (st[0].chunked != 0) {
+						st[0].p = p;
+						hop(st, src);
+						p = st[0].p;
+						end = st[0].end;
+					} else {
+						// (past the input's end: zeros, a few)
+						if (p >= end + 4) break;
+						p++;
+						cnt += 8;
+					}
+				}
+				if (cnt < y) break;
+			}
+			var back = distBase(d) + (buf & ((1 << y) - 1));
+			buf >>>= y;
+			cnt -= y;
+			if (back > pos || pos + len > cap || st[0].bad != 0) break;
+			// (a copy from back bytes before: whole periods at a time, each copy's source before its target)
+			var from = pos - back;
+			while (len > 0) {
+				var n = pos - from < len ? pos - from : len;
+				out.blit(pos, out, from, n);
+				pos += n;
+				len -= n;
 			}
 		}
+		st[0].buf = buf;
+		st[0].cnt = cnt;
+		st[0].p = p;
+		st[0].pos = pos;
+		// (bits taken from past the input's end: it ended early)
+		if (st[0].chunked == 0 && p - (cnt >> 3) > end) st[0].bad = 2;
+		return ok && st[0].bad == 0;
 	}
 
-	// (past the input's end, zeros: no more than its reading ahead, else BAD)
-	@:hxmc.unsafe static inline function need(s:Raw, src:Raw, n:Int) {
-		var cnt = s.i32(CNT);
+	// (n bits in the buffer: the input's next bytes, the next IDAT chunk's
+	// when one ends; past the input's end, zeros: no more than its reading
+	// ahead, else bad)
+	static inline function need(st:Span<PngBits>, src:ReadOnlySpan<UInt8>, n:Int) {
+		var cnt = st[0].cnt;
 		if (cnt < n) {
-			var buf = s.i32(BUF), p = s.i32(P), end = s.i32(END);
+			var buf = st[0].buf, p = st[0].p, end = st[0].end;
 			while (cnt < n) {
-				if (p < end) buf |= src.u8(p) << cnt else if (p >= end + 4) s.set32(BAD, 2);
+				if (p >= end && st[0].chunked != 0) {
+					st[0].p = p;
+					hop(st, src);
+					p = st[0].p;
+					end = st[0].end;
+				}
+				if (p < end) buf |= src[p] << cnt else if (p >= end + 4) st[0].bad = 2;
 				p++;
 				cnt += 8;
 			}
-			s.set32(BUF, buf);
-			s.set32(P, p);
-			s.set32(CNT, cnt);
+			st[0].buf = buf;
+			st[0].p = p;
+			st[0].cnt = cnt;
 		}
 	}
 
-	@:hxmc.unsafe static inline function bits(s:Raw, src:Raw, n:Int):Int {
-		need(s, src, n);
-		var buf = s.i32(BUF);
-		s.set32(BUF, buf >>> n);
-		s.set32(CNT, s.i32(CNT) - n);
-		return buf & ((1 << n) - 1);
+	// (the chunk ended: the next IDAT chunk with data, else the stream's end)
+	@:hxmc.kernel static function hop(st:Span<PngBits>, src:ReadOnlySpan<UInt8>) {
+		var q = st[0].end + 4;
+		while (q + 8 <= src.length) {
+			var len = u32(src, q);
+			if (name(src, q + 4) != 0x54414449 || len < 0 || q + 12 + len > src.length) break;
+			if (len > 0) {
+				st[0].p = q + 8;
+				st[0].end = q + 8 + len;
+				return;
+			}
+			q += 12;
+		}
+		st[0].chunked = 0;
 	}
 
-	// (the whole bytes the bit buffer holds unread: given back to the input)
-	@:hxmc.unsafe static function giveBack(s:Raw) {
-		s.set32(P, s.i32(P) - (s.i32(CNT) >> 3));
-		s.set32(BUF, 0);
-		s.set32(CNT, 0);
+	static inline function bits(st:Span<PngBits>, src:ReadOnlySpan<UInt8>, n:Int):Int {
+		need(st, src, n);
+		var buf = st[0].buf;
+		st[0].buf = buf >>> n;
+		st[0].cnt -= n;
+		return buf & ((1 << n) - 1);
 	}
 
 	// a symbol: the table for codes up to FAST bits, else bit by bit from the
 	// canonical counts (a code's first bit its most significant)
-	@:hxmc.unsafe static inline function symbol(s:Raw, src:Raw, h:Raw):Int {
-		need(s, src, 15);
-		var buf = s.i32(BUF);
-		var e = h.i32(4 * (16 + 288) + 4 * (buf & ((1 << FAST) - 1)));
+	static inline function symbol(st:Span<PngBits>, src:ReadOnlySpan<UInt8>, h:ReadOnlySpan<Int>):Int {
+		need(st, src, 15);
+		var buf = st[0].buf;
+		var e = h[buf & (TABLE - 1)];
 		return if (e != 0) {
 			var len = e >> 9;
-			s.set32(BUF, buf >>> len);
-			s.set32(CNT, s.i32(CNT) - len);
+			st[0].buf = buf >>> len;
+			st[0].cnt -= len;
 			e & 511;
-		} else slow(s, src, h);
+		} else slow(st, src, h);
 	}
 
-	@:hxmc.unsafe static function slow(s:Raw, src:Raw, h:Raw):Int {
+	@:hxmc.kernel static function slow(st:Span<PngBits>, src:ReadOnlySpan<UInt8>, h:ReadOnlySpan<Int>):Int {
 		var code = 0, first = 0, index = 0;
 		for (len in 1...16) {
-			code |= bits(s, src, 1);
-			var count = h.i32(4 * len);
-			if (code - count < first) return h.i32(4 * 16 + 4 * (index + (code - first)));
+			code |= bits(st, src, 1);
+			var count = h[COUNTS + len];
+			if (code - count < first) return h[SYMBOLS + index + (code - first)];
 			index += count;
 			first += count;
 			first <<= 1;
 			code <<= 1;
 		}
-		s.set32(BAD, 1);
+		st[0].bad = 1;
 		return 999;
 	}
 
-	// a canonical code from n lengths at l: counts, symbols, the table of the
-	// codes up to FAST bits (by their bits as read: reversed), each (length << 9) | symbol
-	@:hxmc.unsafe static function build(h:Raw, l:Raw, n:Int) {
-		h.fill(0, CODE);
+	// a canonical code from n lengths: the table of the codes up to FAST
+	// bits (by their bits as read: reversed), each (length << 9) | symbol,
+	// the counts, the symbols
+	@:hxmc.kernel static function build(h:Span<Int>, l:ReadOnlySpan<Int>, n:Int) {
+		h.fill(0, CODE, 0);
 		for (i in 0...n) {
-			var len = l.i32(4 * i);
-			if (len > 0) h.set32(4 * len, h.i32(4 * len) + 1);
+			var len = l[i];
+			if (len > 0) h[COUNTS + len] += 1;
 		}
-		// (the symbols by length, then by value; `at` in the table's room until it is filled)
-		var at = h.add(4 * (16 + 288)), total = 0;
+		// (the symbols by length, then by value; the next one's place by length in the table's room until it is filled)
+		var total = 0;
 		for (len in 1...16) {
-			at.set32(4 * len, total);
-			total += h.i32(4 * len);
+			h[len] = total;
+			total += h[COUNTS + len];
 		}
 		for (sym in 0...n) {
-			var len = l.i32(4 * sym);
+			var len = l[sym];
 			if (len > 0) {
-				var k = at.i32(4 * len);
-				h.set32(4 * (16 + k), sym);
-				at.set32(4 * len, k + 1);
+				var k = h[len];
+				h[SYMBOLS + k] = sym;
+				h[len] = k + 1;
 			}
 		}
-		at.fill(0, 4 * 16);
+		h.fill(0, 16, 0);
 		var code = 0, k = 0;
 		for (len in 1...16) {
-			for (i in 0...h.i32(4 * len)) {
+			for (i in 0...h[COUNTS + len]) {
 				if (len <= FAST) {
 					var r = 0, c = code;
 					for (b in 0...len) {
 						r = (r << 1) | (c & 1);
 						c >>= 1;
 					}
-					var step = 1 << len, e = (len << 9) | h.i32(4 * (16 + k));
+					var step = 1 << len, e = (len << 9) | h[SYMBOLS + k];
 					var j = r;
-					while (j < (1 << FAST)) {
-						at.set32(4 * j, e);
+					while (j < TABLE) {
+						h[j] = e;
 						j += step;
 					}
 				}
@@ -582,22 +769,23 @@ class PngCore {
 		}
 	}
 
-	@:hxmc.unsafe static function adler(b:Raw, n:Int):Int {
-		var a = 1, c = 0, i = 0;
+	@:hxmc.kernel static function adler(b:ReadOnlySpan<UInt8>):Int {
+		var a = 1, c = 0, i = 0, n = b.length;
 		while (i < n) {
 			// (3800 bytes at most between the reductions: the sums stay under 2^31, signed)
-			var stop = i + 3800 < n ? i + 3800 : n;
-			while (i < stop) {
-				a += b.u8(i++);
+			var m = b.sub(i, n - i < 3800 ? n - i : 3800);
+			for (j in 0...m.length) {
+				a += m[j];
 				c += a;
 			}
+			i += m.length;
 			a %= 65521;
 			c %= 65521;
 		}
 		return (c << 16) | a;
 	}
 
-	// (deflate's tables as arithmetic: static arrays would be GC objects)
+	// (deflate's tables as arithmetic)
 	static inline function lengthBase(k:Int):Int
 		return k < 8 ? 3 + k : k == 28 ? 258 : ((4 + (k & 3)) << ((k >> 2) - 1)) + 3;
 
@@ -619,12 +807,49 @@ class PngCore {
 			case _: (i & 1) == 0 ? 8 + ((i - 4) >> 1) : 7 - ((i - 5) >> 1);
 		}
 
-	static inline function u32(b:Raw, p:Int):Int
-		return b.u8(p) << 24 | b.u8(p + 1) << 16 | b.u8(p + 2) << 8 | b.u8(p + 3);
+	// (big-endian, as PNG's numbers are; a chunk's name as its bytes in memory, little-endian)
+	static inline function u32(b:ReadOnlySpan<UInt8>, p:Int):Int
+		return (b[p] : Int) << 24 | (b[p + 1] : Int) << 16 | (b[p + 2] : Int) << 8 | (b[p + 3] : Int);
 
-	static inline function u16(b:Raw, p:Int):Int
-		return b.u8(p) << 8 | b.u8(p + 1);
+	static inline function name(b:ReadOnlySpan<UInt8>, p:Int):Int
+		return (b[p] : Int) | (b[p + 1] : Int) << 8 | (b[p + 2] : Int) << 16 | (b[p + 3] : Int) << 24;
+
+	static inline function u16(b:ReadOnlySpan<UInt8>, p:Int):Int
+		return (b[p] : Int) << 8 | (b[p + 1] : Int);
 
 	static inline function abs(v:Int):Int
 		return v < 0 ? -v : v;
+}
+
+// (the inflater's state, public: hxmc's span fallback reinterprets to no private type: the bit buffer, its count, the input's position
+// and its chunk's end, the output's position, a failure (2: the input ran
+// out; 1: a bad code), whether IDAT chunks continue the input)
+@:noCompletion @:hxmc.struct @:publicFields class PngBits {
+	var buf:Int;
+	var cnt:Int;
+	var p:Int;
+	var end:Int;
+	var pos:Int;
+	var bad:Int;
+	var chunked:Int;
+
+	function new() {}
+}
+
+// (the scratch for an inflate: PngCore.SCRATCH bytes, malloc'ed and freed
+// on hxmc, a Bytes elsewhere)
+@:access(helder.image.PngCore)
+private class PngScratch {
+	#if (target.name == "hxmc")
+	@:hxmc.unsafe @:hxmc.kernel public static function inflate(src:ReadOnlySpan<UInt8>, at:Int, end:Int, chunked:Bool, out:Span<UInt8>):Int {
+		var p:hxmc.unsafe.Ptr<UInt8> = cast hxmc.unsafe.LibC.malloc(PngCore.SCRATCH);
+		if (p.isNull()) return PngCore.ERR_MEMORY;
+		var r = PngCore.inflate(Span.unsafeOf(p, PngCore.SCRATCH), src, at, end, chunked, out);
+		hxmc.unsafe.LibC.free(p);
+		return r;
+	}
+	#else
+	@:hxmc.kernel public static function inflate(src:ReadOnlySpan<UInt8>, at:Int, end:Int, chunked:Bool, out:Span<UInt8>):Int
+		return PngCore.inflate(Span.ofBytes(Bytes.alloc(PngCore.SCRATCH)), src, at, end, chunked, out);
+	#end
 }

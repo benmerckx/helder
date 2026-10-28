@@ -19,13 +19,14 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   is) until `changed()`; `id` and `version` for a renderer's uploads.
 - `PngDecoder`: every colour type, depth and interlacing, tRNS; `frames`
   an animated PNG's, composed as Chromium composes them. A wrapper of
-  `PngCore`, helder's one PNG decoder: `@:hxmc.unsafe` functions over
-  `Raw` (native memory on hxmc, compiled to `hxmc.unsafe.Mem`'s loads;
-  Bytes and an offset on Eval), which decode a Bytes in place on the
-  calling thread (its address taken at the call: nothing collects meanwhile)
-  and an off-heap buffer in a GC-free job alike. Its inflate is its own
-  (as hxmc's std's), the rows unfiltered and widened to RGBA8 in the one
-  buffer. Against the decoder it replaced (d4857f3, PngDecoder on
+  `PngCore`, helder's one PNG decoder: a kernel (`@:hxmc.kernel`, no
+  `@:hxmc.unsafe` but for its scratch's memory) over checked spans
+  (`hxmc.Span`, `ReadOnlySpan`), which decodes a Bytes lent for the call
+  on the calling thread (`ReadOnlySpan.ofBytes`) and an off-heap buffer in
+  a GC-free job alike; on Eval and JavaScript the same code over hxmc's
+  Bytes-backed spans. Its inflate is its own (as hxmc's std's), reading
+  the IDAT chunks where they are (no copy of the image data), the rows
+  unfiltered and widened to RGBA8 in the one buffer. Against the decoder it replaced (d4857f3, PngDecoder on
   haxe.zip's InflateImpl): the 4K photo in 184 ms instead of 259 natively
   (198 against 276 on wasm32), 33 MB of garbage instead of 119; a 48x48
   icon 0.022 ms instead of 0.027, 9 KB of garbage instead of 41; a
