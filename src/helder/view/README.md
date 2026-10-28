@@ -162,6 +162,13 @@ build loads the macro context. The sizes grow by the late code (kept
 whole by DCE natively), the agnostic literals' holes arrays and, on
 JavaScript, `Island.render` (the static renderer's, chosen at run time).
 
+On hxmc da5aa2b (#94: what an `onAfterTyping` callback defines is no
+longer restored with the module that typed it), Todo's and Planets' warm
+native builds by `helder build` went from 0.76 and 0.73 s to 0.55 and
+0.55 s. The late classes keep their hash names, no longer needed for
+correctness, for stable names; reusing them across builds waits on hxmc's
+"one cache".
+
 ## Renderers
 
 A renderer is a class of static functions over its node type that

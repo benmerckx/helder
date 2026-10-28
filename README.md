@@ -222,10 +222,10 @@ Still to come:
   - Every example built by `helder build <file>`, natively and for web,
     with no flags; the defines, the CLI's and the tests', are gone.
 
-  Still to come: warm builds of a program with markup 0.2 s slower (every
-  runtime and the late code made by macros each build, where the module
-  cache served them before: runtimes as modules of their packages, the late
-  code from the cache); late code kept whole by DCE natively (on JavaScript
+  Still to come: warm builds of a program with markup still a little slower
+  than before (every runtime and the late code made by macros each build;
+  hxmc da5aa2b's #94 took Todo's warm build from 0.76 to 0.55 s, the late
+  code from the cache waits on hxmc's "one cache" rewrite); late code kept whole by DCE natively (on JavaScript
   per literal); `<Surface>` on phones; `<Ui>` laid out a frame late and
   without its own events past ui's; picking against triangles; the scene's
   feature pipelines (skins, normal maps, the sky) in a `<Scene>`'s target;
