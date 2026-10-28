@@ -214,11 +214,11 @@ function tests() {
 				"R58M12ABCDE            unauthorized usb:1-1 transport_id:2",
 				"",
 			].join("\n");
-			equals(DeviceList.adbDevices(text), [
+			equals(Devices.adbDevices(text), [
 				{id: "emulator-5554", name: "sdk gphone64 x86 64", kind: "emulator", target: "android"},
 				{id: "R58M12ABCDE", name: "R58M12ABCDE (unauthorized)", kind: "device", target: "android"},
 			]);
-			equals(DeviceList.adbDevices("List of devices attached\n\n"), []);
+			equals(Devices.adbDevices("List of devices attached\n\n"), []);
 		});
 		test("xcrun simctl list devices available", () -> {
 			var text = [
@@ -229,13 +229,13 @@ function tests() {
 				"-- watchOS 10.2 --",
 				"    Apple Watch Series 9 (45mm) (0A1B2C3D-4E5F-4061-8273-94A5B6C7D8E9) (Shutdown) ",
 			].join("\n");
-			equals(DeviceList.simulators(text), [
+			equals(Devices.simulators(text), [
 				{id: "8A9C6B4E-6E2B-4A43-9C7B-2C7B1E9D5F11", name: "iPhone 15 (iOS 17.2)", kind: "simulator", target: "ios"},
 				{id: "1B2C3D4E-5F60-4718-8293-A4B5C6D7E8F9", name: "iPad Air (5th generation) (iOS 17.2)", kind: "simulator, booted", target: "ios"},
 			]);
 		});
 		test("the table", () -> {
-			equals(DeviceList.table([{id: "host", name: "this machine", kind: "host", target: "linux-x86_64"}]),
+			equals(Devices.table([{id: "host", name: "this machine", kind: "host", target: "linux-x86_64"}]),
 				"id    name          kind  target\nhost  this machine  host  linux-x86_64");
 		});
 	});

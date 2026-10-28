@@ -18,7 +18,7 @@
     "@hxmc/cli": ">=0.1.0-0"
   },
   "devDependencies": {
-    "@hxmc/cli": "0.1.0-nightly.20261028.409f580"
+    "@hxmc/cli": "0.1.0-nightly.20261028.e597d9b"
   },
   "trustedDependencies": [
     "@hxmc/cli"
