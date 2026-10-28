@@ -53,7 +53,7 @@ class Compiler {
 			}
 			try {
 				var entry = core.Define.rawDefinedValueSafe(com.defines, DEFINE, "");
-				if (entry == "") @:privateAccess hxmc.Main.generate(com, com.file) else generate(com, entry);
+				if (entry == "") hxmc.Main.generate(com, com.file) else generate(com, entry);
 			} catch (e:Dynamic) {
 				if (Sys.getEnv("HELDER_TS_DEBUG") == "1") Sys.stderr().writeString(haxe.CallStack.toString(haxe.CallStack.exceptionStack()) + "\n");
 				if (hxmc.Driver.resident) for (m in messages(Std.string(e))) com.error(m.text, m.pos) else failed = Std.string(e);
@@ -68,54 +68,42 @@ class Compiler {
 		return code;
 	}
 
-	// As hxmc's Main.generate, with the TypeScript program lowered into the IR.
+	// hxmc's generation (hxmc.Main.generate) with the TypeScript program
+	// lowered into the IR it is about to compile (its beforeCodegen seam).
 	static function generate(com:context.Common.CommonContext, entry:String) {
-		var o = hxmc.Options.read(com), abi = hxmc.Abi.get(o.target);
-		abi.setLibc(o.libc);
-		hxmc.ir.Lower.targetOs = abi.osCode();
-		hxmc.ir.Lower.targetArm = abi.arm ? 1 : 0;
-		hxmc.ir.Lower.targetCode = hxmc.MirBuild.targetCode(abi);
-		hxmc.ir.Lower.targetPlatform = abi.platformCode();
-		hxmc.ir.Lower.resources = com.resources.fold((name, data, acc:Array<{name:String, data:haxe.io.Bytes}>) -> [{name: name, data: data}].concat(acc), []);
-		hxmc.ir.Lower.bounds = o.bounds;
-		hxmc.ir.Lower.nullChecks = o.nullChecks;
-		hxmc.ir.Lower.spanChecks = o.spanChecks;
-		hxmc.ir.Lower.lines = (o.debugLines || o.stacks) && !abi.wasm;
-		hxmc.ir.Reach.stacksAlways = o.stacksAlways;
-		hxmc.ir.RuntimeSymbols.check(com, abi.wasm ? hxmc.ir.RuntimeSymbols.WASM32 : hxmc.ir.RuntimeSymbols.NATIVE, abi.name);
 		phase("type (haxe)");
-		// (helder dev's watcher: the program's files, beside the modules
-		// helder.cli.Deps wrote; a failed check's too, so a fix is seen)
-		var deps = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".deps", "");
-		function listFiles() if (deps != "") {
-			var listed = sys.FileSystem.exists(deps) ? sys.io.File.getContent(deps) : "";
-			sys.io.File.saveContent(deps, listed + [for (f in Project.read) f + "\n"].join(""));
-		}
-		var project = try Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"])) catch (e:Dynamic) {
+		hxmc.Main.generate(com, com.file, (com, p) -> {
+			phase("lower runtime");
+			// (helder dev's watcher: the program's files, beside the modules
+			// helder.cli.Deps wrote; a failed check's too, so a fix is seen)
+			var deps = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".deps", "");
+			function listFiles() if (deps != "") {
+				var listed = sys.FileSystem.exists(deps) ? sys.io.File.getContent(deps) : "";
+				sys.io.File.saveContent(deps, listed + [for (f in Project.read) f + "\n"].join(""));
+			}
+			var project = try Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"])) catch (e:Dynamic) {
+				listFiles();
+				throw e;
+			}
 			listFiles();
-			throw e;
-		}
-		listFiles();
-		phase("check (tsgo)");
-		var p = hxmc.ir.Lower.program(context.Common.getEntryPoint(com).cls, com.types, com.basic);
-		phase("lower runtime");
-		var frontend = new Frontend(project, p);
-		frontend.lower();
-		Verifier.check(p);
-		phase("lower program");
-		var dump = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".dump_ir", "");
-		if (core.Define.rawDefined(com.defines, DEFINE + ".roundtrip_ir")) {
-			var text = TextIR.dump(p);
-			TextIR.parse(p, text);
+			phase("check (tsgo)");
+			var frontend = new Frontend(project, p);
+			frontend.lower();
 			Verifier.check(p);
-			if (TextIR.dump(p) != text) throw "TSHXIR004: text round trip changed IR";
-		}
-		if (dump != "") sys.io.File.saveContent(dump, TextIR.dump(p));
-		if (core.Define.rawDefined(com.defines, DEFINE + ".coverage")) {
-			Sys.println(haxe.Json.stringify(frontend.coverage()));
-			return;
-		}
-		hxmc.Driver.run(p, com.file, o);
+			phase("lower program");
+			if (core.Define.rawDefined(com.defines, DEFINE + ".roundtrip_ir")) {
+				var text = TextIR.dump(p);
+				TextIR.parse(p, text);
+				Verifier.check(p);
+				if (TextIR.dump(p) != text) throw "TSHXIR004: text round trip changed IR";
+			}
+			var dump = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".dump_ir", "");
+			if (dump != "") sys.io.File.saveContent(dump, TextIR.dump(p));
+			if (core.Define.rawDefined(com.defines, DEFINE + ".coverage")) {
+				Sys.println(haxe.Json.stringify(frontend.coverage()));
+				Sys.exit(0);
+			}
+		});
 		phase("generate");
 	}
 
@@ -200,7 +188,7 @@ class Compiler {
 		if ((Sys.getEnv("HXMC_STD") ?? "") == "") Sys.putEnv("HXMC_STD", cli + "/hxmc/bootstrap/hxmc-std");
 		if ((Sys.getEnv("HXMC_RT_DIR") ?? "") == "") {
 			var dir = Path.directory(cli);
-			var dirs = [for (name in FileSystem.readDirectory(dir)) if (name != "cli") dir + "/" + name];
+			var dirs = [for (name in FileSystem.readDirectory(dir)) if (~/^(linux|darwin|win32)-/.match(name)) dir + "/" + name];
 			Sys.putEnv("HXMC_RT_DIR", dirs.join(Sys.systemName() == "Windows" ? ";" : ":"));
 		}
 	}

@@ -28,9 +28,10 @@ $(node src/helder/typescript/build.mjs --quiet) app.ts -o bin/app && bin/app
 
 `build.mjs` builds it once per hxmc version and per hash of these sources,
 into the user's cache (`~/.cache/helder/typescript/`). It links hxmc's
-compiler sources, which the npm packages do not ship yet: `HXMC_SRC` names a
-checkout, else the commit the installed nightly's version names is fetched
-with git (sparse: `haxe/src`, `hxmc/src`) into `~/.cache/helder/hxmc-src/`.
+compiler sources from `@hxmc/source` (a dev dependency at `@hxmc/cli`'s
+version), or a checkout `HXMC_SRC` names, and lowers the program through
+hxmc's seam for frontends (`hxmc.Main.generate`'s beforeCodegen: the IR
+after the Haxe side is lowered, before code generation).
 `HELDER_TS_TIMES=1` prints a build's phases, `HELDER_TS_DEBUG=1` the stack of
 a compiler error.
 

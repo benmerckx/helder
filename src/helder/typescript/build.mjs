@@ -3,11 +3,9 @@
 // path: node src/helder/typescript/build.mjs [--quiet] (--sources: hxmc's
 // sources' path instead, for tests that link them too)
 //
-// It links hxmc's compiler sources, which the npm packages do not ship yet:
-// HXMC_SRC names a checkout, else the commit the nightly's version names
-// (0.1.0-nightly.<date>.<commit>) is fetched with git into the user's cache.
-// The executable is kept in the cache per hxmc version and per hash of
-// helder.typescript's sources.
+// It links hxmc's compiler sources: @hxmc/source, at @hxmc/cli's version,
+// or HXMC_SRC naming a checkout. The executable is kept in the user's cache
+// per hxmc version and per hash of helder.typescript's sources.
 import {spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -33,31 +31,16 @@ function find(rel) {
 const cli = find('node_modules/@hxmc/cli/package.json');
 if (!cli) throw new Error('helder-ts: @hxmc/cli is not installed');
 const version = JSON.parse(fs.readFileSync(cli, 'utf8')).version;
-const commit = version.split('.').pop();
 const cache = process.env.HELDER_CACHE ?? (process.platform === 'win32' ? path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'helder', 'cache')
 	: process.platform === 'darwin' ? path.join(os.homedir(), 'Library/Caches/helder') : path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'helder'));
 
-function git(dir, args) {
-	const r = spawnSync('git', ['-C', dir, ...args], {encoding: 'utf8'});
-	if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
-	return r.stdout.trim();
-}
 let hxmc = process.env.HXMC_SRC;
 if (!hxmc) {
-	if (!/^[0-9a-f]{7,40}$/.test(commit)) throw new Error(`helder-ts: @hxmc/cli ${version} names no commit; set HXMC_SRC to hxmc's sources`);
-	hxmc = path.join(cache, 'hxmc-src', commit);
-	if (!fs.existsSync(path.join(hxmc, '.done'))) {
-		log(`fetching hxmc's sources at ${commit}`);
-		fs.rmSync(hxmc, {recursive: true, force: true});
-		fs.mkdirSync(hxmc, {recursive: true});
-		git(hxmc, ['init', '-q']);
-		git(hxmc, ['remote', 'add', 'origin', 'https://github.com/benmerckx/hxmc.git']);
-		git(hxmc, ['sparse-checkout', 'set', 'haxe/src', 'hxmc/src']);
-		// (a short commit cannot be fetched by name: the nightlies' branch, then the commit in it)
-		git(hxmc, ['fetch', '-q', '--filter=blob:none', 'origin', 'main']);
-		git(hxmc, ['checkout', '-q', git(hxmc, ['rev-parse', commit])]);
-		fs.writeFileSync(path.join(hxmc, '.done'), '');
-	}
+	const source = find('node_modules/@hxmc/source/package.json');
+	if (!source) throw new Error(`helder-ts: @hxmc/source is not installed (add @hxmc/source@${version}, or set HXMC_SRC to hxmc's sources)`);
+	const sourceVersion = JSON.parse(fs.readFileSync(source, 'utf8')).version;
+	if (sourceVersion !== version) throw new Error(`helder-ts: @hxmc/source ${sourceVersion} does not match @hxmc/cli ${version}`);
+	hxmc = path.dirname(source);
 }
 
 if (process.argv.includes('--sources')) {
