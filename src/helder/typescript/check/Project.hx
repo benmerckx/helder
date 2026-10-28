@@ -59,8 +59,16 @@ class Project {
 		isJS = ~/\.[cm]?jsx?$/.match(absolute);
 		if (!sys.FileSystem.exists(absolute)) throw path + ": TSHX002: input file not found";
 		var options = {
-			target: 99, module: 99, moduleResolution: 100, strict: true, allowJs: true, checkJs: false, noEmit: true,
-			skipLibCheck: true, types: [], lib: ["lib.esnext.d.ts"]
+			target: 99,
+			module: 99,
+			moduleResolution: 100,
+			strict: true,
+			allowJs: true,
+			checkJs: false,
+			noEmit: true,
+			skipLibCheck: true,
+			types: [],
+			lib: ["lib.esnext.d.ts"]
 		};
 		var snapshot:Dynamic = tsgo.call("createSnapshot", {createPrograms: [{rootFiles: [absolute, globals], compilerOptions: options}]});
 		var at = {snapshot: snapshot.snapshot, project: snapshot.projects[0].id};

@@ -99,5 +99,5 @@ class Tables {
 
 	// the position of a child property among a kind's possible children, or -1
 	public inline function order(kind:Kind, property:Int):Int
-		return (kind:Int) < 0 || (kind:Int) >= Kind.names.length ? -1 : orders[(kind:Int) * PROPERTIES + property];
+		return (kind : Int) < 0 || (kind : Int) >= Kind.names.length ? -1 : orders[(kind : Int) * PROPERTIES + property];
 }

@@ -1,0 +1,98 @@
+{
+	"sameLine": {
+		"ifBody": "keep",
+		"elseBody": "keep",
+		"forBody": "keep",
+		"whileBody": "keep",
+		"doWhileBody": "keep",
+		"tryBody": "keep",
+		"catchBody": "keep",
+		"functionBody": "keep",
+		"caseBody": "keep",
+		"expressionIf": "keep",
+		"comprehensionFor": "keep",
+		"anonFunctionBody": "keep",
+		"returnBody": "keep",
+		"tryCatch": "keep",
+		"ifElse": "keep",
+		"elseIf": "keep",
+		"doWhile": "keep",
+		"expressionTry": "keep",
+		"untypedBody": "keep"
+	},
+	"emptyLines": {
+		"classEmptyLines": {
+			"afterPrivateVars": 0,
+			"afterStaticVars": 0,
+			"afterVars": 0,
+			"betweenFunctions": 1,
+			"existingBetweenFields": "keep"
+		}
+	},
+	"wrapping": {
+		"maxLineLength": 1000,
+		"anonFunctionSignature": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"anonType": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"arrayWrap": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"callParameter": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"casePattern": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"functionSignature": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"implementsExtends": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"mapWrap": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"metadataCallParameter": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"methodChain": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"multiVar": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"objectLiteral": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"opAddSubChain": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"opBoolChain": {
+			"defaultWrap": "keep",
+			"rules": []
+		},
+		"typeParameter": {
+			"defaultWrap": "keep",
+			"rules": []
+		}
+	},
+	"indentation": {
+		"conditionalPolicy": "aligned"
+	}
+}

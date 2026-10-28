@@ -96,3 +96,8 @@ program of `cases/` and `modules/` compiled by tsc and run on node (24), and
 by helder-ts natively and as wasm32-wasi, the outputs compared; `standards/`
 check themselves where node still differs from the specification;
 `reject/` must fail with a diagnostic at the line it names.
+
+These sources are formatted by haxe-formatter (its master, for Haxe 4.3's
+operators) with the repository's `hxformat.json`, which keeps helder's
+single-line bodies and unwrapped lines; `generate.mjs` writes its files
+already formatted.

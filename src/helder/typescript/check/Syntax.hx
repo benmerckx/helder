@@ -42,101 +42,198 @@ class Protocol {
 // Named child accessors: lists return their elements, single children null when absent.
 class Children {
 	public inline function argument():Node return child(0);
+
 	public inline function argumentExpression():Node return child(1);
+
 	public inline function arguments():Array<Node> return list(2);
+
 	public inline function assertsModifier():Node return child(3);
+
 	public inline function asteriskToken():Node return child(4);
+
 	public inline function attributes():Node return child(5);
+
 	public inline function awaitModifier():Node return child(6);
+
 	public inline function block():Node return child(7);
+
 	public inline function body():Node return child(8);
+
 	public inline function caseBlock():Node return child(9);
+
 	public inline function catchClause():Node return child(10);
+
 	public inline function checkType():Node return child(11);
+
 	public inline function jsxChildren():Node return child(12);
+
 	public inline function className():Node return child(13);
+
 	public inline function clauses():Array<Node> return list(14);
+
 	public inline function closingElement():Node return child(15);
+
 	public inline function closingFragment():Node return child(16);
+
 	public inline function colonToken():Node return child(17);
+
 	public inline function comment():Node return child(18);
+
 	public inline function condition():Node return child(19);
+
 	public inline function constraint():Node return child(20);
+
 	public inline function declarationList():Node return child(21);
+
 	public inline function declarations():Array<Node> return list(22);
+
 	public inline function defaultType():Node return child(23);
+
 	public inline function dotDotDotToken():Node return child(24);
+
 	public inline function elementType():Node return child(25);
+
 	public inline function elements():Array<Node> return list(26);
+
 	public inline function elseStatement():Node return child(27);
+
 	public inline function endOfFileToken():Node return child(28);
+
 	public inline function equalsGreaterThanToken():Node return child(29);
+
 	public inline function equalsToken():Node return child(30);
+
 	public inline function exclamationToken():Node return child(31);
+
 	public inline function exportClause():Node return child(32);
+
 	public inline function exprName():Node return child(33);
+
 	public inline function expression():Node return child(34);
+
 	public inline function extendsType():Node return child(35);
+
 	public inline function falseType():Node return child(36);
+
 	public inline function finallyBlock():Node return child(37);
+
 	public inline function head():Node return child(38);
+
 	public inline function heritageClauses():Array<Node> return list(39);
+
 	public inline function importClause():Node return child(40);
+
 	public inline function incrementor():Node return child(41);
+
 	public inline function indexType():Node return child(42);
+
 	public inline function initializer():Node return child(43);
+
 	public inline function jsdocPropertyTags():Node return child(44);
+
 	public inline function label():Node return child(45);
+
 	public inline function left():Node return child(46);
+
 	public inline function literal():Node return child(47);
+
 	public inline function members():Array<Node> return list(48);
+
 	public inline function modifiers():Array<Node> return list(49);
+
 	public inline function moduleReference():Node return child(50);
+
 	public inline function moduleSpecifier():Node return child(51);
+
 	public inline function name():Node return child(52);
+
 	public inline function nameExpression():Node return child(53);
+
 	public inline function nameType():Node return child(54);
+
 	public inline function namedBindings():Node return child(55);
+
 	public inline function namespace():Node return child(56);
+
 	public inline function objectAssignmentInitializer():Node return child(57);
+
 	public inline function objectType():Node return child(58);
+
 	public inline function openingElement():Node return child(59);
+
 	public inline function openingFragment():Node return child(60);
+
 	public inline function operand():Node return child(61);
+
 	public inline function operatorToken():Node return child(62);
+
 	public inline function parameterName():Node return child(63);
+
 	public inline function parameters():Array<Node> return list(64);
+
 	public inline function postfixToken():Node return child(65);
+
 	public inline function properties():Array<Node> return list(66);
+
 	public inline function propertyName():Node return child(67);
+
 	public inline function qualifier():Node return child(68);
+
 	public inline function questionDotToken():Node return child(69);
+
 	public inline function questionToken():Node return child(70);
+
 	public inline function readonlyToken():Node return child(71);
+
 	public inline function right():Node return child(72);
+
 	public inline function statement():Node return child(73);
+
 	public inline function statements():Array<Node> return list(74);
+
 	public inline function tag():Node return child(75);
+
 	public inline function tagName():Node return child(76);
+
 	public inline function tags():Array<Node> return list(77);
+
 	public inline function template():Node return child(78);
+
 	public inline function templateSpans():Array<Node> return list(79);
+
 	public inline function thenStatement():Node return child(80);
+
 	public inline function thisArg():Node return child(81);
+
 	public inline function trueType():Node return child(82);
+
 	public inline function tryBlock():Node return child(83);
+
 	public inline function tupleNameSource():Node return child(84);
+
 	public inline function type():Node return child(85);
+
 	public inline function typeArguments():Array<Node> return list(86);
+
 	public inline function typeExpression():Node return child(87);
+
 	public inline function typeName():Node return child(88);
+
 	public inline function typeParameter():Node return child(89);
+
 	public inline function typeParameters():Array<Node> return list(90);
+
 	public inline function types():Array<Node> return list(91);
+
 	public inline function value():Node return child(92);
+
 	public inline function variableDeclaration():Node return child(93);
+
 	public inline function whenFalse():Node return child(94);
+
 	public inline function whenTrue():Node return child(95);
+
 	function child(property:Int):Node throw "abstract";
+
 	function list(property:Int):Array<Node> throw "abstract";
 }
