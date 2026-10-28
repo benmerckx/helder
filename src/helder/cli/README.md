@@ -147,9 +147,14 @@ build time.
 - **An app's identity**: `package.json`'s `"helder"` key (`App.hx`):
   `"id"` (the application id and bundle id; `org.helder.<name>`),
   `"label"` (the name), `"version"` (versionCode, CFBundleVersion: 1),
-  `"versionName"` (1.0), `"android": {"permissions": ["INTERNET"],
-  "minSdk": 29, "targetSdk": 35, "key"}`, `"ios": {"minVersion": "15.0",
-  "entitlements": "<an XML plist>"}`.
+  `"versionName"` (1.0), `"orientation"` (`"portrait"`: the manifest's
+  `screenOrientation` portrait, the plist's upright iPhone and either-way
+  iPad; `"landscape"`: `sensorLandscape`, both landscapes; both with
+  `UIRequiresFullScreen`; `"any"`, the default: neither), `"fullscreen"`
+  (`true`: `-D helder.fullscreen` for the build, every `Window` immersive
+  from the start, the plist's `UIStatusBarHidden`), `"android":
+  {"permissions": ["INTERNET"], "minSdk": 29, "targetSdk": 35, "key"}`,
+  `"ios": {"minVersion": "15.0", "entitlements": "<an XML plist>"}`.
 - **run**: on Android `adb -s <id>` installs (`install -r`), starts (`am
   start`, after `force-stop`) and streams logcat's `hxmc` tag (the
   program's stdout and stderr) until the app's process ends; on iOS `xcrun
@@ -343,14 +348,18 @@ Android and iOS, tested where:
   (made from the system's random source, kept, refused when it is not
   one), Info.plist, CodeResources and the .ipa.
 - **The `pack` lane** (`bun run test pack`, Linux; part of `headless`):
-  tests/pack/Hello.hx and a project with an app's options (tests/pack/project:
-  an id, a permission, iOS's minimum and entitlements) built for
+  tests/pack/Hello.hx, tests/pack/Screen.hx (a window: CI's emulator and
+  simulator run it) and a project with an app's options (tests/pack/project:
+  an id, a permission, iOS's minimum and entitlements, landscape,
+  fullscreen) built for
   android-arm64, android-x86_64, ios-arm64 (.ipa) and ios-sim-arm64 (.app)
   by `helder build`, checked by tests/pack/PackCheck.hx: the zip's layout
   and 16 KB alignment, the manifest, the library (readelf: 16 KB segments,
-  soname, the export, DT_NEEDED), the v2 signature's digest recomputed and
+  soname, the export, DT_NEEDED), screenOrientation, the v2 signature's digest recomputed and
   openssl verifying it (apksigner, zipalign and aapt when on the PATH:
-  CI's); the bundle, Info.plist, the Mach-O's build version, its code
+  CI's); the bundle, Info.plist (its orientations, UIRequiresFullScreen,
+  UIStatusBarHidden), the program built with -D helder.fullscreen (its
+  line in the binary), the Mach-O's build version, its code
   signature with its page hashes and special slots (1 Info.plist, 2 the
   requirements, 3 CodeResources, 5 the entitlements). Then `helder run`
   and `helder dev` against stand-ins for adb and xcrun (tests/pack/fake,
@@ -369,7 +378,10 @@ Android and iOS, tested where:
   edits swapped into the same process, the state kept); the
   `ios-simulator` job on macos-15, the pack lane (with codesign --verify
   and plutil -lint) and tests/pack/ios.sh (`helder run --target ios -d
-  <a new simulator>`'s hello line). Never yet on a real phone.
+  <a new simulator>`'s hello line); both then run tests/pack/Screen.hx
+  (its window's size, scale and safe area, the display's frames, the bars
+  hidden, a rotation on Android, the background and back: checked by
+  tests/pack/screen.mjs). Never yet on a real phone.
 
 Not yet: the devtools' agent on the web (the page relaying it), changed assets sent without a
 recompile, the page held back while the module is generated (dev.mjs's

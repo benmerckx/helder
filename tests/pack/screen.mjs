@@ -4,7 +4,9 @@
 // hidden (Android: the navigation bar's bottom inset; iOS: the notch's or
 // the island's top and the home indicator's bottom); the display's frames
 // (vsyncs, their mean delta and period a display's: 5 to 50 ms) and nothing
-// allocated over 120; then a rotation (Android: a Resize wider than high),
+// allocated over 120; Android: the bars hidden (no bottom inset) and the
+// window into the cutout (a top inset), then a rotation (a Resize wider
+// than high, the cutout at a side);
 // the background (Suspend) and back (Resume, the first frame's delta a
 // period, not the time away). Exits non-zero on a failure.
 //   node tests/pack/screen.mjs <lines> android|ios
@@ -44,10 +46,16 @@ check("120 frames: a display's pace (5 to 50 ms)", frames && +frames.m[1] >= 5 &
 const alloc = find(/^screen: allocated (-?\d+) bytes/);
 check('120 frames: nothing allocated', alloc && +alloc.m[1] === 0, alloc?.m[0]);
 if (platform === 'android') {
-	const after = find(/^screen: resize (\d+)x(\d+) .* safe ([\d,]+)/, immersive);
-	check('immersive: a Resize, the bars hidden (no bottom inset)', after && safe(after.m[3])[2] === 0, after?.m[0]);
-	const turned = lines.map((l) => /^screen: resize (\d+)x(\d+)/.exec(l)).find((m) => m && +m[1] > +m[2]);
+	// (the window's Resizes once immersive: into the cutout's edge (the
+	// Pixel 6's camera: a top inset upright, a side's turned), the bars
+	// hidden (no bottom inset); the first may come before its insets were
+	// measured again, the next with them)
+	const resizes = lines.slice(immersive).map((l) => /^screen: resize (\d+)x(\d+) .* safe ([\d,]+)/.exec(l)).filter(Boolean);
+	const upright = resizes.find((m) => +m[1] < +m[2] && safe(m[3])[2] === 0 && safe(m[3])[0] > 0);
+	check('immersive: the bars hidden (no bottom inset), the window into the cutout (a top inset)', !!upright, upright?.[0]);
+	const turned = resizes.find((m) => +m[1] > +m[2]);
 	check('a rotation: a Resize wider than high', !!turned, turned?.[0]);
+	check('turned: the cutout at a side', turned && (safe(turned[3])[1] > 0 || safe(turned[3])[3] > 0), turned?.[0]);
 }
 const suspend = find(/^screen: suspend/);
 check('the background: Suspend', !!suspend);
