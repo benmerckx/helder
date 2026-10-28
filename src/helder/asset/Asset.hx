@@ -52,8 +52,11 @@ class Asset<T> #if !macro extends SignalBase #end {
 		this.key = key;
 	}
 
-	inline function get_ready():Bool
+	// (tracked: a reader that waits for it runs again once it is)
+	function get_ready():Bool {
+		track();
 		return state == Ready;
+	}
 
 	// the value, tracked; AssetPending while loading, the AssetError once failed
 	function get_value():T {

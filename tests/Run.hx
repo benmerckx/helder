@@ -239,6 +239,10 @@ class Run {
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-nohost", "native-nohost"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-exit", "exit"]);
+		// (assets: a change sent, nothing built, behind the same handle; the page told)
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset", "asset"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset-nohost", "asset-nohost"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset-web", "asset-web"]);
 	}
 
 	// (the runtime objects: Android's and iOS's are not npm's for this
@@ -587,6 +591,8 @@ class Run {
 		else run(NODE, ["tests/os/dev/dev-native.mjs", compiler, "bin/dev/native"]);
 		run(NODE, ["tests/os/dev/server-verify.mjs", compiler]);
 		run(NODE, ["tests/os/dev/dev-verify.mjs", compiler, "Counter", "web"]);
+		// (helder dev's asset reload in the page: the same Image, no swap)
+		run(NODE, ["tests/os/dev/dev-asset.mjs", helderCli(), "bin/dev/asset"]);
 	}
 
 	// (Linux: under Xvfb, a Windows build's Wine too)
