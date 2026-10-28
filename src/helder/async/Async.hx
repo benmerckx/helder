@@ -150,7 +150,8 @@ class Async {
 	static inline function stale(c:IContinuation<Dynamic>)
 		if (c is BaseContinuation) (cast c : BaseContinuation<Dynamic>).error = null;
 
-	@:allow(helder.async) static function loopOf(c:Context):Loop {
+	// the loop a context's coroutine resumes on
+	public static function loopOf(c:Context):Loop {
 		var d = c.get(Dispatcher);
 		return d is Loop ? cast d : Loop.current();
 	}

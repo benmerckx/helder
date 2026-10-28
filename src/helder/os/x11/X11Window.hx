@@ -488,6 +488,14 @@ class X11Window {
 	}
 
 	// waits for the connection's socket to have data, or seconds
+	// (App.wait: with helder.async's loop, its wait, the connection among what it polls)
+	static function waitFor(seconds:Float) {
+		var loop = helder.async.Driven.MainLoop.main;
+		if (loop == null) return wait(seconds);
+		if (!display.isNull() && Xlib.XPending(display) > 0) return;
+		loop.wait(seconds, display.isNull() ? -1 : Xlib.XConnectionNumber(display));
+	}
+
 	static function wait(seconds:Float) {
 		if (display.isNull() || Xlib.XPending(display) > 0) return;
 		var fd = Xlib.XConnectionNumber(display);

@@ -16,8 +16,9 @@ using hxmc.net.SocketTools;
 // process's exit), and comes back completed (its result in it, or its
 // error) through its continuation, on the loop. The operation owns its
 // buffer until then. `poll` waits at most `seconds` (-1: until one
-// completes) and delivers what completed; timeouts are the loop's timers,
-// whose next one bounds the wait. Natively the backend is poll(2)
+// completes) and delivers what completed, also returning when the loop's
+// wake pipe or another descriptor (`fd`: X11's connection) is readable;
+// timeouts are the loop's timers, whose next one bounds the wait. Natively the backend is poll(2)
 // (PollIo: hxmc.net.Poll), on Eval select(2) (SelectIo); both emulate
 // completions: they wait for readiness, then make the call. io_uring
 // (Linux, poll where it is disabled), kqueue (macOS) and IOCP (Windows) are
@@ -27,7 +28,7 @@ interface Backend {
 	// the operation dropped (its continuation not resumed)
 	function cancel(op:Op):Void;
 	function pending():Int;
-	function poll(seconds:Float):Void;
+	function poll(seconds:Float, fd:Int):Void;
 }
 
 enum abstract OpKind(Int) {
@@ -148,7 +149,7 @@ class ReadyIo implements Backend {
 		} else if (!h.polled()) threaded(op);
 	}
 
-	public function poll(seconds:Float) {}
+	public function poll(seconds:Float, fd:Int) {}
 
 	// (a connect started: false when it failed at once, completed)
 	function connect(op:Op):Bool
@@ -327,8 +328,8 @@ class PollIo extends ReadyIo {
 	override function exitPolled(p:Process):Bool
 		return p.exitFd >= 0;
 
-	override public function poll(seconds:Float) {
-		if (asked > 0 || loop.held > 0) seconds = seconds < 0 || seconds > 0.01 ? 0.01 : seconds;
+	override public function poll(seconds:Float, fd:Int) {
+		if (asked > 0 || (loop.held > 0 && loop.wakeRead < 0)) seconds = seconds < 0 || seconds > 0.01 ? 0.01 : seconds;
 		var n = 0, closed = false;
 		for (op in ops) {
 			var fd = -1, ev = 0;
@@ -357,6 +358,22 @@ class PollIo extends ReadyIo {
 			n++;
 		}
 		if (closed) seconds = 0;
+		// (the wake pipe and the caller's descriptor: no operation of theirs)
+		for (extra in 0...2) {
+			var x = extra == 0 ? loop.wakeRead : fd;
+			if (x < 0) continue;
+			if (n == fds.length) {
+				fds.push(0);
+				events.push(0);
+				revents.push(0);
+				waiting.push(null);
+			}
+			fds[n] = x;
+			events[n] = Poll.IN;
+			revents[n] = 0;
+			waiting[n] = null;
+			n++;
+		}
 		var ready = 0;
 		if (n == 0) {
 			if (seconds > 0) Sys.sleep(seconds);
@@ -367,7 +384,7 @@ class PollIo extends ReadyIo {
 		for (i in 0...n) {
 			var op = waiting[i];
 			waiting[i] = null;
-			if (ready > 0 && revents[i] != 0 && op.cont != null) attempt(op);
+			if (ready > 0 && revents[i] != 0 && op != null && op.cont != null) attempt(op);
 		}
 		// (a handle closed while an operation waited on it)
 		if (closed) {
@@ -440,7 +457,7 @@ class SelectIo extends ReadyIo {
 		return true;
 	}
 
-	override public function poll(seconds:Float) {
+	override public function poll(seconds:Float, fd:Int) {
 		if (asked > 0 || loop.held > 0) seconds = seconds < 0 || seconds > 0.01 ? 0.01 : seconds;
 		var r = [], w = [];
 		for (op in ops)
@@ -509,5 +526,5 @@ class NoIo implements Backend {
 	public function pending():Int
 		return 0;
 
-	public function poll(seconds:Float) {}
+	public function poll(seconds:Float, fd:Int) {}
 }

@@ -17,15 +17,16 @@ import hxmc.unsafe.Callback;
 // waits on I/O (Io: operations on sockets, pipes and processes) until nothing is left
 // or stop(). `run` blocks; `turn(seconds)` runs what is ready and waits at
 // most that long (0: not at all), for a loop driven by another one
-// (App.run's frames). In the browser (wasm32-wasi) the page's event loop
-// turns it: run returns at once, and a turn comes when something is
-// dispatched, a timer is due or a fetch is done (src/helder/async/imports.mjs).
+// (App.run's frames: Driven). In the browser (wasm32-wasi) the page's event
+// loop turns it from its making on: run returns at once, and a turn comes
+// when something is dispatched, a timer is due or a fetch is done
+// (src/helder/async/imports.mjs), with or without frames.
 //
 //   var loop = Loop.current();
 //   loop.schedule(500, cont);    // haxe.coro's scheduler: cont resumed in 500 ms
 //   while (loop.turn(0.01)) {}   // or loop.run()
 @:allow(helder.async)
-class Loop extends Dispatcher implements IScheduler {
+class Loop extends Dispatcher implements IScheduler implements Driven {
 	#if target.threaded
 	static final tls = new sys.thread.Tls<Loop>();
 	#else
@@ -52,9 +53,21 @@ class Loop extends Dispatcher implements IScheduler {
 	var held = 0;
 	var stopped = false;
 	var turning = false;
+	#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+	// (POSIX: a pipe a post writes a byte to, the backend polling its read end,
+	// made when a source of posts is first held; elsewhere waits are at most
+	// 10 ms while one is)
+	var wakeRead = -1;
+	var wakeWrite = -1;
+	var woken = false;
+	#end
 
 	function new() {
 		io = Io.Backends.create(this);
+		if (Driven.MainLoop.main == null) Driven.MainLoop.main = this;
+		#if (hxmc.target == "wasm32-wasi")
+		Web.start(Callback.addr(webTurn));
+		#end
 	}
 
 	// this thread's loop (made the first time)
@@ -115,15 +128,32 @@ class Loop extends Dispatcher implements IScheduler {
 		#if target.threaded
 		lock.acquire();
 		inbox.push(f);
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		var w = woken ? -1 : wakeWrite;
+		if (w >= 0) woken = true;
+		#end
 		lock.release();
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		if (w >= 0) Wake.write(w);
+		#end
 		#else
 		dispatch(new Call(f));
 		#end
 	}
 
 	// (a source of posts started, ended: this thread only)
-	public function hold()
+	public function hold() {
 		held++;
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		if (wakeRead < 0 && !Io.Handle.WINDOWS) {
+			var fds = Wake.pipe();
+			if (fds >= 0) {
+				wakeRead = fds & 0xFFFF;
+				wakeWrite = fds >>> 16;
+			}
+		}
+		#end
+	}
 
 	public function release()
 		held--;
@@ -172,17 +202,17 @@ class Loop extends Dispatcher implements IScheduler {
 			if (wait < 0 || next < wait) wait = next;
 		}
 		#if target.threaded
-		if (held > 0 && (wait < 0 || wait > 0.01)) wait = 0.01;
+		if (held > 0 && !wakes() && (wait < 0 || wait > 0.01)) wait = 0.01;
 		#end
 		#if (hxmc.target != "wasm32-wasi")
 		if (checks.length > 0 && (wait < 0 || wait > 0.01)) wait = 0.01;
 		#end
-		if (io.pending() > 0) io.poll(wait);
-		else if (wait > 0) Sys.sleep(wait);
-		else if (wait < 0 && !alive()) {
+		if (wait < 0 && !alive()) {
 			turning = false;
 			return false;
 		}
+		if (io.pending() > 0 || (held > 0 && wakes())) io.poll(wait, -1);
+		else if (wait > 0) Sys.sleep(wait);
 		posts();
 		var i = 0;
 		while (i < checks.length) {
@@ -193,6 +223,43 @@ class Loop extends Dispatcher implements IScheduler {
 		turning = false;
 		return alive();
 	}
+
+	// (Driven) a wait for I/O, posts or fd, at most seconds and the next
+	// timer; nothing runs
+	public function wait(seconds:Float, fd:Int) {
+		var now = haxe.Timer.stamp();
+		if (count > 0 || (live > 0 && timers[0].time <= now)) return;
+		if (live > 0) {
+			var next = timers[0].time - now;
+			if (seconds < 0 || next < seconds) seconds = next;
+		}
+		#if target.threaded
+		if (held > 0 && !wakes() && (seconds < 0 || seconds > 0.01)) seconds = 0.01;
+		#end
+		if (checks.length > 0 && (seconds < 0 || seconds > 0.01)) seconds = 0.01;
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		if (io.pending() > 0 || (held > 0 && wakes()) || fd >= 0) {
+			io.poll(seconds, fd);
+			return;
+		}
+		#end
+		if (seconds > 0) Sys.sleep(seconds);
+	}
+
+	// (Driven) seconds bounded by what the loop waits for
+	public function bound(seconds:Float):Float {
+		if (count > 0) return 0;
+		if (live > 0) {
+			var next = Math.max(0, timers[0].time - haxe.Timer.stamp());
+			if (seconds < 0 || next < seconds) seconds = next;
+		}
+		if ((io.pending() > 0 || held > 0 || checks.length > 0) && (seconds < 0 || seconds > 0.01)) seconds = 0.01;
+		return seconds;
+	}
+
+	// (posts wake the backend's poll)
+	inline function wakes():Bool
+		return #if (target.name == "hxmc" && hxmc.target != "wasm32-wasi") wakeRead >= 0 #else false #end;
 
 	#if (hxmc.target == "wasm32-wasi")
 	// a turn the page runs: the seconds until the next one is wanted (-1: none)
@@ -221,6 +288,12 @@ class Loop extends Dispatcher implements IScheduler {
 		if (held == 0 && inbox.length == 0) return;
 		lock.acquire();
 		var fs = inbox.splice(0, inbox.length);
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+		if (woken) {
+			woken = false;
+			Wake.drain(wakeRead);
+		}
+		#end
 		lock.release();
 		for (f in fs)
 			f();
@@ -319,3 +392,35 @@ private class Call implements IDispatchObject {
 	public function onDispatch()
 		f();
 }
+
+#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi")
+// (the wake pipe: non-blocking, not inherited by children)
+private class Wake {
+	// both ends, read | write << 16; -1 on a failure
+	@:hxmc.unsafe public static function pipe():Int {
+		var fds = hxmc.unsafe.Mem.stack(8);
+		if (hxmc.unsafe.Posix.pipe(fds) != 0) return -1;
+		var r = hxmc.unsafe.Mem.getI32(fds, 0), w = hxmc.unsafe.Mem.getI32(fds, 4);
+		flags(r);
+		flags(w);
+		return r | (w << 16);
+	}
+
+	// (F_SETFL O_NONBLOCK: Linux's 0x800, the BSDs' 4; F_SETFD FD_CLOEXEC)
+	@:hxmc.unsafe static function flags(fd:Int) {
+		hxmc.unsafe.Posix.fcntl(fd, 4, hxmc.unsafe.Mem.os() == 1 ? 4 : 0x800);
+		hxmc.unsafe.Posix.fcntl(fd, 2, 1);
+	}
+
+	@:hxmc.unsafe public static function write(fd:Int) {
+		var b = hxmc.unsafe.Mem.stack(8);
+		hxmc.unsafe.Mem.setI8(b, 0, 1);
+		hxmc.unsafe.Posix.write(fd, b, 1);
+	}
+
+	@:hxmc.unsafe public static function drain(fd:Int) {
+		var b = hxmc.unsafe.Mem.stack(64);
+		while (hxmc.unsafe.Posix.read(fd, b, 64) > 0) {}
+	}
+}
+#end

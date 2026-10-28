@@ -1,5 +1,6 @@
 package helder.os;
 
+import helder.async.Driven;
 import helder.os.android.AndroidWindow;
 import helder.os.cocoa.CocoaWindow;
 import helder.os.objc.Runtime;
@@ -25,6 +26,15 @@ import hxmc.unsafe.*;
 // UIKit's loop (helder.os.uikit.UIKitApp): each turn runs the main run loop
 // without waiting, and draws only while the app is not in the background
 // (otherwise it sleeps in the run loop).
+//
+// helder.async's loop (the main thread's, once something made it: a task
+// launched, a job run) runs on the app's: a turn of it in each turn of the
+// app's, after the events and before the frame, and wait bounded by its next
+// timer and woken by its I/O and by other threads' posts (a job's reply):
+// X11's wait polls the loop's descriptors with the connection's, the others
+// wait at most 10 ms while I/O or a post may come. While there are no frames
+// (Android and iOS in the background) the loop still turns; in the browser
+// the page turns it between frames too, and while a hidden tab has none.
 class App {
 	public static var windows(default, null):Array<Window> = [];
 	static var running = false;
@@ -53,17 +63,20 @@ class App {
 		// (Android: a frame only with the window, otherwise a sleep in the looper)
 		if (Mem.target() >= 9) {
 			AndroidWindow.poll(onEvent);
+			loopTurn();
 			if (running && windows.length > 0) {
-				if (AndroidWindow.drawable()) onFrame() else AndroidWindow.wait(-1);
+				if (AndroidWindow.drawable()) onFrame() else AndroidWindow.wait(bounded(-1));
 			}
 		} else if (Mem.platform() >= 1) {
 			UIKitWindow.poll(onEvent);
+			loopTurn();
 			if (running && windows.length > 0) {
-				if (UIKitWindow.drawable()) onFrame() else UIKitWindow.wait(-1);
+				if (UIKitWindow.drawable()) onFrame() else UIKitWindow.wait(bounded(-1));
 			}
 		} else {
 			if (Mem.os() == 1) CocoaWindow.poll(onFrame, onEvent) else if (Mem.os() == 2) Win32Window.poll(onFrame, onEvent) else if (Mem.os() == 3) CanvasWindow.poll(onEvent) else
 				X11Window.poll(onEvent);
+			loopTurn();
 			if (running && windows.length > 0) onFrame();
 		}
 		if (Mem.os() == 1) Runtime.objc_autoreleasePoolPop(pool);
@@ -73,15 +86,29 @@ class App {
 		return true;
 	}
 
-	// blocks until an event is pending or seconds pass (the browser: returns
-	// at once, requestAnimationFrame paces the loop)
+	// (helder.async's loop, if made: what is ready, due timers)
+	static inline function loopTurn() {
+		var l = MainLoop.main;
+		if (l != null) l.turn(0);
+	}
+
+	// (seconds bounded by the loop's timers and what it waits for)
+	static inline function bounded(seconds:Float):Float {
+		var l = MainLoop.main;
+		return l != null ? l.bound(seconds) : seconds;
+	}
+
+	// blocks until an event is pending or seconds pass, or helder.async's
+	// loop has something to run (the browser: returns at once,
+	// requestAnimationFrame paces the loop)
 	public static function wait(seconds:Float) {
 		#if hxmc.dev
 		// (hxmc dev: awake for the dev server's messages, which turn reads)
 		if (seconds < 0 || seconds > 0.01) seconds = 0.01;
 		#end
-		if (Mem.platform() >= 1) UIKitWindow.wait(seconds) else if (Mem.os() == 1) CocoaWindow.wait(seconds) else if (Mem.os() == 2) Win32Window.wait(seconds) else if (Mem.os() == 3) {} else if (Mem.target() >= 9)
-			AndroidWindow.wait(seconds) else X11Window.wait(seconds);
+		if (Mem.platform() >= 1) UIKitWindow.wait(bounded(seconds)) else if (Mem.os() == 1) CocoaWindow.wait(bounded(seconds)) else if (Mem.os() == 2)
+			Win32Window.wait(bounded(seconds)) else if (Mem.os() == 3) {} else if (Mem.target() >= 9) AndroidWindow.wait(bounded(seconds)) else
+			X11Window.waitFor(seconds);
 	}
 
 	public static function quit()
