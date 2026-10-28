@@ -1,5 +1,7 @@
 import helder.gfx.*;
 import helder.gfx.shader.Vec3;
+import helder.asset.Asset;
+import helder.asset.Assets;
 import helder.scene.*;
 import helder.scene.gltf.*;
 import helder.scene.render.*;
@@ -393,7 +395,8 @@ class Scenes {
 				eye.position = new Vec3(0.4, 1.4, 4.2);
 				eye.lookAt(new Vec3(-0.3, 1.1, 0));
 				var asset = Model.of("skinned.glb", Lazy);
-				asset.then(model -> {
+				helder.async.Async.launch(_ -> {
+					var model = asset.load();
 					var made = [];
 					model.instantiate(world, device, null, made);
 					var animator = new helder.scene.anim.Animator(made);

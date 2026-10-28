@@ -40,9 +40,14 @@ const send = (m) => DEV && (ws && ws.readyState === 1 ? ws.send(JSON.stringify(m
 window.hxmcDev = { log: [], frames: 0, swaps: 0, gpu: null, canvas: null, instance: null };
 const out = (s) => { window.hxmcDev.log.push(s); console.log(s); send({ type: 'log', text: s }); };
 const IMPORTS = {{imports}};
+// (the files read before main: helder.asset's, fetched while the module loads)
+const ASSETS = {{assets}};
 const fonts = await window.helderLoad.fonts.catch(() => []);
 // the running build: its host, its reload callback, the snapshot it sent
 let current = null, gpu = null, canvases = [];
+// (the assets helder dev says changed, until the build takes them)
+const changedAssets = [], enc = new TextEncoder();
+window.hxmcDev.assets = 0;
 async function start(wasm, restoreBytes) {
 	const state = { host: null, reloadFn: 0, snapshot: null };
 	const dev = (h) => {
@@ -53,11 +58,15 @@ async function start(wasm, restoreBytes) {
 			register: (f) => (state.reloadFn = f),
 			send: (p, n) => (state.snapshot = new TextDecoder().decode(h.bytes(p, n).slice())),
 			frame: () => { window.hxmcDev.frames++; send({ type: 'frame' }); },
+			// (helder.asset's: the keys of the files that changed, and its function told)
+			asset_register: (f) => (state.assetFn = f),
+			asset_length: () => changedAssets.length ? enc.encode(changedAssets[0]).length : -1,
+			asset_take: (p) => { const b = enc.encode(changedAssets.shift()); h.bytes(p, b.length).set(b); },
 		} };
 	};
 	current = state;
 	window.hxmcDev.instance = state;
-	await run(wasm, { imports: [...IMPORTS, dev], fonts, stdout: out, stderr: (s) => out(s), track: DEV, canvas: canvases[0], gpu,
+	await run(wasm, { imports: [...IMPORTS, dev], fonts, stdout: out, stderr: (s) => out(s), track: DEV, canvas: canvases[0], gpu, assets: ASSETS ?? undefined,
 		// (?gfx=webgl2: WebGL2, even where WebGPU is)
 		gfx: new URLSearchParams(location.search).get('gfx') ?? undefined });
 	const g = state.host.gfx;
@@ -97,6 +106,12 @@ function connect(again) {
 		if (m.type === 'error') show(m.message);
 		if (m.type === 'ok') overlay.style.display = 'none';
 		if (m.type === 'reload') queueSwap();
+		// (an asset's file changed: the running build loads it again, no new build)
+		if (m.type === 'asset' && current && current.assetFn) {
+			changedAssets.push(m.key);
+			window.hxmcDev.assets++;
+			current.host.call(current.assetFn);
+		}
 	};
 	ws.onclose = () => setTimeout(() => connect(true), 1000);
 }

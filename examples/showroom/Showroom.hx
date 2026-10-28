@@ -6,6 +6,8 @@ import helder.gfx.*;
 import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
 import helder.os.*;
+import helder.asset.Asset;
+import helder.asset.Assets;
 import helder.scene.*;
 import helder.scene.anim.*;
 import helder.scene.gltf.*;

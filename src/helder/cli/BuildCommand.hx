@@ -1,6 +1,7 @@
 package helder.cli;
 
 import helder.cli.Style.Tone;
+import haxe.io.Path;
 import helder.async.*;
 import sys.FileSystem;
 
@@ -142,11 +143,17 @@ class BuildCommand {
 	// its failure
 	@:coroutine public static function build(e:Entry, exe:String, mode:Mode, ?server:Compiler.CompileServer, ?extra:Array<String>,
 			?pack:Void->String):{ok:Bool, ms:Int, messages:String} {
-		TestCommand.mkdirs(haxe.io.Path.directory(exe));
+		TestCommand.mkdirs(Path.directory(exe));
+		TestCommand.mkdirs(Path.directory(manifest(exe)));
 		var words = e.args().concat(switch mode {
 			case Release: ["-dce", "full"];
 			case Dev: ["-D", "hxmc.dev", "-D", "disable-hxb-cache"];
-		}).concat(extra ?? []).concat(["--custom-target", 'hxmc=$exe']);
+		}).concat(extra ?? []);
+		// (the files the program names and keeps: helder.asset's Bundle writes them there)
+		var m = manifest(exe);
+		try FileSystem.deleteFile(m) catch (_:Dynamic) {};
+		words = words.concat(["--macro", 'helder.asset.Bundle.use("${FileSystem.fullPath(Path.directory(m)).split("\\").join("/")}/${Path.withoutDirectory(m)}")']);
+		words = words.concat(["--custom-target", 'hxmc=$exe']);
 		var t0 = haxe.Timer.stamp();
 		Term.spin("building " + e.name);
 		var r = if (server != null) server.request(words, Sys.getCwd()) else {
@@ -175,6 +182,23 @@ class BuildCommand {
 			else Term.err(Style.status("failed", Fail, Style.path(shown) + ' in ${Style.time(ms)}'));
 		}
 		return {ok: r.ok, ms: ms, messages: r.messages};
+	}
+
+	// the assets' manifest of a build's output (helder.asset.Bundle's:
+	// {target, dev, assets: [{key, file, sync, bytes}]}), beside it in .assets/
+	// (an app bundle's executable: beside the bundle, whose files are sealed)
+	public static function manifest(exe:String):String {
+		var d = Path.directory(exe);
+		if (d.endsWith(".app")) d = Path.directory(d);
+		return (d == "" ? "." : d) + "/.assets/" + Path.withoutDirectory(exe) + ".json";
+	}
+
+	// the files of a build's manifest (none when it wrote none)
+	public static function assets(exe:String):Array<{key:String, file:String, sync:Bool, bytes:Int}> {
+		var m = manifest(exe);
+		if (!FileSystem.exists(m)) return [];
+		var j:Dynamic = haxe.Json.parse(sys.io.File.getContent(m));
+		return j.assets;
 	}
 
 	// a file's size, or a directory's (an .app: its files')

@@ -40,6 +40,17 @@ class Mesh {
 		return p;
 	}
 
+	// other's primitives and bounds in this mesh, this one's in other (a
+	// model's reload: what draws this mesh draws the new ones; other then
+	// disposed with the old)
+	public function take(other:Mesh) {
+		var p = primitives, b = bounds;
+		primitives = other.primitives;
+		bounds = other.bounds;
+		other.primitives = p;
+		other.bounds = b;
+	}
+
 	public function dispose(device:Device) {
 		for (p in primitives) {
 			device.destroyBuffer(p.vertices);

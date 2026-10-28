@@ -25,6 +25,8 @@ using StringTools;
 // bin/android/<name>.lib/. On a device (adb -s <id>): installed (install
 // -r), started (am start, the launcher's activity), its output logcat's
 // (tag hxmc); helder dev's reverse port (adb reverse) for the dev server.
+// The program's assets (helder.asset: the files its code names and keeps,
+// the build's manifest) go in the APK's assets/, stored.
 class Android {
 	// --target's hxmc target: android-arm64 or android-x86_64 as given; for
 	// android the device's ABI when one is known, else a phone's
@@ -56,11 +58,13 @@ class Android {
 		} : null);
 	}
 
-	// the APK of a built library
+	// the APK of a built library (its assets in assets/, but a dev build's:
+	// helder dev serves those)
 	public static function pack(e:Entry, lib:String, apk:String, dev = false) {
 		var c = classes(apk);
 		var key = DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), Sys.getEnv("HELDER_ANDROID_KEY")));
-		File.saveBytes(apk, Apk.write(File.getBytes(lib), e.target, c.dex ? Glue.dex() : null, c.views, App.android(e.name, e.config, dev), key));
+		var assets = dev ? [] : [for (a in BuildCommand.assets(lib)) {name: helder.asset.AssetPath.bundled(a.key), data: File.getBytes(a.file)}];
+		File.saveBytes(apk, Apk.write(File.getBytes(lib), e.target, c.dex ? Glue.dex() : null, c.views, App.android(e.name, e.config, dev), key, assets));
 	}
 
 	// what the build's Classes wrote: classes.dex, org.hxmc.Activity

@@ -16,8 +16,14 @@ using StringTools;
 // `helder dev [entry] [--target host | web | android | ios] [-d <device>] [-- args]`: the dev loop, ported from @hxmc/cli's
 // dev.mjs. The compiler stays resident (CompileServer, --server-connect);
 // what the last build read is watched (SampledWatcher: the module files
-// Deps writes, their directories, and assets/), and a change builds again
-// with -D hxmc.dev. A build with errors changes
+// Deps writes, their directories, and the assets its code names: the
+// manifest helder.asset's Bundle writes), and a change builds again
+// with -D hxmc.dev. A change to an asset builds nothing: the file is
+// sent to the running program, which loads it again behind the same
+// handle (natively the devtools protocol's notification Assets.changed
+// {key}, the program reading the file from this machine's disk, an Android
+// app asking for it on a connection of its own, "asset <key>"; the page
+// {"type":"asset","key"}, the file at /__hxmc/assets/<key>). A build with errors changes
 // nothing: the last good build keeps running, the errors show here (and in
 // the page's overlay). A build that compiles reloads the program, its state
 // carried over by key (helder.dev.Hot's snapshot):
@@ -101,6 +107,9 @@ class DevCommand {
 	static var exeOut = "";
 	// web: the pages connected
 	static final clients:Array<WebSocket> = [];
+	// the last build's assets (its manifest): their files by key, and keys by file
+	static var assetFiles = new Map<String, String>();
+	static var assetKeys = new Map<String, String>();
 
 	@:coroutine public static function run(task:Node, o:Options):Int {
 		var port = Std.parseInt(o.value("port") ?? Sys.getEnv("HELDER_DEV_PORT") ?? "") ?? 4321, address = o.value("host") ?? "127.0.0.1";
@@ -205,7 +214,14 @@ class DevCommand {
 			var changed = w.next();
 			// (seen within the tick: half of it on average, and the debounce)
 			var seen = haxe.Timer.stamp() - 0.07;
-			for (f in changed)
+			// (an asset's file: sent, nothing built)
+			var rest = [];
+			for (f in changed) {
+				var k = assetKeys.get(f);
+				if (k != null && FileSystem.exists(f)) assetChanged(k) else rest.push(f);
+			}
+			if (rest.length == 0) continue;
+			for (f in rest)
 				if (f.endsWith(".hx") && FileSystem.exists(f)) server.invalidate(f, cwd);
 			rebuild(task, seen);
 			watch(w);
@@ -238,17 +254,42 @@ class DevCommand {
 			var d = Path.directory(f);
 			if (!dirs.contains(d)) dirs.push(d);
 		}
-		if (FileSystem.exists('${e.root}/assets')) {
-			var a = FileSystem.fullPath('${e.root}/assets');
-			dirs.push(a);
-			walk(a, true);
-		}
+		for (f in assetFiles)
+			if (!files.contains(f)) files.push(f);
 		for (f in [e.hxml, '${e.root}/package.json']) if (f != null && FileSystem.exists(f)) files.push(FileSystem.fullPath(f));
 		w.watch(files, dirs);
 	}
 
 	static function depsFile():String
 		return Path.withoutExtension(out) + ".deps";
+
+	// the executable a build wrote (its manifest beside it: BuildCommand.manifest)
+	static function builtExe():String
+		return switch mobile {
+			case "android": Android.library(out);
+			case "ios" if (swapping): '${libDir()}/next.dylib';
+			case "ios": Ios.executable(Ios.app(out));
+			case _: out;
+		}
+
+	// the build's manifest read: the files watched as assets
+	static function readAssets() {
+		var m = BuildCommand.manifest(builtExe());
+		if (!FileSystem.exists(m)) return;
+		assetFiles = new Map();
+		assetKeys = new Map();
+		for (a in BuildCommand.assets(builtExe())) {
+			assetFiles.set(a.key, a.file);
+			assetKeys.set(a.file, a.key);
+		}
+	}
+
+	// an asset's file changed: the running program told (it loads it again)
+	@:coroutine static function assetChanged(key:String) {
+		log(Style.status("asset", Info, Style.path(key) + Style.dim(Style.sep() + "sent, nothing built")));
+		if (web) broadcast(haxe.Json.stringify({type: "asset", key: key}));
+		else sendLine(haxe.Json.stringify({jsonrpc: "2.0", method: "Assets.changed", params: {key: key}}));
+	}
 
 	// a status line (a terminal gone, its pipe closed: nothing printed, the rest goes on)
 	static function log(s:String)
@@ -318,6 +359,7 @@ class DevCommand {
 		}
 		var wasError = lastError != null;
 		lastError = null;
+		readAssets();
 		timing = seen == null ? null : {seen: seen, build: r.ms};
 		log(Style.status(seen == null ? "built" : "rebuilt", Ok, 'in ${Style.time(r.ms)}' + Style.dim(Style.sep() + BuildCommand.size(artifact))));
 		building = false;
@@ -349,6 +391,18 @@ class DevCommand {
 		socket = s;
 		var r = new Reader(s), line;
 		try while ((line = r.readLine()) != null) {
+			// (Android: an asset's file asked for on a connection of its own: "ok" and the bytes, then the end)
+			if (line.startsWith("asset ")) {
+				if (socket == s) socket = before;
+				var f = assetFiles.get(line.substr(6).trim());
+				var b = f != null && FileSystem.exists(f) ? File.getBytes(f) : null;
+				if (b == null) s.writeString("missing\n") else {
+					s.writeString("ok\n");
+					s.write(b, 0, b.length);
+				}
+				s.close();
+				return;
+			}
 			// (Android: a build's library asked for on a connection of its own, the bytes then the end)
 			if (line.startsWith("lib ")) {
 				if (socket == s) socket = before;
@@ -716,7 +770,9 @@ class DevCommand {
 			until(() -> built, 600);
 			var pkgs = Page.packages(e.helder, out);
 			var fonts = [for (f in Page.fonts(pkgs)) "/__hxmc/fonts/" + Path.withoutDirectory(f)];
-			return Response.text(Page.html(e.name + " (helder dev)", "/__hxmc/app.wasm", "/__hxmc/pkg/helder/", pkgs, fonts, true), 200, "text/html; charset=utf-8");
+			var assets = FileSystem.exists(out + ".assets.json") ? "/__hxmc/app.wasm.assets.json" : null;
+			return Response.text(Page.html(e.name + " (helder dev)", "/__hxmc/app.wasm", "/__hxmc/pkg/helder/", pkgs, fonts, true, assets), 200,
+				"text/html; charset=utf-8");
 		}
 		if (p == "/__hxmc/app.wasm") {
 			until(() -> !building && (built || lastError != null), 600);
@@ -728,6 +784,13 @@ class DevCommand {
 			return nostore(res);
 		}
 		if (p == "/__hxmc/os/browser.mjs") return nostore(Http.file(e.helder, "/helder/os/browser.mjs"));
+		// (the program's assets: the files read before main, then each from where it is edited)
+		if (p == "/__hxmc/app.wasm.assets.json" && FileSystem.exists(out + ".assets.json")) return nostore(Http.file(Path.directory(out), "/" + Path.withoutDirectory(out) + ".assets.json"));
+		if (p.startsWith("/__hxmc/assets/")) {
+			var f = assetFiles.get(StringTools.urlDecode(p.substr("/__hxmc/assets/".length)));
+			if (f != null && FileSystem.exists(f)) return nostore(Http.file(Path.directory(f), "/" + Path.withoutDirectory(f)));
+			return Response.text("no such asset\n", 404);
+		}
 		if (p.startsWith("/__hxmc/pkg/helder/") && p.endsWith(".mjs"))
 			return nostore(Http.file(e.helder + "/helder", p.substr("/__hxmc/pkg/helder".length)));
 		if (p.startsWith("/__hxmc/fonts/")) {

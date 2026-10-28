@@ -44,12 +44,20 @@ class Apk {
 	// the signed APK: the library for the target's ABI, classes.dex (dex:
 	// Glue's, when the program has listeners; views: org.hxmc.Activity the
 	// activity), the manifest of the app's options, signed with the key
-	public static function write(so:Bytes, target:String, dex:Null<Bytes>, views:Bool, app:ApkOptions, key:{d:Bytes, cert:Bytes}):Bytes {
+	// (assets: assets/<path> each, stored and 4-byte aligned, so that
+	// AAssetManager maps them in place)
+	public static function write(so:Bytes, target:String, dex:Null<Bytes>, views:Bool, app:ApkOptions, key:{d:Bytes, cert:Bytes},
+			?assets:Array<{name:String, data:Bytes}>):Bytes {
 		if (!validId(app.id)) throw 'the application id ${app.id} is not one (a.b.c: letters, digits, _)';
 		var m = manifest(app.id, app.label, app.versionCode, app.versionName, app.minSdk, app.targetSdk, dex != null, views, app.permissions, app.orientation);
 		var entries:Array<helder.pack.Zip.ZipEntry> = [{name: "AndroidManifest.xml", data: m, align: 4}];
 		if (dex != null) entries.push({name: "classes.dex", data: dex, align: 4});
 		entries.push({name: "lib/" + abiDir(target) + "/" + LIBRARY, data: so, align: PAGE});
+		if (assets != null)
+			for (a in assets) {
+				if (!StringTools.startsWith(a.name, "assets/")) throw '${a.name}: an asset is under assets/';
+				entries.push({name: a.name, data: a.data, align: 4});
+			}
 		return sign(helder.pack.Zip.stored(entries), key.d, key.cert);
 	}
 

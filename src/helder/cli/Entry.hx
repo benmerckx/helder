@@ -152,7 +152,6 @@ class Entry {
 		// (helder's own sources only while they are this project's: this checkout)
 		var isLib = helder.contains("node_modules");
 		sources = [for (c in classPaths) if (!(isLib && c == helder) && !c.contains("node_modules")) c];
-		if (root != null && FileSystem.exists('$root/assets')) sources.push('$root/assets');
 	}
 
 	function add(cp:String) {
@@ -178,6 +177,8 @@ class Entry {
 		// (legacy exception handling: every browser with WebGPU has it, those with WebGL2 since 2021)
 		if (target == "web") out = out.concat(["-D", "hxmc.wasm-eh=legacy"]);
 		out = out.concat(defines);
+		// (assets named by path: found under the class paths, else the project)
+		out = out.concat(["-D", "helder.root=" + FileSystem.fullPath(root).split("\\").join("/")]);
 		if (hxml != null) out.push(hxml);
 		return out;
 	}

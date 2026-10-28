@@ -68,9 +68,14 @@ class Ios {
 			if (!FileSystem.exists(ent)) throw '$ent: no such file (package.json\'s "helder": {"ios": {"entitlements"}})';
 			words = words.concat(["-D", 'hxmc.codesign-entitlements=${FileSystem.fullPath(ent)}']);
 		}
+		// (the program's assets copied into the bundle as assets/<key>, and
+		// CodeResources written again with them, by helder.asset's Bundle
+		// before hxmc links and signs; a dev build's from this machine's disk)
+		if (mode == Release) words = words.concat(["-D", 'helder.asset.app=$full']);
 		var exe = executable(app);
 		return BuildCommand.build(e, exe, mode, server, words.concat(extra ?? []), () -> {
-			if (out.endsWith(".ipa")) File.saveBytes(out, Bundle.ipa(name, File.getBytes(exe), info, resources));
+			var assets = mode == Release ? [for (a in BuildCommand.assets(exe)) {path: helder.asset.AssetPath.bundled(a.key), data: File.getBytes('$app/' + helder.asset.AssetPath.bundled(a.key))}] : [];
+			if (out.endsWith(".ipa")) File.saveBytes(out, Bundle.ipa(name, File.getBytes(exe), info, File.getBytes('$app/_CodeSignature/CodeResources'), assets));
 			out;
 		});
 	}
