@@ -4,9 +4,6 @@ import haxe.io.Bytes;
 import hxmc.ReadOnlySpan;
 import hxmc.Span;
 import hxmc.unsafe.UInt8;
-#if (target.name == "hxmc")
-import helder.image.SpanDce; // (a workaround: see there)
-#end
 
 // PNG decoding, helder's one implementation: every colour type and bit
 // depth, tRNS, Adam7 interlacing, to RGBA8 (rows top to bottom, straight
@@ -820,10 +817,10 @@ class PngCore {
 		return v < 0 ? -v : v;
 }
 
-// (the inflater's state, public: hxmc's span fallback reinterprets to no private type: the bit buffer, its count, the input's position
+// (the inflater's state: the bit buffer, its count, the input's position
 // and its chunk's end, the output's position, a failure (2: the input ran
 // out; 1: a bad code), whether IDAT chunks continue the input)
-@:noCompletion @:hxmc.struct @:publicFields class PngBits {
+@:hxmc.struct @:publicFields private class PngBits {
 	var buf:Int;
 	var cnt:Int;
 	var p:Int;
