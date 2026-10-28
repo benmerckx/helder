@@ -49,6 +49,13 @@ class Node implements Part {
 	public var onPointerMove(get, set):Null<Event->Void>;
 	public var onPointerEnter(get, set):Null<Event->Void>;
 	public var onPointerLeave(get, set):Null<Event->Void>;
+	// a pointer's press taken from it: the system cancelled it (a call, the
+	// browser panning the page), its node left the tree, or a gesture took
+	// it over (a scroller's drag): no click follows
+	public var onPointerCancel(get, set):Null<Event->Void>;
+	// it no longer has a pointer it had captured (the pointer's release or
+	// cancel, releaseCapture, another node's capture)
+	public var onLostPointerCapture(get, set):Null<Event->Void>;
 	public var onClick(get, set):Null<Event->Void>;
 	// a press: a click, or Enter or Space while it has the focus (after onKeyDown, unless it
 	// prevented the default), as a DOM button's click (a link's: Enter, not Space, as a DOM link's)
@@ -338,6 +345,64 @@ class Node implements Part {
 		}
 		return handlers.onPointerLeave = v;
 	}
+
+	inline function get_onPointerCancel():Null<Event->Void>
+		return handlers == null ? null : handlers.onPointerCancel;
+
+	function set_onPointerCancel(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onPointerCancel = v;
+	}
+
+	inline function get_onLostPointerCapture():Null<Event->Void>
+		return handlers == null ? null : handlers.onLostPointerCapture;
+
+	function set_onLostPointerCapture(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		return handlers.onLostPointerCapture = v;
+	}
+
+	// its gesture recognisers (helder.ui.gesture: Tap, Pan, Scale), in the
+	// order added; each joins the arena of a pointer pressed on it or inside it
+	public var gestures(get, never):Null<Array<helder.ui.gesture.Gesture>>;
+
+	inline function get_gestures():Null<Array<helder.ui.gesture.Gesture>>
+		return handlers == null ? null : handlers.gestures;
+
+	public function addGesture<T:helder.ui.gesture.Gesture>(g:T):T {
+		if (handlers == null) handlers = new Handlers();
+		if (handlers.gestures == null) handlers.gestures = [];
+		@:privateAccess g.attachTo(this);
+		handlers.gestures.push(g);
+		return g;
+	}
+
+	public function removeGesture(g:helder.ui.gesture.Gesture) {
+		if (handlers == null || handlers.gestures == null || !handlers.gestures.remove(g)) return;
+		g.cancel();
+		@:privateAccess g.attachTo(null);
+	}
+
+	// its first gesture of that class (null: none)
+	public function gesture<T:helder.ui.gesture.Gesture>(c:Class<T>):Null<T> {
+		var gs = gestures;
+		if (gs != null)
+			for (g in gs)
+				if (Std.isOfType(g, c)) return cast g;
+		return null;
+	}
+
+	// whether a pointer pressed on it is ui's (helder.os's Pointer.owner: a
+	// game's controls leave it alone): a node drawing a world under the ui
+	// (a <Scene>'s box) says no
+	public function ownsPointer():Bool
+		return true;
 
 	inline function get_onClick():Null<Event->Void>
 		return handlers == null ? null : handlers.onClick;
@@ -852,9 +917,14 @@ class Node implements Part {
 	public function scrollIntoView()
 		if (ui != null) ui.scrollIntoView(this);
 
-	// (a press's pointer: the pressed node's until released (Ui.capture), this one's now)
+	// (a press's pointer: the pressed node's until released (Ui.capture), this one's now;
+	// in a pointer event's handler, that pointer: a finger's, a pen's)
 	public function capture()
-		if (ui != null && ui.capture != null) @:privateAccess ui.capture = this;
+		if (ui != null) @:privateAccess ui.captureBy(this);
+
+	// lets go of the pointers it captured: their moves go to what is under them again
+	public function releaseCapture()
+		if (ui != null) @:privateAccess ui.releaseBy(this);
 
 	// (a text field's: EditableText's)
 	public function select(start:Int, end:Int) {}
@@ -1305,6 +1375,9 @@ private class Handlers {
 	public var onPointerMove:Null<Event->Void> = null;
 	public var onPointerEnter:Null<Event->Void> = null;
 	public var onPointerLeave:Null<Event->Void> = null;
+	public var onPointerCancel:Null<Event->Void> = null;
+	public var onLostPointerCapture:Null<Event->Void> = null;
+	public var gestures:Null<Array<helder.ui.gesture.Gesture>> = null;
 	public var onClick:Null<Event->Void> = null;
 	public var onActivate:Null<Event->Void> = null;
 	public var onWheel:Null<Event->Void> = null;

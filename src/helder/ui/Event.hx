@@ -27,6 +27,9 @@ enum abstract EventType(Int) {
 	var FocusOut;
 	// a text field's text changed by its user (text: its text now), as the DOM's input
 	var Input;
+	// a pointer's press taken (Node.onPointerCancel), a capture lost (Node.onLostPointerCapture)
+	var PointerCancel;
+	var LostPointerCapture;
 }
 
 // An event as Ui dispatches it: to the target, then (unless stopped) to
@@ -40,8 +43,15 @@ class Event {
 	// the pointer in window pixels (pointer events; else where it was last)
 	public final x:Float;
 	public final y:Float;
-	// pointer buttons: 1 left, 2 middle, 3 right
+	// pointer buttons: 1 left, 2 middle, 3 right (a finger, a pen: 1)
 	public var button = 0;
+	// pointer events: which pointer (0 the mouse, else helder.os's slot of a
+	// finger or a pen: Pointer.id), its type, its pressure (0 to 1), and
+	// whether it is the primary one (the mouse, the first finger down)
+	public var pointerId = 0;
+	public var pointerType:helder.os.PointerType = Mouse;
+	public var pressure = 0.0;
+	public var isPrimary = true;
 	// KeyDown, KeyUp: the key (Key) and the modifiers (Key.MOD_*)
 	public var key = 0;
 	public var mods = 0;

@@ -26,7 +26,7 @@ import helder.image.AnimatedImage;
 // attributes: Style properties (StyleAttrs: direction="row", padding={8},
 // background="#3b82f6"; style={StyleProps} for several), the events
 // (onClick, onPress (a click, or Enter or Space: Node.onActivate), onPointerDown, onPointerUp, onPointerMove, onPointerEnter,
-// onPointerLeave, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
+// onPointerLeave, onPointerCancel, onLostPointerCapture, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void;
 // a node's own handler, a field's editing, after the markup's unless it
 // prevented the default), focusable, selectable,
@@ -400,6 +400,8 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 			case "onPointerMove": n.onPointerMove = own(h, n.onPointerMove);
 			case "onPointerEnter": n.onPointerEnter = h;
 			case "onPointerLeave": n.onPointerLeave = h;
+			case "onPointerCancel": n.onPointerCancel = own(h, n.onPointerCancel);
+			case "onLostPointerCapture": n.onLostPointerCapture = h;
 			case "onWheel": n.onWheel = own(h, n.onWheel);
 			case "onKeyDown": n.onKeyDown = own(h, n.onKeyDown);
 			case "onKeyUp": n.onKeyUp = own(h, n.onKeyUp);

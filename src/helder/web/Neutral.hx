@@ -155,6 +155,13 @@ class Neutral {
 		// (a pointer's modifiers too: a shift-click's)
 		ev.mods = d.shiftKey != null ? Neutral.mods(d) : mods;
 		if (d.button != null) ev.button = d.button + 1;
+		// (a pointer event's pointer: the browser's id, its type as ui's PointerType)
+		if (d.pointerId != null) {
+			ev.pointerId = d.pointerId;
+			ev.pointerType = d.pointerType == "touch" ? 1 : d.pointerType == "pen" ? 2 : 0;
+			ev.pressure = d.pressure;
+			ev.isPrimary = d.isPrimary;
+		}
 		(h : Dynamic->Void)(ev);
 		if (ev.stopped) e.stopPropagation();
 		if (ev.defaultPrevented) e.preventDefault();
@@ -179,6 +186,10 @@ class Neutral {
 	public var dropped = false;
 	public var deltaX = 0.0;
 	public var deltaY = 0.0;
+	public var pointerId = 0;
+	public var pointerType = 0;
+	public var pressure = 0.0;
+	public var isPrimary = true;
 	public var stopped = false;
 	public var defaultPrevented = false;
 

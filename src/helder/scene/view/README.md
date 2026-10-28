@@ -32,12 +32,20 @@ pos.value = new Vec3(1, 1, 0);   // the node moves: no reconciliation, no re-ren
   `helder.scene.render.Renderer` on the window's device, recorded before
   ui's pass), again when a node of its markup changes, or every frame
   while `animate` is set.
-- **Pointer events across the boundary**: ui's hit testing finds the box;
-  `onPointerDown`, `onPointerUp`, `onPointerMove`, `onClick`,
-  `onPointerEnter`, `onPointerLeave` on scene elements get a `SceneEvent`
-  (the node hit, the point, the distance, ui's event), from the nearest
-  node whose mesh's bounds the pointer's ray crosses (`Pick.ray`) up
-  through its ancestors (`stop()` ends it). Bounds, not triangles.
+- **Pointer events across the boundary**: ui's hit testing finds the box
+  (ui's nodes over it first: a HUD's buttons; `pointerEvents="none"` lets
+  a container through); `onPointerDown`, `onPointerUp`, `onPointerMove`,
+  `onPointerCancel`, `onClick`, `onPointerEnter`, `onPointerLeave` on scene
+  elements get a `SceneEvent` (the node hit, the point, the distance,
+  ui's event, the pointer's id), from the nearest node whose mesh's bounds
+  the pointer's ray crosses (`Pick.ray`) up through its ancestors
+  (`stop()` ends it). Bounds, not triangles. Picked once, at each
+  pointer's press (fingers, pens and the mouse each their own): the node
+  hit owns the pointer until it lifts (its moves, release, cancel and
+  click go there); a hovering mouse or pen picks as it moves (enter,
+  leave). The `SceneEvent` is one per box, refilled; listeners are kept by
+  kind when set. The box's pointers are the game's (`ownsPointer`: a
+  touch on the scene is not marked the ui's).
 - **`<Ui>`** (`SceneTags.Ui`): back to ui inside a scene, drei's `<Html>`:
   a scene node (`position`) whose children, ui's markup, are drawn over the
   box at its place, centred; placed from the frame drawn (a frame late) and

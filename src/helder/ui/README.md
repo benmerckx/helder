@@ -194,13 +194,29 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
     to ancestors), tracks hover and press, moves the focus (click, Tab,
     Shift+Tab; a ring shows when the keyboard moved it) and scrolls
     `Overflow Scroll` nodes (the wheel or a trackpad, by the pixels it
-    moved, Shift turning a wheel sideways; in a browser a finger's drag,
+    moved, Shift turning a wheel sideways; a finger's drag (below),
     gliding on when let go moving, a tap a click; their scrollbars'
     thumbs; or the keys a browser scrolls with, when the focus took none of
     them: the arrows by 40 pixels, Page Up, Page Down and Space by seven
     eighths of the view, Home and End, eased over `Ui.scrollDuration`;
     `Ui.scrollBy` eases the same way). A node's key handler calls
     `preventDefault` (or `stop`) on the keys it takes.
+  - Fingers and pens are pointers of their own, as the DOM's Pointer
+    Events (`UiWindow` feeds helder.os's `Pointers`, its compatibility
+    events off: `Ui.pointerDown(x, y, 1, id, type)` with the slot as the
+    id, 0 the mouse): `e.pointerId`, `e.pointerType`, `e.pressure`,
+    `e.isPrimary` on their events; each captured by the node it went down
+    on (`capture()` in a handler moves it there, `releaseCapture()` lets
+    it go: `onLostPointerCapture`); `onPointerCancel` when the system takes
+    it, when its node leaves the tree, or when a scroll takes the press;
+    a press released within 8 points on its node clicks. The first
+    finger's drag scrolls what is under where it started (Wheel events at
+    that point, as the wheel's, then a glide when let go moving: what
+    helder.os's TouchDrag did), unless a recogniser inside wins it first
+    (below). `pointerDown` answers whether the press is the ui's (not the
+    root's, the body's, nor a world drawn under the ui: `Node.ownsPointer`,
+    a `<Scene>`'s box says no); `UiWindow` marks the pointer `owner = Ui`
+    then, so that a game's touch controls leave it alone.
 - **`helder.ui.draw`**: the GPU renderer. One shader draws rounded rectangles
   with borders, soft shadows and glyphs from an atlas, every fragment
   clipped by a rounded rectangle (one draw call a frame); `UiWindow` puts a
@@ -263,7 +279,8 @@ Attributes:
   `padding="8 12"`, `width="50%"`, `background="#3b82f6"`, `radius={6}`;
   `style={...}` takes a typed `StyleProps` object;
 - events: `onClick`, `onPointerDown`, `onPointerUp`, `onPointerMove`,
-  `onPointerEnter`, `onPointerLeave`, `onWheel`, `onKeyDown`, `onKeyUp`,
+  `onPointerEnter`, `onPointerLeave`, `onPointerCancel`,
+  `onLostPointerCapture`, `onWheel`, `onKeyDown`, `onKeyUp`,
   `onTextInput`, `onFocus`, `onBlur`, `onFocusIn`, `onFocusOut` (bubbling) (an `Event -> Void`);
   `onPress` (`Node.onActivate`: a click, or Enter or Space unless `onKeyDown`
   took it, as a DOM button's click);
@@ -284,7 +301,7 @@ where `Ui.policy` says; a page's `<input>`, `<textarea>`): `value`,
 text changed by its user: `e.text`), its own editing after the markup's
 `onKeyDown`... unless that prevented the default; a ref of theirs gets an `helder.ui.Part` (Node is one: `focus`,
 `rect`, `scrollIntoView`, `contains`, `attr`, `rtl`, `capture`: a press's
-moves and release to it; `select`: a field's selection).
+moves and release to it (in a handler, that event's pointer: a finger's too); `select`: a field's selection).
 - drag and drop: `drag-data={value}` makes a node draggable; `onDragStart`,
   `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`
   accepts), `onDragLeave` and `onDrop` (`e.data`) on targets; Escape cancels.

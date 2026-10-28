@@ -504,8 +504,14 @@ fix.
      scrolls). Tested natively (no allocation) and in Chromium (fingers,
      a pen, the mouse); Android's and iOS's back ends are written and
      compile, not run yet (packaging, above).
-  2. ui's pointers: ids, capture, `PointerCancel`, the pointer owned by
-     the ui node it went down on; a `<Scene>` picks at the press only.
+  2. *Landed*: ui's pointers (fingers and pens with ids, capture and
+     `releaseCapture`, `onPointerCancel`, `onLostPointerCapture`; a tap
+     clicks, the first finger's drag scrolls in ui itself; a press on
+     ui's own nodes marks the pointer the ui's), a `<Scene>` picking at
+     each pointer's press only (the node hit owns it), one `SceneEvent`
+     per box. Tested on Eval, natively and as wasm32-wasi
+     (`src/helder/ui/Pointers.test.hx`), the todo's touch drag, flick and
+     tap in Chromium (ui-web).
   3. Touch in scene's input actions: zones, look, virtual sticks and
      buttons.
   4. Gestures in ui competing for a pointer (an arena: tap, pan, scale),

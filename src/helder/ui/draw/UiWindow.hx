@@ -103,6 +103,8 @@ class UiWindow {
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
 		ui.dark = dark.peek();
+		// (touches and pens as pointers of their own: ui taps and scrolls them itself)
+		helder.os.Pointers.emulate = false;
 		// (a touch drag the program's where it scrolls something: the page's otherwise)
 		window.scrollsAt = (x, y, dx, dy) -> ui.scrollsAt(x / renderer.scale, y / renderer.scale, dx / renderer.scale, dy / renderer.scale);
 		// (the browser's own views: native text editors over the canvas)
@@ -271,6 +273,17 @@ class UiWindow {
 				ui.pointerDown(e.x / k, e.y / k, e.button);
 			case MouseUp:
 				ui.pointerUp(e.x / k, e.y / k, e.button);
+			// (fingers and pens: the mouse's are its Mouse* events above)
+			case PointerDown if (e.pointer.type != helder.os.PointerType.Mouse):
+				var p = e.pointer;
+				// (a press on the ui's own nodes is the ui's: a game's controls leave it alone)
+				if (ui.pointerDown(p.x / k, p.y / k, 1, p.id, p.type, p.pressure)) p.owner = helder.os.PointerOwner.Ui;
+			case PointerMove if (e.pointer.type != helder.os.PointerType.Mouse):
+				ui.pointerMove(e.pointer.x / k, e.pointer.y / k, e.pointer.id, e.pointer.pressure);
+			case PointerUp if (e.pointer.type != helder.os.PointerType.Mouse):
+				ui.pointerUp(e.pointer.x / k, e.pointer.y / k, 1, e.pointer.id);
+			case PointerCancel if (e.pointer.type != helder.os.PointerType.Mouse):
+				ui.pointerCancel(e.pointer.id);
 			case KeyDown:
 				ui.keyDown(e.key, e.mods);
 			case KeyUp:

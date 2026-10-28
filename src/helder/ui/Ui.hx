@@ -1,6 +1,10 @@
 package helder.ui;
 
+import helder.os.PointerType;
 import helder.ui.Event;
+import helder.ui.gesture.Gesture;
+import helder.ui.gesture.Tap;
+import helder.ui.gesture.TouchScroll;
 
 // The host of a UI tree: its viewport, its TextEngine, layout (update),
 // drawing (paint) and input. A window's loop (helder.ui.draw.Window, or a
@@ -17,6 +21,20 @@ import helder.ui.Event;
 // CSS's :focus-visible: a click hides it). Popups (open, close) are
 // layers over the tree: children of overlay, a second root laid out,
 // drawn and hit after it.
+//
+// Fingers and pens (helder.os's pointers but the mouse: their slots as
+// ids, 1 to POINTERS - 1) are pointers of their own, each captured by the
+// node it went down on (Node.capture moves it, releaseCapture lets it go;
+// a node leaving the tree gets PointerCancel), with pointerId,
+// pointerType, pressure and isPrimary on their events. Each pointer has
+// an arena (helder.ui.gesture.Gesture): the recognisers on the nodes it
+// went down in compete for it, the innermost first, and for the first
+// finger a drag that scrolls what is under where it started (TouchScroll,
+// as helder.os.TouchDrag did: Wheel events, a glide), last; a recogniser
+// that wins it other than a Tap takes the click, and the scroll cancels
+// the press (PointerCancel). A press released within the slop on the node
+// it went down on clicks. The mouse's presses feed the arena too, its
+// clicks as before.
 class Ui {
 	public final root:Node;
 	// the layers above the tree (Popup nodes, the last on top)
@@ -101,6 +119,31 @@ class Ui {
 	public var scrollbarColor:Color = 0x59000000;
 	public var scrollbarActiveColor:Color = 0x8C000000;
 
+	// --- the pointers other than the mouse (fingers, pens: helder.os's slots)
+	public static inline var POINTERS = 16;
+
+	// per pointer: down; its events' target (the node it went down on, or
+	// the one that captured it; null: what is under it); its type; where
+	// it went down and is; whether its press is still the nodes' (not
+	// cancelled: a scroll took it) and its release may click; the first one
+	final pDown:Array<Bool> = [for (_ in 0...POINTERS) false];
+	final pTarget:Array<Null<Node>> = [for (_ in 0...POINTERS) null];
+	final pType:Array<PointerType> = [for (_ in 0...POINTERS) Touch];
+	final pStartX:Array<Float> = [for (_ in 0...POINTERS) 0.0];
+	final pStartY:Array<Float> = [for (_ in 0...POINTERS) 0.0];
+	final pLive:Array<Bool> = [for (_ in 0...POINTERS) false];
+	final pClick:Array<Bool> = [for (_ in 0...POINTERS) false];
+	final pPrimary:Array<Bool> = [for (_ in 0...POINTERS) false];
+	// the arenas (the mouse's 0): the recognisers competing for each
+	// pointer, the innermost first; the one that won it
+	final arenas:Array<Array<Gesture>> = [for (_ in 0...POINTERS) []];
+	final winners:Array<Null<Gesture>> = [for (_ in 0...POINTERS) null];
+	final scratch:Array<Array<Gesture>> = [for (_ in 0...POINTERS) []];
+	// the first finger's drag (a scroller's)
+	final touchScroll:TouchScroll;
+	// the pointer whose event is being dispatched (Node.capture's)
+	var dispatching = -1;
+
 	// the thumb being dragged: its node, axis, the pointer and scroll it started at
 	var drag:Null<Node> = null;
 	// drag and drop: the node a press may drag (its dragData), where it went down; the drag, its target that accepts
@@ -127,6 +170,7 @@ class Ui {
 		root.attach(this);
 		overlay = new Node("overlay");
 		overlay.attach(this);
+		touchScroll = @:privateAccess new TouchScroll(this);
 		#if hxmc.dev
 		DevTree.add(this);
 		#end
@@ -167,6 +211,8 @@ class Ui {
 	// the platform's views' events first, their nodes kept in step after
 	public function update() {
 		if (platform != null) platform.poll();
+		// (a touch's scroll let go moving: its glide's since the last)
+		if (touchScroll.gliding) @:privateAccess touchScroll.glide(now() * 1000);
 		flushRestyles();
 		Layout.run(root, width, height, text, rounded);
 		if (root.inkStale) refreshInk(root);
@@ -212,7 +258,8 @@ class Ui {
 	// draws the tree (after update): subtrees whose ink misses what can be
 	// seen (the window, the scrollers' padding boxes) left out
 	public function paint(canvas:Canvas) {
-		needsFrame = false;
+		// (a glide's next step: another frame)
+		needsFrame = touchScroll.gliding;
 		paintFrame++;
 		cullX0 = cullY0 = 0;
 		cullX1 = width;
@@ -370,7 +417,9 @@ class Ui {
 
 	// --- pointer ---
 
-	public function pointerMove(x:Float, y:Float) {
+	// the mouse moved (id 0), or a finger or a pen (id: its slot) to x, y
+	public function pointerMove(x:Float, y:Float, id = 0, pressure = 1.0) {
+		if (id != 0) return touchMove(id, x, y, pressure);
 		pointerX = x;
 		pointerY = y;
 		if (selecting && textSelection != null) {
@@ -397,6 +446,7 @@ class Ui {
 			if (!e.defaultPrevented) {
 				setPressed(capture, false);
 				capture = null;
+				closeArena(0, true);
 				dragging = {source: s, data: s.dragData, x: x, y: y};
 			}
 		}
@@ -410,7 +460,8 @@ class Ui {
 			return;
 		}
 		var to = capture != null ? capture : target;
-		if (to != null) bubble(Event.of(PointerMove, to, x, y));
+		if (to != null) dispatch(Event.of(PointerMove, to, x, y), 0);
+		if (capture != null) moveArena(0, x, y);
 	}
 
 	// the drag over target: from it up, the first that accepts (DragOver
@@ -467,7 +518,13 @@ class Ui {
 		requestFrame();
 	}
 
-	public function pointerDown(x:Float, y:Float, button:Int) {
+	// a press of the mouse (id 0: button 1 left, 2 middle, 3 right), or a
+	// finger or a pen down (id: its slot; button 1): whether a node took it,
+	// one that is the ui's own (Node.ownsPointer: not the root, the body, nor
+	// a box drawing a world under the ui), so that the game's controls leave
+	// it alone (helder.os's Pointer.owner, UiWindow's)
+	public function pointerDown(x:Float, y:Float, button:Int, id = 0, type:PointerType = Mouse, pressure = 1.0):Bool {
+		if (id != 0) return touchDown(id, type, x, y, pressure);
 		pointerX = x;
 		pointerY = y;
 		var target = hit(x, y);
@@ -481,9 +538,9 @@ class Ui {
 		setHover(target);
 		if (target == null) {
 			setFocus(null);
-			return;
+			return false;
 		}
-		if (scrollbarDown(target, x, y)) return;
+		if (scrollbarDown(target, x, y)) return true;
 		capture = target;
 		dragSource = target;
 		while (dragSource != null && dragSource.dragData == null)
@@ -494,16 +551,21 @@ class Ui {
 		var e = Event.of(PointerDown, target, x, y);
 		e.button = button;
 		e.mods = mods;
-		bubble(e);
+		e.pressure = 0.5;
+		dispatch(e, 0);
 		if (!e.defaultPrevented) {
 			var f = target;
 			while (f != null && !f.focusable)
 				f = f.parent;
 			setFocus(f, false);
 		}
+		if (capture != null) openArena(0, target, Mouse, button, x, y, false);
+		return owns(target);
 	}
 
-	public function pointerUp(x:Float, y:Float, button:Int) {
+	// the mouse's button released (id 0), or a finger or a pen lifted
+	public function pointerUp(x:Float, y:Float, button:Int, id = 0) {
+		if (id != 0) return touchUp(id, x, y);
 		pointerX = x;
 		pointerY = y;
 		selecting = false;
@@ -528,7 +590,12 @@ class Ui {
 		var e = Event.of(PointerUp, to, x, y);
 		e.button = button;
 		e.mods = mods;
-		bubble(e);
+		dispatch(e, 0);
+		if (arenas[0].length > 0) {
+			moveArena(0, x, y);
+			closeArena(0, false);
+		}
+		if (pressed != null) lose(pressed, 0, x, y);
 		// a click: released over the node it went down on (or inside it)
 		if (pressed != null && target != null && contains(pressed, target)) {
 			var c = Event.of(Click, pressed, x, y);
@@ -537,6 +604,264 @@ class Ui {
 			bubble(c);
 		}
 		setHover(target);
+	}
+
+	// a finger or a pen cancelled (the system took it: no click; id 0: the
+	// mouse's press let go of the same way)
+	public function pointerCancel(id:Int) {
+		if (id == 0) {
+			var pressed = capture;
+			capture = null;
+			closeArena(0, true);
+			if (pressed == null) return;
+			setPressed(pressed, false);
+			dispatch(Event.of(PointerCancel, pressed, pointerX, pointerY), 0);
+			lose(pressed, 0, pointerX, pointerY);
+			return;
+		}
+		if (id < 0 || id >= POINTERS || !pDown[id]) return;
+		pDown[id] = false;
+		cancelPress(id);
+		closeArena(id, true);
+	}
+
+	// the node pointer id's events go to now (the mouse's: capture; null: what is under it)
+	public function captureOf(id:Int):Null<Node>
+		return id == 0 ? capture : id > 0 && id < POINTERS && pDown[id] ? pTarget[id] : null;
+
+	function touchDown(id:Int, type:PointerType, x:Float, y:Float, pressure:Float):Bool {
+		if (id < 0 || id >= POINTERS) return false;
+		if (pDown[id]) pointerCancel(id);
+		var primary = true;
+		for (i in 1...POINTERS)
+			if (pDown[i]) primary = false;
+		// (a new touch stops a glide)
+		@:privateAccess touchScroll.stop();
+		var target = hit(x, y);
+		dismissOutside(target);
+		if (focusVisible) {
+			focusVisible = false;
+			requestFrame();
+		}
+		// (a press elsewhere drops a selection; a finger's drag scrolls, it selects nothing)
+		if (primary) {
+			selectAt(target, x, y, 1);
+			selecting = false;
+		}
+		if (target == null) {
+			if (primary) setFocus(null);
+			return false;
+		}
+		pDown[id] = pLive[id] = pClick[id] = true;
+		pPrimary[id] = primary;
+		pTarget[id] = target;
+		pType[id] = type;
+		pStartX[id] = x;
+		pStartY[id] = y;
+		setPressed(target, true);
+		var e = touchEvent(PointerDown, target, id, x, y, pressure);
+		e.button = 1;
+		dispatch(e, id);
+		if (!e.defaultPrevented && primary) {
+			var f = target;
+			while (f != null && !f.focusable)
+				f = f.parent;
+			setFocus(f, false);
+		}
+		if (pDown[id]) openArena(id, target, type, 1, x, y, primary && type != Mouse);
+		return owns(target);
+	}
+
+	function touchMove(id:Int, x:Float, y:Float, pressure:Float) {
+		if (id < 0 || id >= POINTERS || !pDown[id]) return;
+		if (pLive[id]) {
+			var to = pTarget[id] ?? hit(x, y);
+			if (to != null) dispatch(touchEvent(PointerMove, to, id, x, y, pressure), id);
+		}
+		moveArena(id, x, y);
+	}
+
+	function touchUp(id:Int, x:Float, y:Float) {
+		if (id < 0 || id >= POINTERS || !pDown[id]) return;
+		pDown[id] = false;
+		var target = hit(x, y), pressed = pTarget[id], live = pLive[id];
+		pLive[id] = false;
+		pTarget[id] = null;
+		if (live) {
+			if (pressed != null) setPressed(pressed, false);
+			var to = pressed ?? target;
+			if (to != null) {
+				var e = touchEvent(PointerUp, to, id, x, y, 0);
+				e.button = 1;
+				dispatch(e, id);
+			}
+		}
+		moveArena(id, x, y);
+		var won = winners[id];
+		closeArena(id, false);
+		if (!live) return;
+		if (pressed != null) lose(pressed, id, x, y);
+		// a click: a tap (released within the slop, no other gesture won it) on the node it went down on
+		var dx = x - pStartX[id], dy = y - pStartY[id];
+		if (pClick[id] && pressed != null && target != null && contains(pressed, target) && (won == null || Std.isOfType(won, Tap))
+			&& Math.sqrt(dx * dx + dy * dy) <= Gesture.SLOP) {
+			var c = touchEvent(Click, pressed, id, x, y, 0);
+			c.button = 1;
+			dispatch(c, id);
+		}
+	}
+
+	// a touch's press taken from its node: PointerCancel, the capture lost
+	function cancelPress(id:Int) {
+		var pressed = pTarget[id], live = pLive[id];
+		pLive[id] = pClick[id] = false;
+		pTarget[id] = null;
+		if (!live || pressed == null) return;
+		setPressed(pressed, false);
+		dispatch(touchEvent(PointerCancel, pressed, id, pStartX[id], pStartY[id], 0), id);
+		lose(pressed, id, pStartX[id], pStartY[id]);
+	}
+
+	function touchEvent(type:EventType, target:Node, id:Int, x:Float, y:Float, pressure:Float):Event {
+		var e = Event.of(type, target, x, y);
+		e.pointerId = id;
+		e.pointerType = pType[id];
+		e.pressure = pressure;
+		e.isPrimary = pPrimary[id];
+		e.mods = mods;
+		return e;
+	}
+
+	// e bubbled, as pointer id's (Node.capture's)
+	function dispatch(e:Event, id:Int) {
+		var was = dispatching;
+		dispatching = id;
+		bubble(e);
+		dispatching = was;
+	}
+
+	// (n no longer has pointer id: LostPointerCapture)
+	function lose(n:Node, id:Int, x:Float, y:Float) {
+		if (n.onLostPointerCapture == null) return;
+		var e = id == 0 ? Event.of(LostPointerCapture, n, x, y) : touchEvent(LostPointerCapture, n, id, x, y, 0);
+		n.onLostPointerCapture(e.at(n));
+	}
+
+	// (Node.capture: the pointer being dispatched, n's from now on)
+	function captureBy(n:Node) {
+		var id = dispatching;
+		if (id <= 0) {
+			// (the mouse: while pressed)
+			if (capture != null) capture = n;
+			return;
+		}
+		if (id >= POINTERS || !pDown[id] || !pLive[id]) return;
+		var old = pTarget[id];
+		pTarget[id] = n;
+		if (old != null && old != n) lose(old, id, pStartX[id], pStartY[id]);
+	}
+
+	// (Node.releaseCapture: its pointers go to what is under them)
+	function releaseBy(n:Node) {
+		if (capture == n) capture = null;
+		for (id in 1...POINTERS)
+			if (pDown[id] && pTarget[id] == n) {
+				pTarget[id] = null;
+				lose(n, id, pStartX[id], pStartY[id]);
+			}
+	}
+
+	// whether target is the ui's own (pointerDown's answer)
+	function owns(target:Null<Node>):Bool
+		return target != null && target != root && target != body && target != overlay && target.ownsPointer();
+
+	// --- the arenas (helder.ui.gesture.Gesture)
+
+	// pointer id's arena opened at its press on target: the recognisers from
+	// it up (innermost first), then the first finger's scroll
+	function openArena(id:Int, target:Node, type:PointerType, button:Int, x:Float, y:Float, scroll:Bool) {
+		var a = arenas[id];
+		if (a.length > 0) closeArena(id, true);
+		winners[id] = null;
+		var n = target;
+		while (n != null) {
+			var gs = n.gestures;
+			if (gs != null)
+				for (g in gs)
+					if (@:privateAccess g.join(id, type, button)) a.push(g);
+			n = n.parent;
+		}
+		if (scroll && @:privateAccess touchScroll.join(id, type, button)) a.push(touchScroll);
+		if (a.length == 0) return;
+		var t = now(), list = snapshot(id);
+		for (g in list)
+			if (a.indexOf(g) >= 0) @:privateAccess g.down(id, x, y, t);
+	}
+
+	function moveArena(id:Int, x:Float, y:Float) {
+		var a = arenas[id];
+		if (a.length == 0) return;
+		var t = now(), list = snapshot(id);
+		for (g in list)
+			if (a.indexOf(g) >= 0) @:privateAccess g.move(id, x, y, t);
+	}
+
+	// its pointer lifted (or cancelled): each recogniser told, the arena emptied
+	function closeArena(id:Int, cancelled:Bool) {
+		var a = arenas[id];
+		if (a.length == 0) {
+			winners[id] = null;
+			return;
+		}
+		var t = now(), list = snapshot(id);
+		for (g in list)
+			if (a.indexOf(g) >= 0) @:privateAccess g.up(id, t, cancelled);
+		a.resize(0);
+		winners[id] = null;
+	}
+
+	// (an arena's recognisers as they are: callbacks may change it)
+	function snapshot(id:Int):Array<Gesture> {
+		var list = scratch[id];
+		list.resize(0);
+		for (g in arenas[id])
+			list.push(g);
+		return list;
+	}
+
+	// (Gesture.accept: g takes every pointer it follows, the others lose
+	// them; whether it has them all)
+	@:allow(helder.ui.gesture) function acceptGesture(g:Gesture):Bool {
+		var all = true;
+		for (id in 0...POINTERS) {
+			if (!@:privateAccess g.follows(id)) continue;
+			var w = winners[id];
+			if (w == g) continue;
+			if (w != null) {
+				all = false;
+				continue;
+			}
+			winners[id] = g;
+			// (backwards, without the snapshot: a move's loop holds it)
+			var a = arenas[id], i = a.length;
+			while (--i >= 0) {
+				if (i >= a.length) continue;
+				var m = a[i];
+				if (m != g && a.remove(m)) @:privateAccess m.lose(id);
+			}
+			if (!Std.isOfType(g, Tap)) pClick[id] = false;
+			// (the scroll takes the press from the nodes)
+			if (g == touchScroll && id > 0) cancelPress(id);
+		}
+		return all;
+	}
+
+	// (Gesture.cancel: g out of every arena, its pointers left to the others)
+	@:allow(helder.ui.gesture) function leaveGesture(g:Gesture) {
+		for (id in 0...POINTERS) {
+			if (!arenas[id].remove(g)) continue;
+			if (winners[id] == g) winners[id] = null;
+		}
 	}
 
 	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float) {
@@ -1006,6 +1331,7 @@ class Ui {
 				case PointerDown: n.onPointerDown;
 				case PointerUp: n.onPointerUp;
 				case PointerMove: n.onPointerMove;
+				case PointerCancel: n.onPointerCancel;
 				case Click: n.onClick;
 				case Wheel: n.onWheel;
 				case KeyDown: n.onKeyDown;
@@ -1308,6 +1634,14 @@ class Ui {
 		}
 		if (hover != null && contains(n, hover)) hover = null;
 		if (capture != null && contains(n, capture)) capture = null;
+		// (its pointers' presses cancelled, its recognisers out of the arenas)
+		for (id in 1...POINTERS)
+			if (pDown[id] && pTarget[id] != null && contains(n, pTarget[id])) cancelPress(id);
+		for (id in 0...POINTERS) {
+			if (arenas[id].length == 0) continue;
+			for (g in arenas[id].copy())
+				if (g.node != null && contains(n, g.node)) g.cancel();
+		}
 		if (drag != null && contains(n, drag)) drag = null;
 		if (focus != null && contains(n, focus)) focus = null;
 	}

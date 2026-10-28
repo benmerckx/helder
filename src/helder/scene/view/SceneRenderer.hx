@@ -25,8 +25,10 @@ import helder.scene.render.Shapes;
 // plane, size, color, metallic, roughness; SceneRenderer.device must be
 // set), light (kind directional | point, color, intensity, range), camera
 // (fov, near, far); listeners (onClick, onPointerDown, onPointerUp,
-// onPointerMove, onPointerEnter, onPointerLeave: a SceneEvent) on any, called
-// by a <Scene>'s picking, the nearest node hit and then its ancestors.
+// onPointerMove, onPointerCancel, onPointerEnter, onPointerLeave, onTap: a
+// SceneEvent) on any, called by a <Scene>'s picking (at a pointer's press:
+// the node hit then owns it until it lifts), the nearest node hit and then
+// its ancestors.
 // Other names are an error (@:elements). Texts and markers are hidden nodes.
 // <Ui> (SceneTags) goes back to ui inside a scene. A prototype of the
 // reactive layer for scenes (see the README's roadmap): properties go through
@@ -108,8 +110,16 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 
 	public static function setStyle(el:SceneNode, value:Dynamic) {}
 
-	public static function listen(el:SceneNode, name:String, handler:Dynamic)
-		el.props.set(name, handler);
+	// (a listener kept by its kind, found by index at each event: SceneBox's dispatch)
+	public static function listen(el:SceneNode, name:String, handler:Dynamic) {
+		var k = LISTENERS.indexOf(name);
+		if (k < 0) throw 'SceneRenderer: no event $name (${LISTENERS.join(", ")})';
+		if (el.handlers == null) el.handlers = [for (_ in LISTENERS) null];
+		el.handlers[k] = handler;
+	}
+
+	// the listeners a scene node takes, SceneNode.handlers' order (SceneBox's kinds)
+	public static final LISTENERS = ["onPointerDown", "onPointerUp", "onPointerMove", "onPointerEnter", "onPointerLeave", "onClick", "onPointerCancel", "onTap"];
 
 	public static function insert(parent:SceneNode, node:SceneNode, before:Null<SceneNode>) {
 		parent.node.add(node.node);
@@ -157,6 +167,8 @@ class SceneNode {
 	public final tag:String;
 	public var parent:Null<SceneNode>;
 	public final props = new Map<String, Dynamic>();
+	// its listeners by kind (SceneRenderer.LISTENERS; null: none)
+	public var handlers:Null<Array<Null<SceneEvent->Void>>> = null;
 
 	public function new(node:Node, tag:String) {
 		this.node = node;

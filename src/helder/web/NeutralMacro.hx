@@ -58,7 +58,8 @@ class NeutralMacro {
 		"onClick" => {dom: "click", type: "Click"}, "onKeyDown" => {dom: "keydown", type: "KeyDown"}, "onKeyUp" => {dom: "keyup", type: "KeyUp"},
 		"onPointerDown" => {dom: "pointerdown", type: "PointerDown"}, "onPointerUp" => {dom: "pointerup", type: "PointerUp"},
 		"onPointerMove" => {dom: "pointermove", type: "PointerMove"}, "onPointerEnter" => {dom: "pointerenter", type: "PointerEnter"},
-		"onPointerLeave" => {dom: "pointerleave", type: "PointerLeave"}, "onFocus" => {dom: "focus", type: "Focus"},
+		"onPointerLeave" => {dom: "pointerleave", type: "PointerLeave"}, "onPointerCancel" => {dom: "pointercancel", type: "PointerCancel"},
+		"onLostPointerCapture" => {dom: "lostpointercapture", type: "LostPointerCapture"}, "onFocus" => {dom: "focus", type: "Focus"},
 		"onBlur" => {dom: "blur", type: "Blur"}, "onFocusIn" => {dom: "focusin", type: "FocusIn"}, "onFocusOut" => {dom: "focusout", type: "FocusOut"}
 	];
 
