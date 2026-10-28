@@ -48,10 +48,10 @@ npx helder build ios      # (to come)
   property they are bound to, with no reconciliation.
 - **Consistency.** The packages share naming, error handling, units,
   coordinate conventions and resource lifetimes, and read as one library.
-- **Tools in the box.** One devtools app, built with helder's own ui,
-  runs the program beside its assets, stories, inspectors and profiler, on
-  every platform, and shows what the allocation-free core promises: the
-  garbage of every frame.
+- **Tools in the box.** A VS Code extension (and the same panels as pages
+  `helder dev` serves, for other editors) puts the program's assets,
+  stories, inspectors and profiler beside the code, on every platform, and
+  shows what the allocation-free core promises: the garbage of every frame.
 
 ## Packages
 
@@ -381,54 +381,67 @@ collection only when it allocates or blocks.
   - Done since: the main loop with the frames, workers on the web,
     `helder.jobs` (above). (Upstream's hxcoro or a runtime of our own: our
     own, `helder.async`, which hxcoro's tasks run on.)
-- **The devtools app** (`helder devtools`; design from a study of Unity's,
+- **The devtools as a VS Code extension** (design from a study of Unity's,
   Unreal's, Godot's, Defold's and Bevy's tools, Flutter DevTools, Tracy,
-  Storybook, Makepad Studio and Bezi), built with helder's ui, natively and
-  as a page `helder dev` serves; an editor's shell without scene authoring,
-  organised around the project's file tree, as Defold's editor is
-  (wireframes: the devtools mockup): opening a file opens a view for its
-  kind (an image's preview and settings per target, a glTF's viewport and
-  node tree, a font's specimen, audio's waveform, a story file's stories, a
-  test file's results; a `.hx` file in your editor), each asset showing the
-  code that uses it and whether it is bundled; the running program a tab of
-  its own, with an inspector, the console and frames beside it. Scenes and
-  ui stay markup in `.hx` (no scene format of its own, as Defold's `.gui`
-  and `.collection`): stories preview them, and an inspector's edit writes
-  back to the literal:
-  - **the program in a panel**: hosted by the dev host natively, its canvas
-    in the page on the web, a phone attached through the CLI (which holds
-    every build's connection, and outlives a crash with its logs);
-  - **an agent in dev builds only** (`-D hxmc.dev`, as `Hot`; a few tens of
+  Storybook, Makepad Studio and Bezi). The editor already has the file
+  tree, tabs, the code, a terminal, problems, search and a test explorer;
+  helder adds what is its own, organised around the files as Defold's editor
+  is. Cursor and Windsurf run it too. Its panels are pages served by
+  `helder dev`, drawn by helder's ui as wasm (dogfooding), shown in VS
+  Code's webviews and openable in a browser, so other editors (JetBrains,
+  Zed, Neovim) get them as pages beside the protocol, `helder inspect` and
+  the MCP server. Scenes and ui stay markup in `.hx` (no scene format of its
+  own, as Defold's `.gui` and `.collection`): stories preview them, and an
+  inspector's edit writes back to the literal.
+  - **Commands and tasks**: dev, build, test, the target; build errors in
+    the problems panel; `helder test`'s files and results in the test
+    explorer, a failure's line a click away.
+  - **Language support** on the Haxe extension (vshaxe): view's markup
+    highlighted in `.hx`, `.test.hx` and `.story.hx` mapped for the display
+    server (today they have no diagnostics, hover or completion), jumping to
+    source from inspector nodes and profiler spans.
+  - **Custom editors per kind of file**, wherever it is in the tree: an
+    image's preview, its settings per target and the code using it (bundled
+    or not); a glTF's viewport and node tree; a font's specimen; audio's
+    waveform; a story file's stories with their controls; edits to settings
+    in a sidecar (`.meta`), reloaded live.
+  - **The program**: its own window natively (kept by the dev host across
+    reloads), a web build in a webview, a phone attached through the CLI
+    (which holds every build's connection, and outlives a crash with its
+    logs).
+  - **An agent in dev builds only** (`-D hxmc.dev`, as `Hot`; a few tens of
     KB): counters and spans that do not allocate, GC bytes and pauses per
     frame, tree snapshots on request, commands, pick and highlight. Its
     protocol is there (phase 2: src/helder/devtools/README.md, frame stats,
-    the log and the ui tree), and `helder inspect` a small client of it;
-  - **the assets**, wherever they are in the tree, with previews (images,
-    fonts, glTF, audio), their settings and where they are used, reloaded
-    live;
-  - **stories**, as Storybook's: `Foo.story.hx` files anywhere, opened from
-    the tree (linked as
+    the log and the ui tree), and `helder inspect` a small client of it.
+  - **Stories**, as Storybook's: `Foo.story.hx` files anywhere (linked as
     `.test.hx` files are) whose `stories()` registers
     `story("Inventory/full", c -> ...)`, built into dev builds only; controls
     are signals (`c.number`, `c.bool`, a choice, a colour), so an edit
     updates only what is bound; the story and its controls kept across a
     reload; a story is a test too, rendered headlessly by `helder test`
     against a snapshot (an image, or the tree as text), with a scripted
-    interaction and assertions;
-  - **inspectors**: the ui tree (layout, styles, accessibility), signals and
-    view's graph, each node traced to its markup line; the state a reload
-    kept and dropped;
-  - **a profiler**: frame time, spans, GC bytes per frame split into the
-    engine's and the program's; logs and a console; pause and step;
-  - **literals edited without a recompile**, as Makepad's live design: in
+    interaction and assertions.
+  - **Panels**: the inspector (the ui tree with layout, styles and
+    accessibility, signals and view's graph, each node traced to its markup
+    line; the state a reload kept and dropped); the profiler (frame time,
+    spans, GC bytes per frame split into the engine's and the program's);
+    the console; pause and step.
+  - **Literals edited without a recompile**, as Makepad's live design: in
     dev builds markup literals (styles, numbers, colours, strings) read from
     a table keyed by their source position, which the CLI patches when an
-    edit changes only literals; an inspector's or a control's edit written
-    back to the source the same way;
-  - **an MCP server in the CLI** over the same protocol (inspect, set,
+    edit changes only literals; an inspector's or a control's edit applied
+    as an edit in VS Code (its undo works).
+  - **An MCP server in the CLI** over the same protocol (inspect, set,
     stories, a screenshot), so an agent sees and checks a running program,
-    its edits ordinary diffs;
-  - Chrome-trace or Tracy files exported until the timeline is drawn in ui.
+    its edits ordinary diffs.
+  - Chrome-trace or Tracy files exported until the timeline is drawn in a
+    panel.
+  - **First slice**: the extension with the commands and the test explorer;
+    the `.test.hx`/`.story.hx` mapping and markup highlighting; the image
+    editor (once assets are referenced by path); the console and frame
+    stats over the protocol. Then the stories editor, the inspector with
+    jumping to source, the glTF and font editors.
 
 ### 4. Mobile
 
@@ -456,7 +469,7 @@ collection only when it allocates or blocks.
 - **Assets in bundles**: in the APK and the iOS app bundle, read through one
   API on every platform, packed by `helder build`.
 - **CI on an Android emulator and the iOS simulator.**
-- **Devices in the devtools**: their logs, a screenshot or a recording, a
+- **Devices in the extension**: their logs, a screenshot or a recording, a
   story picked on the phone.
 
 ### 5. Graphics, 3D and 2D
@@ -482,21 +495,17 @@ collection only when it allocates or blocks.
     nodes.
 - **`helder.2d`**: sprite batches and tilemaps on gfx and `helder.image`,
   in code and in markup alike.
-- **Games in the devtools**: stories for scenes (a world at a set point,
+- **Games in the extension**: stories for scenes (a world at a set point,
   its seed, camera and fixed step: deterministic, paused, stepped, scripted
   input), a scene inspector, debug drawing, GPU timings ("open in
   RenderDoc" on desktop), input recorded and replayed; the program's panel
-  as a separate process sharing its frames as a GPU texture (as Makepad
-  Studio: IOSurface, a DXGI shared handle, dmabuf), so a crash leaves the
-  devtools running.
+  shown in a panel as a separate process sharing its frames as a GPU
+  texture (as Makepad Studio: IOSurface, a DXGI shared handle, dmabuf), so a
+  crash leaves the editor running.
 
 ### 6. Editor
 
-- **A VS Code extension**: the language server, syntax highlighting, and
-  support for view's markup.
-  The devtools in it as a webview (it is a page already), jumping to
-  source from spans and markup nodes; `.test.hx` and `.story.hx` files
-  mapped for the display server.
+Folded into phase 3: the VS Code extension is the devtools.
 
 ## License
 
