@@ -90,7 +90,7 @@ class Window {
 
 	function set_immersive(on:Bool):Bool {
 		if (closed || on == immersive) return on;
-		if (Mem.platform() >= 1) (cast native : UIKitWindow).setImmersive(on) else if (Mem.target() >= 9) (cast native : AndroidWindow).setImmersive(on);
+		if (Mem.platform() >= 1) (cast native : UIKitWindow).setImmersive(on) else if (Mem.target() >= 9) AndroidWindow.setImmersive(cast native, on);
 		return on;
 	}
 

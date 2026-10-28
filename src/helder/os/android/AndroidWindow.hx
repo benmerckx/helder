@@ -87,10 +87,10 @@ class AndroidWindow {
 		scale = density();
 		// (the first safe area before the first frame: the main thread asked and waited for)
 		MainThread.run(Insets.measure);
-		takeInsets();
+		takeInsets(this);
 		current = this;
 		#if helder.fullscreen
-		setImmersive(true);
+		setImmersive(this, true);
 		#end
 	}
 
@@ -106,19 +106,22 @@ class AndroidWindow {
 	}
 
 	// the insets measured since the last (Insets): whether they changed
-	function takeInsets():Bool {
+	// (statics, as what calls Insets and MainThread here: an instance method
+	// is compiled on every target that has the class's type)
+	static function takeInsets(w:AndroidWindow):Bool {
+		var insets = w.insets;
 		if (!Insets.take(insets)) return false;
-		var changed = insets[0] != safeLeft || insets[1] != safeTop || insets[2] != safeRight || insets[3] != safeBottom;
-		safeLeft = insets[0];
-		safeTop = insets[1];
-		safeRight = insets[2];
-		safeBottom = insets[3];
+		var changed = insets[0] != w.safeLeft || insets[1] != w.safeTop || insets[2] != w.safeRight || insets[3] != w.safeBottom;
+		w.safeLeft = insets[0];
+		w.safeTop = insets[1];
+		w.safeRight = insets[2];
+		w.safeBottom = insets[3];
 		return changed;
 	}
 
 	// Window.immersive: the system's bars hidden, or shown (the main thread's; the insets measured again)
-	function setImmersive(on:Bool) {
-		immersive = on;
+	static function setImmersive(w:AndroidWindow, on:Bool) {
+		w.immersive = on;
 		MainThread.post(() -> Insets.immerse(on));
 		Insets.ask();
 	}
@@ -188,7 +191,7 @@ class AndroidWindow {
 		var w = current;
 		if (w == null || !ready()) return;
 		var nw = Android.ANativeWindow_getWidth(window), nh = Android.ANativeWindow_getHeight(window);
-		var inset = w.takeInsets();
+		var inset = takeInsets(w);
 		if (w.suspended) {
 			w.suspended = false;
 			log("Window: Resume", window);

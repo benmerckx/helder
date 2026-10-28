@@ -129,6 +129,9 @@ jobs:
           api-level: 34
           arch: x86_64
           target: default
+          # (a phone's screen: a navigation bar, its density; the generic
+          # device has hardware keys and no bar, so no inset)
+          profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           script: |
