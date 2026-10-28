@@ -15,13 +15,14 @@ npx helder dev --target web       # a page, with live reload
 npx helder build                  # bin/<target>/<name>, its compile time and size
 npx helder inspect --tree         # a running dev build's ui tree (--log, --frames)
 npx helder devices                # where it can run: this machine, a browser, phones
-npx helder dev --target android   # (to come) boots an emulator, installs, live reloads
-npx helder build --target ios     # (to come)
+npx helder build --target android # an APK, signed with your debug key (no SDK)
+npx helder dev --target android   # on the device or emulator adb reaches: installed once, live reloads
+npx helder run --target ios       # on the booted iOS simulator (macOS)
 ```
 
 `helder <command> [entry] [options]`: the entry (a .hx file, a directory or
 a project; the default: .) is what is built, the flags where it runs:
-`--target` (host, web, android, ios or an exact hxmc target), `-d` (which
+`--target` (host, web, android, ios, ios-sim or an exact hxmc target), `-d` (which
 phone, emulator or simulator), `-o` (the output), `--` (the program's
 arguments). `helder <entry>` is `helder dev <entry>`.
 
@@ -80,7 +81,8 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `dev` | the dev host and state kept across a reload |
 | `devtools` | the devtools protocol (JSON-RPC on the dev connection) and its agent in dev builds: log, frame stats, the ui tree |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
-| `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop and the web |
+| `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop, the web, Android and iOS |
+| `pack` | Android's APKs and iOS's app bundles around hxmc's native code, without an SDK: zip, binary XML, DEX, v2 signing (P-256), the debug key; Info.plist, CodeResources, .ipa |
 
 `examples/` has a program per folder; `tests/Run.hx` has the checks, and
 the `*.test.hx` files are helder.test's, run by the CLI built from this
@@ -127,7 +129,7 @@ Done as a first slice:
     `src/Main.hx`, an example's directory or a file:
     `helder dev examples/counter/Counter.hx`; `helder <entry>` is dev's), the
     flags where it runs (`--target web`, `--target windows-x86_64`, `-d`
-    for a phone, parsed and refused until Android and iOS come), `-o`, `--`;
+    for a phone: phase 4), `-o`, `--`;
     `helder devices` lists this machine, the browser, adb's devices and
     emulators, iOS's simulators;
   - hxmc's native compiler called directly (no node), its std and runtime
@@ -474,22 +476,37 @@ extension, which waits until after the game). The game itself is the
 driver: built as an example, on a phone, every rough edge it hits the next
 fix.
 
-- **Packaging moved from hxmc into helder**: hxmc writes APKs and app
-  bundles today (no SDK: its own zip writer, manifest and signing, the
-  activity glue); that is app-level and will change a lot (manifests and
-  plists, permissions, orientation, icons, assets bundled by use, debug
-  and release signing, AAB), so helder's CLI takes it, ported as it is with
-  its tests, and hxmc's output ends at native code (Android's `.so`, iOS's
-  library). hxmc keeps its copy until helder's lands, then drops it. Order:
-  hxmc's inventory of what it has, the port into `helder.cli`, `helder
-  build --target android|ios` from helder, then the removal in hxmc. iOS device
-  signing through `codesign` on a Mac; the simulator needs none.
-- **`helder dev --target android` and `--target ios`**: a connected device
-  (`-d`, from `helder devices`), a running emulator or simulator, or one
-  booted for it; the host installed once,
-  each build swapped into it, as the desktop's dev host does. Closing the
-  app on the phone does not end `helder dev` (helder.cli.ExitPolicy's
-  Mobile: it keeps serving, the next build starts the app again).
+- *Landed*: **packaging moved from hxmc into helder** (`helder.pack`,
+  ported with its tests, MIT): app-level and bound to change a lot
+  (manifests and plists, permissions, orientation, icons, assets bundled
+  by use, debug and release signing, AAB), so helder's CLI owns it and
+  hxmc's output ends at native code (Android's `libmain.so`, iOS's signed
+  Mach-O, `-D hxmc.codesign-*` binding the bundle's files). `helder build
+  --target android` (an APK: manifest, classes.dex when the program needs
+  it, 16 KB aligned, v2-signed with the user's debug key, now made from
+  the system's random source on Windows too, under helder's names:
+  `HELDER_ANDROID_KEY`, helder's cache), `--target ios` (an .ipa) and
+  `ios-sim` (an .app, ad hoc signed); `helder run` on a device, emulator
+  or simulator (`-d`, else the one there is). Tested on Linux without a
+  device (the `pack` lane: the outputs checked structurally, the v2
+  signature recomputed and verified by openssl, the Mach-O's signature
+  slots; `helder run` and `dev` against stand-in adb and simctl); on an
+  emulator and a simulator only in CI, untested until it runs. Next:
+  hxmc removes its copy. Later: iOS device signing (a certificate and a
+  profile, through `codesign` on a Mac), release signing, icons and
+  assets.
+- *Landed*: **`helder dev --target android` and `--target ios`**: a
+  connected device or a running emulator (`-d`, from `helder devices`),
+  or a simulator, booted for it when it is not; the dev host's app
+  installed once, each build swapped into it (Android: its library
+  fetched by the app over `adb reverse` and loaded in the same process;
+  the simulator: a dylib it loads from the Mac's disk), as the desktop's
+  dev host does. Closing the app on the phone does not end `helder dev`
+  (helder.cli.ExitPolicy's Mobile: it keeps serving, the next build
+  installs and starts the app again). Tested against stand-ins for adb and
+  simctl (tests/pack/dev.mjs); on an emulator only in CI
+  (tests/os/dev/dev-android.mjs), untested until it runs. Later: booting
+  an emulator for it.
 - **`<Surface>` on phones**: the app's screen, safe areas, orientation,
   the display's scale.
 - **The frame loop from the display**: Choreographer on Android,
@@ -504,7 +521,8 @@ fix.
      frame, allocating nothing; `emulate` keeps a touch's old click and
      scrolls). Tested natively (no allocation) and in Chromium (fingers,
      a pen, the mouse); Android's and iOS's back ends are written and
-     compile, not run yet (packaging, above).
+     compile, not run on a phone yet (CI's emulator and simulator jobs
+     come first).
   2. *Landed*: ui's pointers (fingers and pens with ids, capture and
      `releaseCapture`, `onPointerCancel`, `onLostPointerCapture`; a tap
      clicks, the first finger's drag scrolls in ui itself; a press on
@@ -531,7 +549,7 @@ fix.
   Tested where: the desktop (Linux, natively, and its GPU under Xvfb)
   and the browser (wasm32-wasi in headless Chromium, touches and pens
   through the DevTools protocol); Android's and iOS's back ends are
-  written and compile, not run until packaging lands in helder. Later:
+  written and compile, not run on a phone yet. Later:
   long press, double tap and `waitFor`, rotate alone, `touch-action` on
   nodes, pen tilt and pressure in use, prediction, Windows' and X11's
   touch screens, macOS's trackpad gestures (magnify, rotate).
@@ -541,7 +559,9 @@ fix.
   drive, picking, a HUD and a menu in ui, a save), built and live-reloaded
   on an Android device and the iOS simulator. Save data (a small store on
   every platform, the web's included) and tweens for gameplay come with it.
-- **CI on an Android emulator and the iOS simulator.**
+- **CI on an Android emulator and the iOS simulator**: written (the
+  `android` and `ios-simulator` jobs: hello through `helder run`, Android's
+  dev loop), not required, untested until CI runs them.
 - Later in this phase: **audio** (decoders: WAV, Ogg Vorbis; a mixer above
   every back end, running as a kernel; AAudio on Android, RemoteIO on iOS;
   a simple `Sound.play`), **a compositor thread for scrolling and
