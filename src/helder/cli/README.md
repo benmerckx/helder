@@ -172,6 +172,18 @@ build time.
   program's stdout and stderr) until the app's process ends; on iOS `xcrun
   simctl` boots the simulator when it is not, installs, and launches with
   `--console` (its output here, its end the command's).
+- **assets** (helder.asset: src/helder/asset/README.md): after each build
+  the keys whose markers the output has are the program's assets
+  (`AssetStep`: their files found under the class paths, then the
+  project; a manifest in helder's cache); desktop's executable has them
+  built in (the macro's resources, `-D helder.asset.keep=<file>`: those a
+  last build used; a build whose built-in files differ is made again);
+  the web's beside the module (`assets/<key>`, `<name>.wasm.assets.json`
+  for those read before main, which the page passes to browser.mjs);
+  Android's APK in `assets/`, stored and 4-byte aligned; iOS's bundle in
+  `assets/`, sealed by CodeResources before the link. Dev builds have none
+  built in or copied (read from this machine's disk; Android's app asks
+  for them, below).
 - **dev**: the first build is the dev host's app, installed and started.
   Android's APK is built for the dev server's socket (`-D
   hxmc.dev-server=127.0.0.1:<port>`, `adb reverse`, INTERNET asked for),
@@ -182,7 +194,10 @@ build time.
   output is logcat's. The simulator's app gets `HXMC_DEV` and
   `HXMC_DEV_SNAPSHOT` (simctl's `SIMCTL_CHILD_`), a later build is a dylib
   (`-D hxmc.shared`) it loads from this machine's files; its output is
-  simctl's.
+  simctl's. A changed asset is sent as on desktop (`Assets.changed`); the
+  Android app asks for an asset's bytes on a connection of its own, `asset
+  <key>` (`ok`, then the bytes; `missing`), the simulator's reads it from
+  this machine's disk.
 
 ## The dev loop
 
@@ -195,8 +210,9 @@ program (`helder.dev.Hot`, `helder.os.App`'s client, the page):
 - what the last build read is watched (`helder.async.SampledWatcher`,
   esbuild's polling): the module files a `--macro helder.cli.Deps.write`
   lists (under the class paths, but helder's own when it is a package),
-  their directories' listings, `assets/`, package.json and helder.hxml; the
-  set replaced after each build. Each 100 ms tick checks the 16 paths that
+  their directories' listings, the program's assets (the files whose
+  markers the build has: AssetStep's manifest), package.json and
+  helder.hxml; the set replaced after each build. Each 100 ms tick checks the 16 paths that
   changed last and a shuffled slice of the rest (all of them in about 2 s:
   2.3 ms of CPU a tick for 10k files, where scanning them takes 56 ms); a
   file's stat key, or its content while its mtime is within 2 s;
@@ -220,7 +236,15 @@ program (`helder.dev.Hot`, `helder.os.App`'s client, the page):
   `imports.mjs` naming one of its import modules), DejaVu Sans for
   helder.text; the WebSocket is at `/__hxmc/ws`, the module at
   `/__hxmc/app.wasm` (409 for a swap after a failed build), the project's
-  files at `/`. A reload swaps the new build into the same page.
+  files at `/`. A reload swaps the new build into the same page;
+- a change to an asset builds nothing (`asset <key> · sent, nothing
+  built`): natively the program is told on its connection (the devtools
+  protocol's notification `Assets.changed {key}`) and loads the file again
+  behind the same handle (helder.asset: an image's pixels, a font's glyphs,
+  a model's meshes swapped in place; `value`'s readers run again), the
+  page by `{"type":"asset","key"}` on its WebSocket (the module fetches
+  `/__hxmc/assets/<key>`; the files read before main at
+  `/__hxmc/app.wasm.assets.json`).
 
 It prints `built in N ms`, `rebuilt in N ms`, `reloaded in N ms · build M
 ms` (from the change seen to the new build's first frame), `failed in N
@@ -402,8 +426,8 @@ Android and iOS, tested where:
   hidden, a rotation on Android, the background and back: checked by
   tests/pack/screen.mjs). Never yet on a real phone.
 
-Not yet: the devtools' agent on the web (the page relaying it), changed assets sent without a
-recompile, the page held back while the module is generated (dev.mjs's
-`hxmc dev: generating`), native watchers, the CLI on npm as a binary,
-iOS devices (signing), Android's release signing, icons and assets in the
-APK and the bundle, booting an emulator, `helder new`, `helder doctor`.
+Not yet: the devtools' agent on the web (the page relaying it), the page
+held back while the module is generated (dev.mjs's `hxmc dev:
+generating`), native watchers, the CLI on npm as a binary, iOS devices
+(signing), Android's release signing, icons in the APK and the bundle,
+booting an emulator, `helder new`, `helder doctor`.

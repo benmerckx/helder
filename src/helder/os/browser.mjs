@@ -45,8 +45,8 @@
 // and served read-only from a preopened "." (sys.io.File.getBytes and
 // friends): options.files ({path: URL}) and options.assets (the URL of a
 // JSON list of paths, relative to it: the one a build writes beside the
-// module for the files its static references name, e.g. helder.scene's
-// Model.of; <module>.assets.json).
+// module for the files its static references read before main, e.g.
+// helder.scene's Model.of: helder.asset's <module>.assets.json).
 //
 // Swapping a module in the same page (helder dev, no reloads):
 // with the option track, what the instance registers with the page while

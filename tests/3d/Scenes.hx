@@ -177,6 +177,10 @@ class Scenes {
 				var world = new World();
 				var model = Model.of("normals.glb");
 				var tiles = model.instantiate(world, device).find(model.nodes.tiles);
+				// (then the file loaded again into the same model, as helder dev's
+				// reload does: Model.replace swaps the instance's meshes' primitives
+				// and materials, the old ones released; the same frame)
+				model.replace(Model.of("normals.glb"));
 				tiles.rotation = helder.scene.math.Quat.fromEuler(0.5, 0.7, 0);
 				var floor = world.node("floor");
 				floor.position = new Vec3(0, -1.1, 0);

@@ -34,10 +34,14 @@ class Assets {
 	}
 
 	static function start<T>(a:Asset<T>, load:Body<T>, swap:Null<(old:T, fresh:T) -> T>) {
+		if (swap != null) a.refresh(true);
 		Async.launch(load).onCompletion((v, e) -> {
 			if (e != null) {
 				// (a reload that failed: the last value stays)
-				if (swap != null) DevAssets.log('${a.key} not reloaded: ${e.message}') else a.fail(e.message);
+				if (swap != null) {
+					DevAssets.log('${a.key} not reloaded: ${e.message}');
+					a.refresh(false);
+				} else a.fail(e.message);
 				return;
 			}
 			var old = a.peek();

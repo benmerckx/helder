@@ -102,6 +102,12 @@ font files: give the page's fonts to `run` with this package's
 `imports.mjs` and the option `fonts: ['DejaVuSans.ttf', ...]` (URLs or
 ArrayBuffers); `SystemFonts` adds them.
 
+A program's own fonts by path: helder.asset's `Asset.font("fonts/x.ttf")`
+(added to `SystemFonts`; bundled with the build). Under `helder dev` a
+changed font is put in the same `FontFile` (`replace`: a new `id`, so
+atlases draw its glyphs again; `FontFile.generation`, which ui's text
+engine reports, lays its texts out again).
+
 Limits, for now: no explicit bidi embeddings (LRE, RLI and the like), no
 multiple or reverse chained substitutions, lookup flags (marks skipped),
 `ccmp` and `locl`, no

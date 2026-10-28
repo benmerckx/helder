@@ -147,6 +147,17 @@ read), taken out of `gcBytes`. A batch is sent per interval, or per 256
 frames. The counters are hxmc.GcStats', natively and on wasm32 alike, kept
 by the runtime without its stats on (nothing printed to stderr).
 
+### Assets
+
+| notification | from | params |
+| --- | --- | --- |
+| `Assets.changed` | CLI to program | `{key}`: an asset's file changed (helder.asset: the program loads it again behind the same handle; no build) |
+
+The method exists in a program that loads assets (helder.asset's
+`Assets`, in dev builds); without it the notification is ignored. On
+the web the page gets `{"type":"asset","key"}` on its WebSocket instead
+and hands the key to the module.
+
 ### Ui
 
 | method | params | result |
@@ -192,6 +203,6 @@ The agent on the web (the page relaying between the module and the
 WebSocket; the log comes from the page's output today), node ids kept
 across reloads, get, query and set on properties (as Bevy's BRP),
 profiler samples as a binary stream, the other domains (`Scene`,
-`Signals`, `Profiler`, `Assets`, `Stories`), spans and counters, levels
+`Signals`, `Profiler`, `Stories`; `Assets` has its notification only), spans and counters, levels
 of the program's own (`Log` takes traces), `Runtime.evaluate`, pick and
 highlight, and the VS Code extension.

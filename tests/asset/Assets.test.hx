@@ -62,6 +62,46 @@ function tests() {
 			assert(throws(() -> a.value) is AssetError);
 		}));
 	});
+	describe("a font", () -> {
+		test("its first face, added to the program's fonts", async(() -> {
+			var f = Asset.font("text/var.ttf").load();
+			assert(f.family != "", "a family");
+			equals(helder.text.SystemFonts.get().match(f.family)?.family, f.family);
+		}));
+	});
+	// (what a reload does with the new value: the old object kept, its contents the new)
+	describe("swapped in place", () -> {
+		test("an image: its size and pixels, a new version", async(() -> {
+			var img = Asset.image("asset/files/pixels.png").load(), v = img.version;
+			var other = new Image(3, 1, Bytes.alloc(12));
+			img.replace(other);
+			equals([img.width, img.height, img.pixels.length], [3, 1, 12]);
+			assert(img.version > v);
+		}));
+		test("a font: the new face, a new id, ui's texts laid out again", async(() -> {
+			var f = Asset.font("text/var.ttf").load();
+			var id = f.id, g = helder.text.FontFile.generation, glyph = f.glyph("A".code);
+			f.replace(helder.text.FontFile.parse(f.data));
+			assert(f.id != id && helder.text.FontFile.generation == g + 1);
+			equals(f.glyph("A".code), glyph);
+		}));
+	});
+	describe("in ui's markup", () -> {
+		test("<Loading> over an image: its fallback, then the image bound to the handle", async(() -> {
+			// (a file no other test loads: not ready when it is rendered)
+			var handle = Asset.image("asset/files/shown.png");
+			var ui = new helder.ui.Ui(null, 200, 200);
+			var dispose = helder.view.Render.render(UiFixture.view(handle), ui.root);
+			ui.update();
+			assert(!handle.ready && ui.root.find("wait") != null && ui.root.find("pic") == null, "the fallback first");
+			var img = handle.load();
+			ui.update();
+			var node:Null<helder.ui.ImageNode> = cast ui.root.find("pic");
+			assert(node != null && ui.root.find("wait") == null, "the image once loaded");
+			equals(node.image, img);
+			dispose();
+		}));
+	});
 	describe("the handle", () -> {
 		test("value before it is here: AssetPending; peek null", () -> {
 			var a = new Asset<Int>("later");
@@ -78,6 +118,23 @@ function tests() {
 			a.resolve(4);
 			equals(t.await(), 4);
 		}));
+		test("a reload in flight: refreshing, Reactive.isPending", () -> {
+			var a = new Asset<String>("text");
+			equals(isPending(() -> a.value), false);
+			a.resolve("one");
+			a.refresh(true);
+			equals([a.refreshing, isPending(() -> a.value)], [true, true]);
+			a.resolve("two");
+			equals([a.refreshing, isPending(() -> a.value)], [false, false]);
+		});
+		test("a pending value is helder.view's Pending (a Loading boundary waits for it)", () -> {
+			var a = new Asset<Int>("later");
+			assert(throws(() -> a.value) is helder.view.Pending);
+			var told = 0;
+			a.whenReady(() -> told++);
+			a.resolve(1);
+			equals(told, 1);
+		});
 		test("value is a signal: its readers run again on a reload", () -> {
 			var a = new Asset<String>("text"), seen = [];
 			a.resolve("one");
@@ -96,3 +153,13 @@ function tests() {
 // (named, never called: its file is not bundled)
 function unused():Asset<Bytes>
 	return Asset.bytes("asset/files/dropped.txt");
+
+// (Loading's fallback, then an image whose src is the asset's handle)
+private class UiFixture implements helder.view.Markup {
+	public static function view(handle:Asset<Image>)
+		return <view>
+			<helder.view.Flow.Loading fallback={<view tag="wait"/>}>
+				<image tag="pic" src={handle}/>
+			</helder.view.Flow.Loading>
+		</view>;
+}

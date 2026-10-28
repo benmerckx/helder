@@ -65,7 +65,51 @@ it makes its nodes, each time it is mounted.
   comparisons nest freely.
 - Control flow (`helder.view.Flow`): `For` (keyed: rows kept and moved),
   `Index` (a row per index, its item a signal), `Show`, `Switch` and
-  `Match`, `Provider`, `ErrorBoundary`.
+  `Match`, `Provider`, `ErrorBoundary`, `Loading`.
+
+## Values not ready yet
+
+As Solid 2.0 has it (its `NotReadyError` and `<Loading>`, Suspense's
+successor): a value that comes later (helder.asset's `Asset`: a file
+loading) throws `Pending` when it is read before it is here. A
+computation that throws it (a bound hole, attribute or region, an effect)
+renders nothing new (a region keeps what it showed) and tells the nearest
+`<Loading>` boundary above it; it read the value first, so it runs again
+once the value is. A memo keeps it: its readers throw it in turn.
+
+```haxe
+<Loading fallback={<text>loading</text>}>
+  <text>{intro}</text>                      // an Asset bound as a hole
+  <text>{() -> intro.value.toString()}</text>
+  <Card/>                                   // reads assets while it is made
+</Loading>
+```
+
+- `<Loading fallback>` shows its fallback instead of its children while
+  what they read on their first load is not ready, then its children.
+  Once shown, it keeps them: a value replaced later (a dev reload, a new
+  value on its way) is shown once it is here, with no fallback between.
+  Its children are made, and while something they read is pending,
+  dropped and made again once it is ready (their components run twice on
+  a first load that waits). Boundaries nest: the nearest one waits.
+- `Reactive.isPending(() -> expr)`: whether a value `expr` reads is being
+  replaced (`Loadable.refreshing`: a reload in flight, an overlay's
+  spinner); false on a first load (the fallback says that one); tracked.
+- A failure (an asset that did not load) throws its error: an
+  `ErrorBoundary` above takes it, as any other.
+- With no boundary above it, a read that is not ready renders nothing for
+  its hole or component (logged in dev builds) and the rest renders; a
+  bound hole shows the value once it is here.
+- `Pending` and `Loadable` (ready, refreshing, whenReady) are the contract
+  for other sources than assets.
+
+Where it differs from Solid: markup holes are evaluated where the literal
+is (helder.view's model, no implicit getters), so a value read in a hole
+is bound only as a function or as the source itself (`{intro}`, `{() ->
+intro.value}`); `{intro.value}` reads it once, in the component that makes
+the literal (inside a boundary that component waits, and is made again).
+No `on` prop to show the fallback again, no `latest()`, no transitions
+of the whole graph: a pending read keeps the content it had.
 
 Each literal compiles to straight-line code: the elements made by tag,
 put in their parents, their static attributes set as they are, holes
