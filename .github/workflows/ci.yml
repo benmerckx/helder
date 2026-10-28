@@ -4,14 +4,17 @@
 # - headless: the lanes that need no GPU, display or browser (bun run test);
 # - gfx: the native GPU and audio lanes on Mesa's llvmpipe and Xvfb;
 # - browser: WebGPU, WebGL2, WebAudio and the DOM in headless Chromium;
-# - android: tests/pack/Hello.hx on an emulator (helder run, adb), helder
-#   dev's loop there (tests/os/dev/dev-android.mjs);
+# - android: tests/pack/Hello.hx on an emulator (helder run, adb), the
+#   screen fixture (tests/pack/Screen.hx: its window, safe area and the
+#   display's frames, a rotation, the background), helder dev's loop there
+#   (tests/os/dev/dev-android.mjs);
 # - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
-#   runner (helder run, simctl), codesign --verify and plutil.
+#   runner (helder run, simctl), the screen fixture, codesign --verify and
+#   plutil.
 # gfx, browser, android and ios-simulator are not required
-# (continue-on-error) while the stack is unstable; android and
-# ios-simulator are untested until CI runs them (written without an
-# emulator, a simulator or a Mac).
+# (continue-on-error) while the stack is unstable (android and
+# ios-simulator were written without an emulator, a simulator or a Mac:
+# CI is where they run).
 name: ci
 
 on:
@@ -94,9 +97,11 @@ jobs:
   # Android on an x86-64 emulator with KVM (reactivecircus/android-emulator-runner,
   # API 34, as hxmc's CI): tests/pack/android.sh (helder run --target
   # android: built for the emulator's ABI, installed, started, the hello line
-  # from logcat; then the APK by adb alone) and tests/os/dev/dev-android.mjs
+  # from logcat; then the APK by adb alone; then tests/pack/Screen.hx,
+  # checked by tests/pack/screen.mjs) and tests/os/dev/dev-android.mjs
   # (helder dev --target android: the APK installed once, two edits swapped
-  # into the same process, the state kept). Untested until CI runs it.
+  # into the same process, the state kept). A Pixel 6's profile: a
+  # navigation bar and a camera's cutout, for the insets.
   android:
     runs-on: ubuntu-24.04
     continue-on-error: true
@@ -152,7 +157,8 @@ jobs:
   # codesign --verify and plutil too, the dev loop against a stand-in
   # simctl) and tests/pack/ios.sh (a simulator of the newest runtime made,
   # helder run --target ios -d <it>: booted, installed, launched, the hello
-  # line from simctl launch --console). Untested until CI runs it.
+  # line from simctl launch --console; then tests/pack/Screen.hx in the
+  # background of the script, checked by tests/pack/screen.mjs).
   ios-simulator:
     runs-on: macos-15
     continue-on-error: true

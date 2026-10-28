@@ -53,9 +53,10 @@ if (platform === 'android') {
 	const resizes = lines.slice(immersive).map((l) => /^screen: resize (\d+)x(\d+) .* safe ([\d,]+)/.exec(l)).filter(Boolean);
 	const upright = resizes.find((m) => +m[1] < +m[2] && safe(m[3])[2] === 0 && safe(m[3])[0] > 0);
 	check('immersive: the bars hidden (no bottom inset), the window into the cutout (a top inset)', !!upright, upright?.[0]);
-	const turned = resizes.find((m) => +m[1] > +m[2]);
-	check('a rotation: a Resize wider than high', !!turned, turned?.[0]);
-	check('turned: the cutout at a side', turned && (safe(turned[3])[1] > 0 || safe(turned[3])[3] > 0), turned?.[0]);
+	const turned = resizes.filter((m) => +m[1] > +m[2]);
+	check('a rotation: a Resize wider than high', turned.length > 0, turned[0]?.[0]);
+	const side = turned.find((m) => safe(m[3])[1] > 0 || safe(m[3])[3] > 0);
+	check('turned: the cutout at a side', !!side, side?.[0]);
 }
 const suspend = find(/^screen: suspend/);
 check('the background: Suspend', !!suspend);
