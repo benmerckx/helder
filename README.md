@@ -174,8 +174,14 @@ Done as a first slice:
 
 Still to come:
 
-- **The dev loop:** changed assets sent without a recompile, assets packed
-  by `build`; the dev host on Windows and macOS run on the machines
+- **Assets anywhere, bundled by use:** no `assets/` folder; code names a
+  file by its path (`Asset.image("ui/icons/sword.png")`), a macro checks it
+  exists and records it, and `helder build` bundles only what is referenced
+  (dead-code elimination for assets), each in its target's format; settings
+  that differ from the defaults in a sidecar (`sword.png.meta`); dev builds
+  read them from disk and a change is sent without a recompile (the running
+  program's texture, font or model reloaded);
+- **The dev loop:** the dev host on Windows and macOS run on the machines
   themselves (tested on Linux: cross-compiled, Windows' under Wine with
   D3D11 on WineD3D, macOS's built only); the page held back while the
   module is generated;
@@ -378,7 +384,17 @@ collection only when it allocates or blocks.
 - **The devtools app** (`helder devtools`; design from a study of Unity's,
   Unreal's, Godot's, Defold's and Bevy's tools, Flutter DevTools, Tracy,
   Storybook, Makepad Studio and Bezi), built with helder's ui, natively and
-  as a page `helder dev` serves; an editor's shell without scene authoring:
+  as a page `helder dev` serves; an editor's shell without scene authoring,
+  organised around the project's file tree, as Defold's editor is
+  (wireframes: the devtools mockup): opening a file opens a view for its
+  kind (an image's preview and settings per target, a glTF's viewport and
+  node tree, a font's specimen, audio's waveform, a story file's stories, a
+  test file's results; a `.hx` file in your editor), each asset showing the
+  code that uses it and whether it is bundled; the running program a tab of
+  its own, with an inspector, the console and frames beside it. Scenes and
+  ui stay markup in `.hx` (no scene format of its own, as Defold's `.gui`
+  and `.collection`): stories preview them, and an inspector's edit writes
+  back to the literal:
   - **the program in a panel**: hosted by the dev host natively, its canvas
     in the page on the web, a phone attached through the CLI (which holds
     every build's connection, and outlives a crash with its logs);
@@ -387,9 +403,11 @@ collection only when it allocates or blocks.
     frame, tree snapshots on request, commands, pick and highlight. Its
     protocol is there (phase 2: src/helder/devtools/README.md, frame stats,
     the log and the ui tree), and `helder inspect` a small client of it;
-  - **the assets** with previews (images, fonts, glTF, audio) and their
-    import settings, reloaded live;
-  - **stories**, as Storybook's: `Foo.story.hx` files (linked as
+  - **the assets**, wherever they are in the tree, with previews (images,
+    fonts, glTF, audio), their settings and where they are used, reloaded
+    live;
+  - **stories**, as Storybook's: `Foo.story.hx` files anywhere, opened from
+    the tree (linked as
     `.test.hx` files are) whose `stories()` registers
     `story("Inventory/full", c -> ...)`, built into dev builds only; controls
     are signals (`c.number`, `c.bool`, a choice, a colour), so an edit
