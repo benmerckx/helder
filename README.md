@@ -89,7 +89,9 @@ bun run helder dev examples/counter/Counter.hx   # an example, live (dev web: a 
 
 ## Roadmap
 
-In order: each phase leans on the one before it.
+In order: each phase leans on the one before it. Now: phase 4, a mobile 3D
+game; the editor integration (phase 3's VS Code extension) and sound wait
+until after it.
 
 ### 1. Cleanup
 
@@ -443,34 +445,61 @@ collection only when it allocates or blocks.
     stats over the protocol. Then the stories editor, the inspector with
     jumping to source, the glTF and font editors.
 
-### 4. Mobile
+### 4. Mobile, and a first game: a mobile 3D game
 
+Next, ahead of sound and the editor integration (phase 3's VS Code
+extension, which waits until after the game). The game itself is the
+driver: built as an example, on a phone, every rough edge it hits the next
+fix.
+
+- **Packaging moved from hxmc into helder**: hxmc writes APKs and app
+  bundles today (no SDK: its own zip writer, manifest and signing, the
+  activity glue); that is app-level and will change a lot (manifests and
+  plists, permissions, orientation, icons, assets bundled by use, debug
+  and release signing, AAB), so helder's CLI takes it, ported as it is with
+  its tests, and hxmc's output ends at native code (Android's `.so`, iOS's
+  library). hxmc keeps its copy until helder's lands, then drops it. Order:
+  hxmc's inventory of what it has, the port into `helder.cli`, `helder
+  build android|ios` from helder, then the removal in hxmc. iOS device
+  signing through `codesign` on a Mac; the simulator needs none.
 - **`helder dev android` and `helder dev ios`**: a connected device, a running
   emulator or simulator, or one booted for it; the host installed once,
-  each build swapped into it.
+  each build swapped into it, as the desktop's dev host does.
+- **`<Surface>` on phones**: the app's screen, safe areas, orientation,
+  the display's scale.
 - **The frame loop from the display**: Choreographer on Android,
   CADisplayLink on iOS (Android polls its looper today, iOS paces from the
   layer's drawables).
-- **A compositor thread for scrolling and animations**, so a busy main
-  thread does not show (as Ladybird's compositor, Core Animation, Flutter's
-  raster thread): the main thread hands ui's renderer a retained layer tree
-  (layers, transforms, clips, scroll offsets) in flat, off-heap buffers; a
-  render thread, a GC-free job in a safe region, scrolls, runs transform
-  and opacity animations and presents at the display's rate; input routed
-  to compositor-scrolled layers. Layout itself stays on the main thread
-  (10k nodes laid out in 4.2 ms, allocating next to nothing): moved off it
-  only if a measurement shows layout holding frames back. On the web,
-  workers share no heap: the layer tree transferred, or a SharedArrayBuffer
-  behind cross-origin isolation.
-- **Audio on Android (AAudio) and iOS (RemoteIO)**, and a mixer above every
-  back end.
-- **Multi-touch and gestures**: touches as events in `os` (one drag today,
-  `TouchDrag`), gesture recognizers (pan, pinch, rotate, long press) in ui.
-- **Assets in bundles**: in the APK and the iOS app bundle, read through one
-  API on every platform, packed by `helder build`.
+- **Multi-touch and gestures**, after a study of the platforms' and
+  engines' models (web Pointer Events, Android MotionEvent, UIKit's touches
+  and gesture recognizers, Flutter's gesture arena, Unity's Input System,
+  Godot): one pointer stream in `os` (mouse, touch, pen: ids, phases,
+  cancellation, coalesced samples; per event and per frame, allocating
+  nothing), gestures in ui (pan, pinch, rotate, long press, competing for a
+  touch), touch in scene's input actions (virtual sticks and buttons, camera
+  gestures, picking through a `<Scene>`).
+- **Assets by path, bundled into the APK and the app** (phase 2's "assets
+  anywhere, bundled by use"), read through one API on every platform.
+- **The game**: a small mobile 3D game as an example (a camera the fingers
+  drive, picking, a HUD and a menu in ui, a save), built and live-reloaded
+  on an Android device and the iOS simulator. Save data (a small store on
+  every platform, the web's included) and tweens for gameplay come with it.
 - **CI on an Android emulator and the iOS simulator.**
-- **Devices in the extension**: their logs, a screenshot or a recording, a
-  story picked on the phone.
+- Later in this phase: **audio** (decoders: WAV, Ogg Vorbis; a mixer above
+  every back end, running as a kernel; AAudio on Android, RemoteIO on iOS;
+  a simple `Sound.play`), **a compositor thread for scrolling and
+  animations**, so a busy main thread does not show (as Ladybird's
+  compositor, Core Animation, Flutter's raster thread): the main thread
+  hands ui's renderer a retained layer tree (layers, transforms, clips,
+  scroll offsets) in flat, off-heap buffers; a render thread, a GC-free job
+  in a safe region, scrolls, runs transform and opacity animations and
+  presents at the display's rate; input routed to compositor-scrolled
+  layers. Layout itself stays on the main thread (10k nodes laid out in
+  4.2 ms, allocating next to nothing): moved off it only if a measurement
+  shows layout holding frames back. On the web, workers share no heap: the
+  layer tree transferred, or a SharedArrayBuffer behind cross-origin
+  isolation. And **devices in the extension**: their logs, a screenshot or
+  a recording, a story picked on the phone.
 
 ### 5. Graphics, 3D and 2D
 
