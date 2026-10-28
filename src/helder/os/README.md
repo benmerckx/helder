@@ -28,7 +28,7 @@ method's `TextEditing`), the mouse in
 pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`,
 and every pointer's events (below).
 
-On Android (`-D hxmc.target=android-arm64` with an output ending in `.apk`)
+On Android (`helder build --target android`: an APK, helder.pack.android)
 the window is the activity's (full screen, one per app; `new Window` waits
 for it): the program runs on a thread of its own, `App.run` draws while the
 activity has its window, a touch is as in the browser (below: a tap a
@@ -41,11 +41,11 @@ method's compositions and commits through a hidden `EditText`; a
 `ChildSurface` is a GPU view among Android's views. No clipboard there yet. Java from Haxe: `helder.os.android.Jni` (JNI's function tables,
 bound like COM's by `helder.os.VTable`), `MainThread` (Java's main
 thread, where views live: work handed to it, Choreographer's frames
-there) and `Glue` (Java's listeners calling Haxe: hxmc then writes a
+there) and `Glue` (Java's listeners calling Haxe: helder then writes a
 `classes.dex` into the APK).
 
-On iOS (`-D hxmc.target=ios-arm64` or `ios-sim-arm64` with an output ending
-in `.app`) the window is a `UIWindow` on the whole screen (one per app),
+On iOS (`helder build --target ios` or `ios-sim`: an app bundle,
+helder.pack.ios) the window is a `UIWindow` on the whole screen (one per app),
 backed by a `CAMetalLayer`: the program's main runs inside UIKit's loop
 (`UIApplicationMain` comes first: `helder.os.uikit.UIKitApp`), `App.run`
 draws while the app is in the foreground, a touch is as in the browser

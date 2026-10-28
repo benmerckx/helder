@@ -24,6 +24,9 @@ import hxmc.unsafe.*;
 // asks for one, and waits on the program's thread until the window closes
 // or the activity goes. Listeners (helder.os.android.Glue, classes.dex)
 // bring the views' events back; what update sets itself is not reported.
+// (@:helder.android.views: an APK with this gets classes.dex and
+// org.hxmc.Activity, whose window draws views: helder.pack.android.Classes)
+@:helder.android.views
 class AndroidBackend implements NativeBackend implements NativeDriver {
 	static var nextHandle = 1;
 

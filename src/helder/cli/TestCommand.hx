@@ -200,6 +200,15 @@ class TestCommand {
 			mkdirs(Path.directory(dir));
 			FileSystem.createDirectory(dir);
 		}
+
+	// a file, or a directory and everything under it
+	public static function rmrf(path:String) {
+		if (!FileSystem.exists(path)) return;
+		if (FileSystem.isDirectory(path)) {
+			for (n in FileSystem.readDirectory(path)) rmrf('$path/$n');
+			FileSystem.deleteDirectory(path);
+		} else FileSystem.deleteFile(path);
+	}
 }
 
 typedef TestFile = {
