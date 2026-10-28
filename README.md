@@ -10,13 +10,20 @@ src/helder/cli/README.md; the rest is on the roadmap):
 
 ```sh
 npm install helder
-npx helder dev            # this machine, with live reload
-npx helder dev web        # a page, with live reload
-npx helder build          # bin/<target>/<name>, its compile time and size
-npx helder inspect --tree # a running dev build's ui tree (--log, --frames)
-npx helder dev android    # (to come) boots an emulator, installs, live reloads
-npx helder build ios      # (to come)
+npx helder dev                    # this machine, with live reload
+npx helder dev --target web       # a page, with live reload
+npx helder build                  # bin/<target>/<name>, its compile time and size
+npx helder inspect --tree         # a running dev build's ui tree (--log, --frames)
+npx helder devices                # where it can run: this machine, a browser, phones
+npx helder dev --target android   # (to come) boots an emulator, installs, live reloads
+npx helder build --target ios     # (to come)
 ```
+
+`helder <command> [entry] [options]`: the entry (a .hx file, a directory or
+a project; the default: .) is what is built, the flags where it runs:
+`--target` (host, web, android, ios or an exact hxmc target), `-d` (which
+phone, emulator or simulator), `-o` (the output), `--` (the program's
+arguments). `helder <entry>` is `helder dev <entry>`.
 
 ## Aims
 
@@ -84,7 +91,7 @@ bun install
 bun run test              # the lanes that need no GPU, display or browser
 bun run test help         # every lane
 bun run helder test       # the *.test.hx files (--target all, --watch, -t <name>)
-bun run helder dev examples/counter/Counter.hx   # an example, live (dev web: a page)
+bun run helder examples/counter/Counter.hx       # an example, live (helder dev; --target web: a page)
 ```
 
 ## Roadmap
@@ -115,8 +122,14 @@ Done as a first slice:
 - **The `helder` CLI** (src/helder/cli/README.md), a native program on it,
   run from this checkout by `bun run helder`:
   - `helder dev`, `build` and `run` for the host and `web`, `build` for any
-    hxmc target; an entry is a project (package.json, `src/Main.hx`), an
-    example's directory or a file (`helder dev examples/counter/Counter.hx`);
+    hxmc target; one grammar, `helder <command> [entry] [options]`: the
+    positional is what is built, never a target (a project, package.json and
+    `src/Main.hx`, an example's directory or a file:
+    `helder dev examples/counter/Counter.hx`; `helder <entry>` is dev's), the
+    flags where it runs (`--target web`, `--target windows-x86_64`, `-d`
+    for a phone, parsed and refused until Android and iOS come), `-o`, `--`;
+    `helder devices` lists this machine, the browser, adb's devices and
+    emulators, iOS's simulators;
   - hxmc's native compiler called directly (no node), its std and runtime
     objects given by the CLI; a resident compilation server for dev, its own
     process (the GPL compiler not linked into the MIT CLI), stopped with the
@@ -460,10 +473,11 @@ fix.
   its tests, and hxmc's output ends at native code (Android's `.so`, iOS's
   library). hxmc keeps its copy until helder's lands, then drops it. Order:
   hxmc's inventory of what it has, the port into `helder.cli`, `helder
-  build android|ios` from helder, then the removal in hxmc. iOS device
+  build --target android|ios` from helder, then the removal in hxmc. iOS device
   signing through `codesign` on a Mac; the simulator needs none.
-- **`helder dev android` and `helder dev ios`**: a connected device, a running
-  emulator or simulator, or one booted for it; the host installed once,
+- **`helder dev --target android` and `--target ios`**: a connected device
+  (`-d`, from `helder devices`), a running emulator or simulator, or one
+  booted for it; the host installed once,
   each build swapped into it, as the desktop's dev host does.
 - **`<Surface>` on phones**: the app's screen, safe areas, orientation,
   the display's scale.

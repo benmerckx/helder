@@ -41,9 +41,9 @@ class Run {
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively, on Eval and as wasm32-wasi (node)", run: helderTest},
-		{name: "cli", about: "`helder build`, `run` and `dev` (src/helder/cli): an example by file and by directory, a project, natively and for web; the dev loop natively and for web without a window or a browser (tests/cli/dev.mjs)", run: cli},
+		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively and for web without a window or a browser (tests/cli/dev.mjs)", run: cli},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
-		{name: "examples", about: "every example built by `helder build <file>` with no flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
+		{name: "examples", about: "every example built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium", run: sceneWeb},
 		{name: "gfx", about: "helder.gfx: the examples headless and in a window against golden images (tests/gfx/check.sh; Linux: Mesa, Xvfb)", run: gfx},
@@ -191,10 +191,34 @@ class Run {
 	static function cli() {
 		var h = helderCli();
 		Sys.println('helder: ${Math.round(FileSystem.stat(h).size / 1024)} KB');
+		// (the grammar, its parser's own tests src/helder/cli/Options.test.hx:
+		// helder alone is help; the positional never a target; one error format)
+		var none = new Map();
+		expect(h, [], none, "helder <entry>                 shorthand for: helder dev <entry>");
+		expect(h, ["build", "--help"], none, "  -o, --out <path>   build's output");
+		expect(h, ["help", "dev"], none, "  --port <n>");
+		expect(h, ["web"], none, "helder: `web` is a target: use helder dev --target web", 2);
+		expect(h, ["build", "web", "examples/counter"], none, "helder build: one entry, not web and examples/counter", 2);
+		expect(h, ["build", "web"], none, "helder build: `web` is a target: use --target web", 2);
+		expect(h, ["run", "--bogus"], none, "helder run: unknown option --bogus (helder run --help)", 2);
+		expect(h, ["dev", "--target"], none, "helder dev: --target takes a value", 2);
+		expect(h, ["build", "-d", "emulator-5554"], none, "helder build: -d/--device picks a phone, emulator or simulator", 2);
+		expect(h, ["dev", "examples/counter", "--target", "android", "-d", "emulator-5554"], none, "not yet: Android and iOS packaging is being moved into helder", 2);
+		// (helder devices: no adb on the PATH, an empty directory; then a stand-in adb)
+		rmrf("bin/cli/path");
+		mkdirs("bin/cli/path/none");
+		expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/none")], "adb not found");
+		expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/none")], 'host  this machine');
+		if (!HOST.startsWith("windows-")) {
+			mkdirs("bin/cli/path/adb");
+			File.saveContent("bin/cli/path/adb/adb", "#!/bin/sh\necho 'List of devices attached'\necho 'emulator-5554  device product:sdk_gphone64 model:Pixel_7 device:emu64xa transport_id:1'\n");
+			run("chmod", ["+x", "bin/cli/path/adb/adb"]);
+			expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/adb")], "emulator-5554  Pixel 7");
+		}
 		run(h, ["build", "examples/counter/Counter.hx"]);
-		run(h, ["build", "web", "examples/counter"]);
+		run(h, ["build", "--target", "web", "examples/counter"]);
 		for (f in ["Counter.html", "Counter.wasm", "helder/os/browser.mjs", "helder/ui/imports.mjs"])
-			if (!FileSystem.exists('bin/web/$f')) throw new Failed('helder build web: no bin/web/$f');
+			if (!FileSystem.exists('bin/web/$f')) throw new Failed('helder build --target web: no bin/web/$f');
 		expect(h, ["run", "tests/cli/tally", "--", "3"], new Map(), "v1 count=3");
 		rmrf("bin/cli/project");
 		copy("tests/cli/project", "bin/cli/project");
@@ -204,7 +228,7 @@ class Run {
 		File.saveContent("bin/cli/project/node_modules/helder/package.json", haxe.Json.stringify({name: "helder", haxe: {name: "helder", classPath: src}}));
 		expect(h, ["run", "bin/cli/project"], new Map(), "hello from the project");
 		expect(h, ["run", "bin/cli/project/src/app/Hello.hx"], new Map(), "hello from app.Hello, hello from the project");
-		run(h, ["build", "wasm32-wasi", "bin/cli/project"]);
+		run(h, ["build", "bin/cli/project", "--target", "wasm32-wasi"]);
 		wasi("bin/cli/project/bin/wasm32-wasi/cli-fixture.wasm");
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-native", "native"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
@@ -438,7 +462,8 @@ class Run {
 	// a wasm module JavaScript calls), each built for wasm32-wasi but the
 	// islands, and those on a canvas or playing a sound for this machine
 	// too, in parallel, into bin/examples (each one's log beside it), each by
-	// the CLI with no flags but its output: `helder build [web] <file>`.
+	// the CLI with no flags but the target and the output: `helder build
+	// <file> [--target web] -o <out>`.
 	static function examples() {
 		var h = helderCli();
 		var builds:Array<{id:String, target:String, out:String, args:Array<String>}> = [];
@@ -460,7 +485,7 @@ class Run {
 				var id = dir + (files.length > 1 && main.toLowerCase() != dir.replace("-", "") ? "-" + main.toLowerCase() : "");
 				if (demo != "island") {
 					var out = 'bin/examples/wasm32-wasi/$id.wasm';
-					builds.push({id: id, target: "wasm32-wasi", out: out, args: ["build", "web", '$path/$f', "-o", out]});
+					builds.push({id: id, target: "wasm32-wasi", out: out, args: ["build", '$path/$f', "--target", "web", "-o", out]});
 				}
 				if (demo.startsWith("canvas") || demo == "sound") {
 					var out = exePath('bin/examples/$HOST/$id', HOST);
@@ -754,15 +779,21 @@ class Run {
 		run("sh", ["-c", cmd]);
 
 	// a program's output must contain `text`
-	static function expect(cmd:String, args:Array<String>, env:Map<String, String>, text:String) {
-		for (k => v in env) Sys.putEnv(k, v);
+	// (and exit with `want`, 0 by default; env's variables set for it, then
+	// given back their values)
+	static function expect(cmd:String, args:Array<String>, env:Map<String, String>, text:String, want = 0) {
+		var saved = new Map<String, Null<String>>();
+		for (k => v in env) {
+			saved.set(k, Sys.getEnv(k));
+			Sys.putEnv(k, v);
+		}
 		var p = new Process(cmd, args);
 		var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();
 		var code = p.exitCode();
 		p.close();
-		for (k in env.keys()) Sys.putEnv(k, "");
+		for (k => v in saved) Sys.putEnv(k, v ?? "");
 		Sys.print(out);
-		if (code != 0 || !out.contains(text)) throw new Failed('$cmd: expected "$text" (exit code $code)');
+		if (code != want || !out.contains(text)) throw new Failed('${[cmd].concat(args).join(" ")}: expected "$text" (exit code $code, not $want)');
 	}
 
 	// each item in a thread, half the cores' worth at once (each build is parallel itself)

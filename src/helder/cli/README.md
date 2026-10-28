@@ -8,26 +8,61 @@ source changed, then runs it). It calls hxmc's native compiler itself
 says so and falls back to `node_modules/.bin/haxe`.
 
 ```sh
-helder dev                                  # the project here, on this machine, live
-helder dev web examples/counter/Counter.hx  # a page at http://127.0.0.1:4321/, live
-helder build                                # bin/linux-x86_64/<name>: time and size
-helder build windows-x86_64                 # any hxmc target (its runtime objects installed)
-helder build web examples/counter           # bin/web/Counter.wasm, .html and its modules
-helder run tests/cli/tally -- 3             # built, then run with arguments
-helder test                                 # the *.test.hx files (src/helder/test)
-helder inspect --tree                       # a running helder dev's ui tree (--log, --frames, --state)
+helder dev                                    # the project here, on this machine, live
+helder examples/counter/Counter.hx            # the same as helder dev examples/counter/Counter.hx
+helder dev examples/counter --target web      # a page at http://127.0.0.1:4321/, live
+helder build                                  # bin/linux-x86_64/<name>: time and size
+helder build --target windows-x86_64          # any hxmc target (its runtime objects installed)
+helder build examples/counter --target web    # bin/web/Counter.wasm, .html and its modules
+helder run tests/cli/tally -- 3               # built, then run with arguments
+helder test                                   # the *.test.hx files (src/helder/test)
+helder inspect --tree                         # a running helder dev's ui tree (--log, --frames, --state)
+helder devices                                # this machine, a browser, Android devices, iOS simulators
 ```
+
+## The grammar
+
+```
+helder <command> [entry] [options]      entry: a .hx file, a directory or a project (default: .)
+helder <entry>                          shorthand for: helder dev <entry>
+
+commands: dev, run, build, test, inspect, devices, help
+
+  --target <t>       host (default), web, android, ios, or an exact hxmc target (windows-x86_64, macos-arm64, wasm32-wasi, ...)
+  -d, --device <d>   which phone, emulator or simulator (android, ios); `helder devices` lists them
+  -o, --out <path>   build's output
+  -- <args>          the program's arguments (dev, run)
+  -h, --help         this help: helder help, or helder <command> --help
+```
+
+The positional is what is built, never where it runs: a word that is a
+target's name and not a path is an error (`helder build web`: "`web` is a
+target: use --target web"), and `helder web` too. `--target` has no short
+form; `helder test`'s takes a list (`host,interp,wasm`, `all`), and keeps
+bun's `-t`/`--test-name-pattern`. The first word is a command or an entry
+(`helder examples/todo/Todo.hx` is dev's); `helder` alone prints the help.
+Each command has its own options beside the common ones: dev `--port`,
+`--host`; test `-t`, `-w`, `-u`, `--timeout`; inspect `--tree`, `--state`,
+`--log`, `--frames`, `--port`. One parser (`Options.hx`) reads them all,
+and writes `helder help` and `helder <command> --help` from the same
+table; a mistake is one line, `helder <command>: <what>` (an unknown
+option: `helder build: unknown option --x (helder build --help)`), exit
+code 2. `-d` is parsed and checked (with `--target android` or `ios`);
+those targets are refused for now ("not yet: Android and iOS packaging is
+being moved into helder"). `helder devices` lists what it finds today: this
+machine (host, with its target), a browser through the dev server (web),
+Android's devices and emulators (`adb devices -l`, adb on the PATH; else
+"adb not found") and iOS's simulators (`xcrun simctl list devices
+available`, on macOS): id, name, kind, target.
 
 ## Conventions
 
-`helder <command> [target] [entry]`: a known target name is a target,
-anything else the entry.
-
-- **Targets**: `host` (the default, this machine), `web` (wasm32-wasi with
-  its page; legacy exception handling, which every browser with WebGPU
-  has), or an exact hxmc target for `build`: `linux-x86_64`,
-  `windows-x86_64`, `macos-arm64`, `wasm32-wasi`, ... Linux builds use the
-  glibc mode (the GPU's and the sound's drivers are loaded).
+- **Targets** (`--target`): `host` (the default, this machine), `web`
+  (wasm32-wasi with its page; legacy exception handling, which every
+  browser with WebGPU has), or an exact hxmc target for `build`:
+  `linux-x86_64`, `windows-x86_64`, `macos-arm64`, `wasm32-wasi`, ...
+  Linux builds use the glibc mode (the GPU's and the sound's drivers are
+  loaded). `android` and `ios` come with the packaging's port.
 - **Entries**:
   - nothing: the working directory, a project;
   - a project directory: `package.json` and `src/Main.hx`;
@@ -137,15 +172,20 @@ No workarounds left:
 - (Not a bug: `--server-connect`'s builds are given hxmc's std by the
   client, as dev.mjs does: `CompileServer.request`.)
 
-Tests: the `cli` lane (`bun run test cli`: builds by file, directory and
+Tests: `src/helder/cli/Options.test.hx` (the grammar: the shorthand, the
+positional never a target, `--target`, `-d`, `--`, the options' errors,
+the help, `helder devices`' lists; in the test lane), the `cli` lane (`bun
+run test cli`: the grammar's errors and `helder devices` without adb and
+with a stand-in one from the binary, builds by file, directory and
 project, natively and for web; `tests/cli/dev.mjs`, the dev loop natively
 and for web without a browser), the `devtools` lane (`tests/devtools`: the
 relay and `helder inspect` against a console and a ui program), the
 `examples` lane (every example by
-`helder build <file>`), and `tests/os/dev/dev-web.mjs` and `dev-native.mjs`
+`helder build <file>`, `--target web` for the web), and
+`tests/os/dev/dev-web.mjs` and `dev-native.mjs`
 with `--helder=bin/cli/helder` (Chromium; a window under Xvfb).
 
 Not yet: the devtools' agent on the web (the page relaying it), changed assets sent without a
 recompile, the page held back while the module is generated (dev.mjs's
 `hxmc dev: generating`), native watchers, the CLI on npm as a binary,
-Android and iOS, `helder new`, `helder doctor`.
+Android and iOS (`--target android|ios`, `-d`: parsed, refused), `helder new`, `helder doctor`.

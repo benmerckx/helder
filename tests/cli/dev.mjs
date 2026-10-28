@@ -36,7 +36,7 @@ const edit = (f) => {
 
 const lines = [];
 const waiters = [];
-const dev = spawn(path.resolve(helder), ['dev', ...(web ? ['web'] : []), path.relative(work, file), ...(web ? ['--port', '0'] : [])],
+const dev = spawn(path.resolve(helder), ['dev', path.relative(work, file), ...(web ? ['--target', 'web', '--port', '0'] : [])],
 	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'] });
 for (const s of [dev.stdout, dev.stderr]) {
 	let buf = '';

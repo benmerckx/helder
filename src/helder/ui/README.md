@@ -25,7 +25,7 @@ class Counter implements Markup {
 ```
 
 ```sh
-bun run helder dev examples/counter/Counter.hx   # or build, natively and for web: no flags
+bun run helder dev examples/counter/Counter.hx   # or build; --target web for a page
 ```
 
 `Render.render(content, node)` mounts markup into a node of your own (a

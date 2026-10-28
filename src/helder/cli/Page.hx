@@ -108,7 +108,7 @@ class Page {
 		return out;
 	}
 
-	// `helder build web`: the page (<name>.html), browser.mjs, the imports and the fonts beside the module
+	// `helder build --target web`: the page (<name>.html), browser.mjs, the imports and the fonts beside the module
 	public static function write(helder:String, wasm:String, title:String):Array<String> {
 		var dir = haxe.io.Path.directory(wasm), name = haxe.io.Path.withoutExtension(haxe.io.Path.withoutDirectory(wasm));
 		if (dir == "") dir = ".";

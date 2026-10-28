@@ -109,7 +109,7 @@ senders: jobs report progress or stream results to their awaiter.
 ## In the browser
 
 `imports.mjs` (module `helder_jobs`, for browser.mjs's option `imports`;
-`helder build web` copies it and `worker.mjs`) starts workers as jobs
+`helder build --target web` copies it and `worker.mjs`) starts workers as jobs
 come, each instantiating the page's compiled module (`host.module`,
 posted: compiled once) with `worker.mjs`'s small WASI (no files, the
 console). A worker's instance runs the static initializers up to

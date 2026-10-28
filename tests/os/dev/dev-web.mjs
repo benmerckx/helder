@@ -15,7 +15,7 @@
 //   one canvas, and the old build left no GPU objects;
 // - the swaps' times, from the change seen to the new build's first frame.
 //   node tests/os/dev/dev-web.mjs <compiler> [work dir] [--helder=<exe>]
-// (--helder: `helder dev web app/Counter.hx` instead of dev.mjs, its build
+// (--helder: `helder dev app/Counter.hx --target web` instead of dev.mjs, its build
 // not compared with a fresh one)
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -63,7 +63,7 @@ const port = await new Promise((r) => {
 });
 const lines = [];
 const waiters = [];
-const dev = helder ? spawn(path.resolve(helder), ['dev', 'web', 'app/Counter.hx', '--port', String(port)], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'] })
+const dev = helder ? spawn(path.resolve(helder), ['dev', 'app/Counter.hx', '--target', 'web', '--port', String(port)], { cwd: work, stdio: ['ignore', 'pipe', 'pipe'] })
 	: spawn(process.execPath, [path.join(repo, 'node_modules/@hxmc/cli/hxmc/bootstrap/dev.mjs'), compiler, '--port', String(port), 'build.hxml'],
 		{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env } });
 const onLine = (l) => {
