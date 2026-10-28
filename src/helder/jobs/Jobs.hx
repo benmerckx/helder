@@ -41,7 +41,8 @@ import hxmc.unsafe.Ptr;
 // instead, at its next turn, with the same results.
 class Jobs {
 	// the pool's threads or a browser's workers, read at the first job: -1
-	// for the cores but one (at least one), 0 for none (jobs run on the loop)
+	// for the cores but one (at least one); 0 for none: jobs run on the loop
+	// (also once set later)
 	public static var workers = -1;
 
 	// f's run with input (see above): a GC-free job's output, a GC job's result
@@ -49,6 +50,11 @@ class Jobs {
 		return Sendable.job(f, rest);
 
 	#if !macro
+	// whether this runs in a job on a worker (natively a thread other than
+	// the main one, in a browser a worker's instance)
+	public static function onWorker():Bool
+		return #if (hxmc.target == "wasm32-wasi") WebJobs.inWorker() #else hxmc.NativeThread.current() != 1 #end;
+
 	// (Jobs.run's: a GC-free job by its address)
 	@:coroutine public static function runFree(fn:Ptr, input:IoBuffer):IoBuffer {
 		var r = Run.await(fn, true, input);

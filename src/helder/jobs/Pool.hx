@@ -13,6 +13,7 @@ class Pool {
 
 	// r queued: false without threads (Jobs.workers = 0)
 	public static function submit(r:Run):Bool {
+		if (Jobs.workers == 0) return false;
 		if (queue == null) {
 			threads = Jobs.size();
 			if (threads <= 0) return false;

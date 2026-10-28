@@ -67,7 +67,7 @@ class ChannelBase {
 	public function close() {
 		#if (hxmc.target == "wasm32-wasi")
 		if (loop == null) {
-			JobsHost.close(id);
+			WebJobs.JobsHost.close(id);
 			return;
 		}
 		#end
@@ -90,7 +90,7 @@ class ChannelBase {
 	function push(b:IoBuffer) {
 		#if (hxmc.target == "wasm32-wasi")
 		if (loop == null) {
-			JobsHost.send(id, b.ptr, b.length);
+			WebJobs.JobsHost.send(id, b.ptr, b.length);
 			b.free();
 			return;
 		}
