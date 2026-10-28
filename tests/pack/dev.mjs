@@ -39,7 +39,10 @@ const tools = () => fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n'
 const edit = (from, to) => {
 	const s = fs.readFileSync(file, 'utf8');
 	if (!s.includes(from)) throw new Error('the edit changed nothing');
-	fs.writeFileSync(file, s.replace(from, to));
+	// (written beside it, then renamed over it: the watcher never sees it
+	// empty or half written, which built a module without its class)
+	fs.writeFileSync(file + '.tmp', s.replace(from, to));
+	fs.renameSync(file + '.tmp', file);
 };
 
 const lines = [];
