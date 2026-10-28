@@ -1,5 +1,6 @@
 package helder.cli;
 
+import helder.cli.Style.Tone;
 import haxe.io.Bytes;
 import haxe.io.Path;
 import helder.async.*;
@@ -41,7 +42,7 @@ class Compiler {
 			}
 		}
 		var bin = locate("node_modules/.bin/" + (win ? "haxe.cmd" : "haxe"));
-		Sys.println('helder: no native compiler (node_modules/@hxmc/${platformPackage()}): ${bin ?? "haxe"} instead, through node');
+		Term.err(Style.status("warning", Warn, 'no native compiler (node_modules/@hxmc/${platformPackage()}): ${bin ?? "haxe"} instead, through node'));
 		return bin ?? (win ? "haxe.cmd" : "haxe");
 	}
 
@@ -137,7 +138,7 @@ class CompileServer {
 			if (!env.exists(k)) env.set(k, v);
 		var p = try new Process(tool, ["--server-connect", '127.0.0.1:${link.port}'], {env: env}) catch (e:haxe.Exception) {
 			link.close();
-			Sys.println('helder: $tool: ${e.message}');
+			Term.err(Style.status("error", Fail, '$tool: ${e.message}'));
 			return null;
 		}
 		p.closeStdin();
@@ -172,7 +173,10 @@ class CompileServer {
 			lock.release();
 			var ok = true, messages = [];
 			for (line in answer.split("\n")) {
-				if (line.startsWith("\x01")) Sys.print(line.substr(1).split("\x01").join("\n"));
+				if (line.startsWith("\x01")) {
+					var text = line.substr(1).split("\x01").join("\n");
+					Term.write(text.endsWith("\n") ? text.substr(0, text.length - 1) : text);
+				}
 				else if (line.startsWith("\x02")) ok = false;
 				else if (line != "") messages.push(line);
 			}

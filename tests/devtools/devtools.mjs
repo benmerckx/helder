@@ -104,7 +104,7 @@ const out = lines(dev);
 const inspects = [];
 
 async function console_() {
-	const port = Number(/devtools at ws:\/\/[^:]+:(\d+)\//.exec(await out.next(/devtools at ws:/, 30000))[1]);
+	const port = Number(/devtools ws:\/\/[^:]+:(\d+)\//.exec(await out.next(/^\s*devtools ws:/, 30000))[1]);
 	await out.next(/Pulse\.hx:\d+: v1 frames=/, 240000);
 	const info = JSON.parse(fs.readFileSync(path.join(repo, 'bin/dev/devtools.json'), 'utf8'));
 	check('bin/dev/devtools.json names the port', info.port === port && info.path === '/__helder/devtools', JSON.stringify(info));
@@ -194,7 +194,7 @@ async function console_() {
 }
 
 async function ui() {
-	const port = Number(/devtools at ws:\/\/[^:]+:(\d+)\//.exec(await out.next(/devtools at ws:/, 30000))[1]);
+	const port = Number(/devtools ws:\/\/[^:]+:(\d+)\//.exec(await out.next(/^\s*devtools ws:/, 30000))[1]);
 	await out.next(/Boxes\.hx:\d+: v1 boxes/, 240000);
 	const t = await tool(port);
 	await t.call('Runtime.hello', { protocol: 1 });

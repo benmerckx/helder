@@ -41,7 +41,7 @@ class Run {
 		{name: "app", about: "App.run turning helder.async's loop: a timer and a job's reply ending App.wait (tests/os/AppLoopTest.hx; Linux: Xvfb)", run: app},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively, on Eval and as wasm32-wasi (node)", run: helderTest},
-		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively and for web without a window or a browser (tests/cli/dev.mjs)", run: cli},
+		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "examples", about: "every example built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
@@ -232,7 +232,9 @@ class Run {
 		run(h, ["build", "bin/cli/project", "--target", "wasm32-wasi"]);
 		wasi("bin/cli/project/bin/wasm32-wasi/cli-fixture.wasm");
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-native", "native"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-nohost", "native-nohost"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-exit", "exit"]);
 	}
 
 	static function devtools() {

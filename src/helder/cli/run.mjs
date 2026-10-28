@@ -26,6 +26,11 @@ function newest(dir) {
 	return t;
 }
 
+// (its lines as the CLI's own, src/helder/cli/Style.hx: FORCE_COLOR, NO_COLOR, a terminal)
+const force = process.env.FORCE_COLOR, no = process.env.NO_COLOR;
+const color = force ? force !== '0' && force !== 'false' : !no && process.env.TERM !== 'dumb' && !!process.stderr.isTTY;
+const status = (verb, sgr, text) => (color ? `\x1b[${sgr};1m${verb.padStart(9)}\x1b[0m` : verb.padStart(9)) + ' ' + text;
+
 const sources = Math.max(newest(path.join(root, 'src/helder/cli')), newest(path.join(root, 'src/helder/async')));
 if (!fs.existsSync(exe) || fs.statSync(exe).mtimeMs < sources) {
 	const t0 = Date.now();
@@ -35,10 +40,10 @@ if (!fs.existsSync(exe) || fs.statSync(exe).mtimeMs < sources) {
 	if (b.status === 0) fs.renameSync(tmp, exe);
 	if (b.status !== 0) {
 		process.stderr.write((b.stdout ?? '') + (b.stderr ?? '') + (b.error ? String(b.error) + '\n' : ''));
-		console.error('helder: bin/cli/helder: the build failed');
+		console.error(status('failed', '31', 'bin/cli/helder: the build failed'));
 		process.exit(1);
 	}
-	console.error(`helder: bin/cli/helder built (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+	console.error(status('built', '32', `bin/cli/helder in ${((Date.now() - t0) / 1000).toFixed(1)} s`));
 }
 const r = spawnSync(exe, process.argv.slice(2), { stdio: 'inherit' });
 process.exit(r.status ?? 1);

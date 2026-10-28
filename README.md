@@ -141,6 +141,14 @@ Done as a first slice:
     restart with a snapshot when the host does not build or with
     `HELDER_DEV_HOST=0`; on the web the module swapped in the same page;
     save to reload about 300 ms natively, 400-440 ms on the web;
+  - closing the program's window ends `helder dev` (an exit code of 0, as
+    `tauri dev` and electron-forge do); a crash keeps it up, waiting for a
+    change to build and start it again; closing a page does not (vite's);
+  - cargo's, bun's and vite's look: a header line, aligned status verbs
+    (built, reloaded, failed, crashed) with their times, the compiler's
+    errors with file:line:column in front, a spinner, `helder test` with
+    ✓ and ✗; plain text without a terminal, with `NO_COLOR` or `TERM=dumb`
+    (`FORCE_COLOR` forces colours);
   - every build's compile time and binary size reported; warm builds of the
     examples 185-575 ms;
   - conventions over configuration: package.json's `"helder"` key and a
@@ -478,7 +486,9 @@ fix.
 - **`helder dev --target android` and `--target ios`**: a connected device
   (`-d`, from `helder devices`), a running emulator or simulator, or one
   booted for it; the host installed once,
-  each build swapped into it, as the desktop's dev host does.
+  each build swapped into it, as the desktop's dev host does. Closing the
+  app on the phone does not end `helder dev` (helder.cli.ExitPolicy's
+  Mobile: it keeps serving, the next build starts the app again).
 - **`<Surface>` on phones**: the app's screen, safe areas, orientation,
   the display's scale.
 - **The frame loop from the display**: Choreographer on Android,

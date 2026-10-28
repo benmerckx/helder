@@ -99,7 +99,7 @@ const line = (re, ms = 120000) => {
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 const times = [];
 try {
-	if (!lines.some((l) => /^(?:hxmc|helder) dev: built in/.test(l))) await line(/^(?:hxmc|helder) dev: built in/);
+	if (!lines.some((l) => /^(?:(?:hxmc|helder) dev: |\s*)built in/.test(l))) await line(/^(?:(?:hxmc|helder) dev: |\s*)built in/);
 	const page = await browser.newPage();
 	page.on('pageerror', (e) => console.log('page error: ' + e.message + (process.env.DEV_VERBOSE ? '\n' + e.stack : '')));
 	// (navigations of the main frame after the first: a reload)
@@ -157,7 +157,7 @@ try {
 	await count('v1', 3, 'clicked three times');
 
 	// an edit: the new code, the state kept
-	const reloaded = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
+	const reloaded = line(/^(?:(?:hxmc|helder) dev: |\s*)(?:swapped|reloaded) in/);
 	edit((s) => s.replace('label="+1"', 'label="+2"').replace('>+1<', '>+2<').replace('"v1 count="', '"v2 count="'));
 	times.push(await reloaded);
 	await count('v2', 3, 'edited: the new build, the count kept');
@@ -176,7 +176,7 @@ try {
 	await same(gl, 'edited, WebGL2', 1);
 
 	// the signal's type changed: reset to its new initial value, and said so
-	const reloaded2 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
+	const reloaded2 = line(/^(?:(?:hxmc|helder) dev: |\s*)(?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('"v2 count="', '"v3 count="'));
 	times.push(await reloaded2);
@@ -187,7 +187,7 @@ try {
 
 	// a compile error: the overlay, the last good build still running
 	await page.evaluate(() => (window.hxmcDevMarker = 'still the same page'));
-	const failed = line(/^(?:hxmc|helder) dev: error/);
+	const failed = line(/^(?:(?:hxmc|helder) dev: error|\s*failed in)/);
 	edit((s) => s.replace('"v3 count="', '"v4 count=" +* broken'));
 	await failed;
 	await page.waitForFunction(() => getComputedStyle(document.getElementById('hxmc-dev-overlay')).display !== 'none', null, { timeout: 30000 }).catch(() => {});
@@ -199,7 +199,7 @@ try {
 	await count('v3', 2.5, 'error: the last good build keeps running');
 
 	// fixed: the new build, the state kept, the overlay gone
-	const reloaded3 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
+	const reloaded3 = line(/^(?:(?:hxmc|helder) dev: |\s*)(?:swapped|reloaded) in/);
 	edit((s) => s.replace('"v4 count=" +* broken', '"v5 count="'));
 	times.push(await reloaded3);
 	await count('v5', 2.5, 'fixed: the new build, the count kept');

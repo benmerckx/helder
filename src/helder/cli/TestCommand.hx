@@ -1,5 +1,6 @@
 package helder.cli;
 
+import helder.cli.Style.Tone;
 import haxe.io.Path;
 import helder.async.*;
 import sys.FileSystem;
@@ -28,11 +29,15 @@ class TestCommand {
 			case "timeout": runner = runner.concat(["--timeout", x.value]);
 			case _:
 		}
+		// (the runner's colours and symbols: its output is a pipe here)
+		if (Term.outColor) runner.push("--color");
+		if (Term.outColor && Style.unicode) runner.push("--unicode");
+		Term.out(Style.header("test", [targets.join(", ")]));
 		var p = new Project();
 		if (!watch) return once(p, filters, targets, runner, null);
 		var compiler = Compiler.start();
 		var server = compiler?.port;
-		if (compiler == null) Sys.println("helder test: no compilation server (each build from the module cache)");
+		if (compiler == null) Term.err(Style.status("warning", Warn, "no compilation server (each build from the module cache)"));
 		// (ctrl-c, SIGTERM: the compilation server stopped too)
 		task.async(_ -> {
 			var sig = Signals.next([Signal.SIGINT, Signal.SIGTERM]);
@@ -45,9 +50,11 @@ class TestCommand {
 		});
 		while (true) {
 			once(p, filters, targets, runner, server);
-			Sys.println("\nwatching (ctrl-c to stop)");
+			Term.out("");
+			Term.out(Style.status("watching", Info, Style.dim("ctrl-c to stop")));
 			var changed = w.next();
-			Sys.println('\n${changed.length == 1 ? changed[0] : changed.length + " files"} changed');
+			Term.out("");
+			Term.out(Style.status("changed", Quiet, changed.length == 1 ? changed[0] : changed.length + " files"));
 		}
 		return 0;
 	}
@@ -55,7 +62,7 @@ class TestCommand {
 	// one run: found, linked, built and run for each target; the exit code
 	@:coroutine static function once(p:Project, filters:Array<String>, targets:Array<String>, runner:Array<String>, server:Null<Int>):Int {
 		var files = try p.testFiles() catch (e:haxe.Exception) {
-			Sys.println('helder test: ${e.message}');
+			Term.err(Style.usage('helder test: ${e.message}'));
 			return 1;
 		}
 		// (the filters that are part of a path pick files; the rest names)
@@ -64,7 +71,7 @@ class TestCommand {
 		if (paths.length > 0) files = files.filter(t -> Lambda.exists(paths, f -> t.real.contains(norm(f))));
 		for (n in names) runner = runner.concat(["-n", n]);
 		if (files.length == 0) {
-			Sys.println("helder test: no *.test.hx files" + (paths.length > 0 ? " match " + paths.join(" ") : " under " + p.roots.join(", ")));
+			Term.err(Style.usage("helder test: no *.test.hx files" + (paths.length > 0 ? " match " + paths.join(" ") : " under " + p.roots.join(", "))));
 			return 1;
 		}
 		// (a /regex/ -t: the runner given EReg)
@@ -78,10 +85,13 @@ class TestCommand {
 		var results = [], failed = false;
 		for (t in targets) {
 			var r = target(t, p, cp, runner, map, server);
-			results.push('$t: ${r.summary}');
+			results.push(Style.status(t, r.ok ? Ok : Fail, r.summary));
 			if (!r.ok) failed = true;
 		}
-		if (targets.length > 1) Sys.println("\n" + results.join("\n"));
+		if (targets.length > 1) {
+			Term.out("");
+			for (r in results) Term.out(r);
+		}
 		return failed ? 1 : 0;
 	}
 
@@ -92,18 +102,17 @@ class TestCommand {
 		switch t {
 			case "interp":
 				// (built and run by one process: Eval)
-				Sys.println('\n[interp]');
-				out = Output.of(Compiler.tool(), cp.concat(["--run", "HelderTestMain"]).concat(runner), map);
+				Term.out("");
+				Term.out(Style.status("running", Info, "interp" + Style.dim(Style.sep() + "built and run by the compiler (Eval)")));
+				out = Output.of(Compiler.tool(), cp.concat(["--run", "HelderTestMain"]).concat(runner), map, "building and running the tests on interp");
 				return {ok: out.code == 0, summary: out.summary() + ' (${secs(haxe.Timer.stamp() - t0)} built and run)'};
 			case "wasm":
 				var exe = "bin/test/test.wasm";
-				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "-D", "hxmc.target=wasm32-wasi", "--custom-target", 'hxmc=$exe']), map);
+				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "-D", "hxmc.target=wasm32-wasi", "--custom-target", 'hxmc=$exe']), map, "building the tests for wasm");
 				var built = haxe.Timer.stamp() - t0;
-				if (b.code != 0) {
-					Sys.println('\n[$t] the build failed');
-					return {ok: false, summary: "the build failed"};
-				}
-				Sys.println('\n[wasm] built in ${secs(built)} (${kb(exe)})');
+				if (b.code != 0) return buildFailed(t, built);
+				Term.out("");
+				Term.out(Style.status("built", Ok, 'wasm in ${Style.bold(secs(built))}' + Style.dim(Style.sep() + kb(exe))));
 				var t1 = haxe.Timer.stamp();
 				var node = Sys.getEnv("NODE") ?? "node";
 				out = Output.of(node, ["--no-warnings", "--no-turbo-fast-api-calls", "--stack-size=65500", p.helder + "/helder/test/wasi.mjs", exe].concat(runner), map);
@@ -112,17 +121,20 @@ class TestCommand {
 				var exe = Sys.systemName() == "Windows" ? "bin/test/host.exe" : "bin/test/host";
 				// (Linux: the dynamic glibc mode, as helder build's: tests of helder.os link the system's libraries)
 				var mode = Sys.systemName() == "Linux" ? ["-D", "hxmc.libc=glibc"] : [];
-				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "--custom-target", 'hxmc=$exe']).concat(mode), map);
+				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "--custom-target", 'hxmc=$exe']).concat(mode), map, "building the tests for host");
 				var built = haxe.Timer.stamp() - t0;
-				if (b.code != 0) {
-					Sys.println('\n[$t] the build failed');
-					return {ok: false, summary: "the build failed"};
-				}
-				Sys.println('\n[host] built in ${secs(built)} (${kb(exe)})');
+				if (b.code != 0) return buildFailed(t, built);
+				Term.out("");
+				Term.out(Style.status("built", Ok, 'host in ${Style.bold(secs(built))}' + Style.dim(Style.sep() + kb(exe))));
 				var t1 = haxe.Timer.stamp();
 				out = Output.of(exe, runner, map);
 				return {ok: out.code == 0, summary: out.summary() + ' (${secs(built)} build, ${secs(haxe.Timer.stamp() - t1)} run)'};
 		}
+	}
+
+	static function buildFailed(t:String, seconds:Float):{ok:Bool, summary:String} {
+		Term.err(Style.status("failed", Fail, '$t: the build failed in ${secs(seconds)}'));
+		return {ok: false, summary: "the build failed"};
 	}
 
 	// the links, stale ones removed, and the main (written only when it changed:
@@ -291,30 +303,35 @@ class Output {
 
 	function new() {}
 
-	@:coroutine public static function of(cmd:String, args:Array<String>, map:Mapper):Output {
+	// (spin: the spinner's text while it runs, the compiler's messages readable)
+	@:coroutine public static function of(cmd:String, args:Array<String>, map:Mapper, ?spin:String):Output {
 		var o = new Output();
 		var p = try new Process(cmd, args) catch (e:haxe.Exception) {
-			Sys.println('helder test: $cmd: ${e.message}');
+			Term.err(Style.usage('helder test: $cmd: ${e.message}'));
 			o.code = 127;
 			return o;
 		}
 		p.closeStdin();
+		var d = spin == null ? null : new Diagnostics();
+		if (spin != null) Term.spin(spin);
 		Async.scope(task -> {
-			task.async(_ -> o.pipe(p.stdout, false, map));
-			task.async(_ -> o.pipe(p.stderr, true, map));
+			task.async(_ -> o.pipe(p.stdout, false, map, d));
+			task.async(_ -> o.pipe(p.stderr, true, map, d));
 			null;
 		});
 		o.code = p.wait();
+		Term.done();
 		p.close();
 		return o;
 	}
 
-	@:coroutine function pipe(s:Stream.Source, err:Bool, map:Mapper) {
+	@:coroutine function pipe(s:Stream.Source, err:Bool, map:Mapper, d:Null<Diagnostics>) {
 		var r = new Reader(s), line;
 		while ((line = r.readLine()) != null) {
 			line = map.apply(line);
-			lines.push(line);
-			if (err) Sys.stderr().writeString(line + "\n") else Sys.println(line);
+			lines.push(Style.strip(line));
+			if (d != null) line = d.line(line);
+			if (err) Term.err(line) else Term.out(line);
 		}
 	}
 

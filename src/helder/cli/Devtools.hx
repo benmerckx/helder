@@ -61,7 +61,7 @@ class Devtools {
 			entry(m.params);
 			if (m.params.source == "trace") {
 				var at = m.params.position;
-				Sys.println(at == null ? m.params.message : '${at.file}:${at.line}: ${m.params.message}');
+				Term.out(at == null ? m.params.message : Style.dim('${at.file}:${at.line}:') + ' ${m.params.message}');
 			}
 			broadcast("Log", notification("Log.entry", m.params));
 			return;

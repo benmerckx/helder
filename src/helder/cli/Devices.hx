@@ -34,9 +34,15 @@ class Devices {
 				if (r.code == 0) rows = rows.concat(DeviceList.simulators(r.text)) else notes.push('xcrun simctl: exit code ${r.code}');
 			}
 		} else notes.push("iOS simulators: on macOS only (xcrun simctl)");
-		Sys.println(DeviceList.table(rows));
-		if (notes.length > 0) Sys.println("\n" + notes.join("\n"));
-		Sys.println('\nhelder dev, run, build: --target <target>; -d <id> for android and ios (${Options.NOT_YET})');
+		var table = DeviceList.table(rows).split("\n");
+		Term.out(Style.bold(table[0]));
+		for (l in table.slice(1)) Term.out(l);
+		if (notes.length > 0) {
+			Term.out("");
+			for (n in notes) Term.out(Style.dim(n));
+		}
+		Term.out("");
+		Term.out(Style.dim('helder dev, run, build: --target <target>; -d <id> for android and ios (${Options.NOT_YET})'));
 		return 0;
 	}
 

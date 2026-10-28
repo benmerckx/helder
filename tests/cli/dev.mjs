@@ -6,9 +6,14 @@
 // - web: examples/counter's Counter.hx copied there, served: the page, its
 //   modules and the wasm fetched, the WebSocket (node's client) told of each
 //   build (reload, error, ok), a swap after a failed build refused (409).
+// - native-nohost: native with HELDER_DEV_HOST=0, a process per build (each
+//   reload's program exits 0 by itself: not a close);
+// - exit: tests/cli/closer, a program that ends by itself (ExitPolicy):
+//   with exit code 3 a crash, helder dev stays up; an edit makes it 0, the
+//   program closed: helder dev ends, exit code 0.
 // The times from a save to the reload (native: the program's first frame,
 // "reloaded in"; web: the reload message), each edit's, and their median.
-//   node tests/cli/dev.mjs <helder> <work dir> native|web
+//   node tests/cli/dev.mjs <helder> <work dir> native|native-nohost|web|exit
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -24,9 +29,10 @@ const check = (what, ok, detail = '') => {
 
 fs.rmSync(work, { recursive: true, force: true });
 fs.mkdirSync(path.join(work, 'app'), { recursive: true });
-const web = mode === 'web';
-const file = path.join(work, 'app', web ? 'Counter.hx' : 'Tally.hx');
-fs.copyFileSync(path.join(repo, web ? 'examples/counter/Counter.hx' : 'tests/cli/tally/Tally.hx'), file);
+const web = mode === 'web', exit = mode === 'exit';
+const fixture = web ? 'examples/counter/Counter.hx' : exit ? 'tests/cli/closer/Closer.hx' : 'tests/cli/tally/Tally.hx';
+const file = path.join(work, 'app', path.basename(fixture));
+fs.copyFileSync(path.join(repo, fixture), file);
 const edit = (f) => {
 	const s = fs.readFileSync(file, 'utf8'), t = f(s);
 	if (t === s) throw new Error('the edit changed nothing');
@@ -37,7 +43,9 @@ const edit = (f) => {
 const lines = [];
 const waiters = [];
 const dev = spawn(path.resolve(helder), ['dev', path.relative(work, file), ...(web ? ['--target', 'web', '--port', '0'] : [])],
-	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'] });
+	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...(mode === 'native-nohost' ? { HELDER_DEV_HOST: '0' } : {}) } });
+const ended = new Promise((r) => dev.on('exit', (code, signal) => r(code ?? signal)));
+const closed = (l) => /^\s*closed /.test(l);
 for (const s of [dev.stdout, dev.stderr]) {
 	let buf = '';
 	s.on('data', (d) => {
@@ -80,7 +88,7 @@ async function native() {
 	for (let v = 2; v <= 4; v++) {
 		await sleep(300);
 		const before = count(lines.filter((l) => /^v\d+ count=/.test(l)).at(-1));
-		const reloaded = line(/^helder dev: reloaded in/), next = line(new RegExp(`^v${v} count=`));
+		const reloaded = line(/^\s*reloaded in/), next = line(new RegExp(`^v${v} count=`));
 		const t0 = edit((s) => s.replace(`"v${v - 1} count="`, `"v${v} count="`));
 		await reloaded;
 		times.push(performance.now() - t0);
@@ -88,23 +96,38 @@ async function native() {
 		check(`edit ${v - 1}: the new build, the count kept (${before} then ${n})`, n >= before && n <= before + 10);
 	}
 	if (hosted) check(`the dev host: the same process (${pids().length} builds)`, pids().length >= 4 && pids().every((p) => p === pids()[0]), pids().join(' '));
-	const failed = line(/^helder dev: error/);
+	const failed = line(/^\s*failed in/);
 	edit((s) => s.replace('"v4 count="', '"v5 count=" +* broken'));
 	await failed;
 	check('broken: the error in the terminal', lines.some((l) => /Tally\.hx:\d+: characters/.test(l)));
 	const still = await line(/^v4 count=/, 5000).catch(() => null);
-	check('broken: the last good build keeps running', !!still && !lines.some((l) => /the program ended/.test(l)));
-	const reloaded = line(/^helder dev: reloaded in/), fixed = line(/^v5 count=/);
+	check('broken: the last good build keeps running', !!still && !lines.some((l) => /^\s*(?:crashed|closed) /.test(l)));
+	const reloaded = line(/^\s*reloaded in/), fixed = line(/^v5 count=/);
 	const t0 = edit((s) => s.replace('"v5 count=" +* broken', '"v5 count="'));
 	await reloaded;
 	times.push(performance.now() - t0);
 	const n = count(await fixed);
 	check(`fixed: the new build, the count kept (${count(still)} then ${n})`, n >= count(still));
+	check('the reloads are not a close: helder dev runs on', dev.exitCode === null && !lines.some(closed), lines.filter(closed).join(' '));
+}
+
+// the program ends by itself: a crash (helder dev stays), then closed (it ends, 0)
+async function exitPolicy() {
+	check('a crash: shown', !!(await line(/^\s*crashed the program exited with code 3/, 240000, true)));
+	await sleep(1000);
+	check('a crash: helder dev stays up', dev.exitCode === null && !lines.some(closed));
+	const rebuilt = line(/^\s*rebuilt in/), again = line(/^closer 1$/), close = line(/^\s*closed the program exited/);
+	edit((s) => s.replace('CODE = 3', 'CODE = 0'));
+	await rebuilt;
+	check('a change: built and started again', !!(await again));
+	await close;
+	const code = await Promise.race([ended, sleep(10000).then(() => 'still running')]);
+	check(`closed: helder dev ends, exit code 0 (${code})`, code === 0);
 }
 
 async function page() {
-	const port = Number(/http:\/\/127\.0\.0\.1:(\d+)\//.exec(await line(/^helder dev: http:/, 30000, true))[1]);
-	await line(/^helder dev: built in/, 240000, true);
+	const port = Number(/http:\/\/127\.0\.0\.1:(\d+)\//.exec(await line(/^\s*serving http:/, 30000, true))[1]);
+	await line(/^\s*built in/, 240000, true);
 	const base = `http://127.0.0.1:${port}`;
 	const html = await (await fetch(base + '/')).text();
 	const urls = [...html.matchAll(/modulepreload" href="([^"]+)"/g)].map((m) => m[1]);
@@ -153,7 +176,7 @@ async function page() {
 }
 
 try {
-	await (web ? page() : native());
+	await (web ? page() : exit ? exitPolicy() : native());
 } catch (e) {
 	console.log('FAIL ' + e.message);
 	failures++;
@@ -161,6 +184,6 @@ try {
 	dev.kill();
 }
 const ms = times.map((t) => Math.round(t));
-console.log(`cli dev ${mode}: save to reload ${ms.join(', ')} ms, median ${median(ms)} ms`);
+if (ms.length > 0) console.log(`cli dev ${mode}: save to reload ${ms.join(', ')} ms, median ${median(ms)} ms`);
 console.log(failures === 0 ? `cli dev ${mode}: ok` : `cli dev ${mode}: ${failures} failed`);
 process.exit(failures === 0 ? 0 : 1);

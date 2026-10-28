@@ -1,5 +1,6 @@
 package helder.cli;
 
+import helder.cli.Style.Tone;
 import helder.async.*;
 import sys.FileSystem;
 
@@ -13,24 +14,26 @@ using StringTools;
 class BuildCommand {
 	@:coroutine public static function run(o:Options, andRun:Bool):Int {
 		var e = try Entry.of(o) catch (err:Dynamic) {
-			Sys.stderr().writeString('helder ${o.command}: $err\n');
+			Term.err(Style.usage('helder ${o.command}: $err'));
 			return 2;
 		}
 		var host = Compiler.hostTarget();
 		if (andRun && e.isWeb()) {
-			Sys.stderr().writeString("helder run: this machine only (helder dev --target web serves a page; helder build --target web builds one)\n");
+			Term.err(Style.usage("helder run: this machine only (helder dev --target web serves a page; helder build --target web builds one)"));
 			return 2;
 		}
 		if (andRun && e.target != host) {
-			Sys.stderr().writeString('helder run: ${e.target} is not this machine ($host); helder build --target ${e.target} builds for it\n');
+			Term.err(Style.usage('helder run: ${e.target} is not this machine ($host); helder build --target ${e.target} builds for it'));
 			return 2;
 		}
+		Term.out(Style.header(o.command, [e.target, e.main]));
 		var out = o.out, programArgs = o.programArgs ?? [];
 		var exe = out ?? e.out(e.target);
 		var r = build(e, exe, Release);
 		if (!r.ok) return 1;
 		if (e.target == "web") Page.write(e.helder, exe, e.name);
 		if (!andRun) return 0;
+		Term.out(Style.status("running", Info, Style.path(exe + (programArgs.length == 0 ? "" : " " + programArgs.join(" ")))));
 		var p = new Process(exe.contains("/") || exe.contains("\\") ? exe : './$exe', programArgs);
 		p.closeStdin();
 		Async.scope(task -> {
@@ -51,6 +54,7 @@ class BuildCommand {
 			case Dev: ["-D", "hxmc.dev", "-D", "disable-hxb-cache"];
 		}).concat(extra ?? []).concat(["--custom-target", 'hxmc=$exe']);
 		var t0 = haxe.Timer.stamp();
+		Term.spin("building " + e.name);
 		var r = if (server != null) server.request(words, Sys.getCwd()) else {
 			var p = new Process(Compiler.tool(), words);
 			p.closeStdin();
@@ -65,16 +69,14 @@ class BuildCommand {
 			{ok: code == 0, messages: lines.join("\n")};
 		}
 		var ms = Math.round((haxe.Timer.stamp() - t0) * 1000);
-		if (r.messages != "") (r.ok ? Sys.stdout() : Sys.stderr()).writeString(r.messages + "\n");
+		Term.done();
+		if (r.messages != "") Term.write(Diagnostics.format(r.messages), !r.ok);
 		if (mode == Release) {
-			if (r.ok) Sys.println('helder: $exe built in ${secs(ms)} (${size(exe)})');
-			else Sys.println('helder: $exe: the build failed (${secs(ms)})');
+			if (r.ok) Term.out(Style.status("built", Ok, Style.path(exe) + ' in ${Style.time(ms)}' + Style.dim(Style.sep() + size(exe))));
+			else Term.err(Style.status("failed", Fail, Style.path(exe) + ' in ${Style.time(ms)}'));
 		}
 		return {ok: r.ok, ms: ms, messages: r.messages};
 	}
-
-	public static function secs(ms:Int):String
-		return ms < 1000 ? '$ms ms' : Math.round(ms / 100) / 10 + " s";
 
 	public static function size(path:String):String {
 		var n = FileSystem.exists(path) ? FileSystem.stat(path).size : 0;
@@ -93,7 +95,7 @@ class Lines {
 		var r = new Reader(s), line;
 		while ((line = r.readLine()) != null) {
 			if (prefix != null) line = prefix + line;
-			if (err) Sys.stderr().writeString(line + "\n") else Sys.println(line);
+			if (err) Term.err(line) else Term.out(line);
 		}
 	}
 

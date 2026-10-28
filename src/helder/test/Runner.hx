@@ -14,7 +14,9 @@ using StringTools;
 //
 // Its arguments: -t <text> (each one in the test's full name, "describe >
 // test"; /text/ a regex, given Runner.regex), -n <text> (any one in it),
-// -u (snapshots rewritten), --timeout <seconds>.
+// -u (snapshots rewritten), --timeout <seconds>, --color (escapes: bun's
+// colours, given by `helder test` when its output is a terminal's) and
+// --unicode (with it, ✓ ✗ » for (pass) (fail) (skip)).
 //
 // A test's steps are its ancestors' beforeEach hooks (outer first), its
 // body, then their afterEach hooks (inner first, also after a failure);
@@ -43,6 +45,8 @@ class Runner {
 	static var counts = {pass: 0, fail: 0, skip: 0, files: 0};
 	static var t0 = 0.0;
 	@:allow(helder.test) static var update = false;
+	static var color = false;
+	static var unicode = false;
 	@:allow(helder.test) static final atEnd:Array<() -> Void> = [];
 
 	// a test file: tests() registers its tests (its own group)
@@ -70,6 +74,8 @@ class Runner {
 				case "-n": names.push(args[i++]);
 				case "-u": update = true;
 				case "--timeout": timeout = Std.parseFloat(args[i++]);
+				case "--color": color = true;
+				case "--unicode": unicode = true;
 				case a: Sys.println('helder.test: unknown argument $a');
 			}
 		}
@@ -154,7 +160,7 @@ class Runner {
 		if (count(g, only) == 0) return;
 		if (g.file != null) steps.push(next -> {
 			counts.files++;
-			Sys.println('\n${g.file}:');
+			Sys.println('\n' + sgr("1", g.file) + ":");
 			next();
 		});
 		for (h in g.beforeAll) groupHook(g, "beforeAll", h);
@@ -168,7 +174,7 @@ class Runner {
 				case null:
 				case false: steps.push(next -> {
 						counts.skip++;
-						Sys.println('(skip) ${c.fullName()}');
+						Sys.println(color ? sgr("33", unicode ? "»" : "(skip)") + " " + sgr("2", c.fullName()) : '(skip) ${c.fullName()}');
 						next();
 					});
 				case true: planCase(c);
@@ -287,23 +293,23 @@ class Runner {
 		var t = ms(haxe.Timer.stamp() - c.start);
 		if (c.failures.length == 0) {
 			counts.pass++;
-			Sys.println('(pass) ${c.fullName()} [$t]');
+			Sys.println(color ? sgr("32", unicode ? "✓" : "(pass)") + ' ${c.fullName()} ' + sgr("2", '[$t]') : '(pass) ${c.fullName()} [$t]');
 			return;
 		}
 		counts.fail++;
-		Sys.println('(fail) ${c.fullName()} [$t]');
-		for (f in c.failures) Sys.println("  " + f.split("\n").join("\n  "));
+		Sys.println(color ? sgr("31", unicode ? "✗" : "(fail)") + " " + sgr("1", c.fullName()) + " " + sgr("2", '[$t]') : '(fail) ${c.fullName()} [$t]');
+		for (f in c.failures) Sys.println("  " + failureText(f).split("\n").join("\n  "));
 	}
 
 	static function finish() {
 		for (f in atEnd) f();
 		var total = counts.pass + counts.fail + counts.skip;
 		Sys.println("");
-		Sys.println(' ${counts.pass} pass');
-		if (counts.skip > 0) Sys.println(' ${counts.skip} skip');
-		Sys.println(' ${counts.fail} fail');
-		Sys.println(' $checks check' + (checks == 1 ? "" : "s"));
-		Sys.println('Ran $total tests across ${counts.files} file${counts.files == 1 ? "" : "s"}. [${ms(haxe.Timer.stamp() - t0)}]');
+		Sys.println(" " + sgr("32", '${counts.pass} pass'));
+		if (counts.skip > 0) Sys.println(" " + sgr("33", '${counts.skip} skip'));
+		Sys.println(" " + sgr(counts.fail > 0 ? "31" : "2", '${counts.fail} fail'));
+		Sys.println(" " + sgr("2", '$checks check' + (checks == 1 ? "" : "s")));
+		Sys.println('Ran $total tests across ${counts.files} file${counts.files == 1 ? "" : "s"}. ' + sgr("2", '[${ms(haxe.Timer.stamp() - t0)}]'));
 		Sys.exit(counts.fail > 0 ? 1 : 0);
 	}
 
@@ -315,6 +321,19 @@ class Runner {
 	@:allow(helder.test) static function take():Array<String> {
 		var f = current?.failures.copy() ?? [];
 		if (current != null) current.failures.resize(0);
+		return f;
+	}
+
+	// (an SGR's colour, its reset after: with --color)
+	static function sgr(code:String, s:String):String
+		return color ? '\x1b[${code}m$s\x1b[0m' : s;
+
+	// a failure's text, its file:line bold, an error's "error:" red (with --color)
+	static function failureText(f:String):String {
+		if (!color) return f;
+		var at = ~/^(\S+?:\d+:)/;
+		if (at.match(f)) return sgr("1", at.matched(1)) + f.substr(at.matched(1).length);
+		if (f.startsWith("error:")) return sgr("31", "error:") + f.substr(6);
 		return f;
 	}
 

@@ -1,5 +1,7 @@
 package helder.cli;
 
+import helder.cli.ExitPolicy;
+import helder.cli.Style.Tone;
 import haxe.io.Path;
 import helder.async.*;
 import helder.async.http.Http;
@@ -40,7 +42,8 @@ using StringTools;
 // (src/helder/devtools/README.md): Runtime.hello, Runtime.reload answered
 // once saved, Runtime.ready; Devtools relays it to the tools connected at
 // /__helder/devtools on the HTTP port (natively too: bin/dev/devtools.json
-// names it).
+// names it). When the program ends by itself, ExitPolicy decides: closed
+// (exit code 0) ends the session, a crash waits for a change.
 class DevCommand {
 	static var e:Entry;
 	static var out:String;
@@ -59,6 +62,8 @@ class DevCommand {
 	static var child:Null<Child> = null;
 	// (a signal: helder dev ending)
 	static var stopping = false;
+	// where the program runs (ExitPolicy)
+	static var platform:ExitPolicy.Platform = Desktop;
 	static var socket:Null<Socket> = null;
 	static var saved = false;
 	static var appPort = 0;
@@ -77,14 +82,19 @@ class DevCommand {
 		var port = Std.parseInt(o.value("port") ?? Sys.getEnv("HELDER_DEV_PORT") ?? "") ?? 4321, address = o.value("host") ?? "127.0.0.1";
 		programArgs = o.programArgs ?? [];
 		e = try Entry.of(o) catch (err:Dynamic) {
-			Sys.stderr().writeString('helder dev: $err\n');
+			Term.err(Style.usage('helder dev: $err'));
 			return 2;
 		}
 		web = e.isWeb();
 		if (!web && e.target != Compiler.hostTarget()) {
-			Sys.stderr().writeString('helder dev: ${e.target} is not this machine (${Compiler.hostTarget()}); helder build --target ${e.target} builds for it\n');
+			Term.err(Style.usage('helder dev: ${e.target} is not this machine (${Compiler.hostTarget()}); helder build --target ${e.target} builds for it'));
 			return 2;
 		}
+		// (android and ios: refused by Options for now (NOT_YET); once wired,
+		// their program is the app on the phone and ExitPolicy's Mobile: the
+		// app closed there does not end the session)
+		platform = web ? Web : Desktop;
+		Term.out(Style.header("dev", [web ? "web" : e.target, e.main]));
 		if (web) e.target = "web";
 		cwd = Sys.getCwd();
 		hosted = !web && Sys.getEnv("HELDER_DEV_HOST") != "0"
@@ -98,22 +108,19 @@ class DevCommand {
 		try FileSystem.deleteFile(depsFile()) catch (_:Dynamic) {};
 		server = CompileServer.start(task);
 		if (server == null) {
-			Sys.println("helder dev: the compilation server did not start (" + Compiler.tool() + ")");
+			Term.err(Style.status("error", Fail, "the compilation server did not start (" + Compiler.tool() + ")"));
 			return 1;
 		}
-		// (ctrl-c, SIGTERM: the program and the compilation server stopped too)
+		// (ctrl-c, SIGTERM: the program and the compilation server stopped too.
+		// Windows has no signals here (helder.async.Signals): ctrl-c reaches
+		// every process of the console, the program's and the compiler's too)
 		task.async(_ -> {
 			var sig = Signals.next([Signal.SIGINT, Signal.SIGTERM]);
-			stopping = true;
-			var c = child;
-			child = null;
-			if (c != null && !c.exited) c.p.stop();
-			server.stop();
-			Sys.exit(128 + sig);
+			shutdown(128 + sig);
 		});
 		var http = listen(address, port);
 		if (http == null) {
-			Sys.println('helder dev: no free port from $port');
+			Term.err(Style.status("error", Fail, 'no free port from $port'));
 			return 1;
 		}
 		task.async(_ -> Http.serve(http, serve));
@@ -124,7 +131,8 @@ class DevCommand {
 			haxe.Json.stringify({port: http.port, host: at, path: "/__helder/devtools", protocol: Devtools.PROTOCOL, entry: e.main, target: e.target}))
 		catch (_:Dynamic) {};
 		if (web) {
-			log('http://$at:${http.port}/ (${e.main}; watching ${e.sources.join(", ")})');
+			log(Style.status("serving", Info, Style.url('http://$at:${http.port}/')));
+			log(Style.status("watching", Info, Style.path(e.sources.join(", "))));
 		} else {
 			var app = Server.listen("127.0.0.1", 0);
 			appPort = app.port;
@@ -137,7 +145,8 @@ class DevCommand {
 				for (f in FileSystem.readDirectory(libDir())) try FileSystem.deleteFile('${libDir()}/$f') catch (_:Dynamic) {};
 				task.async(_ -> buildHost());
 			}
-			log('${e.main} (watching ${e.sources.join(", ")}; devtools at ws://$at:${http.port}/__helder/devtools)');
+			log(Style.status("watching", Info, Style.path(e.sources.join(", "))));
+			log(Style.status("devtools", Quiet, Style.path('ws://$at:${http.port}/__helder/devtools')));
 		}
 		var w = new SampledWatcher();
 		rebuild(task, null);
@@ -191,9 +200,21 @@ class DevCommand {
 	static function depsFile():String
 		return Path.withoutExtension(out) + ".deps";
 
-	// (a terminal gone, its pipe closed: nothing printed, the rest goes on)
+	// a status line (a terminal gone, its pipe closed: nothing printed, the rest goes on)
 	static function log(s:String)
-		try Sys.println("helder dev: " + s) catch (_:Dynamic) {};
+		Term.out(s);
+
+	// helder dev ended: the spinner, the program and the compilation server
+	// stopped, then the exit code
+	@:coroutine static function shutdown(code:Int) {
+		stopping = true;
+		Term.done();
+		var c = child;
+		child = null;
+		if (c != null && !c.exited) c.p.stop();
+		server.stop();
+		Sys.exit(code);
+	}
 
 	// a build, then the program reloaded (or the errors shown)
 	@:coroutine static function rebuild(task:Node, seen:Null<Float>) {
@@ -212,14 +233,15 @@ class DevCommand {
 		// (Windows: a DLL at a base of its own, not the one the running build's DLL has, nor the build's before)
 		if (hosted && e.target.startsWith("windows-")) extra = extra.concat(["-D", "hxmc.dll-base=" + ["0x10000000", "0x30000000", "0x50000000"][(libCount + 1) % 3]]);
 		var r = try BuildCommand.build(e, out, Dev, server, extra) catch (err:haxe.Exception) {
-			Sys.println("helder dev: " + err.message);
+			Term.done();
+			Term.err(Style.status("error", Fail, err.message));
 			Sys.exit(1);
 			null;
 		}
 		if (moved && !FileSystem.exists(out)) FileSystem.rename(aside, out);
 		if (!r.ok) {
 			lastError = r.messages == "" ? "the build failed" : r.messages;
-			log('error (build ${r.ms} ms); ' + (built ? "the last good build keeps running" : "waiting for a change"));
+			log(Style.status("failed", Fail, 'in ${Style.time(r.ms)}' + Style.dim(Style.sep() + (built ? "the last good build keeps running" : "waiting for a change"))));
 			if (web) broadcast(haxe.Json.stringify({type: "error", message: lastError}));
 			building = false;
 			Devtools.buildError(r.ms, lastError);
@@ -228,7 +250,7 @@ class DevCommand {
 		var wasError = lastError != null;
 		lastError = null;
 		timing = seen == null ? null : {seen: seen, build: r.ms};
-		log((seen == null ? "built" : "rebuilt") + ' in ${r.ms} ms (${BuildCommand.size(out)})');
+		log(Style.status(seen == null ? "built" : "rebuilt", Ok, 'in ${Style.time(r.ms)}' + Style.dim(Style.sep() + BuildCommand.size(out))));
 		building = false;
 		Devtools.built(r.ms, BuildCommand.size(out));
 		var first = !built;
@@ -245,7 +267,7 @@ class DevCommand {
 	@:coroutine public static function measured() {
 		if (timing == null) return;
 		var ms = Math.round((haxe.Timer.stamp() - timing.seen) * 1000), build = timing.build;
-		log('reloaded in $ms ms (build $build ms)');
+		log(Style.status("reloaded", Ok, 'in ${Style.time(ms)}' + Style.dim(Style.sep() + 'build $build ms')));
 		timing = null;
 		Devtools.reloaded(ms, build);
 	}
@@ -289,7 +311,7 @@ class DevCommand {
 		if (withSnapshot || hosted) env.set("HXMC_DEV_SNAPSHOT", snapshot) else env.remove("HXMC_DEV_SNAPSHOT");
 		var options = {env: env};
 		var p = try hosted ? new Process(hostExe, [lib].concat(programArgs), options) : new Process(Path.isAbsolute(out) ? out : './$out', programArgs, options) catch (err:haxe.Exception) {
-			log('the program did not start: ${err.message}');
+			Term.err(Style.status("error", Fail, 'the program did not start: ${err.message}'));
 			null;
 		}
 		if (p == null) return;
@@ -303,10 +325,20 @@ class DevCommand {
 			c.code = p.wait();
 			c.exited = true;
 			p.close();
-			if (child == c) {
-				child = null;
-				log('the program ended (${c.code}); it starts again with the next build');
-				Devtools.exited(c.code);
+			if (child != c) return;
+			child = null;
+			switch ExitPolicy.decide(platform, c.code, c.replaced, stopping) {
+				case Ignore:
+				case WaitForChange:
+					Term.err(Style.status("crashed", Fail, 'the program exited with code ${c.code}' + Style.dim("; the next change builds and starts it again")));
+					Devtools.exited(c.code);
+				case EndSession:
+					// (ctrl-c reaches the program too, which may end first: the signal's exit code then)
+					Async.delay(0.1);
+					if (stopping) return;
+					log(Style.status("closed", Quiet, "the program exited; stopping"));
+					Devtools.exited(c.code);
+					shutdown(0);
 			}
 		});
 	}
@@ -315,7 +347,7 @@ class DevCommand {
 	@:coroutine static function output(s:Stream.Source, err:Bool) {
 		var r = new Reader(s), line;
 		while ((line = r.readLine()) != null) {
-			try if (err) Sys.stderr().writeString(line + "\n") else Sys.println(line) catch (_:Dynamic) {};
+			if (err) Term.err(line) else Term.out(line);
 			Devtools.output(line, err);
 		}
 	}
@@ -324,6 +356,7 @@ class DevCommand {
 	@:coroutine static function reloadNative(task:Node) {
 		var old = child, withSnapshot = false;
 		if (old != null) {
+			old.replaced = true;
 			child = null;
 			if (socket != null) {
 				try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
@@ -345,7 +378,7 @@ class DevCommand {
 			// (no host: a program per build, this one built again as an executable)
 			hosted = false;
 			out = exeOut;
-			log("without the dev host: each build a new process, its state carried over");
+			log(Style.status("note", Quiet, "without the dev host: each build a new process, its state carried over"));
 			rebuild(task, null);
 			return;
 		}
@@ -363,11 +396,17 @@ class DevCommand {
 		if (c != null && socket != null) {
 			try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
 			saved = false;
+			// (the host hands over to the new build; if it ends meanwhile, that was the reload's)
+			c.replaced = true;
 			askReload(snapshot, native(FileSystem.fullPath(lib)));
 			until(() -> saved || c.exited, 10);
-			if (!c.exited) return;
+			if (!c.exited) {
+				c.replaced = false;
+				return;
+			}
 		} else if (c != null) {
 			// (a program that has not connected: stopped, a cold start)
+			c.replaced = true;
 			child = null;
 			c.p.stop(1);
 			until(() -> c.exited, 3);
@@ -410,7 +449,8 @@ class DevCommand {
 			var code = p.wait();
 			p.close();
 			if (code != 0 || !FileSystem.exists(tmp)) {
-				log("the dev host does not build:\n" + lines.join("\n"));
+				Term.err(Style.status("warning", Warn, "the dev host does not build:"));
+				Term.write(Diagnostics.format(lines.join("\n")), true);
 				hostReady = true;
 				return;
 			}
@@ -478,7 +518,7 @@ class DevCommand {
 				var j:Dynamic = try haxe.Json.parse(m) catch (_:Dynamic) null;
 				if (j?.type == "frame") measured();
 				if (j?.type == "log") {
-					Sys.println(j.text);
+					Term.out(j.text);
 					Devtools.output(j.text, false);
 				}
 			}
@@ -521,6 +561,8 @@ private class Child {
 	public final p:Process;
 	public var exited = false;
 	public var code = 0;
+	// helder dev ends it itself (a reload): its exit is not the user's
+	public var replaced = false;
 
 	public function new(p)
 		this.p = p;

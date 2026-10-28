@@ -101,7 +101,7 @@ try {
 	const first = await line(/v1 count=3 pid=/, 240000, true);
 	check('the first build runs, its state changed', !!first);
 
-	const reloaded = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
+	const reloaded = line(/^(?:(?:hxmc|helder) dev: |\s*)(?:swapped|reloaded) in/);
 	const v2 = line(/v2 count=\S+ pid=/);
 	edit((s) => s.replace('label="+1"', 'label="+2"').replace('>+1<', '>+2<').replace('"v1 count="', '"v2 count="'));
 	times.push(await reloaded);
@@ -110,7 +110,7 @@ try {
 	await new Promise((r) => setTimeout(r, 200));
 	sameHost('edited');
 
-	const reloaded2 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
+	const reloaded2 = line(/^(?:(?:hxmc|helder) dev: |\s*)(?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	const v3 = line(/v3 count=\S+ pid=/);
 	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('count.value = 3;', 'count.value = 3.5;').replace('"v2 count="', '"v3 count="'));
@@ -119,14 +119,14 @@ try {
 	const v3l = await v3;
 	check('type changed: reset', /v3 count=0\.5 /.test(v3l), v3l);
 
-	const failed = line(/^(?:hxmc|helder) dev: error/);
+	const failed = line(/^(?:(?:hxmc|helder) dev: error|\s*failed in)/);
 	edit((s) => s.replace('"v3 count="', '"v4 count=" +* broken'));
 	await failed;
 	check('error: in the terminal', lines.some((l) => /Counter\.hx:\d+: characters/.test(l)));
 	await new Promise((r) => setTimeout(r, 1000));
-	check('error: the program keeps running', !lines.some((l) => /the program ended/.test(l)));
+	check('error: the program keeps running', !lines.some((l) => /the program ended|^\s*(?:crashed|closed) /.test(l)));
 
-	const reloaded3 = line(/^(?:hxmc|helder) dev: (?:swapped|reloaded) in/);
+	const reloaded3 = line(/^(?:(?:hxmc|helder) dev: |\s*)(?:swapped|reloaded) in/);
 	const v5 = line(/v5 count=\S+ pid=/);
 	edit((s) => s.replace('"v4 count=" +* broken', '"v5 count="'));
 	times.push(await reloaded3);
@@ -134,7 +134,7 @@ try {
 	check('fixed: the new build, the count kept', /v5 count=0\.5 /.test(v5l) && pidOf(v5l) !== pidOf(v3l), v5l);
 	await new Promise((r) => setTimeout(r, 200));
 	sameHost('fixed');
-	if (hosted) check('no program ended or restarted', !lines.some((l) => /the program ended/.test(l)));
+	if (hosted) check('no program ended or restarted', !lines.some((l) => /the program ended|^\s*(?:crashed|closed) /.test(l)));
 } catch (e) {
 	console.log('FAIL ' + e.message);
 	failures++;
