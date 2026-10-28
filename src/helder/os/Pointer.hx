@@ -13,8 +13,10 @@ class Pointer {
 
 	public final id:Int;
 	public var type(default, null):PointerType = Mouse;
-	// the window it went down in (the mouse: the last one it moved over)
+	// the window it went down in (the mouse: the last one it moved over),
+	// and its pixels per point then (Window.scale)
 	public var window(default, null):Null<Window> = null;
+	public var scale(default, null) = 1.0;
 	// its last change
 	public var phase(default, null):PointerPhase = None;
 	// down now (between its PointerDown and its PointerUp or PointerCancel)
@@ -91,6 +93,7 @@ class Pointer {
 
 	@:allow(helder.os) function pressAt(window:Window, type:PointerType, x:Float, y:Float, pressure:Float, buttons:Int, time:Float, primary:Bool, press:Int) {
 		this.window = window;
+		scale = window == null ? 1 : window.scale;
 		this.type = type;
 		this.primary = primary;
 		this.press = press;

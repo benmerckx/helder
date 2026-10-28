@@ -17,6 +17,7 @@ class CanvasWindow {
 	static final event = new Event();
 	static final open:Array<CanvasWindow> = [];
 	static var ev:Ptr<Int32> = Ptr.nil();
+	static var emulating = true;
 	// App.run's callbacks, for frame
 	static var onFrame:Null<Void->Void>;
 	static var onEvent:Null<Event->Void>;
@@ -34,6 +35,8 @@ class CanvasWindow {
 		if (canvas == 0) throw "helder.os: no canvas for the window (not in a browser?)";
 		surface = new Surface(Canvas, Ptr.nil(), Ptr.ofI64(canvas), Dom.width(canvas), Dom.height(canvas));
 		if (open.length == 0) Dom.scrolls_at(Callback.addr(scrollsAt));
+		emulating = Pointers.emulate;
+		Dom.pointer_emulate(emulating ? 1 : 0);
 		open.push(this);
 	}
 
@@ -94,6 +97,11 @@ class CanvasWindow {
 	// dispatches the pending events
 	static function poll(onEvent:Event->Void) {
 		if (ev.isNull()) ev = LibC.malloc(48);
+		// (Pointers.emulate as the page's side knows it: a tap's click is decided there)
+		if (Pointers.emulate != emulating) {
+			emulating = Pointers.emulate;
+			Dom.pointer_emulate(emulating ? 1 : 0);
+		}
 		while (Dom.next_event(ev) != 0) {
 			if (ev[1] == 100) {
 				var h = ev[2], text:Null<String> = h == 0 ? null : take(h);

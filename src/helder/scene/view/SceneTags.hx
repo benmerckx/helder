@@ -60,6 +60,20 @@ class SceneTags {
 	static function bind(n:helder.ui.Node, name:String, v:Dynamic)
 		Render.isReactive(v) ? Reactive.effect(() -> NodeRenderer.setProperty(n, name, Render.read(v))) : NodeRenderer.setProperty(n, name, v);
 
+	// an on-screen stick drawn over the ui (helder.scene.input.VirtualStick,
+	// which Actions bind): at rest at left, bottom (points from the lower
+	// left), where the thumb holds it once it does; the pointer goes through
+	// it (StickNode)
+	public static function Stick(props:{bind:helder.scene.input.VirtualStick, ?left:Float, ?bottom:Float, ?color:helder.ui.Color, ?knob:helder.ui.Color}):helder.ui.Node {
+		var n = new StickNode(props.bind);
+		if (props.left != null) n.restLeft = props.left;
+		if (props.bottom != null) n.restBottom = props.bottom;
+		if (props.color != null) n.color = props.color;
+		if (props.knob != null) n.knobColor = props.knob;
+		Reactive.onCleanup(() -> props.bind.changed = null);
+		return n;
+	}
+
 	// ui inside a scene: its children ui's markup, over the <Scene>'s box at
 	// its node's place (centred; position, as any node's)
 	public static function Ui(props:{?position:Vec3, ?children:UiView}):SceneNode {

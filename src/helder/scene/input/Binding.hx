@@ -8,7 +8,12 @@ package helder.scene.input;
 // buttons), keys as an axis's two directions (negative, positive), a
 // gamepad's button or one of its sticks' axes, times scale (any pad;
 // helder.os.Gamepads' standard layout: PadButton(0) is A, PadAxis(1, -1) the
-// left stick up), past a dead zone.
+// left stick up), past a dead zone. Fingers and pens (helder.os.Pointers,
+// a press taken by the first zone it began in, held until it lifts): a
+// finger held in a zone (Touch: the old Region, per finger), a look zone's
+// drag as an axis (TouchDelta: axis 0 x, 1 y; the points dragged over a
+// step times scale), an on-screen stick's axis (Stick: 0 x right, 1 y up),
+// an on-screen button (Button).
 enum Binding {
 	Key(key:Int);
 	Mouse(button:Int);
@@ -16,4 +21,8 @@ enum Binding {
 	KeyAxis(negative:Int, positive:Int);
 	PadButton(button:Int);
 	PadAxis(axis:Int, scale:Float);
+	Touch(zone:Zone);
+	TouchDelta(axis:Int, zone:Zone, scale:Float);
+	Stick(stick:VirtualStick, axis:Int);
+	Button(button:VirtualButton);
 }

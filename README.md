@@ -512,8 +512,12 @@ fix.
      per box. Tested on Eval, natively and as wasm32-wasi
      (`src/helder/ui/Pointers.test.hx`), the todo's touch drag, flick and
      tap in Chromium (ui-web).
-  3. Touch in scene's input actions: zones, look, virtual sticks and
-     buttons.
+  3. *Landed*: touch in scene's input actions (`Touch(zone)`,
+     `TouchDelta` look zones, `VirtualStick` floating or fixed,
+     `VirtualButton`, a press owned by its control until it lifts, ui's
+     presses left alone, cancels letting go; `<Stick>` drawn in ui), read
+     once a step from `Pointers` with nothing allocated. Tested natively
+     and as wasm32-wasi (`TouchActions.test.hx`), `<Stick>` under Xvfb.
   4. Gestures in ui competing for a pointer (an arena: tap, pan, scale),
      `<OrbitControls>` for scenes. Later: long press, double tap,
      rotate alone, pen tilt and pressure in use, prediction, Windows' and

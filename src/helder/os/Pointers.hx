@@ -49,16 +49,8 @@ class Pointers {
 	// whether a touch also sends what it did before pointers (a tap's
 	// MouseMove, MouseDown and MouseUp, a drag's Scrolls: TouchDrag), for
 	// the first finger: on by default
-	public static var emulate(default, set) = true;
-
-	static function set_emulate(v:Bool):Bool {
-		emulate = v;
-		#if !eval
-		// (the page's side decides a tap's click itself)
-		if (hxmc.unsafe.Mem.os() == 3) helder.os.web.Dom.pointer_emulate(v ? 1 : 0);
-		#end
-		return v;
-	}
+	// (the browser's side decides a tap's click itself: CanvasWindow tells it before each frame's events)
+	public static var emulate = true;
 
 	// the pointer of slot id (0 the mouse)
 	public static inline function get(id:Int):Pointer

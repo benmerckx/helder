@@ -83,7 +83,7 @@ One stream for every pointer, as the DOM's Pointer Events: `PointerDown`,
 `Pointer` (one per slot of `Pointers`, preallocated: nothing is allocated
 per event or per frame), already updated: its `id` (the slot: 0 the
 mouse, fingers and pens the lowest free one from 1, stable while it is
-down), `type` (`Mouse`, `Touch`, `Pen`), `window`, `phase`, `down`,
+down), `type` (`Mouse`, `Touch`, `Pen`), `window` (and its `scale`), `phase`, `down`,
 `primary` (the first finger down while no other was, or the mouse), `x`,
 `y` (window pixels, sub-pixel where the system has them), `startX`,
 `startY`, `dx`, `dy` (its motion this frame), `pressure`, `tiltX`, `tiltY`,
