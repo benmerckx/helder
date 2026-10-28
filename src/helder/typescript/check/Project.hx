@@ -51,6 +51,38 @@ class Project {
 	public static function stop() {
 		if (session != null) session.tsgo.close();
 		session = null;
+		last = null;
+	}
+
+	// The last build's snapshot, kept by a compilation server: the next build
+	// with the same entry and options updates it with the files that changed
+	// since (by size and time), so tsgo reparses and rechecks only what they
+	// affect; none changed, it is used as it is.
+	static var last:Null<{key:String, snapshot:Int, project:String, stamps:Map<String, String>}> = null;
+
+	static function stamp(file:String):String {
+		var s = try sys.FileSystem.stat(file) catch (_:Dynamic) return "";
+		return s.size + "@" + s.mtime.getTime();
+	}
+
+	static function snapshot(tsgo:Tsgo, key:String, roots:Array<String>, options:Dynamic):{snapshot:Int, project:String} {
+		var previous = last;
+		last = null;
+		if (previous != null && previous.key == key) {
+			var changed = [], deleted = [];
+			for (f => s in previous.stamps) {
+				var now = stamp(f);
+				if (now == "") deleted.push(f) else if (now != s) changed.push(f);
+			}
+			if (changed.length == 0 && deleted.length == 0) return {snapshot: previous.snapshot, project: previous.project};
+			var r:Dynamic = tsgo.call("updateSnapshot", {snapshot: previous.snapshot, changes: {fileNotifications: {changed: changed, deleted: deleted}, ensurePrograms: true}});
+			// (the same snapshot again: taken once more, given back once)
+			tsgo.call("release", {snapshot: r.snapshot == previous.snapshot ? r.snapshot : previous.snapshot});
+			return {snapshot: r.snapshot, project: previous.project};
+		}
+		if (previous != null) tsgo.call("release", {snapshot: previous.snapshot});
+		var r:Dynamic = tsgo.call("createSnapshot", {createPrograms: [{rootFiles: roots, compilerOptions: options}]});
+		return {snapshot: r.snapshot, project: r.projects[0].id};
 	}
 
 	function new(entry:String, globals:String, tsgo:Tsgo, tables:Tables) {
@@ -59,18 +91,20 @@ class Project {
 		isJS = ~/\.[cm]?jsx?$/.match(absolute);
 		if (!sys.FileSystem.exists(absolute)) throw path + ": TSHX002: input file not found";
 		var options = Config.options(tsgo, absolute, relative, f -> config = f);
-		var snapshot:Dynamic = tsgo.call("createSnapshot", {createPrograms: [{rootFiles: [absolute, globals], compilerOptions: options}]});
-		var at = {snapshot: snapshot.snapshot, project: snapshot.projects[0].id};
+		var key = absolute + "\n" + haxe.Json.stringify(options);
+		var at = snapshot(tsgo, key, [absolute, globals], options);
+		// (kept for the next build, a failed one's too: its files are watched)
+		function keep() last = {key: key, snapshot: at.snapshot, project: at.project, stamps: [for (f in read) f => stamp(f)]};
 		try load(tsgo, tables, at, absolute, globals) catch (e:Dynamic) {
-			tsgo.call("release", {snapshot: at.snapshot});
+			keep();
 			throw e;
 		}
-		tsgo.call("release", {snapshot: at.snapshot});
+		keep();
 	}
 
 	var config:Null<String> = null;
 
-	function load(tsgo:Tsgo, tables:Tables, at:{snapshot:Dynamic, project:Dynamic}, absolute:String, globals:String) {
+	function load(tsgo:Tsgo, tables:Tables, at:{snapshot:Int, project:String}, absolute:String, globals:String) {
 		var names:Array<String> = tsgo.call("getSourceFileNames", at);
 		var sources = [for (n in names) if (!StringTools.endsWith(n, ".d.ts") && n != globals) n];
 		read = sources.copy();
@@ -115,7 +149,7 @@ class Project {
 	}
 
 	// Asks the checker which symbol every identifier refers to, in one request.
-	function symbols(tsgo:Tsgo, at:{snapshot:Dynamic, project:Dynamic}, sf:SourceFile) {
+	function symbols(tsgo:Tsgo, at:{snapshot:Int, project:String}, sf:SourceFile) {
 		var key = sf.string(sf.extendedData(1, 8)), raw = sf.tables.raw(KindIdentifier);
 		var ids = [for (i in 1...sf.count) if (sf.kindAt(i) == KindIdentifier) i];
 		if (ids.length == 0) return;
