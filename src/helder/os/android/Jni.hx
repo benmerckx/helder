@@ -9,7 +9,7 @@ import hxmc.unsafe.*;
 // one Int64 per argument here), never the variadic ones. Jni's helpers are
 // for the activity's main thread (MainThread), whose JNIEnv NativeActivity
 // gives: classes found by the app's class loader (also those of
-// classes.dex: hxmc.android.Glue's), a Java exception thrown after a call
+// classes.dex: helder.pack.android.Glue's), a Java exception thrown after a call
 // described in logcat, cleared and thrown again as a Haxe one with its text
 // (a JNI call with one pending aborts the app), strings copied as UTF-16.
 @:build(helder.os.VTable.build())
