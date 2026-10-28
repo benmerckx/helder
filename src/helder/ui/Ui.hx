@@ -220,7 +220,7 @@ class Ui {
 		if (touchScroll.gliding) @:privateAccess touchScroll.glide(now() * 1000);
 		flushRestyles();
 		// (a font replaced: every text laid out again)
-		var g = text.generation();
+		var g = text == null ? 0 : text.generation();
 		if (g != fontGeneration) {
 			fontGeneration = g;
 			dirtyAll(root);

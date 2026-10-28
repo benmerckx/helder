@@ -23,7 +23,7 @@ import hxmc.unsafe.*;
 class Files {
 	// the bytes, at once (a model needed before anything runs: Model.of; on
 	// the web one of those fetched before main)
-	@:helder.asset.sync public static function readNow(key:String, ?file:String):Bytes {
+	public static function readNow(key:String, ?file:String):Bytes {
 		#if (target.name != "hxmc")
 		return sys.io.File.getBytes(file != null ? file : key);
 		#else
@@ -113,7 +113,8 @@ class Files {
 
 	// f with the resource's bytes where they are (the executable's
 	// read-only data: hxmc's table, an offset from it and a length per
-	// resource, hxmc.rt.Bytes)
+	// resource, hxmc.rt.Bytes), after their header (Bundle's: its name, up to
+	// a byte 1)
 	static function mapped(key:String, f:(Ptr, Int) -> Void) {
 		if (index == null) {
 			index = new Map();
@@ -124,7 +125,10 @@ class Files {
 		var i = index.get(Bundle.PREFIX + key);
 		if (i == null) throw 'helder.asset: $key not in this build (is it named by code that is left after dead code elimination?)';
 		var t = Mem.sym("hxmc_resources");
-		f(t.add(Mem.getI32(t, 8 * i)), Mem.getI32(t, 8 * i + 4));
+		var p = t.add(Mem.getI32(t, 8 * i)), n = Mem.getI32(t, 8 * i + 4), h = 0;
+		while (h < n && Mem.getU8(p, h) != 1)
+			h++;
+		f(p.add(h + 1), n - h - 1);
 	}
 	#end
 

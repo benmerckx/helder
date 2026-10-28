@@ -55,6 +55,10 @@ class Assets {
 		return true;
 	}
 
+	// the key in an asset's marker (AssetMacro's: Bundle.marker)
+	@:noCompletion public static function key(marker:String):String
+		return marker.substring(17, marker.length - 1);
+
 	// a load polled until it returns true (Model.load's fetch)
 	public static function track(poll:Void->Bool) {
 		if (!poll()) pending.push(poll);
@@ -72,14 +76,17 @@ class Assets {
 		return pending.length;
 	}
 
-	// the keys this build's bundle has (Bundle's list: the referenced files
-	// that are left after dead code elimination), sorted
-	public static function bundled():Array<String> {
-		#if (target.name == "hxmc")
-		var s = haxe.Resource.getString(Bundle.LIST);
-		return s == null || s == "" ? [] : s.split("\n");
+	// the keys of the files built into this executable (desktop: its
+	// resources, Bundle; the files the program uses after dead code
+	// elimination, when helder's CLI built it), sorted; null elsewhere (the
+	// files are beside it: the APK's, the app's, the page's)
+	public static function bundled():Null<Array<String>> {
+		#if (target.name == "hxmc" && hxmc.target != "wasm32-wasi" && hxmc.target != "android-arm64" && hxmc.target != "android-x86_64" && hxmc.target != "ios-arm64" && hxmc.target != "ios-sim-arm64")
+		var out = [for (n in hxmc.NativeResource.names()) if (StringTools.startsWith(n, Bundle.PREFIX)) n.substr(Bundle.PREFIX.length)];
+		out.sort(Reflect.compare);
+		return out;
 		#else
-		return [];
+		return null;
 		#end
 	}
 }

@@ -140,34 +140,28 @@ class BuildCommand {
 	// one build by the compiler (a server's when given), its time and size
 	// printed; pack (after a build that compiled) makes what the build is
 	// for from its output (an APK, a bundle) and names it, a thrown message
-	// its failure
+	// its failure. The program's assets around it (AssetStep): prepare (iOS)
+	// puts the kept ones in the app before it is linked and names them; a
+	// build whose built-in files were not those it uses is made again
 	@:coroutine public static function build(e:Entry, exe:String, mode:Mode, ?server:Compiler.CompileServer, ?extra:Array<String>,
-			?pack:Void->String):{ok:Bool, ms:Int, messages:String} {
+			?pack:Void->String, ?prepare:Void->Array<String>):{ok:Bool, ms:Int, messages:String} {
 		TestCommand.mkdirs(Path.directory(exe));
-		TestCommand.mkdirs(Path.directory(manifest(exe)));
 		var words = e.args().concat(switch mode {
-			case Release: ["-dce", "full"];
+			case Release: ["-dce", "full"].concat(AssetStep.define(exe));
 			case Dev: ["-D", "hxmc.dev", "-D", "disable-hxb-cache"];
 		}).concat(extra ?? []);
-		// (the files the program names and keeps: helder.asset's Bundle writes them there)
-		var m = manifest(exe);
-		try FileSystem.deleteFile(m) catch (_:Dynamic) {};
-		words = words.concat(["--macro", 'helder.asset.Bundle.use("${FileSystem.fullPath(Path.directory(m)).split("\\").join("/")}/${Path.withoutDirectory(m)}")']);
 		words = words.concat(["--custom-target", 'hxmc=$exe']);
 		var t0 = haxe.Timer.stamp();
 		Term.spin("building " + e.name);
-		var r = if (server != null) server.request(words, Sys.getCwd()) else {
-			var p = new Process(Compiler.tool(), words);
-			p.closeStdin();
-			var lines = [];
-			Async.scope(task -> {
-				task.async(_ -> Lines.collect(p.stdout, lines));
-				task.async(_ -> Lines.collect(p.stderr, lines));
-				null;
-			});
-			var code = p.wait();
-			p.close();
-			{ok: code == 0, messages: lines.join("\n")};
+		var target = e.isWeb() ? "wasm32-wasi" : e.target, roots = e.classPaths.concat([e.root]);
+		var copied = prepare != null ? prepare() : null;
+		var r = compile(words, server);
+		// (the files built in were not those the program uses: a reference
+		// added, or one left in dead code only; built again with them)
+		if (r.ok && !AssetStep.after(exe, target, roots, mode == Dev, copied)) {
+			copied = prepare != null ? prepare() : null;
+			r = compile(words, server);
+			if (r.ok) AssetStep.after(exe, target, roots, mode == Dev, copied);
 		}
 		var shown = exe;
 		if (r.ok && pack != null) shown = try pack() catch (err:Dynamic) {
@@ -184,20 +178,19 @@ class BuildCommand {
 		return {ok: r.ok, ms: ms, messages: r.messages};
 	}
 
-	// the assets' manifest of a build's output (helder.asset.Bundle's:
-	// {target, dev, assets: [{key, file, sync, bytes}]}: full paths of this
-	// machine), in helder's cache, not beside the output (what is shipped)
-	public static function manifest(exe:String):String {
-		var full = FileSystem.fullPath(Path.directory(exe) == "" ? "." : Path.directory(exe)).split("\\").join("/") + "/" + Path.withoutDirectory(exe);
-		return DevCommand.cache() + "/assets/" + haxe.crypto.Md5.encode(full).substr(0, 16) + "-" + Path.withoutDirectory(exe) + ".json";
-	}
-
-	// the files of a build's manifest (none when it wrote none)
-	public static function assets(exe:String):Array<{key:String, file:String, sync:Bool, bytes:Int}> {
-		var m = manifest(exe);
-		if (!FileSystem.exists(m)) return [];
-		var j:Dynamic = haxe.Json.parse(sys.io.File.getContent(m));
-		return j.assets;
+	@:coroutine public static function compile(words:Array<String>, server:Null<Compiler.CompileServer>):{ok:Bool, messages:String} {
+		if (server != null) return server.request(words, Sys.getCwd());
+		var p = new Process(Compiler.tool(), words);
+		p.closeStdin();
+		var lines = [];
+		Async.scope(task -> {
+			task.async(_ -> Lines.collect(p.stdout, lines));
+			task.async(_ -> Lines.collect(p.stderr, lines));
+			null;
+		});
+		var code = p.wait();
+		p.close();
+		return {ok: code == 0, messages: lines.join("\n")};
 	}
 
 	// a file's size, or a directory's (an .app: its files')

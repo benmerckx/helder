@@ -1,4 +1,3 @@
 asset: files/kept.txt 18 bytes, crc 75c5ca7a
 asset: files/pixels.png 76 bytes, crc dd9070d7
 asset: files/pixels.png 2x2, pixels crc bff141cb
-asset: bundled files/kept.txt,files/pixels.png

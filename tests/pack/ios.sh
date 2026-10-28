@@ -61,7 +61,7 @@ check "codesign --verify --strict: the assets sealed" $?
 "$helder" run tests/asset/Checksum.hx --target ios -d "$udid" > "$out/checksum.txt" 2>&1
 code=$?
 cat "$out/checksum.txt"
-if [ $code != 0 ] && grep -q "asset: bundled" "$out/checksum.txt"; then code=0; fi
+if [ $code != 0 ] && grep -q "pixels crc" "$out/checksum.txt"; then code=0; fi
 check "helder run tests/asset/Checksum.hx --target ios" $code
 while IFS= read -r l; do
 	grep -qF "$l" "$out/checksum.txt"

@@ -10,12 +10,15 @@ import helder.view.Reactive.*;
 
 // helder.asset in a program (natively: the files in the executable's
 // data; as wasm32-wasi beside the module, fetched): the bundle has what
-// code that runs names and nothing else (Bundle's walk), a handle per
+// code that runs names and nothing else (Bundle's markers), a handle per
 // path loaded by a coroutine, several at once, a failure, value a signal
 function tests() {
+	// (natively the executable's resources; as wasm32-wasi the files are
+	// beside the module, which the asset lane checks: bundled() is null)
 	describe("the bundle", () -> {
 		test("the files code that runs names, sorted", () -> {
 			var b = Assets.bundled();
+			if (b == null) return;
 			assert(b.contains("asset/files/kept.txt"), b.join(", "));
 			assert(b.contains("asset/files/pixels.png"), b.join(", "));
 			var sorted = b.copy();
@@ -24,6 +27,7 @@ function tests() {
 		});
 		test("not one only code that nothing reaches names", () -> {
 			var b = Assets.bundled();
+			if (b == null) return;
 			assert(!b.contains("asset/files/dropped.txt"), b.join(", "));
 		});
 	});

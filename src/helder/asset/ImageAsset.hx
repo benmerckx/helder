@@ -8,7 +8,7 @@ import helder.image.Image;
 // loop's thread (Image.decode). A reload's image is put in the old one
 // (Image.replace: its pixels and size; renderers upload it again).
 class ImageAsset {
-	@:helder.asset.load public static function load(key:String, ?file:String):Asset<Image>
+	public static function load(key:String, ?file:String):Asset<Image>
 		return Assets.handle("image", key, _ -> decode(key, file), (old, fresh) -> {
 			old.replace(fresh);
 			old;

@@ -11,7 +11,7 @@ import helder.text.SystemFonts;
 class FontAsset {
 	static final added = new Map<String, Bool>();
 
-	@:helder.asset.load public static function load(key:String, ?file:String):Asset<FontFile>
+	public static function load(key:String, ?file:String):Asset<FontFile>
 		return Assets.handle("font", key, _ -> {
 			var bytes = Files.read(key, file);
 			var face = if (added.exists(key)) FontFile.parse(bytes) else {

@@ -263,7 +263,7 @@ class DevCommand {
 	static function depsFile():String
 		return Path.withoutExtension(out) + ".deps";
 
-	// the executable a build wrote (its manifest beside it: BuildCommand.manifest)
+	// the executable a build wrote (its manifest: AssetStep)
 	static function builtExe():String
 		return switch mobile {
 			case "android": Android.library(out);
@@ -274,11 +274,11 @@ class DevCommand {
 
 	// the build's manifest read: the files watched as assets
 	static function readAssets() {
-		var m = BuildCommand.manifest(builtExe());
+		var m = AssetStep.manifest(builtExe());
 		if (!FileSystem.exists(m)) return;
 		assetFiles = new Map();
 		assetKeys = new Map();
-		for (a in BuildCommand.assets(builtExe())) {
+		for (a in AssetStep.assets(builtExe())) {
 			assetFiles.set(a.key, a.file);
 			assetKeys.set(a.file, a.key);
 		}

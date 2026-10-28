@@ -90,7 +90,7 @@ class Model<N, M, A, C> {
 	}
 
 	// (Asset.model's and Model.of(path, Lazy)'s loader)
-	@:noCompletion @:helder.asset.load public static function asset<N, M, A, C>(key:String, file:Null<String>, nodes:N, meshes:M, materials:A,
+	@:noCompletion public static function asset<N, M, A, C>(key:String, file:Null<String>, nodes:N, meshes:M, materials:A,
 			animations:C):helder.asset.Asset<Model<N, M, A, C>>
 		return helder.asset.Assets.handle("model", key, _ -> new Model(helder.asset.Files.read(key, file), nodes, meshes, materials, animations), (old, fresh) -> {
 			old.replace(fresh);
@@ -129,10 +129,11 @@ class Model<N, M, A, C> {
 		}
 		if (lazy) return helder.asset.AssetMacro.model(path);
 		var file = helder.asset.AssetMacro.find(path, "model");
+		helder.asset.AssetMacro.bundle(path, file, true);
 		Context.registerModuleDependency(Context.getLocalModule(), file);
 		var n = names(sys.io.File.getBytes(file), path, Context.currentPos());
-		return macro new helder.scene.render.Model(helder.asset.Files.readNow($v{path}, $v{helder.asset.AssetMacro.devPath(file)}), ${n.nodes}, ${n.meshes},
-			${n.materials}, ${n.animations});
+		var read = macro helder.asset.Files.readNow(${helder.asset.AssetMacro.key(path, true)}, $v{helder.asset.AssetMacro.devPath(file)});
+		return macro new helder.scene.render.Model($read, ${n.nodes}, ${n.meshes}, ${n.materials}, ${n.animations});
 	}
 
 	#if macro

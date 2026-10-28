@@ -63,7 +63,7 @@ class Android {
 	public static function pack(e:Entry, lib:String, apk:String, dev = false) {
 		var c = classes(apk);
 		var key = DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), Sys.getEnv("HELDER_ANDROID_KEY")));
-		var assets = dev ? [] : [for (a in BuildCommand.assets(lib)) {name: helder.asset.AssetPath.bundled(a.key), data: File.getBytes(a.file)}];
+		var assets = dev ? [] : [for (a in AssetStep.assets(lib)) {name: helder.asset.AssetPath.bundled(a.key), data: File.getBytes(a.file)}];
 		File.saveBytes(apk, Apk.write(File.getBytes(lib), e.target, c.dex ? Glue.dex() : null, c.views, App.android(e.name, e.config, dev), key, assets));
 	}
 

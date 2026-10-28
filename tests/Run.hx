@@ -278,7 +278,7 @@ class Run {
 		var out = output(full, []);
 		Sys.setCwd(cwd);
 		Sys.print(out);
-		for (l in CHECKSUM) if (!out.contains(l + "\n")) throw new Failed('Checksum, alone: no line "$l"');
+		for (l in CHECKSUM.concat(["asset: built in files/kept.txt,files/pixels.png"])) if (!out.contains(l + "\n")) throw new Failed('Checksum, alone: no line "$l"');
 		// (the web: the referenced files beside the page, no other)
 		rmrf("bin/asset/web");
 		run(h, ["build", "tests/asset/Checksum.hx", "--target", "web", "-o", "bin/asset/web/Checksum.wasm"]);

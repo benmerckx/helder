@@ -6,9 +6,9 @@ import haxe.io.Bytes;
 // decoded yet); a reload's bytes take the old ones' place (value's readers
 // told), since a Bytes cannot change its length
 class BytesAsset {
-	@:helder.asset.load public static function load(key:String, ?file:String):Asset<Bytes>
+	public static function load(key:String, ?file:String):Asset<Bytes>
 		return Assets.handle("bytes", key, _ -> Files.read(key, file), (_, fresh) -> fresh);
 
-	@:helder.asset.load public static function sound(key:String, ?file:String):Asset<Bytes>
+	public static function sound(key:String, ?file:String):Asset<Bytes>
 		return Assets.handle("sound", key, _ -> Files.read(key, file), (_, fresh) -> fresh);
 }
