@@ -103,8 +103,8 @@ class Compiler {
 		frontend.lower();
 		Verifier.check(p);
 		phase("lower program");
-		var dump = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".dump-ir", "");
-		if (core.Define.rawDefined(com.defines, DEFINE + ".roundtrip-ir")) {
+		var dump = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".dump_ir", "");
+		if (core.Define.rawDefined(com.defines, DEFINE + ".roundtrip_ir")) {
 			var text = TextIR.dump(p);
 			TextIR.parse(p, text);
 			Verifier.check(p);
@@ -163,8 +163,8 @@ class Compiler {
 		while (args.length > 0) switch args.shift() {
 			case "-o": out = args.shift();
 			case "--target": target = args.shift();
-			case "--dump-ir": defines = defines.concat(["-D", DEFINE + ".dump-ir=" + args.shift()]);
-			case "--roundtrip-ir": defines = defines.concat(["-D", DEFINE + ".roundtrip-ir"]);
+			case "--dump-ir": defines = defines.concat(["-D", DEFINE + ".dump_ir=" + args.shift()]);
+			case "--roundtrip-ir": defines = defines.concat(["-D", DEFINE + ".roundtrip_ir"]);
 			case "--coverage": defines = defines.concat(["-D", DEFINE + ".coverage"]);
 			case a: throw 'helder-ts: unexpected argument $a (helder-ts <entry.ts> [-o out] [--target t] [--dump-ir file] [--roundtrip-ir] [--coverage])';
 		}

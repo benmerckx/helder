@@ -106,7 +106,9 @@ its length and dense elements read in place. Everything else is a dynamic
 JavaScript value. Bindings, parameters, direct functions' results and
 fields of those types are typed slots, and code on them is plain native
 code: arithmetic on F64s, fields at fixed offsets, for-of over an array by
-index, `Math`'s functions called directly (Math is frozen).
+index, `Math`'s functions called directly (Math is frozen). A binding no
+closure captures is a plain local (`Captures.hx`); a captured one is a
+shared box.
 
 TypeScript's types can be wrong about values (`any`, `as`, a missing
 argument, `JSON.parse`). A value enters a typed slot only through a check:

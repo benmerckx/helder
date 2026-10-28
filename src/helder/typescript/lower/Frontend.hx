@@ -10,7 +10,10 @@ import helder.typescript.ir.Builder;
 import helder.typescript.check.Types;
 import helder.typescript.lower.Classes.ClassLayout;
 
-private typedef Binding = {ty:Ty, ?cell:Ex, ?global:Int};
+// A binding's storage: a global (module scope), a box (captured by a
+// closure), or a plain local; `outer`: an enclosing function's plain local,
+// which no closure can see (Captures)
+private typedef Binding = {ty:Ty, ?cell:Ex, ?global:Int, ?local:Local, ?outer:String};
 
 // A source file's top-level scope: its bindings (globals), direct functions
 // and exports. Imports alias the exporting module's bindings, so they are live.
@@ -45,6 +48,9 @@ class Frontend {
 	var types:Types;
 	var classes:Classes;
 	var reps:Reps;
+	var captures:Captures;
+	// (binding a generator's or async function's parameters: its step closure reads them)
+	var sharing = false;
 	// (the statement being lowered: where a typed slot's check reports)
 	var here:Null<Node> = null;
 	// (whether Math's functions are the built-ins: the program assigns no Math and reaches no global object)
@@ -103,6 +109,16 @@ class Frontend {
 	function store(e:Ex, t:Ty):Ex return reps.store(b, e, t, where());
 
 	function where():String return here == null ? src.path : Project.relative(here.file.path) + ":" + here.file.line(here.file.skipTrivia(here.pos));
+
+	// a declared name's binding: a plain local, or a box when a closure may capture it
+	function bind(name:Null<Node>, t:Ty, init:Ex):Binding {
+		if (name != null && !captures.shared(name) && !sharing) {
+			var l = b.local(name.text, t);
+			b.out.push(SSet(l, init));
+			return {ty: t, local: l};
+		}
+		return {ty: t, cell: b.temp(ENewBox(t, init))};
+	}
 
 	// (a typed slot's value before its declaration runs)
 	function placeholder(t:Ty):Ex return t == TF64 ? EF64(0) : t.match(TRef(RObj(_))) ? ENull(t) : b.runtime("getUndefined", []);
@@ -223,6 +239,7 @@ class Frontend {
 		types = src.types;
 		classes = new Classes(src);
 		reps = new Reps(p, types, classes);
+		captures = new Captures(src);
 		mathFixed = !features.contains("All") && !assignsMath();
 		for (m in modules) {
 			validate(m.file.root);
@@ -406,9 +423,9 @@ class Frontend {
 				var name = id.text;
 				if (!functionVars.exists(name)) {
 					var existing = env.get(name);
-					if (existing != null && existing.cell != null && switch (existing.cell) {
-							case ELocal(l): b.f.locals.indexOf(l) >= 0;
-							case _: false;}) {
+					if (existing != null && (existing.local != null && b.f.locals.indexOf(existing.local) >= 0 || existing.cell != null && switch (existing.cell) {
+						case ELocal(l): b.f.locals.indexOf(l) >= 0;
+						case _: false;})) {
 						functionVars.set(name, existing);
 						continue;
 					}
@@ -419,10 +436,7 @@ class Frontend {
 						v = {ty: TRef(RAny), global: g};
 						b.out.push(SSetGlobal(g, b.runtime("getUndefined", [])));
 					}
-					else {
-						var cell = b.temp(ENewBox(TRef(RAny), b.runtime("getUndefined", [])));
-						v = {ty: TRef(RAny), cell: cell};
-					}
+					else v = bind(id, TRef(RAny), b.runtime("getUndefined", []));
 					functionVars.set(name, v);
 					env.set(name, v);
 				}
@@ -438,10 +452,8 @@ class Frontend {
 		functionVars = [];
 		b = new Builder(p, f);
 		env = oldEnv.copy();
-		for (a in f.args) {
-			var cell = b.temp(ENewBox(a.ty, ELocal(a)));
-			env.set(a.name, {ty: a.ty, cell: cell});
-		}
+		var names = parameterNames(n);
+		for (a in f.args) env.set(a.name, bind(names.get(a.name), a.ty, ELocal(a)));
 		hoist(n.body(), false);
 		parameterSetup(n);
 		statement(n.body());
@@ -507,9 +519,13 @@ class Frontend {
 		return names;
 	}
 
-	function declareLocal(name:Node, value:Ex) {
-		var cell = b.temp(ENewBox(TRef(RAny), any(value)));
-		env.set(name.text, {ty: TRef(RAny), cell: cell});
+	function declareLocal(name:Node, value:Ex) env.set(name.text, bind(name, TRef(RAny), any(value)));
+
+	// (a function's plain parameters' names, by name)
+	function parameterNames(n:Null<Node>):Map<String, Node> {
+		var names:Map<String, Node> = [];
+		if (n != null) for (param in parametersOf(n)) if (param.name().kind == KindIdentifier) names.set(param.name().text, param.name());
+		return names;
 	}
 
 	function withDefault(value:Ex, initializer:Null<Node>):Ex {
@@ -617,11 +633,18 @@ class Frontend {
 		return list == null ? [] : list;
 	}
 
-	function read(v:Binding):Ex return v.global != null ? EGlobal(v.global, v.ty) : EBoxGet(v.ty, v.cell);
+	function read(v:Binding):Ex {
+		if (v.global != null) return EGlobal(v.global, v.ty);
+		// (a plain local's value now: later writes do not change it)
+		if (v.local != null) return b.temp(ELocal(v.local));
+		if (v.outer != null) throw "TSHX004: a closure uses a binding it does not capture: " + v.outer;
+		return EBoxGet(v.ty, v.cell);
+	}
 
 	function set(v:Binding, e:Ex) {
 		e = store(e, v.ty);
-		b.out.push(v.global != null ? SSetGlobal(v.global, e) : SBoxSet(v.ty, v.cell, e));
+		if (v.outer != null) throw "TSHX004: a closure uses a binding it does not capture: " + v.outer;
+		b.out.push(v.global != null ? SSetGlobal(v.global, e) : v.local != null ? SSet(v.local, e) : SBoxSet(v.ty, v.cell, e));
 	}
 
 	function statement(n:Node, top = false, ?labels:Array<String>) {
@@ -694,7 +717,7 @@ class Frontend {
 					if (f.initializer() != null && f.initializer().kind == KindVariableDeclarationList)
 						for (d in f.initializer().declarations()) {
 							var binding = get(d.name().text, d);
-							switch (binding.cell) {
+							if (binding.local == null) switch (binding.cell) {
 								case ELocal(cell): if (capturedCells.exists(cell)) b.out.push(SSet(cell, ENewBox(binding.ty, read(binding))));
 								case _: fail(d, "loop binding must be local");
 							}
@@ -799,20 +822,15 @@ class Frontend {
 			if (list.flags & NodeFlags.BlockScoped == 0) continue;
 			for (d in list.declarations()) for (id in bindingNames(d.name())) {
 				var t = id == d.name() ? bindingType(d) : TRef(RAny);
-				var cell = b.temp(ENewBox(t, placeholder(t)));
-				env.set(id.text, {ty: t, cell: cell});
+				env.set(id.text, bind(id, t, placeholder(t)));
 			}
 		}
 		for (s in statements) if ((s.kind == KindClassDeclaration || s.kind == KindEnumDeclaration || s.kind == KindModuleDeclaration) && s.name() != null && !hasModifier(s, KindDeclareKeyword) && !declared.exists(s.name().text)) {
 			declared.set(s.name().text, true);
-			var cell = b.temp(ENewBox(TRef(RAny), b.runtime("getUndefined", [])));
-			env.set(s.name().text, {ty: TRef(RAny), cell: cell});
+			env.set(s.name().text, bind(s.name(), TRef(RAny), b.runtime("getUndefined", [])));
 		}
 		var declarations = [for (s in statements) if (s.kind == KindFunctionDeclaration && s.body() != null) s];
-		for (d in declarations) {
-			var cell = b.temp(ENewBox(TRef(RAny), b.runtime("getUndefined", [])));
-			env.set(d.name().text, {ty: TRef(RAny), cell: cell});
-		}
+		for (d in declarations) env.set(d.name().text, bind(d.name(), TRef(RAny), b.runtime("getUndefined", [])));
 		for (d in declarations) set(env.get(d.name().text), closure(d));
 	}
 
@@ -1100,8 +1118,7 @@ class Frontend {
 			else if (top || predeclared) set(get(name, d), e);
 			else {
 				var t = bindingType(d);
-				var cell = b.temp(ENewBox(t, store(e, t)));
-				env.set(name, {ty: t, cell: cell});
+				env.set(name, bind(d.name(), t, store(e, t)));
 			}
 		}
 	}
@@ -1600,6 +1617,7 @@ class Frontend {
 		b = new Builder(p, f);
 		env = [];
 		for (name in outer.keys()) if (outer.get(name).global != null) env.set(name, outer.get(name));
+		for (name in outer.keys()) if (outer.get(name).local != null || outer.get(name).outer != null) env.set(name, {ty: outer.get(name).ty, outer: name});
 		for (i in 0...names.length) {
 			var v = b.temp(ECapture(li, i, ELocal(f.args[0])));
 			env.set(names[i], {ty: outer.get(names[i]).ty, cell: v});
@@ -1607,13 +1625,12 @@ class Frontend {
 		// (parameters into their typed slots, checked at the function)
 		var saved = here;
 		if (n != null) here = n;
-		var slots:Map<String, Ty> = [];
-		if (n != null && !argumentFunctions.exists(f)) for (param in parametersOf(n)) if (param.name().kind == KindIdentifier) slots.set(param.name().text, parameterType(param));
+		var params = argumentFunctions.exists(f) ? new Map<String, Node>() : parameterNames(n);
 		for (a in f.args.slice(1)) {
 			if (a.name == "this" && lexicalThis) continue;
-			var t = slots.get(a.name) ?? a.ty;
-			var cell = b.temp(ENewBox(t, store(ELocal(a), t)));
-			env.set(a.name, {ty: t, cell: cell});
+			var name = params.get(a.name);
+			var t = name == null ? a.ty : parameterType(name.parent);
+			env.set(a.name, bind(name, t, store(ELocal(a), t)));
 		}
 		build(f);
 		b.finish();
@@ -1670,8 +1687,10 @@ class Frontend {
 			self = {ty: TRef(RAny), cell: cell};
 			env.set(own, self);
 		}
+		sharing = true;
 		var r = lambda(n, [], arrow, false, f -> {
 			parameterSetup(n);
+			sharing = false;
 			var step = lambda(null, ["%generator", "%sent", "%mode"], true, false, g -> {
 				b.resumable = {count: 0, value: b.local("yielded", TRef(RAny)), gen: g.args[2], sent: g.args[3], mode: g.args[4], async: async, generator: generator, kinds: []};
 				var start = b.out.length;
