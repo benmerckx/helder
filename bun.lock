@@ -5,7 +5,7 @@
     "": {
       "name": "helder",
       "devDependencies": {
-        "@hxmc/cli": "0.1.0-nightly.20261027.da5aa2b",
+        "@hxmc/cli": "0.1.0-nightly.20261028.409f580",
       },
       "peerDependencies": {
         "@hxmc/cli": ">=0.1.0-0",
@@ -16,18 +16,18 @@
     "@hxmc/cli",
   ],
   "packages": {
-    "@hxmc/cli": ["@hxmc/cli@0.1.0-nightly.20261027.da5aa2b", "", { "optionalDependencies": { "@hxmc/darwin-arm64": "0.1.0-nightly.20261027.da5aa2b", "@hxmc/darwin-x64": "0.1.0-nightly.20261027.da5aa2b", "@hxmc/linux-arm64": "0.1.0-nightly.20261027.da5aa2b", "@hxmc/linux-x64": "0.1.0-nightly.20261027.da5aa2b", "@hxmc/win32-arm64": "0.1.0-nightly.20261027.da5aa2b", "@hxmc/win32-x64": "0.1.0-nightly.20261027.da5aa2b" }, "os": [ "linux", "win32", "darwin", ], "hasInstallScript": true, "bin": { "haxe": "hxmc/bootstrap/haxe", "hxmc": "hxmc/bootstrap/haxe" } }, "sha512-/NpBpZjn3I+gjHIbdDTGz5DX9jkPQLf3SNCYzHqCvYQLDXDrq2ROK2VEaUB2Ksvpge0cvkSXelb+jVNfFveQmg=="],
+    "@hxmc/cli": ["@hxmc/cli@0.1.0-nightly.20261028.409f580", "", { "optionalDependencies": { "@hxmc/darwin-arm64": "0.1.0-nightly.20261028.409f580", "@hxmc/darwin-x64": "0.1.0-nightly.20261028.409f580", "@hxmc/linux-arm64": "0.1.0-nightly.20261028.409f580", "@hxmc/linux-x64": "0.1.0-nightly.20261028.409f580", "@hxmc/win32-arm64": "0.1.0-nightly.20261028.409f580", "@hxmc/win32-x64": "0.1.0-nightly.20261028.409f580" }, "os": [ "linux", "win32", "darwin", ], "hasInstallScript": true, "bin": { "haxe": "hxmc/bootstrap/haxe", "hxmc": "hxmc/bootstrap/haxe" } }, "sha512-otzg08x7SOJH+oBD8wFeHhFL8WJb8jhpNL+NUfWsUJDjk3IgaKKxX6lwsNrHFnXkYXJvJ1pM8i/0PyNCgjWHGw=="],
 
-    "@hxmc/darwin-arm64": ["@hxmc/darwin-arm64@0.1.0-nightly.20261027.da5aa2b", "", { "os": "darwin", "cpu": "arm64" }, "sha512-XIyNfJsczsZk9PBH1IPzgtVfXQqid85jlPIi4K6AoAKGRNCKzhxIL0imBdD7yfj8/OjKl7p9DigooI21DcWqIw=="],
+    "@hxmc/darwin-arm64": ["@hxmc/darwin-arm64@0.1.0-nightly.20261028.409f580", "", { "os": "darwin", "cpu": "arm64" }, "sha512-lcKQm15ymzASVLUKylWPb8z2Vs9PeMLG6b4JEfXIE5XAm2Jt5+jqDKrn8Av/7SyLW2NjI0mYUTMvIrYZtT/OLQ=="],
 
-    "@hxmc/darwin-x64": ["@hxmc/darwin-x64@0.1.0-nightly.20261027.da5aa2b", "", { "os": "darwin", "cpu": "x64" }, "sha512-iHnVRaVgXvhMbeOaRiX6aSBklG/P+FaB1qXqQ/6P1OdvJVn4hh6gZV1h2djVzg+E+vmPn7mZKfaa7EwqBz/YEw=="],
+    "@hxmc/darwin-x64": ["@hxmc/darwin-x64@0.1.0-nightly.20261028.409f580", "", { "os": "darwin", "cpu": "x64" }, "sha512-McizyrXY6z89EfArBLMCT+AvGLLl02nNiR8WdvIW6nGRs1vRSvxhmvpp6a8UCSknnre0Dohk7NW1Scs7jTS0Jw=="],
 
-    "@hxmc/linux-arm64": ["@hxmc/linux-arm64@0.1.0-nightly.20261027.da5aa2b", "", { "os": "linux", "cpu": "arm64" }, "sha512-iHwpA6oRpih84alLrFprXk7/LTJEUUh6kulD/PlQ/picNBkfqtiYRz3X1G2KpOGNziNT2bo6XEt4JcdyORJclA=="],
+    "@hxmc/linux-arm64": ["@hxmc/linux-arm64@0.1.0-nightly.20261028.409f580", "", { "os": "linux", "cpu": "arm64" }, "sha512-ZDZjPhfCkaTA+QK+3GvsIqhNp3c3/P/DzfC5WBbQAe5w2uQEZXc0sSwP+wh+pEDbA4tIpf4VNj2y+gQPdlSt5Q=="],
 
-    "@hxmc/linux-x64": ["@hxmc/linux-x64@0.1.0-nightly.20261027.da5aa2b", "", { "os": "linux", "cpu": "x64" }, "sha512-THDlGXL0axCZtvq/dvPct0BVLx0Qbl5pj5QzW8IHDMU5E9XDmmWkV3Z/qJDcspjs9vHQPIdtWiF9g3GZ5FNWtg=="],
+    "@hxmc/linux-x64": ["@hxmc/linux-x64@0.1.0-nightly.20261028.409f580", "", { "os": "linux", "cpu": "x64" }, "sha512-ckFMl6bZx/XwbKnwUN2cHMIdb+JAcKEkWTtSwbOzo9nuEQ5yEhBQm84am/prTjAx3QDraY2jCy31BSxmb0/SPA=="],
 
-    "@hxmc/win32-arm64": ["@hxmc/win32-arm64@0.1.0-nightly.20261027.da5aa2b", "", { "os": "win32", "cpu": "arm64" }, "sha512-E25lGMZcd9xLg+y/kI6Pjzz71jmqYF+Iegf43PP5ntnKFdylfnOCKcasqW3wnyM2pdK/Bc4nMAaSpeLvivEskA=="],
+    "@hxmc/win32-arm64": ["@hxmc/win32-arm64@0.1.0-nightly.20261028.409f580", "", { "os": "win32", "cpu": "arm64" }, "sha512-RKEv8DdDpF2v3bIv6hSmD+UfEptO7GoQS/1icwAlknKhLxeN5XBm2tpMZ8bDIeXxgRRqU9tRfbu0eFhDJVGnmA=="],
 
-    "@hxmc/win32-x64": ["@hxmc/win32-x64@0.1.0-nightly.20261027.da5aa2b", "", { "os": "win32", "cpu": "x64" }, "sha512-zWe2eEGLJs35MIK4TcjP2HJoLEX3C1BbE8LTF0EDGY1fMz48+VetTlbADsJbuOgEImmNKInlNNrXDTsIPjL5rw=="],
+    "@hxmc/win32-x64": ["@hxmc/win32-x64@0.1.0-nightly.20261028.409f580", "", { "os": "win32", "cpu": "x64" }, "sha512-zfP6+kwIQBvHVxoR1jWV5MJwEqTUZ6yhPHDYPWaUg+nFayS2psZnrPBZXE5j6H6EkAwUjyeYlMnzZ8xOxzYDBg=="],
   }
 }
