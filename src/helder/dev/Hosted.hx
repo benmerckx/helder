@@ -92,6 +92,9 @@ class Hosted {
 	// the host's call: main on a thread of its own (a large stack, as the
 	// runtime's main thread has), joined
 	@:keep @:hxmc.export("hxmc_dev_run") @:hxmc.noGc static function run(arg:Int):Int {
+		// (the state block read here, so that its export is there in a program
+		// that never asks for it: one without a window, a TypeScript one)
+		if (state.isNull() && arg < 0) return -1;
 		// (Android: on the calling thread, the program's, whose looper the
 		// activity's glue watches; iOS: the main thread, UIKit's)
 		// (Windows: the thread that made the window, whose messages it gets)

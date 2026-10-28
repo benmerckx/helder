@@ -34,6 +34,24 @@ with git (sparse: `haxe/src`, `hxmc/src`) into `~/.cache/helder/hxmc-src/`.
 `HELDER_TS_TIMES=1` prints a build's phases, `HELDER_TS_DEBUG=1` the stack of
 a compiler error.
 
+## In the CLI
+
+`helder build`, `run` and `dev` take a TypeScript entry (src/helder/cli:
+a `.ts`/`.tsx` file, a project's `src/main.ts(x)`, a directory's
+`main.ts(x)`) and build it with helder-ts, built first if needed:
+
+```sh
+bun run helder run examples/ts-hello
+bun run helder dev examples/ts-ticker   # edit label.ts: rebuilt, swapped in
+```
+
+Under `helder dev` the build lists the program's files for the watcher
+(`-D helder.typescript.deps`, also when the check failed), tsgo's errors
+come back as the compiler's, at their file, line and columns, and the
+JavaScript event loop answers the dev server between its timers
+(`helder.dev.Hot.poll`, as helder.os.App's loop does), so a reload swaps the
+new build in. A reload starts the program over: its state is not kept yet.
+
 ## Checking (`check/`)
 
 `Tsgo.hx` starts the `typescript` package's tsgo (`tsc --api`, found from the

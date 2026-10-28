@@ -17,6 +17,10 @@ class BuildCommand {
 			Term.err(Style.usage('helder ${o.command}: $err'));
 			return 2;
 		}
+		if (e.typescript != null) try Compiler.typescript(e.helder) catch (err:Dynamic) {
+			Term.err(Style.status("error", Fail, Std.string(err)));
+			return 1;
+		}
 		var host = Compiler.hostTarget();
 		if (andRun && e.isWeb()) {
 			Term.err(Style.usage("helder run: this machine only (helder dev --target web serves a page; helder build --target web builds one)"));
@@ -26,7 +30,7 @@ class BuildCommand {
 			Term.err(Style.usage('helder run: ${e.target} is not this machine ($host); helder build --target ${e.target} builds for it'));
 			return 2;
 		}
-		Term.out(Style.header(o.command, [e.target, e.main]));
+		Term.out(Style.header(o.command, [e.target, e.label()]));
 		var out = o.out, programArgs = o.programArgs ?? [];
 		var exe = out ?? e.out(e.target);
 		var r = build(e, exe, Release);

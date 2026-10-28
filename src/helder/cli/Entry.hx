@@ -16,6 +16,10 @@ using StringTools;
 //   examples/counter/Counter.hx   a file: its module is the main class, its
 //                            class path the directory its package line
 //                            makes it (one up per package segment)
+//   examples/ts-counter/main.tsx  a TypeScript program (.ts, .tsx): built by
+//                            helder-ts (helder.typescript) from that file and
+//                            what it imports; a project's is src/main.ts(x),
+//                            a directory's its main.ts(x)
 //
 // The nearest package.json at or above the entry adds its class paths
 // ("haxe": {"classPath"}, this checkout's src/), its dependencies' (a
@@ -39,6 +43,8 @@ class Entry {
 	public var hxml(default, null):Null<String> = null;
 	// the directories watched (the class paths but helder's own when it is a package)
 	public var sources(default, null):Array<String> = [];
+	// a TypeScript program's entry file (full path), else null
+	public var typescript(default, null):Null<String> = null;
 
 	function new() {}
 
@@ -51,8 +57,9 @@ class Entry {
 		path = clean(path ?? ".");
 		if (!FileSystem.exists(path)) throw '$path: no such file or directory';
 		if (FileSystem.isDirectory(path)) {
-			if (FileSystem.exists('$path/package.json')) e.project(path) else e.file(mainOf(path));
-		} else if (path.endsWith(".hx")) e.file(path) else throw '$path: not a .hx file or a directory';
+			var ts = typescriptMain(path);
+			if (ts != null) e.typescriptFile(ts) else if (FileSystem.exists('$path/package.json')) e.project(path) else e.file(mainOf(path));
+		} else if (path.endsWith(".hx")) e.file(path) else if (isTypescript(path)) e.typescriptFile(path) else throw '$path: not a .hx, .ts or .tsx file, or a directory';
 		return e;
 	}
 
@@ -68,6 +75,35 @@ class Entry {
 		var named = Path.withoutDirectory(FileSystem.fullPath(dir)).replace("-", "").toLowerCase();
 		for (f in files) if (f.substr(0, f.length - 3).toLowerCase() == named) return '$dir/$f';
 		throw files.length == 0 ? '$dir: no package.json, and no .hx file with a main' : '$dir: several main files (${files.join(", ")}): name one';
+	}
+
+	static function isTypescript(path:String):Bool
+		return ~/\.(m|c)?tsx?$/.match(path) && !path.endsWith(".d.ts");
+
+	// a directory's TypeScript program: its src/main.ts(x) when it is a
+	// project without src/Main.hx, else its own main.ts(x)
+	static function typescriptMain(dir:String):Null<String> {
+		var project = FileSystem.exists('$dir/package.json');
+		var candidates = project && !FileSystem.exists('$dir/src/Main.hx') ? ['$dir/src/main.ts', '$dir/src/main.tsx'] : ['$dir/main.ts', '$dir/main.tsx'];
+		for (f in candidates) if (FileSystem.exists(f)) return f;
+		return null;
+	}
+
+	// a TypeScript program: the JavaScript runtime's main, the program given as a define
+	function typescriptFile(path:String) {
+		typescript = FileSystem.fullPath(path);
+		var dir = Path.directory(path);
+		if (dir == "") dir = ".";
+		main = "helder.typescript.js.Seed";
+		var base = Path.withoutExtension(Path.withoutDirectory(path));
+		name = base == "main" ? Path.withoutDirectory(FileSystem.fullPath(dir == "src" || dir.endsWith("/src") ? parent(dir) : dir)) : base;
+		var pj = above(dir);
+		root = pj == null ? "." : Path.directory(pj);
+		if (root == "") root = ".";
+		if (pj != null) configure(pj, false);
+		defines = defines.concat(["-D", 'helder.typescript=$typescript']);
+		finish();
+		sources.unshift(dir);
 	}
 
 	function file(path:String) {
@@ -154,6 +190,10 @@ class Entry {
 		cp = clean(cp);
 		if (!classPaths.contains(cp)) classPaths.push(cp);
 	}
+
+	// what the header names: the main class, a TypeScript program's file
+	public function label():String
+		return typescript != null ? Path.withoutDirectory(typescript) : main;
 
 	public function isWeb():Bool
 		return target == "web" || target == "wasm32-wasi";

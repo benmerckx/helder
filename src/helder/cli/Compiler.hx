@@ -46,6 +46,22 @@ class Compiler {
 		return bin ?? (win ? "haxe.cmd" : "haxe");
 	}
 
+	// helder-ts in tool()'s place (TypeScript programs, helder.typescript):
+	// hxmc's compiler with the TypeScript frontend, built once per hxmc
+	// version and per its sources into the user's cache by its build.mjs
+	// (node: it fetches hxmc's compiler sources until npm ships them)
+	public static function typescript(helder:String) {
+		tool();
+		var node = Sys.getEnv("HELDER_NODE") ?? "node";
+		var p = new sys.io.Process(node, ['$helder/helder/typescript/build.mjs']);
+		var exe = StringTools.trim(p.stdout.readAll().toString()), err = p.stderr.readAll().toString(), code = p.exitCode();
+		p.close();
+		if (code != 0 || !FileSystem.exists(exe)) throw 'helder-ts does not build:\n$err';
+		// (its first build in this cache: what it fetched and built)
+		for (line in err.split("\n")) if (line != "") Term.err(Style.status("helder-ts", Info, line));
+		found = exe;
+	}
+
 	// hxmc's std, which a compilation server's builds are given last (as the
 	// compiler gives its own builds: hxmc.HaxeMain), null if not known
 	public static function hxmcStd():Null<String> {

@@ -76,4 +76,10 @@ for(const file of fs.readdirSync(`${T}/reject`).filter(f=>f.endsWith('.ts')).sor
     assert.equal(fs.existsSync(out),false,`${file} must not emit an executable`);
     console.log(`PASS diagnostic ${file}`);
 }
+// The CLI end to end: TypeScript entries built and run by `helder run` (a file, a directory)
+for(const entry of ['examples/ts-hello/main.ts','examples/ts-hello']) {
+    const r=run(process.execPath,['src/helder/cli/run.mjs','run',entry]);ok(r,`helder run ${entry}`);
+    assert.match(r.stdout,/1\. hello, helder\n2\. hello, TypeScript\ndone\n/,`helder run ${entry}`);
+    console.log(`PASS helder run ${entry}`);
+}
 console.log(`${passed}/${(files.length+programs.length+standards.length)*targets.length} checks passed (tsc + node; native, wasm32-wasi)`);

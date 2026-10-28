@@ -69,6 +69,13 @@ available`, on macOS): id, name, kind, target.
   - a project directory: `package.json` and `src/Main.hx`;
   - an example's directory: its one main file, or the one named as the
     directory (`examples/cube` is Cube.hx, not Targets.hx);
+  - a TypeScript program: a `.ts` or `.tsx` file, a project whose entry is
+    `src/main.ts(x)` (and no `src/Main.hx`), or a directory with a
+    `main.ts(x)`: built by helder-ts, hxmc's compiler with helder's
+    TypeScript frontend (src/helder/typescript), in the compiler's place,
+    the app's own `typescript` (7.1 or later) checking it; `helder dev`
+    watches the program's files and keeps tsgo up in the compilation
+    server, a change checked and rebuilt in a few hundred ms;
   - a file: `examples/counter/Counter.hx`. Its module is the main class,
     its class path the directory its `package` line makes it (one up per
     segment: `src/app/Hello.hx` in `package app` is `-cp src -main

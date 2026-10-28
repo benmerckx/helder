@@ -304,6 +304,7 @@ class Promises {
         // (the first turn starts at least a millisecond after startup, as node's does)
         var first=true;
         while(timers.length>0 || immediates.length>0) {
+            if(!devTurn())return;
             // (timers phase: those due, in order)
             var t=now()+(first?1:0);first=false;
             var due=[for(x in timers)if(x.due<=t)x];
@@ -319,8 +320,16 @@ class Promises {
             for(x in batch){call(x.callback,undef(),x.args);drain();}
             if(immediates.length==0 && timers.length>0 && due.length==0) {
                 var next=timers[0].due;for(x in timers)if(x.due<next)next=x.due;
-                var wait=next-now();if(wait>0)Sys.sleep(wait/1000);
+                var wait=next-now();
+                // (under helder dev the dev server is heard while waiting)
+                #if hxmc.dev while(wait>50 && devTurn()){Sys.sleep(0.05);wait=next-now();} #end
+                if(wait>0)Sys.sleep(wait/1000);
             }
         }
+    }
+    // A turn's word with helder dev (helder.dev.Hot, as helder.os.App's loop
+    // has it): false once a reload asked this build to end.
+    static inline function devTurn():Bool {
+        #if (hxmc.dev && target.name == "hxmc") return helder.dev.Hot.poll(); #else return true; #end
     }
 }

@@ -17,9 +17,14 @@ class Project {
 	public final isJS:Bool;
 	final modules:Map<Node, String> = [];
 
+	// the program's source files the last check found, also when it failed
+	// (what a watcher follows)
+	public static var read(default, null):Array<String> = [];
+
 	static var session:Null<{key:String, tsgo:Tsgo, tables:Tables}> = null;
 
 	public static function check(entry:String, globals:String):Project {
+		read = [haxe.io.Path.normalize(sys.FileSystem.fullPath(entry))];
 		var found = Tsgo.find(haxe.io.Path.directory(entry));
 		var key = found.exe + "\n" + Sys.getCwd();
 		if (session != null && session.key != key) {
@@ -69,13 +74,14 @@ class Project {
 	function load(tsgo:Tsgo, tables:Tables, at:{snapshot:Dynamic, project:Dynamic}, absolute:String, globals:String) {
 		var names:Array<String> = tsgo.call("getSourceFileNames", at);
 		var sources = [for (n in names) if (!StringTools.endsWith(n, ".d.ts") && n != globals) n];
+		read = sources;
 		var errors:Array<String> = [];
 		function report(list:Array<Dynamic>)
 			if (list != null) for (d in list) {
 				var where = d.fileName == null ? path : relative(d.fileName) + ":" + (d.startPosition.line + 1);
-				if (d.startPosition != null && d.endPosition != null && d.startPosition.line == d.endPosition.line)
-					where += ": characters " + d.startPosition.character + "-" + d.endPosition.character;
-				errors.push(where + " : TS" + d.code + ": " + message(d));
+				if (d.fileName != null && d.startPosition != null && d.endPosition != null && d.startPosition.line == d.endPosition.line)
+					where += ": characters " + d.startPosition.character + "-" + d.endPosition.character + " ";
+				errors.push(where + ": TS" + d.code + ": " + message(d));
 			}
 		report(tsgo.call("getProgramDiagnostics", at));
 		report(tsgo.call("getSyntacticDiagnostics", {snapshot: at.snapshot, project: at.project, files: sources}));

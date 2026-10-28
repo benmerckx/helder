@@ -43,6 +43,8 @@ class Compiler {
 		hxmc.TargetFlags.install();
 		hxmc.StdDce.install();
 		var failed:Null<String> = null;
+		// (a compilation server keeps what it can between builds, as hxmc's does: tsgo too)
+		for (a in ["--wait", "--server-listen", "--server-connect"]) if (args.contains(a)) hxmc.Driver.resident = true;
 		compiler.Compiler.generateHook = function(com) {
 			if (args.contains("--no-output") && !core.Define.rawDefined(com.defines, DEFINE)) return;
 			switch com.platform {
@@ -54,7 +56,7 @@ class Compiler {
 				if (entry == "") @:privateAccess hxmc.Main.generate(com, com.file) else generate(com, entry);
 			} catch (e:Dynamic) {
 				if (Sys.getEnv("HELDER_TS_DEBUG") == "1") Sys.stderr().writeString(haxe.CallStack.toString(haxe.CallStack.exceptionStack()) + "\n");
-				if (hxmc.Driver.resident) com.error(Std.string(e), core.Globals.nullPos) else failed = Std.string(e);
+				if (hxmc.Driver.resident) for (m in messages(Std.string(e))) com.error(m.text, m.pos) else failed = Std.string(e);
 			}
 		}
 		var code = haxe.Main.run(args);
@@ -82,7 +84,18 @@ class Compiler {
 		hxmc.ir.Reach.stacksAlways = o.stacksAlways;
 		hxmc.ir.RuntimeSymbols.check(com, abi.wasm ? hxmc.ir.RuntimeSymbols.WASM32 : hxmc.ir.RuntimeSymbols.NATIVE, abi.name);
 		phase("type (haxe)");
-		var project = Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"]));
+		// (helder dev's watcher: the program's files, beside the modules
+		// helder.cli.Deps wrote; a failed check's too, so a fix is seen)
+		var deps = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".deps", "");
+		function listFiles() if (deps != "") {
+			var listed = sys.FileSystem.exists(deps) ? sys.io.File.getContent(deps) : "";
+			sys.io.File.saveContent(deps, listed + [for (f in Project.read) f + "\n"].join(""));
+		}
+		var project = try Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"])) catch (e:Dynamic) {
+			listFiles();
+			throw e;
+		}
+		listFiles();
 		phase("check (tsgo)");
 		var p = hxmc.ir.Lower.program(context.Common.getEntryPoint(com).cls, com.types, com.basic);
 		phase("lower runtime");
@@ -104,6 +117,43 @@ class Compiler {
 		}
 		hxmc.Driver.run(p, com.file, o);
 		phase("generate");
+	}
+
+	// An error's lines as the compiler's messages, at their positions
+	// (`file:line: characters a-b : text`, `file:line: text`): what a
+	// compilation server's client gets, Haxe's own format.
+	static function messages(error:String):Array<{text:String, pos:core.Globals.Pos}> {
+		var ranged = ~/^(.+?):([0-9]+): characters ([0-9]+)-([0-9]+) : (.*)$/, lined = ~/^(.+?):([0-9]+): (.*)$/;
+		return [for (line in error.split("\n")) if (line != "") {
+			if (ranged.match(line)) {text: ranged.matched(5), pos: position(ranged.matched(1), Std.parseInt(ranged.matched(2)), Std.parseInt(ranged.matched(3)), Std.parseInt(ranged.matched(4)))};
+			else if (lined.match(line)) {text: lined.matched(3), pos: position(lined.matched(1), Std.parseInt(lined.matched(2)), -1, -1)};
+			else {text: line, pos: core.Globals.nullPos};
+		}];
+	}
+
+	// a position in a file, as Haxe's: byte offsets; from a line (1-based) and
+	// UTF-16 columns (-1: the whole line)
+	static function position(file:String, line:Int, from:Int, to:Int):core.Globals.Pos {
+		var bytes = try sys.io.File.getBytes(file) catch (_:Dynamic) return core.Globals.nullPos;
+		var start = 0;
+		for (_ in 1...line) {
+			while (start < bytes.length && bytes.get(start) != "\n".code) start++;
+			start++;
+		}
+		var end = start;
+		while (end < bytes.length && bytes.get(end) != "\n".code) end++;
+		if (from < 0) return new core.Globals.Pos(FileSystem.fullPath(file), start, end);
+		// (UTF-16 columns to bytes)
+		function at(column:Int):Int {
+			var p = start, units = 0;
+			while (p < end && units < column) {
+				var c = bytes.get(p);
+				p += c < 0x80 ? 1 : c < 0xE0 ? 2 : c < 0xF0 ? 3 : 4;
+				units += c >= 0xF0 ? 2 : 1;
+			}
+			return p;
+		}
+		return new core.Globals.Pos(FileSystem.fullPath(file), at(from), at(to));
 	}
 
 	// `helder-ts <entry> ...` as the compiler's own command line

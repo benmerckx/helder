@@ -85,6 +85,10 @@ class DevCommand {
 			Term.err(Style.usage('helder dev: $err'));
 			return 2;
 		}
+		if (e.typescript != null) try Compiler.typescript(e.helder) catch (err:Dynamic) {
+			Term.err(Style.status("error", Fail, Std.string(err)));
+			return 1;
+		}
 		web = e.isWeb();
 		if (!web && e.target != Compiler.hostTarget()) {
 			Term.err(Style.usage('helder dev: ${e.target} is not this machine (${Compiler.hostTarget()}); helder build --target ${e.target} builds for it'));
@@ -94,7 +98,7 @@ class DevCommand {
 		// their program is the app on the phone and ExitPolicy's Mobile: the
 		// app closed there does not end the session)
 		platform = web ? Web : Desktop;
-		Term.out(Style.header("dev", [web ? "web" : e.target, e.main]));
+		Term.out(Style.header("dev", [web ? "web" : e.target, e.label()]));
 		if (web) e.target = "web";
 		cwd = Sys.getCwd();
 		hosted = !web && Sys.getEnv("HELDER_DEV_HOST") != "0"
@@ -177,7 +181,7 @@ class DevCommand {
 				if (FileSystem.isDirectory(p)) {
 					dirs.push(p);
 					walk(p, all);
-				} else if (all || n.endsWith(".hx")) files.push(p);
+				} else if (all || n.endsWith(".hx") || ~/\.(m|c)?tsx?$/.match(n)) files.push(p);
 			}
 		var deps = try File.getContent(depsFile()).split("\n") catch (_:Dynamic) null;
 		if (deps == null) for (r in roots) {
@@ -229,6 +233,8 @@ class DevCommand {
 		// backslashes would be escapes)
 		var deps = (FileSystem.fullPath(Path.directory(out)) + "/" + Path.withoutDirectory(depsFile())).split("\\").join("/");
 		var extra = ["-D", 'helder.name=${e.name}', "--macro", 'helder.cli.Deps.write("$deps")'];
+		// (a TypeScript program's files, which no Haxe module names: helder-ts adds them)
+		if (e.typescript != null) extra = extra.concat(["-D", 'helder.typescript.deps=$deps']);
 		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
 		// (Windows: a DLL at a base of its own, not the one the running build's DLL has, nor the build's before)
 		if (hosted && e.target.startsWith("windows-")) extra = extra.concat(["-D", "hxmc.dll-base=" + ["0x10000000", "0x30000000", "0x50000000"][(libCount + 1) % 3]]);
