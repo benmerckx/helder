@@ -1,41 +1,51 @@
 package helder.cli;
 
 import helder.async.Async;
+import helder.cli.Options.Usage;
 
 // The helder command, a native program on helder.async (its processes,
-// sockets and file watching): `helder <command> [args...]`. Built from this
-// checkout by `bun run helder` (bin/cli/helder, when a source changed).
+// sockets and file watching):
+//
+//   helder <command> [entry] [options]
+//   helder <entry>                        shorthand for: helder dev <entry>
+//
+// the grammar and the help Options'. Built from this checkout by `bun run
+// helder` (bin/cli/helder, when a source changed).
 class Cli {
-	static final commands = [
-		{name: "dev", about: "build, run and reload on every change: this machine, or web (a page)"},
-		{name: "build", about: "a release build: bin/<target>/<name>, its time and size"},
-		{name: "run", about: "a release build for this machine, run"},
-		{name: "test", about: "build and run the *.test.hx files (helder.test)"},
-		{name: "inspect", about: "a running helder dev's program: its ui tree, log or frames (the devtools protocol)"},
-	];
-
 	static function main() {
-		var args = Sys.args();
-		switch args.shift() {
+		var o = try {
+			var r = Options.route(Sys.args());
+			if (r.command == "help") {
+				if (r.args.length > 1 || (r.args.length == 1 && !Options.isCommand(r.args[0])))
+					throw new Usage('helder help: no command ${r.args.join(" ")} (helder help)');
+				Sys.println(Options.helpText(r.args[0]));
+				Sys.exit(0);
+			}
+			Options.parse(r.command, r.args);
+		} catch (e:Usage) {
+			Sys.stderr().writeString(e.message + "\n");
+			Sys.exit(2);
+			null;
+		}
+		if (o.help) {
+			Sys.println(Options.helpText(o.command));
+			Sys.exit(0);
+		}
+		switch o.command {
 			case "build":
-				Async.main(_ -> Sys.exit(BuildCommand.run(args, false)));
+				Async.main(_ -> Sys.exit(BuildCommand.run(o, false)));
 			case "run":
-				Async.main(_ -> Sys.exit(BuildCommand.run(args, true)));
+				Async.main(_ -> Sys.exit(BuildCommand.run(o, true)));
 			case "dev":
-				Async.main(task -> Sys.exit(DevCommand.run(task, args)));
+				Async.main(task -> Sys.exit(DevCommand.run(task, o)));
 			case "test":
-				Async.main(task -> Sys.exit(TestCommand.run(task, args)));
+				Async.main(task -> Sys.exit(TestCommand.run(task, o)));
 			case "inspect":
-				Async.main(task -> Sys.exit(Inspect.run(task, args)));
-			case null | "help" | "-h" | "--help":
-				Sys.println("helder <command> [args...]\nhelder [target] <entry>: dev's\n");
-				for (c in commands) Sys.println('  ${StringTools.rpad(c.name, " ", 8)} ${c.about}');
-			// (no command, an entry or a target: helder examples/todo/Todo.hx is dev's)
-			case c if (StringTools.endsWith(c, ".hx") || c == "web" || c == "host" || sys.FileSystem.exists(c)):
-				args.unshift(c);
-				Async.main(task -> Sys.exit(DevCommand.run(task, args)));
+				Async.main(task -> Sys.exit(Inspect.run(task, o)));
+			case "devices":
+				Async.main(_ -> Sys.exit(Devices.run(o)));
 			case c:
-				Sys.println('helder: no command $c (helder help)');
+				Sys.stderr().writeString('helder: no command $c (helder help)\n');
 				Sys.exit(2);
 		}
 	}

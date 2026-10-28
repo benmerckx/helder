@@ -20,47 +20,13 @@ using StringTools;
 class TestCommand {
 	public static inline var GEN = "bin/test/src";
 
-	static final usage = [
-		"helder test [file or name filter...] [options]",
-		"",
-		"  a filter that is part of a test file's path picks those files, any other",
-		"  one the tests whose name (\"describe > test\") contains it",
-		"",
-		"  -t <text>         the tests whose name contains it (/text/: a regex)",
-		"  --target <t>      host (the default), interp, wasm or all; several: host,wasm",
-		"  --watch, -w       run again on every change (a compilation server's builds)",
-		"  -u                rewrite the snapshots that differ",
-		"  --timeout <s>     seconds an async test may take (5)",
-	].join("\n");
-
-	@:coroutine public static function run(task:Node, args:Array<String>):Int {
-		var filters = [], targets = ["host"], watch = false, runner = [];
-		var i = 0;
-		while (i < args.length) {
-			var a = args[i++];
-			if (["-t", "--test-name-pattern", "--target", "--timeout"].contains(a) && i == args.length) {
-				Sys.println('helder test: $a takes a value\n\n$usage');
-				return 2;
-			}
-			switch a {
-				case "-t" | "--test-name-pattern": runner = runner.concat(["-t", args[i++]]);
-				case "--target": targets = args[i++].split(",");
-				case "--watch" | "-w": watch = true;
-				case "-u" | "--update-snapshots": runner.push("-u");
-				case "--timeout": runner = runner.concat(["--timeout", args[i++]]);
-				case "-h" | "--help":
-					Sys.println(usage);
-					return 0;
-				case _ if (a.startsWith("-")):
-					Sys.println('helder test: unknown option $a\n\n$usage');
-					return 2;
-				case _: filters.push(a);
-			}
-		}
-		if (targets.contains("all")) targets = ["host", "interp", "wasm"];
-		for (t in targets) if (!["host", "interp", "wasm"].contains(t)) {
-			Sys.println('helder test: no target $t (host, interp, wasm, all)');
-			return 2;
+	@:coroutine public static function run(task:Node, o:Options):Int {
+		var filters = o.positionals, targets = o.targets, watch = o.has("watch"), runner = [];
+		for (x in o.own) switch x.key {
+			case "test-name-pattern": runner = runner.concat(["-t", x.value]);
+			case "update-snapshots": runner.push("-u");
+			case "timeout": runner = runner.concat(["--timeout", x.value]);
+			case _:
 		}
 		var p = new Project();
 		if (!watch) return once(p, filters, targets, runner, null);

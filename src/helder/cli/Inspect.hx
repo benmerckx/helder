@@ -15,40 +15,13 @@ using StringTools;
 // helder dev kept) and the frames' stats streamed until the dev server
 // ends. The devtools app comes later; this proves the protocol.
 class Inspect {
-	static final usage = [
-		"helder inspect [--tree] [--state] [--log] [--frames] [--port <n>] [dir]",
-		"",
-		"  --tree    the ui tree (Ui.getTree), once",
-		"  --state   the keys helder.dev.Hot keeps (Runtime.state), once",
-		"  --log     the log, then each entry as it comes (the default)",
-		"  --frames  the frames' stats, a line per batch",
-		"  --port    helder dev's HTTP port (else bin/dev/devtools.json, from dir or here up)",
-	].join("\n");
-
 	static var ws:WebSocket;
 	static var nextId = 1;
 	static final waiting = new Map<Int, Dynamic>();
 
-	@:coroutine public static function run(task:Node, args:Array<String>):Int {
-		var tree = false, state = false, log = false, frames = false, port = -1, dir = ".";
-		var i = 0;
-		while (i < args.length) {
-			var a = args[i++];
-			switch a {
-				case "--tree": tree = true;
-				case "--state": state = true;
-				case "--log": log = true;
-				case "--frames": frames = true;
-				case "--port" if (i < args.length): port = Std.parseInt(args[i++]) ?? -1;
-				case "-h" | "--help":
-					Sys.println(usage);
-					return 0;
-				case _ if (a.startsWith("-")):
-					Sys.println('helder inspect: unknown option $a\n\n$usage');
-					return 2;
-				case _: dir = a;
-			}
-		}
+	@:coroutine public static function run(task:Node, o:Options):Int {
+		var tree = o.has("tree"), state = o.has("state"), log = o.has("log"), frames = o.has("frames");
+		var port = Std.parseInt(o.value("port") ?? "") ?? -1, dir = o.positionals[0] ?? ".";
 		if (!tree && !state && !frames) log = true;
 		var host = "127.0.0.1", path = "/__helder/devtools";
 		if (port < 0) {

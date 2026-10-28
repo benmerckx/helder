@@ -5,48 +5,27 @@ import sys.FileSystem;
 
 using StringTools;
 
-// `helder build [target] [entry]`: a release build (-dce full) into
-// bin/<target>/<name>, its compile time and size printed; for web the page
-// and its modules beside the module (bin/web/<name>.html). `helder run
-// [entry] [-- args...]`: the same for this machine, then run.
+// `helder build [entry] [--target <t>] [-o <path>]`: a release build (-dce
+// full) into bin/<target>/<name>, its compile time and size printed; for
+// web the page and its modules beside the module (bin/web/<name>.html).
+// `helder run [entry] [-o <path>] [-- args...]`: the same for this machine,
+// then run. (Their options: Options.)
 class BuildCommand {
-	static final usage = [
-		"helder build [target] [entry] [-o <output>]",
-		"helder run [entry] [-o <output>] [-- program arguments...]",
-		"",
-		"  target   host (the default: this machine), web (wasm32-wasi and its page),",
-		"           or an hxmc target: " + Entry.TARGETS.slice(2).join(", "),
-		"  entry    a project directory (package.json, src/Main.hx; the default: .),",
-		"           an example's directory (its main file) or a .hx file",
-	].join("\n");
-
-	@:coroutine public static function run(args:Array<String>, andRun:Bool):Int {
-		var rest = [], out:Null<String> = null, programArgs = [];
-		var i = 0;
-		while (i < args.length) {
-			var a = args[i++];
-			switch a {
-				case "--":
-					programArgs = args.slice(i);
-					break;
-				case "-o" | "--out" if (i < args.length): out = args[i++];
-				case "-h" | "--help":
-					Sys.println(usage);
-					return 0;
-				case _ if (a.startsWith("-")):
-					Sys.println('helder: unknown option $a\n\n$usage');
-					return 2;
-				case _: rest.push(a);
-			}
-		}
-		var e = try Entry.resolve(rest) catch (err:Dynamic) {
-			Sys.println('helder: $err');
+	@:coroutine public static function run(o:Options, andRun:Bool):Int {
+		var e = try Entry.of(o) catch (err:Dynamic) {
+			Sys.stderr().writeString('helder ${o.command}: $err\n');
 			return 2;
 		}
+		var host = Compiler.hostTarget();
 		if (andRun && e.isWeb()) {
-			Sys.println("helder run: this machine's targets only (helder dev web serves a page)");
+			Sys.stderr().writeString("helder run: this machine only (helder dev --target web serves a page; helder build --target web builds one)\n");
 			return 2;
 		}
+		if (andRun && e.target != host) {
+			Sys.stderr().writeString('helder run: ${e.target} is not this machine ($host); helder build --target ${e.target} builds for it\n');
+			return 2;
+		}
+		var out = o.out, programArgs = o.programArgs ?? [];
 		var exe = out ?? e.out(e.target);
 		var r = build(e, exe, Release);
 		if (!r.ok) return 1;

@@ -11,7 +11,7 @@ import sys.io.File;
 
 using StringTools;
 
-// `helder dev [host | web] [entry]`: the dev loop, ported from @hxmc/cli's
+// `helder dev [entry] [--target host | web] [-- args]`: the dev loop, ported from @hxmc/cli's
 // dev.mjs. The compiler stays resident (CompileServer, --server-connect);
 // what the last build read is watched (SampledWatcher: the module files
 // Deps writes, their directories, and assets/), and a change builds again
@@ -42,13 +42,6 @@ using StringTools;
 // /__helder/devtools on the HTTP port (natively too: bin/dev/devtools.json
 // names it).
 class DevCommand {
-	static final usage = [
-		"helder dev [host | web] [entry] [--port <n>] [--host <address>] [-- program arguments...]",
-		"",
-		"  entry: a project directory (the default: .), an example's directory or a .hx file",
-		"  --port: the HTTP port, the page's and the devtools' (4321, else the next free one)",
-	].join("\n");
-
 	static var e:Entry;
 	static var out:String;
 	static var server:CompileServer;
@@ -80,33 +73,16 @@ class DevCommand {
 	// web: the pages connected
 	static final clients:Array<WebSocket> = [];
 
-	@:coroutine public static function run(task:Node, args:Array<String>):Int {
-		var rest = [], port = Std.parseInt(Sys.getEnv("HELDER_DEV_PORT") ?? "") ?? 4321, address = "127.0.0.1";
-		var i = 0;
-		while (i < args.length) {
-			var a = args[i++];
-			switch a {
-				case "--":
-					programArgs = args.slice(i);
-					break;
-				case "--port" if (i < args.length): port = Std.parseInt(args[i++]) ?? port;
-				case "--host" if (i < args.length): address = args[i++];
-				case "-h" | "--help":
-					Sys.println(usage);
-					return 0;
-				case _ if (a.startsWith("-")):
-					Sys.println('helder dev: unknown option $a\n\n$usage');
-					return 2;
-				case _: rest.push(a);
-			}
-		}
-		e = try Entry.resolve(rest) catch (err:Dynamic) {
-			Sys.println('helder dev: $err');
+	@:coroutine public static function run(task:Node, o:Options):Int {
+		var port = Std.parseInt(o.value("port") ?? Sys.getEnv("HELDER_DEV_PORT") ?? "") ?? 4321, address = o.value("host") ?? "127.0.0.1";
+		programArgs = o.programArgs ?? [];
+		e = try Entry.of(o) catch (err:Dynamic) {
+			Sys.stderr().writeString('helder dev: $err\n');
 			return 2;
 		}
 		web = e.isWeb();
 		if (!web && e.target != Compiler.hostTarget()) {
-			Sys.println('helder dev: ${e.target} is not this machine (${Compiler.hostTarget()}); helder build ${e.target} builds for it');
+			Sys.stderr().writeString('helder dev: ${e.target} is not this machine (${Compiler.hostTarget()}); helder build --target ${e.target} builds for it\n');
 			return 2;
 		}
 		if (web) e.target = "web";

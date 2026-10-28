@@ -6,8 +6,8 @@ import sys.io.File;
 
 using StringTools;
 
-// What `helder build`, `run` and `dev` build, from their arguments: a
-// target and an entry, each optional, told apart by the target's names.
+// What `helder build`, `run` and `dev` build: the entry (their one
+// positional, never a target: Options) for a target (--target).
 //
 //   (nothing)                the working directory, a project
 //   examples/counter         a project (package.json, src/Main.hx), else a
@@ -24,12 +24,10 @@ using StringTools;
 // helder.hxml beside it, given to every build. Outputs go to the project's
 // bin/<target>/<name>.
 class Entry {
-	public static final TARGETS = [
-		"host", "web", "linux-x86_64", "linux-arm64", "macos-x86_64", "macos-arm64", "windows-x86_64", "windows-arm64", "wasm32-wasi"
-	];
-
 	// "web" or an hxmc target (host resolved)
 	public var target:String;
+	// -d/--device: which phone, emulator or simulator (android, ios), null for none
+	public var device(default, null):Null<String> = null;
 	public var main(default, null):String;
 	public var name(default, null):String;
 	// the project's directory (bin/ is under it); the class paths, the entry's own first
@@ -44,16 +42,11 @@ class Entry {
 
 	function new() {}
 
-	// from the arguments (the options taken out); an error's message thrown
-	public static function resolve(args:Array<String>):Entry {
+	// the entry (null: .) for a target (null: host); an error's message thrown
+	public static function resolve(path:Null<String>, ?target:String, ?device:String):Entry {
 		var e = new Entry();
-		var path:Null<String> = null;
-		e.target = "host";
-		for (a in args) {
-			if (TARGETS.contains(a) && !FileSystem.exists(a)) e.target = a;
-			else if (path == null) path = a;
-			else throw 'one entry, not $path and $a';
-		}
+		e.target = target ?? "host";
+		e.device = device;
 		if (e.target == "host") e.target = Compiler.hostTarget();
 		path = clean(path ?? ".");
 		if (!FileSystem.exists(path)) throw '$path: no such file or directory';
@@ -63,7 +56,11 @@ class Entry {
 		return e;
 	}
 
-	// a directory's main file: the only one with a main, else the one named as the directory
+	// (from Options: the entry and the target)
+	public static function of(o:Options):Entry
+		return resolve(o.entry, o.target, o.device);
+
+// a directory's main file: the only one with a main, else the one named as the directory
 	static function mainOf(dir:String):String {
 		var files = [for (f in FileSystem.readDirectory(dir)) if (f.endsWith(".hx") && ~/static\s+function\s+main\s*\(/.match(File.getContent('$dir/$f'))) f];
 		files.sort(Reflect.compare);
