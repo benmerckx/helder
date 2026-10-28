@@ -13,6 +13,7 @@ import helder.os.Event;
 // Mods.TOUCH at its speed slowing 5% a frame (60 a second), until under half
 // a pixel a frame. A new touch stops a glide. Positions in pixels, times in
 // milliseconds (the touches' own; the glide's a clock of its own: glide).
+// The glide's physics: Glide (ui's TouchScroll's too).
 // Neither a drag nor a tap sends mouse events of its own. The
 // compatibility events of Pointers.emulate: the windows send the pointers'
 // own events beside them.
@@ -24,7 +25,7 @@ class TouchDrag {
 	// a drag starts this far from where the finger came down (points)
 	public static inline var SLOP = 8.0;
 	// a glide's frame (ms)
-	public static inline var FRAME = 1000 / 60;
+	public static inline var FRAME = Glide.FRAME;
 
 	// where the gesture started (its scrolls' and its tap's position)
 	public var x(default, null) = 0.0;
@@ -36,30 +37,22 @@ class TouchDrag {
 	public var dragging(default, null) = false;
 	public var gliding(get, never):Bool;
 
-	// the finger's last position and time, its speed (pixels a ms, smoothed)
+	// the finger's last position, its speed and the glide (pixels)
 	var lx = 0.0;
 	var ly = 0.0;
-	var t = 0.0;
-	var vx = 0.0;
-	var vy = 0.0;
 	var slop = SLOP;
-	// the glide's speed (pixels a frame) and its last step's time (< 0: none yet)
-	var gx = 0.0;
-	var gy = 0.0;
-	var gt = -1.0;
+	final g = new Glide();
 
 	public function new() {}
 
 	inline function get_gliding():Bool
-		return gx != 0 || gy != 0;
+		return g.gliding;
 
 	// a finger down at x, y; scale: pixels per point (the slop's)
 	public function press(x:Float, y:Float, time:Float, scale:Float) {
-		stop();
+		g.start(time);
 		this.x = lx = x;
 		this.y = ly = y;
-		t = time;
-		vx = vy = 0;
 		slop = SLOP * scale;
 		down = true;
 		dragging = false;
@@ -74,12 +67,9 @@ class TouchDrag {
 		}
 		dx = lx - x;
 		dy = ly - y;
-		var dt = Math.max(1, time - t);
-		vx = 0.8 * (dx / dt) + 0.2 * vx;
-		vy = 0.8 * (dy / dt) + 0.2 * vy;
+		g.move(dx, dy, time);
 		lx = x;
 		ly = y;
-		t = time;
 		return true;
 	}
 
@@ -92,42 +82,21 @@ class TouchDrag {
 		if (!dragging) return cancelled ? NONE : TAP;
 		dragging = false;
 		dx = dy = 0;
-		if (!cancelled && time - t <= 100) {
-			gx = vx * 16;
-			gy = vy * 16;
-			gt = -1;
-		}
+		if (!cancelled) g.release(time);
 		return END;
 	}
 
 	// the glide's scroll up to now (ms, any clock: its first step at once):
 	// whether there is one (by dx, dy; no Mods.TOUCH)
 	public function glide(now:Float):Bool {
-		if (!gliding) return false;
-		// (half a frame's slack: a loop the display paces steps once a frame)
-		if (gt < 0) gt = now - 1.5 * FRAME;
-		var sx = 0.0, sy = 0.0;
-		while (now - gt >= FRAME) {
-			gt += FRAME;
-			gx *= 0.95;
-			gy *= 0.95;
-			if (Math.sqrt(gx * gx + gy * gy) < 0.5) {
-				stop();
-				break;
-			}
-			sx += gx;
-			sy += gy;
-		}
-		if (sx == 0 && sy == 0) return false;
-		dx = sx;
-		dy = sy;
+		if (!g.step(now)) return false;
+		dx = g.dx;
+		dy = g.dy;
 		return true;
 	}
 
-	public function stop() {
-		gx = gy = 0;
-		gt = -1;
-	}
+	public function stop()
+		g.stop();
 
 	// at most seconds, at most a glide's frame while it glides (a loop's wait)
 	public function wait(seconds:Float):Float
