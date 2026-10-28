@@ -110,6 +110,11 @@ class TestCommand {
 		return failed ? 1 : 0;
 	}
 
+	// (the assets the tests name, helder.asset's: each build's hooks, also when
+	// the compilation server reuses the modules that name them; natively in
+	// the executable, for wasm beside it in bin/test/assets/)
+	static final BUNDLE = ["--macro", "helder.asset.Bundle.use()"];
+
 	@:coroutine static function target(t:String, p:Project, cp:Array<String>, runner:Array<String>, map:Mapper, server:Null<Int>):{ok:Bool, summary:String} {
 		var connect = server == null ? [] : ["--connect", Std.string(server)];
 		var t0 = haxe.Timer.stamp();
@@ -119,11 +124,12 @@ class TestCommand {
 				// (built and run by one process: Eval)
 				Term.out("");
 				Term.out(Style.status("running", Info, "interp" + Style.dim(Style.sep() + "built and run by the compiler (Eval)")));
-				out = Output.of(Compiler.tool(), cp.concat(["--run", "HelderTestInterp"]).concat(runner), map, "building and running the tests on interp");
+				out = Output.of(Compiler.tool(), cp.concat(BUNDLE).concat(["--run", "HelderTestInterp"]).concat(runner), map, "building and running the tests on interp");
 				return {ok: out.code == 0, summary: out.summary() + ' (${secs(haxe.Timer.stamp() - t0)} built and run)'};
 			case "wasm":
 				var exe = "bin/test/test.wasm";
-				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "-D", "hxmc.target=wasm32-wasi", "--custom-target", 'hxmc=$exe']), map, "building the tests for wasm");
+				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(BUNDLE).concat(["-main", "HelderTestMain", "-D", "hxmc.target=wasm32-wasi", "--custom-target", 'hxmc=$exe']), map,
+					"building the tests for wasm");
 				var built = haxe.Timer.stamp() - t0;
 				if (b.code != 0) return buildFailed(t, built);
 				Term.out("");
@@ -136,7 +142,8 @@ class TestCommand {
 				var exe = Sys.systemName() == "Windows" ? "bin/test/host.exe" : "bin/test/host";
 				// (Linux: the dynamic glibc mode, as helder build's: tests of helder.os link the system's libraries)
 				var mode = Sys.systemName() == "Linux" ? ["-D", "hxmc.libc=glibc"] : [];
-				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "--custom-target", 'hxmc=$exe']).concat(mode), map, "building the tests for host");
+				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(BUNDLE).concat(["-main", "HelderTestMain", "--custom-target", 'hxmc=$exe']).concat(mode), map,
+					"building the tests for host");
 				var built = haxe.Timer.stamp() - t0;
 				if (b.code != 0) return buildFailed(t, built);
 				Term.out("");

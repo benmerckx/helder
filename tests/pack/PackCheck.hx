@@ -38,18 +38,23 @@ using StringTools;
 //   file: a CodeDirectory, ad hoc, identified by the bundle id, its page
 //   hashes recomputed, its special slots the hashes of Info.plist (1), the
 //   requirements (2), CodeResources (3) and the entitlements (5) when signed;
+// - the assets (both; @assets=<dir>:<key>,<key>... names them, else none):
+//   exactly those under assets/ (an APK's stored and 4-byte aligned), each
+//   the bytes of <dir>/<key>; a bundle's CodeResources has their SHA-1
+//   (files) and SHA-1 and SHA-256 (files2);
 // - on a Mac, codesign --verify and plutil -lint;
 // - fullscreen (both): the program built with -D helder.fullscreen (the
 //   project's line saying so in the library or the executable).
 // Exits non-zero on a failure; a missing tool is a line saying so.
 class PackCheck {
 	static var failures = 0;
-	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool} = {
+	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool, assets:{dir:String, keys:Array<String>}} = {
 		id: null,
 		entitlements: false,
 		views: null,
 		orientation: "any",
-		fullscreen: false
+		fullscreen: false,
+		assets: {dir: "", keys: []}
 	};
 	static final dir = "bin/pack/check";
 
@@ -80,7 +85,14 @@ class PackCheck {
 			// with them; @views, @surface: org.hxmc.Activity or NativeActivity;
 			// @portrait, @landscape: the orientation (else any); @fullscreen)
 			var parts = a.split("@");
+			var listed = Lambda.find(parts, p -> p.startsWith("assets="));
+			var assets = listed == null ? {dir: "", keys: []} : {
+				dir: listed.substring(7, listed.indexOf(":")),
+				keys: listed.substr(listed.indexOf(":") + 1).split(",")
+			};
+			assets.keys.sort(Reflect.compare);
 			want = {
+				assets: assets,
 				id: parts[1] == "" ? null : parts[1],
 				entitlements: parts.contains("entitlements"),
 				views: parts.contains("views") ? true : parts.contains("surface") ? false : null,
@@ -110,7 +122,9 @@ class PackCheck {
 			check('zip: ${e.name} aligned to $align', e.dataAt % align == 0, "at " + e.dataAt);
 		}
 		if (has("zipalign")) check("zipalign -c -P 16 4", exec("zipalign", ["-c", "-P", "16", "4", path]).code == 0) else skip("zipalign (not found)");
-		var names = [for (e in entries) e.name];
+		var all = [for (e in entries) e.name];
+		var names = [for (n in all) if (!n.startsWith("assets/")) n];
+		assets([for (e in entries) if (e.name.startsWith("assets/")) e.name.substr(7) => e.data]);
 		var lib = [for (n in names) if (n.startsWith("lib/")) n];
 		var code = names.contains("classes.dex");
 		check("zip: AndroidManifest.xml and one library" + (code ? ", classes.dex" : ""),
@@ -235,6 +249,15 @@ class PackCheck {
 		} else skip("openssl (not found)");
 	}
 
+	// the bundle's assets/ against what the program names (want.assets)
+	static function assets(got:Map<String, Bytes>) {
+		var keys = [for (k in got.keys()) k];
+		keys.sort(Reflect.compare);
+		check("assets: " + (want.assets.keys.length == 0 ? "none" : want.assets.keys.join(", ")), keys.join(",") == want.assets.keys.join(","), keys.join(" "));
+		for (k in want.assets.keys)
+			if (got.exists(k)) check('assets: $k the file\'s bytes', got.get(k).compare(File.getBytes('${want.assets.dir}/$k')) == 0);
+	}
+
 	// --- iOS
 
 	static function bundle(path:String) {
@@ -288,8 +311,9 @@ class PackCheck {
 		check('Info.plist: UISupportedInterfaceOrientations~ipad for ${want.orientation}', orientations("UISupportedInterfaceOrientations~ipad") == pad);
 		check("Info.plist: UIRequiresFullScreen with an orientation", (d.get("UIRequiresFullScreen") != null) == (want.orientation != "any"));
 		check("Info.plist: UIStatusBarHidden " + want.fullscreen, (d.get("UIStatusBarHidden") != null) == want.fullscreen);
-		var names = [for (k in files.keys()) k];
+		var names = [for (k in files.keys()) if (!k.startsWith("assets/")) k];
 		names.sort(Reflect.compare);
+		assets([for (k => v in files) if (k.startsWith("assets/")) k.substr(7) => v]);
 		var expected = ["Info.plist", exe, "_CodeSignature/CodeResources"];
 		expected.sort(Reflect.compare);
 		check("bundle: the executable, Info.plist, _CodeSignature/CodeResources", names.join(",") == expected.join(","), names.join(" "));
@@ -307,6 +331,32 @@ class PackCheck {
 			case _: false;
 		}
 		check("CodeResources: Info.plist's SHA-1", hashed);
+		var sealed = switch (try Plist.parse(res.toString()) catch (_:Dynamic) null) {
+			case PDict(c): {files: c.get("files"), files2: c.get("files2")};
+			case _: null;
+		}
+		for (k in want.assets.keys) {
+			var data = files.get('assets/$k');
+			if (data == null || sealed == null) continue;
+			var one = switch sealed.files {
+				case PDict(f): switch f.get('assets/$k') {
+						case PData(h): h.toHex() == haxe.crypto.Sha1.make(data).toHex();
+						case _: false;
+					}
+				case _: false;
+			}
+			var two = switch sealed.files2 {
+				case PDict(f): switch f.get('assets/$k') {
+						case PDict(e): switch e.get("hash2") {
+								case PData(h): h.toHex() == haxe.crypto.Sha256.make(data).toHex();
+								case _: false;
+							}
+						case _: false;
+					}
+				case _: false;
+			}
+			check('CodeResources: assets/$k\'s SHA-1 and SHA-256', one && two);
+		}
 		if (want.fullscreen) built(bin);
 		macho(bin, id, sim, min, info, res);
 		if (!ipa && Sys.systemName() == "Mac") {
