@@ -203,6 +203,8 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 		}
 		#if target.threaded
 		if (held > 0 && !wakes() && (wait < 0 || wait > 0.01)) wait = 0.01;
+		// (posted already: at once)
+		if (inbox.length > 0) wait = 0;
 		#end
 		#if (hxmc.target != "wasm32-wasi")
 		if (checks.length > 0 && (wait < 0 || wait > 0.01)) wait = 0.01;
@@ -229,6 +231,9 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	public function wait(seconds:Float, fd:Int) {
 		var now = haxe.Timer.stamp();
 		if (count > 0 || (live > 0 && timers[0].time <= now)) return;
+		#if target.threaded
+		if (inbox.length > 0) return;
+		#end
 		if (live > 0) {
 			var next = timers[0].time - now;
 			if (seconds < 0 || next < seconds) seconds = next;

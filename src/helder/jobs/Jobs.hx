@@ -63,17 +63,13 @@ class Jobs {
 		return out;
 	}
 
-	// (a GC job: its input written, its result read by decode)
-	@:coroutine public static function runGc<R>(fn:Ptr, input:IoBuffer, decode:Reader->R):R {
+	// (a GC job: its input written, its result's bytes, read where it was
+	// run: a closure could not return a struct as a type parameter's value)
+	@:coroutine public static function runGc(fn:Ptr, input:IoBuffer):IoBuffer {
 		var r = Run.await(fn, false, input);
 		var out = r.output;
 		r.output = cast Ptr.nil();
-		var v = try decode(new Reader(out)) catch (e:haxe.Exception) {
-			free(out);
-			throw e;
-		}
-		free(out);
-		return v;
+		return out;
 	}
 
 	@:coroutine public static function runGcVoid(fn:Ptr, input:IoBuffer):Void {
@@ -91,7 +87,7 @@ class Jobs {
 		return -1;
 	}
 
-	static inline function free(b:IoBuffer)
+	public static inline function free(b:IoBuffer)
 		if (!(cast b : Ptr).isNull()) b.free();
 
 	// (the size the pool will be: workers, else the cores but one)

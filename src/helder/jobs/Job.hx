@@ -64,6 +64,13 @@ abstract Job(Ptr) {
 		return b.isNull() ? Ptr.nil() : b.add(Buffers.HEADER);
 	}
 
+	// the result's length cut to n bytes (no more than it has: a buffer
+	// decoded in place, its tail no longer needed)
+	@:hxmc.unsafe public function truncate(n:Int) {
+		var b = Mem.getPtr(this, OUTPUT);
+		if (!b.isNull() && n >= 0 && n <= Mem.getI32(b, 12)) Buffers.header(b, n);
+	}
+
 	// (the output so far as an IoBuffer, nil for none; taken: the run no longer owns it)
 	@:allow(helder.jobs) @:hxmc.unsafe function takeOutput():IoBuffer {
 		var b = Mem.getPtr(this, OUTPUT);

@@ -307,7 +307,13 @@ class Sendable {
 		} else macro cast hxmc.unsafe.Ptr.nil();
 		if (void) return macro @:pos(pos) helder.jobs.Jobs.runGcVoid(hxmc.unsafe.Callback.addr($gen), $i);
 		var rt = TypeTools.toComplexType(ret);
-		return macro @:pos(pos) helder.jobs.Jobs.runGc(hxmc.unsafe.Callback.addr($gen), $i, (r:helder.jobs.Wire.Reader) -> (${read(ret, macro r)} : $rt));
+		return macro @:pos(pos) {
+			var out = helder.jobs.Jobs.runGc(hxmc.unsafe.Callback.addr($gen), $i);
+			var r = new helder.jobs.Wire.Reader(out);
+			var v:$rt = ${read(ret, macro r)};
+			helder.jobs.Jobs.free(out);
+			v;
+		};
 	}
 
 	static function defined(name:String):Bool
