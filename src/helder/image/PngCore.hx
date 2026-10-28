@@ -27,9 +27,10 @@ import helder.image.SpanDce; // (a workaround: see there)
 // packed, then widened to RGBA8 in place (from the end when a pixel has 32
 // bits or fewer, from the start when more); an interlaced image's passes
 // are inflated after the pixels and put in place. The pixels are the
-// buffer's first width * height * 4 bytes. Its other memory (scratch: the
-// inflater's state and tables) is allocated and freed by each decode:
-// decodes on several threads are independent. Errors are results < 0, PngDecoder's messages (message).
+// buffer's first width * height * 4 bytes. Its other memory is the
+// thread's (scratch: the inflater's state and tables, the fixed codes
+// built once), so decodes on several threads are independent and none
+// allocates. Errors are results < 0, PngDecoder's messages (message).
 class PngCore {
 	public static inline var ERR_SIGNATURE = -1;
 	public static inline var ERR_TRUNCATED = -2; // (DETAIL: the chunk's name)
@@ -211,10 +212,12 @@ class PngCore {
 
 	// (the stream at src's [at, end), the IDAT chunks after it too when chunked)
 	@:hxmc.kernel static function run(png:ReadOnlySpan<UInt8>, f:Span<Int>, src:ReadOnlySpan<UInt8>, at:Int, end:Int, chunked:Bool, w:Int, h:Int, buf:Span<UInt8>):Int {
+		var scratch = PngScratch.get();
+		if (scratch.length < SCRATCH) return ERR_MEMORY;
 		var interlaced = f[INTERLACE >> 2] == 1, rawLen = rawLength(f, w, h), px = w * h * 4;
 		if (buf.length < (interlaced ? px + rawLen : rawLen > px ? rawLen : px)) return ERR_MEMORY;
 		var raw = interlaced ? buf.sub(px, rawLen) : buf.sub(0, rawLen);
-		var r = PngScratch.inflate(src, at, end, chunked, raw);
+		var r = inflate(scratch, src, at, end, chunked, raw);
 		if (r < 0) return r;
 		if (r < rawLen) return ERR_SHORT;
 		var b = pixelBits(f), bpp = b < 8 ? 1 : b >> 3;
@@ -379,10 +382,10 @@ class PngCore {
 	static inline function scaled(v:Int, depth:Int):Int
 		return depth == 16 ? v >> 8 : depth == 8 ? v : Std.int(v * 255 / ((1 << depth) - 1));
 
-	// --- inflate: the scratch (SCRATCH bytes, PngScratch's) holds the state
+	// --- inflate: the scratch (PngScratch's, SCRATCH bytes) holds the state
 	// (a Bits) in its first STATE bytes, then Ints: each code's table (1024
 	// entries), counts (16) and symbols (288), the code lengths (320), and
-	// the fixed codes, built when a block uses them (fixed)
+	// the fixed codes, built once (fixed)
 
 	static inline var FAST = 10;
 	static inline var TABLE = 1 << FAST;
@@ -398,7 +401,7 @@ class PngCore {
 	static inline var FIXED_DIST = FIXED_LIT + CODE;
 	public static inline var SCRATCH = 4 * (FIXED_DIST + CODE);
 
-	// (the fixed codes, into the scratch)
+	// (the fixed codes, into a new scratch: PngScratch's, once a thread)
 	@:hxmc.kernel public static function fixed(scratch:Span<UInt8>) {
 		var words:Span<Int> = scratch.reinterpret();
 		var l = words.sub(LENS, 320);
@@ -431,7 +434,7 @@ class PngCore {
 		st[0].chunked = chunked ? 1 : 0;
 		var cmf = bits(st, src, 8), flg = bits(st, src, 8);
 		if (st[0].bad != 0 || st[0].p > st[0].end || cmf & 15 != 8 || ((cmf << 8) + flg) % 31 != 0 || flg & 32 != 0) return ERR_DATA;
-		var last = false, fixedBuilt = false;
+		var last = false;
 		while (!last) {
 			last = bits(st, src, 1) == 1;
 			var type = bits(st, src, 2);
@@ -461,10 +464,6 @@ class PngCore {
 				}
 				st[0].pos = pos;
 			} else if (type == 1) {
-				if (!fixedBuilt) {
-					fixed(scratch);
-					fixedBuilt = true;
-				}
 				if (!block(st, src, out, flit, fdist)) return failed(st);
 			} else if (type == 2) {
 				var hlit = bits(st, src, 5) + 257, hdist = bits(st, src, 5) + 1, hclen = bits(st, src, 4) + 4;
@@ -836,20 +835,50 @@ class PngCore {
 	function new() {}
 }
 
-// (the scratch for an inflate: PngCore.SCRATCH bytes, malloc'ed and freed
-// on hxmc, a Bytes elsewhere)
-@:access(helder.image.PngCore)
+// The calling thread's scratch for PngCore (PngCore.SCRATCH bytes, the
+// fixed codes built in it): made at the thread's first decode and kept, so
+// that no decode allocates and jobs on several threads share nothing. On
+// hxmc malloc'ed memory a thread-local holds (natively the thread's for its
+// life; on wasm32 an instance's, a worker its own); elsewhere a Bytes, the
+// thread's (Eval's threads) or the program's.
 private class PngScratch {
 	#if (target.name == "hxmc")
-	@:hxmc.unsafe @:hxmc.kernel public static function inflate(src:ReadOnlySpan<UInt8>, at:Int, end:Int, chunked:Bool, out:Span<UInt8>):Int {
-		var p:hxmc.unsafe.Ptr<UInt8> = cast hxmc.unsafe.LibC.malloc(PngCore.SCRATCH);
-		if (p.isNull()) return PngCore.ERR_MEMORY;
-		var r = PngCore.inflate(Span.unsafeOf(p, PngCore.SCRATCH), src, at, end, chunked, out);
-		hxmc.unsafe.LibC.free(p);
-		return r;
+	@:hxmc.threadLocal static var memory:hxmc.unsafe.Ptr;
+
+	// (an empty span when out of memory)
+	@:hxmc.unsafe @:hxmc.kernel public static function get():Span<UInt8> {
+		var p:hxmc.unsafe.Ptr<UInt8> = cast memory;
+		if (p.isNull()) {
+			p = cast hxmc.unsafe.LibC.malloc(PngCore.SCRATCH);
+			if (p.isNull()) return Span.unsafeOf(p, 0);
+			PngCore.fixed(Span.unsafeOf(p, PngCore.SCRATCH));
+			memory = cast p;
+		}
+		return Span.unsafeOf(p, PngCore.SCRATCH);
 	}
 	#else
-	@:hxmc.kernel public static function inflate(src:ReadOnlySpan<UInt8>, at:Int, end:Int, chunked:Bool, out:Span<UInt8>):Int
-		return PngCore.inflate(Span.ofBytes(Bytes.alloc(PngCore.SCRATCH)), src, at, end, chunked, out);
+	#if target.threaded
+	static final memory = new sys.thread.Tls<Bytes>();
+	#else
+	static var memory = new Tls();
+	#end
+
+	@:hxmc.kernel public static function get():Span<UInt8> {
+		var b = memory.value;
+		if (b == null) {
+			b = Bytes.alloc(PngCore.SCRATCH);
+			PngCore.fixed(Span.ofBytes(b));
+			memory.value = b;
+		}
+		return Span.ofBytes(b);
+	}
 	#end
 }
+
+#if (target.name != "hxmc" && !target.threaded)
+private class Tls {
+	public var value:Null<Bytes> = null;
+
+	public function new() {}
+}
+#end

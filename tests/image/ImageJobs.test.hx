@@ -26,6 +26,17 @@ function tests() {
 				equals(got.toHex(), want.toHex(), n);
 			}
 		}));
+		test("every case at once, on several workers (each thread's own tables)", async(() -> {
+			var files = [for (n in names) sys.io.File.getBytes('$dir/$n.png')];
+			var got = Async.scope(task -> Async.all([for (k in 0...3) for (f in files) task.async(_ -> {
+				var p = ImageJobs.pixels(IoBuffer.ofBytes(f));
+				var b = p.rgba.getBytes(0, p.rgba.length);
+				p.rgba.free();
+				b.toHex();
+			})]));
+			for (k in 0...got.length)
+				equals(got[k], sys.io.File.getBytes('$dir/${names[k % names.length]}.rgba').toHex(), names[k % names.length]);
+		}));
 		test("decode: an Image over the job's pixels", async(() -> {
 			var file = sys.io.File.getBytes('$dir/${names[names.length - 1]}.png');
 			var image = ImageJobs.decode(file);

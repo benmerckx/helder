@@ -26,7 +26,10 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   a GC-free job alike; on Eval and JavaScript the same code over hxmc's
   Bytes-backed spans. Its inflate is its own (as hxmc's std's), reading
   the IDAT chunks where they are (no copy of the image data), the rows
-  unfiltered and widened to RGBA8 in the one buffer. Against the decoder it replaced (d4857f3, PngDecoder on
+  unfiltered and widened to RGBA8 in the one buffer; its scratch (the
+  inflater's state and tables, the fixed codes built once) the thread's,
+  made at its first decode, so that jobs on a pool's threads (a worker's
+  own instance on wasm32) share nothing and a decode allocates nothing. Against the decoder it replaced (d4857f3, PngDecoder on
   haxe.zip's InflateImpl): the 4K photo in 184 ms instead of 259 natively
   (198 against 276 on wasm32), 33 MB of garbage instead of 119; a 48x48
   icon 0.022 ms instead of 0.027, 9 KB of garbage instead of 41; a
