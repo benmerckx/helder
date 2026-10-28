@@ -6,7 +6,7 @@ import helder.typescript.check.Syntax;
 
 // The entry file and the files it imports, parsed, bound and checked by tsgo.
 // Everything lowering needs is fetched up front: the files' ASTs, the symbols
-// of their identifiers and the targets of their module specifiers. A
+// of their identifiers, their types and the targets of their module specifiers. A
 // compilation server (`helder dev`) keeps its tsgo running between builds;
 // a one-shot build stops it before code generation.
 class Project {
@@ -15,6 +15,7 @@ class Project {
 	// (every program file that is not a declaration file)
 	public final files:Array<SourceFile> = [];
 	public final isJS:Bool;
+	public var types(default, null):Types;
 	final modules:Map<Node, String> = [];
 
 	// the program's source files the last check found, also when it failed
@@ -123,11 +124,13 @@ class Project {
 		if (errors.length == 0 && checked.length > 0)
 			report(tsgo.call("getSemanticDiagnostics", {snapshot: at.snapshot, project: at.project, files: checked}));
 		if (errors.length > 0) throw errors.join("\n");
+		types = new Types(tsgo, at, tables);
 		for (name in sources) {
 			var sf = new SourceFile(name, tsgo.request("getSourceFile", haxe.Json.stringify({snapshot: at.snapshot, project: at.project, file: name})), tables);
 			files.push(sf);
 			if (name == absolute) file = sf;
 			symbols(tsgo, at, sf);
+			types.load(sf);
 			for (i in 1...sf.count) switch sf.kindAt(i) {
 				case KindImportDeclaration | KindExportDeclaration:
 					var specifier = sf.node(i).moduleSpecifier();
@@ -158,7 +161,7 @@ class Project {
 	}
 
 	// a path as messages show it: relative to the working directory when under it
-	static function relative(file:String):String {
+	public static function relative(file:String):String {
 		var cwd = haxe.io.Path.addTrailingSlash(haxe.io.Path.normalize(Sys.getCwd()));
 		return StringTools.startsWith(file, cwd) ? file.substr(cwd.length) : file;
 	}

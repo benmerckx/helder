@@ -1728,6 +1728,9 @@ class Builtins {
 			}
 			return result;
 		});
+		// (frozen: compiled code calls Math's functions itself, so replacing
+		// one is a TypeError rather than a change the code would not see)
+		integrity(math, true);
 		var console = new JsObject(ObjectProto);
 		globals.set("console", console);
 		for (name in ["log", "info", "debug", "error", "warn", "trace"]) method(console, name, 0, (_, a, _) -> {

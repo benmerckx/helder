@@ -3,6 +3,7 @@ package helder.typescript.check;
 import haxe.io.Bytes;
 import haxe.ds.Vector;
 import helder.typescript.check.Syntax;
+import helder.typescript.check.Types.TsType;
 import helder.typescript.check.Kind;
 import helder.typescript.check.Kind.*;
 import helder.typescript.check.Syntax.Protocol.*;
@@ -25,6 +26,9 @@ class SourceFile {
 	var lines:Array<Int>;
 	// (checker symbol identities of identifiers, by node index)
 	public final symbols:Map<Int, String> = [];
+	// (the checker's types of expressions and declared names, and functions' return types, by node index)
+	public final types:Map<Int, TsType> = [];
+	public final returns:Map<Int, TsType> = [];
 	public final tables:Tables;
 	public function new(path:String, bytes:Bytes, tables:Tables) {
 		this.path = path;
@@ -197,6 +201,8 @@ class Node extends Children {
 	public var flags(get, never):Int;
 	public var parent(get, never):Node;
 	public var symbol(get, never):Null<String>;
+	// the checker's type of an expression or a declared name (Types)
+	public var tsType(get, never):Null<TsType>;
 	public function new(file:SourceFile, index:Int) {
 		this.file = file;
 		this.index = index;
@@ -215,6 +221,11 @@ class Node extends Children {
 	inline function next():Int return file.field(index, NODE_OFFSET_NEXT);
 
 	inline function get_symbol():Null<String> return file.symbols.get(index);
+
+	inline function get_tsType():Null<TsType> return file.types.get(index);
+
+	// a function's return type
+	public inline function returnType():Null<TsType> return file.returns.get(index);
 
 	function get_parent():Node {
 		if (index <= 1) return null;

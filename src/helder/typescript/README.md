@@ -69,7 +69,10 @@ entry's directory up) and speaks its protocol over the pipes: msgpack
 snapshot of the entry, with `globals.d.ts` (what the runtime provides beyond
 ECMAScript: console, timers), reports tsgo's diagnostics, then fetches each
 source file in tsgo's binary AST encoding, the symbols of its identifiers (one
-request a file) and the files its module specifiers resolve to. `Ast.hx`
+request a file), the types of its expressions and declared names (one request
+a file, then the members of the unions and the elements of the arrays among
+them, and its functions' results: `Types.hx`) and the files its module
+specifiers resolve to. `Ast.hx`
 reads that encoding in place: a pre-order table of fixed-size node records
 (kind, pos, end, next sibling, parent, data, flags), node objects made on
 first use and unique per index. Positions are UTF-16 offsets; the text is
@@ -89,10 +92,30 @@ version. Regenerating is only needed to use new syntax.
 are JavaScript values (`js/`): objects with prototypes, sparse arrays,
 closures, classes, iterators, generators, promises with an event loop,
 RegExp, Date, Map/Set, iterator helpers, ArrayBuffer/DataView, JSON and
-node's `console.log` formatting. `NumberProof.hx` proves which bindings and
-function results always hold numbers; those are F64 and compile to plain
-arithmetic. `ir/` has the IR builder, a verifier for the frontend's
+node's `console.log` formatting. `ir/` has the IR builder, a verifier for the frontend's
 functions and a text form (`--dump-ir`, the tests' round trip).
+
+### Strict: types are what values look like
+
+The checker's types decide how values are represented (`Reps.hx`): a
+`number` is an F64; an instance of a class with a layout (`Classes.hx`: a
+top-level class whose fields have plain names, extending nothing or another
+such class) is an object of its own hxmc class under the runtime's
+JsObject, its fields in typed slots; an array is the runtime's JsArray,
+its length and dense elements read in place. Everything else is a dynamic
+JavaScript value. Bindings, parameters, direct functions' results and
+fields of those types are typed slots, and code on them is plain native
+code: arithmetic on F64s, fields at fixed offsets, for-of over an array by
+index, `Math`'s functions called directly (Math is frozen).
+
+TypeScript's types can be wrong about values (`any`, `as`, a missing
+argument, `JSON.parse`). A value enters a typed slot only through a check:
+where it is not what the type says, the program stops with a TypeError
+(TSHX100) at the line where it entered, rather than computing something
+JavaScript would not. A typed class's field cannot be deleted, made
+read-only or turned into an accessor (TSHX100 as well).
+
+### Built-ins
 
 The runtime's optional built-ins (RegExp, normalize's Unicode tables,
 Date, ArrayBuffer/DataView, JSON, iterator helpers, Promise and the timers
@@ -112,7 +135,8 @@ arrays, `process` and node's other globals, calling helder's Haxe API.
 program of `cases/` and `modules/` compiled by tsc and run on node (24), and
 by helder-ts natively and as wasm32-wasi, the outputs compared; `standards/`
 check themselves where node still differs from the specification;
-`reject/` must fail with a diagnostic at the line it names.
+`reject/` must fail with a diagnostic at the line it names; `diverge/` must
+compile and stop with TSHX100 at the line it names.
 
 These sources are formatted by haxe-formatter (its master, for Haxe 4.3's
 operators) with the repository's `hxformat.json`, which keeps helder's

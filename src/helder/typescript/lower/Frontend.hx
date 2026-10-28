@@ -7,7 +7,8 @@ import helder.typescript.check.Project;
 import hxmc.ir.Ir;
 import haxe.ds.Vector;
 import helder.typescript.ir.Builder;
-import helder.typescript.lower.Flow.TypedClass;
+import helder.typescript.check.Types;
+import helder.typescript.lower.Classes.ClassLayout;
 
 private typedef Binding = {ty:Ty, ?cell:Ex, ?global:Int};
 
@@ -41,7 +42,13 @@ class Frontend {
 	var dynamicOperations = 0;
 	var serial = 0;
 	var capturedCells:Map<Local, Bool> = [];
-	var flow:Flow;
+	var types:Types;
+	var classes:Classes;
+	var reps:Reps;
+	// (the statement being lowered: where a typed slot's check reports)
+	var here:Null<Node> = null;
+	// (whether Math's functions are the built-ins: the program assigns no Math and reaches no global object)
+	var mathFixed = false;
 	var restFunctions:Map<FuncInfo, Bool> = [];
 	var argumentFunctions:Map<FuncInfo, Bool> = [];
 	// (private names visible in the class bodies being compiled: #name -> brand)
@@ -82,12 +89,28 @@ class Frontend {
 
 	function typeAt(n:Node):Ty return TRef(RAny);
 
-	function ret(n:Node):Ty return n.kind == KindFunctionDeclaration && n.name() != null && n.parent != null && n.parent.kind == KindSourceFile && flow.result(n) ? TF64 : TRef(RAny);
+	// a direct function's result: as its type says
+	function ret(n:Node):Ty return n.kind == KindFunctionDeclaration && n.name() != null && n.parent != null && n.parent.kind == KindSourceFile ? reps.rep(n.returnType()) : TRef(RAny);
 
-	function bindingType(n:Node):Ty return flow.binding(n) ? TF64 : typeAt(n);
+	// a let or const binding's, or a direct function's parameter's: as its type says
+	function bindingType(n:Node):Ty return n.name().kind == KindIdentifier ? reps.rep(n.name().tsType) : TRef(RAny);
 
-	function declareFunction(n:Node, name:String):FuncInfo {
-		var f = Builder.func(p, name, ret(n));
+	// a parameter's slot: typed unless it takes a default, is optional or a rest
+	function parameterType(n:Node):Ty
+		return n.initializer() == null && n.questionToken() == null && n.dotDotDotToken() == null ? bindingType(n) : TRef(RAny);
+
+	// (a value into a typed slot, checked: see Reps)
+	function store(e:Ex, t:Ty):Ex return reps.store(b, e, t, where());
+
+	function where():String return here == null ? src.path : Project.relative(here.file.path) + ":" + here.file.line(here.file.skipTrivia(here.pos));
+
+	// (a typed slot's value before its declaration runs)
+	function placeholder(t:Ty):Ex return t == TF64 ? EF64(0) : t.match(TRef(RObj(_))) ? ENull(t) : b.runtime("getUndefined", []);
+
+	// (typed: a direct function's typed parameters and result; a closure's
+	// arrive and leave dynamic, its parameters checked on entry: see lambda)
+	function declareFunction(n:Node, name:String, typed:Bool):FuncInfo {
+		var f = Builder.func(p, name, typed ? ret(n) : TRef(RAny));
 		var parameters = parametersOf(n);
 		if (n.kind != KindArrowFunction && usesArguments(n.body())) {
 			// (all arguments arrive as one array; parameterSetup binds the parameters from it)
@@ -103,7 +126,7 @@ class Frontend {
 				restFunctions.set(f, true);
 			}
 			// (a destructured parameter arrives in a hidden local; see parameterSetup)
-			if (a.name().kind == KindIdentifier) f.args.push(new Local(f.args.length, a.name().text, bindingType(a)));
+			if (a.name().kind == KindIdentifier) f.args.push(new Local(f.args.length, a.name().text, typed ? parameterType(a) : TRef(RAny)));
 			else f.args.push(new Local(f.args.length, "%parameter" + i, TRef(RAny)));
 		}
 		return f;
@@ -197,8 +220,10 @@ class Frontend {
 		for (f in features) b.runtime("libInstall" + f, []);
 		var eventLoop = features.contains("Promise") || features.contains("All") || features.contains("FromAsync");
 		modules = moduleOrder();
-		flow = new Flow(src);
-		typedClasses();
+		types = src.types;
+		classes = new Classes(src);
+		reps = new Reps(p, types, classes);
+		mathFixed = !features.contains("All") && !assignsMath();
 		for (m in modules) {
 			validate(m.file.root);
 			enter(m);
@@ -258,7 +283,7 @@ class Frontend {
 		for (n in sourceStatements) if (n.kind == KindFunctionDeclaration && n.body() != null && n.name() != null) {
 			var name = n.name().text;
 			if (direct(n)) {
-				functions.set(name, declareFunction(n, name));
+				functions.set(name, declareFunction(n, name, true));
 				nodes.set(name, n);
 			}
 		}
@@ -420,7 +445,7 @@ class Frontend {
 		hoist(n.body(), false);
 		parameterSetup(n);
 		statement(n.body());
-		if (f.ret == TVoid) b.out.push(SReturn(null)); else b.out.push(SReturn(b.coerce(b.runtime("getUndefined", []), f.ret)));
+		if (f.ret == TVoid) b.out.push(SReturn(null)); else b.out.push(SReturn(store(b.runtime("getUndefined", []), f.ret)));
 		b.finish();
 		b = old;
 		env = oldEnv;
@@ -595,7 +620,7 @@ class Frontend {
 	function read(v:Binding):Ex return v.global != null ? EGlobal(v.global, v.ty) : EBoxGet(v.ty, v.cell);
 
 	function set(v:Binding, e:Ex) {
-		e = b.coerce(e, v.ty);
+		e = store(e, v.ty);
 		b.out.push(v.global != null ? SSetGlobal(v.global, e) : SBoxSet(v.ty, v.cell, e));
 	}
 
@@ -603,6 +628,7 @@ class Frontend {
 		if (n == null) return;
 		if (labels == null) labels = [];
 		if (hasModifier(n, KindDeclareKeyword)) return;
+		here = n;
 		switch (n.kind) {
 			case KindImportDeclaration | KindExportDeclaration: // (bindings: see linkModule)
 			case KindExportAssignment:
@@ -683,18 +709,48 @@ class Frontend {
 				var input = expr(loopNode.expression());
 				if (n.kind == KindForInStatement) input = b.runtime("libForInKeys", [any(input)]);
 				var awaiting = n.kind == KindForOfStatement && loopNode.awaitModifier() != null;
-				var iterator = b.runtime(awaiting ? "libAsyncIterator" : "libIterator", [any(input)]);
+				// (an array whose iteration is the built-in one: stepped by index, as its iterator would)
+				var indexed = n.kind == KindForOfStatement && !awaiting && types.isArray(loopNode.expression().tsType);
+				var fast = null, index = null;
+				if (indexed) {
+					input = b.temp(input);
+					fast = b.local("indexed", TBool);
+					b.out.push(SSet(fast, bool(false)));
+					b.out.push(SIf(EInstOf(reps.arrayClass, any(input)), b.block(() -> b.out.push(SSet(fast, b.runtime("libArrayIterable", [any(input)])))), new Vector(0)));
+					index = b.local("index", TF64);
+					b.out.push(SSet(index, EF64(0)));
+				}
+				var iterator = b.local("iterator", TRef(RAny));
+				var open = b.block(() -> b.out.push(SSet(iterator, b.runtime(awaiting ? "libAsyncIterator" : "libIterator", [any(input)]))));
+				if (indexed) {
+					b.out.push(SSet(iterator, b.runtime("getUndefined", [])));
+					b.out.push(SIf(ENot(ELocal(fast)), open, new Vector(0)));
+				}
+				else for (s in open) b.out.push(s);
 				var init = loopNode.initializer();
 				loop(labels, loopNode.statement(), () -> {
 					var value:Ex;
-					if (awaiting) {
+					if (indexed) {
+						var l = b.local("element", TRef(RAny));
+						b.out.push(SIf(ELocal(fast), b.block(() -> {
+							b.out.push(SIf(EBin(FGe, ELocal(index), reps.arrayLength(b, input)), Vector.fromArrayCopy([SBreak]), new Vector(0)));
+							b.out.push(SSet(l, reps.arrayGet(b, input, ELocal(index))));
+							b.out.push(SSet(index, EBin(FAdd, ELocal(index), EF64(1))));
+						}), b.block(() -> {
+							var v = b.runtime("libIterate", [ELocal(iterator)]);
+							b.out.push(SIf(b.runtime("libFinished", [v]), Vector.fromArrayCopy([SBreak]), new Vector(0)));
+							b.out.push(SSet(l, v));
+						})));
+						value = ELocal(l);
+					}
+					else if (awaiting) {
 						// (for await: each step awaits next()'s result)
-						var result = yieldPoint(b.runtime("libCallMethod", [iterator, EStr("next"), pack([])]), true, AWAIT);
+						var result = yieldPoint(b.runtime("libCallMethod", [ELocal(iterator), EStr("next"), pack([])]), true, AWAIT);
 						b.out.push(SIf(truth(b.runtime("libGet", [result, EStr("done")])), Vector.fromArrayCopy([SBreak]), new Vector(0)));
 						value = b.runtime("libGet", [result, EStr("value")]);
 					}
 					else {
-						value = b.runtime("libIterate", [iterator]);
+						value = b.runtime("libIterate", [ELocal(iterator)]);
 						b.out.push(SIf(b.runtime("libFinished", [value]), Vector.fromArrayCopy([SBreak]), new Vector(0)));
 					}
 					if (init.kind != KindVariableDeclarationList) assignTarget(init, () -> value);
@@ -718,7 +774,7 @@ class Frontend {
 	}
 
 	function emitReturn(e:Null<Ex>) {
-		var value = e == null ? (b.f.ret == TVoid ? null : b.coerce(b.runtime("getUndefined", []), b.f.ret)) : b.coerce(e, b.f.ret);
+		var value = e == null ? (b.f.ret == TVoid ? null : store(b.runtime("getUndefined", []), b.f.ret)) : store(e, b.f.ret);
 		// (a constructor returns `this` unless it returns an object)
 		if (b.constructorThis != null) value = e == null ? read(b.constructorThis) : b.runtime("libConstructResult", [value, read(b.constructorThis)]);
 		if (!insideFinally()) b.out.push(SReturn(value));
@@ -743,7 +799,7 @@ class Frontend {
 			if (list.flags & NodeFlags.BlockScoped == 0) continue;
 			for (d in list.declarations()) for (id in bindingNames(d.name())) {
 				var t = id == d.name() ? bindingType(d) : TRef(RAny);
-				var cell = b.temp(ENewBox(t, t == TF64 ? EF64(0) : b.runtime("getUndefined", [])));
+				var cell = b.temp(ENewBox(t, placeholder(t)));
 				env.set(id.text, {ty: t, cell: cell});
 			}
 		}
@@ -1044,7 +1100,7 @@ class Frontend {
 			else if (top || predeclared) set(get(name, d), e);
 			else {
 				var t = bindingType(d);
-				var cell = b.temp(ENewBox(t, b.coerce(e, t)));
+				var cell = b.temp(ENewBox(t, store(e, t)));
 				env.set(name, {ty: t, cell: cell});
 			}
 		}
@@ -1205,8 +1261,9 @@ class Frontend {
 			case KindElementAccessExpression if (n.expression().kind == KindSuperKeyword):
 				b.runtime("libSuperGet", [read(get("%home", n)), thisValue(), any(expr(n.argumentExpression()))]);
 			case KindElementAccessExpression if (arrayElement(n)):
-				var obj = b.temp(any(expr(n.expression())));
-				arrayGet(obj, b.temp(number(expr(n.argumentExpression()))));
+				var obj = b.temp(expr(n.expression()));
+				typedOperations++;
+				reps.arrayGet(b, obj, b.temp(number(expr(n.argumentExpression()))));
 			case KindElementAccessExpression:
 				var obj = expr(n.expression());
 				chainCheck(n, obj);
@@ -1220,10 +1277,12 @@ class Frontend {
 				var a = expr(n.expression());
 				chainCheck(n, a);
 				b.runtime("libPrivateGet", [any(a), EStr(brand(n.name()))]);
-			case KindPropertyAccessExpression if (n.name().text == "length" && n.flags & NodeFlags.OptionalChain == 0 && n.expression().kind != KindSuperKeyword && flow.isArray(n.expression())):
-				arrayLength(b.temp(any(expr(n.expression()))));
-			case KindPropertyAccessExpression if (typedField(n) != null):
-				fieldGet(typedField(n), expr(n.expression()), n.name().text);
+			case KindPropertyAccessExpression if (n.name().text == "length" && plainAccess(n) && types.isArray(n.expression().tsType)):
+				typedOperations++;
+				reps.arrayLength(b, b.temp(expr(n.expression())));
+			case KindPropertyAccessExpression if (layoutField(n) != null):
+				typedOperations++;
+				reps.fieldGet(b, layoutField(n), b.temp(expr(n.expression())), n.name().text, where());
 			case KindPropertyAccessExpression:
 				var a = expr(n.expression());
 				var name = n.name().text;
@@ -1281,21 +1340,21 @@ class Frontend {
 				}
 			};
 		}
-		if (arrayElement(n) && !flow.reflective) {
-			var obj = b.temp(any(expr(n.expression())));
+		if (arrayElement(n)) {
+			var obj = b.temp(expr(n.expression()));
 			var key = b.temp(number(expr(n.argumentExpression())));
 			return {
-				read: () -> arrayGet(obj, key),
-				write: (e) -> arraySet(obj, key, e)
+				read: () -> reps.arrayGet(b, obj, key),
+				write: (e) -> reps.arraySet(b, obj, key, e)
 			};
 		}
-		var field = typedField(n);
+		var field = layoutField(n);
 		if (field != null) {
-			var obj = b.temp(any(expr(n.expression())));
+			var obj = b.temp(expr(n.expression()));
 			var name = n.name().text;
 			return {
-				read: () -> fieldGet(field, obj, name),
-				write: (e) -> fieldSet(field, obj, name, e)
+				read: () -> reps.fieldGet(b, field, obj, name, where()),
+				write: (e) -> reps.fieldSet(b, field, obj, name, e, where())
 			};
 		}
 		if (n.kind == KindPropertyAccessExpression || n.kind == KindElementAccessExpression) {
@@ -1481,22 +1540,28 @@ class Frontend {
 
 	// A direct function as a function object: (this, args...) ignoring `this`.
 	function functionValue(target:FuncInfo, name:String):Ex {
+		var saved = here;
+		here = nodes.get(name);
 		var arity = target.args.length;
-		var sig = p.sig([TRef(RAny)].concat([for (a in target.args) a.ty]), target.ret);
-		var f = Builder.func(p, "functionValue" + serial++, target.ret);
+		// (called dynamically: the arguments into the target's typed parameters, checked)
+		var sig = p.sig([TRef(RAny)].concat([for (a in target.args) TRef(RAny)]), TRef(RAny));
+		var f = Builder.func(p, "functionValue" + serial++, TRef(RAny));
 		f.args = [new Local(0, "closure", TRef(RAny)), new Local(1, "this", TRef(RAny))];
-		for (i in 0...target.args.length) f.args.push(new Local(i + 2, target.args[i].name, target.args[i].ty));
+		for (i in 0...target.args.length) f.args.push(new Local(i + 2, target.args[i].name, TRef(RAny)));
 		var li = new LambdaInfo(p.lambdas.length, sig, new Vector(0), f);
 		p.lambdas.push(li);
 		f.lambda = li;
-		var call = ECall(target, Vector.fromArrayCopy([for (a in f.args.slice(2)) ELocal(a)]));
-		var inner = new Builder(p, f);
+		var old = b;
+		b = new Builder(p, f);
+		var call = ECall(target, Vector.fromArrayCopy([for (i in 0...target.args.length) store(ELocal(f.args[i + 2]), target.args[i].ty)]));
 		if (target.ret == TVoid) {
-			inner.out.push(SExpr(call));
-			inner.out.push(SReturn(null));
+			b.out.push(SExpr(call));
+			b.out.push(SReturn(b.runtime("getUndefined", [])));
 		}
-		else inner.out.push(SReturn(inner.temp(call)));
-		inner.finish();
+		else b.out.push(SReturn(any(b.temp(call))));
+		b.finish();
+		b = old;
+		here = saved;
 		return b.runtime("libFunction", [any(b.temp(ENewClos(li, new Vector(0)))), EInt(arity), bool(restFunctions.exists(target)), EInt(PLAIN), EStr(name)]);
 	}
 
@@ -1510,7 +1575,7 @@ class Frontend {
 		var outer = env;
 		var oldVars = functionVars;
 		functionVars = [];
-		var f = n != null ? declareFunction(n, "lambda" + serial++) : Builder.func(p, "lambda" + serial++, TRef(RAny));
+		var f = n != null ? declareFunction(n, "lambda" + serial++, false) : Builder.func(p, "lambda" + serial++, TRef(RAny));
 		if (restArguments) {
 			f.args.push(new Local(f.args.length, "%arguments", TRef(RAny)));
 			restFunctions.set(f, true);
@@ -1539,14 +1604,21 @@ class Frontend {
 			var v = b.temp(ECapture(li, i, ELocal(f.args[0])));
 			env.set(names[i], {ty: outer.get(names[i]).ty, cell: v});
 		}
+		// (parameters into their typed slots, checked at the function)
+		var saved = here;
+		if (n != null) here = n;
+		var slots:Map<String, Ty> = [];
+		if (n != null && !argumentFunctions.exists(f)) for (param in parametersOf(n)) if (param.name().kind == KindIdentifier) slots.set(param.name().text, parameterType(param));
 		for (a in f.args.slice(1)) {
 			if (a.name == "this" && lexicalThis) continue;
-			var cell = b.temp(ENewBox(a.ty, ELocal(a)));
-			env.set(a.name, {ty: a.ty, cell: cell});
+			var t = slots.get(a.name) ?? a.ty;
+			var cell = b.temp(ENewBox(t, store(ELocal(a), t)));
+			env.set(a.name, {ty: t, cell: cell});
 		}
 		build(f);
 		b.finish();
 		b = old;
+		here = saved;
 		env = outer;
 		functionVars = oldVars;
 		return {clos: any(b.temp(ENewClos(li, Vector.fromArrayCopy([for (c in captures) ELocal(c)])))), arity: arity, rest: rest};
@@ -1871,8 +1943,8 @@ class Frontend {
 			}).clos;
 		}
 		var c = b.temp(b.runtime("libClass", [EStr(own), parent, ctor.clos, EInt(ctor.arity), bool(ctor.rest), fields]));
-		var typed = flow.typed(n);
-		if (typed != null) linkTypedClass(typed, c);
+		var layout = classes.declared(n);
+		if (layout != null) reps.linkClass(b, layout, c);
 		set(classBinding, c);
 		set(protoBinding, b.runtime("libGet", [c, EStr("prototype")]));
 		var statics:Array<Node> = [];
@@ -1926,189 +1998,46 @@ class Frontend {
 		return c;
 	}
 
-	// ---- arrays (Flow.isArray): length, elements by number, for-of
+	// ---- typed values (Reps)
+	// (a property access that is neither optional nor through super)
+	static function plainAccess(n:Node):Bool return n.flags & NodeFlags.OptionalChain == 0 && n.expression().kind != KindSuperKeyword;
 
-	function arrayItems(o:Ex):Ex return b.temp(EField(arrayClass, arrayClass.fieldIndex("items"), ECast(TRef(RObj(arrayClass)), o)));
+	// `a[k]` with a an array and k a number
+	function arrayElement(n:Node):Bool
+		return n.kind == KindElementAccessExpression && plainAccess(n) && types.isArray(n.expression().tsType) && types.isNumber(n.argumentExpression().tsType);
 
-	function arrayLength(o:Ex):Ex {
-		var l = b.local("length", TF64);
-		var fast = b.block(() -> b.out.push(SSet(l, EField(arrayClass, arrayClass.fieldIndex("length"), ECast(TRef(RObj(arrayClass)), o)))));
-		var slow = b.block(() -> b.out.push(SSet(l, b.coerce(b.runtime("libGet", [o, EStr("length")]), TF64))));
-		b.out.push(SIf(EInstOf(arrayClass, o), fast, slow));
-		typedOperations++;
-		return ELocal(l);
+	// `obj.name` with obj an instance of a class with a layout that declares the field
+	function layoutField(n:Node):Null<ClassLayout> {
+		if (n.kind != KindPropertyAccessExpression || n.name().kind == KindPrivateIdentifier || !plainAccess(n)) return null;
+		var c = reps.layoutOf(n.expression().tsType);
+		return c != null && c.declares(n.name().text) ? c : null;
 	}
 
-	// (an element stored densely at a number index, not a hole: run hit with
-	// the items and the index; otherwise miss)
-	function denseElement(o:Ex, k:Ex, hit:(Local, Ex) -> Void, miss:() -> Void) {
-		var found = b.local("dense", TBool);
-		b.out.push(SSet(found, bool(false)));
-		b.out.push(SIf(EInstOf(arrayClass, o), b.block(() -> {
-			var items = b.local("items", TRef(RArr(TRef(RAny))));
-			b.out.push(SSet(items, arrayItems(o)));
-			b.out.push(SIf(EBin(FGe, k, EF64(0)), b.block(() -> {
-				b.out.push(SIf(EBin(FLt, k, EConv(I2F, EArrLen(ELocal(items)))), b.block(() -> {
-					var i = b.temp(EConv(F2I, k));
-					b.out.push(SIf(EBin(FEq, EConv(I2F, i), k), b.block(() -> {
-						var v = b.temp(EArrGet(TRef(RAny), ELocal(items), i));
-						b.out.push(SIf(ENot(EInstOf(holeClass, v)), b.block(() -> {
-							b.out.push(SSet(found, bool(true)));
-							hit(items, i);
-						}), new Vector(0)));
-					}), new Vector(0)));
-				}), new Vector(0)));
-			}), new Vector(0)));
-		}), new Vector(0)));
-		b.out.push(SIf(ENot(ELocal(found)), b.block(miss), new Vector(0)));
+	// (the program assigns to Math)
+	function assignsMath():Bool {
+		for (sf in src.files) for (i in 1...sf.count) if (sf.kindAt(i) == KindIdentifier) {
+			var id = sf.node(i);
+			var parent = id.parent;
+			if (id.text == "Math" && parent.kind == KindBinaryExpression && parent.left() == id && parent.operatorToken().kind >= KindFirstAssignment && parent.operatorToken().kind <= KindLastAssignment) return true;
+		}
+		return false;
 	}
 
-	function arrayGet(o:Ex, k:Ex):Ex {
-		var l = b.local("element", TRef(RAny));
-		denseElement(o, k, (items, i) -> b.out.push(SSet(l, EArrGet(TRef(RAny), ELocal(items), i))), () -> b.out.push(SSet(l, b.runtime("libGet", [o, any(k)]))));
-		typedOperations++;
-		return ELocal(l);
-	}
-
-	function arraySet(o:Ex, k:Ex, v:Ex) {
-		var value = b.temp(any(v));
-		denseElement(o, k, (items, i) -> b.out.push(SArrSet(TRef(RAny), items, i, value)), () -> b.runtime("libPut", [o, any(k), value]));
-	}
-
-	// `a[k]` with a an array (or nullish) and k a number
-	function arrayElement(n:Node):Bool return n.kind == KindElementAccessExpression && n.flags & NodeFlags.OptionalChain == 0 && n.expression().kind != KindSuperKeyword && flow.isArray(n.expression()) && flow.isNumber(n.argumentExpression());
-
-	// Math.f(...) where the program replaces neither Math nor f: the function itself
+	// Math.f(...): the function itself (Math is frozen: Builtins)
 	function mathCall(n:Node, callee:Node, actual:Array<Node>):Null<Ex> {
-		if (callee.kind != KindPropertyAccessExpression || callee.expression().kind != KindIdentifier || callee.expression().text != "Math" || env.exists("Math") || n.flags & NodeFlags.OptionalChain != 0 || hasSpread(actual)) return null;
+		if (!mathFixed || callee.kind != KindPropertyAccessExpression || callee.expression().kind != KindIdentifier || callee.expression().text != "Math" || env.exists("Math") || n.flags & NodeFlags.OptionalChain != 0 || hasSpread(actual)) return null;
 		var name = callee.name().text;
 		var unary = ["sqrt" => "mathSqrt", "abs" => "mathAbs", "floor" => "mathFloor", "ceil" => "mathCeil"];
 		var others = ["trunc", "round", "sin", "cos", "tan", "asin", "acos", "atan", "exp", "log", "sign", "cbrt", "log2", "log10"];
 		var binary = ["min" => "mathMin", "max" => "mathMax"];
 		var arity = unary.exists(name) || others.contains(name) ? 1 : binary.exists(name) || name == "atan2" || name == "pow" ? 2 : 0;
-		if (arity == 0 || actual.length != arity || !flow.untouched("Math") || !flow.untouched(name)) return null;
+		if (arity == 0 || actual.length != arity) return null;
 		var args = [for (a in actual) b.temp(number(expr(a)))];
 		typedOperations++;
 		return if (unary.exists(name)) b.runtime(unary.get(name), args);
 		else if (binary.exists(name)) b.runtime(binary.get(name), args);
 		else if (arity == 1) b.runtime("mathUnary", [EStr(name), args[0]]);
 		else b.runtime("mathBinary", [EStr(name), args[0], args[1]]);
-	}
-
-	// ---- typed classes (Flow.TypedClass): an hxmc class each, under the
-	// runtime's JsObject, its fields in slots of their own (numbers F64)
-	var typedLink:FuncInfo = null;
-	var objectBase:ClassInfo = null;
-
-	var arrayClass:ClassInfo = null;
-	var holeClass:ClassInfo = null;
-
-	function runtimeClass(name:String):ClassInfo {
-		for (c in p.classes) if (c.name == name) return c;
-		throw "TSHX004: runtime class not linked: " + name;
-	}
-
-	function typedClasses() {
-		arrayClass = runtimeClass("helder.typescript.js.JsArray");
-		holeClass = runtimeClass("helder.typescript.js.Hole");
-		if (flow.classes.length == 0) return;
-		for (c in p.classes) if (c.name == "helder.typescript.js.JsObject") objectBase = c;
-		for (fn in p.funcs) if (fn.name == "helder_typescript_js_Seed_libTypedClass") typedLink = fn;
-		if (objectBase == null || typedLink == null) throw "TSHX004: runtime class JsObject not linked";
-		for (c in flow.classes) {
-			var sup = c.parent == null ? objectBase : c.parent.info;
-			var ci = new ClassInfo("ts.C" + c.index + "_" + c.name, "ts_class" + c.index + "_" + ~/[^A-Za-z0-9_]/g.replace(c.name, "_"), sup);
-			ci.ifaces = sup.ifaces.copy();
-			ci.fields = sup.fields.copy();
-			ci.derived = sup.derived.copy();
-			for (f in c.own) ci.fields.push({name: "ts_field" + ci.fields.length, ty: flow.numberField(c, f) ? TF64 : TRef(RAny)});
-			p.classes.push(ci);
-			c.info = ci;
-		}
-	}
-
-	// a typed class's field: its slot in the class's hxmc class (and its subclasses')
-	function slot(c:TypedClass, name:String):Int return objectBase.fields.length + c.fields().indexOf(name);
-
-	// a function of the runtime's (a closure of signature s) built here
-	function linkLambda(s:SigInfo, build:Array<Local>->Void):Ex {
-		var f = Builder.func(p, "layout" + serial++, s.ret);
-		f.args = [new Local(0, "closure", TRef(RAny))].concat([for (i in 0...s.args.length) new Local(i + 1, "a" + i, s.args[i])]);
-		var li = new LambdaInfo(p.lambdas.length, s, new Vector(0), f);
-		p.lambdas.push(li);
-		f.lambda = li;
-		var old = b;
-		b = new Builder(p, f);
-		build(f.args.slice(1));
-		b.finish();
-		b = old;
-		return b.temp(ENewClos(li, new Vector(0)));
-	}
-
-	static function closureSig(t:Ty):SigInfo return switch t {
-		case TRef(RClos(s)): s;
-		case _: throw "TSHX004: not a function type: " + t;
-	}
-
-	// (a typed class's value: its layout, by field number, and its allocator)
-	function linkTypedClass(c:TypedClass, cls:Ex) {
-		var ci = c.info, names = c.fields();
-		var self = TRef(RObj(ci));
-		var tys = [for (a in typedLink.args) a.ty];
-		var get = linkLambda(closureSig(tys[2]), args -> {
-			var o = b.temp(ECast(self, ELocal(args[0])));
-			for (k in 0...names.length)
-				b.out.push(SIf(EBin(Eq, ELocal(args[1]), EInt(k)), b.block(() -> b.out.push(SReturn(any(EField(ci, slot(c, names[k]), o))))), new Vector(0)));
-			b.out.push(SReturn(b.runtime("getUndefined", [])));
-		});
-		var set = linkLambda(closureSig(tys[3]), args -> {
-			var o = b.temp(ECast(self, ELocal(args[0])));
-			for (k in 0...names.length) {
-				var i = slot(c, names[k]);
-				b.out.push(SIf(EBin(Eq, ELocal(args[1]), EInt(k)), b.block(() -> b.out.push(SSetField(ci, i, o, b.coerce(ELocal(args[2]), ci.fields[i].ty)))), new Vector(0)));
-			}
-			b.out.push(SReturn(null));
-		});
-		var alloc = linkLambda(closureSig(tys[4]), args -> {
-			var o = b.temp(ENewObj(ci));
-			b.out.push(SExpr(ECall(objectBase.ctor, Vector.fromArrayCopy([o, ELocal(args[0])]))));
-			for (f in names) {
-				var i = slot(c, f);
-				if (ci.fields[i].ty.match(TRef(_))) b.out.push(SSetField(ci, i, o, b.runtime("getUndefined", [])));
-			}
-			b.out.push(SReturn(b.coerce(o, closureSig(tys[4]).ret)));
-		});
-		var elem = switch tys[1] {
-			case TRef(RArr(t)): t;
-			case t: throw "TSHX004: not an array type: " + t;
-		};
-		b.runtime("libTypedClass", [cls, ENewArr(elem, Vector.fromArrayCopy([for (f in names) b.coerce(EStr(f), elem)])), get, set, alloc]);
-	}
-
-	// `obj.name` where obj is a typed class's instance (or nullish): the
-	// field's slot, guarded (a nullish value takes the slow path, which throws)
-	function typedField(n:Node):Null<{c:TypedClass, slot:Int, ty:Ty}> {
-		if (n.kind != KindPropertyAccessExpression || n.name().kind == KindPrivateIdentifier || n.flags & NodeFlags.OptionalChain != 0) return null;
-		var c = flow.classOf(n.expression());
-		if (c == null || c.info == null || c.declares(n.name().text) == null) return null;
-		var i = slot(c, n.name().text);
-		return {c: c, slot: i, ty: c.info.fields[i].ty};
-	}
-
-	function fieldGet(f:{c:TypedClass, slot:Int, ty:Ty}, obj:Ex, name:String):Ex {
-		var l = b.local("field", f.ty);
-		var o = b.temp(any(obj));
-		var fast = b.block(() -> b.out.push(SSet(l, EField(f.c.info, f.slot, ECast(TRef(RObj(f.c.info)), o)))));
-		var slow = b.block(() -> b.out.push(SSet(l, b.coerce(b.runtime("libGet", [o, EStr(name)]), f.ty))));
-		b.out.push(SIf(EInstOf(f.c.info, o), fast, slow));
-		typedOperations++;
-		return ELocal(l);
-	}
-
-	function fieldSet(f:{c:TypedClass, slot:Int, ty:Ty}, o:Ex, name:String, v:Ex) {
-		var fast = b.block(() -> b.out.push(SSetField(f.c.info, f.slot, ECast(TRef(RObj(f.c.info)), o), b.coerce(v, f.ty))));
-		var slow = b.block(() -> b.runtime("libPut", [o, EStr(name), any(v)]));
-		b.out.push(SIf(EInstOf(f.c.info, o), fast, slow));
 	}
 
 	// (constructor parameter properties: assigned after the fields, and after super() in derived classes)
@@ -2127,7 +2056,7 @@ class Frontend {
 	function positional(f:FuncInfo, values:Array<Ex>, skip:Int):Array<Ex> {
 		var rest = restFunctions.exists(f);
 		var fixed = f.args.length - skip - (rest ? 1 : 0);
-		var out = [for (i in 0...fixed) b.coerce(i < values.length ? values[i] : b.runtime("getUndefined", []), f.args[i + skip].ty)];
+		var out = [for (i in 0...fixed) store(i < values.length ? values[i] : b.runtime("getUndefined", []), f.args[i + skip].ty)];
 		if (rest) out.push(b.runtime("libArray", [pack(values.slice(fixed))]));
 		return out;
 	}

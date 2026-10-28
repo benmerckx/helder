@@ -242,6 +242,18 @@ class Seed {
 
 	public static function libClass(name:String, parent:Dynamic, impl:Dynamic, arity:Int, rest:Bool, fields:Dynamic):Dynamic return Lib.makeClass(name, parent, impl, arity, rest, fields);
 
+	// A value its type does not describe, where the program relies on it
+	// (strict lowering: values in typed slots are what their types say).
+	public static function diverge(expected:String, v:Dynamic, where:String):Dynamic
+		return Lib.error("TypeError", where + ": TSHX100: " + Lib.describe(v) + " is not " + expected + " (its TypeScript type does not describe it)");
+
+	// a value into a number slot
+	public static function expectNumber(v:Dynamic, where:String):Float {
+		if (Std.isOfType(v, Float)) return v;
+		diverge("a number", v, where);
+		return 0;
+	}
+
 	// Math's functions called directly (the frontend: Math.f(...) where the program replaces neither)
 	public static function mathSqrt(a:Float):Float return Math.sqrt(a);
 
@@ -416,6 +428,8 @@ class Seed {
 		libTypedClass(f, [], (o, i) -> null, (o, i, v) -> {}, p -> p);
 		mathSqrt(mathAbs(mathFloor(mathCeil(mathUnary("sin", mathBinary("atan2", mathMin(0, mathMax(0, 0)), 0))))));
 		libArrayIterable(a);
+		expectNumber(0, "");
+		diverge("", null, "");
 		libDefineMethod(o, "x", f, 0, true);
 		libDefineField(o, "x", null);
 		libSetProto(o, null);

@@ -76,6 +76,17 @@ for(const file of fs.readdirSync(`${T}/reject`).filter(f=>f.endsWith('.ts')).sor
     assert.equal(fs.existsSync(out),false,`${file} must not emit an executable`);
     console.log(`PASS diagnostic ${file}`);
 }
+// Programs whose values their types do not describe: compiled, then stopped
+// where such a value enters a typed slot (TSHX100, at the line of expect)
+for(const file of fs.readdirSync(`${T}/diverge`).filter(f=>f.endsWith('.ts')).sort())for(const target of targets) {
+    const out=`${dir}/diverge-${path.basename(file,'.ts')}${target!=='linux-x86_64'?`-${target}.wasm`:''}`;
+    ok(run(compiler,[`${T}/diverge/${file}`,'--target',target,'-o',out]),`${file} compile ${target}`);
+    const r=target==='linux-x86_64'?run(out,[]):run(process.execPath,[`${T}/run-wasi.cjs`,out]);
+    const expected=fs.readFileSync(`${T}/diverge/${file}`,'utf8').match(/expect: (.*)$/m)[1];
+    assert.notEqual(r.status,0,`${file} should diverge ${target}`);
+    assert.ok(r.stderr.includes(expected),`${file} should report ${expected} ${target}, got ${r.stderr}`);
+    console.log(`PASS diverge ${file} ${target}`);
+}
 // Projects with a tsconfig.json: built and run, or refused at the option's line (expect)
 for(const name of fs.readdirSync(`${T}/configs`).sort()) {
     const d=`${T}/configs/${name}`,out=`${dir}/config-${name}`;

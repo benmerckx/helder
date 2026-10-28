@@ -58,6 +58,9 @@ class JsObject {
 	public inline function attr(k:String):Int return attrs == null || !attrs.exists(k) ? 0 : attrs.get(k);
 
 	public function setOwn(k:String, v:Dynamic, attribute:Int = 0):Void {
+		// (a typed class's field is a plain writable value: what its slot holds)
+		if (layout != null && layout.index.exists(k) && (attribute & Attr.READONLY != 0 || Std.isOfType(v, Accessor)))
+			Seed.diverge("a writable field", v, "property " + k);
 		writeOwn(k, v);
 		if (attribute != 0) {
 			if (attrs == null) attrs = [];
@@ -84,7 +87,7 @@ class JsObject {
 	}
 
 	public function removeOwn(k:String):Void {
-		if (layout != null && layout.index.exists(k)) throw "TSHX005: a typed class's field deleted: " + k;
+		if (layout != null && layout.index.exists(k)) Seed.diverge("deletable", this, "field " + k);
 		if (slots == null || !slots.exists(k)) return;
 		slots.remove(k);
 		names.remove(k);

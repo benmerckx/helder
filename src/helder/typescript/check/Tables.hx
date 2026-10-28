@@ -18,6 +18,10 @@ class Tables {
 	// (a kind's child property's position in its encoding, by Kind and accessor number)
 	final orders:Vector<Int>;
 
+	// the checker's TypeFlags and ObjectFlags, by name
+	public final typeFlags:Map<String, Int> = [];
+	public final objectFlags:Map<String, Int> = [];
+
 	static inline var PROPERTIES = 128;
 	static var loaded:Map<String, Tables> = [];
 
@@ -69,6 +73,15 @@ class Tables {
 			if (ours == null) continue;
 			kinds[value] = ours;
 			raws[ours] = value;
+		}
+		for (e in [{name: "TypeFlags", file: "typeFlags", into: typeFlags}, {name: "ObjectFlags", file: "objectFlags", into: objectFlags}]) {
+			var flag = new EReg(e.name + '\\["([A-Za-z0-9_]+)"\\] = (-?[0-9]+)', "");
+			text = File.getContent(dir + "/dist/enums/" + e.file + ".enum.js");
+			while (flag.match(text)) {
+				e.into.set(flag.matched(1), Std.parseInt(flag.matched(2)));
+				text = flag.matchedRight();
+			}
+			if (!e.into.exists("None")) throw 'TSHX003: typescript@$version: no ${e.name} table in dist/enums/${e.file}.enum.js';
 		}
 		orders = new Vector(Kind.names.length * PROPERTIES);
 		for (i in 0...orders.length) orders[i] = -1;
