@@ -536,6 +536,15 @@ fix.
 
 Folded into phase 3: the VS Code extension is the devtools.
 
+### 7. Later
+
+- **Routing between screens**, as Flutter's Navigator and go_router or
+  React Router have it: a router with routes and their parameters, a
+  navigation stack (push, pop, back: the system's back button and gesture
+  on phones), nested routes, deep links, URLs on the web (the address bar
+  and history), and transitions between screens; in view's markup, with
+  signals for the current route. An app-framework feature, so helder's.
+
 ## License
 
 MIT (LICENSE).
