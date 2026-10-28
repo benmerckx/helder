@@ -290,6 +290,32 @@ A component that is a coroutine is a node's async run: under a
 owner goes, and it is made once. Plain components stay plain
 functions.
 
+### 3.5 Components as plain functions, no `implements Markup`
+
+```haxe
+// app/Inventory.hx: module-level functions, no class
+function Slot(item:Read<Item>) return <box padding={4}>{item().name}</box>;
+function Inventory(items:Read<Array<Item>>) return <For each={items} render={i -> <Slot item={i}/>}/>;
+```
+
+The CLI adds the markup build macro to the project's own packages with
+`Compiler.addGlobalMetadata(pack, "@:build(helder.view.MarkupMacro.build())")`
+from its `--macro` (it passes one already). Checked with Haxe
+5.0.0-preview.1: a global `@:build` reaches module-level functions as
+well as classes, so a component is a plain function in a module.
+`implements Markup` keeps working for code built without the CLI.
+
+Limits and costs to measure:
+
+- only the project's class paths, never the std or libraries;
+- the macro returns at once for a class without markup literals (a
+  scan of its expressions), so its cost is a walk of the project's code
+  per build;
+- whether a global `@:build` keeps the compile server's module cache
+  reusing modules (the asset work found some `--macro` callbacks that
+  broke it): a warm build of examples/showroom must stay at its
+  current time.
+
 ## 4. What changes for existing code
 
 - `Reactive.signal(v).value` keeps working; `get()` becomes a call.
@@ -309,7 +335,7 @@ functions.
    async, transitions, Loading, Errored) to helder.test.
 2. The new core beside the old one (`helder.view.graph`), passing them,
    with the allocation test.
-3. Syntax 3.1 and 3.2, then the markup rule 3.3.
+3. Syntax 3.1 and 3.2, then the markup rule 3.3 and plain-function components (3.5).
 4. Move helder.view's renderers (DOM, ui, native), helder.asset and
    scene onto it; remove the old core.
 5. Coroutine components (3.4).
