@@ -1,0 +1,11 @@
+const a = [1, 2, 3];
+console.log(a.push(4), a.pop(), a.join("-"), a[20], typeof a[-1]);
+a[5] = 9;
+console.log(a.length, a.map(x => x * 2).join(","), a.filter(x => x > 1).join(","));
+console.log(a.reduce((s, x) => s + x, 0), a.includes(undefined as any), a.indexOf(9));
+const b = [4, 1, 3, 2];
+console.log(b.sort((a, b) => a - b).join(","), b.slice(1, 3).join("/"));
+console.log(b.splice(1, 2, 8, 9).join(","), b.join(","));
+console.log(b.shift(), b.unshift(7), b.reverse().join(","));
+console.log([1, [2, [3]]].flat(2).join(","), [1, 2].flatMap(x => [x, x]).join(","));
+console.log(Array.isArray(a), Array.from("😀a").length, Array.of(4, 5).join(","));

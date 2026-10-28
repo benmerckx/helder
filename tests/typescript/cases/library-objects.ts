@@ -1,0 +1,10 @@
+const object = { z: 1, a: 2, "10": 3, "2": 4 };
+console.log(Object.keys(object).join(","), Object.values(object).join(","));
+console.log(JSON.stringify(Object.assign({}, object, { extra: true })));
+console.log(JSON.stringify(JSON.parse('{"a":[1,null,true,"x"]}')));
+const map = new Map<any, string>();
+map.set(NaN, "nan").set(-0, "zero").set("x", "last");
+console.log(map.size, map.get(NaN), map.get(0), map.has("x"), map.delete("x"), map.size);
+console.log(Array.from(map.keys()).join(","));
+const set = new Set([1, 2, 2, NaN, NaN]);
+console.log(set.size, set.has(NaN), Array.from(set.values()).join(","));

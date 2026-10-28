@@ -1,0 +1,70 @@
+{
+  "format": "helder-ts-ir-1",
+  "functions": [
+    {
+      "args": [],
+      "body": {
+        "vector": [
+          {
+            "args": [
+              {
+                "local": 0
+              },
+              {
+                "args": [
+                  {
+                    "args": [],
+                    "enumType": "hxmc.ir.BinOp",
+                    "op": "FAdd"
+                  },
+                  {
+                    "args": [
+                      20
+                    ],
+                    "enumType": "hxmc.ir.Ex",
+                    "op": "EF64"
+                  },
+                  {
+                    "args": [
+                      22
+                    ],
+                    "enumType": "hxmc.ir.Ex",
+                    "op": "EF64"
+                  }
+                ],
+                "enumType": "hxmc.ir.Ex",
+                "op": "EBin"
+              }
+            ],
+            "enumType": "hxmc.ir.Stmt",
+            "op": "SSet"
+          },
+          {
+            "args": [
+              null
+            ],
+            "enumType": "hxmc.ir.Stmt",
+            "op": "SReturn"
+          }
+        ]
+      },
+      "locals": [
+        {
+          "id": 0,
+          "name": "answer",
+          "ty": {
+            "args": [],
+            "enumType": "hxmc.ir.Ty",
+            "op": "TF64"
+          }
+        }
+      ],
+      "name": "ts_unit_0",
+      "ret": {
+        "args": [],
+        "enumType": "hxmc.ir.Ty",
+        "op": "TVoid"
+      }
+    }
+  ]
+}

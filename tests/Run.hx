@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "devtools", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "devtools", "typescript", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -43,6 +43,7 @@ class Run {
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
+		{name: "typescript", about: "helder.typescript (TypeScript through tsgo straight to hxmc IR): the IR checks, then every program of tests/typescript compiled by tsc and run on node, and by helder-ts natively and as wasm32-wasi, the outputs compared; the programs it must reject", run: () -> run(NODE, ["tests/typescript/run.mjs"])},
 		{name: "examples", about: "every example built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium", run: sceneWeb},

@@ -268,14 +268,15 @@ Still to come:
 - **TypeScript for apps (optional, after the boundary tags)**: end users
   write their app in TS/TSX; helder itself stays Haxe, and the output is
   hxmc's, native or wasm, with no JavaScript in it.
-  - **A `helder` ts frontend** the CLI runs when a project's entry is
-    `src/main.ts(x)`, on TypeScript 7.1's API (`typescript/sync`, a client
-    of the Go compiler; node at build time only): the program checked by
-    TypeScript, each module emitted as Haxe into `bin/ts/`, hxmc compiling
-    it as any helder program; `helder dev` feeds its watcher's changes to
-    the API's snapshots (`snapshot.update`, `fileNotifications`) and
-    re-emits only what changed; errors and stack traces mapped back to the
-    `.ts` lines, as `.test.hx` paths are.
+  - **A `helder` ts frontend** (started: [helder.typescript](src/helder/typescript/README.md))
+    the CLI runs when a project's entry is `src/main.ts(x)`: the program
+    checked by the app's TypeScript 7.1+ (tsgo, driven over its API's pipes
+    from Haxe: no node at build time), its AST lowered straight to hxmc's
+    IR inside hxmc's compiler (`helder-ts`), JavaScript's semantics from a
+    runtime in Haxe; `helder dev` keeps tsgo up in the compilation server
+    and feeds it the watcher's changes; errors and stack traces mapped back
+    to the `.ts` lines, as `.test.hx` paths are. Still to come: the CLI's
+    entries, helder's API from TS, TSX.
   - **TSX as helder.view's markup**, typed against helder's elements and
     compiled by its macros to direct calls on signals, no virtual DOM;
     `<Scene>` in TSX once scenes take markup.
