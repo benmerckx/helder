@@ -487,11 +487,21 @@ fix.
 - **Multi-touch and gestures**, after a study of the platforms' and
   engines' models (web Pointer Events, Android MotionEvent, UIKit's touches
   and gesture recognizers, Flutter's gesture arena, Unity's Input System,
-  Godot): one pointer stream in `os` (mouse, touch, pen: ids, phases,
-  cancellation, coalesced samples; per event and per frame, allocating
-  nothing), gestures in ui (pan, pinch, rotate, long press, competing for a
-  touch), touch in scene's input actions (virtual sticks and buttons, camera
-  gestures, picking through a `<Scene>`).
+  Godot), in four steps:
+  1. *Landed*: one pointer stream in `os` (`Pointers`: mouse, touch, pen;
+     dense ids, phases, cancellation, coalesced samples; per event and per
+     frame, allocating nothing; `emulate` keeps a touch's old click and
+     scrolls). Tested natively (no allocation) and in Chromium (fingers,
+     a pen, the mouse); Android's and iOS's back ends are written and
+     compile, not run yet (packaging, above).
+  2. ui's pointers: ids, capture, `PointerCancel`, the pointer owned by
+     the ui node it went down on; a `<Scene>` picks at the press only.
+  3. Touch in scene's input actions: zones, look, virtual sticks and
+     buttons.
+  4. Gestures in ui competing for a pointer (an arena: tap, pan, scale),
+     `<OrbitControls>` for scenes. Later: long press, double tap,
+     rotate alone, pen tilt and pressure in use, prediction, Windows' and
+     X11's touch screens, macOS's trackpad gestures.
 - **Assets by path, bundled into the APK and the app** (phase 2's "assets
   anywhere, bundled by use"), read through one API on every platform.
 - **The game**: a small mobile 3D game as an example (a camera the fingers

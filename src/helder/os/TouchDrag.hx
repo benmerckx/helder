@@ -13,7 +13,9 @@ import helder.os.Event;
 // Mods.TOUCH at its speed slowing 5% a frame (60 a second), until under half
 // a pixel a frame. A new touch stops a glide. Positions in pixels, times in
 // milliseconds (the touches' own; the glide's a clock of its own: glide).
-// Neither a drag nor a tap sends mouse events of its own.
+// Neither a drag nor a tap sends mouse events of its own. The
+// compatibility events of Pointers.emulate: the windows send the pointers'
+// own events beside them.
 class TouchDrag {
 	// (lift's answers)
 	public static inline var NONE = 0;
@@ -143,13 +145,14 @@ class TouchDrag {
 		e.text = "";
 	}
 
-	// e as a tap's MouseMove, MouseDown or MouseUp (button 1), where it started
+	// e as a tap's MouseMove, MouseDown or MouseUp (button 1), where it
+	// started (Mods.TOUCH: not the mouse's)
 	public function click(e:Event, kind:EventKind) {
 		e.kind = kind;
 		e.x = Std.int(x);
 		e.y = Std.int(y);
 		e.button = kind == MouseMove ? 0 : 1;
-		e.mods = 0;
+		e.mods = Mods.TOUCH;
 		e.text = "";
 	}
 }

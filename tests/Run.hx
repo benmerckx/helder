@@ -51,6 +51,7 @@ class Run {
 		{name: "audio", about: "helder.os's audio through each back end without speakers (tests/os/audio.sh)", run: audio},
 		{name: "audio-web", about: "helder.os's audio on WebAudio in headless Chromium", run: audioWeb},
 		{name: "touch", about: "helder.os's touch gesture (TouchDrag), natively", run: touch},
+		{name: "touch-web", about: "helder.os's pointers in headless Chromium: two fingers, a pen, the mouse, samples, a cancel, Pointers.emulate (tests/os/PointersWeb.hx); Pointers' own tests are the test lane's (src/helder/os/Pointers.test.hx)", run: touchWeb},
 		{name: "web", about: "helder.web: the static renderer on Eval and natively, then the DOM renderer, the demo page, islands and wasm in headless Chromium", run: web},
 		{name: "ui-draw", about: "helder.ui's GPU renderer and its programs against golden images (Linux: Mesa, Xvfb, AT-SPI, GTK 3)", run: uiDraw},
 		{name: "ui-web", about: "the todo example, the native form and text editors as wasm32-wasi in headless Chromium", run: uiWeb},
@@ -286,6 +287,11 @@ class Run {
 	static function touch() {
 		native("bin/os/TouchDragTest", osCp().concat(["-main", "TouchDragTest"]), HOST);
 		run(exePath("bin/os/TouchDragTest", HOST), []);
+	}
+
+	static function touchWeb() {
+		wasm("bin/os/PointersWeb.wasm", cps(["src", "tests/os"]).concat(["-main", "PointersWeb"]));
+		run(NODE, ["tests/os/pointers-web.mjs", "bin/os/PointersWeb.wasm"]);
 	}
 
 	static final SCENE_EXAMPLES = [for (e in ["gltf-viewer", "orbits", "showroom", "falling", "walker", "chains"]) 'examples/$e'];

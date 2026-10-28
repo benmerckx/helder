@@ -25,7 +25,8 @@ import hxmc.unsafe.*;
 // (otherwise the loop sleeps in the looper). On iOS the program runs inside
 // UIKit's loop (helder.os.uikit.UIKitApp): each turn runs the main run loop
 // without waiting, and draws only while the app is not in the background
-// (otherwise it sleeps in the run loop).
+// (otherwise it sleeps in the run loop). Each turn begins a frame of
+// Pointers' (Pointers.step) before its events.
 //
 // helder.async's loop (the main thread's, once something made it: a task
 // launched, a job run) runs on the app's: a turn of it in each turn of the
@@ -41,6 +42,8 @@ class App {
 
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
+		// (the mouse's pointer events after its own: Pointers)
+		onEvent = Pointers.relay(onEvent);
 		if (Mem.os() == 3) {
 			CanvasWindow.start(onFrame, onEvent);
 			return;
@@ -58,6 +61,8 @@ class App {
 			running = false;
 			return false;
 		}
+		// (the pointers' motion and presses from this turn's events on)
+		Pointers.step();
 		// (macOS: what Cocoa autoreleases during a frame is freed after it)
 		var pool = Mem.os() == 1 ? Runtime.objc_autoreleasePoolPush() : Ptr.nil();
 		// (Android: a frame only with the window, otherwise a sleep in the looper)

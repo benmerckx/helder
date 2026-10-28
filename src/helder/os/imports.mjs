@@ -10,7 +10,8 @@
 // queued as they come and polled at the start of the next frame, as the
 // native loops poll theirs: keys (as X11 KeySyms, Event.key) once the canvas
 // has the focus (a click gives it), the mouse over the canvas in buffer
-// pixels from the top left, a change of devicePixelRatio (ScaleChange,
+// pixels from the top left, touches and pens as Pointer Events (their
+// coalesced events as samples), a change of devicePixelRatio (ScaleChange,
 // checked before each frame). Frames pause while no window's canvas is in
 // view (as requestAnimationFrame pauses in a hidden tab). host.os.redraw()
 // asks every window for a frame (a Redraw event): the page wants its pixels
@@ -47,9 +48,12 @@
 
 // EventKind (src/helder/os/Event.hx)
 const RESIZE = 2, KEY_DOWN = 3, KEY_UP = 4, MOUSE_MOVE = 5, MOUSE_DOWN = 6, MOUSE_UP = 7, TEXT_INPUT = 8, REDRAW = 9, TEXT_EDITING = 10, SCROLL = 11,
-	SCALE_CHANGE = 12;
-// (not an EventKind: CanvasWindow hands the text to Clipboard.read's callback)
-const CLIPBOARD = 100;
+	SCALE_CHANGE = 12, POINTER_DOWN = 15, POINTER_MOVE = 16, POINTER_UP = 17, POINTER_CANCEL = 18;
+// (not EventKinds: CanvasWindow hands the text to Clipboard.read's
+// callback; a pointer's sample batched before its next event)
+const CLIPBOARD = 100, POINTER_SAMPLE = 101;
+// (PointerType, Pointer.hx's)
+const POINTER_TYPES = { mouse: 0, touch: 1, pen: 2 };
 
 // KeyboardEvent.key to an X11 KeySym: Latin-1 characters are their
 // (unshifted) code, the others from this table
@@ -152,6 +156,8 @@ export default function (host) {
 	function push(ev) {
 		// (moves between two frames, compositions: the last one)
 		const last = queue[queue.length - 1];
+		// (a pointer's moves between two frames: one, the others its samples)
+		if (ev[1] === POINTER_MOVE && last && last[1] === POINTER_MOVE && last[0] === ev[0] && last[2] === ev[2]) last[1] = POINTER_SAMPLE;
 		// (scrolls between two frames: added up, at the last position)
 		if (ev[1] === SCROLL && last && last[1] === SCROLL && last[0] === ev[0] && last[6] === ev[6]) {
 			queue[queue.length - 1] = [ev[0], SCROLL, last[2] + ev[2], ev[3], ev[4], last[5] + ev[5], ev[6]];
@@ -256,7 +262,33 @@ export default function (host) {
 			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * pixelRatio() * 256;
 			push([h, SCROLL, Math.round(e.deltaX * k), ...pos(e), Math.round(e.deltaY * k), mods(e)]);
 		}, { passive: true });
-		// touch: a drag scrolls what is under where it started (the content
+		// touches and pens: their pointer events (pointerId, PointerType,
+		// sub-pixel positions in 1/256ths, button, mods, the type and the
+		// buttons, pressure in 1/65536ths, the time in 1/16 ms, tilt), each
+		// captured by the canvas, without the browser's mouse events
+		const point = (e, kind, button) => {
+			const r = c.getBoundingClientRect(), kx = c.width / Math.max(1, c.clientWidth), ky = c.height / Math.max(1, c.clientHeight);
+			const x = Math.round((e.clientX - r.left - c.clientLeft) * kx * 256), y = Math.round((e.clientY - r.top - c.clientTop) * ky * 256);
+			push([h, kind, e.pointerId, x, y, button, mods(e), (POINTER_TYPES[e.pointerType] ?? 1) | (e.buttons << 4) | (e.isPrimary ? 4096 : 0),
+				Math.round((e.pressure ?? 0) * 65536), Math.round(e.timeStamp * 16) | 0, Math.round(e.tiltX ?? 0), Math.round(e.tiltY ?? 0)]);
+		};
+		const pointer = (e) => e.pointerType === 'touch' || e.pointerType === 'pen';
+		on('pointerdown', (e) => {
+			if (!pointer(e)) return;
+			e.preventDefault();
+			c.setPointerCapture?.(e.pointerId);
+			point(e, POINTER_DOWN, e.button + 1);
+		});
+		on('pointermove', (e) => {
+			if (!pointer(e)) return;
+			const all = e.getCoalescedEvents?.() ?? [];
+			for (let i = 0; i < all.length - 1; i++) point(all[i], POINTER_SAMPLE, 0);
+			point(e, POINTER_MOVE, 0);
+		});
+		on('pointerup', (e) => pointer(e) && point(e, POINTER_UP, e.button + 1));
+		on('pointercancel', (e) => pointer(e) && point(e, POINTER_CANCEL, 0));
+		// the first one's compatibility gesture (Pointers.emulate, on unless
+		// the program turned it off: pointer_emulate): a drag scrolls what is under where it started (the content
 		// follows the finger, then glides when let go moving), a tap clicks
 		// (no mouse events of the browser's own for either). The option
 		// touchAction (the canvas's CSS touch-action, by default 'none')
@@ -304,12 +336,10 @@ export default function (host) {
 		}, { passive: false });
 		const scrollBy = (x, y, dx, dy, m = 0) => push([h, SCROLL, Math.round(dx * 256), x, y, Math.round(dy * 256), m]);
 		on('pointerdown', (e) => {
-			if (e.pointerType !== 'touch' || touch) return;
-			e.preventDefault();
+			if (!pointer(e) || touch) return;
 			cancelAnimationFrame(glide);
 			const [x, y] = pos(e);
 			touch = { id: e.pointerId, x, y, lx: x, ly: y, t: performance.now(), vx: 0, vy: 0, drag: false, taken: undefined };
-			c.setPointerCapture?.(e.pointerId);
 		});
 		on('pointermove', (e) => {
 			if (!touch || e.pointerId !== touch.id) return;
@@ -324,7 +354,7 @@ export default function (host) {
 			}
 			if (!touch.drag) return;
 			const dx = touch.lx - x, dy = touch.ly - y, dt = Math.max(1, now - touch.t);
-			scrollBy(touch.x, touch.y, dx, dy, TOUCH);
+			if (emulate) scrollBy(touch.x, touch.y, dx, dy, TOUCH);
 			// (pixels per millisecond, smoothed)
 			touch.vx = 0.8 * (dx / dt) + 0.2 * touch.vx;
 			touch.vy = 0.8 * (dy / dt) + 0.2 * touch.vy;
@@ -335,17 +365,19 @@ export default function (host) {
 			const t = touch;
 			touch = null;
 			// (the drag's end: the finger let go, or the browser took it over)
-			if (t.drag) scrollBy(t.x, t.y, 0, 0);
+			if (t.drag && emulate) scrollBy(t.x, t.y, 0, 0);
 			// (cancelled: the browser took the pointer over, to pan the page)
 			if (e.type === 'pointercancel') return;
 			if (!t.drag) {
 				if (c.hxmcTyping) ta.focus({ preventScroll: true });
 				else c.focus();
-				push([h, MOUSE_MOVE, 0, t.x, t.y, 0, 0]);
-				push([h, MOUSE_DOWN, 0, t.x, t.y, 1, 0]);
-				push([h, MOUSE_UP, 0, t.x, t.y, 1, 0]);
+				if (!emulate) return;
+				push([h, MOUSE_MOVE, 0, t.x, t.y, 0, TOUCH]);
+				push([h, MOUSE_DOWN, 0, t.x, t.y, 1, TOUCH]);
+				push([h, MOUSE_UP, 0, t.x, t.y, 1, TOUCH]);
 				return;
 			}
+			if (!emulate) return;
 			// (let go moving: on at that speed, slowing 5% a frame)
 			if (performance.now() - t.t > 100) return;
 			let vx = t.vx * 16, vy = t.vy * 16;
@@ -389,6 +421,8 @@ export default function (host) {
 	let resumes = false;
 	// Window.scrollsAt's query (a callback; 0: none)
 	let query = 0;
+	// a touch's compatibility events (Pointers.emulate)
+	let emulate = true;
 	// the next frame's requestAnimationFrame
 	let frameId = 0;
 
@@ -605,8 +639,13 @@ export default function (host) {
 		next_event(p) {
 			const ev = queue.shift();
 			if (!ev) return 0;
-			new Int32Array(host.memory().buffer, p, 7).set([...ev, 0, 0].slice(0, 7));
+			const a = new Int32Array(host.memory().buffer, p, 12);
+			a.fill(0);
+			a.set(ev.slice(0, 12));
 			return 1;
+		},
+		pointer_emulate(on) {
+			emulate = on !== 0;
 		},
 		scrolls_at(f) {
 			query = f;

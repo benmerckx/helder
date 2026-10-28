@@ -25,7 +25,8 @@ Win32 on Windows, a canvas in the browser (wasm32-wasi: `App.run` returns
 and `requestAnimationFrame` runs the loop). `Event` is one object, refilled
 for each event: keys as X11 KeySyms, `TextInput` characters (and an input
 method's `TextEditing`), the mouse in
-pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`.
+pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`,
+and every pointer's events (below).
 
 On Android (`-D hxmc.target=android-arm64` with an output ending in `.apk`)
 the window is the activity's (full screen, one per app; `new Window` waits
@@ -74,6 +75,67 @@ drag the program's): a tap clicks where it came down once it lifts, a drag
 past 8 points scrolls what is under where it started, `Mods.TOUCH` while
 the finger is down, then a `Scroll` of nothing without it and the glide's
 (the loop wakes each frame while it glides).
+
+## Pointers: the mouse, fingers and pens
+
+One stream for every pointer, as the DOM's Pointer Events: `PointerDown`,
+`PointerMove`, `PointerUp` and `PointerCancel` events carry `e.pointer`, a
+`Pointer` (one per slot of `Pointers`, preallocated: nothing is allocated
+per event or per frame), already updated: its `id` (the slot: 0 the
+mouse, fingers and pens the lowest free one from 1, stable while it is
+down), `type` (`Mouse`, `Touch`, `Pen`), `window`, `phase`, `down`,
+`primary` (the first finger down while no other was, or the mouse), `x`,
+`y` (window pixels, sub-pixel where the system has them), `startX`,
+`startY`, `dx`, `dy` (its motion this frame), `pressure`, `tiltX`, `tiltY`,
+`buttons`, `time`, `press` (its press's number: a press and its release
+within one step still count), `owner` (who took it: nobody, ui, a game
+control), and the samples the system batched before the event
+(`samples`, `sampleX(i)`, `sampleY(i)`, `sampleTime(i)`: Android's
+history, iOS's coalesced touches, the browser's coalesced events and the
+moves between two frames).
+
+```haxe
+App.run(() -> {
+	for (i in 0...Pointers.count) {         // in a frame: the pointers down, in down order
+		var p = Pointers.at(i);
+		if (Pointers.justDown(p)) grab(p.id);
+		look(p.dx, p.dy);
+	}
+}, e -> switch e.kind {
+	case PointerDown if (e.pointer.type == Touch): ...;
+	case PointerCancel: release(e.pointer.id);  // the system took it: no tap, let go
+	case _:
+});
+```
+
+`App.run`'s turns begin a frame of `Pointers` (`Pointers.step`: `dx`,
+`dy`, `justDown`, `justUp` start again) before their events. A cancel is a
+real ending: the system took the pointer (a call, a system gesture, the
+browser panning the page), it must not tap and what it held lets go.
+
+The back ends: Android's `MotionEvent`s (every pointer, its tool: a
+finger, a stylus or a mouse; `ACTION_CANCEL` and a palm's
+`FLAG_CANCELED` cancel), iOS's `UITouch`es (`multipleTouchEnabled`; a
+pencil is a pen; the background cancels), the browser's Pointer Events
+for touches and pens (captured by the canvas, without the browser's
+mouse events: a pen is no longer the mouse there), the mouse everywhere
+as slot 0 after its own `Mouse*` events (a move without a button too).
+Touch screens on Windows and X11 (`WM_POINTER`, XInput2) come later.
+
+`Pointers.emulate` (on by default) keeps what a touch did before: the
+first finger's tap a click and its drag `Scroll`s (`TouchDrag`, below),
+their `MouseMove`, `MouseDown` and `MouseUp` with `Mods.TOUCH` (so that
+the mouse's pointer is not made of them). A program that follows the
+pointers itself turns it off (helder.ui's windows do: ui's arena taps and
+scrolls itself).
+
+Tests: `src/helder/os/Pointers.test.hx` (slots, frames, samples, cancels,
+no allocation: natively and as wasm32-wasi, the test lane),
+`bun run test touch-web` (`tests/os/PointersWeb.hx` in headless
+Chromium: two fingers, a pen and the mouse through the DevTools
+protocol, samples, a cancel, `emulate` off). Android's and iOS's back
+ends are written and compile (every back end is typed on each target)
+but are not run yet: packaging is moving into helder.
 
 ## Fast refresh: `helder.dev.Hot`
 

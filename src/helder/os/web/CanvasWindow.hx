@@ -11,7 +11,7 @@ import hxmc.unsafe.*;
 // since the last frame), then onFrame. The canvas's drawing buffer follows
 // its displayed size in device pixels (a Resize event when it changes);
 // keys, their characters, the mouse and the wheel come from the canvas
-// (keys once it has the focus).
+// (keys once it has the focus), touches and pens as pointers (Pointers).
 @:allow(helder.os)
 class CanvasWindow {
 	static final event = new Event();
@@ -93,7 +93,7 @@ class CanvasWindow {
 
 	// dispatches the pending events
 	static function poll(onEvent:Event->Void) {
-		if (ev.isNull()) ev = LibC.malloc(28);
+		if (ev.isNull()) ev = LibC.malloc(48);
 		while (Dom.next_event(ev) != 0) {
 			if (ev[1] == 100) {
 				var h = ev[2], text:Null<String> = h == 0 ? null : take(h);
@@ -104,6 +104,10 @@ class CanvasWindow {
 			var w = find(ev[0]);
 			if (w == null) continue;
 			var e = event;
+			if (ev[1] >= 15 && ev[1] <= 18 || ev[1] == 101) {
+				pointer(w, onEvent);
+				continue;
+			}
 			e.window = w.owner;
 			e.kind = cast ev[1];
 			e.key = ev[2];
@@ -131,6 +135,31 @@ class CanvasWindow {
 			if (e.kind == Resize) w.surface.resized(e.x, e.y);
 			onEvent(e);
 		}
+	}
+
+	// a touch's or a pen's record (ev): its slot updated, its event sent (a
+	// sample: kept for its next event)
+	static function pointer(w:CanvasWindow, onEvent:Event->Void) {
+		var key = ev[2], x = ev[3] / 256, y = ev[4] / 256, bits = ev[7];
+		var type:PointerType = cast bits & 15, pressure = ev[8] / 65536, time = ev[9] / 16;
+		var p = Pointers.find(key, type);
+		if (ev[1] == 101) {
+			if (p != null) @:privateAccess p.sample(x, y, time);
+			return;
+		}
+		var kind:EventKind = cast ev[1];
+		if (kind == PointerDown) p = Pointers.press(w.owner, key, type, x, y, pressure, time);
+		if (p == null) return;
+		if (kind == PointerMove) @:privateAccess p.moveTo(x, y, pressure, time);
+		else if (kind == PointerUp || kind == PointerCancel) {
+			if (x != p.x || y != p.y) @:privateAccess p.moveTo(x, y, p.pressure, time);
+			Pointers.lift(p, kind == PointerCancel, time);
+		}
+		@:privateAccess p.tilt(ev[10], ev[11]);
+		if (p.down) @:privateAccess p.setButtons(bits >> 4 & 255, pressure);
+		var e = event;
+		Pointers.fill(e, kind, p, ev[5], ev[6]);
+		onEvent(e);
 	}
 
 	// a string handle's text (the handle freed)

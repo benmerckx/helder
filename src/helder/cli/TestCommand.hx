@@ -110,7 +110,9 @@ class TestCommand {
 				return {ok: out.code == 0, summary: out.summary() + ' (${secs(built)} build, ${secs(haxe.Timer.stamp() - t1)} run)'};
 			case _:
 				var exe = Sys.systemName() == "Windows" ? "bin/test/host.exe" : "bin/test/host";
-				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "--custom-target", 'hxmc=$exe']), map);
+				// (Linux: the dynamic glibc mode, as helder build's: tests of helder.os link the system's libraries)
+				var mode = Sys.systemName() == "Linux" ? ["-D", "hxmc.libc=glibc"] : [];
+				var b = Output.of(Compiler.tool(), connect.concat(cp).concat(["-main", "HelderTestMain", "--custom-target", 'hxmc=$exe']).concat(mode), map);
 				var built = haxe.Timer.stamp() - t0;
 				if (b.code != 0) {
 					Sys.println('\n[$t] the build failed');

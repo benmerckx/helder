@@ -38,6 +38,16 @@ enum abstract EventKind(Int) {
 	// Android: a new window for the Surface (Surface.reattach), drawn to
 	// again; iOS: back in the foreground
 	var Resume;
+	// a pointer (Event.pointer: the mouse, a finger, a pen; helder.os.Pointers)
+	// went down, moved, went up, or was cancelled: the system took it (a
+	// call, a system gesture, the browser panning the page), an ending that
+	// must not tap and lets go of what it held. The mouse's after its
+	// MouseDown, MouseMove and MouseUp (its first button down, its last up,
+	// and every move: hovering too)
+	var PointerDown;
+	var PointerMove;
+	var PointerUp;
+	var PointerCancel;
 }
 
 // Event.mods bits
@@ -48,7 +58,8 @@ class Mods {
 	public static inline var META = 8;
 	// Scroll, in the browser, on Android and iOS: a touch drag's, the finger
 	// down (the drag ends with a Scroll of nothing without it, then its
-	// glide's; at where it started: helder.os.TouchDrag)
+	// glide's; at where it started: helder.os.TouchDrag); a tap's MouseMove,
+	// MouseDown and MouseUp (Pointers.emulate): made of a touch, not the mouse's
 	public static inline var TOUCH = 16;
 }
 
@@ -60,7 +71,7 @@ class Event {
 	// KeyDown, KeyUp: the key (an X11 KeySym for now, also on macOS and
 	// Windows: Latin-1 keys are their unshifted character code, Escape 0xFF1B)
 	public var key = 0;
-	// the pointer (Mouse*, from the top left) or the new size (Resize), in pixels
+	// the pointer (Mouse*, Pointer*: rounded, from the top left) or the new size (Resize), in pixels
 	public var x = 0;
 	public var y = 0;
 	// MouseDown, MouseUp: 1 left, 2 middle, 3 right
@@ -72,6 +83,9 @@ class Event {
 	public var mods = 0;
 	// TextInput: the characters; TextEditing: the composition
 	public var text = "";
+	// Pointer*: the pointer, already updated (its slot: copy what must
+	// outlive the callback); button: the mouse's button that changed
+	public var pointer:Null<Pointer> = null;
 
 	public function new() {}
 }

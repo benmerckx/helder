@@ -10,10 +10,13 @@ import hxmc.unsafe.*;
 // native window when the Window is made (one with a size), then App.run
 // polls the looper: the commands of the activity's callbacks (Activity)
 // and the input queue.
-// A touch is as in the browser (TouchDrag): a tap clicks (the left button
-// where it came down, once it lifts), a drag scrolls what is under where it
-// started (Scrolls with Mods.TOUCH, ending with one of nothing without it,
-// then a glide's when let go moving); keys come as X11 KeySyms like the
+// Every finger and pen is a pointer (Pointers: Pointer* events, their
+// history as samples, a cancel when the system takes them); the first
+// finger's compatibility gesture (Pointers.emulate) is as in the browser
+// (TouchDrag): a tap clicks (the left button where it came down, once it
+// lifts), a drag scrolls what is under where it started (Scrolls with
+// Mods.TOUCH, ending with one of nothing without it, then a glide's when
+// let go moving); keys come as X11 KeySyms like the
 // other systems' (Back is Escape: the system still finishes the activity), with
 // TextInput for the printable ones; with text input on and enabled
 // (TextInput.enable: helder.ui's UiWindow does), the soft keyboard and the
@@ -192,6 +195,8 @@ class AndroidWindow {
 				log("window destroyed", window);
 				var suspend = w != null && !w.suspended;
 				drag.stop();
+				// (the window's pointers let go: their cancels)
+				if (w != null) Pointers.cancelAll(w.owner, event, onEvent);
 				if (suspend) {
 					w.suspended = true;
 					var lost = w.surface.lost;
@@ -266,30 +271,73 @@ class AndroidWindow {
 		}
 	}
 
+	// a MotionEvent: every pointer in it (Pointers: their slots, their
+	// events; the history's samples), then the first finger's
+	// compatibility gesture (TouchDrag, while Pointers.emulate)
 	static function motion(ev:Ptr, onEvent:Null<Event->Void>):Int {
-		var action = Android.AMotionEvent_getAction(ev) & 0xff;
-		var x:Float = Android.AMotionEvent_getX(ev, 0), y:Float = Android.AMotionEvent_getY(ev, 0);
-		// (the event's time in ms: the drag's speed, even when a frame read several)
-		var ns = Android.AMotionEvent_getEventTime(ev);
-		if (!timed) {
-			since = ns;
-			timed = true;
-		}
-		var d = ns - since;
-		var time = ((d >> 20).toInt() * 1048576.0 + (d & 0xFFFFF).toInt()) / 1e6;
+		var raw = Android.AMotionEvent_getAction(ev);
+		var action = raw & 0xff, index:Int64 = (raw >> 8) & 0xff;
+		var time = ms(Android.AMotionEvent_getEventTime(ev));
 		var w = current, e = event;
+		if (w == null) return 1;
+		var count = Android.AMotionEvent_getPointerCount(ev);
+		switch action {
+			case 0 | 5: // AMOTION_EVENT_ACTION_DOWN, _POINTER_DOWN: the pointer at index
+				var p = Pointers.press(w.owner, Android.AMotionEvent_getPointerId(ev, index), tool(ev, index), Android.AMotionEvent_getX(ev, index),
+					Android.AMotionEvent_getY(ev, index), pressure(ev, index), time);
+				if (p != null) send(onEvent, PointerDown, p, 1);
+			case 2: // AMOTION_EVENT_ACTION_MOVE: every pointer, its history first
+				var history = Android.AMotionEvent_getHistorySize(ev);
+				var i:Int64 = 0;
+				while (i < count) {
+					var p = Pointers.find(Android.AMotionEvent_getPointerId(ev, i), tool(ev, i));
+					if (p != null) {
+						var x:Float = Android.AMotionEvent_getX(ev, i), y:Float = Android.AMotionEvent_getY(ev, i);
+						if (x != p.x || y != p.y) {
+							var h:Int64 = 0;
+							while (h < history) {
+								@:privateAccess p.sample(Android.AMotionEvent_getHistoricalX(ev, i, h), Android.AMotionEvent_getHistoricalY(ev, i, h),
+									ms(Android.AMotionEvent_getHistoricalEventTime(ev, h)));
+								h++;
+							}
+							@:privateAccess p.moveTo(x, y, pressure(ev, i), time);
+							send(onEvent, PointerMove, p, 0);
+						}
+					}
+					i++;
+				}
+			case 1 | 6: // AMOTION_EVENT_ACTION_UP, _POINTER_UP (FLAG_CANCELED: a palm, API 33)
+				var p = Pointers.find(Android.AMotionEvent_getPointerId(ev, index), tool(ev, index));
+				if (p != null) {
+					var cancelled = Android.AMotionEvent_getFlags(ev) & 0x20 != 0;
+					@:privateAccess p.moveTo(Android.AMotionEvent_getX(ev, index), Android.AMotionEvent_getY(ev, index), p.pressure, time);
+					Pointers.lift(p, cancelled, time);
+					send(onEvent, cancelled ? PointerCancel : PointerUp, p, cancelled ? 0 : 1);
+				}
+			case 3: // AMOTION_EVENT_ACTION_CANCEL: every one
+				Pointers.cancelAll(w.owner, e, onEvent);
+			case _:
+		}
+		if (Pointers.emulate) emulated(action, index, ev, time, onEvent);
+		return 1;
+	}
+
+	// (the first finger's tap a click, its drag Scrolls: TouchDrag)
+	static function emulated(action:Int, index:Int64, ev:Ptr, time:Float, onEvent:Null<Event->Void>) {
+		var w = current, e = event;
+		var x:Float = Android.AMotionEvent_getX(ev, 0), y:Float = Android.AMotionEvent_getY(ev, 0);
 		switch action {
 			case 0: // AMOTION_EVENT_ACTION_DOWN
-				drag.press(x, y, time, w == null ? 1 : w.scale);
+				drag.press(x, y, time, w.scale);
 			case 2: // AMOTION_EVENT_ACTION_MOVE
-				if (drag.move(x, y, time) && onEvent != null && w != null) {
+				if (drag.move(x, y, time) && onEvent != null) {
 					drag.scroll(e, Mods.TOUCH);
 					e.window = w.owner;
 					onEvent(e);
 				}
 			case 1 | 3: // AMOTION_EVENT_ACTION_UP, _CANCEL
 				var end = drag.lift(time, action == 3);
-				if (onEvent == null || w == null) return 1;
+				if (onEvent == null) return;
 				e.window = w.owner;
 				if (end == TouchDrag.END) {
 					drag.scroll(e, 0);
@@ -304,7 +352,35 @@ class AndroidWindow {
 				}
 			case _:
 		}
-		return 1;
+	}
+
+	// a pointer's event (Pointers)
+	static function send(onEvent:Null<Event->Void>, kind:EventKind, p:Pointer, button:Int) {
+		if (onEvent == null) return;
+		Pointers.fill(event, kind, p, button);
+		onEvent(event);
+	}
+
+	// AMOTION_EVENT_TOOL_TYPE_STYLUS, _ERASER: a pen; _MOUSE the mouse; else a finger
+	static function tool(ev:Ptr, i:Int64):PointerType
+		return switch Android.AMotionEvent_getToolType(ev, i) {
+			case 2 | 4: Pen;
+			case 3: Mouse;
+			case _: Touch;
+		}
+
+	// (a finger's force, 0 to 1: the screen's estimate where it has none)
+	static inline function pressure(ev:Ptr, i:Int64):Float
+		return Math.min(1, Android.AMotionEvent_getPressure(ev, i));
+
+	// an event's time in ms since the first one's (the drag's speed, even when a frame read several)
+	static function ms(ns:Int64):Float {
+		if (!timed) {
+			since = ns;
+			timed = true;
+		}
+		var d = ns - since;
+		return ((d >> 20).toInt() * 1048576.0 + (d & 0xFFFFF).toInt()) / 1e6;
 	}
 
 	static function key(ev:Ptr, onEvent:Null<Event->Void>):Int {

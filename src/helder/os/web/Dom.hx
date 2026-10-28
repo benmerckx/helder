@@ -19,10 +19,15 @@ import hxmc.unsafe.*;
 	static function scale():Float;
 	// the page's prefers-color-scheme: dark (1) or not (0)
 	static function prefers_dark():Int;
-	// the next pending event into ev (seven Int32: canvas, EventKind, key (a
-	// TextInput's code point, a TextEditing's string handle, 0 for none), x,
-	// y, button, mods); 0: none
+	// the next pending event into ev (twelve Int32: canvas, EventKind, key (a
+	// TextInput's code point, a TextEditing's string handle, a pointer's
+	// pointerId, 0 for none), x, y, button, mods; a pointer's: x and y in
+	// 1/256 pixels, then its PointerType | buttons << 4 | 4096 if primary,
+	// pressure in 1/65536ths, the time in 1/16 ms, tiltX, tiltY; kind 101: a
+	// sample of the pointer's next event); 0: none
 	static function next_event(ev:Ptr<Int32>):Int;
+	// a touch's compatibility events (Pointers.emulate) on (1) or off (0)
+	static function pointer_emulate(on:Int):Void;
 	// the clipboard: write; read (its text comes back as an event of kind 100,
 	// key: a string handle, 0 for none)
 	static function clipboard_write(text:CString):Void;

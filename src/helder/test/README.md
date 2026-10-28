@@ -115,7 +115,7 @@ fail, checks, the time); exit code 1 on a failure. `helder test`:
 | --- | --- |
 | `[filter...]` | a filter that is part of a test file's path picks those files; any other one the tests whose full name ("describe > test") contains it |
 | `-t <text>` | the tests whose full name contains it; `/text/` a regex (the generated main gives the runner EReg only then) |
-| `--target <t>` | `host` (natively, the default), `interp` (Eval), `wasm` (wasm32-wasi under node: src/helder/test/wasi.mjs, node's WASI with the working directory and helder.async's imports), `all`, or several (`host,wasm`); a line per target at the end |
+| `--target <t>` | `host` (natively, the default; on Linux in the dynamic glibc mode, as `helder build`'s, so that tests of helder.os link the system's libraries), `interp` (Eval), `wasm` (wasm32-wasi under node: src/helder/test/wasi.mjs, node's WASI with the working directory and helder.async's imports), `all`, or several (`host,wasm`); a line per target at the end |
 | `--watch`, `-w` | built and run again after each change under the roots (mtimes to the nanosecond: a save within the same second is seen); builds go to a compilation server (`haxe --wait`), stopped with the CLI on ctrl-c or SIGTERM |
 | `-u` | snapshots rewritten |
 | `--timeout <s>` | an async step's limit |

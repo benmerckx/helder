@@ -13,8 +13,10 @@ import hxmc.unsafe.*;
 // The program runs inside UIKit's loop (UIKitApp): App.run turns the main
 // run loop without waiting (poll: CFRunLoopRunInMode until nothing is
 // left), and the frame's pace comes from the layer's drawables (vsync).
-// A touch (the first finger down, until it lifts) is as in the browser
-// and on Android (TouchDrag): a tap clicks (the left button where it came
+// Every finger and pencil is a pointer (Pointers: Pointer* events,
+// coalesced touches as samples, cancels); the first finger's compatibility
+// gesture (Pointers.emulate) is as in the browser and on Android
+// (TouchDrag): a tap clicks (the left button where it came
 // down, once it lifts), a drag scrolls what is under where it started
 // (Scrolls with Mods.TOUCH, ending with one of nothing without it, then a
 // glide's when let go moving); positions in pixels from the top left. The
@@ -74,7 +76,7 @@ class UIKitWindow {
 		var bounds = Msg.rect(screen, ObjC.sel("bounds"));
 		window = Msg.idRect(Msg.id(ObjC.cls("UIWindow"), ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), bounds);
 		view = Msg.idRect(Msg.id(viewClass, ObjC.sel("alloc")), ObjC.sel("initWithFrame:"), bounds);
-		Msg.vBool(view, ObjC.sel("setMultipleTouchEnabled:"), false);
+		Msg.vBool(view, ObjC.sel("setMultipleTouchEnabled:"), true);
 		layer = Msg.id(view, ObjC.sel("layer"));
 		controller = Msg.id(Msg.id(ObjC.cls("UIViewController"), ObjC.sel("alloc")), ObjC.sel("init"));
 		Msg.vPtr(controller, ObjC.sel("setView:"), view);
@@ -173,23 +175,52 @@ class UIKitWindow {
 		dispatch(e);
 	}
 
-	// ---- touches: the first finger down is the left button
+	// ---- touches: every finger a pointer (Pointers: a UITouch's slot by its
+	// address, its coalesced touches as samples); the first finger down the
+	// compatibility gesture's (TouchDrag, while Pointers.emulate)
 
 	@:hxmc.callback static function touchesBegan(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void {
 		var w = current;
-		if (w == null || !w.touch.isNull()) return;
-		var t = Msg.id(touches, ObjC.sel("anyObject"));
-		if (t.isNull()) return;
-		w.touch = t;
-		w.locate(t);
-		drag.press(w.lastX, w.lastY, time(t), w.scale);
+		if (w == null) return;
+		var all = Msg.id(touches, ObjC.sel("allObjects")), n = Msg.i(all, ObjC.sel("count"));
+		var i:Int64 = 0;
+		while (i < n) {
+			var t = Msg.idInt(all, ObjC.sel("objectAtIndex:"), i);
+			i++;
+			w.locate(t);
+			var p = Pointers.press(w.owner, key(t), type(t), w.lastX, w.lastY, force(t), time(t));
+			if (p != null) w.send(PointerDown, p, 1);
+			if (!w.touch.isNull() || !Pointers.emulate) continue;
+			w.touch = t;
+			drag.press(w.lastX, w.lastY, time(t), w.scale);
+		}
 	}
 
 	@:hxmc.callback static function touchesMoved(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void {
 		var w = current;
-		if (w == null || w.touch.isNull() || !Msg.bPtr(touches, ObjC.sel("containsObject:"), w.touch)) return;
-		w.locate(w.touch);
-		if (drag.move(w.lastX, w.lastY, time(w.touch))) w.scroll(Mods.TOUCH);
+		if (w == null) return;
+		var all = Msg.id(touches, ObjC.sel("allObjects")), n = Msg.i(all, ObjC.sel("count"));
+		var i:Int64 = 0;
+		while (i < n) {
+			var t = Msg.idInt(all, ObjC.sel("objectAtIndex:"), i);
+			i++;
+			var p = Pointers.find(key(t), type(t));
+			if (p == null) continue;
+			// (the touches the screen saw since the last: the latest is t)
+			var co = ev.isNull() ? Ptr.nil() : Msg.idPtr(ev, ObjC.sel("coalescedTouchesForTouch:"), t);
+			var cn = co.isNull() ? 0 : Msg.i(co, ObjC.sel("count"));
+			var j:Int64 = 0;
+			while (j < cn - 1) {
+				var c = Msg.idInt(co, ObjC.sel("objectAtIndex:"), j);
+				j++;
+				w.locate(c);
+				@:privateAccess p.sample(w.lastX, w.lastY, time(c));
+			}
+			w.locate(t);
+			@:privateAccess p.moveTo(w.lastX, w.lastY, force(t), time(t));
+			w.send(PointerMove, p, 0);
+			if (t == w.touch && drag.move(w.lastX, w.lastY, time(t))) w.scroll(Mods.TOUCH);
+		}
 	}
 
 	@:hxmc.callback static function touchesEnded(self:Ptr, cmd:Ptr, touches:Ptr, ev:Ptr):Void
@@ -200,14 +231,44 @@ class UIKitWindow {
 
 	static function lift(touches:Ptr, cancelled:Bool) {
 		var w = current;
-		if (w == null || w.touch.isNull() || !Msg.bPtr(touches, ObjC.sel("containsObject:"), w.touch)) return;
-		var end = drag.lift(time(w.touch), cancelled);
-		w.touch = Ptr.nil();
-		if (end == TouchDrag.END) w.scroll(0) else if (end == TouchDrag.TAP) {
-			w.click(MouseMove);
-			w.click(MouseDown);
-			w.click(MouseUp);
+		if (w == null) return;
+		var all = Msg.id(touches, ObjC.sel("allObjects")), n = Msg.i(all, ObjC.sel("count"));
+		var i:Int64 = 0;
+		while (i < n) {
+			var t = Msg.idInt(all, ObjC.sel("objectAtIndex:"), i);
+			i++;
+			var p = Pointers.find(key(t), type(t));
+			if (p != null) {
+				w.locate(t);
+				@:privateAccess p.moveTo(w.lastX, w.lastY, p.pressure, time(t));
+				Pointers.lift(p, cancelled, time(t));
+				w.send(cancelled ? PointerCancel : PointerUp, p, cancelled ? 0 : 1);
+			}
+			if (t != w.touch) continue;
+			var end = drag.lift(time(t), cancelled);
+			w.touch = Ptr.nil();
+			if (end == TouchDrag.END) w.scroll(0) else if (end == TouchDrag.TAP) {
+				w.click(MouseMove);
+				w.click(MouseDown);
+				w.click(MouseUp);
+			}
 		}
+	}
+
+	// a UITouch's key (Pointers: its address, folded)
+	static inline function key(t:Ptr):Int {
+		var a = t.toI64();
+		return (a >> 32).toInt() ^ a.toInt();
+	}
+
+	// UITouchTypePencil (2): a pen; the others fingers (indirect pointers too)
+	static inline function type(t:Ptr):PointerType
+		return Msg.i(t, ObjC.sel("type")) == 2 ? Pen : Touch;
+
+	// its force, 0 to 1 (1 where the screen measures none)
+	static function force(t:Ptr):Float {
+		var max = Msg.f(t, ObjC.sel("maximumPossibleForce"));
+		return max > 0 ? Math.min(1, Msg.f(t, ObjC.sel("force")) / max) : 1;
 	}
 
 	// a touch's time (ms: UITouch.timestamp, seconds since the boot)
@@ -218,6 +279,12 @@ class UIKitWindow {
 		var p = Msg.pointPtr(t, ObjC.sel("locationInView:"), view);
 		lastX = p.x * scale;
 		lastY = p.y * scale;
+	}
+
+	function send(kind:EventKind, p:Pointer, button:Int) {
+		var e = event;
+		Pointers.fill(e, kind, p, button);
+		dispatch(e);
 	}
 
 	function scroll(mods:Int) {
@@ -243,6 +310,8 @@ class UIKitWindow {
 		var w = current;
 		if (w == null) return;
 		var e = event;
+		// (the background: every finger let go)
+		if (on) Pointers.cancelAll(w.owner, e, onEvent);
 		e.kind = on ? Suspend : Resume;
 		e.window = w.owner;
 		e.x = w.surface.width;
