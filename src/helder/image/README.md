@@ -34,8 +34,18 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   (198 against 276 on wasm32), 33 MB of garbage instead of 119; a 48x48
   icon 0.022 ms instead of 0.027, 9 KB of garbage instead of 41; a
   program that decodes a PNG 115 KB instead of 198 natively, 85 instead
-  of 151 on wasm32. A 13x11 image's fixed cost is 3-4 µs more (0.005 ms
-  instead of 0.002: its tables' memory).
+  of 151 on wasm32. On spans (hxmc 409f580), against the same code as
+  `@:hxmc.unsafe` over `Raw` (PngCore alone, on IoBuffers; median ms,
+  natively / wasm32 under node): the 4K photo 161 / 183 instead of 169 /
+  192, 148 / 176 with `-D hxmc.span-checks=0`; 1920x1080 39.8 / 43.7
+  instead of 40.4 / 46.3; 512x512 4.8 / 5.3 instead of 4.9 / 5.6; a
+  13x11 image 0.003 ms instead of 0.007 (the thread's tables, not built in
+  each decode). The GC heap's bytes are the same but for the header's 44
+  bytes (a Bytes now: PngDecoder's 33177747 for the photo instead of
+  33177675); off the heap, no copy of the image data (11.6 MB for the
+  photo) and no scratch a decode. The checks cost code: a program that
+  decodes a PNG 198 KB instead of 132 natively (157 without the checks),
+  154 instead of 96 on wasm32 (114).
 - `ImageJobs` (hxmc): a PNG as a GC-free job (helder.jobs: natively on
   the pool, in a safe region; in a browser on a worker), `decode` an Image
   over the job's buffer (kept), `pixels` the IoBuffer to upload and free;
