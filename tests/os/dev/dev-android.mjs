@@ -17,7 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const repo = path.resolve(here, '../..');
+const repo = path.resolve(here, '../../..');
 const helder = path.resolve(process.argv[2] ?? 'bin/cli/helder');
 const work = path.resolve(process.argv[3] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'helder-dev-android-')));
 const PKG = 'org.helder.counter';
@@ -61,8 +61,8 @@ class Counter {
 }
 `;
 fs.writeFileSync(counter, v1);
-// (the cube's class beside it: helder dev's entry is the file, its class path the directory)
-fs.copyFileSync(path.join(repo, 'examples/cube/Cube.hx'), path.join(work, 'app', 'Cube.hx'));
+// (the cube's classes beside it: helder dev's entry is the file, its class path the directory)
+for (const f of ['Cube.hx', 'CubeShader.hx']) fs.copyFileSync(path.join(repo, 'examples/cube', f), path.join(work, 'app', f));
 const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
 
 adb('wait-for-device');
