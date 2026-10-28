@@ -35,6 +35,8 @@ class Types {
 	final pending:Array<TsType> = [];
 	final number:Int;
 	final numberLiteral:Int;
+	final boolean:Int;
+	final booleanLiteral:Int;
 	final union:Int;
 	final object:Int;
 	final typeParameter:Int;
@@ -53,6 +55,8 @@ class Types {
 		this.at = at;
 		number = tables.typeFlags.get("Number");
 		numberLiteral = tables.typeFlags.get("NumberLiteral");
+		boolean = tables.typeFlags.get("Boolean");
+		booleanLiteral = tables.typeFlags.get("BooleanLiteral");
 		union = tables.typeFlags.get("Union");
 		object = tables.typeFlags.get("Object");
 		typeParameter = tables.typeFlags.get("TypeParameter");
@@ -116,6 +120,13 @@ class Types {
 		if (t == null) return false;
 		if (t.members != null) return Lambda.foreach(t.members, isNumber);
 		return t.flags & (number | numberLiteral) != 0 && t.flags & union == 0;
+	}
+
+	// whether every value of the type is a boolean
+	public function isBoolean(t:Null<TsType>):Bool {
+		if (t == null) return false;
+		if (t.members != null) return Lambda.foreach(t.members, isBoolean);
+		return t.flags & (boolean | booleanLiteral) != 0;
 	}
 
 	// the class whose instances (its subclasses' too) the type's values are, as its symbol

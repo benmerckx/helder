@@ -62,6 +62,7 @@ class Reps {
 
 	public function rep(t:Null<TsType>):Ty {
 		if (types.isNumber(t)) return TF64;
+		if (types.isBoolean(t)) return TBool;
 		if (types.isArray(t)) return TRef(RObj(arrayClass));
 		var c = t == null || t.isThis ? null : classes.of(types.instanceOf(t));
 		return c == null ? TRef(RAny) : TRef(RObj(c.info));
@@ -77,6 +78,7 @@ class Reps {
 		return switch [from, t] {
 			case [TI32, TF64]: EConv(I2F, e);
 			case [_, TF64]: b.runtime("expectNumber", [b.coerce(e, TRef(RAny)), EStr(where)]);
+			case [_, TBool]: b.runtime("expectBoolean", [b.coerce(e, TRef(RAny)), EStr(where)]);
 			case [TRef(RObj(d)), TRef(RObj(c))] if (isA(d, c)): ECast(t, e);
 			case [_, TRef(RObj(c))]:
 				var v = b.temp(b.coerce(e, TRef(RAny)));
@@ -159,8 +161,10 @@ class Reps {
 	// not yet initialized: dynamic ones undefined, typed ones set before they are read)
 	public function allocate(b:Builder, c:ClassLayout, proto:Ex):Ex {
 		var ci = c.info;
+		// (zeroed: an extensible object without own properties; JsObject's constructor would set only its prototype)
 		var o = b.temp(ENewObj(ci));
-		b.out.push(SExpr(ECall(objectBase.ctor, Vector.fromArrayCopy([o, b.coerce(proto, objectBase.ctor.args[1].ty)]))));
+		var p = objectBase.fieldIndex("proto");
+		b.out.push(SSetField(objectBase, p, ECast(TRef(RObj(objectBase)), o), b.coerce(proto, objectBase.fields[p].ty)));
 		for (f in c.fields()) {
 			var i = slot(c, f);
 			if (ci.fields[i].ty.match(TRef(RAny))) b.out.push(SSetField(ci, i, o, b.runtime("getUndefined", [])));

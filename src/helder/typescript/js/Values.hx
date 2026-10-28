@@ -22,28 +22,67 @@ class Attr {
 	public static inline var LOCKED = 4;
 }
 
-class JsObject {
-	public var proto:JsObject;
-	// own string-keyed properties in insertion order; accessor properties hold an Accessor
-	public var names:Array<String> = null;
-	public var slots:Map<String, Dynamic> = null;
+// An object's own properties beyond a typed class's fields, made on first use.
+class Props {
+	// string-keyed properties in insertion order; accessor properties hold an Accessor
+	public final names:Array<String> = [];
+	public final slots:Map<String, Dynamic> = [];
 	public var attrs:Map<String, Int> = null;
 	// class-private elements, keyed by brand ("#name@class")
 	public var privates:Map<String, Dynamic> = null;
-	public var extensible = true;
+
+	public function new() {}
+}
+
+class JsObject {
+	public var proto:JsObject;
+	public var props:Props = null;
 	// an instance of a typed class (helder.typescript.lower): its declared
 	// fields in slots of its own, before the others
 	public var layout:Layout = null;
+	// (zero for a new object: compiled code makes typed instances without this constructor)
+	public var bits = 0;
+
+	static inline var NOT_EXTENSIBLE = 1;
 	// a typed class's prototype (helder.typescript.lower): compiled code
 	// calls its methods directly, so changing it diverges
-	public var locked = false;
+	static inline var LOCKED = 2;
+
+	public var extensible(get, set):Bool;
+	public var locked(get, set):Bool;
+	// (null without own properties beyond the layout's)
+	public var names(get, never):Array<String>;
+	public var privates(get, set):Map<String, Dynamic>;
 
 	public function new(proto:JsObject) {
 		this.proto = proto;
 	}
 
+	inline function get_extensible():Bool return bits & NOT_EXTENSIBLE == 0;
+
+	inline function set_extensible(v:Bool):Bool {
+		bits = v ? bits & ~NOT_EXTENSIBLE : bits | NOT_EXTENSIBLE;
+		return v;
+	}
+
+	inline function get_locked():Bool return bits & LOCKED != 0;
+
+	inline function set_locked(v:Bool):Bool {
+		bits = v ? bits | LOCKED : bits & ~LOCKED;
+		return v;
+	}
+
+	inline function get_names():Array<String> return props == null ? null : props.names;
+
+	inline function get_privates():Map<String, Dynamic> return props == null ? null : props.privates;
+
+	function set_privates(v:Map<String, Dynamic>):Map<String, Dynamic> {
+		if (props == null) props = new Props();
+		return props.privates = v;
+	}
+
 	public inline function hasOwn(k:String):Bool
-		return layout != null && layout.index.exists(k) || slots != null && slots.exists(k);
+		return layout != null && layout.index.exists(k) || props != null && props.slots.exists(k);
 
 	// an own property's value (an Accessor for an accessor property); hasOwn(k) first
 	public function getOwn(k:String):Dynamic {
@@ -51,14 +90,14 @@ class JsObject {
 			var i = layout.index.get(k);
 			if (i != null) return layout.get(this, i);
 		}
-		return slots.get(k);
+		return props.slots.get(k);
 	}
 
 	// an own property's names, in order
 	public function ownNames():Array<String>
 		return layout == null ? names : names == null ? layout.names : layout.names.concat(names);
 
-	public inline function attr(k:String):Int return attrs == null || !attrs.exists(k) ? 0 : attrs.get(k);
+	public inline function attr(k:String):Int return props == null || props.attrs == null || !props.attrs.exists(k) ? 0 : props.attrs.get(k);
 
 	public function setOwn(k:String, v:Dynamic, attribute:Int = 0):Void {
 		if (locked) Seed.diverge("changeable", this, "a typed class's prototype (" + k + ")");
@@ -67,10 +106,11 @@ class JsObject {
 			Seed.diverge("a writable field", v, "property " + k);
 		writeOwn(k, v);
 		if (attribute != 0) {
-			if (attrs == null) attrs = [];
-			attrs.set(k, attribute);
+			if (props == null) props = new Props();
+			if (props.attrs == null) props.attrs = [];
+			props.attrs.set(k, attribute);
 		}
-		else if (attrs != null && attrs.exists(k)) attrs.remove(k);
+		else if (props != null && props.attrs != null && props.attrs.exists(k)) props.attrs.remove(k);
 	}
 
 	// an own property's value set, its attributes kept
@@ -84,21 +124,18 @@ class JsObject {
 			}
 			if (shadowsMethod(k)) Seed.diverge("a field", v, "method " + k + " of a typed class's instance");
 		}
-		if (slots == null) {
-			slots = [];
-			names = [];
-		}
-		if (!slots.exists(k)) names.push(k);
-		slots.set(k, v);
+		if (props == null) props = new Props();
+		if (!props.slots.exists(k)) props.names.push(k);
+		props.slots.set(k, v);
 	}
 
 	public function removeOwn(k:String):Void {
 		if (locked) Seed.diverge("changeable", this, "a typed class's prototype (" + k + ")");
 		if (layout != null && layout.index.exists(k)) Seed.diverge("deletable", this, "field " + k);
-		if (slots == null || !slots.exists(k)) return;
-		slots.remove(k);
-		names.remove(k);
-		if (attrs != null) attrs.remove(k);
+		if (props == null || !props.slots.exists(k)) return;
+		props.slots.remove(k);
+		props.names.remove(k);
+		if (props.attrs != null) props.attrs.remove(k);
 	}
 
 	// (an own property hiding a method of a typed class's locked prototype)

@@ -254,6 +254,13 @@ class Seed {
 		return 0;
 	}
 
+	// a value into a boolean slot
+	public static function expectBoolean(v:Dynamic, where:String):Bool {
+		if (Std.isOfType(v, Bool)) return v;
+		diverge("a boolean", v, where);
+		return false;
+	}
+
 	// Math's functions called directly (the frontend: Math.f(...) where the program replaces neither)
 	public static function mathSqrt(a:Float):Float return Math.sqrt(a);
 
@@ -436,6 +443,7 @@ class Seed {
 		mathSqrt(mathAbs(mathFloor(mathCeil(mathUnary("sin", mathBinary("atan2", mathMin(0, mathMax(0, 0)), 0))))));
 		libArrayIterable(a);
 		expectNumber(0, "");
+		expectBoolean(true, "");
 		libLock(libAllocate(libLayoutOf(f)));
 		diverge("", null, "");
 		libDefineMethod(o, "x", f, 0, true);

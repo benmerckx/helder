@@ -93,13 +93,13 @@ class Frontend {
 		return list == null ? [] : list;
 	}
 
-	function typeAt(n:Node):Ty return TRef(RAny);
-
 	// a direct function's result: as its type says
 	function ret(n:Node):Ty return n.kind == KindFunctionDeclaration && n.name() != null && n.parent != null && n.parent.kind == KindSourceFile ? reps.rep(n.returnType()) : TRef(RAny);
 
 	// a let or const binding's, or a direct function's parameter's: as its type says
-	function bindingType(n:Node):Ty return n.name().kind == KindIdentifier ? reps.rep(n.name().tsType) : TRef(RAny);
+	// (a `yield`'s value is whatever next() is given: TypeScript's TNext does not hold for it)
+	function bindingType(n:Node):Ty
+		return n.name().kind == KindIdentifier && (n.initializer() == null || n.initializer().kind != KindYieldExpression) ? reps.rep(n.name().tsType) : TRef(RAny);
 
 	// a parameter's slot: typed unless it takes a default, is optional or a rest
 	function parameterType(n:Node):Ty
@@ -121,7 +121,7 @@ class Frontend {
 	}
 
 	// (a typed slot's value before its declaration runs)
-	function placeholder(t:Ty):Ex return t == TF64 ? EF64(0) : t.match(TRef(RObj(_))) ? ENull(t) : b.runtime("getUndefined", []);
+	function placeholder(t:Ty):Ex return t == TF64 ? EF64(0) : t == TBool ? bool(false) : t.match(TRef(RObj(_))) ? ENull(t) : b.runtime("getUndefined", []);
 
 	// (typed: a direct function's typed parameters and result; a closure's
 	// arrive and leave dynamic, its parameters checked on entry: see lambda)
@@ -1156,6 +1156,14 @@ class Frontend {
 			typedOperations++;
 			return e;
 		}
+		if (Ir.typeOf(e) == TF64) {
+			// (neither 0 nor NaN)
+			typedOperations++;
+			var v = b.temp(e), l = b.local("truth", TBool);
+			b.out.push(SSet(l, EBin(FNe, v, EF64(0))));
+			b.out.push(SIf(ELocal(l), Vector.fromArrayCopy([SSet(l, EBin(FEq, v, v))]), new Vector(0)));
+			return ELocal(l);
+		}
 		dynamicOperations++;
 		return b.runtime("truth", [any(e)]);
 	}
@@ -1318,9 +1326,9 @@ class Frontend {
 			case KindConditionalExpression:
 				var c = n;
 				var cond = truth(expr(c.condition()));
-				var l = b.local("conditional", typeAt(n));
-				var yes = b.block(() -> b.out.push(SSet(l, b.coerce(expr(c.whenTrue()), l.ty))));
-				var no = b.block(() -> b.out.push(SSet(l, b.coerce(expr(c.whenFalse()), l.ty))));
+				var l = b.local("conditional", reps.rep(n.tsType));
+				var yes = b.block(() -> b.out.push(SSet(l, store(expr(c.whenTrue()), l.ty))));
+				var no = b.block(() -> b.out.push(SSet(l, store(expr(c.whenFalse()), l.ty))));
 				b.out.push(SIf(cond, yes, no));
 				ELocal(l);
 			case _: fail(n, "unsupported expression " + n.kind.toString());
@@ -1435,13 +1443,12 @@ class Frontend {
 		if (op == KindInKeyword && x.left().kind == KindPrivateIdentifier) return b.runtime("libPrivateHas", [any(expr(x.right())), EStr(brand(x.left()))]);
 		var a = expr(x.left());
 		if (op == KindAmpersandAmpersandToken || op == KindBarBarToken || op == KindQuestionQuestionToken) {
-			var l = b.local("shortCircuit", TRef(RAny));
-			b.out.push(SSet(l, b.coerce(a, l.ty)));
-			var cond = truth(a);
-			if (op == KindBarBarToken) cond = ENot(cond);
-			if (op == KindQuestionQuestionToken) cond = b.runtime("looseEq", [any(a), ENull(TRef(RAny))]);
-			var rhs = b.block(() -> b.out.push(SSet(l, b.coerce(expr(x.right()), l.ty))));
-			b.out.push(SIf(cond, rhs, new Vector(0)));
+			// (the result, the left or the right value, in a slot of the expression's type)
+			var l = b.local("shortCircuit", reps.rep(n.tsType));
+			var right = op == KindQuestionQuestionToken ? isNullish(a, null) : op == KindBarBarToken ? ENot(truth(a)) : truth(a);
+			var lhs = b.block(() -> b.out.push(SSet(l, store(a, l.ty))));
+			var rhs = b.block(() -> b.out.push(SSet(l, store(expr(x.right()), l.ty))));
+			b.out.push(SIf(right, rhs, lhs));
 			return ELocal(l);
 		}
 		if (op == KindInstanceOfKeyword) return b.runtime("libInstanceOf", [any(a), any(expr(x.right()))]);
