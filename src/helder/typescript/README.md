@@ -106,7 +106,13 @@ its length and dense elements read in place. Everything else is a dynamic
 JavaScript value. Bindings, parameters, direct functions' results and
 fields of those types are typed slots, and code on them is plain native
 code: arithmetic on F64s, fields at fixed offsets, for-of over an array by
-index, `Math`'s functions called directly (Math is frozen). A binding no
+index, `Math`'s functions called directly (Math is frozen). Such a class's
+constructor and methods are direct functions on a typed `this`: `new C(...)`
+makes and initializes the instance in place, and `o.m(...)` calls the
+method o's class runs (found by o's prototype among C and its subclasses
+with layouts), the prototype keeping thin wrappers for dynamic calls. Its
+prototype is locked: replacing a method, or hiding one with an instance's
+own property, diverges (TSHX100). A binding no
 closure captures is a plain local (`Captures.hx`); a captured one is a
 shared box.
 

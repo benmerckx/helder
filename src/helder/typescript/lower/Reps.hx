@@ -21,7 +21,9 @@ class Reps {
 	final layouts:Map<ClassInfo, ClassLayout> = [];
 	public final arrayClass:ClassInfo;
 	final holeClass:ClassInfo;
-	final objectBase:ClassInfo;
+	public final objectBase:ClassInfo;
+	// (the runtime's Layout, as JsObject's field holds it)
+	public final layoutType:Ty;
 	var link:Null<FuncInfo> = null;
 
 	public function new(p:Program, types:Types, classes:Classes) {
@@ -31,6 +33,7 @@ class Reps {
 		arrayClass = runtimeClass("helder.typescript.js.JsArray");
 		holeClass = runtimeClass("helder.typescript.js.Hole");
 		objectBase = runtimeClass("helder.typescript.js.JsObject");
+		layoutType = objectBase.fields[objectBase.fieldIndex("layout")].ty;
 		if (classes.all.length == 0) return;
 		for (fn in p.funcs) if (fn.name == "helder_typescript_js_Seed_libTypedClass") link = fn;
 		if (link == null) throw "TSHX004: runtime helper not linked: libTypedClass";
@@ -95,7 +98,7 @@ class Reps {
 	function describe(c:ClassInfo):String return c == arrayClass ? "an array" : "an instance of " + layouts.get(c).name;
 
 	// whether a value is statically of class c (no test needed)
-	function exact(e:Ex, c:ClassInfo):Bool return switch Ir.typeOf(e) {
+	public function exact(e:Ex, c:ClassInfo):Bool return switch Ir.typeOf(e) {
 		case TRef(RObj(d)): isA(d, c);
 		case _: false;
 	}
@@ -144,21 +147,25 @@ class Reps {
 			}
 			b.out.push(SReturn(null));
 		});
-		var alloc = linkLambda(b, closureSig(tys[4]), (b, args) -> {
-			var o = b.temp(ENewObj(ci));
-			b.out.push(SExpr(ECall(objectBase.ctor, Vector.fromArrayCopy([o, ELocal(args[0])]))));
-			// (dynamic fields start undefined; typed ones are set before they are read)
-			for (f in names) {
-				var i = slot(c, f);
-				if (ci.fields[i].ty.match(TRef(RAny))) b.out.push(SSetField(ci, i, o, b.runtime("getUndefined", [])));
-			}
-			b.out.push(SReturn(b.coerce(o, closureSig(tys[4]).ret)));
-		});
+		var alloc = linkLambda(b, closureSig(tys[4]), (b, args) -> b.out.push(SReturn(b.coerce(allocate(b, c, ELocal(args[0])), closureSig(tys[4]).ret))));
 		var elem = switch tys[1] {
 			case TRef(RArr(t)): t;
 			case t: throw "TSHX004: not an array type: " + t;
 		};
 		b.runtime("libTypedClass", [cls, ENewArr(elem, Vector.fromArrayCopy([for (f in names) b.coerce(EStr(f), elem)])), get, set, alloc]);
+	}
+
+	// a new instance of a class with a layout, with its prototype (its fields
+	// not yet initialized: dynamic ones undefined, typed ones set before they are read)
+	public function allocate(b:Builder, c:ClassLayout, proto:Ex):Ex {
+		var ci = c.info;
+		var o = b.temp(ENewObj(ci));
+		b.out.push(SExpr(ECall(objectBase.ctor, Vector.fromArrayCopy([o, b.coerce(proto, objectBase.ctor.args[1].ty)]))));
+		for (f in c.fields()) {
+			var i = slot(c, f);
+			if (ci.fields[i].ty.match(TRef(RAny))) b.out.push(SSetField(ci, i, o, b.runtime("getUndefined", [])));
+		}
+		return o;
 	}
 
 	// a function of the runtime's type (a closure of signature s) built here

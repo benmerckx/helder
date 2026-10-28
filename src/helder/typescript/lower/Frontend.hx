@@ -240,6 +240,7 @@ class Frontend {
 		classes = new Classes(src);
 		reps = new Reps(p, types, classes);
 		captures = new Captures(src);
+		for (c in classes.all) declareLayout(c);
 		mathFixed = !features.contains("All") && !assignsMath();
 		for (m in modules) {
 			validate(m.file.root);
@@ -1391,6 +1392,25 @@ class Frontend {
 
 	function strictEquals(a:Ex, z:Ex):Ex return equals(a, z, true);
 
+	// (a null or undefined literal: which)
+	function nullish(n:Node):Null<String> {
+		while (n.kind == KindParenthesizedExpression) n = n.expression();
+		return n.kind == KindNullKeyword ? "null" : n.kind == KindIdentifier && n.text == "undefined" && !env.exists("undefined") ? "undefined" : null;
+	}
+
+	// whether a value is null, undefined, or (which: null) either: by reference
+	function isNullish(e:Ex, which:Null<String>):Ex {
+		var v = b.temp(any(e));
+		var isNull = EBin(RefEq, v, ENull(TRef(RAny))), isUndefined = EBin(RefEq, v, b.runtime("getUndefined", []));
+		typedOperations++;
+		if (which == "null") return isNull;
+		if (which == "undefined") return isUndefined;
+		var l = b.local("nullish", TBool);
+		b.out.push(SSet(l, isNull));
+		b.out.push(SIf(ENot(ELocal(l)), Vector.fromArrayCopy([SSet(l, isUndefined)]), new Vector(0)));
+		return ELocal(l);
+	}
+
 	function equals(a:Ex, z:Ex, strict:Bool):Ex {
 		var direct:Ex = null;
 		if (Ir.typeOf(a) == TF64 && Ir.typeOf(z) == TF64) direct = EBin(FEq, a, z);
@@ -1469,7 +1489,9 @@ class Frontend {
 	function operate(op:Kind, a:Ex, z:Ex, n:Node):Ex {
 		if (op == KindInKeyword) return b.runtime("libHas", [any(z), any(a)]);
 		if (op == KindEqualsEqualsEqualsToken || op == KindExclamationEqualsEqualsToken || op == KindEqualsEqualsToken || op == KindExclamationEqualsToken) {
-			var e = equals(a, z, op == KindEqualsEqualsEqualsToken || op == KindExclamationEqualsEqualsToken);
+			var strict = op == KindEqualsEqualsEqualsToken || op == KindExclamationEqualsEqualsToken;
+			var literal = n.kind == KindBinaryExpression ? nullish(n.left()) ?? nullish(n.right()) : null;
+			var e = literal != null ? isNullish(nullish(n.left()) != null ? z : a, strict ? literal : null) : equals(a, z, strict);
 			return op == KindExclamationEqualsEqualsToken || op == KindExclamationEqualsToken ? ENot(e) : e;
 		}
 		if (op == KindPlusToken && (Ir.typeOf(a).match(TRef(RStr)) || Ir.typeOf(z).match(TRef(RStr)))) return b.runtime("concat", [text(a), text(z)]);
@@ -1593,6 +1615,8 @@ class Frontend {
 		var oldVars = functionVars;
 		functionVars = [];
 		var f = n != null ? declareFunction(n, "lambda" + serial++, false) : Builder.func(p, "lambda" + serial++, TRef(RAny));
+		var savedSuper = superInit;
+		superInit = null;
 		if (restArguments) {
 			f.args.push(new Local(f.args.length, "%arguments", TRef(RAny)));
 			restFunctions.set(f, true);
@@ -1636,6 +1660,7 @@ class Frontend {
 		b.finish();
 		b = old;
 		here = saved;
+		superInit = savedSuper;
 		env = outer;
 		functionVars = oldVars;
 		return {clos: any(b.temp(ENewClos(li, Vector.fromArrayCopy([for (c in captures) ELocal(c)])))), arity: arity, rest: rest};
@@ -1899,6 +1924,8 @@ class Frontend {
 	// the class in order, then static fields and blocks run with `this` as the
 	// class. Private names get a brand per class evaluation site.
 	function classValue(n:Node, ?name:String):Ex {
+		var layout = classes.declared(n);
+		if (layout != null) return layoutClassValue(n, layout);
 		var own = n.name() != null ? n.name().text : name == null ? "" : name;
 		var heritage:Node = null;
 		var clauses = n.heritageClauses();
@@ -1962,8 +1989,6 @@ class Frontend {
 			}).clos;
 		}
 		var c = b.temp(b.runtime("libClass", [EStr(own), parent, ctor.clos, EInt(ctor.arity), bool(ctor.rest), fields]));
-		var layout = classes.declared(n);
-		if (layout != null) reps.linkClass(b, layout, c);
 		set(classBinding, c);
 		set(protoBinding, b.runtime("libGet", [c, EStr("prototype")]));
 		var statics:Array<Node> = [];
@@ -1991,7 +2016,214 @@ class Frontend {
 				case _: fail(m, "unsupported class member " + m.kind.toString());
 			}
 		}
-		// (static fields and blocks: `this` is the class)
+		staticMembers(statics, classBinding, c);
+		privateScopes.pop();
+		env = outer;
+		return c;
+	}
+
+	// ---- classes with layouts (Classes): direct functions on typed `this`
+	// (a call to super() in the init function being compiled: the parent's init on this instance)
+	var superInit:Null<Array<Node>->Ex> = null;
+
+	// a class's init (its constructor on a made instance) and direct methods,
+	// declared before any code: call sites anywhere call them
+	function declareLayout(c:ClassLayout) {
+		c.prototype = anonymousGlobal("prototype_" + c.name).global;
+		c.layout = anonymousGlobal("layout_" + c.name).global;
+		function withThis(f:FuncInfo):FuncInfo {
+			for (a in f.args) a.id++;
+			f.args.unshift(new Local(0, "this", TRef(RObj(c.info))));
+			return f;
+		}
+		var ctor = c.constructor();
+		if (ctor != null) c.init = declareFunction(ctor, "init_" + c.name, true);
+		else if (c.parent != null) {
+			// (an implicit derived constructor passes its arguments on: the parent's init's)
+			c.init = Builder.func(p, "init_" + c.name, TVoid);
+			for (a in c.parent.init.args.slice(1)) c.init.args.push(new Local(c.init.args.length, a.name, a.ty));
+			if (restFunctions.exists(c.parent.init)) restFunctions.set(c.init, true);
+		}
+		else c.init = Builder.func(p, "init_" + c.name, TVoid);
+		c.init.ret = TVoid;
+		withThis(c.init);
+		for (m in c.node.members()) if (Classes.direct(m)) {
+			var f = declareFunction(m, c.name + "_" + m.name().text, true);
+			f.ret = reps.rep(m.returnType());
+			c.methods.set(m.name().text, withThis(f));
+		}
+	}
+
+	// whether an arrow function among these nodes reads `this` (which then lives in a box)
+	static function arrowsUseThis(nodes:Array<Node>):Bool {
+		function visit(n:Node):Bool {
+			if (n == null || n.kind == KindFunctionDeclaration || n.kind == KindFunctionExpression || n.kind == KindClassDeclaration || n.kind == KindClassExpression || n.kind == KindMethodDeclaration) return false;
+			if (n.kind == KindArrowFunction) return usesThis(n.body());
+			for (c in n.children()) if (visit(c)) return true;
+			return false;
+		}
+		for (n in nodes) if (visit(n)) return true;
+		return false;
+	}
+
+	// a direct function's body: its `this` and parameters bound, then build
+	function compileDirect(f:FuncInfo, n:Node, captured:Bool, build:() -> Void) {
+		var old = b, oldEnv = env, oldVars = functionVars, saved = here;
+		functionVars = [];
+		b = new Builder(p, f);
+		env = oldEnv.copy();
+		here = n;
+		env.set("this", captured ? {ty: f.args[0].ty, cell: b.temp(ENewBox(f.args[0].ty, ELocal(f.args[0])))} : {ty: f.args[0].ty, local: f.args[0]});
+		var names = parameterNames(n);
+		for (a in f.args.slice(1)) env.set(a.name, bind(names.get(a.name), a.ty, ELocal(a)));
+		build();
+		if (f.ret == TVoid) b.out.push(SReturn(null)); else b.out.push(SReturn(store(b.runtime("getUndefined", []), f.ret)));
+		b.finish();
+		b = old;
+		env = oldEnv;
+		functionVars = oldVars;
+		here = saved;
+	}
+
+	// A direct function as the function object compiled code calls dynamically:
+	// (closure, this, [newTarget,] arguments...); body gets them from `this` on.
+	function directValue(f:FuncInfo, prelude:Array<String>, body:(Array<Local>) -> Ex):{clos:Ex, arity:Int, rest:Bool} {
+		var count = f.args.length - 1;
+		var front = ["closure", "this"].concat(prelude);
+		var w = Builder.func(p, "direct" + serial++, TRef(RAny));
+		w.args = [for (i in 0...front.length) new Local(i, front[i], TRef(RAny))].concat([for (i in 0...count) new Local(front.length + i, f.args[i + 1].name, TRef(RAny))]);
+		var li = new LambdaInfo(p.lambdas.length, p.sig([for (a in w.args.slice(1)) a.ty], TRef(RAny)), new Vector(0), w);
+		p.lambdas.push(li);
+		w.lambda = li;
+		var old = b;
+		b = new Builder(p, w);
+		b.out.push(SReturn(any(body(w.args.slice(1)))));
+		b.finish();
+		b = old;
+		return {clos: any(b.temp(ENewClos(li, new Vector(0)))), arity: count, rest: restFunctions.exists(f)};
+	}
+
+	function layoutClassValue(n:Node, c:ClassLayout):Ex {
+		var own = n.name().text;
+		var heritage:Node = null;
+		for (h in n.heritageClauses() ?? []) if (h.token() == KindExtendsKeyword) heritage = h.types()[0].expression();
+		var parent = heritage == null ? b.runtime("libHole", []) : any(expr(heritage));
+		var outer = env;
+		env = env.copy();
+		// (the class's own scope in globals: its direct functions and closures reach them)
+		var classBinding = anonymousGlobal("class_" + own);
+		var protoBinding = {ty: TRef(RAny), global: c.prototype};
+		env.set(own, classBinding);
+		env.set("%class", classBinding);
+		var serialNumber = classSerial++;
+		var scope:Map<String, String> = [];
+		for (m in members(n)) if (m.name() != null && m.name().kind == KindPrivateIdentifier) scope.set(m.name().text, m.name().text + "@" + serialNumber);
+		privateScopes.push(scope);
+		var instanceFields = [for (m in members(n)) if (m.kind == KindPropertyDeclaration && !hasModifier(m, KindStaticKeyword) && !hasModifier(m, KindDeclareKeyword) && !hasModifier(m, KindAbstractKeyword)) m];
+		var privateMethods = [for (m in members(n)) if ((m.kind == KindMethodDeclaration || m.kind == KindGetAccessor || m.kind == KindSetAccessor) && m.name().kind == KindPrivateIdentifier && m.body() != null) m];
+		var keys:Map<Node, String> = [];
+		for (m in instanceFields.concat(privateMethods)) if (m.name().kind == KindComputedPropertyName || privateMethods.indexOf(m) >= 0 && !hasModifier(m, KindStaticKeyword)) {
+			var name = "%member" + (serial++);
+			keys.set(m, name);
+			env.set(name, anonymousGlobal("member"));
+		}
+		var ctor = c.constructor();
+		var props = ctor == null ? [] : [for (param in parametersOf(ctor)) if (param.name().kind == KindIdentifier && Classes.isParameterProperty(param)) param.name().text];
+		env.set("%home", protoBinding);
+		// (the init: field initializers, parameter properties, the constructor's body)
+		compileDirect(c.init, ctor ?? n, arrowsUseThis(instanceFields.concat(ctor == null ? [] : [ctor.body()])), () -> {
+			var self = read(env.get("this"));
+			function fields() {
+				for (m in privateMethods) if (!hasModifier(m, KindStaticKeyword))
+					b.runtime("libPrivateDefine", [any(self), EStr(brand(m.name())), read(env.get(keys.get(m))), EInt(m.kind == KindGetAccessor ? 1 : m.kind == KindSetAccessor ? 2 : 3)]);
+				for (m in instanceFields) {
+					if (m.initializer() == null && m.name().kind != KindPrivateIdentifier && !keys.exists(m)) continue;
+					var value = m.initializer() == null ? b.runtime("getUndefined", []) : named(m.initializer(), staticName(m.name()));
+					if (m.name().kind == KindPrivateIdentifier) b.runtime("libPrivateDefine", [any(self), EStr(brand(m.name())), any(value), EInt(0)]);
+					else if (keys.exists(m)) b.runtime("libDefineField", [any(self), read(env.get(keys.get(m))), any(value)]);
+					else reps.fieldSet(b, c, self, m.name().text, value, where());
+				}
+				for (name in props) reps.fieldSet(b, c, self, name, read(get(name, ctor)), where());
+			}
+			var savedSuper = superInit;
+			superInit = c.parent == null ? null : actual -> {
+				if (hasSpread(actual)) fail(actual[0], "a spread in super() of a class with a typed layout");
+				b.out.push(SExpr(ECall(c.parent.init, Vector.fromArrayCopy([ECast(TRef(RObj(c.parent.info)), self)].concat(positional(c.parent.init, actuals(actual), 1))))));
+				fields();
+				return any(self);
+			};
+			if (ctor != null) {
+				hoist(ctor.body(), false);
+				parameterSetup(ctor);
+			}
+			if (c.parent == null) fields();
+			if (ctor != null) statement(ctor.body());
+			else if (c.parent != null) {
+				b.out.push(SExpr(ECall(c.parent.init, Vector.fromArrayCopy([ECast(TRef(RObj(c.parent.info)), self)].concat([for (a in c.init.args.slice(1)) ELocal(a)])))));
+				fields();
+			}
+			superInit = savedSuper;
+		});
+		// (constructed dynamically: Lib.construct makes a base class's instance; a derived one makes its own)
+		var construct = directValue(c.init, ["%newTarget"], args -> {
+			var made = heritage == null ? ELocal(args[0]) : b.runtime("libAllocate", [ELocal(args[1])]);
+			var o = b.temp(store(made, TRef(RObj(c.info))));
+			b.out.push(SExpr(ECall(c.init, Vector.fromArrayCopy([o].concat([for (i in 1...c.init.args.length) store(ELocal(args[1 + i]), c.init.args[i].ty)])))));
+			return o;
+		});
+		var cls = b.temp(b.runtime("libClass", [EStr(own), parent, construct.clos, EInt(construct.arity), bool(construct.rest), ENull(TRef(RAny))]));
+		reps.linkClass(b, c, cls);
+		set(classBinding, cls);
+		set(protoBinding, b.runtime("libGet", [cls, EStr("prototype")]));
+		b.out.push(SSetGlobal(c.layout, b.runtime("libLayoutOf", [cls])));
+		var statics:Array<Node> = [];
+		for (m in members(n)) {
+			var isStatic = hasModifier(m, KindStaticKeyword);
+			switch (m.kind) {
+				case KindMethodDeclaration if (Classes.direct(m)):
+					var f = c.methods.get(m.name().text);
+					compileDirect(f, m, arrowsUseThis([m.body()]), () -> {
+						hoist(m.body(), false);
+						parameterSetup(m);
+						statement(m.body());
+					});
+					var value = directValue(f, [], args -> {
+						var call = ECall(f, Vector.fromArrayCopy([for (i in 0...f.args.length) store(ELocal(args[i]), f.args[i].ty)]));
+						if (f.ret == TVoid) {
+							b.out.push(SExpr(call));
+							return b.runtime("getUndefined", []);
+						}
+						return b.temp(call);
+					});
+					b.runtime("libDefineMethod", [read(protoBinding), EStr(m.name().text), b.runtime("libFunction", [value.clos, EInt(value.arity), bool(value.rest), EInt(METHOD), EStr(m.name().text)]), EInt(0), bool(false)]);
+				case KindMethodDeclaration | KindGetAccessor | KindSetAccessor if (m.body() != null):
+					env.set("%home", isStatic ? classBinding : protoBinding);
+					var kind = m.kind == KindGetAccessor ? 1 : m.kind == KindSetAccessor ? 2 : 0;
+					var fnName = m.name().kind == KindPrivateIdentifier ? m.name().text : staticName(m.name());
+					var fn = closure(m, fnName);
+					if (m.name().kind == KindPrivateIdentifier) {
+						if (isStatic) b.runtime("libPrivateDefine", [cls, EStr(brand(m.name())), fn, EInt(kind == 0 ? 3 : kind)]);
+						else set(env.get(keys.get(m)), fn);
+					}
+					else b.runtime("libDefineMethod", [isStatic ? cls : read(protoBinding), any(memberKey(m.name())), fn, EInt(kind), bool(false)]);
+					env.set("%home", protoBinding);
+				case KindPropertyDeclaration if (isStatic): statics.push(m);
+				case KindPropertyDeclaration: if (keys.exists(m)) set(env.get(keys.get(m)), memberKey(m.name()));
+				case KindClassStaticBlockDeclaration: statics.push(m);
+				case KindConstructor | KindMethodDeclaration | KindGetAccessor | KindSetAccessor | KindSemicolonClassElement | KindIndexSignature:
+				case _: fail(m, "unsupported class member " + m.kind.toString());
+			}
+		}
+		staticMembers(statics, classBinding, cls);
+		// (its methods are called directly: the prototype stays as defined)
+		b.runtime("libLock", [read(protoBinding)]);
+		privateScopes.pop();
+		env = outer;
+		return cls;
+	}
+
+	// (static fields and blocks, in order: `this` is the class)
+	function staticMembers(statics:Array<Node>, classBinding:Binding, c:Ex) {
 		env.set("%home", classBinding);
 		for (m in statics) {
 			var saved = env.get("this");
@@ -2012,9 +2244,69 @@ class Frontend {
 			}
 			if (saved == null) env.remove("this"); else env.set("this", saved);
 		}
-		privateScopes.pop();
-		env = outer;
-		return c;
+	}
+
+	// `new C(...)` of a class with a layout: made and initialized directly
+	// (before its declaration ran: the runtime's way, which throws)
+	function layoutConstruct(n:Node):Null<Ex> {
+		var callee = n.expression(), actual = n.arguments() ?? [];
+		if (callee.kind != KindIdentifier || hasSpread(actual)) return null;
+		var c = classes.of(callee.symbol);
+		if (c == null || c.node.name().symbol != callee.symbol) return null;
+		var args = actuals(actual);
+		var l = b.local("made", TRef(RObj(c.info)));
+		var fast = b.block(() -> {
+			var o = reps.allocate(b, c, EGlobal(c.prototype, TRef(RAny)));
+			b.out.push(SSetField(reps.objectBase, reps.objectBase.fieldIndex("layout"), ECast(TRef(RObj(reps.objectBase)), o), ECast(reps.layoutType, EGlobal(c.layout, TRef(RAny)))));
+			b.out.push(SExpr(ECall(c.init, Vector.fromArrayCopy([o].concat(positional(c.init, args, 1))))));
+			b.out.push(SSet(l, o));
+		});
+		var slow = b.block(() -> {
+			var cls = b.temp(any(expr(callee)));
+			b.out.push(SSet(l, store(b.runtime("libConstruct", [cls, pack(args), cls]), TRef(RObj(c.info)))));
+		});
+		b.out.push(SIf(EBin(RefEq, EGlobal(c.prototype, TRef(RAny)), ENull(TRef(RAny))), slow, fast));
+		typedOperations++;
+		return ELocal(l);
+	}
+
+	// `o.m(...)` with o of a class with a layout: the method its class runs,
+	// called directly (by o's prototype: the class or one of its subclasses
+	// with layouts); else the runtime's way
+	function layoutCall(n:Node, inner:Node, actual:Array<Node>):Null<Ex> {
+		if (inner.kind != KindPropertyAccessExpression || !plainAccess(inner) || inner.name().kind == KindPrivateIdentifier || n.flags & NodeFlags.OptionalChain != 0 || hasSpread(actual)) return null;
+		var c = reps.layoutOf(inner.expression().tsType), name = inner.name().text;
+		if (c == null) return null;
+		var cases = [for (x in classes.descendants(c)) if (x.method(name) != null) x];
+		if (cases.length == 0) return null;
+		var rets = [for (x in cases) x.method(name).ret];
+		var ret = Lambda.foreach(rets, t -> Type.enumEq(t, rets[0])) && rets[0] != TVoid ? rets[0] : TRef(RAny);
+		var o = b.temp(expr(inner.expression()));
+		var args = [for (e in actuals(actual)) b.temp(e)];
+		var l = b.local("result", ret);
+		function slow() b.out.push(SSet(l, store(b.runtime("libCallMethod", [any(o), EStr(name), pack(args)]), ret)));
+		var dispatch = b.block(() -> {
+			var proto = b.temp(EField(reps.objectBase, reps.objectBase.fieldIndex("proto"), ECast(TRef(RObj(reps.objectBase)), o)));
+			var chain = b.block(slow);
+			var i = cases.length;
+			while (i-- > 0) {
+				var f = cases[i].method(name);
+				var call = b.block(() -> {
+					var e = ECall(f, Vector.fromArrayCopy([ECast(f.args[0].ty, o)].concat(positional(f, args, 1))));
+					if (f.ret == TVoid) {
+						b.out.push(SExpr(e));
+						b.out.push(SSet(l, store(b.runtime("getUndefined", []), ret)));
+					}
+					else b.out.push(SSet(l, store(b.temp(e), ret)));
+				});
+				chain = Vector.fromArrayCopy([SIf(EBin(RefEq, proto, EGlobal(cases[i].prototype, TRef(RAny))), call, chain)]);
+			}
+			for (s in chain) b.out.push(s);
+		});
+		if (reps.exact(o, c.info)) for (s in dispatch) b.out.push(s);
+		else b.out.push(SIf(EInstOf(c.info, any(o)), dispatch, b.block(slow)));
+		typedOperations++;
+		return ELocal(l);
 	}
 
 	// ---- typed values (Reps)
@@ -2066,6 +2358,8 @@ class Frontend {
 	}
 
 	function construct(n:Node):Ex {
+		var direct = layoutConstruct(n);
+		if (direct != null) return direct;
 		var callee = any(expr(n.expression()));
 		return b.runtime("libConstruct", [callee, argumentList(n.arguments() == null ? [] : n.arguments()), callee]);
 	}
@@ -2131,6 +2425,7 @@ class Frontend {
 		var actual = n.arguments();
 		if (actual == null) actual = [];
 		var callee = n.expression();
+		if (callee.kind == KindSuperKeyword && superInit != null) return superInit(actual);
 		if (callee.kind == KindSuperKeyword) {
 			var list = argumentList(actual);
 			var t = b.runtime("libSuperConstruct", [read(get("%class", n)), list, read(get("%newTarget", n))]);
@@ -2166,6 +2461,8 @@ class Frontend {
 		if (math != null) return math;
 		var inner = callee;
 		while (inner.kind == KindParenthesizedExpression) inner = inner.expression();
+		var method = layoutCall(n, inner, actual);
+		if (method != null) return method;
 		if ((inner.kind == KindPropertyAccessExpression || inner.kind == KindElementAccessExpression) && inner.expression().kind == KindSuperKeyword) {
 			var key = inner.kind == KindPropertyAccessExpression ? EStr(inner.name().text) : any(expr(inner.argumentExpression()));
 			return b.runtime("libSuperCall", [read(get("%home", n)), thisValue(), key, argumentList(actual)]);

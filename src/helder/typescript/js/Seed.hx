@@ -81,13 +81,13 @@ class Seed {
 	}
 
 	public static function strictEq(a:Dynamic, b:Dynamic):Bool {
-		var t = typeOf(a);
-		if (t != typeOf(b)) return false;
-		if (t == "number") {
+		// (numbers by value, NaN unequal; strings by value; the rest by identity)
+		if (Std.isOfType(a, Float)) {
+			if (!Std.isOfType(b, Float)) return false;
 			var x:Float = a, y:Float = b;
 			return x == y;
 		}
-		return a == b;
+		return !Std.isOfType(b, Float) && a == b;
 	}
 
 	public static function looseEq(a:Dynamic, b:Dynamic):Bool {
@@ -280,6 +280,13 @@ class Seed {
 		f.alloc = alloc;
 	}
 
+	// (a typed class: an instance for newTarget, made as Lib.construct does; its runtime Layout; its prototype locked)
+	public static function libAllocate(newTarget:Dynamic):Dynamic return Lib.allocate(newTarget, Lib.protoFrom(newTarget, Builtins.ObjectProto));
+
+	public static function libLayoutOf(cls:Dynamic):Dynamic return (cls : JsFunction).instanceLayout;
+
+	public static function libLock(o:Dynamic):Void(o : JsObject).locked = true;
+
 	public static function libDefineMethod(target:Dynamic, k:Dynamic, fn:Dynamic, kind:Int, enumerable:Bool):Void Lib.defineMethod(target, k, fn, kind, enumerable);
 
 	public static function libDefineField(target:Dynamic, k:Dynamic, v:Dynamic):Void Lib.defineField(target, k, v);
@@ -429,6 +436,7 @@ class Seed {
 		mathSqrt(mathAbs(mathFloor(mathCeil(mathUnary("sin", mathBinary("atan2", mathMin(0, mathMax(0, 0)), 0))))));
 		libArrayIterable(a);
 		expectNumber(0, "");
+		libLock(libAllocate(libLayoutOf(f)));
 		diverge("", null, "");
 		libDefineMethod(o, "x", f, 0, true);
 		libDefineField(o, "x", null);

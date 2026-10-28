@@ -34,6 +34,9 @@ class JsObject {
 	// an instance of a typed class (helder.typescript.lower): its declared
 	// fields in slots of its own, before the others
 	public var layout:Layout = null;
+	// a typed class's prototype (helder.typescript.lower): compiled code
+	// calls its methods directly, so changing it diverges
+	public var locked = false;
 
 	public function new(proto:JsObject) {
 		this.proto = proto;
@@ -58,6 +61,7 @@ class JsObject {
 	public inline function attr(k:String):Int return attrs == null || !attrs.exists(k) ? 0 : attrs.get(k);
 
 	public function setOwn(k:String, v:Dynamic, attribute:Int = 0):Void {
+		if (locked) Seed.diverge("changeable", this, "a typed class's prototype (" + k + ")");
 		// (a typed class's field is a plain writable value: what its slot holds)
 		if (layout != null && layout.index.exists(k) && (attribute & Attr.READONLY != 0 || Std.isOfType(v, Accessor)))
 			Seed.diverge("a writable field", v, "property " + k);
@@ -71,12 +75,14 @@ class JsObject {
 
 	// an own property's value set, its attributes kept
 	public function writeOwn(k:String, v:Dynamic):Void {
+		if (locked) Seed.diverge("changeable", this, "a typed class's prototype (" + k + ")");
 		if (layout != null) {
 			var i = layout.index.get(k);
 			if (i != null) {
 				layout.set(this, i, v);
 				return;
 			}
+			if (shadowsMethod(k)) Seed.diverge("a field", v, "method " + k + " of a typed class's instance");
 		}
 		if (slots == null) {
 			slots = [];
@@ -87,11 +93,22 @@ class JsObject {
 	}
 
 	public function removeOwn(k:String):Void {
+		if (locked) Seed.diverge("changeable", this, "a typed class's prototype (" + k + ")");
 		if (layout != null && layout.index.exists(k)) Seed.diverge("deletable", this, "field " + k);
 		if (slots == null || !slots.exists(k)) return;
 		slots.remove(k);
 		names.remove(k);
 		if (attrs != null) attrs.remove(k);
+	}
+
+	// (an own property hiding a method of a typed class's locked prototype)
+	function shadowsMethod(k:String):Bool {
+		var p = proto;
+		while (p != null && p.locked) {
+			if (p.hasOwn(k)) return true;
+			p = p.proto;
+		}
+		return false;
 	}
 
 	// [[Class]]-like tag for Object.prototype.toString and inspection

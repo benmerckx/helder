@@ -434,7 +434,7 @@ class Lib {
 
 	// a class's new instance: the typed class's nearest newTarget (itself or
 	// a superclass) lays it out, else it is a plain object
-	static function allocate(newTarget:Dynamic, proto:JsObject):JsObject {
+	public static function allocate(newTarget:Dynamic, proto:JsObject):JsObject {
 		var f:Dynamic = newTarget;
 		while (Std.isOfType(f, JsFunction)) {
 			var fn:JsFunction = f;
