@@ -1,6 +1,5 @@
 package jobs;
 
-#if (target.name == "hxmc")
 import haxe.exceptions.CancellationException;
 import haxe.io.Bytes;
 import helder.async.*;
@@ -9,8 +8,7 @@ import hxmc.unsafe.*;
 import helder.test.Test;
 
 // helder.jobs: the pool natively, workers under node on wasm32-wasi
-// (`bun run helder test tests/jobs --target host,wasm`; on Eval, which has
-// no hxmc.unsafe, nothing). The sendable check's rejections are the jobs
+// (`bun run helder test tests/jobs`). The sendable check's rejections are the jobs
 // lane's (tests/jobs/reject).
 function tests() {
 	describe("jobs", () -> {
@@ -212,6 +210,3 @@ class JobsWork {
 		this.y = y;
 	}
 }
-#else
-function tests() {}
-#end

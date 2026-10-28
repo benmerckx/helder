@@ -1,6 +1,5 @@
 package helder.scene.input;
 
-#if (target.name == "hxmc")
 import helder.os.Pointer;
 import helder.os.Pointers;
 import helder.test.Test;
@@ -168,6 +167,3 @@ function tests() {
 		});
 	});
 }
-#else
-function tests() {}
-#end

@@ -38,7 +38,8 @@ commands: dev, run, build, test, inspect, devices, help
 The positional is what is built, never where it runs: a word that is a
 target's name and not a path is an error (`helder build web`: "`web` is a
 target: use --target web"), and `helder web` too. `--target` has no short
-form; `helder test`'s takes a list (`host,interp,wasm`, `all`), and keeps
+form; `helder test`'s takes a list (`host,wasm`; `all`: host and wasm;
+`interp`, only asked for: the files with `@:test.interp`), and keeps
 bun's `-t`/`--test-name-pattern`. The first word is a command or an entry
 (`helder examples/todo/Todo.hx` is dev's); `helder` alone prints the help.
 Each command has its own options beside the common ones: dev `--port`,

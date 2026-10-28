@@ -19,7 +19,9 @@ private class Point {
 	}
 }
 
-// Equal's deep equality and its literals
+// Equal's deep equality and its literals (on interp too: helder.test runs
+// there for the files that opt in, as this one)
+@:test.interp
 function tests() {
 	describe("diff", () -> {
 		test("scalars", () -> {

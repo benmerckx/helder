@@ -90,7 +90,7 @@ checkout (bin/cli/helder, rebuilt when its sources change):
 bun install
 bun run test              # the lanes that need no GPU, display or browser
 bun run test help         # every lane
-bun run helder test       # the *.test.hx files (--target all, --watch, -t <name>)
+bun run helder test       # the *.test.hx files (--target all: host and wasm, --watch, -t <name>)
 bun run helder examples/counter/Counter.hx       # an example, live (helder dev; --target web: a page)
 ```
 
@@ -157,7 +157,8 @@ Done as a first slice:
 - **`helder test` and `helder.test`** (src/helder/test/README.md): the
   `*.test.hx` files under `src/`, `tests/` and the class paths, linked into
   bin/test/src (Haxe takes no dot in a module's name), one generated main,
-  built once, run on the host, Eval or wasm32-wasi (`--target all`), paths
+  built once, run on the host or wasm32-wasi (`--target all`; Eval only
+  for the files that opt in, `@:test.interp`: compile-time code), paths
   written back as the real files'; `-t`, `--watch`, `-u` for text
   snapshots. The library has no macros: `describe`, `test` (`.skip()`,
   `.only()`, `.timeout()`), hooks, `async(coroutine)` bodies, `assert`,
@@ -509,7 +510,7 @@ fix.
      clicks, the first finger's drag scrolls in ui itself; a press on
      ui's own nodes marks the pointer the ui's), a `<Scene>` picking at
      each pointer's press only (the node hit owns it), one `SceneEvent`
-     per box. Tested on Eval, natively and as wasm32-wasi
+     per box. Tested natively and as wasm32-wasi
      (`src/helder/ui/Pointers.test.hx`), the todo's touch drag, flick and
      tap in Chromium (ui-web).
   3. *Landed*: touch in scene's input actions (`Touch(zone)`,
@@ -523,7 +524,7 @@ fix.
      markup; a recogniser that wins takes the click), `onTap` on scene
      nodes and `<OrbitControls>` for a `<Scene>`'s camera (one finger
      turns it, two pinch about their centre, move and twist it; the mouse
-     and the wheel too; a glide). Tested on Eval, natively and as
+     and the wheel too; a glide). Tested natively and as
      wasm32-wasi (`Gestures.test.hx`, `OrbitControls.test.hx`), a tap and
      an orbit over a GPU's `<Scene>` under Xvfb.
 

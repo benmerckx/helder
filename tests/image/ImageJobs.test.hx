@@ -1,6 +1,5 @@
 package image;
 
-#if (target.name == "hxmc")
 import helder.async.*;
 import helder.image.*;
 import hxmc.unsafe.*;
@@ -55,6 +54,3 @@ function tests() {
 		}));
 	});
 }
-#else
-function tests() {}
-#end

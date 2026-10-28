@@ -34,8 +34,25 @@ function tests() {
 ```sh
 bun run helder test                       # every test file, natively
 bun run helder test geom -t length        # the files under geom, tests named so
-bun run helder test --target all --watch
+bun run helder test --target all --watch  # natively and as wasm32-wasi
+bun run helder test --target interp       # the files that opt in, on Eval
 ```
+
+helder ships natively and as wasm32-wasi, so those are the targets
+(`all`); Eval matters only for code that runs at compile time (macros:
+the shader compiler, ui's StyleFieldsMacro and AttrMacro). A test file
+opts in to `interp` with `@:test.interp` on its `tests()` (the CLI reads
+it in the file; no macro):
+
+```haxe
+@:test.interp
+function tests() { ... }
+```
+
+The others are never built for Eval, so they need no `#if` for it (they
+may use hxmc.unsafe, helder.os's windows); `--target interp` with no file
+opting in says so in a line and passes. Opted in: helder.test's own
+Equal.test.hx.
 
 ## Files
 
@@ -115,7 +132,7 @@ fail, checks, the time); exit code 1 on a failure. `helder test`:
 | --- | --- |
 | `[filter...]` | a filter that is part of a test file's path picks those files; any other one the tests whose full name ("describe > test") contains it |
 | `-t <text>` | the tests whose full name contains it; `/text/` a regex (the generated main gives the runner EReg only then) |
-| `--target <t>` | `host` (natively, the default; on Linux in the dynamic glibc mode, as `helder build`'s, so that tests of helder.os link the system's libraries), `interp` (Eval), `wasm` (wasm32-wasi under node: src/helder/test/wasi.mjs, node's WASI with the working directory and helder.async's imports), `all`, or several (`host,wasm`); a line per target at the end |
+| `--target <t>` | `host` (natively, the default; on Linux in the dynamic glibc mode, as `helder build`'s, so that tests of helder.os link the system's libraries), `wasm` (wasm32-wasi under node: src/helder/test/wasi.mjs, node's WASI with the working directory and helder.async's imports), `all` (`host` and `wasm`), `interp` (Eval, only the files with `@:test.interp`; asked for, never in `all`), or several (`host,interp`); a line per target at the end |
 | `--watch`, `-w` | built and run again after each change under the roots (mtimes to the nanosecond: a save within the same second is seen); builds go to a compilation server (`haxe --wait`), stopped with the CLI on ctrl-c or SIGTERM |
 | `-u` | snapshots rewritten |
 | `--timeout <s>` | an async step's limit |

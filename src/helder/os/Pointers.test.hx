@@ -1,13 +1,12 @@
 package helder.os;
 
-#if (target.name == "hxmc")
 import helder.os.Event;
 import helder.test.Test;
 
 // helder.os.Pointers without a window: the mouse's slot from its events,
 // touches' slots (dense, reused, in down order), a frame's motion and
 // presses, samples, cancels, and nothing allocated (`bun run helder test
-// src/helder/os --target host,wasm`; not on Eval, which has no Window).
+// src/helder/os`, natively and as wasm32-wasi).
 // The back ends' own: the touch-web lane (Chromium's touches and pens).
 function tests() {
 	describe("Pointers", () -> {
@@ -111,6 +110,3 @@ private function mouseEvent(kind:EventKind, button:Int, x:Int, y:Int):Event {
 	e.y = y;
 	return e;
 }
-#else
-function tests() {}
-#end

@@ -89,8 +89,11 @@ function tests() {
 		test("helder test's: a list", () -> {
 			equals(parse("test", []).targets, ["host"]);
 			equals(parse("test", ["--target", "host,wasm"]).targets, ["host", "wasm"]);
-			equals(parse("test", ["--target", "all"]).targets, ["host", "interp", "wasm"]);
-			equals(usage(() -> parse("test", ["--target", "web"])), "helder test: no target web (host, interp, wasm, all; several: host,wasm)");
+			// (all: host and wasm; interp only asked for)
+			equals(parse("test", ["--target", "all"]).targets, ["host", "wasm"]);
+			equals(parse("test", ["--target", "interp"]).targets, ["interp"]);
+			equals(parse("test", ["--target", "all,interp"]).targets, ["host", "interp", "wasm"]);
+			equals(usage(() -> parse("test", ["--target", "web"])), "helder test: no target web (host, wasm, all, interp; several: host,interp)");
 		});
 	});
 

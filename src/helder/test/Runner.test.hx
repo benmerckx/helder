@@ -106,7 +106,8 @@ private function own() {
 		snapshot("a value", {name: "x", sizes: [1, 2]});
 	});
 
-	#if ((target.name == "hxmc") && !(hxmc.target == "wasm32-wasi"))
+	// (not on wasm32-wasi, which spawns no process)
+	#if (hxmc.target != "wasm32-wasi")
 	describe("a run of the fixture", () -> {
 		test("failures, stops, skips, timeouts", () -> {
 			var r = rerun("1");

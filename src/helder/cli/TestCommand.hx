@@ -10,16 +10,23 @@ using StringTools;
 
 // `helder test`: the project's `*.test.hx` files (under src/ and tests/ and
 // its class paths, not bin/ or node_modules/), built into one program with
-// helder.test's runner and run, on the host, Eval or wasm32-wasi (node).
+// helder.test's runner and run, on the host, wasm32-wasi (node) or Eval.
+// Eval (interp) only for the files that opt in: `@:test.interp` on their
+// `tests()` (code that runs at compile time: macros); the rest is shipped
+// natively and as wasm only, and may use what Eval has not (hxmc.unsafe,
+// helder.os's windows).
 //
 // Haxe takes no dot in a module's name, so each file is linked (Link) into
 // bin/test/src under its package's directories as `Foo_test.hx`, and a
-// generated main (bin/test/src/HelderTestMain.hx) calls each one's
+// generated main (bin/test/src/HelderTestMain.hx; interp's
+// HelderTestInterp.hx, the files that opt in) calls each one's
 // module-level `tests()`. The compiler's output and the program's are
 // written with the real paths again (the content, so the positions, are
 // the same).
 class TestCommand {
 	public static inline var GEN = "bin/test/src";
+	// (a test file's opt-in to interp: on its tests())
+	public static final INTERP = ~/^\s*@:test\.interp\b/m;
 
 	@:coroutine public static function run(task:Node, o:Options):Int {
 		var filters = o.positionals, targets = o.targets, watch = o.has("watch"), runner = [];
@@ -84,6 +91,14 @@ class TestCommand {
 		for (c in p.classPaths(files).concat([GEN])) cp = cp.concat(["-cp", c]);
 		var results = [], failed = false;
 		for (t in targets) {
+			// (interp: the files that opt in, else a line, not a failure)
+			if (t == "interp" && !Lambda.exists(files, f -> f.interp)) {
+				var none = "no test file opts in (@:test.interp on its tests())";
+				Term.out("");
+				Term.out(Style.status("interp", Quiet, none));
+				results.push(Style.status(t, Quiet, none));
+				continue;
+			}
 			var r = target(t, p, cp, runner, map, server);
 			results.push(Style.status(t, r.ok ? Ok : Fail, r.summary));
 			if (!r.ok) failed = true;
@@ -104,7 +119,7 @@ class TestCommand {
 				// (built and run by one process: Eval)
 				Term.out("");
 				Term.out(Style.status("running", Info, "interp" + Style.dim(Style.sep() + "built and run by the compiler (Eval)")));
-				out = Output.of(Compiler.tool(), cp.concat(["--run", "HelderTestMain"]).concat(runner), map, "building and running the tests on interp");
+				out = Output.of(Compiler.tool(), cp.concat(["--run", "HelderTestInterp"]).concat(runner), map, "building and running the tests on interp");
 				return {ok: out.code == 0, summary: out.summary() + ' (${secs(haxe.Timer.stamp() - t0)} built and run)'};
 			case "wasm":
 				var exe = "bin/test/test.wasm";
@@ -151,12 +166,17 @@ class TestCommand {
 			mkdirs(Path.directory(f.linked));
 			Link.make(f.real, f.linked);
 		}
-		var main = ["// `helder test`'s runner: the test files linked here, in order", "class HelderTestMain {", "\tstatic function main() {"];
+		writeMain("HelderTestMain", files, regex);
+		writeMain("HelderTestInterp", files.filter(f -> f.interp), regex);
+	}
+
+	static function writeMain(name:String, files:Array<TestFile>, regex:Bool) {
+		var main = ["// `helder test`'s runner: the test files linked here, in order", 'class $name {', "\tstatic function main() {"];
 		for (f in files)
 			main.push('\t\thelder.test.Runner.add("${lit(f.real)}", "${lit(f.linked)}", ${f.module}.tests);');
 		if (regex) main.push('\t\thelder.test.Runner.regex = p -> {\n\t\t\tvar r = new EReg(p, "");\n\t\t\ts -> r.match(s);\n\t\t};');
 		main = main.concat(["\t\thelder.test.Runner.run();", "\t}", "}", ""]);
-		var text = main.join("\n"), path = '$GEN/HelderTestMain.hx';
+		var text = main.join("\n"), path = '$GEN/$name.hx';
 		if (!FileSystem.exists(path) || File.getContent(path) != text) File.saveContent(path, text);
 	}
 
@@ -187,6 +207,8 @@ typedef TestFile = {
 	real:String,
 	linked:String,
 	module:String,
+	// (it opts in to interp: @:test.interp)
+	interp:Bool,
 }
 
 // The project in the working directory: its class paths (package.json's
@@ -260,7 +282,8 @@ class Project {
 			var dirs = Path.directory(p.substr(r.length + 1));
 			var pack = dirs == "" ? "" : dirs.split("/").join(".");
 			var declared = ~/^\s*package\s+([\w.]*)\s*;/m;
-			var have = declared.match(File.getContent(p)) ? declared.matched(1) : "";
+			var content = File.getContent(p);
+			var have = declared.match(content) ? declared.matched(1) : "";
 			if (have != pack)
 				throw '$p: package ${have == "" ? "(none)" : have}, but its directory under $r/ makes it ${pack == "" ? "(none)" : pack}';
 			var name = Path.withoutDirectory(p);
@@ -269,7 +292,7 @@ class Project {
 			// (the same module from two roots)
 			if (seen.exists(module)) throw '$p: the same module as ${seen.get(module)}';
 			seen.set(module, p);
-			out.push({real: p, linked: '${TestCommand.GEN}/' + (dirs == "" ? "" : dirs + "/") + name + ".hx", module: module});
+			out.push({real: p, linked: '${TestCommand.GEN}/' + (dirs == "" ? "" : dirs + "/") + name + ".hx", module: module, interp: TestCommand.INTERP.match(content)});
 		}
 		return out;
 	}

@@ -5,8 +5,8 @@ import helder.test.Test;
 // helder.ui's fingers and pens (Ui.pointerDown with a pointer id): their
 // own events and captures, taps that click, a drag that scrolls and
 // cancels the press, cancels, a node leaving the tree, whose pointer a
-// press is (on Eval, natively and as wasm32-wasi: `bun run helder test
-// src/helder/ui --target all`). The gestures' arena: Gestures.test.hx.
+// press is (natively and as wasm32-wasi: `bun run helder test
+// src/helder/ui`). The gestures' arena: Gestures.test.hx.
 function tests() {
 	describe("ui's pointers", () -> {
 		var t = 0.0;

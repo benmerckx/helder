@@ -1,6 +1,5 @@
 package helder.scene.view;
 
-#if (target.name == "hxmc")
 import helder.gfx.shader.Vec3;
 import helder.scene.Camera;
 import helder.scene.World;
@@ -114,6 +113,3 @@ function tests() {
 		});
 	});
 }
-#else
-function tests() {}
-#end

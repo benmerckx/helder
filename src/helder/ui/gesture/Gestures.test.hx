@@ -3,8 +3,8 @@ package helder.ui.gesture;
 import helder.test.Test;
 import helder.ui.view.NodeRenderer;
 
-// helder.ui's gesture arena (on Eval, natively and as wasm32-wasi: `bun run
-// helder test src/helder/ui --target all`): a tap and a click, a scroller's
+// helder.ui's gesture arena (natively and as wasm32-wasi: `bun run
+// helder test src/helder/ui`): a tap and a click, a scroller's
 // drag taking a press from a tap, a Pan inside a scroller winning first
 // (along its axis only), a pinch and a Scale with a finger joining
 // without a jump, the mouse feeding the arena, cancels, a node leaving the

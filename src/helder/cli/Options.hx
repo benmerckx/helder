@@ -23,6 +23,9 @@ class Options {
 	];
 	// helder test's
 	public static final TEST_TARGETS = ["host", "interp", "wasm"];
+	// (test's all: the targets helder ships, interp only when asked: the
+	// files that opt in, @:test.interp)
+	public static final TEST_ALL = ["host", "wasm"];
 
 	public static final ENTRY = "a .hx file, a directory or a project (default: .)";
 	public static final NOT_YET = "not yet: Android and iOS packaging is being moved into helder";
@@ -74,7 +77,7 @@ class Options {
 			about: "build and run the *.test.hx files (helder.test)",
 			entry: false,
 			common: ["target"],
-			targetAbout: "host (default), interp, wasm or all; several: host,interp,wasm",
+			targetAbout: "host (default), wasm, all (host and wasm) or interp (the files with @:test.interp); several: host,interp",
 			own: [
 				{key: "test-name-pattern", names: ["-t", "--test-name-pattern"], value: "<text>", about: "the tests whose name contains it (/text/: a regex)"},
 				{key: "watch", names: ["-w", "--watch"], about: "run again on every change (a compilation server's builds)"},
@@ -234,8 +237,8 @@ class Options {
 		if (command == "test") {
 			if (target != null) {
 				targets = target.split(",");
-				if (targets.contains("all")) targets = TEST_TARGETS.copy();
-				for (t in targets) if (!TEST_TARGETS.contains(t)) throw usage('no target $t (host, interp, wasm, all; several: host,wasm)');
+				for (t in targets) if (t != "all" && !TEST_TARGETS.contains(t)) throw usage('no target $t (host, wasm, all, interp; several: host,interp)');
+				if (targets.contains("all")) targets = [for (t in TEST_TARGETS) if (TEST_ALL.contains(t) || targets.contains(t)) t];
 			}
 			return;
 		}
@@ -277,8 +280,8 @@ class Options {
 			out = out.concat([
 				"",
 				"the commands' own: dev --port, --host; test -t, -w, -u, --timeout (its --target",
-				"takes host, interp, wasm or all, or several: host,wasm); inspect --tree, --state,",
-				"--log, --frames, --port",
+				"takes host, wasm, all: both, or interp: the files with @:test.interp, or several:",
+				"host,interp); inspect --tree, --state, --log, --frames, --port",
 			]);
 			return out.join("\n");
 		}
