@@ -117,7 +117,7 @@ class Promises {
 			enqueue(() -> call(f, undef(), []));
 			return undef();});
 		var global:JsObject = Builtins.globals.get("globalThis");
-		Builtins.globals.set("queueMicrotask", global.slots.get("queueMicrotask"));
+		Builtins.globals.set("queueMicrotask", global.getOwn("queueMicrotask"));
 		function timerFunction(name:String, repeat:Bool, immediate:Bool) {
 			var f = Builtins.nativeFunction(name, immediate ? 1 : 2, (_, a, _) -> {
 				var cb = arg(a, 0);

@@ -125,8 +125,8 @@ class Lib {
 				return v == hole ? absent : v;
 			}
 		}
-		if (obj.slots != null && obj.slots.exists(name)) {
-			var v = obj.slots.get(name);
+		if (obj.hasOwn(name)) {
+			var v = obj.getOwn(name);
 			if (Std.isOfType(v, Accessor)) {
 				var acc:Accessor = v;
 				return acc.getter == null ? undef() : call(acc.getter, receiver, []);
@@ -221,8 +221,8 @@ class Lib {
 				return;
 			}
 		}
-		if (obj.slots != null && obj.slots.exists(name)) {
-			var current = obj.slots.get(name);
+		if (obj.hasOwn(name)) {
+			var current = obj.getOwn(name);
 			if (Std.isOfType(current, Accessor)) {
 				var acc:Accessor = current;
 				if (acc.setter == null) readOnly(name, obj);
@@ -233,7 +233,7 @@ class Lib {
 				readOnly(name, obj);
 				return;
 			}
-			obj.slots.set(name, v);
+			obj.writeOwn(name, v);
 			return;
 		}
 		if (Std.isOfType(obj, JsFunction) && functionOwn(cast obj, name) != absent && name != "prototype") {
@@ -266,8 +266,8 @@ class Lib {
 	// (an inherited accessor or read-only data property that governs a write; null when a plain write may proceed)
 	static function inherited(obj:JsObject, name:String):Dynamic {
 		while (obj != null) {
-			if (obj.slots != null && obj.slots.exists(name)) {
-				var v = obj.slots.get(name);
+			if (obj.hasOwn(name)) {
+				var v = obj.getOwn(name);
 				if (Std.isOfType(v, Accessor)) return v;
 				return obj.attr(name) & Attr.READONLY != 0 ? v : null;
 			}
@@ -278,8 +278,8 @@ class Lib {
 
 	static function findAccessor(obj:JsObject, name:String):Accessor {
 		while (obj != null) {
-			if (obj.slots != null && obj.slots.exists(name)) {
-				var v = obj.slots.get(name);
+			if (obj.hasOwn(name)) {
+				var v = obj.getOwn(name);
 				return Std.isOfType(v, Accessor) ? v : null;
 			}
 			obj = obj.proto;
@@ -351,10 +351,11 @@ class Lib {
 			var a:JsArray = cast obj;
 			for (i in 0...a.items.length) if (a.items[i] != hole) out.push(Std.string(i));
 		}
-		if (obj.names == null) return out;
+		var own = obj.ownNames();
+		if (own == null) return out;
 		var numeric:Array<String> = [];
 		var other:Array<String> = [];
-		for (n in obj.names) {
+		for (n in own) {
 			if (enumerableOnly && obj.attr(n) & Attr.HIDDEN != 0) continue;
 			if (Symbols.isSymbolKey(n)) continue;
 			if (index(n) >= 0) numeric.push(n); else other.push(n);
@@ -489,7 +490,7 @@ class Lib {
 			obj.setOwn(name, fn, attribute);
 			return;
 		}
-		var current = obj.hasOwn(name) ? obj.slots.get(name) : null;
+		var current = obj.hasOwn(name) ? obj.getOwn(name) : null;
 		var acc = Std.isOfType(current, Accessor) ? (current : Accessor) : new Accessor(null, null);
 		if (kind == 1) acc.getter = fn; else acc.setter = fn;
 		obj.setOwn(name, acc, attribute);
@@ -583,7 +584,7 @@ class Lib {
 		if (custom != undef() && custom != null) return Seed.truth(call(custom, c, [v]));
 		if (!Std.isOfType(c, JsFunction)) return error("TypeError", "Right-hand side of 'instanceof' is not callable");
 		var f:JsFunction = c;
-		if (f.native != null && f.hasOwn(Builtins.boundTarget)) return instanceOf(v, f.slots.get(Builtins.boundTarget));
+		if (f.native != null && f.hasOwn(Builtins.boundTarget)) return instanceOf(v, f.getOwn(Builtins.boundTarget));
 		if (!isObject(v)) return false;
 		var p = get(c, "prototype");
 		if (!isObject(p)) return error("TypeError", "Function has non-object prototype '" + Seed.text(p) + "' in instanceof check");

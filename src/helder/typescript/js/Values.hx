@@ -31,21 +31,34 @@ class JsObject {
 	// class-private elements, keyed by brand ("#name@class")
 	public var privates:Map<String, Dynamic> = null;
 	public var extensible = true;
+	// an instance of a typed class (helder.typescript.lower): its declared
+	// fields in slots of its own, before the others
+	public var layout:Layout = null;
+
 	public function new(proto:JsObject) {
 		this.proto = proto;
 	}
 
-	public inline function hasOwn(k:String):Bool return slots != null && slots.exists(k);
+	public inline function hasOwn(k:String):Bool
+		return layout != null && layout.index.exists(k) || slots != null && slots.exists(k);
+
+	// an own property's value (an Accessor for an accessor property); hasOwn(k) first
+	public function getOwn(k:String):Dynamic {
+		if (layout != null) {
+			var i = layout.index.get(k);
+			if (i != null) return layout.get(this, i);
+		}
+		return slots.get(k);
+	}
+
+	// an own property's names, in order
+	public function ownNames():Array<String>
+		return layout == null ? names : names == null ? layout.names : layout.names.concat(names);
 
 	public inline function attr(k:String):Int return attrs == null || !attrs.exists(k) ? 0 : attrs.get(k);
 
 	public function setOwn(k:String, v:Dynamic, attribute:Int = 0):Void {
-		if (slots == null) {
-			slots = [];
-			names = [];
-		}
-		if (!slots.exists(k)) names.push(k);
-		slots.set(k, v);
+		writeOwn(k, v);
 		if (attribute != 0) {
 			if (attrs == null) attrs = [];
 			attrs.set(k, attribute);
@@ -53,7 +66,25 @@ class JsObject {
 		else if (attrs != null && attrs.exists(k)) attrs.remove(k);
 	}
 
+	// an own property's value set, its attributes kept
+	public function writeOwn(k:String, v:Dynamic):Void {
+		if (layout != null) {
+			var i = layout.index.get(k);
+			if (i != null) {
+				layout.set(this, i, v);
+				return;
+			}
+		}
+		if (slots == null) {
+			slots = [];
+			names = [];
+		}
+		if (!slots.exists(k)) names.push(k);
+		slots.set(k, v);
+	}
+
 	public function removeOwn(k:String):Void {
+		if (layout != null && layout.index.exists(k)) throw "TSHX005: a typed class's field deleted: " + k;
 		if (slots == null || !slots.exists(k)) return;
 		slots.remove(k);
 		names.remove(k);
@@ -62,6 +93,22 @@ class JsObject {
 
 	// [[Class]]-like tag for Object.prototype.toString and inspection
 	public function tag():String return "Object";
+}
+
+// A typed class's fields (the frontend's typed classes): their names in
+// definition order, and its code that reads and writes them by number.
+class Layout {
+	public final names:Array<String>;
+	public final index:Map<String, Int> = [];
+	public final get:(JsObject, Int) -> Dynamic;
+	public final set:(JsObject, Int, Dynamic) -> Void;
+
+	public function new(names:Array<String>, get:(JsObject, Int) -> Dynamic, set:(JsObject, Int, Dynamic) -> Void) {
+		this.names = names;
+		for (i in 0...names.length) index.set(names[i], i);
+		this.get = get;
+		this.set = set;
+	}
 }
 
 // Arrays keep elements densely (holes are Lib.hole); indices too far past the

@@ -162,7 +162,7 @@ class Inspect {
 		var obj = o;
 		while (obj != null) {
 			if (obj.hasOwn("constructor")) {
-				var c = obj.slots.get("constructor");
+				var c = obj.getOwn("constructor");
 				if (Std.isOfType(c, JsFunction) && (c : JsFunction).name != "") return (c : JsFunction).name;
 			}
 			obj = obj.proto;
@@ -226,7 +226,7 @@ class Inspect {
 				if (keys.length == 0) return base;
 			}
 			else if (value.hasOwn("\x00@primitive") && value != Builtins.StringProto && value != Builtins.NumberProto && value != Builtins.BooleanProto) {
-				var p = value.slots.get("\x00@primitive");
+				var p = value.getOwn("\x00@primitive");
 				var type = Std.isOfType(p, String) ? "String" : Std.isOfType(p, Bool) ? "Boolean" : Std.isOfType(p, Symbols.JsSymbol) ? "Symbol" : "Number";
 				base = "[" + type + (constructor == null ? " (null prototype)" : constructor != type ? " (" + constructor + ")" : "") + ": " + primitive(p) + "]";
 				if (Std.isOfType(p, String)) keys = [for (k in keys) if (index(k) < 0 && k != "length") k];
@@ -293,7 +293,7 @@ class Inspect {
 
 	function formatProperty(o:JsObject, recurseTimes:Int, k:String, type:Int):String {
 		var str:String;
-		var raw:Dynamic = o.hasOwn(k) ? o.slots.get(k) : get(o, k);
+		var raw:Dynamic = o.hasOwn(k) ? o.getOwn(k) : get(o, k);
 		if (Std.isOfType(raw, Accessor)) {
 			var acc:Accessor = raw;
 			str = acc.getter != null ? (acc.setter != null ? "[Getter/Setter]" : "[Getter]") : acc.setter != null ? "[Setter]" : "undefined";

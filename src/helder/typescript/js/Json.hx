@@ -225,7 +225,7 @@ class Json {
 				if (item != null && allowed.indexOf(item) < 0) allowed.push(item);
 			}
 		}
-		if (isObject(spaceArg) && (spaceArg : JsObject).hasOwn("\x00@primitive")) spaceArg = (spaceArg : JsObject).slots.get("\x00@primitive");
+		if (isObject(spaceArg) && (spaceArg : JsObject).hasOwn("\x00@primitive")) spaceArg = (spaceArg : JsObject).getOwn("\x00@primitive");
 		var gap = "";
 		if (isNumber(spaceArg)) {
 			var n = Std.int(Math.min(10, Math.max(0, toIntegerOrInfinity(spaceArg))));
@@ -240,7 +240,7 @@ class Json {
 				if (isCallable(toJSON)) v = call(toJSON, v, [k]);
 			}
 			if (replacerFn != null) v = call(replacerFn, holder, [k, v]);
-			if (isObject(v) && (v : JsObject).hasOwn("\x00@primitive")) v = (v : JsObject).slots.get("\x00@primitive");
+			if (isObject(v) && (v : JsObject).hasOwn("\x00@primitive")) v = (v : JsObject).getOwn("\x00@primitive");
 			if (Std.isOfType(v, RawJson.JsRawJson)) return (v : RawJson.JsRawJson).raw;
 			if (v == null) return "null";
 			if (Std.isOfType(v, Bool)) return v ? "true" : "false";

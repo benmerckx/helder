@@ -404,7 +404,7 @@ class Dates {
 		formatter("toDateString", dateString);
 		formatter("toTimeString", timeString);
 		formatter("toUTCString", v -> dayNames[weekDay(v)] + ", " + pad(dateFromTime(v), 2) + " " + monthNames[monthFromTime(v)] + " " + year(yearFromTime(v)) + " " + pad(hourFromTime(v), 2) + ":" + pad(minFromTime(v), 2) + ":" + pad(secFromTime(v), 2) + " GMT");
-		p.setOwn("toGMTString", p.slots.get("toUTCString"), Attr.HIDDEN);
+		p.setOwn("toGMTString", p.getOwn("toUTCString"), Attr.HIDDEN);
 		formatter("toLocaleDateString", localeDate);
 		formatter("toLocaleTimeString", localeTime);
 		formatter("toLocaleString", v -> localeDate(v) + ", " + localeTime(v));

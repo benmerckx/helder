@@ -18,7 +18,6 @@ private class Module {
 	public var functions:Map<String, FuncInfo> = [];
 	public var nodes:Map<String, Node> = [];
 	public var functionValues:Map<String, Binding> = [];
-	public var numbers:NumberProof;
 	public var others:Array<Node> = [];
 	public var exports:Map<String, Binding> = [];
 	public var namespace:Binding = null;
@@ -41,7 +40,7 @@ class Frontend {
 	var dynamicOperations = 0;
 	var serial = 0;
 	var capturedCells:Map<Local, Bool> = [];
-	var numbers:NumberProof;
+	var flow:Flow;
 	var restFunctions:Map<FuncInfo, Bool> = [];
 	var argumentFunctions:Map<FuncInfo, Bool> = [];
 	// (private names visible in the class bodies being compiled: #name -> brand)
@@ -82,9 +81,9 @@ class Frontend {
 
 	function typeAt(n:Node):Ty return TRef(RAny);
 
-	function ret(n:Node):Ty return n.kind == KindFunctionDeclaration && n.name() != null && n.parent != null && n.parent.kind == KindSourceFile && numbers.result(n.name().text) ? TF64 : TRef(RAny);
+	function ret(n:Node):Ty return n.kind == KindFunctionDeclaration && n.name() != null && n.parent != null && n.parent.kind == KindSourceFile && flow.result(n) ? TF64 : TRef(RAny);
 
-	function bindingType(n:Node):Ty return numbers.binding(n) ? TF64 : typeAt(n);
+	function bindingType(n:Node):Ty return flow.binding(n) ? TF64 : typeAt(n);
 
 	function declareFunction(n:Node, name:String):FuncInfo {
 		var f = Builder.func(p, name, ret(n));
@@ -145,7 +144,6 @@ class Frontend {
 		functions = m.functions;
 		nodes = m.nodes;
 		functionValues = m.functionValues;
-		numbers = m.numbers;
 		functionVars = m.functionVars;
 	}
 
@@ -198,9 +196,9 @@ class Frontend {
 		for (f in features) b.runtime("libInstall" + f, []);
 		var eventLoop = features.contains("Promise") || features.contains("All") || features.contains("FromAsync");
 		modules = moduleOrder();
+		flow = new Flow(src);
 		for (m in modules) {
 			validate(m.file.root);
-			m.numbers = new NumberProof(src, m.file);
 			enter(m);
 			declareModule(m);
 		}

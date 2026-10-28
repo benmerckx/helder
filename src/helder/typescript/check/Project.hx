@@ -154,7 +154,7 @@ class Project {
 		var ids = [for (i in 1...sf.count) if (sf.kindAt(i) == KindIdentifier) i];
 		if (ids.length == 0) return;
 		var result:Array<Dynamic> = tsgo.call("getSymbolsAtLocations", {snapshot: at.snapshot, project: at.project, locations: [for (i in ids) i + "." + raw + "." + key]});
-		for (j in 0...ids.length) if (result[j] != null) sf.symbols.set(ids[j], Std.string(result[j].id));
+		for (j in 0...ids.length) if (result[j] != null) sf.symbols.set(ids[j], Std.string(result[j].reference != null ? result[j].reference.id : result[j].id));
 	}
 
 	// a path as messages show it: relative to the working directory when under it

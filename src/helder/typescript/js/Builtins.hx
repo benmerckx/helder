@@ -321,7 +321,7 @@ class Builtins {
 			} else {
 				var name:String = k;
 				if (!result.hasOwn(name)) result.setOwn(name, array([]));
-				list = result.slots.get(name);
+				list = result.getOwn(name);
 			}
 			setIndex(list, list.length, value);
 			i++;
@@ -345,7 +345,7 @@ class Builtins {
 		var tag = getKey(o, Symbols.toStringTag, o);
 		if (Std.isOfType(tag, String)) return "[object " + tag + "]";
 		if (o.hasOwn("\x00@primitive")) {
-			var p = o.slots.get("\x00@primitive");
+			var p = o.getOwn("\x00@primitive");
 			return "[object " + (Std.isOfType(p, String) ? "String" : Std.isOfType(p, Bool) ? "Boolean" : "Number") + "]";
 		}
 		var t = o.tag();
@@ -364,7 +364,7 @@ class Builtins {
 		}
 		var numeric:Array<String> = [];
 		var other:Array<String> = [];
-		if (o.names != null) for (n in o.names) if (Symbols.isSymbolKey(n)) symbols.push(n); else if (index(n) >= 0) numeric.push(n); else other.push(n);
+		if (o.ownNames() != null) for (n in o.ownNames()) if (Symbols.isSymbolKey(n)) symbols.push(n); else if (index(n) >= 0) numeric.push(n); else other.push(n);
 		numeric.sort((x, y) -> {
 			var a = index(x), b = index(y);
 			return a < b ? -1 : a > b ? 1 : 0;});
@@ -380,7 +380,7 @@ class Builtins {
 		if (!hasOwnKey(o, k)) return undef();
 		var d = new JsObject(ObjectProto);
 		var attribute = o.attr(k);
-		var v:Dynamic = o.hasOwn(k) ? o.slots.get(k) : get(o, k);
+		var v:Dynamic = o.hasOwn(k) ? o.getOwn(k) : get(o, k);
 		var virtual = !o.hasOwn(k);
 		if (Std.isOfType(v, Accessor)) {
 			var acc:Accessor = v;
@@ -407,7 +407,7 @@ class Builtins {
 		var exists = o.hasOwn(k);
 		var old = exists ? o.attr(k) : Attr.HIDDEN | Attr.READONLY | Attr.LOCKED;
 		if (exists && old & Attr.LOCKED != 0) {
-			if (has(desc, "value") && !(old & Attr.READONLY != 0 && sameValue(get(desc, "value"), o.slots.get(k))) && old & Attr.READONLY != 0) error("TypeError", "Cannot redefine property: " + Symbols.functionName(k));
+			if (has(desc, "value") && !(old & Attr.READONLY != 0 && sameValue(get(desc, "value"), o.getOwn(k))) && old & Attr.READONLY != 0) error("TypeError", "Cannot redefine property: " + Symbols.functionName(k));
 			if (has(desc, "get") || has(desc, "set") || Seed.truth(get(desc, "configurable"))) error("TypeError", "Cannot redefine property: " + Symbols.functionName(k));
 		}
 		else if (!exists && !o.extensible) error("TypeError", "Cannot define property " + Symbols.functionName(k) + ", object is not extensible");
@@ -419,7 +419,7 @@ class Builtins {
 		attribute = flag("enumerable", Attr.HIDDEN, attribute);
 		attribute = flag("configurable", Attr.LOCKED, attribute);
 		if (has(desc, "get") || has(desc, "set")) {
-			var current = exists ? o.slots.get(k) : null;
+			var current = exists ? o.getOwn(k) : null;
 			var acc = Std.isOfType(current, Accessor) ? (current : Accessor) : new Accessor(null, null);
 			if (has(desc, "get")) {
 				var g = get(desc, "get");
@@ -433,7 +433,7 @@ class Builtins {
 			return;
 		}
 		attribute = flag("writable", Attr.READONLY, attribute);
-		var value = has(desc, "value") ? get(desc, "value") : exists && !Std.isOfType(o.slots.get(k), Accessor) ? o.slots.get(k) : undef();
+		var value = has(desc, "value") ? get(desc, "value") : exists && !Std.isOfType(o.getOwn(k), Accessor) ? o.getOwn(k) : undef();
 		if (Std.isOfType(o, JsArray)) {
 			var a:JsArray = cast o;
 			if (k == "length") {
@@ -463,10 +463,10 @@ class Builtins {
 			a.items = [];
 			for (i in 0...items.length) if (items[i] != hole) a.setOwn(Std.string(i), items[i]);
 		}
-		if (o.names != null) for (k in o.names) {
+		if (o.ownNames() != null) for (k in o.ownNames().copy()) {
 			var attribute = o.attr(k) | Attr.LOCKED;
-			if (freeze && !Std.isOfType(o.slots.get(k), Accessor)) attribute |= Attr.READONLY;
-			o.setOwn(k, o.slots.get(k), attribute);
+			if (freeze && !Std.isOfType(o.getOwn(k), Accessor)) attribute |= Attr.READONLY;
+			o.setOwn(k, o.getOwn(k), attribute);
 		}
 		o.extensible = false;
 	}
@@ -476,10 +476,10 @@ class Builtins {
 		var o:JsObject = v;
 		if (o.extensible) return false;
 		if (Std.isOfType(o, JsArray) && (cast o : JsArray).items.length > 0) return false;
-		if (o.names != null) for (k in o.names) {
+		if (o.ownNames() != null) for (k in o.ownNames().copy()) {
 			var attribute = o.attr(k);
 			if (attribute & Attr.LOCKED == 0) return false;
-			if (frozen && !Std.isOfType(o.slots.get(k), Accessor) && attribute & Attr.READONLY == 0) return false;
+			if (frozen && !Std.isOfType(o.getOwn(k), Accessor) && attribute & Attr.READONLY == 0) return false;
 		}
 		return true;
 	}
@@ -498,7 +498,7 @@ class Builtins {
 
 	// (this value of a String/Number/Boolean method: the primitive, or a wrapper's)
 	public static function primitive(t:Dynamic, type:String):Dynamic {
-		if (isObject(t) && (t : JsObject).hasOwn("\x00@primitive")) t = (t : JsObject).slots.get("\x00@primitive");
+		if (isObject(t) && (t : JsObject).hasOwn("\x00@primitive")) t = (t : JsObject).getOwn("\x00@primitive");
 		if (Seed.typeOf(t) != type) error("TypeError", type.charAt(0).toUpperCase() + type.substr(1) + ".prototype method called on incompatible receiver " + Seed.text(t));
 		return t;
 	}
@@ -1515,7 +1515,7 @@ class Builtins {
 			var values = native("values", 0, (t, _, _) -> new JsIterator(iteratorProto, thisMap(t, isSet, "values"), "values"));
 			p.setOwn("values", values, Attr.HIDDEN);
 			if (isSet) p.setOwn("keys", values, Attr.HIDDEN);
-			p.setOwn(Symbols.iterator, isSet ? values : p.slots.get("entries"), Attr.HIDDEN);
+			p.setOwn(Symbols.iterator, isSet ? values : p.getOwn("entries"), Attr.HIDDEN);
 			p.setOwn(Symbols.toStringTag, name, Attr.HIDDEN | Attr.READONLY);
 			if (!isSet) method(c, "groupBy", 2, (_, a, _) -> groupBy(arg(a, 0), arg(a, 1), true));
 		}
@@ -1596,7 +1596,7 @@ class Builtins {
 		var o:JsObject = v;
 		var c = Std.isOfType(v, JsError) ? new JsError(o.proto) : new JsObject(ObjectProto);
 		seen.set(v, c);
-		if (Std.isOfType(v, JsError)) for (k in ["message", "name", "cause"]) if (o.hasOwn(k)) c.setOwn(k, clone(o.slots.get(k), seen), Attr.HIDDEN);
+		if (Std.isOfType(v, JsError)) for (k in ["message", "name", "cause"]) if (o.hasOwn(k)) c.setOwn(k, clone(o.getOwn(k), seen), Attr.HIDDEN);
 		for (k in keys(o)) c.setOwn(k, clone(get(o, k), seen));
 		return c;
 	}
