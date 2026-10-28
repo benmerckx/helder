@@ -246,13 +246,9 @@ class Run {
 	}
 
 	// (the runtime objects: Android's and iOS's are not npm's for this
-	// (Checksum's lines: its files' sizes and CRC-32s, the bundle's list; CI's emulator and simulator jobs check the same)
-	static final CHECKSUM = [
-		"asset: files/kept.txt 18 bytes, crc 75c5ca7a",
-		"asset: files/pixels.png 76 bytes, crc dd9070d7",
-		"asset: files/pixels.png 2x2, pixels crc bff141cb",
-		"asset: bundled files/kept.txt,files/pixels.png"
-	];
+	// (Checksum's lines: its files' sizes and CRC-32s, the bundle's list; CI's
+	// emulator and simulator jobs check the same, tests/pack/android.sh, ios.sh)
+	static final CHECKSUM = [for (l in File.getContent("tests/asset/checksum.txt").split("\n")) if (l != "") l];
 
 	// (PackCheck's: the asset fixture's files, exactly)
 	static final ASSETS = "assets=tests/asset:files/kept.txt,files/pixels.png";
