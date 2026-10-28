@@ -42,7 +42,7 @@ class Run {
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
-		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx and of a project with an app's options, checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
+		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "examples", about: "every example built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
@@ -267,13 +267,15 @@ class Run {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "android", "-o", "bin/pack/Hello-arm64.apk"], env);
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "android-x86_64", "-o", "bin/pack/Hello-x86_64.apk"], env);
 			run(h, ["build", "bin/pack/project", "--target", "android-x86_64"], env);
+			// (the screen fixture: CI's emulator runs it, tests/pack/android.sh)
+			run(h, ["build", "tests/pack/Screen.hx", "--target", "android-x86_64", "-o", "bin/pack/Screen.apk"], env);
 			// (Java's classes as the program needs them: a drawn ui's listeners,
 			// NativeActivity's surface; Android's views as the content, org.hxmc.Activity)
 			run(h, ["build", "examples/counter", "--target", "android-x86_64", "-o", "bin/pack/Counter.apk"], env);
 			run(h, ["build", "examples/native-form", "--target", "android-x86_64", "-o", "bin/pack/NativeForm.apk"], env);
 			checks = checks.concat([
-				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck",
-				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views"
+				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck@landscape@fullscreen",
+				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views", "bin/pack/Screen.apk@org.helder.screen@surface"
 			]);
 			for (c in [{apk: "Counter", want: '{"dex":true,"views":false}'}, {apk: "NativeForm", want: '{"dex":true,"views":true}'}]) {
 				var got = File.getContent('bin/pack/${c.apk}.lib/classes.json');
@@ -287,7 +289,8 @@ class Run {
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Hello.ipa"], env);
 			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios-sim", "-o", "bin/pack/Hello.app"], env);
 			run(h, ["build", "bin/pack/project", "--target", "ios-sim"], env);
-			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements"]);
+			run(h, ["build", "tests/pack/Screen.hx", "--target", "ios-sim", "-o", "bin/pack/Screen.app"], env);
+			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen", "bin/pack/Screen.app@org.helder.Screen"]);
 		}
 		if (checks.length > 0) interp(cps(["src", "tests/pack"]), "PackCheck", checks);
 		// (a phone's tools stood in for: helder run, the dev loop's protocol)

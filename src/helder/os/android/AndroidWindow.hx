@@ -28,7 +28,14 @@ import hxmc.unsafe.*;
 // as it came: nothing is made on one until it has a size. The activity
 // itself can be destroyed and made again then (a relaunch: Activity), its
 // window with it: only a finishing activity ends the wait.)
-// While paused or without a window App.run sleeps in the looper.
+// While paused or without a window App.run sleeps in the looper; otherwise
+// its frames are the display's (Vsync: Choreographer's on this thread).
+// The safe area (Window.safeTop...: the system's bars and a display
+// cutout over the window, Insets through JNI) is measured again when the
+// window, its size, its content rect or the configuration changes: a
+// Resize when it did; the density (Window.scale) when the configuration
+// changes: ScaleChange when it did. Immersive (Window.immersive): the
+// bars hidden (Insets.immerse).
 // (hxmc dev's host: the window, the input queue and the pause are the
 // host's, kept for the next build: helder.dev.HostedMacro)
 #if hxmc.dev_host
@@ -55,6 +62,15 @@ class AndroidWindow {
 	final owner:Window;
 	final surface:Surface;
 	var suspended = false;
+	// pixels per point (the density's), the safe area's insets in pixels
+	var scale = 1.0;
+	var safeTop = 0;
+	var safeLeft = 0;
+	var safeBottom = 0;
+	var safeRight = 0;
+	var immersive = false;
+	// (Insets.take's: left, top, right, bottom)
+	final insets = [0, 0, 0, 0];
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
 		if (current != null) throw "helder.os: Android has one window, the activity's";
@@ -68,13 +84,18 @@ class AndroidWindow {
 		var w = Android.ANativeWindow_getWidth(window), h = Android.ANativeWindow_getHeight(window);
 		log("Window: the activity's window, ready", window);
 		surface = new Surface(Android, Ptr.nil(), window, w, h);
+		scale = density();
+		// (the first safe area before the first frame: the main thread asked and waited for)
+		MainThread.run(Insets.measure);
+		takeInsets(this);
 		current = this;
+		#if helder.fullscreen
+		setImmersive(this, true);
+		#end
 	}
 
 	// pixels per point: the screen's density over 160 dpi (the system's dp)
-	var scale(get, never):Float;
-
-	function get_scale():Float {
+	static function density():Float {
 		var a = Activity.activity;
 		if (a.isNull()) return 1;
 		var c = Android.AConfiguration_new();
@@ -82,6 +103,27 @@ class AndroidWindow {
 		var d = Android.AConfiguration_getDensity(c);
 		Android.AConfiguration_delete(c);
 		return d <= 0 || d == 0xffff ? 1 : d / 160;
+	}
+
+	// the insets measured since the last (Insets): whether they changed
+	// (statics, as what calls Insets and MainThread here: an instance method
+	// is compiled on every target that has the class's type)
+	static function takeInsets(w:AndroidWindow):Bool {
+		var insets = w.insets;
+		if (!Insets.take(insets)) return false;
+		var changed = insets[0] != w.safeLeft || insets[1] != w.safeTop || insets[2] != w.safeRight || insets[3] != w.safeBottom;
+		w.safeLeft = insets[0];
+		w.safeTop = insets[1];
+		w.safeRight = insets[2];
+		w.safeBottom = insets[3];
+		return changed;
+	}
+
+	// Window.immersive: the system's bars hidden, or shown (the main thread's; the insets measured again)
+	static function setImmersive(w:AndroidWindow, on:Bool) {
+		w.immersive = on;
+		MainThread.post(() -> Insets.immerse(on));
+		Insets.ask();
 	}
 
 	// the system's night mode (Configuration.uiMode's night bits: 2 yes)
@@ -145,16 +187,17 @@ class AndroidWindow {
 			event.window = current.owner;
 			onEvent(event);
 		}
-		// (a new window with a size: Resume; a size the system changed: Resize)
+		// (a new window with a size: Resume; a size the system changed, or its safe area: Resize)
 		var w = current;
 		if (w == null || !ready()) return;
 		var nw = Android.ANativeWindow_getWidth(window), nh = Android.ANativeWindow_getHeight(window);
+		var inset = takeInsets(w);
 		if (w.suspended) {
 			w.suspended = false;
 			log("Window: Resume", window);
 			w.surface.reattach(window, nw, nh);
 			dispatch(onEvent, Resume, nw, nh);
-		} else if (nw != w.surface.width || nh != w.surface.height) {
+		} else if (nw != w.surface.width || nh != w.surface.height || inset) {
 			log("Window: Resize", window);
 			w.surface.resized(nw, nh);
 			dispatch(onEvent, Resize, nw, nh);
@@ -189,6 +232,7 @@ class AndroidWindow {
 				window = Activity.take(true);
 				log("window created", window);
 				Activity.acknowledge();
+				if (w != null) Insets.ask();
 			case Activity.WINDOW_DESTROYED:
 				// (the GPU lets go of the window before the callback returns;
 				// the Surface keeps no handle to it)
@@ -243,6 +287,15 @@ class AndroidWindow {
 			case Activity.REDRAW | Activity.CONTENT_RECT | Activity.CONFIG | Activity.RESIZED:
 				if (cmd == Activity.RESIZED) log("command: window resized", window);
 				Activity.acknowledge();
+				// (the bars, the cutout, a rotation: the safe area again, a Resize once it came if it changed)
+				if (cmd != Activity.REDRAW && w != null) Insets.ask();
+				if (cmd == Activity.CONFIG && w != null) {
+					var s = density();
+					if (s != w.scale) {
+						w.scale = s;
+						dispatch(onEvent, ScaleChange);
+					}
+				}
 				dispatch(onEvent, Redraw);
 			case _:
 				Activity.acknowledge();

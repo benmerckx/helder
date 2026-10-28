@@ -327,6 +327,20 @@ moves and release to it (in a handler, that event's pointer: a finger's too); `s
   `onDragEnd` (`e.dropped`) on the source, `onDragOver` (`e.preventDefault()`
   accepts), `onDragLeave` and `onDrop` (`e.data`) on targets; Escape cancels.
 
+A phone's safe area (the insets its bars, notch, island, cutout or home
+indicator leave clear) is CSS's `env()`: a literal attribute naming
+`env(safe-area-inset-top)` (`-right`, `-bottom`, `-left`; a fallback after
+a comma for a name it does not know) is bound to the main window's insets
+in UI pixels (`SafeArea.insets`, a signal; UiWindow sets it from
+`helder.os.Window.safeTop`... over the scale) and set again when they
+change (a rotation, the bars hidden): `padding-top="env(safe-area-inset-top)"`,
+`padding="calc(env(safe-area-inset-top) + 8px) 16px"`,
+`margin-bottom="max(12px, env(safe-area-inset-bottom))"` (`calc()`,
+`max()` and `min()` of pixels fold to one length). Each Ui has its own as
+`ui.safeArea` (0 on the desktop and the web); a `<Scene>`'s box gives the
+part over it (`SceneBox.safeArea()`), for a game's HUD over a scene on the
+whole screen.
+
 A value that is a signal, a memo or a function is reactive: the attribute,
 text or region follows it. In a `view`, text and text-valued holes next to
 each other become one `TextNode`.
@@ -539,3 +553,7 @@ paragraphs' glyphs, which all survive: a compact glyph store in
 `bun run test ui` (Eval: layout against Chromium, events, markup rendered into nodes, the guide),
 `bun run test ui-draw` (natively, golden images), `bun run test ui-web`
 (Chromium, WebGPU and WebGL2, real input events), from tests/ui (`bun run test help`: every lane).
+The `*.test.hx` beside the sources run natively and as wasm32-wasi (the
+test lane): pointers, gestures, and the safe area (`SafeArea.test.hx`:
+`env()` resolved, markup's attributes following the insets, laid out
+again).

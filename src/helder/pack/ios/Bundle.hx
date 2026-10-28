@@ -40,15 +40,22 @@ class Bundle {
 		return helder.pack.Zip.stored(entries);
 	}
 
-	// (exe: CFBundleExecutable, the bundle's name; label: the home screen's)
-	public static function infoPlist(exe:String, id:String, label:String, version:String, versionName:String, min:String, simulator:Bool):Bytes {
-		var all = PArray([
-			PString("UIInterfaceOrientationPortrait"),
-			PString("UIInterfaceOrientationPortraitUpsideDown"),
-			PString("UIInterfaceOrientationLandscapeLeft"),
-			PString("UIInterfaceOrientationLandscapeRight")
-		]);
-		return Plist.xml(PDict([
+	// (exe: CFBundleExecutable, the bundle's name; label: the home screen's;
+	// orientation: "portrait" (an iPhone's upright only, an iPad's either
+	// way up), "landscape" (either side), else any (all four), the first
+	// two with UIRequiresFullScreen, without which an iPad's multitasking
+	// takes every orientation; fullscreen: UIStatusBarHidden, from the
+	// launch on)
+	public static function infoPlist(exe:String, id:String, label:String, version:String, versionName:String, min:String, simulator:Bool,
+			?orientation:String, fullscreen = false):Bytes {
+		var o = (names:Array<String>) -> PArray([for (n in names) PString("UIInterfaceOrientation" + n)]);
+		var phone = switch orientation {
+			case "portrait": o(["Portrait"]);
+			case "landscape": o(["LandscapeLeft", "LandscapeRight"]);
+			case _: o(["Portrait", "PortraitUpsideDown", "LandscapeLeft", "LandscapeRight"]);
+		}
+		var pad = orientation == "portrait" ? o(["Portrait", "PortraitUpsideDown"]) : phone;
+		var keys = [
 			"CFBundleDevelopmentRegion" => PString("en"),
 			"CFBundleDisplayName" => PString(label),
 			"CFBundleExecutable" => PString(exe),
@@ -66,9 +73,12 @@ class Bundle {
 			"UIDeviceFamily" => PArray([PInt(1), PInt(2)]),
 			"UILaunchScreen" => PDict([]),
 			"UIRequiredDeviceCapabilities" => PArray([PString("arm64")]),
-			"UISupportedInterfaceOrientations" => all,
-			"UISupportedInterfaceOrientations~ipad" => all
-		]));
+			"UISupportedInterfaceOrientations" => phone,
+			"UISupportedInterfaceOrientations~ipad" => pad
+		];
+		if (orientation == "portrait" || orientation == "landscape") keys.set("UIRequiresFullScreen", PBool(true));
+		if (fullscreen) keys.set("UIStatusBarHidden", PBool(true));
+		return Plist.xml(PDict(keys));
 	}
 
 	// _CodeSignature/CodeResources: each file's SHA-1 (files: the first

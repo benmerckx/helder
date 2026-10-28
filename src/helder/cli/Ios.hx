@@ -53,7 +53,7 @@ class Ios {
 		if (!out.endsWith(".app") && !out.endsWith(".ipa")) throw '$out: an iOS app is a .app or an .ipa';
 		var app = app(out), name = Path.withoutExtension(Path.withoutDirectory(app));
 		var o = App.ios(e.name, e.config);
-		var info = Bundle.infoPlist(name, o.id, o.label, o.version, o.versionName, o.minVersion, e.target == "ios-sim-arm64");
+		var info = Bundle.infoPlist(name, o.id, o.label, o.version, o.versionName, o.minVersion, e.target == "ios-sim-arm64", o.orientation, o.fullscreen);
 		var resources = Bundle.codeResources(["Info.plist" => info]);
 		// (the bundle afresh: what an older build left in it is not signed)
 		if (FileSystem.exists(app)) TestCommand.rmrf(app);
@@ -62,7 +62,7 @@ class Ios {
 		File.saveBytes('$app/_CodeSignature/CodeResources', resources);
 		var full = FileSystem.fullPath(app);
 		var words = ["-D", 'hxmc.ios-min-version=${o.minVersion}', "-D", 'hxmc.codesign-id=${o.id}', "-D", 'hxmc.codesign-info-plist=$full/Info.plist', "-D",
-			'hxmc.codesign-resources=$full/_CodeSignature/CodeResources'];
+			'hxmc.codesign-resources=$full/_CodeSignature/CodeResources'].concat(App.defines(e.config));
 		if (o.entitlements != null) {
 			var ent = Path.isAbsolute(o.entitlements) || e.root == "." ? o.entitlements : '${e.root}/${o.entitlements}';
 			if (!FileSystem.exists(ent)) throw '$ent: no such file (package.json\'s "helder": {"ios": {"entitlements"}})';

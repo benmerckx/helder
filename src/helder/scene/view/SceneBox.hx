@@ -132,6 +132,17 @@ class SceneBox extends helder.ui.Node {
 	}
 
 	// a world drawn under the ui: its pointers are the game's (Pointer.owner)
+	// the window's safe area over this box (Ui.safeArea: a phone's bars,
+	// notch or cutout), in UI pixels from its edges: where a game's own
+	// controls and HUD stay clear of them while the scene fills the screen
+	public function safeArea():helder.ui.Edges {
+		var u = ui;
+		if (u == null) return helder.ui.Edges.ZERO;
+		var s = u.safeArea, r = rect();
+		return new helder.ui.Edges(Math.max(0, s.top - r.y), Math.max(0, r.x + r.width - (u.width - s.right)), Math.max(0, r.y + r.height - (u.height - s.bottom)),
+			Math.max(0, s.left - r.x));
+	}
+
 	override public function ownsPointer():Bool
 		return false;
 

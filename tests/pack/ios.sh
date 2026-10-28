@@ -49,4 +49,40 @@ fi
 check "helder run --target ios -d <simulator>" $code
 grep -q "$line" "$out/run.txt"
 check "its line, from simctl launch --console" $?
+
+# The screen (tests/pack/Screen.hx) on the same simulator: launched with
+# its output here (--console-pty, in the background: <out dir>/screen.txt),
+# its window, safe area and the display's frames, the bars hidden; then the
+# Settings app launched over it (the background) and it again (back); its
+# lines checked by tests/pack/screen.mjs.
+sid=org.helder.Screen
+wait_for() {
+	i=0
+	while [ $i -lt "$2" ] && ! grep -q "$1" "$out/screen.txt"; do
+		sleep 1
+		i=$((i + 1))
+	done
+	grep -q "$1" "$out/screen.txt"
+	check "screen: $1" $?
+}
+"$helder" build tests/pack/Screen.hx --target ios-sim -o "$out/Screen.app"
+check "helder build tests/pack/Screen.hx --target ios-sim" $?
+xcrun simctl bootstatus "$udid" -b > /dev/null 2>&1
+xcrun simctl install "$udid" "$out/Screen.app"
+check "simctl install Screen.app" $?
+: > "$out/screen.txt"
+xcrun simctl launch --console-pty --terminate-running-process "$udid" $sid > "$out/screen.txt" 2>&1 &
+console=$!
+wait_for "screen: immersive" 60
+sleep 2
+xcrun simctl launch "$udid" com.apple.Preferences > /dev/null 2>&1
+wait_for "screen: suspend" 20
+sleep 2
+xcrun simctl launch "$udid" $sid > /dev/null 2>&1
+wait_for "first frame after resume" 30
+sleep 1
+xcrun simctl terminate "$udid" $sid > /dev/null 2>&1
+kill $console > /dev/null 2>&1
+node tests/pack/screen.mjs "$out/screen.txt" ios
+check "the screen's lines (tests/pack/screen.mjs)" $?
 exit $failed

@@ -10,6 +10,8 @@
     "label": "Pack check",
     "version": 2,
     "versionName": "0.2",
+    "orientation": "landscape",
+    "fullscreen": true,
     "android": {"permissions": ["VIBRATE"], "targetSdk": 34},
     "ios": {"minVersion": "16.0", "entitlements": "app.entitlements"}
   }

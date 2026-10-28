@@ -53,6 +53,9 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	// else setAttribute)
 	public static macro function setProperty(n:haxe.macro.Expr, name:haxe.macro.Expr, v:haxe.macro.Expr):haxe.macro.Expr
 		return switch name.expr {
+			// (a literal naming env(): bound to the safe area, SafeArea)
+			case EConst(CString(s, _)) if (v.expr.match(EConst(CString(_.indexOf("env(") >= 0 => true, _)))):
+				macro helder.ui.SafeArea.bind($n, ${helder.ui.view.AttrMacro.setter(s, name.pos)}, $name, $v);
 			case EConst(CString(s, _)): macro ${helder.ui.view.AttrMacro.setter(s, name.pos)}($n, $name, $v);
 			case _: macro helder.ui.view.NodeRenderer.setAttribute($n, $name, $v);
 		}

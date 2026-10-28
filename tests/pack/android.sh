@@ -44,4 +44,49 @@ adb logcat -d > "$out/logcat.txt"
 grep "hxmc" "$out/logcat.txt" | tail -20
 grep -q "$line" "$out/logcat.txt"
 check "its line in logcat" $?
+
+# The screen (tests/pack/Screen.hx, for the emulator's ABI): started
+# upright, its window, safe area and the display's frames, the bars hidden;
+# then turned (user_rotation 1, the sensor off), sent to the background
+# (Home) and started again; its lines (logcat's, in <out dir>/screen.txt)
+# checked by tests/pack/screen.mjs.
+sid=org.helder.screen
+seen() {
+	adb logcat -d -v raw -s hxmc:I | grep -q "$1"
+}
+wait_for() {
+	i=0
+	while [ $i -lt "$2" ] && ! seen "$1"; do
+		sleep 1
+		i=$((i + 1))
+	done
+	seen "$1"
+	check "screen: $1" $?
+}
+"$helder" build tests/pack/Screen.hx --target android-x86_64 -o "$out/Screen.apk"
+check "helder build tests/pack/Screen.hx" $?
+adb uninstall $sid > /dev/null 2>&1
+adb install -r "$out/Screen.apk"
+check "adb install Screen.apk" $?
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 0
+adb logcat -c
+adb shell am start -W -n $sid/android.app.NativeActivity
+wait_for "screen: immersive" 60
+sleep 2
+adb shell settings put system user_rotation 1
+wait_for "screen: resize" 20
+sleep 3
+adb shell input keyevent KEYCODE_HOME
+wait_for "screen: suspend" 20
+sleep 2
+adb shell am start -n $sid/android.app.NativeActivity
+wait_for "first frame after resume" 30
+sleep 1
+adb logcat -d -v raw -s hxmc:I > "$out/screen.txt"
+adb logcat -d -s helder.os:D > "$out/screen-lifecycle.txt"
+adb shell am force-stop $sid
+adb shell settings put system user_rotation 0
+node tests/pack/screen.mjs "$out/screen.txt" android
+check "the screen's lines (tests/pack/screen.mjs)" $?
 exit $failed

@@ -49,7 +49,7 @@ class Android {
 		TestCommand.mkdirs(Path.directory(lib));
 		try FileSystem.deleteFile(classes) catch (_:Dynamic) {};
 		// (a Haxe string in the macro call: forward slashes)
-		var words = ["--macro", 'helder.pack.android.Classes.write("${FileSystem.fullPath(Path.directory(lib)).split("\\").join("/")}/classes.json")'];
+		var words = ["--macro", 'helder.pack.android.Classes.write("${FileSystem.fullPath(Path.directory(lib)).split("\\").join("/")}/classes.json")'].concat(App.defines(e.config));
 		return BuildCommand.build(e, lib, mode, server, words.concat(extra ?? []), packed ? () -> {
 			pack(e, lib, apk, dev);
 			apk;

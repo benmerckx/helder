@@ -507,11 +507,56 @@ fix.
   simctl (tests/pack/dev.mjs); on an emulator only in CI
   (tests/os/dev/dev-android.mjs), untested until it runs. Later: booting
   an emulator for it.
-- **`<Surface>` on phones**: the app's screen, safe areas, orientation,
-  the display's scale.
-- **The frame loop from the display**: Choreographer on Android,
-  CADisplayLink on iOS (Android polls its looper today, iOS paces from the
-  layer's drawables).
+- *Landed*: **`<Surface>` on phones**: the safe area on both
+  (`Window.safeTop`... in pixels: iOS's `safeAreaInsets`, Android's
+  window insets through JNI, API 30's `getInsets(systemBars |
+  displayCutout)` or API 29's system window and cutout insets; a `Resize`
+  when they change), in ui as CSS's `env(safe-area-inset-*)` in markup's
+  literal attributes (with `calc()`, `max()`, `min()`; bound to
+  `SafeArea.insets`, laid out again when they change), `Ui.safeArea`, and
+  `SceneBox.safeArea()` for a scene's HUD; `Window.scale` (Android's
+  density, iOS's `nativeScale`, a `ScaleChange` when the configuration
+  changes it); `Window.immersive` (Android's immersive mode, iOS's status
+  bar and home indicator hidden); package.json's `"orientation"`
+  (portrait, landscape, any: the manifest's `screenOrientation`, the
+  plist's `UISupportedInterfaceOrientations` and `UIRequiresFullScreen`)
+  and `"fullscreen"` (`-D helder.fullscreen`, `UIStatusBarHidden`); a
+  rotation resizes the surface through the existing `Resize`. Tested: the
+  options' manifest and plist (`App.test.hx`, `Apk.test.hx`,
+  `Bundle.test.hx`; the pack lane's PackCheck on the built APK and app:
+  `screenOrientation`, the orientations, the define reaching the
+  program), `env()` and its binding (`SafeArea.test.hx`, natively and as
+  wasm32-wasi); on CI's emulator (a Pixel 6, API 34) and simulator
+  `tests/pack/Screen.hx` (tests/pack/screen.mjs): the window's size and
+  scale (the Pixel 6's 2.625, the iPhone 17's 3), the insets (Android:
+  the navigation bar's 126 px at the bottom; iOS: the island's 186 at the
+  top, the home indicator's 102 at the bottom), immersive on Android (the
+  bars' inset gone, the window into the camera's cutout: its 128 px at the
+  top), a rotation on Android (wider than high, the cutout at the side).
+  Not checked anywhere yet: the simulator's rotation (simctl has no
+  command for it), immersive's effect on iOS's safe area (none on the
+  island's iPhone), a ui drawn on a phone with the insets applied. Later:
+  `env()` in runtime-set attributes and in sheets' rules, the keyboard's
+  inset kept apart from the bars'.
+- *Landed*: **the frame loop from the display**: Choreographer
+  (`AChoreographer_postFrameCallback64`, NDK only, on the program's own
+  looper: `helder.os.android.Vsync`) on Android, a `CADisplayLink` on
+  iOS (its callback stops the run loop's wait); `App.run` asks for the
+  next vsync only while a frame may be drawn, sleeps until it comes, and
+  draws with `App.frame` (a `FrameClock`: the vsync's time in
+  `haxe.Timer.stamp()`'s seconds, the delta, the display's period); an
+  idle frame (`App.wait`) asks for none until it has slept; the
+  background, a lost window and an inactive app (`onPause`, the window
+  destroyed; `willResignActive`, `didEnterBackground`) ask for none, the
+  first frame after them a period's delta. Tested: `FrameClock.test.hx`
+  (natively and as wasm32-wasi: 60 and 120 Hz, a missed frame, a pause,
+  nothing allocated); on CI's emulator and simulator the fixture's first
+  frames vsyncs, 120 of them at the display's pace (16.67 ms on both)
+  with nothing allocated, Suspend and Resume and the first
+  frame after (the delta a period); desktop and web keep their loops
+  (`App.frame` from the turn's start: the gfx, ui-draw, app and browser
+  lanes). Later: ProMotion's 120 Hz (`preferredFrameRateRange`,
+  `CADisableMinimumFrameDurationOnPhone`), Android's frame rate API.
 - **Multi-touch and gestures**, after a study of the platforms' and
   engines' models (web Pointer Events, Android MotionEvent, UIKit's touches
   and gesture recognizers, Flutter's gesture arena, Unity's Input System,
@@ -559,9 +604,11 @@ fix.
   drive, picking, a HUD and a menu in ui, a save), built and live-reloaded
   on an Android device and the iOS simulator. Save data (a small store on
   every platform, the web's included) and tweens for gameplay come with it.
-- **CI on an Android emulator and the iOS simulator**: written (the
-  `android` and `ios-simulator` jobs: hello through `helder run`, Android's
-  dev loop), not required, untested until CI runs them.
+- *Landed*: **CI on an Android emulator and the iOS simulator**: the
+  `android` job (a Pixel 6's emulator, API 34: hello through `helder
+  run` and adb, the screen fixture, Android's dev loop) and the
+  `ios-simulator` job (the newest iPhone's simulator: hello through
+  `helder run`, the screen fixture), green, not required.
 - Later in this phase: **audio** (decoders: WAV, Ogg Vorbis; a mixer above
   every back end, running as a kernel; AAudio on Android, RemoteIO on iOS;
   a simple `Sound.play`), **a compositor thread for scrolling and
