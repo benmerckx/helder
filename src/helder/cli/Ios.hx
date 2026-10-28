@@ -54,6 +54,7 @@ class Ios {
 		var app = app(out), name = Path.withoutExtension(Path.withoutDirectory(app));
 		var o = App.ios(e.name, e.config);
 		var info = Bundle.infoPlist(name, o.id, o.label, o.version, o.versionName, o.minVersion, e.target == "ios-sim-arm64", o.orientation, o.fullscreen);
+		TestCommand.mkdirs(Path.directory(app) == "" ? "." : Path.directory(app));
 		var full = FileSystem.fullPath(Path.directory(app) == "" ? "." : Path.directory(app)) + "/" + Path.withoutDirectory(app);
 		var words = ["-D", 'hxmc.ios-min-version=${o.minVersion}', "-D", 'hxmc.codesign-id=${o.id}', "-D", 'hxmc.codesign-info-plist=$full/Info.plist', "-D",
 			'hxmc.codesign-resources=$full/_CodeSignature/CodeResources'].concat(App.defines(e.config));
