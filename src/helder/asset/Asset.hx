@@ -6,6 +6,7 @@ import haxe.macro.Expr;
 import haxe.Exception;
 import haxe.coro.IContinuation;
 import helder.async.Async;
+import helder.view.Pending;
 import helder.view.Signal.SignalBase;
 #end
 
@@ -26,8 +27,11 @@ import helder.view.Signal.SignalBase;
 // with tasks: task.async(_ -> a.load()), then Async.all. Without
 // suspending (the frame loop): ready, peek() (null until then), state.
 // value is the loaded value as a signal (helder.view): read in markup or a
-// memo it is tracked; read before it is ready it throws AssetPending, after
-// a failure the AssetError.
+// memo it is tracked; read before it is ready it throws AssetPending
+// (helder.view's Pending: inside a <Loading> boundary that content waits
+// for it, Solid 2.0's model), after a failure the AssetError (an
+// ErrorBoundary's). refreshing (and Reactive.isPending) tells a reload in
+// flight.
 //
 // Under `helder dev` the files are read from disk and watched: a change is
 // sent to the running program, which loads it again and puts it behind
@@ -37,15 +41,19 @@ import helder.view.Signal.SignalBase;
 //
 // Loads advance on the main thread's loop (helder.async: App.run turns it;
 // Assets.poll turns it for a program with a loop of its own).
-class Asset<T> #if !macro extends SignalBase #end {
+class Asset<T> #if !macro extends SignalBase implements Loadable #end {
 	#if !macro
 	public final key:String;
 	public var state(default, null):AssetState = Loading;
 	public var ready(get, never):Bool;
 	public var value(get, never):T;
+	// a value here and a new one loading (a reload: helder dev's; tracked)
+	public var refreshing(get, never):Bool;
 
 	var current:Null<T> = null;
+	var reloading = false;
 	final waiting:Array<IContinuation<T>> = [];
+	var readers:Null<Array<Void->Void>> = null;
 
 	@:noCompletion public function new(key:String) {
 		this.key = key;
@@ -57,15 +65,34 @@ class Asset<T> #if !macro extends SignalBase #end {
 		return state == Ready;
 	}
 
+	function get_refreshing():Bool {
+		track();
+		return reloading;
+	}
+
+	// (Loadable: f once it is ready or has failed)
+	@:noCompletion public function whenReady(f:Void->Void) {
+		if (state != Loading) f() else {
+			if (readers == null) readers = [];
+			readers.push(f);
+		}
+	}
+
 	// the value, tracked; AssetPending while loading, the AssetError once failed
 	function get_value():T {
 		track();
+		var probe = helder.view.Reactive.probe;
+		if (probe != null) probe.push(this);
 		return switch state {
 			case Ready: current;
 			case Loading: throw new AssetPending(this);
 			case Failed(error): throw new AssetError(key, error);
 		}
 	}
+
+	// (a hole or an attribute bound to the handle: its value)
+	override function read():Dynamic
+		return value;
 
 	// the value if it is here (not tracked, never throws), else null
 	public inline function peek():Null<T>
@@ -91,11 +118,12 @@ class Asset<T> #if !macro extends SignalBase #end {
 	@:noCompletion public function resolve(v:T) {
 		current = v;
 		state = Ready;
+		reloading = false;
 		var w = waiting.copy();
 		waiting.resize(0);
 		for (c in w)
 			Async.resumeLater(c, v, null);
-		notify();
+		settled();
 	}
 
 	@:noCompletion public function fail(error:String) {
@@ -104,7 +132,23 @@ class Asset<T> #if !macro extends SignalBase #end {
 		waiting.resize(0);
 		for (c in w)
 			Async.resumeLater(c, null, new AssetError(key, error));
+		settled();
+	}
+
+	// (a reload begins, or ends having kept the last value)
+	@:noCompletion public function refresh(on:Bool) {
+		if (reloading == on) return;
+		reloading = on;
 		notify();
+	}
+
+	function settled() {
+		notify();
+		var r = readers;
+		readers = null;
+		if (r != null)
+			for (f in r)
+				f();
 	}
 
 	public function toString():String
@@ -147,13 +191,14 @@ enum AssetState {
 }
 
 #if !macro
-// an asset's value read before it was loaded (Asset.value): a mistake
-// (load() in a coroutine, ready or peek() in the frame loop)
-class AssetPending extends Exception {
+// an asset's value read before it was loaded (Asset.value): a <Loading>
+// boundary waits for it; elsewhere a mistake (load() in a coroutine, ready
+// or peek() in the frame loop)
+class AssetPending extends Pending {
 	public final asset:Asset<Dynamic>;
 
 	public function new(asset:Asset<Dynamic>) {
-		super('${asset.key}: not loaded yet (load() in a coroutine, ready or peek() in the frame loop)');
+		super(asset, '${asset.key}: not loaded yet (read value under <Loading>, load() in a coroutine, ready or peek() in the frame loop)');
 		this.asset = asset;
 	}
 }

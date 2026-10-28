@@ -2,6 +2,7 @@ package helder.view;
 
 import helder.view.Memo;
 import helder.view.Signal;
+import helder.view.Pending;
 
 // Fine-grained reactivity, as Solid has it: signals hold values, memos
 // derive values from them, effects run code that reads them, again
@@ -63,6 +64,29 @@ class Reactive {
 			throw e;
 		}
 	}
+
+	// whether fn's value is being replaced (a reload in flight: a source it
+	// reads has a value and a new one coming, Loadable.refreshing); false
+	// while it has none yet (a first load, which a Loading boundary's
+	// fallback shows); tracked, as fn's reads are
+	public static function isPending(fn:Void->Any):Bool {
+		var saved = probe;
+		var read:Array<Loadable> = [];
+		probe = read;
+		var first = false;
+		try fn() catch (e:Pending) first = true catch (e:Dynamic) {
+			probe = saved;
+			throw e;
+		}
+		probe = saved;
+		if (first) return false;
+		for (l in read)
+			if (l.refreshing) return true;
+		return false;
+	}
+
+	// (isPending's: the sources read meanwhile, Loadable's readers add themselves)
+	@:noCompletion public static var probe:Null<Array<Loadable>> = null;
 
 	// the owner of the code running now (null: none)
 	public static inline function getOwner():Null<Owner>

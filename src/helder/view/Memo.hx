@@ -12,8 +12,12 @@ class Memo<T> extends MemoBase {
 		update();
 	}
 
+	// (its computation read a value not ready: its readers throw it)
+	var notReady:Null<Pending> = null;
+
 	override function run() {
 		var old = v;
+		notReady = null;
 		v = compute();
 		if (old != v && observers != null)
 			for (o in observers)
@@ -29,7 +33,16 @@ class Memo<T> extends MemoBase {
 			if (observers == null) observers = [];
 			observers.push(c);
 		}
+		if (notReady != null) throw notReady;
 		return v;
+	}
+
+	override function pending(p:Pending) {
+		notReady = p;
+		// (its readers read it again: they throw it now)
+		if (observers != null)
+			for (o in observers.copy())
+				o.stale(Dirty);
 	}
 
 	public inline function get():T

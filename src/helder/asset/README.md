@@ -45,9 +45,21 @@ failed. Without suspending: `ready`, `peek()` (null until loaded), `state`
 (`Loading`, `Ready`, `Failed(error)`). `value` is the value as a signal
 (helder.view): read in markup, a memo or an effect it is tracked, and its
 readers run again when a reload replaces it; read before the asset is
-loaded it throws `AssetPending` (a mistake outside of a boundary that
-waits for it: `load()` in a coroutine, `ready` or `peek()` in the frame
-loop), after a failure the `AssetError`. Loads run on the
+loaded it throws `AssetPending` (helder.view's `Pending`: under a
+`<Loading>` boundary the content waits for it and is shown once it is
+here; without one it renders nothing until then; in the frame loop a
+mistake: `load()` in a coroutine, `ready` or `peek()` there), after a
+failure the `AssetError` (an `ErrorBoundary`'s). `refreshing` (and
+`Reactive.isPending`) tells a reload in flight. The handle itself is a
+hole's or an attribute's value as it is (`<text>{intro}</text>`, `<image
+src={icon}/>`): bound to `value`.
+
+```haxe
+<Loading fallback={<text>loading</text>}>
+  <image src={Asset.image("ui/hero.png")}/>
+  <text>{() -> Asset.bytes("intro.txt").value.toString()}</text>
+</Loading>
+``` Loads run on the
 main thread's loop (helder.async: `App.run` turns it; `Assets.poll()`
 for a loop of the program's own, which `Stages.frame` calls).
 

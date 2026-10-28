@@ -101,7 +101,7 @@ class Render {
 
 	// a reactive value's value (tracked)
 	public static function read(v:Dynamic):Dynamic {
-		if (Std.isOfType(v, SignalBase)) return (cast v : Signal<Dynamic>).value;
+		if (Std.isOfType(v, SignalBase)) return (cast v : SignalBase).read();
 		if (Std.isOfType(v, MemoBase)) return (cast v : Memo<Dynamic>).value;
 		if (Reflect.isFunction(v)) return (v : Void->Dynamic)();
 		return v;

@@ -40,6 +40,9 @@ class Signal<T> extends SignalBase {
 	public function changed()
 		Reactive.batch(notify);
 
+	override function read():Dynamic
+		return value;
+
 	public function toString():String
 		return 'Signal($v)';
 }
@@ -61,4 +64,9 @@ class SignalBase implements Source {
 		for (o in observers.copy())
 			o.stale(Dirty);
 	}
+
+	// its value, tracked (Render.read: a hole or an attribute bound to it;
+	// a Signal's, helder.asset's Asset's)
+	function read():Dynamic
+		return null;
 }

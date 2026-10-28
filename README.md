@@ -605,7 +605,9 @@ fix.
   `bytes` (and `embed`) by a path anywhere in the project, checked when
   compiling (the file there, in that case; a path's rules: `AssetPath`),
   a handle loaded on the main loop (`load()` a coroutine, `ready`,
-  `peek()`, `value` a signal); `Model.of(path, Lazy)` is `Asset.model`,
+  `peek()`, `value` a signal; read under helder.view's `<Loading>`,
+  Solid 2.0's model, the content waits on its first load only: its
+  fallback, then the content, kept through a reload; `isPending`); `Model.of(path, Lazy)` is `Asset.model`,
   `Model.of` reads its file through the same one way. Bundled by use: each
   call's marker is in the output only while its code is (hxmc emits the
   literals of the code it keeps), so `helder build` takes exactly those:
@@ -619,7 +621,10 @@ fix.
   `FontFile` or a `Model`'s meshes swapped in place, `value`'s readers run
   again. Tested: `AssetPath.test.hx`, `tests/asset/Assets.test.hx`
   (natively and as wasm32-wasi: the bundle without a file named only in
-  dead code), the asset lane (rejections; `tests/asset/Checksum.hx` alone
+  dead code; `<Loading>` over an image in ui's markup), tests/view's
+  ViewTest (`<Loading>`: the fallback on a first load only, nested, a
+  memo's and a component's reads, a failure the ErrorBoundary's, none
+  above: nothing rendered; on Eval, natively and as JavaScript), the asset lane (rejections; `tests/asset/Checksum.hx` alone
   in an empty directory, its files' CRC-32s; the web's files exactly), the
   pack lane (PackCheck: the APK's, the app's and the .ipa's `assets/`,
   CodeResources' hashes), the cli lane (an image swapped in the same
@@ -628,7 +633,8 @@ fix.
   tests/pack/dev.mjs (the dev APK without assets, `asset <key>`); on CI's
   emulator and simulator Checksum's lines (tests/pack/android.sh, ios.sh;
   codesign --verify with assets) and an asset reloaded in the running app
-  (tests/os/dev/dev-android.mjs), untested until CI runs them. Later:
+  (tests/os/dev/dev-android.mjs), passing there (Pixel 6, API 34; iPhone
+  17, iOS 26.2). Later:
   `.meta` sidecars, compressed textures, sounds decoded.
 - **The game**: a small mobile 3D game as an example (a camera the fingers
   drive, picking, a HUD and a menu in ui, a save), built and live-reloaded
