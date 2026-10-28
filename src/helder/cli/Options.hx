@@ -17,9 +17,13 @@ using StringTools;
 // (exit code 2). Pure: no process, no file but `exists` (tests give theirs).
 class Options {
 	// --target's names for dev, run and build: the platforms, then hxmc's exact targets
-	public static final PLATFORMS = ["host", "web", "android", "ios"];
+	// (android: a phone's ABI, arm64, or the device's -d names; ios: an
+	// iPhone for build, the simulator for run and dev, which can install
+	// only there; ios-sim: the simulator)
+	public static final PLATFORMS = ["host", "web", "android", "ios", "ios-sim"];
 	public static final HXMC_TARGETS = [
-		"linux-x86_64", "linux-arm64", "macos-x86_64", "macos-arm64", "windows-x86_64", "windows-arm64", "wasm32-wasi"
+		"linux-x86_64", "linux-arm64", "macos-x86_64", "macos-arm64", "windows-x86_64", "windows-arm64", "wasm32-wasi", "android-arm64",
+		"android-x86_64", "ios-arm64", "ios-sim-arm64"
 	];
 	// helder test's
 	public static final TEST_TARGETS = ["host", "interp", "wasm"];
@@ -28,14 +32,13 @@ class Options {
 	public static final TEST_ALL = ["host", "wasm"];
 
 	public static final ENTRY = "a .hx file, a directory or a project (default: .)";
-	public static final NOT_YET = "not yet: Android and iOS packaging is being moved into helder";
 
 	static final COMMON:Array<Opt> = [
 		{
 			key: "target",
 			names: ["--target"],
 			value: "<t>",
-			about: "host (default), web, android, ios, or an exact hxmc target (windows-x86_64, macos-arm64, wasm32-wasi, ...)"
+			about: "host (default), web, android, ios, ios-sim, or an exact hxmc target (windows-x86_64, android-x86_64, ...)"
 		},
 		{key: "device", names: ["-d", "--device"], value: "<d>", about: "which phone, emulator or simulator (android, ios); `helder devices` lists them"},
 		{key: "out", names: ["-o", "--out"], value: "<path>", about: "build's output"},
@@ -164,6 +167,10 @@ class Options {
 	public static function isTarget(word:String):Bool
 		return PLATFORMS.contains(word) || HXMC_TARGETS.contains(word);
 
+	// a target's phone platform: "android", "ios", null for the others
+	public static function mobile(target:Null<String>):Null<String>
+		return target == null ? null : target.startsWith("android") ? "android" : target.startsWith("ios") ? "ios" : null;
+
 	// helder's arguments: the command, and its own (the first word a command
 	// or an entry: an entry is dev's); `helder`, `-h` and `--help` are help
 	public static function route(args:Array<String>, ?exists:String->Bool):{command:String, args:Array<String>} {
@@ -246,10 +253,11 @@ class Options {
 			if (target.contains(",")) throw usage('one target, not a list: $target (helder test\'s --target takes several)');
 			if (!isTarget(target)) throw usage('no target $target (${PLATFORMS.join(", ")}, or an hxmc target: ${HXMC_TARGETS.join(", ")})');
 		}
-		var mobile = target == "android" || target == "ios";
-		if (device != null && !mobile)
+		if (device != null && mobile(target) == null)
 			throw usage('-d/--device picks a phone, emulator or simulator: with --target android or ios (helder devices lists them)');
-		if (mobile) throw usage('--target $target: $NOT_YET');
+		// (an iPhone's app needs a signing identity and a profile: not yet)
+		if (target == "ios-arm64" && command != "build")
+			throw usage('--target ios-arm64: an iPhone needs a signing identity (not yet); --target ios runs on the simulator');
 	}
 
 	// a usage error's line: `helder <command>: <message>`, the help named for an option's

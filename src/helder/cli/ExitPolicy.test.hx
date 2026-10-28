@@ -26,7 +26,7 @@ function tests() {
 	test("web: a page closed ends nothing", () -> {
 		equals(ExitPolicy.decide(Web, 0, false, false), Ignore);
 	});
-	test("a phone (not wired yet): the app closed there does not end the session", () -> {
+	test("a phone: the app closed there does not end the session", () -> {
 		equals(ExitPolicy.decide(Mobile, 0, false, false), WaitForChange);
 		equals(ExitPolicy.decide(Mobile, 1, false, false), WaitForChange);
 		equals(ExitPolicy.decide(Mobile, 0, true, false), Ignore);

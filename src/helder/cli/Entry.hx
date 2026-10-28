@@ -20,9 +20,10 @@ using StringTools;
 // The nearest package.json at or above the entry adds its class paths
 // ("haxe": {"classPath"}, this checkout's src/), its dependencies' (a
 // package in node_modules with a "haxe" field: node_modules/helder), and
-// the overrides: a "helder" key ({"main", "name", "defines": {k: v}}) and a
-// helder.hxml beside it, given to every build. Outputs go to the project's
-// bin/<target>/<name>.
+// the overrides: a "helder" key ({"main", "name", "defines": {k: v}}; an
+// app's "id", "label", "version", "versionName", "android" and "ios": App)
+// and a helder.hxml beside it, given to every build. Outputs go to the
+// project's bin/<target>/<name>.
 class Entry {
 	// "web" or an hxmc target (host resolved)
 	public var target:String;
@@ -39,6 +40,9 @@ class Entry {
 	public var hxml(default, null):Null<String> = null;
 	// the directories watched (the class paths but helder's own when it is a package)
 	public var sources(default, null):Array<String> = [];
+	// package.json's "helder" key (null: none): an app's id, label,
+	// versions, its "android" and "ios" options (App)
+	public var config(default, null):Dynamic = null;
 
 	function new() {}
 
@@ -111,6 +115,7 @@ class Entry {
 		}
 		var h:Dynamic = json.helder;
 		if (h != null) {
+			config = h;
 			if (h.main != null) main = h.main;
 			if (h.name != null) name = h.name;
 			if (h.defines != null) for (k in Reflect.fields(h.defines)) defines = defines.concat(["-D", '$k=${Reflect.field(h.defines, k)}']);

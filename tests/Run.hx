@@ -204,17 +204,19 @@ class Run {
 		expect(h, ["run", "--bogus"], none, "helder run: unknown option --bogus (helder run --help)", 2);
 		expect(h, ["dev", "--target"], none, "helder dev: --target takes a value", 2);
 		expect(h, ["build", "-d", "emulator-5554"], none, "helder build: -d/--device picks a phone, emulator or simulator", 2);
-		expect(h, ["dev", "examples/counter", "--target", "android", "-d", "emulator-5554"], none, "not yet: Android and iOS packaging is being moved into helder", 2);
+		expect(h, ["run", "examples/counter", "--target", "ios-arm64"], none, "helder run: --target ios-arm64: an iPhone needs a signing identity (not yet)", 2);
 		// (helder devices: no adb on the PATH, an empty directory; then a stand-in adb)
 		rmrf("bin/cli/path");
 		mkdirs("bin/cli/path/none");
-		expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/none")], "adb not found");
-		expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/none")], 'host  this machine');
+		final noAdb = ["PATH" => FileSystem.fullPath("bin/cli/path/none"), "ADB" => "", "ANDROID_HOME" => "", "ANDROID_SDK_ROOT" => ""];
+		expect(h, ["devices"], noAdb, "adb not found");
+		expect(h, ["run", "examples/counter", "--target", "android"], noAdb, "adb not found (Android's platform-tools on the PATH, or ADB)", 1);
+		expect(h, ["devices"], noAdb, 'host  this machine');
 		if (!HOST.startsWith("windows-")) {
 			mkdirs("bin/cli/path/adb");
 			File.saveContent("bin/cli/path/adb/adb", "#!/bin/sh\necho 'List of devices attached'\necho 'emulator-5554  device product:sdk_gphone64 model:Pixel_7 device:emu64xa transport_id:1'\n");
 			run("chmod", ["+x", "bin/cli/path/adb/adb"]);
-			expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/adb")], "emulator-5554  Pixel 7");
+			expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/adb"), "ADB" => ""], "emulator-5554  Pixel 7");
 		}
 		run(h, ["build", "examples/counter/Counter.hx"]);
 		run(h, ["build", "--target", "web", "examples/counter"]);
@@ -779,7 +781,8 @@ class Run {
 			Sys.putEnv(k, v);
 		}
 		var code = Sys.command(cmd, args);
-		for (k => v in saved) Sys.putEnv(k, v ?? "");
+		// (null: unset again, not left empty: an empty HXMC_RT_DIR is not none to the launcher)
+		for (k => v in saved) Sys.putEnv(k, v);
 		if (code != 0) throw new Failed('${[cmd].concat(args).join(" ")}: exit code $code');
 	}
 
@@ -799,7 +802,8 @@ class Run {
 		var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();
 		var code = p.exitCode();
 		p.close();
-		for (k => v in saved) Sys.putEnv(k, v ?? "");
+		// (null: unset again, not left empty: an empty HXMC_RT_DIR is not none to the launcher)
+		for (k => v in saved) Sys.putEnv(k, v);
 		Sys.print(out);
 		if (code != want || !out.contains(text)) throw new Failed('${[cmd].concat(args).join(" ")}: expected "$text" (exit code $code, not $want)');
 	}
