@@ -178,6 +178,12 @@ class TextNode extends Node {
 		return span != null ? span : this;
 	}
 
+	// (a font replaced: laid out afresh, Ui.update)
+	@:allow(helder.ui.Ui) function forgetLayout() {
+		laidFont = null;
+		maxFont = null;
+	}
+
 	// the paragraph for a width (NaN: unbounded), from the last one when the same
 	public function layoutText(engine:TextEngine, maxWidth:Float):Paragraph {
 		var f = font(), text = shownText();

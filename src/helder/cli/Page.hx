@@ -11,7 +11,8 @@ using StringTools;
 // packages the module imports (an imports.mjs naming one of its import
 // modules: hxmc_gfx, helder_async, ...), DejaVu Sans when it uses
 // helder.text. `helder dev` serves it with the dev client; `helder build
-// web` writes it beside the module, with the modules and fonts it names.
+// web` writes it beside the module, with the modules and fonts it names
+// (the program's assets are beside it already: helder.asset's Bundle).
 class Page {
 	static final FONT_DIRS = ["/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/TTF", "/usr/share/fonts/dejavu", "/Library/Fonts", "C:/Windows/Fonts"];
 
@@ -43,7 +44,9 @@ class Page {
 	}
 
 	// the page: base is where browser.mjs (base/os/browser.mjs) and the imports are, fonts their URLs
-	public static function html(title:String, wasm:String, base:String, packages:Array<String>, fonts:Array<String>, dev:Bool):String {
+	// (assets: the URL of the module's assets.json, the files read before
+	// main, which browser.mjs fetches; null: none)
+	public static function html(title:String, wasm:String, base:String, packages:Array<String>, fonts:Array<String>, dev:Bool, ?assets:String):String {
 		var imports = [for (p in packages) '$base$p/imports.mjs'];
 		var browser = '${base}os/browser.mjs';
 		return template()
@@ -53,7 +56,8 @@ class Page {
 			.replace("{{browser}}", browser)
 			.replace("{{fonts}}", haxe.Json.stringify(fonts))
 			.replace("{{imports}}", haxe.Json.stringify(imports))
-			.replace("{{dev}}", dev ? "true" : "false");
+			.replace("{{dev}}", dev ? "true" : "false")
+			.replace("{{assets}}", haxe.Json.stringify(assets));
 	}
 
 	static macro function template():haxe.macro.Expr
@@ -128,7 +132,9 @@ class Page {
 			File.copy(f, '$dir/fonts/$n');
 			urls.push('fonts/$n');
 		}
-		File.saveContent('$dir/$name.html', html(title, '$name.wasm', "helder/", pkgs, urls, false));
+		// (the program's assets: helder.asset's Bundle put them in assets/ beside the module)
+		var listed = FileSystem.exists('$wasm.assets.json');
+		File.saveContent('$dir/$name.html', html(title, '$name.wasm', "helder/", pkgs, urls, false, listed ? '$name.wasm.assets.json' : null));
 		return files;
 	}
 }

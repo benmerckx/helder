@@ -1,5 +1,7 @@
 import helder.gfx.*;
 import helder.gfx.shader.Vec3;
+import helder.asset.Asset;
+import helder.asset.Assets;
 import helder.scene.*;
 import helder.scene.gltf.*;
 import helder.scene.render.*;
@@ -175,6 +177,10 @@ class Scenes {
 				var world = new World();
 				var model = Model.of("normals.glb");
 				var tiles = model.instantiate(world, device).find(model.nodes.tiles);
+				// (then the file loaded again into the same model, as helder dev's
+				// reload does: Model.replace swaps the instance's meshes' primitives
+				// and materials, the old ones released; the same frame)
+				model.replace(Model.of("normals.glb"));
 				tiles.rotation = helder.scene.math.Quat.fromEuler(0.5, 0.7, 0);
 				var floor = world.node("floor");
 				floor.position = new Vec3(0, -1.1, 0);
@@ -393,7 +399,8 @@ class Scenes {
 				eye.position = new Vec3(0.4, 1.4, 4.2);
 				eye.lookAt(new Vec3(-0.3, 1.1, 0));
 				var asset = Model.of("skinned.glb", Lazy);
-				asset.then(model -> {
+				helder.async.Async.launch(_ -> {
+					var model = asset.load();
 					var made = [];
 					model.instantiate(world, device, null, made);
 					var animator = new helder.scene.anim.Animator(made);

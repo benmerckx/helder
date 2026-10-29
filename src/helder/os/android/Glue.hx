@@ -3,19 +3,21 @@ package helder.os.android;
 import hxmc.unsafe.*;
 
 // Java's calls into the program, on the main thread (MainThread): the
-// listeners of classes.dex (hxmc.android.Glue in hxmc: one Java class
+// listeners of classes.dex (helder.pack.android.Glue: one Java class
 // for every kind of listener, made with an id, its methods calling the
 // static native event, registered here). A listener's handler gets the
 // kind, the object the listener was given (a View, an Editable, a
 // SurfaceHolder) and two ints; its result is a boolean listener's. A
 // program using this gets classes.dex in its APK; one that sets the
 // activity's content (setContentView) gets org.hxmc.Activity, whose window
-// draws views (hxmc.android.Apk), otherwise NativeActivity's window stays
+// draws views (helder.pack.android.Apk), otherwise NativeActivity's window stays
 // the program's surface. After each call a frame is requested
 // (MainThread.onFrame: what the handler changed is laid out).
-@:hxmc.android
+// (@:helder.android.dex: an APK with this gets classes.dex,
+// helder.pack.android.Classes)
+@:hxmc.android @:helder.android.dex
 class Glue {
-	// the kinds (hxmc.android.Glue's)
+	// the kinds (helder.pack.android.Glue's)
 	public static inline var CLICK = 0;
 	public static inline var TEXT = 1;
 	public static inline var CHECKED = 2;

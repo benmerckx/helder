@@ -13,11 +13,17 @@ import sys.io.File;
 
 using StringTools;
 
-// `helder dev [entry] [--target host | web] [-- args]`: the dev loop, ported from @hxmc/cli's
+// `helder dev [entry] [--target host | web | android | ios] [-d <device>] [-- args]`: the dev loop, ported from @hxmc/cli's
 // dev.mjs. The compiler stays resident (CompileServer, --server-connect);
 // what the last build read is watched (SampledWatcher: the module files
-// Deps writes, their directories, and assets/), and a change builds again
-// with -D hxmc.dev. A build with errors changes
+// Deps writes, their directories, and the assets its code names: the
+// manifest helder.asset's Bundle writes), and a change builds again
+// with -D hxmc.dev. A change to an asset builds nothing: the file is
+// sent to the running program, which loads it again behind the same
+// handle (natively the devtools protocol's notification Assets.changed
+// {key}, the program reading the file from this machine's disk, an Android
+// app asking for it on a connection of its own, "asset <key>"; the page
+// {"type":"asset","key"}, the file at /__hxmc/assets/<key>). A build with errors changes
 // nothing: the last good build keeps running, the errors show here (and in
 // the page's overlay). A build that compiles reloads the program, its state
 // carried over by key (helder.dev.Hot's snapshot):
@@ -35,7 +41,19 @@ using StringTools;
 // - web: a page at http://127.0.0.1:<port>/ (page.html) running the module
 //   with its packages' browser modules, told over a WebSocket at /__hxmc/ws
 //   ({"type":"reload"}, {"type":"error","message"}, {"type":"ok"}): it swaps
-//   the new build in, in the same page.
+//   the new build in, in the same page;
+// - a phone (--target android, ios: -d's device, else the one there is):
+//   the first build is the dev host's app (-D hxmc.dev-host), installed and
+//   started there. Android's APK is built for our socket (-D
+//   hxmc.dev-server=127.0.0.1:<port>, adb reverse'd), and a later build
+//   sends only its library: {"type":"reload","snapshot":"-","fetch":n},
+//   the app asks for "lib <n>" on a connection of its own, writes it into
+//   its files and hands over to it in the same process; its output is
+//   logcat's. The simulator's app gets HXMC_DEV (SIMCTL_CHILD_), a later
+//   build is a dylib it loads from this machine's files ({"type":"reload",
+//   "snapshot","library"}), its output simctl's (--console). Closing the
+//   app there ends nothing (ExitPolicy's Mobile): the next build installs
+//   and starts it again.
 // The program answers {"type":"saved"} and {"type":"frame"} (its first
 // frame: the reload's time, from the change seen). Natively a program with
 // helder.devtools' agent (HXMC_DEV_PROTOCOL=1) speaks JSON-RPC instead
@@ -64,6 +82,18 @@ class DevCommand {
 	static var stopping = false;
 	// where the program runs (ExitPolicy)
 	static var platform:ExitPolicy.Platform = Desktop;
+	// android, ios: the phone's platform, its device (null: this machine, web)
+	static var mobile:Null<String> = null;
+	static var device:Null<Devices.Device> = null;
+	// the phone's app installed and connected when this build began: the
+	// build swapped into it (Android: its library, fetched; the simulator: a
+	// dylib), else the whole app built, installed and started
+	static var swapping = false;
+	static var installed = false;
+	// Android: the libraries the app fetches ("lib <n>"), the latest only
+	static var fetchable:Null<{n:String, bytes:haxe.io.Bytes}> = null;
+	// the phone's output: logcat (Android), simctl launch --console (iOS)
+	static var phoneLog:Null<Process> = null;
 	static var socket:Null<Socket> = null;
 	static var saved = false;
 	static var appPort = 0;
@@ -77,6 +107,9 @@ class DevCommand {
 	static var exeOut = "";
 	// web: the pages connected
 	static final clients:Array<WebSocket> = [];
+	// the last build's assets (its manifest): their files by key, and keys by file
+	static var assetFiles = new Map<String, String>();
+	static var assetKeys = new Map<String, String>();
 
 	@:coroutine public static function run(task:Node, o:Options):Int {
 		var port = Std.parseInt(o.value("port") ?? Sys.getEnv("HELDER_DEV_PORT") ?? "") ?? 4321, address = o.value("host") ?? "127.0.0.1";
@@ -90,20 +123,40 @@ class DevCommand {
 			return 1;
 		}
 		web = e.isWeb();
-		if (!web && e.target != Compiler.hostTarget()) {
+		mobile = Options.mobile(e.target);
+		if (mobile != null) {
+			// (the device first: Android's ABI is the build's target; a simulator booted)
+			try {
+				device = mobile == "android" ? Android.device(o.device) : Ios.device(o.device);
+				e.target = mobile == "android" ? Android.target(e.target, Android.abi(device.id)) : Ios.target(e.target, "dev");
+				// (Android's runtime objects before the compile server starts: its HXMC_RT_DIR)
+				Runtime.ensure(e.target);
+				if (mobile == "ios") {
+					Term.spin("booting " + device.name);
+					Ios.boot(device);
+					Term.done();
+				}
+			} catch (err:Dynamic) {
+				Term.done();
+				Term.err(Style.status("error", Fail, Std.string(err)));
+				return 1;
+			}
+		} else if (!web && e.target != Compiler.hostTarget()) {
 			Term.err(Style.usage('helder dev: ${e.target} is not this machine (${Compiler.hostTarget()}); helder build --target ${e.target} builds for it'));
 			return 2;
 		}
-		// (android and ios: refused by Options for now (NOT_YET); once wired,
-		// their program is the app on the phone and ExitPolicy's Mobile: the
-		// app closed there does not end the session)
-		platform = web ? Web : Desktop;
-		Term.out(Style.header("dev", [web ? "web" : e.target, e.label()]));
+		// (a phone's: the app closed there does not end the session, ExitPolicy's Mobile)
+		platform = web ? Web : mobile != null ? Mobile : Desktop;
+		Term.out(Style.header("dev", [web ? "web" : e.target, e.label()].concat(device == null ? [] : [device.name])));
 		if (web) e.target = "web";
 		cwd = Sys.getCwd();
-		hosted = !web && Sys.getEnv("HELDER_DEV_HOST") != "0"
+		hosted = !web && mobile == null && Sys.getEnv("HELDER_DEV_HOST") != "0"
 			&& (e.target.startsWith("linux-") || e.target.startsWith("windows-") || e.target.startsWith("macos-"));
-		out = exeOut = e.out("dev/" + (web ? "web" : e.target));
+		out = exeOut = switch mobile {
+			case "android": Entry.clean('${e.root}/bin/dev/android/${e.name}.apk');
+			case "ios": Entry.clean('${e.root}/bin/dev/ios-sim/${e.name}.app');
+			case _: e.out("dev/" + (web ? "web" : e.target));
+		}
 		if (hosted) out = Path.withoutExtension(out) + libExt();
 		var dir = Path.directory(out) == "" ? "." : Path.directory(out);
 		TestCommand.mkdirs(dir);
@@ -143,6 +196,12 @@ class DevCommand {
 			task.async(_ -> while (true) {
 				var s = app.accept();
 				task.async(_ -> connection(s));
+				// (the phone's app reached us, Android's through adb reverse: told
+				// once it is the program's connection, not a library's fetch)
+				if (mobile != null && !swapping) task.async(_ -> {
+					Async.delay(0.2);
+					if (socket == s) log(Style.status("connected", Info, 'the app on ${device.name}'));
+				});
 			});
 			if (hosted) {
 				TestCommand.mkdirs(libDir());
@@ -159,7 +218,14 @@ class DevCommand {
 			var changed = w.next();
 			// (seen within the tick: half of it on average, and the debounce)
 			var seen = haxe.Timer.stamp() - 0.07;
-			for (f in changed)
+			// (an asset's file: sent, nothing built)
+			var rest = [];
+			for (f in changed) {
+				var k = assetKeys.get(f);
+				if (k != null && FileSystem.exists(f)) assetChanged(k) else rest.push(f);
+			}
+			if (rest.length == 0) continue;
+			for (f in rest)
 				if (f.endsWith(".hx") && FileSystem.exists(f)) server.invalidate(f, cwd);
 			rebuild(task, seen);
 			watch(w);
@@ -192,17 +258,42 @@ class DevCommand {
 			var d = Path.directory(f);
 			if (!dirs.contains(d)) dirs.push(d);
 		}
-		if (FileSystem.exists('${e.root}/assets')) {
-			var a = FileSystem.fullPath('${e.root}/assets');
-			dirs.push(a);
-			walk(a, true);
-		}
-		for (f in [e.hxml, '${e.root}/package.json', '${e.root}/tsconfig.json']) if (f != null && FileSystem.exists(f)) files.push(FileSystem.fullPath(f));
+		for (f in assetFiles)
+			if (!files.contains(f)) files.push(f);
+		for (f in [e.hxml, '${e.root}/package.json']) if (f != null && FileSystem.exists(f)) files.push(FileSystem.fullPath(f));
 		w.watch(files, dirs);
 	}
 
 	static function depsFile():String
 		return Path.withoutExtension(out) + ".deps";
+
+	// the executable a build wrote (its manifest: AssetStep)
+	static function builtExe():String
+		return switch mobile {
+			case "android": Android.library(out);
+			case "ios" if (swapping): '${libDir()}/next.dylib';
+			case "ios": Ios.executable(Ios.app(out));
+			case _: out;
+		}
+
+	// the build's manifest read: the files watched as assets
+	static function readAssets() {
+		var m = AssetStep.manifest(builtExe());
+		if (!FileSystem.exists(m)) return;
+		assetFiles = new Map();
+		assetKeys = new Map();
+		for (a in AssetStep.assets(builtExe())) {
+			assetFiles.set(a.key, a.file);
+			assetKeys.set(a.file, a.key);
+		}
+	}
+
+	// an asset's file changed: the running program told (it loads it again)
+	@:coroutine static function assetChanged(key:String) {
+		log(Style.status("asset", Info, Style.path(key) + Style.dim(Style.sep() + "sent, nothing built")));
+		if (web) broadcast(haxe.Json.stringify({type: "asset", key: key}));
+		else sendLine(haxe.Json.stringify({jsonrpc: "2.0", method: "Assets.changed", params: {key: key}}));
+	}
 
 	// a status line (a terminal gone, its pipe closed: nothing printed, the rest goes on)
 	static function log(s:String)
@@ -216,6 +307,10 @@ class DevCommand {
 		var c = child;
 		child = null;
 		if (c != null && !c.exited) c.p.stop();
+		// (a phone's output: logcat, simctl; the app itself stays)
+		var l = phoneLog;
+		phoneLog = null;
+		if (l != null) l.stop(1);
 		server.stop();
 		Sys.exit(code);
 	}
@@ -225,7 +320,7 @@ class DevCommand {
 		building = true;
 		// (natively: the running executable moved aside, it cannot be written over)
 		var aside = out + ".running";
-		var moved = !web && !hosted && child != null && FileSystem.exists(out) && (try {
+		var moved = !web && !hosted && mobile == null && child != null && FileSystem.exists(out) && (try {
 			FileSystem.rename(out, aside);
 			true;
 		} catch (_:Dynamic) false);
@@ -238,9 +333,24 @@ class DevCommand {
 		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
 		// (Windows: a DLL at a base of its own, not the one the running build's DLL has, nor the build's before)
 		if (hosted && e.target.startsWith("windows-")) extra = extra.concat(["-D", "hxmc.dll-base=" + ["0x10000000", "0x30000000", "0x50000000"][(libCount + 1) % 3]]);
-		var r = try BuildCommand.build(e, out, Dev, server, extra) catch (err:haxe.Exception) {
+		// (a phone: the dev host's app, built for this server; once it runs
+		// and is connected, each build a library swapped into it)
+		swapping = installed && socket != null;
+		if (mobile != null) extra = extra.concat(["-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state"]);
+		if (mobile == "android") extra = extra.concat(["-D", 'hxmc.dev-server=127.0.0.1:$appPort']);
+		var artifact = switch mobile {
+			case "android": swapping ? Android.library(out) : out;
+			case "ios" if (swapping): '${libDir()}/next.dylib';
+			case _: out;
+		}
+		var r = try switch mobile {
+			case "android": Android.build(e, out, Dev, server, extra, true, !swapping);
+			case "ios" if (swapping): BuildCommand.build(e, artifact, Dev, server, extra.concat(["-D", "hxmc.shared"]));
+			case "ios": Ios.build(e, out, Dev, server, extra);
+			case _: BuildCommand.build(e, out, Dev, server, extra);
+		} catch (err:Dynamic) {
 			Term.done();
-			Term.err(Style.status("error", Fail, err.message));
+			Term.err(Style.status("error", Fail, err is haxe.Exception ? (err : haxe.Exception).message : Std.string(err)));
 			Sys.exit(1);
 			null;
 		}
@@ -255,10 +365,11 @@ class DevCommand {
 		}
 		var wasError = lastError != null;
 		lastError = null;
+		readAssets();
 		timing = seen == null ? null : {seen: seen, build: r.ms};
-		log(Style.status(seen == null ? "built" : "rebuilt", Ok, 'in ${Style.time(r.ms)}' + Style.dim(Style.sep() + BuildCommand.size(out))));
+		log(Style.status(seen == null ? "built" : "rebuilt", Ok, 'in ${Style.time(r.ms)}' + Style.dim(Style.sep() + BuildCommand.size(artifact))));
 		building = false;
-		Devtools.built(r.ms, BuildCommand.size(out));
+		Devtools.built(r.ms, BuildCommand.size(artifact));
 		var first = !built;
 		built = true;
 		if (web) {
@@ -266,7 +377,7 @@ class DevCommand {
 			if (clients.length > 0) {
 				if (!first || wasError) broadcast('{"type":"reload"}');
 			} else timing = null;
-		} else if (hosted) swapHosted(task) else reloadNative(task);
+		} else if (mobile == "android") swapAndroid(task) else if (mobile == "ios") swapSimulator(task) else if (hosted) swapHosted(task) else reloadNative(task);
 	}
 
 	// the first frame of a reloaded build
@@ -282,9 +393,30 @@ class DevCommand {
 
 	// the program's connection (JSON lines: @hxmc/cli's {"type"}, or the devtools' protocol)
 	@:coroutine static function connection(s:Socket) {
+		var before = socket;
 		socket = s;
 		var r = new Reader(s), line;
 		try while ((line = r.readLine()) != null) {
+			// (Android: an asset's file asked for on a connection of its own: "ok" and the bytes, then the end)
+			if (line.startsWith("asset ")) {
+				if (socket == s) socket = before;
+				var f = assetFiles.get(line.substr(6).trim());
+				var b = f != null && FileSystem.exists(f) ? File.getBytes(f) : null;
+				if (b == null) s.writeString("missing\n") else {
+					s.writeString("ok\n");
+					s.write(b, 0, b.length);
+				}
+				s.close();
+				return;
+			}
+			// (Android: a build's library asked for on a connection of its own, the bytes then the end)
+			if (line.startsWith("lib ")) {
+				if (socket == s) socket = before;
+				var f = fetchable;
+				if (f != null && f.n == line.substr(4).trim()) s.write(f.bytes, 0, f.bytes.length);
+				s.close();
+				return;
+			}
 			var m:Dynamic = try haxe.Json.parse(line) catch (_:Dynamic) null;
 			if (m == null) continue;
 			if (m.jsonrpc != null) {
@@ -302,10 +434,16 @@ class DevCommand {
 	}
 
 	// a reload asked of the program: Runtime.reload when it speaks the protocol
-	@:coroutine static function askReload(snapshot:String, ?library:String) {
-		var params:Dynamic = library == null ? {snapshot: snapshot} : {snapshot: snapshot, library: library};
-		if (!Devtools.request("Runtime.reload", params, r -> if (r.error == null) saved = true))
-			send(library == null ? {type: "reload", snapshot: snapshot} : {type: "reload", snapshot: snapshot, library: library});
+	// (library: the dev host's next build, a file here; fetch: Android's, the
+	// app asks for it on a connection of its own: "lib <fetch>")
+	@:coroutine static function askReload(snapshot:String, ?library:String, ?fetch:String) {
+		var params:Dynamic = {snapshot: snapshot};
+		if (library != null) params.library = library;
+		if (fetch != null) params.fetch = fetch;
+		if (!Devtools.request("Runtime.reload", params, r -> if (r.error == null) saved = true)) {
+			params.type = "reload";
+			send(params);
+		}
 	}
 
 	@:coroutine static function start(task:Node, withSnapshot:Bool, ?lib:String) {
@@ -420,6 +558,102 @@ class DevCommand {
 		start(task, FileSystem.exists(snapshot), native(FileSystem.fullPath(lib)));
 	}
 
+	// --- a phone
+
+	// Android: the running app (the dev host, its activity keeping the
+	// window, the GPU context and the input queue) fetches the new build's
+	// library into its files and hands over to it in the same process; no
+	// app connected (the first build, or it was closed): the APK installed
+	// (again), the port reversed, the app started
+	@:coroutine static function swapAndroid(task:Node) {
+		var s = socket;
+		if (swapping && s != null) {
+			var n = Std.string(++libCount);
+			fetchable = {n: n, bytes: File.getBytes(Android.library(out))};
+			saved = false;
+			askReload("-", null, n);
+			until(() -> saved || socket != s, 10);
+			return;
+		}
+		try {
+			var id = App.android(e.name, e.config, true).id;
+			// (gone while its library was built: the APK of that library)
+			if (swapping) Android.pack(e, Android.library(out), out, true);
+			Term.spin("installing on " + device.name);
+			Android.install(device.id, out);
+			Android.reverse(device.id, appPort);
+			if (phoneLog == null) {
+				phoneLog = Android.logcat(device.id);
+				var l = phoneLog;
+				if (l != null) task.async(_ -> output(l.stdout, false));
+			}
+			Android.start(device.id, id, Android.activity(out));
+			Term.done();
+			installed = true;
+			log(Style.status("started", Ok, '$id on ${device.name}' + Style.dim(Style.sep() + "its output: logcat's hxmc")));
+		} catch (err:Dynamic) {
+			Term.done();
+			Term.err(Style.status("error", Fail, Std.string(err) + Style.dim("; the next change tries again")));
+		}
+	}
+
+	// the simulator: the running app (the dev host) loads the new build's
+	// dylib from this machine's files and hands over to it; no app connected:
+	// the app installed and launched, its output here (simctl --console)
+	@:coroutine static function swapSimulator(task:Node) {
+		var s = socket;
+		if (swapping && s != null) {
+			var lib = '${libDir()}/${++libCount}.dylib';
+			FileSystem.rename('${libDir()}/next.dylib', lib);
+			try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
+			saved = false;
+			askReload(snapshot, FileSystem.fullPath(lib));
+			until(() -> saved || socket != s, 10);
+			return;
+		}
+		if (swapping) {
+			// (gone while its dylib was built: the app built again, installed and launched)
+			installed = false;
+			rebuild(task, null);
+			return;
+		}
+		try {
+			var id = Ios.id(e);
+			Term.spin("installing on " + device.name);
+			Ios.install(device.id, out);
+			Term.done();
+			TestCommand.mkdirs(libDir());
+			try FileSystem.deleteFile(snapshot) catch (_:Dynamic) {};
+			// (the app before: ended by --terminate-running-process, not the user)
+			var old = phoneLog;
+			if (old != null) replacedLaunch = old;
+			var p = Ios.launch(device.id, id, ["HXMC_DEV" => '127.0.0.1:$appPort', "HXMC_DEV_PROTOCOL" => Std.string(Devtools.PROTOCOL), "HXMC_DEV_SNAPSHOT" => snapshot]);
+			p.closeStdin();
+			phoneLog = p;
+			installed = true;
+			log(Style.status("started", Ok, '$id on ${device.name}'));
+			task.async(_ -> output(p.stdout, false));
+			task.async(_ -> output(p.stderr, true));
+			task.async(_ -> {
+				var code = p.wait();
+				p.close();
+				switch ExitPolicy.decide(Mobile, code, replacedLaunch == p, stopping) {
+					case WaitForChange:
+						if (phoneLog == p) phoneLog = null;
+						log(Style.status("closed", Quiet, 'the app on ${device.name} ended' + Style.dim("; the next change starts it again")));
+						Devtools.exited(code);
+					case _:
+				}
+			});
+		} catch (err:Dynamic) {
+			Term.done();
+			Term.err(Style.status("error", Fail, Std.string(err) + Style.dim("; the next change tries again")));
+		}
+	}
+
+	// (the simulator's launch that a relaunch ended)
+	static var replacedLaunch:Null<Process> = null;
+
 	static function libDir():String
 		return Path.withoutExtension(out) + ".dev";
 
@@ -436,7 +670,7 @@ class DevCommand {
 		var src = e.helder + "/helder/dev";
 		var tool = Compiler.tool();
 		var key = File.getContent('$src/DevHost.hx') + (FileSystem.exists(tool) ? Std.string(FileSystem.stat(tool).mtime.getTime()) : tool);
-		var dir = cacheDir() + "/helder/dev-host";
+		var dir = cache() + "/dev-host";
 		var win = e.target.startsWith("windows-");
 		var exe = '$dir/host-' + haxe.crypto.Md5.encode(key).substr(0, 16) + (win ? ".exe" : "");
 		if (!FileSystem.exists(exe)) {
@@ -465,6 +699,13 @@ class DevCommand {
 		}
 		hostExe = exe;
 		hostReady = true;
+	}
+
+	// helder's cache (the dev host, the Android debug key): HELDER_CACHE, else
+	// <the user's cache>/helder
+	public static function cache():String {
+		var env = Sys.getEnv("HELDER_CACHE");
+		return env != null && env != "" ? env.split("\\").join("/") : cacheDir() + "/helder";
 	}
 
 	// the user's cache: Windows' local application data, macOS's Library/Caches, else XDG's
@@ -535,7 +776,9 @@ class DevCommand {
 			until(() -> built, 600);
 			var pkgs = Page.packages(e.helder, out);
 			var fonts = [for (f in Page.fonts(pkgs)) "/__hxmc/fonts/" + Path.withoutDirectory(f)];
-			return Response.text(Page.html(e.name + " (helder dev)", "/__hxmc/app.wasm", "/__hxmc/pkg/helder/", pkgs, fonts, true), 200, "text/html; charset=utf-8");
+			var assets = FileSystem.exists(out + ".assets.json") ? "/__hxmc/app.wasm.assets.json" : null;
+			return Response.text(Page.html(e.name + " (helder dev)", "/__hxmc/app.wasm", "/__hxmc/pkg/helder/", pkgs, fonts, true, assets), 200,
+				"text/html; charset=utf-8");
 		}
 		if (p == "/__hxmc/app.wasm") {
 			until(() -> !building && (built || lastError != null), 600);
@@ -547,6 +790,13 @@ class DevCommand {
 			return nostore(res);
 		}
 		if (p == "/__hxmc/os/browser.mjs") return nostore(Http.file(e.helder, "/helder/os/browser.mjs"));
+		// (the program's assets: the files read before main, then each from where it is edited)
+		if (p == "/__hxmc/app.wasm.assets.json" && FileSystem.exists(out + ".assets.json")) return nostore(Http.file(Path.directory(out), "/" + Path.withoutDirectory(out) + ".assets.json"));
+		if (p.startsWith("/__hxmc/assets/")) {
+			var f = assetFiles.get(StringTools.urlDecode(p.substr("/__hxmc/assets/".length)));
+			if (f != null && FileSystem.exists(f)) return nostore(Http.file(Path.directory(f), "/" + Path.withoutDirectory(f)));
+			return Response.text("no such asset\n", 404);
+		}
 		if (p.startsWith("/__hxmc/pkg/helder/") && p.endsWith(".mjs"))
 			return nostore(Http.file(e.helder + "/helder", p.substr("/__hxmc/pkg/helder".length)));
 		if (p.startsWith("/__hxmc/fonts/")) {

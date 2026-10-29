@@ -5,12 +5,15 @@
 // node's, as in the browser) and helder.jobs' when it wants them
 // (src/helder/jobs/imports.mjs: workers on worker_threads), with the small
 // part of browser.mjs's host they use; any other import answered with 0.
+// A fetch's URL is relative to the module's file (helder.asset's files,
+// beside it in assets/): file: URLs read from disk, as node's fetch does not.
 // The program exits through
 // proc_exit, after main returned too.
 //   node --stack-size=65500 src/helder/test/wasi.mjs <module.wasm> [args...]
 import fs from 'node:fs';
 import process from 'node:process';
 import { WASI } from 'node:wasi';
+import { pathToFileURL } from 'node:url';
 import asyncImports from '../async/imports.mjs';
 import jobsImports from '../jobs/imports.mjs';
 
@@ -19,7 +22,7 @@ const wasi = new WASI({ version: 'preview1', args: [file, ...args], env: process
 let exports = null;
 const objects = [null], free = [];
 const host = {
-	options: {},
+	options: { base: pathToFileURL(file).href },
 	memory: () => exports.memory,
 	bytes: (p, n) => new Uint8Array(exports.memory.buffer, p, n),
 	string(p) {
@@ -43,6 +46,12 @@ const host = {
 	},
 	call: (f, ...a) => exports.__indirect_function_table.get(f)(...a),
 	onDispose() {},
+};
+const fetched = globalThis.fetch;
+globalThis.fetch = (url, init) => {
+	const u = new URL(url);
+	if (u.protocol !== 'file:') return fetched(url, init);
+	return fs.promises.readFile(u).then((b) => new Response(b), () => new Response(null, { status: 404 }));
 };
 const module = await WebAssembly.compile(fs.readFileSync(file));
 const wanted = new Set(WebAssembly.Module.imports(module).map((i) => i.module));

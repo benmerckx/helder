@@ -6,11 +6,12 @@ import haxe.io.Bytes;
 // premultiplied) alpha. decode reads a PNG file (PngDecoder), a JPEG
 // (JpegDecoder), a GIF (GifDecoder) or a WebP (WebpDecoder); renderers
 // (helder.ui's ImageNode, a texture) upload it once (id: their key) and
-// again after changed().
+// again after changed(); replace(other) puts another image's pixels in
+// this one (helder.asset's reload: what shows it shows the new one).
 class Image {
-	public final width:Int;
-	public final height:Int;
-	public final pixels:Bytes;
+	public var width(default, null):Int;
+	public var height(default, null):Int;
+	public var pixels(default, null):Bytes;
 	// unique per image (a renderer's texture cache key)
 	public final id:Int = nextId++;
 	// bumped by changed(): the pixels were written to
@@ -47,6 +48,17 @@ class Image {
 		var img = new Image(d.width, d.height, d.rgba);
 		img.source = {bytes: bytes, type: type};
 		return img;
+	}
+
+	// other's pixels and size in this image (its source too): renderers
+	// upload them again, at the new size
+	public function replace(other:Image) {
+		width = other.width;
+		height = other.height;
+		pixels = other.pixels;
+		version++;
+		source = other.source;
+		drawing = other.drawing;
 	}
 
 	// the pixels changed: renderers upload them again

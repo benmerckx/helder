@@ -14,7 +14,7 @@ import OtherRenderer.OtherNode;
 // and entities, holes evaluated where the literal is, nesting, components
 // and their props, text runs, reactive text, attributes and regions); the
 // control flow components (For, Index, Show, Switch, ErrorBoundary,
-// Provider, onMount); two renderers (OtherRenderer: the same components
+// Provider, onMount; Loading over a value not ready, Later); two renderers (OtherRenderer: the same components
 // rendered by each, boundaries between them, roots: Render.open's windows); and the programs the macro rejects (test/reject,
 // "// expect:" lines; with the tool's path as the argument); on Eval,
 // natively and in JavaScript (node)
@@ -28,6 +28,7 @@ class ViewTest implements Markup {
 		components();
 		reactive();
 		flow();
+		loading();
 		renderers();
 		roots();
 		#if sys
@@ -136,7 +137,7 @@ class ViewTest implements Markup {
 		check("only the new inner effect runs", innerRuns == 4, '$innerRuns');
 		// a root's dispose
 		var r = signal(0), rruns = 0;
-		var dispose = root(d -> {
+		var dispose = Reactive.root(d -> {
 			effect(() -> {
 				r.value;
 				rruns++;
@@ -333,6 +334,67 @@ class ViewTest implements Markup {
 			if (props.when.value) throw "boom";
 			"fine";
 		}}</i>;
+
+	static function Shows(props:{value:Later<String>}):View
+		return <p>{"made with " + props.value.value}</p>;
+
+	// Loading: a fallback on the first load only; a value read in a hole,
+	// in a memo, in a component's body; nested boundaries; a failure the
+	// ErrorBoundary's; no boundary: nothing rendered; isPending
+	static function loading() {
+		var a = new Later<String>();
+		var root = new TestNode(Element, "root");
+		Render.render(<div><Loading fallback="wait"><p>{a}</p></Loading></div>, root);
+		check("Loading: the fallback while what its children read is not ready", root.toHtml() == "<root><div>wait<!--loading--></div></root>", root.toHtml());
+		a.set("one");
+		check("Loading: its children once it is", root.toHtml() == "<root><div><p>one</p><!--loading--></div></root>", root.toHtml());
+		// (a reload: a new value on its way, then here; the fallback never again)
+		var pending = [];
+		var dispose = Reactive.root(d -> {
+			effect(() -> pending.push(isPending(() -> a.value)));
+			d;
+		});
+		a.refresh();
+		check("Loading: a reload in flight: the content kept, isPending", root.toHtml() == "<root><div><p>one</p><!--loading--></div></root>" && pending.join(",") == "false,true",
+			root.toHtml() + " " + pending.join(","));
+		a.set("two");
+		check("Loading: the new value, no fallback", root.toHtml() == "<root><div><p>two</p><!--loading--></div></root>" && pending.join(",") == "false,true,false",
+			root.toHtml() + " " + pending.join(","));
+		dispose();
+		// (isPending on a first load: false, the fallback says it)
+		var b = new Later<String>();
+		check("isPending: false on a first load", !isPending(() -> b.value));
+		// (through a memo, and in a component's body: made again once ready)
+		var m = new Later<String>(), c = new Later<String>();
+		var upper = memo(() -> m.value.toUpperCase());
+		var root2 = new TestNode(Element, "root");
+		Render.render(<div><Loading fallback="wait"><b>{upper}</b><Shows value={c}/></Loading></div>, root2);
+		m.set("x");
+		check("Loading: one of two ready: the fallback", root2.toHtml() == "<root><div>wait<!--loading--></div></root>", root2.toHtml());
+		c.set("y");
+		check("Loading: a memo's and a component's, both ready", root2.toHtml() == "<root><div><b>X</b><p>made with y</p><!--loading--></div></root>", root2.toHtml());
+		// (nested: the inner one's fallback alone)
+		var outer = new Later<String>(), inner = new Later<String>();
+		var root3 = new TestNode(Element, "root");
+		Render.render(<div><Loading fallback="outer"><p>{outer}</p><Loading fallback="inner"><b>{inner}</b></Loading></Loading></div>, root3);
+		outer.set("o");
+		check("Loading: nested, the inner one waits alone", root3.toHtml() == "<root><div><p>o</p>inner<!--loading--><!--loading--></div></root>", root3.toHtml());
+		inner.set("i");
+		check("Loading: nested, both shown", root3.toHtml() == "<root><div><p>o</p><b>i</b><!--loading--><!--loading--></div></root>", root3.toHtml());
+		// (a failure: the ErrorBoundary above it)
+		var f = new Later<String>();
+		var root4 = new TestNode(Element, "root");
+		Render.render(<div><ErrorBoundary fallback={(e:Dynamic, r:Void->Void) -> "failed: " + e}><Loading fallback="wait"><p>{f}</p></Loading></ErrorBoundary></div>, root4);
+		f.fail("gone");
+		check("Loading: a failure is the ErrorBoundary's", root4.toHtml() == "<root><div>failed: gone<!--boundary--></div></root>", root4.toHtml());
+		// (no boundary: nothing for it, the rest rendered)
+		var n = new Later<String>();
+		var root5 = new TestNode(Element, "root");
+		Render.render(<div><i>here</i><p>{n}</p></div>, root5);
+		check("no Loading: nothing for what is not ready", root5.toHtml() == "<root><div><i>here</i><p></p></div></root>", root5.toHtml());
+		n.set("late");
+		check("no Loading: it once it is", root5.toHtml() == "<root><div><i>here</i><p>late</p></div></root>", root5.toHtml());
+	}
 
 	static function flow() {
 		// For: keyed rows kept and moved
@@ -629,4 +691,71 @@ class OtherOnly implements Markup {
 class TestWidgets implements Markup {
 	public static function Badge(props:{label:String}):View
 		return <span class="badge">{props.label}</span>;
+}
+
+// a value that comes later (as helder.asset's Asset): its value throws
+// Pending until set, a failure's thrown after fail; refresh: a new one on
+// its way
+class Later<T> extends helder.view.Signal.SignalBase implements helder.view.Pending.Loadable {
+	var v:Null<T> = null;
+	var error:Null<String> = null;
+	var here = false;
+	var reloading = false;
+	var readers:Array<Void->Void> = [];
+
+	public function new() {}
+
+	public var ready(get, never):Bool;
+	public var refreshing(get, never):Bool;
+	public var value(get, never):T;
+
+	function get_ready():Bool {
+		track();
+		return here;
+	}
+
+	function get_refreshing():Bool {
+		track();
+		return reloading;
+	}
+
+	function get_value():T {
+		track();
+		var probe = Reactive.probe;
+		if (probe != null) probe.push(this);
+		if (error != null) throw error;
+		if (!here) throw new helder.view.Pending(this, "not yet");
+		return v;
+	}
+
+	override function read():Dynamic
+		return value;
+
+	public function whenReady(f:Void->Void)
+		if (here || error != null) f() else readers.push(f);
+
+	public function set(x:T) {
+		v = x;
+		here = true;
+		reloading = false;
+		settle();
+	}
+
+	public function fail(e:String) {
+		error = e;
+		settle();
+	}
+
+	public function refresh() {
+		reloading = true;
+		Reactive.batch(notify);
+	}
+
+	function settle() {
+		Reactive.batch(notify);
+		var r = readers;
+		readers = [];
+		for (f in r)
+			f();
+	}
 }

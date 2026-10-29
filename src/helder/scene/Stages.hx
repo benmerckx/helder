@@ -32,8 +32,8 @@ class Stages {
 
 	// one frame of seconds
 	public function frame(seconds:Float) {
-		// (loads in flight advanced first: Asset)
-		Assets.poll();
+		// (loads in flight advanced first: helder.asset's Asset)
+		helder.asset.Assets.poll();
 		// (gamepads read once a frame, before the Input stage, when the program
 		// enabled them: Actions see them)
 		helder.os.Gamepads.poll();

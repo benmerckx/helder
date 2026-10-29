@@ -3,9 +3,18 @@
 # launcher and the test scripts).
 # - headless: the lanes that need no GPU, display or browser (bun run test);
 # - gfx: the native GPU and audio lanes on Mesa's llvmpipe and Xvfb;
-# - browser: WebGPU, WebGL2, WebAudio and the DOM in headless Chromium.
-# gfx and browser are not required (continue-on-error) while the stack is
-# unstable.
+# - browser: WebGPU, WebGL2, WebAudio and the DOM in headless Chromium;
+# - android: tests/pack/Hello.hx on an emulator (helder run, adb), the
+#   screen fixture (tests/pack/Screen.hx: its window, safe area and the
+#   display's frames, a rotation, the background), helder dev's loop there
+#   (tests/os/dev/dev-android.mjs);
+# - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
+#   runner (helder run, simctl), the screen fixture, codesign --verify and
+#   plutil.
+# gfx, browser, android and ios-simulator are not required
+# (continue-on-error) while the stack is unstable (android and
+# ios-simulator were written without an emulator, a simulator or a Mac:
+# CI is where they run).
 name: ci
 
 on:
@@ -31,10 +40,17 @@ jobs:
           node-version: 24
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - name: Fonts (DejaVu Sans, for text and ui)
-        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core
+      - name: Fonts (DejaVu Sans, for text and ui) and libEGL
+        # (helder test's host build links helder.gfx's libEGL.so.1 when a test
+        # reaches the scene; nothing opens a display)
+        run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core libegl1
       - name: Headless checks
-        run: bun run test -k headless
+        # (pack: the Android and iOS runtime objects fetched, their builds
+        # skipped without them: the android job requires them; the SDK's
+        # build tools on the PATH: zipalign, aapt, apksigner)
+        run: |
+          export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          bun run test -k headless
 
   gfx:
     runs-on: ubuntu-24.04
@@ -75,3 +91,90 @@ jobs:
           bunx playwright install --with-deps chromium > /dev/null
       - name: gfx, 3d, audio, web and ui in Chromium
         run: bun run test -k gfx-web 3d-web audio-web web ui-web
+
+  # Android on an x86-64 emulator with KVM (reactivecircus/android-emulator-runner,
+  # API 34, as hxmc's CI): tests/pack/android.sh (helder run --target
+  # android: built for the emulator's ABI, installed, started, the hello line
+  # from logcat; then the APK by adb alone; then tests/pack/Screen.hx,
+  # checked by tests/pack/screen.mjs) and tests/os/dev/dev-android.mjs
+  # (helder dev --target android: the APK installed once, two edits swapped
+  # into the same process, the state kept). A Pixel 6's profile: a
+  # navigation bar and a camera's cutout, for the insets.
+  android:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: The CLI, Android's runtime objects, the APKs checked (pack)
+        env:
+          PACK_REQUIRE: 1
+        run: |
+          export PATH="$PATH:$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          bun run test pack
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Hello and helder dev on an emulator (x86-64, API 34)
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          HXMC_RT_DIR: ${{ github.workspace }}/bin/pack/rt
+          HELDER_CACHE: ${{ github.workspace }}/bin/pack/cache
+        with:
+          api-level: 34
+          arch: x86_64
+          target: default
+          # (a phone's screen: a navigation bar, its density; the generic
+          # device has hardware keys and no bar, so no inset)
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
+          script: |
+            sh tests/pack/android.sh bin/cli/helder bin/pack/android
+            node tests/os/dev/dev-android.mjs bin/cli/helder bin/pack/dev-emulator
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: android
+          path: |
+            bin/pack/android/*.txt
+            bin/pack/*.apk
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # iOS on an iPhone simulator of a macOS runner (Apple silicon: hxmc's
+  # ios-sim-arm64), as hxmc's CI: the pack lane (its bundles checked with
+  # codesign --verify and plutil too, the dev loop against a stand-in
+  # simctl) and tests/pack/ios.sh (a simulator of the newest runtime made,
+  # helder run --target ios -d <it>: booted, installed, launched, the hello
+  # line from simctl launch --console; then tests/pack/Screen.hx in the
+  # background of the script, checked by tests/pack/screen.mjs).
+  ios-simulator:
+    runs-on: macos-15
+    continue-on-error: true
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: The CLI, the bundles checked (pack)
+        run: bun run test pack
+      - name: Hello on a simulator
+        run: sh tests/pack/ios.sh bin/cli/helder bin/pack/ios
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: ios
+          path: bin/pack/ios/*.txt
+          retention-days: 7
+          if-no-files-found: ignore

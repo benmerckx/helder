@@ -14,6 +14,9 @@ class NativeText implements TextEngine {
 	// (justify: not done, the platform's labels align their own text)
 	// (base: the platform's own bidi; it measures the same either way; cut:
 	// the platform's labels end their own lines)
+	public function generation():Int
+		return 0;
+
 	public function layout(text:String, font:Font, maxWidth:Float, ?spans:Array<TextSpan>, maxLines:Int = 0, justify:Bool = false, base:Int = -1, cut:Float = -1,
 			?into:Paragraph):Paragraph {
 		var s = backend.measureText(text, font, maxWidth);

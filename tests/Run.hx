@@ -26,7 +26,7 @@ class Run {
 	static final AUDIO_TARGET = Sys.getEnv("AUDIO_TARGET") ?? HOST;
 	static final BLESS = Sys.getEnv("BLESS") != null && Sys.getEnv("BLESS") != "";
 
-	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "devtools", "typescript", "examples"];
+	static final HEADLESS = ["view", "text", "image", "ui", "gfx-shader", "async", "jobs", "test", "cli", "asset", "pack", "devtools", "typescript", "examples"];
 
 	static final LANES:Array<{name:String, about:String, run:Void->Void}> = [
 		{name: "headless", about: "the lanes that need no GPU, display or browser: " + HEADLESS.join(", "), run: () -> for (l in HEADLESS) lane(l)},
@@ -42,6 +42,8 @@ class Run {
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
+		{name: "asset", about: "helder.asset: the paths Asset's macros reject (tests/asset/reject), then `helder build tests/asset/Checksum.hx` for this machine (its files in the executable: run alone in an empty directory, their sizes and CRC-32s) and for the web (exactly the referenced files beside the page, the module run under node reading them); Android's and iOS's bundles are the pack lane's", run: assetLane},
+		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "typescript", about: "helder.typescript (TypeScript through tsgo straight to hxmc IR): the IR checks, then every program of tests/typescript compiled by tsc and run on node, and by helder-ts natively and as wasm32-wasi, the outputs compared; the programs it must reject", run: () -> run(NODE, ["tests/typescript/run.mjs"])},
 		{name: "examples", about: "every example built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
@@ -205,17 +207,19 @@ class Run {
 		expect(h, ["run", "--bogus"], none, "helder run: unknown option --bogus (helder run --help)", 2);
 		expect(h, ["dev", "--target"], none, "helder dev: --target takes a value", 2);
 		expect(h, ["build", "-d", "emulator-5554"], none, "helder build: -d/--device picks a phone, emulator or simulator", 2);
-		expect(h, ["dev", "examples/counter", "--target", "android", "-d", "emulator-5554"], none, "not yet: Android and iOS packaging is being moved into helder", 2);
+		expect(h, ["run", "examples/counter", "--target", "ios-arm64"], none, "helder run: --target ios-arm64: an iPhone needs a signing identity (not yet)", 2);
 		// (helder devices: no adb on the PATH, an empty directory; then a stand-in adb)
 		rmrf("bin/cli/path");
 		mkdirs("bin/cli/path/none");
-		expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/none")], "adb not found");
-		expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/none")], 'host  this machine');
+		final noAdb = ["PATH" => FileSystem.fullPath("bin/cli/path/none"), "ADB" => "", "ANDROID_HOME" => "", "ANDROID_SDK_ROOT" => ""];
+		expect(h, ["devices"], noAdb, "adb not found");
+		expect(h, ["run", "examples/counter", "--target", "android"], noAdb, "adb not found (Android's platform-tools on the PATH, or ADB)", 1);
+		expect(h, ["devices"], noAdb, 'host  this machine');
 		if (!HOST.startsWith("windows-")) {
 			mkdirs("bin/cli/path/adb");
 			File.saveContent("bin/cli/path/adb/adb", "#!/bin/sh\necho 'List of devices attached'\necho 'emulator-5554  device product:sdk_gphone64 model:Pixel_7 device:emu64xa transport_id:1'\n");
 			run("chmod", ["+x", "bin/cli/path/adb/adb"]);
-			expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/adb")], "emulator-5554  Pixel 7");
+			expect(h, ["devices"], ["PATH" => FileSystem.fullPath("bin/cli/path/adb"), "ADB" => ""], "emulator-5554  Pixel 7");
 		}
 		run(h, ["build", "examples/counter/Counter.hx"]);
 		run(h, ["build", "--target", "web", "examples/counter"]);
@@ -236,6 +240,143 @@ class Run {
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-nohost", "native-nohost"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-web", "web"]);
 		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-exit", "exit"]);
+		// (assets: a change sent, nothing built, behind the same handle; the page told)
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset", "asset"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset-nohost", "asset-nohost"]);
+		run(NODE, ["tests/cli/dev.mjs", h, "bin/cli/dev-asset-web", "asset-web"]);
+	}
+
+	// (the runtime objects: Android's and iOS's are not npm's for this
+	// (Checksum's lines: its files' sizes and CRC-32s, the bundle's list; CI's
+	// emulator and simulator jobs check the same, tests/pack/android.sh, ios.sh)
+	static final CHECKSUM = [for (l in File.getContent("tests/asset/checksum.txt").split("\n")) if (l != "") l];
+
+	// (PackCheck's: the asset fixture's files, exactly)
+	static final ASSETS = "assets=tests/asset:files/kept.txt,files/pixels.png";
+
+	static function assetLane() {
+		var h = helderCli();
+		// (what Asset's macros reject, at the call)
+		for (r in [
+			{main: "Missing", error: 'Asset.bytes("files/nothere.txt"): no such file under the class paths or the project'},
+			{main: "Case", error: 'Asset.bytes("files/Kept.txt"): "Kept.txt" is "kept.txt" on disk (paths are case-sensitive on Android and the web)'},
+			{main: "Absolute", error: 'Asset.bytes("/etc/hostname"): an absolute path'},
+			{main: "Parent", error: 'Asset.image("files/../files/pixels.png"): a part ".."'}
+		]) {
+			var b = build(cps(["src", "tests/asset", "tests/asset/reject"]).concat(["-main", r.main, "--custom-target", 'hxmc=bin/asset/${r.main}']), 'bin/asset/${r.main}.log');
+			if (b.code == 0 || !b.log.contains(r.error)) throw new Failed('${r.main}: expected the error "${r.error}":\n' + b.log);
+			Sys.println('asset: ${r.main} rejected: ${r.error}');
+		}
+		// (this machine: the files in the executable, nothing beside it)
+		var exe = exePath("bin/asset/host/Checksum", HOST);
+		rmrf("bin/asset/host");
+		run(h, ["build", "tests/asset/Checksum.hx", "-o", exe]);
+		if (FileSystem.readDirectory("bin/asset/host").join(",") != Path.withoutDirectory(exe)) throw new Failed("bin/asset/host: more than the executable");
+		rmrf("bin/asset/empty");
+		mkdirs("bin/asset/empty");
+		var cwd = Sys.getCwd(), full = FileSystem.fullPath(exe);
+		Sys.setCwd("bin/asset/empty");
+		var out = output(full, []);
+		Sys.setCwd(cwd);
+		Sys.print(out);
+		for (l in CHECKSUM.concat(["asset: built in files/kept.txt,files/pixels.png"])) if (!out.contains(l + "\n")) throw new Failed('Checksum, alone: no line "$l"');
+		// (the web: the referenced files beside the page, no other)
+		rmrf("bin/asset/web");
+		run(h, ["build", "tests/asset/Checksum.hx", "--target", "web", "-o", "bin/asset/web/Checksum.wasm"]);
+		var files = [];
+		function walk(d:String) for (n in FileSystem.readDirectory('bin/asset/web/$d')) if (FileSystem.isDirectory('bin/asset/web/$d/$n')) walk('$d/$n') else files.push('$d/$n');
+		walk("assets");
+		files.sort(Reflect.compare);
+		if (files.join(",") != "assets/files/kept.txt,assets/files/pixels.png") throw new Failed('bin/asset/web/assets: ${files.join(", ")}');
+		var out = output(NODE, ["--no-warnings", "--stack-size=65500", "src/helder/test/wasi.mjs", "bin/asset/web/Checksum.wasm"]);
+		Sys.print(out);
+		for (l in CHECKSUM) if (!out.contains(l + "\n")) throw new Failed('Checksum, wasm32-wasi: no line "$l"');
+	}
+
+	// machine, tests/pack/runtime.mjs fetches them (Android's from the
+	// release @hxmc/cli's package.json names); the builds' HXMC_RT_DIR.
+	// The debug key made in a cache of its own, on first use)
+	static function packLane() {
+		var h = helderCli();
+		run(NODE, ["tests/pack/runtime.mjs", "bin/pack/rt"]);
+		var rt = FileSystem.fullPath("bin/pack/rt");
+		rmrf("bin/pack/cache");
+		mkdirs("bin/pack/cache");
+		var env = ["HXMC_RT_DIR" => rt, "HELDER_CACHE" => FileSystem.fullPath("bin/pack/cache")];
+		var required = Sys.getEnv("PACK_REQUIRE") == "1";
+		var have = (t:String) -> {
+			var ok = FileSystem.exists('$rt/$t/rt.o');
+			if (!ok && required) throw new Failed('no runtime objects for $t (tests/pack/runtime.mjs)');
+			if (!ok) Sys.println('pack: no runtime objects for $t (tests/pack/runtime.mjs): its builds skipped');
+			return ok;
+		};
+		rmrf("bin/pack/project");
+		copy("tests/pack/project", "bin/pack/project");
+		mkdirs("bin/pack/project/node_modules/helder");
+		var src = FileSystem.fullPath("src").split("\\").join("/");
+		File.saveContent("bin/pack/project/node_modules/helder/package.json", haxe.Json.stringify({name: "helder", haxe: {name: "helder", classPath: src}}));
+		var checks = [];
+		if (have("android-arm64") && have("android-x86_64")) {
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "android", "-o", "bin/pack/Hello-arm64.apk"], env);
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "android-x86_64", "-o", "bin/pack/Hello-x86_64.apk"], env);
+			run(h, ["build", "bin/pack/project", "--target", "android-x86_64"], env);
+			// (the screen fixture: CI's emulator runs it, tests/pack/android.sh)
+			run(h, ["build", "tests/pack/Screen.hx", "--target", "android-x86_64", "-o", "bin/pack/Screen.apk"], env);
+			// (the asset fixture: its files in assets/, files/dropped.txt not; CI's emulator runs it)
+			run(h, ["build", "tests/asset/Checksum.hx", "--target", "android-x86_64", "-o", "bin/pack/Checksum.apk"], env);
+			// (Java's classes as the program needs them: a drawn ui's listeners,
+			// NativeActivity's surface; Android's views as the content, org.hxmc.Activity)
+			run(h, ["build", "examples/counter", "--target", "android-x86_64", "-o", "bin/pack/Counter.apk"], env);
+			run(h, ["build", "examples/native-form", "--target", "android-x86_64", "-o", "bin/pack/NativeForm.apk"], env);
+			checks = checks.concat([
+				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck@landscape@fullscreen",
+				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views", "bin/pack/Screen.apk@org.helder.screen@surface",
+				'bin/pack/Checksum.apk@org.helder.checksum@$ASSETS'
+			]);
+			for (c in [{apk: "Counter", want: '{"dex":true,"views":false}'}, {apk: "NativeForm", want: '{"dex":true,"views":true}'}]) {
+				var got = File.getContent('bin/pack/${c.apk}.lib/classes.json');
+				if (got != c.want) throw new Failed('bin/pack/${c.apk}.lib/classes.json: $got, not ${c.want}');
+			}
+			if (!File.getContent("bin/pack/cache/android/debug-key").startsWith("helder-android-debug-key 1\n"))
+				throw new Failed("bin/pack/cache/android/debug-key: not made on first use");
+			Sys.println("pack: the debug key made on first use, in the cache");
+			// (the CLI's own fetch of Android's objects, from a stand-in release
+			// of the same objects: no HXMC_RT_DIR, a cache of its own)
+			run(NODE, ["tests/pack/release.mjs", rt, "bin/pack/release"]);
+			rmrf("bin/pack/rt-cache");
+			mkdirs("bin/pack/rt-cache");
+			var release = FileSystem.fullPath("bin/pack/release").split("\\").join("/");
+			expect(h, ["build", "tests/pack/Hello.hx", "--target", "android-x86_64", "-o", "bin/pack/Fetched.apk"], [
+				"HXMC_RT_DIR" => "",
+				"HELDER_CACHE" => FileSystem.fullPath("bin/pack/rt-cache"),
+				"HELDER_RT_URL" => "file://" + (release.startsWith("/") ? "" : "/") + release
+			], "fetching");
+			var fetched = [for (d in FileSystem.readDirectory("bin/pack/rt-cache/rt")) d];
+			if (fetched.length != 1 || !FileSystem.exists('bin/pack/rt-cache/rt/${fetched[0]}/android-x86_64/rt.o'))
+				throw new Failed('bin/pack/rt-cache/rt: ${fetched.join(", ")}, not one release\'s android-x86_64 objects');
+			checks.push("bin/pack/Fetched.apk");
+			Sys.println('pack: Android\'s runtime objects fetched on first use (${fetched[0]})');
+		}
+		if (have("macos-arm64")) {
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Hello.ipa"], env);
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios-sim", "-o", "bin/pack/Hello.app"], env);
+			run(h, ["build", "bin/pack/project", "--target", "ios-sim"], env);
+			run(h, ["build", "tests/pack/Screen.hx", "--target", "ios-sim", "-o", "bin/pack/Screen.app"], env);
+			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios-sim", "-o", "bin/pack/Checksum.app"], env);
+			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios", "-o", "bin/pack/Checksum.ipa"], env);
+			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen", "bin/pack/Screen.app@org.helder.Screen",
+				'bin/pack/Checksum.app@org.helder.Checksum@$ASSETS', 'bin/pack/Checksum.ipa@org.helder.Checksum@$ASSETS']);
+		}
+		if (checks.length > 0) interp(cps(["src", "tests/pack"]), "PackCheck", checks);
+		// (a phone's tools stood in for: helder run, the dev loop's protocol)
+		if (HOST.startsWith("windows-")) return;
+		var fake = ["ADB" => FileSystem.fullPath("tests/pack/fake/adb"), "XCRUN" => FileSystem.fullPath("tests/pack/fake/xcrun")];
+		for (k => v in env) fake.set(k, v);
+		if (FileSystem.exists('$rt/android-x86_64/rt.o')) {
+			expect(h, ["run", "tests/pack/Hello.hx", "--target", "android"], fake, "running org.helder.hello on Pixel 7");
+			run(NODE, ["tests/pack/dev.mjs", h, "bin/pack/dev-android", "android"], env);
+		}
+		if (FileSystem.exists('$rt/macos-arm64/rt.o')) run(NODE, ["tests/pack/dev.mjs", h, "bin/pack/dev-ios", "ios"], env);
 	}
 
 	static function devtools() {
@@ -337,12 +478,14 @@ class Run {
 		native('bin/3d/$t/SurfaceTest', cps(["src", "tests/gfx", "tests/3d-ui"]).concat(["-main", "SurfaceTest"]), t);
 		shell('LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 640x480x24" ' + exePath('bin/3d/$t/SurfaceTest', t));
 		run("sh", ["tests/3d/check.sh", 'bin/3d/$t']);
-		// (Model.of's files beside the executable, -D helder.scene.embed=0)
-		var files = exePath("bin/3d/files/RenderTest", t);
-		native("bin/3d/files/RenderTest", cp.concat(["-main", "RenderTest", "-D", "helder.scene.embed=0", "-D", 'helder.scene.out=$files']), t);
-		if (!FileSystem.exists("bin/3d/files/assets/sample.glb") || !FileSystem.exists('$files.assets.json'))
-			throw new Failed("RenderTest with -D helder.scene.embed=0: no assets beside it");
-		shell('cd bin/3d && LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY files/${Path.withoutDirectory(files)} skin ../../tests/3d/skin.png files/skin.png');
+		// (Model.of's files in the executable's data, helder.asset's Bundle: it
+		// alone in a directory, run from it, nothing beside it)
+		var exe = Path.withoutDirectory(exePath("bin/3d/alone/RenderTest", t));
+		rmrf("bin/3d/alone");
+		mkdirs("bin/3d/alone");
+		shell('cp ${exePath('bin/3d/$t/RenderTest', t)} bin/3d/alone/$exe');
+		if (FileSystem.readDirectory("bin/3d/alone").join(",") != exe) throw new Failed("bin/3d/alone: not the executable alone");
+		shell('cd bin/3d/alone && LIBGL_ALWAYS_SOFTWARE=1 HXMC_GFX_SOFTWARE=1 env -u DISPLAY ./$exe skin ../../../tests/3d/skin.png ../skin-alone.png');
 		// (Model.of: a name the file does not have is a compile error)
 		var r = build(cp.concat(cps(["tests/3d/reject"])).concat(["-main", "ModelTypo", "--custom-target", "hxmc=bin/3d/ModelTypo"]), "bin/3d/ModelTypo.log");
 		if (r.code == 0 || !r.log.contains("has no field bal"))
@@ -351,9 +494,10 @@ class Run {
 
 	static function sceneWeb() {
 		pack();
-		// (Model.of's files beside the module, -D helder.scene.embed=0: fetched by browser.mjs before main)
+		// (Model.of's files beside the module, helder.asset's Bundle: fetched by
+		// browser.mjs before main; Lazy's at run time)
 		rmrf("bin/3d/assets");
-		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.scene.embed=0", "-D", "helder.scene.out=bin/3d/SceneWebTest.wasm"]));
+		wasm("bin/3d/SceneWebTest.wasm", sceneCp().concat(["-main", "SceneWebTest", "-D", "helder.asset.out=bin/3d/SceneWebTest.wasm"]));
 		run(NODE, ["tests/3d/web.mjs", "bin/3d/SceneWebTest.wasm", "bin/3d"]);
 	}
 
@@ -444,6 +588,8 @@ class Run {
 		else run(NODE, ["tests/os/dev/dev-native.mjs", compiler, "bin/dev/native"]);
 		run(NODE, ["tests/os/dev/server-verify.mjs", compiler]);
 		run(NODE, ["tests/os/dev/dev-verify.mjs", compiler, "Counter", "web"]);
+		// (helder dev's asset reload in the page: the same Image, no swap)
+		run(NODE, ["tests/os/dev/dev-asset.mjs", helderCli(), "bin/dev/asset"]);
 	}
 
 	// (Linux: under Xvfb, a Windows build's Wine too)
@@ -780,7 +926,8 @@ class Run {
 			Sys.putEnv(k, v);
 		}
 		var code = Sys.command(cmd, args);
-		for (k => v in saved) Sys.putEnv(k, v ?? "");
+		// (null: unset again, not left empty: the variables as they were before)
+		for (k => v in saved) Sys.putEnv(k, v);
 		if (code != 0) throw new Failed('${[cmd].concat(args).join(" ")}: exit code $code');
 	}
 
@@ -800,7 +947,8 @@ class Run {
 		var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();
 		var code = p.exitCode();
 		p.close();
-		for (k => v in saved) Sys.putEnv(k, v ?? "");
+		// (null: unset again, not left empty: the variables as they were before)
+		for (k => v in saved) Sys.putEnv(k, v);
 		Sys.print(out);
 		if (code != want || !out.contains(text)) throw new Failed('${[cmd].concat(args).join(" ")}: expected "$text" (exit code $code, not $want)');
 	}

@@ -15,13 +15,14 @@ npx helder dev --target web       # a page, with live reload
 npx helder build                  # bin/<target>/<name>, its compile time and size
 npx helder inspect --tree         # a running dev build's ui tree (--log, --frames)
 npx helder devices                # where it can run: this machine, a browser, phones
-npx helder dev --target android   # (to come) boots an emulator, installs, live reloads
-npx helder build --target ios     # (to come)
+npx helder build --target android # an APK, signed with your debug key (no SDK)
+npx helder dev --target android   # on the device or emulator adb reaches: installed once, live reloads
+npx helder run --target ios       # on the booted iOS simulator (macOS)
 ```
 
 `helder <command> [entry] [options]`: the entry (a .hx file, a directory or
 a project; the default: .) is what is built, the flags where it runs:
-`--target` (host, web, android, ios or an exact hxmc target), `-d` (which
+`--target` (host, web, android, ios, ios-sim or an exact hxmc target), `-d` (which
 phone, emulator or simulator), `-o` (the output), `--` (the program's
 arguments). `helder <entry>` is `helder dev <entry>`.
 
@@ -74,13 +75,15 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `ui` | flexbox layout, events, focus and accessibility, drawn on gfx or as the platform's controls |
 | `web` | `view` on the web: DOM and static renderers, hydration, islands |
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
+| `asset` | files by path: images, fonts, models, sounds, bytes; checked when compiling, bundled by use (the executable, the APK, the app, beside the page), loaded by a coroutine, reloaded in place under `helder dev` |
 | `physics` | a small rigid-body core for `scene` |
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `jobs` | background work awaited from a coroutine: GC-free jobs and GC jobs on a pool's threads or a browser's workers, channels, the sendable check |
 | `dev` | the dev host and state kept across a reload |
 | `devtools` | the devtools protocol (JSON-RPC on the dev connection) and its agent in dev builds: log, frame stats, the ui tree |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
-| `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop and the web |
+| `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop, the web, Android and iOS |
+| `pack` | Android's APKs and iOS's app bundles around hxmc's native code, without an SDK: zip, binary XML, DEX, v2 signing (P-256), the debug key; Info.plist, CodeResources, .ipa |
 
 `examples/` has a program per folder; `tests/Run.hx` has the checks, and
 the `*.test.hx` files are helder.test's, run by the CLI built from this
@@ -127,7 +130,7 @@ Done as a first slice:
     `src/Main.hx`, an example's directory or a file:
     `helder dev examples/counter/Counter.hx`; `helder <entry>` is dev's), the
     flags where it runs (`--target web`, `--target windows-x86_64`, `-d`
-    for a phone, parsed and refused until Android and iOS come), `-o`, `--`;
+    for a phone: phase 4), `-o`, `--`;
     `helder devices` lists this machine, the browser, adb's devices and
     emulators, iOS's simulators;
   - hxmc's native compiler called directly (no node), its std and runtime
@@ -198,13 +201,10 @@ Done as a first slice:
 
 Still to come:
 
-- **Assets anywhere, bundled by use:** no `assets/` folder; code names a
-  file by its path (`Asset.image("ui/icons/sword.png")`), a macro checks it
-  exists and records it, and `helder build` bundles only what is referenced
-  (dead-code elimination for assets), each in its target's format; settings
-  that differ from the defaults in a sidecar (`sword.png.meta`); dev builds
-  read them from disk and a change is sent without a recompile (the running
-  program's texture, font or model reloaded);
+- **Assets anywhere, bundled by use:** *landed* with phase 4's assets by
+  path (`helder.asset`: below, src/helder/asset/README.md). Still to come:
+  each in its target's format (compressed textures, phase 5), settings
+  that differ from the defaults in a sidecar (`sword.png.meta`);
 - **The dev loop:** the dev host on Windows and macOS run on the machines
   themselves (tested on Linux: cross-compiled, Windows' under Wine with
   D3D11 on WineD3D, macOS's built only); the page held back while the
@@ -475,27 +475,90 @@ extension, which waits until after the game). The game itself is the
 driver: built as an example, on a phone, every rough edge it hits the next
 fix.
 
-- **Packaging moved from hxmc into helder**: hxmc writes APKs and app
-  bundles today (no SDK: its own zip writer, manifest and signing, the
-  activity glue); that is app-level and will change a lot (manifests and
-  plists, permissions, orientation, icons, assets bundled by use, debug
-  and release signing, AAB), so helder's CLI takes it, ported as it is with
-  its tests, and hxmc's output ends at native code (Android's `.so`, iOS's
-  library). hxmc keeps its copy until helder's lands, then drops it. Order:
-  hxmc's inventory of what it has, the port into `helder.cli`, `helder
-  build --target android|ios` from helder, then the removal in hxmc. iOS device
-  signing through `codesign` on a Mac; the simulator needs none.
-- **`helder dev --target android` and `--target ios`**: a connected device
-  (`-d`, from `helder devices`), a running emulator or simulator, or one
-  booted for it; the host installed once,
-  each build swapped into it, as the desktop's dev host does. Closing the
-  app on the phone does not end `helder dev` (helder.cli.ExitPolicy's
-  Mobile: it keeps serving, the next build starts the app again).
-- **`<Surface>` on phones**: the app's screen, safe areas, orientation,
-  the display's scale.
-- **The frame loop from the display**: Choreographer on Android,
-  CADisplayLink on iOS (Android polls its looper today, iOS paces from the
-  layer's drawables).
+- *Landed*: **packaging moved from hxmc into helder** (`helder.pack`,
+  ported with its tests, MIT): app-level and bound to change a lot
+  (manifests and plists, permissions, orientation, icons, assets bundled
+  by use, debug and release signing, AAB), so helder's CLI owns it and
+  hxmc's output ends at native code (Android's `libmain.so`, iOS's signed
+  Mach-O, `-D hxmc.codesign-*` binding the bundle's files). `helder build
+  --target android` (an APK: manifest, classes.dex when the program needs
+  it, 16 KB aligned, v2-signed with the user's debug key, now made from
+  the system's random source on Windows too, under helder's names:
+  `HELDER_ANDROID_KEY`, helder's cache), `--target ios` (an .ipa) and
+  `ios-sim` (an .app, ad hoc signed); `helder run` on a device, emulator
+  or simulator (`-d`, else the one there is). Android's runtime objects,
+  not on npm, fetched on first use from the hxmc release @hxmc/cli's
+  package.json names (`hxmc.rt`) into helder's cache, then given to the
+  compiler as `HXMC_RT_DIR`. Tested on Linux without a
+  device (the `pack` lane: the outputs checked structurally, the v2
+  signature recomputed and verified by openssl, the Mach-O's signature
+  slots; `helder run` and `dev` against stand-in adb and simctl); on an
+  emulator and a simulator only in CI, untested until it runs. Next:
+  hxmc removes its copy. Later: iOS device signing (a certificate and a
+  profile, through `codesign` on a Mac), release signing, icons (assets:
+  below).
+- *Landed*: **`helder dev --target android` and `--target ios`**: a
+  connected device or a running emulator (`-d`, from `helder devices`),
+  or a simulator, booted for it when it is not; the dev host's app
+  installed once, each build swapped into it (Android: its library
+  fetched by the app over `adb reverse` and loaded in the same process;
+  the simulator: a dylib it loads from the Mac's disk), as the desktop's
+  dev host does. Closing the app on the phone does not end `helder dev`
+  (helder.cli.ExitPolicy's Mobile: it keeps serving, the next build
+  installs and starts the app again). Tested against stand-ins for adb and
+  simctl (tests/pack/dev.mjs); on an emulator only in CI
+  (tests/os/dev/dev-android.mjs), untested until it runs. Later: booting
+  an emulator for it.
+- *Landed*: **`<Surface>` on phones**: the safe area on both
+  (`Window.safeTop`... in pixels: iOS's `safeAreaInsets`, Android's
+  window insets through JNI, API 30's `getInsets(systemBars |
+  displayCutout)` or API 29's system window and cutout insets; a `Resize`
+  when they change), in ui as CSS's `env(safe-area-inset-*)` in markup's
+  literal attributes (with `calc()`, `max()`, `min()`; bound to
+  `SafeArea.insets`, laid out again when they change), `Ui.safeArea`, and
+  `SceneBox.safeArea()` for a scene's HUD; `Window.scale` (Android's
+  density, iOS's `nativeScale`, a `ScaleChange` when the configuration
+  changes it); `Window.immersive` (Android's immersive mode, iOS's status
+  bar and home indicator hidden); package.json's `"orientation"`
+  (portrait, landscape, any: the manifest's `screenOrientation`, the
+  plist's `UISupportedInterfaceOrientations` and `UIRequiresFullScreen`)
+  and `"fullscreen"` (`-D helder.fullscreen`, `UIStatusBarHidden`); a
+  rotation resizes the surface through the existing `Resize`. Tested: the
+  options' manifest and plist (`App.test.hx`, `Apk.test.hx`,
+  `Bundle.test.hx`; the pack lane's PackCheck on the built APK and app:
+  `screenOrientation`, the orientations, the define reaching the
+  program), `env()` and its binding (`SafeArea.test.hx`, natively and as
+  wasm32-wasi); on CI's emulator (a Pixel 6, API 34) and simulator
+  `tests/pack/Screen.hx` (tests/pack/screen.mjs): the window's size and
+  scale (the Pixel 6's 2.625, the iPhone 17's 3), the insets (Android:
+  the navigation bar's 126 px at the bottom; iOS: the island's 186 at the
+  top, the home indicator's 102 at the bottom), immersive on Android (the
+  bars' inset gone, the window into the camera's cutout: its 128 px at the
+  top), a rotation on Android (wider than high, the cutout at the side).
+  Not checked anywhere yet: the simulator's rotation (simctl has no
+  command for it), immersive's effect on iOS's safe area (none on the
+  island's iPhone), a ui drawn on a phone with the insets applied. Later:
+  `env()` in runtime-set attributes and in sheets' rules, the keyboard's
+  inset kept apart from the bars'.
+- *Landed*: **the frame loop from the display**: Choreographer
+  (`AChoreographer_postFrameCallback64`, NDK only, on the program's own
+  looper: `helder.os.android.Vsync`) on Android, a `CADisplayLink` on
+  iOS (its callback stops the run loop's wait); `App.run` asks for the
+  next vsync only while a frame may be drawn, sleeps until it comes, and
+  draws with `App.frame` (a `FrameClock`: the vsync's time in
+  `haxe.Timer.stamp()`'s seconds, the delta, the display's period); an
+  idle frame (`App.wait`) asks for none until it has slept; the
+  background, a lost window and an inactive app (`onPause`, the window
+  destroyed; `willResignActive`, `didEnterBackground`) ask for none, the
+  first frame after them a period's delta. Tested: `FrameClock.test.hx`
+  (natively and as wasm32-wasi: 60 and 120 Hz, a missed frame, a pause,
+  nothing allocated); on CI's emulator and simulator the fixture's first
+  frames vsyncs, 120 of them at the display's pace (16.67 ms on both)
+  with nothing allocated, Suspend and Resume and the first
+  frame after (the delta a period); desktop and web keep their loops
+  (`App.frame` from the turn's start: the gfx, ui-draw, app and browser
+  lanes). Later: ProMotion's 120 Hz (`preferredFrameRateRange`,
+  `CADisableMinimumFrameDurationOnPhone`), Android's frame rate API.
 - **Multi-touch and gestures**, after a study of the platforms' and
   engines' models (web Pointer Events, Android MotionEvent, UIKit's touches
   and gesture recognizers, Flutter's gesture arena, Unity's Input System,
@@ -505,7 +568,8 @@ fix.
      frame, allocating nothing; `emulate` keeps a touch's old click and
      scrolls). Tested natively (no allocation) and in Chromium (fingers,
      a pen, the mouse); Android's and iOS's back ends are written and
-     compile, not run yet (packaging, above).
+     compile, not run on a phone yet (CI's emulator and simulator jobs
+     come first).
   2. *Landed*: ui's pointers (fingers and pens with ids, capture and
      `releaseCapture`, `onPointerCancel`, `onLostPointerCapture`; a tap
      clicks, the first finger's drag scrolls in ui itself; a press on
@@ -532,17 +596,56 @@ fix.
   Tested where: the desktop (Linux, natively, and its GPU under Xvfb)
   and the browser (wasm32-wasi in headless Chromium, touches and pens
   through the DevTools protocol); Android's and iOS's back ends are
-  written and compile, not run until packaging lands in helder. Later:
+  written and compile, not run on a phone yet. Later:
   long press, double tap and `waitFor`, rotate alone, `touch-action` on
   nodes, pen tilt and pressure in use, prediction, Windows' and X11's
   touch screens, macOS's trackpad gestures (magnify, rotate).
-- **Assets by path, bundled into the APK and the app** (phase 2's "assets
-  anywhere, bundled by use"), read through one API on every platform.
+- *Landed*: **assets by path, bundled into the APK and the app** (phase
+  2's "assets anywhere, bundled by use"; `helder.asset`,
+  src/helder/asset/README.md): `Asset.image`, `font`, `model`, `sound`,
+  `bytes` (and `embed`) by a path anywhere in the project, checked when
+  compiling (the file there, in that case; a path's rules: `AssetPath`),
+  a handle loaded on the main loop (`load()` a coroutine, `ready`,
+  `peek()`, `value` a signal; read under helder.view's `<Loading>`,
+  Solid 2.0's model, the content waits on its first load only: its
+  fallback, then the content, kept through a reload; `isPending`); `Model.of(path, Lazy)` is `Asset.model`,
+  `Model.of` reads its file through the same one way. Bundled by use: each
+  call's marker is in the output only while its code is (hxmc emits the
+  literals of the code it keeps), so `helder build` takes exactly those:
+  desktop's executable has them as resources (read where they are mapped,
+  no file beside it; a build whose built-in files differ is made again),
+  the APK's `assets/` (stored, read through `AAssetManager`), the app's
+  `assets/` (sealed by CodeResources before the link), the page's
+  `assets/` (fetched; `Model.of`'s before main). `helder dev` reads them
+  from disk (an Android app from `helder dev`: `asset <key>`), watches them
+  and sends a change without a build (`Assets.changed`): an `Image`, a
+  `FontFile` or a `Model`'s meshes swapped in place, `value`'s readers run
+  again. Tested: `AssetPath.test.hx`, `tests/asset/Assets.test.hx`
+  (natively and as wasm32-wasi: the bundle without a file named only in
+  dead code; `<Loading>` over an image in ui's markup), tests/view's
+  ViewTest (`<Loading>`: the fallback on a first load only, nested, a
+  memo's and a component's reads, a failure the ErrorBoundary's, none
+  above: nothing rendered; on Eval, natively and as JavaScript), the asset lane (rejections; `tests/asset/Checksum.hx` alone
+  in an empty directory, its files' CRC-32s; the web's files exactly), the
+  pack lane (PackCheck: the APK's, the app's and the .ipa's `assets/`,
+  CodeResources' hashes), the cli lane (an image swapped in the same
+  `Image` with the dev host and without, a text's reader; the page told),
+  tests/os/dev/dev-asset.mjs (the page's reload in Chromium),
+  tests/pack/dev.mjs (the dev APK without assets, `asset <key>`); on CI's
+  emulator and simulator Checksum's lines (tests/pack/android.sh, ios.sh;
+  codesign --verify with assets) and an asset reloaded in the running app
+  (tests/os/dev/dev-android.mjs), passing there (Pixel 6, API 34; iPhone
+  17, iOS 26.2). Later:
+  `.meta` sidecars, compressed textures, sounds decoded.
 - **The game**: a small mobile 3D game as an example (a camera the fingers
   drive, picking, a HUD and a menu in ui, a save), built and live-reloaded
   on an Android device and the iOS simulator. Save data (a small store on
   every platform, the web's included) and tweens for gameplay come with it.
-- **CI on an Android emulator and the iOS simulator.**
+- *Landed*: **CI on an Android emulator and the iOS simulator**: the
+  `android` job (a Pixel 6's emulator, API 34: hello through `helder
+  run` and adb, the screen fixture, Android's dev loop) and the
+  `ios-simulator` job (the newest iPhone's simulator: hello through
+  `helder run`, the screen fixture), green, not required.
 - Later in this phase: **audio** (decoders: WAV, Ogg Vorbis; a mixer above
   every back end, running as a kernel; AAudio on Android, RemoteIO on iOS;
   a simple `Sound.play`), **a compositor thread for scrolling and

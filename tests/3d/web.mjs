@@ -27,6 +27,7 @@ const files = {
 	'/os/browser.mjs': path.join(here, '../../src/helder/os/browser.mjs'),
 	'/os/imports.mjs': path.join(here, '../../src/helder/os/imports.mjs'),
 	'/gfx/imports.mjs': path.join(here, '../../src/helder/gfx/imports.mjs'),
+	'/async/imports.mjs': path.join(here, '../../src/helder/async/imports.mjs'),
 	'/compare.mjs': path.join(here, '../gfx/compare.mjs'),
 };
 // (the packed samples draw the glTF ones' frames)
@@ -39,7 +40,11 @@ try {
 	files['/test.wasm.assets.json'] = manifest;
 	for (const p of list) files['/' + p] = path.join(path.dirname(wasm), p);
 	// (and the files a program loads itself: Model.of(path, Lazy), fetched at run time)
-	for (const n of await readdir(path.join(path.dirname(wasm), 'assets')).catch(() => [])) files['/assets/' + n] = path.join(path.dirname(wasm), 'assets', n);
+	const walk = async (rel) => {
+		for (const e of await readdir(path.join(path.dirname(wasm), rel), { withFileTypes: true }).catch(() => []))
+			if (e.isDirectory()) await walk(rel + '/' + e.name); else files['/' + rel + '/' + e.name] = path.join(path.dirname(wasm), rel, e.name);
+	};
+	await walk('assets');
 	assets = true;
 	console.log(`web.mjs: ${list.length} files fetched before main: ${list.join(', ')}`);
 } catch {}
@@ -53,7 +58,7 @@ const log = [];
 window.log = log;
 window.start = async (gfx, mode, scene) => {
 	const golden = await decode(scene + '.png');
-	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs'], canvas: 'c', gfx, args: [mode, scene], ${assets ? "assets: 'test.wasm.assets.json'," : ''} stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
+	const r = await run('test.wasm', { imports: ['os/imports.mjs', 'gfx/imports.mjs', 'async/imports.mjs'], canvas: 'c', gfx, args: [mode, scene], ${assets ? "assets: 'test.wasm.assets.json'," : ''} stdout: (s) => log.push(s), stderr: (s) => log.push('stderr: ' + s) });
 	log.push('exit ' + r.exitCode);
 	if (r.host.gfx.backend !== gfx) return { ok: false, text: gfx + ' ' + mode + ': on ' + r.host.gfx.backend };
 	if (mode === 'window') {

@@ -1,6 +1,8 @@
 import helder.gfx.shader.Mat4;
 import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
+import helder.asset.Asset;
+import helder.asset.Assets;
 import helder.scene.*;
 import helder.scene.math.*;
 
@@ -253,9 +255,13 @@ class SceneTest {
 	}
 
 	static function assets() {
-		var a = new Asset<Int>(), got = [];
-		a.then(v -> got.push("then " + v));
-		check("loading", a.state.match(Loading) && !a.ready);
+		var a = new Asset<Int>("seven");
+		check("loading", a.state.match(Loading) && !a.ready && a.peek() == null);
+		var pending = try {
+			a.value;
+			false;
+		} catch (_:helder.asset.Asset.AssetPending) true;
+		check("its value before it is here: AssetPending", pending);
 		var polls = 0;
 		Assets.track(() -> {
 			polls++;
@@ -264,17 +270,20 @@ class SceneTest {
 			return true;
 		});
 		check("still loading", Assets.poll() == 1 && !a.ready);
-		check("loaded on a later poll", Assets.poll() == 0 && a.ready && a.value == 7 && got.join(",") == "then 7");
-		a.onChange(v -> got.push("changed " + v));
-		a.then(v -> got.push("late " + v));
+		check("loaded on a later poll", Assets.poll() == 0 && a.ready && a.value == 7 && a.peek() == 7);
 		a.resolve(8);
-		check("then at once when ready; onChange on a swap", got.join(",") == "then 7,late 7,changed 8" && a.value == 8);
-		var b = new Asset<String>();
+		check("a reload's value behind the same handle", a.value == 8);
+		var b = new Asset<String>("gone");
 		b.fail("gone");
 		check("failed", switch b.state {
 			case Failed(e): e == "gone";
 			case _: false;
 		});
+		var failed = try {
+			b.value;
+			false;
+		} catch (e:helder.asset.Asset.AssetError) e.message == "gone: gone";
+		check("its value after a failure: AssetError", failed);
 	}
 
 	static function clock() {

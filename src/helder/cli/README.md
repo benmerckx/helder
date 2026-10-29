@@ -18,6 +18,10 @@ helder run tests/cli/tally -- 3               # built, then run with arguments
 helder test                                   # the *.test.hx files (src/helder/test)
 helder inspect --tree                         # a running helder dev's ui tree (--log, --frames, --state)
 helder devices                                # this machine, a browser, Android devices, iOS simulators
+helder build --target android                 # bin/android/<name>.apk (arm64), signed with the debug key
+helder build --target ios                     # bin/ios/<name>.ipa (an iPhone's); --target ios-sim: bin/ios-sim/<name>.app
+helder run --target android -d emulator-5554  # built for the device's ABI, installed, started, its logcat here
+helder dev --target ios                       # on the booted simulator: installed once, each build swapped in
 ```
 
 ## The grammar
@@ -28,7 +32,7 @@ helder <entry>                          shorthand for: helder dev <entry>
 
 commands: dev, run, build, test, inspect, devices, help
 
-  --target <t>       host (default), web, android, ios, or an exact hxmc target (windows-x86_64, macos-arm64, wasm32-wasi, ...)
+  --target <t>       host (default), web, android, ios, ios-sim, or an exact hxmc target (windows-x86_64, android-x86_64, ...)
   -d, --device <d>   which phone, emulator or simulator (android, ios); `helder devices` lists them
   -o, --out <path>   build's output
   -- <args>          the program's arguments (dev, run)
@@ -48,13 +52,19 @@ Each command has its own options beside the common ones: dev `--port`,
 and writes `helder help` and `helder <command> --help` from the same
 table; a mistake is one line, `helder <command>: <what>` (an unknown
 option: `helder build: unknown option --x (helder build --help)`), exit
-code 2. `-d` is parsed and checked (with `--target android` or `ios`);
-those targets are refused for now ("not yet: Android and iOS packaging is
-being moved into helder"). `helder devices` lists what it finds today: this
-machine (host, with its target), a browser through the dev server (web),
-Android's devices and emulators (`adb devices -l`, adb on the PATH; else
-"adb not found") and iOS's simulators (`xcrun simctl list devices
-available`, on macOS): id, name, kind, target.
+code 2. `-d` goes with `--target android` or `ios` only (`ios-arm64`, an
+iPhone, is build's only: its app needs a signing identity). `helder
+devices` lists what it finds: this machine (host, with its target), a
+browser through the dev server (web), Android's devices and emulators
+(`adb devices -l`: `ADB`, else adb on the PATH, else
+`$ANDROID_HOME/platform-tools`; else "adb not found"; one not ready has
+its state after the kind: `device, unauthorized`) and iOS's simulators
+(`xcrun simctl list devices available`, on macOS; `XCRUN` names another):
+id, name, kind, target. Without `-d`, dev and run take the one device
+there is (Android's ready one, iOS's booted simulator), and with several,
+or none, say so and name them (`Devices.pick`); `-d` takes an id (a
+simulator's name too: `-d "iPhone 16"`), and a simulator not booted is
+booted.
 
 ## Conventions
 
@@ -63,7 +73,10 @@ available`, on macOS): id, name, kind, target.
   browser with WebGPU has), or an exact hxmc target for `build`:
   `linux-x86_64`, `windows-x86_64`, `macos-arm64`, `wasm32-wasi`, ...
   Linux builds use the glibc mode (the GPU's and the sound's drivers are
-  loaded). `android` and `ios` come with the packaging's port.
+  loaded). Phones (below): `android` (arm64, or the device's ABI for run
+  and dev: `android-arm64`, `android-x86_64`), `ios` (an iPhone's,
+  `ios-arm64`, for build; the simulator's for run and dev), `ios-sim`
+  (`ios-sim-arm64`, Apple silicon's simulator).
 - **Entries**:
   - nothing: the working directory, a project;
   - a project directory: `package.json` and `src/Main.hx`;
@@ -85,12 +98,113 @@ available`, on macOS): id, name, kind, target.
   helder), then its dependencies' that are Haxe packages
   (`node_modules/helder`); else the CLI's own checkout's `src`.
 - **Overrides**: `package.json`'s `"helder"` key, `{"main": "app.Main",
-  "name": "game", "defines": {"key": "value"}}`, and a `helder.hxml`
-  beside it, given to every build.
+  "name": "game", "defines": {"key": "value"}}` and an app's identity
+  (below), and a `helder.hxml` beside it, given to every build.
 - **Outputs**: `bin/<target>/<name>` under the project (the name is
   package.json's, else the main module's; `-o` names another); dev builds
   under `bin/dev/`. `build` is a release build (`-dce full`), `dev` adds
-  `-D hxmc.dev`.
+  `-D hxmc.dev`. Phones: `bin/android/<name>.apk` (its library, and what
+  the build needs of Java, beside it in `<name>.lib/`),
+  `bin/ios/<name>.ipa` (and its `.app`), `bin/ios-sim/<name>.app`.
+
+## Android and iOS
+
+Ported from hxmc (MIT), which wrote APKs and app bundles itself until
+then: hxmc's output ends at native code, the packaging is helder's
+(`helder.pack`, `Android.hx`, `Ios.hx`). No SDK, NDK, Java or Xcode at
+build time.
+
+- **Android**: hxmc links the program as `libmain.so` (its soname is the
+  output's name), the program's `ANativeActivity_onCreate` its entry
+  (`helder.os.android.Activity`). `helder.pack.android` puts it in an APK:
+  `lib/<abi>/libmain.so` stored and 16 KB aligned (Android 15's pages;
+  `extractNativeLibs="false"`), the manifest in binary XML (`Axml`:
+  NativeActivity, or `org.hxmc.Activity` for a program showing Android's
+  views), `classes.dex` when the program has Java's listeners (`Dex`,
+  `Glue`; `helder.pack.android.Classes`, a macro of the build, tells from
+  the program as generated: `@:helder.android.dex` on
+  `helder.os.android.Glue` in it; `@:helder.android.views` on
+  `helder.ui.native.NativeHost`, which the program makes: every ui
+  program has the class, a drawn window needs NativeActivity's surface;
+  tested on the counter and native-form examples), and APK Signature Scheme v2
+  (ECDSA P-256 with SHA-256, RFC 6979's nonces: `P256`, `Der`; v2 only,
+  which minSdk 29 allows). Debuggable; no release signing, icons,
+  resources or `.aab` yet.
+- **Android's runtime objects** (`android-arm64`, `android-x86_64`'s
+  `rt.o`, `ssl.o`, `uv.o`) are not on npm: @hxmc/cli's package.json names
+  the GitHub release of benmerckx/hxmc built from the same sources
+  (`"hxmc": {"rt": "rt-<16 hex>"}`). On first use `build`, `run` and
+  `dev` fetch the target's `<target>-<object>.gz` assets from it (curl),
+  gunzip them into `<helder's cache>/rt/<tag>/<target>/`, say so in one
+  status line (`fetching android-arm64's runtime objects, once`) and add
+  that directory to the compiler's `HXMC_RT_DIR` (`Runtime.hx`); a new
+  hxmc's tag fetches again. A directory already in `HXMC_RT_DIR` holding
+  the target's objects is used instead, nothing fetched;
+  `HELDER_RT_URL` names another place for the releases
+  (`<it>/<tag>/<asset>`: a mirror, a `file://` directory).
+- **The debug key**: the user's own, made on first use and kept, so a
+  reinstall keeps the signature: `HELDER_ANDROID_KEY` names its file, else
+  `package.json`'s `"helder": {"android": {"key"}}`, else
+  `<helder's cache>/android/debug-key` (`HELDER_CACHE`, else
+  ~/.cache/helder, ~/Library/Caches/helder, %LOCALAPPDATA%\helder). A text
+  file: `helder-android-debug-key 1`, the private scalar in hex, its
+  self-signed certificate (CN=Android Debug, 30 years) in base64; the
+  scalar and the serial come from the system's random source
+  (`helder.pack.Entropy`: BCryptGenRandom on Windows, /dev/urandom
+  elsewhere). Changed from hxmc's: helder's names (`HXMC_ANDROID_KEY`,
+  `hxmc-android-debug-key 1` and hxmc's cache were hxmc's), and Windows no
+  longer falls back to the time and `Math.random`. An app signed by hxmc's
+  key does not update in place: uninstall it once.
+- **iOS**: hxmc links a Mach-O executable (`-D hxmc.ios-min-version`: its
+  `LC_BUILD_VERSION`) into `<name>.app`, whose `Info.plist` and
+  `_CodeSignature/CodeResources` helder writes first (`helder.pack.ios`:
+  `Bundle`, `Plist`), and signs it ad hoc binding them (`-D
+  hxmc.codesign-id`: the bundle id; `-info-plist`, `-resources`,
+  `-entitlements`), as `codesign -s -` does: enough for the simulator. An
+  `.ipa` zips the bundle under `Payload/`. A device's app needs a signing
+  identity and a provisioning profile: not yet.
+- **An app's identity**: `package.json`'s `"helder"` key (`App.hx`):
+  `"id"` (the application id and bundle id; `org.helder.<name>`),
+  `"label"` (the name), `"version"` (versionCode, CFBundleVersion: 1),
+  `"versionName"` (1.0), `"orientation"` (`"portrait"`: the manifest's
+  `screenOrientation` portrait, the plist's upright iPhone and either-way
+  iPad; `"landscape"`: `sensorLandscape`, both landscapes; both with
+  `UIRequiresFullScreen`; `"any"`, the default: neither), `"fullscreen"`
+  (`true`: `-D helder.fullscreen` for the build, every `Window` immersive
+  from the start, the plist's `UIStatusBarHidden`), `"android":
+  {"permissions": ["INTERNET"], "minSdk": 29, "targetSdk": 35, "key"}`,
+  `"ios": {"minVersion": "15.0", "entitlements": "<an XML plist>"}`.
+- **run**: on Android `adb -s <id>` installs (`install -r`), starts (`am
+  start`, after `force-stop`) and streams logcat's `hxmc` tag (the
+  program's stdout and stderr) until the app's process ends; on iOS `xcrun
+  simctl` boots the simulator when it is not, installs, and launches with
+  `--console` (its output here, its end the command's).
+- **assets** (helder.asset: src/helder/asset/README.md): after each build
+  the keys whose markers the output has are the program's assets
+  (`AssetStep`: their files found under the class paths, then the
+  project; a manifest in helder's cache); desktop's executable has them
+  built in (the macro's resources, `-D helder.asset.keep=<file>`: those a
+  last build used; a build whose built-in files differ is made again);
+  the web's beside the module (`assets/<key>`, `<name>.wasm.assets.json`
+  for those read before main, which the page passes to browser.mjs);
+  Android's APK in `assets/`, stored and 4-byte aligned; iOS's bundle in
+  `assets/`, sealed by CodeResources before the link. Dev builds have none
+  built in or copied (read from this machine's disk; Android's app asks
+  for them, below).
+- **dev**: the first build is the dev host's app, installed and started.
+  Android's APK is built for the dev server's socket (`-D
+  hxmc.dev-server=127.0.0.1:<port>`, `adb reverse`, INTERNET asked for),
+  and a later build sends its library alone: `{"type":"reload",
+  "snapshot":"-","fetch":"<n>"}`, the app asks for `lib <n>` on a
+  connection of its own, writes it into its files and hands over to it in
+  the same process (`helder.dev.Hot`, `helder.os.android.Activity`); its
+  output is logcat's. The simulator's app gets `HXMC_DEV` and
+  `HXMC_DEV_SNAPSHOT` (simctl's `SIMCTL_CHILD_`), a later build is a dylib
+  (`-D hxmc.shared`) it loads from this machine's files; its output is
+  simctl's. A changed asset is sent as on desktop (`Assets.changed`); the
+  Android app asks for an asset's bytes on a connection of its own, `asset
+  <key>` (`ok`, then the bytes; `missing`), the simulator's reads it from
+  this machine's disk.
 
 ## The dev loop
 
@@ -103,8 +217,9 @@ program (`helder.dev.Hot`, `helder.os.App`'s client, the page):
 - what the last build read is watched (`helder.async.SampledWatcher`,
   esbuild's polling): the module files a `--macro helder.cli.Deps.write`
   lists (under the class paths, but helder's own when it is a package),
-  their directories' listings, `assets/`, package.json and helder.hxml; the
-  set replaced after each build. Each 100 ms tick checks the 16 paths that
+  their directories' listings, the program's assets (the files whose
+  markers the build has: AssetStep's manifest), package.json and
+  helder.hxml; the set replaced after each build. Each 100 ms tick checks the 16 paths that
   changed last and a shuffled slice of the rest (all of them in about 2 s:
   2.3 ms of CPU a tick for 10k files, where scanning them takes 56 ms); a
   file's stat key, or its content while its mtime is within 2 s;
@@ -128,7 +243,15 @@ program (`helder.dev.Hot`, `helder.os.App`'s client, the page):
   `imports.mjs` naming one of its import modules), DejaVu Sans for
   helder.text; the WebSocket is at `/__hxmc/ws`, the module at
   `/__hxmc/app.wasm` (409 for a swap after a failed build), the project's
-  files at `/`. A reload swaps the new build into the same page.
+  files at `/`. A reload swaps the new build into the same page;
+- a change to an asset builds nothing (`asset <key> · sent, nothing
+  built`): natively the program is told on its connection (the devtools
+  protocol's notification `Assets.changed {key}`) and loads the file again
+  behind the same handle (helder.asset: an image's pixels, a font's glyphs,
+  a model's meshes swapped in place; `value`'s readers run again), the
+  page by `{"type":"asset","key"}` on its WebSocket (the module fetches
+  `/__hxmc/assets/<key>`; the files read before main at
+  `/__hxmc/app.wasm.assets.json`).
 
 It prints `built in N ms`, `rebuilt in N ms`, `reloaded in N ms · build M
 ms` (from the change seen to the new build's first frame), `failed in N
@@ -143,9 +266,11 @@ exited with code N`, and the session stays, the next change building and
 starting it again. A program helder dev ended itself (a reload's restart:
 without the dev host each reload's program exits 0; one that did not answer
 a reload; ctrl-c) decides nothing. On the web a closed tab is a client
-gone, the server stays (as vite's). Android and iOS, when wired: closing
-the app on the phone should not end the session (`Mobile`: it keeps
-serving, the next build starts the app again).
+gone, the server stays (as vite's). On a phone (`Mobile`) closing the app
+there does not end the session: it keeps serving, and the next build
+installs and starts the app again (`closed the app on <device> ended; the
+next change starts it again` when simctl's launch ends; on Android the
+sign is that no app is connected when a build is done).
 
 ## Output
 
@@ -233,13 +358,18 @@ No workarounds left:
   version (cross builds: `npm i -D --force @hxmc/win32-x64`), HXMC_RT_DIR
   added to the search (hxmc #93, @hxmc/cli
   0.1.0-nightly.20261027.a4195c7): `Compiler.find` no longer gives it
-  HXMC_RT_DIR.
+  HXMC_RT_DIR. An empty or set HXMC_RT_DIR adds to the launcher's search
+  too (0.1.0-nightly.20261028.23a0a79), and @hxmc/cli's package.json
+  names its release of Android's objects (`hxmc.rt`), which `Runtime`
+  fetches: no matching of rt.o's bytes against releases.
 - (Not a bug: `--server-connect`'s builds are given hxmc's std by the
   client, as dev.mjs does: `CompileServer.request`.)
 
 Tests: `src/helder/cli/Options.test.hx` (the grammar: the shorthand, the
 positional never a target, `--target`, `-d`, `--`, the options' errors,
-the help, `helder devices`' lists; in the test lane), `Style.test.hx`
+the help, `helder devices`' lists and `-d`'s default; in the test
+lane), `App.test.hx` (an app's identity: the defaults, package.json's,
+the mistakes, the debug key's file), `Style.test.hx`
 (colours on or off, the status lines, the help and the compiler's
 messages coloured are the plain text with escapes), `ExitPolicy.test.hx`
 (closed, crashed, a reload, ctrl-c, web, a phone), the `cli` lane (`bun
@@ -254,7 +384,57 @@ relay and `helder inspect` against a console and a ui program), the
 `tests/os/dev/dev-web.mjs` and `dev-native.mjs`
 with `--helder=bin/cli/helder` (Chromium; a window under Xvfb).
 
-Not yet: the devtools' agent on the web (the page relaying it), changed assets sent without a
-recompile, the page held back while the module is generated (dev.mjs's
-`hxmc dev: generating`), native watchers, the CLI on npm as a binary,
-Android and iOS (`--target android|ios`, `-d`: parsed, refused), `helder new`, `helder doctor`.
+Android and iOS, tested where:
+
+- **Everywhere `helder test` runs** (natively and as wasm32-wasi):
+  `src/helder/pack/*.test.hx`: the zip (alignment, modes, read back),
+  P-256 against RFC 6979's vectors, the APK (its layout, the manifest
+  dumped, the certificate parsed back, the v2 block's digest recomputed
+  and its signature the key's), classes.dex (Dex.check), the debug key
+  (made from the system's random source, kept, refused when it is not
+  one), Info.plist, CodeResources and the .ipa.
+- **The `pack` lane** (`bun run test pack`, Linux; part of `headless`):
+  tests/pack/Hello.hx, tests/pack/Screen.hx (a window: CI's emulator and
+  simulator run it) and a project with an app's options (tests/pack/project:
+  an id, a permission, iOS's minimum and entitlements, landscape,
+  fullscreen) built for
+  android-arm64, android-x86_64, ios-arm64 (.ipa) and ios-sim-arm64 (.app)
+  by `helder build`, checked by tests/pack/PackCheck.hx: the zip's layout
+  and 16 KB alignment, the manifest, the library (readelf: 16 KB segments,
+  soname, the export, DT_NEEDED), screenOrientation, the v2 signature's digest recomputed and
+  openssl verifying it (apksigner, zipalign and aapt when on the PATH:
+  CI's); the bundle, Info.plist (its orientations, UIRequiresFullScreen,
+  UIStatusBarHidden), the program built with -D helder.fullscreen (its
+  line in the binary), the Mach-O's build version, its code
+  signature with its page hashes and special slots (1 Info.plist, 2 the
+  requirements, 3 CodeResources, 5 the entitlements). Then `helder run`
+  and `helder dev` against stand-ins for adb and xcrun (tests/pack/fake,
+  tests/pack/dev.mjs: the first build installed and started, the app's
+  connection, a reload's library fetched by `lib <n>` and the same as the
+  build's, the simulator's dylib, the app closed and started again by the
+  next change). The runtime objects: tests/pack/runtime.mjs fetches
+  macos-arm64's from npm (@hxmc/darwin-arm64) and Android's from the
+  release @hxmc/cli's package.json names (`hxmc.rt`; not on npm); without
+  them those builds are skipped (PACK_REQUIRE=1: a failure). The CLI's own
+  fetch: a build with no HXMC_RT_DIR and an empty cache, from a stand-in
+  release of those objects (tests/pack/release.mjs, `HELDER_RT_URL` a
+  `file://` directory): the status line, the objects in
+  `<cache>/rt/<tag>/`, the APK checked.
+- **Only in CI, untested until it runs** (`.github/workflows/ci.yml`; no
+  emulator, simulator or Mac where it was written): the `android` job,
+  an x86-64 emulator (API 34) running tests/pack/android.sh (`helder run
+  --target android`'s hello line from logcat, then the APK by adb alone)
+  and tests/os/dev/dev-android.mjs (`helder dev --target android`: two
+  edits swapped into the same process, the state kept); the
+  `ios-simulator` job on macos-15, the pack lane (with codesign --verify
+  and plutil -lint) and tests/pack/ios.sh (`helder run --target ios -d
+  <a new simulator>`'s hello line); both then run tests/pack/Screen.hx
+  (its window's size, scale and safe area, the display's frames, the bars
+  hidden, a rotation on Android, the background and back: checked by
+  tests/pack/screen.mjs). Never yet on a real phone.
+
+Not yet: the devtools' agent on the web (the page relaying it), the page
+held back while the module is generated (dev.mjs's `hxmc dev:
+generating`), native watchers, the CLI on npm as a binary, iOS devices
+(signing), Android's release signing, icons in the APK and the bundle,
+booting an emulator, `helder new`, `helder doctor`.

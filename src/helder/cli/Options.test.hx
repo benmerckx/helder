@@ -79,12 +79,18 @@ function tests() {
 		test("its mistakes", () -> {
 			equals(usage(() -> parse("build", ["--target"])), "helder build: --target takes a value: --target <t> (helder build --help)");
 			equals(usage(() -> parse("build", ["--target", "-o", "x"])), "helder build: --target takes a value: --target <t> (helder build --help)");
-			assert(usage(() -> parse("build", ["--target", "wasm"])).indexOf("helder build: no target wasm (host, web, android, ios, or an hxmc target: linux-x86_64") == 0);
+			assert(usage(() -> parse("build", ["--target", "wasm"])).indexOf("helder build: no target wasm (host, web, android, ios, ios-sim, or an hxmc target: linux-x86_64") == 0);
 			equals(usage(() -> parse("dev", ["--target", "web,host"])), "helder dev: one target, not a list: web,host (helder test's --target takes several)");
 		});
-		test("android and ios: not yet", () -> {
-			for (c in ["dev", "run", "build"]) for (t in ["android", "ios"])
-				equals(usage(() -> parse(c, ["--target", t])), 'helder $c: --target $t: not yet: Android and iOS packaging is being moved into helder');
+		test("android and ios", () -> {
+			for (c in ["dev", "run", "build"]) for (t in ["android", "ios", "ios-sim", "android-arm64", "android-x86_64", "ios-sim-arm64"])
+				equals(parse(c, ["--target", t]).target, t);
+			equals(parse("build", ["--target", "ios-arm64"]).target, "ios-arm64");
+			// (an iPhone's app: built, not installed: it needs signing)
+			for (c in ["dev", "run"])
+				equals(usage(() -> parse(c, ["--target", "ios-arm64"])), 'helder $c: --target ios-arm64: an iPhone needs a signing identity (not yet); --target ios runs on the simulator');
+			equals([for (t in ["android", "android-x86_64", "ios", "ios-sim", "ios-sim-arm64", "web", "host", "linux-x86_64"]) Options.mobile(t)],
+				["android", "android", "ios", "ios", "ios", null, null, null]);
 		});
 		test("helder test's: a list", () -> {
 			equals(parse("test", []).targets, ["host"]);
@@ -108,7 +114,8 @@ function tests() {
 				equals(usage(() -> parse(c, ["-d", "emulator-5554"])), 'helder $c: -d/--device picks a phone, emulator or simulator: with --target android or ios (helder devices lists them)');
 				equals(usage(() -> parse(c, ["--target", "web", "--device", "x"])), 'helder $c: -d/--device picks a phone, emulator or simulator: with --target android or ios (helder devices lists them)');
 			}
-			equals(usage(() -> parse("dev", ["--target", "android", "-d", "emulator-5554"])), "helder dev: --target android: not yet: Android and iOS packaging is being moved into helder");
+			equals(parse("dev", ["--target", "android", "-d", "emulator-5554"]).device, "emulator-5554");
+			equals(parse("run", ["--target", "ios", "-d", "8A9C6B4E-6E2B-4A43-9C7B-2C7B1E9D5F11"]).device, "8A9C6B4E-6E2B-4A43-9C7B-2C7B1E9D5F11");
 		});
 		test("a value", () -> {
 			equals(usage(() -> parse("run", ["-d"])), "helder run: -d takes a value: -d <d> (helder run --help)");
@@ -186,12 +193,12 @@ function tests() {
 			var all = Options.helpText();
 			assert(all.indexOf("helder <entry>") >= 0);
 			for (c in ["dev", "run", "build", "test", "inspect", "devices", "help"]) assert(all.indexOf('\n  $c ') >= 0, c);
-			var target = "--target <t>", rest = "host (default), web, android, ios, or an exact hxmc target (windows-x86_64, macos-arm64, wasm32-wasi, ...)";
+			var target = "--target <t>", rest = "host (default), web, android, ios, ios-sim, or an exact hxmc target (windows-x86_64, android-x86_64, ...)";
 			for (c in ["dev", "run", "build"]) {
 				var h = Options.helpText(c);
 				assert(h.indexOf('helder $c [entry]') == 0, c);
 				for (t in [all, h]) {
-					assert(~/  --target <t> +host \(default\), web, android, ios, or an exact hxmc target/.match(t), c);
+					assert(~/  --target <t> +host \(default\), web, android, ios, ios-sim, or an exact hxmc target/.match(t), c);
 					assert(~/  -d, --device <d> +which phone, emulator or simulator \(android, ios\); `helder devices` lists them/.match(t), c);
 					assert(~/  -h, --help +this help/.match(t), c);
 				}
@@ -214,11 +221,11 @@ function tests() {
 				"R58M12ABCDE            unauthorized usb:1-1 transport_id:2",
 				"",
 			].join("\n");
-			equals(DeviceList.adbDevices(text), [
+			equals(Devices.adbDevices(text), [
 				{id: "emulator-5554", name: "sdk gphone64 x86 64", kind: "emulator", target: "android"},
-				{id: "R58M12ABCDE", name: "R58M12ABCDE (unauthorized)", kind: "device", target: "android"},
+				{id: "R58M12ABCDE", name: "R58M12ABCDE", kind: "device, unauthorized", target: "android"},
 			]);
-			equals(DeviceList.adbDevices("List of devices attached\n\n"), []);
+			equals(Devices.adbDevices("List of devices attached\n\n"), []);
 		});
 		test("xcrun simctl list devices available", () -> {
 			var text = [
@@ -229,13 +236,35 @@ function tests() {
 				"-- watchOS 10.2 --",
 				"    Apple Watch Series 9 (45mm) (0A1B2C3D-4E5F-4061-8273-94A5B6C7D8E9) (Shutdown) ",
 			].join("\n");
-			equals(DeviceList.simulators(text), [
+			equals(Devices.simulators(text), [
 				{id: "8A9C6B4E-6E2B-4A43-9C7B-2C7B1E9D5F11", name: "iPhone 15 (iOS 17.2)", kind: "simulator", target: "ios"},
 				{id: "1B2C3D4E-5F60-4718-8293-A4B5C6D7E8F9", name: "iPad Air (5th generation) (iOS 17.2)", kind: "simulator, booted", target: "ios"},
 			]);
 		});
+		test("-d's default: the one device there is", () -> {
+			final emu = {id: "emulator-5554", name: "Pixel 7", kind: "emulator", target: "android"};
+			final phone = {id: "R58M12ABCDE", name: "SM G991B", kind: "device", target: "android"};
+			final locked = {id: "R58M12ABCDE", name: "R58M12ABCDE", kind: "device, unauthorized", target: "android"};
+			final sim = {id: "8A9C6B4E-6E2B-4A43-9C7B-2C7B1E9D5F11", name: "iPhone 15 (iOS 17.2)", kind: "simulator", target: "ios"};
+			final booted = {id: "1B2C3D4E-5F60-4718-8293-A4B5C6D7E8F9", name: "iPad Air (iOS 17.2)", kind: "simulator, booted", target: "ios"};
+			final pick = (rows, platform, given) -> try Devices.pick(rows, platform, given).id catch (e:String) e;
+			equals(pick([emu, sim], "android", null), "emulator-5554");
+			equals(pick([emu, locked], "android", null), "emulator-5554");
+			equals(pick([emu, phone], "android", "R58M12ABCDE"), "R58M12ABCDE");
+			equals(pick([emu, phone], "android", null), "several Android devices: pick one with -d (emulator-5554: Pixel 7, R58M12ABCDE: SM G991B)");
+			equals(pick([], "android", null), "no Android device or emulator ready: connect a phone or start an emulator (adb devices)");
+			equals(pick([locked], "android", null), "no Android device or emulator ready (R58M12ABCDE: device, unauthorized)");
+			equals(pick([locked], "android", "R58M12ABCDE"), "R58M12ABCDE is unauthorized (adb devices -l)");
+			equals(pick([emu], "android", "emulator-5556"), "no Android device emulator-5556 (helder devices lists them)");
+			equals(pick([sim, booted], "ios", null), "1B2C3D4E-5F60-4718-8293-A4B5C6D7E8F9");
+			// (a simulator by its name too; one not booted is booted for it: Ios)
+			equals(pick([sim, booted], "ios", "iPhone 15"), "8A9C6B4E-6E2B-4A43-9C7B-2C7B1E9D5F11");
+			equals(pick([sim, emu], "ios", null), "no booted iOS simulator: boot one (open -a Simulator), or name one with -d (helder devices lists them)");
+			equals(pick([booted, {id: "X", name: "iPhone 16 (iOS 18.0)", kind: "simulator, booted", target: "ios"}], "ios", null),
+				"several booted iOS simulators: pick one with -d (1B2C3D4E-5F60-4718-8293-A4B5C6D7E8F9: iPad Air (iOS 17.2), X: iPhone 16 (iOS 18.0))");
+		});
 		test("the table", () -> {
-			equals(DeviceList.table([{id: "host", name: "this machine", kind: "host", target: "linux-x86_64"}]),
+			equals(Devices.table([{id: "host", name: "this machine", kind: "host", target: "linux-x86_64"}]),
 				"id    name          kind  target\nhost  this machine  host  linux-x86_64");
 		});
 	});

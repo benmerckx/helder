@@ -194,6 +194,16 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 	// timer) of at most `seconds` (-1: as long as needed, 0: none) unless
 	// something is ready; whether anything is left
 	public function turn(seconds:Float):Bool {
+		turning = true;
+		var r = turnOnce(seconds);
+		turning = false;
+		return r;
+	}
+
+	// (inside a turn: what runs there may not turn it again, helder.asset's Assets.poll)
+	public var turning(default, null):Bool = false;
+
+	function turnOnce(seconds:Float):Bool {
 		drain();
 		var now = haxe.Timer.stamp();
 		fire(now);

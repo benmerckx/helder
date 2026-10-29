@@ -10,6 +10,8 @@ class Owner {
 	@:allow(helder.view) var contexts:Null<Map<Int, Dynamic>>;
 	// what catches errors thrown below (ErrorBoundary)
 	@:allow(helder.view) var onError:Null<Dynamic->Void>;
+	// what is told of a value not ready below (Loading)
+	@:allow(helder.view) var onPending:Null<Pending->Void>;
 	var disposed = false;
 
 	public function new(parent:Null<Owner>) {
@@ -64,6 +66,22 @@ class Owner {
 			o = o.parent;
 		}
 		return false;
+	}
+
+	// a value not ready, read below: the nearest Loading boundary told
+	// (none: nothing rendered, logged in dev builds)
+	@:allow(helder.view) function suspended(p:Pending) {
+		var o = this;
+		while (o != null) {
+			if (o.onPending != null) {
+				o.onPending(p);
+				return;
+			}
+			o = o.parent;
+		}
+		#if hxmc.dev
+		Sys.stderr().writeString("helder.view: " + p.message + ": no <Loading> above it, nothing rendered for it\n");
+		#end
 	}
 
 	public function dispose() {

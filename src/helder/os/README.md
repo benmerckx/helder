@@ -28,7 +28,7 @@ method's `TextEditing`), the mouse in
 pixels from the top left, `Scroll` in pixels, `Resize`, `ScaleChange`,
 and every pointer's events (below).
 
-On Android (`-D hxmc.target=android-arm64` with an output ending in `.apk`)
+On Android (`helder build --target android`: an APK, helder.pack.android)
 the window is the activity's (full screen, one per app; `new Window` waits
 for it): the program runs on a thread of its own, `App.run` draws while the
 activity has its window, a touch is as in the browser (below: a tap a
@@ -41,17 +41,79 @@ method's compositions and commits through a hidden `EditText`; a
 `ChildSurface` is a GPU view among Android's views. No clipboard there yet. Java from Haxe: `helder.os.android.Jni` (JNI's function tables,
 bound like COM's by `helder.os.VTable`), `MainThread` (Java's main
 thread, where views live: work handed to it, Choreographer's frames
-there) and `Glue` (Java's listeners calling Haxe: hxmc then writes a
+there) and `Glue` (Java's listeners calling Haxe: helder then writes a
 `classes.dex` into the APK).
 
-On iOS (`-D hxmc.target=ios-arm64` or `ios-sim-arm64` with an output ending
-in `.app`) the window is a `UIWindow` on the whole screen (one per app),
+On iOS (`helder build --target ios` or `ios-sim`: an app bundle,
+helder.pack.ios) the window is a `UIWindow` on the whole screen (one per app),
 backed by a `CAMetalLayer`: the program's main runs inside UIKit's loop
 (`UIApplicationMain` comes first: `helder.os.uikit.UIKitApp`), `App.run`
-draws while the app is in the foreground, a touch is as in the browser
-and on Android, `Window.safeTop` (`safeLeft`, `safeBottom`,
-`safeRight`) is the safe area in pixels, `Suspend` and `Resume` come when
+draws while the app is active, a touch is as in the browser
+and on Android, `Suspend` and `Resume` come when
 the app goes to the background and back. No keys or text input there yet.
+
+### A phone's screen and the display's frames
+
+```haxe
+var w = new Window("Game", 0, 0);          // a phone's: the whole screen, its size the system's
+w.safeTop; w.safeBottom;                    // the safe area, pixels from each edge (a Resize when it changes)
+w.scale;                                    // pixels per point: Android's density / 160, iOS's nativeScale
+w.immersive = true;                         // the system's bars hidden (a game's)
+App.run(() -> {
+	var dt = App.frame.delta;               // since the last frame: the display's vsyncs on a phone
+}, e -> {});
+```
+
+`Window.safeTop`, `safeLeft`, `safeBottom` and `safeRight` are the
+insets, in pixels, that the system's bars, a notch, the island, a
+display cutout or the home indicator leave clear, as CSS's
+`env(safe-area-inset-*)`: iOS's view's `safeAreaInsets` (measured in
+`layoutSubviews` and `safeAreaInsetsDidChange`), Android's window insets
+(`helder.os.android.Insets`, JNI on the main thread: the decor view's
+root `WindowInsets`, on API 30 `getInsets(systemBars | displayCutout)`,
+on 29 the system window insets and the cutout's safe insets), measured
+again when the window, its size, its content rect or the configuration
+changes; 0 elsewhere. A change is a `Resize` (a rotation is one anyway: a
+new size). helder.ui takes them as `Ui.safeArea` and markup's
+`env(safe-area-inset-*)` (src/helder/ui/README.md). `Window.scale` is
+Android's density over 160 (`AConfiguration`, a `ScaleChange` when the
+configuration changes it) and iOS's screen's `nativeScale` (the view's
+`contentScaleFactor` and the layer's `contentsScale` set to it).
+`Window.immersive` hides the system's bars: Android's immersive mode
+(API 30: `WindowInsetsController.hide(systemBars)`, a swipe shows them for
+a while; API 29: the immersive sticky flags; the window into a cutout's
+edges), iOS's status bar and home indicator (the controller's
+`prefersStatusBarHidden`, `prefersHomeIndicatorAutoHidden`); nothing
+elsewhere. The app's options in package.json (`"helder": {"orientation":
+"portrait" | "landscape" | "any", "fullscreen": true}`: the manifest's
+`screenOrientation` and the plist's `UISupportedInterfaceOrientations`,
+`-D helder.fullscreen` making every window immersive from the start;
+src/helder/cli/README.md).
+
+On Android and iOS the frames are the display's: a turn of `App.run` that
+may draw asks for the next vsync and sleeps until it comes (or an event
+does), and the next turn draws it. Android: Choreographer
+(`AChoreographer_postFrameCallback64`, the NDK's, on the program's own
+thread and looper: `helder.os.android.Vsync`); iOS: a `CADisplayLink` on
+the main run loop, whose callback stops the run loop's wait. `App.frame`
+(a `FrameClock`) is the frame's time: on a phone the vsync's timestamp
+(Choreographer's `CLOCK_MONOTONIC` time, the link's `timestamp`) moved
+into `haxe.Timer.stamp()`'s seconds, elsewhere when the turn began;
+`delta`, the time since the last frame, and `period`, the display's
+refresh interval learnt from the deltas. A frame that sleeps (`App.wait`:
+nothing to draw) asks for no vsync until it has slept, so an idle app
+sleeps; the background, a lost window (Android's `onPause`, the window
+destroyed) and an inactive app (iOS's `willResignActive`,
+`didEnterBackground`) ask for none, and the first frame after them has a
+delta of one period, not the time away. Nothing is allocated a frame.
+
+Tests: `src/helder/os/FrameClock.test.hx` (the deltas, the period at 60
+and 120 Hz, a missed frame, a pause, no allocation; natively and as
+wasm32-wasi); on CI's emulator and simulator `tests/pack/Screen.hx`
+(`tests/pack/android.sh`, `ios.sh`, checked by `tests/pack/screen.mjs`):
+the window's size, scale and safe area, the display's frames (vsyncs at a
+display's pace, nothing allocated over 120), the bars hidden, a rotation
+(Android), the background and back.
 
 In the browser a touch drag on the canvas is `Scroll` (the content following
 the finger, gliding when let go) and a tap a click. `browser.mjs`'s option

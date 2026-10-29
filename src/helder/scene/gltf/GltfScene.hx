@@ -154,6 +154,22 @@ class GltfScene {
 		return top;
 	}
 
+	// next (the same model loaded again) in this one's place: each mesh's
+	// new primitives and materials in the mesh objects the instances draw
+	// (Mesh.take), this one's GPU objects released; next keeps those
+	// objects. Nodes, morphs' and skins' per-instance data stay as they
+	// were made (a changed hierarchy shows in new instances only)
+	public function handOver(next:GltfScene) {
+		for (k in 0...meshes.length)
+			if (k < next.meshes.length) {
+				meshes[k].take(next.meshes[k]);
+				next.meshes[k].dispose(device);
+				next.meshes[k] = meshes[k];
+			}
+		for (t in textures)
+			if (t != null) device.destroyTexture(t);
+	}
+
 	// the GPU buffers released (the instances draw nothing after)
 	public function dispose(device:Device) {
 		for (m in meshes)

@@ -12,8 +12,8 @@ package helder.cli;
 //   did not answer it, ctrl-c) decides nothing;
 // - web: no program here, a page in a browser; a tab closed is a client
 //   gone, the server stays (as vite's);
-// - android and ios (not wired yet: Options.NOT_YET): the app closed on the
-//   phone should not end the session, which keeps serving and starts it
+// - android and ios (DevCommand: Android, Ios): the app closed on the
+//   phone does not end the session, which keeps serving and starts it
 //   again with the next build; a crash the same.
 // Pure: DevCommand gives it what happened.
 class ExitPolicy {

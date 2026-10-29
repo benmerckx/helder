@@ -1,14 +1,19 @@
-// The dev loop on Android (CI's android job, on its emulator; docs/dev.md,
-// "No reloads"): `hxmc dev` on a small program drawing helder.gfx's cube,
-// built as an APK for the device adb reaches (android-x86_64 by default),
-// its count (Hot.keep) printed (logcat, tag hxmc), set to 3 on a cold start:
+// The dev loop on Android (CI's android job, on its emulator; not run
+// elsewhere): `helder dev --target android` on a small program drawing
+// helder.gfx's cube, built for the device adb reaches (its ABI: x86_64 on
+// the emulator), its count (Hot.keep) printed (logcat, tag hxmc), set to 3
+// on a cold start:
 // - the APK installed and started once (the dev host: its activity glue
 //   keeps the window, the EGL context and the input queue);
 // - two edits: each build's library fetched by the running build into the
 //   app's files and loaded into the same process (the same pid, as adb
 //   sees it), the count kept, the new code running; no crash;
+// - an asset (note.txt, helder.asset: not in the dev APK, the app asks
+//   helder dev for it, "asset note.txt"): its text printed; the file
+//   changed: sent to the app (Assets.changed), loaded again, the new text
+//   printed by the same process, nothing built;
 // - the swaps' times, from the change seen to the new build's first frame.
-//   node tests/os/dev/dev-android.mjs <compiler> [work dir] [android-x86_64|android-arm64]
+//   node tests/os/dev/dev-android.mjs <helder> [work dir]
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,10 +22,9 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../../..');
-const compiler = path.resolve(process.argv[2] ?? 'node_modules/.bin/haxe');
-const work = path.resolve(process.argv[3] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'hxmc-dev-android-')));
-const target = process.argv[4] ?? 'android-x86_64';
-const PKG = 'org.hxmc.devtest';
+const helder = path.resolve(process.argv[2] ?? 'bin/cli/helder');
+const work = path.resolve(process.argv[3] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'helder-dev-android-')));
+const PKG = 'org.helder.counter';
 const ADB = process.env.ADB ?? 'adb';
 
 let failures = 0;
@@ -36,7 +40,8 @@ fs.mkdirSync(path.join(work, 'app'), { recursive: true });
 const counter = path.join(work, 'app', 'Counter.hx');
 // (a drawn program without fonts: ui's need a font file on Android; the
 // cube of helder.gfx's examples, the count in Hot.keep)
-const v1 = `import helder.dev.Hot;
+const v1 = `import helder.asset.Asset;
+import helder.dev.Hot;
 import helder.gfx.*;
 import helder.os.*;
 
@@ -50,7 +55,13 @@ class Counter {
 		var device = Device.create(w.surface);
 		var cube = new Cube(device);
 		var frames = 0;
+		var note = Asset.bytes("note.txt"), shown:Null<haxe.io.Bytes> = null;
 		App.run(() -> {
+			var n = note.peek();
+			if (n != null && n != shown) {
+				shown = n;
+				trace("note=" + StringTools.trim(n.toString()));
+			}
 			var enc = device.beginFrame();
 			if (enc == null) return;
 			cube.draw(enc, frames * 0.02);
@@ -61,16 +72,21 @@ class Counter {
 }
 `;
 fs.writeFileSync(counter, v1);
-const cp = [`-cp ${path.join(repo, 'src')}`];
-fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, `-cp ${path.join(repo, 'examples', 'cube')}`, '-main Counter',
-	`-D hxmc.target=${target}`, `-D hxmc.android-package=${PKG}`, '--custom-target hxmc=out/devtest.apk'].join('\n') + '\n');
+const note = path.join(work, 'app', 'note.txt');
+const writeNote = (s) => {
+	fs.writeFileSync(note + '.tmp', s);
+	fs.renameSync(note + '.tmp', note);
+};
+writeNote('first note\n');
+// (the cube's classes beside it: helder dev's entry is the file, its class path the directory)
+for (const f of ['Cube.hx', 'CubeShader.hx']) fs.copyFileSync(path.join(repo, 'examples/cube', f), path.join(work, 'app', f));
 const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
 
 adb('wait-for-device');
 adb('logcat', '-c');
 const lines = [];
 const waiters = [];
-const dev = spawn(process.execPath, [path.join(repo, 'node_modules/@hxmc/cli/hxmc/bootstrap/dev.mjs'), compiler, 'build.hxml'],
+const dev = spawn(helder, ['dev', 'app/Counter.hx', '--target', 'android', '--port', '0'],
 	{ cwd: work, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env } });
 const onLine = (l) => {
 	lines.push(l);
@@ -122,27 +138,35 @@ const pidOf = () => (adb('shell', 'pidof', PKG).stdout ?? '').trim();
 
 const times = [];
 try {
-	await line(/^hxmc dev: .* installed and started/, 600000, true);
+	await line(/^\s*started org\.helder\.counter on /, 600000, true);
 	const first = await printed(/v1 count=3 build=/, 'the first build');
 	check('the APK installed, the first build runs, its state changed', !!first);
 	await sleep(2000);
 	const pid = pidOf();
 	check('the app has a process', pid !== '', pid);
-	await line(/^hxmc dev: the program connected/, 30000, true).catch(() => check('the app connected to the dev server', false));
+	await line(/^\s*connected the app on /, 30000, true).catch(() => check('the app connected to the dev server', false));
 
-	const swapped = line(/^hxmc dev: (?:swapped|reloaded) in/);
+	const swapped = line(/^\s*reloaded in/);
 	edit((s) => s.replace('frames * 0.02', 'frames * 0.03').replace('"v1 count="', '"v2 count="'));
 	times.push(await swapped);
 	const v2 = await printed(/v2 count=\S+ build=/, 'edited');
 	check('edited: the new build, the count kept', /v2 count=3 /.test(v2), v2);
 	check('edited: the same process', pidOf() === pid, pidOf() + ' was ' + pid);
 
-	const swapped2 = line(/^hxmc dev: (?:swapped|reloaded) in/);
+	const swapped2 = line(/^\s*reloaded in/);
 	edit((s) => s.replace('"v2 count="', '"v3 count="'));
 	times.push(await swapped2);
 	const v3 = await printed(/v3 count=\S+ build=/, 'edited again');
 	check('edited again: the new build, the count kept', /v3 count=3 /.test(v3), v3);
 	check('edited again: the same process', pidOf() === pid, pidOf() + ' was ' + pid);
+
+	// (an asset: fetched from helder dev, then a change sent and loaded again)
+	check('the asset: fetched from helder dev', !!(await printed(/note=first note/, 'the asset')));
+	const sent = line(/^\s*asset note\.txt/);
+	writeNote('second note\n');
+	await sent;
+	check('the asset changed: the new text, nothing built', !!(await printed(/note=second note/, 'the asset changed')) && !lines.slice(-5).some((l) => /rebuilt/.test(l)));
+	check('the asset changed: the same process', pidOf() === pid, pidOf() + ' was ' + pid);
 	check('no crash', !crashed());
 } catch (e) {
 	console.log('FAIL ' + e.message);

@@ -14,21 +14,23 @@ import haxe.ds.Vector;
 // FontFile.parse throws. A glyph's points are read into buffers kept for
 // the next (outline: nothing allocated but a variable instance's deltas).
 class FontFile {
-	public final data:Bytes;
+	public var data(default, null):Bytes;
 	// unique per parsed face (atlas keys)
-	public final id:Int = nextId++;
+	public var id(default, null):Int = nextId++;
 	static var nextId = 1;
+	// bumped by replace (ui's DrawText: its texts laid out again)
+	public static var generation(default, null) = 0;
 	// where the face's table directory starts (a collection's face)
-	final base:Int;
-	final index:Int;
+	var base:Int;
+	var index:Int;
 	// a variable font's axes and deltas (null: not variable), this instance's
 	// normalized coordinates (null: the default instance)
 	var vars:Null<Variations> = null;
 	var coords:Null<Array<Float>> = null;
 	// (an instance's advances, by glyph)
 	var variedAdvances:Null<IntTable<Float>> = null;
-	final tables = new Map<String, Int>();
-	final lengths = new Map<String, Int>();
+	var tables = new Map<String, Int>();
+	var lengths = new Map<String, Int>();
 
 	public var unitsPerEm(default, null) = 1000;
 	public var ascender(default, null) = 0;
@@ -47,7 +49,7 @@ class FontFile {
 	var kernPairs:Null<IntTable<Int>> = null;
 	// GPOS's kern lookups' pair adjustment subtables (null: not read; empty: none)
 	var pairPos:Null<Array<Int>> = null;
-	final kernCache = new IntTable<Int>();
+	var kernCache = new IntTable<Int>();
 	// the tables read per glyph
 	var hmtx = 0;
 	var glyf = 0;
@@ -57,7 +59,59 @@ class FontFile {
 	// the CFF outlines (null: glyf's)
 	var cff:Null<Cff> = null;
 	// cmap lookups cached per character: pages of 256 (-1: not looked up)
-	final glyphPages:Array<haxe.ds.Vector<Int>> = [];
+	var glyphPages:Array<haxe.ds.Vector<Int>> = [];
+
+	// other's face in this one (helder.asset's reload of a font: what holds
+	// it shapes and draws the new one), under a new id (atlases' keys: its
+	// glyphs drawn again)
+	public function replace(other:FontFile) {
+		generation++;
+		data = other.data;
+		base = other.base;
+		index = other.index;
+		vars = other.vars;
+		coords = other.coords;
+		variedAdvances = other.variedAdvances;
+		tables = other.tables;
+		lengths = other.lengths;
+		unitsPerEm = other.unitsPerEm;
+		ascender = other.ascender;
+		descender = other.descender;
+		lineGap = other.lineGap;
+		numGlyphs = other.numGlyphs;
+		weight = other.weight;
+		italic = other.italic;
+		family = other.family;
+		subfamily = other.subfamily;
+		longLoca = other.longLoca;
+		numHMetrics = other.numHMetrics;
+		cmap = other.cmap;
+		cmapFormat = other.cmapFormat;
+		kernPairs = other.kernPairs;
+		pairPos = other.pairPos;
+		kernCache = other.kernCache;
+		hmtx = other.hmtx;
+		glyf = other.glyf;
+		locaAt = other.locaAt;
+		bitmapsOnly = other.bitmapsOnly;
+		cff = other.cff;
+		glyphPages = other.glyphPages;
+		gsubCache = other.gsubCache;
+		gposSubtables = other.gposSubtables;
+		gsubSubtableCache = other.gsubSubtableCache;
+		glyphClasses = other.glyphClasses;
+		gsubCacheFor = other.gsubCacheFor;
+		startsCache = other.startsCache;
+		gdefClasses = other.gdefClasses;
+		markCache = other.markCache;
+		hasColor = other.hasColor;
+		ends = other.ends;
+		flags = other.flags;
+		xs = other.xs;
+		ys = other.ys;
+		glyphAt = other.glyphAt;
+		id = nextId++;
+	}
 
 	// the face at index of a font file's bytes (a collection has several)
 	public static function parse(data:Bytes, index = 0):FontFile
@@ -323,7 +377,7 @@ class FontFile {
 		return out;
 	}
 
-	final gsubCache = new Map<String, Array<Int>>();
+	var gsubCache = new Map<String, Array<Int>>();
 
 	// a GSUB lookup's subtables (offsets) and type, extensions unwrapped
 	inline function gsubSubtables(lookup:Int):{type:Int, flag:Int, subtables:Array<Int>}
@@ -339,8 +393,8 @@ class FontFile {
 		return r;
 	}
 
-	final gposSubtables = new IntTable<{type:Int, flag:Int, subtables:Array<Int>}>();
-	final gsubSubtableCache = new IntTable<{type:Int, flag:Int, subtables:Array<Int>}>();
+	var gposSubtables = new IntTable<{type:Int, flag:Int, subtables:Array<Int>}>();
+	var gsubSubtableCache = new IntTable<{type:Int, flag:Int, subtables:Array<Int>}>();
 
 	function readSubtables(table:String, lookup:Int, extension:Int):{type:Int, flag:Int, subtables:Array<Int>} {
 		var g = tables.get(table), list = g + u16(data, g + 8);
@@ -457,7 +511,7 @@ class FontFile {
 		return l;
 	}
 
-	final gsubCacheFor = new Map<String, Array<{lookup:Int, value:Int}>>();
+	var gsubCacheFor = new Map<String, Array<{lookup:Int, value:Int}>>();
 
 	// a GSUB lookup's type (1 single, 3 alternate, 4 ligature, 5 context, 6 chained context...)
 	public inline function gsubType(lookup:Int):Int
@@ -492,7 +546,7 @@ class FontFile {
 		return b;
 	}
 
-	final startsCache = new IntTable<haxe.io.Bytes>();
+	var startsCache = new IntTable<haxe.io.Bytes>();
 
 	// a (chained) context substitution lookup's match at ids[at] (types 5
 	// and 6, each format; what comes before and after from start to end):
@@ -619,7 +673,7 @@ class FontFile {
 		return out;
 	}
 
-	final markCache = new Map<String, Array<Int>>();
+	var markCache = new Map<String, Array<Int>>();
 
 	// a mark attachment lookup's place for a mark: the offset (font units) from
 	// the glyph it attaches to (base: a base glyph, or a ligature with its

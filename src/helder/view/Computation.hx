@@ -49,11 +49,19 @@ class Computation extends Owner {
 			Reactive.owner = savedOwner;
 			Reactive.current = savedCurrent;
 			state = Clean;
+			// (a value not ready: a memo keeps it for its readers, an effect
+			// hands it to the Loading boundary above; it runs again once the
+			// value is, having read it)
+			if (e is Pending) {
+				pending(e);
+				return;
+			}
 			// (an ErrorBoundary above takes it)
 			if (!handle(e)) throw e;
 			return;
 		}
 		running = false;
+		ran();
 		Reactive.owner = savedOwner;
 		Reactive.current = savedCurrent;
 		state = Clean;
@@ -72,6 +80,13 @@ class Computation extends Owner {
 
 	function run()
 		fn();
+
+	// (a memo's: its value not ready; an effect's: told to the boundary)
+	function pending(p:Pending)
+		suspended(p);
+
+	// (ran to its end: no longer pending)
+	function ran() {}
 
 	// s read for the first time since this last ran: added to its sources
 	@:allow(helder.view) function depend(s:Source):Bool {

@@ -55,6 +55,7 @@ class ViewRuntime {
 		else if (Std.isOfType(v, helder.view.Flow.ForList)) mounted(forList(v, parent, before), out);
 		else if (Std.isOfType(v, helder.view.Flow.IndexList)) mounted(indexList(v, parent, before), out);
 		else if (Std.isOfType(v, helder.view.Flow.Boundary)) mounted(boundary(v, parent, before), out);
+		else if (Std.isOfType(v, helder.view.Flow.Waiting)) mounted(loading(v, parent, before), out);
 		else if (Std.isOfType(v, helder.view.Flow.Mountable)) {
 			var m:helder.view.Flow.Mountable<HostNode> = cast v;
 			mounted(m.mount(parent, before), out);
@@ -126,6 +127,12 @@ class ViewRuntime {
 		try {
 			var result = helder.view.Reactive.untrack(factory);
 			add(result, parent, before, out);
+		} catch (e:helder.view.Pending) {
+			// (a value not ready while it was made: nothing of it, the Loading
+			// boundary above told, which makes it again once it is)
+			helder.view.Reactive.owner = saved;
+			o.suspended(e);
+			return;
 		} catch (e:Dynamic) {
 			helder.view.Reactive.owner = saved;
 			throw e;
@@ -211,7 +218,9 @@ class ViewRuntime {
 	// the value as a text part (a String, or a reactive one whose value is text now), or null when it is not text
 	static function textPart(v:Dynamic):Null<Dynamic> {
 		if (isText(v)) return Std.string(v);
-		if (helder.view.Render.isReactive(v) && isText(helder.view.Reactive.untrack(() -> helder.view.Render.read(v)))) return v;
+		// (a value not ready: not known as text, bound as content: its region's
+		// effect tells the Loading boundary)
+		if (helder.view.Render.isReactive(v) && isText(try helder.view.Reactive.untrack(() -> helder.view.Render.read(v)) catch (_:helder.view.Pending) null)) return v;
 		return null;
 	}
 
@@ -429,6 +438,76 @@ class ViewRuntime {
 			helder.view.Reactive.untrack(() -> show(err));
 		});
 		helder.view.Reactive.onCleanup(clear);
+		return [anchor];
+	}
+
+	// Loading: its children, the fallback instead while what they read on
+	// their first load is not ready (they are dropped and made again once
+	// it is); once shown they stay
+	static function loading(w:helder.view.Flow.Waiting, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
+		var anchor = marker(parent, before, "loading");
+		var owner = helder.view.Reactive.owner;
+		var current:Array<HostNode> = [], content:Null<helder.view.Owner> = null, shown = false, done = false, tries = 0;
+		function clear() {
+			if (content != null) content.dispose();
+			content = null;
+			for (n in current)
+				detach(parent, n);
+			current = [];
+		}
+		function attempt() {
+			if (done) return;
+			var at = ++tries;
+			clear();
+			var waiting:Array<helder.view.Pending.Loadable> = [];
+			var o = new helder.view.Owner(owner);
+			// (after the first load: nothing to wait for, the content stays)
+			o.onPending = p -> if (!shown && !waiting.contains(p.source)) waiting.push(p.source);
+			content = o;
+			var saved = helder.view.Reactive.owner;
+			helder.view.Reactive.owner = o;
+			var made:Array<HostNode> = [];
+			try {
+				insertTo(w.children, parent, anchor, made);
+				helder.view.Reactive.owner = saved;
+			} catch (e:helder.view.Pending) {
+				// (read while it was made, not in a computation of its own)
+				helder.view.Reactive.owner = saved;
+				if (!waiting.contains(e.source)) waiting.push(e.source);
+			} catch (e:Dynamic) {
+				helder.view.Reactive.owner = saved;
+				o.dispose();
+				for (n in made)
+					detach(parent, n);
+				content = null;
+				// (an ErrorBoundary above takes it)
+				if (owner == null || !owner.handle(e)) throw e;
+				return;
+			}
+			current = made;
+			if (waiting.length == 0) {
+				shown = true;
+				return;
+			}
+			// (not ready: the content dropped, the fallback until all it read is)
+			clear();
+			var f = new helder.view.Owner(owner);
+			content = f;
+			helder.view.Reactive.owner = f;
+			try current = insert(w.fallback, parent, anchor) catch (e:Dynamic) {
+				helder.view.Reactive.owner = saved;
+				throw e;
+			}
+			helder.view.Reactive.owner = saved;
+			var left = waiting.length;
+			for (l in waiting)
+				l.whenReady(() -> if (--left == 0 && at == tries) helder.view.Reactive.runWithOwner(owner, attempt));
+		}
+		attempt();
+		helder.view.Reactive.onCleanup(() -> {
+			done = true;
+			clear();
+		});
 		return [anchor];
 	}
 

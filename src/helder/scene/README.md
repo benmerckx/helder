@@ -54,7 +54,7 @@ views). `doc.floats(accessor)` and `doc.indices(accessor)` read accessors of
 any component type, normalized or strided. `GltfNodes.build(doc, world, ?parent, ?scene, ?mesh)` makes the node
 hierarchy (TRS or matrices, cameras); `GltfScene` makes the GPU meshes and
 materials once and `instantiate(world)` copies the hierarchy into a world.
-`Asset.embed(path)` builds a file into the program.
+helder.asset's `Asset.embed(path)` builds a file into the code itself.
 
 ## Models
 
@@ -65,13 +65,12 @@ var hand = root.find(hero.nodes.LeftHand);   // hero.nodes.LeftHnad: a compile e
 ```
 
 `Model.of` reads the file's names when compiling (nodes, meshes,
-materials, animations: `model.nodes`, ...). A file up to 64 KB is built
-into the program (`-D helder.scene.embed=<bytes>`); a larger one is copied
-beside it (`assets/`, listed in `<output>.assets.json`), read from beside
-the executable natively and fetched before main in the browser
-(`browser.mjs`'s `assets` option: `run(wasm, {assets: 'app.wasm.assets.json'})`);
-the repository tool's `hxmc <output> ...` form needs `-D helder.scene.out=<output>`.
-For now self-contained files only for now (one embedded
+materials, animations: `model.nodes`, ...). Its path is an asset's
+(src/helder/asset/README.md): found under a class path or the project,
+checked when compiling, the file in every build that still uses it (the
+executable's data, the APK's or the app's `assets/`, beside the page), read
+before anything runs (in the browser fetched before main: `browser.mjs`'s
+`assets` option, `<module>.assets.json`). For now self-contained files only (one embedded
 buffer, images inside it). Textures need a decoder, named by
 the program so that none is linked otherwise (`helder.image`'s; a glTF
 viewer natively: 805 KB without one, 1.1 MB with PNG, JPEG and WebP):
@@ -99,10 +98,15 @@ materials (factors, maps, sampler), images (decoded by `Images.decode`
 when loaded), cameras, lights, skins, morph targets, animations (`model.clip(name)`,
 playing on the nodes `instantiate` made) and the hierarchy.
 
-Big files or loading screens: `Model.of(path, Lazy)` is an `Asset` of the
-same typed model, loaded in the background (`asset.then(m -> ...)`,
-`asset.ready`); `Model.load(path)` loads a path known only at run time.
-Loads advance in `Assets.poll()`, which `Stages.frame` calls.
+Big files or loading screens: `Asset.model(path)` (or `Model.of(path,
+Lazy)`) is an `Asset` of the same typed model, loaded in the background
+(`var hero = Asset.model(path).load();` in a coroutine; `asset.ready`,
+`asset.peek()` in the frame loop); under `helder dev` a change to the file
+is loaded again into the same `Model` (`replace`: each mesh's primitives
+and materials swapped in the mesh objects its instances draw; their nodes,
+morphs and skins as they were made). `Model.load(path)` loads a path known
+only at run time (not bundled). Loads advance on the main thread's loop
+(`App.run`), or in `Assets.poll()`, which `Stages.frame` calls.
 
 ## Animation
 

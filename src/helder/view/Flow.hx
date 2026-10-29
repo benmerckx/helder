@@ -12,6 +12,7 @@ import helder.view.Memo;
 //   <Switch fallback="other"><Match when={a}>A</Match><Match when={b}>B</Match></Switch>
 //   <Provider context={theme} value={dark}>{...}</Provider>
 //   <ErrorBoundary fallback={(e, reset) -> ...}>{...}</ErrorBoundary>
+//   <Loading fallback={<text>loading</text>}>{...}</Loading>
 //
 // For keeps each item's nodes (keyed by the item itself): when the list
 // changes, items still there are moved, not made again; the others are
@@ -21,6 +22,13 @@ import helder.view.Memo;
 // chooses it). Provider sets a context for its children (Reactive.use).
 // ErrorBoundary shows fallback instead of its children when rendering them
 // throws, or a computation inside them does later; reset tries again.
+// Loading (Solid 2.0's, Suspense's successor) shows fallback instead of
+// its children while what they read on their first load is not ready
+// (Pending: helder.asset's Asset.value), then its children; after that it
+// keeps them shown: a value replaced later (a reload) is read once it is
+// here, with no fallback in between (Reactive.isPending says one is on its
+// way). Its children are made, and while something they read is pending,
+// dropped and made again once it is ready (their components run twice).
 class Flow {
 	public static function For<T>(props:{each:Dynamic, render:T->Any}):Any
 		return new ForList(props.each, cast props.render);
@@ -80,6 +88,9 @@ class Flow {
 
 	public static function ErrorBoundary(props:{fallback:(Dynamic, Void->Void)->Any, ?children:Any}):Any
 		return new Boundary(props.fallback, props.children);
+
+	public static function Loading(props:{?fallback:Any, ?children:Any}):Any
+		return new Waiting(props.fallback, props.children);
 }
 
 // content a renderer's own components mount (ui's Popover, VirtualList):
@@ -119,6 +130,16 @@ class IndexList {
 	public function new(each:Dynamic, render:(Signal<Dynamic>, Int)->Any) {
 		this.each = each;
 		this.render = render;
+	}
+}
+
+class Waiting {
+	public final fallback:Any;
+	public final children:Any;
+
+	public function new(fallback:Any, children:Any) {
+		this.fallback = fallback;
+		this.children = children;
 	}
 }
 

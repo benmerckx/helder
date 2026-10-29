@@ -10,7 +10,7 @@ import hxmc.unsafe.*;
 // activity's commands meanwhile, so that a callback waiting for one is not
 // stuck; post does not wait). The first makes it a Haxe thread
 // (NativeThread.attach): Java's calls into the app (the natives of
-// classes.dex, hxmc.android.Glue) run Haxe there from then on, while the
+// classes.dex, helder.pack.android.Glue) run Haxe there from then on, while the
 // program's thread waits. Frames are Choreographer's on that thread
 // (AChoreographer, at the display's vsync), posted while onFrame asks for
 // another. What runs there from the system's looper calls Java in a local

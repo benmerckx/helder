@@ -36,14 +36,14 @@ class Size {
 		var clock = new helder.scene.FixedStep();
 		#end
 		#if (size_level >= 3 && !size_packed)
-		var doc = helder.scene.gltf.Gltf.parse(helder.scene.gltf.Asset.embed("sample.glb"));
+		var doc = helder.scene.gltf.Gltf.parse(helder.asset.Asset.embed("sample.glb"));
 		#end
 		#if (size_level == 3)
 		helder.scene.gltf.GltfNodes.build(doc, world);
 		#end
 		#if size_packed
 		var renderer = new helder.scene.render.Renderer(device);
-		helder.scene.render.PackedModel.read(helder.scene.gltf.Asset.embed("bin/3d/sample.hxm3d"), device).instantiate(world);
+		helder.scene.render.PackedModel.read(helder.asset.Asset.embed("bin/3d/sample.hxm3d"), device).instantiate(world);
 		#elseif (size_level >= 4)
 		var renderer = new helder.scene.render.Renderer(device);
 		#if (size_level >= 5)

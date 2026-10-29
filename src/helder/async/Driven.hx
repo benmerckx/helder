@@ -15,6 +15,8 @@ interface Driven {
 	// is ready, and by 10 ms while I/O or a post may come that a wait of the
 	// driver's own does not watch (its descriptors are not the loop's)
 	function bound(seconds:Float):Float;
+	// inside turn: what runs there may not turn it again (helder.asset's Assets.poll)
+	var turning(default, null):Bool;
 }
 
 class MainLoop {
