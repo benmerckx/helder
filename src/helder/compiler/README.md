@@ -34,6 +34,3 @@ and helder.typescript's sources, into the user's cache
 compiler sources from `@hxmc/source` (a dev dependency at `@hxmc/cli`'s
 version), or a checkout `HXMC_SRC` names; `--sources` prints their path
 instead (for tests that link them too).
-
-These sources are formatted by haxe-formatter with the repository's
-`hxformat.json`.

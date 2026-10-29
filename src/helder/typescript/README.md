@@ -224,8 +224,3 @@ The lane needs node 24 or later.
 
 `node tests/typescript/bench.mjs [names]` times the programs of `bench/`
 compiled by helder's compiler against node (median of 5 runs each).
-
-These sources are formatted by haxe-formatter (its master, for Haxe 4.3's
-operators) with the repository's `hxformat.json`, which keeps helder's
-single-line bodies and unwrapped lines; `generate.mjs` writes its files
-already formatted.
