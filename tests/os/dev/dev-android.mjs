@@ -165,7 +165,9 @@ try {
 	const sent = line(/^\s*asset note\.txt/);
 	writeNote('second note\n');
 	await sent;
-	check('the asset changed: the new text, nothing built', !!(await printed(/note=second note/, 'the asset changed')) && !lines.slice(-5).some((l) => /rebuilt/.test(l)));
+	// (nothing built from the change on: the lines since it was sent)
+	const since = lines.length;
+	check('the asset changed: the new text, nothing built', !!(await printed(/note=second note/, 'the asset changed')) && !lines.slice(since - 1).some((l) => /rebuilt/.test(l)));
 	check('the asset changed: the same process', pidOf() === pid, pidOf() + ' was ' + pid);
 	check('no crash', !crashed());
 } catch (e) {
