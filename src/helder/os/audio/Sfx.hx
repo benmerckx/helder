@@ -5,8 +5,8 @@ import hxmc.unsafe.*;
 // Short sound effects, played at once: one-shots (a hit, a bounce, a
 // chime) mixed into one Audio output by a few voices, each a sound's
 // samples (mono, at the output's rate: Sfx.RATE), a gain and a rate (pitch).
-// The sounds are made up front (procedurally, or decoded elsewhere: no
-// decoder here yet), play only sets a voice's fields, and the mix allocates
+// The sounds are made up front (procedurally, or a WAV file decoded by
+// Wav: `sfx.add(Wav.decode(bytes).mono(Sfx.RATE))`), play only sets a voice's fields, and the mix allocates
 // nothing on the audio thread. Where there is no output (Android and iOS:
 // no back end yet; a machine without a device) it plays nothing.
 //

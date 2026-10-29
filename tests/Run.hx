@@ -50,6 +50,7 @@ class Run {
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium", run: sceneWeb},
 		{name: "gfx", about: "helder.gfx: the examples headless and in a window against golden images (tests/gfx/check.sh; Linux: Mesa, Xvfb)", run: gfx},
+		{name: "sprite", about: "helder.sprite's SpriteBatch on a GPU, headless (tests/sprite/SpriteFrame.hx; Linux: Mesa): sprites placed, scaled, turned, faded and added, two textures; its CPU half and the atlas are the test lane's", run: sprite},
 		{name: "gfx-web", about: "helder.gfx on WebGPU and WebGL2 (wasm32-wasi) in headless Chromium", run: gfxWeb},
 		{name: "audio", about: "helder.os's audio through each back end without speakers (tests/os/audio.sh)", run: audio},
 		{name: "audio-web", about: "helder.os's audio on WebAudio in headless Chromium", run: audioWeb},
@@ -407,6 +408,12 @@ class Run {
 	static function gfx() {
 		gfxPrograms();
 		run("sh", ["tests/gfx/check.sh", 'bin/gfx/$GFX_TARGET']);
+	}
+
+	static function sprite() {
+		native('bin/sprite/$GFX_TARGET/SpriteFrame', cps(["src", "tests/sprite"]).concat(["-main", "SpriteFrame"]), GFX_TARGET);
+		Sys.putEnv("LIBGL_ALWAYS_SOFTWARE", "1");
+		run(exePath('bin/sprite/$GFX_TARGET/SpriteFrame', GFX_TARGET), []);
 	}
 
 	static function gfxWeb() {

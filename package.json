@@ -6,6 +6,9 @@
   "files": [
     "src/"
   ],
+  "bin": {
+    "helder": "src/helder/cli/run.mjs"
+  },
   "exports": {
     "./view": {
       "types": "./src/helder/view/index.d.ts"

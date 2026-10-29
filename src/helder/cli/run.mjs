@@ -1,4 +1,6 @@
-// The helder command from this checkout (`bun run helder <command> ...`):
+#!/usr/bin/env node
+// The helder command from this checkout (`bun run helder <command> ...`), or
+// from an app's node_modules (package.json's bin: `bun run helder`, `npx helder`):
 // bin/cli/helder built by hxmc (helder.cli.Cli, on helder.async) when a
 // source of it is newer, then run in the working directory with the
 // arguments. The binary on npm comes later.
@@ -7,13 +9,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 // (fileURLToPath: a URL's pathname is /C:/... on Windows)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const exe = path.join(root, 'bin/cli', process.platform === 'win32' ? 'helder.exe' : 'helder');
 // (the compiler through its launcher, run by this node: node will not spawn a
 // .cmd without a shell, node_modules/.bin's haxe.cmd on Windows)
-const haxe = process.env.HAXE ? [process.env.HAXE] : [process.execPath, path.join(root, 'node_modules/@hxmc/cli/hxmc/bootstrap/haxe.mjs')];
+// (@hxmc/cli: this checkout's, else where the app's install put it: helder
+// as a dependency has its peer beside it, not under it)
+function hxmcCli() {
+	const own = path.join(root, 'node_modules/@hxmc/cli');
+	if (fs.existsSync(own)) return own;
+	for (const from of [path.join(process.cwd(), 'package.json'), path.join(root, 'package.json')])
+		try {
+			return path.dirname(createRequire(from).resolve('@hxmc/cli/package.json'));
+		} catch {}
+	return own;
+}
+const haxe = process.env.HAXE ? [process.env.HAXE] : [process.execPath, path.join(hxmcCli(), 'hxmc/bootstrap/haxe.mjs')];
 
 // (the newest .hx under the CLI's packages)
 function newest(dir) {

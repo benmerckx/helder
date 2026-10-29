@@ -152,8 +152,9 @@ class Entry {
 		var h:Dynamic = json.helder;
 		if (h != null) {
 			config = h;
-			if (h.main != null) main = h.main;
-			if (h.name != null) name = h.name;
+			// (a project's main and name: a file in it is its own main, named as it)
+			if (own && h.main != null) main = h.main;
+			if (own && h.name != null) name = h.name;
 			if (h.defines != null) for (k in Reflect.fields(h.defines)) defines = defines.concat(["-D", '$k=${Reflect.field(h.defines, k)}']);
 		}
 		if (own) name ??= Path.withoutDirectory(Std.string(json.name ?? Path.withoutDirectory(FileSystem.fullPath(dir))));

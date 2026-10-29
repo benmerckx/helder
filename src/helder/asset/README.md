@@ -34,7 +34,7 @@ if (icon.ready) draw(icon.peek());
 | `Asset.image(path)` | an `helder.image.Image`: a PNG decoded as a GC-free job (`ImageJobs`), JPEG, GIF and WebP by `Image.decode` |
 | `Asset.font(path)` | a `helder.text.FontFile` (its first face), its faces added to `SystemFonts` (ui finds them by family) |
 | `Asset.model(path)` | a `helder.scene.render.Model`, its names typed from the file (`model.nodes.LeftHand`), as `Model.of` types them |
-| `Asset.sound(path)` | the file's bytes (no decoding yet) |
+| `Asset.sound(path)` | the file's bytes (a WAV decoded by `helder.os.audio.Wav.decode`, for `Sfx`) |
 | `Asset.bytes(path)` | the file's bytes |
 | `Asset.embed(path)` | the bytes built into the code itself, there at once (small files; not bundled, not reloaded) |
 
