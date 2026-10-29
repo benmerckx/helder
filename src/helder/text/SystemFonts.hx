@@ -3,7 +3,7 @@ package helder.text;
 import haxe.io.Bytes;
 
 // The fonts a program can use: the system's (OpenType files found in the
-// usual directories of Linux, Windows and macOS, their names read without
+// usual directories of Linux, Android, Windows and macOS, their names read without
 // loading them; in a browser, the fonts the page gives: WebFonts) and fonts
 // added from bytes (add: a program may bring its own). match picks a face as CSS does: the
 // family (or a generic one: sans-serif, serif, monospace, mapped to
@@ -18,8 +18,8 @@ class SystemFonts {
 
 	public static final GENERIC = [
 		"sans-serif" => [
-			"Segoe UI", "SF Pro Text", "Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans", "Noto Sans", "Liberation Sans", "Cantarell", "Ubuntu", "FreeSans",
-			"Verdana"
+			"Segoe UI", "SF Pro Text", "Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans", "Noto Sans", "Roboto", "Liberation Sans", "Cantarell", "Ubuntu",
+			"FreeSans", "Verdana"
 		],
 		"serif" => ["Times New Roman", "Georgia", "DejaVu Serif", "Noto Serif", "Liberation Serif", "Times", "FreeSerif"],
 		"monospace" => ["Consolas", "Cascadia Mono", "Menlo", "SF Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Liberation Mono", "Courier New", "FreeMono"],
@@ -216,7 +216,8 @@ class SystemFonts {
 				["/System/Library/Fonts", "/Library/Fonts"].concat(home != null ? [home + "/Library/Fonts"] : []);
 			case _:
 				var xdg = Sys.getEnv("XDG_DATA_HOME");
-				["/usr/share/fonts", "/usr/local/share/fonts"].concat(home != null ? [home + "/.fonts", home + "/.local/share/fonts"] : []).concat(xdg != null ? [xdg + "/fonts"] : []);
+				// (Android's: /system/fonts, the product's and the system extension's)
+				["/usr/share/fonts", "/usr/local/share/fonts", "/system/fonts", "/product/fonts", "/system_ext/fonts"].concat(home != null ? [home + "/.fonts", home + "/.local/share/fonts"] : []).concat(xdg != null ? [xdg + "/fonts"] : []);
 		}
 	}
 

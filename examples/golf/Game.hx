@@ -156,6 +156,8 @@ class Game {
 		var s = Shadows.cascaded(r.device, 2048, 12);
 		s.strength = 0.6;
 		r.use(s);
+		// (a renderer made again: the <Scene> without multisampling on a GPU that had none; the meshes kept)
+		if (kit != null) return;
 		kit = new Kit(r.device);
 		Sounds.start();
 		var k = kit;

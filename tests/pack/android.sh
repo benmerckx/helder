@@ -124,5 +124,10 @@ sleep 3
 adb exec-out screencap -p > "$out/golf.png"
 adb logcat -d > "$out/golf-logcat.txt"
 adb logcat -d -v raw -s hxmc:I | tail -20
+# (still running three seconds on, nothing uncaught: a crash after the first frame, a missing font, show here)
+[ -n "$(adb shell pidof $gid)" ]
+check "golf: still running after its first frames" $?
+! seen "Uncaught exception"
+check "golf: nothing uncaught" $?
 adb shell am force-stop $gid
 exit $failed
