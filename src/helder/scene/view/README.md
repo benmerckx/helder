@@ -45,7 +45,10 @@ pos(new Vec3(1, 1, 0));   // the node moves at the next flush: no reconciliation
   click go there); a hovering mouse or pen picks as it moves (enter,
   leave). The `SceneEvent` is one per box, refilled; listeners are kept by
   kind when set. The box's pointers are the game's (`ownsPointer`: a
-  touch on the scene is not marked the ui's).
+  touch on the scene is not marked the ui's). `SceneEvents` declares them
+  (SceneRenderer's `@:events`): a handler takes a `SceneEvent` or nothing,
+  an untyped parameter is one (`onClick={e -> picked(e.node.name)}`),
+  another type or name a compile error at the attribute.
 - **Taps and the camera**: `onTap` on scene elements (the box's own
   `Tap`, for the node its press picked; `e.gesture`) competes in the
   pointer's arena with `<OrbitControls>` (`SceneTags.OrbitControls`,

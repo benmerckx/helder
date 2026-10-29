@@ -334,6 +334,17 @@ better, named by an enum and chosen with `<Switch>`. What it buys:
 Solid's shape with no separate `set` and `update`, and `signal(fn)`
 free for writable derived values (2, Memos).
 
+As built (step 4, Handlers): `signal(fnValue)` is the derived form, so
+`var s:Signal<Int->Int> = signal(f)` is a type error; but Haxe has no
+negative constraint, so without a macro `Signal<F>` itself cannot be
+refused, and `signal(() -> f)` (a derived signal whose value is a
+function) types as one. The rest is at run time, never a dispatch: the
+derived signal of a function throws when it is made (as `signal(v)` of a
+function value does), and a write whose argument is a function at run
+time (a `Dynamic`, which the static type sends to the write) throws
+(`Node.set`) instead of storing it. A Haxe signal is then never seen
+holding one, and no `Dynamic` decides between a write and an update.
+
 `.peek()` stays, an untracked read. `.value` goes (6, 9): one way to
 read and write.
 
@@ -499,12 +510,38 @@ macro on that class only) stays for builds by plain `haxe`.
      scheduled, `onSettled`'s, has run), as onMount ran at the end of the
      insertion.
    - **Handlers**: one that takes no event is given one it ignores
-     (Target.handler: typed where the literal is); a neutral element's
-     handler parameter without a type is typed as ui's Event, so
-     `e -> name(e.text)` is a write. A `Signal`'s update overload is
-     declared before its write: an argument of no static type (Dynamic)
-     is then a write, a function literal an update (3.1 said Dynamic
-     picks the update).
+     (Target.handler: typed where the literal is). A `Signal`'s update
+     overload is declared before its write: an argument of no static type
+     (Dynamic) is then a write, a function literal an update (3.1 said
+     Dynamic picks the update); a Dynamic that is a function at run time
+     is an error, not written (3.1, as built).
+   - **Typed handlers**: each renderer declares its events, `@:events(T)` on
+     its class (the contract's metadata, beside `@:elements`), T a
+     structure of each event attribute's event type: ui's
+     `helder.ui.view.NodeEvents` (`onPress` an `Event`, `onTap` a `Tap`,
+     `onPan` a `Pan`, `onPinch` and `onScale` a `Scale`), which are the
+     neutral elements' in every renderer; `helder.web.DomEvents` (lib.dom's
+     types, `on` typing `on:name`; Dynamic outside JavaScript, where the
+     static renderer drops them); `helder.scene.view.SceneEvents` (a
+     `SceneEvent`). helder.ui.native's controls are components, their
+     handlers props (`onClick:Void->Void`, `onSubmit:String->Void`), which
+     Haxe checks as any prop. The planner hands each listener to the
+     target with its name and renderer (Target.handler); the macro checks
+     it: an untyped parameter typed as the event (`e -> name(e.text)` a
+     String written), a function of the event (or of a supertype: `(g:Gesture) -> ...`)
+     or of none taken, `null` too; a name not declared, a value of no static
+     type, a function of another type or of two arguments an error from the
+     attribute's name to its value's end: `markup: onKeyDown's handler
+     takes a js.html.MouseEvent, but helder.web.DomRenderer gives onKeyDown
+     a js.html.KeyboardEvent: a function of a js.html.KeyboardEvent or of
+     none (js.html.KeyboardEvent -> Void, or Void -> Void)`. A renderer
+     declaring none (a test's) takes any function of one argument or none;
+     so does an agnostic literal's own element (`<div>` in a plain View: no
+     renderer to check against until it is made for each, after typing,
+     where its holes are values of no type). The structures are data the
+     manifest (7.3) reads: the `.d.ts`'s `JSX.IntrinsicElements` per
+     renderer, `onKeyDown?: (e: KeyboardEvent) => void`, without a list
+     written twice. tests/view/reject's Handler*.hx pin the errors.
    - **3.3's rule**: `new X(...)` reads what its arguments read, not more
      (a struct made once: hxmc passes no function returning a struct as
      one of another type); a TypeScript program's value through its glue
@@ -569,7 +606,8 @@ the runtime underneath is its own (2, Allocation).
    `<For each={items}>{i -> ...}</For>`, keyed by identity or by index
    (replacing `Index`), and `<Repeat>` by count.
 8. **Handlers** may omit the event: listener props accept `Void->Void`
-   too (`@:from`), so `onPress={() -> ...}` in both languages.
+   too (`@:from`), so `onPress={() -> ...}` in both languages. An
+   element's are typed by its renderer's events (`@:events`, step 4).
 9. **`.value` goes**, now: the call form is the only one (3.1);
    helder's own code and the examples are ported with the core.
 
@@ -639,7 +677,9 @@ TypeScript target comes next.
 ### 7.3 The manifest and the declarations
 
 Built with helder: each renderer's contract (the IR names of its
-functions, its elements, its setters and their types) and the public
+functions, its elements (`@:elements`), its events (`@:events`: a
+structure of each event attribute's event type, step 4), its setters and
+their types) and the public
 API's signatures. The TypeScript frontend reads it instead of typing helder in Haxe
 per program, and the `.d.ts` files (with typed `JSX.IntrinsicElements`
 per renderer) are generated from it: nothing written by hand to drift.

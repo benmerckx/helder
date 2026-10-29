@@ -36,7 +36,18 @@ class App implements Markup {
 - Listeners on the element itself (`onClick`: `click`, `onDoubleClick`:
   `dblclick`, `on:my-event`: `my-event`). Not delegated: a listener per
   element keeps `stopPropagation` and the handlers' order as the DOM has
-  them, and fine-grained updates do not re-add them.
+  them, and fine-grained updates do not re-add them. Typed as lib.dom types
+  them (`helder.web.DomEvents`, the renderer's `@:events`): `onClick` a
+  `js.html.MouseEvent`, `onKeyDown` a `KeyboardEvent`, `onInput` an `Event`,
+  `on:my-event` an `Event`; a handler takes its event or none, an untyped
+  parameter is typed as it (`onKeyDown={e -> if (e.key == "Enter") ...}`),
+  and another type, a Dynamic value or a name DomEvents has not is a compile
+  error at the attribute. The static renderer declares the same names; its
+  events are Dynamic outside JavaScript (no `js.html` there, its listeners
+  dropped), so code both builds compile types the same. An agnostic
+  component's own elements (a `<button>` in a plain `View`, an island's)
+  are not checked against either: their handlers must be functions of one
+  argument or none (`(e:Dynamic) -> ...` where they read the event).
 
 ## Static pages
 
@@ -184,8 +195,8 @@ DomRenderer realises them at compile time (NeutralMacro: `view` a `div`,
 property, `onInput` the DOM's input, its text `e.text`)...; `slot`,
 `variant`, `size` as `data-*`, `label`, `checked`, `expanded`... as
 `aria-*`, `focusable` as `tabindex`, `id` as it is, ui's `tag` none,
-StyleProps as inline style; events as ui's Event, `onPress` a click; a
-name it has not an error), a ref getting an `ElementPart`. The page's look
+StyleProps as inline style; events as ui's Event, `onPress` a click,
+typed as ui's (`NodeEvents`) when compiled; a name it has not an error), a ref getting an `ElementPart`. The page's look
 is its CSS.
 
 ## From TypeScript

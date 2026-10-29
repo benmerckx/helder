@@ -14,12 +14,14 @@ abstract Signal<T>(Node<T>) {
 		return this.read();
 
 	// (update before write: an argument of no static type, Dynamic, is then a
-	// write (Haxe picks the last overload it fits), a function literal an update)
+	// write (Haxe picks the last overload it fits), a function literal an
+	// update; chosen by the static type, never the value: a Dynamic that is
+	// a function at run time is an error (Node.set), not written, not an update)
 	@:op(a()) inline function update(f:T->T):Void
 		this.update(f);
 
 	@:op(a()) inline function write(value:T):Void
-		this.write(value);
+		this.set(value);
 
 	// the committed value, not tracked
 	public inline function peek():T

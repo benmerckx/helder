@@ -47,6 +47,30 @@ using haxe.macro.ExprTools;
 class MarkupMacro {
 	// the root (helder.view.Root: RootView), as a literal's renderer: components only, no code to mount
 	public static inline final ROOT = "helder.view.Root";
+	// the neutral elements' events (view, text, view:button...): ui's, in every renderer
+	public static inline final NEUTRAL_EVENTS = "helder.ui.view.NodeEvents";
+
+	// (the events of a type @:events names: its fields' types by name)
+	static final eventSets = new Map<String, Map<String, Type>>();
+
+	// the events a renderer declares (@:events(T): T's fields, each attribute's
+	// event type), the neutral elements' when neutral; null: it declares none
+	public static function events(renderer:Null<String>, neutral:Bool):Null<{of:String, events:Map<String, Type>}> {
+		var path = neutral ? NEUTRAL_EVENTS : renderer == null || renderer == ROOT ? null : HostMacro.info(renderer).events;
+		if (path == null) return null;
+		var set = eventSets.get(path);
+		if (set == null) {
+			set = new Map();
+			switch Context.follow(Context.getType(path)) {
+				case TAnonymous(a):
+					for (f in a.get().fields)
+						set.set(f.name, f.type);
+				case t: Context.error('helder.view: @:events($path) is no structure of events (${haxe.macro.TypeTools.toString(t)})', Context.currentPos());
+			}
+			eventSets.set(path, set);
+		}
+		return {of: neutral ? "a neutral element (its events ui's, " + path + ")" : renderer, events: set};
+	}
 
 	// the Markup interface's build macro: every field's literals wrapped
 	public static function build():Array<Field> {
@@ -415,23 +439,71 @@ class HaxeTarget implements Target<Expr> {
 	public function thunk(e:Expr):Expr
 		return macro @:pos(e.pos) () -> $e;
 
-	public function handler(e:Expr, neutral:Bool):Expr {
-		// (a neutral element's event is ui's: e -> name(e.text) typed, a write and not an update)
-		if (neutral)
-			switch e.expr {
-				case EFunction(k, f) if (f.args.length == 1 && f.args[0].type == null):
-					e = {expr: EFunction(k, {args: [{name: f.args[0].name, type: macro :helder.ui.Event, opt: f.args[0].opt, meta: f.args[0].meta}], ret: f.ret, expr: f.expr, params: f.params}), pos: e.pos};
-				case _:
+	// a listener checked against its renderer's events (MarkupMacro.events; a
+	// neutral element's: ui's): a function of its event or of none, an untyped
+	// parameter typed as its event (e -> name(e.text): a String written, not
+	// a Dynamic), one of no event given one it ignores (null stays null); a
+	// name it does not declare, a value of no static type (Dynamic) or a
+	// function of another type an error at the attribute (its name to its
+	// value's end). A renderer that declares none (and an agnostic literal's
+	// own elements): a function of one argument or none, its event unknown
+	public function handler(e:Expr, name:String, renderer:Null<String>, neutral:Bool, where:Where):Expr {
+		var set = MarkupMacro.events(renderer, neutral);
+		var event:Null<Type> = null;
+		if (set != null) {
+			event = set.events.get(StringTools.startsWith(name, "on:") ? "on" : name);
+			if (event == null) {
+				var names = [for (n in set.events.keys()) if (n != "on") n];
+				names.sort(Reflect.compare);
+				Context.error("markup: " + name + " is no event of " + set.of + " (" + names.join(", ")
+					+ (set.events.exists("on") ? "; on:name, a custom one" : "") + ")", at(where));
 			}
-		var t = try Context.typeof(e) catch (_:Dynamic) return e;
-		return switch Context.follow(t) {
-			case TFun([], _): macro @:pos(e.pos) {
-					var __f = $e;
-					(_:Dynamic) -> __f();
-				};
-			case _: e;
 		}
+		var shown = event == null ? null : haxe.macro.TypeTools.toString(Context.follow(event));
+		var want = event == null ? "a function of its event or of none" : "a function of " + article(shown) + " or of none (" + shown
+			+ " -> Void, or Void -> Void)";
+		var gives = event == null ? "" : ", but " + set.of + " gives " + name + " " + article(shown);
+		// (from the attribute's name to its value's end)
+		var info = Context.getPosInfos(e.pos), from = Context.getPosInfos(at(where));
+		var attr = Context.makePosition({file: info.file, min: from.min < info.min ? from.min : info.min, max: info.max});
+		switch e.expr {
+			case EConst(CIdent("null")): return e;
+			// (its parameter untyped: its event's)
+			case EFunction(k, f) if (event != null && f.args.length == 1 && f.args[0].type == null):
+				var a = f.args[0];
+				var ct = haxe.macro.TypeTools.toComplexType(Context.follow(event));
+				e = {expr: EFunction(k, {args: [{name: a.name, type: ct, opt: a.opt, meta: a.meta, value: a.value}], ret: f.ret, expr: f.expr, params: f.params}), pos: e.pos};
+			case _:
+		}
+		// (one that does not type: its own error, when its hole is typed)
+		var t = try Context.typeof(e) catch (_:Dynamic) return e;
+		function params(t:Type):Null<Array<{name:String, opt:Bool, t:Type}>>
+			return switch Context.follow(t) {
+				case TFun(args, _): args;
+				case TAbstract(_.get() => {pack: [], name: "Null"}, [p]): params(p);
+				case _: null;
+			}
+		var args = params(t);
+		if (args == null) {
+			var noType = Context.follow(t).match(TDynamic(_) | TMono(_));
+			return Context.error("markup: " + name + "'s handler is "
+				+ (noType ? "of no static type (Dynamic)" : article(haxe.macro.TypeTools.toString(t)) + ", not a function") + ": " + want, attr);
+		}
+		if (args.length == 0)
+			return macro @:pos(e.pos) {
+				var __f = $e;
+				__f == null ? null : (_:Dynamic) -> __f();
+			};
+		for (k in 1...args.length)
+			if (!args[k].opt) return Context.error("markup: " + name + "'s handler takes " + args.length + " arguments: " + want, attr);
+		if (event != null && !Context.unify(event, args[0].t))
+			return Context.error("markup: " + name + "'s handler takes " + article(haxe.macro.TypeTools.toString(args[0].t)) + gives + ": " + want, attr);
+		return e;
 	}
+
+	// ("a String", "an Event")
+	static function article(type:String):String
+		return (~/^[AEIOU]/.match(type) ? "an " : "a ") + type;
 
 	public function isFunction(e:Expr):Bool
 		return switch e.expr {

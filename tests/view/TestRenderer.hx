@@ -2,7 +2,9 @@
 // contract tested through an explicit mark, as a package's renderer has it):
 // elements, texts and markers in a plain tree, written out as HTML
 // (markers as comments); a "p" element holds text, as ui's text nodes do,
-// so that both content models are tested
+// so that both content models are tested; its events declared (@:events:
+// TestEvents), OtherRenderer's not
+@:events(TestRenderer.TestEvents)
 class TestRenderer implements helder.view.Renders<TestNode> {
 	// the operations, in order (insert, remove, arrange), for checks
 	public static final log:Array<String> = [];
@@ -118,4 +120,19 @@ class TestNode {
 				var attrs = [for (k in keys) ' $k="' + StringTools.htmlEscape(Std.string(props.get(k)), true) + '"'].join("");
 				'<$tag$attrs>' + StringTools.htmlEscape(text) + [for (c in children) c.toHtml()].join("") + '</$tag>';
 		}
+}
+
+// TestRenderer's events, by attribute (@:events): onClick's and onInput's a
+// TestEvent, a custom one's (on:name) too
+typedef TestEvents = {
+	onClick:TestEvent,
+	onInput:TestEvent,
+	on:TestEvent
+}
+
+class TestEvent {
+	public final text:String;
+
+	public function new(text:String)
+		this.text = text;
 }

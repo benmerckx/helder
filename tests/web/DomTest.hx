@@ -73,13 +73,15 @@ class DomTest implements Markup {
 		flush();
 		check("a style string, the object's properties gone", (cast p : DOMElement).style.color == "" && (cast p : DOMElement).style.margin == "0px",
 			p.getAttribute("style"));
-		var clicks = 0, custom = 0;
-		m = mount(<button onClick={() -> clicks++} onDoubleClick={() -> clicks += 10} on:my-event={(e:Event) -> custom++}>b</button>);
+		var clicks = 0, custom = 0, key = "";
+		// (onKeyDown's parameter typed by DomEvents: a KeyboardEvent)
+		m = mount(<button onClick={() -> clicks++} onDoubleClick={() -> clicks += 10} on:my-event={(e:Event) -> custom++} onKeyDown={e -> key = e.key}>b</button>);
 		var b:Element = cast m.el.firstChild;
 		b.click();
 		b.dispatchEvent(new MouseEvent("dblclick"));
 		b.dispatchEvent(new CustomEvent("my-event"));
-		check("listeners", clicks == 11 && custom == 1, '$clicks $custom');
+		b.dispatchEvent(new js.html.KeyboardEvent("keydown", {key: "x"}));
+		check("listeners", clicks == 11 && custom == 1 && key == "x", '$clicks $custom $key');
 		m = mount(<svg viewBox="0 0 4 4"><g><circle r="1"/></g><foreignObject><div/></foreignObject><svg:a href="#"/></svg>);
 		var svg = m.el.firstChild, circle:Element = cast m.el.querySelector("circle");
 		check("SVG's namespace", (cast svg : Element).namespaceURI == Html.SVG_NS && circle.namespaceURI == Html.SVG_NS

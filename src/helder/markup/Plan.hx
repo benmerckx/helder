@@ -265,7 +265,7 @@ class Plan<E> {
 				if (!event && name != "ref" && name != "key" && name != "style" && target.isLiteral(x))
 					return target.call(Host, "setProperty", [e, target.string(name), x], ap);
 				if (!event && name != "ref" && name != "key") x = reactive(x);
-				if (event) x = target.handler(x, false);
+				if (event) x = target.handler(x, name, renderer, false, ap);
 				var plain = !event && name != "ref" && name != "key" && name != "style" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Host, "listen", [e, target.string(name), h], ap);
@@ -307,7 +307,7 @@ class Plan<E> {
 				// (states: a function of a part's states, its own style: set once, not bound)
 				if (name == "states") return target.call(Neutral, "property", [e, target.string(tag), target.string(name), hole(x)], ap);
 				if (!event && name != "ref") x = reactive(x);
-				if (event) x = target.handler(x, true);
+				if (event) x = target.handler(x, name, renderer, true, ap);
 				var plain = !event && name != "ref" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Neutral, "listen", [e, target.string(tag), target.string(name), h], ap);
@@ -405,10 +405,13 @@ interface Target<E> {
 	function thunk(e:E):E;
 	// whether e is a function literal
 	function isFunction(e:E):Bool;
-	// a listener: one that takes no event (DESIGN.md 6, 8: onPress={() -> ...})
-	// given one it ignores, where the language needs that; a neutral
-	// element's, its event's parameter typed as ui's Event when it has no type
-	function handler(e:E, neutral:Bool):E;
+	// a listener named name, of an element of renderer (null: agnostic;
+	// neutral: a neutral element's, whose events are ui's), checked against
+	// the events its renderer declares (@:events: a function of its event or
+	// of none, an untyped parameter typed as it; another an error at where);
+	// one that takes no event (DESIGN.md 6, 8: onPress={() -> ...}) given one
+	// it ignores, where the language needs that
+	function handler(e:E, name:String, renderer:Null<String>, neutral:Bool, where:Where):E;
 	// whether components are mounted with fast refresh's keys (hxmc.dev)
 	function devKeys():Bool;
 	// a component's tag at an offset, for a literal of renderer: its callee

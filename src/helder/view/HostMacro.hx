@@ -16,6 +16,9 @@ typedef RendererInfo = {
 	native:Bool,
 	// its elements when it lists them (@:elements), else null: any name
 	elements:Null<Array<String>>,
+	// the type of its events when it declares them (@:events(T): a structure, each
+	// attribute's event type), as a path; else null: any on* name, any event
+	events:Null<String>,
 	// its identity at run time (Render.idOf)
 	id:Int,
 	// whether a region that ends its parent has a marker too (a static function markEnds: the page's renderers)
@@ -67,6 +70,7 @@ class HostMacro {
 		for (it in c.interfaces)
 			if (it.t.toString() == "helder.view.Renders") {
 				var els = c.meta.extract(":elements");
+				var evs = c.meta.extract(":events");
 				i = {
 					path: full,
 					node: Context.toComplexType(it.params[0]),
@@ -78,6 +82,8 @@ class HostMacro {
 						case EConst(CString(s, _)): s;
 						case _: Context.fatalError("helder.view: @:elements lists strings", e.pos);
 					}],
+					events: evs.length == 0 ? null : evs[0].params == null || evs[0].params.length != 1 ? Context.fatalError("helder.view: @:events names a type (a structure of the events by attribute)",
+						evs[0].pos) : haxe.macro.ExprTools.toString(evs[0].params[0]),
 					id: id(full),
 					markEnds: have.exists("markEnds"),
 					runtime: runtimeName(c.name, full)

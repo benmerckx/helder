@@ -307,7 +307,14 @@ Attributes:
   `onPress` (`Node.onActivate`: a click, or Enter or Space unless `onKeyDown`
   took it, as a DOM button's click); the gestures `onTap`, `onPan`
   (`pan-axis="x"`, `pan-min-pointers`), `onPinch`, `onScale` (a
-  `helder.ui.gesture.Gesture -> Void`: a recogniser made on the node);
+  recogniser made on the node, given to its handler: a `Tap`, a `Pan`, a
+  `Scale`). `helder.ui.view.NodeEvents` declares them (NodeRenderer's
+  `@:events`, the neutral elements' in every renderer), and markup checks
+  each handler against it: a function of its event or of none
+  (`onPress={() -> ...}`), an untyped parameter typed as it
+  (`onPan={g -> x(g.tx)}`, `onInput={e -> name(e.text)}`); another type, a
+  Dynamic value or a name not there is a compile error at the attribute
+  (helder.view's README);
 - `focusable`, `ref={n -> ...}` (the node), `tag="name"` (for `Node.find`);
   `id` none here (a page's element's, where a page's renderer realises
   the element).

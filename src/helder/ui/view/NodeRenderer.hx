@@ -30,7 +30,8 @@ import helder.image.AnimatedImage;
 // onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void;
 // the gestures, onTap, onPan (pan-axis "x" or "y", pan-min-pointers),
 // onPinch, onScale: a recogniser on the node (helder.ui.gesture), its
-// handler a Gesture -> Void;
+// handler given it, a Tap, a Pan, a Scale; declared by NodeEvents, which
+// markup checks handlers against: @:events);
 // a node's own handler, a field's editing, after the markup's unless it
 // prevented the default), focusable, selectable,
 // drag-data, tag, and what the node is to assistive technology (Semantics:
@@ -48,6 +49,7 @@ import helder.image.AnimatedImage;
 #if !macro
 @:build(helder.ui.view.AttrMacro.renderer())
 #end
+@:events(helder.ui.view.NodeEvents)
 class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	// the property name of n (a literal name: its own function, AttrMacro.setter;
 	// else setAttribute)

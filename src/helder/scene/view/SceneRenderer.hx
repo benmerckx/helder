@@ -34,6 +34,7 @@ import helder.scene.render.Shapes;
 // reactive layer for scenes (see the README's roadmap): properties go through
 // setProperty by name here; typed constructors per tag come next.
 @:elements("node", "mesh", "light", "camera")
+@:events(helder.scene.view.SceneEvents)
 class SceneRenderer implements helder.view.Renders<SceneNode> {
 	// the device meshes are made on (a <Scene> sets it when first drawn: the meshes made before it, then)
 	public static var device(default, set):Null<helder.gfx.Device>;

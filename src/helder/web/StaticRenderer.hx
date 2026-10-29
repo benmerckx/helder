@@ -9,6 +9,7 @@ import helder.web.HtmlNode;
 // that a page hydrates into the same nodes: a region's marker is a pair of
 // comments (HtmlNode). Elements hold no text of their own: text is text
 // nodes, as in the DOM.
+@:events(helder.web.DomEvents)
 class StaticRenderer implements helder.view.Renders<HtmlNode> {
 	public static inline function createElement(tag:String):HtmlNode
 		return new HtmlNode(Element, tag);

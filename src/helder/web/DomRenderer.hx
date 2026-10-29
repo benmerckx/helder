@@ -26,6 +26,7 @@ import js.html.Node;
 //
 // Hydration (hydrate) is a mode of this renderer: the nodes of a page the
 // static renderer wrote are claimed in document order instead of made.
+@:events(helder.web.DomEvents)
 class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 	// the neutral elements, their attributes and events (NeutralMacro), and a part (ElementPart: made when a ref asks)
 	public static macro function neutralElement(tag:haxe.macro.Expr):haxe.macro.Expr

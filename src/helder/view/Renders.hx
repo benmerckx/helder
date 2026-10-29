@@ -50,4 +50,22 @@ package helder.view;
 // helder.web's DOM and static ones); without it such a region needs none.
 //
 //   static function markEnds():Void;
+//
+// Optional metadata on the class: @:elements("a", "b"), its elements when
+// it has a closed set (another name an error); @:events(T), its events,
+// T a structure of each event attribute's event type:
+//
+//   typedef SceneEvents = {onClick:SceneEvent, onTap:SceneEvent, ...}
+//   @:events(helder.scene.view.SceneEvents) class SceneRenderer ...
+//
+// Markup checks each on* attribute of its elements against it: a function
+// of that event or of none (given one it ignores), an untyped parameter
+// typed as it; a name not in T, a function of another type or a value of no
+// static type (Dynamic) an error at the attribute; a field named on types
+// its custom events, on:name (the DOM's). A neutral element's events are
+// ui's (helder.ui.view.NodeEvents) in every renderer. Without @:events any
+// on* name, the handler a function of one argument or none. The structure is
+// data, which helder.typescript's manifest and declarations read (DESIGN.md
+// 7.3) as they read the elements: ui's NodeEvents, helder.web's DomEvents
+// (the DOM's and the static renderer's), helder.scene.view's SceneEvents.
 interface Renders<N> {}

@@ -133,6 +133,8 @@ class Node<T> extends Owner implements Read.Reader<T> {
 		var n = new Node(COMPUTED, null, fn, options);
 		n.writable = writable;
 		n.recompute();
+		// (a derived signal of a function: signal(() -> fn), which Haxe types as a Signal of a function type)
+		if (writable && Reflect.isFunction(n.value)) throw new GraphError("a signal never holds a function: signal(() -> fn) derives a function (keep it in a structure, signal({fn: fn}))");
 		return n;
 	}
 
@@ -289,6 +291,15 @@ class Node<T> extends Owner implements Read.Reader<T> {
 			hasPending = true;
 			Scheduler.enqueueWrite(this);
 		}
+	}
+
+	// a Signal's write (s(v)): a function never written (a value of no static
+	// type, Dynamic, that is one: Haxe chose the write by the type, never by
+	// the value, DESIGN.md 3.1)
+	public function set(v:T) {
+		if (Reflect.isFunction(v))
+			throw new GraphError("a signal never holds a function: a Dynamic value that is one written (an update is a function of its type, s(v -> ...), chosen by its static type)");
+		write(v);
 	}
 
 	// f given the latest value written (pending, else staged, else committed)

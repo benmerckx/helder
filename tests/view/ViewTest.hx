@@ -6,6 +6,7 @@ import helder.view.graph.Read;
 import helder.view.graph.Owner;
 import helder.view.graph.Awaitable.Later;
 import TestRenderer.TestNode;
+import TestRenderer.TestEvent;
 import OtherRenderer.OtherNode;
 
 // helder.view's tests, on Eval and natively (npm test -- view), on
@@ -20,7 +21,7 @@ import OtherRenderer.OtherNode;
 // control flow components (For keyed by item and by index, Repeat, Show,
 // Switch, Errored, Provider, onSettled; Loading over an async memo); two renderers (OtherRenderer: the same components
 // rendered by each, boundaries between them, roots: Render.open's windows); and the programs the macro rejects (test/reject,
-// "// expect:" lines; with the tool's path as the argument); on Eval,
+// "// expect:" lines, "// target: js" one compiled as JavaScript; with the tool's path as the argument); on Eval,
 // natively and in JavaScript (node)
 class ViewTest implements Markup {
 	static var checks = 0;
@@ -204,6 +205,26 @@ class ViewTest implements Markup {
 		(btn.listeners.get("onClick") : Void->Void)();
 		flush();
 		check("an event listened to, a ref, key ignored", clicked == 1 && got == btn && !btn.props.exists("key") && !btn.props.exists("onClick"));
+		// (typed by the renderer's events, TestEvents: an untyped parameter a TestEvent, its text a String written)
+		var typed = signal(""), custom = 0, none:Null<Void->Void> = null;
+		var root3 = new TestNode(Element, "root");
+		Render.render(<p onInput={e -> typed(e.text)} on:custom={(e:TestEvent) -> custom++} onClick={none}/>, root3);
+		var p = root3.children[0];
+		(p.listeners.get("onInput") : TestEvent->Void)(new TestEvent("hi"));
+		(p.listeners.get("on:custom") : TestEvent->Void)(new TestEvent(""));
+		flush();
+		check("a handler typed by its renderer's events (@:events), a null one of none listened to as null", typed() == "hi" && custom == 1 && p.listeners.get("onClick") == null);
+		// (OtherRenderer declares none: any function of one argument or none)
+		var other = new OtherNode("root"), n = 0;
+		Render.render(<x onAnything={(k:Int) -> n += k}/>, other);
+		check("a renderer declaring no events: any handler", other.children.length == 1);
+		// (a Dynamic that is a function written to a signal: an error, not a value nor an update)
+		var d:Dynamic = (s:String) -> s;
+		var e = try {
+			typed(d);
+			"";
+		} catch (x:haxe.Exception) x.message;
+		check("a signal: a Dynamic function written, an error", e.indexOf("a signal never holds a function") >= 0, e);
 	}
 
 	static function Button(props:{label:String, ?primary:Bool, ?onClick:Void->Void, ?children:View}):View
@@ -650,7 +671,9 @@ class ViewTest implements Markup {
 				for (l in content.split("\n"))
 					if (StringTools.startsWith(l, "// expect: ")) StringTools.trim(l.substr(11))
 			];
-			var args = ["-cp", "src", "-cp", dir, "-main", f.substr(0, f.length - 3), "--interp", "--no-output"];
+			// (// target: js, a program compiled as JavaScript: the DOM's types)
+			var js = content.indexOf("\n// target: js") >= 0 || StringTools.startsWith(content, "// target: js");
+			var args = ["-cp", "src", "-cp", dir, "-main", f.substr(0, f.length - 3)].concat(js ? ["-js", "bin/view/reject.js"] : ["--interp"]).concat(["--no-output"]);
 			args = args.concat(["-cp", "tests/view"]);
 			var p = new sys.io.Process(tool, args);
 			var out = p.stdout.readAll().toString() + p.stderr.readAll().toString();

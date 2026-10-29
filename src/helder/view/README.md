@@ -33,7 +33,9 @@ The same in TypeScript (TSX), but for `const` and `=>` (index.d.ts).
 in a computation; with a value to write, `count(5)`; with a function to
 update, `count(c -> c + 1)`; `peek()` reads untracked; a signal never
 holds a function, `signal(fn)` is a value derived from what fn reads that
-can be written), `memo(fn)` (derived, lazy, its readers marked only when
+can be written: the write or the update is chosen by the argument's static
+type, and a Dynamic that is a function at run time, written, is an error, as
+is a derived signal of a function, `signal(() -> fn)`), `memo(fn)` (derived, lazy, its readers marked only when
 its value differs), `effect(compute, apply)` (compute runs now and when
 what it read changes, apply after the commit with its value),
 `renderEffect` (the same, its apply in the render phase: what renderers
@@ -76,6 +78,20 @@ it makes its nodes, each time it is mounted.
   `on...` are listeners (one may take no event: `onPress={() -> ...}`),
   `ref={n -> ...}` gets the node, `key` is ignored, `style` is the
   renderer's style.
+- Listeners are typed by the renderer's events (`@:events`, "Renderers"
+  below): ui's `onPress` gives a `helder.ui.Event`, `onPan` a `Pan`, the
+  DOM's `onKeyDown` a `js.html.KeyboardEvent`, a scene node's `onTap` a
+  `SceneEvent`; a neutral element's are ui's in every renderer. A handler
+  takes that event or none; an untyped parameter is typed as it
+  (`onInput={e -> name(e.text)}`: a String written); another type, a value
+  of no static type (Dynamic) or an event the renderer does not declare is
+  an error at the attribute:
+  `markup: onPress's handler takes a String, but a neutral element (its
+  events ui's, helder.ui.view.NodeEvents) gives onPress a helder.ui.Event:
+  a function of a helder.ui.Event or of none (helder.ui.Event -> Void, or
+  Void -> Void)`. An agnostic literal's own elements (not neutral: `<div>`
+  in a plain `View`) have no renderer to check against: their handlers
+  only need to be functions of one argument or none.
 - As in Solid, a hole or attribute that may read (a call, a field read
   through a getter: `{count()}`, `{user().name}`) is bound, its expression
   run again when what it read changes; a constant, a local or a plain
@@ -161,6 +177,13 @@ declares its own with types and metadata the macro reads:
   them; `UiWindow.run(content)` opens it and runs the loop.
 - **Elements**: a renderer with a closed set lists it, `@:elements("node",
   "mesh", ...)` on its class; another name in its markup is an error.
+- **Events**: a renderer declares its elements' events, `@:events(T)` on its
+  class, T a structure of each event attribute's event type (ui's
+  `helder.ui.view.NodeEvents`, the DOM's and the static renderer's
+  `helder.web.DomEvents`, `helder.scene.view.SceneEvents`; a field `on`
+  types custom events, `on:name`); markup checks handlers against it. Data,
+  not code: helder.typescript's manifest and its declarations read it
+  (DESIGN.md 7.3). Without it any `on*` name is taken, its event unknown.
 
 The macro compiles each literal when it is typed (an expression macro,
 `View.literal`; the `Markup` build macro only wraps the literals) and
@@ -199,6 +222,11 @@ Errors, at the tag or the literal (tests/view/reject):
   class limited to other renderers);
 - `markup: <view> is no element of helder.scene.view.SceneRenderer (node,
   mesh, light, camera)`;
+- `markup: onKeyDown's handler takes a js.html.MouseEvent, but
+  helder.web.DomRenderer gives onKeyDown a js.html.KeyboardEvent: a function
+  of a js.html.KeyboardEvent or of none (...)`, from the attribute's name to
+  its value's end; `markup: onPres is no event of ... (onBlur, onClick, ...)`
+  at its name; `markup: onClick's handler is of no static type (Dynamic): ...`;
 - `helder.view: String is no renderer's node (its class names its renderer
   with @:rendered(...); ...)`;
 - at run time, a View compiled for one renderer mounted into another's
@@ -238,7 +266,7 @@ time): `createElement`, `createText`, `createMarker`, `setText`,
 `holdsText`, `setProperty`, `setStyle`, `listen`, `insert`, `remove`,
 `parentOf`, `arrange`, `isNode` (optional: `setter`, the neutral
 elements', `markEnds`: a marker for a region that ends its parent, which
-a page's hydration reads). Its node class names it (`@:rendered(R)`); a
+a page's hydration reads; and on its class `@:elements` and `@:events`). Its node class names it (`@:rendered(R)`); a
 program may reach several. Its runtime (ViewRuntime) binds what reads
 with render effects whose apply touches the nodes: the graph never
 touches them outside an apply.

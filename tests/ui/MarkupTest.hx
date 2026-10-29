@@ -231,6 +231,11 @@ class MarkupTest implements Markup {
 		ui.keyDown(Key.TAB, 0);
 		ui.update();
 		check("focus in, focus out: bubbling", log.join(",") == "in first,out first,in save", log.join(","));
+		// (a gesture's handler typed as its recogniser, NodeEvents: a Pan's axis, a Tap's taps)
+		var axis = null, taps = 0;
+		Render.render(<view tag="g" onPan={g -> axis = g.axis} onTap={t -> taps = t.taps}/>, ui.root);
+		var g = ui.root.find("g");
+		check("gestures' handlers typed by their recognisers", g != null && g.gestures.length == 2 && axis == null && taps == 0);
 	}
 
 	// UiFlow's Popover (its children in a popup while open: under the node
