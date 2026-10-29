@@ -46,9 +46,14 @@ class SceneTags {
 		?width:helder.view.graph.Read<Dynamic>,
 		?height:helder.view.graph.Read<Dynamic>,
 		?style:Dynamic,
+		?animate:Bool,
+		?setup:Renderer->Void,
+		?ref:SceneBox->Void,
 		?children:SceneView
 	}):helder.ui.Node {
 		var box = new SceneBox(props.world ?? new World("scene"), props.camera);
+		if (props.animate != null) box.animate = props.animate;
+		if (props.setup != null) box.onRenderer = props.setup;
 		if (props.grow != null) NodeRenderer.setProperty(box, "grow", props.grow);
 		if (props.width != null) bind(box, "width", props.width);
 		if (props.height != null) bind(box, "height", props.height);
@@ -56,6 +61,7 @@ class SceneTags {
 		// (in this owner: what is above the boundary, contexts, seen below it)
 		Graph.provide(SceneRenderer.WORLD, box.world, () -> Graph.provide(BOX, box, () -> Render.insert(props.children, box.root, null)));
 		Graph.onCleanup(box.dispose);
+		if (props.ref != null) props.ref(box);
 		return box;
 	}
 

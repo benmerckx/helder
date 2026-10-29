@@ -26,7 +26,11 @@ class SceneBox extends helder.ui.Node {
 	// a frame each tick (an animation outside the markup's signals)
 	public var animate = false;
 	@:allow(helder.scene.view.SceneTags) var overlays:Array<{node:SceneNode, ui:helder.ui.Node, x:Float, y:Float}> = [];
-	var renderer:Null<Renderer>;
+	// its offscreen renderer (made when first drawn: onRenderer then)
+	public var renderer(default, null):Null<Renderer>;
+	// called with the renderer once made, before its first frame: its
+	// clear colour, ambient, exposure, features (Shadows)
+	public var onRenderer:Null<Renderer->Void>;
 	var device:Null<helder.gfx.Device>;
 	var color:Null<Texture>;
 	var depth:Null<Texture>;
@@ -219,6 +223,7 @@ class SceneBox extends helder.ui.Node {
 			device = r.device;
 			renderer = new Renderer(r.device, true);
 			if (SceneRenderer.device == null) SceneRenderer.device = r.device;
+			if (onRenderer != null) onRenderer(renderer);
 		}
 		if (pw != tw || ph != th) {
 			if (color != null) device.destroyTexture(color);

@@ -236,11 +236,12 @@ class PhysicsWorld {
 		return hit == null ? null : {body: hit, distance: t, point: origin + dir / Math.sqrt(dot(dir, dir)) * t};
 	}
 
-	// raycast without its result object (Character's): the distance, the
-	// body hit in hit (null: none)
-	@:allow(helder.physics) var hit:Null<Body> = null;
+	// raycast without its result object, allocating nothing (a game's
+	// step, Character's): the distance (maxDistance: nothing hit), the body
+	// hit in hit (null: none)
+	public var hit(default, null):Null<Body> = null;
 
-	@:allow(helder.physics) function ray(origin:Vec3, dir:Vec3, maxDistance:Float, ignore:Null<Body>):Float {
+	public function ray(origin:Vec3, dir:Vec3, maxDistance:Float, ignore:Null<Body>):Float {
 		var l = Math.sqrt(dot(dir, dir));
 		var d = dir / l;
 		var best:Null<Body> = null, bestT = maxDistance;
