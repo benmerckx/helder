@@ -1,3 +1,6 @@
+// title: Dev server
+// summary: A directory served over HTTP, a WebSocket telling of each change to a file in it, a child process streamed, all on one thread's loop (helder.async); GET /quit ends it all
+// tags: async, http, websocket, os
 import haxe.Json;
 import helder.async.*;
 import helder.async.http.Http;

@@ -614,8 +614,9 @@ class Run {
 	//
 	// (demo: canvas WxH, a program drawing on a canvas; sound, a program
 	// started by a click; island, a JavaScript island of helder.web; module,
-	// a wasm module JavaScript calls), each built for wasm32-wasi but the
-	// islands, and those on a canvas or playing a sound for this machine
+	// a wasm module JavaScript calls; none, a program of the command line
+	// or of a native window, built by its own lane), each built for
+	// wasm32-wasi but the islands, and those on a canvas or playing a sound for this machine
 	// too, in parallel, into bin/examples (each one's log beside it), each by
 	// the CLI with no flags but the target and the output: `helder build
 	// <file> [--target web] -o <out>`.
@@ -638,7 +639,7 @@ class Run {
 				var main = f.substr(0, f.length - 3);
 				var demo = head.get("demo") ?? "";
 				var id = dir + (files.length > 1 && main.toLowerCase() != dir.replace("-", "") ? "-" + main.toLowerCase() : "");
-				if (demo != "island") {
+				if (demo != "" && demo != "island") {
 					var out = 'bin/examples/wasm32-wasi/$id.wasm';
 					builds.push({id: id, target: "wasm32-wasi", out: out, args: ["build", '$path/$f', "--target", "web", "-o", out]});
 				}

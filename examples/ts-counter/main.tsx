@@ -1,3 +1,7 @@
+// title: Counter in TypeScript
+// summary: The counter in TSX: a signal, markup bound to it, a button that changes it
+// tags: typescript, ui, view, signals
+// demo: canvas 320x200
 // The counter in TypeScript: a signal, TSX bound to it, a button that changes it.
 import { signal } from "helder/view";
 import { UiWindow, Surface } from "helder/ui";

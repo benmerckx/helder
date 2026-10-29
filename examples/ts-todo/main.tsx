@@ -1,3 +1,7 @@
+// title: Todo in TypeScript
+// summary: The todo list in TSX: signals, For keeping a row per item, a text field, checkboxes and filters, components of its own
+// tags: typescript, ui, view, text input
+// demo: canvas 480x560
 // The todo list in TypeScript: signals hold the state, For keeps a row per
 // item, the text field adds one on Enter, the checkboxes and the filters
 // update what is shown. Its buttons and checkboxes are components of its

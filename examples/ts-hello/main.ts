@@ -1,3 +1,6 @@
+// title: Hello, TypeScript
+// summary: A TypeScript program checked by tsgo and lowered straight to hxmc's IR, native or wasm: a class with a private field, modules, a promise and a timer
+// tags: typescript
 // A TypeScript program built by helder (helder.typescript): checked by
 // tsgo, lowered straight to hxmc's IR, native or wasm.
 import { greet, Counter } from "./greet";

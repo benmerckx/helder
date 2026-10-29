@@ -1,3 +1,6 @@
+// title: Native controls
+// summary: The same markup and signals as the drawn widgets, on the platform's own controls (GTK 3 on Linux, the DOM in a browser), laid out by helder.ui's flexbox
+// tags: ui, view, native
 import helder.ui.*;
 import helder.ui.native.*;
 import helder.ui.native.Controls.*;
