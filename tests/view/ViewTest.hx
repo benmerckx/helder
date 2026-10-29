@@ -315,9 +315,9 @@ class ViewTest implements Markup {
 		name.value = "Bo";
 		wide.value = true;
 		check("updated", div.props.get("width") == 200 && div.props.get("title") == "Bo" && div.children[0].text == "Hello Bo!");
-		check("a region", div.toHtml() == '<div title="Bo" width="200">Hello Bo!<b>shown</b><!--anchor--></div>', div.toHtml());
+		check("a region", div.toHtml() == '<div title="Bo" width="200">Hello Bo!<b>shown</b></div>', div.toHtml());
 		show.value = false;
-		check("a region drawn again", div.toHtml() == '<div title="Bo" width="200">Hello Bo!hidden<!--anchor--></div>', div.toHtml());
+		check("a region drawn again", div.toHtml() == '<div title="Bo" width="200">Hello Bo!hidden</div>', div.toHtml());
 		dispose();
 		check("dispose removes the content", root.children.length == 0);
 		name.value = "gone";

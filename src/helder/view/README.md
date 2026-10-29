@@ -103,12 +103,13 @@ once the value is. A memo keeps it: its readers throw it in turn.
 - `Pending` and `Loadable` (ready, refreshing, whenReady) are the contract
   for other sources than assets.
 
-Where it differs from Solid: markup holes are evaluated where the literal
-is (helder.view's model, no implicit getters), so a value read in a hole
-is bound only as a function or as the source itself (`{intro}`, `{() ->
-intro.value}`); `{intro.value}` reads it once, in the component that makes
-the literal (inside a boundary that component waits, and is made again).
-No `on` prop to show the fallback again, no `latest()`, no transitions
+As in Solid, a hole or attribute that may read (a call, a field read
+through a getter: `{intro.value}`, `{label()}`) is bound, its expression
+run again when what it read changes; a constant, a local or a plain
+field is evaluated once, where the literal is (`{intro}`, the source
+itself, is bound by the runtime). A component's props are evaluated once,
+in the component that makes the literal.
+Where it differs from Solid: no `on` prop to show the fallback again, no `latest()`, no transitions
 of the whole graph: a pending read keeps the content it had.
 
 Each literal compiles to straight-line code: the elements made by tag,

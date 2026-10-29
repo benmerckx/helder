@@ -353,6 +353,39 @@ class HaxeTarget implements Target<Expr> {
 	public function isPlain(e:Expr):Bool
 		return MarkupMacro.simple(e) && MarkupMacro.plain(e);
 
+	public function mayRead(e:Expr):Bool
+		return switch e.expr {
+			case EFunction(_, _) | EMeta({name: ":markup"}, _): false;
+			// (a literal: its own holes are its own)
+			case ECall({expr: EField(_, "literal" | "literalFor")}, args) if (args.length > 0 && args[args.length - 1].expr.match(EMeta({name: ":markup"}, _))): false;
+			case ECall(_, _) | ENew(_, _): true;
+			case EField(o, _): mayRead(o) || getter(e);
+			case EArray(a, i): mayRead(a) || mayRead(i) || getter(e);
+			case _:
+				var r = false;
+				e.iter(x -> if (!r && mayRead(x)) r = true);
+				r;
+		}
+
+	// (a field or an index read through a function: typed where the literal is; one it cannot type may)
+	static function getter(e:Expr):Bool {
+		if (!MarkupMacro.simple(e)) return true;
+		var t = try Context.typeExpr(e) catch (_:Dynamic) return true;
+		function calls(t:TypedExpr):Bool
+			return switch t.expr {
+				case TCall(_, _) | TNew(_, _, _): true;
+				case TField(o, FInstance(_, _, cf) | FStatic(_, cf) | FAnon(cf)) if (cf.get().kind.match(FVar(AccCall, _))): true;
+				case _:
+					var r = false;
+					haxe.macro.TypedExprTools.iter(t, x -> if (!r && calls(x)) r = true);
+					r;
+			}
+		return calls(t);
+	}
+
+	public function thunk(e:Expr):Expr
+		return macro @:pos(e.pos) () -> $e;
+
 	public function devKeys():Bool
 		return Context.defined("hxmc.dev");
 

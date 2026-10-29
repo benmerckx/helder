@@ -128,15 +128,16 @@ batch(() -> {
 }); // 30, once
 ```
 
-In markup, a hole or attribute whose value is a signal, a memo or a
-function is bound: the text, style or region follows it. A plain value is
-read once. So pass the signal, or wrap the expression in a function:
+In markup, a hole or attribute that reads a signal or a memo is bound:
+the text, style or region follows it. A hole whose value is a signal, a
+memo or a function is bound too; a plain value (a constant, a local) is
+read once:
 
 ```haxe
 <text>{count}</text>                         // follows count
-<text>{() -> count.value * 2}</text>         // follows count
-<text>{count.value}</text>                   // the value at mount time only
-<view background={() -> on.value ? "#22c55e" : "#e4e4e7"}/>
+<text>{count.value * 2}</text>               // follows count
+<text>{() -> count.value * 2}</text>         // the same, written out
+<view background={on.value ? "#22c55e" : "#e4e4e7"}/>
 ```
 
 `untrack(() -> ...)` reads without tracking, and `onCleanup` and `onMount`

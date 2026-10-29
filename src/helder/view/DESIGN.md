@@ -367,6 +367,13 @@ constant. Literals and constant identifiers stay plain.
 This is what Solid's JSX compiler does. `{icon}` (a node) keeps
 working.
 
+Done in the planner (Target.mayRead, thunk): for Haxe a call, or a
+field or index read through a function (typed where the literal is: a
+property's getter, an abstract's), not inside a function or a literal
+of its own; a component's props stay as they are until props are an
+object (step 4). A bound region that is its parent's last child needs
+no marker (the runtime draws it at the end), as in Solid.
+
 ### 3.4 Coroutine components
 
 ```haxe
@@ -548,7 +555,7 @@ helder.markup.Plan (the planner), a `Target<E>` writing its code;
 MarkupMacro's HaxeTarget writes Haxe expressions, its output byte for
 byte the macro's before the split (every test program and example,
 natively and as JavaScript, the rejected programs' errors). The
-may-read rule (3.3) and the TypeScript target come next.
+TypeScript target comes next.
 
 ### 7.3 The manifest and the declarations
 

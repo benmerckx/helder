@@ -179,28 +179,31 @@ class Plan<E> {
 		}
 		var t = fresh("t");
 		out.push(target.declare(t, target.call(Host, "holdsText", [e], null), null));
-		return out.concat(this.children(kids, e, target.nil(), target.nil(), target.ident(t)));
+		return out.concat(this.children(kids, e, target.nil(), target.nil(), target.ident(t), true));
 	}
 
 	// children into parent before before (pushed to out), runs of text and
-	// holes joined (span: in an element that holds text, as spans)
-	function children(cs:Array<PNode>, parent:E, before:E, out:E, span:E):Array<E> {
+	// holes joined (span: in an element that holds text, as spans; end: the
+	// parent's last children, a run ending them told so)
+	function children(cs:Array<PNode>, parent:E, before:E, out:E, span:E, end = false):Array<E> {
 		var s:Array<E> = [];
 		var run:Array<PNode> = [], parts:Array<E> = [];
 		var top = !target.isNull(before);
-		function flush() {
+		function flush(last = false) {
 			if (run.length == 0) return;
+			var tail = last ? [target.bool(true)] : [];
 			if (Lambda.foreach(run, k -> k.kind.match(PText(_)))) s.push(target.call(Runtime, "text", [parent, before, out, join(run), span], null));
-			else if (run.length == 1) s.push(target.call(Runtime, "hole", [parent, before, out, parts[0], span], null));
-			else s.push(target.call(Runtime, "run", [parent, before, out, target.anyArray(parts), span], null));
+			else if (run.length == 1) s.push(target.call(Runtime, "hole", [parent, before, out, parts[0], span].concat(tail), null));
+			else s.push(target.call(Runtime, "run", [parent, before, out, target.anyArray(parts), span].concat(tail), null));
 			run = [];
 			parts = [];
 		}
-		for (c in clean(cs))
-			switch c.kind {
+		var cs = clean(cs);
+		for (k in 0...cs.length)
+			switch cs[k].kind {
 				case PText(_) | PExpr(_, _):
-					run.push(c);
-					parts.push(part(c));
+					run.push(cs[k]);
+					parts.push(part(cs[k]));
 				case PElement(name, attrs, children, at) if (isComponent(name)):
 					flush();
 					s.push(component(name, attrs, children, at, parent, before, out));
@@ -209,9 +212,9 @@ class Plan<E> {
 					s = s.concat(element(name, attrs, children, at, parent, top));
 				case PFragment(children):
 					flush();
-					s = s.concat(this.children(children, parent, before, out, target.bool(false)));
+					s = s.concat(this.children(children, parent, before, out, target.bool(false), end && k == cs.length - 1));
 			}
-		flush();
+		flush(end);
 		return s;
 	}
 
@@ -220,11 +223,16 @@ class Plan<E> {
 		return switch c.kind {
 			case PText(t): target.string(t);
 			case PExpr(code, at):
-				var h = hole(target.code(code, at, inner(), false));
+				var h = hole(reactive(target.code(code, at, inner(), false)));
 				if (shared) valueHoles.push(h);
 				h;
 			case _: throw "unreachable";
 		}
+
+	// (a value that may read (3.3: a call, a field read through a getter): a
+	// function of it, which the runtime binds)
+	function reactive(x:Null<E>):Null<E>
+		return x != null && target.mayRead(x) ? target.thunk(x) : x;
 
 	function join(run:Array<PNode>):E
 		return target.string([for (k in run) switch k.kind {
@@ -256,6 +264,7 @@ class Plan<E> {
 				// (a literal number or string: set as a static value is, never bound)
 				if (!event && name != "ref" && name != "key" && name != "style" && target.isLiteral(x))
 					return target.call(Host, "setProperty", [e, target.string(name), x], ap);
+				if (!event && name != "ref" && name != "key") x = reactive(x);
 				var plain = !event && name != "ref" && name != "key" && name != "style" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Host, "listen", [e, target.string(name), h], ap);
@@ -296,6 +305,7 @@ class Plan<E> {
 					return target.call(Neutral, "property", [e, target.string(tag), target.string(name), renderer == null ? hole(x) : x], ap);
 				// (states: a function of a part's states, its own style: set once, not bound)
 				if (name == "states") return target.call(Neutral, "property", [e, target.string(tag), target.string(name), hole(x)], ap);
+				if (!event && name != "ref") x = reactive(x);
 				var plain = !event && name != "ref" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Neutral, "listen", [e, target.string(tag), target.string(name), h], ap);
@@ -373,6 +383,11 @@ interface Target<E> {
 	function isLiteral(e:E):Bool;
 	// a value of a type never reactive (set once, not bound)
 	function isPlain(e:E):Bool;
+	// whether evaluating e may read a signal (3.3): a call, a field read
+	// through a getter; not in a function or a literal of its own
+	function mayRead(e:E):Bool;
+	// () -> e
+	function thunk(e:E):E;
 	// whether components are mounted with fast refresh's keys (hxmc.dev)
 	function devKeys():Bool;
 	// a component's tag at an offset, for a literal of renderer: its callee

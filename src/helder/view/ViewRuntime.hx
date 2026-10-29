@@ -48,7 +48,8 @@ class ViewRuntime {
 	public static function insertTo(content:Any, parent:HostNode, before:Null<HostNode>, out:Array<HostNode>)
 		helder.view.Reactive.mount(() -> add(content, parent, before, out));
 
-	static function add(v:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>) {
+	// (end: v is its parent's last child, nothing put after it: a region of it needs no marker)
+	static function add(v:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, end = false) {
 		if (v == null || v == false || v == true) return;
 		if (Std.isOfType(v, helder.view.View)) view(v, parent, before, out);
 		else if (Host.isNode(v)) put(parent, v, before, out);
@@ -60,9 +61,10 @@ class ViewRuntime {
 			var m:helder.view.Flow.Mountable<HostNode> = cast v;
 			mounted(m.mount(parent, before), out);
 		} else if (Std.isOfType(v, Array)) {
-			for (x in (v : Array<Dynamic>))
-				add(x, parent, before, out);
-		} else if (helder.view.Render.isReactive(v)) region(v, parent, before, out);
+			var a:Array<Dynamic> = v;
+			for (k in 0...a.length)
+				add(a[k], parent, before, out, end && k == a.length - 1);
+		} else if (helder.view.Render.isReactive(v)) region(v, parent, before, out, end);
 		else put(parent, Host.createText(Std.string(v)), before, out);
 	}
 
@@ -100,9 +102,10 @@ class ViewRuntime {
 	}
 
 	// a reactive region: its content drawn again before a marker
-	static function region(getter:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>) {
-		var anchor = Host.createMarker("anchor");
-		put(parent, anchor, before, out);
+	static function region(getter:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, end:Bool) {
+		// (its parent's last child: drawn at the end)
+		var anchor = end ? null : Host.createMarker("anchor");
+		if (anchor != null) put(parent, anchor, before, out);
 		var current:Array<HostNode> = [];
 		helder.view.Reactive.effect(() -> {
 			var v = helder.view.Render.read(getter);
@@ -156,7 +159,7 @@ class ViewRuntime {
 	// reactive, an error naming what it is), else a run
 	public static function flat(el:HostNode, tag:String, parts:Array<Any>) {
 		if (!Host.holdsText(el)) {
-			run(el, null, null, parts, false);
+			run(el, null, null, parts, false, true);
 			return;
 		}
 		var ps:Array<Dynamic> = [];
@@ -181,10 +184,10 @@ class ViewRuntime {
 	}
 
 	// a hole among other children: text (a text node, bound when reactive) or other content
-	public static function hole(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, v:Any, span:Bool) {
+	public static function hole(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, v:Any, span:Bool, end = false) {
 		var t = textPart(v);
 		if (t == null) {
-			add(v, parent, before, out);
+			add(v, parent, before, out, end);
 			return;
 		}
 		var n = span ? Host.createElement("span") : Host.createText("");
@@ -194,7 +197,7 @@ class ViewRuntime {
 
 	// a run of text and holes: those whose values are text joined into text
 	// nodes, the others content between them
-	public static function run(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, parts:Array<Any>, span:Bool) {
+	public static function run(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, parts:Array<Any>, span:Bool, end = false) {
 		var run:Array<Dynamic> = [];
 		function flush() {
 			if (run.length == 0) return;
@@ -203,14 +206,15 @@ class ViewRuntime {
 			bindText(n, run);
 			run = [];
 		}
-		for (p in parts) {
+		for (k in 0...parts.length) {
+			var p = parts[k];
 			var t = textPart(p);
 			if (t != null) {
 				run.push(t);
 				continue;
 			}
 			flush();
-			add(p, parent, before, out);
+			add(p, parent, before, out, end && k == parts.length - 1);
 		}
 		flush();
 	}
