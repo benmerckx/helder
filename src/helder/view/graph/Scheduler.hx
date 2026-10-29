@@ -1,9 +1,12 @@
 package helder.view.graph;
 
 // When writes are committed and effects run (DESIGN.md 2, Writes and
-// commits; 6, 1): a write queues its node; a flush commits every pending
-// write, runs the computes of the effects that are now stale (render
-// effects first), then their applies, again until nothing is left. A
+// commits; Holds). A write queues its node; a flush stages the pending
+// writes in a transaction, runs what they make stale for it (owned memos,
+// then render effects' computes, then the others', parents first), and
+// settles it: committed when nothing it renders waits (its effects'
+// applies then, render effects first), else parked until its async lands.
+// An async answer lands into the transaction that asked, the same way. A
 // flush comes from flush(), or, after a write outside one, from `later`
 // (helder.async's loop: when the task running ends, as Solid 2's
 // microtask; unset, nothing flushes until flush() is called).
@@ -13,9 +16,16 @@ class Scheduler {
 	public static var later:Null<(Void->Void)->Void> = null;
 
 	static final writes:Array<Node<Dynamic>> = [];
+	static final landings:Array<Node<Dynamic>> = [];
+	static final memos:Array<Node<Dynamic>> = [];
 	static final renders:Array<Node<Dynamic>> = [];
 	static final effects:Array<Node<Dynamic>> = [];
+	// (applies on the screen: effects whose run joined no transaction)
 	static final applies:Array<Node<Dynamic>> = [];
+	// (transactions parked: waiting on async something they render reads)
+	static final held:Array<Tx> = [];
+	// the transaction whose computations run now (null: the screen)
+	static var world:Null<Tx> = null;
 	static var running = false;
 	// (inside flush(fn): its writes wait for its own flush)
 	static var holding = 0;
@@ -24,32 +34,44 @@ class Scheduler {
 	static var hasFailure = false;
 	// (commits made: an unowned memo's freshness)
 	static var ticks = 0;
-	static final memos:Array<Node<Dynamic>> = [];
 
 	public static function flush() {
 		if (running) return;
 		running = true;
 		asked = false;
 		try {
-			while (writes.length > 0 || memos.length > 0 || renders.length > 0 || effects.length > 0 || applies.length > 0) {
+			while (writes.length > 0 || landings.length > 0 || memos.length > 0 || renders.length > 0 || effects.length > 0
+				|| applies.length > 0) {
+				if (landings.length > 0) {
+					var ls = landings.copy();
+					landings.resize(0);
+					for (n in ls) {
+						var tx = n.pendingIn != null ? n.pendingIn.find() : null;
+						if (tx == null || tx.committed) tx = new Tx();
+						n.pendingIn = null;
+						world = tx;
+						n.land();
+						drain();
+						settle();
+					}
+				}
 				if (writes.length > 0) {
 					ticks++;
+					world = new Tx();
 					var ws = writes.copy();
 					writes.resize(0);
 					for (n in ws)
-						n.commit();
+						n.stageWrite(world);
+					drain();
+					settle();
 				}
-				runQueue(memos);
-				runQueue(renders);
-				runQueue(effects);
+				// (what is stale outside a transaction: verdict readers after a commit)
+				drain();
 				if (applies.length > 0) {
-					// (render effects' applies before the others')
-					var as = applies.copy();
+					// (those a commit has not applied since)
+					var as = [for (n in applies) if (n.toApply) n];
 					applies.resize(0);
-					for (n in as)
-						if (n.kind == Node.RENDER && n.toApply) n.runApply();
-					for (n in as)
-						if (n.toApply) n.runApply();
+					runApplies(as);
 				}
 			}
 		} catch (e:Dynamic) {
@@ -57,6 +79,7 @@ class Scheduler {
 			throw e;
 		}
 		running = false;
+		world = null;
 		if (hasFailure) {
 			var e = failure;
 			reset();
@@ -75,6 +98,12 @@ class Scheduler {
 		return r;
 	}
 
+	static function drain() {
+		runQueue(memos);
+		runQueue(renders);
+		runQueue(effects);
+	}
+
 	// (parents first: a parent running again disposes its old children before they run)
 	static function runQueue(q:Array<Node<Dynamic>>) {
 		while (q.length > 0) {
@@ -88,12 +117,61 @@ class Scheduler {
 		}
 	}
 
+	// (render effects' applies before the others')
+	static function runApplies(ns:Array<Node<Dynamic>>) {
+		for (n in ns)
+			if (n.kind == Node.RENDER && !n.disposed) n.runApply();
+		for (n in ns)
+			if (n.kind != Node.RENDER && !n.disposed) n.runApply();
+	}
+
+	// (the world's transaction: parked while a render effect waits in it, else committed)
+	static function settle() {
+		var t = world.find();
+		world = null;
+		if (t.blocked.length > 0) {
+			if (!held.contains(t)) held.push(t);
+			return;
+		}
+		held.remove(t);
+		commit(t);
+	}
+
+	static function commit(t:Tx) {
+		t.committed = true;
+		for (n in t.nodes)
+			if (n.stagedIn != null && n.stagedIn.find() == t) n.commitStaged();
+		for (n in t.effects)
+			n.toApply = false;
+		runApplies(t.effects);
+		// (what looked ahead at it runs again on the screen)
+		for (n in t.verdicts)
+			if (!n.disposed) n.mark(Node.DIRTY);
+	}
+
+	// the world joins other (a computation read what other stages): one transaction
+	static function join(other:Tx):Tx {
+		if (world == null) return other.find();
+		world = Tx.merge(world, other);
+		return world;
+	}
+
+	// (b merged into a: a parked if either was)
+	static function merged(a:Tx, b:Tx) {
+		if (held.remove(b) && !held.contains(a)) held.push(a);
+	}
+
 	static function enqueueWrite(n:Node<Dynamic>) {
 		writes.push(n);
 		ask();
 	}
 
-	// a stale effect: its compute to run
+	static function landing(n:Node<Dynamic>) {
+		landings.push(n);
+		ask();
+	}
+
+	// a stale computation: to run
 	static function enqueue(n:Node<Dynamic>) {
 		if (n.queued) return;
 		n.queued = true;
@@ -101,7 +179,7 @@ class Scheduler {
 		ask();
 	}
 
-	// an effect computed: its apply to run
+	// an effect computed on the screen: its apply to run
 	static function enqueueApply(n:Node<Dynamic>) {
 		if (n.toApply) return;
 		n.toApply = true;
@@ -129,7 +207,8 @@ class Scheduler {
 
 	static function reset() {
 		running = false;
-		for (q in [writes, memos, renders, effects, applies]) {
+		world = null;
+		for (q in [writes, landings, memos, renders, effects, applies]) {
 			for (n in q) {
 				n.queued = false;
 				n.toApply = false;

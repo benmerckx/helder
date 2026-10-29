@@ -81,4 +81,34 @@ class Graph {
 	// fn run in a new owner with c set to value
 	public static function provide<T, R>(c:Context<T>, value:T, fn:Void->R):R
 		return Owner.provide(c, value, fn);
+
+	// whether what fn reads has a new value on its way (a held change, an
+	// async answer to a new question): looks ahead of the hold, never holds
+	// it; a first load gives no verdict (false; tracked, it suspends as the
+	// read would); an error in fn is false
+	public static function isPending(fn:Void->Any):Bool {
+		var r = try Node.probing(Node.PROBE_PENDING, fn) catch (e:Dynamic) return false;
+		if (r.notReady) {
+			if (Node.observer != null) throw helder.view.graph.Awaitable.NotReady.instance;
+			return false;
+		}
+		return r.hit;
+	}
+
+	// fn's value with the values on their way (a held change's), ahead of the hold
+	public static function latest<T>(fn:Void->T):T {
+		var r = Node.probing(Node.PROBE_LATEST, fn);
+		if (r.notReady) throw helder.view.graph.Awaitable.NotReady.instance;
+		return r.result;
+	}
+
+	// fn's value, or fallback's while what fn reads (or renders) is pending
+	// and the boundary has not shown content (the core of <Loading>)
+	public static function loadingBoundary<T>(fn:Void->T, fallback:Void->T):Memo<T>
+		return Boundary.loading(fn, fallback);
+
+	// fn's value, or fallback's when fn (or what it renders) throws; reset tries again
+	// (the core of <Errored>)
+	public static function errorBoundary<T>(fn:Void->T, fallback:(error:Void->Dynamic, reset:Void->Void)->T):Memo<T>
+		return Boundary.errored(fn, fallback);
 }
