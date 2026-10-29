@@ -544,8 +544,9 @@ macro on that class only) stays for builds by plain `haxe`.
      written twice. tests/view/reject's Handler*.hx pin the errors.
    - **3.3's rule**: `new X(...)` reads what its arguments read, not more
      (a struct made once: hxmc passes no function returning a struct as
-     one of another type); a TypeScript program's value through its glue
-     (Interop.fromJs) is not wrapped.
+     one of another type). TSX's (7.2): a call, a read through a get
+     accessor (the program's, a Haxe property's), not inside a function or
+     a literal of its own.
    - **Asset** is a class implementing `Reader<T>` over an async memo
      (an answer per run, a reload a new question): `read()` reads it, the
      handle is bound as a hole, an attribute or a Read prop; a class is not
@@ -555,11 +556,11 @@ macro on that class only) stays for builds by plain `haxe`.
      `-D hxmc.dev` only, keying the signal where it is made as before; a
      computation's compute and apply run in its own Hot scope.
    - **TypeScript**: a node, a Read and an asset come to the program as a
-     JavaScript function (Interop: called to read, with a value or a
-     function to write or update; cached per node; the same value back),
-     a JavaScript function given for a `Read` prop a Thunk. TSX's holes are
-     the program's values: one that reads is written `{() => count() * 2}`
-     until the planner's TypeScript target (7.2) binds them.
+     JavaScript function (Interop: called to read, with a value to write;
+     cached per node; the same value back), a JavaScript function given for
+     a `Read` prop a Thunk. A call of a value whose static type is `Signal`
+     reads, writes or updates by its argument's type (7.1); TSX's holes that
+     read are bound, as Haxe's (7.2).
    - **Allocation**: a steady write, flush and render effect allocate
      nothing for object values (tests/view/graph/Alloc.test.hx); hxmc boxes
      an Int or a Float stored in a type parameter, 16 bytes a value.
@@ -569,8 +570,8 @@ macro on that class only) stays for builds by plain `haxe`.
 6. Later: actions, optimistic values, stores.
 
 TypeScript (7) after step 3: the TSX front end and IR emitter, the
-manifest and the generated declarations, the glue removed; its async
-onto coroutines beside step 5. TypeScript is part of helder, not a tool
+manifest and the generated declarations, the glue removed (done: 7.2,
+7.3); its async onto coroutines beside step 5. TypeScript is part of helder, not a tool
 beside it: the compiler helder ships includes the frontend, one package
 and one binary.
 
@@ -645,6 +646,22 @@ The declarations helder ships (generated, 7.3) type it:
   cell, as Haxe's `@:from` does. Calls of a signal compile to the
   node's functions directly, as any call does: no rewriting.
 
+As built: `Signal<T>` and `Memo<T>` are interfaces of their abstracts'
+`@:op(a())` functions (the update's overload before the write's), `Read<T>`
+an interface of its call, branded (`readonly [readBrand]: T`: no other
+function is one), and `ReadFrom<T>` its `@:from` types (`Read<T> |
+Signal<T> | Memo<T> | (() => T) | T`), which `JSX.LibraryManagedAttributes`
+gives each Read prop of a component, helder's or the program's (`<For
+each={items}>` infers T from a signal, a function or an array). The
+function a signal is to the program, called dynamically, reads or writes;
+a function written is a TSHX100 divergence. A call the program writes of a
+value whose static type is `Signal` compiles to its node's read, write or
+update (`Interop.signalRead`, `signalWrite`, `signalUpdate`), the update
+when the argument is a function (a function expression, or of a type with
+call signatures, which tsgo answers while the program is checked); `T
+extends Function ? never : T` on `signal`'s argument (Graph.signalValue's
+`@:typescript.type`).
+
 ### 7.2 One markup compiler
 
 MarkupMacro's decisions move into a library of plain Haxe (no macro
@@ -671,8 +688,29 @@ Done for the macro: helder.markup.Syntax (the parser) and
 helder.markup.Plan (the planner), a `Target<E>` writing its code;
 MarkupMacro's HaxeTarget writes Haxe expressions, its output byte for
 byte the macro's before the split (every test program and example,
-natively and as JavaScript, the rejected programs' errors). The
-TypeScript target comes next.
+natively and as JavaScript, the rejected programs' errors).
+
+Done for TypeScript: helder.typescript.lower.Tsx's TsTarget. The TSX
+tree is made Syntax's nodes (text by JSX's whitespace rule and entities,
+as the parser does; a hole the TypeScript expression), and the planner
+decides as it does for Haxe: the literal's renderer (a call's parameter of
+type `ViewOf<R>`, `Render.render`'s parent, the literal around it, a
+component's children's; else agnostic, made for each renderer the
+manifest has, installed as ViewRuntime's late at the start), components
+(Pick's choice for the renderer, the pin checks, their props that read
+bound, a function alone their children when theirs are one), neutral
+elements, keys, refs, holes that read bound (3.3: TsTarget.mayRead, a call
+or a read through a get accessor; the type never reactive by TypeScript's
+types). Its facts are the manifest's (7.3). Its code: the holes evaluated
+where the literal is (the program's values made Haxe's; a bound hole and a
+component's factory the program's functions, their bindings captured as
+an arrow's, adapted to Haxe's signature), the mount IR on Haxe values
+calling the renderer and its runtime directly (the setter of a literal
+attribute name included, as the macro's forRenderer does). Handlers are
+checked by tsgo against the declarations' JSX types. TSX and Haxe now read
+the same, the lambdas aside: `{props.tags.map(t => <li>{t}</li>)}` is a
+call, bound as Haxe's is, so a static page has a region's markers around
+it (tests/typescript/helder/static.out).
 
 ### 7.3 The manifest and the declarations
 
@@ -687,9 +725,57 @@ helder itself no longer depends on the program, so its typed and
 lowered code can be cached per version: a TypeScript build is tsgo,
 the lowering and the code generation.
 
+As built (helder.typescript.api): a TypeScript module is a Haxe class
+declaring it, its package's `TypeScript` (`@:typescript("helder/view")`,
+its classes, functions, types, renderers and part of JSX in metadata:
+Modules). Its build macro (Manifest.build) makes its manifest while the
+build is typed, from the Haxe types, as the class's metadata
+(`@:helder.manifest`, JSON, version 1; the format is Manifest.hx's): its
+classes (hxmc's ident, the Haxe type path, `@:rendered`, `@:renderer`'s
+limits) with each public member's kind (method, var, a property's
+accessors, an inline constant's value), its type in a small JSON language
+(`"Int"`, `{fn: [...], ret}`, `{anon: [...]}`, `{class: path}`, `{read: T}`,
+`{view: R}`, `{abstract: path, under, values}`, `{null: T}`...), and each
+renderer it reaches (its `@:rendered` nodes and ViewOf<R> in its types,
+those it names): its id, node class, `ViewRuntime_` class and functions,
+`@:elements`, `@:events`' types, whether it realises the neutral elements,
+its statics (function, macro or constant) and, for a setter that is a
+macro, each attribute name's function (Renders' `setterTable`). Keeps
+name every function listed, each an `__init__` under a condition never
+true, so hxmc lowers them (its lowering is reached from code): the
+module's own (its renderers' contracts and runtimes, what the lowering
+itself calls) and one class per class of the module (`<declaration
+class>_<its type path>`). The frontend leaves the keeps of the classes the
+program does not name out of what hxmc lowers (a program of helder/ui's
+`Key` alone lowers no window), drops the others' `__init__`s once the
+program is lowered, and what the program does not call is not in the
+executable. The frontend adds the declaration
+classes the program's declaration files name (`__module`) to the build
+and reads their metadata after typing (helder.typescript.lower.Api's
+Manifest); the lowering calls the listed functions directly, converting
+values by the types (lower.Haxe). Nothing depends on the program: no
+Haxe module is written per program, and no macro is on the command line
+(an init macro defeats hxmc's module cache for the whole build, 3.5:
+measured, examples/ts-todo's warm build 1.1 s to 2.4 s). The declaration
+classes' macro runs in each build (helder/ui's 0.15 s warm: they name the
+renderers' runtimes, which HostMacro makes in each). Measured,
+examples/ts-todo's warm `helder build`: 1.1 s with the glue, 0.9 s with
+the manifest; its executable 2.41 MB and 2.44 MB (its agnostic literals'
+code for each renderer the manifest has).
+
+The declarations come from the same types (Declarations: `node
+src/helder/typescript/api/declarations.mjs`, `--check` in the tests), the
+printer and the type mapping benmerckx/genes' (api/dts, MIT), reworked:
+the module's classes and their marked members, each with the `//` comment
+above it in its Haxe source, a type named where a module declares it (an
+import of another's), else written out, `@:typescript.type` (genes'
+`@:genes.type`) on a type, a field or an argument; `JSX.IntrinsicElements`
+any tag (helder/view's), the neutral elements' attributes with ui's events
+(helder/ui's), so an untyped handler's parameter is an `Event`.
+
 ### 7.4 Async
 
-A TypeScript `async` function given to `memo` must be a coroutine of
+Not built yet. A TypeScript `async` function given to `memo` must be a coroutine of
 helder.async's for cancellation and the commit's timing to hold. To
 check first: the TypeScript frontend's state machines implementing `haxe.coro`'s
 continuation interface, a Promise being how JavaScript sees a Task.

@@ -25,7 +25,10 @@ function main() {
 }
 ```
 
-The same in TypeScript (TSX), but for `const` and `=>` (index.d.ts).
+The same in TypeScript (TSX), but for `const` and `=>`: helder.typescript
+compiles TSX through the same planner (helder.markup), its declarations
+(index.d.ts) generated from these classes' types (`TypeScript.hx`, the
+module's declaration: DESIGN.md 7).
 
 ## Signals
 
