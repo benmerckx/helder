@@ -30,6 +30,9 @@ class AsyncDev {
 					// (once the answer is out)
 					app.async(_ -> {
 						Async.delay(0.05);
+						// (the sockets told, not dropped: a client sees a close, not an error)
+						for (ws in clients.copy())
+							ws.close(1001);
 						app.cancel();
 					});
 					return Response.text("bye\n");

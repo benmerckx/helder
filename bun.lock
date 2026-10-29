@@ -24,7 +24,11 @@
   "packages": {
     "@hxmc/cli": ["@hxmc/cli@0.1.0-nightly.20261029.51c98c1", "", { "optionalDependencies": { "@hxmc/darwin-arm64": "0.1.0-nightly.20261029.51c98c1", "@hxmc/darwin-x64": "0.1.0-nightly.20261029.51c98c1", "@hxmc/linux-arm64": "0.1.0-nightly.20261029.51c98c1", "@hxmc/linux-x64": "0.1.0-nightly.20261029.51c98c1", "@hxmc/win32-arm64": "0.1.0-nightly.20261029.51c98c1", "@hxmc/win32-x64": "0.1.0-nightly.20261029.51c98c1" }, "os": [ "linux", "win32", "darwin", ], "hasInstallScript": true, "bin": { "haxe": "hxmc/bootstrap/haxe", "hxmc": "hxmc/bootstrap/haxe" } }, "sha512-+nyTnaXDp4IseJweiOZwy3zEpuT+0IqaSrP4j2tZE0ON+zjrriVUGfgtEL3wKk3oSrSKY3hQ8vvtPZa7e4CBpA=="],
 
+    "@hxmc/darwin-arm64": ["@hxmc/darwin-arm64@0.1.0-nightly.20261029.51c98c1", "", { "os": "darwin", "cpu": "arm64" }, "sha512-qjMhEFf+pnDqiiZgWcDb+FXeSGM3v7W5N8JPivK3tkET+J5t51PlF5QED30OI+xTLjTE7rSxrS+T5PzTukaNkQ=="],
+
     "@hxmc/darwin-x64": ["@hxmc/darwin-x64@0.1.0-nightly.20261029.51c98c1", "", { "os": "darwin", "cpu": "x64" }, "sha512-Pqm8rxdR8oW4KevBy3wvZ0qGQup1cs4SuwG1BLrYplx26YcBRlVdSJXTcfiXcxAMCJk7Vl9XqZrttTGiY32FNw=="],
+
+    "@hxmc/linux-arm64": ["@hxmc/linux-arm64@0.1.0-nightly.20261029.51c98c1", "", { "os": "linux", "cpu": "arm64" }, "sha512-TIEoTIKiEHEZadyiZzePzgelFP/6DslBGa2LuPaOnp6bu20Hl18JFRQZGuxATgE0yw4JDEfox8ByFnQCiAHcPA=="],
 
     "@hxmc/linux-x64": ["@hxmc/linux-x64@0.1.0-nightly.20261029.51c98c1", "", { "os": "linux", "cpu": "x64" }, "sha512-zxWQgYALivDFQxyu0ehYnRa57njh6av652Ulh//AkBVPVSCH/MgKeZIBobjt2QFZw2vHLJuQQGFL/JFfaI7Z9A=="],
 
