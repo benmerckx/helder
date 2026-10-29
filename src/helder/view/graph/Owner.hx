@@ -10,6 +10,8 @@ class Owner {
 	public static var current(default, null):Null<Owner> = null;
 
 	public final parent:Null<Owner>;
+	// (how far below a root: effects run parents first)
+	final depth:Int;
 	var children:Null<Array<Owner>> = null;
 	var cleanups:Null<Array<Void->Void>> = null;
 	// the context values set here, by Context id
@@ -23,6 +25,7 @@ class Owner {
 
 	public function new(parent:Null<Owner>) {
 		this.parent = parent;
+		depth = parent == null ? 0 : parent.depth + 1;
 		if (parent != null) {
 			if (parent.children == null) parent.children = [];
 			parent.children.push(this);
@@ -62,8 +65,8 @@ class Owner {
 				try fs[i]() catch (e:Dynamic) if (failure == null) failure = e;
 		}
 		disposing--;
-		// (every cleanup ran; the first failure reported)
-		if (failure != null) throw failure;
+		// (every cleanup ran; the first failure reported: in a flush, at its end)
+		if (failure != null) Scheduler.report(failure);
 	}
 
 	// (a node's: off its sources and queues)

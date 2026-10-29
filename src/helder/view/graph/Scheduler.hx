@@ -22,19 +22,24 @@ class Scheduler {
 	static var asked = false;
 	static var failure:Null<Dynamic> = null;
 	static var hasFailure = false;
+	// (commits made: an unowned memo's freshness)
+	static var ticks = 0;
+	static final memos:Array<Node<Dynamic>> = [];
 
 	public static function flush() {
 		if (running) return;
 		running = true;
 		asked = false;
 		try {
-			while (writes.length > 0 || renders.length > 0 || effects.length > 0 || applies.length > 0) {
+			while (writes.length > 0 || memos.length > 0 || renders.length > 0 || effects.length > 0 || applies.length > 0) {
 				if (writes.length > 0) {
+					ticks++;
 					var ws = writes.copy();
 					writes.resize(0);
 					for (n in ws)
 						n.commit();
 				}
+				runQueue(memos);
 				runQueue(renders);
 				runQueue(effects);
 				if (applies.length > 0) {
@@ -70,14 +75,17 @@ class Scheduler {
 		return r;
 	}
 
+	// (parents first: a parent running again disposes its old children before they run)
 	static function runQueue(q:Array<Node<Dynamic>>) {
-		var i = 0;
-		while (i < q.length) {
-			var n = q[i++];
-			n.queued = false;
-			n.updateIfNecessary();
+		while (q.length > 0) {
+			var batch = q.copy();
+			q.resize(0);
+			haxe.ds.ArraySort.sort(batch, (a, b) -> a.depth - b.depth);
+			for (n in batch) {
+				n.queued = false;
+				n.updateIfNecessary();
+			}
 		}
-		q.resize(0);
 	}
 
 	static function enqueueWrite(n:Node<Dynamic>) {
@@ -89,7 +97,7 @@ class Scheduler {
 	static function enqueue(n:Node<Dynamic>) {
 		if (n.queued) return;
 		n.queued = true;
-		(n.kind == Node.RENDER ? renders : effects).push(n);
+		(n.kind == Node.RENDER ? renders : n.kind == Node.EFFECT ? effects : memos).push(n);
 		ask();
 	}
 
@@ -99,6 +107,11 @@ class Scheduler {
 		n.toApply = true;
 		applies.push(n);
 		ask();
+	}
+
+	// an error in a cleanup or an apply: in a flush, thrown at its end; else now
+	static function report(e:Dynamic) {
+		if (running) failed(e) else throw e;
 	}
 
 	// (an effect's error nothing handled: the flush throws it, after the others ran)
@@ -116,11 +129,12 @@ class Scheduler {
 
 	static function reset() {
 		running = false;
-		for (q in [writes, renders, effects, applies]) {
+		for (q in [writes, memos, renders, effects, applies]) {
 			for (n in q) {
 				n.queued = false;
 				n.toApply = false;
 				n.hasPending = false;
+				n.state = Node.CLEAN;
 			}
 			q.resize(0);
 		}

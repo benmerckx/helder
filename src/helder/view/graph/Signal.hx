@@ -16,10 +16,7 @@ abstract Signal<T>(Node<T>) {
 	@:op(a()) inline function write(value:T):Void
 		this.write(value);
 
-	// (Updater, not T->T: hxmc 0.1.0-nightly.20261028.d002660 fails to
-	// resolve the abstract (HXB) when this overload takes T->T and is
-	// called from a module-level function; reported)
-	@:op(a()) inline function update(f:Updater<T>):Void
+	@:op(a()) inline function update(f:T->T):Void
 		this.update(f);
 
 	// the committed value, not tracked
@@ -29,5 +26,3 @@ abstract Signal<T>(Node<T>) {
 	@:allow(helder.view.graph) inline function node():Node<T>
 		return this;
 }
-
-typedef Updater<T> = T->T;

@@ -54,6 +54,10 @@ class Node<T> extends Owner {
 	var onFailure:Null<Dynamic->Void> = null;
 	var queued = false;
 	var toApply = false;
+	// (an unowned memo nothing observes: the flush it was last computed after)
+	var tick = -1;
+	// (a derived signal: its written value kept until a source changes)
+	var writable = false;
 
 	function new(kind:Int, value:Null<T>, fn:Null<Null<T>->T>, options:Null<NodeOptions<T>>) {
 		// (a signal belongs to no owner: only computations are disposed with theirs)
@@ -74,17 +78,21 @@ class Node<T> extends Owner {
 	// a memo (writable: a derived signal), computed now
 	public static function computed<T>(fn:Compute<T>, options:Null<NodeOptions<T>>, writable:Bool):Node<T> {
 		var n = new Node(COMPUTED, null, fn, options);
+		n.writable = writable;
 		n.recompute();
 		return n;
 	}
 
-	// compute run now, apply at the next flush
+	// compute run now; apply at the next flush, a render effect's first now
 	public static function effect<T>(compute:Compute<T>, apply:Apply<T>, error:Null<Dynamic->Void>, render:Bool) {
 		var n = new Node(render ? RENDER : EFFECT, null, compute, null);
 		n.apply = apply;
 		n.onFailure = error;
 		n.recompute();
-		Scheduler.enqueueApply(n);
+		if (render && n.toApply) {
+			n.toApply = false;
+			n.applyNow();
+		}
 	}
 
 	public static function untrack<T>(fn:Void->T):T {
@@ -118,14 +126,14 @@ class Node<T> extends Owner {
 	}
 
 	public function read():T {
-		if (kind != SIGNAL && state != CLEAN) updateIfNecessary();
+		if (kind != SIGNAL) fresh();
 		if (observer != null) observer.track(this);
 		if (hasError) throw error;
 		return value;
 	}
 
 	public function peek():T {
-		if (kind != SIGNAL && state != CLEAN) updateIfNecessary();
+		if (kind != SIGNAL) fresh();
 		if (hasError) throw error;
 		return value;
 	}
@@ -143,6 +151,14 @@ class Node<T> extends Owner {
 	// f given the latest value written (pending, else committed)
 	public function update(f:T->T)
 		write(f(hasPending ? pendingValue : value));
+
+	// (a computed up to date: an unowned memo nothing observes is not kept
+	// up to date by the flushes, it computes again when read after one, as
+	// Solid 2 releases it)
+	inline function fresh() {
+		if (kind == COMPUTED && !writable && parent == null && tick != Scheduler.ticks && (observers == null || observers.length == 0)) state = DIRTY;
+		if (state != CLEAN) updateIfNecessary();
+	}
 
 	function checkWritable() {
 		if (ownedWrite || Owner.current == null || Owner.disposing > 0) return;
@@ -175,7 +191,9 @@ class Node<T> extends Owner {
 		var was = state;
 		state = s;
 		if (was == CLEAN) {
-			if (kind >= EFFECT) Scheduler.enqueue(this) else markObservers(CHECK);
+			// (an owned memo is eager: brought up to date by the flush, read or not)
+			if (kind >= EFFECT || parent != null) Scheduler.enqueue(this);
+			if (kind == COMPUTED) markObservers(CHECK);
 		}
 	}
 
@@ -195,7 +213,8 @@ class Node<T> extends Owner {
 	// runs its function, tracking what it reads
 	function recompute() {
 		if (disposed) return;
-		clean();
+		try clean() catch (e:Dynamic) Scheduler.report(e);
+		tick = Scheduler.ticks;
 		var savedOwner = Owner.current, savedObserver = observer;
 		Owner.current = this;
 		observer = this;
@@ -216,7 +235,11 @@ class Node<T> extends Owner {
 			return;
 		}
 		if (kind == COMPUTED) {
-			var changed = !initialized || hasError || !same(value, v);
+			// (a comparator's error is the computation's)
+			var changed = try !initialized || hasError || !same(value, v) catch (e:Dynamic) {
+				fail(e);
+				return;
+			};
 			initialized = true;
 			hasError = false;
 			if (changed) {
@@ -283,9 +306,14 @@ class Node<T> extends Owner {
 		if (observers.length == 0 && unobserved != null) unobserved();
 	}
 
-	// (applies its second half: the previous apply's cleanup first)
+	// (applies its second half; its error the nearest boundary's, else the flush's)
 	function runApply() {
 		toApply = false;
+		try applyNow() catch (e:Dynamic) if (parent == null || !parent.handle(e)) Scheduler.report(e);
+	}
+
+	// (the previous apply's cleanup first)
+	function applyNow() {
 		if (disposed || apply == null) return;
 		if (applyCleanup != null) {
 			var c = applyCleanup;

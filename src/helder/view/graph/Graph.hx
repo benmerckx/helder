@@ -62,9 +62,13 @@ class Graph {
 	public static function runWithOwner<T>(o:Null<Owner>, fn:Void->T):T
 		return Owner.runWith(o, fn);
 
-	// a context; without a default, reading it where none is provided is an error
-	public static function context<T>(?defaultValue:T):Context<T>
-		return new Context(defaultValue, defaultValue != null);
+	// a context without a default: reading it where none is provided is an error
+	public static overload extern inline function context<T>():Context<T>
+		return new Context(null, false);
+
+	// a context with a default (null is one)
+	public static overload extern inline function context<T>(defaultValue:T):Context<T>
+		return new Context(defaultValue, true);
 
 	// the nearest value of c provided above the current owner, else its default
 	public static function use<T>(c:Context<T>):T
