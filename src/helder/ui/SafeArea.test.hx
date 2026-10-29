@@ -51,15 +51,15 @@ function tests() {
 		});
 		test("set: the signal only when they changed", () -> {
 			var seen = 0;
-			var stop = helder.view.Reactive.root(d -> {
-				helder.view.Reactive.effect(() -> {
-					SafeArea.insets.value;
-					seen++;
-				});
+			var stop = helder.view.graph.Graph.root(d -> {
+				helder.view.graph.Graph.effect(() -> SafeArea.insets(), _ -> seen++);
 				d;
 			});
+			helder.view.graph.Graph.flush();
 			SafeArea.set(1, 2, 3, 4);
+			helder.view.graph.Graph.flush();
 			SafeArea.set(1, 2, 3, 4);
+			helder.view.graph.Graph.flush();
 			equals(seen, 2);
 			stop();
 		});

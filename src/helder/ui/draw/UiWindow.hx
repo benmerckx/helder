@@ -6,7 +6,7 @@ import helder.os.Event as OsEvent;
 import helder.ui.*;
 import hxmc.unsafe.*;
 import helder.ui.view.UiView;
-import helder.view.Reactive;
+import helder.view.graph.Graph;
 import helder.view.Render;
 import helder.view.RootView;
 
@@ -15,14 +15,14 @@ typedef SurfaceProps = {
 	// the window's title, its size in points (on the web without a size: the
 	// page filled, or the canvas the page gives, at the size its styles make;
 	// natively 800 x 600), the ui's theme and background: values or reactive
-	// (a Signal, a Memo, a function), followed
-	?title:Dynamic,
-	?width:Dynamic,
-	?height:Dynamic,
-	?theme:Dynamic,
-	?background:Dynamic,
+	// (a signal, a memo, a hole that reads: Read), followed
+	?title:helder.view.graph.Read<String>,
+	?width:helder.view.graph.Read<Int>,
+	?height:helder.view.graph.Read<Int>,
+	?theme:helder.view.graph.Read<Dynamic>,
+	?background:helder.view.graph.Read<Dynamic>,
 	// dark or light (default: the system's appearance, UiWindow.dark)
-	?dark:Dynamic,
+	?dark:helder.view.graph.Read<Bool>,
 	// the window closed by its user (default: closed)
 	?onClose:Void->Void,
 	// the UiWindow, once made
@@ -70,7 +70,7 @@ class UiWindow {
 	public static var idleWait = 0.1;
 	// whether the system's appearance is dark (App.prefersDark), asked again
 	// every second while the loop runs; each window's Ui.dark follows it
-	public static final dark:helder.view.Signal<Bool> = helder.view.Reactive.signal(App.prefersDark());
+	public static final dark:helder.view.graph.Signal<Bool> = Graph.signalOf(App.prefersDark(), {ownedWrite: true});
 	static var darkAsked = 0.0;
 
 	static final open:Array<UiWindow> = [];
@@ -347,7 +347,7 @@ class UiWindow {
 				darkAsked = now;
 				var d = App.prefersDark();
 				if (d != dark.peek()) {
-					dark.value = d;
+					dark(d);
 					for (w in open)
 						w.ui.dark = d;
 				}
@@ -374,16 +374,16 @@ class UiWindow {
 		follow(props.title, (v:String) -> w.window.title = v);
 		follow(props.width, (_:Int) -> resize(w, props));
 		follow(props.height, (_:Int) -> resize(w, props));
-		if (props.theme != null) Reactive.effect(() -> w.ui.theme = Render.read(props.theme));
-		if (props.background != null) Reactive.effect(() -> {
-			w.background = Render.read(props.background);
+		if (props.theme != null) Graph.renderEffect(() -> Render.read(props.theme), v -> w.ui.theme = v);
+		if (props.background != null) Graph.renderEffect(() -> Render.read(props.background), v -> {
+			w.background = v;
 			w.ui.requestFrame();
 		});
-		if (props.dark != null) Reactive.effect(() -> w.ui.dark = Render.read(props.dark));
+		if (props.dark != null) Graph.renderEffect(() -> Render.read(props.dark), v -> w.ui.dark = v);
 		if (props.onClose != null) w.onClose = props.onClose;
 		// (in this owner: what is above the root, contexts, seen inside)
 		Render.insert(props.children, w.root, null);
-		Reactive.onCleanup(w.close);
+		Graph.onCleanup(w.close);
 		if (props.ref != null) props.ref(w);
 		return null;
 	}
@@ -391,9 +391,8 @@ class UiWindow {
 	static function follow<T>(v:Dynamic, set:T->Void) {
 		if (!Render.isReactive(v)) return;
 		var first = true;
-		Reactive.effect(() -> {
-			var x:T = Render.read(v);
-			if (!first) Reactive.untrack(() -> set(x));
+		Graph.renderEffect(() -> (Render.read(v) : T), (x:T) -> {
+			if (!first) set(x);
 			first = false;
 		});
 	}

@@ -265,6 +265,7 @@ class Plan<E> {
 				if (!event && name != "ref" && name != "key" && name != "style" && target.isLiteral(x))
 					return target.call(Host, "setProperty", [e, target.string(name), x], ap);
 				if (!event && name != "ref" && name != "key") x = reactive(x);
+				if (event) x = target.handler(x);
 				var plain = !event && name != "ref" && name != "key" && name != "style" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Host, "listen", [e, target.string(name), h], ap);
@@ -306,6 +307,7 @@ class Plan<E> {
 				// (states: a function of a part's states, its own style: set once, not bound)
 				if (name == "states") return target.call(Neutral, "property", [e, target.string(tag), target.string(name), hole(x)], ap);
 				if (!event && name != "ref") x = reactive(x);
+				if (event) x = target.handler(x);
 				var plain = !event && name != "ref" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Neutral, "listen", [e, target.string(tag), target.string(name), h], ap);
@@ -338,10 +340,13 @@ class Plan<E> {
 
 	// a component's factory: () -> Name({props}), its content the children
 	// prop (a literal of its own, evaluated when it is called: the
-	// component's children's renderer, else this one's); its key attribute is
-	// no prop. In a literal for one renderer the function for it (Pick), a
-	// component pinned to another an error; in an agnostic one chosen when
-	// mounted (Pick.call), the factory a hole
+	// component's children's renderer, else this one's; a function, alone,
+	// itself: For's row); its key attribute is no prop. A prop of a type that
+	// reads (Read<T>, Component.reads) whose value may read (3.3) is given as
+	// a function of it, as Solid's compiler makes it a getter: the component
+	// reads it when it uses it. In a literal for one renderer the function
+	// for it (Pick), a component pinned to another an error; in an agnostic
+	// one chosen when mounted (Pick.call), the factory a hole
 	function factory(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int):E {
 		var c = target.component(name, at, renderer);
 		var props:Array<{name:String, value:E, at:Int}> = [];
@@ -351,13 +356,23 @@ class Plan<E> {
 			var v = switch a.value {
 				case AStatic(s): target.string(s, ap);
 				case AFlag: target.bool(true, ap);
-				case AExpr(code, at): target.code(code, at, inner(), true);
+				case AExpr(code, at):
+					var x = target.code(code, at, inner(), true);
+					c.reads != null && c.reads.indexOf(a.name) >= 0 ? reactive(x) : x;
 				case ASpread(_, at): target.error("markup: a component's props cannot be spread", {at: at, length: 3});
 			}
 			props.push({name: a.name, value: v, at: a.at});
 		}
 		var kids = clean(children);
-		var content = kids.length > 0 ? new Plan(target, c.children != null ? c.children : renderer, at).compile({kind: PFragment(kids)}) : null;
+		var content:Null<E> = null;
+		// (a function alone: the children prop itself)
+		if (kids.length == 1) switch kids[0].kind {
+			case PExpr(code, at):
+				var x = target.code(code, at, c.children != null ? c.children : inner(), false);
+				if (x != null && target.isFunction(x)) content = x;
+			case _:
+		}
+		if (content == null && kids.length > 0) content = new Plan(target, c.children != null ? c.children : renderer, at).compile({kind: PFragment(kids)});
 		var f = target.factory(c, props, content, at, renderer == null);
 		if (!shared && renderer != null) return f;
 		var h = hole(f, true);
@@ -388,6 +403,11 @@ interface Target<E> {
 	function mayRead(e:E):Bool;
 	// () -> e
 	function thunk(e:E):E;
+	// whether e is a function literal
+	function isFunction(e:E):Bool;
+	// a listener: one that takes no event (DESIGN.md 6, 8: onPress={() -> ...})
+	// given one it ignores, where the language needs that
+	function handler(e:E):E;
 	// whether components are mounted with fast refresh's keys (hxmc.dev)
 	function devKeys():Bool;
 	// a component's tag at an offset, for a literal of renderer: its callee
@@ -430,7 +450,8 @@ enum Callee {
 
 typedef Where = {at:Int, length:Int};
 
-typedef Component<E> = {callee:E, children:Null<String>};
+// (reads: the props of a type that reads, Read<T>: bound when their value may read)
+typedef Component<E> = {callee:E, children:Null<String>, ?reads:Array<String>};
 
 typedef Planned<E> = {
 	renderer:Null<String>,

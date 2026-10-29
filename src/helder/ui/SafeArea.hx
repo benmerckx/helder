@@ -1,7 +1,7 @@
 package helder.ui;
 
-import helder.view.Reactive;
-import helder.view.Signal;
+import helder.view.graph.Graph;
+import helder.view.graph.Signal;
 
 // The main window's safe area for markup, as CSS's env(): a literal
 // attribute naming env(safe-area-inset-top) (right, bottom, left; a
@@ -13,23 +13,23 @@ import helder.view.Signal;
 // one length; a percentage in calc() stays for Dim's. The insets are
 // UiWindow's first window's (a phone has one: Window.safeTop..., over the
 // UI's scale), each frame they changed; Ui.safeArea has each window's own.
-// Code reads insets.value (a signal: what reads it in an effect or a
-// reactive attribute follows it).
+// Code reads insets() (a signal: what reads it in an effect or a reactive
+// attribute follows it).
 class SafeArea {
 	// top, right, bottom, left in UI pixels
-	public static final insets:Signal<Edges> = Reactive.signal(Edges.ZERO);
+	public static final insets:Signal<Edges> = Graph.signalOf(Edges.ZERO, {ownedWrite: true});
 
 	// (UiWindow) the insets now: the signal set when they changed
 	public static function set(top:Float, right:Float, bottom:Float, left:Float) {
 		var e = insets.peek();
 		if (e.top == top && e.right == right && e.bottom == bottom && e.left == left) return;
-		insets.value = new Edges(top, right, bottom, left);
+		insets(new Edges(top, right, bottom, left));
 	}
 
 	// (markup: NodeRenderer.setProperty, a literal value naming env()) the
 	// attribute set from the value resolved, again when the insets change
 	public static function bind(n:Node, set:(n:Node, name:String, v:Dynamic) -> Void, name:String, value:String)
-		Reactive.effect(() -> set(n, name, resolve(value, insets.value)));
+		Graph.renderEffect(() -> resolve(value, insets()), (v:String) -> set(n, name, v));
 
 	// value with each env() replaced by its pixels (of e), then calc(), max()
 	// and min() of pixels folded

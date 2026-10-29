@@ -1,71 +1,74 @@
 package helder.view;
 
-import helder.view.Reactive;
-import helder.view.Signal;
-import helder.view.Memo;
+import helder.view.graph.Graph;
+import helder.view.graph.Read;
+import helder.view.graph.Context;
 
-// Control flow components for markup (import helder.view.Flow.*):
+// Control flow components for markup (import helder.view.Flow.*), Solid 2's:
 //
-//   <For each={todos} render={t -> <Item todo={t}/>}/>
-//   <Index each={names} render={(name, i) -> <text>{name}</text>}/>
-//   <Show when={() -> count.value > 0} fallback="none">{...}</Show>
-//   <Switch fallback="other"><Match when={a}>A</Match><Match when={b}>B</Match></Switch>
+//   <For each={todos}>{t -> <Item todo={t}/>}</For>
+//   <For each={names} keyed={false}>{name -> <text>{name()}</text>}</For>
+//   <Repeat count={3}>{i -> <dot/>}</Repeat>
+//   <Show when={count() > 0} fallback="none">{...}</Show>
+//   <Switch fallback="other"><Match when={a()}>A</Match><Match when={b()}>B</Match></Switch>
 //   <Provider context={theme} value={dark}>{...}</Provider>
-//   <ErrorBoundary fallback={(e, reset) -> ...}>{...}</ErrorBoundary>
+//   <Errored fallback={(e, reset) -> ...}>{...}</Errored>
 //   <Loading fallback={<text>loading</text>}>{...}</Loading>
 //
-// For keeps each item's nodes (keyed by the item itself): when the list
-// changes, items still there are moved, not made again; the others are
-// made, or removed with their computations. Index keeps a row per index,
-// its item a signal set to the new item. Show and Switch render a branch
-// again only when the branch chosen changes (not on every change of what
-// chooses it). Provider sets a context for its children (Reactive.use).
-// ErrorBoundary shows fallback instead of its children when rendering them
-// throws, or a computation inside them does later; reset tries again.
-// Loading (Solid 2.0's, Suspense's successor) shows fallback instead of
-// its children while what they read on their first load is not ready
-// (Pending: helder.asset's Asset.value), then its children; after that it
-// keeps them shown: a value replaced later (a reload) is read once it is
-// here, with no fallback in between (Reactive.isPending says one is on its
-// way). Its children are made, and while something they read is pending,
-// dropped and made again once it is ready (their components run twice).
+// For's row is its child function, given the item as a Read: keyed by the
+// item itself (the default), a row is kept and moved while its item is in
+// the list, its Read the item; keyed={false}, a row per index, its Read
+// what is at that index (Solid 1's Index). Repeat makes a row per number
+// below count. Show and Switch render a branch again only when the branch
+// chosen changes (not on every change of what chooses it): `when` is
+// truthy when not null and not false. Provider sets a context for its
+// children (Graph.use). Errored shows fallback instead of its children
+// when making them throws, or a computation inside them does later; reset
+// tries again. Loading shows fallback instead of its children while what
+// they read on their first load is pending (an async memo, helder.asset's
+// Asset); once it has shown them it keeps them shown, a later change held
+// until it lands (Graph.isPending says one is on its way). Its children
+// are made once: what reads a value not ready waits inside the graph.
 class Flow {
-	public static function For<T>(props:{each:Dynamic, render:T->Any}):Any
-		return new ForList(props.each, cast props.render);
+	public static function For<T>(props:{each:Read<Array<T>>, ?keyed:Bool, children:Read<T>->Any}):Any
+		return new ForList(cast props.each, props.keyed != false, cast props.children);
 
-	public static function Index<T>(props:{each:Dynamic, render:(Signal<T>, Int)->Any}):Any
-		return new IndexList(props.each, cast props.render);
-
-	public static function Show(props:{when:Dynamic, ?fallback:Any, ?children:Any}):Any {
-		var on = Reactive.memo(() -> {
-			var w:Dynamic = Render.read(props.when);
-			w != null && w != false;
-		});
-		return () -> on.value ? props.children : props.fallback;
+	public static function Repeat(props:{count:Read<Int>, children:Int->Any}):Any {
+		var count = props.count, render = props.children;
+		var numbers = Graph.memo(() -> [for (i in 0...count()) i]);
+		return new ForList(cast(numbers : Read<Array<Int>>), true, (i:Read<Dynamic>) -> render(i()));
 	}
 
-	public static function Match(props:{when:Dynamic, ?children:Any}):Any
-		return new MatchCase(props.when, props.children);
+	public static function Show<T>(props:{when:Read<T>, ?fallback:Any, ?children:Any}):Any {
+		var when = props.when;
+		var on = Graph.memo(() -> truthy(when()));
+		return () -> on() ? props.children : props.fallback;
+	}
+
+	public static function Match<T>(props:{when:Read<T>, ?children:Any}):Any
+		return new MatchCase(cast props.when, props.children);
 
 	public static function Switch(props:{?fallback:Any, ?children:Any}):Any {
 		var cases:Array<MatchCase> = [];
-		Reactive.untrack(() -> collect(props.children, cases));
-		var chosen = Reactive.memo(() -> {
+		Graph.untrack(() -> collect(props.children, cases));
+		var chosen = Graph.memo(() -> {
 			var k = -1;
-			for (i in 0...cases.length) {
-				var w:Dynamic = Render.read(cases[i].when);
-				if (w != null && w != false) {
+			for (i in 0...cases.length)
+				if (truthy(cases[i].when.read())) {
 					k = i;
 					break;
 				}
-			}
 			k;
 		});
 		return () -> {
-			var k = chosen.value;
+			var k = chosen();
 			k < 0 ? props.fallback : cases[k].children;
 		};
 	}
+
+	// (truthy: not null, not false)
+	static inline function truthy(v:Dynamic):Bool
+		return v != null && v != false;
 
 	// the Match cases among a Switch's children (its components called)
 	static function collect(v:Dynamic, out:Array<MatchCase>) {
@@ -82,11 +85,11 @@ class Flow {
 	}
 
 	public static function Provider<T>(props:{context:Context<T>, value:T, ?children:Any}):Any {
-		Reactive.setContext(props.context, props.value);
+		Graph.setContext(props.context, props.value);
 		return props.children;
 	}
 
-	public static function ErrorBoundary(props:{fallback:(Dynamic, Void->Void)->Any, ?children:Any}):Any
+	public static function Errored(props:{fallback:(error:Dynamic, reset:Void->Void)->Any, ?children:Any}):Any
 		return new Boundary(props.fallback, props.children);
 
 	public static function Loading(props:{?fallback:Any, ?children:Any}):Any
@@ -102,33 +105,25 @@ interface Mountable<N> {
 }
 
 class MatchCase {
-	public final when:Dynamic;
+	public final when:Reader<Dynamic>;
 	public final children:Any;
 
-	public function new(when:Dynamic, children:Any) {
+	public function new(when:Reader<Dynamic>, children:Any) {
 		this.when = when;
 		this.children = children;
 	}
 }
 
-// For's, Index's and ErrorBoundary's content, which each renderer's
+// For's, Loading's and Errored's content, which each renderer's
 // ViewRuntime mounts
 class ForList {
-	public final each:Dynamic;
-	public final render:Dynamic->Any;
+	public final each:Reader<Array<Dynamic>>;
+	public final keyed:Bool;
+	public final render:Read<Dynamic>->Any;
 
-	public function new(each:Dynamic, render:Dynamic->Any) {
+	public function new(each:Reader<Array<Dynamic>>, keyed:Bool, render:Read<Dynamic>->Any) {
 		this.each = each;
-		this.render = render;
-	}
-}
-
-class IndexList {
-	public final each:Dynamic;
-	public final render:(Signal<Dynamic>, Int)->Any;
-
-	public function new(each:Dynamic, render:(Signal<Dynamic>, Int)->Any) {
-		this.each = each;
+		this.keyed = keyed;
 		this.render = render;
 	}
 }
@@ -151,4 +146,12 @@ class Boundary {
 		this.fallback = fallback;
 		this.children = children;
 	}
+}
+
+// (a component whose making read a value not ready: made once it is)
+class Deferred {
+	public final factory:Void->Any;
+
+	public function new(factory:Void->Any)
+		this.factory = factory;
 }

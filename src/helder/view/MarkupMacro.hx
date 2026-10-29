@@ -152,7 +152,7 @@ class MarkupMacro {
 	// @:neutral), the renderer its return type pins it to, its children's (a
 	// children prop of ViewOf<R>); null when it does not type (the call's error then)
 	@:allow(helder.view.HaxeTarget) static function component(callee:Expr):Null<{name:String, field:String, limits:Null<{only:Array<String>, other:Map<String, Expr>}>,
-		pin:Null<String>, ret:String, children:Null<String>}> {
+		pin:Null<String>, ret:String, children:Null<String>, reads:Array<String>}> {
 		var t = try Context.typeExpr(callee) catch (_:Dynamic) return null;
 		var name = callee.toString(), fieldName = name.split(".").pop(), l = null;
 		switch t.expr {
@@ -162,20 +162,34 @@ class MarkupMacro {
 				if (!cf.get().meta.has(":neutral")) l = limits(c.get().meta);
 			case _:
 		}
-		var pin = null, ret = "", children = null;
+		var pin = null, ret = "", children = null, reads = [];
 		switch Context.follow(t.t) {
 			case TFun(args, r):
 				pin = HostMacro.pinOf(r);
 				ret = haxe.macro.TypeTools.toString(r);
 				if (args.length > 0) switch Context.follow(args[0].t) {
 					case TAnonymous(a):
-						for (f in a.get().fields)
+						for (f in a.get().fields) {
 							if (f.name == "children") children = HostMacro.viewOf(f.type);
+							if (isRead(f.type)) reads.push(f.name);
+						}
 					case _:
 				}
 			case _:
 		}
-		return {name: name, field: fieldName, limits: l, pin: pin, ret: ret, children: children};
+		return {name: name, field: fieldName, limits: l, pin: pin, ret: ret, children: children, reads: reads};
+	}
+
+	// (helder.view.graph.Read<T>, through Null and typedefs: a prop that reads)
+	static function isRead(t:Type):Bool {
+		return switch t {
+			case TAbstract(_.get() => {pack: ["helder", "view", "graph"], name: "Read"}, _): true;
+			case TAbstract(_.get() => {pack: [], name: "Null"}, [p]): isRead(p);
+			case TType(_, _): isRead(Context.follow(t, true));
+			case TMono(m) if (m.get() != null): isRead(m.get());
+			case TLazy(f): isRead(f());
+			case _: false;
+		}
 	}
 
 	// the function renderer's markup calls for callee (Pick.callee): itself, or
@@ -386,6 +400,24 @@ class HaxeTarget implements Target<Expr> {
 	public function thunk(e:Expr):Expr
 		return macro @:pos(e.pos) () -> $e;
 
+	public function handler(e:Expr):Expr {
+		var t = try Context.typeof(e) catch (_:Dynamic) return e;
+		return switch Context.follow(t) {
+			case TFun([], _): macro @:pos(e.pos) {
+					var __f = $e;
+					(_:Dynamic) -> __f();
+				};
+			case _: e;
+		}
+	}
+
+	public function isFunction(e:Expr):Bool
+		return switch e.expr {
+			case EFunction(_, _): true;
+			case EParenthesis(x) | EMeta(_, x) | ECheckType(x, _): isFunction(x);
+			case _: false;
+		}
+
 	public function devKeys():Bool
 		return Context.defined("hxmc.dev");
 
@@ -410,7 +442,7 @@ class HaxeTarget implements Target<Expr> {
 			if (c != null && c.pin != null && c.pin != renderer)
 				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret + "), not " + renderer + "'s", p);
 		}
-		return {callee: callee, children: c != null ? c.children : null};
+		return {callee: callee, children: c != null ? c.children : null, reads: c != null ? c.reads : null};
 	}
 
 	public function ident(name:String):Expr

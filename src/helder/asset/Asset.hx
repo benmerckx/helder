@@ -6,8 +6,9 @@ import haxe.macro.Expr;
 import haxe.Exception;
 import haxe.coro.IContinuation;
 import helder.async.Async;
-import helder.view.Pending;
-import helder.view.Signal.SignalBase;
+import helder.view.graph.Awaitable.Later;
+import helder.view.graph.Graph;
+import helder.view.graph.Node;
 #end
 
 // A file of the program, by its path (AssetPath): an image, a font, a model,
@@ -26,76 +27,72 @@ import helder.view.Signal.SignalBase;
 // it is ready (at once if it is) and throws if it failed. Several at once
 // with tasks: task.async(_ -> a.load()), then Async.all. Without
 // suspending (the frame loop): ready, peek() (null until then), state.
-// value is the loaded value as a signal (helder.view): read in markup or a
-// memo it is tracked; read before it is ready it throws AssetPending
-// (helder.view's Pending: inside a <Loading> boundary that content waits
-// for it, Solid 2.0's model), after a failure the AssetError (an
-// ErrorBoundary's). refreshing (and Reactive.isPending) tells a reload in
-// flight.
+//
+// The handle is a node of helder.view's graph (an async memo, DESIGN.md
+// 2): read() reads it, tracked, as markup does with the handle itself
+// (<image src={icon}/>, a Read prop): pending while it loads (a <Loading>
+// boundary above shows its fallback on its first load), the AssetError
+// after a failure (an <Errored>'s). A reload's new value is pending in turn
+// (Graph.isPending says so), the last one kept meanwhile.
 //
 // Under `helder dev` the files are read from disk and watched: a change is
 // sent to the running program, which loads it again and puts it behind
 // the same handle, the engine's objects swapped in place (an Image's
 // pixels, a FontFile's glyphs, a Model's meshes and materials: what draws
-// them shows the new ones) and value's readers run again.
+// them shows the new ones) and its readers run again.
 //
 // Loads advance on the main thread's loop (helder.async: App.run turns it;
 // Assets.poll turns it for a program with a loop of its own).
-class Asset<T> #if !macro extends SignalBase implements Loadable #end {
+class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 	#if !macro
 	public final key:String;
 	public var state(default, null):AssetState = Loading;
 	public var ready(get, never):Bool;
-	public var value(get, never):T;
-	// a value here and a new one loading (a reload: helder dev's; tracked)
-	public var refreshing(get, never):Bool;
 
 	var current:Null<T> = null;
-	var reloading = false;
 	final waiting:Array<IContinuation<T>> = [];
-	var readers:Null<Array<Void->Void>> = null;
+	// (the graph's node: the value, or while it loads (a reload too) an
+	// answer later, each run its own; asked: a reload's question)
+	final node:Node<T>;
+	final asks:Array<Later<T>> = [];
+	var reloading = false;
+	final asked:Node<Int>;
 
 	@:noCompletion public function new(key:String) {
 		this.key = key;
+		asked = Node.signal(0, {ownedWrite: true});
+		// (of no owner: a handle outlives what reads it; every answer a change, a reload's object the same one)
+		node = Graph.runWithOwner(null, () -> Node.computed(cast ((_:Null<T>) -> {
+			asked.read();
+			if (reloading || state == Loading) {
+				var l = new Later<T>();
+				asks.push(l);
+				return (l : Dynamic);
+			}
+			return switch state {
+				case Failed(error): throw new AssetError(key, error);
+				case _: (current : Dynamic);
+			}
+		} : Null<T>->Dynamic), {equals: (_, _) -> false}, false));
 	}
 
-	// (tracked: a reader that waits for it runs again once it is)
-	function get_ready():Bool {
-		track();
+	// (the answers asked for: v, or the error)
+	function answer(v:Null<T>, error:Null<AssetError>) {
+		var ls = asks.copy();
+		asks.resize(0);
+		for (l in ls)
+			if (error != null) l.reject(error) else l.resolve(v);
+	}
+
+	inline function get_ready():Bool
 		return state == Ready;
-	}
 
-	function get_refreshing():Bool {
-		track();
-		return reloading;
-	}
-
-	// (Loadable: f once it is ready or has failed)
-	@:noCompletion public function whenReady(f:Void->Void) {
-		if (state != Loading) f() else {
-			if (readers == null) readers = [];
-			readers.push(f);
-		}
-	}
-
-	// the value, tracked; AssetPending while loading, the AssetError once failed
-	function get_value():T {
-		track();
-		var probe = helder.view.Reactive.probe;
-		if (probe != null) probe.push(this);
-		return switch state {
-			case Ready: current;
-			case Loading: throw new AssetPending(this);
-			case Failed(error): throw new AssetError(key, error);
-		}
-	}
-
-	// (a hole or an attribute bound to the handle: its value)
-	override function read():Dynamic
-		return value;
+	// the value, tracked (Reader): pending while it loads, the AssetError once failed
+	public function read():T
+		return node.read();
 
 	// the value if it is here (not tracked, never throws), else null
-	public inline function peek():Null<T>
+	public function peek():Null<T>
 		return current;
 
 	// the value, once loaded: the calling coroutine waits for it (an
@@ -118,12 +115,12 @@ class Asset<T> #if !macro extends SignalBase implements Loadable #end {
 	@:noCompletion public function resolve(v:T) {
 		current = v;
 		state = Ready;
-		reloading = false;
 		var w = waiting.copy();
 		waiting.resize(0);
 		for (c in w)
 			Async.resumeLater(c, v, null);
-		settled();
+		reloading = false;
+		answer(v, null);
 	}
 
 	@:noCompletion public function fail(error:String) {
@@ -132,27 +129,18 @@ class Asset<T> #if !macro extends SignalBase implements Loadable #end {
 		waiting.resize(0);
 		for (c in w)
 			Async.resumeLater(c, null, new AssetError(key, error));
-		settled();
+		answer(null, new AssetError(key, error));
 	}
 
-	// (a reload begins, or ends having kept the last value)
+	// (a reload begins: a new value on its way; or ends having kept the last value)
 	@:noCompletion public function refresh(on:Bool) {
-		if (reloading == on) return;
+		if (on == reloading) return;
 		reloading = on;
-		notify();
-	}
-
-	function settled() {
-		notify();
-		var r = readers;
-		readers = null;
-		if (r != null)
-			for (f in r)
-				f();
+		if (on) asked.update(n -> n + 1) else answer(current, null);
 	}
 
 	public function toString():String
-		return 'Asset($key, $state)';
+		return 'Asset(' + key + ', ' + state + ')';
 	#end
 
 	// an image (helder.image.Image): PNG (decoded as a job: ImageJobs), JPEG, GIF, WebP
@@ -191,18 +179,6 @@ enum AssetState {
 }
 
 #if !macro
-// an asset's value read before it was loaded (Asset.value): a <Loading>
-// boundary waits for it; elsewhere a mistake (load() in a coroutine, ready
-// or peek() in the frame loop)
-class AssetPending extends Pending {
-	public final asset:Asset<Dynamic>;
-
-	public function new(asset:Asset<Dynamic>) {
-		super(asset, '${asset.key}: not loaded yet (read value under <Loading>, load() in a coroutine, ready or peek() in the frame loop)');
-		this.asset = asset;
-	}
-}
-
 // an asset that did not load
 class AssetError extends Exception {
 	public final key:String;

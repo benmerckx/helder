@@ -4,8 +4,6 @@ package helder.view;
 import haxe.macro.Context;
 #end
 import haxe.macro.Expr;
-import helder.view.Memo;
-import helder.view.Signal;
 
 // Mounting content: render and insert go to the runtime (ViewRuntime) of the
 // renderer whose nodes parent is, chosen by its type when compiling (its
@@ -66,15 +64,19 @@ class Render {
 	// literal of components only): components that make roots of their own
 	// (<Surface>s, UiWindow.run), called in a root, what they return opened in
 	// turn (a component's View); its dispose
-	public static function open(content:RootView):Void->Void
-		return Reactive.root(dispose -> {
+	public static function open(content:RootView):Void->Void {
+		var top = helder.view.graph.Graph.getOwner() == null;
+		var d = helder.view.graph.Graph.root(dispose -> {
 			#if hxmc.dev
 			// (hxmc dev: its roots' cleanups, their windows' closing, run before the next build starts)
-			Reactive.onCleanup(helder.dev.Hot.onDispose(dispose));
+			helder.view.graph.Graph.onCleanup(helder.dev.Hot.onDispose(dispose));
 			#end
-			Reactive.untrack(() -> values(content));
+			helder.view.graph.Graph.untrack(() -> values(content));
 			dispose;
 		});
+		if (top) helder.view.graph.Graph.flush();
+		return d;
+	}
 
 	static function values(v:Dynamic) {
 		if (v == null) return;
@@ -88,22 +90,32 @@ class Render {
 				values(x);
 		} else if (isReactive(v)) {
 			// (a region, Show's: what it gives opened again when it changes, the roots it opened before disposed)
-			Reactive.effect(() -> {
-				var x = read(v);
-				Reactive.untrack(() -> values(x));
+			var home = helder.view.graph.Graph.getOwner(), shown:Null<helder.view.graph.Owner> = null;
+			helder.view.graph.Graph.renderEffect(() -> read(v), (x:Dynamic) -> {
+				if (shown != null) shown.dispose();
+				shown = new helder.view.graph.Owner(home);
+				helder.view.graph.Graph.runWithOwner(shown, () -> values(x));
 			});
-		} else throw "helder.view: content with no parent is components only, not " + Std.string(v);
+			helder.view.graph.Graph.onCleanup(() -> if (shown != null) shown.dispose());
+		} else if (Std.isOfType(v, helder.view.graph.Read.Const)) values((v : helder.view.graph.Read.Const<Dynamic>).value);
+		else throw "helder.view: content with no parent is components only, not " + Std.string(v);
 	}
-	#end
 
+	// whether a value is reactive: a node (a signal, a memo), a Read of one or
+	// of a function, a function (a hole that may read: () -> ...); a Read's
+	// constant is not
 	public static function isReactive(v:Dynamic):Bool
-		return v != null && (Std.isOfType(v, SignalBase) || Std.isOfType(v, MemoBase) || Reflect.isFunction(v));
+		return v != null && ((Std.isOfType(v, helder.view.graph.Read.Reader) && !Std.isOfType(v, helder.view.graph.Read.Const)) || Reflect.isFunction(v));
 
-	// a reactive value's value (tracked)
+	// a reactive value's value (tracked), else the value; a node or a Read
+	// that it gives read in turn ({row()} of a list of signals: its value)
 	public static function read(v:Dynamic):Dynamic {
-		if (Std.isOfType(v, SignalBase)) return (cast v : SignalBase).read();
-		if (Std.isOfType(v, MemoBase)) return (cast v : Memo<Dynamic>).value;
-		if (Reflect.isFunction(v)) return (v : Void->Dynamic)();
+		if (Std.isOfType(v, helder.view.graph.Read.Reader)) v = (v : helder.view.graph.Read.Reader<Dynamic>).read();
+		else if (Reflect.isFunction(v)) v = (v : Void->Dynamic)();
+		else return v;
+		while (Std.isOfType(v, helder.view.graph.Read.Reader))
+			v = (v : helder.view.graph.Read.Reader<Dynamic>).read();
 		return v;
 	}
+	#end
 }

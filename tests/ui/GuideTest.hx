@@ -2,7 +2,9 @@ import helder.ui.*;
 import helder.view.*;
 import helder.ui.view.*;
 import helder.ui.view.UiFlow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 import helder.view.Flow.*;
 import UiTest.Recording;
 
@@ -43,15 +45,15 @@ class GuideTest implements Markup {
 	// "Components"
 	static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:String}):View
 		return <view:button tag={props.tag} slot="button" variant={props.variant} role="button" focusable
-			onPress={_ -> props.onClick()}>{props.label}</view:button>;
+			onPress={() -> props.onClick()}>{props.label}</view:button>;
 
 	static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):View {
 		var step = props.step ?? 1;
 		return <view direction="row" align-items="center" column-gap={8}>
 			<text grow={1}>{props.label}</text>
-			<Button tag="minus" label="-" onClick={() -> props.value.value -= step}/>
+			<Button tag="minus" label="-" onClick={() -> props.value(v -> v - step)}/>
 			<text min-width={32} text-align="center">{props.value}</text>
-			<Button tag="plus" label="+" onClick={() -> props.value.value += step}/>
+			<Button tag="plus" label="+" onClick={() -> props.value(v -> v + step)}/>
 		</view>;
 	}
 
@@ -63,27 +65,27 @@ class GuideTest implements Markup {
 
 	static function Order(props:{}):View {
 		var adults = signal(2), children = signal(0);
-		var total = memo(() -> adults.value * 30 + children.value * 12);
+		var total = memo(() -> adults() * 30 + children() * 12);
 		return <Card title="Tickets">
 			<Stepper label="Adults" value={adults}/>
 			<Stepper label="Children" value={children} step={1}/>
-			<text tag="total">{() -> 'Total: € ${total.value}'}</text>
+			<text tag="total">Total: € {total()}</text>
 		</Card>;
 	}
 
 	// "Lists and conditions"
 	static function Names(props:{names:Signal<Array<String>>}):View
 		return <view row-gap={4}>
-			<For each={props.names} render={(name:String) -> <text>{name}</text>}/>
-			<Show when={() -> props.names.value.length == 0} fallback={<text tag="count">{() -> props.names.value.length + " names"}</text>}>
+			<For each={props.names}>{name -> <text>{name}</text>}</For>
+			<Show when={props.names().length == 0} fallback={<text tag="count">{props.names().length} names</text>}>
 				<text tag="empty">No names yet</text>
 			</Show>
 		</view>;
 
 	static function Page(props:{tab:Signal<String>}):View
 		return <Switch fallback={<text>Not found</text>}>
-			<Match when={() -> props.tab.value == "home"}><text tag="home">Home</text></Match>
-			<Match when={() -> props.tab.value == "settings"}><text tag="settings">Settings</text></Match>
+			<Match when={props.tab() == "home"}><text tag="home">Home</text></Match>
+			<Match when={props.tab() == "settings"}><text tag="settings">Settings</text></Match>
 		</Switch>;
 
 	// "Context"
@@ -98,14 +100,14 @@ class GuideTest implements Markup {
 	static function Confirm(props:{onYes:Void->Void}):View {
 		var open = signal(false);
 		return <view>
-			<Button tag="delete" label="Delete" onClick={() -> open.value = true}/>
-			<Popover open={open} modal placement="center" onDismiss={() -> open.value = false}>
+			<Button tag="delete" label="Delete" onClick={() -> open(true)}/>
+			<Popover open={open} modal placement="center" onDismiss={() -> open(false)}>
 				<view role="dialog" label="Delete this file?" padding={16} row-gap={12} radius={8} background="#ffffff">
 					<text font-weight={700}>Delete this file?</text>
 					<view direction="row" column-gap={8} justify="end">
-						<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
+						<Button tag="no" label="Cancel" onClick={() -> open(false)}/>
 						<Button tag="yes" label="Delete" onClick={() -> {
-							open.value = false;
+							open(false);
 							props.onYes();
 						}}/>
 					</view>
@@ -117,7 +119,7 @@ class GuideTest implements Markup {
 	// "Your own nodes"
 	static function Spark(props:{values:Signal<Array<Float>>}):Node {
 		var n = new Sparkline();
-		effect(() -> n.values = props.values.value);
+		renderEffect(() -> props.values(), v -> n.values = v);
 		return n;
 	}
 
@@ -155,14 +157,14 @@ class GuideTest implements Markup {
 
 	static function state() {
 		var price = signal(12.5), qty = signal(2);
-		var total = memo(() -> price.value * qty.value);
+		var total = memo(() -> price() * qty());
 		var seen = [];
-		effect(() -> seen.push(total.value));
-		batch(() -> {
-			price.value = 10;
-			qty.value = 3;
-		});
-		check("state: an effect once per batch", seen.join(",") == "25,30", seen.join(","));
+		root(_ -> effect(() -> total(), t -> seen.push(t)));
+		flush();
+		price(10);
+		qty(3);
+		flush();
+		check("state: writes land together at the flush, an effect once", seen.join(",") == "25,30", seen.join(","));
 	}
 
 	static function lists() {
@@ -171,13 +173,15 @@ class GuideTest implements Markup {
 		Render.render(<Names names={names}/>, ui.root);
 		ui.update();
 		check("lists: Show's children while the condition holds", text(ui, "empty") == "No names yet");
-		names.value = ["Ann", "Bo"];
+		names(["Ann", "Bo"]);
+		flush();
 		ui.update();
 		check("lists: its fallback otherwise, For's rows", text(ui, "count") == "2 names" && ui.root.find("empty") == null);
 		var tab = signal("home");
 		var ui2 = window();
 		Render.render(<Page tab={tab}/>, ui2.root);
-		tab.value = "settings";
+		tab("settings");
+		flush();
 		ui2.update();
 		check("lists: Switch picks the first Match that holds", text(ui2, "settings") == "Settings" && ui2.root.find("home") == null);
 	}
@@ -209,18 +213,19 @@ class GuideTest implements Markup {
 		var ui = window();
 		var count = signal(1), on = signal(false), open = signal(false), closed = 0;
 		var close = () -> closed++;
-		var height = Motion.spring(() -> open.value ? 200 : 0);
+		var height = Motion.spring(() -> open() ? 200 : 0);
 		Render.render(<view>
 			<text tag="a">{count}</text>
-			<text tag="b">{() -> count.value * 2}</text>
-			<text tag="c">{count.value}</text>
-			<view tag="d" background={() -> on.value ? "#22c55e" : "#e4e4e7"}/>
+			<text tag="b">{() -> count() * 2}</text>
+			<text tag="c">{count()}</text>
+			<view tag="d" background={() -> on() ? "#22c55e" : "#e4e4e7"}/>
 			<view tag="e" height={height} overflow="hidden"><text>Hello</text></view>
 			<view tag="banner" height={48} radius={8} background="linear-gradient(to right, #6366f1, rgb(236 72 153))"/>
 			<view tag="f" role="button" label="Close" focusable onClick={_ -> close()}
 				onKeyDown={e -> if (e.key == Key.ENTER || e.key == Key.SPACE) close()}><text>×</text></view>
 		</view>, ui.root);
-		count.value = 5;
+		count(5);
+		flush();
 		ui.update();
 		var banner = ui.root.find("banner");
 		check("snippets: a gradient background", banner.style.backgroundImage != null && banner.style.background == Color.TRANSPARENT);
@@ -238,7 +243,8 @@ class GuideTest implements Markup {
 		check("snippets: a transform about its origin", bm != null && Math.abs(bm[0] - 1.2 * Math.cos(Math.PI / 12)) < 1e-9 && badge.width == 24
 			&& Math.abs(bm[4] - (badge.absX - (bm[0] * badge.absX + bm[2] * badge.absY))) < 1e-9);
 		check("snippets: bound holes", text(ui, "a") == "5" && text(ui, "b") == "10" && text(ui, "c") == "5", text(ui, "a") + text(ui, "b") + text(ui, "c"));
-		open.value = true;
+		open(true);
+		flush();
 		Clock.finish();
 		ui.update();
 		check("snippets: a spring reaches its target", ui.root.find("e").height == 200, '${ui.root.find("e").height}');
@@ -294,7 +300,8 @@ class GuideTest implements Markup {
 		ui.update();
 		var t:TextNode = cast ui.root.find("greeting");
 		check("rich text: the spans make one paragraph", t.allText() == "Hello Ann, read the guide." && t.children.length == 5, t.allText());
-		name.value = "Bo";
+		name("Bo");
+		flush();
 		ui.update();
 		check("rich text: a span follows its signal", t.allText() == "Hello Bo, read the guide.", t.allText());
 		// (MonoText: 5 pixels a character; "the guide" from character 16)
@@ -343,11 +350,13 @@ class GuideTest implements Markup {
 		check("themes: unstyled, then the sheet's looks", unstyled && b.style.background == Color.rgb(0x171717) && b.style.radius == 6
 			&& b.style.borderWidth == 0 && o.style.borderWidth == 1 && o.style.borderColor == Color.rgb(0xE5E5E5), StringTools.hex(b.style.background, 8));
 		var dark = signal(false);
-		effect(() -> ui.dark = dark.value);
-		dark.value = true;
+		root(_ -> renderEffect(() -> dark(), d -> ui.dark = d));
+		dark(true);
+		flush();
 		ui.update();
 		check("themes: dark colours", b.style.background == Color.rgb(0xE5E5E5) && o.style.borderColor == Color.rgba(0xFFFFFF, 0.1));
-		dark.value = false;
+		dark(false);
+		flush();
 		ui.update();
 		check("themes: and back", b.style.background == Color.rgb(0x171717));
 	}
@@ -381,8 +390,8 @@ class GuideTest implements Markup {
 	static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 		return <view row-gap={8}>
 			<Hotkey keys="Mod+S" action={props.onSave}/>
-			<Hotkey keys="Mod+Shift+K" action={() -> props.text.value = ""}/>
-			<field:textarea value={props.text} onInput={e -> props.text.value = e.text}/>
+			<Hotkey keys="Mod+Shift+K" action={() -> props.text("")}/>
+			<field:textarea value={props.text} onInput={e -> props.text(e.text)}/>
 		</view>;
 
 	static function shortcuts() {
@@ -396,29 +405,32 @@ class GuideTest implements Markup {
 		ui.setFocus(area);
 		ui.keyDown("s".code, Key.MOD_CONTROL);
 		ui.keyDown("k".code, Key.MOD_META | Key.MOD_SHIFT);
-		check("shortcuts: two Hotkeys, the focus in the text", saved == 1 && text.value == "", saved + " " + text.value);
+		check("shortcuts: two Hotkeys, the focus in the text", saved == 1 && text() == "", saved + " " + text());
 	}
 
 	// "Drag and drop": a list sorted by dragging
 	static function Sortable(props:{items:Signal<Array<String>>}):View {
 		var over = signal("");
 		function move(what:String, before:String) {
-			var list = props.items.value.filter(x -> x != what);
+			var list = props.items().filter(x -> x != what);
 			list.insert(list.indexOf(before), what);
-			props.items.value = list;
+			props.items(list);
 		}
 		return <view row-gap={4}>
-			<For each={props.items} render={(name:String) -> <view tag={"item-" + name} drag-data={name} padding={6}
-				background={() -> over.value == name ? "#dbeafe" : "#ffffff"}
-				onDragOver={e -> {
-					e.preventDefault();
-					over.value = name;
-				}}
-				onDragLeave={_ -> over.value = ""}
-				onDrop={e -> {
-					over.value = "";
-					if (e.data != name) move(e.data, name);
-				}}>{name}</view>}/>
+			<For each={props.items}>{item -> {
+				var name = item();
+				<view tag={"item-" + name} drag-data={name} padding={6}
+					background={over() == name ? "#dbeafe" : "#ffffff"}
+					onDragOver={e -> {
+						e.preventDefault();
+						over(name);
+					}}
+					onDragLeave={() -> over("")}
+					onDrop={e -> {
+						over("");
+						if (e.data != name) move(e.data, name);
+					}}>{name}</view>;
+			}}</For>
 		</view>;
 	}
 
@@ -440,13 +452,13 @@ class GuideTest implements Markup {
 		check("drag and drop: the target under it accepts", ui.root.find("item-c").style.background == Color.parse("#dbeafe"));
 		ui.pointerUp(c.x, c.y, 1);
 		ui.update();
-		check("drag and drop: dropped, the list sorted", items.value.join("") == "bacd" && ui.dragging == null && clicks == 0, items.value.join("") + " " + clicks);
+		check("drag and drop: dropped, the list sorted", items().join("") == "bacd" && ui.dragging == null && clicks == 0, items().join("") + " " + clicks);
 		var d = center("item-d"), b = center("item-b");
 		ui.pointerDown(d.x, d.y, 1);
 		ui.pointerMove(b.x, b.y);
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.pointerUp(b.x, b.y, 1);
-		check("drag and drop: Escape cancels", items.value.join("") == "bacd" && ui.root.find("item-b").style.background == Color.parse("#ffffff"), items.value.join(""));
+		check("drag and drop: Escape cancels", items().join("") == "bacd" && ui.root.find("item-b").style.background == Color.parse("#ffffff"), items().join(""));
 	}
 
 	static function customNodes() {
@@ -458,7 +470,8 @@ class GuideTest implements Markup {
 		ui.paint(rec);
 		var bars = rec.calls.filter(c -> StringTools.startsWith(c, "rect"));
 		check("own nodes: painted by their paintContent", bars.length == 3, rec.calls.join("|"));
-		values.value = [1.0, 2.0];
+		values([1.0, 2.0]);
+		flush();
 		ui.update();
 		var rec2 = new Recording();
 		ui.paint(rec2);

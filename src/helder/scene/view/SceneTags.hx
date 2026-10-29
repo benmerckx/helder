@@ -12,7 +12,7 @@ import helder.scene.view.SceneRenderer.SceneNode;
 import helder.ui.Event;
 import helder.ui.view.NodeRenderer;
 import helder.ui.view.UiView;
-import helder.view.Reactive;
+import helder.view.graph.Graph;
 import helder.view.Render;
 
 // The boundary tags between helder.ui and helder.scene (react-three-fiber's
@@ -36,15 +36,15 @@ import helder.view.Render;
 // draws an on-screen stick (helder.scene.input.VirtualStick) over the ui.
 class SceneTags {
 	// (the box a scene's markup is drawn in, for <Ui>)
-	public static final BOX = new helder.view.Context<Null<SceneBox>>(null);
+	public static final BOX = new helder.view.graph.Context<Null<SceneBox>>(null, true);
 
 	// a box (ui's: grow, width, height, style...) of world as camera sees it
 	public static function Scene(props:{
 		?world:World,
 		?camera:Camera,
 		?grow:Float,
-		?width:Dynamic,
-		?height:Dynamic,
+		?width:helder.view.graph.Read<Dynamic>,
+		?height:helder.view.graph.Read<Dynamic>,
 		?style:Dynamic,
 		?children:SceneView
 	}):helder.ui.Node {
@@ -54,13 +54,13 @@ class SceneTags {
 		if (props.height != null) bind(box, "height", props.height);
 		if (props.style != null) NodeRenderer.setStyle(box, props.style);
 		// (in this owner: what is above the boundary, contexts, seen below it)
-		Reactive.provide(SceneRenderer.WORLD, box.world, () -> Reactive.provide(BOX, box, () -> Render.insert(props.children, box.root, null)));
-		Reactive.onCleanup(box.dispose);
+		Graph.provide(SceneRenderer.WORLD, box.world, () -> Graph.provide(BOX, box, () -> Render.insert(props.children, box.root, null)));
+		Graph.onCleanup(box.dispose);
 		return box;
 	}
 
 	static function bind(n:helder.ui.Node, name:String, v:Dynamic)
-		Render.isReactive(v) ? Reactive.effect(() -> NodeRenderer.setProperty(n, name, Render.read(v))) : NodeRenderer.setProperty(n, name, v);
+		Render.isReactive(v) ? Graph.renderEffect(() -> Render.read(v), x -> NodeRenderer.setProperty(n, name, x)) : NodeRenderer.setProperty(n, name, Render.read(v));
 
 	// the <Scene>'s camera orbiting target, driven by the pointers over its
 	// box (OrbitControls: one finger or the left button turns it, two
@@ -68,7 +68,7 @@ class SceneTags {
 	// props are OrbitControls' (a target bound to a signal follows it)
 	public static function OrbitControls(props:{
 		?camera:Camera,
-		?target:Dynamic,
+		?target:helder.view.graph.Read<Vec3>,
 		?minDistance:Float,
 		?maxDistance:Float,
 		?minPitch:Float,
@@ -83,7 +83,7 @@ class SceneTags {
 		?enableTwist:Bool,
 		?ref:helder.scene.view.OrbitControls->Void
 	}):SceneNode {
-		var box = Reactive.use(BOX);
+		var box = Graph.use(BOX);
 		if (box == null) throw "helder.scene: <OrbitControls> is in a <Scene>'s markup";
 		var o = new helder.scene.view.OrbitControls(box, props.camera);
 		if (props.minDistance != null) o.minDistance = props.minDistance;
@@ -99,16 +99,16 @@ class SceneTags {
 		if (props.enablePan != null) o.enablePan = props.enablePan;
 		if (props.enableTwist != null) o.enableTwist = props.enableTwist;
 		if (props.target != null) {
-			if (Render.isReactive(props.target)) Reactive.effect(() -> {
-				o.target = Render.read(props.target);
+			if (Render.isReactive(props.target)) Graph.renderEffect(() -> Render.read(props.target), t -> {
+				o.target = t;
 				o.look();
 			}) else {
-				o.target = props.target;
+				o.target = Render.read(props.target);
 				o.look();
 			}
 		}
 		if (props.ref != null) props.ref(o);
-		Reactive.onCleanup(o.dispose);
+		Graph.onCleanup(o.dispose);
 		return SceneRenderer.createMarker("orbit-controls");
 	}
 
@@ -122,14 +122,14 @@ class SceneTags {
 		if (props.bottom != null) n.restBottom = props.bottom;
 		if (props.color != null) n.color = props.color;
 		if (props.knob != null) n.knobColor = props.knob;
-		Reactive.onCleanup(() -> props.bind.changed = null);
+		Graph.onCleanup(() -> props.bind.changed = null);
 		return n;
 	}
 
 	// ui inside a scene: its children ui's markup, over the <Scene>'s box at
 	// its node's place (centred; position, as any node's)
 	public static function Ui(props:{?position:Vec3, ?children:UiView}):SceneNode {
-		var box = Reactive.use(BOX);
+		var box = Graph.use(BOX);
 		if (box == null) throw "helder.scene: <Ui> is in a <Scene>'s markup";
 		var n = SceneRenderer.createElement("ui");
 		if (props.position != null) n.node.position = props.position;
@@ -138,7 +138,7 @@ class SceneTags {
 		box.append(overlay);
 		box.overlays.push({node: n, ui: overlay, x: Math.NaN, y: Math.NaN});
 		Render.insert(props.children, overlay, null);
-		Reactive.onCleanup(() -> {
+		Graph.onCleanup(() -> {
 			box.remove(overlay);
 			box.overlays = box.overlays.filter(o -> o.ui != overlay);
 		});
