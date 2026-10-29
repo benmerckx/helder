@@ -32,8 +32,13 @@ class SceneBox extends helder.ui.Node {
 	// clear colour, ambient, exposure, features (Shadows)
 	public var onRenderer:Null<Renderer->Void>;
 	var device:Null<helder.gfx.Device>;
+	// its world drawn multisampled, 4 samples a pixel, resolved into the
+	// texture ui draws (false: one sample; set before it is first drawn)
+	public var antialias = true;
 	var color:Null<Texture>;
 	var depth:Null<Texture>;
+	// (antialias: the multisampled colour the pass draws into, resolved into color)
+	var multi:Null<Texture>;
 	var tw = 0;
 	var th = 0;
 	var fallback:Null<Camera>;
@@ -160,9 +165,10 @@ class SceneBox extends helder.ui.Node {
 		if (device != null) {
 			if (color != null) device.destroyTexture(color);
 			if (depth != null) device.destroyTexture(depth);
+			if (multi != null) device.destroyTexture(multi);
 			renderer.dispose();
 		}
-		color = depth = null;
+		color = depth = multi = null;
 		renderer = null;
 	}
 
@@ -221,20 +227,23 @@ class SceneBox extends helder.ui.Node {
 		var pw = Std.int(Math.max(1, Math.round(width * r.scale))), ph = Std.int(Math.max(1, Math.round(height * r.scale)));
 		if (renderer == null) {
 			device = r.device;
-			renderer = new Renderer(r.device, true);
+			renderer = new Renderer(r.device, true, antialias ? 4 : 1);
 			if (SceneRenderer.device == null) SceneRenderer.device = r.device;
 			if (onRenderer != null) onRenderer(renderer);
 		}
 		if (pw != tw || ph != th) {
 			if (color != null) device.destroyTexture(color);
 			if (depth != null) device.destroyTexture(depth);
+			if (multi != null) device.destroyTexture(multi);
+			var samples = renderer.samples;
 			color = device.createTexture({width: pw, height: ph, renderTarget: true});
-			depth = device.createTexture({width: pw, height: ph, format: Depth32F});
+			depth = device.createTexture({width: pw, height: ph, format: Depth32F, samples: samples});
+			multi = samples > 1 ? device.createTexture({width: pw, height: ph, renderTarget: true, samples: samples}) : null;
 			tw = pw;
 			th = ph;
 		}
-		var cam = view(), sr = renderer, c = color, d = depth;
-		r.beforePass(enc -> sr.drawInto(enc, world, cam, c, d, pw, ph));
+		var cam = view(), sr = renderer, c = color, d = depth, m = multi;
+		r.beforePass(enc -> m == null ? sr.drawInto(enc, world, cam, c, d, pw, ph) : sr.drawInto(enc, world, cam, m, d, pw, ph, c));
 		r.gpuTexture(color, id, x, y, width, height);
 		place(cam, width, height);
 	}

@@ -80,6 +80,9 @@ class GL {
 	public static inline var COLOR_ATTACHMENT0 = 0x8CE0;
 	public static inline var DEPTH_ATTACHMENT = 0x8D00;
 	public static inline var FRAMEBUFFER_COMPLETE = 0x8CD5;
+	public static inline var READ_FRAMEBUFFER = 0x8CA8;
+	public static inline var DRAW_FRAMEBUFFER = 0x8CA9;
+	public static inline var RENDERBUFFER = 0x8D41;
 
 	static function glGetString(name:Int):Ptr;
 	static function glGetError():Int;
@@ -142,6 +145,13 @@ class GL {
 	static function glBindFramebuffer(target:Int, framebuffer:Int):Void;
 	static function glFramebufferTexture2D(target:Int, attachment:Int, textarget:Int, texture:Int, level:Int):Void;
 	static function glCheckFramebufferStatus(target:Int):Int;
+	// (multisampled render targets: renderbuffers, resolved by a blit)
+	static function glGenRenderbuffers(n:Int, renderbuffers:Ptr<Int32>):Void;
+	static function glDeleteRenderbuffers(n:Int, renderbuffers:Ptr<Int32>):Void;
+	static function glBindRenderbuffer(target:Int, renderbuffer:Int):Void;
+	static function glRenderbufferStorageMultisample(target:Int, samples:Int, internalFormat:Int, width:Int, height:Int):Void;
+	static function glFramebufferRenderbuffer(target:Int, attachment:Int, renderbufferTarget:Int, renderbuffer:Int):Void;
+	static function glBlitFramebuffer(x0:Int, y0:Int, x1:Int, y1:Int, dx0:Int, dy0:Int, dx1:Int, dy1:Int, mask:Int, filter:Int):Void;
 	static function glTexSubImage2D(target:Int, level:Int, x:Int, y:Int, width:Int, height:Int, format:Int, type:Int, pixels:Ptr):Void;
 	static function glGenSamplers(n:Int, samplers:Ptr<Int32>):Void;
 	#if hxmc.dev

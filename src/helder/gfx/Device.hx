@@ -30,8 +30,10 @@ final class Device {
 	}
 
 	// antialias: a window's frames multisampled, 4 samples a pixel (in the
-	// browser the page's run option decides); render targets and headless
-	// surfaces stay single-sampled, readPixels reads the frame resolved
+	// browser the page's run option antialias decides when it is set);
+	// headless surfaces stay single-sampled, readPixels reads the frame
+	// resolved; render targets are multisampled by their own samples
+	// (TextureDesc.samples, resolved through ColorTarget.resolve)
 	public static function create(surface:Surface, ?options:{?antialias:Bool}):Device
 		return new Device(surface, options != null && options.antialias == true);
 
@@ -94,7 +96,8 @@ final class Device {
 				depthCompare: d.depthCompare,
 				depthWrite: d.depthWrite,
 				colorFormat: d.colorFormat,
-				depthFormat: d.depthFormat
+				depthFormat: d.depthFormat,
+				samples: d.samples
 			};
 		return new Pipeline(impl.createPipeline(d));
 	}

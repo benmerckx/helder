@@ -9,11 +9,13 @@ class TextureInfo {
 	public final format:TextureFormat;
 	public final levels:Int;
 	public final target:Bool; // a render target
+	public final samples:Int; // 1, or 4: multisampled
 	// the last region checked (checkWrite)
 	public var w = 0;
 	public var h = 0;
 
-	function new(width:Int, height:Int, format:TextureFormat, levels:Int, target:Bool) {
+	function new(width:Int, height:Int, format:TextureFormat, levels:Int, target:Bool, samples:Int) {
+		this.samples = samples;
 		this.width = width;
 		this.height = height;
 		this.format = format;
@@ -32,7 +34,10 @@ class TextureInfo {
 		var target = d.renderTarget == true || format.depth;
 		if (w <= 0 || h <= 0 || levels < 1 || levels > full || data != null && (target || data.length < w * h * format.texelSize))
 			throw "helder.gfx: createTexture: an empty size, more mip levels than the size has, data for a render target or too little data";
-		return new TextureInfo(w, h, format, levels, target);
+		var samples = d.samples == null ? 1 : d.samples;
+		if (samples != 1 && (samples != 4 || !target || levels != 1 || format == R8 || format == RG8 || format == R32F))
+			throw "helder.gfx: createTexture: samples is 1, or 4 for a render target or depth texture of one level (RGBA8, RGBA8Srgb, RGBA16F, depths)";
+		return new TextureInfo(w, h, format, levels, target, samples);
 	}
 
 	public inline function levelWidth(level:Int):Int
@@ -63,4 +68,12 @@ class TextureInfo {
 	// (beginPass) a colour texture of a pass, and the pass's depth: a texture
 	public function checkPass(depth:DepthTarget)
 		if (!target || depth != null && depth.texture == null) throw "helder.gfx: beginPass: not into a render target, or without a depth texture";
+
+	// (beginPass) a multisampled pass's depth texture's samples and its resolve target (null: none)
+	public function checkSamples(depth:Null<TextureInfo>, resolve:Null<TextureInfo>) {
+		if (depth != null && depth.samples != samples) throw "helder.gfx: beginPass: the depth texture's samples are not the colour's";
+		if (resolve != null && (samples == 1 || resolve.samples != 1 || !resolve.target || resolve.width != width || resolve.height != height || resolve.format != format))
+			throw "helder.gfx: beginPass: resolve is a single-sampled render target of the multisampled colour's size and format";
+	}
+
 }

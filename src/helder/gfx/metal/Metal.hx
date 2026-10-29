@@ -52,6 +52,7 @@ class MTL {
 	public static inline var LoadActionClear = 2;
 	public static inline var StoreActionDontCare = 0;
 	public static inline var StoreActionStore = 1;
+	public static inline var StoreActionMultisampleResolve = 2;
 	public static inline var StoreActionStoreAndMultisampleResolve = 3;
 	// MTLResourceOptions, MTLStorageMode, MTLTextureUsage
 	public static inline var ResourceStorageModeShared = 0;

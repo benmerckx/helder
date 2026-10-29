@@ -217,7 +217,7 @@ export default async function (host) {
 
 	const hxmc_gfx = {
 		ready: () => (device ? 1 : 0),
-		target_canvas(canvas) {
+		target_canvas(canvas, antialias) {
 			host.gfx.backend = 'webgpu';
 			const context = handles.get(canvas).getContext('webgpu');
 			const format = navigator.gpu.getPreferredCanvasFormat();
@@ -227,7 +227,7 @@ export default async function (host) {
 				context.configure({ device, format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC, alphaMode: 'opaque' });
 				configured.set(context, { device, format });
 			}
-			return handles.add({ context, format, samples: host.options.antialias ? 4 : 1 });
+			return handles.add({ context, format, samples: host.options.antialias ?? antialias ? 4 : 1 });
 		},
 		target_texture(width, height) {
 			host.gfx.backend = 'webgpu';
@@ -247,10 +247,11 @@ export default async function (host) {
 			return handles.add(b);
 		},
 		write_buffer: (b, offset, data, size) => device.queue.writeBuffer(handles.get(b), offset, host.bytes(data, size)),
-		texture(width, height, format, levels, target, data) {
-			// (a mip chain's levels are drawn by generate_mips)
-			const usage = GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
-			const texture = device.createTexture({ size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, usage });
+		texture(width, height, format, levels, target, samples, data) {
+			// (a mip chain's levels are drawn by generate_mips; a multisampled one is only drawn into, then resolved)
+			const usage = samples > 1 ? GPUTextureUsage.RENDER_ATTACHMENT
+				: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
+			const texture = device.createTexture({ size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, sampleCount: samples, usage });
 			const t = { texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format], unfilterable: format >= R32F, depth: format >= DEPTH16 };
 			if (data) device.queue.writeTexture({ texture }, host.bytes(data, width * height * t.texel), { bytesPerRow: width * t.texel }, [width, height]);
 			return handles.add(t);
@@ -311,7 +312,7 @@ export default async function (host) {
 		pipeline_binding(slot, kind, size) {
 			resources.push({ slot, kind, size });
 		},
-		pipeline_end(vertex, fragment, target, topology, cull, blend, depthCompare, depthWrite, colorFormat, depthFormat) {
+		pipeline_end(vertex, fragment, target, topology, cull, blend, depthCompare, depthWrite, colorFormat, depthFormat, samples) {
 			const uniforms = resources.filter((r) => r.kind === UNIFORM).sort((a, b) => a.slot - b.slot);
 			const bgl = bindGroupLayout(resources, 0);
 			const desc = {
@@ -320,8 +321,8 @@ export default async function (host) {
 				depthStencil: depthFormat < 0 ? undefined : { format: TEXTURE_FORMATS[depthFormat], depthWriteEnabled: !!depthWrite, depthCompare: COMPARES[depthCompare] },
 				// (GL's front faces)
 				primitive: { topology: TOPOLOGIES[topology], cullMode: CULLS[cull], frontFace: 'ccw' },
-				// (the frame's: its samples)
-				multisample: { count: colorFormat < 0 ? handles.get(target).samples ?? 1 : 1 },
+				// (the frame's: its samples; a render target's, the pipeline's)
+				multisample: { count: colorFormat < 0 ? handles.get(target).samples ?? 1 : samples },
 			};
 			const pipeline = device.createRenderPipeline({ ...desc, layout: bgl ? device.createPipelineLayout({ bindGroupLayouts: [bgl] }) : 'auto' });
 			// (base: what its variants share, variant())
@@ -351,11 +352,12 @@ export default async function (host) {
 			encoder = device.createCommandEncoder();
 			return 1;
 		},
-		pass_begin(color, load, r, g, b, a, depthTexture, depthLoad, depth) {
-			// (a render target: its first level, and its depth texture or none)
+		pass_begin(color, resolve, load, r, g, b, a, depthTexture, depthLoad, depth) {
+			// (a render target: its first level, and its depth texture or none;
+			// multisampled, resolved into resolve's at the end)
 			const t = color ? handles.get(color) : null, d = depthTexture ? handles.get(depthTexture) : null;
 			attachment.view = t ? t.target : frameTarget.msaaView ?? frameView;
-			attachment.resolveTarget = !t && frameTarget.msaa ? frameView : undefined;
+			attachment.resolveTarget = t ? (resolve ? handles.get(resolve).target : undefined) : frameTarget.msaa ? frameView : undefined;
 			attachment.loadOp = LOADS[load];
 			depthAttachment.view = t ? d?.target : frameTarget.depthView;
 			passDesc.depthStencilAttachment = depthAttachment.view ? depthAttachment : undefined;
@@ -540,12 +542,12 @@ export default async function (host) {
 	}
 
 	const hxmc_gl = {
-		context(canvas, width, height) {
+		context(canvas, width, height, antialias) {
 			const offscreen = canvas === 0;
 			const c = offscreen ? (typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(width, height) : Object.assign(document.createElement('canvas'), { width, height })) : handles.get(canvas);
 			// (a canvas: presented after each frame's task, read back at swap;
 			// offscreen: nothing presents it, read back at any time)
-			const g = c.getContext('webgl2', { antialias: !offscreen && !!host.options.antialias, alpha: false, depth: true, preserveDrawingBuffer: offscreen });
+			const g = c.getContext('webgl2', { antialias: !offscreen && !!(host.options.antialias ?? antialias), alpha: false, depth: true, preserveDrawingBuffer: offscreen });
 			if (!g) return 0;
 			// (RGBA16F and R32F render targets)
 			g.getExtension('EXT_color_buffer_float');
@@ -667,6 +669,12 @@ export default async function (host) {
 		glBindFramebuffer: (target, f) => gl.bindFramebuffer(target, get(f)),
 		glFramebufferTexture2D: (target, attachment, textarget, t, level) => gl.framebufferTexture2D(target, attachment, textarget, get(t), level),
 		glCheckFramebufferStatus: (target) => gl.checkFramebufferStatus(target),
+		glGenRenderbuffers: (n, p) => gen(n, p, () => gl.createRenderbuffer()),
+		glDeleteRenderbuffers: (n, p) => del(n, p, (r) => gl.deleteRenderbuffer(r)),
+		glBindRenderbuffer: (target, r) => gl.bindRenderbuffer(target, get(r)),
+		glRenderbufferStorageMultisample: (target, samples, internal, w, h) => gl.renderbufferStorageMultisample(target, samples, internal, w, h),
+		glFramebufferRenderbuffer: (target, attachment, rbTarget, r) => gl.framebufferRenderbuffer(target, attachment, rbTarget, get(r)),
+		glBlitFramebuffer: (x0, y0, x1, y1, dx0, dy0, dx1, dy1, mask, filter) => gl.blitFramebuffer(x0, y0, x1, y1, dx0, dy0, dx1, dy1, mask, filter),
 		glGenSamplers: (n, p) => gen(n, p, () => gl.createSampler()),
 		glDeleteSamplers: (n, p) => del(n, p, (s) => gl.deleteSampler(s)),
 		glDeleteVertexArrays: (n, p) => del(n, p, (a) => gl.deleteVertexArray(a)),

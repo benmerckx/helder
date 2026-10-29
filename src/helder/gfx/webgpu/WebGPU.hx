@@ -15,14 +15,15 @@ import hxmc.unsafe.*;
 	static function ready():Int;
 	// a colour target: a canvas (its handle: helder.os.Surface's) configured
 	// for WebGPU in the preferred format, or a texture of that size (RGBA8)
-	static function target_canvas(canvas:Int):Int;
+	// (antialias 1: the canvas's frames multisampled, 4 samples a pixel; the page's run option antialias, when set, decides)
+	static function target_canvas(canvas:Int, antialias:Int):Int;
 	static function target_texture(width:Int, height:Int):Int;
 	static function buffer(size:Int, usage:Int, data:Ptr, length:Int):Int;
 	// size bytes at data into the buffer at offset (multiples of 4: WebGPU's writeBuffer)
 	static function write_buffer(buffer:Int, offset:Int, data:Ptr, size:Int):Void;
 	// a texture: its TextureFormat, mip levels, whether it is a render
-	// target; its first level's texels at data (or none)
-	static function texture(width:Int, height:Int, format:Int, levels:Int, target:Int, data:Ptr):Int;
+	// target, its samples a pixel; its first level's texels at data (or none)
+	static function texture(width:Int, height:Int, format:Int, levels:Int, target:Int, samples:Int, data:Ptr):Int;
 	// width x height texels at data into the mip level at x, y
 	static function write_texture(texture:Int, x:Int, y:Int, width:Int, height:Int, level:Int, data:Ptr):Void;
 	// the levels after the first, each a pass sampling the one before (in
@@ -40,16 +41,18 @@ import hxmc.unsafe.*;
 	// a resource of the pipeline (ShaderCode.bindings: kind, slot, a uniform
 	// block's size): its bind group layout
 	static function pipeline_binding(slot:Int, kind:Int, size:Int):Void;
-	// (colorFormat: a TextureFormat, -1 the target's; depthFormat: -1 none)
+	// (colorFormat: a TextureFormat, -1 the target's; depthFormat: -1 none;
+	// samples: a render target's, the frame's its own)
 	static function pipeline_end(vertex:Int, fragment:Int, target:Int, topology:Int, cull:Int, blend:Int, depthCompare:Int, depthWrite:Int,
-		colorFormat:Int, depthFormat:Int):Int;
+		colorFormat:Int, depthFormat:Int, samples:Int):Int;
 	// a frame: a command encoder for the target's texture (the canvas's
 	// current one) and its depth texture (depth32float, remade when the size
 	// changes); 0: none now
 	static function frame_begin(target:Int):Int;
 	// a pass into the color texture (0: the frame's target and its depth
-	// texture) and the depth texture (0: none); loads: LoadOp
-	static function pass_begin(color:Int, load:Int, r:Float, g:Float, b:Float, a:Float, depthTexture:Int, depthLoad:Int, depth:Float):Void;
+	// texture) resolved into resolve (0: none; a multisampled colour's), and
+	// the depth texture (0: none); loads: LoadOp
+	static function pass_begin(color:Int, resolve:Int, load:Int, r:Float, g:Float, b:Float, a:Float, depthTexture:Int, depthLoad:Int, depth:Float):Void;
 	static function set_pipeline(pipeline:Int):Void;
 	static function set_vertex_buffer(slot:Int, buffer:Int, offset:Int):Void;
 	// size bytes at data into the frame's uniform ring at offset (256-byte

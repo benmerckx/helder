@@ -76,6 +76,13 @@ class GLBackend {
 	var fbo = 0;
 	var fboColor = 0;
 	var fboDepth = 0;
+	// (a multisampled pass's resolve: the framebuffer blitted into, its
+	// texture attached, the pass's resolve target and size; 0: none)
+	var resolveFbo = 0;
+	var resolveAttached = 0;
+	var resolving = 0;
+	var passW = 0;
+	var passH = 0;
 	var framebuffer = 0;
 	var flipped = false;
 	var frontCW = false;
@@ -144,8 +151,8 @@ class GLBackend {
 		scratch = LibC.malloc((64 : Int64));
 		if (Mem.os() == 3) {
 			web = switch surface.kind {
-				case Canvas: WebGL.context(surface.handle.toI64().toInt(), 0, 0);
-				case Headless: WebGL.context(0, surface.width, surface.height);
+				case Canvas: WebGL.context(surface.handle.toI64().toInt(), 0, 0, antialias ? 1 : 0);
+				case Headless: WebGL.context(0, surface.width, surface.height, 0);
 				case k: throw "helder.gfx: WebGL2 renders to a canvas or headless, not to a surface of kind " + k;
 			}
 			if (web == 0) throw "helder.gfx: neither WebGPU nor WebGL2 is available";
@@ -296,6 +303,17 @@ class GLBackend {
 	public function createTexture(d:TextureDesc):Int {
 		use();
 		var info = TextureInfo.of(d);
+		if (info.samples > 1) {
+			// (multisampled: a renderbuffer, drawn into and resolved by a blit, never sampled)
+			GL.glGenRenderbuffers(1, scratch);
+			var r = scratch.value;
+			textures.push(r);
+			infos.push(info);
+			GL.glBindRenderbuffer(GL.RENDERBUFFER, r);
+			GL.glRenderbufferStorageMultisample(GL.RENDERBUFFER, info.samples, internalFormat(info.format), info.width, info.height);
+			GL.glBindRenderbuffer(GL.RENDERBUFFER, 0);
+			return textures.length;
+		}
 		GL.glGenTextures(1, scratch);
 		var t = scratch.value;
 		textures.push(t);
@@ -303,7 +321,14 @@ class GLBackend {
 		GL.glActiveTexture(GL.TEXTURE0);
 		GL.glBindTexture(GL.TEXTURE_2D, t);
 		// (immutable storage: every level, complete with any sampler)
-		GL.glTexStorage2D(GL.TEXTURE_2D, info.levels, switch info.format {
+		GL.glTexStorage2D(GL.TEXTURE_2D, info.levels, internalFormat(info.format), info.width, info.height);
+		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
+		if (d.data != null) writeTexture(textures.length, d.data, 0, 0, -1, -1, 0, 0);
+		return textures.length;
+	}
+
+	static function internalFormat(f:TextureFormat):Int
+		return switch f {
 			case RGBA8: GL.RGBA8;
 			case RGBA8Srgb: GL.SRGB8_ALPHA8;
 			case R8: GL.R8;
@@ -312,11 +337,7 @@ class GLBackend {
 			case R32F: GL.R32F;
 			case Depth16: GL.DEPTH_COMPONENT16;
 			case Depth32F: GL.DEPTH_COMPONENT32F;
-		}, info.width, info.height);
-		GL.glBindTexture(GL.TEXTURE_2D, units[0]);
-		if (d.data != null) writeTexture(textures.length, d.data, 0, 0, -1, -1, 0, 0);
-		return textures.length;
-	}
+		}
 
 	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
 		use();
@@ -353,11 +374,12 @@ class GLBackend {
 		use();
 		var t = textures[id - 1];
 		if (t == 0) return;
-		// (a name GL may give again: not the framebuffer's attachment any more)
-		if (t == fboColor) fboColor = -1;
-		if (t == fboDepth) fboDepth = -1;
+		// (a handle not the framebuffers' attachment any more)
+		if (id == fboColor) fboColor = -1;
+		if (id == fboDepth) fboDepth = -1;
+		if (id == resolveAttached) resolveAttached = -1;
 		scratch.value = t;
-		GL.glDeleteTextures(1, scratch);
+		if (infos[id - 1].samples > 1) GL.glDeleteRenderbuffers(1, scratch) else GL.glDeleteTextures(1, scratch);
 		textures[id - 1] = 0;
 	}
 
@@ -502,14 +524,20 @@ class GLBackend {
 				fbo = scratch.value;
 			}
 			if (framebuffer != fbo) GL.glBindFramebuffer(GL.FRAMEBUFFER, framebuffer = fbo);
-			var color = textures[c.texture.id() - 1], depth = d == null ? 0 : textures[d.texture.id() - 1];
-			if (color != fboColor || depth != fboDepth) {
-				GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, fboColor = color, 0);
-				GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.DEPTH_ATTACHMENT, GL.TEXTURE_2D, fboDepth = depth, 0);
+			// (attachments by handle: textures' and renderbuffers' names are apart)
+			var colorId = c.texture.id(), depthId = d == null ? 0 : d.texture.id();
+			if (info.samples > 1 || c.resolve != null)
+				info.checkSamples(depthId == 0 ? null : infos[depthId - 1], c.resolve == null ? null : infos[c.resolve.id() - 1]);
+			if (colorId != fboColor || depthId != fboDepth) {
+				attachTarget(GL.COLOR_ATTACHMENT0, fboColor = colorId);
+				attachTarget(GL.DEPTH_ATTACHMENT, fboDepth = depthId);
 				var status = GL.glCheckFramebufferStatus(GL.FRAMEBUFFER);
 				if (status != GL.FRAMEBUFFER_COMPLETE) throw "helder.gfx: beginPass: the textures are no complete framebuffer (status " + status + ")";
 			}
 			GL.glViewport(0, 0, info.width, info.height);
+			resolving = c.resolve == null ? 0 : c.resolve.id();
+			passW = info.width;
+			passH = info.height;
 			flipped = true;
 		}
 		// (upside down into a texture: its faces turn clockwise)
@@ -632,7 +660,29 @@ class GLBackend {
 		dirty = false;
 	}
 
-	public function endPass() {}
+	// (the bound framebuffer's attachment: a texture's, a renderbuffer's, or none)
+	// (attaching replaces what was attached there, 0 detaches it)
+	function attachTarget(at:Int, id:Int) {
+		if (id != 0 && infos[id - 1].samples > 1) GL.glFramebufferRenderbuffer(GL.FRAMEBUFFER, at, GL.RENDERBUFFER, textures[id - 1]);
+		else GL.glFramebufferTexture2D(GL.FRAMEBUFFER, at, GL.TEXTURE_2D, id == 0 ? 0 : textures[id - 1], 0);
+	}
+
+	// a multisampled pass's colour resolved into its resolve target (a blit)
+	public function endPass() {
+		if (resolving == 0) return;
+		if (resolveFbo == 0) {
+			GL.glGenFramebuffers(1, scratch);
+			resolveFbo = scratch.value;
+		}
+		GL.glBindFramebuffer(GL.FRAMEBUFFER, resolveFbo);
+		if (resolveAttached != resolving)
+			GL.glFramebufferTexture2D(GL.FRAMEBUFFER, GL.COLOR_ATTACHMENT0, GL.TEXTURE_2D, textures[(resolveAttached = resolving) - 1], 0);
+		GL.glBindFramebuffer(GL.READ_FRAMEBUFFER, fbo);
+		GL.glBindFramebuffer(GL.DRAW_FRAMEBUFFER, resolveFbo);
+		GL.glBlitFramebuffer(0, 0, passW, passH, 0, 0, passW, passH, GL.COLOR_BUFFER_BIT, GL.NEAREST);
+		GL.glBindFramebuffer(GL.FRAMEBUFFER, framebuffer = fbo);
+		resolving = 0;
+	}
 
 	public function endFrame() {
 		if (Mem.os() == 3) WebGL.swap(web) else if (surface.kind != Headless && !eglSurface.isNull()) Egl.eglSwapBuffers(display, eglSurface);
@@ -662,6 +712,10 @@ class GLBackend {
 		#end
 		if (fbo != 0) {
 			scratch.value = fbo;
+			GL.glDeleteFramebuffers(1, scratch);
+		}
+		if (resolveFbo != 0) {
+			scratch.value = resolveFbo;
 			GL.glDeleteFramebuffers(1, scratch);
 		}
 		for (r in rings)

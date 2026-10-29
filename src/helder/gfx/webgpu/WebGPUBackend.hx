@@ -30,11 +30,11 @@ class WebGPUBackend {
 	final infos = new Map<Int, TextureInfo>(); // each texture's
 	var cursor = 0; // into the frame's uniform ring
 
-	public function new(surface:Surface) {
+	public function new(surface:Surface, antialias:Bool) {
 		this.surface = surface;
 		if (WebGPU.ready() == 0) throw "helder.gfx: no WebGPU device";
 		target = switch surface.kind {
-			case Canvas: WebGPU.target_canvas(surface.handle.toI64().toInt());
+			case Canvas: WebGPU.target_canvas(surface.handle.toI64().toInt(), antialias ? 1 : 0);
 			case Headless: WebGPU.target_texture(surface.width, surface.height);
 			case k: throw "helder.gfx: WebGPU renders to a canvas or headless, not to a surface of kind " + k;
 		}
@@ -60,7 +60,7 @@ class WebGPUBackend {
 	public function createTexture(d:TextureDesc):Int {
 		var info = TextureInfo.of(d);
 		// (the Bytes cannot move during the call: no collection in an import)
-		var t = WebGPU.texture(info.width, info.height, cast info.format, info.levels, info.target ? 1 : 0, d.data == null ? Ptr.nil() : BytesPtr.of(d.data, 0, d.data.length));
+		var t = WebGPU.texture(info.width, info.height, cast info.format, info.levels, info.target ? 1 : 0, info.samples, d.data == null ? Ptr.nil() : BytesPtr.of(d.data, 0, d.data.length));
 		infos.set(t, info);
 		handles.push(t);
 		return t;
@@ -120,7 +120,7 @@ class WebGPUBackend {
 		var color = d.colorFormat == null ? -1 : (cast d.colorFormat : Int);
 		var depth = d.depthFormat != null ? (cast d.depthFormat : Int) : d.colorFormat == null ? (cast TextureFormat.Depth32F : Int) : -1;
 		var p = WebGPU.pipeline_end(d.vertex.id(), d.fragment.id(), target, cast topology, cast cull, cast blend, cast compare, d.depthWrite == true ? 1 : 0,
-			color, depth);
+			color, depth, d.samples == null ? 1 : d.samples);
 		handles.push(p);
 		return p;
 	}
@@ -137,9 +137,14 @@ class WebGPUBackend {
 		var c = p.colors[0], k = c.clear, d = p.depth;
 		var depthLoad:LoadOp = d == null ? Load : d.load, depth = d == null || d.clear == null ? 1.0 : d.clear;
 		var color = c.texture == null ? 0 : c.texture.id(), depthTexture = d == null || d.texture == null ? 0 : d.texture.id();
-		if (color != 0) infos.get(color).checkPass(d);
-		if (k == null) WebGPU.pass_begin(color, cast c.load, 0, 0, 0, 1, depthTexture, cast depthLoad, depth) else
-			WebGPU.pass_begin(color, cast c.load, k.r, k.g, k.b, k.a, depthTexture, cast depthLoad, depth);
+		var resolve = c.resolve == null ? 0 : c.resolve.id();
+		if (color != 0) {
+			var info = infos.get(color);
+			info.checkPass(d);
+			if (info.samples > 1 || resolve != 0) info.checkSamples(depthTexture == 0 ? null : infos.get(depthTexture), resolve == 0 ? null : infos.get(resolve));
+		}
+		if (k == null) WebGPU.pass_begin(color, resolve, cast c.load, 0, 0, 0, 1, depthTexture, cast depthLoad, depth) else
+			WebGPU.pass_begin(color, resolve, cast c.load, k.r, k.g, k.b, k.a, depthTexture, cast depthLoad, depth);
 	}
 
 	public inline function setPipeline(id:Int)

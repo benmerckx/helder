@@ -195,9 +195,15 @@ class MetalBackend {
 		Msg.vInt(desc, ObjC.sel("setWidth:"), info.width);
 		Msg.vInt(desc, ObjC.sel("setHeight:"), info.height);
 		Msg.vInt(desc, ObjC.sel("setMipmapLevelCount:"), info.levels);
-		// (a render target: in the GPU's memory only, as depth textures must be)
-		Msg.vInt(desc, ObjC.sel("setUsage:"), target ? MTL.TextureUsageShaderRead | MTL.TextureUsageRenderTarget : MTL.TextureUsageShaderRead);
+		// (a render target: in the GPU's memory only, as depth textures must be;
+		// multisampled, only drawn into and resolved)
+		var multi = info.samples > 1;
+		Msg.vInt(desc, ObjC.sel("setUsage:"), multi ? MTL.TextureUsageRenderTarget : target ? MTL.TextureUsageShaderRead | MTL.TextureUsageRenderTarget : MTL.TextureUsageShaderRead);
 		if (target) Msg.vInt(desc, ObjC.sel("setStorageMode:"), MTL.StorageModePrivate);
+		if (multi) {
+			Msg.vInt(desc, ObjC.sel("setTextureType:"), MTL.TextureType2DMultisample);
+			Msg.vInt(desc, ObjC.sel("setSampleCount:"), info.samples);
+		}
 		var t = Msg.idPtr(device, ObjC.sel("newTextureWithDescriptor:"), desc);
 		Runtime.objc_release(desc);
 		if (t.isNull()) throw "helder.gfx: cannot create a " + d.width + "x" + d.height + " texture";
@@ -302,7 +308,7 @@ class MetalBackend {
 		Msg.vPtr(desc, ObjC.sel("setFragmentFunction:"), shaders[d.fragment.id() - 1]);
 		var color = Msg.idInt(Msg.id(desc, ObjC.sel("colorAttachments")), ObjC.sel("objectAtIndexedSubscript:"), 0);
 		Msg.vInt(color, ObjC.sel("setPixelFormat:"), d.colorFormat == null ? MTL.PixelFormatBGRA8Unorm : pixelFormat(d.colorFormat));
-		if (d.colorFormat == null) Msg.vInt(desc, ObjC.sel("setRasterSampleCount:"), samples);
+		Msg.vInt(desc, ObjC.sel("setRasterSampleCount:"), d.colorFormat == null ? samples : d.samples == null ? 1 : d.samples);
 		var blend:Blend = d.blend == null ? Opaque : d.blend;
 		if (blend != Opaque) {
 			Msg.vBool(color, ObjC.sel("setBlendingEnabled:"), true);
@@ -380,16 +386,18 @@ class MetalBackend {
 			w = info.width;
 			h = info.height;
 			depthTexture = d == null ? Ptr.nil() : textures[d.texture.id() - 1];
+			if (info.samples > 1 || c.resolve != null)
+				info.checkSamples(d == null ? null : infos[d.texture.id() - 1], c.resolve == null ? null : infos[c.resolve.id() - 1]);
 		}
-		var resolve = c.texture == null && samples > 1;
+		var resolve = c.texture == null && samples > 1, into = c.texture != null && c.resolve != null;
 		Msg.vPtr(attachment, S.setTexture, c.texture != null ? textures[c.texture.id() - 1] : resolve ? msaa : texture);
-		Msg.vPtr(attachment, S.setResolveTexture, resolve ? texture : Ptr.nil());
+		Msg.vPtr(attachment, S.setResolveTexture, resolve ? texture : into ? textures[c.resolve.id() - 1] : Ptr.nil());
 		Msg.vInt(attachment, S.setLoadAction, switch c.load {
 			case Clear: MTL.LoadActionClear;
 			case Load: MTL.LoadActionLoad;
 			case DontCare: MTL.LoadActionDontCare;
 		});
-		Msg.vInt(attachment, S.setStoreAction, resolve ? MTL.StoreActionStoreAndMultisampleResolve : MTL.StoreActionStore);
+		Msg.vInt(attachment, S.setStoreAction, resolve ? MTL.StoreActionStoreAndMultisampleResolve : into ? MTL.StoreActionMultisampleResolve : MTL.StoreActionStore);
 		if (c.load == Clear) {
 			var k = c.clear;
 			clear.value.red = k == null ? 0 : k.r;

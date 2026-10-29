@@ -27,6 +27,8 @@ typedef SurfaceProps = {
 	?onClose:Void->Void,
 	// the UiWindow, once made
 	?ref:UiWindow->Void,
+	// its frames multisampled, 4 samples a pixel (default true; false: one)
+	?antialias:Bool,
 	?children:UiView
 };
 
@@ -92,13 +94,14 @@ class UiWindow {
 	final pass:PassDesc = {colors: [{load: Clear, clear: new helder.gfx.Color(1, 1, 1)}]};
 	var buttons = 0;
 
-	public function new(title:String, width:Int, height:Int, ?text:TextEngine) {
+	// (antialias: the device's frames multisampled, 4 samples a pixel, where the GPU has them)
+	public function new(title:String, width:Int, height:Int, ?text:TextEngine, antialias = true) {
 		window = new helder.os.Window(title, width, height);
 		// (shortcuts labelled as macOS's menus do)
 		Shortcut.mac = Mem.os() == 1;
 		// (Android: text fields get the soft keyboard and the input method)
 		if (Mem.target() >= 9) helder.os.android.TextInput.enable();
-		device = Device.create(window.surface);
+		device = Device.create(window.surface, {antialias: antialias});
 		renderer = new Renderer(device);
 		ui = new Ui(text == null ? new DrawText() : text, width, height);
 		ui.clipboard = new SystemClipboard(window);
@@ -369,7 +372,7 @@ class UiWindow {
 		var web = Mem.os() == 3;
 		var width:Null<Int> = Render.read(props.width), height:Null<Int> = Render.read(props.height);
 		var title:Null<String> = Render.read(props.title);
-		var w = new UiWindow(title ?? "helder", width ?? (web ? 0 : 800), height ?? (web ? 0 : 600));
+		var w = new UiWindow(title ?? "helder", width ?? (web ? 0 : 800), height ?? (web ? 0 : 600), null, props.antialias != false);
 		// (each reactive prop followed after its first value)
 		follow(props.title, (v:String) -> w.window.title = v);
 		follow(props.width, (_:Int) -> resize(w, props));

@@ -106,10 +106,14 @@ class Renderer {
 	// <Scene>'s box in a ui), not the frame; its features' own pipelines
 	// (skins, normal maps, the sky, particles) are the frame's still
 	public final offscreen:Bool;
+	// offscreen: the targets' samples a pixel (4: multisampled, drawInto's
+	// color and depth made with samples: 4, the colour resolved by the pass)
+	public final samples:Int;
 
-	public function new(device:Device, offscreen = false) {
+	public function new(device:Device, offscreen = false, samples = 1) {
 		this.device = device;
 		this.offscreen = offscreen;
+		this.samples = offscreen ? samples : 1;
 		pipeline = create(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
 		doubleSided = create(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
 		for (cull in [helder.gfx.Cull.Back, helder.gfx.Cull.None]) {
@@ -135,17 +139,22 @@ class Renderer {
 		if (offscreen) {
 			d.colorFormat = RGBA8;
 			d.depthFormat = Depth32F;
+			d.samples = samples;
 		}
 		return device.createPipeline(d);
 	}
 
 	// draw into color (RGBA8, a render target) and depth (Depth32F, its size), an offscreen renderer's
-	public function drawInto(enc:Encoder, world:World, camera:Camera, color:Texture, depth:Texture, width:Int, height:Int) {
+	// (multisampled, samples > 1: color and depth of those samples, color
+	// resolved into resolve, a single-sampled RGBA8 render target)
+	public function drawInto(enc:Encoder, world:World, camera:Camera, color:Texture, depth:Texture, width:Int, height:Int, ?resolve:Texture) {
 		if (!offscreen) throw "helder.scene: drawInto needs an offscreen Renderer (new Renderer(device, true))";
 		pass.colors[0].texture = color;
+		pass.colors[0].resolve = resolve;
 		pass.depth.texture = depth;
 		draw(enc, world, camera, width / Math.max(1, height));
 		pass.colors[0].texture = null;
+		pass.colors[0].resolve = null;
 		pass.depth.texture = null;
 	}
 

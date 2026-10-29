@@ -19,5 +19,8 @@ typedef PipelineDesc = {
 	// depth buffer); colorFormat, a render target's, and depthFormat, its
 	// depth texture's (by default none)
 	?colorFormat:TextureFormat,
-	?depthFormat:TextureFormat
+	?depthFormat:TextureFormat,
+	// a render target's samples a pixel (TextureDesc.samples: 1 by default,
+	// 4); the frame's pipelines (no colorFormat) take the frame's
+	?samples:Int
 }

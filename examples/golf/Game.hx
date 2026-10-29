@@ -93,6 +93,7 @@ class Game {
 	var timeScale = 1.0;
 	var slowTime = 0.0;
 	var sinkTime = -1.0;
+	var carded = false;
 	var lastTime = -1.0;
 	var realTime = 0.0;
 	var touched = 99.0;
@@ -100,6 +101,8 @@ class Game {
 	var turning = false;
 	var wasResting = true;
 	var target = new Vec3(0, 0, 0);
+	var ahead = 0.0;
+	static inline var AHEAD = 1.7;
 	var toastTime = 0.0;
 	// (the game's last frame's allocation, GcStats: report)
 	public var frameBytes(default, null) = 0.0;
@@ -189,7 +192,9 @@ class Game {
 		sim = new Sim(Course.holes[index]);
 		strokes(0);
 		screen("play");
+		back = "play";
 		sinkTime = -1;
+		carded = false;
 		confettiTime = -1;
 		timeScale = 1;
 		rollQ = Quat.identity();
@@ -201,6 +206,18 @@ class Game {
 		build();
 		place(true);
 	}
+
+	// the holes' menu over the game, and back to where it was
+	var back = "play";
+
+	public function openMenu() {
+		var s = screen.peek();
+		if (s != "menu") back = s;
+		screen("menu");
+	}
+
+	public function closeMenu()
+		screen(back);
 
 	public function next()
 		play((holeIndex.peek() + 1) % Course.holes.length);
@@ -229,6 +246,9 @@ class Game {
 				case Wall(x0, z0, x1, z1, y):
 					var lx = Math.min(x0, x1), hx = Math.max(x0, x1), lz = Math.min(z0, z1), hz = Math.max(z0, z1);
 					part(k.rail, new Vec3((lx + hx) / 2, y + Sim.RAIL_HEIGHT / 2, (lz + hz) / 2), new Vec3(hx - lx, Sim.RAIL_HEIGHT, hz - lz));
+				case Block(x0, z0, x1, z1, y0, y1):
+					var lx = Math.min(x0, x1), hx = Math.max(x0, x1), lz = Math.min(z0, z1), hz = Math.max(z0, z1);
+					part(k.rail, new Vec3((lx + hx) / 2, (y0 + y1) / 2, (lz + hz) / 2), new Vec3(hx - lx, y1 - y0, hz - lz));
 				case Post(x, z, r, y):
 					part(k.post, new Vec3(x, y, z), new Vec3(2 * r, Sim.RAIL_HEIGHT + r, 2 * r));
 				case Mover(x, z, w, d, y, _, _, _, _):
@@ -482,7 +502,10 @@ class Game {
 			var k = Math.min(1, sinkTime / 0.45), c = sim.cup;
 			var r = (1 - k) * 0.05;
 			at = new Vec3(c.x + Math.sin(sinkTime * 40) * r, c.y + Sim.BALL - k * k * 0.32, c.z + Math.cos(sinkTime * 40) * r);
-			if (sinkTime > 0.6 && screen.peek() == "play") screen("done");
+			if (sinkTime > 0.6 && !carded) {
+				carded = true;
+				if (screen.peek() == "play") screen("done") else back = "done";
+			}
 		}
 		ball.position = at;
 		// (rolling: turned about the axis across its motion by distance / radius)
@@ -522,7 +545,7 @@ class Game {
 			var f = (i + 1) / n;
 			var dist = 0.22 + f * (0.4 + aimPower * 2.6);
 			d.position = new Vec3(p.x + aimDir.x * dist, p.y - Sim.BALL * 0.55, p.z + aimDir.z * dist);
-			var size = 0.1 * (1 - f * 0.6);
+			var size = 0.13 * (1 - f * 0.6);
 			d.scale = new Vec3(size, size * 0.6, size);
 		}
 	}
@@ -628,9 +651,10 @@ class Game {
 		var o = orbit;
 		if (o == null) return;
 		var p = sim.ball.position, c = sim.cup;
-		target = new Vec3(p.x, p.y, p.z);
-		o.target = target;
 		o.yaw = Math.atan2(p.x - c.x, p.z - c.z);
+		ahead = AHEAD;
+		target = new Vec3(p.x - Math.sin(o.yaw) * ahead, p.y, p.z - Math.cos(o.yaw) * ahead);
+		o.target = target;
 		o.pitch = 0.78;
 		o.distance = 6.5;
 		o.apply();
@@ -647,6 +671,10 @@ class Game {
 		// (the target eases to the ball; the ball in the cup: to the cup)
 		var p = ball.position;
 		var k = 1 - 1 / (1 + FOLLOW * dt + FOLLOW * FOLLOW * dt * dt * 0.5);
+		// (looking ahead of the ball, so that on a tall screen the course ahead fills it; less while it rolls, none once holed)
+		var want = sinkTime >= 0 ? 0 : sim.resting ? AHEAD : AHEAD * 0.4;
+		ahead += (want - ahead) * Math.min(1, dt * 1.5);
+		p = new Vec3(p.x - Math.sin(o.yaw) * ahead, p.y, p.z - Math.cos(o.yaw) * ahead);
 		target = target + (p - target) * k;
 		o.target = target;
 		// (rolling: round behind it, unless the player turned the camera a moment ago)

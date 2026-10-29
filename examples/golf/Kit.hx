@@ -51,8 +51,8 @@ class Kit {
 
 	public function new(device:Device) {
 		this.device = device;
-		grass = box(mat(0x8fd694));
-		grassDark = box(mat(0x7cc788));
+		grass = box(mat(0x74d27c));
+		grassDark = box(mat(0x66c470));
 		rock = frustum(mat(0xf2d4b0), 8);
 		rockDark = frustum(mat(0xd9b8e8), 8);
 		rail = box(mat(0xfff6e8, 0.6));

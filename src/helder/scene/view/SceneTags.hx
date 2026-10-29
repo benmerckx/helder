@@ -47,12 +47,14 @@ class SceneTags {
 		?height:helder.view.graph.Read<Dynamic>,
 		?style:Dynamic,
 		?animate:Bool,
+		?antialias:Bool,
 		?setup:Renderer->Void,
 		?ref:SceneBox->Void,
 		?children:SceneView
 	}):helder.ui.Node {
 		var box = new SceneBox(props.world ?? new World("scene"), props.camera);
 		if (props.animate != null) box.animate = props.animate;
+		if (props.antialias != null) box.antialias = props.antialias;
 		if (props.setup != null) box.onRenderer = props.setup;
 		if (props.grow != null) NodeRenderer.setProperty(box, "grow", props.grow);
 		if (props.width != null) bind(box, "width", props.width);
