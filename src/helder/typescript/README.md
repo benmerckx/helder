@@ -44,6 +44,7 @@ a `.ts`/`.tsx` file, a project's `src/main.ts(x)`, a directory's
 ```sh
 bun run helder run examples/ts-hello
 bun run helder dev examples/ts-ticker   # edit label.ts: rebuilt, swapped in
+bun run helder run examples/ts-todo     # helder.ui in TSX: a todo list
 ```
 
 Under `helder dev` the build lists the program's files for the watcher
