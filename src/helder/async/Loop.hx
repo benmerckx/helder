@@ -440,3 +440,27 @@ private class Wake {
 	}
 }
 #end
+
+// (helder.view's graph on this loop: a write flushes when the task running
+// ends, Solid 2's microtask; a coroutine computation runs as a task started
+// now, cancelled when its run is superseded)
+private class GraphHooks implements IDispatchObject {
+	final f:Void->Void;
+
+	function new(f)
+		this.f = f;
+
+	public function onDispatch()
+		f();
+
+	static function __init__() {
+		helder.view.graph.Scheduler.later = f -> Loop.current().dispatch(new GraphHooks(f));
+		helder.view.graph.Coroutines.start = (body, ok, fail) -> {
+			var t = new Task<Dynamic>(null, Loop.current().context(), @:coroutine function(_) return body(), false);
+			t.onCompletion((r, e) -> if (e != null) fail(e) else ok(r));
+			t.onDispatch();
+			() -> t.cancel();
+		};
+	}
+}
+

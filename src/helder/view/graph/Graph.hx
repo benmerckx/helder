@@ -82,6 +82,13 @@ class Graph {
 	public static function provide<T, R>(c:Context<T>, value:T, fn:Void->R):R
 		return Owner.provide(c, value, fn);
 
+	// an async computation's function from a coroutine (memo(task(() -> ...))):
+	// each run a task started now, on helder.async's loop, its reads up to the
+	// first suspension tracked, cancelled when the run is superseded (not
+	// `async`: helder.test's, imported beside it, would be shadowed)
+	public static function task<T>(fn:haxe.coro.Coroutine<Void->T>):Void->Awaitable<T>
+		return () -> new Coroutines.CoroutineRun<T>(cast fn);
+
 	// whether what fn reads has a new value on its way (a held change, an
 	// async answer to a new question): looks ahead of the hold, never holds
 	// it; a first load gives no verdict (false; tracked, it suspends as the

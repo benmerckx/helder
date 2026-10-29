@@ -186,19 +186,21 @@ interface Awaitable<T> {
 }
 
 var icon = memo(() -> Asset.image('icons/${name()}.png')); // an Awaitable
-var user = memo(@:coroutine () -> {
+var user = memo(task(() -> {
 	var u = api.fetchUser(id()); // read before the first suspension: tracked
 	Async.delay(0.2);            // after one: not tracked (as Solid)
 	u;
-});
+}));
 ```
 
 ```ts
 const user = memo(async () => (await fetch(`/users/${id()}`)).json());
 ```
 
-A coroutine is the Haxe form: `Compute` takes a `Coroutine<Void->T>`,
-which the graph starts as a helder.async task **now**, inside the
+A coroutine is the Haxe form, through `task(coroutine)` (a function
+taking the `Coroutine<Void->T>`, so that its lambda is typed as one: an
+`@:from` on `Compute` types it without that expected type, as
+helder.test's `async` notes), which the graph starts as a helder.async task **now**, inside the
 computation (not at the loop's next turn, as `Async.launch` does), so
 its reads up to the first suspension are tracked; its completion
 answers the memo, and `cancel` cancels the task and the tasks under it
