@@ -5,7 +5,7 @@
 import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
 
 // What helder.text does for ui's text, with no system text engine: each
 // line is shaped (kerning pairs, Arabic letters joined by their position in
@@ -40,7 +40,7 @@ class Shaping implements Markup {
 				<Sample label="Marks" text={"n\u0303 a\u0308 o\u0323\u0302 e\u0301"}/>
 				<Sample label="Scripts" text="Ελληνικά Кириллица"/>
 			</view>
-			<field value={input} placeholder="Type in any script" label="Text to shape" onInput={e -> input.value = e.text} padding="8 12" radius={6}
+			<field value={input} placeholder="Type in any script" label="Text to shape" onInput={e -> input(e.text)} padding="8 12" radius={6}
 				border-width={1} border-color="#e4e4e7" background="#ffffff"/>
 			<text font-size={26}>{input}</text>
 		</view>;

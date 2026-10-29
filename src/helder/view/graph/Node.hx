@@ -22,7 +22,7 @@ import helder.view.graph.Owner.GraphError;
 // transaction (or an armed loading boundary above it catches it), a user
 // effect waits. The answer lands into that transaction (Scheduler).
 @:allow(helder.view.graph)
-class Node<T> extends Owner {
+class Node<T> extends Owner implements Read.Reader<T> {
 	static inline var SIGNAL = 0;
 	static inline var COMPUTED = 1;
 	static inline var EFFECT = 2;
@@ -45,8 +45,9 @@ class Node<T> extends Owner {
 	static var probeHit = false;
 	// (each run's number: a source read twice in a run is tracked once)
 	static var runs = 0;
-	// (the transaction a NotReady thrown came from)
+	// (the transaction a NotReady thrown came from, and the node not ready)
 	static var notReadyIn:Null<Tx> = null;
+	static var notReadyNode:Null<Node<Dynamic>> = null;
 
 	final kind:Int;
 	// the committed value (the screen's), and the staged one while a transaction holds it
@@ -276,6 +277,7 @@ class Node<T> extends Owner {
 
 	inline function notReady(tx:Null<Tx>):Dynamic {
 		notReadyIn = tx;
+		notReadyNode = this;
 		throw NotReady.instance;
 	}
 
@@ -511,7 +513,7 @@ class Node<T> extends Owner {
 		kept = 0;
 		added = null;
 		var r:Dynamic = null, failure:Dynamic = null, failed = false, waiting = false;
-		try r = fn(kind == COMPUTED ? current() : value) catch (e:NotReady) waiting = true catch (e:Dynamic) {
+		try r = call() catch (e:NotReady) waiting = true catch (e:Dynamic) {
 			failure = e;
 			failed = true;
 		}
@@ -528,6 +530,24 @@ class Node<T> extends Owner {
 		else if (kind == COMPUTED && Std.isOfType(r, Awaitable)) ask(r, w)
 		else settle(r, mine ? w : null);
 	}
+
+	// (its function run, given the previous value; hxmc dev: in a scope of
+	// its own, the same each run, fast refresh's keys: helder.view.Refresh)
+	#if hxmc.dev
+	var hotPath:Null<String> = null;
+
+	function call():Dynamic {
+		var arg = kind == COMPUTED ? current() : value;
+		if (hotPath == null) return helder.dev.Hot.scope("$c", () -> {
+			hotPath = helder.dev.Hot.path();
+			fn(arg);
+		});
+		return helder.dev.Hot.at(hotPath, () -> fn(arg));
+	}
+	#else
+	inline function call():Dynamic
+		return fn(kind == COMPUTED ? current() : value);
+	#end
 
 	// (the value its run builds on: the world's staging, else the committed one)
 	function current():Null<T> {
@@ -733,7 +753,12 @@ class Node<T> extends Owner {
 		var savedOwner = Owner.current, savedObserver = observer;
 		Owner.current = null;
 		observer = null;
+		#if hxmc.dev
+		// (hxmc dev: in its compute's scope, what it makes keyed as there: helder.view.Refresh)
+		var c = try (hotPath == null ? apply(value, prev) : helder.dev.Hot.at(hotPath, () -> apply(value, prev))) catch (e:Dynamic) {
+		#else
 		var c = try apply(value, prev) catch (e:Dynamic) {
+		#end
 			Owner.current = savedOwner;
 			observer = savedObserver;
 			throw e;

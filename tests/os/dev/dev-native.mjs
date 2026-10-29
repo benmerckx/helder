@@ -37,7 +37,7 @@ fs.mkdirSync(path.join(work, 'app'), { recursive: true });
 const counter = path.join(work, 'app', 'Counter.hx');
 const original = fs.readFileSync(path.join(repo, 'examples/counter/Counter.hx'), 'utf8');
 const v1 = original.replace('var count = signal(0);',
-	'var count = signal(0);\n\t\tif (!helder.dev.Hot.reloading) count.value = 3;\n\t\teffect(() -> trace("v1 count=" + count.value + " pid=" + PID));')
+	'var count = signal(0);\n\t\tif (!helder.dev.Hot.reloading) count(3);\n\t\teffect(() -> count(), v -> trace("v1 count=" + v + " pid=" + PID));')
 	.replace('static function main() {', 'static var PID = Std.int((Sys.time() * 1000) % 1000000000);\n\n\tstatic function main() {');
 if (v1 === original) throw new Error('Counter.hx changed: its signal line is not found');
 fs.writeFileSync(counter, v1);
@@ -113,7 +113,7 @@ try {
 	const reloaded2 = line(/^(?:(?:hxmc|helder) dev: |\s*)(?:swapped|reloaded) in/);
 	const reset = line(/Counter\.main\.count reset: its type changed/);
 	const v3 = line(/v3 count=\S+ pid=/);
-	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('count.value = 3;', 'count.value = 3.5;').replace('"v2 count="', '"v3 count="'));
+	edit((s) => s.replace('signal(0)', 'signal(0.5)').replace('count(3);', 'count(3.5);').replace('"v2 count="', '"v3 count="'));
 	times.push(await reloaded2);
 	check('type changed: logged', !!(await reset.catch(() => null)));
 	const v3l = await v3;

@@ -14,8 +14,11 @@ import helder.typescript.js.Values;
 // (helder.typescript.glue): a JavaScript value into the type Haxe expects
 // where it goes (fromJs, a macro reading that type), or into what Haxe
 // code takes untyped (toHaxe: arrays, functions and plain objects made
-// Haxe's); a Haxe value back to JavaScript (toJs). Haxe objects (a Signal,
-// a View, a node) pass as they are, opaque to the program.
+// Haxe's); a Haxe value back to JavaScript (toJs). Haxe objects (a View, a
+// node) pass as they are, opaque to the program; helder.view.graph's
+// readers (a signal, a memo, a Read, an asset) as functions, called to read
+// a signal and to write it (one function, cached per node), the same value
+// again when they come back.
 class Interop {
 	#if !macro
 	// a Haxe value as JavaScript's: numbers Float, arrays, functions and
@@ -23,6 +26,7 @@ class Interop {
 	public static function toJs(v:Dynamic):Dynamic {
 		if (v == null) return null;
 		if (Std.isOfType(v, JsObject) || Std.isOfType(v, String) || Std.isOfType(v, Bool)) return v;
+		if (Std.isOfType(v, helder.view.graph.Read.Reader)) return callable(v);
 		if (Std.isOfType(v, Int)) {
 			var i:Int = v;
 			return (i : Float);
@@ -43,6 +47,7 @@ class Interop {
 	// functions closures (any arity), plain objects structures, undefined null
 	public static function toHaxe(v:Dynamic):Dynamic {
 		if (v == null || v == Seed.undefinedValue) return null;
+		if (Std.isOfType(v, JsFunction) && (v : JsFunction).haxe != null) return (v : JsFunction).haxe;
 		if (Std.isOfType(v, JsArray)) return [for (x in (v : JsArray).items) x == Lib.hole ? null : toHaxe(x)];
 		if (Std.isOfType(v, JsFunction)) {
 			var f = v;
@@ -58,6 +63,38 @@ class Interop {
 	}
 
 	public static function call(f:Dynamic, args:Array<Dynamic>):Dynamic return Lib.call(f, Seed.undefinedValue, args);
+
+	// (the functions the program sees for nodes)
+	static final callables = new haxe.ds.ObjectMap<Dynamic, JsFunction>();
+
+	// a reader as JavaScript's function: read with no argument; a signal
+	// written with one, updated with a function (a signal never holds one)
+	static function callable(r:helder.view.graph.Read.Reader<Dynamic>):JsFunction {
+		var f = callables.get(r);
+		if (f != null) return f;
+		f = Builtins.nativeFunction("", 0, (_, args, _) -> {
+			if (args.length == 0) return toJs(r.read());
+			if (!Std.isOfType(r, helder.view.graph.Node)) throw "helder.view: a memo or a Read is read only";
+			var n:helder.view.graph.Node<Dynamic> = cast r, a:Dynamic = args[0];
+			if (Std.isOfType(a, JsFunction) && (a : JsFunction).haxe == null) n.update(x -> toHaxe(call(a, [toJs(x)]))) else n.write(toHaxe(a));
+			return Seed.undefinedValue;
+		});
+		f.setOwn("peek", Builtins.nativeFunction("peek", 0, (_, _, _) -> toJs(r.peek())));
+		f.haxe = r;
+		if (Std.isOfType(r, helder.view.graph.Node)) callables.set(r, f);
+		return f;
+	}
+
+	// a Read from the program's value: a reader of helder's as it is, a function read by calling it, else a constant
+	public static function reader(v:Dynamic):Dynamic {
+		if (v == Seed.undefinedValue || v == null) return new helder.view.graph.Read.Const<Dynamic>(null);
+		if (Std.isOfType(v, JsFunction)) {
+			var f:JsFunction = v;
+			if (f.haxe != null) return f.haxe;
+			return new helder.view.graph.Read.Thunk<Dynamic>(() -> toHaxe(call(f, [])));
+		}
+		return new helder.view.graph.Read.Const<Dynamic>(toHaxe(v));
+	}
 
 	public static function isNullish(v:Dynamic):Bool return v == null || v == Seed.undefinedValue;
 
@@ -89,6 +126,7 @@ class Interop {
 	// an instance of a Haxe class (a value the program got from Haxe)
 	public static function instance(v:Dynamic, c:Class<Dynamic>, where:String):Dynamic {
 		if (v == Seed.undefinedValue) return null;
+		if (Std.isOfType(v, JsFunction) && (v : JsFunction).haxe != null) v = (v : JsFunction).haxe;
 		if (v != null && !Std.isOfType(v, c)) Seed.diverge("a " + Type.getClassName(c), v, where);
 		return v;
 	}
@@ -142,6 +180,8 @@ class Interop {
 		if (depth > 8 || ct == null) return macro helder.typescript.js.Interop.toHaxe($v);
 		return switch Context.follow(t, true) {
 			case TMono(_) | TDynamic(_): macro helder.typescript.js.Interop.toHaxe($v);
+			// (a Read: what reads, helder.view.graph)
+			case TAbstract(_.get() => {pack: ["helder", "view", "graph"], name: "Read"}, _): macro(cast helder.typescript.js.Interop.reader($v) : $ct);
 			case TAbstract(_.get() => a, params):
 				switch a.pack.length == 0 ? a.name : "" {
 					case "Int": macro helder.typescript.js.Interop.int($v, $where);

@@ -3,7 +3,8 @@ import helder.ui.draw.UiWindow;
 import helder.ui.view.UiFlow.*;
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
 
 // Native text editors in a browser (web-field.mjs: wasm32-wasi in headless
 // Chromium): a field and a text area, native by the window's policy, among
@@ -19,13 +20,13 @@ class WebField implements Markup {
 		Render.render(<view grow={1} padding={20} row-gap={12} align-items="stretch" font-family="DejaVu Sans" background="#ffffff">
 			<view direction="row" column-gap={12}>
 				<Select tag="fruit" value={fruit} options={["Apple", "Pear", "Plum", "Fig"]} label="Fruit"/>
-				<view host="drawn" grow={1}><field tag="drawn" value={drawn} placeholder="Drawn" label="Drawn" onInput={e -> drawn.value = e.text} padding="6 10"
+				<view host="drawn" grow={1}><field tag="drawn" value={drawn} placeholder="Drawn" label="Drawn" onInput={e -> drawn(e.text)} padding="6 10"
 					border-width={1}/></view>
 			</view>
-			<field tag="name" value={name} placeholder="Your name" label="Name" onInput={e -> name.value = e.text}
-				onKeyDown={e -> if (e.key == Key.ENTER) submitted.value = name.peek()} padding="6 10" border-width={1}/>
-			<field:textarea tag="notes" value={notes} rows={3} placeholder="Notes" label="Notes" onInput={e -> notes.value = e.text} padding="6 10" border-width={1}/>
-			<view:button tag="reset" role="button" focusable align-self="start" padding="6 12" border-width={1} onPress={_ -> name.value = "Reset"}>Reset</view:button>
+			<field tag="name" value={name} placeholder="Your name" label="Name" onInput={e -> name(e.text)}
+				onKeyDown={e -> if (e.key == Key.ENTER) submitted(name.peek())} padding="6 10" border-width={1}/>
+			<field:textarea tag="notes" value={notes} rows={3} placeholder="Notes" label="Notes" onInput={e -> notes(e.text)} padding="6 10" border-width={1}/>
+			<view:button tag="reset" role="button" focusable align-self="start" padding="6 12" border-width={1} onPress={_ -> name("Reset")}>Reset</view:button>
 		</view>, w.root);
 		var last = "";
 		w.onFrame = () -> {
@@ -49,14 +50,17 @@ class WebField implements Markup {
 	static function Select(props:{value:Signal<String>, options:Array<String>, tag:String, label:String}):View {
 		var open = signal(false);
 		return <view:button tag={props.tag} role="combobox" label={props.label} expanded={open} focusable width={160} padding="6 10" border-width={1}
-			onPress={_ -> open.value = !open.peek()}>
+			onPress={() -> open(o -> !o)}>
 			{props.value}
-			<Popover open={open} placement="below" onDismiss={() -> open.value = false}>
+			<Popover open={open} placement="below" onDismiss={() -> open(false)}>
 				<view tag={props.tag + "-list"} role="listbox" width={160} padding={4} border-width={1} background="#ffffff">
-					<For each={props.options} render={(o:String) -> <view:button role="option" focusable padding="4 8" onPress={_ -> {
-						props.value.value = o;
-						open.value = false;
-					}}>{o}</view:button>}/>
+					<For each={props.options}>{option -> {
+						var o = option();
+						<view:button role="option" focusable padding="4 8" onPress={() -> {
+							props.value(o);
+							open(false);
+						}}>{o}</view:button>;
+					}}</For>
 				</view>
 			</Popover>
 		</view:button>;

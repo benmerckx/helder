@@ -2,7 +2,7 @@ import helder.os.objc.*;
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
 import helder.view.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
 import helder.view.Flow.*;
 import Plain.*;
 import hxmc.unsafe.*;
@@ -48,8 +48,8 @@ class MacAccessTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name.value = e.text}/>
-			<Show when={areaOn}><field:textarea tag="notes" value={notes} onInput={e -> notes.value = e.text}/></Show>
+			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
+			<Show when={areaOn}><field:textarea tag="notes" value={notes} onInput={e -> notes(e.text)}/></Show>
 		</view>, w.root);
 		var view = w.window.surface.handle;
 		var frames = 0, step = 0;
@@ -88,14 +88,15 @@ class MacAccessTest implements Markup {
 					step = 1;
 				case 1:
 					if (elements.length == 5) {
-						check("the checkbox pressed", checked.value && str(elements[2], "accessibilityValue") == "1", str(elements[2], "accessibilityValue"));
-						check("the slider incremented", Math.abs(volume.value - 0.6) < 1e-9 && str(elements[3], "accessibilityValue") == "0.6",
-							'${volume.value} ' + str(elements[3], "accessibilityValue"));
+						check("the checkbox pressed", checked() && str(elements[2], "accessibilityValue") == "1", str(elements[2], "accessibilityValue"));
+						check("the slider incremented", Math.abs(volume() - 0.6) < 1e-9 && str(elements[3], "accessibilityValue") == "0.6",
+							'${volume()} ' + str(elements[3], "accessibilityValue"));
 						check("the focused element", Msg.id(view, ObjC.sel("accessibilityFocusedUIElement")) == elements[3]);
 					}
 					var eds:Array<helder.ui.draw.MacViews.MacEditor> = @:privateAccess helder.ui.draw.MacViews.editors;
 					check("the field native: one NSTextField", eds.length == 1, "" + eds.length);
-					name.value = "Ada";
+					name("Ada");
+					flush();
 					step = 2;
 				case 2:
 					var eds:Array<helder.ui.draw.MacViews.MacEditor> = @:privateAccess helder.ui.draw.MacViews.editors;
@@ -110,7 +111,7 @@ class MacAccessTest implements Markup {
 					}
 					step = 3;
 				case 3:
-					check("an edit in the NSTextField, the field's signal follows", name.value == "Adax", name.value);
+					check("an edit in the NSTextField, the field's signal follows", name() == "Adax", name());
 					var eds:Array<helder.ui.draw.MacViews.MacEditor> = @:privateAccess helder.ui.draw.MacViews.editors;
 					if (eds.length == 1)
 						Msg.idPtrPtrPtr(@:privateAccess helder.ui.draw.MacViews.delegate, ObjC.sel("control:textView:doCommandBySelector:"), @:privateAccess eds[0].field,
@@ -127,8 +128,10 @@ class MacAccessTest implements Markup {
 						check("a password: an NSSecureTextField", str(field, "class") == "NSSecureTextField", str(field, "class"));
 						check("a password: the text kept", @:privateAccess eds[0].text() == "Adax", @:privateAccess eds[0].text());
 					}
-					areaOn.value = true;
-					notes.value = "Line";
+					areaOn(true);
+					flush();
+					notes("Line");
+					flush();
 					step = 6;
 				case 6:
 					var areas = [for (e in (@:privateAccess helder.ui.draw.MacViews.editors : Array<helder.ui.draw.MacViews.MacEditor>)) if (Std.isOfType(e, helder.ui.draw.MacViews.MacAreaEditor)) e];
@@ -144,7 +147,7 @@ class MacAccessTest implements Markup {
 					}
 					step = 7;
 				case 7:
-					check("an edit in the NSTextView, the area's signal follows", notes.value == "Line\nTwo", notes.value);
+					check("an edit in the NSTextView, the area's signal follows", notes() == "Line\nTwo", notes());
 					step = 8;
 					w.close();
 				case _:

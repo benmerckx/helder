@@ -43,7 +43,7 @@ class WebTags implements helder.view.Markup {
 		// (the DOM's: started here, not by the loader, which saw the page before it)
 		if (Render.pass == Render.idOf(helder.web.DomRenderer))
 			return <div id={props.id} class={props.className} style={props.style ?? "position:relative"}>
-				<canvas style="display:block;width:100%;height:100%" ref={(c:js.html.CanvasElement) -> helder.view.Reactive.onMount(() -> WasmModule.load(url(props.src),
+				<canvas style="display:block;width:100%;height:100%" ref={(c:js.html.CanvasElement) -> helder.view.graph.Graph.onSettled(() -> WasmModule.load(url(props.src),
 					{runner: url(runner), imports: imports.map(url), fonts: props.fonts == null ? null : props.fonts.map(url), args: props.args, canvas: c}))}></canvas>
 				{props.children}
 			</div>;

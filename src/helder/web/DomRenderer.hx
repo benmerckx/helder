@@ -1,7 +1,7 @@
 package helder.web;
 
 #if (js && !macro)
-import helder.view.Reactive;
+import helder.view.graph.Graph;
 import helder.view.Render;
 import js.Browser.document;
 import js.html.Element;
@@ -98,8 +98,12 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 		if (s == "") el.removeAttribute("style") else if (el.getAttribute("style") != s) el.setAttribute("style", s);
 	}
 
+	// (the event's writes land at its end, helder.view.graph)
 	public static function listen(node:Node, name:String, handler:Dynamic)
-		if (handler != null) node.addEventListener(Html.eventName(name), handler);
+		if (handler != null) node.addEventListener(Html.eventName(name), (e:js.html.Event) -> {
+			(handler : Dynamic->Void)(e);
+			Graph.flush();
+		});
 
 	public static function insert(parent:Node, node:Node, before:Null<Node>) {
 		// (hydrating: a claimed node is in its place already)
@@ -124,6 +128,9 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 		}
 	}
 
+	// (a region that ends its parent marked too: hydration reads the markers)
+	public static function markEnds() {}
+
 	public static inline function isNode(v:Dynamic):Bool
 		return Std.isOfType(v, Node);
 
@@ -139,11 +146,13 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 		var h = new Hydration(parent);
 		var dispose:Null<Void->Void> = null, error:Dynamic = null, failed = false;
 		hydration = h;
-		Reactive.root(d -> {
+		Graph.root(d -> {
 			dispose = d;
 			try {
-				var nodes = Render.insertAs(helder.web.DomRenderer, ([new HydrationEnd(h), content] : Array<Any>), parent, null);
-				Reactive.onCleanup(() -> for (n in nodes)
+				var nodes = Render.insertAs(helder.web.DomRenderer, content, parent, null);
+				// (made: the page's nodes not claimed are a mismatch)
+				h.finish();
+				Graph.onCleanup(() -> for (n in nodes)
 					if (n.parentNode == parent) parent.removeChild(n));
 			} catch (e:Mismatch) {
 				failed = true;
@@ -152,7 +161,11 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 			}
 		});
 		hydration = null;
-		if (error == null && !failed && h.failed == null) return dispose;
+		if (error == null && !failed && h.failed == null) {
+			// (at the top: what it scheduled, its onSettled's, flushed before it returns, as Render.render does)
+			if (Graph.getOwner() == null) Graph.flush();
+			return dispose;
+		}
 		dispose();
 		if (error != null) throw error;
 		#if debug
@@ -288,19 +301,6 @@ private class Hydration {
 			case Node.TEXT_NODE: "text \"" + n.nodeValue + "\"";
 			case _: "<!--" + n.nodeValue + "-->";
 		}
-}
-
-// (first in a hydrated content: its onMount, at the end of the insertion, ends hydration)
-private class HydrationEnd implements helder.view.Flow.Mountable<Node> {
-	final h:Hydration;
-
-	public function new(h:Hydration)
-		this.h = h;
-
-	public function mount(parent:Node, before:Null<Node>):Array<Node> {
-		Reactive.onMount(h.finish);
-		return [];
-	}
 }
 
 private class Mismatch {

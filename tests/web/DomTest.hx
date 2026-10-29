@@ -1,6 +1,6 @@
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
 import helder.web.*;
 import js.Browser.document;
 import js.html.*;
@@ -54,19 +54,23 @@ class DomTest implements Markup {
 		var box:InputElement = cast m.el.querySelector(".c"), text:InputElement = cast m.el.querySelector(".t");
 		var area:TextAreaElement = cast m.el.querySelector("textarea"), button:ButtonElement = cast m.el.querySelector("button");
 		check("checked: a property", !box.checked && !box.hasAttribute("checked"));
-		on.value = true;
+		on(true);
+		flush();
 		check("checked set", box.checked && button.disabled && button.getAttribute("disabled") == "");
 		check("value: a property", text.value == "one" && area.value == "one" && !text.hasAttribute("value"));
 		text.value = "typed";
-		v.value = "two";
+		v("two");
+		flush();
 		check("value set again", text.value == "two" && area.value == "two");
-		on.value = false;
+		on(false);
+		flush();
 		check("a boolean attribute removed", !button.hasAttribute("disabled"));
 		var st = signal(true);
-		m = mount(<p style={() -> st.value ? ({color: "red", fontSize: 12} : Dynamic) : "margin: 0px"}/>);
+		m = mount(<p style={() -> st() ? ({color: "red", fontSize: 12} : Dynamic) : "margin: 0px"}/>);
 		var p:Element = cast m.el.firstChild;
 		check("a style object", (cast p : DOMElement).style.color == "red" && (cast p : DOMElement).style.fontSize == "12px", p.getAttribute("style"));
-		st.value = false;
+		st(false);
+		flush();
 		check("a style string, the object's properties gone", (cast p : DOMElement).style.color == "" && (cast p : DOMElement).style.margin == "0px",
 			p.getAttribute("style"));
 		var clicks = 0, custom = 0;
@@ -83,16 +87,18 @@ class DomTest implements Markup {
 		check("HTML inside foreignObject", (cast m.el.querySelector("foreignObject div") : Element).namespaceURI == "http://www.w3.org/1999/xhtml");
 		// keyed rows moved, not made
 		var items = signal(["a", "b", "c"]);
-		m = mount(<ul><For each={items} render={(i:String) -> <li>{i}</li>}/></ul>);
+		m = mount(<ul><For each={items}>{i -> <li>{i}</li>}</For></ul>);
 		var lis = [for (n in m.el.querySelectorAll("li")) n];
-		items.value = ["c", "a", "b", "d"];
+		items(["c", "a", "b", "d"]);
+		flush();
 		var after = [for (n in m.el.querySelectorAll("li")) n];
 		check("For: rows moved", after.length == 4 && after[0] == lis[2] && after[1] == lis[0] && after[2] == lis[1],
 			m.el.innerHTML);
 		check("For: markup", m.el.innerHTML == "<ul><li>c</li><li>a</li><li>b</li><li>d</li><!--for--></ul>", m.el.innerHTML);
 		var show = signal(true);
 		m = mount(<div><Show when={show} fallback={<i>no</i>}><b>yes</b></Show></div>);
-		show.value = false;
+		show(false);
+		flush();
 		check("Show: a region replaced", m.el.innerHTML == "<div><i>no</i><!--anchor--></div>", m.el.innerHTML);
 		m.dispose();
 		check("dispose removes it", m.el.innerHTML == "", m.el.innerHTML);
@@ -131,25 +137,29 @@ class DomTest implements Markup {
 	static function hydration() {
 		var count = signal(1), clicks = 0;
 		var items = signal(["x", "y"]);
-		var h = hydrate(<><p class="c">n: {count}{"!"}</p><ul><For each={items} render={(i:String) -> <li>{i}</li>}/></ul><button onClick={() -> clicks++}>b</button></>);
+		var h = hydrate(<><p class="c">n: {count}{"!"}</p><ul><For each={items}>{i -> <li>{i}</li>}</For></ul><button onClick={() -> clicks++}>b</button></>);
 		check("hydration: every node kept", same(h.before, nodes(h.el)), h.el.innerHTML);
-		count.value = 2;
+		count(2);
+		flush();
 		(cast h.el.querySelector("button") : Element).click();
 		check("hydration: reactive afterwards", h.el.querySelector("p").textContent == "n: 2!" && clicks == 1, h.el.innerHTML);
 		var li = h.el.querySelectorAll("li");
-		items.value = ["y", "x", "z"];
+		items(["y", "x", "z"]);
+		flush();
 		var after = h.el.querySelectorAll("li");
 		check("hydration: a list's rows kept and moved", after.length == 3 && after[0] == li[1] && after[1] == li[0], h.el.innerHTML);
 		// an empty text (<!--#-->), nested regions, a region's content replaced later
 		var name = signal(""), on = signal(true);
-		var view = <p>{name}{() -> on.value ? [() -> <b>on</b>] : null}</p>;
+		var view = <p>{name}{() -> on() ? [() -> <b>on</b>] : null}</p>;
 		check("the static renderer's markers", Static.render(view) == "<p><!--#--><!--[--><!--[--><b>on</b><!--]--><!--]--></p>", Static.render(view));
 		h = hydrate(view);
 		var b = h.el.querySelector("b");
 		check("hydration: nested regions kept", b != null && h.before.indexOf(b) >= 0 && h.el.innerHTML == "<p><b>on</b><!--]--><!--]--></p>",
 			h.el.innerHTML);
-		name.value = "N";
-		on.value = false;
+		name("N");
+		flush();
+		on(false);
+		flush();
 		check("hydration: an empty text, a region replaced", h.el.innerHTML == "<p>N<!--]--></p>", h.el.innerHTML);
 		h.dispose();
 		check("hydration: dispose", h.el.innerHTML == "", h.el.innerHTML);

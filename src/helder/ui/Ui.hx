@@ -216,6 +216,8 @@ class Ui {
 	// the platform's views' events first, their nodes kept in step after
 	public function update() {
 		if (platform != null) platform.poll();
+		// (the frame: what was written since lands first, helder.view.graph)
+		helder.view.graph.Graph.flush();
 		// (a touch's scroll let go moving: its glide's since the last)
 		if (touchScroll.gliding) @:privateAccess touchScroll.glide(now() * 1000);
 		flushRestyles();
@@ -439,7 +441,13 @@ class Ui {
 	// --- pointer ---
 
 	// the mouse moved (id 0), or a finger or a pen (id: its slot) to x, y
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function pointerMove(x:Float, y:Float, id = 0, pressure = 1.0) {
+		pointerMoveNow(x, y, id, pressure);
+		helder.view.graph.Graph.flush();
+	}
+
+	function pointerMoveNow(x:Float, y:Float, id = 0, pressure = 1.0) {
 		if (id != 0) return touchMove(id, x, y, pressure);
 		pointerX = x;
 		pointerY = y;
@@ -544,7 +552,14 @@ class Ui {
 	// one that is the ui's own (Node.ownsPointer: not the root, the body, nor
 	// a box drawing a world under the ui), so that the game's controls leave
 	// it alone (helder.os's Pointer.owner, UiWindow's)
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function pointerDown(x:Float, y:Float, button:Int, id = 0, type:PointerType = Mouse, pressure = 1.0):Bool {
+		var r = pointerDownNow(x, y, button, id, type, pressure);
+		helder.view.graph.Graph.flush();
+		return r;
+	}
+
+	function pointerDownNow(x:Float, y:Float, button:Int, id = 0, type:PointerType = Mouse, pressure = 1.0):Bool {
 		if (id != 0) return touchDown(id, type, x, y, pressure);
 		pointerX = x;
 		pointerY = y;
@@ -585,7 +600,13 @@ class Ui {
 	}
 
 	// the mouse's button released (id 0), or a finger or a pen lifted
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function pointerUp(x:Float, y:Float, button:Int, id = 0) {
+		pointerUpNow(x, y, button, id);
+		helder.view.graph.Graph.flush();
+	}
+
+	function pointerUpNow(x:Float, y:Float, button:Int, id = 0) {
 		if (id != 0) return touchUp(id, x, y);
 		pointerX = x;
 		pointerY = y;
@@ -629,7 +650,13 @@ class Ui {
 
 	// a finger or a pen cancelled (the system took it: no click; id 0: the
 	// mouse's press let go of the same way)
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function pointerCancel(id:Int) {
+		pointerCancelNow(id);
+		helder.view.graph.Graph.flush();
+	}
+
+	function pointerCancelNow(id:Int) {
 		if (id == 0) {
 			var pressed = capture;
 			capture = null;
@@ -885,7 +912,13 @@ class Ui {
 		}
 	}
 
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function wheel(x:Float, y:Float, deltaX:Float, deltaY:Float) {
+		wheelNow(x, y, deltaX, deltaY);
+		helder.view.graph.Graph.flush();
+	}
+
+	function wheelNow(x:Float, y:Float, deltaX:Float, deltaY:Float) {
 		var target = hit(x, y);
 		if (target == null) return;
 		var e = Event.of(Wheel, target, x, y);
@@ -1018,7 +1051,13 @@ class Ui {
 		return false;
 	}
 
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function keyDown(key:Int, mods:Int) {
+		keyDownNow(key, mods);
+		helder.view.graph.Graph.flush();
+	}
+
+	function keyDownNow(key:Int, mods:Int) {
 		this.mods = mods | modOf(key);
 		// (Escape during a drag: it ends, not dropped)
 		if (dragging != null && key == Key.ESCAPE) {
@@ -1126,7 +1165,13 @@ class Ui {
 		});
 	}
 
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function keyUp(key:Int, mods:Int) {
+		keyUpNow(key, mods);
+		helder.view.graph.Graph.flush();
+	}
+
+	function keyUpNow(key:Int, mods:Int) {
 		this.mods = mods & ~modOf(key);
 		var e = Event.of(KeyUp, focus != null ? focus : root, pointerX, pointerY);
 		e.key = key;
@@ -1134,7 +1179,13 @@ class Ui {
 		bubble(e);
 	}
 
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function textInput(text:String) {
+		textInputNow(text);
+		helder.view.graph.Graph.flush();
+	}
+
+	function textInputNow(text:String) {
 		if (text.length == 0) return;
 		var e = Event.of(TextInput, focus != null ? focus : root, pointerX, pointerY);
 		e.text = text;
@@ -1142,7 +1193,13 @@ class Ui {
 	}
 
 	// an input method's composition (empty: it ended), caret in it: to the focus
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function composition(text:String, caret:Int) {
+		compositionNow(text, caret);
+		helder.view.graph.Graph.flush();
+	}
+
+	function compositionNow(text:String, caret:Int) {
 		var e = Event.of(Composition, focus != null ? focus : root, pointerX, pointerY);
 		e.text = text;
 		e.caret = caret;
@@ -1490,7 +1547,14 @@ class Ui {
 
 	// assistive technology's request on a node of the last accessTree():
 	// false when the node is gone or does not take it
+	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function accessAction(id:Int, action:helder.ui.access.AccessAction, ?value:String):Bool {
+		var r = accessActionNow(id, action, value);
+		helder.view.graph.Graph.flush();
+		return r;
+	}
+
+	function accessActionNow(id:Int, action:helder.ui.access.AccessAction, ?value:String):Bool {
 		var n = lastAccess == null ? null : lastAccess.node(id);
 		if (n == null || n.ui != this) return false;
 		switch action {

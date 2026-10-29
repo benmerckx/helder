@@ -6,12 +6,13 @@ import helder.asset.Asset;
 import helder.asset.Assets;
 import helder.image.Image;
 import helder.test.Test;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
 
 // helder.asset in a program (natively: the files in the executable's
 // data; as wasm32-wasi beside the module, fetched): the bundle has what
 // code that runs names and nothing else (Bundle's markers), a handle per
-// path loaded by a coroutine, several at once, a failure, value a signal
+// path loaded by a coroutine, several at once, a failure, the handle a
+// node of helder.view's graph (an async memo)
 function tests() {
 	// (natively the executable's resources; as wasm32-wasi the files are
 	// beside the module, which the asset lane checks: bundled() is null)
@@ -39,7 +40,8 @@ function tests() {
 			equals(b.toString(), "kept by the tests\n");
 			assert(a.ready);
 			equals(a.peek(), b);
-			equals(a.value, b);
+			flush();
+			equals(untrack(a.read), b);
 		}));
 		test("an image, decoded (a PNG as a job)", async(() -> {
 			var img:Image = Asset.image("asset/files/pixels.png").load();
@@ -53,13 +55,14 @@ function tests() {
 			]));
 			equals(got, [18, 76]);
 		}));
-		test("a failure: load throws, value too", async(() -> {
+		test("a failure: load throws, read too", async(() -> {
 			// (the text file is no image)
 			var a = Asset.image("asset/files/kept.txt");
 			var e:Dynamic = throwsAsync(() -> a.load());
 			assert(e is AssetError, Std.string(e));
 			assert(a.state.match(Failed(_)));
-			assert(throws(() -> a.value) is AssetError);
+			flush();
+			assert(throws(() -> untrack(a.read)) is AssetError);
 		}));
 	});
 	describe("a font", () -> {
@@ -103,12 +106,20 @@ function tests() {
 		}));
 	});
 	describe("the handle", () -> {
-		test("value before it is here: AssetPending; peek null", () -> {
+		test("read before it is here: pending (a computation reading it waits); peek null", () -> {
 			var a = new Asset<Int>("later");
 			equals(a.peek(), null);
-			var e = throws(() -> a.value);
-			assert(e is AssetPending);
-			equals((e : AssetPending).asset, cast a);
+			var got:Array<Int> = [];
+			var dispose = root(d -> {
+				effect(() -> a.read(), v -> got.push(v));
+				d;
+			});
+			flush();
+			equals(got, []);
+			a.resolve(4);
+			flush();
+			equals(got, [4]);
+			dispose();
 		});
 		test("load suspends until it is resolved", async(() -> {
 			var a = new Asset<Int>("later");
@@ -118,34 +129,44 @@ function tests() {
 			a.resolve(4);
 			equals(t.await(), 4);
 		}));
-		test("a reload in flight: refreshing, Reactive.isPending", () -> {
+		test("a reload in flight: Graph.isPending, the last value kept", () -> {
 			var a = new Asset<String>("text");
-			equals(isPending(() -> a.value), false);
-			a.resolve("one");
-			a.refresh(true);
-			equals([a.refreshing, isPending(() -> a.value)], [true, true]);
-			a.resolve("two");
-			equals([a.refreshing, isPending(() -> a.value)], [false, false]);
-		});
-		test("a pending value is helder.view's Pending (a Loading boundary waits for it)", () -> {
-			var a = new Asset<Int>("later");
-			assert(throws(() -> a.value) is helder.view.Pending);
-			var told = 0;
-			a.whenReady(() -> told++);
-			a.resolve(1);
-			equals(told, 1);
-		});
-		test("value is a signal: its readers run again on a reload", () -> {
-			var a = new Asset<String>("text"), seen = [];
-			a.resolve("one");
+			var pending:Array<Bool> = [];
 			var dispose = root(d -> {
-				effect(() -> seen.push(a.value));
+				renderEffect(() -> isPending(() -> a.read()), v -> pending.push(v));
 				d;
 			});
+			flush();
+			equals(isPending(() -> a.read()), false);
+			a.resolve("one");
+			flush();
+			a.refresh(true);
+			flush();
+			equals(untrack(a.read), "one");
 			a.resolve("two");
+			flush();
+			equals(untrack(a.read), "two");
+			equals(pending, [false, true, false]);
 			dispose();
-			a.resolve("three");
-			equals(seen, ["one", "two"]);
+		});
+		test("its readers run again on a reload, the object the same", () -> {
+			var a = new Asset<Array<Int>>("list"), seen = [], v = [1];
+			a.resolve(v);
+			var dispose = root(d -> {
+				effect(() -> a.read(), x -> seen.push(x.length));
+				d;
+			});
+			flush();
+			a.refresh(true);
+			flush();
+			v.push(2);
+			a.resolve(v);
+			flush();
+			dispose();
+			a.refresh(true);
+			a.resolve(v);
+			flush();
+			equals(seen, [1, 2]);
 		});
 	});
 }

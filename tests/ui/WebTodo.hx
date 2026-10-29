@@ -30,7 +30,7 @@ class WebTodo {
 				if (n != null) parts.push('$tag=${n.absX},${n.absY},${n.width},${n.height}');
 			}
 			var t:TextNode = cast w.root.find("left");
-			var s = "boxes " + parts.join(" ") + " | " + (t != null ? t.text : "") + " | " + app.todos.peek().length + " | wheel " + wheel + " | dark " + UiWindow.dark.value;
+			var s = "boxes " + parts.join(" ") + " | " + (t != null ? t.text : "") + " | " + app.todos.peek().length + " | wheel " + wheel + " | dark " + UiWindow.dark();
 			if (s != last) {
 				last = s;
 				Sys.println(s);

@@ -9,7 +9,7 @@ UiWindow.run(
 		<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
 			<text font-size={32}>{count}</text>
 			<view:button role="button" focusable padding="8 16" radius={6} background="#18181b" color="#fafafa" cursor="pointer"
-				onPress={() => count.value++}>+1</view:button>
+				onPress={() => count(c => c + 1)}>+1</view:button>
 		</view>
 	</Surface>
 );

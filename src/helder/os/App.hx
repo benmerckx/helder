@@ -53,6 +53,16 @@ class App {
 
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
+		// (helder.view.graph's writes land at the end of each event and frame)
+		var frame = onFrame, event = onEvent;
+		onFrame = () -> {
+			frame();
+			helder.view.graph.Graph.flush();
+		};
+		onEvent = e -> {
+			event(e);
+			helder.view.graph.Graph.flush();
+		};
 		// (the mouse's pointer events after its own: Pointers)
 		onEvent = Pointers.relay(onEvent);
 		if (Mem.os() == 3) {

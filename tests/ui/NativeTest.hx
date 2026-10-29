@@ -65,28 +65,28 @@ class NativeTest {
 		// GTK's own calls
 		driver.type(field.handle, "Ada");
 		settle();
-		check("typed text reaches the signal", app.name.value == "Ada" && greeting.text == "Hello, Ada!", app.name.value);
+		check("typed text reaches the signal", app.name() == "Ada" && greeting.text == "Hello, Ada!", app.name());
 		driver.toggle(agree.handle, true);
 		settle();
-		check("a toggle", app.agree.value && submit.enabled);
+		check("a toggle", app.agree() && submit.enabled);
 		driver.click(submit.handle);
 		driver.click(submit.handle);
 		settle();
-		check("clicks", app.submitted.value == 2 && count.text == "Submitted 2 times", count.text);
+		check("clicks", app.submitted() == 2 && count.text == "Submitted 2 times", count.text);
 		driver.slide(volume.handle, 0.75);
 		settle();
 		var shown:TextNode = cast find("volume-shown");
-		check("a slider", Math.abs(app.volume.value - 0.75) < 0.002 && shown.text == "75%", '${app.volume.value} ${shown.text}');
+		check("a slider", Math.abs(app.volume() - 0.75) < 0.002 && shown.text == "75%", '${app.volume()} ${shown.text}');
 		// the other way: signals to widgets
-		app.name.value = "Grace";
-		app.volume.value = 0.5;
+		app.name("Grace");
+		app.volume(0.5);
 		settle();
 		var entryText = driver.fieldText(field.handle);
 		check("a signal sets the entry", entryText == "Grace", entryText);
 		check("and the slider", Math.abs(driver.sliderValue(volume.handle) - 0.5) < 0.002, '${driver.sliderValue(volume.handle)}');
 		// a longer button label: measured again, the row laid out again
 		var before = count.width;
-		app.submitted.value = 1000;
+		app.submitted(1000);
 		settle();
 		check("a new label measured again", count.width > before && driver.allocation(count.handle)[2] >= Math.round(count.width) - 1,
 			'$before -> ${count.width}, allocated ${driver.allocation(count.handle)}');

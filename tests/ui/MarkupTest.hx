@@ -3,7 +3,9 @@ import helder.view.*;
 import helder.ui.view.*;
 import helder.view.Flow.*;
 import helder.ui.view.UiFlow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 import helder.ui.access.*;
 import helder.ui.widgets.TextField;
 import Plain.*;
@@ -14,7 +16,7 @@ import helder.image.Image;
 // tests/view): elements and
 // style attributes, text runs, reactive text and attributes, regions,
 // For and Show, components, events through a Ui; then context, onMount,
-// Index, Switch and Match, Show's branches kept, ErrorBoundary; Motion's
+// Index, Switch and Match, Show's branches kept, Errored; Motion's
 // transitions, springs and colours on a Clock ticked by hand; the
 // accessibility tree of plain controls in markup (Plain), its actions and
 // changes; a Popover and a Hotkey; the neutral elements; a field's
@@ -60,7 +62,7 @@ class MarkupTest implements Markup {
 		var count = signal(props.start);
 		return <view direction="row" column-gap={4}>
 			<text>{props.label ?? "count"}: {count}</text>
-			<view tag="inc" focusable onClick={_ -> count.value++} padding={2}>+</view>
+			<view tag="inc" focusable onClick={_ -> count(c -> c + 1)} padding={2}>+</view>
 		</view>;
 	}
 
@@ -72,7 +74,7 @@ class MarkupTest implements Markup {
 
 	static function Thrower(props:{when:Signal<Bool>}):View {
 		return <text>{() -> {
-			if (props.when.value) throw "boom";
+			if (props.when()) throw "boom";
 			"fine";
 		}}</text>;
 	}
@@ -107,7 +109,8 @@ class MarkupTest implements Markup {
 		ui.pointerDown(right - p.width / 2, field.absY + field.height / 2, 1);
 		ui.pointerUp(right - p.width / 2, field.absY + field.height / 2, 1);
 		check("rtl: a field's text at the right, clicked there", field.caret == 1 || field.caret == 2, "" + field.caret);
-		dir.value = "ltr";
+		dir("ltr");
+		flush();
 		ui.update();
 		check("rtl: changed back, laid out again", ui.root.find("a").absX == 10 && words.textAlign() == Left, "" + ui.root.find("a").absX);
 	}
@@ -168,7 +171,8 @@ class MarkupTest implements Markup {
 		check("breaks: overflow-wrap and word-break inherited into the font", t.overflowWrap == Anywhere && t.wordBreak == BreakAll && u.overflowWrap == Normal
 			&& u.wordBreak == BreakAll);
 		check("breaks: break-word and normal at the root", new Ui(new MonoText(), 10, 10).root.font().overflowWrap == BreakWord);
-		wb.value = "keep-all";
+		wb("keep-all");
+		flush();
 		ui.update();
 		check("breaks: changed, the font follows", ui.root.find("u").font().wordBreak == KeepAll);
 	}
@@ -179,14 +183,16 @@ class MarkupTest implements Markup {
 		Render.render(<view padding={10}><view tag="status" live="polite"><text>{msg}</text></view></view>, ui.root);
 		ui.update();
 		var t0 = ui.accessTree();
-		msg.value = "Saved";
+		msg("Saved");
+		flush();
 		ui.update();
 		var t1 = ui.accessTree();
 		var said = t1.announcements(t0);
 		var region = [for (id in t1.order) if (t1.nodes.get(id).live == Polite) t1.nodes.get(id)];
 		check("live: a region's new text announced, politely", said.length == 1 && said[0].text == "Saved" && said[0].live == Polite
 			&& region.length == 1 && region[0].toJson().live == "polite" && region[0].role == Group, [for (s in said) s.text].join("|"));
-		msg.value = "Saved and synced";
+		msg("Saved and synced");
+		flush();
 		ui.update();
 		var t2 = ui.accessTree();
 		check("live: what was added at its end; nothing when nothing changed", [for (s in t2.announcements(t1)) s.text].join("|") == "and synced"
@@ -196,7 +202,7 @@ class MarkupTest implements Markup {
 	static function password() {
 		var ui = new Ui(new MonoText(), 400, 300);
 		var pw = signal("hunter2");
-		Render.render(<view padding={10}><field tag="pw" value={pw} type="password" label="Password" onInput={e -> pw.value = e.text}/></view>, ui.root);
+		Render.render(<view padding={10}><field tag="pw" value={pw} type="password" label="Password" onInput={e -> pw(e.text)}/></view>, ui.root);
 		ui.update();
 		var f:TextField = cast ui.root.find("pw");
 		var clip:helder.ui.ClipboardHost.MemoryClipboard = cast ui.clipboard;
@@ -207,7 +213,7 @@ class MarkupTest implements Markup {
 		ui.keyDown("x".code, Key.MOD_CONTROL);
 		var t = ui.accessTree(), node = [for (id in t.order) if (t.nodes.get(id).role == TextInput) t.nodes.get(id)][0];
 		check("password: shown and given as dots, not copied or cut", (cast f.layoutText(ui.text, Math.NaN) : MonoText.MonoParagraph).width == 7 * 7
-			&& clip.text == "before" && pw.value == "hunter2" && node.secret && node.value == "•••••••" && node.toJson().secret == true, node.value);
+			&& clip.text == "before" && pw() == "hunter2" && node.secret && node.value == "•••••••" && node.toJson().secret == true, node.value);
 		f.select(3, 3);
 		ui.keyDown(Key.LEFT, Key.MOD_CONTROL);
 		check("password: a word is all of it", f.caret == 0, "" + f.caret);
@@ -237,37 +243,42 @@ class MarkupTest implements Markup {
 			<view tag="anchor" width={60} height={20}>
 				<Popover open={open} placement="below" onDismiss={() -> {
 					dismissed++;
-					open.value = false;
+					open(false);
 				}}><view tag="pop" width={80} height={30}/></Popover>
 			</view>
-			<Popover open={at} at={() -> {x: 200.0, y: 100.0}} onDismiss={() -> at.value = false}><view tag="at" width={20} height={20}/></Popover>
+			<Popover open={at} at={() -> {x: 200.0, y: 100.0}} onDismiss={() -> at(false)}><view tag="at" width={20} height={20}/></Popover>
 		</view>, ui.root);
 		ui.update();
 		check("popover: closed, nothing over the tree", ui.overlay.children.length == 0 && ui.overlay.find("pop") == null);
-		open.value = true;
+		open(true);
+		flush();
 		ui.update();
 		var anchor = ui.root.find("anchor"), pop = ui.overlay.find("pop");
 		check("popover: open, under the node it is in", pop != null && pop.absY >= anchor.absY + anchor.height, pop == null ? "none" : '${pop.absX},${pop.absY}');
 		ui.keyDown(Key.ESCAPE, 0);
 		ui.update();
 		check("popover: Escape asks it to close", dismissed == 1 && ui.overlay.find("pop") == null, '$dismissed');
-		open.value = true;
+		open(true);
+		flush();
 		ui.update();
 		ui.pointerDown(390, 290, 1);
 		ui.pointerUp(390, 290, 1);
 		ui.update();
 		check("popover: a press outside too", dismissed == 2 && ui.overlay.find("pop") == null, '$dismissed');
-		at.value = true;
+		at(true);
+		flush();
 		ui.update();
 		var a = ui.overlay.find("at");
 		check("popover: at a point", a != null && a.absX == 200 && a.absY == 100, a == null ? "none" : '${a.absX},${a.absY}');
-		at.value = false;
+		at(false);
+		flush();
 		ui.update();
 		check("popover: closed again", ui.overlay.find("at") == null);
 		var on = signal(true), saved = 0;
 		var dispose = Render.render(<view><Show when={on}><Hotkey keys="Mod+S" action={() -> saved++}/></Show></view>, ui.root);
 		ui.keyDown("s".code, Key.MOD_CONTROL);
-		on.value = false;
+		on(false);
+		flush();
 		ui.keyDown("s".code, Key.MOD_CONTROL);
 		dispose();
 		check("hotkey: while mounted", saved == 1, '$saved');
@@ -342,7 +353,8 @@ class MarkupTest implements Markup {
 		var legend = ui.root.find("legend"), d0 = ui.root.find("d0"), d1 = ui.root.find("d1");
 		check("fieldset: the legend's margin, no gap; the description after it pulled up, the next a gap under",
 			d0.y == legend.y + legend.height + 12 - 6 && d1.y == d0.y + d0.height + 24, '${legend.y} ${legend.height} ${d0.y} ${d0.height} ${d1.y}');
-		first.value = false;
+		first(false);
+		flush();
 		ui.update();
 		check("fieldset: the sibling before gone, the next description's rule follows", d1.y == legend.y + legend.height + 12 - 6, '${legend.y} ${legend.height} ${d1.y} ' + [for (c in d1.parent.children) c.tag].join(","));
 	}
@@ -354,8 +366,8 @@ class MarkupTest implements Markup {
 		var ui = new Ui(new MonoText(), 400, 300), ticked = signal(false);
 		ui.theme = {rules: [{slot: "button", style: {background: Color.rgb(0x111111), padding: 4}}]};
 		Render.render(<view align-items="start" padding={10}>
-			<view:button tag="b" slot="button" focusable states={(s:States) -> (s.hovered.value ? {background: Color.rgb(0xFF0000)} : {} : StyleProps)}>Go</view:button>
-			<view tag="c" data-state={() -> ticked.value ? "checked" : "unchecked"} states={(s:States) -> (s.attr("data-state").value == "checked" ? {opacity: 0.5} : {} : StyleProps)}/>
+			<view:button tag="b" slot="button" focusable states={(s:States) -> (s.hovered() ? {background: Color.rgb(0xFF0000)} : {} : StyleProps)}>Go</view:button>
+			<view tag="c" data-state={() -> ticked() ? "checked" : "unchecked"} states={(s:States) -> (s.attr("data-state")() == "checked" ? {opacity: 0.5} : {} : StyleProps)}/>
 		</view>, ui.root);
 		ui.update();
 		var b = ui.root.find("b"), c = ui.root.find("c");
@@ -366,15 +378,16 @@ class MarkupTest implements Markup {
 		ui.pointerMove(390, 290);
 		ui.update();
 		check("states: an instance's style a function of its states, over the theme's, the theme's again after", before == Color.rgb(0x111111)
-			&& hovered == Color.rgb(0xFF0000) && b.style.background == Color.rgb(0x111111) && !states.hovered.value, hovered.toHex() + " " + b.style.background.toHex());
-		ticked.value = true;
+			&& hovered == Color.rgb(0xFF0000) && b.style.background == Color.rgb(0x111111) && !states.hovered(), hovered.toHex() + " " + b.style.background.toHex());
+		ticked(true);
+		flush();
 		ui.update();
-		check("states: an attribute as a signal (data-state)", c.style.opacity == 0.5 && States.of(c).attr("data-state").value == "checked");
+		check("states: an attribute as a signal (data-state)", c.style.opacity == 0.5 && States.of(c).attr("data-state")() == "checked");
 		ui.setFocus(b);
 		ui.keyDown(Key.TAB, 0);
 		ui.keyDown(Key.TAB, 0);
 		ui.setFocus(b, true);
-		check("states: focused, focus-visible", States.of(b).focused.value);
+		check("states: focused, focus-visible", States.of(b).focused());
 	}
 
 	// a link's href (a Link to assistive technology, a document's annotation); paged layout's names in a window: kept, nothing more
@@ -398,11 +411,10 @@ class MarkupTest implements Markup {
 		var ui = new Ui(new MonoText(), 300, 300);
 		var items = signal([for (i in 0...100000) "item " + i]);
 		var made = 0;
-		var dispose = Render.render(<view><VirtualList tag="list" each={items} itemHeight={20} height={200}
-			render={(item:Signal<String>, i:Int) -> {
+		var dispose = Render.render(<view><VirtualList tag="list" each={items} itemHeight={20} height={200}>{(item:Read<String>, i:Int) -> {
 				made++;
-				<text>{() -> item.value}</text>;
-			}}/></view>, ui.root);
+				<text>{item()}</text>;
+			}}</VirtualList></view>, ui.root);
 		ui.update();
 		var list = ui.root.find("list");
 		function rows():Array<String>
@@ -415,7 +427,8 @@ class MarkupTest implements Markup {
 		check("virtual: rows made as it scrolls", r.length == 17 && r.indexOf("item 47") >= 0 && r.indexOf("item 63") >= 0 && r.indexOf("item 0") < 0, r.join(","));
 		var at = [for (c in list.children) if (c.tag == "row") c].filter(c -> (cast c.children[0] : TextNode).text == "item 50")[0];
 		check("virtual: a row at its index's height", at != null && at.y == 1000, at == null ? "none" : '${at.y}');
-		items.value = [for (i in 0...60) "new " + i];
+		items([for (i in 0...60) "new " + i]);
+		flush();
 		ui.update();
 		r = rows();
 		check("virtual: a shorter list: its rows, the scroll clamped", r.length > 0 && r.indexOf("new 59") >= 0 && list.scrollY == 60 * 20 - 200, r.join(",") + " " + list.scrollY);
@@ -432,7 +445,7 @@ class MarkupTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="check" checked={checked} label="Remember"/>
 			<Slider tag="vol" value={vol} step={0.1} label="Volume"/>
-			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name.value = e.text}/>
+			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
 			<view><text>nested</text><image label="a picture" src={new Image(4, 4)} width={4} height={4}/></view>
 		</view>, ui.root);
 		ui.update();
@@ -459,7 +472,7 @@ class MarkupTest implements Markup {
 		ui.update();
 		var t3 = ui.accessTree();
 		check("access: Increment steps the slider and focuses it", Math.abs(t3.nodes.get(slider.id).valueNow - 0.6) < 1e-9 && t3.focus == slider.id);
-		check("access: SetValue types into a field", ui.accessAction(field.id, SetValue, "Ada") && name.value == "Ada");
+		check("access: SetValue types into a field", ui.accessAction(field.id, SetValue, "Ada") && name() == "Ada");
 		ui.update();
 		var t4 = ui.accessTree();
 		check("access: the field's value", t4.nodes.get(field.id).value == "Ada");
@@ -470,49 +483,54 @@ class MarkupTest implements Markup {
 
 	static function motion() {
 		var target = signal(0.0);
-		var t = Motion.transition(() -> target.value, 1.0, Motion.linear);
-		check("motion: a transition starts at its target", t.value == 0 && !Clock.active);
-		target.value = 10;
-		check("motion: it moves on ticks", t.value == 0 && Clock.active);
+		var t = Motion.transition(() -> target(), 1.0, Motion.linear);
+		check("motion: a transition starts at its target", t() == 0 && !Clock.active);
+		target(10);
+		flush();
+		check("motion: it moves on ticks", t() == 0 && Clock.active);
 		Clock.tick(100);
-		check("motion: from the first tick", t.value == 0, '${t.value}');
+		check("motion: from the first tick", t() == 0, '${t()}');
 		Clock.tick(100.5);
-		check("motion: half way", t.value == 5, '${t.value}');
-		target.value = 20;
+		check("motion: half way", t() == 5, '${t()}');
+		target(20);
+		flush();
 		Clock.tick(101);
-		check("motion: a new target, from where it is", t.value == 5, '${t.value}');
+		check("motion: a new target, from where it is", t() == 5, '${t()}');
 		Clock.tick(101.25);
-		check("motion: a quarter to the new target", Math.abs(t.value - 8.75) < 1e-9, '${t.value}');
+		check("motion: a quarter to the new target", Math.abs(t() - 8.75) < 1e-9, '${t()}');
 		Clock.tick(102);
-		check("motion: there, and done", t.value == 20 && !Clock.active, '${t.value}');
+		check("motion: there, and done", t() == 20 && !Clock.active, '${t()}');
 		// a spring settles on its target (an underdamped one, overshooting)
-		var s = Motion.spring(() -> target.value, 170, 12);
-		target.value = 0;
+		var s = Motion.spring(() -> target(), 170, 12);
+		target(0);
+		flush();
 		var time = 200.0, peak = 20.0, steps = 0;
 		while (Clock.active && steps < 1000) {
 			Clock.tick(time);
 			time += 1 / 60;
 			steps++;
-			if (s.value < peak) peak = s.value;
+			if (s() < peak) peak = s();
 		}
-		check("motion: a spring settles", s.value == 0 && !Clock.active && steps < 400, '${s.value} after $steps steps');
+		check("motion: a spring settles", s() == 0 && !Clock.active && steps < 400, '${s()} after $steps steps');
 		check("motion: overshooting", peak < -1 && peak > -10, '$peak');
 		// a colour
 		var c = signal("#000000");
-		var col = Motion.color(() -> c.value, 1.0, Motion.linear);
-		c.value = "#ffffff";
+		var col = Motion.color(() -> c(), 1.0, Motion.linear);
+		c("#ffffff");
+		flush();
 		Clock.tick(300);
 		Clock.tick(300.5);
-		check("motion: a colour half way", col.value == "#808080FF", col.value);
+		check("motion: a colour half way", col() == "#808080FF", col());
 		Clock.tick(301);
-		check("motion: the colour reached", col.value == "#FFFFFFFF" && !Clock.active, col.value);
+		check("motion: the colour reached", col() == "#FFFFFFFF" && !Clock.active, col());
 		// stopped with its owner
 		var other = signal(0.0);
 		var stop = root(dispose -> {
-			Motion.transition(() -> other.value, 1.0);
+			Motion.transition(() -> other(), 1.0);
 			dispose;
 		});
-		other.value = 5;
+		other(5);
+		flush();
 		stop();
 		Clock.tick(400);
 		check("motion: a disposed transition stops", !Clock.active);
@@ -528,93 +546,108 @@ class MarkupTest implements Markup {
 		var text = (tag:String) -> (cast ui.root.find(tag) : TextNode).text;
 		check("context: the default", text("outside") == "theme light", text("outside"));
 		check("context: provided", text("inside") == "theme dark", text("inside"));
-		check("context: provide()", provide(theme, "blue", () -> use(theme)) == "blue" && use(theme) == "light");
-		// onMount: after the nodes are in the tree
+		check("context: provide()", root(_ -> provide(theme, "blue", () -> use(theme))) == "blue" && root(_ -> use(theme)) == "light");
+		// onSettled: after the nodes are in the tree
 		var parentAtMount:Null<Node> = null, mounted = 0;
 		var probe:Null<Node> = null;
 		Render.render(<view tag="probe" ref={n -> {
 			probe = n;
-			onMount(() -> {
+			onSettled(() -> {
 				mounted++;
 				parentAtMount = n.parent;
 			});
 		}}/>, ui.root);
-		check("onMount: after the insertion", mounted == 1 && parentAtMount == ui.root);
-		// Index: rows by index, an item's signal set in place
+		check("onSettled: after the insertion", mounted == 1 && parentAtMount == ui.root);
+		// For by index: rows by index, an item's Read what is there
 		var names = signal(["a", "b", "c"]);
 		var rowsMade = 0;
-		Render.render(<view tag="index"><Index each={names} render={(n:Signal<String>, i:Int) -> {
+		Render.render(<view tag="index"><For each={names} keyed={false}>{n -> {
 			rowsMade++;
-			<text>{() -> i + ":" + n.value}</text>;
-		}}/></view>, ui.root);
+			<text>{"-" + n()}</text>;
+		}}</For></view>, ui.root);
 		var idx = ui.root.find("index");
 		var shownRows = () -> [for (c in idx.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
-		check("Index: rows", shownRows() == "0:a,1:b,2:c" && rowsMade == 3, shownRows());
-		names.value = ["x", "b"];
-		check("Index: items set in place, extra rows removed", shownRows() == "0:x,1:b" && rowsMade == 3, shownRows());
-		names.value = ["x", "b", "y", "z"];
-		check("Index: rows added", shownRows() == "0:x,1:b,2:y,3:z" && rowsMade == 5, shownRows());
+		check("For by index: rows", shownRows() == "-a,-b,-c" && rowsMade == 3, shownRows());
+		names(["x", "b"]);
+		flush();
+		check("For by index: items set in place, extra rows removed", shownRows() == "-x,-b" && rowsMade == 3, shownRows());
+		names(["x", "b", "y", "z"]);
+		flush();
+		check("For by index: rows added", shownRows() == "-x,-b,-y,-z" && rowsMade == 5, shownRows());
 		// For: a row kept when the list changes stays bound (its computations
 		// belong to the list's owner, not to the effect that runs again)
 		var first = signal("one"), second = signal("two");
 		var list = signal([first]);
-		Render.render(<view tag="kept"><For each={list} render={(sg:Signal<String>) -> <text>{sg}</text>}/></view>, ui.root);
-		list.value = [first, second];
-		first.value = "ONE";
+		Render.render(<view tag="kept"><For each={list}>{sg -> <text>{sg()}</text>}</For></view>, ui.root);
+		list([first, second]);
+		flush();
+		first("ONE");
+		flush();
 		var kept = ui.root.find("kept");
 		var keptText = [for (c in kept.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
 		check("For: a kept row stays bound", keptText == "ONE,two", keptText);
-		list.value = [second];
-		first.value = "gone";
-		second.value = "TWO";
+		list([second]);
+		flush();
+		first("gone");
+		flush();
+		second("TWO");
+		flush();
 		keptText = [for (c in kept.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
-		check("For: a removed row's computations disposed, the rest bound", keptText == "TWO" && (first.observers == null || first.observers.length == 0), keptText);
+		check("For: a removed row's computations disposed, the rest bound", keptText == "TWO", keptText);
 		// Switch and Match
 		var n = signal(1);
 		Render.render(<view tag="switch"><Switch fallback="many">
-			<Match when={() -> n.value == 0}><text>none</text></Match>
-			<Match when={() -> n.value == 1}><text>one</text></Match>
+			<Match when={() -> n() == 0}><text>none</text></Match>
+			<Match when={() -> n() == 1}><text>one</text></Match>
 		</Switch></view>, ui.root);
 		var sw = ui.root.find("switch");
 		var switched = () -> [for (c in sw.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
 		check("Switch: the first case true", switched() == "one", switched());
-		n.value = 0;
+		n(0);
+		flush();
 		check("Switch: another case", switched() == "none", switched());
-		n.value = 5;
+		n(5);
+		flush();
 		check("Switch: the fallback", switched() == "many", switched());
 		// Show renders its children again only when the branch changes
 		var count = signal(1), made = 0;
-		Render.render(<view tag="show"><Show when={() -> count.value > 0}><view ref={_ -> made++}/></Show></view>, ui.root);
-		count.value = 2;
-		count.value = 3;
+		Render.render(<view tag="show"><Show when={() -> count() > 0}><view ref={_ -> made++}/></Show></view>, ui.root);
+		count(2);
+		flush();
+		count(3);
+		flush();
 		check("Show: the branch kept while it stays chosen", made == 1, '$made');
-		count.value = 0;
-		count.value = 4;
+		count(0);
+		flush();
+		count(4);
+		flush();
 		check("Show: made again when chosen again", made == 2, '$made');
-		// ErrorBoundary: an error while rendering, one later, reset
+		// Errored: an error while rendering, one later, reset
 		var fail = signal(false);
-		Render.render(<view tag="boundary"><ErrorBoundary fallback={(e:Dynamic, reset:Void->Void) -> <text tag="fallback" onClick={_ -> reset()}>{"error: " + e}</text>}>
+		Render.render(<view tag="boundary"><Errored fallback={(e:Dynamic, reset:Void->Void) -> <text tag="fallback" onClick={_ -> reset()}>{"error: " + e}</text>}>
 			<Thrower when={fail}/>
-		</ErrorBoundary></view>, ui.root);
+		</Errored></view>, ui.root);
 		var bd = ui.root.find("boundary");
 		var bounded = () -> [for (c in bd.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
-		check("ErrorBoundary: the children", bounded() == "fine", bounded());
-		fail.value = true;
-		check("ErrorBoundary: a later error shows the fallback", bounded() == "error: boom", bounded());
-		fail.value = false;
+		check("Errored: the children", bounded() == "fine", bounded());
+		fail(true);
+		flush();
+		check("Errored: a later error shows the fallback", bounded() == "error: boom", bounded());
+		fail(false);
+		flush();
 		var fb = ui.root.find("fallback");
 		ui.update();
 		ui.pointerDown(fb.absX + 1, fb.absY + 1, 1);
 		ui.pointerUp(fb.absX + 1, fb.absY + 1, 1);
-		check("ErrorBoundary: reset renders the children again", bounded() == "fine", bounded());
+		check("Errored: reset renders the children again", bounded() == "fine", bounded());
 		var fail2 = signal(true);
-		Render.render(<view tag="boundary2"><ErrorBoundary fallback={(e:Dynamic, reset:Void->Void) -> "caught " + e}>
+		Render.render(<view tag="boundary2"><Errored fallback={(e:Dynamic, reset:Void->Void) -> "caught " + e}>
 			<text>before</text>
 			<Thrower when={fail2}/>
-		</ErrorBoundary></view>, ui.root);
+		</Errored></view>, ui.root);
 		var bd2 = ui.root.find("boundary2");
 		var bounded2 = [for (c in bd2.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
-		check("ErrorBoundary: an error while rendering, what was made before removed", bounded2 == "caught boom", bounded2);
+		check("Errored: an error while rendering, what was made before removed", bounded2 == "caught boom", bounded2);
 	}
 
 	static function rendering() {
@@ -626,14 +659,14 @@ class MarkupTest implements Markup {
 		var shown = signal(true);
 		var made = 0;
 		var dispose = Render.render(<view padding="4 8" background="#eeeeee">
-			<view tag="row" direction="row" justify="space-between" width={() -> wide.value ? 200 : 100}>
+			<view tag="row" direction="row" justify="space-between" width={() -> wide() ? 200 : 100}>
 				Hello {name}!
 			</view>
 			<Counter start={1}/>
-			<view tag="list"><For each={items} render={(i:String) -> {
+			<view tag="list"><For each={items}>{i -> {
 				made++;
 				<text>{i}</text>;
-			}}/></view>
+			}}</For></view>
 			<Show when={shown} fallback="hidden">
 				<text tag="shown">visible</text>
 			</Show>
@@ -645,9 +678,11 @@ class MarkupTest implements Markup {
 		check("render: style attributes", row.style.direction == Row && row.style.justify == SpaceBetween && row.width == 100, '$row');
 		var hello:TextNode = cast row.children[0];
 		check("render: a text run is one TextNode", row.children.length == 1 && hello.text == "Hello Ann!", [for (c in row.children) c.tag].join(","));
-		name.value = "Bo";
+		name("Bo");
+		flush();
 		check("render: reactive text", hello.text == "Hello Bo!");
-		wide.value = true;
+		wide(true);
+		flush();
 		ui.update();
 		check("render: a reactive attribute", row.width == 200);
 		// the counter
@@ -666,19 +701,23 @@ class MarkupTest implements Markup {
 			return [for (c in list.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text].join(",");
 		check("for: items", texts() == "a,b,c" && made == 3, texts());
 		var firstB = list.children.filter(c -> Std.isOfType(c, TextNode))[1];
-		items.value = ["c", "b", "d"];
+		items(["c", "b", "d"]);
+		flush();
 		check("for: reordered, one made", texts() == "c,b,d" && made == 4, texts() + " " + made);
 		check("for: kept nodes", list.children.filter(c -> Std.isOfType(c, TextNode))[1] == firstB);
 		// Show
 		check("show: when true", top.find("shown") != null);
-		shown.value = false;
+		shown(false);
+		flush();
 		var fallback = [for (c in top.children) if (Std.isOfType(c, TextNode)) (cast c : TextNode).text];
 		check("show: the fallback", top.find("shown") == null && fallback.contains("hidden"), fallback.join(","));
-		shown.value = true;
+		shown(true);
+		flush();
 		check("show: back", top.find("shown") != null);
 		dispose();
 		check("render: dispose removes the content", ui.root.children.length == 0);
-		name.value = "gone";
+		name("gone");
+		flush();
 		check("render: and stops its effects", hello.text == "Hello Bo!");
 		// attributes generated from Style's properties (StyleAttrs)
 		var styled:Null<Node> = null;
@@ -711,9 +750,10 @@ class MarkupTest implements Markup {
 			false;
 		} catch (e:Dynamic) true;
 		var slotted:Null<Node> = null, checkedNow = signal("checked");
-		Render.render(<view ref={n -> slotted = n} slot="button" variant="outline" size="sm" data-state={() -> checkedNow.value} data-disabled={true} aria-invalid="true"/>, ui.root);
+		Render.render(<view ref={n -> slotted = n} slot="button" variant="outline" size="sm" data-state={() -> checkedNow()} data-disabled={true} aria-invalid="true"/>, ui.root);
 		var firstState = slotted.attr("data-state");
-		checkedNow.value = "unchecked";
+		checkedNow("unchecked");
+		flush();
 		check("render: slot, variant, size and data-/aria- attributes (reactive)", slotted.slot == "button" && slotted.variant == "outline" && slotted.size == "sm"
 			&& firstState == "checked" && slotted.attr("data-state") == "unchecked" && slotted.attr("data-disabled") == "" && slotted.attr("aria-invalid") == "true");
 		var pic:Null<Node> = null;

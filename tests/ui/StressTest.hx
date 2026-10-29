@@ -5,7 +5,8 @@ import helder.ui.*;
 import helder.ui.draw.*;
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
 import Plain.*;
 
 // A list of ROWS rows in markup (a checkbox, a label, a number and a button
@@ -24,21 +25,23 @@ class StressTest implements Markup {
 	function new(n:Int) {
 		for (i in 0...n)
 			rows.push(new Row(i));
-		list.value = rows.copy();
+		list(rows.copy());
 	}
 
 	function view():View
 		// (min-height 0: as in CSS, a flex item holding a scroller is otherwise as tall as all its rows)
 		return <view grow={1} min-height={0} padding={12} row-gap={8} font-family="DejaVu Sans" font-size={13} color="#18181b" background="#fafafa">
-			<text font-size={18} font-weight={700}>{() -> list.value.length + " rows"}</text>
+			<text font-size={18} font-weight={700}>{() -> list().length + " rows"}</text>
 			<scroll tag="list" grow={1} min-height={0} row-gap={2} background="#ffffff" border-width={1} border-color="#e4e4e7" radius={8} padding={6}>
-				<For each={list} render={(r:Row) -> <view direction="row" align-items="center" column-gap={10} padding="3 6" radius={4}
-					background={() -> r.done.value ? "#eff6ff" : "#ffffff"}>
-					<Checkbox checked={r.done}/>
-					<text grow={1}>{() -> r.label.value}</text>
-					<text color="#71717a">{"#" + r.id}</text>
-					<Button label="Open"/>
-				</view>}/>
+				<For each={list}>{row -> {
+					var r = row();
+					<view direction="row" align-items="center" column-gap={10} padding="3 6" radius={4} background={r.done() ? "#eff6ff" : "#ffffff"}>
+						<Checkbox checked={r.done}/>
+						<text grow={1}>{r.label()}</text>
+						<text color="#71717a">{"#" + r.id}</text>
+						<Button label="Open"/>
+					</view>;
+				}}</For>
 			</scroll>
 		</view>;
 
@@ -103,11 +106,11 @@ class StressTest implements Markup {
 		frame(true);
 		lap("idle frame");
 		// one row changed
-		app.rows[5].done.value = true;
+		app.rows[5].done(true);
 		lap("toggle");
 		frame(true);
 		lap("frame after toggle");
-		app.rows[7].label.value = "A longer label, typed into row seven";
+		app.rows[7].label("A longer label, typed into row seven");
 		lap("relabel");
 		frame(true);
 		lap("frame after relabel");
@@ -117,7 +120,7 @@ class StressTest implements Markup {
 		lap("scrolled frame");
 		check("scrolled", list.scrollY > 0);
 		// a row added at the end
-		app.list.value = app.list.value.concat([new Row(n)]);
+		app.list(app.list().concat([new Row(n)]));
 		lap("append");
 		frame(true);
 		lap("frame after append");

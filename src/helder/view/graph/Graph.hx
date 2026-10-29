@@ -15,8 +15,25 @@ package helder.view.graph;
 class Graph {
 	// a signal: of a value, or of a function's value (derived from what it
 	// reads, writable); a signal never holds a function (DESIGN.md 3.1, Init)
-	public static function signal<T>(init:Init<T>, ?options:NodeOptions<T>):Signal<T>
+	#if hxmc.dev
+	// (hxmc dev: kept across a reload by its key, helder.view.Refresh)
+	public static macro function signal(init:haxe.macro.Expr, rest:Array<haxe.macro.Expr>):haxe.macro.Expr
+		return helder.view.Refresh.signal(init, rest);
+	#else
+	public static inline function signal<T>(init:Init<T>, ?options:NodeOptions<T>):Signal<T>
+		return signalOf(init, options);
+	#end
+
+	// (a value's signal, as TypeScript's signal(v) calls it: index.d.ts)
+	@:noCompletion public static function signalValue<T>(value:T):Signal<T>
+		return new Signal(Node.signal(value, null));
+
+	// (signal's function)
+	public static function signalOf<T>(init:Init<T>, ?options:NodeOptions<T>):Signal<T>
 		return new Signal(switch init.kind() {
+			// (a Dynamic value, given as a function when it is none: a value)
+			case null: Node.signal(null, options);
+			case Derived(f) if (!Reflect.isFunction(f)): Node.signal(cast f, options);
 			case Value(v): Node.signal(v, options);
 			case Derived(f): Node.computed(f, options, true);
 		});
@@ -34,6 +51,15 @@ class Graph {
 	// as effect, its apply in the render phase: before every effect's
 	public static function renderEffect<T>(compute:Compute<T>, apply:Apply<T>, ?error:Dynamic->Void):Void
 		Node.effect(compute, apply, error, true);
+
+	// fn run once the current commit has landed (its applies done), not
+	// tracked: after the nodes being rendered are in the tree (Solid 2's
+	// onSettled, onMount's successor); disposed with the current owner
+	public static function onSettled(fn:Void->Void):Void
+		Node.effect(_ -> null, (_, _) -> {
+			fn();
+			null;
+		}, null, false);
 
 	// a new ownership tree, owned by the current owner if any: fn gets its dispose
 	public static function root<T>(fn:(dispose:Void->Void)->T):T

@@ -14,7 +14,8 @@ import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
 
 // helder.view's markup across three renderers' boundaries: the window
 // (<Surface>), ui's layout in it, a <Scene> box whose children are scene
@@ -40,7 +41,7 @@ class Planets implements Markup {
 		UiWindow.run(<Surface title="Planets" width={640} height={400}>
 			<view direction="row" grow={1}>
 				<Scene world={world} camera={camera} grow={1}>
-					<mesh shape="sphere" size={1.2} color={new Vec4(1, 0.8, 0.3, 1)} onClick={_ -> picked.value = "the Sun"}/>
+					<mesh shape="sphere" size={1.2} color={new Vec4(1, 0.8, 0.3, 1)} onClick={_ -> picked("the Sun")}/>
 					<light kind="point" intensity={10.0} range={30.0}/>
 					{[for (p in planets) <Planet name={p.name} r={p.r} size={p.size} speed={p.speed} color={p.color} picked={picked}/>]}
 				</Scene>
@@ -56,13 +57,13 @@ class Planets implements Markup {
 	static function Planet(props:{name:String, r:Float, size:Float, speed:Float, color:Vec4, picked:Signal<String>}):SceneView {
 		var turn = signal(Quat.identity());
 		Clock.add(t -> {
-			turn.value = Quat.axisAngle(new Vec3(0, 1, 0), t * props.speed);
+			turn(Quat.axisAngle(new Vec3(0, 1, 0), t * props.speed));
 			true;
 		});
 		return <node rotation={turn}>
 			<node position={new Vec3(props.r, 0, 0)}>
-				<mesh shape="sphere" size={props.size} color={props.color} onClick={_ -> props.picked.value = props.name}/>
-				<Show when={() -> props.picked.value == props.name}>
+				<mesh shape="sphere" size={props.size} color={props.color} onClick={_ -> props.picked(props.name)}/>
+				<Show when={props.picked() == props.name}>
 					<Ui position={new Vec3(0, props.size, 0)}>
 						<text font-size={12} color="#fafafa" padding="2 6" radius={4} background="#000000a0">{props.name}</text>
 					</Ui>

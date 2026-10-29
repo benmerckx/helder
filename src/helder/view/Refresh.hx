@@ -23,27 +23,35 @@ import haxe.macro.Expr;
 // terminal, rather than keeping the old build's value. A class (or the
 // function the signal is made in) marked @:hot(reset) keeps none of its
 // signals: each build starts them afresh (React's `@refresh reset`).
-// Without -D hxmc.dev none of this is compiled (Reactive.signal is `new
-// Signal(value)`).
+// Without -D hxmc.dev none of this is compiled (Graph.signal is
+// Graph.signalOf). A derived signal (signal(fn)) is not kept.
 class Refresh {
 	#if macro
-	// Reactive.signal(value) under -D hxmc.dev
-	public static function signal(value:Expr):Expr {
+	// Graph.signal(init, ?options) under -D hxmc.dev: a value's signal kept by
+	// its key; a derived one (a function) as it is
+	public static function signal(init:Expr, rest:Array<Expr>):Expr {
+		var made = {expr: ECall(macro @:pos(init.pos) helder.view.graph.Graph.signalOf, [init].concat(rest)), pos: init.pos};
+		var t = try Context.typeof(init) catch (_:Dynamic) null;
+		if (t == null) return made;
+		switch Context.follow(t) {
+			case TFun(_, _): return made;
+			case _:
+		}
 		var key = helder.dev.HotMacro.here(Context.currentPos());
-		var type = helder.dev.HotMacro.hash(Context.typeof(value));
+		var type = helder.dev.HotMacro.hash(t);
 		// (a value whose type is not known yet: the type expected, `var s:Signal<Array<String>> = signal([])`)
 		if (type == "") {
 			var expected = Context.getExpectedType();
 			if (expected != null)
 				switch Context.follow(expected) {
-					case TInst(_.get() => {pack: ["helder", "view"], name: "Signal"}, [t]): type = helder.dev.HotMacro.hash(t);
+					case TAbstract(_.get() => {pack: ["helder", "view", "graph"], name: "Signal"}, [p]): type = helder.dev.HotMacro.hash(p);
 					case _:
 				}
 		}
 		// (the initial value's source, whitespace aside; @:hot(reset) where it is made)
-		var init = haxe.crypto.Md5.encode(haxe.macro.ExprTools.toString(value)).substr(0, 8);
+		var source = haxe.crypto.Md5.encode(haxe.macro.ExprTools.toString(init)).substr(0, 8);
 		var reset = resets();
-		return macro @:pos(value.pos) helder.view.Refresh.kept($value, $v{key}, $v{type}, $v{init}, $v{reset});
+		return macro @:pos(init.pos) helder.view.Refresh.kept($made, $v{key}, $v{type}, $v{source}, $v{reset});
 	}
 
 	// whether the class or the function being typed is marked @:hot(reset)
@@ -66,10 +74,10 @@ class Refresh {
 		return false;
 	}
 	#elseif hxmc.dev
-	// a signal of value, or of the value the last build's signal of this key
+	// the signal s, its value the one the last build's signal of this key
 	// had, when its initial value's source (init) is the same and it is not
-	// reset each build
-	public static function kept<T>(value:T, key:String, type:String, init:String, reset:Bool):Signal<T> {
+	// reset each build; saved on each snapshot
+	public static function kept<T>(s:helder.view.graph.Signal<T>, key:String, type:String, init:String, reset:Bool):helder.view.graph.Signal<T> {
 		// (boxed: a null value is kept too; with the initial value's hash)
 		var last:Null<{v:T, ?i:String}> = helder.dev.Hot.load(key, type);
 		if (last != null && reset) last = null;
@@ -78,8 +86,9 @@ class Refresh {
 			Sys.stderr().writeString(line + "\n");
 			last = null;
 		}
-		var s = new Signal<T>(last != null ? last.v : value);
-		Reactive.onCleanup(helder.dev.Hot.onSnapshot(() -> helder.dev.Hot.save(key, {v: s.peek(), i: init}, type)));
+		// (set before anything reads it: its value from the start)
+		if (last != null) @:privateAccess s.node().value = last.v;
+		helder.view.graph.Graph.onCleanup(helder.dev.Hot.onSnapshot(() -> helder.dev.Hot.save(key, {v: s.peek(), i: init}, type)));
 		return s;
 	}
 	#end

@@ -47,7 +47,7 @@ fs.rmSync(work, { recursive: true, force: true });
 fs.mkdirSync(path.join(work, 'app'), { recursive: true });
 const counter = path.join(work, 'app', 'Counter.hx');
 const original = fs.readFileSync(path.join(repo, 'examples/counter/Counter.hx'), 'utf8');
-const v1 = original.replace('var count = signal(0);', 'var count = signal(0);\n\t\teffect(() -> trace("v1 count=" + count.value));');
+const v1 = original.replace('var count = signal(0);', 'var count = signal(0);\n\t\teffect(() -> count(), v -> trace("v1 count=" + v));');
 if (v1 === original) throw new Error('Counter.hx changed: its signal line is not found');
 fs.writeFileSync(counter, v1);
 const cp = [`-cp ${path.join(repo, 'src')}`];

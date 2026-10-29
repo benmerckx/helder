@@ -1,15 +1,15 @@
 package helder.ui.view;
 
 import helder.ui.*;
-import helder.view.Signal;
-import helder.view.Reactive.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Graph.*;
 
 // A node's states as signals (React Aria's render props): hovered,
 // pressed, focused, focusVisible (focused with the ring shown), disabled
 // (the attribute disabled or data-disabled), and any attribute's value
 // (attr("data-state"): "checked", "open"...), each following the node
 // (Node.onStates). A widget's style prop is a function of them:
-//   <Button label="Save" style={s -> s.pressed.value ? {opacity: 0.8} : {}}/>
+//   <Button label="Save" style={s -> s.pressed() ? {opacity: 0.8} : {}}/>
 class States {
 	public final hovered:Signal<Bool>;
 	public final pressed:Signal<Bool>;
@@ -21,23 +21,21 @@ class States {
 
 	function new(n:Node) {
 		node = n;
-		hovered = signal(n.hovered);
-		pressed = signal(n.pressed);
-		focused = signal(n.focused);
-		focusVisible = signal(visible());
-		disabled = signal(isDisabled());
+		hovered = signalOf(n.hovered, {ownedWrite: true});
+		pressed = signalOf(n.pressed, {ownedWrite: true});
+		focused = signalOf(n.focused, {ownedWrite: true});
+		focusVisible = signalOf(visible(), {ownedWrite: true});
+		disabled = signalOf(isDisabled(), {ownedWrite: true});
 		var before = n.onStates;
 		n.onStates = () -> {
 			if (before != null) before();
-			batch(() -> {
-				hovered.value = n.hovered;
-				pressed.value = n.pressed;
-				focused.value = n.focused;
-				focusVisible.value = visible();
-				disabled.value = isDisabled();
-				for (k => s in attrs)
-					s.value = n.attr(k);
-			});
+			hovered(n.hovered);
+			pressed(n.pressed);
+			focused(n.focused);
+			focusVisible(visible());
+			disabled(isDisabled());
+			for (k => s in attrs)
+				s(n.attr(k));
 		};
 	}
 
@@ -50,7 +48,7 @@ class States {
 	// an attribute's value as a signal (null: not set; "": present without a value)
 	public function attr(name:String):Signal<Null<String>> {
 		var s = attrs.get(name);
-		if (s == null) attrs.set(name, s = signal(node.attr(name)));
+		if (s == null) attrs.set(name, s = signalOf(node.attr(name), {ownedWrite: true}));
 		return s;
 	}
 
@@ -67,22 +65,19 @@ class States {
 	public static function apply(n:Node, style:Null<States->StyleProps>) {
 		if (style == null) return;
 		var s = of(n), set:Array<String> = [];
-		effect(() -> {
-			var p = style(s);
-			untrack(() -> {
-				var now = p == null ? [] : Reflect.fields(p);
-				var fresh = new Node().style;
-				var dropped = false;
-				for (name in set)
-					if (now.indexOf(name) < 0 && StyleFields.NAMES.indexOf(name) >= 0) {
-						StyleFields.set(n.style, name, StyleFields.get(fresh, name));
-						dropped = true;
-					}
-				if (p != null) n.style.set(p);
-				set = now;
-				// (what it no longer gives: the theme's again)
-				if (dropped) @:privateAccess n.restyleLater();
-			});
+		renderEffect(() -> style(s), (p:Null<StyleProps>) -> {
+			var now = p == null ? [] : Reflect.fields(p);
+			var fresh = new Node().style;
+			var dropped = false;
+			for (name in set)
+				if (now.indexOf(name) < 0 && StyleFields.NAMES.indexOf(name) >= 0) {
+					StyleFields.set(n.style, name, StyleFields.get(fresh, name));
+					dropped = true;
+				}
+			if (p != null) n.style.set(p);
+			set = now;
+			// (what it no longer gives: the theme's again)
+			if (dropped) @:privateAccess n.restyleLater();
 		});
 	}
 }

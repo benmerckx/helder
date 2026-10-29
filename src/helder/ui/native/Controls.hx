@@ -2,7 +2,8 @@ package helder.ui.native;
 
 import helder.ui.*;
 import helder.view.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
 
 // Platform controls as markup components (import helder.ui.native.Controls.*),
 // in a NativeHost: bound to signals both ways, as the drawn widgets are.
@@ -10,7 +11,7 @@ import helder.view.Reactive.*;
 // the control's layout properties.
 class Controls {
 	static function bind(v:Dynamic, set:Dynamic->Void)
-		if (Render.isReactive(v)) effect(() -> set(Render.read(v))) else if (v != null) set(v);
+		if (Render.isReactive(v)) renderEffect(() -> Render.read(v), set) else if (v != null) set(Std.isOfType(v, helder.view.graph.Read.Const) ? (v : helder.view.graph.Read.Const<Dynamic>).value : v);
 
 	static function control(kind:ControlKind, tag:Null<String>, style:Null<StyleProps>):Control {
 		var c = new Control(kind, tag);
@@ -30,7 +31,7 @@ class Controls {
 		var c = control(ControlKind.CheckBox, props.tag ?? "checkbox", props.style);
 		bind(props.label, v -> c.text = Std.string(v));
 		bind(props.checked, v -> c.checked = v);
-		c.onToggle = b -> props.checked.value = b;
+		c.onToggle = b -> props.checked(b);
 		return c;
 	}
 
@@ -38,7 +39,7 @@ class Controls {
 		var c = control(ControlKind.TextField, props.tag ?? "field", props.style);
 		if (props.placeholder != null) c.placeholder = props.placeholder;
 		bind(props.value, v -> c.text = v);
-		c.onText = t -> props.value.value = t;
+		c.onText = t -> props.value(t);
 		c.onSubmit = props.onSubmit;
 		return c;
 	}
@@ -49,7 +50,7 @@ class Controls {
 		c.max = props.max ?? 1.0;
 		c.step = props.step ?? 0.0;
 		bind(props.value, v -> c.value = v);
-		c.onValue = v -> props.value.value = v;
+		c.onValue = v -> props.value(v);
 		return c;
 	}
 

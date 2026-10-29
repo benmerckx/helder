@@ -82,8 +82,11 @@ class Island<P> implements helder.view.Markup {
 	}
 
 	// the island in its element
-	public function render(props:P):View
-		return <hxmc-island data-island={name} data-props={haxe.Json.stringify(props)} data-load={(load : String)} data-src={script == null ? null : url(script)}>{content(props)}</hxmc-island>;
+	public function render(props:P):View {
+		// (its content as hydration mounts it: not a region)
+		var c = content(props);
+		return <hxmc-island data-island={name} data-props={haxe.Json.stringify(props)} data-load={(load : String)} data-src={script == null ? null : url(script)}>{c}</hxmc-island>;
+	}
 
 	// its content: the component called when mounted (what hydration mounts)
 	public function content(props:P):View

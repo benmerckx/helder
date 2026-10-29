@@ -110,26 +110,33 @@ class Control extends Node {
 	@:allow(helder.ui.native) function setHandle(h:Int)
 		handle = h;
 
-	// the platform's events: the property set (the widget has it already), then the callback
-	@:allow(helder.ui.native) function platformClick()
+	// the platform's events: the property set (the widget has it already), then the callback (an event: the graph's writes land at its end)
+	@:allow(helder.ui.native) function platformClick() {
 		if (onPress != null) onPress();
+		helder.view.graph.Graph.flush();
+	}
 
 	@:allow(helder.ui.native) function platformText(t:String) {
 		@:bypassAccessor text = t;
 		if (onText != null) onText(t);
+		helder.view.graph.Graph.flush();
 	}
 
-	@:allow(helder.ui.native) function platformSubmit()
+	@:allow(helder.ui.native) function platformSubmit() {
 		if (onSubmit != null) onSubmit(text);
+		helder.view.graph.Graph.flush();
+	}
 
 	@:allow(helder.ui.native) function platformChecked(b:Bool) {
 		@:bypassAccessor checked = b;
 		if (onToggle != null) onToggle(b);
+		helder.view.graph.Graph.flush();
 	}
 
 	@:allow(helder.ui.native) function platformValue(v:Float) {
 		@:bypassAccessor value = v;
 		if (onValue != null) onValue(v);
+		helder.view.graph.Graph.flush();
 	}
 
 	override public function hasContent():Bool

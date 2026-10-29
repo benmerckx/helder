@@ -338,10 +338,20 @@ class Glue {
 			case KindJsxText | KindJsxTextAllWhiteSpaces: c.text;
 			case KindJsxExpression if (c.expression() == null): "";
 			case KindJsxExpression if (c.dotDotDotToken() != null): fail(c, "a spread among TSX children");
+			// (a function alone: For's row, typed as its children's function)
+			case KindJsxExpression if (c.parent.kind == KindJsxElement && isFunction(c.expression()) && c.parent.jsxChildren().filter(k -> k.kind != KindJsxTextAllWhiteSpaces).length == 1):
+				var p = param(plan, c.expression());
+				visit(c.expression());
+				'{(Interop.fromJs($p, ${quote(where(c.expression()))}) : helder.view.graph.Read<Dynamic> -> Any)}';
 			case KindJsxExpression: '{' + hole(plan, c.expression(), false) + '}';
 			case KindJsxElement | KindJsxSelfClosingElement | KindJsxFragment: markupOf(plan, c);
 			case _: fail(c, "unsupported TSX child");
 		}
+	}
+
+	static function isFunction(e:Node):Bool {
+		var s = strip(e);
+		return s.kind == KindArrowFunction || s.kind == KindFunctionExpression;
 	}
 
 	// a hole: a literal as it is (a static value), nested markup inline, else the value

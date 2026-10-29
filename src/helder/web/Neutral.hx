@@ -87,6 +87,7 @@ class Neutral {
 			var ev = new NeutralEvent(Input, 0, 0, el);
 			ev.text = el.value;
 			(h : Dynamic->Void)(ev);
+			helder.view.graph.Graph.flush();
 		});
 	}
 
@@ -163,6 +164,8 @@ class Neutral {
 			ev.isPrimary = d.isPrimary;
 		}
 		(h : Dynamic->Void)(ev);
+		// (the event's writes land at its end, helder.view.graph)
+		helder.view.graph.Graph.flush();
 		if (ev.stopped) e.stopPropagation();
 		if (ev.defaultPrevented) e.preventDefault();
 	}

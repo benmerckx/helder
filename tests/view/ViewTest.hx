@@ -1,6 +1,10 @@
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
+import helder.view.graph.Owner;
+import helder.view.graph.Awaitable.Later;
 import TestRenderer.TestNode;
 import OtherRenderer.OtherNode;
 
@@ -9,12 +13,12 @@ import OtherRenderer.OtherNode;
 //
 //   <tool> -cp src -cp tests/view --run ViewTest <tool>
 //
-// signals, memos and effects (tracking, batching, no glitches, ownership
-// and cleanup, contexts); markup (elements, attributes, JSX's whitespace
+// the graph as markup uses it (helder.view.graph: its own tests are
+// tests/view/graph's; writes land at a flush); markup (elements, attributes, JSX's whitespace
 // and entities, holes evaluated where the literal is, nesting, components
 // and their props, text runs, reactive text, attributes and regions); the
-// control flow components (For, Index, Show, Switch, ErrorBoundary,
-// Provider, onMount; Loading over a value not ready, Later); two renderers (OtherRenderer: the same components
+// control flow components (For keyed by item and by index, Repeat, Show,
+// Switch, Errored, Provider, onSettled; Loading over an async memo); two renderers (OtherRenderer: the same components
 // rendered by each, boundaries between them, roots: Render.open's windows); and the programs the macro rejects (test/reject,
 // "// expect:" lines; with the tool's path as the argument); on Eval,
 // natively and in JavaScript (node)
@@ -52,6 +56,7 @@ class ViewTest implements Markup {
 	}
 
 	static function check(what:String, ok:Bool, ?detail:String) {
+		if (!ok && detail == null) detail = "";
 		checks++;
 		if (!ok) {
 			failed++;
@@ -69,104 +74,34 @@ class ViewTest implements Markup {
 	static function signals() {
 		var a = signal(1), b = signal(2);
 		var runs = 0, seen = 0;
-		var e = effect(() -> {
-			runs++;
-			seen = a.value + b.value;
-		});
-		check("effect runs at once", runs == 1 && seen == 3);
-		a.value = 10;
-		check("effect reruns on a write", runs == 2 && seen == 12);
-		a.value = 10;
-		check("the same value notifies nothing", runs == 2);
-		batch(() -> {
-			a.value = 1;
-			b.value = 1;
-		});
-		check("a batch runs effects once", runs == 3 && seen == 2);
-		// memos: lazy, cached, no glitches (a diamond)
-		var x = signal(1);
-		var bm = memo(() -> x.value * 2);
-		var cm = memo(() -> x.value + 1);
-		var log = [];
-		effect(() -> log.push(bm.value + "/" + cm.value));
-		x.value = 5;
-		check("diamond: one consistent run per write", log.join(" ") == "2/2 10/6", log.join(" "));
-		var y = signal(3);
-		var parity = memo(() -> y.value % 2);
-		var pruns = 0;
-		effect(() -> {
-			parity.value;
-			pruns++;
-		});
-		y.value = 5;
-		check("a memo whose result is the same stops propagation", pruns == 1);
-		y.value = 6;
-		check("and propagates when it differs", pruns == 2);
-		var lazy = 0, src = signal(1);
-		var m = memo(() -> {
-			lazy++;
-			src.value;
-		});
-		src.value = 2;
-		src.value = 3;
-		check("a memo nobody reads waits", lazy == 1 && m.value == 3 && lazy == 2, '$lazy');
-		// untrack, peek, update
-		var u = signal(1), ur = 0;
-		effect(() -> {
-			untrack(() -> u.value);
-			u.peek();
-			ur++;
-		});
-		u.update(v -> v + 1);
-		check("untrack and peek do not track", ur == 1 && u.value == 2);
-		// ownership: inner effects disposed when the outer reruns; cleanups
-		var outer = signal(0), inner = signal(0), innerRuns = 0, cleaned = 0;
-		effect(() -> {
-			outer.value;
-			effect(() -> {
-				inner.value;
-				innerRuns++;
-			});
-			onCleanup(() -> cleaned++);
-		});
-		inner.value = 1;
-		check("inner effect runs", innerRuns == 2);
-		outer.value = 1;
-		check("outer rerun disposes the inner one and cleans up", cleaned == 1 && innerRuns == 3);
-		inner.value = 2;
-		check("only the new inner effect runs", innerRuns == 4, '$innerRuns');
-		// a root's dispose
-		var r = signal(0), rruns = 0;
-		var dispose = Reactive.root(d -> {
-			effect(() -> {
-				r.value;
-				rruns++;
-			});
-			d;
-		});
-		dispose();
-		r.value = 1;
-		check("a disposed root's effects stop", rruns == 1);
-		e.dispose();
-		a.value = 100;
-		check("a disposed effect stops", runs == 3);
-		// runWithOwner: work placed in another owner, disposed with it
-		var o:Null<Owner> = null, placed = 0, t = signal(0);
 		var stop = root(d -> {
-			o = getOwner();
+			effect(() -> a() + b(), v -> {
+				runs++;
+				seen = v;
+			});
 			d;
 		});
-		runWithOwner(o, () -> effect(() -> {
-			t.value;
-			placed++;
-		}));
-		t.value = 1;
+		flush();
+		check("an effect applies at the flush", runs == 1 && seen == 3);
+		a(10);
+		check("a write lands at the flush", runs == 1 && a() == 1);
+		flush();
+		check("then its effect runs", runs == 2 && seen == 12 && a() == 10);
+		a(1);
+		b(1);
+		flush();
+		check("two writes, one run", runs == 3 && seen == 2);
+		a(c -> c + 1);
+		a(c -> c + 1);
+		flush();
+		check("updates from the latest value written", a() == 3);
 		stop();
-		t.value = 2;
-		check("runWithOwner", placed == 2, '$placed');
+		a(100);
+		flush();
+		check("a disposed root's effects stop", runs == 4, '$runs');
 		// contexts
 		var c = context("light");
-		check("context: default and provided", use(c) == "light" && provide(c, "dark", () -> use(c)) == "dark");
+		check("context: default and provided", root(_ -> use(c)) == "light" && root(_ -> provide(c, "dark", () -> use(c))) == "dark");
 	}
 
 	static function item(label:String):View
@@ -189,12 +124,13 @@ class ViewTest implements Markup {
 		check("holes evaluated when the literal runs", n == 2);
 		check("mounted twice", html(e) == '<p count="0">1</p>' && html(e) == '<p count="0">1</p>' && n == 2);
 		// values of a type never reactive (a String, a number, a Bool, null of one) set as literals are; a function, a Signal or a Dynamic holding one bound
-		var on = signal(true), k = 2, held:Dynamic = () -> on.value ? "yes" : "no";
+		var on = signal(true), k = 2, held:Dynamic = () -> on() ? "yes" : "no";
 		var at = new TestNode(Element, "root");
-		Render.render(<b title={k > 1 ? "big" : "small"} data-k={k * 2} data-f={() -> on.value ? "on" : "off"} data-s={on} data-d={held}/>, at);
+		Render.render(<b title={k > 1 ? "big" : "small"} data-k={k * 2} data-f={on() ? "on" : "off"} data-s={on} data-d={held}/>, at);
 		var first = at.toHtml();
-		on.value = false;
-		check("plain values set once, functions, signals and a Dynamic holding one bound",
+		on(false);
+		flush();
+		check("plain values set once, holes that read, signals and a Dynamic holding a function bound",
 			first == '<root><b data-d="yes" data-f="on" data-k="4" data-s="true" title="big"></b></root>'
 			&& at.toHtml() == '<root><b data-d="no" data-f="off" data-k="4" data-s="false" title="big"></b></root>', first + " " + at.toHtml());
 		// whitespace and entities as JSX has them
@@ -266,6 +202,7 @@ class ViewTest implements Markup {
 		Render.render(<button onClick={() -> clicked++} ref={n -> got = n} key="k"/>, root2);
 		var btn = root2.children[0];
 		(btn.listeners.get("onClick") : Void->Void)();
+		flush();
 		check("an event listened to, a ref, key ignored", clicked == 1 && got == btn && !btn.props.exists("key") && !btn.props.exists("onClick"));
 	}
 
@@ -280,8 +217,12 @@ class ViewTest implements Markup {
 
 	static function Counter(props:{start:Int}):View {
 		var count = signal(props.start);
-		return <b onClick={() -> count.value++}>{count}</b>;
+		return <b onClick={() -> count(c -> c + 1)}>{count}</b>;
 	}
+
+	// a prop that reads (Read): bound as Solid binds props, read where it is used
+	static function Step(props:{step:Read<Int>, label:String}):View
+		return <i title={props.label}>{props.step()}</i>;
 
 	static function components() {
 		check("a component and its props", html(<div><Button label="OK" primary/></div>) == '<div><button class="primary">OK</button></div>');
@@ -299,100 +240,131 @@ class ViewTest implements Markup {
 		Render.render(<div><Counter start={1}/><Counter start={5}/></div>, root);
 		var bs = root.children[0].children;
 		(bs[0].listeners.get("onClick") : Void->Void)();
+		flush();
 		check("a component's state", bs[0].children[0].text == "2" && bs[1].children[0].text == "5", root.children[0].toHtml());
+		// props that read: a constant, a signal, a hole that reads given as a function of it
+		var n = signal(2), made = 0;
+		var root2 = new TestNode(Element, "root");
+		Render.render(<div><Step step={1} label="c"/><Step step={n} label="s"/><Step step={n() * 10} label={"x" + n()}/></div>, root2);
+		check("Read props", root2.toHtml() == '<root><div><i title="c">1</i><i title="s">2</i><i title="x2">20</i></div></root>', root2.toHtml());
+		n(3);
+		flush();
+		check("Read props follow, plain ones are set once",
+			root2.toHtml() == '<root><div><i title="c">1</i><i title="s">3</i><i title="x2">30</i></div></root>', root2.toHtml());
 	}
 
 	static function reactive() {
 		var root = new TestNode(Element, "root");
 		var name = signal("Ann"), wide = signal(false), show = signal(true);
-		var dispose = Render.render(<div width={() -> wide.value ? 200 : 100} title={name}>
+		var dispose = Render.render(<div width={wide() ? 200 : 100} title={name}>
 			Hello {name}!
-			{() -> show.value ? <b>shown</b> : <>hidden</>}
+			{show() ? <b>shown</b> : <>hidden</>}
 		</div>, root);
 		var div = root.children[0];
 		check("reactive attributes", div.props.get("width") == 100 && div.props.get("title") == "Ann");
 		check("reactive text", div.children[0].text == "Hello Ann!");
-		name.value = "Bo";
-		wide.value = true;
+		name("Bo");
+		wide(true);
+		check("a write lands at the flush", div.children[0].text == "Hello Ann!");
+		flush();
 		check("updated", div.props.get("width") == 200 && div.props.get("title") == "Bo" && div.children[0].text == "Hello Bo!");
 		check("a region", div.toHtml() == '<div title="Bo" width="200">Hello Bo!<b>shown</b></div>', div.toHtml());
-		show.value = false;
+		show(false);
+		flush();
 		check("a region drawn again", div.toHtml() == '<div title="Bo" width="200">Hello Bo!hidden</div>', div.toHtml());
 		dispose();
 		check("dispose removes the content", root.children.length == 0);
-		name.value = "gone";
+		name("gone");
+		flush();
 		check("and stops its effects", div.children[0].text == "Hello Bo!");
 	}
 
 	static final theme = context("light");
+
+	// a value that comes later (as helder.asset's Asset): an async memo,
+	// pending until set; fail: its error; refresh: a new one on its way
+	static function later():Later<String>
+		return new Later<String>();
 
 	static function Themed(props:{}):View
 		return <i>{"theme " + use(theme)}</i>;
 
 	static function Thrower(props:{when:Signal<Bool>}):View
 		return <i>{() -> {
-			if (props.when.value) throw "boom";
+			if (props.when()) throw "boom";
 			"fine";
 		}}</i>;
 
-	static function Shows(props:{value:Later<String>}):View
-		return <p>{"made with " + props.value.value}</p>;
+	// (a component reading a value not ready while it is made: made once it is)
+	static function Shows(props:{value:Coming<String>}):View {
+		var v = props.value.value();
+		return <p>{"made with " + v}</p>;
+	}
 
 	// Loading: a fallback on the first load only; a value read in a hole,
 	// in a memo, in a component's body; nested boundaries; a failure the
 	// ErrorBoundary's; no boundary: nothing rendered; isPending
 	static function loading() {
-		var a = new Later<String>();
+		var a = new Coming<String>();
 		var root = new TestNode(Element, "root");
-		Render.render(<div><Loading fallback="wait"><p>{a}</p></Loading></div>, root);
+		Render.render(<div><Loading fallback="wait"><p>{a.value()}</p></Loading></div>, root);
 		check("Loading: the fallback while what its children read is not ready", root.toHtml() == "<root><div>wait<!--loading--></div></root>", root.toHtml());
 		a.set("one");
+		flush();
 		check("Loading: its children once it is", root.toHtml() == "<root><div><p>one</p><!--loading--></div></root>", root.toHtml());
-		// (a reload: a new value on its way, then here; the fallback never again)
+		// (a reload: a new value on its way, then here; the fallback never again, the content held)
 		var pending = [];
-		var dispose = Reactive.root(d -> {
-			effect(() -> pending.push(isPending(() -> a.value)));
+		var dispose = helder.view.graph.Graph.root(d -> {
+			renderEffect(() -> isPending(() -> a.value()), v -> pending.push(v));
 			d;
 		});
 		a.refresh();
+		flush();
 		check("Loading: a reload in flight: the content kept, isPending", root.toHtml() == "<root><div><p>one</p><!--loading--></div></root>" && pending.join(",") == "false,true",
 			root.toHtml() + " " + pending.join(","));
 		a.set("two");
+		flush();
 		check("Loading: the new value, no fallback", root.toHtml() == "<root><div><p>two</p><!--loading--></div></root>" && pending.join(",") == "false,true,false",
 			root.toHtml() + " " + pending.join(","));
 		dispose();
 		// (isPending on a first load: false, the fallback says it)
-		var b = new Later<String>();
-		check("isPending: false on a first load", !isPending(() -> b.value));
-		// (through a memo, and in a component's body: made again once ready)
-		var m = new Later<String>(), c = new Later<String>();
-		var upper = memo(() -> m.value.toUpperCase());
+		var b = new Coming<String>();
+		check("isPending: false on a first load", !isPending(() -> b.value()));
+		// (through a memo, and in a component's body: made once it is ready)
+		var m = new Coming<String>(), c = new Coming<String>();
+		var upper = memo(() -> m.value().toUpperCase());
 		var root2 = new TestNode(Element, "root");
 		Render.render(<div><Loading fallback="wait"><b>{upper}</b><Shows value={c}/></Loading></div>, root2);
 		m.set("x");
+		flush();
 		check("Loading: one of two ready: the fallback", root2.toHtml() == "<root><div>wait<!--loading--></div></root>", root2.toHtml());
 		c.set("y");
-		check("Loading: a memo's and a component's, both ready", root2.toHtml() == "<root><div><b>X</b><p>made with y</p><!--loading--></div></root>", root2.toHtml());
+		flush();
+		check("Loading: a memo's and a component's, both ready", root2.toHtml() == "<root><div><b>X</b><p>made with y</p><!--anchor--><!--loading--></div></root>", root2.toHtml());
 		// (nested: the inner one's fallback alone)
-		var outer = new Later<String>(), inner = new Later<String>();
+		var outer = new Coming<String>(), inner = new Coming<String>();
 		var root3 = new TestNode(Element, "root");
-		Render.render(<div><Loading fallback="outer"><p>{outer}</p><Loading fallback="inner"><b>{inner}</b></Loading></Loading></div>, root3);
+		Render.render(<div><Loading fallback="outer"><p>{outer.value()}</p><Loading fallback="inner"><b>{inner.value()}</b></Loading></Loading></div>, root3);
 		outer.set("o");
+		flush();
 		check("Loading: nested, the inner one waits alone", root3.toHtml() == "<root><div><p>o</p>inner<!--loading--><!--loading--></div></root>", root3.toHtml());
 		inner.set("i");
+		flush();
 		check("Loading: nested, both shown", root3.toHtml() == "<root><div><p>o</p><b>i</b><!--loading--><!--loading--></div></root>", root3.toHtml());
-		// (a failure: the ErrorBoundary above it)
-		var f = new Later<String>();
+		// (a failure: the Errored above it)
+		var f = new Coming<String>();
 		var root4 = new TestNode(Element, "root");
-		Render.render(<div><ErrorBoundary fallback={(e:Dynamic, r:Void->Void) -> "failed: " + e}><Loading fallback="wait"><p>{f}</p></Loading></ErrorBoundary></div>, root4);
+		Render.render(<div><Errored fallback={(e:Dynamic, r:Void->Void) -> "failed: " + e}><Loading fallback="wait"><p>{f.value()}</p></Loading></Errored></div>, root4);
 		f.fail("gone");
-		check("Loading: a failure is the ErrorBoundary's", root4.toHtml() == "<root><div>failed: gone<!--boundary--></div></root>", root4.toHtml());
+		flush();
+		check("Loading: a failure is the Errored's", root4.toHtml() == "<root><div>failed: gone<!--boundary--></div></root>", root4.toHtml());
 		// (no boundary: nothing for it, the rest rendered)
-		var n = new Later<String>();
+		var n = new Coming<String>();
 		var root5 = new TestNode(Element, "root");
-		Render.render(<div><i>here</i><p>{n}</p></div>, root5);
+		Render.render(<div><i>here</i><p>{n.value()}</p></div>, root5);
 		check("no Loading: nothing for what is not ready", root5.toHtml() == "<root><div><i>here</i><p></p></div></root>", root5.toHtml());
 		n.set("late");
+		flush();
 		check("no Loading: it once it is", root5.toHtml() == "<root><div><i>here</i><p>late</p></div></root>", root5.toHtml());
 	}
 
@@ -400,31 +372,41 @@ class ViewTest implements Markup {
 		// For: keyed rows kept and moved
 		var items = signal(["a", "b", "c"]), made = 0;
 		var root = new TestNode(Element, "root");
-		Render.render(<ul><For each={items} render={(i:String) -> {
+		Render.render(<ul><For each={items}>{i -> {
 			made++;
 			<li>{i}</li>;
-		}}/></ul>, root);
+		}}</For></ul>, root);
 		var ul = root.children[0];
 		function texts()
 			return [for (c in ul.children) if (c.kind == Element) c.children[0].text].join(",");
 		check("For: rows", texts() == "a,b,c" && made == 3, texts());
 		var b = ul.children[1];
 		TestRenderer.log.resize(0);
-		items.value = ["c", "b", "d"];
+		items(["c", "b", "d"]);
+		flush();
 		check("For: reordered, one made, the rest kept", texts() == "c,b,d" && made == 4 && ul.children[1] == b, texts());
 		TestRenderer.log.resize(0);
-		items.value = ["c", "b", "d", "e"];
+		items(["c", "b", "d", "e"]);
+		flush();
 		check("For: appended in place", texts() == "c,b,d,e" && TestRenderer.log.indexOf("arrange") < 0, TestRenderer.log.join(","));
-		// Index
+		// For by index (keyed={false}): a row per index, its Read what is there
 		var names = signal(["a", "b"]), rows = 0;
 		var root2 = new TestNode(Element, "root");
-		Render.render(<ul><Index each={names} render={(n:Signal<String>, i:Int) -> {
+		Render.render(<ul><For each={names} keyed={false}>{n -> {
 			rows++;
-			<li>{() -> i + ":" + n.value}</li>;
-		}}/></ul>, root2);
-		names.value = ["x", "b", "y"];
+			<li>{n() + "!"}</li>;
+		}}</For></ul>, root2);
+		names(["x", "b", "y"]);
+		flush();
 		var shown = [for (c in root2.children[0].children) if (c.kind == Element) c.children[0].text].join(",");
-		check("Index: items set in place, rows added", shown == "0:x,1:b,2:y" && rows == 3, shown);
+		check("For by index: items set in place, rows added", shown == "x!,b!,y!" && rows == 3, shown);
+		// Repeat: a row per number
+		var count = signal(2);
+		var root6 = new TestNode(Element, "root");
+		Render.render(<ul><Repeat count={count}>{i -> <li>{"" + i}</li>}</Repeat></ul>, root6);
+		count(3);
+		flush();
+		check("Repeat", root6.toHtml() == "<root><ul><li>0</li><li>1</li><li>2</li><!--for--></ul></root>", root6.toHtml());
 		// For and Index against random lists (keys once each): the rows as the
 		// list has them, between the content around them, and For's row of a
 		// key the same node while the key stays
@@ -435,7 +417,7 @@ class ViewTest implements Markup {
 		}
 		var keys = signal([0, 1, 2]), next = 3;
 		var root3 = new TestNode(Element, "root");
-		Render.render(<ul><b>head</b><For each={keys} render={(k:Int) -> <li>{"" + k}</li>}/><i>mid</i><Index each={keys} render={(n:Signal<Int>, i:Int) -> <p>{() -> i + ":" + n.value}</p>}/><b>tail</b></ul>,
+		Render.render(<ul><b>head</b><For each={keys}>{k -> <li>{"" + k()}</li>}</For><i>mid</i><For each={keys} keyed={false}>{n -> <p>{"" + n()}</p>}</For><b>tail</b></ul>,
 			root3);
 		var list3 = root3.children[0];
 		function rows():Map<Int, TestNode>
@@ -468,8 +450,9 @@ class ViewTest implements Markup {
 					k = rnd(4) == 0 ? [] : [for (i in 0...rnd(6)) next++];
 					what = "replaced";
 			}
-			keys.value = k;
-			var want = "<b>head</b>" + [for (x in k) '<li>$x</li>'].join("") + "<i>mid</i>" + [for (i in 0...k.length) '<p>$i:${k[i]}</p>'].join("") + "<b>tail</b>";
+			keys(k);
+			flush();
+			var want = "<b>head</b>" + [for (x in k) '<li>$x</li>'].join("") + "<i>mid</i>" + [for (i in 0...k.length) '<p>${k[i]}</p>'].join("") + "<b>tail</b>";
 			var got = [for (c in list3.children) if (c.kind != Marker) c.toHtml()].join("");
 			if (got != want) {
 				bad++;
@@ -479,57 +462,64 @@ class ViewTest implements Markup {
 			for (x => n in now)
 				if (was.exists(x) && was.get(x) != n) lost++;
 		}
-		check("For and Index: random lists, 300 changes", bad == 0 && lost == 0, bad + " differ, " + lost + " rows made again; the first: " + first);
+		check("For by item and by index: random lists, 300 changes", bad == 0 && lost == 0, bad + " differ, " + lost + " rows made again; the first: " + first);
 		// Show: the branch kept while it stays chosen
 		var count = signal(1), refs = 0;
-		check("Show", html(<div><Show when={() -> count.value > 0} fallback="none"><i ref={_ -> refs++}/></Show></div>) == "<div><i></i><!--anchor--></div>");
-		count.value = 2;
+		check("Show", html(<div><Show when={count() > 0} fallback="none"><i ref={_ -> refs++}/></Show></div>) == "<div><i></i><!--anchor--></div>");
+		count(2);
+		flush();
 		check("Show: the branch kept", refs == 1);
-		count.value = 0;
-		count.value = 3;
+		count(0);
+		flush();
+		count(3);
+		flush();
 		check("Show: made again when chosen again", refs == 2);
 		// Switch and Match
 		var k = signal(1);
 		var root3 = new TestNode(Element, "root");
 		Render.render(<div><Switch fallback="many">
-			<Match when={() -> k.value == 0}>none</Match>
-			<Match when={() -> k.value == 1}><b>one</b></Match>
+			<Match when={k() == 0}>none</Match>
+			<Match when={k() == 1}><b>one</b></Match>
 		</Switch></div>, root3);
 		check("Switch: a case", root3.toHtml() == "<root><div><b>one</b><!--anchor--></div></root>", root3.toHtml());
-		k.value = 0;
+		k(0);
+		flush();
 		check("Switch: another", root3.toHtml() == "<root><div>none<!--anchor--></div></root>", root3.toHtml());
-		k.value = 7;
+		k(7);
+		flush();
 		check("Switch: the fallback", root3.toHtml() == "<root><div>many<!--anchor--></div></root>", root3.toHtml());
 		var thrown = try {
 			html(<Switch><b/></Switch>);
 			"";
 		} catch (e:Dynamic) Std.string(e);
 		check("Switch: Match cases only", thrown == "helder.view: a Switch holds Match cases only", thrown);
-		// Provider and onMount
+		// Provider and onSettled
 		check("Provider", html(<div><Themed/><Provider context={theme} value={"dark"}><Themed/></Provider></div>) == "<div><i>theme light</i><i>theme dark</i></div>");
 		var parentAtMount:Null<TestNode> = null;
 		var root4 = new TestNode(Element, "root");
-		Render.render(<b ref={n -> onMount(() -> parentAtMount = n.parent)}/>, root4);
-		check("onMount: after the insertion", parentAtMount == root4);
-		// ErrorBoundary: an error later, reset; an error while rendering
+		Render.render(<b ref={n -> onSettled(() -> parentAtMount = n.parent)}/>, root4);
+		check("onSettled: after the insertion", parentAtMount == root4);
+		// Errored: an error later, reset; an error while rendering
 		var fail = signal(false), reset:Null<Void->Void> = null;
 		var root5 = new TestNode(Element, "root");
-		Render.render(<div><ErrorBoundary fallback={(e:Dynamic, r:Void->Void) -> {
+		Render.render(<div><Errored fallback={(e:Dynamic, r:Void->Void) -> {
 			reset = r;
 			"error: " + e;
-		}}><Thrower when={fail}/></ErrorBoundary></div>, root5);
-		check("ErrorBoundary: the children", root5.toHtml() == "<root><div><i>fine</i><!--boundary--></div></root>", root5.toHtml());
-		fail.value = true;
-		check("ErrorBoundary: a later error", root5.toHtml() == "<root><div>error: boom<!--boundary--></div></root>", root5.toHtml());
-		fail.value = false;
+		}}><Thrower when={fail}/></Errored></div>, root5);
+		check("Errored: the children", root5.toHtml() == "<root><div><i>fine</i><!--boundary--></div></root>", root5.toHtml());
+		fail(true);
+		flush();
+		check("Errored: a later error", root5.toHtml() == "<root><div>error: boom<!--boundary--></div></root>", root5.toHtml());
+		fail(false);
+		flush();
 		reset();
-		check("ErrorBoundary: reset", root5.toHtml() == "<root><div><i>fine</i><!--boundary--></div></root>", root5.toHtml());
+		flush();
+		check("Errored: reset", root5.toHtml() == "<root><div><i>fine</i><!--boundary--></div></root>", root5.toHtml());
 		var fail2 = signal(true);
-		check("ErrorBoundary: what was made before the error removed",
-			html(<div><ErrorBoundary fallback={(e:Dynamic, r:Void->Void) -> "caught " + e}><b>before</b><Thrower when={fail2}/></ErrorBoundary></div>)
+		check("Errored: what was made before the error removed",
+			html(<div><Errored fallback={(e:Dynamic, r:Void->Void) -> "caught " + e}><b>before</b><Thrower when={fail2}/></Errored></div>)
 			== "<div>caught boom<!--boundary--></div>");
 	}
-
 
 	// a boundary: a node of TestRenderer's tree whose content is rendered
 	// by OtherRenderer into a root of its own (a canvas in a page): its
@@ -558,21 +548,23 @@ class ViewTest implements Markup {
 		// one component, each renderer's nodes
 		var count = signal(1);
 		var test = new TestNode(Element, "root"), other = new OtherNode("root");
-		Render.render(<div><Counter start={3}/><For each={signal(["a", "b"])} render={(s:String) -> <i>{s}</i>}/></div>, test);
-		Render.render(<div><Counter start={3}/><For each={signal(["a", "b"])} render={(s:String) -> <i>{s}</i>}/></div>, other);
+		var ab = signal(["a", "b"]);
+		Render.render(<div><Counter start={3}/><For each={ab}>{s -> <i>{s}</i>}</For></div>, test);
+		Render.render(<div><Counter start={3}/><For each={ab}>{s -> <i>{s}</i>}</For></div>, other);
 		check("renderers: a component in each", test.toHtml() == "<root><div><b>3</b><i>a</i><i>b</i><!--for--></div></root>" && other.toString() == "[root[div[b3][ia][ib]]]",
 			test.toHtml() + " " + other.toString());
 		// boundaries, either way, content reactive across them
 		var label = signal("x");
 		var page = new TestNode(Element, "root");
 		Render.render(<div>
-			<Island><p>{label}</p><Overlay><span>{() -> "in " + label.value}</span></Overlay></Island>
+			<Island><p>{label}</p><Overlay><span>{"in " + label()}</span></Overlay></Island>
 		</div>, page);
 		var island = page.find("island");
 		var inner:OtherNode = island.props.get("root");
 		check("renderers: an island", inner.toString() == "[root[px][overlay dom=root]]", inner.toString());
 		check("renderers: and in it a TestRenderer tree again", overlays[0].toHtml() == "<root><span>in x</span></root>", overlays[0].toHtml());
-		label.value = "y";
+		label("y");
+		flush();
 		check("renderers: reactive across boundaries", inner.toString() == "[root[py][overlay dom=root]]" && overlays[0].toHtml() == "<root><span>in y</span></root>",
 			inner.toString() + " " + overlays[0].toHtml());
 		// a class's components for some renderers (@:renderer): another's markup calls its counterpart's, shared literals too
@@ -603,7 +595,7 @@ class ViewTest implements Markup {
 	static function Window(props:{name:String, ?children:ViewOf<TestRenderer>}):RootView {
 		var w = new TestNode(Element, props.name);
 		windows.push(w);
-		Reactive.onCleanup(() -> windows.remove(w));
+		onCleanup(() -> windows.remove(w));
 		Render.render(props.children, w);
 		return null;
 	}
@@ -631,9 +623,11 @@ class ViewTest implements Markup {
 		check("roots: a window each", windows.length == 2 && windows[0].toHtml() == "<one><p>a</p></one>" && windows[1].toHtml() == "<two><b>1</b></two>",
 			[for (w in windows) w.toHtml()].join(" "));
 		check("roots: a component under two renderers", otherWindows.length == 1 && otherWindows[0].toString() == "[other[b2]]", otherWindows.toString());
-		title.value = "b";
+		title("b");
+		flush();
 		check("roots: reactive", windows[0].toHtml() == "<one><p>b</p></one>", windows[0].toHtml());
-		shown.value = false;
+		shown(false);
+		flush();
 		check("roots: a root's region (Show): its window closed", windows.length == 1, Std.string(windows.length));
 		dispose();
 		check("roots: disposed, closed", windows.length == 0, Std.string(windows.length));
@@ -693,69 +687,32 @@ class TestWidgets implements Markup {
 		return <span class="badge">{props.label}</span>;
 }
 
-// a value that comes later (as helder.asset's Asset): its value throws
-// Pending until set, a failure's thrown after fail; refresh: a new one on
-// its way
-class Later<T> extends helder.view.Signal.SignalBase implements helder.view.Pending.Loadable {
-	var v:Null<T> = null;
-	var error:Null<String> = null;
-	var here = false;
-	var reloading = false;
-	var readers:Array<Void->Void> = [];
+// a value that comes later (as helder.asset's Asset): value an async
+// memo, pending until set (a Later answered at the next flush); fail: its
+// error; refresh: a new one on its way, the last one kept meanwhile
+class Coming<T> {
+	public final value:helder.view.graph.Memo<T>;
 
-	public function new() {}
+	var next:Later<T>;
+	final asked:Signal<Int>;
 
-	public var ready(get, never):Bool;
-	public var refreshing(get, never):Bool;
-	public var value(get, never):T;
-
-	function get_ready():Bool {
-		track();
-		return here;
+	public function new() {
+		next = new Later<T>();
+		asked = signal(0);
+		value = root(_ -> memo(() -> {
+			asked();
+			next;
+		}));
 	}
 
-	function get_refreshing():Bool {
-		track();
-		return reloading;
-	}
+	public function set(v:T)
+		next.resolve(v);
 
-	function get_value():T {
-		track();
-		var probe = Reactive.probe;
-		if (probe != null) probe.push(this);
-		if (error != null) throw error;
-		if (!here) throw new helder.view.Pending(this, "not yet");
-		return v;
-	}
-
-	override function read():Dynamic
-		return value;
-
-	public function whenReady(f:Void->Void)
-		if (here || error != null) f() else readers.push(f);
-
-	public function set(x:T) {
-		v = x;
-		here = true;
-		reloading = false;
-		settle();
-	}
-
-	public function fail(e:String) {
-		error = e;
-		settle();
-	}
+	public function fail(e:String)
+		next.reject(e);
 
 	public function refresh() {
-		reloading = true;
-		Reactive.batch(notify);
-	}
-
-	function settle() {
-		Reactive.batch(notify);
-		var r = readers;
-		readers = [];
-		for (f in r)
-			f();
+		next = new Later<T>();
+		asked(c -> c + 1);
 	}
 }

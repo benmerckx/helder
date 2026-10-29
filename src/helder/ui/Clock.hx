@@ -30,10 +30,12 @@ class Clock {
 	// runs the steps at time t (the ones done are dropped): whether any is left
 	public static function tick(t:Float):Bool {
 		now = t;
-		var i = 0;
+		var i = 0, ran = steps.length > 0;
 		while (i < steps.length) {
 			if (steps[i](t)) i++ else steps.splice(i, 1);
 		}
+		// (what the steps wrote lands now, helder.view.graph)
+		if (ran) helder.view.graph.Graph.flush();
 		return steps.length > 0;
 	}
 }

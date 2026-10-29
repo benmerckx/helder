@@ -39,7 +39,7 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 	public static var device(default, set):Null<helder.gfx.Device>;
 	// the world elements are made in: a <Scene>'s (WORLD, provided to its children), else root's
 	public static var world:Null<World>;
-	public static final WORLD = new helder.view.Context<Null<World>>(null);
+	public static final WORLD = new helder.view.graph.Context<Null<World>>(null, true);
 	// (the markup's nodes by their scene nodes' ids: picking's; the meshes waiting for a device)
 	static final nodes = new Map<Int, SceneNode>();
 	static final pending:Array<SceneNode> = [];
@@ -65,7 +65,7 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 	}
 
 	public static function createElement(tag:String):SceneNode {
-		var w = helder.view.Reactive.use(WORLD) ?? world;
+		var w = (helder.view.graph.Graph.getOwner() == null ? null : helder.view.graph.Graph.use(WORLD)) ?? world;
 		if (w == null) throw "SceneRenderer: no world (a <Scene>'s children, or rendered into SceneRenderer.root(world))";
 		var n = new SceneNode(w.node(tag), tag);
 		n.node.detach();

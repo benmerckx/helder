@@ -4,7 +4,7 @@ import helder.ui.draw.WinAccess;
 import helder.ui.draw.WinViews;
 import helder.ui.native.win32.Win32;
 import helder.view.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
 import Plain.*;
 import hxmc.unsafe.*;
 
@@ -51,7 +51,7 @@ class WinAccessTest implements Markup {
 			<Button tag="save" label="Save" onClick={() -> saved++}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name.value = e.text}/>
+			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
 			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var step = 0;
@@ -109,7 +109,7 @@ class WinAccessTest implements Markup {
 						check("invoke", !out.value.isNull() && Invoke.Invoke(out.value) == 0 && saved == 1, '$saved');
 						out.value = Ptr.nil();
 						Simple.GetPatternProvider(simples[2], 10015, out);
-						check("toggle", !out.value.isNull() && Toggle.Toggle(out.value) == 0 && checked.value);
+						check("toggle", !out.value.isNull() && Toggle.Toggle(out.value) == 0 && checked());
 						out.value = Ptr.nil();
 						Simple.GetPatternProvider(simples[3], 10003, out);
 						var range = out.value;
@@ -118,7 +118,7 @@ class WinAccessTest implements Markup {
 						Simple.GetPatternProvider(simples[4], 10002, out);
 						var value = out.value;
 						var set = Arena.scopedValue(m -> ValuePattern.SetValue(value, m.wstring("Ada")));
-						check("a value set", !value.isNull() && set == 0 && name.value == "Ada", name.value);
+						check("a value set", !value.isNull() && set == 0 && name() == "Ada", name());
 						Simple.GetPatternProvider(simples[1], 10015, out);
 						check("no pattern a node has not", out.value.isNull());
 					}
@@ -151,7 +151,7 @@ class WinAccessTest implements Markup {
 					}
 					step = 2;
 				case 2:
-					check("typed into the EDIT, the field's signal follows", name.value == "Adax", name.value);
+					check("typed into the EDIT, the field's signal follows", name() == "Adax", name());
 					var eds:Array<WinEditor> = @:privateAccess WinViews.editors;
 					if (eds.length == 1) W32.SendMessageW(@:privateAccess eds[0].hwnd, 0x100, 9, 0);
 					step = 3;

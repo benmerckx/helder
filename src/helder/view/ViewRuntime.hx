@@ -1,52 +1,61 @@
 package helder.view;
 
-// Mounting content into one renderer's nodes, Solid's way: each part is
-// made once and bound to what it reads. Written against Host (the
-// renderer) and HostNode (its nodes), placeholders: ViewRuntime itself is
-// only the template of ViewRuntime_<renderer>, made for each renderer the
-// program reaches (HostMacro), so that every call below is a direct call to
-// its renderer. (Being copied, it names other types by their full paths.)
+// Mounting content into one renderer's nodes on helder.view.graph, Solid
+// 2's way: each part is made once, and what it reads is bound by a render
+// effect whose compute reads (tracked, in the graph) and whose apply
+// touches the nodes (after the commit: a change that waits on a value not
+// ready is held, the nodes keeping what they showed). Written against Host
+// (the renderer) and HostNode (its nodes), placeholders: ViewRuntime itself
+// is only the template of ViewRuntime_<renderer>, made for each renderer
+// the program reaches (HostMacro), so that every call below is a direct
+// call to its renderer. (Being copied, it names other types by their full
+// paths.)
 //
 // Content is a View (a markup literal: its code for this renderer runs, an
-// agnostic literal's through late; another renderer's an error), a
-// node, text (String, numbers), an Array of content, null, For, Index or
-// ErrorBoundary content, a Mountable of this renderer's nodes, or
-// something reactive: a Signal, a Memo or a function () -> content, whose
-// region is drawn again when what it reads changes (its nodes replaced
-// before a marker, its computations disposed with them).
+// agnostic literal's through late; another renderer's an error), a node,
+// text (String, numbers), an Array of content, null, For, Loading or
+// Errored content, a Mountable of this renderer's nodes, or something
+// reactive: a node (a signal, a memo), a Read of one, a function () ->
+// content (a hole that may read), whose region is drawn again when what it
+// reads changes (its nodes replaced before a marker, its computations
+// disposed with them).
 //
-// The markup macro's code calls the rest: attributes (a Signal, Memo or
-// function as a value, but an event's, is bound: set again when it
-// changes), runs of text and holes whose values are text (one text node,
-// reactive if one of them is; in an element that holds text, its own text,
-// or spans beside its child elements), components (called once,
-// untracked, in an owner of their own).
+// The markup macro's code calls the rest: attributes (a reactive value, but
+// an event's, is bound: set again when it changes), runs of text and holes
+// whose values are text (one text node, bound if one of them is reactive;
+// in an element that holds text, its own text, or spans beside its child
+// elements), components (called once, untracked, in an owner of their own;
+// one that reads a value not ready while it is made is made once it is).
 @:build(helder.view.HostMacro.build())
 class ViewRuntime {
-	// renders content into parent (its root: dispose removes it and stops its effects)
+	// renders content into parent (its root: dispose removes it and stops its
+	// effects); at the top (no owner), what it scheduled flushed before it returns
 	public static function render(content:Any, parent:HostNode):Void->Void {
-		return helder.view.Reactive.root(dispose -> {
+		var top = helder.view.graph.Graph.getOwner() == null;
+		var d = helder.view.graph.Graph.root(dispose -> {
 			#if hxmc.dev
 			// (hxmc dev: its effects' cleanups run before the next build starts)
-			helder.view.Reactive.onCleanup(helder.dev.Hot.onDispose(dispose));
+			helder.view.graph.Graph.onCleanup(helder.dev.Hot.onDispose(dispose));
 			#end
 			var nodes = insert(content, parent, null);
-			helder.view.Reactive.onCleanup(() -> for (n in nodes)
+			helder.view.graph.Graph.onCleanup(() -> for (n in nodes)
 				detach(parent, n));
 			dispose;
 		});
+		if (top) helder.view.graph.Graph.flush();
+		return d;
 	}
 
 	// inserts content into parent before a node (null: at the end); the nodes made
 	public static function insert(content:Any, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
 		var out:Array<HostNode> = [];
-		helder.view.Reactive.mount(() -> add(content, parent, before, out));
+		add(content, parent, before, out);
 		return out;
 	}
 
 	// as insert, the nodes made pushed to out as they are (those made before an error too)
 	public static function insertTo(content:Any, parent:HostNode, before:Null<HostNode>, out:Array<HostNode>)
-		helder.view.Reactive.mount(() -> add(content, parent, before, out));
+		add(content, parent, before, out);
 
 	// (end: v is its parent's last child, nothing put after it: a region of it needs no marker)
 	static function add(v:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, end = false) {
@@ -54,9 +63,9 @@ class ViewRuntime {
 		if (Std.isOfType(v, helder.view.View)) view(v, parent, before, out);
 		else if (Host.isNode(v)) put(parent, v, before, out);
 		else if (Std.isOfType(v, helder.view.Flow.ForList)) mounted(forList(v, parent, before), out);
-		else if (Std.isOfType(v, helder.view.Flow.IndexList)) mounted(indexList(v, parent, before), out);
-		else if (Std.isOfType(v, helder.view.Flow.Boundary)) mounted(boundary(v, parent, before), out);
+		else if (Std.isOfType(v, helder.view.Flow.Boundary)) mounted(errored(v, parent, before), out);
 		else if (Std.isOfType(v, helder.view.Flow.Waiting)) mounted(loading(v, parent, before), out);
+		else if (Std.isOfType(v, helder.view.Flow.Deferred)) component(parent, before, out, (v : helder.view.Flow.Deferred).factory);
 		else if (Std.isOfType(v, helder.view.Flow.Mountable)) {
 			var m:helder.view.Flow.Mountable<HostNode> = cast v;
 			mounted(m.mount(parent, before), out);
@@ -64,7 +73,8 @@ class ViewRuntime {
 			var a:Array<Dynamic> = v;
 			for (k in 0...a.length)
 				add(a[k], parent, before, out, end && k == a.length - 1);
-		} else if (helder.view.Render.isReactive(v)) region(v, parent, before, out, end);
+		} else if (Std.isOfType(v, helder.view.graph.Read.Const)) add((v : helder.view.graph.Read.Const<Dynamic>).value, parent, before, out, end);
+		else if (helder.view.Render.isReactive(v)) region(v, parent, before, out, end);
 		else put(parent, Host.createText(Std.string(v)), before, out);
 	}
 
@@ -84,63 +94,108 @@ class ViewRuntime {
 			for (n in nodes)
 				out.push(n);
 
-	// n put in parent before before, pushed to out
-	public static inline function put(parent:HostNode, n:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>) {
-		Host.insert(parent, n, before);
+	// (the boundaries mounted: the nodes their content keeps in their parents)
+	static final captures:Array<helder.view.Mounted.Capture<HostNode>> = [];
+	// (a boundary's fallback being put before its anchor: not its content)
+	static var fallbackOf:Null<helder.view.Mounted.Capture<HostNode>> = null;
+
+	// n put in parent before before, pushed to out (into a boundary's content
+	// while its fallback shows: kept, put in place when it shows)
+	public static function put(parent:HostNode, n:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>) {
+		var hidden = false;
+		for (c in captures)
+			if (c != fallbackOf && c.parent == parent && c.owns(before)) {
+				c.put(n, before);
+				if (!c.attached) hidden = true;
+			}
+		if (!hidden) Host.insert(parent, n, before);
 		if (out != null) out.push(n);
 	}
 
 	// n removed from parent, when it is still there
-	public static inline function detach(parent:HostNode, n:HostNode)
+	public static function detach(parent:HostNode, n:HostNode) {
 		if (Host.parentOf(n) == parent) Host.remove(parent, n);
+		for (c in captures)
+			if (c.parent == parent) c.remove(n);
+	}
+
+	// (Host.arrange, the boundaries told)
+	static function arrange(parent:HostNode, nodes:Array<HostNode>, before:HostNode) {
+		var hidden = false;
+		for (c in captures)
+			if (c.parent == parent && c.owns(before)) {
+				c.arranged(nodes, before);
+				if (!c.attached) hidden = true;
+			}
+		if (!hidden) Host.arrange(parent, nodes, before);
+	}
 
 	// a marker (Host.createMarker) put in parent before before
 	public static function marker(parent:HostNode, before:Null<HostNode>, name:String):HostNode {
 		var m = Host.createMarker(name);
-		Host.insert(parent, m, before);
+		put(parent, m, before, null);
 		return m;
+	}
+
+	// (content mounted in an owner of its own under home: its nodes; replaced: the old ones removed, their owner disposed)
+	static function mountIn(home:Null<helder.view.graph.Owner>, content:Dynamic, parent:HostNode, anchor:Null<HostNode>):helder.view.Mounted.Shown<HostNode> {
+		var o = new helder.view.graph.Owner(home);
+		var nodes:Array<HostNode> = [];
+		try helder.view.graph.Graph.runWithOwner(o, () -> insertTo(content, parent, anchor, nodes)) catch (e:Dynamic) {
+			o.dispose();
+			for (n in nodes)
+				detach(parent, n);
+			throw e;
+		}
+		return new helder.view.Mounted.Shown(o, nodes);
+	}
+
+	static function unmount(s:Null<helder.view.Mounted.Shown<HostNode>>, parent:HostNode) {
+		if (s == null) return;
+		s.owner.dispose();
+		for (n in s.nodes)
+			detach(parent, n);
 	}
 
 	// a reactive region: its content drawn again before a marker
 	static function region(getter:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, end:Bool) {
-		// (its parent's last child: drawn at the end)
-		var anchor = end ? null : Host.createMarker("anchor");
+		// (its parent's last child: drawn at the end, unless the renderer marks
+		// every region, a page's static HTML and its hydration reading them: Renders' markEnds)
+		var anchor = end && !MARK_ENDS ? null : Host.createMarker("anchor");
 		if (anchor != null) put(parent, anchor, before, out);
-		var current:Array<HostNode> = [];
-		helder.view.Reactive.effect(() -> {
-			var v = helder.view.Render.read(getter);
-			helder.view.Reactive.untrack(() -> {
-				for (n in current)
-					detach(parent, n);
-				current = insert(v, parent, anchor);
-			});
+		var home = helder.view.graph.Graph.getOwner();
+		var current:Null<helder.view.Mounted.Shown<HostNode>> = null;
+		helder.view.graph.Graph.renderEffect(() -> helder.view.Render.read(getter), (v:Dynamic) -> {
+			unmount(current, parent);
+			current = null;
+			current = mountIn(home, v, parent, anchor);
 		});
-		helder.view.Reactive.onCleanup(() -> for (n in current)
-			detach(parent, n));
+		helder.view.graph.Graph.onCleanup(() -> unmount(current, parent));
 	}
 
 	// --- what markup compiles to ---
 
-	// a component: its factory called once, untracked, in an owner of its own
+	// a component: its factory called once, untracked, in an owner of its own;
+	// one that reads a value not ready while it is made: a region that waits
+	// for that value (an armed <Loading> above shows its fallback), then makes it
 	public static function component(parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, factory:Void->Any) {
-		var o = new helder.view.Owner(helder.view.Reactive.owner);
-		var saved = helder.view.Reactive.owner;
-		helder.view.Reactive.owner = o;
+		var o = new helder.view.graph.Owner(helder.view.graph.Graph.getOwner());
 		helder.view.Render.pass = INDEX;
-		try {
-			var result = helder.view.Reactive.untrack(factory);
-			add(result, parent, before, out);
-		} catch (e:helder.view.Pending) {
-			// (a value not ready while it was made: nothing of it, the Loading
-			// boundary above told, which makes it again once it is)
-			helder.view.Reactive.owner = saved;
-			o.suspended(e);
+		var result:Any = null;
+		try result = helder.view.graph.Graph.runWithOwner(o, factory) catch (e:helder.view.graph.Awaitable.NotReady) {
+			o.dispose();
+			var source:helder.view.graph.Read.Reader<Dynamic> = @:privateAccess helder.view.graph.Node.notReadyNode;
+			var ready = false, deferred = new helder.view.Flow.Deferred(factory);
+			region(() -> {
+				if (!ready) {
+					source.read();
+					ready = true;
+				}
+				deferred;
+			}, parent, before, out, false);
 			return;
-		} catch (e:Dynamic) {
-			helder.view.Reactive.owner = saved;
-			throw e;
 		}
-		helder.view.Reactive.owner = saved;
+		helder.view.graph.Graph.runWithOwner(o, () -> add(result, parent, before, out));
 	}
 
 	#if hxmc.dev
@@ -222,9 +277,13 @@ class ViewRuntime {
 	// the value as a text part (a String, or a reactive one whose value is text now), or null when it is not text
 	static function textPart(v:Dynamic):Null<Dynamic> {
 		if (isText(v)) return Std.string(v);
-		// (a value not ready: not known as text, bound as content: its region's
-		// effect tells the Loading boundary)
-		if (helder.view.Render.isReactive(v) && isText(try helder.view.Reactive.untrack(() -> helder.view.Render.read(v)) catch (_:helder.view.Pending) null)) return v;
+		if (Std.isOfType(v, helder.view.graph.Read.Const)) {
+			var c = (v : helder.view.graph.Read.Const<Dynamic>).value;
+			return isText(c) ? Std.string(c) : null;
+		}
+		// (a value not ready, or one that fails: not known as text, bound as content: its region waits, or fails)
+		if (helder.view.Render.isReactive(v)
+			&& isText(try helder.view.graph.Graph.untrack(() -> helder.view.Render.read(v)) catch (_:Dynamic) null)) return v;
 		return null;
 	}
 
@@ -245,14 +304,19 @@ class ViewRuntime {
 			Host.setText(n, parts.length == 1 ? parts[0] : parts.join(""));
 			return;
 		}
-		helder.view.Reactive.effect(() -> {
+		if (parts.length == 1) {
+			var p = parts[0];
+			helder.view.graph.Graph.renderEffect(() -> helder.view.Render.read(p), (v:Dynamic) -> Host.setText(n, v == null ? "" : Std.string(v)));
+			return;
+		}
+		helder.view.graph.Graph.renderEffect(() -> {
 			var b = new StringBuf();
 			for (p in parts) {
 				var v:Dynamic = Std.isOfType(p, String) ? p : helder.view.Render.read(p);
 				if (v != null) b.add(Std.string(v));
 			}
-			Host.setText(n, b.toString());
-		});
+			b.toString();
+		}, (t:String) -> Host.setText(n, t));
 	}
 
 	// --- attributes ---
@@ -274,18 +338,24 @@ class ViewRuntime {
 
 	// a property's value, bound when reactive
 	public static function prop(n:HostNode, name:String, v:Dynamic) {
-		if (helder.view.Render.isReactive(v)) helder.view.Reactive.effect(() -> Host.setProperty(n, name, helder.view.Render.read(v))) else
-			Host.setProperty(n, name, v);
+		if (helder.view.Render.isReactive(v)) helder.view.graph.Graph.renderEffect(() -> helder.view.Render.read(v), (x:Dynamic) -> Host.setProperty(n, name, x));
+		else Host.setProperty(n, name, constant(v));
 	}
 
 	// (the same with the renderer's function for the name: Renders' setter)
 	public static function propWith(n:HostNode, name:String, v:Dynamic, set:(HostNode, String, Dynamic) -> Void) {
-		if (helder.view.Render.isReactive(v)) helder.view.Reactive.effect(() -> set(n, name, helder.view.Render.read(v))) else set(n, name, v);
+		if (helder.view.Render.isReactive(v)) helder.view.graph.Graph.renderEffect(() -> helder.view.Render.read(v), (x:Dynamic) -> set(n, name, x));
+		else set(n, name, constant(v));
 	}
 
 	public static function style(n:HostNode, v:Dynamic) {
-		if (helder.view.Render.isReactive(v)) helder.view.Reactive.effect(() -> Host.setStyle(n, helder.view.Render.read(v))) else Host.setStyle(n, v);
+		if (helder.view.Render.isReactive(v)) helder.view.graph.Graph.renderEffect(() -> helder.view.Render.read(v), (x:Dynamic) -> Host.setStyle(n, x));
+		else Host.setStyle(n, constant(v));
 	}
+
+	// (a Read's constant: its value)
+	static inline function constant(v:Dynamic):Dynamic
+		return Std.isOfType(v, helder.view.graph.Read.Const) ? (v : helder.view.graph.Read.Const<Dynamic>).value : v;
 
 	public static inline function ref(n:HostNode, v:Dynamic)
 		(v : HostNode->Void)(n);
@@ -297,225 +367,182 @@ class ViewRuntime {
 
 	// --- control flow (helder.view.Flow) ---
 
-	// For: keyed rows, kept and moved
+	// For: rows kept and moved, keyed by item (a row's Read its item) or by index (its Read a signal of what is there)
 	static function forList(list:helder.view.Flow.ForList, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
 		var anchor = marker(parent, before, "for");
-		// (the rows belong to the owner the list is mounted in, not to the
-		// effect below: its next run would dispose the rows it keeps)
-		var home = helder.view.Reactive.owner;
-		var entries:Array<{item:Dynamic, nodes:Array<HostNode>, owner:helder.view.Owner}> = [];
-		helder.view.Reactive.effect(() -> {
-			var items:Array<Dynamic> = helder.view.Render.read(list.each);
-			if (items == null) items = [];
-			helder.view.Reactive.untrack(() -> {
-				var next = [];
-				// (the old entries matched: an item is looked for from the first
-				// one not taken, so that a list kept in order matches in one pass)
-				var old = entries, taken = [for (_ in old) false], first = 0;
-				for (item in items) {
-					var k = -1;
-					for (j in first...old.length)
-						if (!taken[j] && old[j].item == item) {
-							k = j;
-							break;
-						}
-					if (k >= 0) {
-						next.push(old[k]);
-						taken[k] = true;
-						while (first < old.length && taken[first])
-							first++;
-					} else {
-						var o = new helder.view.Owner(home);
-						var saved = helder.view.Reactive.owner;
-						helder.view.Reactive.owner = o;
-						#if hxmc.dev
-						// (hxmc dev: a row's keys under its position)
-						var nodes = try helder.dev.Hot.scope(Std.string(next.length), () -> insert(list.render(item), parent, anchor)) catch (e:Dynamic) {
-						#else
-						var nodes = try insert(list.render(item), parent, anchor) catch (e:Dynamic) {
-						#end
-							helder.view.Reactive.owner = saved;
-							throw e;
-						}
-						helder.view.Reactive.owner = saved;
-						next.push({item: item, nodes: nodes, owner: o});
-					}
-				}
-				for (j in 0...old.length)
-					if (!taken[j]) {
-						old[j].owner.dispose();
-						for (n in old[j].nodes)
-							detach(parent, n);
-					}
-				// in order, before the anchor (where the rows are: the new ones
-				// were put there; a row's node moved out by hand is put back)
-				Host.arrange(parent, [for (e in next) for (n in e.nodes) n], anchor);
-				entries = next;
-			});
-		});
-		helder.view.Reactive.onCleanup(() -> for (e in entries)
-			for (n in e.nodes)
-				detach(parent, n));
-		return [anchor];
-	}
-
-	// Index: a row per index, its item in a signal
-	static function indexList(list:helder.view.Flow.IndexList, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
-		var anchor = marker(parent, before, "index");
-		var home = helder.view.Reactive.owner;
-		var rows:Array<{item:helder.view.Signal<Dynamic>, nodes:Array<HostNode>, owner:helder.view.Owner}> = [];
-		helder.view.Reactive.effect(() -> {
-			var items:Array<Dynamic> = helder.view.Render.read(list.each);
-			if (items == null) items = [];
-			helder.view.Reactive.untrack(() -> {
-				var keep = items.length < rows.length ? items.length : rows.length;
-				helder.view.Reactive.batch(() -> for (i in 0...keep)
-					rows[i].item.value = items[i]);
-				while (rows.length > items.length) {
-					var r = rows.pop();
-					r.owner.dispose();
-					for (n in r.nodes)
-						detach(parent, n);
-				}
-				for (i in rows.length...items.length) {
-					var o = new helder.view.Owner(home);
-					var saved = helder.view.Reactive.owner;
-					helder.view.Reactive.owner = o;
-					var item = new helder.view.Signal<Dynamic>(items[i]);
-					#if hxmc.dev
-					var nodes = try helder.dev.Hot.scope(Std.string(i), () -> insert(list.render(item, i), parent, anchor)) catch (e:Dynamic) {
-					#else
-					var nodes = try insert(list.render(item, i), parent, anchor) catch (e:Dynamic) {
-					#end
-						helder.view.Reactive.owner = saved;
-						throw e;
-					}
-					helder.view.Reactive.owner = saved;
-					rows.push({item: item, nodes: nodes, owner: o});
-				}
-			});
-		});
-		helder.view.Reactive.onCleanup(() -> for (r in rows)
-			for (n in r.nodes)
-				detach(parent, n));
-		return [anchor];
-	}
-
-	// ErrorBoundary: its children, or the fallback for an error
-	static function boundary(b:helder.view.Flow.Boundary, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
-		var anchor = marker(parent, before, "boundary");
-		// (the error, boxed: null is none)
-		var error = new helder.view.Signal<Null<{e:Dynamic}>>(null);
-		var current:Array<HostNode> = [];
-		function clear() {
-			for (n in current)
-				detach(parent, n);
-			current = [];
+		// (the rows belong to the owner the list is mounted in)
+		var home = helder.view.graph.Graph.getOwner();
+		var entries:Array<helder.view.Mounted.Row<HostNode>> = [];
+		function make(item:Dynamic, at:Int):helder.view.Mounted.Row<HostNode> {
+			var cell = list.keyed ? null : helder.view.graph.Node.signal((item : Dynamic), {ownedWrite: true});
+			var read:helder.view.graph.Read<Dynamic> = cell != null ? (cell : helder.view.graph.Read.Reader<Dynamic>) : (new helder.view.graph.Read.Const<Dynamic>(item) : helder.view.graph.Read.Reader<Dynamic>);
+			#if hxmc.dev
+			// (hxmc dev: a row's keys under its position)
+			var s = helder.dev.Hot.scope(Std.string(at), () -> mountIn(home, list.render(read), parent, anchor));
+			#else
+			var s = mountIn(home, list.render(read), parent, anchor);
+			#end
+			return new helder.view.Mounted.Row(item, s, cell);
 		}
-		function show(err:Null<{e:Dynamic}>):Void {
-			clear();
-			if (err != null) {
-				current = insert(b.fallback(err.e, () -> error.value = null), parent, anchor);
+		helder.view.graph.Graph.renderEffect(() -> {
+			var items:Null<Array<Dynamic>> = list.each.read();
+			items == null ? [] : items;
+		}, (items:Array<Dynamic>) -> {
+			var next:Array<helder.view.Mounted.Row<HostNode>> = [];
+			if (!list.keyed) {
+				// (by index: the rows kept set to what is at their index, the rest made or removed)
+				for (i in 0...items.length) {
+					if (i < entries.length) {
+						var r = entries[i];
+						r.item = items[i];
+						r.cell.write(items[i]);
+						next.push(r);
+					} else next.push(make(items[i], i));
+				}
+				for (j in items.length...entries.length)
+					unmount(entries[j].shown, parent);
+				entries = next;
 				return;
 			}
-			// the children in an owner of their own, which catches their errors
-			var o = new helder.view.Owner(helder.view.Reactive.owner);
-			o.onError = e -> error.value = {e: e};
-			var saved = helder.view.Reactive.owner;
-			helder.view.Reactive.owner = o;
-			var made:Array<HostNode> = [];
-			try {
-				insertTo(b.children, parent, anchor, made);
-				current = made;
-				helder.view.Reactive.owner = saved;
-			} catch (e:Dynamic) {
-				helder.view.Reactive.owner = saved;
-				// (what was put before the error, removed)
-				o.dispose();
-				for (n in made)
-					detach(parent, n);
-				current = insert(b.fallback(e, () -> error.value = null), parent, anchor);
+			// (the old entries matched: an item is looked for from the first
+			// one not taken, so that a list kept in order matches in one pass)
+			var old = entries, taken = [for (_ in old) false], first = 0;
+			for (item in items) {
+				var k = -1;
+				for (j in first...old.length)
+					if (!taken[j] && old[j].item == item) {
+						k = j;
+						break;
+					}
+				if (k >= 0) {
+					next.push(old[k]);
+					taken[k] = true;
+					while (first < old.length && taken[first])
+						first++;
+				} else next.push(make(item, next.length));
 			}
-		}
-		helder.view.Reactive.effect(() -> {
-			var err = error.value;
-			helder.view.Reactive.untrack(() -> show(err));
+			for (j in 0...old.length)
+				if (!taken[j]) unmount(old[j].shown, parent);
+			// in order, before the anchor (where the rows are: the new ones
+			// were put there; a row's node moved out by hand is put back)
+			arrange(parent, [for (e in next) for (n in e.shown.nodes) n], anchor);
+			entries = next;
 		});
-		helder.view.Reactive.onCleanup(clear);
+		helder.view.graph.Graph.onCleanup(() -> for (e in entries)
+			unmount(e.shown, parent));
 		return [anchor];
 	}
 
-	// Loading: its children, the fallback instead while what they read on
-	// their first load is not ready (they are dropped and made again once
-	// it is); once shown they stay
+	// a boundary's content made (in its compute: what it reads inside waits
+	// under it) before anchor, its nodes kept by the capture (the last run's
+	// taken out first); what it made before an error taken out
+	static function boundaryContent(content:Any, parent:HostNode, c:helder.view.Mounted.Capture<HostNode>) {
+		hide(c);
+		c.nodes.resize(0);
+		c.attached = true;
+		var made:Array<HostNode> = [];
+		try helder.view.graph.Graph.untrack(() -> insertTo(content, parent, c.anchor, made)) catch (e:Dynamic) {
+			hide(c);
+			c.nodes.resize(0);
+			c.attached = true;
+			throw e;
+		}
+	}
+
+	// (a boundary's content out of the tree, and back before its anchor)
+	static function hide(c:helder.view.Mounted.Capture<HostNode>) {
+		if (!c.attached) return;
+		c.attached = false;
+		for (n in c.nodes)
+			if (Host.parentOf(n) == c.parent) Host.remove(c.parent, n);
+	}
+
+	// (those of its nodes an inner boundary showing its fallback keeps out stay out)
+	static function show(c:helder.view.Mounted.Capture<HostNode>) {
+		if (c.attached) return;
+		c.attached = true;
+		for (n in c.nodes) {
+			var out = false;
+			for (o in captures)
+				if (o != c && !o.attached && o.parent == c.parent && o.nodes.indexOf(n) >= 0) out = true;
+			if (!out) Host.insert(c.parent, n, c.anchor);
+		}
+	}
+
+	// (a boundary's fallback mounted before its anchor)
+	static function fallbackIn(c:helder.view.Mounted.Capture<HostNode>, home:Null<helder.view.graph.Owner>, content:Any, parent:HostNode,
+			anchor:HostNode):helder.view.Mounted.Shown<HostNode> {
+		var saved = fallbackOf;
+		fallbackOf = c;
+		var s = try mountIn(home, content, parent, anchor) catch (e:Dynamic) {
+			fallbackOf = saved;
+			throw e;
+		}
+		fallbackOf = saved;
+		return s;
+	}
+
+	// (a boundary's capture, kept while it is mounted)
+	static function captureAt(parent:HostNode, anchor:HostNode):helder.view.Mounted.Capture<HostNode> {
+		var c = new helder.view.Mounted.Capture(parent, anchor);
+		captures.push(c);
+		helder.view.graph.Graph.onCleanup(() -> {
+			hide(c);
+			captures.remove(c);
+		});
+		return c;
+	}
+
+	// Loading: its children, made at once; the fallback instead while what
+	// they read on their first load is pending (Graph.loadingBoundary), their
+	// nodes taken out meanwhile and put back when it lands
 	static function loading(w:helder.view.Flow.Waiting, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
 		var anchor = marker(parent, before, "loading");
-		var owner = helder.view.Reactive.owner;
-		var current:Array<HostNode> = [], content:Null<helder.view.Owner> = null, shown = false, done = false, tries = 0;
-		function clear() {
-			if (content != null) content.dispose();
-			content = null;
-			for (n in current)
-				detach(parent, n);
-			current = [];
-		}
-		function attempt() {
-			if (done) return;
-			var at = ++tries;
-			clear();
-			var waiting:Array<helder.view.Pending.Loadable> = [];
-			var o = new helder.view.Owner(owner);
-			// (after the first load: nothing to wait for, the content stays)
-			o.onPending = p -> if (!shown && !waiting.contains(p.source)) waiting.push(p.source);
-			content = o;
-			var saved = helder.view.Reactive.owner;
-			helder.view.Reactive.owner = o;
-			var made:Array<HostNode> = [];
-			try {
-				insertTo(w.children, parent, anchor, made);
-				helder.view.Reactive.owner = saved;
-			} catch (e:helder.view.Pending) {
-				// (read while it was made, not in a computation of its own)
-				helder.view.Reactive.owner = saved;
-				if (!waiting.contains(e.source)) waiting.push(e.source);
-			} catch (e:Dynamic) {
-				helder.view.Reactive.owner = saved;
-				o.dispose();
-				for (n in made)
-					detach(parent, n);
-				content = null;
-				// (an ErrorBoundary above takes it)
-				if (owner == null || !owner.handle(e)) throw e;
-				return;
+		var home = helder.view.graph.Graph.getOwner();
+		var content = captureAt(parent, anchor);
+		var fallback:Null<helder.view.Mounted.Shown<HostNode>> = null;
+		var shows = helder.view.graph.Graph.loadingBoundary(() -> {
+			boundaryContent(w.children, parent, content);
+			true;
+		}, () -> false);
+		helder.view.graph.Graph.renderEffect(() -> shows(), (on:Bool) -> {
+			if (on) {
+				show(content);
+				unmount(fallback, parent);
+				fallback = null;
+			} else {
+				hide(content);
+				if (fallback == null) fallback = fallbackIn(content, home, w.fallback, parent, anchor);
 			}
-			current = made;
-			if (waiting.length == 0) {
-				shown = true;
-				return;
-			}
-			// (not ready: the content dropped, the fallback until all it read is)
-			clear();
-			var f = new helder.view.Owner(owner);
-			content = f;
-			helder.view.Reactive.owner = f;
-			try current = insert(w.fallback, parent, anchor) catch (e:Dynamic) {
-				helder.view.Reactive.owner = saved;
-				throw e;
-			}
-			helder.view.Reactive.owner = saved;
-			var left = waiting.length;
-			for (l in waiting)
-				l.whenReady(() -> if (--left == 0 && at == tries) helder.view.Reactive.runWithOwner(owner, attempt));
-		}
-		attempt();
-		helder.view.Reactive.onCleanup(() -> {
-			done = true;
-			clear();
 		});
+		helder.view.graph.Graph.onCleanup(() -> unmount(fallback, parent));
+		return [anchor];
+	}
+
+	// Errored: its children, or the fallback for an error (Graph.errorBoundary)
+	static function errored(b:helder.view.Flow.Boundary, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
+		var anchor = marker(parent, before, "boundary");
+		var home = helder.view.graph.Graph.getOwner();
+		var content = captureAt(parent, anchor);
+		var fallback:Null<helder.view.Mounted.Shown<HostNode>> = null;
+		var shows = helder.view.graph.Graph.errorBoundary(() -> {
+			boundaryContent(b.children, parent, content);
+			(null : Dynamic);
+		}, (error, reset) -> (new helder.view.Mounted.FallbackOf(b.fallback(error(), reset)) : Dynamic));
+		helder.view.graph.Graph.renderEffect(() -> shows(), (v:Dynamic) -> {
+			unmount(fallback, parent);
+			fallback = null;
+			if (Std.isOfType(v, helder.view.Mounted.FallbackOf)) {
+				hide(content);
+				fallback = fallbackIn(content, home, (v : helder.view.Mounted.FallbackOf).content, parent, anchor);
+			} else show(content);
+		});
+		helder.view.graph.Graph.onCleanup(() -> unmount(fallback, parent));
 		return [anchor];
 	}
 
 	// (this runtime's renderer: its id, Render.idOf, and class path)
 	static inline var INDEX = 0;
 	static inline var NAME = "";
+	static inline var MARK_ENDS = false;
 }

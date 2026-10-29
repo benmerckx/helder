@@ -18,6 +18,8 @@ typedef RendererInfo = {
 	elements:Null<Array<String>>,
 	// its identity at run time (Render.idOf)
 	id:Int,
+	// whether a region that ends its parent has a marker too (a static function markEnds: the page's renderers)
+	markEnds:Bool,
 	// its runtime's class name
 	runtime:String
 };
@@ -77,6 +79,7 @@ class HostMacro {
 						case _: Context.fatalError("helder.view: @:elements lists strings", e.pos);
 					}],
 					id: id(full),
+					markEnds: have.exists("markEnds"),
 					runtime: runtimeName(c.name, full)
 				};
 				infos.set(path, i);
@@ -206,7 +209,7 @@ class HostMacro {
 
 	// a field with Host, HostNode, ViewRuntime, INDEX and NAME those of renderer i
 	static function subst(f:Field, i:RendererInfo):Field
-		return new Subst(i.node, i.path.split("."), i.runtime, i.id, i.path).field(f);
+		return new Subst(i.node, i.path.split("."), i.runtime, i.id, i.path, i.markEnds).field(f);
 
 	// --- after typing: the agnostic literals' code for each reached renderer
 
@@ -353,13 +356,15 @@ private class Subst {
 	final self:String;
 	final id:Int;
 	final name:String;
+	final markEnds:Bool;
 
-	public function new(node, host, self, id, name) {
+	public function new(node, host, self, id, name, markEnds) {
 		this.node = node;
 		this.host = host;
 		this.self = self;
 		this.id = id;
 		this.name = name;
+		this.markEnds = markEnds;
 	}
 
 	function ct(t:Null<ComplexType>):Null<ComplexType>
@@ -393,6 +398,7 @@ private class Subst {
 			case EConst(CIdent("ViewRuntime")): macro @:pos(e.pos) $i{self};
 			case EConst(CIdent("INDEX")): macro @:pos(e.pos) $v{id};
 			case EConst(CIdent("NAME")): macro @:pos(e.pos) $v{name};
+			case EConst(CIdent("MARK_ENDS")): macro @:pos(e.pos) $v{markEnds};
 			case EVars(vs): {expr: EVars([for (v in vs) {name: v.name, type: ct(v.type), expr: v.expr == null ? null : ex(v.expr), isFinal: v.isFinal}]), pos: e.pos};
 			case ENew(t, args): {expr: ENew({pack: t.pack, name: t.name, sub: t.sub, params: t.params}, [for (a in args) ex(a)]), pos: e.pos};
 			case ECast(x, t): {expr: ECast(ex(x), ct(t)), pos: e.pos};
