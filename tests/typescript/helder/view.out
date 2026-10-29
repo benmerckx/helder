@@ -1,0 +1,6 @@
+count is 1
+<root><div class="box"><p>1 doubled 2</p><p>item a</p><p>item b</p><!--for--><p>small</p><!--anchor--><button>+</button></div></root>
+count is 2
+count is 3
+count is 30
+<root><div class="box"><p>30 doubled 60</p><p>item a</p><p>item b</p><p>item c</p><!--for--><p>big</p><!--anchor--><button>+</button></div></root> 60 3

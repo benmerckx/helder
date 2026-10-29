@@ -127,6 +127,40 @@ where it is not what the type says, the program stops with a TypeError
 JavaScript would not. A typed class's field cannot be deleted, made
 read-only or turned into an accessor (TSHX100 as well).
 
+### helder's API and TSX (`glue/`)
+
+A program calls helder's Haxe API through declarations: `helder/view` and
+`helder/ui` (`index.d.ts` beside the packages, exported by package.json)
+declare its classes, each the Haxe class of its name in the file's package
+(or the one `declare const __haxe: {Name: "pack.Class"}` names), and its
+functions and components as `const f: typeof Class.f`, that class's
+static. TSX is helder.view's markup.
+
+```tsx
+import { signal } from "helder/view";
+import { UiWindow, Surface } from "helder/ui";
+
+const count = signal(0);
+UiWindow.run(<Surface title="Counter">
+	<view:button onPress={() => count.value++}>{count}</view:button>
+</Surface>);
+```
+
+Before Haxe types the build (hxmc's beforeTypingHook), the compiler checks
+the program and writes glue (`Glue.hx`): a Haxe module, the build's main,
+with a function for each call into the API, `new` of one of its classes,
+member of one of its values (read; written: a second one), TSX literal
+(the markup itself, its holes the function's parameters; a literal passed
+straight to a call is written into it, so the markup macro sees where it
+goes) and TypeScript component a literal names (a top-level function, given
+to the glue when the program starts). Haxe's typer and the markup macro
+compile it with the API's own types: `Interop.fromJs` converts each value
+by the type expected where it goes (numbers, functions with their
+signatures, arrays, structures, abstracts by their `@:from` casts, classes
+checked), `toHaxe` untyped (TSX holes: arrays, functions and plain objects
+made Haxe's) and `toJs` back; helder's objects pass as they are, opaque to
+the program, which reaches their members through the glue.
+
 ### Built-ins
 
 The runtime's optional built-ins (RegExp, normalize's Unicode tables,
@@ -148,7 +182,9 @@ program of `cases/` and `modules/` compiled by tsc and run on node (24), and
 by helder-ts natively and as wasm32-wasi, the outputs compared; `standards/`
 check themselves where node still differs from the specification;
 `reject/` must fail with a diagnostic at the line it names; `diverge/` must
-compile and stop with TSHX100 at the line it names.
+compile and stop with TSHX100 at the line it names. `helder/`
+programs call helder's API and render TSX headless (tests/view's
+TestRenderer), their output checked against `<name>.out`.
 
 `node tests/typescript/bench.mjs [names]` times the programs of `bench/`
 compiled by helder-ts against node (median of 5 runs each).

@@ -76,6 +76,15 @@ for(const file of fs.readdirSync(`${T}/reject`).filter(f=>f.endsWith('.ts')).sor
     assert.equal(fs.existsSync(out),false,`${file} must not emit an executable`);
     console.log(`PASS diagnostic ${file}`);
 }
+// Programs calling helder's Haxe API (and TSX), rendering headless with
+// tests/view's TestRenderer: their output checked against <name>.out
+for(const file of fs.readdirSync(`${T}/helder`).filter(f=>/\.tsx?$/.test(f)&&!f.endsWith('.d.ts')).sort())for(const target of targets) {
+    const stem=file.replace(/\.tsx?$/,''),out=`${dir}/helder-${stem}${target!=='linux-x86_64'?`-${target}.wasm`:''}`;
+    ok(run(compiler,[`${T}/helder/${file}`,'--cp','tests/view','--roundtrip-ir','--target',target,'-o',out]),`${file} compile ${target}`);
+    const r=target==='linux-x86_64'?run(out,[]):run(process.execPath,[`${T}/run-wasi.cjs`,out]);ok(r,`${file} ${target}`);
+    assert.equal(r.stdout,fs.readFileSync(`${T}/helder/${stem}.out`,'utf8'),`${file} stdout ${target}`);
+    console.log(`PASS helder ${file} ${target}`);
+}
 // Programs whose values their types do not describe: compiled, then stopped
 // where such a value enters a typed slot (TSHX100, at the line of expect)
 for(const file of fs.readdirSync(`${T}/diverge`).filter(f=>f.endsWith('.ts')).sort())for(const target of targets) {

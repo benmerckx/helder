@@ -87,6 +87,17 @@ class TestNode {
 		this.tag = tag;
 	}
 
+	// (for programs that render into a tree of their own: helder.typescript's tests)
+	public static function root(tag:String):TestNode
+		return new TestNode(Element, tag);
+
+	// calls the listener for name of the first element with tag here or below
+	public function fire(tag:String, name:String) {
+		var el = find(tag);
+		if (el == null || !el.listeners.exists(name)) throw 'no $name listener on <$tag>';
+		el.listeners.get(name)(null);
+	}
+
 	// the first element with tag here or below
 	public function find(t:String):Null<TestNode> {
 		if (kind == Element && tag == t) return this;
