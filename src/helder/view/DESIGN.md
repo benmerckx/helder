@@ -389,23 +389,24 @@ function Slot(props:{item:Read<Item>}) return <box padding={4}>{props.item().nam
 function Inventory(props:{items:Read<Array<Item>>}) return <For each={props.items}>{i -> <Slot item={i}/>}</For>;
 ```
 
-The CLI adds the markup build macro to the project's own packages with
-`Compiler.addGlobalMetadata(pack, "@:build(helder.view.MarkupMacro.build())")`
-from its `--macro` (it passes one already). Checked with Haxe
-5.0.0-preview.1: a global `@:build` reaches module-level functions as
-well as classes, so a component is a plain function in a module.
-`implements Markup` keeps working for code built without the CLI.
+No macro: helder's compiler (hxmc's, with helder's frontends linked:
+one binary, 7) compiles a markup literal where its typer meets it, in
+any function of any module. Haxe parses `<view/>` as `@:markup "<...>"`
+and refuses to type it unless something rewrites it; hxmc's typer
+consults a hook there (`markupHook`, requested from hxmc; its
+`typeMeta` raises "Markup literals must be processed by a macro"
+today), which hands the literal to the planner (7.2), compiled
+natively, and types what it returns. Haxe programs are built with
+helder's compiler for that, as TypeScript ones are; plain `haxe` does
+not build them (type-checking goes through helder's compiler, the
+editor's too).
 
-Limits and costs to measure:
-
-- only the project's class paths, never the std or libraries;
-- the macro returns at once for a class without markup literals (a
-  scan of its expressions), so its cost is a walk of the project's code
-  per build;
-- whether a global `@:build` keeps the compile server's module cache
-  reusing modules (the asset work found some `--macro` callbacks that
-  broke it): a warm build of examples/showroom must stay at its
-  current time.
+Measured and rejected: the markup build macro added to the project's
+packages from the CLI's `--macro` (`Compiler.addGlobalMetadata`). It
+works (checked: module-level functions too) but no warm build reuses
+the module cache any more: examples/todo 0.85 s to 3.5 s,
+examples/showroom 0.46 s to 1.7 s. `implements Markup` (the build
+macro on that class only) stays until the compiler's step replaces it.
 
 ## 4. What changes for existing code
 
