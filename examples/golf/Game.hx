@@ -748,7 +748,7 @@ class Game {
 			} else turning = false;
 		}
 		// (holed: a slow turn round the cup)
-		if (sinkTime >= 0 && touched > HANDS_OFF) o.yaw += dt * 0.35;
+		if (sinkTime >= 0 && sinkTime < 3 && touched > HANDS_OFF) o.yaw += dt * 0.3 * (1 - sinkTime / 3);
 		if (turning && touched > HANDS_OFF && !shot.active) {
 			var d = wrap(wantYaw - o.yaw);
 			var rate = sim.resting ? TURN * 1.3 : TURN * Math.min(1, speed / 3);

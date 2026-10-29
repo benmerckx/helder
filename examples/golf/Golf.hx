@@ -111,10 +111,10 @@ class Golf implements Markup {
 					<text tag="toast" slot="pop" transition="opacity 0.2s ease-out, transform 0.25s ease-out" font-size={18} font-weight={700} color="#ffffff"
 						padding="10 18" radius={20} background="#2b2d42b8">{g.toast()}</text>
 				</Show>
-				<Show when={g.screen() == "done"}>
-					<Card game={g}/>
-				</Show>
 			</view>
+			<Show when={g.screen() == "done"}>
+				<view align-items="center"><Card game={g}/></view>
+			</Show>
 			<Show when={g.screen() == "play"}>
 				<view align-items="center" row-gap={8}>
 					<Show when={g.aiming()}>
