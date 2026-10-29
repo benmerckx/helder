@@ -12,6 +12,9 @@ package helder.view.graph;
 class Tx {
 	var into:Null<Tx> = null;
 	var committed = false;
+	// (pointed at from elsewhere: a node's pending flight or wait, a merge,
+	// a park; such a one is never reused once committed)
+	var shared = false;
 	// the nodes it staged
 	final nodes:Array<Node<Dynamic>> = [];
 	// the effects run for it: their applies at its commit
@@ -23,6 +26,15 @@ class Tx {
 	final readers:Array<Node<Dynamic>> = [];
 
 	function new() {}
+
+	// (committed, nothing pointing at it: emptied for the next flush)
+	function reset() {
+		committed = false;
+		nodes.resize(0);
+		effects.resize(0);
+		blocked.resize(0);
+		readers.resize(0);
+	}
 
 	function find():Tx {
 		var t = this;
@@ -36,6 +48,8 @@ class Tx {
 		a = a.find();
 		b = b.find();
 		if (a == b) return a;
+		a.shared = true;
+		b.shared = true;
 		b.into = a;
 		for (n in b.nodes)
 			a.nodes.push(n);
@@ -49,8 +63,16 @@ class Tx {
 		return a;
 	}
 
-	function block(n:Node<Dynamic>)
+	// (it, now pointed at by a node's pending flight)
+	inline function held():Tx {
+		shared = true;
+		return this;
+	}
+
+	function block(n:Node<Dynamic>) {
+		shared = true;
 		if (!blocked.contains(n)) blocked.push(n);
+	}
 
 	function unblock(n:Node<Dynamic>)
 		blocked.remove(n);

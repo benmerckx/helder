@@ -222,7 +222,7 @@ class Node<T> extends Owner {
 		// a flight holds on it))
 		if (p != null && p.committed && probe == PROBE_NONE && runner != null) {
 			var w = runner.world != null ? runner.world.find() : Scheduler.world != null ? Scheduler.world.find() : null;
-			if (w != null) pendingIn = p = w;
+			if (w != null) pendingIn = p = w.held();
 		}
 		if (probe != PROBE_NONE) return probed(t, p);
 		var ahead = t != null ? t : p;
@@ -378,7 +378,7 @@ class Node<T> extends Owner {
 		answer = null;
 		// (a source pending again: the answer is to a question no longer asked; it waits with that source)
 		if (sources != null) for (src in sources) if (src.pendingIn != null) {
-			pendingIn = src.pendingIn;
+			pendingIn = src.pendingIn.held();
 			return;
 		}
 		var t = stagedIn != null ? stagedIn.find() : null;
@@ -406,7 +406,7 @@ class Node<T> extends Owner {
 			switch o.kind {
 				case COMPUTED:
 					if (o.pendingIn == null) {
-						o.pendingIn = tx;
+						o.pendingIn = tx.held();
 						o.propagatePending(tx);
 					}
 				case RENDER:
@@ -541,7 +541,7 @@ class Node<T> extends Owner {
 		switch kind {
 			case COMPUTED:
 				// (pending in turn: its readers wait with it)
-				pendingIn = tx;
+				pendingIn = tx != null ? tx.held() : null;
 				if (tx != null) propagatePending(tx);
 			case RENDER:
 				// (an armed boundary above catches it, else it holds the transaction)
@@ -573,8 +573,8 @@ class Node<T> extends Owner {
 
 	// (async: pending in the transaction that asked, until the answer lands)
 	function ask(a:Awaitable<Dynamic>, w:Null<Tx>) {
-		var tx = w != null ? w : new Tx();
-		pendingIn = tx;
+		var tx = w != null ? w : Scheduler.newTx();
+		pendingIn = tx.held();
 		awaiting = a;
 		var id = asked;
 		propagatePending(tx);
@@ -729,7 +729,17 @@ class Node<T> extends Owner {
 		}
 		var prev = applied;
 		applied = value;
-		var c = within(null, null, () -> apply(value, prev));
+		// (with no owner, untracked: as within, with no closure made)
+		var savedOwner = Owner.current, savedObserver = observer;
+		Owner.current = null;
+		observer = null;
+		var c = try apply(value, prev) catch (e:Dynamic) {
+			Owner.current = savedOwner;
+			observer = savedObserver;
+			throw e;
+		}
+		Owner.current = savedOwner;
+		observer = savedObserver;
 		if (c != null && !Reflect.isFunction(c))
 			throw new GraphError("effect callback returned an invalid cleanup value: return a cleanup function or nothing");
 		applyCleanup = c;

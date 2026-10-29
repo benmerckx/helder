@@ -15,13 +15,22 @@ class Scheduler {
 	// how a flush is asked for after a write (the loop's: at the end of its task)
 	public static var later:Null<(Void->Void)->Void> = null;
 
-	static final writes:Array<Node<Dynamic>> = [];
-	static final landings:Array<Node<Dynamic>> = [];
+	// (each queue's spare: the queue taken by swapping them, nothing copied)
+	static var writes:Array<Node<Dynamic>> = [];
+	static var writesTaken:Array<Node<Dynamic>> = [];
+	static var landings:Array<Node<Dynamic>> = [];
+	static var landingsTaken:Array<Node<Dynamic>> = [];
 	static final memos:Array<Node<Dynamic>> = [];
 	static final renders:Array<Node<Dynamic>> = [];
 	static final effects:Array<Node<Dynamic>> = [];
 	// (applies on the screen: effects whose run joined no transaction)
-	static final applies:Array<Node<Dynamic>> = [];
+	static var applies:Array<Node<Dynamic>> = [];
+	static var appliesTaken:Array<Node<Dynamic>> = [];
+	// (the transactions done with, nothing pointing at them: reused)
+	static final spareTx:Array<Tx> = [];
+	// (the applies being run, a list per nesting)
+	static final batches:Array<Array<Node<Dynamic>>> = [];
+	static var batchDepth = 0;
 	// (transactions parked: waiting on async something they render reads)
 	static final held:Array<Tx> = [];
 	// the transaction whose computations run now (null: the screen)
@@ -35,58 +44,80 @@ class Scheduler {
 	// (commits made: an unowned memo's freshness)
 	static var ticks = 0;
 
-	public static function flush() {
-		if (running) return;
+	public static function flush()
+		if (!running) run();
+
+	static function run() {
 		running = true;
 		asked = false;
-		try {
-			while (writes.length > 0 || landings.length > 0 || memos.length > 0 || renders.length > 0 || effects.length > 0
-				|| applies.length > 0) {
-				if (landings.length > 0) {
-					var ls = landings.copy();
-					landings.resize(0);
-					for (n in ls) {
-						var tx = n.pendingIn != null ? n.pendingIn.find() : null;
-						if (tx == null || tx.committed) tx = new Tx();
-						n.pendingIn = null;
-						world = tx;
-						n.land();
-						// (what waits in it runs again in its world: a mount over what it staged can show now)
-						for (b in tx.find().blocked.copy())
-							if (!b.disposed) b.mark(Node.DIRTY);
-						drain();
-						settle();
-					}
-				}
-				if (writes.length > 0) {
-					ticks++;
-					world = new Tx();
-					var ws = writes.copy();
-					writes.resize(0);
-					for (n in ws)
-						n.stageWrite(world);
+		// (the loop in a function of its own: locals inside a try are boxed)
+		try loop() catch (e:Dynamic) resetThrowing(e);
+		running = false;
+		world = null;
+		if (hasFailure) rethrow();
+	}
+
+	// (a throw out of the flush: the queues emptied first)
+	static function resetThrowing(e:Dynamic) {
+		reset();
+		throw e;
+	}
+
+	// (the first error a flush met, after it ran what it could)
+	static function rethrow() {
+		var e = failure;
+		reset();
+		throw e;
+	}
+
+	static function loop() {
+		while (writes.length > 0 || landings.length > 0 || memos.length > 0 || renders.length > 0 || effects.length > 0
+			|| applies.length > 0) {
+			if (landings.length > 0) {
+				var ls = landings;
+				landings = landingsTaken;
+				landingsTaken = ls;
+				for (n in ls) {
+					var tx = n.pendingIn != null ? n.pendingIn.find() : null;
+					if (tx == null || tx.committed) tx = newTx();
+					n.pendingIn = null;
+					world = tx;
+					n.land();
+					// (what waits in it runs again in its world: a mount over what it staged can show now)
+					var bs = tx.find().blocked;
+					for (i in 0...bs.length)
+						if (i < bs.length && !bs[i].disposed) bs[i].mark(Node.DIRTY);
 					drain();
 					settle();
 				}
-				// (what is stale outside a transaction: verdict readers after a commit)
-				drain();
-				if (applies.length > 0) {
-					// (those a commit has not applied since)
-					var as = [for (n in applies) if (n.toApply) n];
-					applies.resize(0);
-					runApplies(as);
-				}
+				ls.resize(0);
 			}
-		} catch (e:Dynamic) {
-			reset();
-			throw e;
-		}
-		running = false;
-		world = null;
-		if (hasFailure) {
-			var e = failure;
-			reset();
-			throw e;
+			if (writes.length > 0) {
+				ticks++;
+				world = newTx();
+				var ws = writes;
+				writes = writesTaken;
+				writesTaken = ws;
+				for (n in ws)
+					n.stageWrite(world);
+				ws.resize(0);
+				drain();
+				settle();
+			}
+			// (what is stale outside a transaction: verdict readers after a commit)
+			drain();
+			if (applies.length > 0) {
+				// (those a commit has not applied since)
+				var as = applies;
+				applies = appliesTaken;
+				appliesTaken = as;
+				var batch = takeBatch();
+				for (n in as)
+					if (n.toApply) batch.push(n);
+				as.resize(0);
+				runApplies(batch);
+				giveBatch(batch);
+			}
 		}
 	}
 
@@ -107,17 +138,57 @@ class Scheduler {
 		runQueue(effects);
 	}
 
-	// (parents first: a parent running again disposes its old children before they run)
+	// (parents first: a parent running again disposes its old children before
+	// they run; each batch the queue's nodes so far, sorted in place by depth
+	// (stable: those of one depth in the order they were queued), then run,
+	// those it queues the next batch)
 	static function runQueue(q:Array<Node<Dynamic>>) {
-		while (q.length > 0) {
-			var batch = q.copy();
-			q.resize(0);
-			haxe.ds.ArraySort.sort(batch, (a, b) -> a.depth - b.depth);
-			for (n in batch) {
-				n.queued = false;
-				n.updateIfNecessary();
+		var start = 0;
+		try {
+			while (start < q.length) {
+				var end = q.length;
+				sortByDepth(q, start, end);
+				for (i in start...end) {
+					var n = q[i];
+					n.queued = false;
+					n.updateIfNecessary();
+				}
+				start = end;
 			}
+		} catch (e:Dynamic) {
+			q.resize(0);
+			throw e;
 		}
+		q.resize(0);
+	}
+
+	// (an insertion sort: a queue is mostly in order already)
+	static function sortByDepth(q:Array<Node<Dynamic>>, start:Int, end:Int) {
+		for (i in start + 1...end) {
+			var n = q[i];
+			if (q[i - 1].depth <= n.depth) continue;
+			var j = i;
+			while (j > start && q[j - 1].depth > n.depth) {
+				q[j] = q[j - 1];
+				j--;
+			}
+			q[j] = n;
+		}
+	}
+
+	// (a transaction: a spare one, else new)
+	static function newTx():Tx
+		return spareTx.length > 0 ? spareTx.pop() : new Tx();
+
+	// (a list for applies to run: reused, one per nesting)
+	static function takeBatch():Array<Node<Dynamic>> {
+		if (batchDepth == batches.length) batches.push([]);
+		return batches[batchDepth++];
+	}
+
+	static function giveBatch(b:Array<Node<Dynamic>>) {
+		b.resize(0);
+		batchDepth--;
 	}
 
 	// (render effects' applies before the others')
@@ -153,6 +224,11 @@ class Scheduler {
 		// (its frame readers, served the committed values, run again on the screen)
 		for (n in t.readers)
 			if (!n.disposed && !t.effects.contains(n)) n.mark(Node.DIRTY);
+		// (one nothing else points at: reused)
+		if (!t.shared && t.into == null) {
+			t.reset();
+			spareTx.push(t);
+		}
 	}
 
 	// the world joins other (a computation read what other stages): one transaction
@@ -214,6 +290,9 @@ class Scheduler {
 	static function reset() {
 		running = false;
 		world = null;
+		batchDepth = 0;
+		for (b in batches)
+			b.resize(0);
 		for (q in [writes, landings, memos, renders, effects, applies]) {
 			for (n in q) {
 				n.queued = false;
