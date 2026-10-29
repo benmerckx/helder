@@ -141,6 +141,40 @@ Writes are **deferred and committed together**, as Solid 2:
 This replaces `batch` (removed, as in Solid 2) and the probe hack in
 `isPending`.
 
+### Holds: Solid 2's fundamentals, helder's mechanism
+
+The rules are Solid 2's async fundamentals (its
+`packages/signals/docs/RULES-FUNDAMENTALS.md`, F-1 to F-12), which
+its maintainer keeps as the immutable base: the screen is whole (F-1);
+a change that needs async to be shown is held, the screen keeping what
+it showed (F-2); only render effects are readers, and one holds only
+while it is the display (F-3); an armed `<Loading>` (one that has not
+shown content, or re-armed by `on`) catches what is pending under it
+(F-4), a disarmed one forwards (F-5); `latest` and `isPending` read
+ahead of a hold and never hold it (F-6), nothing else reveals ahead
+(F-7); `isPending` is about a new question, a first load is loading,
+not pending (F-9); a write is visible at its flush, to every channel
+(F-10); an error sends a boundary to its fallback, pending is not an
+error (F-12). F-11 (optimistic values) comes with actions, later.
+
+The mechanism is helder's: a flush is a **transaction** over the
+nodes its writes reach. Each node keeps its committed value (the
+screen's, and what untracked reads see) and, while a transaction holds
+it, a staged one beside it; computations run for a transaction read
+its staged values. A render effect whose compute reads a value not
+ready, with no armed boundary above it, parks the transaction: its
+stagings stay staged, no apply runs. A computation that reads a node
+another parked transaction holds joins it (the two land as one, F-2);
+transactions that touch disjoint nodes stay independent. When the
+async a transaction waits on answers (a value or an error), its
+readers run again in its world, and once nothing it renders waits it
+commits: every staging becomes the committed value and the applies run
+in one frame (render effects first). An async computation returns an
+`Awaitable<T>` (helder.async's tasks, helder.asset's loads,
+TypeScript's promises): its reads are tracked until it returns, its
+answer lands into the transaction that asked, a superseded one is
+cancelled and its answer dropped.
+
 ### Effects in two halves
 
 ```haxe
