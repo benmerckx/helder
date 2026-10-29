@@ -31,7 +31,12 @@ pos(new Vec3(1, 1, 0));   // the node moves at the next flush: no reconciliation
   (`SceneView`). It draws into a texture of its size (an offscreen
   `helder.scene.render.Renderer` on the window's device, recorded before
   ui's pass), again when a node of its markup changes, or every frame
-  while `animate` is set.
+  while `animate` is set. Multisampled by default, 4 samples a pixel
+  resolved into the texture ui draws (`antialias={false}`: one);
+  `setup={r -> ...}` gets its renderer once made (its clear colour, a
+  transparent one showing ui's background under the world, the ambient,
+  `Shadows`), `ref` the `SceneBox` (its size, `safeArea()`, its gestures:
+  examples/golf's shot is a recogniser of its own there).
 - **Pointer events across the boundary**: ui's hit testing finds the box
   (ui's nodes over it first: a HUD's buttons; `pointerEvents="none"` lets
   a container through); `onPointerDown`, `onPointerUp`, `onPointerMove`,
