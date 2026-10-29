@@ -74,6 +74,8 @@ class TodoTest {
 		var list = ui.root.find("list");
 		var rows = [for (c in list.children) if (c.style.display != None) c].length;
 		check("a filter hides the done items", rows == 2, '$rows');
+		var active = ui.root.find("filter-active"), all = ui.root.find("filter-all");
+		check("the chosen filter's button restyles", active.variant == null && all.variant == "outline", '${active.variant} ${all.variant}');
 		click("filter-all");
 		Sys.println('TodoTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		// the frame (its transitions finished)

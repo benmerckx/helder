@@ -68,8 +68,8 @@ class Todo implements Markup {
 			case _: true;
 		});
 
-	static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:String, ?size:String}):View
-		return <view:button tag={props.tag ?? "button"} slot="button" variant={props.variant} size={props.size} role="button" focusable
+	static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:Read<Null<String>>, ?size:String}):View
+		return <view:button tag={props.tag ?? "button"} slot="button" variant={props.variant != null ? props.variant() : null} size={props.size} role="button" focusable
 			onPress={props.onClick}>{props.label}</view:button>;
 
 	// (the label pressed toggles it too; the box named by it, the text hidden from assistive technology)
