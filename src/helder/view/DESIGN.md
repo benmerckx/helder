@@ -175,6 +175,38 @@ TypeScript's promises): its reads are tracked until it returns, its
 answer lands into the transaction that asked, a superseded one is
 cancelled and its answer dropped.
 
+`Awaitable<T>` is the core's whole contract with async work (an answer
+later, a cancel), so the core needs no loop and runs wherever
+helder.view does. Each language writes it its own way:
+
+```haxe
+interface Awaitable<T> {
+	function onAnswer(value:T->Void, error:Dynamic->Void):Void; // once
+	function cancel():Void; // superseded, or its owner disposed
+}
+
+var icon = memo(() -> Asset.image('icons/${name()}.png')); // an Awaitable
+var user = memo(@:coroutine () -> {
+	var u = api.fetchUser(id()); // read before the first suspension: tracked
+	Async.delay(0.2);            // after one: not tracked (as Solid)
+	u;
+});
+```
+
+```ts
+const user = memo(async () => (await fetch(`/users/${id()}`)).json());
+```
+
+A coroutine is the Haxe form: `Compute` takes a `Coroutine<Void->T>`,
+which the graph starts as a helder.async task **now**, inside the
+computation (not at the loop's next turn, as `Async.launch` does), so
+its reads up to the first suspension are tracked; its completion
+answers the memo, and `cancel` cancels the task and the tasks under it
+(checked on hxmc: the body runs to its first suspension inside the
+call, a cancelled task never resumes). So a superseded run stops its
+work, not only its result (Solid drops the result). A TypeScript
+Promise is an Awaitable made by the frontend's own async functions.
+
 ### Effects in two halves
 
 ```haxe
