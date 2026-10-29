@@ -1,6 +1,8 @@
 import helder.asset.Asset;
 import helder.async.Async;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 
 // A console program for the dev loop with assets (the cli lane natively,
 // the asset-web lane in Chromium): an image and a text, loaded by path
@@ -14,10 +16,8 @@ class Swatch {
 	static function main() {
 		var image = Asset.image("swatch.png"), note = Asset.bytes("note.txt");
 		var first:Null<helder.image.Image> = null, version = -1;
-		root(_ -> effect(() -> {
-			// (ready is tracked: the effect runs again once it is)
-			if (note.ready) Sys.println("note: " + StringTools.trim(note.value.toString()));
-		}));
+		// (the effect waits for the note: its compute reads it, pending until it is here)
+		root(_ -> effect(() -> note.read(), (b:haxe.io.Bytes) -> Sys.println("note: " + StringTools.trim(b.toString()))));
 		Async.main(_ -> while (alive()) {
 			var img = image.peek();
 			if (img != null && img.version != version) {

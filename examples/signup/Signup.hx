@@ -7,7 +7,9 @@ import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 
 // A card of controls made of views (each with its role, focusable, pressed
 // by a click, Enter or Space), their look Signup.sheet's rules: by slot,
@@ -32,13 +34,13 @@ class Signup implements Markup {
 					<text slot="badge" font-size={12}>Beta</text>
 				</view>
 				<view row-gap={12}>
-					<field slot="input" value={email} placeholder="m@example.com" label="Email" onInput={e -> email.value = e.text}/>
+					<field slot="input" value={email} placeholder="m@example.com" label="Email" onInput={e -> email(e.text)}/>
 					<Checkbox checked={terms} label="Accept terms"/>
 					<Switch checked={dark} label="Dark mode"/>
 				</view>
 				<view direction="row" column-gap={8}>
 					<Button variant="outline" label="Cancel"/>
-					<Button label="Sign up" disabled={() -> !terms.value}/>
+					<Button label="Sign up" disabled={() -> !terms()}/>
 				</view>
 			</view>
 		</view>;
@@ -89,8 +91,8 @@ class Signup implements Markup {
 
 	// (a box and its label in a row: either pressed toggles it; the box named by the label)
 	static function Checkbox(props:{checked:Signal<Bool>, label:String}):View {
-		var toggle = () -> props.checked.value = !props.checked.peek();
-		var state = () -> props.checked.value ? "checked" : "unchecked";
+		var toggle = () -> props.checked(c -> !c);
+		var state = () -> props.checked() ? "checked" : "unchecked";
 		return <view direction="row" align-items="center" column-gap={8}>
 			<view:button slot="checkbox" role="checkbox" label={props.label} checked={props.checked} data-state={state} focusable onPress={_ -> toggle()}>
 				<Show when={props.checked}><icon name="check" width={12} height={12}/></Show>
@@ -101,8 +103,8 @@ class Signup implements Markup {
 
 	// (a track and its thumb, at the end while it is on)
 	static function Switch(props:{checked:Signal<Bool>, label:String}):View {
-		var toggle = () -> props.checked.value = !props.checked.peek();
-		var state = () -> props.checked.value ? "checked" : "unchecked";
+		var toggle = () -> props.checked(c -> !c);
+		var state = () -> props.checked() ? "checked" : "unchecked";
 		return <view direction="row" align-items="center" column-gap={8}>
 			<view:button slot="switch" role="switch" label={props.label} checked={props.checked} data-state={state} focusable onPress={_ -> toggle()}>
 				<view slot="switch-thumb" data-state={state}/>

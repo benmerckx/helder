@@ -68,7 +68,7 @@ class SceneTags {
 	// props are OrbitControls' (a target bound to a signal follows it)
 	public static function OrbitControls(props:{
 		?camera:Camera,
-		?target:helder.view.graph.Read<Vec3>,
+		?target:Dynamic,
 		?minDistance:Float,
 		?maxDistance:Float,
 		?minPitch:Float,
@@ -99,7 +99,8 @@ class SceneTags {
 		if (props.enablePan != null) o.enablePan = props.enablePan;
 		if (props.enableTwist != null) o.enableTwist = props.enableTwist;
 		if (props.target != null) {
-			if (Render.isReactive(props.target)) Graph.renderEffect(() -> Render.read(props.target), t -> {
+			// (its value Dynamic: hxmc passes no function of a struct (Vec3) as one of another type)
+			if (Render.isReactive(props.target)) Graph.renderEffect(() -> (Render.read(props.target) : Dynamic), (t:Dynamic) -> {
 				o.target = t;
 				o.look();
 			}) else {

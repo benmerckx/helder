@@ -1,6 +1,8 @@
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 import helder.web.*;
 
 // The demo page's islands, in code both builds compile: the page's
@@ -12,17 +14,18 @@ class DemoIslands implements Markup {
 		var count = signal(props.start);
 		var items = signal(props.items);
 		var name = signal("");
-		return <section class="counter" data-count={count} style={() -> {color: count.value % 2 == 0 ? "green" : "purple"}}>
+		return <section class="counter" data-count={count} style={() -> {color: count() % 2 == 0 ? "green" : "purple"}}>
 			<p>Count: <b class="count">{count}</b> (started at {props.start})</p>
 			<button class="inc" onClick={() -> {
-				count.value++;
-				items.value = items.value.concat(["item " + count.value]);
+				var next = count() + 1;
+				count(next);
+				items(items().concat(["item " + next]));
 			}}>+1</button>
-			<input class="name" value={name} onInput={(e:Dynamic) -> name.value = e.target.value}/>
-			<p class="hello">Hello{() -> name.value == "" ? "" : ", " + name.value}!</p>
-			<ul><For each={items} render={(i:String) -> <li>{i}</li>}/></ul>
-			<Show when={() -> count.value > props.start} fallback={<i class="untouched">untouched</i>}><i class="touched">touched</i></Show>
-			<svg width="20" height="20"><circle cx="10" cy="10" r={() -> 4 + count.value % 6}/></svg>
+			<input class="name" value={name} onInput={(e:Dynamic) -> name(e.target.value)}/>
+			<p class="hello">Hello{name() == "" ? "" : ", " + name()}!</p>
+			<ul><For each={items}>{i -> <li>{i}</li>}</For></ul>
+			<Show when={count() > props.start} fallback={<i class="untouched">untouched</i>}><i class="touched">touched</i></Show>
+			<svg width="20" height="20"><circle cx="10" cy="10" r={4 + count() % 6}/></svg>
 		</section>;
 	}
 
@@ -42,7 +45,7 @@ class DemoIslands implements Markup {
 	// JavaScript calling WebAssembly: lab.wasm's LabExports, bytes in bulk
 	static function LabView(props:{wasm:String}):View {
 		var out = signal("loading " + props.wasm);
-		onMount(() -> {
+		onSettled(() -> {
 			#if js
 			WasmModule.load(props.wasm, {imports: ["web/imports.mjs"]}).then(m -> {
 				LabExports.module = m;
@@ -53,14 +56,14 @@ class DemoIslands implements Markup {
 				var ok = inv.length == bytes.length;
 				for (i in 0...bytes.length)
 					if (inv.get(i) != 255 - (i & 255)) ok = false;
-				out.value = [
+				out([
 					"sum " + LabExports.sum(2, 3),
 					"invert " + (ok ? "ok" : "wrong") + " " + inv.length,
 					"greet " + LabExports.greet("page"),
 					"half " + LabExports.half(5),
 					"even " + LabExports.even(4) + " " + LabExports.even(3)
-				].join("; ");
-			}, e -> out.value = "failed: " + e);
+				].join("; "));
+			}, e -> out("failed: " + e));
 			#end
 		});
 		return <p class="lab">{out}</p>;

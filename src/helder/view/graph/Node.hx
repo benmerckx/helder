@@ -292,10 +292,8 @@ class Node<T> extends Owner implements Read.Reader<T> {
 	}
 
 	// f given the latest value written (pending, else staged, else committed)
-	// (a value of no static type, an event's field, chooses this overload: a
-	// signal never holds a function, so a value that is not one is written)
 	public function update(f:T->T)
-		if (Reflect.isFunction(f)) write(f(latest())) else write(cast f);
+		write(f(latest()));
 
 	inline function latest():Null<T>
 		return hasPending ? pendingValue : stagedIn != null ? staged : value;
@@ -755,7 +753,12 @@ class Node<T> extends Owner implements Read.Reader<T> {
 		var savedOwner = Owner.current, savedObserver = observer;
 		Owner.current = null;
 		observer = null;
+		#if hxmc.dev
+		// (hxmc dev: in its compute's scope, what it makes keyed as there: helder.view.Refresh)
+		var c = try (hotPath == null ? apply(value, prev) : helder.dev.Hot.at(hotPath, () -> apply(value, prev))) catch (e:Dynamic) {
+		#else
 		var c = try apply(value, prev) catch (e:Dynamic) {
+		#end
 			Owner.current = savedOwner;
 			observer = savedObserver;
 			throw e;

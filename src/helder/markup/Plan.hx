@@ -265,7 +265,7 @@ class Plan<E> {
 				if (!event && name != "ref" && name != "key" && name != "style" && target.isLiteral(x))
 					return target.call(Host, "setProperty", [e, target.string(name), x], ap);
 				if (!event && name != "ref" && name != "key") x = reactive(x);
-				if (event) x = target.handler(x);
+				if (event) x = target.handler(x, false);
 				var plain = !event && name != "ref" && name != "key" && name != "style" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Host, "listen", [e, target.string(name), h], ap);
@@ -307,7 +307,7 @@ class Plan<E> {
 				// (states: a function of a part's states, its own style: set once, not bound)
 				if (name == "states") return target.call(Neutral, "property", [e, target.string(tag), target.string(name), hole(x)], ap);
 				if (!event && name != "ref") x = reactive(x);
-				if (event) x = target.handler(x);
+				if (event) x = target.handler(x, true);
 				var plain = !event && name != "ref" && target.isPlain(x);
 				var h = hole(x);
 				if (event) target.call(Neutral, "listen", [e, target.string(tag), target.string(name), h], ap);
@@ -365,8 +365,8 @@ class Plan<E> {
 		}
 		var kids = clean(children);
 		var content:Null<E> = null;
-		// (a function alone: the children prop itself)
-		if (kids.length == 1) switch kids[0].kind {
+		// (a function alone, for a component whose children are one: the children prop itself)
+		if (kids.length == 1 && c.childFunction == true) switch kids[0].kind {
 			case PExpr(code, at):
 				var x = target.code(code, at, c.children != null ? c.children : inner(), false);
 				if (x != null && target.isFunction(x)) content = x;
@@ -406,8 +406,9 @@ interface Target<E> {
 	// whether e is a function literal
 	function isFunction(e:E):Bool;
 	// a listener: one that takes no event (DESIGN.md 6, 8: onPress={() -> ...})
-	// given one it ignores, where the language needs that
-	function handler(e:E):E;
+	// given one it ignores, where the language needs that; a neutral
+	// element's, its event's parameter typed as ui's Event when it has no type
+	function handler(e:E, neutral:Bool):E;
 	// whether components are mounted with fast refresh's keys (hxmc.dev)
 	function devKeys():Bool;
 	// a component's tag at an offset, for a literal of renderer: its callee
@@ -451,7 +452,8 @@ enum Callee {
 typedef Where = {at:Int, length:Int};
 
 // (reads: the props of a type that reads, Read<T>: bound when their value may read)
-typedef Component<E> = {callee:E, children:Null<String>, ?reads:Array<String>};
+// (childFunction: its children prop is a function, For's row)
+typedef Component<E> = {callee:E, children:Null<String>, ?reads:Array<String>, ?childFunction:Bool};
 
 typedef Planned<E> = {
 	renderer:Null<String>,

@@ -1,12 +1,12 @@
 // helder.view from TypeScript: signals, memos and effects, TSX bound to them,
 // a component of the program's, control flow, events, rendered headless.
-import { signal, memo, effect, batch, For, Show, Render } from "helder/view";
+import { signal, memo, effect, flush, For, Show, Render } from "helder/view";
 import { TestNode } from "./test-renderer";
 
 const count = signal(1);
 const items = signal(["a", "b"]);
-const doubled = memo(() => count.value * 2);
-effect(() => console.log("count is", count.value));
+const doubled = memo(() => count() * 2);
+effect(() => count(), v => console.log("count is", v));
 
 function Item(props: { label: string }) {
 	return <p>item {props.label}</p>;
@@ -18,19 +18,20 @@ Render.render(
 		<p>
 			{count} doubled {doubled}
 		</p>
-		<For each={items} render={(i: string) => <Item label={i} />} />
-		<Show when={() => count.value > 2} fallback={<p>small</p>}>
+		<For each={items}>{i => <Item label={i()} />}</For>
+		<Show when={() => count() > 2} fallback={<p>small</p>}>
 			<p>big</p>
 		</Show>
-		<button onClick={() => count.value++}>+</button>
+		<button onClick={() => count(c => c + 1)}>+</button>
 	</div>,
 	root
 );
 console.log(root.toHtml());
 root.fire("button", "onClick");
+flush();
 root.fire("button", "onClick");
-batch(() => {
-	items.value = [...items.value, "c"];
-	count.value = count.value * 10;
-});
-console.log(root.toHtml(), doubled.value, items.value.length);
+flush();
+items([...items(), "c"]);
+count(count() * 10);
+flush();
+console.log(root.toHtml(), doubled(), items().length);

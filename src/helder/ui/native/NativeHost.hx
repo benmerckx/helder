@@ -97,6 +97,8 @@ class NativeHost {
 	// lays the tree out and brings the widgets in step, when something changed
 	public function step() {
 		if (closed) return;
+		// (the frame: what was written since lands first, helder.view.graph)
+		helder.view.graph.Graph.flush();
 		if (resized) {
 			ui.resize(backend.windowWidth(), backend.windowHeight());
 			resized = false;

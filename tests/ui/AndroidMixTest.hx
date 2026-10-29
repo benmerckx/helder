@@ -6,7 +6,9 @@ import helder.ui.native.Controls.*;
 import helder.ui.native.android.AndroidBackend;
 import helder.ui.native.android.GpuView;
 import helder.view.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 
 // A GPU view among Android's views (CI's android job, read from logcat by
 // tests/ui/android-mix.sh): gfx's cube turning in a GpuView
@@ -47,7 +49,7 @@ class AndroidMixTest implements Markup {
 			<view tag="stage" height={220}/>
 			<view direction="row" column-gap={10} align-items="center">
 				<Slider tag="speed" value={speed} max={3} style={{width: 160}}/>
-				<Button tag="spin" label={() -> spinning.value ? "Stop" : "Spin"} onClick={() -> spinning.value = !spinning.value}/>
+				<Button tag="spin" label={() -> spinning() ? "Stop" : "Spin"} onClick={() -> spinning(!spinning())}/>
 			</view>
 		</view>;
 
@@ -66,7 +68,7 @@ class AndroidMixTest implements Markup {
 		var cube:Cube = null, angle = 0.0, drawn = 0, lit = "";
 		gpu.onDevice = d -> cube = new Cube(d);
 		gpu.draw = enc -> {
-			angle += 0.03 * app.speed.value;
+			angle += 0.03 * app.speed();
 			cube.draw(enc, angle);
 			drawn++;
 			if (drawn == 20) {
@@ -76,7 +78,7 @@ class AndroidMixTest implements Markup {
 				lit = '${d.width}x${d.height} ' + (Math.abs(px.get(c) - px.get(0)) + Math.abs(px.get(c + 1) - px.get(1)) + Math.abs(px.get(c + 2) - px.get(2)) > 30 ? "lit" : "nothing drawn");
 			}
 		};
-		effect(() -> gpu.animate = app.spinning.value);
+		root(_ -> renderEffect(() -> app.spinning(), on -> gpu.animate = on));
 		AndroidBackend.start(host);
 		var t0 = haxe.Timer.stamp(), frames = 0;
 		while (frames < 60 && haxe.Timer.stamp() - t0 < 20) {
@@ -100,7 +102,7 @@ class AndroidMixTest implements Markup {
 		on(() -> stopped = gpu.frames);
 		settle(0.6);
 		on(() -> {
-			check("Stop: no frames", gpu.frames == stopped && !app.spinning.value, '$stopped -> ${gpu.frames}');
+			check("Stop: no frames", gpu.frames == stopped && !app.spinning(), '$stopped -> ${gpu.frames}');
 			driver.click((cast host.root.find("spin") : Control).handle);
 		});
 		settle(0.6);

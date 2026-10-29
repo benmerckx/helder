@@ -258,10 +258,10 @@ class SceneTest {
 		var a = new Asset<Int>("seven");
 		check("loading", a.state.match(Loading) && !a.ready && a.peek() == null);
 		var pending = try {
-			a.value;
+			helder.view.graph.Graph.untrack(a.read);
 			false;
-		} catch (_:helder.asset.Asset.AssetPending) true;
-		check("its value before it is here: AssetPending", pending);
+		} catch (_:helder.view.graph.Awaitable.NotReady) true;
+		check("its value before it is here: not ready", pending);
 		var polls = 0;
 		Assets.track(() -> {
 			polls++;
@@ -270,17 +270,21 @@ class SceneTest {
 			return true;
 		});
 		check("still loading", Assets.poll() == 1 && !a.ready);
-		check("loaded on a later poll", Assets.poll() == 0 && a.ready && a.value == 7 && a.peek() == 7);
+		var left = Assets.poll();
+		helder.view.graph.Graph.flush();
+		check("loaded on a later poll", left == 0 && a.ready && helder.view.graph.Graph.untrack(a.read) == 7 && a.peek() == 7);
 		a.resolve(8);
-		check("a reload's value behind the same handle", a.value == 8);
+		helder.view.graph.Graph.flush();
+		check("a reload's value behind the same handle", helder.view.graph.Graph.untrack(a.read) == 8);
 		var b = new Asset<String>("gone");
 		b.fail("gone");
 		check("failed", switch b.state {
 			case Failed(e): e == "gone";
 			case _: false;
 		});
+		helder.view.graph.Graph.flush();
 		var failed = try {
-			b.value;
+			helder.view.graph.Graph.untrack(b.read);
 			false;
 		} catch (e:helder.asset.Asset.AssetError) e.message == "gone: gone";
 		check("its value after a failure: AssetError", failed);

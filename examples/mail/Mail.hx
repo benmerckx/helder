@@ -8,7 +8,9 @@ import helder.ui.draw.UiWindow.Surface;
 import helder.ui.view.UiFlow.*;
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 
 // A mail client's window on helder.ui (no network: the messages are made
 // here), of plain views: the folders (each with its unread count, the
@@ -52,24 +54,18 @@ class Mail implements Markup {
 		var list = [];
 		for (m in MESSAGES)
 			list.push(new Message(m[0], m[1], m[2], m[3], Std.parseInt(m[4]), m[5] == "unread"));
-		messages.value = list;
+		messages(list);
 		// (a message read once it is shown)
-		effect(() -> {
-			var m = selected.value;
-			if (m != null) untrack(() -> m.unread.value = false);
-		});
-		effect(() -> {
-			var d = dark.value;
-			if (root != null && root.ui != null) root.ui.dark = d;
-		});
+		effect(() -> selected(), m -> if (m != null) m.unread(false));
+		effect(() -> dark(), d -> if (root != null && root.ui != null) root.ui.dark = d);
 	}
 
 	// the folder's messages that the search matches, in the sorted column's order
 	function shown():Array<Message> {
-		var f = folder.value, q = query.value.toLowerCase(), s = sort.value;
+		var f = folder(), q = query().toLowerCase(), s = sort();
 		var list = [
-			for (m in messages.value)
-				if (m.folder.value == f.name && (q == "" || m.subject.toLowerCase().indexOf(q) >= 0 || m.from.toLowerCase().indexOf(q) >= 0))
+			for (m in messages())
+				if (m.folder() == f.name && (q == "" || m.subject.toLowerCase().indexOf(q) >= 0 || m.from.toLowerCase().indexOf(q) >= 0))
 					m
 		];
 		list.sort((a, b) -> {
@@ -85,8 +81,8 @@ class Mail implements Markup {
 
 	function unread(f:Folder):Int {
 		var n = 0;
-		for (m in messages.value)
-			if (m.folder.value == f.name && m.unread.value) n++;
+		for (m in messages())
+			if (m.folder() == f.name && m.unread()) n++;
 		return n;
 	}
 
@@ -95,27 +91,30 @@ class Mail implements Markup {
 		var m = selected.peek();
 		if (m == null) return;
 		var list = untrack(shown), i = list.indexOf(m), from = m.folder.peek();
-		m.folder.value = name;
-		messages.value = messages.peek().copy();
+		// (the move landed first: the list read again after it)
+		flush(() -> {
+			m.folder(name);
+			messages(messages.peek().copy());
+		});
 		var rest = untrack(shown);
-		selected.value = rest.length == 0 ? null : rest[i < rest.length ? i : rest.length - 1];
-		undo.value = {
+		selected(rest.length == 0 ? null : rest[i < rest.length ? i : rest.length - 1]);
+		undo({
 			text: 'Moved "${m.subject}" to $name',
 			run: () -> {
-				m.folder.value = from;
-				messages.value = messages.peek().copy();
-				selected.value = m;
-				undo.value = null;
+				m.folder(from);
+				messages(messages.peek().copy());
+				selected(m);
+				undo(null);
 			}
-		};
+		});
 	}
 
 	function markUnread() {
 		var m = selected.peek();
 		if (m == null) return;
-		m.unread.value = true;
+		m.unread(true);
 		// (deselected, or showing it would read it again)
-		selected.value = null;
+		selected(null);
 	}
 
 	// Up and Down in the list: the selection to the message before or after
@@ -123,28 +122,28 @@ class Mail implements Markup {
 		var list = untrack(shown);
 		if (list.length == 0) return;
 		var i = list.indexOf(selected.peek()) + d;
-		selected.value = list[i < 0 ? 0 : i >= list.length ? list.length - 1 : i];
+		selected(list[i < 0 ? 0 : i >= list.length ? list.length - 1 : i]);
 	}
 
 	function sortBy(by:String) {
 		var s = sort.peek();
-		sort.value = {by: by, down: s.by == by ? !s.down : by == "date"};
+		sort({by: by, down: s.by == by ? !s.down : by == "date"});
 	}
 
 	static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:String}):View
 		return <view:button tag={props.tag ?? "button"} slot="button" variant={props.variant} role="button" focusable
-			onPress={_ -> props.onClick()}>{props.label}</view:button>;
+			onPress={props.onClick}>{props.label}</view:button>;
 
 	// a column's title: sorts by it, an arrow where it is sorted
 	function Column(props:{title:String, by:String, ?width:Float}):View
 		return <view:button tag={"sort-" + props.by} slot="column" role="button" focusable width={props.width} grow={props.width == null ? 1 : 0}
-			onPress={_ -> sortBy(props.by)}>
-			{() -> props.title + (sort.value.by == props.by ? (sort.value.down ? " ↓" : " ↑") : "")}
+			onPress={() -> sortBy(props.by)}>
+			{props.title + (sort().by == props.by ? (sort().down ? " ↓" : " ↑") : "")}
 		</view:button>;
 
 	// a message's cell: bold while it is unread, cut with an ellipsis
 	function cell(m:Message, text:String, ?width:Float):View
-		return <text width={width} grow={width == null ? 1 : 0} min-width={0} shrink={width == null ? 1 : 0} font-weight={() -> m.unread.value ? 700 : 400}
+		return <text width={width} grow={width == null ? 1 : 0} min-width={0} shrink={width == null ? 1 : 0} font-weight={m.unread() ? 700 : 400}
 			text-wrap="nowrap" text-overflow="ellipsis">{text}</text>;
 
 	public function view():View
@@ -158,19 +157,22 @@ class Mail implements Markup {
 				<Button tag="delete" label="Delete" onClick={() -> moveTo("Trash")}/>
 				<Button tag="unread" label="Mark unread" onClick={markUnread}/>
 				<view grow={1}/>
-				<Button tag="dark" label="Dark mode" variant="ghost" onClick={() -> dark.value = !dark.peek()}/>
-				<field tag="search" slot="input" width={200} value={query} placeholder="Search" label="Search messages" onInput={e -> query.value = e.text}/>
+				<Button tag="dark" label="Dark mode" variant="ghost" onClick={() -> dark(!dark.peek())}/>
+				<field tag="search" slot="input" width={200} value={query} placeholder="Search" label="Search messages" onInput={e -> query(e.text)}/>
 			</view>
 			<view direction="row" grow={1} min-height={0} column-gap={12} padding={12}>
 				<view tag="folders" width={170} shrink={0} row-gap={2} role="list" label="Folders">
-					<For each={folders} render={(f:Folder) -> <view:button slot="folder" role="listitem" focusable selected={() -> folder.value == f}
-						data-state={() -> folder.value == f ? "selected" : null} padding={[5, 8, 5, 8 + 16 * f.level]} onPress={_ -> {
-							folder.value = f;
-							selected.value = null;
-						}}>
-						<text grow={1}>{f.name}</text>
-						<text slot="muted">{() -> count(unread(f))}</text>
-					</view:button>}/>
+					<For each={folders}>{(folderOf:Read<Folder>) -> {
+						var f = folderOf();
+						<view:button slot="folder" role="listitem" focusable selected={folder() == f} data-state={folder() == f ? "selected" : null}
+							padding={[5, 8, 5, 8 + 16 * f.level]} onPress={() -> {
+								folder(f);
+								selected(null);
+							}}>
+							<text grow={1}>{f.name}</text>
+							<text slot="muted">{count(unread(f))}</text>
+						</view:button>;
+					}}</For>
 				</view>
 				<view slot="panel" width={340} shrink={0} min-height={0}>
 					<view slot="head" direction="row" column-gap={8}>
@@ -187,27 +189,30 @@ class Mail implements Markup {
 							e.preventDefault();
 						case _:
 					}}>
-						<For each={shown} render={(m:Message) -> <view slot="row" role="listitem" direction="row" column-gap={8}
-							selected={() -> selected.value == m} data-state={() -> selected.value == m ? "selected" : null} onClick={_ -> selected.value = m}>
-							{cell(m, m.from, 90)}{cell(m, m.subject)}{cell(m, "Oct " + m.day, 52)}
-						</view>}/>
-						<Show when={() -> shown().length == 0}><text slot="muted" padding={12}>No messages</text></Show>
+						<For each={shown()}>{(message:Read<Message>) -> {
+							var m = message();
+							<view slot="row" role="listitem" direction="row" column-gap={8} selected={selected() == m}
+								data-state={selected() == m ? "selected" : null} onClick={() -> selected(m)}>
+								{cell(m, m.from, 90)}{cell(m, m.subject)}{cell(m, "Oct " + m.day, 52)}
+							</view>;
+						}}</For>
+						<Show when={shown().length == 0}><text slot="muted" padding={12}>No messages</text></Show>
 					</scroll>
 				</view>
 				<view tag="reader" slot="panel" grow={1} min-width={0} padding={16} row-gap={10}>
-					<Show when={() -> selected.value != null} fallback={<text slot="muted">No message selected</text>}>
-						<text tag="reader-subject" font-size={16} font-weight={600}>{() -> selected.value?.subject}</text>
-						<text slot="muted">{() -> selected.value == null ? "" : "From " + selected.value.from + ", October " + selected.value.day}</text>
+					<Show when={selected() != null} fallback={<text slot="muted">No message selected</text>}>
+						<text tag="reader-subject" font-size={16} font-weight={600}>{selected()?.subject}</text>
+						<text slot="muted">{selected() == null ? "" : "From " + selected().from + ", October " + selected().day}</text>
 						<view slot="rule" height={1}/>
-						<text tag="reader-body" line-height={1.5}>{() -> selected.value?.body}</text>
+						<text tag="reader-body" line-height={1.5}>{selected()?.body}</text>
 					</Show>
 				</view>
 			</view>
-			<Show when={() -> undo.value != null}>
+			<Show when={undo() != null}>
 				<view slot="bar" direction="row" align-items="center" column-gap={12} padding="6 12" live="polite">
-					<text grow={1}>{() -> undo.value?.text}</text>
+					<text grow={1}>{undo()?.text}</text>
 					<Button tag="undo" label="Undo" variant="ghost" onClick={() -> undo.peek()?.run()}/>
-					<Button tag="dismiss" label="×" variant="ghost" onClick={() -> undo.value = null}/>
+					<Button tag="dismiss" label="×" variant="ghost" onClick={() -> undo(null)}/>
 				</view>
 			</Show>
 		</view>;

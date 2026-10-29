@@ -128,6 +128,9 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 		}
 	}
 
+	// (a region that ends its parent marked too: hydration reads the markers)
+	public static function markEnds() {}
+
 	public static inline function isNode(v:Dynamic):Bool
 		return Std.isOfType(v, Node);
 
@@ -158,7 +161,11 @@ class DomRenderer #if !macro implements helder.view.Renders<Node> #end {
 			}
 		});
 		hydration = null;
-		if (error == null && !failed && h.failed == null) return dispose;
+		if (error == null && !failed && h.failed == null) {
+			// (at the top: what it scheduled, its onSettled's, flushed before it returns, as Render.render does)
+			if (Graph.getOwner() == null) Graph.flush();
+			return dispose;
+		}
 		dispose();
 		if (error != null) throw error;
 		#if debug

@@ -24,6 +24,10 @@ class Graph {
 		return signalOf(init, options);
 	#end
 
+	// (a value's signal, as TypeScript's signal(v) calls it: index.d.ts)
+	@:noCompletion public static function signalValue<T>(value:T):Signal<T>
+		return new Signal(Node.signal(value, null));
+
 	// (signal's function)
 	public static function signalOf<T>(init:Init<T>, ?options:NodeOptions<T>):Signal<T>
 		return new Signal(switch init.kind() {

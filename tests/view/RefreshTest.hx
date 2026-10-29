@@ -1,6 +1,7 @@
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
 import TestRenderer.TestNode;
 
 // helder.view's fast refresh (-D hxmc.dev, helder.view.Refresh) across a
@@ -11,7 +12,7 @@ import TestRenderer.TestNode;
 // signals keyed by their variables, in each component instance's scope:
 // two instances of one component apart, a list's rows by position, a
 // component by its key attribute, what a region shows later (Show) as when it
-// first showed; a signal of a type that is not data not kept; the effects'
+// first showed; a signal of a value that is not data not kept; the effects'
 // cleanups run on disposal. Built again with -D refresh_changed (a signal's
 // initial value edited), restored from the same snapshot: that signal
 // starts at its new value, said so, the others are kept; a class marked
@@ -44,48 +45,51 @@ class RefreshTest implements Markup {
 		var fresh = ResetState.make();
 		var names:Signal<Array<String>> = signal([]);
 		var later = signal(false);
-		var callback = signal(() -> 1);
+		var callback = signal({f: () -> 1});
 		var root = TestRenderer.createElement("div");
 		Render.render(<div>
 			<Card label="a"/>
 			<Card label="b"/>
-			<For each={names} render={(n:String) -> <Card label={"row " + n}/>}/>
+			<For each={names}>{n -> <Card label={"row " + n()}/>}</For>
 			<Card key="k" label="keyed"/>
 			<Show when={later}><Card label="later"/></Show>
 		</div>, root);
 		switch phase {
 			case "save":
-				check("a cold start", !helder.dev.Hot.reloading && count.value == 0 && made.get("a").value == 0);
-				count.value = 5;
-				tuned.value = 2;
-				fresh.value = 9;
-				made.get("a").value = 1;
-				made.get("b").value = 2;
-				made.get("keyed").value = 4;
-				names.value = ["x", "y"];
-				made.get("row x").value = 10;
-				made.get("row y").value = 11;
-				later.value = true;
-				made.get("later").value = 7;
-				callback.value = () -> 2;
+				check("a cold start", !helder.dev.Hot.reloading && count() == 0 && made.get("a")() == 0);
+				count(5);
+				tuned(2);
+				fresh(9);
+				made.get("a")(1);
+				made.get("b")(2);
+				made.get("keyed")(4);
+				names(["x", "y"]);
+				flush();
+				made.get("row x")(10);
+				made.get("row y")(11);
+				later(true);
+				flush();
+				made.get("later")(7);
+				callback({f: () -> 2});
+				flush();
 				sys.io.File.saveContent(file, helder.dev.Hot.snapshot());
 				helder.dev.Hot.dispose();
 				check("disposed: the effects' cleanups ran", cleaned >= 6);
 			case _:
 				check("reloading", helder.dev.Hot.reloading);
-				check("a signal by its variable", count.value == 5);
-				check("an array by the type expected", names.value.join(",") == "x,y");
-				check("instances apart", made.get("a").value == 1 && made.get("b").value == 2);
-				check("by the key attribute", made.get("keyed").value == 4);
-				check("rows by position", made.get("row x").value == 10 && made.get("row y").value == 11);
-				check("a region shown later", later.value && made.get("later") != null && made.get("later").value == 7);
-				check("not data: not kept", callback.value() == 1);
+				check("a signal by its variable", count() == 5);
+				check("an array by the type expected", names().join(",") == "x,y");
+				check("instances apart", made.get("a")() == 1 && made.get("b")() == 2);
+				check("by the key attribute", made.get("keyed")() == 4);
+				check("rows by position", made.get("row x")() == 10 && made.get("row y")() == 11);
+				check("a region shown later", later() && made.get("later") != null && made.get("later")() == 7);
+				check("not data: not kept", callback().f() == 1);
 				#if refresh_changed
-				check("its initial value edited: the new one", tuned.value == 7);
+				check("its initial value edited: the new one", tuned() == 7);
 				#else
-				check("its initial value as it was: kept", tuned.value == 2);
+				check("its initial value as it was: kept", tuned() == 2);
 				#end
-				check("@:hot(reset): not kept", fresh.value == 0);
+				check("@:hot(reset): not kept", fresh() == 0);
 				helder.dev.Hot.framed();
 		}
 		Sys.println(failures == 0 ? 'RefreshTest $phase: ok' : 'RefreshTest $phase: $failures failed');

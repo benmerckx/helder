@@ -71,6 +71,9 @@ class StaticRenderer implements helder.view.Renders<HtmlNode> {
 		for (n in nodes)
 			insert(parent, n, before);
 
+	// (a region that ends its parent marked too: hydration reads the markers)
+	public static function markEnds() {}
+
 	public static inline function isNode(v:Dynamic):Bool
 		return Std.isOfType(v, HtmlNode);
 }

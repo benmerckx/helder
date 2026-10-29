@@ -56,6 +56,7 @@ class ViewTest implements Markup {
 	}
 
 	static function check(what:String, ok:Bool, ?detail:String) {
+		if (!ok && detail == null) detail = "";
 		checks++;
 		if (!ok) {
 			failed++;

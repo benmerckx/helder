@@ -30,7 +30,7 @@ class Refresh {
 	// Graph.signal(init, ?options) under -D hxmc.dev: a value's signal kept by
 	// its key; a derived one (a function) as it is
 	public static function signal(init:Expr, rest:Array<Expr>):Expr {
-		var made = macro @:pos(init.pos) helder.view.graph.Graph.signalOf($init, $a{rest});
+		var made = {expr: ECall(macro @:pos(init.pos) helder.view.graph.Graph.signalOf, [init].concat(rest)), pos: init.pos};
 		var t = try Context.typeof(init) catch (_:Dynamic) null;
 		if (t == null) return made;
 		switch Context.follow(t) {

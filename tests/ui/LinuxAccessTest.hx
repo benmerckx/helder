@@ -1,7 +1,9 @@
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
 import helder.view.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 import Plain.*;
 
 // helder.ui's accessibility on Linux (LinuxAccess; bun run test ui-draw, under
@@ -23,7 +25,7 @@ class LinuxAccessTest implements Markup {
 			}}/>
 			<Checkbox tag="remember" checked={checked} label="Remember"/>
 			<Slider tag="volume" value={volume} step={0.1} label="Volume"/>
-			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name.value = e.text}/>
+			<field tag="name" value={name} placeholder="Name" label="Name" onInput={e -> name(e.text)}/>
 			<view live="polite"><text>Ready</text></view>
 		</view>, w.root);
 		var start = haxe.Timer.stamp();

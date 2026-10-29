@@ -9,7 +9,9 @@ import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 
 // The boundary tags in windows (bun run test 3d: under Xvfb, Mesa): two
 // <Surface>s, one with a reactive title, opened by Render.open; in the
@@ -48,7 +50,7 @@ class SurfaceTest implements Markup {
 				<view direction="row" grow={1}>
 					<view width={120}><text tag="label">{picked}</text></view>
 					<Scene world={world} camera={camera} grow={1}>
-						<mesh shape="box" size={1.4} color={new Vec4(1, 0.2, 0.1, 1)} onClick={(e:SceneEvent) -> picked.value = "box"}
+						<mesh shape="box" size={1.4} color={new Vec4(1, 0.2, 0.1, 1)} onClick={(e:SceneEvent) -> picked("box")}
 							onPointerDown={(e:SceneEvent) -> touches.push('down ${e.pointerId}')} onPointerMove={(e:SceneEvent) -> touches.push('move ${e.pointerId}')}
 							onPointerUp={(e:SceneEvent) -> touches.push('up ${e.pointerId}')} onPointerCancel={(e:SceneEvent) -> touches.push('cancel ${e.pointerId}')}
 							onTap={(e:SceneEvent) -> touches.push('tap ${e.pointerId}')}/>
@@ -63,7 +65,8 @@ class SurfaceTest implements Markup {
 		</>);
 		check("two windows", windows.length == 2 && windows[0].window.title == "one" && windows[1].window.title == "two",
 			[for (w in windows) w.window.title].join(", "));
-		title.value = "uno";
+		title("uno");
+		flush();
 		check("a reactive title", windows[0].window.title == "uno", windows[0].window.title);
 		var w = windows[0];
 		var pixels = Bytes.alloc(w.device.width * w.device.height * 4);
@@ -97,12 +100,13 @@ class SurfaceTest implements Markup {
 		w.ui.pointerMove(220, 100);
 		w.ui.pointerDown(220, 100, 1);
 		w.ui.pointerUp(220, 100, 1);
-		check("a click routed into the scene: the mesh picked", picked.value == "box", picked.value);
+		check("a click routed into the scene: the mesh picked", picked() == "box", picked());
 		w.ui.pointerDown(130, 10, 1);
 		w.ui.pointerUp(130, 10, 1);
-		check("a click beside the mesh: none", picked.value == "box");
+		check("a click beside the mesh: none", picked() == "box");
 		// (fingers: picked at their presses, each its own; the mesh keeps one dragged off it)
-		picked.value = "";
+		picked("");
+		flush();
 		touches.resize(0);
 		check("a finger on the scene (off the <Ui>'s label) is the game's", !w.ui.pointerDown(185, 70, 1, 1, Touch));
 		// (a second finger beside the box, on the ui's panel)
@@ -111,7 +115,7 @@ class SurfaceTest implements Markup {
 		w.ui.pointerMove(110, 150, 2);
 		w.ui.pointerUp(188, 70, 1, 1);
 		w.ui.pointerUp(110, 150, 1, 2);
-		check("fingers picked at their presses, a tap", touches.join(", ") == "down 1, move 1, up 1, tap 1" && picked.value == "box", touches.join(", ") + "; " + picked.value);
+		check("fingers picked at their presses, a tap", touches.join(", ") == "down 1, move 1, up 1, tap 1" && picked() == "box", touches.join(", ") + "; " + picked());
 		touches.resize(0);
 		w.ui.pointerDown(185, 70, 1, 3, Touch);
 		w.ui.pointerCancel(3);
@@ -134,7 +138,8 @@ class SurfaceTest implements Markup {
 		check("<Ui> over its node: the box's centre", r != null && Math.abs(r.x + r.width / 2 - 220) < 4 && Math.abs(r.y + r.height / 2 - 100) < 4,
 			r == null ? "none" : '${r.x},${r.y} ${r.width}x${r.height}');
 		check("the label follows the pick", w.root.find("label") != null);
-		second.value = false;
+		second(false);
+		flush();
 		check("a Show's <Surface> closed", windows[1].window.closed);
 		dispose();
 		check("the root disposed: closed", windows[0].window.closed);

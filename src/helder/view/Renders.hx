@@ -44,4 +44,10 @@ package helder.view;
 // properties a program's markup names:
 //
 //   static macro function setter(name:String):Expr;
+//
+// Optional: a function markEnds (its body empty): a region that ends its
+// parent gets a marker too, which hydration reads (the page's renderers:
+// helder.web's DOM and static ones); without it such a region needs none.
+//
+//   static function markEnds():Void;
 interface Renders<N> {}

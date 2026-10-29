@@ -4,7 +4,9 @@ import helder.scene.render.Light;
 import helder.scene.view.SceneRenderer;
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 
 // helder.scene.view (npm test -- 3d: natively): markup making a
 // world's nodes, lights and cameras; properties bound to signals following
@@ -32,16 +34,18 @@ class SceneUiTest implements Markup {
 		var moons = signal(["io", "europa"]);
 		Render.render(<node name="planet" position={pos}>
 			<node name="ring" scale={new Vec3(2, 0.1, 2)}/>
-			<light kind="point" intensity={() -> x.value * 2} range={8.0}/>
+			<light kind="point" intensity={() -> x() * 2} range={8.0}/>
 			<Show when={shown}><node name="flag"/></Show>
-			<For each={moons} render={(m:String) -> <node name={m}/>}/>
+			<For each={moons}>{m -> <node name={m()}/>}</For>
 		</node>, SceneRenderer.root(world));
 		var planet = world.root.find("planet");
 		check("made", !planet.isNone && planet.parent == world.root && !world.root.find("ring").isNone);
 		check("a static property", world.root.find("ring").scale.x == 2);
 		check("a bound property", planet.position.x == 1);
-		x.value = 3;
-		pos.value = new Vec3(3, 0, 0);
+		x(3);
+		flush();
+		pos(new Vec3(3, 0, 0));
+		flush();
 		check("follows its signal", planet.position.x == 3);
 		var light:Null<Light> = null;
 		for (c in planet.children())
@@ -49,12 +53,15 @@ class SceneUiTest implements Markup {
 		check("a light, its bound intensity", light != null && light.point && light.intensity == 6 && light.range == 8);
 		check("Show: there", !world.root.find("flag").isNone && world.inTree(world.root.find("flag")));
 		var flag = world.root.find("flag");
-		shown.value = false;
+		shown(false);
+		flush();
 		check("Show: taken out", world.root.find("flag").isNone && !world.inTree(flag));
-		shown.value = true;
+		shown(true);
+		flush();
 		check("Show: back", !world.root.find("flag").isNone);
 		check("For: rows", !world.root.find("io").isNone && !world.root.find("europa").isNone);
-		moons.value = ["europa", "ganymede"];
+		moons(["europa", "ganymede"]);
+		flush();
 		check("For: a row removed, one added", world.root.find("io").isNone || !world.inTree(world.root.find("io")));
 		check("For: the new row", !world.root.find("ganymede").isNone && world.inTree(world.root.find("ganymede")));
 		Sys.println('SceneUiTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));

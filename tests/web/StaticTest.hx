@@ -1,6 +1,8 @@
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 import helder.web.*;
 
 // The static renderer (npm test -- web), on Eval and natively:
@@ -85,8 +87,8 @@ class StaticTest implements Markup {
 		check("an empty text", Static.render(<p>{empty}<b/></p>), "<p><!--#--><b></b></p>");
 		check("a region", Static.render(<div>{() -> <b>{name}</b>}</div>), "<div><!--[--><b>Ann</b><!--]--></div>");
 		var items = signal(["a", "b"]);
-		check("For", Static.render(<ul><For each={items} render={(i:String) -> <li>{i}</li>}/></ul>), "<ul><!--[--><li>a</li><li>b</li><!--]--></ul>");
-		check("Index", Static.render(<ul><Index each={items} render={(i:Signal<String>, k) -> <li>{i}</li>}/></ul>),
+		check("For", Static.render(<ul><For each={items}>{i -> <li>{i}</li>}</For></ul>), "<ul><!--[--><li>a</li><li>b</li><!--]--></ul>");
+		check("For by index", Static.render(<ul><For each={items} keyed={false}>{i -> <li>{i}</li>}</For></ul>),
 			"<ul><!--[--><li>a</li><li>b</li><!--]--></ul>");
 		check("Show", Static.render(<div><Show when={true} fallback="no">{() -> "yes"}</Show></div>), "<div><!--[-->yes<!--]--></div>");
 		check("regions nested", Static.render(<div>{() -> [() -> <i/>, () -> <b/>]}</div>),
@@ -95,12 +97,13 @@ class StaticTest implements Markup {
 		var s = signal(1), runs = 0;
 		Static.render(<p>{() -> {
 			runs++;
-			s.value;
+			s();
 		}}</p>);
 		var before = runs;
-		s.value = 2;
+		s(2);
+		flush();
 		check("effects stop with the page", "" + runs, "" + before);
-		check("ErrorBoundary", Static.render(<div><ErrorBoundary fallback={(e, _) -> "failed: " + e}>{() -> throw "oops"}</ErrorBoundary></div>),
+		check("Errored", Static.render(<div><Errored fallback={(e, _) -> "failed: " + e}>{() -> throw "oops"}</Errored></div>),
 			"<div><!--[-->failed: oops<!--]--></div>");
 	}
 

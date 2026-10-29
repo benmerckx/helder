@@ -180,6 +180,8 @@ class JsFunction extends JsObject {
 	public static inline var PLAIN = 0; // function: callable and constructible
 	public static inline var METHOD = 1; // arrow, method or accessor: callable only
 	public static inline var BASE = 2; // class without extends: constructible only
+	// (a Haxe value the program sees as this function: a helder.view.graph node or Read, Interop.toJs)
+	public var haxe:Dynamic = null;
 	public static inline var DERIVED = 3; // class with extends
 	public var kind:Int;
 	// compiled code: (this, args...) for functions, (this, newTarget, args...) for classes

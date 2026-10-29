@@ -88,24 +88,24 @@ class AndroidNativeTest {
 		// the views' own calls
 		on(() -> driver.type(field.handle, "Ada"));
 		settle();
-		on(() -> check("typed text reaches the signal", app.name.value == "Ada" && greeting.text == "Hello, Ada!", app.name.value));
+		on(() -> check("typed text reaches the signal", app.name() == "Ada" && greeting.text == "Hello, Ada!", app.name()));
 		on(() -> driver.toggle(agree.handle, true));
 		settle();
-		on(() -> check("a toggle", app.agree.value && submit.enabled));
+		on(() -> check("a toggle", app.agree() && submit.enabled));
 		on(() -> {
 			driver.click(submit.handle);
 			driver.click(submit.handle);
 		});
 		settle();
-		on(() -> check("clicks", app.submitted.value == 2 && count.text == "Submitted 2 times", count.text));
+		on(() -> check("clicks", app.submitted() == 2 && count.text == "Submitted 2 times", count.text));
 		on(() -> driver.slide(volume.handle, 0.75));
 		settle();
 		on(() -> {
 			var shown:TextNode = cast host.root.find("volume-shown");
-			check("a slider", Math.abs(app.volume.value - 0.75) < 0.002 && shown.text == "75%", '${app.volume.value} ${shown.text}');
+			check("a slider", Math.abs(app.volume() - 0.75) < 0.002 && shown.text == "75%", '${app.volume()} ${shown.text}');
 			// the other way: signals to the views
-			app.name.value = "Grace";
-			app.volume.value = 0.5;
+			app.name("Grace");
+			app.volume(0.5);
 		});
 		settle();
 		on(() -> {
@@ -116,7 +116,7 @@ class AndroidNativeTest {
 		var before = 0.0;
 		on(() -> {
 			before = count.width;
-			app.submitted.value = 1000;
+			app.submitted(1000);
 		});
 		settle();
 		on(() -> {
@@ -124,9 +124,9 @@ class AndroidNativeTest {
 			check("a new label measured again", count.width > before && near(a, count.absX, count.absY, count.width, count.height),
 				'$before -> ${count.width}, allocated $a');
 			// the real input next (android-native.sh): from a clean form
-			app.name.value = "";
-			app.agree.value = false;
-			app.submitted.value = 0;
+			app.name("");
+			app.agree(false);
+			app.submitted(0);
 		});
 		settle();
 		Sys.println("AndroidNativeTest: ready for input");
@@ -135,10 +135,10 @@ class AndroidNativeTest {
 		t0 = haxe.Timer.stamp();
 		while (!done && haxe.Timer.stamp() - t0 < 120 && !host.closed) {
 			on(() -> {
-				var now = 'name "${app.name.value}", agree ${app.agree.value}, submitted ${app.submitted.value}, greeting "${greeting.text}"';
+				var now = 'name "${app.name()}", agree ${app.agree()}, submitted ${app.submitted()}, greeting "${greeting.text}"';
 				if (now != last) Sys.println("AndroidNativeTest: input: " + now);
 				last = now;
-				done = app.name.value == "Linus" && app.agree.value && app.submitted.value >= 1 && greeting.text == "Hello, Linus!";
+				done = app.name() == "Linus" && app.agree() && app.submitted() >= 1 && greeting.text == "Hello, Linus!";
 			});
 			settle(0.2);
 		}

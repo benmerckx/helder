@@ -159,8 +159,9 @@ class ViewRuntime {
 
 	// a reactive region: its content drawn again before a marker
 	static function region(getter:Dynamic, parent:HostNode, before:Null<HostNode>, out:Null<Array<HostNode>>, end:Bool) {
-		// (its parent's last child: drawn at the end)
-		var anchor = end ? null : Host.createMarker("anchor");
+		// (its parent's last child: drawn at the end, unless the renderer marks
+		// every region, a page's static HTML and its hydration reading them: Renders' markEnds)
+		var anchor = end && !MARK_ENDS ? null : Host.createMarker("anchor");
 		if (anchor != null) put(parent, anchor, before, out);
 		var home = helder.view.graph.Graph.getOwner();
 		var current:Null<helder.view.Mounted.Shown<HostNode>> = null;
@@ -543,4 +544,5 @@ class ViewRuntime {
 	// (this runtime's renderer: its id, Render.idOf, and class path)
 	static inline var INDEX = 0;
 	static inline var NAME = "";
+	static inline var MARK_ENDS = false;
 }

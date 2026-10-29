@@ -120,7 +120,8 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 		for (c in w)
 			Async.resumeLater(c, v, null);
 		reloading = false;
-		answer(v, null);
+		// (nothing asked: the node asks again, the value its answer)
+		if (asks.length == 0) asked.update(n -> n + 1) else answer(v, null);
 	}
 
 	@:noCompletion public function fail(error:String) {
