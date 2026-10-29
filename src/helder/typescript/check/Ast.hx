@@ -139,6 +139,12 @@ class SourceFile {
 		return lo;
 	}
 
+	// A position's byte offset in the source text (as Haxe's positions are).
+	public function offset(pos:Int):Int {
+		textBytes();
+		return byte(pos);
+	}
+
 	// The source text between two positions.
 	public function slice(from:Int, to:Int):String {
 		textBytes();

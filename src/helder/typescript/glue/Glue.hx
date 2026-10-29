@@ -97,7 +97,7 @@ class Glue {
 				literal(n);
 				return;
 			case KindIdentifier if (declarations.of(n) != null && !typePosition(n)):
-				fail(n, "helder's " + n.text + " is used as a value: call it, construct it or read its members (TSHX006)");
+				fail(n, "helder's " + n.text + " is used as a value: call it, construct it or read its members");
 			case _:
 		}
 		for (c in n.children()) visit(c);
@@ -109,14 +109,20 @@ class Glue {
 			|| p.kind == KindExpressionWithTypeArguments || p.kind == KindExportSpecifier);
 	}
 
-	// a function's parameters: the values of the nodes passed, in order
-	function glue(plan:Array<Node>, body:String, returns:Bool):String {
+	// a function's parameters: the values of the nodes passed, in order;
+	// its code at the node's place in the program (Haxe's errors there)
+	function glue(node:Node, plan:Array<Node>, body:String, returns:Bool):String {
 		var name = "g" + functions.length;
 		var params = [for (i in 0...plan.length) 'p$i:Dynamic'].join(", ");
-		functions.push(returns ? 'public static function $name($params):Dynamic return Interop.result($body);' : 'public static function $name($params):Void $body;');
+		var at = place(node);
+		functions.push(returns ? 'public static function $name($params):Dynamic return Interop.result($body, $at);' : 'public static function $name($params):Void Interop.at($body, $at);');
 		keeps.push('$name(' + [for (_ in plan) "null"].join(", ") + ')');
 		return name;
 	}
+
+	// (a node's file and byte range: Interop.at's)
+	static function place(n:Node):String
+		return quote(sys.FileSystem.fullPath(n.file.path)) + ", " + n.file.offset(n.file.skipTrivia(n.pos)) + ", " + n.file.offset(n.end);
 
 	static function param(plan:Array<Node>, n:Node):String {
 		plan.push(n);
@@ -132,7 +138,7 @@ class Glue {
 	function argument(plan:Array<Node>, a:Node):String {
 		var e = strip(a);
 		if (e.kind == KindJsxElement || e.kind == KindJsxSelfClosingElement || e.kind == KindJsxFragment) return markupOf(plan, e);
-		if (a.kind == KindSpreadElement) return fail(a, "a spread among the arguments of a call into helder's API (TSHX006)");
+		if (a.kind == KindSpreadElement) return fail(a, "a spread among the arguments of a call into helder's API");
 		var c = declarations.classOf(a.tsType);
 		var p = param(plan, a);
 		visit(a);
@@ -148,7 +154,7 @@ class Glue {
 			case KindIdentifier:
 				switch declarations.of(callee) {
 					case FStatic(c, m): target = '${c.path}.$m';
-					case FClass(c): return fail(n, '${c.name} is a class: construct it with new (TSHX006)');
+					case FClass(c): return fail(n, '${c.name} is a class: construct it with new');
 					case null: return false;
 				}
 			case KindPropertyAccessExpression if (callee.questionDotToken() == null && n.questionDotToken() == null):
@@ -165,7 +171,7 @@ class Glue {
 				return false;
 		}
 		var args = [for (a in n.arguments() ?? []) argument(plan, a)];
-		calls.set(n, new GlueCall(glue(plan, '$target(${args.join(", ")})', true), plan));
+		calls.set(n, new GlueCall(glue(n, plan, '$target(${args.join(", ")})', true), plan));
 		return true;
 	}
 
@@ -178,7 +184,7 @@ class Glue {
 		}
 		var plan:Array<Node> = [];
 		var args = [for (a in n.arguments() ?? []) argument(plan, a)];
-		calls.set(n, new GlueCall(glue(plan, 'new ${c.path}(${args.join(", ")})', true), plan));
+		calls.set(n, new GlueCall(glue(n, plan, 'new ${c.path}(${args.join(", ")})', true), plan));
 		return true;
 	}
 
@@ -199,15 +205,11 @@ class Glue {
 				instance = true;
 				visit(receiver);
 		}
-		calls.set(n, new GlueCall(glue(plan, target, true), plan));
+		calls.set(n, new GlueCall(glue(n, plan, target, true), plan));
 		if (written(n)) {
-			var setPlan = plan.copy();
-			var value = 'p${setPlan.length}';
-			var name = "g" + functions.length;
-			var params = [for (i in 0...setPlan.length + 1) 'p$i:Dynamic'].join(", ");
-			functions.push('public static function $name($params):Void $target = Interop.fromJs($value, ${quote(where(n))});');
-			keeps.push('$name(' + [for (_ in 0...setPlan.length + 1) "null"].join(", ") + ')');
-			sets.set(n, new GlueCall(name, setPlan));
+			// (the value: a parameter after the receiver's)
+			var value = 'p${plan.length}';
+			sets.set(n, new GlueCall(glue(n, plan.concat([n]), '$target = Interop.fromJs($value, ${quote(where(n))})', false), plan));
 		}
 		return true;
 	}
@@ -233,7 +235,7 @@ class Glue {
 	function literal(n:Node) {
 		var plan:Array<Node> = [];
 		var text = markupOf(plan, n);
-		calls.set(n, new GlueCall(glue(plan, text, true), plan));
+		calls.set(n, new GlueCall(glue(n, plan, text, true), plan));
 	}
 
 	function markupOf(plan:Array<Node>, n:Node):String {
@@ -259,10 +261,10 @@ class Glue {
 			case KindIdentifier:
 				switch declarations.of(t) {
 					case FStatic(c, m): return importOf(c.path + "." + m);
-					case FClass(c): return fail(t, '${c.name} is a class, not a component (TSHX006)');
+					case FClass(c): return fail(t, '${c.name} is a class, not a component');
 					case null:
 						var f = componentDeclaration(t);
-						if (f == null) return fail(t, t.text + " is not a component this compiler knows: a top-level function of the program's, or one of helder's (TSHX006)");
+						if (f == null) return fail(t, t.text + " is not a component this compiler knows: a top-level function of the program's, or one of helder's");
 						return componentOf.exists(f) ? componentOf.get(f) : component(f);
 				}
 			case KindPropertyAccessExpression:
@@ -272,7 +274,7 @@ class Glue {
 				}
 			case _:
 		}
-		return fail(t, "unsupported element name (TSHX006)");
+		return fail(t, "unsupported element name");
 	}
 
 	// (helder's component by an alias the module imports)
@@ -335,7 +337,7 @@ class Glue {
 		return switch c.kind {
 			case KindJsxText | KindJsxTextAllWhiteSpaces: c.text;
 			case KindJsxExpression if (c.expression() == null): "";
-			case KindJsxExpression if (c.dotDotDotToken() != null): fail(c, "a spread among TSX children (TSHX006)");
+			case KindJsxExpression if (c.dotDotDotToken() != null): fail(c, "a spread among TSX children");
 			case KindJsxExpression: '{' + hole(plan, c.expression(), false) + '}';
 			case KindJsxElement | KindJsxSelfClosingElement | KindJsxFragment: markupOf(plan, c);
 			case _: fail(c, "unsupported TSX child");

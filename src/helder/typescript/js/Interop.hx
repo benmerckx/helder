@@ -106,9 +106,9 @@ class Interop {
 	#end
 
 	// a call's or a member's value, as JavaScript's (undefined for Void),
-	// typed once (markup in it compiled once)
-	public static macro function result(e:Expr):Expr {
-		var typed = Context.typeExpr(e);
+	// typed once (markup in it compiled once), at its place in the program
+	public static macro function result(e:Expr, file:String, min:Int, max:Int):Expr {
+		var typed = Context.typeExpr(placed(e, Context.makePosition({file: file, min: min, max: max})));
 		var stored = Context.storeTypedExpr(typed);
 		return switch Context.follow(typed.t) {
 			case TAbstract(_.get() => {name: "Void", pack: []}, _): macro {
@@ -119,6 +119,10 @@ class Interop {
 		}
 	}
 
+	// e at its place in the program (min to max, bytes, in file): Haxe's errors there
+	public static macro function at(e:Expr, file:String, min:Int, max:Int):Expr
+		return placed(e, Context.makePosition({file: file, min: min, max: max}));
+
 	// v (a JavaScript value) as the type expected where it goes, checked
 	// (TSHX100 where it is not one, at where); without one, toHaxe's
 	public static macro function fromJs(v:Expr, where:Expr):Expr {
@@ -127,6 +131,12 @@ class Interop {
 	}
 
 	#if macro
+	// (markup keeps its own positions: the markup macro reads its source by them)
+	static function placed(e:Expr, pos:Position):Expr return switch e.expr {
+		case ECall({expr: EField(_, "literal" | "literalFor")}, _): e;
+		case _: {expr: haxe.macro.ExprTools.map(e, x -> placed(x, pos)).expr, pos: pos};
+	}
+
 	static function convert(v:Expr, t:Type, where:Expr, depth:Int):Expr {
 		var ct = TypeTools.toComplexType(t);
 		if (depth > 8 || ct == null) return macro helder.typescript.js.Interop.toHaxe($v);
