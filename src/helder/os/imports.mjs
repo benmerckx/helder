@@ -595,6 +595,28 @@ export default function (host) {
 			host.handles.remove(h);
 		},
 		fetch_free: (h) => host.handles.remove(h),
+		// helder.os.Store's: localStorage (a private window's may throw: none then)
+		store_available() {
+			try {
+				return typeof localStorage === 'object' && localStorage !== null ? 1 : 0;
+			} catch {
+				return 0;
+			}
+		},
+		store_get(k) {
+			try {
+				const v = localStorage.getItem(host.string(k));
+				return v === null ? 0 : host.handles.add(v);
+			} catch {
+				return 0;
+			}
+		},
+		store_set(k, v) {
+			try {
+				if (v) localStorage.setItem(host.string(k), host.string(v));
+				else localStorage.removeItem(host.string(k));
+			} catch {}
+		},
 		// a string handle's UTF-8 length, then its bytes into p (the handle freed)
 		text_length: (h) => new TextEncoder().encode(host.handles.get(h)).length,
 		text_take(h, p) {

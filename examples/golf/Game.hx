@@ -151,10 +151,11 @@ class Game {
 		r.sky = new Vec3(0.34, 0.38, 0.5);
 		r.ground = new Vec3(0.26, 0.22, 0.2);
 		r.exposure = 0.95;
-		var s = new Shadows(r.device, 2048);
+		var s = Shadows.cascaded(r.device, 2048, 12);
 		s.strength = 0.6;
 		r.use(s);
 		kit = new Kit(r.device);
+		Sounds.start();
 		var k = kit;
 		MeshRenderer.attach(roll, k.ball);
 		for (_ in 0...12) {
@@ -267,7 +268,7 @@ class Game {
 		cloth.position = new Vec3(0.012, 0, 0);
 		cloth.scale = new Vec3(0.34, 0.26, 1);
 		var t = sim.hole.tee;
-		part(k.tee, new Vec3(t.x, t.y - 0.003, t.z), new Vec3(0.3, 0.008, 0.3));
+		part(k.tee, new Vec3(t.x, t.y, t.z), new Vec3(0.34, 0.012, 0.34));
 		syncBall(0);
 	}
 
@@ -298,7 +299,7 @@ class Game {
 		var k = kit;
 		var spots = [
 			[-7.0, -3.0, -2.2, 1.6], [8.0, -9.0, -1.5, 2.0], [-9.0, -12.0, 0.8, 1.4], [6.0, 4.0, -3.0, 1.2], [-4.0, 7.0, -4.0, 1.8], [12.0, -2.0, 1.0, 1.0],
-			[0.0, -20.0, -1.0, 2.4], [-14.0, 2.0, -2.0, 1.5]
+			[3.5, -22.0, -4.0, 2.4], [-14.0, 2.0, -2.0, 1.5]
 		];
 		for (s in spots) {
 			var root = world.node("isle");
@@ -476,7 +477,7 @@ class Game {
 				var copy = b.copy();
 				copy[i] = sim.strokes;
 				best(copy);
-				save.store(copy);
+				save.write(copy);
 			}
 		}
 		if (sim.resting && !wasResting) {
@@ -672,7 +673,9 @@ class Game {
 		var p = ball.position;
 		var k = 1 - 1 / (1 + FOLLOW * dt + FOLLOW * FOLLOW * dt * dt * 0.5);
 		// (looking ahead of the ball, so that on a tall screen the course ahead fills it; less while it rolls, none once holed)
-		var want = sinkTime >= 0 ? 0 : sim.resting ? AHEAD : AHEAD * 0.4;
+		// (near the cup, half way to it: the cup and the ball both in view)
+		var cx = sim.cup.x - p.x, cz = sim.cup.z - p.z, toCup = Math.sqrt(cx * cx + cz * cz);
+		var want = sinkTime >= 0 ? 0 : sim.resting ? Math.min(AHEAD, toCup * 0.5) : AHEAD * 0.4;
 		ahead += (want - ahead) * Math.min(1, dt * 1.5);
 		p = new Vec3(p.x - Math.sin(o.yaw) * ahead, p.y, p.z - Math.cos(o.yaw) * ahead);
 		target = target + (p - target) * k;

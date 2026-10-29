@@ -63,7 +63,7 @@ class Kit {
 		rim = cylinder(mat(0xffffff, 0.7), 16, false);
 		pole = cylinder(mat(0xfafafa, 0.5), 6, false);
 		flag = prism(mat(0xff6b6b, 0.7));
-		tee = cylinder(mat(0xfff0a8, 0.7), 12, false);
+		tee = cylinder(mat(0xfff0a8, 0.7), 20, false);
 		dotMaterial = mat(0xffffff, 0.5);
 		dot = Shapes.sphere(device, dotMaterial, 0.5, 8, 4);
 		shadow = cylinder(mat(0x000000, 1, 0.22), 16, false);
