@@ -77,6 +77,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `scene` | 3D on gfx: glTF, a PBR renderer, animation, input actions |
 | `asset` | files by path: images, fonts, models, sounds, bytes; checked when compiling, bundled by use (the executable, the APK, the app, beside the page), loaded by a coroutine, reloaded in place under `helder dev` |
 | `physics` | a small rigid-body core for `scene` |
+| `sprite` | 2D sprites on gfx: TexturePacker atlases, a batcher of textured quads (moved, scaled, turned, faded, added), `<Sprites>` in ui's layout |
 | `async` | a loop per thread for Haxe 5's coroutines: tasks, timers, TCP, child processes, file watching, an HTTP and WebSocket server; the browser's loop |
 | `jobs` | background work awaited from a coroutine: GC-free jobs and GC jobs on a pool's threads or a browser's workers, channels, the sendable check |
 | `dev` | the dev host and state kept across a reload |
