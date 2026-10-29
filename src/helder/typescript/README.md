@@ -129,8 +129,8 @@ read-only or turned into an accessor (TSHX100 as well).
 
 ### helder's API and TSX (`glue/`)
 
-A program calls helder's Haxe API through declarations: `helder/view` and
-`helder/ui` (`index.d.ts` beside the packages, exported by package.json)
+A program calls helder's Haxe API through declarations: `helder/view`,
+`helder/ui` and `helder/web` (`index.d.ts` beside the packages, exported by package.json)
 declare its classes, each the Haxe class of its name in the file's package
 (or the one `declare const __haxe: {Name: "pack.Class"}` names), and its
 functions and components as `const f: typeof Class.f`, that class's
@@ -152,7 +152,9 @@ with a function for each call into the API, `new` of one of its classes,
 member of one of its values (read; written: a second one), TSX literal
 (the markup itself, its holes the function's parameters; a literal passed
 straight to a call is written into it, so the markup macro sees where it
-goes) and TypeScript component a literal names (a top-level function, given
+goes, e.g. helder.web's `Static.document(<html>...)` the static renderer's;
+a component's string attribute converted to its prop's type as a hole's
+value is, so `load="click"` is helder.web's Load) and TypeScript component a literal names (a top-level function, given
 to the glue when the program starts). Haxe's typer and the markup macro
 compile it with the API's own types: `Interop.fromJs` converts each value
 by the type expected where it goes (numbers, functions with their
@@ -170,6 +172,9 @@ with the event loop, `Array.fromAsync`, Set's algebra, the URI functions,
 the globals it names, the method names it calls, its syntax); hxmc leaves
 the rest out. A hello world is 538 KB instead of 904 KB. A program that
 names `globalThis` or calls a method by a computed name installs them all.
+
+A `.json` file the program imports (`import data from "./data.json"`,
+resolveJsonModule's) is a module whose default export is its value.
 
 Excluded, with a diagnostic: `eval`, `Function`, `Proxy`, `with`,
 `__proto__`/`setPrototypeOf`, dynamic `import()`. Not yet: BigInt, typed

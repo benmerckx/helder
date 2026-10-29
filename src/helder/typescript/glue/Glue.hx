@@ -244,9 +244,10 @@ class Glue {
 			case KindJsxElement:
 				var open = n.openingElement();
 				var tag = tagOf(open.tagName());
-				'<$tag' + attributes(plan, open.attributes()) + '>' + [for (c in n.jsxChildren()) child(plan, c)].join("") + '</$tag>';
+				'<$tag' + attributes(plan, open.attributes(), isComponent(tag)) + '>' + [for (c in n.jsxChildren()) child(plan, c)].join("") + '</$tag>';
 			case KindJsxSelfClosingElement:
-				'<' + tagOf(n.tagName()) + attributes(plan, n.attributes()) + '/>';
+				var tag = tagOf(n.tagName());
+				'<$tag' + attributes(plan, n.attributes(), isComponent(tag)) + '/>';
 			case KindJsxFragment:
 				'<>' + [for (c in n.jsxChildren()) child(plan, c)].join("") + '</>';
 			case _: fail(n, "unsupported TSX");
@@ -314,13 +315,19 @@ class Glue {
 		return name;
 	}
 
-	function attributes(plan:Array<Node>, attrs:Node):String {
+	// (an element's name in the glue: a component's an alias, upper case)
+	static function isComponent(tag:String):Bool return !~/^[a-z]/.match(tag);
+
+	// (a component's string literal: converted to its prop's type, as a
+	// hole's value is, e.g. an enum abstract over String, helder.web's Load)
+	function attributes(plan:Array<Node>, attrs:Node, component:Bool):String {
 		var out = "";
 		for (a in attrs.properties()) switch a.kind {
 			case KindJsxAttribute:
 				var name = a.name().kind == KindJsxNamespacedName ? a.name().namespace().text + ":" + a.name().name().text : a.name().text;
 				var init = a.initializer();
 				if (init == null) out += ' $name';
+				else if (init.kind == KindStringLiteral && component) out += ' $name={Interop.fromJs(${quote(init.text)}, ${quote(where(init))})}';
 				else if (init.kind == KindStringLiteral) out += ' $name={${quote(init.text)}}';
 				else if (init.kind == KindJsxExpression && init.expression() == null) continue;
 				else if (init.kind == KindJsxExpression) out += ' $name={${hole(plan, init.expression(), true)}}';

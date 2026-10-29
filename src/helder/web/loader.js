@@ -8,7 +8,8 @@
 // then globalThis.hxmcIslands[data-island](element, props) hydrates it (the
 // bundle's Islands.start put it there). A WebAssembly island: data-runner
 // (helder.os's browser.mjs) runs data-wasm on its canvas with data-imports
-// and data-args (and data-fonts, for helder.text); the promise of run's result
+// and data-args (and data-fonts, for helder.text; data-assets, the URL of the
+// build's <module>.assets.json, for the files it reads); the promise of run's result
 // is hxmcWasm[id] (by the element's id), for JavaScript islands that call
 // the module; hxmcWasmOptions[id], when a page or a test sets it before,
 // adds to run's options (args, gfx, antialias: by default true, a
@@ -57,6 +58,7 @@
 			const failed = (e) => new Error(e && e.outOfMemory ? e.message : oom(e) ? 'out of memory: ' + e.message : last || (e && e.message) || String(e));
 			const started = import(new URL(d.runner, base).href).then((m) => m.run(new URL(d.wasm, base).href, {
 				imports: json(d.imports, []), args: json(d.args, []), fonts: json(d.fonts, []), canvas, touchAction: 'pan-y', antialias: true,
+				assets: d.assets ? new URL(d.assets, base).href : undefined,
 				stderr: (l) => console.error((last = l)), onError: (e) => run === el.hxmcRun && fail(el, failed(e)), ...extra,
 			}));
 			if (el.id) wasm[el.id] = started;

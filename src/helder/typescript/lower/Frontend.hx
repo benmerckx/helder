@@ -314,6 +314,9 @@ class Frontend {
 		p.classes.sort((a, z) -> a.id - z.id);
 	}
 
+	// (a .json file the program imports: resolveJsonModule's, its value its default export)
+	static function jsonModule(file:SourceFile):Bool return StringTools.endsWith(file.path, ".json");
+
 	// A module's own bindings and the exports among them.
 	function declareModule(m:Module) {
 		var sourceStatements = statementsOf(m.file);
@@ -337,6 +340,11 @@ class Frontend {
 		for (n in sourceStatements) if ((n.kind == KindClassDeclaration || n.kind == KindEnumDeclaration || n.kind == KindModuleDeclaration) && n.name() != null && !hasModifier(n, KindDeclareKeyword) && !env.exists(n.name().text)) global(n.name().text);
 		m.others = [for (n in sourceStatements) if (n.kind == KindFunctionDeclaration && n.body() != null && (n.name() == null || !functions.exists(n.name().text))) n];
 		for (n in m.others) if (n.name() != null) global(n.name().text);
+		// (a JSON module: its value the default export, its one statement)
+		if (jsonModule(m.file)) {
+			m.exports.set("default", anonymousGlobal("default"));
+			return;
+		}
 		var script = true;
 		for (n in sourceStatements) if (n.kind == KindImportDeclaration || n.kind == KindExportDeclaration || n.kind == KindExportAssignment || hasModifier(n, KindExportKeyword)) script = false;
 		if (script) {
@@ -697,6 +705,7 @@ class Frontend {
 				env = old;
 			case KindVariableStatement: variableList(n.declarationList(), top, !top);
 			case KindVariableDeclarationList: variableList(n, top);
+			case KindExpressionStatement if (top && jsonModule(n.file)): set(moduleOf.get(n.file.path).exports.get("default"), expr(n.expression()));
 			case KindExpressionStatement: expr(n.expression());
 			case KindReturnStatement: emitReturn(n.expression() == null ? null : expr(n.expression()));
 			case KindIfStatement:

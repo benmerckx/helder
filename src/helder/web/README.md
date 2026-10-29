@@ -113,6 +113,8 @@ canvas inside a page):
 ```
 
 `fonts` lists font files for `helder.text` (a browser gives a module none);
+`assets` the URL of the build's `<module>.assets.json` (helder.asset's: the
+files it reads before main, fetched with the module);
 `canvas={false}` runs it without a canvas (a sound, with `load={Click}`:
 browsers start audio only after one). Once it runs, its element's
 `data-gfx` names the graphics API it draws with. `hxmcWasmOptions[id]`, set
@@ -185,6 +187,20 @@ property, `onInput` the DOM's input, its text `e.text`)...; `slot`,
 StyleProps as inline style; events as ui's Event, `onPress` a click; a
 name it has not an error), a ref getting an `ElementPart`. The page's look
 is its CSS.
+
+## From TypeScript
+
+`helder/web` (`index.d.ts` here) declares `Static`, `Island.Wasm` and
+`Surface` to TypeScript programs (helder.typescript): a TSX literal passed
+to `Static.document` is the static renderer's markup, as in Haxe.
+`site/index.tsx`, the examples' page, is one:
+
+```tsx
+import { Static, Island } from "helder/web";
+Static.write("bin/site/index.html", Static.document(<html lang="en">
+	<body><Island.Wasm src="cube.wasm" load="click" width={512} height={384}><button>Play</button></Island.Wasm></body>
+</html>));
+```
 
 ## Example and tests
 

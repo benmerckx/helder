@@ -134,7 +134,8 @@ class Page {
 		}
 		// (the program's assets: helder.asset's Bundle put them in assets/ beside the module)
 		var listed = FileSystem.exists('$wasm.assets.json');
-		File.saveContent('$dir/$name.html', html(title, '$name.wasm', "helder/", pkgs, urls, false, listed ? '$name.wasm.assets.json' : null));
+		// (./: the page's module script imports browser.mjs from there, where helder/... is a bare specifier)
+		File.saveContent('$dir/$name.html', html(title, '$name.wasm', "./helder/", pkgs, urls, false, listed ? '$name.wasm.assets.json' : null));
 		return files;
 	}
 }

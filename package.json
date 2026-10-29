@@ -13,6 +13,9 @@
     "./ui": {
       "types": "./src/helder/ui/index.d.ts"
     },
+    "./web": {
+      "types": "./src/helder/web/index.d.ts"
+    },
     "./package.json": "./package.json",
     "./*": "./*"
   },

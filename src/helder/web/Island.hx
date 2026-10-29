@@ -100,7 +100,9 @@ class Island<P> implements helder.view.Markup {
 	// imports (each package's imports.mjs, as browser.mjs takes them) and
 	// args, and fonts (files helder.text may use: a browser gives a module
 	// none); its id names it (Wasm.island); children shown with the canvas
-	// (a caption, what shows before it runs); canvas false: none (a sound);
+	// (a caption, what shows before it runs); assets: the URL of the build's
+	// <module>.assets.json (helder.asset's: the files it reads before main,
+	// fetched with the module); canvas false: none (a sound);
 	// stop Offscreen: stopped once out of view, its GPU memory given back,
 	// and run again as load says (loader.js)
 	public static function Wasm(props:{
@@ -113,6 +115,7 @@ class Island<P> implements helder.view.Markup {
 		?width:Int,
 		?height:Int,
 		?fonts:Array<String>,
+		?assets:String,
 		?canvas:Bool,
 		?stop:Stop,
 		?children:Any
@@ -121,8 +124,8 @@ class Island<P> implements helder.view.Markup {
 		return <hxmc-island id={props.id} data-wasm={url(props.src)} data-runner={url(props.runner == null ? runner : props.runner)}
 			data-imports={haxe.Json.stringify(props.imports == null ? [] : props.imports.map(url))}
 			data-fonts={props.fonts == null ? null : haxe.Json.stringify(props.fonts.map(url))}
-			data-args={props.args == null ? null : haxe.Json.stringify(props.args)} data-load={load}
-			data-stop={props.stop}>
+			data-args={props.args == null ? null : haxe.Json.stringify(props.args)} data-assets={props.assets == null ? null : url(props.assets)}
+			data-load={load} data-stop={props.stop}>
 			{props.canvas == false ? null : <canvas width={props.width} height={props.height}></canvas>}
 			{props.children}
 		</hxmc-island>;
