@@ -6,8 +6,9 @@ import helder.compiler.Compiler;
 import helder.typescript.check.Project;
 import helder.typescript.ir.Verifier;
 import helder.typescript.ir.TextIR;
-import helder.typescript.glue.Glue;
+import helder.typescript.lower.Api;
 import helder.typescript.lower.Frontend as Lowering;
+import core.TType.ModuleType;
 
 using StringTools;
 
@@ -24,10 +25,10 @@ class Frontend implements helder.compiler.Plugin {
 
 	public function new() {}
 
-	// what the build's start made of the TypeScript program: it checked, its
-	// glue (or the error the check or the glue gave, reported where the build
-	// would have lowered it)
-	var prepared:Null<{project:Null<Project>, glue:Null<Glue>, error:Null<String>}> = null;
+	// what the build's start made of the TypeScript program: it checked, the
+	// API its declaration files declare (or the error the check gave, reported
+	// where the build would have lowered it)
+	var prepared:Null<{project:Null<Project>, api:Null<Api>, error:Null<String>}> = null;
 
 	public function beforeTyping(com:context.Common.CommonContext, actx:compiler.ParsedArg.ArgContext) {
 		prepared = null;
@@ -43,34 +44,26 @@ class Frontend implements helder.compiler.Plugin {
 		if (entry == "") hxmc.Main.generate(com, com.file) else lower(com, entry);
 	}
 
-	// The program checked (tsgo) and its glue written (helder.typescript.glue):
-	// a Haxe module the build types with the rest, its class the build's main
-	// (the runtime's seed and the glue reached from it). After a failed check,
-	// a module with no glue, so the build reaches the error's report.
+	// The program checked (tsgo), and the declaration classes of the modules
+	// its declaration files declare (helder's API: lower.Api) added to the
+	// build: typed, each makes its part of the manifest the lowering reads
+	// (helder.typescript.api.Manifest). The build's main is the runtime's
+	// seed, as the short form's.
 	function prepare(com:context.Common.CommonContext, actx:compiler.ParsedArg.ArgContext, entry:String) {
 		phase("start");
-		var project:Null<Project> = null, glue:Null<Glue> = null, error:Null<String> = null;
+		var project:Null<Project> = null, api:Null<Api> = null, error:Null<String> = null;
 		try {
-			project = Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"]));
+			project = Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"]), p -> api = new Api(p));
 			phase("check (tsgo)");
-			glue = new Glue(project);
 		} catch (e:Dynamic) {
 			if (Sys.getEnv("HELDER_TS_DEBUG") == "1") Sys.stderr().writeString(haxe.CallStack.toString(haxe.CallStack.exceptionStack()) + "\n");
 			error = Std.string(e);
 		}
-		var dir = Path.join([Compiler.cache(), "glue", haxe.crypto.Md5.encode(FileSystem.fullPath(entry))]);
-		var file = Path.join([dir, Glue.PACK, Glue.CLASS + ".hx"]);
-		var text = glue != null ? glue.source(Project.relative(FileSystem.fullPath(entry))) : 'package ${Glue.PACK};\n\nclass ${Glue.CLASS} {\n\tstatic function main()\n\t\thelder.typescript.js.Seed.main();\n}\n';
-		// (rewritten only when it changed: a compilation server keeps the module typed)
-		if (!FileSystem.exists(file) || sys.io.File.getContent(file) != text) {
-			FileSystem.createDirectory(Path.directory(file));
-			sys.io.File.saveContent(file, text);
+		if (api != null) for (m in api.modules) {
+			var parts = m.split(".");
+			actx.classes.push(new core.Globals.GlobalTypePath(parts.slice(0, parts.length - 1), parts[parts.length - 1]));
 		}
-		com.classPaths.add(new core.ClassPath.DirectoryClassPath(Path.addTrailingSlash(dir), User));
-		var main = new core.Globals.GlobalTypePath([Glue.PACK], Glue.CLASS);
-		com.main.mainPath = main;
-		actx.classes.push(main);
-		return {project: project, glue: glue, error: error};
+		return {project: project, api: api, error: error};
 	}
 
 	// hxmc's generation (hxmc.Main.generate) with the TypeScript program
@@ -88,10 +81,36 @@ class Frontend implements helder.compiler.Plugin {
 		}
 		if (ready == null) throw "TSHX004: the TypeScript program was not prepared";
 		if (ready.error != null) throw ready.error;
+		// (the manifest the build's typing made: each module's on its declaration class)
+		if (ready.api != null) {
+			var parts = [];
+			for (t in com.types) switch t {
+				case TClassDecl(c):
+					var json = hxmc.ir.Lower.metaString(Manifest.META, c.clMeta);
+					if (json != null) parts.push({ident: hxmc.ir.Lower.nativeName(c), json: json});
+				case _:
+			}
+			if (parts.length > 0) ready.api.manifest = new Manifest(parts);
+			// (the keeps of the classes the program does not name: not lowered)
+			var keeps = [for (k in ready.api.keeps) k => true];
+			com.types = com.types.filter(t -> switch t {
+				case TClassDecl(c) if (core.Meta.has(Custom(Manifest.KEEP), c.clMeta)): keeps.exists(core.Globals.sTypePath(c.clPath));
+				case _: true;
+			});
+		}
+		var dev = core.Define.rawDefined(com.defines, "hxmc.dev");
 		hxmc.Main.generate(com, com.file, (com, p) -> {
 			phase("lower runtime");
-			var frontend = new Lowering(ready.project, p, ready.glue);
+			var frontend = new Lowering(ready.project, p, ready.api, dev);
 			frontend.lower();
+			// (the manifest's keeps: their __init__s named what the lowering may call, they run no more)
+			if (ready.api != null && ready.api.manifest != null) {
+				var keeps = [for (k in ready.api.manifest.keep) k + "__init" => true];
+				for (f in p.funcs) if (keeps.exists(f.name)) {
+					p.inits.remove(f);
+					p.roots.remove(f);
+				}
+			}
 			Verifier.check(p);
 			phase("lower program");
 			if (core.Define.rawDefined(com.defines, DEFINE + ".roundtrip_ir")) {

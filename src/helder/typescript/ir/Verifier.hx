@@ -134,6 +134,10 @@ class Verifier {
 					expect(i, TI32);
 					expression(v);
 					expect(v, t);
+				case SArrPush(t, a, v):
+					local(a);
+					expression(v);
+					expect(v, t);
 				case SAnonSet(_, t, o, v):
 					expression(o);
 					expression(v);

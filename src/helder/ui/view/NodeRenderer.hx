@@ -67,6 +67,11 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	public static macro function setter(name:String):haxe.macro.Expr
 		return helder.ui.view.AttrMacro.setter(name, haxe.macro.Context.currentPos());
 
+	// what setter resolves, each name's function (data-* and aria-* prefixes,
+	// * the others'): what helder.typescript's manifest lists (Renders)
+	public static macro function setterTable():haxe.macro.Expr
+		return macro $v{helder.ui.view.AttrMacro.table()};
+
 	#if !macro
 	// the elements registered besides the intrinsic ones, and the nodes they make
 	public static final elements:Map<String, Void->Node> = [];

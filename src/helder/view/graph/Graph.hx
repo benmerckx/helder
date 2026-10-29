@@ -25,7 +25,7 @@ class Graph {
 	#end
 
 	// (a value's signal, as TypeScript's signal(v) calls it: index.d.ts)
-	@:noCompletion public static function signalValue<T>(value:T):Signal<T>
+	@:noCompletion public static function signalValue<T>(@:typescript.type("T extends Function ? never : T") value:T):Signal<T>
 		return new Signal(Node.signal(value, null));
 
 	// (signal's function)

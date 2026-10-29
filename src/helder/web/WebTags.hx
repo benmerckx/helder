@@ -25,7 +25,7 @@ class WebTags implements helder.view.Markup {
 	// the browser modules a ui program imports (helder.os's runner loads them)
 	public static final UI_IMPORTS = ["os/imports.mjs", "gfx/imports.mjs", "text/imports.mjs", "ui/imports.mjs"];
 
-	public static function Surface(props:{
+	@:typescript public static function Surface(props:{
 		src:String,
 		?imports:Array<String>,
 		?fonts:Array<String>,

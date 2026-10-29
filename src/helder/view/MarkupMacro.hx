@@ -405,8 +405,6 @@ class HaxeTarget implements Target<Expr> {
 	public function mayRead(e:Expr):Bool
 		return switch e.expr {
 			case EFunction(_, _) | EMeta({name: ":markup"}, _): false;
-			// (a TypeScript program's value, through its glue: evaluated by the program, a reader as it is)
-			case ECall({expr: EField({expr: EConst(CIdent("Interop"))}, "fromJs" | "toHaxe")}, _): false;
 			// (a literal: its own holes are its own)
 			case ECall({expr: EField(_, "literal" | "literalFor")}, args) if (args.length > 0 && args[args.length - 1].expr.match(EMeta({name: ":markup"}, _))): false;
 			case ECall(_, _): true;
@@ -468,9 +466,6 @@ class HaxeTarget implements Target<Expr> {
 		var attr = Context.makePosition({file: info.file, min: from.min < info.min ? from.min : info.min, max: info.max});
 		switch e.expr {
 			case EConst(CIdent("null")): return e;
-			// (a TypeScript program's function, through its glue: tsc checked it, the manifest's
-			// declarations type it (DESIGN.md 7.3); a JavaScript function takes the event or ignores it)
-			case ECall({expr: EField({expr: EConst(CIdent("Interop"))}, "fromJs" | "toHaxe")}, _): return e;
 			// (its parameter untyped: its event's)
 			case EFunction(k, f) if (event != null && f.args.length == 1 && f.args[0].type == null):
 				var a = f.args[0];
@@ -511,8 +506,6 @@ class HaxeTarget implements Target<Expr> {
 	public function isFunction(e:Expr):Bool
 		return switch e.expr {
 			case EFunction(_, _): true;
-			// (a value of a function type: TypeScript's child function, through its glue)
-			case ECheckType(_, TFunction(_, _)) | EParenthesis({expr: ECheckType(_, TFunction(_, _))}): true;
 			case EParenthesis(x) | EMeta(_, x) | ECheckType(x, _): isFunction(x);
 			case _: false;
 		}

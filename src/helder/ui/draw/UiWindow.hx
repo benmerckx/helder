@@ -339,7 +339,7 @@ class UiWindow {
 
 	// the app loop: every UiWindow's frames and events until the last closes
 	// (on the web it returns, the frames going on); content, when given, opened first
-	public static function run(?content:RootView) {
+	@:typescript public static function run(?content:RootView) {
 		if (content != null) Render.open(content);
 		App.run(() -> {
 			var now = haxe.Timer.stamp();
@@ -365,7 +365,7 @@ class UiWindow {
 	}
 
 	// <Surface>: a window (a canvas on the web), its children rendered into its ui's root; closed with its owner
-	public static function Surface(props:SurfaceProps):RootView {
+	@:typescript public static function Surface(props:SurfaceProps):RootView {
 		var web = Mem.os() == 3;
 		var width:Null<Int> = Render.read(props.width), height:Null<Int> = Render.read(props.height);
 		var title:Null<String> = Render.read(props.title);

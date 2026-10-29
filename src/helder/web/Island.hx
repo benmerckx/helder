@@ -105,7 +105,7 @@ class Island<P> implements helder.view.Markup {
 	// fetched with the module); canvas false: none (a sound);
 	// stop Offscreen: stopped once out of view, its GPU memory given back,
 	// and run again as load says (loader.js)
-	public static function Wasm(props:{
+	@:typescript public static function Wasm(props:{
 		src:String,
 		?imports:Array<String>,
 		?args:Array<String>,

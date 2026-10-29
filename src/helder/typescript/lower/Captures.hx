@@ -41,9 +41,11 @@ class Captures {
 		return p == null ? n.file.root : p;
 	}
 
+	// (a TSX element and a hole of one too: its components are called, its
+	// holes that read evaluated, by functions of their own, later: helder.typescript.lower.Tsx)
 	public static function boundary(n:Node):Bool return switch n.kind {
 		case KindFunctionDeclaration | KindFunctionExpression | KindArrowFunction | KindMethodDeclaration | KindConstructor | KindGetAccessor
-			| KindSetAccessor | KindClassDeclaration | KindClassExpression: true;
+			| KindSetAccessor | KindClassDeclaration | KindClassExpression | KindJsxExpression | KindJsxElement | KindJsxSelfClosingElement: true;
 		case _: false;
 	}
 

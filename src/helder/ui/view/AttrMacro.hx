@@ -150,6 +150,35 @@ class AttrMacro {
 		return macro @:pos(pos) helder.ui.view.NodeRenderer.setAttribute;
 	}
 
+	// what setter resolves at compile time, as names to their functions' paths
+	// (each attribute's, as named and in kebab-case; data-* and aria-* as
+	// prefixes, * any other name: setAttribute): helder.typescript's manifest
+	// lists them (NodeRenderer.setterTable)
+	public static function table():Array<{name:String, fn:String}> {
+		var out = [
+			{name: "data-*", fn: "helder.ui.view.NodeRenderer.setData"},
+			{name: "aria-*", fn: "helder.ui.view.NodeRenderer.setData"}
+		];
+		var seen = new Map<String, Bool>();
+		function add(n:String, fn:String)
+			for (k in [n, kebab(n)])
+				if (!seen.exists(k)) {
+					seen.set(k, true);
+					out.push({name: k, fn: fn});
+				}
+		// (setter's order: the renderer's own attributes, then Style's)
+		switch Context.getType("helder.ui.view.NodeRenderer") {
+			case TInst(c, _):
+				for (f in c.get().statics.get())
+					if (f.meta.has(":attribute")) add(f.name, "helder.ui.view.NodeRenderer." + f.name);
+			case _:
+		}
+		for (f in styleProperties())
+			add(f.name, "helder.ui.view.StyleAttrs." + setterName(f.name));
+		out.push({name: "*", fn: "helder.ui.view.NodeRenderer.setAttribute"});
+		return out;
+	}
+
 	// v as the type t
 	static function convert(t:Type, fields:Array<Field>, enums:Map<String, Bool>):Expr {
 		var nullable = false;

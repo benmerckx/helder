@@ -130,9 +130,13 @@ class Plan<E> {
 	static function clean(cs:Array<PNode>):Array<PNode>
 		return [for (c in cs) if (exprNotEmpty(c)) c];
 
-	// (the neutral elements: ui's own, a page's renderer realising them as its elements)
-	static function isNeutral(name:String):Bool
-		return ["view", "text", "scroll", "image", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
+	// the neutral elements: ui's own, a page's renderer realising them as its
+	// elements; and the prefixes of their namespaced ones (view:button)
+	public static final NEUTRAL = ["view", "text", "scroll", "image", "icon", "field"];
+	public static final NEUTRAL_PREFIXES = ["view", "text", "field"];
+
+	public static function isNeutral(name:String):Bool
+		return NEUTRAL.indexOf(name) >= 0 || (name.indexOf(":") > 0 && NEUTRAL_PREFIXES.indexOf(name.substr(0, name.indexOf(":"))) >= 0);
 
 	// a component's tag: dotted, or capitalized
 	public static function isComponent(name:String):Bool {

@@ -1,0 +1,65 @@
+root
+  view
+    text "todos"
+    view
+      draft ""
+      add
+        text "(Add)"
+    list
+      text "Nothing here."
+    left "0 items left"
+    view
+      filter-all
+        text "all"
+      filter-active
+        text "(active)"
+      filter-done
+        text "(done)"
+
+root
+  view
+    text "todos"
+    view
+      draft ""
+      add
+        text "(Add)"
+    list
+      view
+        view
+          check-Buy milk unchecked
+          text "Buy milk"
+      view
+        view
+          check-Walk unchecked
+          text "Walk"
+    left "2 items left"
+    view
+      filter-all
+        text "all"
+      filter-active
+        text "(active)"
+      filter-done
+        text "(done)"
+
+root
+  view
+    text "todos"
+    view
+      draft ""
+      add
+        text "(Add)"
+    list
+      view
+        view
+          check-Walk checked
+            icon
+          text "Walk"
+    left "1 item left"
+    view
+      filter-all
+        text "(all)"
+      filter-active
+        text "(active)"
+      filter-done
+        text "done"
+

@@ -33,9 +33,9 @@ abstract Read<T>(Reader<T>) from Reader<T> to Reader<T> {
 	public inline function peek():T
 		return this.peek();
 
-	// (a value given untyped, Dynamic (a TypeScript program's, through its
-	// glue): a Read of it, a function read by calling it; once, where a
-	// component takes it)
+	// (a value given untyped, Dynamic (a component's prop: its Read already,
+	// as it was given): a Read of it, a function read by calling it; once,
+	// where a component takes it)
 	public static function of<T>(v:Dynamic):Read<T> {
 		if (Std.isOfType(v, Reader)) return new Read(v);
 		if (Reflect.isFunction(v)) return new Read(new Thunk<T>(v));

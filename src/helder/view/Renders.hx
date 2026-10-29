@@ -45,6 +45,13 @@ package helder.view;
 //
 //   static macro function setter(name:String):Expr;
 //
+// With it, optionally, what it resolves: each name's function, by its path
+// (a prefix ending in *: data-*; * alone: any other name), which
+// helder.typescript's manifest lists, so that a TypeScript program's markup
+// calls the same functions:
+//
+//   static macro function setterTable():Expr;  // [{name: "padding", fn: "pack.Class.setPadding"}, ...]
+//
 // Optional: a function markEnds (its body empty): a region that ends its
 // parent gets a marker too, which hydration reads (the page's renderers:
 // helder.web's DOM and static ones); without it such a region needs none.

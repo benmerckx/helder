@@ -15,6 +15,9 @@ class TsType {
 	// a union's members; an array's element type
 	public var members:Null<Array<TsType>> = null;
 	public var element:Null<TsType> = null;
+	// whether its values are functions (it has call signatures; a union: every
+	// member does), when asked for while the program was checked (Types.callable)
+	public var isCallable:Null<Bool> = null;
 
 	public function new(id, flags, objectFlags, symbol, isThis) {
 		this.id = id;
@@ -114,6 +117,20 @@ class Types {
 				if (args != null && args.length == 1) t.element = add(args[0]);
 			}
 		}
+	}
+
+	// asks whether a type's values are functions (its call signatures), kept
+	// on it for the lowering (while tsgo is up: during the check)
+	public function callable(t:Null<TsType>):Bool {
+		if (t == null) return false;
+		if (t.isCallable != null) return t.isCallable;
+		if (t.members != null) t.isCallable = t.members.length > 0 && Lambda.foreach(t.members, callable);
+		else if (t.flags & object == 0) t.isCallable = false;
+		else {
+			var signatures:Array<Dynamic> = tsgo.call("getSignaturesOfType", {snapshot: at.snapshot, project: at.project, type: t.id, kind: 0});
+			t.isCallable = signatures != null && signatures.length > 0;
+		}
+		return t.isCallable;
 	}
 
 	// ---- what lowering asks
