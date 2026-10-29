@@ -1,6 +1,6 @@
 # The examples' page (site/, bun run site) on GitHub Pages: on pushes to
 # main, bin/site built (each example that runs in a browser built for the
-# web, the page's TSX built and run), checked in headless Chromium (bun run
+# web, golf's APK for Android, the page's TSX built and run), checked in headless Chromium (bun run
 # site:check: every card, every demo played), then deployed as the Pages
 # artifact (the repository's Pages source: GitHub Actions).
 name: pages
@@ -35,7 +35,20 @@ jobs:
       - name: Fonts (DejaVu Sans, for the ui and text examples)
         run: sudo apt-get install -qqy --no-install-recommends fonts-dejavu-core
       - name: Build
-        run: bun run site
+        # (SITE_APK: the examples marked `// apk: android` built for Android
+        # phones too, their APKs in bin/site/apk/ linked from their cards;
+        # signed with the repository secret HELDER_ANDROID_KEY, a helder
+        # debug key's text, so that each new APK installs over the last;
+        # without it a fresh key each run)
+        env:
+          SITE_APK: 1
+          ANDROID_KEY: ${{ secrets.HELDER_ANDROID_KEY }}
+        run: |
+          if [ -n "$ANDROID_KEY" ]; then
+            printf '%s\n' "$ANDROID_KEY" > "$RUNNER_TEMP/android-debug-key"
+            export HELDER_ANDROID_KEY="$RUNNER_TEMP/android-debug-key"
+          fi
+          bun run site
       - name: Check (the page in Chromium)
         # (not required: the page is deployed without it)
         continue-on-error: true

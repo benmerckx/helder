@@ -94,9 +94,69 @@ try {
 			await page.setViewportSize({ width: 1280, height: 900 });
 		}
 	}
+	// (a game full screen and expanded at a phone's size, a touch drag still the game's: golf's shot, its strokes in ui's accessibility mirror)
+	if (play.includes('golf')) await phone(page, shots);
 	check(errors.length === 0, `no console errors${errors.length ? ': ' + errors.join('\n') : ''}`);
 } finally {
 	await browser.close();
 	server.close();
 }
 if (failures) process.exit(1);
+
+// golf at 390x844: full screen (the Fullscreen API) then expanded (as on an
+// iPhone, without element full screen): the canvas filling the screen at
+// the device's pixels, a touch drag from the ball shooting (STROKES 1 in the
+// mirror) without scrolling the page; screenshots of both when asked
+async function phone(page, shots) {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const stage = page.locator('#golf .stage'), canvas = page.locator('#play-golf canvas');
+	await stage.scrollIntoViewIfNeeded();
+	await page.locator('#golf button.full').click();
+	await page.waitForTimeout(1500);
+	const full = await page.evaluate(() => {
+		const c = document.querySelector('#play-golf canvas'), s = document.querySelector('#golf .stage');
+		return { el: document.fullscreenElement === s, w: c.clientWidth, h: c.clientHeight, bw: c.width, bh: c.height, dpr: devicePixelRatio };
+	});
+	check(full.el && full.w === 390 && full.h === 844, `golf full screen: the stage the full screen element, its canvas ${full.w}x${full.h}`);
+	check(full.bw === Math.round(full.w * full.dpr) && full.bh === Math.round(full.h * full.dpr), `golf full screen: the canvas's buffer ${full.bw}x${full.bh} (its size times ${full.dpr})`);
+	if (shots) await page.screenshot({ path: path.join(shots, 'golf-fullscreen.png') });
+	await page.locator('#golf button.exit').click();
+	await page.waitForTimeout(800);
+	check(await page.evaluate(() => !document.fullscreenElement && !document.querySelector('#golf .stage.expanded')), 'golf full screen: left by Exit');
+	// (as on an iPhone: no element full screen, so expanded over the page)
+	await page.evaluate(() => {
+		for (const k of ['fullscreenEnabled', 'webkitFullscreenEnabled']) Object.defineProperty(document, k, { get: () => false, configurable: true });
+	});
+	await page.locator('#golf button.full').click();
+	await page.waitForTimeout(1500);
+	const box = await canvas.boundingBox();
+	const ex = await page.evaluate(() => {
+		const c = document.querySelector('#play-golf canvas');
+		return { expanded: !!document.querySelector('#golf .stage.expanded'), full: !!document.fullscreenElement, touch: getComputedStyle(c).touchAction,
+			bw: c.width, scroll: scrollY, text: c.textContent };
+	});
+	check(ex.expanded && !ex.full && Math.round(box.width) === 390 && Math.round(box.height) === 844, `golf expanded: over the viewport, ${Math.round(box.width)}x${Math.round(box.height)}`);
+	check(ex.touch === 'none', `golf expanded: the canvas's touch-action ${ex.touch}`);
+	check(/STROKES0/.test(ex.text), 'golf expanded: no stroke yet (the mirror)');
+	if (shots) await page.screenshot({ path: path.join(shots, 'golf-expanded.png') });
+	// (a finger: from the ball, back down, let go; the DevTools protocol's touches)
+	const cdp = await page.context().newCDPSession(page);
+	const at = (x, y) => [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+	const x = box.x + box.width / 2, y0 = box.y + box.height * 597 / 844;
+	await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(x, y0) });
+	for (let i = 1; i <= 12; i++) {
+		await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(x + i * 0.3, y0 + i * 9) });
+		await page.waitForTimeout(25);
+	}
+	if (shots) await page.screenshot({ path: path.join(shots, 'golf-expanded-aim.png') });
+	await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+	await page.waitForTimeout(2500);
+	const after = await page.evaluate(() => ({ text: document.querySelector('#play-golf canvas').textContent, scroll: scrollY }));
+	check(/STROKES1/.test(after.text), 'golf expanded: a touch drag from the ball shot it (STROKES 1)');
+	check(after.scroll === ex.scroll, `golf expanded: the page did not scroll (${ex.scroll}, ${after.scroll})`);
+	if (shots) await page.screenshot({ path: path.join(shots, 'golf-expanded-rolling.png') });
+	await page.locator('#golf button.exit').click();
+	await page.waitForTimeout(500);
+	check(await page.evaluate(() => !document.querySelector('#golf .stage.expanded') && !document.documentElement.classList.contains('playing')), 'golf expanded: left by Exit');
+	await page.setViewportSize({ width: 1280, height: 900 });
+}
