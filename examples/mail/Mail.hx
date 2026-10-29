@@ -38,7 +38,7 @@ class Mail implements Markup {
 		{name: "Archive", level: 0},
 		{name: "Trash", level: 0}
 	];
-	public final messages = signal(new Array<Message>());
+	public final messages:Signal<Array<Message>>;
 	public final folder:Signal<Folder>;
 	public final selected:Signal<Null<Message>> = signal(null);
 	public final query = signal("");
@@ -51,10 +51,11 @@ class Mail implements Markup {
 
 	public function new() {
 		folder = signal(folders[0]);
-		var list = [];
-		for (m in MESSAGES)
-			list.push(new Message(m[0], m[1], m[2], m[3], Std.parseInt(m[4]), m[5] == "unread"));
-		messages(list);
+		// (made with its messages: a write here, in the window's root, is refused)
+		messages = signal([
+			for (m in MESSAGES)
+				new Message(m[0], m[1], m[2], m[3], Std.parseInt(m[4]), m[5] == "unread")
+		]);
 		// (a message read once it is shown)
 		effect(() -> selected(), m -> if (m != null) m.unread(false));
 		effect(() -> dark(), d -> if (root != null && root.ui != null) root.ui.dark = d);
