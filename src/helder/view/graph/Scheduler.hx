@@ -51,6 +51,9 @@ class Scheduler {
 						n.pendingIn = null;
 						world = tx;
 						n.land();
+						// (what waits in it runs again in its world: a mount over what it staged can show now)
+						for (b in tx.find().blocked.copy())
+							if (!b.disposed) b.mark(Node.DIRTY);
 						drain();
 						settle();
 					}
@@ -131,6 +134,9 @@ class Scheduler {
 		world = null;
 		if (t.blocked.length > 0) {
 			if (!held.contains(t)) held.push(t);
+			// (its readers, served the screen, see it held now: isPending)
+			for (n in t.readers)
+				if (!n.disposed && !t.effects.contains(n)) n.mark(Node.DIRTY);
 			return;
 		}
 		held.remove(t);
@@ -144,9 +150,9 @@ class Scheduler {
 		for (n in t.effects)
 			n.toApply = false;
 		runApplies(t.effects);
-		// (what looked ahead at it runs again on the screen)
-		for (n in t.verdicts)
-			if (!n.disposed) n.mark(Node.DIRTY);
+		// (its frame readers, served the committed values, run again on the screen)
+		for (n in t.readers)
+			if (!n.disposed && !t.effects.contains(n)) n.mark(Node.DIRTY);
 	}
 
 	// the world joins other (a computation read what other stages): one transaction

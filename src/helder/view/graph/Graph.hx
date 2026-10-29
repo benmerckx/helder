@@ -94,7 +94,9 @@ class Graph {
 	// it; a first load gives no verdict (false; tracked, it suspends as the
 	// read would); an error in fn is false
 	public static function isPending(fn:Void->Any):Bool {
-		var r = try Node.probing(Node.PROBE_PENDING, fn) catch (e:Dynamic) return false;
+		var r = Node.probing(Node.PROBE_PENDING, fn);
+		// (an error as the new answer is still a new answer on its way)
+		if (r.failed) return r.hit;
 		if (r.notReady) {
 			if (Node.observer != null) throw helder.view.graph.Awaitable.NotReady.instance;
 			return false;
@@ -105,6 +107,7 @@ class Graph {
 	// fn's value with the values on their way (a held change's), ahead of the hold
 	public static function latest<T>(fn:Void->T):T {
 		var r = Node.probing(Node.PROBE_LATEST, fn);
+		if (r.failed) throw r.error;
 		if (r.notReady) throw helder.view.graph.Awaitable.NotReady.instance;
 		return r.result;
 	}

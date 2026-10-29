@@ -80,8 +80,13 @@ class Node<T> extends Owner {
 	var added:Null<Array<Node<Dynamic>>> = null;
 	var trackedBy:Null<Node<Dynamic>> = null;
 	var trackedIn = -1;
-	// (whether its run read what the transaction it ran for staged)
+	// (its run's world: the transaction it runs for, null the screen; and
+	// whether it read what that transaction staged)
+	var world:Null<Tx> = null;
 	var joined = false;
+	// (it has read a verdict: a render effect that has is a verdict reader,
+	// served the screen; kept across runs, a run's reads not always in the same order)
+	var verdictRun = false;
 	// (an effect's: its second half, its last applied value, its cleanup,
 	// its error handler, whether it waits in a queue or for its apply)
 	var apply:Null<(T, Null<T>) -> Null<Void->Void>> = null;
@@ -97,6 +102,13 @@ class Node<T> extends Owner {
 	var tick = -1;
 	// (a derived signal: its written value kept until a source changes)
 	var writable = false;
+	// (a boundary's output: it decides what a pending read under it does, so it runs again)
+	var catcher = false;
+	// (a computed's frame on screen: its last committed run's children and
+	// cleanups, kept while a replacement is in flight, disposed when one
+	// lands (a value or an error); and whether its current run is that frame)
+	var retired:Null<Owner> = null;
+	var shown = false;
 
 	function new(kind:Int, value:Null<T>, fn:Null<Null<T>->Dynamic>, options:Null<NodeOptions<T>>) {
 		// (a signal belongs to no owner: only computations are disposed with theirs)
@@ -130,9 +142,8 @@ class Node<T> extends Owner {
 		n.onFailure = error;
 		n.recompute();
 		if (render && n.toApply) {
-			n.toApply = false;
 			Scheduler.applies.remove(n);
-			n.applyNow();
+			n.runApply(true);
 		}
 	}
 
@@ -169,20 +180,21 @@ class Node<T> extends Owner {
 	// fn's reads looking ahead: whether one saw a value on its way (isPending), or
 	// those values (latest); a first load gives no verdict (NotReady: tracked, it
 	// suspends as the read would; untracked, isPending is false)
-	static function probing<R>(mode:Int, fn:Void->R):{result:Null<R>, hit:Bool, notReady:Bool} {
+	static function probing<R>(mode:Int, fn:Void->R):{result:Null<R>, hit:Bool, notReady:Bool, error:Dynamic, failed:Bool} {
 		var savedProbe = probe, savedHit = probeHit;
 		probe = mode;
 		probeHit = false;
-		var r:Null<R> = null, notReady = false;
+		if (runner != null) runner.verdictRun = true;
+		var r:Null<R> = null, notReady = false, error:Dynamic = null, failed = false;
 		try r = fn() catch (e:NotReady) notReady = true catch (e:Dynamic) {
-			probe = savedProbe;
-			probeHit = savedHit;
-			throw e;
+			error = e;
+			failed = true;
 		}
 		var hit = probeHit;
 		probe = savedProbe;
-		probeHit = savedHit;
-		return {result: r, hit: hit, notReady: notReady};
+		// (a hit inside a nested probe is the enclosing one's too: isPending(() -> latest(x)))
+		probeHit = savedProbe != PROBE_NONE ? savedHit || hit : savedHit;
+		return {result: r, hit: hit, notReady: notReady, error: error, failed: failed};
 	}
 
 	public function read():T {
@@ -196,34 +208,63 @@ class Node<T> extends Owner {
 		return serve();
 	}
 
-	// the value a read gets: in a transaction's world its staging (reading it
-	// joins it), on the screen the committed value
+	// the value a read gets (Solid 2's F-2, F-3, A29). In the world of the
+	// transaction that staged it: the staging (pending: not ready). A frame
+	// reader (a render effect, isPending, latest) outside it is served the
+	// committed value, holds nothing for it and runs again at its commit; a
+	// pass (a memo, an effect's compute, made in a flush or not) reading
+	// the future derives from it: it joins that transaction (born held).
 	function serve():T {
 		var t = stagedIn != null ? stagedIn.find() : null;
 		var p = pendingIn != null ? pendingIn.find() : null;
+		// (a flight whose transaction committed without it: the transaction that
+		// reads it now adopts it, and lands with it (A15: a reveal that discovers
+		// a flight holds on it))
+		if (p != null && p.committed && probe == PROBE_NONE && runner != null) {
+			var w = runner.world != null ? runner.world.find() : Scheduler.world != null ? Scheduler.world.find() : null;
+			if (w != null) pendingIn = p = w;
+		}
 		if (probe != PROBE_NONE) return probed(t, p);
-		var w = Scheduler.world;
-		if (w != null && (t != null || p != null)) {
-			if (t != null) w = Scheduler.join(t);
-			if (p != null) w = Scheduler.join(p);
-			if (runner != null) runner.joined = true;
-			if (p != null) notReady(w);
-			if (t != null) {
+		var ahead = t != null ? t : p;
+		if (ahead != null) {
+			var w = runner != null && runner.world != null ? runner.world.find() : null;
+			if (ahead != w && runner != null && runner.kind != RENDER) {
+				// (a pass joins it)
+				w = runner.world = w == null ? ahead : Tx.merge(w, ahead);
+				if (p != null && t != null && p != w) w = runner.world = Tx.merge(w, p);
+				if (Scheduler.world != null) Scheduler.world = Scheduler.world.find();
+			}
+			// (a render effect that read a verdict is a verdict reader: served the
+			// screen, shown now; a pending value it reads still holds the change)
+			var screen = runner != null && runner.kind == RENDER && runner.verdictRun && !uninit;
+			if (screen && p != null) {
+				runner.blockedIn = p;
+				p.block(runner);
+			}
+			if (!screen && (ahead == w || (p != null && p == w))) {
+				if (runner != null) runner.joined = true;
+				if (p != null) notReady(w);
 				if (stagedFailed) throw stagedError;
 				return staged;
 			}
-		}
-		if (uninit) notReady(p);
+			// (a frame reader: the screen, again at the commit)
+			if (runner != null && !ahead.readers.contains(runner)) ahead.readers.push(runner);
+			if (uninit) notReady(ahead);
+		} else if (uninit) notReady(null);
 		if (hasError) throw error;
 		return value;
 	}
 
+	// (a read looking ahead: the staging of a transaction other than the run's
+	// world, a pending answer to a new question; a hit for isPending)
 	function probed(t:Null<Tx>, p:Null<Tx>):T {
-		var ahead = t != null ? t : p;
-		if (ahead != null && runner != null && !ahead.verdicts.contains(runner)) ahead.verdicts.push(runner);
-		if (probe == PROBE_PENDING) {
-			if (t != null || (p != null && !uninit)) probeHit = true;
-		}
+		var w = runner != null && runner.world != null ? runner.world.find() : null;
+		var ahead = t != null && t != w ? t : null;
+		if ((ahead != null || (p != null && !uninit)) && probeHit == false) probeHit = true;
+		// (the verdict of a staging of its own flush is the seam's: whether that
+		// flush parks; it runs again when the flush settles, either way)
+		var watch = t != null ? t : p;
+		if (watch != null && runner != null && !watch.readers.contains(runner)) watch.readers.push(runner);
 		if (t != null) {
 			if (stagedFailed) throw stagedError;
 			return staged;
@@ -314,16 +355,95 @@ class Node<T> extends Owner {
 		uninit = false;
 		staged = null;
 		stagedIn = null;
+		var failed = stagedFailed;
 		stagedFailed = false;
 		stagedError = null;
+		replaced(!failed);
+	}
+
+	// (its current run is the frame on screen: the one it replaces disposed;
+	// an errored frame is not kept for its own replacement)
+	function replaced(value:Bool) {
+		shown = value;
+		if (retired == null) return;
+		var r = retired;
+		retired = null;
+		try r.dispose() catch (e:Dynamic) Scheduler.report(e);
 	}
 
 	// (its async answered: the answer staged in the transaction that asked, its readers run again)
 	function land() {
 		var w = Scheduler.world;
-		if (answerFailed) stageError(answer, w) else stage(answer, w);
+		var v = answer;
 		answer = null;
+		// (a source pending again: the answer is to a question no longer asked; it waits with that source)
+		if (sources != null) for (src in sources) if (src.pendingIn != null) {
+			pendingIn = src.pendingIn;
+			return;
+		}
+		var t = stagedIn != null ? stagedIn.find() : null;
+		// (an answer equal to the value it would replace: its dependents' wait ends, nothing runs again)
+		if (!answerFailed && !uninit && !(t == w ? stagedFailed : hasError) && same(t == w ? staged : value, v)) {
+			clearPending(w);
+			return;
+		}
+		if (answerFailed) stageError(v, w) else stage(v, w);
 		if (observers != null) for (o in observers) o.mark(DIRTY);
+	}
+
+	// (pending in tx, as a status: its computed dependents pending in turn, not
+	// run again; a render effect reading it holds tx, or an armed boundary
+	// catches it; a boundary's output runs again; Solid 2's propagation)
+	function propagatePending(tx:Tx) {
+		if (observers == null) return;
+		for (o in observers) {
+			if (o.disposed) continue;
+			// (a boundary's output decides; a verdict reader shows the wait: both run again)
+			if (o.catcher || o.verdictRun) {
+				o.mark(DIRTY);
+				continue;
+			}
+			switch o.kind {
+				case COMPUTED:
+					if (o.pendingIn == null) {
+						o.pendingIn = tx;
+						o.propagatePending(tx);
+					}
+				case RENDER:
+					if (o.blockedIn != null || o.caughtBy != null) continue;
+					var b = Boundary.catching(o);
+					if (b != null) {
+						o.caughtBy = b;
+						b.caught(o);
+					} else {
+						o.blockedIn = tx;
+						tx.block(o);
+					}
+				case _:
+			}
+		}
+	}
+
+	// (the wait on tx ended without a new value: its dependents' pending status cleared)
+	function clearPending(tx:Tx) {
+		if (observers == null) return;
+		for (o in observers) {
+			if (o.disposed) continue;
+			if (o.catcher || o.verdictRun) {
+				o.mark(DIRTY);
+				continue;
+			}
+			switch o.kind {
+				case COMPUTED:
+					if (o.pendingIn != null && o.awaiting == null && o.pendingIn.find() == tx.find()) {
+						o.pendingIn = null;
+						o.clearPending(tx);
+					}
+				case RENDER:
+					if (o.blockedIn != null || o.caughtBy != null) o.release();
+				case _:
+			}
+		}
 	}
 
 	function markObservers(s:Int) {
@@ -359,7 +479,17 @@ class Node<T> extends Owner {
 	// runs its function, tracking what it reads
 	function recompute() {
 		if (disposed) return;
-		try clean() catch (e:Dynamic) Scheduler.report(e);
+		// (a computed's committed frame stays until its replacement lands; a run
+		// that never committed is cleaned up when superseded)
+		if (kind == COMPUTED && shown && retired == null && (children != null || cleanups != null)) {
+			retired = new Owner(null);
+			retired.children = children;
+			retired.cleanups = cleanups;
+			children = null;
+			cleanups = null;
+		} else
+			try clean() catch (e:Dynamic) Scheduler.report(e);
+		shown = false;
 		tick = Scheduler.ticks;
 		// (a superseded async run: cancelled, its answer dropped)
 		asked++;
@@ -375,6 +505,7 @@ class Node<T> extends Owner {
 		observer = this;
 		runner = this;
 		probe = PROBE_NONE;
+		world = Scheduler.world != null ? Scheduler.world.find() : null;
 		joined = false;
 		run = ++runs;
 		kept = 0;
@@ -390,7 +521,7 @@ class Node<T> extends Owner {
 		probe = savedProbe;
 		reconcile();
 		state = CLEAN;
-		var w = Scheduler.world != null ? Scheduler.world.find() : null;
+		var w = world != null ? world.find() : null;
 		var mine = w != null && joined;
 		if (waiting) wait(notReadyIn != null ? notReadyIn.find() : null)
 		else if (failed) failWith(failure, mine ? w : null)
@@ -400,7 +531,7 @@ class Node<T> extends Owner {
 
 	// (the value its run builds on: the world's staging, else the committed one)
 	function current():Null<T> {
-		var w = Scheduler.world;
+		var w = world != null ? world : Scheduler.world;
 		if (stagedIn != null && w != null && stagedIn.find() == w.find()) return staged;
 		return uninit ? null : value;
 	}
@@ -411,7 +542,7 @@ class Node<T> extends Owner {
 			case COMPUTED:
 				// (pending in turn: its readers wait with it)
 				pendingIn = tx;
-				if (observers != null) for (o in observers) o.state = DIRTY;
+				if (tx != null) propagatePending(tx);
 			case RENDER:
 				// (an armed boundary above catches it, else it holds the transaction)
 				var b = Boundary.catching(this);
@@ -446,7 +577,7 @@ class Node<T> extends Owner {
 		pendingIn = tx;
 		awaiting = a;
 		var id = asked;
-		if (observers != null) for (o in observers) o.state = DIRTY;
+		propagatePending(tx);
 		a.onAnswer(v -> answered(id, v, false), e -> answered(id, e, true));
 	}
 
@@ -472,6 +603,7 @@ class Node<T> extends Owner {
 				uninit = false;
 				hasError = false;
 				error = null;
+				replaced(true);
 			}
 			// (its observers read it again)
 			if (observers != null) for (o in observers) o.state = DIRTY;
@@ -486,16 +618,44 @@ class Node<T> extends Owner {
 
 	function failWith(e:Dynamic, tx:Null<Tx>) {
 		if (kind == COMPUTED) {
+			// (the same error again is no change)
+			if (tx != null ? (stagedFailed && stagedError == e) : (hasError && error == e)) return;
 			if (tx != null) stageError(e, tx) else {
 				error = e;
 				hasError = true;
 				uninit = false;
+				replaced(false);
 			}
 			if (observers != null) for (o in observers) o.state = DIRTY;
+			// (an owned computation's error reaches the error boundary above it)
+			if (parent != null) parent.handle(e);
 			return;
 		}
-		// (an effect: its handler, else the nearest boundary, else the flush throws it)
-		if (onFailure != null) onFailure(e) else if (parent == null || !parent.handle(e)) Scheduler.failed(e);
+		// (an effect's compute error is delivered with its frame, in the apply phase: runApply)
+		error = e;
+		hasError = true;
+		if (tx != null) {
+			if (!tx.effects.contains(this)) tx.effects.push(this);
+		} else
+			Scheduler.enqueueApply(this);
+	}
+
+	// (an effect's compute error, in the apply phase: its handler (a throw from
+	// it goes on), else the nearest boundary; nothing: a user effect's is
+	// logged and its run skipped, a render effect's halts (the flush throws it))
+	function deliver(e:Dynamic) {
+		if (onFailure != null) {
+			try {
+				within(null, null, () -> onFailure(e));
+				return;
+			} catch (thrown:Dynamic) e = thrown;
+		}
+		if (parent != null && parent.handle(e)) return;
+		if (kind == EFFECT && onFailure == null) {
+			trace('helder.view: an effect failed, its run skipped: $e');
+			return;
+		}
+		Scheduler.failed(e);
 	}
 
 	// s read in the current run
@@ -539,8 +699,23 @@ class Node<T> extends Owner {
 	}
 
 	// (applies its second half; its error the nearest boundary's, else the flush's)
-	function runApply() {
+	function runApply(first = false) {
 		toApply = false;
+		// (behind a boundary's fallback: held until it reveals; a render effect's first render goes through)
+		if (!first && !disposed && !hasError) {
+			var b = Boundary.hiding(this);
+			if (b != null) {
+				b.hold(this);
+				return;
+			}
+		}
+		if (hasError) {
+			var e = error;
+			hasError = false;
+			error = null;
+			if (!disposed) deliver(e);
+			return;
+		}
 		try applyNow() catch (e:Dynamic) if (parent == null || !parent.handle(e)) Scheduler.report(e);
 	}
 
@@ -562,6 +737,11 @@ class Node<T> extends Owner {
 
 	override function unlink() {
 		release();
+		if (retired != null) {
+			var r = retired;
+			retired = null;
+			r.dispose();
+		}
 		if (awaiting != null) {
 			var a = awaiting;
 			awaiting = null;

@@ -117,7 +117,7 @@ function tests() {
 			equals(s.shown, ["1:ada"]);
 		});
 
-		test("a write read with the held value joins the hold (F-2)", () -> {
+		test("a render effect reading a held value is served the committed one, the truth at the commit (F-3)", () -> {
 			var s = setup();
 			var x = signal(0), seen = [];
 			root(_ -> renderEffect(() -> '${x()}/${s.user()}', v -> seen.push(v)));
@@ -125,10 +125,10 @@ function tests() {
 			flush();
 			x(1);
 			flush();
-			equals(seen, ["0/ada"]);
+			equals(seen, ["0/ada", "1/ada"]);
 			s.loads.get(2).resolve("bob");
 			flush();
-			equals(seen, ["0/ada", "1/bob"]);
+			equals(seen, ["0/ada", "1/ada", "1/bob"]);
 		});
 
 		test("a superseded run is cancelled, its answer dropped", () -> {

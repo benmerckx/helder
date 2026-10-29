@@ -18,8 +18,9 @@ class Tx {
 	final effects:Array<Node<Dynamic>> = [];
 	// the render effects waiting on a value not ready: it commits when none is left
 	final blocked:Array<Node<Dynamic>> = [];
-	// the display-ahead readers (isPending, latest) of what it holds: run again at its commit
-	final verdicts:Array<Node<Dynamic>> = [];
+	// the frame readers (render effects, isPending, latest) served the committed
+	// value of what it holds: run again at its commit
+	final readers:Array<Node<Dynamic>> = [];
 
 	function new() {}
 
@@ -42,8 +43,8 @@ class Tx {
 			if (!a.effects.contains(n)) a.effects.push(n);
 		for (n in b.blocked)
 			if (!a.blocked.contains(n)) a.blocked.push(n);
-		for (n in b.verdicts)
-			a.verdicts.push(n);
+		for (n in b.readers)
+			if (!a.readers.contains(n)) a.readers.push(n);
 		Scheduler.merged(a, b);
 		return a;
 	}
