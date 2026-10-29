@@ -211,6 +211,18 @@ reads the dev server's messages (`App.run`'s turns; an idle loop wakes
 every 50 ms) and reports the first frame. Without `-D hxmc.dev` every call
 compiles to nothing.
 
+## Store
+
+`Store.open(name)`: a small key-value store of strings kept between runs
+(settings, a save), read when opened and written through at each `set`,
+`remove` or `clear` (a temporary file renamed over the old one): a JSON
+file in the app's data directory (Linux `$XDG_DATA_HOME/<name>/store.json`,
+macOS `~/Library/Application Support/<name>/`, Windows `%APPDATA%\<name>\`,
+Android the app's files directory, iOS its `Library/Application Support`),
+localStorage on the web (the item `helder.store/<name>`). A damaged or
+missing file opens empty; `written` says whether the last change was
+kept. `Store.test.hx` (natively and as wasm32-wasi).
+
 ## Audio
 
 A pull model: the system asks for samples and a callback fills them.
@@ -230,7 +242,11 @@ out.close();
 out.sampleRate; out.channels; out.frames; out.latency; // as the system gave them
 ```
 
-`examples/tone/Tone.hx` plays a 440 Hz sine for two seconds. `frames` is a hint:
+`examples/tone/Tone.hx` plays a 440 Hz sine for two seconds. Short
+effects: `Sfx.open()` mixes one-shots made up front (`add(samples)`, mono
+at `Sfx.RATE`) on a few voices, `play(id, gain, rate)` from the main
+thread, nothing allocated on the audio thread (`Sfx.test.hx`; silent on
+Android and iOS, which have no back end yet; examples/golf's sounds). `frames` is a hint:
 `out.frames` is the most frames a callback is asked for (the system's
 period or buffer), `out.latency` the seconds from a callback's samples to
 the output, as the system reports them.

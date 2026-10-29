@@ -60,4 +60,10 @@ import hxmc.unsafe.*;
 	static function fetch_length(h:Int):Int;
 	static function fetch_take(h:Int, p:Ptr):Void;
 	static function fetch_free(h:Int):Void;
+	// helder.os.Store's: 1 when the page has localStorage (0: none, as under
+	// node's WASI); the text under key (a string handle, 0: none); written,
+	// removed (value null: 0)
+	static function store_available():Int;
+	static function store_get(key:CString):Int;
+	static function store_set(key:CString, value:CString):Void;
 }

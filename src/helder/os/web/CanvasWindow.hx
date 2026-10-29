@@ -171,7 +171,7 @@ class CanvasWindow {
 	}
 
 	// a string handle's text (the handle freed)
-	static function take(h:Int):String {
+	@:allow(helder.os) static function take(h:Int):String {
 		var n = Dom.text_length(h);
 		var b = haxe.io.Bytes.alloc(n);
 		Arena.scoped(a -> {
