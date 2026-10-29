@@ -14,6 +14,8 @@ class Project {
 	public var file(default, null):SourceFile;
 	// (every program file that is not a declaration file)
 	public final files:Array<SourceFile> = [];
+	// (the declaration files the program and they import: helder's API, glue.Declarations)
+	public final declarations:Array<SourceFile> = [];
 	public final isJS:Bool;
 	public var types(default, null):Types;
 	final modules:Map<Node, String> = [];
@@ -125,22 +127,32 @@ class Project {
 			report(tsgo.call("getSemanticDiagnostics", {snapshot: at.snapshot, project: at.project, files: checked}));
 		if (errors.length > 0) throw errors.join("\n");
 		types = new Types(tsgo, at, tables);
-		for (name in sources) {
+		var pending:Array<String> = [], seen = new Map<String, Bool>();
+		function load(name:String, program:Bool) {
 			var sf = new SourceFile(name, tsgo.request("getSourceFile", haxe.Json.stringify({snapshot: at.snapshot, project: at.project, file: name})), tables);
-			files.push(sf);
+			(program ? files : declarations).push(sf);
 			if (name == absolute) file = sf;
 			symbols(tsgo, at, sf);
-			types.load(sf);
+			if (program) types.load(sf);
 			for (i in 1...sf.count) switch sf.kindAt(i) {
 				case KindImportDeclaration | KindExportDeclaration:
 					var specifier = sf.node(i).moduleSpecifier();
 					if (specifier != null && specifier.kind == KindStringLiteral) {
 						var r:Dynamic = tsgo.call("getResolvedModule", {snapshot: at.snapshot, project: at.project, file: name, moduleName: specifier.text, mode: 99});
-						if (r != null && r.resolvedFileName != null) modules.set(specifier, r.resolvedFileName);
+						if (r != null && r.resolvedFileName != null) {
+							var target:String = r.resolvedFileName;
+							modules.set(specifier, target);
+							if (StringTools.endsWith(target, ".d.ts") && !seen.exists(target)) {
+								seen.set(target, true);
+								pending.push(target);
+							}
+						}
 					}
 				case _:
 			}
 		}
+		for (name in sources) load(name, true);
+		while (pending.length > 0) load(pending.shift(), false);
 		if (file == null) throw path + ": TSHX002: input file not found";
 	}
 

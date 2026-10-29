@@ -6,6 +6,7 @@ import helder.typescript.check.Project;
 import helder.typescript.lower.Frontend;
 import helder.typescript.ir.Verifier;
 import helder.typescript.ir.TextIR;
+import helder.typescript.glue.Glue;
 
 using StringTools;
 
@@ -18,7 +19,7 @@ using StringTools;
 // `helder dev`'s compilation server alike.
 //
 // For a quick build: `helder-ts <entry.ts> [-o out] [--target t]
-// [--dump-ir file] [--roundtrip-ir] [--coverage]`.
+// [-D name[=value]] [--cp dir] [--dump-ir file] [--roundtrip-ir] [--coverage]`.
 class Compiler {
 	public static inline var DEFINE = "helder.typescript";
 
@@ -42,6 +43,14 @@ class Compiler {
 		hxmc.ir.CInterop.install();
 		hxmc.TargetFlags.install();
 		hxmc.StdDce.install();
+		// (before Haxe types the program: the TypeScript program checked, its glue written)
+		var typing = compiler.Compiler.beforeTypingHook;
+		compiler.Compiler.beforeTypingHook = function(com, actx) {
+			if (typing != null) typing(com, actx);
+			prepared = null;
+			var entry = core.Define.rawDefinedValueSafe(com.defines, DEFINE, "");
+			if (entry != "" && com.platform.match(CustomTarget("hxmc"))) prepared = prepare(com, actx, entry);
+		}
 		var failed:Null<String> = null;
 		// (a compilation server keeps what it can between builds, as hxmc's does: tsgo too)
 		for (a in ["--wait", "--server-listen", "--server-connect"]) if (args.contains(a)) hxmc.Driver.resident = true;
@@ -68,26 +77,71 @@ class Compiler {
 		return code;
 	}
 
+	// what the build's start made of the TypeScript program: it checked, its
+	// glue (or the error the check or the glue gave, reported where the build
+	// would have lowered it)
+	static var prepared:Null<{project:Null<Project>, glue:Null<Glue>, error:Null<String>}> = null;
+
+	// The program checked (tsgo) and its glue written (helder.typescript.glue):
+	// a Haxe module the build types with the rest, its class the build's main
+	// (the runtime's seed and the glue reached from it). After a failed check,
+	// a module with no glue, so the build reaches the error's report.
+	static function prepare(com:context.Common.CommonContext, actx:compiler.ParsedArg.ArgContext, entry:String) {
+		phase("start");
+		var project:Null<Project> = null, glue:Null<Glue> = null, error:Null<String> = null;
+		try {
+			project = Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"]));
+			phase("check (tsgo)");
+			glue = new Glue(project);
+		} catch (e:Dynamic) {
+			if (Sys.getEnv("HELDER_TS_DEBUG") == "1") Sys.stderr().writeString(haxe.CallStack.toString(haxe.CallStack.exceptionStack()) + "\n");
+			error = Std.string(e);
+		}
+		var dir = Path.join([cache(), "glue", haxe.crypto.Md5.encode(FileSystem.fullPath(entry))]);
+		var file = Path.join([dir, Glue.PACK, Glue.CLASS + ".hx"]);
+		var text = glue != null ? glue.source(Project.relative(FileSystem.fullPath(entry))) : 'package ${Glue.PACK};\n\nclass ${Glue.CLASS} {\n\tstatic function main()\n\t\thelder.typescript.js.Seed.main();\n}\n';
+		// (rewritten only when it changed: a compilation server keeps the module typed)
+		if (!FileSystem.exists(file) || sys.io.File.getContent(file) != text) {
+			FileSystem.createDirectory(Path.directory(file));
+			sys.io.File.saveContent(file, text);
+		}
+		com.classPaths.add(new core.ClassPath.DirectoryClassPath(Path.addTrailingSlash(dir), User));
+		var main = new core.Globals.GlobalTypePath([Glue.PACK], Glue.CLASS);
+		com.main.mainPath = main;
+		actx.classes.push(main);
+		return {project: project, glue: glue, error: error};
+	}
+
+	// helder's cache: HELDER_CACHE, else the user's (as build.mjs has it)
+	static function cache():String {
+		var configured = Sys.getEnv("HELDER_CACHE");
+		if (configured != null && configured != "") return configured;
+		var home = Sys.getEnv("HOME") ?? Sys.getEnv("USERPROFILE") ?? ".";
+		return switch Sys.systemName() {
+			case "Windows": Path.join([Sys.getEnv("LOCALAPPDATA") ?? home, "helder", "cache"]);
+			case "Mac": Path.join([home, "Library/Caches/helder"]);
+			case _: Path.join([Sys.getEnv("XDG_CACHE_HOME") ?? Path.join([home, ".cache"]), "helder"]);
+		}
+	}
+
 	// hxmc's generation (hxmc.Main.generate) with the TypeScript program
 	// lowered into the IR it is about to compile (its beforeCodegen seam).
 	static function generate(com:context.Common.CommonContext, entry:String) {
 		phase("type (haxe)");
+		var ready = prepared;
+		prepared = null;
+		// (helder dev's watcher: the program's files, beside the modules
+		// helder.cli.Deps wrote; a failed check's too, so a fix is seen)
+		var deps = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".deps", "");
+		if (deps != "") {
+			var listed = sys.FileSystem.exists(deps) ? sys.io.File.getContent(deps) : "";
+			sys.io.File.saveContent(deps, listed + [for (f in Project.read) f + "\n"].join(""));
+		}
+		if (ready == null) throw "TSHX004: the TypeScript program was not prepared";
+		if (ready.error != null) throw ready.error;
 		hxmc.Main.generate(com, com.file, (com, p) -> {
 			phase("lower runtime");
-			// (helder dev's watcher: the program's files, beside the modules
-			// helder.cli.Deps wrote; a failed check's too, so a fix is seen)
-			var deps = core.Define.rawDefinedValueSafe(com.defines, DEFINE + ".deps", "");
-			function listFiles() if (deps != "") {
-				var listed = sys.FileSystem.exists(deps) ? sys.io.File.getContent(deps) : "";
-				sys.io.File.saveContent(deps, listed + [for (f in Project.read) f + "\n"].join(""));
-			}
-			var project = try Project.check(entry, Path.join([source(), "helder/typescript/globals.d.ts"])) catch (e:Dynamic) {
-				listFiles();
-				throw e;
-			}
-			listFiles();
-			phase("check (tsgo)");
-			var frontend = new Frontend(project, p);
+			var frontend = new Frontend(ready.project, p, ready.glue);
 			frontend.lower();
 			Verifier.check(p);
 			phase("lower program");
@@ -154,7 +208,9 @@ class Compiler {
 			case "--dump-ir": defines = defines.concat(["-D", DEFINE + ".dump_ir=" + args.shift()]);
 			case "--roundtrip-ir": defines = defines.concat(["-D", DEFINE + ".roundtrip_ir"]);
 			case "--coverage": defines = defines.concat(["-D", DEFINE + ".coverage"]);
-			case a: throw 'helder-ts: unexpected argument $a (helder-ts <entry.ts> [-o out] [--target t] [--dump-ir file] [--roundtrip-ir] [--coverage])';
+			case "-D": defines = defines.concat(["-D", args.shift()]);
+			case "--cp": defines = defines.concat(["-cp", args.shift()]);
+			case a: throw 'helder-ts: unexpected argument $a (helder-ts <entry.ts> [-o out] [--target t] [-D name[=value]] [--cp dir] [--dump-ir file] [--roundtrip-ir] [--coverage])';
 		}
 		if (!FileSystem.exists(entry)) throw '$entry: TSHX002: input file not found';
 		var result = ["-cp", source(), "-main", "helder.typescript.js.Seed", "--custom-target", "hxmc=" + out].concat(defines);

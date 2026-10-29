@@ -65,7 +65,7 @@ class Children {
 
 	public inline function checkType():Node return child(11);
 
-	public inline function jsxChildren():Node return child(12);
+	public inline function jsxChildren():Array<Node> return list(12);
 
 	public inline function className():Node return child(13);
 

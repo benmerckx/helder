@@ -9,6 +9,8 @@ import haxe.ds.Vector;
 import helder.typescript.ir.Builder;
 import helder.typescript.check.Types;
 import helder.typescript.lower.Classes.ClassLayout;
+import helder.typescript.glue.Glue;
+import helder.typescript.glue.Glue.GlueCall;
 
 // A binding's storage: a global (module scope), a box (captured by a
 // closure), or a plain local; `outer`: an enclosing function's plain local,
@@ -64,9 +66,13 @@ class Frontend {
 	var pendingName:String = null;
 	static inline var PLAIN = 0;
 	static inline var METHOD = 1;
-	public function new(src:Project, p:Program) {
+	// (the program's calls into helder's Haxe API and its TSX, as Haxe: null without any)
+	final glue:Null<Glue>;
+
+	public function new(src:Project, p:Program, ?glue:Glue) {
 		this.src = src;
 		this.p = p;
+		this.glue = glue;
 	}
 
 	public function coverage():Dynamic return {expressions: expressions, typedSites: typed, dynamicSites: dynamicSites, unsupported: 0, typedOperations: typedOperations, dynamicOperations: dynamicOperations};
@@ -200,6 +206,12 @@ class Frontend {
 
 	function moduleSpecifier(n:Node):Null<Node> return n.kind == KindImportDeclaration ? n.moduleSpecifier() : n.kind == KindExportDeclaration ? n.moduleSpecifier() : null;
 
+	// (a declaration file's: helder's API, which glue reaches)
+	function declared(specifier:Node):Bool {
+		var name = src.resolve(specifier);
+		return name != null && StringTools.endsWith(name, ".d.ts");
+	}
+
 	function targetModule(specifier:Node):Module {
 		var name = src.resolve(specifier);
 		var m = name == null ? null : moduleOf.get(name);
@@ -220,7 +232,7 @@ class Frontend {
 			visiting.set(m, true);
 			for (s in statementsOf(m.file)) {
 				var spec = moduleSpecifier(s);
-				if (spec != null) visit(targetModule(spec));
+				if (spec != null && !declared(spec)) visit(targetModule(spec));
 			}
 			order.push(m);
 		}
@@ -265,6 +277,13 @@ class Frontend {
 		for (m in modules) if (m.namespace != null) {
 			enter(m);
 			set(m.namespace, namespaceObject(m));
+		}
+		// (the program's components its TSX names, given to the glue)
+		if (glue != null) for (c in glue.components) {
+			enter(moduleOf.get(c.declaration.file.path));
+			var name = c.declaration.name().text;
+			var value = !env.exists(name) && functions.exists(name) ? read(functionValues.get(name)) : read(get(name, c.declaration));
+			b.out.push(SExpr(ECall(glueFunction(c.setter), Vector.fromArrayCopy([any(value)]))));
 		}
 		for (m in modules) {
 			enter(m);
@@ -365,7 +384,7 @@ class Frontend {
 			case KindImportDeclaration:
 				var clause = n.importClause();
 				if (clause == null) continue;
-				if (clause.isTypeOnly()) continue;
+				if (clause.isTypeOnly() || declared(n.moduleSpecifier())) continue;
 				var target = targetModule(n.moduleSpecifier());
 				if (clause.name() != null) bind(clause.name().text, target.exports.get("default"));
 				var named = clause.namedBindings();
@@ -1177,6 +1196,8 @@ class Frontend {
 
 	function expr(n:Node):Ex {
 		expressions++;
+		var g = glue == null ? null : glue.calls.get(n);
+		if (g != null) return glueCall(g, []);
 		var result:Ex = switch (n.kind) {
 			case KindPropertyAccessExpression | KindElementAccessExpression | KindCallExpression if (chainTop(n)): optionalChain(n);
 			case KindNumericLiteral: EF64(Std.parseFloat(n.text));
@@ -1347,6 +1368,15 @@ class Frontend {
 
 	function lvalue(n:Node):{read:() -> Ex, write:Ex->Void} {
 		while (n.kind == KindParenthesizedExpression || n.kind == KindNonNullExpression || n.kind == KindAsExpression || n.kind == KindSatisfiesExpression || n.kind == KindTypeAssertionExpression) n = n.expression();
+		var setter = glue == null ? null : glue.sets.get(n);
+		if (setter != null) {
+			// (a member of a value of helder's: its receiver once, read and written by glue)
+			var receiver = [for (a in setter.args) b.temp(any(expr(a)))];
+			return {
+				read: () -> glueCall(glue.calls.get(n), receiver),
+				write: (e) -> b.out.push(SExpr(ECall(glueFunction(setter.name), Vector.fromArrayCopy(receiver.concat([any(e)])))))
+			};
+		}
 		if (n.kind == KindIdentifier) {
 			var v = get(n.text, n);
 			return {read: () -> b.temp(read(v)), write: (e) -> set(v, e)};
@@ -2381,6 +2411,26 @@ class Frontend {
 	}
 
 	var buffering:Map<Node, Bool> = [];
+
+	// ---- glue (helder.typescript.glue): calls into helder's Haxe API, TSX
+	var glueFunctions:Map<String, FuncInfo> = null;
+
+	function glueFunction(name:String):FuncInfo {
+		if (glueFunctions == null) {
+			glueFunctions = [];
+			for (f in p.funcs) if (StringTools.startsWith(f.name, Glue.irName(""))) glueFunctions.set(f.name, f);
+		}
+		var f = glueFunctions.get(Glue.irName(name));
+		if (f == null) throw "TSHX004: glue function not linked: " + name;
+		return f;
+	}
+
+	// a glue function called with its values (given: already evaluated)
+	function glueCall(g:GlueCall, given:Array<Ex>):Ex {
+		var args = given.length > 0 ? given : [for (a in g.args) b.temp(any(expr(a)))];
+		typedOperations++;
+		return b.temp(ECall(glueFunction(g.name), Vector.fromArrayCopy(args)));
+	}
 
 	// ---- typed values (Reps)
 	// (a property access that is neither optional nor through super)

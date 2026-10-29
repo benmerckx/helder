@@ -6,6 +6,16 @@
   "files": [
     "src/"
   ],
+  "exports": {
+    "./view": {
+      "types": "./src/helder/view/index.d.ts"
+    },
+    "./ui": {
+      "types": "./src/helder/ui/index.d.ts"
+    },
+    "./package.json": "./package.json",
+    "./*": "./*"
+  },
   "haxe": {
     "name": "helder",
     "classPath": "src"

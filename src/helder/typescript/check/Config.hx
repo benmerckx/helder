@@ -24,7 +24,9 @@ class Config {
 		checkJs: false,
 		skipLibCheck: true,
 		types: [],
-		lib: ["lib.esnext.d.ts"]
+		lib: ["lib.esnext.d.ts"],
+		// (TSX compiled by helder: to helder.view's markup)
+		jsx: 1
 	};
 
 	static inline var TARGET_ES2022 = 9;
