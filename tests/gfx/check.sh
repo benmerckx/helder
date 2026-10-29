@@ -22,14 +22,14 @@ if [ -f "$bin/GfxTest.exe" ]; then
 		run() { xvfb-run -a -s "-screen 0 640x480x24" "${WINE:-/usr/lib/wine/wine64}" "$@"; }
 		;;
 	esac
-	for s in triangle cube instances targets mips formats; do
+	for s in triangle cube instances targets msaa mips formats; do
 		run "$bin/GfxTest.exe" headless $s "$here/$s.png" "$out/$s-headless.png"
 		run "$bin/GfxTest.exe" window $s "$here/$s.png" "$out/$s-window.png" 5
 	done
 	exit 0
 fi
 if [ "$(uname -s)" = Darwin ]; then
-	for s in triangle cube instances targets mips formats; do
+	for s in triangle cube instances targets msaa mips formats; do
 		code=0
 		"$bin/GfxTest" headless $s "$here/$s.png" "$out/$s-headless.png" || code=$?
 		[ $code = 3 ] && exit 0
@@ -39,13 +39,13 @@ if [ "$(uname -s)" = Darwin ]; then
 		echo "check.sh: not a GUI session (launchctl managername: $(launchctl managername 2>/dev/null)): no window test"
 		exit 0
 	fi
-	for s in triangle cube instances targets mips formats; do
+	for s in triangle cube instances targets msaa mips formats; do
 		"$bin/GfxTest" window $s "$here/$s.png" "$out/$s-window.png" 5
 	done
 	exit 0
 fi
 export LIBGL_ALWAYS_SOFTWARE=1
-for s in triangle cube instances targets mips formats; do
+for s in triangle cube instances targets msaa mips formats; do
 	env -u DISPLAY "$bin/GfxTest" headless $s "$here/$s.png" "$out/$s-headless.png"
 	xvfb-run -a -s "-screen 0 640x480x24" "$bin/GfxTest" window $s "$here/$s.png" "$out/$s-window.png" 5
 done

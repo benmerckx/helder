@@ -42,6 +42,7 @@ const files = {
 	'/cube.png': path.join(here, 'cube.png'),
 	'/instances.png': path.join(here, 'instances.png'),
 	'/targets.png': path.join(here, 'targets.png'),
+	'/msaa.png': path.join(here, 'msaa.png'),
 	'/mips.png': path.join(here, 'mips.png'),
 	'/formats.png': path.join(here, 'formats.png'),
 };
@@ -83,7 +84,7 @@ const url = `http://localhost:${server.address().port}/`;
 const browser = await pw.chromium.launch({ args: CHROMIUM_ARGS });
 console.log(`web.mjs: chromium ${browser.version()}`);
 let failed = 0;
-const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['triangle', 'cube', 'instances', 'targets', 'mips', 'formats'];
+const scenes = process.env.SCENES ? process.env.SCENES.split(',') : ['triangle', 'cube', 'instances', 'targets', 'msaa', 'mips', 'formats'];
 for (const [scene, gfx, mode] of scenes.flatMap((s) => [[s, 'webgpu', 'headless'], [s, 'webgpu', 'window'], [s, 'webgl2', 'headless'], [s, 'webgl2', 'window']])) {
 	const p = await browser.newPage({ viewport: { width: 400, height: 300 } });
 	const errors = [];

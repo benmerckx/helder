@@ -1,7 +1,8 @@
 import helder.gfx.*;
 
 // The tests' scenes (GfxTest, WebTest): the triangle example, the cube
-// example turned by ANGLE radians, or the instances, targets, mips and
+// example turned by ANGLE radians, or the instances, targets (msaa: its
+// target multisampled), mips and
 // formats examples at TIME seconds
 class Scene {
 	public static inline var ANGLE = 0.6;
@@ -17,8 +18,8 @@ class Scene {
 			var instances = new Instances(device);
 			return enc -> instances.draw(enc, TIME);
 		}
-		if (name == "targets") {
-			var targets = new Targets(device);
+		if (name == "targets" || name == "msaa") {
+			var targets = new Targets(device, name == "msaa" ? 4 : 1);
 			return enc -> targets.draw(enc, TIME);
 		}
 		if (name == "mips") {
