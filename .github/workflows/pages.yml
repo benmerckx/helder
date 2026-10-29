@@ -1,7 +1,7 @@
 # The examples' page (site/, bun run site) on GitHub Pages: on pushes to
 # main, bin/site built (each example that runs in a browser built for the
 # web, the page's TSX built and run), checked in headless Chromium (bun run
-# site:check: every card, two demos played), then deployed as the Pages
+# site:check: every card, every demo played), then deployed as the Pages
 # artifact (the repository's Pages source: GitHub Actions).
 name: pages
 

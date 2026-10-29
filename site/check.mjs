@@ -1,12 +1,12 @@
 // The site's check (bun run site:check, after bun run site), in headless
 // Chromium (Playwright): bin/site served, every example a card, then the
-// Play button of a few demos pressed: each started (data-hydrated, the
+// Play button of every demo pressed (or of the ids given): each started (data-hydrated, the
 // graphics API it draws with in data-gfx), its canvas drawn (it looks
 // different from before; a sound only started), no console errors. With a
 // directory, the page's screenshots at a phone's width and a desktop's are
 // written there.
 //
-//   node site/check.mjs [screenshots dir] [ids to play...]   (default: triangle counter)
+//   node site/check.mjs [screenshots dir] [ids to play...]   (default: every demo)
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import fs from 'node:fs';
@@ -20,8 +20,8 @@ try { pw = require('playwright'); } catch { pw = require(path.join(process.execP
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'bin/site');
 const [shots, ...ids] = process.argv.slice(2);
-const play = ids.length ? ids : ['triangle', 'counter'];
 const site = JSON.parse(fs.readFileSync(path.join(root, 'bin/site-build/examples.json'), 'utf8'));
+const play = ids.length ? ids : site.examples.filter((e) => e.demo).map((e) => e.id);
 
 const types = { '.mjs': 'text/javascript', '.js': 'text/javascript', '.wasm': 'application/wasm', '.html': 'text/html', '.json': 'application/json' };
 const server = createServer(async (req, res) => {
