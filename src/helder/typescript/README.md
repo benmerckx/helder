@@ -12,8 +12,11 @@ in the output and no Haxe source in between.
 
 ## In helder's compiler
 
-This frontend is a plugin of helder's compiler (src/helder/compiler, hxmc's
-compiler with helder's hooks): `Frontend.hx`. A build given
+This frontend is a plugin of helder's compiler (helder.compiler,
+src/helder/compiler: hxmc's compiler with helder's hooks, markup's among
+them; see its README). The plugin is `Frontend.hx` here (the compiler's
+`Plugin`: the short form, the start of a build, its generation); the
+lowering it runs is `lower/Frontend.hx`. A build given
 `-D helder.typescript=<entry.ts>` also checks that program (before Haxe
 types the build: its glue written, below) and lowers it into the program's
 IR after the Haxe side (`helder.typescript.js`, the JavaScript runtime, and
@@ -86,7 +89,7 @@ version. Regenerating is only needed to use new syntax.
 
 ## Lowering (`lower/`, `ir/`)
 
-`Frontend.hx` lowers the checked AST to hxmc IR in evaluation order. Values
+`lower/Frontend.hx` lowers the checked AST to hxmc IR in evaluation order. Values
 are JavaScript values (`js/`): objects with prototypes, sparse arrays,
 closures, classes, iterators, generators, promises with an event loop,
 RegExp, Date, Map/Set, iterator helpers, ArrayBuffer/DataView, JSON and
@@ -170,7 +173,39 @@ names `globalThis` or calls a method by a computed name installs them all.
 
 Excluded, with a diagnostic: `eval`, `Function`, `Proxy`, `with`,
 `__proto__`/`setPrototypeOf`, dynamic `import()`. Not yet: BigInt, typed
-arrays, `process` and node's other globals, calling helder's Haxe API.
+arrays, `process` and node's other globals.
+
+## Where it is going
+
+The glue above is generated Haxe per call site, and the declarations
+(`index.d.ts`) are written by hand; both are to be replaced (helder.view's
+DESIGN.md §7):
+
+- **TSX through the shared markup planner.** helder.markup's `Plan<E>`
+  already compiles Haxe's markup (`MarkupMacro.HaxeTarget`); a TypeScript
+  `Target<E>` lowers TSX with the same decisions (renderer boundaries,
+  components, bound holes), so Haxe and TSX markup mean the same, with no
+  glue module in between.
+- **A manifest of the API** (renderers' contracts, helder's public classes
+  and functions), read by the lowering instead of generated call sites.
+- **Generated declarations.** The `.d.ts` files come from Haxe's types,
+  with benmerckx/genes' declaration typing as the base (to be copied in
+  here and reworked), not written by hand.
+- **The new reactive core.** helder.view.graph replaces the old core
+  (`signal(...).value`): reads are calls (`count()`), writes `count(v)` or
+  `count(c -> c + 1)`, and they take effect at a flush. TSX and Haxe read
+  the same, the lambdas aside:
+
+  ```tsx
+  function Checkbox(props: {checked: Signal<boolean>, label: string}) {
+  	return <view:button role="checkbox" checked={props.checked} onPress={() => props.checked(c => !c)}>
+  		<Show when={props.checked()}><icon name="check"/></Show>
+  	</view:button>;
+  }
+  ```
+
+  The example above under "helder's API and TSX" still shows the old
+  core, which renderers use until they move (in progress).
 
 ## Tests
 
@@ -182,6 +217,10 @@ check themselves where node still differs from the specification;
 compile and stop with TSHX100 at the line it names. `helder/`
 programs call helder's API and render TSX headless (tests/view's
 TestRenderer), their output checked against `<name>.out`.
+
+Known failure: `helder/view.tsx` prints a signal itself where its value is
+expected (`Signal(1) doubled Memo(2)` for `1 doubled 2`); the move to the
+new core fixes it. The lane needs node 24 or later.
 
 `node tests/typescript/bench.mjs [names]` times the programs of `bench/`
 compiled by helder's compiler against node (median of 5 runs each).
