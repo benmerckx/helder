@@ -450,11 +450,23 @@ private class GraphHooks implements IDispatchObject {
 	function new(f)
 		this.f = f;
 
-	public function onDispatch()
+	public function onDispatch() {
+		queued = false;
 		f();
+	}
+
+	// (one, reused: asking for a flush allocates nothing, and queues it once)
+	static var flushes:Null<GraphHooks> = null;
+
+	var queued = false;
 
 	static function __init__() {
-		helder.view.graph.Scheduler.later = f -> Loop.current().dispatch(new GraphHooks(f));
+		helder.view.graph.Scheduler.later = f -> {
+			if (flushes == null) flushes = new GraphHooks(f);
+			if (flushes.queued) return;
+			flushes.queued = true;
+			Loop.current().dispatch(flushes);
+		};
 		helder.view.graph.Coroutines.start = (body, ok, fail) -> {
 			var t = new Task<Dynamic>(null, Loop.current().context(), @:coroutine function(_) return body(), false);
 			t.onCompletion((r, e) -> if (e != null) fail(e) else ok(r));
