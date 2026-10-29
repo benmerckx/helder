@@ -22,7 +22,7 @@ class GlueCall {
 }
 
 // The glue between a TypeScript program and helder's Haxe API: a Haxe module
-// written before Haxe types the program (helder.typescript.Compiler's
+// written before Haxe types the program (helder.typescript.Frontend's
 // beforeTypingHook), with a function for each call into the API, each
 // member of one of its values read or written, each TSX literal (helder.view's
 // markup, compiled by its macro), and one per TypeScript component a literal

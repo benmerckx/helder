@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 // (startup and output included, compilation not).
 const T='tests/typescript',dir='bin/typescript/bench';fs.mkdirSync(dir,{recursive:true});
 function run(cmd,args){const r=spawnSync(cmd,args,{encoding:'utf8',timeout:600000});if(r.error)throw r.error;assert.equal(r.status,0,r.stderr+'\n'+r.stdout);return r.stdout;}
-const compiler=run(process.execPath,['src/helder/typescript/build.mjs','--quiet']).trim();
+const compiler=run(process.execPath,['src/helder/compiler/build.mjs','--quiet']).trim();
 function time(cmd,args,oracle){
     assert.equal(run(cmd,args),oracle);
     const samples=[];

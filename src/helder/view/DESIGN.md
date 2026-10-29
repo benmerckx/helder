@@ -398,7 +398,7 @@ function Inventory(props:{items:Read<Array<Item>>}) return <For each={props.item
 
 Done, with no change to hxmc: helder's compiler (hxmc's, with helder's
 frontends linked: one binary, 7) wraps hxmc's parse
-(`TypeloadParse.parseHook`, helder.typescript.MarkupHook). Haxe parses
+(`TypeloadParse.parseHook`, helder.compiler.MarkupHook). Haxe parses
 `<view/>` as `@:markup "<...>"`, which hxmc's typer refuses ("Markup
 literals must be processed by a macro"); each file parsed has its
 literals wrapped as `implements Markup` wraps them,
@@ -505,7 +505,7 @@ the runtime underneath is its own (2, Allocation).
 ## 7. TypeScript
 
 helder.typescript (src/helder/typescript) compiles TypeScript straight
-to hxmc IR. TypeScript programs use this core and this markup, not a
+to hxmc IR, a frontend of helder's compiler (helder.compiler). TypeScript programs use this core and this markup, not a
 copy: one graph, one commit queue, one planner.
 
 ### 7.1 The same code

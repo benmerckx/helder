@@ -1,4 +1,4 @@
-package helder.typescript;
+package helder.compiler;
 
 import core.Ast;
 import core.ds.VectorTools.vector;

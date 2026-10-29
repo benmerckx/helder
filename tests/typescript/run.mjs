@@ -8,11 +8,11 @@ import assert from 'node:assert/strict';
 // throw on a mismatch themselves; reject/ must fail with a diagnostic.
 const T='tests/typescript';
 const dir=`bin/typescript/run-${process.pid}`; fs.mkdirSync(dir,{recursive:true});
-const built=spawnSync(process.execPath,['src/helder/typescript/build.mjs'],{encoding:'utf8',stdio:['ignore','pipe','inherit']});
+const built=spawnSync(process.execPath,['src/helder/compiler/build.mjs'],{encoding:'utf8',stdio:['ignore','pipe','inherit']});
 if(built.status!==0)process.exit(1);
 const compiler=built.stdout.trim();
 // (the IR checks: the verifier, the text form and its golden file)
-const hxmc=spawnSync(process.execPath,['src/helder/typescript/build.mjs','--sources','--quiet'],{encoding:'utf8'}).stdout.trim();
+const hxmc=spawnSync(process.execPath,['src/helder/compiler/build.mjs','--sources','--quiet'],{encoding:'utf8'}).stdout.trim();
 const launcher='node_modules/@hxmc/cli/hxmc/bootstrap/haxe.mjs';
 ok(run(process.execPath,[launcher,'-cp','src','-cp',T,'-cp',`${hxmc}/haxe/src`,'-cp',`${hxmc}/hxmc/src`,'-main','IrTests','-D','hih_no_generators','-D','disable-parallelism','--custom-target',`hxmc=${dir}/ir-tests`]),'IR checks build');
 const ir=run(`${dir}/ir-tests`,process.env.BLESS?['--write-golden']:[]);ok(ir,'IR checks');process.stdout.write(ir.stdout);

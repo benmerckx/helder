@@ -5,7 +5,11 @@ The `helder` command: a native program on `helder.async`, built by hxmc
 source changed, then runs it). It calls hxmc's native compiler itself
 (`node_modules/@hxmc/<os>-<cpu>`, given its std and runtime objects as
 @hxmc/cli's launcher does), so no node runs; without a platform package it
-says so and falls back to `node_modules/.bin/haxe`.
+says so and falls back to `node_modules/.bin/haxe`. With helder's sources
+and node at hand it builds with helder's compiler instead (src/helder/compiler:
+hxmc's with markup in any function and the TypeScript frontend, built once
+into the user's cache by `src/helder/compiler/build.mjs`), hxmc's native one
+when that does not build.
 
 ```sh
 helder dev                                    # the project here, on this machine, live
@@ -84,8 +88,8 @@ booted.
     directory (`examples/cube` is Cube.hx, not Targets.hx);
   - a TypeScript program: a `.ts` or `.tsx` file, a project whose entry is
     `src/main.ts(x)` (and no `src/Main.hx`), or a directory with a
-    `main.ts(x)`: built by helder's compiler, hxmc's with helder's
-    TypeScript frontend (src/helder/typescript), in the compiler's place,
+    `main.ts(x)`: built by helder's compiler (src/helder/compiler), hxmc's
+    with helder's TypeScript frontend (src/helder/typescript), in the compiler's place,
     the app's own `typescript` (7.1 or later) checking it; `helder dev`
     watches the program's files and keeps tsgo up in the compilation
     server, a change checked and rebuilt in a few hundred ms;

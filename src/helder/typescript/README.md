@@ -10,28 +10,24 @@ in the output and no Haxe source in between.
 .ts ──► tsgo ──binary AST──► helder.typescript.lower ──► hxmc IR ──► native / wasm
 ```
 
-## The compiler
+## In helder's compiler
 
-helder's compiler is hxmc's compiler (@hxmc/cli's `haxe`, with the same command
-line) with this frontend linked in (`Compiler.hx`): a build given
-`-D helder.typescript=<entry.ts>` also checks that program and lowers it into
-the program's IR after the Haxe side (`helder.typescript.js`, the JavaScript
-runtime, and whatever it uses) is lowered and before code generation. So it
-runs where hxmc's compiler runs: one-shot builds, and a compilation server,
-where its tsgo stays up between builds. `<compiler> <entry.ts> [-o out]
-[--target t]` is the short form.
+This frontend is a plugin of helder's compiler (src/helder/compiler, hxmc's
+compiler with helder's hooks): `Frontend.hx`. A build given
+`-D helder.typescript=<entry.ts>` also checks that program (before Haxe
+types the build: its glue written, below) and lowers it into the program's
+IR after the Haxe side (`helder.typescript.js`, the JavaScript runtime, and
+whatever it uses) is lowered and before code generation (hxmc's seam for
+frontends: `hxmc.Main.generate`'s beforeCodegen). So it runs where hxmc's
+compiler runs: one-shot builds, and a compilation server, where its tsgo
+stays up between builds. `<compiler> <entry.ts> [-o out] [--target t]` is
+the short form.
 
 ```sh
-node src/helder/typescript/build.mjs          # builds helder's compiler, prints its path
-$(node src/helder/typescript/build.mjs --quiet) app.ts -o bin/app && bin/app
+node src/helder/compiler/build.mjs          # builds helder's compiler, prints its path
+$(node src/helder/compiler/build.mjs --quiet) app.ts -o bin/app && bin/app
 ```
 
-`build.mjs` builds it once per hxmc version and per hash of these sources,
-into the user's cache (`~/.cache/helder/compiler/`). It links hxmc's
-compiler sources from `@hxmc/source` (a dev dependency at `@hxmc/cli`'s
-version), or a checkout `HXMC_SRC` names, and lowers the program through
-hxmc's seam for frontends (`hxmc.Main.generate`'s beforeCodegen: the IR
-after the Haxe side is lowered, before code generation).
 `HELDER_TS_TIMES=1` prints a build's phases, `HELDER_TS_DEBUG=1` the stack of
 a compiler error.
 

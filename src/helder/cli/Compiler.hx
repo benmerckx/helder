@@ -30,7 +30,7 @@ class Compiler {
 		var env = Sys.getEnv("HAXE");
 		if (env != null && env != "") return env;
 		var hxmc = native();
-		var build = locate("src/helder/typescript/build.mjs") ?? locate("node_modules/helder/src/helder/typescript/build.mjs");
+		var build = locate("src/helder/compiler/build.mjs") ?? locate("node_modules/helder/src/helder/compiler/build.mjs");
 		if (build == null) return hxmc;
 		return try own(Path.directory(Path.directory(Path.directory(build)))) catch (err:Dynamic) {
 			Term.err(Style.status("warning", Warn, '$err\nhxmc\'s compiler instead: markup only in classes that implement helder.view.Markup'));
@@ -62,8 +62,9 @@ class Compiler {
 	}
 
 	// helder's compiler in tool()'s place (TypeScript programs, helder.typescript):
-	// hxmc's compiler with the TypeScript frontend, built once per hxmc
-	// version and per its sources into the user's cache by its build.mjs
+	// hxmc's compiler with helder's hooks and frontends (helder.compiler),
+	// built once per hxmc version and per its sources into the user's cache by
+	// src/helder/compiler/build.mjs
 	// (node: it fetches hxmc's compiler sources until npm ships them)
 	public static function typescript(helder:String) {
 		tool();
@@ -75,7 +76,7 @@ class Compiler {
 	// native compiler's environment set first: its std)
 	static function own(helder:String):String {
 		var node = Sys.getEnv("HELDER_NODE") ?? "node";
-		var p = new sys.io.Process(node, ['$helder/helder/typescript/build.mjs']);
+		var p = new sys.io.Process(node, ['$helder/helder/compiler/build.mjs']);
 		var exe = StringTools.trim(p.stdout.readAll().toString()), err = p.stderr.readAll().toString(), code = p.exitCode();
 		p.close();
 		if (code != 0 || !FileSystem.exists(exe)) throw 'helder\'s compiler does not build:\n$err';

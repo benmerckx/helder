@@ -1,11 +1,12 @@
-// Builds helder's compiler, hxmc's compiler with helder's TypeScript frontend
-// (helder.typescript.Compiler), for the installed @hxmc/cli, and prints its
-// path: node src/helder/typescript/build.mjs [--quiet] (--sources: hxmc's
-// sources' path instead, for tests that link them too)
+// Builds helder's compiler, hxmc's compiler with helder's hooks and frontends
+// (helder.compiler.Compiler: markup in any function, helder.typescript), for
+// the installed @hxmc/cli, and prints its path:
+// node src/helder/compiler/build.mjs [--quiet] (--sources: hxmc's sources'
+// path instead, for tests that link them too)
 //
 // It links hxmc's compiler sources: @hxmc/source, at @hxmc/cli's version,
 // or HXMC_SRC naming a checkout. The executable is kept in the user's cache
-// per hxmc version and per hash of helder.typescript's sources.
+// per hxmc version and per hash of helder.compiler's and helder.typescript's sources.
 import {spawnSync} from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -56,14 +57,14 @@ function hashTree(dir, h) {
 	}
 	return h;
 }
-const key = hashTree(path.join(src, 'helder/typescript'), crypto.createHash('sha256')).update(version).update(hxmc).digest('hex').slice(0, 16);
+const key = ['helder/compiler', 'helder/typescript'].reduce((h, pkg) => hashTree(path.join(src, pkg), h.update(pkg)), crypto.createHash('sha256')).update(version).update(hxmc).digest('hex').slice(0, 16);
 const exe = path.join(cache, 'compiler', `${key}`, process.platform === 'win32' ? 'helder-compiler.exe' : 'helder-compiler');
 if (!fs.existsSync(exe)) {
 	const t0 = Date.now();
 	fs.mkdirSync(path.dirname(exe), {recursive: true});
 	const tmp = `${exe}.${process.pid}`;
 	const launcher = path.join(path.dirname(cli), 'hxmc/bootstrap/haxe.mjs');
-	const args = ['-cp', src, '-cp', path.join(hxmc, 'haxe/src'), '-cp', path.join(hxmc, 'hxmc/src'), '-main', 'helder.typescript.Compiler',
+	const args = ['-cp', src, '-cp', path.join(hxmc, 'haxe/src'), '-cp', path.join(hxmc, 'hxmc/src'), '-main', 'helder.compiler.Compiler',
 		'-D', 'disable-parallelism', '-D', 'hih_no_generators', ...(process.platform === 'linux' ? ['-D', 'hxmc.libc=glibc'] : []), '--custom-target', `hxmc=${tmp}`];
 	log(`building helder's compiler (hxmc ${version})`);
 	const b = spawnSync(process.execPath, [launcher, ...args], {encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe']});
