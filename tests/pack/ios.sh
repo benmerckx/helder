@@ -103,4 +103,26 @@ xcrun simctl terminate "$udid" $sid > /dev/null 2>&1
 kill $console > /dev/null 2>&1
 node tests/pack/screen.mjs "$out/screen.txt" ios
 check "the screen's lines (tests/pack/screen.mjs)" $?
+
+# The golf example (examples/golf): built for the simulator, launched, its
+# first frames drawn (its line), a screenshot kept in <out dir>/golf.png.
+gid=org.helder.Golf
+"$helder" build examples/golf/Golf.hx --target ios-sim -o "$out/Golf.app"
+check "helder build examples/golf --target ios-sim" $?
+xcrun simctl install "$udid" "$out/Golf.app"
+check "simctl install Golf.app" $?
+: > "$out/golf.txt"
+xcrun simctl launch --console-pty --terminate-running-process "$udid" $gid > "$out/golf.txt" 2>&1 &
+console=$!
+i=0
+while [ $i -lt 60 ] && ! grep -q "floating greens: 9 holes, drawing" "$out/golf.txt"; do
+	sleep 1
+	i=$((i + 1))
+done
+grep -q "floating greens: 9 holes, drawing" "$out/golf.txt"
+check "golf: its first frames" $?
+sleep 3
+xcrun simctl io "$udid" screenshot "$out/golf.png" > /dev/null 2>&1
+xcrun simctl terminate "$udid" $gid > /dev/null 2>&1
+kill $console > /dev/null 2>&1
 exit $failed

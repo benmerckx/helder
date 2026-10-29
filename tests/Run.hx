@@ -46,7 +46,7 @@ class Run {
 		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "typescript", about: "helder.typescript (TypeScript through tsgo straight to hxmc IR): the IR checks, then every program of tests/typescript compiled by tsc and run on node, and by helder's compiler (helder.compiler, with this frontend) natively and as wasm32-wasi, the outputs compared; the programs it must reject", run: () -> run(NODE, ["tests/typescript/run.mjs"])},
-		{name: "examples", about: "every example (Haxe, TypeScript) built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too", run: examples},
+		{name: "examples", about: "every example (Haxe, TypeScript) built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too; then the golf example's recorded rounds replayed natively and as wasm32-wasi (examples/golf/GolfReplay.hx)", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
 		{name: "3d-web", about: "helder.scene's frames on WebGPU and WebGL2 in headless Chromium", run: sceneWeb},
 		{name: "gfx", about: "helder.gfx: the examples headless and in a window against golden images (tests/gfx/check.sh; Linux: Mesa, Xvfb)", run: gfx},
@@ -663,6 +663,12 @@ class Run {
 		});
 		Sys.println('examples: ${builds.length - failed.length}/${builds.length} built, ${Math.round(Sys.time() - t0)}s');
 		if (failed.length > 0) throw new Failed(failed.join(", "));
+		// (the golf example's simulation, deterministic: recorded rounds replayed natively and as wasm32-wasi, each hole holed in its strokes)
+		var replay = exePath('bin/examples/$HOST/golf-replay', HOST);
+		run(h, ["build", "examples/golf/GolfReplay.hx", "-o", replay]);
+		run(replay, []);
+		run(h, ["build", "examples/golf/GolfReplay.hx", "--target", "web", "-o", "bin/examples/wasm32-wasi/golf-replay.wasm"]);
+		wasi("bin/examples/wasm32-wasi/golf-replay.wasm");
 	}
 
 	// --- the benchmarks

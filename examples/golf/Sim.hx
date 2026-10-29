@@ -22,7 +22,7 @@ class Sim {
 	public static inline var MIN_SPEED = 0.6;
 	public static inline var MAX_SPEED = 7.0;
 	// captured over the cup below this speed (m/s); faster, it hops over
-	public static inline var CAPTURE = 2.3;
+	public static inline var CAPTURE = 1.9;
 	// the slab's thickness under a green's top, a rail's height
 	public static inline var SLAB = 0.4;
 	public static inline var RAIL_HEIGHT = 0.2;
@@ -101,6 +101,12 @@ class Sim {
 				b.restitution = 0.72;
 				b.friction = 0.3;
 				return y;
+			case Block(x0, z0, x1, z1, y0, y1):
+				var lx = Math.min(x0, x1), hx = Math.max(x0, x1), lz = Math.min(z0, z1), hz = Math.max(z0, z1);
+				var b = physics.add(new Body(Box(new Vec3((hx - lx) / 2, (y1 - y0) / 2, (hz - lz) / 2)), new Vec3((lx + hx) / 2, (y0 + y1) / 2, (lz + hz) / 2), 0));
+				b.restitution = 0.65;
+				b.friction = 0.3;
+				return y0;
 			case Post(x, z, r, y):
 				var b = physics.add(new Body(Capsule(r, RAIL_HEIGHT), new Vec3(x, y, z), 0));
 				b.restitution = 1;

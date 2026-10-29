@@ -102,4 +102,25 @@ adb shell am force-stop $sid
 adb shell settings put system user_rotation 0
 node tests/pack/screen.mjs "$out/screen.txt" android
 check "the screen's lines (tests/pack/screen.mjs)" $?
+
+# The golf example (examples/golf): built for the emulator, started, its
+# first frames drawn (its line), a screenshot kept in <out dir>/golf.png.
+gid=org.helder.golf
+"$helder" build examples/golf/Golf.hx --target android-x86_64 -o "$out/Golf.apk"
+check "helder build examples/golf" $?
+adb uninstall $gid > /dev/null 2>&1
+adb install -r "$out/Golf.apk"
+check "adb install Golf.apk" $?
+adb logcat -c
+adb shell am start -W -n $gid/android.app.NativeActivity
+i=0
+while [ $i -lt 60 ] && ! seen "floating greens: 9 holes, drawing"; do
+	sleep 1
+	i=$((i + 1))
+done
+seen "floating greens: 9 holes, drawing"
+check "golf: its first frames" $?
+sleep 3
+adb exec-out screencap -p > "$out/golf.png"
+adb shell am force-stop $gid
 exit $failed

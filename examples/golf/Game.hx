@@ -64,8 +64,9 @@ class Game {
 	var trailNext = 0;
 	var trailLast = new Vec3(0, 0, 0);
 	final confetti:Array<Node> = [];
-	final confettiVel:Array<Vec3> = [];
-	final confettiSpin:Array<Vec3> = [];
+	// (velocities as three floats each: a struct value in an Array is boxed, each write an allocation)
+	final confettiVel:Array<Float> = [];
+	final confettiSpin:Array<Float> = [];
 	var confettiTime = -1.0;
 	var ring = Node.NONE;
 	var flag = Node.NONE;
@@ -93,6 +94,7 @@ class Game {
 	var timeScale = 1.0;
 	var slowTime = 0.0;
 	var sinkTime = -1.0;
+	var carded = false;
 	var lastTime = -1.0;
 	var realTime = 0.0;
 	var touched = 99.0;
@@ -100,6 +102,8 @@ class Game {
 	var turning = false;
 	var wasResting = true;
 	var target = new Vec3(0, 0, 0);
+	var ahead = 0.0;
+	static inline var AHEAD = 1.7;
 	var toastTime = 0.0;
 	// (the game's last frame's allocation, GcStats: report)
 	public var frameBytes(default, null) = 0.0;
@@ -120,6 +124,7 @@ class Game {
 		roll = world.node("roll", unsquash);
 		roll.scale = new Vec3(Sim.BALL * 2, Sim.BALL * 2, Sim.BALL * 2);
 		sim = new Sim(Course.holes[0]);
+		stepFn = stepSim;
 		shot.near = nearBall;
 		shot.onGesture = g -> aim();
 	}
@@ -148,10 +153,11 @@ class Game {
 		r.sky = new Vec3(0.34, 0.38, 0.5);
 		r.ground = new Vec3(0.26, 0.22, 0.2);
 		r.exposure = 0.95;
-		var s = new Shadows(r.device, 2048);
+		var s = Shadows.cascaded(r.device, 2048, 12);
 		s.strength = 0.6;
 		r.use(s);
 		kit = new Kit(r.device);
+		Sounds.start();
 		var k = kit;
 		MeshRenderer.attach(roll, k.ball);
 		for (_ in 0...12) {
@@ -172,8 +178,10 @@ class Game {
 			MeshRenderer.attach(n, k.confetti[i % k.confetti.length]);
 			n.visible = false;
 			confetti.push(n);
-			confettiVel.push(new Vec3(0, 0, 0));
-			confettiSpin.push(new Vec3(0, 0, 0));
+			for (_ in 0...3) {
+				confettiVel.push(0);
+				confettiSpin.push(0);
+			}
 		}
 		ring = world.node("ring");
 		MeshRenderer.attach(ring, k.ring);
@@ -189,7 +197,9 @@ class Game {
 		sim = new Sim(Course.holes[index]);
 		strokes(0);
 		screen("play");
+		back = "play";
 		sinkTime = -1;
+		carded = false;
 		confettiTime = -1;
 		timeScale = 1;
 		rollQ = Quat.identity();
@@ -201,6 +211,18 @@ class Game {
 		build();
 		place(true);
 	}
+
+	// the holes' menu over the game, and back to where it was
+	var back = "play";
+
+	public function openMenu() {
+		var s = screen.peek();
+		if (s != "menu") back = s;
+		screen("menu");
+	}
+
+	public function closeMenu()
+		screen(back);
 
 	public function next()
 		play((holeIndex.peek() + 1) % Course.holes.length);
@@ -229,6 +251,9 @@ class Game {
 				case Wall(x0, z0, x1, z1, y):
 					var lx = Math.min(x0, x1), hx = Math.max(x0, x1), lz = Math.min(z0, z1), hz = Math.max(z0, z1);
 					part(k.rail, new Vec3((lx + hx) / 2, y + Sim.RAIL_HEIGHT / 2, (lz + hz) / 2), new Vec3(hx - lx, Sim.RAIL_HEIGHT, hz - lz));
+				case Block(x0, z0, x1, z1, y0, y1):
+					var lx = Math.min(x0, x1), hx = Math.max(x0, x1), lz = Math.min(z0, z1), hz = Math.max(z0, z1);
+					part(k.rail, new Vec3((lx + hx) / 2, (y0 + y1) / 2, (lz + hz) / 2), new Vec3(hx - lx, y1 - y0, hz - lz));
 				case Post(x, z, r, y):
 					part(k.post, new Vec3(x, y, z), new Vec3(2 * r, Sim.RAIL_HEIGHT + r, 2 * r));
 				case Mover(x, z, w, d, y, _, _, _, _):
@@ -247,7 +272,7 @@ class Game {
 		cloth.position = new Vec3(0.012, 0, 0);
 		cloth.scale = new Vec3(0.34, 0.26, 1);
 		var t = sim.hole.tee;
-		part(k.tee, new Vec3(t.x, t.y - 0.003, t.z), new Vec3(0.3, 0.008, 0.3));
+		part(k.tee, new Vec3(t.x, t.y, t.z), new Vec3(0.34, 0.012, 0.34));
 		syncBall(0);
 	}
 
@@ -278,7 +303,7 @@ class Game {
 		var k = kit;
 		var spots = [
 			[-7.0, -3.0, -2.2, 1.6], [8.0, -9.0, -1.5, 2.0], [-9.0, -12.0, 0.8, 1.4], [6.0, 4.0, -3.0, 1.2], [-4.0, 7.0, -4.0, 1.8], [12.0, -2.0, 1.0, 1.0],
-			[0.0, -20.0, -1.0, 2.4], [-14.0, 2.0, -2.0, 1.5]
+			[3.5, -22.0, -4.0, 2.4], [-14.0, 2.0, -2.0, 1.5]
 		];
 		for (s in spots) {
 			var root = world.node("isle");
@@ -412,7 +437,7 @@ class Game {
 			timeScale = 1 - 0.8 * k * k * (3 - 2 * k);
 		} else timeScale = 1;
 		var gameDt = dt * timeScale;
-		clock.advance(gameDt, stepSim);
+		clock.advance(gameDt, stepFn);
 		events();
 		syncBall(gameDt);
 		aimView();
@@ -420,11 +445,64 @@ class Game {
 		juice(gameDt, dt);
 		follow(dt);
 		frames++;
+		if (frames == 2) Sys.println('floating greens: ${Course.holes.length} holes, drawing');
 		frameBytes = hxmc.GcStats.bytesAllocated() - before;
+		demoFrame(dt);
+		stat();
 	}
+
+	// (made once: a method passed as a function is a new closure each time)
+	final stepFn:Float->Void;
 
 	function stepSim(dt:Float)
 		sim.step();
+
+	// --- a demo (natively: GOLF_DEMO=<hole>, its recorded shots played, GcStats per frame printed)
+
+	var demoShots:Null<Array<Array<Float>>>;
+	var demoNext = 0;
+	var demoWait = 0.0;
+	var statFrames = 0;
+	var statAllocating = 0;
+	var statBytes = 0.0;
+	var statMax = 0.0;
+
+	public function demo(hole:Int, shots:Array<Array<Float>>) {
+		play(hole);
+		demoShots = shots;
+		Sys.println("golf: demo of hole " + (hole + 1));
+		demoNext = 0;
+		demoWait = 1.5;
+	}
+
+	function demoFrame(dt:Float) {
+		var list = demoShots;
+		if (list == null) return;
+		if (sim.resting && !sim.sunk && demoNext < list.length) {
+			demoWait -= dt;
+			if (demoWait <= 0) {
+				var s = list[demoNext++];
+				sim.shoot(s[0], s[1], s[2]);
+				strokes(sim.strokes);
+				shots(n -> n + 1);
+				Sounds.hit(0.6);
+				demoWait = 1.0;
+			}
+		}
+	}
+
+	// (the frame's allocation, counted after the first seconds: what a frame of play costs)
+	function stat() {
+		if (demoShots == null || realTime < 3) return;
+		statFrames++;
+		if (frameBytes > 0) {
+			statAllocating++;
+			statBytes += frameBytes;
+			if (frameBytes > statMax) statMax = frameBytes;
+		}
+		if (statFrames % 60 == 0)
+			Sys.println('golf: $statFrames frames, $statAllocating allocated ($statBytes bytes, at most $statMax), strokes ${sim.strokes}${sim.sunk ? ", holed" : ""}');
+	}
 
 	// the simulation's events: hits (squash, shake, a sound), a fall, a hole-in
 	function events() {
@@ -456,7 +534,7 @@ class Game {
 				var copy = b.copy();
 				copy[i] = sim.strokes;
 				best(copy);
-				save.store(copy);
+				save.write(copy);
 			}
 		}
 		if (sim.resting && !wasResting) {
@@ -482,7 +560,10 @@ class Game {
 			var k = Math.min(1, sinkTime / 0.45), c = sim.cup;
 			var r = (1 - k) * 0.05;
 			at = new Vec3(c.x + Math.sin(sinkTime * 40) * r, c.y + Sim.BALL - k * k * 0.32, c.z + Math.cos(sinkTime * 40) * r);
-			if (sinkTime > 0.6 && screen.peek() == "play") screen("done");
+			if (sinkTime > 0.6 && !carded) {
+				carded = true;
+				if (screen.peek() == "play") screen("done") else back = "done";
+			}
 		}
 		ball.position = at;
 		// (rolling: turned about the axis across its motion by distance / radius)
@@ -522,7 +603,7 @@ class Game {
 			var f = (i + 1) / n;
 			var dist = 0.22 + f * (0.4 + aimPower * 2.6);
 			d.position = new Vec3(p.x + aimDir.x * dist, p.y - Sim.BALL * 0.55, p.z + aimDir.z * dist);
-			var size = 0.1 * (1 - f * 0.6);
+			var size = 0.13 * (1 - f * 0.6);
 			d.scale = new Vec3(size, size * 0.6, size);
 		}
 	}
@@ -557,8 +638,8 @@ class Game {
 		// (a fixed pattern, golden-angle spread: no random numbers)
 		for (i in 0...confetti.length) {
 			var a = i * 2.39996, up = 3.2 + (i % 5) * 0.45, out = 0.9 + (i % 7) * 0.22;
-			confettiVel[i] = new Vec3(Math.cos(a) * out, up, Math.sin(a) * out);
-			confettiSpin[i] = new Vec3(Math.sin(a * 3), 1, Math.cos(a * 2));
+			setVec(confettiVel, i, new Vec3(Math.cos(a) * out, up, Math.sin(a) * out));
+			setVec(confettiSpin, i, new Vec3(Math.sin(a * 3), 1, Math.cos(a * 2)));
 			var n = confetti[i];
 			n.position = new Vec3(c.x, c.y + 0.05, c.z);
 			n.scale = new Vec3(0.06, 0.012, 0.04);
@@ -583,13 +664,13 @@ class Game {
 			confettiTime += gameDt;
 			var g = gameDt * 6.0;
 			for (i in 0...confetti.length) {
-				var n = confetti[i], v = confettiVel[i];
+				var n = confetti[i], v = getVec(confettiVel, i);
 				// (gravity, and a flutter's drag)
 				v = new Vec3(v.x * (1 - 1.8 * gameDt), v.y - g, v.z * (1 - 1.8 * gameDt));
 				if (v.y < -0.8) v = new Vec3(v.x, -0.8, v.z);
-				confettiVel[i] = v;
+				setVec(confettiVel, i, v);
 				n.position = n.position + v * gameDt;
-				var s = confettiSpin[i];
+				var s = getVec(confettiSpin, i);
 				n.rotation = Quat.axisAngle(s, confettiTime * 9 + i);
 				n.visible = confettiTime < 2.6;
 			}
@@ -628,9 +709,10 @@ class Game {
 		var o = orbit;
 		if (o == null) return;
 		var p = sim.ball.position, c = sim.cup;
-		target = new Vec3(p.x, p.y, p.z);
-		o.target = target;
 		o.yaw = Math.atan2(p.x - c.x, p.z - c.z);
+		ahead = AHEAD;
+		target = new Vec3(p.x - Math.sin(o.yaw) * ahead, p.y, p.z - Math.cos(o.yaw) * ahead);
+		o.target = target;
 		o.pitch = 0.78;
 		o.distance = 6.5;
 		o.apply();
@@ -647,6 +729,12 @@ class Game {
 		// (the target eases to the ball; the ball in the cup: to the cup)
 		var p = ball.position;
 		var k = 1 - 1 / (1 + FOLLOW * dt + FOLLOW * FOLLOW * dt * dt * 0.5);
+		// (looking ahead of the ball, so that on a tall screen the course ahead fills it; less while it rolls, none once holed)
+		// (near the cup, half way to it: the cup and the ball both in view)
+		var cx = sim.cup.x - p.x, cz = sim.cup.z - p.z, toCup = Math.sqrt(cx * cx + cz * cz);
+		var want = sinkTime >= 0 ? 0 : sim.resting ? Math.min(AHEAD, toCup * 0.5) : AHEAD * 0.4;
+		ahead += (want - ahead) * Math.min(1, dt * 1.5);
+		p = new Vec3(p.x - Math.sin(o.yaw) * ahead, p.y, p.z - Math.cos(o.yaw) * ahead);
 		target = target + (p - target) * k;
 		o.target = target;
 		// (rolling: round behind it, unless the player turned the camera a moment ago)
@@ -660,7 +748,7 @@ class Game {
 			} else turning = false;
 		}
 		// (holed: a slow turn round the cup)
-		if (sinkTime >= 0 && touched > HANDS_OFF) o.yaw += dt * 0.35;
+		if (sinkTime >= 0 && sinkTime < 3 && touched > HANDS_OFF) o.yaw += dt * 0.3 * (1 - sinkTime / 3);
 		if (turning && touched > HANDS_OFF && !shot.active) {
 			var d = wrap(wantYaw - o.yaw);
 			var rate = sim.resting ? TURN * 1.3 : TURN * Math.min(1, speed / 3);
@@ -677,6 +765,15 @@ class Game {
 	}
 
 	// --- helpers
+
+	static inline function getVec(a:Array<Float>, i:Int):Vec3
+		return new Vec3(a[3 * i], a[3 * i + 1], a[3 * i + 2]);
+
+	static inline function setVec(a:Array<Float>, i:Int, v:Vec3) {
+		a[3 * i] = v.x;
+		a[3 * i + 1] = v.y;
+		a[3 * i + 2] = v.z;
+	}
 
 	static function wrap(a:Float):Float {
 		while (a > Math.PI)

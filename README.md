@@ -648,10 +648,34 @@ fix.
   (tests/os/dev/dev-android.mjs), passing there (Pixel 6, API 34; iPhone
   17, iOS 26.2). Later:
   `.meta` sidecars, compressed textures, sounds decoded.
-- **The game**: a small mobile 3D game as an example (a camera the fingers
-  drive, picking, a HUD and a menu in ui, a save), built and live-reloaded
-  on an Android device and the iOS simulator. Save data (a small store on
-  every platform, the web's included) and tweens for gameplay come with it.
+- *Landed, a first slice*: **the game**, Floating Greens
+  (examples/golf/README.md): mini golf on floating islands, nine holes
+  built from kit pieces in code (flats, ramps, rails, blocks, bumper
+  posts, moving blocks, the cup) with a par each; the shot one gesture (a
+  drag back from the ball: a recogniser of ui's arena winning the press at
+  once, so `<OrbitControls>` on the same `<Scene>` turn and pinch the
+  camera from anywhere else), the camera following behind the ball and
+  facing the cup when it stops; helder.physics at 120 Hz, deterministic
+  (six recorded rounds holed natively and as wasm32-wasi: the examples
+  lane), a frame of play allocating nothing (GcStats); a trail, a squash,
+  a shake, slow motion, confetti; the HUD and the holes' menu (stars, best
+  strokes) in ui on helder.view's graph, clear of the safe areas; the save
+  in helder.os's `Store`, procedural sounds through `Sfx`. Built for the
+  web (on the examples site, full screen or expanded over the page, its
+  APK on its card), natively, for Android and the iOS simulator (CI's
+  emulator and simulator: built, started, its first frames, a
+  screenshot). On the way: multisampled render targets in helder.gfx on
+  every back end (`<Surface>` and `<Scene>` antialiased by default),
+  WebGPU's bind groups no longer reusing a recycled handle's destroyed
+  texture. Still to come: tweens for gameplay, live reload on a phone
+  tried with it, its gaps (the report's list: an example's app options,
+  a kinematic body, rolling resistance, struct values in Arrays boxed).
+- *Landed*: **save data**, `helder.os.Store` (src/helder/os/Store.hx): a
+  small key-value store of strings, written through to a JSON file in the
+  app's data directory (Linux's XDG data home, macOS's Application
+  Support, Windows' APPDATA, Android's files directory, iOS's Library),
+  localStorage on the web. Tested natively and as wasm32-wasi
+  (`Store.test.hx`), the web's through golf's save in Chromium.
 - *Landed*: **CI on an Android emulator and the iOS simulator**: the
   `android` job (a Pixel 6's emulator, API 34: hello through `helder
   run` and adb, the screen fixture, Android's dev loop) and the
@@ -659,7 +683,10 @@ fix.
   `helder run`, the screen fixture), green, not required.
 - Later in this phase: **audio** (decoders: WAV, Ogg Vorbis; a mixer above
   every back end, running as a kernel; AAudio on Android, RemoteIO on iOS;
-  a simple `Sound.play`), **a compositor thread for scrolling and
+  a simple `Sound.play`; a first slice landed: `helder.os.audio.Sfx`, a
+  few voices mixing one-shot effects made up front on the existing
+  outputs, desktop and the web, nothing allocated on the audio thread,
+  `Sfx.test.hx`; silent on phones until their back ends), **a compositor thread for scrolling and
   animations**, so a busy main thread does not show (as Ladybird's
   compositor, Core Animation, Flutter's raster thread): the main thread
   hands ui's renderer a retained layer tree (layers, transforms, clips,
