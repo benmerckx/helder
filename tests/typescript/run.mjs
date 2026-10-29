@@ -79,13 +79,13 @@ for(const file of fs.readdirSync(`${T}/reject`).filter(f=>f.endsWith('.ts')).sor
 // helder's declaration files, and the tests' (test-renderer.d.ts): as its
 // Haxe types make them (helder.typescript.api.Declarations)
 ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check']),'helder\'s declarations');
-ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check','--cp','tests/view','TestTypeScript']),'the tests\' declarations');
+ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check','--cp','tests/view','--cp','tests/ui','TestTypeScript','UiTypeScript']),'the tests\' declarations');
 console.log('PASS declarations');
 // Programs calling helder's Haxe API (and TSX), rendering headless with
 // tests/view's TestRenderer: their output checked against <name>.out
 for(const file of fs.readdirSync(`${T}/helder`).filter(f=>/\.tsx?$/.test(f)&&!f.endsWith('.d.ts')).sort())for(const target of targets) {
     const stem=file.replace(/\.tsx?$/,''),out=`${dir}/helder-${stem}${target!=='linux-x86_64'?`-${target}.wasm`:''}`;
-    ok(run(compiler,[`${T}/helder/${file}`,'--cp','tests/view','--roundtrip-ir','--target',target,'-o',out]),`${file} compile ${target}`);
+    ok(run(compiler,[`${T}/helder/${file}`,'--cp','tests/view','--cp','tests/ui','--roundtrip-ir','--target',target,'-o',out]),`${file} compile ${target}`);
     const r=target==='linux-x86_64'?run(out,[]):run(process.execPath,[`${T}/run-wasi.cjs`,out]);ok(r,`${file} ${target}`);
     assert.equal(r.stdout,fs.readFileSync(`${T}/helder/${stem}.out`,'utf8'),`${file} stdout ${target}`);
     console.log(`PASS helder ${file} ${target}`);

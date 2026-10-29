@@ -86,7 +86,7 @@ class Declarations {
 			case _: throw "unreachable";
 		}
 		// (the declarations first: their imports are known after)
-		var haxeNames = [for (c in m.classes) c.cls.name + ": " + haxe.Json.stringify(c.type)];
+		var haxeNames = [for (c in m.opaque.concat(m.classes)) c.cls.name + ": " + haxe.Json.stringify(c.type)];
 		haxeNames.push("__module: " + haxe.Json.stringify(m.decl));
 		e.line('declare const __haxe: {' + haxeNames.join(", ") + '};');
 		for (t in m.types) {

@@ -91,6 +91,12 @@ class Frontend implements helder.compiler.Plugin {
 				case _:
 			}
 			if (parts.length > 0) ready.api.manifest = new Manifest(parts);
+			// (the keeps of the classes the program does not name: not lowered)
+			var keeps = [for (k in ready.api.keeps) k => true];
+			com.types = com.types.filter(t -> switch t {
+				case TClassDecl(c) if (core.Meta.has(Custom(Manifest.KEEP), c.clMeta)): keeps.exists(core.Globals.sTypePath(c.clPath));
+				case _: true;
+			});
 		}
 		var dev = core.Define.rawDefined(com.defines, "hxmc.dev");
 		hxmc.Main.generate(com, com.file, (com, p) -> {

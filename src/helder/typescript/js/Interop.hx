@@ -126,6 +126,14 @@ class Interop {
 		return new helder.view.graph.Read.Const<Dynamic>(toHaxe(v));
 	}
 
+	// a program's component's Read prop: a function as it is (a signal's, a
+	// bound hole's), another value one giving it (a constant's cell, as Haxe's @:from makes it)
+	public static function readFunction(v:Dynamic):Dynamic {
+		if (Std.isOfType(v, JsFunction)) return v;
+		var value = v;
+		return Builtins.nativeFunction("", 0, (_, _, _) -> value);
+	}
+
 	public static function isNullish(v:Dynamic):Bool return v == null || v == Seed.undefinedValue;
 
 	public static function int(v:Dynamic, where:String):Int {

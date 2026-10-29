@@ -13,24 +13,30 @@ using haxe.macro.TypeTools;
 // declaration class, Modules: helder.view.TypeScript...), its classes'
 // members and their types, and the contracts of the renderers it reaches
 // (@:rendered nodes and ViewOf<R> in its types, those it names in
-// @:typescript.renderers). The lowering reads it instead of glue written
-// per call site (helder.typescript.lower.Api); Declarations writes the .d.ts
-// files from the same types.
+// @:typescript.renderers). The lowering reads it, calling helder's Haxe
+// functions directly (helder.typescript.lower.Api, Haxe); Declarations
+// writes the .d.ts files from the same types.
 //
 // The declaration class's build macro (`build`): the manifest is its
-// metadata (@:helder.manifest, JSON), and its __init__ names every function
-// the manifest lists, under a condition never true (the class @:keep, its
-// __init__ with it under -dce full): hxmc lowers what code names, from main
-// and the classes' __init__s, so each is in the program's IR for the
-// TypeScript lowering to call; the frontend drops those __init__s after, and
-// what the program does not call is left out of the executable. Nothing in
-// it depends on the program: a module typed once is cached as any (hxmc's
-// module cache, a compilation server's), and a build adds only the
-// declaration classes the program's declaration files name (`__module`).
+// metadata (@:helder.manifest, JSON), and keeps name every function it
+// lists, each a class's __init__ under a condition never true (the class
+// @:keep, its __init__ with it under -dce full): the module's own (its
+// renderers' contracts and runtimes, what the lowering itself calls), and
+// one per class of the module (<declaration class>_<its type path>, made
+// with it). hxmc lowers what code names, from main and the classes'
+// __init__s, so each is in the program's IR for the TypeScript lowering to
+// call; the frontend drops those __init__s after, and what the program does
+// not call is left out of the executable. Nothing in it depends on the
+// program: a module typed once is cached as any (hxmc's module cache, a
+// compilation server's); a build adds the declaration classes the program's
+// declaration files name (`__module`), and hxmc lowers the keeps of the
+// classes it names only (the frontend leaves the others out of the types
+// it generates, @:helder.keep: a program of helder/ui's Key alone lowers no
+// window).
 //
 // The format (version 1), one per module, merged by the frontend:
 //
-//   {version, module, classes: {path: Class}, renderers: {path: Renderer}, neutralEvents: {name: Type}}
+//   {version, module, keeps: [ident], classes: {path: Class}, renderers: {path: Renderer}, neutralEvents: {name: Type}}
 //   Class: {ident (hxmc's symbol prefix), type (its Haxe type path), params, rendered (R or null),
 //     limits ({only: [R], other: {R: class path}} or null: @:renderer), interface,
 //     statics: {name: Member}, members: {name: Member}, ctor: Type (a function's) or null}
@@ -47,8 +53,12 @@ using haxe.macro.TypeTools;
 class Manifest {
 	// (the metadata it is on its module's declaration class)
 	public static inline final META = ":helder.manifest";
+	// (a class's keep's: the frontend leaves those of the classes a program does not name out of the program)
+	public static inline final KEEP = ":helder.keep";
 
-	// a module's declaration class's build macro: its manifest, its keep
+	// a module's declaration class's build macro: its manifest, its keeps (its
+	// own: its renderers', the lowering's helpers; a class of its own per
+	// class of the module, Keep: added to a build that names that class)
 	public static function build():Array<Field> {
 		var fields = Context.getBuildFields();
 		var local = Context.getLocalClass();
@@ -56,9 +66,23 @@ class Manifest {
 		var m = Modules.module(api, local.get());
 		var classes:Dynamic = {};
 		var keep:Array<Expr> = [];
+		var keeps = [local.get().pack.concat([local.get().name]).join("_")];
 		var t = new Types();
-		for (c in api.classes)
-			Reflect.setField(classes, c.path, describe(c, t, keep));
+		for (c in api.classes) {
+			var own:Array<Expr> = [];
+			Reflect.setField(classes, c.path, describe(c, t, own));
+			// (one per class, none of its functions a macro's or not: the frontend names it by convention)
+			var name = keepName(local.get().name, c.type);
+			keeps.push(local.get().pack.concat([name]).join("_"));
+			try Context.defineType({
+				pack: local.get().pack,
+				name: name,
+				pos: local.get().pos,
+				meta: [{name: ":noCompletion", pos: local.get().pos}, {name: ":keep", pos: local.get().pos}, {name: KEEP, pos: local.get().pos}],
+				kind: TDClass(),
+				fields: keepFields(own)
+			}) catch (e:haxe.macro.Expr.Error) if (!StringTools.startsWith(e.message, "Cannot redefine module")) throw e;
+		}
 		var renderers:Dynamic = {};
 		for (r in api.renderers(t.views.concat(m.renderers)))
 			Reflect.setField(renderers, r, renderer(r, t, keep));
@@ -77,6 +101,7 @@ class Manifest {
 		var json = haxe.Json.stringify({
 			version: 1,
 			module: m.name,
+			keeps: keeps,
 			classes: classes,
 			renderers: renderers,
 			neutralEvents: events(helder.view.MarkupMacro.NEUTRAL_EVENTS, t)
@@ -84,15 +109,22 @@ class Manifest {
 		var pos = Context.currentPos();
 		local.get().meta.add(META, [macro $v{json}], pos);
 		local.get().meta.add(":keep", [], pos);
-		fields = fields.concat((macro class {
+		return fields.concat(keepFields(keep));
+	}
+
+	// the class keeping a class of a module: <declaration class>_<its type path, _ for .>
+	public static function keepName(module:String, type:String):String
+		return module + "_" + type.split(".").join("_");
+
+	// (a keep's __init__: what it names, under a condition never true)
+	static function keepFields(keep:Array<Expr>):Array<Field>
+		return (macro class {
 			static function __init__()
 				if (helder.typescript.js.Interop.keeping()) {
 					var keep:Array<Dynamic> = [];
 					$b{keep};
 				}
-		}).fields);
-		return fields;
-	}
+		}).fields;
 
 	// a class's members, and the keep's expressions naming them
 	static function describe(c:ApiClass, t:Types, keep:Array<Expr>):Dynamic {

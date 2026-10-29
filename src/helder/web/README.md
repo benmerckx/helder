@@ -201,9 +201,11 @@ is its CSS.
 
 ## From TypeScript
 
-`helder/web` (`index.d.ts` here) declares `Static`, `Island.Wasm` and
-`Surface` to TypeScript programs (helder.typescript): a TSX literal passed
-to `Static.document` is the static renderer's markup, as in Haxe.
+`helder/web` (`index.d.ts` here, generated from `TypeScript.hx`'s classes)
+declares `Static`, `Island.Wasm` and `Surface` to TypeScript programs
+(helder.typescript), with `Load` and `Stop`; TSX is compiled as Haxe's
+markup is (a literal passed to `Static.document` made for each renderer
+the program reaches, the static one among them).
 `site/index.tsx`, the examples' page, is one:
 
 ```tsx

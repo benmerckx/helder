@@ -9,7 +9,7 @@
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
 
-declare const __haxe: {Render: "helder.view.Render", Graph: "helder.view.graph.Graph", Scheduler: "helder.view.graph.Scheduler", Flow: "helder.view.Flow", __module: "helder.view.TypeScript"};
+declare const __haxe: {View: "helder.view.View", Render: "helder.view.Render", Graph: "helder.view.graph.Graph", Scheduler: "helder.view.graph.Scheduler", Flow: "helder.view.Flow", __module: "helder.view.TypeScript"};
 
 // A value in the graph (DESIGN.md 3.1): called to read it (tracked inside
 // a computation), called with a value to write it, with a function to

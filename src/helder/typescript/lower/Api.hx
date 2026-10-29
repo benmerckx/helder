@@ -166,8 +166,9 @@ class MRenderer {
 // The manifest the build's typing made (helder.typescript.api.Manifest): its
 // modules' (each its declaration class's @:helder.manifest), merged.
 class Manifest {
-	// (the metadata a module's part is on its declaration class)
+	// (the metadata a module's part is on its declaration class, a class's keep's)
 	public static inline final META = ":helder.manifest";
+	public static inline final KEEP = ":helder.keep";
 
 	public final classes:Map<String, MClass> = [];
 	public final byType:Map<String, MClass> = [];
@@ -181,6 +182,7 @@ class Manifest {
 			var d:Dynamic = haxe.Json.parse(part.json);
 			if (d.version != 1) throw "TSHX004: the manifest of " + d.module + " is of another version (" + d.version + ")";
 			keep.push(part.ident);
+			if (d.keeps != null) for (k in (d.keeps : Array<String>)) if (keep.indexOf(k) < 0) keep.push(k);
 			for (p in Reflect.fields(d.classes)) {
 				var c = new MClass(p, Reflect.field(d.classes, p));
 				classes.set(p, c);
@@ -195,16 +197,26 @@ class Manifest {
 }
 
 // A Haxe class helder's declaration files declare to TypeScript programs:
-// its name there, its Haxe type path.
+// its name there, its Haxe type path, its module's declaration class.
 class ForeignClass {
 	public final name:String;
 	public final path:String;
 	public final node:Node;
+	public final module:Null<String>;
 
-	public function new(name, path, node) {
+	public function new(name, path, node, module) {
 		this.name = name;
 		this.path = path;
 		this.node = node;
+		this.module = module;
+	}
+
+	// the class keeping its functions (helder.typescript.api.Manifest.keepName), in its module's package
+	public function keep():Null<String> {
+		if (module == null) return null;
+		var parts = module.split(".");
+		var name = parts.pop();
+		return parts.concat([name + "_" + path.split(".").join("_")]).join(".");
 	}
 }
 
@@ -229,8 +241,10 @@ class Api {
 	final exports:Map<String, Map<String, Foreign>> = [];
 	// (helder/view's types the lowering knows: Signal, Memo, Read, by symbol)
 	final known:Map<String, String> = [];
-	// what the manifest is made of: the modules' declaration classes (`__module`)
+	// what the manifest is made of: the modules' declaration classes (`__module`),
+	// and the keeps of the classes the program names (ForeignClass.keep)
 	public final modules:Array<String> = [];
+	public final keeps:Array<String> = [];
 	public var manifest:Null<Manifest> = null;
 
 	public function new(project:Project) {
@@ -249,6 +263,18 @@ class Api {
 			}
 		}
 		linkImports(project);
+		// (the classes it names, or has values of: their keeps)
+		for (sf in project.files) for (i in 1...sf.count) {
+			var n = sf.node(i);
+			var c:Null<ForeignClass> = null;
+			if (sf.kindAt(i) == KindIdentifier) switch of(n) {
+				case FClass(k) | FStatic(k, _): c = k;
+				case null:
+			}
+			if (c == null) c = classOf(n.tsType);
+			var k = c == null ? null : c.keep();
+			if (k != null && keeps.indexOf(k) < 0) keeps.push(k);
+		}
 		// (a signal called with one argument: whether it is a function, an update, by its type)
 		for (sf in project.files) for (i in 1...sf.count) if (sf.kindAt(i) == KindCallExpression) {
 			var n = sf.node(i);
@@ -297,7 +323,7 @@ class Api {
 		for (n in sf.root.statements()) if (n.kind == KindClassDeclaration && n.name() != null) {
 			var name = n.name().text;
 			var path = named.get(name) ?? (pack == "" ? name : pack + "." + name);
-			var c = new ForeignClass(name, path, n);
+			var c = new ForeignClass(name, path, n, module);
 			classes.set(name, c);
 			if (n.name().symbol != null) {
 				classesBySymbol.set(n.name().symbol, c);

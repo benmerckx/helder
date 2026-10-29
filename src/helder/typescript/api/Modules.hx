@@ -60,8 +60,13 @@ class Modules {
 				case _:
 					Context.error("helder.typescript: @:typescript.functions lists alias = pack.Class.member", e.pos);
 			}
-		for (e in metaParams(c, ":typescript.types"))
-			mod.types.push(Context.getType(haxe.macro.ExprTools.toString(e)));
+		for (e in metaParams(c, ":typescript.types")) {
+			var path = haxe.macro.ExprTools.toString(e);
+			var t = Context.getType(path);
+			mod.types.push(t);
+			// (an opaque class: in the manifest, no member of its, its nodes' renderer known)
+			if (t.match(TInst(_, _))) mod.opaque.push(api.add(path, t, [], mod));
+		}
 		for (e in metaParams(c, ":typescript.imports"))
 			mod.imports.push(string(e));
 		for (e in metaParams(c, ":typescript.jsx"))
@@ -158,6 +163,8 @@ class ApiModule {
 	public final imports:Array<String> = [];
 	public final jsx:Array<String> = [];
 	public final renderers:Array<String> = [];
+	// (the classes among its types: opaque, made by helder only)
+	public final opaque:Array<ApiClass> = [];
 
 	public function new(name, file, decl, dir) {
 		this.name = name;

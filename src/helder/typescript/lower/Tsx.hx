@@ -512,6 +512,8 @@ class Tsx {
 					ELocal(l);
 				}
 			case MScriptComponent(tag):
+				// (a prop that reads given a constant: a function giving it)
+				if (c.reads != null) for (r in c.reads) if (given.exists(r)) given.set(r, bridge.call(bridge.interop("readFunction"), [any(given.get(r))]));
 				var fn = b.temp(any(f.expr(tag)));
 				var o = b.runtime("libObject", [f.pack([for (k in order) EStr(k)]), f.pack([for (k in order) given.get(k)])]);
 				f.apply(fn, f.pack([o]));
