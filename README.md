@@ -95,7 +95,17 @@ bun run test              # the lanes that need no GPU, display or browser
 bun run test help         # every lane
 bun run helder test       # the *.test.hx files (--target all: host and wasm, --watch, -t <name>)
 bun run helder examples/counter/Counter.hx       # an example, live (helder dev; --target web: a page)
+bun run site              # the examples' page, bin/site (site/), then bun run site:check
 ```
+
+The examples' page, <https://benmerckx.github.io/helder/>, is `site/`: one
+page of every example's card (its header: `// title:`, `// summary:`,
+`// tags:`, `// demo:`), written in TSX through helder's TypeScript frontend
+and rendered by helder.web's static renderer (`site/index.tsx`); those whose
+`demo:` is a canvas or a sound have a Play button starting their wasm32 build
+in the page (a WebAssembly island loaded on the click). `site/build.mjs`
+builds each of them for the web, lays out `bin/site` and runs the page's
+program; `.github/workflows/pages.yml` deploys it on pushes to main.
 
 ## Roadmap
 
@@ -715,8 +725,8 @@ Folded into phase 3: the VS Code extension is the devtools.
   embedded program as its own wasm, and the component islands as one bundle
   whose main is generated (no `Islands.start` written by hand), in
   parallel through the compilation server; `helder dev` rebuilds the part
-  that changed. The examples site starts with a build per example; this
-  replaces it. It pays again with **native webviews as a surface** (a
+  that changed. The examples site (site/) starts with a build per example;
+  this replaces it. It pays again with **native webviews as a surface** (a
   WKWebView, Android's WebView, WebView2 in a window): web content in a
   native app, and native or wasm surfaces inside that, nested the same way.
 

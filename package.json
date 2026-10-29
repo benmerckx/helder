@@ -25,7 +25,9 @@
   },
   "scripts": {
     "test": "haxe -cp tests --run Run",
-    "helder": "node src/helder/cli/run.mjs"
+    "helder": "node src/helder/cli/run.mjs",
+    "site": "node site/build.mjs",
+    "site:check": "node site/check.mjs"
   },
   "peerDependencies": {
     "@hxmc/cli": ">=0.1.0-0",
