@@ -134,20 +134,21 @@ class Runner {
 		return false;
 	}
 
-	// (whether a case runs: skipped, filtered out (null) or run)
+	// (whether a case runs: skipped, filtered out (null) or run; one skipped
+	// that the filters leave out is left out)
 	static function runs(c:Case, only:Bool):Null<Bool> {
-		var e:Entry = c, marked = false;
+		var e:Entry = c, marked = false, skipped = false;
 		while (e != null) {
-			if (e.mode == 1) return false;
+			if (e.mode == 1) skipped = true;
 			if (e.mode == 2) marked = true;
 			e = e.parent;
 		}
-		if (c.failures.length > 0) return true;
+		if (c.failures.length > 0 && !skipped) return true;
 		if (only && !marked) return null;
 		var n = c.fullName();
 		for (p in patterns) if (!p(n)) return null;
 		if (names.length > 0 && !Lambda.exists(names, s -> n.contains(s))) return null;
-		return true;
+		return !skipped;
 	}
 
 	static function count(g:Group, only:Bool):Int {
