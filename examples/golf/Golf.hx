@@ -23,6 +23,7 @@ import helder.view.graph.Graph.*;
 // game steps on ui's clock (Game.frame), its simulation at a fixed rate.
 class Golf implements Markup {
 	static function main() {
+		Sys.println("floating greens: starting");
 		var game = new Game();
 		// (natively, GOLF_DEMO=<hole>: its recorded round played, the frames' allocation printed)
 		#if (hxmc.target != "wasm32-wasi")

@@ -114,8 +114,8 @@ class UiWindow {
 		if (Mem.os() == 3) ui.platform = WebMirror.views(window.surface.handle.toI64().toInt());
 		// (Windows': EDIT controls over the window)
 		else if (Mem.os() == 2) ui.platform = new WinViews(window.surface.handle, ui, () -> renderer.scale);
-		// (macOS': NSTextFields over the window)
-		else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
+		// (macOS': NSTextFields over the window; not iOS's, whose Mem.os() is macOS's too: no AppKit there)
+		else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) ui.platform = new MacViews(window.surface.handle, ui);
 		open.push(this);
 		#if hxmc.dev_host
 		// (helder dev's host, at a hand-over: what the system keeps of this build's code given back)
@@ -132,7 +132,7 @@ class UiWindow {
 	// code, which the host unloads; the next build makes its own
 	function handOver() {
 		handedOver = true;
-		if (Mem.os() == 1) {
+		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
 			if (ui.platform != null) (cast ui.platform : MacViews).dispose();
 		}
@@ -241,7 +241,7 @@ class UiWindow {
 			var json = t.changesJson(access);
 			access = t;
 			if (json != null) WebMirror.send(window.surface.handle.toI64().toInt(), json);
-		} else if (Mem.os() == 1) {
+		} else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
 			if (macAccess == null) macAccess = new MacAccess(window, ui);
 			(cast macAccess : MacAccess).update();
 		} else if (Mem.os() == 2) {
@@ -324,7 +324,7 @@ class UiWindow {
 		if (handedOver) return;
 		#end
 		// (nested: only a constant condition drops the branch)
-		if (Mem.os() == 1) {
+		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) {
 			if (macAccess != null) (cast macAccess : MacAccess).dispose();
 		}
 		if (Mem.os() == 2) {

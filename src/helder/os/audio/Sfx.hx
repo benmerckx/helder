@@ -36,8 +36,8 @@ class Sfx {
 
 	function new(output:Bool, ?device:String) {
 		var o:Null<Audio> = null;
-		// (no back end on phones yet)
-		if (output && Mem.platform() == 0 && Mem.target() < 9)
+		// (no back end on phones yet; constant conditions alone, first, drop the branch from their builds)
+		if (Mem.platform() >= 1) {} else if (Mem.target() >= 9) {} else if (output)
 			o = try Audio.open({sampleRate: RATE, channels: 2, frames: 512, device: device}, mix) catch (_:Dynamic) null;
 		out = o;
 		playing = o != null || !output;

@@ -122,5 +122,7 @@ seen "floating greens: 9 holes, drawing"
 check "golf: its first frames" $?
 sleep 3
 adb exec-out screencap -p > "$out/golf.png"
+adb logcat -d > "$out/golf-logcat.txt"
+adb logcat -d -v raw -s hxmc:I | tail -20
 adb shell am force-stop $gid
 exit $failed

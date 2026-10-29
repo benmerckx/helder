@@ -445,7 +445,7 @@ class Game {
 		juice(gameDt, dt);
 		follow(dt);
 		frames++;
-		if (frames == 2) Sys.println('floating greens: ${Course.holes.length} holes, drawing');
+		if (frames == 1) Sys.println('floating greens: ${Course.holes.length} holes, drawing');
 		frameBytes = hxmc.GcStats.bytesAllocated() - before;
 		demoFrame(dt);
 		stat();

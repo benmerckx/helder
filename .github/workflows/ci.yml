@@ -145,6 +145,7 @@ jobs:
           name: android
           path: |
             bin/pack/android/*.txt
+            bin/pack/android/*.png
             bin/pack/*.apk
           retention-days: 7
           if-no-files-found: ignore
@@ -175,6 +176,8 @@ jobs:
         if: always()
         with:
           name: ios
-          path: bin/pack/ios/*.txt
+          path: |
+            bin/pack/ios/*.txt
+            bin/pack/ios/*.png
           retention-days: 7
           if-no-files-found: ignore
