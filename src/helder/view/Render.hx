@@ -19,6 +19,7 @@ class Render {
 	@:noCompletion public static var pass = 0;
 
 	// renders content into parent (its root: dispose removes it and stops its effects)
+	@:typescript @:typescript.mount @:typescript.type("(content: unknown, parent: unknown) => () => void")
 	public static macro function render(content:Expr, parent:Expr):Expr {
 		var r = rendererFor(parent);
 		var rt = HostMacro.runtime(r);
@@ -26,6 +27,7 @@ class Render {
 	}
 
 	// inserts content into parent before a node (null: at the end); the nodes made
+	@:typescript @:typescript.mount @:typescript.type("(content: unknown, parent: unknown, before: unknown) => unknown[]")
 	public static macro function insert(content:Expr, parent:Expr, before:Expr):Expr {
 		var r = rendererFor(parent);
 		var rt = HostMacro.runtime(r);

@@ -14,7 +14,7 @@ class Project {
 	public var file(default, null):SourceFile;
 	// (every program file that is not a declaration file)
 	public final files:Array<SourceFile> = [];
-	// (the declaration files the program and they import: helder's API, glue.Declarations)
+	// (the declaration files the program and they import: helder's API, lower.Api)
 	public final declarations:Array<SourceFile> = [];
 	public final isJS:Bool;
 	public var types(default, null):Types;
@@ -26,7 +26,8 @@ class Project {
 
 	static var session:Null<{key:String, tsgo:Tsgo, tables:Tables}> = null;
 
-	public static function check(entry:String, globals:String):Project {
+	// (checked: after, given the project while tsgo is up, asks what the lowering needs beyond it)
+	public static function check(entry:String, globals:String, ?after:Project->Void):Project {
 		read = [haxe.io.Path.normalize(sys.FileSystem.fullPath(entry))];
 		var found = Tsgo.find(haxe.io.Path.directory(entry));
 		var key = found.exe + "\n" + Sys.getCwd();
@@ -42,6 +43,7 @@ class Project {
 		var s = session;
 		try {
 			var project = new Project(entry, globals, s.tsgo, s.tables);
+			if (after != null) after(project);
 			if (!hxmc.Driver.resident) stop();
 			return project;
 		} catch (e:Dynamic) {

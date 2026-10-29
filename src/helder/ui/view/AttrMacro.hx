@@ -150,6 +150,26 @@ class AttrMacro {
 		return macro @:pos(pos) helder.ui.view.NodeRenderer.setAttribute;
 	}
 
+	// the names setter resolves at compile time (each attribute's, as named and
+	// in kebab-case; data-* and aria-* as prefixes): helder.typescript's
+	// manifest lists each one's function (NodeRenderer.setterNames)
+	public static function names():Array<String> {
+		var out = ["data-*", "aria-*"];
+		function add(n:String) {
+			if (out.indexOf(n) < 0) out.push(n);
+			if (out.indexOf(kebab(n)) < 0) out.push(kebab(n));
+		}
+		switch Context.getType("helder.ui.view.NodeRenderer") {
+			case TInst(c, _):
+				for (f in c.get().statics.get())
+					if (f.meta.has(":attribute")) add(f.name);
+			case _:
+		}
+		for (f in styleProperties())
+			add(f.name);
+		return out;
+	}
+
 	// v as the type t
 	static function convert(t:Type, fields:Array<Field>, enums:Map<String, Bool>):Expr {
 		var nullable = false;

@@ -76,6 +76,11 @@ for(const file of fs.readdirSync(`${T}/reject`).filter(f=>f.endsWith('.ts')).sor
     assert.equal(fs.existsSync(out),false,`${file} must not emit an executable`);
     console.log(`PASS diagnostic ${file}`);
 }
+// helder's declaration files, and the tests' (test-renderer.d.ts): as its
+// Haxe types make them (helder.typescript.api.Declarations)
+ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check']),'helder\'s declarations');
+ok(run(process.execPath,['src/helder/typescript/api/declarations.mjs','--check','--cp','tests/view','TestTypeScript']),'the tests\' declarations');
+console.log('PASS declarations');
 // Programs calling helder's Haxe API (and TSX), rendering headless with
 // tests/view's TestRenderer: their output checked against <name>.out
 for(const file of fs.readdirSync(`${T}/helder`).filter(f=>/\.tsx?$/.test(f)&&!f.endsWith('.d.ts')).sort())for(const target of targets) {

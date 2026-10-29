@@ -4,6 +4,7 @@ package helder.view.graph;
 // value its compute returned and the previous one (null on the first
 // run), it may return a cleanup, run before the next apply and when the
 // effect is disposed.
+@:typescript.type("(value: T, prev: T | null) => void | (() => void)")
 abstract Apply<T>((T, Null<T>) -> Null<Void->Void>) from (T, Null<T>) -> Null<Void->Void> to (T, Null<T>) -> Null<Void->Void> {
 	@:from static function ofVoid2<T>(f:(T, Null<T>) -> Void):Apply<T>
 		return ((v, p) -> {

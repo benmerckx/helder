@@ -9,8 +9,7 @@ import haxe.ds.Vector;
 import helder.typescript.ir.Builder;
 import helder.typescript.check.Types;
 import helder.typescript.lower.Classes.ClassLayout;
-import helder.typescript.glue.Glue;
-import helder.typescript.glue.Glue.GlueCall;
+import helder.typescript.lower.Api;
 
 // A binding's storage: a global (module scope), a box (captured by a
 // closure), or a plain local; `outer`: an enclosing function's plain local,
@@ -66,13 +65,19 @@ class Frontend {
 	var pendingName:String = null;
 	static inline var PLAIN = 0;
 	static inline var METHOD = 1;
-	// (the program's calls into helder's Haxe API and its TSX, as Haxe: null without any)
-	final glue:Null<Glue>;
+	// (helder's API as the program's declaration files declare it, its manifest: null without any)
+	final api:Null<Api>;
+	// (calls into it, TSX: with a manifest)
+	var bridge:Null<Haxe> = null;
+	var tsx:Null<Tsx> = null;
+	// (hxmc dev: components mounted with fast refresh's keys)
+	final dev:Bool;
 
-	public function new(src:Project, p:Program, ?glue:Glue) {
+	public function new(src:Project, p:Program, ?api:Api, dev = false) {
 		this.src = src;
 		this.p = p;
-		this.glue = glue;
+		this.api = api;
+		this.dev = dev;
 	}
 
 	public function coverage():Dynamic return {expressions: expressions, typedSites: typed, dynamicSites: dynamicSites, unsupported: 0, typedOperations: typedOperations, dynamicOperations: dynamicOperations};
@@ -206,7 +211,7 @@ class Frontend {
 
 	function moduleSpecifier(n:Node):Null<Node> return n.kind == KindImportDeclaration ? n.moduleSpecifier() : n.kind == KindExportDeclaration ? n.moduleSpecifier() : null;
 
-	// (a declaration file's: helder's API, which glue reaches)
+	// (a declaration file's: helder's API, which the program calls through its manifest)
 	function declared(specifier:Node):Bool {
 		var name = src.resolve(specifier);
 		return name != null && StringTools.endsWith(name, ".d.ts");
@@ -252,6 +257,10 @@ class Frontend {
 		classes = new Classes(src);
 		reps = new Reps(p, types, classes);
 		captures = new Captures(src);
+		if (api != null && api.manifest != null) {
+			bridge = new Haxe(this, p, api.manifest);
+			tsx = new Tsx(this, bridge, api, dev);
+		}
 		for (c in classes.all) declareLayout(c);
 		mathFixed = !features.contains("All") && !assignsMath();
 		for (m in modules) {
@@ -278,13 +287,6 @@ class Frontend {
 			enter(m);
 			set(m.namespace, namespaceObject(m));
 		}
-		// (the program's components its TSX names, given to the glue)
-		if (glue != null) for (c in glue.components) {
-			enter(moduleOf.get(c.declaration.file.path));
-			var name = c.declaration.name().text;
-			var value = !env.exists(name) && functions.exists(name) ? read(functionValues.get(name)) : read(get(name, c.declaration));
-			b.out.push(SExpr(ECall(glueFunction(c.setter), Vector.fromArrayCopy([any(value)]))));
-		}
 		for (m in modules) {
 			enter(m);
 			for (name in functions.keys()) compileFunction(nodes.get(name), functions.get(name));
@@ -298,6 +300,8 @@ class Frontend {
 			// (timers and promises: only a program that has them runs the loop)
 			if (eventLoop) b.runtime("libRunEventLoop", []);
 		});
+		// (its agnostic literals' code for each renderer, set first)
+		if (tsx != null) body = Vector.fromArrayCopy(tsx.install().concat(body.toArray()));
 		var caught = b.local("uncaught", TRef(RAny));
 		b.f.hasTry = true;
 		b.out.push(STry(body, Vector.fromArrayCopy([{test: null, l: caught, body: b.block(() -> b.runtime("uncaught", [ELocal(caught)]))}])));
@@ -1205,8 +1209,8 @@ class Frontend {
 
 	function expr(n:Node):Ex {
 		expressions++;
-		var g = glue == null ? null : glue.calls.get(n);
-		if (g != null) return glueCall(g, []);
+		var x = api == null ? null : apiExpr(n);
+		if (x != null) return x;
 		var result:Ex = switch (n.kind) {
 			case KindPropertyAccessExpression | KindElementAccessExpression | KindCallExpression if (chainTop(n)): optionalChain(n);
 			case KindNumericLiteral: EF64(Std.parseFloat(n.text));
@@ -1377,15 +1381,8 @@ class Frontend {
 
 	function lvalue(n:Node):{read:() -> Ex, write:Ex->Void} {
 		while (n.kind == KindParenthesizedExpression || n.kind == KindNonNullExpression || n.kind == KindAsExpression || n.kind == KindSatisfiesExpression || n.kind == KindTypeAssertionExpression) n = n.expression();
-		var setter = glue == null ? null : glue.sets.get(n);
-		if (setter != null) {
-			// (a member of a value of helder's: its receiver once, read and written by glue)
-			var receiver = [for (a in setter.args) b.temp(any(expr(a)))];
-			return {
-				read: () -> glueCall(glue.calls.get(n), receiver),
-				write: (e) -> b.out.push(SExpr(ECall(glueFunction(setter.name), Vector.fromArrayCopy(receiver.concat([any(e)])))))
-			};
-		}
+		var member = api == null ? null : apiTarget(n);
+		if (member != null) return member;
 		if (n.kind == KindIdentifier) {
 			var v = get(n.text, n);
 			return {read: () -> b.temp(read(v)), write: (e) -> set(v, e)};
@@ -2421,24 +2418,178 @@ class Frontend {
 
 	var buffering:Map<Node, Bool> = [];
 
-	// ---- glue (helder.typescript.glue): calls into helder's Haxe API, TSX
-	var glueFunctions:Map<String, FuncInfo> = null;
+	// ---- helder's API (lower.Api, its manifest): calls into Haxe, members, TSX
 
-	function glueFunction(name:String):FuncInfo {
-		if (glueFunctions == null) {
-			glueFunctions = [];
-			for (f in p.funcs) if (StringTools.startsWith(f.name, Glue.irName(""))) glueFunctions.set(f.name, f);
-		}
-		var f = glueFunctions.get(Glue.irName(name));
-		if (f == null) throw "TSHX004: glue function not linked: " + name;
-		return f;
+	static function strip(n:Node):Node {
+		while (n.kind == KindParenthesizedExpression) n = n.expression();
+		return n;
 	}
 
-	// a glue function called with its values (given: already evaluated)
-	function glueCall(g:GlueCall, given:Array<Ex>):Ex {
-		var args = given.length > 0 ? given : [for (a in g.args) b.temp(any(expr(a)))];
-		typedOperations++;
-		return b.temp(ECall(glueFunction(g.name), Vector.fromArrayCopy(args)));
+	function manifest(n:Node):Manifest {
+		if (api.manifest == null) fail(n, "helder's API without its manifest (the build's typing made none)");
+		return api.manifest;
+	}
+
+	// (a class the declarations declare, as the manifest lists it)
+	function apiClass(c:ForeignClass, n:Node):MClass {
+		var m = manifest(n).cls(c.path);
+		if (m == null) fail(n, "helder's " + c.path + " is not in the manifest");
+		return m;
+	}
+
+	function apiMember(c:MClass, name:String, statics:Bool, n:Node):MMember {
+		var m = (statics ? c.statics : c.members).get(name);
+		if (m == null) fail(n, c.path + (statics ? "." : "#") + name + " is not a member of helder's the manifest lists");
+		return m;
+	}
+
+	// what an expression of helder's API lowers to (null: none of its)
+	function apiExpr(n:Node):Null<Ex> {
+		return switch n.kind {
+			case KindJsxElement | KindJsxSelfClosingElement | KindJsxFragment:
+				if (tsx == null) fail(n, "TSX is helder.view's markup: the program imports helder/view (or another module of helder's)");
+				tsx.literal(n);
+			case KindCallExpression: apiCall(n);
+			case KindNewExpression:
+				switch api.of(strip(n.expression())) {
+					case FClass(c):
+						var m = apiClass(c, n);
+						if (m.ctor == null) fail(n, c.name + " is not constructed by the program (no constructor of its is declared)");
+						bridge.construct(m, apiArguments(n.arguments() ?? [], m.ctor), where());
+					case _: null;
+				}
+			case KindPropertyAccessExpression if (n.questionDotToken() == null && n.name().kind != KindPrivateIdentifier):
+				var receiver = strip(n.expression());
+				switch api.of(receiver) {
+					case FClass(c):
+						var m = apiClass(c, n);
+						bridge.getMember(m, apiMember(m, n.name().text, true, n), null, where());
+					case FStatic(_, _): null;
+					case null:
+						var c = api.classOf(receiver.tsType);
+						if (c == null) null else {
+							var m = apiClass(c, n);
+							var member = apiMember(m, n.name().text, false, n);
+							if (member.kind == "method") fail(n, "helder's " + c.name + "." + member.name + " read as a value: call it");
+							bridge.getMember(m, member, expr(receiver), where());
+						}
+				}
+			case KindIdentifier if (api.of(n) != null):
+				fail(n, "helder's " + n.text + " is used as a value: call it, construct it or read its members");
+			case _: null;
+		}
+	}
+
+	// the program's arguments, in order, the literals among them placed where
+	// the parameters' types say (ViewOf<R>: compiled for R, a root's)
+	function apiArguments(actual:Array<Node>, t:Null<HType>):Array<Null<Ex>> {
+		var params = switch t {
+			case HFn(a, _): a;
+			case _: [];
+		}
+		return [for (i in 0...actual.length) {
+			var a = actual[i];
+			if (a.kind == KindSpreadElement) fail(a, "a spread among the arguments of a call into helder's API");
+			var inner = strip(a);
+			if (i < params.length && (inner.kind == KindJsxElement || inner.kind == KindJsxSelfClosingElement || inner.kind == KindJsxFragment))
+				switch HTypes.bare(params[i].t) {
+					case HView(r): tsx.placed.set(inner, r);
+					case _:
+				}
+			expr(a);
+		}];
+	}
+
+	// a call of helder's: a class's static, an instance's method, a signal (by
+	// its type: a read, a write, an update), Render.render's mounting
+	function apiCall(n:Node):Null<Ex> {
+		var callee = strip(n.expression());
+		var actual = n.arguments() ?? [];
+		if (n.questionDotToken() == null && !hasSpread(actual) && (api.isSignal(callee.tsType) || api.isMemo(callee.tsType))) {
+			if (actual.length == 0) return bridge.call(bridge.interop("signalRead"), [any(expr(callee))]);
+			if (actual.length == 1 && api.isSignal(callee.tsType)) {
+				var f = b.temp(any(expr(callee)));
+				var v = any(expr(actual[0]));
+				var a = strip(actual[0]);
+				var update = a.kind == KindArrowFunction || a.kind == KindFunctionExpression || types.callable(a.tsType);
+				return update ? bridge.call(bridge.interop("signalUpdate"), [f, v]) : bridge.call(bridge.interop("signalWrite"), [f, v, EStr(where())]);
+			}
+		}
+		switch callee.kind {
+			case KindIdentifier:
+				switch api.of(callee) {
+					case FStatic(c, name):
+						var m = apiClass(c, n);
+						var member = apiMember(m, name, true, n);
+						if (member.mount) return mount(n, member);
+						return bridge.callStatic(m, member, apiArguments(actual, member.type), where());
+					case FClass(c): return fail(n, c.name + " is a class: construct it with new");
+					case null: return null;
+				}
+			case KindPropertyAccessExpression if (callee.questionDotToken() == null && n.questionDotToken() == null && callee.name().kind != KindPrivateIdentifier):
+				var receiver = strip(callee.expression());
+				switch api.of(receiver) {
+					case FClass(c):
+						var m = apiClass(c, n);
+						var member = apiMember(m, callee.name().text, true, n);
+						if (member.mount) return mount(n, member);
+						return bridge.callStatic(m, member, apiArguments(actual, member.type), where());
+					case FStatic(_, _): return null;
+					case null:
+						var c = api.classOf(receiver.tsType);
+						if (c == null) return null;
+						var m = apiClass(c, n);
+						var member = apiMember(m, callee.name().text, false, n);
+						var obj = b.temp(any(expr(receiver)));
+						return bridge.callMethod(m, member, bridge.instance(m, obj, where()), apiArguments(actual, member.type), where());
+				}
+			case _:
+				return null;
+		}
+	}
+
+	// Render.render(content, parent) and insert(content, parent, before): the
+	// runtime of the renderer whose node parent is (its class's @:rendered),
+	// a literal given compiled for it
+	function mount(n:Node, member:MMember):Ex {
+		var actual = n.arguments() ?? [];
+		var insert = actual.length == 3;
+		if (actual.length != 2 && !insert) fail(n, "Render." + member.name + " takes content and a parent" + (member.name == "insert" ? " and a node to insert before" : ""));
+		var parent = api.classOf(actual[1].tsType);
+		var m = parent == null ? null : manifest(n).cls(parent.path);
+		var renderer = m == null ? null : m.rendered;
+		if (renderer == null) fail(actual[1], "helder.view: this is no renderer's node (its class names its renderer with @:rendered(...))");
+		var r = manifest(n).renderers.get(renderer);
+		var content = strip(actual[0]);
+		if (content.kind == KindJsxElement || content.kind == KindJsxSelfClosingElement || content.kind == KindJsxFragment) tsx.placed.set(content, renderer);
+		var c = expr(actual[0]);
+		var node = bridge.classInfo(r.node);
+		var p = b.temp(any(expr(actual[1])));
+		var args = [any(bridge.call(bridge.interop("toHaxe"), [any(c)])), bridge.instance(m, p, where())];
+		if (insert) args.push(b.coerce(bridge.call(bridge.interop("toHaxe"), [any(expr(actual[2]))]), TRef(RObj(node))));
+		var rt = bridge.fn(r.runtime.split(".").join("_") + "_" + (insert ? "insert" : "render"));
+		return bridge.toJs(bridge.call(rt, args), HDynamic);
+	}
+
+	// a member of helder's as a target: read and written, its receiver once
+	function apiTarget(n:Node):Null<{read:() -> Ex, write:Ex->Void}> {
+		if (n.kind != KindPropertyAccessExpression || n.questionDotToken() != null || n.name().kind == KindPrivateIdentifier) return null;
+		var receiver = strip(n.expression());
+		var name = n.name().text;
+		switch api.of(receiver) {
+			case FClass(c):
+				var m = apiClass(c, n);
+				var member = apiMember(m, name, true, n);
+				return {read: () -> bridge.getMember(m, member, null, where()), write: e -> bridge.setMember(m, member, null, e, where())};
+			case FStatic(_, _): return null;
+			case null:
+				var c = api.classOf(receiver.tsType);
+				if (c == null) return null;
+				var m = apiClass(c, n);
+				var member = apiMember(m, name, false, n);
+				var obj = b.temp(any(expr(receiver)));
+				return {read: () -> bridge.getMember(m, member, obj, where()), write: e -> bridge.setMember(m, member, obj, e, where())};
+		}
 	}
 
 	// ---- typed values (Reps)
