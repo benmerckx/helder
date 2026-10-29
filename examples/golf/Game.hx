@@ -64,8 +64,9 @@ class Game {
 	var trailNext = 0;
 	var trailLast = new Vec3(0, 0, 0);
 	final confetti:Array<Node> = [];
-	final confettiVel:Array<Vec3> = [];
-	final confettiSpin:Array<Vec3> = [];
+	// (velocities as three floats each: a struct value in an Array is boxed, each write an allocation)
+	final confettiVel:Array<Float> = [];
+	final confettiSpin:Array<Float> = [];
 	var confettiTime = -1.0;
 	var ring = Node.NONE;
 	var flag = Node.NONE;
@@ -123,6 +124,7 @@ class Game {
 		roll = world.node("roll", unsquash);
 		roll.scale = new Vec3(Sim.BALL * 2, Sim.BALL * 2, Sim.BALL * 2);
 		sim = new Sim(Course.holes[0]);
+		stepFn = stepSim;
 		shot.near = nearBall;
 		shot.onGesture = g -> aim();
 	}
@@ -176,8 +178,10 @@ class Game {
 			MeshRenderer.attach(n, k.confetti[i % k.confetti.length]);
 			n.visible = false;
 			confetti.push(n);
-			confettiVel.push(new Vec3(0, 0, 0));
-			confettiSpin.push(new Vec3(0, 0, 0));
+			for (_ in 0...3) {
+				confettiVel.push(0);
+				confettiSpin.push(0);
+			}
 		}
 		ring = world.node("ring");
 		MeshRenderer.attach(ring, k.ring);
@@ -433,7 +437,7 @@ class Game {
 			timeScale = 1 - 0.8 * k * k * (3 - 2 * k);
 		} else timeScale = 1;
 		var gameDt = dt * timeScale;
-		clock.advance(gameDt, stepSim);
+		clock.advance(gameDt, stepFn);
 		events();
 		syncBall(gameDt);
 		aimView();
@@ -442,10 +446,62 @@ class Game {
 		follow(dt);
 		frames++;
 		frameBytes = hxmc.GcStats.bytesAllocated() - before;
+		demoFrame(dt);
+		stat();
 	}
+
+	// (made once: a method passed as a function is a new closure each time)
+	final stepFn:Float->Void;
 
 	function stepSim(dt:Float)
 		sim.step();
+
+	// --- a demo (natively: GOLF_DEMO=<hole>, its recorded shots played, GcStats per frame printed)
+
+	var demoShots:Null<Array<Array<Float>>>;
+	var demoNext = 0;
+	var demoWait = 0.0;
+	var statFrames = 0;
+	var statAllocating = 0;
+	var statBytes = 0.0;
+	var statMax = 0.0;
+
+	public function demo(hole:Int, shots:Array<Array<Float>>) {
+		play(hole);
+		demoShots = shots;
+		Sys.println("golf: demo of hole " + (hole + 1));
+		demoNext = 0;
+		demoWait = 1.5;
+	}
+
+	function demoFrame(dt:Float) {
+		var list = demoShots;
+		if (list == null) return;
+		if (sim.resting && !sim.sunk && demoNext < list.length) {
+			demoWait -= dt;
+			if (demoWait <= 0) {
+				var s = list[demoNext++];
+				sim.shoot(s[0], s[1], s[2]);
+				strokes(sim.strokes);
+				shots(n -> n + 1);
+				Sounds.hit(0.6);
+				demoWait = 1.0;
+			}
+		}
+	}
+
+	// (the frame's allocation, counted after the first seconds: what a frame of play costs)
+	function stat() {
+		if (demoShots == null || realTime < 3) return;
+		statFrames++;
+		if (frameBytes > 0) {
+			statAllocating++;
+			statBytes += frameBytes;
+			if (frameBytes > statMax) statMax = frameBytes;
+		}
+		if (statFrames % 60 == 0)
+			Sys.println('golf: $statFrames frames, $statAllocating allocated ($statBytes bytes, at most $statMax), strokes ${sim.strokes}${sim.sunk ? ", holed" : ""}');
+	}
 
 	// the simulation's events: hits (squash, shake, a sound), a fall, a hole-in
 	function events() {
@@ -581,8 +637,8 @@ class Game {
 		// (a fixed pattern, golden-angle spread: no random numbers)
 		for (i in 0...confetti.length) {
 			var a = i * 2.39996, up = 3.2 + (i % 5) * 0.45, out = 0.9 + (i % 7) * 0.22;
-			confettiVel[i] = new Vec3(Math.cos(a) * out, up, Math.sin(a) * out);
-			confettiSpin[i] = new Vec3(Math.sin(a * 3), 1, Math.cos(a * 2));
+			setVec(confettiVel, i, new Vec3(Math.cos(a) * out, up, Math.sin(a) * out));
+			setVec(confettiSpin, i, new Vec3(Math.sin(a * 3), 1, Math.cos(a * 2)));
 			var n = confetti[i];
 			n.position = new Vec3(c.x, c.y + 0.05, c.z);
 			n.scale = new Vec3(0.06, 0.012, 0.04);
@@ -607,13 +663,13 @@ class Game {
 			confettiTime += gameDt;
 			var g = gameDt * 6.0;
 			for (i in 0...confetti.length) {
-				var n = confetti[i], v = confettiVel[i];
+				var n = confetti[i], v = getVec(confettiVel, i);
 				// (gravity, and a flutter's drag)
 				v = new Vec3(v.x * (1 - 1.8 * gameDt), v.y - g, v.z * (1 - 1.8 * gameDt));
 				if (v.y < -0.8) v = new Vec3(v.x, -0.8, v.z);
-				confettiVel[i] = v;
+				setVec(confettiVel, i, v);
 				n.position = n.position + v * gameDt;
-				var s = confettiSpin[i];
+				var s = getVec(confettiSpin, i);
 				n.rotation = Quat.axisAngle(s, confettiTime * 9 + i);
 				n.visible = confettiTime < 2.6;
 			}
@@ -708,6 +764,15 @@ class Game {
 	}
 
 	// --- helpers
+
+	static inline function getVec(a:Array<Float>, i:Int):Vec3
+		return new Vec3(a[3 * i], a[3 * i + 1], a[3 * i + 2]);
+
+	static inline function setVec(a:Array<Float>, i:Int, v:Vec3) {
+		a[3 * i] = v.x;
+		a[3 * i + 1] = v.y;
+		a[3 * i + 2] = v.z;
+	}
 
 	static function wrap(a:Float):Float {
 		while (a > Math.PI)

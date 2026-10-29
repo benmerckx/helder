@@ -23,6 +23,11 @@ import helder.view.graph.Graph.*;
 class Golf implements Markup {
 	static function main() {
 		var game = new Game();
+		// (natively, GOLF_DEMO=<hole>: its recorded round played, the frames' allocation printed)
+		#if (hxmc.target != "wasm32-wasi")
+		var demo = Std.parseInt(Sys.getEnv("GOLF_DEMO") ?? "");
+		if (demo != null) for (r in GolfReplay.rounds) if (r.hole == demo - 1) game.demo(r.hole, r.shots);
+		#end
 		Clock.add(t -> {
 			game.frame(t);
 			true;
