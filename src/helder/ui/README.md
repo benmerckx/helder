@@ -8,7 +8,7 @@ signals, Solid's way (`helder.view`, which renders into its nodes).
 import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
 
 class Counter implements Markup {
 	static function main() {
@@ -17,7 +17,7 @@ class Counter implements Markup {
 			<view grow={1} padding={24} row-gap={12} align-items="center" justify="center">
 				<text font-size={32}>{count}</text>
 				<view:button role="button" focusable padding="8 16" radius={6} background="#18181b" color="#fafafa" cursor="pointer"
-					onPress={_ -> count.value++}>+1</view:button>
+					onPress={() -> count(c -> c + 1)}>+1</view:button>
 			</view>
 		</Surface>);
 	}
@@ -259,9 +259,12 @@ mode), both styled by a small `StyleSheet` of their own. They run natively on Li
   `transition`, `spring` and `color` are signals moving toward a target
   as the `Clock` ticks (a window ticks it each frame and keeps drawing
   while anything moves; `Clock.finish()` ends every animation, for tests). Signals (`signal`,
-  `memo`, `effect`, `batch`, `untrack`, contexts), `Render` and the
-  control flow components `For`, `Index`, `Show`, `Switch`,
-  `ErrorBoundary` are `helder.view`'s ([its README](../view/README.md)).
+  `memo`, `effect`, `flush`, `untrack`, contexts: `helder.view.graph`),
+  `Render` and the control flow components `For`, `Repeat`, `Show`,
+  `Switch`, `Errored`, `Loading` are `helder.view`'s ([its
+  README](../view/README.md)). The graph's writes land at the end of each
+  event (`Ui`'s pointer, key and text entry points, a native control's
+  callbacks) and frame (`Ui.update`, `Clock.tick`, `App.run`'s turns).
 - **`helder.ui.widgets`**: text editing, `TextField` (caret, selection,
   keyboard editing, `cut`, `copy`, `paste`, `selectAll`) and `TextArea`
   (lines: wrapping, Up and Down, scrolling), both on `EditableText`, with
@@ -385,7 +388,7 @@ own (`Todo.sheet`, `Mail.sheet`). A part's states are signals (`helder.ui.view.S
 `hovered`, `pressed`, `focused`, `focusVisible`, `disabled`,
 `attr("data-state")`...), and a node's `states` attribute is a function of
 them, as React Aria's render props: `<view:button states={(s:States) ->
-(s.pressed.value ? {opacity: 0.8} : {} : StyleProps)}>` (typed: a function
+(s.pressed() ? {opacity: 0.8} : {} : StyleProps)}>` (typed: a function
 literal markup cannot type is a reactive value; over the theme's rules;
 what it stops giving, the theme's again). The system colours `Canvas` and `CanvasText` are a sheet's colours of those
 names, else Chromium's, light or dark; a page's slot `"body"` takes them

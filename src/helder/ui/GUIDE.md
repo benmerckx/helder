@@ -32,11 +32,13 @@ cover the examples below:
 import helder.ui.*;
 import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
-import helder.view.*;                 // Markup, View, Render, Signal...
-import helder.view.Reactive.*;        // signal, memo, effect, batch, context, use...
+import helder.view.*;                 // Markup, View, Render...
+import helder.view.graph.Graph.*;     // signal, memo, effect, flush, context, use...
+import helder.view.graph.Signal;
+import helder.view.graph.Read;
 import helder.ui.view.*;              // Motion, NodeRenderer
 import helder.ui.view.UiFlow.*;       // Popover, Hotkey, VirtualList
-import helder.view.Flow.*;            // For, Index, Show, Switch, Match, Provider, ErrorBoundary
+import helder.view.Flow.*;            // For, Repeat, Show, Switch, Match, Provider, Errored, Loading
 ```
 
 A window holds a tree of nodes. In markup it is `<Surface>`, its children
@@ -71,15 +73,15 @@ so it names a `slot` rather than colours:
 ```haxe
 static function Button(props:{label:String, onClick:Void->Void, ?tag:String, ?variant:String}):View
 	return <view:button tag={props.tag} slot="button" variant={props.variant} role="button" focusable
-		onPress={_ -> props.onClick()}>{props.label}</view:button>;
+		onPress={() -> props.onClick()}>{props.label}</view:button>;
 
 static function Stepper(props:{label:String, value:Signal<Int>, ?step:Int}):View {
 	var step = props.step ?? 1;
 	return <view direction="row" align-items="center" column-gap={8}>
 		<text grow={1}>{props.label}</text>
-		<Button tag="minus" label="-" onClick={() -> props.value.value -= step}/>
+		<Button tag="minus" label="-" onClick={() -> props.value(v -> v - step)}/>
 		<text min-width={32} text-align="center">{props.value}</text>
-		<Button tag="plus" label="+" onClick={() -> props.value.value += step}/>
+		<Button tag="plus" label="+" onClick={() -> props.value(v -> v + step)}/>
 	</view>;
 }
 
@@ -97,11 +99,11 @@ makes the body the place for local state:
 ```haxe
 static function Order(props:{}):View {
 	var adults = signal(2), children = signal(0);
-	var total = memo(() -> adults.value * 30 + children.value * 12);
+	var total = memo(() -> adults() * 30 + children() * 12);
 	return <Card title="Tickets">
 		<Stepper label="Adults" value={adults}/>
 		<Stepper label="Children" value={children} step={1}/>
-		<text tag="total">{() -> 'Total: € ${total.value}'}</text>
+		<text tag="total">Total: € {total()}</text>
 	</Card>;
 }
 ```
@@ -110,23 +112,27 @@ A component without props still takes an empty object (`props:{}`).
 
 ## State
 
-State lives in signals. Reading `.value` inside a reactive context tracks
-the signal there, and writing `.value` updates exactly what read it:
+State lives in signals. Calling one reads it (`count()`), tracked inside
+a reactive context; calling it with a value writes it (`count(5)`), with a
+function updates it (`count(c -> c + 1)`), and exactly what read it
+updates:
 
 - **`signal(v)`** holds a value.
 - **`memo(() -> ...)`** derives one, cached until what it read changes.
-- **`effect(() -> ...)`** runs code now and again after every change to
-  what it read.
-- **`batch(() -> ...)`** groups writes, so dependents update once.
+- **`effect(() -> ..., v -> ...)`** reads in its first half, now and again
+  after every change to what it read, and acts in its second, given the
+  value.
+
+Writes land together at the end of the event or frame (or at `flush()`):
+dependents update once, and until then a read gives the value before.
 
 ```haxe
 var price = signal(12.5), qty = signal(2);
-var total = memo(() -> price.value * qty.value);
-effect(() -> trace(total.value)); // 25
-batch(() -> {
-	price.value = 10;
-	qty.value = 3;
-}); // 30, once
+var total = memo(() -> price() * qty());
+effect(() -> total(), t -> trace(t)); // 25
+price(10);
+qty(3);
+// at the end of the event: 30, once
 ```
 
 In markup, a hole or attribute that reads a signal or a memo is bound:
@@ -136,13 +142,16 @@ read once:
 
 ```haxe
 <text>{count}</text>                         // follows count
-<text>{count.value * 2}</text>               // follows count
-<text>{() -> count.value * 2}</text>         // the same, written out
-<view background={on.value ? "#22c55e" : "#e4e4e7"}/>
+<text>{count() * 2}</text>                   // follows count
+<text>{() -> count() * 2}</text>             // the same, written out
+<view background={on() ? "#22c55e" : "#e4e4e7"}/>
 ```
 
-`untrack(() -> ...)` reads without tracking, and `onCleanup` and `onMount`
-run code when the owner goes away or after the nodes are mounted.
+A component's prop typed `Read<T>` follows what it is given the same way
+(a constant, a signal, or an expression that reads), read by calling it.
+`untrack(() -> ...)` reads without tracking, and `onCleanup` and
+`onSettled` run code when the owner goes away or after the nodes are
+mounted.
 
 ## Lists and conditions
 
@@ -153,23 +162,24 @@ children while `when` holds, else its `fallback`:
 ```haxe
 static function Names(props:{names:Signal<Array<String>>}):View
 	return <view row-gap={4}>
-		<For each={props.names} render={(name:String) -> <text>{name}</text>}/>
-		<Show when={() -> props.names.value.length == 0} fallback={<text tag="count">{() -> props.names.value.length + " names"}</text>}>
+		<For each={props.names}>{name -> <text>{name}</text>}</For>
+		<Show when={props.names().length == 0} fallback={<text tag="count">{props.names().length} names</text>}>
 			<text tag="empty">No names yet</text>
 		</Show>
 	</view>;
 ```
 
-Replace the array to change the list: `names.value = names.value.concat(["Cy"])`.
-`Index` is the other way round: one row per position, its item a signal,
+Its row is a function given the item as a `Read` (`name()`). Replace the
+array to change the list: `names(names().concat(["Cy"]))`. `keyed={false}`
+is the other way round: one row per position, its `Read` what is there,
 for lists of plain values that change in place. `Switch` picks the first
 `Match` whose `when` holds:
 
 ```haxe
 static function Page(props:{tab:Signal<String>}):View
 	return <Switch fallback={<text>Not found</text>}>
-		<Match when={() -> props.tab.value == "home"}><text tag="home">Home</text></Match>
-		<Match when={() -> props.tab.value == "settings"}><text tag="settings">Settings</text></Match>
+		<Match when={props.tab() == "home"}><text tag="home">Home</text></Match>
+		<Match when={props.tab() == "settings"}><text tag="settings">Settings</text></Match>
 	</Switch>;
 ```
 
@@ -254,7 +264,7 @@ scrolling area is a `scroll` element, which needs a bounded height, often
 
 ```haxe
 var open = signal(false);
-var height = Motion.spring(() -> open.value ? 200 : 0);
+var height = Motion.spring(() -> open() ? 200 : 0);
 <view height={height} overflow="hidden">...</view>
 ```
 
@@ -263,7 +273,7 @@ and shadow whenever they change (a hover's colour from a theme, a value
 bound to a signal) once the node has been drawn:
 
 ```haxe
-<view transition="background-color 150ms ease-in-out" background={() -> hot.value ? "#e4e4e7" : "#ffffff"}>...</view>
+<view transition="background-color 150ms ease-in-out" background={hot() ? "#e4e4e7" : "#ffffff"}>...</view>
 ```
 
 ## Images and icons
@@ -350,7 +360,7 @@ Aria's render props: its `states` is a function of its `States` (signals:
 typed, or markup takes it for a reactive value:
 
 ```haxe
-<view:button slot="button" states={(s:States) -> (s.hovered.value ? {background: Color.parse("#e4e4e7")} : {} : StyleProps)}>Save</view:button>
+<view:button slot="button" states={(s:States) -> (s.hovered() ? {background: Color.parse("#e4e4e7")} : {} : StyleProps)}>Save</view:button>
 ```
 
 `ui.theme = sheet` installs it (`node.theme` for a subtree), and
@@ -370,14 +380,14 @@ Escape or a press outside asks it to close (`onDismiss`):
 static function Confirm(props:{onYes:Void->Void}):View {
 	var open = signal(false);
 	return <view>
-		<Button tag="delete" label="Delete" onClick={() -> open.value = true}/>
-		<Popover open={open} modal placement="center" onDismiss={() -> open.value = false}>
+		<Button tag="delete" label="Delete" onClick={() -> open(true)}/>
+		<Popover open={open} modal placement="center" onDismiss={() -> open(false)}>
 			<view role="dialog" label="Delete this file?" padding={16} row-gap={12} radius={8} background="#ffffff">
 				<text font-weight={700}>Delete this file?</text>
 				<view direction="row" column-gap={8} justify="end">
-					<Button tag="no" label="Cancel" onClick={() -> open.value = false}/>
+					<Button tag="no" label="Cancel" onClick={() -> open(false)}/>
 					<Button tag="yes" label="Delete" onClick={() -> {
-						open.value = false;
+						open(false);
 						props.onYes();
 					}}/>
 				</view>
@@ -401,8 +411,8 @@ from code.
 static function Editor(props:{text:Signal<String>, onSave:Void->Void}):View
 	return <view row-gap={8}>
 		<Hotkey keys="Mod+S" action={props.onSave}/>
-		<Hotkey keys="Mod+Shift+K" action={() -> props.text.value = ""}/>
-		<field:textarea value={props.text} onInput={e -> props.text.value = e.text}/>
+		<Hotkey keys="Mod+Shift+K" action={() -> props.text("")}/>
+		<field:textarea value={props.text} onInput={e -> props.text(e.text)}/>
 	</view>;
 ```
 
@@ -419,22 +429,25 @@ on, and `onDrop` with `e.data` on release. The source hears
 static function Sortable(props:{items:Signal<Array<String>>}):View {
 	var over = signal("");
 	function move(what:String, before:String) {
-		var list = props.items.value.filter(x -> x != what);
+		var list = props.items().filter(x -> x != what);
 		list.insert(list.indexOf(before), what);
-		props.items.value = list;
+		props.items(list);
 	}
 	return <view row-gap={4}>
-		<For each={props.items} render={(name:String) -> <view tag={"item-" + name} drag-data={name} padding={6}
-			background={() -> over.value == name ? "#dbeafe" : "#ffffff"}
-			onDragOver={e -> {
-				e.preventDefault();
-				over.value = name;
-			}}
-			onDragLeave={_ -> over.value = ""}
-			onDrop={e -> {
-				over.value = "";
-				if (e.data != name) move(e.data, name);
-			}}>{name}</view>}/>
+		<For each={props.items}>{item -> {
+			var name = item();
+			<view tag={"item-" + name} drag-data={name} padding={6}
+				background={over() == name ? "#dbeafe" : "#ffffff"}
+				onDragOver={e -> {
+					e.preventDefault();
+					over(name);
+				}}
+				onDragLeave={() -> over("")}
+				onDrop={e -> {
+					over("");
+					if (e.data != name) move(e.data, name);
+				}}>{name}</view>;
+		}}</For>
 	</view>;
 }
 ```
@@ -445,7 +458,8 @@ static function Sortable(props:{items:Signal<Array<String>>}):View {
 
 The intrinsic elements cover boxes, text and images. For anything drawn,
 subclass `Node`, say that it has content, and paint it with the `Canvas`.
-A `Node` is content too, so a component can return one, fed by an effect:
+A `Node` is content too, so a component can return one, fed by a render
+effect (its second half touches the node, after what it reads has landed):
 
 ```haxe
 class Sparkline extends Node {
@@ -477,7 +491,7 @@ class Sparkline extends Node {
 
 static function Spark(props:{values:Signal<Array<Float>>}):Node {
 	var n = new Sparkline();
-	effect(() -> n.values = props.values.value);
+	renderEffect(() -> props.values(), v -> n.values = v);
 	return n;
 }
 ```

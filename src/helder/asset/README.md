@@ -42,22 +42,22 @@ Each returns a handle at once, its load started: one per kind and path
 (the same handle each time). `load()` is a coroutine: it returns the value
 once loaded (at once if it is) and throws an `AssetError` if the load
 failed. Without suspending: `ready`, `peek()` (null until loaded), `state`
-(`Loading`, `Ready`, `Failed(error)`). `value` is the value as a signal
-(helder.view): read in markup, a memo or an effect it is tracked, and its
-readers run again when a reload replaces it; read before the asset is
-loaded it throws `AssetPending` (helder.view's `Pending`: under a
-`<Loading>` boundary the content waits for it and is shown once it is
-here; without one it renders nothing until then; in the frame loop a
-mistake: `load()` in a coroutine, `ready` or `peek()` there), after a
-failure the `AssetError` (an `ErrorBoundary`'s). `refreshing` (and
-`Reactive.isPending`) tells a reload in flight. The handle itself is a
-hole's or an attribute's value as it is (`<text>{intro}</text>`, `<image
-src={icon}/>`): bound to `value`.
+(`Loading`, `Ready`, `Failed(error)`). The handle is a node of
+helder.view's graph, an async memo (helder.view.graph's `Reader`):
+`read()` reads it, tracked in markup, a memo or an effect, and its
+readers run again when a reload replaces it. While it loads it is pending:
+under a `<Loading>` boundary the content waits for it and is shown once it
+is here; without one, the change that read it is held, what was shown
+staying (in the frame loop: `load()` in a coroutine, `ready` or `peek()`
+there). After a failure it is the `AssetError` (an `<Errored>`'s).
+`Graph.isPending` tells a reload in flight. The handle itself is a hole's
+or an attribute's value as it is (`<text>{intro}</text>`, `<image
+src={icon}/>`), and a `Read` prop's.
 
 ```haxe
 <Loading fallback={<text>loading</text>}>
   <image src={Asset.image("ui/hero.png")}/>
-  <text>{() -> Asset.bytes("intro.txt").value.toString()}</text>
+  <text>{Asset.bytes("intro.txt").read().toString()}</text>
 </Loading>
 ``` Loads run on the
 main thread's loop (helder.async: `App.run` turns it; `Assets.poll()`

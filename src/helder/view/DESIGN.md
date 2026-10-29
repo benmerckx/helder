@@ -1,6 +1,9 @@
 # helder.view: the reactive core, redesigned
 
-Status: a proposal, for review. Nothing here is built yet.
+Status: steps 1 to 4 of the plan (5) built: the graph (helder.view.graph),
+the markup planner, and helder's renderers, helder.asset, helder.scene
+and every program on them, the old core removed. Section 5 says what
+step 4 decided where this text did not.
 
 helder.view's core is Solid 1's model with async added on: signals,
 memos and effects in an ownership tree, Reactively's clean/check/dirty
@@ -372,7 +375,9 @@ field or index read through a function (typed where the literal is: a
 property's getter, an abstract's), not inside a function or a literal
 of its own; a component's props stay as they are until props are an
 object (step 4). A bound region that is its parent's last child needs
-no marker (the runtime draws it at the end), as in Solid.
+no marker (the runtime draws it at the end), as in Solid, unless its
+renderer marks every region (`markEnds`: helder.web's DOM and static
+renderers, whose hydration reads the markers).
 
 ### 3.4 Coroutine components
 
@@ -456,7 +461,73 @@ macro on that class only) stays for builds by plain `haxe`.
    components (3.5) are written once, in the planner, for both
    languages.
 4. Move helder.view's renderers (DOM, ui, native), helder.asset and
-   scene onto it; remove the old core.
+   scene onto it; remove the old core. Done; what it decided:
+   - **Props bound as Solid binds them**: the planner gives a prop whose
+     type is `Read<T>` (Component.reads, typed where the literal is) the
+     function of its value when that value may read (3.3); a prop of
+     another type is evaluated once. `Read<T>` is an abstract over a
+     `Reader<T>` (a node, a `Const`, a `Thunk`): a constant is a cell, a
+     signal or a memo its node.
+   - **For's row** is its child function, given the item as a `Read`
+     (Solid 2's accessor): keyed by the item, its Read a constant;
+     `keyed={false}` (Index's successor), a signal of what is at its
+     index. Haxe has no optional arity, so the row takes the item only
+     (no index accessor); `Repeat` makes rows by count. A child that is
+     a function alone is the children prop itself only for a component
+     whose `children` is a function (Component.childFunction); T is not
+     always inferred from `each` before the row's lambda is typed: a row
+     that reads the item's fields names its type, `(t:Read<Todo>) -> ...`.
+   - **The runtime**: a binding is a render effect whose compute reads
+     and whose apply touches the node; a region's content is mounted in
+     its apply, in an owner of its own under the region's (so an armed
+     boundary above still catches what waits in it). `<Loading>` and
+     `<Errored>` make their children in the boundary's compute
+     (Graph.loadingBoundary, errorBoundary: what reads a pending value
+     inside is caught there); the nodes those children put in the parent
+     are kept by a capture, taken out while the fallback shows and put
+     back after, and a node put into a hidden capture is only recorded.
+     A component is untracked: one whose body reads a value not ready is
+     made later, by a region that waits on that node (the boundary above
+     shows its fallback meanwhile), not made twice as before.
+   - **Flushes**: helder's loop flushes at the end of each event and
+     frame: `Ui`'s pointer, key, text and access entry points, `Ui.update`,
+     `Clock.tick`, `App.run`'s callbacks, a page's listeners (DomRenderer,
+     helder.web's neutral elements), a native control's callbacks,
+     NativeHost.step; helder.async's loop at the end of its turn (one
+     dispatch object, queued once). `Render.render`, `Render.open` and
+     `DomRenderer.hydrate` at the top flush before returning (what they
+     scheduled, `onSettled`'s, has run), as onMount ran at the end of the
+     insertion.
+   - **Handlers**: one that takes no event is given one it ignores
+     (Target.handler: typed where the literal is); a neutral element's
+     handler parameter without a type is typed as ui's Event, so
+     `e -> name(e.text)` is a write. A `Signal`'s update overload is
+     declared before its write: an argument of no static type (Dynamic)
+     is then a write, a function literal an update (3.1 said Dynamic
+     picks the update).
+   - **3.3's rule**: `new X(...)` reads what its arguments read, not more
+     (a struct made once: hxmc passes no function returning a struct as
+     one of another type); a TypeScript program's value through its glue
+     (Interop.fromJs) is not wrapped.
+   - **Asset** is a class implementing `Reader<T>` over an async memo
+     (an answer per run, a reload a new question): `read()` reads it, the
+     handle is bound as a hole, an attribute or a Read prop; a class is not
+     callable, so `asset()` is not its form. `AssetPending`, `Pending`,
+     `Loadable` and `refreshing` are gone (`isPending`).
+   - **Dev reload's keys** (Refresh): `Graph.signal` is a macro under
+     `-D hxmc.dev` only, keying the signal where it is made as before; a
+     computation's compute and apply run in its own Hot scope.
+   - **TypeScript**: a node, a Read and an asset come to the program as a
+     JavaScript function (Interop: called to read, with a value or a
+     function to write or update; cached per node; the same value back),
+     a JavaScript function given for a `Read` prop a Thunk. TSX's holes are
+     the program's values: one that reads is written `{() => count() * 2}`
+     until the planner's TypeScript target (7.2) binds them.
+   - **Allocation**: a steady write, flush and render effect allocate
+     nothing for object values (tests/view/graph/Alloc.test.hx); hxmc boxes
+     an Int or a Float stored in a type parameter, 16 bytes a value.
+   - `use` outside an owner is an error (Solid 2's); a test reads a
+     context in a `root`.
 5. Coroutine components (3.4).
 6. Later: actions, optimistic values, stores.
 

@@ -1,44 +1,60 @@
 # helder.view
 
-Signals and JSX-like markup for Haxe, on every target: fine-grained
-reactivity as Solid has it, and markup literals compiled to direct calls
-on a renderer, with no virtual DOM. `helder.ui` renders it into its nodes,
-drawn or native.
+Signals and JSX-like markup for Haxe and TypeScript, on every target:
+Solid 2's reactive graph (helder.view.graph, DESIGN.md) and markup
+literals compiled to direct calls on a renderer, with no virtual DOM.
+`helder.ui` renders it into its nodes, drawn or native.
 
 ```haxe
 import helder.view.*;
 import helder.view.Flow.*;
-import helder.view.Reactive.*;
+import helder.view.graph.Graph.*;
+import helder.view.graph.Signal;
 
-class App implements Markup {
-	static function Counter(props:{label:String}):View {
-		var count = signal(0);
-		return <view direction="row" column-gap={8}>
-			<text>{props.label}: {count}</text>
-			<view onClick={_ -> count.value++}>+1</view>
-		</view>;
-	}
+function Checkbox(props:{checked:Signal<Bool>, label:String})
+	return <view:button role="checkbox" checked={props.checked} onPress={() -> props.checked(c -> !c)}>
+		<Show when={props.checked()}><icon name="check"/></Show>
+	</view:button>;
 
-	static function main() {
-		var items = signal(["a", "b"]);
-		Render.render(<view>
-			<Counter label="Clicks"/>
-			<For each={items} render={(i:String) -> <text>{i}</text>}/>
-		</view>, root);
-	}
+function main() {
+	var items = signal(["a", "b"]);
+	Render.render(<view>
+		<Checkbox checked={signal(false)} label="Remember"/>
+		<For each={items}>{i -> <text>{i}</text>}</For>
+	</view>, root);
 }
 ```
 
+The same in TypeScript (TSX), but for `const` and `=>` (index.d.ts).
+
 ## Signals
 
-`helder.view.Reactive`: `signal(v)` (`.value` reads and tracks, writes and
-notifies; `peek`, `update`, `changed`), `memo(fn)` (derived, lazy, its
-observers notified only when its value differs), `effect(fn)` (runs now
-and again after a change to what it read), `batch`, `untrack`, `root`,
-`onCleanup`, `onMount`, `getOwner` and `runWithOwner`, contexts
-(`context`, `provide`, `use`, `setContext`). Computations form an
-ownership tree: what a computation creates is disposed before it runs
-again. No glitches: a diamond runs once per write, with consistent values.
+`helder.view.graph.Graph`: `signal(v)` (called to read, `count()`, tracked
+in a computation; with a value to write, `count(5)`; with a function to
+update, `count(c -> c + 1)`; `peek()` reads untracked; a signal never
+holds a function, `signal(fn)` is a value derived from what fn reads that
+can be written), `memo(fn)` (derived, lazy, its readers marked only when
+its value differs), `effect(compute, apply)` (compute runs now and when
+what it read changes, apply after the commit with its value),
+`renderEffect` (the same, its apply in the render phase: what renderers
+bind), `flush()` and `flush(fn)`, `untrack`, `root`, `onCleanup`,
+`onSettled` (once the commit has landed: the nodes in the tree),
+`getOwner` and `runWithOwner`, contexts (`context`, `provide`, `use`,
+`setContext`), `isPending` and `latest`. Writes are deferred: a write
+lands at the next flush, reads seeing the committed value until then,
+`count(c -> c + 1)` twice adds two. helder's loop flushes at the end of
+each event and frame (App.run, UiWindow, a page's listeners, a native
+control's callbacks) and at the end of a turn of helder.async's loop;
+`Render.render` at the top flushes before it returns; elsewhere (a test)
+`flush()`. A write inside a computation (a component's body, a memo, an
+effect's compute) is an error, unless the signal is made with
+`ownedWrite`. Signals belong to no owner: they live in any object graph
+(a game's state), computations in the ownership tree, disposed with their
+owner and before they run again. A steady write and flush through a memo
+to an effect allocates nothing (tests/view/graph/Alloc.test.hx).
+
+`Read<T>` is a prop that reads: a constant, a signal, a memo or a
+function, each read by calling it (`props.step()`).
 
 ## Markup
 
@@ -52,68 +68,65 @@ it makes its nodes, each time it is mounted.
 
 - Lowercase names are the renderer's elements; capitalized or dotted names
   are components, `Name(props)`, called once when mounted, untracked, in an
-  owner of their own. Haxe checks the props: a wrong type or an unknown
-  prop is an error at the attribute. Content is the `children` prop, a
-  `View`.
+  owner of their own; props are one object. Haxe checks the props: a wrong
+  type or an unknown prop is an error at the attribute. Content is the
+  `children` prop, a `View` (a function alone, for a component whose
+  children are one: For's row).
 - Attributes: `name="text"`, `name={expr}`, `name` (true), `{...object}`;
-  `on...` are listeners, `ref={n -> ...}` gets the node, `key` is ignored,
-  `style` is the renderer's style.
-- A hole or attribute whose value is a `Signal`, a `Memo` or a function is
-  bound: the text, attribute or region follows it. Text follows JSX's
-  whitespace rule; a run of text and text holes is one text node.
+  `on...` are listeners (one may take no event: `onPress={() -> ...}`),
+  `ref={n -> ...}` gets the node, `key` is ignored, `style` is the
+  renderer's style.
+- As in Solid, a hole or attribute that may read (a call, a field read
+  through a getter: `{count()}`, `{user().name}`) is bound, its expression
+  run again when what it read changes; a constant, a local or a plain
+  field is evaluated once, where the literal is (`{count}`, a node itself,
+  is bound by the runtime). A component's prop of type `Read<T>` is bound
+  the same way (given as a function of its expression, read where the
+  component uses it); a prop of another type is evaluated once. Text
+  follows JSX's whitespace rule; a run of text and text holes is one text
+  node.
 - Haxe's lexer ends a literal at its root's `/>` only while it is in the
   root's opening tag, which any `<` in an attribute leaves (`i < n`,
   `render={i -> <Card/>}`): such a root is closed by its closing tag,
   `<Rows render={i -> <Card/>}></Rows>`. Inside the root, markup and
   comparisons nest freely.
-- Control flow (`helder.view.Flow`): `For` (keyed: rows kept and moved),
-  `Index` (a row per index, its item a signal), `Show`, `Switch` and
-  `Match`, `Provider`, `ErrorBoundary`, `Loading`.
+- Control flow (`helder.view.Flow`, Solid 2's): `For` (its row a child
+  function given the item as a Read: keyed by the item, rows kept and
+  moved; `keyed={false}`, a row per index, its Read what is there),
+  `Repeat` (a row per number), `Show`, `Switch` and `Match` (`when`
+  truthy: not null and not false), `Provider`, `Errored`, `Loading`.
 
 ## Values not ready yet
 
-As Solid 2.0 has it (its `NotReadyError` and `<Loading>`, Suspense's
-successor): a value that comes later (helder.asset's `Asset`: a file
-loading) throws `Pending` when it is read before it is here. A
-computation that throws it (a bound hole, attribute or region, an effect)
-renders nothing new (a region keeps what it showed) and tells the nearest
-`<Loading>` boundary above it; it read the value first, so it runs again
-once the value is. A memo keeps it: its readers throw it in turn.
+As Solid 2 has it: an async memo (one whose function returns an
+Awaitable: `memo(task(() -> ...))`, helder.asset's `Asset`) is pending
+until its answer lands, a status of the node, not an exception on each
+read. A render effect that reads a pending value under an armed
+`<Loading>` shows its fallback; with none above it, the change that made
+it pending is held: the screen keeps what it showed until the value lands
+(no torn frames).
 
 ```haxe
 <Loading fallback={<text>loading</text>}>
-  <text>{intro}</text>                      // an Asset bound as a hole
-  <text>{() -> intro.value.toString()}</text>
-  <Card/>                                   // reads assets while it is made
+  <image src={icon}/>                       // an Asset bound as a value
+  <text>{intro.read().toString()}</text>
+  <Card/>                                   // reads an asset while it is made
 </Loading>
 ```
 
-- `<Loading fallback>` shows its fallback instead of its children while
-  what they read on their first load is not ready, then its children.
-  Once shown, it keeps them: a value replaced later (a dev reload, a new
-  value on its way) is shown once it is here, with no fallback between.
-  Its children are made, and while something they read is pending,
-  dropped and made again once it is ready (their components run twice on
-  a first load that waits). Boundaries nest: the nearest one waits.
-- `Reactive.isPending(() -> expr)`: whether a value `expr` reads is being
-  replaced (`Loadable.refreshing`: a reload in flight, an overlay's
-  spinner); false on a first load (the fallback says that one); tracked.
-- A failure (an asset that did not load) throws its error: an
-  `ErrorBoundary` above takes it, as any other.
-- With no boundary above it, a read that is not ready renders nothing for
-  its hole or component (logged in dev builds) and the rest renders; a
-  bound hole shows the value once it is here.
-- `Pending` and `Loadable` (ready, refreshing, whenReady) are the contract
-  for other sources than assets.
-
-As in Solid, a hole or attribute that may read (a call, a field read
-through a getter: `{intro.value}`, `{label()}`) is bound, its expression
-run again when what it read changes; a constant, a local or a plain
-field is evaluated once, where the literal is (`{intro}`, the source
-itself, is bound by the runtime). A component's props are evaluated once,
-in the component that makes the literal.
-Where it differs from Solid: no `on` prop to show the fallback again, no `latest()`, no transitions
-of the whole graph: a pending read keeps the content it had.
+- `<Loading fallback>` shows its fallback while what its children read on
+  their first load is pending, then its children. Its children are made
+  once: what reads a pending value waits inside the graph, their nodes
+  taken out while the fallback shows and put back after. Once it has shown
+  them it keeps them: a later change (a reload) is held until it lands,
+  with no fallback between. Boundaries nest: the nearest armed one waits.
+- A component whose body reads a value not ready is made once it is ready
+  (a region waiting for that value, under the boundary above).
+- `isPending(() -> expr)`: whether a value `expr` reads has a new one on
+  its way (a held change, a reload in flight); false on a first load (the
+  fallback says that one). `latest(fn)` reads ahead of the hold.
+- A failure (an asset that did not load) is an error: an `<Errored>` above
+  shows its fallback, `reset` tries again.
 
 Each literal compiles to straight-line code: the elements made by tag,
 put in their parents, their static attributes set as they are, holes
@@ -223,8 +236,12 @@ A renderer is a class of static functions over its node type that
 implements `Renders<N>` (the list is in `Renders.hx`, checked at compile
 time): `createElement`, `createText`, `createMarker`, `setText`,
 `holdsText`, `setProperty`, `setStyle`, `listen`, `insert`, `remove`,
-`parentOf`, `arrange`, `isNode`. Its node class names it
-(`@:rendered(R)`); a program may reach several.
+`parentOf`, `arrange`, `isNode` (optional: `setter`, the neutral
+elements', `markEnds`: a marker for a region that ends its parent, which
+a page's hydration reads). Its node class names it (`@:rendered(R)`); a
+program may reach several. Its runtime (ViewRuntime) binds what reads
+with render effects whose apply touches the nodes: the graph never
+touches them outside an apply.
 
 Components are renderer-agnostic unless pinned: an agnostic literal is
 compiled for each renderer reached, and the runtime (`ViewRuntime`, written
@@ -267,7 +284,8 @@ Node, or the page's element wrapped when a ref is given), its `tag` and
 
 ## Tests
 
-`bun run test view`: `tests/view/ViewTest.hx` on two test renderers
+`bun run test view`: `tests/view/ViewTest.hx` on two test renderers (the
+graph's own tests, Solid 2's ported, are `tests/view/graph`, the test lane's)
 (boundaries between them, a component under both, roots: several windows
 by `Render.open`), on Eval, natively and in JavaScript, and the programs the
 macro rejects (`tests/view/reject`: a component of another renderer, a

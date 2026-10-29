@@ -142,7 +142,7 @@ import { UiWindow, Surface } from "helder/ui";
 
 const count = signal(0);
 UiWindow.run(<Surface title="Counter">
-	<view:button onPress={() => count.value++}>{count}</view:button>
+	<view:button onPress={() => count(c => c + 1)}>{count}</view:button>
 </Surface>);
 ```
 
@@ -191,10 +191,14 @@ DESIGN.md §7):
 - **Generated declarations.** The `.d.ts` files come from Haxe's types,
   with benmerckx/genes' declaration typing as the base (to be copied in
   here and reworked), not written by hand.
-- **The new reactive core.** helder.view.graph replaces the old core
-  (`signal(...).value`): reads are calls (`count()`), writes `count(v)` or
-  `count(c -> c + 1)`, and they take effect at a flush. TSX and Haxe read
-  the same, the lambdas aside:
+- **Holes that read, bound.** On helder.view.graph (the old core is
+  gone): reads are calls (`count()`), writes `count(v)` or
+  `count(c => c + 1)`, and they take effect at a flush; a node, a Read or
+  an asset comes to the program as a function (Interop). TSX's holes are
+  the program's values until the planner's TypeScript target binds them
+  (3.3): a hole that reads is written `{() => count() * 2}` for now, where
+  Haxe writes `{count() * 2}`. TSX and Haxe will then read the same, the
+  lambdas aside:
 
   ```tsx
   function Checkbox(props: {checked: Signal<boolean>, label: string}) {
@@ -204,8 +208,6 @@ DESIGN.md §7):
   }
   ```
 
-  The example above under "helder's API and TSX" still shows the old
-  core, which renderers use until they move (in progress).
 
 ## Tests
 
@@ -218,9 +220,7 @@ compile and stop with TSHX100 at the line it names. `helder/`
 programs call helder's API and render TSX headless (tests/view's
 TestRenderer), their output checked against `<name>.out`.
 
-Known failure: `helder/view.tsx` prints a signal itself where its value is
-expected (`Signal(1) doubled Memo(2)` for `1 doubled 2`); the move to the
-new core fixes it. The lane needs node 24 or later.
+The lane needs node 24 or later.
 
 `node tests/typescript/bench.mjs [names]` times the programs of `bench/`
 compiled by helder's compiler against node (median of 5 runs each).

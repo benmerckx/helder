@@ -17,7 +17,7 @@ each.
 class App implements Markup {
 	static function main() {
 		var count = signal(0);
-		DomRenderer.render(<button onClick={() -> count.value++}>Clicked {count} times</button>,
+		DomRenderer.render(<button onClick={() -> count(c -> c + 1)}>Clicked {count} times</button>,
 			js.Browser.document.getElementById("app"));
 	}
 }

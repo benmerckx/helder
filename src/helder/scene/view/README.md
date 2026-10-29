@@ -13,7 +13,7 @@ UiWindow.run(<Surface title="Lamp" width={640} height={400}>
 	<view direction="row" grow={1}>
 		<Scene grow={1} camera={camera}>
 			<node name="lamp" position={pos}>
-				<mesh shape="sphere" size={0.4} color={new Vec4(1, 0.8, 0.4, 1)} onClick={_ -> lit.value = !lit.peek()}/>
+				<mesh shape="sphere" size={0.4} color={new Vec4(1, 0.8, 0.4, 1)} onClick={() -> lit(on -> !on)}/>
 				<Show when={lit}><light kind="point" intensity={6.0} range={8.0}/></Show>
 				<Ui><text>lamp</text></Ui>
 			</node>
@@ -21,7 +21,7 @@ UiWindow.run(<Surface title="Lamp" width={640} height={400}>
 		<view width={160}>...</view>
 	</view>
 </Surface>);
-pos.value = new Vec3(1, 1, 0);   // the node moves: no reconciliation, no re-render
+pos(new Vec3(1, 1, 0));   // the node moves at the next flush: no reconciliation, no re-render
 ```
 
 - **`<Scene>`** (`SceneTags.Scene`): a ui node, a box in ui's layout (`grow`,
