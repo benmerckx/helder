@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 // The TypeScript frontend against node: each program of bench/ compiled by
-// tsc (run on node) and by helder-ts (native), both outputs checked equal,
+// tsc (run on node) and by helder's compiler (native), both outputs checked equal,
 // timed as the median of 5 fresh processes after one untimed run
 // (startup and output included, compilation not).
 const T='tests/typescript',dir='bin/typescript/bench';fs.mkdirSync(dir,{recursive:true});

@@ -84,7 +84,7 @@ booted.
     directory (`examples/cube` is Cube.hx, not Targets.hx);
   - a TypeScript program: a `.ts` or `.tsx` file, a project whose entry is
     `src/main.ts(x)` (and no `src/Main.hx`), or a directory with a
-    `main.ts(x)`: built by helder-ts, hxmc's compiler with helder's
+    `main.ts(x)`: built by helder's compiler, hxmc's with helder's
     TypeScript frontend (src/helder/typescript), in the compiler's place,
     the app's own `typescript` (7.1 or later) checking it; `helder dev`
     watches the program's files and keeps tsgo up in the compilation

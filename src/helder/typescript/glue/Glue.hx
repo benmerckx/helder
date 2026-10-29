@@ -30,7 +30,7 @@ class GlueCall {
 // the API's own types; the frontend calls the functions (Dynamic values in
 // and out).
 class Glue {
-	public static inline var PACK = "helder_ts";
+	public static inline var PACK = "helder_program";
 	public static inline var CLASS = "Program";
 
 	// by the node each lowers: a call, a new, a member read, a TSX literal

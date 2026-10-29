@@ -18,7 +18,7 @@ using StringTools;
 // the helder CLI runs it as it runs hxmc's compiler: one-shot builds and
 // `helder dev`'s compilation server alike.
 //
-// For a quick build: `helder-ts <entry.ts> [-o out] [--target t]
+// For a quick build, the compiler's short form: `<compiler> <entry.ts> [-o out] [--target t]
 // [-D name[=value]] [--cp dir] [--dump-ir file] [--roundtrip-ir] [--coverage]`.
 class Compiler {
 	public static inline var DEFINE = "helder.typescript";
@@ -198,7 +198,7 @@ class Compiler {
 		return new core.Globals.Pos(FileSystem.fullPath(file), at(from), at(to));
 	}
 
-	// `helder-ts <entry> ...` as the compiler's own command line
+	// `<compiler> <entry> ...`: the compiler's short form for a TypeScript program
 	static function direct(args:Array<String>):Array<String> {
 		var entry = args.shift(), out = "bin/" + Path.withoutExtension(Path.withoutDirectory(entry)), target:Null<String> = null;
 		var defines = ["-D", DEFINE + "=" + FileSystem.fullPath(entry)];
@@ -210,7 +210,7 @@ class Compiler {
 			case "--coverage": defines = defines.concat(["-D", DEFINE + ".coverage"]);
 			case "-D": defines = defines.concat(["-D", args.shift()]);
 			case "--cp": defines = defines.concat(["-cp", args.shift()]);
-			case a: throw 'helder-ts: unexpected argument $a (helder-ts <entry.ts> [-o out] [--target t] [-D name[=value]] [--cp dir] [--dump-ir file] [--roundtrip-ir] [--coverage])';
+			case a: throw 'unexpected argument $a (<compiler> <entry.ts> [-o out] [--target t] [-D name[=value]] [--cp dir] [--dump-ir file] [--roundtrip-ir] [--coverage])';
 		}
 		if (!FileSystem.exists(entry)) throw '$entry: TSHX002: input file not found';
 		var result = ["-cp", source(), "-main", "helder.typescript.js.Seed", "--custom-target", "hxmc=" + out].concat(defines);
@@ -232,7 +232,7 @@ class Compiler {
 				dir = up;
 			}
 		}
-		throw "helder-ts: helder's sources not found (set HELDER_SRC)";
+		throw "helder's sources not found (set HELDER_SRC)";
 	}
 
 	// What @hxmc/cli's launcher gives its compiler: upstream's std, hxmc's,

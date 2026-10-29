@@ -272,7 +272,7 @@ Still to come:
     the CLI runs when a project's entry is `src/main.ts(x)`: the program
     checked by the app's TypeScript 7.1+ (tsgo, driven over its API's pipes
     from Haxe: no node at build time), its AST lowered straight to hxmc's
-    IR inside hxmc's compiler (`helder-ts`), JavaScript's semantics from a
+    IR inside helder's compiler (hxmc's, with this frontend), JavaScript's semantics from a
     runtime in Haxe; `helder dev` keeps tsgo up in the compilation server
     and feeds it the watcher's changes; errors and stack traces mapped back
     to the `.ts` lines, as `.test.hx` paths are. Still to come: the CLI's

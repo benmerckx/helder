@@ -263,13 +263,13 @@ better, named by an enum and chosen with `<Switch>`. What it buys:
 Solid's shape with no separate `set` and `update`, and `signal(fn)`
 free for writable derived values (2, Memos).
 
-`.value` (read and write) and `.peek()` stay: `value` for code that
-prefers it, `peek()` untracked.
+`.peek()` stays, an untracked read. `.value` goes (6, 9): one way to
+read and write.
 
 ### 3.2 `Read<T>` for props
 
 ```haxe
-function Counter(step:Read<Int>) ...
+function Counter(props:{step:Read<Int>}) ...
 
 <Counter step={1}/>       // a constant
 <Counter step={size}/>    // a signal or a memo
@@ -317,8 +317,8 @@ functions.
 
 ```haxe
 // app/Inventory.hx: module-level functions, no class
-function Slot(item:Read<Item>) return <box padding={4}>{item().name}</box>;
-function Inventory(items:Read<Array<Item>>) return <For each={items} render={i -> <Slot item={i}/>}/>;
+function Slot(props:{item:Read<Item>}) return <box padding={4}>{props.item().name}</box>;
+function Inventory(props:{items:Read<Array<Item>>}) return <For each={props.items}>{i -> <Slot item={i}/>}</For>;
 ```
 
 The CLI adds the markup build macro to the project's own packages with
@@ -341,8 +341,8 @@ Limits and costs to measure:
 
 ## 4. What changes for existing code
 
-- `Reactive.signal(v).value` keeps working; `get()` becomes a call,
-  `set(v)` `count(v)`, `update(f)` `count(f)`.
+- `.value` and `get()` become a call, `count()`; `.value = v` and
+  `set(v)` `count(v)`; `update(f)` `count(f)`.
 - A `Signal` of a function type is an error (3.1): such code keeps the
   function in a structure.
 - `Reactive.batch` is removed (`flush(fn)` where code needed it).
@@ -351,6 +351,8 @@ Limits and costs to measure:
 - `onMount` becomes `onSettled`.
 - `ErrorBoundary` becomes `Errored`.
 - `Pending` and `Loadable` leave the public API; `Asset` becomes a node.
+- Props are one object (6, 6); `For` takes its row as a child
+  function, `Index` becomes `For`'s keying by index (6, 7).
 - `Flow`'s props become typed (`when:Read<Bool>`, `each:Read<Array<T>>`)
   instead of `Dynamic`.
 - Dev reload's state keys (`Refresh`) attach to nodes as today.
@@ -358,7 +360,10 @@ Limits and costs to measure:
 ## 5. Plan
 
 1. Port Solid 2's reactive tests (signals, memos, effects, ownership,
-   async, transitions, Loading, Errored) to helder.test.
+   async, transitions, Loading, Errored) to helder.test: the ones that
+   state behaviour (its createSignal, createMemo, createEffect,
+   createRoot, context, boundaries and async-semantics specs), not those
+   that pin its scheduler's internals (lanes, verdicts, attribution).
 2. The new core beside the old one (`helder.view.graph`), passing them,
    with the allocation test.
 3. Syntax 3.1 and 3.2. Then the markup macro split (7.2): its
@@ -373,44 +378,45 @@ Limits and costs to measure:
 
 TypeScript (7) after step 3: the TSX front end and IR emitter, the
 manifest and the generated declarations, the glue removed; its async
-onto coroutines beside step 5.
+onto coroutines beside step 5. TypeScript is part of helder, not a tool
+beside it: the compiler helder ships includes the frontend, one package
+and one binary.
 
 Each step keeps every lane green and measures compile time (the markup
 rule is the only macro change) and the frame loop's allocations.
 
-## 6. Open questions
+## 6. Decisions
 
-1. **When does a commit happen without an event?** A write from a
-   coroutine after an await, or from a timer: commit at the next frame
-   (the loop is running) or at the end of the loop turn. Proposed: the
-   end of the loop turn, so it works without a frame loop too.
-2. **Transitions' scope.** Solid 2 holds per transition, which needs
-   bookkeeping of which nodes each touches. A first version could hold
-   the whole commit while anything rendered is pending, and refine
-   later. Proposed: start with the simple whole-commit hold, measure.
-3. **Writes inside computations.** Solid 2 forbids writing a signal
-   from a component body or effect compute (dev error) unless the
-   signal opts in. Proposed: the same, as a dev-build check.
-4. **Markup's "may read" rule.** A call to a plain function that reads
-   nothing gets wrapped needlessly; cheap, but not free. Proposed:
-   wrap, and let `untrack(...)` or a constant mark opt out.
-5. **Stores.** Solid 2's stores are proxies; Haxe has none. A typed
-   store would be a build macro per class; out of scope here.
-6. **Props: an object or arguments.** TSX passes one props object,
-   so a component shared with TypeScript is `Counter(props:{step:Read<Int>})`.
-   3.5's `Counter(step:Read<Int>)` reads better in Haxe. Proposed: the
-   object form everywhere (it is also what an IDE completes), the
-   argument form accepted by the macro for Haxe-only code, or not at all.
-7. **`For`'s row.** helder's `render={i -> ...}` prop or Solid's child
-   function `<For each={items}>{i -> ...}</For>`, and Solid 2's keying
-   modes (`<For>` keyed by identity or by index, `<Repeat>` by count)
-   replacing `Index`. Proposed: Solid's, so that ports read the same.
-8. **Handlers' arity.** A Haxe handler takes the event (`_ -> ...`), a
-   TypeScript one may omit it. Proposed: listener props accept
-   `Void->Void` too (`@:from`), so `onPress={() -> ...}` in both.
-9. **`.value`.** Kept (3.1) for existing code; with the call form it is
-   a second way to say the same. Proposed: keep it, deprecated in the
-   docs, removed once the examples and helder's own code are ported.
+Where Solid 2 has an answer, helder takes its decision rather than
+inventing one: its semantics, not its implementation. helder's target
+is native nodes, not the DOM, and a compiler that knows the types, so
+the runtime underneath is its own (2, Allocation).
+
+1. **A commit without an event** (a write from a coroutine after an
+   await, a timer): Solid 2's microtask, which is helder's loop's: the
+   writes of one task of the loop are committed when it yields back to
+   the loop, before the next task runs. No frame loop needed.
+2. **Transitions** are Solid 2's: held per transition, each knowing the
+   nodes it touches, independent transitions committing independently.
+   No whole-commit hold as a first step.
+3. **Writes inside computations** (a component body, an effect's
+   compute, a memo) are an error in dev builds, as Solid 2's
+   `REACTIVE_WRITE_IN_OWNED_SCOPE`, `untrack` not excepting them; a
+   signal made with `ownedWrite` opts out.
+4. **Markup's "may read" rule** is Solid's compiler's: a call or a
+   field access is wrapped, a literal or a plain identifier is not.
+5. **Stores** are Solid 2's model (a draft mutated by the setter,
+   `createStore(fn)` derived, projections) when they come, typed by a
+   build macro per class; not in the first version.
+6. **Props are one object** in both languages, `Counter(props:{step:Read<Int>})`,
+   as TSX passes them; 3.5's argument form is not taken.
+7. **`For` is Solid 2's**: its row a child function,
+   `<For each={items}>{i -> ...}</For>`, keyed by identity or by index
+   (replacing `Index`), and `<Repeat>` by count.
+8. **Handlers** may omit the event: listener props accept `Void->Void`
+   too (`@:from`), so `onPress={() -> ...}` in both languages.
+9. **`.value` goes**, now: the call form is the only one (3.1);
+   helder's own code and the examples are ported with the core.
 
 ## 7. TypeScript
 
@@ -450,7 +456,7 @@ The declarations helder ships (generated, 7.3) type it:
 
 MarkupMacro's decisions move into a library of plain Haxe (no macro
 API), helder.markup, used by the Haxe macro on Eval and compiled into
-helder-ts:
+helder's compiler for TypeScript:
 
 ```
 Haxe <markup/> ─parse─┐                       ┌─ Haxe Expr  (MarkupMacro)
@@ -472,7 +478,7 @@ reloads without a build).
 
 Built with helder: each renderer's contract (the IR names of its
 functions, its elements, its setters and their types) and the public
-API's signatures. helder-ts reads it instead of typing helder in Haxe
+API's signatures. The TypeScript frontend reads it instead of typing helder in Haxe
 per program, and the `.d.ts` files (with typed `JSX.IntrinsicElements`
 per renderer) are generated from it: nothing written by hand to drift.
 helder itself no longer depends on the program, so its typed and
@@ -483,7 +489,7 @@ the lowering and the code generation.
 
 A TypeScript `async` function given to `memo` must be a coroutine of
 helder.async's for cancellation and the commit's timing to hold. To
-check first: helder-ts's state machines implementing `haxe.coro`'s
+check first: the TypeScript frontend's state machines implementing `haxe.coro`'s
 continuation interface, a Promise being how JavaScript sees a Task.
 Else a Promise is a pending node at the boundary: no cancellation,
 only the superseded result dropped (Solid's behaviour). Either way

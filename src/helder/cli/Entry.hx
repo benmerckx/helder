@@ -17,7 +17,7 @@ using StringTools;
 //                            class path the directory its package line
 //                            makes it (one up per package segment)
 //   examples/ts-counter/main.tsx  a TypeScript program (.ts, .tsx): built by
-//                            helder-ts (helder.typescript) from that file and
+//                            helder's compiler (helder.typescript) from that file and
 //                            what it imports; a project's is src/main.ts(x),
 //                            a directory's its main.ts(x)
 //

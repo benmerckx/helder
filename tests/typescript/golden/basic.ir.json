@@ -1,5 +1,5 @@
 {
-  "format": "helder-ts-ir-1",
+  "format": "helder-typescript-ir-1",
   "functions": [
     {
       "args": [],

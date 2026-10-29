@@ -49,7 +49,7 @@ class TextIR {
 	public static function dump(p:Program):String {
 		var fs = [];
 		for (f in p.funcs) if (f.module == "helder.typescript.program") fs.push({name: f.name, ret: encode(f.ret), args: [for (a in f.args) {id: a.id, name: a.name, ty: encode(a.ty)}], locals: [for (a in f.locals) {id: a.id, name: a.name, ty: encode(a.ty)}], body: encode(f.body)});
-		return haxe.Json.stringify({format: "helder-ts-ir-1", functions: fs}, null, "  ") + "\n";
+		return haxe.Json.stringify({format: "helder-typescript-ir-1", functions: fs}, null, "  ") + "\n";
 	}
 
 	static function decode(x:Dynamic, p:Program, locals:Map<Int, Local>):Dynamic {
@@ -101,7 +101,7 @@ class TextIR {
 
 	public static function parse(p:Program, s:String) {
 		var data:Dynamic = haxe.Json.parse(s);
-		if (data.format != "helder-ts-ir-1") throw "TSHXIR002: unknown IR version";
+		if (data.format != "helder-typescript-ir-1") throw "TSHXIR002: unknown IR version";
 		for (def in (data.functions : Array<Dynamic>)) {
 			var f:FuncInfo = null;
 			for (fn in p.funcs) if (fn.name == def.name && fn.module == "helder.typescript.program") f = fn;

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 // The TypeScript frontend's checks (bun run test typescript): every program
 // of cases/ and modules/ compiled by tsc and run on node, then compiled by
-// helder-ts natively and as wasm32-wasi, their outputs compared; standards/
+// helder's compiler natively and as wasm32-wasi, their outputs compared; standards/
 // throw on a mismatch themselves; reject/ must fail with a diagnostic.
 const T='tests/typescript';
 const dir=`bin/typescript/run-${process.pid}`; fs.mkdirSync(dir,{recursive:true});

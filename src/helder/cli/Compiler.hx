@@ -47,7 +47,7 @@ class Compiler {
 		return bin ?? (win ? "haxe.cmd" : "haxe");
 	}
 
-	// helder-ts in tool()'s place (TypeScript programs, helder.typescript):
+	// helder's compiler in tool()'s place (TypeScript programs, helder.typescript):
 	// hxmc's compiler with the TypeScript frontend, built once per hxmc
 	// version and per its sources into the user's cache by its build.mjs
 	// (node: it fetches hxmc's compiler sources until npm ships them)
@@ -57,9 +57,9 @@ class Compiler {
 		var p = new sys.io.Process(node, ['$helder/helder/typescript/build.mjs']);
 		var exe = StringTools.trim(p.stdout.readAll().toString()), err = p.stderr.readAll().toString(), code = p.exitCode();
 		p.close();
-		if (code != 0 || !FileSystem.exists(exe)) throw 'helder-ts does not build:\n$err';
+		if (code != 0 || !FileSystem.exists(exe)) throw 'helder\'s compiler does not build:\n$err';
 		// (its first build in this cache: what it fetched and built)
-		for (line in err.split("\n")) if (line != "") Term.err(Style.status("helder-ts", Info, line));
+		for (line in err.split("\n")) if (line != "") Term.err(Style.status("compiler", Info, line));
 		found = exe;
 	}
 

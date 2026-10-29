@@ -328,7 +328,7 @@ class DevCommand {
 		// backslashes would be escapes)
 		var deps = (FileSystem.fullPath(Path.directory(out)) + "/" + Path.withoutDirectory(depsFile())).split("\\").join("/");
 		var extra = ["-D", 'helder.name=${e.name}', "--macro", 'helder.cli.Deps.write("$deps")'];
-		// (a TypeScript program's files, which no Haxe module names: helder-ts adds them)
+		// (a TypeScript program's files, which no Haxe module names: the compiler adds them)
 		if (e.typescript != null) extra = extra.concat(["-D", 'helder.typescript.deps=$deps']);
 		if (hosted) extra = extra.concat(["-D", "hxmc.shared", "-D", "hxmc.dev-host", "-D", "hxmc.exports=hxmc_dev_run,hxmc_dev_state", "helder.dev.Hosted"]);
 		// (Windows: a DLL at a base of its own, not the one the running build's DLL has, nor the build's before)

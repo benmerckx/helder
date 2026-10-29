@@ -12,22 +12,22 @@ in the output and no Haxe source in between.
 
 ## The compiler
 
-`helder-ts` is hxmc's compiler (@hxmc/cli's `haxe`, with the same command
+helder's compiler is hxmc's compiler (@hxmc/cli's `haxe`, with the same command
 line) with this frontend linked in (`Compiler.hx`): a build given
 `-D helder.typescript=<entry.ts>` also checks that program and lowers it into
 the program's IR after the Haxe side (`helder.typescript.js`, the JavaScript
 runtime, and whatever it uses) is lowered and before code generation. So it
 runs where hxmc's compiler runs: one-shot builds, and a compilation server,
-where its tsgo stays up between builds. `helder-ts <entry.ts> [-o out]
+where its tsgo stays up between builds. `<compiler> <entry.ts> [-o out]
 [--target t]` is the short form.
 
 ```sh
-node src/helder/typescript/build.mjs          # builds helder-ts, prints its path
+node src/helder/typescript/build.mjs          # builds helder's compiler, prints its path
 $(node src/helder/typescript/build.mjs --quiet) app.ts -o bin/app && bin/app
 ```
 
 `build.mjs` builds it once per hxmc version and per hash of these sources,
-into the user's cache (`~/.cache/helder/typescript/`). It links hxmc's
+into the user's cache (`~/.cache/helder/compiler/`). It links hxmc's
 compiler sources from `@hxmc/source` (a dev dependency at `@hxmc/cli`'s
 version), or a checkout `HXMC_SRC` names, and lowers the program through
 hxmc's seam for frontends (`hxmc.Main.generate`'s beforeCodegen: the IR
@@ -39,7 +39,7 @@ a compiler error.
 
 `helder build`, `run` and `dev` take a TypeScript entry (src/helder/cli:
 a `.ts`/`.tsx` file, a project's `src/main.ts(x)`, a directory's
-`main.ts(x)`) and build it with helder-ts, built first if needed:
+`main.ts(x)`) and build it with helder's compiler, built first if needed:
 
 ```sh
 bun run helder run examples/ts-hello
@@ -180,7 +180,7 @@ arrays, `process` and node's other globals, calling helder's Haxe API.
 
 `bun run test typescript` (tests/typescript): the IR checks, then every
 program of `cases/` and `modules/` compiled by tsc and run on node (24), and
-by helder-ts natively and as wasm32-wasi, the outputs compared; `standards/`
+by helder's compiler natively and as wasm32-wasi, the outputs compared; `standards/`
 check themselves where node still differs from the specification;
 `reject/` must fail with a diagnostic at the line it names; `diverge/` must
 compile and stop with TSHX100 at the line it names. `helder/`
@@ -188,7 +188,7 @@ programs call helder's API and render TSX headless (tests/view's
 TestRenderer), their output checked against `<name>.out`.
 
 `node tests/typescript/bench.mjs [names]` times the programs of `bench/`
-compiled by helder-ts against node (median of 5 runs each).
+compiled by helder's compiler against node (median of 5 runs each).
 
 These sources are formatted by haxe-formatter (its master, for Haxe 4.3's
 operators) with the repository's `hxformat.json`, which keeps helder's
