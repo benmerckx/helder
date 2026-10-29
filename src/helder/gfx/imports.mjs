@@ -166,6 +166,8 @@ export default async function (host) {
 
 	// the current pipeline's bind group, with the slots' uniform offsets (a
 	// group per set of textures, made once)
+	let serials = 0;
+
 	function bind() {
 		if (!dirty) return;
 		dirty = false;
@@ -177,8 +179,9 @@ export default async function (host) {
 			pipe.active = c;
 			pass.setPipeline(c.pipeline);
 		}
+		// (by the objects' serials, not their handles: a released texture's handle is given again to the next one)
 		let key = '';
-		for (const t of c.textures) key += textures[t.slot] + ':' + samplers[t.slot] + ',';
+		for (const t of c.textures) key += handles.get(textures[t.slot]).serial + ':' + samplers[t.slot] + ',';
 		let group = c.groups.get(key);
 		if (!group) {
 			const entries = c.uniforms.map((u) => ({ binding: u.slot, resource: { buffer: ring.buffer, size: u.size } }));
@@ -251,8 +254,9 @@ export default async function (host) {
 			// (a mip chain's levels are drawn by generate_mips; a multisampled one is only drawn into, then resolved)
 			const usage = samples > 1 ? GPUTextureUsage.RENDER_ATTACHMENT
 				: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
-			const texture = device.createTexture({ size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, sampleCount: samples, usage });
-			const t = { texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format], unfilterable: format >= R32F, depth: format >= DEPTH16 };
+			const label = samples > 1 ? 'helder multisampled target' : target ? 'helder render target' : 'helder texture';
+			const texture = device.createTexture({ label, size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, sampleCount: samples, usage });
+			const t = { serial: ++serials, texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format], unfilterable: format >= R32F, depth: format >= DEPTH16 };
 			if (data) device.queue.writeTexture({ texture }, host.bytes(data, width * height * t.texel), { bytesPerRow: width * t.texel }, [width, height]);
 			return handles.add(t);
 		},
@@ -343,9 +347,9 @@ export default async function (host) {
 				const size = [texture.width, texture.height], sampleCount = t.samples ?? 1, usage = GPUTextureUsage.RENDER_ATTACHMENT;
 				t.depth?.destroy();
 				t.msaa?.destroy();
-				t.depth = device.createTexture({ size, format: 'depth32float', sampleCount, usage });
+				t.depth = device.createTexture({ label: 'helder frame depth', size, format: 'depth32float', sampleCount, usage });
 				t.depthView = t.depth.createView();
-				t.msaa = sampleCount > 1 ? device.createTexture({ size, format: t.format, sampleCount, usage }) : null;
+				t.msaa = sampleCount > 1 ? device.createTexture({ label: 'helder frame (multisampled)', size, format: t.format, sampleCount, usage }) : null;
 				t.msaaView = t.msaa?.createView();
 			}
 			depthAttachment.view = t.depthView;
