@@ -119,9 +119,12 @@ while [ $i -lt 60 ] && ! grep -q "floating greens: 9 holes, drawing" "$out/golf.
 	sleep 1
 	i=$((i + 1))
 done
+tail -20 "$out/golf.txt"
 grep -q "floating greens: 9 holes, drawing" "$out/golf.txt"
 check "golf: its first frames" $?
 sleep 3
+! grep -q "Uncaught exception" "$out/golf.txt"
+check "golf: nothing uncaught" $?
 xcrun simctl io "$udid" screenshot "$out/golf.png" > /dev/null 2>&1
 xcrun simctl terminate "$udid" $gid > /dev/null 2>&1
 kill $console > /dev/null 2>&1

@@ -277,7 +277,22 @@ class SceneBox extends helder.ui.Node {
 		records++;
 		var sr = renderer, c = color, d = depth, m = multi;
 		if (sr == null || c == null || d == null) return;
-		m == null ? sr.drawInto(enc, world, view(), c, d, tw, th) : sr.drawInto(enc, world, view(), m, d, tw, th, c);
+		if (m == null) {
+			sr.drawInto(enc, world, view(), c, d, tw, th);
+			return;
+		}
+		// (a GPU without the multisampled targets: said, then one sample, its renderer made again: onRenderer called again)
+		try sr.drawInto(enc, world, view(), m, d, tw, th, c) catch (e:Dynamic) {
+			Sys.println("helder.scene: <Scene> multisampled failed (" + Std.string(e) + "), drawn with one sample");
+			antialias = false;
+			for (t in [color, depth, multi])
+				if (t != null) device.destroyTexture(t);
+			color = depth = multi = null;
+			tw = th = 0;
+			sr.dispose();
+			renderer = null;
+			if (ui != null) ui.requestFrame();
+		}
 	}
 
 	// the <Ui>s at their nodes' places (from this frame's view: laid out by the next)
