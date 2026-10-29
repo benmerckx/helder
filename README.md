@@ -706,6 +706,19 @@ Folded into phase 3: the VS Code extension is the devtools.
   on phones), nested routes, deep links, URLs on the web (the address bar
   and history), and transitions between screens; in view's markup, with
   signals for the current route. An app-framework feature, so helder's.
+- **Nested surfaces in one build**: a page that holds other programs'
+  surfaces, built by one `helder build`. Markup names what it embeds
+  (`<page>...<WasmCanvas entry="examples/cube"/>...</page>`, an island);
+  each such use leaves a marker, found after DCE as helder.asset's are, so
+  only what is rendered counts; the CLI builds the page (run once for its
+  HTML: the static renderer writes a canvas and the loader for each), each
+  embedded program as its own wasm, and the component islands as one bundle
+  whose main is generated (no `Islands.start` written by hand), in
+  parallel through the compilation server; `helder dev` rebuilds the part
+  that changed. The examples site starts with a build per example; this
+  replaces it. It pays again with **native webviews as a surface** (a
+  WKWebView, Android's WebView, WebView2 in a window): web content in a
+  native app, and native or wasm surfaces inside that, nested the same way.
 
 ## License
 
