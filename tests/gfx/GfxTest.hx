@@ -37,8 +37,8 @@ class GfxTest {
 
 	static function main() {
 		var args = Sys.args();
-		if (args.length < 4 || !["triangle", "cube", "instances", "targets", "mips", "formats"].contains(args[1])) {
-			Sys.println("usage: GfxTest headless|window triangle|cube|instances|targets|mips|formats <golden.png> <out.png> [--bless | frames]");
+		if (args.length < 4 || !["triangle", "cube", "instances", "targets", "msaa", "mips", "formats"].contains(args[1])) {
+			Sys.println("usage: GfxTest headless|window triangle|cube|instances|targets|msaa|mips|formats <golden.png> <out.png> [--bless | frames]");
 			Sys.exit(2);
 		}
 		var name = args[1], golden = args[2], out = args[3];

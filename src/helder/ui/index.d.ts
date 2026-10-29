@@ -36,7 +36,7 @@ export declare class UiWindow {
 	// (on the web it returns, the frames going on); content, when given, opened first
 	static run(content?: unknown): void;
 	// <Surface>: a window (a canvas on the web), its children rendered into its ui's root; closed with its owner
-	static Surface(props: { title?: Read<string>; width?: Read<number>; height?: Read<number>; theme?: Read<any>; background?: Read<any>; dark?: Read<boolean>; onClose?: () => void; ref?: (arg0: UiWindow) => void; children?: unknown }): View;
+	static Surface(props: { title?: Read<string>; width?: Read<number>; height?: Read<number>; theme?: Read<any>; background?: Read<any>; dark?: Read<boolean>; onClose?: () => void; ref?: (arg0: UiWindow) => void; antialias?: boolean; children?: unknown }): View;
 }
 
 export declare const Surface: typeof UiWindow.Surface;

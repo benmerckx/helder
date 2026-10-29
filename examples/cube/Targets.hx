@@ -35,13 +35,16 @@ class Targets {
 	final pass:PassDesc;
 	final camera = Bytes.alloc(64);
 
-	public function new(device:Device) {
+	// (samples 4: the target multisampled, TextureDesc.samples, resolved into
+	// the texture the cube shows at the pass's end, ColorTarget.resolve)
+	public function new(device:Device, samples = 1) {
 		this.device = device;
-		var color = device.createTexture({width: SIZE, height: SIZE, renderTarget: true});
-		var depth = device.createTexture({width: SIZE, height: SIZE, format: Depth32F});
-		pass = {colors: [{load: Clear, texture: color}], depth: {load: Clear, texture: depth}};
+		var color = device.createTexture({width: SIZE, height: SIZE, renderTarget: true, samples: samples});
+		var depth = device.createTexture({width: SIZE, height: SIZE, format: Depth32F, samples: samples});
+		var shown = samples > 1 ? device.createTexture({width: SIZE, height: SIZE, renderTarget: true}) : color;
+		pass = {colors: [{load: Clear, texture: color, resolve: samples > 1 ? shown : null}], depth: {load: Clear, texture: depth}};
 		cube = new Cube(device);
-		cube.texture = color;
+		cube.texture = shown;
 		// two parallel panels, one behind the other and overlapping (drawn
 		// front first: the depth test hides the other's part), each a front
 		// face and a darker back face (counter-clockwise seen from their side)
@@ -68,10 +71,12 @@ class Targets {
 		var d = PanelShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true});
 		d.colorFormat = RGBA8;
 		d.depthFormat = Depth32F;
+		d.samples = samples;
 		panelPipeline = device.createPipeline(d);
 		d = FillShader.pipeline();
 		d.colorFormat = RGBA8;
 		d.depthFormat = Depth32F;
+		d.samples = samples;
 		fillPipeline = device.createPipeline(d);
 	}
 

@@ -57,9 +57,30 @@ colour and depth texture resolved into the drawable at each pass's end;
 GL: an EGL config with 4 samples, when there is one; D3D11: a
 multisampled colour and depth texture resolved into the back buffer before
 `Present`, when the device has 4 samples; in the browser the page's
-`antialias` run option decides). Render targets and
-headless surfaces stay single-sampled; `readPixels` reads the frame
-resolved.
+`antialias` run option decides when it is set, else the device's option:
+WebGPU a multisampled colour and depth texture, WebGL2 the context's
+antialias). Headless surfaces stay single-sampled; `readPixels` reads the
+frame resolved. helder.ui's `<Surface>` (UiWindow) asks for it by default
+(`antialias={false}`: one sample), and so does a `<Scene>`'s box.
+
+Multisampled render targets: a render target or depth texture made with
+`samples: 4` (RGBA8, RGBA8Srgb, RGBA16F or a depth format, one level) is
+drawn into by pipelines made with `PipelineDesc.samples = 4` and never
+sampled; the pass's colour is resolved at its end into
+`ColorTarget.resolve`, a single-sampled render target of its size and
+format, which is then sampled as usual (GL and WebGL2: a multisampled
+renderbuffer blitted into the texture; Metal: a 2D multisample texture and
+its resolve texture; D3D11: `ResolveSubresource`; WebGPU: the attachment's
+`resolveTarget`). `examples/cube/Targets.hx` with `samples` 4 is the
+`msaa` frame of the gfx lanes (tests/gfx/msaa.png: GL, D3D11 under Wine,
+WebGPU and WebGL2 in Chromium; Metal on CI's macOS):
+
+```haxe
+var multi = device.createTexture({width: w, height: h, renderTarget: true, samples: 4});
+var depth = device.createTexture({width: w, height: h, format: Depth32F, samples: 4});
+var color = device.createTexture({width: w, height: h, renderTarget: true});
+enc.beginPass({colors: [{load: Clear, texture: multi, resolve: color}], depth: {load: Clear, texture: depth}});
+```
 
 Instancing: a vertex buffer slot whose layout has `step: Instance` advances
 once per instance instead of once per vertex (GL's and WebGL2's attribute

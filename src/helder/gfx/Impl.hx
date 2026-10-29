@@ -16,10 +16,10 @@ import hxmc.unsafe.Mem;
 // those two, told apart by the object's class: no field has a back end's
 // type, which would compile all its methods.
 abstract Impl(Any) {
-	// (antialias: the native back ends'; WebGPU's is the page's run option)
+	// (antialias: every back end's; in the browser the page's run option antialias, when set, decides)
 	public inline function new(surface:Surface, antialias:Bool)
 		this = Mem.os() == 1 ? new MetalBackend(surface, antialias) : Mem.os() == 2 ? new D3D11Backend(surface, antialias) : Mem.os() != 3 ? new GLBackend(surface,
-			antialias) : WebGPU.ready() != 0 ? new WebGPUBackend(surface) : new GLBackend(surface, antialias);
+			antialias) : WebGPU.ready() != 0 ? new WebGPUBackend(surface, antialias) : new GLBackend(surface, antialias);
 
 	// (the browser: WebGL2's)
 	inline function webgl():Bool

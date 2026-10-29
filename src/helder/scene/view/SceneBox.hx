@@ -32,8 +32,18 @@ class SceneBox extends helder.ui.Node {
 	// clear colour, ambient, exposure, features (Shadows)
 	public var onRenderer:Null<Renderer->Void>;
 	var device:Null<helder.gfx.Device>;
+	// its world drawn multisampled, 4 samples a pixel, resolved into the
+	// texture ui draws (false: one sample; set before it is first drawn)
+	public var antialias = true;
 	var color:Null<Texture>;
 	var depth:Null<Texture>;
+	// (antialias: the multisampled colour the pass draws into, resolved into color)
+	var multi:Null<Texture>;
+	// (replaced by a resize, destroyed at the next frame drawn: a pass recorded with them may not have run)
+	final retired:Array<Texture> = [];
+	final retiredAt:Array<Int> = [];
+	// (the frames recorded: record's count)
+	var records = 0;
 	var tw = 0;
 	var th = 0;
 	var fallback:Null<Camera>;
@@ -160,9 +170,14 @@ class SceneBox extends helder.ui.Node {
 		if (device != null) {
 			if (color != null) device.destroyTexture(color);
 			if (depth != null) device.destroyTexture(depth);
+			if (multi != null) device.destroyTexture(multi);
+			for (t in retired)
+				device.destroyTexture(t);
+			retired.resize(0);
+			retiredAt.resize(0);
 			renderer.dispose();
 		}
-		color = depth = null;
+		color = depth = multi = null;
 		renderer = null;
 	}
 
@@ -221,22 +236,48 @@ class SceneBox extends helder.ui.Node {
 		var pw = Std.int(Math.max(1, Math.round(width * r.scale))), ph = Std.int(Math.max(1, Math.round(height * r.scale)));
 		if (renderer == null) {
 			device = r.device;
-			renderer = new Renderer(r.device, true);
+			renderer = new Renderer(r.device, true, antialias ? 4 : 1);
 			if (SceneRenderer.device == null) SceneRenderer.device = r.device;
 			if (onRenderer != null) onRenderer(renderer);
 		}
+		// (the textures a resize replaced in an earlier frame: no pass left reading them)
 		if (pw != tw || ph != th) {
-			if (color != null) device.destroyTexture(color);
-			if (depth != null) device.destroyTexture(depth);
+			for (t in [color, depth, multi])
+				if (t != null) {
+					retired.push(t);
+					retiredAt.push(records);
+				}
+			var samples = renderer.samples;
 			color = device.createTexture({width: pw, height: ph, renderTarget: true});
-			depth = device.createTexture({width: pw, height: ph, format: Depth32F});
+			depth = device.createTexture({width: pw, height: ph, format: Depth32F, samples: samples});
+			multi = samples > 1 ? device.createTexture({width: pw, height: ph, renderTarget: true, samples: samples}) : null;
 			tw = pw;
 			th = ph;
 		}
-		var cam = view(), sr = renderer, c = color, d = depth;
-		r.beforePass(enc -> sr.drawInto(enc, world, cam, c, d, pw, ph));
+		// (destroyed two recorded frames after they were replaced: no frame left that may read them)
+		while (retired.length > 0 && records >= retiredAt[0] + 2) {
+			device.destroyTexture(retired.shift());
+			retiredAt.shift();
+		}
+		var cam = view();
+		// (once a frame, with the textures there are when it records: a frame
+		// skipped, its recording runs with the next one's)
+		if (queued != r.frames) {
+			queued = r.frames;
+			r.beforePass(record);
+		}
 		r.gpuTexture(color, id, x, y, width, height);
 		place(cam, width, height);
+	}
+
+	// (the ui renderer's frame its recording was queued for: Renderer.begin drops what a skipped frame queued)
+	var queued = -1;
+
+	function record(enc:helder.gfx.Encoder) {
+		records++;
+		var sr = renderer, c = color, d = depth, m = multi;
+		if (sr == null || c == null || d == null) return;
+		m == null ? sr.drawInto(enc, world, view(), c, d, tw, th) : sr.drawInto(enc, world, view(), m, d, tw, th, c);
 	}
 
 	// the <Ui>s at their nodes' places (from this frame's view: laid out by the next)

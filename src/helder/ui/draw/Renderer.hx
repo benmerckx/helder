@@ -50,7 +50,8 @@ class Renderer implements Canvas {
 	final batches:Array<Int> = [];
 	// (frame: the last one that drew it; one not drawn for EVICT frames is freed)
 	final textures = new Map<Int, {texture:Texture, version:Int, frame:Int, width:Int, height:Int}>();
-	var frames = 0;
+	// the frames begun (begin)
+	public var frames(default, null) = 0;
 	// the GPU textures drawn this frame (texture: by their negative ids), the passes to record before the frame's (beforePass)
 	final gpu = new Map<Int, Texture>();
 	final before:Array<Encoder->Void> = [];

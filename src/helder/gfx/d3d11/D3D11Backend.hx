@@ -76,6 +76,8 @@ class D3D11Backend {
 	var pipeline:D3DPipeline = null;
 	var dirty = true;
 	var offscreen = false; // the pass is into a texture
+	var resolveFrom:Null<D3DTexture> = null; // a multisampled pass's colour, and what it resolves into
+	var resolveInto:Null<D3DTexture> = null;
 	// uniform blocks: the ID3D11DeviceContext1 (nil: no constant buffer
 	// offsets), its ring and the next offset into it; else a buffer per slot
 	var context1 = Ptr.nil();
@@ -317,27 +319,18 @@ class D3D11Backend {
 	public function createTexture(d:TextureDesc):Int {
 		// (a depth texture: typeless, its depth-stencil view and shader resource view typed)
 		var info = TextureInfo.of(d), format = info.format, levels = info.levels, target = info.target;
-		var depth = format.depth, mips = levels > 1 && format.filterable;
+		var depth = format.depth, mips = levels > 1 && format.filterable, multi = info.samples > 1;
 		var hr = Arena.scopedValue(a -> {
 			var t = a.make(D3D11_TEXTURE2D_DESC);
 			t.value.Width = info.width;
 			t.value.Height = info.height;
 			t.value.MipLevels = levels;
 			t.value.ArraySize = 1;
-			t.value.Format = switch format {
-				case RGBA8: D3D.FORMAT_R8G8B8A8_UNORM;
-				case RGBA8Srgb: D3D.FORMAT_R8G8B8A8_UNORM_SRGB;
-				case R8: D3D.FORMAT_R8_UNORM;
-				case RG8: D3D.FORMAT_R8G8_UNORM;
-				case RGBA16F: D3D.FORMAT_R16G16B16A16_FLOAT;
-				case R32F: D3D.FORMAT_R32_FLOAT;
-				case Depth16: D3D.FORMAT_R16_TYPELESS;
-				case Depth32F: D3D.FORMAT_R32_TYPELESS;
-			}
-			t.value.SampleCount = 1;
+			t.value.Format = dxgiFormat(format);
+			t.value.SampleCount = info.samples;
 			t.value.Usage = D3D.USAGE_DEFAULT;
-			// (GenerateMips draws into the levels)
-			t.value.BindFlags = D3D.BIND_SHADER_RESOURCE | (depth ? D3D.BIND_DEPTH_STENCIL : target || mips ? D3D.BIND_RENDER_TARGET : 0);
+			// (GenerateMips draws into the levels; a multisampled texture is only drawn into and resolved)
+			t.value.BindFlags = (multi ? 0 : D3D.BIND_SHADER_RESOURCE) | (depth ? D3D.BIND_DEPTH_STENCIL : target || mips ? D3D.BIND_RENDER_TARGET : 0);
 			t.value.MiscFlags = mips ? D3D.RESOURCE_MISC_GENERATE_MIPS : 0;
 			ID3D11Device.CreateTexture2D(device, t, Ptr.nil(), scratch);
 		});
@@ -345,25 +338,27 @@ class D3D11Backend {
 		var tex = scratch.value;
 		var t = new D3DTexture(tex, info);
 		textures.push(t);
-		hr = Arena.scopedValue(a -> {
-			var v:Ptr<Int32> = Ptr.nil();
-			if (depth) {
-				v = a.alloc(32);
-				LibC.memset(v, 0, 32);
-				v[0] = format == Depth16 ? D3D.FORMAT_R16_UNORM : D3D.FORMAT_R32_FLOAT;
-				v[1] = D3D.SRV_DIMENSION_TEXTURE2D;
-				v[3] = levels; // (Texture2D.MostDetailedMip, MipLevels)
-			}
-			ID3D11Device.CreateShaderResourceView(device, tex, v, scratch);
-		});
-		check(hr, "CreateShaderResourceView");
-		t.view = scratch.value;
+		if (!multi) {
+			hr = Arena.scopedValue(a -> {
+				var v:Ptr<Int32> = Ptr.nil();
+				if (depth) {
+					v = a.alloc(32);
+					LibC.memset(v, 0, 32);
+					v[0] = format == Depth16 ? D3D.FORMAT_R16_UNORM : D3D.FORMAT_R32_FLOAT;
+					v[1] = D3D.SRV_DIMENSION_TEXTURE2D;
+					v[3] = levels; // (Texture2D.MostDetailedMip, MipLevels)
+				}
+				ID3D11Device.CreateShaderResourceView(device, tex, v, scratch);
+			});
+			check(hr, "CreateShaderResourceView");
+			t.view = scratch.value;
+		}
 		if (depth) {
 			hr = Arena.scopedValue(a -> {
 				var v:Ptr<Int32> = a.alloc(32);
 				LibC.memset(v, 0, 32);
 				v[0] = format == Depth16 ? D3D.FORMAT_D16_UNORM : D3D.FORMAT_D32_FLOAT;
-				v[1] = D3D.DSV_DIMENSION_TEXTURE2D;
+				v[1] = multi ? D3D.DSV_DIMENSION_TEXTURE2DMS : D3D.DSV_DIMENSION_TEXTURE2D;
 				ID3D11Device.CreateDepthStencilView(device, tex, v, scratch);
 			});
 			check(hr, "CreateDepthStencilView");
@@ -375,6 +370,18 @@ class D3D11Backend {
 		if (d.data != null) writeTexture(textures.length, d.data, 0, 0, -1, -1, 0, 0);
 		return textures.length;
 	}
+
+	static function dxgiFormat(format:TextureFormat):Int
+		return switch format {
+			case RGBA8: D3D.FORMAT_R8G8B8A8_UNORM;
+			case RGBA8Srgb: D3D.FORMAT_R8G8B8A8_UNORM_SRGB;
+			case R8: D3D.FORMAT_R8_UNORM;
+			case RG8: D3D.FORMAT_R8G8_UNORM;
+			case RGBA16F: D3D.FORMAT_R16G16B16A16_FLOAT;
+			case R32F: D3D.FORMAT_R32_FLOAT;
+			case Depth16: D3D.FORMAT_R16_TYPELESS;
+			case Depth32F: D3D.FORMAT_R32_TYPELESS;
+		}
 
 	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
 		var t = textures[id - 1], info = t.info;
@@ -576,6 +583,10 @@ class D3D11Backend {
 		if (offscreen) {
 			var t = textures[c.texture.id() - 1];
 			t.info.checkPass(d);
+			if (t.info.samples > 1 || c.resolve != null)
+				t.info.checkSamples(d == null ? null : textures[d.texture.id() - 1].info, c.resolve == null ? null : textures[c.resolve.id() - 1].info);
+			resolveFrom = c.resolve == null ? null : t;
+			resolveInto = c.resolve == null ? null : textures[c.resolve.id() - 1];
 			rtv = t.rtv;
 			dsv = d == null ? Ptr.nil() : textures[d.texture.id() - 1].dsv;
 			w = t.info.width;
@@ -711,6 +722,11 @@ class D3D11Backend {
 	// (a render target: unbound, so that it can be sampled next)
 	public function endPass() {
 		if (offscreen) ID3D11DeviceContext.OMSetRenderTargets(context, 0, Ptr.nil(), Ptr.nil());
+		// (a multisampled pass's colour into its resolve target)
+		if (resolveFrom != null) {
+			ID3D11DeviceContext.ResolveSubresource(context, resolveInto.texture, 0, resolveFrom.texture, 0, dxgiFormat(resolveFrom.info.format));
+			resolveFrom = resolveInto = null;
+		}
 	}
 
 	public function endFrame() {
