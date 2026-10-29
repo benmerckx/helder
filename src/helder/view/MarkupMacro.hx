@@ -4,6 +4,8 @@ package helder.view;
 import haxe.macro.Context;
 import haxe.macro.Expr;
 import haxe.macro.Type;
+import helder.markup.Plan;
+import helder.markup.Syntax;
 
 using haxe.macro.ExprTools;
 
@@ -43,7 +45,6 @@ using haxe.macro.ExprTools;
 // every renderer (a single-source component: its elements the neutral ones,
 // view, text, view:button..., each renderer realising them).
 class MarkupMacro {
-	@:allow(helder.view.Literal) static var count = 0;
 	// the root (helder.view.Root: RootView), as a literal's renderer: components only, no code to mount
 	public static inline final ROOT = "helder.view.Root";
 
@@ -86,9 +87,9 @@ class MarkupMacro {
 			case _: return Context.error("markup: a literal expected", e.pos);
 		}
 		var info = Context.getPosInfos(e.pos);
-		var root = new Parser(src, info.file, info.min).document();
+		var root = new Parser(src, (message, at, length) -> Context.error(message, position(info.file, info.min + at, length))).document();
 		var r = given == null ? placed() : given == ROOT ? ROOT : HostMacro.info(given).path;
-		return new Literal(info.file, info.min, e.pos, r).compile(root);
+		return new Plan(new HaxeTarget(info.file, info.min, e.pos), r).compile(root);
 	}
 
 	// (the renderer a literal is for from where it is: the type expected, the enclosing
@@ -121,7 +122,7 @@ class MarkupMacro {
 	}
 
 	// (the function being typed is @:neutral: for every renderer, its class's @:renderer aside)
-	@:allow(helder.view.Literal) static function neutralMethod():Bool {
+	@:allow(helder.view.HaxeTarget) static function neutralMethod():Bool {
 		var cls = Context.getLocalClass(), m = Context.getLocalMethod();
 		if (cls == null || m == null) return false;
 		var f = field(cls.get(), m);
@@ -142,7 +143,7 @@ class MarkupMacro {
 	}
 
 	// (the literal being typed's class's limits, unless its function is @:neutral)
-	@:allow(helder.view.Literal) static function ownLimits():Null<{only:Array<String>, other:Map<String, Expr>}> {
+	@:allow(helder.view.HaxeTarget) static function ownLimits():Null<{only:Array<String>, other:Map<String, Expr>}> {
 		var cls = Context.getLocalClass();
 		return cls == null || neutralMethod() ? null : limits(cls.get().meta);
 	}
@@ -150,7 +151,7 @@ class MarkupMacro {
 	// a component, its callee typed: its name, its class's limits (unless
 	// @:neutral), the renderer its return type pins it to, its children's (a
 	// children prop of ViewOf<R>); null when it does not type (the call's error then)
-	@:allow(helder.view.Literal) static function component(callee:Expr):Null<{name:String, field:String, limits:Null<{only:Array<String>, other:Map<String, Expr>}>,
+	@:allow(helder.view.HaxeTarget) static function component(callee:Expr):Null<{name:String, field:String, limits:Null<{only:Array<String>, other:Map<String, Expr>}>,
 		pin:Null<String>, ret:String, children:Null<String>}> {
 		var t = try Context.typeExpr(callee) catch (_:Dynamic) return null;
 		var name = callee.toString(), fieldName = name.split(".").pop(), l = null;
@@ -258,17 +259,11 @@ class MarkupMacro {
 		return [for (e in body) sub(e)];
 	}
 
-	@:allow(helder.view.Literal) static function exprNotEmpty(c:PNode):Bool
-		return switch c.kind {
-			case PExpr(code, _): StringTools.trim(stripComments(code)) != "";
-			case _: true;
-		}
-
 	// whether an attribute's value may be of a type never reactive, to be
 	// told by typing it (plain): an expression of constants, fields,
 	// operators and conditions (one with a call, a function or markup in it
 	// is left to the runtime to bind or set)
-	@:allow(helder.view.Literal) static function simple(e:Expr):Bool
+	@:allow(helder.view.HaxeTarget) static function simple(e:Expr):Bool
 		return switch e.expr {
 			case EConst(_): true;
 			case EField(o, _) | EParenthesis(o) | EUnop(_, _, o) | ECheckType(o, _) | ECast(o, null): simple(o);
@@ -294,15 +289,10 @@ class MarkupMacro {
 		return of(t);
 	}
 
-	@:allow(helder.view.Literal) static function isComponent(name:String):Bool {
-		var last = name.split(".").pop();
-		return name.indexOf(".") >= 0 || (last.length > 0 && last.charAt(0) == last.charAt(0).toUpperCase() && last.charAt(0) != last.charAt(0).toLowerCase());
-	}
-
 	// an embedded expression, parsed at its place in the file and its
 	// literals wrapped, for renderer when given (null: empty, or only comments)
-	@:allow(helder.view.Literal) static function expr(code:String, file:String, at:Int, renderer:Null<String>, required = false):Null<Expr> {
-		if (StringTools.trim(stripComments(code)) == "") {
+	@:allow(helder.view.HaxeTarget) static function expr(code:String, file:String, at:Int, renderer:Null<String>, required = false):Null<Expr> {
+		if (StringTools.trim(Plan.stripComments(code)) == "") {
 			if (required) Context.error("markup: an empty expression", position(file, at - 1, code.length + 2));
 			return null;
 		}
@@ -310,15 +300,12 @@ class MarkupMacro {
 		return transform(e, renderer);
 	}
 
-	static function stripComments(s:String):String
-		return ~/\/\*[\s\S]*?\*\//g.replace(~/\/\/[^\n]*/g.replace(s, ""), "");
-
 	public static function position(file:String, min:Int, len:Int):Position
 		return Context.makePosition({file: file, min: min, max: min + len});
 
 	static final lineCache = new Map<String, Array<Int>>();
 
-	@:allow(helder.view.Literal) static function lineOf(file:String, offset:Int):Int {
+	@:allow(helder.view.HaxeTarget) static function lineOf(file:String, offset:Int):Int {
 		var starts = lineCache.get(file);
 		if (starts == null) {
 			starts = [0];
@@ -334,67 +321,156 @@ class MarkupMacro {
 	}
 }
 
-// One literal's code: its holes' declarations, its mount function's statements
-class Literal {
+// The planner's Target for the macro: a literal's code as Haxe expressions
+// (__HOST__, __RT__ and __NEUTRAL__ made the renderer's by forRenderer),
+// its errors and facts from typing where the literal is
+class HaxeTarget implements Target<Expr> {
 	final file:String;
 	final base:Int;
 	final pos:Position;
-	// the renderer it is compiled for; null: agnostic, for every renderer the program reaches (after typing)
-	final renderer:Null<String>;
-	final id = MarkupMacro.count++;
-	final holes:Array<Expr> = [];
-	final holeTypes:Array<{name:String, type:ComplexType}> = [];
-	var vars = 0;
-	// (a literal of components and holes only: its components' factories are
-	// holes, shared by mount and parts)
-	var shared = false;
 
-	// (where it starts in its root literal: a component's children's, the component's tag)
-	final at:Int;
-
-	public function new(file:String, base:Int, pos:Position, renderer:Null<String>, at = 0) {
+	public function new(file:String, base:Int, pos:Position) {
 		this.file = file;
 		this.base = base;
 		this.pos = pos;
-		this.renderer = renderer;
-		this.at = at;
 	}
 
-	static final P = macro __p;
-	static final B = macro __b;
-	static final O = macro __o;
+	function at(where:Null<Where>):Position
+		return where == null ? pos : MarkupMacro.position(file, base + where.at, where.length);
 
-	public function compile(root:PNode):Expr {
-		shared = valueOnly(root);
-		if (renderer == MarkupMacro.ROOT && !shared) {
-			var n = firstNode(root);
-			Context.error("markup: " + (n == null ? "text" : "<" + n.name + ">") + " needs a renderer's parent: a root (RootView: UiWindow.run's, Render.open's) holds components only (<Surface>...)",
-				n == null ? pos : MarkupMacro.position(file, base + n.at, n.name.length));
+	public function error(message:String, where:Null<Where>):Dynamic
+		return Context.error(message, at(where));
+
+	public function elements(renderer:String):Null<Array<String>>
+		return HostMacro.info(renderer).elements;
+
+	public function code(code:String, at:Int, renderer:Null<String>, required:Bool):Null<Expr>
+		return MarkupMacro.expr(code, file, base + at, renderer, required);
+
+	public function isLiteral(e:Expr):Bool
+		return e.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes)));
+
+	public function isPlain(e:Expr):Bool
+		return MarkupMacro.simple(e) && MarkupMacro.plain(e);
+
+	public function devKeys():Bool
+		return Context.defined("hxmc.dev");
+
+	public function component(name:String, at:Int, renderer:Null<String>):Component<Expr> {
+		var p = MarkupMacro.position(file, base + at, name.length + 1);
+		var callee:Null<Expr> = null;
+		for (part in name.split("."))
+			callee = callee == null ? {expr: EConst(CIdent(part)), pos: p} : {expr: EField(callee, part), pos: p};
+		var c = MarkupMacro.component(callee);
+		if (renderer == Plan.ROOT) {
+			if (c != null && c.pin != null && c.pin != renderer)
+				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret
+					+ "), not a root's: a root (UiWindow.run's, Render.open's) holds roots (<Surface>) and components of no renderer", p);
+		} else if (renderer != null) {
+			var target = MarkupMacro.pick(renderer, callee);
+			if (target != callee) {
+				callee = target;
+				c = MarkupMacro.component(target);
+			}
+			if (c != null && c.pin == Plan.ROOT)
+				Context.error("helder.view: <" + name + "> is a root (it returns " + c.ret + "): UiWindow.run's or Render.open's content, not " + renderer + "'s markup", p);
+			if (c != null && c.pin != null && c.pin != renderer)
+				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret + "), not " + renderer + "'s", p);
 		}
-		var body = mountBody(root);
-		var parts = macro null;
-		if (shared) {
-			var items = [];
-			collect(root, items);
-			parts = macro function():Array<Any> return ([$a{items}] : Array<Any>);
+		return {callee: callee, children: c != null ? c.children : null};
+	}
+
+	public function ident(name:String):Expr
+		return macro @:pos(pos) $i{name};
+
+	public function string(s:String, ?where:Where):Expr
+		return macro @:pos(at(where)) $v{s};
+
+	public function bool(b:Bool, ?where:Where):Expr
+		return macro @:pos(at(where)) $v{b};
+
+	public function nil():Expr
+		return macro @:pos(pos) null;
+
+	public function isNull(e:Expr):Bool
+		return e.expr.match(EConst(CIdent("null")));
+
+	public function anyArray(items:Array<Expr>):Expr
+		return macro @:pos(pos) ([$a{items}] : Array<Any>);
+
+	public function declare(name:String, e:Expr, where:Null<Where>):Expr
+		return macro @:pos(at(where)) var $name = $e;
+
+	public function call(of:Callee, name:String, args:Array<Expr>, where:Null<Where>):Expr {
+		var o = switch of {
+			case Host: "__HOST__";
+			case Runtime: "__RT__";
+			case Neutral: "__NEUTRAL__";
 		}
+		var p = at(where);
+		return {expr: ECall({expr: EField({expr: EConst(CIdent(o)), pos: p}, name), pos: p}, args), pos: p};
+	}
+
+	public function holeDecl(name:String, e:Expr, factory:Bool):Expr
+		return {expr: EVars([{name: name, type: factory ? macro :Void->Any : macro :Any, expr: e}]), pos: e.pos};
+
+	public function holeRef(name:String, e:Expr):Expr
+		return macro @:pos(e.pos) $i{name};
+
+	public function callValue(f:Expr):Expr
+		return macro @:pos(pos) $f();
+
+	public function partRef(element:Expr, ref:Expr, where:Where):Expr
+		return macro @:pos(at(where)) {
+			var r:Dynamic = $ref;
+			if (r != null) (r : Dynamic -> Void)(__NEUTRAL__.part($element));
+		};
+
+	public function keyScope(name:String, key:Expr):Expr
+		return macro @:pos(pos) $v{name + "["} + Std.string($key) + "]";
+
+	public function factory(c:Component<Expr>, props:Array<{name:String, value:Expr, at:Int}>, content:Null<Expr>, at:Int, agnostic:Bool):Expr {
+		var callee = c.callee, p = callee.pos;
+		var fields:Array<ObjectField> = [];
+		for (a in props) {
+			// (name_pos: the field name's position, which the compiler reads though ObjectField does not declare it)
+			var field:Dynamic = {
+				field: a.name,
+				expr: a.value,
+				quotes: ~/^[A-Za-z_][A-Za-z0-9_]*$/.match(a.name) ? Unquoted : Quoted,
+				name_pos: MarkupMacro.position(file, base + a.at, a.name.length)
+			};
+			fields.push(field);
+		}
+		if (content != null) fields.push({field: "children", expr: content});
+		var props = {expr: EObjectDecl(fields), pos: p};
+		var call = agnostic ? macro @:pos(p) helder.view.Pick.call($callee, $props) : {expr: ECall(callee, [props]), pos: p};
+		return {expr: EFunction(FAnonymous, {args: [], ret: macro :Any, expr: {expr: EReturn(call), pos: p}}), pos: p};
+	}
+
+	public function view(v:Planned<Expr>):Expr {
+		var holes = v.holes, body = v.body, renderer = v.renderer;
+		var parts = v.parts == null ? macro null : macro function():Array<Any> return ([$a{v.parts}] : Array<Any>);
 		var line = MarkupMacro.lineOf(file, base);
 		var source = haxe.io.Path.withoutDirectory(file) + ":" + line;
 		// (a root's: its parts only, no code to mount)
-		if (renderer == MarkupMacro.ROOT)
-			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View($v{HostMacro.id(MarkupMacro.ROOT)}, null, 0, null, $parts, $v{source})])};
+		if (renderer == Plan.ROOT)
+			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View($v{HostMacro.id(Plan.ROOT)}, null, 0, null, $parts, $v{source})])};
 		var own = MarkupMacro.ownLimits(), cls = Context.getLocalClass();
 		if (renderer == null) {
 			// (its template in its class, made for each renderer after typing: HostMacro.late)
-			var key = HostMacro.id(file + ":" + base + ":" + at);
-			var decls = [for (h in holeTypes) {expr: EVars([{name: h.name, type: h.type, expr: null}]), pos: pos}];
+			var key = HostMacro.id(file + ":" + base + ":" + v.at);
+			var decls = [
+				for (h in v.holeNames)
+					{expr: EVars([{name: h.name, type: h.factory ? macro :Void->Any : macro :Any, expr: null}]), pos: pos}
+			];
 			var only = own == null ? [] : [for (r in own.only) macro $v{r}];
 			if (cls == null) Context.error("markup: a literal outside a class", pos);
 			// (and the field it is in: its code kept only if that field is, where DCE can tell, JavaScript)
 			var m = Context.getLocalMethod(), c = cls.get();
 			var feature = m == null ? "" : c.pack.concat([c.name, m]).join(".");
 			c.meta.add(":helder.late", [macro $v{key}, macro $b{decls}, macro $b{body}, macro $a{only}, macro $v{feature}], pos);
-			var hs = [for (h in holeTypes) macro $i{h.name}];
+			var hs = [for (h in v.holeNames) macro $i{h.name}];
 			return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View(0, null, $v{key}, ([$a{hs}] : Array<Any>), $parts, $v{source})])};
 		}
 		var info = HostMacro.reach(renderer);
@@ -409,602 +485,6 @@ class Literal {
 			$b{code};
 		};
 		return macro @:pos(pos) $b{holes.concat([macro @:pos(pos) new helder.view.View($v{info.id}, $mount, 0, null, $parts, $v{source})])};
-	}
-
-	function mountBody(root:PNode):Array<Expr> {
-		return switch root.kind {
-			case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
-				[component(name, attrs, children, at, macro __p, macro __b, macro __o)];
-			case PElement(name, attrs, children, at): element(name, attrs, children, at, P, true);
-			case PFragment(children): this.children(children, P, B, O, macro false);
-			case _: [];
-		}
-	}
-
-	// the literal's hole for e: a local, evaluated in source order
-	function hole(e:Expr, ?type:ComplexType):Expr {
-		var name = '__h${id}_${holes.length}';
-		var t = type == null ? macro :Any : type;
-		holes.push({expr: EVars([{name: name, type: t, expr: e}]), pos: e.pos});
-		holeTypes.push({name: name, type: t});
-		return macro @:pos(e.pos) $i{name};
-	}
-
-	function fresh(prefix:String):String
-		return '__$prefix${id}_${vars++}';
-
-	// (the first element or text of a literal not of components only: null, a text)
-	static function firstNode(n:PNode):Null<{name:String, at:Int}>
-		return switch n.kind {
-			case PElement(name, _, children, at): MarkupMacro.isComponent(name) ? null : {name: name, at: at};
-			case PFragment(children):
-				for (c in clean(children)) {
-					if (c.kind.match(PText(_))) return null;
-					var f = firstNode(c);
-					if (f != null || !valueOnly(c)) return f;
-				}
-				null;
-			case _: null;
-		}
-
-	// the renderer of the markup in its holes (a root's: none, agnostic)
-	inline function inner():Null<String>
-		return renderer == MarkupMacro.ROOT ? null : renderer;
-
-	// content of components, holes and fragments only (no element, no text)
-	static function valueOnly(n:PNode):Bool
-		return switch n.kind {
-			case PElement(name, _, _, _): MarkupMacro.isComponent(name);
-			case PFragment(children): Lambda.foreach(clean(children), valueOnly);
-			case PExpr(_, _): true;
-			case PText(_): false;
-		}
-
-	// a shared literal's parts: its components called, its holes
-	function collect(n:PNode, out:Array<Expr>)
-		switch n.kind {
-			case PFragment(children):
-				for (c in clean(children))
-					collect(c, out);
-			case PElement(_, _, _, _):
-				var f = factories.shift();
-				out.push(macro $f());
-			case PExpr(_, _):
-				out.push(valueHoles.shift());
-			case PText(_):
-		}
-
-	// (a shared literal's factories and holes, in source order, for collect)
-	final factories:Array<Expr> = [];
-	final valueHoles:Array<Expr> = [];
-
-	static function clean(cs:Array<PNode>):Array<PNode>
-		return [for (c in cs) if (MarkupMacro.exprNotEmpty(c)) c];
-
-	// (the neutral elements: ui's own, a page's renderer realising them as its elements)
-	static function isNeutral(name:String):Bool
-		return ["view", "text", "scroll", "image", "icon", "field"].indexOf(name) >= 0 || ~/^(view|text|field):/.match(name);
-
-	// an element: made, put in parent (top: before __b, pushed to __o), its
-	// attributes, its children; one its renderer does not list (@:elements) an error
-	function element(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int, parent:Expr, top:Bool):Array<Expr> {
-		if (renderer != null) {
-			var els = HostMacro.info(renderer).elements;
-			if (els != null && els.indexOf(name) < 0)
-				Context.error("markup: <" + name + "> is no element of " + renderer + " (" + els.join(", ") + ")", MarkupMacro.position(file, base + at, name.length));
-		}
-		var v = fresh("e");
-		var e = macro $i{v};
-		var neutral = isNeutral(name);
-		var out = [
-			neutral ? macro @:pos(pos) var $v = __NEUTRAL__.element($v{name}) : macro @:pos(pos) var $v = __HOST__.createElement($v{name}),
-			top ? macro @:pos(pos) __RT__.put($parent, $e, __b, __o) : macro @:pos(pos) __HOST__.insert($parent, $e, null)
-		];
-		for (a in attrs) {
-			var s = attr(e, a, neutral ? name : null);
-			if (s != null) out.push(s);
-		}
-		var kids = clean(children);
-		if (kids.length == 0) return out;
-		if (Lambda.foreach(kids, k -> k.kind.match(PText(_) | PExpr(_, _)))) {
-			// (text only: the element's own text when it holds text)
-			var parts = [for (k in kids) part(k)];
-			if (Lambda.foreach(kids, k -> k.kind.match(PText(_)))) out.push(macro @:pos(pos) __RT__.textOf($e, ${join(kids)}));
-			else out.push(macro @:pos(pos) __RT__.flat($e, $v{name}, ([$a{parts}] : Array<Any>)));
-			return out;
-		}
-		var t = fresh("t");
-		out.push(macro @:pos(pos) var $t = __HOST__.holdsText($e));
-		return out.concat(this.children(kids, e, macro null, macro null, macro $i{t}));
-	}
-
-	// children into parent before before (pushed to out), runs of text and
-	// holes joined (span: in an element that holds text, as spans)
-	function children(cs:Array<PNode>, parent:Expr, before:Expr, out:Expr, span:Expr):Array<Expr> {
-		var s:Array<Expr> = [];
-		var run:Array<PNode> = [], parts:Array<Expr> = [];
-		var top = !before.expr.match(EConst(CIdent("null")));
-		function flush() {
-			if (run.length == 0) return;
-			if (Lambda.foreach(run, k -> k.kind.match(PText(_)))) s.push(macro @:pos(pos) __RT__.text($parent, $before, $out, ${join(run)}, $span));
-			else if (run.length == 1) s.push(macro @:pos(pos) __RT__.hole($parent, $before, $out, ${parts[0]}, $span));
-			else s.push(macro @:pos(pos) __RT__.run($parent, $before, $out, ([$a{parts}] : Array<Any>), $span));
-			run = [];
-			parts = [];
-		}
-		for (c in clean(cs))
-			switch c.kind {
-				case PText(_) | PExpr(_, _):
-					run.push(c);
-					parts.push(part(c));
-				case PElement(name, attrs, children, at) if (MarkupMacro.isComponent(name)):
-					flush();
-					s.push(component(name, attrs, children, at, parent, before, out));
-				case PElement(name, attrs, children, at):
-					flush();
-					s = s.concat(element(name, attrs, children, at, parent, top));
-				case PFragment(children):
-					flush();
-					s = s.concat(this.children(children, parent, before, out, macro false));
-			}
-		flush();
-		return s;
-	}
-
-	// a child of a run: its text, or its hole
-	function part(c:PNode):Expr
-		return switch c.kind {
-			case PText(t): macro $v{t};
-			case PExpr(code, at):
-				var h = hole(MarkupMacro.expr(code, file, base + at, inner()));
-				if (shared) valueHoles.push(h);
-				h;
-			case _: throw "unreachable";
-		}
-
-	static function join(run:Array<PNode>):Expr
-		return macro $v{[for (k in run) switch k.kind {
-			case PText(t): t;
-			case _: "";
-		}].join("")};
-
-	// (a value of a type never reactive: set as a literal is, not bound)
-	function plainValue(x:Expr):Bool
-		return MarkupMacro.simple(x) && MarkupMacro.plain(x);
-
-	// an attribute's statement (null: none, as key)
-	function attr(e:Expr, a:PAttr, ?tag:String):Null<Expr> {
-		var name = a.name;
-		var event = StringTools.startsWith(name, "on") && name.length > 2;
-		var ap = MarkupMacro.position(file, base + a.at, name.length);
-		if (tag != null) return neutralAttr(e, a, tag, event, ap);
-		return switch a.value {
-			case AStatic(_) | AFlag:
-				var v = switch a.value {
-					case AStatic(s): macro $v{s};
-					case _: macro true;
-				}
-				if (event) macro @:pos(ap) __HOST__.listen($e, $v{name}, $v);
-				else switch name {
-					case "key": null;
-					case "style": macro @:pos(ap) __HOST__.setStyle($e, $v);
-					case "ref": macro @:pos(ap) __RT__.attr($e, $v{name}, $v);
-					case _: macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $v);
-				}
-			case AExpr(code, at):
-				var x = MarkupMacro.expr(code, file, base + at, inner(), true);
-				// (a literal number or string: set as a static value is, never bound)
-				if (!event && name != "ref" && name != "key" && name != "style" && x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes))))
-					return macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $x);
-				var plain = !event && name != "ref" && name != "key" && name != "style" && plainValue(x);
-				var h = hole(x);
-				if (event) macro @:pos(ap) __HOST__.listen($e, $v{name}, $h);
-				else switch name {
-					case "key": null;
-					case "ref": macro @:pos(ap) __RT__.ref($e, $h);
-					case "style": macro @:pos(ap) __RT__.style($e, $h);
-					// (a value never reactive: its hole set as a literal is)
-					case _ if (plain): macro @:pos(ap) __HOST__.setProperty($e, $v{name}, $h);
-					case _: macro @:pos(ap) __RT__.prop($e, $v{name}, $h);
-				}
-			case ASpread(code, at):
-				var h = hole(MarkupMacro.expr(code, file, base + at, inner(), true));
-				macro @:pos(ap) __RT__.spread($e, $h);
-		}
-	}
-
-	// a neutral element's attribute: through the renderer's neutral functions where it has them
-	function neutralAttr(e:Expr, a:PAttr, tag:String, event:Bool, ap:Position):Null<Expr> {
-		var name = a.name;
-		if (name == "key") return null;
-		return switch a.value {
-			case AStatic(_) | AFlag:
-				var v = switch a.value {
-					case AStatic(s): macro $v{s};
-					case _: macro true;
-				}
-				event ? macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $v) : macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $v);
-			case AExpr(code, at):
-				var x = MarkupMacro.expr(code, file, base + at, inner(), true);
-				// (a literal, or tag and id, one renderer's only (ui's Node.find, a page's id): in each pass,
-				// dropped where its renderer has no use for it)
-				if (!event && name != "ref" && x.expr.match(EConst(CInt(_) | CFloat(_) | CString(_, DoubleQuotes))))
-					return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $x);
-				// (an agnostic literal's code has no scope: a hole)
-				if (!event && name != "ref" && (name == "tag" || name == "id"))
-					return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, ${renderer == null ? hole(x) : x});
-				// (states: a function of a part's states, its own style: set once, not bound)
-				if (name == "states") return macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, ${hole(x)});
-				var plain = !event && name != "ref" && plainValue(x);
-				var h = hole(x);
-				if (event) macro @:pos(ap) __NEUTRAL__.listen($e, $v{tag}, $v{name}, $h);
-				// (a part made only for a ref given)
-				else if (name == "ref") macro @:pos(ap) {
-					var r:Dynamic = $h;
-					if (r != null) (r : Dynamic -> Void)(__NEUTRAL__.part($e));
-				};
-				// (a value never reactive: its hole set as a literal is)
-				else if (plain) macro @:pos(ap) __NEUTRAL__.property($e, $v{tag}, $v{name}, $h);
-				else macro @:pos(ap) __NEUTRAL__.prop($e, $v{tag}, $v{name}, $h);
-			case ASpread(_, at):
-				Context.error("markup: a neutral element's attributes are named (no spread: each one realised when compiled)", MarkupMacro.position(file, base + at, 3));
-		}
-	}
-
-	// a component mounted: the runtime's component with its factory; under
-	// -D hxmc.dev componentIn, in Hot.scope of its name (name[key] with a key
-	// attribute: fast refresh's keys, helder.view.Refresh)
-	function component(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int, parent:Expr, before:Expr, out:Expr):Expr {
-		if (!Context.defined("hxmc.dev")) return macro @:pos(pos) __RT__.component($parent, $before, $out, ${factory(name, attrs, children, at)});
-		var key:Null<Expr> = null;
-		for (a in attrs)
-			if (a.name == "key")
-				key = switch a.value {
-					case AStatic(s): macro $v{s};
-					case AExpr(code, at): hole(MarkupMacro.expr(code, file, base + at, inner(), true));
-					case _: null;
-				}
-		var scope = key == null ? macro $v{name} : macro $v{name + "["} + Std.string($key) + "]";
-		return macro @:pos(pos) __RT__.componentIn($scope, $parent, $before, $out, ${factory(name, attrs, children, at)});
-	}
-
-	// a component's factory: () -> Name({props}), its content the children
-	// prop (a literal of its own, evaluated when it is called: the
-	// component's children's renderer, else this one's); its key attribute is
-	// no prop. In a literal for one renderer the function for it (Pick), a
-	// component pinned to another an error; in an agnostic one chosen when
-	// mounted (Pick.call), the factory a hole
-	function factory(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int):Expr {
-		var p = MarkupMacro.position(file, base + at, name.length + 1);
-		var callee:Null<Expr> = null;
-		for (part in name.split("."))
-			callee = callee == null ? {expr: EConst(CIdent(part)), pos: p} : {expr: EField(callee, part), pos: p};
-		var c = MarkupMacro.component(callee);
-		if (renderer == MarkupMacro.ROOT) {
-			if (c != null && c.pin != null && c.pin != renderer)
-				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret
-					+ "), not a root's: a root (UiWindow.run's, Render.open's) holds roots (<Surface>) and components of no renderer", p);
-		} else if (renderer != null) {
-			var target = MarkupMacro.pick(renderer, callee);
-			if (target != callee) {
-				callee = target;
-				c = MarkupMacro.component(target);
-			}
-			if (c != null && c.pin == MarkupMacro.ROOT)
-				Context.error("helder.view: <" + name + "> is a root (it returns " + c.ret + "): UiWindow.run's or Render.open's content, not " + renderer + "'s markup", p);
-			if (c != null && c.pin != null && c.pin != renderer)
-				Context.error("helder.view: <" + name + "> is " + c.pin + "'s markup (it returns " + c.ret + "), not " + renderer + "'s", p);
-		}
-		var fields:Array<ObjectField> = [];
-		for (a in attrs) {
-			if (a.name == "key") continue;
-			var ap = MarkupMacro.position(file, base + a.at, a.name.length);
-			var v = switch a.value {
-				case AStatic(s): macro @:pos(ap) $v{s};
-				case AFlag: macro @:pos(ap) true;
-				case AExpr(code, at): MarkupMacro.expr(code, file, base + at, inner(), true);
-				case ASpread(_, at): Context.error("markup: a component's props cannot be spread", MarkupMacro.position(file, base + at, 3));
-			}
-			// (name_pos: the field name's position, which the compiler reads though ObjectField does not declare it)
-			var field:Dynamic = {field: a.name, expr: v, quotes: ~/^[A-Za-z_][A-Za-z0-9_]*$/.match(a.name) ? Unquoted : Quoted, name_pos: ap};
-			fields.push(field);
-		}
-		var kids = clean(children);
-		if (kids.length > 0) {
-			var r = c != null && c.children != null ? c.children : renderer;
-			fields.push({field: "children", expr: new Literal(file, base, pos, r, at).compile({kind: PFragment(kids)})});
-		}
-		var props = {expr: EObjectDecl(fields), pos: p};
-		var call = renderer == null ? macro @:pos(p) helder.view.Pick.call($callee, $props) : {expr: ECall(callee, [props]), pos: p};
-		var f = {expr: EFunction(FAnonymous, {args: [], ret: macro :Any, expr: {expr: EReturn(call), pos: p}}), pos: p};
-		if (!shared && renderer != null) return f;
-		var h = hole(f, macro :Void->Any);
-		if (shared) factories.push(h);
-		return h;
-	}
-}
-
-// --- the markup's own syntax ---
-
-enum PKind {
-	PElement(name:String, attrs:Array<PAttr>, children:Array<PNode>, at:Int);
-	PFragment(children:Array<PNode>);
-	PText(text:String);
-	PExpr(code:String, at:Int);
-}
-
-typedef PNode = {kind:PKind};
-typedef PAttr = {name:String, value:PValue, at:Int};
-
-enum PValue {
-	AStatic(s:String);
-	AFlag;
-	AExpr(code:String, at:Int);
-	ASpread(code:String, at:Int);
-}
-
-// A recursive-descent parser of a markup literal: elements, fragments,
-// attributes (name="text", name='text', name={expr}, name, {...expr}),
-// text with entities, {expr} children (balanced braces, strings and
-// comments skipped); errors at their offset in the file
-class Parser {
-	final s:String;
-	final file:String;
-	final base:Int;
-	var i = 0;
-
-	public function new(s:String, file:String, base:Int) {
-		this.s = s;
-		this.file = file;
-		this.base = base;
-	}
-
-	function error(msg:String, at:Int, len = 1):Dynamic
-		return Context.error("markup: " + msg, MarkupMacro.position(file, base + at, len));
-
-	public function document():PNode {
-		var n = element();
-		skipSpace();
-		if (i < s.length) error("one root element (wrap several in <>...</>)", i);
-		return n;
-	}
-
-	function element():PNode {
-		var start = i;
-		expect("<");
-		var name = readName();
-		if (name == "") {
-			expect(">");
-			var children = content("");
-			return {kind: PFragment(children)};
-		}
-		var attrs:Array<PAttr> = [];
-		while (true) {
-			skipSpace();
-			if (i >= s.length) error("unterminated <" + name + ">", start, name.length + 1);
-			var c = s.charAt(i);
-			if (c == "/") {
-				i++;
-				expect(">");
-				return {kind: PElement(name, attrs, [], start + 1)};
-			}
-			if (c == ">") {
-				i++;
-				break;
-			}
-			if (c == "{") {
-				var at = i;
-				var code = braces();
-				var t = StringTools.trim(code);
-				if (!StringTools.startsWith(t, "...")) error("an attribute is name={expr}; {...expr} spreads", at, code.length + 2);
-				var off = code.indexOf("...") + 3;
-				attrs.push({name: "...", value: ASpread(code.substr(off), at + 1 + off), at: at});
-				continue;
-			}
-			var anAt = i;
-			var an = readName();
-			if (an == "") error("an attribute name", i);
-			skipSpace();
-			if (i < s.length && s.charAt(i) == "=") {
-				i++;
-				skipSpace();
-				var q = s.charAt(i);
-				if (q == '"' || q == "'") {
-					var e = s.indexOf(q, i + 1);
-					if (e < 0) error("unterminated attribute value", i);
-					attrs.push({name: an, value: AStatic(Entities.decode(s.substring(i + 1, e))), at: anAt});
-					i = e + 1;
-				} else if (q == "{") {
-					var at = i + 1;
-					var code = braces();
-					attrs.push({name: an, value: AExpr(code, at), at: anAt});
-				} else error("an attribute value: \"text\" or {expr}", i);
-			} else attrs.push({name: an, value: AFlag, at: anAt});
-		}
-		var children = content(name);
-		return {kind: PElement(name, attrs, children, start + 1)};
-	}
-
-	// children until </name>
-	function content(name:String):Array<PNode> {
-		var out:Array<PNode> = [];
-		var text = new StringBuf(), hasText = false;
-		function flush() {
-			if (!hasText) return;
-			var t = Whitespace.clean(text.toString());
-			if (t != null) out.push({kind: PText(Entities.decode(t))});
-			text = new StringBuf();
-			hasText = false;
-		}
-		while (true) {
-			if (i >= s.length) error("unterminated <" + name + ">: no </" + name + ">", 0, name.length + 1);
-			var c = s.charAt(i);
-			if (c == "<") {
-				if (s.charAt(i + 1) == "/") {
-					flush();
-					var at = i;
-					i += 2;
-					var closing = readName();
-					skipSpace();
-					expect(">");
-					if (closing != name) error("</" + closing + "> closes <" + name + ">", at, closing.length + 3);
-					return out;
-				}
-				flush();
-				out.push(element());
-			} else if (c == "{") {
-				flush();
-				var at = i + 1;
-				var code = braces();
-				out.push({kind: PExpr(code, at)});
-			} else {
-				text.add(c);
-				hasText = true;
-				i++;
-			}
-		}
-	}
-
-	// {...}: the code between the braces (balanced; strings, their ${...},
-	// comments and nested markup skipped, the markup read as markup)
-	function braces():String {
-		var start = i;
-		expect("{");
-		var depth = 1;
-		// (whether each open "(" is a condition's, after if, while or for; whether the last closed one was)
-		var parens:Array<Bool> = [], cond = false;
-		while (i < s.length) {
-			var c = s.charAt(i);
-			switch c {
-				case "{":
-					depth++;
-					i++;
-				case "}":
-					depth--;
-					i++;
-					if (depth == 0) return s.substring(start + 1, i - 1);
-				case "(":
-					parens.push(["if", "while", "for"].indexOf(wordBefore(start)) >= 0);
-					i++;
-				case ")":
-					cond = parens.length > 0 && parens.pop();
-					i++;
-				case '"' | "'":
-					i++;
-					while (i < s.length && s.charAt(i) != c) {
-						if (s.charAt(i) == "\\") i += 2;
-						else if (c == "'" && s.charAt(i) == "$" && s.charAt(i + 1) == "{") {
-							i++;
-							braces();
-						} else if (c == "'" && s.substr(i, 2) == "$$") i += 2;
-						else i++;
-					}
-					i++;
-				case "/" if (s.charAt(i + 1) == "/"):
-					while (i < s.length && s.charAt(i) != "\n")
-						i++;
-				case "/" if (s.charAt(i + 1) == "*"):
-					var e = s.indexOf("*/", i + 2);
-					i = e < 0 ? s.length : e + 2;
-				case "<" if (markupAt(start, cond)):
-					element();
-				case _:
-					i++;
-			}
-		}
-		return error("unterminated {", start);
-	}
-
-	// whether the "<" at i starts markup: "<name" or "<>" where an expression
-	// starts (not after a value: a name, a number, ")" but a condition's, "]",
-	// a string; after return, throw, else, do, untyped)
-	function markupAt(start:Int, cond:Bool):Bool {
-		var n = s.charCodeAt(i + 1);
-		if (!(n == ">".code || n == "_".code || (n >= "a".code && n <= "z".code) || (n >= "A".code && n <= "Z".code))) return false;
-		var w = wordBefore(start);
-		if (w != "") return ["return", "throw", "else", "do", "untyped"].indexOf(w) >= 0;
-		var j = i - 1;
-		while (j > start && StringTools.isSpace(s, j))
-			j--;
-		return switch s.charAt(j) {
-			case ")": cond;
-			case "]" | '"' | "'": false;
-			case _: true;
-		}
-	}
-
-	// the name or number right before i (spaces between), or ""
-	function wordBefore(start:Int):String {
-		var j = i;
-		while (j > start + 1 && StringTools.isSpace(s, j - 1))
-			j--;
-		var e = j;
-		while (j > start + 1 && ~/[A-Za-z0-9_]/.match(s.charAt(j - 1)))
-			j--;
-		return s.substring(j, e);
-	}
-
-	function readName():String {
-		var start = i;
-		while (i < s.length) {
-			var c = s.charCodeAt(i);
-			var ok = (c >= "a".code && c <= "z".code) || (c >= "A".code && c <= "Z".code) || c == "_".code || c == ":".code
-				|| (i > start && ((c >= "0".code && c <= "9".code) || c == "-".code || c == ".".code));
-			if (!ok) break;
-			i++;
-		}
-		return s.substring(start, i);
-	}
-
-	function skipSpace() {
-		while (i < s.length && StringTools.isSpace(s, i))
-			i++;
-	}
-
-	function expect(c:String) {
-		if (s.substr(i, c.length) != c) error('"$c" expected', i);
-		i += c.length;
-	}
-}
-
-// JSX's rule for text between tags: lines trimmed (the first line's start
-// and the last's end kept), lines empty after that dropped, the rest joined
-// with one space; null when nothing is left
-class Whitespace {
-	public static function clean(t:String):Null<String> {
-		var lines = t.split("\n");
-		var out = [];
-		for (k in 0...lines.length) {
-			var l = StringTools.replace(lines[k], "\t", " ");
-			if (k > 0) l = StringTools.ltrim(l);
-			if (k < lines.length - 1) l = StringTools.rtrim(l);
-			if (lines.length > 1 && StringTools.trim(l) == "") continue;
-			out.push(l);
-		}
-		var r = out.join(" ");
-		return r == "" ? null : r;
-	}
-}
-
-class Entities {
-	public static function decode(s:String):String {
-		if (s.indexOf("&") < 0) return s;
-		return ~/&(#x[0-9a-fA-F]+|#[0-9]+|[a-zA-Z]+);/g.map(s, r -> {
-			var e = r.matched(1);
-			if (StringTools.startsWith(e, "#x")) return String.fromCharCode(Std.parseInt("0x" + e.substr(2)));
-			if (StringTools.startsWith(e, "#")) return String.fromCharCode(Std.parseInt(e.substr(1)));
-			return switch e {
-				case "amp": "&";
-				case "lt": "<";
-				case "gt": ">";
-				case "quot": '"';
-				case "apos": "'";
-				case "nbsp": " ";
-				case "lbrace": "{";
-				case "rbrace": "}";
-				case _: r.matched(0);
-			}
-		});
 	}
 }
 #end

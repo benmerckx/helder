@@ -543,6 +543,13 @@ into its code. Both languages compile markup the same way by
 construction; a third emitter could run the steps directly (dev
 reloads without a build).
 
+Done for the macro: helder.markup.Syntax (the parser) and
+helder.markup.Plan (the planner), a `Target<E>` writing its code;
+MarkupMacro's HaxeTarget writes Haxe expressions, its output byte for
+byte the macro's before the split (every test program and example,
+natively and as JavaScript, the rejected programs' errors). The
+may-read rule (3.3) and the TypeScript target come next.
+
 ### 7.3 The manifest and the declarations
 
 Built with helder: each renderer's contract (the IR names of its
