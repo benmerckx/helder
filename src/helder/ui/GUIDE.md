@@ -24,7 +24,8 @@ npm i -D helder @hxmc/cli
 `npx haxe app.hxml` builds `app`, a native executable for this machine.
 Markup and signals come from `helder.view`, which `helder.ui` depends on
 and renders with its nodes (`-lib helder` names its renderer). Markup
-compiles in a class that `implements helder.view.Markup`. These imports
+compiles in a class that `implements helder.view.Markup` (built by
+helder's CLI, `helder build`, in any function). These imports
 cover the examples below:
 
 ```haxe

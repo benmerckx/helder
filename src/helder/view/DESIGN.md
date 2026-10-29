@@ -396,24 +396,32 @@ function Slot(props:{item:Read<Item>}) return <box padding={4}>{props.item().nam
 function Inventory(props:{items:Read<Array<Item>>}) return <For each={props.items}>{i -> <Slot item={i}/>}</For>;
 ```
 
-No macro: helder's compiler (hxmc's, with helder's frontends linked:
-one binary, 7) compiles a markup literal where its typer meets it, in
-any function of any module. Haxe parses `<view/>` as `@:markup "<...>"`
-and refuses to type it unless something rewrites it; hxmc's typer
-consults a hook there (`markupHook`, requested from hxmc; its
-`typeMeta` raises "Markup literals must be processed by a macro"
-today), which hands the literal to the planner (7.2), compiled
-natively, and types what it returns. Haxe programs are built with
-helder's compiler for that, as TypeScript ones are; plain `haxe` does
-not build them (type-checking goes through helder's compiler, the
-editor's too).
+Done, with no change to hxmc: helder's compiler (hxmc's, with helder's
+frontends linked: one binary, 7) wraps hxmc's parse
+(`TypeloadParse.parseHook`, helder.typescript.MarkupHook). Haxe parses
+`<view/>` as `@:markup "<...>"`, which hxmc's typer refuses ("Markup
+literals must be processed by a macro"); each file parsed has its
+literals wrapped as `implements Markup` wraps them,
+`helder.view.View.literal(@:markup "<...>")`, natively, on the parsed
+file, so only the literals reach the macro (MarkupMacro.literal, the
+planner, 7.2), as they did. The CLI builds every program with helder's
+compiler (hxmc's as a fallback, with a warning, when it cannot build
+it); plain `haxe` still needs `implements Markup`, and type-checking in
+an editor goes through helder's compiler (its `--wait` and
+`--server-connect`; a compilation server's own parse is wrapped again
+before each build). Measured: examples/todo warm 0.90 s with hxmc's
+compiler, 0.96 s with helder's, the same executable; every test program
+and example natively byte for byte the same. hxmc's PR #123 (a typer
+hook) is on hold for a `markup($e)` call resolved through imports
+(Juraj's proposal); if it lands, the parse hook goes and the literal's
+entry stays.
 
 Measured and rejected: the markup build macro added to the project's
 packages from the CLI's `--macro` (`Compiler.addGlobalMetadata`). It
 works (checked: module-level functions too) but no warm build reuses
 the module cache any more: examples/todo 0.85 s to 3.5 s,
 examples/showroom 0.46 s to 1.7 s. `implements Markup` (the build
-macro on that class only) stays until the compiler's step replaces it.
+macro on that class only) stays for builds by plain `haxe`.
 
 ## 4. What changes for existing code
 

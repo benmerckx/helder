@@ -43,10 +43,13 @@ class Compiler {
 		hxmc.ir.CInterop.install();
 		hxmc.TargetFlags.install();
 		hxmc.StdDce.install();
+		MarkupHook.install();
 		// (before Haxe types the program: the TypeScript program checked, its glue written)
 		var typing = compiler.Compiler.beforeTypingHook;
 		compiler.Compiler.beforeTypingHook = function(com, actx) {
 			if (typing != null) typing(com, actx);
+			// (a compilation server's parse replaces hxmc's: around it again)
+			MarkupHook.install();
 			prepared = null;
 			var entry = core.Define.rawDefinedValueSafe(com.defines, DEFINE, "");
 			if (entry != "" && com.platform.match(CustomTarget("hxmc"))) prepared = prepare(com, actx, entry);

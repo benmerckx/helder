@@ -42,8 +42,11 @@ again. No glitches: a diamond runs once per write, with consistent values.
 
 ## Markup
 
-A class that `implements Markup` has its literals compiled (one alone:
-`View.view(<...>)`). A literal's value is a `View`: its holes (`{expr}`
+Built by helder's CLI (`helder build`, `run`, `test`, `dev`: helder's
+compiler), markup compiles in any function, a module-level one too
+(`function Label(props:{text:String}):View return <span>{props.text}</span>;`).
+Built by plain `haxe`, a class that `implements Markup` has its literals
+compiled (one alone: `View.view(<...>)`). A literal's value is a `View`: its holes (`{expr}`
 children and attribute values) are evaluated where the literal is; mounting
 it makes its nodes, each time it is mounted.
 

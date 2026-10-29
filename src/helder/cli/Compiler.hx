@@ -8,7 +8,9 @@ import sys.FileSystem;
 
 using StringTools;
 
-// The compiler: hxmc's native one from the platform package beside
+// The compiler: helder's (hxmc's with helder's frontends: TypeScript, markup
+// in any function), built from helder's sources by typescript(); without
+// them (or node to build it), hxmc's native one from the platform package beside
 // @hxmc/cli (node_modules/@hxmc/<os>-<cpu>, found from the working
 // directory up, then from the CLI's own directory up), given what
 // @hxmc/cli's launcher (hxmc/bootstrap/launcher.mjs) gives it: upstream's
@@ -27,6 +29,18 @@ class Compiler {
 	static function find():String {
 		var env = Sys.getEnv("HAXE");
 		if (env != null && env != "") return env;
+		var hxmc = native();
+		var build = locate("src/helder/typescript/build.mjs") ?? locate("node_modules/helder/src/helder/typescript/build.mjs");
+		if (build == null) return hxmc;
+		return try own(Path.directory(Path.directory(Path.directory(build)))) catch (err:Dynamic) {
+			Term.err(Style.status("warning", Warn, '$err\nhxmc\'s compiler instead: markup only in classes that implement helder.view.Markup'));
+			hxmc;
+		}
+	}
+
+	static var helders:Null<String> = null;
+
+	static function native():String {
 		var win = Sys.systemName() == "Windows";
 		var cli = locate("node_modules/@hxmc/cli/package.json");
 		if (cli != null) {
@@ -53,6 +67,13 @@ class Compiler {
 	// (node: it fetches hxmc's compiler sources until npm ships them)
 	public static function typescript(helder:String) {
 		tool();
+		if (helders != null) return;
+		found = own(helder);
+	}
+
+	// (helder's compiler, built by build.mjs from helder's sources; hxmc's
+	// native compiler's environment set first: its std)
+	static function own(helder:String):String {
 		var node = Sys.getEnv("HELDER_NODE") ?? "node";
 		var p = new sys.io.Process(node, ['$helder/helder/typescript/build.mjs']);
 		var exe = StringTools.trim(p.stdout.readAll().toString()), err = p.stderr.readAll().toString(), code = p.exitCode();
@@ -60,7 +81,8 @@ class Compiler {
 		if (code != 0 || !FileSystem.exists(exe)) throw 'helder\'s compiler does not build:\n$err';
 		// (its first build in this cache: what it fetched and built)
 		for (line in err.split("\n")) if (line != "") Term.err(Style.status("compiler", Info, line));
-		found = exe;
+		helders = exe;
+		return exe;
 	}
 
 	// hxmc's std, which a compilation server's builds are given last (as the
