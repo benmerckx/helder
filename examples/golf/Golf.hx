@@ -2,6 +2,7 @@
 // summary: Mini golf on floating islands, a small mobile 3D game: drag back from the ball to aim and shoot, orbit and pinch the camera elsewhere; nine holes on helder.physics at a fixed step, a <Scene> under a HUD and menu in ui, best scores saved
 // tags: 3d, game, physics, ui, view, scene markup, touch
 // demo: canvas 390x844
+// apk: android
 import helder.scene.view.SceneTags.*;
 import helder.ui.Clock;
 import helder.ui.Color;

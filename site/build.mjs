@@ -30,7 +30,8 @@ const work = 'bin/site-build';
 const cli = ['src/helder/cli/run.mjs'];
 const REPO = 'https://github.com/benmerckx/universe';
 
-const HEADER = /^\/\/ *(title|summary|tags|demo): *(.*)$/;
+// (apk: android, an example built for Android phones too, with SITE_APK=1: its APK beside the page, linked from its card)
+const HEADER = /^\/\/ *(title|summary|tags|demo|apk): *(.*)$/;
 
 function header(file) {
 	const head = {};
@@ -68,7 +69,7 @@ function examples() {
 			const head = header(e.file);
 			if (!head) continue;
 			list.push({ ...e, dir, title: head.title, summary: head.summary ?? '', tags: (head.tags ?? '').split(',').map((t) => t.trim()).filter((t) => t),
-				demo: demoOf(head.demo) });
+				demo: demoOf(head.demo), apk: head.apk === 'android' });
 		}
 	}
 	return list;
@@ -133,7 +134,20 @@ if (failed.length) {
 const site = [];
 for (const e of all) {
 	const item = { id: e.id, title: e.title, summary: e.summary, tags: e.tags, source: `${REPO}/tree/main/examples/${e.dir}`,
-		demo: e.demo, wasm: '', imports: [], fonts: [], assets: '' };
+		demo: e.demo, wasm: '', imports: [], fonts: [], assets: '', apk: null };
+	if (e.apk && process.env.SITE_APK) {
+		// (arm64, a phone's; signed with the key HELDER_ANDROID_KEY names when it is set, else helder's cached one)
+		const file = `apk/${e.id}.apk`;
+		fs.mkdirSync(`${out}/apk`, { recursive: true });
+		const r = await run([...cli, 'build', e.entry, '--target', 'android', '-o', `${out}/${file}`], `${work}/${e.id}-apk.log`);
+		if (r.code !== 0 || !fs.existsSync(`${out}/${file}`)) {
+			console.error(`site: ${e.id}'s APK failed to build\n` + r.text.slice(-1500));
+			process.exit(1);
+		}
+		const commit = (process.env.GITHUB_SHA ?? spawnSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout ?? '').trim().slice(0, 7);
+		item.apk = { file, bytes: fs.statSync(`${out}/${file}`).size, commit };
+		console.log(`${(e.id + ' (apk)').padEnd(22)} ok   ${(item.apk.bytes / 1048576).toFixed(1)} MB`);
+	}
 	if (e.demo) {
 		const dir = `${work}/${e.id}`, dest = `${out}/examples/${e.id}`;
 		fs.mkdirSync(dest, { recursive: true });
@@ -159,6 +173,7 @@ for (const e of all) {
 	site.push(item);
 }
 fs.copyFileSync('src/helder/web/loader.js', `${out}/loader.js`);
+fs.copyFileSync('site/stage.js', `${out}/stage.js`);
 fs.writeFileSync(`${work}/examples.json`, JSON.stringify({ out: `${out}/index.html`, repository: REPO, examples: site }, null, '\t') + '\n');
 
 // the page: index.tsx built natively, then run

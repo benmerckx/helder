@@ -14,6 +14,13 @@ interface Demo {
 	height: number;
 }
 
+// an Android build of it, for phones: the file, its size, the commit it was built from
+interface Apk {
+	file: string;
+	bytes: number;
+	commit: string;
+}
+
 interface Example {
 	id: string;
 	title: string;
@@ -26,6 +33,7 @@ interface Example {
 	imports: string[];
 	fonts: string[];
 	assets: string;
+	apk: Apk | null;
 }
 
 const examples = site.examples as Example[];
@@ -73,6 +81,22 @@ hxmc-island[data-loading]::after, hxmc-island[data-error]::after { position: abs
 hxmc-island[data-loading]::after { content: "Loading…"; }
 hxmc-island[data-error]::after { content: "Could not run: " attr(data-error); color: #ffb4b4; }
 .sound hxmc-island[data-hydrated]::after { content: "Played"; color: #e8e8ee; }
+.full, .exit { position: absolute; z-index: 2; font: inherit; font-size: 0.85rem; font-weight: 600; color: #111; background: #ffffffe0; border: 0;
+	border-radius: 999px; padding: 6px 14px; cursor: pointer; box-shadow: 0 2px 10px rgba(0, 0, 0, .3); display: none; }
+.full { right: 10px; top: 10px; }
+.exit { left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top) + 8px); padding: 6px 12px; opacity: 0.85; }
+.stage { position: relative; }
+.stage:has(hxmc-island[data-hydrated]) .full { display: block; }
+.stage.expanded { position: fixed; inset: 0; z-index: 1000; height: 100vh; height: 100dvh; display: flex; align-items: stretch; justify-content: center;
+	padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+.stage.expanded hxmc-island { max-width: none; width: 100%; height: 100%; margin: 0; }
+.stage.expanded canvas { width: 100%; height: 100%; aspect-ratio: auto; touch-action: none; }
+.stage.expanded .full, .stage.expanded:has(hxmc-island[data-hydrated]) .full { display: none; }
+.stage.expanded .exit { display: block; }
+html.playing, html.playing body { overflow: hidden; overscroll-behavior: none; }
+.apk { margin: 8px 0 10px; font-size: 0.95rem; }
+.apk a { font-weight: 600; }
+.apk span { color: var(--muted); font-size: 0.85rem; }
 footer { padding-bottom: 40px; color: var(--muted); font-size: 0.95rem; }
 code { font-size: 0.92em; }
 `;
@@ -83,13 +107,23 @@ function Stage(props: { ex: Example }) {
 	const demo = ex.demo as Demo;
 	const sound = demo.kind === "sound";
 	const style = sound ? "" : "--w:" + demo.width + "px;--ratio:" + demo.width + "/" + demo.height;
-	return <div class={sound ? "stage sound" : "stage"} style={style}>
+	const game = ex.tags.indexOf("game") >= 0;
+	return <div class={sound ? "stage sound" : "stage"} style={style} data-width={"" + demo.width} data-height={"" + demo.height} data-game={game ? "" : undefined}>
 		<Island.Wasm src={ex.wasm} id={"play-" + ex.id} load="click" runner={RUNNER} imports={ex.imports} fonts={ex.fonts} assets={ex.assets === "" ? undefined : ex.assets}
 			canvas={!sound} width={demo.width} height={demo.height}>
 			<button class="play" type="button" aria-label={"Play " + ex.title}>{sound ? "▶ Play sound" : "▶ Play"}</button>
 			<span class="size">{demo.width + "×" + demo.height}</span>
 		</Island.Wasm>
+		{sound ? null : <button class="full" type="button" aria-label={"Play " + ex.title + " full screen"}>⛶ Full screen</button>}
+		{sound ? null : <button class="exit" type="button" aria-label="Leave full screen">✕</button>}
 	</div>;
+}
+
+// its Android build's link, size and commit
+function Download(props: { apk: Apk }) {
+	const a = props.apk;
+	const mb = Math.round(a.bytes / 104857.6) / 10;
+	return <p class="apk"><a href={a.file} download="">Download for Android (APK)</a> <span>{mb + " MB · built from " + a.commit}</span></p>;
 }
 
 function Card(props: { ex: Example }) {
@@ -100,6 +134,7 @@ function Card(props: { ex: Example }) {
 			<h2>{ex.title}</h2>
 			<p class="summary">{ex.summary}</p>
 			<ul class="tags">{ex.tags.map(t => <li>{t}</li>)}</ul>
+			{ex.apk !== null ? <Download apk={ex.apk as Apk} /> : null}
 			<p class="links"><a href={ex.source}>Source</a></p>
 		</div>
 	</article>;
@@ -108,10 +143,11 @@ function Card(props: { ex: Example }) {
 Static.write(site.out, Static.document(<html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 		<title>helder examples</title>
 		<meta name="description" content="helder's examples: games and apps in Haxe and TypeScript on the hxmc compiler, running in the page as WebAssembly." />
 		<style>{CSS}</style>
+		<script src="stage.js" defer></script>
 		<script src="loader.js" defer></script>
 	</head>
 	<body>
