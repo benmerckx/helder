@@ -150,6 +150,7 @@ export interface NeutralAttributes {
 	onDragLeave?: ((event: Event) => void) | null;
 	onDrop?: ((event: Event) => void) | null;
 	onDragEnd?: ((event: Event) => void) | null;
+	onResize?: ((event: Event) => void) | null;
 	onTap?: ((event: unknown) => void) | null;
 	onPan?: ((event: unknown) => void) | null;
 	onPinch?: ((event: unknown) => void) | null;
