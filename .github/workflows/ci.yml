@@ -11,6 +11,9 @@
 # - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
 #   runner (helder run, simctl), the screen fixture, codesign --verify and
 #   plutil.
+# - publish-npm: on pushes to main once headless passes, the package as a
+#   nightly (<version>-nightly.<date>.<commit>, npm's tag nightly), as
+#   hxmc publishes @hxmc/cli's (NPM_TOKEN, with provenance).
 # gfx, browser, android and ios-simulator are not required
 # (continue-on-error) while the stack is unstable (android and
 # ios-simulator were written without an emulator, a simulator or a Mac:
@@ -181,3 +184,27 @@ jobs:
             bin/pack/ios/*.png
           retention-days: 7
           if-no-files-found: ignore
+
+  publish-npm:
+    needs: headless
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: The nightly's version
+        run: |
+          v=$(node -p "require('./package.json').version")-nightly.$(date -u +%Y%m%d).$(git rev-parse --short=7 HEAD)
+          npm version --no-git-tag-version "$v"
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then echo "::warning::no NPM_TOKEN secret: the nightly is not published"; exit 0; fi
+          npm publish --access public --provenance --tag nightly

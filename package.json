@@ -46,7 +46,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/benmerckx/universe.git"
+    "url": "git+https://github.com/benmerckx/helder.git"
   },
   "peerDependenciesMeta": {
     "typescript": {

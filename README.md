@@ -9,7 +9,7 @@ The goal (desktop and web work from this checkout: `bun run helder ...`,
 src/helder/cli/README.md; the rest is on the roadmap):
 
 ```sh
-npm install helder
+npm install helder@nightly        # main's, published on each push that passes CI
 npx helder dev                    # this machine, with live reload
 npx helder dev --target web       # a page, with live reload
 npx helder build                  # bin/<target>/<name>, its compile time and size
