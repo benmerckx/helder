@@ -45,7 +45,8 @@ const cp = [`-cp ${path.join(repo, 'src')}`];
 const glibc = process.platform === 'linux' ? ['-D hxmc.libc=glibc'] : [];
 fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, '-main Counter', ...glibc,
 	`--custom-target hxmc=out/counter${process.platform === 'win32' ? '.exe' : ''}`].join('\n') + '\n');
-const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
+// (written beside and renamed over: the watcher never reads a half-written file)
+const edit = (f) => { fs.writeFileSync(counter + '.tmp', f(fs.readFileSync(counter, 'utf8'))); fs.renameSync(counter + '.tmp', counter); };
 
 const lines = [];
 const waiters = [];

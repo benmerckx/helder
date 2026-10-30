@@ -80,7 +80,8 @@ const writeNote = (s) => {
 writeNote('first note\n');
 // (the cube's classes beside it: helder dev's entry is the file, its class path the directory)
 for (const f of ['Cube.hx', 'CubeShader.hx']) fs.copyFileSync(path.join(repo, 'examples/cube', f), path.join(work, 'app', f));
-const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
+// (written beside and renamed over: the watcher never reads a half-written file)
+const edit = (f) => { fs.writeFileSync(counter + '.tmp', f(fs.readFileSync(counter, 'utf8'))); fs.renameSync(counter + '.tmp', counter); };
 
 adb('wait-for-device');
 adb('logcat', '-c');

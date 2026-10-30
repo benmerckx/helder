@@ -72,7 +72,9 @@ if (assets) {
 const edit = (f) => {
 	const s = fs.readFileSync(file, 'utf8'), t = f(s);
 	if (t === s) throw new Error('the edit changed nothing');
-	fs.writeFileSync(file, t);
+	// (written beside and renamed over: the watcher never reads a half-written file)
+	fs.writeFileSync(file + '.tmp', t);
+	fs.renameSync(file + '.tmp', file);
 	return performance.now();
 };
 

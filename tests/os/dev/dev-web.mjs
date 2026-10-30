@@ -53,7 +53,8 @@ fs.writeFileSync(counter, v1);
 const cp = [`-cp ${path.join(repo, 'src')}`];
 fs.writeFileSync(path.join(work, 'build.hxml'), ['-cp app', ...cp, '-main Counter',
 	'-D hxmc.target=wasm32-wasi', '--custom-target hxmc=out/counter.wasm'].join('\n') + '\n');
-const edit = (f) => fs.writeFileSync(counter, f(fs.readFileSync(counter, 'utf8')));
+// (written beside and renamed over: the watcher never reads a half-written file)
+const edit = (f) => { fs.writeFileSync(counter + '.tmp', f(fs.readFileSync(counter, 'utf8'))); fs.renameSync(counter + '.tmp', counter); };
 
 const port = await new Promise((r) => {
 	const s = net.createServer().listen(0, () => {
