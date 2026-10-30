@@ -52,4 +52,8 @@ interface NormalSource {
 	function pipeline(doubleSided:Bool):helder.gfx.Pipeline;
 	// the normal-mapped shader's slots, in Renderer.slotsOf's order
 	function slots():Array<Int>;
+	// its instanced runs' (PbrInstancedNormalShader: the vertices, the
+	// tangents, the instances' matrices)
+	function instancedPipeline(doubleSided:Bool):helder.gfx.Pipeline;
+	function instancedSlots():Array<Int>;
 }

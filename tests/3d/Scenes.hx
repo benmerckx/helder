@@ -42,7 +42,7 @@ import helder.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -192,6 +192,26 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0, 0.8, 3.2);
 				eye.lookAt(new Vec3(0, -0.1, 0));
+				enc -> r.draw(enc, world, camera);
+			case "normalgrid":
+				// the normal-mapped sample four times, turned alike: one
+				// instanced draw of its tiles, mapped (PbrInstancedNormalShader)
+				Images.decode = Images.png;
+				var r = new Renderer(device).use(new NormalMaps(device));
+				renderer = r;
+				var world = new World();
+				var model = Model.of("normals.glb");
+				for (k in 0...4) {
+					var tiles = model.instantiate(world, device).find(model.nodes.tiles);
+					tiles.position = new Vec3(-1.2 + 0.8 * k, 0, -0.4 * (k % 2));
+					tiles.scale = new Vec3(0.45, 0.45, 0.45);
+					tiles.rotation = helder.scene.math.Quat.fromEuler(0.5, 0.7, 0);
+				}
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 0.8, 3.2);
+				eye.lookAt(new Vec3(0, -0.1, 0));
+				probe = () -> r.instanced >= 4 ? null : 'mapped tiles drawn instanced: ${r.instanced} instances, not 4';
 				enc -> r.draw(enc, world, camera);
 			case "blend":
 				// three see-through panes (one double-sided) crossing in front of

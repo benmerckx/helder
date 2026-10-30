@@ -371,11 +371,11 @@ class Renderer {
 			}
 			var many = n > 1;
 			var skin = p.skinned ? skinSource : null;
-			var normals = !many && skin == null && mapped(p) ? normalSource : null;
-			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : m.blend ? blended(m) : (m.doubleSided ? doubleSided : pipeline);
+			var normals = skin == null && mapped(p) ? normalSource : null;
+			var want = many ? (normals != null ? normals.instancedPipeline(m.doubleSided) : m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : m.blend ? blended(m) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
-				slots = many ? instancedSlots : skin != null ? skin.slots() : normals != null ? normals.slots() : plainSlots;
+				slots = many ? (normals != null ? normals.instancedSlots() : instancedSlots) : skin != null ? skin.slots() : normals != null ? normals.slots() : plainSlots;
 				enc.setUniforms(slots[0], frameBytes);
 				current = want;
 				material = null;
@@ -408,8 +408,8 @@ class Renderer {
 				material = m;
 			}
 			enc.setVertexBuffer(0, p.vertices);
-			if (many) enc.setVertexBuffer(1, instanceBuffer, batchOffset[b]);
 			if (normals != null) enc.setVertexBuffer(1, p.tangents);
+			if (many) enc.setVertexBuffer(normals != null ? 2 : 1, instanceBuffer, batchOffset[b]);
 			enc.setIndexBuffer(p.indices, p.indexFormat);
 			enc.drawIndexed(p.count, n);
 			draws++;
@@ -429,7 +429,7 @@ class Renderer {
 		var bytes = 0, i = 0;
 		while (i < count) {
 			var j = i + 1;
-			if (instancing && !list[i].primitive.skinned && !list[i].primitive.material.blend && !mapped(list[i].primitive) && uniformScale(list[i].node))
+			if (instancing && !list[i].primitive.skinned && !list[i].primitive.material.blend && uniformScale(list[i].node))
 				while (j < count && list[j].primitive == list[i].primitive && uniformScale(list[j].node))
 					j++;
 			if (batchCount == batchStart.length) {
