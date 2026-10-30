@@ -229,23 +229,16 @@ class Renderer implements Canvas {
 		var e = textures.get(img.id);
 		if (e != null) e.frame = frames;
 		if (e != null && e.version == img.version) return e.texture;
-		var px = img.pixels, n = img.width * img.height;
-		var pre = haxe.io.Bytes.alloc(n * 4);
-		for (k in 0...n) {
-			var a = px.get(4 * k + 3);
-			pre.set(4 * k, Std.int((px.get(4 * k) * a + 127) / 255));
-			pre.set(4 * k + 1, Std.int((px.get(4 * k + 1) * a + 127) / 255));
-			pre.set(4 * k + 2, Std.int((px.get(4 * k + 2) * a + 127) / 255));
-			pre.set(4 * k + 3, a);
-		}
 		// (another size: Image.replace's)
 		if (e != null && (e.width != img.width || e.height != img.height)) {
 			device.destroyTexture(e.texture);
 			e = null;
 		}
 		if (e == null) {
+			var t:Null<Texture> = null;
+			img.premultiplied(pre -> t = device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}));
 			e = {
-				texture: device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}),
+				texture: t,
 				version: img.version,
 				frame: frames,
 				width: img.width,
@@ -253,7 +246,8 @@ class Renderer implements Canvas {
 			};
 			textures.set(img.id, e);
 		} else {
-			device.writeTexture(e.texture, pre);
+			var t = e.texture;
+			img.premultiplied(pre -> device.writeTexture(t, pre));
 			e.version = img.version;
 		}
 		return e.texture;

@@ -69,6 +69,9 @@ class Files {
 		});
 		Assets.progressed(key, b.length, b.length);
 		return b;
+		#elseif (hxmc.target == "wasm32-wasi" && !hxmc.dev)
+		// (fetched straight into the buffer: the file never on the collected heap)
+		return helder.async.Fetch.buffer(AssetPath.url(AssetPath.bundled(key)), (loaded, total) -> Assets.progressed(key, loaded, total));
 		#else
 		return IoBuffer.ofBytes(read(key, file));
 		#end

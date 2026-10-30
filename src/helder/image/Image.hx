@@ -61,6 +61,36 @@ class Image {
 		drawing = other.drawing;
 	}
 
+	// its pixels premultiplied by their alpha, for `use` only (an upload:
+	// a texture's data, copied there and then): with hxmc in a buffer off
+	// the collected heap, freed after, so that a large image's upload leaves
+	// no garbage of its size (on WebAssembly the heap's memory, grown for
+	// it, is never given back)
+	public function premultiplied(use:Bytes->Void) {
+		var px = pixels, n = width * height;
+		#if (target.name == "hxmc")
+		var buf = hxmc.unsafe.IoBuffer.alloc(n * 4), pre = buf.view();
+		#else
+		var pre = Bytes.alloc(n * 4);
+		#end
+		for (k in 0...n) {
+			var a = px.get(4 * k + 3);
+			pre.set(4 * k, Std.int((px.get(4 * k) * a + 127) / 255));
+			pre.set(4 * k + 1, Std.int((px.get(4 * k + 1) * a + 127) / 255));
+			pre.set(4 * k + 2, Std.int((px.get(4 * k + 2) * a + 127) / 255));
+			pre.set(4 * k + 3, a);
+		}
+		#if (target.name == "hxmc")
+		try use(pre) catch (e:Dynamic) {
+			buf.free();
+			throw e;
+		}
+		buf.free();
+		#else
+		use(pre);
+		#end
+	}
+
 	// the pixels changed: renderers upload them again
 	public function changed() {
 		version++;

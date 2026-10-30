@@ -17,11 +17,12 @@ export default async function (host) {
 	const cores = node ? (await import('node:os')).availableParallelism() : (globalThis.navigator?.hardwareConcurrency ?? 2);
 	const url = new URL('./worker.mjs', import.meta.url);
 	let arrived = 0, size = 0, current = null;
+	const IDLE = 3000, MAX_WEB = 3;
 	const workers = [], queue = [];
 
 	// a worker: its instance made, then one job at a time
 	function spawn() {
-		const w = { job: null, ready: false, port: null };
+		const w = { job: null, ready: false, port: null, idle: null };
 		const on = (m) => {
 			if (m.ready) {
 				w.ready = true;
@@ -55,6 +56,7 @@ export default async function (host) {
 	}
 
 	function end(w) {
+		clearTimeout(w.idle);
 		w.port.terminate();
 		const i = workers.indexOf(w);
 		if (i >= 0) workers.splice(i, 1);
@@ -65,12 +67,24 @@ export default async function (host) {
 		for (const w of workers) {
 			if (queue.length === 0) break;
 			if (!w.ready || w.job) continue;
+			clearTimeout(w.idle);
+			w.idle = null;
 			w.job = queue.shift();
 			const input = w.job.input;
 			w.port.postMessage({ fn: w.job.fn, input }, input ? [input.buffer] : []);
 		}
 		// (node: a worker with a job keeps the process, an idle one not)
 		if (node) for (const w of workers) w.job || (!w.ready && queue.length) ? w.port.ref() : w.port.unref();
+		// (a worker idle for IDLE ms ended: its memory, the program's module's
+		// own, grown to its largest job's, given back; another made when needed)
+		for (const w of workers)
+			if (w.ready && !w.job && !w.idle) {
+				w.idle = setTimeout(() => {
+					w.idle = null;
+					if (!w.job) end(w);
+				}, IDLE);
+				if (node) w.idle.unref?.();
+			}
 		let free = workers.filter((w) => !w.job).length;
 		while (queue.length > free && workers.length < size) {
 			spawn();
@@ -100,7 +114,8 @@ export default async function (host) {
 			start(f, wanted) {
 				arrived = f;
 				const can = node || typeof Worker !== 'undefined';
-				size = !can || !host.module ? 0 : wanted >= 0 ? wanted : Math.max(1, cores - 1);
+				// (in a browser at most MAX_WEB by default: each worker has a memory of its own)
+				size = !can || !host.module ? 0 : wanted >= 0 ? wanted : Math.max(1, Math.min(cores - 1, node ? cores : MAX_WEB));
 				return size;
 			},
 			submit(id, fn, p, n) {

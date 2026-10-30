@@ -22,7 +22,8 @@ import hxmc.unsafe.*;
 	// the bytes it has received so far, and how many it will (0: not known)
 	static function fetch_loaded(h:Int):Int;
 	static function fetch_total(h:Int):Int;
-	static function fetch_take(h:Int, p:Ptr):Void;
+	// (fast: a copy, no callback; so that p may be a Bytes's, Fetch.take)
+	@:hxmc.fast static function fetch_take(h:Int, p:Ptr):Void;
 	static function fetch_free(h:Int):Void;
 }
 #end

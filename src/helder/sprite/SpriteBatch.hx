@@ -53,16 +53,8 @@ class SpriteBatch {
 
 	// an image as a texture of the batch's (its pixels premultiplied): its id
 	public function add(img:Image):SpriteTexture {
-		var px = img.pixels, n = img.width * img.height;
-		var pre = Bytes.alloc(n * 4);
-		for (k in 0...n) {
-			var a = px.get(4 * k + 3);
-			pre.set(4 * k, Std.int((px.get(4 * k) * a + 127) / 255));
-			pre.set(4 * k + 1, Std.int((px.get(4 * k + 1) * a + 127) / 255));
-			pre.set(4 * k + 2, Std.int((px.get(4 * k + 2) * a + 127) / 255));
-			pre.set(4 * k + 3, a);
-		}
-		var t = device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre});
+		var t:Null<Texture> = null;
+		img.premultiplied(pre -> t = device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}));
 		textures.push(t);
 		sizes.push(img.width);
 		sizes.push(img.height);

@@ -1,7 +1,7 @@
 // A worker of helder.jobs (imports.mjs makes it): the program's module
-// instantiated again, with a WASI of its own (no files: the arguments and
-// environment empty, stdout and stderr to the console, the clocks, random
-// bytes) and the other packages' imports answered with 0. Its _start runs
+// instantiated again, with a WASI of its own (no files: no arguments, the
+// environment ENV's runtime sizes, stdout and stderr to the console, the
+// clocks, random bytes) and the other packages' imports answered with 0. Its _start runs
 // the static initializers until WebJobs' __init__, which calls serve and
 // exits (proc_exit, thrown here); then each job posted runs by its
 // callback's index, its input copied into the instance's memory, its
@@ -21,6 +21,7 @@ let exports = null, execute = 0, input = null, output = null;
 const memory = () => new Uint8Array(exports.memory.buffer);
 const view = () => new DataView(exports.memory.buffer);
 const lines = { 1: '', 2: '' };
+const ENV = ['RT_MINOR_KB=512', 'RT_STACK_MB=1'];
 const wasi = {
 	args_sizes_get(argc, size) {
 		view().setUint32(argc, 1, true);
@@ -32,12 +33,24 @@ const wasi = {
 		memory().set(new TextEncoder().encode('worker\0'), buf);
 		return 0;
 	},
+	// (the runtime's sizes for a worker: jobs run GC-free or nearly, so a
+	// small nursery and stack, not the 4 MB each of a program's main thread;
+	// each worker's memory is its own and never shrinks)
 	environ_sizes_get(n, size) {
-		view().setUint32(n, 0, true);
-		view().setUint32(size, 0, true);
+		view().setUint32(n, ENV.length, true);
+		view().setUint32(size, ENV.reduce((a, e) => a + e.length + 1, 0), true);
 		return 0;
 	},
-	environ_get: () => 0,
+	environ_get(ptrs, buf) {
+		for (const e of ENV) {
+			const b = new TextEncoder().encode(e + '\0');
+			view().setUint32(ptrs, buf, true);
+			memory().set(b, buf);
+			ptrs += 4;
+			buf += b.length;
+		}
+		return 0;
+	},
 	clock_res_get(id, out) {
 		view().setBigUint64(out, 1000n, true);
 		return 0;

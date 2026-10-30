@@ -17,6 +17,37 @@ import hxmc.unsafe.*;
 class Fetch {
 	@:coroutine public static function bytes(path:String, ?progress:(loaded:Int, total:Int) -> Void):Bytes {
 		#if (hxmc.target == "wasm32-wasi")
+		var h = fetched(path, progress);
+		// (taken straight into the Bytes: no copy in between, no GC point)
+		var n = Web.fetch_length(h);
+		var b = Bytes.alloc(n);
+		take(h, b, n);
+		if (progress != null) progress(n, n);
+		return b;
+		#else
+		var b = try sys.io.File.getBytes(path) catch (e:Dynamic) throw new haxe.Exception('fetch $path failed: $e');
+		if (progress != null) progress(b.length, b.length);
+		return b;
+		#end
+	}
+
+	#if (hxmc.target == "wasm32-wasi")
+	@:hxmc.unsafe static function take(h:Int, b:Bytes, n:Int)
+		Web.fetch_take(h, BytesPtr.of(b, 0, n));
+
+	// the same, in a buffer off the collected heap (the caller frees it): a
+	// large file (an image to decode as a job) never on the collected heap
+	@:coroutine public static function buffer(path:String, ?progress:(loaded:Int, total:Int) -> Void):IoBuffer {
+		var h = fetched(path, progress);
+		var n = Web.fetch_length(h);
+		var b = IoBuffer.alloc(n);
+		Web.fetch_take(h, b.ptr);
+		if (progress != null) progress(n, n);
+		return b;
+	}
+
+	// (the fetch's handle, its body here)
+	@:coroutine static function fetched(path:String, progress:Null<(loaded:Int, total:Int) -> Void>):Int {
 		var h = Arena.scopedValue(a -> Web.fetch_start(a.cstring(path)));
 		var told = 0;
 		var ok = Async.suspendCancellable(cont -> {
@@ -47,19 +78,7 @@ class Fetch {
 			Web.fetch_free(h);
 			throw new haxe.Exception('fetch $path failed');
 		}
-		var n = Web.fetch_length(h);
-		var b = Bytes.alloc(n);
-		Arena.scoped(a -> {
-			var p = a.alloc(n + 1, 1);
-			Web.fetch_take(h, p);
-			BytesPtr.copyIn(b, 0, p, n);
-		});
-		if (progress != null) progress(n, n);
-		return b;
-		#else
-		var b = try sys.io.File.getBytes(path) catch (e:Dynamic) throw new haxe.Exception('fetch $path failed: $e');
-		if (progress != null) progress(b.length, b.length);
-		return b;
-		#end
+		return h;
 	}
+	#end
 }

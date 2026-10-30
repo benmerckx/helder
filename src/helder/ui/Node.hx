@@ -1077,16 +1077,23 @@ class Node implements Part {
 	public function textInputArea():Null<{x:Float, y:Float, width:Float, height:Float}>
 		return null;
 
-	// its background gradient drawn at its size in the window's pixels (kept until either changes)
+	// its background gradient drawn at its size in the window's pixels, at
+	// most GRADIENT_PIXELS of them (a large box's at a lower resolution,
+	// stretched over it: a gradient is smooth, and a full-screen one at a
+	// phone's density would be 10 MB with its upload; kept until either changes)
+	static inline var GRADIENT_PIXELS = 262144.0;
+
 	var gradientImage:Null<Image> = null;
 	var gradientKey = "";
 	var gradientOf:Null<Gradient> = null;
 
 	public function backgroundImage(scale:Float):Image {
-		var g = style.backgroundImage, w = Std.int(Math.max(1, Math.round(width * scale))), h = Std.int(Math.max(1, Math.round(height * scale)));
+		var g = style.backgroundImage, area = width * height * scale * scale;
+		var k = area > GRADIENT_PIXELS ? scale * Math.sqrt(GRADIENT_PIXELS / area) : scale;
+		var w = Std.int(Math.max(1, Math.round(width * k))), h = Std.int(Math.max(1, Math.round(height * k)));
 		var key = w + "x" + h + "@" + scale;
 		if (gradientImage == null || gradientOf != g || gradientKey != key) {
-			gradientImage = g.render(w, h, scale);
+			gradientImage = g.render(w, h, k);
 			gradientOf = g;
 			gradientKey = key;
 		}
