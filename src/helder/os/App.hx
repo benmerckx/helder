@@ -137,16 +137,25 @@ class App {
 		return true;
 	}
 
-	// (helder.async's loop, if made: what is ready, due timers)
+	// haxe.EventLoop's turn and the seconds to its next event (1e6: none,
+	// below 0: one is due), with a haxe.Timer (HaxeLoop)
+	static var eventTurn:Null<Void->Void>;
+	static var eventNext:Null<Void->Float>;
+	@:ifFeature("haxe.Timer.new") static final events = HaxeLoop.install();
+
+	// (helder.async's loop, if made: what is ready, due timers; haxe.EventLoop's)
 	static inline function loopTurn() {
 		var l = MainLoop.main;
 		if (l != null) l.turn(0);
+		if (eventTurn != null) eventTurn();
 	}
 
-	// (seconds bounded by the loop's timers and what it waits for)
+	// (seconds bounded by the loops' timers and what they wait for)
 	static inline function bounded(seconds:Float):Float {
 		var l = MainLoop.main;
-		return l != null ? l.bound(seconds) : seconds;
+		var s = l != null ? l.bound(seconds) : seconds;
+		var next = eventNext != null ? eventNext() : 1e6;
+		return next >= 1e6 || (s >= 0 && s <= next) ? s : Math.max(0, next);
 	}
 
 	// blocks until an event is pending or seconds pass, or helder.async's

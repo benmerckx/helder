@@ -6,6 +6,7 @@ import haxe.io.Path;
 import helder.async.*;
 import helder.async.http.Http;
 import helder.async.http.WebSocket;
+import helder.asset.AssetPath;
 import helder.cli.BuildCommand.Lines;
 import helder.cli.Compiler.CompileServer;
 import sys.FileSystem;
@@ -775,7 +776,8 @@ class DevCommand {
 		if (p == "/" || p == "/index.html") {
 			until(() -> built, 600);
 			var pkgs = Page.packages(e.helder, out);
-			var fonts = [for (f in Page.fonts(pkgs)) "/__hxmc/fonts/" + Path.withoutDirectory(f)];
+			var fonts = [for (f in Page.fonts(pkgs)) "/__hxmc/fonts/" + Path.withoutDirectory(f)]
+				.concat([for (k in Page.assetFonts(out)) "/__hxmc/assets/" + AssetPath.url(k)]);
 			var assets = FileSystem.exists(out + ".assets.json") ? "/__hxmc/app.wasm.assets.json" : null;
 			return Response.text(Page.html(e.name + " (helder dev)", "/__hxmc/app.wasm", "/__hxmc/pkg/helder/", pkgs, fonts, true, assets), 200,
 				"text/html; charset=utf-8");

@@ -35,9 +35,10 @@ class ElementPart implements helder.ui.Part {
 	@:ifFeature("helder.web.ElementPart.of") public function attr(name:String):Null<String>
 		return element.getAttribute(name);
 
-	// (the pointer last pressed in a neutral element's handler: Neutral.call's)
+	// (the pointer last pressed in a neutral element's handler: Neutral.call's;
+	// one no longer active throws NotFoundError, and the press goes on uncaptured)
 	@:ifFeature("helder.web.ElementPart.of") public function capture()
-		if (Neutral.pointer != null) element.setPointerCapture(Neutral.pointer);
+		if (Neutral.pointer != null) try element.setPointerCapture(Neutral.pointer) catch (_:Dynamic) {}
 
 	// (a field's selection: an <input>'s or a <textarea>'s)
 	@:ifFeature("helder.web.ElementPart.of") public function select(start:Int, end:Int)

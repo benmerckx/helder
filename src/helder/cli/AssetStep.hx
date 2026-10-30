@@ -17,7 +17,8 @@ using StringTools;
 // [keys]}); desktop's built in, or an app's copied (iOS: intoApp, before
 // linking), were those or not: when not, the keys written and the build
 // made again. The web's files copied beside the module (assets/<key>, what
-// is there besides them removed) and <module>.assets.json (those read
+// is there besides them and the folder's other modules' removed) and
+// <module>.assets.json (those read
 // before main); the APK's are Android's (pack). Kept in helder's cache,
 // not beside the output (what is shipped): <cache>/assets/<hash of the
 // output's path>-<name>.json, .keep.
@@ -86,7 +87,16 @@ class AssetStep {
 		var dir = Path.directory(exe);
 		if (dir == "") dir = ".";
 		if (!dev) {
-			prune(dir, "assets", [for (e in entries) AssetPath.bundled(e.key) => true]);
+			// (what the folder's other modules use stays: each one's manifest; one
+			// without a manifest (built elsewhere) leaves the folder unpruned)
+			var keep = [for (e in entries) AssetPath.bundled(e.key) => true], known = true;
+			for (n in FileSystem.readDirectory(dir))
+				if (n.endsWith(".wasm") && FileSystem.fullPath('$dir/$n') != FileSystem.fullPath(exe)) {
+					if (!FileSystem.exists(manifest('$dir/$n'))) known = false;
+					for (a in assets('$dir/$n'))
+						keep.set(AssetPath.bundled(a.key), true);
+				}
+			if (known) prune(dir, "assets", keep);
 			for (e in entries) {
 				var dest = '$dir/${AssetPath.bundled(e.key)}';
 				TestCommand.mkdirs(Path.directory(dest));

@@ -48,8 +48,14 @@ class SystemFonts {
 		return shared;
 	}
 
+	// the files added, and their faces
+	final addedFiles:Array<{data:Bytes, faces:Array<FontFile>}> = [];
+
 	// a font's bytes (every face of a collection), found before the system's
 	public function add(data:Bytes):Array<FontFile> {
+		// (the same file again: a page's font that the program loads too, Asset.font's)
+		for (a in addedFiles)
+			if (a.data.length == data.length && a.data.compare(data) == 0) return a.faces;
 		var out = [];
 		for (i in 0...FontFile.faceCount(data)) {
 			var f = try FontFile.parse(data, i) catch (e:Dynamic) null;
@@ -66,6 +72,7 @@ class SystemFonts {
 			fallbackList = null;
 			out.push(f);
 		}
+		addedFiles.push({data: data, faces: out});
 		return out;
 	}
 

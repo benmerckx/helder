@@ -1,6 +1,7 @@
 package helder.cli;
 
 import haxe.io.Bytes;
+import helder.asset.AssetPath;
 import sys.FileSystem;
 import sys.io.File;
 
@@ -10,9 +11,12 @@ using StringTools;
 // and the browser modules (src/helder/<package>/imports.mjs) of the
 // packages the module imports (an imports.mjs naming one of its import
 // modules: hxmc_gfx, helder_async, ...), DejaVu Sans when it uses
-// helder.text. `helder dev` serves it with the dev client; `helder build
-// web` writes it beside the module, with the modules and fonts it names
-// (the program's assets are beside it already: helder.asset's Bundle).
+// helder.text and this machine has it, and the fonts among the program's
+// assets (Asset.font's: the page's fonts too, there from the first frame,
+// before the program's loads finish). `helder dev` serves it with the dev
+// client; `helder build web` writes it beside the module, with the modules
+// and fonts it names (the program's assets are beside it already:
+// helder.asset's Bundle).
 class Page {
 	static final FONT_DIRS = ["/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/TTF", "/usr/share/fonts/dejavu", "/Library/Fonts", "C:/Windows/Fonts"];
 
@@ -40,6 +44,13 @@ class Page {
 				out.push('$d/$f');
 				break;
 			}
+		return out;
+	}
+
+	// the keys of the program's assets that are fonts (by their extension)
+	public static function assetFonts(wasm:String):Array<String> {
+		var out = [for (a in AssetStep.assets(wasm)) if (~/\.(ttf|otf|ttc)$/i.match(a.key)) a.key];
+		out.sort(Reflect.compare);
 		return out;
 	}
 
@@ -132,6 +143,10 @@ class Page {
 			File.copy(f, '$dir/fonts/$n');
 			urls.push('fonts/$n');
 		}
+		for (k in assetFonts(wasm))
+			urls.push(AssetPath.url(AssetPath.bundled(k)));
+		if (pkgs.contains("text") && urls.length == 0)
+			Term.err(Style.status("warning", Warn, 'the page has no font: DejaVu Sans is not on this machine (${FONT_DIRS.join(", ")}), and the program loads none with Asset.font'));
 		// (the program's assets: helder.asset's Bundle put them in assets/ beside the module)
 		var listed = FileSystem.exists('$wasm.assets.json');
 		// (./: the page's module script imports browser.mjs from there, where helder/... is a bare specifier)

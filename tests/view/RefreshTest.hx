@@ -12,8 +12,8 @@ import TestRenderer.TestNode;
 // signals keyed by their variables, in each component instance's scope:
 // two instances of one component apart, a list's rows by position, a
 // component by its key attribute, what a region shows later (Show) as when it
-// first showed; a signal of a value that is not data not kept; the effects'
-// cleanups run on disposal. Built again with -D refresh_changed (a signal's
+// first showed; a signal of a value that is not data not kept (a generic
+// class's instance among them); the effects' cleanups run on disposal. Built again with -D refresh_changed (a signal's
 // initial value edited), restored from the same snapshot: that signal
 // starts at its new value, said so, the others are kept; a class marked
 // @:hot(reset) keeps none of its signals
@@ -46,6 +46,9 @@ class RefreshTest implements Markup {
 		var names:Signal<Array<String>> = signal([]);
 		var later = signal(false);
 		var callback = signal({f: () -> 1});
+		// (a class holding a generic one typed later: its type parameters'
+		// constraints left alone, the program compiles under -D hxmc.dev)
+		var game = signal(new refresh.Game());
 		var root = TestRenderer.createElement("div");
 		Render.render(<div>
 			<Card label="a"/>

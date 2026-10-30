@@ -178,17 +178,21 @@ private class Describe {
 					case _:
 				}
 				if (c.isExtern || c.isInterface) return no("extern " + path);
+				// (a generic class's type parameters are not read: encoding them
+				// for a macro resolves their constraints, and for a class typed
+				// later than this they would be resolved empty and stay so: a
+				// "Constraint check failure" in a program that compiles)
+				if (ps.length > 0) return no("generic class " + path);
 				var full = path + params(ps);
 				if (seen.exists(full)) return full;
 				seen.set(full, true);
 				var fs = [];
 				var k = c;
-				var kps = ps;
 				while (k != null) {
 					for (f in k.fields.get())
-						if (physical(f)) fs.push(f.name + ":" + desc(TypeTools.applyTypeParameters(f.type, k.params, kps)));
+						if (physical(f)) fs.push(f.name + ":" + desc(f.type));
 					if (k.superClass == null) break;
-					kps = [for (p in k.superClass.params) TypeTools.applyTypeParameters(p, k.params, kps)];
+					if (k.superClass.params.length > 0) return no("generic class " + k.superClass.t.toString());
 					k = k.superClass.t.get();
 				}
 				fs.sort((x, y) -> x < y ? -1 : x > y ? 1 : 0);

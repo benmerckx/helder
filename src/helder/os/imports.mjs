@@ -187,6 +187,12 @@ export default function (host) {
 		const pos = (e) => [Math.round(e.offsetX * c.width / Math.max(1, c.clientWidth)), Math.round(e.offsetY * c.height / Math.max(1, c.clientHeight))];
 		const off = new AbortController();
 		const on = (type, f, o = {}) => c.addEventListener(type, f, { ...o, signal: off.signal });
+		// (a pointer no longer active, a synthetic event's: NotFoundError, and the press goes on uncaptured)
+		const capture = (e) => {
+			try {
+				c.setPointerCapture?.(e.pointerId);
+			} catch {}
+		};
 		// (Event.mods: Shift 1, Control 2, Alt 4, Meta 8)
 		const mods = (e) => (e.shiftKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0);
 		// the text input's element (text_input)
@@ -256,7 +262,7 @@ export default function (host) {
 		on('mouseup', (e) => push([h, MOUSE_UP, 0, ...pos(e), e.button + 1, mods(e)]));
 		// (a mouse's press captured: a drag that leaves the canvas still
 		// moves, and its release still comes, at positions outside it)
-		on('pointerdown', (e) => e.pointerType === 'mouse' && c.setPointerCapture?.(e.pointerId));
+		on('pointerdown', (e) => e.pointerType === 'mouse' && capture(e));
 		// (the deltas in canvas pixels, in 1/256ths: in key and button; lines 40 pixels, pages the canvas)
 		on('wheel', (e) => {
 			const k = (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? c.clientHeight : 1) * pixelRatio() * 256;
@@ -276,7 +282,7 @@ export default function (host) {
 		on('pointerdown', (e) => {
 			if (!pointer(e)) return;
 			e.preventDefault();
-			c.setPointerCapture?.(e.pointerId);
+			capture(e);
 			point(e, POINTER_DOWN, e.button + 1);
 		});
 		on('pointermove', (e) => {
