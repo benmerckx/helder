@@ -79,7 +79,10 @@ class VertexData {
 	// uvs are not mirrored within a triangle fan)
 	public static function computeTangents(positions:Array<Float>, normals:Array<Float>, uvs:Array<Float>, indices:Array<Int>):Array<Float> {
 		var n = Std.int(positions.length / 3);
-		var tan = [for (_ in 0...3 * n) 0.0], bit = [for (_ in 0...3 * n) 0.0];
+		// (fixed-size: no garbage a triangle, nothing grown)
+		var tan = new haxe.ds.Vector<Float>(3 * n), bit = new haxe.ds.Vector<Float>(3 * n);
+		tan.fill(0.0);
+		bit.fill(0.0);
 		var t = 0;
 		while (t + 2 < indices.length) {
 			var a = indices[t], b = indices[t + 1], c = indices[t + 2];
@@ -92,7 +95,7 @@ class VertexData {
 				var r = 1 / det;
 				var tx = (e1x * dv2 - e2x * dv1) * r, ty = (e1y * dv2 - e2y * dv1) * r, tz = (e1z * dv2 - e2z * dv1) * r;
 				var bx = (e2x * du1 - e1x * du2) * r, by = (e2y * du1 - e1y * du2) * r, bz = (e2z * du1 - e1z * du2) * r;
-				for (k in [a, b, c]) {
+				inline function add(k:Int) {
 					tan[3 * k] += tx;
 					tan[3 * k + 1] += ty;
 					tan[3 * k + 2] += tz;
@@ -100,10 +103,14 @@ class VertexData {
 					bit[3 * k + 1] += by;
 					bit[3 * k + 2] += bz;
 				}
+				add(a);
+				add(b);
+				add(c);
 			}
 			t += 3;
 		}
-		var out = [];
+		var out:Array<Float> = [];
+		out.resize(4 * n);
 		for (i in 0...n) {
 			var nx = normals[3 * i], ny = normals[3 * i + 1], nz = normals[3 * i + 2];
 			var tx = tan[3 * i], ty = tan[3 * i + 1], tz = tan[3 * i + 2];
@@ -133,10 +140,10 @@ class VertexData {
 			// image as glTF's uvs run down it: a normal map's green is up)
 			var cx = ny * tz - nz * ty, cy = nz * tx - nx * tz, cz = nx * ty - ny * tx;
 			var w = cx * bit[3 * i] + cy * bit[3 * i + 1] + cz * bit[3 * i + 2] > 0 ? -1.0 : 1.0;
-			out.push(tx);
-			out.push(ty);
-			out.push(tz);
-			out.push(w);
+			out[4 * i] = tx;
+			out[4 * i + 1] = ty;
+			out[4 * i + 2] = tz;
+			out[4 * i + 3] = w;
 		}
 		return out;
 	}
