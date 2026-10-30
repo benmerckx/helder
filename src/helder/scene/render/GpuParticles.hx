@@ -80,7 +80,7 @@ class GpuParticles implements RenderFeature {
 	}
 
 	public function attach(renderer:Renderer) {
-		var d = GpuParticleShader.pipeline({blend: Additive, depthCompare: Less, depthWrite: false});
+		var d = GpuParticleShader.pipeline({blend: Premultiplied, depthCompare: Less, depthWrite: false});
 		d.layout = LAYOUT;
 		pipeline = renderer.createPipeline(d);
 		renderer.inject(AfterOpaque, (enc, frame) -> draw(enc, frame));

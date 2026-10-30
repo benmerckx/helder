@@ -12,7 +12,8 @@ import helder.gfx.shader.ShaderMath.*;
 // A camera-facing quad, or with stretch one along its motion on the
 // screen (a spark's or an exhaust's streak, stretch seconds of its path
 // long); past its life, or before its birth, a quad of no size. Added to
-// the scene behind (additive blending), depth-tested, not written.
+// the scene behind (premultiplied blending, its coverage none in HDR),
+// depth-tested, not written.
 @:structInit @:publicFields class GpuParticleVertex {
 	var corner:Vec2; // per vertex: -1 to 1
 	var start:Vec4; // per instance: the position, w: the birth (seconds)
@@ -64,7 +65,11 @@ class GpuParticleShader implements Shaders {
 
 	@:fragment static function fs(i:GpuParticleVaryings, view:GpuParticleView):Vec4 {
 		var d = 1 - smoothstep(0.15, 1, length(i.corner));
-		var c = i.color.xyz * (i.color.w * d);
-		return vec4(PbrShader.output(c, view.right.w), 1);
+		var c = PbrShader.output(i.color.xyz * (i.color.w * d), view.right.w);
+		// (light added, coverage untouched: into HDR none, so that a
+		// see-through target keeps what is behind; into 8 bits its brightest
+		// channel, a glow over it, as the target is composed premultiplied)
+		var cover = view.right.w > 0.5 ? 0.0 : min(1.0, max(c.x, max(c.y, c.z)));
+		return vec4(c, cover);
 	}
 }
