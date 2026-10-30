@@ -33,6 +33,15 @@ class ImageTest {
 		var had = kept.source != null && kept.source.type == "png" && kept.source.bytes == file;
 		kept.changed();
 		check("images: the file it was decoded from, until its pixels change", had && kept.source == null && new Image(1, 1).source == null);
+		// (dropped once uploaded, decoded again from the file when read; kept where they cannot come back, or retained)
+		var dropped = Image.decode(file), before = dropped.pixels;
+		dropped.uploaded();
+		var gone = !dropped.hasPixels, again = dropped.pixels.compare(before) == 0;
+		var made = new Image(2, 2), held = Image.decode(file);
+		made.uploaded();
+		held.retain = true;
+		held.uploaded();
+		check("images: pixels dropped after an upload, decoded again when read", gone && again && made.hasPixels && held.hasPixels);
 		for (n in names) {
 			var want = sys.io.File.getBytes(dir + "/" + n + ".rgba");
 			var img = try Image.decode(sys.io.File.getBytes(dir + "/" + n + ".png")) catch (e:Dynamic) {
@@ -75,10 +84,15 @@ class ImageTest {
 				continue;
 			}
 			var want = sys.io.File.getBytes(jdir + "/" + c.name + ".rgba");
-			var img = try Image.decode(sys.io.File.getBytes(jdir + "/" + c.name + kind.ext)) catch (e:Dynamic) {
+			var file = sys.io.File.getBytes(jdir + "/" + c.name + kind.ext);
+			var img = try Image.decode(file) catch (e:Dynamic) {
 				check(kind.dir + ": " + c.name, false, Std.string(e));
 				continue;
 			}
+			// (its size from the header alone: a browser's texture made before it decodes)
+			var size = Image.size(file);
+			check(kind.dir + ": " + c.name + ", its header's size", size != null && size.width == c.width && size.height == c.height,
+				size == null ? "none" : '${size.width}x${size.height}');
 			var differ = 0, most = 0, first = -1;
 			if (img.pixels.length == want.length)
 				for (i in 0...want.length) {

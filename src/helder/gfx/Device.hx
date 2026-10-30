@@ -62,6 +62,21 @@ final class Device {
 		impl.writeTexture(t.id(), data, x, y, w, h, dataOffset, level);
 	}
 
+	// whether textures are filled from images the browser decoded
+	// (writeTextureImage; helder.gfx.ImageTexture): in a browser
+	public var decodesImages(get, never):Bool;
+
+	inline function get_decodesImages()
+		return hxmc.unsafe.Mem.os() == 3;
+
+	// the texture (RGBA8 or RGBA8Srgb, not a render target, the image's
+	// size) filled from a browser image (helder.image.WebImages' handle): at
+	// once when the browser decoded it, else when it has (the texture blank
+	// until then); its mip levels after the first generated then; release:
+	// the image freed after. Only where decodesImages
+	@:noCompletion public function writeTextureImage(t:Texture, image:Int, release = false)
+		impl.writeTextureImage(t.id(), image, release);
+
 	// the texture's mip levels after the first, each filtered down from the
 	// one before (GL's glGenerateMipmap, D3D11's GenerateMips, Metal's blit,
 	// a pass on WebGPU); outside a pass, after the first level was written or

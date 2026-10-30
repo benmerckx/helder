@@ -138,6 +138,57 @@ export default async function (host) {
 		};
 	}
 
+	// helder_image: images the browser decodes (helder.image.WebImages), each
+	// {file, premultiply, state, width, height, bitmap, decoding}; decoded
+	// again from the file when its bitmap was closed and it is uploaded
+	const images = { get: (h) => handles.get(h) };
+	function decodeImage(im) {
+		im.decoding = createImageBitmap(new Blob([im.file]), { premultiplyAlpha: im.premultiply ? 'premultiply' : 'none', colorSpaceConversion: 'none' }).then(
+			(b) => { im.bitmap = b; im.width = b.width; im.height = b.height; im.state = 1; im.decoding = null; host.wake?.(0); return b; },
+			(e) => { im.state = -1; im.decoding = null; host.wake?.(0); return null; });
+		return im.decoding;
+	}
+	// up(bitmap) with the image decoded: now when it is, else once it is
+	// (nothing for one the browser cannot read); release: the image freed after
+	function fill(image, release, up) {
+		const im = images.get(image);
+		const done = (b) => {
+			if (b) up(b);
+			if (release) {
+				im.bitmap?.close();
+				handles.remove(image);
+			}
+		};
+		if (im.bitmap) done(im.bitmap);
+		else (im.decoding ?? decodeImage(im)).then(done);
+	}
+	const helder_image = {
+		decode(fetch, p, length, premultiply) {
+			let file;
+			if (fetch) {
+				file = handles.get(fetch).body;
+				handles.remove(fetch);
+			} else file = host.bytes(p, length).slice();
+			const im = { file, premultiply: !!premultiply, state: 0, width: 0, height: 0, bitmap: null, decoding: null };
+			decodeImage(im);
+			return handles.add(im);
+		},
+		state: (h) => images.get(h).state,
+		width: (h) => images.get(h).width,
+		height: (h) => images.get(h).height,
+		file_length: (h) => images.get(h).file.length,
+		file_take: (h, p) => host.bytes(p, images.get(h).file.length).set(images.get(h).file),
+		close(h) {
+			const im = images.get(h);
+			im.bitmap?.close();
+			im.bitmap = null;
+		},
+		free(h) {
+			images.get(h).bitmap?.close();
+			handles.remove(h);
+		},
+	};
+
 	host.gfx = {
 		adapter,
 		device,
@@ -252,8 +303,9 @@ export default async function (host) {
 		write_buffer: (b, offset, data, size) => device.queue.writeBuffer(handles.get(b), offset, host.bytes(data, size)),
 		texture(width, height, format, levels, target, samples, data) {
 			// (a mip chain's levels are drawn by generate_mips; a multisampled one is only drawn into, then resolved)
+			// (RGBA8's a render attachment too: copyExternalImageToTexture's, texture_image)
 			const usage = samples > 1 ? GPUTextureUsage.RENDER_ATTACHMENT
-				: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
+				: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) || format < 2 ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
 			const label = samples > 1 ? 'helder multisampled target' : target ? 'helder render target' : 'helder texture';
 			const texture = device.createTexture({ label, size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, sampleCount: samples, usage });
 			const t = { serial: ++serials, texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format], unfilterable: format >= R32F, depth: format >= DEPTH16 };
@@ -291,6 +343,14 @@ export default async function (host) {
 				p.end();
 			}
 			if (!encoder) device.queue.submit([enc.finish()]);
+		},
+		texture_image(h, image, release) {
+			const t = handles.get(h);
+			fill(image, release, (bitmap) => {
+				if (handles.get(h) !== t) return;
+				device.queue.copyExternalImageToTexture({ source: bitmap }, { texture: t.texture, premultipliedAlpha: images.get(image).premultiply }, [bitmap.width, bitmap.height]);
+				if (t.texture.mipLevelCount > 1) hxmc_gfx.generate_mips(h);
+			});
 		},
 		sampler(filter, mip, wrap) {
 			const f = filter ? 'linear' : 'nearest', w = WRAPS[wrap];
@@ -669,6 +729,23 @@ export default async function (host) {
 			gl.texSubImage2D(target, level, x, y, w, h, format, type, size === 1 ? b : new (size === 4 ? Float32Array : Uint16Array)(b.slice().buffer));
 		},
 		glGenerateMipmap: (target) => gl.generateMipmap(target),
+		texture_image(texture, image, levels, release) {
+			const g = gl, t = get(texture);
+			fill(image, release, (bitmap) => {
+				if (get(texture) !== t || g.isContextLost()) return;
+				// (unit 0's binding kept: the back end's units[0])
+				const unit = g.getParameter(g.ACTIVE_TEXTURE);
+				g.activeTexture(g.TEXTURE0);
+				const was = g.getParameter(g.TEXTURE_BINDING_2D), align = g.getParameter(g.UNPACK_ALIGNMENT);
+				g.bindTexture(g.TEXTURE_2D, t);
+				g.pixelStorei(g.UNPACK_ALIGNMENT, 4);
+				g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, g.RGBA, g.UNSIGNED_BYTE, bitmap);
+				if (levels > 1) g.generateMipmap(g.TEXTURE_2D);
+				g.pixelStorei(g.UNPACK_ALIGNMENT, align);
+				g.bindTexture(g.TEXTURE_2D, was);
+				g.activeTexture(unit);
+			});
+		},
 		glGenFramebuffers: (n, p) => gen(n, p, () => gl.createFramebuffer()),
 		glDeleteFramebuffers: (n, p) => del(n, p, (f) => gl.deleteFramebuffer(f)),
 		glBindFramebuffer: (target, f) => gl.bindFramebuffer(target, get(f)),
@@ -690,5 +767,5 @@ export default async function (host) {
 		glReadPixels: (x, y, w, h, format, type, p) => gl.readPixels(x, y, w, h, format, type, new Uint8Array(host.memory().buffer, p)),
 		glFinish: () => gl.finish(),
 	};
-	return { hxmc_gfx, hxmc_gl };
+	return { hxmc_gfx, hxmc_gl, helder_image };
 }

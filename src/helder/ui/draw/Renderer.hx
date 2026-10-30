@@ -235,8 +235,8 @@ class Renderer implements Canvas {
 			e = null;
 		}
 		if (e == null) {
-			var t:Null<Texture> = null;
-			img.premultiplied(pre -> t = device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}));
+			// (its pixels dropped after, where they can come back: Image.uploaded)
+			var t = helder.gfx.ImageTexture.create(device, img, {premultiply: true});
 			e = {
 				texture: t,
 				version: img.version,

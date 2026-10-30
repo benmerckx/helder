@@ -72,6 +72,12 @@ class WebGPUBackend {
 		WebGPU.write_texture(id, x, y, info.w, info.h, level, BytesPtr.of(data, dataOffset, data.length - dataOffset));
 	}
 
+	public function writeTextureImage(id:Int, image:Int, release:Bool) {
+		var info = infos.get(id);
+		if (info.target || (info.format != RGBA8 && info.format != RGBA8Srgb)) throw "helder.gfx: writeTextureImage: not an RGBA8 or RGBA8Srgb texture";
+		WebGPU.texture_image(id, image, release ? 1 : 0);
+	}
+
 	public function generateMips(id:Int) {
 		infos.get(id).checkMips();
 		WebGPU.generate_mips(id);

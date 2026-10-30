@@ -64,6 +64,10 @@ abstract Impl(Any) {
 			level) : Mem.os() != 3 ? gl().writeTexture(id, data, x, y, w, h, dataOffset, level) : webgl() ? gl().writeTexture(id, data, x, y, w, h,
 			dataOffset, level) : wgpu().writeTexture(id, data, x, y, w, h, dataOffset, level);
 
+	// (the browser's: WebGPU's or WebGL2's)
+	public inline function writeTextureImage(id:Int, image:Int, release:Bool)
+		Mem.os() != 3 ? throw "helder.gfx: writeTextureImage: in a browser only" : webgl() ? gl().writeTextureImage(id, image, release) : wgpu().writeTextureImage(id, image, release);
+
 	public inline function generateMips(id:Int)
 		Mem.os() == 1 ? mtl().generateMips(id) : Mem.os() == 2 ? d3d().generateMips(id) : Mem.os() != 3 ? gl().generateMips(id) : webgl() ? gl().generateMips(id) : wgpu().generateMips(id);
 

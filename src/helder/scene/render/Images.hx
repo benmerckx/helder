@@ -47,6 +47,13 @@ class Images {
 		return make != null && bytes != null ? make(device, mime, bytes) : null;
 
 	static function made(device:Device, mime:String, bytes:Bytes):Null<Texture> {
+		// (in a browser, with Image.decodeInBrowser: the browser's decoder, its
+		// pixels never in the module's memory, the mips the GPU's; blank for
+		// the frames until it is decoded)
+		if (helder.image.Image.decodeInBrowser) {
+			var t = helder.gfx.ImageTexture.decoded(device, bytes, 0, -1, null, true);
+			if (t != null) return t;
+		}
 		var image = decode(mime, bytes);
 		if (image == null) return null;
 		return mipmapped(device, image.width, image.height, image.rgba);

@@ -33,6 +33,8 @@ export default function (host) {
 			soon(() => timer === true && run());
 		} else timer = setTimeout(run, seconds * 1000);
 	};
+	// (other modules' events that need a turn: helder_image's decodes)
+	host.wake = wake;
 	return {
 		helder_async: {
 			start(f) {

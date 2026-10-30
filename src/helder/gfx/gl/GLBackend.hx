@@ -339,6 +339,17 @@ class GLBackend {
 			case Depth32F: GL.DEPTH_COMPONENT32F;
 		}
 
+	public function writeTextureImage(id:Int, image:Int, release:Bool) {
+		#if (hxmc.target == "wasm32-wasi")
+		use();
+		var info = infos[id - 1];
+		if (info.target || info.samples > 1 || (info.format != RGBA8 && info.format != RGBA8Srgb)) throw "helder.gfx: writeTextureImage: not an RGBA8 or RGBA8Srgb texture";
+		WebGL.texture_image(textures[id - 1], image, info.levels, release ? 1 : 0);
+		#else
+		throw "helder.gfx: writeTextureImage: in a browser only";
+		#end
+	}
+
 	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
 		use();
 		var info = infos[id - 1];

@@ -53,8 +53,7 @@ class SpriteBatch {
 
 	// an image as a texture of the batch's (its pixels premultiplied): its id
 	public function add(img:Image):SpriteTexture {
-		var t:Null<Texture> = null;
-		img.premultiplied(pre -> t = device.createTexture({width: img.width, height: img.height, format: RGBA8, data: pre}));
+		var t = helder.gfx.ImageTexture.create(device, img, {premultiply: true});
 		textures.push(t);
 		sizes.push(img.width);
 		sizes.push(img.height);

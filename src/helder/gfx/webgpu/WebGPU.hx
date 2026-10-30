@@ -29,6 +29,11 @@ import hxmc.unsafe.*;
 	// the levels after the first, each a pass sampling the one before (in
 	// the frame's command encoder, else in one of its own)
 	static function generate_mips(texture:Int):Void;
+	// the texture (RGBA8 or RGBA8Srgb, the image's size) filled from a
+	// browser image (helder_image's), at once when it is decoded, else once
+	// it is; its levels after the first generated then; release 1: the
+	// image freed after
+	static function texture_image(texture:Int, image:Int, release:Int):Void;
 	// a sampler: Filter, mip filter (0: none, 1: Nearest, 2: Linear), Wrap
 	static function sampler(filter:Int, mipFilter:Int, wrap:Int):Int;
 	// WGSL; errors are reported asynchronously, on the console

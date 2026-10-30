@@ -14,4 +14,9 @@ package helder.gfx.gl;
 	// the end of a frame (the browser presents a canvas when the task ends)
 	static function swap(context:Int):Void;
 	static function release(context:Int):Void;
+	// the GL texture (RGBA8 or RGBA8Srgb, the image's size) filled from a
+	// browser image (helder_image's), at once when it is decoded, else once
+	// it is (the texture unit 0's binding kept); levels > 1: its mips
+	// generated then; release 1: the image freed after
+	static function texture_image(texture:Int, image:Int, levels:Int, release:Int):Void;
 }

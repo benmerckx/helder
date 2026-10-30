@@ -18,7 +18,14 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   by the signature, the file kept as `source` (a writer embeds it as it
   is) until `changed()`; `id` and `version` for a renderer's uploads;
   `replace(other)` puts another image's pixels and size in it (helder.asset's
-  reload: what shows it shows the new one).
+  reload: what shows it shows the new one). Its pixels are dropped once a
+  renderer uploaded them (`uploaded()`, helder.gfx's `ImageTexture`) when
+  they can come back (decoded again from its file when read); `retain`
+  keeps them for an image whose pixels are read back. `size(bytes)` reads
+  a file's size from its header. With `Image.decodeInBrowser`, helder.asset's
+  images on the web are decoded by the browser (`WebImages`,
+  createImageBitmap) and uploaded from there (copyExternalImageToTexture,
+  texImage2D): their pixels never in the module's memory.
 - `PngDecoder`: every colour type, depth and interlacing, tRNS; `frames`
   an animated PNG's, composed as Chromium composes them. A wrapper of
   `PngCore`, helder's one PNG decoder: a kernel (`@:hxmc.kernel`, no
