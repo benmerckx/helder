@@ -236,6 +236,7 @@ class Ui {
 			if (placePopups()) Layout.run(overlay, width, height, text, rounded);
 			if (overlay.inkStale) refreshInk(overlay);
 		}
+		tellResized();
 		// (the scrollers whose extents may have changed)
 		for (n in rounded)
 			clampScroll(n);
@@ -256,6 +257,23 @@ class Ui {
 
 	// the nodes that may be native (EditableText: they join while in the tree)
 	var natives:Array<Node> = [];
+
+	// the nodes laid out at a size their onResize was not told (Node.setLayout)
+	final resized:Array<Node> = [];
+
+	// (onResize: each told once, after the layout and its bounds)
+	function tellResized() {
+		if (resized.length == 0) return;
+		var told = resized.copy();
+		resized.resize(0);
+		for (n in told) {
+			var h = @:privateAccess n.handlers;
+			if (h == null || h.onResize == null || (n.width == h.toldWidth && n.height == h.toldHeight)) continue;
+			h.toldWidth = n.width;
+			h.toldHeight = n.height;
+			h.onResize(Event.of(Resize, n, n.absX, n.absY).at(n));
+		}
+	}
 
 	// what draws n, a widget of that kind (Ui.policy's names): its own host,
 	// else its nearest ancestor's not Auto, else the policy's; Native only

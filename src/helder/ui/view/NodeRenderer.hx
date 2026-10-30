@@ -27,7 +27,8 @@ import helder.image.AnimatedImage;
 // background="#3b82f6"; style={StyleProps} for several), the events
 // (onClick, onPress (a click, or Enter or Space: Node.onActivate), onPointerDown, onPointerUp, onPointerMove, onPointerEnter,
 // onPointerLeave, onPointerCancel, onLostPointerCapture, onWheel, onKeyDown, onKeyUp, onTextInput, onComposition,
-// onFocus, onBlur, onFocusIn, onFocusOut, the drag events: Event -> Void;
+// onFocus, onBlur, onFocusIn, onFocusOut, the drag events, onResize (its
+// laid-out size changed: Event.target's width and height): Event -> Void;
 // the gestures, onTap, onPan (pan-axis "x" or "y", pan-min-pointers),
 // onPinch, onScale: a recogniser on the node (helder.ui.gesture), its
 // handler given it, a Tap, a Pan, a Scale; declared by NodeEvents, which
@@ -451,6 +452,7 @@ class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 			case "onDragLeave": n.onDragLeave = h;
 			case "onDrop": n.onDrop = h;
 			case "onDragEnd": n.onDragEnd = h;
+			case "onResize": n.onResize = h;
 			// (the gestures: a recogniser on the node, its handler; helder.ui.gesture)
 			case "onTap": (n.gesture(helder.ui.gesture.Tap) ?? n.addGesture(new helder.ui.gesture.Tap())).onGesture = v;
 			case "onPan": pan(n).onGesture = v;

@@ -30,6 +30,9 @@ enum abstract EventType(Int) {
 	// a pointer's press taken (Node.onPointerCancel), a capture lost (Node.onLostPointerCapture)
 	var PointerCancel;
 	var LostPointerCapture;
+	// its laid-out size changed, or it was first laid out (Node.onResize:
+	// target's width and height, after the layout; not bubbling)
+	var Resize;
 }
 
 // An event as Ui dispatches it: to the target, then (unless stopped) to

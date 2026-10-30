@@ -74,6 +74,9 @@ class Node implements Part {
 	// (bubbling: the focus coming into this node or one under it, or leaving)
 	public var onFocusIn(get, set):Null<Event->Void>;
 	public var onFocusOut(get, set):Null<Event->Void>;
+	// its laid-out size changed, and when it was first laid out: after the
+	// layout, the size its width and height (a 3D camera fitted to its box)
+	public var onResize(get, set):Null<Event->Void>;
 	// drag and drop: dragData makes it draggable (what its drag carries);
 	// the handlers of a source (start, end) and of a target (over: call
 	// preventDefault to accept; leave; drop)
@@ -537,6 +540,20 @@ class Node implements Part {
 			handlers = new Handlers();
 		}
 		return handlers.onFocusOut = v;
+	}
+
+	inline function get_onResize():Null<Event->Void>
+		return handlers == null ? null : handlers.onResize;
+
+	function set_onResize(v:Null<Event->Void>):Null<Event->Void> {
+		if (handlers == null) {
+			if (v == null) return v;
+			handlers = new Handlers();
+		}
+		// (told again, at the next layout)
+		handlers.toldWidth = -1;
+		if (v != null && ui != null) ui.requestFrame();
+		return handlers.onResize = v;
 	}
 
 	function set_onBlur(v:Null<Event->Void>):Null<Event->Void> {
@@ -1180,6 +1197,10 @@ class Node implements Part {
 	// miss them (paint after widening them by what shadows and rings add:
 	// Ui.inkMargin)
 	@:allow(helder.ui) function measureInk() {
+		// (a child's transform changed while this was laid out again: the
+		// child is not, and its bounds would stay as they were)
+		for (k in children)
+			if (k.inkStale) k.measureInk();
 		var s = style;
 		inkAll = s.position == Sticky;
 		inkX0 = absX;
@@ -1269,6 +1290,9 @@ class Node implements Part {
 	// --- set by Layout and Ui ---
 
 	@:allow(helder.ui.Layout) function setLayout(x:Float, y:Float, w:Float, h:Float, ax:Float, ay:Float, cw:Float, ch:Float) {
+		// (onResize: told after the layout, Ui.update)
+		if (handlers != null && handlers.onResize != null && ui != null && (w != handlers.toldWidth || h != handlers.toldHeight))
+			@:privateAccess ui.resized.push(this);
 		this.x = x;
 		this.y = y;
 		width = w;
@@ -1397,6 +1421,10 @@ private class Handlers {
 	public var onDragLeave:Null<Event->Void> = null;
 	public var onDrop:Null<Event->Void> = null;
 	public var onDragEnd:Null<Event->Void> = null;
+	public var onResize:Null<Event->Void> = null;
+	// the size onResize was last told (-1: not yet)
+	public var toldWidth = -1.0;
+	public var toldHeight = -1.0;
 
 	public function new() {}
 }

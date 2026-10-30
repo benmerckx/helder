@@ -92,6 +92,9 @@ class MarkupMacro {
 				renderer == null ? macro @:pos(e.pos) helder.view.View.literal($e) : macro @:pos(e.pos) helder.view.View.literalFor($v{renderer}, $e);
 			// (wrapped already)
 			case ECall({expr: EField(_, "literal" | "literalFor")}, args) if (args.length > 0 && args[args.length - 1].expr.match(EMeta({name: ":markup"}, _))): e;
+			// (an interpolated string as what it interpolates, as typing makes it:
+			// what reads a signal in '${x()}px' is seen, and the value bound)
+			case EConst(CString(s, SingleQuotes)) if (s.indexOf("$") >= 0): transform(haxe.macro.MacroStringTools.formatString(s, e.pos), renderer);
 			case _: e.map(x -> transform(x, renderer));
 		}
 

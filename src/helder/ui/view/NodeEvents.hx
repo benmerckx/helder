@@ -39,6 +39,8 @@ typedef NodeEvents = {
 	onDragLeave:Event,
 	onDrop:Event,
 	onDragEnd:Event,
+	// its laid-out size changed, and first laid out (target: its width and height); ui's only
+	onResize:Event,
 	// the gestures (helder.ui.gesture): the recogniser itself, reused
 	onTap:Tap,
 	onPan:Pan,
