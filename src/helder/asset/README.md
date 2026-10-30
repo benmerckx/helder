@@ -63,6 +63,29 @@ src={icon}/>`), and a `Read` prop's.
 main thread's loop (helder.async: `App.run` turns it; `Assets.poll()`
 for a loop of the program's own, which `Stages.frame` calls).
 
+## Groups: a loading screen
+
+An `AssetGroup` follows several handles together: what a screen needs
+before it shows, then the rest in the background.
+
+```haxe
+final menu = new AssetGroup([Asset.font("fonts/Inter.ttf"), Asset.model("ship.glb"), Asset.image("sky.jpg")]);
+
+<view width={(menu.progress() * 100) + "%"} height={2}/>   // tracked, 0 to 1
+<Show when={menu.done()}>...</Show>
+menu.load();                                               // a coroutine: all here
+if (menu.ready) ...                                        // the frame loop
+```
+
+Its progress is by bytes: each handle's `bytesLoaded` and `bytesTotal`
+(on the web as the response arrives, the fetch's body read as a stream;
+elsewhere once read; a size not yet known weighs the others' mean), a
+handle's part whole once it is ready (decoded). It never goes back and
+is 1 once all are ready. `failed()` is the first `AssetError`; the group
+is a `Reader` of its progress, pending until all are here (`<Loading>`).
+`helder.async.Fetch.bytes(path, progress)` reports a fetch's bytes the
+same way.
+
 ## Paths
 
 A path is the file's key on every platform (`AssetPath`): relative, `/`

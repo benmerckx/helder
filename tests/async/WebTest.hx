@@ -53,6 +53,9 @@ class WebTest {
 				"slow";
 			}) catch (e:TimeoutException) "timed out", "timed out", "timeout");
 			eq(Fetch.bytes("hello.txt").toString(), "hello from the page\n", "fetch");
+			var told = [];
+			Fetch.bytes("hello.txt", (loaded, total) -> told.push(loaded + "/" + total));
+			eq(told[told.length - 1], "20/20", "a fetch's progress, all of it last");
 			eq(try {
 				Fetch.bytes("missing.txt");
 				"found";

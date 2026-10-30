@@ -65,6 +65,30 @@ function tests() {
 			assert(throws(() -> untrack(a.read)) is AssetError);
 		}));
 	});
+	describe("a group", () -> {
+		test("its progress by bytes, done once all are here", async(() -> {
+			var a = Asset.bytes("asset/files/kept.txt"), b = Asset.bytes("asset/files/pixels.png");
+			var g = new helder.asset.AssetGroup([a, b]);
+			g.load();
+			assert(g.ready);
+			equals(g.fraction, 1.0);
+			equals([a.bytesLoaded, a.bytesTotal, b.bytesTotal], [18, 18, 76]);
+			equals(g.count(), {ready: 2, of: 2});
+			flush();
+			equals(untrack(g.progress), 1.0);
+			assert(untrack(g.done));
+			equals(untrack(g.failed), null);
+		}));
+		test("a failure: its error, load throws", async(() -> {
+			var g = new helder.asset.AssetGroup([Asset.bytes("asset/files/kept.txt"), Asset.image("asset/files/kept.txt")]);
+			var e:Dynamic = throwsAsync(() -> g.load());
+			assert(e is AssetError, Std.string(e));
+			assert(!g.ready);
+			flush();
+			assert(untrack(g.failed) is AssetError);
+			assert(!untrack(g.done));
+		}));
+	});
 	describe("a font", () -> {
 		test("its first face, added to the program's fonts", async(() -> {
 			var f = Asset.font("text/var.ttf").load();

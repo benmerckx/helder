@@ -38,15 +38,18 @@ class Files {
 		#end
 	}
 
-	// the bytes (fetched on the web)
+	// the bytes (fetched on the web, key's handles told how far: Assets.progressed)
 	@:coroutine public static function read(key:String, ?file:String):Bytes {
 		#if (hxmc.target == "wasm32-wasi")
+		var told = (loaded, total) -> Assets.progressed(key, loaded, total);
 		#if hxmc.dev
-		if (file != null) return helder.async.Fetch.bytes("/__hxmc/" + AssetPath.url(AssetPath.bundled(key)) + "?" + Std.int(haxe.Timer.stamp() * 1000));
+		if (file != null) return helder.async.Fetch.bytes("/__hxmc/" + AssetPath.url(AssetPath.bundled(key)) + "?" + Std.int(haxe.Timer.stamp() * 1000), told);
 		#end
-		return helder.async.Fetch.bytes(AssetPath.url(AssetPath.bundled(key)));
+		return helder.async.Fetch.bytes(AssetPath.url(AssetPath.bundled(key)), told);
 		#else
-		return readNow(key, file);
+		var b = readNow(key, file);
+		Assets.progressed(key, b.length, b.length);
+		return b;
 		#end
 	}
 
@@ -64,6 +67,7 @@ class Files {
 			b = IoBuffer.alloc(n);
 			copy(b, p, n);
 		});
+		Assets.progressed(key, b.length, b.length);
 		return b;
 		#else
 		return IoBuffer.ofBytes(read(key, file));

@@ -48,6 +48,12 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 	public final key:String;
 	public var state(default, null):AssetState = Loading;
 	public var ready(get, never):Bool;
+	// how much of its file is here: the bytes received, and how many
+	// there will be (0 while that is not known: a response that does not
+	// say); on the web as they arrive, elsewhere once read. A group's
+	// progress (AssetGroup) weighs its assets by them.
+	public var bytesLoaded(default, null):Int = 0;
+	public var bytesTotal(default, null):Int = 0;
 
 	var current:Null<T> = null;
 	final waiting:Array<IContinuation<T>> = [];
@@ -111,10 +117,19 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 		});
 	}
 
+	// (its file's bytes, as they arrive: Files.read's)
+	@:noCompletion public function progressed(loaded:Int, total:Int) {
+		bytesLoaded = loaded;
+		bytesTotal = total > 0 ? total : bytesTotal;
+		Assets.changed();
+	}
+
 	// the value arrived (again: a reload's, the readers told)
 	@:noCompletion public function resolve(v:T) {
 		current = v;
 		state = Ready;
+		if (bytesTotal < bytesLoaded) bytesTotal = bytesLoaded;
+		Assets.changed();
 		var w = waiting.copy();
 		waiting.resize(0);
 		for (c in w)
@@ -126,6 +141,7 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 
 	@:noCompletion public function fail(error:String) {
 		state = Failed(error);
+		Assets.changed();
 		var w = waiting.copy();
 		waiting.resize(0);
 		for (c in w)

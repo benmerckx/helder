@@ -13,6 +13,10 @@ class Assets {
 	static final handles = new Map<String, Asset<Dynamic>>();
 	static final reloads = new Map<String, Array<Void->Void>>();
 	static final pending:Array<Void->Bool> = [];
+	// (the handles of each key, of every kind: told how far its file is)
+	static final keyed = new Map<String, Array<Asset<Dynamic>>>();
+	// (what follows the loads: AssetGroups)
+	static final watchers:Array<Void->Void> = [];
 
 	// the handle of key's asset of a kind, its load started when it is made
 	// (load: the value from the bundle, or from disk under helder dev)
@@ -22,6 +26,9 @@ class Assets {
 		if (h != null) return h;
 		var a = new Asset<T>(key);
 		handles.set(id, a);
+		var same = keyed.get(key);
+		if (same == null) keyed.set(key, same = []);
+		same.push(cast a);
 		start(a, load, null);
 		#if hxmc.dev
 		// (a change helder dev sends: loaded again, put behind the same handle)
@@ -48,6 +55,25 @@ class Assets {
 			a.resolve(swap != null && old != null ? swap(old, v) : v);
 			if (swap != null) DevAssets.log('${a.key} reloaded');
 		});
+	}
+
+	// how much of key's file is here (Files.read's): its handles told
+	@:noCompletion public static function progressed(key:String, loaded:Int, total:Int) {
+		var same = keyed.get(key);
+		if (same != null) for (a in same)
+			a.progressed(loaded, total);
+	}
+
+	// f run after each change to a load (bytes arrived, a value, a
+	// failure); the function that stops it
+	@:noCompletion public static function watch(f:Void->Void):Void->Void {
+		watchers.push(f);
+		return () -> watchers.remove(f);
+	}
+
+	@:noCompletion public static function changed() {
+		for (w in watchers.copy())
+			w();
 	}
 
 	// key's file changed (helder dev): its handles loaded again; whether any is

@@ -41,14 +41,40 @@ export default function (host) {
 			},
 			wake,
 			fetch_start(p) {
-				const f = { state: 0, body: null, abort: new AbortController() };
+				// (its body read as it arrives: loaded, and total where the
+				// response says (its Content-Length, unless it is encoded:
+				// that counts the encoded bytes); a turn at most every 50 ms
+				// while it does, for progress)
+				const f = { state: 0, body: null, loaded: 0, total: 0, abort: new AbortController() };
 				const base = typeof document !== 'undefined' ? document.baseURI : host.options.base;
-				fetch(new URL(host.string(p), base), { signal: f.abort.signal }).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(r.status))).then(
-					(b) => { f.body = new Uint8Array(b); f.state = 1; wake(0); }, () => { f.state = -1; wake(0); });
+				let told = 0;
+				fetch(new URL(host.string(p), base), { signal: f.abort.signal }).then(async (r) => {
+					if (!r.ok) throw r.status;
+					const length = Number(r.headers.get('content-length'));
+					if (length > 0 && !r.headers.get('content-encoding')) f.total = length;
+					if (!r.body || !r.body.getReader) return new Uint8Array(await r.arrayBuffer());
+					const reader = r.body.getReader(), chunks = [];
+					for (;;) {
+						const { done, value } = await reader.read();
+						if (done) break;
+						chunks.push(value);
+						f.loaded += value.length;
+						const now = performance.now();
+						if (now - told > 50) { told = now; wake(0); }
+					}
+					if (chunks.length == 1) return chunks[0];
+					const out = new Uint8Array(f.loaded);
+					let at = 0;
+					for (const c of chunks) { out.set(c, at); at += c.length; }
+					return out;
+				}).then(
+					(b) => { f.body = b; f.loaded = b.length; f.state = 1; wake(0); }, () => { f.state = -1; wake(0); });
 				return host.handles.add(f);
 			},
 			fetch_state: (h) => host.handles.get(h).state,
 			fetch_length: (h) => host.handles.get(h).body?.length ?? 0,
+			fetch_loaded: (h) => host.handles.get(h).loaded,
+			fetch_total: (h) => host.handles.get(h).total,
 			fetch_take(h, p) {
 				const f = host.handles.get(h);
 				if (f.body) new Uint8Array(host.memory().buffer, p, f.body.length).set(f.body);

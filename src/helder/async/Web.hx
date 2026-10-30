@@ -19,6 +19,9 @@ import hxmc.unsafe.*;
 	static function fetch_start(url:CString):Int;
 	static function fetch_state(h:Int):Int;
 	static function fetch_length(h:Int):Int;
+	// the bytes it has received so far, and how many it will (0: not known)
+	static function fetch_loaded(h:Int):Int;
+	static function fetch_total(h:Int):Int;
 	static function fetch_take(h:Int, p:Ptr):Void;
 	static function fetch_free(h:Int):Void;
 }
