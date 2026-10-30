@@ -32,6 +32,8 @@ import hxmc.unsafe.*;
 	// key: a string handle, 0 for none)
 	static function clipboard_write(text:CString):Void;
 	static function clipboard_read():Void;
+	// a vibration of ms (helder.os.Haptics: navigator.vibrate, nothing where there is none)
+	static function vibrate(ms:Int):Void;
 	// a string handle's UTF-8 length; its bytes into p (the handle freed)
 	static function text_length(h:Int):Int;
 	static function text_take(h:Int, p:Ptr):Void;

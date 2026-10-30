@@ -564,6 +564,11 @@ export default function (host) {
 		height: (h) => host.handles.get(h).height,
 		scale: () => pixelRatio(),
 		prefers_dark: () => (matchMedia('(prefers-color-scheme: dark)').matches ? 1 : 0),
+		vibrate(ms) {
+			try {
+				navigator.vibrate?.(ms);
+			} catch {}
+		},
 		clipboard_write(p) {
 			const s = host.string(p);
 			navigator.clipboard?.writeText(s).catch(() => {});

@@ -478,6 +478,16 @@ class UIKitWindow {
 		ObjC.release(s);
 	}
 
+	// helder.os.Haptics: a selection's tick (UISelectionFeedbackGenerator),
+	// a medium impact (UIImpactFeedbackGenerator, style 1), each made and let go
+	static function haptic(strong:Bool) {
+		var g = strong ? Msg.idInt(Msg.id(ObjC.cls("UIImpactFeedbackGenerator"), ObjC.sel("alloc")), ObjC.sel("initWithStyle:"), 1) : Msg.id(Msg.id(ObjC.cls("UISelectionFeedbackGenerator"),
+			ObjC.sel("alloc")), ObjC.sel("init"));
+		if (g.isNull()) return;
+		if (strong) Msg.v(g, ObjC.sel("impactOccurred")) else Msg.v(g, ObjC.sel("selectionChanged"));
+		ObjC.release(g);
+	}
+
 	static function readClipboard():Null<String> {
 		var pool = Runtime.objc_autoreleasePoolPush();
 		var text = ObjC.string(Msg.id(Msg.id(ObjC.cls("UIPasteboard"), ObjC.sel("generalPasteboard")), ObjC.sel("string")));
