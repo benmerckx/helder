@@ -75,7 +75,7 @@ import helder.gfx.shader.ShaderMath.*;
 @:structInit @:publicFields class PbrMaterial {
 	var baseColor:Vec4;
 	var params:Vec4; // x: metallic, y: roughness
-	var emissive:Vec4; // rgb
+	var emissive:Vec4; // rgb; w: its share emitted on the night side only (Material.emissiveNight)
 }
 
 class PbrShader implements Shaders {
@@ -152,6 +152,8 @@ class PbrShader implements Shaders {
 		var occlusion = sample(occlusionTexture, uv).x;
 		var ambient = (irradiance * base * (1 - metallic) + specularAmbient) * occlusion;
 		var emitted = material.emissive.xyz * pow(sample(emissiveTexture, uv).xyz, vec3(2.2));
+		// (city lights: on the night side, faded in past the terminator)
+		emitted = emitted * mix(1.0, smoothstep(0.12, -0.18, dot(n, l)), material.emissive.w);
 		// (the rim: grazing views, on the light's side and a little past it)
 		var rim = frame.rim.xyz * (pow(1 - nv, frame.rim.w) * smoothstep(-0.25, 0.5, dot(n, l)));
 		direct += rim * mix(vec3(1), base, 0.5);

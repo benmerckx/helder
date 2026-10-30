@@ -392,7 +392,7 @@ class Renderer {
 				PbrShader.writePbrMaterial({
 					baseColor: m.baseColor,
 					params: new Vec4(m.metallic, m.roughness, m.normalScale, 0),
-					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, 0)
+					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, m.emissiveNight)
 				}, materialBytes);
 				enc.setUniforms(slots[2], materialBytes);
 				var ms = m.sampler != null ? m.sampler : sampler;
