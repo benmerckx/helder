@@ -55,6 +55,10 @@ class Renderer {
 	public var sky = new Vec3(0.3, 0.36, 0.48);
 	public var ground = new Vec3(0.12, 0.1, 0.09);
 	public var exposure = 1.0;
+	// a rim light from the sun's side: its colour times intensity (black:
+	// none) and how tight to the silhouette it stays (the falloff's power)
+	public var rim = new Vec3(0, 0, 0);
+	public var rimPower = 4.0;
 	public var clearColor = new Color(0.07, 0.08, 0.1);
 	// the last draw's draws and primitives culled (statistics)
 	public var draws(default, null) = 0;
@@ -338,7 +342,8 @@ class Renderer {
 			spot3: spots[3],
 			lightViewProjFar: lightViewProjFar,
 			shadowFar: shadowFar,
-			environment: environment != null ? new Vec4(environment.intensity, environment.levels, 0, 0) : new Vec4(0, 0, 0, 0)
+			environment: environment != null ? new Vec4(environment.intensity, environment.levels, environment.rows, @:privateAccess environment.edge) : new Vec4(0, 0, 0, 0),
+			rim: new Vec4(rim.x, rim.y, rim.z, rimPower)
 		}, frameBytes);
 		return l;
 	}

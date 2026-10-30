@@ -56,8 +56,13 @@ import helder.gfx.shader.ShaderMath.*;
 	var lightViewProjFar:Mat4;
 	var shadowFar:Vec4;
 	// the environment's light (Environment): x its intensity (0: none, the
-	// sky and the ground instead), y its map's mip levels below the first
+	// sky and the ground instead), y its map's mip levels below the first;
+	// a prefiltered atlas's (Environment.prefiltered): z its levels of
+	// roughness (0: a mip-mapped image), w half a texel of a row
 	var environment:Vec4;
+	// a rim light (Renderer.rim): rgb its colour times intensity, w the
+	// falloff's power; the silhouette's edge lit from the light's side
+	var rim:Vec4;
 }
 
 // per draw: the node's matrices
@@ -123,6 +128,19 @@ class PbrShader implements Shaders {
 			var top = frame.environment.y;
 			irradiance = pow(sampleLevel(environmentMap, EnvironmentShader.equirect(n), max(top - 2, 0)).xyz, vec3(2.2)) * frame.environment.x;
 			env = pow(sampleLevel(environmentMap, EnvironmentShader.equirect(r), rough * max(top - 1, 0)).xyz, vec3(2.2)) * frame.environment.x;
+			if (frame.environment.z > 0) {
+				// (a prefiltered atlas: its rows by roughness, two blended, the
+				// last row the irradiance: Environment.prefiltered)
+				var rows = frame.environment.z;
+				var edge = frame.environment.w;
+				irradiance = pow(EnvironmentShader.atlas(environmentMap, EnvironmentShader.equirect(n), rows, rows, edge), vec3(2.2)) * frame.environment.x;
+				var at = rough * (rows - 1);
+				var r0 = floor(at);
+				var ru = EnvironmentShader.equirect(r);
+				var lo = EnvironmentShader.atlas(environmentMap, ru, r0, rows, edge);
+				var hi = EnvironmentShader.atlas(environmentMap, ru, min(r0 + 1, rows - 1), rows, edge);
+				env = pow(mix(lo, hi, at - r0), vec3(2.2)) * frame.environment.x;
+			}
 		}
 		var c0 = vec4(-1, -0.0275, -0.572, 0.022);
 		var c1 = vec4(1, 0.0425, 1.04, -0.04);
@@ -134,6 +152,9 @@ class PbrShader implements Shaders {
 		var occlusion = sample(occlusionTexture, uv).x;
 		var ambient = (irradiance * base * (1 - metallic) + specularAmbient) * occlusion;
 		var emitted = material.emissive.xyz * pow(sample(emissiveTexture, uv).xyz, vec3(2.2));
+		// (the rim: grazing views, on the light's side and a little past it)
+		var rim = frame.rim.xyz * (pow(1 - nv, frame.rim.w) * smoothstep(-0.25, 0.5, dot(n, l)));
+		direct += rim * mix(vec3(1), base, 0.5);
 		var color = (direct + ambient + emitted) * frame.exposure.x;
 		return vec4(output(color, frame.exposure.y), material.baseColor.w * texel.w);
 	}

@@ -12,7 +12,7 @@ import helder.scene.render.SkyShader;
 @:structInit @:publicFields class EnvironmentParams {
 	var invViewProj:Mat4;
 	var eye:Vec4;
-	var params:Vec4; // x: intensity times exposure, y: 1 into an HDR target
+	var params:Vec4; // x: intensity times exposure, y: 1 into an HDR target, z: an atlas's levels (0: none), w: half a texel of its row
 }
 
 class EnvironmentShader implements Shaders {
@@ -23,6 +23,7 @@ class EnvironmentShader implements Shaders {
 		var far = env.invViewProj * vec4(i.ndc, 1, 1);
 		var d = normalize(far.xyz / far.w - env.eye.xyz);
 		var color = pow(sampleLevel(environmentMap, equirect(d), 0).xyz, vec3(2.2)) * env.params.x;
+		if (env.params.z > 0) color = pow(atlas(environmentMap, equirect(d), 0, env.params.z, env.params.w), vec3(2.2)) * env.params.x;
 		return vec4(PbrShader.output(color, env.params.y), 1);
 	}
 
@@ -30,6 +31,13 @@ class EnvironmentShader implements Shaders {
 	// up at its top)
 	public static function equirect(d:Vec3):Vec2
 		return vec2(arcTan2(d.x, -d.z) * 0.15915494 + 0.5, arcCos(clamp(d.y, -1, 1)) * 0.31830989);
+
+	// a prefiltered atlas's colour (Environment.prefiltered: levels rows of
+	// the sphere by roughness and the irradiance's below them, all of a
+	// size) at a direction's place uv in its row (edge: half a texel of a
+	// row, kept from the next one's)
+	public static function atlas(t:Texture2D, uv:Vec2, row:Float, levels:Float, edge:Float):Vec3
+		return sampleLevel(t, vec2(uv.x, (row + clamp(uv.y, edge, 1 - edge)) / (levels + 1)), 0).xyz;
 
 	// (the shaders have no inverse trigonometry: polynomial fits, within
 	// 2e-5 radians of atan2 and 7e-5 of acos)

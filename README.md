@@ -712,6 +712,11 @@ fix.
   `helder.scene.render.PostProcess`: physically based bloom (a chain of
   half-sized targets down and up, as Call of Duty: AW and Unity's HDRP),
   ACES or AgX, a grade, a vignette, grain; `<Scene hdr>`.
+- **Image-based lighting, prefiltered** (*landed*):
+  `Environment.prefiltered`, an atlas of GGX-filtered rows by roughness
+  and the irradiance, baked ahead; a rim light. Still to come: the
+  prefilter in helder itself (a pass at load, or the asset step), cubemaps
+  in gfx.
 - **The 3D API close to three.js** (see Aims), after a study of three.js,
   Babylon.js, PlayCanvas, Godot and Bevy.
 - **The scene in view's markup**, react-three-fiber's model on
