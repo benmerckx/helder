@@ -26,7 +26,11 @@
 //                  page scrolls on vertical swipes over the canvas that
 //                  Window.scrollsAt does not take), for os; gfx:
 //                  'webgl2' for gfx, WebGL2 even where WebGPU is, and
-//                  antialias: true, the canvas's frames multisampled)
+//                  antialias: true, the canvas's frames multisampled;
+//                  onExit: a function (code, stack) called when the
+//                  program exits (main's end, an uncaught exception's
+//                  exit 1, also in a frame or callback after main
+//                  returned), stack the JavaScript one where it exited)
 //   memory()       the module's memory; bytes(p, n), string(p) read it (a
 //                  view made anew each time: the memory may have grown)
 //   handles        the JavaScript objects the module refers to by integer
@@ -149,6 +153,8 @@ function installTracking() {
 class Exit {
 	constructor(code) {
 		this.code = code;
+		// (where it exited: the module's frames, named with a name section)
+		this.stack = code ? new Error('exit ' + code).stack : '';
 	}
 }
 
@@ -236,6 +242,7 @@ export async function run(wasm, options = {}) {
 			} catch (e) {
 				if (!(e instanceof Exit)) throw e;
 				host.exitCode = e.code;
+				options.onExit?.(e.code, e.stack);
 				return undefined;
 			}
 		},
@@ -421,6 +428,7 @@ export async function run(wasm, options = {}) {
 	} catch (e) {
 		if (!(e instanceof Exit)) throw outOfMemory(e, 0, memory);
 		host.exitCode = e.code;
+		options.onExit?.(e.code, e.stack);
 	}
 	return { host, instance, exitCode: host.exitCode ?? 0 };
 }

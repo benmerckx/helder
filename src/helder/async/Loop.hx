@@ -295,7 +295,8 @@ class Loop extends Dispatcher implements IScheduler implements Driven {
 			ready[head] = null;
 			head = (head + 1) % ready.length;
 			count--;
-			o.onDispatch();
+			// (with a handler, an error out of it reported: Errors)
+			if (Errors.handler == null) o.onDispatch() else Errors.guard(o.onDispatch, "loop");
 		}
 	}
 

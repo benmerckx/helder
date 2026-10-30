@@ -47,6 +47,7 @@ class Async {
 	}
 
 	static function fatal(e:Exception) {
+		if (Errors.report(e, "main")) return;
 		Sys.stderr().writeString("error: " + e.details() + "\n");
 		Sys.exit(1);
 	}
@@ -157,7 +158,7 @@ class Async {
 	}
 
 	@:allow(helder.async) static function unhandled(e:Exception)
-		Sys.stderr().writeString("helder.async: unhandled error in a task: " + e.details() + "\n");
+		if (!Errors.report(e, "task")) Sys.stderr().writeString("helder.async: unhandled error in a task: " + e.details() + "\n");
 }
 
 // a cancellation because a time ran out (Async.timeout; hxcoro's TimeoutException)

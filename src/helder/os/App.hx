@@ -50,19 +50,29 @@ class App {
 	// the frame onFrame draws: its time (the display's vsync on Android and
 	// iOS: App.frame.vsync), the time since the last, the display's period
 	public static final frame = new FrameClock();
+	// errors out of run's frames and events, and tasks' nobody hears of
+	// (helder.async.Errors): handled (true), the loop goes on; otherwise, or
+	// with none, the program fails as before
+	public static var onError(get, set):Null<(error:haxe.Exception, source:String) -> Bool>;
+
+	static function get_onError()
+		return helder.async.Errors.handler;
+
+	static function set_onError(f)
+		return helder.async.Errors.handler = f;
 
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
 		// (helder.view.graph's writes land at the end of each event and frame)
 		var frame = onFrame, event = onEvent;
-		onFrame = () -> {
+		onFrame = () -> helder.async.Errors.guard(() -> {
 			frame();
 			helder.view.graph.Graph.flush();
-		};
-		onEvent = e -> {
+		}, "frame");
+		onEvent = e -> helder.async.Errors.guard(() -> {
 			event(e);
 			helder.view.graph.Graph.flush();
-		};
+		}, "event");
 		// (the mouse's pointer events after its own: Pointers)
 		onEvent = Pointers.relay(onEvent);
 		if (Mem.os() == 3) {
