@@ -19,24 +19,26 @@ class NormalMaps implements RenderFeature implements RenderFeature.NormalSource 
 		{stride: 16, attributes: [{location: 3, format: Float4, offset: 0}]}
 	];
 
-	final plain:Pipeline;
-	final double:Pipeline;
+	// (the renderer's, when attached)
+	var plain:Pipeline = cast 0;
+	var double:Pipeline = cast 0;
 	final slotList:Array<Int>;
 
 	public function new(device:Device) {
 		// (models loaded from now on get their tangents)
 		VertexData.tangentsFrom = VertexData.computeTangents;
-		var d = PbrNormalShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true});
-		d.layout = LAYOUT;
-		plain = device.createPipeline(d);
-		d = PbrNormalShader.pipeline({cull: None, depthCompare: Less, depthWrite: true});
-		d.layout = LAYOUT;
-		double = device.createPipeline(d);
 		slotList = Renderer.slotsOf(PbrNormalShader.uniforms, PbrNormalShader.textures);
 	}
 
-	public function attach(renderer:Renderer)
+	public function attach(renderer:Renderer) {
+		var d = PbrNormalShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true});
+		d.layout = LAYOUT;
+		plain = renderer.createPipeline(d);
+		d = PbrNormalShader.pipeline({cull: None, depthCompare: Less, depthWrite: true});
+		d.layout = LAYOUT;
+		double = renderer.createPipeline(d);
 		@:privateAccess renderer.normalSource = this;
+	}
 
 	public function pipeline(doubleSided:Bool):Pipeline
 		return doubleSided ? double : plain;

@@ -10,22 +10,24 @@ import helder.scene.Node;
 // out, and a program links no skinning shader.
 class Skinning implements RenderFeature implements RenderFeature.SkinSource {
 	final device:Device;
-	final plain:Pipeline;
-	final double:Pipeline;
+	// (the renderer's, when attached)
+	var plain:Pipeline = cast 0;
+	var double:Pipeline = cast 0;
 	final slotList:Array<Int>;
 	final info = Bytes.alloc(16);
 	final nearest:Sampler;
 
 	public function new(device:Device) {
 		this.device = device;
-		plain = device.createPipeline(PbrSkinnedShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
-		double = device.createPipeline(PbrSkinnedShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
 		slotList = Renderer.slotsOf(PbrSkinnedShader.uniforms, PbrSkinnedShader.textures);
 		nearest = device.createSampler({filter: Nearest, wrap: Clamp});
 	}
 
-	public function attach(renderer:Renderer)
+	public function attach(renderer:Renderer) {
+		plain = renderer.createPipeline(PbrSkinnedShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
+		double = renderer.createPipeline(PbrSkinnedShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
 		@:privateAccess renderer.skinSource = this;
+	}
 
 	public function prepare(node:Node):Bool {
 		var skin = Skin.of(node);

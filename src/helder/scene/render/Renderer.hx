@@ -63,8 +63,9 @@ class Renderer {
 	final pipeline:Pipeline;
 	final doubleSided:Pipeline;
 	// (see-through materials: made when first drawn)
-	var blendPipeline:Null<Pipeline>;
-	var blendDoubleSided:Null<Pipeline>;
+	// the see-through materials' pipelines, made when first drawn: by
+	// Material.blending, then double-sided
+	final blendedPipelines:Array<Null<Pipeline>> = [for (_ in 0...8) null];
 	var instancedPipeline:Pipeline;
 	var instancedDoubleSided:Pipeline;
 	final plainSlots:Array<Int>;
@@ -103,8 +104,8 @@ class Renderer {
 	var count = 0;
 
 	// offscreen: drawn into textures (drawInto: RGBA8 and Depth32F, as a
-	// <Scene>'s box in a ui), not the frame; its features' own pipelines
-	// (skins, normal maps, the sky, particles) are the frame's still
+	// <Scene>'s box in a ui), not the frame; its features' pipelines (skins,
+	// normal maps, the sky, particles) made for those too (createPipeline)
 	public final offscreen:Bool;
 	// offscreen: the targets' samples a pixel (4: multisampled, drawInto's
 	// color and depth made with samples: 4, the colour resolved by the pass)
@@ -134,7 +135,12 @@ class Renderer {
 		pass = {colors: [{load: Clear, clear: clearColor}], depth: {load: Clear}};
 	}
 
-	// (a pipeline for the frame, or for drawInto's targets)
+	// a pipeline for what it draws into: the frame, or drawInto's targets
+	// (RGBA8, Depth32F, its samples); its features' and a program's own
+	// passes inside its frame (inject) make theirs with it
+	public function createPipeline(d:PipelineDesc):Pipeline
+		return create(d);
+
 	function create(d:PipelineDesc):Pipeline {
 		if (offscreen) {
 			d.colorFormat = RGBA8;
@@ -348,7 +354,7 @@ class Renderer {
 			var many = n > 1;
 			var skin = p.skinned ? skinSource : null;
 			var normals = !many && skin == null && mapped(p) ? normalSource : null;
-			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : m.blend ? blended(m.doubleSided) : (m.doubleSided ? doubleSided : pipeline);
+			var want = many ? (m.doubleSided ? instancedDoubleSided : instancedPipeline) : skin != null ? skin.pipeline(m.doubleSided) : normals != null ? normals.pipeline(m.doubleSided) : m.blend ? blended(m) : (m.doubleSided ? doubleSided : pipeline);
 			if (want != current) {
 				enc.setPipeline(want);
 				slots = many ? instancedSlots : skin != null ? skin.slots() : normals != null ? normals.slots() : plainSlots;
@@ -447,13 +453,12 @@ class Renderer {
 		}
 	}
 
-	// the standard shader blended, depth tested but not written
-	function blended(doubleSided:Bool):Pipeline {
-		if (blendPipeline == null) {
-			blendPipeline = create(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: false, blend: Alpha}));
-			blendDoubleSided = create(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: false, blend: Alpha}));
-		}
-		return doubleSided ? blendDoubleSided : blendPipeline;
+	// the standard shader blended as the material is, depth tested but not written
+	function blended(m:Material):Pipeline {
+		var k = (cast m.blending : Int) * 2 + (m.doubleSided ? 1 : 0);
+		var p = blendedPipelines[k];
+		if (p == null) p = blendedPipelines[k] = create(PbrShader.pipeline({cull: m.doubleSided ? None : Back, depthCompare: Less, depthWrite: false, blend: m.blending}));
+		return p;
 	}
 
 	// whether a primitive is drawn with its normal map (NormalMaps on, its

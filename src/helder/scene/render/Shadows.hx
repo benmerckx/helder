@@ -91,13 +91,14 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		return frame;
 	}
 
-	// the maps' passes: the world's shown meshes seen from a light shining along -toLight
+	// the maps' passes: the world's shown meshes that cast (Material.castShadows)
+	// seen from a light shining along -toLight, the map fitted to them
 	public function render(enc:Encoder, world:World, toLight:Vec3, skins:Null<RenderFeature.SkinSource>, view:Renderer.FrameInfo) {
 		var meshes = world.store(MeshRenderer.KIND);
 		var bounds = Aabb.empty();
 		for (k in 0...meshes.length) {
 			var n = meshes.nodeAt(k);
-			if (n.shown() && world.inTree(n)) bounds = bounds.union(meshes.valueAt(k).bounds.transform(n.worldMatrix()));
+			if (n.shown() && world.inTree(n) && casts(meshes.valueAt(k))) bounds = bounds.union(meshes.valueAt(k).bounds.transform(n.worldMatrix()));
 		}
 		if (bounds.isEmpty()) bounds = new Aabb(new Vec3(-1, -1, -1), new Vec3(1, 1, 1));
 		var c = bounds.center(), e = bounds.size();
@@ -151,12 +152,18 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		return Mat4.orthographic(-radius, radius, -radius, radius, 0.01, back + radius + r) * MathTools.lookAt(snapped + toLight * back, snapped, up);
 	}
 
+	static function casts(m:Mesh):Bool {
+		for (p in m.primitives)
+			if (p.material.castShadows) return true;
+		return false;
+	}
+
 	function draw(enc:Encoder, pass:PassDesc, meshes:Store<Mesh>, world:World, skins:Null<RenderFeature.SkinSource>, viewProj:Mat4) {
 		enc.beginPass(pass);
 		enc.setPipeline(pipeline);
 		for (k in 0...meshes.length) {
 			var n = meshes.nodeAt(k);
-			if (!n.shown() || !world.inTree(n)) continue;
+			if (!n.shown() || !world.inTree(n) || !casts(meshes.valueAt(k))) continue;
 			ShadowShader.writeShadowCaster({mvp: viewProj * n.worldMatrix()}, casterBytes);
 			var prims = meshes.valueAt(k).primitives;
 			// (a skinned mesh: drawn by the skinning's shadow pipeline, its joints bound)
@@ -167,6 +174,7 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 				enc.setUniforms(slots[0], casterBytes);
 				skins.bind(enc, slots, n);
 				for (p in prims) {
+					if (!p.material.castShadows) continue;
 					enc.setVertexBuffer(0, p.vertices);
 					enc.setIndexBuffer(p.indices, p.indexFormat);
 					enc.drawIndexed(p.count);
@@ -176,6 +184,7 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 			}
 			enc.setUniforms(0, casterBytes);
 			for (p in prims) {
+				if (!p.material.castShadows) continue;
 				enc.setVertexBuffer(0, p.vertices);
 				enc.setIndexBuffer(p.indices, p.indexFormat);
 				enc.drawIndexed(p.count);

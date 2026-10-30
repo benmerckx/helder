@@ -25,7 +25,7 @@ class Environment implements RenderFeature {
 	// whether it is drawn behind the scene (false: it only lights it)
 	public var background = true;
 
-	final pipeline:Pipeline;
+	var pipeline:Pipeline = cast 0; // (the renderer's, when attached)
 	final quad:Buffer;
 	final sampler:Sampler;
 	final bytes = Bytes.alloc(EnvironmentShader.uniforms[0].size);
@@ -38,7 +38,6 @@ class Environment implements RenderFeature {
 		while ((1 << (l + 1)) <= width)
 			l++;
 		levels = l;
-		pipeline = device.createPipeline(EnvironmentShader.pipeline());
 		var v = EnvironmentShader.vertexBytes([
 			{pos: new helder.gfx.shader.Vec2(-1, -1)}, {pos: new helder.gfx.shader.Vec2(1, -1)}, {pos: new helder.gfx.shader.Vec2(-1, 1)},
 			{pos: new helder.gfx.shader.Vec2(-1, 1)}, {pos: new helder.gfx.shader.Vec2(1, -1)}, {pos: new helder.gfx.shader.Vec2(1, 1)}
@@ -56,6 +55,7 @@ class Environment implements RenderFeature {
 	}
 
 	public function attach(renderer:Renderer) {
+		pipeline = renderer.createPipeline(EnvironmentShader.pipeline());
 		@:privateAccess renderer.environment = this;
 		renderer.inject(BeforeOpaque, (enc, frame) -> if (background) draw(enc, frame, renderer));
 	}

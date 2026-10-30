@@ -18,7 +18,7 @@ import helder.scene.render.ParticleShader;
 // from its own seed.
 class Particles implements RenderFeature {
 	final device:Device;
-	final pipeline:Pipeline;
+	var pipeline:Pipeline = cast 0; // (the renderer's, when attached)
 	final quad:Buffer;
 	final indices:Buffer;
 	final viewBytes = Bytes.alloc(ParticleShader.uniforms[0].size);
@@ -37,9 +37,6 @@ class Particles implements RenderFeature {
 
 	public function new(device:Device) {
 		this.device = device;
-		var d = ParticleShader.pipeline({blend: Additive, depthCompare: Less, depthWrite: false});
-		d.layout = LAYOUT;
-		pipeline = device.createPipeline(d);
 		var q = Bytes.alloc(32);
 		var c = [-1.0, -1, 1, -1, 1, 1, -1, 1];
 		for (k in 0...8)
@@ -52,8 +49,12 @@ class Particles implements RenderFeature {
 		indices = device.createBuffer({size: 12, usage: Index, data: ib});
 	}
 
-	public function attach(renderer:Renderer)
+	public function attach(renderer:Renderer) {
+		var d = ParticleShader.pipeline({blend: Additive, depthCompare: Less, depthWrite: false});
+		d.layout = LAYOUT;
+		pipeline = renderer.createPipeline(d);
 		renderer.inject(AfterOpaque, (enc, frame) -> draw(enc, frame));
+	}
 
 	// every emitter of world, dt seconds on
 	public static function update(world:World, dt:Float) {

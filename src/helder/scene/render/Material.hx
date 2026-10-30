@@ -33,10 +33,15 @@ class Material {
 	// how its textures are read (null: the renderer's: linear, mip-mapped,
 	// repeating; glTF's samplers otherwise)
 	public var sampler:Null<helder.gfx.Sampler>;
-	// see-through (glTF's alphaMode BLEND): blended over what is behind by
-	// the base colour's alpha, drawn after the opaque surfaces, farthest
-	// first, without writing depth
+	// see-through (glTF's alphaMode BLEND): blended over what is behind,
+	// drawn after the opaque surfaces, farthest first, without writing depth
 	public var blend = false;
+	// how, when blend is on: by the base colour's alpha (Alpha), added to
+	// what is behind (Additive: glows, holograms, beams), or premultiplied
+	public var blending:helder.gfx.Blend = Alpha;
+	// whether it casts a shadow (Shadows: its primitives drawn into the map,
+	// their meshes inside the map's bounds); off for glows and glass
+	public var castShadows = true;
 
 	public function new(?name:String, ?baseColor:Vec4, metallic = 0.0, roughness = 0.5, ?emissive:Vec3, doubleSided = false) {
 		this.name = name != null ? name : "";
