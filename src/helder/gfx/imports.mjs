@@ -553,8 +553,9 @@ export default async function (host) {
 			// offscreen: nothing presents it, read back at any time)
 			const g = c.getContext('webgl2', { antialias: !offscreen && !!(host.options.antialias ?? antialias), alpha: false, depth: true, preserveDrawingBuffer: offscreen });
 			if (!g) return 0;
-			// (RGBA16F and R32F render targets)
-			g.getExtension('EXT_color_buffer_float');
+			// (RGBA16F and R32F render targets; RGBA16F alone where only half
+			// floats are: some phones' WebGL2)
+			if (!g.getExtension('EXT_color_buffer_float')) g.getExtension('EXT_color_buffer_half_float');
 			contexts.push(g);
 			if (!offscreen) c.addEventListener('webglcontextlost', () => lost('the WebGL2 context was lost'));
 			host.gfx.backend = 'webgl2';

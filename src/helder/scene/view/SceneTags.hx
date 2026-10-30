@@ -48,6 +48,7 @@ class SceneTags {
 		?style:Dynamic,
 		?animate:Bool,
 		?antialias:Bool,
+		?hdr:Bool,
 		?setup:Renderer->Void,
 		?ref:SceneBox->Void,
 		?children:SceneView
@@ -55,6 +56,7 @@ class SceneTags {
 		var box = new SceneBox(props.world ?? new World("scene"), props.camera);
 		if (props.animate != null) box.animate = props.animate;
 		if (props.antialias != null) box.antialias = props.antialias;
+		if (props.hdr != null) box.hdr = props.hdr;
 		if (props.setup != null) box.onRenderer = props.setup;
 		if (props.grow != null) NodeRenderer.setProperty(box, "grow", props.grow);
 		if (props.width != null) bind(box, "width", props.width);

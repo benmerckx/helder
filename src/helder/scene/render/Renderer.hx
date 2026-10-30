@@ -110,11 +110,23 @@ class Renderer {
 	// offscreen: the targets' samples a pixel (4: multisampled, drawInto's
 	// color and depth made with samples: 4, the colour resolved by the pass)
 	public final samples:Int;
+	// offscreen: drawn in linear light into half-float targets (RGBA16F:
+	// light brighter than white kept), tone mapped after by a PostProcess
+	// (a <Scene>'s box runs post's); false: tone mapped and encoded by the
+	// shaders themselves into RGBA8
+	public final hdr:Bool;
+	// the colour targets' format: RGBA16F with hdr, else RGBA8
+	public final colorFormat:TextureFormat;
+	// hdr: what turns the frame into the 8-bit image shown (bloom, tone
+	// mapping, grading); a <Scene>'s box makes one when there is none
+	public var post:Null<PostProcess> = null;
 
-	public function new(device:Device, offscreen = false, samples = 1) {
+	public function new(device:Device, offscreen = false, samples = 1, hdr = false) {
 		this.device = device;
 		this.offscreen = offscreen;
 		this.samples = offscreen ? samples : 1;
+		this.hdr = offscreen && hdr;
+		colorFormat = this.hdr ? RGBA16F : RGBA8;
 		pipeline = create(PbrShader.pipeline({cull: Back, depthCompare: Less, depthWrite: true}));
 		doubleSided = create(PbrShader.pipeline({cull: None, depthCompare: Less, depthWrite: true}));
 		for (cull in [helder.gfx.Cull.Back, helder.gfx.Cull.None]) {
@@ -143,14 +155,14 @@ class Renderer {
 
 	function create(d:PipelineDesc):Pipeline {
 		if (offscreen) {
-			d.colorFormat = RGBA8;
+			d.colorFormat = colorFormat;
 			d.depthFormat = Depth32F;
 			d.samples = samples;
 		}
 		return device.createPipeline(d);
 	}
 
-	// draw into color (RGBA8, a render target) and depth (Depth32F, its size), an offscreen renderer's
+	// draw into color (colorFormat, a render target) and depth (Depth32F, its size), an offscreen renderer's
 	// (multisampled, samples > 1: color and depth of those samples, color
 	// resolved into resolve, a single-sampled RGBA8 render target)
 	public function drawInto(enc:Encoder, world:World, camera:Camera, color:Texture, depth:Texture, width:Int, height:Int, ?resolve:Texture) {
@@ -195,6 +207,7 @@ class Renderer {
 		frame.viewProj = viewProj;
 		frame.eye = camera.eye();
 		frame.toLight = toLight;
+		frame.hdr = hdr;
 		if (shadowSource != null) {
 			shadowSource.render(enc, world, toLight, skinSource, frame);
 			writeFrame(world, camera, viewProj, true);
@@ -308,7 +321,7 @@ class Renderer {
 			lightColor: new Vec4(c.x, c.y, c.z, 0),
 			sky: new Vec4(sky.x, sky.y, sky.z, 0),
 			ground: new Vec4(ground.x, ground.y, ground.z, 0),
-			exposure: new Vec4(exposure, 0, 0, 0),
+			exposure: new Vec4(exposure, hdr ? 1 : 0, 0, 0),
 			lightViewProj: lightViewProj,
 			shadow: shadow,
 			point0: pointLights[0],
@@ -513,6 +526,8 @@ class Renderer {
 	}
 
 	public function dispose() {
+		if (post != null) post.dispose();
+		post = null;
 		device.destroyTexture(white);
 		device.destroyTexture(noShadow);
 		if (instanceCapacity > 0) device.destroyBuffer(instanceBuffer);
@@ -535,6 +550,9 @@ class FrameInfo {
 	public var eye:Vec3 = new Vec3(0, 0, 0);
 	// towards the light (the world's sun or the renderer's)
 	public var toLight:Vec3 = new Vec3(0, 1, 0);
+	// whether the target is the renderer's HDR one (linear light, RGBA16F:
+	// PbrShader.output)
+	public var hdr = false;
 
 	public function new() {}
 }

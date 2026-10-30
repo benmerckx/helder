@@ -706,6 +706,12 @@ fix.
 - **Compressed textures**: ETC2 and ASTC on mobile (and BC on desktop),
   chosen per target by the asset step.
 - **MSAA** render targets in gfx.
+- **HDR and a post-process chain** (*landed*, src/helder/scene/README.md):
+  scenes in linear light into half-float targets (RGBA16F on every back
+  end; WebGL2 with EXT_color_buffer_float or _half_float),
+  `helder.scene.render.PostProcess`: physically based bloom (a chain of
+  half-sized targets down and up, as Call of Duty: AW and Unity's HDRP),
+  ACES or AgX, a grade, a vignette, grain; `<Scene hdr>`.
 - **The 3D API close to three.js** (see Aims), after a study of three.js,
   Babylon.js, PlayCanvas, Godot and Bevy.
 - **The scene in view's markup**, react-three-fiber's model on

@@ -12,7 +12,7 @@ import helder.scene.render.SkyShader;
 @:structInit @:publicFields class EnvironmentParams {
 	var invViewProj:Mat4;
 	var eye:Vec4;
-	var params:Vec4; // x: intensity times exposure
+	var params:Vec4; // x: intensity times exposure, y: 1 into an HDR target
 }
 
 class EnvironmentShader implements Shaders {
@@ -23,7 +23,7 @@ class EnvironmentShader implements Shaders {
 		var far = env.invViewProj * vec4(i.ndc, 1, 1);
 		var d = normalize(far.xyz / far.w - env.eye.xyz);
 		var color = pow(sampleLevel(environmentMap, equirect(d), 0).xyz, vec3(2.2)) * env.params.x;
-		return vec4(PbrShader.encode(PbrShader.aces(color)), 1);
+		return vec4(PbrShader.output(color, env.params.y), 1);
 	}
 
 	// a unit direction's place in an equirectangular map (-z at its centre,

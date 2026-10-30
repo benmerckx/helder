@@ -22,7 +22,7 @@ import helder.gfx.shader.ShaderMath.*;
 
 @:structInit @:publicFields class ParticleView {
 	var viewProj:Mat4;
-	var right:Vec4; // the camera's right and up in the world
+	var right:Vec4; // the camera's right and up in the world (right.w: 1 into an HDR target)
 	var up:Vec4;
 }
 
@@ -32,9 +32,9 @@ class ParticleShader implements Shaders {
 		return {clip: view.viewProj * vec4(p, 1), corner: v.corner, color: v.color};
 	}
 
-	@:fragment static function fs(i:ParticleVaryings):Vec4 {
+	@:fragment static function fs(i:ParticleVaryings, view:ParticleView):Vec4 {
 		var d = 1 - smoothstep(0.2, 1, length(i.corner));
 		var c = i.color.xyz * (i.color.w * d);
-		return vec4(PbrShader.encode(PbrShader.aces(c)), 1);
+		return vec4(PbrShader.output(c, view.right.w), 1);
 	}
 }

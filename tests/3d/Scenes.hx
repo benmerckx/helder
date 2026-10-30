@@ -25,6 +25,9 @@ import helder.scene.render.*;
 //            tangents): skin.png's and normals.png's frames
 //   cascades two shadow cascades over a long street of pillars: sharp near
 //            the camera, the whole street's map beyond
+//   bloom    emissive spheres and a bar far brighter than white, drawn in
+//            HDR (Renderer.hdr: RGBA16F) and through a PostProcess: bloom
+//            down and up its chain, ACES, a grade and a vignette
 //   environment  spheres from mirror to rough, metal and not, lit by an
 //            environment map (Environment) drawn behind them
 //   morph    the morph sample's targets played by its animation at 1.5 s
@@ -39,7 +42,7 @@ import helder.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -414,6 +417,42 @@ class Scenes {
 				enc -> {
 					Assets.poll();
 					r.draw(enc, world, camera);
+				};
+			case "bloom":
+				// (an HDR renderer's targets: the scene in half floats, then the post into the frame)
+				var r = new Renderer(device, true, 1, true);
+				renderer = r;
+				r.sunColor = new Vec3(1.2, 1.15, 1.1);
+				r.sky = new Vec3(0.04, 0.05, 0.08);
+				r.ground = new Vec3(0.02, 0.02, 0.02);
+				r.clearColor = new Color(0.01, 0.012, 0.02, 1);
+				var post = new PostProcess(device, RGBA8, true);
+				post.bloom = 0.08;
+				post.vignette = 0.3;
+				post.saturation = 1.1;
+				var world = new World();
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, -0.6, 0);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new helder.gfx.shader.Vec4(0.25, 0.25, 0.28, 1), 0, 0.5), 8));
+				var lights = [new Vec3(8, 2.4, 0.6), new Vec3(0.4, 2.2, 6), new Vec3(1.2, 1.2, 1.2)];
+				for (k in 0...3) {
+					var n = world.node("lamp" + k);
+					n.position = new Vec3(-1.6 + k * 1.6, 0, 0);
+					MeshRenderer.attach(n, Shapes.sphere(device, new Material("lamp" + k, new helder.gfx.shader.Vec4(0.1, 0.1, 0.1, 1), 0, 0.5, lights[k]), 0.4, 32, 16));
+				}
+				var bar = world.node("bar");
+				bar.position = new Vec3(0, 1, -1);
+				MeshRenderer.attach(bar, Shapes.box(device, new Material("bar", new helder.gfx.shader.Vec4(0, 0, 0, 1), 0, 1, new Vec3(20, 14, 6)), 3.2, 0.06, 0.06));
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 0.8, 5);
+				eye.lookAt(new Vec3(0, 0.2, 0));
+				var w = device.width, h = device.height;
+				var light = device.createTexture({width: w, height: h, format: RGBA16F, renderTarget: true});
+				var depth = device.createTexture({width: w, height: h, format: Depth32F});
+				enc -> {
+					r.drawInto(enc, world, camera, light, depth, w, h);
+					post.run(enc, light, null, w, h);
 				};
 			case "particles":
 				// two emitters (a fountain of sparks, a plume) over a floor, at STEPS fixed steps

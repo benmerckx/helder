@@ -24,7 +24,7 @@ import helder.gfx.shader.ShaderMath.*;
 	var horizon:Vec4;
 	var ground:Vec4;
 	var sun:Vec4; // xyz: towards the sun; w: exposure
-	var sunColor:Vec4;
+	var sunColor:Vec4; // w: 1 into an HDR target (PbrShader.output)
 }
 
 class SkyShader implements Shaders {
@@ -40,6 +40,6 @@ class SkyShader implements Shaders {
 		var color = up > 0 ? above : below;
 		var s = max(dot(d, sky.sun.xyz), 0);
 		color += sky.sunColor.xyz * (pow(s, 600) * 8 + pow(s, 12) * 0.25);
-		return vec4(PbrShader.encode(PbrShader.aces(color * sky.sun.w)), 1);
+		return vec4(PbrShader.output(color * sky.sun.w, sky.sunColor.w), 1);
 	}
 }

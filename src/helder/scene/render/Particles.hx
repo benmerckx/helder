@@ -71,7 +71,7 @@ class Particles implements RenderFeature {
 		// (the camera's right and up: its node's world axes)
 		var m = frame.camera.node.worldMatrix();
 		var right = MathTools.transformDir(m, new Vec3(1, 0, 0)), up = MathTools.transformDir(m, new Vec3(0, 1, 0));
-		ParticleShader.writeParticleView({viewProj: frame.viewProj, right: new Vec4(right.x, right.y, right.z, 0), up: new Vec4(up.x, up.y, up.z, 0)},
+		ParticleShader.writeParticleView({viewProj: frame.viewProj, right: new Vec4(right.x, right.y, right.z, frame.hdr ? 1 : 0), up: new Vec4(up.x, up.y, up.z, 0)},
 			viewBytes);
 		// (all emitters' particles in one buffer: gfx writes buffers at once, ahead of the frame's commands)
 		var total = 0;

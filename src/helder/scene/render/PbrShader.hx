@@ -33,7 +33,7 @@ import helder.gfx.shader.ShaderMath.*;
 	var lightColor:Vec4; // rgb: colour times intensity
 	var sky:Vec4; // the ambient from above, rgb
 	var ground:Vec4; // the ambient from below, rgb
-	var exposure:Vec4; // x: exposure
+	var exposure:Vec4; // x: exposure; y: 1 for a linear, HDR target (Renderer.hdr: tone mapped later, PostProcess)
 	var lightViewProj:Mat4; // the shadow map's view-projection (Shadows)
 	var shadow:Vec4; // x: strength (0: no shadows), y: bias, z: a texel of the map
 	// up to four point lights: position (w: range, 0 for none), colour times intensity
@@ -135,7 +135,7 @@ class PbrShader implements Shaders {
 		var ambient = (irradiance * base * (1 - metallic) + specularAmbient) * occlusion;
 		var emitted = material.emissive.xyz * pow(sample(emissiveTexture, uv).xyz, vec3(2.2));
 		var color = (direct + ambient + emitted) * frame.exposure.x;
-		return vec4(encode(aces(color)), material.baseColor.w * texel.w);
+		return vec4(output(color, frame.exposure.y), material.baseColor.w * texel.w);
 	}
 
 	// the light reflected towards v from a unit light along l, times n.l:
@@ -210,9 +210,31 @@ class PbrShader implements Shaders {
 	static function tap(map:Texture2D, uv:Vec2, depth:Float, dx:Float, dy:Float):Float
 		return step(depth, sampleLevel(map, uv + vec2(dx, dy), 0).x);
 
+	// a colour in linear light as the target takes it: as it is into an HDR
+	// target (hdr 1: a half-float one, tone mapped by a PostProcess), else
+	// tone mapped and encoded for an 8-bit one (the shaders that draw into
+	// a Renderer's targets end with it)
+	public static function output(c:Vec3, hdr:Float):Vec3 {
+		var result = c;
+		if (hdr < 0.5) result = encode(aces(c));
+		return result;
+	}
+
 	// ACES filmic tone mapping (Narkowicz's fit), to 0..1
 	public static function aces(x:Vec3):Vec3
 		return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0, 1);
+
+	// a display colour's light (0..1, encoded as encode's) in an HDR target:
+	// what aces and encode turn back into it (Narkowicz's curve solved for
+	// x), so an image made for the display (a painted backdrop, a ui's
+	// colour) looks as it did once a PostProcess tone maps with Aces
+	public static function unaces(display:Vec3):Vec3 {
+		var y = clamp(pow(display, vec3(2.2)), 0, 0.985);
+		var a = 2.43 * y - 2.51;
+		var b = 0.59 * y - 0.03;
+		var c = 0.14 * y;
+		return (-b - sqrt(max(b * b - 4 * a * c, vec3(0)))) / (2 * a);
+	}
 
 	// linear to sRGB (the 2.2 power: the frame's format is not an sRGB one)
 	public static function encode(c:Vec3):Vec3

@@ -35,7 +35,15 @@ class SceneBox extends helder.ui.Node {
 	// its world drawn multisampled, 4 samples a pixel, resolved into the
 	// texture ui draws (false: one sample; set before it is first drawn)
 	public var antialias = true;
+	// its world drawn in linear light into a half-float target (RGBA16F),
+	// then through its renderer's post (a PostProcess: bloom, tone mapping,
+	// grading; one made when it has none) into the texture ui draws; false:
+	// tone mapped by the shaders into RGBA8. A GPU that cannot draw into
+	// half floats: said once, then false (set before it is first drawn)
+	public var hdr = false;
 	var color:Null<Texture>;
+	// (hdr: the scene's linear light, the multisampled colour's resolve or the pass's own target)
+	var light:Null<Texture>;
 	var depth:Null<Texture>;
 	// (antialias: the multisampled colour the pass draws into, resolved into color)
 	var multi:Null<Texture>;
@@ -169,6 +177,7 @@ class SceneBox extends helder.ui.Node {
 		boxes.remove(this);
 		if (device != null) {
 			if (color != null) device.destroyTexture(color);
+			if (light != null) device.destroyTexture(light);
 			if (depth != null) device.destroyTexture(depth);
 			if (multi != null) device.destroyTexture(multi);
 			for (t in retired)
@@ -177,7 +186,7 @@ class SceneBox extends helder.ui.Node {
 			retiredAt.resize(0);
 			renderer.dispose();
 		}
-		color = depth = multi = null;
+		color = depth = multi = light = null;
 		renderer = null;
 	}
 
@@ -236,21 +245,23 @@ class SceneBox extends helder.ui.Node {
 		var pw = Std.int(Math.max(1, Math.round(width * r.scale))), ph = Std.int(Math.max(1, Math.round(height * r.scale)));
 		if (renderer == null) {
 			device = r.device;
-			renderer = new Renderer(r.device, true, antialias ? 4 : 1);
+			renderer = new Renderer(r.device, true, antialias ? 4 : 1, hdr);
 			if (SceneRenderer.device == null) SceneRenderer.device = r.device;
 			if (onRenderer != null) onRenderer(renderer);
+			if (renderer.hdr && renderer.post == null) renderer.post = new helder.scene.render.PostProcess(r.device);
 		}
 		// (the textures a resize replaced in an earlier frame: no pass left reading them)
 		if (pw != tw || ph != th) {
-			for (t in [color, depth, multi])
+			for (t in [color, depth, multi, light])
 				if (t != null) {
 					retired.push(t);
 					retiredAt.push(records);
 				}
-			var samples = renderer.samples;
+			var samples = renderer.samples, format = renderer.colorFormat;
 			color = device.createTexture({width: pw, height: ph, renderTarget: true});
+			light = renderer.hdr ? device.createTexture({width: pw, height: ph, format: RGBA16F, renderTarget: true}) : null;
 			depth = device.createTexture({width: pw, height: ph, format: Depth32F, samples: samples});
-			multi = samples > 1 ? device.createTexture({width: pw, height: ph, renderTarget: true, samples: samples}) : null;
+			multi = samples > 1 ? device.createTexture({width: pw, height: ph, format: format, renderTarget: true, samples: samples}) : null;
 			tw = pw;
 			th = ph;
 		}
@@ -275,19 +286,30 @@ class SceneBox extends helder.ui.Node {
 
 	function record(enc:helder.gfx.Encoder) {
 		records++;
-		var sr = renderer, c = color, d = depth, m = multi;
+		var sr = renderer, c = color, d = depth, m = multi, l = light;
 		if (sr == null || c == null || d == null) return;
-		if (m == null) {
+		// (hdr: the scene into its light, then the post into the colour ui draws)
+		var target = l != null ? l : c;
+		if (m == null && l == null) {
 			sr.drawInto(enc, world, view(), c, d, tw, th);
 			return;
 		}
-		// (a GPU without the multisampled targets: said, then one sample, its renderer made again: onRenderer called again)
-		try sr.drawInto(enc, world, view(), m, d, tw, th, c) catch (e:Dynamic) {
-			Sys.println("helder.scene: <Scene> multisampled failed (" + Std.string(e) + "), drawn with one sample");
-			antialias = false;
-			for (t in [color, depth, multi])
+		// (a GPU without multisampled or half-float targets: said, then one
+		// sample or 8 bits, its renderer made again: onRenderer called again)
+		try {
+			if (m != null) sr.drawInto(enc, world, view(), m, d, tw, th, target) else sr.drawInto(enc, world, view(), target, d, tw, th);
+			if (l != null && sr.post != null) sr.post.run(enc, l, c, tw, th, helder.ui.Ui.now());
+		} catch (e:Dynamic) {
+			if (l != null) {
+				Sys.println("helder.scene: <Scene> in half floats failed (" + Std.string(e) + "), drawn in 8 bits");
+				hdr = false;
+			} else {
+				Sys.println("helder.scene: <Scene> multisampled failed (" + Std.string(e) + "), drawn with one sample");
+				antialias = false;
+			}
+			for (t in [color, depth, multi, light])
 				if (t != null) device.destroyTexture(t);
-			color = depth = multi = null;
+			color = depth = multi = light = null;
 			tw = th = 0;
 			sr.dispose();
 			renderer = null;

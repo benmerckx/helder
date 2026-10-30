@@ -3,7 +3,9 @@ package helder.gfx;
 // The formats every back end has (GL ES 3.0, Metal, D3D11, WebGPU). Each
 // can be sampled and be a pass's target (TextureDesc.renderTarget; GL:
 // RGBA16F and R32F need EXT_color_buffer_float, which Mesa, ANGLE and
-// Android's drivers have; WebGL2 enables it). R32F and the depth formats
+// most Android drivers have, or for RGBA16F EXT_color_buffer_half_float;
+// WebGL2 enables either; without them a pass into one throws, which
+// helder.scene's <Scene> takes as its cue to draw in 8 bits). R32F and the depth formats
 // are not filterable everywhere (GL ES, WebGPU): they are read through a
 // sampler of Nearest filters, and have no generated mip levels. Data
 // (TextureDesc.data, Device.writeTexture) is texelSize bytes a texel, its
