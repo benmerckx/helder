@@ -42,7 +42,7 @@ import helder.scene.render.*;
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -474,6 +474,35 @@ class Scenes {
 					r.drawInto(enc, world, camera, light, depth, w, h);
 					post.run(enc, light, null, w, h);
 				};
+			case "gpuparticles":
+				// GpuParticles over a floor: a burst of sparks as streaks (drag and
+				// gravity), a ring of soft puffs growing, a particle not yet born
+				// and one past its life (neither drawn), at the clock's 0.4 s
+				var fx = new GpuParticles(device, 256);
+				var r = new Renderer(device).use(fx);
+				renderer = r;
+				var world = new World();
+				var floor = world.node("floor");
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new helder.gfx.shader.Vec4(0.3, 0.3, 0.33, 1), 0, 0.8), 8));
+				fx.drag = 1.5;
+				fx.gravity = new Vec3(0, -3, 0);
+				for (k in 0...24) {
+					var a = k * Math.PI * 2 / 24, up = 0.6 + 0.4 * ((k * 7) % 5) / 4;
+					fx.emit(-0.6, 0.6, 0, Math.cos(a) * 3, up * 3, Math.sin(a) * 1.5, 2.0, 1.1, 0.4, 1, 0.03, 0.01, 1.2, 0.08, 1);
+				}
+				for (k in 0...12) {
+					var a = k * Math.PI * 2 / 12;
+					fx.emit(1.0, 0.4, 0, Math.cos(a) * 0.8, Math.sin(a) * 0.8, 0, 0.1, 0.3, 0.9, 1, 0.08, 0.3, 1.5);
+				}
+				fx.emit(0, 1, 0, 0, 0, 0, 5, 5, 5, 1, 0.5, 0.5, 1, 0, 0, 1.0);
+				fx.emit(0, 1, 0, 0, 0, 0, 5, 5, 5, 1, 0.5, 0.5, 0.1);
+				fx.time = 0.4;
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 1.2, 4);
+				eye.lookAt(new Vec3(0, 0.4, 0));
+				probe = () -> fx.pending == 0 ? null : '${fx.pending} particles not uploaded';
+				enc -> r.draw(enc, world, camera);
 			case "particles":
 				// two emitters (a fountain of sparks, a plume) over a floor, at STEPS fixed steps
 				var r = new Renderer(device).use(new Particles(device));
