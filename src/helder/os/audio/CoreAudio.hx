@@ -72,6 +72,7 @@ class CA {
 	// four-character codes
 	public static inline var kAudioUnitType_Output = 0x61756f75; // auou
 	public static inline var kAudioUnitSubType_DefaultOutput = 0x64656620; // def
+	public static inline var kAudioUnitSubType_RemoteIO = 0x72696f63; // rioc
 	public static inline var kAudioUnitSubType_GenericOutput = 0x67656e72; // genr
 	public static inline var kAudioUnitManufacturer_Apple = 0x6170706c; // appl
 	public static inline var kAudioFormatLinearPCM = 0x6c70636d; // lpcm

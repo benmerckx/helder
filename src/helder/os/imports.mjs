@@ -41,7 +41,8 @@
 // many as `ahead`), copies it and posts it: the module stays at most
 // `ahead` frames ahead of the output. Browsers start an AudioContext only
 // after a user gesture: one made before is resumed on the page's next click
-// or key. The option audioContext, a function (sampleRate, channels) =>
+// or key. A hidden page (visibilitychange) suspends its contexts until it
+// shows again. The option audioContext, a function (sampleRate, channels) =>
 // context, gives another context: an OfflineAudioContext (tests), whose
 // whole length start fills at once; its promise hxmcReady resolves once the
 // node is connected and has those chunks (then startRendering).
@@ -132,7 +133,10 @@ export default function (host) {
 		for (const c of host.os.canvases) host.keep(c);
 		host.os.stop();
 		for (const a of [...outputs]) hxmc_os.audio_close(a.handle);
-		if (resumes) for (const t of ['pointerdown', 'keydown']) document.removeEventListener(t, resume, { capture: true });
+		if (resumes) {
+			for (const t of ['pointerdown', 'keydown']) document.removeEventListener(t, resume, { capture: true });
+			document.removeEventListener('visibilitychange', visibility);
+		}
 		cancelAnimationFrame(frameId);
 	});
 	host.os = {
@@ -421,7 +425,14 @@ export default function (host) {
 		}
 	}
 	const resume = () => {
+		if (document.hidden) return;
 		for (const a of outputs) if (a.running && a.ctx.state === 'suspended') a.ctx.resume();
+	};
+	// (the page hidden: a tab in the background, a phone's browser left, its
+	// screen off; its outputs' contexts suspended, resumed when it shows again)
+	const visibility = () => {
+		if (!document.hidden) return resume();
+		for (const a of outputs) if (!a.offline && a.ctx.state === 'running') a.ctx.suspend();
 	};
 	const outputs = new Set();
 	let resumes = false;
@@ -460,6 +471,7 @@ export default function (host) {
 			if (!offline && !resumes) {
 				resumes = true;
 				for (const t of ['pointerdown', 'keydown']) document.addEventListener(t, resume, { capture: true });
+				document.addEventListener('visibilitychange', visibility);
 			}
 			outputs.add(a);
 			return h;

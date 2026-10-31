@@ -46,7 +46,8 @@ class CoreAudioOutput {
 		this.owner = owner;
 		path = device != null && StringTools.startsWith(device, "file:") ? device.substr(5) : null;
 		if (device != null && path == null) throw "helder.os.audio: CoreAudio plays on the default output only (device " + device + ")";
-		if (path == null) {
+		// (iOS: RemoteIO, the session's route; its category first)
+		if (Mem.platform() >= 1) AudioSession.setup(owner.session, owner.sampleRate, owner.frames) else if (path == null) {
 			// (no default device: a Mac mini without speakers, a CI runner)
 			var id = Arena.scopedValue(a -> {
 				var addr = a.make(AudioObjectPropertyAddress);
@@ -74,7 +75,7 @@ class CoreAudioOutput {
 		Arena.scoped(a -> {
 			var desc = a.make(AudioComponentDescription);
 			desc.value.componentType = CA.kAudioUnitType_Output;
-			desc.value.componentSubType = path == null ? CA.kAudioUnitSubType_DefaultOutput : CA.kAudioUnitSubType_GenericOutput;
+			desc.value.componentSubType = path != null ? CA.kAudioUnitSubType_GenericOutput : Mem.platform() >= 1 ? CA.kAudioUnitSubType_RemoteIO : CA.kAudioUnitSubType_DefaultOutput;
 			desc.value.componentManufacturer = CA.kAudioUnitManufacturer_Apple;
 			var component = AudioToolbox.AudioComponentFindNext(Ptr.nil(), desc);
 			if (component.isNull()) fail("no output unit (AudioComponentFindNext)");

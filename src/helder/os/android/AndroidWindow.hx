@@ -263,10 +263,12 @@ class AndroidWindow {
 				log("command: pause", window);
 				paused = true;
 				Activity.acknowledge();
+				if (AppAudio.hold != null) AppAudio.hold(true);
 			case Activity.RESUME:
 				log("command: resume", window);
 				paused = false;
 				Activity.acknowledge();
+				if (AppAudio.hold != null) AppAudio.hold(false);
 			case Activity.GONE:
 				// (its window and input queue went before: commands of their own)
 				log("command: activity gone, not finishing", window);

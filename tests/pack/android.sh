@@ -58,6 +58,16 @@ while IFS= read -r l; do
 	check "assets: $l" $?
 done < tests/asset/checksum.txt
 
+# Audio (tests/pack/AudioCheck.hx): an AAudio output opened, a tone for
+# two seconds, its line from logcat: "audio: started" when the device
+# pulled half a second's worth or more (the mix's and AAudio's callbacks counted).
+adb uninstall org.helder.audiocheck > /dev/null 2>&1
+"$helder" run tests/pack/AudioCheck.hx --target android > "$out/audio.txt" 2>&1
+check "helder run tests/pack/AudioCheck.hx" $?
+grep "audio:" "$out/audio.txt"
+grep -q "audio: started" "$out/audio.txt"
+check "audio: the stream started (AAudio's callbacks)" $?
+
 # The screen (tests/pack/Screen.hx, for the emulator's ABI): started
 # upright, its window, safe area and the display's frames, the bars hidden;
 # then turned (user_rotation 1, the sensor off), sent to the background

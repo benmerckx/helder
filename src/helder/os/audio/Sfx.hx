@@ -7,8 +7,8 @@ import hxmc.unsafe.*;
 // samples (mono, at the output's rate: Sfx.RATE), a gain and a rate (pitch).
 // The sounds are made up front (procedurally, or a WAV file decoded by
 // Wav: `sfx.add(Wav.decode(bytes).mono(Sfx.RATE))`), play only sets a voice's fields, and the mix allocates
-// nothing on the audio thread. Where there is no output (Android and iOS:
-// no back end yet; a machine without a device) it plays nothing.
+// nothing on the audio thread. Where there is no output (a machine without
+// a device) it plays nothing.
 //
 //   var sfx = Sfx.open();
 //   var tock = sfx.add([for (i in 0...4800) Math.sin(i * 0.12) * Math.exp(-i / 600)]);
@@ -36,8 +36,7 @@ class Sfx {
 
 	function new(output:Bool, ?device:String) {
 		var o:Null<Audio> = null;
-		// (no back end on phones yet; constant conditions alone, first, drop the branch from their builds)
-		if (Mem.platform() >= 1) {} else if (Mem.target() >= 9) {} else if (output)
+		if (output)
 			o = try Audio.open({sampleRate: RATE, channels: 2, frames: 512, device: device}, mix) catch (_:Dynamic) null;
 		out = o;
 		playing = o != null || !output;

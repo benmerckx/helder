@@ -245,8 +245,8 @@ out.sampleRate; out.channels; out.frames; out.latency; // as the system gave the
 `examples/tone/Tone.hx` plays a 440 Hz sine for two seconds. Short
 effects: `Sfx.open()` mixes one-shots made up front (`add(samples)`, mono
 at `Sfx.RATE`) on a few voices, `play(id, gain, rate)` from the main
-thread, nothing allocated on the audio thread (`Sfx.test.hx`; silent on
-Android and iOS, which have no back end yet; examples/golf's sounds). `frames` is a hint:
+thread, nothing allocated on the audio thread (`Sfx.test.hx`;
+examples/golf's sounds). `frames` is a hint:
 `out.frames` is the most frames a callback is asked for (the system's
 period or buffer), `out.latency` the seconds from a callback's samples to
 the output, as the system reports them.
@@ -255,8 +255,20 @@ the output, as the system reports them.
 | --- | --- | --- |
 | Linux | ALSA (`libasound.so.2`, loaded with `dlopen` when an output opens: the glibc mode), the `default` PCM (PipeWire's or PulseAudio's plugin on most desktops), floats through ALSA's plug layer | ours: pulls a period, `snd_pcm_writei` (blocks while ALSA's buffer is full) |
 | macOS | CoreAudio's default output unit (AudioToolbox) | ours: fills a ring in native memory; CoreAudio's I/O thread runs a `@:hxmc.noGc` render callback that copies from it |
+| iOS | RemoteIO (an AudioUnit of AudioToolbox), after AVAudioSession's category (`session`: `"ambient"` by default, which the silent switch silences; `"playback"`), its preferred buffer a period | as macOS's: the ring, RemoteIO's render callback copying from it |
+| Android | AAudio (`libaaudio.so`, loaded with `dlopen` when an output opens; API 26+), low-latency, shared, usage game, two bursts of buffer | as macOS's: the ring, AAudio's `@:hxmc.noGc` data callback copying from it and posting a semaphore |
 | Windows | WASAPI, shared mode, event driven (COM through vtables), floats converted by the audio engine | ours: waits for WASAPI's event, fills what the buffer has free |
 | Browser | WebAudio: an AudioWorklet node fed chunks the page posts it | none: the main thread, when the worklet has played a chunk |
+
+Phones: the app's lifecycle holds the outputs (`helder.os.AppAudio`):
+Android's activity paused, or iOS's app in the background, stops the running
+ones, and coming back starts them again (`Audio.held`). On Android a stream
+disconnected (headphones unplugged, a Bluetooth device gone: AAudio's error
+callback) is closed by the audio thread and another opened where the system
+routes now. On iOS an interruption (a call, an alarm:
+AVAudioSessionInterruptionNotification) holds them the same way, and its
+end makes the session active and starts them again. In the browser a hidden
+page suspends its contexts until it shows again.
 
 The callback is ordinary Haxe on one of the runtime's threads, but it runs
 against a deadline: preallocate, do not allocate (that can start a
@@ -290,3 +302,7 @@ one; WASAPI on the default endpoint where there is one, or under Wine
 (`AUDIO_TARGET=windows-x86_64`) through winealsa to an ALSA file.
 `bun run test audio-web` (`tests/os/web.mjs`): headless Chromium, realtime (the
 rate) and an `OfflineAudioContext` (the rendered samples, exact).
+Phones (`tests/pack/AudioCheck.hx`, in CI's emulator and simulator jobs:
+tests/pack/android.sh, ios.sh): an output on AAudio or RemoteIO for two
+seconds, its line counting the callbacks, "audio: started" once the
+device pulled half a second's worth.

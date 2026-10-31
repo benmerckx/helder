@@ -68,6 +68,17 @@ while IFS= read -r l; do
 	check "assets: $l" $?
 done < tests/asset/checksum.txt
 
+# Audio (tests/pack/AudioCheck.hx): a RemoteIO output opened (the
+# session's category ambient), a tone for two seconds, its line: "audio:
+# started" when the device pulled half a second's worth or more.
+"$helder" run tests/pack/AudioCheck.hx --target ios -d "$udid" > "$out/audio.txt" 2>&1
+code=$?
+cat "$out/audio.txt"
+if [ $code != 0 ] && grep -q "audio:" "$out/audio.txt"; then code=0; fi
+check "helder run tests/pack/AudioCheck.hx --target ios" $code
+grep -q "audio: started" "$out/audio.txt"
+check "audio: the stream started (RemoteIO's render callbacks)" $?
+
 # The screen (tests/pack/Screen.hx) on the same simulator: launched with
 # its output here (--console-pty, in the background: <out dir>/screen.txt),
 # its window, safe area and the display's frames, the bars hidden; then the
