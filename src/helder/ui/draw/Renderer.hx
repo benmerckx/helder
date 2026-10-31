@@ -25,10 +25,19 @@ import helder.image.PngDecoder;
 // target's by what remains (a rotation, or a skew), so that edges stay
 // anti-aliased over a pixel; glyphs are rasterized at the scaled size, and
 // read filtered where the transform turns them. A clip pushed under a turning
-// transform clips to its bounds.
+// transform clips to its bounds. Snapped (snap, the default), what is drawn
+// unturned and unscaled lies on the target's pixel grid, as a browser's
+// layout snaps its boxes: a box's edges, a clip's, an image's origin (its
+// size whole pixels), a border's width (at least a pixel), a line of text's
+// origin, a translation's offset, each rounded to a whole device pixel, so
+// that at a fractional scale (a phone's 2.8125) a box or a line of text at
+// rest draws the same pixels wherever its points fall, a moving one steps
+// by whole pixels, and a hairline is not smeared over two.
 class Renderer implements Canvas {
 	public final device:Device;
 	public var scale = 1.0;
+	// whether unturned, unscaled drawing is put on the pixel grid
+	public var snap = true;
 	public final atlas:GlyphAtlas;
 
 	final pipeline:Pipeline;
@@ -97,6 +106,8 @@ class Renderer implements Canvas {
 	var mk = 1.0;
 	var flat = true;
 	var aligned = true;
+	// (on the pixel grid: snapped, and the transform at most a whole-pixel translation)
+	var grid = true;
 	final transforms:Array<Array<Float>> = [];
 
 	static inline var STRIDE = 144; // UiVertex: 36 floats
@@ -143,6 +154,7 @@ class Renderer implements Canvas {
 		ma = md = mk = 1;
 		mb = mc = me = mf = 0;
 		flat = aligned = true;
+		grid = snap;
 		clipX0 = clipY0 = clipR0 = clipR1 = clipR2 = clipR3 = 0;
 		clipX1 = width;
 		clipY1 = height;
@@ -268,6 +280,12 @@ class Renderer implements Canvas {
 		clips.push([clipX0, clipY0, clipX1, clipY1, clipR0, clipR1, clipR2, clipR3]);
 		var k = scale;
 		var x0 = (x + tx) * scale, y0 = (y + ty) * scale, x1 = (x + w + tx) * scale, y1 = (y + h + ty) * scale;
+		if (grid && snap) {
+			x0 = Math.fround(x0);
+			y0 = Math.fround(y0);
+			x1 = Math.fround(x1);
+			y1 = Math.fround(y1);
+		}
 		if (!flat) {
 			// (the transformed corners' bounds)
 			var k = mk, ra = ma / k, rb = mb / k, rc = mc / k, rd = md / k;
@@ -340,8 +358,14 @@ class Renderer implements Canvas {
 		me = e2;
 		mf = f2;
 		mk = Math.sqrt(Math.abs(ma * md - mb * mc));
+		// (a translation alone: by whole pixels, snapped)
+		if (snap && ma == 1 && mb == 0 && mc == 0 && md == 1) {
+			me = Math.fround(me);
+			mf = Math.fround(mf);
+		}
 		flat = ma == 1 && mb == 0 && mc == 0 && md == 1 && me == 0 && mf == 0;
 		aligned = mb == 0 && mc == 0 && ma == md && ma > 0;
+		grid = snap && ma == 1 && mb == 0 && mc == 0 && md == 1;
 	}
 
 	public function popTransform() {
@@ -355,6 +379,7 @@ class Renderer implements Canvas {
 		mk = t[6];
 		flat = t[7] == 1;
 		aligned = t[8] == 1;
+		grid = snap && ma == 1 && mb == 0 && mc == 0 && md == 1;
 	}
 
 	public function pushOpacity(a:Float) {
@@ -394,16 +419,41 @@ class Renderer implements Canvas {
 
 	inline function sides(e:Null<Edges>, width:Float) {
 		var s = scale;
-		qw0 = (e == null ? width : e.top) * s;
-		qw1 = (e == null ? width : e.right) * s;
-		qw2 = (e == null ? width : e.bottom) * s;
-		qw3 = (e == null ? width : e.left) * s;
+		qw0 = side((e == null ? width : e.top) * s);
+		qw1 = side((e == null ? width : e.right) * s);
+		qw2 = side((e == null ? width : e.bottom) * s);
+		qw3 = side((e == null ? width : e.left) * s);
 	}
+
+	// (a border's width on the grid: whole pixels, at least one)
+	inline function side(w:Float):Float
+		return grid && w > 0 ? Math.max(1, Math.fround(w)) : w;
+
+	// (a box's edges on the grid: each rounded, so that boxes side by side stay so)
+	inline function edges(x0:Float, y0:Float, x1:Float, y1:Float) {
+		if (grid) {
+			ex0 = Math.fround(x0);
+			ey0 = Math.fround(y0);
+			ex1 = Math.fround(x1);
+			ey1 = Math.fround(y1);
+		} else {
+			ex0 = x0;
+			ey0 = y0;
+			ex1 = x1;
+			ey1 = y1;
+		}
+	}
+
+	var ex0 = 0.0;
+	var ey0 = 0.0;
+	var ex1 = 0.0;
+	var ey1 = 0.0;
 
 	public function rect(x:Float, y:Float, w:Float, h:Float, radius:Float, fill:Color, borderWidth:Float, border:Color, ?corners:Corners, ?sides:Edges) {
 		if (w <= 0 || h <= 0) return;
 		var s = scale;
-		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		edges((x + tx) * s, (y + ty) * s, (x + w + tx) * s, (y + h + ty) * s);
+		var x0 = ex0, y0 = ey0, x1 = ex1, y1 = ey1;
 		this.corners(corners, radius);
 		fit(x1 - x0, y1 - y0);
 		this.sides(sides, borderWidth);
@@ -418,7 +468,8 @@ class Renderer implements Canvas {
 	public function shadow(x:Float, y:Float, w:Float, h:Float, radius:Float, color:Color, blur:Float, ?corners:Corners, ?offset:Array<Float>) {
 		if (w <= 0 || h <= 0 || color.a == 0) return;
 		var s = scale;
-		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		edges((x + tx) * s, (y + ty) * s, (x + w + tx) * s, (y + h + ty) * s);
+		var x0 = ex0, y0 = ey0, x1 = ex1, y1 = ey1;
 		this.corners(corners, radius);
 		fit(x1 - x0, y1 - y0);
 		// (the box casting it, not shaded: its offset and the spread)
@@ -445,7 +496,8 @@ class Renderer implements Canvas {
 			?corners:Corners) {
 		if (w <= 0 || h <= 0 || color.a == 0) return;
 		var s = scale;
-		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		edges((x + tx) * s, (y + ty) * s, (x + w + tx) * s, (y + h + ty) * s);
+		var x0 = ex0, y0 = ey0, x1 = ex1, y1 = ey1;
 		this.corners(corners, radius);
 		fit(x1 - x0, y1 - y0);
 		qw0 = dx * s;
@@ -486,6 +538,14 @@ class Renderer implements Canvas {
 		if (w <= 0 || h <= 0) return;
 		var s = scale;
 		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		// (on the grid: its origin rounded, its size whole pixels, the same wherever it is)
+		if (grid) {
+			var iw = Math.max(1, Math.fround(x1 - x0)), ih = Math.max(1, Math.fround(y1 - y0));
+			x0 = Math.fround(x0);
+			y0 = Math.fround(y0);
+			x1 = x0 + iw;
+			y1 = y0 + ih;
+		}
 		this.corners(corners, radius);
 		fit(x1 - x0, y1 - y0);
 		sides(null, 0);
@@ -504,7 +564,8 @@ class Renderer implements Canvas {
 		if (w <= 0 || h <= 0 || id >= 0) return;
 		gpu.set(id, t);
 		var s = scale;
-		var x0 = (x + tx) * s, y0 = (y + ty) * s, x1 = (x + w + tx) * s, y1 = (y + h + ty) * s;
+		edges((x + tx) * s, (y + ty) * s, (x + w + tx) * s, (y + h + ty) * s);
+		var x0 = ex0, y0 = ey0, x1 = ex1, y1 = ey1;
 		this.corners(corners, radius);
 		fit(x1 - x0, y1 - y0);
 		sides(null, 0);
@@ -546,12 +607,15 @@ class Renderer implements Canvas {
 				case _: 0.0;
 			}
 			var by = Math.round((oy + l.top + l.baseline) * s + (flat ? 0 : mf - Std.int(mf)));
+			// (the line's origin on the grid: its glyphs placed from a whole pixel)
+			var lineX = (ox + lx) * s;
+			if (grid) lineX = Math.fround(lineX);
 			if (flat && (by - size * 1.5 - reach > clipY1 || by + size + reach < clipY0)) continue;
 			for (i in l.glyphStart...l.glyphEnd) {
 				var c = t.glyphChar(i);
 				if (c == 32 || c == 10 || c == 9 || t.glyphHidden(i)) continue;
 				var id = t.glyphId(i), run = t.glyphRun(i);
-				var gx = (ox + lx + t.glyphX(i) + t.glyphOffsetX(i)) * s, gy = by + Math.round(t.glyphOffsetY(i) * s);
+				var gx = lineX + (t.glyphX(i) + t.glyphOffsetX(i)) * s, gy = by + Math.round(t.glyphOffsetY(i) * s);
 				var f = t.glyphFont(i);
 				// (a run's glyphs: its size and colour)
 				var set = t.glyphFontSet(i);

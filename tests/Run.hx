@@ -532,7 +532,7 @@ class Run {
 
 	static function uiPrograms() {
 		var t = GFX_TARGET;
-		var programs = ["UiDrawTest", "TodoTest", "StressTest", "ClipboardTest", "NativeTest", "EmojiTest", "BoxTest", "WindowTest"];
+		var programs = ["UiDrawTest", "TodoTest", "StressTest", "ClipboardTest", "NativeTest", "EmojiTest", "BoxTest", "SnapTest", "WindowTest"];
 		if (t.startsWith("linux-")) programs = programs.concat(["TextInputTest", "LinuxAccessTest", "AtspiProbe"]);
 		if (t.startsWith("windows-")) programs.push("WinAccessTest");
 		for (m in programs)
@@ -551,6 +551,7 @@ class Run {
 		shell('$gpu $b/StressTest');
 		shell('$gpu $b/EmojiTest tests/ui/emoji.png $b/emoji.png');
 		shell('$gpu $b/BoxTest tests/ui/boxes.png $b/boxes.png');
+		shell('$gpu $b/SnapTest');
 		shell('$xvfb $b/ClipboardTest');
 		shell('$xvfb $b/TextInputTest');
 		shell('$xvfb $b/WindowTest');
