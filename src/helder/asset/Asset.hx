@@ -174,7 +174,8 @@ class Asset<T> #if !macro implements helder.view.graph.Read.Reader<T> #end {
 	public static macro function model(path:String):Expr
 		return AssetMacro.model(path);
 
-	// a sound file's bytes (no decoding yet: helder.os.audio plays samples)
+	// a sound file's bytes (WAV or Ogg Vorbis): helder.os.audio.Sound.decode
+	// decodes them whole (effects), Sfx.music streams Vorbis (music)
 	public static macro function sound(path:String):Expr
 		return AssetMacro.handle(path, "sound");
 

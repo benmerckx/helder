@@ -27,6 +27,10 @@ class Wav {
 		this.samples = samples;
 	}
 
+	// samples already decoded (Vorbis.decode)
+	public static function of(rate:Int, channels:Int, frames:Int, samples:Array<Float>):Wav
+		return new Wav(rate, channels, frames, samples);
+
 	public static function decode(b:Bytes):Wav {
 		if (b.length < 12 || b.getString(0, 4) != "RIFF" || b.getString(8, 4) != "WAVE") throw "helder.os.audio.Wav: not a RIFF WAVE file";
 		var format = -1, channels = 0, rate = 0, bits = 0, align = 0;

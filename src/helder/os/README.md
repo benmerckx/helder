@@ -242,11 +242,27 @@ out.close();
 out.sampleRate; out.channels; out.frames; out.latency; // as the system gave them
 ```
 
-`examples/tone/Tone.hx` plays a 440 Hz sine for two seconds. Short
-effects: `Sfx.open()` mixes one-shots made up front (`add(samples)`, mono
-at `Sfx.RATE`) on a few voices, `play(id, gain, rate)` from the main
-thread, nothing allocated on the audio thread (`Sfx.test.hx`;
-examples/golf's sounds). `frames` is a hint:
+`examples/tone/Tone.hx` plays a 440 Hz sine for two seconds. Effects and
+music: `Sfx.open()` mixes sounds made up front (`add(samples)`, mono at
+`Sfx.RATE`; a file decoded whole by `Sound.decode`: WAV or Ogg Vorbis) on
+a few voices, `play(id, gain, rate, pan)` once or `loop(...)` until
+`stop(handle)` (`gain(handle, g)`, `pan(handle, p)` meanwhile), and music:
+`music(bytes, fade, gain, loop)` streams an Ogg Vorbis file, decoded a
+packet at a time on the audio thread from its compressed bytes, resampled
+to the output's rate, crossfading from what played over `fade` seconds
+(`stopMusic(fade)`; `volume` the effects', `musicVolume` the music's).
+Nothing is allocated on the audio thread (`Sfx.test.hx`, `Vorbis.test.hx`;
+examples/golf's sounds).
+
+Vorbis (`Vorbis.hx`, the Vorbis I specification, some 900 lines): floor 1,
+residues 0 to 2, any channels; floor 0, unused by encoders since 2002, is
+refused. `open` parses the headers and allocates every buffer; `next()`
+decodes a packet (the IMDCT through an n/4-point FFT) into `out`,
+`rewind()` loops. Ogg Vorbis rather than a simpler codec: music is
+distributed in it, at a quarter of the bytes of ADPCM or QOA for the same
+quality. Its samples match ffmpeg's decoder within a float's rounding
+(about 1e-7; the tests' files are ffmpeg's libvorbis), some 300 times
+faster than real time natively. `frames` is a hint:
 `out.frames` is the most frames a callback is asked for (the system's
 period or buffer), `out.latency` the seconds from a callback's samples to
 the output, as the system reports them.
