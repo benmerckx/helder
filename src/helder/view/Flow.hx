@@ -8,6 +8,7 @@ import helder.view.graph.Context;
 //
 //   <For each={todos}>{t -> <Item todo={t}/>}</For>
 //   <For each={names} keyed={false}>{name -> <text>{name()}</text>}</For>
+//   <For each={fleets} by={f -> f.id}>{f -> <Token fleet={f}/>}</For>
 //   <Repeat count={3}>{i -> <dot/>}</Repeat>
 //   <Show when={count() > 0} fallback="none">{...}</Show>
 //   <Switch fallback="other"><Match when={a()}>A</Match><Match when={b()}>B</Match></Switch>
@@ -17,8 +18,11 @@ import helder.view.graph.Context;
 //
 // For's row is its child function, given the item as a Read: keyed by the
 // item itself (the default), a row is kept and moved while its item is in
-// the list, its Read the item; keyed={false}, a row per index, its Read
-// what is at that index (Solid 1's Index). Repeat makes a row per number
+// the list, its Read the item; by={item -> id}, by what it gives (items
+// made anew each time, records of the same thing): a row is kept and moved
+// while an item of its key is in the list, its Read the latest such item;
+// keyed={false}, a row per index, its Read what is at that index (Solid
+// 1's Index). Repeat makes a row per number
 // below count. Show and Switch render a branch again only when the branch
 // chosen changes (not on every change of what chooses it): `when` is
 // truthy when not null and not false. Provider sets a context for its
@@ -30,13 +34,13 @@ import helder.view.graph.Context;
 // until it lands (Graph.isPending says one is on its way). Its children
 // are made once: what reads a value not ready waits inside the graph.
 class Flow {
-	public static function For<T>(props:{each:Read<Array<T>>, ?keyed:Bool, children:Read<T>->Any}):Any
-		return new ForList(cast Read.of(props.each), props.keyed != false, cast props.children);
+	public static function For<T>(props:{each:Read<Array<T>>, ?keyed:Bool, ?by:T->Dynamic, children:Read<T>->Any}):Any
+		return new ForList(cast Read.of(props.each), props.keyed != false || props.by != null, cast props.children, cast props.by);
 
 	public static function Repeat(props:{count:Read<Int>, children:Int->Any}):Any {
 		var count:Read<Int> = Read.of(props.count), render = props.children;
 		var numbers = Graph.memo(() -> [for (i in 0...count()) i]);
-		return new ForList(cast(numbers : Read<Array<Int>>), true, (i:Read<Dynamic>) -> render(i()));
+		return new ForList(cast(numbers : Read<Array<Int>>), true, (i:Read<Dynamic>) -> render(i()), null);
 	}
 
 	public static function Show<T>(props:{when:Read<T>, ?fallback:Any, ?children:Any}):Any {
@@ -120,11 +124,13 @@ class ForList {
 	public final each:Reader<Array<Dynamic>>;
 	public final keyed:Bool;
 	public final render:Read<Dynamic>->Any;
+	public final key:Null<Dynamic->Dynamic>;
 
-	public function new(each:Reader<Array<Dynamic>>, keyed:Bool, render:Read<Dynamic>->Any) {
+	public function new(each:Reader<Array<Dynamic>>, keyed:Bool, render:Read<Dynamic>->Any, key:Null<Dynamic->Dynamic>) {
 		this.each = each;
 		this.keyed = keyed;
 		this.render = render;
+		this.key = key;
 	}
 }
 

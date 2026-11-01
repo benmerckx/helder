@@ -367,14 +367,16 @@ class ViewRuntime {
 
 	// --- control flow (helder.view.Flow) ---
 
-	// For: rows kept and moved, keyed by item (a row's Read its item) or by index (its Read a signal of what is there)
+	// For: rows kept and moved, keyed by item (a row's Read its item), by a
+	// key of it (its Read a signal of its key's item now) or by index (its
+	// Read a signal of what is there)
 	static function forList(list:helder.view.Flow.ForList, parent:HostNode, before:Null<HostNode>):Array<HostNode> {
 		var anchor = marker(parent, before, "for");
 		// (the rows belong to the owner the list is mounted in)
 		var home = helder.view.graph.Graph.getOwner();
 		var entries:Array<helder.view.Mounted.Row<HostNode>> = [];
 		function make(item:Dynamic, at:Int):helder.view.Mounted.Row<HostNode> {
-			var cell = list.keyed ? null : helder.view.graph.Node.signal((item : Dynamic), {ownedWrite: true});
+			var cell = list.keyed && list.key == null ? null : helder.view.graph.Node.signal((item : Dynamic), {ownedWrite: true});
 			var read:helder.view.graph.Read<Dynamic> = cell != null ? (cell : helder.view.graph.Read.Reader<Dynamic>) : (new helder.view.graph.Read.Const<Dynamic>(item) : helder.view.graph.Read.Reader<Dynamic>);
 			#if hxmc.dev
 			// (hxmc dev: a row's keys under its position)
@@ -406,15 +408,21 @@ class ViewRuntime {
 			}
 			// (the old entries matched: an item is looked for from the first
 			// one not taken, so that a list kept in order matches in one pass)
+			// (by key: the old rows' keys, a kept row's Read set to its key's item now)
 			var old = entries, taken = [for (_ in old) false], first = 0;
+			var key = list.key, keys = key == null ? null : [for (e in old) key(e.item)];
 			for (item in items) {
-				var k = -1;
+				var k = -1, id:Dynamic = key == null ? null : key(item);
 				for (j in first...old.length)
-					if (!taken[j] && old[j].item == item) {
+					if (!taken[j] && (key == null ? old[j].item == item : keys[j] == id)) {
 						k = j;
 						break;
 					}
 				if (k >= 0) {
+					if (key != null && old[k].item != item) {
+						old[k].item = item;
+						old[k].cell.write(item);
+					}
 					next.push(old[k]);
 					taken[k] = true;
 					while (first < old.length && taken[first])

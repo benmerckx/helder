@@ -410,6 +410,23 @@ class ViewTest implements Markup {
 		items(["c", "b", "d", "e"]);
 		flush();
 		check("For: appended in place", texts() == "c,b,d,e" && TestRenderer.log.indexOf("arrange") < 0, TestRenderer.log.join(","));
+		// For by key: records made anew each time, a row a key, kept and moved, its Read the latest record
+		var recs = signal([{id: 1, v: "a"}, {id: 2, v: "b"}]), made2 = 0;
+		var root7 = new TestNode(Element, "root");
+		Render.render(<ul><For each={recs} by={r -> r.id}>{r -> {
+			made2++;
+			<li>{r().v}</li>;
+		}}</For></ul>, root7);
+		var ul7 = root7.children[0];
+		function texts7()
+			return [for (c in ul7.children) if (c.kind == Element) c.children[0].text].join(",");
+		var row2 = ul7.children[1];
+		recs([{id: 2, v: "B"}, {id: 3, v: "c"}, {id: 1, v: "A"}]);
+		flush();
+		check("For by key: rows kept and moved, their items the latest, one made", texts7() == "B,c,A" && made2 == 3 && ul7.children[0] == row2, texts7() + " " + made2 + " " + (ul7.children[0] == row2));
+		recs([{id: 3, v: "c"}]);
+		flush();
+		check("For by key: rows of keys gone removed", texts7() == "c" && made2 == 3, texts7());
 		// For by index (keyed={false}): a row per index, its Read what is there
 		var names = signal(["a", "b"]), rows = 0;
 		var root2 = new TestNode(Element, "root");
