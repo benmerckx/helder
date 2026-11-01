@@ -217,6 +217,30 @@ class UiTest {
 		ui.paint(rec);
 		drawn = [for (c in rec.calls) if (StringTools.startsWith(c, "image")) c];
 		check("svg: drawn again at a new size and colour", n.height == 40 && StringTools.startsWith(drawn[0], "image 80x80") && n.image.pixels.get(2) == 255, drawn.join("|"));
+		// (a drawing shown by several nodes, or gone back to, rasterized once: a
+		// ring whose drawing follows a value, as a game's health ring)
+		var full = Svg.parse('<svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>');
+		var a = new ImageNode(), b = new ImageNode();
+		a.svg = full;
+		b.svg = full;
+		a.style.width = a.style.height = b.style.width = b.style.height = 16;
+		ui.root.append(a);
+		ui.root.append(b);
+		ui.update();
+		ui.paint(new Recording());
+		var first = a.image;
+		check("svg: one raster for the nodes showing a drawing at one size and colour", first != null && a.image == b.image);
+		a.svg = icon;
+		ui.update();
+		ui.paint(new Recording());
+		a.svg = full;
+		ui.update();
+		ui.paint(new Recording());
+		check("svg: gone back to, the same raster", a.image == first);
+		b.style.width = 20;
+		ui.update();
+		ui.paint(new Recording());
+		check("svg: at another size, another", b.image != first && b.image.width == 40);
 	}
 
 	// --- css ---

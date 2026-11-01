@@ -26,6 +26,46 @@ class ImageNode extends Node {
 	// what the svg was last drawn as: its pixel size and colour
 	var drawn = "";
 
+	// the drawings rasterized lately, shared by every node: an svg at a pixel
+	// size and colour drawn once, not again for each node showing it or each
+	// time a node goes back to it (a ring whose drawing changes as a value
+	// does, between a few drawings: rasterized and uploaded once each, not
+	// a frame); the oldest let go past RASTERS
+	public static inline var RASTERS = 256;
+	static final rasters = new Map<String, Image>();
+	static final rastered:Array<String> = [];
+	static final svgIds = new haxe.ds.ObjectMap<Svg, Int>();
+	static var nextSvg = 0;
+
+	// an svg rasterized at w x h pixels in colour c (Svg.render), from the shared ones when it was lately
+	public static function raster(svg:Svg, w:Int, h:Int, c:Color):Image {
+		var id = svgIds.get(svg);
+		if (id == null) svgIds.set(svg, id = nextSvg++);
+		var key = id + ":" + w + "x" + h + ":" + c;
+		var img = rasters.get(key);
+		if (img != null) return img;
+		img = svg.render(w, h, c);
+		rasters.set(key, img);
+		rastered.push(key);
+		if (rastered.length > RASTERS) {
+			var old = rastered.shift();
+			rasters.remove(old);
+			// (an svg none of the kept ones is of: forgotten too)
+			var gone = Std.parseInt(old.substr(0, old.indexOf(":")));
+			var kept = false;
+			for (k in rastered)
+				if (Std.parseInt(k.substr(0, k.indexOf(":"))) == gone) {
+					kept = true;
+					break;
+				}
+			if (!kept) for (sv => i in svgIds) if (i == gone) {
+				svgIds.remove(sv);
+				break;
+			}
+		}
+		return img;
+	}
+
 	public function new(?image:Image, ?tag:String) {
 		super(tag == null ? "image" : tag);
 		this.image = image;
@@ -200,7 +240,7 @@ class ImageNode extends Node {
 			var key = pw + "x" + ph + " " + c;
 			if (key != drawn) {
 				drawn = key;
-				@:bypassAccessor image = svg.render(pw, ph, c);
+				@:bypassAccessor image = raster(svg, pw, ph, c);
 			}
 		}
 		var s = style, be = s.borderEdges;
