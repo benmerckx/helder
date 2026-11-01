@@ -102,14 +102,124 @@ booted.
   helder), then its dependencies' that are Haxe packages
   (`node_modules/helder`); else the CLI's own checkout's `src`.
 - **Overrides**: `package.json`'s `"helder"` key, `{"main": "app.Main",
-  "name": "game", "defines": {"key": "value"}}` and an app's identity
-  (below), and a `helder.hxml` beside it, given to every build.
+  "name": "game", "defines": {"key": "value"}}`, and a `helder.hxml`
+  beside it, given to every build; the app's name, icons and identity are
+  `helder.webmanifest`'s (below).
 - **Outputs**: `bin/<target>/<name>` under the project (the name is
   package.json's, else the main module's; `-o` names another); dev builds
   under `bin/dev/`. `build` is a release build (`-dce full`), `dev` adds
   `-D hxmc.dev`. Phones: `bin/android/<name>.apk` (its library, and what
   the build needs of Java, beside it in `<name>.lib/`),
   `bin/ios/<name>.ipa` (and its `.app`), `bin/ios-sim/<name>.app`.
+
+## The app's manifest
+
+`helder.webmanifest` at the project's root (beside `package.json`) is the
+app's name, icons, colours, splash and native settings, for every target
+(`Manifest.hx`, `Icons.hx`). It is a [W3C Web App
+Manifest](https://www.w3.org/TR/appmanifest/), served to browsers as it
+is, so its members are the web's wherever the web has one; what only
+native apps need is in a `"helder"` member, which browsers ignore. The
+name: `.webmanifest` is the manifest's registered extension (its media
+type, `application/manifest+json`), and `helder.` says whose it is, as
+`helder.hxml` does, unlike a bare `manifest.json`, which bundlers,
+browser extensions and PWA tools each claim.
+
+```json
+{
+  "name": "Expansion",
+  "short_name": "Expansion",
+  "description": "A real-time strategy game",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "theme_color": "#3ED6C3",
+  "background_color": "#060912",
+  "icons": [
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+    {"src": "icon-maskable.png", "sizes": "1024x1024", "type": "image/png", "purpose": "maskable"},
+    {"src": "icon-mono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "monochrome"}
+  ],
+  "helder": {
+    "version": "1.2",
+    "build": 3,
+    "id": "org.example.expansion",
+    "android": {"package": "org.example.expansion", "minSdk": 29, "targetSdk": 35, "permissions": ["VIBRATE"], "key": "keys/debug"},
+    "ios": {"bundleId": "org.example.expansion", "minVersion": "15.0", "entitlements": "app.entitlements"},
+    "splash": {"background_color": "#060912", "image": "splash.svg",
+               "dark": {"background_color": "#000000", "image": "splash-dark.svg"}}
+  }
+}
+```
+
+- **The web's members**: `name` (the page's title; the label when there is
+  no `short_name`), `short_name` (the launcher's and home screen's label),
+  `description`, `lang`, `dir`, `id`, `start_url`, `categories`,
+  `screenshots` (the web's alone), `display` (`fullscreen`: the system's
+  bars hidden, `-D helder.fullscreen`, `UIStatusBarHidden`; the others
+  not), `orientation` (`portrait*` and `landscape*` as `portrait` and
+  `landscape` below; `any` and `natural` neither), `theme_color` (the
+  browser's), `background_color` (the splash's, the page's, an icon's
+  background), `icons` (`src` from the manifest's directory, `sizes`
+  `any` or `WxH ...`, `type`, `purpose` `any`, `maskable`, `monochrome`).
+- **`"helder"`**: `version` (versionName, CFBundleShortVersionString:
+  `1.0`), `build` (versionCode, CFBundleVersion: 1), `id` (both platforms'
+  id, else `org.helder.<name>`), `android` (`package`: its id; `minSdk`:
+  29, the lowest, Bionic's ELF TLS; `targetSdk`: 35; `permissions`:
+  `android.permission.<name>` unless it has a dot; `key`: the debug key's
+  file), `ios` (`bundleId`; `minVersion`: 15.0; `entitlements`: an XML
+  plist signed with the executable), `splash` (`background_color`, else
+  the manifest's; `image`, else the icon; `dark`: the same for the dark
+  appearance).
+- **Mistakes** are the command's error, naming the member: not JSON, a
+  member of the wrong type, an unknown `display`, `orientation` or
+  `purpose`, a colour CSS does not have, an icon's `sizes` not square or
+  not `WxH`, an unknown member of `"helder"` or its objects, an id the
+  platform would refuse; at build time an icon whose file is missing, is
+  not an image, is not square, is not the size its `sizes` say, or is too
+  small for what it makes (more than twice: give a larger one or an SVG).
+- **Icons from a few sources** (`Icons.hx`): every size a target needs is
+  made at build time from the manifest's icons: an SVG drawn at the size
+  (helder.ui's `Svg`), else the smallest PNG (JPEG, WebP, GIF) at least as
+  large, else the largest, scaled (an area's average down, bilinear up),
+  placed on its canvas and written as PNG (`helder.image.PngEncoder`).
+  One 1024 px icon, or one SVG, is enough.
+- **Android** (`Android.resources`, `helder.pack.android.Arsc`): a
+  resource table (`resources.arsc`) and `res/` in the APK: the launcher's
+  adaptive icon (`@mipmap/ic_launcher`, also the round icon): its
+  foreground the maskable icon (its 80% safe zone on the layer's 66 dp),
+  else the icon of any purpose inside the safe zone, 108 dp at xxxhdpi;
+  its background `background_color`; a monochrome layer (Android 13's
+  themed icons) from a monochrome icon. The activity's theme
+  `Theme.Helder` (the framework's it had as its parent): the splash's
+  colour as `windowSplashScreenBackground` (Android 12's SplashScreen) and
+  `windowBackground` (before it, and Android 10 and 11), the splash image
+  as `windowSplashScreenAnimatedIcon` (288 dp, inside the 192 dp circle;
+  without one, the system shows the launcher's icon); their dark variants
+  in the night configuration. The label is the manifest's.
+- **iOS** (`Ios.artwork`), without Xcode (so no asset catalog): the app
+  icon's PNGs (`AppIcon60x60@2x`, `@3x`, `AppIcon76x76@2x~ipad`,
+  `AppIcon83.5x83.5@2x~ipad`) in `CFBundleIcons` (and `~ipad`'s), opaque
+  (the maskable icon full bleed, else the icon on `background_color`); the
+  launch screen `UILaunchScreen`'s `UIImageName`: an image of the splash's
+  background as large as the largest screen with the splash image (else
+  the icon) at 160 points in its middle (`LaunchImage@3x~iphone`,
+  `LaunchImage@2x~ipad`), since `UIColorName` needs an asset catalog's
+  colour; all sealed by CodeResources.
+- **Web** (`Page.app`): `helder build --target web` copies the manifest
+  and the files it names beside the page, makes `apple-touch-icon.png`
+  (180 px, opaque) and links them: `<link rel="manifest">`, `theme-color`,
+  `description`, an `icon` link per icon of any purpose,
+  `apple-touch-icon`. The page's background is the splash's (its dark one
+  under `prefers-color-scheme: dark`) and the splash image (else the icon)
+  shows in its middle until the program runs. `helder dev` links the
+  same from the project's directory.
+- **Not yet**: desktop apps have no bundle to put an icon in (helder
+  builds a bare executable: a macOS `.app` with an `.icns`, a Windows
+  executable's icon resource, a Linux `.desktop` file are to come); iOS's
+  dark launch screen and its 1024 px App Store icon need an asset catalog
+  (`Assets.car`); Android's legacy (pre-adaptive) icons are not needed
+  (minSdk 29); the web's splash is not the installed PWA's (the browser
+  makes that from `background_color` and the icons).
 
 ## Android and iOS
 
@@ -148,7 +258,7 @@ build time.
   (`<it>/<tag>/<asset>`: a mirror, a `file://` directory).
 - **The debug key**: the user's own, made on first use and kept, so a
   reinstall keeps the signature: `HELDER_ANDROID_KEY` names its file, else
-  `package.json`'s `"helder": {"android": {"key"}}`, else
+  the manifest's `"helder": {"android": {"key"}}`, else
   `<helder's cache>/android/debug-key` (`HELDER_CACHE`, else
   ~/.cache/helder, ~/Library/Caches/helder, %LOCALAPPDATA%\helder). A text
   file: `helder-android-debug-key 1`, the private scalar in hex, its
@@ -167,17 +277,13 @@ build time.
   `-entitlements`), as `codesign -s -` does: enough for the simulator. An
   `.ipa` zips the bundle under `Payload/`. A device's app needs a signing
   identity and a provisioning profile: not yet.
-- **An app's identity**: `package.json`'s `"helder"` key (`App.hx`):
-  `"id"` (the application id and bundle id; `org.helder.<name>`),
-  `"label"` (the name), `"version"` (versionCode, CFBundleVersion: 1),
-  `"versionName"` (1.0), `"orientation"` (`"portrait"`: the manifest's
-  `screenOrientation` portrait, the plist's upright iPhone and either-way
-  iPad; `"landscape"`: `sensorLandscape`, both landscapes; both with
-  `UIRequiresFullScreen`; `"any"`, the default: neither), `"fullscreen"`
-  (`true`: `-D helder.fullscreen` for the build, every `Window` immersive
-  from the start, the plist's `UIStatusBarHidden`), `"android":
-  {"permissions": ["INTERNET"], "minSdk": 29, "targetSdk": 35, "key"}`,
-  `"ios": {"minVersion": "15.0", "entitlements": "<an XML plist>"}`.
+- **An app's identity**: the project's `helder.webmanifest` (below); else,
+  deprecated (a warning says so), `package.json`'s `"helder"` key
+  (`App.hx`): `"id"` (both platforms'), `"label"`, `"version"` (the
+  build's number), `"versionName"`, `"orientation"`, `"fullscreen"`,
+  `"android": {"permissions", "minSdk", "targetSdk", "key"}`, `"ios":
+  {"minVersion", "entitlements"}`, as the manifest's members below (no
+  icons, no splash). With both, the manifest's wins.
 - **run**: on Android `adb -s <id>` installs (`install -r`), starts (`am
   start`, after `force-stop`) and streams logcat's `hxmc` tag (the
   program's stdout and stderr) until the app's process ends; on iOS `xcrun

@@ -779,7 +779,9 @@ class DevCommand {
 			var fonts = [for (f in Page.fonts(pkgs)) "/__hxmc/fonts/" + Path.withoutDirectory(f)]
 				.concat([for (k in Page.assetFonts(out)) "/__hxmc/assets/" + AssetPath.url(k)]);
 			var assets = FileSystem.exists(out + ".assets.json") ? "/__hxmc/app.wasm.assets.json" : null;
-			return Response.text(Page.html(e.name + " (helder dev)", "/__hxmc/app.wasm", "/__hxmc/pkg/helder/", pkgs, fonts, true, assets), 200,
+			// (the manifest and its files: the project's, served from its directory below)
+			var app = e.manifest == null ? null : Page.app(e.config, "/");
+			return Response.text(Page.html(e.name + " (helder dev)", "/__hxmc/app.wasm", "/__hxmc/pkg/helder/", pkgs, fonts, true, assets, app), 200,
 				"text/html; charset=utf-8");
 		}
 		if (p == "/__hxmc/app.wasm") {

@@ -1,4 +1,4 @@
-// The pack lane's project (package.json's "helder": the app's id, label,
+// The pack lane's project (helder.webmanifest: the app's id, label, icon (an SVG), splash colours,
 // versions, a permission, iOS's minimum and entitlements, landscape,
 // fullscreen): a line printed, which says whether the build had
 // -D helder.fullscreen (PackCheck finds it in the binary)

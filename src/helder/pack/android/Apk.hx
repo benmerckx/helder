@@ -11,7 +11,9 @@ import helder.pack.android.Axml.el;
 // NativeActivity whose window draws views, in the system's DayNight
 // theme), and an AndroidManifest.xml in binary XML (Axml) naming it; no
 // resources.arsc (the label is a plain string, the theme a framework
-// resource). The zip stores everything uncompressed, the library aligned to
+// resource; with an app's icon or splash, Android's resources: Arsc's
+// resources.arsc and its res/ files, the application's icon and the
+// activity's theme theirs). The zip stores everything uncompressed, the library aligned to
 // 16 KB (loaded in place: extractNativeLibs="false"; Android 15's 16 KB
 // pages) and the rest to 4 bytes, as zipalign -P 16 does; then the APK
 // Signature Scheme v2 block before the central directory, signed with ECDSA
@@ -28,6 +30,10 @@ class Apk {
 
 	// the APK's library, as hxmc names it (its soname) and NativeActivity loads it
 	public static inline var LIBRARY = "libmain.so";
+
+	// the activity's framework themes: @android:style/Theme.NoTitleBar.Fullscreen, Theme.DeviceDefault.DayNight (views)
+	public static inline var THEME = 0x01030007;
+	public static inline var THEME_VIEWS = 0x010302e3;
 
 	// the ABI's directory in the APK
 	public static function abiDir(target:String):String
@@ -49,8 +55,11 @@ class Apk {
 	public static function write(so:Bytes, target:String, dex:Null<Bytes>, views:Bool, app:ApkOptions, key:{d:Bytes, cert:Bytes},
 			?assets:Array<{name:String, data:Bytes}>):Bytes {
 		if (!validId(app.id)) throw 'the application id ${app.id} is not one (a.b.c: letters, digits, _)';
-		var m = manifest(app.id, app.label, app.versionCode, app.versionName, app.minSdk, app.targetSdk, dex != null, views, app.permissions, app.orientation);
+		var m = manifest(app.id, app.label, app.versionCode, app.versionName, app.minSdk, app.targetSdk, dex != null, views, app.permissions, app.orientation,
+			app.icon, app.theme);
 		var entries:Array<helder.pack.Zip.ZipEntry> = [{name: "AndroidManifest.xml", data: m, align: 4}];
+		// (resources.arsc stored and 4-byte aligned: Android 11's rule for targetSdk 30)
+		if (app.resources != null) for (r in app.resources) entries.push({name: r.name, data: r.data, align: 4});
 		if (dex != null) entries.push({name: "classes.dex", data: dex, align: 4});
 		entries.push({name: "lib/" + abiDir(target) + "/" + LIBRARY, data: so, align: PAGE});
 		if (assets != null)
@@ -67,7 +76,7 @@ class Apk {
 	// (sensorLandscape: either way up, as the phone is held), else any: none
 	// written, the sensor's and the user's rotation lock's)
 	public static function manifest(pkg:String, label:String, versionCode:Int, versionName:String, minSdk:Int, targetSdk:Int, code = false, views = false,
-			?permissions:Array<String>, ?orientation:String):Bytes {
+			?permissions:Array<String>, ?orientation:String, ?icon:Int, ?theme:Int):Bytes {
 		inline function s(n:String, v:String):Axml.Attr
 			return {android: true, name: n, type: Axml.STRING, string: v};
 		inline function i(n:String, v:Int, hex = false):Axml.Attr
@@ -89,7 +98,7 @@ class Apk {
 			i("configChanges", configChanges, true),
 			// @android:style/Theme.NoTitleBar.Fullscreen; with views
 			// Theme.DeviceDefault.DayNight (API 29: the system's look, light or dark)
-			{android: true, name: "theme", type: Axml.REFERENCE, value: views ? 0x010302e3 : 0x01030007}
+			{android: true, name: "theme", type: Axml.REFERENCE, value: theme ?? (views ? THEME_VIEWS : THEME)}
 		];
 		if (orientation == "portrait") activity.push(i("screenOrientation", 1)) else if (orientation == "landscape") activity.push(i("screenOrientation", 6));
 		var root = el("manifest", [
@@ -100,7 +109,10 @@ class Apk {
 			el("uses-sdk", [i("minSdkVersion", minSdk), i("targetSdkVersion", targetSdk)]),
 		].concat(uses).concat([
 			el("uses-feature", [i("glEsVersion", 0x30000, true), b("required", true)]),
-			el("application", [s("label", label), b("hasCode", code), b("debuggable", true), b("extractNativeLibs", false)], [
+			el("application", [s("label", label), b("hasCode", code), b("debuggable", true), b("extractNativeLibs", false)].concat(icon == null ? [] : ([
+				{android: true, name: "icon", type: Axml.REFERENCE, value: icon},
+				{android: true, name: "roundIcon", type: Axml.REFERENCE, value: icon}
+			] : Array<Axml.Attr>)), [
 				el("activity", activity, [
 					el("meta-data", [s("name", "android.app.lib_name"), s("value", LIB)]),
 					el("intent-filter", [], [
@@ -232,4 +244,9 @@ typedef ApkOptions = {
 	permissions:Array<String>,
 	// "portrait", "landscape" or "any" (null: any)
 	?orientation:String,
+	// the app's resources (Arsc: resources.arsc, res/...), its icon's id
+	// (@mipmap/ic_launcher) and the activity's theme's (the splash's)
+	?resources:Array<{name:String, data:Bytes}>,
+	?icon:Int,
+	?theme:Int,
 }

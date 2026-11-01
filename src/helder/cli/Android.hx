@@ -6,6 +6,8 @@ import helder.cli.BuildCommand.Mode;
 import helder.cli.Compiler.CompileServer;
 import helder.cli.Devices.Device;
 import helder.pack.android.Apk;
+import helder.pack.android.Arsc;
+import helder.pack.android.Axml;
 import helder.pack.android.DebugKey;
 import helder.pack.android.Glue;
 import sys.FileSystem;
@@ -64,8 +66,86 @@ class Android {
 		var c = classes(apk);
 		var key = DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), Sys.getEnv("HELDER_ANDROID_KEY")));
 		var assets = dev ? [] : [for (a in AssetStep.assets(lib)) {name: helder.asset.AssetPath.bundled(a.key), data: File.getBytes(a.file)}];
-		File.saveBytes(apk, Apk.write(File.getBytes(lib), e.target, c.dex ? Glue.dex() : null, c.views, App.android(e.name, e.config, dev), key, assets));
+		var o = App.android(e.name, e.config, dev);
+		Manifest.warn(e);
+		var r = resources(e.config, e.root, o.id, c.views);
+		if (r != null) o = {
+			id: o.id,
+			label: o.label,
+			versionCode: o.versionCode,
+			versionName: o.versionName,
+			minSdk: o.minSdk,
+			targetSdk: o.targetSdk,
+			permissions: o.permissions,
+			orientation: o.orientation,
+			resources: r.files,
+			icon: r.icon,
+			theme: r.theme
+		};
+		File.saveBytes(apk, Apk.write(File.getBytes(lib), e.target, c.dex ? Glue.dex() : null, c.views, o, key, assets));
 	}
+
+	// the manifest's icon and splash as Android's resources (null: neither,
+	// package.json's "helder" key's app): the adaptive icon (Icons: its
+	// foreground at xxxhdpi, background_color behind it, the monochrome
+	// layer of a monochrome icon), the splash's theme (Android 12's
+	// SplashScreen: windowSplashScreenBackground, and the image as its
+	// windowSplashScreenAnimatedIcon, else the launcher's icon; the window's
+	// background the same colour before it, and on Android 10 and 11),
+	// their dark variants in the night configuration; the activity's theme
+	// the framework's it was (views: DayNight) as their parent
+	public static function resources(cfg:Dynamic, root:String, pkg:String, views:Bool, ?read:String->haxe.io.Bytes):Null<{
+		files:Array<{name:String, data:haxe.io.Bytes}>,
+		icon:Null<Int>,
+		theme:Null<Int>
+	}> {
+		var m:Manifest.AppConfig = cfg;
+		if (m == null || m.icons == null && m.splash == null) return null;
+		var icons = new Icons(m, root, read), t = new Arsc(pkg), files = [];
+		var icon:Null<Int> = null, theme:Null<Int> = null;
+		var density:Config = {density: Arsc.XXXHDPI};
+		function file(type:String, name:String, path:String, data:haxe.io.Bytes, ?config:Config):Int {
+			files.push({name: path, data: data});
+			return t.add(type, name, FilePath(path), config);
+		}
+		var fg = icons.androidForeground();
+		if (fg != null) {
+			var bg = t.add("color", "ic_launcher_background", Argb(icons.background()));
+			var layers = [
+				Axml.el("background", [{android: true, name: "drawable", type: Axml.REFERENCE, value: bg}]),
+				Axml.el("foreground", [
+					{android: true, name: "drawable", type: Axml.REFERENCE, value: file("mipmap", "ic_launcher_foreground", "res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png", fg, density)}
+				])
+			];
+			var mono = icons.androidMonochrome();
+			if (mono != null) layers.push(Axml.el("monochrome", [
+				{android: true, name: "drawable", type: Axml.REFERENCE, value: file("mipmap", "ic_launcher_monochrome", "res/mipmap-xxxhdpi-v4/ic_launcher_monochrome.png", mono, density)}
+			]));
+			// (an adaptive icon in every configuration: minSdk is 29, adaptive icons are 26's)
+			icon = file("mipmap", "ic_launcher", "res/mipmap-anydpi-v26/ic_launcher.xml", Axml.encode(Axml.el("adaptive-icon", [], layers)));
+		}
+		var s = m.splash, items:Array<{attr:Int, value:Value}> = [];
+		if (s?.background != null) {
+			var c = t.add("color", "splash_background", Argb(s.background));
+			if (s.darkBackground != null) t.add("color", "splash_background", Argb(s.darkBackground), {night: true});
+			items.push({attr: WINDOW_BACKGROUND, value: Ref(c)});
+			items.push({attr: SPLASH_BACKGROUND, value: Ref(c)});
+		}
+		if (s?.image != null) {
+			var id = file("mipmap", "splash_icon", "res/mipmap-xxxhdpi-v4/splash_icon.png", icons.androidSplash(s.image), density);
+			if (s.darkImage != null) file("mipmap", "splash_icon", "res/mipmap-night-xxxhdpi-v8/splash_icon.png", icons.androidSplash(s.darkImage), {density: Arsc.XXXHDPI, night: true});
+			items.push({attr: SPLASH_ICON, value: Ref(id)});
+		}
+		if (items.length > 0) theme = t.add("style", "Theme.Helder", Style(views ? Apk.THEME_VIEWS : Apk.THEME, items));
+		if (icon == null && theme == null) return null;
+		files.unshift({name: "resources.arsc", data: t.encode()});
+		return {files: files, icon: icon, theme: theme};
+	}
+
+	// the framework's attributes (public.xml): windowBackground, windowSplashScreenBackground, windowSplashScreenAnimatedIcon
+	static inline var WINDOW_BACKGROUND = 0x01010054;
+	static inline var SPLASH_BACKGROUND = 0x0101062c;
+	static inline var SPLASH_ICON = 0x0101062d;
 
 	// what the build's Classes wrote: classes.dex, org.hxmc.Activity
 	static function classes(apk:String):{dex:Bool, views:Bool} {

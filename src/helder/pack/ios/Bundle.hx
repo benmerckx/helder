@@ -46,9 +46,10 @@ class Bundle {
 	// way up), "landscape" (either side), else any (all four), the first
 	// two with UIRequiresFullScreen, without which an iPad's multitasking
 	// takes every orientation; fullscreen: UIStatusBarHidden, from the
-	// launch on)
+	// launch on; extra: other keys, over these: helder.cli.Ios's icons and
+	// launch screen)
 	public static function infoPlist(exe:String, id:String, label:String, version:String, versionName:String, min:String, simulator:Bool,
-			?orientation:String, fullscreen = false):Bytes {
+			?orientation:String, fullscreen = false, ?extra:Map<String, PValue>):Bytes {
 		var o = (names:Array<String>) -> PArray([for (n in names) PString("UIInterfaceOrientation" + n)]);
 		var phone = switch orientation {
 			case "portrait": o(["Portrait"]);
@@ -79,6 +80,7 @@ class Bundle {
 		];
 		if (orientation == "portrait" || orientation == "landscape") keys.set("UIRequiresFullScreen", PBool(true));
 		if (fullscreen) keys.set("UIStatusBarHidden", PBool(true));
+		if (extra != null) for (k => v in extra) keys.set(k, v);
 		return Plist.xml(PDict(keys));
 	}
 

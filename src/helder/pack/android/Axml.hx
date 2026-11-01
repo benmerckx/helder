@@ -25,7 +25,8 @@ class Axml {
 		"theme" => 0x01010000, "label" => 0x01010001, "name" => 0x01010003, "debuggable" => 0x0101000f, "exported" => 0x01010010,
 		"hasCode" => 0x0101000c, "screenOrientation" => 0x0101001e, "configChanges" => 0x0101001f, "value" => 0x01010024,
 		"minSdkVersion" => 0x0101020c, "versionCode" => 0x0101021b, "versionName" => 0x0101021c, "targetSdkVersion" => 0x01010270,
-		"glEsVersion" => 0x01010281, "required" => 0x0101028e, "extractNativeLibs" => 0x010104ea,
+		"glEsVersion" => 0x01010281, "required" => 0x0101028e, "extractNativeLibs" => 0x010104ea, "icon" => 0x01010002,
+		"roundIcon" => 0x0101052c, "drawable" => 0x01010199,
 	];
 
 	// an element: its name, attributes (android: ones by name in IDS, others
@@ -75,28 +76,7 @@ class Axml {
 			b.u16(headerSize);
 			b.u32(size);
 		}
-		// RES_STRING_POOL_TYPE (UTF-16)
-		var data = new helder.pack.Buf(4096);
-		var offsets = [];
-		for (s in strings) {
-			offsets.push(data.len);
-			var units = utf16(s);
-			data.u16(units.length);
-			for (u in units)
-				data.u16(u);
-			data.u16(0);
-		}
-		data.align(4);
-		var poolHeader = 28, poolSize = poolHeader + 4 * strings.length + data.len;
-		chunkHeader(body, 0x0001, poolHeader, poolSize);
-		body.u32(strings.length);
-		body.u32(0); // styles
-		body.u32(0); // flags (UTF-16, not sorted)
-		body.u32(poolHeader + 4 * strings.length);
-		body.u32(0);
-		for (o in offsets)
-			body.u32(o);
-		body.buf(data);
+		body.buf(pool(strings));
 		// RES_XML_RESOURCE_MAP_TYPE
 		chunkHeader(body, 0x0180, 8, 8 + 4 * ids.length);
 		for (id in ids)
@@ -155,6 +135,35 @@ class Axml {
 		chunkHeader(out, 0x0003, 8, body.len + 8); // RES_XML_TYPE
 		out.buf(body);
 		return out.toBytes();
+	}
+
+	// a string pool chunk (RES_STRING_POOL_TYPE, UTF-16), the binary XML's and resources.arsc's
+	public static function pool(strings:Array<String>):helder.pack.Buf {
+		var data = new helder.pack.Buf(4096);
+		var offsets = [];
+		for (s in strings) {
+			offsets.push(data.len);
+			var units = utf16(s);
+			data.u16(units.length);
+			for (u in units)
+				data.u16(u);
+			data.u16(0);
+		}
+		data.align(4);
+		var header = 28, size = header + 4 * strings.length + data.len;
+		var b = new helder.pack.Buf(size);
+		b.u16(0x0001);
+		b.u16(header);
+		b.u32(size);
+		b.u32(strings.length);
+		b.u32(0); // styles
+		b.u32(0); // flags (UTF-16, not sorted)
+		b.u32(strings.length == 0 ? 0 : header + 4 * strings.length);
+		b.u32(0);
+		for (o in offsets)
+			b.u32(o);
+		b.buf(data);
+		return b;
 	}
 
 	static function utf16(s:String):Array<Int> {

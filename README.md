@@ -84,7 +84,7 @@ All under `src/helder`, Haxe package `helder.<name>`:
 | `devtools` | the devtools protocol (JSON-RPC on the dev connection) and its agent in dev builds: log, frame stats, the ui tree |
 | `test` | tests as bun writes them, without macros: `describe`, `test`, hooks, assertions as functions, async tests on `async`'s loop; `helder test` runs the `*.test.hx` files |
 | `cli` | the `helder` command, a native program on `async`: `dev`, `build`, `run`, `test` and `inspect`, for desktop, the web, Android and iOS |
-| `pack` | Android's APKs and iOS's app bundles around hxmc's native code, without an SDK: zip, binary XML, DEX, v2 signing (P-256), the debug key; Info.plist, CodeResources, .ipa |
+| `pack` | Android's APKs and iOS's app bundles around hxmc's native code, without an SDK: zip, binary XML, resources.arsc (icons, the splash theme), DEX, v2 signing (P-256), the debug key; Info.plist, CodeResources, .ipa |
 
 `examples/` has a program per folder; `tests/Run.hx` has the checks, and
 the `*.test.hx` files are helder.test's, run by the CLI built from this
@@ -166,7 +166,11 @@ Done as a first slice:
   - every build's compile time and binary size reported; warm builds of the
     examples 185-575 ms;
   - conventions over configuration: package.json's `"helder"` key and a
-    `helder.hxml` beside it as the overrides; every example built by
+    `helder.hxml` beside it as the overrides; the app's name, icons,
+    colours, splash and native ids in `helder.webmanifest`, a web app
+    manifest served to browsers as it is, with a `"helder"` member for
+    Android's and iOS's own (src/helder/cli/README.md: its icons made for
+    every target at build time); every example built by
     `helder build <file>` with no flags (the examples lane).
 - **`helder test` and `helder.test`** (src/helder/test/README.md): the
   `*.test.hx` files under `src/`, `tests/` and the class paths, linked into
@@ -506,8 +510,16 @@ fix.
   slots; `helder run` and `dev` against stand-in adb and simctl); on an
   emulator and a simulator only in CI, untested until it runs. Next:
   hxmc removes its copy. Later: iOS device signing (a certificate and a
-  profile, through `codesign` on a Mac), release signing, icons (assets:
-  below).
+  profile, through `codesign` on a Mac), release signing.
+- *Landed*: **the app's manifest** (`helder.webmanifest`, a W3C web app
+  manifest with a `"helder"` member for the native apps' settings;
+  package.json's `"helder"` identity its deprecated fallback): one or a
+  few icons (PNG or SVG) made into every target's at build time: Android's
+  adaptive icon and Android 12's splash theme in a resources.arsc helder
+  writes, iOS's app icons and launch image in Info.plist, the web page's
+  manifest link, icons, theme-color and splash. Later: desktop bundles'
+  icons (macOS .icns, Windows' resource, Linux's .desktop), an asset
+  catalog for iOS's dark launch screen and App Store icon.
 - *Landed*: **`helder dev --target android` and `--target ios`**: a
   connected device or a running emulator (`-d`, from `helder devices`),
   or a simulator, booted for it when it is not; the dev host's app

@@ -49,6 +49,11 @@ class Entry {
 	// package.json's "helder" key (null: none): an app's id, label,
 	// versions, its "android" and "ios" options (App)
 	public var config(default, null):Dynamic = null;
+	// the app's manifest (helder.webmanifest at the root: config is its,
+	// Manifest), null: none; deprecated: config is package.json's
+	// "helder" key's identity instead
+	public var manifest(default, null):Null<String> = null;
+	public var deprecated(default, null) = false;
 
 	function new() {}
 
@@ -178,6 +183,8 @@ class Entry {
 	}
 
 	function finish() {
+		manifest = Manifest.find(root);
+		if (manifest != null) config = Manifest.load(manifest) else deprecated = Manifest.legacy(config);
 		helder = Lambda.find(classPaths, c -> FileSystem.exists('$c/helder/dev/Hot.hx'));
 		if (helder == null) {
 			// (the CLI's own checkout: bin/cli/helder)

@@ -1,9 +1,11 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{title}}</title>
+{{head}}
 <style>
 body { margin: 0; background: #fff; }
 @media (prefers-color-scheme: dark) { body { background: #0b0b0c; } }
+{{style}}
 #hxmc-dev-overlay { position: fixed; inset: 0; z-index: 2147483647; display: none; overflow: auto; margin: 0; padding: 16px;
 	background: rgba(20, 0, 0, .9); color: #ffd7d7; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
 #hxmc-dev-overlay b { color: #fff; }
@@ -18,6 +20,7 @@ window.helderLoad.wasm.catch(() => {});
 window.helderLoad.fonts.catch(() => {});
 </script></head><body>
 <pre id="hxmc-dev-overlay" role="alert"></pre>
+{{splash}}
 <script type="module">
 // helder's page for a wasm32-wasi build (src/helder/cli/page.html): the
 // module run with the browser modules of the packages it imports. Under
@@ -73,6 +76,8 @@ async function start(wasm, restoreBytes) {
 	const g = state.host.gfx;
 	if (!gpu && g && g.device) gpu = window.hxmcDev.gpu = { adapter: g.adapter, device: g.device };
 	window.hxmcDev.canvas = state.host.os?.canvases?.[0] ?? document.querySelector('canvas');
+	// (the manifest's splash, the page's until the program runs)
+	document.getElementById('helder-splash')?.remove();
 }
 // a new build: compiled as it arrives (409: it failed, the running one stays), then swapped in
 async function swap() {

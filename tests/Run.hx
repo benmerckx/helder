@@ -330,7 +330,7 @@ class Run {
 			run(h, ["build", "examples/counter", "--target", "android-x86_64", "-o", "bin/pack/Counter.apk"], env);
 			run(h, ["build", "examples/native-form", "--target", "android-x86_64", "-o", "bin/pack/NativeForm.apk"], env);
 			checks = checks.concat([
-				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck@landscape@fullscreen",
+				"bin/pack/Hello-arm64.apk@org.helder.hello@surface", "bin/pack/Hello-x86_64.apk", "bin/pack/project/bin/android/Packed.apk@org.helder.packcheck@landscape@fullscreen@icons",
 				"bin/pack/Counter.apk@@surface", "bin/pack/NativeForm.apk@@views", "bin/pack/Screen.apk@org.helder.screen@surface",
 				'bin/pack/Checksum.apk@org.helder.checksum@$ASSETS'
 			]);
@@ -365,7 +365,7 @@ class Run {
 			run(h, ["build", "tests/pack/Screen.hx", "--target", "ios-sim", "-o", "bin/pack/Screen.app"], env);
 			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios-sim", "-o", "bin/pack/Checksum.app"], env);
 			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios", "-o", "bin/pack/Checksum.ipa"], env);
-			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen", "bin/pack/Screen.app@org.helder.Screen",
+			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen@icons", "bin/pack/Screen.app@org.helder.Screen",
 				'bin/pack/Checksum.app@org.helder.Checksum@$ASSETS', 'bin/pack/Checksum.ipa@org.helder.Checksum@$ASSETS']);
 		}
 		if (checks.length > 0) interp(cps(["src", "tests/pack"]), "PackCheck", checks);

@@ -45,7 +45,13 @@ class BuildCommand {
 		var exe = out ?? e.out(e.target);
 		var r = build(e, exe, Release);
 		if (!r.ok) return 1;
-		if (e.target == "web") Page.write(e.helder, exe, e.name);
+		if (e.target == "web") try {
+			Manifest.warn(e);
+			Page.write(e.helder, exe, e.name, e.manifest == null ? null : {file: e.manifest, cfg: e.config, root: e.root});
+		} catch (err:Dynamic) {
+			Term.err(Style.status("error", Fail, Std.string(err)));
+			return 1;
+		}
 		if (!andRun) return 0;
 		Term.out(Style.status("running", Info, Style.path(exe + (programArgs.length == 0 ? "" : " " + programArgs.join(" ")))));
 		var p = new Process(exe.contains("/") || exe.contains("\\") ? exe : './$exe', programArgs);

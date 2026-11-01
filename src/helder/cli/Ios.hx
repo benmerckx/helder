@@ -6,6 +6,7 @@ import helder.cli.BuildCommand.Mode;
 import helder.cli.Compiler.CompileServer;
 import helder.cli.Devices.Device;
 import helder.pack.ios.Bundle;
+import helder.pack.ios.Plist.PValue;
 import sys.FileSystem;
 import sys.io.File;
 
@@ -53,7 +54,10 @@ class Ios {
 		if (!out.endsWith(".app") && !out.endsWith(".ipa")) throw '$out: an iOS app is a .app or an .ipa';
 		var app = app(out), name = Path.withoutExtension(Path.withoutDirectory(app));
 		var o = App.ios(e.name, e.config);
-		var info = Bundle.infoPlist(name, o.id, o.label, o.version, o.versionName, o.minVersion, e.target == "ios-sim-arm64", o.orientation, o.fullscreen);
+		Manifest.warn(e);
+		var art = artwork(e.config, e.root);
+		var info = Bundle.infoPlist(name, o.id, o.label, o.version, o.versionName, o.minVersion, e.target == "ios-sim-arm64", o.orientation, o.fullscreen,
+			art.keys);
 		TestCommand.mkdirs(Path.directory(app) == "" ? "." : Path.directory(app));
 		var full = FileSystem.fullPath(Path.directory(app) == "" ? "." : Path.directory(app)) + "/" + Path.withoutDirectory(app);
 		var words = ["-D", 'hxmc.ios-min-version=${o.minVersion}', "-D", 'hxmc.codesign-id=${o.id}', "-D", 'hxmc.codesign-info-plist=$full/Info.plist', "-D",
@@ -77,6 +81,11 @@ class Ios {
 			var put = mode == Release ? AssetStep.intoApp(exe, app, e.classPaths.concat([e.root])) : {keys: [], files: new Map()};
 			var files = ["Info.plist" => info];
 			assets = [];
+			for (f in art.files) {
+				File.saveBytes('$app/${f.path}', f.data);
+				files.set(f.path, f.data);
+				assets.push(f);
+			}
 			for (k => b in put.files) {
 				files.set(k, b);
 				assets.push({path: k, data: b});
@@ -90,6 +99,48 @@ class Ios {
 			out;
 		}, prepare);
 	}
+
+	// the manifest's icons and splash as the bundle's files and Info.plist's
+	// keys, without Xcode (no asset catalog): the app icon's PNGs at the
+	// sizes the home screen, Spotlight and Settings take (opaque: Icons.ios)
+	// named in CFBundleIcons (and ~ipad's); the launch screen
+	// (UILaunchScreen's UIImageName, an image shown at its size in the
+	// middle of the screen): the splash image, else the icon, at 160 points
+	// on a square of the splash's background as large as the largest
+	// screen (an iPhone's at @3x, an iPad's at @2x), so that the colour
+	// fills it (UIColorName would need an asset catalog's colour). None for
+	// package.json's "helder" key's app
+	public static function artwork(cfg:Dynamic, root:String, ?read:String->haxe.io.Bytes):{files:Array<{path:String, data:haxe.io.Bytes}>, keys:Map<String, helder.pack.ios.Plist.PValue>} {
+		var m:Manifest.AppConfig = cfg, files = [], keys = new Map<String, helder.pack.ios.Plist.PValue>();
+		if (m == null || m.icons == null && m.splash == null) return {files: files, keys: keys};
+		var icons = new Icons(m, root, read);
+		if (icons.has("any") || icons.has("maskable")) {
+			for (f in ICONS) files.push({path: f.file, data: icons.ios(f.px)});
+			inline function names(list:Array<String>)
+				return PDict(["CFBundlePrimaryIcon" => PDict(["CFBundleIconFiles" => PArray([for (n in list) PString(n)])])]);
+			keys.set("CFBundleIcons", names(["AppIcon60x60"]));
+			keys.set("CFBundleIcons~ipad", names(["AppIcon60x60", "AppIcon76x76", "AppIcon83.5x83.5"]));
+		}
+		var s = m.splash;
+		if (s != null && (s.background != null || s.image != null)) {
+			var phone = icons.launch(LAUNCH_POINTS * 3, 160 * 3, s.image, s.background), pad = icons.launch(LAUNCH_POINTS_PAD * 2, 160 * 2, s.image, s.background);
+			if (phone != null) {
+				files.push({path: "LaunchImage@3x~iphone.png", data: phone});
+				files.push({path: "LaunchImage@2x~ipad.png", data: pad});
+				keys.set("UILaunchScreen", PDict(["UIImageName" => PString("LaunchImage"), "UIImageRespectsSafeAreaInsets" => PBool(false)]));
+			}
+		}
+		return {files: files, keys: keys};
+	}
+
+	// (the app icon's files: CFBundleIconFiles' names, the scale's suffix, ~ipad's)
+	static final ICONS = [
+		{file: "AppIcon60x60@2x.png", px: 120}, {file: "AppIcon60x60@3x.png", px: 180}, {file: "AppIcon76x76@2x~ipad.png", px: 152},
+		{file: "AppIcon83.5x83.5@2x~ipad.png", px: 167}
+	];
+	// (the largest screens' longer side in points: iPhone Pro Max, iPad Pro 13")
+	static inline var LAUNCH_POINTS = 960;
+	static inline var LAUNCH_POINTS_PAD = 1376;
 
 	// --- a simulator's tools
 

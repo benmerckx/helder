@@ -45,10 +45,18 @@ using StringTools;
 // - on a Mac, codesign --verify and plutil -lint;
 // - fullscreen (both): the program built with -D helder.fullscreen (the
 //   project's line saying so in the library or the executable).
+// - @icons (both): the manifest's (helder.webmanifest): an APK's
+//   resources.arsc (Arsc.dump) and res/ files, the application's icon the
+//   adaptive icon (its 432 px foreground, its background), the activity's
+//   theme Theme.Helder (the splash's colour, windowBackground and
+//   windowSplashScreenBackground); a bundle's AppIcon PNGs at their sizes,
+//   opaque, in CFBundleIcons, the launch image (UILaunchScreen's
+//   UIImageName), all in CodeResources.
 // Exits non-zero on a failure; a missing tool is a line saying so.
 class PackCheck {
 	static var failures = 0;
-	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool, assets:{dir:String, keys:Array<String>}} = {
+	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool, icons:Bool, assets:{dir:String, keys:Array<String>}} = {
+		icons: false,
 		id: null,
 		entitlements: false,
 		views: null,
@@ -97,7 +105,8 @@ class PackCheck {
 				entitlements: parts.contains("entitlements"),
 				views: parts.contains("views") ? true : parts.contains("surface") ? false : null,
 				orientation: parts.contains("portrait") ? "portrait" : parts.contains("landscape") ? "landscape" : "any",
-				fullscreen: parts.contains("fullscreen")
+				fullscreen: parts.contains("fullscreen"),
+				icons: parts.contains("icons")
 			};
 			if (parts[0].endsWith(".apk")) apk(parts[0]) else bundle(parts[0]);
 		}
@@ -123,7 +132,10 @@ class PackCheck {
 		}
 		if (has("zipalign")) check("zipalign -c -P 16 4", exec("zipalign", ["-c", "-P", "16", "4", path]).code == 0) else skip("zipalign (not found)");
 		var all = [for (e in entries) e.name];
-		var names = [for (n in all) if (!n.startsWith("assets/")) n];
+		var names = [for (n in all) if (!n.startsWith("assets/") && !n.startsWith("res/") && n != "resources.arsc") n];
+		var res = [for (n in all) if (n.startsWith("res/") || n == "resources.arsc") n];
+		check("zip: resources.arsc and res/ " + (want.icons ? "(the manifest's icon)" : "none"), want.icons == res.contains("resources.arsc")
+			&& (want.icons || res.length == 0), res.join(" "));
 		assets([for (e in entries) if (e.name.startsWith("assets/")) e.name.substr(7) => e.data]);
 		var lib = [for (n in names) if (n.startsWith("lib/")) n];
 		var code = names.contains("classes.dex");
@@ -152,6 +164,7 @@ class PackCheck {
 			case "landscape": "6";
 			case _: "none";
 		}), orientation);
+		if (want.icons && res.contains("resources.arsc")) icons(xml, data, res);
 		if (has("aapt")) {
 			var r = exec("aapt", ["dump", "badging", path]);
 			check("aapt dump badging", r.code == 0 && r.out.indexOf("launchable-activity: name='" + activity + "'") >= 0, r.out.split("\n")[0]);
@@ -167,6 +180,31 @@ class PackCheck {
 		if (want.fullscreen) built(data(lib[0]));
 		if (has("readelf")) elf(so, abi) else skip("readelf (not found)");
 		signature(path, b);
+	}
+
+	// the resources of the manifest's icon and splash
+	static function icons(xml:String, data:String->Bytes, res:Array<String>) {
+		var table = Arsc.dump(data("resources.arsc"));
+		File.saveContent('$dir/resources.txt', table);
+		var line = (name:String) -> Lambda.find(table.split("\n"), l -> l.indexOf(" " + name + " ") > 0);
+		var icon = line("mipmap/ic_launcher"), theme = line("style/Theme.Helder");
+		check("resources: mipmap/ic_launcher, the application's icon and round icon", icon != null
+			&& xml.indexOf("android:icon(0x01010002)=@" + icon.split(" ")[0]) >= 0 && xml.indexOf("android:roundIcon(0x0101052c)=@" + icon.split(" ")[0]) >= 0,
+			icon);
+		var files = [for (l in table.split("\n")) if (l.indexOf('"res/') > 0) l.substring(l.indexOf('"') + 1, l.lastIndexOf('"'))];
+		files.sort(Reflect.compare);
+		var listed = [for (r in res) if (r != "resources.arsc") r];
+		listed.sort(Reflect.compare);
+		check("resources: their files, each in res/", files.join(",") == listed.join(","), files.join(" "));
+		if (icon != null) {
+			var adaptive = Axml.dump(data(icon.substring(icon.indexOf('"') + 1, icon.lastIndexOf('"'))));
+			check("resources: an adaptive icon, a background and a foreground", adaptive.startsWith("<adaptive-icon>") && adaptive.indexOf("<background android:drawable") > 0
+				&& adaptive.indexOf("<foreground android:drawable") > 0);
+		}
+		var fg = res.indexOf("res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png") >= 0 ? helder.image.PngDecoder.decode(data("res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png")) : null;
+		check("resources: the foreground 432 px (108 dp at xxxhdpi)", fg != null && fg.width == 432 && fg.height == 432);
+		check("resources: Theme.Helder, the activity's: the splash's background, the window's", theme != null
+			&& xml.indexOf("android:theme(0x01010000)=@" + theme.split(" ")[0]) >= 0 && theme.indexOf("0x0101062c=@") > 0 && theme.indexOf("0x01010054=@") > 0, theme);
 	}
 
 	static function elf(so:String, abi:String) {
@@ -315,6 +353,27 @@ class PackCheck {
 		names.sort(Reflect.compare);
 		assets([for (k => v in files) if (k.startsWith("assets/")) k.substr(7) => v]);
 		var expected = ["Info.plist", exe, "_CodeSignature/CodeResources"];
+		var art = ["AppIcon60x60@2x.png" => 120, "AppIcon60x60@3x.png" => 180, "AppIcon76x76@2x~ipad.png" => 152, "AppIcon83.5x83.5@2x~ipad.png" => 167];
+		if (want.icons) {
+			for (f => px in art) {
+				var png = files.exists(f) ? helder.image.PngDecoder.decode(files.get(f)) : null;
+				check('bundle: $f, ${px} px, opaque', png != null && png.width == px && png.rgba.get(3) == 255);
+				expected.push(f);
+			}
+			check("Info.plist: CFBundleIcons, ~ipad's", switch [d.get("CFBundleIcons"), d.get("CFBundleIcons~ipad")] {
+				case [PDict(a), PDict(b)]: a.exists("CFBundlePrimaryIcon") && b.exists("CFBundlePrimaryIcon");
+				case _: false;
+			});
+			var launch = switch d.get("UILaunchScreen") {
+				case PDict(l): l.get("UIImageName");
+				case _: null;
+			}
+			check("Info.plist: UILaunchScreen's UIImageName LaunchImage", launch != null && Type.enumEq(launch, PString("LaunchImage")));
+			for (f in ["LaunchImage@3x~iphone.png", "LaunchImage@2x~ipad.png"]) {
+				check('bundle: $f', files.exists(f));
+				expected.push(f);
+			}
+		}
 		expected.sort(Reflect.compare);
 		check("bundle: the executable, Info.plist, _CodeSignature/CodeResources", names.join(",") == expected.join(","), names.join(" "));
 		if (ipa) check("ipa: the executable 0755, the rest 0644", modes.get(exe) == 0x1ed && modes.get("Info.plist") == 0x1a4);

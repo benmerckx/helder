@@ -45,7 +45,7 @@ const force = process.env.FORCE_COLOR, no = process.env.NO_COLOR;
 const color = force ? force !== '0' && force !== 'false' : !no && process.env.TERM !== 'dumb' && !!process.stderr.isTTY;
 const status = (verb, sgr, text) => (color ? `\x1b[${sgr};1m${verb.padStart(9)}\x1b[0m` : verb.padStart(9)) + ' ' + text;
 
-const sources = Math.max(newest(path.join(root, 'src/helder/cli')), newest(path.join(root, 'src/helder/async')));
+const sources = Math.max(...['cli', 'async', 'pack', 'image'].map((p) => newest(path.join(root, 'src/helder', p))));
 if (!fs.existsSync(exe) || fs.statSync(exe).mtimeMs < sources) {
 	const t0 = Date.now();
 	// (built beside it, then renamed over it: a running one, `helder dev`'s, cannot be written over)

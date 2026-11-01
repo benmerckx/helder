@@ -1,0 +1,19 @@
+{
+  "name": "Pack check",
+  "short_name": "Pack check",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "theme_color": "#3ED6C3",
+  "background_color": "#060912",
+  "icons": [
+    {"src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+  ],
+  "helder": {
+    "version": "0.2",
+    "build": 2,
+    "id": "org.helder.packcheck",
+    "android": {"permissions": ["VIBRATE"], "targetSdk": 34},
+    "ios": {"minVersion": "16.0", "entitlements": "app.entitlements"},
+    "splash": {"dark": {"background_color": "#000000"}}
+  }
+}
