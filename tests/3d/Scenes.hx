@@ -41,8 +41,13 @@ import helder.scene.render.*;
 //   particles two emitters (Particles, Emitter) after STEPS steps
 //   orbits the Orbits example (shapes made in code on a scene graph, a
 //          directional Light) at TIME seconds
+//   crystal a planet lit from the side, blocks standing on it all round
+//          (Material.ground: dark past its terminator; Material.air towards
+//          its limb; tinted per node, MeshRenderer.tint, in one instanced
+//          draw) and faceted crystals (Material.crystal, see-through) on
+//          its day and night sides
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -56,6 +61,44 @@ class Scenes {
 		ready = () -> true;
 		probe = null;
 		return switch name {
+			case "crystal":
+				var r = new Renderer(device);
+				renderer = r;
+				r.sunDirection = new Vec3(-1, 0.25, 0.35);
+				r.sunColor = new Vec3(3, 2.9, 2.8);
+				r.sky = new Vec3(0.06, 0.07, 0.1);
+				r.ground = new Vec3(0.06, 0.07, 0.1);
+				r.rim = new Vec3(0.6, 0.65, 0.8);
+				var world = new World();
+				var planet = world.node("planet");
+				MeshRenderer.attach(planet, Shapes.sphere(device, new Material("planet", new helder.gfx.shader.Vec4(0.55, 0.32, 0.18, 1), 0, 0.9), 1, 48, 24));
+				var hull = new Material("hull", new helder.gfx.shader.Vec4(0.5, 0.52, 0.56, 1), 0.3, 0.5);
+				hull.ground = 1;
+				hull.air = new helder.gfx.shader.Vec4(0.2, 0.45, 1, 0.3);
+				var block = Shapes.box(device, hull, 0.22, 0.3, 0.22);
+				var gem = new Material("crystal", new helder.gfx.shader.Vec4(0.08, 0.35, 1, 0.7), 0, 0.1, new Vec3(0.05, 0.3, 1.1));
+				gem.crystal = 1;
+				gem.ground = 1;
+				gem.blend = true;
+				var crystal = Shapes.box(device, gem, 0.1, 0.32, 0.1);
+				// (round the planet's rim as the eye sees it, each standing on the
+				// sphere: its up the normal there, turned from y about y x up)
+				for (k in 0...10) {
+					var a = k * Math.PI * 2 / 10 + 0.3, up = new Vec3(Math.cos(a) * 0.8, Math.sin(a) * 0.8, 0.6);
+					var axis = new Vec3(up.z, 0, -up.x), turn = Math.acos(up.y);
+					var n = world.node();
+					n.position = new Vec3(up.x * 1.05, up.y * 1.05, up.z * 1.05);
+					n.rotation = helder.scene.math.Quat.axisAngle(axis * (1 / Math.sqrt(up.z * up.z + up.x * up.x)), turn) * helder.scene.math.Quat.axisAngle(new Vec3(0, 1, 0), k * 0.7);
+					MeshRenderer.attach(n, k % 3 == 2 ? crystal : block);
+					if (k % 3 != 2) MeshRenderer.tint(n, k % 2 == 0 ? new Vec3(1.5, 0.8, 0.55) : new Vec3(0.65, 1, 1.5));
+				}
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 0, 3.6);
+				eye.lookAt(new Vec3(0, 0, 0));
+				// (the blocks in one instanced draw, each its own tint)
+				probe = () -> r.instanced >= 7 ? null : 'instanced: ${r.instanced}';
+				enc -> r.draw(enc, world, camera);
 			case "overlay":
 				// the sample scene under the debug overlay (helder.ui), its frame times made up
 				var under = make("gltf", device);

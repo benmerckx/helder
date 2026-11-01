@@ -23,6 +23,8 @@ import helder.scene.render.PbrShader;
 	var normal:Vec3;
 	var uv:Vec2;
 	var tangent:Vec4;
+	var up:Vec3;
+	var tint:Vec3;
 }
 
 class PbrNormalShader implements Shaders {
@@ -33,7 +35,9 @@ class PbrNormalShader implements Shaders {
 			world: world.xyz,
 			normal: (object.normalMatrix * vec4(v.normal, 0)).xyz,
 			uv: v.uv,
-			tangent: vec4((object.model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w)
+			tangent: vec4((object.model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w),
+			up: (object.model * vec4(0, 1, 0, 0)).xyz,
+			tint: object.tint.xyz
 		};
 	}
 
@@ -46,7 +50,7 @@ class PbrNormalShader implements Shaders {
 		var m = sample(normalTexture, i.uv).xyz * 2 - 1;
 		var scale = material.params.z;
 		var n = normalize(t * (m.x * scale) + b * (m.y * scale) + ng * m.z);
-		return PbrShader.shadeAt(n, i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
+		return PbrShader.shadeAt(n, i.world, i.uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
 			shadowMap, shadowMapFar, environmentMap);
 	}
 }

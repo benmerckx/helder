@@ -51,6 +51,8 @@ class Renderer {
 	// without a Light in the world: towards the light (normalized when
 	// drawn), and its colour times intensity
 	public var sunDirection = new Vec3(-0.4, 0.8, 0.45);
+	// (no tint: MeshRenderer.tint's default)
+	public static final WHITE = new Vec3(1, 1, 1);
 	public var sunColor = new Vec3(2.1, 1.95, 1.8);
 	public var sky = new Vec3(0.3, 0.36, 0.48);
 	public var ground = new Vec3(0.12, 0.1, 0.09);
@@ -225,7 +227,7 @@ class Renderer {
 	public function extract(world:World, viewProj:Mat4) {
 		count = 0;
 		culled = 0;
-		var meshes = world.store(MeshRenderer.KIND);
+		var meshes = world.store(MeshRenderer.KIND), tints = world.store(MeshRenderer.TINT);
 		for (k in 0...meshes.length) {
 			var node = meshes.nodeAt(k), mesh = meshes.valueAt(k);
 			if (!node.shown() || !world.inTree(node)) continue;
@@ -237,10 +239,12 @@ class Renderer {
 				culled += mesh.primitives.length;
 				continue;
 			}
+			var tint = tints.get(node) ?? WHITE;
 			for (p in mesh.primitives) {
 				if (count == list.length) list.push(new DrawItem());
 				var d = list[count++];
 				d.node = node;
+				d.tint = tint;
 				d.primitive = p;
 				// (the pipeline, then the material)
 				d.key = (p.material.blend ? 1 << 26 : 0) | (mapped(p) ? 1 << 25 : 0) | (p.material.doubleSided ? 1 << 24 : 0) | (p.material.id & 0xFFFFFF);
@@ -382,8 +386,8 @@ class Renderer {
 				node = Node.NONE;
 			}
 			if (!many && d.node != node) {
-				var model = d.node.worldMatrix();
-				PbrShader.writePbrObject({model: model, normalMatrix: MathTools.normalMatrix(model)}, objectBytes);
+				var model = d.node.worldMatrix(), t = d.tint;
+				PbrShader.writePbrObject({model: model, normalMatrix: MathTools.normalMatrix(model), tint: new Vec4(t.x, t.y, t.z, 1)}, objectBytes);
 				enc.setUniforms(slots[1], objectBytes);
 				node = d.node;
 			}
@@ -391,8 +395,10 @@ class Renderer {
 			if (m != material) {
 				PbrShader.writePbrMaterial({
 					baseColor: m.baseColor,
-					params: new Vec4(m.metallic, m.roughness, m.normalScale, 0),
-					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, m.emissiveNight)
+					params: new Vec4(m.metallic, m.roughness, m.normalScale, m.doubleSided ? 1 : 0),
+					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, m.emissiveNight),
+					ground: new Vec4(m.ground, m.air.w, m.crystal, 0),
+					air: m.air
 				}, materialBytes);
 				enc.setUniforms(slots[2], materialBytes);
 				var ms = m.sampler != null ? m.sampler : sampler;
@@ -447,13 +453,14 @@ class Renderer {
 					instanceBytes = grown;
 				}
 				for (k in i...j) {
-					var m = list[k].node.worldMatrix();
+					var m = list[k].node.worldMatrix(), t = list[k].tint;
 					for (c in 0...4) {
 						var col = MathTools.col(m, c);
 						instanceBytes.setFloat(bytes, col.x);
 						instanceBytes.setFloat(bytes + 4, col.y);
 						instanceBytes.setFloat(bytes + 8, col.z);
-						instanceBytes.setFloat(bytes + 12, col.w);
+						// (the last row's first three, 0 in an affine matrix: the tint less 1)
+						instanceBytes.setFloat(bytes + 12, c == 3 ? col.w : (c == 0 ? t.x : c == 1 ? t.y : t.z) - 1);
 						bytes += 16;
 					}
 				}
@@ -569,6 +576,8 @@ class DrawItem {
 	public var key = 0;
 	// (see-through draws: the depth they sort by, farthest first)
 	public var depth = 0.0;
+	// (its node's tint: MeshRenderer.tint)
+	public var tint:Vec3 = Renderer.WHITE;
 
 	public function new() {}
 }

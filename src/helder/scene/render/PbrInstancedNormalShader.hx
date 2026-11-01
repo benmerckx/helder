@@ -25,14 +25,16 @@ import helder.scene.render.PbrNormalShader;
 
 class PbrInstancedNormalShader implements Shaders {
 	@:vertex static function vs(v:PbrInstanceNormalVertex, frame:PbrFrame):PbrNormalVaryings {
-		var model = mat4(v.m0, v.m1, v.m2, v.m3);
+		var model = mat4(vec4(v.m0.xyz, 0), vec4(v.m1.xyz, 0), vec4(v.m2.xyz, 0), v.m3);
 		var world = model * vec4(v.pos, 1);
 		return {
 			clip: frame.viewProj * world,
 			world: world.xyz,
 			normal: (model * vec4(v.normal, 0)).xyz,
 			uv: v.uv,
-			tangent: vec4((model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w)
+			tangent: vec4((model * vec4(v.tangent.xyz, 0)).xyz, v.tangent.w),
+			up: v.m1.xyz,
+			tint: vec3(1 + v.m0.w, 1 + v.m1.w, 1 + v.m2.w)
 		};
 	}
 
@@ -44,7 +46,7 @@ class PbrInstancedNormalShader implements Shaders {
 		var m = sample(normalTexture, i.uv).xyz * 2 - 1;
 		var scale = material.params.z;
 		var n = normalize(t * (m.x * scale) + b * (m.y * scale) + ng * m.z);
-		return PbrShader.shadeAt(n, i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
+		return PbrShader.shadeAt(n, i.world, i.uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
 			shadowMap, shadowMapFar, environmentMap);
 	}
 }

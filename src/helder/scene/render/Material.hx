@@ -46,6 +46,26 @@ class Material {
 	// everywhere, 1: none where the sun shines; city lights on a planet),
 	// faded across the terminator
 	public var emissiveNight = 0.0;
+	// how much it stands on a sphere whose outward normal is its node's up
+	// (local +y: a building on a planet, a tree on a globe): 1 and the sun
+	// sets on it as on that ground, its direct light and rim faded across
+	// the sphere's terminator, so it darkens with its planet's night side
+	// (0: lit by its own faces alone)
+	public var ground = 0.0;
+	// the air between it and the eye (aerial perspective), with ground's
+	// up: rgb its colour (linear), w how much at most, reached towards the
+	// sphere's limb (where its up turns from the eye), lit by the sun over
+	// that ground (0: none)
+	public var air = new Vec4(0, 0, 0, 0);
+	// how much it is a crystal (0 to 1): polished (roughness 0.07) and a
+	// gem's reflectance, the environment's reflection and the rim light
+	// strong at grazing angles (Fresnel), lit from inside by its emissive
+	// colour lifted towards white, most where it faces the eye (a fake
+	// subsurface), the sun through it from behind; its edges opaque, its
+	// middle as see-through as its base colour's alpha with blend on
+	// (Additive's an additive glass). Faceted by its normals: give its
+	// facets flat ones (vertices not shared across their edges)
+	public var crystal = 0.0;
 
 	public function new(?name:String, ?baseColor:Vec4, metallic = 0.0, roughness = 0.5, ?emissive:Vec3, doubleSided = false) {
 		this.name = name != null ? name : "";

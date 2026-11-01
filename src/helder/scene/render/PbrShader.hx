@@ -23,6 +23,10 @@ import helder.gfx.shader.ShaderMath.*;
 	var world:Vec3;
 	var normal:Vec3;
 	var uv:Vec2;
+	// the node's up (its y axis in the world: Material.ground's sphere's
+	// normal) and its tint (MeshRenderer.tint: rgb times the base colour)
+	var up:Vec3;
+	var tint:Vec3;
 }
 
 // per frame: the camera and the lights
@@ -69,13 +73,16 @@ import helder.gfx.shader.ShaderMath.*;
 @:structInit @:publicFields class PbrObject {
 	var model:Mat4;
 	var normalMatrix:Mat4;
+	var tint:Vec4; // rgb: the node's tint (MeshRenderer.tint)
 }
 
 // per draw: the material
 @:structInit @:publicFields class PbrMaterial {
 	var baseColor:Vec4;
-	var params:Vec4; // x: metallic, y: roughness
+	var params:Vec4; // x: metallic, y: roughness, z: the normal map's scale, w: 1 double-sided
 	var emissive:Vec4; // rgb; w: its share emitted on the night side only (Material.emissiveNight)
+	var ground:Vec4; // x: Material.ground, y: the air's strength (Material.air's w), z: Material.crystal
+	var air:Vec4; // rgb: the air's colour (Material.air)
 }
 
 class PbrShader implements Shaders {
@@ -85,41 +92,55 @@ class PbrShader implements Shaders {
 			clip: frame.viewProj * world,
 			world: world.xyz,
 			normal: (object.normalMatrix * vec4(v.normal, 0)).xyz,
-			uv: v.uv
+			uv: v.uv,
+			up: (object.model * vec4(0, 1, 0, 0)).xyz,
+			tint: object.tint.xyz
 		};
 	}
 
 	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
 			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4
-		return shadeAt(normalize(i.normal), i.world, i.uv, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture,
-			occlusionTexture, shadowMap, shadowMapFar, environmentMap);
+		return shadeAt(normalize(i.normal), i.world, i.uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture,
+			emissiveTexture, occlusionTexture, shadowMap, shadowMapFar, environmentMap);
 
-	// the fragment's colour at a point of the world with a unit normal n
-	// (also the instanced, skinned and normal-mapped shaders')
-	public static function shadeAt(n:Vec3, world:Vec3, uv:Vec2, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
+	// the fragment's colour at a point of the world with a unit normal n, the
+	// node's unit up and its tint (also the instanced, skinned and
+	// normal-mapped shaders')
+	public static function shadeAt(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, tint:Vec3, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
 			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4 {
 		var texel = sample(baseColorTexture, uv);
 		// (the texture's sRGB decoded)
-		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2));
+		var base = material.baseColor.xyz * pow(texel.xyz, vec3(2.2)) * tint;
 		// (glTF's: roughness in green, metallic in blue, linear)
 		var mr = sample(metallicRoughnessTexture, uv);
+		var crystal = material.ground.z;
 		var metallic = clamp(material.params.x * mr.z, 0, 1);
-		var rough = clamp(material.params.y * mr.y, 0.04, 1);
+		// (a crystal: polished whatever its roughness)
+		var rough = clamp(mix(material.params.y * mr.y, 0.07, crystal), 0.04, 1);
 		var v = normalize(frame.eye.xyz - world);
+		// (double-sided: a face seen from behind lit by its normal turned
+		// to the eye, not by its front's: a model's inward walls lit as walls)
+		var n = material.params.w > 0.5 && dot(facing, v) < 0 ? -facing : facing;
 		var l = frame.lightDir.xyz;
 		var nv = max(dot(n, v), 0.0001);
 		var a = rough * rough;
 		var a2 = a * a;
-		var f0 = mix(vec3(0.04), base, metallic);
-		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0));
+		// (a crystal's dielectric reflectance higher than glass's: a gem's)
+		var f0 = mix(mix(vec3(0.04), base, metallic), vec3(0.12), crystal);
+		// (standing on a sphere (Material.ground): its up the sphere's normal
+		// under it, the sun set there as on the ground around it, faded
+		// across the terminator as the planet's own light is)
+		var sunUp = dot(up, l);
+		var day = mix(1.0, smoothstep(-0.08, 0.22, sunUp), material.ground.x);
+		var direct = brdf(n, v, l, base, metallic, a2, f0) * frame.lightColor.xyz * (shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day);
 		direct += point(n, v, world, base, metallic, a2, f0, frame.point0, frame.pointColor0, frame.spot0)
 			+ point(n, v, world, base, metallic, a2, f0, frame.point1, frame.pointColor1, frame.spot1)
 			+ point(n, v, world, base, metallic, a2, f0, frame.point2, frame.pointColor2, frame.spot2)
 			+ point(n, v, world, base, metallic, a2, f0, frame.point3, frame.pointColor3, frame.spot3);
 		// the ambient: the sky and the ground blended by the normal (diffuse)
 		// and by the reflection (specular, Karis' fit of the split sum)
-		var up = n.y * 0.5 + 0.5;
-		var irradiance = mix(frame.ground.xyz, frame.sky.xyz, up);
+		var above = n.y * 0.5 + 0.5;
+		var irradiance = mix(frame.ground.xyz, frame.sky.xyz, above);
 		var r = reflect(-v, n);
 		var env = mix(frame.ground.xyz, frame.sky.xyz, smoothstep(-0.2, 0.2, r.y));
 		if (frame.environment.x > 0) {
@@ -147,7 +168,13 @@ class PbrShader implements Shaders {
 		var rr = c0 * rough + c1;
 		var a004 = min(rr.x * rr.x, pow(2, -9.28 * nv)) * rr.x + rr.y;
 		var ab = vec2(-1.04, 1.04) * a004 + rr.zw;
-		var specularAmbient = env * (f0 * ab.x + ab.y);
+		// (standing on a sphere (Material.ground): below its horizon (about
+		// up) it reflects the sphere's dark ground, not the sky beyond it,
+		// and gets less of the sky's light the more it faces down; on the
+		// night side the sky it reflects half the dark ground's)
+		var horizon = smoothstep(-0.2, 0.2, dot(r, up));
+		var specularAmbient = env * (f0 * ab.x + ab.y) * mix(1.0, mix(0.12, 1, horizon) * (0.45 + 0.55 * day), material.ground.x);
+		irradiance = irradiance * mix(1.0, 0.55 + 0.45 * smoothstep(-0.6, 0.6, dot(n, up)), material.ground.x);
 		// (occlusion, in red, darkens the ambient only)
 		var occlusion = sample(occlusionTexture, uv).x;
 		var ambient = (irradiance * base * (1 - metallic) + specularAmbient) * occlusion;
@@ -155,10 +182,32 @@ class PbrShader implements Shaders {
 		// (city lights: on the night side, faded in past the terminator)
 		emitted = emitted * mix(1.0, smoothstep(0.12, -0.18, dot(n, l)), material.emissive.w);
 		// (the rim: grazing views, on the light's side and a little past it)
-		var rim = frame.rim.xyz * (pow(1 - nv, frame.rim.w) * smoothstep(-0.25, 0.5, dot(n, l)));
+		var edge = 1 - nv;
+		var rim = frame.rim.xyz * (pow(edge, frame.rim.w) * smoothstep(-0.25, 0.5, dot(n, l)) * day);
 		direct += rim * mix(vec3(1), base, 0.5);
+		var alpha = material.baseColor.w * texel.w;
+		if (crystal > 0) {
+			// (a crystal (Material.crystal): the environment's reflection
+			// stronger at grazing angles (Fresnel); light from inside, its
+			// emissive colour lifted towards white where it is seen through
+			// most (facing the eye: a fake subsurface), and the sun through it
+			// from behind; its edges opaque and bright, its middle see-through
+			// by the base colour's alpha (with Material.blend))
+			var fres = pow(edge, 3);
+			var glow = mix(material.emissive.xyz, vec3(dot(material.emissive.xyz, vec3(0.3, 0.4, 0.3))) * 1.6 + material.emissive.xyz * 0.4, 0.22);
+			var inner = glow * (0.35 + 0.65 * nv * nv) * (0.75 + 0.25 * day);
+			var through = frame.lightColor.xyz * base * (pow(max(dot(v, -l), 0), 6) * 0.6 * day);
+			var sheen = (env * 1.4 + frame.rim.xyz * day) * (f0 + (1 - f0) * fres) * fres;
+			emitted = mix(emitted, inner + through, crystal) + sheen * crystal;
+			alpha = mix(alpha, 1, fres * crystal);
+		}
 		var color = (direct + ambient + emitted) * frame.exposure.x;
-		return vec4(output(color, frame.exposure.y), material.baseColor.w * texel.w);
+		// (the air (Material.air): towards its sphere's limb, as seen through
+		// more of the atmosphere, its colour lit by the sun over the ground)
+		var limb = 1 - max(dot(up, v), 0);
+		var haze = material.ground.y * limb * limb;
+		color = mix(color, material.air.xyz * (0.12 + 0.88 * smoothstep(-0.2, 0.35, sunUp)) * frame.exposure.x, haze);
+		return vec4(output(color, frame.exposure.y), alpha);
 	}
 
 	// the light reflected towards v from a unit light along l, times n.l:
