@@ -19,6 +19,19 @@ class SpriteBox extends helder.ui.Node {
 	public var onReady:Null<SpriteBatch->Void>;
 	public var onDraw:Null<(batch:SpriteBatch, width:Float, height:Float) -> Void>;
 	public var batch(default, null):Null<SpriteBatch>;
+	// at most this many device pixels a point (0: the screen's), the
+	// texture stretched over the box: a phone's fill rate (as a <Scene>'s)
+	public var density(default, set) = 0.0;
+	// (the size it was last drawn at, device pixels)
+	public var drawnWidth(get, never):Int;
+
+	function set_density(v:Float):Float {
+		if (v != density && ui != null) ui.requestFrame();
+		return density = Math.max(0, v);
+	}
+
+	inline function get_drawnWidth():Int
+		return tw;
 
 	var device:Null<Device>;
 	var color:Null<Texture>;
@@ -48,7 +61,8 @@ class SpriteBox extends helder.ui.Node {
 		var r = Std.downcast(canvas, helder.ui.draw.Renderer);
 		if (r == null) return;
 		if (animate && ui != null) ui.requestFrame();
-		var pw = Std.int(Math.max(1, Math.round(width * r.scale))), ph = Std.int(Math.max(1, Math.round(height * r.scale)));
+		var k = density > 0 ? Math.min(1, density / r.scale) : 1;
+		var pw = Std.int(Math.max(1, Math.round(width * r.scale * k))), ph = Std.int(Math.max(1, Math.round(height * r.scale * k)));
 		if (batch == null) {
 			device = r.device;
 			batch = new SpriteBatch(r.device, RGBA8);

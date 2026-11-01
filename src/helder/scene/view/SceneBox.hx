@@ -35,6 +35,25 @@ class SceneBox extends helder.ui.Node {
 	// its world drawn multisampled, 4 samples a pixel, resolved into the
 	// texture ui draws (false: one sample; set before it is first drawn)
 	public var antialias = true;
+	// its world drawn at this share of the box's device pixels, then
+	// stretched (filtered) over the box: below 1 for a phone's fill rate
+	// (0.75 on a 3x screen: 2.25 pixels a point, not 9); ui over it stays sharp
+	public var scale(default, set) = 1.0;
+
+	// at most this many device pixels a point (0: as many as the screen
+	// has): a phone's 3x screen drawn at 1.5 where a desktop's 1x stays 1
+	public var density(default, set) = 0.0;
+
+	function set_density(v:Float):Float {
+		if (v != density && ui != null) ui.requestFrame();
+		return density = Math.max(0, v);
+	}
+
+	function set_scale(v:Float):Float {
+		var k = Math.max(0.25, Math.min(1, v));
+		if (k != scale && ui != null) ui.requestFrame();
+		return scale = k;
+	}
 	// its world drawn in linear light into a half-float target (RGBA16F),
 	// then through its renderer's post (a PostProcess: bloom, tone mapping,
 	// grading; one made when it has none) into the texture ui draws; false:
@@ -54,6 +73,15 @@ class SceneBox extends helder.ui.Node {
 	var records = 0;
 	var tw = 0;
 	var th = 0;
+	// (the size its world was last drawn at, device pixels: the box's times scale)
+	public var drawnWidth(get, never):Int;
+	public var drawnHeight(get, never):Int;
+
+	inline function get_drawnWidth():Int
+		return tw;
+
+	inline function get_drawnHeight():Int
+		return th;
 	var fallback:Null<Camera>;
 	var under = SceneGraphNode.NONE;
 	// (its texture's id for ui's renderer: negative, one per box)
@@ -242,7 +270,8 @@ class SceneBox extends helder.ui.Node {
 		steppedAt = now;
 		for (c in controls)
 			if (c.update(dt) && ui != null) ui.requestFrame();
-		var pw = Std.int(Math.max(1, Math.round(width * r.scale))), ph = Std.int(Math.max(1, Math.round(height * r.scale)));
+		var k = density > 0 ? Math.min(scale, density / r.scale) : scale;
+		var pw = Std.int(Math.max(1, Math.round(width * r.scale * k))), ph = Std.int(Math.max(1, Math.round(height * r.scale * k)));
 		if (renderer == null) {
 			device = r.device;
 			renderer = new Renderer(r.device, true, antialias ? 4 : 1, hdr);

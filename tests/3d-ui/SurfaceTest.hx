@@ -5,6 +5,7 @@ import helder.scene.Camera;
 import helder.scene.World;
 import helder.scene.view.SceneTags.*;
 import helder.scene.view.SceneEvent;
+import helder.sprite.SpriteTags.*;
 import helder.ui.draw.UiWindow;
 import helder.ui.draw.UiWindow.Surface;
 import helder.view.*;
@@ -39,6 +40,8 @@ class SurfaceTest implements Markup {
 		var orbit:Null<helder.scene.view.OrbitControls> = null;
 		var stick = new helder.scene.input.VirtualStick({zone: helder.scene.input.Zone.rect(0, 0, 0.3, 1), radius: 20});
 		var windows:Array<UiWindow> = [];
+		var box:Null<helder.scene.view.SceneBox> = null;
+		var sprites:Null<helder.sprite.SpriteBox> = null;
 		var world = new World("test"), eye = world.node("eye");
 		eye.position = new Vec3(0, 0, 4);
 		eye.lookAt(new Vec3(0, 0, 0));
@@ -46,8 +49,8 @@ class SurfaceTest implements Markup {
 		var dispose = Render.open(<>
 			<Surface title={title} width={320} height={200} background={0xFFFFFFFF} ref={w -> windows.push(w)}>
 				<view direction="row" grow={1}>
-					<view width={120}><text tag="label">{picked}</text></view>
-					<Scene world={world} camera={camera} grow={1}>
+					<view width={120}><text tag="label">{picked}</text><Sprites width={100} height={20} density={0.5} ref={b -> sprites = b}/></view>
+					<Scene world={world} camera={camera} grow={1} scale={0.5} ref={b -> box = b}>
 						<mesh shape="box" size={1.4} color={new Vec4(1, 0.2, 0.1, 1)} onClick={(e:SceneEvent) -> picked("box")}
 							onPointerDown={(e:SceneEvent) -> touches.push('down ${e.pointerId}')} onPointerMove={(e:SceneEvent) -> touches.push('move ${e.pointerId}')}
 							onPointerUp={(e:SceneEvent) -> touches.push('up ${e.pointerId}')} onPointerCancel={(e:SceneEvent) -> touches.push('cancel ${e.pointerId}')}
@@ -90,6 +93,10 @@ class SurfaceTest implements Markup {
 		var mid = at(185, 70), corner = at(124, 4), panel = at(60, 120);
 		check("the scene drawn in its box: the mesh", mid[0] > 120 && mid[0] > mid[1] + 30 && mid[0] > mid[2] + 30, Std.string(mid));
 		check("the scene drawn in its box: its clear colour", corner[0] < 40 && corner[1] < 40 && corner[2] < 50, Std.string(corner));
+		check("<Sprites> density: drawn at its pixels a point", sprites.drawnWidth == Math.round(100 * Math.min(s, 0.5)), '${sprites.drawnWidth} at $s');
+		// (scale 0.5: its world drawn at half the box's pixels, stretched over all of it)
+		check("scale: drawn at half the box's pixels", box.drawnWidth == Math.round(200 * s * 0.5) && box.drawnHeight == Math.round(200 * s * 0.5),
+			'${box.drawnWidth}x${box.drawnHeight} at $s');
 		check("ui's beside it", panel[0] > 240 && panel[1] > 240 && panel[2] > 240, Std.string(panel));
 		// (the stick at rest: its ring at 10 points from the lower left, its knob in its centre)
 		var ring = at(11, 170), knob = at(30, 170);
@@ -129,8 +136,11 @@ class SurfaceTest implements Markup {
 		check("a drag from the mesh orbits the camera", orbit != null && moved.x < eye.x - 0.5 && touches.join(", ") == "down 4, move 4, move 4, up 4", '$eye to $moved; ' + touches.join(", "));
 		touches.resize(0);
 
+		// (density: at most a quarter of a device pixel a point here, under scale's half)
+		box.density = s * 0.25;
 		w.ui.requestFrame();
 		w.frame();
+		check("density: drawn at its pixels a point", box.drawnWidth == Math.round(200 * s * 0.25), '${box.drawnWidth} at $s');
 		var over = w.root.find("over");
 		var r = over == null ? null : over.windowBounds();
 		check("<Ui> over its node: the box's centre", r != null && Math.abs(r.x + r.width / 2 - 220) < 4 && Math.abs(r.y + r.height / 2 - 100) < 4,

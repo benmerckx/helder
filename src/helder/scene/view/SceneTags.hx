@@ -32,7 +32,9 @@ import helder.view.Render;
 // over it go to the scene node under the pointer (Pick: bounds, not
 // triangles), then its ancestors. <Ui> goes back to ui inside a scene: its
 // children drawn by the <Scene>'s ui over the box, at its node's place.
-// <OrbitControls> moves its camera from the pointers over it; <Stick>
+// scale and density draw its world at fewer pixels than the box has (a
+// share of them; at most so many a point), stretched over it: a phone's
+// fill rate. <OrbitControls> moves its camera from the pointers over it; <Stick>
 // draws an on-screen stick (helder.scene.input.VirtualStick) over the ui.
 class SceneTags {
 	// (the box a scene's markup is drawn in, for <Ui>)
@@ -48,6 +50,8 @@ class SceneTags {
 		?style:Dynamic,
 		?animate:Bool,
 		?antialias:Bool,
+		?scale:helder.view.graph.Read<Float>,
+		?density:helder.view.graph.Read<Float>,
 		?hdr:Bool,
 		?setup:Renderer->Void,
 		?ref:SceneBox->Void,
@@ -57,6 +61,14 @@ class SceneTags {
 		if (props.animate != null) box.animate = props.animate;
 		if (props.antialias != null) box.antialias = props.antialias;
 		if (props.hdr != null) box.hdr = props.hdr;
+		if (props.scale != null) {
+			var v:Dynamic = props.scale;
+			Render.isReactive(v) ? Graph.renderEffect(() -> (Render.read(v) : Float), (k:Float) -> box.scale = k) : box.scale = Render.read(v);
+		}
+		if (props.density != null) {
+			var v:Dynamic = props.density;
+			Render.isReactive(v) ? Graph.renderEffect(() -> (Render.read(v) : Float), (k:Float) -> box.density = k) : box.density = Render.read(v);
+		}
 		if (props.setup != null) box.onRenderer = props.setup;
 		if (props.grow != null) NodeRenderer.setProperty(box, "grow", props.grow);
 		if (props.width != null) bind(box, "width", props.width);

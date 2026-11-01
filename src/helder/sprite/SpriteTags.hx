@@ -17,6 +17,7 @@ class SpriteTags {
 		?height:helder.view.graph.Read<Dynamic>,
 		?style:Dynamic,
 		?animate:Bool,
+		?density:Float,
 		?background:helder.gfx.Color,
 		?onReady:SpriteBatch->Void,
 		?onDraw:(SpriteBatch, Float, Float) -> Void,
@@ -25,6 +26,7 @@ class SpriteTags {
 		var box = new SpriteBox();
 		if (props.animate != null) box.animate = props.animate;
 		if (props.background != null) box.background = props.background;
+		if (props.density != null) box.density = props.density;
 		box.onReady = props.onReady;
 		box.onDraw = props.onDraw;
 		if (props.grow != null) NodeRenderer.setProperty(box, "grow", props.grow);
