@@ -35,9 +35,21 @@ class CanvasWindow {
 		if (canvas == 0) throw "helder.os: no canvas for the window (not in a browser?)";
 		surface = new Surface(Canvas, Ptr.nil(), Ptr.ofI64(canvas), Dom.width(canvas), Dom.height(canvas));
 		if (open.length == 0) Dom.scrolls_at(Callback.addr(scrollsAt));
+		if (!watching) {
+			watching = true;
+			Dom.visibility(Callback.addr(visibilityChanged));
+		}
 		emulating = Pointers.emulate;
 		Dom.pointer_emulate(emulating ? 1 : 0);
 		open.push(this);
+	}
+
+	static var watching = false;
+
+	// the page hidden or shown again: the app's lifecycle (App.background)
+	@:hxmc.callback static function visibilityChanged(hidden:Int):Int {
+		helder.os.App.lifecycle(hidden == 1);
+		return 0;
 	}
 
 	// a touch drag's question: Window.scrollsAt (-1: none set)

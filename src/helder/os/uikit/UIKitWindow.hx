@@ -410,6 +410,7 @@ class UIKitWindow {
 		suspended = on;
 		if (on) pauseVsync();
 		if (AppAudio.hold != null) AppAudio.hold(on);
+		App.lifecycle(on);
 		drag.stop();
 		var w = current;
 		if (w == null) return;

@@ -61,6 +61,25 @@ class App {
 	static function set_onError(f)
 		return helder.async.Errors.handler = f;
 
+	// whether the app is out of sight: Android's activity paused, iOS's app
+	// in the background, the browser's tab hidden (visibilitychange); and
+	// what is told when it goes and comes back (a game pauses itself, a
+	// player saves): onBackground, onForeground, each once a change, on
+	// the app's thread between frames
+	public static var background(default, null) = false;
+	public static var onBackground:Null<Void->Void> = null;
+	public static var onForeground:Null<Void->Void> = null;
+
+	@:allow(helder.os) static function lifecycle(away:Bool) {
+		if (away == background) return;
+		background = away;
+		helder.async.Errors.guard(() -> {
+			var f = away ? onBackground : onForeground;
+			if (f != null) f();
+			helder.view.graph.Graph.flush();
+		}, "event");
+	}
+
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
 		// (helder.view.graph's writes land at the end of each event and frame)

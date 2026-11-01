@@ -695,6 +695,11 @@ export default function (host) {
 		scrolls_at(f) {
 			query = f;
 		},
+		visibility(f) {
+			const told = () => host.call(f, document.hidden ? 1 : 0);
+			document.addEventListener('visibilitychange', told);
+			if (document.hidden) told();
+		},
 		start(frame) {
 			const tick = () => {
 				frameId = 0;

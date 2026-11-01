@@ -49,6 +49,9 @@ import hxmc.unsafe.*;
 	// @:hxmc.callback (canvas, x, y, dx, dy):Int, buffer pixels; 1 yes, 0
 	// no, -1 not asked) when it would pan the page otherwise
 	static function scrolls_at(query:Ptr):Void;
+	// the page hidden or shown again (visibilitychange): the page calls
+	// changed (a @:hxmc.callback (hidden):Int, 1 hidden, 0 shown)
+	static function visibility(changed:Ptr):Void;
 	// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
 	static function start(frame:Ptr):Void;
 	// a fetch of url (relative to the page) started: its handle; its state (0
