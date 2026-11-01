@@ -24,4 +24,31 @@ function tests() {
 			App.onForeground = null;
 		});
 	});
+	describe("App's back", () -> {
+		test("onBack's answer: taken, not, none set", () -> {
+			equals(App.back(), false);
+			var asked = 0, take = true;
+			App.onBack = () -> {
+				asked++;
+				take;
+			};
+			equals(App.back(), true);
+			take = false;
+			equals(App.back(), false);
+			equals(asked, 2);
+			App.onBack = null;
+		});
+		test("backDepth: never below 0, the history told when it starts and stops being deep", () -> {
+			var told = [];
+			App.backHistory = deep -> told.push(deep);
+			App.backDepth = 1;
+			App.backDepth = 2;
+			App.backDepth = 1;
+			App.backDepth = 0;
+			App.backDepth = -1;
+			equals(App.backDepth, 0);
+			equals(told.join(","), "true,false");
+			App.backHistory = null;
+		});
+	});
 }

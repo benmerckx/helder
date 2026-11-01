@@ -35,6 +35,7 @@ import hxmc.unsafe.*;
 	static function AKeyEvent_getAction(event:Ptr):Int;
 	static function AKeyEvent_getKeyCode(event:Ptr):Int;
 	static function AKeyEvent_getMetaState(event:Ptr):Int;
+	static function AKeyEvent_getRepeatCount(event:Ptr):Int;
 	static function ANativeWindow_getWidth(window:Ptr):Int;
 	static function ANativeWindow_getHeight(window:Ptr):Int;
 	static function ANativeWindow_acquire(window:Ptr):Void;

@@ -52,6 +52,10 @@ import hxmc.unsafe.*;
 	// the page hidden or shown again (visibilitychange): the page calls
 	// changed (a @:hxmc.callback (hidden):Int, 1 hidden, 0 shown)
 	static function visibility(changed:Ptr):Void;
+	// the history entry of the page's own while deep (1; 0: gone, by
+	// history.back()): its popstate, the back button's, calls back (a
+	// @:hxmc.callback ():Int, 1 taken, 0 not: then the page's back)
+	static function back_depth(deep:Int, back:Ptr):Void;
 	// requestAnimationFrame calls frame (a @:hxmc.callback ():Int) until it returns 0
 	static function start(frame:Ptr):Void;
 	// a fetch of url (relative to the page) started: its handle; its state (0

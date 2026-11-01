@@ -38,6 +38,9 @@ class CanvasWindow {
 		if (!watching) {
 			watching = true;
 			Dom.visibility(Callback.addr(visibilityChanged));
+			// (App.backDepth: the history entry while deep, its back onBack)
+			helder.os.App.backHistory = deep -> Dom.back_depth(deep ? 1 : 0, Callback.addr(backPressed));
+			if (helder.os.App.backDepth > 0) Dom.back_depth(1, Callback.addr(backPressed));
 		}
 		emulating = Pointers.emulate;
 		Dom.pointer_emulate(emulating ? 1 : 0);
@@ -51,6 +54,11 @@ class CanvasWindow {
 		helder.os.App.lifecycle(hidden == 1);
 		return 0;
 	}
+
+	// the history's back while App.backDepth > 0: App.onBack's answer (1
+	// taken: the page keeps its entry while still deep; 0: the page's back)
+	@:hxmc.callback static function backPressed():Int
+		return helder.os.App.back() ? 1 : 0;
 
 	// a touch drag's question: Window.scrollsAt (-1: none set)
 	@:hxmc.callback static function scrollsAt(canvas:Int, x:Int, y:Int, dx:Int, dy:Int):Int {

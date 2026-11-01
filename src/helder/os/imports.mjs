@@ -442,6 +442,23 @@ export default function (host) {
 	let emulate = true;
 	// the next frame's requestAnimationFrame
 	let frameId = 0;
+	// App.backDepth's history entry (one of the page's own, state
+	// {helderBack: 1}, while want: the app deep): pushed, or on its way out
+	// (leaving: history.back() asked, its popstate not yet come)
+	const back = {
+		f: 0, want: false, pushed: false, leaving: false, watching: false,
+		sync() {
+			if (back.leaving) return;
+			if (back.want && !back.pushed) {
+				history.pushState({ helderBack: 1 }, '');
+				back.pushed = true;
+			} else if (!back.want && back.pushed) {
+				back.pushed = false;
+				back.leaving = true;
+				history.back();
+			}
+		},
+	};
 
 	const hxmc_os = {
 		audio_open(rate, channels, frames, buffer, fill) {
@@ -699,6 +716,36 @@ export default function (host) {
 			const told = () => host.call(f, document.hidden ? 1 : 0);
 			document.addEventListener('visibilitychange', told);
 			if (document.hidden) told();
+		},
+		back_depth(deep, f) {
+			back.f = f;
+			back.want = deep === 1;
+			if (!back.watching) {
+				back.watching = true;
+				addEventListener('popstate', (e) => {
+					// (our entry taken away: what was asked meanwhile)
+					if (back.leaving) {
+						back.leaving = false;
+						back.sync();
+						return;
+					}
+					// (forward onto our entry again)
+					if (e.state && e.state.helderBack) {
+						if (back.want && !back.pushed) back.pushed = true;
+						else if (!back.want) {
+							back.leaving = true;
+							history.back();
+						}
+						return;
+					}
+					// (the page's own navigation: not ours)
+					if (!back.pushed) return;
+					back.pushed = false;
+					if (host.call(back.f) === 1) back.sync();
+					else history.back();
+				});
+			}
+			back.sync();
 		},
 		start(frame) {
 			const tick = () => {

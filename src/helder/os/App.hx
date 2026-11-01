@@ -80,6 +80,45 @@ class App {
 		}, "event");
 	}
 
+	// the system's back (Android's back button and gesture, the browser's
+	// history back while App.backDepth > 0): onBack goes a step up (a card
+	// closed, a menu left) and says it did (true); false, or none set, and
+	// the system's own back follows (Android's activity finished or sent to
+	// the back, the browser's page left). Told on the app's thread between
+	// frames, its writes landed (helder.view.graph) as an event's. iOS has
+	// none; Escape is the app's own key, not mapped to it.
+	public static var onBack:Null<Void->Bool> = null;
+
+	// how far the app is from its root (a menu's screens, a card over them):
+	// while above 0 the browser keeps one history entry of the page's own,
+	// so that its back (Android Chrome's button and gesture, the desktop's
+	// back) comes to onBack instead of leaving the page; at 0 it is gone
+	// and the page's history is its own again. Elsewhere only a number.
+	public static var backDepth(default, set):Int = 0;
+
+	// (the browser's history: CanvasWindow's, told whether deep)
+	@:allow(helder.os) static var backHistory:Null<Bool->Void> = null;
+
+	static function set_backDepth(n:Int) {
+		if (n < 0) n = 0;
+		var was = backDepth > 0;
+		backDepth = n;
+		if ((n > 0) != was && backHistory != null) backHistory(n > 0);
+		return n;
+	}
+
+	// the system's back, asked of onBack: whether the app took it
+	@:allow(helder.os) static function back():Bool {
+		var f = onBack;
+		if (f == null) return false;
+		var taken = false;
+		helder.async.Errors.guard(() -> {
+			taken = f();
+			helder.view.graph.Graph.flush();
+		}, "event");
+		return taken;
+	}
+
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
 		// (helder.view.graph's writes land at the end of each event and frame)

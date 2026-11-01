@@ -52,6 +52,8 @@ class AndroidWindow {
 	static final drag = new TouchDrag();
 	static var since:Int64 = 0;
 	static var timed:Bool = false;
+	// whether App.onBack took the back key's press (then its release too)
+	static var backTaken = false;
 	// text input (TextInput, in the programs that enable it): on or off, its
 	// events waiting for this thread
 	@:allow(helder.os.android) static var textInputHook:Null<(on:Bool, x:Int, y:Int, width:Int, height:Int) -> Void> = null;
@@ -444,6 +446,20 @@ class AndroidWindow {
 		var down = Android.AKeyEvent_getAction(ev) == 0; // AKEY_EVENT_ACTION_DOWN (1: up, 2: multiple)
 		var code = Android.AKeyEvent_getKeyCode(ev);
 		var meta = Android.AKeyEvent_getMetaState(ev);
+		// (Back with App.onBack: asked on its press, not an Escape; taken, its
+		// release too; otherwise both the system's, which tracks the press
+		// and on the release finishes the activity or sends the task back.
+		// The gesture's back is this key while the manifest does not opt in
+		// to predictive back: enableOnBackInvokedCallback, targetSdk 35)
+		if (code == 4 && App.onBack != null) {
+			if (down) {
+				if (Android.AKeyEvent_getRepeatCount(ev) == 0) backTaken = App.back();
+				return backTaken ? 1 : 0;
+			}
+			var taken = backTaken;
+			backTaken = false;
+			return taken ? 1 : 0;
+		}
 		var sym = keySym(code);
 		if (sym == 0 || onEvent == null || current == null) return 0;
 		var e = event;
