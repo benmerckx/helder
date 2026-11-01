@@ -51,7 +51,13 @@ function tests() {
 			ui.pointerDown(97, 25, 1, 1, Touch);
 			ui.pointerMove(103, 25, 1);
 			ui.pointerUp(103, 25, 1, 1);
-			equals(log, ["a down 1 primary", "a move 1", "a up 1", "a lost 1"], "over b, within the slop: a's, no click");
+			equals(log, ["a down 1 primary", "a move 1", "a up 1", "a lost 1", "a click 1"], "over b, within the slop: a's, and its click (a finger's drift)");
+		});
+		test("released past the slop, off its node: no click", () -> {
+			ui.pointerDown(90, 25, 1, 1, Touch);
+			ui.pointerMove(130, 25, 1);
+			ui.pointerUp(130, 25, 1, 1);
+			assert(log.indexOf("a click 1") < 0);
 		});
 		test("capture moved to another node, then released", () -> {
 			a.onPointerDown = e -> b.capture();

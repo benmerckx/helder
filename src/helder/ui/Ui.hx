@@ -32,8 +32,8 @@ import helder.ui.gesture.TouchScroll;
 // finger a drag that scrolls what is under where it started (TouchScroll,
 // as helder.os.TouchDrag did: Wheel events, a glide), last; a recogniser
 // that wins it other than a Tap takes the click, and the scroll cancels
-// the press (PointerCancel). A press released within the slop on the node
-// it went down on clicks. The mouse's presses feed the arena too, its
+// the press (PointerCancel). A press released within the slop of where it
+// went down (or twice that, on the node it went down on) clicks. The mouse's presses feed the arena too, its
 // clicks as before.
 class Ui {
 	public final root:Node;
@@ -767,10 +767,13 @@ class Ui {
 		closeArena(id, false);
 		if (!live) return;
 		if (pressed != null) lose(pressed, id, x, y);
-		// a click: a tap (released within the slop, no other gesture won it) on the node it went down on
-		var dx = x - pStartX[id], dy = y - pStartY[id];
-		if (pClick[id] && pressed != null && target != null && contains(pressed, target) && (won == null || Std.isOfType(won, Tap))
-			&& Math.sqrt(dx * dx + dy * dy) <= Gesture.SLOP) {
+		// a click: a press no other gesture won, released within the slop of
+		// where it went down (wherever that is: a finger drifts a few points,
+		// and a pressed control shrinks under it, its edge leaving the finger)
+		// or within twice that on the node it went down on (a drag is no click)
+		var dx = x - pStartX[id], dy = y - pStartY[id], d = Math.sqrt(dx * dx + dy * dy);
+		if (pClick[id] && pressed != null && (won == null || Std.isOfType(won, Tap))
+			&& (d <= Gesture.SLOP || (d <= 2 * Gesture.SLOP && target != null && contains(pressed, target)))) {
 			var c = touchEvent(Click, pressed, id, x, y, 0);
 			c.button = 1;
 			dispatch(c, id);
