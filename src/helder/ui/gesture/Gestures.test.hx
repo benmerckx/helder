@@ -65,13 +65,13 @@ function tests() {
 			drag(1, 40, 80, 40, 20);
 			equals(list.scrollY, 0.0);
 			equals(log, ["pan Began 1 0,-15", "pan Changed 1 0,-15", "pan Changed 1 0,-15", "pan Changed 1 0,-15", "pan Ended 1 0,0"]);
-			// (its first call has the slop's travel: a drag of 3 points, then 6)
+			// (its first call has the slop's travel: a drag of 3 points, then 8)
 			log.resize(0);
 			ui.pointerDown(40, 50, 1, 1, Touch);
 			ui.pointerMove(40, 53, 1);
-			ui.pointerMove(40, 59, 1);
-			ui.pointerUp(40, 59, 1, 1);
-			equals(log[0], "pan Began 1 0,9");
+			ui.pointerMove(40, 61, 1);
+			ui.pointerUp(40, 61, 1, 1);
+			equals(log[0], "pan Began 1 0,11");
 		});
 		test("a Pan along x: a vertical drag still scrolls, a sideways one pans", () -> {
 			var pan = card.addGesture(new Pan(X));
@@ -140,7 +140,7 @@ function tests() {
 			equals(log, ["Began", "Changed", "Cancelled"]);
 			ui.pointerUp(40, 90, 1, 1);
 			log.resize(0);
-			drag(2, 40, 50, 40, 70, 2, false);
+			drag(2, 40, 50, 40, 80, 2, false);
 			list.remove(card);
 			equals(log, ["Began", "Changed", "Cancelled"]);
 		});

@@ -19,8 +19,9 @@ class Gesture {
 	// the pointers one follows at most
 	public static inline var MAX = 10;
 	// a press moved this far (points) is no longer a tap (Android's 8 dp,
-	// helder.os.TouchDrag's; iOS's about 10, Flutter's 18)
-	public static inline var SLOP = 8.0;
+	// iOS's about 10, Flutter's 18): 10, a finger tapping a card's button
+	// drifts that far, and a drag or a pan from 8 stole its tap
+	public static inline var SLOP = 10.0;
 
 	public var node(default, null):Null<Node> = null;
 	public var state(default, null):GestureState = Possible;
