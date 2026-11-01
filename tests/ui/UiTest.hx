@@ -241,6 +241,14 @@ class UiTest {
 		ui.update();
 		ui.paint(new Recording());
 		check("svg: at another size, another", b.image != first && b.image.width == 40);
+		// (bounded by bytes: a raster over RASTER_MAX not kept, many small ones
+		// at most RASTER_BYTES; the cache's own count of its bytes)
+		var big = ImageNode.raster(full, 1024, 1024, 0xFF000000);
+		check("svg: a raster too large not kept", ImageNode.raster(full, 1024, 1024, 0xFF000000) != big);
+		for (k in 0...400)
+			ImageNode.raster(full, 64 + k, 64, 0xFF000000);
+		check("svg: the kept rasters' bytes within the bound", ImageNode.rasterCacheBytes() <= ImageNode.RASTER_BYTES && ImageNode.rasterCacheBytes() > 0,
+			"" + ImageNode.rasterCacheBytes());
 	}
 
 	// --- css ---

@@ -30,15 +30,26 @@ class ImageNode extends Node {
 	// size and colour drawn once, not again for each node showing it or each
 	// time a node goes back to it (a ring whose drawing changes as a value
 	// does, between a few drawings: rasterized and uploaded once each, not
-	// a frame); the oldest let go past RASTERS
-	public static inline var RASTERS = 256;
+	// a frame). Bounded by their pixels' bytes (RASTER_BYTES all told, the
+	// oldest let go), and a raster larger than RASTER_MAX is never kept: on
+	// a phone's 2.8 pixels a point a ring 800 points across is 20 MB, and a
+	// cache of 256 of those ran WebAssembly's memory out
+	public static inline var RASTER_BYTES = 4 * 1024 * 1024;
+	public static inline var RASTER_MAX = 1024 * 1024;
 	static final rasters = new Map<String, Image>();
 	static final rastered:Array<String> = [];
+	static var rasterBytes = 0;
 	static final svgIds = new haxe.ds.ObjectMap<Svg, Int>();
 	static var nextSvg = 0;
 
+	// the pixels' bytes the shared rasters hold (a test's)
+	public static function rasterCacheBytes():Int
+		return rasterBytes;
+
 	// an svg rasterized at w x h pixels in colour c (Svg.render), from the shared ones when it was lately
 	public static function raster(svg:Svg, w:Int, h:Int, c:Color):Image {
+		var bytes = w * h * 4;
+		if (bytes > RASTER_MAX) return svg.render(w, h, c);
 		var id = svgIds.get(svg);
 		if (id == null) svgIds.set(svg, id = nextSvg++);
 		var key = id + ":" + w + "x" + h + ":" + c;
@@ -47,23 +58,25 @@ class ImageNode extends Node {
 		img = svg.render(w, h, c);
 		rasters.set(key, img);
 		rastered.push(key);
-		if (rastered.length > RASTERS) {
-			var old = rastered.shift();
+		rasterBytes += bytes;
+		var evicted = false;
+		while (rasterBytes > RASTER_BYTES && rastered.length > 1) {
+			var old = rastered.shift(), gone = rasters.get(old);
 			rasters.remove(old);
-			// (an svg none of the kept ones is of: forgotten too)
-			var gone = Std.parseInt(old.substr(0, old.indexOf(":")));
-			var kept = false;
-			for (k in rastered)
-				if (Std.parseInt(k.substr(0, k.indexOf(":"))) == gone) {
-					kept = true;
-					break;
-				}
-			if (!kept) for (sv => i in svgIds) if (i == gone) {
-				svgIds.remove(sv);
-				break;
-			}
+			if (gone != null) rasterBytes -= gone.width * gone.height * 4;
+			evicted = true;
 		}
+		// (the svgs none of the kept rasters is of: forgotten, their ids with them)
+		if (evicted) forgetSvgs();
 		return img;
+	}
+
+	static function forgetSvgs() {
+		var kept = new Map<Int, Bool>();
+		for (k in rastered)
+			kept.set(Std.parseInt(k.substr(0, k.indexOf(":"))), true);
+		for (sv => i in [for (k => v in svgIds) k => v])
+			if (!kept.exists(i)) svgIds.remove(sv);
 	}
 
 	public function new(?image:Image, ?tag:String) {
