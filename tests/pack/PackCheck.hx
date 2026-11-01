@@ -21,7 +21,8 @@ using StringTools;
 // - classes.dex when there: Dex.check's structure, Glue's methods;
 // - the library (readelf, when there): a shared object of the ABI, 16 KB
 //   segments, its soname libmain.so, the export ANativeActivity_onCreate,
-//   DT_NEEDED only the system's, no text relocations;
+//   the import ANativeActivity_finish (libandroid.so's), DT_NEEDED only the
+//   system's, no text relocations;
 // - the v2 signature: the block, the digest of the contents recomputed and
 //   equal to the signed one, verified by apksigner when there, else by
 //   openssl (the signer's key and signature over the signed data).
@@ -230,7 +231,12 @@ class PackCheck {
 			s = needed.matchedRight();
 		}
 		check("library: DT_NEEDED the system's libraries only", libs.contains("libc.so") && Lambda.foreach(libs, x -> allowed.contains(x)), libs.join(" "));
-		check("library: exports ANativeActivity_onCreate", ~/FUNC\s+GLOBAL\s+DEFAULT\s+\d+\s+ANativeActivity_onCreate/.match(readelf(["--dyn-syms"])));
+		var syms = readelf(["--dyn-syms"]);
+		check("library: exports ANativeActivity_onCreate", ~/FUNC\s+GLOBAL\s+DEFAULT\s+\d+\s+ANativeActivity_onCreate/.match(syms));
+		// (Android's own calls behind their constant tests: there, still linked; elsewhere
+		// none, src/helder/os/AppLink.test.hx)
+		check("library: imports ANativeActivity_finish (libandroid.so)", ~/FUNC\s+GLOBAL\s+DEFAULT\s+UND\s+ANativeActivity_finish/.match(syms)
+			&& libs.contains("libandroid.so"));
 	}
 
 	// the APK Signing Block before the central directory, its v2 signer

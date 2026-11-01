@@ -75,25 +75,29 @@ class AndroidWindow {
 	final insets = [0, 0, 0, 0];
 
 	function new(owner:Window, title:String, width:Int, height:Int) {
-		if (current != null) throw "helder.os: Android has one window, the activity's";
-		this.owner = owner;
-		// (the activity's window: the program waits for it, through the
-		// activity's commands, until it has a size; current once there is a surface)
-		log("Window: waiting for the activity's window", window);
-		while (!ready() && Activity.destroyed == 0)
-			pump(-1, null);
-		if (!ready()) throw "helder.os: the activity finished before its window came";
-		var w = Android.ANativeWindow_getWidth(window), h = Android.ANativeWindow_getHeight(window);
-		log("Window: the activity's window, ready", window);
-		surface = new Surface(Android, Ptr.nil(), window, w, h);
-		scale = density();
-		// (the first safe area before the first frame: the main thread asked and waited for)
-		MainThread.run(Insets.measure);
-		takeInsets(this);
-		current = this;
-		#if helder.fullscreen
-		setImmersive(this, true);
-		#end
+		// (a constant test: Type.createInstance and reflection lower a class's
+		// methods on every target, and libandroid stays out of the others' links)
+		if (Mem.target() >= 9) {
+			if (current != null) throw "helder.os: Android has one window, the activity's";
+			this.owner = owner;
+			// (the activity's window: the program waits for it, through the
+			// activity's commands, until it has a size; current once there is a surface)
+			log("Window: waiting for the activity's window", window);
+			while (!ready() && Activity.destroyed == 0)
+				pump(-1, null);
+			if (!ready()) throw "helder.os: the activity finished before its window came";
+			var w = Android.ANativeWindow_getWidth(window), h = Android.ANativeWindow_getHeight(window);
+			log("Window: the activity's window, ready", window);
+			surface = new Surface(Android, Ptr.nil(), window, w, h);
+			scale = density();
+			// (the first safe area before the first frame: the main thread asked and waited for)
+			MainThread.run(Insets.measure);
+			takeInsets(this);
+			current = this;
+			#if helder.fullscreen
+			setImmersive(this, true);
+			#end
+		} else throw "helder.os: AndroidWindow is Android's";
 	}
 
 	// pixels per point: the screen's density over 160 dpi (the system's dp)
@@ -145,7 +149,10 @@ class AndroidWindow {
 		// (handing over to the next build: the activity goes on)
 		if (helder.dev.Hosted.handingOver) return;
 		#end
-		if (Activity.destroyed == 0 && !Activity.activity.isNull()) Android.ANativeActivity_finish(Activity.activity);
+		// (a constant test: kept by reflection, a method of this class is lowered
+		// on the other targets too, and libandroid stays out of their links)
+		if (Mem.target() >= 9)
+			if (Activity.destroyed == 0 && !Activity.activity.isNull()) Android.ANativeActivity_finish(Activity.activity);
 	}
 
 	// the native window is there and has a size (the system's resize

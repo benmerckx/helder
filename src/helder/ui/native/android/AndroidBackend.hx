@@ -150,7 +150,8 @@ class AndroidBackend implements NativeBackend implements NativeDriver {
 	public function closeWindow() {
 		if (!open) return;
 		open = false;
-		Android.ANativeActivity_finish(Activity.activity);
+		// (a constant test: libandroid out of the other targets' links, as AndroidWindow.destroy)
+		if (Mem.target() >= 9) Android.ANativeActivity_finish(Activity.activity);
 		MainThread.onFrame = null;
 		MainThread.wake();
 	}
