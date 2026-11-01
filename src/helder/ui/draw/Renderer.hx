@@ -25,14 +25,16 @@ import helder.image.PngDecoder;
 // target's by what remains (a rotation, or a skew), so that edges stay
 // anti-aliased over a pixel; glyphs are rasterized at the scaled size, and
 // read filtered where the transform turns them. A clip pushed under a turning
-// transform clips to its bounds. Snapped (snap, the default), what is drawn
-// unturned and unscaled lies on the target's pixel grid, as a browser's
+// transform clips to its bounds. Snapped (snap, the default), what is laid
+// out without a transform lies on the target's pixel grid, as a browser's
 // layout snaps its boxes: a box's edges, a clip's, an image's origin (its
 // size whole pixels), a border's width (at least a pixel), a line of text's
-// origin, a translation's offset, each rounded to a whole device pixel, so
-// that at a fractional scale (a phone's 2.8125) a box or a line of text at
-// rest draws the same pixels wherever its points fall, a moving one steps
-// by whole pixels, and a hairline is not smeared over two.
+// origin, each rounded to a whole device pixel, so that at a fractional
+// scale (a phone's 2.8125) a box or a line of text at rest is crisp and the
+// same wherever its points fall, and a hairline is not smeared over two.
+// What is under a transform is never snapped: a transform is how things
+// move (a mark following the camera, a spring, a tween), and a moving thing
+// placed at whole pixels steps from one to the next instead of gliding.
 class Renderer implements Canvas {
 	public final device:Device;
 	public var scale = 1.0;
@@ -106,7 +108,7 @@ class Renderer implements Canvas {
 	var mk = 1.0;
 	var flat = true;
 	var aligned = true;
-	// (on the pixel grid: snapped, and the transform at most a whole-pixel translation)
+	// (on the pixel grid: snapped, and no transform)
 	var grid = true;
 	final transforms:Array<Array<Float>> = [];
 
@@ -358,14 +360,10 @@ class Renderer implements Canvas {
 		me = e2;
 		mf = f2;
 		mk = Math.sqrt(Math.abs(ma * md - mb * mc));
-		// (a translation alone: by whole pixels, snapped)
-		if (snap && ma == 1 && mb == 0 && mc == 0 && md == 1) {
-			me = Math.fround(me);
-			mf = Math.fround(mf);
-		}
 		flat = ma == 1 && mb == 0 && mc == 0 && md == 1 && me == 0 && mf == 0;
 		aligned = mb == 0 && mc == 0 && ma == md && ma > 0;
-		grid = snap && ma == 1 && mb == 0 && mc == 0 && md == 1;
+		// (under a transform: where it puts it, not snapped)
+		grid = snap && flat;
 	}
 
 	public function popTransform() {
@@ -379,7 +377,7 @@ class Renderer implements Canvas {
 		mk = t[6];
 		flat = t[7] == 1;
 		aligned = t[8] == 1;
-		grid = snap && ma == 1 && mb == 0 && mc == 0 && md == 1;
+		grid = snap && flat;
 	}
 
 	public function pushOpacity(a:Float) {

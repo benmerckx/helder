@@ -7,12 +7,13 @@ import helder.ui.draw.*;
 // The renderer's pixel grid (Renderer.snap) at a phone's fractional scale,
 // 2.8125 device pixels a point: a bordered box and a line of text drawn
 // headless (npm test -- ui-draw), then
-// - crisp: a row across the box has no blended pixels (its edges and its
-//   border whole pixels; without snapping its edges fall inside pixels);
-// - steady: the box and the text moved by a fraction of a device pixel
-//   (a spring's last steps, a transform at rest between pixels) draw the
-//   same pixels;
-// - whole steps: moved by one device pixel, the same pixels one over.
+// - crisp: laid out without a transform, a row across the box has no
+//   blended pixels (its edges and its border whole pixels; without
+//   snapping its edges fall inside pixels);
+// - gliding: under a translation (how things move) nothing is snapped: the
+//   box moved by a third of a device pixel draws its edges a third of the
+//   way over (blended pixels where they fall), not stepped to the next
+//   whole pixel, so a moving thing glides rather than twitching.
 class SnapTest {
 	static inline var W = 128;
 	static inline var H = 64;
@@ -54,12 +55,12 @@ class SnapTest {
 		check("crisp", blends == 0 && looseBlends > 0, '$blends blended pixels across the box snapped, $looseBlends unsnapped');
 		var border = run(snapped, y, Std.int(9 * SCALE), 0xFF0000);
 		check("border", border == 3, 'its 1 pt border $border pixels wide');
-		var moved = draw(0.1, 0.13, true);
-		var d = differ(snapped, moved, 0, 0);
-		check("steady", d == 0, '$d pixels differ moved by 0.28 px');
-		var step = draw(1 / SCALE, 0, true);
-		var s = differ(snapped, step, 1, 0);
-		check("whole steps", s == 0, '$s pixels differ moved by one pixel, compared one over');
+		// (under a transform of no movement at all: as laid out, snapped)
+		var still = draw(0, 0, true);
+		check("at rest", differ(snapped, still, 0, 0) == 0, "the same pixels");
+		var a = draw(0.12, 0, true), b = draw(0.24, 0, true);
+		var ba = blended(a, y, 0, Std.int(56 * SCALE)), d = differ(a, b, 0, 0);
+		check("gliding", ba > 0 && d > 0, '$ba blended pixels across the box moved by 0.34 px, $d pixels differ moved a third of a pixel more');
 		device.dispose();
 		Sys.exit(ok ? 0 : 1);
 	}
