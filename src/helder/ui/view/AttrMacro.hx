@@ -129,7 +129,7 @@ class AttrMacro {
 
 	// the function setting attribute name on a node, (node, name, v): one of
 	// NodeRenderer's own, data-* and aria-*, then Style's, else setAttribute
-	public static function setter(name:String, pos:Position):Expr {
+	public static function setter(name:String, pos:Position, lenient = false):Expr {
 		if (StringTools.startsWith(name, "data-") || StringTools.startsWith(name, "aria-")) return macro @:pos(pos) helder.ui.view.NodeRenderer.setData;
 		switch Context.getType("helder.ui.view.NodeRenderer") {
 			case TInst(c, _):
@@ -153,8 +153,10 @@ class AttrMacro {
 				return macro @:pos(pos) helder.ui.view.StyleAttrs.$fn;
 			}
 		// (a name none of them has: an error at the attribute, the name meant
-		// suggested, as an unknown event is, MarkupMacro.handler)
-		Context.error(unknown(name), pos);
+		// suggested, as an unknown event is, MarkupMacro.handler; lenient, an
+		// agnostic literal's element of another renderer's: looked up at run
+		// time, which throws when it is set)
+		if (!lenient) Context.error(unknown(name), pos);
 		return macro @:pos(pos) helder.ui.view.NodeRenderer.setAttribute;
 	}
 

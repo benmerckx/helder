@@ -299,6 +299,13 @@ class MarkupMacro {
 						case ["part", false]: a[0];
 						case _: throw "markup: " + f;
 					}
+				// (late, an agnostic literal's own element: its attributes may be
+				// another renderer's, so a name this one lacks is marked, @:lenient,
+				// for its setter to look up at run time: NodeRenderer.setProperty)
+				case ECall({expr: EField({expr: EConst(CIdent("__HOST__"))}, "setProperty")}, [el, name = {expr: EConst(CString(_, _))}, v]) if (late && setter):
+					macro @:pos(e.pos) $p{host}.setProperty(${sub(el)}, @:lenient $name, ${sub(v)});
+				case ECall({expr: EField({expr: EConst(CIdent("__RT__"))}, "prop")}, [el, name = {expr: EConst(CString(s, _))}, v]) if (setter && late):
+					macro @:pos(e.pos) $p{rt}.propWith(${sub(el)}, $name, ${sub(v)}, $p{host}.setter(@:lenient $v{s}));
 				case EConst(CIdent("__HOST__")): macro @:pos(e.pos) $p{host};
 				case EConst(CIdent("__RT__")): macro @:pos(e.pos) $p{rt};
 				case ECall({expr: EField({expr: EConst(CIdent("__RT__"))}, "prop")}, [el, name = {expr: EConst(CString(s, _))}, v]) if (setter):

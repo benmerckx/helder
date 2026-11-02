@@ -54,19 +54,34 @@ import helder.image.AnimatedImage;
 class NodeRenderer #if !macro implements helder.view.Renders<Node> #end {
 	// the property name of n (a literal name: its own function, AttrMacro.setter;
 	// else setAttribute)
-	public static macro function setProperty(n:haxe.macro.Expr, name:haxe.macro.Expr, v:haxe.macro.Expr):haxe.macro.Expr
+	// (a name none of ui's elements has an error, AttrMacro.setter; one marked
+	// @:lenient, an agnostic literal's element of another renderer's, MarkupMacro.forRenderer,
+	// looked up at run time)
+	public static macro function setProperty(n:haxe.macro.Expr, name:haxe.macro.Expr, v:haxe.macro.Expr):haxe.macro.Expr {
+		var lenient = false;
+		switch name.expr {
+			case EMeta({name: ":lenient"}, inner):
+				lenient = true;
+				name = inner;
+			case _:
+		}
 		return switch name.expr {
 			// (a literal naming env(): bound to the safe area, SafeArea)
 			case EConst(CString(s, _)) if (v.expr.match(EConst(CString(_.indexOf("env(") >= 0 => true, _)))):
-				macro helder.ui.SafeArea.bind($n, ${helder.ui.view.AttrMacro.setter(s, name.pos)}, $name, $v);
-			case EConst(CString(s, _)): macro ${helder.ui.view.AttrMacro.setter(s, name.pos)}($n, $name, $v);
+				macro helder.ui.SafeArea.bind($n, ${helder.ui.view.AttrMacro.setter(s, name.pos, lenient)}, $name, $v);
+			case EConst(CString(s, _)): macro ${helder.ui.view.AttrMacro.setter(s, name.pos, lenient)}($n, $name, $v);
 			case _: macro helder.ui.view.NodeRenderer.setAttribute($n, $name, $v);
 		}
+	}
 
-	// the function setting the property name (a literal), (n, name, v): markup
-	// binds a reactive value with it (helder.view.Renders)
-	public static macro function setter(name:String):haxe.macro.Expr
-		return helder.ui.view.AttrMacro.setter(name, haxe.macro.Context.currentPos());
+	// the function setting the property name (a literal, @:lenient as
+	// setProperty's), (n, name, v): markup binds a reactive value with it (helder.view.Renders)
+	public static macro function setter(name:haxe.macro.Expr):haxe.macro.Expr
+		return switch name.expr {
+			case EMeta({name: ":lenient"}, {expr: EConst(CString(s, _))}): helder.ui.view.AttrMacro.setter(s, haxe.macro.Context.currentPos(), true);
+			case EConst(CString(s, _)): helder.ui.view.AttrMacro.setter(s, haxe.macro.Context.currentPos());
+			case _: haxe.macro.Context.error("NodeRenderer.setter: a literal name", name.pos);
+		}
 
 	// what setter resolves, each name's function (data-* and aria-* prefixes,
 	// * the others'): what helder.typescript's manifest lists (Renders)
