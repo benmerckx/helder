@@ -22,8 +22,8 @@ import helder.view.graph.Signal;
 // by helder.scene in a <Scene> box (its nodes made here in code, from the
 // hole's pieces), the camera an <OrbitControls> the game also drives (it
 // eases behind the ball while it rolls, and round to face the cup when it
-// stops), the shot a ShotGesture on the same box (a press near the ball:
-// the arena gives it the pointer), and the juice: a trail, a squash on
+// stops), the shot a Press on the same box (a press near the ball:
+// the arena gives it the pointer at once), and the juice: a trail, a squash on
 // hits, a shake on hard ones, slow motion, confetti and the flag on a
 // hole-in. What the HUD shows are signals, written only when they change:
 // a frame allocates nothing (measured: GcStats, report()).
@@ -36,7 +36,7 @@ class Game {
 	final clock = new FixedStep(Sim.DT, 8);
 	var box:Null<SceneBox>;
 	var orbit:Null<OrbitControls>;
-	public final shot = new ShotGesture();
+	public final shot = new helder.ui.gesture.Press();
 
 	// --- what the HUD reads
 	public final holeIndex = signal(0);
@@ -125,7 +125,7 @@ class Game {
 		roll.scale = new Vec3(Sim.BALL * 2, Sim.BALL * 2, Sim.BALL * 2);
 		sim = new Sim(Course.holes[0]);
 		stepFn = stepSim;
-		shot.near = nearBall;
+		shot.within = nearBall;
 		shot.onGesture = g -> aim();
 	}
 

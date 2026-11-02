@@ -43,8 +43,8 @@ bun run helder run examples/golf/Golf.hx --target ios-sim   # the iOS simulator
   a capture below 1.9 m/s, a fall putting it back with a stroke. No sin,
   cos or exp in a step: the same shots give the same bits natively and as
   wasm32-wasi (`GolfReplay.hx`, the examples lane).
-- `ShotGesture.hx`: a recogniser in ui's gesture arena that, pressed near
-  the ball, wins the pointer at once, before any slop, so the
+- The shot: ui's `Press` gesture (`helder.ui.gesture.Press`), which, pressed
+  near the ball, wins the pointer at once, before any slop, so the
   `<OrbitControls>` on the same `<Scene>` box only get presses elsewhere.
 - `Game.hx`: the scene's nodes made from the pieces (`Kit.hx`'s unit
   meshes, flat shaded, scaled per piece: drawn instanced), the camera

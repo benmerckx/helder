@@ -8,7 +8,8 @@ import helder.ui.view.NodeRenderer;
 // drag taking a press from a tap, a Pan inside a scroller winning first
 // (along its axis only), a pinch and a Scale with a finger joining
 // without a jump, the mouse feeding the arena, cancels, a node leaving the
-// tree, markup's attributes making the recognisers.
+// tree, markup's attributes making the recognisers; a Press claiming a
+// press inside its region at once.
 function tests() {
 	describe("gestures", () -> {
 		var t = 0.0;
@@ -121,6 +122,34 @@ function tests() {
 			ui.pointerUp(120, 50, 1, 1);
 			ui.pointerUp(120, 130, 1, 2);
 			equals(list.scrollY, 0.0);
+		});
+		test("a Press claims a press inside its region at once: the Scale beside it and the scroller lose it", () -> {
+			var scale = card.addGesture(new Scale());
+			scale.onGesture = report("scale");
+			// (the card's left half, its first 50 points)
+			var press = card.addGesture(new Press((x, y) -> x < 50));
+			press.onGesture = g -> log.push('press ${stateName(g.state)} ${press.startX},${press.startY} ${Math.round(g.tx)},${Math.round(g.ty)}');
+			// (inside: won at the press, no slop; its moves its own)
+			ui.pointerDown(20, 30, 1, 1, Touch);
+			equals(log, ["press Began 20,30 0,0"]);
+			t += 0.016;
+			ui.pointerMove(22, 60, 1);
+			ui.pointerUp(22, 60, 1, 1);
+			equals(log, ["press Began 20,30 0,0", "press Changed 20,30 2,30", "press Ended 20,30 2,30"]);
+			equals(list.scrollY, 0.0, "the scroller lost it");
+			// (outside: left to the others, the Scale pans)
+			log.resize(0);
+			drag(2, 100, 30, 140, 30);
+			equals(log.filter(l -> StringTools.startsWith(l, "press")), []);
+			assert(log.length > 0 && StringTools.startsWith(log[0], "scale Began"), log.join(" / "));
+			// (the mouse: its left button only)
+			log.resize(0);
+			ui.pointerDown(20, 30, 3);
+			ui.pointerUp(20, 30, 3);
+			equals(log.filter(l -> StringTools.startsWith(l, "press")), []);
+			ui.pointerDown(20, 30, 1);
+			ui.pointerUp(20, 30, 1);
+			equals(log.filter(l -> StringTools.startsWith(l, "press")), ["press Began 20,30 0,0", "press Ended 20,30 0,0"]);
 		});
 		test("the mouse feeds the arena", () -> {
 			card.addGesture(new Pan()).onGesture = report("pan");
