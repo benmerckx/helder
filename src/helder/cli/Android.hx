@@ -64,7 +64,9 @@ class Android {
 	// helder dev serves those)
 	public static function pack(e:Entry, lib:String, apk:String, dev = false) {
 		var c = classes(apk);
-		var key = DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), Sys.getEnv("HELDER_ANDROID_KEY")));
+		// (HELDER_ANDROID_KEY: the key's text, or its file's path)
+		var env = Sys.getEnv("HELDER_ANDROID_KEY");
+		var key = env != null && DebugKey.isText(env) ? DebugKey.fromEnv(env) : DebugKey.load(App.androidKey(e.config, e.root, DevCommand.cache(), env));
 		var assets = dev ? [] : [for (a in AssetStep.assets(lib)) {name: helder.asset.AssetPath.bundled(a.key), data: File.getBytes(a.file)}];
 		var o = App.android(e.name, e.config, dev);
 		Manifest.warn(e);

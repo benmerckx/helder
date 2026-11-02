@@ -19,6 +19,18 @@ function tests() {
 		equals(k.d.toHex(), d.toHex());
 		equals(k.cert.toHex(), cert.toHex());
 	});
+	test("HELDER_ANDROID_KEY's text, not a path: with its newlines, or \\n written for them", () -> {
+		var text = DebugKey.format({d: d, cert: cert});
+		assert(DebugKey.isText(text));
+		assert(!DebugKey.isText("/home/me/.android/debug-key"));
+		var k = DebugKey.fromEnv(text);
+		equals(k.d.toHex(), d.toHex());
+		equals(k.cert.toHex(), cert.toHex());
+		var one = DebugKey.fromEnv(StringTools.trim(text).split("\n").join("\\n"));
+		equals(one.d.toHex(), d.toHex());
+		equals(one.cert.toHex(), cert.toHex());
+		equals(Std.string(throws(() -> DebugKey.fromEnv("helder-android-debug-key 1\nzz\nAA==\n"))), "HELDER_ANDROID_KEY: not a P-256 private key");
+	});
 	test("another file refused", () -> {
 		equals(Std.string(throws(() -> DebugKey.parse("hxmc-android-debug-key 1\n" + d.toHex() + "\nAA==\n", "k"))),
 			"k is not a debug key of helder's (helder-android-debug-key 1)");

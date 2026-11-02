@@ -257,7 +257,8 @@ build time.
   `HELDER_RT_URL` names another place for the releases
   (`<it>/<tag>/<asset>`: a mirror, a `file://` directory).
 - **The debug key**: the user's own, made on first use and kept, so a
-  reinstall keeps the signature: `HELDER_ANDROID_KEY` names its file, else
+  reinstall keeps the signature: `HELDER_ANDROID_KEY` names its file or
+  holds its text (a CI secret's: newlines, or `\n` written for them), else
   the manifest's `"helder": {"android": {"key"}}`, else
   `<helder's cache>/android/debug-key` (`HELDER_CACHE`, else
   ~/.cache/helder, ~/Library/Caches/helder, %LOCALAPPDATA%\helder). A text

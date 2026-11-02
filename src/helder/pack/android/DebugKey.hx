@@ -12,7 +12,8 @@ using StringTools;
 // signature (Android refuses an update signed by another key). Not a
 // keystore: a text file, "helder-android-debug-key 1", the private P-256
 // scalar in hex, its self-signed certificate (Apk.certificate: CN=Android
-// Debug, 30 years) in base64. Where it is: HELDER_ANDROID_KEY, else
+// Debug, 30 years) in base64. Where it is: HELDER_ANDROID_KEY (the file's
+// path, or its text: a CI secret's), else
 // package.json's "helder": {"android": {"key"}}, else
 // <cache>/android/debug-key in helder's cache (helder.cli.Android). Its
 // scalar and the certificate's serial come from the system's random source
@@ -20,6 +21,16 @@ using StringTools;
 // MIT; hxmc's fell back to the time and Math.random on Windows.
 class DebugKey {
 	public static inline var HEADER = "helder-android-debug-key 1";
+
+	// the key HELDER_ANDROID_KEY gives (helder.cli.Android): its text, the
+	// file's contents as a CI secret holds them (the header first; its lines
+	// newlines or written \n), else a path to it, made there when missing
+	public static function fromEnv(value:String):{d:Bytes, cert:Bytes}
+		return isText(value) ? parse(value, "HELDER_ANDROID_KEY") : load(value);
+
+	// whether s is a key's text, not a path (its header first)
+	public static function isText(s:String):Bool
+		return s.trim().startsWith(HEADER);
 
 	// the key at path, made there when missing
 	public static function load(path:String):{d:Bytes, cert:Bytes} {
@@ -45,6 +56,8 @@ class DebugKey {
 		return HEADER + "\n" + k.d.toHex() + "\n" + haxe.crypto.Base64.encode(k.cert) + "\n";
 
 	public static function parse(text:String, path:String):{d:Bytes, cert:Bytes} {
+		// (one line with \n written for its newlines: an environment variable's)
+		if (text.indexOf("\n") < 0) text = text.split("\\n").join("\n");
 		var l = text.trim().split("\n");
 		if (l.length < 3 || l[0].trim() != HEADER) throw '$path is not a debug key of helder\'s ($HEADER)';
 		var d = try Bytes.ofHex(l[1].trim()) catch (_:Dynamic) null;
