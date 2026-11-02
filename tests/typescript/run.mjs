@@ -18,6 +18,12 @@ ok(run(process.execPath,[launcher,'-cp','src','-cp',T,'-cp',`${hxmc}/haxe/src`,'
 const ir=run(`${dir}/ir-tests`,process.env.BLESS?['--write-golden']:[]);ok(ir,'IR checks');process.stdout.write(ir.stdout);
 const tsc=['node_modules/typescript/bin/tsc','--target','esnext','--strict','--skipLibCheck'];
 function run(cmd,args) {const r=spawnSync(cmd,args,{encoding:'utf8',timeout:120000});if(r.error)throw r.error;return r;}
+// (util.inspect's symbol keys: Node 24 writes Symbol(k): v, earlier ones
+// [Symbol(k)]: v; helder's one way: both outputs written one way, so the
+// oracle's version does not matter)
+// (and Float16Array, DataView's float16s: Node 24's, behind V8's flag before)
+const oracleFlags=typeof Float16Array==='undefined'?['--js-float16array']:[];
+function inspected(s) {return s.replace(/\[(Symbol\((?:[^()]|\([^()]*\))*\))\]: /g,'$1: ');}
 function ok(r,what) {assert.equal(r.status,0,`${what}\n${r.stdout}\n${r.stderr}`);}
 const targets=['linux-x86_64','wasm32-wasi'];
 const files=fs.readdirSync(`${T}/cases`).filter(f=>f.endsWith('.ts')).sort();
@@ -25,7 +31,17 @@ let passed=0;
 for(const file of files) {
     const stem=path.basename(file,'.ts');
     const reference=run(process.execPath,[...tsc,'--module','commonjs','--outDir',`${dir}/js`,`${T}/cases/${file}`]); ok(reference,'reference tsc');
-    const oracle=run(process.execPath,[`${dir}/js/${stem}.js`]); ok(oracle,'reference node');
+    // (a case of what only a newer Node has, Promise.try, RegExp.escape,
+    // Error.isError: its output as Node 24 writes it beside it, <stem>.out,
+    // the oracle where this Node cannot run it, checked against it where it can)
+    const saved=`${T}/cases/${stem}.out`;
+    let oracle=run(process.execPath,[...oracleFlags,`${dir}/js/${stem}.js`]);
+    if(fs.existsSync(saved)) {
+        const want=fs.readFileSync(saved,'utf8');
+        if(oracle.status!==0) {console.log(`(${stem}: node ${process.version} cannot run it, ${stem}.out the oracle)`);oracle={status:0,stdout:want};}
+        else assert.equal(inspected(oracle.stdout),inspected(want),`${stem}.out is not what node writes`);
+    }
+    ok(oracle,'reference node');
     for(const target of targets) {
         const out=`${dir}/${stem}${target!=='linux-x86_64'?`-${target}.wasm`:''}`;
         const compiled=run(compiler,[`${T}/cases/${file}`,'--roundtrip-ir','--target',target,'-o',out,'--dump-ir',`${out}.ir`]);
@@ -34,7 +50,7 @@ for(const file of files) {
         for(const [cmd,args] of launchers) {
             const result=run(cmd,args);
             assert.equal(result.status,oracle.status,`${stem} exit ${target} ${args[0]??''}\n${result.stderr}`);
-            assert.equal(result.stdout,oracle.stdout,`${stem} stdout ${target} ${args[0]??''}`);
+            assert.equal(inspected(result.stdout),inspected(oracle.stdout),`${stem} stdout ${target} ${args[0]??''}`);
         }
         console.log(`PASS ${stem} ${target}`); passed++;
     }
@@ -45,14 +61,14 @@ for(const name of programs) {
     const out=`${dir}/modules/${name}`;fs.mkdirSync(out,{recursive:true});
     fs.writeFileSync(`${out}/package.json`,'{"type":"module"}');
     const reference=run(process.execPath,[...tsc,'--module','esnext','--moduleResolution','bundler','--outDir',out,`${T}/modules/${name}/main.ts`]); ok(reference,'reference tsc');
-    const oracle=run(process.execPath,[`${out}/main.js`]); ok(oracle,'reference node');
+    const oracle=run(process.execPath,[...oracleFlags,`${out}/main.js`]); ok(oracle,'reference node');
     for(const target of targets) {
         const binary=`${dir}/module-${name}${target!=='linux-x86_64'?`-${target}.wasm`:''}`;
         ok(run(compiler,[`${T}/modules/${name}/main.ts`,'--roundtrip-ir','--target',target,'-o',binary]),`${name} compile ${target}`);
         const launcher=target==='linux-x86_64'?[binary,[]]:[process.execPath,[`${T}/run-wasi.cjs`,binary]];
         const result=run(launcher[0],launcher[1]);
         assert.equal(result.status,oracle.status,`module ${name} exit ${target}\n${result.stderr}`);
-        assert.equal(result.stdout,oracle.stdout,`module ${name} stdout ${target}`);
+        assert.equal(inspected(result.stdout),inspected(oracle.stdout),`module ${name} stdout ${target}`);
         console.log(`PASS module ${name} ${target}`); passed++;
     }
 }

@@ -1,0 +1,14 @@
+true true
+true
+true true
+false true
+true get [Symbol.species] 1 try
+0,-0,1,1.001953125,65504,Infinity,0,1.1920928955078125e-7,-0
+Reflect 0 Symbol(Symbol.dispose) Symbol(Symbol.asyncDispose)
+try 5 callback,after
+RangeError bad
+not callable TypeError
+cap 9
+handled
+thenable 42
+species 11

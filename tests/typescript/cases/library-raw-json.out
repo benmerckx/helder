@@ -1,0 +1,24 @@
+true true true [ 'rawJSON' ] {"raw":123456789012345678901234567890} [123456789012345678901234567890]
+true true true [ 'rawJSON' ] {"raw":-0} [-0]
+true true true [ 'rawJSON' ] {"raw":1e400} [1e400]
+true true true [ 'rawJSON' ] {"raw":true} [true]
+true true true [ 'rawJSON' ] {"raw":false} [false]
+true true true [ 'rawJSON' ] {"raw":null} [null]
+true true true [ 'rawJSON' ] {"raw":"hello"} ["hello"]
+true true true [ 'rawJSON' ] {"raw":"\ud800"} ["\ud800"]
+ SyntaxError
+ 1 SyntaxError
+1  SyntaxError
+{} SyntaxError
+[] SyntaxError
+01 SyntaxError
+NaN SyntaxError
+undefined SyntaxError
+- SyntaxError
+1. SyntaxError
+false false false
+{"v":9007199254740993}
+rawJSON 1 isRawJSON 1
+true false true true  0
+TypeError
+true true false false false
