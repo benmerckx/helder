@@ -105,6 +105,25 @@ try {
 	await back();
 	l = await lines();
 	check('back to depth 0 again', l.includes('back 0'), l.join(' / '));
+	// Escape: the back, onBack's; not taken (depth 0), the app's key; while
+	// text is typed, the text's
+	await p.keyboard.press('d');
+	await lines();
+	await p.keyboard.press('Escape');
+	l = await lines();
+	check('Escape: onBack, a step up, not the app\'s key', l.includes('back 0') && !l.includes('key escape') && (await p.evaluate(() => history.state)) == null, l.join(' / '));
+	await p.keyboard.press('Escape');
+	l = await lines();
+	check('Escape at depth 0: onBack not taking it, the app\'s key', l.includes('back 0 home') && l.includes('key escape'), l.join(' / '));
+	await p.keyboard.press('t');
+	await p.keyboard.press('d');
+	await p.keyboard.press('Escape');
+	l = await lines();
+	check('Escape while typing: the text\'s, onBack not asked', l.includes('typing true') && l.includes('key escape') && !l.some((s) => s.startsWith('back')), l.join(' / '));
+	await p.keyboard.press('t');
+	await p.keyboard.press('Escape');
+	l = await lines();
+	check('typing off: Escape onBack\'s again', l.includes('typing false') && l.includes('back 0') && !l.includes('key escape'), l.join(' / '));
 	const errors = (await p.evaluate(() => window.log)).filter((s) => s.startsWith('stderr'));
 	check('no errors', errors.length === 0, errors.join(' / '));
 	// at depth 0: the page's own back, onBack not asked

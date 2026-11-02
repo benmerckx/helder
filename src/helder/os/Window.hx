@@ -114,6 +114,10 @@ class Window {
 		return c;
 	}
 
+	// whether text is typed into it now (startTextInput until stopTextInput:
+	// a text field focused, ui's UiWindow), when Escape is the field's, not App.onBack's
+	public var typing(default, null) = false;
+
 	// where text is typed now (a text field's caret: x, y, width, height in
 	// pixels from the top left), until stopTextInput: an input method shows
 	// its composition and candidates there. In the browser keys then reach an
@@ -125,12 +129,14 @@ class Window {
 	// TextEditing
 	public function startTextInput(x:Int, y:Int, width:Int, height:Int) {
 		if (closed) return;
+		typing = true;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(true, x, y, width, height) else if (Mem.os() == 2)
 			(cast native : Win32Window).textInputArea(x, y, width, height) else if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).textInput(true, x, y,
 				width, height) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(true, x, y, width, height);
 	}
 
 	public function stopTextInput() {
+		typing = false;
 		if (closed) return;
 		if (Mem.os() == 3) (cast native : CanvasWindow).textInput(false, 0, 0, 0, 0) else if (Mem.platform() >= 1) {} else if (Mem.os() == 1)
 			(cast native : CocoaWindow).textInput(false, 0, 0, 0, 0) else if (Mem.target() >= 9) (cast native : AndroidWindow).textInput(false, 0, 0, 0, 0);

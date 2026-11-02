@@ -85,8 +85,11 @@ class App {
 	// closed, a menu left) and says it did (true); false, or none set, and
 	// the system's own back follows (Android's activity finished or sent to
 	// the back, the browser's page left). Told on the app's thread between
-	// frames, its writes landed (helder.view.graph) as an event's. iOS has
-	// none; Escape is the app's own key, not mapped to it.
+	// frames, its writes landed (helder.view.graph) as an event's. On the
+	// desktop and in the browser Escape is it too, when onBack is set and
+	// no text is typed (Window.typing: a text field focused keeps its
+	// Escape): taken, its KeyDown goes no further; not taken, the app gets
+	// it as before. iOS has none.
 	public static var onBack:Null<Void->Bool> = null;
 
 	// how far the app is from its root (a menu's screens, a card over them):
@@ -119,6 +122,15 @@ class App {
 		return taken;
 	}
 
+	// whether e is an Escape onBack took (the desktop's and the browser's:
+	// Android's back is its own key, iOS has none; not while text is typed)
+	static function escapeBack(e:Event):Bool {
+		if (e.kind != KeyDown || e.key != 0xFF1B || onBack == null || Mem.target() >= 9 || Mem.platform() >= 1) return false;
+		for (w in windows)
+			if (w.typing) return false;
+		return back();
+	}
+
 	public static function run(onFrame:Void->Void, onEvent:Event->Void) {
 		running = true;
 		// (helder.view.graph's writes land at the end of each event and frame)
@@ -131,6 +143,9 @@ class App {
 			event(e);
 			helder.view.graph.Graph.flush();
 		}, "event");
+		// (Escape as the system's back, on the desktop and in the browser: onBack's)
+		var inner = onEvent;
+		onEvent = e -> if (!escapeBack(e)) inner(e);
 		// (the mouse's pointer events after its own: Pointers)
 		onEvent = Pointers.relay(onEvent);
 		if (Mem.os() == 3) {

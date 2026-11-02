@@ -6,7 +6,8 @@ import helder.os.*;
 // taken ("back 0 home", then the page's own back); every frame with a
 // change its depth ("depth 2"). haxe.Timer.delay in the browser's App.run:
 // one made in the first frame, "timer 1" after 50 ms, then "timer 2" from a
-// delay made in its callback.
+// delay made in its callback. Escape as the back while no text is typed
+// ("key escape" when it reaches the app), "t" typing on and off.
 class BackWeb {
 	static function main() {
 		var w = new Window("BackWeb", 200, 100);
@@ -44,6 +45,12 @@ class BackWeb {
 			if (e.kind == KeyDown && e.key == "h".code) {
 				depth = 0;
 				App.backDepth = 0;
+			}
+			// (Escape when onBack did not take it; "t" typing on and off: a text field's focus)
+			if (e.kind == KeyDown && e.key == 0xFF1B) Sys.println("key escape");
+			if (e.kind == KeyDown && e.key == "t".code) {
+				if (w.typing) w.stopTextInput() else w.startTextInput(0, 0, 10, 10);
+				Sys.println('typing ${w.typing}');
 			}
 		});
 	}
