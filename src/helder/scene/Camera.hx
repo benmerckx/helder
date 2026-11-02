@@ -74,9 +74,26 @@ class Camera {
 	// the ray through a point of the view (x, y from -1 to 1, y up), in the
 	// scene's space: from the near plane, dir of unit length
 	public function ray(x:Float, y:Float, aspect:Float):{origin:Vec3, dir:Vec3} {
+		var r = rayInto(x, y, aspect, new CameraRay());
+		return {origin: r.origin, dir: r.dir};
+	}
+
+	// ray, written into out (returned): no object made
+	public function rayInto(x:Float, y:Float, aspect:Float, out:CameraRay):CameraRay {
 		var inv = MathTools.inverse(viewProjection(aspect));
 		var a = MathTools.transformPoint(inv, new Vec3(x, y, 0)), b = MathTools.transformPoint(inv, new Vec3(x, y, 1));
 		var d = b - a;
-		return {origin: a, dir: d / Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z)};
+		out.origin = a;
+		out.dir = d / Math.sqrt(d.x * d.x + d.y * d.y + d.z * d.z);
+		return out;
 	}
+}
+
+// a ray through the view to fill (Camera.rayInto): its origin on the near
+// plane, its dir of unit length
+class CameraRay {
+	public var origin = new Vec3(0, 0, 0);
+	public var dir = new Vec3(0, 0, -1);
+
+	public function new() {}
 }

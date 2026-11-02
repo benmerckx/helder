@@ -10,7 +10,8 @@ import helder.ui.Ui;
 // UiWindow does; natively and as wasm32-wasi): a finger turns the camera,
 // a pinch brings it nearer about its centre, two fingers move the target,
 // the mouse's right button too, the wheel zooms (not the page's), a flick
-// glides on and slows, the limits hold. The taps on a mesh beside the
+// glides on and slows, the limits hold; the box's bounds and the view's ray
+// filled in place (rectInto, rayInto), its zoom and pan allocating nothing. The taps on a mesh beside the
 // orbit: tests/3d-ui/SurfaceTest.hx (a GPU's).
 function tests() {
 	describe("OrbitControls", () -> {
@@ -110,6 +111,24 @@ function tests() {
 			orbit.pitch = 3;
 			orbit.apply();
 			equals(orbit.pitch, orbit.maxPitch);
+		});
+		test("the box's bounds and the view's ray filled in place: as rect and ray, nothing made", () -> {
+			var b = new helder.ui.Bounds(), r = new helder.scene.Camera.CameraRay();
+			var old = box.rect(), oldRay = camera.ray(0.25, -0.5, 1.5);
+			box.rectInto(b);
+			camera.rayInto(0.25, -0.5, 1.5, r);
+			equals('${b.x} ${b.y} ${b.width} ${b.height}', '${old.x} ${old.y} ${old.width} ${old.height}');
+			approx(r.origin.x, oldRay.origin.x, 1e-12);
+			approx(r.dir.z, oldRay.dir.z, 1e-12);
+			var before = hxmc.GcStats.bytesAllocated();
+			for (k in 0...1000) {
+				box.rectInto(b);
+				box.windowBoundsInto(b);
+				camera.rayInto(k / 1000, 0, 1, r);
+				@:privateAccess orbit.zoom(1.001, 120, 80);
+				@:privateAccess orbit.pan(1, 0);
+			}
+			equals(hxmc.GcStats.bytesAllocated() - before, 0.0);
 		});
 	});
 }

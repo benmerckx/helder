@@ -232,12 +232,16 @@ class SceneBox extends helder.ui.Node {
 		return fallback;
 	}
 
+	// (pick's, filled each time: Node.windowBoundsInto, Camera.rayInto)
+	final pickBounds = new helder.ui.Bounds();
+	final pickRay = new helder.scene.Camera.CameraRay();
+
 	// the node under a pointer event (window points)
 	function pick(e:Event):Null<{node:SceneGraphNode, distance:Float, point:Vec3}> {
-		var r = windowBounds();
+		var r = windowBoundsInto(pickBounds);
 		if (r.width <= 0 || r.height <= 0) return null;
 		var lx = localX(e.x, e.y), ly = localY(e.x, e.y);
-		var ray = view().ray(lx / r.width * 2 - 1, 1 - ly / r.height * 2, r.width / r.height);
+		var ray = view().rayInto(lx / r.width * 2 - 1, 1 - ly / r.height * 2, r.width / r.height, pickRay);
 		return Pick.ray(world, ray.origin, ray.dir);
 	}
 

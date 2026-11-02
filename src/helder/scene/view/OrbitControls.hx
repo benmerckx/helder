@@ -19,6 +19,8 @@ import helder.ui.gesture.Scale;
 // {...} minDistance={3} maxDistance={20}/> in a <Scene> (SceneTags).
 class OrbitControls {
 	public final box:SceneBox;
+	// (the box's bounds, filled each gesture's move: nothing made, Node.rectInto)
+	final bounds = new helder.ui.Bounds();
 	// the camera it moves (the box's view by default)
 	public var camera:Camera;
 	// what it turns about, and the camera's place round it
@@ -126,7 +128,7 @@ class OrbitControls {
 		distance = Math.max(minDistance, Math.min(maxDistance, distance / factor));
 		// (the target moved toward the point under the focus, on the plane through it)
 		var k = 1 - distance / before;
-		var r = box.rect(), per = perPoint(before);
+		var r = box.rectInto(bounds), per = perPoint(before);
 		var ox = (x - r.width / 2) * per, oy = (r.height / 2 - y) * per;
 		var right = axisRight(), up = axisUp(right);
 		target = target + (right * ox + up * oy) * k;
@@ -140,7 +142,7 @@ class OrbitControls {
 
 	// (the scene's units a point of the box at that distance)
 	function perPoint(d:Float):Float {
-		var h = Math.max(1, box.rect().height);
+		var h = Math.max(1, box.rectInto(bounds).height);
 		return camera.isPerspective ? 2 * d * Math.tan(camera.fovY / 2) / h : camera.height / h;
 	}
 

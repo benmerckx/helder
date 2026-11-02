@@ -931,6 +931,10 @@ class Node implements Part {
 	public function rect():{x:Float, y:Float, width:Float, height:Float}
 		return windowBounds();
 
+	// rect, written into out (returned): nothing made (windowBoundsInto)
+	public inline function rectInto(out:Bounds):Bounds
+		return windowBoundsInto(out);
+
 	public function scrollIntoView()
 		if (ui != null) ui.scrollIntoView(this);
 
@@ -978,26 +982,50 @@ class Node implements Part {
 	// scrolling taken off, through the transforms (its own too; the bounds
 	// of the box they turn)
 	public function windowBounds():{x:Float, y:Float, width:Float, height:Float} {
-		var xs = [absX, absX + width, absX, absX + width], ys = [absY, absY, absY + height, absY + height];
+		var b = windowBoundsInto(new Bounds());
+		return {x: b.x, y: b.y, width: b.width, height: b.height};
+	}
+
+	// windowBounds, written into out (returned): its corners in locals, no
+	// array or box made (a transformed ancestor's matrix still is: transformMatrix)
+	public function windowBoundsInto(out:Bounds):Bounds {
+		var x0 = absX, y0 = absY, x1 = absX + width, y1 = absY, x2 = absX, y2 = absY + height, x3 = absX + width, y3 = absY + height;
 		var a = this;
 		while (a != null) {
-			if (a != this && a.style.overflow == Scroll)
-				for (k in 0...4) {
-					xs[k] -= a.scrollX;
-					ys[k] -= a.scrollY;
-				}
+			if (a != this && a.style.overflow == Scroll) {
+				x0 -= a.scrollX;
+				x1 -= a.scrollX;
+				x2 -= a.scrollX;
+				x3 -= a.scrollX;
+				y0 -= a.scrollY;
+				y1 -= a.scrollY;
+				y2 -= a.scrollY;
+				y3 -= a.scrollY;
+			}
 			var m = a.transformMatrix();
-			if (m != null)
-				for (k in 0...4) {
-					var x = xs[k];
-					xs[k] = m[0] * x + m[2] * ys[k] + m[4];
-					ys[k] = m[1] * x + m[3] * ys[k] + m[5];
-				}
+			if (m != null) {
+				var x = x0;
+				x0 = m[0] * x + m[2] * y0 + m[4];
+				y0 = m[1] * x + m[3] * y0 + m[5];
+				x = x1;
+				x1 = m[0] * x + m[2] * y1 + m[4];
+				y1 = m[1] * x + m[3] * y1 + m[5];
+				x = x2;
+				x2 = m[0] * x + m[2] * y2 + m[4];
+				y2 = m[1] * x + m[3] * y2 + m[5];
+				x = x3;
+				x3 = m[0] * x + m[2] * y3 + m[4];
+				y3 = m[1] * x + m[3] * y3 + m[5];
+			}
 			a = a.parent;
 		}
-		var x0 = Math.min(Math.min(xs[0], xs[1]), Math.min(xs[2], xs[3])), y0 = Math.min(Math.min(ys[0], ys[1]), Math.min(ys[2], ys[3]));
-		var x1 = Math.max(Math.max(xs[0], xs[1]), Math.max(xs[2], xs[3])), y1 = Math.max(Math.max(ys[0], ys[1]), Math.max(ys[2], ys[3]));
-		return {x: x0, y: y0, width: x1 - x0, height: y1 - y0};
+		var lx = Math.min(Math.min(x0, x1), Math.min(x2, x3)), ly = Math.min(Math.min(y0, y1), Math.min(y2, y3));
+		var hx = Math.max(Math.max(x0, x1), Math.max(x2, x3)), hy = Math.max(Math.max(y0, y1), Math.max(y2, y3));
+		out.x = lx;
+		out.y = ly;
+		out.width = hx - lx;
+		out.height = hy - ly;
+		return out;
 	}
 
 	// the transform (Style.transform about Style.transformOrigin) in window
