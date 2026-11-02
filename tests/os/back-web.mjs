@@ -70,7 +70,8 @@ try {
 		await cdp.send('Page.navigateToHistoryEntry', { entryId: entries[currentIndex - 1].id });
 		await cdp.detach();
 	};
-	await lines();
+	const first = await lines();
+	check('haxe.Timer.delay: fired, and one made in its callback', first.includes('timer 1') && first.indexOf('timer 2') > first.indexOf('timer 1'), first.join(' / '));
 	const start = await length();
 	await p.click('#c');
 	await p.keyboard.press('d');
