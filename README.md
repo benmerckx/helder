@@ -712,6 +712,31 @@ fix.
   layer tree transferred, or a SharedArrayBuffer behind cross-origin
   isolation. And **devices in the extension**: their logs, a screenshot or
   a recording, a story picked on the phone.
+- Next in this phase: **the Apple back ends on hxmc's Objective-C
+  interop** (benmerckx/hxmc#131: typed messages, Haxe classes extending
+  Objective-C classes, protocols, blocks, exceptions both ways, ARC-like
+  ownership, Mac Catalyst, and generated externs for Foundation, AppKit,
+  Core Graphics, Core Text and Core Animation):
+  - macOS's and iOS's windows, input, Metal layer and audio moved from the
+    hand-built `objc_msgSend` shapes (`Sender`) onto typed Cocoa and UIKit
+    calls;
+  - **a real iOS app**: a `UIApplicationDelegate` and a view controller
+    written in Haxe, the app's lifecycle and audio interruptions through
+    `AVAudioSession`, safe areas and the keyboard, the system's text field
+    (input methods, autofill), the edge swipe as `App.onBack`;
+  - **frame pacing**: `CADisplayLink` with `preferredFrameRateRange`
+    (120 Hz on ProMotion screens), Metal's completion handlers and GCD
+    through blocks;
+  - **platform services** as small typed bindings: haptics
+    (`UIImpactFeedbackGenerator`), the share sheet, Game Center, iCloud
+    key-value storage for saves, notifications;
+  - **a Mac build from the iOS one** through the Mac Catalyst targets;
+  - Android's counterpart (typed Java and Kotlin through JNI) is not part
+    of this and waits for its own interop.
+
+  Driven by Expansion (the second game, after golf): a native iOS build
+  that runs well on a phone, then its saves in iCloud and its
+  achievements in Game Center.
 
 ### 5. Graphics, 3D and 2D
 
@@ -778,7 +803,9 @@ Folded into phase 3: the VS Code extension is the devtools.
   parallel through the compilation server; `helder dev` rebuilds the part
   that changed. The examples site (site/) starts with a build per example;
   this replaces it. It pays again with **native webviews as a surface** (a
-  WKWebView, Android's WebView, WebView2 in a window): web content in a
+  WKWebView, Android's WebView, WebView2 in a window; Apple's through
+  hxmc's Objective-C interop, as are native controls where they serve
+  better than drawn ones: text input, menus): web content in a
   native app, and native or wasm surfaces inside that, nested the same way.
 
 ## License
