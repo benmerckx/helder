@@ -9,7 +9,8 @@ using StringTools;
 // node_modules/.bin on the PATH):
 //
 //   bun run test                   the headless lanes (no GPU, display or browser)
-//   bun run test <lane> ...        those lanes (-k: the next one after a failure)
+//   bun run test <lane> ...        those lanes (-k: the next one after a failure,
+//                                  headless's too; every failure listed at the end)
 //   bun run test help              the lanes
 //
 // Outputs go to bin/<lane>. GFX_TARGET and AUDIO_TARGET (the host's by
@@ -74,6 +75,9 @@ class Run {
 			for (l in LANES) Sys.println("  " + l.name.rpad(" ", 15) + " " + l.about);
 			return;
 		}
+		// (headless as its lanes, each run on its own: with -k every one runs
+		// and each failure is reported, not the first alone)
+		args = [for (a in args) for (l in (a == "headless" ? HEADLESS : [a])) l];
 		var failed = [];
 		for (a in args) {
 			try {
