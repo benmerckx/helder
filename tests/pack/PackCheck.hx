@@ -50,7 +50,8 @@ using StringTools;
 //   resources.arsc (Arsc.dump) and res/ files, the application's icon the
 //   adaptive icon (its 432 px foreground, its background), the activity's
 //   theme Theme.Helder (the splash's colour, windowBackground and
-//   windowSplashScreenBackground); a bundle's AppIcon PNGs at their sizes,
+//   windowSplashScreenBackground; theme_color statusBarColor and
+//   navigationBarColor); a bundle's AppIcon PNGs at their sizes,
 //   opaque, in CFBundleIcons, the launch image (UILaunchScreen's
 //   UIImageName), all in CodeResources.
 // Exits non-zero on a failure; a missing tool is a line saying so.
@@ -206,6 +207,10 @@ class PackCheck {
 		check("resources: the foreground 432 px (108 dp at xxxhdpi)", fg != null && fg.width == 432 && fg.height == 432);
 		check("resources: Theme.Helder, the activity's: the splash's background, the window's", theme != null
 			&& xml.indexOf("android:theme(0x01010000)=@" + theme.split(" ")[0]) >= 0 && theme.indexOf("0x0101062c=@") > 0 && theme.indexOf("0x01010054=@") > 0, theme);
+		// (theme_color, #3ED6C3: the status and navigation bars', statusBarColor and navigationBarColor)
+		var bars = line("color/theme_color");
+		check("resources: theme_color the system bars' (statusBarColor, navigationBarColor)", bars != null && bars.toLowerCase().indexOf("ff3ed6c3") > 0 && theme != null
+			&& theme.indexOf("0x01010451=@" + bars.split(" ")[0]) > 0 && theme.indexOf("0x01010452=@" + bars.split(" ")[0]) > 0, '$bars / $theme');
 	}
 
 	static function elf(so:String, abi:String) {

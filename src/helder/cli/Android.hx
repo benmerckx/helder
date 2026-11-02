@@ -92,7 +92,8 @@ class Android {
 	// SplashScreen: windowSplashScreenBackground, and the image as its
 	// windowSplashScreenAnimatedIcon, else the launcher's icon; the window's
 	// background the same colour before it, and on Android 10 and 11),
-	// their dark variants in the night configuration; the activity's theme
+	// their dark variants in the night configuration; theme_color the
+	// system bars' (statusBarColor, navigationBarColor); the activity's theme
 	// the framework's it was (views: DayNight) as their parent
 	public static function resources(cfg:Dynamic, root:String, pkg:String, views:Bool, ?read:String->haxe.io.Bytes):Null<{
 		files:Array<{name:String, data:haxe.io.Bytes}>,
@@ -100,7 +101,7 @@ class Android {
 		theme:Null<Int>
 	}> {
 		var m:Manifest.AppConfig = cfg;
-		if (m == null || m.icons == null && m.splash == null) return null;
+		if (m == null || m.icons == null && m.splash == null && m.theme == null) return null;
 		var icons = new Icons(m, root, read), t = new Arsc(pkg), files = [];
 		var icon:Null<Int> = null, theme:Null<Int> = null;
 		var density:Config = {density: Arsc.XXXHDPI};
@@ -136,16 +137,26 @@ class Android {
 			if (s.darkImage != null) file("mipmap", "splash_icon", "res/mipmap-night-xxxhdpi-v8/splash_icon.png", icons.androidSplash(s.darkImage), {density: Arsc.XXXHDPI, night: true});
 			items.push({attr: SPLASH_ICON, value: Ref(id)});
 		}
+		// (theme_color: the system bars', the window's statusBarColor and navigationBarColor;
+		// Android 15's edge to edge, at targetSdk 35, draws them behind the app instead)
+		if (m.theme != null) {
+			var c = t.add("color", "theme_color", Argb(m.theme));
+			items.push({attr: STATUS_BAR_COLOR, value: Ref(c)});
+			items.push({attr: NAVIGATION_BAR_COLOR, value: Ref(c)});
+		}
 		if (items.length > 0) theme = t.add("style", "Theme.Helder", Style(views ? Apk.THEME_VIEWS : Apk.THEME, items));
 		if (icon == null && theme == null) return null;
 		files.unshift({name: "resources.arsc", data: t.encode()});
 		return {files: files, icon: icon, theme: theme};
 	}
 
-	// the framework's attributes (public.xml): windowBackground, windowSplashScreenBackground, windowSplashScreenAnimatedIcon
+	// the framework's attributes (public.xml): windowBackground, windowSplashScreenBackground, windowSplashScreenAnimatedIcon,
 	static inline var WINDOW_BACKGROUND = 0x01010054;
 	static inline var SPLASH_BACKGROUND = 0x0101062c;
 	static inline var SPLASH_ICON = 0x0101062d;
+	// statusBarColor, navigationBarColor
+	static inline var STATUS_BAR_COLOR = 0x01010451;
+	static inline var NAVIGATION_BAR_COLOR = 0x01010452;
 
 	// what the build's Classes wrote: classes.dex, org.hxmc.Activity
 	static function classes(apk:String):{dex:Bool, views:Bool} {
