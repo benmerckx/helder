@@ -5,7 +5,8 @@
 // its lines checked: dense slots (the mouse 0, fingers and pens from 1), the
 // first finger primary, buffer pixels, a touch's compatibility click while
 // Pointers.emulate is on and none once it is off, moves between two frames
-// as one with samples, a cancel, Pointers' frames.
+// as one with samples, a cancel, Pointers' frames; a pointer event sent from
+// JavaScript (setPointerCapture's NotFoundError caught).
 //   node tests/os/pointers-web.mjs <PointersWeb.wasm>
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -137,6 +138,25 @@ try {
 	await p.mouse.up();
 	l = await lines();
 	check('the mouse: slot 0, after its MouseDown', l.indexOf('mouse-down 1') >= 0 && l.indexOf('down 0 mouse 300,200 primary samples 1 buttons 1') > l.indexOf('mouse-down 1') && l.includes('move 0 mouse 320,200 primary samples 1 buttons 1') && l.some((s) => s.startsWith('up 0 mouse 320,200')), l.join(' / '));
+	// a pointer event sent from JavaScript: a pointer the browser has not
+	// active, so setPointerCapture throws (NotFoundError); the page goes on, the
+	// press the program's
+	const thrown = [];
+	p.on('pageerror', (e) => thrown.push(String(e)));
+	const sent = await p.evaluate(() => {
+		const c = document.getElementById('c'), r = c.getBoundingClientRect(), at = { clientX: r.left + 20, clientY: r.top + 20, bubbles: true, cancelable: true };
+		let threw = null;
+		try {
+			c.setPointerCapture(4242);
+		} catch (e) {
+			threw = e.name;
+		}
+		c.dispatchEvent(new PointerEvent('pointerdown', { ...at, pointerId: 4242, pointerType: 'touch', isPrimary: true, buttons: 1 }));
+		c.dispatchEvent(new PointerEvent('pointerup', { ...at, pointerId: 4242, pointerType: 'touch', isPrimary: true, buttons: 0 }));
+		return threw;
+	});
+	l = await lines();
+	check('a pointer event from JavaScript: setPointerCapture caught, the press delivered', sent === 'NotFoundError' && thrown.length === 0 && l.some((s) => s.startsWith('down 1 touch 40,40')) && l.some((s) => s.startsWith('up 1 touch')), `${sent} ${thrown.join(' / ')} ${l.join(' / ')}`);
 	const errors = (await p.evaluate(() => window.log)).filter((s) => s.startsWith('stderr'));
 	check('no errors', errors.length === 0, errors.join(' / '));
 } finally {
