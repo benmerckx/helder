@@ -18,7 +18,21 @@ using StringTools;
 // and fonts it names (the program's assets are beside it already:
 // helder.asset's Bundle).
 class Page {
-	static final FONT_DIRS = ["/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/TTF", "/usr/share/fonts/dejavu", "/Library/Fonts", "C:/Windows/Fonts"];
+	// where DejaVu Sans is looked for (HELDER_FONT_DIRS, separated by the
+	// path separator, names others: the cli lane's machine without it)
+	static final FONT_DIRS = {
+		var env = Sys.getEnv("HELDER_FONT_DIRS");
+		env != null ? [for (d in env.split(Sys.systemName() == "Windows" ? ";" : ":")) if (d != "") d] : [
+			"/usr/share/fonts/truetype/dejavu", "/usr/share/fonts/TTF", "/usr/share/fonts/dejavu", "/Library/Fonts", (Sys.getEnv("HOME") ?? "") + "/Library/Fonts", "C:/Windows/Fonts"
+		];
+	};
+
+	// what a web build of a program with text but no font says: the cause, and the fixes
+	public static function noFontWarning():String
+		return "the page ships no font, so its text cannot be drawn (helder.ui: \"no font to draw text with\"): "
+			+ "no system font to bundle was found on this machine (DejaVu Sans, in " + (FONT_DIRS.length == 0 ? "no directory" : FONT_DIRS.join(", ")) + ")"
+			+ " and the program loads none with Asset.font. Add a font file to the project and load it with Asset.font(\"fonts/YourFont.ttf\")"
+			+ ", or install DejaVu Sans here";
 
 	// the packages whose imports.mjs the module needs (os, gfx, ...)
 	public static function packages(helder:String, wasm:String):Array<String> {
@@ -196,7 +210,7 @@ class Page {
 		for (k in assetFonts(wasm))
 			urls.push(AssetPath.url(AssetPath.bundled(k)));
 		if (pkgs.contains("text") && urls.length == 0)
-			Term.err(Style.status("warning", Warn, 'the page has no font: DejaVu Sans is not on this machine (${FONT_DIRS.join(", ")}), and the program loads none with Asset.font'));
+			Term.err(Style.status("warning", Warn, noFontWarning()));
 		// (the program's assets: helder.asset's Bundle put them in assets/ beside the module)
 		var listed = FileSystem.exists('$wasm.assets.json');
 		// (./: the page's module script imports browser.mjs from there, where helder/... is a bare specifier)

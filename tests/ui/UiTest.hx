@@ -64,8 +64,26 @@ class UiTest {
 		popups();
 		shortcuts();
 		natives();
+		noFont();
 		Sys.println('UiTest: $checks checks' + (failed == 0 ? ", ok" : ', $failed FAILED'));
 		Sys.exit(failed == 0 ? 0 : 1);
+	}
+
+	// no font at all (a page whose build found none to ship): the error says
+	// so and what to do, and reaches App.onError's handler (helder.async.Errors)
+	static function noFont() {
+		var text = new helder.ui.draw.DrawText(new NoFonts());
+		var got:Null<String> = null, from = "";
+		var was = helder.async.Errors.handler;
+		helder.async.Errors.handler = (e, source) -> {
+			got = e.message;
+			from = source;
+			true;
+		};
+		helder.async.Errors.guard(() -> text.face(new helder.ui.Font("sans-serif", 14, 400, false, 1.2)), "frame");
+		helder.async.Errors.handler = was;
+		check("no font: an error through App.onError, its cause and its fix", from == "frame" && got != null && got.indexOf("no font to draw text with") >= 0
+			&& got.indexOf("Asset.font") >= 0, '$from: $got');
 	}
 
 	// native text editors (a platform's views, faked): which host the
@@ -2781,4 +2799,10 @@ class FakeEditor implements PlatformEditor {
 
 	public function dispose()
 		disposed = true;
+}
+
+// (a system with no font at all)
+class NoFonts extends helder.text.SystemFonts {
+	override public function match(family:String, weight = 400, italic = false):Null<helder.text.FontFile>
+		return null;
 }

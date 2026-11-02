@@ -16,6 +16,12 @@ class DrawText implements TextEngine {
 	var more:Null<Int->Null<FontFile>>;
 	var emoji:Null<Int->Null<FontFile>>;
 
+	// what face throws when there is no font at all: out of a frame, through
+	// App.onError (helder.async.Errors) and, in a browser, the page's error
+	public static final NO_FONT = "helder.ui: no font to draw text with: none was found on this system and the program added none. "
+		+ "Add one with Asset.font (a font file in the project), or SystemFonts.add its bytes. "
+		+ "In a browser there are no system fonts: the page has the program's Asset.font fonts, and DejaVu Sans only when the machine that built it had it";
+
 	public function new(?fonts:SystemFonts)
 		this.fonts = fonts == null ? SystemFonts.get() : fonts;
 
@@ -31,7 +37,7 @@ class DrawText implements TextEngine {
 		var face = faces.get(key);
 		if (face == null) {
 			face = fonts.match(f.family, f.weight, f.italic);
-			if (face == null) throw "helder.ui.draw: no font (no system fonts found: SystemFonts.add one)";
+			if (face == null) throw new haxe.Exception(NO_FONT);
 			faces.set(key, face);
 		}
 		lastFamily = f.family;

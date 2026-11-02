@@ -230,6 +230,13 @@ class Run {
 		run(h, ["build", "--target", "web", "examples/counter"]);
 		for (f in ["Counter.html", "Counter.wasm", "helder/os/browser.mjs", "helder/ui/imports.mjs"])
 			if (!FileSystem.exists('bin/web/$f')) throw new Failed('helder build --target web: no bin/web/$f');
+		// (a machine with no font to bundle: the warning names the cause and the fix)
+		rmrf("bin/cli/nofont");
+		mkdirs("bin/cli/nofont");
+		expect(h, ["build", "--target", "web", "examples/counter", "-o", "bin/cli/nofont/Counter.wasm"], ["HELDER_FONT_DIRS" => FileSystem.fullPath("bin/cli/path/none")],
+			"no system font to bundle was found on this machine (DejaVu Sans, in");
+		expect(h, ["build", "--target", "web", "examples/counter", "-o", "bin/cli/nofont/Counter.wasm"], ["HELDER_FONT_DIRS" => FileSystem.fullPath("bin/cli/path/none")],
+			"Add a font file to the project and load it with Asset.font");
 		expect(h, ["run", "tests/cli/tally", "--", "3"], new Map(), "v1 count=3");
 		rmrf("bin/cli/project");
 		copy("tests/cli/project", "bin/cli/project");
