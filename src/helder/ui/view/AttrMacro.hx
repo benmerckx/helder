@@ -145,9 +145,60 @@ class AttrMacro {
 				var fn = setterName(f.name);
 				return macro @:pos(pos) helder.ui.view.StyleAttrs.$fn;
 			}
-		// (a name none of them has: looked up at run time, which throws when
-		// it is set; markup written for another renderer is compiled for each)
+		// (another spelling camel turns into one of Style's: StyleAttrs.apply's)
+		var c = camel(name);
+		if (c != name) for (f in styleProperties())
+			if (f.name == c) {
+				var fn = setterName(f.name);
+				return macro @:pos(pos) helder.ui.view.StyleAttrs.$fn;
+			}
+		// (a name none of them has: an error at the attribute, the name meant
+		// suggested, as an unknown event is, MarkupMacro.handler)
+		Context.error(unknown(name), pos);
 		return macro @:pos(pos) helder.ui.view.NodeRenderer.setAttribute;
+	}
+
+	// (CSS's names that are another's here)
+	static final CSS:Map<String, String> = [
+		"flex-wrap" => "wrap", "flexWrap" => "wrap", "border-radius" => "radius", "borderRadius" => "radius",
+		"background-color" => "background", "backgroundColor" => "background", "box-shadow" => "shadow", "boxShadow" => "shadow"
+	];
+
+	// the message for an attribute none of ui's elements has: the name meant,
+	// CSS's (CSS) or the nearest of theirs
+	public static function unknown(name:String):String {
+		var names = [for (t in table()) if (t.name.indexOf("*") < 0) t.name];
+		var meant = CSS.get(name);
+		if (meant != null && names.indexOf(meant) < 0) meant = null;
+		if (meant == null) {
+			var best = 4;
+			for (n in names) {
+				var d = distance(name.toLowerCase(), n.toLowerCase());
+				if (d < best) {
+					best = d;
+					meant = n;
+				}
+			}
+		}
+		return "helder.ui: no attribute " + name + " (not one of NodeRenderer's or Style's)" + (meant == null ? "" : "; did you mean " + meant + "?");
+	}
+
+	static function camel(n:String):String {
+		if (n.indexOf("-") < 0) return n;
+		var parts = n.split("-");
+		return parts[0] + [for (p in parts.slice(1)) p.charAt(0).toUpperCase() + p.substr(1)].join("");
+	}
+
+	// (Levenshtein's)
+	static function distance(a:String, b:String):Int {
+		var prev = [for (j in 0...b.length + 1) j];
+		for (i in 1...a.length + 1) {
+			var cur = [i];
+			for (j in 1...b.length + 1)
+				cur.push(Std.int(Math.min(Math.min(cur[j - 1] + 1, prev[j] + 1), prev[j - 1] + (a.charCodeAt(i - 1) == b.charCodeAt(j - 1) ? 0 : 1))));
+			prev = cur;
+		}
+		return prev[b.length];
 	}
 
 	// what setter resolves at compile time, as names to their functions' paths

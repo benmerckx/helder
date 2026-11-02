@@ -256,30 +256,30 @@ class Plan<E> {
 					case AStatic(s): target.string(s);
 					case _: target.bool(true);
 				}
-				if (event) target.call(Host, "listen", [e, target.string(name), v], ap);
+				if (event) target.call(Host, "listen", [e, target.string(name, ap), v], ap);
 				else switch name {
 					case "key": null;
 					case "style": target.call(Host, "setStyle", [e, v], ap);
-					case "ref": target.call(Runtime, "attr", [e, target.string(name), v], ap);
-					case _: target.call(Host, "setProperty", [e, target.string(name), v], ap);
+					case "ref": target.call(Runtime, "attr", [e, target.string(name, ap), v], ap);
+					case _: target.call(Host, "setProperty", [e, target.string(name, ap), v], ap);
 				}
 			case AExpr(code, at):
 				var x = target.code(code, at, inner(), true);
 				// (a literal number or string: set as a static value is, never bound)
 				if (!event && name != "ref" && name != "key" && name != "style" && target.isLiteral(x))
-					return target.call(Host, "setProperty", [e, target.string(name), x], ap);
+					return target.call(Host, "setProperty", [e, target.string(name, ap), x], ap);
 				if (!event && name != "ref" && name != "key") x = reactive(x);
 				if (event) x = target.handler(x, name, renderer, false, ap);
 				var plain = !event && name != "ref" && name != "key" && name != "style" && target.isPlain(x);
 				var h = hole(x);
-				if (event) target.call(Host, "listen", [e, target.string(name), h], ap);
+				if (event) target.call(Host, "listen", [e, target.string(name, ap), h], ap);
 				else switch name {
 					case "key": null;
 					case "ref": target.call(Runtime, "ref", [e, h], ap);
 					case "style": target.call(Runtime, "style", [e, h], ap);
 					// (a value never reactive: its hole set as a literal is)
-					case _ if (plain): target.call(Host, "setProperty", [e, target.string(name), h], ap);
-					case _: target.call(Runtime, "prop", [e, target.string(name), h], ap);
+					case _ if (plain): target.call(Host, "setProperty", [e, target.string(name, ap), h], ap);
+					case _: target.call(Runtime, "prop", [e, target.string(name, ap), h], ap);
 				}
 			case ASpread(code, at):
 				var h = hole(target.code(code, at, inner(), true));
@@ -297,29 +297,29 @@ class Plan<E> {
 					case AStatic(s): target.string(s);
 					case _: target.bool(true);
 				}
-				event ? target.call(Neutral, "listen", [e, target.string(tag), target.string(name), v],
-					ap) : target.call(Neutral, "property", [e, target.string(tag), target.string(name), v], ap);
+				event ? target.call(Neutral, "listen", [e, target.string(tag), target.string(name, ap), v],
+					ap) : target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), v], ap);
 			case AExpr(code, at):
 				var x = target.code(code, at, inner(), true);
 				// (a literal, or tag and id, one renderer's only (ui's Node.find, a page's id): in each pass,
 				// dropped where its renderer has no use for it)
 				if (!event && name != "ref" && target.isLiteral(x))
-					return target.call(Neutral, "property", [e, target.string(tag), target.string(name), x], ap);
+					return target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), x], ap);
 				// (an agnostic literal's code has no scope: a hole)
 				if (!event && name != "ref" && (name == "tag" || name == "id"))
-					return target.call(Neutral, "property", [e, target.string(tag), target.string(name), renderer == null ? hole(x) : x], ap);
+					return target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), renderer == null ? hole(x) : x], ap);
 				// (states: a function of a part's states, its own style: set once, not bound)
-				if (name == "states") return target.call(Neutral, "property", [e, target.string(tag), target.string(name), hole(x)], ap);
+				if (name == "states") return target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), hole(x)], ap);
 				if (!event && name != "ref") x = reactive(x);
 				if (event) x = target.handler(x, name, renderer, true, ap);
 				var plain = !event && name != "ref" && target.isPlain(x);
 				var h = hole(x);
-				if (event) target.call(Neutral, "listen", [e, target.string(tag), target.string(name), h], ap);
+				if (event) target.call(Neutral, "listen", [e, target.string(tag), target.string(name, ap), h], ap);
 				// (a part made only for a ref given)
 				else if (name == "ref") target.partRef(e, h, ap);
 				// (a value never reactive: its hole set as a literal is)
-				else if (plain) target.call(Neutral, "property", [e, target.string(tag), target.string(name), h], ap);
-				else target.call(Neutral, "prop", [e, target.string(tag), target.string(name), h], ap);
+				else if (plain) target.call(Neutral, "property", [e, target.string(tag), target.string(name, ap), h], ap);
+				else target.call(Neutral, "prop", [e, target.string(tag), target.string(name, ap), h], ap);
 			case ASpread(_, at):
 				target.error("markup: a neutral element's attributes are named (no spread: each one realised when compiled)", {at: at, length: 3});
 		}
