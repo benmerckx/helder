@@ -20,13 +20,15 @@ import helder.scene.render.PostShader;
 //
 // Bloom has no threshold: everything spreads a little, what is bright
 // (an engine, a laser, the sun: values far over 1) spreads visibly. The
-// scene is filtered down a chain of half-sized RGBA16F targets (levels,
-// at most 6, the first half the frame's size: Jimenez's 13-tap filter,
-// the first level in Karis' average) and back up it (a tent filter, each
-// level added to the one above), as Call of Duty: Advanced Warfare and
-// Unity's HDRP do; the composite mixes it in. The targets are the GPU's
-// (made at the first run and when the size changes, freed by dispose);
-// a run records 2 * levels + 1 passes and allocates nothing.
+// scene is filtered down a chain of RGBA16F targets each half the one
+// above (levels, at most 6; the first half the frame's size, or a quarter
+// with base 2: Jimenez's 13-tap filter, the first level in Karis' average)
+// and back up it (a tent filter, each level added to the one above), as
+// Call of Duty: Advanced Warfare and Unity's HDRP do; the composite mixes
+// it in. The targets are the GPU's (as many as the levels, made at the
+// first run and when the size, base or levels change, freed by dispose);
+// a run records 2 * levels passes and allocates nothing. Without grain
+// the dither is still: a frame drawn again is the same pixels.
 class PostProcess {
 	public final device:Device;
 	// the light before the curve (1: as drawn)
@@ -37,6 +39,9 @@ class PostProcess {
 	public var radius = 1.0;
 	// the bloom chain's levels (1 to 6; fewer: a tighter, cheaper glow)
 	public var levels = 6;
+	// the first level's size: the frame's halved this many times (1 or 2;
+	// 2: a quarter of the pixels to filter, the glow a little softer)
+	public var base = 1;
 	public var toneMap:ToneMap = Aces;
 	// the grade, on the tone mapped colour: 1 as it is
 	public var saturation = 1.0;
@@ -71,6 +76,8 @@ class PostProcess {
 	final outPass:PassDesc = {colors: [{load: Clear, clear: new Color(0, 0, 0, 0)}]};
 	var chainW = 0;
 	var chainH = 0;
+	var chainBase = 0;
+	var chainN = 0;
 	final downSlots:Array<Int>;
 	final upSlots:Array<Int>;
 	final compositeSlots:Array<Int>;
@@ -99,13 +106,15 @@ class PostProcess {
 	}
 
 	// the chain for a frame of width by height (its targets made again when that changes)
-	function size(width:Int, height:Int) {
-		if (width == chainW && height == chainH) return;
+	function size(width:Int, height:Int, b:Int, n:Int) {
+		if (width == chainW && height == chainH && b == chainBase && n <= chainN) return;
 		release();
 		chainW = width;
 		chainH = height;
-		var w = width, h = height;
-		for (k in 0...MAX_LEVELS) {
+		chainBase = b;
+		chainN = n;
+		var w = Std.int(Math.max(1, width >> (b - 1))), h = Std.int(Math.max(1, height >> (b - 1)));
+		for (k in 0...n) {
 			w = Std.int(Math.max(1, w >> 1));
 			h = Std.int(Math.max(1, h >> 1));
 			var t = device.createTexture({width: w, height: h, format: RGBA16F, renderTarget: true});
@@ -123,7 +132,8 @@ class PostProcess {
 	// PostProcess made for it); time: seconds, the grain's
 	public function run(enc:Encoder, source:Texture, target:Null<Texture>, width:Int, height:Int, time = 0.0) {
 		var n = bloom > 0 ? Std.int(Math.max(1, Math.min(levels, MAX_LEVELS))) : 0;
-		if (n > 0) size(width, height);
+		var b = base >= 2 ? 2 : 1;
+		if (n > 0) size(width, height, b, n);
 		if (n > chain.length) n = chain.length;
 		// (down the chain: each level from the one above, the first from the scene)
 		for (k in 0...n) {
@@ -131,7 +141,9 @@ class PostProcess {
 			var fw = k == 0 ? width : widths[k - 1], fh = k == 0 ? height : heights[k - 1];
 			enc.beginPass(clearPasses[k]);
 			enc.setPipeline(down);
-			bloomParams(1 / fw, 1 / fh, 0, k == 0 ? 1 : 0);
+			// (a quarter's first level: the 13 taps twice as far apart, over its 4 x 4 texels)
+			var spread = k == 0 ? b : 1;
+			bloomParams(spread / fw, spread / fh, 0, k == 0 ? 1 : 0);
 			enc.setUniforms(downSlots[0], bloomBytes);
 			enc.setTexture(downSlots[1], from, linear);
 			enc.setVertexBuffer(0, triangle);
@@ -156,7 +168,7 @@ class PostProcess {
 		enc.setPipeline(composite);
 		// (the first level holds the n levels' light added: lift.w, 1 / n, scales it back)
 		CompositeShader.writeCompositeParams({
-			exposure: new Vec4(exposure, n > 0 ? Math.min(1, bloom) : 0, (cast toneMap : Int), time % 1000),
+			exposure: new Vec4(exposure, n > 0 ? Math.min(1, bloom) : 0, (cast toneMap : Int), grain > 0 ? time % 1000 : 0),
 			grade: new Vec4(saturation, contrast, vignette, grain),
 			lift: new Vec4(lift.x, lift.y, lift.z, n > 0 ? 1 / n : 0),
 			gain: new Vec4(gain.x, gain.y, gain.z, 0),
@@ -182,7 +194,7 @@ class PostProcess {
 		heights.resize(0);
 		clearPasses.resize(0);
 		loadPasses.resize(0);
-		chainW = chainH = 0;
+		chainW = chainH = chainBase = chainN = 0;
 	}
 
 	public function dispose() {

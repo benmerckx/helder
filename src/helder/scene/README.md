@@ -223,7 +223,8 @@ var post = new PostProcess(device);   // into RGBA8 targets (a <Scene>'s box's);
 post.bloom = 0.05;                    // the share of the light spread: no threshold, what is bright blooms
 post.toneMap = Aces;                  // Narkowicz's, the 8-bit path's (PbrShader.unaces: a display colour's light); AgX; Clamp
 post.saturation = 1.05; post.contrast = 1.05; post.lift = ...; post.gain = ...;
-post.vignette = 0.3; post.grain = 0.03;
+post.vignette = 0.3; post.grain = 0.03; // both 0 by default: no grain, a still dither
+post.levels = 4; post.base = 2;       // a cheaper bloom: 4 levels from a quarter of the frame (default 6 from half)
 renderer.post = post;                 // a <Scene hdr>'s box runs it; else post.run(enc, hdrColor, target, w, h, time)
 ```
 
@@ -231,9 +232,11 @@ Bloom is the physically based kind (Jimenez, Call of Duty: Advanced
 Warfare; Unity's HDRP): the frame filtered down a chain of half-sized
 RGBA16F targets (13 taps, the first level in Karis' average against
 fireflies) and back up (a tent filter, each level added to the one
-above), mixed into the frame by its share. A run records 2 * levels + 1
+above), mixed into the frame by its share. A run records 2 * levels
 passes (6 levels by default) and allocates nothing; its targets are the
-GPU's, made again when the size changes. `tests/3d/bloom.png` is its
+GPU's, as many as the levels, made again when the size, the base or the
+levels change. On a phone 4 levels from a quarter of the frame (`base = 2`)
+look alike at a third fewer passes and a quarter of the pixels. `tests/3d/bloom.png` is its
 frame. A GPU that cannot draw into half floats (GL ES without
 EXT_color_buffer_half_float or _float; WebGL2 enables either): a `<Scene>`
 says so once and draws in 8 bits.
