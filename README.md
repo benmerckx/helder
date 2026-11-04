@@ -746,6 +746,37 @@ fix.
   Driven by Expansion (the second game, after golf): a native iOS build
   that runs well on a phone, then its saves in iCloud and its
   achievements in Game Center.
+- Then: **shipping to the stores from any machine, CI included**, in
+  `helder.pack` and the CLI, without Xcode, Android Studio or fastlane:
+  - **Packaging:** Android App Bundles (AAB, required by Google Play)
+    next to the APK, release signing configured in `helder.webmanifest`,
+    targetSdk kept current (with predictive back); a macOS `.app` bundle
+    (Info.plist, `.icns`, a universal arm64 and x86_64 binary, file types
+    for "Open with").
+  - **Apple's tools, our own** (clean-room, after viraptor/actool and
+    rcodesign): a minimal `actool` writing `Assets.car` with the app
+    icon, and a minimal `codesign` for iOS distribution (code directory,
+    requirements, entitlements, CMS with Apple's attributes, the
+    provisioning profile, the privacy manifest and `DT*` keys); then
+    macOS Developer ID: the hardened runtime, a secure timestamp, and
+    notarisation with stapling.
+  - **`helder publish`**, uploading through the stores' own APIs, as
+    fastlane, EAS Submit and Codemagic do:
+    - Google Play: the Play Developer Publishing API with a service
+      account (an RS256 JWT): an edit, the AAB uploaded, a track
+      (internal, beta, production) set, committed;
+    - Apple: the App Store Connect API with its `.p8` key (an ES256
+      JWT): notarisation for macOS through its REST API, builds to
+      TestFlight through Transporter (on Linux too) or the API's own
+      build upload where it is available;
+    - optional store metadata (texts, screenshots) through the same APIs.
+  - **CI:** a workflow template taking the keys and profiles from
+    secrets, building, signing and uploading on each release tag; a Mac
+    needed only to regenerate an icon's asset catalog if our own
+    `actool` cannot.
+
+  The owner provides the accounts, keys, certificates and store listings;
+  everything else runs unattended.
 
 ### 5. Graphics, 3D and 2D
 
