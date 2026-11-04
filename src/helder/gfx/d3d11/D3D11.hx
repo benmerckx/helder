@@ -134,6 +134,8 @@ class D3D {
 	public static inline var FORMAT_R8G8B8A8_UNORM = 28;
 	public static inline var FORMAT_R32G32_FLOAT = 16;
 	public static inline var FORMAT_R32_FLOAT = 41;
+	public static inline var FORMAT_BC1_UNORM = 71;
+	public static inline var FORMAT_BC3_UNORM = 77;
 	public static inline var FORMAT_D32_FLOAT = 40;
 	public static inline var FORMAT_R32_UINT = 42;
 	public static inline var FORMAT_R16_UINT = 57;

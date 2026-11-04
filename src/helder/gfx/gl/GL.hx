@@ -54,6 +54,11 @@ class GL {
 	public static inline var TEXTURE_2D = 0x0DE1;
 	public static inline var TEXTURE0 = 0x84C0;
 	public static inline var RGBA8 = 0x8058;
+	public static inline var EXTENSIONS = 0x1F03;
+	// EXT_texture_compression_s3tc's (WEBGL_compressed_texture_s3tc), KHR_texture_compression_astc_ldr's
+	public static inline var COMPRESSED_RGBA_S3TC_DXT1 = 0x83F1;
+	public static inline var COMPRESSED_RGBA_S3TC_DXT5 = 0x83F3;
+	public static inline var COMPRESSED_RGBA_ASTC_4x4 = 0x93B0;
 	public static inline var UNPACK_ALIGNMENT = 0x0CF5;
 	public static inline var TEXTURE_MAG_FILTER = 0x2800;
 	public static inline var TEXTURE_MIN_FILTER = 0x2801;
@@ -154,6 +159,7 @@ class GL {
 	static function glFramebufferRenderbuffer(target:Int, attachment:Int, renderbufferTarget:Int, renderbuffer:Int):Void;
 	static function glBlitFramebuffer(x0:Int, y0:Int, x1:Int, y1:Int, dx0:Int, dy0:Int, dx1:Int, dy1:Int, mask:Int, filter:Int):Void;
 	static function glTexSubImage2D(target:Int, level:Int, x:Int, y:Int, width:Int, height:Int, format:Int, type:Int, pixels:Ptr):Void;
+	static function glCompressedTexSubImage2D(target:Int, level:Int, x:Int, y:Int, width:Int, height:Int, format:Int, size:Int, data:Ptr):Void;
 	static function glGenSamplers(n:Int, samplers:Ptr<Int32>):Void;
 	#if hxmc.dev
 	// (hxmc dev: a build swapped out deletes what it made, the context kept)

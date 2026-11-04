@@ -1,0 +1,18 @@
+{
+	"description": [
+		"Crytek's Sponza atrium, the glTF version in KhronosGroup/glTF-Sample-Assets (fetched at a pinned commit by examples/sponza/fetch.mjs; not in the repository: Crytek's CRYENGINE Limited License Agreement), 262 thousand triangles in 103 primitives and 69 textures of 1024 x 1024: 363 MB of RGBA8 with their mips on the GPU.",
+		"The asset step packs it three times (helder.scene.gltf.Pack): its images as the file has them (PNG and JPEG, decoded when loaded), compressed to BC1/BC3 (desktops, and the web where WebGPU has texture-compression-bc or WebGL2 WEBGL_compressed_texture_s3tc) and to ASTC 4x4 (phones' GPUs); the program fetches the one the GPU samples (Device.supports). A sun with two shadow cascades, a prefiltered sky, HDR, bloom and ACES. The camera flies a loop through the atrium; drag or press a key to fly it yourself."
+	],
+	"numbers": ["bc", "astc", "png"],
+	"devices": [
+		{ "device": "A phone, ASTC (to be measured)", "firstFrameMs": "–", "downloadMB": "–", "memoryMB": "–", "p50Ms": "–", "p99Ms": "–" },
+		{ "device": "A desktop GPU, BC (to be measured)", "firstFrameMs": "–", "downloadMB": "–", "memoryMB": "–", "p50Ms": "–", "p99Ms": "–" }
+	],
+	"compare": [
+		{ "what": "three.js r170 with GLTFLoader on the same Sponza glTF (three.js' examples have no Sponza page)", "url": "https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Sponza", "downloadMB": "51.5", "note": "the .gltf, .bin and 69 PNG and JPEG images 50.2 MB, three.module.js 1.31 MB (0.69 MB minified) and GLTFLoader 0.11 MB; decoded on the GPU as RGBA8, 363 MB with mips, unless the textures are recompressed to KTX2 for its KTX2Loader (the Basis transcoder another 0.5 MB)." }
+	],
+	"credits": [
+		"Sponza: Crytek, under the CRYENGINE Limited License Agreement (glTF-Sample-Assets' LICENSES/LicenseRef-CRYENGINE-Agreement.txt); the glTF version from KhronosGroup/glTF-Sample-Assets",
+		"The sky: Poly Haven's kloofendal_48d_partly_cloudy_puresky, CC0"
+	]
+}

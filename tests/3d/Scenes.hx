@@ -50,8 +50,12 @@ import helder.scene.render.*;
 //          ClearCoatTest (glTF-Sample-Assets: CC0 Microsoft; CC BY 4.0 Ed
 //          Mackey) lit by a prefiltered studio (studio-ibl.png: Poly Haven's
 //          studio_small_09, CC0, examples/gltf-showcase/envbake.py)
+//   packedbc, packedastc  the textured sample packed with its texture
+//          compressed (Pack --textures bc, astc)
+//   compressed a pattern as RGBA8, BC1, BC3 and ASTC 4x4 (helder.image's
+//          BlockCompress, Images.compressed), each on a quad
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -202,14 +206,20 @@ class Scenes {
 				eye.position = new Vec3(0.4, 1.4, 4.2);
 				eye.lookAt(new Vec3(-0.3, 1.1, 0));
 				enc -> r.draw(enc, world, camera);
-			case "textured":
-				// the textured sample, its PNG decoded by helder.image's decoder, mip-mapped
+			case "textured" | "packedbc" | "packedastc":
+				// the textured sample, its PNG decoded by helder.image's decoder,
+				// mip-mapped; packed with its texture compressed (Pack --textures bc,
+				// astc: bin/3d/textured.bc.hxm3d, textured.astc.hxm3d)
 				Images.decode = Images.png;
 				var r = new Renderer(device);
 				renderer = r;
 				var world = new World();
-				var model = Model.of("textured.glb");
-				var crate = model.instantiate(world, device).find(model.nodes.crate);
+				var crate = if (name == "textured") {
+					var model = Model.of("textured.glb");
+					model.instantiate(world, device).find(model.nodes.crate);
+				} else
+					PackedModel.read(name == "packedbc" ? Asset.embed("bin/3d/textured.bc.hxm3d") : Asset.embed("bin/3d/textured.astc.hxm3d"), device).instantiate(world)
+						.find("crate");
 				crate.rotation = helder.scene.math.Quat.fromEuler(0.5, 0.7, 0);
 				var floor = world.node("floor");
 				floor.position = new Vec3(0, -1.1, 0);
@@ -606,6 +616,46 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.01, 100));
 				eye.position = c + new Vec3(0, 0, Math.max(d.x * 0.5 / (t * 256 / 192), d.y * 0.5 / t) * 1.1 + d.z * 0.5);
 				eye.lookAt(c);
+				enc -> r.draw(enc, world, camera);
+			case "compressed":
+				// (a pattern's texture compressed by helder.image's BlockCompress, as
+				// RGBA8, BC1, BC3 and ASTC 4x4, each on a quad: the GPU's decoder
+				// reading the asset step's blocks; a format the GPU lacks drawn black)
+				var r = new Renderer(device);
+				r.sunColor = new Vec3(0, 0, 0);
+				r.sky = new Vec3(1, 1, 1);
+				r.ground = new Vec3(1, 1, 1);
+				r.clearColor = new Color(0.02, 0.02, 0.025, 1);
+				renderer = r;
+				var w = 64, rgba = haxe.io.Bytes.alloc(w * w * 4);
+				for (y in 0...w)
+					for (x in 0...w) {
+						var p = 4 * (y * w + x), check = ((x >> 3) + (y >> 3)) & 1;
+						rgba.set(p, Std.int(x * 255 / w));
+						rgba.set(p + 1, check == 1 ? 220 : 40);
+						rgba.set(p + 2, Std.int(y * 255 / w));
+						rgba.set(p + 3, x < w / 2 ? 255 : 96);
+					}
+				var world = new World(), supported = [];
+				var formats:Array<{f:TextureFormat, name:String}> = [{f: RGBA8, name: ""}, {f: BC1, name: "bc1"}, {f: BC3, name: "bc3"}, {f: ASTC4x4, name: "astc"}];
+				for (k in 0...formats.length) {
+					var f = formats[k];
+					var tex = f.name == "" ? Images.mipmapped(device, w, w, rgba) : Images.compressed(device, f.f, w, w, helder.image.BlockCompress.mips(rgba, w, w, f.name));
+					if (tex != null) supported.push(f.name == "" ? "rgba8" : f.name);
+					var m = new Material(f.name, new helder.gfx.shader.Vec4(tex != null ? 1 : 0, tex != null ? 1 : 0, tex != null ? 1 : 0, 1), 0, 1);
+					m.baseColorTexture = tex;
+					var n = world.node(f.name);
+					n.position = new Vec3(-1.5 + k, 0, 0);
+					n.rotation = helder.scene.math.Quat.axisAngle(new Vec3(1, 0, 0), Math.PI / 2);
+					MeshRenderer.attach(n, Shapes.plane(device, m, 1));
+				}
+				Sys.println("Scenes: compressed: the GPU samples " + supported.join(", "));
+				// (Mesa's llvmpipe has them all; elsewhere a format missing is no failure of its frame's other quads)
+				probe = () -> supported.length == 4 || Sys.getEnv("HXMC_3D_COMPRESSED") == "some" ? null : "formats missing: " + supported.join(", ");
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.6, 0.1, 100));
+				eye.position = new Vec3(0, 0, 6);
+				eye.lookAt(new Vec3(0, 0, 0));
 				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}

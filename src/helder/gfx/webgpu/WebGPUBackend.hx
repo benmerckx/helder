@@ -72,6 +72,9 @@ class WebGPUBackend {
 		WebGPU.write_texture(id, x, y, info.w, info.h, level, BytesPtr.of(data, dataOffset, data.length - dataOffset));
 	}
 
+	public function supports(f:TextureFormat):Bool
+		return WebGPU.supports(cast f) != 0;
+
 	public function writeTextureImage(id:Int, image:Int, release:Bool) {
 		var info = infos.get(id);
 		if (info.target || (info.format != RGBA8 && info.format != RGBA8Srgb)) throw "helder.gfx: writeTextureImage: not an RGBA8 or RGBA8Srgb texture";

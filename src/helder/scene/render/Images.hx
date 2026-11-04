@@ -59,6 +59,18 @@ class Images {
 		return mipmapped(device, image.width, image.height, image.rgba);
 	}
 
+	// a texture of compressed levels (helder.image's BlockCompress: the
+	// asset step's, Pack --textures), its first level width x height, the
+	// rest each half the one before; null where the GPU does not sample the
+	// format (Device.supports)
+	public static function compressed(device:Device, format:helder.gfx.TextureFormat, width:Int, height:Int, levels:Array<Bytes>):Null<Texture> {
+		if (!device.supports(format)) return null;
+		var t = device.createTexture({width: width, height: height, format: format, mipLevels: levels.length});
+		for (k in 0...levels.length)
+			device.writeTexture(t, levels[k], 0, 0, -1, -1, 0, k);
+		return t;
+	}
+
 	// an RGBA8 image's texture with its mip levels made here (2x2 boxes,
 	// down to 1x1): the same texels on every GPU, whose own mip making
 	// differs, and an environment's small levels are its light

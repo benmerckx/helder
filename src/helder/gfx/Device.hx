@@ -79,6 +79,12 @@ final class Device {
 		impl.writeTexture(t.id(), data, x, y, w, h, dataOffset, level);
 	}
 
+	// whether its GPU samples textures of a format: the compressed ones (BC1,
+	// BC3, ASTC4x4) where it has them (GL's extensions, WebGL2's, WebGPU's
+	// features), the others everywhere
+	public function supports(format:TextureFormat):Bool
+		return impl.supports(format);
+
 	// whether textures are filled from images the browser decoded
 	// (writeTextureImage; helder.gfx.ImageTexture): in a browser
 	public var decodesImages(get, never):Bool;

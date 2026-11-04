@@ -174,9 +174,11 @@ for (const e of all) {
 		fs.copyFileSync(`${dir}/${e.main}.wasm`, `${dest}/${e.main}.wasm`);
 		item.wasm = `examples/${e.id}/${e.main}.wasm`;
 		if (e.data) {
-			// (only the data files: the fetch's metadata and references stay out)
+			// (only the data files: the fetch's metadata and references stay out,
+			// and a .glb packed into .hxm3d files, which the program reads instead)
 			fs.mkdirSync(`${dest}/${e.data}`, { recursive: true });
-			for (const f of fs.readdirSync(`examples/${e.dir}/${e.data}`).filter((f) => /\.(glb|hxm3d|ktx2|bin)$/.test(f))) {
+			const files = fs.readdirSync(`examples/${e.dir}/${e.data}`);
+			for (const f of files.filter((f) => /\.(glb|hxm3d|ktx2|bin)$/.test(f) && !(f.endsWith('.glb') && files.includes(f.slice(0, -4) + '.hxm3d')))) {
 				fs.copyFileSync(`examples/${e.dir}/${e.data}/${f}`, `${dest}/${e.data}/${f}`);
 				item.dataBytes += fs.statSync(`${dest}/${e.data}/${f}`).size;
 			}

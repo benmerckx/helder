@@ -16,15 +16,28 @@ import helder.scene.render.VertexData;
 // JSON, so a program loading only packed models links no JSON reader.
 //
 //   haxe -cp src \
-//     --run helder.scene.gltf.Pack <in.glb> <out.hxm3d>
+//     --run helder.scene.gltf.Pack <in.glb> <out.hxm3d> [--textures bc|astc]
 //
-// The format (little-endian): "HXM3", version 3, then counts and records:
-//   images      mime, byte count, bytes
+// --textures: the images compressed for the GPU, per target (decoded here
+// by helder.image, their mip chains made, each level in blocks by
+// helder.image's BlockCompress): bc, BC1 (opaque) or BC3 (with alpha), for
+// desktops and the web; astc, ASTC 4x4, for phones. Their sides multiples
+// of 4; others stay as the file has them. A GPU without the format reads
+// them decoded on the CPU (PackedModel). (Natively built, it runs in
+// seconds: examples/sponza/fetch.mjs builds it so.)
+//
+// The format (little-endian): "HXM3", version 4, then counts and records:
+//   images      mime, byte count, bytes (mime image/x-hxm3d-blocks: a
+//               compressed image, its bytes the format (1 BC1, 2 BC3, 3
+//               ASTC 4x4), width, height, levels, each level's byte count
+//               and blocks)
 //   materials   name, base colour 4 floats, metallic, roughness, emissive 3
 //               floats, flags (1: double-sided, 2: blended), normal scale,
 //               the maps' images (base colour, metallic-roughness, normal,
 //               emissive, occlusion; -1: none), the sampler (magFilter,
-//               minFilter, wrapS, wrapT; glTF's)
+//               minFilter, wrapS, wrapT; glTF's), alpha cutoff (0: not
+//               MASK), uv offset 2, rotation, scale 2 floats, clear coat
+//               and its roughness, transmission
 //   vertex data flags (2: wide indices, 4: skinned, 8: tangents), index
 //               count, vertex bytes, index bytes, tangent bytes (flag 8),
 //               bounds 6 floats: once per set of accessors
@@ -44,22 +57,64 @@ import helder.scene.render.VertexData;
 // (nodes are referred to by their place in the nodes' list)
 class Pack {
 	public static inline var MAGIC = 0x334D5848; // "HXM3"
-	public static inline var VERSION = 3;
+	public static inline var VERSION = 4;
+	public static inline var BLOCKS = "image/x-hxm3d-blocks";
 
 	static function main() {
 		var args = Sys.args();
-		if (args.length != 2) {
-			Sys.println("usage: Pack <in.gltf|in.glb> <out.hxm3d>");
+		var textures = "";
+		var at = args.indexOf("--textures");
+		if (at >= 0) {
+			textures = args[at + 1];
+			args.splice(at, 2);
+		}
+		if (args.length != 2 || (textures != "" && textures != "bc" && textures != "astc")) {
+			Sys.println("usage: Pack <in.gltf|in.glb> <out.hxm3d> [--textures bc|astc]");
 			Sys.exit(2);
 		}
+		compress = textures;
 		var input = sys.io.File.getBytes(args[0]);
 		var dir = haxe.io.Path.directory(args[0]);
-		var out = pack(Gltf.parse(input, uri -> {
+		var t0 = Sys.time();
+		doc = Gltf.parse(input, uri -> {
 			var f = haxe.io.Path.join([dir, uri]);
 			sys.FileSystem.exists(f) ? sys.io.File.getBytes(f) : null;
-		}));
+		});
+		var out = pack(doc);
 		sys.io.File.saveBytes(args[1], out);
-		Sys.println('Pack: ${args[0]} (${input.length} bytes) to ${args[1]} (${out.length} bytes)');
+		Sys.println('Pack: ${args[0]} (${input.length} bytes) to ${args[1]} (${out.length} bytes' + (compress != "" ? ', textures $compress: $compressed of ${doc.images.length} images compressed, ${Std.int(gpuBytes)} bytes on the GPU' : "") + ', ${Math.round((Sys.time() - t0) * 10) / 10} s)');
+	}
+
+	// the textures' compression (Pack's --textures: "", bc, astc), and what it made
+	public static var compress = "";
+	static var compressed = 0;
+	static var gpuBytes = 0.0;
+	static var doc:GltfDoc;
+
+	// an image's bytes as packed: compressed (BLOCKS) when asked and it can be
+	static function imageOf(mime:String, b:Bytes):{mime:String, bytes:Bytes} {
+		if (compress == "" || b == null) return {mime: mime, bytes: b};
+		var image = switch mime {
+			case "image/png": helder.image.PngDecoder.decode(b);
+			case "image/jpeg": helder.image.JpegDecoder.decode(b);
+			case _: null;
+		}
+		if (image == null || image.width & 3 != 0 || image.height & 3 != 0) return {mime: mime, bytes: b};
+		var format = compress == "astc" ? "astc" : helder.image.BlockCompress.hasAlpha(image.rgba) ? "bc3" : "bc1";
+		var levels = helder.image.BlockCompress.mips(image.rgba, image.width, image.height, format);
+		var o = new BytesOutput();
+		o.bigEndian = false;
+		o.writeByte(format == "bc1" ? 1 : format == "bc3" ? 2 : 3);
+		o.writeInt32(image.width);
+		o.writeInt32(image.height);
+		o.writeInt32(levels.length);
+		for (l in levels) {
+			o.writeInt32(l.length);
+			o.write(l);
+			gpuBytes += l.length;
+		}
+		compressed++;
+		return {mime: BLOCKS, bytes: o.getBytes()};
 	}
 
 	public static function pack(doc:GltfDoc, ?scene:Int):Bytes {
@@ -79,8 +134,9 @@ class Pack {
 		o.writeInt32(VERSION);
 		o.writeInt32(doc.images.length);
 		for (k in 0...doc.images.length) {
-			var b = doc.imageBytes(k);
-			str(doc.images[k].mimeType);
+			var packed = imageOf(doc.images[k].mimeType, doc.imageBytes(k));
+			var b = packed.bytes;
+			str(packed.mime);
 			if (b == null) o.writeInt32(0) else {
 				o.writeInt32(b.length);
 				o.write(b);
@@ -109,6 +165,9 @@ class Pack {
 			var fields = s != null ? [s.magFilter, s.minFilter, s.wrapS, s.wrapT] : [0, 0, 10497, 10497];
 			for (x in fields)
 				o.writeInt32(x);
+			for (x in [m.alphaMode == "MASK" ? Math.max(m.alphaCutoff, 1e-4) : 0, m.uvOffset.x, m.uvOffset.y, m.uvRotation, m.uvScale.x, m.uvScale.y, m.clearcoat,
+				m.clearcoatRoughness, m.transmission])
+				o.writeFloat(x);
 		}
 		// (the vertex data once per set of accessors: primitives sharing them share it)
 		var keys = new Map<String, Int>(), datas:Array<VertexData> = [];

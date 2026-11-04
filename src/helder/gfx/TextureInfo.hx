@@ -32,8 +32,10 @@ class TextureInfo {
 			full++;
 		if (levels == null) levels = 1 else if (levels == 0) levels = full;
 		var target = d.renderTarget == true || format.depth;
-		if (w <= 0 || h <= 0 || levels < 1 || levels > full || data != null && (target || data.length < w * h * format.texelSize))
+		if (w <= 0 || h <= 0 || levels < 1 || levels > full || data != null && (target || data.length < format.levelBytes(w, h)))
 			throw "helder.gfx: createTexture: an empty size, more mip levels than the size has, data for a render target or too little data";
+		if (format.compressed && (target || d.samples != null && d.samples != 1 || w & 3 != 0 || h & 3 != 0))
+			throw "helder.gfx: createTexture: a compressed format's texture is sampled only, its size multiples of 4";
 		var samples = d.samples == null ? 1 : d.samples;
 		if (samples != 1 && (samples != 4 || !target || levels != 1 || format == R8 || format == RG8 || format == R32F))
 			throw "helder.gfx: createTexture: samples is 1, or 4 for a render target or depth texture of one level (RGBA8, RGBA8Srgb, RGBA16F, depths)";
@@ -55,15 +57,16 @@ class TextureInfo {
 			w = lw;
 			h = lh;
 		}
-		if ((x | y | h | dataOffset) < 0 || x + w > lw || y + h > lh || dataOffset + w * h * format.texelSize > data.length)
+		if ((x | y | h | dataOffset) < 0 || x + w > lw || y + h > lh || dataOffset + format.levelBytes(w, h) > data.length)
 			throw "helder.gfx: writeTexture: outside the texture or the data";
+		if (format.compressed && (x != 0 || y != 0 || w != lw || h != lh)) throw "helder.gfx: writeTexture: a compressed format's level is written whole";
 		this.w = w;
 		this.h = h;
 	}
 
 	// (generateMips)
 	public function checkMips()
-		if (!format.filterable) throw "helder.gfx: generateMips: not of a filterable format";
+		if (!format.filterable || format.compressed) throw "helder.gfx: generateMips: not of a filterable, uncompressed format";
 
 	// (beginPass) a colour texture of a pass, and the pass's depth: a texture
 	public function checkPass(depth:DepthTarget)

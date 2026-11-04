@@ -26,6 +26,15 @@ enum abstract TextureFormat(Int) {
 	// depth targets (no data: written by passes), read as red 0..1
 	var Depth16;
 	var Depth32F;
+	// compressed, 4x4 blocks (Device.supports: not every GPU has them;
+	// sampled only, written a whole level at a time, no generated mips, a
+	// width and height of multiples of 4): BC1 (8 bytes a block, RGB, opaque:
+	// desktops), BC3 (16: BC1's colours and an alpha block), ASTC 4x4 (16:
+	// phones, Apple's GPUs); read as linear values (helder.image's
+	// BlockCompress makes them)
+	var BC1;
+	var BC3;
+	var ASTC4x4;
 
 	public var texelSize(get, never):Int;
 	public var depth(get, never):Bool;
@@ -39,13 +48,25 @@ enum abstract TextureFormat(Int) {
 			case _: 4;
 		}
 
-	// the bytes of a level of width x height texels
+	public var compressed(get, never):Bool;
+
+	// the bytes of a level of width x height texels (a compressed format's:
+	// its blocks', the last row's and column's whole)
 	public inline function levelBytes(width:Int, height:Int):Int
-		return width * height * texelSize;
+		return compressed ? ((width + 3) >> 2) * ((height + 3) >> 2) * blockBytes : width * height * texelSize;
+
+	// a compressed format's bytes for a 4x4 block
+	public var blockBytes(get, never):Int;
+
+	inline function get_blockBytes():Int
+		return (cast this : TextureFormat) == BC1 ? 8 : 16;
+
+	inline function get_compressed():Bool
+		return this >= (cast BC1 : Int);
 
 	inline function get_depth():Bool
-		return this >= (cast Depth16 : Int);
+		return this == (cast Depth16 : Int) || this == (cast Depth32F : Int);
 
 	inline function get_filterable():Bool
-		return this < (cast R32F : Int);
+		return this < (cast R32F : Int) || compressed;
 }

@@ -69,9 +69,17 @@ anim.play(helder.ui.Clock.add);             // on a clock: its image the frame s
   (10 ms or less as 100 ms, the repetitions, then the last frame stays),
   on any clock (`play(add)`: helder.ui's `Clock.add`).
 
+- `BlockCompress`: RGBA8 images (and their mip chains) into GPU blocks,
+  BC1, BC3 and ASTC 4x4 (one partition, LDR endpoints at 8 bits), for the
+  asset step (helder.scene's `Pack --textures bc|astc`), and back
+  (`decode`, tests); helder.gfx's `TextureFormat.BC1`, `BC3`, `ASTC4x4`
+  sample them where `Device.supports` says the GPU does.
+
 SVG is `helder.ui`'s (`Svg`: it draws through ui's `Drawing`).
 
 Tests: `tests/image/ImageTest.hx` (`bun run test image`, on Eval and
 natively): the decoders against Chromium's and libwebp's pixels, the
 cases written by `tests/image/*-cases.mjs`; `tests/image/ImageJobs.test.hx`
-the PNG cases through the job (natively and on wasm32-wasi).
+the PNG cases through the job (natively and on wasm32-wasi);
+`BlockCompress.test.hx` the blocks' round trips (the test lane), the GPU's
+decoders reading them in the 3d lane's `compressed` frame.

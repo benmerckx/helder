@@ -740,8 +740,23 @@ fix.
 
 ### 5. Graphics, 3D and 2D
 
-- **Compressed textures**: ETC2 and ASTC on mobile (and BC on desktop),
-  chosen per target by the asset step.
+- **Compressed textures** (*BC and ASTC landed*: examples/sponza,
+  src/helder/scene/README.md's asset step): `TextureFormat.BC1`, `BC3`,
+  `ASTC4x4` on every back end (`Device.supports`), the asset step
+  compressing per target (`Pack --textures bc|astc`, helder.image's
+  `BlockCompress`), a GPU without the format decoding on the CPU. Still to
+  come: ETC2, ASTC's larger blocks and a better encoder, KTX2 with Basis
+  Universal supercompression transcoded at load (one file, smaller than
+  JPEGs, for every GPU).
+- **The standard scenes** (*landed*): Khronos' glTF sample models
+  (examples/gltf-showcase: DamagedHelmet, FlightHelmet, SciFiHelmet, the
+  extensions' tests, compared with the sample viewer) and Sponza
+  (examples/sponza); glTF's KHR_texture_transform,
+  KHR_materials_emissive_strength, _clearcoat (factors) and _transmission
+  (thin, tinted), alphaMode MASK. Each demo has a page on the site with its
+  numbers (site/numbers.mjs: headless in CI; a slot for real devices').
+  Still to come: clear coat's and transmission's textures, refraction,
+  TEXCOORD_1, KHR_materials_ior, _specular, _volume, _sheen.
 - **MSAA** render targets in gfx.
 - **HDR and a post-process chain** (*landed*, src/helder/scene/README.md):
   scenes in linear light into half-float targets (RGBA16F on every back

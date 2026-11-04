@@ -2,7 +2,7 @@
 // headless Chromium (Playwright; SwiftShader: software rendering, not a
 // GPU's): each example with a page.json played on its page, once per scene
 // it names (page.json's numbers: an argument after the data folder's), for
-// SECONDS; its program prints `stats: {...}` lines (firstFrameMs,
+// SECONDS (and until its first stats line, a minute at most); its program prints `stats: {...}` lines (firstFrameMs,
 // downloadBytes, textureBytes, p50Ms, p99Ms), the last of which is kept.
 // Written to bin/site/numbers.json, which the pages read (numbers.js): per
 // <id>[.<scene>] the first frame (ms), the download and GPU textures (MB),
@@ -67,6 +67,8 @@ try {
 			}, e.id, { timeout: 120000 });
 			const gfx = await page.locator(`#play-${e.id}`).getAttribute('data-gfx');
 			await page.waitForTimeout(SECONDS * 1000);
+			// (a slow one, software rendering: until its first stats line, at most a minute more)
+			for (let k = 0; k < 60 && !last; k++) await page.waitForTimeout(1000);
 			const key = e.id + (scene ? '.' + scene : '');
 			numbers[key] = last ? { firstFrameMs: last.firstFrameMs, downloadMB: mb(last.downloadBytes), memoryMB: mb(last.textureBytes), p50Ms: last.p50Ms,
 				p99Ms: last.p99Ms, gfx, measured: new Date().toISOString().slice(0, 10), software: true } : null;

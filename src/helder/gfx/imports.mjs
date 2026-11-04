@@ -60,9 +60,13 @@ const INFO_LOG_LENGTH = 0x8b84; // (GL's, not WebGL's)
 const RING = 256 * 1024; // the uniform ring (Encoder.UNIFORM_RING)
 const UNIFORM = 0, TEXTURE = 1; // BindingKind
 // TextureFormat: WebGPU's, bytes a texel; R32F and the depth formats are unfilterable from R32F on
-const TEXTURE_FORMATS = ['rgba8unorm', 'rgba8unorm-srgb', 'r8unorm', 'rg8unorm', 'rgba16float', 'r32float', 'depth16unorm', 'depth32float'];
-const TEXEL = [4, 4, 1, 2, 8, 4, 2, 4];
-const R32F = 5, DEPTH16 = 6;
+const TEXTURE_FORMATS = ['rgba8unorm', 'rgba8unorm-srgb', 'r8unorm', 'rg8unorm', 'rgba16float', 'r32float', 'depth16unorm', 'depth32float', 'bc1-rgba-unorm',
+	'bc3-rgba-unorm', 'astc-4x4-unorm'];
+// (compressed: a 4x4 block's bytes)
+const TEXEL = [4, 4, 1, 2, 8, 4, 2, 4, 8, 16, 16];
+const R32F = 5, DEPTH16 = 6, BC1 = 8;
+// the compressed formats' features, asked for with the device where the adapter has them (TextureFormat: from BC1)
+const FEATURES = ['texture-compression-bc', 'texture-compression-bc', 'texture-compression-astc'];
 // generateMips: a level drawn from the one before, sampled at its texels' centres
 const MIPS = `@group(0) @binding(0) var src: texture_2d<f32>;
 @group(0) @binding(1) var smp: sampler;
@@ -73,6 +77,15 @@ struct V { @builtin(position) pos: vec4f, @location(0) uv: vec2f }
 }
 @fragment fn fs(v: V) -> @location(0) vec4f { return textureSampleLevel(src, smp, v.uv, 0.0); }`;
 
+// texels (or a compressed level's blocks: rows of 4x4 blocks, the level's
+// size rounded up to them, WebGPU's physical size) into a texture's level
+function writeTextureData(device, host, t, x, y, w, h, level, data) {
+	if (t.compressed) {
+		const bw = (w + 3) >> 2, bh = (h + 3) >> 2;
+		device.queue.writeTexture({ texture: t.texture, mipLevel: level }, host.bytes(data, bw * bh * t.texel), { bytesPerRow: bw * t.texel, rowsPerImage: bh }, [bw * 4, bh * 4]);
+	} else device.queue.writeTexture({ texture: t.texture, mipLevel: level, origin: [x, y] }, host.bytes(data, w * h * t.texel), { bytesPerRow: w * t.texel }, [w, h]);
+}
+
 // (a canvas's WebGPU configuration, kept across instances: hxmc dev)
 const configured = new WeakMap();
 
@@ -82,7 +95,7 @@ export default async function (host) {
 		if (host.options.gpu) ({ adapter, device } = host.options.gpu);
 		else {
 			adapter = host.options.gfx !== 'webgl2' && navigator.gpu && (await navigator.gpu.requestAdapter());
-			device = adapter ? await adapter.requestDevice() : null;
+			device = adapter ? await adapter.requestDevice({ requiredFeatures: [...new Set(FEATURES)].filter((f) => adapter.features.has(f)) }) : null;
 		}
 	} catch (e) {
 		console.error('helder.gfx: no WebGPU device:', e);
@@ -94,6 +107,7 @@ export default async function (host) {
 	if (device) device.lost.then((info) => lost('the WebGPU device was lost' + (info.message ? ': ' + info.message : '')));
 	const contexts = [];
 	const { handles } = host;
+	const write = (t, x, y, w, h, level, data) => writeTextureData(device, host, t, x, y, w, h, level, data);
 	// a pipeline's vertex buffers and resources, as pipeline_buffer,
 	// pipeline_attribute and pipeline_binding give them
 	let layout = [], resources = [];
@@ -309,14 +323,14 @@ export default async function (host) {
 				: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | (target || (levels > 1 && format < R32F) || format < 2 ? GPUTextureUsage.RENDER_ATTACHMENT : 0);
 			const label = samples > 1 ? 'helder multisampled target' : target ? 'helder render target' : 'helder texture';
 			const texture = device.createTexture({ label, size: [width, height], format: TEXTURE_FORMATS[format], mipLevelCount: levels, sampleCount: samples, usage });
-			const t = { serial: ++serials, texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format], unfilterable: format >= R32F, depth: format >= DEPTH16 };
-			if (data) device.queue.writeTexture({ texture }, host.bytes(data, width * height * t.texel), { bytesPerRow: width * t.texel }, [width, height]);
+			const t = { serial: ++serials, texture, view: texture.createView(), target: target ? texture.createView({ mipLevelCount: 1 }) : null, texel: TEXEL[format],
+				unfilterable: format === R32F || format === DEPTH16 || format === DEPTH16 + 1, depth: format === DEPTH16 || format === DEPTH16 + 1, compressed: format >= BC1 };
+			if (data) write(t, 0, 0, width, height, 0, data);
 			return handles.add(t);
 		},
-		write_texture(h, x, y, w, height, level, data) {
-			const t = handles.get(h);
-			device.queue.writeTexture({ texture: t.texture, mipLevel: level, origin: [x, y] }, host.bytes(data, w * height * t.texel), { bytesPerRow: w * t.texel }, [w, height]);
-		},
+		write_texture: (h, x, y, w, height, level, data) => write(handles.get(h), x, y, w, height, level, data),
+		// 1: the device samples the TextureFormat (the compressed ones: their features)
+		supports: (format) => (format < BC1 || (device && device.features.has(FEATURES[format - BC1])) ? 1 : 0),
 		generate_mips(h) {
 			const t = handles.get(h), { texture } = t;
 			let pipeline = mipPipelines.get(texture.format);
@@ -645,6 +659,7 @@ export default async function (host) {
 			if (current === c) current = gl = null;
 			handles.remove(h);
 		},
+		extension: (h, name) => (get(h).gl.getExtension(host.string(name)) ? 1 : 0),
 		glGetError: () => gl.getError(),
 		glEnable: (cap) => gl.enable(cap),
 		glDisable: (cap) => gl.disable(cap),
@@ -730,6 +745,7 @@ export default async function (host) {
 			gl.texSubImage2D(target, level, x, y, w, h, format, type, size === 1 ? b : new (size === 4 ? Float32Array : Uint16Array)(b.slice().buffer));
 		},
 		glGenerateMipmap: (target) => gl.generateMipmap(target),
+		glCompressedTexSubImage2D: (target, level, x, y, w, h, format, size, p) => gl.compressedTexSubImage2D(target, level, x, y, w, h, format, host.bytes(p, size)),
 		texture_image(texture, image, levels, release) {
 			const g = gl, t = get(texture);
 			fill(image, release, (bitmap) => {

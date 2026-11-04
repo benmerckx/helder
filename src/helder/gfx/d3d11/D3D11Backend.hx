@@ -319,7 +319,7 @@ class D3D11Backend {
 	public function createTexture(d:TextureDesc):Int {
 		// (a depth texture: typeless, its depth-stencil view and shader resource view typed)
 		var info = TextureInfo.of(d), format = info.format, levels = info.levels, target = info.target;
-		var depth = format.depth, mips = levels > 1 && format.filterable, multi = info.samples > 1;
+		var depth = format.depth, mips = levels > 1 && format.filterable && !format.compressed, multi = info.samples > 1;
 		var hr = Arena.scopedValue(a -> {
 			var t = a.make(D3D11_TEXTURE2D_DESC);
 			t.value.Width = info.width;
@@ -381,12 +381,26 @@ class D3D11Backend {
 			case R32F: D3D.FORMAT_R32_FLOAT;
 			case Depth16: D3D.FORMAT_R16_TYPELESS;
 			case Depth32F: D3D.FORMAT_R32_TYPELESS;
+			case BC1: D3D.FORMAT_BC1_UNORM;
+			case BC3: D3D.FORMAT_BC3_UNORM;
+			case ASTC4x4: throw "helder.gfx: D3D11 has no ASTC";
 		}
+
+	// whether the device samples a format: BC on every D3D11 GPU, no ASTC
+	public function supports(f:TextureFormat):Bool
+		return f != ASTC4x4;
 
 	public function writeTexture(id:Int, data:haxe.io.Bytes, x:Int, y:Int, w:Int, h:Int, dataOffset:Int, level:Int) {
 		var t = textures[id - 1], info = t.info;
 		info.checkWrite(data, x, y, w, h, dataOffset, level);
 		var n = info.format.texelSize;
+		if (info.format.compressed) {
+			// (a whole level: rows of blocks, no box)
+			var f = info.format;
+			Arena.scoped(a -> ID3D11DeviceContext.UpdateSubresource(context, t.texture, level, Ptr.nil(), a.copyBytes(data, dataOffset, f.levelBytes(info.w, info.h)),
+				((info.w + 3) >> 2) * f.blockBytes, 0));
+			return;
+		}
 		Arena.scoped(a -> {
 			var box = a.make(D3D11_BOX);
 			box.value.left = x;

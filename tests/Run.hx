@@ -469,6 +469,9 @@ class Run {
 		mkdirs("bin/3d");
 		for (glb in PACKED)
 			interp(sceneCp(), "helder.scene.gltf.Pack", [glb, "bin/3d/" + Path.withoutExtension(Path.withoutDirectory(glb)) + ".hxm3d"]);
+		// (the textured sample's texture compressed for the GPU: BC1, ASTC 4x4)
+		for (t in ["bc", "astc"])
+			interp(sceneCp(), "helder.scene.gltf.Pack", ["tests/3d/textured.glb", 'bin/3d/textured.$t.hxm3d', "--textures", t]);
 	}
 
 	static function scene() {

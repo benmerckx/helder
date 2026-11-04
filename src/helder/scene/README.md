@@ -99,9 +99,17 @@ PackedModel.read(Asset.embed("level.hxm3d"), device).instantiate(world);
 A packed model needs no glTF reader or JSON at run time (73 KB less
 natively, `tests/3d/size/sizes.sh`): meshes (vertices in the renderer's layout,
 joints and weights, tangents computed at build time for normal maps),
-materials (factors, maps, sampler), images (decoded by `Images.decode`
+materials (factors, maps, sampler, the extensions' fields), images (decoded by `Images.decode`
 when loaded), cameras, lights, skins, morph targets, animations (`model.clip(name)`,
 playing on the nodes `instantiate` made) and the hierarchy.
+
+`--textures bc` or `--textures astc` compresses the images for a target's
+GPUs (BC1, BC3 with alpha: desktops and the web; ASTC 4x4: phones), their
+mip chains made at build time (helder.image's `BlockCompress`):
+`PackedModel` uploads the levels as they are (`Images.compressed`), or on a
+GPU without the format (`Device.supports`) decodes them on the CPU.
+Sponza's 69 textures: 363 MB on the GPU as RGBA8, 50 MB as BC, 95 MB as
+ASTC (examples/sponza). Built natively, the step packs them in seconds.
 
 Big files or loading screens: `Asset.model(path)` (or `Model.of(path,
 Lazy)`) is an `Asset` of the same typed model, loaded in the background

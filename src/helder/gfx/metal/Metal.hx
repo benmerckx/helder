@@ -20,6 +20,9 @@ class MTL {
 	public static inline var PixelFormatDepth16Unorm = 250;
 	public static inline var PixelFormatBGRA8Unorm = 80;
 	public static inline var PixelFormatDepth32Float = 252;
+	public static inline var PixelFormatBC1_RGBA = 130;
+	public static inline var PixelFormatBC3_RGBA = 134;
+	public static inline var PixelFormatASTC_4x4_LDR = 186;
 	// MTLVertexFormat
 	public static inline var VertexFormatUChar4Normalized = 9;
 	public static inline var VertexFormatFloat = 28;

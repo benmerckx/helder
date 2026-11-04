@@ -337,7 +337,31 @@ class GLBackend {
 			case R32F: GL.R32F;
 			case Depth16: GL.DEPTH_COMPONENT16;
 			case Depth32F: GL.DEPTH_COMPONENT32F;
+			case BC1: GL.COMPRESSED_RGBA_S3TC_DXT1;
+			case BC3: GL.COMPRESSED_RGBA_S3TC_DXT5;
+			case ASTC4x4: GL.COMPRESSED_RGBA_ASTC_4x4;
 		}
+
+	// whether the context samples a format (the compressed ones: its
+	// extensions; WebGL2's enabled by asking)
+	public function supports(f:TextureFormat):Bool {
+		if (!f.compressed) return true;
+		use();
+		if (Mem.os() == 3) {
+			var names = f == ASTC4x4 ? ["WEBGL_compressed_texture_astc"] : ["WEBGL_compressed_texture_s3tc"];
+			for (n in names)
+				if (Arena.scopedValue(a -> WebGL.extension(web, a.cstring(n))) != 0) return true;
+			return false;
+		}
+		if (extensions == null) {
+			var p = GL.glGetString(GL.EXTENSIONS);
+			extensions = p.isNull() ? "" : (cast p : CString).toString();
+		}
+		return f == ASTC4x4 ? extensions.indexOf("GL_KHR_texture_compression_astc_ldr") >= 0 : extensions.indexOf("GL_EXT_texture_compression_s3tc") >= 0
+			|| extensions.indexOf("GL_ANGLE_texture_compression_dxt5") >= 0 && extensions.indexOf("GL_EXT_texture_compression_dxt1") >= 0;
+	}
+
+	var extensions:Null<String>;
 
 	public function writeTextureImage(id:Int, image:Int, release:Bool) {
 		#if (hxmc.target == "wasm32-wasi")
@@ -358,6 +382,12 @@ class GLBackend {
 		GL.glActiveTexture(GL.TEXTURE0);
 		GL.glBindTexture(GL.TEXTURE_2D, textures[id - 1]);
 		GL.glPixelStorei(GL.UNPACK_ALIGNMENT, 1);
+		if (f.compressed) {
+			var n = f.levelBytes(info.w, info.h);
+			GL.glCompressedTexSubImage2D(GL.TEXTURE_2D, level, 0, 0, info.w, info.h, internalFormat(f), n, BytesPtr.of(data, dataOffset, n));
+			GL.glBindTexture(GL.TEXTURE_2D, units[0]);
+			return;
+		}
 		// (a fast call: the Bytes cannot move during it)
 		GL.glTexSubImage2D(GL.TEXTURE_2D, level, x, y, info.w, info.h, f == R8 ? GL.RED : f == RG8 ? GL.RG : f == R32F ? GL.RED : GL.RGBA,
 			f == RGBA16F ? GL.HALF_FLOAT : f == R32F ? GL.FLOAT : GL.UNSIGNED_BYTE, BytesPtr.of(data, dataOffset, data.length - dataOffset));

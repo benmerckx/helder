@@ -186,7 +186,15 @@ class MetalBackend {
 			case R32F: MTL.PixelFormatR32Float;
 			case Depth16: MTL.PixelFormatDepth16Unorm;
 			case Depth32F: MTL.PixelFormatDepth32Float;
+			case BC1: MTL.PixelFormatBC1_RGBA;
+			case BC3: MTL.PixelFormatBC3_RGBA;
+			case ASTC4x4: MTL.PixelFormatASTC_4x4_LDR;
 		}
+
+	// whether the device samples a format: BC on macOS's GPUs; ASTC on
+	// Apple's (not asked yet: false)
+	public function supports(f:TextureFormat):Bool
+		return f != ASTC4x4;
 
 	public function createTexture(d:TextureDesc):Int {
 		var info = TextureInfo.of(d), target = info.target;
@@ -218,7 +226,7 @@ class MetalBackend {
 		info.checkWrite(data, x, y, w, h, dataOffset, level);
 		w = info.w;
 		h = info.h;
-		var n = info.format.texelSize;
+		var f = info.format, n = f.texelSize;
 		region.value.origin.x = x;
 		region.value.origin.y = y;
 		region.value.origin.z = 0;
@@ -226,7 +234,9 @@ class MetalBackend {
 		region.value.size.height = h;
 		region.value.size.depth = 1;
 		// (a copy first: the Bytes may move during a message)
-		Arena.scoped(a -> MtlMsg.vRegionIntPtrInt(t, ObjC.sel("replaceRegion:mipmapLevel:withBytes:bytesPerRow:"), region.value, level, a.copyBytes(data, dataOffset, w * h * n), w * n));
+		// (compressed: rows of blocks)
+		var bytes = f.levelBytes(w, h), row = f.compressed ? ((w + 3) >> 2) * f.blockBytes : w * n;
+		Arena.scoped(a -> MtlMsg.vRegionIntPtrInt(t, ObjC.sel("replaceRegion:mipmapLevel:withBytes:bytesPerRow:"), region.value, level, a.copyBytes(data, dataOffset, bytes), row));
 	}
 
 	// a blit in the frame's command buffer (between its passes), else in one of its own

@@ -68,6 +68,9 @@ abstract Impl(Any) {
 	public inline function writeTextureImage(id:Int, image:Int, release:Bool)
 		Mem.os() != 3 ? throw "helder.gfx: writeTextureImage: in a browser only" : webgl() ? gl().writeTextureImage(id, image, release) : wgpu().writeTextureImage(id, image, release);
 
+	public inline function supports(f:TextureFormat):Bool
+		return Mem.os() == 1 ? mtl().supports(f) : Mem.os() == 2 ? d3d().supports(f) : Mem.os() != 3 ? gl().supports(f) : webgl() ? gl().supports(f) : wgpu().supports(f);
+
 	public inline function generateMips(id:Int)
 		Mem.os() == 1 ? mtl().generateMips(id) : Mem.os() == 2 ? d3d().generateMips(id) : Mem.os() != 3 ? gl().generateMips(id) : webgl() ? gl().generateMips(id) : wgpu().generateMips(id);
 

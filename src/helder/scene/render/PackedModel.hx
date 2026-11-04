@@ -43,6 +43,20 @@ class PackedModel {
 	function new(device:Device)
 		this.device = device;
 
+	// a compressed image's texture (Pack --textures): its levels as they are
+	// where the GPU samples the format, else its first decoded on the CPU
+	// (helder.image's BlockCompress) and mip-mapped
+	static function blocks(device:Device, b:Bytes):helder.gfx.Texture {
+		var i = new BytesInput(b);
+		i.bigEndian = false;
+		var kind = i.readByte(), width = i.readInt32(), height = i.readInt32();
+		var levels = [for (_ in 0...i.readInt32()) i.read(i.readInt32())];
+		var format:helder.gfx.TextureFormat = kind == 1 ? BC1 : kind == 2 ? BC3 : ASTC4x4;
+		var t = Images.compressed(device, format, width, height, levels);
+		if (t != null) return t;
+		return Images.mipmapped(device, width, height, helder.image.BlockCompress.decode(levels[0], width, height, kind == 1 ? "bc1" : kind == 2 ? "bc3" : "astc"));
+	}
+
 	public static function read(bytes:Bytes, device:Device):PackedModel {
 		var m = new PackedModel(device);
 		var i = new BytesInput(bytes);
@@ -52,11 +66,11 @@ class PackedModel {
 		function floats():Array<Float>
 			return [for (_ in 0...i.readInt32()) i.readFloat()];
 		if (i.readInt32() != 0x334D5848) throw "PackedModel: not a packed model";
-		if (i.readInt32() != 3) throw "PackedModel: another version (pack it again)";
+		if (i.readInt32() != 4) throw "PackedModel: another version (pack it again)";
 		for (_ in 0...i.readInt32()) {
 			var mime = str(), n = i.readInt32();
 			var b = n > 0 ? i.read(n) : null;
-			m.textures.push(Images.texture(device, mime, b));
+			m.textures.push(mime == "image/x-hxm3d-blocks" && b != null ? blocks(device, b) : Images.texture(device, mime, b));
 		}
 		var samplers = new Map<String, helder.gfx.Sampler>();
 		for (_ in 0...i.readInt32()) {
@@ -75,6 +89,19 @@ class PackedModel {
 			mat.emissiveTexture = tex(3);
 			mat.occlusionTexture = tex(4);
 			var s = [for (_ in 0...4) i.readInt32()];
+			var x = [for (_ in 0...9) i.readFloat()];
+			mat.alphaCutoff = x[0];
+			mat.uvOffset = new helder.gfx.shader.Vec2(x[1], x[2]);
+			mat.uvRotation = x[3];
+			mat.uvScale = new helder.gfx.shader.Vec2(x[4], x[5]);
+			mat.clearcoat = x[6];
+			mat.clearcoatRoughness = x[7];
+			mat.transmission = x[8];
+			if (mat.transmission > 0) {
+				mat.blend = true;
+				mat.blending = Premultiplied;
+				mat.castShadows = false;
+			}
 			var desc = helder.scene.gltf.GltfSamplers.desc(s[0], s[1], s[2], s[3]);
 			if (desc != null) {
 				var key = s.join(",");
