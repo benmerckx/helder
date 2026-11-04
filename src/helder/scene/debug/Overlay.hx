@@ -19,6 +19,15 @@ import helder.ui.draw.Renderer as UiRenderer;
 class Overlay {
 	public final device:Device;
 	public var scale = 1.0;
+	// three lines more under the figures: frames a second, the frame
+	// time's median and 99th percentile, the CPU's (FrameStats.add's cpu);
+	// then lines, the program's own (a count, a mode)
+	public var detail = false;
+	public final lines:Array<String> = [];
+	// drawn after the panel in its pass, with text and rect: a program's own controls
+	public var extra:Null<Overlay->Void> = null;
+	// whether the panel is drawn (false: extra alone, a program's controls without the figures)
+	public var panel = true;
 	final ui:UiRenderer;
 	final pass:PassDesc = {colors: [{load: Load}]};
 
@@ -31,8 +40,17 @@ class Overlay {
 		var w = device.width, h = device.height;
 		ui.scale = scale;
 		ui.begin(w, h);
+		if (panel) figures(stats);
+		if (extra != null) extra(this);
+		enc.beginPass(pass);
+		ui.end(enc);
+		enc.endPass();
+	}
+
+	// the panel: the bars and the figures
+	function figures(stats:FrameStats) {
 		var bars = stats.capacity, bw = 2.0, gh = 48.0, x0 = 8.0, y0 = 8.0;
-		var pw = bars * bw + 12, ph = gh + 26 + 30;
+		var pw = detail ? Math.max(bars * bw + 12, 252) : bars * bw + 12, ph = gh + 26 + 30 + (detail ? 28 + 14 * lines.length : 0);
 		ui.rect(x0, y0, pw, ph, 0, 0xB0101418, 0, 0);
 		// (the bars: newest on the right; 33 ms fills the graph)
 		for (k in 0...stats.count) {
@@ -52,9 +70,12 @@ class Overlay {
 		var ty = y0 + gh + 26;
 		write('AVG ${ms(stats.average())} MS  MAX ${ms(stats.max())} MS', x0 + 6, ty);
 		write('DRAWS ${stats.draws} CULLED ${stats.culled} INST ${stats.instanced}', x0 + 6, ty + 14);
-		enc.beginPass(pass);
-		ui.end(enc);
-		enc.endPass();
+		if (detail) {
+			write('FPS ${Math.round(stats.fps())}  P50 ${ms(stats.percentile(0.5))}  P99 ${ms(stats.percentile(0.99))} MS', x0 + 6, ty + 28);
+			write('CPU P50 ${ms(stats.percentile(0.5, true))}  P99 ${ms(stats.percentile(0.99, true))} MS', x0 + 6, ty + 42);
+			for (k in 0...lines.length)
+				write(lines[k], x0 + 6, ty + 56 + 14 * k);
+		}
 	}
 
 	// milliseconds with one decimal
@@ -63,16 +84,30 @@ class Overlay {
 		return Std.int(tenths / 10) + "." + (tenths % 10);
 	}
 
-	// text in the pixel font: 3x5 cells of 2 pixels, a cell between letters
-	function write(text:String, x:Float, y:Float) {
+	// text in the pixel font (letters upper case), at x, y in points, of
+	// cells of size points: inside extra
+	public function text(text:String, x:Float, y:Float, color = 0xFFE8ECF0, size = 2.0) {
 		for (i in 0...text.length) {
-			var g = GLYPHS.get(text.charAt(i));
+			var c = StringTools.fastCodeAt(text, i);
+			var g = c >= 97 && c <= 122 ? CODES[c - 32] : c < 128 ? CODES[c] : null;
 			if (g != null)
 				for (cell in 0...15)
-					if (g.charCodeAt(cell) == "1".code) ui.rect(x + (cell % 3) * 2, y + Std.int(cell / 3) * 2, 2, 2, 0, 0xFFE8ECF0, 0, 0);
-			x += 8;
+					if (g.charCodeAt(cell) == "1".code) ui.rect(x + (cell % 3) * size, y + Std.int(cell / 3) * size, size, size, 0, color, 0, 0);
+			x += 4 * size;
 		}
 	}
+
+	// a filled rectangle (ARGB), its corners rounded by radius: inside extra
+	public inline function rect(x:Float, y:Float, w:Float, h:Float, color:Int, radius = 0.0)
+		ui.rect(x, y, w, h, radius, color, 0, 0);
+
+	// how wide text is in the pixel font at size
+	public static inline function measure(text:String, size = 2.0):Float
+		return text.length * 4 * size - size;
+
+	// text in the pixel font: 3x5 cells of 2 pixels, a cell between letters
+	inline function write(s:String, x:Float, y:Float)
+		text(s, x, y);
 
 	// (rows top to bottom, three cells each)
 	static final GLYPHS:Map<String, String> = [
@@ -81,6 +116,18 @@ class Overlay {
 		"." => "000000000000010", "A" => "010101111101101", "C" => "011100100100011", "D" => "110101101101110", "E" => "111100110100111",
 		"F" => "111100110100100", "G" => "011100101101011", "I" => "111010010010111", "L" => "100100100100111", "M" => "101111111101101",
 		"N" => "110101101101101", "P" => "110101110100100", "R" => "110101110101101", "S" => "011100010001110", "T" => "111010010010010",
-		"U" => "101101101101111", "V" => "101101101101010", "W" => "101101111111101", "X" => "101101010101101"
+		"U" => "101101101101111", "V" => "101101101101010", "W" => "101101111111101", "X" => "101101010101101", "B" => "110101110101110", "H" => "101101111101101", "J" => "001001001101010",
+		"K" => "101101110101101", "O" => "010101101101010", "Q" => "010101101111011", "Y" => "101101010010010", "Z" => "111001010100111",
+		"/" => "001001010100100", ":" => "000010000010000", "-" => "000000111000000", "+" => "000010111010000", "%" => "101001010100101",
+		"<" => "001010100010001", ">" => "100010001010100", "(" => "010100100100010", ")" => "010001001001010", "," => "000000000010100",
+		"!" => "010010010000010", "=" => "000111000111000", "'" => "010010000000000"
 	];
+
+	// (the glyphs by character code)
+	static final CODES:Array<Null<String>> = {
+		var a:Array<Null<String>> = [for (_ in 0...128) null];
+		for (k => v in GLYPHS)
+			a[k.charCodeAt(0)] = v;
+		a;
+	};
 }

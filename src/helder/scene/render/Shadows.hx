@@ -39,6 +39,8 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 
 	final depth:Texture;
 	final pipeline:Pipeline;
+	// (instanced sets' casters: made when first drawn)
+	var instancedPipeline:Null<Pipeline> = null;
 	final casterBytes = Bytes.alloc(ShadowShader.uniforms[0].size);
 	final pass:PassDesc;
 	var passFar:PassDesc;
@@ -99,6 +101,12 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 		for (k in 0...meshes.length) {
 			var n = meshes.nodeAt(k);
 			if (n.shown() && world.inTree(n) && casts(meshes.valueAt(k))) bounds = bounds.union(meshes.valueAt(k).bounds.transform(n.worldMatrix()));
+		}
+		// (instanced sets: their bounds when the program gave them)
+		var sets = world.store(InstancedMesh.KIND);
+		for (k in 0...sets.length) {
+			var n = sets.nodeAt(k), s = sets.valueAt(k);
+			if (n.shown() && world.inTree(n) && s.count > 0 && s.castShadows && casts(s.mesh)) bounds = bounds.union(s.bounds);
 		}
 		if (bounds.isEmpty()) bounds = new Aabb(new Vec3(-1, -1, -1), new Vec3(1, 1, 1));
 		var c = bounds.center(), e = bounds.size();
@@ -190,7 +198,38 @@ class Shadows implements RenderFeature implements RenderFeature.ShadowSource {
 				enc.drawIndexed(p.count);
 			}
 		}
+		drawSets(enc, world, viewProj);
 		enc.endPass();
+	}
+
+	// the instanced sets that cast, each primitive one instanced draw
+	function drawSets(enc:Encoder, world:World, viewProj:Mat4) {
+		var sets = world.store(InstancedMesh.KIND), bound = false;
+		for (k in 0...sets.length) {
+			var n = sets.nodeAt(k), s = sets.valueAt(k);
+			if (!n.shown() || !world.inTree(n) || s.count == 0 || !s.castShadows || s.buffer == Buffer.NONE) continue;
+			if (!bound) {
+				if (instancedPipeline == null) {
+					var d = ShadowInstancedShader.pipeline({cull: None, depthCompare: Less, depthWrite: true});
+					d.colorFormat = R32F;
+					d.depthFormat = Depth32F;
+					d.layout = @:privateAccess Renderer.INSTANCED_LAYOUT;
+					instancedPipeline = device.createPipeline(d);
+				}
+				enc.setPipeline(instancedPipeline);
+				ShadowShader.writeShadowCaster({mvp: viewProj}, casterBytes);
+				enc.setUniforms(ShadowInstancedShader.uniforms[0].binding, casterBytes);
+				bound = true;
+			}
+			for (p in s.mesh.primitives) {
+				if (!p.material.castShadows || p.skinned) continue;
+				enc.setVertexBuffer(0, p.vertices);
+				enc.setVertexBuffer(1, s.buffer);
+				enc.setIndexBuffer(p.indices, p.indexFormat);
+				enc.drawIndexed(p.count, s.count);
+			}
+		}
+		if (bound) enc.setPipeline(pipeline);
 	}
 
 	public function dispose() {

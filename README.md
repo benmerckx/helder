@@ -780,7 +780,8 @@ fix.
     applied once per frame, before rendering;
   - markup for structure, not for every value that moves: an `onFrame`
     that writes the nodes it is given, and instancing elements with their
-    per-instance data in flat arrays (particles, crowds, foliage);
+    per-instance data in flat arrays (particles, crowds, foliage;
+    *landed*: `InstancedMesh`, `<instances of={set}/>`, examples/instancing);
   - hxmc passing a closure returning a struct value (a `Vec3`) where a
     binding expects one (the prototype goes through a signal);
   - measured against the same scene written by hand, at thousands of

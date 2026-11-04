@@ -44,5 +44,9 @@ Tests: `Atlas.test.hx` and `SpriteQuads.test.hx` (natively and as
 wasm32-wasi: the test lane), `bun run test sprite` (a headless GPU frame
 read back: placed, scaled, faded, added, two textures; tests/sprite/SpriteFrame.hx).
 
+Example: `examples/bunnymark` (Bunnymark as PixiJS's: bouncing bunnies, one
+quad each, all one draw; hold to add 500 a frame, the count still at 60
+fps shown; its numbers beside PixiJS's download on the examples site).
+
 Later: mip maps or pre-scaled frames chosen by scale (a game's own today),
 a sprite's tint in markup, tilemaps, nine-slices, sprites as scene nodes.

@@ -54,8 +54,11 @@ import helder.scene.render.*;
 //          compressed (Pack --textures bc, astc)
 //   compressed a pattern as RGBA8, BC1, BC3 and ASTC 4x4 (helder.image's
 //          BlockCompress, Images.compressed), each on a quad
+//   instancedmesh 400 cubes of one InstancedMesh in a spiral, each turned,
+//          scaled and coloured from flat arrays: one instanced draw,
+//          casting shadows on a floor; another set out of view, culled
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat", "compressed", "packedbc", "packedastc", "instancedmesh"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -531,6 +534,35 @@ class Scenes {
 					r.drawInto(enc, world, camera, light, depth, w, h);
 					post.run(enc, light, null, w, h);
 				};
+			case "instancedmesh":
+				var r = new Renderer(device).use(new Shadows(device, 1024));
+				renderer = r;
+				var world = new World();
+				var cube = Shapes.box(device, new Material("cube", new helder.gfx.shader.Vec4(1, 1, 1, 1), 0, 0.45), 0.3, 0.3, 0.3);
+				var set = new InstancedMesh(cube, 512, 400);
+				for (i in 0...400) {
+					var a = i * 0.25, d = 0.4 + i * 0.012;
+					var q = helder.scene.math.Quat.axisAngle(new Vec3(0.2822, 0.9407, 0.1881), i * 0.37);
+					set.setTransform(i, Math.cos(a) * d, Math.sin(i * 0.05) * 0.4, Math.sin(a) * d, q.x, q.y, q.z, q.w, 0.6 + (i % 5) * 0.12);
+					set.setColor(i, 0.5 + 0.5 * Math.cos(a), 0.5 + 0.5 * Math.cos(a + 2.1), 0.5 + 0.5 * Math.cos(a + 4.2));
+				}
+				set.bounds = new helder.scene.math.Aabb(new Vec3(-6, -0.8, -6), new Vec3(6, 0.8, 6));
+				InstancedMesh.attach(world.node("swarm"), set);
+				// (a floor under it, the set's shadows on it; a second set out of the view: culled whole)
+				var floor = world.node("floor");
+				floor.position = new Vec3(0, -1, 0);
+				MeshRenderer.attach(floor, Shapes.plane(device, new Material("floor", new helder.gfx.shader.Vec4(0.5, 0.5, 0.55, 1), 0, 0.8), 16));
+				var away = new InstancedMesh(cube, 4);
+				away.bounds = new helder.scene.math.Aabb(new Vec3(-0.5, 40, -0.5), new Vec3(0.5, 41, 0.5));
+				for (i in 0...4)
+					away.setPosition(i, 0, 40.5, 0);
+				InstancedMesh.attach(world.node("away"), away);
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
+				eye.position = new Vec3(0, 6, 7);
+				eye.lookAt(new Vec3(0, 0, 0));
+				probe = () -> r.draws == 2 && r.instanced == 400 && r.culled == 1 ? null : '${r.draws} draws, ${r.instanced} instanced, ${r.culled} culled (2, 400, 1)';
+				enc -> r.draw(enc, world, camera);
 			case "gpuparticles":
 				// GpuParticles over a floor: a burst of sparks as streaks (drag and
 				// gravity), a ring of soft puffs growing, a particle not yet born

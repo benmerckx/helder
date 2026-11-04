@@ -6,6 +6,7 @@ import helder.scene.Camera;
 import helder.scene.Node;
 import helder.scene.World;
 import helder.scene.math.Quat;
+import helder.scene.render.InstancedMesh;
 import helder.scene.render.Light;
 import helder.scene.render.Material;
 import helder.scene.render.MeshRenderer;
@@ -24,7 +25,8 @@ import helder.scene.render.Shapes;
 // visible), mesh (a node with a shape made in code: shape box | sphere |
 // plane, size, color, metallic, roughness; SceneRenderer.device must be
 // set), light (kind directional | point, color, intensity, range), camera
-// (fov, near, far); listeners (onClick, onPointerDown, onPointerUp,
+// (fov, near, far), instances (a node drawing an InstancedMesh: of={set},
+// its data the program's); listeners (onClick, onPointerDown, onPointerUp,
 // onPointerMove, onPointerCancel, onPointerEnter, onPointerLeave, onTap: a
 // SceneEvent) on any, called by a <Scene>'s picking (at a pointer's press:
 // the node hit then owns it until it lifts), the nearest node hit and then
@@ -33,7 +35,7 @@ import helder.scene.render.Shapes;
 // <Ui> (SceneTags) goes back to ui inside a scene. A prototype of the
 // reactive layer for scenes (see the README's roadmap): properties go through
 // setProperty by name here; typed constructors per tag come next.
-@:elements("node", "mesh", "light", "camera")
+@:elements("node", "mesh", "instances", "light", "camera")
 @:events(helder.scene.view.SceneEvents)
 class SceneRenderer implements helder.view.Renders<SceneNode> {
 	// the device meshes are made on (a <Scene> sets it when first drawn: the meshes made before it, then)
@@ -102,6 +104,7 @@ class SceneRenderer implements helder.view.Renders<SceneNode> {
 				el.props.set(name, value);
 				switch el.tag {
 					case "mesh": el.remesh();
+					case "instances": el.reinstance();
 					case "light": el.relight();
 					case "camera": el.recamera();
 					case _:
@@ -195,6 +198,11 @@ class SceneNode {
 			case "plane": Shapes.plane(device, m, size);
 			case _: Shapes.box(device, m, size, size, size);
 		});
+	}
+
+	@:allow(helder.scene.view.SceneRenderer) function reinstance() {
+		var set:Null<InstancedMesh> = get("of", null);
+		if (set != null) InstancedMesh.attach(node, set) else InstancedMesh.detach(node);
 	}
 
 	@:allow(helder.scene.view.SceneRenderer) function relight() {

@@ -181,10 +181,41 @@ key sets' maps are gone). Tests: `src/helder/scene/input/TouchActions.test.hx`
 
 ## Debugging
 
-`FrameStats` keeps the last frames' times and the renderer's counts;
-`Overlay` draws them over the frame with `helder.ui`'s drawn renderer (put
-`src` and `src` on the class path where it is
-used).
+`FrameStats` keeps the last frames' times (and, given to `add`, the CPU's
+share of each), the renderer's counts, `percentile(0.5)`, `percentile(0.99,
+true)` and `fps()` without allocating; `Overlay` draws them over the frame
+with `helder.ui`'s drawn renderer (put `src` on the class path where it is
+used): its bars and figures, with `detail` the fps, frame time and CPU
+p50/p99 and the program's own `lines`, and with `extra` a program's own
+controls in its pass (`text` in its pixel font, `rect`; `panel = false`:
+those alone). The performance examples use it: `examples/instancing`,
+`bunnymark`, `particles`, `physics-stress`.
+
+## Instancing
+
+Nodes that draw the same primitive are batched by the renderer (above).
+For many copies without a node each, an `InstancedMesh` is one mesh drawn
+from flat per-instance data in one instanced draw a primitive: a transform
+(position, unit quaternion, uniform scale; or a matrix), a colour (times
+the material's), and custom floats for a program's own shader:
+
+```haxe
+var rocks = new InstancedMesh(Shapes.box(device, rock), 100000);   // capacity, count, custom floats
+InstancedMesh.attach(world.node("belt"), rocks);                  // drawn while the node is shown
+rocks.bounds = beltBounds;                                        // optional: culled whole, fitted by Shadows
+// each frame, nothing allocated:
+for (i in 0...rocks.count) rocks.setTransform(i, x, y, z, qx, qy, qz, qw, scale);
+rocks.setColor(i, r, g, b);
+```
+
+The data is the instance buffer's layout (`data`, 64 bytes an instance;
+`customData` beside it, uploaded to `customBuffer`), uploaded by the
+renderer before its pass when written (count instances, one
+`writeBuffer`); the standard material draws it (normal maps too), and it
+casts into `Shadows`' map. In markup: `<instances of={rocks}/>`. Tests:
+`src/helder/scene/render/InstancedMesh.test.hx` (the layout, resize,
+nothing allocated), the 3d lane's `instancedmesh` frame (shadows, a set
+culled), `tests/3d-ui/SceneUiTest.hx`.
 
 ## Fast refresh
 
@@ -226,7 +257,7 @@ metres). `Shapes.box`, `sphere` and
 get tangents: the file's, else computed); `renderer.use(new Sky(device))` draws
 a sky behind the scene; `renderer.use(Environment.fromImage(device, mime, bytes))`
 an equirectangular image behind it that also lights it (image-based ambient and reflections); `renderer.use(new Particles(device))` draws the
-world's `Emitter`s (simulated by `Particles.update(world, dt)`). Programs draw at injection points:
+world's `Emitter`s (simulated by `Particles.update(world, dt)`); `renderer.use(new GpuParticles(device, capacity))` particles written once and moved by the GPU (`fx.live`: the newest slots drawn, a bound on those alive; examples/particles draws a million). Programs draw at injection points:
 `renderer.inject(BeforeOpaque | AfterOpaque | AfterPass, (enc, frame) -> ...)`; features reach the renderer through
 `RenderFeature`, so unused ones are not linked.
 

@@ -32,6 +32,14 @@ class GpuParticles implements RenderFeature {
 	public var gravity = new Vec3(0, 0, 0);
 	// whether the ring is drawn
 	public var visible = true;
+	// how many of the newest slots are drawn: a bound on the particles
+	// alive at once (the emission rate times the longest life), capacity
+	// by default; fewer than capacity, the draw is of those (one or two
+	// runs of the ring), not of the whole ring: a program emitting less
+	// than its ring holds (a quality setting) draws less
+	public var live:Int;
+	// the particles emitted so far, up to capacity (the slots ever written)
+	public var written(default, null) = 0;
 
 	final device:Device;
 	final staging:Bytes;
@@ -62,6 +70,7 @@ class GpuParticles implements RenderFeature {
 	public function new(device:Device, capacity = 4096) {
 		this.device = device;
 		this.capacity = capacity;
+		live = capacity;
 		staging = Bytes.alloc(capacity * STRIDE);
 		// (every slot born never: a birth far in the future draws nothing)
 		for (k in 0...capacity)
@@ -115,6 +124,7 @@ class GpuParticles implements RenderFeature {
 		if (dirtyCount == 0) dirtyFrom = next;
 		if (dirtyCount < capacity) dirtyCount++;
 		next = (next + 1) % capacity;
+		if (written < capacity) written++;
 		if (time + delay + life > lastDeath) lastDeath = time + delay + life;
 	}
 
@@ -153,9 +163,22 @@ class GpuParticles implements RenderFeature {
 		enc.setPipeline(pipeline);
 		enc.setUniforms(GpuParticleShader.uniforms[0].binding, viewBytes);
 		enc.setVertexBuffer(0, quad);
-		enc.setVertexBuffer(1, ring);
 		enc.setIndexBuffer(indices, UInt16);
-		enc.drawIndexed(6, capacity);
+		// (the newest n slots: before next, wrapping round the ring's end)
+		var n = live < written ? live : written;
+		if (n <= 0) return;
+		var from = next - n;
+		if (from >= 0) {
+			enc.setVertexBuffer(1, ring, from * STRIDE);
+			enc.drawIndexed(6, n);
+		} else {
+			enc.setVertexBuffer(1, ring, (capacity + from) * STRIDE);
+			enc.drawIndexed(6, -from);
+			if (next > 0) {
+				enc.setVertexBuffer(1, ring, 0);
+				enc.drawIndexed(6, next);
+			}
+		}
 	}
 
 	public function dispose() {

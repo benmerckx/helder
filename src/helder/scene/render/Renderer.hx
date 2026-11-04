@@ -108,6 +108,9 @@ class Renderer {
 	final pointColors:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, 0)];
 	final spots:Array<Vec4> = [for (_ in 0...4) new Vec4(0, 0, 0, -2)];
 	var count = 0;
+	// the frame's instanced sets (InstancedMesh), setCount of them in use
+	final sets:Array<InstancedMesh> = [];
+	var setCount = 0;
 
 	// offscreen: drawn into textures (drawInto: RGBA8 and Depth32F, as a
 	// <Scene>'s box in a ui), not the frame; its features' pipelines (skins,
@@ -255,6 +258,19 @@ class Renderer {
 				}
 			}
 		}
+		// (the instanced sets: drawn whole while their node is shown)
+		setCount = 0;
+		var instancedSets = world.store(InstancedMesh.KIND);
+		for (k in 0...instancedSets.length) {
+			var node = instancedSets.nodeAt(k), s = instancedSets.valueAt(k);
+			if (s.count == 0 || !node.shown() || !world.inTree(node)) continue;
+			if (!s.bounds.isEmpty() && !visibleBox(viewProj, s.bounds)) {
+				culled += s.mesh.primitives.length;
+				continue;
+			}
+			if (setCount == sets.length) sets.push(s) else sets[setCount] = s;
+			setCount++;
+		}
 		// (insertion sort: a scene's order changes little from frame to frame)
 		for (i in 1...count) {
 			var d = list[i], j = i - 1;
@@ -277,6 +293,9 @@ class Renderer {
 			list[j + 1] = d;
 		}
 		batch();
+		// (their data to the GPU, before the pass)
+		for (k in 0...setCount)
+			sets[k].upload(device);
 	}
 
 	// (the frame's block; returns the direction towards the light)
@@ -362,6 +381,7 @@ class Renderer {
 		draws = 0;
 		instanced = 0;
 		var opaque = true;
+		recordSets(enc);
 		for (b in 0...batchCount) {
 			var start = batchStart[b], n = batchSize[b];
 			var d = list[start], p = d.primitive, m = p.material;
@@ -401,18 +421,7 @@ class Renderer {
 			}
 			if (skin != null) skin.bind(enc, slots, d.node);
 			if (m != material) {
-				PbrShader.writePbrMaterial(PbrShader.materialOf(m), materialBytes);
-				enc.setUniforms(slots[2], materialBytes);
-				var ms = m.sampler != null ? m.sampler : sampler;
-				enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, ms);
-				enc.setTexture(slots[7], m.metallicRoughnessTexture != null ? m.metallicRoughnessTexture : white, ms);
-				enc.setTexture(slots[8], m.emissiveTexture != null ? m.emissiveTexture : white, ms);
-				enc.setTexture(slots[9], m.occlusionTexture != null ? m.occlusionTexture : white, ms);
-				var sf = shadowSource != null ? shadowSource.shadowFrame() : null;
-				enc.setTexture(slots[4], sf != null ? sf.map : noShadow, nearest);
-				enc.setTexture(slots[11], sf != null ? sf.mapFar : noShadow, nearest);
-				if (environment != null) environment.bind(enc, slots[12]) else enc.setTexture(slots[12], white, sampler);
-				if (normals != null) enc.setTexture(slots[10], m.normalTexture, ms);
+				bindMaterial(enc, slots, m, normals);
 				material = m;
 			}
 			enc.setVertexBuffer(0, p.vertices);
@@ -427,6 +436,46 @@ class Renderer {
 			for (f in hooks[AfterOpaque])
 				f(enc, frame);
 		enc.endPass();
+	}
+
+	// the instanced sets (InstancedMesh) of the frame, each primitive one
+	// instanced draw with their own buffer; first in the pass (opaque)
+	function recordSets(enc:Encoder) {
+		for (k in 0...setCount) {
+			var s = sets[k];
+			for (p in s.mesh.primitives) {
+				if (p.skinned) continue;
+				var m = p.material;
+				var normals = mapped(p) ? normalSource : null;
+				enc.setPipeline(normals != null ? normals.instancedPipeline(m.doubleSided) : m.doubleSided ? instancedDoubleSided : instancedPipeline);
+				var slots = normals != null ? normals.instancedSlots() : instancedSlots;
+				enc.setUniforms(slots[0], frameBytes);
+				bindMaterial(enc, slots, m, normals);
+				enc.setVertexBuffer(0, p.vertices);
+				if (normals != null) enc.setVertexBuffer(1, p.tangents);
+				enc.setVertexBuffer(normals != null ? 2 : 1, s.buffer);
+				enc.setIndexBuffer(p.indices, p.indexFormat);
+				enc.drawIndexed(p.count, s.count);
+				draws++;
+				instanced += s.count;
+			}
+		}
+	}
+
+	// a material's block and textures, at a shader's slots
+	function bindMaterial(enc:Encoder, slots:Array<Int>, m:Material, normals:Null<RenderFeature.NormalSource>) {
+		PbrShader.writePbrMaterial(PbrShader.materialOf(m), materialBytes);
+		enc.setUniforms(slots[2], materialBytes);
+		var ms = m.sampler != null ? m.sampler : sampler;
+		enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, ms);
+		enc.setTexture(slots[7], m.metallicRoughnessTexture != null ? m.metallicRoughnessTexture : white, ms);
+		enc.setTexture(slots[8], m.emissiveTexture != null ? m.emissiveTexture : white, ms);
+		enc.setTexture(slots[9], m.occlusionTexture != null ? m.occlusionTexture : white, ms);
+		var sf = shadowSource != null ? shadowSource.shadowFrame() : null;
+		enc.setTexture(slots[4], sf != null ? sf.map : noShadow, nearest);
+		enc.setTexture(slots[11], sf != null ? sf.mapFar : noShadow, nearest);
+		if (environment != null) environment.bind(enc, slots[12]) else enc.setTexture(slots[12], white, sampler);
+		if (normals != null) enc.setTexture(slots[10], m.normalTexture, ms);
 	}
 
 	// the draw list cut into batches: a run of draws of one primitive (one
@@ -554,8 +603,10 @@ class Renderer {
 
 	// whether a mesh's bounds, through mvp, reach the view: not all eight
 	// corners beyond one of the clip space's planes
-	static function visible(mvp:Mat4, mesh:Mesh):Bool {
-		var b = mesh.bounds;
+	static inline function visible(mvp:Mat4, mesh:Mesh):Bool
+		return visibleBox(mvp, mesh.bounds);
+
+	static function visibleBox(mvp:Mat4, b:helder.scene.math.Aabb):Bool {
 		if (b.isEmpty()) return false;
 		var o0 = 0, o1 = 0, o2 = 0, o3 = 0, o4 = 0, o5 = 0;
 		for (k in 0...8) {

@@ -1,6 +1,8 @@
 import helder.gfx.shader.Vec3;
 import helder.scene.*;
+import helder.scene.render.InstancedMesh;
 import helder.scene.render.Light;
+import helder.scene.render.Mesh;
 import helder.scene.view.SceneRenderer;
 import helder.view.*;
 import helder.view.Flow.*;
@@ -12,7 +14,7 @@ import helder.view.graph.Signal;
 // them (a struct value, Vec3, bound through a Signal: hxmc does not yet
 // pass a closure returning one where a function of another type is
 // expected, memo's or a bare function's); Show adding and removing a
-// subtree; For keyed rows.
+// subtree; For keyed rows; <instances> attaching an InstancedMesh.
 class SceneUiTest implements Markup {
 	static var checks = 0;
 	static var failed = 0;
@@ -31,7 +33,9 @@ class SceneUiTest implements Markup {
 		var pos = signal(new Vec3(1, 0, 0));
 		var shown = signal(true);
 		var moons = signal(["io", "europa"]);
+		var rocks = new InstancedMesh(new Mesh(), 8);
 		Render.render(<node name="planet" position={pos}>
+			<instances name="belt" of={rocks}/>
 			<node name="ring" scale={new Vec3(2, 0.1, 2)}/>
 			<light kind="point" intensity={() -> x() * 2} range={8.0}/>
 			<Show when={shown}><node name="flag"/></Show>
@@ -63,6 +67,7 @@ class SceneUiTest implements Markup {
 		flush();
 		check("For: a row removed, one added", world.root.find("io").isNone || !world.inTree(world.root.find("io")));
 		check("For: the new row", !world.root.find("ganymede").isNone && world.inTree(world.root.find("ganymede")));
+		check("instances: the set on its node", InstancedMesh.of(world.root.find("belt")) == rocks);
 		Sys.println('SceneUiTest: $checks checks, ' + (failed == 0 ? "ok" : '$failed FAILED'));
 		if (failed > 0) Sys.exit(1);
 	}
