@@ -8,7 +8,11 @@ import helder.scene.math.Quat;
 // velocity (world space, radians a second), mass (0: static, never moved)
 // and its inertia from its shape, how much it bounces (restitution, 0 to
 // 1) and grips (friction). A body added with a node writes its position
-// and orientation to the node after each step.
+// and orientation to the node after each step. A kinematic body
+// (Body.kinematic) has no mass either but moves by the velocity and
+// angular velocity the program sets (a moving platform, a paddle, a
+// door): contacts push others out of its way, never it, and it wakes the
+// sleeping bodies it touches.
 class Body {
 	public final shape:Shape;
 	public var position:Vec3;
@@ -25,6 +29,8 @@ class Body {
 	// character's capsule standing up)
 	public var rotates = true;
 	public var node:Node = Node.NONE;
+	// moved by its velocities, pushed by nothing (Body.kinematic)
+	public var isKinematic(default, null) = false;
 	// resting: not moved until something touches it
 	public var sleeping(default, null) = false;
 	@:allow(helder.physics) var still = 0;
@@ -62,6 +68,21 @@ class Body {
 			case _: new Vec3(0, 0, 0);
 		}
 	}
+
+	// a body of no mass moved by the velocity and angular velocity set on it
+	public static function kinematic(shape:Shape, position:Vec3):Body {
+		var b = new Body(shape, position, 0);
+		switch shape {
+			case Plane(_, _): throw "helder.physics: planes are static, not kinematic";
+			case _:
+		}
+		b.isKinematic = true;
+		return b;
+	}
+
+	// whether it moves this step: dynamic and awake, or kinematic and set moving
+	public inline function moving():Bool
+		return invMass > 0 ? !sleeping : isKinematic && (velocity.x != 0 || velocity.y != 0 || velocity.z != 0 || angular.x != 0 || angular.y != 0 || angular.z != 0);
 
 	// the world bounds of the shape (a sphere's, a turned box's extent)
 	@:allow(helder.physics) function bounds() {

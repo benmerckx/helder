@@ -151,8 +151,10 @@ class PhysicsTest {
 		check("crossed capsules", contacts.length == 1 && near(contacts[0].depth, 0.1, 1e-9) && near(contacts[0].normal.y, 1, 1e-9));
 		var cr = new PhysicsWorld();
 		cr.add(new Body(Capsule(0.5, 1), new Vec3(0, 0, 0), 0));
-		var endHit = cr.raycast(new Vec3(0, 5, 0), new Vec3(0, -1, 0)), side = cr.raycast(new Vec3(-5, 0.7, 0), new Vec3(1, 0, 0));
-		check("a capsule's raycasts: its end, its side", endHit != null && near(endHit.distance, 3.5, 1e-9) && side != null && near(side.distance, 4.5, 1e-9)
+		// (raycast's result is the world's one RayHit: each read before the next)
+		var endHit = cr.raycast(new Vec3(0, 5, 0), new Vec3(0, -1, 0)), endAt = endHit?.distance;
+		var side = cr.raycast(new Vec3(-5, 0.7, 0), new Vec3(1, 0, 0)), sideAt = side?.distance;
+		check("a capsule's raycasts: its end, its side", endAt != null && near(endAt, 3.5, 1e-9) && sideAt != null && near(sideAt, 4.5, 1e-9)
 			&& cr.raycast(new Vec3(-5, 1.6, 0), new Vec3(1, 0, 0)) == null);
 		// a character walks, stops at a wall and jumps
 		var chw = new PhysicsWorld();

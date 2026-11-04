@@ -40,8 +40,26 @@ class PhysicsWorld {
 		return body;
 	}
 
-	public function remove(body:Body)
-		bodies.remove(body);
+	// a body taken out: the sleeping ones touching it woken (what rested on it falls)
+	public function remove(body:Body) {
+		if (!bodies.remove(body)) return;
+		if (body.shape.match(Plane(_, _))) {
+			wakeAll();
+			return;
+		}
+		body.bounds();
+		for (b in bodies)
+			if (b.sleeping) {
+				b.bounds();
+				if (!(b.maxX < body.minX || body.maxX < b.minX || b.maxY < body.minY || body.maxY < b.minY || b.maxZ < body.minZ || body.maxZ < b.minZ))
+					b.wake();
+			}
+	}
+
+	// every body woken (after moving a static one by hand, changing gravity)
+	public function wakeAll()
+		for (b in bodies)
+			if (b.sleeping) b.wake();
 
 	// a joint between bodies (Joint.ball, Joint.distanceOf), solved with the contacts
 	public function join(joint:Joint):Joint {
@@ -61,9 +79,9 @@ class PhysicsWorld {
 		contacts = cs.length;
 		for (i in 0...cs.length) {
 			var a = cs.a[i], b = cs.b[i];
-			// (a moving body touching a sleeping one wakes it)
-			if (a.sleeping && !b.isStatic() && !b.sleeping) a.wake();
-			if (b.sleeping && !a.isStatic() && !a.sleeping) b.wake();
+			// (a moving body, dynamic or kinematic, touching a sleeping one wakes it)
+			if (a.sleeping && b.moving()) a.wake();
+			if (b.sleeping && a.moving()) b.wake();
 			// (the bounce: from the approach speed, none at resting speeds)
 			var p = cs.point(i);
 			var vn = dot(b.velocityAt(p) - a.velocityAt(p), cs.normal(i));
@@ -78,7 +96,7 @@ class PhysicsWorld {
 				j.solve(dt);
 		}
 		for (b in bodies)
-			if (!b.isStatic() && !b.sleeping) {
+			if (b.moving()) {
 				b.position = b.position + b.velocity * dt;
 				var w = b.angular, q = b.orientation;
 				// (dq = w q / 2: w as a quaternion of no scalar part)
@@ -103,7 +121,7 @@ class PhysicsWorld {
 				b.still = 0;
 		}
 		for (b in bodies)
-			if (!b.node.isNone && b.node.valid && !b.isStatic()) {
+			if (!b.node.isNone && b.node.valid && (!b.isStatic() || b.isKinematic)) {
 				b.node.position = b.position;
 				b.node.rotation = b.orientation;
 			}
@@ -160,7 +178,7 @@ class PhysicsWorld {
 		countingSort(sorted, pairs, n, 16);
 		for (p in pairs) {
 			var a = bodies[p >>> 16], b = bodies[p & 0xFFFF];
-			if ((a.isStatic() || a.sleeping) && (b.isStatic() || b.sleeping)) continue;
+			if (!a.moving() && !b.moving() || a.invMass + b.invMass == 0) continue;
 			Collide.collide(a, b, pending);
 		}
 	}
@@ -230,15 +248,22 @@ class PhysicsWorld {
 	}
 
 	// the first body a ray hits (dir of any length but zero), within
-	// maxDistance (ignore: a body left out, as a character's own)
-	public function raycast(origin:Vec3, dir:Vec3, maxDistance = 1e9, ?ignore:Body):Null<{body:Body, distance:Float, point:Vec3}> {
+	// maxDistance (ignore: a body left out, as a character's own): the
+	// world's one RayHit, written again by the next raycast (copy what
+	// must outlive it), or null; allocates nothing
+	public function raycast(origin:Vec3, dir:Vec3, maxDistance = 1e9, ?ignore:Body):Null<RayHit> {
 		var t = ray(origin, dir, maxDistance, ignore);
-		return hit == null ? null : {body: hit, distance: t, point: origin + dir / Math.sqrt(dot(dir, dir)) * t};
+		if (hit == null) return null;
+		rayHit.body = hit;
+		rayHit.distance = t;
+		rayHit.point = origin + dir / Math.sqrt(dot(dir, dir)) * t;
+		return rayHit;
 	}
 
-	// raycast without its result object, allocating nothing (a game's
-	// step, Character's): the distance (maxDistance: nothing hit), the body
-	// hit in hit (null: none)
+	final rayHit = new RayHit();
+
+	// raycast without its result: the distance (maxDistance: nothing
+	// hit), the body hit in hit (null: none)
 	public var hit(default, null):Null<Body> = null;
 
 	public function ray(origin:Vec3, dir:Vec3, maxDistance:Float, ignore:Null<Body>):Float {
@@ -265,4 +290,13 @@ class PhysicsWorld {
 
 	static inline function normalize(a:Vec3):Vec3
 		return a / Math.sqrt(dot(a, a));
+}
+
+// what a raycast hit: the body, how far along the ray, the point
+class RayHit {
+	public var body:Null<Body> = null;
+	public var distance = 0.0;
+	public var point = new Vec3(0, 0, 0);
+
+	public function new() {}
 }
