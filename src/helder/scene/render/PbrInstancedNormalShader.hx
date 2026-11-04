@@ -43,10 +43,11 @@ class PbrInstancedNormalShader implements Shaders {
 		var ng = normalize(i.normal);
 		var t = normalize(i.tangent.xyz - ng * dot(ng, i.tangent.xyz));
 		var b = cross(ng, t) * i.tangent.w;
-		var m = sample(normalTexture, i.uv).xyz * 2 - 1;
+		var uv = PbrShader.uvOf(material, i.uv);
+		var m = sample(normalTexture, uv).xyz * 2 - 1;
 		var scale = material.params.z;
 		var n = normalize(t * (m.x * scale) + b * (m.y * scale) + ng * m.z);
-		return PbrShader.shadeAt(n, i.world, i.uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
+		return PbrShader.shadeAt(n, i.world, uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture, emissiveTexture, occlusionTexture,
 			shadowMap, shadowMapFar, environmentMap);
 	}
 }

@@ -83,9 +83,34 @@ import helder.gfx.shader.ShaderMath.*;
 	var emissive:Vec4; // rgb; w: its share emitted on the night side only (Material.emissiveNight)
 	var ground:Vec4; // x: Material.ground, y: the air's strength (Material.air's w), z: Material.crystal
 	var air:Vec4; // rgb: the air's colour (Material.air)
+	// the textures' uv transform (Material.uvOffset, uvRotation, uvScale):
+	// u = dot(uvU.xy, uv) + uvU.z, v likewise by uvV
+	var uvU:Vec4;
+	var uvV:Vec4;
+	// x: Material.clearcoat, y: its roughness, z: Material.transmission, w: Material.alphaCutoff
+	var layers:Vec4;
 }
 
 class PbrShader implements Shaders {
+	// a material's block (PbrMaterial) as the renderer writes it
+	public static function materialOf(m:Material):PbrMaterial {
+		var c = Math.cos(m.uvRotation), s = Math.sin(m.uvRotation);
+		return {
+			baseColor: m.baseColor,
+			params: new Vec4(m.metallic, m.roughness, m.normalScale, m.doubleSided ? 1 : 0),
+			emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, m.emissiveNight),
+			ground: new Vec4(m.ground, m.air.w, m.crystal, 0),
+			air: m.air,
+			uvU: new Vec4(c * m.uvScale.x, s * m.uvScale.y, m.uvOffset.x, 0),
+			uvV: new Vec4(-s * m.uvScale.x, c * m.uvScale.y, m.uvOffset.y, 0),
+			layers: new Vec4(m.clearcoat, m.clearcoatRoughness, m.transmission, m.alphaCutoff)
+		};
+	}
+
+	// a vertex's uvs as the material's textures read them (KHR_texture_transform)
+	public static function uvOf(material:PbrMaterial, uv:Vec2):Vec2
+		return vec2(dot(material.uvU.xy, uv) + material.uvU.z, dot(material.uvV.xy, uv) + material.uvV.z);
+
 	@:vertex static function vs(v:PbrVertex, frame:PbrFrame, object:PbrObject):PbrVaryings {
 		var world = object.model * vec4(v.pos, 1);
 		return {
@@ -100,12 +125,12 @@ class PbrShader implements Shaders {
 
 	@:fragment static function fs(i:PbrVaryings, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D, metallicRoughnessTexture:Texture2D,
 			emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4
-		return shadeAt(normalize(i.normal), i.world, i.uv, normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture,
+		return shadeAt(normalize(i.normal), i.world, uvOf(material, i.uv), normalize(i.up), i.tint, frame, material, baseColorTexture, metallicRoughnessTexture,
 			emissiveTexture, occlusionTexture, shadowMap, shadowMapFar, environmentMap);
 
 	// the fragment's colour at a point of the world with a unit normal n, the
 	// node's unit up and its tint (also the instanced, skinned and
-	// normal-mapped shaders')
+	// normal-mapped shaders'), uv already the material's (uvOf)
 	public static function shadeAt(facing:Vec3, world:Vec3, uv:Vec2, up:Vec3, tint:Vec3, frame:PbrFrame, material:PbrMaterial, baseColorTexture:Texture2D,
 			metallicRoughnessTexture:Texture2D, emissiveTexture:Texture2D, occlusionTexture:Texture2D, shadowMap:Texture2D, shadowMapFar:Texture2D, environmentMap:Texture2D):Vec4 {
 		var texel = sample(baseColorTexture, uv);
@@ -142,25 +167,15 @@ class PbrShader implements Shaders {
 		var above = n.y * 0.5 + 0.5;
 		var irradiance = mix(frame.ground.xyz, frame.sky.xyz, above);
 		var r = reflect(-v, n);
-		var env = mix(frame.ground.xyz, frame.sky.xyz, smoothstep(-0.2, 0.2, r.y));
+		var env = reflected(frame, environmentMap, r, rough);
 		if (frame.environment.x > 0) {
-			// (an environment map: its small levels along the normal, its
-			// sharper ones along the reflection by roughness)
+			// (an environment map: its small levels along the normal; a
+			// prefiltered atlas's last row, the irradiance)
 			var top = frame.environment.y;
 			irradiance = pow(sampleLevel(environmentMap, EnvironmentShader.equirect(n), max(top - 2, 0)).xyz, vec3(2.2)) * frame.environment.x;
-			env = pow(sampleLevel(environmentMap, EnvironmentShader.equirect(r), rough * max(top - 1, 0)).xyz, vec3(2.2)) * frame.environment.x;
 			if (frame.environment.z > 0) {
-				// (a prefiltered atlas: its rows by roughness, two blended, the
-				// last row the irradiance: Environment.prefiltered)
 				var rows = frame.environment.z;
-				var edge = frame.environment.w;
-				irradiance = pow(EnvironmentShader.atlas(environmentMap, EnvironmentShader.equirect(n), rows, rows, edge), vec3(2.2)) * frame.environment.x;
-				var at = rough * (rows - 1);
-				var r0 = floor(at);
-				var ru = EnvironmentShader.equirect(r);
-				var lo = EnvironmentShader.atlas(environmentMap, ru, r0, rows, edge);
-				var hi = EnvironmentShader.atlas(environmentMap, ru, min(r0 + 1, rows - 1), rows, edge);
-				env = pow(mix(lo, hi, at - r0), vec3(2.2)) * frame.environment.x;
+				irradiance = pow(EnvironmentShader.atlas(environmentMap, EnvironmentShader.equirect(n), rows, rows, frame.environment.w), vec3(2.2)) * frame.environment.x;
 			}
 		}
 		var c0 = vec4(-1, -0.0275, -0.572, 0.022);
@@ -186,6 +201,19 @@ class PbrShader implements Shaders {
 		var rim = frame.rim.xyz * (pow(edge, frame.rim.w) * smoothstep(-0.25, 0.5, dot(n, l)) * day);
 		direct += rim * mix(vec3(1), base, 0.5);
 		var alpha = material.baseColor.w * texel.w;
+		var coat = material.layers.x;
+		if (coat > 0) {
+			// (a clear coat (Material.clearcoat): a polished dielectric's
+			// reflection of the sun and the environment over the base, which
+			// it dims by its Fresnel)
+			var cr = clamp(material.layers.y, 0.04, 1);
+			var ca = cr * cr;
+			var fc = (0.04 + 0.96 * pow(1 - nv, 5)) * coat;
+			var lit = shadowed(frame, shadowMap, shadowMapFar, world, max(dot(n, l), 0)) * day;
+			var layer = coatLobe(n, v, l, ca * ca) * frame.lightColor.xyz * (lit * coat) + reflected(frame, environmentMap, r, cr) * fc;
+			direct = direct * (1 - fc);
+			ambient = ambient * (1 - fc) + layer;
+		}
 		if (crystal > 0) {
 			// (a crystal (Material.crystal): the environment's reflection
 			// stronger at grazing angles (Fresnel); light from inside, its
@@ -201,13 +229,76 @@ class PbrShader implements Shaders {
 			emitted = mix(emitted, inner + through, crystal) + sheen * crystal;
 			alpha = mix(alpha, 1, fres * crystal);
 		}
+		var transmission = max(material.layers.z, 0) * (1 - metallic);
+		if (transmission > 0) {
+			// (transmission (Material.transmission): the diffuse light let
+			// through, what is behind showing instead (premultiplied: the
+			// reflections over it as they are))
+			var diffuse = (irradiance * base * (1 - metallic)) * occlusion;
+			ambient = ambient - diffuse * transmission;
+			direct = direct * (1 - transmission * 0.9);
+		}
 		var color = (direct + ambient + emitted) * frame.exposure.x;
 		// (the air (Material.air): towards its sphere's limb, as seen through
 		// more of the atmosphere, its colour lit by the sun over the ground)
 		var limb = 1 - max(dot(up, v), 0);
 		var haze = material.ground.y * limb * limb;
 		color = mix(color, material.air.xyz * (0.12 + 0.88 * smoothstep(-0.2, 0.35, sunUp)) * frame.exposure.x, haze);
-		return vec4(output(color, frame.exposure.y), alpha);
+		var shown = output(color, frame.exposure.y);
+		// (alphaMode MASK: below the cutoff dropped, else opaque)
+		if (material.layers.w > 0) {
+			if (alpha < material.layers.w) discard();
+			alpha = 1;
+		}
+		if (transmission > 0) {
+			shown = shown * alpha;
+			alpha = alpha * (1 - transmission);
+		}
+		if (material.layers.z < 0) {
+			// (a transmitting surface's first draw (Renderer, Multiply): what
+			// is behind times its colour, where the light goes through; an
+			// 8-bit target's colours encoded)
+			var through = -material.layers.z * (1 - metallic) * alpha;
+			var filter = mix(vec3(1), base, through);
+			shown = frame.exposure.y > 0.5 ? filter : encode(filter);
+			alpha = 1;
+		}
+		return vec4(shown, alpha);
+	}
+
+	// the light from the environment along a reflection r at a roughness:
+	// a prefiltered atlas's two rows by it, blended, a mip-mapped image's
+	// level by it, else the sky and the ground blended by r's height
+	static function reflected(frame:PbrFrame, environmentMap:Texture2D, r:Vec3, rough:Float):Vec3 {
+		var env = mix(frame.ground.xyz, frame.sky.xyz, smoothstep(-0.2, 0.2, r.y));
+		if (frame.environment.x > 0) {
+			var top = frame.environment.y;
+			env = pow(sampleLevel(environmentMap, EnvironmentShader.equirect(r), rough * max(top - 1, 0)).xyz, vec3(2.2)) * frame.environment.x;
+			if (frame.environment.z > 0) {
+				var rows = frame.environment.z;
+				var edge = frame.environment.w;
+				var at = rough * (rows - 1);
+				var r0 = floor(at);
+				var ru = EnvironmentShader.equirect(r);
+				var lo = EnvironmentShader.atlas(environmentMap, ru, r0, rows, edge);
+				var hi = EnvironmentShader.atlas(environmentMap, ru, min(r0 + 1, rows - 1), rows, edge);
+				env = pow(mix(lo, hi, at - r0), vec3(2.2)) * frame.environment.x;
+			}
+		}
+		return env;
+	}
+
+	// a clear coat's specular lobe towards v from a unit light along l,
+	// times n.l (GGX, height-correlated Smith, a dielectric's Fresnel)
+	static function coatLobe(n:Vec3, v:Vec3, l:Vec3, a2:Float):Vec3 {
+		var h = normalize(l + v);
+		var nl = max(dot(n, l), 0);
+		var nv = max(dot(n, v), 0.0001);
+		var nh = max(dot(n, h), 0);
+		var fresnel = 0.04 + 0.96 * pow(1 - max(dot(v, h), 0), 5);
+		var dd = nh * nh * (a2 - 1) + 1;
+		var visibility = 0.5 / max(nl * sqrt(nv * nv * (1 - a2) + a2) + nv * sqrt(nl * nl * (1 - a2) + a2), 0.0001);
+		return vec3(fresnel * a2 / (3.14159265 * dd * dd) * visibility * nl);
 	}
 
 	// the light reflected towards v from a unit light along l, times n.l:

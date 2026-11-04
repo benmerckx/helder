@@ -546,11 +546,12 @@ class D3D11Backend {
 			LibC.memset(b, 0, 264);
 			var blend:Blend = d.blend == null ? Opaque : d.blend;
 			b.value.BlendEnable = blend == Opaque ? 0 : 1;
-			b.value.SrcBlend = blend == Premultiplied ? D3D.BLEND_ONE : D3D.BLEND_SRC_ALPHA;
-			b.value.DestBlend = blend == Additive ? D3D.BLEND_ONE : D3D.BLEND_INV_SRC_ALPHA;
+			var multiply = blend == Multiply;
+			b.value.SrcBlend = multiply ? D3D.BLEND_DEST_COLOR : blend == Premultiplied ? D3D.BLEND_ONE : D3D.BLEND_SRC_ALPHA;
+			b.value.DestBlend = multiply ? D3D.BLEND_ZERO : blend == Additive ? D3D.BLEND_ONE : D3D.BLEND_INV_SRC_ALPHA;
 			b.value.BlendOp = D3D.BLEND_OP_ADD;
-			b.value.SrcBlendAlpha = D3D.BLEND_ONE;
-			b.value.DestBlendAlpha = blend == Additive ? D3D.BLEND_ONE : D3D.BLEND_INV_SRC_ALPHA;
+			b.value.SrcBlendAlpha = multiply ? D3D.BLEND_ZERO : D3D.BLEND_ONE;
+			b.value.DestBlendAlpha = blend == Additive || multiply ? D3D.BLEND_ONE : D3D.BLEND_INV_SRC_ALPHA;
 			b.value.BlendOpAlpha = D3D.BLEND_OP_ADD;
 			b.value.RenderTargetWriteMask = 0xF;
 			ID3D11Device.CreateBlendState(device, b, scratch);

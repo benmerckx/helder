@@ -1,6 +1,7 @@
 package helder.scene.render;
 
 import helder.gfx.Texture;
+import helder.gfx.shader.Vec2;
 import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
 
@@ -66,6 +67,26 @@ class Material {
 	// (Additive's an additive glass). Faceted by its normals: give its
 	// facets flat ones (vertices not shared across their edges)
 	public var crystal = 0.0;
+	// glTF's KHR_texture_transform: the uvs its textures are read at turned
+	// by uvRotation (radians), scaled by uvScale, then moved by uvOffset
+	// (one transform for all of a material's textures)
+	public var uvOffset = new Vec2(0, 0);
+	public var uvRotation = 0.0;
+	public var uvScale = new Vec2(1, 1);
+	// glTF's alphaMode MASK: fragments whose alpha is below it are dropped,
+	// the rest opaque (0: none)
+	public var alphaCutoff = 0.0;
+	// a clear coat over the surface (KHR_materials_clearcoat): how much (0
+	// to 1) and its roughness; a polished dielectric layer (f0 0.04) whose
+	// reflection, from the sun and the environment, is added over the base
+	// and dims it by its Fresnel
+	public var clearcoat = 0.0;
+	public var clearcoatRoughness = 0.0;
+	// how much of the light goes through it (KHR_materials_transmission, 0
+	// to 1), a thin surface without refraction: its diffuse light replaced
+	// by what is behind it (drawn see-through, Premultiplied, after the
+	// opaque surfaces), its reflections kept
+	public var transmission = 0.0;
 
 	public function new(?name:String, ?baseColor:Vec4, metallic = 0.0, roughness = 0.5, ?emissive:Vec3, doubleSided = false) {
 		this.name = name != null ? name : "";

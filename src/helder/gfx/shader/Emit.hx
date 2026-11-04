@@ -145,7 +145,7 @@ class Emit {
 		return type(t) + "(" + [for (a in args) expr(a)].join(", ") + ")";
 
 	function builtin(name:String, args:Array<SExpr>, t:SType):String
-		return name + "(" + [for (a in args) expr(a)].join(", ") + ")";
+		return name == "discard" ? "discard" : name + "(" + [for (a in args) expr(a)].join(", ") + ")";
 
 	static function binop(op:SBinop):String
 		return switch op {

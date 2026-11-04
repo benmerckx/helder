@@ -11,4 +11,6 @@ enum abstract Blend(Int) {
 	var Additive;
 	// src + dst * (1 - a): colours already multiplied by their alpha
 	var Premultiplied;
+	// dst * src: what is behind tinted (glass's colour); the target's alpha kept
+	var Multiply;
 }

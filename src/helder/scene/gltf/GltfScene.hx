@@ -66,8 +66,20 @@ class GltfScene {
 				mat.occlusionTexture = textureOf(m.occlusionTexture);
 				mat.normalTexture = textureOf(m.normalTexture);
 				mat.normalScale = m.normalScale;
-				// (MASK is drawn opaque for now: gfx's shaders have no discard)
 				mat.blend = m.alphaMode == "BLEND";
+				if (m.alphaMode == "MASK") mat.alphaCutoff = Math.max(m.alphaCutoff, 1e-4);
+				mat.uvOffset = m.uvOffset;
+				mat.uvRotation = m.uvRotation;
+				mat.uvScale = m.uvScale;
+				mat.clearcoat = m.clearcoat;
+				mat.clearcoatRoughness = m.clearcoatRoughness;
+				mat.transmission = m.transmission;
+				if (m.transmission > 0) {
+					// (light through it: see-through, its colours premultiplied, no shadow)
+					mat.blend = true;
+					mat.blending = Premultiplied;
+					mat.castShadows = false;
+				}
 				// (one sampler a material: its base colour's, else its first map's)
 				for (t in [m.baseColorTexture, m.metallicRoughnessTexture, m.normalTexture, m.emissiveTexture, m.occlusionTexture])
 					if (t >= 0) {

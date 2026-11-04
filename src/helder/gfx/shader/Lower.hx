@@ -387,7 +387,7 @@ class Lower {
 			case _:
 				var x = expr(e, out);
 				switch x.e {
-					case ECall(_):
+					case ECall(_) | EBuiltin("discard", _):
 						out.push(SEval(x));
 					case _:
 				}

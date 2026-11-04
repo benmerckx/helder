@@ -93,6 +93,12 @@ try {
 			await page.screenshot({ path: path.join(shots, `site-phone-${id}.png`) });
 			await page.setViewportSize({ width: 1280, height: 900 });
 		}
+		// (an example of fetched data, heavy: stopped once out of view, data-stop="offscreen")
+		if (site.examples.find((x) => x.id === id)?.args?.length) {
+			await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+			await page.waitForFunction((id) => document.getElementById('play-' + id).hasAttribute('data-stopped'), id, { timeout: 30000 });
+			check(true, `${id} stopped out of view`);
+		}
 	}
 	// (a game full screen and expanded at a phone's size, a touch drag still the game's: golf's shot, its strokes in ui's accessibility mirror)
 	if (play.includes('golf')) await phone(page, shots);

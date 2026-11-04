@@ -373,6 +373,14 @@ class Renderer {
 					f(enc, frame);
 				current = null;
 			}
+			if (m.transmission > 0 && !p.skinned) {
+				// (transmission: what is behind first tinted by the surface's
+				// colour (Multiply), then its own light over it: the draw below)
+				tint(enc, d, p, m);
+				current = null;
+				material = null;
+				node = Node.NONE;
+			}
 			var many = n > 1;
 			var skin = p.skinned ? skinSource : null;
 			var normals = skin == null && mapped(p) ? normalSource : null;
@@ -393,13 +401,7 @@ class Renderer {
 			}
 			if (skin != null) skin.bind(enc, slots, d.node);
 			if (m != material) {
-				PbrShader.writePbrMaterial({
-					baseColor: m.baseColor,
-					params: new Vec4(m.metallic, m.roughness, m.normalScale, m.doubleSided ? 1 : 0),
-					emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, m.emissiveNight),
-					ground: new Vec4(m.ground, m.air.w, m.crystal, 0),
-					air: m.air
-				}, materialBytes);
+				PbrShader.writePbrMaterial(PbrShader.materialOf(m), materialBytes);
 				enc.setUniforms(slots[2], materialBytes);
 				var ms = m.sampler != null ? m.sampler : sampler;
 				enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, ms);
@@ -477,6 +479,37 @@ class Renderer {
 			device.writeBuffer(instanceBuffer, 0, instanceBytes, 0, bytes);
 		}
 	}
+
+	// a transmitting material's first draw: the target multiplied by its
+	// colour where light goes through it (PbrShader: layers.z negative)
+	function tint(enc:Encoder, d:DrawItem, p:Mesh.Primitive, m:Material) {
+		var k = m.doubleSided ? 1 : 0;
+		if (tintPipelines[k] == null) tintPipelines[k] = create(PbrShader.pipeline({cull: m.doubleSided ? None : Back, depthCompare: Less, depthWrite: false, blend: Multiply}));
+		var slots = plainSlots;
+		enc.setPipeline(tintPipelines[k]);
+		enc.setUniforms(slots[0], frameBytes);
+		var model = d.node.worldMatrix(), t = d.tint;
+		PbrShader.writePbrObject({model: model, normalMatrix: MathTools.normalMatrix(model), tint: new Vec4(t.x, t.y, t.z, 1)}, objectBytes);
+		enc.setUniforms(slots[1], objectBytes);
+		var block = PbrShader.materialOf(m);
+		block.layers = new Vec4(block.layers.x, block.layers.y, -m.transmission, block.layers.w);
+		PbrShader.writePbrMaterial(block, materialBytes);
+		enc.setUniforms(slots[2], materialBytes);
+		var ms = m.sampler != null ? m.sampler : sampler;
+		enc.setTexture(slots[3], m.baseColorTexture != null ? m.baseColorTexture : white, ms);
+		enc.setTexture(slots[7], white, ms);
+		enc.setTexture(slots[8], white, ms);
+		enc.setTexture(slots[9], white, ms);
+		enc.setTexture(slots[4], noShadow, nearest);
+		enc.setTexture(slots[11], noShadow, nearest);
+		if (environment != null) environment.bind(enc, slots[12]) else enc.setTexture(slots[12], white, sampler);
+		enc.setVertexBuffer(0, p.vertices);
+		enc.setIndexBuffer(p.indices, p.indexFormat);
+		enc.drawIndexed(p.count, 1);
+		draws++;
+	}
+
+	final tintPipelines:Array<Null<Pipeline>> = [null, null];
 
 	// the standard shader blended as the material is, depth tested but not written
 	function blended(m:Material):Pipeline {

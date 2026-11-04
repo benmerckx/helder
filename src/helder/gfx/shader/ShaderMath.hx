@@ -9,7 +9,8 @@ package helder.gfx.shader;
 // and sample(t, uv), a Texture2D's colour at uv (in the fragment stage at
 // the mip level its footprint needs, in the vertex stage the first), and
 // sampleLevel(t, uv, level) at a mip level (fractions blend two levels with
-// a sampler's mipFilter Linear).
+// a sampler's mipFilter Linear); discard(), in the fragment stage, drops the
+// fragment (alpha testing: nothing on the CPU).
 // Written out by VecBuild.builtins.
 @:build(helder.gfx.shader.VecBuild.builtins())
 class ShaderMath {}

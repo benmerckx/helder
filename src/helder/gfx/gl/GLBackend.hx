@@ -595,6 +595,7 @@ class GLBackend {
 			switch p.blend {
 				case Alpha: GL.glBlendFuncSeparate(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA);
 				case Additive: GL.glBlendFuncSeparate(GL.SRC_ALPHA, GL.ONE, GL.ONE, GL.ONE);
+				case Multiply: GL.glBlendFuncSeparate(GL.DST_COLOR, GL.ZERO, GL.ZERO, GL.ONE);
 				case _: GL.glBlendFuncSeparate(GL.ONE, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA);
 			}
 		}

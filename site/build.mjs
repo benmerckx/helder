@@ -15,7 +15,15 @@
 //    packages' browser modules, all the builds' together), fonts/,
 //    loader.js (helder.web's island loader);
 // 4. bin/site-build/examples.json, which index.tsx imports, then the page
-//    built (natively) and run: <out>/index.html.
+//    built (natively) and run: <out>/index.html, and <out>/<id>.html for
+//    each example with a page.json beside it (its description, the numbers'
+//    slots: site/numbers.mjs measures them into <out>/numbers.json, which
+//    the page reads; real devices', three.js' for the same scene, credits).
+//
+// `// data: <folder>`: files the example fetches at run time, not bundled
+// (tens of MB of models): its fetch.mjs run first (downloading them into
+// examples/<dir>/<folder>), the folder copied beside its module and its
+// URL (relative to the pages) passed as the program's first argument.
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -31,7 +39,7 @@ const cli = ['src/helder/cli/run.mjs'];
 const REPO = 'https://github.com/benmerckx/universe';
 
 // (apk: android, an example built for Android phones too, with SITE_APK=1: its APK beside the page, linked from its card)
-const HEADER = /^\/\/ *(title|summary|tags|demo|apk): *(.*)$/;
+const HEADER = /^\/\/ *(title|summary|tags|demo|apk|data): *(.*)$/;
 
 function header(file) {
 	const head = {};
@@ -68,8 +76,9 @@ function examples() {
 		for (const e of entries) {
 			const head = header(e.file);
 			if (!head) continue;
+			const page = fs.existsSync(`${p}/page.json`) ? JSON.parse(fs.readFileSync(`${p}/page.json`, 'utf8')) : null;
 			list.push({ ...e, dir, title: head.title, summary: head.summary ?? '', tags: (head.tags ?? '').split(',').map((t) => t.trim()).filter((t) => t),
-				demo: demoOf(head.demo), apk: head.apk === 'android' });
+				demo: demoOf(head.demo), apk: head.apk === 'android', data: head.data ?? null, page });
 		}
 	}
 	return list;
@@ -107,6 +116,15 @@ if (help.status !== 0) {
 	process.exit(1);
 }
 
+// (the files fetched at run time: each example's fetch.mjs, one at a time)
+for (const e of builds.filter((e) => e.data)) {
+	const r = spawnSync(process.execPath, [`examples/${e.dir}/fetch.mjs`], { stdio: 'inherit' });
+	if (r.status !== 0 || !fs.existsSync(`examples/${e.dir}/${e.data}`)) {
+		console.error(`site: ${e.id}'s examples/${e.dir}/fetch.mjs failed`);
+		process.exit(1);
+	}
+}
+
 const failed = [];
 let next = 0;
 async function worker() {
@@ -134,7 +152,9 @@ if (failed.length) {
 const site = [];
 for (const e of all) {
 	const item = { id: e.id, title: e.title, summary: e.summary, tags: e.tags, source: `${REPO}/tree/main/examples/${e.dir}`,
-		demo: e.demo, wasm: '', imports: [], fonts: [], assets: '', apk: null };
+		demo: e.demo, wasm: '', imports: [], fonts: [], assets: '', apk: null, args: [], page: null, dataBytes: 0 };
+	if (e.page) item.page = { description: e.page.description ?? [], compare: e.page.compare ?? [], devices: e.page.devices ?? [], credits: e.page.credits ?? [],
+		numbers: e.page.numbers ?? [] };
 	if (e.apk && process.env.SITE_APK) {
 		// (arm64, a phone's; signed with the key HELDER_ANDROID_KEY names when it is set, else helder's cached one)
 		const file = `apk/${e.id}.apk`;
@@ -153,6 +173,15 @@ for (const e of all) {
 		fs.mkdirSync(dest, { recursive: true });
 		fs.copyFileSync(`${dir}/${e.main}.wasm`, `${dest}/${e.main}.wasm`);
 		item.wasm = `examples/${e.id}/${e.main}.wasm`;
+		if (e.data) {
+			// (only the data files: the fetch's metadata and references stay out)
+			fs.mkdirSync(`${dest}/${e.data}`, { recursive: true });
+			for (const f of fs.readdirSync(`examples/${e.dir}/${e.data}`).filter((f) => /\.(glb|hxm3d|ktx2|bin)$/.test(f))) {
+				fs.copyFileSync(`examples/${e.dir}/${e.data}/${f}`, `${dest}/${e.data}/${f}`);
+				item.dataBytes += fs.statSync(`${dest}/${e.data}/${f}`).size;
+			}
+			item.args = [`examples/${e.id}/${e.data}/`];
+		}
 		const listed = `${dir}/${e.main}.wasm.assets.json`;
 		if (fs.existsSync(listed) && JSON.parse(fs.readFileSync(listed, 'utf8')).length > 0) {
 			fs.copyFileSync(listed, `${dest}/${e.main}.wasm.assets.json`);
@@ -174,7 +203,8 @@ for (const e of all) {
 }
 fs.copyFileSync('src/helder/web/loader.js', `${out}/loader.js`);
 fs.copyFileSync('site/stage.js', `${out}/stage.js`);
-fs.writeFileSync(`${work}/examples.json`, JSON.stringify({ out: `${out}/index.html`, repository: REPO, examples: site }, null, '\t') + '\n');
+fs.copyFileSync('site/numbers.js', `${out}/numbers.js`);
+fs.writeFileSync(`${work}/examples.json`, JSON.stringify({ out: `${out}/index.html`, dir: out, repository: REPO, examples: site }, null, '\t') + '\n');
 
 // the page: index.tsx built natively, then run
 const page = await run([...cli, 'build', 'site/index.tsx', '-o', `${work}/page`], `${work}/page.log`);

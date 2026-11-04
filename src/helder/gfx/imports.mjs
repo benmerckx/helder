@@ -48,12 +48,13 @@ const LOADS = ['clear', 'load', 'clear']; // LoadOp (DontCare: clear)
 const COMPARES = ['never', 'less', 'equal', 'less-equal', 'greater', 'not-equal', 'greater-equal', 'always']; // Compare
 const INDEX = ['uint16', 'uint32']; // IndexFormat
 const WRAPS = ['repeat', 'clamp-to-edge', 'mirror-repeat']; // Wrap
-// Blend: Opaque, Alpha, Additive, Premultiplied
+// Blend: Opaque, Alpha, Additive, Premultiplied, Multiply
 const BLENDS = [
 	undefined,
 	{ color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } },
 	{ color: { srcFactor: 'src-alpha', dstFactor: 'one' }, alpha: { srcFactor: 'one', dstFactor: 'one' } },
 	{ color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } },
+	{ color: { srcFactor: 'dst', dstFactor: 'zero' }, alpha: { srcFactor: 'zero', dstFactor: 'one' } },
 ];
 const INFO_LOG_LENGTH = 0x8b84; // (GL's, not WebGL's)
 const RING = 256 * 1024; // the uniform ring (Encoder.UNIFORM_RING)

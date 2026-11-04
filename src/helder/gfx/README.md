@@ -25,7 +25,7 @@ device.writeTexture(tex, texels);                     // all of it, or a region:
 device.destroyTexture(tex);                           // (and destroyBuffer)
 var smp = device.createSampler({filter: Linear, wrap: Repeat});
 var pipeline = device.createPipeline(CubeShader.pipeline({
-	cull: Back, depthCompare: Less, depthWrite: true, blend: Opaque // or Alpha, Additive, Premultiplied
+	cull: Back, depthCompare: Less, depthWrite: true, blend: Opaque // or Alpha, Additive, Premultiplied, Multiply (dst * src: a tint)
 }));
 
 var enc = device.beginFrame();                        // null: no frame now (a hidden window)
@@ -111,7 +111,9 @@ Textures: `TextureFormat` has the formats every back end has: `RGBA8`,
 `RGBA16F` (half floats), `R32F` and the depth formats `Depth16` and
 `Depth32F`; data is `format.texelSize` bytes a texel. R32F and depth
 textures are not filterable everywhere: they are read through a sampler of
-`Nearest` filters and have no generated mip levels.
+`Nearest` filters and have no generated mip levels. `Device.textureBytes`
+counts the bytes of the textures alive (their levels and samples, as
+their formats store them): the GPU memory a scene's textures take.
 
 Mip maps: `mipLevels` levels (0: all of them, down to 1x1), each written
 with `writeTexture`'s level or generated from the first (GL's
@@ -163,7 +165,8 @@ implements `Shaders`, on the math types (`Vec2`, `Vec3`, `Vec4`, `Mat4`,
 swizzles, operators, `ShaderMath`'s builtins), `@:structInit` classes of
 them and `Texture2D` parameters (`sample(t, uv)`: in the fragment stage at
 the mip level the fragment's footprint needs, in the vertex stage the
-first; `sampleLevel(t, uv, level)` at a given one). They run on the CPU as they are; a macro
+first; `sampleLevel(t, uv, level)` at a given one; `discard()`, a statement
+of the fragment stage, drops the fragment: alpha testing). They run on the CPU as they are; a macro
 compiles the `@:vertex` and `@:fragment` stages to GLSL ES 3.00, WGSL, MSL
 and HLSL (the target's only), with the vertex layout, the uniform blocks'
 layout, the slots and the CPU writers:

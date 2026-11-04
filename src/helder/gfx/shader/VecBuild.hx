@@ -132,6 +132,14 @@ class VecBuild {
 		add("mat4", [["c0", "Vec4"], ["c1", "Vec4"], ["c2", "Vec4"], ["c3", "Vec4"]], "Mat4", "new Mat4(c0, c1, c2, c3)");
 		// (the diagonal: mat4(1) is the identity)
 		add("mat4", [["s", "Float"]], "Mat4", "new Mat4(new Vec4(s, 0, 0, 0), new Vec4(0, s, 0, 0), new Vec4(0, 0, s, 0), new Vec4(0, 0, 0, s))");
+		// (the fragment dropped, a statement of the fragment stage: alpha
+		// testing; on the CPU nothing, the colour returned as the GPU would not)
+		fields.push({
+			name: "discard",
+			access: [APublic, AStatic, AInline],
+			kind: FFun({args: [], ret: macro :Void, expr: macro {}}),
+			pos: Context.currentPos()
+		});
 		return fields;
 	}
 

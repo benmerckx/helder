@@ -2,6 +2,7 @@ package helder.scene.gltf;
 
 import haxe.io.Bytes;
 import helder.gfx.shader.Mat4;
+import helder.gfx.shader.Vec2;
 import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
 import helder.scene.math.Quat;
@@ -182,7 +183,15 @@ class GltfDoc {
 	public var baseColor:Vec4;
 	public var metallic:Float;
 	public var roughness:Float;
-	public var emissive:Vec3;
+	public var emissive:Vec3; // times KHR_materials_emissive_strength's
+	// KHR_texture_transform's (the base colour's, else the first map's)
+	public var uvOffset:Vec2;
+	public var uvRotation:Float;
+	public var uvScale:Vec2;
+	// KHR_materials_clearcoat's factors and KHR_materials_transmission's (0: none)
+	public var clearcoat:Float;
+	public var clearcoatRoughness:Float;
+	public var transmission:Float;
 	public var baseColorTexture:Int; // textures' indices, -1: none
 	public var metallicRoughnessTexture:Int;
 	public var normalTexture:Int;

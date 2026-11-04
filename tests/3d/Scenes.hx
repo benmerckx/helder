@@ -46,8 +46,12 @@ import helder.scene.render.*;
 //          its limb; tinted per node, MeshRenderer.tint, in one instanced
 //          draw) and faceted crystals (Material.crystal, see-through) on
 //          its day and night sides
+//   khrtransform, khrclearcoat  Khronos' TextureTransformTest and
+//          ClearCoatTest (glTF-Sample-Assets: CC0 Microsoft; CC BY 4.0 Ed
+//          Mackey) lit by a prefiltered studio (studio-ibl.png: Poly Haven's
+//          studio_small_09, CC0, examples/gltf-showcase/envbake.py)
 class Scenes {
-	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal"];
+	public static final NAMES = ["gltf", "orbits", "shadows", "physics", "instances", "skin", "overlay", "textured", "packed", "spot", "sky", "lazy", "particles", "normals", "blend", "walker", "packedskin", "packednormals", "cascades", "environment", "morph", "chains", "packedmorph", "bloom", "normalgrid", "gpuparticles", "crystal", "khrtransform", "khrclearcoat"];
 	// whether the last scene has what it draws (a lazy one: once its files loaded)
 	public static var ready:Void->Bool = () -> true;
 	// the last scene's renderer (its statistics: RenderTest)
@@ -578,6 +582,30 @@ class Scenes {
 				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.1, 100));
 				eye.position = new Vec3(0, 1.6, 4.5);
 				eye.lookAt(new Vec3(0, 0.9, 0));
+				enc -> r.draw(enc, world, camera);
+			case "khrtransform" | "khrclearcoat":
+				// (Khronos' glTF sample models, examples/gltf-showcase's: KHR_texture_transform's
+				// test, KHR_materials_clearcoat's; lit by a prefiltered studio, from the front)
+				Images.decode = Images.common;
+				var r = new Renderer(device).use(new NormalMaps(device));
+				var env = Environment.prefiltered(device, "image/png", Asset.embed("studio-ibl.png"), 6);
+				env.intensity = 6.055;
+				env.background = false;
+				r.use(env);
+				r.sunColor = new Vec3(0, 0, 0);
+				// (dark: the tests' check that something was drawn looks for a dark corner)
+				r.clearColor = new Color(0.02, 0.02, 0.025, 1);
+				renderer = r;
+				var world = new World();
+				if (name == "khrtransform") Model.of("TextureTransformTest.glb").instantiate(world, device) else Model.of("ClearCoatTest.glb").instantiate(world, device);
+				var b = helder.scene.math.Aabb.empty(), meshes = world.store(MeshRenderer.KIND);
+				for (k in 0...meshes.length)
+					b = b.union(meshes.valueAt(k).bounds.transform(meshes.nodeAt(k).worldMatrix()));
+				var c = (b.min + b.max) * 0.5, d = b.max - b.min, t = Math.tan(0.4);
+				var eye = world.node("eye");
+				var camera = Camera.attach(eye, Camera.perspective(0.8, 0.01, 100));
+				eye.position = c + new Vec3(0, 0, Math.max(d.x * 0.5 / (t * 256 / 192), d.y * 0.5 / t) * 1.1 + d.z * 0.5);
+				eye.lookAt(c);
 				enc -> r.draw(enc, world, camera);
 			case n: throw 'Scenes: no scene $n';
 		}

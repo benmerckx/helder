@@ -1,0 +1,47 @@
+{
+	"description": [
+		"Khronos' glTF sample models, the scenes other engines show theirs with, fetched from KhronosGroup/glTF-Sample-Assets (examples/gltf-showcase/fetch.mjs, at a pinned commit; not in the repository) and loaded at run time by helder.scene's glTF reader: DamagedHelmet, FlightHelmet, SciFiHelmet and MetalRoughSpheres, and the tests of the extensions helder implements, KHR_texture_transform, KHR_materials_emissive_strength, KHR_materials_clearcoat and KHR_materials_transmission (a thin surface: what is behind shows through, untinted).",
+		"Lit by three prefiltered environments (Environment.prefiltered: Poly Haven's CC0 panoramas filtered once by envbake.py into GGX rows and the irradiance), drawn in HDR into half floats, then bloom and ACES (PostProcess). Drag to orbit, pinch or scroll to zoom. The example's README compares each model with the Khronos sample viewer's render."
+	],
+	"numbers": [
+		"DamagedHelmet",
+		"FlightHelmet",
+		"SciFiHelmet"
+	],
+	"devices": [
+		{
+			"device": "A phone (to be measured)",
+			"firstFrameMs": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		},
+		{
+			"device": "A desktop GPU (to be measured)",
+			"firstFrameMs": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		}
+	],
+	"compare": [
+		{
+			"what": "three.js r170, webgl_loader_gltf (DamagedHelmet, as here)",
+			"url": "https://threejs.org/examples/#webgl_loader_gltf",
+			"downloadMB": "6.9",
+			"note": "three.module.js 1.31 MB as the example loads it (0.69 MB minified, 0.17 MB gzipped), OrbitControls, GLTFLoader, RGBELoader and BufferGeometryUtils 0.19 MB, royal_esplanade_1k.hdr 1.67 MB, the model as .gltf, .bin and five JPEGs 3.78 MB (measured from the r170 tag's files)."
+		}
+	],
+	"credits": [
+		"DamagedHelmet: CC BY 4.0 ctxwing (rebuild and glTF), after theblueturtle_ (CC BY-NC 4.0)",
+		"FlightHelmet: CC0 Gary Hsu",
+		"SciFiHelmet: CC0 Michael Pavlovic, Norbert Nopper",
+		"MetalRoughSpheres, EmissiveStrengthTest, ClearCoatTest: CC BY 4.0 Ed Mackey",
+		"TextureTransformTest: CC0 Microsoft",
+		"TransmissionTest: CC0 Adobe",
+		"Panoramas: Poly Haven (studio_small_09, venice_sunset, kloofendal_48d_partly_cloudy_puresky), CC0",
+		"Models from KhronosGroup/glTF-Sample-Assets; each one's licence and credits in its metadata.json, fetched beside it"
+	]
+}

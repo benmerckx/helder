@@ -312,11 +312,12 @@ class MetalBackend {
 		var blend:Blend = d.blend == null ? Opaque : d.blend;
 		if (blend != Opaque) {
 			Msg.vBool(color, ObjC.sel("setBlendingEnabled:"), true);
-			Msg.vInt(color, ObjC.sel("setSourceRGBBlendFactor:"), blend == Premultiplied ? MTL.BlendFactorOne : MTL.BlendFactorSourceAlpha);
-			Msg.vInt(color, ObjC.sel("setDestinationRGBBlendFactor:"), blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
+			var multiply = blend == Multiply;
+			Msg.vInt(color, ObjC.sel("setSourceRGBBlendFactor:"), multiply ? MTL.BlendFactorDestinationColor : blend == Premultiplied ? MTL.BlendFactorOne : MTL.BlendFactorSourceAlpha);
+			Msg.vInt(color, ObjC.sel("setDestinationRGBBlendFactor:"), multiply ? MTL.BlendFactorZero : blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
 			Msg.vInt(color, ObjC.sel("setRgbBlendOperation:"), MTL.BlendOperationAdd);
-			Msg.vInt(color, ObjC.sel("setSourceAlphaBlendFactor:"), MTL.BlendFactorOne);
-			Msg.vInt(color, ObjC.sel("setDestinationAlphaBlendFactor:"), blend == Additive ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
+			Msg.vInt(color, ObjC.sel("setSourceAlphaBlendFactor:"), multiply ? MTL.BlendFactorZero : MTL.BlendFactorOne);
+			Msg.vInt(color, ObjC.sel("setDestinationAlphaBlendFactor:"), blend == Additive || multiply ? MTL.BlendFactorOne : MTL.BlendFactorOneMinusSourceAlpha);
 			Msg.vInt(color, ObjC.sel("setAlphaBlendOperation:"), MTL.BlendOperationAdd);
 		}
 		Msg.vInt(desc, ObjC.sel("setDepthAttachmentPixelFormat:"), d.depthFormat != null ? pixelFormat(d.depthFormat) : d.colorFormat == null ? MTL.PixelFormatDepth32Float : MTL.PixelFormatInvalid);

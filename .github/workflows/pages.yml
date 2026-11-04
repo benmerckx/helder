@@ -1,7 +1,8 @@
 # The examples' page (site/, bun run site) on GitHub Pages: on pushes to
 # main, bin/site built (each example that runs in a browser built for the
 # web, golf's APK for Android, the page's TSX built and run), checked in headless Chromium (bun run
-# site:check: every card, every demo played), then deployed as the Pages
+# site:check: every card, every demo played), the demos' numbers measured
+# (bun run site:numbers), then deployed as the Pages
 # artifact (the repository's Pages source: GitHub Actions).
 name: pages
 
@@ -51,6 +52,11 @@ jobs:
           bun add --no-save playwright@1.56.1
           bunx playwright install --with-deps chromium > /dev/null
           bun run site:check
+      - name: Numbers (the demos' pages: headless, software rendering)
+        # (bin/site/numbers.json, which the demos' pages read; without it
+        # their CI cells read "–")
+        continue-on-error: true
+        run: bun run site:numbers
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

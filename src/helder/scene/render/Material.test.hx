@@ -14,8 +14,9 @@ import helder.test.Test;
 // the sphere under it and the sky it no longer reflects below its
 // horizon, Material.air towards the limb, Material.crystal's Fresnel and
 // see-through middle, a node's tint (MeshRenderer.tint), a double-sided
-// face seen from behind. The renderer drawing them: the 3d lane's
-// "crystal" frame (tests/3d/Scenes.hx).
+// face seen from behind; glTF's uv transform, clear coat and transmission.
+// The renderer drawing them: the 3d lane's "crystal", "khrtransform" and
+// "khrclearcoat" frames (tests/3d/Scenes.hx).
 function tests() {
 	describe("Material options in PbrShader", () -> {
 		final white = new Texture2D(1, 1, Bytes.ofHex("ffffffff"));
@@ -31,10 +32,7 @@ function tests() {
 			};
 		}
 		function material(m:Material):PbrMaterial
-			return {
-				baseColor: m.baseColor, params: new Vec4(m.metallic, m.roughness, m.normalScale, m.doubleSided ? 1 : 0),
-				emissive: new Vec4(m.emissive.x, m.emissive.y, m.emissive.z, m.emissiveNight), ground: new Vec4(m.ground, m.air.w, m.crystal, 0), air: m.air
-			};
+			return PbrShader.materialOf(m);
 		// the colour at the origin, its normal n, the node's up, tinted
 		function shade(m:Material, n:Vec3, up:Vec3, l:Vec3, eye:Vec3, ?tint:Vec3):Vec4
 			return PbrShader.shadeAt(n, new Vec3(0, 0, 0), new Vec2(0, 0), up, tint ?? new Vec3(1, 1, 1), frame(l, eye), material(m), white, white, white,
@@ -89,6 +87,35 @@ function tests() {
 			var m = new Material("wall", new Vec4(0.5, 0.5, 0.5, 1), 0, 1);
 			var plain = shade(m, sunny(), sunny(), sunny(), above()), red = shade(m, sunny(), sunny(), sunny(), above(), new Vec3(1.5, 0.5, 0.5));
 			assert(red.x > plain.x && red.y < plain.y, 'tinted: $red against $plain');
+		});
+
+		test("uv transform: KHR_texture_transform's offset, rotation and scale", () -> {
+			var m = new Material("t");
+			m.uvOffset = new Vec2(0.5, 0.25);
+			m.uvRotation = Math.PI / 2;
+			m.uvScale = new Vec2(2, 3);
+			// (glTF's: translation * rotation * scale; u' = cos sx u + sin sy v + ox, v' = -sin sx u + cos sy v + oy)
+			var uv = PbrShader.uvOf(material(m), new Vec2(1, 1));
+			approx(uv.x, 3.5, 1e-6);
+			approx(uv.y, -1.75, 1e-6);
+		});
+
+		test("clear coat: a sharp reflection over a rough base", () -> {
+			var m = new Material("paint", new Vec4(0.6, 0.1, 0.1, 1), 0, 0.9);
+			var n = new Vec3(0, 0, 1), l = new Vec3(0, 0.6, 0.8), mirror = new Vec3(0, -3, 4);
+			var bare = shade(m, n, sunny(), l, mirror);
+			m.clearcoat = 1;
+			m.clearcoatRoughness = 0.05;
+			assert(sum(shade(m, n, sunny(), l, mirror)) > sum(bare) * 2, "the coat's highlight");
+		});
+
+		test("transmission: the diffuse light let through, alpha the share not", () -> {
+			var m = new Material("glass", new Vec4(0.9, 0.9, 0.2, 1), 0, 0.1);
+			var solid = shade(m, sunny(), sunny(), sunny(), above());
+			m.transmission = 1;
+			var glass = shade(m, sunny(), sunny(), sunny(), above());
+			approx(glass.w, 0, 1e-6, "see-through");
+			assert(sum(glass) < sum(solid), "its diffuse light gone");
 		});
 
 		test("double-sided: a face seen from behind lit as its front turned to the eye", () -> {

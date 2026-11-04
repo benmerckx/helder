@@ -184,6 +184,7 @@ class D3D {
 	public static inline var BLEND_ONE = 2;
 	public static inline var BLEND_SRC_ALPHA = 5;
 	public static inline var BLEND_INV_SRC_ALPHA = 6;
+	public static inline var BLEND_DEST_COLOR = 9;
 	public static inline var BLEND_OP_ADD = 1;
 	// D3D_PRIMITIVE_TOPOLOGY
 	public static inline var TOPOLOGY_POINTLIST = 1;

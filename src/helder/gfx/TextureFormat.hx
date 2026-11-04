@@ -39,6 +39,10 @@ enum abstract TextureFormat(Int) {
 			case _: 4;
 		}
 
+	// the bytes of a level of width x height texels
+	public inline function levelBytes(width:Int, height:Int):Int
+		return width * height * texelSize;
+
 	inline function get_depth():Bool
 		return this >= (cast Depth16 : Int);
 

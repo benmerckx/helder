@@ -49,6 +49,7 @@ class GL {
 	public static inline var ONE = 1;
 	public static inline var SRC_ALPHA = 0x0302;
 	public static inline var ONE_MINUS_SRC_ALPHA = 0x0303;
+	public static inline var DST_COLOR = 0x0306;
 	public static inline var NEVER = 0x0200; // LESS, EQUAL, LEQUAL, GREATER, NOTEQUAL, GEQUAL, ALWAYS: + 1 to + 7
 	public static inline var TEXTURE_2D = 0x0DE1;
 	public static inline var TEXTURE0 = 0x84C0;

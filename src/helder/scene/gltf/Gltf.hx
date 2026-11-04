@@ -1,6 +1,7 @@
 package helder.scene.gltf;
 
 import haxe.io.Bytes;
+import helder.gfx.shader.Vec2;
 import helder.gfx.shader.Vec3;
 import helder.gfx.shader.Vec4;
 import helder.scene.gltf.GltfDoc;
@@ -142,12 +143,27 @@ class Gltf {
 				return t == null ? -1 : index(t, "index", doc.textures.length, what, false);
 			}
 			var bc = floats(pbr, "baseColorFactor"), em = floats(m, "emissiveFactor");
+			var ext = obj(m, "extensions");
+			// (KHR_texture_transform: the base colour's, else the first map's that has one)
+			var transform:Dynamic = null;
+			for (t in [obj(pbr, "baseColorTexture"), obj(pbr, "metallicRoughnessTexture"), obj(m, "normalTexture"), obj(m, "occlusionTexture"), obj(m, "emissiveTexture")])
+				if (transform == null && t != null) transform = obj(obj(t, "extensions"), "KHR_texture_transform");
+			var offset = floats(transform, "offset"), scale = floats(transform, "scale");
+			// (KHR_materials_emissive_strength: the factor times it)
+			var strength = num(obj(ext, "KHR_materials_emissive_strength"), "emissiveStrength", 1);
+			var coat = obj(ext, "KHR_materials_clearcoat"), transmission = obj(ext, "KHR_materials_transmission");
 			doc.materials.push({
 				name: str(m, "name", ""),
 				baseColor: bc != null && bc.length == 4 ? new Vec4(bc[0], bc[1], bc[2], bc[3]) : new Vec4(1, 1, 1, 1),
 				metallic: num(pbr, "metallicFactor", 1),
 				roughness: num(pbr, "roughnessFactor", 1),
-				emissive: em != null && em.length == 3 ? new Vec3(em[0], em[1], em[2]) : new Vec3(0, 0, 0),
+				emissive: em != null && em.length == 3 ? new Vec3(em[0] * strength, em[1] * strength, em[2] * strength) : new Vec3(0, 0, 0),
+				uvOffset: offset != null && offset.length == 2 ? new Vec2(offset[0], offset[1]) : new Vec2(0, 0),
+				uvRotation: num(transform, "rotation", 0),
+				uvScale: scale != null && scale.length == 2 ? new Vec2(scale[0], scale[1]) : new Vec2(1, 1),
+				clearcoat: num(coat, "clearcoatFactor", 0),
+				clearcoatRoughness: num(coat, "clearcoatRoughnessFactor", 0),
+				transmission: num(transmission, "transmissionFactor", 0),
 				baseColorTexture: tex(pbr, "baseColorTexture"),
 				metallicRoughnessTexture: tex(pbr, "metallicRoughnessTexture"),
 				normalTexture: tex(m, "normalTexture"),

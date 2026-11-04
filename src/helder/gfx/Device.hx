@@ -50,9 +50,26 @@ final class Device {
 		impl.writeBuffer(b.id(), offset, data, dataOffset, size);
 	}
 
+	// the bytes of the textures alive: their levels' and samples', as their
+	// formats store them (the GPU's own padding and alignment aside)
+	public var textureBytes(default, null) = 0.0;
+
+	final textureSizes = new Map<Int, Float>();
+
 	// (checked by the back end: TextureInfo.of)
-	public function createTexture(d:TextureDesc):Texture
-		return new Texture(impl.createTexture(d));
+	public function createTexture(d:TextureDesc):Texture {
+		var t = new Texture(impl.createTexture(d));
+		var format:TextureFormat = d.format == null ? RGBA8 : d.format;
+		var levels = d.mipLevels == null ? 1 : d.mipLevels, bytes = 0.0, l = 0;
+		while (levels == 0 ? (d.width | d.height) >> l != 0 : l < levels) {
+			bytes += format.levelBytes(d.width >> l > 0 ? d.width >> l : 1, d.height >> l > 0 ? d.height >> l : 1);
+			l++;
+		}
+		bytes *= d.samples == null ? 1 : d.samples;
+		textureSizes.set(t.id(), bytes);
+		textureBytes += bytes;
+		return t;
+	}
 
 	// texels into the texture's mip level (default 0), rows top to bottom:
 	// all of them (its width * height * texelSize bytes), or the region w x h
@@ -88,8 +105,14 @@ final class Device {
 	public function destroyBuffer(b:Buffer)
 		impl.destroyBuffer(b.id());
 
-	public function destroyTexture(t:Texture)
+	public function destroyTexture(t:Texture) {
+		var bytes = textureSizes.get(t.id());
+		if (bytes != null) {
+			textureBytes -= bytes;
+			textureSizes.remove(t.id());
+		}
 		impl.destroyTexture(t.id());
+	}
 
 	public function createSampler(d:SamplerDesc):Sampler
 		return new Sampler(impl.createSampler(d));

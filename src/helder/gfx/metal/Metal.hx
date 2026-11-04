@@ -45,6 +45,8 @@ class MTL {
 	public static inline var BlendFactorOne = 1;
 	public static inline var BlendFactorSourceAlpha = 4;
 	public static inline var BlendFactorOneMinusSourceAlpha = 5;
+	public static inline var BlendFactorZero = 0;
+	public static inline var BlendFactorDestinationColor = 6;
 	public static inline var BlendOperationAdd = 0;
 	// MTLLoadAction, MTLStoreAction
 	public static inline var LoadActionDontCare = 0;
