@@ -42,7 +42,7 @@ function tests() {
 			"6:8:1024@100 1:4:120@200 2:5:152@200 2:6:167@200 1:4:180@300");
 		for (r in images) {
 			equals(r.format, "BGRA");
-			equals(r.flags, 0x8);
+			equals([r.flags, r.celm], [0, 2]);
 			equals([r.compression, r.key.get(17), r.key.get(1), r.key.get(2)], [0, 6849, 85, 220]);
 			var row = (r.width * 4 + 31) & ~31;
 			equals(r.tlvs.get(0x3ef).getInt32(0), row);

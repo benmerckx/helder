@@ -631,7 +631,7 @@ class PackCheck {
 		var images = [for (r in c.renditions) if (r.layout == 12) '${r.key.get(15)}:${r.width}'];
 		images.sort(Reflect.compare);
 		check("Assets.car: 120, 180 (iPhone), 152, 167 (iPad), 1024 (marketing)", images.join(" ") == "1:120 1:180 2:152 2:167 6:1024", images.join(" "));
-		check("Assets.car: opaque, flagged so (no alpha: the App Store's icon)", Lambda.foreach(c.renditions, r -> r.pixels == null || r.pixels.get(3) == 255 && r.flags & 0x8 != 0));
+		check("Assets.car: opaque, flagged so (no alpha: the App Store's icon)", Lambda.foreach(c.renditions, r -> r.pixels == null || r.pixels.get(3) == 255 && r.celm & 2 != 0));
 		check("Assets.car: iOS, the deployment target", c.platform == "ios" && c.deployment == min, c.platform + " " + c.deployment);
 		var ref = helder.pack.ios.AssetCatalog.read(File.getBytes("tests/pack/reference/Assets.car"));
 		check("Assets.car: actool's blocks (and iOS's APPEARANCEKEYS)", [for (n in ref.blocks) if (!c.blocks.contains(n)) n].length == 0
