@@ -3,7 +3,7 @@ package helder.pack.ios;
 import haxe.io.Bytes;
 
 // Property lists in Apple's XML form (Info.plist, CodeResources,
-// entitlements), written with their dictionaries' keys sorted as
+// entitlements, a provisioning profile's), written with their dictionaries' keys sorted as
 // CoreFoundation writes them, so the same values give the same bytes; and
 // read back (the checks: tests/pack).
 // Ported from hxmc (hxmc.ios.Plist), MIT.
@@ -12,6 +12,8 @@ enum PValue {
 	PBool(b:Bool);
 	PInt(i:Int);
 	PData(b:Bytes);
+	// (an ISO 8601 date as written: 2026-01-01T00:00:00Z)
+	PDate(iso:String);
 	PArray(a:Array<PValue>);
 	PDict(d:Map<String, PValue>);
 }
@@ -36,6 +38,8 @@ class Plist {
 				b.add(tab + (x ? "<true/>" : "<false/>") + "\n");
 			case PInt(i):
 				b.add(tab + "<integer>" + i + "</integer>\n");
+			case PDate(d):
+				b.add(tab + "<date>" + d + "</date>\n");
 			case PData(d):
 				b.add(tab + "<data>\n" + tab + haxe.crypto.Base64.encode(d) + "\n" + tab + "</data>\n");
 			case PArray(a):
@@ -84,6 +88,7 @@ class Plist {
 			case "true": PBool(true);
 			case "false": PBool(false);
 			case "integer": PInt(Std.parseInt(StringTools.trim(text(e))));
+			case "date": PDate(StringTools.trim(text(e)));
 			case "data": PData(haxe.crypto.Base64.decode(~/\s+/g.replace(text(e), "")));
 			case "array": PArray([for (c in e.elements()) read(c)]);
 			case "dict":

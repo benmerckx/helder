@@ -44,7 +44,7 @@ class Run {
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
 		{name: "asset", about: "helder.asset: the paths Asset's macros reject (tests/asset/reject), then `helder build tests/asset/Checksum.hx` for this machine (its files in the executable: run alone in an empty directory, their sizes and CRC-32s) and for the web (exactly the referenced files beside the page, the module run under node reading them); Android's and iOS's bundles are the pack lane's", run: assetLane},
-		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
+		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots; Assets.car against Apple actool's structure; an .ipa signed for distribution with tests/pack/signing's throwaway identity, RSA and P-256, its CMS verified by openssl); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "typescript", about: "helder.typescript (TypeScript through tsgo straight to hxmc IR): the IR checks, then every program of tests/typescript compiled by tsc and run on node, and by helder's compiler (helder.compiler, with this frontend) natively and as wasm32-wasi, the outputs compared; the programs it must reject", run: () -> run(NODE, ["tests/typescript/run.mjs"])},
 		{name: "examples", about: "every example (Haxe, TypeScript) built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too; then the golf example's recorded rounds replayed natively and as wasm32-wasi (examples/golf/GolfReplay.hx)", run: examples},
@@ -376,6 +376,28 @@ class Run {
 			run(h, ["build", "tests/pack/Screen.hx", "--target", "ios-sim", "-o", "bin/pack/Screen.app"], env);
 			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios-sim", "-o", "bin/pack/Checksum.app"], env);
 			run(h, ["build", "tests/asset/Checksum.hx", "--target", "ios", "-o", "bin/pack/Checksum.ipa"], env);
+			// (signed for distribution, tests/pack/signing's throwaway CA: the
+			// project with an RSA key, its files' paths; Hello with a P-256
+			// key, the PEM's text and the profile's base64 in the variables)
+			var signing = FileSystem.fullPath("tests/pack/signing");
+			var rsa = ["HELDER_IOS_CERTIFICATE" => '$signing/cert.pem', "HELDER_IOS_KEY" => '$signing/key.pem', "HELDER_IOS_PROFILE" => '$signing/test.mobileprovision'];
+			var ec = [
+				"HELDER_IOS_CERTIFICATE" => File.getContent('$signing/cert-ec.pem'),
+				"HELDER_IOS_KEY" => File.getContent('$signing/key-ec.pem'),
+				"HELDER_IOS_PROFILE" => haxe.crypto.Base64.encode(File.getBytes('$signing/test.mobileprovision'))
+			];
+			for (k => v in env) {
+				rsa.set(k, v);
+				ec.set(k, v);
+			}
+			run(h, ["build", "bin/pack/project", "--target", "ios", "-o", "bin/pack/Packed-signed.ipa"], rsa);
+			run(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Hello-signed.ipa"], ec);
+			var partial = [for (k => v in env) k => v];
+			partial.set("HELDER_IOS_KEY", '$signing/key.pem');
+			expect(h, ["build", "tests/pack/Hello.hx", "--target", "ios", "-o", "bin/pack/Unsigned.ipa"], partial,
+				"signing for the App Store takes a certificate, its key and a provisioning profile: HELDER_IOS_CERTIFICATE", 1);
+			checks = checks.concat(["bin/pack/Packed-signed.ipa@org.helder.packcheck@signed@encryption@entitlements@landscape@fullscreen@icons",
+				"bin/pack/Hello-signed.ipa@org.helder.Hello@signed"]);
 			checks = checks.concat(["bin/pack/Hello.ipa@org.helder.Hello", "bin/pack/Hello.app", "bin/pack/project/bin/ios-sim/Packed.app@org.helder.packcheck@entitlements@landscape@fullscreen@icons", "bin/pack/Screen.app@org.helder.Screen",
 				'bin/pack/Checksum.app@org.helder.Checksum@$ASSETS', 'bin/pack/Checksum.ipa@org.helder.Checksum@$ASSETS']);
 		}

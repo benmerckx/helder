@@ -4,6 +4,7 @@ import haxe.io.Bytes;
 import helder.image.PngDecoder;
 import helder.image.PngEncoder;
 import helder.pack.android.Arsc;
+import helder.pack.ios.Plist;
 import helder.test.Test;
 
 // An app's identity from package.json's "helder" key (App): the defaults,
@@ -63,6 +64,10 @@ function tests() {
 			versionName: "1.0",
 			minVersion: "15.0",
 			entitlements: null,
+			signing: null,
+			sdk: null,
+			nonExemptEncryption: null,
+			privacy: null,
 			orientation: "any",
 			fullscreen: false
 		});
@@ -124,6 +129,20 @@ function tests() {
 		});
 		equals([i.id, i.label, i.version, i.versionName, i.minVersion, i.orientation, Std.string(i.fullscreen)],
 			["org.example.game-ios", "Expansion", "7", "1.2", "16.0", "landscape", "true"]);
+		var signed = App.ios("x", Manifest.parse(haxe.Json.stringify({
+			helder: {
+				ios: {
+					signing: {certificate: "dist.pem", key: "dist.key", profile: "app.mobileprovision"},
+					sdk: {version: "26.1", xcode: "2610"},
+					nonExemptEncryption: false,
+					privacy: {NSPrivacyAccessedAPICategoryUserDefaults: ["CA92.1"]}
+				}
+			}
+		})));
+		equals([signed.signing.certificate, signed.signing.key, signed.signing.profile], ["dist.pem", "dist.key", "app.mobileprovision"]);
+		equals([signed.sdk.version, signed.sdk.xcode], ["26.1", "2610"]);
+		equals(signed.nonExemptEncryption, false);
+		equals(Reflect.field(signed.privacy, "NSPrivacyAccessedAPICategoryUserDefaults"), ["CA92.1"]);
 		equals(App.defines(m), ["-D", "helder.fullscreen"]);
 		equals([m.theme, m.background, m.splash.background, m.splash.darkBackground], [0xFF3ED6C3, 0xFF060912, 0xFF060912, 0xFF000000]);
 		equals(m.icons[1].sizes, [512, 1024]);
@@ -165,6 +184,25 @@ function tests() {
 		equals(error({helder: {android: {minSdk: 26}}}), "helder.webmanifest: \"helder\": {\"android\": {\"minSdk\": 26}}: 29 is the lowest (Android 10: Bionic's ELF TLS)");
 		equals(error({helder: {ios: {bundleId: "a_b.c"}}}), "helder.webmanifest: \"helder\": {\"ios\": {\"bundleId\": \"a_b.c\"}} is not a bundle id (a.b.c: letters, digits, -)");
 		equals(error({helder: {splash: {dark: {image: 1}}}}), "helder.webmanifest: \"helder\": {\"splash\": {\"dark\": {\"image\"}}}: a string, not 1");
+		equals(error({helder: {ios: {signing: {cert: "a.pem"}}}}), "helder.webmanifest: \"helder\": {\"ios\": {\"signing\"}}: no member \"cert\" (certificate, key, profile)");
+		equals(error({helder: {ios: {sdk: {version: "26"}}}}), "helder.webmanifest: \"helder\": {\"ios\": {\"sdk\": {\"version\": \"26\"}}}: a version (26.0)");
+		equals(error({helder: {ios: {nonExemptEncryption: "no"}}}), "helder.webmanifest: \"helder\": {\"ios\": {\"nonExemptEncryption\"}}: true or false");
+		equals(error({helder: {ios: {privacy: {NSPrivacyAccessedAPICategoryUserDefaults: "CA92.1"}}}}),
+			"helder.webmanifest: \"helder\": {\"ios\": {\"privacy\": {\"NSPrivacyAccessedAPICategoryUserDefaults\"}}}: an array of reasons (strings: \"CA92.1\")");
+	});
+	test("iOS distribution: PrivacyInfo's API reasons, the signing settings' mistakes", () -> {
+		var exe = haxe.io.Bytes.ofString("\x00_write\x00_stat\x00_mach_absolute_time\x00_stat_not\x00");
+		var p = Std.string(helder.pack.ios.Plist.parse(Ios.privacyInfo({NSPrivacyAccessedAPICategoryUserDefaults: ["CA92.1"]}, exe).toString()));
+		for (c in ["FileTimestamp", "SystemBootTime", "UserDefaults"]) assert(p.indexOf("NSPrivacyAccessedAPICategory" + c) >= 0, c);
+		assert(p.indexOf("DiskSpace") < 0 && p.indexOf("C617.1") >= 0 && p.indexOf("35F9.1") >= 0);
+		var o = App.ios("x", null);
+		equals(Ios.signing(o, ".", _ -> null), null);
+		var env = ["HELDER_IOS_KEY" => "key.pem"];
+		equals(Std.string(throws(() -> Ios.signing(o, ".", k -> env.get(k)))),
+			'signing for the App Store takes a certificate, its key and a provisioning profile: HELDER_IOS_CERTIFICATE (or "helder": {"ios": {"signing": {"certificate"}}}), HELDER_IOS_PROFILE (or "helder": {"ios": {"signing": {"profile"}}}) not given');
+		var all = ["HELDER_IOS_CERTIFICATE" => "missing.pem", "HELDER_IOS_KEY" => "missing.key", "HELDER_IOS_PROFILE" => "missing.mobileprovision"];
+		equals(Std.string(throws(() -> Ios.signing(o, ".", k -> all.get(k)))), "HELDER_IOS_CERTIFICATE: missing.pem: no such file (nor PEM text)");
+		equals(Ios.dtKeys(App.ios("x", {ios: {sdk: {version: "26.1"}}})).get("DTSDKName"), PString("iphoneos26.1"));
 	});
 	test("package.json's \"helder\" key: the fallback, deprecated when it holds the identity", () -> {
 		equals(Manifest.legacy({id: "org.example.game"}), true);

@@ -39,6 +39,15 @@ using StringTools;
 //   file: a CodeDirectory, ad hoc, identified by the bundle id, its page
 //   hashes recomputed, its special slots the hashes of Info.plist (1), the
 //   requirements (2), CodeResources (3) and the entitlements (5) when signed;
+// - an iPhone's (an .ipa): Xcode's DT* keys, PrivacyInfo.xcprivacy;
+// - @signed (a distribution signature, tests/pack/signing's identity): the
+//   CodeDirectory not ad hoc, its team, the build version's SDK, the DER
+//   entitlements (the XML's), the profile's application-identifier and
+//   get-task-allow, embedded.mobileprovision, the designated requirement,
+//   the CMS verified by openssl cms -verify over the CodeDirectory against
+//   the test CA, Apple's attributes in it; CodeResources sealing
+//   Assets.car, the profile and PrivacyInfo.xcprivacy; @encryption:
+//   ITSAppUsesNonExemptEncryption false;
 // - the assets (both; @assets=<dir>:<key>,<key>... names them, else none):
 //   exactly those under assets/ (an APK's stored and 4-byte aligned), each
 //   the bytes of <dir>/<key>; a bundle's CodeResources has their SHA-1
@@ -51,14 +60,19 @@ using StringTools;
 //   adaptive icon (its 432 px foreground, its background), the activity's
 //   theme Theme.Helder (the splash's colour, windowBackground and
 //   windowSplashScreenBackground; theme_color statusBarColor and
-//   navigationBarColor); a bundle's AppIcon PNGs at their sizes,
-//   opaque, in CFBundleIcons, the launch image (UILaunchScreen's
-//   UIImageName), all in CodeResources.
+//   navigationBarColor); a bundle's Assets.car (AssetCatalog.read: the
+//   icon's five renditions, opaque, the deployment target; its structure
+//   against Apple actool's, tests/pack/reference/Assets.car; xcrun
+//   assetutil --info on a Mac) and loose AppIcon PNGs, CFBundleIcons'
+//   CFBundleIconName, the launch image (UILaunchScreen's UIImageName), all
+//   in CodeResources.
 // Exits non-zero on a failure; a missing tool is a line saying so.
 class PackCheck {
 	static var failures = 0;
-	static var want:{id:Null<String>, entitlements:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool, icons:Bool, assets:{dir:String, keys:Array<String>}} = {
+	static var want:{id:Null<String>, entitlements:Bool, signed:Bool, encryption:Bool, views:Null<Bool>, orientation:String, fullscreen:Bool, icons:Bool, assets:{dir:String, keys:Array<String>}} = {
 		icons: false,
+		signed: false,
+		encryption: false,
 		id: null,
 		entitlements: false,
 		views: null,
@@ -105,6 +119,8 @@ class PackCheck {
 				assets: assets,
 				id: parts[1] == "" ? null : parts[1],
 				entitlements: parts.contains("entitlements"),
+				signed: parts.contains("signed"),
+				encryption: parts.contains("encryption"),
 				views: parts.contains("views") ? true : parts.contains("surface") ? false : null,
 				orientation: parts.contains("portrait") ? "portrait" : parts.contains("landscape") ? "landscape" : "any",
 				fullscreen: parts.contains("fullscreen"),
@@ -364,17 +380,23 @@ class PackCheck {
 		names.sort(Reflect.compare);
 		assets([for (k => v in files) if (k.startsWith("assets/")) k.substr(7) => v]);
 		var expected = ["Info.plist", exe, "_CodeSignature/CodeResources"];
-		var art = ["AppIcon60x60@2x.png" => 120, "AppIcon60x60@3x.png" => 180, "AppIcon76x76@2x~ipad.png" => 152, "AppIcon83.5x83.5@2x~ipad.png" => 167];
 		if (want.icons) {
-			for (f => px in art) {
-				var png = files.exists(f) ? helder.image.PngDecoder.decode(files.get(f)) : null;
-				check('bundle: $f, ${px} px, opaque', png != null && png.width == px && png.rgba.get(3) == 255);
-				expected.push(f);
+			for (f in helder.pack.ios.AssetCatalog.LOOSE) {
+				var png = files.exists(f.file) ? helder.image.PngDecoder.decode(files.get(f.file)) : null;
+				check('bundle: ${f.file}, ${f.px} px, opaque', png != null && png.width == f.px && png.rgba.get(3) == 255);
+				expected.push(f.file);
 			}
-			check("Info.plist: CFBundleIcons, ~ipad's", switch [d.get("CFBundleIcons"), d.get("CFBundleIcons~ipad")] {
-				case [PDict(a), PDict(b)]: a.exists("CFBundlePrimaryIcon") && b.exists("CFBundlePrimaryIcon");
+			var primary = (k:String) -> switch d.get(k) {
+				case PDict(a): switch a.get("CFBundlePrimaryIcon") {
+						case PDict(p): Type.enumEq(p.get("CFBundleIconName"), PString("AppIcon")) && p.exists("CFBundleIconFiles");
+						case _: false;
+					}
 				case _: false;
-			});
+			}
+			check("Info.plist: CFBundleIcons, ~ipad's: CFBundleIconName AppIcon", primary("CFBundleIcons") && primary("CFBundleIcons~ipad"));
+			expected.push("Assets.car");
+			if (files.exists("Assets.car")) car(files.get("Assets.car"), min);
+			else check("bundle: Assets.car", false);
 			var launch = switch d.get("UILaunchScreen") {
 				case PDict(l): l.get("UIImageName");
 				case _: null;
@@ -385,6 +407,24 @@ class PackCheck {
 				expected.push(f);
 			}
 		}
+		if (!sim) {
+			expected.push("PrivacyInfo.xcprivacy");
+			var p = files.get("PrivacyInfo.xcprivacy");
+			var priv = p == null ? null : switch (try Plist.parse(p.toString()) catch (_:Dynamic) null) {
+				case PDict(x): x;
+				case _: null;
+			}
+			check("PrivacyInfo.xcprivacy: no tracking, the API types listed", priv != null && Type.enumEq(priv.get("NSPrivacyTracking"), PBool(false))
+				&& priv.exists("NSPrivacyAccessedAPITypes"));
+			for (k in ["DTPlatformVersion", "DTSDKName", "DTXcode", "DTXcodeBuild", "BuildMachineOSBuild", "DTPlatformBuild"])
+				check('Info.plist: $k', str(k) != null, str(k));
+		}
+		if (want.signed) {
+			expected.push("embedded.mobileprovision");
+			check("bundle: embedded.mobileprovision, the profile", files.exists("embedded.mobileprovision")
+				&& files.get("embedded.mobileprovision").compare(File.getBytes("tests/pack/signing/test.mobileprovision")) == 0);
+		}
+		if (want.encryption) check("Info.plist: ITSAppUsesNonExemptEncryption false", Type.enumEq(d.get("ITSAppUsesNonExemptEncryption"), PBool(false)));
 		expected.sort(Reflect.compare);
 		check("bundle: the executable, Info.plist, _CodeSignature/CodeResources", names.join(",") == expected.join(","), names.join(" "));
 		if (ipa) check("ipa: the executable 0755, the rest 0644", modes.get(exe) == 0x1ed && modes.get("Info.plist") == 0x1a4);
@@ -429,6 +469,18 @@ class PackCheck {
 		}
 		if (want.fullscreen) built(bin);
 		macho(bin, id, sim, min, info, res);
+		if (sealed != null)
+			for (f in ["Assets.car", "embedded.mobileprovision", "PrivacyInfo.xcprivacy"])
+				if (files.exists(f)) check('CodeResources: $f\'s SHA-256', switch sealed.files2 {
+					case PDict(x): switch x.get(f) {
+							case PDict(e): switch e.get("hash2") {
+									case PData(h): h.toHex() == haxe.crypto.Sha256.make(files.get(f)).toHex();
+									case _: false;
+								}
+							case _: false;
+						}
+					case _: false;
+				});
 		if (!ipa && Sys.systemName() == "Mac") {
 			var r = exec("codesign", ["--verify", "--strict", "--verbose=2", path]);
 			check("codesign --verify --strict", r.code == 0, r.out.trim().split("\n").join("; "));
@@ -507,7 +559,8 @@ class PackCheck {
 		if (cd == null || req == null) return;
 		var flags = be32(b, cd + 12), hashOff = be32(b, cd + 16), identOff = be32(b, cd + 20), nSpecial = be32(b, cd + 24), nCode = be32(b, cd + 28),
 			codeLimit = be32(b, cd + 32);
-		check("CodeDirectory: ad hoc, not linker-signed", flags & 0x2 != 0 && flags & 0x20000 == 0, StringTools.hex(flags));
+		if (want.signed) check("CodeDirectory: not ad hoc (a certificate's)", flags == 0, StringTools.hex(flags));
+		else check("CodeDirectory: ad hoc, not linker-signed", flags & 0x2 != 0 && flags & 0x20000 == 0, StringTools.hex(flags));
 		check("CodeDirectory: identified by the bundle id", cstr(b, cd + identOff, 256) == id, cstr(b, cd + identOff, 256));
 		check("CodeDirectory: SHA-256 of 4 KB pages up to the signature", b.get(cd + 36) == 32 && b.get(cd + 37) == 2 && b.get(cd + 39) == 12
 			&& codeLimit == sigOff && nCode == (codeLimit + 4095) >> 12);
@@ -524,5 +577,88 @@ class PackCheck {
 		var ent = blobs.get(5);
 		if (want.entitlements) check("signature: the entitlements (slot 5)", ent != null && be32(b, ent) == 0xfade7171);
 		if (ent != null) check("CodeDirectory: slot 5, the entitlements' hash", slot(5) == haxe.crypto.Sha256.make(b.sub(ent, be32(b, ent + 4))).toHex());
+		if (want.signed) signed(b, cd, blobs, slot, sigOff + sigSize);
+	}
+
+	// a distribution signature: the build version's SDK, the team, the DER
+	// entitlements, the designated requirement, the CMS verified by openssl
+	// over the CodeDirectory (tests/pack/signing's CA)
+	static function signed(b:Bytes, cd:Int, blobs:Map<Int, Int>, slot:Int->String, end:Int) {
+		var at = 32, sdk = -1;
+		for (_ in 0...b.getInt32(16)) {
+			if (b.getInt32(at) == 0x32) sdk = b.getInt32(at + 16);
+			at += b.getInt32(at + 4);
+		}
+		check("Mach-O: the build version's SDK 26.0", sdk == 0x1a0000, StringTools.hex(sdk));
+		check("CodeDirectory: the team HLDRTEST01", cstr(b, cd + be32(b, cd + 48), 32) == "HLDRTEST01");
+		var der = blobs.get(7), xml = blobs.get(5), cms = blobs.get(0x10000);
+		check("signature: DER entitlements (slot 7), their hash", der != null && be32(b, der) == 0xfade7172
+			&& slot(7) == haxe.crypto.Sha256.make(b.sub(der, be32(b, der + 4))).toHex());
+		if (xml != null && der != null) {
+			var e = switch Plist.parse(b.sub(xml + 8, be32(b, xml + 4) - 8).toString()) {
+				case PDict(e): e;
+				case _: new Map();
+			}
+			check("entitlements: the profile's for the bundle, get-task-allow false", Type.enumEq(e.get("get-task-allow"), PBool(false))
+				&& Type.enumEq(e.get("application-identifier"), PString("HLDRTEST01." + want.id)));
+			check("entitlements: the DER of the XML's", b.sub(der + 8, be32(b, der + 4) - 8).compare(helder.pack.apple.CodeSign.entitlementsDer(e)) == 0);
+		}
+		var req = blobs.get(2);
+		check("requirements: a designated requirement (an expression)", be32(b, req + 8) == 1 && be32(b, req + 12) == 3 && be32(b, req + 20) == 0xfade0c00);
+		check("signature: a CMS blob (slot 0x10000)", cms != null && be32(b, cms) == 0xfade0b01);
+		if (cms == null) return;
+		var cdBytes = b.sub(cd, be32(b, cd + 4));
+		File.saveBytes('$dir/cd.bin', cdBytes);
+		File.saveBytes('$dir/cms.der', b.sub(cms + 8, be32(b, cms + 4) - 8));
+		if (has("openssl")) {
+			var r = exec("openssl", ["cms", "-verify", "-binary", "-inform", "DER", "-in", '$dir/cms.der', "-content", '$dir/cd.bin', "-CAfile",
+				"tests/pack/signing/ca.pem", "-purpose", "any", "-out", '$dir/cms.out']);
+			check("CMS: openssl cms -verify over the CodeDirectory (the CA's chain)", r.code == 0, r.out.trim().split("\n").join("; "));
+			var p = exec("openssl", ["cms", "-cmsout", "-print", "-inform", "DER", "-in", '$dir/cms.der']);
+			check("CMS: Apple's attributes (1.2.840.113635.100.9.1, .2)", p.out.indexOf("1.2.840.113635.100.9.1") >= 0 && p.out.indexOf("1.2.840.113635.100.9.2") >= 0);
+		} else skip("openssl cms -verify (not found)");
+	}
+
+	// Assets.car: the app icon's renditions (AssetCatalog.read), and the
+	// structure of Apple actool's (tests/pack/reference/Assets.car, from
+	// viraptor/actool's samples): the same blocks, header, key format
+	// attributes and rendition layouts, TLVs, facet and bitmap keys' shapes
+	static function car(bytes:Bytes, min:String) {
+		var c = try helder.pack.ios.AssetCatalog.read(bytes) catch (e:Dynamic) {
+			check("Assets.car: read back", false, Std.string(e));
+			return;
+		}
+		var images = [for (r in c.renditions) if (r.layout == 12) '${r.key.get(15)}:${r.width}'];
+		images.sort(Reflect.compare);
+		check("Assets.car: 120, 180 (iPhone), 152, 167 (iPad), 1024 (marketing)", images.join(" ") == "1:120 1:180 2:152 2:167 6:1024", images.join(" "));
+		check("Assets.car: opaque", Lambda.foreach(c.renditions, r -> r.pixels == null || r.pixels.get(3) == 255));
+		check("Assets.car: iOS, the deployment target", c.platform == "ios" && c.deployment == min, c.platform + " " + c.deployment);
+		var ref = helder.pack.ios.AssetCatalog.read(File.getBytes("tests/pack/reference/Assets.car"));
+		check("Assets.car: actool's blocks (and iOS's APPEARANCEKEYS)", [for (n in ref.blocks) if (!c.blocks.contains(n)) n].length == 0
+			&& [for (n in c.blocks) if (!ref.blocks.contains(n)) n].join(",") == "APPEARANCEKEYS", c.blocks.join(" "));
+		check("Assets.car: the key format's attributes, actool's", [for (a in c.keyformat) if (!ref.keyformat.contains(a) && a != 15 && a != 16) a].length == 0);
+		check("Assets.car: the renditions' key size, two bytes an attribute", c.renditionKeySize == 2 * c.keyformat.length && ref.renditionKeySize == 2 * ref.keyformat.length);
+		var refIcon = Lambda.find(ref.renditions, r -> r.layout == 12 && r.key.get(2) == 220);
+		var icon = Lambda.find(c.renditions, r -> r.layout == 12);
+		var tags = (r:helder.pack.ios.AssetCatalog.Rendition) -> {
+			var t = [for (k in r.tlvs.keys()) k];
+			t.sort(Reflect.compare);
+			t.join(",");
+		}
+		check("Assets.car: an icon's rendition: actool's TLVs, element, part, format", refIcon != null && tags(icon) == tags(refIcon)
+			&& icon.key.get(1) == refIcon.key.get(1) && icon.key.get(2) == refIcon.key.get(2) && icon.format == refIcon.format, tags(icon) + " / " + tags(refIcon));
+		var refMulti = Lambda.find(ref.renditions, r -> r.layout == 1010), multi = Lambda.find(c.renditions, r -> r.layout == 1010);
+		check("Assets.car: a MultiSized rendition: actool's TLVs and SISM", multi != null && refMulti != null && tags(multi) == tags(refMulti)
+			&& multi.data.getString(0, 4) == refMulti.data.getString(0, 4) && multi.key.get(2) == refMulti.key.get(2));
+		check("Assets.car: the facet's value, actool's shape", c.facets.get("AppIcon").length == ref.facets.get("AppIcon").length
+			&& c.facets.get("AppIcon").sub(0, 6).compare(ref.facets.get("AppIcon").sub(0, 6)) == 0);
+		var bk = c.bitmapKeys.get(6849), refBk = ref.bitmapKeys.get(6849);
+		check("Assets.car: the bitmap keys' shape, actool's", bk != null && refBk != null && bk.getInt32(12) == c.keyformat.length
+			&& refBk.getInt32(12) == ref.keyformat.length && bk.sub(0, 8).compare(refBk.sub(0, 8)) == 0);
+		if (Sys.systemName() == "Mac" && has("xcrun")) {
+			File.saveBytes('$dir/Assets.car', bytes);
+			var r = exec("xcrun", ["assetutil", "--info", '$dir/Assets.car']);
+			check("xcrun assetutil --info Assets.car", r.code == 0 && r.out.indexOf("AppIcon") >= 0, r.out.trim().split("\n").slice(0, 3).join("; "));
+		} else skip("xcrun assetutil --info (macOS)");
 	}
 }

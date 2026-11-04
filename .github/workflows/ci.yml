@@ -11,10 +11,12 @@
 # - ios-simulator: tests/pack/Hello.hx on an iPhone simulator of a macOS
 #   runner (helder run, simctl), the screen fixture, codesign --verify and
 #   plutil.
+# - ios-signing: an iPhone's app signed for distribution by helder with a
+#   throwaway identity, checked by codesign and assetutil on a macOS runner.
 # - publish-npm: on pushes to main once headless passes, the package as a
 #   nightly (<version>-nightly.<date>.<commit>, npm's tag nightly), as
 #   hxmc publishes @hxmc/cli's (NPM_TOKEN, with provenance).
-# gfx, browser, android and ios-simulator are not required
+# gfx, browser, android, ios-simulator and ios-signing are not required
 # (continue-on-error) while the stack is unstable (android and
 # ios-simulator were written without an emulator, a simulator or a Mac:
 # CI is where they run).
@@ -184,6 +186,27 @@ jobs:
             bin/pack/ios/*.png
           retention-days: 7
           if-no-files-found: ignore
+
+  # An iPhone's app signed for distribution without Apple's tools
+  # (helder.pack.apple.CodeSign, tests/pack/signing's throwaway CA and
+  # profile), then checked by them on a macOS runner: codesign --verify
+  # --deep --strict, its entitlements and requirement, assetutil --info on
+  # the icon's Assets.car (tests/pack/signing/verify.sh). App Store
+  # Connect's acceptance is a TestFlight upload with the owner's account
+  # (src/helder/pack/README.md).
+  ios-signing:
+    runs-on: macos-15
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Signed by helder, checked by codesign and assetutil
+        run: sh tests/pack/signing/verify.sh
 
   publish-npm:
     needs: headless

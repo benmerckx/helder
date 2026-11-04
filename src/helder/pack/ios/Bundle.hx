@@ -15,8 +15,9 @@ import helder.pack.ios.Plist;
 // id; -D hxmc.codesign-info-plist and -D hxmc.codesign-resources: those
 // files, bound by their hashes; -D hxmc.codesign-entitlements: an XML
 // plist of entitlements), enough for the simulator. A .ipa is that bundle
-// under Payload/ in a zip (the executable with its Unix mode), for devices
-// later: their signature needs a certificate and a provisioning profile.
+// under Payload/ in a zip (the executable with its Unix mode); a device's
+// (the App Store's, TestFlight's) is signed again with a certificate and
+// a provisioning profile (helder.pack.apple.CodeSign, helder.cli.Ios).
 // Pure: the bytes (helder.cli.Ios writes the files and links). Ported from
 // hxmc (hxmc.ios.Bundle), MIT.
 class Bundle {

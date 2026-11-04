@@ -63,6 +63,10 @@ class App {
 			versionName: field(config, "versionName") ?? "1.0",
 			minVersion: min,
 			entitlements: i?.entitlements == null ? null : Std.string(i.entitlements),
+			signing: i?.signing,
+			sdk: i?.sdk,
+			nonExemptEncryption: i?.nonExemptEncryption,
+			privacy: i?.privacy,
 			orientation: orientation(config),
 			fullscreen: fullscreen(config),
 		};
@@ -120,6 +124,12 @@ typedef IosOptions = {
 	versionName:String,
 	minVersion:String,
 	entitlements:Null<String>,
+	// the manifest's signing identity's files ({certificate, key, profile}), its SDK's values (Ios.SDK's names),
+	// ITSAppUsesNonExemptEncryption, PrivacyInfo.xcprivacy's API reasons ({category: [reason]}): null when not given
+	signing:Null<{?certificate:String, ?key:String, ?profile:String}>,
+	sdk:Null<Dynamic<String>>,
+	nonExemptEncryption:Null<Bool>,
+	privacy:Null<Dynamic<Array<String>>>,
 	// "portrait", "landscape" or "any"; the status bar hidden
 	orientation:String,
 	fullscreen:Bool,

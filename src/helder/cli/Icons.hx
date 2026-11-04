@@ -209,6 +209,10 @@ class Icons {
 	public function ios(px:Int):Null<Bytes>
 		return png(["maskable", "any"], px, 1, background(), "iOS's app icon");
 
+	// its RGBA pixels (the asset catalog's)
+	public function iosPixels(px:Int):Bytes
+		return canvas(["maskable", "any"], px, 1, background(), "iOS's app icon");
+
 	// a launch screen image of side px: the splash image (else the icon)
 	// at content px in the middle of the splash's background
 	public function launch(px:Int, content:Int, src:Null<String>, background:Null<Int>):Null<Bytes> {

@@ -13,7 +13,7 @@
     "build": 2,
     "id": "org.helder.packcheck",
     "android": {"permissions": ["VIBRATE"], "targetSdk": 34},
-    "ios": {"minVersion": "16.0", "entitlements": "app.entitlements"},
+    "ios": {"minVersion": "16.0", "entitlements": "app.entitlements", "nonExemptEncryption": false},
     "splash": {"dark": {"background_color": "#000000"}}
   }
 }

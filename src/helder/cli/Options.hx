@@ -72,7 +72,7 @@ class Options {
 			about: "a release build: bin/<target>/<name>, its time and size",
 			entry: true,
 			common: ["target", "device", "out"],
-			own: [],
+			own: [{key: "release", names: ["--release"], about: "a release build (what build makes anyway)"}],
 		},
 		{
 			name: "test",

@@ -26,7 +26,11 @@ using StringTools;
 //       "version": "1.2", "build": 3,      versionName and versionCode, CFBundleShortVersionString and CFBundleVersion (1.0, 1)
 //       "id": "org.example.game",          both platforms' id (else org.helder.<name>)
 //       "android": {"package": "org.example.game", "minSdk": 29, "targetSdk": 35, "permissions": ["VIBRATE"], "key": "<file>"},
-//       "ios": {"bundleId": "org.example.game", "minVersion": "15.0", "entitlements": "<file>"},
+//       "ios": {"bundleId": "org.example.game", "minVersion": "15.0", "entitlements": "<file>",
+//               "signing": {"certificate": "<pem>", "key": "<pem>", "profile": "<.mobileprovision>"},
+//               "sdk": {"version": "26.0", "build": "23A339", "xcode": "2600", "xcodeBuild": "17A324", "machine": "25A354"},
+//               "nonExemptEncryption": false,
+//               "privacy": {"NSPrivacyAccessedAPICategoryUserDefaults": ["CA92.1"]}},
 //       "splash": {"background_color": "#060912", "image": "splash.png",
 //                  "dark": {"background_color": "#000000", "image": "splash-dark.png"}}
 //     }
@@ -47,7 +51,9 @@ class Manifest {
 	static final PURPOSE = ["any", "maskable", "monochrome"];
 	static final HELDER = ["version", "build", "id", "android", "ios", "splash"];
 	static final ANDROID = ["package", "minSdk", "targetSdk", "permissions", "key"];
-	static final IOS = ["bundleId", "minVersion", "entitlements"];
+	static final IOS = ["bundleId", "minVersion", "entitlements", "signing", "sdk", "nonExemptEncryption", "privacy"];
+	static final SIGNING = ["certificate", "key", "profile"];
+	public static final SDK = ["version", "build", "xcode", "xcodeBuild", "machine"];
 	static final SPLASH = ["background_color", "image", "dark"];
 	// package.json's "helder" members that are the app's identity (the others, main, name, defines: the build's)
 	public static final LEGACY = ["id", "label", "version", "versionName", "orientation", "fullscreen", "android", "ios"];
@@ -126,6 +132,24 @@ class Manifest {
 			throw '$where: "helder": {"android": {"permissions"}}: an array of strings';
 		var min = str(i, "minVersion", '"helder": {"ios": {"minVersion"}}');
 		if (min != null && !~/^[0-9]+\.[0-9]+$/.match(min)) throw '$where: "helder": {"ios": {"minVersion": "$min"}}: a version, major.minor (15.0)';
+		var signing:Dynamic = i.signing, sdk:Dynamic = i.sdk, privacy:Dynamic = i.privacy;
+		for (o in [{v: signing, keys: SIGNING, name: "signing"}, {v: sdk, keys: SDK, name: "sdk"}])
+			if (o.v != null) {
+				known(o.v, o.keys, '"helder": {"ios": {"${o.name}"}}');
+				for (k in o.keys) str(o.v, k, '"helder": {"ios": {"${o.name}": {"$k"}}}');
+			}
+		if (sdk?.version != null && !~/^[0-9]+\.[0-9]+(\.[0-9]+)?$/.match(sdk.version))
+			throw '$where: "helder": {"ios": {"sdk": {"version": "${sdk.version}"}}}: a version (26.0)';
+		var encryption:Dynamic = i.nonExemptEncryption;
+		if (encryption != null && encryption != true && encryption != false) throw '$where: "helder": {"ios": {"nonExemptEncryption"}}: true or false';
+		if (privacy != null) {
+			known(privacy, Reflect.fields(privacy), '"helder": {"ios": {"privacy"}}');
+			for (k in Reflect.fields(privacy)) {
+				var v:Dynamic = Reflect.field(privacy, k);
+				if (!(Std.isOfType(v, Array) && Lambda.foreach((v : Array<Dynamic>), r -> Std.isOfType(r, String))))
+					throw '$where: "helder": {"ios": {"privacy": {"$k"}}}: an array of reasons (strings: "CA92.1")';
+			}
+		}
 		var s:Dynamic = h.splash ?? {};
 		known(s, SPLASH, '"helder": {"splash"}');
 		var d:Dynamic = s.dark ?? {};
@@ -158,7 +182,15 @@ class Manifest {
 				targetSdk: targetSdk,
 				key: str(a, "key", '"helder": {"android": {"key"}}')
 			},
-			ios: {id: bundle, minVersion: min, entitlements: str(i, "entitlements", '"helder": {"ios": {"entitlements"}}')},
+			ios: {
+				id: bundle,
+				minVersion: min,
+				entitlements: str(i, "entitlements", '"helder": {"ios": {"entitlements"}}'),
+				signing: signing,
+				sdk: sdk,
+				nonExemptEncryption: encryption,
+				privacy: privacy
+			},
 		};
 	}
 

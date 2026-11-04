@@ -23,7 +23,7 @@ helder test                                   # the *.test.hx files (src/helder/
 helder inspect --tree                         # a running helder dev's ui tree (--log, --frames, --state)
 helder devices                                # this machine, a browser, Android devices, iOS simulators
 helder build --target android                 # bin/android/<name>.apk (arm64), signed with the debug key
-helder build --target ios                     # bin/ios/<name>.ipa (an iPhone's); --target ios-sim: bin/ios-sim/<name>.app
+helder build --target ios                     # bin/ios/<name>.ipa (an iPhone's; signed for the App Store with HELDER_IOS_*); --target ios-sim: bin/ios-sim/<name>.app
 helder run --target android -d emulator-5554  # built for the device's ABI, installed, started, its logcat here
 helder dev --target ios                       # on the booted simulator: installed once, each build swapped in
 ```
@@ -144,7 +144,11 @@ browser extensions and PWA tools each claim.
     "build": 3,
     "id": "org.example.expansion",
     "android": {"package": "org.example.expansion", "minSdk": 29, "targetSdk": 35, "permissions": ["VIBRATE"], "key": "keys/debug"},
-    "ios": {"bundleId": "org.example.expansion", "minVersion": "15.0", "entitlements": "app.entitlements"},
+    "ios": {"bundleId": "org.example.expansion", "minVersion": "15.0", "entitlements": "app.entitlements",
+            "signing": {"certificate": "keys/distribution.pem", "key": "keys/distribution.key", "profile": "keys/AppStore.mobileprovision"},
+            "sdk": {"version": "26.0", "build": "23A339", "xcode": "2600", "xcodeBuild": "17A324", "machine": "25A354"},
+            "nonExemptEncryption": false,
+            "privacy": {"NSPrivacyAccessedAPICategoryUserDefaults": ["CA92.1"]}},
     "splash": {"background_color": "#060912", "image": "splash.svg",
                "dark": {"background_color": "#000000", "image": "splash-dark.svg"}}
   }
@@ -167,7 +171,18 @@ browser extensions and PWA tools each claim.
   29, the lowest, Bionic's ELF TLS; `targetSdk`: 35; `permissions`:
   `android.permission.<name>` unless it has a dot; `key`: the debug key's
   file), `ios` (`bundleId`; `minVersion`: 15.0; `entitlements`: an XML
-  plist signed with the executable), `splash` (`background_color`, else
+  plist signed with the executable, each key one the provisioning profile
+  grants; `signing`: the distribution identity's files, below;
+  `sdk`: the SDK and Xcode an iPhone's build says it was made with,
+  Info.plist's `DTPlatformVersion`, `DTSDKName` (`iphoneos<version>`),
+  `DTPlatformBuild` and `DTSDKBuild` (`build`), `DTXcode`, `DTXcodeBuild`,
+  `BuildMachineOSBuild` (`machine`) and `LC_BUILD_VERSION`'s SDK, Xcode
+  26.0's by default (the App Store takes builds of a recent SDK only:
+  raise them when Apple raises its minimum); `nonExemptEncryption`:
+  `ITSAppUsesNonExemptEncryption`, App Store Connect's export compliance
+  question answered; `privacy`: `PrivacyInfo.xcprivacy`'s required-reason
+  APIs, each category's reasons, over those helder declares for the APIs
+  the executable imports), `splash` (`background_color`, else
   the manifest's; `image`, else the icon; `dark`: the same for the dark
   appearance).
 - **Mistakes** are the command's error, naming the member: not JSON, a
@@ -196,10 +211,14 @@ browser extensions and PWA tools each claim.
   as `windowSplashScreenAnimatedIcon` (288 dp, inside the 192 dp circle;
   without one, the system shows the launcher's icon); their dark variants
   in the night configuration. The label is the manifest's.
-- **iOS** (`Ios.artwork`), without Xcode (so no asset catalog): the app
-  icon's PNGs (`AppIcon60x60@2x`, `@3x`, `AppIcon76x76@2x~ipad`,
-  `AppIcon83.5x83.5@2x~ipad`) in `CFBundleIcons` (and `~ipad`'s), opaque
-  (the maskable icon full bleed, else the icon on `background_color`); the
+- **iOS** (`Ios.artwork`), without Xcode: the app icon's asset catalog,
+  `Assets.car` (`helder.pack.ios.AssetCatalog`, as actool compiles an
+  Xcode 15 single-size icon: iPhone's 120 and 180 px, iPad's 152 and 167
+  px, the App Store's 1024 px marketing icon) with the loose
+  `AppIcon60x60@2x.png` and `AppIcon76x76@2x~ipad.png` actool writes
+  beside it, named in `CFBundleIcons` (and `~ipad`'s: `CFBundleIconName`
+  AppIcon), opaque (the maskable icon full bleed, else the icon on
+  `background_color`); the
   launch screen `UILaunchScreen`'s `UIImageName`: an image of the splash's
   background as large as the largest screen with the splash image (else
   the icon) at 160 points in its middle (`LaunchImage@3x~iphone`,
@@ -214,10 +233,10 @@ browser extensions and PWA tools each claim.
   shows in its middle until the program runs. `helder dev` links the
   same from the project's directory.
 - **Not yet**: desktop apps have no bundle to put an icon in (helder
-  builds a bare executable: a macOS `.app` with an `.icns`, a Windows
-  executable's icon resource, a Linux `.desktop` file are to come); iOS's
-  dark launch screen and its 1024 px App Store icon need an asset catalog
-  (`Assets.car`); Android's legacy (pre-adaptive) icons are not needed
+  builds a bare executable: a macOS `.app` with an `.icns`,
+  `helder.pack.apple.Icns` written already, a Windows executable's icon
+  resource, a Linux `.desktop` file are to come); iOS's dark and tinted
+  icons and dark launch screen (more of the asset catalog); Android's legacy (pre-adaptive) icons are not needed
   (minSdk 29); the web's splash is not the installed PWA's (the browser
   makes that from `background_color` and the icons).
 
@@ -276,8 +295,48 @@ build time.
   `Bundle`, `Plist`), and signs it ad hoc binding them (`-D
   hxmc.codesign-id`: the bundle id; `-info-plist`, `-resources`,
   `-entitlements`), as `codesign -s -` does: enough for the simulator. An
-  `.ipa` zips the bundle under `Payload/`. A device's app needs a signing
-  identity and a provisioning profile: not yet.
+  `.ipa` zips the bundle under `Payload/`. An iPhone's build (`--target
+  ios`) has Xcode's `DT*` keys and `PrivacyInfo.xcprivacy` (no tracking;
+  the required-reason APIs the executable imports, `stat` and
+  `mach_absolute_time` among them, with the reasons an app of its own
+  gives, and the manifest's); signed for the App Store and TestFlight
+  when an identity is given (below), else ad hoc, which no device runs.
+- **Signing for distribution** (`helder.pack.apple.CodeSign`, no
+  codesign, no Mac): `HELDER_IOS_CERTIFICATE` (the Apple Distribution
+  certificate with its chain, PEM), `HELDER_IOS_KEY` (its private key,
+  PEM, RSA or P-256, unencrypted) and `HELDER_IOS_PROFILE` (the App
+  Store provisioning profile), each a file's path or its contents (PEM's
+  text; the profile's base64, as CI secrets hold them), else the
+  manifest's `"ios": {"signing": {"certificate", "key", "profile"}}`
+  (paths from the project). Some of them without the others is an error
+  naming the missing; so are a key of another certificate, an encrypted
+  key, a profile without the certificate, expired, for another bundle id
+  or not granting an entitlement the app asks for. From Keychain's .p12:
+
+  ```sh
+  openssl pkcs12 -in distribution.p12 -nokeys -out distribution.pem     # (-legacy for an older .p12)
+  curl -s https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer | openssl x509 -inform DER >> distribution.pem
+  openssl pkcs12 -in distribution.p12 -nocerts -nodes -out distribution.key
+  HELDER_IOS_CERTIFICATE=distribution.pem HELDER_IOS_KEY=distribution.key \
+    HELDER_IOS_PROFILE=AppStore.mobileprovision helder build --target ios --release
+  ```
+
+  The bundle gets `embedded.mobileprovision`, CodeResources is sealed
+  again over every file, and the executable's ad hoc signature is
+  replaced by a distribution one: the CodeDirectory (SHA-256 pages; the
+  special slots of Info.plist, the requirements, CodeResources, the
+  entitlements as XML and DER), codesign's designated requirement
+  (`anchor apple generic`, the leaf's common name, WWDR's intermediate),
+  the entitlements (the profile's `application-identifier`, team,
+  `get-task-allow` false, `beta-reports-active`, keychain access group,
+  with the manifest's file's), and a CMS signature with Apple's cdhash
+  attributes; `LC_BUILD_VERSION`'s SDK becomes `sdk.version`. Uploading
+  the `.ipa` to TestFlight needs App Store Connect: on a Mac, `xcrun
+  altool --upload-app --type ios --file bin/ios/<name>.ipa --apiKey <key
+  id> --apiIssuer <issuer id>` (the key `~/.appstoreconnect/private_keys/AuthKey_<key id>.p8`), or Transporter
+  (`iTMSTransporter -m upload -assetFile <ipa> -apiKey ... -apiIssuer ...`, on Linux too);
+  its validation is the test of what was not testable here (`helder.pack`'s
+  README).
 - **An app's identity**: the project's `helder.webmanifest` (below); else,
   deprecated (a warning says so), `package.json`'s `"helder"` key
   (`App.hx`): `"id"` (both platforms'), `"label"`, `"version"` (the

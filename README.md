@@ -518,8 +518,23 @@ fix.
   signature recomputed and verified by openssl, the Mach-O's signature
   slots; `helder run` and `dev` against stand-in adb and simctl); on an
   emulator and a simulator only in CI, untested until it runs. Next:
-  hxmc removes its copy. Later: iOS device signing (a certificate and a
-  profile, through `codesign` on a Mac), release signing.
+  hxmc removes its copy. Later: Android's release signing.
+- *Landed*: **iOS apps for the App Store without a Mac**
+  (`helder.pack.ios.AssetCatalog`, `helder.pack.apple`; the pack README):
+  an `Assets.car` of the app icon written as Xcode's actool writes an
+  Xcode 15 single-size icon, and a distribution signature written as
+  codesign writes one (CodeDirectory, designated requirement,
+  entitlements as XML and DER from the provisioning profile, a CMS
+  signature with Apple's attributes, RSA or P-256 in plain Haxe) from a
+  certificate, key and profile in PEM (`HELDER_IOS_CERTIFICATE`, `_KEY`,
+  `_PROFILE`); Xcode's `DT*` keys and the SDK in `LC_BUILD_VERSION`,
+  `PrivacyInfo.xcprivacy`, export compliance. Checked on Linux (openssl
+  verifies the CMS over the CodeDirectory, the catalog against actool's
+  structure) and on a macOS runner by codesign and assetutil; App Store
+  Connect's acceptance waits for a TestFlight upload with the owner's
+  account. Later: macOS bundles (an `.icns` is written already;
+  Developer ID's requirement and the hardened runtime flag are in
+  CodeSign), timestamps and notarisation.
 - *Landed*: **the app's manifest** (`helder.webmanifest`, a W3C web app
   manifest with a `"helder"` member for the native apps' settings;
   package.json's `"helder"` identity its deprecated fallback): one or a
@@ -757,8 +772,9 @@ fix.
     rcodesign): a minimal `actool` writing `Assets.car` with the app
     icon, and a minimal `codesign` for iOS distribution (code directory,
     requirements, entitlements, CMS with Apple's attributes, the
-    provisioning profile, the privacy manifest and `DT*` keys); then
-    macOS Developer ID: the hardened runtime, a secure timestamp, and
+    provisioning profile, the privacy manifest and `DT*` keys), *landed*
+    (above: iOS apps for the App Store without a Mac); then macOS
+    Developer ID: the hardened runtime, a secure timestamp, and
     notarisation with stapling.
   - **`helder publish`**, uploading through the stores' own APIs, as
     fastlane, EAS Submit and Codemagic do:
@@ -906,3 +922,12 @@ Folded into phase 3: the VS Code extension is the devtools.
 ## License
 
 MIT (LICENSE).
+
+helder.pack's asset catalog and code signature are helder's own Haxe,
+written from the formats as two projects document them:
+[viraptor/actool](https://github.com/viraptor/actool) (MIT; the CAR and
+BOM layouts, actool's name hash, and tests/pack/reference/Assets.car,
+an Apple actool output from its samples) and
+[rcodesign](https://github.com/indygreg/apple-platform-rs) (apple-codesign,
+MPL-2.0; the code signature's structures: read for the format, no code
+taken, so no MPL-covered file is in helder).
