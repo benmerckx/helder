@@ -28,6 +28,7 @@ import helder.pack.ios.Plist.PValue;
 //     to its element, part and identifier), APPEARANCEKEYS (UIAppearanceAny),
 //     BITMAPKEYS (a tree by identifier: the values each attribute takes).
 // The pixels are stored uncompressed (CELM compression 0: BGRA,
+// flagged opaque (0x8) when they are, as the App Store wants its icon;
 // premultiplied, rows padded to 32 bytes), which CoreUI reads at any
 // deployment target; actool's LZFSE (KCBC) and deepmap2 are smaller, not
 // needed. read parses a catalog back (the checks: ours, and a reference of
@@ -163,11 +164,11 @@ class AssetCatalog {
 	}
 
 	// a CSI: the 184-byte header, the TLVs, the rendition's data
-	static function csi(name:String, w:Int, h:Int, scale:Int, format:String, layout:Int, colorspace:Int, tlv:Bytes, data:Bytes):Bytes {
+	static function csi(name:String, w:Int, h:Int, scale:Int, format:String, layout:Int, colorspace:Int, tlv:Bytes, data:Bytes, flags = 0):Bytes {
 		var b = new Buf(184 + tlv.length + data.length);
 		b.str("ISTC");
 		b.u32(1);
-		b.u32(0); // flags
+		b.u32(flags); // rendition flags (0x8: opaque)
 		b.u32(w);
 		b.u32(h);
 		b.u32(scale * 100);
@@ -198,7 +199,7 @@ class AssetCatalog {
 	// an icon's rendition: BGRA, premultiplied, its rows padded to 32 bytes, uncompressed
 	static function image(name:String, px:Int, scale:Int, rgba:Bytes):Bytes {
 		var row = (px * 4 + 31) & ~31;
-		var pixels = Bytes.alloc(row * px);
+		var pixels = Bytes.alloc(row * px), opaque = true;
 		for (y in 0...px)
 			for (x in 0...px) {
 				var s = 4 * (y * px + x), d = y * row + 4 * x, a = rgba.get(s + 3);
@@ -208,6 +209,7 @@ class AssetCatalog {
 				pixels.set(d + 1, pm(rgba.get(s + 1)));
 				pixels.set(d + 2, pm(rgba.get(s)));
 				pixels.set(d + 3, a);
+				if (a != 255) opaque = false;
 			}
 		var t = new Buf();
 		tlv(t, 0x3e9, [1, 0, 0, px, px]); // slices
@@ -224,7 +226,7 @@ class AssetCatalog {
 		celm.u32(0); // uncompressed
 		celm.u32(pixels.length);
 		celm.bytes(pixels);
-		return csi(name, px, px, scale, "BGRA", LAYOUT_IMAGE, 1, t.toBytes(), celm.toBytes());
+		return csi(name, px, px, scale, "BGRA", LAYOUT_IMAGE, 1, t.toBytes(), celm.toBytes(), opaque ? 0x8 : 0);
 	}
 
 	// an idiom's MultiSized rendition: its sizes in points, ascending, with their indices
@@ -283,6 +285,7 @@ class AssetCatalog {
 			renditions.push({
 				key: key,
 				name: cstr(c, 40, 128),
+				flags: c.getInt32(8),
 				width: c.getInt32(12),
 				height: c.getInt32(16),
 				scale: c.getInt32(20),
@@ -334,6 +337,7 @@ typedef CarInfo = {
 typedef Rendition = {
 	key:Map<Int, Int>,
 	name:String,
+	flags:Int,
 	width:Int,
 	height:Int,
 	scale:Int,
