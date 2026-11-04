@@ -16,6 +16,8 @@ interface Demo {
 	kind: string;
 	width: number;
 	height: number;
+	// a pixel a point, not multisampled (`canvas WxH 1x`: stage.js's run options)
+	onePixel: boolean;
 }
 
 // an Android build of it, for phones: the file, its size, the commit it was built from
@@ -167,7 +169,7 @@ function Stage(props: { ex: Example }) {
 	const sound = demo.kind === "sound";
 	const style = sound ? "" : "--w:" + demo.width + "px;--ratio:" + demo.width + "/" + demo.height;
 	const game = ex.tags.indexOf("game") >= 0;
-	return <div class={sound ? "stage sound" : "stage"} style={style} data-width={"" + demo.width} data-height={"" + demo.height} data-game={game ? "" : undefined}>
+	return <div class={sound ? "stage sound" : "stage"} style={style} data-width={"" + demo.width} data-height={"" + demo.height} data-game={game ? "" : undefined} data-one-pixel={demo.onePixel ? "" : undefined}>
 		<Island.Wasm src={ex.wasm} id={"play-" + ex.id} load="click" runner={RUNNER} imports={ex.imports} fonts={ex.fonts} assets={ex.assets === "" ? undefined : ex.assets}
 			args={ex.args.length > 0 ? ex.args : undefined} stop={ex.args.length > 0 ? "offscreen" : undefined}
 			canvas={!sound} width={demo.width} height={demo.height}>

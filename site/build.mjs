@@ -51,12 +51,13 @@ function header(file) {
 	return head.title ? head : null;
 }
 
-// demo: canvas WxH (a canvas of that size), sound (no canvas: a click starts
-// the audio); island and module are helder.web's, not a program to start
+// demo: canvas WxH (a canvas of that size; then 1x: a pixel a point, not
+// multisampled, as PixiJS's Bunnymark is drawn), sound (no canvas: a click
+// starts the audio); island and module are helder.web's, not a program to start
 function demoOf(s) {
-	const c = /^canvas (\d+)x(\d+)$/.exec(s ?? '');
-	if (c) return { kind: 'canvas', width: +c[1], height: +c[2] };
-	if (s === 'sound') return { kind: 'sound', width: 0, height: 0 };
+	const c = /^canvas (\d+)x(\d+)( 1x)?$/.exec(s ?? '');
+	if (c) return { kind: 'canvas', width: +c[1], height: +c[2], onePixel: !!c[3] };
+	if (s === 'sound') return { kind: 'sound', width: 0, height: 0, onePixel: false };
 	return null;
 }
 

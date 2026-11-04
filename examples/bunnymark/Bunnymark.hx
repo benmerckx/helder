@@ -1,7 +1,7 @@
 // title: Bunnymark
 // summary: The classic 2D sprite benchmark on helder.sprite's SpriteBatch: bunnies bouncing under gravity, one textured quad each, every one in a single draw; press and hold to add more, the overlay showing how many still run at 60 fps
 // tags: 2d, sprites, performance
-// demo: canvas 640x480
+// demo: canvas 640x480 1x
 import haxe.io.Bytes;
 import helder.gfx.*;
 import helder.image.Image;
@@ -20,7 +20,7 @@ import helder.sprite.SpriteBatch;
 // 17.5 ms. Nothing is allocated a frame: the bunnies are four float
 // arrays, the batch's buffers grow once.
 //
-//   bun run helder examples/bunnymark/Bunnymark.hx   (--target web: in a page)
+//   bun run helder examples/bunnymark/Bunnymark.hx [bunnies]   (--target web: in a page)
 class Bunnymark {
 	static inline var W = 26;
 	static inline var H = 37;
@@ -144,7 +144,9 @@ class Bunnymark {
 		var begun = Sys.time(), firstFrame = -1.0, printed = 0.0;
 		var window = new Window("Bunnymark", 640, 480);
 		var device = Device.create(window.surface);
-		var mark = new Bunnymark(device);
+		// (an argument: the bunnies to start with, 2000 by default)
+		var start = Std.parseInt(Sys.args()[0] ?? "");
+		var mark = new Bunnymark(device, start != null && start > 0 ? start : 2000);
 		var overlay = new Overlay(device), stats = new FrameStats(60);
 		overlay.detail = true;
 		var holding = false, px = 0.0, py = 0.0, last = Sys.time(), frames = 0;

@@ -1,7 +1,7 @@
 {
 	"description": [
 		"Bunnymark, the 2D sprite benchmark PixiJS made famous (after Iain Lobb's): bunnies thrown in, falling under gravity, bouncing off the floor and the sides, each one a textured quad of helder.sprite's SpriteBatch, all of them one run of one texture: a single draw call however many there are.",
-		"Press and hold (or Space) to add 500 a frame. The overlay shows the bunnies, and the most drawn while the last second's median frame stayed under 17.5 ms: the count at 60 fps. The bunnies' sheet is drawn in code; nothing is allocated a frame."
+		"Press and hold (or Space) to add 500 a frame. The overlay shows the bunnies, and the most drawn while the last second's median frame stayed under 17.5 ms: the count at 60 fps. The bunnies' sheet is drawn in code; nothing is allocated a frame. As PixiJS's, the canvas is drawn a pixel a point (on a high-density screen too) and not multisampled: a sprite is 80 bytes of vertices, PixiJS's 96."
 	],
 	"numbers": [],
 	"devices": [

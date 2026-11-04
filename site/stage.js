@@ -76,5 +76,7 @@
 	// (a game's canvas takes every touch on the page too: a drag is its, not the page's scroll; before loader.js reads the options)
 	const options = (globalThis.hxmcWasmOptions ||= {});
 	for (const s of document.querySelectorAll('.stage[data-game] hxmc-island')) options[s.id] = { ...options[s.id], touchAction: 'none' };
+	// (a demo drawn a pixel a point and not multisampled, `canvas WxH 1x`: Bunnymark, as PixiJS's)
+	for (const s of document.querySelectorAll('.stage[data-one-pixel] hxmc-island')) options[s.id] = { ...options[s.id], antialias: false, maxPixelRatio: 1 };
 	globalThis.hxmcStage = { enter, leave };
 })();
