@@ -857,30 +857,40 @@ fix.
   - measured against the same scene written by hand, at thousands of
     nodes.
 - **`helder.canvas`: a 2D drawing API with a CPU and a GPU back end**,
-  shaped after HTML's Canvas 2D (paths with lines, curves and arcs; fill
-  by non-zero or even-odd; strokes with width, joins, caps and dashes;
-  transforms; clipping; colours, gradients and patterns; images; text as
-  glyph outlines; global alpha and composite or blend modes; image data),
-  so code written for Canvas 2D (leanpdf's renderer first) ports nearly
-  line for line:
+  designed to be the best of its kind rather than a copy of one: it
+  learns from HTML's Canvas 2D, Skia, Vello, tiny-skia and Kha's g2
+  without matching any line for line. Paths with lines, quadratic and
+  cubic curves and arcs; fills by non-zero or even-odd for any polygon;
+  strokes with width, joins, caps and dashes; transforms; clipping;
+  colours, gradients and patterns; images; text from outlines (or a
+  distance-field atlas, so it scales); opacity and blend modes; layers
+  and masks; nothing allocated per call.
   - **CPU**: coverage-based antialiasing into a pixel buffer (as
     tiny-skia, Skia's raster back end), deterministic and exact: headless
     rendering, thumbnails, printing, servers and golden tests; grown from
-    helder.ui's SVG rasterizer, the glyphs from helder.text;
+    helder.ui's SVG rasterizer, the glyphs from helder.text.
   - **GPU** on helder.gfx, for interactive use (zooming and panning large
-    documents, an image viewer): paths tessellated with MSAA first, then
-    stencil-then-cover or a compute rasterizer (as Vello) where it pays;
-    the CPU back end the reference its output is compared with;
-  - the same drawing code on screen through the GPU and to an exact PNG
+    documents, an image viewer):
+    - batched by kind and texture, in draw order (as Kha's painters and
+      helder.sprite's SpriteBatch), with transforms in the shader rather
+      than on the CPU;
+    - paths tessellated first, with analytic edge antialiasing rather
+      than relying on MSAA, so any fill rule holds; stencil-then-cover or
+      a compute rasterizer (as Vello) where it pays;
+    - the CPU back end the reference its output is compared with.
+  - Where Kha's g2 stops (no paths or curves in its core, convex-only
+    fills, shapes without antialiasing, transforms per vertex on the CPU,
+    allocations per call), `helder.canvas` is meant to go further.
+  - The same drawing code on screen through the GPU and to an exact PNG
     through the CPU; helder.ui's SVG rendering and the 2D charts and
     whiteboard examples on it too.
-- **PDF on `helder.canvas`**: leanpdf (alineacms/leanpdf, MIT, TypeScript)
-  ported to Haxe: reading (metadata, pages, outlines, links, forms,
-  attachments, images, text for search), writing (image compression,
-  page selection and rotation, metadata removal, merging, decryption),
-  RC4 and AES encryption, and rendering with embedded TrueType, OpenType,
-  CFF, Type 1 and Type 3 fonts drawn as outlines through `helder.canvas`
-  instead of a browser's canvas or @napi-rs/canvas.
+- **PDF on `helder.canvas`**, from leanpdf (alineacms/leanpdf, MIT,
+  TypeScript) as the basis: its reading (metadata, pages, outlines,
+  links, forms, attachments, images, text for search), writing (image
+  compression, page selection and rotation, metadata removal, merging,
+  decryption), RC4 and AES encryption, and rendering with embedded
+  TrueType, OpenType, CFF, Type 1 and Type 3 fonts as outlines, brought to
+  Haxe and adapted to `helder.canvas` (not a line-by-line port).
 - **`helder.2d`**: sprite batches and tilemaps on gfx and `helder.image`,
   in code and in markup alike.
 - **Games in the extension**: stories for scenes (a world at a set point,
