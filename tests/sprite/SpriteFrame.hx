@@ -10,7 +10,7 @@ import helder.sprite.SpriteBatch;
 // over a dark clear, and the pixels read back: a sprite where it was put
 // (trimmed about its source's centre), scaled, turned a quarter, faded
 // (alpha over the clear), added (additive on top of another), and two
-// textures in one frame (two runs). Exits 1 on a wrong pixel.
+// textures in one frame (two runs), a rotated atlas frame upright. Exits 1 on a wrong pixel.
 class SpriteFrame {
 	static inline var W = 64;
 	static inline var H = 64;
@@ -32,7 +32,8 @@ class SpriteFrame {
 			+ '"red":{"frame":{"x":0,"y":0,"w":2,"h":2},"rotated":false,"spriteSourceSize":{"x":0,"y":0,"w":2,"h":2},"sourceSize":{"w":2,"h":2}},'
 			+ '"green":{"frame":{"x":2,"y":0,"w":2,"h":2},"rotated":false,"spriteSourceSize":{"x":0,"y":0,"w":2,"h":2},"sourceSize":{"w":2,"h":2}},'
 			+ '"blue":{"frame":{"x":0,"y":2,"w":2,"h":2},"rotated":false,"spriteSourceSize":{"x":0,"y":0,"w":2,"h":2},"sourceSize":{"w":2,"h":2}},'
-			+ '"white":{"frame":{"x":2,"y":2,"w":2,"h":2},"rotated":false,"spriteSourceSize":{"x":0,"y":0,"w":2,"h":2},"sourceSize":{"w":2,"h":2}}'
+			+ '"white":{"frame":{"x":2,"y":2,"w":2,"h":2},"rotated":false,"spriteSourceSize":{"x":0,"y":0,"w":2,"h":2},"sourceSize":{"w":2,"h":2}},'
+			+ '"turned":{"frame":{"x":0,"y":0,"w":2,"h":4},"rotated":true,"spriteSourceSize":{"x":0,"y":0,"w":2,"h":4},"sourceSize":{"w":2,"h":4}}'
 			+ '},"meta":{"size":{"w":4,"h":4}}}');
 		var batch = new SpriteBatch(device);
 		var sheet = batch.add(new Image(4, 4, px));
@@ -45,6 +46,9 @@ class SpriteFrame {
 		// (red, then green added over it at 40, 40: yellow)
 		batch.sprite(sheet, atlas.get("red"), 40, 40, 0, 4, 4);
 		batch.sprite(sheet, atlas.get("green"), 40, 40, 0, 4, 4, 1, true);
+		// (a rotated frame: the sheet's top half, red then green, stored a
+		// quarter turned: upright, 8 x 16 at 24, 48, green over red)
+		batch.sprite(sheet, atlas.get("turned"), 24, 48, 0, 4, 4);
 		// (the other texture: a yellow quad at the bottom right corner)
 		batch.image(other, 0, 0, 1, 1, 56, 56, 8, 8);
 		var enc = device.beginFrame();
@@ -68,6 +72,8 @@ class SpriteFrame {
 		expect("blue at half alpha", 8, 40, 0, 0, 153);
 		expect("green added to red", 40, 40, 255, 255, 0);
 		expect("the second texture", 60, 60, 255, 255, 0);
+		expect("a rotated frame's top", 24, 43, 0, 255, 0);
+		expect("a rotated frame's bottom", 24, 53, 255, 0, 0);
 		expect("the clear", 24, 24, 0, 0, 51);
 		Sys.println('SpriteFrame: ${batch.quads.count} quads in ${batch.quads.draws()} draws');
 		if (batch.quads.draws() != 2) bad++;

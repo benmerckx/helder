@@ -9,8 +9,13 @@ import helder.test.Test;
 // nothing allocated by a frame once grown (offline: no device)
 function tests() {
 	describe("SpriteQuads", () -> {
-		inline function at(q:SpriteQuads, quad:Int, corner:Int, f:Int):Float
-			return q.bytes.getFloat((quad * 4 + corner) * SpriteQuads.STRIDE + f * 4);
+		// (a corner's x, y, u, v (floats), then its colour's red, green, blue,
+		// alpha (bytes, as 0 to 1); corners 0 to 3: top left, top right,
+		// bottom left, bottom right)
+		function at(q:SpriteQuads, quad:Int, corner:Int, f:Int):Float {
+			var o = (quad * 4 + corner) * SpriteQuads.STRIDE;
+			return f < 4 ? q.bytes.getFloat(o + 4 * f) : q.bytes.get(o + 16 + f - 4) / 255;
+		}
 		// (a 20x10 sprite, trimmed from a 24x16 source at 1, 2: its centre at 12, 8)
 		var frame = new AtlasFrame("s", 64, 32, 20, 10, false, 1, 2, 24, 16);
 		test("a sprite's corners about its source's centre", () -> {
@@ -31,8 +36,12 @@ function tests() {
 			var q = new SpriteQuads(4);
 			q.sprite(0, 256, 128, frame, 0, 0, 0, 1, 1, 0.5);
 			q.sprite(0, 256, 128, frame, 0, 0, 0, 1, 1, 0.5, true);
-			equals([for (i in 4...8) at(q, 0, 0, i)], [0.5, 0.5, 0.5, 0.5]);
-			equals([for (i in 4...8) at(q, 1, 0, i)], [0.5, 0.5, 0.5, 0.0]);
+			// (a byte each: 128 of 255)
+			equals([for (i in 4...8) at(q, 0, 0, i)], [128 / 255, 128 / 255, 128 / 255, 128 / 255]);
+			equals([for (i in 4...8) at(q, 1, 0, i)], [128 / 255, 128 / 255, 128 / 255, 0.0]);
+			// (white and opaque: all ones)
+			q.sprite(0, 256, 128, frame, 0, 0, 0, 1, 1, 1);
+			equals([for (i in 4...8) at(q, 2, 3, i)], [1.0, 1.0, 1.0, 1.0]);
 		});
 		test("a rotated frame's texels read a quarter turned", () -> {
 			var q = new SpriteQuads(4);
@@ -42,6 +51,11 @@ function tests() {
 			approx(at(q, 0, 0, 3), 0, 1e-6);
 			approx(at(q, 0, 3, 2), 0, 1e-6);
 			approx(at(q, 0, 3, 3), 0.2, 1e-6);
+			// (the top right: the region's bottom right; the bottom left: its top left)
+			approx(at(q, 0, 1, 2), 0.1, 1e-6);
+			approx(at(q, 0, 1, 3), 0.2, 1e-6);
+			approx(at(q, 0, 2, 2), 0, 1e-6);
+			approx(at(q, 0, 2, 3), 0, 1e-6);
 		});
 		test("runs by texture, in order", () -> {
 			var q = new SpriteQuads(4);
@@ -60,10 +74,20 @@ function tests() {
 					q.sprite(i % 3, 256, 128, frame, i, i, 0.1 * i, 1, 1, 1);
 			}
 			equals(q.count, 100);
-			var before = q.bytes;
 			q.clear();
-			for (i in 0...100)
+			for (i in 0...200)
 				q.sprite(i % 3, 256, 128, frame, i, i, 0.1 * i, 1, 1, 1);
+			var before = q.bytes, allocated = hxmc.GcStats.bytesAllocated();
+			// (sprites and images, tinted, faded, added, turned: no byte allocated)
+			for (_ in 0...10) {
+				q.clear();
+				for (i in 0...100) {
+					q.sprite(i % 3, 256, 128, frame, i, i, 0.1 * i, 1, 1, 0.5 + 0.005 * i, i % 2 == 0, 1, 0.5, 0.25);
+					q.image(i % 3, 256, 128, 0, 0, 26, 37, i, i, 26, 37);
+				}
+			}
+			equals(hxmc.GcStats.bytesAllocated() - allocated, 0.0);
+			equals(q.count, 200);
 			assert(q.bytes == before);
 		});
 	});

@@ -23,11 +23,13 @@ enc.beginPass(pass); batch.flush(enc); enc.endPass();
 ```
 
 - `SpriteQuads` is the CPU half: four vertices a quad (`SpriteShader`'s
-  position, texel and premultiplied colour), any affine transform,
+  position and texel, two floats each, and its premultiplied colour,
+  four bytes: 80 bytes a quad, PixiJS's batcher's 96), any affine transform,
   a rotated frame's texels read a quarter turned, and the runs (one
   draw each: the quads in order with one texture). Kept between frames,
   so a steady frame allocates nothing.
-- `SpriteBatch` uploads them into one vertex buffer and draws each run in
+- `SpriteBatch` uploads them into one vertex buffer (one write a frame,
+  the quads drawn) and draws each run in
   one pipeline (Blend.Premultiplied): an alpha sprite's colour carries its
   alpha, an additive one's none, which that blend adds, so both mix in one
   run. Layers are the order drawn in.

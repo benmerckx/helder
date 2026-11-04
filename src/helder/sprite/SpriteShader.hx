@@ -1,5 +1,6 @@
 package helder.sprite;
 
+import helder.gfx.*;
 import helder.gfx.shader.*;
 import helder.gfx.shader.ShaderMath.*;
 
@@ -10,7 +11,7 @@ import helder.gfx.shader.ShaderMath.*;
 @:structInit @:publicFields class SpriteVertex {
 	var pos:Vec2;
 	var uv:Vec2;
-	var color:Vec4;
+	var color:Vec4; // four bytes (buffers: UByte4Norm)
 }
 
 @:structInit @:publicFields class SpriteVaryings {
@@ -24,6 +25,18 @@ import helder.gfx.shader.ShaderMath.*;
 }
 
 class SpriteShader implements Shaders {
+	// the vertex buffer: SpriteQuads' 20 bytes a vertex, the colour four bytes
+	public static final buffers:Array<VertexBufferLayout> = [
+		{
+			stride: SpriteQuads.STRIDE,
+			attributes: [
+				{location: 0, format: Float2, offset: 0},
+				{location: 1, format: Float2, offset: 8},
+				{location: 2, format: UByte4Norm, offset: 16}
+			]
+		}
+	];
+
 	@:vertex static function vs(v:SpriteVertex, s:SpriteView):SpriteVaryings
 		return {pos: vec4(v.pos.x * s.view.x + s.view.z, v.pos.y * s.view.y + s.view.w, 0, 1), uv: v.uv, color: v.color};
 

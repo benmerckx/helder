@@ -9,8 +9,9 @@ import helder.sprite.Atlas.AtlasFrame;
 // graphics2, PixiJS's and Phaser's batchers, OpenFL's drawTiles), sprites
 // of an atlas or parts of images, each moved, scaled, turned, faded and
 // drawn over (alpha) or added (additive), in the order drawn; one draw a
-// run of quads with the same texture (SpriteQuads), all in one vertex
-// buffer, one pipeline (SpriteShader, premultiplied). Layers are the
+// run of quads with the same texture (SpriteQuads: 80 bytes a quad), all
+// in one vertex buffer written once a frame, one pipeline (SpriteShader,
+// premultiplied). Layers are the
 // caller's order: draw the back first.
 //
 //   var batch = new SpriteBatch(device);
@@ -42,6 +43,7 @@ class SpriteBatch {
 	public function new(device:Device, ?colorFormat:TextureFormat, samples = 1) {
 		this.device = device;
 		var d = SpriteShader.pipeline({blend: Premultiplied});
+		d.layout = SpriteShader.buffers;
 		if (colorFormat != null) d.colorFormat = colorFormat;
 		if (samples > 1) d.samples = samples;
 		pipeline = device.createPipeline(d);
