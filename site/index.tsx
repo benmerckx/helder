@@ -77,6 +77,11 @@ interface Example {
 
 const examples = site.examples as Example[];
 const playable = examples.filter(e => e.demo !== null).length;
+// the demos with a page of their own (page.json), linked from the top of the index
+// (the most striking first; any other after them, in the index's order)
+const SHOWCASE = ["sponza", "gltf-showcase", "planet", "particles", "instancing", "physics-stress", "bunnymark"];
+const rank = (e: Example) => SHOWCASE.indexOf(e.id) < 0 ? SHOWCASE.length : SHOWCASE.indexOf(e.id);
+const showcase = examples.filter(e => e.page !== null).sort((a, b) => rank(a) - rank(b));
 const RUNNER = "helder/os/browser.mjs";
 
 const CSS = `
@@ -138,6 +143,15 @@ html.playing, html.playing body { overflow: hidden; overscroll-behavior: none; }
 .apk span { color: var(--muted); font-size: 0.85rem; }
 footer { padding-bottom: 40px; color: var(--muted); font-size: 0.95rem; }
 code { font-size: 0.92em; }
+.showcase { margin: 18px 0 4px; }
+.showcase h2 { font-size: 1rem; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+.showcase ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.showcase a { display: block; height: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px;
+	background: var(--chip); color: inherit; text-decoration: none; }
+.showcase a:hover, .showcase a:focus-visible { border-color: var(--muted); }
+.showcase strong { display: block; margin-bottom: 2px; }
+.showcase span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; color: var(--muted);
+	font-size: 0.88rem; line-height: 1.35; }
 main.page { display: block; max-width: 1000px; }
 .page h2 { margin-top: 22px; }
 .muted { color: var(--muted); font-size: 0.92rem; }
@@ -282,6 +296,10 @@ Static.write(site.out, Static.document(<html lang="en">
 			<p class="lead">An app and game stack in Haxe, with a TypeScript frontend, compiled by hxmc to native code and WebAssembly.
 				These are its examples; the {playable} with a Play button run here, in your browser.</p>
 			<p class="lead"><a href={site.repository}>Source on GitHub</a></p>
+			<nav class="showcase" aria-label="Showcase">
+				<h2>Showcase</h2>
+				<ul>{showcase.map(ex => <li><a href={ex.id + ".html"}><strong>{ex.title}</strong><span>{ex.summary}</span></a></li>)}</ul>
+			</nav>
 		</header>
 		<main>
 			{examples.map(ex => <Card ex={ex} />)}
