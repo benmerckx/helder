@@ -774,14 +774,16 @@ fix.
     not built yet: they come first): a story tagged for the store is a
     fully deterministic scene (a seed, the state, the camera, a virtual
     clock frozen at a moment, a locale) that waits for a settled signal;
-    `helder screenshots` renders each at every store size as a real layout
+    `helder publish` renders each at every store size as a real layout
     (iPhone 6.9" and 6.5", iPad 13", Android phone and tablets) offscreen,
     to each store's rules (exact sizes, no alpha for Apple); optional
     localised captions and a device frame from a template beside the
-    listing's texts; a contact sheet approved once and committed as the
-    baseline, changes shown as visual diffs in CI (the same stories as
-    visual regression tests); `helder publish --listing` uploading only
-    what changed (by content hash).
+    listing's texts. `helder publish --dry-run` does everything but
+    upload: it builds, signs and renders the screenshots, and writes a
+    review (the contact sheet, the listing's texts, and what would change
+    against the stores: by content hash, only what changed is uploaded);
+    the approved screenshots committed as the baseline, changes shown as
+    visual diffs in CI (the same stories as visual regression tests).
   - **CI:** a workflow template taking the keys and profiles from
     secrets, building, signing and uploading on each release tag; a Mac
     needed only to regenerate an icon's asset catalog if our own
