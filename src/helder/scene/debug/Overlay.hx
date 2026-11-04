@@ -90,9 +90,23 @@ class Overlay {
 		for (i in 0...text.length) {
 			var c = StringTools.fastCodeAt(text, i);
 			var g = c >= 97 && c <= 122 ? CODES[c - 32] : c < 128 ? CODES[c] : null;
+			// (a row's lit cells side by side one rect: half the quads, a
+			// frame's upload with them, of a cell each)
 			if (g != null)
-				for (cell in 0...15)
-					if (g.charCodeAt(cell) == "1".code) ui.rect(x + (cell % 3) * size, y + Std.int(cell / 3) * size, size, size, 0, color, 0, 0);
+				for (row in 0...5) {
+					var c = 0;
+					while (c < 3) {
+						if (StringTools.fastCodeAt(g, row * 3 + c) != "1".code) {
+							c++;
+							continue;
+						}
+						var end = c + 1;
+						while (end < 3 && StringTools.fastCodeAt(g, row * 3 + end) == "1".code)
+							end++;
+						ui.rect(x + c * size, y + row * size, (end - c) * size, size, 0, color, 0, 0);
+						c = end;
+					}
+				}
 			x += 4 * size;
 		}
 	}
