@@ -153,8 +153,8 @@ const site = [];
 for (const e of all) {
 	const item = { id: e.id, title: e.title, summary: e.summary, tags: e.tags, source: `${REPO}/tree/main/examples/${e.dir}`,
 		demo: e.demo, wasm: '', imports: [], fonts: [], assets: '', apk: null, args: [], page: null, dataBytes: 0 };
-	if (e.page) item.page = { description: e.page.description ?? [], compare: e.page.compare ?? [], devices: e.page.devices ?? [], credits: e.page.credits ?? [],
-		numbers: e.page.numbers ?? [] };
+	if (e.page) item.page = { description: e.page.description ?? [], compare: e.page.compare ?? [], devices: (e.page.devices ?? []).map((d) => ({ fetchedGzMB: '–', ...d })), credits: e.page.credits ?? [],
+		numbers: e.page.numbers ?? [], seconds: e.page.seconds ?? 0 };
 	if (e.apk && process.env.SITE_APK) {
 		// (arm64, a phone's; signed with the key HELDER_ANDROID_KEY names when it is set, else helder's cached one)
 		const file = `apk/${e.id}.apk`;

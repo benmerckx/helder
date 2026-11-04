@@ -106,7 +106,16 @@ and rendered by helder.web's static renderer (`site/index.tsx`); those whose
 `demo:` is a canvas or a sound have a Play button starting their wasm32 build
 in the page (a WebAssembly island loaded on the click). `site/build.mjs`
 builds each of them for the web, lays out `bin/site` and runs the page's
-program; `.github/workflows/pages.yml` deploys it on pushes to main.
+program; `.github/workflows/pages.yml` deploys it on pushes to main. An
+example with a `page.json` beside it has a page of its own, `<id>.html`
+(its demo, description, numbers, comparable downloads elsewhere, credits):
+`bun run site:numbers` plays each in headless Chromium (SwiftShader:
+software rendering, labelled so) and keeps what the program last printed
+as `stats: {...}` (helder.scene.debug's `FrameStats.report`: first frame,
+textures, frame p50 and p99) and what the Play button fetched, gzipped;
+the real devices' rows are slots in `page.json`. The performance demos
+have one each: `instancing`, `bunnymark`, `particles`, `physics-stress`,
+`planet`.
 
 ## Roadmap
 

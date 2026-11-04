@@ -12,6 +12,7 @@
 		{
 			"device": "A phone (to be measured)",
 			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
 			"downloadMB": "–",
 			"memoryMB": "–",
 			"p50Ms": "–",
@@ -20,6 +21,7 @@
 		{
 			"device": "A desktop GPU (to be measured)",
 			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
 			"downloadMB": "–",
 			"memoryMB": "–",
 			"p50Ms": "–",

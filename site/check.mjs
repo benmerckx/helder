@@ -66,7 +66,17 @@ try {
 		await page.screenshot({ path: path.join(shots, 'site-phone-full.png'), fullPage: true });
 		await page.setViewportSize({ width: 1280, height: 900 });
 	}
+	// (each demo alone in the page, loaded again: the heavy ones, a million
+	// particles on a software GPU, would slow the next ones' checks)
+	async function start(id) {
+		await page.goto(url);
+		const island = page.locator(`#play-${id}`);
+		await island.scrollIntoViewIfNeeded();
+		await island.locator('button.play').click();
+		await page.waitForFunction((id) => document.getElementById('play-' + id).hasAttribute('data-hydrated'), id, { timeout: 60000 });
+	}
 	for (const id of play) {
+		await page.goto(url);
 		const island = page.locator(`#play-${id}`), canvas = island.locator('canvas');
 		await island.scrollIntoViewIfNeeded();
 		// (a sound has no canvas: started, nothing drawn)
@@ -101,7 +111,10 @@ try {
 		}
 	}
 	// (a game full screen and expanded at a phone's size, a touch drag still the game's: golf's shot, its strokes in ui's accessibility mirror)
-	if (play.includes('golf')) await phone(page, shots);
+	if (play.includes('golf')) {
+		await start('golf');
+		await phone(page, shots);
+	}
 	check(errors.length === 0, `no console errors${errors.length ? ': ' + errors.join('\n') : ''}`);
 } finally {
 	await browser.close();

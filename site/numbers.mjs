@@ -6,6 +6,7 @@
 // downloadBytes, textureBytes, p50Ms, p99Ms), the last of which is kept.
 // Written to bin/site/numbers.json, which the pages read (numbers.js): per
 // <id>[.<scene>] the first frame (ms), the download and GPU textures (MB),
+// what the Play button fetched (the module and all, raw and gzipped, MB),
 // the frame times' p50 and p99 (ms), and the graphics API it drew with.
 //
 //   node site/numbers.mjs [ids...]
@@ -13,6 +14,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
@@ -59,6 +61,11 @@ try {
 				const el = document.getElementById('play-' + id);
 				el.dataset.args = JSON.stringify([...JSON.parse(el.dataset.args || '[]'), s]);
 			}, [e.id, scene]);
+			// (what the press fetches: the module, its browser modules, fonts, assets, data; raw and gzipped)
+			const fetched = [];
+			page.on('response', async (r) => {
+				try { fetched.push(await r.body()); } catch {}
+			});
 			const t0 = Date.now();
 			await page.locator(`#play-${e.id} button.play`).click();
 			await page.waitForFunction((id) => {
@@ -66,12 +73,14 @@ try {
 				return el.hasAttribute('data-hydrated') || el.hasAttribute('data-error');
 			}, e.id, { timeout: 120000 });
 			const gfx = await page.locator(`#play-${e.id}`).getAttribute('data-gfx');
-			await page.waitForTimeout(SECONDS * 1000);
+			// (page.json's seconds: a demo that settles slowly, lowering its load on a software GPU)
+			await page.waitForTimeout((e.page.seconds || SECONDS) * 1000);
 			// (a slow one, software rendering: until its first stats line, at most a minute more)
 			for (let k = 0; k < 60 && !last; k++) await page.waitForTimeout(1000);
 			const key = e.id + (scene ? '.' + scene : '');
 			numbers[key] = last ? { firstFrameMs: last.firstFrameMs, downloadMB: mb(last.downloadBytes), memoryMB: mb(last.textureBytes), p50Ms: last.p50Ms,
-				p99Ms: last.p99Ms, gfx, measured: new Date().toISOString().slice(0, 10), software: true } : null;
+				p99Ms: last.p99Ms, gfx, measured: new Date().toISOString().slice(0, 10), software: true,
+				fetchedMB: mb(fetched.reduce((n, b) => n + b.length, 0)), fetchedGzMB: mb(fetched.reduce((n, b) => n + zlib.gzipSync(b, { level: 9 }).length, 0)) } : null;
 			console.log(`${key.padEnd(28)} ${last ? JSON.stringify(numbers[key]) : 'no stats line'} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
 			await page.close();
 		}

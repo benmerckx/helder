@@ -90,6 +90,17 @@ class FrameStats {
 		return m;
 	}
 
+	// a line for the examples site's numbers (site/numbers.mjs reads the
+	// last `stats: {...}` printed): the first frame (seconds from the
+	// start), the bytes fetched beyond the module, the textures' bytes
+	// (Device.textureBytes), the frame times' p50 and p99
+	public function report(firstFrame:Float, downloadBytes:Float, textureBytes:Float):String {
+		inline function ms(s:Float):Float
+			return Math.round(s * 10000) / 10;
+		return 'stats: {"firstFrameMs": ${Math.round(firstFrame * 1000)}, "downloadBytes": ${Std.int(downloadBytes)}, "textureBytes": ${Std.int(textureBytes)}, '
+			+ '"p50Ms": ${ms(percentile(0.5))}, "p99Ms": ${ms(percentile(0.99))}, "cpuP50Ms": ${ms(percentile(0.5, true))}, "cpuP99Ms": ${ms(percentile(0.99, true))}}';
+	}
+
 	// the renderer's counts of its last draw
 	public function from(r:helder.scene.render.Renderer) {
 		draws = r.draws;

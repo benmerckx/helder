@@ -29,6 +29,8 @@ interface Apk {
 interface Device {
 	device: string;
 	firstFrameMs: string;
+	// (all the Play button fetches: the module too, gzipped; "–" when not measured)
+	fetchedGzMB: string;
 	downloadMB: string;
 	memoryMB: string;
 	p50Ms: string;
@@ -50,6 +52,8 @@ interface Page {
 	credits: string[];
 	// what numbers.mjs plays: the program's args beyond the data folder (a scene each, by label)
 	numbers: string[];
+	// how long numbers.mjs plays it (0: its default)
+	seconds: number;
 }
 
 interface Example {
@@ -189,6 +193,7 @@ function Row(props: { d: Device, slot: string }) {
 	return <tr>
 		<th scope="row">{d.device}</th>
 		{cell("firstFrameMs", d.firstFrameMs)}
+		{cell("fetchedGzMB", d.fetchedGzMB)}
 		{cell("downloadMB", d.downloadMB)}
 		{cell("memoryMB", d.memoryMB)}
 		{cell("p50Ms", d.p50Ms)}
@@ -200,10 +205,10 @@ function Numbers(props: { ex: Example }) {
 	const ex = props.ex;
 	const page = ex.page as Page;
 	const scenes = page.numbers.length > 0 ? page.numbers : [""];
-	const ci = (label: string): Device => ({ device: "CI: headless Chromium, SwiftShader (software)" + (label === "" ? "" : ", " + label), firstFrameMs: "…",
+	const ci = (label: string): Device => ({ device: "CI: headless Chromium, SwiftShader (software)" + (label === "" ? "" : ", " + label), firstFrameMs: "…", fetchedGzMB: "…",
 		downloadMB: "…", memoryMB: "…", p50Ms: "…", p99Ms: "…" });
 	return <table class="numbers">
-		<thead><tr><th scope="col"></th><th scope="col">First frame (ms)</th><th scope="col">Download (MB)</th><th scope="col">GPU textures (MB)</th>
+		<thead><tr><th scope="col"></th><th scope="col">First frame (ms)</th><th scope="col">Fetched, gzipped (MB)</th><th scope="col">Data download (MB)</th><th scope="col">GPU textures (MB)</th>
 			<th scope="col">Frame p50 (ms)</th><th scope="col">Frame p99 (ms)</th></tr></thead>
 		<tbody>
 			{scenes.map(label => <Row d={ci(label)} slot={ex.id + (label === "" ? "" : "." + label)} />)}
@@ -238,12 +243,13 @@ function DemoPage(props: { ex: Example }) {
 					<div class="body">
 						{page.description.map(p => <p>{p}</p>)}
 						<h2>Numbers</h2>
-						<p class="muted">The first frame: from the program's start to the model's first frame (its fetch, decoding and upload); the download: what it fetches
+						<p class="muted">The first frame: from the program's start to its first frame (a model's fetch, decoding and upload included); fetched: all the Play
+							button downloads, the module, its browser modules, fonts and assets, gzipped; the data download: what the program fetches
 							beyond the module{ex.dataBytes > 0 ? " (" + Math.round(ex.dataBytes / 104857.6) / 10 + " MB of data beside it)" : ""}; GPU textures:
 							the bytes of the textures alive (helder.gfx's Device.textureBytes); frame times from its overlay. CI's are headless software
 							rendering, not a phone's or a desktop's GPU; the real devices' rows are measured by hand.</p>
 						<Numbers ex={ex} />
-						{page.compare.length > 0 ? <h2>The same scene in three.js</h2> : null}
+						{page.compare.length > 0 ? <h2>The same elsewhere</h2> : null}
 						{page.compare.length > 0 ? <ul>{page.compare.map(c => <li><a href={c.url}>{c.what}</a>{": " + c.downloadMB + " MB downloaded. " + c.note}</li>)}</ul> : null}
 						<h2>Credits</h2>
 						<ul>{page.credits.map(c => <li>{c}</li>)}</ul>
