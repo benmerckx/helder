@@ -1,0 +1,39 @@
+{
+	"description": [
+		"Draw calls against instancing, the same asteroid belt three ways: SEPARATE is a scene node a rock, each its own draw call with its matrices in a uniform block (renderer.instancing off, up to 20,000); BATCHED the same nodes, the renderer finding the runs of one primitive and drawing each run instanced; INSTANCED no nodes at all, one helder.scene.render.InstancedMesh whose transforms and colours the program writes into flat arrays, one draw for up to 200,000 rocks.",
+		"Every rock orbits and spins every frame on the CPU, so the overlay's CPU time is the frame's real work: the update, the renderer's extraction and recording. The slider sets how many (logarithmic), the buttons the mode, keys 1 to 3 too. It starts at 100,000 instances and halves that, down to 10,000, while a slow GPU (a software one, CI's) cannot keep up, until the slider is touched."
+	],
+	"numbers": [],
+	"devices": [
+		{
+			"device": "A phone (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		},
+		{
+			"device": "A desktop GPU (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		}
+	],
+	"compare": [
+		{
+			"what": "three.js r170 (three.module.min.js), as webgl_instancing_performance loads it",
+			"url": "https://threejs.org/examples/#webgl_instancing_performance",
+			"downloadMB": "0.69 (0.17 gzipped)",
+			"note": "The library alone, measured from the r170 package's build; the example's own code, its controls and its stats panel on top."
+		}
+	],
+	"credits": [
+		"Code: MIT, helder"
+	],
+	"seconds": 30
+}

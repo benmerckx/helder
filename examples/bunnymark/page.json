@@ -1,0 +1,38 @@
+{
+	"description": [
+		"Bunnymark, the 2D sprite benchmark PixiJS made famous (after Iain Lobb's): bunnies thrown in, falling under gravity, bouncing off the floor and the sides, each one a textured quad of helder.sprite's SpriteBatch, all of them one run of one texture: a single draw call however many there are.",
+		"Press and hold (or Space) to add 500 a frame. The overlay shows the bunnies, and the most drawn while the last second's median frame stayed under 17.5 ms: the count at 60 fps. The bunnies' sheet is drawn in code; nothing is allocated a frame."
+	],
+	"numbers": [],
+	"devices": [
+		{
+			"device": "A phone (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		},
+		{
+			"device": "A desktop GPU (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		}
+	],
+	"compare": [
+		{
+			"what": "PixiJS 8.5.2 (pixi.min.js), Bunnymark",
+			"url": "https://www.goodboydigital.com/pixijs/bunnymark/",
+			"downloadMB": "0.66 (0.18 gzipped)",
+			"note": "The library alone (PixiJS 7.4.2's: 0.46 MB, 0.14 gzipped); the bunnies' image and the page's code on top."
+		}
+	],
+	"credits": [
+		"After PixiJS's Bunnymark and Iain Lobb's original; the bunnies drawn in code (MIT, helder)"
+	]
+}

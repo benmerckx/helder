@@ -1,0 +1,38 @@
+{
+	"description": [
+		"A million particles moved by the GPU: helder.scene.render.GpuParticles writes each particle once, when it is born (where, how fast, its colour, sizes and life), and its vertex shader moves it from then on, so a frame's CPU work is only the few thousand born in it and their upload; one instanced draw of a million quads.",
+		"The galaxy is a lawn sprinkler's: three arms flung out of the core along directions that turn, slowing as they go, so each arm is a spiral of particles born at different moments; a disc of reddish dust and a bright core. Drag to turn around it, scroll to zoom, tap the disc for a supernova of 20,000 streaks. On a GPU too slow for a million (a software one) it keeps fewer alive, and says so."
+	],
+	"numbers": [],
+	"devices": [
+		{
+			"device": "A phone (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		},
+		{
+			"device": "A desktop GPU (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		}
+	],
+	"compare": [
+		{
+			"what": "three.js r170 (three.module.min.js), as its points examples load it",
+			"url": "https://threejs.org/examples/#webgl_points_waves",
+			"downloadMB": "0.69 (0.17 gzipped)",
+			"note": "The library alone, measured from the r170 package's build; the example's code on top."
+		}
+	],
+	"credits": [
+		"Code: MIT, helder"
+	]
+}

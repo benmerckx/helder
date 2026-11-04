@@ -1,0 +1,31 @@
+{
+	"description": [
+		"A thousand crates rained into a walled pit by helder.physics, stepped at 60 Hz: a sweep-and-prune broad phase, box contacts by separating axes, sequential impulses with friction, sleeping. The bodies have no scene nodes: after each step their positions and orientations are written into one InstancedMesh, so all of them are one draw, casting shadows.",
+		"After four seconds a kinematic paddle (Body.kinematic: moved by the angular velocity it is given, pushing and never pushed) sweeps round the floor and wakes the sleeping crates it touches. The overlay shows the bodies, how many are awake, the contacts and the step's p50 and p99. Tap for a hundred more crates; the button turns the paddle on and off."
+	],
+	"numbers": [],
+	"devices": [
+		{
+			"device": "A phone (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		},
+		{
+			"device": "A desktop GPU (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		}
+	],
+	"compare": [],
+	"credits": [
+		"Code: MIT, helder"
+	]
+}

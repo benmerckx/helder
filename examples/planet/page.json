@@ -1,0 +1,32 @@
+{
+	"description": [
+		"A planet under a physically based atmosphere, ported from Expansion (its Atmosphere and AtmosphereShader, after Maxime Heckel's \"On rendering the sky, sunsets and planets\" and Sébastien Hillaire's LUTs): each pixel's ray through the air's shell marched against Rayleigh's and Mie's scattering and ozone's absorption, the sun's light at each point read from a transmittance LUT made once on the CPU. A blue limb on the day side, reds along the terminator, the night side's city lights (Material.emissiveNight), a moon and stars.",
+		"The atmosphere is the example's own code, drawn at the renderer's AfterOpaque injection point; the surfaces are painted from noise at start. Drag to orbit, pinch or scroll to zoom; the presets switch Earth, Mars, a toxic world and an ice world, SUNRISE puts the sun just behind the limb, STATS shows the overlay."
+	],
+	"numbers": [],
+	"devices": [
+		{
+			"device": "A phone (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		},
+		{
+			"device": "A desktop GPU (to be measured)",
+			"firstFrameMs": "–",
+			"fetchedGzMB": "–",
+			"downloadMB": "–",
+			"memoryMB": "–",
+			"p50Ms": "–",
+			"p99Ms": "–"
+		}
+	],
+	"compare": [],
+	"credits": [
+		"Atmosphere: Expansion's (benmerckx/expansion), after Maxime Heckel and Sébastien Hillaire",
+		"Surfaces painted from noise in code (MIT, helder)"
+	]
+}
