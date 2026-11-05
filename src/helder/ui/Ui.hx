@@ -221,6 +221,9 @@ class Ui {
 
 	// lays the tree out if it changed (a tree that did not: nothing done);
 	// the platform's views' events first, their nodes kept in step after
+	// bumped by each key, press, release, focus change and action (what a menu's states may follow)
+	public var inputEpoch(default, null) = 0;
+
 	// run first in each update (a menu bar's states checked: helder.ui.menu.MenuBar)
 	public final beforeUpdate:Array<Void->Void> = [];
 
@@ -584,6 +587,7 @@ class Ui {
 	// it alone (helder.os's Pointer.owner, UiWindow's)
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function pointerDown(x:Float, y:Float, button:Int, id = 0, type:PointerType = Mouse, pressure = 1.0):Bool {
+		inputEpoch++;
 		var r = pointerDownNow(x, y, button, id, type, pressure);
 		helder.view.graph.Graph.flush();
 		return r;
@@ -632,6 +636,7 @@ class Ui {
 	// the mouse's button released (id 0), or a finger or a pen lifted
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function pointerUp(x:Float, y:Float, button:Int, id = 0) {
+		inputEpoch++;
 		pointerUpNow(x, y, button, id);
 		helder.view.graph.Graph.flush();
 	}
@@ -1121,6 +1126,7 @@ class Ui {
 	// the window's and the app's handlers, until one takes it (true); a
 	// disabled one's is not run
 	public function dispatchAction(a:EnumValue, ?from:Node):Bool {
+		inputEpoch++;
 		var n = from != null ? from : focus != null ? focus : root;
 		inline function tryAll(hs:Array<helder.ui.actions.Actions.ActionHandler>):Bool {
 			var taken = false;
@@ -1244,6 +1250,7 @@ class Ui {
 
 	// (an event: the graph's writes in it land at its end, helder.view.graph)
 	public function keyDown(key:Int, mods:Int) {
+		inputEpoch++;
 		keyDownNow(key, mods);
 		helder.view.graph.Graph.flush();
 	}
@@ -1418,6 +1425,7 @@ class Ui {
 	// the focus moved to n (null: none); scroll: n brought into view in its
 	// scrolling ancestors (not when a press focused it)
 	public function setFocus(n:Null<Node>, scroll = true) {
+		inputEpoch++;
 		if (n == focus) return;
 		accessEpoch++;
 		if (scroll && n != null) scrollIntoView(n);

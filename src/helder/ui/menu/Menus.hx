@@ -86,6 +86,9 @@ class MenuBar {
 	public final node:Node;
 	public var native(default, null) = false;
 	var signature = "";
+	var epoch = -1;
+	var keymapVersion = -1;
+	var checked = 0.0;
 	var actions:Array<EnumValue> = [];
 	var open:Null<DrawnMenu> = null;
 	var openIndex = -1;
@@ -108,6 +111,7 @@ class MenuBar {
 	public function setMenus(menus:Array<Menu>) {
 		this.menus = menus;
 		signature = "";
+		epoch = -1;
 		build();
 		update();
 	}
@@ -130,6 +134,12 @@ class MenuBar {
 			}
 			return;
 		}
+		// (checked again after input, a keymap's change, else each second: nothing made in a frame that changed none)
+		var now = haxe.Timer.stamp();
+		if (native && ui.inputEpoch == epoch && ui.keymap.version == keymapVersion && now - checked < 1) return;
+		epoch = ui.inputEpoch;
+		keymapVersion = ui.keymap.version;
+		checked = now;
 		var a:Array<EnumValue> = [];
 		var top:Array<PlatformMenuItem> = [for (m in menus) {
 			var r:PlatformMenuItem = {id: -1, label: m.label, items: Menus.resolve(ui, m.items, null, a)};
