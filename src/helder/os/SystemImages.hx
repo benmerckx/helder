@@ -121,7 +121,7 @@ class SystemImages {
 			if (src.isNull()) throw ImageError.unsupported("SystemImages: ImageIO cannot open it");
 			var props = ImageIO.CGImageSourceCopyPropertiesAtIndex(src, 0, Ptr.nil());
 			if (props.isNull()) {
-				ImageIO.CFRelease(src);
+				CFs.CFRelease(src);
 				throw ImageError.unsupported("SystemImages: ImageIO reads no image in it");
 			}
 			inline function number(key:String):Int {
@@ -131,9 +131,9 @@ class SystemImages {
 				return v.isNull() ? 0 : helder.os.objc.Msg.i(v, helder.os.objc.ObjC.sel("integerValue")).toInt();
 			}
 			var w = number("PixelWidth"), h = number("PixelHeight"), o = number("Orientation");
-			ImageIO.CFRelease(props);
+			CFs.CFRelease(props);
 			try ImageLimits.check("SystemImages", w, h, 4) catch (e:ImageError) {
-				ImageIO.CFRelease(src);
+				CFs.CFRelease(src);
 				throw e;
 			}
 			// (a thumbnail of the whole, its orientation applied, at most the side asked for)
@@ -148,26 +148,26 @@ class SystemImages {
 				helder.os.objc.ObjC.release(k);
 			}
 			var img = ImageIO.CGImageSourceCreateThumbnailAtIndex(src, 0, dict);
-			ImageIO.CFRelease(src);
+			CFs.CFRelease(src);
 			if (img.isNull()) throw ImageError.corrupt("SystemImages: ImageIO cannot decode it");
-			var pw = ImageIO.CGImageGetWidth(img).toInt(), ph = ImageIO.CGImageGetHeight(img).toInt();
+			var pw = CG.CGImageGetWidth(img).toInt(), ph = CG.CGImageGetHeight(img).toInt();
 			var n = pw * ph * 4, buf = LibC.malloc((n : hxmc.I64));
-			var space = ImageIO.CGColorSpaceCreateWithName(ImageIO.srgb());
+			var space = CG.CGColorSpaceCreateWithName(CG.srgb());
 			// (kCGImageAlphaPremultipliedLast: R G B A, premultiplied as Core Graphics draws)
-			var ctx = ImageIO.CGBitmapContextCreate(buf, pw, ph, 8, pw * 4, space, 1);
+			var ctx = CG.CGBitmapContextCreate(buf, pw, ph, 8, pw * 4, space, 1);
 			var rect:Ptr<helder.os.objc.CGRect> = LibC.malloc(32);
 			rect.value.origin.x = 0;
 			rect.value.origin.y = 0;
 			rect.value.size.width = pw;
 			rect.value.size.height = ph;
-			ImageIO.CGContextDrawImage(ctx, rect.value, img);
+			CG.CGContextDrawImage(ctx, rect.value, img);
 			LibC.free(cast rect);
 			var rgba = Bytes.alloc(n);
 			BytesPtr.copyIn(rgba, 0, buf, n);
 			LibC.free(buf);
-			ImageIO.CFRelease(ctx);
-			ImageIO.CFRelease(space);
-			ImageIO.CFRelease(img);
+			CFs.CFRelease(ctx);
+			CFs.CFRelease(space);
+			CFs.CFRelease(img);
 			unpremultiply(rgba);
 			// (its size as shown: the orientation's quarter turns swap the sides)
 			var turned = o >= 5 && o <= 8;
@@ -211,19 +211,26 @@ class IWICFormatConverter {
 	@:slot(8) static function Initialize(self:Ptr, source:Ptr, format:Ptr, dither:Int, palette:Ptr, alpha:Float, paletteType:Int):Int;
 }
 
+// (each function from the framework that has it: they are bound as the program loads)
 @:hxmc.c @:hxmc.lib("/System/Library/Frameworks/ImageIO.framework/ImageIO") extern class ImageIO {
 	static function CGImageSourceCreateWithURL(url:Ptr, options:Ptr):Ptr;
 	static function CGImageSourceCopyPropertiesAtIndex(src:Ptr, index:hxmc.I64, options:Ptr):Ptr;
 	static function CGImageSourceCreateThumbnailAtIndex(src:Ptr, index:hxmc.I64, options:Ptr):Ptr;
+}
+
+@:hxmc.c @:hxmc.lib("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics") extern class CG {
 	static function CGImageGetWidth(img:Ptr):hxmc.I64;
 	static function CGImageGetHeight(img:Ptr):hxmc.I64;
 	static function CGColorSpaceCreateWithName(name:Ptr):Ptr;
 	static function CGBitmapContextCreate(data:Ptr, w:hxmc.I64, h:hxmc.I64, bits:hxmc.I64, stride:hxmc.I64, space:Ptr, info:Int):Ptr;
 	static function CGContextDrawImage(ctx:Ptr, rect:helder.os.objc.CGRect, img:Ptr):Void;
-	static function CFRelease(o:Ptr):Void;
 	// (kCGColorSpaceSRGB: a CFStringRef the framework exports)
 	static inline function srgb():Ptr {
 		var p:Ptr<Ptr> = cast Posix.dlsym(Ptr.ofI64(-2), Mem.cstr("kCGColorSpaceSRGB"));
 		return p.isNull() ? Ptr.nil() : p.value;
 	}
+}
+
+@:hxmc.c @:hxmc.lib("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation") extern class CFs {
+	static function CFRelease(o:Ptr):Void;
 }
