@@ -90,6 +90,33 @@ Windows an HDROP posted as `WM_DROPFILES`, under Wine too
 own class given to the window's dragging destination; then moveTo and
 position, fullscreen asked); `src/helder/os/UriList.test.hx`.
 
+### Dialogs, file types, the files the system opens
+
+```haxe
+var path = FileDialog.open(window, "Open an image", [{name: "Images", extensions: ["jpg", "png"]}]); // null: cancelled
+FileTypes.register("helder-viewer", "Viewer", exe, [{mime: "image/jpeg", extensions: ["jpg"]}]);   // "Open with", this user's
+App.onOpen = paths -> open(paths[0]);       // macOS: Finder's Open With, the Dock's icon (application:openURLs:)
+window.raise();                              // to the front (a second launch handing its file over)
+```
+
+`FileDialog`: Windows' IFileOpenDialog (COM's vtables: filters, title,
+the result's IShellItem path), macOS's NSOpenPanel (runModal), Linux's
+xdg-desktop-portal FileChooser (OpenFile over the session bus with
+`helder.os.linux.DBus`, a small blocking client of its own: SASL
+EXTERNAL, the marshalling of the portals' types, calls, replies, signals,
+a match rule; the request's Response signal, its URI as the path);
+`available()` says whether there is one (no portal: the caller's own
+picker). `FileTypes.register`: Windows' HKCU\Software\Classes (a ProgID
+and its open command, each extension's OpenWithProgids, the
+application's SupportedTypes; SHChangeNotify), Linux's
+~/.local/share/applications/<id>.desktop (MimeType, Exec with %F); a
+macOS bundle's are its Info.plist's (`helder build --target macos`, from
+helder.webmanifest's `file_handlers`). Tests: the window lane
+(IFileOpenDialog and NSOpenPanel made; FileTypes' registry values and
+.desktop file read back; application:openURLs: reaching App.onOpen), the
+dbus lane (tests/os/DBusTest.hx: a real dbus-daemon, the portal's
+OpenFile against a stand-in portal).
+
 ### A phone's screen and the display's frames
 
 ```haxe

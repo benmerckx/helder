@@ -47,6 +47,9 @@ class Viewer {
 	public var prefetch = 2;
 	// Mod's name for the hints: Ctrl, or Cmd on macOS
 	public var mod = "Ctrl";
+	// the system's open dialog (Mod+O; the shell's: helder.os.FileDialog):
+	// true when it showed one, else the picker
+	public var openDialog:Null<Void->Bool> = null;
 
 	var frameAt = 0.0;
 	var played = 0;
@@ -251,6 +254,7 @@ class Viewer {
 		}
 		if (mods & (Key.MOD_CONTROL | Key.MOD_META) != 0) {
 			if (key == "o".code) {
+				if (openDialog != null && openDialog()) return true;
 				openPicker(folder.dir);
 				return true;
 			}

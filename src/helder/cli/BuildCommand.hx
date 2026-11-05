@@ -11,7 +11,8 @@ using StringTools;
 // full) into bin/<target>/<name>, its compile time and size printed; for
 // web the page and its modules beside the module (bin/web/<name>.html);
 // for android an APK (Android: bin/android/<name>.apk), for ios an .ipa
-// and for ios-sim an .app (Ios: bin/ios/<name>.ipa, bin/ios-sim/<name>.app).
+// and for ios-sim an .app (Ios: bin/ios/<name>.ipa, bin/ios-sim/<name>.app);
+// for macos a universal app bundle (Mac: bin/macos/<Label>.app).
 // `helder run [entry] [-o <path>] [-- args...]`: the same for this machine,
 // then run; with --target android or ios on a device (-d, else the one
 // there is: Devices.pick), installed and started there, its output here.
@@ -31,6 +32,18 @@ class BuildCommand {
 		if (mobile != null) {
 			var code = andRun ? runMobile(o, e, mobile) : buildMobile(o, e, mobile);
 			return code;
+		}
+		if (e.target == "macos") {
+			if (andRun) {
+				Term.err(Style.usage("helder run: --target macos is a bundle: helder build --target macos, then open it"));
+				return 2;
+			}
+			Term.out(Style.header("build", ["macos", e.label()]));
+			var r = try Mac.build(e, o.out ?? Mac.out(e), Release) catch (err:Dynamic) {
+				Term.err(Style.status("error", Fail, Std.string(err)));
+				return 1;
+			}
+			return r.ok ? 0 : 1;
 		}
 		if (andRun && e.isWeb()) {
 			Term.err(Style.usage("helder run: this machine only (helder dev --target web serves a page; helder build --target web builds one)"));

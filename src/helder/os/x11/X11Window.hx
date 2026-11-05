@@ -257,6 +257,14 @@ class X11Window {
 		Xlib.XFlush(display);
 	}
 
+	// (EWMH: _NET_ACTIVE_WINDOW asked of the window manager, from an application; raised meanwhile)
+	function raise() {
+		Xlib.XRaiseWindow(display, id);
+		sendMessage(Xlib.XDefaultRootWindow(display), id, Arena.scopedValue(a -> Xlib.XInternAtom(display, a.cstring("_NET_ACTIVE_WINDOW"), 0)), 1, 0, 0, 0, 0,
+			X.SubstructureRedirectMask | X.SubstructureNotifyMask);
+		Xlib.XFlush(display);
+	}
+
 	// the content's top left on the root window
 	function position():{x:Int, y:Int}
 		return Arena.scopedValue(a -> {

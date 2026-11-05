@@ -39,7 +39,7 @@ helder <entry>                          shorthand for: helder dev <entry>
 
 commands: dev, run, build, test, inspect, devices, help
 
-  --target <t>       host (default), web, android, ios, ios-sim, or an exact hxmc target (windows-x86_64, android-x86_64, ...)
+  --target <t>       host (default), web, android, ios, ios-sim, macos (a universal app bundle), or an exact hxmc target (windows-x86_64, android-x86_64, ...)
   -d, --device <d>   which phone, emulator or simulator (android, ios); `helder devices` lists them
   -o, --out <path>   build's output
   -- <args>          the program's arguments (dev, run)
@@ -84,6 +84,14 @@ booted.
   and dev: `android-arm64`, `android-x86_64`), `ios` (an iPhone's,
   `ios-arm64`, for build; the simulator's for run and dev), `ios-sim`
   (`ios-sim-arm64`, Apple silicon's simulator).
+- **macOS's app bundle** (`--target macos`): `bin/macos/<Label>.app`, its
+  executable universal (macos-arm64's and macos-x86_64's slices, lipo's
+  fat header: `helder.pack.apple.Fat`, each signed ad hoc as hxmc signs
+  it), its Info.plist (the manifest's id, name, version; its icon as
+  AppIcon.icns; CFBundleDocumentTypes from the manifest's
+  `file_handlers`: Finder's Open With, helder.os's `App.onOpen`).
+  x86-64's runtime objects from @hxmc/darwin-x64 (HXMC_RT_DIR) on an
+  Apple silicon Mac.
 - **Entries**:
   - nothing: the working directory, a project;
   - a project directory: `package.json` and `src/Main.hx`;

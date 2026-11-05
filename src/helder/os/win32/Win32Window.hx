@@ -215,6 +215,11 @@ class Win32Window {
 		});
 	}
 
+	function raise() {
+		User32.ShowWindow(hwnd, 9); // (SW_RESTORE)
+		User32.SetForegroundWindow(hwnd);
+	}
+
 	// the client area's top left on the screen, in points
 	function position():{x:Int, y:Int}
 		return Arena.scopedValue(a -> {

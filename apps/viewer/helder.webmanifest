@@ -1,0 +1,20 @@
+{
+  "name": "Viewer",
+  "short_name": "Viewer",
+  "description": "helder's image viewer",
+  "background_color": "#161618",
+  "theme_color": "#161618",
+  "icons": [{"src": "icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any"}],
+  "file_handlers": [
+    {
+      "action": "/open",
+      "accept": {
+        "image/jpeg": [".jpg", ".jpeg", ".jfif"],
+        "image/png": [".png", ".apng"],
+        "image/gif": [".gif"],
+        "image/webp": [".webp"]
+      }
+    }
+  ],
+  "helder": {"id": "org.helder.viewer", "version": "0.1"}
+}

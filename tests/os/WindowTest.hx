@@ -49,6 +49,8 @@ class WindowTest {
 				source.finish(check);
 				var p = window.position();
 				check("moveTo, position", p != null && p.x == 120 && p.y == 160, p == null ? "null" : '${p.x}, ${p.y}');
+				window.raise();
+				integration(check);
 				window.fullscreen = true;
 			}
 			if (step == 2 && t > 6.5) {
@@ -67,6 +69,46 @@ class WindowTest {
 			case _:
 		});
 		Sys.exit(failed > 0 ? 1 : 0);
+	}
+}
+
+// the desktop's: the file types registered (Windows: HKCU's ProgID read
+// back; Linux: the .desktop file in a data directory of the test's), the
+// system's open dialog made (not shown: COM's IFileOpenDialog, NSOpenPanel),
+// macOS's open request (application:openURLs:) reaching App.onOpen
+function integration(check:(String, Bool, String) -> Void) {
+	var types = [{mime: "image/jpeg", extensions: ["jpg", "jpeg"]}, {mime: "image/png", extensions: ["png"]}];
+	if (Mem.os() == 0) {
+		var dir = sys.FileSystem.fullPath(".") + "/bin/os/xdg";
+		Sys.putEnv("XDG_DATA_HOME", dir);
+		var w = FileTypes.register("helder-windowtest", "Window Test", "/opt/window test/viewer", types);
+		var text = try sys.io.File.getContent(dir + "/applications/helder-windowtest.desktop") catch (e:Dynamic) "";
+		check("FileTypes: a .desktop file", w.length == 1 && text.indexOf('Exec="/opt/window test/viewer" %F') >= 0 && text.indexOf("MimeType=image/jpeg;image/png;") >= 0, w.join(", "));
+	}
+	if (Mem.os() == 2) {
+		var w = FileTypes.register("helder.windowtest", "Window Test", "C:\\tools\\viewer.exe", types);
+		var command = Arena.scopedValue(a -> {
+			var buf:Ptr<UInt16> = a.alloc(1024), size:Ptr<Int32> = a.alloc(4);
+			size.value = 1024;
+			// (HKEY_CURRENT_USER, RRF_RT_REG_SZ 2)
+			var r = helder.os.win32.User32.Advapi32.RegGetValueW(Ptr.ofI64((0x80000001 : Int64)), a.wstring("Software\\Classes\\helder.windowtest.file\\shell\\open\\command"), Ptr.nil(), 2, Ptr.nil(), cast buf, cast size);
+			var b = new StringBuf(), k = 0;
+			if (r == 0) while (buf[k] != 0) b.addChar(buf[k++]);
+			b.toString();
+		});
+		check("FileTypes: the ProgID's command", command == '"C:\\tools\\viewer.exe" "%1"', command);
+		check("FileTypes: the extensions' OpenWithProgids", w.indexOf("HKCU\\Software\\Classes\\.jpg\\OpenWithProgids\\helder.windowtest.file") >= 0, w.length + " values");
+		check("FileDialog: IFileOpenDialog made", !helder.os.win32.FileOpenDialog.make("Open", [{name: "Images", extensions: ["jpg"]}]).isNull(), "");
+	}
+	if (Mem.os() == 1) {
+		check("FileDialog: NSOpenPanel made", !helder.os.cocoa.OpenPanel.make("Open", [{name: "Images", extensions: ["jpg"]}]).isNull(), "");
+		var got:Array<String> = [];
+		App.onOpen = paths -> got = paths;
+		var s = ObjC.str("/tmp/photos/a b.png");
+		var url = Msg.idPtr(ObjC.cls("NSURL"), ObjC.sel("fileURLWithPath:"), s);
+		var app = Msg.id(ObjC.cls("NSApplication"), ObjC.sel("sharedApplication"));
+		Msg.vPtrPtr(Msg.id(app, ObjC.sel("delegate")), ObjC.sel("application:openURLs:"), app, Msg.idPtr(ObjC.cls("NSArray"), ObjC.sel("arrayWithObject:"), url));
+		check("App.onOpen: application:openURLs:", got.join("|") == "/tmp/photos/a b.png", got.join("|"));
 	}
 }
 

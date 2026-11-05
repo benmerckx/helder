@@ -157,6 +157,7 @@ class CocoaWindow {
 		Runtime.class_replaceMethod(made, ObjC.sel("draggingUpdated:"), Callback.addr(dragEntered), Mem.cstr("Q@:@"));
 		Runtime.class_replaceMethod(made, ObjC.sel("prepareForDragOperation:"), Callback.addr(prepareDrag), Mem.cstr("c@:@"));
 		Runtime.class_replaceMethod(made, ObjC.sel("performDragOperation:"), Callback.addr(performDrag), Mem.cstr("c@:@"));
+			Runtime.class_replaceMethod(made, ObjC.sel("application:openURLs:"), Callback.addr(openURLs), Mem.cstr("v@:@@"));
 			delegate = helder.dev.Hosted.get(helder.dev.Hosted.MAC_DELEGATE);
 			var t = Runtime.objc_getClass(Mem.cstr("HxmcTextView"));
 			Runtime.class_replaceMethod(t, ObjC.sel("insertText:replacementRange:"), Callback.addr(insertText), Mem.cstr("v@:@{_NSRange=QQ}"));
@@ -183,6 +184,7 @@ class CocoaWindow {
 		Runtime.class_addMethod(cls, ObjC.sel("draggingUpdated:"), Callback.addr(dragEntered), Mem.cstr("Q@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("prepareForDragOperation:"), Callback.addr(prepareDrag), Mem.cstr("c@:@"));
 		Runtime.class_addMethod(cls, ObjC.sel("performDragOperation:"), Callback.addr(performDrag), Mem.cstr("c@:@"));
+		Runtime.class_addMethod(cls, ObjC.sel("application:openURLs:"), Callback.addr(openURLs), Mem.cstr("v@:@@"));
 		Runtime.objc_registerClassPair(cls);
 		delegate = Msg.id(Msg.id(cls, ObjC.sel("alloc")), ObjC.sel("init"));
 		Msg.vPtr(app, ObjC.sel("setDelegate:"), delegate);
@@ -320,6 +322,23 @@ class CocoaWindow {
 		rect.value.origin.x = x - (c.origin.x - f.origin.x);
 		rect.value.origin.y = screenHeight() - y - c.size.height - (c.origin.y - f.origin.y);
 		Msg.vPoint(window, ObjC.sel("setFrameOrigin:"), rect.value.origin);
+	}
+
+	function raise() {
+		Msg.vPtr(window, ObjC.sel("makeKeyAndOrderFront:"), Ptr.nil());
+		Msg.vBool(app, ObjC.sel("activateIgnoringOtherApps:"), true);
+	}
+
+	// the system asks the app to open files (NSApplicationDelegate): their paths to App.onOpen
+	@:hxmc.callback static function openURLs(self:Ptr, cmd:Ptr, application:Ptr, urls:Ptr):Void {
+		var paths = [];
+		for (i in 0...Msg.i(urls, ObjC.sel("count")).toInt()) {
+			var url = Msg.idInt(urls, ObjC.sel("objectAtIndex:"), i);
+			if (!Msg.b(url, ObjC.sel("isFileURL"))) continue;
+			var p = ObjC.string(Msg.id(url, ObjC.sel("path")));
+			if (p != null) paths.push(p);
+		}
+		@:privateAccess App.open(paths);
 	}
 
 	// a drag over a window: a copy when it carries file URLs (NSDragOperationCopy), else none

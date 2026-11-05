@@ -21,6 +21,9 @@ bun run test viewer viewer-window                # its tests; a real window on t
 | First, last | Home, End |
 | Zoom | the wheel when zoomed, Ctrl and the wheel, a trackpad's pinch: about the cursor, stopping at 100% and at the fit on their way; `+` and `-` by steps; `0` the fit, `1` 100%; a double click the fit and 100% in turn |
 | Pan | a drag (let go moving, it glides a little) |
+| Open dialog | Ctrl+O (Cmd+O): the system's (Windows' IFileOpenDialog, macOS's NSOpenPanel, Linux's xdg-desktop-portal), else the in-app picker |
+| One viewer | a second launch hands its file to the first (a loopback port in its store, a token) and ends; `--new`: a viewer of its own |
+| Open with | `viewer --register`: this user's file types (Windows' registry, Linux's .desktop file); macOS: the app bundle (`bun run helder build --target macos apps/viewer`: `bin/macos/Viewer.app`, universal, its document types from `helder.webmanifest`'s `file_handlers`) |
 | Window | F11 or Enter fullscreen, Escape leaves it; I the status line (zoom, size, format, the file's size, its place in the folder) |
 
 The title is the file's name, its place in the folder and its size
@@ -109,6 +112,5 @@ jobs).
 
 ## Not yet
 
-Next: native dialogs and "Open with" (the file associations, a second launch
-handing its file to the first), the platforms' own codecs (WIC,
+Next: the platforms' own codecs (WIC,
 ImageIO, HEIC and AVIF where the system has them).

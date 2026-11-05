@@ -45,6 +45,8 @@ class Run {
 		{name: "window", about: "helder.os's windows (tests/os/WindowTest.hx): files dropped through each system's own mechanism (X11: XDND from a second connection; Windows: WM_DROPFILES of an HDROP, also under Wine with GFX_TARGET=windows-x86_64; macOS: the window's dragging destination given a dragging info), moveTo and position, fullscreen asked (Linux: Xvfb)", run: window},
 		{name: "viewer", about: "helder's image viewer (apps/viewer): its tests (the folder model, the decode cache, the camera's maths, a scripted run of the shell headless, its stories) natively and on Eval; its build for this machine", run: viewerApp},
 		{name: "viewer-window", about: "the viewer in a real window on the GPU (GFX_TARGET's build: Linux under Xvfb, Windows under Wine from another host): a photo of the fixtures opened, decoded on helder.jobs and shown, closed after 3 s (--exit-after); again with no system font found (HELDER_NO_SYSTEM_FONTS=1: its own fallback font); a 9000x2000 PNG (apps/viewer/tests/bigpng.mjs) shown in tiles", run: viewerWindow},
+		{name: "viewer-app", about: "macOS: the viewer as a universal app bundle (helder build --target macos: arm64 and x86_64, Info.plist's CFBundleDocumentTypes from helder.webmanifest's file_handlers), plutil and lipo's checks, then `open -a` with a file: Launch Services' open request reaching App.onOpen", run: viewerBundle},
+		{name: "dbus", about: "helder.os's D-Bus client against a real dbus-daemon (Linux: dbus-run-session): Hello, ListNames, a service's half, then xdg-desktop-portal's FileChooser OpenFile against a stand-in portal (its arguments, its Response's URI as the path picked; tests/os/DBusTest.hx)", run: dbus},
 		{name: "async-web", about: "helder.async's browser loop (wasm32-wasi) in headless Chromium: timers, tasks, cancellation, fetches", run: asyncWeb},
 		{name: "test", about: "`helder test` (src/helder/cli) built natively, then every *.test.hx (helder.test) natively and as wasm32-wasi (node), and on Eval those that opt in (@:test.interp)", run: helderTest},
 		{name: "cli", about: "`helder build`, `run`, `dev` and `devices` (src/helder/cli): the grammar's errors and help, an example by file and by directory, a project, natively and for web (--target web); helder devices without adb and with a stand-in one; the dev loop natively (with the dev host and without) and for web without a window or a browser, and its exit policy: a crash keeps it up, the program closed ends it (tests/cli/dev.mjs, tests/cli/closer)", run: cli},
@@ -221,7 +223,7 @@ class Run {
 		run(h, ["build", "--target", GFX_TARGET, "apps/viewer"]);
 		var exe = exePath('apps/viewer/bin/$GFX_TARGET/viewer', GFX_TARGET);
 		var wine = GFX_TARGET.startsWith("windows-") && !HOST.startsWith("windows-") ? "wine " : "";
-		var cmd = '$wine$exe --exit-after 3 "apps/viewer/tests/fixtures/folder/photo 2.jpg"';
+		var cmd = '$wine$exe --new --exit-after 3 "apps/viewer/tests/fixtures/folder/photo 2.jpg"';
 		var out = 'bin/viewer-window.txt';
 		mkdirs("bin");
 		if (Sys.systemName() == "Linux") shell('xvfb-run -a $cmd > $out') else shell('$cmd > $out');
@@ -237,11 +239,49 @@ class Run {
 		// (an image past a texture's side: in tiles)
 		mkdirs("bin/viewer");
 		run(NODE, ["apps/viewer/tests/bigpng.mjs", "bin/viewer/wide.png", "9000", "2000"]);
-		var wide = '$wine$exe --exit-after 4 bin/viewer/wide.png';
+		var wide = '$wine$exe --new --exit-after 4 bin/viewer/wide.png';
 		if (Sys.systemName() == "Linux") shell('xvfb-run -a $wide > $out') else shell('$wide > $out');
 		said = File.getContent(out);
 		Sys.print(said);
 		if (said.indexOf("9000×2000 (shown") < 0) throw new Failed('the viewer did not show a 9000x2000 PNG in tiles: $said');
+		// (one viewer: a second launch hands its file to the first, which shows it)
+		var first = '$wine$exe --exit-after 6 apps/viewer/tests/fixtures/folder/alpha.png > bin/viewer/first.txt';
+		var second = '$wine$exe "apps/viewer/tests/fixtures/folder/photo 2.jpg" > bin/viewer/second.txt';
+		var both = '$first & sleep 3; $second; wait';
+		if (Sys.systemName() == "Linux") shell('xvfb-run -a sh -c \'$both\'') else shell(both);
+		var a = File.getContent("bin/viewer/first.txt"), b = File.getContent("bin/viewer/second.txt");
+		Sys.print(b + a);
+		if (b.indexOf("handed to the running viewer") < 0 || a.indexOf("viewer: photo 2.jpg") < 0) throw new Failed('the second launch did not hand its file to the first: $b / $a');
+		// (the file types registered: Windows' registry, Linux's .desktop file)
+		if (!GFX_TARGET.startsWith("macos-")) {
+			shell('$wine$exe --register > bin/viewer/register.txt');
+			var r = File.getContent("bin/viewer/register.txt");
+			Sys.print(r);
+			if (r.indexOf(GFX_TARGET.startsWith("windows-") ? "helder-viewer.file\\shell\\open\\command" : "helder-viewer.desktop") < 0) throw new Failed('--register: $r');
+		}
+	}
+
+	// (macOS: the universal bundle, its Info.plist and slices checked by
+	// Apple's tools, then opened by Launch Services with a file: the file
+	// reaching the app as an open request, App.onOpen)
+	static function viewerBundle() {
+		var h = helderCli();
+		run(h, ["build", "--target", "macos", "apps/viewer"]);
+		var app = "apps/viewer/bin/macos/Viewer.app";
+		run("plutil", ["-lint", '$app/Contents/Info.plist']);
+		shell('lipo -archs $app/Contents/MacOS/viewer | grep -q "x86_64 arm64\\|arm64 x86_64"');
+		var report = FileSystem.fullPath("bin") + "/viewer-app.txt";
+		if (FileSystem.exists(report)) FileSystem.deleteFile(report);
+		shell('open -W -n -a "$app" "apps/viewer/tests/fixtures/folder/photo 2.jpg" --args --new --exit-after 5 --report "$report"');
+		var said = FileSystem.exists(report) ? File.getContent(report) : "(no report)";
+		Sys.print(said);
+		if (said.indexOf("viewer: photo 2.jpg") < 0) throw new Failed('the bundle, opened with a file, did not show it: $said');
+	}
+
+	// (Linux: a private session bus, dbus-run-session)
+	static function dbus() {
+		exe("bin/os/DBusTest", cps(["src", "tests/os"]).concat(["-main", "DBusTest", "-D", "hxmc.libc=glibc"]));
+		run("dbus-run-session", ["--", exePath("bin/os/DBusTest", HOST)]);
 	}
 
 	// (Linux: Xvfb; a Windows target on another host: under Wine)

@@ -199,6 +199,15 @@ class Window {
 			(cast native : X11Window).moveTo(x, y);
 	}
 
+	// brought to the front and given the focus (a second launch handing its
+	// file to this one): X11's _NET_ACTIVE_WINDOW, Windows'
+	// SetForegroundWindow, macOS's makeKeyAndOrderFront: and the app activated
+	public function raise() {
+		if (closed) return;
+		if (Mem.platform() >= 1) {} else if (Mem.os() == 1) (cast native : CocoaWindow).raise() else if (Mem.os() == 2) (cast native : Win32Window).raise() else if (Mem.os() == 3) {} else if (Mem.target() >= 9) {} else
+			(cast native : X11Window).raise();
+	}
+
 	public function close() {
 		if (closed) return;
 		closed = true;

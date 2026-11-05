@@ -79,7 +79,7 @@ function tests() {
 		test("its mistakes", () -> {
 			equals(usage(() -> parse("build", ["--target"])), "helder build: --target takes a value: --target <t> (helder build --help)");
 			equals(usage(() -> parse("build", ["--target", "-o", "x"])), "helder build: --target takes a value: --target <t> (helder build --help)");
-			assert(usage(() -> parse("build", ["--target", "wasm"])).indexOf("helder build: no target wasm (host, web, android, ios, ios-sim, or an hxmc target: linux-x86_64") == 0);
+			assert(usage(() -> parse("build", ["--target", "wasm"])).indexOf("helder build: no target wasm (host, web, android, ios, ios-sim, macos, or an hxmc target: linux-x86_64") == 0);
 			equals(usage(() -> parse("dev", ["--target", "web,host"])), "helder dev: one target, not a list: web,host (helder test's --target takes several)");
 		});
 		test("android and ios", () -> {
@@ -193,12 +193,12 @@ function tests() {
 			var all = Options.helpText();
 			assert(all.indexOf("helder <entry>") >= 0);
 			for (c in ["dev", "run", "build", "test", "inspect", "devices", "help"]) assert(all.indexOf('\n  $c ') >= 0, c);
-			var target = "--target <t>", rest = "host (default), web, android, ios, ios-sim, or an exact hxmc target (windows-x86_64, android-x86_64, ...)";
+			var target = "--target <t>", rest = "host (default), web, android, ios, ios-sim, macos (a universal app bundle), or an exact hxmc target (windows-x86_64, android-x86_64, ...)";
 			for (c in ["dev", "run", "build"]) {
 				var h = Options.helpText(c);
 				assert(h.indexOf('helder $c [entry]') == 0, c);
 				for (t in [all, h]) {
-					assert(~/  --target <t> +host \(default\), web, android, ios, ios-sim, or an exact hxmc target/.match(t), c);
+					assert(~/  --target <t> +host \(default\), web, android, ios, ios-sim, macos \(a universal app bundle\), or an exact hxmc target/.match(t), c);
 					assert(~/  -d, --device <d> +which phone, emulator or simulator \(android, ios\); `helder devices` lists them/.match(t), c);
 					assert(~/  -h, --help +this help/.match(t), c);
 				}

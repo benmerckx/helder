@@ -20,6 +20,7 @@ import hxmc.unsafe.*;
 	static function SetClassLongPtrW(hwnd:Ptr, index:Int, value:Ptr):Ptr;
 	#end
 	static function GetWindowRect(hwnd:Ptr, r:Ptr<RECT>):Int;
+	static function SetForegroundWindow(hwnd:Ptr):Int;
 	static function MonitorFromWindow(hwnd:Ptr, flags:Int):Ptr;
 	// (MONITORINFO: cbSize, rcMonitor, rcWork, dwFlags; raw Int32s)
 	static function GetMonitorInfoW(monitor:Ptr, info:Ptr<Int32>):Int;
@@ -202,4 +203,7 @@ class WM {
 // the registry (the system's appearance)
 @:hxmc.c @:hxmc.lib("advapi32") extern class Advapi32 {
 	static function RegGetValueW(key:Ptr, subKey:Ptr, value:Ptr, flags:Int, type:Ptr, data:Ptr, size:Ptr):Int;
+	static function RegCreateKeyExW(key:Ptr, subKey:Ptr, reserved:Int, cls:Ptr, options:Int, sam:Int, security:Ptr, out:Ptr<Ptr>, disposition:Ptr):Int;
+	static function RegSetValueExW(key:Ptr, name:Ptr, reserved:Int, type:Int, data:Ptr, size:Int):Int;
+	static function RegCloseKey(key:Ptr):Int;
 }

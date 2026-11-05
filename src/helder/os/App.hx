@@ -92,6 +92,30 @@ class App {
 	// it as before. iOS has none.
 	public static var onBack:Null<Void->Bool> = null;
 
+	// files the system asks the app to open (macOS: Finder's "Open With",
+	// a document's double click, dropped on the Dock's icon:
+	// application:openURLs:, at launch too; elsewhere they are the command
+	// line's): their paths. Those that came before it was set are given to
+	// it when it is
+	public static var onOpen(default, set):Null<Array<String>->Void> = null;
+
+	static final opened:Array<String> = [];
+
+	static function set_onOpen(f:Null<Array<String>->Void>) {
+		onOpen = f;
+		if (f != null && opened.length > 0) {
+			var paths = opened.copy();
+			opened.resize(0);
+			f(paths);
+		}
+		return f;
+	}
+
+	@:allow(helder.os) static function open(paths:Array<String>) {
+		if (paths.length == 0) return;
+		if (onOpen != null) onOpen(paths) else for (p in paths) opened.push(p);
+	}
+
 	// how far the app is from its root (a menu's screens, a card over them):
 	// while above 0 the browser keeps one history entry of the page's own,
 	// so that its back (Android Chrome's button and gesture, the desktop's

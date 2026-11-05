@@ -166,6 +166,20 @@ class Manifest {
 			darkBackground: color(d, "background_color", '"helder": {"splash": {"dark": {"background_color"}}}'),
 			darkImage: str(d, "image", '"helder": {"splash": {"dark": {"image"}}}'),
 		};
+		var handlers:Dynamic = j.file_handlers;
+		if (handlers != null) {
+			if (!Std.isOfType(handlers, Array)) throw '$where: file_handlers: an array';
+			for (k in 0...(handlers : Array<Dynamic>).length) {
+				var fh:Dynamic = handlers[k];
+				known(fh, ["action", "accept", "name", "icons", "launch_type"], 'file_handlers[$k]');
+				if (!isObject(fh.accept)) throw '$where: file_handlers[$k]: accept: an object of MIME types and their extensions';
+				for (mime in Reflect.fields(fh.accept)) {
+					var exts:Dynamic = Reflect.field(fh.accept, mime);
+					if (!(Std.isOfType(exts, Array) && Lambda.foreach((exts : Array<Dynamic>), x -> Std.isOfType(x, String) && (x : String).startsWith("."))))
+						throw '$where: file_handlers[$k]: accept: "$mime": an array of extensions (".jpg")';
+				}
+			}
+		}
 		var name = str(j, "name", "name"), short = str(j, "short_name", "short_name");
 		return {
 			source: where,
@@ -180,6 +194,7 @@ class Manifest {
 			background: background,
 			icons: icons,
 			splash: splash,
+			file_handlers: handlers,
 			android: {
 				id: pkg,
 				permissions: a.permissions,
@@ -264,6 +279,9 @@ typedef AppConfig = {
 	?background:Null<Int>,
 	?icons:Array<IconSpec>,
 	?splash:Splash,
+	// the W3C manifest's file_handlers: the types the app opens (a macOS
+	// bundle's CFBundleDocumentTypes; FileTypes.register's elsewhere)
+	?file_handlers:Array<{?action:String, accept:haxe.DynamicAccess<Array<String>>}>,
 	?android:Dynamic,
 	?ios:Dynamic,
 }

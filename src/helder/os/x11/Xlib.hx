@@ -18,6 +18,7 @@ import hxmc.unsafe.*;
 	static function XStoreName(d:Ptr, w:Int64, name:Ptr):Int;
 	static function XResizeWindow(d:Ptr, w:Int64, width:Int, height:Int):Int;
 	static function XMoveWindow(d:Ptr, w:Int64, x:Int, y:Int):Int;
+	static function XRaiseWindow(d:Ptr, w:Int64):Int;
 	static function XSetWMNormalHints(d:Ptr, w:Int64, hints:Ptr):Void;
 	static function XSelectInput(d:Ptr, w:Int64, mask:Int64):Int;
 	static function XMapWindow(d:Ptr, w:Int64):Int;

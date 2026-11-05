@@ -34,14 +34,52 @@ class Shell implements Markup {
 		viewer.statusOn(num("status", 0) == 1);
 		// (--exit-after s: the window closed after s seconds, the title and
 		// state printed: a smoke run of the real window and GPU, CI's)
-		var exitAfter = args.indexOf("--exit-after") >= 0 ? Std.parseFloat(args[args.indexOf("--exit-after") + 1]) : -1.0;
-		var path = [for (i in 0...args.length) if (!StringTools.startsWith(args[i], "-") && (i == 0 || args[i - 1] != "--exit-after")) args[i]][0];
+		// (--report file: that line written there too, for a launch whose output is the system's: open -a)
+		var valued = ["--exit-after", "--report"];
+		inline function arg(name:String):Null<String>
+			return args.indexOf(name) >= 0 ? args[args.indexOf(name) + 1] : null;
+		var exitAfter = arg("--exit-after") != null ? Std.parseFloat(arg("--exit-after")) : -1.0, report = arg("--report");
+		var path = [for (i in 0...args.length) if (!StringTools.startsWith(args[i], "-") && (i == 0 || !valued.contains(args[i - 1]))) args[i]][0];
+		// (--register: the file types registered for this user, "Open with"; then done)
+		if (args.contains("--register")) {
+			for (w in helder.os.FileTypes.register(mac ? "org.helder.viewer" : "helder-viewer", "Viewer", sys.FileSystem.fullPath(Sys.programPath()), TYPES))
+				Sys.println("registered: " + w);
+			return;
+		}
+		// (another viewer running: the file handed to it, this one done; --new: a viewer of its own)
+		if (path != null && !args.contains("--new")) {
+			var full = sys.FileSystem.fullPath(path);
+			var taken = false;
+			Async.run(_ -> taken = Instance.handOver(full));
+			if (taken) {
+				Sys.println("viewer: handed to the running viewer: " + full);
+				return;
+			}
+		}
+		if (!args.contains("--new")) Instance.serve(p -> {
+			viewer.open(p);
+			helder.view.graph.Graph.flush();
+			for (w in helder.os.App.windows) w.raise();
+		});
+		// (macOS's: Finder's "Open With", the Dock's icon)
+		helder.os.App.onOpen = paths -> {
+			viewer.open(paths[0]);
+			helder.view.graph.Graph.flush();
+		};
+		// (Ctrl+O: the system's dialog where there is one, else the picker)
+		viewer.openDialog = () -> {
+			if (!helder.os.FileDialog.available() || helder.os.App.windows.length == 0) return false;
+			var picked = helder.os.FileDialog.open(helder.os.App.windows[0], "Open an image", [{name: "Images", extensions: [for (t in TYPES) for (x in t.extensions) x]}]);
+			if (picked != null) viewer.open(picked);
+			return true;
+		};
 		if (path != null) viewer.open(path) else @:privateAccess viewer.empty();
 		var window:Null<UiWindow> = null;
 		UiWindow.run(<Surface title={viewer.title} width={num("width", 1100)} height={num("height", 760)} background="#161618" dark={true}
 			onDrop={(files, x, y) -> if (files.length > 0) viewer.open(files[0])}
 			onClose={() -> {
 				save(store, window, viewer);
+				if (!args.contains("--new")) Instance.leave();
 				window.close();
 			}}
 			ref={w -> {
@@ -52,13 +90,24 @@ class Shell implements Markup {
 				effect(() -> viewer.fullscreen(), on -> w.window.fullscreen = on);
 				if (exitAfter >= 0) Async.launch(_ -> {
 					Async.delay(exitAfter);
-					Sys.println('viewer: ${viewer.title.peek()} (${viewer.state.peek()}${viewer.message.peek() == "" ? "" : ": " + viewer.message.peek()}, ${viewer.camera.percent()}%, ${w.window.width}x${w.window.height})');
+					var line = 'viewer: ${viewer.title.peek()} (${viewer.state.peek()}${viewer.message.peek() == "" ? "" : ": " + viewer.message.peek()}, ${viewer.camera.percent()}%, ${w.window.width}x${w.window.height})';
+					Sys.println(line);
+					if (report != null) try sys.io.File.saveContent(report, line + "\n") catch (_:Dynamic) {}
+					if (!args.contains("--new")) Instance.leave();
 					w.close();
 				});
 			}}>
 			{view(viewer)}
 		</Surface>);
 	}
+
+	// the types it opens (helder.webmanifest's file_handlers too: a macOS bundle's)
+	public static final TYPES = [
+		{mime: "image/jpeg", extensions: ["jpg", "jpeg", "jfif"]},
+		{mime: "image/png", extensions: ["png", "apng"]},
+		{mime: "image/gif", extensions: ["gif"]},
+		{mime: "image/webp", extensions: ["webp"]}
+	];
 
 	// the viewer's own font (DejaVu Sans, a subset: fonts/README.md), added
 	// only when the system has none it finds (a bare Wine prefix, a minimal

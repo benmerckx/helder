@@ -20,7 +20,7 @@ class Options {
 	// (android: a phone's ABI, arm64, or the device's -d names; ios: an
 	// iPhone for build, the simulator for run and dev, which can install
 	// only there; ios-sim: the simulator)
-	public static final PLATFORMS = ["host", "web", "android", "ios", "ios-sim"];
+	public static final PLATFORMS = ["host", "web", "android", "ios", "ios-sim", "macos"];
 	public static final HXMC_TARGETS = [
 		"linux-x86_64", "linux-arm64", "macos-x86_64", "macos-arm64", "windows-x86_64", "windows-arm64", "wasm32-wasi", "android-arm64",
 		"android-x86_64", "ios-arm64", "ios-sim-arm64"
@@ -38,7 +38,7 @@ class Options {
 			key: "target",
 			names: ["--target"],
 			value: "<t>",
-			about: "host (default), web, android, ios, ios-sim, or an exact hxmc target (windows-x86_64, android-x86_64, ...)"
+			about: "host (default), web, android, ios, ios-sim, macos (a universal app bundle), or an exact hxmc target (windows-x86_64, android-x86_64, ...)"
 		},
 		{key: "device", names: ["-d", "--device"], value: "<d>", about: "which phone, emulator or simulator (android, ios); `helder devices` lists them"},
 		{key: "out", names: ["-o", "--out"], value: "<path>", about: "build's output"},
