@@ -13,11 +13,15 @@ class Canvas {
 	public var width(get, set):Int;
 	public var height(get, set):Int;
 
-	@:noCompletion public var core(default, null):helder.canvas.Canvas;
+	@:noCompletion public var core(default, null):helder.canvas.Painter;
+
+	// what each canvas draws with: helder.canvas's CPU back end unless a
+	// back end set another (gpu.GpuCanvas.use(), web.WebCanvas.use())
+	@:noCompletion public static var backend:(width:Int, height:Int) -> helder.canvas.Painter = (w, h) -> new helder.canvas.Canvas(w, h);
 	var context:Null<CanvasRenderingContext2D> = null;
 
 	public function new(width = 300, height = 150) {
-		core = new helder.canvas.Canvas(width, height);
+		core = backend(width, height);
 	}
 
 	inline function get_width()
@@ -37,7 +41,7 @@ class Canvas {
 	}
 
 	function resize(w:Int, h:Int) {
-		core = new helder.canvas.Canvas(w, h);
+		core = backend(w, h);
 		if (context != null) context.attach(core);
 	}
 
@@ -55,9 +59,9 @@ class Canvas {
 		if (StringTools.startsWith(f, "image/")) f = f.substr(6);
 		if (StringTools.startsWith(f, ".")) f = f.substr(1);
 		return switch f {
-			case "png": core.toPng();
-			case "jpg" | "jpeg": core.toJpeg(Std.int(Math.round((quality ?? 0.92) * 100)));
-			case "raw": core.bitmap.straight();
+			case "png": helder.image.PngEncoder.encode(core.snapshot().straight(), width, height);
+			case "jpg" | "jpeg": helder.image.JpegEncoder.encode(core.snapshot().straight(), width, height, Std.int(Math.round((quality ?? 0.92) * 100)));
+			case "raw": core.snapshot().straight();
 			case _: throw new Path2D.DOMException("NotSupportedError", 'Canvas.toBuffer: "$format" is not a format helder writes (png, jpg)');
 		}
 	}

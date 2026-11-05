@@ -931,8 +931,14 @@ fix.
   full` keeps only what an app uses; the DOM facade, `helder.canvas.dom`
   and `helder/canvas` for TypeScript, as skia-canvas has it; helder.ui's
   SVG rendering on it; the canvas lane: 25 reference scenes against
-  Chromium's canvas, 503 of 523 converted WPT tests. Next: phase 2, the GPU
-  back end; phase 3, a back end on the browser's own canvas for the web;
+  Chromium's canvas, 503 of 523 converted WPT tests; *phase 2 landed*: the
+  GPU back end, `helder.canvas.gpu`: trapezoids with analytic edges summed
+  into a coverage target, any fill rule, transforms in the shader,
+  gradients and patterns in shaders, blend modes over a copy, clips and
+  layers as textures, colour fills batched; the canvas-gpu lane compares it
+  with the CPU's on the reference scenes; *phase 3 landed*: the web back
+  end, `helder.canvas.web`, the core's calls as a buffer of commands drawn
+  by the browser's own Canvas 2D (the canvas-web lane, in Chromium). Next:
   then skia-canvas's extras: multi-page PDF and SVG export, text to
   outlines, Path2D's boolean operations and effects, filters and shadows,
   a window),

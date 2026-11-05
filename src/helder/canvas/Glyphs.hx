@@ -25,14 +25,14 @@ final class Glyphs implements helder.text.Outline {
 	}
 
 	// the layout's glyphs filled, its first line's baseline at (x, y)
-	public static function fill(canvas:Canvas, layout:TextLayout, x:Float, y:Float, paint:Paint) {
+	public static function fill(canvas:Painter, layout:TextLayout, x:Float, y:Float, paint:Paint) {
 		var g = get();
 		g.path.clear();
 		g.add(layout, x, y);
 		canvas.fill(g.path, paint);
 	}
 
-	public static function stroke(canvas:Canvas, layout:TextLayout, x:Float, y:Float, style:Stroke, paint:Paint) {
+	public static function stroke(canvas:Painter, layout:TextLayout, x:Float, y:Float, style:Stroke, paint:Paint) {
 		var g = get();
 		g.path.clear();
 		g.add(layout, x, y);

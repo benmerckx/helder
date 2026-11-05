@@ -103,6 +103,73 @@ helder.ui's SVG rendering (`Svg.render`, `Path.render`) draws through it:
 its groups' opacities as layers, its clip paths as clips, its gradients
 (spread included) as shaders, its strokes as `Stroke`.
 
+## The GPU back end: `helder.canvas.gpu`
+
+`GpuCanvas` (phase 2) is the same `Painter` as the CPU's `Canvas` (the
+interface the DOM facade and `Glyphs` draw on), on helder.gfx:
+
+- **Paths as trapezoids**: `Trapezoids` cuts a path's lines (flattened
+  in its own units) into bands between every end and every crossing, each
+  band's spans by the fill rule, so the trapezoids tile the inside exactly:
+  non-zero, even-odd, self-intersections, holes. The transform is the
+  vertex shader's: a trapezoid's corners into pixels, its bounds a pixel
+  larger.
+- **Analytic edges**: each fragment's coverage is the product of its
+  coverage by the trapezoid's two pairs of opposite sides (a pair's
+  `clamp(d0 + 0.5) + clamp(d1 + 0.5) - 1` on the sides' signed distances in
+  pixels: exact for a half plane and for a sliver thinner than a pixel),
+  summed into a float target: trapezoids that share a side add up to one
+  across it, no seams, no MSAA.
+- **Painting**: the path's bounds painted by the paint times that
+  coverage and the clip: a colour, a linear, radial (two circles) or conic
+  gradient through a table of its colours (the spread applied in the
+  shader), a pattern or an image (repeat modes, nearest or bilinear, a
+  source rectangle's clamp), premultiplied; a blend mode over a copy of
+  the target's pixels (`BlendShader`: Porter-Duff's factors, the separable
+  and non-separable modes, the unbounded operators over the whole clip).
+- **Batches**: consecutive fills and strokes of a colour that do not
+  overlap share their passes, one draw of all their trapezoids' coverage
+  and one of their bounds, in draw order; a gradient, a pattern or a blend
+  mode ends a batch.
+- **Clips** are coverage textures (a save depth's own, two kept to narrow
+  it again), **layers** render targets composited at `restore` with their
+  opacity, blend mode and mask.
+- Pixels: `snapshot()` reads the target back (drawn into the device's
+  frame), `writePixels` draws them in again.
+
+From TypeScript, `useGpu()` (helder/canvas) makes every canvas after it a
+GPU one. The CPU back end is the reference: `bun run test canvas-gpu`
+draws the 25 reference scenes on both (Mesa's llvmpipe on Linux) and
+compares them: all 25 within the same tolerance as against Chromium, the
+non-text scenes within 0.9% of pixels off by more than 24 of the CPU's.
+Not yet: one batcher with helder.ui's renderer and helder.sprite's
+SpriteBatch, a compute rasterizer (Vello's) for very large paths, the
+Metal, Direct3D and WebGPU back ends tested (only GL's is, in CI's gfx job).
+
+## The web back end: `helder.canvas.web`
+
+`WebCanvas` (phase 3) is the same `Painter` drawn by the browser's own
+Canvas 2D, for a web build (wasm32 with `src/helder/canvas/imports.mjs`,
+the module `hxmc_canvas`, beside os's and text's in browser.mjs's
+`imports`). Its calls are recorded as commands (float64s: an opcode, its
+operands; a path's verbs and points as they are) into a buffer the page
+runs in one import call when it fills, when pixels are read, or on
+`flush()`: a frame of drawing is a few crossings. The page draws each
+command with the canvas's context: the transform set per draw, a Path2D
+of the path, gradients and patterns made from the paint (a bitmap
+uploaded once, a handle), blend modes as `globalCompositeOperation`,
+layers as canvases of their own composited at restore (a mask through
+destination-in). A web build carries no rasterizer, stroker or shader of
+helder's: a rounded rectangle filled is 97 KB of wasm (35 KB gzipped),
+the runtime's mostly. From TypeScript, `useWeb()`. Not drawn by it:
+gradients' reflect and repeat spreads (the browser's canvas pads), the
+`dots` of zero-length subpaths (the browser prunes them).
+
+`bun run test canvas-web` builds the reference scenes as wasm32
+(tests/canvas/render-web.ts), draws them in headless Chromium and compares
+them with Chromium's references: all 25 within tolerance (text within
+3.3%, the others within 0.5%).
+
 ## The DOM facade: `helder.canvas.dom`
 
 The browser's Canvas 2D on the core, shaped like skia-canvas and

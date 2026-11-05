@@ -155,6 +155,24 @@ function tests() {
 			assert(p.contains(10, 5));
 			assert(!p.contains(11, 5));
 		});
+		test("trapezoids tile a self-intersecting star by either rule, as the rasterizer covers it", () -> {
+			var p = new Path();
+			for (i in 0...5) {
+				var a = -Math.PI / 2 + i * 4 * Math.PI / 5;
+				if (i == 0) p.moveTo(45 + 42 * Math.cos(a), 60 + 42 * Math.sin(a)) else p.lineTo(45 + 42 * Math.cos(a), 60 + 42 * Math.sin(a));
+			}
+			p.close();
+			for (evenOdd in [false, true]) {
+				var t = new Trapezoids(), c = new Canvas(100, 120);
+				p.flatten(t, Matrix.IDENTITY, 0.1);
+				t.build(evenOdd);
+				c.fill(p, Paint.solid(0xFF000000), evenOdd);
+				var covered = 0.0;
+				for (i in 0...100 * 120)
+					covered += c.bitmap.pixels.get(i * 4 + 3) / 255;
+				approx(t.area(), covered, 2.0);
+			}
+		});
 		test("drawing allocates nothing", () -> {
 			var c = new Canvas(64, 64), p = new Path(), s = new Stroke(3), paint = Paint.solid(0xFF336699);
 			var g = new LinearGradient(0, 0, 64, 0).addStop(0, 0xFF000000).addStop(1, 0xFFFFFFFF), gp = Paint.shaded(g);

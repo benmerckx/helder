@@ -1,12 +1,14 @@
 // helder.canvas for TypeScript programs (helder.typescript): the DOM's
 // Canvas 2D (helder.canvas.dom), as skia-canvas and @napi-rs/canvas have
 // it, so code written for the browser's canvas runs natively. Each class
-// is the Haxe class `__haxe` names.
+// is the Haxe class `__haxe` names. useGpu() draws every canvas made after
+// it on the GPU (helder.canvas.gpu), useWeb() by the browser's own canvas
+// (helder.canvas.web, in a web build), the CPU back end otherwise.
 //
 // Generated from helder's Haxe types (helder.typescript.api.Declarations: node
 // src/helder/typescript/api/declarations.mjs); edit the Haxe, not this file.
 
-declare const __haxe: {Canvas: "helder.canvas.dom.Canvas", CanvasRenderingContext2D: "helder.canvas.dom.CanvasRenderingContext2D", Path2D: "helder.canvas.dom.Path2D", CanvasGradient: "helder.canvas.dom.CanvasGradient", CanvasPattern: "helder.canvas.dom.CanvasPattern", ImageData: "helder.canvas.dom.ImageData", DOMMatrix: "helder.canvas.dom.DOMMatrix", Image: "helder.canvas.dom.Image", TextMetrics: "helder.canvas.dom.TextMetrics", FontLibrary: "helder.canvas.dom.FontLibrary", __module: "helder.canvas.TypeScript"};
+declare const __haxe: {Canvas: "helder.canvas.dom.Canvas", CanvasRenderingContext2D: "helder.canvas.dom.CanvasRenderingContext2D", Path2D: "helder.canvas.dom.Path2D", CanvasGradient: "helder.canvas.dom.CanvasGradient", CanvasPattern: "helder.canvas.dom.CanvasPattern", ImageData: "helder.canvas.dom.ImageData", DOMMatrix: "helder.canvas.dom.DOMMatrix", Image: "helder.canvas.dom.Image", TextMetrics: "helder.canvas.dom.TextMetrics", FontLibrary: "helder.canvas.dom.FontLibrary", Gpu: "helder.canvas.gpu.Gpu", Web: "helder.canvas.web.Web", __module: "helder.canvas.TypeScript"};
 
 // A canvas as skia-canvas's and @napi-rs/canvas's (and the browser's
 // OffscreenCanvas): `new Canvas(width, height)`, its 2D context
@@ -253,3 +255,22 @@ export declare class FontLibrary {
 	static families(): string[];
 	static reset(): void;
 }
+
+// The DOM facade's canvases drawn on the GPU from now on (GpuCanvas, each
+// on a headless device of its size): `useGpu()` in helder/canvas. A class
+// apart, so that a program that never calls it keeps no GPU code.
+export declare class Gpu {
+	static use(): void;
+}
+
+export declare const useGpu: typeof Gpu.use;
+
+// The DOM facade's canvases drawn by the browser's own Canvas 2D from now
+// on (WebCanvas): `useWeb()` in helder/canvas, for a web build
+// (wasm32 with src/helder/canvas/imports.mjs). A class apart: a program
+// that never calls it keeps none of it.
+export declare class Web {
+	static use(): void;
+}
+
+export declare const useWeb: typeof Web.use;

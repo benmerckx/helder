@@ -12,6 +12,10 @@ import helder.canvas.Paint.Rgba;
 // does for Canvas 2D.
 interface Blender {
 	var unbounded(get, never):Bool;
+	// which it is, for a back end that blends elsewhere (the GPU's shader):
+	// -1 - (fa * 4 + fb) for Porter-Duff's, 0 to 10 the separable modes in
+	// Blend's order, 11 to 14 hue, saturation, color, luminosity
+	var code(get, never):Int;
 	function blend(s:Rgba, d:Rgba):Void;
 }
 
@@ -211,6 +215,11 @@ final class PorterDuff implements Blender {
 	inline function get_unbounded()
 		return fb == ZERO || fb == ALPHA;
 
+	public var code(get, never):Int;
+
+	inline function get_code()
+		return -1 - (fa * 4 + fb);
+
 	function new(fa, fb) {
 		this.fa = fa;
 		this.fb = fb;
@@ -239,9 +248,13 @@ final class PorterDuff implements Blender {
 // co = cs (1 - ab) + cb (1 - as) + as ab B(cb / ab, cs / as)
 abstract class Separable implements Blender {
 	public var unbounded(get, never):Bool;
+	public var code(get, never):Int;
 
 	inline function get_unbounded()
 		return false;
+
+	function get_code()
+		return 0;
 
 	function new() {}
 
@@ -268,12 +281,18 @@ abstract class Separable implements Blender {
 final class Multiply extends Separable {
 	public static final instance = new Multiply();
 
+	override function get_code()
+		return 0;
+
 	function channel(cb:Float, cs:Float):Float
 		return cb * cs;
 }
 
 final class Screen extends Separable {
 	public static final instance = new Screen();
+
+	override function get_code()
+		return 1;
 
 	function channel(cb:Float, cs:Float):Float
 		return cb + cs - cb * cs;
@@ -282,12 +301,18 @@ final class Screen extends Separable {
 final class Overlay extends Separable {
 	public static final instance = new Overlay();
 
+	override function get_code()
+		return 2;
+
 	function channel(cb:Float, cs:Float):Float
 		return cb <= 0.5 ? cs * 2 * cb : cs + (2 * cb - 1) - cs * (2 * cb - 1);
 }
 
 final class Darken extends Separable {
 	public static final instance = new Darken();
+
+	override function get_code()
+		return 3;
 
 	function channel(cb:Float, cs:Float):Float
 		return cb < cs ? cb : cs;
@@ -296,12 +321,18 @@ final class Darken extends Separable {
 final class Lighten extends Separable {
 	public static final instance = new Lighten();
 
+	override function get_code()
+		return 4;
+
 	function channel(cb:Float, cs:Float):Float
 		return cb > cs ? cb : cs;
 }
 
 final class ColorDodge extends Separable {
 	public static final instance = new ColorDodge();
+
+	override function get_code()
+		return 5;
 
 	function channel(cb:Float, cs:Float):Float
 		return cb <= 0 ? 0 : cs >= 1 ? 1 : Math.min(1, cb / (1 - cs));
@@ -310,6 +341,9 @@ final class ColorDodge extends Separable {
 final class ColorBurn extends Separable {
 	public static final instance = new ColorBurn();
 
+	override function get_code()
+		return 6;
+
 	function channel(cb:Float, cs:Float):Float
 		return cb >= 1 ? 1 : cs <= 0 ? 0 : 1 - Math.min(1, (1 - cb) / cs);
 }
@@ -317,12 +351,18 @@ final class ColorBurn extends Separable {
 final class HardLight extends Separable {
 	public static final instance = new HardLight();
 
+	override function get_code()
+		return 7;
+
 	function channel(cb:Float, cs:Float):Float
 		return cs <= 0.5 ? cb * 2 * cs : cb + (2 * cs - 1) - cb * (2 * cs - 1);
 }
 
 final class SoftLight extends Separable {
 	public static final instance = new SoftLight();
+
+	override function get_code()
+		return 8;
 
 	function channel(cb:Float, cs:Float):Float {
 		if (cs <= 0.5) return cb - (1 - 2 * cs) * cb * (1 - cb);
@@ -334,12 +374,18 @@ final class SoftLight extends Separable {
 final class Difference extends Separable {
 	public static final instance = new Difference();
 
+	override function get_code()
+		return 9;
+
 	function channel(cb:Float, cs:Float):Float
 		return Math.abs(cb - cs);
 }
 
 final class Exclusion extends Separable {
 	public static final instance = new Exclusion();
+
+	override function get_code()
+		return 10;
 
 	function channel(cb:Float, cs:Float):Float
 		return cb + cs - 2 * cb * cs;
@@ -376,9 +422,13 @@ final class NonSeparable implements Blender {
 	final kind:Int;
 
 	public var unbounded(get, never):Bool;
+	public var code(get, never):Int;
 
 	inline function get_unbounded()
 		return false;
+
+	inline function get_code()
+		return 11 + kind;
 
 	function new(kind) {
 		this.kind = kind;

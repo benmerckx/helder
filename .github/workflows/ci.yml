@@ -83,10 +83,10 @@ jobs:
         continue-on-error: true
         run: sudo apt-get install -qqy --no-install-recommends weston wayland-protocols libwayland-dev libwayland-egl1 libxkbcommon0
       - name: gfx, 3d, audio, touch, ui, window, the viewer's (Mesa llvmpipe, Xvfb), Wayland (a headless weston), the platform's text
-        run: bun run test -k gfx 3d audio touch ui-draw window viewer-window wayland dbus system-text system-images
+        run: bun run test -k gfx 3d audio touch ui-draw window viewer-window wayland dbus system-text system-images canvas-gpu
       - uses: actions/upload-artifact@v7
         if: always()
-        with: {name: images, path: "bin/gfx/**/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
+        with: {name: images, path: "bin/gfx/**/*.png\nbin/canvas/*.png\nbin/3d/**/*.png\nbin/ui/**/*.png\nbin/text/*.png\nbin/os/*.png", retention-days: 7, if-no-files-found: ignore}
 
   browser:
     runs-on: ubuntu-24.04
@@ -106,7 +106,7 @@ jobs:
           bun add --no-save playwright@1.56.1
           bunx playwright install --with-deps chromium > /dev/null
       - name: gfx, 3d, audio, web and ui in Chromium
-        run: bun run test -k gfx-web 3d-web audio-web web ui-web
+        run: bun run test -k gfx-web 3d-web audio-web web ui-web canvas-web
 
   # Android on an x86-64 emulator with KVM (reactivecircus/android-emulator-runner,
   # API 34, as hxmc's CI): tests/pack/android.sh (helder run --target

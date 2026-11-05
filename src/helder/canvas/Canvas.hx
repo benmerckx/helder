@@ -21,9 +21,9 @@ import helder.canvas.Paint.Shader;
 //   p.roundRect(10, 10, 180, 80, 12);
 //   c.fill(p, Paint.solid(0xFF3366CC));
 //   File.saveBytes("out.png", c.toPng());
-final class Canvas {
-	public final width:Int;
-	public final height:Int;
+final class Canvas implements Painter {
+	public var width(default, null):Int;
+	public var height(default, null):Int;
 	// the canvas's own pixels (a layer's go elsewhere until it is restored)
 	public final bitmap:Bitmap;
 
@@ -68,22 +68,22 @@ final class Canvas {
 	inline function get_matrix()
 		return state.matrix;
 
-	public inline function translate(x:Float, y:Float)
+	public function translate(x:Float, y:Float)
 		state.matrix.translate(x, y);
 
-	public inline function scale(x:Float, y:Float)
+	public function scale(x:Float, y:Float)
 		state.matrix.scale(x, y);
 
-	public inline function rotate(angle:Float)
+	public function rotate(angle:Float)
 		state.matrix.rotate(angle);
 
-	public inline function transform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float)
+	public function transform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float)
 		state.matrix.transform(a, b, c, d, e, f);
 
-	public inline function setTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float)
+	public function setTransform(a:Float, b:Float, c:Float, d:Float, e:Float, f:Float)
 		state.matrix.set(a, b, c, d, e, f);
 
-	public inline function resetTransform()
+	public function resetTransform()
 		state.matrix.identity();
 
 	public var saveCount(get, never):Int;
@@ -463,12 +463,16 @@ final class Canvas {
 	}
 
 	// the pixels as straight RGBA (a region: getImageData's)
-	public inline function readPixels(out:Bytes, x:Int, y:Int, w:Int, h:Int)
+	public function readPixels(out:Bytes, x:Int, y:Int, w:Int, h:Int)
 		bitmap.readStraight(out, x, y, w, h);
 
 	// straight RGBA written in, as they are (putImageData's: no blending, no clip)
-	public inline function writePixels(rgba:Bytes, x:Int, y:Int, w:Int, h:Int, srcStride = -1)
+	public function writePixels(rgba:Bytes, x:Int, y:Int, w:Int, h:Int, srcStride = -1)
 		bitmap.writeStraight(rgba, x, y, w, h, srcStride);
+
+	// its own bitmap (drawn into still)
+	public function snapshot():Bitmap
+		return bitmap;
 
 	// PNG (helder.image's encoder)
 	public function toPng():Bytes

@@ -7,11 +7,11 @@
 // bin/canvas/contact.png (each scene: helder's, Chromium's, the
 // difference times four).
 //
-//   node tests/canvas/compare.mjs [ours dir] [ref dir]
+//   node tests/canvas/compare.mjs [ours dir] [ref dir] [report: its path without .md, the sheet's -contact.png]
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import zlib from "node:zlib";
 
-const ours = process.argv[2] ?? "bin/canvas/ours", ref = process.argv[3] ?? "tests/canvas/ref";
+const ours = process.argv[2] ?? "bin/canvas/ours", ref = process.argv[3] ?? "tests/canvas/ref", report = process.argv[4] ?? "bin/canvas/report";
 const OFF = 24;
 // (the share of pixels off by more than OFF a scene may have)
 const TOLERANCE = { default: 0.01, "text-": 0.06 };
@@ -124,9 +124,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
 		rows.push(`| ${name} | ${r.max} | ${r.mean.toFixed(2)} | ${(r.off * 100).toFixed(2)}% | ${ok ? "ok" : "FAIL"} |`);
 		sheet.push({ name, a, b, d: r.image });
 	}
-	const report = [`| scene | max | mean | off by > ${OFF} | |`, "| --- | ---: | ---: | ---: | --- |", ...rows].join("\n");
-	writeFileSync("bin/canvas/report.md", report + "\n");
-	console.log(report);
+	const table = [`| scene | max | mean | off by > ${OFF} | |`, "| --- | ---: | ---: | ---: | --- |", ...rows].join("\n");
+	writeFileSync(report + ".md", table + "\n");
+	console.log(table);
 	// (the contact sheet: a row per scene, 4 px apart)
 	const cw = Math.max(...sheet.map(s => s.a.w)), gap = 4, W = cw * 3 + gap * 4;
 	const H = sheet.reduce((h, s) => h + s.a.h + gap, gap);
@@ -146,7 +146,7 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
 		});
 		y += s.a.h + gap;
 	}
-	writeFileSync("bin/canvas/contact.png", encode(W, H, px));
-	console.log(`compare: ${names.length - failed} of ${names.length} scenes within tolerance (bin/canvas/report.md, bin/canvas/contact.png: helder | Chromium | difference)`);
+	writeFileSync(report + "-contact.png", encode(W, H, px));
+	console.log(`compare: ${names.length - failed} of ${names.length} scenes within tolerance (${report}.md, ${report}-contact.png: ${ours} | ${ref} | difference)`);
 	if (failed > 0) process.exit(1);
 }

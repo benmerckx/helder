@@ -57,6 +57,8 @@ class Run {
 		{name: "pack", about: "Android and iOS packaging (helder.pack): `helder build --target android, android-x86_64, ios, ios-sim` of tests/pack/Hello.hx, tests/pack/Screen.hx and of a project with an app's options (landscape, fullscreen), checked without a device (tests/pack/PackCheck.hx: the zip's layout and 16 KB alignment, the manifest, the library's ELF, the v2 signature recomputed and verified by openssl or apksigner; the bundle, Info.plist, the Mach-O's build version and code signature, its slots; Assets.car against Apple actool's structure; an .ipa signed for distribution with tests/pack/signing's throwaway identity, RSA and P-256, its CMS verified by openssl); helder run and the dev loop's protocol against stand-in adb and xcrun (tests/pack/dev.mjs); the runtime objects fetched by tests/pack/runtime.mjs (PACK_REQUIRE=1: missing ones a failure)", run: packLane},
 		{name: "devtools", about: "the devtools protocol (src/helder/devtools): `helder dev` relaying a console and a ui program to a tool on its WebSocket, `helder inspect`, without a window (tests/devtools/devtools.mjs); the Frame domain's cost a frame", run: devtools},
 		{name: "canvas", about: "helder.canvas: the reference scenes (tests/canvas/scenes.ts: fills, joins, caps, dashes, curves, arcs, gradients, patterns, clips, every composite and blend mode, transforms, images, pixels, text in several scripts) drawn by its DOM facade from TypeScript, natively, against Chromium's (tests/canvas/ref, made by chrome.mjs) within a tolerance (compare.mjs: bin/canvas/report.md, contact.png); WPT's Canvas 2D tests of paths, fills, strokes, line styles, compositing and transforms (tests/canvas/wpt: 523, the known failures listed); the DCE check (Linux: a path filled and a PNG with -dce full holds no gradient, blend mode, stroker, JPEG or text, dce.mjs); its unit tests are the test lane's (src/helder/canvas/*.test.hx)", run: canvasLane},
+		{name: "canvas-gpu", about: "helder.canvas's GPU back end (helder.canvas.gpu, on helder.gfx; Linux: Mesa's llvmpipe): the canvas lane's reference scenes drawn by it (tests/canvas/render-gpu.ts) against the CPU back end's, the reference (compare.mjs: bin/canvas/gpu-report.md, gpu-report-contact.png)", run: canvasGpu},
+		{name: "canvas-web", about: "helder.canvas's web back end (helder.canvas.web: the browser's own Canvas 2D, src/helder/canvas/imports.mjs): the reference scenes as wasm32 (tests/canvas/render-web.ts) in headless Chromium (web.mjs), against Chromium's references (compare.mjs: bin/canvas/web-report.md)", run: canvasWeb},
 		{name: "typescript", about: "helder.typescript (TypeScript through tsgo straight to hxmc IR): the IR checks, then every program of tests/typescript compiled by tsc and run on node, and by helder's compiler (helder.compiler, with this frontend) natively and as wasm32-wasi, the outputs compared; the programs it must reject", run: () -> run(NODE, ["tests/typescript/run.mjs"])},
 		{name: "examples", about: "every example (Haxe, TypeScript) built by `helder build <file>` (--target web for the web) with no other flags, not run: for web (wasm32-wasi), and those on a canvas or playing a sound natively too; then the golf example's recorded rounds replayed natively and as wasm32-wasi (examples/golf/GolfReplay.hx)", run: examples},
 		{name: "3d", about: "helder.scene and helder.physics: unit tests on Eval, natively and as wasm32-wasi, input actions, the renderer's frames against golden images (Mesa)", run: scene},
@@ -152,13 +154,33 @@ class Run {
 		run(exePath("bin/image/Fuzz", HOST), [Sys.getEnv("FUZZ_SECONDS") ?? "30", Sys.getEnv("FUZZ_SEED") ?? "1"]);
 	}
 
+	static function canvasWeb() {
+		var compiler = StringTools.trim(output(NODE, ["src/helder/compiler/build.mjs", "--quiet"]));
+		run(compiler, ["tests/canvas/render-web.ts", "-o", "bin/canvas/render-web.wasm"].concat(targetArgs("wasm32-wasi")));
+		run(NODE, ["tests/canvas/web.mjs", "bin/canvas/render-web.wasm"]);
+		run(NODE, ["tests/canvas/compare.mjs", "bin/canvas/web", "tests/canvas/ref", "bin/canvas/web-report"]);
+	}
+
+	static function canvasGpu() {
+		var compiler = StringTools.trim(output(NODE, ["src/helder/compiler/build.mjs", "--quiet"]));
+		var args = targetArgs(GFX_TARGET);
+		mkdirs("bin/canvas/ours");
+		mkdirs("bin/canvas/gpu");
+		run(compiler, ["tests/canvas/render.ts", "-o", exePath("bin/canvas/render", HOST)].concat(targetArgs(HOST)));
+		run(exePath("bin/canvas/render", HOST), []);
+		run(compiler, ["tests/canvas/render-gpu.ts", "-o", exePath("bin/canvas/render-gpu", GFX_TARGET)].concat(args));
+		Sys.putEnv("LIBGL_ALWAYS_SOFTWARE", "1");
+		run(exePath("bin/canvas/render-gpu", GFX_TARGET), []);
+		run(NODE, ["tests/canvas/compare.mjs", "bin/canvas/gpu", "bin/canvas/ours", "bin/canvas/gpu-report"]);
+	}
+
 	static function canvasLane() {
 		var compiler = StringTools.trim(output(NODE, ["src/helder/compiler/build.mjs", "--quiet"]));
 		var args = targetArgs(HOST);
 		mkdirs("bin/canvas/ours");
 		run(compiler, ["tests/canvas/render.ts", "-o", exePath("bin/canvas/render", HOST)].concat(args));
 		run(exePath("bin/canvas/render", HOST), []);
-		run(NODE, ["tests/canvas/compare.mjs"]);
+		run(NODE, ["tests/canvas/compare.mjs", "bin/canvas/ours", "tests/canvas/ref", "bin/canvas/report"]);
 		run(compiler, ["tests/canvas/wpt.ts", "-o", exePath("bin/canvas/wpt", HOST)].concat(args));
 		File.saveContent("bin/canvas/wpt.txt", output(exePath("bin/canvas/wpt", HOST), []));
 		run(NODE, ["tests/canvas/wpt/check.mjs", "bin/canvas/wpt.txt"]);

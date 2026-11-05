@@ -44,6 +44,19 @@ abstract class Gradient implements Shader {
 		return this;
 	}
 
+	public var stopCount(get, never):Int;
+
+	inline function get_stopCount()
+		return offsets.length;
+
+	public inline function stopOffset(i:Int):Float
+		return offsets[i];
+
+	// (0xAARRGGBB, straight)
+	public function stopColor(i:Int):Int
+		return (Std.int(alphas[i] * 255 + 0.5) << 24) | (Std.int(reds[i] * 255 + 0.5) << 16) | (Std.int(greens[i] * 255 + 0.5) << 8)
+			| Std.int(blues[i] * 255 + 0.5);
+
 	public function clearStops() {
 		offsets.resize(0);
 		reds.resize(0);
@@ -101,6 +114,19 @@ abstract class Gradient implements Shader {
 		out[o + 1] = g * a;
 		out[o + 2] = b * a;
 		out[o + 3] = a;
+	}
+
+	// its colours at n offsets from 0 to 1, premultiplied RGBA8 into out at
+	// offset (a table: the GPU's, its spread applied when it is read)
+	public function table(out:haxe.io.Bytes, offset:Int, n:Int) {
+		var c = new Vector<Float>(4), saved = spread;
+		spread = PAD;
+		for (i in 0...n) {
+			colorAt(i / (n - 1), c, 0);
+			for (k in 0...4)
+				out.set(offset + i * 4 + k, Std.int(Math.max(0, Math.min(255, Math.round(c[k] * 255)))));
+		}
+		spread = saved;
 	}
 
 	inline function none(out:Vector<Float>, o:Int) {

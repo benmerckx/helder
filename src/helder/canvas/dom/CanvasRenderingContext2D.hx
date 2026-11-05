@@ -20,7 +20,7 @@ import helder.text.TextLayout;
 class CanvasRenderingContext2D {
 	public var canvas(default, null):Canvas;
 
-	var core:helder.canvas.Canvas;
+	var core:helder.canvas.Painter;
 	var s:DrawState = new DrawState();
 	final stack:Array<DrawState> = [];
 	final path = new Path();
@@ -35,7 +35,7 @@ class CanvasRenderingContext2D {
 		attach(canvas.core);
 	}
 
-	@:noCompletion public function attach(core:helder.canvas.Canvas) {
+	@:noCompletion public function attach(core:helder.canvas.Painter) {
 		this.core = core;
 		stack.resize(0);
 		s = new DrawState();
@@ -492,7 +492,7 @@ class CanvasRenderingContext2D {
 	function bitmapOf(image:Dynamic, copy:Bool):Null<helder.canvas.Bitmap> {
 		if (Std.isOfType(image, Image)) return (image : Image).bitmap;
 		if (Std.isOfType(image, Canvas)) {
-			var b = (image : Canvas).core.bitmap;
+			var b = (image : Canvas).core.snapshot();
 			if (!copy && (image : Canvas) != canvas) return b;
 			return new helder.canvas.Bitmap(b.width, b.height, b.pixels.sub(0, b.pixels.length));
 		}

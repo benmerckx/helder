@@ -33,13 +33,16 @@ final class Stroke {
 
 // The outer side of a turn (the inner side goes through the point)
 interface JoinStyle {
+	// 0 miter, 1 round, 2 bevel (a back end that strokes elsewhere: the browser's canvas)
+	var kind(get, never):Int;
+
 	// at (x, y), the side's offset points before (ax, ay) and after (bx, by)
 	// the turn; (ix, iy) and (jx, jy) the directions in and out; s the side
 	function outer(st:Stroker, x:Float, y:Float, ax:Float, ay:Float, bx:Float, by:Float, ix:Float, iy:Float, jx:Float, jy:Float, s:Float,
 		cross:Float, dot:Float):Void;
 }
 
-abstract Join(JoinStyle) from JoinStyle to JoinStyle {
+@:forward(kind) abstract Join(JoinStyle) from JoinStyle to JoinStyle {
 	public static var miter(get, never):Join;
 	public static var round(get, never):Join;
 	public static var bevel(get, never):Join;
@@ -56,6 +59,11 @@ abstract Join(JoinStyle) from JoinStyle to JoinStyle {
 
 final class MiterJoin implements JoinStyle {
 	public static final instance = new MiterJoin();
+
+	public var kind(get, never):Int;
+
+	inline function get_kind()
+		return 0;
 
 	function new() {}
 
@@ -76,6 +84,11 @@ final class MiterJoin implements JoinStyle {
 final class RoundJoin implements JoinStyle {
 	public static final instance = new RoundJoin();
 
+	public var kind(get, never):Int;
+
+	inline function get_kind()
+		return 1;
+
 	function new() {}
 
 	public function outer(st:Stroker, x:Float, y:Float, ax:Float, ay:Float, bx:Float, by:Float, ix:Float, iy:Float, jx:Float, jy:Float, s:Float,
@@ -86,6 +99,11 @@ final class RoundJoin implements JoinStyle {
 final class BevelJoin implements JoinStyle {
 	public static final instance = new BevelJoin();
 
+	public var kind(get, never):Int;
+
+	inline function get_kind()
+		return 2;
+
 	function new() {}
 
 	public function outer(st:Stroker, x:Float, y:Float, ax:Float, ay:Float, bx:Float, by:Float, ix:Float, iy:Float, jx:Float, jy:Float, s:Float,
@@ -95,12 +113,15 @@ final class BevelJoin implements JoinStyle {
 // An open end: from the left side's end (lx, ly) to the right's (rx, ry),
 // the path heading (dx, dy) there
 interface CapStyle {
+	// 0 butt, 1 round, 2 square
+	var kind(get, never):Int;
+
 	function end(st:Stroker, x:Float, y:Float, lx:Float, ly:Float, rx:Float, ry:Float, dx:Float, dy:Float):Void;
 	// a zero length subpath's dot at (x, y)
 	function dot(st:Stroker, x:Float, y:Float):Void;
 }
 
-abstract Cap(CapStyle) from CapStyle to CapStyle {
+@:forward(kind) abstract Cap(CapStyle) from CapStyle to CapStyle {
 	public static var butt(get, never):Cap;
 	public static var round(get, never):Cap;
 	public static var square(get, never):Cap;
@@ -118,6 +139,11 @@ abstract Cap(CapStyle) from CapStyle to CapStyle {
 final class ButtCap implements CapStyle {
 	public static final instance = new ButtCap();
 
+	public var kind(get, never):Int;
+
+	inline function get_kind()
+		return 0;
+
 	function new() {}
 
 	public function end(st:Stroker, x:Float, y:Float, lx:Float, ly:Float, rx:Float, ry:Float, dx:Float, dy:Float) {}
@@ -127,6 +153,11 @@ final class ButtCap implements CapStyle {
 
 final class RoundCap implements CapStyle {
 	public static final instance = new RoundCap();
+
+	public var kind(get, never):Int;
+
+	inline function get_kind()
+		return 1;
 
 	function new() {}
 
@@ -142,6 +173,11 @@ final class RoundCap implements CapStyle {
 
 final class SquareCap implements CapStyle {
 	public static final instance = new SquareCap();
+
+	public var kind(get, never):Int;
+
+	inline function get_kind()
+		return 2;
 
 	function new() {}
 
